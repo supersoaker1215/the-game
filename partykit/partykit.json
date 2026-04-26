@@ -1,0 +1,6 @@
+{
+  "$schema": "https://www.partykit.io/schema.json",
+  "name": "card-lane-battle",
+  "main": "server.js",
+  "compatibilityDate": "2024-12-01"
+}

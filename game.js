@@ -1,0 +1,5406 @@
+// ============================================================
+// GAME ENGINE — shared decks, separate piles, detailed log
+// ============================================================
+let nextCardId = 1;
+
+const Game = {
+  LANE_COUNT: 6,
+  BLOCK_MAX: 8,
+  state: null,
+  _dmgEvents: [], // { cardId, amount, type: 'hit'|'heal'|'block'|'evade'|'hpHit', owner }
+  emitDmg(cardId, amount, type, owner, attackerId) { this._dmgEvents.push({ cardId, amount, type, owner, attackerId }); },
+  flushDmg() { const e = this._dmgEvents.splice(0); return e; },
+
+  // Check if any player prompt is pending and defer continuation until resolved
+  hasPendingPrompt() {
+    return !!(
+      this.state.pendingCardChoice ||
+      this.state.pendingLaneChoice ||
+      this.state.pendingBlockTrick ||
+      this.state.pendingKangChoice ||
+      this.state.pendingJumpOffer ||
+      this.state.pendingTimeStoneIntercept ||
+      (this.state.player && this.state.player.stolenByBWL) ||
+      (this.state.ai && this.state.ai.stolenByBWL)
+    );
+  },
+  // Run `fn` now if no prompt is pending, otherwise defer until prompt resolves
+  whenPromptCleared(fn) {
+    if (!this.hasPendingPrompt()) { fn(); return; }
+    this.state._combatContinuation = fn;
+  },
+  // Called by UI when any prompt is resolved — fires stored continuation
+  resumeCombatIfWaiting() {
+    // If the callback chained a new prompt (e.g. Omega Beam target→amount),
+    // keep the continuation parked and let the next resolve fire it.
+    if (this.hasPendingPrompt()) return;
+    const cont = this.state._combatContinuation;
+    if (cont) {
+      delete this.state._combatContinuation;
+      cont();
+    }
+  },
+
+  // ===================== UNDO HISTORY =====================
+  // Snapshots of full game state taken before player actions, ability resolutions,
+  // and combat. Cleared at the start of each new player sub-phase so undo can never
+  // cross a turn boundary. The list lives outside `state` so it isn't itself cloned.
+  history: [],
+  HISTORY_LIMIT: 100,
+
+  // ===================== MULTIPLAYER =====================
+  // mp.role:    'host' | 'guest' | null  — null = single-player vs AI
+  // mp.you:     'player' | 'ai'           — which side this client controls
+  // mp.opp:     'player' | 'ai'           — the OTHER side
+  // The host runs the canonical engine; the guest runs a mirror that
+  // accepts authoritative state pushes. Inputs from EITHER side flow
+  // through Multiplayer.send and are applied on the host, then the
+  // updated state is broadcast back. For LocalTabTransport, the host
+  // also applies its own inputs locally (no round-trip needed).
+  mp: { role: null, you: null, opp: null },
+  isMultiplayer() { return !!(this.mp && this.mp.role); },
+
+  // Called by UI._mpInit() opponentJoined handler. Host kicks off a
+  // standard classic match — the opponent will pick up the state via
+  // the host's first broadcastState call below.
+  startMultiplayerHost() {
+    this.mp = { role: 'host', you: 'player', opp: 'ai' };
+    // Subscribe to inbound action messages from the guest. Idempotent
+    // — only register once even if startMultiplayerHost runs twice.
+    if (!this._mpActionBound && typeof Multiplayer !== 'undefined') {
+      this._mpActionBound = true;
+      Multiplayer.on('action', (msg) => this._mpApplyAction(msg, 'ai'));
+      // Wrap host-side action entry points so every successful local
+      // action (host clicking play/trick/etc.) automatically broadcasts
+      // the new state to the guest. The guest path returns early before
+      // these wrappers do their post-call broadcast (mp guard above).
+      const wrapBroadcast = (name) => {
+        if (typeof this[name] !== 'function') return;
+        const orig = this[name].bind(this);
+        this[name] = (...args) => {
+          const r = orig(...args);
+          if (this.isMultiplayer() && this.mp.role === 'host') this._mpBroadcast();
+          return r;
+        };
+      };
+      wrapBroadcast('playCard');
+      wrapBroadcast('playCardFree');
+      wrapBroadcast('playTrick');
+      wrapBroadcast('endTurn');
+      wrapBroadcast('endPlayerTurn');
+      wrapBroadcast('draftPick');
+      wrapBroadcast('mulligan');
+      wrapBroadcast('startRound');
+      wrapBroadcast('resolveLanes');
+      wrapBroadcast('resumeCombatIfWaiting');
+    }
+    // Both seats are humans now; the existing isHuman flag governs
+    // whether ability prompts raise modals or auto-pick.
+    if (!this.state) this.init();
+    // Run the standard classic-mode startMatch so all the existing
+    // draft / round / combat machinery just works. Both side's
+    // .isHuman gets set true here so prompts fire on the right
+    // client. We intentionally route the opponent's prompts as
+    // local prompts on the host for v1 — the host's UI shows them
+    // and resolves them by sending a promptResolve action; in
+    // practice for LocalTabTransport that's fine because the
+    // opponent IS the host's other tab. PartyKit phase will move
+    // prompt routing to the actual seat owner.
+    this.startMatch({ players: '1v1', deck: 'classic' });
+    if (this.state.player) this.state.player.isHuman = true;
+    if (this.state.ai)     this.state.ai.isHuman = true;
+    this._mpBroadcast();
+  },
+
+  // Apply an action message arriving from the wire. `actor` is the
+  // owner side ('player' or 'ai') the action originated from — for
+  // host receiving guest msgs, actor is always 'ai' (the guest sits
+  // on the AI seat in v1). Looks up the card/trick by id, then routes
+  // through the same engine entry points that the local UI uses.
+  // Errors are caught and logged so a malformed message doesn't kill
+  // the host's session.
+  _mpApplyAction(msg, actor) {
+    if (!msg || !this.isMultiplayer() || this.mp.role !== 'host') return;
+    try {
+      const findCardById = (id) => {
+        const p = this.state[actor];
+        if (p) {
+          const inHand = (p.hand || []).find(c => c.id === id);
+          if (inHand) return inHand;
+        }
+        return null;
+      };
+      const findTrickById = (id) => {
+        const p = this.state[actor];
+        if (p) return (p.trickHand || []).find(t => t.id === id);
+        return null;
+      };
+      switch (msg.t) {
+        case 'playCard': {
+          const card = findCardById(msg.cardId);
+          if (card) this.playCard(actor, card, msg.lane);
+          break;
+        }
+        case 'playCardFree': {
+          const card = findCardById(msg.cardId);
+          if (card) this.playCardFree(actor, card, msg.lane);
+          break;
+        }
+        case 'playTrick': {
+          const trick = findTrickById(msg.trickId);
+          if (trick && this.playTrick) this.playTrick(actor, trick);
+          break;
+        }
+        case 'doneTurn': {
+          // The guest hit "End Turn" / "Done"; advance the engine.
+          if (this.endTurn) this.endTurn(actor);
+          else if (this.endPlayerTurn && actor === 'player') this.endPlayerTurn();
+          break;
+        }
+        case 'draftPick': {
+          if (this.draftPick) this.draftPick(msg.index, actor);
+          break;
+        }
+        case 'mulligan': {
+          if (this.mulligan) this.mulligan(actor);
+          break;
+        }
+        case 'forfeit': {
+          // Treat as instant loss for the actor.
+          if (this.state[actor]) this.state[actor].health = 0;
+          this.state.gameOver = true;
+          this.state.winner = (actor === 'player') ? 'ai' : 'player';
+          break;
+        }
+        // promptResolve handled by individual prompts; not implemented in v1.
+      }
+    } catch (e) {
+      console.error('mp apply action failed', msg, e);
+    }
+    // Push the new state to the guest unconditionally — even if the
+    // action was a no-op, the guest expects an ack to know its
+    // attempt landed.
+    this._mpBroadcast();
+    if (typeof UI !== 'undefined' && UI.render) UI.render();
+  },
+
+  // Called by the joining client when the host pushes a state. The
+  // incoming state has already been rehydrated (function refs reattached)
+  // by Multiplayer._rehydrateState — we just swap it in and re-render.
+  // The guest doesn't run any engine logic; its job is to display.
+  //
+  // Seat-flip: from the host's perspective, host=player and guest=ai.
+  // For UI sanity (guest expects their own hand at the BOTTOM of the
+  // screen, opponent's hand at the top — same as single-player), we
+  // mirror the state on receive so guest's local view labels them as
+  // 'player' and the host as 'ai'. Lane indices stay identical (lanes
+  // are shared between both perspectives), only the per-lane player/ai
+  // sub-pointers and per-card .owner fields flip.
+  acceptMultiplayerState(state) {
+    if (!this.mp.role) {
+      // First state we receive lands us as guest. Locally we pretend
+      // to be 'player' so the existing UI's seat assumptions all work.
+      this.mp = { role: 'guest', you: 'player', opp: 'ai' };
+    }
+    if (this.mp.role === 'guest') state = this._mpFlipPerspective(state);
+    this.state = state;
+  },
+
+  _mpFlipPerspective(state) {
+    if (!state) return state;
+    // Top-level player/ai swap.
+    const tmp = state.player; state.player = state.ai; state.ai = tmp;
+    // Per-lane player/ai swap.
+    for (let i = 0; i < (state.lanes || []).length; i++) {
+      const lane = state.lanes[i]; if (!lane) continue;
+      const t = lane.player; lane.player = lane.ai; lane.ai = t;
+    }
+    // Flip card .owner fields so any code that reads card.owner (e.g.
+    // ability targeting) still works on the guest's local view.
+    const flip = (c) => {
+      if (!c) return;
+      if (c.owner === 'player') c.owner = 'ai';
+      else if (c.owner === 'ai') c.owner = 'player';
+    };
+    for (let i = 0; i < (state.lanes || []).length; i++) {
+      flip(state.lanes[i].player); flip(state.lanes[i].ai);
+    }
+    ['player', 'ai'].forEach(side => {
+      const p = state[side]; if (!p) return;
+      (p.hand || []).forEach(flip);
+      (p.deadPile || []).forEach(flip);
+      (p.drawPile || []).forEach(flip);
+      (p.discardPile || []).forEach(flip);
+    });
+    (state.drawPile || []).forEach(flip);
+    // Top-level turn/winner labels follow the swap.
+    if (state.currentTurn === 'player') state.currentTurn = 'ai';
+    else if (state.currentTurn === 'ai') state.currentTurn = 'player';
+    if (state.winner === 'player') state.winner = 'ai';
+    else if (state.winner === 'ai') state.winner = 'player';
+    return state;
+  },
+
+  // Helper for the host to push state to the guest. Wraps the
+  // serialize step (drop functions, convert object refs to ids) and
+  // delegates to whichever transport is active. Called whenever the
+  // host applies an action — keeps the guest in sync with no extra
+  // bookkeeping at call sites.
+  _mpBroadcast() {
+    if (!this.isMultiplayer() || this.mp.role !== 'host') return;
+    if (typeof Multiplayer === 'undefined') return;
+    const t = Multiplayer._transport;
+    if (!t || typeof t.broadcastState !== 'function') return;
+    const clone = Multiplayer.serializeState(this.state);
+    try { t.broadcastState(clone); } catch (e) { console.error('mp broadcast error', e); }
+  },
+
+  init() {
+    // Initial boot — show the main menu. Actual match setup (buildDecks,
+    // draft) runs in startMatch() after the user picks a mode from the
+    // PLAY sub-screen. Headless sim harnesses call startMatch('classic')
+    // directly without going through the UI, so init() doesn't build
+    // decks here.
+    nextCardId = 1;
+    this.state = {
+      phase: 'main-menu',
+      // mode: { players: '1v1'|'2v2', deck: 'classic'|'deckbuilder' }
+      // Stays null until the user picks one; the sim sets it to classic.
+      mode: null,
+      round: 0,
+      draft: null, // populated in startMatch
+      oddPlayer: Math.random() < 0.5 ? 'player' : 'ai',
+      firstPlayer: null,
+      activePlayer: null,
+      // SHARED draw piles (Classic). Deckbuilder mode will additionally
+      // populate per-player piles in phase 2.
+      drawPile: [],
+      trickDrawPile: [],
+      voidPile: [],       // devoured cards — cannot be recovered
+      player: Object.assign(this.makePlayer(), { isHuman: true }),
+      ai: Object.assign(this.makePlayer(), { isHuman: false }),
+      lanes: Array.from({ length: 6 }, () => ({ player: null, ai: null, destroyed: false, destroyedTurns: 0, protected: null, trap: null })),
+      selectedCard: null, selectedTrick: null,
+      log: [], gameOver: false, winner: null,
+      _stats: {
+        player: { blockTriggers: 0, peakRoundDamage: 0, cardsKilled: 0, energySpent: 0 },
+        ai:     { blockTriggers: 0, peakRoundDamage: 0, cardsKilled: 0, energySpent: 0 },
+      }
+    };
+    UI.render();
+  },
+
+  // Entry point for "Deckbuilder" from the mode picker — opens the
+  // deck-builder screen so the user can build / pick a deck before the
+  // match starts. The sim never goes through this path (it jumps straight
+  // to startMatch with the default starter deck).
+  enterDeckBuilder(seed) {
+    this.state.phase = 'deckbuilder-build';
+    this.state.mode = { players: '1v1', deck: 'deckbuilder' };
+    // In-progress deck the UI mutates as the user adds / removes cards.
+    // Starts empty unless a seed { cards, tricks, presetName? } is passed
+    // in (used by My Decks → Edit to preload a saved deck).
+    this.state.deckbuilder = seed
+      ? { cards: (seed.cards || []).slice(), tricks: (seed.tricks || []).slice(), presetName: seed.presetName || null }
+      : { cards: [], tricks: [], presetName: null };
+    // Restore last-used filter state (section / cost / search query)
+    // from localStorage so the deckbuilder reopens to where the user
+    // left off, not to a generic "Cards · All" default. Pure UX
+    // refinement; no game-state impact.
+    if (typeof UI !== 'undefined' && UI._persistGet) {
+      const savedFilter = UI._persistGet('deckbuilder', null);
+      if (savedFilter && typeof savedFilter === 'object') {
+        UI._dbFilter = Object.assign(
+          { section: 'cards', cost: 'all', query: '', sort: 'cost' },
+          savedFilter
+        );
+      }
+    }
+    UI.render();
+  },
+
+  // ---- Main-menu navigation (phase 4a) ----
+  // Light helpers that just flip phase + clear transient state, so the
+  // render router can route to the right overlay. Everything else
+  // (styling, content) lives in UI.render* methods.
+  goToMainMenu() {
+    this.state.phase = 'main-menu';
+    this.state.mode = null;
+    this.state.deckbuilder = null;
+    UI.render();
+  },
+  goToModeSelect() {
+    this.state.phase = 'mode-select';
+    UI.render();
+  },
+  goToMyDecks() {
+    this.state.phase = 'my-decks';
+    UI.render();
+  },
+  goToStats() {
+    this.state.phase = 'stats';
+    UI.render();
+  },
+
+  // ---- Stats telemetry (phase 4c, v2) ----
+  // Writes per-card stats for the just-finished game to localStorage.
+  // Guards: skipped in the headless sim (no localStorage) and skipped if
+  // the user opted out in Settings. Draws are skipped — they don't tell
+  // us anything about card balance.
+  //
+  // v2 adds:
+  //  • gamesInDeck (unique, vs `drafts` which counts copies)
+  //  • contributionSum/N (per-game share of side impact; cost-agnostic)
+  //  • weighted-impact components (hp, card, absorbed, energy, advantage)
+  //  • action counters (kills/freezes/stuns/fears/mc/draws)
+  finalizeStats() {
+    if (typeof localStorage === 'undefined') return;
+    if (typeof UI === 'undefined' || !UI._statsGet) return;
+    if (UI.settings && UI.settings.trackStats === false) return;
+    const s = this.state;
+    const winner = s.winner;
+    if (!winner) return;
+
+    const store = UI._statsGet();
+    store.__meta.gamesPlayed = (store.__meta.gamesPlayed || 0) + 1;
+    store.__meta.lastPlayed = Date.now();
+    // Running total of rounds across all tracked games — divided by
+    // gamesPlayed at render time to show the average game length next to
+    // the total-games counter in the Stats header.
+    store.__meta.totalRounds = (store.__meta.totalRounds || 0) + (s.round || 0);
+
+    // Weighted impact v7 — sabermetrics refactor. Two key shifts:
+    //   1. Face damage and board damage have DIFFERENT weights since
+    //      face damage wins the game directly (lane-based PvZ Heroes-
+    //      style — winning the hero is everything).
+    //   2. Healing uses a leverage-multiplied stat (statsHealLeveraged)
+    //      computed at heal time based on the healer's HP%, so clutch
+    //      heals score higher than "topping off" heals.
+    //   3. Kill value is now just kill TEMPO (sum of victim baseCost) —
+    //      damage that did the killing already counts in face/board
+    //      damage; double-counting was inflating destroy effects.
+    //   4. damageDenied = absorbed (existing freeze phantom-swing
+    //      attribution + armor/evade/invincible attributions are all
+    //      already credited to statsDamageAbsorbed; just re-weighted).
+    //   5. Card draw rolls into advantage but with a runtime-computed
+    //      avgCardImpact multiplier (per-game) so deck synergy matters.
+    // Must stay in sync with UI._IMPACT_WEIGHTS and SimStats `W`.
+    const WEIGHTS = {
+      faceDamage:   1.2,   // statsHealthbarDamage — wins the game
+      boardDamage:  0.6,   // statsEnemyDamage — useful but not lethal by itself
+      energy:       2.0,   // 1 energy ≈ 2 damage downstream + compounds
+      discount:     1.5,   // future energy with slight conditionality discount
+      damageDenied: 0.9,   // statsDamageAbsorbed (armor/evade/invincible/freeze phantom)
+      debuff:       0.7,   // ATK/HP stripped from enemies
+      heal:         1.0,   // statsHealLeveraged is already leverage-multiplied
+      killTempo:    1.0    // baseCost of cards destroyed (no damage double-count)
+    };
+    // Compute avgCardImpact PER GAME so card-draw value scales with the
+    // current deck's actual quality. Run a first pass collecting raw
+    // impact (without the cardAdvantage component to avoid recursion),
+    // average across real-card instances, then use that as the per-card-
+    // drawn multiplier.
+    const baseImpact = (c) =>
+      WEIGHTS.faceDamage   * (c.statsHealthbarDamage || 0) +
+      WEIGHTS.boardDamage  * (c.statsEnemyDamage     || 0) +
+      WEIGHTS.energy       * (c.statsEnergyGenerated || 0) +
+      WEIGHTS.discount     * (c.statsDiscountValue   || 0) +
+      WEIGHTS.damageDenied * (c.statsDamageAbsorbed  || 0) +
+      WEIGHTS.debuff       * (c.statsDebuffValue     || 0) +
+      WEIGHTS.heal         * (c.statsHealLeveraged   || 0) +
+      WEIGHTS.killTempo    * (c.statsKillTempo       || c.statsKillValue || 0);
+    const weighted = (c) => {
+      const draws = c.statsCardAdvantage || 0;
+      // Card draws weighted by per-game avgCardImpact × 0.85 ("in hand"
+      // discount — drawn ≠ played). avgCardImpact is set during the
+      // sweep below; before that, use the boardDamage fallback so the
+      // first pass produces sensible numbers.
+      const drawValue = draws * (this._avgCardImpact || 5) * 0.85;
+      return baseImpact(c) + drawValue;
+    };
+
+    // Per-side MVP + side-total weighted impact (for contribution share).
+    // Skip TOKEN instances — names not in CARD_DEFS (Undead Warrior,
+    // Doombot, Ant, Null, Parademon, Loki Clone, Creature of the Deep,
+    // etc.). Their stats are already credited up-chain via _creditChain
+    // and counting the tokens themselves would double-attribute damage
+    // AND pollute the stats table with rows for undraftable cards.
+    // Real-card instances that arrived via tricks (Bat Signal pulling
+    // Ant-Man, Super Soldier Serum transforming into Thanos) DO count —
+    // the trick brought a real card to the board and its performance
+    // is what we want to measure.
+    const validCardNames = new Set((typeof CARD_DEFS !== 'undefined' ? CARD_DEFS : []).map(d => d.name));
+    const isRealCard = (c) => c && validCardNames.has(c.name);
+    const sides = ['player', 'ai'];
+    const perSideInstances = {};
+    const perSideMvp = {};        // Aaron Judge — highest raw impact
+    const perSideMvpPlus = {};    // Mike Trout — highest MVP+ rate stat
+    const perSideTotal = {};
+    // First pass: collect all real-card instances + their BASE impact
+    // (excluding card-advantage which uses avgCardImpact below).
+    const allInstances = [];
+    sides.forEach(side => {
+      const boardDead = this.getAllCardsOf(side).concat(s[side].deadPile || []);
+      const discardLive = (s[side].discardPile || []).map(c => c._sourceInstance || c);
+      const rawInstances = boardDead.concat(discardLive);
+      const instances = rawInstances.filter(isRealCard);
+      perSideInstances[side] = instances;
+      allInstances.push(...instances);
+    });
+    // Compute per-game avgCardImpact = mean base-impact across all real
+    // cards. Used to weight `cardAdvantage` (cards drawn) so decks with
+    // strong synergy reward draw effects more. Falls back to 5 when
+    // there are no instances yet (shouldn't happen post-game).
+    const baseImpactSum = allInstances.reduce((sum, c) => sum + baseImpact(c), 0);
+    this._avgCardImpact = allInstances.length > 0
+      ? Math.max(2, baseImpactSum / allInstances.length)
+      : 5;
+    // Second pass: full weighted score (now with card-draw bonus) +
+    // pick BOTH MVPs per side (raw Impact + MVP+ rate).
+    sides.forEach(side => {
+      let topImpact = null, topImpactScore = -1;
+      let topPlus = null, topPlusScore = -1;
+      let total = 0;
+      perSideInstances[side].forEach(c => {
+        const w = weighted(c);
+        total += w;
+        if (w > topImpactScore) { topImpactScore = w; topImpact = c; }
+        // MVP+ = (impact / baseCost). Skip 0-cost cards (free reactions
+        // like Time Stone) — dividing by 0 would post Infinity. Cards
+        // with cost ≥ 1 only.
+        const cost = c.baseCost || c.cost || 0;
+        if (cost >= 1) {
+          const rate = w / cost;
+          if (rate > topPlusScore) { topPlusScore = rate; topPlus = c; }
+        }
+      });
+      perSideMvp[side] = topImpact;
+      perSideMvpPlus[side] = topPlus;
+      perSideTotal[side] = total;
+    });
+    // League-average impact-per-cost — used to normalize MVP+ to a
+    // 100-baseline scale ("100 = average, 200 = bomb"). Computed across
+    // the current game's real-card instances rather than baked-in so
+    // the rating self-calibrates per match. Once the stats dashboard
+    // has historical data, swap this for a localStorage average.
+    let leagueRates = [];
+    allInstances.forEach(c => {
+      const cost = c.baseCost || c.cost || 0;
+      if (cost >= 1) leagueRates.push(weighted(c) / cost);
+    });
+    const leagueAvgImpactPerCost = leagueRates.length > 0
+      ? Math.max(0.5, leagueRates.reduce((a, b) => a + b, 0) / leagueRates.length)
+      : 5;
+    // Stash on state so UI / dashboard can read it for display.
+    s._mvpPlusBaseline = leagueAvgImpactPerCost;
+    s._mvpDual = {
+      player: perSideMvp.player ? {
+        impactCard: perSideMvp.player.name,
+        impactScore: weighted(perSideMvp.player),
+        mvpPlusCard: perSideMvpPlus.player ? perSideMvpPlus.player.name : null,
+        mvpPlus: perSideMvpPlus.player
+          ? Math.round((weighted(perSideMvpPlus.player) / (perSideMvpPlus.player.baseCost || perSideMvpPlus.player.cost || 1)) / leagueAvgImpactPerCost * 100)
+          : null
+      } : null,
+      ai: perSideMvp.ai ? {
+        impactCard: perSideMvp.ai.name,
+        impactScore: weighted(perSideMvp.ai),
+        mvpPlusCard: perSideMvpPlus.ai ? perSideMvpPlus.ai.name : null,
+        mvpPlus: perSideMvpPlus.ai
+          ? Math.round((weighted(perSideMvpPlus.ai) / (perSideMvpPlus.ai.baseCost || perSideMvpPlus.ai.cost || 1)) / leagueAvgImpactPerCost * 100)
+          : null
+      } : null
+    };
+
+    // Decks per side — for `drafts` (by-copy) + `gamesInDeck` (unique).
+    const startersFallback = (typeof STARTER_DECKS !== 'undefined') ? STARTER_DECKS.balanced : { cards: [], tricks: [] };
+    const isDb = s.mode && s.mode.deck === 'deckbuilder';
+    const sideDeck = {
+      player: isDb
+        ? (s.mode.customDeck ? s.mode.customDeck.cards : startersFallback.cards)
+        : (s.draft ? s.draft.playerDrafted.map(d => d.name) : []),
+      ai: isDb
+        ? startersFallback.cards
+        : (s.draft ? s.draft.aiDrafted.map(d => d.name) : [])
+    };
+    const sideTrickDeck = {
+      player: isDb
+        ? (s.mode.customDeck ? s.mode.customDeck.tricks : startersFallback.tricks)
+        : (s.draft ? s.draft.playerTrickDrafted.map(d => d.name) : []),
+      ai: isDb
+        ? startersFallback.tricks
+        : (s.draft ? s.draft.aiTrickDrafted.map(d => d.name) : [])
+    };
+
+    // Lazy record initializers — every new field defaults to 0 so the
+    // dashboard can always read it unconditionally.
+    const bumpCard = (name, key, amt) => {
+      const rec = store.cards[name] || (store.cards[name] = {
+        drafts: 0, draftsInWin: 0, gamesInDeck: 0, gamesInDeckInWin: 0,
+        gamesPlayed: 0,
+        plays: 0, deaths: 0,
+        hpDamage: 0, cardDamage: 0, absorbed: 0, energyGen: 0, cardAdvantage: 0,
+        healing: 0, discount: 0, debuff: 0,
+        // v7 sabermetrics fields — leveraged heal + tempo-based kill
+        // value. Old `healing` and `killValue` retained for back-compat
+        // with persisted dashboards; new entries get both.
+        healLeveraged: 0, killTempo: 0, killValue: 0,
+        // Damage-denied breakdown — five discrete prevention types
+        // that sum to `absorbed`. Lets the dashboard render per-type
+        // stat rows so the player can see what kind of defense each
+        // card actually provided.
+        absorbArmor: 0, absorbInvincible: 0, absorbEvade: 0,
+        absorbRedirect: 0, absorbLockdown: 0, absorbShield: 0,
+        mvp: 0, mvpPlus: 0, mvpPlusBest: 0,
+        contributionSum: 0, contributionN: 0,
+        kills: 0, freezesApplied: 0, stunsApplied: 0, fearsApplied: 0, mcApplied: 0
+      });
+      rec[key] = (rec[key] || 0) + (amt || 0);
+    };
+    const bumpTrick = (name, key, amt) => {
+      const rec = store.tricks[name] || (store.tricks[name] = { drafts: 0, draftsInWin: 0, casts: 0 });
+      rec[key] = (rec[key] || 0) + (amt || 0);
+    };
+
+    // gamesPlayed dedupes across sides within a single game — bumped once
+    // per unique card NAME regardless of how many instances hit the board.
+    const appearedThisGame = {};
+    sides.forEach(side => {
+      const won = winner === side;
+      const total = perSideTotal[side] || 0;
+      // Drafts — every copy of every card in the deck list.
+      const unique = new Set();
+      (sideDeck[side] || []).forEach(name => {
+        bumpCard(name, 'drafts', 1);
+        if (won) bumpCard(name, 'draftsInWin', 1);
+        unique.add(name);
+      });
+      // gamesInDeck — once per unique name, regardless of copy count.
+      unique.forEach(name => {
+        bumpCard(name, 'gamesInDeck', 1);
+        if (won) bumpCard(name, 'gamesInDeckInWin', 1);
+      });
+      (sideTrickDeck[side] || []).forEach(name => {
+        bumpTrick(name, 'drafts', 1);
+        if (won) bumpTrick(name, 'draftsInWin', 1);
+      });
+      perSideInstances[side].forEach(c => {
+        bumpCard(c.name, 'plays', 1);
+        if (c.currentHealth <= 0 || c._deathHandled) bumpCard(c.name, 'deaths', 1);
+        bumpCard(c.name, 'hpDamage',       c.statsHealthbarDamage || 0);
+        bumpCard(c.name, 'cardDamage',     c.statsEnemyDamage     || 0);
+        bumpCard(c.name, 'absorbed',       c.statsDamageAbsorbed  || 0);
+        bumpCard(c.name, 'energyGen',      c.statsEnergyGenerated || 0);
+        bumpCard(c.name, 'cardAdvantage',  c.statsCardAdvantage   || 0);
+        // v3 captures
+        bumpCard(c.name, 'healing',        c.statsHealingDone     || 0);
+        bumpCard(c.name, 'discount',       c.statsDiscountValue   || 0);
+        bumpCard(c.name, 'debuff',         c.statsDebuffValue     || 0);
+        // v7 sabermetrics — leveraged heal + tempo-based kill
+        bumpCard(c.name, 'healLeveraged',  c.statsHealLeveraged   || 0);
+        bumpCard(c.name, 'killTempo',      c.statsKillTempo       || c.statsKillValue || 0);
+        bumpCard(c.name, 'killValue',      c.statsKillValue       || 0);
+        // Damage-denied breakdown — sum of these 6 = `absorbed`.
+        bumpCard(c.name, 'absorbArmor',      c.statsAbsorbArmor      || 0);
+        bumpCard(c.name, 'absorbInvincible', c.statsAbsorbInvincible || 0);
+        bumpCard(c.name, 'absorbEvade',      c.statsAbsorbEvade      || 0);
+        bumpCard(c.name, 'absorbRedirect',   c.statsAbsorbRedirect   || 0);
+        bumpCard(c.name, 'absorbLockdown',   c.statsAbsorbLockdown   || 0);
+        bumpCard(c.name, 'absorbShield',     c.statsAbsorbShield     || 0);
+        bumpCard(c.name, 'kills',          c.statsKills           || 0);
+        bumpCard(c.name, 'freezesApplied', c.statsFreezesApplied  || 0);
+        bumpCard(c.name, 'stunsApplied',   c.statsStunsApplied    || 0);
+        bumpCard(c.name, 'fearsApplied',   c.statsFearsApplied    || 0);
+        bumpCard(c.name, 'mcApplied',      c.statsMcApplied       || 0);
+        if (total > 0) {
+          const share = weighted(c) / total;
+          bumpCard(c.name, 'contributionSum', share);
+          bumpCard(c.name, 'contributionN', 1);
+        }
+        // gamesPlayed: once per name per game, dedupes across sides.
+        if (!appearedThisGame[c.name]) {
+          appearedThisGame[c.name] = true;
+          bumpCard(c.name, 'gamesPlayed', 1);
+        }
+      });
+      // Trick casts — from playedTrickPile.
+      (s[side].playedTrickPile || []).forEach(t => bumpTrick(t.name, 'casts', 1));
+      // MVP — winning side's top-weighted-impact card gets credit.
+      if (won && perSideMvp[side]) bumpCard(perSideMvp[side].name, 'mvp', 1);
+    });
+
+    UI._statsSet(store);
+  },
+
+  // Start a match after the user picks a mode. Accepts either a mode string
+  // ('classic' — backwards-compat shortcut the sim uses) or a full
+  // { players, deck, customDeck? } object. Populates the draft state and
+  // kicks off the normal draft → play → combat cycle.
+  //
+  // `customDeck` { cards: [name,...], tricks: [name,...] } lets the
+  // deck-builder UI feed the player's finished deck in — buildDecks
+  // picks it up when present and falls back to STARTER_DECKS.balanced
+  // (for AI and for the sim) otherwise.
+  startMatch(mode) {
+    if (typeof mode === 'string') mode = { players: '1v1', deck: mode };
+    if (!mode) mode = { players: '1v1', deck: 'classic' };
+    this.state.mode = mode;
+    // Two flavors of deckbuilder mode:
+    //   • mode.withDraft === true  → run the full draft phase, but draw
+    //     from the player's customDeck instead of the global pool.
+    //     Used by My Decks "Play" so saved decks still go through
+    //     the draft experience. User spec: "for my decks can you
+    //     still incorporate the whole draft phase".
+    //   • default (no withDraft)   → skip draft, deal directly from
+    //     the saved deck (legacy deckbuilder flow / sim).
+    if (mode.deck === 'deckbuilder' && !mode.withDraft) {
+      this.state.phase = 'deckbuilder-start';
+      this.state.draft = null;
+      this.buildDecks();
+      this.dealDeckbuilderOpeningHands();
+      this.log('[DECKBUILDER] Decks shuffled — starting hands dealt.');
+      this.startRound();
+      UI.render();
+      return;
+    }
+    // Classic AND deckbuilder-with-draft path. buildDecks already
+    // branches on mode.deck, so per-player piles are wired up for
+    // the deckbuilder variant; presentDraftChoices reads from
+    // getDrawPile('player') which returns the right pile in each
+    // mode. The draft UX is identical from here.
+    this.state.phase = 'draft-cards';
+    this.state.draft = {
+      round: 1, phase: 'cards',
+      playerChoices: [], aiChoices: [],
+      playerDrafted: [], aiDrafted: [],
+      playerTrickDrafted: [], aiTrickDrafted: [],
+      cardHolding: [], trickHolding: [],
+      // One mulligan per draft phase — resets when tricks phase starts.
+      mulliganUsed: false
+    };
+    this.buildDecks();
+    if (mode.deck === 'deckbuilder' && mode.withDraft) {
+      this.log('[MY DECKS] Drafting from your saved deck — same draft flow as Classic.');
+    }
+    this.presentDraftChoices();
+    UI.render();
+  },
+
+  makePlayer() {
+    return {
+      // isHuman — controls whether ability prompts ("pick an ally to buff",
+      // "choose a lane to move to") raise a modal or auto-pick via AI logic.
+      // Single-player: player=true, ai=false (default, set by init()).
+      // Multiplayer: both true (both seats are humans, both get prompts).
+      // Sim/headless: both false (shim overrides to force AI-branch in all
+      // abilities, which gives symmetric behavior for balance measurement).
+      isHuman: false,
+      health: 30, maxHealth: 30, currency: 0,
+      hand: [], trickHand: [],
+      deadPile: [],       // cards that died on board
+      discardPile: [],    // cards discarded from hand
+      playedTrickPile: [], // tricks that were played
+      blockMeter: 0, discount: 0, nextDrawDiscount: 0,
+      nextTurnCurrency: 0, maxHandSize: 7, maxTrickHandSize: 3,
+      nextCardStolen: false, stolenByBWL: null, bwlInterceptUsed: false,
+      drStrangeReorder: false, faceDownAvailable: false,
+      // Per-player piles — used only in Deckbuilder mode. In Classic these
+      // stay empty; the shared state.drawPile / state.trickDrawPile are
+      // used instead via the same getDrawPile/getTrickPile helpers.
+      drawPile: [],
+      trickDrawPile: []
+    };
+  },
+
+  // Pile accessors — branch on mode so every call site can stay
+  // owner-agnostic. Classic returns the shared state.drawPile /
+  // state.trickDrawPile; Deckbuilder returns the per-player pile. Call
+  // sites mutate the returned array directly (push/pop/splice/shuffle);
+  // because it's a live reference, the mutations persist correctly.
+  getDrawPile(owner) {
+    if (this.state.mode && this.state.mode.deck === 'deckbuilder') {
+      return this.state[owner].drawPile;
+    }
+    return this.state.drawPile;
+  },
+  getTrickPile(owner) {
+    if (this.state.mode && this.state.mode.deck === 'deckbuilder') {
+      return this.state[owner].trickDrawPile;
+    }
+    return this.state.trickDrawPile;
+  },
+
+  buildDecks() {
+    if (this.state.mode && this.state.mode.deck === 'deckbuilder') {
+      // Per-player Deckbuilder piles. Player's deck is mode.customDeck if
+      // the UI supplied one; otherwise both sides fall back to the default
+      // starter. Every instance is a fresh shallow copy so card mutations
+      // don't leak across matches.
+      const defaultStarter = (typeof STARTER_DECKS !== 'undefined')
+        ? STARTER_DECKS.balanced
+        : { cards: CARD_DEFS.slice(0, 30).map(d => d.name),
+            tricks: TRICK_DEFS.slice(0, 8).map(t => t.name) };
+      const playerDeck = (this.state.mode.customDeck) ? this.state.mode.customDeck : defaultStarter;
+      // AI deck selection — NEVER mirror the player. Pick a random
+      // STARTER_DECKS archetype that differs from the player's. If the
+      // player is using a custom deck (not one of the starters), pick
+      // any starter. User spec: "in deck building instead of having a
+      // mirror match have the AI have a different deck than mine".
+      let aiDeck;
+      let aiDeckKey = null;  // captured for match-history archetype tracking
+      if (typeof STARTER_DECKS !== 'undefined') {
+        const keys = Object.keys(STARTER_DECKS);
+        // Figure out whether playerDeck matches one of the starters by
+        // comparing card lists. Name match would be cleaner but custom
+        // decks may carry a player-authored name.
+        const normalize = (list) => (list || []).slice().sort().join('|');
+        const pFingerprint = normalize(playerDeck.cards);
+        const nonMirrorKeys = keys.filter(k => normalize(STARTER_DECKS[k].cards) !== pFingerprint);
+        const poolKeys = nonMirrorKeys.length > 0 ? nonMirrorKeys : keys;
+        const pickKey = poolKeys[Math.floor(Math.random() * poolKeys.length)];
+        aiDeck = STARTER_DECKS[pickKey];
+        aiDeckKey = pickKey;
+        this.log(`[AI DECK] Opponent drew "${aiDeck.name || pickKey}" — prepare to counter.`);
+      } else {
+        aiDeck = defaultStarter;
+      }
+      // Stash the archetype on state so match-history can record it
+      // when the game ends. Key (e.g. 'aggro') = stable internal id;
+      // name (e.g. 'Aggro Rush') = human-readable label.
+      this.state.aiArchetype = aiDeckKey || (aiDeck && aiDeck.name) || null;
+      this.state.aiArchetypeName = (aiDeck && aiDeck.name) || aiDeckKey || 'Unknown';
+      const expand = (names, pool) => this.shuffle(
+        names.map(name => {
+          const def = pool.find(d => d.name === name);
+          return def ? { ...def } : null;
+        }).filter(Boolean)
+      );
+      this.state.player.drawPile       = expand(playerDeck.cards,  CARD_DEFS);
+      this.state.ai.drawPile           = expand(aiDeck.cards,      CARD_DEFS);
+      this.state.player.trickDrawPile  = expand(playerDeck.tricks, TRICK_DEFS);
+      this.state.ai.trickDrawPile      = expand(aiDeck.tricks,     TRICK_DEFS);
+      // Leave shared piles empty so any missed retrofit reads an empty
+      // array instead of a stale shared copy.
+      this.state.drawPile = [];
+      this.state.trickDrawPile = [];
+      // Summon deck is shared across both modes — pulls from full
+      // CARD_DEFS regardless of either player's drafted deck so summons
+      // remain a 1/95 lottery rather than a 1/30 trivial pull.
+      this._initSummonDeck();
+      return;
+    }
+    // Classic — single shared card draw pile — one copy of every card definition (95 total)
+    const deck = CARD_DEFS.map(d => ({ ...d }));
+    this.state.drawPile = this.shuffle(deck);
+
+    // Single shared trick draw pile — one copy of every trick (27 total)
+    const td = TRICK_DEFS.map(d => ({ ...d }));
+    this.state.trickDrawPile = this.shuffle(td);
+
+    // SUMMON DECK — independent reference pool used by every summon-from-
+    // deck effect (Mother Box, Bat Signal, Knull, Gorr, Super Soldier
+    // Serum). User spec: "the summon deck is an exact copy of the 95
+    // card deck where now you can technically have duplicates of the
+    // same card. If you summon Ant-Man from Mother Box you could still
+    // have Ant-Man in hand." Decoupling summon-source from each
+    // player's drawPile means:
+    //   • Boss cards (Batman, Darkseid) get rarer (1/95 instead of 1/30).
+    //   • Knull/Gorr can pull high-cost cards but the odds are diluted
+    //     across the full 95.
+    //   • Cards in your hand or on the board don't disappear from the
+    //     summon pool, so summoned duplicates are now legal.
+    this._initSummonDeck();
+  },
+
+  // Build a fresh summon deck from CARD_DEFS. Called from buildDecks
+  // and from drawFromSummonDeck() when the pool runs low. Each entry
+  // is a shallow copy so callers that mutate the picked def don't
+  // corrupt the shared CARD_DEFS table.
+  _initSummonDeck() {
+    if (typeof CARD_DEFS === 'undefined') {
+      this.state.summonDeck = [];
+      return;
+    }
+    const summonDeck = CARD_DEFS
+      .filter(d => !d.isDiscardEffect) // discard-effect cards are 0/0 — never sensible to summon
+      .map(d => ({ ...d }));
+    this.state.summonDeck = this.shuffle(summonDeck);
+  },
+
+  // Pull a single random card matching the predicate from the summon
+  // deck. The deck is a CONSTANT-SIZE 90-card pool — pulled cards are
+  // NOT removed, so every summon has an equal chance of returning any
+  // given card on every call. User spec: "When that card gets summoned,
+  // it gets reintroduced into the summon pile. So there's always an
+  // equal chance to pull each card." (Same model as PvZ Heroes summon
+  // pools.)
+  //
+  // Returns a SHALLOW COPY of the picked def so the caller can mutate
+  // it (e.g. assign owner, attach to lane) without corrupting the
+  // shared pool. Returns null if the predicate matches nothing.
+  drawFromSummonDeck(predicate) {
+    if (!this.state.summonDeck || !this.state.summonDeck.length) {
+      this._initSummonDeck();
+    }
+    const pool = this.state.summonDeck.filter(predicate);
+    if (!pool.length) return null;
+    const pick = pool[Math.floor(Math.random() * pool.length)];
+    // Spread into a fresh object so subsequent calls that mutate the
+    // result (summonCard adds owner/id/etc.) don't bleed into the
+    // shared deck entry.
+    return { ...pick };
+  },
+
+  // Deckbuilder has no draft — we hand-deal the opening 5 cards + 2 tricks
+  // directly from each player's own deck so the match starts in the same
+  // shape Classic does right after the draft (5/2 in hand, round 1 begins).
+  dealDeckbuilderOpeningHands() {
+    ['player', 'ai'].forEach(owner => {
+      const p = this.state[owner];
+      const cardPile = p.drawPile;
+      const trickPile = p.trickDrawPile;
+      const openingCards = 5, openingTricks = 2;
+      for (let i = 0; i < openingCards && cardPile.length; i++) {
+        const def = cardPile.pop();
+        p.hand.push(this.createCardInstance(def, owner));
+      }
+      for (let i = 0; i < openingTricks && trickPile.length; i++) {
+        const def = trickPile.pop();
+        p.trickHand.push({ ...def, id: nextCardId++ });
+      }
+    });
+  },
+
+  shuffle(a) {
+    for (let i = a.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [a[i], a[j]] = [a[j], a[i]];
+    }
+    return a;
+  },
+
+  // ===================== DRAFT =====================
+
+  presentDraftChoices() {
+    const d = this.state.draft;
+    // Draft only runs in Classic — the helper falls back to the shared
+    // pile here because Deckbuilder never enters the draft phase.
+    const pile = d.phase === 'cards' ? this.getDrawPile('player') : this.getTrickPile('player');
+
+    if (d.phase === 'cards') {
+      // Player sees 2, AI sees 2 (separate draws from same pile)
+      d.playerChoices = [pile.pop(), pile.pop()].filter(Boolean);
+      d.aiChoices = [pile.pop(), pile.pop()].filter(Boolean);
+      if (d.aiChoices.length >= 2) {
+        const picked = (typeof AI !== 'undefined' && AI.pickDraftCard)
+          ? AI.pickDraftCard(d.aiChoices, d.aiDrafted)
+          : d.aiChoices[0];
+        const pickIdx = d.aiChoices.indexOf(picked);
+        d.aiDrafted.push(d.aiChoices[pickIdx]);
+        d.cardHolding.push(d.aiChoices[1 - pickIdx]);
+      } else if (d.aiChoices.length === 1) d.aiDrafted.push(d.aiChoices[0]);
+    } else {
+      d.playerChoices = [pile.pop(), pile.pop()].filter(Boolean);
+      d.aiChoices = [pile.pop(), pile.pop()].filter(Boolean);
+      if (d.aiChoices.length >= 2) {
+        const picked = (typeof AI !== 'undefined' && AI.pickDraftTrick)
+          ? AI.pickDraftTrick(d.aiChoices, d.aiTrickDrafted)
+          : d.aiChoices[0];
+        const pickIdx = d.aiChoices.indexOf(picked);
+        d.aiTrickDrafted.push(d.aiChoices[pickIdx]);
+        d.trickHolding.push(d.aiChoices[1 - pickIdx]);
+      } else if (d.aiChoices.length === 1) d.aiTrickDrafted.push(d.aiChoices[0]);
+    }
+  },
+
+  draftPick(index) {
+    const d = this.state.draft;
+    // Snapshot for the Back button — captures pre-pick state so draftUndo
+    // can restore it verbatim (choices shown, piles, drafted lists, holding,
+    // mulligan flag, AI's already-committed pick for this round).
+    if (!d.history) d.history = [];
+    d.history.push(this._snapshotDraftState());
+    if (d.phase === 'cards') {
+      d.playerDrafted.push(d.playerChoices[index]);
+      if (d.playerChoices[1 - index]) d.cardHolding.push(d.playerChoices[1 - index]);
+      this.log(`[DRAFT] Picked: ${d.playerChoices[index].name} (${d.playerChoices[index].attack}/${d.playerChoices[index].health})`);
+      d.round++;
+      if (d.round > 5) { this.finishCardDraft(); return; }
+    } else {
+      d.playerTrickDrafted.push(d.playerChoices[index]);
+      if (d.playerChoices[1 - index]) d.trickHolding.push(d.playerChoices[1 - index]);
+      this.log(`[DRAFT] Picked trick: ${d.playerChoices[index].name}`);
+      d.round++;
+      if (d.round > 2) { this.finishTrickDraft(); return; }
+    }
+    this.presentDraftChoices();
+    UI.render();
+  },
+
+  // Snapshot everything a draftPick mutates. Card/trick defs are shared
+  // references (static defs, not instances), so shallow array copies are
+  // safe — we're not going to mutate the defs themselves, only the arrays
+  // that hold them. The pile IS a live reference that presentDraftChoices
+  // pops from, so we copy it here and restore in place on undo.
+  _snapshotDraftState() {
+    const d = this.state.draft;
+    const pile = d.phase === 'cards' ? this.getDrawPile('player') : this.getTrickPile('player');
+    return {
+      phase: d.phase,
+      round: d.round,
+      playerChoices: (d.playerChoices || []).slice(),
+      aiChoices:     (d.aiChoices     || []).slice(),
+      playerDrafted: (d.playerDrafted || []).slice(),
+      aiDrafted:     (d.aiDrafted     || []).slice(),
+      playerTrickDrafted: (d.playerTrickDrafted || []).slice(),
+      aiTrickDrafted:     (d.aiTrickDrafted     || []).slice(),
+      cardHolding:  (d.cardHolding  || []).slice(),
+      trickHolding: (d.trickHolding || []).slice(),
+      mulliganUsed: !!d.mulliganUsed,
+      pile: pile.slice(),
+      logLen: Array.isArray(this.state.log) ? this.state.log.length : 0
+    };
+  },
+
+  // Back-button handler — pops the last snapshot and restores draft state
+  // in-place. Restoration is confined to a single draft phase (cards OR
+  // tricks) because finishCardDraft also mutates hands + shuffles the
+  // pile; history is cleared there so the undo stack never crosses that
+  // boundary.
+  draftUndo() {
+    const d = this.state.draft;
+    if (!d || !d.history || !d.history.length) return false;
+    const snap = d.history.pop();
+    d.phase = snap.phase;
+    d.round = snap.round;
+    d.playerChoices = snap.playerChoices.slice();
+    d.aiChoices     = snap.aiChoices.slice();
+    d.playerDrafted = snap.playerDrafted.slice();
+    d.aiDrafted     = snap.aiDrafted.slice();
+    d.playerTrickDrafted = snap.playerTrickDrafted.slice();
+    d.aiTrickDrafted     = snap.aiTrickDrafted.slice();
+    d.cardHolding  = snap.cardHolding.slice();
+    d.trickHolding = snap.trickHolding.slice();
+    d.mulliganUsed = snap.mulliganUsed;
+    // Restore the pile in-place so any live references stay consistent.
+    const pileRef = d.phase === 'cards' ? this.getDrawPile('player') : this.getTrickPile('player');
+    pileRef.length = 0;
+    for (let i = 0; i < snap.pile.length; i++) pileRef.push(snap.pile[i]);
+    // Trim the log back so the "[DRAFT] Picked: ..." line vanishes too —
+    // leaves the log clean, as if the pick never happened.
+    if (Array.isArray(this.state.log) && typeof snap.logLen === 'number'
+        && this.state.log.length > snap.logLen) {
+      this.state.log.length = snap.logLen;
+    }
+    this.state.phase = d.phase === 'cards' ? 'draft-cards' : 'draft-tricks';
+    this.log('[DRAFT] Undo — previous pick reverted.');
+    UI.render();
+    return true;
+  },
+
+  finishCardDraft() {
+    const d = this.state.draft;
+    // Unpicked (held) cards return to the shared pile. Classic only —
+    // Deckbuilder never enters this path because the draft is skipped.
+    const pile = this.getDrawPile('player');
+    d.cardHolding.forEach(c => pile.push(c));
+    this.state.player.hand = d.playerDrafted.map(def => this.createCardInstance(def, 'player'));
+    this.state.ai.hand = d.aiDrafted.map(def => this.createCardInstance(def, 'ai'));
+    this.shuffle(pile);
+    d.phase = 'tricks'; d.round = 1;
+    d.mulliganUsed = false; // fresh mulligan for the trick phase
+    // Undo history doesn't cross the card→trick boundary (hands are
+    // already instantiated, pile has been shuffled). Reset so the Back
+    // button only walks backward through the current phase's picks.
+    d.history = [];
+    this.state.phase = 'draft-tricks';
+    this.presentDraftChoices();
+    UI.render();
+  },
+
+  // One re-draw of the current 2 player choices per draft phase. Returns
+  // the rejected pair to the bottom of the appropriate pile so they can
+  // still resurface later, then pops 2 fresh picks. AI's choices stay put
+  // — AI has already committed its pick for this round.
+  draftMulligan() {
+    const d = this.state.draft;
+    if (d.mulliganUsed) return false;
+    if (!d.playerChoices || d.playerChoices.length === 0) return false;
+    const pile = d.phase === 'cards' ? this.getDrawPile('player') : this.getTrickPile('player');
+    // Bottom of pile = index 0 (since presentDraftChoices uses pile.pop()).
+    d.playerChoices.forEach(c => pile.unshift(c));
+    const fresh = [pile.pop(), pile.pop()].filter(Boolean);
+    d.playerChoices = fresh;
+    d.mulliganUsed = true;
+    this.log(`[DRAFT] Mulligan used — new ${d.phase === 'cards' ? 'cards' : 'tricks'} drawn.`);
+    UI.render();
+    return true;
+  },
+
+  finishTrickDraft() {
+    const d = this.state.draft;
+    // Unpicked tricks return to the shared trick pile. Classic only.
+    const pile = this.getTrickPile('player');
+    d.trickHolding.forEach(t => pile.push({ ...t }));
+    this.state.player.trickHand = d.playerTrickDrafted.map(t => ({ ...t, id: nextCardId++ }));
+    this.state.ai.trickHand = d.aiTrickDrafted.map(t => ({ ...t, id: nextCardId++ }));
+    this.shuffle(pile);
+    this.log('[DRAFT] Draft complete! The battle begins.');
+    this.startRound();
+  },
+
+  // ===================== ROUNDS =====================
+
+  startRound() {
+    this.state.round++;
+    const r = this.state.round;
+    // Sanitize all living cards — heal any currentHealth/maxHealth/attack
+    // that drifted to NaN/undefined over the previous round. Belt-and-
+    // suspenders vs. the fix-at-the-source work in buffCard/debuffCard/
+    // applyCombatDamage. Caught by sim/test.js invariant sweep.
+    this._sanitizeAllCards();
+    // New round — reset the late-round markers so debuffs applied in
+    // this round's normal phases clear normally at its postCombat.
+    this.state._combatFinishedThisRound = false;
+    // Clear per-card "has swung" flags from the previous round so
+    // fresh-round debuffs (Mind Stone in phase 2 pre-combat) don't get
+    // mistakenly stamped as persistent.
+    this.getAllCardsOnBoard().forEach(c => { delete c._combatSwungThisRound; });
+    // Time Stone intercept bookkeeping — clear any tricks flagged last
+    // round so they can be played / intercept-checked fresh this round.
+    ['player', 'ai'].forEach(o => {
+      (this.state[o].trickHand || []).forEach(t => {
+        if (t && t._timeStonedAtRound && t._timeStonedAtRound < this.state.round) {
+          delete t._timeStonedAtRound;
+        }
+        if (t && t._timeStoneChecked) delete t._timeStoneChecked;
+      });
+    });
+    // Snapshot HP at the top of each round so the end-of-game panel can
+    // show the HP-over-rounds curve. Stored as plain ints; the chart
+    // reads .player / .ai for the two lines.
+    if (!this.state._hpHistory) this.state._hpHistory = [];
+    this.state._hpHistory.push({
+      round: r,
+      player: this.state.player.health,
+      ai:     this.state.ai.health
+    });
+    const isOdd = r % 2 === 1;
+    // Flash override — if someone used Flash's "choose first next turn", honor it.
+    if (this.state._nextFirstPlayer === 'player' || this.state._nextFirstPlayer === 'ai') {
+      this.state.firstPlayer = this.state._nextFirstPlayer;
+      delete this.state._nextFirstPlayer;
+    } else {
+      this.state.firstPlayer = isOdd ? this.state.oddPlayer : this.opponent(this.state.oddPlayer);
+    }
+    // Reset per-round stat trackers so the end-of-round recap reflects only this round.
+    this.state._roundStats = {
+      round: r,
+      playerDamageDealt: 0, playerDamageTaken: 0,
+      aiDamageDealt: 0,     aiDamageTaken: 0,
+      playerKills: [], aiKills: [],
+      playerTricks: [], aiTricks: []
+    };
+    this.log(`--- Round ${r} --- ${this.state.firstPlayer === 'player' ? 'You go' : 'AI goes'} first`);
+
+    ['player', 'ai'].forEach(o => {
+      // batmanBlocked is now a round-number marker set to R+1 when Batman
+      // plays in round R. Clearing it unconditionally here would wipe the
+      // lock before the opponent's scheduled turn; isCardBatmanBlocked
+      // compares against the current round, so a stale value from a past
+      // round is already treated as inactive without a forced reset.
+      let cur = r + this.state[o].nextTurnCurrency;
+      this.getAllCardsOf(o).forEach(c => {
+        // Attribute each passive's energy bonus to the generating card +
+        // its summon chain so the MVP formula credits every ancestor.
+        if (c.passive === 'extraCurrency3') {
+          cur += 3;
+          this._creditChain(c, 'statsEnergyGenerated', 3);
+        }
+        if (c.passive === 'extraCurrency') {
+          cur += 1;
+          this._creditChain(c, 'statsEnergyGenerated', 1);
+        }
+        // Defensive: zero the per-card landed-damage counter on currencyOnDamage
+        // cards (e.g. Green Lantern) so the bonus from last round can never carry
+        // over or stack into this round. The counter is also reset in onEndOfTurn,
+        // but this guard handles edge cases where the card died mid-combat (no
+        // onEndOfTurn fired) and was later revived.
+        if (c.passive === 'currencyOnDamage') c._damageDealtThisTurn = 0;
+      });
+      // Green Lantern's nextTurnCurrency was already credited last round
+      // — add it to GL + chain for MVP attribution.
+      if (this.state[o].nextTurnCurrency > 0) {
+        const gl = this.getAllCardsOf(o).find(c => c.passive === 'currencyOnDamage');
+        if (gl) this._creditChain(gl, 'statsEnergyGenerated', this.state[o].nextTurnCurrency);
+      }
+      this.state[o].currency = cur;
+      this.state[o].nextTurnCurrency = 0;
+      this.state[o].discount = 0;
+      this.state[o].faceDownAvailable = this.getAllCardsOf(o).some(c => c.passive === 'faceDownOption');
+    });
+
+    this.getAllCardsOnBoard().forEach(c => {
+      if (c.onTurnStart) c.onTurnStart(this, c);
+    });
+    // Per-round Crazy / Insane reroll — any card carrying either
+    // trait re-randomizes its ATK at the top of every round. Joker /
+    // Harley plus whichever enemy Joker has stamped with Crazy.
+    this.getAllCardsOnBoard().forEach(c => this.rerollCrazyInsane(c));
+    // Apply Magneto debuffs each round
+    this.applyMagnetoDebuffs();
+    this.state.lanes.forEach(l => l.protected = null);
+    this.startPhase1();
+  },
+
+  // "Foresee" pipeline: show top 2 of the draw pile, owner picks 1 to take,
+  // the other goes straight to the enemy's hand. Triggered from drawPhase().
+  // The flag value can be `true` (default Dr. Strange label) or a string source name
+  // (e.g. "Eye of Agamotto") so different effects share the mechanic with their own UI text.
+  handleDrStrangeReorder(callback) {
+    const queue = ['player', 'ai'].filter(o => this.state[o].drStrangeReorder);
+    // Track which owners actually pulled a card via the Foresee pipeline.
+    // drawPhase uses this to skip the normal "draw 1" for those owners so
+    // peek-and-keep counts as the round's draw instead of stacking with it.
+    const peeked = new Set();
+    if (!queue.length) { callback(peeked); return; }
+
+    const processNext = (i) => {
+      if (i >= queue.length) { callback(peeked); return; }
+      const owner = queue[i];
+      const opp = this.opponent(owner);
+      const flag = this.state[owner].drStrangeReorder;
+      const source = (typeof flag === 'string' && flag) ? flag : 'Dr. Strange';
+      const tag = source.toUpperCase();
+      // Dormammu foresight persists for multiple turns
+      if (this.state[owner]._dormammuForesight > 1) {
+        this.state[owner]._dormammuForesight--;
+        // Keep drStrangeReorder active for next draw phase
+      } else {
+        this.state[owner].drStrangeReorder = false;
+        delete this.state[owner]._dormammuForesight;
+      }
+
+      // Foresee peeks the OWNER's pile — in Deckbuilder it's their own
+      // deck, in Classic the shared pile. The "other" card still goes to
+      // the opponent's hand (the trick's signature twist), so in
+      // Deckbuilder a card can briefly cross deck boundaries.
+      const pile = this.getDrawPile(owner);
+      if (pile.length === 0) {
+        this.log(`  [${tag}] Draw pile empty — vision fizzles.`);
+        processNext(i + 1);
+        return;
+      }
+      if (pile.length === 1) {
+        const def = pile.pop();
+        this.addToHand(owner, this.createCardInstance(def, owner));
+        this.log(`  [${tag}] Only one card remains — ${owner === 'player' ? 'you take' : 'AI takes'} ${def.name}.`);
+        peeked.add(owner);
+        processNext(i + 1);
+        return;
+      }
+
+      // Pop the top 2 cards from the owner's draw pile
+      const top1 = pile.pop();
+      const top2 = pile.pop();
+      const choices = [top1, top2];
+
+      const distribute = (picked) => {
+        const other = choices.find(c => c !== picked);
+        this.addToHand(owner, this.createCardInstance(picked, owner));
+        this.addToHand(opp, this.createCardInstance(other, opp));
+        const ownWho = owner === 'player' ? 'You take' : 'AI takes';
+        const oppWho = opp === 'player' ? 'you receive' : 'AI receives';
+        this.log(`  [${tag}] ${ownWho} ${picked.name}; ${oppWho} ${other.name}.`);
+        // The peek consumed BOTH sides' draw this round — the owner
+        // chose a card, the opponent received the discard. Both are
+        // cards added to a hand from the draw pile, so neither side
+        // gets a "draw 1" on top. User report: "[DR. STRANGE] AI takes
+        // X; you receive Y. [DRAW] You draw 1: Z — no this isn't how
+        // it works, the foresee acts as the draw for that turn."
+        peeked.add(owner);
+        peeked.add(opp);
+        processNext(i + 1);
+      };
+
+      if (this.isHuman(owner)) {
+        // Human: route through promptCardChoice with a smart default so if
+        // the player times out, AI's "keep higher cost" logic fires.
+        this.promptCardChoice(owner, choices, `${source} — Foresee`,
+          "Choose 1 card to draw. The other goes to your enemy's hand.",
+          distribute,
+          (cards) => cards.slice().sort((a, b) => b.cost - a.cost)[0]);
+      } else {
+        // AI keeps the higher-cost card for itself
+        const best = choices.slice().sort((a, b) => b.cost - a.cost)[0];
+        distribute(best);
+      }
+    };
+    processNext(0);
+  },
+
+  startPhase1() {
+    const fp = this.state.firstPlayer;
+    this.state.activePlayer = fp;
+    this.state.selectedCard = null;
+    this.state.selectedTrick = null;
+    if (fp === 'player') {
+      this.state.phase = 'player-cards';
+      this.clearHistory(); // new player turn — undo cannot cross this boundary
+      UI.render();
+    } else {
+      this.state.phase = 'ai-cards';
+      UI.render();
+      setTimeout(() => { AI.playCards('ai', () => this.endPhase1()); }, 1200);
+    }
+  },
+
+  endPhase1() {
+    const sp = this.opponent(this.state.firstPlayer);
+    this.state.activePlayer = sp;
+    this.state.selectedCard = null;
+    this.state.selectedTrick = null;
+    if (sp === 'player') {
+      this.state.phase = 'player-cards-tricks';
+      this.clearHistory(); // new player turn — undo cannot cross this boundary
+      UI.render();
+    } else {
+      this.state.phase = 'ai-cards-tricks';
+      UI.render();
+      // Phase 2 = AI going second: it's the AI's full turn (cards + tricks).
+      // Call playTrickPhaseCards BETWEEN playCards and playTricks so Thanos /
+      // Iron Man still fire — playCards() now defers them waiting for a
+      // Phase 3 that never comes when AI goes second. Calling
+      // playTrickPhaseCards here gives them their "post-opponent-commit"
+      // timing: Phase 1 (opponent plays) → Phase 2 (AI plays cards, then
+      // trick-phase cards against the committed board, then tricks).
+      setTimeout(() => {
+        AI.playCards('ai', () => {
+          AI.playTrickPhaseCards('ai', () => {
+            AI.playTricks('ai', () => this.endPhase2());
+          });
+        });
+      }, 1200);
+    }
+  },
+
+  endPhase2() {
+    // Reveal face-down cards before the final trick phase
+    this.revealFaceDownCards();
+
+    // Run "Before Tricks" effects for all cards on board
+    this.runBeforeTricks();
+    this.cleanupDead();
+
+    const fp = this.state.firstPlayer;
+    this.state.activePlayer = fp;
+    this.state.selectedCard = null;
+    this.state.selectedTrick = null;
+    if (fp === 'player') {
+      this.state.phase = 'player-tricks';
+      this.clearHistory(); // new player turn — undo cannot cross this boundary
+      UI.render();
+    } else {
+      this.state.phase = 'ai-tricks';
+      UI.render();
+      setTimeout(() => {
+        const nextStep = () => {
+          AI.playTrickPhaseCards('ai', () => {
+            AI.playTricks('ai', () => this.endPhase3());
+          });
+        };
+        // Red Skull: AI may also deploy character cards during its trick phase.
+        if (this.getAllCardsOf('ai').some(c => c.passive === 'allowCardsInTricksPhase')) {
+          AI.playCards('ai', nextStep);
+        } else {
+          nextStep();
+        }
+      }, 1200);
+    }
+  },
+
+  runBeforeTricks() {
+    this.getAllCardsOnBoard().forEach(c => {
+      if (c.onBeforeTricks && !c.beforeTricksFired) {
+        c.beforeTricksFired = true;
+        try { c.onBeforeTricks(this, c, this.findCardLane(c)); } catch (e) { console.error(e); }
+      }
+    });
+    // Drain bonus attacks queued during this onBeforeTricks pass.
+    // Anakin's onBeforeTricks queues `self.bonusAttack += 1` after the
+    // move; without an inline drain here, that attack waited until
+    // postCombat (end of round). User spec: "Anakin's bonus attack
+    // is still firing at the end of the turn — bonus attacks should
+    // all act like Superman's strike" (i.e., fire NOW). drainBonusAttacks
+    // is idempotent, so cards with no queued attack are no-ops.
+    this.getAllCardsOnBoard().forEach(c => this.drainBonusAttacks(c));
+    this.cleanupDead();
+  },
+
+  endPhase3() {
+    // If Phase 3 (typically AI's trick phase when AI goes first) left any
+    // player card jump-ready — e.g. Ghostface reacting to an AI trick —
+    // offer the jump modal before combat. resolveCombat's whenPromptCleared
+    // gate defers until the player plays or skips.
+    // Only raise the pre-combat jump modal for HUMAN-owned jump-ready
+    // cards. Sim seats are AI-controlled (isHuman=false), so this safely
+    // no-ops headless and doesn't stall waiting for UI input.
+    if (this.isHuman('player') && !this.state.pendingJumpOffer) {
+      const readyCard = this.state.player.hand.find(c => c.jumpReady);
+      if (readyCard) this.state.pendingJumpOffer = { cardId: readyCard.id };
+    }
+    this.state.phase = 'combat';
+    this.state.activePlayer = null;
+    UI.render();
+    setTimeout(() => this.resolveCombat(), 1000);
+  },
+
+  // ===================== PLAY CARDS / TRICKS =====================
+
+  getCardCost(owner, card) {
+    let cost = Math.max(0, card.cost - this.state[owner].discount);
+    const opp = this.opponent(owner);
+    this.getAllCardsOf(opp).forEach(c => { if (c.passive === 'enemyCostIncrease') cost += 1; });
+    return Math.max(0, cost);
+  },
+
+  isCardBatmanBlocked(owner, card) {
+    // batmanBlocked holds the round number during which the lock applies
+    // (set to state.round+1 by Batman's onPlay). Only returns true when
+    // that scheduled round matches the current round — past-round values
+    // are effectively inert.
+    const scheduled = this.state[owner].batmanBlocked;
+    if (!scheduled || scheduled !== this.state.round) return false;
+    const hand = this.state[owner].hand;
+    if (!hand.length) return false;
+    // Only lock the highest-cost card the opponent could actually play
+    // this turn. Previously this locked the absolute highest cost in hand
+    // — a 10-cost card they couldn't afford with round-6 energy made the
+    // lock meaningless because they weren't going to play it anyway. The
+    // intent is to deny their best playable card, so anchor the "highest"
+    // to what they can currently pay for.
+    const currency = this.state[owner].currency || 0;
+    const affordable = hand.filter(c => this.getCardCost(owner, c) <= currency);
+    if (!affordable.length) return false;
+    const maxCost = Math.max(...affordable.map(c => c.baseCost || c.cost));
+    return (card.baseCost || card.cost) === maxCost;
+  },
+
+  playCard(owner, card, laneIdx) {
+    if (this.state.gameOver) return false;
+    // Multiplayer guest: forward to host instead of executing locally.
+    // Host applies the action and broadcasts the new state. We return
+    // true so the UI's selectedCard state still advances optimistically;
+    // the visible board update lands when the host's state push arrives.
+    if (this.isMultiplayer() && this.mp.role === 'guest' && owner === this.mp.you) {
+      if (typeof Multiplayer !== 'undefined' && card && card.id != null) {
+        Multiplayer.send({ t: 'playCard', cardId: card.id, lane: laneIdx });
+      }
+      return true;
+    }
+    if (this.isCardBatmanBlocked(owner, card) && !card.isDiscardEffect) {
+      this.log(`[BATMAN] ${card.name} is locked by Batman — cannot be played!`);
+      return false;
+    }
+    // Moder forced lane — next non-discard card is pulled into forced lane
+    if (!card.isDiscardEffect && this.state[owner].forcedLane != null) {
+      const fl = this.state[owner].forcedLane;
+      const flLane = this.state.lanes[fl];
+      if (flLane && !flLane.destroyed && !flLane[owner]) {
+        laneIdx = fl;
+        this.state[owner].forcedLane = null;
+        this.log(`[MODER] ${card.name} is pulled into lane ${fl + 1} by Moder!`);
+      } else {
+        this.state[owner].forcedLane = null;
+      }
+    }
+    // Magneto forced lanes — opponent's next cards go to lanes chosen by Magneto's owner
+    if (!card.isDiscardEffect && this.state[owner].magnetoForcedLanes && this.state[owner].magnetoForcedLanes.length > 0) {
+      const fl = this.state[owner].magnetoForcedLanes.shift();
+      const flLane = this.state.lanes[fl];
+      if (flLane && !flLane.destroyed && !flLane[owner]) {
+        laneIdx = fl;
+        this.log(`[MAGNETO] ${card.name} is forced into lane ${fl + 1} by Magneto!`);
+      }
+      if (!this.state[owner].magnetoForcedLanes.length) delete this.state[owner].magnetoForcedLanes;
+    }
+    const lane = this.state.lanes[laneIdx];
+    if (!lane || lane.destroyed) return false;
+    // Snapshot before any player-initiated card play so the action can be undone.
+    if (owner === 'player' && this.isPlayerTurn()) this.snapshot();
+    const who = owner === 'player' ? 'You' : 'AI';
+
+    // Discard effects — card is spent for its onDiscard effect and goes
+    // to the DISCARD pile (not the dead pile). This keeps them out of
+    // revival / summon-from-dead mechanics: Lazarus Pit, Hela's "draw
+    // from the dead pile", and any other card that recycles the dead
+    // pile will not see discard-effect cards. Previously these lived
+    // in deadPile, which meant Mr. Fantastic / Catwoman / Jigsaw could
+    // be revived and re-played multiple times per game — a big reason
+    // their plays-per-draft ratio was 6-22× in the sim.
+    if (card.isDiscardEffect) {
+      const cost = this.getCardCost(owner, card);
+      if (this.state[owner].currency < cost) return false;
+      this.state[owner].currency -= cost;
+      if (this.state._stats && this.state._stats[owner]) this.state._stats[owner].energySpent += cost;
+      const idx = this.state[owner].hand.indexOf(card);
+      if (idx > -1) this.state[owner].hand.splice(idx, 1);
+      this.state[owner].discardPile.push({
+        name: card.name, cost: card.baseCost || card.cost,
+        type: card.type, abilities: card.abilities, desc: card.desc,
+        isDiscardEffect: true,
+        // Keep a reference to the original card instance so stats hooks
+        // (e.g. statsDiscountValue credit in drawCards) can attribute
+        // to the real instance that still has its stat fields.
+        _sourceInstance: card
+      });
+      this.log(`[DISCARD] ${who} discard ${card.name} for its effect`);
+      // Pass the card instance into onDiscard so ability hooks can
+      // self-reference (e.g. to set discount sources for stats credit).
+      if (card.onDiscard) card.onDiscard(this, owner, card);
+      this.state[owner].discount = 0;
+      // Surface AI discard plays to the player via the same toast that
+      // announces AI tricks — discards were previously invisible unless
+      // the player was watching the log carefully.
+      if (owner === 'ai' && typeof UI !== 'undefined' && UI.showAITrickToast) {
+        UI.showAITrickToast(card.name, card.desc || '', 'discard');
+      }
+      return true;
+    }
+
+    if (lane[owner]) return false;
+    const cost = this.getCardCost(owner, card);
+    if (this.state[owner].currency < cost) return false;
+
+    // Intercepted by Batman Who Laughs — card goes to opponent's HAND
+    const opp = this.opponent(owner);
+    if (this.state[owner].nextCardStolen) {
+      this.state[owner].nextCardStolen = false;
+      // Mark BWL's owner as having consumed their 1-per-game intercept so
+      // subsequent BWL plays on that side don't re-arm the steal.
+      this.state[opp].bwlInterceptUsed = true;
+      const idx = this.state[owner].hand.indexOf(card);
+      if (idx > -1) this.state[owner].hand.splice(idx, 1);
+      this.state[owner].currency -= cost;
+      card.owner = opp;
+      this.log(`[STOLEN] ${card.name} is intercepted by Batman Who Laughs!`);
+      // Find BWL on board to reference for +2/+2
+      const bwl = this.getAllCardsOf(opp).find(c => c.name === 'The Batman Who Laughs');
+      if (opp === 'player') {
+        // Player chooses keep or destroy
+        this.state[opp].stolenByBWL = { card, bwl };
+        UI.render();
+        this._startPromptTimeout(() => {
+          const data = this.state[opp].stolenByBWL;
+          if (!data) return;
+          this.state[opp].stolenByBWL = null;
+          // Default: keep (matches typical player intent — preserves a card)
+          this.addToHand(opp, data.card, data.bwl);
+          this.log(`  [BWL] You keep ${data.card.name} in hand!`);
+          this.resumeCombatIfWaiting();
+          UI.render();
+        });
+      } else {
+        // AI auto-keeps high cost, destroys low cost
+        if (card.baseCost <= 3 && bwl) {
+          this.buffCard(bwl, 2, 2);
+          this.log(`  [BWL] AI destroys ${card.name} — Batman Who Laughs gains +2/+2!`);
+        } else {
+          this.addToHand(opp, card, bwl);
+          this.log(`  [BWL] AI keeps ${card.name} in hand!`);
+        }
+      }
+      return true;
+    }
+
+    this.state[owner].currency -= cost;
+    if (this.state._stats && this.state._stats[owner]) this.state._stats[owner].energySpent += cost;
+    // MVP — if this card was drawn by another card's ability (e.g. Hela's
+    // dead-pile pull), credit the drawer + its chain with the card's
+    // base cost as energy generated. Only fires on successful play,
+    // matching user spec: "if you don't play the drawn card, Hela gets
+    // 0 for it; if you do, she gets its cost".
+    if (card._drawnBy && card._drawnBy.id !== card.id) {
+      this._creditChain(card._drawnBy, 'statsEnergyGenerated', card.baseCost || card.cost || 0);
+    }
+    const idx = this.state[owner].hand.indexOf(card);
+    if (idx > -1) this.state[owner].hand.splice(idx, 1);
+    lane[owner] = card;
+    if (card.statsEnteredRound == null) card.statsEnteredRound = this.state.round || 1;
+    this.state[owner].discount = 0;
+
+    // Face-down play — suppress all abilities, hide from opponent
+    if (card._playFaceDown) {
+      card.isFaceDown = true;
+      card._faceDownOriginals = {
+        onPlay: card.onPlay, onDeath: card.onDeath, onDamaged: card.onDamaged,
+        onKill: card.onKill, onBeforeTricks: card.onBeforeTricks, onBeforeAttack: card.onBeforeAttack,
+        onEndOfTurn: card.onEndOfTurn, onAnyCardPlayed: card.onAnyCardPlayed, onAllyKilled: card.onAllyKilled,
+        onEvade: card.onEvade, onDamagePlayer: card.onDamagePlayer, onTurnStart: card.onTurnStart,
+        onLaneResolved: card.onLaneResolved,
+        passive: card.passive
+      };
+      card.onPlay = null; card.onDeath = null; card.onDamaged = null;
+      card.onKill = null; card.onBeforeTricks = null; card.onBeforeAttack = null;
+      card.onEndOfTurn = null; card.onAnyCardPlayed = null; card.onAllyKilled = null;
+      card.onEvade = null; card.onDamagePlayer = null; card.onTurnStart = null;
+      card.onLaneResolved = null;
+      card.passive = null;
+      delete card._playFaceDown;
+      this.log(`[PLAY] ${who} play a card face down in lane ${laneIdx + 1} for ${cost} energy`);
+      this.state[owner].discount = 0;
+      this.checkLaneTrap(card, laneIdx);
+      this.checkJumpConditions('cardPlayed', { owner, cost: card.baseCost || card.cost, laneIdx });
+      return true;
+    }
+
+    this.log(`[PLAY] ${who} play ${card.name} (${card.attack}/${card.currentHealth}) in lane ${laneIdx + 1} for ${cost} energy`);
+    this.checkLaneTrap(card, laneIdx);
+
+    // Lone wolf: +1/+1 when played with no other allies on the board
+    const otherAllies = this.getAllCardsOf(owner).filter(c => c.id !== card.id && c.currentHealth > 0);
+    if (otherAllies.length === 0) {
+      this.buffCard(card, 1, 1);
+      this.log(`  [LONE WOLF] ${card.name} enters alone — +1/+1!`);
+    }
+
+    // Activate "While Active" passives immediately
+    if (card.passive === 'faceDownOption') this.state[owner].faceDownAvailable = true;
+
+    this.getAllCardsOnBoard().forEach(c => { if (c.onAnyCardPlayed && c.id !== card.id) c.onAnyCardPlayed(this, c); });
+    this.getAllCardsOf(owner).forEach(c => {
+      if (c.passive === 'cardPlayedBuff' && c.id !== card.id) { this.buffCard(card, 1, 1); }
+    });
+
+    // Hunt — hunter arrives after the card is placed, so splash/onMoved can hit it
+    this.getAllCardsOf(opp).forEach(c => {
+      if (c.hasHunt) {
+        const from = this.findCardLane(c);
+        if (from >= 0 && from !== laneIdx && !this.state.lanes[laneIdx][opp]) {
+          this.state.lanes[from][opp] = null;
+          this.state.lanes[laneIdx][opp] = c;
+          this.log(`[HUNT] ${c.name} hunts ${card.name} to lane ${laneIdx + 1}!`);
+          this.checkLaneTrap(c, laneIdx);
+          if (c.onMoved) c.onMoved(this, c, laneIdx);
+        }
+      }
+    });
+
+    this._runHook(card, 'onPlay', this, card, laneIdx);
+    // Draw-on-play trait — resolves after onPlay. Zeroing drawOnPlay removes the badge from the board display.
+    if (card.drawOnPlay > 0) {
+      const n = card.drawOnPlay;
+      card.drawOnPlay = 0;
+      // Snapshot pre-draw hand so we can credit only the cards that
+      // actually entered hand (hand-cap / empty-pile can short the draw).
+      const before = this.state[owner].hand.length;
+      this.drawCards(owner, n);
+      const actuallyDrawn = this.state[owner].hand.length - before;
+      if (actuallyDrawn > 0) this._creditChain(card, 'statsCardAdvantage', actuallyDrawn);
+      this.log(`${card.name} draws ${n} card${n > 1 ? 's' : ''}.`);
+    }
+    this.cleanupDead();
+    // Apply Magneto debuffs to newly placed cards
+    this.applyMagnetoDebuffs();
+    // Check jump conditions — enemy played a card (pass laneIdx so MM can lock its lane)
+    this.checkJumpConditions('cardPlayed', { owner, cost: card.baseCost || card.cost, laneIdx });
+    return true;
+  },
+
+  playCardFree(owner, card, laneIdx) {
+    // Multiplayer guest: forward the free-play action and let the host run it.
+    if (this.isMultiplayer() && this.mp.role === 'guest' && owner === this.mp.you) {
+      if (typeof Multiplayer !== 'undefined' && card && card.id != null) {
+        Multiplayer.send({ t: 'playCardFree', cardId: card.id, lane: laneIdx });
+      }
+      return true;
+    }
+    if (this.state.lanes[laneIdx][owner] || this.state.lanes[laneIdx].destroyed) return;
+    const opp = this.opponent(owner);
+    // Intercepted by Batman Who Laughs — even jump/free plays should be
+    // stolen. Previously jump-path cards (Michael Myers locking onto his
+    // target, Ghostface / Jason jumping into an open lane) skipped the
+    // intercept check that lives in playCard(), so they'd land on the
+    // board normally while BWL's nextCardStolen flag remained active.
+    if (this.state[owner].nextCardStolen) {
+      this.state[owner].nextCardStolen = false;
+      // Mark BWL's owner as having consumed their 1-per-game intercept.
+      this.state[opp].bwlInterceptUsed = true;
+      const idx0 = this.state[owner].hand.indexOf(card);
+      if (idx0 > -1) this.state[owner].hand.splice(idx0, 1);
+      card.owner = opp;
+      this.log(`[STOLEN] ${card.name} is intercepted by Batman Who Laughs (via jump)!`);
+      const bwl = this.getAllCardsOf(opp).find(c => c.name === 'The Batman Who Laughs');
+      if (opp === 'player') {
+        this.state[opp].stolenByBWL = { card, bwl };
+        UI.render();
+        this._startPromptTimeout(() => {
+          const data = this.state[opp].stolenByBWL;
+          if (!data) return;
+          this.state[opp].stolenByBWL = null;
+          this.addToHand(opp, data.card, data.bwl);
+          this.log(`  [BWL] You keep ${data.card.name} in hand!`);
+          this.resumeCombatIfWaiting();
+          UI.render();
+        });
+      } else {
+        if (card.baseCost <= 3 && bwl) {
+          this.buffCard(bwl, 2, 2);
+          this.log(`  [BWL] AI destroys ${card.name} — Batman Who Laughs gains +2/+2!`);
+        } else {
+          this.addToHand(opp, card, bwl);
+          this.log(`  [BWL] AI keeps ${card.name} in hand`);
+        }
+      }
+      return;
+    }
+    const idx = this.state[owner].hand.indexOf(card);
+    if (idx > -1) this.state[owner].hand.splice(idx, 1);
+    this.state.lanes[laneIdx][owner] = card;
+    if (card.statsEnteredRound == null) card.statsEnteredRound = this.state.round || 1;
+    this.log(`[FREE PLAY] ${card.name} (${card.attack}/${card.currentHealth}) in lane ${laneIdx + 1}`);
+    this.checkLaneTrap(card, laneIdx);
+
+    // Trigger "While Active" buffs from allies (e.g. Black Panther +1/+1)
+    this.getAllCardsOnBoard().forEach(c => { if (c.onAnyCardPlayed && c.id !== card.id) c.onAnyCardPlayed(this, c); });
+    this.getAllCardsOf(owner).forEach(c => {
+      if (c.passive === 'cardPlayedBuff' && c.id !== card.id) {
+        this.buffCard(card, 1, 1);
+        this.log(`  [BUFF] ${c.name} gives ${card.name} +1/+1`);
+      }
+    });
+
+    this._runHook(card, 'onPlay', this, card, laneIdx);
+    this.cleanupDead();
+  },
+
+  getTrickCost(owner, trick) {
+    let cost = trick.cost;
+    const opp = this.opponent(owner);
+    this.getAllCardsOf(opp).forEach(c => { if (c.passive === 'trickCostIncrease') cost += 1; });
+    return cost;
+  },
+
+  playTrick(owner, trick) {
+    if (this.state.gameOver) return false;
+    // Multiplayer guest: forward and bail.
+    if (this.isMultiplayer() && this.mp.role === 'guest' && owner === this.mp.you) {
+      if (typeof Multiplayer !== 'undefined' && trick && trick.id != null) {
+        Multiplayer.send({ t: 'playTrick', trickId: trick.id });
+      }
+      return true;
+    }
+    const cost = this.getTrickCost(owner, trick);
+    if (this.state[owner].currency < cost) return false;
+    // Check if the trick has valid targets before consuming it
+    if (trick.canPlay && !trick.canPlay(this, owner)) {
+      this.log(`[TRICK] ${trick.name} cannot be played — no valid targets!`);
+      UI.render();
+      return false;
+    }
+    // ---- Time Stone counter-intercept ----
+    // When the AI plays a hostile trick AND the human player has Time
+    // Stone in their trick hand, pause and offer a counter. Spec:
+    //   • Pops a modal like Michael Myers's jump offer.
+    //   • If the player counters, Time Stone moves to their played
+    //     pile, the AI's trick is NOT resolved, and the AI's trick
+    //     is marked blocked for this round so AI can't replay it.
+    //   • If the player declines, the trick re-enters playTrick with
+    //     the _timeStoneChecked flag so we don't re-intercept.
+    // Blocked-this-round tricks are filtered out of AI.playTricks
+    // via the _timeStonedAtRound flag check.
+    if (!trick._timeStoneChecked && owner === 'ai' && this.isHuman('player')
+        && !this.state.pendingTimeStoneIntercept
+        && this._playerHasTimeStone() && this._isHostileTrick(trick)
+        && trick.name !== 'Time Stone') {
+      this.state.pendingTimeStoneIntercept = {
+        incomingTrick: trick,
+        incomingOwner: owner
+      };
+      if (typeof UI !== 'undefined' && UI.render) UI.render();
+      return false; // AI loop pauses via whenPromptCleared / hasPendingPrompt
+    }
+    // Snapshot before any player-initiated trick play so the action can be undone.
+    if (owner === 'player' && this.isPlayerTurn()) this.snapshot();
+    this.state[owner].currency -= cost;
+    if (this.state._stats && this.state._stats[owner]) this.state._stats[owner].energySpent += cost;
+    const idx = this.state[owner].trickHand.indexOf(trick);
+    if (idx > -1) this.state[owner].trickHand.splice(idx, 1);
+    // Move to played trick pile
+    this.state[owner].playedTrickPile.push({ name: trick.name, cost: trick.cost });
+    // Track tricks for the round recap
+    if (this.state._roundStats) {
+      const rs = this.state._roundStats;
+      (owner === 'player' ? rs.playerTricks : rs.aiTricks).push(trick.name);
+    }
+    const who = owner === 'player' ? 'You' : 'AI';
+    this.log(`[TRICK] ${who} play ${trick.name} for ${cost} energy`);
+    // Surface AI tricks as a visible toast so the player doesn't have to watch the log.
+    if (owner === 'ai' && typeof UI !== 'undefined' && UI.showAITrickToast) {
+      UI.showAITrickToast(trick.name, trick.desc || '');
+    }
+    if (trick.play) {
+      // Flag the trick-execution window so _trickBlocked can gate effects
+      // targeting Untrickable cards (including every 10-cost titan, which
+      // applyAbilities auto-flags). The flag clears even if the trick
+      // throws, so a broken trick can't leave the game in trick-mode.
+      this.state._inTrick = true;
+      this.state._trickOwner = owner;
+      try { trick.play(this, owner); } catch (e) { console.error(e); }
+      this.state._inTrick = false;
+      this.state._trickOwner = null;
+    }
+    this.cleanupDead();
+    // Check jump conditions — a trick was played
+    this.checkJumpConditions('trickPlayed', { owner });
+    return true;
+  },
+
+  // ---- Time Stone helpers ----
+  _playerHasTimeStone() {
+    return !!(this.state.player && this.state.player.trickHand
+      && this.state.player.trickHand.find(t => t && t.name === 'Time Stone'
+          && t._timeStonedAtRound !== this.state.round));
+  },
+  // Predicate: does this trick negatively affect the opponent of its
+  // caster? Uses an explicit `hostile` flag when set on the trick def,
+  // else falls back to a keyword scan of the description. The list is
+  // permissive — marginal tricks pop the modal; the player just clicks
+  // "let it resolve" if they don't want to spend Time Stone on it.
+  _isHostileTrick(trick) {
+    if (!trick) return false;
+    if (trick.hostile === true) return true;
+    if (trick.hostile === false) return false;
+    // Explicit whitelist of tricks that harm player cards when played
+    // by the AI. All other tricks (buffs / summons / peeks) don't
+    // trigger Time Stone's counter prompt — spec: "whenever an enemy
+    // plays a trick … that would negatively effect [your cards]".
+    const HOSTILE_TRICKS = new Set([
+      'Batarang',        // direct damage
+      'Kryptonite',      // -3 ATK from enemy
+      'The Darkhold',    // destroy low-ATK enemies
+      'Fear Toxin',      // fear
+      'Phantom Zone',    // bounce enemy to hand
+      'Soul Stone',      // destroys one enemy (+own card)
+      'Anti-Life Equation', // destroys contested-lane cards both sides
+      'Mind Stone',      // mind control
+      'Reality Stone'    // swap stats — net-positive for AI, hurts player
+    ]);
+    if (HOSTILE_TRICKS.has(trick.name)) return true;
+    return false;
+  },
+  // Player chose to counter. Consume Time Stone, block the AI's trick
+  // for this round, resume the AI's turn (which re-enters playTrick loop).
+  timeStoneCounter() {
+    const intercept = this.state.pendingTimeStoneIntercept;
+    if (!intercept) return;
+    const trick = intercept.incomingTrick;
+    this.state.pendingTimeStoneIntercept = null;
+    const hand = this.state.player.trickHand;
+    const idx = hand.findIndex(t => t && t.name === 'Time Stone');
+    if (idx < 0) {
+      this.log('[TIME STONE] Not in hand — trick resolves normally.');
+      this.timeStoneAllow();
+      return;
+    }
+    hand.splice(idx, 1);
+    this.state.player.playedTrickPile.push({ name: 'Time Stone', cost: 0 });
+    if (this.state._roundStats) this.state._roundStats.playerTricks.push('Time Stone');
+    // Block the AI's incoming trick for the rest of this round —
+    // AI.playTricks filters on this flag to avoid re-queueing the same
+    // trick until next round's startRound clears it.
+    trick._timeStonedAtRound = this.state.round;
+    this.log(`[TIME STONE] You freeze time! ${trick.name} is undone and returned to enemy hand.`);
+    if (typeof UI !== 'undefined' && UI.render) UI.render();
+    this.resumeCombatIfWaiting();
+  },
+  // Player declined. Flag the trick so the intercept doesn't re-fire,
+  // then re-enter playTrick normally.
+  timeStoneAllow() {
+    const intercept = this.state.pendingTimeStoneIntercept;
+    if (!intercept) return;
+    const trick = intercept.incomingTrick;
+    this.state.pendingTimeStoneIntercept = null;
+    trick._timeStoneChecked = true;
+    this.playTrick('ai', trick);
+    if (typeof UI !== 'undefined' && UI.render) UI.render();
+    this.resumeCombatIfWaiting();
+  },
+
+  // ===================== COMBAT =====================
+
+  revealFaceDownCards() {
+    for (let i = 0; i < this.LANE_COUNT; i++) {
+      ['player', 'ai'].forEach(side => {
+        const card = this.state.lanes[i][side];
+        if (card && card.isFaceDown && card._faceDownOriginals) {
+          const orig = card._faceDownOriginals;
+          card.onPlay = orig.onPlay; card.onDeath = orig.onDeath; card.onDamaged = orig.onDamaged;
+          card.onKill = orig.onKill; card.onBeforeTricks = orig.onBeforeTricks; card.onBeforeAttack = orig.onBeforeAttack;
+          card.onEndOfTurn = orig.onEndOfTurn; card.onAnyCardPlayed = orig.onAnyCardPlayed; card.onAllyKilled = orig.onAllyKilled;
+          card.onEvade = orig.onEvade; card.onDamagePlayer = orig.onDamagePlayer; card.onTurnStart = orig.onTurnStart;
+          card.onLaneResolved = orig.onLaneResolved;
+          card.passive = orig.passive;
+          delete card._faceDownOriginals;
+          card.isFaceDown = false;
+          this.log(`[REVEAL] ${card.name} is revealed in lane ${i + 1}!`);
+          this._runHook(card, 'onPlay', this, card, i);
+          this.applyMagnetoDebuffs();
+        }
+      });
+    }
+    this.cleanupDead();
+  },
+
+  // Poison Ivy charmed allies — each charmed ally takes a free pre-combat
+  // swing in Ivy's recorded lane (stored as _ivyCharmedLane on the ally
+  // when she charmed them). Works even if Ivy is already dead — the lane
+  // is locked in at charm time and the swing fires regardless. After the
+  // swing, _ivyCharmedLane is cleared so the ally only gets ONE extra
+  // swing per charm, and their normal combat attack proceeds in their own
+  // lane as usual.
+  resolveIvyCharms() {
+    // Snapshot the list once (mutation during the loop is OK because we
+    // use the pre-combat stamp). If the originally-charmed ally died /
+    // was stunned / lost its ATK, transfer the charm to another living
+    // ally on the same side — matches spec: "if the person with the
+    // trait dies, it just switches to a different ally."
+    const charmed = this.getAllCardsOnBoard().filter(c => c._ivyCharmedLane !== undefined);
+    charmed.forEach(ally => {
+      const laneIdx = ally._ivyCharmedLane;
+      const owner = ally._ivyCharmOwner;
+      delete ally._ivyCharmedLane;
+      delete ally._ivyCharmOwner;
+      const canSwing = (c) => c && c.currentHealth > 0 && !c.isStunned && !c.isFrozen && (c.attack || 0) > 0;
+      let swinger = ally;
+      if (!canSwing(swinger)) {
+        // Find another living ally on the same side to inherit the charm.
+        // Prefer highest-attack so the swing is still meaningful.
+        const candidates = this.getAllCardsOf(owner)
+          .filter(c => c.id !== ally.id && canSwing(c));
+        if (candidates.length) {
+          swinger = candidates.sort((a, b) => (b.attack || 0) - (a.attack || 0))[0];
+          this.log(`[POISON IVY] ${ally.name} fell — charm transfers to ${swinger.name}!`);
+        } else {
+          this.log(`[POISON IVY] ${ally.name} is unable to assist and no ally can inherit the charm.`);
+          return;
+        }
+      }
+      if (laneIdx < 0 || laneIdx >= this.LANE_COUNT || this.state.lanes[laneIdx].destroyed) return;
+      const opp = this.opponent(owner);
+      const enemy = this.state.lanes[laneIdx][opp];
+      if (enemy && enemy.currentHealth > 0) {
+        this.log(`[POISON IVY] ${swinger.name} attacks ${enemy.name} in Ivy's lane for ${swinger.attack}!`);
+        this.applyCombatDamage(swinger, enemy);
+      } else {
+        this.log(`[POISON IVY] ${swinger.name} hits opponent HP for ${swinger.attack} from Ivy's lane!`);
+        this.damagePlayer(opp, swinger.attack, swinger.isBullseye, swinger);
+      }
+    });
+    this.cleanupDead();
+  },
+
+  // Delay (ms) between each lane resolving in combat so the player can watch.
+  // Rebalanced: Normal bumped up (users were finding it too fast to follow);
+  // Slow noticeably more contemplative than before so the three tiers feel
+  // distinct. Fast kept close to original for players who want to blitz.
+  get COMBAT_LANE_DELAY() {
+    const mode = (typeof UI !== 'undefined' && UI.settings && UI.settings.aiSpeed) || 'normal';
+    return { fast: 280, normal: 900, slow: 1500 }[mode] || 900;
+  },
+  get COMBAT_POST_DELAY() {
+    const mode = (typeof UI !== 'undefined' && UI.settings && UI.settings.aiSpeed) || 'normal';
+    return { fast: 350, normal: 1100, slow: 1800 }[mode] || 1100;
+  },
+
+  resolveCombat() {
+    // If an async prompt from Before-Tricks (e.g. Man-Bat's lane choice) is still pending,
+    // wait for it to resolve before starting combat. Otherwise combat captures cached
+    // lane references and can land a hit on a card that has already moved out.
+    if (this.hasPendingPrompt()) {
+      this.whenPromptCleared(() => this.resolveCombat());
+      return;
+    }
+    // Snapshot pre-combat state so the player can undo a "Done Playing Tricks" click.
+    this.snapshot();
+    this.log('--- Combat Phase ---');
+    // Combat batches queued bonus attacks to postCombat; flag so handleDeath
+    // doesn't also drain them mid-lane and cause double-fires.
+    this.state._inCombat = true;
+    // Board-wide circuit reveal — one-shot opacity pulse on a pre-drawn grid overlay
+    if (typeof UI !== 'undefined' && UI.flashCombatReveal) UI.flashCombatReveal();
+
+    // Poison Ivy charm moved from PRE-combat to post-combat (see
+    // postCombat). Running pre-combat killed Ivy's opposite before
+    // the main lane's simultaneous swing could land — e.g. Ivy vs
+    // Man-Bat would have a charmed ally snipe Man-Bat before he
+    // could hit Ivy back. Spec: Ivy + her opposite trade normally,
+    // THEN the charmed ally swings in Ivy's lane.
+
+    // Resolve lanes one-by-one with a delay between each so the player can see results.
+    const resolveLane = (i) => {
+      // Game-over short-circuit — if a previous lane's face damage took
+      // either HP to 0, stop resolving combat. damagePlayer already
+      // triggered the game-over screen; we just need to bail before
+      // running more lanes.
+      if (this.state.gameOver) {
+        delete this.state._activeLane;
+        UI.render();
+        return;
+      }
+      // Skip empty/destroyed lanes without delay
+      while (i < this.LANE_COUNT) {
+        const lane = this.state.lanes[i];
+        if (!lane.destroyed && (lane.player || lane.ai)) break;
+        i++;
+      }
+      if (i >= this.LANE_COUNT) {
+        // All lanes done — clear active lane highlight and proceed to post-combat
+        delete this.state._activeLane;
+        UI.render();
+        setTimeout(() => this.postCombat(), this.COMBAT_POST_DELAY);
+        return;
+      }
+
+      this.state._activeLane = i;
+      UI.render();
+
+      const lane = this.state.lanes[i];
+      const p = lane.player;
+      const a = lane.ai;
+      const advance = () => {
+        // If any prompt is pending (block trick, card/lane choice, etc.), pause combat
+        this.whenPromptCleared(() => {
+          UI.render();
+          setTimeout(() => resolveLane(i + 1), this.COMBAT_LANE_DELAY);
+        });
+      };
+      if (p && a) {
+        this.log(`[LANE ${i + 1}] ${p.name} (${p.attack}/${p.currentHealth}) vs ${a.name} (${a.attack}/${a.currentHealth})`);
+        this.resolveLaneCombat(i, advance);
+        return; // advance called by resolveLaneCombat when done
+      } else if (p) {
+        const async = this.resolveUncontestedLane(i, 'player', advance);
+        if (p.isMindControlled || async) return; // async prompt
+      } else if (a) {
+        const async = this.resolveUncontestedLane(i, 'ai', advance);
+        if (a.isMindControlled || async) return; // async prompt
+      }
+      advance();
+    };
+
+    resolveLane(0);
+  },
+
+  postCombat() {
+    this.cleanupDead();
+
+    // Poison Ivy's charm mechanic was simplified: the charmed ally's
+    // ATK is now added to Ivy's own ATK as a temp buff in _charm. No
+    // more bonus swing, so this path is gone. `resolveIvyCharms` is
+    // kept as a no-op safety net for any legacy `_ivyCharmedLane` tags
+    // that might persist through a save-load edge case.
+    this.resolveIvyCharms();
+
+    // Bonus-attack safety net — handleDeath now drains immediately on
+    // every death (user spec: "shouldn't happen at the end of the round
+    // but instead immediately"). This pass remains as a backstop for
+    // any path that queues a bonus attack outside of handleDeath
+    // (passive ticks, future card effects, etc.) — drainBonusAttacks
+    // is idempotent (clears the flag on entry) so this is a no-op on
+    // already-drained cards.
+    this.getAllCardsOnBoard().forEach(c => this.drainBonusAttacks(c));
+    this.cleanupDead();
+    // Combat phase is done — trick-triggered deaths from here on drain immediately.
+    delete this.state._inCombat;
+
+    // End-of-turn effects
+    this.getAllCardsOnBoard().forEach(c => {
+      if (c.onEndOfTurn) { try { c.onEndOfTurn(this, c, this.findCardLane(c)); } catch (e) { console.error(e); } }
+    });
+    this.cleanupDead();
+
+    // Restore any attack stats Obi-Wan zeroed for the duration of this combat phase
+    this.getAllCardsOnBoard().forEach(c => {
+      if (c._obiWanAttackZeroed !== undefined) {
+        c.attack = c._obiWanAttackZeroed;
+        delete c._obiWanAttackZeroed;
+      }
+    });
+
+    this.getAllCardsOnBoard().forEach(c => {
+      // Debuffs applied AFTER combat resolved this round (block-trick
+      // plays like Mind Stone on a filled block meter, or any trick
+      // fired while _combatFinishedThisRound is true) carry over one
+      // round so the target actually gets to act under the debuff
+      // once. The `_debuffDelayedClear` flag is set by tryApplyDebuff;
+      // here we consume the flag instead of the debuff, leaving the
+      // status to clear naturally after next round's combat.
+      if (c._debuffDelayedClear) {
+        // Late-applied debuff — preserve full count for next round.
+        delete c._debuffDelayedClear;
+      } else {
+        // DECREMENT counters; sync booleans from counters. A Frozen 2
+        // card ticks to Frozen 1 here, NOT to Frozen 0 — that's
+        // what makes stacking actually mean "lasts longer."
+        c.stunnedTurns = Math.max(0, (c.stunnedTurns || (c.isStunned ? 1 : 0)) - 1);
+        c.isStunned    = c.stunnedTurns > 0;
+        c.frozenTurns  = Math.max(0, (c.frozenTurns  || (c.isFrozen  ? 1 : 0)) - 1);
+        c.isFrozen     = c.frozenTurns > 0;
+        c.fearedTurns  = Math.max(0, (c.fearedTurns  || (c.isFeared  ? 1 : 0)) - 1);
+        c.isFeared     = c.fearedTurns > 0;
+        // Mind-control isn't stacked (single binary state) — clear
+        // both the flag and the target. Same for damageImmuneTurn.
+        c.isMindControlled = false;
+        c.mindControlTarget = null;
+        c.damageImmuneTurn = false;
+      }
+      if (c._recurringBT) c.beforeTricksFired = false;
+      if (c.tauntTurns > 0 && !c.permanentTaunt) c.tauntTurns--;
+      if (c.tauntTurns === 0 && c.tauntOnlyLowestAttack) c.tauntOnlyLowestAttack = false;
+      if (c.invincibleTurns > 0) c.invincibleTurns--;
+    });
+    // Flip the late-round flag so tricks played between now and the
+    // next startRound get marked persistent. Cleared in startRound.
+    this.state._combatFinishedThisRound = true;
+    // Tick down destroyed-lane timers. Lanes are destroyed for 3 full rounds
+    // (set via destroyLane() — Darkseid, Anti-Life Equation) and restore to
+    // playable automatically when the counter hits 0. Tick cadence matches
+    // tauntTurns / invincibleTurns above so the lane's "3 → 2 → 1 → open"
+    // progression lines up with every other round-scoped effect.
+    this.state.lanes.forEach((lane, i) => {
+      if (lane.destroyed && lane.destroyedTurns > 0) {
+        lane.destroyedTurns--;
+        if (lane.destroyedTurns === 0) {
+          lane.destroyed = false;
+          this.log(`[LANE] Lane ${i + 1} reforms — the void collapses.`);
+        }
+      }
+    });
+    // Capture peak-round HP damage for the victory stats panel. _roundStats
+    // resets each round at startRound, so "how much HP damage did this
+    // player deal THIS round" is in {player,ai}DamageDealt — we keep the
+    // running max across the whole game on state._stats.
+    if (this.state._roundStats && this.state._stats) {
+      const rs = this.state._roundStats;
+      const ps = this.state._stats;
+      if (rs.playerDamageDealt > ps.player.peakRoundDamage) ps.player.peakRoundDamage = rs.playerDamageDealt;
+      if (rs.aiDamageDealt > ps.ai.peakRoundDamage) ps.ai.peakRoundDamage = rs.aiDamageDealt;
+    }
+    // Expire 1-turn granted buffs (default duration for ally buffs)
+    this.expireGrantedBuffs();
+    // Expire stale jump opportunities: if a card had jumpReady/jumpLane set this
+    // round (e.g. Michael Myers locked onto an enemy played last turn) and the
+    // holder never took the jump, clear the flags so the stored lane target
+    // can't trigger a stale auto-play on a later turn.
+    ['player', 'ai'].forEach(o => {
+      this.state[o].hand.forEach(c => {
+        if (c.jumpReady || c.jumpLane !== undefined) {
+          if (c.jumpReady) this.log(`  [JUMP] ${c.name}'s jump window closed — opportunity expired.`);
+          c.jumpReady = false;
+          c.jumpLane = undefined;
+        }
+      });
+    });
+    this.cleanupDead();
+    // Mr. Freeze HP shield persists until the next damage hit consumes
+    // it (see damagePlayer → `if (p.healthFrozen) { ...; return; }`).
+    // The old unconditional reset here wiped the shield every round;
+    // the card text reads "freezes your HP bar (until triggered)" so
+    // letting it carry over across rounds matches intent.
+
+    UI.render();
+
+    if (this.state.player.health <= 0) { this.state.gameOver = true; this.state.winner = 'ai'; this.log('=== GAME OVER — AI Wins! ==='); }
+    if (this.state.ai.health <= 0) { this.state.gameOver = true; this.state.winner = 'player'; this.log('=== GAME OVER — You Win! ==='); }
+    // Pin the final HP state at the tail of the history curve so the
+    // game-over chart shows the killing blow, not just the last round-
+    // start HP (which would miss the final 5 HP swing that ended the
+    // match). Wrapped in _pinFinalHpHistory so the same logic also
+    // fires from damagePlayer's immediate game-over hook (which
+    // bypasses postCombat).
+    if (this.state.gameOver) this._pinFinalHpHistory();
+    if (this.state.gameOver) this.finalizeStats();
+
+    if (!this.state.gameOver) {
+      // Show round recap before draw phase, if the player has it enabled.
+      const rs = this.state._roundStats;
+      const showRecap = typeof UI !== 'undefined' && UI.showRoundSummary;
+      const proceed = () => this.drawPhase(() => { this.startRound(); });
+      if (rs && showRecap) {
+        const data = {
+          round: rs.round,
+          playerHp: Math.max(0, this.state.player.health), playerMaxHp: this.state.player.maxHealth,
+          aiHp: Math.max(0, this.state.ai.health),         aiMaxHp: this.state.ai.maxHealth,
+          playerDamageDealt: rs.playerDamageDealt, playerDamageTaken: rs.playerDamageTaken,
+          playerKills: rs.playerKills, aiKills: rs.aiKills,
+          playerTricks: rs.playerTricks, aiTricks: rs.aiTricks
+        };
+        Promise.resolve(UI.showRoundSummary(data)).then(proceed);
+      } else {
+        proceed();
+      }
+    } else {
+      UI.render();
+    }
+  },
+
+  getAttackTarget(attackerOwner, attackerLane) {
+    const defOwner = this.opponent(attackerOwner);
+    // Lazy compute: is the current attacker among the lowest-attack cards on its
+    // own side? Used by selective taunters (Deadpool's tauntOnlyLowestAttack).
+    let attackerIsLowestCache = null;
+    const attackerIsLowest = () => {
+      if (attackerIsLowestCache !== null) return attackerIsLowestCache;
+      const sameSide = this.getAllCardsOf(attackerOwner);
+      if (!sameSide.length) return (attackerIsLowestCache = false);
+      const minAtk = Math.min(...sameSide.map(a => a.attack));
+      const cur = this.state.lanes[attackerLane][attackerOwner];
+      attackerIsLowestCache = !!(cur && cur.attack === minAtk);
+      return attackerIsLowestCache;
+    };
+    for (let i = 0; i < this.LANE_COUNT; i++) {
+      const c = this.state.lanes[i][defOwner];
+      if (!c || c.tauntTurns <= 0 || c.currentHealth <= 0) continue;
+      if (c.tauntOnlyLowestAttack) {
+        // Selective taunt: only pull attackers tied for the lowest attack value.
+        if (attackerIsLowest()) return c;
+        continue; // higher-attack attackers ignore this taunter
+      }
+      return c;
+    }
+    return this.state.lanes[attackerLane][defOwner];
+  },
+
+  // Get mind control target for a card. controller = the player who cast MC (opponent of card.owner).
+  // If controller is 'player', prompt for choice. If 'ai', auto-pick highest HP ally.
+  // healthBarOwner = card.owner (the MC'd card hits its own side's health bar).
+  // callback(target) where target is a card or null (null = hit health bar).
+  getMindControlTarget(card, controller, callback) {
+    const allies = this.getAllCardsOf(card.owner).filter(c => c.id !== card.id && c.currentHealth > 0);
+    // Check for stored target (Gorilla Grodd pre-picked — legacy path,
+    // still honored in case some upstream flow sets it).
+    const stored = card.mindControlTarget;
+    if (stored && stored.currentHealth > 0 && this.findCardLane(stored) >= 0) {
+      callback(stored);
+      return;
+    }
+    // Mind-controlled cards turn on their OWN side's cards only — the
+    // HP bar is never a legal target. Previously a "Health Bar"
+    // pseudo-option was offered, which let the controller deal direct
+    // face damage through any MC'd enemy. Removed: if no allies exist,
+    // the swing whiffs (combat code falls through to its null-target
+    // path and the MC'd card does nothing this round).
+    if (!allies.length) { callback(null); return; }
+    if (this.isHuman(controller)) {
+      // ALWAYS prompt the human controller — even when only 1 ally
+      // remains. User report: "I mind controlled Gojo to attack Iron
+      // Man, and he decided to attack Red Hulk instead. Using Luke
+      // Skywalker." Root cause was the `allies.length > 1` gate: when
+      // Luke's While-Active −1/−1 aura killed Iron Man on entry (1 HP
+      // → 0), the MC prompt path saw `allies = [Red Hulk]`, skipped
+      // the prompt, and auto-resolved. The user expected a deliberate
+      // confirm beat — same spec as Galactus/Dormammu: "the user
+      // always chooses". The single-target prompt makes the targeting
+      // visible and gives the player a chance to course-correct (or
+      // at least understand what's happening).
+      this.promptCardChoice(controller, allies, `Mind Control — ${card.name}`,
+        `Choose which of ${card.owner === 'player' ? 'your' : "AI's"} cards ${card.name} (${card.attack} ATK) attacks`,
+        (pick) => { callback(pick); },
+        cards => cards.slice().sort((a, b) => b.currentHealth - a.currentHealth)[0]);
+    } else {
+      // AI controller — auto-pick highest-HP ally (biggest swing impact).
+      const best = allies.slice().sort((a, b) => b.currentHealth - a.currentHealth)[0];
+      callback(best);
+    }
+  },
+
+  resolveLaneCombat(laneIdx, doneCallback) {
+    let pCard = this.state.lanes[laneIdx].player;
+    let aCard = this.state.lanes[laneIdx].ai;
+    if (!pCard || !aCard) { if (doneCallback) doneCallback(); return; }
+    // Snapshot pre-combat stats so the UI can show a "what happened
+    // here?" recap after the lane resolves. Captured before any
+    // damage / deaths so the summary reads the REAL starting values
+    // even if the cards got demolished.
+    const _laneSummary = {
+      laneIdx,
+      pName: pCard.name, pAtkBefore: pCard.attack || 0, pHpBefore: pCard.currentHealth,
+      aName: aCard.name, aAtkBefore: aCard.attack || 0, aHpBefore: aCard.currentHealth
+    };
+
+    let pTarget = this.getAttackTarget('player', laneIdx);
+    let aTarget = this.getAttackTarget('ai', laneIdx);
+
+    if (pCard.isFeared) pTarget = pCard;
+    if (aCard.isFeared) aTarget = aCard;
+
+    const pCanAttack = pCard.currentHealth > 0 && !pCard.isStunned && !pCard.isFrozen && pCard.attack > 0;
+    const aCanAttack = aCard.currentHealth > 0 && !aCard.isStunned && !aCard.isFrozen && aCard.attack > 0;
+
+    if (!pCanAttack && pCard.currentHealth > 0 && pCard.attack > 0)
+      this.log(`  ${pCard.name} is ${pCard.isStunned ? 'STUNNED' : 'FROZEN'} — can't attack or dodge!`);
+    if (!aCanAttack && aCard.currentHealth > 0 && aCard.attack > 0)
+      this.log(`  ${aCard.name} is ${aCard.isStunned ? 'STUNNED' : 'FROZEN'} — can't attack or dodge!`);
+
+    // Resolve mind control targeting (may be async if player chooses)
+    const resolveMC = (pMCTarget, aMCTarget) => {
+      // Safety: re-check cards are still alive after async callbacks
+      const pAlive = () => pCard.currentHealth > 0 && this.findCardLane(pCard) >= 0;
+      const aAlive = () => aCard.currentHealth > 0 && this.findCardLane(aCard) >= 0;
+      if (!pAlive() && !aAlive()) { if (doneCallback) doneCallback(); return; }
+
+      if (pCard.isMindControlled) pTarget = pMCTarget;
+      if (aCard.isMindControlled) aTarget = aMCTarget;
+
+      let pKilled = false, aKilled = false;
+
+      // --- TRULY SIMULTANEOUS COMBAT (v2) ---
+      // Both sides' onBeforeAttack callbacks fire BEFORE either side's
+      // main-swing damage applies. Then both damages apply using the
+      // post-onBeforeAttack / pre-swing state. Target validity is captured
+      // once; if pCard's swing kills aCard (or vice-versa), the other
+      // side's swing still fires as if it had landed at the same instant.
+      // This eliminates the "player-always-attacks-first" bias that the
+      // old stepPlayerAttack → stepAIAttack sequential structure created.
+
+      // Snapshot swing-eligibility and targets BEFORE anything resolves.
+      // These capture the "what would you have swung at" state, so that
+      // side effects within either onBeforeAttack or applyCombatDamage
+      // don't retroactively cancel the other side's swing.
+      const pWouldSwing = pCanAttack && !!pTarget;
+      const aWouldSwing = aCanAttack && !!aTarget;
+
+      // Step 1: Fire BOTH onBeforeAttack hooks, in sequence but before
+      // either main swing lands. The order (player first, then AI) only
+      // matters for async prompts queued by the hook — actual damage from
+      // the main swing is applied in Step 2, simultaneously.
+      const fireBeforeAttacks = (next) => {
+        const firePlayer = () => {
+          if (pWouldSwing && pCard.onBeforeAttack && pCard.currentHealth > 0) {
+            pCard.onBeforeAttack(this, pCard);
+          }
+          this.whenPromptCleared(fireAI);
+        };
+        const fireAI = () => {
+          if (aWouldSwing && aCard.onBeforeAttack && aCard.currentHealth > 0) {
+            aCard.onBeforeAttack(this, aCard);
+          }
+          this.whenPromptCleared(next);
+        };
+        firePlayer();
+      };
+
+      // Step 2: Apply BOTH main-swing damages. Neither side's swing is
+      // canceled by the other killing their target — applyCombatDamage
+      // safely no-ops on a dead target (returns false), so a dead target
+      // just eats the swing harmlessly. But the attacker's swing still
+      // FIRED, counting for stats and any triggers tied to attacking.
+      const applyBothDamages = () => {
+        const pSwings = pWouldSwing && !pCard._skipNormalAttack;
+        const aSwings = aWouldSwing && !aCard._skipNormalAttack;
+        delete pCard._skipNormalAttack;
+        delete aCard._skipNormalAttack;
+
+        // Player swing — log Mind Control BEFORE the damage resolution
+        // so the transcript reads "[MIND CTRL] … → [HIT] …" in causal
+        // order. applyCombatDamage logs its own [HIT] lines, so if we
+        // logged MC after, they'd land out of sequence.
+        // Both swings pass { deferOnKill: true } so the onKill hook
+        // is suppressed during damage. We fire onKill for both winners
+        // AFTER both swings have landed — otherwise Peacemaker's +1/+1
+        // kill buff would land between his swing and Sabertooth's, so
+        // Peacemaker would soak Sabertooth's retaliation on his BUFFED
+        // HP instead of his pre-swing HP. User spec: "Peacemaker
+        // should've died as they attack simultaneously".
+        const deferOpts = { deferOnKill: true };
+        if (pSwings) {
+          if (pCard.isMindControlled) {
+            if (pTarget && pTarget.currentHealth > 0) {
+              this.log(`  [MIND CTRL] ${pCard.name} attacks ${pTarget.name}!`);
+              pKilled = this.applyCombatDamage(pCard, pTarget, deferOpts);
+            } else {
+              // No valid ally target to turn on — MC'd card's swing
+              // whiffs this round. Previously the damage fell through
+              // to the owner's HP bar, which effectively made MC a
+              // face-damage-dealing debuff. Per spec, MC'd cards only
+              // attack their own side's cards.
+              this.log(`  [MIND CTRL] ${pCard.name} has no valid ally to attack — swing whiffs.`);
+            }
+          } else {
+            pKilled = this.applyCombatDamage(pCard, pTarget, deferOpts);
+          }
+        }
+
+        // AI swing — fires regardless of whether pTarget/aTarget changed
+        // during pSwings above. aCard was alive and had a target at lane
+        // start; it swings now. If aTarget is already dead, the swing
+        // whiffs (applyCombatDamage no-ops) but the onBeforeAttack
+        // already fired in Step 1.
+        if (aSwings) {
+          if (aCard.isMindControlled) {
+            if (aTarget && aTarget.currentHealth > 0) {
+              this.log(`  [MIND CTRL] ${aCard.name} attacks ${aTarget.name}!`);
+              aKilled = this.applyCombatDamage(aCard, aTarget, deferOpts);
+            } else {
+              this.log(`  [MIND CTRL] ${aCard.name} has no valid ally to attack — swing whiffs.`);
+            }
+          } else {
+            aKilled = this.applyCombatDamage(aCard, aTarget, deferOpts);
+          }
+        }
+
+        // Fire deferred onKill hooks — only for killers who are STILL
+        // ALIVE after both swings. A dead card's onKill shouldn't
+        // retroactively buff a corpse. Mutual-kill scenario (both die
+        // simultaneously) correctly produces zero onKill fires.
+        if (pKilled && pCard.onKill && pCard.currentHealth > 0) {
+          try { pCard.onKill(this, pCard); } catch (e) { console.error(e); }
+        }
+        if (aKilled && aCard.onKill && aCard.currentHealth > 0) {
+          try { aCard.onKill(this, aCard); } catch (e) { console.error(e); }
+        }
+
+        stepFinish();
+      };
+
+      // Step 3: Splash, cleanup, overdrive, done
+      const stepFinish = () => {
+        // Splash fires for any swinger that HAD a valid attack at lane
+        // start (pCanAttack/aCanAttack snapshot pre-damage). The current-
+        // health check was preventing splash when the attacker died in
+        // the same exchange — but splash is part of the swing itself, so
+        // it should land regardless of whether the attacker survived the
+        // trade. User report: "Hulk in lane 6 (3/5) attacked Magneto and
+        // his splash didn't hit Joker (lane 5) or stack onto Magneto."
+        // (Hulk took 5 from Magneto and died → splash was suppressed.)
+        if (pCard.splashRange > 0 && pCanAttack) this.applySplash(pCard, laneIdx);
+        if (aCard.splashRange > 0 && aCanAttack) this.applySplash(aCard, laneIdx);
+
+        // Per-card "has swung this round" marker. Set after THIS card
+        // resolves combat so any debuff landed AFTER this point (e.g.
+        // Mind Stone played as a block trick mid-combat, or the next
+        // lane's ability firing a debuff at an already-swung card) is
+        // tagged _debuffDelayedClear by tryApplyDebuff — keeping the
+        // status live until NEXT round's combat instead of clearing
+        // it in this round's postCombat (which would make the debuff
+        // a no-op since the card already acted).
+        if (pCard) pCard._combatSwungThisRound = true;
+        if (aCard) aCard._combatSwungThisRound = true;
+
+        this.cleanupDead();
+
+        if (pCard.isOverdrive && pCard.currentHealth > 0 && pKilled && !pCard.justResurrected) this.handleOverdrive(pCard, laneIdx);
+        if (aCard.isOverdrive && aCard.currentHealth > 0 && aKilled && !aCard.justResurrected) this.handleOverdrive(aCard, laneIdx);
+        if (pCard.justResurrected) pCard.justResurrected = false;
+        if (aCard.justResurrected) aCard.justResurrected = false;
+
+        this.cleanupDead();
+        // onLaneResolved — fires as soon as a lane's combat completes, while
+        // other lanes are still pending. Gojo uses this to land Hollow Purple
+        // mid-combat instead of at end-of-round, so enemies in opposite-parity
+        // lanes die before they get to swing in their own lanes.
+        if (pCard.currentHealth > 0 && pCard.onLaneResolved) {
+          try { pCard.onLaneResolved(this, pCard, laneIdx); } catch (e) { console.error(e); }
+        }
+        if (aCard.currentHealth > 0 && aCard.onLaneResolved) {
+          try { aCard.onLaneResolved(this, aCard, laneIdx); } catch (e) { console.error(e); }
+        }
+        this.cleanupDead();
+        // Lane recap hook — UI renders a brief "who hit what" overlay
+        // so the player doesn't need to dig through the log to see
+        // what actually resolved. Captures post-combat state diffed
+        // against the pre-combat snapshot from the top of this fn.
+        if (typeof UI !== 'undefined' && UI.showLaneRecap) {
+          _laneSummary.pHpAfter = Math.max(0, pCard.currentHealth);
+          _laneSummary.aHpAfter = Math.max(0, aCard.currentHealth);
+          _laneSummary.pDied = pCard.currentHealth <= 0;
+          _laneSummary.aDied = aCard.currentHealth <= 0;
+          try { UI.showLaneRecap(_laneSummary); } catch (e) { console.error(e); }
+        }
+        if (doneCallback) doneCallback();
+      };
+
+      // Kick off: fire both onBeforeAttacks in sequence, then apply both
+      // damages simultaneously, then stepFinish (splash + overdrive + done).
+      fireBeforeAttacks(applyBothDamages);
+    };
+
+    // Chain MC targeting prompts, then resolve combat
+    const pMC = pCard.isMindControlled && pCanAttack;
+    const aMC = aCard.isMindControlled && aCanAttack;
+    if (pMC && aMC) {
+      // Both mind-controlled — AI controls player's card, player controls AI's card
+      this.getMindControlTarget(pCard, 'ai', (pMCT) => {
+        this.getMindControlTarget(aCard, 'player', (aMCT) => {
+          resolveMC(pMCT, aMCT);
+        });
+      });
+    } else if (pMC) {
+      this.getMindControlTarget(pCard, 'ai', (pMCT) => { resolveMC(pMCT, null); });
+    } else if (aMC) {
+      this.getMindControlTarget(aCard, 'player', (aMCT) => { resolveMC(null, aMCT); });
+    } else {
+      resolveMC(null, null);
+    }
+  },
+
+  // opts.deferOnKill — when true, the `onKill` hook is NOT fired here
+  // even if the swing killed the target. Caller (resolveLaneCombat) is
+  // responsible for firing it AFTER both sides' simultaneous swings have
+  // landed. Used to preserve TRUE simultaneous combat: Peacemaker's
+  // on-kill buff must not increase his HP before Sabertooth's retaliation
+  // lands in the same instant. [KILLED] log and statsKills credit still
+  // happen at damage time since those are factual telemetry, not gameplay
+  // state mutations.
+  applyCombatDamage(attacker, target, opts) {
+    if (!target || target.currentHealth <= 0) return false;
+    // Defensive coerce — if either card's stats drifted to NaN from an
+    // earlier corruption path, fall back to base values before combat
+    // so we don't propagate NaN through the HP subtraction below.
+    if (typeof target.currentHealth !== 'number' || !Number.isFinite(target.currentHealth)) {
+      target.currentHealth = target.baseHealth || 1;
+    }
+    if (typeof target.maxHealth !== 'number' || !Number.isFinite(target.maxHealth)) {
+      target.maxHealth = target.baseHealth || 1;
+    }
+    if (attacker && (typeof attacker.attack !== 'number' || !Number.isFinite(attacker.attack))) {
+      attacker.attack = attacker.baseAttack || 0;
+    }
+
+    const canDodge = !target.isStunned && !target.isFrozen;
+
+    if (target.evadeCharges > 0 && canDodge) {
+      target.evadeCharges--;
+      this.log(`  [EVADE] ${target.name} dodges ${attacker.name}! (${target.evadeCharges} charges left)`);
+      this.emitDmg(target.id, 0, 'evade');
+      this._creditAbsorb(target, 'Evade', attacker.attack || 0);
+      if (target.onEvade) target.onEvade(this, target);
+      return false;
+    }
+
+    if (target.invincibleTurns > 0) {
+      this.log(`  [INVINCIBLE] ${target.name} takes no damage! (${target.invincibleTurns} turns left)`);
+      this.emitDmg(target.id, 0, 'block');
+      this._creditAbsorb(target, 'Invincible', attacker.attack || 0);
+      return false;
+    }
+    if (target.hasDamageImmunity) {
+      this.log(`  [DMG IMMUNE] ${target.name} is damage-immune!`);
+      this.emitDmg(target.id, 0, 'block');
+      this._creditAbsorb(target, 'Invincible', attacker.attack || 0);
+      return false;
+    }
+
+    let dmg = attacker.attack;
+    // Palpatine's "While Active: Frozen enemies take double damage" passive —
+    // any ally of the attacker with passive 'doubleFrozenDamage' (Palpatine)
+    // doubles combat damage against a frozen target. Check AFTER armor/evade
+    // skipping but BEFORE armor reduction so armor still blunts the doubled
+    // value rather than the raw attack stat.
+    if (target.isFrozen) {
+      const hasDoubleFrozen = this.getAllCardsOf(attacker.owner).some(
+        c => c.passive === 'doubleFrozenDamage' && c.currentHealth > 0
+      );
+      if (hasDoubleFrozen) {
+        const doubled = dmg * 2;
+        this.log(`  [PALPATINE] ${target.name} is frozen — ${attacker.name}'s damage doubled (${dmg} → ${doubled})`);
+        dmg = doubled;
+      }
+    }
+    if (target.armorValue > 0) {
+      if (dmg <= target.armorValue) {
+        this.log(`  [ARMOR] ${target.name}'s Armor ${target.armorValue} absorbs ${attacker.name}'s ${dmg} damage`);
+        this.emitDmg(target.id, 0, 'armor');
+        this._creditAbsorb(target, 'Armor', dmg);
+        return false;
+      }
+      this._creditAbsorb(target, 'Armor', target.armorValue);
+      dmg -= target.armorValue;
+      this.log(`  [ARMOR] ${target.name}'s Armor ${target.armorValue} reduces damage to ${dmg}`);
+    }
+
+    target.currentHealth -= dmg;
+    this.emitDmg(target.id, dmg, 'hit', undefined, attacker && attacker.id);
+    this.log(`  [HIT] ${attacker.name} deals ${dmg} to ${target.name} → ${Math.max(0, target.currentHealth)}/${target.maxHealth} HP`);
+    // Track landed damage for the currencyOnDamage passive (e.g. Green Lantern)
+    if (attacker.passive === 'currencyOnDamage' && dmg > 0) {
+      attacker._damageDealtThisTurn = (attacker._damageDealtThisTurn || 0) + dmg;
+    }
+    // Per-card stats — attribute damage-dealt-to-enemies to the attacker
+    // AND walk up the summon chain so the summoner inherits the damage
+    // (Hela's zombies → Hela) per the MVP "full chain" spec.
+    this._creditChain(attacker, 'statsEnemyDamage', dmg);
+    if (target.onDamaged) target.onDamaged(this, target, attacker, dmg);
+
+    if (target.currentHealth <= 0) {
+      this.log(`  [KILLED] ${target.name} is destroyed by ${attacker.name}!`);
+      this._creditChain(attacker, 'statsKills', 1);
+      if (attacker.onKill && !(opts && opts.deferOnKill)) attacker.onKill(this, attacker);
+      return true;
+    }
+    return false;
+  },
+
+  applySplash(card, laneIdx) {
+    // Splash X = cone: hits enemy in front (same lane) + adjacent lanes for splashRange damage.
+    // Front damage stacks on top of the normal attack.
+    const opp = this.opponent(card.owner);
+    const splashDmg = card.splashRange;
+    const splashed = [];
+    // Front (same lane)
+    const front = this.state.lanes[laneIdx][opp];
+    if (front && front.currentHealth > 0) {
+      const hpBefore = front.currentHealth;
+      this.dealDamage(front, splashDmg, card);
+      this.log(`  [SPLASH] ${card.name} hits ${front.name} in lane ${laneIdx + 1} for ${splashDmg}`);
+      // Hawkeye's ATK debuff only triggers on enemies that actually TOOK damage —
+      // invincible / evade / full-armor blocks mean the splash "didn't hit".
+      if (front.currentHealth > 0 && front.currentHealth < hpBefore) splashed.push(front);
+    }
+    // Adjacent lanes
+    [laneIdx - 1, laneIdx + 1].forEach(li => {
+      if (li >= 0 && li < this.LANE_COUNT) {
+        const t = this.state.lanes[li][opp];
+        if (t && t.currentHealth > 0) {
+          const hpBefore = t.currentHealth;
+          this.dealDamage(t, splashDmg, card);
+          this.log(`  [SPLASH] ${card.name} hits ${t.name} in lane ${li + 1} for ${splashDmg}`);
+          if (t.currentHealth > 0 && t.currentHealth < hpBefore) splashed.push(t);
+        }
+      }
+    });
+    this.applyHawkeyePassive(card.owner, splashed);
+  },
+
+  handleOverdrive(card, laneIdx) {
+    const defOwner = this.opponent(card.owner);
+    this.log(`  [OVERDRIVE] ${card.name} attacks again!`);
+    let target = this.getAttackTarget(card.owner, laneIdx);
+    if (!target || target.currentHealth <= 0) target = this.state.lanes[laneIdx][defOwner];
+    if (!target || target.currentHealth <= 0) {
+      // Log BEFORE damagePlayer so Mr Freeze's "[FROZEN HP] negated" line
+      // follows the attempt instead of preceding a misleading "hits for N"
+      // line (which reads like damage actually landed).
+      this.log(`  [OVERDRIVE] ${card.name} hits health bar for ${card.attack}!`);
+      this.damagePlayer(defOwner, card.attack, card.isBullseye, card);
+      return;
+    }
+    const killed = this.applyCombatDamage(card, target);
+    this.cleanupDead();
+    if (killed && card.currentHealth > 0) this.handleOverdrive(card, laneIdx);
+  },
+
+  resolveUncontestedLane(laneIdx, side, advanceCallback) {
+    const lane = this.state.lanes[laneIdx];
+    const card = lane[side];
+    if (!card || card.attack <= 0 || card.currentHealth <= 0) return;
+    if (card.isStunned || card.isFrozen) return;
+
+    // Feared card attacks itself even when uncontested
+    if (card.isFeared) {
+      if (card.onBeforeAttack) card.onBeforeAttack(this, card);
+      this.log(`[LANE ${laneIdx + 1}] ${card.name} is FEARED and attacks itself!`);
+      this.applyCombatDamage(card, card);
+      this.cleanupDead();
+      return;
+    }
+
+    // Mind-controlled uncontested card attacks its own side
+    if (card.isMindControlled) {
+      const controller = this.opponent(card.owner);
+      this.getMindControlTarget(card, controller, (target) => {
+        if (card.onBeforeAttack) card.onBeforeAttack(this, card);
+        if (target && target.currentHealth > 0) {
+          this.log(`[LANE ${laneIdx + 1}] [MIND CTRL] ${card.name} attacks ${target.name}!`);
+          this.applyCombatDamage(card, target);
+        } else {
+          // No valid ally target — swing whiffs. Mind Control never
+          // routes through the controlled side's HP bar.
+          this.log(`[LANE ${laneIdx + 1}] [MIND CTRL] ${card.name} has no valid ally to attack — swing whiffs.`);
+        }
+        this.cleanupDead();
+        if (advanceCallback) advanceCallback();
+      });
+      return;
+    }
+
+    const protectedFromSide = side === 'player' ? 'ai' : 'player';
+    if (lane.protected === protectedFromSide) {
+      this.log(`  Lane ${laneIdx + 1} protected!`);
+      return;
+    }
+    const targetOwner = this.opponent(side);
+
+    // Check if a taunter redirects this uncontested card
+    const tauntTarget = this.getAttackTarget(side, laneIdx);
+    if (tauntTarget && tauntTarget.currentHealth > 0) {
+      if (card.onBeforeAttack) card.onBeforeAttack(this, card);
+      if (card._skipNormalAttack) {
+        delete card._skipNormalAttack;
+        this.whenPromptCleared(() => { this.cleanupDead(); if (advanceCallback) advanceCallback(); });
+        return true;
+      }
+      this.log(`[LANE ${laneIdx + 1}] ${card.name} is uncontested but redirected by ${tauntTarget.name}'s TAUNT!`);
+      this.applyCombatDamage(card, tauntTarget);
+      if (card.splashRange > 0) {
+        const tauntLane = this.findCardLane(tauntTarget);
+        if (tauntLane >= 0) this.applySplash(card, tauntLane);
+      }
+      this.cleanupDead();
+      return;
+    }
+
+    if (card.onBeforeAttack) card.onBeforeAttack(this, card);
+    if (card._skipNormalAttack) {
+      delete card._skipNormalAttack;
+      this.whenPromptCleared(() => { this.cleanupDead(); if (advanceCallback) advanceCallback(); });
+      return true;
+    }
+    // Splash only hits enemy cards — it does NOT stack on the main
+    // swing when the lane is uncontested. A splash-5 attacker with
+    // 7 ATK hitting an open lane deals 7 to the HP bar (not 12); the
+    // splash then fires to adjacent lanes as its own effect.
+    this.log(`[LANE ${laneIdx + 1}] ${card.name} (${card.attack} ATK) is uncontested`);
+    this.damagePlayer(targetOwner, card.attack, card.isBullseye, card);
+    if (card.onDamagePlayer) card.onDamagePlayer(this, card);
+    if (card.splashRange > 0) this.applySplash(card, laneIdx);
+    // Uncontested survivor fires onLaneResolved same as a contested winner.
+    if (card.currentHealth > 0 && card.onLaneResolved) {
+      try { card.onLaneResolved(this, card, laneIdx); } catch (e) { console.error(e); }
+    }
+    this.cleanupDead();
+  },
+
+  // ===================== BLOCK METER =====================
+
+  damagePlayer(owner, amount, isBullseye, source) {
+    if (amount <= 0) return;
+    const p = this.state[owner];
+    const who = owner === 'player' ? 'You' : 'AI';
+
+    // Mr Freeze health bar freeze — negate first damage
+    if (p.healthFrozen) {
+      p.healthFrozen = false;
+      // Credit Mr. Freeze (+ chain) with the negated damage. Categorized
+      // as 'Shield' since it's a one-shot HP-bar negation (different
+      // from cards that redirect to themselves like Mahoraga).
+      if (p._healthFrozenBy) {
+        this._creditAbsorb(p._healthFrozenBy, 'Shield', amount);
+        p._healthFrozenBy = null;
+      }
+      this.log(`  [FROZEN HP] ${who} health bar was frozen — ${amount} damage negated!`);
+      return;
+    }
+
+    // Mahoraga — "Absorb all damage that would hit your HP". If the player whose
+    // HP is about to take damage has a living Mahoraga on their board, redirect
+    // the incoming damage to Mahoraga instead of the health bar.
+    const mahoraga = this.getAllCardsOf(owner).find(c => c.passive === 'absorbPlayerDamage' && c.currentHealth > 0);
+    if (mahoraga && source !== mahoraga) {
+      // Credit Mahoraga via Redirect — he took the hit instead of HP.
+      this._creditAbsorb(mahoraga, 'Redirect', amount);
+      this.log(`  [ABSORB] ${mahoraga.name} absorbs ${amount} damage meant for ${who} HP!`);
+      // Invincibility / damage immunity apply to the redirected hit too.
+      // Previously this path decremented Mahoraga's HP without checking,
+      // so Captain America's Invincible 1 (or any other source) didn't
+      // protect him from HP-bar-absorbed damage.
+      if (mahoraga.invincibleTurns > 0) {
+        this.log(`  [INVINCIBLE] ${mahoraga.name} shrugs off the absorbed damage!`);
+        this.emitDmg(mahoraga.id, 0, 'block');
+        return;
+      }
+      if (mahoraga.hasDamageImmunity) {
+        this.log(`  [DMG IMMUNE] ${mahoraga.name} ignores the absorbed damage!`);
+        this.emitDmg(mahoraga.id, 0, 'block');
+        return;
+      }
+      // Armor reduces the absorbed hit the same way it reduces normal damage.
+      let dmg = amount;
+      if (mahoraga.armorValue > 0) {
+        if (dmg <= mahoraga.armorValue) {
+          this.log(`  [ARMOR] ${mahoraga.name}'s Armor ${mahoraga.armorValue} absorbs the ${dmg} damage fully`);
+          this.emitDmg(mahoraga.id, 0, 'block');
+          return;
+        }
+        dmg -= mahoraga.armorValue;
+        this.log(`  [ARMOR] ${mahoraga.name}'s Armor ${mahoraga.armorValue} reduces damage to ${dmg}`);
+      }
+      mahoraga.currentHealth -= dmg;
+      this.emitDmg(mahoraga.id, dmg, 'hit');
+      this.log(`  [HIT] ${mahoraga.name} takes ${dmg} → ${Math.max(0, mahoraga.currentHealth)}/${mahoraga.maxHealth} HP`);
+      if (mahoraga.onDamaged) mahoraga.onDamaged(this, mahoraga, source, dmg);
+      if (mahoraga.currentHealth <= 0) {
+        const lane = this.findCardLane(mahoraga);
+        if (lane >= 0) this.handleDeath(mahoraga, lane, source || null);
+      }
+      return;
+    }
+
+    let blockedByMeter = false;
+    if (!isBullseye) {
+      const roll = 1 + Math.floor(Math.random() * 3);
+      p.blockMeter += roll;
+      this.log(`  [BLOCK METER] ${who} roll d3=${roll} → meter ${p.blockMeter}/${this.BLOCK_MAX}`);
+      if (p.blockMeter >= this.BLOCK_MAX) {
+        p.blockMeter = 0;
+        blockedByMeter = true;
+        // Track block-meter trigger for the victory-screen stats panel.
+        if (this.state._stats && this.state._stats[owner]) {
+          this.state._stats[owner].blockTriggers++;
+        }
+        this.log(`  [BLOCKED!] ${amount} damage fully blocked! Meter reset to 0`);
+        this.emitDmg(null, amount, 'blocked', owner);
+        // Draw a trick card on block — can play free now or keep at regular cost.
+        // Pulls from the owner's trick pile (Classic = shared, Deckbuilder = per-player).
+        const blockTrickPile = this.getTrickPile(owner);
+        if (blockTrickPile.length) {
+          const def = blockTrickPile.pop();
+          const trick = { ...def, id: nextCardId++ };
+          this.log(`  [BLOCK DRAW] ${who} draw trick: ${trick.name}`);
+          if (this.isHuman(owner)) {
+            // Human: gets choice via UI modal — render immediately so the
+            // modal appears, otherwise combat parks in whenPromptCleared
+            // with no prompt visible to click (soft-lock).
+            this.state.pendingBlockTrick = trick;
+            if (typeof UI !== 'undefined' && UI.render) UI.render();
+          } else {
+            // AI-controlled: auto-play free if it has cards on board, else keep
+            if (this.getAllCardsOf(owner).length > 0 && trick.play) {
+              this.log(`  [BLOCK TRICK] ${owner === 'ai' ? 'AI' : owner} plays ${trick.name} for free!`);
+              this.state[owner].playedTrickPile.push({ name: trick.name, cost: trick.cost });
+              try { trick.play(this, owner); } catch (e) { console.error(e); }
+            } else {
+              this.addToTrickHand(owner, trick);
+              this.log(`  [BLOCK TRICK] ${owner === 'ai' ? 'AI' : owner} keeps ${trick.name} in hand`);
+            }
+          }
+        }
+        return;
+      }
+    } else {
+      this.log(`  [BULLSEYE] No block meter charge`);
+    }
+
+    // Floor HP at 0. gameOver still triggers on `<= 0` (see the two
+    // checks in endPhase3 / applyCombatDamage), so this only prevents
+    // the UI/stats from seeing a transient "-7 HP" after a killing
+    // blow that overkilled the defender. Caught by the invariant
+    // sweep in sim/test.js.
+    p.health = Math.max(0, p.health - amount);
+    this.emitDmg(null, amount, 'hpHit', owner);
+    // Track face damage for the round recap. Damage to player = damage AI dealt.
+    if (this.state._roundStats) {
+      const rs = this.state._roundStats;
+      if (owner === 'player') { rs.playerDamageTaken += amount; rs.aiDamageDealt += amount; }
+      else                    { rs.aiDamageTaken += amount;     rs.playerDamageDealt += amount; }
+    }
+    // Per-card + per-player stats for the victory-screen top-performer board.
+    if (source && source.id != null) {
+      this._creditChain(source, 'statsHealthbarDamage', amount);
+    }
+    if (isBullseye && source) {
+      const attackerSide = source.owner || this.opponent(owner);
+      if (this.state._stats && this.state._stats[attackerSide]) {
+        this.state._stats[attackerSide].bullseyeDamage += amount;
+      }
+    }
+    this.log(`  [DAMAGE] ${who} take ${amount} damage → ${Math.max(0, p.health)}/${p.maxHealth} HP`);
+    // Track landed health-bar damage for the currencyOnDamage passive (e.g. Green Lantern).
+    // Skip damage that was negated by Block Meter (logically blocked even if HP still ticks down).
+    if (source && source.passive === 'currencyOnDamage' && !blockedByMeter && amount > 0) {
+      source._damageDealtThisTurn = (source._damageDealtThisTurn || 0) + amount;
+    }
+    // Immediate game-over check — if this hit dropped HP to 0, end the
+    // match RIGHT NOW. Any remaining lanes / queued effects skip via the
+    // gameOver gate added in resolveLane and other entry points. User
+    // spec: "When the enemy's health or your health goes to 0, the game
+    // should be over. There shouldn't be any extra playing." Previously
+    // the check only ran at endPhase3 (postCombat), so face damage in
+    // lane 1 could let lanes 2-6 still resolve.
+    if (p.health <= 0 && !this.state.gameOver) {
+      this.state.gameOver = true;
+      this.state.winner = (owner === 'player') ? 'ai' : 'player';
+      this.log(`=== GAME OVER — ${this.state.winner === 'player' ? 'You Win!' : 'AI Wins!'} ===`);
+      // Pin the killing blow into the HP history BEFORE finalizeStats
+      // / showGameOverScreen consume it. Without this push the chart
+      // would stop at round-start of the final round (the engine's
+      // last snapshot) and never show the actual killing blow. User
+      // report: "the graph doesn't show the last round — the round
+      // where you killed them."
+      this._pinFinalHpHistory();
+      if (typeof this.finalizeStats === 'function') this.finalizeStats();
+      if (typeof UI !== 'undefined' && UI.showGameOverScreen) {
+        // Defer one tick so the killing-blow render has a chance to
+        // paint the final HP before the overlay slides in.
+        setTimeout(() => UI.showGameOverScreen(this.state.winner), 60);
+      }
+    }
+  },
+
+  // Append a final-state datapoint to _hpHistory at the moment the
+  // match ends. Idempotent — if the last entry already matches the
+  // current HP it skips. Called from BOTH game-over paths:
+  //   • postCombat (round resolved, then HP check) → end-of-round kills
+  //   • damagePlayer (immediate gameOver on face damage) → mid-combat kills
+  // The half-step round number (e.g. round 5 → 5.5) marks "end of
+  // round N" on the X-axis without overlapping the round-start
+  // snapshot, so the chart line clearly extends from the last
+  // round-start point down to zero.
+  _pinFinalHpHistory() {
+    if (!this.state._hpHistory) return;
+    const last = this.state._hpHistory[this.state._hpHistory.length - 1];
+    const currentP = Math.max(0, this.state.player.health);
+    const currentA = Math.max(0, this.state.ai.health);
+    if (!last || last.player !== currentP || last.ai !== currentA) {
+      this.state._hpHistory.push({
+        round: (this.state.round || 1) + 0.5,
+        player: currentP,
+        ai: currentA
+      });
+    }
+  },
+
+  // ===================== DRAW PHASE =====================
+
+  drawPhase(onComplete) {
+    this.log('--- Draw Phase ---');
+    // Dr. Strange / Eye of Agamotto / Dormammu foresight fires here.
+    // When a peek resolves and the owner takes a card, it counts AS
+    // their draw for this round — the card they picked came from the
+    // draw pile, so drawing again would be double-dipping. handleDrStrangeReorder's
+    // callback reports which owners consumed their draw via peek; we
+    // skip drawCards for them.
+    this.handleDrStrangeReorder((peeked) => {
+      if (!peeked.has('player')) this.drawCards('player', 1);
+      else this.log(`  [FORESEE] Peek counts as your draw this round.`);
+      if (!peeked.has('ai')) this.drawCards('ai', 1);
+      else this.log(`  [FORESEE] Peek counts as AI's draw this round.`);
+      if (onComplete) onComplete();
+    });
+  },
+
+  drawCards(owner, count) {
+    const p = this.state[owner];
+    const opp = this.opponent(owner);
+    const who = owner === 'player' ? 'You' : 'AI';
+
+    if (this.getAllCardsOf(opp).find(c => c.passive === 'preventDraw')) {
+      this.log(`[BLOCKED] Lex Luthor prevents ${who} from drawing!`);
+      return;
+    }
+
+    const drawn = [];
+    for (let i = 0; i < count; i++) {
+      if (p.hand.length >= p.maxHandSize) {
+        this.log(`  [HAND FULL] ${who} hand at max (${p.maxHandSize}) — stop drawing.`);
+        break;
+      }
+      const drawPile = this.getDrawPile(owner);
+      if (!drawPile.length) {
+        this.log(`[DECK] Draw pile empty — no cards to draw!`);
+        break;
+      }
+      const def = drawPile.pop();
+      const card = this.createCardInstance(def, owner);
+      // Apply Mr. Fantastic next-draw discount permanently. Stash the
+      // source amount on the card so hover tooltips can attribute "why
+      // is this card cheaper than its base cost?" post-hoc.
+      if (p.nextDrawDiscount > 0) {
+        const applied = Math.min(card.cost, p.nextDrawDiscount);
+        card.cost -= applied;
+        card._nextDrawDiscount = (card._nextDrawDiscount || 0) + applied;
+        this.log(`  [DISCOUNT] ${card.name} costs ${applied} less! Now costs ${card.cost}`);
+        // v3 instrumentation — credit Mr. Fantastic (or whoever set it)
+        // with the energy we actually saved, not the full posted amount.
+        if (p._nextDrawDiscountSource) {
+          this._creditChain(p._nextDrawDiscountSource, 'statsDiscountValue', applied);
+        }
+        p.nextDrawDiscount = 0;
+        p._nextDrawDiscountSource = null;
+      }
+      // Captain America: apply -1 per active CA on the board (visible discount).
+      // v3 — credit each CA instance with its share of the reduction.
+      const capCards = this.getAllCardsOf(owner).filter(c => c.passive === 'allyCostReduction');
+      const capCount = capCards.length;
+      if (capCount > 0 && card.cost > 0) {
+        const reduction = Math.min(card.cost, capCount);
+        card.cost -= reduction;
+        card._capAmericaDiscount = (card._capAmericaDiscount || 0) + reduction;
+        // Split credit equally among active CA instances (usually 1).
+        const perCap = reduction / capCount;
+        capCards.forEach(cap => this._creditChain(cap, 'statsDiscountValue', perCap));
+      }
+      if (!this.addToHand(owner, card)) break;
+      drawn.push(card.name);
+    }
+    if (drawn.length) {
+      if (owner === 'player') {
+        this.log(`[DRAW] ${who} draw ${drawn.length}: ${drawn.join(', ')}`);
+      } else {
+        this.log(`[DRAW] ${who} draw ${drawn.length} cards`);
+      }
+    }
+    this.log(`  Draw pile: ${this.getDrawPile(owner).length} cards remaining`);
+  },
+
+  // Centralized hand/trick gainers — respect max hand (7) / max trick (3) caps.
+  // Return true if added, false if the hand was full (card/trick silently discarded).
+  addToHand(owner, card, source) {
+    const p = this.state[owner];
+    if (p.hand.length >= p.maxHandSize) {
+      this.log(`  [HAND FULL] ${owner === 'player' ? 'Your' : "AI's"} hand is full (${p.maxHandSize}) — ${card && card.name ? card.name : 'card'} discarded.`);
+      return false;
+    }
+    p.hand.push(card);
+    // Card advantage — if a specific source card caused this hand gain
+    // (Hela resurrect, Grundy onDeath, Dr. Doom revive, BWL steal, etc.),
+    // credit it with +1 advantage. Deck-draws credit via drawCards path.
+    if (source && source.id != null) {
+      this._creditChain(source, 'statsCardAdvantage', 1);
+    }
+    return true;
+  },
+  addToTrickHand(owner, trick) {
+    const p = this.state[owner];
+    if (p.trickHand.length >= p.maxTrickHandSize) {
+      this.log(`  [TRICKS FULL] ${owner === 'player' ? 'Your' : "AI's"} trick hand is full (${p.maxTrickHandSize}) — ${trick && trick.name ? trick.name : 'trick'} discarded.`);
+      return false;
+    }
+    p.trickHand.push(trick);
+    return true;
+  },
+
+  // ===================== DEATH =====================
+
+  handleDeath(card, laneIdx, killer) {
+    if (card._deathHandled) return;
+    card._deathHandled = true;
+    // Track the kill for the round recap. Card dying on AI side = player's kill.
+    if (this.state._roundStats) {
+      const rs = this.state._roundStats;
+      if (card.owner === 'ai') rs.playerKills.push(card.name);
+      else if (card.owner === 'player') rs.aiKills.push(card.name);
+    }
+    // Poison Ivy reactive-unbuff — if the dying card is someone's Ivy
+    // charm target, strip her charm ATK buff. The buff represents a
+    // bonus "while this ally is still alive"; if the ally dies mid-
+    // turn the bonus shouldn't persist to Ivy's swing. User-reported
+    // bug: "Poison Ivy charmed Human Torch. Human Torch died. Poison
+    // Ivy shouldn't gain extra attack anymore."
+    try {
+      const deadId = card.id;
+      this.getAllCardsOnBoard().forEach(c => {
+        if (c.name !== 'Poison Ivy' || c._ivyCharmedId !== deadId) return;
+        if (!c._grantedBuffs || !c._grantedBuffs.length) return;
+        const idx = c._grantedBuffs.findIndex(b => b._ivyCharm);
+        if (idx < 0) return;
+        const b = c._grantedBuffs[idx];
+        // Reverse the buff manually (expireGrantedBuffs won't fire
+        // until end of turn, and the swing happens before that).
+        if (b.set) {
+          c[b.prop] = b.prev;
+        } else {
+          c[b.prop] = (c[b.prop] || 0) - (b.delta || 0);
+          if (b.prop === 'attack') c[b.prop] = Math.max(0, c[b.prop]);
+        }
+        c._grantedBuffs.splice(idx, 1);
+        c._ivyAlly = null;
+        c._ivyCharmedId = null;
+        this.log(`[POISON IVY] ${card.name} died — charm bonus fades (-${b.delta || 0} ATK, now ${c.attack}).`);
+      });
+    } catch (e) { console.error(e); }
+    if (card.onDeath) {
+      const prevented = this._runHook(card, 'onDeath', this, card, laneIdx);
+      if (prevented) {
+        // Card survived (e.g. resurrection) — clear the guard so future deaths are processed
+        card._deathHandled = false;
+        return;
+      }
+    }
+    const who = card.owner === 'player' ? 'Your' : "AI's";
+    this.log(`[DEAD] ${who} ${card.name} destroyed in lane ${laneIdx + 1} → dead pile`);
+    // Spawn destroy particles at the card's current DOM location so the
+    // board reads as "the card shattered here" before the next render
+    // sweeps the DOM. No-op in sim mode where UI is stubbed.
+    if (typeof UI !== 'undefined' && UI.spawnDestroyParticles) UI.spawnDestroyParticles(card.id, card.owner);
+    if (card.statsLeftRound == null) card.statsLeftRound = this.state.round || 1;
+    // Victory-panel stat: count kills on the killer's side. Every death
+    // of an enemy card counts toward the opposing side's total — even if
+    // the `killer` object has no owner (tricks use anonymous source
+    // objects like `{name:'Fear Toxin'}`, Galactus devour passes null,
+    // etc.). Previously these untraceable kills weren't counted, which
+    // is why cardsKilled under-reported. Per-card statsKills (+5 MVP per
+    // kill) still only fires when we have a real killer with an owner.
+    const killerSide = (killer && killer.owner && killer.owner !== card.owner)
+      ? killer.owner
+      : this.opponent(card.owner);
+    if (this.state._stats && this.state._stats[killerSide]) {
+      this.state._stats[killerSide].cardsKilled++;
+    }
+    if (killer && killer.owner && killer.owner !== card.owner) {
+      this._creditChain(killer, 'statsKills', 1);
+      // Kill TEMPO — sum of baseCost of cards destroyed. Credits the
+      // killer with the energy the opponent had to invest in the card
+      // we removed. Sabermetrics-MVP refactor: damage already counts
+      // in faceDamage/boardDamage, so the kill itself is rewarded with
+      // tempo (cost) rather than the previous attack+maxHP+cost lump
+      // (which double-counted the damage that did the killing).
+      const killTempo = (card.baseCost || card.cost || 0);
+      this._creditChain(killer, 'statsKillTempo', killTempo);
+      // Keep statsKillValue populated for back-compat / dashboard
+      // displays that still read it; set to the simpler tempo number.
+      this._creditChain(killer, 'statsKillValue', killTempo);
+    }
+    this.removeFromLane(card, laneIdx);
+    // Tokens (inline-summoned Ant/Parademon/etc. — see _isToken flag in
+    // summonCard) skip the dead pile entirely. They're ephemeral and
+    // shouldn't be resurrected by Lazarus Pit / Solomon Grundy / Hela.
+    // Stats for living tokens are still tracked while alive; we just
+    // drop the persistent record on death so no pile effect can see them.
+    if (card._isToken) {
+      // onDeath already fired at the top of handleDeath. Run the other
+      // death-adjacent hooks (killer onKill, ally onAllyKilled, jump
+      // checks, bonus-attack drain) but skip the deadPile push and the
+      // passive-cleanup branches (Magneto / faceDownOption) since
+      // tokens don't carry those passives.
+      if (killer && killer.onKill) killer.onKill(this, killer);
+      const livingAllies = this.getAllCardsOf(card.owner);
+      livingAllies.forEach(a => { if (a.onAllyKilled) a.onAllyKilled(this, a); });
+      // User spec: "Anakin and bonus attacks in general shouldn't happen
+      // at the end of the round but instead immediately." Drain right
+      // here so the bonus swing lands in the same beat as the death
+      // that triggered it, not batched to postCombat.
+      livingAllies.forEach(a => this.drainBonusAttacks(a));
+      this.checkJumpConditions('allyDied', { owner: card.owner, laneIdx });
+      return;
+    }
+    // Coerce any NaN/undefined stats before archiving — a dead-pile
+    // entry with corrupted health/attack will reanimate via Solomon
+    // Grundy / Hela / Lazarus Pit as a NaN card that propagates the
+    // corruption into live combat. Fall back to baseAttack/baseHealth
+    // (the def's starting stats, captured at createCardInstance time)
+    // when the current value is bad. Caught by sim/test.js's invariant
+    // sweep.
+    // RESET ON DEATH — when a card hits the dead pile, snapshot its
+    // BASE stats and abilities (not the buffed/debuffed/status-laden
+    // current state). User spec: "when a card dies and is in the dead
+    // pile, return its stats and status badges to their original
+    // numbers, so if they are revived they are just like new."
+    //
+    // What gets reset (via base lookup):
+    //   • attack (baseAttack)              — buffs/debuffs cleared
+    //   • health/maxHealth (baseHealth)    — back to full
+    //   • cost (baseCost)                  — discount/inflation cleared
+    //   • abilities (baseAbilities)        — Loki temp keywords gone
+    //
+    // What gets cleared by virtue of NOT being copied:
+    //   • frozenTurns / stunnedTurns / fearedTurns / mind-control flags
+    //   • _grantedBuffs (Ivy charm, Power Stone +3, etc.)
+    //   • Magneto even-lane debuff, Man-Bat -1/-1 stacks
+    //   • Anakin buff stacks, Sabretooth's accumulated kills
+    // The revived card comes back exactly as it was drafted, fresh.
+    const baseAtk = (typeof card.baseAttack === 'number' && Number.isFinite(card.baseAttack))
+                      ? card.baseAttack
+                      : ((typeof card.attack === 'number' && Number.isFinite(card.attack)) ? card.attack : 0);
+    const baseHp  = (typeof card.baseHealth === 'number' && Number.isFinite(card.baseHealth) && card.baseHealth > 0)
+                      ? card.baseHealth
+                      : ((typeof card.maxHealth === 'number' && Number.isFinite(card.maxHealth) && card.maxHealth > 0) ? card.maxHealth : 1);
+    // Defensive: if the card lost its owner pointer somehow (e.g. a
+    // dev-console-injected card or a malformed clone), don't deadlock
+    // the whole combat loop — log + skip the dead-pile archive. The
+    // card was already pulled from the lane above; missing it from the
+    // dead pile only means resurrection abilities (Solomon Grundy /
+    // Lazarus Pit / Hela) can't see it. Better than a hard freeze.
+    if (!card.owner || !this.state[card.owner] || !this.state[card.owner].deadPile) {
+      this.log(`  [WARN] handleDeath: card "${card.name || '?'}" has no owner — skipping dead-pile archive.`);
+      return;
+    }
+    this.state[card.owner].deadPile.push({
+      name: card.name, cost: card.baseCost || card.cost, attack: baseAtk,
+      health: baseHp,
+      // Restore the original ability list. createCardInstance stamps
+      // baseAbilities = abilities at draft time, so this captures the
+      // truly fresh keywords. Loki's stolen-keyword "Untrickable", Ivy's
+      // charm-derived ATK, etc. all evaporate.
+      abilities: (Array.isArray(card.baseAbilities) ? card.baseAbilities.slice() : (card.abilities || [])),
+      type: card.type,
+      desc: card.desc, onPlay: card.onPlay, onDeath: card.onDeath,
+      onDamaged: card.onDamaged, onKill: card.onKill, passive: card.passive,
+      // Preserve per-card stats so the victory screen can tally top performers
+      // across the whole game (cards that died count just as much as living).
+      statsHealthbarDamage: card.statsHealthbarDamage || 0,
+      statsEnemyDamage: card.statsEnemyDamage || 0,
+      statsDamageAbsorbed: card.statsDamageAbsorbed || 0,
+      statsAbsorbArmor:      card.statsAbsorbArmor      || 0,
+      statsAbsorbInvincible: card.statsAbsorbInvincible || 0,
+      statsAbsorbEvade:      card.statsAbsorbEvade      || 0,
+      statsAbsorbRedirect:   card.statsAbsorbRedirect   || 0,
+      statsAbsorbLockdown:   card.statsAbsorbLockdown   || 0,
+      statsAbsorbShield:     card.statsAbsorbShield     || 0,
+      statsKills: card.statsKills || 0,
+      statsEnergyGenerated: card.statsEnergyGenerated || 0,
+      statsHealLeveraged: card.statsHealLeveraged || 0,
+      statsKillTempo: card.statsKillTempo || 0,
+      statsEnteredRound: card.statsEnteredRound,
+      statsLeftRound: card.statsLeftRound,
+      owner: card.owner,
+    });
+    if (killer && killer.onKill) killer.onKill(this, killer);
+    const livingAllies = this.getAllCardsOf(card.owner);
+    livingAllies.forEach(a => { if (a.onAllyKilled) a.onAllyKilled(this, a); });
+    // Drain bonus attacks immediately on every death — combat or
+    // trick-triggered. User spec: "Anakin and bonus attacks in general
+    // shouldn't happen at the end of the round but instead immediately."
+    // Previously combat deaths batched these to postCombat so a chain
+    // of "Ahsoka swings → kills → triggers Anakin" landed all at once
+    // at end-of-round; now each link of the chain fires in real time
+    // alongside the death that triggered it.
+    livingAllies.forEach(a => this.drainBonusAttacks(a));
+    // Check jump conditions — an ally died. Pass laneIdx so Jason
+    // Voorhees locks to the exact lane that opened up (mirrors the
+    // token-death path at the top of handleDeath which already passed
+    // laneIdx). Without it, Jason's jumpLane was undefined and the
+    // jump fell through to the "pick any open lane" generic branch.
+    this.checkJumpConditions('allyDied', { owner: card.owner, laneIdx });
+    // Remove Magneto debuffs if Magneto died
+    if (card.name === 'Magneto') this.removeMagnetoDebuffs(card.owner);
+    // Revoke faceDownOption if the card granting it died
+    if (card.passive === 'faceDownOption') {
+      this.state[card.owner].faceDownAvailable = this.getAllCardsOf(card.owner).some(c => c.passive === 'faceDownOption');
+    }
+  },
+
+  // Execute queued bonus attacks on one card (Ahsoka, Superman, etc.).
+  // `bonusAttack` may be a boolean (1 attack) or an integer (N queued attacks).
+  // Called from postCombat (batched combat deaths) and handleDeath (immediate
+  // drain after trick-triggered deaths, so a dying ally can still retaliate).
+  // Lex Luthor's aura suppresses all bonus attacks of his enemies while alive.
+  drainBonusAttacks(c) {
+    if (!c) return;
+    let remaining = typeof c.bonusAttack === 'number' ? c.bonusAttack : (c.bonusAttack ? 1 : 0);
+    if (remaining <= 0) return;
+    const oppSide = this.opponent(c.owner);
+    if (this.getAllCardsOf(oppSide).some(e => e.name === 'Lex Luthor')) {
+      this.log(`  [LUTHOR] ${c.name}'s bonus attack is suppressed by Lex Luthor!`);
+      c.bonusAttack = false;
+      return;
+    }
+    c.bonusAttack = false;
+    while (remaining > 0 && c.currentHealth > 0) {
+      remaining--;
+      const lane = this.findCardLane(c);
+      if (lane < 0) break;
+      const opp = this.opponent(c.owner);
+      const enemy = this.state.lanes[lane][opp];
+      if (enemy && enemy.currentHealth > 0) {
+        // Say "bonus attack" outright rather than "strikes" so the log
+        // unambiguously identifies this as a queued bonus-attack hit
+        // (Ahsoka / Anakin / Superman) vs a normal combat swing.
+        this.log(`  [BONUS ATTACK] ${c.name} makes a bonus attack on ${enemy.name} for ${c.attack}!`);
+        this.applyCombatDamage(c, enemy);
+        this.cleanupDead();
+      } else if (!enemy) {
+        const dmg = c.attack + (c.splashRange || 0);
+        // Log BEFORE the damagePlayer call so that if Mr Freeze negates the
+        // hit (damagePlayer logs [FROZEN HP] and returns early), the
+        // transcript reads "attempt then outcome" instead of showing a
+        // misleading "hits for N" line AFTER the negation line.
+        this.log(`  [BONUS ATTACK] ${c.name} hits ${opp} health bar for ${dmg}!`);
+        this.damagePlayer(opp, dmg, c.isBullseye, c);
+      }
+    }
+  },
+
+  cleanupDead() {
+    for (let i = 0; i < this.LANE_COUNT; i++) {
+      ['player', 'ai'].forEach(o => {
+        const c = this.state.lanes[i][o];
+        if (c && c.currentHealth <= 0) this.handleDeath(c, i, null);
+      });
+    }
+  },
+
+  // ===================== GAME API (for card effects) =====================
+
+  log(m) { this.state.log.push(m); if (this.state.log.length > 300) this.state.log.shift(); },
+
+  // MVP attribution — walk up the _summonedBy chain, crediting every
+  // ancestor with `amount` on `field`. A cycle guard prevents infinite
+  // loops if _summonedBy somehow becomes self-referential (shouldn't
+  // happen, but cheap insurance). Safe to call with null/0 — early-exits.
+  _creditChain(card, field, amount) {
+    if (!card || !amount) return;
+    let c = card;
+    const seen = new Set();
+    while (c && !seen.has(c.id)) {
+      c[field] = (c[field] || 0) + amount;
+      seen.add(c.id);
+      c = c._summonedBy;
+    }
+  },
+  // Damage-denied bookkeeping helper. Credits both the master
+  // `statsDamageAbsorbed` total (what the impact formula consumes) AND
+  // a per-prevention-type subfield so the dashboard can break down
+  // "what kind of defense did this card actually do?" into:
+  //   Armor       — armor value reduced/absorbed an incoming hit
+  //   Invincible  — Invincible / Damage Immunity negated a hit (full)
+  //   Evade       — evade charge ate a swing
+  //   Redirect    — Mahoraga / taunt took the hit instead of the target
+  //   Lockdown    — freeze/stun phantom-swing (an enemy that COULDN'T
+  //                 attack because of this card's freeze/stun lock)
+  //   Shield      — Mr. Freeze HP shield (one-shot HP-bar negation)
+  // The sum of the subfields must equal the master total.
+  _creditAbsorb(card, type, amount) {
+    if (!card || amount <= 0) return;
+    this._creditChain(card, 'statsDamageAbsorbed', amount);
+    this._creditChain(card, 'statsAbsorb' + type, amount);
+  },
+
+  // Summon-context stack — an ability hook (onPlay, onDeath, etc.) that
+  // summons more cards needs to tell summonCard which card is the source.
+  // Instead of threading a summoner param through every ability-file
+  // call site, we stash the active source here while a hook is running.
+  // Stack (not single slot) supports nested hooks: Cyborg.onDeath fires
+  // during mid-play of whatever killed Cyborg; its summon should credit
+  // Cyborg, not the killer.
+  _pushSummonSource(card) {
+    if (!this._summonSourceStack) this._summonSourceStack = [];
+    this._summonSourceStack.push(card || null);
+  },
+  _popSummonSource() {
+    if (this._summonSourceStack) this._summonSourceStack.pop();
+  },
+  _currentSummonSource() {
+    const st = this._summonSourceStack;
+    return (st && st.length) ? st[st.length - 1] : null;
+  },
+  // Wrapper around an ability hook that automatically pushes the card as
+  // the current summon source and pops on exit. Summons inside the hook
+  // will credit this card as _summonedBy. Mirrors the try/catch the
+  // manual call sites used previously so ability bugs don't crash.
+  _runHook(card, hookName, ...args) {
+    if (!card || typeof card[hookName] !== 'function') return undefined;
+    this._pushSummonSource(card);
+    try {
+      return card[hookName](...args);
+    } catch (e) {
+      console.error('[' + hookName + ']', e);
+    } finally {
+      this._popSummonSource();
+    }
+  },
+  opponent(o) { return o === 'player' ? 'ai' : 'player'; },
+  // True if `owner` is controlled by a human (gets modal prompts). False
+  // for AI-controlled seats (ability auto-picks the non-prompt branch).
+  // Used by every `self.owner === 'player'` check in abilities.js / tricks.js
+  // — replacing those with `Game.isHuman(self.owner)` enables multiplayer
+  // (both seats human) and makes the sim fully symmetric (both seats AI).
+  isHuman(owner) { return !!(this.state[owner] && this.state[owner].isHuman); },
+
+  // General stat buff: +atk ATK, +hp HP (increases maxHealth and currentHealth)
+  buffCard(card, atk, hp) {
+    if (!card) return;
+    // Defensive: if the card's stats have already been corrupted to
+    // NaN/undefined by some earlier bug (see sim/test.js invariant
+    // sweep), heal them back to a known-safe floor before applying
+    // the new buff — else NaN propagates forever.
+    if (typeof card.attack !== 'number' || !Number.isFinite(card.attack)) card.attack = card.baseAttack || 0;
+    if (typeof card.currentHealth !== 'number' || !Number.isFinite(card.currentHealth)) card.currentHealth = card.baseHealth || 1;
+    if (typeof card.maxHealth !== 'number' || !Number.isFinite(card.maxHealth)) card.maxHealth = card.baseHealth || 1;
+    if (typeof atk === 'number' && Number.isFinite(atk) && atk) card.attack += atk;
+    if (typeof hp  === 'number' && Number.isFinite(hp)  && hp)  { card.currentHealth += hp; card.maxHealth += hp; }
+  },
+
+  // 10-cost cards cannot affect enemy 10-cost cards with abilities.
+  is10CostImmune(source, target) {
+    if (!source || !target) return false;
+    return (source.baseCost || source.cost) >= 10 && (target.baseCost || target.cost) >= 10
+      && source.owner !== target.owner;
+  },
+
+  // True when we're currently inside a trick.play callback AND the target
+  // has the Untrickable flag. Used by damage / kill / debuff / move paths
+  // to short-circuit any trick effect that tries to touch an Untrickable
+  // card. Card-ability paths don't set _inTrick, so cards can still
+  // interact with Untrickable targets normally.
+  _trickBlocked(target) {
+    if (!this.state._inTrick || !target || !target.isUntrickable) return false;
+    this.log(`  [UNTRICKABLE] ${target.name} cannot be affected by tricks!`);
+    return true;
+  },
+
+  // General stat debuff: -atk ATK, -hp HP (ATK floors at 0, HP floors at 1).
+  // Pass allowKill=true to let the HP drop to 0 and kill the card (used by
+  // Magneto's aura so low-HP cards like Rocket can't survive -1/-2).
+  debuffCard(card, atk, hp, allowKill, source) {
+    if (!card) return;
+    if (this._trickBlocked(card)) return;
+    // Invincibility / Damage Immunity blocks stat-debuffs the same way
+    // it blocks raw damage — stat reductions ARE damage in spirit
+    // (they pre-kill the card or remove its offensive value), so an
+    // Invincible card should be untouched. User spec: "Flash has
+    // Invincibility, the Bear Trap -1/-1 shouldn't apply. Luke's aura
+    // -1/-1 also shouldn't apply while Invincibility is active. Once
+    // Invincibility wears off, debuffs apply normally."
+    if (card.invincibleTurns > 0 || card.hasDamageImmunity) {
+      const tag = card.invincibleTurns > 0 ? 'INVINCIBLE' : 'DMG IMMUNE';
+      const srcName = source && source.name ? source.name : 'a debuff';
+      this.log(`  [${tag}] ${card.name} shrugs off the ${srcName} debuff!`);
+      // Credit absorbed value via the same statsDamageAbsorbed path used
+      // for raw-damage blocks — a -2 ATK debuff that didn't land is
+      // worth ~2 to the absorber's defensive contribution.
+      const absorbedValue = (atk || 0) + (hp || 0);
+      if (absorbedValue > 0) this._creditAbsorb(card, 'Invincible', absorbedValue);
+      return;
+    }
+    // Defensive coerce — see buffCard; stops NaN from surviving a round.
+    if (typeof card.attack !== 'number' || !Number.isFinite(card.attack)) card.attack = card.baseAttack || 0;
+    if (typeof card.currentHealth !== 'number' || !Number.isFinite(card.currentHealth)) card.currentHealth = card.baseHealth || 1;
+    if (typeof card.maxHealth !== 'number' || !Number.isFinite(card.maxHealth)) card.maxHealth = card.baseHealth || 1;
+    // Reject NaN/undefined inputs silently rather than propagate.
+    atk = (typeof atk === 'number' && Number.isFinite(atk)) ? atk : 0;
+    hp  = (typeof hp  === 'number' && Number.isFinite(hp))  ? hp  : 0;
+    // Actual ATK reduction can be capped by the target's current attack
+    // (you can't reduce below 0). Credit the source with what was
+    // ACTUALLY removed, so a -3 on a 1-ATK card only counts as -1.
+    const atkReduced = atk ? Math.min(atk, card.attack || 0) : 0;
+    if (atk) card.attack = Math.max(0, card.attack - atk);
+    if (hp) {
+      if (allowKill) {
+        card.maxHealth = Math.max(1, card.maxHealth - hp);
+        card.currentHealth -= hp;
+        if (card.currentHealth <= 0) {
+          this.killCard(card, source);
+        }
+      } else {
+        card.maxHealth = Math.max(1, card.maxHealth - hp);
+        card.currentHealth = Math.max(1, card.currentHealth - hp);
+      }
+    }
+    // v3 instrumentation — credit the source for stat reductions. HP
+    // already gets captured via killCard (if kill) or is implicit damage
+    // in other paths; we count ATK debuff as the primary debuff value
+    // since that's the hard-to-measure effect (Hawkeye splashWeaken,
+    // Kryptonite -3 ATK, Magneto aura, etc.). Valued 1:1 with ATK points
+    // removed — Impact-formula weight decides relative importance.
+    if (source && atkReduced > 0) {
+      this._creditChain(source, 'statsDebuffValue', atkReduced);
+    }
+  },
+
+  dealDamage(card, amount, source) {
+    if (!card || card.currentHealth <= 0) return;
+    if (this._trickBlocked(card)) return;
+    // Invincible / Damage Immunity blocks — attribute the full amount to
+    // the blocking card's `statsDamageAbsorbed` so the Stats dashboard
+    // sees defensive contribution beyond just armor. Previously this
+    // function exited silently and these cards looked like they did
+    // nothing defensively.
+    if (card.invincibleTurns > 0) {
+      this.log(`  [INVINCIBLE] ${card.name} blocks ${amount} damage${source ? ` from ${source.name}` : ''}!`);
+      this._creditAbsorb(card, 'Invincible', amount);
+      return;
+    }
+    if (card.hasDamageImmunity) {
+      this.log(`  [DMG IMMUNE] ${card.name} ignores ${amount} damage${source ? ` from ${source.name}` : ''}!`);
+      this._creditAbsorb(card, 'Invincible', amount);
+      return;
+    }
+    if (this.is10CostImmune(source, card)) { this.log(`  [IMMUNE] ${card.name} is immune to ${source.name}'s ability!`); return; }
+    if (card.evadeCharges > 0 && !card.isStunned && !card.isFrozen) {
+      card.evadeCharges--;
+      this.log(`  [EVADE] ${card.name} dodges ${amount} damage! (${card.evadeCharges} charges left)`);
+      this._creditAbsorb(card, 'Evade', amount);
+      if (card.onEvade) card.onEvade(this, card);
+      return;
+    }
+    // Taunt intercept — taunter ate the hit, so the prevention here is
+    // "amount that would have hit the original target." We credit the
+    // taunter via _creditAbsorb('Redirect', ...) so the dashboard can
+    // distinguish redirect from direct armor blocks.
+    const taunter = this.getAllCardsOf(card.owner).find(c => c.tauntTurns > 0 && c.currentHealth > 0 && c.id !== card.id);
+    if (taunter) {
+      this.log(`  [TAUNT] ${taunter.name} intercepts damage meant for ${card.name}!`);
+      card = taunter;
+      if (card.invincibleTurns > 0) {
+        this._creditAbsorb(card, 'Redirect', amount);
+        this._creditAbsorb(card, 'Invincible', amount);  // bonus — taunter ALSO blocked it
+        return;
+      }
+      if (card.hasDamageImmunity) {
+        this._creditAbsorb(card, 'Redirect', amount);
+        this._creditAbsorb(card, 'Invincible', amount);
+        return;
+      }
+      // Plain redirect — taunter takes the hit on its own HP. Credit
+      // 'Redirect' for the SHIFTED damage; if armor reduces it further
+      // below, that armor portion gets its own credit too.
+      this._creditAbsorb(card, 'Redirect', amount);
+    }
+    if (card.armorValue > 0 && amount <= card.armorValue) {
+      this.log(`  [ARMOR] ${card.name}'s Armor ${card.armorValue} absorbs all ${amount} damage${source ? ` from ${source.name}` : ''}!`);
+      this.emitDmg(card.id, 0, 'armor');
+      this._creditAbsorb(card, 'Armor', amount);
+      return;
+    }
+    const actual = card.armorValue > 0 ? amount - card.armorValue : amount;
+    if (card.armorValue > 0 && actual > 0) {
+      this.log(`  [ARMOR] ${card.name}'s Armor ${card.armorValue} reduces ${amount} → ${actual}${source ? ` from ${source.name}` : ''}`);
+      this._creditAbsorb(card, 'Armor', card.armorValue);
+    }
+    card.currentHealth -= actual;
+    // Track landed damage for the currencyOnDamage passive (e.g. Green Lantern)
+    if (source && source.passive === 'currencyOnDamage' && actual > 0) {
+      source._damageDealtThisTurn = (source._damageDealtThisTurn || 0) + actual;
+    }
+    // Per-card stats — attribute ability damage (tricks, splash, chain, etc.)
+    // to the source card + walk up its summon chain.
+    if (actual > 0 && source && source.id != null && source.owner !== card.owner) {
+      this._creditChain(source, 'statsEnemyDamage', actual);
+    }
+    if (card.onDamaged) card.onDamaged(this, card, source, actual);
+    if (card.currentHealth <= 0) {
+      // Credit the source with this kill — ability/splash/trick damage
+      // that finishes off a card should count toward `statsKills` just
+      // like combat damage does (applyCombatDamage crediting is adjacent).
+      if (source && source.id != null && source.owner !== card.owner) {
+        this._creditChain(source, 'statsKills', 1);
+      }
+      const l = this.findCardLane(card);
+      if (l >= 0) this.handleDeath(card, l, source || null);
+    }
+  },
+
+  // Destroy a lane temporarily. Duration (default 3 rounds) ticks down in
+  // drawPhase's per-round cleanup; when it reaches 0 the lane reforms and
+  // both sides can place cards there again. Any cards currently IN the
+  // lane should be killed separately by the caller before this fires —
+  // this helper only manages the lane state, not its occupants.
+  destroyLane(laneIdx, duration = 3) {
+    const lane = this.state.lanes[laneIdx];
+    if (!lane) return;
+    lane.destroyed = true;
+    lane.destroyedTurns = duration;
+  },
+
+  killCard(card, source) {
+    if (!card) return;
+    if (this._trickBlocked(card)) return;
+    if (this.is10CostImmune(source, card)) { this.log(`  [IMMUNE] ${card.name} is immune to ${source.name}'s destruction!`); return; }
+    if (card.invincibleTurns > 0) {
+      // Invincible is a ROUND-scoped shield (Invincible 3 = 3 full rounds),
+      // ticked once per round in the end-of-turn cleanup at the top of this
+      // file. Do NOT decrement here — otherwise a destruction attempt like
+      // Deathstroke's assassinate against a card with Invincible 1 would
+      // both block the kill AND burn the round's worth of shield, leaving
+      // the card unprotected against the next trick in the same round.
+      this.log(`[INVINCIBLE] ${card.name} survives destruction! (${card.invincibleTurns} turn${card.invincibleTurns === 1 ? '' : 's'} remaining)`);
+      return;
+    }
+    const l = this.findCardLane(card);
+    if (l >= 0) {
+      // Attribute the victim's remaining HP to the killer (+ chain) as
+      // "damage dealt to enemies" — e.g. Thanos snap on 20-HP Dormammu
+      // counts as 20 damage toward Thanos's MVP. Also credit the kill
+      // counter (statsKills) the same way applyCombatDamage / dealDamage
+      // do when they finish off a target — otherwise direct-destroy
+      // effects (Thanos, Dr. Doom, Darkhold) would show 0 kills.
+      if (source && source.id != null && card.owner !== source.owner && card.currentHealth > 0) {
+        this._creditChain(source, 'statsEnemyDamage', card.currentHealth);
+        this._creditChain(source, 'statsKills', 1);
+      }
+      card.currentHealth = 0;
+      this.handleDeath(card, l, source || null);
+    }
+  },
+
+  killCardSilent(card) { const l = this.findCardLane(card); if (l >= 0) this.removeFromLane(card, l); },
+
+  // Player-driven chain effect.
+  // Player picks a starting enemy (any enemy on board); then repeatedly picks a direction
+  // (left/right/stop) — chain continues only into consecutive occupied enemy lanes.
+  // AI uses getChainedEnemies (starting from source lane) for equivalent behavior.
+  runPlayerChain(source, applyFn, title, verb) {
+    const owner = source.owner;
+    const opp = this.opponent(owner);
+    const enemies = this.getEnemiesOf(owner).filter(e => e.currentHealth > 0);
+    if (!enemies.length) { this.log(`${source.name}: no enemies to chain.`); return; }
+
+    // AI: use auto-spread from source lane (legacy behavior)
+    if (owner !== 'player') {
+      const targets = this.getChainedEnemies(source);
+      targets.forEach(t => { try { applyFn(t); } catch (e) { console.error(e); } });
+      this.log(`${source.name} chains ${verb} to ${targets.length} enemies!`);
+      return;
+    }
+
+    const hit = new Set();
+    const applyAndLog = (t) => {
+      if (!t || hit.has(t.id)) return false;
+      hit.add(t.id);
+      try { applyFn(t); } catch (e) { console.error(e); }
+      return true;
+    };
+    // Step 2+: prompt for direction once a starting lane is set. Direction
+    // locks after the first step — chain is one-way (pick left or right,
+    // stick with it until a gap or the chain ends). Previously either
+    // direction was offered at every step, which let the chain bounce
+    // back and cover both sides of the source lane.
+    const chainFrom = (startLane) => {
+      let current = startLane;
+      let lockedDir = null; // null until first directional step, then 'left' | 'right'
+      const extendLeft = () => {
+        let idx = current;
+        while (idx - 1 >= 0) {
+          const e = this.state.lanes[idx - 1][opp];
+          if (!e || e.currentHealth <= 0) return null;
+          idx--;
+          if (!hit.has(e.id)) return { idx, card: e };
+        }
+        return null;
+      };
+      const extendRight = () => {
+        let idx = current;
+        while (idx + 1 < this.LANE_COUNT) {
+          const e = this.state.lanes[idx + 1][opp];
+          if (!e || e.currentHealth <= 0) return null;
+          idx++;
+          if (!hit.has(e.id)) return { idx, card: e };
+        }
+        return null;
+      };
+      const askNext = () => {
+        const left  = (lockedDir === 'right') ? null : extendLeft();
+        const right = (lockedDir === 'left')  ? null : extendRight();
+        const options = [];
+        if (left)  options.push({ name: `← ${left.card.name} (lane ${left.idx + 1})`,  desc: `Chain ${verb} to ${left.card.name}`,  _dir: 'left',  _target: left });
+        if (right) options.push({ name: `${right.card.name} (lane ${right.idx + 1}) →`, desc: `Chain ${verb} to ${right.card.name}`, _dir: 'right', _target: right });
+        options.push({ name: `Stop Chain`, desc: `End the ${verb} chain here`, _dir: 'stop' });
+        if (options.length === 1) return; // only 'stop' available
+        this.promptCardChoice(owner, options, `${title} — Direction`,
+          `Chain continues from lane ${current + 1}. Pick next target or stop.`,
+          (pick) => {
+            if (pick._dir === 'stop' || !pick._target) return;
+            if (!lockedDir) lockedDir = pick._dir;
+            applyAndLog(pick._target.card);
+            current = pick._target.idx;
+            askNext();
+          }, cards => cards[0]);
+      };
+      askNext();
+    };
+
+    // Step 1: prompt for starting enemy
+    this.promptCardChoice(owner, enemies, title,
+      `Choose a starting enemy — chain ${verb} spreads from there.`,
+      (start) => {
+        const startLane = this.findCardLane(start);
+        if (startLane < 0) return;
+        applyAndLog(start);
+        chainFrom(startLane);
+      }, cards => cards[0]);
+  },
+
+  // Get enemies reachable by chaining through consecutive occupied lanes
+  // from a source card's lane. One-directional: includes the front-lane
+  // enemy plus the longer unbroken sequence on one side. Previously this
+  // spread both left AND right from the source, which felt like splash
+  // (all adjacent enemies hit) rather than a chain (one-way propagation).
+  // Ties go to whichever direction has an enemy closer to the source.
+  getChainedEnemies(source) {
+    const lane = this.findCardLane(source);
+    if (lane < 0) return [];
+    const opp = this.opponent(source.owner);
+    const collect = (step) => {
+      const arr = [];
+      for (let i = lane + step; i >= 0 && i < this.LANE_COUNT; i += step) {
+        const e = this.state.lanes[i][opp];
+        if (e && e.currentHealth > 0) arr.push(e);
+        else break;
+      }
+      return arr;
+    };
+    const leftChain  = collect(-1);
+    const rightChain = collect(+1);
+    const chosen = rightChain.length > leftChain.length ? rightChain
+                 : leftChain.length  > rightChain.length ? leftChain
+                 : rightChain; // tie-break: right (arbitrary but deterministic)
+    const result = [];
+    const front = this.state.lanes[lane][opp];
+    if (front && front.currentHealth > 0) result.push(front);
+    result.push(...chosen);
+    return result;
+  },
+
+  devourCard(card, source) {
+    if (!card) return;
+    if (this._trickBlocked(card)) return;
+    if (this.is10CostImmune(source, card)) { this.log(`  [IMMUNE] ${card.name} is immune to ${source.name}'s devour!`); return; }
+    const l = this.findCardLane(card);
+    if (l >= 0) {
+      // Credit the devourer's side with a kill. Devour skips handleDeath
+      // entirely (void pile, not dead pile), so without this hook
+      // Galactus's devours wouldn't count toward cardsKilled or the
+      // devourer's MVP statsKills.
+      const side = (source && source.owner && source.owner !== card.owner)
+        ? source.owner
+        : this.opponent(card.owner);
+      if (this.state._stats && this.state._stats[side]) {
+        this.state._stats[side].cardsKilled++;
+      }
+      if (source && source.owner && source.owner !== card.owner) {
+        this._creditChain(source, 'statsKills', 1);
+        // Victim's current HP also credits to source as "damage dealt to
+        // enemies" so Galactus's devour shows up in his MVP damage total.
+        if (card.currentHealth > 0) this._creditChain(source, 'statsEnemyDamage', card.currentHealth);
+        // Kill value — same treatment handleDeath gives combat/destroy kills.
+        const killValue = (card.attack || 0) + (card.maxHealth || 0) + (card.baseCost || card.cost || 0);
+        this._creditChain(source, 'statsKillValue', killValue);
+      }
+      this.removeFromLane(card, l);
+      this.state.voidPile.push({ name: card.name, cost: card.cost });
+      this.log(`  [DEVOUR] ${card.name} is devoured to the void!`);
+    }
+  },
+
+  // Central debuff immunity/unresistible handler.
+  // Returns true if debuff landed, false if blocked by Immunity.
+  tryApplyDebuff(source, target, debuffName, applyFn) {
+    if (!target) return false;
+    if (this._trickBlocked(target)) return false;
+    if (this.is10CostImmune(source, target)) { this.log(`  [IMMUNE] ${target.name} is immune to ${source.name}'s ${debuffName}!`); return false; }
+    // Wrap applyFn so every landed debuff also stamps the late-round
+    // persistence flag when:
+    //   (a) combat has already wrapped up this round (`_combatFinishedThisRound`),
+    //       e.g. a trick fired after postCombat via some future hook
+    //   (b) the SPECIFIC TARGET has already done its combat swing this
+    //       round (`_combatSwungThisRound`), e.g. Mind Stone played as
+    //       a block trick mid-combat, hitting a card that already
+    //       attacked on an earlier lane
+    // In either case, the debuff should carry into next round's combat
+    // instead of being wiped by this round's postCombat clear (which
+    // would make the debuff useless since the target already acted).
+    const landed = () => {
+      applyFn();
+      if (this.state && this.state._combatFinishedThisRound) {
+        target._debuffDelayedClear = true;
+      } else if (target && target._combatSwungThisRound) {
+        target._debuffDelayedClear = true;
+      }
+    };
+    if (target.immunityCharges > 0) {
+      if (source && source.unresistibleCharges > 0) {
+        // Unresistible bypasses Immunity — ONLY Unresistible is spent.
+        // Immunity is NOT consumed here because it never actually blocked
+        // anything (the debuff sailed past). Previously Immunity was also
+        // decremented, which deleted the card's protection without it ever
+        // doing its job — e.g. Palpatine (Unresistible 1) freezing Gorr
+        // (Immunity 1) wiped Gorr's Immunity while Palpatine's Unresistible
+        // was also consumed, leaving Gorr with no defense for later debuffs
+        // in the same turn.
+        source.unresistibleCharges--;
+        landed();
+        this.log(`  [UNRESISTIBLE] ${source.name} bypasses ${target.name}'s Immunity! ${debuffName} lands! (Immunity ${target.immunityCharges} untouched, Unresistible ${source.unresistibleCharges} remaining)`);
+        return true;
+      }
+      target.immunityCharges--;
+      this.log(`  [IMMUNITY] ${target.name}'s Immunity blocks ${debuffName}! (${target.immunityCharges} remaining)`);
+      return false;
+    }
+    // No immunity — debuff lands normally, Unresistible NOT consumed
+    landed();
+    return true;
+  },
+
+  freezeCardUnresistible(card, source) {
+    if (!card) return;
+    if (this._trickBlocked(card)) return;
+    if (this.is10CostImmune(source, card)) { this.log(`  [IMMUNE] ${card.name} is immune to ${source.name ? source.name + "'s " : ''}freeze!`); return; }
+    if (card.immunityCharges > 0) {
+      // If the source has Unresistible, it bypasses Immunity — only
+      // Unresistible is spent; Immunity is NOT consumed because it never
+      // actually blocked anything (same rule as tryApplyDebuff above).
+      // If the source does NOT have Unresistible, the forced-freeze
+      // forcibly burns the Immunity charge to protect the card.
+      if (source && source.unresistibleCharges > 0) {
+        source.unresistibleCharges--;
+        this.log(`  [UNRESISTIBLE] ${source.name} bypasses ${card.name}'s Immunity! (Immunity ${card.immunityCharges} untouched, Unresistible ${source.unresistibleCharges} remaining)`);
+      } else {
+        card.immunityCharges--;
+        this.log(`  [IMMUNITY] ${card.name}'s Immunity consumed by forced freeze! (${card.immunityCharges} remaining)`);
+      }
+    }
+    // Stack-aware: increment counter + sync flag. Default 1 turn.
+    card.frozenTurns = (card.frozenTurns || 0) + 1;
+    card.isFrozen = true;
+    this.log(`  [FREEZE] ${card.name} is frozen (${card.frozenTurns})!`);
+    this._simulatePhantomSwing(source, card);
+  },
+
+  // Phantom-swing simulation — when `source` locks down `frozen` (stun,
+  // freeze, fear), credit `source` with the GROSS attack value of the
+  // locked-down enemy as "damage denied." User spec (sabermetrics MVP
+  // refactor): "freeze/stun: damageDenied += target.attack × turnsLocked."
+  // Linear with the attacker's ATK, not with downstream board state —
+  // freezing an 8-ATK threat is worth 8 regardless of whether the target
+  // it would have hit had armor / HP / a tank in front. The user's
+  // intuition: "stunning a 7-attack Wonder Woman is clearly defensive
+  // value, not 0 — which is what the old net-prevention math credited
+  // when the swing target had enough HP to soak the hit."
+  // Splash from the frozen card is added on top: a frozen splasher
+  // would have hit multiple lanes too, so the lockdown denies that
+  // splash damage as well (one tick per adjacent lane on the same side
+  // as the frozen enemy's targets).
+  // Returns total damage prevented (for logging / testing).
+  _simulatePhantomSwing(source, frozen) {
+    if (!source || !frozen || source.owner === frozen.owner) return 0;
+    const atk = frozen.attack || 0;
+    if (atk <= 0) return 0;
+    const lane = this.findCardLane(frozen);
+    if (lane < 0) return 0;
+    const opp = this.opponent(frozen.owner);
+
+    // Gross lockdown value — frozen.attack credited 1:1 (1 turn of lock).
+    // For multi-turn locks (Fear N, future stun durations), this can be
+    // multiplied by the duration, but currently every freeze/stun/fear
+    // is 1-round so that's just `× 1`.
+    let absorbed = atk;
+    // Splash credit — if the frozen card has Splash N, freezing it also
+    // denied that N damage on each adjacent lane it would have splashed
+    // into. We don't model evade/armor on the splash targets here since
+    // the user's spec is gross prevention; the lockdown itself is what's
+    // being measured, not the downstream defenses.
+    const splash = frozen.splashRange || 0;
+    if (splash > 0) {
+      // Front (same lane) splash + each adjacent lane that has an enemy
+      // card to splash onto. Up to 3 splash hits total.
+      let splashTargets = 0;
+      if (this.state.lanes[lane][opp]) splashTargets++;
+      if (lane > 0 && this.state.lanes[lane - 1][opp]) splashTargets++;
+      if (lane < this.LANE_COUNT - 1 && this.state.lanes[lane + 1][opp]) splashTargets++;
+      absorbed += splash * splashTargets;
+    }
+
+    // Legacy-removed: the old post-defense + HP-cap math is retained as
+    // dead code below for reference. Net-prevention undercounted "true"
+    // defensive value of a freeze when the swing target had high HP.
+    // If you ever need a "what would have ACTUALLY landed" stat in
+    // addition to gross prevention, fork this function — don't replace
+    // the gross credit above.
+    /*
+    const phantomLanded = (attackValue, target) => {
+      if (!target || target.currentHealth <= 0) return 0;
+      if (target.invincibleTurns > 0 || target.hasDamageImmunity) return 0;
+      const canDodge = !target.isStunned && !target.isFrozen;
+      if (target.evadeCharges > 0 && canDodge && !frozen.isBullseye) return 0;
+      const armored = Math.max(0, attackValue - (target.armorValue || 0));
+      return Math.min(armored, target.currentHealth || 0);
+    };
+    let absorbed = 0;
+    const frontTarget = this.state.lanes[lane][opp];
+    if (frontTarget) {
+      const landed = phantomLanded(atk, frontTarget);
+      absorbed += Math.max(0, atk - landed);
+      const splash = frozen.splashRange || 0;
+      if (splash > 0) {
+        const splashLanded = phantomLanded(splash, frontTarget);
+        absorbed += Math.max(0, splash - splashLanded);
+      }
+    } else {
+      const hpLeft = Math.max(0, this.state[opp].health || 0);
+      absorbed += Math.min(atk, hpLeft);
+    }
+    */
+
+    if (absorbed > 0) this._creditAbsorb(source, 'Lockdown', absorbed);
+    return absorbed;
+  },
+
+  // ===================== DEBUFF STACKING =====================
+  // Stun / Freeze / Fear use COUNTER + BOOLEAN dual representation:
+  //   - <effect>Turns (counter): how many rounds the effect persists.
+  //     Applying the same effect again INCREMENTS this counter — so
+  //     two Freeze 1's stack into Frozen 2 (two rounds locked, not
+  //     one). Per user spec: "if you freeze an enemy twice, it
+  //     should just have the status of frozen 2."
+  //   - is<Effect> (boolean): cached `counter > 0` for the 30+
+  //     existing call sites that read the boolean. Always kept in
+  //     sync with the counter (the counter is the source of truth;
+  //     the boolean is a derived view). Backward-compatible — no
+  //     callsite changes needed.
+  // Round tick (in cleanupDead → startRound) DECREMENTS the counter
+  // and re-syncs the boolean, so a Frozen 2 card unfreezes to 1 the
+  // next round, then to 0 the round after.
+  // Cards stack via tryApplyDebuff so Immunity / Unresistible still
+  // gate properly — applying an extra Freeze through Immunity still
+  // costs the Immunity charge, doesn't increment the counter.
+  stunCard(card, source, n) {
+    if (!card) return;
+    const turns = Math.max(1, n || 1);
+    this.tryApplyDebuff(source, card, 'Stun', () => {
+      card.stunnedTurns = (card.stunnedTurns || 0) + turns;
+      card.isStunned = true;
+      const total = card.stunnedTurns;
+      this.log(`  [STUN] ${card.name} is stunned (${total})!`);
+      this._simulatePhantomSwing(source, card);
+      this._creditChain(source, 'statsStunsApplied', turns);
+    });
+  },
+  freezeCard(card, source, n) {
+    if (!card) return;
+    const turns = Math.max(1, n || 1);
+    this.tryApplyDebuff(source, card, 'Freeze', () => {
+      card.frozenTurns = (card.frozenTurns || 0) + turns;
+      card.isFrozen = true;
+      const total = card.frozenTurns;
+      this.log(`  [FREEZE] ${card.name} is frozen (${total})!`);
+      this._simulatePhantomSwing(source, card);
+      this._creditChain(source, 'statsFreezesApplied', turns);
+    });
+  },
+  fearCard(card, source, n) {
+    if (!card) return;
+    const turns = Math.max(1, n || 1);
+    this.tryApplyDebuff(source, card, 'Fear', () => {
+      card.fearedTurns = (card.fearedTurns || 0) + turns;
+      card.isFeared = true;
+      const total = card.fearedTurns;
+      this.log(`  [FEAR] ${card.name} is feared (${total})!`);
+      this._simulatePhantomSwing(source, card);
+      this._creditChain(source, 'statsFearsApplied', turns);
+    });
+  },
+
+  // Mind-control helper — cleanly funnels every MC application through
+  // the same credit-the-source-with-prevented-damage pipeline that
+  // freeze / stun / fear use. Callsites (Gorilla Grodd, Luke Skywalker,
+  // Mind Stone, etc.) should call this AFTER any custom target-selection
+  // step; it tryApplyDebuff-guards for Immunity automatically. `onApply`
+  // runs after the flag flips, so Grodd can still set mindControlTarget
+  // or any other per-source side effects.
+  mindControlCard(card, source, onApply) {
+    if (!card) return false;
+    return this.tryApplyDebuff(source, card, 'Mind Control', () => {
+      card.isMindControlled = true;
+      // Phantom swing — credit the source with the damage the target
+      // would have dealt this round. MC is strictly better than freeze
+      // (the card ALSO hits the controller's enemies), but that bonus
+      // lives in the weighted-impact formula at display time, not here.
+      this._simulatePhantomSwing(source, card);
+      this._creditChain(source, 'statsMcApplied', 1);
+      if (typeof onApply === 'function') onApply();
+    });
+  },
+
+  drainCard(source, target) {
+    if (!source || !target) return;
+    this.tryApplyDebuff(source, target, 'Drain', () => {
+      const stolenAtk = target.attack;
+      const stolenHp = Math.max(0, target.currentHealth - 1);
+      source.attack += stolenAtk; source.currentHealth += stolenHp; source.maxHealth += stolenHp;
+      target.attack = 0; target.currentHealth = 1; target.maxHealth = 1;
+      this.log(`  [DRAIN] ${source.name} drains ${target.name} for +${stolenAtk}/+${stolenHp} → ${target.name} left at 0/1`);
+    });
+  },
+
+  healPlayer(owner, amount, source) {
+    const before = this.state[owner].health;
+    const maxHP = this.state[owner].maxHealth;
+    this.state[owner].health = Math.min(maxHP, this.state[owner].health + amount);
+    const healed = this.state[owner].health - before;
+    if (healed > 0) {
+      this.log(`  [HEAL] ${owner === 'player' ? 'You' : 'AI'} heal ${healed} → ${this.state[owner].health}/${maxHP} HP`);
+      if (source) {
+        // Raw heal — kept for back-compat dashboards.
+        this._creditChain(source, 'statsHealingDone', healed);
+        // Leverage-weighted heal — sabermetrics-MVP refactor.
+        // Healing at low HP is clutch (prevented near-lethal damage);
+        // healing at full HP is mostly wasted. The multiplier is keyed
+        // off the BEFORE-heal HP percentage so a heal that pulls you
+        // off the brink scores higher than a "topping off" heal.
+        const hpPct = before / Math.max(1, maxHP);
+        const leverage = hpPct > 0.75 ? 0.2
+                       : hpPct >= 0.4 ? 0.6
+                                      : 1.2;
+        this._creditChain(source, 'statsHealLeveraged', healed * leverage);
+      }
+    }
+  },
+
+  addNextTurnCurrency(owner, n) { this.state[owner].nextTurnCurrency += n; },
+
+  // For player: show lane choice UI. For AI: auto-pick best lane.
+  // callback(laneIdx) is called once the lane is chosen.
+  // `targetSide` (optional) controls which slot the UI highlights — defaults to `owner`.
+  // Pass the opponent's side when the choice targets enemy lanes (e.g. Jigsaw's traps).
+  _promptTimeout: null,
+  _clearPromptTimeout() {
+    if (this._promptTimeout) { clearTimeout(this._promptTimeout); this._promptTimeout = null; }
+    if (this.state) this.state._promptDeadline = null;
+    if (typeof UI !== 'undefined' && UI.stopPromptCountdown) UI.stopPromptCountdown();
+  },
+  _startPromptTimeout(autoPickFn, ms) {
+    this._clearPromptTimeout();
+    const duration = ms || 30000;
+    const deadline = Date.now() + duration;
+    // Expose deadline so the UI can render a live countdown.
+    this.state._promptDeadline = deadline;
+    if (typeof UI !== 'undefined' && UI.startPromptCountdown) UI.startPromptCountdown(deadline);
+    this._promptTimeout = setTimeout(() => {
+      this._promptTimeout = null;
+      this.state._promptDeadline = null;
+      if (typeof UI !== 'undefined' && UI.stopPromptCountdown) UI.stopPromptCountdown();
+      this.log(`  [TIMEOUT] Auto-picking — no response in ${duration / 1000}s`);
+      autoPickFn();
+    }, duration);
+  },
+
+  promptLaneChoice(owner, lanes, title, desc, callback, targetSide, previewCard, previewDamage) {
+    if (this.isHuman(owner) && lanes.length > 1) {
+      // previewCard (optional) — synthetic card representing what lands
+      //   in the chosen lane. Used for summon placement; UI renders
+      //   makeDamagePreview against the lane's opposing enemy.
+      // previewDamage (optional) — flat damage value to show on each
+      //   highlighted enemy when targetSide is the opponent (chain
+      //   abilities like Vader's 7-damage chain start, Darkseid's
+      //   chain hit). UI shows one-way "−N HP" on each candidate.
+      // Both are optional and independent; previewCard is for own-side
+      //   placement, previewDamage is for own-side abilities targeting
+      //   enemies. User spec: "When you place a summon, [show] damage
+      //   preview. Or when you're using a chain ability and selecting
+      //   an enemy, [show] damage preview as well, for Vader and stuff."
+      this.state.pendingLaneChoice = { owner, lanes, title, desc, callback, targetSide: targetSide || owner, previewCard: previewCard || null, previewDamage: previewDamage || 0 };
+      UI.render();
+      this._startPromptTimeout(() => {
+        if (!this.state.pendingLaneChoice) return;
+        const pick = this.state.pendingLaneChoice.lanes[0];
+        this.state.pendingLaneChoice = null;
+        callback(pick);
+        this.resumeCombatIfWaiting();
+        UI.render();
+      });
+    } else if (this.isHuman(owner) && lanes.length === 1) {
+      callback(lanes[0]);
+    } else {
+      const pick = lanes.length ? lanes[0] : -1;
+      if (pick >= 0) callback(pick);
+    }
+  },
+
+  promptCardChoice(owner, cards, title, desc, callback, aiPicker, options) {
+    if (!cards.length) return;
+    if (this.isHuman(owner) && cards.length > 1) {
+      this.state.pendingCardChoice = { owner, cards, title, desc, callback, faceDown: !!(options && options.faceDown) };
+      UI.render();
+      this._startPromptTimeout(() => {
+        if (!this.state.pendingCardChoice) return;
+        const pick = aiPicker ? aiPicker(this.state.pendingCardChoice.cards) : this.state.pendingCardChoice.cards[0];
+        this.state.pendingCardChoice = null;
+        callback(pick);
+        this.resumeCombatIfWaiting();
+        UI.render();
+      });
+    } else if (owner === 'player' && cards.length === 1) {
+      // Auto-resolve when there's only one valid target. Previously
+      // this fired silently, leaving the player wondering why a
+      // multi-target ability "only let them target Poison Ivy."
+      // Now we emit a visible toast first so the player can see
+      // both WHAT was auto-targeted and that the system found no
+      // other valid options. Tiny delay (350ms) gives the toast
+      // time to register before the effect resolves.
+      const target = cards[0];
+      try {
+        if (typeof UI !== 'undefined' && UI.showAITrickToast) {
+          UI.showAITrickToast(
+            `Auto-targeted ${target.name}`,
+            `${title.replace(/.*—\s*/, '')} — only valid target`,
+            'info'
+          );
+        }
+      } catch (e) { /* swallow */ }
+      callback(target);
+    } else {
+      const pick = aiPicker ? aiPicker(cards) : cards[0];
+      callback(pick);
+    }
+  },
+
+  // Summon with player lane choice. Optional onComplete callback for chaining.
+  summonCardChoice(owner, name, cost, attack, health, abilities, preferredLanesOrCb, onComplete, sourceDef) {
+    // Handle overloaded args: if 7th arg is function, it's onComplete
+    let preferredLanes = preferredLanesOrCb;
+    if (typeof preferredLanesOrCb === 'function') { onComplete = preferredLanesOrCb; preferredLanes = null; }
+    const open = preferredLanes || this.getOpenLanes(owner);
+    if (!open.length) { if (onComplete) onComplete(); return; }
+    if (!this.isHuman(owner) || open.length === 1) {
+      this.summonCard(owner, open[0], name, cost, attack, health, abilities, sourceDef);
+      if (onComplete) onComplete();
+    } else {
+      // Build a synthetic preview card matching what would land in the
+      // chosen lane so the per-lane damage preview can show the trade
+      // math against each candidate's opposite enemy.
+      const previewCard = {
+        name, cost, attack, currentHealth: health, maxHealth: health,
+        baseAttack: attack, baseHealth: health,
+        abilities: [...(abilities || [])],
+        owner,
+        // Sane defaults — applyAbilities mutates these from the keyword
+        // array so badges like "Splash N" / "Evade N" / "Bullseye"
+        // factor into the projected combat resolution.
+        evadeCharges: 0, armorValue: 0, splashRange: 0,
+        invincibleTurns: 0, immunityCharges: 0, unresistibleCharges: 0,
+        isOverdrive: false, isBullseye: false, hasDamageImmunity: false,
+        tauntTurns: 0, hasHunt: false,
+        isStunned: false, isFrozen: false, isFeared: false, isMindControlled: false,
+        // Counter representation — drives stacking. Booleans above are
+        // derived (true iff counter > 0) and synced by *Card methods +
+        // round-tick. See "DEBUFF STACKING" comment block.
+        stunnedTurns: 0, frozenTurns: 0, fearedTurns: 0
+      };
+      this.applyAbilities(previewCard);
+      this.promptLaneChoice(owner, open, `Place ${name}`, `Choose a lane for ${name} (${attack}/${health})`, (lane) => {
+        this.summonCard(owner, lane, name, cost, attack, health, abilities, sourceDef);
+        if (onComplete) onComplete();
+      }, owner, previewCard);
+    }
+  },
+
+  summonCard(owner, laneIdx, name, cost, attack, health, abilities, sourceDef) {
+    if (laneIdx < 0 || laneIdx >= this.LANE_COUNT) return;
+    if (this.state.lanes[laneIdx][owner] || this.state.lanes[laneIdx].destroyed) return;
+
+    // DEFENSE-IN-DEPTH: refuse to summon discard-effect cards onto the
+    // board. Their entire kit lives in `onDiscard` — they're 0/0 stats,
+    // so summoning one places a dead body that does nothing AND the
+    // discard effect never fires (because it requires being discarded
+    // FROM HAND, not being summoned). User reported: "cant draw discards
+    // from a summon — Catwoman was summoned onto board from Mother Box."
+    // Mother Box itself does filter, but Cyborg's onDeath (summons random
+    // from hand) and a few other paths don't — guarding here ensures
+    // any caller, present or future, can't make this mistake. Returns
+    // a falsy value so callers that branch on the return get a
+    // consistent "didn't summon" signal.
+    const flaggedDiscard = !!(sourceDef && sourceDef.isDiscardEffect);
+    // Cross-check by name lookup so even callers passing a stripped def
+    // (e.g. Cyborg passing the in-hand card object) still get filtered.
+    let nameDiscardFlag = false;
+    if (typeof CARD_DEFS !== 'undefined' && name) {
+      const fullDef = CARD_DEFS.find(d => d.name === name);
+      if (fullDef && fullDef.isDiscardEffect) nameDiscardFlag = true;
+    }
+    if (flaggedDiscard || nameDiscardFlag) {
+      this.log(`  [SUMMON] ${name} not summoned — discard-effect cards can't be placed on the board.`);
+      return;
+    }
+
+    // Build definition: use full source def for draw-pile summons, minimal for tokens
+    let def;
+    if (sourceDef) {
+      def = sourceDef;
+    } else {
+      // Tokens get an EMPTY desc — the badges row already shows the
+      // full keyword set ("EVADE 1", "BULLSEYE", etc.), so a string
+      // like "Bullseye. Evade 1" at the bottom of the card was just
+      // duplicating what the badges already render. User flagged the
+      // duplicate "Evade 1" text appearing under the Ant. Empty desc
+      // keeps the token's body clean — badges only.
+      def = { name, cost, attack, health, abilities, type: 'neutral', desc: '' };
+    }
+
+    const card = this.createCardInstance(def, owner);
+    // Flag tokens so they can be excluded from the dead pile on death.
+    // Tokens are inline-defined summons (Ant, Parademon, Undead Warrior,
+    // Creature of the Deep, etc.) — they're not part of either player's
+    // drafted deck, so they shouldn't come back via Lazarus Pit, Solomon
+    // Grundy's onDeath draw, Hela's resurrection, or any other dead-pile
+    // effect. Real-card summons (Bat Signal pulling a drafted card from
+    // the pile) pass a full sourceDef and are NOT flagged — those live
+    // and die like any drafted card.
+    if (!sourceDef) card._isToken = true;
+    // MVP chain attribution — tag this card with the ability source that
+    // produced it (Hela → zombie, Cyborg → Null) and credit the summoner
+    // with the summoned card's cost as energy generated. _creditChain
+    // walks up the chain so every ancestor gets the credit.
+    const summoner = this._currentSummonSource();
+    if (summoner && summoner.id !== card.id) {
+      card._summonedBy = summoner;
+      this._creditChain(summoner, 'statsEnergyGenerated', card.baseCost || card.cost || 0);
+    }
+    this.state.lanes[laneIdx][owner] = card;
+    card.statsEnteredRound = this.state.round || 1;
+    this.log(`  [SUMMON] ${name} (${card.attack}/${card.currentHealth}) in lane ${laneIdx + 1}`);
+    this.checkLaneTrap(card, laneIdx);
+
+    // Persistent auras (Luke's -1/-1, Magneto, etc.) need to fire on EVERY
+    // arrival including TOKEN summons (Hela's Undead Warriors, Cyborg's
+    // Doombot, Ant-Man's Ant). User report: "Luke is on board, Hela
+    // summons three 3/1 zombies, they survive — but Luke's While Active
+    // -1/-1 should kill them (3/1 → 3/0)." Bug: this branch was gated
+    // on `sourceDef`, so token summons skipped the aura ping entirely.
+    // Now we always fire `onAnyCardPlayed` (auras) and Magneto's
+    // even-lane debuff sweep, plus the cardPlayedBuff passive. The
+    // `onPlay` hook for the SUMMONED card itself stays gated on
+    // `sourceDef` so tokens don't re-fire their own play hooks (and
+    // there's no infinite-recursion risk via the chain guard).
+    if (!this._summonChain) {
+      this._summonChain = true;
+      // Lone wolf is a real-summon flavor only — skip for tokens.
+      if (sourceDef) {
+        const otherAllies = this.getAllCardsOf(owner).filter(c => c.id !== card.id && c.currentHealth > 0);
+        if (otherAllies.length === 0) {
+          this.buffCard(card, 1, 1);
+          this.log(`  [LONE WOLF] ${card.name} enters alone — +1/+1!`);
+        }
+      }
+      // Aura ping — fires for tokens too so existing while-active auras
+      // (Luke's debuff, Captain America's squad buff, etc.) hit them.
+      this.getAllCardsOnBoard().forEach(c => { if (c.onAnyCardPlayed && c.id !== card.id) c.onAnyCardPlayed(this, c); });
+      this.getAllCardsOf(owner).forEach(c => {
+        if (c.passive === 'cardPlayedBuff' && c.id !== card.id) { this.buffCard(card, 1, 1); }
+      });
+      // onPlay still only fires for real-card summons.
+      if (sourceDef) {
+        this._runHook(card, 'onPlay', this, card, laneIdx);
+        // Draw-on-play keyword resolution — mirrors the path in
+        // playCard so cards entering via SUMMON (Super Soldier Serum
+        // transform, Bat Signal pull, Hela revive, etc.) still honor
+        // their `Draw N` keyword. User report: "Used SSS on Rocket
+        // and got Groot, but his Draw 1 status badge didn't fire."
+        if (card.drawOnPlay > 0) {
+          const n = card.drawOnPlay;
+          card.drawOnPlay = 0;
+          const before = this.state[owner].hand.length;
+          this.drawCards(owner, n);
+          const actuallyDrawn = this.state[owner].hand.length - before;
+          if (actuallyDrawn > 0) this._creditChain(card, 'statsCardAdvantage', actuallyDrawn);
+          this.log(`${card.name} draws ${n} card${n > 1 ? 's' : ''}.`);
+        }
+      }
+      this.cleanupDead();
+      this.applyMagnetoDebuffs();
+      this._summonChain = false;
+    }
+  },
+
+  placeInLane(owner, card, laneIdx) {
+    if (this.state.lanes[laneIdx][owner] || this.state.lanes[laneIdx].destroyed) return;
+    card.owner = owner;
+    this.state.lanes[laneIdx][owner] = card;
+    this.checkLaneTrap(card, laneIdx);
+  },
+
+  moveCard(card, from, to) {
+    if (from < 0 || to < 0 || to >= this.LANE_COUNT || this.state.lanes[to][card.owner]) return;
+    if (this._trickBlocked(card)) return;
+    // Frozen / stunned cards can't move — they're locked in their lane
+    // until the status clears. Previously tricks and abilities that moved
+    // cards (Bifrost, Ahsoka's swap, Gojo's displace) bypassed the freeze.
+    if (card.isFrozen || card.isStunned) {
+      this.log(`  [MOVE BLOCKED] ${card.name} is ${card.isFrozen ? 'FROZEN' : 'STUNNED'} — can't move.`);
+      return;
+    }
+    this.state.lanes[from][card.owner] = null;
+    this.state.lanes[to][card.owner] = card;
+    this.log(`  [MOVE] ${card.name} moves from lane ${from + 1} to lane ${to + 1}`);
+    this.checkLaneTrap(card, to);
+    if (card.onMoved) card.onMoved(this, card, to);
+  },
+
+  removeFromLane(card, l) {
+    if (l >= 0 && l < this.LANE_COUNT && this.state.lanes[l][card.owner] === card) this.state.lanes[l][card.owner] = null;
+  },
+
+  // Reverse Bear Trap (placed by Jigsaw): when an enemy of the trap-placer enters
+  // the lane, the card immediately loses -1/-1 and the trap is consumed.
+  // Call this after placing a card into a lane via any mechanism.
+  checkLaneTrap(card, laneIdx) {
+    if (!card || laneIdx < 0 || laneIdx >= this.LANE_COUNT) return;
+    const lane = this.state.lanes[laneIdx];
+    if (!lane || !lane.trap || lane.trap.placedBy === card.owner) return;
+    // Invincibility / Damage Immunity blocks the Bear Trap entirely —
+    // the card "stepped on the trap but nothing happened." User spec:
+    // "If Flash has Invincibility he should still be 2/1 because he
+    // didn't get damaged by the bear trap. Same for any card."
+    if (card.invincibleTurns > 0 || card.hasDamageImmunity) {
+      lane.trap = null;
+      this.log(`  [BEAR TRAP] ${card.name} steps on a Reverse Bear Trap — Invincibility absorbs it!`);
+      return;
+    }
+    lane.trap = null;
+    card.attack = Math.max(0, card.attack - 1);
+    card.maxHealth = Math.max(1, card.maxHealth - 1);
+    card.currentHealth = Math.max(0, card.currentHealth - 1);
+    this.log(`  [BEAR TRAP] ${card.name} triggers a Reverse Bear Trap! -1/-1 → ${card.attack}/${card.currentHealth}`);
+  },
+
+  applyHawkeyePassive(owner, splashedEnemies) {
+    if (!splashedEnemies.length) return;
+    const hawkeye = this.getAllCardsOf(owner).find(c => c.passive === 'splashWeaken');
+    if (!hawkeye) return;
+    splashedEnemies.forEach(e => {
+      if (e.attack > 0) {
+        e.attack = Math.max(0, e.attack - 1);
+        this.log(`  [HAWKEYE] ${e.name} loses 1 ATK from splash! (now ${e.attack})`);
+        // v3 — credit Hawkeye with the ATK point removed.
+        this._creditChain(hawkeye, 'statsDebuffValue', 1);
+      }
+    });
+  },
+
+  splashDamage(laneIdx, owner, amount) {
+    const opp = this.opponent(owner);
+    const splashed = [];
+    // Only surviving enemies that ACTUALLY took damage count for Hawkeye's
+    // ATK-debuff passive — invincible / evade / full-armor blocks mean the
+    // splash bounced off and the target should keep its attack.
+    // Front (same lane)
+    const front = this.state.lanes[laneIdx][opp];
+    if (front && front.currentHealth > 0) {
+      const hpBefore = front.currentHealth;
+      this.dealDamage(front, amount);
+      if (front.currentHealth > 0 && front.currentHealth < hpBefore) splashed.push(front);
+    }
+    // Adjacent lanes
+    if (laneIdx > 0 && this.state.lanes[laneIdx - 1][opp]) {
+      const t = this.state.lanes[laneIdx - 1][opp];
+      const hpBefore = t.currentHealth;
+      this.dealDamage(t, amount);
+      if (t.currentHealth > 0 && t.currentHealth < hpBefore) splashed.push(t);
+    }
+    if (laneIdx < this.LANE_COUNT - 1 && this.state.lanes[laneIdx + 1][opp]) {
+      const t = this.state.lanes[laneIdx + 1][opp];
+      const hpBefore = t.currentHealth;
+      this.dealDamage(t, amount);
+      if (t.currentHealth > 0 && t.currentHealth < hpBefore) splashed.push(t);
+    }
+    this.applyHawkeyePassive(owner, splashed);
+  },
+
+  // ===================== VADER CHAIN DAMAGE =====================
+
+  // Deals chain damage to a card. Returns true if damage was actually dealt (chain continues).
+  // Returns false if blocked by Evade/Invincible/Armor(0)/DamageImmunity (chain stops).
+  dealChainDamage(card, amount, label) {
+    if (!card || card.currentHealth <= 0) return false;
+    const tag = label || 'CHAIN';
+
+    if (card.evadeCharges > 0) {
+      card.evadeCharges--;
+      this.log(`  [EVADE] ${card.name} dodges the chain! (${card.evadeCharges} charges left)`);
+      return false;
+    }
+    if (card.invincibleTurns > 0) {
+      this.log(`  [INVINCIBLE] ${card.name} is invincible — chain stops!`);
+      return false;
+    }
+    if (card.hasDamageImmunity) {
+      this.log(`  [DMG IMMUNE] ${card.name} is damage-immune — chain stops!`);
+      return false;
+    }
+    if (card.armorValue > 0) {
+      if (amount <= card.armorValue) {
+        this.log(`  [ARMOR] ${card.name}'s Armor ${card.armorValue} fully absorbs ${amount} chain damage — chain stops!`);
+        return false;
+      }
+      amount -= card.armorValue;
+      this.log(`  [ARMOR] ${card.name}'s Armor ${card.armorValue} reduces chain damage to ${amount}`);
+    }
+
+    card.currentHealth -= amount;
+    this.log(`  [${tag}] ${card.name} takes ${amount} → ${Math.max(0, card.currentHealth)} HP`);
+    if (card.onDamaged) card.onDamaged(this, card, null, amount);
+    return true;
+  },
+
+  // ===================== OMEGA BEAM (Darkseid) =====================
+  // Distributes Darkseid's attack damage among all enemies. Each enemy targeted once.
+  // Evade blocks the entire allocated amount (counts as one attack instance).
+  distributeOmegaBeam(card) {
+    const enemies = this.getEnemiesOf(card.owner).filter(e => e.currentHealth > 0);
+    if (!enemies.length) return;
+    let remaining = card.attack;
+    const targeted = new Set();
+    this.log(`[OMEGA BEAM] ${card.name} distributes ${remaining} damage!`);
+
+    const doNext = () => {
+      const available = enemies.filter(e => !targeted.has(e.id) && e.currentHealth > 0);
+      if (remaining <= 0 || !available.length) {
+        if (remaining > 0) this.log(`  [OMEGA BEAM] ${remaining} damage wasted — no more targets`);
+        this.cleanupDead();
+        return;
+      }
+      // ALWAYS prompt the human controller — even when only 1 target
+      // remains. User report: "i am splitting darkseids beams and it
+      // wont let me finish the rest of his damage, i did 4 to predator
+      // and have 2 left but it seems to have froze." Root cause was
+      // the `available.length === 1` auto-assign block: with only one
+      // enemy left, the beam dumped the remaining damage silently and
+      // returned. From the player's POV it felt stuck — they were
+      // expecting a target prompt for the remaining 2 damage. The AI
+      // path (below) still auto-resolves; only the human gets the
+      // explicit confirm beat. Same spec as Galactus / Dormammu /
+      // Mind Control: "the user always chooses".
+      const promptTarget = (cb) => {
+        if (Game.isHuman(card.owner)) {
+          this.promptCardChoice(card.owner, available,
+            `Omega Beam — ${remaining} damage left`, "Choose enemy to target",
+            cb,
+            (cards) => {
+              // AI fallback (also used as the auto-pick when length=1
+              // bypasses the prompt internally in promptCardChoice).
+              const noEvade = cards.filter(c => !c.evadeCharges);
+              const pool = noEvade.length ? noEvade : cards;
+              return pool.sort((a, b) => a.currentHealth - b.currentHealth)[0];
+            });
+        } else {
+          // AI controller — pick directly without the modal round-trip.
+          const noEvade = available.filter(c => !c.evadeCharges);
+          const pool = noEvade.length ? noEvade : available;
+          cb(pool.sort((a, b) => a.currentHealth - b.currentHealth)[0]);
+        }
+      };
+      promptTarget((target) => {
+        targeted.add(target.id);
+        // Pick amount
+        const amounts = [];
+        for (let n = 1; n <= remaining; n++) {
+          amounts.push({ name: `${n} Damage`, desc: `Deal ${n} to ${target.name}`, _amount: n });
+        }
+        if (Game.isHuman(card.owner)) {
+          this.promptCardChoice(card.owner, amounts,
+            `Omega Beam — ${target.name}`, `Allocate damage (${remaining} remaining)`,
+            (choice) => {
+              const dmg = choice._amount;
+              this.log(`  [OMEGA BEAM] Fires ${dmg} at ${target.name}!`);
+              this.dealDamage(target, dmg, card);
+              remaining -= dmg;
+              this.cleanupDead();
+              doNext();
+            },
+            (amts) => {
+              // AI fallback for amount picker (when human prompt collapses
+              // because amounts.length === 1, i.e., only 1 damage left).
+              const hp = target.currentHealth;
+              const armor = target.armorValue || 0;
+              const needed = hp + armor;
+              return needed <= remaining
+                ? amts.find(a => a._amount === needed) || amts[amts.length - 1]
+                : amts[amts.length - 1];
+            }
+          );
+        } else {
+          // AI controller — pick amount directly, no modal.
+          const hp = target.currentHealth;
+          const armor = target.armorValue || 0;
+          const needed = hp + armor;
+          const dmg = needed <= remaining ? needed : remaining;
+          this.log(`  [OMEGA BEAM] Fires ${dmg} at ${target.name}!`);
+          this.dealDamage(target, dmg, card);
+          remaining -= dmg;
+          this.cleanupDead();
+          doNext();
+        }
+      });
+    };
+    doNext();
+  },
+
+  // Generic directional auto-chain. Player picks left or right, then chain continues
+  // automatically until damage runs out or is negated (evade/invincible/armor/dmg immune).
+  // damageReducePerStep: 0 for constant-damage chains (Cap, WW), 1 for Vader.
+  autoChainDamage(owner, startLane, damage, damageReducePerStep, callback, label) {
+    const opp = this.opponent(owner);
+    const canLeft = startLane - 1 >= 0 && this.state.lanes[startLane - 1][opp] &&
+                    this.state.lanes[startLane - 1][opp].currentHealth > 0;
+    const canRight = startLane + 1 < this.LANE_COUNT && this.state.lanes[startLane + 1][opp] &&
+                     this.state.lanes[startLane + 1][opp].currentHealth > 0;
+
+    if (!canLeft && !canRight) { if (callback) callback(); return; }
+
+    const doChain = (direction) => {
+      this._chainInDirection(owner, startLane, direction, damage, damageReducePerStep, callback, label);
+    };
+
+    if (canLeft && canRight) {
+      if (!this.isHuman(owner)) {
+        // AI-controlled: pick direction with more consecutive enemies
+        let leftCount = 0, rightCount = 0;
+        for (let l = startLane - 1; l >= 0; l--) {
+          const e = this.state.lanes[l][opp];
+          if (e && e.currentHealth > 0) leftCount++; else break;
+        }
+        for (let l = startLane + 1; l < this.LANE_COUNT; l++) {
+          const e = this.state.lanes[l][opp];
+          if (e && e.currentHealth > 0) rightCount++; else break;
+        }
+        doChain(leftCount >= rightCount ? -1 : 1);
+      } else {
+        this.promptLaneChoice(owner, [startLane - 1, startLane + 1],
+          label ? `${label} — Pick Direction` : 'Chain — Pick Direction',
+          `Choose left or right to chain ${damage} damage`,
+          (chosen) => { doChain(chosen < startLane ? -1 : 1); }
+        );
+      }
+    } else {
+      doChain(canLeft ? -1 : 1);
+    }
+  },
+
+  // Internal: chain in a fixed direction from fromLane, hitting each consecutive enemy.
+  _chainInDirection(owner, fromLane, direction, damage, damageReducePerStep, callback, label) {
+    const opp = this.opponent(owner);
+    const nextLane = fromLane + direction;
+    if (nextLane < 0 || nextLane >= this.LANE_COUNT || damage <= 0) { if (callback) callback(); return; }
+
+    const target = this.state.lanes[nextLane][opp];
+    if (!target || target.currentHealth <= 0) { if (callback) callback(); return; }
+
+    const dealt = this.dealChainDamage(target, damage, label);
+    this.cleanupDead();
+
+    if (!dealt) { if (callback) callback(); return; }
+
+    const nextDmg = damage - damageReducePerStep;
+    if (nextDmg <= 0) { if (callback) callback(); return; }
+
+    this._chainInDirection(owner, nextLane, direction, nextDmg, damageReducePerStep, callback, label);
+  },
+
+  // Start Vader's chain. Player picks starting target, then direction for auto-chain.
+  startVaderChain(owner, callback) {
+    const opp = this.opponent(owner);
+    const enemyLanes = [];
+    for (let i = 0; i < this.LANE_COUNT; i++) {
+      const e = this.state.lanes[i][opp];
+      if (e && e.currentHealth > 0) enemyLanes.push(i);
+    }
+    if (!enemyLanes.length) { if (callback) callback(); return; }
+
+    const hitAndChain = (lane) => {
+      const target = this.state.lanes[lane][opp];
+      if (!target || target.currentHealth <= 0) { if (callback) callback(); return; }
+
+      const dealt = this.dealChainDamage(target, 7, "VADER CHAIN");
+      this.cleanupDead();
+
+      if (!dealt) { if (callback) callback(); return; }
+
+      // Continue chain from this lane with 6 damage, reducing by 1 per step
+      this.autoChainDamage(owner, lane, 6, 1, callback, "VADER CHAIN");
+    };
+
+    if (!this.isHuman(owner)) {
+      // AI-controlled Vader: score each candidate start lane. Reject
+      // targets that absorb the first 7-damage hit outright (evade /
+      // invincible / dmg-immune / armor ≥ 7). Prefer clean kills + long
+      // chain reach.
+      const scoreStart = (lane) => {
+        const t = this.state.lanes[lane][opp];
+        if (!t || t.currentHealth <= 0) return -Infinity;
+        if (t.evadeCharges > 0) return -Infinity;
+        if (t.invincibleTurns > 0) return -Infinity;
+        if (t.hasDamageImmunity) return -Infinity;
+        const dmg = Math.max(0, 7 - (t.armorValue || 0));
+        if (dmg === 0) return -Infinity; // armor soaks, chain aborts
+        let lReach = 0, rReach = 0;
+        for (let l = lane - 1; l >= 0; l--) {
+          const e = this.state.lanes[l][opp];
+          if (e && e.currentHealth > 0) lReach++; else break;
+        }
+        for (let l = lane + 1; l < this.LANE_COUNT; l++) {
+          const e = this.state.lanes[l][opp];
+          if (e && e.currentHealth > 0) rReach++; else break;
+        }
+        const reach = Math.max(lReach, rReach);
+        const willKill = t.currentHealth <= dmg;
+        const dmgLanded = Math.min(dmg, t.currentHealth);
+        // killBonus=10 to clearly prefer clean kills; reach*3 weights
+        // chain spread; dmgLanded breaks ties toward bigger first hits.
+        return (willKill ? 10 : 0) + reach * 3 + dmgLanded;
+      };
+      let best = enemyLanes[0];
+      let bestScore = scoreStart(best);
+      enemyLanes.forEach(l => {
+        const s = scoreStart(l);
+        if (s > bestScore) { bestScore = s; best = l; }
+      });
+      // If every candidate is -Infinity (all enemies evade/immune), fall
+      // back to the old highest-HP heuristic — at least we don't crash.
+      if (bestScore === -Infinity) {
+        best = enemyLanes[0];
+        enemyLanes.forEach(l => {
+          const c = this.state.lanes[l][opp];
+          const bc = this.state.lanes[best][opp];
+          if (c && bc && c.currentHealth > bc.currentHealth) best = l;
+        });
+      }
+      hitAndChain(best);
+    } else {
+      // targetSide defaults to `owner` in promptLaneChoice, which
+      // highlights the PLAYER's lane slots — wrong for Vader's chain
+      // since the click is supposed to pick an ENEMY card. Pass the
+      // opponent explicitly so the UI glows the enemy row and clicks
+      // land on the right targets.
+      this.promptLaneChoice(owner, enemyLanes,
+        "Vader's Chain — Pick Starting Target",
+        "Choose any enemy card to start the 7-damage chain",
+        (lane) => { hitAndChain(lane); },
+        this.opponent(owner),
+        null,    // previewCard not used for own-side placement
+        7        // previewDamage — Vader's chain start hits for 7
+      );
+    }
+  },
+
+  // ===================== CARD INSTANCE =====================
+
+  createCardInstance(def, owner) {
+    // Defensive coercion — if a def arrives with NaN/undefined stats
+    // (possible when a dead-pile entry was corrupted by an earlier
+    // NaN propagation, or when summonCard is fed stale values from a
+    // moved/swapped card), normalize to safe defaults so the new
+    // instance can participate in combat without poisoning state.
+    // Caught by the sim/test.js setter-based NaN tracer.
+    const safeAtk = (typeof def.attack === 'number' && Number.isFinite(def.attack)) ? def.attack : 0;
+    const safeHp  = (typeof def.health === 'number' && Number.isFinite(def.health) && def.health > 0) ? def.health : 1;
+    const card = {
+      id: nextCardId++,
+      name: def.name, cost: def.actualCost || def.cost, baseCost: def.cost,
+      attack: safeAtk, currentHealth: safeHp, maxHealth: safeHp,
+      // Snapshot of the def's starting stats so the UI can tell at render
+      // time whether the card is currently buffed or debuffed (attack and
+      // maxHealth can drift from these via Luke/Magneto/Man-Bat/etc.).
+      baseAttack: safeAtk, baseHealth: safeHp,
+      abilities: [...(def.abilities || [])], type: def.type || 'neutral',
+      // Pristine ability list captured at instance creation. Used by
+      // handleDeath's dead-pile reset so a revived card comes back with
+      // its original keywords (Loki's stolen ability gone, Ivy's
+      // charm-derived buffs gone, etc.).
+      baseAbilities: [...(def.abilities || [])],
+      desc: def.desc || '', owner,
+      evadeCharges: 0, armorValue: 0, invincibleTurns: 0,
+      splashRange: 0, tauntTurns: 0,
+      isOverdrive: false, isBullseye: false, immunityCharges: 0,
+      unresistibleCharges: 0, hasHunt: false, hasDamageImmunity: false, isUntrickable: false,
+      drawOnPlay: 0,
+      isStunned: false, isFrozen: false, isFeared: false, isMindControlled: false,
+        // Counter representation — drives stacking. Booleans above are
+        // derived (true iff counter > 0) and synced by *Card methods +
+        // round-tick. See "DEBUFF STACKING" comment block.
+        stunnedTurns: 0, frozenTurns: 0, fearedTurns: 0,
+      bonusAttack: false, hasResurrected: false, reviveCharges: 0,
+      damageImmuneTurn: false,
+      // Summon-chain attribution — _summonedBy points to the card whose
+      // ability produced this one (Hela → zombies, Cyborg → Null, etc.).
+      // _creditChain walks this chain so every ancestor inherits a
+      // descendant's damage / absorbs / kills / energy-generated for MVP
+      // scoring (per user spec: "full chain — every ancestor credited").
+      // _drawnBy mirrors the same idea for hand cards pulled from the
+      // dead pile (Hela's second effect) — if the drawn card is played,
+      // its cost credits the drawer as energy generated.
+      _summonedBy: null,
+      _drawnBy: null,
+
+      // Per-card stats, accumulated across the game — feed the victory
+      // screen's 3 MVP component rows + the composite MVP row.
+      //
+      // Damage done components:
+      //   statsHealthbarDamage  — damage this card landed on opponent HP
+      //   statsEnemyDamage      — damage this card landed on enemy cards
+      //
+      // Damage absorbed — damage this card actively prevented from landing:
+      //   Armor reducing/fully blocking a hit, Invincible/DamageImmunity,
+      //   Evade (attacker's ATK value), Mr Freeze HP shield, Mahoraga
+      //   redirect, and approximate freeze/stun prevention (min of the
+      //   stunned enemy's ATK and the HP of what they would have hit).
+      //
+      // statsKills — count of enemy cards this card destroyed. MVP formula
+      // adds +5 per kill on top of damage/absorb/energy sums.
+      //
+      // statsEnergyGenerated — currency this card contributed (Dr. Octopus
+      // aura, Green Lantern's damage-to-energy conversion, etc.).
+      statsHealthbarDamage: 0,
+      statsEnemyDamage: 0,
+      statsDamageAbsorbed: 0,
+      // v7 sabermetrics — per-prevention-type breakdown of damage
+      // denied. Sum of these five = statsDamageAbsorbed. Surfaced in
+      // the dashboard as discrete stat rows so the player can see
+      // "what kind of defense did this card actually do?" rather than
+      // a single rolled-up "absorbed N" total.
+      statsAbsorbArmor: 0,         // armor value reduced/absorbed
+      statsAbsorbInvincible: 0,    // Invincible / Damage Immunity negated
+      statsAbsorbEvade: 0,         // evade charge ate a swing
+      statsAbsorbRedirect: 0,      // Mahoraga / taunt took the hit
+      statsAbsorbLockdown: 0,      // freeze/stun phantom-prevented attack
+      statsAbsorbShield: 0,        // Mr. Freeze HP shield (one-shot HP-bar)
+      // v3 instrumentation — three new fields that capture effects the
+      // old formula couldn't see. Weighted into the Impact Index so
+      // cards like Mr. Fantastic (discount aura), Dr. Manhattan (heal),
+      // and Hawkeye (ATK debuff on splashed enemies) get credit.
+      statsHealingDone: 0,      // HP healed to your own HP bar (healPlayer)
+      statsDiscountValue: 0,    // Energy saved by cost reductions this card set/aura'd
+      statsDebuffValue: 0,      // ATK/HP debuffs applied to enemies (Hawkeye, Kryptonite, etc.)
+      // Card advantage — cards DRAWN because of this one (Draw N keyword
+      // + Eye of Agamotto foresight + Mobius Chair if card-sourced, etc).
+      // Counted as tempo value since each draw is a future play-option.
+      statsCardAdvantage: 0,
+      // Kill value — captures the WEIGHT of each kill, not just the count.
+      // Damage tracking (statsEnemyDamage) undercounts cards that finish
+      // off already-damaged enemies with direct-destroy effects (Gamora,
+      // Ant-Man, Deathstroke, Kryptonite, devour). Kill value credits
+      // `attack + maxHealth + baseCost` of the killed card, so removing a
+      // 10-cost Galactus counts much more than removing a 1-cost token.
+      statsKillValue: 0,
+      // Action counters — not weighted into the headline Impact score,
+      // just for the Stats detail modal so designers can see WHY a card
+      // is ranking high (lots of kills? lots of freezes? big damage?).
+      statsKills: 0,
+      statsFreezesApplied: 0,
+      statsStunsApplied: 0,
+      statsFearsApplied: 0,
+      statsMcApplied: 0,
+      statsEnergyGenerated: 0,
+      statsEnteredRound: null,
+      statsLeftRound: null,
+      onPlay: def.onPlay || null, onDeath: def.onDeath || null,
+      onDamaged: def.onDamaged || null, onKill: def.onKill || null,
+      onEvade: def.onEvade || null, onAllyKilled: def.onAllyKilled || null,
+      onBeforeAttack: def.onBeforeAttack || null, onDamagePlayer: def.onDamagePlayer || null,
+      onAnyCardPlayed: def.onAnyCardPlayed || null, onTurnStart: def.onTurnStart || null,
+      onBeforeTricks: def.onBeforeTricks || null, onEndOfTurn: def.onEndOfTurn || null,
+      onMoved: def.onMoved || null,
+      onLaneResolved: def.onLaneResolved || null,
+      beforeTricksFired: false,
+      passive: def.passive || null,
+      isDiscardEffect: def.isDiscardEffect || false, onDiscard: def.onDiscard || null,
+      trickPhasePlayable: def.trickPhasePlayable || false,
+      // Scarlet Witch: stats are unknown until she's placed. Her ATK/HP
+      // copy the enemy directly opposite at play-time. While in hand
+      // and on the draft, the renderer shows "?" instead of her base
+      // 0/0. Cleared by her onPlay once she takes a stance.
+      copiesOpposite: !!def.copiesOpposite,
+      _grantedBuffs: null,
+      _recurringBT: def._recurringBT || false,
+    };
+    this.applyAbilities(card);
+    return card;
+  },
+
+  // Re-roll ATK for a Crazy / Insane card. Centralized so both the
+  // onPlay spike and the per-turn re-roll share the same logic and
+  // can't diverge. No-op for cards without either trait. Logs only
+  // when the roll actually changes attack (cuts noise on the Joker
+  // / Harley side when the same value is picked twice).
+  rerollCrazyInsane(card) {
+    if (!card || card.currentHealth <= 0) return;
+    const before = card.attack;
+    if (card.isInsane) {
+      let r; do { r = 2 + Math.floor(Math.random() * 6); } while (r === card._lastInsaneRoll);
+      card._lastInsaneRoll = r; card.attack = r;
+      this.log(`  [INSANE] ${card.name} rolls ATK ${before} → ${r}`);
+    } else if (card.isCrazy) {
+      let r; do { r = 1 + Math.floor(Math.random() * 4); } while (r === card._lastCrazyRoll);
+      card._lastCrazyRoll = r; card.attack = r;
+      this.log(`  [CRAZY] ${card.name} rolls ATK ${before} → ${r}`);
+    }
+  },
+  // Apply the Crazy trait to the target — marks the card so the
+  // per-round re-roll sweeps re-roll its ATK 1-4, and rolls once
+  // immediately so the new attack value shows this turn. Used by
+  // Joker to CRAZY the highest-attack enemy.
+  applyCrazyToCard(card) {
+    if (!card || card.isCrazy || card.currentHealth <= 0) return;
+    card.isCrazy = true;
+    card._crazyAppliedBy = true;
+    this.rerollCrazyInsane(card);
+  },
+
+  // Sweep all living cards (hands + board) and coerce any NaN/undefined
+  // stats back to safe bases. A catch-all that runs once per round — if
+  // any of the sharper guards in buffCard/debuffCard/applyCombatDamage
+  // miss a corruption path, the next round heals it silently instead of
+  // letting the invariant drift.
+  _sanitizeAllCards() {
+    const fix = (c) => {
+      if (!c) return;
+      if (typeof c.attack        !== 'number' || !Number.isFinite(c.attack))        c.attack        = c.baseAttack || 0;
+      if (typeof c.currentHealth !== 'number' || !Number.isFinite(c.currentHealth)) c.currentHealth = c.baseHealth || 1;
+      if (typeof c.maxHealth     !== 'number' || !Number.isFinite(c.maxHealth))     c.maxHealth     = c.baseHealth || 1;
+    };
+    const s = this.state;
+    if (!s) return;
+    ['player', 'ai'].forEach(side => {
+      (s[side].hand || []).forEach(fix);
+    });
+    (s.lanes || []).forEach(lane => {
+      if (lane.player) fix(lane.player);
+      if (lane.ai)     fix(lane.ai);
+    });
+  },
+
+  // Apply a temporary buff that auto-expires after `duration` turns (default 1).
+  // `buffs` is an object: numeric values are additive (+N), boolean values are set-and-revert.
+  // Example: G.grantTempBuff(ally, { attack: 2, maxHealth: 2, currentHealth: 2 })
+  grantTempBuff(target, buffs, duration = 1) {
+    if (!target || !buffs) return;
+    if (!target._grantedBuffs) target._grantedBuffs = [];
+    Object.entries(buffs).forEach(([prop, value]) => {
+      if (typeof value === 'boolean') {
+        const prev = target[prop];
+        target[prop] = value;
+        target._grantedBuffs.push({ prop, prev, set: true, turnsLeft: duration });
+      } else {
+        target[prop] = (target[prop] || 0) + value;
+        target._grantedBuffs.push({ prop, delta: value, turnsLeft: duration });
+      }
+    });
+  },
+
+  // Decrement and expire granted temp buffs at end of turn.
+  expireGrantedBuffs() {
+    this.getAllCardsOnBoard().forEach(c => {
+      if (!c._grantedBuffs || !c._grantedBuffs.length) return;
+      c._grantedBuffs = c._grantedBuffs.filter(b => {
+        b.turnsLeft--;
+        if (b.turnsLeft > 0) return true;
+        if (b.set) {
+          // Boolean set-and-revert. If `prev` was captured as undefined
+          // (e.g. the card was mid-creation or the prop wasn't yet
+          // initialized), restoring undefined corrupts the stat. Coerce
+          // numeric stats back to safe bases.
+          c[b.prop] = b.prev;
+          if (b.prop === 'currentHealth' && (typeof c.currentHealth !== 'number' || !Number.isFinite(c.currentHealth))) c.currentHealth = c.baseHealth || 1;
+          if (b.prop === 'maxHealth'     && (typeof c.maxHealth     !== 'number' || !Number.isFinite(c.maxHealth)))     c.maxHealth     = c.baseHealth || 1;
+          if (b.prop === 'attack'        && (typeof c.attack        !== 'number' || !Number.isFinite(c.attack)))        c.attack        = c.baseAttack || 0;
+        } else {
+          c[b.prop] = (c[b.prop] || 0) - b.delta;
+          if (b.prop === 'attack' || b.prop === 'evadeCharges' || b.prop === 'armorValue' || b.prop === 'splashRange') {
+            c[b.prop] = Math.max(0, c[b.prop]);
+          }
+          if (b.prop === 'maxHealth') {
+            // Ensure both maxHealth AND currentHealth survive the clamp
+            // as finite numbers before the Math.min below is reached.
+            if (typeof c.maxHealth !== 'number' || !Number.isFinite(c.maxHealth)) c.maxHealth = c.baseHealth || 1;
+            if (typeof c.currentHealth !== 'number' || !Number.isFinite(c.currentHealth)) c.currentHealth = c.baseHealth || 1;
+            c.currentHealth = Math.min(c.currentHealth, c.maxHealth);
+          }
+          if (b.prop === 'currentHealth') c[b.prop] = Math.max(0, c[b.prop]);
+        }
+        return false;
+      });
+    });
+  },
+
+  applyAbilities(card) {
+    (card.abilities || []).forEach(ab => {
+      const parts = ab.split(' ');
+      const name = parts[0];
+      const n = parts.length > 1 ? parseInt(parts[parts.length - 1]) : null;
+      switch (name) {
+        case 'Armor': card.armorValue = Math.max(card.armorValue, n || 1); break;
+        case 'Evade': card.evadeCharges = Math.max(card.evadeCharges, n || 1); break;
+        case 'Taunt': card.tauntTurns = Math.max(card.tauntTurns, n || 99); break;
+        case 'Invincible': card.invincibleTurns = Math.max(card.invincibleTurns, n || 1); break;
+        case 'Splash': card.splashRange = Math.max(card.splashRange, n || 1); break;
+        case 'Overdrive': card.isOverdrive = true; break;
+        case 'Bullseye': card.isBullseye = true; break;
+        case 'Immunity': card.immunityCharges = Math.max(card.immunityCharges, n || 1); break;
+        case 'Unresistible': card.unresistibleCharges = Math.max(card.unresistibleCharges, n || 1); break;
+        case 'Hunt': card.hasHunt = true; break;
+        case 'Revive': card.reviveCharges = Math.max(card.reviveCharges, n || 1); break;
+        case 'Untrickable': card.isUntrickable = true; card.permanentUntrickable = true; break;
+        case 'Damage': if (parts[1] === 'Immunity') card.hasDamageImmunity = true; break;
+        case 'Draw': card.drawOnPlay = Math.max(card.drawOnPlay || 0, n || 1); break;
+        case 'Crazy':  card.isCrazy  = true; break; // ATK re-rolls 1-4 each turn + onPlay
+        case 'Insane': card.isInsane = true; break; // ATK re-rolls 2-7 each turn + onPlay
+      }
+    });
+    // Auto-Untrickable: every 10-cost+ titan is trick-immune by default so
+    // a cheap 1-cost trick can't nuke a 10-cost card. Flag is permanent —
+    // buff-clear sweeps that wipe temporary Untrickable (abilities.js ~266
+    // and ~608) leave permanent=true cards alone.
+    if ((card.baseCost || card.cost || 0) >= 10) {
+      card.isUntrickable = true;
+      card.permanentUntrickable = true;
+    }
+  },
+
+  // ===================== QUERIES =====================
+
+  getEnemiesOf(owner) { return this.getAllCardsOf(this.opponent(owner)); },
+  getAlliesOf(owner) { return this.getAllCardsOf(owner); },
+
+  getAllCardsOf(owner) {
+    const out = [];
+    for (let i = 0; i < this.LANE_COUNT; i++) if (this.state.lanes[i][owner] && this.state.lanes[i][owner].currentHealth > 0) out.push(this.state.lanes[i][owner]);
+    return out;
+  },
+
+  getAllCardsOnBoard() {
+    const out = [];
+    for (let i = 0; i < this.LANE_COUNT; i++) {
+      if (this.state.lanes[i].player && this.state.lanes[i].player.currentHealth > 0) out.push(this.state.lanes[i].player);
+      if (this.state.lanes[i].ai && this.state.lanes[i].ai.currentHealth > 0) out.push(this.state.lanes[i].ai);
+    }
+    return out;
+  },
+
+  getAdjacentEnemiesInContext(l, owner) {
+    const opp = this.opponent(owner);
+    const out = [];
+    if (l > 0 && this.state.lanes[l - 1][opp]) out.push(this.state.lanes[l - 1][opp]);
+    if (l < this.LANE_COUNT - 1 && this.state.lanes[l + 1][opp]) out.push(this.state.lanes[l + 1][opp]);
+    return out;
+  },
+
+  getOpenLanes(owner) {
+    const out = [];
+    for (let i = 0; i < this.LANE_COUNT; i++) if (!this.state.lanes[i][owner] && !this.state.lanes[i].destroyed) out.push(i);
+    return out;
+  },
+
+  findCardLane(card) {
+    for (let i = 0; i < this.LANE_COUNT; i++) if (this.state.lanes[i].player === card || this.state.lanes[i].ai === card) return i;
+    return -1;
+  },
+
+  // ===================== JUMP MECHANIC =====================
+
+  // Check jump conditions after game events. trigger: 'trickPlayed', 'cardPlayed', 'allyDied'
+  checkJumpConditions(trigger, data) {
+    ['player', 'ai'].forEach(owner => {
+      const opp = this.opponent(owner);
+      // Track if a PLAYER-side jump just became available during this call
+      // so combat can pause (via state.pendingJumpOffer) to give the player
+      // time to play the card for free instead of the combat timeline
+      // rolling past the window.
+      let playerJumpNowReady = null;
+      this.state[owner].hand.forEach(card => {
+        if (card.jumpReady) return; // Already glowing
+        if (card.name === 'Ghostface' && trigger === 'trickPlayed' && data.owner !== owner) {
+          card.jumpReady = true;
+          this.log(`  [JUMP] Ghostface senses a trick! Free play available.`);
+          if (this.isHuman(owner)) playerJumpNowReady = card;
+        }
+        if (card.name === 'Michael Myers' && trigger === 'cardPlayed' && data.owner !== owner && data.cost < card.cost) {
+          card.jumpReady = true;
+          // Lock MM to the lane directly in front of the enemy card that triggered the jump
+          card.jumpLane = data.laneIdx;
+          this.log(`  [JUMP] Michael Myers senses weakness in lane ${data.laneIdx + 1}! Free play available.`);
+          if (this.isHuman(owner)) playerJumpNowReady = card;
+        }
+        if (card.name === 'Jason Voorhees' && trigger === 'allyDied' && data.owner === owner) {
+          // Jason can only jump INTO the lane where the ally died — locked,
+          // not a free pick anywhere on board. If the lane is now blocked
+          // (e.g. another ally moved in, or lane got destroyed), the jump
+          // check at play-time cancels cleanly.
+          card.jumpReady = true;
+          card.jumpLane = (typeof data.laneIdx === 'number') ? data.laneIdx : undefined;
+          const laneStr = card.jumpLane !== undefined ? ` in lane ${card.jumpLane + 1}` : '';
+          this.log(`  [JUMP] Jason Voorhees rises to avenge${laneStr}! Free play available.`);
+          if (this.isHuman(owner)) playerJumpNowReady = card;
+        }
+      });
+      // If a player-side jump became ready AND we're in the middle of combat
+      // (_inCombat set by resolveCombat), pause the lane-resolve timeline
+      // by setting a pending prompt. The UI renders a "play free / skip"
+      // modal; either choice clears the prompt and combat resumes via
+      // resumeCombatIfWaiting. Outside combat (normal turn), the glowing
+      // card in hand is enough — the player can click it any time.
+      if (playerJumpNowReady && this.state._inCombat && !this.state.pendingJumpOffer) {
+        // Shim sets __HEADLESS_SIM; browser leaves it undefined.
+        const inBrowser = typeof __HEADLESS_SIM === 'undefined';
+        if (inBrowser) {
+          this.state.pendingJumpOffer = { cardId: playerJumpNowReady.id };
+          if (typeof UI !== 'undefined' && UI.render) UI.render();
+        } else {
+          // Headless sim: no UI to resolve the modal → combat would stall
+          // forever in whenPromptCleared. Auto-play the jump into the first
+          // open lane (or clear the flag if no valid target).
+          const card = playerJumpNowReady;
+          const tgt = card.jumpLane !== undefined
+            ? card.jumpLane
+            : (this.getOpenLanes('player')[0] !== undefined ? this.getOpenLanes('player')[0] : -1);
+          const validLane = tgt >= 0 && tgt < this.LANE_COUNT
+            && !this.state.lanes[tgt].player
+            && !this.state.lanes[tgt].destroyed;
+          card.jumpReady = false;
+          card.jumpLane = undefined;
+          if (validLane) this.playCardFree('player', card, tgt);
+        }
+      }
+      // AI-controlled seats auto-play jump-ready cards immediately (humans
+      // click the glowing card themselves).
+      if (!this.isHuman(owner)) {
+        const jumpCards = this.state[owner].hand.filter(c => c.jumpReady);
+        jumpCards.forEach(card => {
+          let target;
+          if (card.jumpLane !== undefined) {
+            if (!this.state.lanes[card.jumpLane][owner] && !this.state.lanes[card.jumpLane].destroyed) {
+              target = card.jumpLane;
+            } else {
+              card.jumpReady = false;
+              card.jumpLane = undefined;
+              this.log(`  [JUMP] ${card.name}'s target lane is blocked — jump cancelled.`);
+              return;
+            }
+          } else {
+            const open = this.getOpenLanes(owner);
+            target = open.length ? open[0] : -1;
+          }
+          if (target >= 0) {
+            card.jumpReady = false;
+            card.jumpLane = undefined;
+            this.playCardFree(owner, card, target);
+          }
+        });
+      }
+    });
+  },
+
+  // Play a jump card for free from hand. Does NOT consume energy and does NOT end the player's turn.
+  playJumpCard(owner, card) {
+    if (!card.jumpReady) return;
+    // If the modal-driven jump offer referenced THIS card, clear it and
+    // resume combat so the lane timeline continues after Jason lands.
+    if (this.isHuman(owner) && this.state.pendingJumpOffer && this.state.pendingJumpOffer.cardId === card.id) {
+      this.state.pendingJumpOffer = null;
+      setTimeout(() => this.resumeCombatIfWaiting(), 0);
+    }
+
+    // If the card has a locked jumpLane (Michael Myers), use it directly — no choice prompt.
+    if (card.jumpLane !== undefined) {
+      const lockedLane = card.jumpLane;
+      if (lockedLane >= 0 && lockedLane < this.LANE_COUNT
+          && !this.state.lanes[lockedLane][owner]
+          && !this.state.lanes[lockedLane].destroyed) {
+        card.jumpReady = false;
+        card.jumpLane = undefined;
+        this.playCardFree(owner, card, lockedLane);
+        UI.render();
+        return;
+      }
+      // Locked lane is blocked — clear flags but do not allow free play
+      card.jumpReady = false;
+      card.jumpLane = undefined;
+      this.log(`  [JUMP] ${card.name}'s target lane is blocked — jump cancelled.`);
+      UI.render();
+      return;
+    }
+
+    // Generic jump (Ghostface, Jason Voorhees) — let player pick any open lane
+    card.jumpReady = false;
+    const open = this.getOpenLanes(owner);
+    if (!open.length) return;
+    if (this.isHuman(owner) && open.length > 1) {
+      this.promptLaneChoice(owner, open, `Jump: ${card.name}`, `Choose lane for ${card.name} (FREE)`, (lane) => {
+        this.playCardFree(owner, card, lane);
+        UI.render();
+      });
+    } else if (open.length) {
+      this.playCardFree(owner, card, open[0]);
+    }
+    UI.render();
+  },
+
+  // ===================== MAGNETO WHILE ACTIVE =====================
+
+  applyMagnetoDebuffs() {
+    ['player', 'ai'].forEach(owner => {
+      const magneto = this.getAllCardsOf(owner).find(c => c.name === 'Magneto');
+      if (!magneto) return;
+      const opp = this.opponent(owner);
+      for (let i = 0; i < this.LANE_COUNT; i++) {
+        if ((i + 1) % 2 === 0) { // even-numbered lanes
+          const e = this.state.lanes[i][opp];
+          if (e && !e._magnetoDebuffed) {
+            // Flag BEFORE debuffing: if the hit kills the card, killCard clears
+            // the lane slot, so we need the marker on the instance first.
+            e._magnetoDebuffed = true;
+            this.debuffCard(e, 1, 2, true, magneto);
+            this.log(`  [MAGNETO] ${e.name} in lane ${i+1} gets -1/-2`);
+          }
+        }
+      }
+    });
+  },
+
+  removeMagnetoDebuffs(magnetoOwner) {
+    const opp = this.opponent(magnetoOwner);
+    for (let i = 0; i < this.LANE_COUNT; i++) {
+      if ((i + 1) % 2 === 0) {
+        const e = this.state.lanes[i][opp];
+        if (e && e._magnetoDebuffed) {
+          this.buffCard(e, 1, 2);
+          e._magnetoDebuffed = false;
+          this.log(`  [MAGNETO] Debuff removed from ${e.name}`);
+        }
+      }
+    }
+  },
+
+  // ===================== UNDO / SNAPSHOT API =====================
+
+  // Custom deep clone that preserves function references (which point at the
+  // shared CARD_DEFS / TRICK_DEFS / CARD_ABILITIES tables) and maintains object
+  // identity via a `seen` map (so a card on the board and the same reference in
+  // `pendingCardChoice.cards` resolve to the same cloned object after restore).
+  cloneStateDeep(obj, seen) {
+    if (obj === null || typeof obj !== 'object') return obj; // primitives + functions
+    if (!seen) seen = new Map();
+    if (seen.has(obj)) return seen.get(obj);
+    if (Array.isArray(obj)) {
+      const out = [];
+      seen.set(obj, out);
+      for (const v of obj) out.push(this.cloneStateDeep(v, seen));
+      return out;
+    }
+    const out = {};
+    seen.set(obj, out);
+    for (const k in obj) out[k] = this.cloneStateDeep(obj[k], seen);
+    return out;
+  },
+
+  // Capture the current state and push it onto the undo history.
+  // No-op if there's no state yet or if the game is over.
+  snapshot() {
+    if (!this.state || this.state.gameOver) return;
+    if (this.history.length >= this.HISTORY_LIMIT) this.history.shift();
+    this.history.push(this.cloneStateDeep(this.state));
+  },
+
+  // Restore the most recent snapshot. Returns true if anything was restored.
+  undo() {
+    if (!this.history.length) return false;
+    if (!this.isPlayerTurn()) return false; // safety: undo is a player-turn action
+    // Abuse prevention — cancel any live prompt timer + deadline before the
+    // restore so a stale timer from the snapshot can't linger.
+    this._clearPromptTimeout();
+    const snap = this.history.pop();
+    this.state = snap;
+    // Also wipe any deadline that may have been in the snapshot itself.
+    this.state._promptDeadline = null;
+    this.log('[UNDO] Reverted to previous action');
+    UI.render();
+    return true;
+  },
+
+  // Clear all snapshots — called at the start of each new player sub-phase.
+  clearHistory() {
+    this.history = [];
+  },
+
+  // True when the player is in one of their own action sub-phases.
+  isPlayerTurn() {
+    if (!this.state) return false;
+    const p = this.state.phase;
+    return p === 'player-cards' || p === 'player-cards-tricks' || p === 'player-tricks';
+  },
+
+  // ===================== LANE-OUTCOME SIMULATION =====================
+  //
+  // PURE-FUNCTION simulation of a single lane's combat. Operates only on
+  // shallow snapshots of the card objects involved — never writes to
+  // live state, never calls UI/setTimeout/log/Game.*, never recurses
+  // through the combat resolver. This is the safe replacement for the
+  // arithmetic heuristic the renderer used for death-skull / HP-after
+  // previews.
+  //
+  // The previous "full simulator" attempt (Game.previewPlay) broke real
+  // play because it cloned + ran resolveCombat (which fires setTimeouts,
+  // UI calls, and chained ability hooks). This version trades some
+  // depth-of-coverage for absolute safety:
+  //
+  //   • Covered: ATK swings (simultaneous), Armor / Evade / Invincible /
+  //     Damage Immunity, Bullseye-vs-Evade, Splash from front + adjacent
+  //     enemies, Stun / Freeze gating outgoing swings.
+  //   • Not covered (yet): onDamaged retaliation chains (Wolverine), Wonder
+  //     Woman lasso chain, Obi-Wan reflect, Hulk on-play splash setup,
+  //     mid-combat trick interactions.
+  //   • If a not-yet-covered case mispredicts in a way the user notices,
+  //     the fix is to add the specific math here, NOT to re-introduce
+  //     the full-engine simulator.
+  //
+  // Returns: { player: { hpAfter, dies, dmgIn }, ai: { hpAfter, dies, dmgIn } }
+  // OR null when the lane is empty / destroyed.
+  // Snapshot the fields that affect combat math. Plain object copy —
+  // never returns a reference to the live card. Exposed so the UI's
+  // damage-preview can build snaps for hypothetical (in-hand) cards.
+  _snapForPredict(c) {
+    return c ? {
+      name: c.name,
+      currentHealth: c.currentHealth | 0,
+      attack: c.attack | 0,
+      splashRange: c.splashRange | 0,
+      armorValue: c.armorValue | 0,
+      evadeCharges: c.evadeCharges | 0,
+      invincibleTurns: c.invincibleTurns | 0,
+      hasDamageImmunity: !!c.hasDamageImmunity,
+      isStunned: !!c.isStunned,
+      isFrozen:  !!c.isFrozen,
+      isBullseye: !!c.isBullseye,
+      owner: c.owner,
+    } : null;
+  },
+
+  // hypothetical: optional `{ player?: snap, ai?: snap }` — replaces the
+  // matching side's snap before running the prediction. Used by the
+  // damage-preview when previewing a card-in-hand: pass the projected
+  // card stats as `hypothetical.player`. Adjacent splash is still read
+  // from the live state.
+  predictLaneOutcome(laneIdx, hypothetical) {
+    if (!this.state || !this.state.lanes) return null;
+    const lane = this.state.lanes[laneIdx];
+    if (!lane || lane.destroyed) return null;
+    if (!lane.player && !lane.ai && !(hypothetical && (hypothetical.player || hypothetical.ai))) return null;
+
+    const snap = (c) => this._snapForPredict(c);
+
+    const p = (hypothetical && hypothetical.player) ? hypothetical.player : snap(lane.player);
+    const a = (hypothetical && hypothetical.ai)     ? hypothetical.ai     : snap(lane.ai);
+
+    // Local damage applier — operates ONLY on the snapshot. Returns the
+    // amount that actually landed after Armor / Evade / Invincible.
+    const applyHit = (tgt, raw, attackerBullseye) => {
+      if (!tgt || tgt.currentHealth <= 0 || raw <= 0) return 0;
+      if (tgt.invincibleTurns > 0 || tgt.hasDamageImmunity) return 0;
+      if (tgt.evadeCharges > 0 && !attackerBullseye) { tgt.evadeCharges--; return 0; }
+      const landed = Math.max(0, raw - tgt.armorValue);
+      tgt.currentHealth -= landed;
+      return landed;
+    };
+
+    // Track incoming totals separately for the renderer's tooltip text.
+    let pDmgIn = 0, aDmgIn = 0;
+
+    // Snapshot pre-swing ATKs — both swings happen "simultaneously",
+    // so a card that dies in this exchange still gets to swing.
+    const pCanSwing = !!(p && !p.isStunned && !p.isFrozen);
+    const aCanSwing = !!(a && !a.isStunned && !a.isFrozen);
+    const pAtk = pCanSwing ? p.attack : 0;
+    const aAtk = aCanSwing ? a.attack : 0;
+    const pSplash = pCanSwing ? p.splashRange : 0;
+    const aSplash = aCanSwing ? a.splashRange : 0;
+    const pBullseye = !!(p && p.isBullseye);
+    const aBullseye = !!(a && a.isBullseye);
+
+    // Step 1: front-on-front swings (only when BOTH cards are present)
+    if (p && a) {
+      aDmgIn += applyHit(p, aAtk, aBullseye);
+      pDmgIn += applyHit(a, pAtk, pBullseye);
+    }
+
+    // Step 2: own-lane splash from each side (splash also lands on the
+    // front enemy in the same lane).
+    if (p && a && pSplash > 0) pDmgIn; // self bookkeeping ignored — own splash hits enemy below
+    if (a && pSplash > 0) { aDmgIn += applyHit(a, pSplash, pBullseye); }
+    if (p && aSplash > 0) { pDmgIn += applyHit(p, aSplash, aBullseye); }
+
+    // Step 3: splash from adjacent enemies. The opposing side's
+    // adjacent cards splash into this lane.
+    [laneIdx - 1, laneIdx + 1].forEach((li) => {
+      if (li < 0 || li >= this.LANE_COUNT) return;
+      const adj = this.state.lanes[li];
+      if (!adj) return;
+      // Enemy adjacents that splash onto MY player card
+      if (p) {
+        const e = adj.ai;
+        if (e && e.currentHealth > 0 && (e.splashRange | 0) > 0
+            && !e.isStunned && !e.isFrozen) {
+          pDmgIn += applyHit(p, e.splashRange | 0, !!e.isBullseye);
+        }
+      }
+      // Player adjacents that splash onto MY ai card
+      if (a) {
+        const e = adj.player;
+        if (e && e.currentHealth > 0 && (e.splashRange | 0) > 0
+            && !e.isStunned && !e.isFrozen) {
+          aDmgIn += applyHit(a, e.splashRange | 0, !!e.isBullseye);
+        }
+      }
+    });
+
+    return {
+      player: p ? {
+        hpAfter: Math.max(0, p.currentHealth),
+        dies: p.currentHealth <= 0,
+        dmgIn: pDmgIn,
+      } : null,
+      ai: a ? {
+        hpAfter: Math.max(0, a.currentHealth),
+        dies: a.currentHealth <= 0,
+        dmgIn: aDmgIn,
+      } : null,
+    };
+  },
+
+  // ===================== SIMULATION-BASED PREVIEW =====================
+  //
+  // Runs ONE round forward against a deep-clone of the current state with
+  // a hypothetical card play applied first, then reads out the predicted
+  // HP for every card and both players. This is the foundation for the
+  // damage-preview feature — instead of static arithmetic that misses
+  // ability chains (Ivy charm dependent on a Juggernaut surviving lane 1,
+  // Xenomorph passive granting +1/+1 on enter, Fear toxin redirecting an
+  // enemy's attack onto itself, etc.) we let the engine itself compute
+  // the answer.
+  //
+  // hypothesis: { side, cardId, laneIdx }   — required
+  //   side:      'player' | 'ai' (defaults to 'player')
+  //   cardId:    id of the card in `side.hand`
+  //   laneIdx:   target lane index
+  // OR { side, trickId } for trick previews (no laneIdx).
+  //
+  // Returns an outcome record:
+  //   { lanes: [{player:{id,name,hp,maxHp}, ai:{...}}, ...],
+  //     playerHp, aiHp,
+  //     playerHpDelta, aiHpDelta,
+  //     gameOver, winner }
+  // OR null on failure (simulation aborted — caller falls back to
+  // heuristic preview).
+  //
+  // Implementation strategy: deep-clone state, swap UI for a no-op stub,
+  // override setTimeout for the contained window so combat resolves
+  // synchronously, run the play + combat, capture results, restore.
+  previewPlay(hypothesis) {
+    if (!this.state || !hypothesis) return null;
+    if (this.state.gameOver) return null;
+    if (!this.cloneStateDeep) return null;
+    const origState = this.state;
+    const origUI = (typeof UI !== 'undefined') ? UI : null;
+    const origSetTimeout = (typeof window !== 'undefined') ? window.setTimeout : null;
+    let result = null;
+    try {
+      const clone = this.cloneStateDeep(origState);
+      clone._silentSim = true;
+      this.state = clone;
+      // Stub UI methods in place for the duration of the sim. UI is a
+      // top-level `const` so we can't replace the binding — instead we
+      // overwrite a known list of methods the engine touches with no-ops,
+      // then restore. Anything missed simply runs as normal (best case
+      // no-op, worst case throws → we catch + fall back).
+      this._simSavedUI = {};
+      if (typeof UI !== 'undefined') {
+        const noop = () => {};
+        const STUB_KEYS = [
+          'render', 'showPhaseBanner', 'showLaneRecap', 'showRoundSummary',
+          'showGameOverScreen', 'animateStatChanges', 'flashLanes',
+          'flashUnaffordable', 'showFloatingPrompt', 'showCardChoice',
+          'showLaneChoice', 'launchVictoryConfetti', 'stopVictoryConfetti',
+          'startPromptCountdown', 'stopPromptCountdown', 'spawnLandingBurst',
+          'pulseHpEdge', 'killingBlowCinema', 'hitPause', 'showFearPrompt',
+          'showMindControlPrompt', 'showBlockTrickPrompt', 'closeAllPrompts'
+        ];
+        STUB_KEYS.forEach(k => {
+          if (k in UI) { this._simSavedUI[k] = UI[k]; UI[k] = noop; }
+        });
+        // SFX subsystem — shadow with noop'd surface.
+        if (UI.sfx) {
+          this._simSavedUI._sfx = UI.sfx;
+          UI.sfx = new Proxy(UI.sfx, {
+            get(t, p) {
+              const v = t[p];
+              if (typeof v === 'function') return () => null;
+              return v;
+            }
+          });
+        }
+        if (UI.audio) {
+          this._simSavedUI._audio = UI.audio;
+          UI.audio = new Proxy(UI.audio, {
+            get(t, p) {
+              const v = t[p];
+              if (typeof v === 'function') return () => null;
+              return v;
+            }
+          });
+        }
+      }
+      // Override setTimeout to fire synchronously. The engine uses it
+      // for combat pacing (lane stagger, post-combat delay). Inside the
+      // sim window, only engine code uses setTimeout — UI is stubbed —
+      // so collapsing them all to immediate is safe.
+      if (typeof window !== 'undefined' && origSetTimeout) {
+        window.setTimeout = (fn, ms) => { try { if (typeof fn === 'function') fn(); } catch (e) {} return 0; };
+      }
+
+      // Apply the hypothetical play
+      const side = hypothesis.side || 'player';
+      if (hypothesis.cardId != null && hypothesis.laneIdx != null) {
+        const card = (clone[side] && clone[side].hand || []).find(c => c.id === hypothesis.cardId);
+        if (card) {
+          // Use playCard if available (handles cost, onPlay, etc.). If
+          // it returns false (couldn't play), bail.
+          const ok = this.playCard(side, card, hypothesis.laneIdx);
+          if (!ok) { result = null; throw new Error('playCard returned false in sim'); }
+        } else {
+          throw new Error('hypothesis card not found in hand');
+        }
+      } else if (hypothesis.trickId != null) {
+        const trick = (clone[side] && clone[side].trickHand || []).find(t => t.id === hypothesis.trickId);
+        if (trick && this.playTrick) {
+          this.playTrick(side, trick);
+        }
+      }
+
+      // Drive the round forward to combat resolution. We call resolveCombat
+      // directly instead of stepping phases, since trick-phase prompts
+      // would deadlock (no auto-resolver in sim mode for arbitrary prompts).
+      // For now this means: previewing a CARD play simulates that play
+      // PLUS this round's combat, but doesn't simulate enemy reactions
+      // they haven't queued yet. Good enough for the stated use case.
+      try {
+        this.resolveCombat();
+      } catch (e) {
+        // Some prompts may throw if their UI is missing — swallow and
+        // continue with whatever state survived.
+      }
+
+      // Capture outcomes
+      const lanesOut = clone.lanes.map((l) => ({
+        player: l.player ? {
+          id: l.player.id, name: l.player.name,
+          hp: Math.max(0, l.player.currentHealth || 0),
+          maxHp: l.player.maxHealth || l.player.health || 0,
+          atk: l.player.attack || 0,
+          died: (l.player.currentHealth || 0) <= 0
+        } : null,
+        ai: l.ai ? {
+          id: l.ai.id, name: l.ai.name,
+          hp: Math.max(0, l.ai.currentHealth || 0),
+          maxHp: l.ai.maxHealth || l.ai.health || 0,
+          atk: l.ai.attack || 0,
+          died: (l.ai.currentHealth || 0) <= 0
+        } : null,
+      }));
+      result = {
+        lanes: lanesOut,
+        playerHp: Math.max(0, clone.player.health || 0),
+        aiHp: Math.max(0, clone.ai.health || 0),
+        playerHpDelta: (clone.player.health || 0) - (origState.player.health || 0),
+        aiHpDelta: (clone.ai.health || 0) - (origState.ai.health || 0),
+        gameOver: !!clone.gameOver,
+        winner: clone.winner || null,
+      };
+    } catch (e) {
+      result = null;
+    } finally {
+      this.state = origState;
+      // Restore UI methods we mutated. Property assignments survive the
+      // const binding intact.
+      if (this._simSavedUI && typeof UI !== 'undefined') {
+        for (const k in this._simSavedUI) {
+          if (k === '_sfx') UI.sfx = this._simSavedUI[k];
+          else if (k === '_audio') UI.audio = this._simSavedUI[k];
+          else UI[k] = this._simSavedUI[k];
+        }
+        this._simSavedUI = null;
+      }
+      if (typeof window !== 'undefined' && origSetTimeout) {
+        window.setTimeout = origSetTimeout;
+      }
+    }
+    return result;
+  }
+};

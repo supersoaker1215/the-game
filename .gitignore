@@ -1,0 +1,8 @@
+node_modules/
+dist/
+.vite/
+.DS_Store
+*.log
+# Local Claude Code agent data — conversation history, cache, etc.
+# Should never be committed to a public repo.
+.claude/

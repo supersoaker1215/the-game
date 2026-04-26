@@ -1,0 +1,630 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="theme-color" content="#4fc3f7">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" type="image/svg+xml" href="icon.svg">
+  <link rel="apple-touch-icon" href="icon.svg">
+  <title>the game</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap">
+  <link rel="stylesheet" href="style.css?v=355">
+  <script>
+    // Lightweight error reporter (pre-Sentry) — capture runtime JS
+    // errors + unhandled promise rejections to a localStorage ring
+    // buffer so they survive reload. Pro Sentry integration later
+    // just swaps the `report()` body. This alone turns a silent
+    // frozen game into a diagnosable one.
+    (function () {
+      var KEY = 'clb_errors_v1', MAX = 50;
+      function read() { try { return JSON.parse(localStorage.getItem(KEY) || '[]'); } catch (e) { return []; } }
+      function write(list) { try { localStorage.setItem(KEY, JSON.stringify(list.slice(-MAX))); } catch (e) {} }
+      function report(kind, err, extra) {
+        var entry = {
+          ts: Date.now(),
+          kind: kind,
+          msg: (err && err.message) || String(err),
+          stack: (err && err.stack) ? String(err.stack).slice(0, 2000) : null,
+          url: location.href,
+          ua: navigator.userAgent,
+          extra: extra || null
+        };
+        var list = read(); list.push(entry); write(list);
+        try { console.error('[clb-report]', entry); } catch (e) {}
+      }
+      window.addEventListener('error', function (e) { report('error', e.error || e, { filename: e.filename, lineno: e.lineno, colno: e.colno }); });
+      window.addEventListener('unhandledrejection', function (e) { report('rejection', e.reason, null); });
+      window.__clbErrors = { get: read, clear: function () { write([]); }, report: report };
+    })();
+    // Register the service worker for PWA installability + offline
+    // play. file://, http://, and https:// all support it in Chromium
+    // (as long as the URL is served over HTTP, not opened as a file).
+    if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
+      window.addEventListener('load', function () {
+        navigator.serviceWorker.register('sw.js').catch(function (e) {
+          if (window.__clbErrors) window.__clbErrors.report('sw-register', e);
+        });
+      });
+    }
+  </script>
+</head>
+<body>
+  <!-- WEB ↔ MOBILE PREVIEW TOGGLE — only useful on desktop. Lets a
+       developer/user see the layout in phone shape without resizing
+       the browser. Hidden on real phone-sized viewports. The active
+       choice persists in localStorage so reloads keep the preference. -->
+  <button type="button"
+          class="viewport-toggle"
+          id="viewport-toggle"
+          onclick="UI.toggleViewportMode()"
+          title="Toggle Web / Mobile preview"
+          aria-label="Toggle Web / Mobile preview">
+    <!-- Default icon: phone outline (gets swapped to monitor when in mobile mode) -->
+    <svg id="viewport-toggle-icon" viewBox="0 0 24 24">
+      <rect x="6" y="2" width="12" height="20" rx="2"/>
+      <line x1="11" y1="18" x2="13" y2="18"/>
+    </svg>
+  </button>
+
+  <!-- MAIN MENU OVERLAY (phase 4a) — game's actual landing page. PLAY
+       routes to the mode picker, the other buttons route to their own
+       screens (deck builder, saved-decks browser, stats dashboard,
+       settings). -->
+  <div id="main-menu-overlay" class="main-menu-overlay" style="display:none"></div>
+
+  <!-- TUTORIAL OVERLAY — themed how-to-play panel opened from the
+       main menu. Content is static HTML; theme-accent CSS paints it. -->
+  <div id="tutorial-overlay" class="tutorial-overlay">
+    <div class="tutorial-panel">
+      <button type="button" class="tutorial-close" onclick="UI.closeTutorial()" aria-label="Close">&times;</button>
+      <h1 class="tutorial-title">How to Play</h1>
+
+      <div class="tutorial-section">
+        <div class="tutorial-section-title">The Goal</div>
+        <p>Reduce the enemy's <span class="kw kw-stat-hp">HP</span> to zero before they do the same to you. Each player starts with <span class="kw kw-stat-hp">30 HP</span>.</p>
+      </div>
+
+      <div class="tutorial-section">
+        <div class="tutorial-section-title">The Board</div>
+        <p>Six <strong>lanes</strong>. Each holds one of your cards in the bottom slot and one enemy card in the top slot. Empty lanes let cards attack the <span class="kw kw-stat-hp">HP</span> bar directly.</p>
+      </div>
+
+      <div class="tutorial-section">
+        <div class="tutorial-section-title">Energy &amp; Turns</div>
+        <p>You spend <span class="kw kw-energy">Energy</span> to play cards. You gain <span class="kw kw-energy">Energy</span> equal to the round number each round — round 1 gives 1, round 2 gives 2, etc. Round 6 is typically the last.</p>
+        <p>Each round has phases: <strong>Cards</strong> (play creatures), <span class="kw tut-tricks">Tricks</span> (play instant effects), then <strong>Combat</strong> where every lane attacks at once.</p>
+      </div>
+
+      <div class="tutorial-section">
+        <div class="tutorial-section-title">Cards</div>
+        <ul>
+          <li><span class="tut-rarity-common">Common</span> — cost 1-3</li>
+          <li><span class="tut-rarity-uncommon">Uncommon</span> — cost 4-6</li>
+          <li><span class="tut-rarity-rare">Rare</span> — cost 7-8</li>
+          <li><span class="tut-rarity-legendary">Legendary</span> — cost 9-10</li>
+        </ul>
+        <p>Each card shows its <span class="kw kw-stat-atk">Attack</span> (green orb) and <span class="kw kw-stat-hp">Health</span> (red orb). Keywords like <span class="kw kw-evade">Evade</span>, <span class="kw kw-armor">Armor</span>, <span class="kw kw-splash">Splash</span>, <span class="kw kw-bullseye">Bullseye</span>, <span class="kw kw-overdrive">Overdrive</span>, <span class="kw kw-taunt">Taunt</span>, <span class="kw kw-freeze">Freeze</span> appear as chips under the name — hover them in-game for a tooltip.</p>
+      </div>
+
+      <div class="tutorial-section">
+        <div class="tutorial-section-title">Block Meter</div>
+        <p>When you take damage, your <span class="kw kw-block">Block Meter</span> fills. At <span class="kw kw-block">8/8</span> you draw a free <span class="kw tut-tricks">Trick</span> and the next hit is absorbed entirely.</p>
+      </div>
+
+      <div class="tutorial-section">
+        <div class="tutorial-section-title">Tricks</div>
+        <p>Small purple cards below your hand. Play them during the <span class="kw tut-tricks">Tricks</span> phase for one-shot effects: <span class="kw kw-destroy">damage</span>, <span class="kw kw-revive">heal</span>, buff, control.</p>
+      </div>
+
+      <div class="tutorial-section">
+        <div class="tutorial-section-title">Draft Strategy</div>
+        <p>Classic mode starts with a 5-round card draft and 2-round trick draft. You see two options each round — pick the stronger card OR the one that combos with what you've already taken.</p>
+        <ul>
+          <li><strong>Curve out:</strong> aim for at least one playable card at cost 1-2-3-4 so you're never stuck.</li>
+          <li><strong>One big threat:</strong> a 9 or 10-cost card (Magneto, Trigon, Hulk, Darth Vader, Darkseid) can swing the late game — worth a pick.</li>
+          <li><strong>Combo hunters:</strong> Hela pairs with cheap fodder; Cyborg pairs with anything in hand; Dr. Strange peeks the draw pile.</li>
+          <li>Each draft phase gives one <strong>Mulligan</strong> — click the button to re-draw the current pair. Use it when both picks are weak.</li>
+        </ul>
+      </div>
+
+      <div class="tutorial-section">
+        <div class="tutorial-section-title">Chain Attacks</div>
+        <p>Some cards chain their damage across consecutive enemies:</p>
+        <ul>
+          <li><span class="kw kw-destroy">Wonder Woman's Lasso</span> — her chain hits the enemy in her lane + one lane left/right, reducing damage by 1 per step.</li>
+          <li><span class="kw kw-destroy">Captain America's Shield</span> — bounces for 3, 2, 1 down the line if the lane's main hit lands.</li>
+          <li><span class="kw kw-destroy">Darth Vader's Choke</span> — 7 damage to any enemy, then 6, 5, 4, … in a direction you pick.</li>
+          <li><span class="kw kw-destroy">Trigon</span> — chain-freezes consecutive enemies when played.</li>
+        </ul>
+        <p>If <span class="kw kw-armor">Armor</span> fully absorbs a chain hit, the chain <strong>stops there</strong>. Plan around it — a 2-Armor wall blocks low-damage chains entirely.</p>
+      </div>
+
+      <div class="tutorial-section">
+        <div class="tutorial-section-title">Mind Control &amp; Fear</div>
+        <p><span class="kw kw-mindcontrol">Mind Control</span> (Gorilla Grodd, Luke Skywalker, Mind Stone, Michael Myers) turns an enemy against its own side. The controlled card swings at one of your opponent's own allies next combat — you pick which when combat resolves.</p>
+        <p><span class="kw kw-fear">Fear</span> (Joker, Batman, Fear Toxin, Scarecrow) forces the target to attack <strong>itself</strong> next combat, often killing it outright.</p>
+        <p><span class="kw kw-freeze">Freeze</span> and <span class="kw kw-stun">Stun</span> both prevent the target from attacking or dodging that combat. The difference: Freeze lets Palpatine deal double damage to frozen targets; Stun doesn't.</p>
+      </div>
+
+      <div class="tutorial-section">
+        <div class="tutorial-section-title">Jump Mechanics</div>
+        <p>Some cards have <strong>Jump</strong> conditions that let them enter the board FOR FREE when a specific trigger fires:</p>
+        <ul>
+          <li><strong>Ghostface</strong> jumps in after an enemy trick fires.</li>
+          <li><strong>Michael Myers</strong> jumps to lock onto the next enemy ≤ cost 4 played.</li>
+          <li><strong>Jason Voorhees</strong> jumps into an open lane when an ally dies.</li>
+        </ul>
+        <p>When your jump trigger fires, a popup asks which lane you want the card to enter — declining keeps the card in hand for later.</p>
+      </div>
+
+      <div class="tutorial-section">
+        <div class="tutorial-section-title">Advanced Defense</div>
+        <ul>
+          <li><span class="kw kw-evade">Evade N</span> — dodges the next N attacks (consumes one charge per evade).</li>
+          <li><span class="kw kw-armor">Armor N</span> — subtracts N from every incoming damage instance.</li>
+          <li><span class="kw kw-invincible">Invincible N</span> — negates all damage for N turns.</li>
+          <li><span class="kw kw-immunity">Immunity N</span> — negates N incoming debuffs (Stun/Freeze/Fear/Mind Control).</li>
+          <li><span class="kw kw-untrickable">Untrickable</span> — automatic on every 10-cost card; tricks simply don't affect them.</li>
+          <li><span class="kw kw-unresistible">Unresistible</span> — bypasses one Immunity charge; consumed when it fires.</li>
+        </ul>
+      </div>
+
+      <div class="tutorial-section">
+        <div class="tutorial-section-title">Tips</div>
+        <ul>
+          <li>Click the <strong>deck count</strong> in the HUD to see what's left in your draw pile.</li>
+          <li>Click a card in your hand, then click a lane to play it.</li>
+          <li><strong>Long-press</strong> any card on phone/tablet to see its full description in a modal.</li>
+          <li>Hit <strong>?</strong> anywhere to open the keyboard shortcuts + keyword cheat sheet.</li>
+          <li>The active lane pulses <span class="kw kw-energy">gold</span> during combat.</li>
+          <li>Your <strong>Neon Theme</strong> (Settings) sets the colour of your side of the board.</li>
+          <li>Settings → <strong>Colorblind mode</strong> adds stripes to enemy cards if you need it.</li>
+          <li>Settings → <strong>Export Backup</strong> backs up your saved decks + preferences as JSON.</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <!-- MY DECKS OVERLAY (phase 4b) — browse, rename, duplicate, delete
+       saved decks. Also acts as a "launchpad" for the deck builder with a
+       preloaded deck. -->
+  <div id="my-decks-overlay" class="my-decks-overlay" style="display:none"></div>
+
+  <!-- STATS DASHBOARD OVERLAY (phase 4d) — per-card performance table +
+       auto-flag banner + detail modal. Reads from browser-tracked + sim
+       data sources. -->
+  <div id="stats-overlay" class="stats-overlay" style="display:none"></div>
+
+  <!-- MODE SELECT OVERLAY (Phase 1 of mode system)
+       Shows on game start + "New Game" button. Picks a mode, then hands
+       off to Game.startMatch(mode) which builds decks and starts the draft. -->
+  <div id="mode-select-overlay" class="mode-select-overlay" style="display:none"></div>
+
+  <!-- DECKBUILDER OVERLAY (Phase 3) — only shown when Deckbuilder is picked
+       from the mode screen. User builds a 30+8 deck (flat 2-copy limit),
+       optionally saves/loads, then clicks Start Match. -->
+  <div id="deckbuilder-overlay" class="deckbuilder-overlay" style="display:none"></div>
+
+  <!-- MATCH HISTORY OVERLAY — rolling list of the last N matches. -->
+  <div id="match-history-overlay" class="match-history-overlay" style="display:none"></div>
+
+  <!-- CARD ENCYCLOPEDIA — browsable grid of every card/trick in the
+       pool, with live name/cost/trait filtering. Read-only. -->
+  <div id="encyclopedia-overlay" class="encyclopedia-overlay" style="display:none"></div>
+
+  <!-- MULTIPLAYER LOBBY — create or join a room with a 4-letter code.
+       Reuses the same chrome as match-history / encyclopedia for visual
+       consistency with the rest of the menu surface. -->
+  <div id="multiplayer-overlay" class="multiplayer-overlay" style="display:none"></div>
+
+  <!-- DRAFT OVERLAY -->
+  <div id="draft-overlay" class="draft-overlay" style="display:none"></div>
+
+  <!-- PHASE TRANSITION BANNER -->
+  <div id="phase-banner" class="phase-banner"><div class="phase-banner-text" id="phase-banner-text"></div></div>
+
+  <!-- ROUND-START BANNER — fires briefly on round increments. -->
+  <div id="round-banner" class="round-banner" aria-live="polite"></div>
+
+  <!-- MAIN GAME -->
+  <div id="game-area">
+    <!-- ROUND TRACK -->
+    <div id="round-track" class="round-track" aria-label="Round progress"></div>
+
+    <!-- TURN INFO HUD -->
+    <div class="turn-hud">
+      <!-- Single merged HUD pill: Round • Phase • Deck count • Trick count.
+           Neon-colored dot separators (cyan between phase and deck, purple
+           between deck and tricks) glow brighter than the plain white one
+           so the inline counts read as distinct telemetry segments without
+           needing a second container. -->
+      <div class="hud-pill hud-pill-main">
+        <span class="hud-round">Round <span id="round-num">1</span></span>
+        <span class="hud-divider"></span>
+        <span class="hud-phase" id="phase-text">Starting...</span>
+        <span class="hud-divider hud-divider-cyan"></span>
+        <span class="hud-count hud-count-deck" title="Cards remaining in Draw pile">Deck <b id="draw-pile-count">0</b></span>
+        <span class="hud-divider hud-divider-purple"></span>
+        <span class="hud-count hud-count-tricks" title="Tricks remaining">Tricks <b id="trick-pile-count">0</b></span>
+      </div>
+    </div>
+
+    <!-- ENEMY BANNER — mirror of player -->
+    <div class="info-bar ai-bar">
+      <!-- AI-thinking radial ring — SVG loader shown while
+           body.ai-thinking is toggled on during AI-driven phases.
+           Makes the "AI is playing" wait feel intentional. -->
+      <svg class="ai-thinking-ring" viewBox="0 0 100 100" aria-hidden="true">
+        <circle cx="50" cy="50" r="40"/>
+      </svg>
+      <!-- AI opponent avatar + name chip. The avatar glyph + name
+           is picked at match start from UI.AI_PERSONALITIES and
+           sticks for the duration. Adds character to the match
+           and gives AI-played tricks a "voice" attribution. -->
+      <div class="bar-cell bar-hp">
+        <div class="health-container">
+          <div class="health-bar"><div class="health-fill ai-hp" id="ai-hp-fill" style="width:100%"></div></div>
+          <div class="health-text ai-color"><span id="ai-health">30</span></div>
+        </div>
+      </div>
+      <div class="bar-cell bar-block">
+        <div class="block-circle" title="Block Meter fills when taking damage. At 8/8, all damage is blocked and a free Trick card is drawn!">
+          <span class="block-circle-label">BLOCK</span>
+          <span class="block-circle-value" id="ai-block-text">0/8</span>
+        </div>
+      </div>
+      <div class="bar-cell bar-center ai-hand-mini">
+        <div id="ai-hand" class="hand-cards"></div>
+      </div>
+      <div class="bar-cell bar-energy">
+        <div class="energy-display" id="ai-energy-display"></div>
+      </div>
+      <div class="bar-cell bar-dead">
+        <span class="pile-badge dead-pile" onclick="toggleDeadPile('ai')" title="Dead pile"><span class="pile-icon icon-dead"></span><span id="ai-dead-count">0</span></span>
+      </div>
+      <!-- AI "thinking" indicator — three pulsing dots shown while
+           body.turn-ai is active. Absolutely positioned on the
+           enemy info-bar. -->
+      <div class="ai-thinking-dots" aria-hidden="true"><span></span><span></span><span></span></div>
+    </div>
+
+    <!-- BOARD -->
+    <div class="board-section">
+      <div id="board" class="board"></div>
+    </div>
+
+    <!-- PLAYER BANNER — mirror of enemy -->
+    <div class="info-bar player-bar">
+      <!-- Player avatar + name chip — mirrors the AI opponent chip
+           on the ai-bar. Filled from UI.settings.playerName /
+           playerAvatar; defaults to glyph ▲ + name "YOU". -->
+      <div class="bar-cell bar-hp">
+        <div class="health-container">
+          <div class="health-bar"><div class="health-fill player-hp" id="player-hp-fill" style="width:100%"></div></div>
+          <div class="health-text player-color"><span id="player-health">30</span></div>
+        </div>
+      </div>
+      <div class="bar-cell bar-block">
+        <div class="block-circle" title="Block Meter fills when taking damage. At 8/8, all damage is blocked and a free Trick card is drawn!">
+          <span class="block-circle-label">BLOCK</span>
+          <span class="block-circle-value" id="player-block-text">0/8</span>
+        </div>
+      </div>
+      <div class="bar-cell bar-center actions-section">
+        <button id="btn-undo" class="btn btn-secondary" style="display:none">Undo</button>
+        <button id="btn-action" class="btn btn-primary" style="display:none">Done</button>
+        <button id="btn-new-game" class="btn btn-danger" onclick="newGame()" style="display:none">New Game</button>
+      </div>
+      <div class="bar-cell bar-energy">
+        <div class="energy-display" id="player-energy-display"></div>
+      </div>
+      <div class="bar-cell bar-dead">
+        <span class="pile-badge dead-pile" onclick="toggleDeadPile('player')" title="Dead pile"><span class="pile-icon icon-dead"></span><span id="player-dead-count">0</span></span>
+      </div>
+    </div>
+
+    <!-- PLAYER HAND (cards above tricks) -->
+    <div class="player-hand-section">
+      <div id="player-hand" class="hand-cards"></div>
+    </div>
+
+    <!-- TRICKS (below cards) -->
+    <div class="tricks-section">
+      <div id="player-tricks" class="trick-cards"></div>
+    </div>
+
+    <!-- DEAD PILE OVERLAY -->
+    <div id="dead-pile-overlay" class="dead-pile-overlay" style="display:none">
+      <div class="dead-pile-panel">
+        <h2 id="dead-pile-title">Dead Pile</h2>
+        <div id="dead-pile-cards" class="dead-pile-cards"></div>
+        <button class="btn btn-danger" onclick="closeDeadPile()">Close</button>
+      </div>
+    </div>
+
+    <!-- VICTORY / DEFEAT OVERLAY — title + per-run stats panel + action row. -->
+    <div id="game-over-overlay" class="game-over-overlay" style="display:none">
+      <!-- Peek-toggle (shared system) — pinned top-right. Clicking
+           hides the overlay so the player can see the final board;
+           the floating #peek-restore pill below brings it back.
+           Routes through UI.peekModal('#game-over-overlay', 'Show Result'). -->
+      <button class="peek-toggle" onclick="UI.toggleGameOverScreen()" title="Hide / show this overlay (Esc)" aria-label="Toggle game-over overlay">
+        <span class="peek-toggle-glyph">×</span>
+      </button>
+      <div class="game-over-content">
+        <h1 class="game-over-title" id="game-over-title"></h1>
+        <div id="game-over-stats" class="game-over-stats"></div>
+        <div class="game-over-actions">
+          <button class="btn btn-primary game-over-btn game-over-rematch" onclick="rematch()" id="game-over-rematch-btn">Rematch</button>
+          <button class="btn btn-secondary game-over-btn" onclick="UI.openReplay()">View Replay</button>
+          <button class="btn btn-secondary game-over-btn" onclick="UI.shareResultSummary()" title="Copy a text summary of this match to clipboard">Share Result</button>
+          <button class="btn btn-secondary game-over-btn" onclick="newGame()">Main Menu</button>
+          <button class="btn btn-secondary game-over-btn" onclick="UI.toggleGameOverLog()">Battle Log</button>
+        </div>
+      </div>
+    </div>
+    <!-- (Legacy #game-over-restore removed — the shared #peek-restore
+         pill below now handles all dismissable overlays uniformly.) -->
+
+    <!-- END-OF-ROUND SUMMARY — toggleable via the corner ⨯ chip; the
+         shared #peek-restore button below brings it back. -->
+    <div id="round-summary-overlay" class="round-summary-overlay" style="display:none">
+      <div class="round-summary-panel">
+        <button class="peek-toggle" onclick="UI.peekModal('#round-summary-overlay', 'Show Round Recap')" title="Hide recap to inspect the board (Esc)" aria-label="Hide round recap">
+          <span class="peek-toggle-glyph">×</span>
+        </button>
+        <h2 id="round-summary-title">Round Recap</h2>
+        <div id="round-summary-body"></div>
+        <button class="btn btn-primary" id="round-summary-continue">Continue</button>
+      </div>
+    </div>
+
+    <!-- SHARED PEEK-RESTORE PILL — single floating button used by every
+         dismissable modal (round recap, trick prompts, etc.). The label
+         and target are configured at click time by UI.peekModal(). -->
+    <button id="peek-restore" class="peek-restore" onclick="UI.restorePeekedModal()" title="Bring the modal back" aria-label="Restore hidden modal"><span id="peek-restore-label">Show Modal</span></button>
+
+    <!-- SETTINGS MODAL — moved OUTSIDE #game-area (below) so it still
+         opens during the draft phase when #game-area is display:none. -->
+
+    <!-- KEYWORD TOOLTIP -->
+    <div id="kw-tooltip" class="kw-tooltip" style="display:none"></div>
+
+    <!-- HOVER MAGNIFY — shows a readable full-size card after ~400ms hover -->
+    <div id="hover-magnify" class="hover-magnify" style="display:none"></div>
+
+    <!-- LOG (drawer — collapsible right-edge panel)
+         Toggle button is rendered inline with the HUD pill now (below
+         the round-track) so it sits with the rest of the HUD chrome
+         instead of floating by the settings cog. Icon is a Tron
+         data-stream SVG, not an emoji. -->
+    <button class="log-drawer-toggle" onclick="UI.toggleLogDrawer()" title="Toggle battle log" aria-label="Battle log">
+      <svg class="log-toggle-svg" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M4 5h12M4 9h16M4 13h12M4 17h16"/>
+        <circle cx="20" cy="5" r="1.2" fill="currentColor" stroke="none"/>
+        <circle cx="20" cy="13" r="1.2" fill="currentColor" stroke="none"/>
+      </svg>
+    </button>
+    <div id="log-section" class="log-section log-drawer collapsed">
+      <div class="section-label">Battle Log <button class="log-close" onclick="UI.toggleLogDrawer()" title="Close">&#10005;</button></div>
+      <div id="game-log" class="game-log"></div>
+    </div>
+
+    <!-- DEAD PILE PEEK POPOVER -->
+    <div id="dead-peek" class="dead-peek" style="display:none"></div>
+
+    <!-- AI TRICK NOTIFICATION TOAST -->
+    <div id="ai-trick-toast" class="ai-trick-toast" style="display:none">
+      <div class="ai-trick-label" id="ai-trick-label">AI played a Trick</div>
+      <div class="ai-trick-name" id="ai-trick-name"></div>
+      <div class="ai-trick-desc" id="ai-trick-desc"></div>
+    </div>
+
+    <!-- KEYBOARD HINTS (item R) — bottom-right corner. Hidden during
+         menu/draft via body classes. -->
+    <div class="kb-hints" id="kb-hints" aria-hidden="true">
+      <span><kbd>D</kbd>Done</span>
+      <span><kbd>M</kbd>Mulligan</span>
+      <span><kbd>Esc</kbd>Cancel</span>
+      <span><kbd>?</kbd>Help</span>
+    </div>
+
+    <!-- KEYBOARD / RULES CHEAT SHEET — opens on `?` key. -->
+    <div id="cheat-sheet-overlay" class="cheat-sheet-overlay" style="display:none">
+      <div class="cheat-sheet-panel">
+        <button type="button" class="cheat-sheet-close" onclick="UI.closeCheatSheet()" aria-label="Close">&times;</button>
+        <h2 class="cheat-sheet-title">Controls & Rules</h2>
+        <div class="cheat-sheet-search-row">
+          <input type="search" id="cheat-sheet-search" class="cheat-sheet-search"
+            placeholder="Filter keywords + controls…"
+            oninput="UI.filterCheatSheet(this.value)"
+            autocomplete="off"/>
+        </div>
+        <div class="cheat-sheet-columns">
+          <div class="cheat-sheet-col">
+            <h3>Keyboard</h3>
+            <dl class="cheat-sheet-kbd">
+              <dt><kbd>D</kbd></dt><dd>Advance phase / Done</dd>
+              <dt><kbd>M</kbd></dt><dd>Mulligan (draft only)</dd>
+              <dt><kbd>U</kbd></dt><dd>Undo last action</dd>
+              <dt><kbd>Esc</kbd></dt><dd>Deselect / close modal</dd>
+              <dt><kbd>?</kbd></dt><dd>Toggle this panel</dd>
+              <dt><kbd>Click</kbd></dt><dd>Play / select a card</dd>
+              <dt><kbd>Click keyword</kbd></dt><dd>Pin its tooltip</dd>
+            </dl>
+          </div>
+          <div class="cheat-sheet-col">
+            <h3>Turn structure</h3>
+            <ol class="cheat-sheet-list">
+              <li>Phase 1 — first player plays cards</li>
+              <li>Phase 2 — second player plays cards & tricks</li>
+              <li>Phase 3 — first player plays tricks</li>
+              <li>Combat — lanes resolve left → right</li>
+              <li>Draw + new round (+1 energy)</li>
+            </ol>
+            <h3>Keywords</h3>
+            <ul class="cheat-sheet-list">
+              <li><b>Evade</b> — dodges one attack; charge-based</li>
+              <li><b>Armor N</b> — reduces incoming damage by N</li>
+              <li><b>Splash N</b> — hits adjacent lanes for N</li>
+              <li><b>Bullseye</b> — bypasses block meter</li>
+              <li><b>Overdrive</b> — extra swing if lane is open</li>
+              <li><b>Taunt</b> — forces attackers to target this card</li>
+              <li><b>Immunity</b> — ignores N debuffs / kills</li>
+              <li><b>Invincible N</b> — absorbs all damage for N turns</li>
+              <li><b>Unresistible</b> — bypasses one Immunity charge</li>
+              <li><b>Untrickable</b> — immune to tricks (all 10-cost cards)</li>
+            </ul>
+          </div>
+        </div>
+        <div class="cheat-sheet-footer">Press <kbd>?</kbd> or <kbd>Esc</kbd> to close</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- SETTINGS MODAL — lives outside #game-area so it can open from the
+       draft screen (where game-area is display:none) as well as in-game. -->
+  <button class="settings-cog" title="Settings" onclick="UI.openSettings()">&#9881;</button>
+  <div id="settings-overlay" class="settings-overlay" style="display:none">
+    <div class="settings-panel">
+      <h2>Settings</h2>
+
+      <div class="settings-group">
+        <div class="settings-group-title">Visuals</div>
+        <div class="settings-row">
+          <label title="Neon accent for menus, panels, buttons, and UI chrome. Gameplay colors (enemy=red, currency=gold, rarity tiers) stay fixed for clarity.">Neon Theme</label>
+          <div class="theme-picker" id="setting-theme-picker" role="radiogroup" aria-label="Neon theme">
+            <button type="button" class="theme-swatch theme-swatch-blue"   data-theme="blue"   onclick="UI.previewTheme('blue')"   title="Blue (Tron)"></button>
+            <button type="button" class="theme-swatch theme-swatch-red"    data-theme="red"    onclick="UI.previewTheme('red')"    title="Red"></button>
+            <button type="button" class="theme-swatch theme-swatch-gold"   data-theme="gold"   onclick="UI.previewTheme('gold')"   title="Gold"></button>
+            <button type="button" class="theme-swatch theme-swatch-green"  data-theme="green"  onclick="UI.previewTheme('green')"  title="Green"></button>
+            <button type="button" class="theme-swatch theme-swatch-silver" data-theme="silver" onclick="UI.previewTheme('silver')" title="Silver"></button>
+            <button type="button" class="theme-swatch theme-swatch-purple" data-theme="purple" onclick="UI.previewTheme('purple')" title="Purple"></button>
+          </div>
+        </div>
+        <div class="settings-row">
+          <label for="setting-tooltips">Keyword tooltips</label>
+          <input type="checkbox" id="setting-tooltips" checked>
+        </div>
+        <div class="settings-row">
+          <label for="setting-colorblind" title="Adds diagonal stripes to enemy cards and HP bars so ally vs. enemy reads via pattern in addition to color. Helps with red/green color vision differences.">Colorblind mode</label>
+          <input type="checkbox" id="setting-colorblind">
+        </div>
+        <div class="settings-row">
+          <label for="setting-ui-scale" title="Zoom the entire UI. Useful for small screens, high-DPI monitors, or accessibility.">UI scale</label>
+          <select id="setting-ui-scale">
+            <option value="0.85">85%</option>
+            <option value="0.95">95%</option>
+            <option value="1.0" selected>100%</option>
+            <option value="1.15">115%</option>
+            <option value="1.3">130%</option>
+          </select>
+        </div>
+        <div class="settings-row">
+          <label for="setting-player-name" title="Name shown on your side of the board">Your name</label>
+          <input type="text" id="setting-player-name" placeholder="YOU" maxlength="12" />
+        </div>
+        <div class="settings-row">
+          <label for="setting-player-avatar" title="Pick a symbol that represents you. Shown next to your HP.">Your glyph</label>
+          <select id="setting-player-avatar">
+            <option value="▲" selected>▲ Triangle</option>
+            <option value="◆">◆ Diamond</option>
+            <option value="●">● Circle</option>
+            <option value="✦">✦ Star</option>
+            <option value="☀">☀ Sun</option>
+            <option value="♛">♛ Crown</option>
+            <option value="⚡">⚡ Bolt</option>
+            <option value="✧">✧ Sparkle</option>
+            <option value="◉">◉ Target</option>
+            <option value="∞">∞ Infinity</option>
+            <option value="☯">☯ Yin-yang</option>
+            <option value="☢">☢ Radioactive</option>
+          </select>
+        </div>
+        <div class="settings-row">
+          <label for="setting-haptics-off" title="Disable mobile vibration feedback (phone/tablet only). Desktop is unaffected.">Disable haptics</label>
+          <input type="checkbox" id="setting-haptics-off">
+        </div>
+      </div>
+
+      <div class="settings-group">
+        <div class="settings-group-title">Audio</div>
+        <div class="settings-row">
+          <label for="setting-sfx-volume" title="Master volume for procedural sound effects (card plays, hits, victory). 0 silences audio entirely.">SFX Volume</label>
+          <input type="range" id="setting-sfx-volume" min="0" max="100" step="5" value="55">
+        </div>
+        <div class="settings-row">
+          <label for="setting-menu-music" title="Looping music on the main menu, mode picker, deck builder, and draft screens. Stops automatically when a round begins.">Menu music</label>
+          <input type="checkbox" id="setting-menu-music" checked>
+        </div>
+      </div>
+
+      <div class="settings-group">
+        <div class="settings-group-title">Gameplay</div>
+        <div class="settings-row">
+          <label for="setting-difficulty">AI Difficulty</label>
+          <select id="setting-difficulty">
+            <option value="easy">Easy</option>
+            <option value="normal" selected>Normal</option>
+            <option value="hard">Hard</option>
+          </select>
+        </div>
+        <div class="settings-row">
+          <label for="setting-ai-speed">Combat Speed</label>
+          <select id="setting-ai-speed">
+            <option value="fast">Fast</option>
+            <option value="normal" selected>Normal</option>
+            <option value="slow">Slow</option>
+          </select>
+        </div>
+        <div class="settings-row">
+          <label for="setting-ai-pacing" title="Animated: AI plays cards one at a time with a pause between each so you can read what happened. Instant: AI plays all cards in rapid succession (legacy, faster).">AI Plays</label>
+          <select id="setting-ai-pacing">
+            <option value="animated" selected>Animated</option>
+            <option value="instant">Instant</option>
+          </select>
+        </div>
+        <div class="settings-row">
+          <label for="setting-round-recap">Round recap modal</label>
+          <input type="checkbox" id="setting-round-recap" checked>
+        </div>
+        <div class="settings-row">
+          <label for="setting-track-stats" title="Tracks per-card win rate / play rate / impact locally (never leaves this browser). Powers the Stats screen.">Track card stats</label>
+          <input type="checkbox" id="setting-track-stats" checked>
+        </div>
+      </div>
+
+      <div class="settings-backup-row">
+        <button type="button" class="settings-backup-btn" onclick="UI.exportSettings()" title="Copy settings + saved decks to clipboard">Export Backup</button>
+        <button type="button" class="settings-backup-btn" onclick="UI.importSettings()" title="Paste a backup to restore settings + saved decks">Import Backup</button>
+      </div>
+
+      <div class="settings-actions">
+        <button class="btn settings-quit-btn" onclick="UI.quitToMainMenu()" title="Abandon this match and return to the main menu">&larr; Main Menu</button>
+        <div class="settings-actions-right">
+          <button class="btn btn-primary" onclick="UI.saveSettings()">Save settings</button>
+          <button class="btn btn-secondary" onclick="UI.closeSettings()">Discard changes</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="cards.js?v=92"></script>
+  <script src="tricks.js?v=49"></script>
+  <script src="abilities.js?v=150"></script>
+  <script src="decks.js?v=4"></script>
+  <script src="game.js?v=202"></script>
+  <script src="ai.js?v=44"></script>
+  <!-- PeerJS for WebRTC peer-to-peer multiplayer. Uses the public
+       0.peerjs.com signaling cloud — no server needed on our side. -->
+  <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
+  <script src="multiplayer.js?v=4"></script>
+  <script src="ui.js?v=347"></script>
+  <script src="logger.js?v=5"></script>
+</body>
+</html>

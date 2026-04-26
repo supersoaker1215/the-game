@@ -1,0 +1,50 @@
+[
+  {
+    "name": "Bat Signal",
+    "drafts": 4000,
+    "draftsInWin": 2000,
+    "winRate": 0.5,
+    "ci95": [
+      0.4845122748859586,
+      0.5154877251140414
+    ],
+    "casts": 2083,
+    "castRate": 0.52075
+  },
+  {
+    "name": "Batarang",
+    "drafts": 4000,
+    "draftsInWin": 2000,
+    "winRate": 0.5,
+    "ci95": [
+      0.4845122748859586,
+      0.5154877251140414
+    ],
+    "casts": 1940,
+    "castRate": 0.485
+  },
+  {
+    "name": "Mother Box",
+    "drafts": 4000,
+    "draftsInWin": 2000,
+    "winRate": 0.5,
+    "ci95": [
+      0.4845122748859586,
+      0.5154877251140414
+    ],
+    "casts": 2032,
+    "castRate": 0.508
+  },
+  {
+    "name": "Fear Toxin",
+    "drafts": 4000,
+    "draftsInWin": 2000,
+    "winRate": 0.5,
+    "ci95": [
+      0.4845122748859586,
+      0.5154877251140414
+    ],
+    "casts": 1991,
+    "castRate": 0.49775
+  }
+]

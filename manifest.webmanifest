@@ -1,0 +1,20 @@
+{
+  "name": "Card Lane Battle",
+  "short_name": "Card Lane",
+  "description": "A neon-lit lane-based card battler featuring 95 heroes and villains.",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "fullscreen",
+  "orientation": "any",
+  "background_color": "#000000",
+  "theme_color": "#4fc3f7",
+  "categories": ["games", "entertainment"],
+  "icons": [
+    {
+      "src": "icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ]
+}
