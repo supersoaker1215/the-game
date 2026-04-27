@@ -1,13 +1,12 @@
-// Service worker — offline-first cache for Card Lane Battle.
-// Bump CACHE_VERSION whenever app shell assets change so clients
-// evict the old bundle on next activate. Asset-specific cache-bust
-// query strings (?v=N) already force re-download of individual
-// JS/CSS files; this worker wraps everything else (index.html,
-// manifest, icon, audio) in a named cache for offline play.
-const CACHE_VERSION = 'clb-v2-multi';
+// Service worker — fresh-first cache for Card Lane Battle.
+// For an actively-developed multiplayer game, having one side run
+// stale code while the other has the latest = silent desync. We
+// trade a little offline reliability for "always fresh on reload":
+// HTML + JS + CSS are network-first (cached only as a fallback for
+// genuinely offline visits). Audio/images/manifest stay cache-first
+// since they rarely change and are heavy to re-download.
+const CACHE_VERSION = 'clb-v3-fresh';
 const APP_SHELL = [
-  './',
-  './index.html',
   './manifest.webmanifest',
   './icon.svg'
 ];
@@ -35,26 +34,31 @@ self.addEventListener('fetch', (event) => {
   const url = new URL(req.url);
   if (url.origin !== self.location.origin) return;
 
-  // Network-first for versioned JS/CSS (the `?v=N` query param
-  // guarantees the URL changes on content update, so a network hit
-  // is rare but worth trying for freshness). Falls back to the
-  // cached copy offline.
+  // Network-first for HTML + versioned JS/CSS — these are the files
+  // that change with every deploy. We try the network first so a
+  // fresh deploy reaches the client immediately on next page load.
+  // Falls back to cache only if the network is genuinely unreachable.
+  const isHtml = req.mode === 'navigate' || url.pathname.endsWith('.html') || url.pathname.endsWith('/');
   const isVersioned = url.search.includes('v=');
-  if (isVersioned) {
+  const isJsCss = url.pathname.endsWith('.js') || url.pathname.endsWith('.css');
+  if (isHtml || isVersioned || isJsCss) {
     event.respondWith(
       fetch(req).then((res) => {
-        const copy = res.clone();
-        caches.open(CACHE_VERSION).then((c) => c.put(req, copy));
+        // Cache the fresh response so it's available offline next time.
+        if (res && res.ok && res.type === 'basic') {
+          const copy = res.clone();
+          caches.open(CACHE_VERSION).then((c) => c.put(req, copy));
+        }
         return res;
       }).catch(() => caches.match(req))
     );
     return;
   }
 
-  // Cache-first for everything else (app shell, audio, images).
+  // Cache-first for static assets that rarely change (audio, icons,
+  // manifest). These are heavy to re-download and updates are rare.
   event.respondWith(
     caches.match(req).then((hit) => hit || fetch(req).then((res) => {
-      // Only cache successful same-origin responses.
       if (res && res.ok && res.type === 'basic') {
         const copy = res.clone();
         caches.open(CACHE_VERSION).then((c) => c.put(req, copy));
