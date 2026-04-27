@@ -6930,8 +6930,12 @@ body.turn-combat .board .lane.lane-active {
      hidden (still accessible via long-press inspect modal). User
      spec: "fix mobile viewing as well to fit all lanes and rezise
      things to make them samller and fit better." */
-  .board-section { overflow-x: visible; -webkit-overflow-scrolling: auto; scroll-snap-type: none; }
-  .board { min-width: 0; gap: 2px; padding: 0 4px; justify-content: space-between; }
+  /* Board takes the FULL viewport width; flex-1 lanes split it
+     equally. Padding minimized so the field isn't squeezed into a
+     central pillar. User report: "all 6 lanes fit but they need to
+     take up the whole space of the phone its too small and looks off." */
+  .board-section { overflow-x: visible; -webkit-overflow-scrolling: auto; scroll-snap-type: none; padding: 0; width: 100%; }
+  .board { width: 100%; min-width: 0; gap: 2px; padding: 0 2px; justify-content: stretch; box-sizing: border-box; }
   .lane { width: auto; min-width: 0; flex: 1 1 0; scroll-snap-align: none; }
   /* Scope shrink to BOARD cards only — hand cards live in their own
      row with fixed widths so multiple fit horizontally. */
@@ -6954,12 +6958,26 @@ body.turn-combat .board .lane.lane-active {
   .board .card .rarity-strip { top: -2px; right: -2px; transform: scale(0.65); transform-origin: top right; }
   /* Card name banner — slimmer at this size. */
   .board .card .card-name-banner { padding: 2px 1px; margin-top: 1px; }
-  .info-bar { padding: 6px 8px; gap: 6px; grid-template-columns: 120px 38px 1fr 38px 64px; }
-  .health-bar { width: 90px; height: 14px; }
-  .health-text { font-size: 16px; }
-  .block-circle { width: 34px; height: 34px; }
-  .energy-text { width: 34px; height: 34px; font-size: 14px; }
-  .actions-section .btn { min-height: 40px; padding: 6px 10px; font-size: 11px; letter-spacing: 0.8px; }
+  /* Info-bar — tighter grid so HP / block / center / energy / dead-
+     pile columns each get just enough room without overflowing on a
+     ~380px viewport. Old: 120+38+1fr+38+64+padding+gaps = 300+px
+     before the center cell, leaving the Done button squeezed. New:
+     90+30+1fr+30+50+tight padding/gaps ≈ 220px non-flex, giving the
+     center cell ~160px on a 380px viewport — comfortable for Done. */
+  .info-bar { padding: 4px 6px; gap: 4px; grid-template-columns: 90px 30px 1fr 30px 50px; height: 52px; }
+  .bar-cell { gap: 4px; }
+  .health-container { gap: 4px; }
+  .health-bar { width: 64px; height: 12px; }
+  .health-text { font-size: 14px; }
+  .health-text > span { font-size: 14px; }
+  .block-circle { width: 28px; height: 28px; }
+  .block-circle-label { font-size: 6px; letter-spacing: 0.5px; }
+  .block-circle-value { font-size: 9px; }
+  .energy-text { width: 28px; height: 28px; font-size: 12px; }
+  .energy-display { gap: 2px; }
+  .pile-badge { padding: 3px 6px; font-size: 10px; }
+  .pile-badge.tricks-history { padding: 3px 5px; font-size: 9px; margin-right: 2px; }
+  .actions-section .btn { min-height: 36px; padding: 4px 8px; font-size: 10px; letter-spacing: 0.6px; }
   button, .btn { min-height: 40px; } /* 40px tap target baseline */
   .phase-banner-text { font-size: 20px; }
   /* HUD pill: drop the phase text + tighten counters so the whole pill
