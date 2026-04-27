@@ -16,7 +16,7 @@ const TRICK_DEFS = [
         card.trickPhasePlayable = true;
         G.log(`Space Stone: ${card.name} can be played during the Trick Phase (costs ${card.cost} energy).`);
       };
-      if (Game.isHuman(owner) && hand.length > 1) {
+      if (Game.isHuman(owner)) {
         G.promptCardChoice(owner, hand, "Space Stone",
           "Choose a card — it can be played during the Trick Phase (at its normal cost)",
           grant, cards => cards.sort((a, b) => (b.cost || 0) - (a.cost || 0))[0]);
@@ -109,7 +109,7 @@ const TRICK_DEFS = [
       if (a.length && o.length) {
         const doMove = (ally) => {
           const from = G.findCardLane(ally);
-          if (Game.isHuman(owner) && o.length > 1) {
+          if (Game.isHuman(owner)) {
             G.promptLaneChoice(owner, o, `Move ${ally.name}`, `Choose lane for ${ally.name}`, (l) => {
               G.moveCard(ally, from, l);
             });
@@ -117,7 +117,7 @@ const TRICK_DEFS = [
             G.moveCard(ally, from, o[0]);
           }
         };
-        if (a.length > 1 && Game.isHuman(owner)) {
+        if (Game.isHuman(owner)) {
           G.promptCardChoice(owner, a, "Bifrost — Move", "Choose ally to move", doMove);
         } else {
           doMove(a[0]);
@@ -199,7 +199,7 @@ const TRICK_DEFS = [
     desc: "Give an ally Evade 1 and (+1/+1).",
     play(G, owner) {
       const a = G.getAlliesOf(owner);
-      if (a.length > 1 && Game.isHuman(owner)) {
+      if (Game.isHuman(owner) && a.length) {
         G.promptCardChoice(owner, a, "Smoke Pellet — Buff", "Choose ally to give Evade +1/+1", (t) => {
           t.evadeCharges += 1; G.buffCard(t, 1, 1);
           G.log(`Smoke Pellet buffs ${t.name}!`);
@@ -216,7 +216,7 @@ const TRICK_DEFS = [
     desc: "Add (+2/+2) to an ally.",
     play(G, owner) {
       const a = G.getAlliesOf(owner);
-      if (a.length > 1 && Game.isHuman(owner)) {
+      if (Game.isHuman(owner) && a.length) {
         G.promptCardChoice(owner, a, "Adamantium — Buff", "Choose ally to give +2/+2", (t) => {
           G.buffCard(t, 2, 2); G.log(`Adamantium buffs ${t.name}!`);
         });
@@ -261,7 +261,7 @@ const TRICK_DEFS = [
     desc: "Add (+3/+0) to an ally.",
     play(G, owner) {
       const a = G.getAlliesOf(owner);
-      if (a.length > 1 && Game.isHuman(owner)) {
+      if (Game.isHuman(owner) && a.length) {
         G.promptCardChoice(owner, a, "Power Stone — Empower", "Choose ally to give +3 ATK", (t) => {
           G.buffCard(t, 3, 0); G.log(`Power Stone: ${t.name} +3 ATK!`);
         });
@@ -314,7 +314,7 @@ const TRICK_DEFS = [
     desc: "Give an ally Invincible 1.",
     play(G, owner) {
       const a = G.getAlliesOf(owner);
-      if (a.length > 1 && Game.isHuman(owner)) {
+      if (Game.isHuman(owner) && a.length) {
         G.promptCardChoice(owner, a, "Nth Metal — Invincible", "Choose ally to make invincible", (t) => {
           t.invincibleTurns += 1; G.log(`Nth Metal: ${t.name} invincible!`);
         });
@@ -417,7 +417,7 @@ const TRICK_DEFS = [
             }, cards => cards.sort((x, y) => y.cost - x.cost)[0]);
           }
         };
-        if (allies.length > 1 && Game.isHuman(owner)) {
+        if (Game.isHuman(owner)) {
           G.promptCardChoice(owner, allies, "Soul Stone — Choose Your Card", "Choose your card to sacrifice", doSoulStone);
         } else {
           doSoulStone(allies[0]);
@@ -436,7 +436,7 @@ const TRICK_DEFS = [
           contested.push(i);
         }
       }
-      if (contested.length > 1 && Game.isHuman(owner)) {
+      if (Game.isHuman(owner) && contested.length) {
         G.promptLaneChoice(owner, contested, "Anti-Life — Destroy Lane", "Choose contested lane to destroy", (i) => {
           const opp = G.opponent(owner);
           G.killCard(G.state.lanes[i][owner]);
@@ -506,7 +506,7 @@ const TRICK_DEFS = [
             }, cards => cards.sort((a, b) => b.attack - a.attack)[0]);
           }
         };
-        if (allies.length > 1 && Game.isHuman(owner)) {
+        if (Game.isHuman(owner)) {
           G.promptCardChoice(owner, allies, "Reality Stone — Choose Your Card", "Choose your card to swap stats", doSwap);
         } else {
           doSwap(allies.sort((a, b) => a.attack - b.attack)[0]);

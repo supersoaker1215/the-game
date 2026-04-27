@@ -1088,6 +1088,42 @@ body.hit-pause .ai-hand * {
   box-shadow: 0 0 14px rgba(79,195,247,0.55), inset 0 0 10px rgba(79,195,247,0.12);
 }
 
+/* Trick-history badge — same chrome as dead-pile but tinted purple
+   (the trick palette). One per side, sits next to the dead pile. */
+.pile-badge.tricks-history {
+  background: #000000;
+  color: #d7b3e6;
+  border: 1px solid rgba(155,89,182,0.85);
+  cursor: pointer;
+  padding: 6px 12px;
+  font-size: 13px;
+  font-family: 'Rajdhani', sans-serif;
+  font-weight: 700;
+  box-shadow: 0 0 12px rgba(155,89,182,0.45), 0 0 24px rgba(155,89,182,0.18);
+  transition: background 0.2s, border-color 0.2s, box-shadow 0.2s, color 0.2s, transform 0.15s;
+  margin-right: 6px;
+}
+.pile-badge.tricks-history:hover {
+  background: rgba(155,89,182,0.14);
+  color: #ecd6f5;
+  border-color: rgba(155,89,182,1);
+  box-shadow: 0 0 14px rgba(155,89,182,0.65), inset 0 0 10px rgba(155,89,182,0.14);
+  transform: translateY(-1px);
+}
+.pile-badge.tricks-history .pile-icon.icon-tricks {
+  color: #d7b3e6;
+  text-shadow: 0 0 6px rgba(215,179,230,0.6);
+  font-size: 14px;
+  line-height: 1;
+}
+/* History-trick card inside the overlay — same .trick-card chrome
+   the in-hand renderer uses. Just centered + non-interactive. */
+.dead-pile-overlay .history-trick {
+  width: 160px;
+  pointer-events: none;
+  margin: 6px;
+}
+
 .pile-info { display: flex; gap: 6px; align-items: center; }
 
 
@@ -1327,6 +1363,33 @@ body.hit-pause .ai-hand * {
 }
 .mm-grid {
   display: flex; flex-direction: column; gap: 10px;
+}
+/* Section variant — slightly tighter spacing so each grouped
+   block reads as one visual unit under its label. */
+.mm-grid.mm-grid-section {
+  gap: 8px;
+  margin-bottom: 14px;
+}
+.mm-grid.mm-grid-section:last-of-type {
+  margin-bottom: 4px;
+}
+/* Section label above each grid block — small caps Tron header
+   that introduces what's grouped beneath. Matches the tone of
+   the existing .mm-title / .mm-footer chrome. */
+.mm-section-label {
+  font-family: 'Rajdhani', sans-serif;
+  font-size: 11px;
+  letter-spacing: 3px;
+  text-transform: uppercase;
+  color: rgba(127,208,255,0.65);
+  margin: 6px 0 6px 2px;
+  padding-left: 8px;
+  border-left: 2px solid rgba(127,208,255,0.65);
+  text-shadow: 0 0 6px rgba(79,195,247,0.30);
+  font-weight: 700;
+}
+.mm-section-label:first-of-type {
+  margin-top: 4px;
 }
 .mm-option {
   position: relative;
@@ -5228,15 +5291,21 @@ body.hit-pause .ai-hand * {
 .card.playable { cursor: pointer; }
 .card.playable:hover { transform: translateY(-6px); }
 /* Hand cards: hover feedback is a pure highlight (border + rarity glow at
-   ~7132); no translate/rotate/scale. Motion on hand-card hover caused a
-   mouseover/mouseout flip-flop (cursor at the card edge + transform
-   scaling = card moves out from under cursor) that pulsed the audio. */
-.card.hand-card.playable:hover {
-  transform: none;
+   ~7132); no translate/rotate/scale. Motion on hand-card hover causes
+   a mouseover/mouseout flip-flop loop (cursor at card edge + transform
+   = card moves out from under cursor → :hover ends → revert → cursor
+   on card → :hover restart). The !important lock is defensive — any
+   future rule that tries to re-add a translate/scale on hover MUST
+   compete on the same lock-bit, so the bounce stays dead. User report:
+   "the card is bouncing while my cursor is over the card. There has to
+   be a bug with that." */
+.card.hand-card.playable:hover,
+.card.hand-card:hover {
+  transform: none !important;
   transition: box-shadow 0.2s, border-color 0.2s;
 }
 .card.hand-card.playable.selected:hover {
-  transform: none;
+  transform: none !important;
 }
 .card.selected { border-color: #f1c40f !important; box-shadow: 0 0 24px rgba(241,196,15,0.5) !important; transform: translateY(-8px); }
 .trick-card.selected { border-color: #f1c40f !important; box-shadow: 0 0 24px rgba(241,196,15,0.55) !important; transform: translateY(-6px); }
@@ -5836,12 +5905,19 @@ body.hit-pause .ai-hand * {
   will-change: transform;
 }
 .player-hand-section .hand-cards .card:hover {
-  transform: translateY(-8px);
+  /* DELIBERATELY NO TRANSFORM. translateY(-Npx) on hover pushes the
+     card upward, the cursor "falls off" the bottom edge mid-translate
+     → mouseleave → reverse-translate → cursor lands on card again →
+     mouseenter → loop. User report: "the card is bouncing while my
+     cursor is over the card." Affordance comes from box-shadow +
+     filter only (compositor-cheap, no layout shift, no flip-flop). */
+  transform: none !important;
   box-shadow: 0 10px 24px rgba(0,0,0,0.55), 0 0 14px rgba(46,204,113,0.35);
   filter: brightness(1.06);
   z-index: 10;
 }
 .player-hand-section .hand-cards .card.villain:hover {
+  transform: none !important;
   box-shadow: 0 10px 24px rgba(0,0,0,0.55), 0 0 14px rgba(231,76,60,0.35);
 }
 /* HP bar floating damage number */
@@ -6543,6 +6619,141 @@ body.hit-pause .ai-hand * {
    can paint a name independently of its column. */
 .game-over-stats .go-card-ally { color: #7fd0ff; }
 .game-over-stats .go-card-enemy { color: #ff9a8c; }
+
+/* ============================================================
+   STAR OF THE MATCH PANEL
+   ============================================================
+   Hero panel at the top of the game-over recap. Surfaces the most
+   impactful card across both sides with a card-shaped chrome on
+   the left and a stat readout on the right. Side tint follows the
+   star's owner — cyan for player, red-orange for AI. */
+.sotm-panel {
+  margin: 0 auto 18px;
+  max-width: 720px;
+  padding: 14px 18px 16px;
+  background: linear-gradient(180deg, rgba(8,14,22,0.85) 0%, rgba(8,14,22,0.95) 100%);
+  border: 1px solid rgba(255,215,0,0.28);
+  border-radius: 8px;
+  box-shadow: 0 0 22px rgba(255,215,0,0.10), 0 6px 24px rgba(0,0,0,0.45);
+  animation: sotmRise 0.55s cubic-bezier(0.22, 1, 0.36, 1);
+}
+@keyframes sotmRise { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
+.sotm-banner {
+  display: flex; align-items: center; gap: 10px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid rgba(255,215,0,0.18);
+  margin-bottom: 12px;
+}
+.sotm-icon {
+  font-size: 18px;
+  color: #ffd95c;
+  text-shadow: 0 0 10px rgba(255,217,92,0.6);
+}
+.sotm-title {
+  font-family: 'Rajdhani', sans-serif;
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: 3px;
+  text-transform: uppercase;
+  color: #ffd95c;
+  text-shadow: 0 0 8px rgba(255,217,92,0.3);
+  flex: 1;
+}
+.sotm-side-tag {
+  font-family: 'Rajdhani', sans-serif;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 2px;
+  padding: 2px 8px;
+  border-radius: 3px;
+  border: 1px solid currentColor;
+}
+.sotm-panel.sotm-side-player .sotm-side-tag { color: #7fd0ff; background: rgba(127,208,255,0.10); }
+.sotm-panel.sotm-side-ai     .sotm-side-tag { color: #ff9a8c; background: rgba(255,154,140,0.10); }
+.sotm-body {
+  display: flex; align-items: stretch; gap: 16px;
+}
+.sotm-card {
+  flex-shrink: 0;
+  width: 180px;
+  /* Inherits .card chrome (cost orb, name banner, ability badges, etc.)
+     but with a static layout — no hover lift, no animations. */
+  position: relative;
+  background: rgba(8,14,22,0.92);
+  border: 2px solid currentColor;
+  border-radius: 8px;
+  padding: 10px 8px 24px;
+  color: #e6eef5;
+  box-shadow: 0 0 18px rgba(255,215,0,0.18);
+}
+.sotm-panel.sotm-side-player .sotm-card { color: #7fd0ff; }
+.sotm-panel.sotm-side-ai     .sotm-card { color: #ff9a8c; }
+.sotm-stats {
+  flex: 1;
+  display: flex; flex-direction: column; gap: 8px;
+  padding: 4px 0;
+}
+.sotm-headline {
+  display: flex; align-items: baseline; justify-content: space-between;
+  padding: 6px 10px;
+  background: rgba(255,217,92,0.08);
+  border-left: 3px solid #ffd95c;
+  border-radius: 0 4px 4px 0;
+}
+.sotm-headline-label {
+  color: rgba(255,217,92,0.75);
+  font-family: 'Rajdhani', sans-serif;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+}
+.sotm-headline-value {
+  color: #ffd95c;
+  font-family: 'Rajdhani', sans-serif;
+  font-size: 26px;
+  font-weight: 800;
+  text-shadow: 0 0 8px rgba(255,217,92,0.45);
+  font-variant-numeric: tabular-nums;
+}
+.sotm-substats {
+  display: flex; gap: 16px;
+  font-size: 12px;
+  color: rgba(255,255,255,0.78);
+}
+.sotm-substat-label {
+  display: block;
+  color: rgba(255,255,255,0.42);
+  font-size: 9px;
+  letter-spacing: 1.4px;
+  text-transform: uppercase;
+  margin-bottom: 2px;
+}
+.sotm-substat b {
+  font-size: 16px;
+  font-weight: 800;
+  color: #e6eef5;
+  font-variant-numeric: tabular-nums;
+}
+.sotm-impact {
+  font-size: 11px;
+  color: rgba(255,255,255,0.55);
+  letter-spacing: 1px;
+  text-transform: uppercase;
+}
+.sotm-impact b { color: #e6eef5; font-size: 13px; font-weight: 800; }
+.sotm-runner {
+  font-size: 11px;
+  color: rgba(255,255,255,0.55);
+  margin-top: auto;
+  padding-top: 6px;
+  border-top: 1px dashed rgba(255,255,255,0.15);
+}
+@media (max-width: 600px) {
+  .sotm-body { flex-direction: column; align-items: center; gap: 12px; }
+  .sotm-card { width: 90%; max-width: 220px; }
+  .sotm-stats { width: 100%; }
+}
 
 /* Stat-number chip — small tron readout with a vertical 2px team-colored
    bar as a prefix instead of parentheses. `currentColor` inherits the
@@ -8508,6 +8719,224 @@ body.turn-combat .board .lane.lane-active {
 .dmg-preview .dp-verdict-trade { color: #ffd77a; text-shadow: 0 0 6px rgba(255,215,122,0.55); }
 .dmg-preview .dp-verdict-stall { color: #c6d0db; text-shadow: 0 0 6px rgba(198,208,219,0.35); }
 .dmg-preview .dp-row + .dp-row { margin-top: 2px; }
+
+/* ============================================================
+   COMBAT FORECAST STRIP
+   ============================================================
+   Always-on horizontal row sitting directly under the board, above
+   the player-bar. Six cells (one per lane) each show a single-word
+   verdict: WIN / TRADE / STALL / LOSE / STRIKE (uncontested-you) /
+   EXPOSED (uncontested-them) / — (empty or destroyed).
+
+   ALIGNMENT: matches the .board's flex layout exactly — same gap
+   (4px), same per-cell width (140px / lane), centered. Cell N sits
+   directly below lane N. User spec: "have the boxes be perfectly
+   aligned with thier repective lanes." */
+.lane-forecast-strip {
+  display: flex;
+  /* Centered just like .board so the 6 cells line up under the
+     6 lanes regardless of viewport width. */
+  justify-content: center;
+  /* Match the board's lane gap exactly — 4px between adjacent cells. */
+  gap: 4px;
+  padding: 4px 0;
+  background: linear-gradient(180deg, rgba(8,14,22,0.55) 0%, rgba(8,14,22,0.85) 100%);
+  border-top: 1px solid rgba(79,195,247,0.18);
+  border-bottom: 1px solid rgba(79,195,247,0.10);
+  font-family: 'Rajdhani', 'Inter', sans-serif;
+}
+.lane-forecast-strip .lf-cell {
+  /* Width is set per-cell via JS at render time (renderLaneForecastStrip
+     two-pass measurement) so each cell always matches the actual
+     rendered lane width — bulletproof across viewport breakpoints,
+     mobile preview toggle, etc. The CSS just provides the layout
+     skeleton. Three children: red face damage (left), verdict
+     (center, flex-grows), green face damage (right). */
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px;
+  padding: 3px 6px;
+  border: 1px solid rgba(79,195,247,0.20);
+  border-radius: 4px;
+  background: rgba(8,14,22,0.55);
+  transition: border-color 0.15s, background 0.15s;
+  box-sizing: border-box;
+}
+.lane-forecast-strip .lf-verdict {
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 1.2px;
+  text-transform: uppercase;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex: 1 1 auto;
+  text-align: center;
+  min-width: 0;
+}
+/* Face-damage indicators flanking the verdict.
+   RED  (left)  = damage to YOUR (player) face this round in this lane.
+   GREEN (right) = damage to OPPONENT (ai) face this round in this lane.
+   Both shown ALWAYS so the player can scan all 6 lanes and see who's
+   taking direct face damage at a glance. Empty lanes show a dim "—". */
+.lane-forecast-strip .lf-face {
+  font-family: 'Rajdhani', sans-serif;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.5px;
+  font-variant-numeric: tabular-nums;
+  flex: 0 0 auto;
+  min-width: 24px;
+  text-align: center;
+}
+.lane-forecast-strip .lf-face-red {
+  color: #ff7a7a;
+  text-shadow: 0 0 5px rgba(255,122,122,0.55);
+}
+.lane-forecast-strip .lf-face-green {
+  color: #6ef58b;
+  text-shadow: 0 0 5px rgba(110,245,139,0.55);
+}
+.lane-forecast-strip .lf-face-zero {
+  color: rgba(255,255,255,0.22);
+}
+/* Verdict color palette — matches .dmg-preview's verdicts so the
+   two readouts feel like the same system. */
+.lane-forecast-strip .lf-cell.lf-win    { border-color: rgba(110,245,139,0.55); background: rgba(110,245,139,0.08); }
+.lane-forecast-strip .lf-cell.lf-win    .lf-verdict { color: #6ef58b; text-shadow: 0 0 5px rgba(110,245,139,0.55); }
+.lane-forecast-strip .lf-cell.lf-lose   { border-color: rgba(255,122,122,0.55); background: rgba(255,122,122,0.08); }
+.lane-forecast-strip .lf-cell.lf-lose   .lf-verdict { color: #ff7a7a; text-shadow: 0 0 5px rgba(255,122,122,0.55); }
+.lane-forecast-strip .lf-cell.lf-trade  { border-color: rgba(255,215,122,0.55); background: rgba(255,215,122,0.08); }
+.lane-forecast-strip .lf-cell.lf-trade  .lf-verdict { color: #ffd77a; text-shadow: 0 0 5px rgba(255,215,122,0.55); }
+.lane-forecast-strip .lf-cell.lf-stall  { border-color: rgba(198,208,219,0.35); }
+.lane-forecast-strip .lf-cell.lf-stall  .lf-verdict { color: #c6d0db; }
+.lane-forecast-strip .lf-cell.lf-empty,
+.lane-forecast-strip .lf-cell.lf-destroyed {
+  opacity: 0.35;
+  border-color: rgba(255,255,255,0.10);
+}
+.lane-forecast-strip .lf-cell.lf-empty .lf-verdict,
+.lane-forecast-strip .lf-cell.lf-destroyed .lf-verdict {
+  color: rgba(255,255,255,0.32);
+}
+/* Mobile: tighten the verdict text but KEEP the cell width at 140px
+   so each cell stays vertically aligned with its lane (which itself
+   is 140px regardless of viewport). The board overflows horizontally
+   on narrow viewports; the strip overflows in lockstep so alignment
+   is preserved through the whole scrollable region. */
+@media (max-width: 600px) {
+  .lane-forecast-strip .lf-num { font-size: 9px; }
+  .lane-forecast-strip .lf-verdict { font-size: 9px; letter-spacing: 0.6px; }
+}
+
+/* PER-LANE FORECAST BADGE (on-hover) — REMOVED.
+   Previously this rule rendered a centered verdict badge ("EXPOSED",
+   "TRADE", etc.) over the lane on hover. The pre-combat strip below
+   the board already shows the same information glanceably for every
+   lane simultaneously, so the per-lane hover badge was just noise
+   that obscured the cards behind it. User report: "that exposed
+   banner in the middle of the lane shouldnt be there, it also
+   happens with the trade." Strip-only is the canonical surface.
+   The data-forecast attr is kept on the lane element in case some
+   future feature wants to read it; the visual rule is gone. */
+
+/* ============================================================
+   AI LAST-ACTION LANE PULSE
+   ============================================================
+   Brief 1.5s glow on the lane the AI most recently played into.
+   Helps the player see WHICH lane changed when multiple actions
+   chain in quick succession (Hela revives, Cyborg summons,
+   Anti-Life Equation collapse). The class is applied by render
+   when `state._aiPulse` is set + within the time window. */
+.lane.lane-ai-just-played {
+  animation: laneAiPulse 1.4s ease-out 1;
+  position: relative;
+  z-index: 4;
+}
+.lane.lane-ai-just-played::before {
+  content: '';
+  position: absolute;
+  inset: -2px;
+  border-radius: 6px;
+  pointer-events: none;
+  border: 2px solid rgba(231, 76, 60, 0.85);
+  box-shadow: 0 0 22px 2px rgba(231, 76, 60, 0.55), inset 0 0 16px rgba(231, 76, 60, 0.30);
+  z-index: 5;
+  animation: laneAiPulseRing 1.4s ease-out 1;
+}
+@keyframes laneAiPulse {
+  0%   { background-color: rgba(231, 76, 60, 0.18); }
+  35%  { background-color: rgba(231, 76, 60, 0.10); }
+  100% { background-color: transparent; }
+}
+@keyframes laneAiPulseRing {
+  0%   { opacity: 0.95; transform: scale(1.02); }
+  60%  { opacity: 0.55; transform: scale(1.005); }
+  100% { opacity: 0;    transform: scale(1); }
+}
+
+/* ============================================================
+   UNDO FLASH
+   ============================================================
+   500ms reverse-tinted sweep across the board on a successful
+   undo — the eye picks up "something rewound" without the user
+   having to read the toast. Compositor-cheap (transform-only). */
+.board.board-undo-flash {
+  animation: boardUndoFlash 0.5s ease-out 1;
+}
+@keyframes boardUndoFlash {
+  0%   { filter: brightness(1.2) hue-rotate(-12deg); }
+  40%  { filter: brightness(1.05) hue-rotate(-6deg); }
+  100% { filter: none; }
+}
+.board.board-undo-flash::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(90deg,
+    transparent 0%,
+    rgba(255, 217, 92, 0.20) 50%,
+    transparent 100%);
+  animation: boardUndoSweep 0.5s ease-out 1;
+  z-index: 100;
+}
+@keyframes boardUndoSweep {
+  0%   { transform: translateX(110%); opacity: 1; }
+  100% { transform: translateX(-110%); opacity: 0; }
+}
+
+/* ============================================================
+   LONG-PRESS PROGRESS RING (mobile)
+   ============================================================
+   Touch users can long-press a card to open the inspect modal
+   (450ms hold). Without visual feedback during the hold, the
+   press feels unresponsive — "did my press register?". This ring
+   spawns at the touch point on touchstart and grows over the hold
+   window. CSS only — animation duration matches HOLD_MS via
+   inline style. Cancelled on touchend/touchmove/fire. */
+.long-press-ring {
+  position: fixed;
+  width: 64px;
+  height: 64px;
+  margin-left: -32px;
+  margin-top:  -32px;
+  border-radius: 50%;
+  border: 3px solid rgba(79, 195, 247, 0.85);
+  background: rgba(79, 195, 247, 0.08);
+  pointer-events: none;
+  z-index: 1500;
+  transform: scale(0);
+  opacity: 0;
+  animation: longPressGrow 450ms cubic-bezier(0.22, 1, 0.36, 1) forwards;
+  box-shadow: 0 0 18px rgba(79, 195, 247, 0.55);
+}
+@keyframes longPressGrow {
+  0%   { transform: scale(0);    opacity: 0; }
+  20%  { opacity: 0.95; }
+  100% { transform: scale(1.15); opacity: 1; }
+}
 /* Simulation-source tag — the simulation-based preview adds this so
    you can tell at a glance whether you're seeing arithmetic-derived
    numbers (no tag) or simulator-derived numbers (with the cyan tag).
@@ -11631,6 +12060,58 @@ body.round-transition .board-section::before {
 }
 .card.ally-card .destroy-particle  { color: var(--player-accent-bright); }
 .card.enemy-card .destroy-particle { color: var(--enemy-accent-bright); }
+
+/* ============================================================
+   HIT CHIPS — partial-disintegration burst on card-takes-damage.
+   ============================================================
+   Replaces the previous .hit-shake horizontal-oscillation effect
+   that the user flagged as distracting. Instead, 4-5 small cubes
+   "shed" off the card on hit, tumbling away with gravity. Reads
+   as the card starting to dissolve — same visual language as the
+   full destroy particle burst, just a smaller, lighter version.
+
+   Each chip's start offset (--sx/--sy), end offset (--dx/--dy),
+   rotation (--rot), and size are randomized per-spawn in JS so
+   each hit looks slightly different. Tinted by side theme via
+   currentColor (matching destroy-particles). */
+.hit-chips {
+  position: absolute;
+  left: 50%; top: 50%;
+  width: 0; height: 0;
+  pointer-events: none;
+  z-index: 55;
+}
+.hit-chip {
+  position: absolute;
+  left: 50%; top: 50%;
+  background: currentColor;
+  transform: translate(calc(-50% + var(--sx, 0)), calc(-50% + var(--sy, 0))) rotate(0deg);
+  opacity: 0.95;
+  border-radius: 1px;
+  box-shadow: 0 0 4px currentColor;
+  animation: hitChipFall 600ms cubic-bezier(0.36, 0, 0.66, 1) forwards;
+}
+@keyframes hitChipFall {
+  0%   {
+    transform: translate(calc(-50% + var(--sx, 0)), calc(-50% + var(--sy, 0))) rotate(0deg);
+    opacity: 0.95;
+  }
+  60%  {
+    opacity: 0.85;
+  }
+  100% {
+    transform: translate(
+                 calc(-50% + var(--sx, 0) + var(--dx, 0)),
+                 calc(-50% + var(--sy, 0) + var(--dy, 0))
+               ) rotate(var(--rot, 0deg));
+    opacity: 0;
+  }
+}
+.card.ally-card  .hit-chip { color: var(--player-accent-bright); }
+.card.enemy-card .hit-chip { color: var(--enemy-accent-bright); }
+/* Hand cards / generic cards (no side class) — use a neutral white
+   so chips read against any background. */
+.card:not(.ally-card):not(.enemy-card) .hit-chip { color: #f5fbff; }
 
 /* ============================================================
    KILL IMPACT — card shake + shockwave ring + screen flash.
@@ -17725,13 +18206,13 @@ body.round-first-ai     .hud-round #round-num::before {
   80%      { transform: translate( 0.4px, -0.4px); }
 }
 .card.card-hp-critical {
-  animation: cardStressTremble 280ms ease-in-out infinite;
-  /* Phase persistence — JS sets --tremor-phase per card.id so when
-     the card DOM is rebuilt, the new element's tremor picks up at
-     the same phase position the prior element was at. Eliminates
-     the synchronized "everyone tremors in unison again at 0%" flash
-     that would otherwise happen on phase changes. */
-  animation-delay: var(--tremor-phase, 0s);
+  /* Tremor animation removed — user feedback: "get rid of the low
+     health shake of the cards." The red rim accent below is kept
+     because it's informational (signals "this card is in lethal
+     range") rather than motion. The cardStressTremble keyframe and
+     --tremor-phase variable are left in place but unused so any
+     downstream code still referencing them stays valid; they just
+     no longer animate anything. */
 }
 /* Ally cards at 1 HP get a subtle red rim accent. Reads as "this
    card is wounded" while sitting at the same z-rest level. */

@@ -3,6 +3,43 @@
 // Keyed by card name; merged into CARD_DEFS at load time.
 // ============================================================
 
+// AI target picker — picks the highest-threat card from a list.
+// Used as the `aiPicker` callback for damage / destroy / control
+// abilities (Ant-Man's destroy, Bane's debuff, Gamora's execute, etc.)
+// so the AI removes the most impactful threat instead of just the
+// most expensive or highest-ATK one. Threat score factors in armor /
+// evade / invincibility / strategic value (a 4/8 with Armor 2 is
+// worth more to remove than a 7/4 glass cannon).
+//
+// Falls back to a cost+ATK approximation when the AI module isn't
+// loaded yet (defensive — abilities.js loads before ai.js, but the
+// callback only runs at game-time when AI is available).
+const _aiThreatPicker = (cards) => cards.slice().sort((a, b) => {
+  if (typeof AI !== 'undefined' && AI.threatScore) {
+    return AI.threatScore(b) - AI.threatScore(a);
+  }
+  return ((b.attack || 0) + (b.cost || 0) * 0.5) - ((a.attack || 0) + (a.cost || 0) * 0.5);
+})[0];
+
+// Variant — picks the LOWEST-HP enemy that is also high-threat.
+// For damage abilities where the goal is execution (Rocket Raccoon's
+// 4-damage blast, Predator's 3-damage strike, Human Torch's 2-damage
+// blast). Tries to find a kill-shot first; if no kill is possible,
+// dumps onto the highest-threat enemy.
+const _aiKillPicker = (cards, damage) => {
+  const score = (c) => (typeof AI !== 'undefined' && AI.threatScore)
+    ? AI.threatScore(c)
+    : (c.attack || 0) + (c.cost || 0) * 0.5;
+  const killable = cards.filter(c => {
+    const armor = c.armorValue || 0;
+    return (c.currentHealth || 0) <= (damage - armor);
+  });
+  if (killable.length) {
+    return killable.slice().sort((a, b) => score(b) - score(a))[0];
+  }
+  return cards.slice().sort((a, b) => score(b) - score(a))[0];
+};
+
 const CARD_ABILITIES = {
   // ==================== COST 1 ====================
   "Ant-Man": {
@@ -12,7 +49,7 @@ const CARD_ABILITIES = {
         if (targets.length) {
           G.promptCardChoice(self.owner, targets, "Ant-Man — Destroy", "Choose an enemy to destroy (1 ATK or 1 HP)", (t) => {
             G.log(`[KILL] ${self.name} destroys ${t.name}!`); G.killCard(t, self);
-          }, cards => cards.sort((a, b) => b.cost - a.cost)[0]);
+          }, _aiThreatPicker);
         }
       };
       // Ant token now carries the Evade 1 that used to live on Ant-Man
@@ -93,12 +130,13 @@ const CARD_ABILITIES = {
   "Black Widow": {
     onPlay(G, self, lane) {
       const adj = G.getAdjacentEnemiesInContext(lane, self.owner);
-      if (adj.length > 1) {
+      if (adj.length) {
+        // Always route through promptCardChoice — it handles single-
+        // target via a "auto-targeted X" toast for the human, and
+        // auto-picks for AI. User spec: "the user always chooses".
         G.promptCardChoice(self.owner, adj, "Black Widow — Freeze", "Choose adjacent enemy to freeze", (t) => {
           G.freezeCard(t, self);
         });
-      } else if (adj.length === 1) {
-        G.freezeCard(adj[0], self);
       }
     }
   },
@@ -252,7 +290,7 @@ const CARD_ABILITIES = {
           G.debuffCard(e, 1, 1, true, self);
           e.evadeCharges = 0;
           G.log(`Bane strips ${e.name}: -1/-1 & all evades removed!`);
-        }, cards => cards.sort((a, b) => b.cost - a.cost)[0]);
+        }, _aiThreatPicker);
       }
     },
     onDamaged(G, self) {
@@ -327,7 +365,7 @@ const CARD_ABILITIES = {
       if (targets.length) {
         G.promptCardChoice(self.owner, targets, "Gamora — Execute", "Choose enemy with 2 or less HP to destroy", (t) => {
           G.log(`Gamora executes ${t.name}!`); G.killCard(t, self);
-        }, cards => cards.sort((a, b) => b.cost - a.cost)[0]);
+        }, _aiThreatPicker);
       }
     },
     onKill(G, self) {
@@ -349,7 +387,7 @@ const CARD_ABILITIES = {
       if (enemies.length) {
         G.promptCardChoice(self.owner, enemies, "Human Torch — Blast", "Choose enemy to deal 2 damage", (t) => {
           G.dealDamage(t, 2); G.log(`Human Torch blasts ${t.name} for 2!`);
-        }, cards => cards.sort((a, b) => a.currentHealth - b.currentHealth)[0]);
+        }, cards => _aiKillPicker(cards, 2));
       }
     }
   },
@@ -360,11 +398,9 @@ const CARD_ABILITIES = {
         G.grantTempBuff(a, { evadeCharges: 1 });
         G.log(`Invisible Woman grants Evade to ${a.name} for 1 turn!`);
       };
-      if (allies.length > 1) {
+      if (allies.length) {
         G.promptCardChoice(self.owner, allies, "Invisible Woman — Evade", "Choose ally to give Evade 1 (1 turn)", grant,
           cards => cards.sort((a, b) => b.attack - a.attack)[0]);
-      } else if (allies.length === 1) {
-        grant(allies[0]);
       }
     },
     passive: "faceDownOption"
@@ -375,7 +411,7 @@ const CARD_ABILITIES = {
       if (enemies.length) {
         G.promptCardChoice(self.owner, enemies, "Nightwing — Weaken", "Choose enemy to remove 2 Attack from", (t) => {
           G.debuffCard(t, 2, 0, false, self); G.log(`Nightwing weakens ${t.name} by 2 ATK!`);
-        }, cards => cards.sort((a, b) => b.attack - a.attack)[0]);
+        }, _aiThreatPicker);
       }
     }
   },
@@ -385,7 +421,7 @@ const CARD_ABILITIES = {
       if (targets.length) {
         G.promptCardChoice(self.owner, targets, "Peacemaker — Eliminate", "Choose enemy with 2 or less ATK to destroy", (t) => {
           G.log(`Peacemaker eliminates ${t.name}!`); G.killCard(t, self);
-        }, cards => cards.sort((a, b) => b.cost - a.cost)[0]);
+        }, _aiThreatPicker);
       }
     },
     onKill(G, self) {
@@ -399,7 +435,7 @@ const CARD_ABILITIES = {
       if (enemies.length) {
         G.promptCardChoice(self.owner, enemies, "Rocket Raccoon — Blast", "Choose enemy to deal 4 damage", (t) => {
           G.dealDamage(t, 4); G.log(`Rocket Raccoon blasts ${t.name} for 4!`);
-        }, cards => cards.sort((a, b) => a.currentHealth - b.currentHealth)[0]);
+        }, cards => _aiKillPicker(cards, 4));
       }
     }
   },
@@ -471,7 +507,7 @@ const CARD_ABILITIES = {
       if (targets.length) {
         G.promptCardChoice(self.owner, targets, "Deathstroke — Assassinate", "Choose enemy with 3 or less HP to destroy", (t) => {
           G.log(`Deathstroke assassinates ${t.name}!`); G.killCard(t, self);
-        }, cards => cards.sort((a, b) => b.cost - a.cost)[0]);
+        }, _aiThreatPicker);
       }
     },
     onKill(G, self) {
@@ -508,7 +544,7 @@ const CARD_ABILITIES = {
         }
       }
       if (!targetLanes.length) return;
-      if (Game.isHuman(self.owner) && targetLanes.length > 1) {
+      if (Game.isHuman(self.owner)) {
         G.promptLaneChoice(self.owner, targetLanes, "Green Goblin — Move", "Choose an enemy lane to move Green Goblin to", (to) => {
           G.moveCard(self, lane, to);
           G.splashDamage(to, self.owner, 1);
@@ -662,14 +698,12 @@ const CARD_ABILITIES = {
         G.buffCard(a, 2, 2);
         G.log(`Red Skull empowers ${a.name} +2/+2!`);
       };
-      if (allies.length > 1) {
+      if (allies.length) {
         G.promptCardChoice(self.owner, allies, "Red Skull — Empower", "Choose an ally to give +2/+2", grant,
           // AI picks the highest-cost ally — biggest absolute swing
           // from the +2/+2 (a 9-cost finisher gets disproportionately
           // more value from a flat buff than a 1-cost token).
           cards => cards.slice().sort((a, b) => (b.cost || 0) - (a.cost || 0))[0]);
-      } else if (allies.length === 1) {
-        grant(allies[0]);
       }
     }
   },
@@ -729,10 +763,8 @@ const CARD_ABILITIES = {
         G.buffCard(a, 2, 2);
         G.log(`Star-Lord buffs ${a.name} +2/+2!`);
       };
-      if (allies.length > 1) {
+      if (allies.length) {
         G.promptCardChoice(self.owner, allies, "Star-Lord — Buff", "Choose ally to give +2/+2", grant);
-      } else if (allies.length === 1) {
-        grant(allies[0]);
       }
     }
   },
@@ -798,7 +830,7 @@ const CARD_ABILITIES = {
       if (targets.length) {
         G.promptCardChoice(self.owner, targets, "Winter Soldier — Eliminate", "Choose enemy with 3 or less ATK to destroy", (t) => {
           G.log(`Winter Soldier eliminates ${t.name}!`); G.killCard(t, self);
-        }, cards => cards.sort((a, b) => b.cost - a.cost)[0]);
+        }, _aiThreatPicker);
       }
     },
     onKill(G, self) {
@@ -817,7 +849,7 @@ const CARD_ABILITIES = {
         const doMove = (ally) => {
           const from = G.findCardLane(ally);
           if (from >= 0) {
-            if (Game.isHuman(self.owner) && open.length > 1) {
+            if (Game.isHuman(self.owner)) {
               G.promptLaneChoice(self.owner, open, `Move ${ally.name}`, `Choose new lane for ${ally.name}`, (l) => {
                 G.moveCard(ally, from, l);
               });
@@ -826,7 +858,7 @@ const CARD_ABILITIES = {
             }
           }
         };
-        if (allies.length > 1 && Game.isHuman(self.owner)) {
+        if (Game.isHuman(self.owner)) {
           G.promptCardChoice(self.owner, allies, "Anti-Venom — Move", "Choose ally to move", doMove);
         } else {
           doMove(allies[0]);
@@ -843,18 +875,27 @@ const CARD_ABILITIES = {
         const playFree = (freeCard) => {
           const open = G.getOpenLanes(self.owner);
           if (open.length) {
-            if (Game.isHuman(self.owner) && open.length > 1) {
+            if (Game.isHuman(self.owner)) {
+              // Pass `freeCard` as previewCard so the lane-placement
+              // damage preview shows the trade math against each lane's
+              // opposing enemy. User report: "you play a card i want
+              // it to be the live simulation... if i were to play
+              // raven it doesnt show anything." Without previewCard,
+              // lc.previewCard is null and makeDamagePreview never
+              // runs in the lane-choice render path. Same fix pattern
+              // as summonCardChoice (which already passes a
+              // synthetic previewCard for Hela / Cyborg / Ant-Man).
               G.promptLaneChoice(self.owner, open, `Play ${freeCard.name} free`, `Black Panther plays ${freeCard.name} for free — choose lane`, (l) => {
                 G.playCardFree(self.owner, freeCard, l);
                 G.log(`Black Panther plays ${freeCard.name} free!`);
-              });
+              }, self.owner, freeCard);
             } else {
               G.playCardFree(self.owner, freeCard, open[0]);
               G.log(`Black Panther plays ${freeCard.name} free!`);
             }
           }
         };
-        if (freeCards.length > 1 && Game.isHuman(self.owner)) {
+        if (Game.isHuman(self.owner)) {
           G.promptCardChoice(self.owner, freeCards, "Black Panther — Free Play", "Choose a card with base cost 3 or less to play free", playFree,
             cards => cards.slice().sort((a, b) => (b.baseCost || b.cost) - (a.baseCost || a.cost))[0]);
         } else {
@@ -1108,7 +1149,7 @@ const CARD_ABILITIES = {
           const oppLane = G.state.lanes[lane][opp];
           if (oppLane && oppLane.currentHealth > 0) targets.push(oppLane);
           G.getAdjacentEnemiesInContext(lane, self.owner).forEach(e => { if (e.currentHealth > 0 && !targets.includes(e)) targets.push(e); });
-          if (targets.length > 1 && Game.isHuman(self.owner)) {
+          if (Game.isHuman(self.owner) && targets.length) {
             G.promptCardChoice(self.owner, targets, "Optimus — Target", `Choose enemy for ${ally.name} to attack`, (target) => {
               G.dealDamage(target, ally.attack, ally);
               G.log(`Optimus commands ${ally.name} to attack ${target.name} for ${ally.attack}!`);
@@ -1118,7 +1159,7 @@ const CARD_ABILITIES = {
             G.log(`Optimus commands ${ally.name} to attack ${targets[0].name} for ${ally.attack}!`);
           }
         };
-        if (adj.length > 1 && Game.isHuman(self.owner)) {
+        if (Game.isHuman(self.owner)) {
           G.promptCardChoice(self.owner, adj, "Optimus — Choose Ally", "Choose adjacent ally to command", doAttack);
         } else {
           doAttack(adj[0]);
@@ -1137,7 +1178,7 @@ const CARD_ABILITIES = {
             G.buffCard(self, 1, 0);
             G.log(`Predator claims a trophy! +1 ATK → ${self.attack}`);
           }
-        }, cards => cards.sort((a, b) => a.currentHealth - b.currentHealth)[0]);
+        }, cards => _aiKillPicker(cards, 3));
       }
     },
     onKill(G, self) {
@@ -1232,7 +1273,7 @@ const CARD_ABILITIES = {
       if (enemies.length) {
         G.promptCardChoice(self.owner, enemies, "Venom — Freeze", "Choose enemy to freeze", (e) => {
           G.freezeCard(e, self);
-        }, cards => cards.sort((a, b) => b.attack - a.attack)[0]);
+        }, _aiThreatPicker);
       }
     },
     onBeforeTricks(G, self, lane) {
@@ -1317,11 +1358,9 @@ const CARD_ABILITIES = {
         a.invincibleTurns = Math.max(a.invincibleTurns || 0, 1);
         G.log(`Captain America shields ${a.name} — Invincible for 1 turn!`);
       };
-      if (allies.length > 1) {
+      if (allies.length) {
         G.promptCardChoice(self.owner, allies, "Captain America — Shield", "Choose an ally to grant Invincible 1", grant,
           cards => cards.sort((a, b) => b.attack - a.attack)[0]);
-      } else if (allies.length === 1) {
-        grant(allies[0]);
       }
     },
     onDeath(G, self, lane) {
@@ -1532,7 +1571,7 @@ const CARD_ABILITIES = {
       if (enemies.length) {
         G.promptCardChoice(self.owner, enemies, "Spider-Man — Freeze", "Choose enemy to freeze", (t) => {
           G.freezeCard(t, self); G.log(`Spider-Man freezes ${t.name}!`);
-        }, cards => cards.sort((a, b) => b.attack - a.attack)[0]);
+        }, _aiThreatPicker);
       }
     },
     onEvade(G, self) {
@@ -1857,7 +1896,7 @@ const CARD_ABILITIES = {
             G.log(`No open lanes to move ${target.name}!`);
             afterMove();
           }
-        }, cards => cards.sort((a, b) => b.attack - a.attack)[0]);
+        }, _aiThreatPicker);
       };
 
       moveEnemy(() => {
@@ -2017,7 +2056,7 @@ const CARD_ABILITIES = {
       }
       const open = G.getOpenLanes(self.owner).filter(l => l !== lane);
       if (!open.length) return;
-      if (Game.isHuman(self.owner) && open.length > 1) {
+      if (Game.isHuman(self.owner)) {
         G.promptLaneChoice(self.owner, open, "Omni-Man — Move", "Choose a lane to move Omni-Man to", (to) => {
           G.moveCard(self, lane, to);
         });
@@ -2037,7 +2076,7 @@ const CARD_ABILITIES = {
       if (enemies.length) {
         G.promptCardChoice(self.owner, enemies, "Silver Surfer — Weaken", "Choose enemy to remove 3 Attack from", (t) => {
           G.debuffCard(t, 3, 0, false, self); G.log(`Silver Surfer weakens ${t.name} by 3 ATK!`);
-        }, cards => cards.sort((a, b) => b.attack - a.attack)[0]);
+        }, _aiThreatPicker);
       }
     },
     passive: "enemyCostIncrease"
@@ -2066,7 +2105,7 @@ const CARD_ABILITIES = {
             afterMove();
             return;
           }
-          if (Game.isHuman(self.owner) && openLanes.length > 1) {
+          if (Game.isHuman(self.owner)) {
             G.promptLaneChoice(self.owner, openLanes, `Vader — Move ${target.name}`,
               `Choose a lane for ${target.name}`, (toLane) => {
                 G.moveCard(target, fromLane, toLane);
@@ -2083,7 +2122,7 @@ const CARD_ABILITIES = {
             afterMove();
           }
         };
-        if (Game.isHuman(self.owner) && enemies.length > 1) {
+        if (Game.isHuman(self.owner)) {
           G.promptCardChoice(self.owner, enemies, "Vader — Move Enemy",
             "Choose an enemy to displace to another lane", doMove,
             cards => cards.slice().sort((a, b) => AI.threatScore(b) - AI.threatScore(a))[0]);
@@ -2103,7 +2142,7 @@ const CARD_ABILITIES = {
           G.fearCard(target, self);
           afterFear();
         };
-        if (Game.isHuman(self.owner) && enemies.length > 1) {
+        if (Game.isHuman(self.owner)) {
           G.promptCardChoice(self.owner, enemies, "Vader — Fear",
             "Choose an enemy to Fear 1", doFear,
             cards => cards.slice().sort((a, b) => AI.threatScore(b) - AI.threatScore(a))[0]);
@@ -2162,7 +2201,7 @@ const CARD_ABILITIES = {
       if (enemies.length) {
         G.promptCardChoice(self.owner, enemies, "Luke Skywalker — Mind Control", "Choose an enemy to Mind Control 1", (t) => {
           G.mindControlCard(t, self, () => { G.log(`Luke Skywalker Mind Controls ${t.name}!`); });
-        }, cards => cards.sort((a, b) => b.attack - a.attack)[0]);
+        }, _aiThreatPicker);
       }
     },
     onAnyCardPlayed(G, self) {
@@ -2238,10 +2277,8 @@ const CARD_ABILITIES = {
         G.buffCard(a, 4, 4);
         G.log(`Yoda empowers ${a.name} with Evade +4/+4!`);
       };
-      if (allies.length > 1) {
+      if (allies.length) {
         G.promptCardChoice(self.owner, allies, "Yoda — Empower", "Choose ally to give Evade +4/+4", grant);
-      } else if (allies.length === 1) {
-        grant(allies[0]);
       } else {
         G.buffCard(self, 2, 3);
         G.log("Yoda empowers himself +2/+3!");
@@ -2574,7 +2611,7 @@ const CARD_ABILITIES = {
         self.anakinMoved = true;
         G.drainBonusAttacks(self);
       };
-      if (Game.isHuman(self.owner) && eligible.length > 1) {
+      if (Game.isHuman(self.owner)) {
         const laneChoices = eligible.map(i => {
           const e = G.state.lanes[i][opp];
           const desc = e && e.currentHealth > 0
@@ -2632,15 +2669,23 @@ const CARD_ABILITIES = {
         // Matches Galactus's devour and the user's general spec: "the user
         // always chooses". The single-target prompt confirms intent and
         // makes the targeting visible.
+        // AI picker: target highest threat, not raw ATK. Threat score
+        // factors armor / evade / invincibility / strategic value (a
+        // 4/8 with Armor 2 is worth more to drain than a 7/4 glass
+        // cannon). Drain steals stats — taking from the highest-threat
+        // enemy yields the biggest swing in the AI's favor.
+        const threatPicker = (cards) => cards.slice().sort((a, b) =>
+          (AI && AI.threatScore ? (AI.threatScore(b) - AI.threatScore(a))
+                                : (b.attack || 0) - (a.attack || 0)))[0];
         if (Game.isHuman(self.owner)) {
           G.promptCardChoice(self.owner, available, `Dormammu — Drain (${remaining} left)`,
             `Choose enemy to drain (${remaining} remaining)`, (t) => {
               G.drainCard(self, t);
               picked.push(t.id);
               drainChain(remaining - 1, picked);
-            }, cards => cards.sort((a, b) => b.attack - a.attack)[0]);
+            }, threatPicker);
         } else {
-          const t = available.sort((a, b) => b.attack - a.attack)[0];
+          const t = threatPicker(available);
           G.drainCard(self, t);
           picked.push(t.id);
           drainChain(remaining - 1, picked);
@@ -2670,15 +2715,23 @@ const CARD_ABILITIES = {
         // for a single option is intentional — it shows the player exactly
         // who's about to be devoured and gives them a deliberate confirm
         // beat instead of an ambiguous instant resolution.
+        // AI picker: devour highest threat. Cost-based picking missed
+        // cards like Captain America (7-cost, modest stats but huge
+        // strategic impact via shield) — threatScore captures that.
+        // For 10-cost titans like Galactus, the goal is to remove the
+        // most threatening piece; raw cost is a poor proxy.
+        const threatPicker = (cards) => cards.slice().sort((a, b) =>
+          (AI && AI.threatScore ? (AI.threatScore(b) - AI.threatScore(a))
+                                : (b.cost || 0) - (a.cost || 0)))[0];
         if (Game.isHuman(self.owner)) {
           G.promptCardChoice(self.owner, available, `Galactus — Devour (${remaining} left)`,
             `Choose enemy to devour (${remaining} remaining)`, (t) => {
               G.devourCard(t, self);
               picked.push(t.id);
               devourChain(remaining - 1, picked);
-            }, cards => cards.sort((a, b) => b.cost - a.cost)[0]);
+            }, threatPicker);
         } else {
-          const t = available.sort((a, b) => b.cost - a.cost)[0];
+          const t = threatPicker(available);
           G.devourCard(t, self);
           picked.push(t.id);
           devourChain(remaining - 1, picked);

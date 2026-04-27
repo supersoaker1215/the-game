@@ -13,7 +13,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap">
-  <link rel="stylesheet" href="style.css?v=355">
+  <link rel="stylesheet" href="style.css?v=364">
   <script>
     // Lightweight error reporter (pre-Sentry) — capture runtime JS
     // errors + unhandled promise rejections to a localStorage ring
@@ -248,9 +248,9 @@
         <span class="hud-divider"></span>
         <span class="hud-phase" id="phase-text">Starting...</span>
         <span class="hud-divider hud-divider-cyan"></span>
-        <span class="hud-count hud-count-deck" title="Cards remaining in Draw pile">Deck <b id="draw-pile-count">0</b></span>
+        <span class="hud-count hud-count-deck" title="Cards remaining in your Draw pile.&#10;&#10;Note: The Summon Deck — the pool that abilities like Knull, Mother Box, Bat Signal, Super Soldier Serum, and Hela revive pull from — is SEPARATE from this count and never runs out. Even if your Draw pile hits 0, summon abilities keep working.">Deck <b id="draw-pile-count">0</b></span>
         <span class="hud-divider hud-divider-purple"></span>
-        <span class="hud-count hud-count-tricks" title="Tricks remaining">Tricks <b id="trick-pile-count">0</b></span>
+        <span class="hud-count hud-count-tricks" title="Tricks remaining in your Trick draw pile.">Tricks <b id="trick-pile-count">0</b></span>
       </div>
     </div>
 
@@ -285,6 +285,7 @@
         <div class="energy-display" id="ai-energy-display"></div>
       </div>
       <div class="bar-cell bar-dead">
+        <span class="pile-badge tricks-history" onclick="toggleTrickHistory('ai')" title="Tricks played this match"><span class="pile-icon icon-tricks">★</span><span id="ai-tricks-count">0</span></span>
         <span class="pile-badge dead-pile" onclick="toggleDeadPile('ai')" title="Dead pile"><span class="pile-icon icon-dead"></span><span id="ai-dead-count">0</span></span>
       </div>
       <!-- AI "thinking" indicator — three pulsing dots shown while
@@ -324,6 +325,7 @@
         <div class="energy-display" id="player-energy-display"></div>
       </div>
       <div class="bar-cell bar-dead">
+        <span class="pile-badge tricks-history" onclick="toggleTrickHistory('player')" title="Tricks played this match"><span class="pile-icon icon-tricks">★</span><span id="player-tricks-count">0</span></span>
         <span class="pile-badge dead-pile" onclick="toggleDeadPile('player')" title="Dead pile"><span class="pile-icon icon-dead"></span><span id="player-dead-count">0</span></span>
       </div>
     </div>
@@ -615,16 +617,16 @@
   </div>
 
   <script src="cards.js?v=92"></script>
-  <script src="tricks.js?v=49"></script>
-  <script src="abilities.js?v=150"></script>
+  <script src="tricks.js?v=50"></script>
+  <script src="abilities.js?v=153"></script>
   <script src="decks.js?v=4"></script>
-  <script src="game.js?v=202"></script>
+  <script src="game.js?v=206"></script>
   <script src="ai.js?v=44"></script>
   <!-- PeerJS for WebRTC peer-to-peer multiplayer. Uses the public
        0.peerjs.com signaling cloud — no server needed on our side. -->
   <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
   <script src="multiplayer.js?v=4"></script>
-  <script src="ui.js?v=347"></script>
+  <script src="ui.js?v=358"></script>
   <script src="logger.js?v=5"></script>
 </body>
 </html>

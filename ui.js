@@ -1608,6 +1608,8 @@ const UI = {
     this.installSplashFx();     // Splash damage → shockwave + lunge
     this.installBoardCursorLight(); // Cursor-anchored board brightness boost
     this.installRoundSweep();   // Soft beam between rounds
+    this.installAiActionHighlight(); // Pulse the lane the AI just played in
+    this.installUndoFeedback();  // Toast + board flash on undo
     this.sfx.arm();
     this.sfx.setVolume(this.settings.sfxVolume ?? 0.55);
     // Flag menu music as "should be playing" on boot — we start on the main
@@ -1662,6 +1664,19 @@ const UI = {
     // card is filtered out by the relatedTarget check.
     const getHoverTarget = (node) =>
       (node && node.closest) ? node.closest('[data-card-name],[data-trick-name]') : null;
+    // Per-card-name cooldown — every UI.render() call wipes the board
+    // via `board.innerHTML = ''`, which fires mouseout on the previous
+    // card element + a fresh mouseover on the rebuilt one. From the
+    // engine's POV that looks like leaving and re-entering the card,
+    // so the hover SFX retriggers on every render. We can't easily
+    // suppress mouseout between renders (the element really IS gone
+    // from the DOM briefly), but we CAN gate the SFX replay by name +
+    // recent timestamp. Same card hovered within COOLDOWN_MS → no
+    // replay. Moving to a DIFFERENT card → different name → plays.
+    // User report: "its highliting the card over and over while the
+    // curser is over it... the sound it keeps playing over and over."
+    const HOVER_SFX_COOLDOWN_MS = 1000;
+    const lastHoverByName = {};
     document.addEventListener('mouseover', (e) => {
       const curr = getHoverTarget(e.target);
       if (!curr) return;
@@ -1671,21 +1686,30 @@ const UI = {
       // audio on any browser quirk that fires a spurious mouseover from
       // outside (e.g. brief transform flicker).
       if (this.sfx._currentHoverEl === curr) return;
+      const name = curr.getAttribute('data-card-name') || curr.getAttribute('data-trick-name');
+      // Cooldown gate — if we played a hover SFX for THIS card name
+      // very recently, this is almost certainly a render-rebuild
+      // re-entry, not a genuine new hover. Skip the SFX play but
+      // still update _currentHoverEl so the mouseout handler can
+      // tear down cleanly when the cursor really leaves.
+      const now = Date.now();
+      const recently = name && lastHoverByName[name] && (now - lastHoverByName[name]) < HOVER_SFX_COOLDOWN_MS;
+      if (recently) {
+        this.sfx._currentHoverEl = curr;
+        return;
+      }
       // Moving from one card to another — stop the previous card's sample first.
       if (this.sfx._currentHoverEl) this.sfx._stopHover();
-      const name = curr.getAttribute('data-card-name') || curr.getAttribute('data-trick-name');
       const isCard = curr.hasAttribute('data-card-name');
       const audio = isCard ? this.sfx.playCardSfx(name, 'hover')
                            : this.sfx.playTrickSfx(name, 'hover');
       // If no file was registered, fire the procedural Tron-grid hover
       // cue as the fallback — fires for both cards AND tricks, so every
-      // hoverable game entity gets an audible focus cue by default. The
-      // cue is short (~90ms) and auto-completes, so no mouseleave
-      // tracking is needed (we only track _currentHoverAudio when a real
-      // audio element came back from playCard/TrickSfx).
+      // hoverable game entity gets an audible focus cue by default.
       if (!audio) this.sfx.play('cardHover');
       this.sfx._currentHoverEl = curr;
       this.sfx._currentHoverAudio = audio;
+      if (name) lastHoverByName[name] = now;
     });
     document.addEventListener('mouseout', (e) => {
       const curr = getHoverTarget(e.target);
@@ -2084,21 +2108,27 @@ const UI = {
       pop.innerHTML = '';
       pop.appendChild(clone);
       pop.style.display = 'block';
-      // SFX guard — installCardSfx fires hover audio on every entered
-      // [data-card-name]/[data-trick-name]. Stamp a flag so it can no-op
-      // for the clone (and only the clone).
       openEl = el;
-      // Hide the source for HAND + TRICK cards (where the duplicate-next-to-
-      // original felt clunky). Board cards and draft cards stay visible —
-      // they're already large/spaced out, hiding them is jarring.
+      // KEEP THE SOURCE VISIBLE. Earlier we hid hand/trick sources via
+      // visibility:hidden so the magnifier read as "the" card, but
+      // visibility:hidden also disables :hover on the source — the
+      // cursor's effective hover target slides through to whatever's
+      // beneath (the next hand card, or the hand row background),
+      // which fires a fresh mouseover → hover audio retriggers + CSS
+      // border glow flickers. User report: "its highliting the card
+      // over and over while the curser is over it, basciacllly its
+      // ttapping the card... maybe its the sound it keeos palying
+      // over and over agin." User spec: "in the draft its perfect
+      // hover over cards just make the board cards act like that."
+      // Draft cards never get hidden; we now do the same for hand
+      // and trick cards. Magnifier reads as a "preview" beside the
+      // source, source's :hover stays true, no flicker, no retrigger.
+      // .magnifying class still applied so the wrapper's hover-lift
+      // transforms stay locked (defense-in-depth against future bounce).
       if (el.classList.contains('hand-card') || el.classList.contains('trick-card')) {
-        el.style.visibility = 'hidden';
-        fadedEl = el;
-        // Lock any transform-capable ancestor/self so :hover can't push
-        // the source around and produce a hover-flicker loop.
         const wrap = el.closest && el.closest('.hand-card-wrapper');
-        if (wrap) wrap.classList.add('magnifying');
-        if (el.classList.contains('trick-card')) el.classList.add('magnifying');
+        if (wrap) { wrap.classList.add('magnifying'); fadedEl = el; }
+        if (el.classList.contains('trick-card')) { el.classList.add('magnifying'); fadedEl = el; }
       }
       // Two-pass position — first frame sizes the clone, second frame
       // measures and places. requestAnimationFrame avoids reading
@@ -2107,7 +2137,9 @@ const UI = {
     };
     const hide = () => {
       if (fadedEl) {
-        fadedEl.style.visibility = '';
+        // Source no longer gets visibility:hidden, but we still strip
+        // the .magnifying class lock from the wrapper (and trick card)
+        // so its :hover transforms can re-engage on the NEXT hover.
         const wrap = fadedEl.closest && fadedEl.closest('.hand-card-wrapper');
         if (wrap) wrap.classList.remove('magnifying');
         if (fadedEl.classList) fadedEl.classList.remove('magnifying');
@@ -2123,7 +2155,7 @@ const UI = {
       openEl = null;
     };
     document.addEventListener('mouseover', (e) => {
-      const el = e.target.closest('.hand-card-wrapper .card, .draft-card, .trick-card, .lane .card');
+      const el = e.target.closest('.hand-card-wrapper .card, .draft-card, .trick-card');
       if (!el || el === lastEl) return;
       // If a different card was magnified, hide instantly so the next
       // one can take its place — no double-popups.
@@ -2133,7 +2165,7 @@ const UI = {
       timer = setTimeout(() => { show(el); }, HOVER_DELAY);
     });
     document.addEventListener('mouseout', (e) => {
-      const leaving = e.target.closest('.hand-card-wrapper .card, .draft-card, .trick-card, .lane .card');
+      const leaving = e.target.closest('.hand-card-wrapper .card, .draft-card, .trick-card');
       if (!leaving) return;
       // Ignore moves that stay inside the same card (mouseout bubbles
       // on every child-element transition).
@@ -2891,6 +2923,13 @@ const UI = {
       isDeckbuilder ? s.player.trickDrawPile.length : s.trickDrawPile.length;
     document.getElementById('player-dead-count').textContent = s.player.deadPile.length;
     document.getElementById('ai-dead-count').textContent = s.ai.deadPile.length;
+    // Trick history badges — count of tricks each side has played
+    // this match. Both sides visible so both players can count what's
+    // been used vs. what's still in the opponent's deck.
+    const ptCount = document.getElementById('player-tricks-count');
+    if (ptCount) ptCount.textContent = (s.player.playedTrickPile || []).length;
+    const atCount = document.getElementById('ai-tricks-count');
+    if (atCount) atCount.textContent = (s.ai.playedTrickPile || []).length;
 
     // Round & phase
     document.getElementById('round-num').textContent = s.round;
@@ -3325,13 +3364,18 @@ const UI = {
         }
         cardEl.classList.add('hit-flash');
         setTimeout(() => cardEl.classList.remove('hit-flash'), 350);
-        // Shake the card itself — distinct from hp-shake which shakes
-        // the HP number. 320ms horizontal oscillation adds weight to
-        // every hit, matching Snap / StS "this landed" feedback.
-        cardEl.classList.remove('hit-shake');
-        void cardEl.offsetWidth; // force reflow so the animation replays
-        cardEl.classList.add('hit-shake');
-        setTimeout(() => cardEl.classList.remove('hit-shake'), 340);
+        // Chip-shedding particle burst — small cubes "fall off" the
+        // card on hit, like a partial disintegration. Replaces the
+        // earlier 320ms horizontal shake which the user flagged as
+        // distracting ("when a card is hurt it shakes a round get
+        // rid of that... start the death animation. cubic
+        // disintegration"). Spawns 4-5 ~5px squares at random
+        // positions on the card body; they tumble off with rotation
+        // + fade. Same visual family as the .destroy-particle
+        // burst that fires on actual kills, so a hit reads as the
+        // card "starting to die" — a partial preview of the full
+        // dissolve.
+        this.spawnHitChips(cardEl);
         this.sfx.play('hit');
         // Haptic — fires for EVERY hit, not just player-side. The
         // phone doesn't know which side is "yours", so a tick per
@@ -3667,19 +3711,39 @@ const UI = {
     // Simple question-mark SVG for the tutorial option (no other icon
     // slot conveys "how to play"). Matches the other .mm-svg spec.
     const helpSVG = `<svg class="mm-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M9 9a3 3 0 1 1 4.5 2.6c-.9.5-1.5 1-1.5 2"/><line x1="12" y1="17" x2="12" y2="17.2"/></svg>`;
+    // Grouped main menu — three logical sections so the 8 entries
+    // don't read as a flat wall of buttons. User feedback: "theres
+    // too many tabs on the main enu lets condense and combine."
+    //
+    //   PLAY    — anything that starts a match (solo, multiplayer,
+    //             tutorial primer)
+    //   DECKS   — deck-management: build new + manage saved
+    //   LIBRARY — reference & data: card codex, match history,
+    //             win-rate stats
+    //
+    // Same 8 actions as before, just grouped under section headers
+    // for clear visual hierarchy. No sub-page navigation — every
+    // button is still one click away from the main menu.
     el.innerHTML = `
       <div class="mm-panel">
         <h1 class="mm-title">the game</h1>
         <div class="mm-divider" aria-hidden="true"></div>
-        <div class="mm-grid">
-          ${btn('mm-play',    'Play',         'Solo match against the AI',                              SVG.play,     "Game.goToModeSelect()")}
-          ${btn('mm-multi',   'Multiplayer',  'Match a friend over the internet · beta',             SVG.multi,    "UI.openMultiplayer()")}
+        <div class="mm-section-label">Play</div>
+        <div class="mm-grid mm-grid-section">
+          ${btn('mm-play',    'Solo Match',   'Play against the AI',                                    SVG.play,     "Game.goToModeSelect()")}
+          ${btn('mm-multi',   'Multiplayer',  'Match a friend over the internet · beta',                SVG.multi,    "UI.openMultiplayer()")}
+          ${btn('mm-tutorial','Tutorial',     'Two-minute primer on how to play',                       helpSVG,      "UI.openTutorial()")}
+        </div>
+        <div class="mm-section-label">Decks</div>
+        <div class="mm-grid mm-grid-section">
           ${btn('mm-builder', 'Deck Builder', 'Build a 30-card deck plus 8 tricks',                     SVG.builder,  "Game.enterDeckBuilder()")}
-          ${btn('mm-decks',   'My Decks',     'Your saved decks — edit, copy, or play',                    SVG.decks,    "Game.goToMyDecks()")}
-          ${btn('mm-history', 'Match History','Recent matches with MVP cards and final HP',             SVG.stats,    "UI.openMatchHistory()")}
+          ${btn('mm-decks',   'My Decks',     'Your saved decks — edit, copy, or play',                 SVG.decks,    "Game.goToMyDecks()")}
+        </div>
+        <div class="mm-section-label">Library</div>
+        <div class="mm-grid mm-grid-section">
           ${btn('mm-encyc',   'Codex',        'Every card and trick in the game',                       SVG.decks,    "UI.openEncyclopedia()")}
+          ${btn('mm-history', 'Match History','Recent matches with MVP cards and final HP',             SVG.stats,    "UI.openMatchHistory()")}
           ${btn('mm-stats',   'Stats',        'Card win rates and balance trends',                      SVG.stats,    "Game.goToStats()")}
-          ${btn('mm-tutorial','Tutorial',    'Two-minute primer on how to play',        helpSVG,      "UI.openTutorial()")}
         </div>
         <div class="mm-footer">v1.0 &middot; Single-player vs AI</div>
       </div>`;
@@ -6476,6 +6540,29 @@ const UI = {
   // (faster than parseInt; treats null/undefined as 0).
   _cardVisualSnapshot(card) {
     if (!card) return '';
+    // Lane-context fingerprint: the incoming-damage badge (skull / HP-
+    // after-combat) on a board card depends on the OPPOSING card's
+    // ATK/armor/etc., not just this card's own state. If we only
+    // snapshot self-state, an enemy played into the lane → player card's
+    // snapshot unchanged → cached DOM reused → stale badge (no skull on
+    // a card that should now die). User report: "there are multiple
+    // missing damage and death previews on the cards." Fix: bake the
+    // predicted incoming-damage + dies-flag into the snapshot so any
+    // change in lane combat outcome busts the cache. Cheap (one
+    // predictLaneOutcome call per card per render — pure function).
+    let lc = '';
+    try {
+      if (card.currentHealth > 0 && Game.findCardLane && typeof Game.predictLaneOutcome === 'function') {
+        const li = Game.findCardLane(card);
+        if (li >= 0) {
+          const r = Game.predictLaneOutcome(li);
+          if (r) {
+            const me = r[card.owner];
+            if (me) lc = (me.dmgIn | 0) + ':' + (me.dies ? 1 : 0) + ':' + (me.hpAfter | 0);
+          }
+        }
+      }
+    } catch (e) { /* swallow — predict failure means we still cache, just on self-state alone */ }
     return JSON.stringify({
       n:  card.name,
       a:  card.attack | 0,
@@ -6497,7 +6584,8 @@ const UI = {
       hu: !!card.hasHunt, rev: card.reviveCharges | 0,
       cr: !!card.isCrazy, ins: !!card.isInsane,
       fd: !!card.isFaceDown, jr: !!card.jumpReady,
-      ut: !!card.isUntrickable
+      ut: !!card.isUntrickable,
+      lc, // lane-combat predicted incoming-damage fingerprint
     });
   },
 
@@ -6649,7 +6737,36 @@ const UI = {
         : hasAi ? ' occ-ai'
         : hasPl ? ' occ-player'
         : ' occ-none';
-      el.className = `lane ${parityClass}${occClass}` + (lane.destroyed ? ' destroyed' : '') + (s._activeLane === i ? ' lane-active' : '');
+      // AI last-action pulse — highlight the lane the AI just played
+      // into for ~1.5s so the player can see WHICH lane changed even
+      // if multiple AI actions chain in rapid succession.
+      const aiPulse = s._aiPulse;
+      const aiPulseActive = aiPulse && aiPulse.laneIdx === i && (Date.now() - aiPulse.at < 1500);
+      const pulseClass = aiPulseActive ? ' lane-ai-just-played' : '';
+      el.className = `lane ${parityClass}${occClass}` + (lane.destroyed ? ' destroyed' : '') + (s._activeLane === i ? ' lane-active' : '') + pulseClass;
+      if (aiPulseActive && !this._aiPulseClearScheduled) {
+        // Schedule a re-render once the pulse window expires so the
+        // class drops cleanly. Single-shot — only schedule once per pulse.
+        this._aiPulseClearScheduled = true;
+        const remaining = Math.max(0, 1550 - (Date.now() - aiPulse.at));
+        setTimeout(() => {
+          this._aiPulseClearScheduled = false;
+          if (Game.state) Game.state._aiPulse = null;
+          this.render();
+        }, remaining);
+      }
+      // Stamp the predicted combat verdict on the lane element so a
+      // CSS-only on-hover badge can surface "WIN / TRADE / STALL /
+      // LOSE / STRIKE / EXPOSED" without any JS hover handler. The
+      // attribute is only meaningful during the player's planning
+      // phases — outside those, CSS hides the badge regardless.
+      // Same predictLaneOutcome the strip uses, kept in sync via the
+      // shared helper laneForecastVerdict.
+      const forecast = this.laneForecastVerdict(s, i);
+      if (forecast.label !== '—') {
+        el.dataset.forecast = forecast.label;
+        el.dataset.forecastCls = forecast.cls;
+      }
       // Per-lane stagger for the Tron flowing-light packet. CSS uses
       // calc(var(--lane-index) * -1.6s) so each lane lights up 1.6s
       // after the previous, sweeping across the field as a wave.
@@ -6988,6 +7105,82 @@ const UI = {
     if (myHp <= 0) {
       box.innerHTML = `<div class="dp-row dp-will-die"><span class="dp-side">You</span><span class="dp-nums">Dies on entry</span></div>`;
       return box;
+    }
+
+    // FULL onPlay SIMULATION first — clones state, runs the card's
+    // playCard (which fires onPlay, aura sweep, drawOnPlay), then reads
+    // per-lane predictions on the post-play state. Catches abilities
+    // that change lane outcomes:
+    //   • Hulk — onPlay deals 2 to all enemies → enemies pre-damaged
+    //   • Cap — onPlay grants Invincible 1 to ally → ally survives swing
+    //   • Storm/Mr. Freeze — onPlay freezes enemies → no enemy swing
+    //   • Anti-Venom — onPlay heals 4 → player face survives lethal
+    //   • etc.
+    // Falls through to the static snapshot below if the sim aborts.
+    // User report: "if i were to play raven it doesnt show anything"
+    // (lane-choice path) + the broader "live simulation accounting for
+    // abilities and buffs."
+    if (myCard.id != null && myCard.owner === 'player'
+        && typeof Game.previewPlacement === 'function'
+        && Game.state && Game.state.player && Game.state.player.hand
+        && Game.state.player.hand.indexOf(myCard) >= 0) {
+      try {
+        const sim = Game.previewPlacement('player', myCard.id, laneIdx);
+        if (sim && sim.lanes && sim.lanes[laneIdx]) {
+          const pred = sim.lanes[laneIdx];
+          const me  = pred && pred.player;
+          const you = pred && pred.ai;
+          const myHpAfter    = me  ? me.hpAfter  : myHp;
+          const enemyHpAfter = you ? you.hpAfter : (enemy ? enemy.currentHealth : 0);
+          const incoming = me ? me.dmgIn : 0;
+          const totalOut = you ? you.dmgIn : 0;
+          // Build the same render shape the static path produces below
+          // (verdict + per-side rows + notes), but using sim numbers.
+          const enemyDies = !!(you && you.dies);
+          const iDie      = !!(me  && me.dies);
+          let verdict, verdictCls;
+          if      (enemyDies && !iDie) { verdict = 'WIN';    verdictCls = 'dp-verdict-win'; }
+          else if (iDie && !enemyDies) { verdict = 'LOSE';   verdictCls = 'dp-verdict-lose'; }
+          else if (iDie && enemyDies)  { verdict = 'TRADE';  verdictCls = 'dp-verdict-trade'; }
+          else                         { verdict = 'STALL';  verdictCls = 'dp-verdict-stall'; }
+          // Uncontested handling: if no enemy on this lane post-onPlay,
+          // show the direct face-damage row (uses myAtk + splash since
+          // sim.lanes[laneIdx].ai is null when uncontested).
+          if (!you) {
+            const total = myAtk + splash;
+            const splashBit = splash
+              ? `<span class="dp-sub">${myAtk} ATK + ${splash} Splash = ${total}</span>`
+              : '';
+            let directRow = `<div class="dp-row"><span class="dp-side">Direct</span><span class="dp-nums">&minus;${total} HP</span></div>${splashBit}`;
+            if (incoming > 0) {
+              const dies = me && me.dies;
+              directRow += `<div class="dp-row${dies ? ' dp-will-die' : ''}"><span class="dp-side">You</span><span class="dp-nums">${myHp}&nbsp;&rarr;&nbsp;${myHpAfter}</span></div>`;
+              if (dies) directRow = `<div class="dp-verdict dp-verdict-lose">LOSE</div>` + directRow;
+            }
+            box.innerHTML = `<div class="dp-sim-tag">SIM</div>${directRow}`;
+            return box;
+          }
+          const notes = [];
+          if (splash > 0 && totalOut > 0) {
+            const enemyArmor = (enemy && enemy.armorValue) || 0;
+            notes.push(`${myAtk} ATK + ${splash} Splash = ${totalOut}${enemyArmor ? ` (after Armor ${enemyArmor})` : ''}`);
+          } else if (splash > 0) {
+            notes.push(`Splash ${splash}`);
+          }
+          const noteHtml = notes.length ? `<span class="dp-sub">${notes.join(' · ')}</span>` : '';
+          // Use the SIMULATED enemy HP (pre-combat post-onPlay), not the
+          // live enemy.currentHealth — that's what makes Hulk's preview
+          // show enemies already at reduced HP.
+          const enemyHpStart = (you && (you.hpAfter + you.dmgIn)) || (enemy ? enemy.currentHealth : 0);
+          box.innerHTML =
+            `<div class="dp-verdict ${verdictCls}">${verdict}</div>` +
+            `<div class="dp-row"><span class="dp-side">You</span><span class="dp-nums">${myHp}&nbsp;&rarr;&nbsp;${myHpAfter}</span></div>` +
+            `<div class="dp-row"><span class="dp-side">Enemy</span><span class="dp-nums">${enemyHpStart}&nbsp;&rarr;&nbsp;${enemyHpAfter}</span></div>` +
+            noteHtml +
+            `<div class="dp-sim-tag" title="Simulated with abilities + buffs">SIM</div>`;
+          return box;
+        }
+      } catch (e) { /* swallow — fall through to static path */ }
     }
 
     // Build the hypothetical "you played myCard into laneIdx" snapshot
@@ -7367,60 +7560,33 @@ const UI = {
     // rarityStrip so the template slot that used to render it is empty.
     const mvpStarHtml = '';
 
-    // Incoming-damage preview — shown on-board during trick/combat build-up so
-    // the player can see which allies are about to eat damage. Accounts for:
-    //   - Direct attack from the enemy in this lane
-    //   - Splash from enemies in adjacent lanes (reduced by armor)
-    //   - Armor, Evade, Invincible, Damage Immunity on this card
+    // Incoming-damage preview — shown on-board ALWAYS (any non-game-over
+    // mid-match state) so the player can see which cards are about to
+    // eat damage at every decision point, not just during the trick
+    // phase. Routes through Game.predictLaneOutcome so the math stays
+    // consistent with the lane-forecast strip + the placement preview
+    // — same simulator, no duplicate arithmetic to drift out of sync.
+    // User report: "There's no red skulls on my people. I feel like
+    // they should always be showing the damage numbers of the cards
+    // and of cards that could die."
     let incomingBadge = '';
-    if (!inHand && Game.state && !card.isFaceDown && card.currentHealth > 0) {
-      const phase = Game.state.phase || '';
-      const tp = /tricks|combat/.test(phase);
-      if (tp) {
-        const laneIdx = Game.findCardLane ? Game.findCardLane(card) : -1;
-        if (laneIdx >= 0) {
-          const opp = Game.opponent(card.owner);
-          const armor = card.armorValue || 0;
-          // Build list of hits this card will take, in order. Evade/Invincible
-          // are consumed one-by-one and only block discrete hits.
-          const hits = [];
-          if (card.invincibleTurns <= 0 && !card.hasDamageImmunity) {
-            // Ivy's charm-bonus is now baked into her own `attack` stat
-            // via grantTempBuff, so no separate charm-swing entry here
-            // either — single hit from the front enemy covers it.
-            const front = Game.state.lanes[laneIdx][opp];
-            if (front && front.currentHealth > 0 && (front.attack || 0) > 0 && !front.isStunned && !front.isFrozen) {
-              hits.push({ src: front.name, amount: front.attack || 0 });
-            }
-            // Splash from enemies in adjacent lanes
-            [laneIdx - 1, laneIdx + 1].forEach(adj => {
-              if (adj < 0 || adj >= Game.LANE_COUNT) return;
-              const side = Game.state.lanes[adj][opp];
-              if (side && side.currentHealth > 0 && (side.splashRange || 0) > 0 && !side.isStunned && !side.isFrozen) {
-                hits.push({ src: side.name + ' splash', amount: side.splashRange || 0 });
-              }
-            });
-            // Front enemy's own splash (on top of its main attack)
-            if (front && front.currentHealth > 0 && (front.splashRange || 0) > 0 && !front.isStunned && !front.isFrozen) {
-              hits.push({ src: front.name + ' splash', amount: front.splashRange || 0 });
-            }
-          }
-          // Walk through hits sequentially, consuming Evade charges and applying Armor per-hit
-          let evadesLeft = card.evadeCharges || 0;
-          let totalIncoming = 0;
-          for (const hit of hits) {
-            if (evadesLeft > 0) { evadesLeft--; continue; }
-            totalIncoming += Math.max(0, hit.amount - armor);
-          }
-          if (totalIncoming > 0 || (hits.length && evadesLeft < (card.evadeCharges || 0))) {
-            const hpAfter = card.currentHealth - totalIncoming;
-            const lethal = hpAfter <= 0;
-            if (totalIncoming === 0 && !lethal) {
-              // All hits were evaded; don't show a badge
-            } else if (lethal) {
-              incomingBadge = `<span class="incoming-damage lethal" title="Dies in combat (takes ${totalIncoming})">${this.skullSVG()}</span>`;
+    if (!inHand && Game.state && !card.isFaceDown && card.currentHealth > 0
+        && !Game.state.gameOver
+        && typeof Game.predictLaneOutcome === 'function') {
+      const laneIdx = Game.findCardLane ? Game.findCardLane(card) : -1;
+      if (laneIdx >= 0) {
+        let result = null;
+        try { result = Game.predictLaneOutcome(laneIdx); } catch (e) { /* swallow */ }
+        if (result) {
+          const mySide = card.owner;
+          const me = result[mySide];
+          if (me && me.dmgIn > 0) {
+            const hpAfter = me.hpAfter;
+            const lethal = me.dies;
+            if (lethal) {
+              incomingBadge = `<span class="incoming-damage lethal" title="Dies in combat (takes ${me.dmgIn})">${this.skullSVG()}</span>`;
             } else {
-              incomingBadge = `<span class="incoming-damage" title="HP after combat: ${hpAfter} (takes ${totalIncoming})">${hpAfter}</span>`;
+              incomingBadge = `<span class="incoming-damage" title="HP after combat: ${hpAfter} (takes ${me.dmgIn})">${hpAfter}</span>`;
             }
           }
         }
@@ -7473,13 +7639,20 @@ const UI = {
       toast.style.display = 'block';
       toast.classList.add('active');
       clearTimeout(this._aiTrickTimeout);
+      // 4s display — long enough for the player to read the trick name
+      // + description + connect it to whatever just changed on the
+      // board. The previous 2.6s wasn't long enough for surprise plays
+      // (block-trick auto-fires, free Mr. Fantastic discard) where the
+      // player has to context-switch from "what's the board state" to
+      // "wait, what just happened?". User report: "I never know what
+      // trick they play. I need to have it shown to me."
       this._aiTrickTimeout = setTimeout(() => {
         toast.classList.remove('active');
         setTimeout(() => {
           if (!this._aiTrickQueue.length) toast.style.display = 'none';
           showNext();
         }, 300);
-      }, 2600);
+      }, 4000);
     };
     showNext();
   },
@@ -7766,7 +7939,7 @@ const UI = {
     'Charm':       { color: '#bb8fce', svg: '<svg viewBox="0 0 12 12"><path d="M6 10 C2 7 2 4 4 3 C5 2.5 6 3 6 4 C6 3 7 2.5 8 3 C10 4 10 7 6 10 Z" fill="currentColor"/></svg>', tip: 'Charmed cards still attack in their own lane but their swing is "loaned" to the charmer for the round.' },
     'Block Meter': { color: '#f1c40f', svg: '<svg viewBox="0 0 12 12"><rect x="2" y="3" width="8" height="6" stroke="currentColor" stroke-width="1.2" fill="none" rx="1"/><rect x="3" y="4" width="4" height="4" fill="currentColor"/></svg>', tip: 'Each side has a Block Meter. When full, the next incoming damage is fully blocked AND draws a free trick.' },
     'Energy':      { color: '#e67e22', svg: '<svg viewBox="0 0 12 12"><path d="M7 1 L3 7 H6 L5 11 L9 5 H6 Z" fill="currentColor"/></svg>', tip: 'Resource you spend to play cards each round.' },
-    'Summon':      { color: '#3498db', svg: '<svg viewBox="0 0 12 12"><circle cx="6" cy="7" r="3" stroke="currentColor" stroke-width="1.2" fill="none"/><path d="M6 4 V1 M4 2 L6 1 L8 2" stroke="currentColor" stroke-width="1.2" fill="none"/></svg>', tip: 'Place a new card on the board (does NOT come from your hand or deck).' },
+    'Summon':      { color: '#3498db', svg: '<svg viewBox="0 0 12 12"><circle cx="6" cy="7" r="3" stroke="currentColor" stroke-width="1.2" fill="none"/><path d="M6 4 V1 M4 2 L6 1 L8 2" stroke="currentColor" stroke-width="1.2" fill="none"/></svg>', tip: 'Place a new card on the board. Pulled from a separate <b>Summon Deck</b> — a 90-card pool that <b>never runs out</b> (Knull, Mother Box, Bat Signal, Super Soldier Serum, Hela revive). Independent from your normal Draw pile.' },
     'Jump':        { color: '#f39c12', svg: '<svg viewBox="0 0 12 12"><path d="M6 11 V3 M3 6 L6 3 L9 6" stroke="currentColor" stroke-width="1.4" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>', tip: 'A trigger that lets you play this card for FREE when its condition fires.' },
     'Destroy':     { color: '#c0392b', svg: '<svg viewBox="0 0 12 12"><path d="M3 3 L9 9 M9 3 L3 9" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>', tip: 'Removes a card from the board (skips combat math — instant death).' },
     'Sacrifice':   { color: '#a93226', svg: '<svg viewBox="0 0 12 12"><path d="M6 1 L6 11 M3 4 L9 4 M4 8 L8 8" stroke="currentColor" stroke-width="1.2"/></svg>', tip: 'Destroy one of YOUR own cards as part of an effect.' },
@@ -8259,6 +8432,155 @@ const UI = {
       btnA.disabled = !!abilityPending;
       btnA.style.opacity = abilityPending ? '0.4' : '';
     }
+    // Render the pre-combat lane-forecast strip whenever it's a player
+    // phase with upcoming combat. The strip glances at every lane's
+    // predicted outcome (WIN / TRADE / STALL / LOSE / —) so the player
+    // can spot lanes worth tricking before locking in. Driven by the
+    // pure simulator predictLaneOutcome — same math the damage preview
+    // uses, no engine side effects.
+    this.renderLaneForecastStrip(s);
+  },
+
+  // ===================== LANE FORECAST =====================
+  // Predict the player-side outcome for a single lane and return a
+  // verdict tag + class for both the strip cell and the data-attr on
+  // the lane element. Reused by renderLaneForecastStrip (strip cells)
+  // and renderBoard (lane data-forecast attribute → CSS hover badge).
+  laneForecastVerdict(s, laneIdx) {
+    const lane = s && s.lanes && s.lanes[laneIdx];
+    if (!lane || lane.destroyed) return { label: '—', cls: 'lf-destroyed' };
+    if (!lane.player && !lane.ai) return { label: '—', cls: 'lf-empty' };
+    let result = null;
+    try { result = Game.predictLaneOutcome(laneIdx); } catch (e) { /* swallow */ }
+    if (!result) return { label: '—', cls: 'lf-empty' };
+    const pDies = !!(result.player && result.player.dies);
+    const aDies = !!(result.ai && result.ai.dies);
+    if (lane.player && !lane.ai) {
+      // Uncontested — player hits face. "STRIKE" verdict (or LOSE if
+      // an adjacent splasher would kill the entering card).
+      return pDies
+        ? { label: 'LOSE', cls: 'lf-lose' }
+        : { label: 'STRIKE', cls: 'lf-win' };
+    }
+    if (lane.ai && !lane.player) {
+      // Uncontested — enemy hits face. Always EXPOSED.
+      return { label: 'EXPOSED', cls: 'lf-lose' };
+    }
+    if (aDies && !pDies) return { label: 'WIN',   cls: 'lf-win' };
+    if (pDies && !aDies) return { label: 'LOSE',  cls: 'lf-lose' };
+    if (pDies && aDies)  return { label: 'TRADE', cls: 'lf-trade' };
+    return { label: 'STALL', cls: 'lf-stall' };
+  },
+
+  // ===================== LANE FORECAST STRIP =====================
+  // Always-on horizontal strip above the player-bar showing each lane's
+  // predicted combat outcome. User spec: "for the combat forcast always
+  // have it on, remove the words 'combat forecast' and have the boxes
+  // be perfectly aligned with thier repective lanes."
+  // - Always on (game-over only hides it; otherwise always present)
+  // - No label text — pure 6-cell row
+  // - Each cell rendered with the same grid template as the .board, so
+  //   cell N sits directly under lane N
+  renderLaneForecastStrip(s) {
+    let strip = document.getElementById('lane-forecast-strip');
+    const shouldShow = s && !s.gameOver && typeof Game.predictLaneOutcome === 'function';
+    if (!shouldShow) {
+      if (strip) strip.style.display = 'none';
+      return;
+    }
+    if (!strip) {
+      strip = document.createElement('div');
+      strip.id = 'lane-forecast-strip';
+      strip.className = 'lane-forecast-strip';
+      // Insert just above the player-bar so it sits in the natural
+      // pre-combat reading flow (above the Done button).
+      const playerBar = document.querySelector('.info-bar.player-bar');
+      if (playerBar && playerBar.parentNode) {
+        playerBar.parentNode.insertBefore(strip, playerBar);
+      } else {
+        document.body.appendChild(strip);
+      }
+    }
+    strip.style.display = '';
+    // Per-lane face-damage prediction. Each cell shows three values:
+    //   • RED  — damage to YOUR face this round from this lane
+    //   • word — verdict (WIN / TRADE / STALL / LOSE / etc.)
+    //   • GREEN — damage to OPPONENT face this round from this lane
+    // Face damage only happens in UNCONTESTED lanes (one side empty);
+    // in contested lanes, both swings hit the cards, not the face.
+    // ONLY raw ATTACK lands on the face — splash damage hits ADJACENT
+    // cards, never the health bar. Engine path: damagePlayer(owner,
+    // swinger.attack, ...) at line ~1897 / ~2600 — splashRange is
+    // never passed to damagePlayer. User report: "splash doesnt do
+    // damge to the healthbar so -10 is wrong it shoudl be -6 to the
+    // helathbar but 10 to a card here" (Yoda 6 ATK + Splash 4 lane
+    // was reading -10 to face, should be -6).
+    // Stunned/frozen attackers contribute zero. Block-meter clamping
+    // is intentionally NOT modeled — the player can read their own
+    // block meter directly.
+    const faceDamageFor = (laneIdx, side) => {
+      const lane = s.lanes[laneIdx];
+      if (!lane || lane.destroyed) return 0;
+      const me  = lane[side];
+      const opp = lane[side === 'player' ? 'ai' : 'player'];
+      // No attacker on this side, OR the opposing card blocks the swing
+      if (!me || me.currentHealth <= 0) return 0;
+      if (opp && opp.currentHealth > 0) return 0;
+      if (me.isStunned || me.isFrozen) return 0;
+      return me.attack || 0;
+    };
+    // Build per-lane verdict cells. Verdict math lives in the shared
+    // helper laneForecastVerdict so the strip and the lane data-attr
+    // (used by future features) stay in sync.
+    const cells = [];
+    for (let i = 0; i < Game.LANE_COUNT; i++) {
+      const v = this.laneForecastVerdict(s, i);
+      // RED  = damage to YOUR face = ai's swing into uncontested player slot
+      // GREEN = damage to OPPONENT face = your swing into uncontested ai slot
+      const redDmg   = faceDamageFor(i, 'ai');
+      const greenDmg = faceDamageFor(i, 'player');
+      const redCell   = redDmg   > 0 ? `<span class="lf-face lf-face-red">−${redDmg}</span>`   : '<span class="lf-face lf-face-zero">−</span>';
+      const greenCell = greenDmg > 0 ? `<span class="lf-face lf-face-green">−${greenDmg}</span>` : '<span class="lf-face lf-face-zero">−</span>';
+      cells.push(
+        `<div class="lf-cell ${v.cls}" data-lane="${i}">` +
+          redCell +
+          `<span class="lf-verdict">${v.label}</span>` +
+          greenCell +
+        `</div>`
+      );
+    }
+    // No label — just the 6 cells. Cell widths are sized at render
+    // time below to match the actual rendered .lane width so each
+    // cell sits directly under its lane regardless of viewport size.
+    strip.innerHTML = cells.join('');
+    // Two-pass alignment: read the actual rendered lane widths AND
+    // the board's bounding box, then size the strip + cells to match.
+    // Defers to the next animation frame so the board's own layout
+    // has settled before we measure (otherwise we'd read the layout
+    // from the previous render). User spec: "Just make it literally
+    // the width of the lane."
+    requestAnimationFrame(() => {
+      const board = document.getElementById('board');
+      const firstLane = board && board.querySelector('.lane');
+      if (!board || !firstLane) return;
+      const laneRect = firstLane.getBoundingClientRect();
+      const boardRect = board.getBoundingClientRect();
+      // Pin the strip's outer footprint to the board's footprint so
+      // its centered children land in the same horizontal positions.
+      strip.style.maxWidth = boardRect.width + 'px';
+      strip.style.marginLeft = 'auto';
+      strip.style.marginRight = 'auto';
+      // Match each cell's flex sizing to the actual lane width (px).
+      // Set min/max to the same value so flex-shrink can't compress
+      // them at narrow viewports.
+      const w = laneRect.width;
+      strip.querySelectorAll('.lf-cell').forEach(cell => {
+        cell.style.width = w + 'px';
+        cell.style.minWidth = w + 'px';
+        cell.style.maxWidth = w + 'px';
+        cell.style.flex = '0 0 ' + w + 'px';
+      });
+    });
   },
 
   // ===================== LOG =====================
@@ -8779,6 +9101,7 @@ const UI = {
     };
 
     panel.innerHTML = `
+      ${this.renderStarOfTheMatch(s, you, opp)}
       ${this.renderHpCurveSvg(s)}
       <div class="go-stat-row go-stat-head">
         <span class="go-stat-label"></span>
@@ -8795,6 +9118,113 @@ const UI = {
       ${row('Times blocked', you.blocks, opp.blocks, 'hi')}
       ${this.renderMvpRow(s._mvpDual, s.winner, s._mvpPlusBaseline)}
     `;
+  },
+
+  // Star of the Match — the single most impactful card from EITHER side.
+  // Surfaces the winning side's MVP if the winner clearly carried; otherwise
+  // picks whichever card had the higher impact score across both sides.
+  // Card is rendered as a card-shaped hero panel with name, top contribution
+  // stat highlighted, and a runner-up line beneath. Pulls from the same
+  // s._mvpDual data the existing MVP row uses, plus the per-card pool we
+  // computed in `summarize()` so we can show the actual contribution number.
+  renderStarOfTheMatch(s, you, opp) {
+    const dual = s._mvpDual;
+    if (!dual) return '';
+    const yourCard = dual.player && dual.player.impactCard;
+    const oppCard  = dual.ai     && dual.ai.impactCard;
+    const yourScore = (dual.player && dual.player.impactScore) || 0;
+    const oppScore  = (dual.ai     && dual.ai.impactScore)     || 0;
+    if (!yourCard && !oppCard) return '';
+    // Winner-of-the-match preference: if there's a winner side, prefer THEIR
+    // MVP for the star panel. Otherwise highest impact across both sides.
+    let starSide, starName, starScore, runnerSide, runnerName, runnerScore;
+    if (s.winner === 'player' && yourCard) {
+      starSide = 'player'; starName = yourCard; starScore = yourScore;
+      runnerSide = 'ai';   runnerName = oppCard;  runnerScore = oppScore;
+    } else if (s.winner === 'ai' && oppCard) {
+      starSide = 'ai';     starName = oppCard;  starScore = oppScore;
+      runnerSide = 'player'; runnerName = yourCard; runnerScore = yourScore;
+    } else if (yourScore >= oppScore && yourCard) {
+      starSide = 'player'; starName = yourCard; starScore = yourScore;
+      runnerSide = 'ai';   runnerName = oppCard;  runnerScore = oppScore;
+    } else if (oppCard) {
+      starSide = 'ai';     starName = oppCard;  starScore = oppScore;
+      runnerSide = 'player'; runnerName = yourCard; runnerScore = yourScore;
+    } else {
+      return '';
+    }
+    // Look up the actual card definition for the star so we can render
+    // its cost / abilities / desc the same way the in-game card chrome
+    // does. Falls back to a name-only chip if the def is missing.
+    const def = (typeof CARD_DEFS !== 'undefined') ? CARD_DEFS.find(c => c.name === starName) : null;
+    const sideLabel = starSide === 'player' ? 'YOU' : 'OPPONENT';
+    const sideClass = starSide === 'player' ? 'sotm-side-player' : 'sotm-side-ai';
+    const cost = def && def.cost != null ? def.cost : '';
+    const stats = (def && def.attack != null && def.health != null)
+      ? `<span class="stat-circle stat-atk">${def.attack}</span><span class="stat-circle stat-hp">${def.health}</span>`
+      : '';
+    const abilities = (def && def.abilities && def.abilities.length)
+      ? `<div class="card-abilities status-badges">${this.formatAbilityBadges(def.abilities)}</div>` : '';
+    const desc = (def && def.desc) ? `<div class="card-desc">${this.formatDesc(def.desc)}</div>` : '';
+    // Pull the dominant contribution stat for the star — find it from the
+    // pool side. Cheap pass; only runs once per game-over render.
+    const findContrib = (side, name) => {
+      const pool = [];
+      for (let i = 0; i < Game.LANE_COUNT; i++) {
+        const c = s.lanes[i][side];
+        if (c && c.name === name) pool.push(c);
+      }
+      (s[side].deadPile || []).forEach(c => { if (c.name === name) pool.push(c); });
+      // If multiple instances (Hela revives, summon copies), sum them.
+      let damageDone = 0, absorbed = 0, energy = 0, kills = 0, hpDmg = 0;
+      pool.forEach(c => {
+        damageDone += (c.statsHealthbarDamage || 0) + (c.statsEnemyDamage || 0);
+        absorbed   += c.statsDamageAbsorbed || 0;
+        energy     += c.statsEnergyGenerated || 0;
+        kills      += c.statsKills || 0;
+        hpDmg      += c.statsHealthbarDamage || 0;
+      });
+      return { damageDone, absorbed, energy, kills, hpDmg };
+    };
+    const contrib = findContrib(starSide, starName);
+    // Headline stat — pick whichever contribution dominates.
+    const lines = [];
+    if (contrib.damageDone > 0) lines.push({ label: 'Damage dealt',    value: contrib.damageDone });
+    if (contrib.kills      > 0) lines.push({ label: 'Cards killed',    value: contrib.kills });
+    if (contrib.absorbed   > 0) lines.push({ label: 'Damage absorbed', value: contrib.absorbed });
+    if (contrib.energy     > 0) lines.push({ label: 'Energy granted',  value: contrib.energy });
+    lines.sort((a, b) => b.value - a.value);
+    const top = lines[0];
+    const subStats = lines.slice(1, 3).map(l => `<span class="sotm-substat"><span class="sotm-substat-label">${l.label}</span><b>${l.value}</b></span>`).join('');
+    const runnerLine = (runnerName && runnerScore > 0)
+      ? `<div class="sotm-runner">Runner-up: <span class="${runnerSide === 'player' ? 'go-card-ally' : 'go-card-enemy'}">${runnerName}</span> · ${Math.round(runnerScore)} impact</div>`
+      : '';
+    return `
+      <div class="sotm-panel ${sideClass}">
+        <div class="sotm-banner">
+          <span class="sotm-icon">★</span>
+          <span class="sotm-title">Star of the Match</span>
+          <span class="sotm-side-tag">${sideLabel}</span>
+        </div>
+        <div class="sotm-body">
+          <div class="card sotm-card ${this.getCostClass(cost || 0)}">
+            ${cost !== '' ? `<span class="card-cost">${cost}</span>` : ''}
+            <div class="card-name-banner"><div class="card-name">${starName}</div></div>
+            ${abilities}
+            ${desc}
+            ${stats}
+          </div>
+          <div class="sotm-stats">
+            <div class="sotm-headline">
+              <span class="sotm-headline-label">${top ? top.label : 'Impact'}</span>
+              <b class="sotm-headline-value">${top ? top.value : Math.round(starScore)}</b>
+            </div>
+            <div class="sotm-substats">${subStats}</div>
+            <div class="sotm-impact">Impact score · <b>${Math.round(starScore)}</b></div>
+            ${runnerLine}
+          </div>
+        </div>
+      </div>`;
   },
   // Dual MVP row — sabermetrics-inspired Aaron Judge / Mike Trout split:
   //   MVP    — the card with the highest raw weighted impact (the
@@ -10705,6 +11135,16 @@ const UI = {
       if (timer) { clearTimeout(timer); timer = null; }
       currentEl = null;
     };
+    // Active long-press ring — visible feedback while the user is
+    // holding. Without this the 450ms hold felt unresponsive ("did
+    // my press register?"). The ring grows with the progress and
+    // pops away cleanly on release / movement / fire.
+    let activeRing = null;
+    const stopRing = () => {
+      if (activeRing && activeRing.parentNode) activeRing.parentNode.removeChild(activeRing);
+      activeRing = null;
+    };
+    const cancelWithRing = () => { stopRing(); cancel(); };
     const onStart = (ev) => {
       const t = ev.touches ? ev.touches[0] : ev;
       if (!t) return;
@@ -10712,8 +11152,20 @@ const UI = {
       if (!cardEl) return;
       startX = t.clientX; startY = t.clientY;
       currentEl = cardEl;
+      // Spawn a progress ring centered on the touch point. Pure CSS
+      // animation tied to HOLD_MS — ring scales 0→1 and fades in over
+      // the hold window. Removed on cancel/fire so the inspect modal
+      // doesn't see a stale ring on the page.
+      stopRing();
+      activeRing = document.createElement('div');
+      activeRing.className = 'long-press-ring';
+      activeRing.style.left = t.clientX + 'px';
+      activeRing.style.top  = t.clientY + 'px';
+      activeRing.style.animationDuration = HOLD_MS + 'ms';
+      document.body.appendChild(activeRing);
       timer = setTimeout(() => {
         timer = null;
+        stopRing();
         this.showCardInspect(cardEl);
         // Fire a haptic kick so the user knows the long-press landed.
         if (navigator.vibrate) { try { navigator.vibrate(20); } catch (e) {} }
@@ -10724,13 +11176,13 @@ const UI = {
       const t = ev.touches ? ev.touches[0] : ev;
       if (!t) return;
       if (Math.abs(t.clientX - startX) > MOVE_TOLERANCE || Math.abs(t.clientY - startY) > MOVE_TOLERANCE) {
-        cancel();
+        cancelWithRing();
       }
     };
     document.addEventListener('touchstart', onStart, { passive: true });
     document.addEventListener('touchmove',  onMove,  { passive: true });
-    document.addEventListener('touchend',   cancel,  { passive: true });
-    document.addEventListener('touchcancel',cancel,  { passive: true });
+    document.addEventListener('touchend',   cancelWithRing, { passive: true });
+    document.addEventListener('touchcancel',cancelWithRing, { passive: true });
   },
 
   // Render a full-width card inspect modal. Reads name / cost / stats
@@ -10784,6 +11236,49 @@ const UI = {
   // can spawn particles in the card's current slot BEFORE the next render
   // sweeps the DOM. Spawns 8 squares on a radial wheel + a shockwave ring
   // + a brief screen flash, and records the kill for multikill detection.
+  // Hit-chip burst — small cubes shed off a card when it takes damage.
+  // Quieter cousin of spawnDestroyParticles (which fires on death):
+  // 4-5 small squares spawn at randomized positions on the card body,
+  // tumble outward with gravity, and fade in ~600ms. Reads as
+  // "starting to dissolve" — partial preview of the kill animation,
+  // distinct from hit-flash (color burst) and the strike-burst ring.
+  // Replaced the earlier .hit-shake camera-shake which the user
+  // flagged as distracting.
+  spawnHitChips(cardEl) {
+    if (!cardEl) return;
+    cardEl.style.position = 'relative';
+    const host = document.createElement('div');
+    host.className = 'hit-chips';
+    cardEl.appendChild(host);
+    const N = 4 + Math.floor(Math.random() * 2); // 4-5 chips per hit
+    for (let i = 0; i < N; i++) {
+      const chip = document.createElement('div');
+      chip.className = 'hit-chip';
+      // Spawn anywhere on the card body — random offset from center.
+      // (Range tuned to fit inside the typical 120×170 card footprint
+      // without spilling outside the visible area pre-fall.)
+      const sx = (Math.random() * 60 - 30);    // −30 .. +30 px
+      const sy = (Math.random() * 80 - 40);    // −40 .. +40 px
+      // Outward velocity — chips drift downward (gravity) + sideways.
+      // Wider horizontal spread + always-positive Y so chips fall.
+      const dx = (Math.random() * 80 - 40);    // −40 .. +40 px
+      const dy = 30 + Math.random() * 50;      // 30 .. 80 px (down)
+      const rot = (Math.random() * 540 - 270); // −270 .. +270 deg
+      const size = 4 + Math.random() * 4;       // 4-8 px
+      chip.style.setProperty('--sx',  sx  + 'px');
+      chip.style.setProperty('--sy',  sy  + 'px');
+      chip.style.setProperty('--dx',  dx  + 'px');
+      chip.style.setProperty('--dy',  dy  + 'px');
+      chip.style.setProperty('--rot', rot + 'deg');
+      chip.style.width = size + 'px';
+      chip.style.height = size + 'px';
+      // Random small per-chip delay so they don't all fire on one frame.
+      chip.style.animationDelay = (Math.random() * 60) + 'ms';
+      host.appendChild(chip);
+    }
+    setTimeout(() => host.remove(), 700);
+  },
+
   spawnDestroyParticles(cardId, owner) {
     if (cardId == null) return;
     const cardEl = document.querySelector(`[data-card-id="${cardId}"]`);
@@ -11550,6 +12045,107 @@ const UI = {
       }
       return r;
     };
+  },
+
+  // ===================== UNDO FEEDBACK =====================
+  // Wraps Game.undo so a successful undo emits a clear visual + audible
+  // confirmation: a "↩ Undone" toast, a brief reverse-flash on the
+  // board so the eye registers something changed, and a soft nav SFX.
+  // Without this the undo button felt under-confirmed — the user
+  // wasn't sure if their click landed.
+  installUndoFeedback() {
+    if (this._undoFeedbackHooked) return;
+    if (typeof Game === 'undefined' || typeof Game.undo !== 'function') return;
+    this._undoFeedbackHooked = true;
+    const orig = Game.undo.bind(Game);
+    Game.undo = (...args) => {
+      const remainingBefore = Game.history.length;
+      const r = orig(...args);
+      if (r) {
+        // Toast — bottom-right corner, brief.
+        if (this.showAITrickToast) {
+          this.showAITrickToast(
+            '↩ Undone',
+            remainingBefore > 1 ? `${remainingBefore - 1} undo${remainingBefore - 1 === 1 ? '' : 's'} left` : 'Last undo used',
+            'info'
+          );
+        }
+        // Board reverse-flash — quick sweep that visually "rewinds"
+        // the most recent action. Compositor-cheap; just toggles a
+        // class for ~500ms.
+        const board = document.getElementById('board');
+        if (board) {
+          board.classList.remove('board-undo-flash');
+          void board.offsetWidth;  // restart the animation
+          board.classList.add('board-undo-flash');
+          setTimeout(() => board.classList.remove('board-undo-flash'), 520);
+        }
+        // Soft nav SFX so the action gets an audible ack.
+        if (this.sfx && this.sfx.playNav) try { this.sfx.playNav(); } catch (e) {}
+      }
+      return r;
+    };
+  },
+
+  // ===================== AI LAST-ACTION HIGHLIGHT =====================
+  // Hook Game.playCard / Game.playTrick. When the AI takes an action,
+  // stamp a transient marker on Game.state. The board renderer reads
+  // this and applies a 1.5s pulse to the affected lane (or shows a
+  // toast for tricks, since they don't have a lane). Helps the player
+  // notice WHICH lane the AI just played into when multiple actions
+  // happen in quick succession.
+  installAiActionHighlight() {
+    if (this._aiActionHooked) return;
+    this._aiActionHooked = true;
+    if (typeof Game !== 'undefined') {
+      if (typeof Game.playCard === 'function') {
+        const orig = Game.playCard.bind(Game);
+        Game.playCard = (owner, card, laneIdx, ...rest) => {
+          const r = orig(owner, card, laneIdx, ...rest);
+          if (r && owner === 'ai' && Game.state && laneIdx != null) {
+            Game.state._aiPulse = {
+              kind: 'play',
+              laneIdx,
+              cardId: card && card.id,
+              name: card && card.name,
+              at: Date.now(),
+            };
+          }
+          return r;
+        };
+      }
+      if (typeof Game.playCardFree === 'function') {
+        const orig = Game.playCardFree.bind(Game);
+        Game.playCardFree = (owner, card, laneIdx, ...rest) => {
+          const r = orig(owner, card, laneIdx, ...rest);
+          if (r && owner === 'ai' && Game.state && laneIdx != null) {
+            Game.state._aiPulse = {
+              kind: 'play',
+              laneIdx,
+              cardId: card && card.id,
+              name: card && card.name,
+              at: Date.now(),
+            };
+          }
+          return r;
+        };
+      }
+      if (typeof Game.playTrick === 'function') {
+        const orig = Game.playTrick.bind(Game);
+        Game.playTrick = (owner, trick, ...rest) => {
+          const r = orig(owner, trick, ...rest);
+          if (r && owner === 'ai' && trick && trick.name) {
+            // Tricks don't have a lane — surface as a toast so the
+            // player sees what just hit them. Existing toast helper
+            // gets the right styling for trick-cast notifications.
+            if (this.showAITrickToast) {
+              this.showAITrickToast(`AI played ${trick.name}`, trick.desc || '', 'trick');
+            }
+          }
+          return r;
+        };
+      }
+    }
   },
 
   // ===================== CASCADE STAGGER =====================
@@ -12455,6 +13051,43 @@ function toggleDeadPile(owner) {
 
 function closeDeadPile() {
   document.getElementById('dead-pile-overlay').style.display = 'none';
+}
+
+// Played-trick history — reuses the dead-pile overlay chrome with
+// trick-styled cards instead. Each side's `playedTrickPile` accumulates
+// every trick they've cast this match (set by Game.playTrick). Visible
+// for both sides so both players can count what's been used vs. what's
+// still in the opponent's deck.
+function toggleTrickHistory(owner) {
+  const overlay = document.getElementById('dead-pile-overlay');
+  const title = document.getElementById('dead-pile-title');
+  const container = document.getElementById('dead-pile-cards');
+  const pile = (Game.state[owner] && Game.state[owner].playedTrickPile) || [];
+  title.textContent = (owner === 'player' ? 'Your' : "Opponent's") + ' Trick History';
+  if (!pile.length) {
+    container.innerHTML = '<p style="color:#888">No tricks played yet.</p>';
+  } else {
+    // Reuse trick-card chrome (cost orb, name banner, rarity strip,
+    // ability badges, desc) so the history reads exactly like the
+    // tricks the player saw in their hand. Look up the full trick
+    // def by name so we have abilities + desc; the pile itself only
+    // stores { name, cost } as a lightweight log entry.
+    const trickDefs = (typeof TRICK_DEFS !== 'undefined') ? TRICK_DEFS : [];
+    container.innerHTML = pile.map((p) => {
+      const def = trickDefs.find(t => t.name === p.name) || { name: p.name, cost: p.cost, desc: '', abilities: [] };
+      const rarity = UI.getTrickRarityStrip ? UI.getTrickRarityStrip(def.cost || 0) : '';
+      const ab = (def.abilities && def.abilities.length)
+        ? `<div class="card-abilities status-badges">${UI.formatAbilityBadges(def.abilities)}</div>` : '';
+      return `<div class="trick-card history-trick">
+        <span class="trick-cost">${def.cost != null ? def.cost : ''}</span>
+        ${rarity}
+        <div class="trick-name">${def.name}</div>
+        ${ab}
+        <div class="trick-desc">${UI.formatDesc(def.desc || '')}</div>
+      </div>`;
+    }).join('');
+  }
+  overlay.style.display = 'flex';
 }
 
 // Auto-start

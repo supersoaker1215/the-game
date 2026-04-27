@@ -2204,14 +2204,28 @@ const Game = {
       // always chooses". The single-target prompt makes the targeting
       // visible and gives the player a chance to course-correct (or
       // at least understand what's happening).
+      // AI picker: target the HIGHEST-THREAT ally on the controlled
+      // card's side. Highest-HP was a crude proxy — it ignores armor
+      // (which makes the swing wasteful), evade (which dodges the
+      // swing), strategic value, etc. Threat score captures the full
+      // calculus: an AI with Mind Control should aim its victim at
+      // the player card whose removal hurts the player most. Falls
+      // back to raw HP if AI module isn't loaded yet.
+      const threatPicker = (cards) => cards.slice().sort((a, b) =>
+        (typeof AI !== 'undefined' && AI.threatScore
+          ? (AI.threatScore(b) - AI.threatScore(a))
+          : (b.currentHealth || 0) - (a.currentHealth || 0)))[0];
       this.promptCardChoice(controller, allies, `Mind Control — ${card.name}`,
         `Choose which of ${card.owner === 'player' ? 'your' : "AI's"} cards ${card.name} (${card.attack} ATK) attacks`,
         (pick) => { callback(pick); },
-        cards => cards.slice().sort((a, b) => b.currentHealth - a.currentHealth)[0]);
+        threatPicker);
     } else {
-      // AI controller — auto-pick highest-HP ally (biggest swing impact).
-      const best = allies.slice().sort((a, b) => b.currentHealth - a.currentHealth)[0];
-      callback(best);
+      // AI controller — auto-pick highest-threat ally on victim's side.
+      const threatPicker = (cards) => cards.slice().sort((a, b) =>
+        (typeof AI !== 'undefined' && AI.threatScore
+          ? (AI.threatScore(b) - AI.threatScore(a))
+          : (b.currentHealth || 0) - (a.currentHealth || 0)))[0];
+      callback(threatPicker(allies));
     }
   },
 
@@ -2769,10 +2783,28 @@ const Game = {
             if (this.getAllCardsOf(owner).length > 0 && trick.play) {
               this.log(`  [BLOCK TRICK] ${owner === 'ai' ? 'AI' : owner} plays ${trick.name} for free!`);
               this.state[owner].playedTrickPile.push({ name: trick.name, cost: trick.cost });
+              if (this.state._roundStats) this.state._roundStats.aiTricks.push(trick.name);
+              // Surface to the player. This path BYPASSES Game.playTrick
+              // (which has its own toast at line ~1739), so without an
+              // explicit toast call here the player has no way to know
+              // what the AI just played for free off their block. User
+              // report: "When the opponent draws a trick when they block
+              // and play it, I never know what trick they play. I need
+              // to have it shown to me." Prefix with BLOCK so the player
+              // also sees that it came from a block-meter trigger, not a
+              // normal play.
+              if (owner === 'ai' && typeof UI !== 'undefined' && UI.showAITrickToast) {
+                UI.showAITrickToast(`AI BLOCKED → ${trick.name}`, trick.desc || '', 'trick');
+              }
               try { trick.play(this, owner); } catch (e) { console.error(e); }
             } else {
               this.addToTrickHand(owner, trick);
               this.log(`  [BLOCK TRICK] ${owner === 'ai' ? 'AI' : owner} keeps ${trick.name} in hand`);
+              // Toast for the "kept it in hand" case too so the player
+              // knows the AI now has a block-trick stashed for later.
+              if (owner === 'ai' && typeof UI !== 'undefined' && UI.showAITrickToast) {
+                UI.showAITrickToast(`AI BLOCKED → kept ${trick.name}`, 'Held in hand for a future trick phase.', 'info');
+              }
             }
           }
         }
@@ -4343,21 +4375,49 @@ const Game = {
       // Mind Control: "the user always chooses".
       const promptTarget = (cb) => {
         if (Game.isHuman(card.owner)) {
+          // Smart picker: prefer high-threat enemies we can KILL with
+          // available damage. Falls back to highest-threat if nothing
+          // killable. The old "lowest HP" heuristic killed weak units
+          // even when a 1-HP-extra spend could've removed a much
+          // bigger threat.
+          const smartPick = (cards) => {
+            const noEvade = cards.filter(c => !c.evadeCharges);
+            const pool = noEvade.length ? noEvade : cards;
+            // Killable = current HP + armor ≤ remaining damage
+            const killable = pool.filter(c => {
+              const armor = c.armorValue || 0;
+              return (c.currentHealth || 0) + armor <= remaining;
+            });
+            const score = (c) => (typeof AI !== 'undefined' && AI.threatScore)
+              ? AI.threatScore(c)
+              : (c.attack || 0) + (c.cost || 0) * 0.5;
+            if (killable.length) {
+              // Highest-threat killable target — efficient damage use.
+              return killable.slice().sort((a, b) => score(b) - score(a))[0];
+            }
+            // Nothing killable — dump on highest-threat (chip + setup
+            // for next damage source / round combat).
+            return pool.slice().sort((a, b) => score(b) - score(a))[0];
+          };
           this.promptCardChoice(card.owner, available,
             `Omega Beam — ${remaining} damage left`, "Choose enemy to target",
             cb,
-            (cards) => {
-              // AI fallback (also used as the auto-pick when length=1
-              // bypasses the prompt internally in promptCardChoice).
-              const noEvade = cards.filter(c => !c.evadeCharges);
-              const pool = noEvade.length ? noEvade : cards;
-              return pool.sort((a, b) => a.currentHealth - b.currentHealth)[0];
-            });
+            smartPick);
         } else {
-          // AI controller — pick directly without the modal round-trip.
+          // AI controller — same smart pick, no modal round-trip.
           const noEvade = available.filter(c => !c.evadeCharges);
           const pool = noEvade.length ? noEvade : available;
-          cb(pool.sort((a, b) => a.currentHealth - b.currentHealth)[0]);
+          const score = (c) => (typeof AI !== 'undefined' && AI.threatScore)
+            ? AI.threatScore(c)
+            : (c.attack || 0) + (c.cost || 0) * 0.5;
+          const killable = pool.filter(c => {
+            const armor = c.armorValue || 0;
+            return (c.currentHealth || 0) + armor <= remaining;
+          });
+          const target = killable.length
+            ? killable.slice().sort((a, b) => score(b) - score(a))[0]
+            : pool.slice().sort((a, b) => score(b) - score(a))[0];
+          cb(target);
         }
       };
       promptTarget((target) => {
@@ -5185,10 +5245,20 @@ const Game = {
     const pBullseye = !!(p && p.isBullseye);
     const aBullseye = !!(a && a.isBullseye);
 
-    // Step 1: front-on-front swings (only when BOTH cards are present)
+    // Step 1: front-on-front swings (only when BOTH cards are present).
+    // SEMANTICS: pDmgIn = damage incoming to the PLAYER side, aDmgIn =
+    // damage incoming to the AI side. So the AI's swing (aAtk) lands on
+    // p (player) → adds to pDmgIn. Player's swing (pAtk) lands on a
+    // (AI) → adds to aDmgIn. The variable assignments were swapped
+    // before this fix, which corrupted the dmgIn reading the UI badge
+    // uses — the `dies` flag was still correct (computed from
+    // currentHealth, which applyHit mutates correctly) but dmgIn ended
+    // up showing the OPPOSITE side's incoming damage. Step 2/3 (splash)
+    // already used the correct semantics, so the post-fix variables
+    // are consistent across all three steps.
     if (p && a) {
-      aDmgIn += applyHit(p, aAtk, aBullseye);
-      pDmgIn += applyHit(a, pAtk, pBullseye);
+      pDmgIn += applyHit(p, aAtk, aBullseye);   // AI's swing damages player
+      aDmgIn += applyHit(a, pAtk, pBullseye);   // Player's swing damages AI
     }
 
     // Step 2: own-lane splash from each side (splash also lands on the
@@ -5233,6 +5303,114 @@ const Game = {
         dmgIn: aDmgIn,
       } : null,
     };
+  },
+
+  // ===================== PLACEMENT PREVIEW (safe onPlay sim) =====================
+  // Like predictLaneOutcome but RUNS the card's onPlay first against a
+  // deep-clone of state, so the prediction reflects abilities + buffs +
+  // debuffs the placement would actually trigger. Hulk's onPlay damages
+  // all enemies → preview shows post-damage HPs. Cap's onPlay buffs an
+  // ally → preview shows the ally with its boosted stats. Storm freezes
+  // enemies → frozen ones don't swing in the prediction.
+  //
+  // CRITICALLY: this does NOT call resolveCombat. The previous full-sim
+  // attempt (Game.previewPlay below) ran combat too, which fires a swarm
+  // of side effects (death hooks, lane-resolved hooks, post-combat ticks)
+  // that even with UI stubbing leaked back into real state on edge cases.
+  // We run ONLY the placement (cost deducted on the clone, onPlay fired,
+  // aura sweep, drawOnPlay) and then read off predictLaneOutcome for
+  // every lane on the modified clone state. Combat math is the pure
+  // arithmetic predictor — no engine state mutation.
+  //
+  // Args: side ('player'|'ai'), cardId (number), laneIdx (0-5).
+  // Returns: array of 6 per-lane outcome objects (same shape as
+  //   predictLaneOutcome), or null on failure (caller falls back to
+  //   the static placement preview).
+  previewPlacement(side, cardId, laneIdx) {
+    if (!this.state || this.state.gameOver) return null;
+    if (!this.cloneStateDeep) return null;
+    if (laneIdx == null || laneIdx < 0 || laneIdx >= this.LANE_COUNT) return null;
+    const origState = this.state;
+    const origSetTimeout = (typeof window !== 'undefined') ? window.setTimeout : null;
+    const savedUI = {};
+    let result = null;
+    try {
+      const clone = this.cloneStateDeep(origState);
+      clone._silentSim = true;
+      this.state = clone;
+      // Stub UI so any render / animation / SFX call inside the
+      // placement chain becomes a no-op. The const binding can't be
+      // replaced; we patch known method keys and restore in finally.
+      if (typeof UI !== 'undefined') {
+        const noop = () => {};
+        const STUB_KEYS = [
+          'render', 'showPhaseBanner', 'showLaneRecap', 'showRoundSummary',
+          'showGameOverScreen', 'animateStatChanges', 'flashLanes',
+          'flashUnaffordable', 'showFloatingPrompt', 'showCardChoice',
+          'showLaneChoice', 'launchVictoryConfetti', 'stopVictoryConfetti',
+          'startPromptCountdown', 'stopPromptCountdown', 'spawnLandingBurst',
+          'pulseHpEdge', 'killingBlowCinema', 'hitPause', 'showFearPrompt',
+          'showMindControlPrompt', 'showBlockTrickPrompt', 'closeAllPrompts',
+          'showAITrickToast', 'spawnDestroyParticles', 'animateCountUp',
+          'showDamageFloats', 'spawnBlockSpark', '_hideHoverMagnify',
+        ];
+        STUB_KEYS.forEach(k => {
+          if (k in UI) { savedUI[k] = UI[k]; UI[k] = noop; }
+        });
+        // SFX subsystem — proxy so any method call returns null.
+        if (UI.sfx) {
+          savedUI._sfx = UI.sfx;
+          UI.sfx = new Proxy(UI.sfx, {
+            get(t, p) { const v = t[p]; return typeof v === 'function' ? () => null : v; }
+          });
+        }
+      }
+      // Override setTimeout so engine pacing fires synchronously inside
+      // the sim. Combat-pacing setTimeouts collapse to immediate; that's
+      // safe because we don't run combat. The autopick timeout used by
+      // promptCardChoice / promptLaneChoice ALSO fires sync — meaning
+      // any prompt the card raises during onPlay auto-resolves to its
+      // AI-picker default (or the first option). Imperfect but better
+      // than no preview, and consistent with how the AI side resolves
+      // its own prompts.
+      if (typeof window !== 'undefined' && origSetTimeout) {
+        window.setTimeout = (fn) => { try { if (typeof fn === 'function') fn(); } catch (e) {} return 0; };
+      }
+      // Apply the play. playCard handles cost deduction (on the clone),
+      // placement, onPlay hook, draw-on-play keyword, aura sweep.
+      const card = (clone[side] && clone[side].hand || []).find(c => c.id === cardId);
+      if (!card) throw new Error('hypothetical card not in hand');
+      const ok = this.playCard(side, card, laneIdx);
+      if (!ok) throw new Error('playCard returned false in sim');
+      // Read out per-lane predictions on the post-play clone state.
+      const lanes = [];
+      for (let i = 0; i < this.LANE_COUNT; i++) {
+        let r = null;
+        try { r = this.predictLaneOutcome(i); } catch (e) { /* swallow */ }
+        lanes.push(r);
+      }
+      result = {
+        lanes,
+        // Surface the post-onPlay lane the card landed in for UI display.
+        placedLane: laneIdx,
+        // Game-over check — onPlay can drain HP via direct face damage.
+        gameOver: !!clone.gameOver,
+      };
+    } catch (e) {
+      result = null;
+    } finally {
+      this.state = origState;
+      if (typeof UI !== 'undefined') {
+        for (const k in savedUI) {
+          if (k === '_sfx') UI.sfx = savedUI[k];
+          else UI[k] = savedUI[k];
+        }
+      }
+      if (typeof window !== 'undefined' && origSetTimeout) {
+        window.setTimeout = origSetTimeout;
+      }
+    }
+    return result;
   },
 
   // ===================== SIMULATION-BASED PREVIEW =====================
