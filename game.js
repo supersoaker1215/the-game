@@ -88,6 +88,9 @@ const Game = {
       wrapBroadcast('playTrick');
       wrapBroadcast('endTurn');
       wrapBroadcast('endPlayerTurn');
+      wrapBroadcast('endPhase1');
+      wrapBroadcast('endPhase2');
+      wrapBroadcast('endPhase3');
       wrapBroadcast('draftPick');
       wrapBroadcast('mulligan');
       wrapBroadcast('startRound');
@@ -152,12 +155,26 @@ const Game = {
           break;
         }
         case 'doneTurn': {
-          // The guest hit "End Turn" / "Done"; advance the engine.
-          if (this.endTurn) this.endTurn(actor);
-          else if (this.endPlayerTurn && actor === 'player') this.endPlayerTurn();
+          // The guest hit Done — dispatch to the right phase-end based
+          // on the current phase. Guest sends 'doneTurn' with no extra
+          // payload; host's current phase determines what to advance.
+          // (We don't trust the guest to tell us what phase is
+          // active — host is authoritative on state.)
+          const ph = this.state && this.state.phase;
+          if (ph === 'player-cards' || ph === 'ai-cards') {
+            if (this.endPhase1) this.endPhase1();
+          } else if (ph === 'player-cards-tricks' || ph === 'ai-cards-tricks') {
+            if (this.endPhase2) this.endPhase2();
+          } else if (ph === 'player-tricks' || ph === 'ai-tricks') {
+            if (this.endPhase3) this.endPhase3();
+          }
           break;
         }
         case 'draftPick': {
+          // Guest's draft pick — they're picking from their own (the
+          // 'ai' side's) draft choices on the host. `actor` here is
+          // 'ai' since the guest sits on the AI seat from the host's
+          // perspective. draftPick handles the 'who' arg correctly.
           if (this.draftPick) this.draftPick(msg.index, actor);
           break;
         }
@@ -891,48 +908,102 @@ const Game = {
       // Player sees 2, AI sees 2 (separate draws from same pile)
       d.playerChoices = [pile.pop(), pile.pop()].filter(Boolean);
       d.aiChoices = [pile.pop(), pile.pop()].filter(Boolean);
-      if (d.aiChoices.length >= 2) {
+      // In multiplayer, the "ai" seat is a real human on the guest
+      // client. They make their own pick via UI → guest sends a
+      // 'draftPick' action → host calls draftPick(idx, 'ai') below.
+      // Skip the auto-pick path so the round only advances when both
+      // humans have actually chosen. User report: "the draft shared
+      // and you continue when the other person is ready."
+      if (!this.isMultiplayer() && d.aiChoices.length >= 2) {
         const picked = (typeof AI !== 'undefined' && AI.pickDraftCard)
           ? AI.pickDraftCard(d.aiChoices, d.aiDrafted)
           : d.aiChoices[0];
         const pickIdx = d.aiChoices.indexOf(picked);
         d.aiDrafted.push(d.aiChoices[pickIdx]);
         d.cardHolding.push(d.aiChoices[1 - pickIdx]);
-      } else if (d.aiChoices.length === 1) d.aiDrafted.push(d.aiChoices[0]);
+      } else if (!this.isMultiplayer() && d.aiChoices.length === 1) {
+        d.aiDrafted.push(d.aiChoices[0]);
+      }
     } else {
       d.playerChoices = [pile.pop(), pile.pop()].filter(Boolean);
       d.aiChoices = [pile.pop(), pile.pop()].filter(Boolean);
-      if (d.aiChoices.length >= 2) {
+      if (!this.isMultiplayer() && d.aiChoices.length >= 2) {
         const picked = (typeof AI !== 'undefined' && AI.pickDraftTrick)
           ? AI.pickDraftTrick(d.aiChoices, d.aiTrickDrafted)
           : d.aiChoices[0];
         const pickIdx = d.aiChoices.indexOf(picked);
         d.aiTrickDrafted.push(d.aiChoices[pickIdx]);
         d.trickHolding.push(d.aiChoices[1 - pickIdx]);
-      } else if (d.aiChoices.length === 1) d.aiTrickDrafted.push(d.aiChoices[0]);
+      } else if (!this.isMultiplayer() && d.aiChoices.length === 1) {
+        d.aiTrickDrafted.push(d.aiChoices[0]);
+      }
     }
   },
 
-  draftPick(index) {
+  // draftPick(index, who?)
+  //   index — which of the 2 visible choices was picked (0 or 1)
+  //   who   — 'player' or 'ai' (defaults to 'player' for single-player).
+  //           In multiplayer, the host calls draftPick('ai') when the
+  //           guest's pick arrives via _mpApplyAction.
+  // Multiplayer flow: each side picks at its own pace. The round only
+  // advances when BOTH sides have picked their card for this round.
+  // User spec: "the draft shared and you continue when the other
+  // person is ready."
+  draftPick(index, who) {
+    // Guest forwards the pick to the host instead of executing locally
+    // — guest's local state is overwritten by host's broadcast anyway,
+    // and the host's pile / pickedThisRound flags are the canonical
+    // truth. Same pattern as playCard / playTrick.
+    if (this.isMultiplayer() && this.mp && this.mp.role === 'guest') {
+      if (typeof Multiplayer !== 'undefined') {
+        Multiplayer.send({ t: 'draftPick', index });
+      }
+      return;
+    }
+    who = who || 'player';
     const d = this.state.draft;
     // Snapshot for the Back button — captures pre-pick state so draftUndo
     // can restore it verbatim (choices shown, piles, drafted lists, holding,
     // mulligan flag, AI's already-committed pick for this round).
     if (!d.history) d.history = [];
     d.history.push(this._snapshotDraftState());
+    // Pick from the right side's choices array, push to the right
+    // drafted array, leftover goes to the shared holding pool.
+    const choicesKey  = who === 'player' ? 'playerChoices' : 'aiChoices';
+    const draftedKey  = d.phase === 'cards'
+      ? (who === 'player' ? 'playerDrafted' : 'aiDrafted')
+      : (who === 'player' ? 'playerTrickDrafted' : 'aiTrickDrafted');
+    const holdingKey  = d.phase === 'cards' ? 'cardHolding' : 'trickHolding';
+    const choices = d[choicesKey] || [];
+    const picked = choices[index];
+    if (!picked) { this.presentDraftChoices(); UI.render(); return; }
+    d[draftedKey].push(picked);
+    if (choices[1 - index]) d[holdingKey].push(choices[1 - index]);
     if (d.phase === 'cards') {
-      d.playerDrafted.push(d.playerChoices[index]);
-      if (d.playerChoices[1 - index]) d.cardHolding.push(d.playerChoices[1 - index]);
-      this.log(`[DRAFT] Picked: ${d.playerChoices[index].name} (${d.playerChoices[index].attack}/${d.playerChoices[index].health})`);
+      this.log(`[DRAFT] ${who === 'player' ? 'You' : 'Opponent'} picked: ${picked.name} (${picked.attack}/${picked.health})`);
+    } else {
+      this.log(`[DRAFT] ${who === 'player' ? 'You' : 'Opponent'} picked trick: ${picked.name}`);
+    }
+    // Mark this side as having picked this round; advance the round
+    // only when BOTH sides have picked (or in single-player where the
+    // AI's pick was already pushed by presentDraftChoices, which
+    // means aiDrafted is already 1-ahead-of-d.round so the comparison
+    // always passes immediately after the player's pick).
+    if (d.phase === 'cards') {
+      const bothPicked = d.playerDrafted.length === d.aiDrafted.length;
+      if (!bothPicked) { UI.render(); return; }
       d.round++;
       if (d.round > 5) { this.finishCardDraft(); return; }
     } else {
-      d.playerTrickDrafted.push(d.playerChoices[index]);
-      if (d.playerChoices[1 - index]) d.trickHolding.push(d.playerChoices[1 - index]);
-      this.log(`[DRAFT] Picked trick: ${d.playerChoices[index].name}`);
+      const bothPicked = d.playerTrickDrafted.length === d.aiTrickDrafted.length;
+      if (!bothPicked) { UI.render(); return; }
       d.round++;
       if (d.round > 2) { this.finishTrickDraft(); return; }
     }
+    // Clear choice arrays so the in-MP "waiting for opponent" branch
+    // doesn't render stale slots before presentDraftChoices repopulates.
+    d.playerChoices = [];
+    d.aiChoices = [];
     this.presentDraftChoices();
     UI.render();
   },
@@ -1251,11 +1322,26 @@ const Game = {
     } else {
       this.state.phase = 'ai-cards';
       UI.render();
+      // In multiplayer, the "ai" side is actually the OTHER human
+      // player. Don't run AI logic — wait for their actions to arrive
+      // via Multiplayer / _mpApplyAction (host) or for the host to
+      // broadcast updated state (guest). User report: "the ai plays
+      // for the person im playing there should be no ai opponet PvP"
+      if (this.isMultiplayer()) return;
       setTimeout(() => { AI.playCards('ai', () => this.endPhase1()); }, 1200);
     }
   },
 
   endPhase1() {
+    // Guest forwards Done to the host — host is authoritative on the
+    // engine. Without this, the guest's local engine would advance
+    // independently and then get clobbered by the next state broadcast,
+    // racing against the host. Send-and-let-broadcast keeps both sides
+    // in lockstep.
+    if (this.isMultiplayer() && this.mp && this.mp.role === 'guest') {
+      if (typeof Multiplayer !== 'undefined') Multiplayer.send({ t: 'doneTurn' });
+      return;
+    }
     const sp = this.opponent(this.state.firstPlayer);
     this.state.activePlayer = sp;
     this.state.selectedCard = null;
@@ -1267,6 +1353,9 @@ const Game = {
     } else {
       this.state.phase = 'ai-cards-tricks';
       UI.render();
+      // Multiplayer: don't run AI for the opponent (they're a real
+      // human on the other side). Wait for their actions.
+      if (this.isMultiplayer()) return;
       // Phase 2 = AI going second: it's the AI's full turn (cards + tricks).
       // Call playTrickPhaseCards BETWEEN playCards and playTricks so Thanos /
       // Iron Man still fire — playCards() now defers them waiting for a
@@ -1285,6 +1374,11 @@ const Game = {
   },
 
   endPhase2() {
+    // Guest forwards Done to host (same as endPhase1).
+    if (this.isMultiplayer() && this.mp && this.mp.role === 'guest') {
+      if (typeof Multiplayer !== 'undefined') Multiplayer.send({ t: 'doneTurn' });
+      return;
+    }
     // Reveal face-down cards before the final trick phase
     this.revealFaceDownCards();
 
@@ -1303,6 +1397,8 @@ const Game = {
     } else {
       this.state.phase = 'ai-tricks';
       UI.render();
+      // Multiplayer: don't run AI for the opponent.
+      if (this.isMultiplayer()) return;
       setTimeout(() => {
         const nextStep = () => {
           AI.playTrickPhaseCards('ai', () => {
@@ -1338,6 +1434,11 @@ const Game = {
   },
 
   endPhase3() {
+    // Guest forwards Done to host (same as endPhase1/2).
+    if (this.isMultiplayer() && this.mp && this.mp.role === 'guest') {
+      if (typeof Multiplayer !== 'undefined') Multiplayer.send({ t: 'doneTurn' });
+      return;
+    }
     // If Phase 3 (typically AI's trick phase when AI goes first) left any
     // player card jump-ready — e.g. Ghostface reacting to an AI trick —
     // offer the jump modal before combat. resolveCombat's whenPromptCleared
