@@ -5,7 +5,7 @@
 // HTML + JS + CSS are network-first (cached only as a fallback for
 // genuinely offline visits). Audio/images/manifest stay cache-first
 // since they rarely change and are heavy to re-download.
-const CACHE_VERSION = 'clb-v3-fresh';
+const CACHE_VERSION = 'clb-v4-json-fresh';
 const APP_SHELL = [
   './manifest.webmanifest',
   './icon.svg'
@@ -41,7 +41,14 @@ self.addEventListener('fetch', (event) => {
   const isHtml = req.mode === 'navigate' || url.pathname.endsWith('.html') || url.pathname.endsWith('/');
   const isVersioned = url.search.includes('v=');
   const isJsCss = url.pathname.endsWith('.js') || url.pathname.endsWith('.css');
-  if (isHtml || isVersioned || isJsCss) {
+  // Sim-data JSON files (sim/data/**/*.json) get re-generated on
+  // every 20K-game run. The stats panel's "Reload Sim" button
+  // re-fetches them; without network-first JSON, the SW served the
+  // cached copy and the user saw stale runs in the SIM RUN HISTORY
+  // panel after running a fresh sim. User report: "I'm reloading
+  // the SIM, and it's not There."
+  const isJson = url.pathname.endsWith('.json');
+  if (isHtml || isVersioned || isJsCss || isJson) {
     event.respondWith(
       fetch(req).then((res) => {
         // Cache the fresh response so it's available offline next time.

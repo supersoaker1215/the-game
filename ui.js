@@ -4763,10 +4763,17 @@ const UI = {
   // by the stats dashboard.
   _loadSimData() {
     if (this._simData !== null) return Promise.resolve(this._simData);
+    // Cache-bust each fetch so old service workers (clb-v3 and earlier)
+    // that cached sim JSON files cache-first don't keep serving the
+    // stale snapshot. The new SW (clb-v4) treats JSON as network-first,
+    // making this redundant once it activates — but adding the bust
+    // here means clients on the older SW still get fresh data the
+    // moment they hit "Reload Sim".
+    const cb = '?cb=' + Date.now();
     const loadOne = (filenames) => {
       const tryPath = (i) => {
         if (i >= filenames.length) return {};
-        return fetch(filenames[i])
+        return fetch(filenames[i] + cb)
           .then(r => r.ok ? r.json() : Promise.reject())
           .then(raw => {
             const idx = {};
@@ -4782,7 +4789,7 @@ const UI = {
     const loadSummary = (filenames) => {
       const tryPath = (i) => {
         if (i >= filenames.length) return null;
-        return fetch(filenames[i])
+        return fetch(filenames[i] + cb)
           .then(r => r.ok ? r.json() : Promise.reject())
           .catch(() => tryPath(i + 1));
       };

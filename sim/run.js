@@ -14,7 +14,14 @@ load('./sim/shim.js');
 load('./sim/stats.js');
 
 function parseArgs(argv) {
-  var out = { games: 1, stats: false, quiet: false, weights: null, reportDir: './sim/data', mode: 'classic' };
+  // reportDir starts null so we can default it to the MODE-SPECIFIC
+  // path after --mode is parsed. The in-app stats panel reads
+  // ./sim/data/classic/* first, so writing to the bare ./sim/data
+  // path leaves stale data in the mode subdirectory and the UI never
+  // sees the fresh run. User report: "I'm reloading the SIM, and it's
+  // not There." Now: classic mode writes to ./sim/data/classic/ by
+  // default, which is exactly where the UI looks.
+  var out = { games: 1, stats: false, quiet: false, weights: null, reportDir: null, mode: 'classic' };
   for (var i = 0; i < argv.length; i++) {
     var a = argv[i];
     if (a === '--games') out.games = parseInt(argv[++i], 10);
@@ -24,6 +31,7 @@ function parseArgs(argv) {
     else if (a === '--report-dir') out.reportDir = argv[++i];
     else if (a === '--mode') out.mode = argv[++i]; // 'classic' | 'deckbuilder'
   }
+  if (!out.reportDir) out.reportDir = './sim/data/' + out.mode;
   return out;
 }
 
