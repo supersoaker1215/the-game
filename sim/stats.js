@@ -11,20 +11,40 @@
 var SimStats = (function () {
 
   // Weighted-impact components — v6. Adds killValue for destroy credit.
-  // Must match game.js and ui.js.
+  // MUST match game.js (Game.finalizeStats WEIGHTS, ~line 405). The
+  // sim and the in-game recap previously had different formulas under
+  // the same name, so a card's "Impact Index" in a 20K-sim report
+  // disagreed with what its real game recap would show. Unified here
+  // so both surfaces speak the same sabermetric language.
+  //
+  // Card-advantage is special: in-game, it's `draws × _avgCardImpact ×
+  // 0.85` — a per-game runtime multiplier we can't compute here without
+  // first-passing all cards. We approximate with a flat `cardAdvantage:
+  // 4.25` (≈ avgCardImpact 5.0 × 0.85), which lands in the typical
+  // observed range. Exact sabermetric parity isn't required — what
+  // matters is the relative ranking among cards, which the linear
+  // weights preserve.
   var W = {
-    damage: 1.0, absorbed: 0.7, energy: 1.0, advantage: 0.7,
-    heal: 0.5, discount: 1.0, debuff: 0.7, killValue: 0.3
+    faceDamage:   1.2,
+    boardDamage:  0.4,   // dropped 0.6 → 0.4 to match v7.1 (audit)
+    energy:       2.0,
+    discount:     1.5,
+    damageDenied: 0.9,
+    debuff:       0.7,
+    heal:         1.0,
+    killTempo:    1.0,
+    cardAdvantage: 4.25  // approximation of avgCardImpact × 0.85
   };
   function weighted(c) {
-    return W.damage    * ((c.statsHealthbarDamage || 0) + (c.statsEnemyDamage || 0)) +
-           W.absorbed  * (c.statsDamageAbsorbed  || 0) +
-           W.energy    * (c.statsEnergyGenerated || 0) +
-           W.advantage * (c.statsCardAdvantage   || 0) +
-           W.killValue * (c.statsKillValue       || 0) +
-           W.heal      * (c.statsHealingDone     || 0) +
-           W.discount  * (c.statsDiscountValue   || 0) +
-           W.debuff    * (c.statsDebuffValue     || 0);
+    return W.faceDamage    * (c.statsHealthbarDamage || 0) +
+           W.boardDamage   * (c.statsEnemyDamage     || 0) +
+           W.damageDenied  * (c.statsDamageAbsorbed  || 0) +
+           W.energy        * (c.statsEnergyGenerated || 0) +
+           W.cardAdvantage * (c.statsCardAdvantage   || 0) +
+           W.killTempo     * (c.statsKillTempo       || c.statsKillValue || 0) +
+           W.heal          * (c.statsHealLeveraged   || c.statsHealingDone || 0) +
+           W.discount      * (c.statsDiscountValue   || 0) +
+           W.debuff        * (c.statsDebuffValue     || 0);
   }
 
   function createCollector() {
@@ -348,6 +368,33 @@ var SimStats = (function () {
       r.bucketAvg = baseline; // kept as `bucketAvg` name for backwards compat with UI
       r.impactIndex = baseline > 0 ? r.weightedPerPlay / baseline : null;
     });
+    // Pass 3: MVP+ — Mike Trout efficiency metric. impact-per-cost for
+    // each card, normalized to 100 = league-average impact-per-cost.
+    // 200 = double-efficient ("bomb"), 50 = half-efficient ("filler").
+    // Mirrors Game.finalizeStats's per-game MVP+ calculation but
+    // aggregated across all games. League average is the MEAN of every
+    // card's per-cost rate (not per-cost-bucket — we want a single
+    // benchmark across all cost tiers, since efficiency should be
+    // comparable across the curve). 0-cost cards excluded (would
+    // divide by zero).
+    var rates = [];
+    cardRows.forEach(function (r) {
+      if (r.plays <= 0 || r.cost <= 0) return;
+      rates.push(r.weightedPerPlay / r.cost);
+    });
+    var leagueAvgRate = 0;
+    if (rates.length) {
+      var sum = 0;
+      for (var i = 0; i < rates.length; i++) sum += rates[i];
+      leagueAvgRate = sum / rates.length;
+    }
+    cardRows.forEach(function (r) {
+      if (r.plays <= 0 || r.cost <= 0 || leagueAvgRate <= 0) {
+        r.mvpPlus = null;
+        return;
+      }
+      r.mvpPlus = Math.round((r.weightedPerPlay / r.cost) / leagueAvgRate * 100);
+    });
     cardRows.sort(function (a, b) { return b.winRate - a.winRate; });
 
     var trickRows = [];
@@ -385,10 +432,11 @@ var SimStats = (function () {
     md.push('');
     md.push('## Cards — ranked by win rate (min 30 drafts)');
     md.push('');
-    md.push('| Card | Cost | Drafts | WR | 95% CI | Plays | PlayR | Deaths | ImpactIdx | Contrib | MVP% | Damage | Absorbed | EnergyGen | Kills | Frz | Stun | Fear | MC |');
-    md.push('|---|---:|---:|---:|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|');
+    md.push('| Card | Cost | Drafts | WR | 95% CI | Plays | PlayR | Deaths | ImpactIdx | MVP+ | Contrib | MVP% | Damage | Absorbed | EnergyGen | Kills | Frz | Stun | Fear | MC |');
+    md.push('|---|---:|---:|---:|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|');
     out.cards.filter(function (c) { return c.drafts >= 30; }).forEach(function (c) {
       var idxStr = c.impactIndex == null ? '—' : c.impactIndex.toFixed(2) + '×';
+      var mvpPlusStr = c.mvpPlus == null ? '—' : String(c.mvpPlus);
       var damage = (c.hpDamage || 0) + (c.cardDamage || 0);
       md.push('| ' + c.name +
         ' | ' + c.cost +
@@ -397,6 +445,7 @@ var SimStats = (function () {
         (c.ci95[0] * 100).toFixed(1) + '–' + (c.ci95[1] * 100).toFixed(1) + '% | ' +
         c.plays + ' | ' + (c.playRate * 100).toFixed(0) + '% | ' + c.deaths +
         ' | ' + idxStr +
+        ' | ' + mvpPlusStr +
         ' | ' + (c.contribution * 100).toFixed(1) + '%' +
         ' | ' + (c.mvpRate * 100).toFixed(1) + '%' +
         ' | ' + damage +

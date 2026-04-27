@@ -123,7 +123,24 @@ const CARD_ABILITIES = {
     onBeforeTricks(G, self) {
       // Re-charm at start of the tricks phase. This runs in endPhase2()
       // after BOTH players have deployed all their cards, so freshly
-      // played allies (e.g. Jango Fett) are in the charm pool.
+      // played allies (e.g. Jango Fett) are in the charm pool. The
+      // chosen target is LOCKED for the rest of the round — combat
+      // doesn't re-pick. User spec: "its set before tricks it cant
+      // change during the combat phase."
+      CARD_ABILITIES['Poison Ivy']._charm(G, self);
+    },
+    onEndOfTurn(G, self) {
+      // Post-combat — if the charmed ally died this round, re-charm
+      // a new living ally so Ivy's CHARMED badge is always visible
+      // on someone (mirrors Joker's onEndOfTurn re-stamp pattern).
+      // No-op if the current charm target is still alive (the
+      // _ivyAlly check below short-circuits before grantTempBuff
+      // would re-grant a duplicate). User spec: "while active all
+      // the time when they are on board their debuff/buff is always
+      // on board showing."
+      const target = self._ivyAlly;
+      const alive = target && target.currentHealth > 0 && G.findCardLane(target) >= 0;
+      if (alive) return;
       CARD_ABILITIES['Poison Ivy']._charm(G, self);
     }
   },

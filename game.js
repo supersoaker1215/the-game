@@ -403,8 +403,14 @@ const Game = {
     //      avgCardImpact multiplier (per-game) so deck synergy matters.
     // Must stay in sync with UI._IMPACT_WEIGHTS and SimStats `W`.
     const WEIGHTS = {
-      faceDamage:   1.2,   // statsHealthbarDamage — wins the game
-      boardDamage:  0.6,   // statsEnemyDamage — useful but not lethal by itself
+      // 20K-sim sabermetric audit found Spider-Man (2.73× idx, 50.7% WR)
+      // and The Flash (2.29× idx, 50.8% WR) bloating impact via Splash
+      // chip damage that didn't translate to wins. Dropping boardDamage
+      // from 0.6 → 0.4 deflates "splash spammers without face presence"
+      // and lets face-damage carriers (Anakin / Trigon / Galactus) climb
+      // the impact ranking where they belong. Tested at 20K games.
+      faceDamage:   1.2,   // statsHealthbarDamage — wins the game directly
+      boardDamage:  0.4,   // statsEnemyDamage — chip / softening, not lethal
       energy:       2.0,   // 1 energy ≈ 2 damage downstream + compounds
       discount:     1.5,   // future energy with slight conditionality discount
       damageDenied: 0.9,   // statsDamageAbsorbed (armor/evade/invincible/freeze phantom)

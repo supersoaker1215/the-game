@@ -3724,26 +3724,41 @@ const UI = {
     // Same 8 actions as before, just grouped under section headers
     // for clear visual hierarchy. No sub-page navigation — every
     // button is still one click away from the main menu.
+    // Each (label + grid) wrapped in a .mm-section so the panel can
+    // distribute them with `justify-content: space-evenly` on mobile.
+    // Result: even vertical spacing between Play / Decks / Library +
+    // even top/bottom padding around the whole stack. User report:
+    // "you can space out the diffrenet sections like 'play' 'decks'
+    // and library more vertically give even space between the sections
+    // and have even space on the top and bottom of the screen."
     el.innerHTML = `
       <div class="mm-panel">
-        <h1 class="mm-title">the game</h1>
-        <div class="mm-divider" aria-hidden="true"></div>
-        <div class="mm-section-label">Play</div>
-        <div class="mm-grid mm-grid-section">
-          ${btn('mm-play',    'Solo Match',   'Play against the AI',                                    SVG.play,     "Game.goToModeSelect()")}
-          ${btn('mm-multi',   'Multiplayer',  'Match a friend over the internet · beta',                SVG.multi,    "UI.openMultiplayer()")}
-          ${btn('mm-tutorial','Tutorial',     'Two-minute primer on how to play',                       helpSVG,      "UI.openTutorial()")}
+        <div class="mm-header">
+          <h1 class="mm-title">the game</h1>
+          <div class="mm-divider" aria-hidden="true"></div>
         </div>
-        <div class="mm-section-label">Decks</div>
-        <div class="mm-grid mm-grid-section">
-          ${btn('mm-builder', 'Deck Builder', 'Build a 30-card deck plus 8 tricks',                     SVG.builder,  "Game.enterDeckBuilder()")}
-          ${btn('mm-decks',   'My Decks',     'Your saved decks — edit, copy, or play',                 SVG.decks,    "Game.goToMyDecks()")}
+        <div class="mm-section">
+          <div class="mm-section-label">Play</div>
+          <div class="mm-grid mm-grid-section">
+            ${btn('mm-play',    'Solo Match',   'Play against the AI',                                    SVG.play,     "Game.goToModeSelect()")}
+            ${btn('mm-multi',   'Multiplayer',  'Match a friend over the internet · beta',                SVG.multi,    "UI.openMultiplayer()")}
+            ${btn('mm-tutorial','Tutorial',     'Two-minute primer on how to play',                       helpSVG,      "UI.openTutorial()")}
+          </div>
         </div>
-        <div class="mm-section-label">Library</div>
-        <div class="mm-grid mm-grid-section">
-          ${btn('mm-encyc',   'Codex',        'Every card and trick in the game',                       SVG.decks,    "UI.openEncyclopedia()")}
-          ${btn('mm-history', 'Match History','Recent matches with MVP cards and final HP',             SVG.stats,    "UI.openMatchHistory()")}
-          ${btn('mm-stats',   'Stats',        'Card win rates and balance trends',                      SVG.stats,    "Game.goToStats()")}
+        <div class="mm-section">
+          <div class="mm-section-label">Decks</div>
+          <div class="mm-grid mm-grid-section">
+            ${btn('mm-builder', 'Deck Builder', 'Build a 30-card deck plus 8 tricks',                     SVG.builder,  "Game.enterDeckBuilder()")}
+            ${btn('mm-decks',   'My Decks',     'Your saved decks — edit, copy, or play',                 SVG.decks,    "Game.goToMyDecks()")}
+          </div>
+        </div>
+        <div class="mm-section">
+          <div class="mm-section-label">Library</div>
+          <div class="mm-grid mm-grid-section">
+            ${btn('mm-encyc',   'Codex',        'Every card and trick in the game',                       SVG.decks,    "UI.openEncyclopedia()")}
+            ${btn('mm-history', 'Match History','Recent matches with MVP cards and final HP',             SVG.stats,    "UI.openMatchHistory()")}
+            ${btn('mm-stats',   'Stats',        'Card win rates and balance trends',                      SVG.stats,    "Game.goToStats()")}
+          </div>
         </div>
       </div>`;
   },

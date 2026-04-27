@@ -1,0 +1,1504 @@
+{
+  "runs": [
+    {
+      "timestamp": "2026-04-27T06:47:25.097Z",
+      "games": 20000,
+      "playerWins": 9784,
+      "aiWins": 10214,
+      "draws": 2,
+      "avgRounds": 11.39015,
+      "cards": {
+        "Jason Voorhees": {
+          "wr": 0.5752314814814815,
+          "drafts": 1728
+        },
+        "Michael Myers": {
+          "wr": 0.5662051828186013,
+          "drafts": 2817
+        },
+        "Dr. Manhattan": {
+          "wr": 0.5648914167528438,
+          "drafts": 3868
+        },
+        "Anakin Skywalker": {
+          "wr": 0.5450830836284392,
+          "drafts": 3671
+        },
+        "Galactus": {
+          "wr": 0.5449479040465229,
+          "drafts": 4127
+        },
+        "Knull": {
+          "wr": 0.5442828816920027,
+          "drafts": 3026
+        },
+        "Trigon": {
+          "wr": 0.5426337649645737,
+          "drafts": 4093
+        },
+        "Bane": {
+          "wr": 0.5407153729071538,
+          "drafts": 2628
+        },
+        "Cyborg": {
+          "wr": 0.5383022774327122,
+          "drafts": 483
+        },
+        "Captain America": {
+          "wr": 0.5382165605095541,
+          "drafts": 1884
+        },
+        "Wolverine": {
+          "wr": 0.5342857142857143,
+          "drafts": 700
+        },
+        "Groot": {
+          "wr": 0.5327327327327327,
+          "drafts": 1665
+        },
+        "Gorr": {
+          "wr": 0.531774777741192,
+          "drafts": 3037
+        },
+        "Predator": {
+          "wr": 0.5282360406091371,
+          "drafts": 3152
+        },
+        "The Flash": {
+          "wr": 0.5251937984496124,
+          "drafts": 3096
+        },
+        "Venom": {
+          "wr": 0.5236552171095269,
+          "drafts": 3086
+        },
+        "Jango Fett": {
+          "wr": 0.5230635335073978,
+          "drafts": 3447
+        },
+        "Mr. Freeze": {
+          "wr": 0.5218302479916171,
+          "drafts": 2863
+        },
+        "Dormammu": {
+          "wr": 0.521551724137931,
+          "drafts": 1392
+        },
+        "Thor": {
+          "wr": 0.5211233211233212,
+          "drafts": 4095
+        },
+        "King Shark": {
+          "wr": 0.5204230488694384,
+          "drafts": 2742
+        },
+        "The Thing": {
+          "wr": 0.5201361315938741,
+          "drafts": 1763
+        },
+        "Joker": {
+          "wr": 0.5170789163722026,
+          "drafts": 849
+        },
+        "Hulk": {
+          "wr": 0.5148193260251726,
+          "drafts": 2463
+        },
+        "Nightwing": {
+          "wr": 0.5135135135135135,
+          "drafts": 2183
+        },
+        "Winter Soldier": {
+          "wr": 0.513095238095238,
+          "drafts": 840
+        },
+        "Dr. Octopus": {
+          "wr": 0.5128295254833041,
+          "drafts": 2845
+        },
+        "Deathstroke": {
+          "wr": 0.5126984126984127,
+          "drafts": 1260
+        },
+        "Luke Skywalker": {
+          "wr": 0.5124653739612188,
+          "drafts": 1444
+        },
+        "The Batman Who Laughs": {
+          "wr": 0.5119388729703916,
+          "drafts": 1047
+        },
+        "Ghostface": {
+          "wr": 0.5113122171945701,
+          "drafts": 1547
+        },
+        "Ant-Man": {
+          "wr": 0.5093481556341587,
+          "drafts": 1979
+        },
+        "Darth Vader": {
+          "wr": 0.5087804878048781,
+          "drafts": 2050
+        },
+        "Ahsoka": {
+          "wr": 0.5069222577209798,
+          "drafts": 939
+        },
+        "Sabertooth": {
+          "wr": 0.5069204152249135,
+          "drafts": 2890
+        },
+        "Black Widow": {
+          "wr": 0.5053191489361702,
+          "drafts": 3008
+        },
+        "Red Hulk": {
+          "wr": 0.5051685393258427,
+          "drafts": 2225
+        },
+        "Juggernaut": {
+          "wr": 0.5051579626047711,
+          "drafts": 3102
+        },
+        "Symbiote Spider-Man": {
+          "wr": 0.5035641547861507,
+          "drafts": 1964
+        },
+        "Spider-Man": {
+          "wr": 0.5028080607862571,
+          "drafts": 3027
+        },
+        "Solomon Grundy": {
+          "wr": 0.5026833631484794,
+          "drafts": 2795
+        },
+        "Green Goblin": {
+          "wr": 0.5015220700152208,
+          "drafts": 1314
+        },
+        "Wonder Woman": {
+          "wr": 0.5,
+          "drafts": 2314
+        },
+        "Human Torch": {
+          "wr": 0.5,
+          "drafts": 2024
+        },
+        "Loki": {
+          "wr": 0.49917081260364843,
+          "drafts": 603
+        },
+        "Gorilla Grodd": {
+          "wr": 0.4964714184897671,
+          "drafts": 2834
+        },
+        "Catwoman": {
+          "wr": 0.49613899613899615,
+          "drafts": 518
+        },
+        "Superman": {
+          "wr": 0.49522431259044863,
+          "drafts": 3455
+        },
+        "Yoda": {
+          "wr": 0.4952051145444859,
+          "drafts": 3754
+        },
+        "Ultron": {
+          "wr": 0.49182561307901906,
+          "drafts": 1468
+        },
+        "Red Skull": {
+          "wr": 0.49097472924187724,
+          "drafts": 831
+        },
+        "Mr. Fantastic": {
+          "wr": 0.4905094905094905,
+          "drafts": 1001
+        },
+        "Kang": {
+          "wr": 0.4904862579281184,
+          "drafts": 473
+        },
+        "Batman": {
+          "wr": 0.4888,
+          "drafts": 2500
+        },
+        "Dr. Strange": {
+          "wr": 0.4874118831822759,
+          "drafts": 1986
+        },
+        "Silver Surfer": {
+          "wr": 0.487040385774563,
+          "drafts": 1659
+        },
+        "Jigsaw": {
+          "wr": 0.48659003831417624,
+          "drafts": 522
+        },
+        "Drax": {
+          "wr": 0.486395981582252,
+          "drafts": 2389
+        },
+        "Anti-Venom": {
+          "wr": 0.48496605237633367,
+          "drafts": 2062
+        },
+        "Harley Quinn": {
+          "wr": 0.48430873621713316,
+          "drafts": 1179
+        },
+        "Xenomorph": {
+          "wr": 0.48271276595744683,
+          "drafts": 752
+        },
+        "Gamora": {
+          "wr": 0.48256410256410254,
+          "drafts": 1950
+        },
+        "Poison Ivy": {
+          "wr": 0.48234280792420325,
+          "drafts": 2322
+        },
+        "Magneto": {
+          "wr": 0.48055207026348806,
+          "drafts": 2391
+        },
+        "Sandman": {
+          "wr": 0.4797687861271676,
+          "drafts": 2422
+        },
+        "Mahoraga": {
+          "wr": 0.4796986186688991,
+          "drafts": 2389
+        },
+        "Martian Manhunter": {
+          "wr": 0.479491833030853,
+          "drafts": 2755
+        },
+        "Peacemaker": {
+          "wr": 0.4785714285714286,
+          "drafts": 1540
+        },
+        "Hela": {
+          "wr": 0.47852971487461354,
+          "drafts": 2911
+        },
+        "Rocket Raccoon": {
+          "wr": 0.4775233248515691,
+          "drafts": 1179
+        },
+        "Man-Bat": {
+          "wr": 0.47665847665847666,
+          "drafts": 2849
+        },
+        "Thanos": {
+          "wr": 0.47627416520210897,
+          "drafts": 2276
+        },
+        "Aquaman": {
+          "wr": 0.47330960854092524,
+          "drafts": 2248
+        },
+        "Deadpool": {
+          "wr": 0.4713064713064713,
+          "drafts": 1638
+        },
+        "Gojo": {
+          "wr": 0.4710122218740207,
+          "drafts": 3191
+        },
+        "Moder": {
+          "wr": 0.470703125,
+          "drafts": 512
+        },
+        "Carnage": {
+          "wr": 0.4703215169002473,
+          "drafts": 2426
+        },
+        "Omni-Man": {
+          "wr": 0.4700093720712277,
+          "drafts": 2134
+        },
+        "Lex Luthor": {
+          "wr": 0.4698600645855759,
+          "drafts": 1858
+        },
+        "Iron Man": {
+          "wr": 0.4688076781100037,
+          "drafts": 2709
+        },
+        "Black Panther": {
+          "wr": 0.46855345911949686,
+          "drafts": 1272
+        },
+        "Star-Lord": {
+          "wr": 0.4657631954350927,
+          "drafts": 1402
+        },
+        "Raven": {
+          "wr": 0.46373626373626375,
+          "drafts": 1820
+        },
+        "Green Lantern": {
+          "wr": 0.46303501945525294,
+          "drafts": 1285
+        },
+        "Invisible Woman": {
+          "wr": 0.46186641402179063,
+          "drafts": 2111
+        },
+        "Emperor Palpatine": {
+          "wr": 0.46113989637305697,
+          "drafts": 2702
+        },
+        "Dr. Doom": {
+          "wr": 0.4579831932773109,
+          "drafts": 952
+        },
+        "Hawkeye": {
+          "wr": 0.45690021231422506,
+          "drafts": 2355
+        },
+        "Professor X": {
+          "wr": 0.45132743362831856,
+          "drafts": 113
+        },
+        "Darkseid": {
+          "wr": 0.4484688837668752,
+          "drafts": 3037
+        },
+        "Optimus Prime": {
+          "wr": 0.4462132175590931,
+          "drafts": 2073
+        },
+        "Homelander": {
+          "wr": 0.44212585588522985,
+          "drafts": 3067
+        },
+        "The Grinch": {
+          "wr": 0.4416135881104034,
+          "drafts": 471
+        },
+        "Obi-Wan": {
+          "wr": 0.44091796875,
+          "drafts": 4096
+        },
+        "Scarlet Witch": {
+          "wr": 0.4069767441860465,
+          "drafts": 86
+        }
+      },
+      "tricks": {
+        "Bat Signal": {
+          "wr": 0.5773167358229598,
+          "drafts": 3615
+        },
+        "Mother Box": {
+          "wr": 0.561584373304395,
+          "drafts": 3686
+        },
+        "Smoke Pellet": {
+          "wr": 0.5227759914255091,
+          "drafts": 3732
+        },
+        "Batarangs": {
+          "wr": 0.5180106052294752,
+          "drafts": 5469
+        },
+        "Adamantium": {
+          "wr": 0.5140234574196838,
+          "drafts": 1961
+        },
+        "Kryptonite": {
+          "wr": 0.5123060460139112,
+          "drafts": 3738
+        },
+        "The Darkhold": {
+          "wr": 0.5110020311442113,
+          "drafts": 5908
+        },
+        "Lasso of Truth": {
+          "wr": 0.5065624127338733,
+          "drafts": 3581
+        },
+        "Bifrost": {
+          "wr": 0.5029158567064704,
+          "drafts": 3601
+        },
+        "Mind Stone": {
+          "wr": 0.5017939518195798,
+          "drafts": 1951
+        },
+        "Power Battery": {
+          "wr": 0.5014749262536873,
+          "drafts": 339
+        },
+        "Mobius Chair": {
+          "wr": 0.499697519661222,
+          "drafts": 4959
+        },
+        "Two-Face Coin": {
+          "wr": 0.4977005620848237,
+          "drafts": 1957
+        },
+        "Super Soldier Serum": {
+          "wr": 0.4974974974974975,
+          "drafts": 999
+        },
+        "Fear Toxin": {
+          "wr": 0.4965856323408905,
+          "drafts": 3661
+        },
+        "Nth Metal": {
+          "wr": 0.4928131416837782,
+          "drafts": 974
+        },
+        "Vibranium": {
+          "wr": 0.4891706286318014,
+          "drafts": 1893
+        },
+        "Lazarus Pit": {
+          "wr": 0.48756490844493033,
+          "drafts": 3659
+        },
+        "Power Stone": {
+          "wr": 0.4795442775763853,
+          "drafts": 1931
+        },
+        "Phantom Zone": {
+          "wr": 0.47633136094674555,
+          "drafts": 338
+        },
+        "Eye of Agamotto": {
+          "wr": 0.4741498959056211,
+          "drafts": 5764
+        },
+        "Space Stone": {
+          "wr": 0.47181421198888446,
+          "drafts": 5038
+        },
+        "Soul Stone": {
+          "wr": 0.4699666295884316,
+          "drafts": 3596
+        },
+        "Anti-Life Equation": {
+          "wr": 0.4679186228482003,
+          "drafts": 1917
+        },
+        "Joker's Playing Card": {
+          "wr": 0.4590395480225989,
+          "drafts": 708
+        },
+        "Time Stone": {
+          "wr": 0.45233830845771145,
+          "drafts": 5025
+        },
+        "Reality Stone": {
+          "wr": 0,
+          "drafts": 0
+        }
+      }
+    },
+    {
+      "timestamp": "2026-04-27T06:35:55.766Z",
+      "games": 20000,
+      "playerWins": 9795,
+      "aiWins": 10203,
+      "draws": 2,
+      "avgRounds": 11.3386,
+      "cards": {
+        "Scarlet Witch": {
+          "wr": 0.6666666666666666,
+          "drafts": 63
+        },
+        "Jason Voorhees": {
+          "wr": 0.5685164212910532,
+          "drafts": 1766
+        },
+        "Michael Myers": {
+          "wr": 0.5669838945827232,
+          "drafts": 2732
+        },
+        "Dr. Manhattan": {
+          "wr": 0.5664769787894465,
+          "drafts": 3866
+        },
+        "Trigon": {
+          "wr": 0.5519415027735753,
+          "drafts": 3966
+        },
+        "Anakin Skywalker": {
+          "wr": 0.549636803874092,
+          "drafts": 3717
+        },
+        "Galactus": {
+          "wr": 0.5434044616876819,
+          "drafts": 4124
+        },
+        "Xenomorph": {
+          "wr": 0.5412234042553191,
+          "drafts": 752
+        },
+        "Captain America": {
+          "wr": 0.5382944052145573,
+          "drafts": 1841
+        },
+        "Gorr": {
+          "wr": 0.5360258481421648,
+          "drafts": 3095
+        },
+        "Ghostface": {
+          "wr": 0.5344714379514117,
+          "drafts": 1523
+        },
+        "Knull": {
+          "wr": 0.5326295585412668,
+          "drafts": 3126
+        },
+        "The Thing": {
+          "wr": 0.527793374508703,
+          "drafts": 1781
+        },
+        "Jigsaw": {
+          "wr": 0.5267034990791897,
+          "drafts": 543
+        },
+        "Red Hulk": {
+          "wr": 0.5235507246376812,
+          "drafts": 2208
+        },
+        "Nightwing": {
+          "wr": 0.5228494623655914,
+          "drafts": 2232
+        },
+        "Predator": {
+          "wr": 0.5216174183514775,
+          "drafts": 3215
+        },
+        "Groot": {
+          "wr": 0.5212224108658744,
+          "drafts": 1767
+        },
+        "Wonder Woman": {
+          "wr": 0.5207433016421781,
+          "drafts": 2314
+        },
+        "Martian Manhunter": {
+          "wr": 0.5200573065902578,
+          "drafts": 2792
+        },
+        "Gamora": {
+          "wr": 0.5193285859613428,
+          "drafts": 1966
+        },
+        "Juggernaut": {
+          "wr": 0.5176579925650557,
+          "drafts": 3228
+        },
+        "Rocket Raccoon": {
+          "wr": 0.5173310225303293,
+          "drafts": 1154
+        },
+        "Thor": {
+          "wr": 0.5167701863354037,
+          "drafts": 4025
+        },
+        "Superman": {
+          "wr": 0.5161756210283074,
+          "drafts": 3462
+        },
+        "Ahsoka": {
+          "wr": 0.5151515151515151,
+          "drafts": 957
+        },
+        "Hulk": {
+          "wr": 0.5148597739640016,
+          "drafts": 2389
+        },
+        "Sabertooth": {
+          "wr": 0.5146178231771751,
+          "drafts": 2839
+        },
+        "The Batman Who Laughs": {
+          "wr": 0.5143953934740882,
+          "drafts": 1042
+        },
+        "Symbiote Spider-Man": {
+          "wr": 0.5137982940291018,
+          "drafts": 1993
+        },
+        "Kang": {
+          "wr": 0.5131313131313131,
+          "drafts": 495
+        },
+        "Dr. Octopus": {
+          "wr": 0.5103545103545104,
+          "drafts": 2849
+        },
+        "Cyborg": {
+          "wr": 0.5100222717149221,
+          "drafts": 449
+        },
+        "Darth Vader": {
+          "wr": 0.5095127610208817,
+          "drafts": 2155
+        },
+        "King Shark": {
+          "wr": 0.5088161209068011,
+          "drafts": 2779
+        },
+        "The Flash": {
+          "wr": 0.5081652257444764,
+          "drafts": 3123
+        },
+        "Spider-Man": {
+          "wr": 0.507340389211335,
+          "drafts": 2929
+        },
+        "Luke Skywalker": {
+          "wr": 0.5071530758226037,
+          "drafts": 1398
+        },
+        "Mr. Freeze": {
+          "wr": 0.5057761732851985,
+          "drafts": 2770
+        },
+        "Bane": {
+          "wr": 0.505340699815838,
+          "drafts": 2715
+        },
+        "Gorilla Grodd": {
+          "wr": 0.5052779732582688,
+          "drafts": 2842
+        },
+        "Black Widow": {
+          "wr": 0.5045366169799093,
+          "drafts": 3086
+        },
+        "Dormammu": {
+          "wr": 0.5035511363636364,
+          "drafts": 1408
+        },
+        "Drax": {
+          "wr": 0.5030146425495263,
+          "drafts": 2322
+        },
+        "Venom": {
+          "wr": 0.5011678345011679,
+          "drafts": 2997
+        },
+        "Catwoman": {
+          "wr": 0.5009276437847866,
+          "drafts": 539
+        },
+        "Deathstroke": {
+          "wr": 0.49842767295597484,
+          "drafts": 1272
+        },
+        "Joker": {
+          "wr": 0.49800796812749004,
+          "drafts": 753
+        },
+        "Ant-Man": {
+          "wr": 0.4973821989528796,
+          "drafts": 1910
+        },
+        "Poison Ivy": {
+          "wr": 0.49730625777041026,
+          "drafts": 2413
+        },
+        "Solomon Grundy": {
+          "wr": 0.4960029069767442,
+          "drafts": 2752
+        },
+        "Carnage": {
+          "wr": 0.493889591234724,
+          "drafts": 2373
+        },
+        "Man-Bat": {
+          "wr": 0.4934707903780069,
+          "drafts": 2910
+        },
+        "Omni-Man": {
+          "wr": 0.4933649289099526,
+          "drafts": 2110
+        },
+        "Ultron": {
+          "wr": 0.49327671620665253,
+          "drafts": 1413
+        },
+        "Jango Fett": {
+          "wr": 0.49196726280691117,
+          "drafts": 3299
+        },
+        "Human Torch": {
+          "wr": 0.4911660777385159,
+          "drafts": 1981
+        },
+        "Mahoraga": {
+          "wr": 0.48968646864686466,
+          "drafts": 2424
+        },
+        "Batman": {
+          "wr": 0.4888888888888889,
+          "drafts": 2520
+        },
+        "Star-Lord": {
+          "wr": 0.48830811554332876,
+          "drafts": 1454
+        },
+        "Green Goblin": {
+          "wr": 0.48757016840417,
+          "drafts": 1247
+        },
+        "Yoda": {
+          "wr": 0.48496630378434424,
+          "drafts": 3858
+        },
+        "Sandman": {
+          "wr": 0.48296593186372744,
+          "drafts": 2495
+        },
+        "Deadpool": {
+          "wr": 0.48261877172653533,
+          "drafts": 1726
+        },
+        "Peacemaker": {
+          "wr": 0.48247978436657685,
+          "drafts": 1484
+        },
+        "Magneto": {
+          "wr": 0.48157148643175374,
+          "drafts": 2469
+        },
+        "Dr. Doom": {
+          "wr": 0.48053392658509453,
+          "drafts": 899
+        },
+        "Winter Soldier": {
+          "wr": 0.4805045871559633,
+          "drafts": 872
+        },
+        "Optimus Prime": {
+          "wr": 0.4797551789077213,
+          "drafts": 2124
+        },
+        "Lex Luthor": {
+          "wr": 0.47937868237814674,
+          "drafts": 1867
+        },
+        "Wolverine": {
+          "wr": 0.4771341463414634,
+          "drafts": 656
+        },
+        "Dr. Strange": {
+          "wr": 0.47552108579738245,
+          "drafts": 2063
+        },
+        "Iron Man": {
+          "wr": 0.47495429616087753,
+          "drafts": 2735
+        },
+        "Hela": {
+          "wr": 0.47273371104815864,
+          "drafts": 2824
+        },
+        "Green Lantern": {
+          "wr": 0.4724592707525213,
+          "drafts": 1289
+        },
+        "Raven": {
+          "wr": 0.4703852788959172,
+          "drafts": 1739
+        },
+        "Aquaman": {
+          "wr": 0.4695930498399634,
+          "drafts": 2187
+        },
+        "Red Skull": {
+          "wr": 0.46893317702227433,
+          "drafts": 853
+        },
+        "Emperor Palpatine": {
+          "wr": 0.46771037181996084,
+          "drafts": 2555
+        },
+        "Professor X": {
+          "wr": 0.4666666666666667,
+          "drafts": 90
+        },
+        "Moder": {
+          "wr": 0.4658040665434381,
+          "drafts": 541
+        },
+        "Mr. Fantastic": {
+          "wr": 0.4648478488982162,
+          "drafts": 953
+        },
+        "Loki": {
+          "wr": 0.46296296296296297,
+          "drafts": 594
+        },
+        "Harley Quinn": {
+          "wr": 0.4624676445211389,
+          "drafts": 1159
+        },
+        "Gojo": {
+          "wr": 0.4614910659272951,
+          "drafts": 3246
+        },
+        "Invisible Woman": {
+          "wr": 0.4603616133518776,
+          "drafts": 2157
+        },
+        "The Grinch": {
+          "wr": 0.45951859956236324,
+          "drafts": 457
+        },
+        "Silver Surfer": {
+          "wr": 0.458628841607565,
+          "drafts": 1692
+        },
+        "Thanos": {
+          "wr": 0.4559023066485753,
+          "drafts": 2211
+        },
+        "Anti-Venom": {
+          "wr": 0.4523809523809524,
+          "drafts": 2142
+        },
+        "Black Panther": {
+          "wr": 0.44896331738437,
+          "drafts": 1254
+        },
+        "Hawkeye": {
+          "wr": 0.4488926746166951,
+          "drafts": 2348
+        },
+        "Obi-Wan": {
+          "wr": 0.44244172074020666,
+          "drafts": 4161
+        },
+        "Darkseid": {
+          "wr": 0.43743641912512715,
+          "drafts": 2949
+        },
+        "Homelander": {
+          "wr": 0.41964846202134337,
+          "drafts": 3186
+        }
+      },
+      "tricks": {
+        "Mother Box": {
+          "wr": 0.5612100650268589,
+          "drafts": 3537
+        },
+        "Bat Signal": {
+          "wr": 0.5502183406113537,
+          "drafts": 3664
+        },
+        "Adamantium": {
+          "wr": 0.5335397316821465,
+          "drafts": 1938
+        },
+        "Super Soldier Serum": {
+          "wr": 0.5308764940239044,
+          "drafts": 1004
+        },
+        "Vibranium": {
+          "wr": 0.5292897874546397,
+          "drafts": 1929
+        },
+        "Batarangs": {
+          "wr": 0.5265470523617722,
+          "drafts": 5462
+        },
+        "Phantom Zone": {
+          "wr": 0.5236686390532544,
+          "drafts": 338
+        },
+        "Smoke Pellet": {
+          "wr": 0.5135877024430414,
+          "drafts": 3643
+        },
+        "Fear Toxin": {
+          "wr": 0.5129492600422833,
+          "drafts": 3784
+        },
+        "Two-Face Coin": {
+          "wr": 0.5053418803418803,
+          "drafts": 1872
+        },
+        "Bifrost": {
+          "wr": 0.5029826464208242,
+          "drafts": 3688
+        },
+        "Lasso of Truth": {
+          "wr": 0.5028633760567222,
+          "drafts": 3667
+        },
+        "The Darkhold": {
+          "wr": 0.5026839826839827,
+          "drafts": 5775
+        },
+        "Kryptonite": {
+          "wr": 0.5016685205784205,
+          "drafts": 3596
+        },
+        "Mobius Chair": {
+          "wr": 0.49799759711653985,
+          "drafts": 4994
+        },
+        "Nth Metal": {
+          "wr": 0.4951171875,
+          "drafts": 1024
+        },
+        "Anti-Life Equation": {
+          "wr": 0.49273104880581514,
+          "drafts": 1926
+        },
+        "Lazarus Pit": {
+          "wr": 0.48818255908720454,
+          "drafts": 3681
+        },
+        "Joker's Playing Card": {
+          "wr": 0.4878444084278768,
+          "drafts": 617
+        },
+        "Power Stone": {
+          "wr": 0.48116089613034624,
+          "drafts": 1964
+        },
+        "Mind Stone": {
+          "wr": 0.48064853556485354,
+          "drafts": 1912
+        },
+        "Eye of Agamotto": {
+          "wr": 0.47703423361431274,
+          "drafts": 5813
+        },
+        "Power Battery": {
+          "wr": 0.476056338028169,
+          "drafts": 355
+        },
+        "Soul Stone": {
+          "wr": 0.4668099973125504,
+          "drafts": 3721
+        },
+        "Space Stone": {
+          "wr": 0.4579531931773106,
+          "drafts": 5042
+        },
+        "Time Stone": {
+          "wr": 0.4544914918876138,
+          "drafts": 5054
+        },
+        "Reality Stone": {
+          "wr": 0,
+          "drafts": 0
+        }
+      }
+    },
+    {
+      "timestamp": "2026-04-27T06:34:50.009Z",
+      "games": 200,
+      "playerWins": 100,
+      "aiWins": 100,
+      "draws": 0,
+      "avgRounds": 11.36,
+      "cards": {
+        "Ghostface": {
+          "wr": 0.7857142857142857,
+          "drafts": 14
+        },
+        "Joker": {
+          "wr": 0.75,
+          "drafts": 4
+        },
+        "Star-Lord": {
+          "wr": 0.7142857142857143,
+          "drafts": 14
+        },
+        "Wolverine": {
+          "wr": 0.7142857142857143,
+          "drafts": 7
+        },
+        "Moder": {
+          "wr": 0.7142857142857143,
+          "drafts": 7
+        },
+        "Ultron": {
+          "wr": 0.6923076923076923,
+          "drafts": 13
+        },
+        "Michael Myers": {
+          "wr": 0.6785714285714286,
+          "drafts": 28
+        },
+        "Man-Bat": {
+          "wr": 0.6785714285714286,
+          "drafts": 28
+        },
+        "Wonder Woman": {
+          "wr": 0.6666666666666666,
+          "drafts": 30
+        },
+        "Knull": {
+          "wr": 0.6666666666666666,
+          "drafts": 27
+        },
+        "Xenomorph": {
+          "wr": 0.6666666666666666,
+          "drafts": 6
+        },
+        "The Batman Who Laughs": {
+          "wr": 0.6666666666666666,
+          "drafts": 9
+        },
+        "Trigon": {
+          "wr": 0.6666666666666666,
+          "drafts": 36
+        },
+        "The Grinch": {
+          "wr": 0.6666666666666666,
+          "drafts": 3
+        },
+        "Thor": {
+          "wr": 0.627906976744186,
+          "drafts": 43
+        },
+        "Sabertooth": {
+          "wr": 0.625,
+          "drafts": 24
+        },
+        "Bane": {
+          "wr": 0.625,
+          "drafts": 32
+        },
+        "Darth Vader": {
+          "wr": 0.625,
+          "drafts": 16
+        },
+        "Cyborg": {
+          "wr": 0.625,
+          "drafts": 8
+        },
+        "Dr. Manhattan": {
+          "wr": 0.6153846153846154,
+          "drafts": 39
+        },
+        "Jason Voorhees": {
+          "wr": 0.6153846153846154,
+          "drafts": 13
+        },
+        "Mr. Freeze": {
+          "wr": 0.6071428571428571,
+          "drafts": 28
+        },
+        "Galactus": {
+          "wr": 0.6,
+          "drafts": 40
+        },
+        "Juggernaut": {
+          "wr": 0.59375,
+          "drafts": 32
+        },
+        "Jango Fett": {
+          "wr": 0.5925925925925926,
+          "drafts": 27
+        },
+        "Red Skull": {
+          "wr": 0.5833333333333334,
+          "drafts": 12
+        },
+        "Batman": {
+          "wr": 0.5833333333333334,
+          "drafts": 24
+        },
+        "Aquaman": {
+          "wr": 0.5789473684210527,
+          "drafts": 19
+        },
+        "Gorr": {
+          "wr": 0.5714285714285714,
+          "drafts": 35
+        },
+        "The Flash": {
+          "wr": 0.5666666666666667,
+          "drafts": 30
+        },
+        "Martian Manhunter": {
+          "wr": 0.5666666666666667,
+          "drafts": 30
+        },
+        "Symbiote Spider-Man": {
+          "wr": 0.56,
+          "drafts": 25
+        },
+        "Invisible Woman": {
+          "wr": 0.56,
+          "drafts": 25
+        },
+        "Deadpool": {
+          "wr": 0.5555555555555556,
+          "drafts": 18
+        },
+        "Captain America": {
+          "wr": 0.5555555555555556,
+          "drafts": 18
+        },
+        "Loki": {
+          "wr": 0.5555555555555556,
+          "drafts": 9
+        },
+        "Kang": {
+          "wr": 0.5555555555555556,
+          "drafts": 9
+        },
+        "Luke Skywalker": {
+          "wr": 0.5555555555555556,
+          "drafts": 18
+        },
+        "Red Hulk": {
+          "wr": 0.55,
+          "drafts": 20
+        },
+        "Nightwing": {
+          "wr": 0.5416666666666666,
+          "drafts": 24
+        },
+        "The Thing": {
+          "wr": 0.5384615384615384,
+          "drafts": 26
+        },
+        "Emperor Palpatine": {
+          "wr": 0.5357142857142857,
+          "drafts": 28
+        },
+        "Dr. Octopus": {
+          "wr": 0.5357142857142857,
+          "drafts": 28
+        },
+        "Homelander": {
+          "wr": 0.53125,
+          "drafts": 32
+        },
+        "Peacemaker": {
+          "wr": 0.5238095238095238,
+          "drafts": 21
+        },
+        "Gorilla Grodd": {
+          "wr": 0.5161290322580645,
+          "drafts": 31
+        },
+        "Anakin Skywalker": {
+          "wr": 0.5161290322580645,
+          "drafts": 31
+        },
+        "Black Widow": {
+          "wr": 0.5151515151515151,
+          "drafts": 33
+        },
+        "Dr. Doom": {
+          "wr": 0.5,
+          "drafts": 10
+        },
+        "Gamora": {
+          "wr": 0.5,
+          "drafts": 20
+        },
+        "Scarlet Witch": {
+          "wr": 0.5,
+          "drafts": 2
+        },
+        "Black Panther": {
+          "wr": 0.5,
+          "drafts": 12
+        },
+        "Rocket Raccoon": {
+          "wr": 0.5,
+          "drafts": 12
+        },
+        "Mr. Fantastic": {
+          "wr": 0.5,
+          "drafts": 12
+        },
+        "Obi-Wan": {
+          "wr": 0.47368421052631576,
+          "drafts": 38
+        },
+        "Thanos": {
+          "wr": 0.47058823529411764,
+          "drafts": 17
+        },
+        "Dr. Strange": {
+          "wr": 0.45,
+          "drafts": 20
+        },
+        "Hulk": {
+          "wr": 0.45,
+          "drafts": 20
+        },
+        "Iron Man": {
+          "wr": 0.4482758620689655,
+          "drafts": 29
+        },
+        "Spider-Man": {
+          "wr": 0.4444444444444444,
+          "drafts": 45
+        },
+        "Carnage": {
+          "wr": 0.4444444444444444,
+          "drafts": 18
+        },
+        "Optimus Prime": {
+          "wr": 0.43478260869565216,
+          "drafts": 23
+        },
+        "Omni-Man": {
+          "wr": 0.43333333333333335,
+          "drafts": 30
+        },
+        "Solomon Grundy": {
+          "wr": 0.43333333333333335,
+          "drafts": 30
+        },
+        "Superman": {
+          "wr": 0.43333333333333335,
+          "drafts": 30
+        },
+        "Gojo": {
+          "wr": 0.43243243243243246,
+          "drafts": 37
+        },
+        "Raven": {
+          "wr": 0.42105263157894735,
+          "drafts": 19
+        },
+        "King Shark": {
+          "wr": 0.4166666666666667,
+          "drafts": 24
+        },
+        "Anti-Venom": {
+          "wr": 0.4074074074074074,
+          "drafts": 27
+        },
+        "Darkseid": {
+          "wr": 0.4074074074074074,
+          "drafts": 27
+        },
+        "Sandman": {
+          "wr": 0.39285714285714285,
+          "drafts": 28
+        },
+        "Yoda": {
+          "wr": 0.3902439024390244,
+          "drafts": 41
+        },
+        "Mahoraga": {
+          "wr": 0.38095238095238093,
+          "drafts": 21
+        },
+        "Jigsaw": {
+          "wr": 0.375,
+          "drafts": 8
+        },
+        "Deathstroke": {
+          "wr": 0.375,
+          "drafts": 8
+        },
+        "Ant-Man": {
+          "wr": 0.375,
+          "drafts": 24
+        },
+        "Drax": {
+          "wr": 0.375,
+          "drafts": 24
+        },
+        "Groot": {
+          "wr": 0.3684210526315789,
+          "drafts": 19
+        },
+        "Green Lantern": {
+          "wr": 0.36363636363636365,
+          "drafts": 11
+        },
+        "Predator": {
+          "wr": 0.3548387096774194,
+          "drafts": 31
+        },
+        "Human Torch": {
+          "wr": 0.35,
+          "drafts": 20
+        },
+        "Catwoman": {
+          "wr": 0.3333333333333333,
+          "drafts": 6
+        },
+        "Ahsoka": {
+          "wr": 0.3333333333333333,
+          "drafts": 9
+        },
+        "Venom": {
+          "wr": 0.32142857142857145,
+          "drafts": 28
+        },
+        "Poison Ivy": {
+          "wr": 0.3157894736842105,
+          "drafts": 19
+        },
+        "Hawkeye": {
+          "wr": 0.3,
+          "drafts": 20
+        },
+        "Lex Luthor": {
+          "wr": 0.2727272727272727,
+          "drafts": 11
+        },
+        "Magneto": {
+          "wr": 0.26666666666666666,
+          "drafts": 15
+        },
+        "Winter Soldier": {
+          "wr": 0.25,
+          "drafts": 8
+        },
+        "Dormammu": {
+          "wr": 0.25,
+          "drafts": 16
+        },
+        "Silver Surfer": {
+          "wr": 0.23076923076923078,
+          "drafts": 13
+        },
+        "Green Goblin": {
+          "wr": 0.2,
+          "drafts": 10
+        },
+        "Harley Quinn": {
+          "wr": 0.16666666666666666,
+          "drafts": 6
+        },
+        "Hela": {
+          "wr": 0.14285714285714285,
+          "drafts": 28
+        },
+        "Professor X": {
+          "wr": 0,
+          "drafts": 0
+        }
+      },
+      "tricks": {
+        "Phantom Zone": {
+          "wr": 1,
+          "drafts": 3
+        },
+        "Lasso of Truth": {
+          "wr": 0.6875,
+          "drafts": 32
+        },
+        "Anti-Life Equation": {
+          "wr": 0.6363636363636364,
+          "drafts": 11
+        },
+        "Bifrost": {
+          "wr": 0.6206896551724138,
+          "drafts": 29
+        },
+        "Bat Signal": {
+          "wr": 0.5882352941176471,
+          "drafts": 34
+        },
+        "Two-Face Coin": {
+          "wr": 0.5714285714285714,
+          "drafts": 14
+        },
+        "Joker's Playing Card": {
+          "wr": 0.5454545454545454,
+          "drafts": 11
+        },
+        "Nth Metal": {
+          "wr": 0.5384615384615384,
+          "drafts": 13
+        },
+        "Batarangs": {
+          "wr": 0.5370370370370371,
+          "drafts": 54
+        },
+        "Eye of Agamotto": {
+          "wr": 0.5342465753424658,
+          "drafts": 73
+        },
+        "Mother Box": {
+          "wr": 0.5294117647058824,
+          "drafts": 34
+        },
+        "Adamantium": {
+          "wr": 0.5238095238095238,
+          "drafts": 21
+        },
+        "Soul Stone": {
+          "wr": 0.5,
+          "drafts": 46
+        },
+        "Super Soldier Serum": {
+          "wr": 0.5,
+          "drafts": 14
+        },
+        "Space Stone": {
+          "wr": 0.48,
+          "drafts": 50
+        },
+        "Mind Stone": {
+          "wr": 0.4782608695652174,
+          "drafts": 23
+        },
+        "Fear Toxin": {
+          "wr": 0.47058823529411764,
+          "drafts": 34
+        },
+        "Smoke Pellet": {
+          "wr": 0.46875,
+          "drafts": 32
+        },
+        "The Darkhold": {
+          "wr": 0.46774193548387094,
+          "drafts": 62
+        },
+        "Mobius Chair": {
+          "wr": 0.44680851063829785,
+          "drafts": 47
+        },
+        "Vibranium": {
+          "wr": 0.4375,
+          "drafts": 16
+        },
+        "Lazarus Pit": {
+          "wr": 0.4318181818181818,
+          "drafts": 44
+        },
+        "Time Stone": {
+          "wr": 0.4186046511627907,
+          "drafts": 43
+        },
+        "Power Stone": {
+          "wr": 0.3888888888888889,
+          "drafts": 18
+        },
+        "Kryptonite": {
+          "wr": 0.38461538461538464,
+          "drafts": 39
+        },
+        "Power Battery": {
+          "wr": 0,
+          "drafts": 3
+        },
+        "Reality Stone": {
+          "wr": 0,
+          "drafts": 0
+        }
+      }
+    }
+  ]
+}
