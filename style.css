@@ -2192,17 +2192,44 @@ body.hit-pause .ai-hand * {
   width: 22px; height: 22px; border-radius: 50%;
   background: #000;
   text-align: center; line-height: 20px;
-  border: 1px solid rgba(255,215,0,1);
-  color: #ffe066;
+  border: 1px solid currentColor;
+  color: #ffe066;            /* default — overridden per-tier below */
   font-size: 11px; font-weight: 700;
   font-family: 'Rajdhani', sans-serif;
   font-variant-numeric: tabular-nums;
   margin-right: 8px;
   box-shadow:
-    0 0 8px rgba(255,215,0,0.65),
-    0 0 16px rgba(255,215,0,0.30);
-  text-shadow: 0 0 5px rgba(255,215,0,0.85);
+    0 0 8px color-mix(in srgb, currentColor 65%, transparent),
+    0 0 16px color-mix(in srgb, currentColor 30%, transparent);
+  text-shadow: 0 0 5px currentColor;
   vertical-align: middle;
+}
+/* Rarity-tier coloring for the cost orb — matches the in-game card
+   diamond chrome. The parent <tr> carries .cost-N (added via
+   getCostClass) so this selector tints the inner orb to match.
+   User report: "the energy orbs need to be the diamond rarity
+   themed." Tiers:
+     0-3  → green   (common)
+     4-6  → cyan    (uncommon)
+     7-8  → silver  (rare)
+     9-10 → gold    (legendary) — already the default */
+.stats-table tr.cost-1 .stats-cost,
+.stats-table tr.cost-2 .stats-cost,
+.stats-table tr.cost-3 .stats-cost {
+  color: #6ef58b;            /* green */
+}
+.stats-table tr.cost-4 .stats-cost,
+.stats-table tr.cost-5 .stats-cost,
+.stats-table tr.cost-6 .stats-cost {
+  color: #7fd0ff;            /* cyan */
+}
+.stats-table tr.cost-7 .stats-cost,
+.stats-table tr.cost-8 .stats-cost {
+  color: #d8e0eb;            /* silver */
+}
+.stats-table tr.cost-9 .stats-cost,
+.stats-table tr.cost-10 .stats-cost {
+  color: #ffe066;            /* gold (legendary) */
 }
 .stats-wr-over   { color: #ff8a7a; text-shadow: 0 0 4px rgba(231,76,60,0.50); }
 .stats-wr-under  { color: #8fc8ee; text-shadow: 0 0 4px rgba(79,195,247,0.50); }
@@ -7043,6 +7070,253 @@ body.turn-combat .board .lane.lane-active {
   .fp-btn { padding: 10px 12px; }
   .fp-btn-title { font-size: 12px; }
   .fp-btn-sub { font-size: 10px; }
+}
+
+/* ============================================================
+   MOBILE RESIZE PASS (mobile-only, web/desktop untouched)
+   ============================================================
+   Comprehensive sizing pass for every full-screen overlay/panel
+   so they fit a 380-420px viewport without overflow or oversized
+   chrome. Web breakpoints unchanged. User spec: "all windows
+   need to be sized down to fit on mobile everyhting right now is
+   too big, resize the game as if you were a professional game
+   dev for mobile only dont touch web." */
+@container (max-width: 520px) {
+  /* ---- MAIN MENU ---- */
+  .mm-panel {
+    padding: 18px 14px 14px;
+    max-width: calc(100vw - 24px);
+    width: calc(100vw - 24px);
+  }
+  .mm-title {
+    font-size: 26px;
+    letter-spacing: 5px;
+    margin-bottom: 4px;
+  }
+  .mm-divider { margin: 4px 0 10px; }
+  .mm-section-label {
+    font-size: 9px;
+    letter-spacing: 2px;
+    margin: 4px 0 4px 0;
+  }
+  .mm-grid.mm-grid-section {
+    gap: 5px;
+    margin-bottom: 8px;
+  }
+  .mm-option {
+    padding: 9px 12px 9px 14px;
+    min-height: 0;
+  }
+  .mm-option-icon { width: 22px; height: 22px; flex-shrink: 0; margin-right: 8px; }
+  .mm-option-icon .mm-svg { width: 22px; height: 22px; }
+  .mm-option-label { font-size: 13px; letter-spacing: 1.5px; }
+  .mm-option-sub { font-size: 10px; line-height: 1.25; }
+
+  /* ---- SETTINGS ---- */
+  .settings-overlay { padding: 10px; }
+  .settings-panel {
+    padding: 14px 14px 12px;
+    max-width: calc(100vw - 20px);
+    width: calc(100vw - 20px);
+    max-height: calc(100vh - 24px);
+    overflow-y: auto;
+  }
+  .settings-title { font-size: 18px; letter-spacing: 3px; margin-bottom: 8px; }
+  .settings-group { margin-bottom: 10px; }
+  .settings-group-title {
+    font-size: 10px;
+    letter-spacing: 2px;
+    margin-bottom: 6px;
+  }
+  .settings-row { padding: 6px 0; gap: 8px; }
+  .settings-row label { font-size: 12px; }
+  .settings-row select,
+  .settings-row input[type="text"] { font-size: 12px; padding: 4px 6px; }
+  .settings-row input[type="range"] { height: 18px; }
+  .settings-actions { gap: 6px; padding-top: 8px; }
+  .settings-actions .btn { font-size: 11px; padding: 6px 10px; min-height: 36px; }
+
+  /* ---- MULTIPLAYER LOBBY (and shared mh-panel chrome) ---- */
+  .mh-panel,
+  .mp-panel {
+    padding: 16px 14px 18px;
+    max-width: calc(100vw - 20px);
+    width: calc(100vw - 20px);
+  }
+  .mh-title { font-size: 20px; letter-spacing: 3px; }
+  .mh-sub   { font-size: 11px; }
+  .mp-tabs { gap: 6px; margin: 10px 0 12px; }
+  .mp-tab { padding: 6px 8px; font-size: 11px; }
+  .mp-pane { gap: 10px; padding: 4px 0; }
+  .mp-explainer { font-size: 12px; line-height: 1.4; }
+  .mp-cta { font-size: 12px; padding: 8px 12px; min-height: 38px; }
+  .mp-code-input { font-size: 22px; height: 44px; letter-spacing: 6px; }
+  .mp-code-display { font-size: 32px; letter-spacing: 8px; padding: 10px; }
+  .mp-status-label { font-size: 14px; letter-spacing: 2px; }
+  .mp-pairing-line { font-size: 12px; }
+  .mp-leave { font-size: 11px; padding: 6px 10px; min-height: 36px; }
+
+  /* ---- ENCYCLOPEDIA / CODEX ---- */
+  .encyc-panel {
+    padding: 14px 12px 16px;
+    max-width: calc(100vw - 16px);
+    width: calc(100vw - 16px);
+    max-height: calc(100vh - 24px);
+    overflow-y: auto;
+  }
+  .encyc-tag { font-size: 9px; letter-spacing: 2px; }
+  .encyc-title { font-size: 18px; letter-spacing: 2px; }
+  .encyc-sub { font-size: 11px; }
+  .encyc-head { flex-direction: column; align-items: flex-start; gap: 8px; padding-top: 28px; }
+  .encyc-tabs { gap: 6px; }
+  .encyc-tabs .db-tab { padding: 5px 10px; font-size: 11px; }
+  .encyc-toolbar { gap: 8px; flex-direction: column; align-items: stretch; }
+  .db-search-wrap { width: 100%; }
+  .db-search { font-size: 13px; padding: 6px 10px 6px 30px; }
+  .db-cost-row { gap: 4px; flex-wrap: wrap; }
+  .db-cost-chip { padding: 4px 8px; font-size: 10px; min-width: 36px; }
+  .encyc-grid {
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 8px !important;
+  }
+
+  /* ---- MY DECKS ---- */
+  .my-decks-overlay { padding: 10px; }
+  .my-decks-panel {
+    padding: 14px 12px 16px;
+    max-width: calc(100vw - 20px);
+    width: calc(100vw - 20px);
+    max-height: calc(100vh - 24px);
+    overflow-y: auto;
+  }
+  .md-title { font-size: 20px; letter-spacing: 3px; }
+  .md-sub { font-size: 11px; }
+  .md-grid {
+    grid-template-columns: 1fr !important;
+    gap: 8px !important;
+  }
+  .md-deck-card { padding: 10px 12px; }
+  .md-deck-name { font-size: 14px; }
+
+  /* ---- DECK BUILDER ---- */
+  .db-overlay { padding: 6px; }
+  .db-panel {
+    padding: 12px 10px 14px;
+    max-width: 100vw;
+    width: 100vw;
+    max-height: 100vh;
+    height: 100vh;
+    overflow-y: auto;
+    border-radius: 0;
+  }
+  .db-title { font-size: 18px; letter-spacing: 2px; }
+  .db-counts { font-size: 11px; }
+  .db-cols { flex-direction: column; gap: 12px; }
+  .db-grid { grid-template-columns: repeat(2, 1fr); gap: 6px; }
+  .db-grid-item { padding: 6px; }
+  .db-grid-name { font-size: 11px; }
+
+  /* ---- STATS ---- */
+  .stats-overlay { padding: 6px; }
+  .stats-panel {
+    padding: 12px 8px 14px;
+    max-width: 100vw;
+    width: 100vw;
+    max-height: 100vh;
+    overflow-y: auto;
+    border-radius: 0;
+  }
+  .stats-title { font-size: 18px; letter-spacing: 2px; }
+  .stats-sub { font-size: 11px; }
+  .stats-toolbar { flex-wrap: wrap; gap: 6px; }
+  .stats-tab { font-size: 11px; padding: 5px 8px; }
+  .stats-table { font-size: 11px; }
+  .stats-table th, .stats-table td { padding: 5px 4px; font-size: 11px; }
+  .stats-table .stats-cost { width: 18px; height: 18px; line-height: 17px; font-size: 10px; }
+  .stats-table .stats-card-name { font-size: 11px; }
+
+  /* ---- MATCH HISTORY ---- */
+  .match-history-overlay { padding: 8px; }
+  .match-history-panel {
+    padding: 14px 12px 16px;
+    max-width: calc(100vw - 16px);
+    width: calc(100vw - 16px);
+    max-height: calc(100vh - 24px);
+    overflow-y: auto;
+  }
+  .mh-row { padding: 8px 10px; gap: 8px; }
+  .mh-result-tag { font-size: 11px; padding: 3px 7px; }
+
+  /* ---- TUTORIAL ---- */
+  .tutorial-overlay { padding: 8px; }
+  .tutorial-panel {
+    padding: 14px 12px 16px;
+    max-width: calc(100vw - 16px);
+    width: calc(100vw - 16px);
+    max-height: calc(100vh - 24px);
+    overflow-y: auto;
+  }
+  .tutorial-title { font-size: 20px; letter-spacing: 2px; }
+  .tutorial-section h2 { font-size: 14px; letter-spacing: 1.5px; }
+  .tutorial-section p, .tutorial-section li { font-size: 12px; line-height: 1.45; }
+
+  /* ---- GAME OVER RECAP ---- */
+  .game-over-overlay { padding: 8px; }
+  .game-over-content {
+    padding: 14px 10px 18px;
+    max-width: calc(100vw - 16px);
+    width: calc(100vw - 16px);
+    max-height: calc(100vh - 24px);
+    overflow-y: auto;
+  }
+  .game-over-title { font-size: 28px; letter-spacing: 5px; }
+  /* Star of the Match — squeeze on mobile */
+  .sotm-panel { padding: 10px 12px 12px; }
+  .sotm-banner { padding-bottom: 6px; gap: 6px; }
+  .sotm-title { font-size: 11px; letter-spacing: 2px; }
+  .sotm-side-tag { font-size: 9px; padding: 1px 5px; }
+  .sotm-card { width: 130px; padding: 8px 6px 18px; }
+  .sotm-headline-value { font-size: 20px; }
+  .sotm-headline-label { font-size: 9px; }
+  .sotm-substat b { font-size: 13px; }
+  .go-stat-row { padding: 4px 6px; font-size: 11px; }
+  .go-stat-label { font-size: 10px; }
+  .go-stat-value { font-size: 12px; }
+
+  /* ---- ROUND RECAP ---- */
+  .round-summary-overlay { padding: 8px; }
+  .round-summary-panel {
+    padding: 14px 12px 16px;
+    max-width: calc(100vw - 16px);
+    width: calc(100vw - 16px);
+    max-height: calc(100vh - 24px);
+    overflow-y: auto;
+  }
+  .rs-title { font-size: 18px; letter-spacing: 2px; }
+
+  /* ---- CHEAT SHEET ---- */
+  .cheat-sheet-overlay { padding: 6px; }
+  .cheat-sheet-panel {
+    padding: 14px 12px 16px;
+    max-width: calc(100vw - 12px);
+    width: calc(100vw - 12px);
+    max-height: calc(100vh - 16px);
+    overflow-y: auto;
+  }
+  .cheat-sheet-title { font-size: 18px; letter-spacing: 2px; }
+  .cs-section h3 { font-size: 13px; letter-spacing: 1.5px; }
+  .cs-row { font-size: 11px; gap: 6px; }
+
+  /* ---- CHOICE TRAY (multi-target prompts) ---- */
+  .choice-tray-panel { padding: 10px 12px 12px; max-width: calc(100vw - 16px); }
+  .choice-tray-title { font-size: 12px; letter-spacing: 2px; }
+  .choice-tray-desc { font-size: 10px; }
+  .choice-tray .choice-card { width: 100px; min-height: 130px; padding: 6px 4px 16px; }
+  .choice-tray .choice-card .card-name { font-size: 10px; }
+  .choice-tray .choice-card .card-desc { font-size: 9px; line-height: 1.2; }
+
+  /* ---- BACK BUTTON (used across overlays) ---- */
+  .md-back { font-size: 10px; padding: 4px 8px; top: 8px; left: 8px; }
 }
 
 /* On pointer:coarse (touch-primary), expand tap targets for all

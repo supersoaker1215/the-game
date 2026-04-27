@@ -3745,7 +3745,6 @@ const UI = {
           ${btn('mm-history', 'Match History','Recent matches with MVP cards and final HP',             SVG.stats,    "UI.openMatchHistory()")}
           ${btn('mm-stats',   'Stats',        'Card win rates and balance trends',                      SVG.stats,    "Game.goToStats()")}
         </div>
-        <div class="mm-footer">v1.0 &middot; Single-player vs AI</div>
       </div>`;
   },
   openTutorial() {
@@ -4531,11 +4530,7 @@ const UI = {
     // (create or join). Otherwise → connection-status card.
     let body = '';
     if (st.status === 'idle') {
-      const localModeNow = localStorage.getItem('clb-mp-mode') === 'local';
       if (isCreate) {
-        const hint = localModeNow
-          ? `Local-tab mode — open this site in a second browser tab to test against yourself.`
-          : `Friend can be on any computer, anywhere — connection is direct peer-to-peer.`;
         body = `
           <div class="mp-pane">
             <div class="mp-explainer">
@@ -4546,7 +4541,6 @@ const UI = {
             <button type="button" class="btn btn-primary mp-cta" onclick="UI._mpCreateRoom()">
               Generate Code
             </button>
-            <div class="mp-hint">${hint}</div>
           </div>`;
       } else {
         body = `
@@ -4620,10 +4614,8 @@ const UI = {
       <div class="mh-panel mp-panel">
         <button type="button" class="md-back" onclick="UI.closeMultiplayer()" title="Back to main menu">&larr; Menu</button>
         <h1 class="mh-title">Multiplayer</h1>
-        <div class="mh-sub">Beta · play a friend over the wire</div>
         ${tabsRow}
         ${body}
-        ${transportLine}
       </div>`;
     // Re-apply the Tron interaction layer to the freshly-rendered
     // tabs / CTA / leave button so they pick up the hover sweep,

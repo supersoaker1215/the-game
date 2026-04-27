@@ -13,7 +13,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap">
-  <link rel="stylesheet" href="style.css?v=364">
+  <link rel="stylesheet" href="style.css?v=365">
   <script>
     // Lightweight error reporter (pre-Sentry) — capture runtime JS
     // errors + unhandled promise rejections to a localStorage ring
@@ -576,10 +576,10 @@
         </div>
       </div>
 
-      <div class="settings-backup-row">
-        <button type="button" class="settings-backup-btn" onclick="UI.exportSettings()" title="Copy settings + saved decks to clipboard">Export Backup</button>
-        <button type="button" class="settings-backup-btn" onclick="UI.importSettings()" title="Paste a backup to restore settings + saved decks">Import Backup</button>
-      </div>
+      <!-- Export/Import backup row removed per user request. The
+           UI.exportSettings / UI.importSettings methods stay on UI
+           in case a future settings flow re-introduces a backup
+           surface. -->
 
       <div class="settings-actions">
         <button class="btn settings-quit-btn" onclick="UI.quitToMainMenu()" title="Abandon this match and return to the main menu">&larr; Main Menu</button>
