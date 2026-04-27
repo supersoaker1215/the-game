@@ -427,14 +427,10 @@
       <div class="ai-trick-desc" id="ai-trick-desc"></div>
     </div>
 
-    <!-- KEYBOARD HINTS (item R) — bottom-right corner. Hidden during
-         menu/draft via body classes. -->
-    <div class="kb-hints" id="kb-hints" aria-hidden="true">
-      <span><kbd>D</kbd>Done</span>
-      <span><kbd>M</kbd>Mulligan</span>
-      <span><kbd>Esc</kbd>Cancel</span>
-      <span><kbd>?</kbd>Help</span>
-    </div>
+    <!-- Keyboard hints row removed per user request — clutter at the
+         bottom-left edge wasn't worth the screen real estate. The
+         shortcuts still work; they're just no longer surfaced visually.
+         The `?` key still opens the full cheat sheet below. -->
 
     <!-- KEYBOARD / RULES CHEAT SHEET — opens on `?` key. -->
     <div id="cheat-sheet-overlay" class="cheat-sheet-overlay" style="display:none">
@@ -514,10 +510,6 @@
           <input type="checkbox" id="setting-tooltips" checked>
         </div>
         <div class="settings-row">
-          <label for="setting-colorblind" title="Adds diagonal stripes to enemy cards and HP bars so ally vs. enemy reads via pattern in addition to color. Helps with red/green color vision differences.">Colorblind mode</label>
-          <input type="checkbox" id="setting-colorblind">
-        </div>
-        <div class="settings-row">
           <label for="setting-ui-scale" title="Zoom the entire UI. Useful for small screens, high-DPI monitors, or accessibility.">UI scale</label>
           <select id="setting-ui-scale">
             <option value="0.85">85%</option>
@@ -530,23 +522,6 @@
         <div class="settings-row">
           <label for="setting-player-name" title="Name shown on your side of the board">Your name</label>
           <input type="text" id="setting-player-name" placeholder="YOU" maxlength="12" />
-        </div>
-        <div class="settings-row">
-          <label for="setting-player-avatar" title="Pick a symbol that represents you. Shown next to your HP.">Your glyph</label>
-          <select id="setting-player-avatar">
-            <option value="▲" selected>▲ Triangle</option>
-            <option value="◆">◆ Diamond</option>
-            <option value="●">● Circle</option>
-            <option value="✦">✦ Star</option>
-            <option value="☀">☀ Sun</option>
-            <option value="♛">♛ Crown</option>
-            <option value="⚡">⚡ Bolt</option>
-            <option value="✧">✧ Sparkle</option>
-            <option value="◉">◉ Target</option>
-            <option value="∞">∞ Infinity</option>
-            <option value="☯">☯ Yin-yang</option>
-            <option value="☢">☢ Radioactive</option>
-          </select>
         </div>
         <div class="settings-row">
           <label for="setting-haptics-off" title="Disable mobile vibration feedback (phone/tablet only). Desktop is unaffected.">Disable haptics</label>
