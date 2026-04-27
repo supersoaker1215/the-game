@@ -6925,16 +6925,35 @@ body.turn-combat .board .lane.lane-active {
    the top-right of the menu and just flips a class on body that sets
    `width: 390px`, which is what makes the @container rule fire. */
 @container (max-width: 520px) {
-  /* Board: scroll-snap each lane so a swipe lands cleanly on lanes
-     instead of stopping mid-card. Touch users navigate the 6 lanes
-     by horizontal swipe. */
-  .board-section { overflow-x: auto; -webkit-overflow-scrolling: touch; scroll-snap-type: x mandatory; scroll-padding-left: 8px; }
-  .board { min-width: max-content; gap: 1px; padding: 0 8px; }
-  .lane { width: 90px; min-width: 90px; scroll-snap-align: start; }
-  .card { width: 78px; min-height: 72px; font-size: 9px; }
-  .card-slot { width: 90px; }
-  .card-name { font-size: 9px; letter-spacing: 0.3px; }
-  .card-desc  { font-size: 8px; line-height: 1.2; }
+  /* Board: ALL 6 lanes visible at once — no horizontal scroll. Lanes
+     shrink to fit; card body inside shrinks to match; descriptions
+     hidden (still accessible via long-press inspect modal). User
+     spec: "fix mobile viewing as well to fit all lanes and rezise
+     things to make them samller and fit better." */
+  .board-section { overflow-x: visible; -webkit-overflow-scrolling: auto; scroll-snap-type: none; }
+  .board { min-width: 0; gap: 2px; padding: 0 4px; justify-content: space-between; }
+  .lane { width: auto; min-width: 0; flex: 1 1 0; scroll-snap-align: none; }
+  /* Scope shrink to BOARD cards only — hand cards live in their own
+     row with fixed widths so multiple fit horizontally. */
+  .board .card { width: 100%; min-height: 64px; font-size: 8px; padding: 4px 2px 14px; }
+  .card-slot { width: 100%; min-width: 0; }
+  .board .card .card-name { font-size: 8px; letter-spacing: 0.2px; }
+  /* Description hidden — at 50px-wide cards it's unreadable. Tap-and-
+     hold any board card to open the full inspect modal
+     (showCardInspect) for the canonical text. Hand cards are still
+     at normal width with desc visible. */
+  .board .card .card-desc { display: none; }
+  /* Status badges shrink so multiple fit at this size. */
+  .board .card .card-abilities.status-badges { font-size: 6.5px; gap: 1px; flex-wrap: wrap; }
+  .board .card .status-badge { padding: 1px 3px; font-size: 6.5px; letter-spacing: 0.4px; }
+  /* Cost orb + stat orbs scale down to fit the compact card. */
+  .board .card .card-cost { width: 18px; height: 18px; font-size: 11px; top: -7px; left: -7px; }
+  .board .card .stat-circle { width: 16px; height: 16px; font-size: 10px; }
+  .board .card .stat-circle.stat-atk { bottom: -7px; left: -6px; }
+  .board .card .stat-circle.stat-hp  { bottom: -7px; right: -6px; }
+  .board .card .rarity-strip { top: -2px; right: -2px; transform: scale(0.65); transform-origin: top right; }
+  /* Card name banner — slimmer at this size. */
+  .board .card .card-name-banner { padding: 2px 1px; margin-top: 1px; }
   .info-bar { padding: 6px 8px; gap: 6px; grid-template-columns: 120px 38px 1fr 38px 64px; }
   .health-bar { width: 90px; height: 14px; }
   .health-text { font-size: 16px; }
