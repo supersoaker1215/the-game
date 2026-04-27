@@ -1484,11 +1484,16 @@ body.hit-pause .ai-hand * {
   margin-top: 2px;
 }
 
-/* Small "Menu" back button shared by pre-match sub-screens (mode picker,
-   stats, my decks). Sits top-left so the main menu is never more than
-   one click away. */
+/* "Menu" back button shared by pre-match sub-screens (mode picker,
+   stats, my decks, multiplayer, encyclopedia, match history, tutorial).
+   Pinned to the VIEWPORT top-left via position:fixed so the corner
+   placement is identical across all overlays — independent of how
+   each panel handles its own padding/centering. Matches the Deck
+   Builder's full-bleed MENU placement. User spec: "the menu bar
+   should be where i drew it roughly in the top left corner just like
+   the deck builder all 'menu' should be like this." */
 .mode-back, .stats-back, .md-back {
-  position: absolute; top: 14px; left: 14px;
+  position: fixed; top: 14px; left: 14px;
   background: #000;
   border: 1px solid rgba(79,195,247,0.55);
   color: #a8dcff;
@@ -1499,7 +1504,7 @@ body.hit-pause .ai-hand * {
   letter-spacing: 2px; text-transform: uppercase;
   cursor: pointer;
   transition: border-color 0.15s, box-shadow 0.15s;
-  z-index: 3;
+  z-index: 1100;  /* above overlay backdrops + panels */
 }
 .mode-back:hover, .stats-back:hover, .md-back:hover {
   border-color: rgba(79,195,247,1);
@@ -7083,10 +7088,27 @@ body.turn-combat .board .lane.lane-active {
    dev for mobile only dont touch web." */
 @container (max-width: 520px) {
   /* ---- MAIN MENU ---- */
+  /* On mobile the main menu fills the entire viewport so there's no
+     dead space top/bottom. User report: "to be afraid to make it
+     more vertical there is a lot of dead space." */
+  .main-menu-overlay {
+    align-items: stretch !important;
+    padding: 0 !important;
+  }
   .mm-panel {
-    padding: 18px 14px 14px;
-    max-width: calc(100vw - 24px);
-    width: calc(100vw - 24px);
+    padding: 24px 14px 16px;
+    max-width: 100% !important;
+    width: 100%;
+    min-height: 100vh;
+    border-radius: 0 !important;
+    box-sizing: border-box;
+    /* Distribute the 8 buttons + 3 section labels + title + divider
+       across the full viewport height so the layout breathes evenly
+       instead of bunching at top. */
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-start;
+    gap: 0;
   }
   .mm-title {
     font-size: 26px;
@@ -7317,6 +7339,55 @@ body.turn-combat .board .lane.lane-active {
 
   /* ---- BACK BUTTON (used across overlays) ---- */
   .md-back { font-size: 10px; padding: 4px 8px; top: 8px; left: 8px; }
+
+  /* ---- MODE-SELECT (Solo / Two-on-Two grid) ----
+     User report: cards-side-by-side were too narrow on mobile. Stack
+     each option full-width below its row label so each card is
+     legible. */
+  .mode-panel {
+    padding: 24px 14px 16px;
+    max-width: 100% !important;
+    width: 100%;
+    min-height: 100vh;
+    border-radius: 0 !important;
+    box-sizing: border-box;
+    overflow-y: auto;
+  }
+  .mode-grid {
+    grid-template-columns: 1fr !important;
+    gap: 8px !important;
+  }
+  .mode-row-label {
+    grid-column: 1 / -1;
+    margin-top: 8px;
+  }
+  .mode-option {
+    min-height: 0;
+    padding: 14px 16px;
+  }
+  .mode-option-label { font-size: 14px; letter-spacing: 2px; }
+  .mode-option-sub   { font-size: 11px; line-height: 1.4; }
+
+  /* ---- DRAFT CARDS — stack vertically on mobile ----
+     User report: "id rather have the cards to draft from on top of
+     each other than side to side, same for the trick draft." Side-
+     by-side at narrow widths produces unreadable 1-word-per-line
+     descriptions; stacked gives each card the full panel width with
+     legible text. */
+  .draft-cards-row {
+    flex-direction: column !important;
+    gap: 14px !important;
+    padding: 0 8px !important;
+    align-items: stretch;
+  }
+  .draft-card {
+    flex: 0 0 auto !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    min-height: 200px !important;
+  }
+  .draft-card .card-name { font-size: 14px; letter-spacing: 1px; }
+  .draft-card .card-desc { font-size: 12px; line-height: 1.4; }
 }
 
 /* On pointer:coarse (touch-primary), expand tap targets for all

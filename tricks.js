@@ -171,13 +171,25 @@ const TRICK_DEFS = [
     play(G, owner) {
       const d = G.state[owner].deadPile;
       if (d.length) {
-        const c = d.splice(Math.floor(Math.random() * d.length), 1)[0];
-        // Route through addToHand if available so any hand-size caps /
-        // hand-entry hooks fire the same way a normal draw would; fall
-        // back to direct push otherwise.
-        if (typeof G.addToHand === 'function') G.addToHand(owner, c);
-        else G.state[owner].hand.push(c);
-        G.log(`Lazarus Pit revives ${c.name} to your hand!`);
+        const archived = d.splice(Math.floor(Math.random() * d.length), 1)[0];
+        // The dead-pile archive stores BASE stats (`attack`, `health`,
+        // `cost`) but lacks the runtime fields a playable card needs
+        // (`id`, `currentHealth`, `maxHealth`, `baseAttack`, `armorValue`,
+        // `evadeCharges`, all the ability-derived flags). Pushing the
+        // raw archive into the hand spawned cards with `currentHealth`
+        // undefined → on the next combat / damage check they read as
+        // 0 HP and immediately died. User report: "cards revived from
+        // lazarus pit are glitched, they can be played but kill
+        // themlsleves on board."
+        // Fix: rehydrate via createCardInstance (treats the archive
+        // like a card def) + applyAbilities so keyword-derived flags
+        // (Armor N, Evade N, Bullseye, etc.) get re-stamped on the
+        // fresh instance.
+        const fresh = G.createCardInstance(archived, owner);
+        if (typeof G.applyAbilities === 'function') G.applyAbilities(fresh);
+        if (typeof G.addToHand === 'function') G.addToHand(owner, fresh);
+        else G.state[owner].hand.push(fresh);
+        G.log(`Lazarus Pit revives ${fresh.name} to your hand!`);
       }
     }
   },
