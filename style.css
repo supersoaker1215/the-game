@@ -15453,22 +15453,10 @@ body.phase-menu .kb-hints { display: none; }
   display: flex; flex-direction: column;
   min-height: 0;
 }
-.encyc-panel::before, .encyc-panel::after {
-  content: ""; position: absolute; width: 16px; height: 16px;
-  pointer-events: none;
-}
-.encyc-panel::before {
-  top: -1px; left: -1px;
-  border-top: 2px solid var(--theme-accent-bright, #4fc3f7);
-  border-left: 2px solid var(--theme-accent-bright, #4fc3f7);
-  filter: drop-shadow(0 0 6px var(--theme-glow-outer, rgba(79,195,247,0.75)));
-}
-.encyc-panel::after {
-  bottom: -1px; right: -1px;
-  border-bottom: 2px solid var(--theme-accent-bright, #4fc3f7);
-  border-right: 2px solid var(--theme-accent-bright, #4fc3f7);
-  filter: drop-shadow(0 0 6px var(--theme-glow-outer, rgba(79,195,247,0.75)));
-}
+/* Codex panel corner accents removed — the small bracket-corner squares
+   at top-left + bottom-right read as visual debris next to the existing
+   panel border, especially on themes whose --theme-accent-bright doesn't
+   match the panel border tint. The panel ring + glow alone reads cleaner. */
 .encyc-head {
   display: grid;
   grid-template-columns: 1fr auto;
