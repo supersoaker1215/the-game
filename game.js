@@ -1194,6 +1194,10 @@ const Game = {
           cur += 3;
           this._creditChain(c, 'statsEnergyGenerated', 3);
         }
+        if (c.passive === 'extraCurrency2') {
+          cur += 2;
+          this._creditChain(c, 'statsEnergyGenerated', 2);
+        }
         if (c.passive === 'extraCurrency') {
           cur += 1;
           this._creditChain(c, 'statsEnergyGenerated', 1);
@@ -5306,6 +5310,12 @@ const Game = {
       hasDamageImmunity: !!c.hasDamageImmunity,
       isStunned: !!c.isStunned,
       isFrozen:  !!c.isFrozen,
+      // Feared cards swing at their own allies; MC'd cards swing for the
+      // opponent. From the forecast's "what enemy/face damage will this
+      // lane produce?" angle, both behaviors mean the card produces ZERO
+      // damage on the enemy side — same effective gate as stun/freeze.
+      isFeared:  !!c.isFeared,
+      isMindControlled: !!c.isMindControlled,
       isBullseye: !!c.isBullseye,
       owner: c.owner,
     } : null;
@@ -5329,10 +5339,13 @@ const Game = {
 
     // Local damage applier — operates ONLY on the snapshot. Returns the
     // amount that actually landed after Armor / Evade / Invincible.
+    // Mirrors live-combat dodge rule (game.js:~2596): a stunned/frozen
+    // target CANNOT consume an evade charge — they can't react.
     const applyHit = (tgt, raw, attackerBullseye) => {
       if (!tgt || tgt.currentHealth <= 0 || raw <= 0) return 0;
       if (tgt.invincibleTurns > 0 || tgt.hasDamageImmunity) return 0;
-      if (tgt.evadeCharges > 0 && !attackerBullseye) { tgt.evadeCharges--; return 0; }
+      const canDodge = !tgt.isStunned && !tgt.isFrozen;
+      if (canDodge && tgt.evadeCharges > 0 && !attackerBullseye) { tgt.evadeCharges--; return 0; }
       const landed = Math.max(0, raw - tgt.armorValue);
       tgt.currentHealth -= landed;
       return landed;
@@ -5343,8 +5356,14 @@ const Game = {
 
     // Snapshot pre-swing ATKs — both swings happen "simultaneously",
     // so a card that dies in this exchange still gets to swing.
-    const pCanSwing = !!(p && !p.isStunned && !p.isFrozen);
-    const aCanSwing = !!(a && !a.isStunned && !a.isFrozen);
+    // Status gates: stunned/frozen → can't swing at all. Feared → swings
+    // at own allies (zero damage to the enemy lane). Mind-controlled →
+    // swings for the opponent (also zero damage to the enemy lane from
+    // this card's perspective). All four collapse to "no damage from
+    // this card hitting the enemy front" for forecast purposes.
+    const canHitEnemy = (c) => !!c && !c.isStunned && !c.isFrozen && !c.isFeared && !c.isMindControlled;
+    const pCanSwing = canHitEnemy(p);
+    const aCanSwing = canHitEnemy(a);
     const pAtk = pCanSwing ? p.attack : 0;
     const aAtk = aCanSwing ? a.attack : 0;
     const pSplash = pCanSwing ? p.splashRange : 0;
@@ -5380,11 +5399,14 @@ const Game = {
       if (li < 0 || li >= this.LANE_COUNT) return;
       const adj = this.state.lanes[li];
       if (!adj) return;
-      // Enemy adjacents that splash onto MY player card
+      // Enemy adjacents that splash onto MY player card. Splash
+      // requires the attacker to actually swing — same status gate as
+      // the front-on-front swing (stun / freeze / fear / mind-control
+      // all cancel the splash).
       if (p) {
         const e = adj.ai;
         if (e && e.currentHealth > 0 && (e.splashRange | 0) > 0
-            && !e.isStunned && !e.isFrozen) {
+            && !e.isStunned && !e.isFrozen && !e.isFeared && !e.isMindControlled) {
           pDmgIn += applyHit(p, e.splashRange | 0, !!e.isBullseye);
         }
       }
@@ -5392,7 +5414,7 @@ const Game = {
       if (a) {
         const e = adj.player;
         if (e && e.currentHealth > 0 && (e.splashRange | 0) > 0
-            && !e.isStunned && !e.isFrozen) {
+            && !e.isStunned && !e.isFrozen && !e.isFeared && !e.isMindControlled) {
           aDmgIn += applyHit(a, e.splashRange | 0, !!e.isBullseye);
         }
       }

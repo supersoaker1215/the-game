@@ -486,7 +486,13 @@ const AI = {
     // Step 2: play remaining cards using the priority heuristic.
     const remaining = [...s[owner].hand].filter(c => {
       if (committedIds.has(c.id)) return false;
-      if (c.trickPhasePlayable && !behind) return false;
+      // Iron Man and Thanos are tagged trickPhasePlayable — both are
+      // strictly stronger when held for the trick phase (Iron Man finishes
+      // off damaged enemies that combat just chipped; Thanos lands the
+      // 3-lane purge after the opponent has committed). Always save them,
+      // even when behind — playing them in phase 1 wastes the trigger
+      // window.
+      if (c.trickPhasePlayable) return false;
       return true;
     });
     remaining.sort((a, b) => {
@@ -520,6 +526,13 @@ const AI = {
         const uncontestedHere = !targetLane[opp];
         if (uncontestedHere && this.opponentHasTaunter(owner) && (card.splashRange || 0) <= 0 && !card.isBullseye) {
           if ((card.cost || 0) >= 6 && s[owner].currency < (card.cost || 0) + 2) return;
+        }
+        // Invisible Woman face-down: when Invisible Woman is on board, the
+        // AI gets one face-down play. Reserve it for a high-value finisher
+        // (cost ≥ 6 with onPlay) so the protected card carries real swing —
+        // hiding a 1-cost token from removal isn't worth burning the slot.
+        if (s[owner].faceDownAvailable && (card.cost || 0) >= 6 && card.onPlay && !card.isFaceDown) {
+          card._playFaceDown = true;
         }
         Game.playCard(owner, card, lane);
       });
@@ -843,6 +856,34 @@ const AI = {
           }
           score += bestFreezeVal;
         }
+      }
+      // Moder: forces the opponent's next card into Moder's lane and strips
+      // its abilities/keywords. Uncontested placement maximizes value — if
+      // the lane already has an enemy, the trap effect can't fire (the lane
+      // is full). Big bonus for empty lanes; soft penalty for contested.
+      if (card.name === 'Moder') {
+        if (!enemy || enemy.currentHealth <= 0) score += 5;
+        else score -= 4;
+      }
+      // Obi-Wan: damage from OTHER lanes reflects back; the directly-
+      // opposite enemy is exempt. Place him so the exempt slot is the
+      // LEAST threatening enemy on the board. Bonus scales with the threat
+      // of the OTHER-lane enemies (the more reflectable damage, the better)
+      // and penalizes putting him opposite the top threat.
+      if (card.name === 'Obi-Wan') {
+        let topThreatLane = -1, topThreat = -1;
+        let totalOtherLaneAtk = 0;
+        for (let i = 0; i < Game.LANE_COUNT; i++) {
+          const e = s.lanes[i][opp];
+          if (!e || e.currentHealth <= 0) continue;
+          const t = this.threatScore(e);
+          if (t > topThreat) { topThreat = t; topThreatLane = i; }
+          if (i !== l) totalOtherLaneAtk += (e.attack || 0);
+        }
+        // Penalty: Obi-Wan opposite the top-threat (they're exempt from reflect).
+        if (l === topThreatLane && topThreat >= 4) score -= 5;
+        // Bonus: more reflectable damage from other lanes = better placement.
+        score += totalOtherLaneAtk * 0.4;
       }
       // 1-ply lookahead bonus — simulates placement + the resulting combat
       // round, scores the post-combat board (HP swing + body delta) from

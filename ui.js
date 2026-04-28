@@ -304,24 +304,103 @@ const UI = {
     // entries here to wire unique sounds; no code changes needed.
     //   events: hover, play, ability, attack, death
     CARD_SFX: {
-      'Darth Vader':      { hover: 'audio/cards/darth-vader-hover.mp3' },
-      'Spider-Man':       { ability: 'audio/cards/spider-man-ability.mp3' },
+      // Vader hover = imperial breath; death = injured-breath sting
+      // (3s, longer than the 1.5s default cap — `maxDur: 3.5` lets the
+      // dying breath play out fully rather than getting clipped). Not
+      // LEGO style, intentional — Vader's death is a cinematic moment
+      // and the iconic film sting carries the weight better than a
+      // cartoon yelp.
+      'Darth Vader':      { hover: 'audio/cards/darth-vader-hover.mp3', death: { src: 'audio/cards/darth-vader-death.mp3', maxDur: 3.5 } },
+      // Batman hover: 1:45 of Hans Zimmer & James Newton Howard's "A
+      // Watchful Guardian" (Dark Knight OST), 2:15 → 4:00 of source.
+      // -20 LUFS unified-baseline, 1s fade-in / 2s fade-out. maxDur 106
+      // lets the full phrase play.
+      'Batman':           { hover: { src: 'audio/cards/batman-hover.mp3?v=2', maxDur: 106 } },
+      // Spider-Man hover: first 1:20 of Danny Elfman's "Main Title"
+      // (Spider-Man 2002). Normalized to -20 LUFS — the unified baseline
+      // for signature cinematic hovers (Spider-Man / Anakin / Superman
+      // all sit at -20). 1s fade-in / 2s fade-out baked in. maxDur 81
+      // lets the full phrase play; ability slot kept for the legacy
+      // Spider-Man swing cue.
+      'Spider-Man':       { hover: { src: 'audio/cards/spider-man-hover.mp3?v=3', maxDur: 81 }, ability: 'audio/cards/spider-man-ability.mp3' },
+      // Ghostface hover: 58s of Nick Cave & The Bad Seeds' "Red Right
+      // Hand" (start → 0:58 of the source — intro through the first
+      // verse). -20 LUFS unified-baseline, 1s fade-in / 2s fade-out
+      // baked in. maxDur 59 lets the full phrase play.
+      'Ghostface':        { hover: { src: 'audio/cards/ghostface-hover.mp3?v=2', maxDur: 59 } },
+      // Winter Soldier hover: 52s of Henry Jackman's "End Of The Line"
+      // (1:05 → 1:57 of the source) — the cold-war motif build. -20 LUFS
+      // unified-baseline, 1s fade-in / 2s fade-out baked. maxDur 53 lets
+      // the full phrase play.
+      'Winter Soldier':   { hover: { src: 'audio/cards/winter-soldier-hover.mp3?v=1', maxDur: 53 } },
+      // Jigsaw hover: 69s of Charlie Clouser's "Hello Zepp + Overture"
+      // (start → 1:09) — the Saw signature theme intro. -20 LUFS unified-
+      // baseline, 1s fade-in / 2s fade-out baked. maxDur 70 lets the full
+      // phrase play.
+      'Jigsaw':           { hover: { src: 'audio/cards/jigsaw-hover.mp3?v=1', maxDur: 70 } },
+      // Star-Lord hover: 65s of Redbone's "Come And Get Your Love" (start
+      // → 1:05) — the GOTG opening-scene cue. -20 LUFS unified-baseline,
+      // 1s fade-in / 2s fade-out baked. maxDur 66 lets the full phrase
+      // play.
+      'Star-Lord':        { hover: { src: 'audio/cards/star-lord-hover.mp3?v=1', maxDur: 66 } },
+      // Hulk hover: 42s of Danny Elfman's "End Credits — From Hulk"
+      // (0:27 → 1:09 of the source). -20 LUFS unified-baseline, 1s
+      // fade-in / 2s fade-out baked. maxDur 43 lets the full phrase play.
+      'Hulk':             { hover: { src: 'audio/cards/hulk-hover.mp3?v=1', maxDur: 43 } },
       'Symbiote Spider-Man': { play: { src: 'audio/cards/symbiote-spider-man-play.mp3', maxDur: 3.0 } },
-      'Jango Fett':       { attack: 'audio/cards/jango-fett-attack.mp3' },
+      'Jango Fett':       { attack: 'audio/cards/jango-fett-attack.mp3', death: 'audio/cards/jango-fett-death.mp3' },
       'Jason Voorhees':   { play: { src: 'audio/cards/jason-play.mp3', maxDur: 3.0 } },
-      'Michael Myers':    { play: { src: 'audio/cards/michael-myers-play.mp3', maxDur: 3.0 } },
+      // Michael Myers hover: 55s of John & Cody Carpenter's "The Shape
+      // Returns" (start → 0:55) — the Halloween theme reborn. -20 LUFS
+      // unified-baseline, 1s fade-in / 2s fade-out baked. maxDur 56 lets
+      // the full phrase play; play slot keeps the existing stinger.
+      'Michael Myers':    { hover: { src: 'audio/cards/michael-myers-hover.mp3?v=1', maxDur: 56 }, play: { src: 'audio/cards/michael-myers-play.mp3', maxDur: 3.0 } },
       'Thanos':           { hover: 'audio/cards/thanos-hover.mp3?v=3', ability: 'audio/cards/thanos-ability.mp3?v=2', voiceLine: 'audio/cards/thanos-kill.mp3' },
-      'Gojo':             { ability: { src: 'audio/cards/gojo-ability.mp3', maxDur: 4.0 } },
+      // Gojo hover: 59s of Lady Gaga's "Judas" (3:11 → end of source) — the
+      // outro/refrain section. -20 LUFS unified-baseline, 1s fade-in / 2s
+      // fade-out baked. maxDur 60 lets the full phrase play; ability slot
+      // kept for the Hollow Purple cue (fires from inside abilities.js
+      // when Hollow Purple resolves, not on play).
+      'Gojo':             { hover: { src: 'audio/cards/gojo-hover.mp3?v=2', maxDur: 60 }, ability: { src: 'audio/cards/gojo-ability.mp3', maxDur: 4.0 } },
       'Xenomorph':        { hover: 'audio/cards/xenomorph-hover.mp3', play: 'audio/cards/xenomorph-play.mp3', attack: 'audio/cards/xenomorph-attack.mp3', death: 'audio/cards/xenomorph-death.mp3' },
       'Predator':         { hover: 'audio/cards/predator-hover.mp3', ability: { src: 'audio/cards/predator-ability.mp3', maxDur: 3.0 } },
       'Thor':             { hover: 'audio/cards/thor-hover.mp3', attack: { src: 'audio/cards/thor-attack.mp3', maxDur: 1.5 } },
       // Lightsaber hum — Jedi only (Yoda, Obi-Wan, Ahsoka, Anakin).
-      'Yoda':             { hover: 'audio/cards/default-hover.mp3' },
-      'Obi-Wan':          { hover: 'audio/cards/default-hover.mp3' },
+      // Yoda — no hover (intentional silence), LEGO death sting on kill.
+      // The whole death-cue family follows the LEGO rule: short
+      // (~1–2s native), -14 LUFS, NO baked fades (engine adds 130ms in /
+      // 300ms out), bare-string registry entry. Lane-gating already
+      // ensures only the highest-cost dying card per lane plays its cue,
+      // so a single big combat doesn't stack overlapping LEGO yelps.
+      'Yoda':             { death: 'audio/cards/yoda-death.mp3' },
+      // ---- PER-CARD EFFECT OVERRIDES ----
+      // The `effects` map lets a card's source-of-effect lookup win
+      // over the global EFFECT_SFX entry. Use this when a card has
+      // its own thematic version of an effect (Mr. Freeze's freeze
+      // gun vs a generic ice sting; Spider-Man's web freeze vs Thor's
+      // lightning freeze; etc.). User spec: "the freezes are going to
+      // be all different."
+      'Mr. Freeze':       { effects: { freeze: 'audio/cards/mr-freeze-freeze.mp3' } },
+      // Luke Skywalker hover: 98s of Samuel Kim's "A Jedi's Fury" (0:31 →
+      // 2:09 of source) — the heroic-build section. -20 LUFS unified-
+      // baseline, 1s fade-in / 2s fade-out baked. maxDur 99 lets the full
+      // phrase play.
+      'Luke Skywalker':   { hover: { src: 'audio/cards/luke-hover.mp3?v=2', maxDur: 99 } },
+      'Obi-Wan':          { hover: 'audio/cards/default-hover.mp3', death: 'audio/cards/obi-wan-death.mp3' },
       'Ahsoka':           { hover: 'audio/cards/default-hover.mp3' },
-      'Anakin Skywalker': { hover: 'audio/cards/default-hover.mp3' },
+      // Anakin Skywalker hover: 109s of John Williams' "Anakin's Dark Deeds"
+      // (LSO recording) — trimmed from 2:15 to the end of the source so the
+      // hover lands on the final, darker arc of the piece. -20 LUFS (unified
+      // signature-hover baseline), 1s fade-in / 2s fade-out baked in.
+      // maxDur 110 lets the full phrase play across re-hovers.
+      'Anakin Skywalker': { hover: { src: 'audio/cards/anakin-hover.mp3?v=4', maxDur: 110 }, death: 'audio/cards/anakin-death.mp3' },
       'Red Skull':        { hover: 'audio/cards/red-skull-hover.mp3', play: 'audio/cards/red-skull-play.mp3' },
-      'Superman':         { hover: 'audio/cards/superman-hover.mp3' }
+      // Superman hover: first 1:14 of Hans Zimmer's "Krypton's Last" — the
+       // opening swell through the first cadence. Normalized to -20 LUFS
+       // (unified signature-hover baseline), 1s fade-in / 2s fade-out baked.
+       // maxDur 75 lets the full phrase play; resume-on-rehover keeps the
+       // position across visits.
+      'Superman':         { hover: { src: 'audio/cards/superman-hover.mp3?v=7', maxDur: 75 } }
     },
     // Default files for the per-card events — used when a card's
     // CARD_SFX entry doesn't have that event. If neither the card-
@@ -344,8 +423,84 @@ const UI = {
       hover:     null,
       play:      null, // procedural cardPlay / cardPlayEnemy
       ability:   null, // procedural defaultAbility
-      death:     'audio/cards/default-death.mp3',
+      // Generic LEGO Luke "argh" — used for any card that doesn't have its
+      // own death entry. Per-card overrides (Yoda, Anakin, Obi-Wan, ...)
+      // win in playCardSfx's lookup. `?v=2` cache-busts past the previous
+      // generic clip. Female-coded cards should eventually override with
+      // their own LEGO clip when the assets are ready.
+      death:     'audio/cards/default-death.mp3?v=2',
       voiceLine: null  // procedural kill stinger
+    },
+
+    // ===================== EFFECT SFX =====================
+    // Central effect-based audio with per-source-card overrides. When
+    // ANY card or trick applies one of these effects, the engine
+    // wrapper below fires the corresponding cue at the moment the
+    // effect actually lands. User spec: "the freezes are going to be
+    // all different" — Mr. Freeze's freeze gun ≠ Black Widow's tranq
+    // ≠ Thor's lightning. So each source card can override the global
+    // effect sound.
+    //
+    // Lookup order in playEffect(name, source):
+    //   1. CARD_SFX[source.name].effects[name]  — per-card override
+    //   2. EFFECT_SFX[name]                     — global default
+    //   3. EFFECT_PROC_FALLBACK[name]           — procedural synth
+    //
+    // To wire a per-card variant, add an `effects` map to the card's
+    // CARD_SFX entry, e.g.:
+    //   'Mr. Freeze': { effects: { freeze: 'audio/cards/mr-freeze-freeze.mp3' } }
+    EFFECT_SFX: {
+      // Globals are null — drop a global default in `audio/effects/<n>.mp3`
+      // if you want a fallback for cards without their own override.
+      freeze:      null,
+      stun:        null,
+      fear:        null,
+      mindControl: null,
+      buff:        null,
+      debuff:      null,
+      summon:      null,
+      damage:      null,
+      heal:        null,
+      armor:       null,
+      evade:       null,
+    },
+    EFFECT_PROC_FALLBACK: {
+      damage: 'hit',
+      heal:   'heal',
+      armor:  'armor',
+      evade:  'evade',
+      // freeze/stun/fear/mc/buff/debuff/summon stay silent until a
+      // per-card or global file is supplied. Better silent than the
+      // wrong-feeling synth.
+    },
+    // Per-effect cooldown so a chain (e.g. Vader's 7-damage chain →
+    // 7 dealDamage calls) doesn't machine-gun the SFX. 80ms gap is
+    // long enough to deduplicate same-frame fires but short enough
+    // that two visibly distinct effects still both play.
+    _effectCooldownMs: 80,
+    _lastEffectTimes: {},
+    playEffect(effectName, source, opts) {
+      if (!UI.settings || UI.settings.sfxVolume === 0) return null;
+      const now = performance.now();
+      const last = this._lastEffectTimes[effectName] || 0;
+      if (now - last < this._effectCooldownMs) return null;
+      this._lastEffectTimes[effectName] = now;
+      // 1. Per-source-card override (Mr. Freeze's freeze gun, etc.)
+      let file = null;
+      if (source && source.name) {
+        const reg = this.CARD_SFX[source.name];
+        if (reg && reg.effects && reg.effects[effectName]) file = reg.effects[effectName];
+      }
+      // 2. Global default
+      if (!file) file = this.EFFECT_SFX[effectName];
+      if (file) {
+        const playOpts = Object.assign({ maxDur: 1.5, fadeIn: 100, fadeOut: 200 }, opts || {});
+        return this._playSample(file, playOpts);
+      }
+      // 3. Procedural fallback
+      const proc = this.EFFECT_PROC_FALLBACK[effectName];
+      if (proc) return this.play(proc);
+      return null;
     },
 
     // Per-trick SFX registry. Events: hover, play.
@@ -935,7 +1090,12 @@ const UI = {
     // mix. Volume sits well below sfxVolume so cues still cut through.
     _music: null,
     _musicWantPlay: false,
-    MUSIC_SRC: 'audio/menu_music.mp3',
+    // Menu music — Daft Punk's "End Of Line" (Tron: Legacy OST). Full
+    // 2:36 track, normalized to -16 LUFS (Spotify/YouTube reference
+    // loudness), no fades baked so the `loop = true` boundary is seamless.
+    // Previous F1-by-Zimmer track is banked at audio/.menu_music.f1.bak.mp3
+    // — restore by renaming if you want to swap back.
+    MUSIC_SRC: 'audio/menu_music.mp3?v=5',
 
     _init() {
       if (this._ctx) return true;
@@ -1026,7 +1186,10 @@ const UI = {
           this._navPool.push(a);
         }
       }
-      const vol = Math.max(0, Math.min(1, (UI.settings.sfxVolume ?? 0.55) * 0.9));
+      // Nav cue (Battlefront-style click) sits at ~50% of sfxVolume — a
+      // little quieter than other UI cues per user feedback ("button press
+      // sound a little quieter"). Was 0.9× before, now 0.5× ≈ -5 dB.
+      const vol = Math.max(0, Math.min(1, (UI.settings.sfxVolume ?? 0.55) * 0.5));
       const a = this._navPool[this._navIdx];
       this._navIdx = (this._navIdx + 1) % this._navPool.length;
       try {
@@ -1070,6 +1233,34 @@ const UI = {
         if (p && p.catch) p.catch(() => {});
       } catch (e) { /* ignore */ }
       this._fadeVolume(a, target, 600, '_musicFadeInterval');
+    },
+
+    // Duck the menu music — temporarily lower its volume so a hover
+    // theme can sit on top without the two muddying each other. Stores
+    // the original target on `_musicDuckBase` so restoreMusic can ramp
+    // back to exactly where we were. Idempotent — calling duckMusic
+    // twice is safe; the second call is a no-op while ducking is active.
+    // User spec: "when you hover a card I'd like the main menu music
+    // to be quieter so it isn't muddy."
+    _MUSIC_DUCK_FACTOR: 0.18,  // duck to ~18% of normal level (-15 dB)
+    _MUSIC_DUCK_FADE_MS: 600,
+    duckMusic() {
+      if (!this._music || this._music.paused) return;
+      if (this._musicDucked) return;
+      this._musicDucked = true;
+      const fullTarget = Math.max(0, Math.min(1, (UI.settings.sfxVolume ?? 0.55) * 0.35));
+      this._musicDuckBase = fullTarget;
+      const duckTarget = fullTarget * this._MUSIC_DUCK_FACTOR;
+      if (this._musicFadeInterval) { clearInterval(this._musicFadeInterval); this._musicFadeInterval = null; }
+      this._fadeVolume(this._music, duckTarget, this._MUSIC_DUCK_FADE_MS, '_musicFadeInterval');
+    },
+    restoreMusic() {
+      if (!this._music || this._music.paused) { this._musicDucked = false; return; }
+      if (!this._musicDucked) return;
+      this._musicDucked = false;
+      const fullTarget = this._musicDuckBase ?? Math.max(0, Math.min(1, (UI.settings.sfxVolume ?? 0.55) * 0.35));
+      if (this._musicFadeInterval) { clearInterval(this._musicFadeInterval); this._musicFadeInterval = null; }
+      this._fadeVolume(this._music, fullTarget, this._MUSIC_DUCK_FADE_MS, '_musicFadeInterval');
     },
 
     stopMusic() {
@@ -1184,22 +1375,22 @@ const UI = {
       // Fade IN from silence — prevents a click on sharp-onset files
       // and makes every cue land softly. For hover samples we resume
       // at currentTime instead of jumping back to 0; for everything
-      // else we rewind.
+      // else we rewind. Per-event fade-in duration via opts.fadeIn
+      // (hover 1000ms, play 500ms; default 130ms for death).
       try {
         pick.volume = 0;
         if (!isHover) pick.currentTime = 0;
         const p = pick.play();
         if (p && p.catch) p.catch(() => {});
       } catch (e) { return null; }
-      this._fadeVolume(pick, vol, 130, '_fadeInInterval');
+      const fadeInMs = (opts && opts.fadeIn) ? opts.fadeIn : 130;
+      this._fadeVolume(pick, vol, fadeInMs, '_fadeInInterval');
       // Fade OUT — schedule an ease-out ramp that lands at the clip's
       // natural end OR at the requested `maxDur` cap, whichever is
-      // shorter. Hover clips get a LONG 1.5s taper so the end of a looping
-      // hover hum (Predator clicks, Vader breathing) blends into silence
-      // instead of cutting hard when the file hits its natural end.
-      // Short cues (play / death / voice line) stay at a 300ms tail —
-      // on a 1.5s-capped clip, 1s of fade would be 2/3 the audible part.
-      const fadeMs = isHover ? 1500 : 300;
+      // shorter. Per-event tail duration via opts.fadeOut (hover 2000ms,
+      // play 1000ms; default 300ms for death so chained deaths don't
+      // trail into each other).
+      const fadeMs = (opts && opts.fadeOut) ? opts.fadeOut : (isHover ? 1500 : 300);
       const scheduleCapFade = (durSec) => {
         const fadeStartMs = Math.max(0, durSec * 1000 - fadeMs);
         pick._capTimeout = setTimeout(() => {
@@ -1268,18 +1459,16 @@ const UI = {
     // when the next lane can start.
     playCardSfx(name, event, cardOrCost) {
       if (!name) return null;
-      const ALLOWED = { hover: 1, play: 1, ability: 1, death: 1, voiceLine: 1 };
+      // Card SFX events:
+      //   • hover     — 8s clip, 1s fade-in, 2s fade-out
+      //   • play      — 4s clip, 0.5s fade-in, 1s fade-out
+      //   • death     — 1.5s clip, default fades (multiple deaths chain)
+      //   • ability   — 4s clip, 0.5s fade-in, 1s fade-out (NOT auto-
+      //     fired by the play hook — only when an ability explicitly
+      //     triggers it from inside abilities.js, e.g. Gojo's Hollow
+      //     Purple resolving after 2 combats).
+      const ALLOWED = { hover: 1, play: 1, death: 1, ability: 1 };
       if (!ALLOWED[event]) return null;
-      // Ability prioritization — higher cost wins within a 600ms window.
-      if (event === 'ability') {
-        const cost = this._costFromArg(cardOrCost);
-        const now = performance.now();
-        const last = this._lastAbilityFire;
-        if (last && (now - last.t) < 600) {
-          if (cost < last.cost) return null;
-        }
-        this._lastAbilityFire = { t: now, cost };
-      }
       // Resolve file: card-specific first, else global default.
       const reg = this.CARD_SFX[name] || {};
       const fileEntry = reg[event] ?? this.DEFAULT_CARD_SFX[event];
@@ -1290,9 +1479,7 @@ const UI = {
         const PROC_EVENT_FALLBACK = {
           hover:     null, // no generic hover hum — would be noise across whole collection
           play:      owner === 'ai' ? 'cardPlayEnemy' : 'cardPlay',
-          ability:   'defaultAbility',
-          death:     'cardDestroy',
-          voiceLine: 'kill'
+          death:     'cardDestroy'
         };
         const toneName = PROC_EVENT_FALLBACK[event];
         if (toneName) this.play(toneName);
@@ -1300,31 +1487,22 @@ const UI = {
       }
       const resolved = this._resolveSfxEntry(fileEntry);
       if (!resolved) return null;
-      // Event-specific duration + volume rules. Defaults give play and
-      // ability events room to breathe — they fire during the focused
-      // "card-played dimension" beat (lane zoom, animation pause), so
-      // a longer cinematic moment lands well. Death stays short since
-      // multiple deaths can chain during combat.
-      // User spec: "play and abilities can be longer since [the played
-      // card] is in its own dimension."
-      // Defaults:
-      //   hover     — 5s   (resumable, ambient character)
-      //   play      — 3s   (cinematic entry beat)
-      //   ability   — 3s   (cinematic ability cue)
-      //   voiceLine — 3s   (kill stinger / mvp shout)
-      //   death     — 1.5s (short — deaths can chain in combat)
-      // Registry entries can opt into LONGER via `maxDur` (e.g. Gojo
-      // ability at 4s); the `??` operator preserves the override.
       const opts = { ...(resolved.opts || {}) };
       if (event === 'hover') {
         opts.hover = true;
-        opts.maxDur = opts.maxDur ?? 5.0;
+        opts.maxDur  = opts.maxDur  ?? 8.0;
+        opts.fadeIn  = opts.fadeIn  ?? 1000;
+        opts.fadeOut = opts.fadeOut ?? 2000;
+        // Duck the menu music while a hover theme is live so the two
+        // don't muddy each other. _stopHover restores the music level
+        // when the cursor leaves the card.
+        this.duckMusic();
       } else if (event === 'play' || event === 'ability') {
-        opts.maxDur = opts.maxDur ?? 3.0;
-      } else if (event === 'voiceLine') {
-        opts.maxDur = opts.maxDur ?? 3.0;
+        opts.maxDur  = opts.maxDur  ?? 4.0;
+        opts.fadeIn  = opts.fadeIn  ?? 500;
+        opts.fadeOut = opts.fadeOut ?? 1000;
       } else {
-        opts.maxDur = opts.maxDur ?? 1.5;          // death
+        opts.maxDur = opts.maxDur ?? 1.5;          // death — keep tight for chains
       }
       return this._playSample(resolved.src, opts);
     },
@@ -1346,35 +1524,11 @@ const UI = {
     // Falls back to the single `ability` slot, then the global default, so
     // a call with an unregistered key still plays something reasonable if
     // either a card-level or global ability sound is defined.
-    playCardAbility(name, key) {
-      if (!name) return null;
-      const reg = this.CARD_SFX[name] || {};
-      // File: abilities map, then single ability slot.
-      const fileEntry = (reg.abilities && reg.abilities[key]) ?? reg.ability;
-      if (fileEntry) {
-        const resolved = this._resolveSfxEntry(fileEntry);
-        if (resolved) return this._playSample(resolved.src, resolved.opts);
-      }
-      // Procedural character-specific ability fallback.
-      const proc = this.CARD_PROCEDURAL[name] && (
-        (this.CARD_PROCEDURAL[name].abilities && this.CARD_PROCEDURAL[name].abilities[key]) ||
-        this.CARD_PROCEDURAL[name].ability
-      );
-      if (typeof proc === 'function') {
-        if (!UI.settings || UI.settings.sfxVolume === 0) return null;
-        if (!this._init()) return null;
-        if (this._ctx.state === 'suspended') { try { this._ctx.resume(); } catch (e) {} }
-        try { proc.call(this); } catch (e) { /* ignore */ }
-        return null;
-      }
-      // Global default file.
-      const def = this.DEFAULT_CARD_SFX.ability;
-      if (def) {
-        const resolved = this._resolveSfxEntry(def);
-        if (resolved) return this._playSample(resolved.src, resolved.opts);
-      }
-      return null;
-    },
+    // No-op kept for backwards compatibility with abilities.js call sites
+    // (Darth Vader's chain). The simplified SFX set only emits hover, play,
+    // and death cues — per-ability mid-effect sounds were removed per user
+    // spec ("only sounds for card hover, when played, when killed").
+    playCardAbility(_name, _key) { return null; },
     // Per-trick SFX playback. Mirrors the hover resume-from-pause and
     // play-event cap behavior from playCardSfx so a tricky hover like
     // Time Stone's breathing swell picks up where it left off on re-
@@ -1402,6 +1556,14 @@ const UI = {
     // there's no click. Vader's breathing / Predator's clicking pick
     // up mid-breath when the user re-hovers the card.
     _stopHover() {
+      // Also clear any pending dwell-delay timer — once we're tearing
+      // down hover state, a queued play would be operating on a stale
+      // element by the time it fires.
+      if (this._hoverDelayTimer) {
+        clearTimeout(this._hoverDelayTimer);
+        this._hoverDelayTimer = null;
+        this._hoverDelayEl = null;
+      }
       const a = this._currentHoverAudio;
       // 1-second fade-out on hover stop so leaving a card feels seamless
       // (user spec: "hard to tell there was an audio difference at all").
@@ -1410,6 +1572,8 @@ const UI = {
       if (a && !a.paused) this._fadeToPauseAtPosition(a, 1000);
       this._currentHoverAudio = null;
       this._currentHoverEl = null;
+      // Restore the menu music to its full target volume.
+      this.restoreMusic();
     },
     // Fade volume to 0 over durMs then pause WITHOUT resetting
     // currentTime. Mirror of _fadeAndPause but preserves playback
@@ -1676,7 +1840,24 @@ const UI = {
     // User report: "its highliting the card over and over while the
     // curser is over it... the sound it keeps playing over and over."
     const HOVER_SFX_COOLDOWN_MS = 1000;
+    // Intent delay — user has to dwell on a card for HOVER_SFX_DELAY_MS
+    // before its hover audio fires. Without this gate, sweeping the
+    // cursor across the hand triggers a chain of overlapping hover cues
+    // (each cut by the next), which sounds messy. User spec: "i want a
+    // 1.5 second delay before playing the audio so it doesnt get messy
+    // going over cards."
+    const HOVER_SFX_DELAY_MS = 1500;
     const lastHoverByName = {};
+    // Cancel any scheduled-but-not-yet-fired hover SFX. Called on mouse-
+    // out, on movement to another card, and from _stopHover so the timer
+    // can never outlive the cursor it was tracking.
+    const cancelPendingHover = () => {
+      if (this.sfx._hoverDelayTimer) {
+        clearTimeout(this.sfx._hoverDelayTimer);
+        this.sfx._hoverDelayTimer = null;
+        this.sfx._hoverDelayEl = null;
+      }
+    };
     document.addEventListener('mouseover', (e) => {
       const curr = getHoverTarget(e.target);
       if (!curr) return;
@@ -1698,24 +1879,34 @@ const UI = {
         this.sfx._currentHoverEl = curr;
         return;
       }
-      // Moving from one card to another — stop the previous card's sample first.
+      // Moving from one card to another — stop the previous card's sample
+      // (and cancel any pending one that hasn't fired yet).
       if (this.sfx._currentHoverEl) this.sfx._stopHover();
-      const isCard = curr.hasAttribute('data-card-name');
-      const audio = isCard ? this.sfx.playCardSfx(name, 'hover')
-                           : this.sfx.playTrickSfx(name, 'hover');
-      // If no file was registered, fire the procedural Tron-grid hover
-      // cue as the fallback — fires for both cards AND tricks, so every
-      // hoverable game entity gets an audible focus cue by default.
-      if (!audio) this.sfx.play('cardHover');
+      cancelPendingHover();
       this.sfx._currentHoverEl = curr;
-      this.sfx._currentHoverAudio = audio;
-      if (name) lastHoverByName[name] = now;
+      // Schedule the SFX to fire after the dwell timeout. If the user
+      // leaves before the timer fires, mouseout cancels it.
+      this.sfx._hoverDelayEl = curr;
+      this.sfx._hoverDelayTimer = setTimeout(() => {
+        this.sfx._hoverDelayTimer = null;
+        this.sfx._hoverDelayEl = null;
+        // Re-confirm the cursor is still on this element — guards against
+        // any race where we missed a mouseout cancel.
+        if (this.sfx._currentHoverEl !== curr) return;
+        const isCard = curr.hasAttribute('data-card-name');
+        const audio = isCard ? this.sfx.playCardSfx(name, 'hover')
+                             : this.sfx.playTrickSfx(name, 'hover');
+        if (!audio) this.sfx.play('cardHover');
+        this.sfx._currentHoverAudio = audio;
+        if (name) lastHoverByName[name] = Date.now();
+      }, HOVER_SFX_DELAY_MS);
     });
     document.addEventListener('mouseout', (e) => {
       const curr = getHoverTarget(e.target);
       if (!curr) return;
       const to = getHoverTarget(e.relatedTarget);
       if (to === curr) return; // still inside the same card
+      if (this.sfx._hoverDelayEl === curr) cancelPendingHover();
       if (this.sfx._currentHoverEl === curr) this.sfx._stopHover();
     });
 
@@ -1732,17 +1923,19 @@ const UI = {
     //   • death — fires on the highest-cost dying card in a lane (lane
     //     has one audio slot; voiceLine trumps death if both would fire).
 
-    // ---- Play XOR ability on card entry ----
+    // ---- Play cue on card entry ----
     if (Game.playCard) {
       const orig = Game.playCard.bind(Game);
       Game.playCard = (owner, card, laneIdx, ...rest) => {
         const r = orig(owner, card, laneIdx, ...rest);
         if (r && card && card.name) {
-          // XOR: ability if the card has an onPlay hook, else play.
-          // Never both — was a "play then ability chaser" before but
-          // user wants one sound per entry to keep the mix clean.
-          const event = card.onPlay ? 'ability' : 'play';
-          this.sfx.playCardSfx(card.name, event, card);
+          // Per-card placement cue. Effect-themed sounds (freeze, stun,
+          // damage, etc.) fire from the central EFFECT_SFX hooks below
+          // when the effect actually applies — independent of which card
+          // triggered them. So Superman's flow is: placement cue → freeze
+          // SFX (after target 1 picked) → freeze SFX (after target 2) →
+          // damage SFX (after final target).
+          this.sfx.playCardSfx(card.name, 'play', card);
         }
         return r;
       };
@@ -1782,20 +1975,7 @@ const UI = {
       const origPF = Game.playCardFree.bind(Game);
       Game.playCardFree = (owner, card, laneIdx, ...rest) => {
         const r = origPF(owner, card, laneIdx, ...rest);
-        if (card && card.name) {
-          const playAudio = this.sfx.playCardSfx(card.name, 'play', card);
-          const hasAbilitiesMap = !!(this.sfx.CARD_SFX[card.name] && this.sfx.CARD_SFX[card.name].abilities);
-          if (card.onPlay && !hasAbilitiesMap) {
-            let delay = 220;
-            if (playAudio && !isNaN(playAudio.duration) && playAudio.duration > 0) {
-              // Cap raised from 1580 → 3080ms to track the new 3s play
-              // cap. Without this bump, the ability chaser fired before
-              // a 3s play sample finished, doubling up the cue.
-              delay = Math.min(3080, Math.max(220, Math.min(playAudio.duration, 3.0) * 1000 + 80));
-            }
-            setTimeout(() => this.sfx.playCardSfx(card.name, 'ability', card), delay);
-          }
-        }
+        if (card && card.name) this.sfx.playCardSfx(card.name, 'play', card);
         return r;
       };
     }
@@ -1809,10 +1989,57 @@ const UI = {
         const before = (Game.state && Game.state[owner]) ? Game.state[owner].health : 0;
         const r = origH(owner, amount, ...rest);
         const after = (Game.state && Game.state[owner]) ? Game.state[owner].health : 0;
-        if (after > before) this.sfx.play('heal');
+        if (after > before) this.sfx.playEffect('heal');
         return r;
       };
     }
+
+    // ---- Effect SFX engine wrappers ----
+    // Each wrapper fires playEffect(<name>, source) at the moment the
+    // effect ACTUALLY APPLIES. The `source` arg lets per-card overrides
+    // resolve (e.g. Mr. Freeze's freeze gun vs Black Widow's tranq).
+    // sourceArgIdx tells the wrapper which positional arg holds the
+    // source card — most engine functions follow `(target, source, ...)`.
+    const wrapEffect = (fnName, effectName, sourceArgIdx, guard) => {
+      if (!Game[fnName]) return;
+      const orig = Game[fnName].bind(Game);
+      Game[fnName] = (...args) => {
+        const r = orig(...args);
+        try {
+          if (!guard || guard(r, args)) {
+            const source = args[sourceArgIdx == null ? 1 : sourceArgIdx];
+            this.sfx.playEffect(effectName, source);
+          }
+        } catch (e) { /* never let SFX break gameplay */ }
+        return r;
+      };
+    };
+    // Status effects: signature `(target, source, ...)` — source at idx 1
+    wrapEffect('freezeCard',              'freeze',      1);
+    wrapEffect('freezeCardUnresistible',  'freeze',      1);
+    wrapEffect('stunCard',                'stun',        1);
+    wrapEffect('fearCard',                'fear',        1);
+    wrapEffect('mindControlCard',         'mindControl', 1);
+    // Buffs / debuffs: signature `(card, atk, hp, ...)` — source isn't
+    // tracked in the call, so per-card override won't resolve here
+    // (those are usually called from the card's own onPlay anyway).
+    wrapEffect('buffCard',   'buff',   null, (r, a) => (a[1] || 0) > 0 || (a[2] || 0) > 0);
+    wrapEffect('debuffCard', 'debuff', 4,    (r, a) => (a[1] || 0) > 0 || (a[2] || 0) > 0);
+    // Damage: gated on actual HP loss; source at idx 2 in
+    // dealDamage(target, amount, source).
+    if (Game.dealDamage) {
+      const origDD = Game.dealDamage.bind(Game);
+      Game.dealDamage = (target, amount, source, ...rest) => {
+        const beforeHp = target ? target.currentHealth : 0;
+        const r = origDD(target, amount, source, ...rest);
+        const afterHp = target ? target.currentHealth : 0;
+        if (afterHp < beforeHp) this.sfx.playEffect('damage', source);
+        return r;
+      };
+    }
+    // Summons — source isn't a card here (it's a string name); just
+    // fire the global summon cue.
+    wrapEffect('summonCard', 'summon', null);
 
     // ---- Death + Voice line (lane-gated, cost-based) ----
     // On a creature dying we pick ONE SFX for the lane's audio slot:
@@ -1846,25 +2073,21 @@ const UI = {
           && delegate.owner === source.owner
           && !this.sfx._voiceLineFiredThisRound;
 
+        // Simplified SFX set — only the dying card's `death` cue fires.
+        // The old voiceLine path was retired with the broader SFX cleanup
+        // (user spec: "only sounds for card hover, when played, when
+        // killed"). Lane-gating still applies so chained deaths in the
+        // same combat don't pile up.
         let chosen = null;
-        if (isDelegateKill) {
-          chosen = this.sfx.playCardSfx(killerName, 'voiceLine', source);
-          this.sfx._voiceLineFiredThisRound = true;
-        } else {
-          // Death cue — only win the lane's audio slot if we're the
-          // costliest death in this lane's current window. Lower-cost
-          // deaths are silent so the mix stays clean (spec: one SFX per
-          // lane). Equal-cost ties are random 50/50 split (user spec).
-          const currentDeathCost = this.sfx._laneDeathCost ?? -1;
-          const winsLane = (deadCost > currentDeathCost)
-            || (deadCost === currentDeathCost && Math.random() < 0.5);
-          if (winsLane) {
-            if (this.sfx._laneAudioEl) {
-              try { this.sfx._laneAudioEl.volume = 0; this.sfx._laneAudioEl.pause(); } catch (e) {}
-            }
-            chosen = this.sfx.playCardSfx(deadName, 'death', card);
-            this.sfx._laneDeathCost = deadCost;
+        const currentDeathCost = this.sfx._laneDeathCost ?? -1;
+        const winsLane = (deadCost > currentDeathCost)
+          || (deadCost === currentDeathCost && Math.random() < 0.5);
+        if (winsLane) {
+          if (this.sfx._laneAudioEl) {
+            try { this.sfx._laneAudioEl.volume = 0; this.sfx._laneAudioEl.pause(); } catch (e) {}
           }
+          chosen = this.sfx.playCardSfx(deadName, 'death', card);
+          this.sfx._laneDeathCost = deadCost;
         }
 
         // Record expected end-time so the lane advance can wait on it.
@@ -2769,6 +2992,19 @@ const UI = {
     const isStats       = s.phase === 'stats';
     const isDeckBuilder = s.phase === 'deckbuilder-build';
     const isDraft = s.phase === 'draft-cards' || s.phase === 'draft-tricks';
+    // Hide the dev Web/Mobile preview toggle on every screen EXCEPT the
+    // main menu and mode-select. It's a developer affordance, not part
+    // of the player UI. User feedback: "the blue square on the top left
+    // corner needs to go" (re: the encyclopedia and other overlays).
+    // Also hidden when any modal-style overlay (encyclopedia, multi-
+    // player, match-history) is open via UI._encyc/UI._mp/etc state.
+    const isLandingScreen = isMainMenu || isModeSelect;
+    const overlayOpen = !!(
+      (document.getElementById('encyclopedia-overlay') && document.getElementById('encyclopedia-overlay').style.display !== 'none' && document.getElementById('encyclopedia-overlay').style.display !== '')
+      || (document.getElementById('match-history-overlay') && document.getElementById('match-history-overlay').style.display !== 'none' && document.getElementById('match-history-overlay').style.display !== '')
+      || (document.getElementById('multiplayer-overlay') && document.getElementById('multiplayer-overlay').style.display !== 'none' && document.getElementById('multiplayer-overlay').style.display !== '')
+    );
+    document.body.classList.toggle('clb-toggle-hidden', !isLandingScreen || overlayOpen);
     // Pre-match overlays — only one is visible at a time.
     const mainMenuOverlay = document.getElementById('main-menu-overlay');
     const modeOverlay     = document.getElementById('mode-select-overlay');
@@ -3616,8 +3852,6 @@ const UI = {
     el.innerHTML = `
       <div class="mode-panel">
         <button type="button" class="mode-back" onclick="Game.goToMainMenu()" title="Back to main menu">&larr; Menu</button>
-        <h1 class="mode-title">the game</h1>
-        <div class="mode-subtitle">Pick how you'll play</div>
         <div class="mode-grid">
           <div class="mode-row-label">Solo · vs AI</div>
           ${btn('mode-1v1-classic', 'Classic Draft',
@@ -3836,10 +4070,14 @@ const UI = {
     this.renderEncyclopedia();
     const ov = document.getElementById('encyclopedia-overlay');
     if (ov) ov.style.display = 'flex';
+    // Hide the dev viewport-toggle while this overlay is open.
+    document.body.classList.add('clb-toggle-hidden');
   },
   closeEncyclopedia() {
     const ov = document.getElementById('encyclopedia-overlay');
     if (ov) ov.style.display = 'none';
+    // Restore the dev toggle when returning to the menu.
+    document.body.classList.remove('clb-toggle-hidden');
   },
   _encycSetSection(s) { this._encyc.section = s; this._encyc.cost = 'all'; this._persistSet('codex', this._encyc); this.renderEncyclopedia(); },
   _encycSetCost(c)    { this._encyc.cost = c; this._persistSet('codex', this._encyc); this.renderEncyclopedia(); },
@@ -3966,10 +4204,12 @@ const UI = {
     this.renderMatchHistory();
     const ov = document.getElementById('match-history-overlay');
     if (ov) { ov.style.display = 'flex'; }
+    document.body.classList.add('clb-toggle-hidden');
   },
   closeMatchHistory() {
     const ov = document.getElementById('match-history-overlay');
     if (ov) { ov.style.display = 'none'; }
+    document.body.classList.remove('clb-toggle-hidden');
   },
   renderMatchHistory() {
     const ov = document.getElementById('match-history-overlay');
@@ -4367,10 +4607,12 @@ const UI = {
     this._mpRender();
     const ov = document.getElementById('multiplayer-overlay');
     if (ov) { ov.style.display = 'flex'; }
+    document.body.classList.add('clb-toggle-hidden');
   },
   closeMultiplayer() {
     const ov = document.getElementById('multiplayer-overlay');
     if (ov) { ov.style.display = 'none'; }
+    document.body.classList.remove('clb-toggle-hidden');
     // Don't tear down the multiplayer connection on close — the user
     // might just be glancing back at the menu mid-match. We only call
     // Multiplayer.leave() on explicit Leave Room or Forfeit.
@@ -5095,6 +5337,26 @@ const UI = {
       r.impactIndex = baseline > 0 ? r.weightedPerPlay / baseline : null;
     });
 
+    // --- Pass 3: MVP+ (Mike Trout efficiency) ---
+    // weightedPerPlay / cost, normalized to 100 = league-average impact-per-cost.
+    // 200 = double-efficient ("bomb"), 50 = half-efficient ("filler").
+    // Mirrors sim/stats.js so the in-app value matches the report.md value.
+    const rates = [];
+    rows.forEach(r => {
+      if (r.plays <= 0 || r.cost <= 0) return;
+      rates.push(r.weightedPerPlay / r.cost);
+    });
+    const leagueAvgRate = rates.length
+      ? rates.reduce((a, b) => a + b, 0) / rates.length
+      : 0;
+    rows.forEach(r => {
+      if (r.plays <= 0 || r.cost <= 0 || leagueAvgRate <= 0) {
+        r.mvpPlus = null;
+        return;
+      }
+      r.mvpPlus = Math.round((r.weightedPerPlay / r.cost) / leagueAvgRate * 100);
+    });
+
     return rows;
   },
 
@@ -5173,6 +5435,7 @@ const UI = {
         case 'winRate': return r.winRate;
         case 'playRate': return r.playRate;
         case 'impactIndex': return (r.impactIndex == null ? -1 : r.impactIndex);
+        case 'mvpPlus': return (r.mvpPlus == null ? -1 : r.mvpPlus);
         case 'mvpRate': return r.mvpRate;
         case 'contribution': return r.contribution;
         case 'casts': return r.casts;
@@ -5230,6 +5493,15 @@ const UI = {
                       : 'stats-wr-ok';
         indexCell = `<span class="${idxClass}">${r.impactIndex.toFixed(2)}×</span>`;
       }
+      let mvpPlusCell;
+      if (r.mvpPlus == null) {
+        mvpPlusCell = '<span class="stats-ci">—</span>';
+      } else {
+        const mvpClass = r.mvpPlus > 120 ? 'stats-wr-over'
+                      : r.mvpPlus < 80  ? 'stats-wr-under'
+                      : 'stats-wr-ok';
+        mvpPlusCell = `<span class="${mvpClass}">${r.mvpPlus}</span>`;
+      }
       const def = CARD_DEFS.find(d => d.name === r.name);
       const statsInline = def
         ? `<span class="stats-atkhp"><span class="stats-atk">${def.attack}</span><span class="stats-slash">/</span><span class="stats-hp">${def.health}</span></span>`
@@ -5237,13 +5509,14 @@ const UI = {
       return `
         <tr class="${this.getCostClass(r.cost)} ${r.drafts < MIN_SAMPLES ? 'stats-lowsample' : ''}" onclick="statsShowDetail('${r.name.replace(/'/g,"\\'")}')">
           <td class="stats-card-name">
-            <span class="stats-cost">${r.cost}</span>
             <span class="stats-name-text">${r.name}</span>
             ${statsInline}
           </td>
+          <td class="stats-cost-cell"><span class="stats-cost">${r.cost}</span></td>
           <td>${r.drafts}</td>
           <td class="${wrClass}">${this._formatPct(r.winRate)}<span class="stats-ci">±${((r.ci.hi - r.ci.lo)/2*100).toFixed(1)}%</span></td>
           <td>${indexCell}</td>
+          <td>${mvpPlusCell}</td>
           <td>${this._formatPct(r.contribution)}</td>
           <td>${this._formatPct(r.mvpRate)}</td>
         </tr>`;
@@ -5259,9 +5532,9 @@ const UI = {
       return `
         <tr class="stats-trick-row ${r.drafts < MIN_SAMPLES ? 'stats-lowsample' : ''}">
           <td class="stats-card-name">
-            <span class="stats-cost stats-cost-trick">${r.cost}</span>
             <span class="stats-name-text">${r.name}</span>
           </td>
+          <td class="stats-cost-cell"><span class="stats-cost stats-cost-trick">${r.cost}</span></td>
           <td>${r.drafts}</td>
           <td class="${wrClass}">${this._formatPct(r.winRate)}<span class="stats-ci">±${((r.ci.hi - r.ci.lo)/2*100).toFixed(1)}%</span></td>
         </tr>`;
@@ -5295,6 +5568,10 @@ const UI = {
         <div class="stats-def">
           <div class="stats-def-label">Impact Index</div>
           <div class="stats-def-body">Card's <b>weighted impact per play</b> ÷ the <b>median</b> for its exact cost. <b>1.0× = cost-peer median</b>; >1.2× overperforms, <0.8× underperforms. Median (not mean) so one dominant card can't pull the baseline up and squash its peers.</div>
+        </div>
+        <div class="stats-def">
+          <div class="stats-def-label">MVP+ (efficiency)</div>
+          <div class="stats-def-body">Mike-Trout-style <b>impact-per-cost</b> normalized to a league baseline. <b>100 = league average</b>; >120 = bomb, <80 = filler. Cross-cost comparable, unlike Impact Index which only compares within a cost bucket.</div>
         </div>
         <div class="stats-def">
           <div class="stats-def-label">Contribution</div>
@@ -5381,13 +5658,16 @@ const UI = {
               <tr>
                 ${view === 'tricks' ? `
                   ${th('name',     'Trick')}
+                  ${th('cost',     'Cost')}
                   ${th('drafts',   'Games')}
                   ${th('winRate',  'Win Rate')}
                 ` : `
                   ${th('name',         'Card')}
+                  ${th('cost',         'Cost')}
                   ${th('drafts',       'Games')}
                   ${th('winRate',      'Win Rate')}
                   ${th('impactIndex',  'Impact Index')}
+                  ${th('mvpPlus',      'MVP+')}
                   ${th('contribution', 'Contribution')}
                   ${th('mvpRate',      'MVP Rate')}
                 `}
@@ -5498,6 +5778,7 @@ const UI = {
       </div>`;
     const avgPerPlay = (n) => r.plays > 0 ? (n / r.plays).toFixed(2) : '—';
     const idxLabel = r.impactIndex == null ? '—' : r.impactIndex.toFixed(2) + '× (vs cost-' + r.bucket + ' peers)';
+    const mvpPlusLabel = r.mvpPlus == null ? '—' : r.mvpPlus + ' (100 = league avg)';
     const rawIpeLabel = r.rawImpactPerEnergy === 999 ? '∞' : r.rawImpactPerEnergy.toFixed(2);
     return `
       <div class="stats-detail-backdrop" onclick="if (event.target===this) statsCloseDetail()">
@@ -5510,6 +5791,7 @@ const UI = {
             ${row('95% CI',          ciLo.toFixed(1) + '% – ' + ciHi.toFixed(1) + '%')}
             ${row('Plays / Draft',   this._formatPct(r.playRate))}
             ${row('Impact Index',    idxLabel)}
+            ${row('MVP+',            mvpPlusLabel)}
             ${row('Contribution %',  this._formatPct(r.contribution))}
             ${row('MVP Rate',        this._formatPct(r.mvpRate) + ' (' + r.mvp + ' MVP)')}
             ${row('Deaths / Play',   r.plays ? this._formatPct(r.deaths / r.plays) : '—')}
@@ -8540,7 +8822,10 @@ const UI = {
       // No attacker on this side, OR the opposing card blocks the swing
       if (!me || me.currentHealth <= 0) return 0;
       if (opp && opp.currentHealth > 0) return 0;
-      if (me.isStunned || me.isFrozen) return 0;
+      // Status gates: stunned / frozen → no swing. Feared → swings at
+      // own allies (no face damage). Mind-controlled → swings for the
+      // opponent (also no face damage in your direction).
+      if (me.isStunned || me.isFrozen || me.isFeared || me.isMindControlled) return 0;
       return me.attack || 0;
     };
     // Build per-lane verdict cells. Verdict math lives in the shared
@@ -8987,6 +9272,27 @@ const UI = {
       `<text x="${x(r)}" y="${H - padB + 12}" fill="#6c7886" font-size="8" text-anchor="middle" font-family="Rajdhani, sans-serif">${r}</text>`
     ).join('');
     const last = h[h.length - 1];
+    // End-of-line marker: skull on the side that died (HP <= 0), circle
+    // on the survivor. User feedback: "the graph has a circle at the
+    // end, whichever person died, I would like it to be a skull."
+    const skullPath = (cx, cy, color) => {
+      // Compact skull glyph (~10×12). Offsets so cx/cy is the skull's center.
+      const ox = cx - 5, oy = cy - 6;
+      return `<g transform="translate(${ox},${oy})">
+        <path d="M5 0 C1.5 0 0 2.2 0 4.6 C0 6.5 0.8 7.8 2 8.7 V11 C2 11.6 2.4 12 3 12 H7 C7.6 12 8 11.6 8 11 V8.7 C9.2 7.8 10 6.5 10 4.6 C10 2.2 8.5 0 5 0 Z"
+          fill="${color}"/>
+        <circle cx="3" cy="5" r="1.1" fill="#080a14"/>
+        <circle cx="7" cy="5" r="1.1" fill="#080a14"/>
+        <rect x="4" y="9" width="0.7" height="2" fill="#080a14"/>
+        <rect x="5.3" y="9" width="0.7" height="2" fill="#080a14"/>
+      </g>`;
+    };
+    const playerEnd = last.player <= 0
+      ? skullPath(x(last.round), y(last.player), `rgba(${themeRgb},0.95)`)
+      : `<circle cx="${x(last.round)}" cy="${y(last.player)}" r="3" fill="rgba(${themeRgb},0.95)" />`;
+    const aiEnd = last.ai <= 0
+      ? skullPath(x(last.round), y(last.ai), 'rgba(231,76,60,0.95)')
+      : `<circle cx="${x(last.round)}" cy="${y(last.ai)}" r="3" fill="rgba(231,76,60,0.95)" />`;
     return `
       <div class="go-hp-chart">
         <div class="go-hp-chart-title">HP over rounds</div>
@@ -8995,8 +9301,8 @@ const UI = {
           <polyline fill="none" stroke="rgba(231,76,60,0.85)" stroke-width="1.8" points="${ptsFor('ai')}" />
           <polyline fill="none" stroke="rgba(${themeRgb},0.95)" stroke-width="1.8" points="${ptsFor('player')}"
                     style="filter: drop-shadow(0 0 2px rgba(${themeRgb},0.6))" />
-          <circle cx="${x(last.round)}" cy="${y(last.ai)}"     r="3" fill="rgba(231,76,60,0.95)" />
-          <circle cx="${x(last.round)}" cy="${y(last.player)}" r="3" fill="rgba(${themeRgb},0.95)" />
+          ${aiEnd}
+          ${playerEnd}
           ${xLabels}
         </svg>
         <div class="go-hp-legend">
@@ -9114,33 +9420,152 @@ const UI = {
         </div>`;
     };
 
+    // Shared per-card pool used by both MVP duo + Top-5 impact list.
+    const pool = this._collectGameOverPool(s);
     panel.innerHTML = `
-      ${this.renderStarOfTheMatch(s, you, opp)}
+      ${this.renderMvpDuo(s, pool)}
+      ${this.renderTop5Impact(pool)}
       ${this.renderHpCurveSvg(s)}
-      <div class="go-stat-row go-stat-head">
-        <span class="go-stat-label"></span>
-        <span class="go-stat-value go-col-you">You</span>
-        <span class="go-stat-value go-col-opp">Opponent</span>
+      <div class="go-stat-table">
+        <div class="go-stat-row go-stat-head">
+          <span class="go-stat-label"></span>
+          <span class="go-stat-value go-col-you">You</span>
+          <span class="go-stat-value go-col-opp">Opponent</span>
+        </div>
+        ${row('Cards killed', you.cardsKilled, opp.cardsKilled, 'hi')}
+        ${row('Damage denied', you.damageAbsorbed, opp.damageAbsorbed, false)}
+        ${row('Energy spent', you.energySpent, opp.energySpent, 'hi')}
+        ${row('Times blocked', you.blocks, opp.blocks, 'hi')}
+        ${row('Peak round damage', you.peakRound, opp.peakRound, 'hi')}
       </div>
-      ${row('Cards killed', you.cardsKilled, opp.cardsKilled, 'hi')}
-      ${row('Damage denied', you.damageAbsorbed, opp.damageAbsorbed, false)}
-      ${row('Damage done', you.damageDone, opp.damageDone, false)}
-      ${row('Energy generated', you.energyGenerated, opp.energyGenerated, false)}
-      ${row('Energy spent', you.energySpent, opp.energySpent, 'hi')}
-      ${row('Longest survivor', you.survivor, opp.survivor, false)}
-      ${row('Peak round damage', you.peakRound, opp.peakRound, 'hi')}
-      ${row('Times blocked', you.blocks, opp.blocks, 'hi')}
       ${this.renderMvpRow(s._mvpDual, s.winner, s._mvpPlusBaseline)}
     `;
   },
 
-  // Star of the Match — the single most impactful card from EITHER side.
-  // Surfaces the winning side's MVP if the winner clearly carried; otherwise
-  // picks whichever card had the higher impact score across both sides.
-  // Card is rendered as a card-shaped hero panel with name, top contribution
-  // stat highlighted, and a runner-up line beneath. Pulls from the same
-  // s._mvpDual data the existing MVP row uses, plus the per-card pool we
-  // computed in `summarize()` so we can show the actual contribution number.
+  // Build a per-card stats-pool helper that the MVP duo + Top-5 impact
+  // block both share. Aggregates Hela revives + summon copies under
+  // the same name on each side. Returns a flat array of
+  // { name, side, cost, def, damageDone, kills, absorbed, energy, hpDmg,
+  //   enteredRound, leftRound, impactScore } per unique card-on-side.
+  _collectGameOverPool(s) {
+    const out = [];
+    const sides = ['player', 'ai'];
+    sides.forEach(side => {
+      const pool = [];
+      for (let i = 0; i < Game.LANE_COUNT; i++) {
+        const c = s.lanes[i][side];
+        if (c && c.statsEnteredRound != null) pool.push(c);
+      }
+      (s[side].deadPile || []).forEach(c => { if (c.statsEnteredRound != null) pool.push(c); });
+      // Aggregate by name so multiple instances merge.
+      const byName = {};
+      pool.forEach(c => {
+        const k = c.name || 'unknown';
+        const e = byName[k] || (byName[k] = {
+          name: k, side, cost: c.baseCost ?? c.cost ?? 0,
+          damageDone: 0, kills: 0, absorbed: 0, energy: 0, hpDmg: 0,
+          enteredRound: c.statsEnteredRound, leftRound: c.statsLeftRound
+        });
+        e.damageDone += (c.statsHealthbarDamage || 0) + (c.statsEnemyDamage || 0);
+        e.absorbed   += c.statsDamageAbsorbed || 0;
+        e.energy     += c.statsEnergyGenerated || 0;
+        e.kills      += c.statsKills || 0;
+        e.hpDmg      += c.statsHealthbarDamage || 0;
+        if (c.statsEnteredRound < e.enteredRound) e.enteredRound = c.statsEnteredRound;
+      });
+      Object.values(byName).forEach(e => {
+        // Match the per-card MVP formula: damage + absorbed + energy + 5×kills
+        e.impactScore = e.damageDone + e.absorbed + e.energy + e.kills * 5;
+        e.def = (typeof CARD_DEFS !== 'undefined') ? CARD_DEFS.find(d => d.name === e.name) : null;
+        out.push(e);
+      });
+    });
+    return out;
+  },
+
+  // MVP + Runner-up — two side-by-side cards with rarity-based borders
+  // and a compact stats line apiece. User feedback: "the cards the MVP
+  // cards at the top need to be just horizontal... give a impact score
+  // for all the cards in the middle, like the top five."
+  renderMvpDuo(s, pool) {
+    const sortedAll = pool.slice().sort((a, b) => b.impactScore - a.impactScore);
+    if (!sortedAll.length) return '';
+    // Prefer MVP from winning side if there's a winner.
+    let mvp, runner;
+    if (s.winner === 'player' || s.winner === 'ai') {
+      const winSide = s.winner;
+      const winners = sortedAll.filter(e => e.side === winSide);
+      const losers  = sortedAll.filter(e => e.side !== winSide);
+      mvp = winners[0] || sortedAll[0];
+      runner = losers[0] || sortedAll[1] || null;
+    } else {
+      mvp = sortedAll[0];
+      runner = sortedAll[1];
+    }
+    if (!mvp) return '';
+    const renderCard = (entry, label) => {
+      if (!entry) return '<div class="go-mvp-slot go-mvp-empty"></div>';
+      const def = entry.def;
+      const cost = def && def.cost != null ? def.cost : entry.cost || 0;
+      const stats = (def && def.attack != null && def.health != null)
+        ? `<span class="stat-circle stat-atk">${def.attack}</span><span class="stat-circle stat-hp">${def.health}</span>`
+        : '';
+      const abilities = (def && def.abilities && def.abilities.length)
+        ? `<div class="card-abilities status-badges">${this.formatAbilityBadges(def.abilities)}</div>` : '';
+      const sideTag = entry.side === 'player' ? 'YOU' : 'OPP';
+      const sideTagCls = entry.side === 'player' ? 'go-mvp-side-you' : 'go-mvp-side-opp';
+      return `
+        <div class="go-mvp-slot go-mvp-${label.toLowerCase()}">
+          <div class="go-mvp-header">
+            <span class="go-mvp-rank">${label}</span>
+            <span class="go-mvp-side-tag ${sideTagCls}">${sideTag}</span>
+          </div>
+          <div class="card go-mvp-card ${this.getCostClass(cost)}">
+            <span class="card-cost">${cost}</span>
+            <div class="card-name-banner"><div class="card-name">${entry.name}</div></div>
+            ${abilities}
+            ${stats}
+          </div>
+          <div class="go-mvp-stats">
+            <div class="go-mvp-stat-row"><span class="go-mvp-stat-k">Impact</span><b>${Math.round(entry.impactScore)}</b></div>
+            <div class="go-mvp-stat-row"><span class="go-mvp-stat-k">Damage</span><b>${entry.damageDone}</b></div>
+            <div class="go-mvp-stat-row"><span class="go-mvp-stat-k">Kills</span><b>${entry.kills}</b></div>
+            <div class="go-mvp-stat-row"><span class="go-mvp-stat-k">Absorbed</span><b>${entry.absorbed}</b></div>
+            ${entry.energy > 0 ? `<div class="go-mvp-stat-row"><span class="go-mvp-stat-k">Energy gen</span><b>${entry.energy}</b></div>` : ''}
+            <div class="go-mvp-stat-row"><span class="go-mvp-stat-k">Played</span><b>R${entry.enteredRound}</b></div>
+          </div>
+        </div>`;
+    };
+    return `
+      <div class="go-mvp-duo">
+        ${renderCard(mvp, 'MVP')}
+        ${renderCard(runner, 'RUNNER-UP')}
+      </div>`;
+  },
+
+  // Top 5 cards by impact across both sides — compact horizontal list
+  // sitting between the MVP duo and the HP curve. User spec: "give an
+  // impact score for all the cards in the middle, of like the top five."
+  renderTop5Impact(pool) {
+    const top = pool.slice().sort((a, b) => b.impactScore - a.impactScore).slice(0, 5);
+    if (!top.length) return '';
+    return `
+      <div class="go-top5">
+        <div class="go-top5-title">Top 5 Impact</div>
+        <ol class="go-top5-list">
+          ${top.map((e, i) => `
+            <li class="go-top5-item ${this.getCostClass(e.cost || 0)} ${e.side === 'player' ? 'go-top5-you' : 'go-top5-opp'}">
+              <span class="go-top5-rank">${i + 1}</span>
+              <span class="go-top5-name">${e.name}</span>
+              <span class="go-top5-score">${Math.round(e.impactScore)}</span>
+            </li>
+          `).join('')}
+        </ol>
+      </div>`;
+  },
+
+  // (Legacy) Star of the Match panel — kept for back-compat with any
+  // other call site, but the game-over flow uses renderMvpDuo now.
   renderStarOfTheMatch(s, you, opp) {
     const dual = s._mvpDual;
     if (!dual) return '';
@@ -11238,7 +11663,29 @@ const UI = {
         <button type="button" class="ci-close" aria-label="Close">×</button>
       </div>`;
     document.body.appendChild(modal);
-    const close = () => { modal.remove(); };
+    // Mobile parity for hover audio: hover SFX is bound to mouseover on
+    // desktop, but mobile has no cursor — the long-press inspect modal
+    // IS the mobile equivalent of "dwelling on a card." So we trigger
+    // the same hover cue when the modal opens, and stop it when the
+    // modal closes. Honors the per-card SFX registry, so signature-
+    // theme cards (Superman, Anakin, etc.) play their full track on a
+    // mobile long-press too. User spec: "do the hovers work on mobile?"
+    if (this.sfx) {
+      try {
+        var inspectAudio = isTrick
+          ? this.sfx.playTrickSfx(name, 'hover')
+          : this.sfx.playCardSfx(name, 'hover');
+        if (!inspectAudio) this.sfx.play('cardHover');
+        this.sfx._currentHoverAudio = inspectAudio;
+        this.sfx._currentHoverEl = modal;
+      } catch (e) { /* swallow */ }
+    }
+    const close = () => {
+      modal.remove();
+      // Stop hover audio + restore menu music level when the inspect
+      // modal closes. Mirror of the desktop mouseout handler.
+      if (this.sfx && typeof this.sfx._stopHover === 'function') this.sfx._stopHover();
+    };
     modal.querySelector('.ci-backdrop').addEventListener('click', close);
     modal.querySelector('.ci-close').addEventListener('click', close);
     // Auto-close on any navigation / Escape key.
@@ -12803,7 +13250,7 @@ function statsExportCsv() {
   const header = [
     'Name','Cost','Bucket','Games','GamesInDeck','Wins','WinRate','CiLo','CiHi',
     'Plays','PlayRate',
-    'WeightedImpact','WeightedPerPlay','BucketAvg','ImpactIndex',
+    'WeightedImpact','WeightedPerPlay','BucketAvg','ImpactIndex','MVPPlus',
     'RawImpactPerEnergy','Contribution',
     'MVP','MVPRate','Deaths',
     'Damage','Absorbed','EnergyGen','CardAdvantage',
@@ -12823,6 +13270,7 @@ function statsExportCsv() {
       r.weightedPerPlay.toFixed(4),
       (r.bucketAvg || 0).toFixed(4),
       r.impactIndex == null ? '' : r.impactIndex.toFixed(4),
+      r.mvpPlus == null ? '' : r.mvpPlus,
       r.rawImpactPerEnergy === 999 ? '' : r.rawImpactPerEnergy.toFixed(4),
       r.contribution.toFixed(4),
       r.mvp, r.mvpRate.toFixed(4), r.deaths,

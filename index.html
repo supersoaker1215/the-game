@@ -13,7 +13,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap">
-  <link rel="stylesheet" href="style.css?v=366">
+  <link rel="stylesheet" href="style.css?v=385">
   <script>
     // Lightweight error reporter (pre-Sentry) — capture runtime JS
     // errors + unhandled promise rejections to a localStorage ring
@@ -44,16 +44,63 @@
     // Register the service worker for PWA installability + offline
     // play. file://, http://, and https:// all support it in Chromium
     // (as long as the URL is served over HTTP, not opened as a file).
+    // Also wires the "Update available" banner: when the SW detects a
+    // newer build (push to main → GH Pages auto-deploys → next page
+    // visit fetches sw.js → CACHE_VERSION mismatch triggers install →
+    // updatefound fires here), the small banner at top-left flips on.
+    // User-driven reload only — no auto-refresh, so the player can
+    // finish their match before swapping versions.
     if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
       window.addEventListener('load', function () {
-        navigator.serviceWorker.register('sw.js').catch(function (e) {
+        navigator.serviceWorker.register('sw.js').then(function (reg) {
+          var showBanner = function () {
+            var el = document.getElementById('update-banner');
+            if (el) el.classList.add('update-banner-visible');
+          };
+          // updatefound fires when the SW finds a new sw.js. The new
+          // worker installs in parallel; we listen for it to enter
+          // 'installed' state with a current controller (i.e., a real
+          // update, not the very first install).
+          reg.addEventListener('updatefound', function () {
+            var sw = reg.installing;
+            if (!sw) return;
+            sw.addEventListener('statechange', function () {
+              if (sw.state === 'installed' && navigator.serviceWorker.controller) {
+                showBanner();
+              }
+            });
+          });
+          // If we navigate-back into a tab whose SW has already moved
+          // past 'installed' to 'waiting', we won't see updatefound —
+          // detect that case on registration so the banner still shows.
+          if (reg.waiting && navigator.serviceWorker.controller) showBanner();
+        }).catch(function (e) {
           if (window.__clbErrors) window.__clbErrors.report('sw-register', e);
         });
       });
     }
+    // Banner click → full reload. Defined inline so it works whether or
+    // not ui.js has finished loading.
+    function clbApplyUpdate() {
+      try { window.location.reload(); } catch (e) { /* ignore */ }
+    }
   </script>
 </head>
 <body>
+  <!-- UPDATE-AVAILABLE BANNER — top-left chip that appears only when
+       the service worker has installed a newer build but the player is
+       still running the old one. Click to reload. Default state: hidden
+       (display: none). The .update-banner-visible class flips it on. -->
+  <button type="button"
+          id="update-banner"
+          class="update-banner"
+          onclick="clbApplyUpdate()"
+          title="A newer version is ready — click to reload"
+          aria-label="Update available — click to reload">
+    <span class="update-banner-icon" aria-hidden="true">↻</span>
+    <span class="update-banner-text">Update — Click to refresh</span>
+  </button>
+
   <!-- WEB ↔ MOBILE PREVIEW TOGGLE — only useful on desktop. Lets a
        developer/user see the layout in phone shape without resizing
        the browser. Hidden on real phone-sized viewports. The active
@@ -285,7 +332,6 @@
         <div class="energy-display" id="ai-energy-display"></div>
       </div>
       <div class="bar-cell bar-dead">
-        <span class="pile-badge tricks-history" onclick="toggleTrickHistory('ai')" title="Tricks played this match"><span class="pile-icon icon-tricks">★</span><span id="ai-tricks-count">0</span></span>
         <span class="pile-badge dead-pile" onclick="toggleDeadPile('ai')" title="Dead pile"><span class="pile-icon icon-dead"></span><span id="ai-dead-count">0</span></span>
       </div>
       <!-- AI "thinking" indicator — three pulsing dots shown while
@@ -325,7 +371,6 @@
         <div class="energy-display" id="player-energy-display"></div>
       </div>
       <div class="bar-cell bar-dead">
-        <span class="pile-badge tricks-history" onclick="toggleTrickHistory('player')" title="Tricks played this match"><span class="pile-icon icon-tricks">★</span><span id="player-tricks-count">0</span></span>
         <span class="pile-badge dead-pile" onclick="toggleDeadPile('player')" title="Dead pile"><span class="pile-icon icon-dead"></span><span id="player-dead-count">0</span></span>
       </div>
     </div>
@@ -591,17 +636,17 @@
     </div>
   </div>
 
-  <script src="cards.js?v=92"></script>
+  <script src="cards.js?v=95"></script>
   <script src="tricks.js?v=51"></script>
-  <script src="abilities.js?v=153"></script>
+  <script src="abilities.js?v=159"></script>
   <script src="decks.js?v=4"></script>
-  <script src="game.js?v=207"></script>
-  <script src="ai.js?v=44"></script>
+  <script src="game.js?v=210"></script>
+  <script src="ai.js?v=45"></script>
   <!-- PeerJS for WebRTC peer-to-peer multiplayer. Uses the public
        0.peerjs.com signaling cloud — no server needed on our side. -->
   <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
   <script src="multiplayer.js?v=4"></script>
-  <script src="ui.js?v=359"></script>
+  <script src="ui.js?v=411"></script>
   <script src="logger.js?v=5"></script>
 </body>
 </html>

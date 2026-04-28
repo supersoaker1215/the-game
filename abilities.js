@@ -52,11 +52,7 @@ const CARD_ABILITIES = {
           }, _aiThreatPicker);
         }
       };
-      // Ant token now carries the Evade 1 that used to live on Ant-Man
-      // himself — the keyword moves WITH the summon. (Per balance pass:
-      // "remove Evade 1 from Ant-Man and instead give the Evade 1 to
-      // the summoned Ant.") applyAbilities parses the array on summon.
-      G.summonCardChoice(self.owner, "Ant", 1, 1, 1, ["Bullseye", "Evade 1"], afterSummon);
+      G.summonCardChoice(self.owner, "Ant", 1, 1, 1, ["Bullseye"], afterSummon);
     }
   },
   "Poison Ivy": {
@@ -151,6 +147,10 @@ const CARD_ABILITIES = {
         // Always route through promptCardChoice — it handles single-
         // target via a "auto-targeted X" toast for the human, and
         // auto-picks for AI. User spec: "the user always chooses".
+        // Effect SFX fires automatically via the engine wrapper around
+        // freezeCard (see ui.js → EFFECT_SFX hooks). No manual SFX call
+        // needed — the freeze sting lands when the freeze actually
+        // applies, regardless of which card or trick caused it.
         G.promptCardChoice(self.owner, adj, "Black Widow — Freeze", "Choose adjacent enemy to freeze", (t) => {
           G.freezeCard(t, self);
         });
@@ -267,12 +267,12 @@ const CARD_ABILITIES = {
   "Mr. Freeze": {
     onPlay(G, self, lane) {
       const e = G.state.lanes[lane] ? G.state.lanes[lane][G.opponent(self.owner)] : null;
+      // Freeze SFX fires automatically via the engine wrapper around
+      // freezeCard — no manual call needed.
       if (e) { G.freezeCard(e, self); }
       // Freezes the OWNER's HP bar as a shield — the next hit to it is
       // negated. Card text reads "your HP bar" to match this.
       G.state[self.owner].healthFrozen = true;
-      // Remember which card raised the shield so damage-absorbed credit
-      // lands on Mr. Freeze when the negation fires.
       G.state[self.owner]._healthFrozenBy = self;
       const who = Game.isHuman(self.owner) ? 'your' : 'its';
       G.log(`Mr. Freeze freezes ${e ? e.name + ' and ' : ''}${who} health bar!`);
@@ -1057,13 +1057,13 @@ const CARD_ABILITIES = {
       if (self.reviveCharges > 0) {
         self.reviveCharges--;
         G.state[self.owner].jasonReviveUsed = true;
-        self.attack += 2; self.currentHealth = self.maxHealth + 2; self.maxHealth += 2;
+        self.attack += 1; self.maxHealth += 2; self.currentHealth = self.maxHealth;
         G.placeInLane(self.owner, self, lane);
         // Revive bypasses Game.playCard, so the registry-based play cue
         // wouldn't auto-fire here — call it explicitly so the ki-ki-ki /
         // ma-ma-ma sting lands on resurrection too.
         if (typeof UI !== 'undefined' && UI.sfx) UI.sfx.playCardSfx('Jason Voorhees', 'play');
-        G.log(`Jason Voorhees rises again! +2/+2 (once per game)`);
+        G.log(`Jason Voorhees rises again as ${self.attack}/${self.maxHealth} (once per game)`);
         return true;
       }
     }
@@ -1391,21 +1391,6 @@ const CARD_ABILITIES = {
       });
       G.log(`Captain America falls — the cost reduction fades from ${count} card${count === 1 ? '' : 's'}.`);
     },
-    onBeforeAttack(G, self) {
-      const chainDmg = self.attack - 1;
-      if (chainDmg <= 0) return;
-      const myLane = G.findCardLane(self);
-      if (myLane < 0) return;
-      // Chain only fires if Cap's main swing lands on an enemy CARD.
-      // When Cap's lane is uncontested (main swing hits HP bar), the
-      // shield has nothing to ricochet off of — skip the chain so it
-      // doesn't jump sideways to an adjacent ally with no trigger card.
-      const opp = G.opponent(self.owner);
-      const target = G.state.lanes[myLane][opp];
-      if (!target || target.currentHealth <= 0) return;
-      G.log(`Captain America's shield ricochets — ${chainDmg} chain damage!`);
-      G.autoChainDamage(self.owner, myLane, chainDmg, 0, null, "SHIELD CHAIN");
-    },
     passive: "allyCostReduction"
   },
   "Iron Man": {
@@ -1649,36 +1634,50 @@ const CARD_ABILITIES = {
       const allies = G.getAlliesOf(self.owner).filter(a => a.id !== self.id).sort((a, b) => a.cost - b.cost);
       if (!allies.length) return;
 
-      // Shared "best trade" evaluator — finds the cheapest ally whose cost
-      // kills the scariest damageable enemy. Returns { ally, enemy, score }
-      // or null if no trade beats the "worth it" threshold.
+      const damageableEnemies = () => G.getEnemiesOf(self.owner).filter(e =>
+        !(e.invincibleTurns > 0) && !e.hasDamageImmunity && !(e.evadeCharges > 0)
+      );
+
+      // AI evaluator — for each ally, find the best Damage and Destroy trade.
+      // Destroy bypasses HP/armor entirely so it's higher value when an enemy
+      // matches the cost gate. Damage is the fallback when no destroy target
+      // exists at the ally's cost. Returns { ally, mode, enemy, score } or null.
       const findBestTrade = (threshold) => {
-        const tgtEnemies = G.getEnemiesOf(self.owner).filter(e =>
-          !(e.invincibleTurns > 0) && !e.hasDamageImmunity && !(e.evadeCharges > 0)
-        );
-        if (!tgtEnemies.length) return null;
+        const tgts = damageableEnemies();
+        if (!tgts.length) return null;
         let best = null, bestScore = -Infinity;
         for (const ally of allies) {
           const d = ally.baseCost || ally.cost || 0;
-          const kills = tgtEnemies.filter(e => (e.currentHealth + (e.armorValue || 0)) <= d);
-          if (!kills.length) continue;
-          const topKill = kills.reduce((x, y) => AI.threatScore(y) > AI.threatScore(x) ? y : x);
-          const killThreat = AI.threatScore(topKill);
-          // 2× kill-value weight, −1 per sacrifice cost point.
-          const score = killThreat * 2 - d;
-          if (killThreat >= threshold && score > bestScore) {
-            bestScore = score;
-            best = { ally, enemy: topKill, score };
+          // Destroy: any enemy with cost ≤ ally cost. No HP/armor check needed.
+          const destroyTargets = tgts.filter(e => (e.baseCost || e.cost || 0) <= d);
+          if (destroyTargets.length) {
+            const topDestroy = destroyTargets.reduce((x, y) => AI.threatScore(y) > AI.threatScore(x) ? y : x);
+            const t = AI.threatScore(topDestroy);
+            // 2.5× weight on destroy (no overkill waste, ignores armor)
+            const score = t * 2.5 - d;
+            if (t >= threshold && score > bestScore) {
+              bestScore = score;
+              best = { ally, mode: 'destroy', enemy: topDestroy, score };
+            }
+          }
+          // Damage: any enemy whose effective HP fits within d damage.
+          const damageKills = tgts.filter(e => (e.currentHealth + (e.armorValue || 0)) <= d);
+          if (damageKills.length) {
+            const topDmg = damageKills.reduce((x, y) => AI.threatScore(y) > AI.threatScore(x) ? y : x);
+            const t = AI.threatScore(topDmg);
+            const score = t * 2 - d;
+            if (t >= threshold && score > bestScore) {
+              bestScore = score;
+              best = { ally, mode: 'damage', enemy: topDmg, score };
+            }
           }
         }
         return best;
       };
 
-      // AI-controlled: decide whether to use the ability at all. If no
-      // worthwhile trade exists (no scary enemy we can kill with a cheap
-      // ally), skip — don't waste an ally for a mediocre hit.
+      // AI-controlled: pick the best trade (destroy preferred when both score
+      // similar) and execute. Hold if no kill target meets the threat threshold.
       if (!Game.isHuman(self.owner)) {
-        // Threshold: kill target must have threat ≥ 4 (ignores chip kills).
         const trade = findBestTrade(4);
         if (!trade) {
           G.log(`Homelander surveys the field — no worthwhile sacrifice. Holds the strike.`);
@@ -1686,31 +1685,27 @@ const CARD_ABILITIES = {
         }
         const dmg = trade.ally.baseCost || trade.ally.cost;
         G.killCard(trade.ally);
-        G.dealDamage(trade.enemy, dmg);
-        G.log(`Homelander sacrifices ${trade.ally.name} — ${dmg} damage to ${trade.enemy.name}!`);
+        if (trade.mode === 'destroy') {
+          G.killCard(trade.enemy, self);
+          G.log(`Homelander sacrifices ${trade.ally.name} — destroys ${trade.enemy.name} (cost ≤ ${dmg})!`);
+        } else {
+          G.dealDamage(trade.enemy, dmg);
+          G.log(`Homelander sacrifices ${trade.ally.name} — ${dmg} damage to ${trade.enemy.name}!`);
+        }
         return;
       }
 
-      // Human path: prompt sacrifice pick + a "No Sacrifice" escape
-      // hatch so the player can land Homelander purely as a 5/6 body
-      // when no trade looks good. The skip option is a synthetic
-      // card-shaped object marked with `_isSkipOption` — the renderer
-      // hides its stat orbs (via isDiscardEffect:true) so it looks
-      // like a clean choice tile next to the real allies. User spec:
-      // "there should be a button for [no kill]."
       const skipOption = {
         _isSkipOption: true,
         name: 'No Sacrifice',
         cost: 0,
-        desc: "Homelander stands down — no ally is killed and no damage dealt.",
-        // Suppresses stat-orb rendering on the choice tile so it doesn't
-        // pretend to have ATK/HP.
+        desc: "Homelander stands down — no ally is killed.",
         isDiscardEffect: true,
       };
       const choices = [...allies, skipOption];
       G.promptCardChoice(self.owner, choices,
         "Homelander — Sacrifice?",
-        "Pick an ally to sacrifice for damage, or choose No Sacrifice to skip.",
+        "Pick an ally to sacrifice, or choose No Sacrifice to skip.",
         (picked) => {
           if (picked && picked._isSkipOption) {
             G.log(`Homelander stands down — no sacrifice this turn.`);
@@ -1718,22 +1713,47 @@ const CARD_ABILITIES = {
           }
           const victim = picked;
           const dmg = victim.baseCost || victim.cost;
+          // Step 2 — Damage vs Destroy. Both are synthetic choice tiles.
+          const damageOpt = {
+            _hlMode: 'damage',
+            name: `Deal ${dmg} damage`,
+            cost: 0,
+            desc: `Deal ${dmg} damage to any enemy.`,
+            isDiscardEffect: true,
+          };
+          const destroyOpt = {
+            _hlMode: 'destroy',
+            name: 'Destroy an enemy',
+            cost: 0,
+            desc: `Destroy any enemy with cost ≤ ${dmg}.`,
+            isDiscardEffect: true,
+          };
           G.killCard(victim);
-          const enemies = G.getEnemiesOf(self.owner);
-          if (enemies.length) {
-            G.promptCardChoice(self.owner, enemies, "Homelander — Strike", `Deal ${dmg} damage to which enemy?`, (target) => {
-              G.dealDamage(target, dmg);
-              G.log(`Homelander sacrifices ${victim.name} — ${dmg} damage to ${target.name}!`);
-            }, cards => {
-              const killable = cards.filter(c => c.currentHealth <= dmg);
-              const pool = killable.length ? killable : cards;
-              return pool.slice().sort((a, b) => AI.threatScore(b) - AI.threatScore(a))[0];
-            });
-          }
+          const enemies = damageableEnemies();
+          if (!enemies.length) return;
+          const validDestroyTargets = enemies.filter(e => (e.baseCost || e.cost || 0) <= dmg);
+          const modeChoices = validDestroyTargets.length ? [damageOpt, destroyOpt] : [damageOpt];
+          G.promptCardChoice(self.owner, modeChoices,
+            "Homelander — Strike Mode", `Choose how to spend ${victim.name}'s sacrifice`,
+            (modeChoice) => {
+              if (modeChoice._hlMode === 'destroy') {
+                G.promptCardChoice(self.owner, validDestroyTargets, "Homelander — Destroy", `Destroy which enemy (cost ≤ ${dmg})?`, (target) => {
+                  G.killCard(target, self);
+                  G.log(`Homelander sacrifices ${victim.name} — destroys ${target.name}!`);
+                }, cards => cards.slice().sort((a, b) => AI.threatScore(b) - AI.threatScore(a))[0]);
+                return;
+              }
+              G.promptCardChoice(self.owner, enemies, "Homelander — Damage", `Deal ${dmg} damage to which enemy?`, (target) => {
+                G.dealDamage(target, dmg);
+                G.log(`Homelander sacrifices ${victim.name} — ${dmg} damage to ${target.name}!`);
+              }, cards => {
+                const killable = cards.filter(c => c.currentHealth <= dmg);
+                const pool = killable.length ? killable : cards;
+                return pool.slice().sort((a, b) => AI.threatScore(b) - AI.threatScore(a))[0];
+              });
+            },
+            cards => cards.find(c => c._hlMode === 'destroy') || cards[0]);
         },
-        // Autopicker (player timed out): if findBestTrade(2) returns a
-        // worthwhile trade, take it; otherwise pick the skip option so
-        // the player isn't forced to lose an ally on an idle timer.
         cards => {
           const trade = findBestTrade(2);
           if (trade) return trade.ally;
@@ -1903,6 +1923,13 @@ const CARD_ABILITIES = {
           for (let i = 0; i < Game.LANE_COUNT; i++) {
             if (i !== fromLane && !G.state.lanes[i][opp] && !G.state.lanes[i].destroyed) openLanes.push(i);
           }
+          // AI bias: prefer destinations inside Gojo's cone (lane ± 1) so the
+          // moved enemy gets attack-zeroed by Step 2. Cone-lanes float to the
+          // front of the array; the auto-picker takes lanes[0].
+          if (!Game.isHuman(self.owner)) {
+            const cone = new Set([lane - 1, lane, lane + 1]);
+            openLanes.sort((a, b) => (cone.has(a) ? 0 : 1) - (cone.has(b) ? 0 : 1));
+          }
           if (openLanes.length) {
             G.promptLaneChoice(self.owner, openLanes, `Move ${target.name}`, `Choose lane to move ${target.name} to`, (toLane) => {
               G.moveCard(target, fromLane, toLane);
@@ -1968,6 +1995,11 @@ const CARD_ABILITIES = {
       self._gojoCombats++;
       if (self._gojoCombats < 2) return;
       self._gojoFired = true;
+      // Hollow Purple cue — fires only when the ability ACTUALLY resolves
+      // (not when Gojo enters play). User spec: "the hollow purple cue is
+      // off, it's being played when gojo is played; it should fire when
+      // his ability goes off."
+      if (typeof UI !== 'undefined' && UI.sfx) UI.sfx.playCardSfx('Gojo', 'ability', self);
       const opp = G.opponent(self.owner);
       const gojoLane = G.findCardLane(self);
       if (gojoLane < 0) return;
@@ -2391,12 +2423,20 @@ const CARD_ABILITIES = {
             if (!myCard || !enemy) return;
             const mine = AI.threatScore(myCard);
             const theirs = AI.threatScore(enemy);
-            // Threshold: destroy if we gain ≥ 1.5 threat in the trade, OR
-            // the enemy is otherwise unkillable (invincible/immune), OR
-            // the victim on our side is a Parademon / low-value token.
+            // Destroy if the trade is even or favorable, the enemy is
+            // otherwise unkillable (invincible/immune), or the victim on
+            // our side is a Parademon / low-value token. The old +1.5
+            // threshold was too conservative — flat-energy trades against
+            // mid-cost enemies still net us tempo since we replaced
+            // Darkseid's own play turn with the lane purge.
             const unkillableEnemy = enemy.invincibleTurns > 0 || enemy.hasDamageImmunity;
             const sacrificeBody = myCard.name === 'Parademon' || mine <= 2;
-            if (theirs - mine >= 1.5 || unkillableEnemy || sacrificeBody) {
+            // Also purge when the enemy COSTS more than our card by 2+ —
+            // even a "lateral threat" trade is good when we paid much less
+            // for our body. Fixes the AI sitting on Darkseid while a 9-cost
+            // enemy gummed up a contested lane.
+            const costDelta = (enemy.baseCost || enemy.cost || 0) - (myCard.baseCost || myCard.cost || 0);
+            if (theirs - mine >= 0.5 || unkillableEnemy || sacrificeBody || costDelta >= 2) {
               destroyLane(i);
               purged.push(i + 1);
             }
@@ -2456,8 +2496,9 @@ const CARD_ABILITIES = {
               // Only count lanes we'd actually destroy (favorable trade or
               // special case). A negative trade we wouldn't purge contributes 0.
               let delta = 0;
-              if (theirs - mine >= 1.5 || unkillable || sacrificeBody) {
-                delta = theirs - mine;
+              const costDelta = (enemy.baseCost || enemy.cost || 0) - (myCard.baseCost || myCard.cost || 0);
+              if (theirs - mine >= 0.5 || unkillable || sacrificeBody || costDelta >= 2) {
+                delta = (theirs - mine) + Math.max(0, costDelta) * 0.5;
                 if (unkillable) delta += 3; // bonus for removing an otherwise-unkillable threat
               }
               if ((i + 1) % 2 === 1) oddScore += delta; else evenScore += delta;
@@ -2713,8 +2754,8 @@ const CARD_ABILITIES = {
     }
   },
   "Dr. Manhattan": {
-    onPlay(G, self, lane) { G.healPlayer(self.owner, 7, self); G.log("Dr. Manhattan heals 7!"); },
-    passive: "extraCurrency3"
+    onPlay(G, self, lane) { G.healPlayer(self.owner, 5, self); G.log("Dr. Manhattan heals 5!"); },
+    passive: "extraCurrency2"
   },
   "Galactus": {
     onBeforeTricks(G, self, lane) {

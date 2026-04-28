@@ -283,6 +283,15 @@ body.preview-mobile .viewport-toggle {
 @media (max-width: 520px) {
   .viewport-toggle { display: none; }
 }
+/* Hide the dev viewport-toggle on every screen EXCEPT the main menu
+   and mode-select. User feedback: "the blue square on the top left
+   corner needs to go" (re: the encyclopedia view). The toggle is a
+   developer affordance, not part of the player UI — only surface it on
+   landing screens. The body gets a `clb-toggle-hidden` class from
+   ui.js whenever any non-landing phase/overlay is active. */
+body.clb-toggle-hidden .viewport-toggle {
+  display: none !important;
+}
 /* Ambient stage — a faint radial bloom at top-center + a barely-there
    circuit grid give the pure-black canvas a sense of depth without
    compromising the Tron aesthetic. Fixed so it doesn't scroll. */
@@ -1030,6 +1039,10 @@ body.hit-pause .ai-hand * {
   letter-spacing: 0.3px;
   display: inline-flex; align-items: center; gap: 5px; cursor: default;
 }
+/* Default: hide opponent deck/trick mini-badges on desktop (the central
+   HUD pill already shows shared counts). The mobile container-query
+   block re-shows them. */
+.pile-badge-mobile-only { display: none; }
 .pile-icon {
   width: 12px; height: 12px; display: inline-block;
   background-size: contain; background-repeat: no-repeat; background-position: center;
@@ -1374,19 +1387,26 @@ body.hit-pause .ai-hand * {
   margin-bottom: 4px;
 }
 /* Section label above each grid block — small caps Tron header
-   that introduces what's grouped beneath. Matches the tone of
-   the existing .mm-title / .mm-footer chrome. */
+   that introduces what's grouped beneath. Theme-tinted so it
+   tracks the active accent (purple/cyan/etc.) and gets the same
+   neon-glow treatment as .mm-title — the title ribbon and the
+   section labels read as a single chrome family. User spec:
+   "the section headers should match the color of 'the game'
+   and be neon highlighted". */
 .mm-section-label {
   font-family: 'Rajdhani', sans-serif;
-  font-size: 11px;
-  letter-spacing: 3px;
+  font-size: 12px;
+  letter-spacing: 4px;
   text-transform: uppercase;
-  color: rgba(127,208,255,0.65);
+  color: var(--theme-accent-bright, #f5fbff);
   margin: 6px 0 6px 2px;
-  padding-left: 8px;
-  border-left: 2px solid rgba(127,208,255,0.65);
-  text-shadow: 0 0 6px rgba(79,195,247,0.30);
-  font-weight: 700;
+  padding-left: 10px;
+  border-left: 2px solid var(--theme-accent-bright, rgba(79,195,247,0.85));
+  text-shadow:
+    0 0 6px var(--theme-accent-bright, rgba(79,195,247,0.85)),
+    0 0 14px var(--theme-glow-outer, rgba(79,195,247,0.45)),
+    0 0 24px var(--theme-glow-inner, rgba(79,195,247,0.25));
+  font-weight: 800;
 }
 .mm-section-label:first-of-type {
   margin-top: 4px;
@@ -1492,8 +1512,18 @@ body.hit-pause .ai-hand * {
    Builder's full-bleed MENU placement. User spec: "the menu bar
    should be where i drew it roughly in the top left corner just like
    the deck builder all 'menu' should be like this." */
+/* Back button — positioned INSIDE the host panel's neon border at its
+   top-left corner, matching the deck builder's MENU placement. The
+   parent panel needs `position: relative` so this absolute pin anchors
+   to the panel's top-left, not the viewport. `!important` on position
+   is mandatory because .tron-fx (added at runtime by applyTronFx)
+   sets position:relative on every Tron-decorated button, which would
+   otherwise drop the button into normal flow.
+   User feedback: "Want all menu buttons to look like the deck builders.
+   Inside the dimensions of our neon border. Not outside of it." */
 .mode-back, .stats-back, .md-back {
-  position: fixed; top: 14px; left: 14px;
+  position: absolute !important;
+  top: 16px !important; left: 16px !important;
   background: #000;
   border: 1px solid rgba(79,195,247,0.55);
   color: #a8dcff;
@@ -1504,7 +1534,15 @@ body.hit-pause .ai-hand * {
   letter-spacing: 2px; text-transform: uppercase;
   cursor: pointer;
   transition: border-color 0.15s, box-shadow 0.15s;
-  z-index: 1100;  /* above overlay backdrops + panels */
+  z-index: 20;  /* above panel content but contained within the panel */
+}
+/* Each host panel must establish a positioning context for its back
+   button. Without this, position:absolute would attach to the nearest
+   ancestor with position set (often the body or the overlay backdrop),
+   breaking the "inside the panel border" placement. */
+.mode-panel, .stats-panel, .md-panel, .encyc-panel,
+.mh-panel, .mp-panel, .game-over-content {
+  position: relative;
 }
 .mode-back:hover, .stats-back:hover, .md-back:hover {
   border-color: rgba(79,195,247,1);
@@ -6503,13 +6541,19 @@ body.hit-pause .ai-hand * {
 }
 .game-over-content {
   text-align: center;
-  padding: 32px 48px;
+  /* Tighter padding so the panel fits without the rematch button
+     getting pushed off-screen. User feedback: "Right now it's too big.
+     I can't select rematch... so it needs to be condensed." */
+  padding: 18px 24px 16px;
   background: rgba(0,0,0,0.95);
   border: 1px solid rgba(255,255,255,0.90);
   border-radius: 10px;
   box-shadow: 0 0 12px rgba(255,255,255,0.35), 0 0 24px rgba(255,255,255,0.15);
   animation: gameOverSlideUp 0.5s cubic-bezier(0.22, 1, 0.36, 1) 0.15s both;
   min-width: 380px;
+  max-width: 720px;
+  max-height: 92vh;
+  overflow-y: auto;
   /* Hover-to-solid translucent overlay. Off-hover the panel sits at
      ~22% opacity so the final board state behind it stays readable;
      on hover (mouse over the panel) it snaps to 100% so all the
@@ -6869,6 +6913,16 @@ body.hit-pause .ai-hand * {
 .game-over-actions {
   display: flex; gap: 10px; justify-content: center;
   flex-wrap: wrap;
+  /* Sticky to the bottom of the scrollable game-over-content so the
+     Rematch button stays in view even when the stats panel scrolls.
+     User feedback: "I can't select rematch... so it needs to be
+     condensed." */
+  position: sticky;
+  bottom: 0;
+  background: rgba(0,0,0,0.95);
+  padding: 10px 0 4px;
+  margin-top: 8px;
+  z-index: 5;
 }
 /* Log drawer, when opened from the victory screen, needs to paint ABOVE the
    game-over overlay (z-index 400). `.game-over-log-open` also ensures it's
@@ -6996,19 +7050,66 @@ body.turn-combat .board .lane.lane-active {
      before the center cell, leaving the Done button squeezed. New:
      90+30+1fr+30+50+tight padding/gaps ≈ 220px non-flex, giving the
      center cell ~160px on a 380px viewport — comfortable for Done. */
-  .info-bar { padding: 4px 6px; gap: 4px; grid-template-columns: 90px 30px 1fr 30px 50px; height: 52px; }
+  /* Mobile HUD bar: tightened HP cell so "30" sits flush against the
+     bar (gap 2px instead of 4) and the bar is narrower (56px), which
+     leaves clearance for the 0/8 block circle. The HP cell itself
+     shrinks 90→78px since the contents are tighter. User feedback:
+     "block circle is barely touching the numbers on the health bar...
+     move the number of the health bar closer left to the health bar."
+     Also: drop the rectangular bar-fill gradient so only the neon
+     hairlines + top/bottom glow remain (matches the board chrome).
+     User feedback: "you can kinda see, like, the square background
+     that's highlighted. Get rid of that. I like the highlight." */
+  /* HP number is OVERLAID inside the bar (absolute) so it can never
+     overlap the 0/8 block circle. User feedback: "the number of the
+     health bar in the block circle are overlapping... change this." */
+  .info-bar { padding: 4px 6px; gap: 4px; grid-template-columns: 64px 36px 1fr 36px 56px; height: 52px; }
+  .info-bar.ai-bar,
+  .info-bar.player-bar {
+    background: transparent !important;
+  }
   .bar-cell { gap: 4px; }
-  .health-container { gap: 4px; }
-  .health-bar { width: 64px; height: 12px; }
-  .health-text { font-size: 14px; }
-  .health-text > span { font-size: 14px; }
+  .health-container { gap: 0; position: relative; width: 64px; }
+  .health-bar { width: 64px; height: 14px; position: relative; }
+  .health-text {
+    position: absolute !important;
+    top: 50% !important; left: 0 !important; right: 0 !important;
+    transform: translateY(-50%) !important;
+    text-align: center;
+    font-size: 11px;
+    pointer-events: none;
+    z-index: 2;
+    /* Black outline so the number reads against red/green fill colors */
+    text-shadow:
+      -1px -1px 0 #000, 1px -1px 0 #000,
+      -1px  1px 0 #000, 1px  1px 0 #000,
+      0 0 4px rgba(0,0,0,0.85);
+  }
+  .health-text > span { font-size: 11px; font-weight: 800; }
   .block-circle { width: 28px; height: 28px; }
   .block-circle-label { font-size: 6px; letter-spacing: 0.5px; }
   .block-circle-value { font-size: 9px; }
   .energy-text { width: 28px; height: 28px; font-size: 12px; }
   .energy-display { gap: 2px; }
-  .pile-badge { padding: 3px 6px; font-size: 10px; }
-  .pile-badge.tricks-history { padding: 3px 5px; font-size: 9px; margin-right: 2px; }
+  /* Dead-pile pill — shrunk on mobile to match the block-circle /
+     energy-orb scale (~28px). User feedback: "the pill of the dead
+     pile needs to be smaller. It has to match everything else." */
+  .pile-badge {
+    padding: 2px 5px;
+    font-size: 8.5px;
+    letter-spacing: 0.5px;
+    line-height: 1;
+    height: 18px;
+    border-radius: 9px;
+  }
+  .pile-badge .pile-icon { width: 8px; height: 10px; }
+  /* Mobile: surface opponent deck + tricks counts (hidden on desktop
+     because the central HUD pill carries them). User feedback: "no
+     symbols for the opponent's deck — needs to be added back in." */
+  .pile-badge-mobile-only { display: inline-flex !important; gap: 3px; padding: 2px 4px; font-size: 8.5px; margin-right: 2px; }
+  .pile-mini-label { font-size: 7.5px; letter-spacing: 0.5px; opacity: 0.65; font-weight: 700; }
+  .ai-deck-badge   .pile-mini-label { color: rgba(125,210,255,0.95); }
+  .ai-tricks-badge .pile-mini-label { color: rgba(180,120,255,0.95); }
   .actions-section .btn { min-height: 36px; padding: 4px 8px; font-size: 10px; letter-spacing: 0.6px; }
   button, .btn { min-height: 40px; } /* 40px tap target baseline */
   .phase-banner-text { font-size: 20px; }
@@ -7028,7 +7129,14 @@ body.turn-combat .board .lane.lane-active {
   /* Settings gear — pull tighter to the corner so it doesn't compete
      with the HUD pill for horizontal real estate. */
   .settings-cog { right: 8px !important; top: 8px !important; transform: scale(0.85); transform-origin: top right; }
-  .kb-hints, .ai-hand-mini { display: none; } /* AI hand row is opponent-state; save vertical space */
+  .kb-hints { display: none; }
+  /* Show opponent's hand + tricks as face-down mini cards on mobile,
+     just like desktop. User feedback: "I meant their hand and tricks
+     like it is on web, where you see their hand and their tricks, not
+     deck 85 and tricks 23." */
+  .ai-hand-mini { display: flex !important; min-width: 0; }
+  .ai-hand-mini .card-back { width: 12px; height: 18px; flex: 0 0 auto; }
+  .ai-hand-mini .hand-cards { gap: 2px; padding: 0; min-height: 0; }
   .settings-panel { padding: 14px 16px; min-width: 0; width: 100%; max-width: 360px; }
   .game-over-content { padding: 22px 18px; min-width: 0; }
   .game-over-title { font-size: 30px; letter-spacing: 4px; }
@@ -7059,7 +7167,38 @@ body.turn-combat .board .lane.lane-active {
      above, this just kills extra padding. */
   .player-hand-section { padding: 4px 6px; }
   .tricks-section { padding: 4px 6px; }
-  .hand-cards { gap: 4px; }
+  /* Mobile hand: 92px-wide cards fit FOUR comfortably in a 380px
+     viewport (4×92 + 3×4 = 380), with description text legible. Hand
+     auto-scrolls horizontally for hands of 5+ cards. User feedback:
+     "you can't see the card text. Revert to four cards showing like
+     it was before." */
+  .hand-cards {
+    gap: 4px;
+    justify-content: flex-start;
+    overflow-x: auto;
+    overflow-y: visible;
+    scroll-snap-type: x mandatory;
+    -webkit-overflow-scrolling: touch;
+    mask-image: linear-gradient(to right, #000 0, #000 calc(100% - 24px), transparent 100%);
+  }
+  .player-hand-section .hand-cards .card,
+  .player-hand-section .hand-cards .hand-card-wrapper {
+    width: 92px;
+    min-width: 92px;
+    max-width: 92px;
+    scroll-snap-align: start;
+  }
+  .player-hand-section .hand-cards .card {
+    min-height: 130px;
+    font-size: 9.5px;
+    padding: 5px 3px 14px;
+  }
+  .player-hand-section .hand-cards .card .card-name { font-size: 9.5px; letter-spacing: 0.3px; }
+  .player-hand-section .hand-cards .card .card-desc { display: block; font-size: 7.5px; line-height: 1.15; }
+  .player-hand-section .hand-cards .card .card-cost { width: 20px; height: 20px; font-size: 12px; top: -8px; left: -8px; }
+  .player-hand-section .hand-cards .card .stat-circle { width: 18px; height: 18px; font-size: 11px; }
+  .player-hand-section .hand-cards .card .stat-circle.stat-atk { bottom: -8px; left: -7px; }
+  .player-hand-section .hand-cards .card .stat-circle.stat-hp  { bottom: -8px; right: -7px; }
   .trick-cards { gap: 4px; }
   .trick-card { width: 92px; }
 
@@ -7088,27 +7227,30 @@ body.turn-combat .board .lane.lane-active {
    dev for mobile only dont touch web." */
 @container (max-width: 520px) {
   /* ---- MAIN MENU ---- */
-  /* On mobile the main menu fills the entire viewport so there's no
-     dead space top/bottom. User report: "to be afraid to make it
-     more vertical there is a lot of dead space." */
+  /* On mobile the panel is centered vertically with even whitespace top
+     and bottom, matching the multiplayer overlay's layout. User
+     feedback: "On all the mobile screens it's very pushed up to the
+     top. And instead it should be in the middle... where there's an
+     even number of blank space at the top of the frame than there is
+     in the bottom of the frame. Similar to how the multiplayer menu
+     looks." */
   .main-menu-overlay {
-    align-items: stretch !important;
-    padding: 0 !important;
+    align-items: center !important;
+    justify-content: center !important;
+    padding: 24px 14px !important;
+    box-sizing: border-box;
   }
   .mm-panel {
-    padding: 24px 14px 16px;
+    padding: 24px 14px 20px;
     max-width: 100% !important;
     width: 100%;
-    min-height: 100vh;
-    border-radius: 0 !important;
+    border-radius: 4px !important;
     box-sizing: border-box;
-    /* Distribute the 8 buttons + 3 section labels + title + divider
-       across the full viewport height so the layout breathes evenly
-       instead of bunching at top. */
     display: flex;
     flex-direction: column;
-    justify-content: flex-start;
     gap: 0;
+    /* No min-height — the panel sizes to its content so the centering
+       leaves equal space above and below. */
   }
   .mm-title {
     font-size: 26px;
@@ -7337,21 +7479,35 @@ body.turn-combat .board .lane.lane-active {
   .choice-tray .choice-card .card-name { font-size: 10px; }
   .choice-tray .choice-card .card-desc { font-size: 9px; line-height: 1.2; }
 
-  /* ---- BACK BUTTON (used across overlays) ---- */
-  .md-back { font-size: 10px; padding: 4px 8px; top: 8px; left: 8px; }
+  /* ---- BACK BUTTON (used across overlays) ----
+     Mobile: tighter padding + 10px inset from panel corner. */
+  .md-back, .mode-back, .stats-back {
+    font-size: 10px;
+    padding: 4px 8px;
+    top: 10px !important; left: 10px !important;
+  }
 
   /* ---- MODE-SELECT (Solo / Two-on-Two grid) ----
      User report: cards-side-by-side were too narrow on mobile. Stack
      each option full-width below its row label so each card is
-     legible. */
+     legible. Also: panel is now centered vertically with even
+     whitespace top + bottom, matching the multiplayer overlay layout
+     ("similar to how the multiplayer menu looks"). */
+  .mode-select-overlay {
+    align-items: center !important;
+    justify-content: center !important;
+    padding: 24px 14px !important;
+    box-sizing: border-box;
+  }
   .mode-panel {
-    padding: 24px 14px 16px;
+    padding: 24px 14px 20px;
     max-width: 100% !important;
     width: 100%;
-    min-height: 100vh;
-    border-radius: 0 !important;
+    border-radius: 4px !important;
     box-sizing: border-box;
     overflow-y: auto;
+    /* Sized to content; no min-height = even whitespace above + below
+       in the centered overlay. */
   }
   .mode-grid {
     grid-template-columns: 1fr !important;
@@ -7374,20 +7530,35 @@ body.turn-combat .board .lane.lane-active {
      by-side at narrow widths produces unreadable 1-word-per-line
      descriptions; stacked gives each card the full panel width with
      legible text. */
-  .draft-cards-row {
+  /* Mobile draft: cards display at their natural card-shape proportions
+     (~220px wide, portrait), stacked one above the other and centered.
+     User feedback: "i want the cards to be regulr sized just above one
+     another not wide like this" — applies to both card and trick drafts.
+     Container is `.draft-choices` (renderer line ~6292).
+
+     Gap = 36px because the cost diamond (top: -12px) AND the bottom stat
+     orbs (bottom: -12px) each hang 12px past the card edge — at gap 14px
+     the diamond visually overlapped the orb of the card above. 36px clears
+     both badges with breathing room. */
+  .draft-choices {
     flex-direction: column !important;
-    gap: 14px !important;
+    gap: 36px !important;
     padding: 0 8px !important;
-    align-items: stretch;
+    align-items: center !important;
   }
   .draft-card {
     flex: 0 0 auto !important;
-    width: 100% !important;
-    max-width: 100% !important;
-    min-height: 200px !important;
+    width: 220px !important;
+    max-width: 220px !important;
+    min-height: 240px !important;
   }
-  .draft-card .card-name { font-size: 14px; letter-spacing: 1px; }
-  .draft-card .card-desc { font-size: 12px; line-height: 1.4; }
+  .draft-card .card-name { font-size: 13px; letter-spacing: 0.8px; }
+  .draft-card .card-desc { font-size: 11px; line-height: 1.35; }
+  /* Cost diamond was 18×18 — too small next to the 38×38 ATK/HP orbs.
+     Grow to 30×30 (font 15px) so the cost reads at the same weight as
+     the stat orbs. User feedback: "the energy diamond is too small
+     compared to the health/damage orbs". */
+  .draft-card .card-cost { width: 30px !important; height: 30px !important; font-size: 15px !important; top: -12px !important; left: -12px !important; }
 }
 
 /* On pointer:coarse (touch-primary), expand tap targets for all
@@ -11300,23 +11471,63 @@ body.turn-ai .hud-phase {
   color: color-mix(in srgb, var(--theme-accent) 35%, #f5fbff) !important;
   text-shadow: 0 0 6px var(--theme-glow-outer), 0 0 12px var(--theme-glow-inner) !important;
 }
-/* Round badge follows theme regardless of who opened. */
-.hud-round,
-body.round-first-player .hud-round,
-body.round-first-ai .hud-round {
+/* Round badge — DEFAULT (no firstPlayer set yet) follows theme.
+   Round-first-player / round-first-ai overrides paint side-specific
+   neon (green = player, red = AI) so the diamond always signals
+   initiative at a glance. User spec: "this needs to be neon
+   highlighted depending on who goes first." */
+.hud-round {
   color: color-mix(in srgb, var(--theme-accent) 40%, white) !important;
   text-shadow: 0 0 6px var(--theme-glow-outer) !important;
 }
-.hud-round #round-num,
-body.round-first-player .hud-round #round-num,
-body.round-first-ai .hud-round #round-num {
+.hud-round #round-num {
+  /* No box-shadow on the parent — it's a 22x22 SQUARE so any halo
+     here paints a square ghost behind the diamond. The diamond's
+     glow lives on the rotated ::before which IS diamond-shaped.
+     User feedback: "It's pulsing, but you can see the square clearly
+     behind it. I want that square gone." */
+  box-shadow: none !important;
   color: color-mix(in srgb, var(--theme-accent) 30%, white) !important;
-  border-color: var(--theme-accent-bright) !important;
-  box-shadow:
-    inset 0 0 0 1px var(--theme-accent-dim),
-    0 0 6px var(--theme-glow-outer),
-    0 0 14px var(--theme-glow-inner) !important;
   text-shadow: 0 0 6px var(--theme-accent-bright), 0 0 12px var(--theme-glow-outer) !important;
+}
+/* Player goes first — green neon, matching the player HUD bar tint.
+   The diamond shape is the `::before` pseudo of #round-num, so the
+   border-color + box-shadow have to be overridden THERE (not on the
+   parent) to actually repaint the ring. */
+body.round-first-player .hud-round {
+  color: #b9f5cb !important;
+  text-shadow: 0 0 6px rgba(46,204,113,0.55) !important;
+}
+body.round-first-player .hud-round #round-num {
+  color: #d6f8e2 !important;
+  text-shadow:
+    0 0 6px rgba(46,204,113,1),
+    0 0 14px rgba(46,204,113,0.55) !important;
+}
+body.round-first-player .hud-round #round-num::before {
+  border-color: rgba(46,204,113,1) !important;
+  box-shadow:
+    inset 0 0 0 1px rgba(46,204,113,0.30),
+    0 0 10px rgba(46,204,113,0.85),
+    0 0 22px rgba(46,204,113,0.45) !important;
+}
+/* AI goes first — red neon, matching the enemy HUD bar tint. */
+body.round-first-ai .hud-round {
+  color: #f3bfb8 !important;
+  text-shadow: 0 0 6px rgba(231,76,60,0.55) !important;
+}
+body.round-first-ai .hud-round #round-num {
+  color: #ffd2cc !important;
+  text-shadow:
+    0 0 6px rgba(231,76,60,1),
+    0 0 14px rgba(231,76,60,0.55) !important;
+}
+body.round-first-ai .hud-round #round-num::before {
+  border-color: rgba(231,76,60,1) !important;
+  box-shadow:
+    inset 0 0 0 1px rgba(231,76,60,0.30),
+    0 0 10px rgba(231,76,60,0.85),
+    0 0 22px rgba(231,76,60,0.45) !important;
 }
 /* Deck + Tricks counters both follow theme now — user wants every HUD
    segment connected to the picked neon. Tricks card-body still purple. */
@@ -12779,29 +12990,13 @@ input, textarea, select, [contenteditable="true"] { cursor: text !important; }
   100% { width: 26px; height: 26px; }
 }
 
-/* Trail — 10 recycling dots that spawn along the cursor's path and
-   fade. Tiny, themed, scale-down while fading for a motion-streak feel. */
+/* Trail dots — disabled per user feedback: "get rid of the little tail
+   of gas behind the cursor its destracting. i just want the tron disc
+   lines." The 10 trail elements still get spawned by ui.js, but they
+   never paint. The Tron-disc SVG line trail (#tron-cursor-trail) is
+   the only motion cue now. */
 .cursor-trail {
-  position: fixed;
-  top: 0; left: 0;
-  width: 5px; height: 5px;
-  border-radius: 50%;
-  transform: translate(-50%, -50%);
-  pointer-events: none;
-  z-index: 9999;
-  opacity: 0;
-  background: var(--theme-accent);
-  box-shadow:
-    0 0 4px var(--theme-accent-bright),
-    0 0 10px var(--theme-glow-outer);
-  will-change: transform, left, top, opacity;
-}
-.cursor-trail.active {
-  animation: cursorTrailFade 620ms cubic-bezier(0.22, 1, 0.36, 1) forwards;
-}
-@keyframes cursorTrailFade {
-  0%   { opacity: 0.75; transform: translate(-50%, -50%) scale(1); }
-  100% { opacity: 0;    transform: translate(-50%, -50%) scale(0.25); }
+  display: none !important;
 }
 
 /* ---- #6 Typewriter letter stagger on phase banner ----
@@ -16238,16 +16433,18 @@ body.defeat-pose .board .card.enemy-card {
 }
 .tron-trail-path {
   fill: none;
-  stroke: rgba(127, 208, 255, 0.95);
+  stroke: var(--theme-accent-bright, rgba(127, 208, 255, 0.95));
   stroke-width: 1.5;
   stroke-linecap: round;
   stroke-linejoin: round;
-  /* Multi-layer drop-shadow gives the neon-glow look. The first is
-     the bright inner halo, the second a wider softer outer wash. */
+  /* Multi-layer drop-shadow neon glow — themed via CSS variables so
+     the disc lines track whatever accent the active theme exposes
+     (purple / cyan / green / etc.). User spec: "the trail for the
+     cursor needs to be neon highlighted, right now its blue only." */
   filter:
-    drop-shadow(0 0 3px rgba(127, 208, 255, 1.0))
-    drop-shadow(0 0 8px rgba(79, 195, 247, 0.65))
-    drop-shadow(0 0 16px rgba(79, 195, 247, 0.30));
+    drop-shadow(0 0 3px var(--theme-accent-bright, rgba(127, 208, 255, 1.0)))
+    drop-shadow(0 0 8px var(--theme-glow-outer, rgba(79, 195, 247, 0.65)))
+    drop-shadow(0 0 16px var(--theme-glow-inner, rgba(79, 195, 247, 0.30)));
   /* GPU compositor hint — the d-attr changes every frame. */
   will-change: d;
   /* Tells the browser to render the path with sub-pixel positioning
@@ -18530,20 +18727,17 @@ html {
    Variants covered: default, body.round-first-player,
    body.round-first-ai, plus the per-theme override that uses
    var(--theme-glow-outer/inner). */
-.hud-round #round-num,
-body.round-first-player .hud-round #round-num,
-body.round-first-ai     .hud-round #round-num {
-  /* Inset stroke only — no outer halo. */
+/* Default round badge (no firstPlayer set yet, e.g. pre-match): strip the
+   outer halo so the diamond reads cleanly. Round-first-player and
+   round-first-ai variants are EXCLUDED here so their bespoke green/red
+   glow can land — user spec: "this needs to be neon highlighted depending
+   on who goes first." */
+body:not(.round-first-player):not(.round-first-ai) .hud-round #round-num {
   box-shadow: none !important;
   text-shadow: none !important;
-  filter: none !important; /* drops the breathing brightness pulse */
+  filter: none !important;
 }
-.hud-round #round-num::before,
-body.round-first-player .hud-round #round-num::before,
-body.round-first-ai     .hud-round #round-num::before {
-  /* Keep the inset 1px stroke so the diamond outline reads, but
-     strip the two outer glow rings (10px + 22px) that produced
-     the halo behind the diamond. */
+body:not(.round-first-player):not(.round-first-ai) .hud-round #round-num::before {
   box-shadow: inset 0 0 0 1px rgba(255,255,255,0.16) !important;
   filter: none !important;
 }
@@ -18739,4 +18933,228 @@ body.killing-blow-cinema::after {
 .replay-panel::before,         .replay-panel::after {
   content: none !important;
   display: none !important;
+}
+
+/* ============================================================
+   UPDATE-AVAILABLE BANNER
+   Top-left chip that appears only when the service worker has
+   installed a newer build. Hidden by default; the .update-banner-
+   visible class (added from the SW updatefound listener in
+   index.html) reveals it. Click → location.reload(). Style is the
+   same neon-green Tron chrome as the HUD's player bar so it reads
+   as a native part of the UI rather than a popup. */
+.update-banner {
+  position: fixed;
+  top: 10px; left: 14px;
+  display: none;        /* default: invisible — only flips on when an update lands */
+  align-items: center;
+  gap: 8px;
+  padding: 6px 14px 6px 12px;
+  background: #000000;
+  border: 1px solid rgba(46, 204, 113, 0.95);
+  border-radius: 4px;
+  color: #b9f5cb;
+  font-family: 'Rajdhani', sans-serif;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  text-shadow: 0 0 6px rgba(46, 204, 113, 0.85);
+  box-shadow:
+    inset 0 0 0 1px rgba(46, 204, 113, 0.30),
+    0 0 8px rgba(46, 204, 113, 0.55),
+    0 0 18px rgba(46, 204, 113, 0.30);
+  cursor: pointer;
+  z-index: 10000;
+  transition: background 0.15s, box-shadow 0.15s;
+  /* Subtle pulse so the player notices it */
+  animation: updateBannerPulse 2.4s ease-in-out infinite;
+}
+.update-banner.update-banner-visible { display: inline-flex; }
+.update-banner:hover {
+  background: rgba(46, 204, 113, 0.10);
+  box-shadow:
+    inset 0 0 0 1px rgba(46, 204, 113, 0.55),
+    0 0 12px rgba(46, 204, 113, 0.85),
+    0 0 24px rgba(46, 204, 113, 0.50);
+}
+.update-banner-icon {
+  display: inline-block;
+  font-size: 14px;
+  line-height: 1;
+  /* Slow rotation suggests "refresh" without being distracting */
+  animation: updateBannerSpin 3s linear infinite;
+}
+@keyframes updateBannerPulse {
+  0%, 100% { box-shadow: inset 0 0 0 1px rgba(46, 204, 113, 0.30), 0 0 8px rgba(46, 204, 113, 0.55), 0 0 18px rgba(46, 204, 113, 0.30); }
+  50%      { box-shadow: inset 0 0 0 1px rgba(46, 204, 113, 0.45), 0 0 14px rgba(46, 204, 113, 0.85), 0 0 28px rgba(46, 204, 113, 0.50); }
+}
+@keyframes updateBannerSpin {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+/* Mobile: shrink so it doesn't crowd the HUD on a 380px viewport */
+@container (max-width: 520px) {
+  .update-banner {
+    top: 6px; left: 8px;
+    padding: 4px 10px 4px 8px;
+    font-size: 9.5px;
+    letter-spacing: 1.4px;
+  }
+  .update-banner-icon { font-size: 12px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .update-banner, .update-banner-icon { animation: none !important; }
+}
+
+/* ============================================================
+   GAME-OVER MVP DUO + TOP-5 IMPACT
+   ============================================================
+   Two MVP cards side-by-side at the top with rarity-based borders
+   (.cost-N classes set in renderMvpDuo via getCostClass). Below
+   the cards: a compact Top-5 Impact list, then the HP curve, then
+   a tightened stat table. User feedback: "MVP cards at the top
+   need to be horizontal... give an impact score for the top five." */
+.go-mvp-duo {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+  margin-bottom: 12px;
+  align-items: stretch;
+}
+.go-mvp-slot {
+  display: flex; flex-direction: column; align-items: center;
+  gap: 6px;
+  padding: 10px;
+  background: rgba(255,255,255,0.02);
+  border: 1px solid rgba(255,255,255,0.10);
+  border-radius: 6px;
+}
+.go-mvp-empty { visibility: hidden; }
+.go-mvp-header {
+  display: flex; align-items: center; justify-content: space-between;
+  width: 100%;
+  font-family: 'Rajdhani', sans-serif;
+  font-size: 10px; letter-spacing: 1.5px; text-transform: uppercase;
+}
+.go-mvp-rank {
+  color: #ffe066;
+  text-shadow: 0 0 4px rgba(255,215,0,0.6);
+  font-weight: 800;
+}
+.go-mvp-runner-up .go-mvp-rank {
+  color: #cfd6df;
+  text-shadow: 0 0 4px rgba(220,225,235,0.55);
+}
+.go-mvp-side-tag {
+  font-size: 9px;
+  padding: 1px 6px;
+  border-radius: 3px;
+  border: 1px solid currentColor;
+}
+.go-mvp-side-you { color: rgb(var(--theme-rgb, 79,195,247)); }
+.go-mvp-side-opp { color: #ff9a8c; }
+/* The actual card chrome — uses .card base styling + the cost class
+   so the border and rarity strip color reflect the card's tier. */
+.go-mvp-card {
+  width: 140px;
+  min-height: 160px;
+  margin: 8px 0 4px;
+  cursor: default;
+}
+.go-mvp-stats {
+  width: 100%;
+  display: flex; flex-direction: column;
+  gap: 2px;
+  font-family: 'Rajdhani', sans-serif;
+  font-size: 11px;
+}
+.go-mvp-stat-row {
+  display: flex; justify-content: space-between;
+  padding: 2px 6px;
+  background: rgba(255,255,255,0.03);
+  border-radius: 3px;
+  letter-spacing: 0.5px;
+}
+.go-mvp-stat-k { color: rgba(220,225,235,0.65); text-transform: uppercase; font-size: 9px; }
+.go-mvp-stat-row b { color: #f5fbff; font-weight: 800; }
+
+/* Top-5 Impact list — compact horizontal-style ordered list. */
+.go-top5 {
+  margin: 8px 0 12px;
+  padding: 8px 12px;
+  background: rgba(255,255,255,0.03);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 5px;
+}
+.go-top5-title {
+  font-family: 'Rajdhani', sans-serif;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: rgba(255,225,150,0.85);
+  text-shadow: 0 0 4px rgba(255,215,0,0.35);
+  margin-bottom: 6px;
+}
+.go-top5-list {
+  list-style: none; padding: 0; margin: 0;
+  display: flex; flex-direction: column; gap: 3px;
+}
+.go-top5-item {
+  display: grid;
+  grid-template-columns: 22px 1fr auto;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 8px;
+  background: rgba(0,0,0,0.55);
+  border: 1px solid rgba(255,255,255,0.10);
+  border-radius: 4px;
+  font-family: 'Rajdhani', sans-serif;
+  font-size: 12px;
+}
+.go-top5-rank {
+  font-weight: 800;
+  color: rgba(255,225,150,0.85);
+  text-shadow: 0 0 3px rgba(255,215,0,0.4);
+  font-size: 12px;
+}
+.go-top5-name {
+  text-align: left;
+  font-weight: 700;
+  letter-spacing: 0.4px;
+}
+.go-top5-score {
+  font-weight: 800;
+  color: #f5fbff;
+  font-variant-numeric: tabular-nums;
+}
+/* Side accent strip — left edge tinted by which side the card came from */
+.go-top5-you { border-left-color: rgba(var(--theme-rgb, 79,195,247), 0.65); border-left-width: 3px; }
+.go-top5-opp { border-left-color: rgba(231,76,60,0.65); border-left-width: 3px; }
+/* Cost-tier name color — green / cyan / silver / gold like everywhere else */
+.go-top5-item.cost-0 .go-top5-name,
+.go-top5-item.cost-1 .go-top5-name,
+.go-top5-item.cost-2 .go-top5-name,
+.go-top5-item.cost-3 .go-top5-name { color: #5be39a; }
+.go-top5-item.cost-4 .go-top5-name,
+.go-top5-item.cost-5 .go-top5-name,
+.go-top5-item.cost-6 .go-top5-name { color: #7fd0ff; }
+.go-top5-item.cost-7 .go-top5-name,
+.go-top5-item.cost-8 .go-top5-name { color: #e6ecf2; }
+.go-top5-item.cost-9 .go-top5-name,
+.go-top5-item.cost-10 .go-top5-name { color: #ffe066; }
+
+/* Condense the bottom stat table so the rematch button stays in view */
+.go-stat-table { margin-top: 4px; }
+.go-stat-table .go-stat-row { padding: 4px 0; font-size: 11px; }
+.go-hp-chart { margin: 6px 0 8px; }
+
+/* Mobile: stack the MVP duo so the cards don't shrink past readable */
+@container (max-width: 520px) {
+  .go-mvp-duo { grid-template-columns: 1fr; gap: 8px; }
+  .go-mvp-card { width: 120px; min-height: 140px; }
+  .go-mvp-stats { font-size: 10px; }
+  .go-top5 { padding: 6px 8px; }
+  .go-top5-item { font-size: 11px; padding: 3px 6px; }
 }
