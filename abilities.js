@@ -41,6 +41,57 @@ const _aiKillPicker = (cards, damage) => {
 };
 
 const CARD_ABILITIES = {
+  // ==================== ROGUELITE STARTERS ====================
+  // The 3 vanilla bodies from Roguelite.STARTER_DEFS. These get
+  // re-merged onto the corresponding CARD_DEFS entries when
+  // Roguelite._ensureVanillaDefsRegistered runs at fight launch.
+  "Goon": {
+    passive: 'goonHive',
+    onPlay(G, self, lane) {
+      // "+1/+1 for every other Goon ally on board." On arrival count
+      // existing Goons → buff self by (n,n) AND buff each existing
+      // Goon by (1,1) so they all stay in lockstep with the count.
+      const others = G.getAlliesOf(self.owner).filter(a => a.id !== self.id && a.name === 'Goon' && a.currentHealth > 0);
+      const n = others.length;
+      if (n > 0) {
+        G.buffCard(self, n, n);
+        others.forEach(g => G.buffCard(g, 1, 1));
+        G.log(`Goon hive: +${n}/+${n} from ${n} other Goon${n === 1 ? '' : 's'}.`);
+      }
+    },
+    onDeath(G, self, lane) {
+      // When a Goon falls, the hive shrinks — every remaining Goon
+      // ally loses 1/1 (floors at attack 0, currentHealth 1) so
+      // their stats track the new ally count.
+      const remaining = G.getAlliesOf(self.owner).filter(a => a.id !== self.id && a.name === 'Goon' && a.currentHealth > 0);
+      remaining.forEach(g => {
+        g.attack = Math.max(0, (g.attack || 0) - 1);
+        g.maxHealth = Math.max(1, (g.maxHealth || 1) - 1);
+        g.currentHealth = Math.max(1, Math.min(g.currentHealth, g.maxHealth));
+      });
+      if (remaining.length) G.log(`Goon hive shrinks — ${remaining.length} remaining Goon${remaining.length === 1 ? '' : 's'} lose 1/1.`);
+    },
+  },
+  "Thug": {
+    onPlay(G, self, lane) {
+      // Deal 1 damage to a chosen enemy. Prompt the player; AI picks
+      // a kill target via _aiKillPicker(cards, 1) so a 1/1 sniped is
+      // a kill. If no enemies, no-op.
+      const enemies = G.getEnemiesOf(self.owner);
+      if (!enemies.length) return;
+      G.promptCardChoice(
+        self.owner, enemies, 'Thug — Strike', 'Choose an enemy to deal 1 damage',
+        (t) => { G.dealDamage(t, 1, self); G.log(`Thug strikes ${t.name} for 1!`); },
+        cards => _aiKillPicker(cards, 1)
+      );
+    },
+  },
+  "Brute": {
+    // No callbacks needed — Armor 1 + Taunt 1 are pure keyword
+    // abilities applied via the `abilities` array at applyAbilities
+    // time. Listed here so the merge step still runs (no-op merge).
+  },
+
   // ==================== COST 1 ====================
   "Ant-Man": {
     onPlay(G, self, lane) {
@@ -142,18 +193,33 @@ const CARD_ABILITIES = {
   },
   "Black Widow": {
     onPlay(G, self, lane) {
+      // Roguelite rarity variant — number of freezes scales with tier.
+      //   common    → 1 adjacent freeze (listed)
+      //   rare      → 1 adjacent freeze (listed)
+      //   special   → 2 adjacent freezes (if 2 adjacent enemies)
+      //   legendary → 2 adjacent freezes + cards gain Bullseye for 1 turn
+      const freezes = G.rarityValue(self, { common: 1, rare: 1, special: 2, legendary: 2 });
+      const grantBullseye = G.rarityValue(self, { common: false, rare: false, special: false, legendary: true });
       const adj = G.getAdjacentEnemiesInContext(lane, self.owner);
-      if (adj.length) {
-        // Always route through promptCardChoice — it handles single-
-        // target via a "auto-targeted X" toast for the human, and
-        // auto-picks for AI. User spec: "the user always chooses".
-        // Effect SFX fires automatically via the engine wrapper around
-        // freezeCard (see ui.js → EFFECT_SFX hooks). No manual SFX call
-        // needed — the freeze sting lands when the freeze actually
-        // applies, regardless of which card or trick caused it.
-        G.promptCardChoice(self.owner, adj, "Black Widow — Freeze", "Choose adjacent enemy to freeze", (t) => {
+      if (!adj.length) return;
+      let frozen = 0;
+      const pickNext = () => {
+        const remaining = adj.filter(a => !a.isFrozen);
+        if (frozen >= freezes || !remaining.length) return;
+        G.promptCardChoice(self.owner, remaining, "Black Widow — Freeze", `Choose adjacent enemy to freeze (${frozen + 1}/${freezes})`, (t) => {
           G.freezeCard(t, self);
+          frozen++;
+          if (frozen < freezes) pickNext();
         });
+      };
+      pickNext();
+      if (grantBullseye) {
+        G.getAlliesOf(self.owner).forEach(a => {
+          if (a.id !== self.id) {
+            G.grantTempBuff(a, { isBullseye: true });
+          }
+        });
+        G.log("Black Widow's signal: allies gain Bullseye this turn!");
       }
     }
   },
@@ -217,40 +283,40 @@ const CARD_ABILITIES = {
   },
   "Gorilla Grodd": {
     onPlay(G, self, lane) {
-      // Spec: pick an enemy with base cost 3 or less and mind-control it.
-      // Matches the Luke Skywalker / Mind Stone flow — no victim pre-pick.
-      // The MC flag lands here; when the controlled card swings during
-      // combat, resolveLaneCombat's getMindControlTarget prompts the
-      // player to pick the target ally at that moment. Flag clears at
-      // end of round (same as every other MC).
+      // Roguelite rarity variant — cost gate scales with tier. Classic
+      // mode (no _runRarity) defaults to 'rare' → base behavior (≤3).
+      //   common    → cost ≤ 1 (only the smallest threats)
+      //   rare      → cost ≤ 3 (listed)
+      //   special   → cost ≤ 5
+      //   legendary → cost ≤ 9 (anything that isn't a 10-cost titan)
+      const maxCost = G.rarityValue(self, { common: 1, rare: 3, special: 5, legendary: 9 });
       const enemySide = G.opponent(self.owner);
       const jugg = G.getAllCardsOf(enemySide).find(c => c.name === 'Juggernaut');
       if (jugg) { G.log(`Juggernaut blocks Gorilla Grodd's mind control!`); return; }
       const eligible = G.getEnemiesOf(self.owner)
-        .filter(e => (e.baseCost || e.cost) <= 3);
+        .filter(e => (e.baseCost || e.cost) <= maxCost);
       if (!eligible.length) {
-        G.log(`Gorilla Grodd finds no weak minds (no enemy with base cost ≤ 3) to control.`);
+        G.log(`Gorilla Grodd finds no weak minds (no enemy with base cost ≤ ${maxCost}) to control.`);
         return;
       }
       G.promptCardChoice(self.owner, eligible,
         "Gorilla Grodd — Mind Control",
-        "Choose an enemy with base cost 3 or less",
+        `Choose an enemy with base cost ${maxCost} or less`,
         (target) => {
-          // No pre-selected victim — combat will prompt when the card
-          // swings. We clear any stale mindControlTarget defensively so
-          // a previous Grodd play can't leak a stored victim in.
           if (G.mindControlCard(target, self, () => { target.mindControlTarget = null; })) {
             G.log(`Gorilla Grodd seizes ${target.name}'s mind!`);
           }
         },
-        // AI picker: highest-cost eligible enemy maximizes the swing value.
         cards => cards.slice().sort((a, b) => (b.baseCost || b.cost) - (a.baseCost || a.cost))[0]);
     }
   },
   "Hawkeye": {
     onPlay(G, self, lane) {
-      G.splashDamage(lane, self.owner, 1);
-      G.log("Hawkeye splashes adjacent enemies!");
+      // Splash radius scales with tier: 1 / 1 / 2 / 2 (and gains Bullseye
+      // at legendary so the splash bypasses block meter).
+      const splash = G.rarityValue(self, { common: 1, rare: 1, special: 2, legendary: 2 });
+      G.splashDamage(lane, self.owner, splash);
+      G.log(`Hawkeye splashes adjacent enemies for ${splash}!`);
     },
     passive: "splashWeaken"
   },
@@ -266,16 +332,27 @@ const CARD_ABILITIES = {
   },
   "Mr. Freeze": {
     onPlay(G, self, lane) {
-      const e = G.state.lanes[lane] ? G.state.lanes[lane][G.opponent(self.owner)] : null;
-      // Freeze SFX fires automatically via the engine wrapper around
-      // freezeCard — no manual call needed.
-      if (e) { G.freezeCard(e, self); }
-      // Freezes the OWNER's HP bar as a shield — the next hit to it is
-      // negated. Card text reads "your HP bar" to match this.
+      // Targets scale with tier: just front (common/rare), front + 1
+      // adjacent (special), front + both adjacents (legendary).
+      const reach = G.rarityValue(self, { common: 0, rare: 0, special: 1, legendary: 2 });
+      const opp = G.opponent(self.owner);
+      const targets = [];
+      const front = G.state.lanes[lane] ? G.state.lanes[lane][opp] : null;
+      if (front) targets.push(front);
+      if (reach >= 1) {
+        const left = lane > 0 && G.state.lanes[lane - 1] ? G.state.lanes[lane - 1][opp] : null;
+        if (left) targets.push(left);
+      }
+      if (reach >= 2) {
+        const right = lane < Game.LANE_COUNT - 1 && G.state.lanes[lane + 1] ? G.state.lanes[lane + 1][opp] : null;
+        if (right) targets.push(right);
+      }
+      targets.forEach(t => G.freezeCard(t, self));
       G.state[self.owner].healthFrozen = true;
       G.state[self.owner]._healthFrozenBy = self;
       const who = Game.isHuman(self.owner) ? 'your' : 'its';
-      G.log(`Mr. Freeze freezes ${e ? e.name + ' and ' : ''}${who} health bar!`);
+      const list = targets.length ? targets.map(t => t.name).join(', ') + ' and ' : '';
+      G.log(`Mr. Freeze freezes ${list}${who} health bar!`);
     }
   },
   "Sabertooth": {
@@ -286,12 +363,28 @@ const CARD_ABILITIES = {
   },
   "Xenomorph": {
     onAnyCardPlayed(G, self) {
-      G.buffCard(self, 1, 1);
+      // Roguelite rarity variant — buff size scales with tier. Common
+      // drops the +1 HP entirely (just +1 ATK growth) so the card has
+      // a real downside at low rarity. Classic = baseline +1/+1.
+      //   common    → +1 ATK only (no HP growth)
+      //   rare      → +1/+1 (listed)
+      //   special   → +1/+2
+      //   legendary → +2/+2
+      const buff = G.rarityValue(self, {
+        common:    { atk: 1, hp: 0 },
+        rare:      { atk: 1, hp: 1 },
+        special:   { atk: 1, hp: 2 },
+        legendary: { atk: 2, hp: 2 },
+      });
+      G.buffCard(self, buff.atk, buff.hp);
       G.log(`Xenomorph grows! Now ${self.attack}/${self.currentHealth}`);
     },
     onDeath(G, self, lane) {
-      G.splashDamage(lane, self.owner, 1);
-      G.log("Xenomorph explodes for Splash 1!");
+      // Splash radius also scales with tier. Common = 1 (listed), boss
+      // tiers get a wider blast.
+      const splash = G.rarityValue(self, { common: 1, rare: 1, special: 2, legendary: 3 });
+      G.splashDamage(lane, self.owner, splash);
+      G.log(`Xenomorph explodes for Splash ${splash}!`);
     }
   },
 
@@ -357,7 +450,10 @@ const CARD_ABILITIES = {
     return {
       onPlay(G, self, lane) {
         G.state[self.owner].drStrangeReorder = true;
-        G.log("Dr. Strange peers into the future! Next turn, choose 1 of 2 top cards — the other goes to your enemy.");
+        const isRl = !!(G.state.mode && G.state.mode._roguelite);
+        G.log(isRl
+          ? "Dr. Strange peers into the future! Next turn, scry your top 3 — pick 1, the rest sink to the bottom."
+          : "Dr. Strange peers into the future! Next turn, choose 1 of 2 top cards — the other goes to your enemy.");
         refreshAura(G, self);
       },
       onTurnStart(G, self) { refreshAura(G, self); },
@@ -448,11 +544,13 @@ const CARD_ABILITIES = {
   },
   "Rocket Raccoon": {
     onPlay(G, self, lane) {
+      // Damage scales with tier: 2 / 4 / 5 / 7.
+      const dmg = G.rarityValue(self, { common: 2, rare: 4, special: 5, legendary: 7 });
       const enemies = G.getEnemiesOf(self.owner);
       if (enemies.length) {
-        G.promptCardChoice(self.owner, enemies, "Rocket Raccoon — Blast", "Choose enemy to deal 4 damage", (t) => {
-          G.dealDamage(t, 4); G.log(`Rocket Raccoon blasts ${t.name} for 4!`);
-        }, cards => _aiKillPicker(cards, 4));
+        G.promptCardChoice(self.owner, enemies, "Rocket Raccoon — Blast", `Choose enemy to deal ${dmg} damage`, (t) => {
+          G.dealDamage(t, dmg, self); G.log(`Rocket Raccoon blasts ${t.name} for ${dmg}!`);
+        }, cards => _aiKillPicker(cards, dmg));
       }
     }
   },
@@ -595,7 +693,10 @@ const CARD_ABILITIES = {
 
       // Step 2: After all traps are placed, move an enemy card to any open lane.
       const moveEnemyStep = () => {
-        const enemies = G.getEnemiesOf(owner);
+        // Frozen / stunned enemies can't be dragged either — they're locked
+        // in their lane until the status clears. Filter them out of the
+        // pickable pool so Jigsaw can't move a frozen victim.
+        const enemies = G.getEnemiesOf(owner).filter(e => !e.isFrozen && !e.isStunned);
         if (!enemies.length) { G.log("Jigsaw finds no enemy cards left to drag."); return; }
         G.promptCardChoice(owner, enemies,
           "Jigsaw — Relocate",
@@ -653,13 +754,23 @@ const CARD_ABILITIES = {
     }
   },
   "Loki": {
-    // Loki is now a creature (2/1 with Evade 1) instead of a 0/0
-    // discard-effect card. onPlay still fills the block meter, but the
-    // ally-Evade rider and Loki Clone fallback are gone — Loki himself
-    // brings Evade to the board as his own keyword.
     onPlay(G, self, lane) {
-      G.state[self.owner].blockMeter = Game.BLOCK_MAX;
-      G.log(`Loki fills the Block Meter to ${Game.BLOCK_MAX}!`);
+      // Block-meter fill % scales with tier. Common: 50%, Rare: 100%
+      // (listed), Special: 100% + 1 random ally gains Evade 1, Legendary:
+      // 100% + ALL allies gain Evade 1.
+      const fillPct = G.rarityValue(self, { common: 0.5, rare: 1.0, special: 1.0, legendary: 1.0 });
+      const allyEvade = G.rarityValue(self, { common: 'none', rare: 'none', special: 'one', legendary: 'all' });
+      const fillAmt = Math.floor(Game.BLOCK_MAX * fillPct);
+      G.state[self.owner].blockMeter = Math.min(Game.BLOCK_MAX, G.state[self.owner].blockMeter + fillAmt);
+      G.log(`Loki fills the Block Meter by ${fillAmt}!`);
+      if (allyEvade !== 'none') {
+        const allies = G.getAlliesOf(self.owner).filter(a => a.id !== self.id);
+        const targets = allyEvade === 'all' ? allies : (allies.length ? [allies[Math.floor(Math.random() * allies.length)]] : []);
+        targets.forEach(a => {
+          a.evadeCharges = (a.evadeCharges || 0) + 1;
+          G.log(`Loki grants ${a.name} an Evade charge!`);
+        });
+      }
     }
   },
   "Moder": (() => {
@@ -775,13 +886,15 @@ const CARD_ABILITIES = {
   },
   "Star-Lord": {
     onPlay(G, self, lane) {
+      // Ally buff scales with tier: +1/+1, +2/+2, +3/+3, +4/+4.
+      const buff = G.rarityValue(self, { common: 1, rare: 2, special: 3, legendary: 4 });
       const allies = G.getAlliesOf(self.owner).filter(a => a.id !== self.id);
       const grant = (a) => {
-        G.buffCard(a, 2, 2);
-        G.log(`Star-Lord buffs ${a.name} +2/+2!`);
+        G.buffCard(a, buff, buff);
+        G.log(`Star-Lord buffs ${a.name} +${buff}/+${buff}!`);
       };
       if (allies.length) {
-        G.promptCardChoice(self.owner, allies, "Star-Lord — Buff", "Choose ally to give +2/+2", grant);
+        G.promptCardChoice(self.owner, allies, "Star-Lord — Buff", `Choose ally to give +${buff}/+${buff}`, grant);
       }
     }
   },
@@ -1361,15 +1474,18 @@ const CARD_ABILITIES = {
   },
   "Captain America": {
     onPlay(G, self, lane) {
+      // Discount-amount scales with tier: 1 / 1 / 2 / 2.
+      const disc = G.rarityValue(self, { common: 1, rare: 1, special: 2, legendary: 2 });
       let count = 0;
       G.state[self.owner].hand.forEach(card => {
         if (card.cost > 0) {
-          card.cost -= 1;
-          card._capAmericaDiscount = (card._capAmericaDiscount || 0) + 1;
+          const amt = Math.min(disc, card.cost);
+          card.cost -= amt;
+          card._capAmericaDiscount = (card._capAmericaDiscount || 0) + amt;
           count++;
         }
       });
-      G.log(`Captain America rallies the team — ${count} character card${count === 1 ? '' : 's'} in hand cost 1 less!`);
+      G.log(`Captain America rallies the team — ${count} card${count === 1 ? '' : 's'} in hand cost ${disc} less!`);
       const allies = G.getAlliesOf(self.owner).filter(a => a.id !== self.id);
       const grant = (a) => {
         a.invincibleTurns = Math.max(a.invincibleTurns || 0, 1);
@@ -1396,9 +1512,14 @@ const CARD_ABILITIES = {
   "Iron Man": {
     trickPhasePlayable: true,
     onPlay(G, self, lane) {
-      G.getEnemiesOf(self.owner).filter(e => e.currentHealth < e.maxHealth && (e.baseCost || e.cost) <= 8).forEach(t => {
-        G.log(`Iron Man finishes off ${t.name}!`); G.killCard(t, self);
-      });
+      // Cost gate scales: kills any DAMAGED enemy with cost ≤ N.
+      //   common: ≤ 5    rare: ≤ 8    special: ≤ 9    legendary: any cost
+      const maxCost = G.rarityValue(self, { common: 5, rare: 8, special: 9, legendary: 99 });
+      G.getEnemiesOf(self.owner)
+        .filter(e => e.currentHealth < e.maxHealth && (e.baseCost || e.cost) <= maxCost)
+        .forEach(t => {
+          G.log(`Iron Man finishes off ${t.name}!`); G.killCard(t, self);
+        });
     }
   },
   "Joker": {
@@ -1426,19 +1547,21 @@ const CARD_ABILITIES = {
     // would only land once.
     _recurringBT: true,
     onPlay(G, self, lane) {
-      // Fear an enemy with cost ≤ 4 on first arrival.
-      const eligible = G.getEnemiesOf(self.owner).filter(e => (e.baseCost || e.cost) <= 4);
+      // Fear cost gate scales with tier. Common: ≤2, Rare: ≤4 (listed),
+      // Special: ≤6, Legendary: ≤9. Joker stays a chaos enabler at all
+      // tiers — the Crazy stamp on top-ATK enemy fires regardless.
+      const fearGate = G.rarityValue(self, { common: 2, rare: 4, special: 6, legendary: 9 });
+      const eligible = G.getEnemiesOf(self.owner).filter(e => (e.baseCost || e.cost) <= fearGate);
       if (eligible.length) {
         G.promptCardChoice(self.owner, eligible,
           "Joker — Fear",
-          "Choose an enemy with base cost 4 or less to apply Fear to",
+          `Choose an enemy with base cost ${fearGate} or less to apply Fear to`,
           (t) => {
             G.fearCard(t, self);
             G.log(`Joker terrifies ${t.name}!`);
           },
           cards => cards.slice().sort((a, b) => b.attack - a.attack)[0]);
       }
-      // Initial Insane roll for Joker + Crazy stamp on top enemy.
       G.rerollCrazyInsane(self);
       CARD_ABILITIES.Joker._stampTopEnemyCrazy(G, self);
     },
@@ -1601,29 +1724,37 @@ const CARD_ABILITIES = {
   // ==================== COST 6 ====================
   "Hela": {
     onPlay(G, self, lane) {
+      // Tiered: number of Undead Warriors summoned + dead-pile pulls.
+      //   common    → 1 zombie, 1 dead-pile draw
+      //   rare      → 2 zombies, 1 dead-pile draw (listed)
+      //   special   → 2 zombies, 2 dead-pile draws
+      //   legendary → 3 zombies, 2 dead-pile draws
+      const zombies = G.rarityValue(self, { common: 1, rare: 2, special: 2, legendary: 3 });
+      const pulls   = G.rarityValue(self, { common: 1, rare: 1, special: 2, legendary: 2 });
       let summonCount = 0;
+      const drawFromDead = (n) => {
+        for (let i = 0; i < n; i++) {
+          const allDead = [...G.state.player.deadPile, ...G.state.ai.deadPile];
+          if (!allDead.length) break;
+          const idx = Math.floor(Math.random() * allDead.length);
+          let card;
+          if (idx < G.state.player.deadPile.length) {
+            card = G.state.player.deadPile.splice(idx, 1)[0];
+          } else {
+            card = G.state.ai.deadPile.splice(idx - G.state.player.deadPile.length, 1)[0];
+          }
+          const drawn = G.createCardInstance(card, self.owner);
+          drawn._drawnBy = self;
+          G.addToHand(self.owner, drawn, self);
+          G.log(`Hela draws ${card.name} from the dead pile!`);
+        }
+      };
       const doSummon = () => {
         summonCount++;
-        if (summonCount < 2) {
+        if (summonCount < zombies) {
           G.summonCardChoice(self.owner, "Undead Warrior", 1, 3, 1, [], doSummon);
         } else {
-          const allDead = [...G.state.player.deadPile, ...G.state.ai.deadPile];
-          if (allDead.length) {
-            const idx = Math.floor(Math.random() * allDead.length);
-            let card;
-            if (idx < G.state.player.deadPile.length) {
-              card = G.state.player.deadPile.splice(idx, 1)[0];
-            } else {
-              card = G.state.ai.deadPile.splice(idx - G.state.player.deadPile.length, 1)[0];
-            }
-            const drawn = G.createCardInstance(card, self.owner);
-            // MVP: tag the hand card with Hela as its drawer so playing
-            // it later credits her statsEnergyGenerated with the card's
-            // cost (and rolls up through Hela's own summon chain).
-            drawn._drawnBy = self;
-            G.addToHand(self.owner, drawn, self);
-            G.log(`Hela draws ${card.name} from the dead pile!`);
-          }
+          drawFromDead(pulls);
         }
       };
       G.summonCardChoice(self.owner, "Undead Warrior", 1, 3, 1, [], doSummon);
@@ -1792,39 +1923,44 @@ const CARD_ABILITIES = {
   },
   "Magneto": {
     onPlay(G, self, lane) {
+      // Forced placements scale with tier: 1 / 2 (listed) / 3 / 4.
+      const forceCount = G.rarityValue(self, { common: 1, rare: 2, special: 3, legendary: 4 });
       G.log("Magneto controls the battlefield! Even-lane enemies get -1/-2.");
       G.applyMagnetoDebuffs();
-      // Set up lane control for opponent's next 2 cards
       const opp = G.opponent(self.owner);
       const openOpp = [];
       for (let i = 0; i < Game.LANE_COUNT; i++) {
         if (!G.state.lanes[i][opp] && !G.state.lanes[i].destroyed) openOpp.push(i);
       }
-      if (openOpp.length < 2) {
-        G.log("Magneto can't control placement — not enough open enemy lanes.");
-        return;
+      if (openOpp.length < forceCount) {
+        G.log(`Magneto can't fully control placement — only ${openOpp.length} open lane(s).`);
+        if (openOpp.length === 0) return;
       }
       const pickLanes = (lanesChosen) => {
         G.state[opp].magnetoForcedLanes = lanesChosen;
         G.log(`Magneto forces the opponent's next ${lanesChosen.length} cards into lanes ${lanesChosen.map(l => l + 1).join(', ')}!`);
       };
+      // Generic chain: keep prompting up to forceCount lanes. Each pick
+      // narrows the remaining pool. AI auto-picks N random lanes.
       if (Game.isHuman(self.owner)) {
-        G.promptLaneChoice(self.owner, openOpp, "Magneto — Force Lane 1",
-          "Choose lane for opponent's NEXT card placement", (lane1) => {
-            const remaining = openOpp.filter(l => l !== lane1);
-            if (remaining.length) {
-              G.promptLaneChoice(self.owner, remaining, "Magneto — Force Lane 2",
-                "Choose lane for opponent's 2ND card placement", (lane2) => {
-                  pickLanes([lane1, lane2]);
-                }, opp);
-            } else {
-              pickLanes([lane1]);
-            }
-          }, opp);
+        const chosen = [];
+        const promptNext = () => {
+          const remaining = openOpp.filter(l => !chosen.includes(l));
+          if (chosen.length >= forceCount || !remaining.length) {
+            pickLanes(chosen);
+            return;
+          }
+          const slot = chosen.length + 1;
+          G.promptLaneChoice(self.owner, remaining, `Magneto — Force Lane ${slot}`,
+            `Choose lane for opponent's ${slot === 1 ? 'NEXT' : `${slot}${slot===2?'ND':slot===3?'RD':'TH'}`} card placement`, (l) => {
+              chosen.push(l);
+              promptNext();
+            }, opp);
+        };
+        promptNext();
       } else {
-        // AI picks 2 random open lanes for player
         const shuffled = openOpp.slice().sort(() => Math.random() - 0.5);
-        pickLanes(shuffled.slice(0, 2));
+        pickLanes(shuffled.slice(0, forceCount));
       }
     }
   },
@@ -2589,19 +2725,17 @@ const CARD_ABILITIES = {
   "Thanos": {
     trickPhasePlayable: true,
     onPlay(G, self, lane) {
-      const numRolls = Math.ceil(Game.LANE_COUNT / 2);
+      // Lanes destroyed scales with tier: 2 / 3 / 4 / 5.
+      const numRolls = G.rarityValue(self, { common: 2, rare: 3, special: 4, legendary: 5 });
       const rolled = new Set();
       let killed = 0;
-      while (rolled.size < numRolls) {
-        const r = Math.floor(Math.random() * Game.LANE_COUNT);
+      const maxLanes = Game.LANE_COUNT;
+      while (rolled.size < Math.min(numRolls, maxLanes)) {
+        const r = Math.floor(Math.random() * maxLanes);
         if (!rolled.has(r)) {
           rolled.add(r);
           const opp = G.opponent(self.owner);
           const e = G.state.lanes[r][opp];
-          // Pass `self` as the source so Thanos gets credited for the
-          // destroy (statsEnemyDamage + statsKills via _creditChain).
-          // Without it his stats stay at 0, making him look like he
-          // does nothing despite destroying 3 cards per play.
           if (e) { G.killCard(e, self); killed++; G.log(`Thanos snaps lane ${r + 1}: ${e.name} destroyed!`); }
         }
       }
@@ -2618,19 +2752,28 @@ const CARD_ABILITIES = {
   // ==================== COST 10 ====================
   "Anakin Skywalker": {
     onPlay(G, self, lane) {
-      // Fear 1 an enemy. Anakin's "Unresistible 1" (applied from the abilities
-      // array at spawn → unresistibleCharges = 1) lets the Fear bypass a
-      // single Immunity charge on the target. fearCard routes through the
-      // central debuff handler which consumes the Unresistible charge only
-      // when Immunity actually had to be bypassed.
+      // Number of enemies feared scales with tier. Common: 1, Rare: 1
+      // (listed), Special: 2, Legendary: 3. The Unresistible charge
+      // is on the abilities array (Unresistible 1) — same baseline.
+      const fearCount = G.rarityValue(self, { common: 1, rare: 1, special: 2, legendary: 3 });
       const enemies = G.getEnemiesOf(self.owner);
       if (!enemies.length) return;
-      G.promptCardChoice(self.owner, enemies, "Anakin — Fear",
-        "Choose an enemy to fear",
-        (t) => { G.fearCard(t, self); G.log(`Anakin terrifies ${t.name}!`); },
-        // AI prefers feared targets with the biggest ATK — disabling a
-        // threat for a turn is worth more than feared a 1-ATK token.
-        cards => cards.slice().sort((a, b) => (b.attack || 0) - (a.attack || 0))[0]);
+      const feared = new Set();
+      const pickNext = () => {
+        if (feared.size >= fearCount) return;
+        const remaining = enemies.filter(e => !feared.has(e.id) && !e.isFeared && e.currentHealth > 0);
+        if (!remaining.length) return;
+        G.promptCardChoice(self.owner, remaining, "Anakin — Fear",
+          `Choose an enemy to fear (${feared.size + 1}/${fearCount})`,
+          (t) => {
+            G.fearCard(t, self);
+            feared.add(t.id);
+            G.log(`Anakin terrifies ${t.name}!`);
+            if (feared.size < fearCount) pickNext();
+          },
+          cards => cards.slice().sort((a, b) => (b.attack || 0) - (a.attack || 0))[0]);
+      };
+      pickNext();
     },
     onBeforeTricks(G, self, lane) {
       if (self.anakinMoved) return;           // fires exactly once per instance
@@ -2763,7 +2906,9 @@ const CARD_ABILITIES = {
       const enemies = G.getEnemiesOf(self.owner);
       if (!enemies.length) return;
       self.galactusDevoured = true;
-      const devourCount = Math.min(2, enemies.length);
+      // Devour count scales: 1 / 2 (listed) / 3 / 4.
+      const baseDevour = G.rarityValue(self, { common: 1, rare: 2, special: 3, legendary: 4 });
+      const devourCount = Math.min(baseDevour, enemies.length);
       const devourChain = (remaining, picked) => {
         if (remaining <= 0) return;
         const available = enemies.filter(e => e.currentHealth > 0 && !picked.includes(e.id) && G.findCardLane(e) >= 0);
@@ -2823,21 +2968,31 @@ const CARD_ABILITIES = {
   },
   "Trigon": {
     onPlay(G, self, lane) {
-      // ONLY the block-meter steal fires on play. The mass-freeze was
-      // moved to Start of Tricks (see onBeforeTricks below) so it
-      // resolves in the same beat as Galactus's devour and Anakin's
-      // move. User spec: "I want the When Played to steal the
-      // opponent's Block Meter. Get rid of freeze 1 all enemies on
-      // play. That should happen right before tricks — same instance
-      // as Galactus's devour and Anakin's move."
+      // Block-steal magnitude scales with tier. Common steals 50%,
+      // Rare 100% (listed), Special 100% + tops own meter to max,
+      // Legendary same + drains 2 HP from each enemy on board.
+      const stealPct = G.rarityValue(self, { common: 0.5, rare: 1.0, special: 1.0, legendary: 1.0 });
+      const fillSelfToMax = G.rarityValue(self, { common: false, rare: false, special: true, legendary: true });
+      const drainAll = G.rarityValue(self, { common: false, rare: false, special: false, legendary: true });
       const opp = G.opponent(self.owner);
-      const stolen = G.state[opp].blockMeter || 0;
+      const enemyMeter = G.state[opp].blockMeter || 0;
+      const stolen = Math.floor(enemyMeter * stealPct);
       if (stolen > 0) {
         G.state[self.owner].blockMeter = Math.min(Game.BLOCK_MAX, G.state[self.owner].blockMeter + stolen);
-        G.state[opp].blockMeter = 0;
+        G.state[opp].blockMeter = enemyMeter - stolen;
         G.log(`Trigon steals ${stolen} Block Meter!`);
       } else {
         G.log(`Trigon reaches for the Block Meter — empty!`);
+      }
+      if (fillSelfToMax) {
+        G.state[self.owner].blockMeter = Game.BLOCK_MAX;
+        G.log(`Trigon's hatred crests — Block Meter maxed.`);
+      }
+      if (drainAll) {
+        G.getEnemiesOf(self.owner).forEach(e => {
+          if (e.currentHealth > 1) G.dealDamage(e, 2, self);
+        });
+        G.log(`Trigon drains 2 HP from every enemy.`);
       }
     },
     _massFreezeOnce(G, self) {

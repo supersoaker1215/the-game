@@ -681,6 +681,24 @@ const Game = {
       this.state.draft = null;
       this.buildDecks();
       this.dealDeckbuilderOpeningHands();
+      // Roguelite hooks: optional HP overrides per encounter so a node
+      // can dial AI HP up (boss = 80, elite = +10, normal combat = 25-35)
+      // and the player keeps their run HP across fights instead of
+      // resetting to 30 every match.
+      if (mode.playerHp != null) {
+        this.state.player.health = mode.playerHp;
+        this.state.player.maxHealth = mode.playerMaxHp || mode.playerHp;
+      }
+      if (mode.aiHp != null) {
+        this.state.ai.health = mode.aiHp;
+        this.state.ai.maxHealth = mode.aiHp;
+      }
+      // Roguelite difficulty override — engine reads UI.settings.difficulty
+      // for AI behavior. Cache the prior value so we restore it after.
+      if (mode.aiDifficulty && typeof UI !== 'undefined' && UI.settings) {
+        this._priorDifficulty = UI.settings.difficulty;
+        UI.settings.difficulty = mode.aiDifficulty;
+      }
       this.log('[DECKBUILDER] Decks shuffled — starting hands dealt.');
       this.startRound();
       UI.render();
@@ -764,18 +782,18 @@ const Game = {
         : { cards: CARD_DEFS.slice(0, 30).map(d => d.name),
             tricks: TRICK_DEFS.slice(0, 8).map(t => t.name) };
       const playerDeck = (this.state.mode.customDeck) ? this.state.mode.customDeck : defaultStarter;
-      // AI deck selection — NEVER mirror the player. Pick a random
-      // STARTER_DECKS archetype that differs from the player's. If the
-      // player is using a custom deck (not one of the starters), pick
-      // any starter. User spec: "in deck building instead of having a
-      // mirror match have the AI have a different deck than mine".
+      // AI deck selection. Roguelite path passes an explicit aiDeck on
+      // the mode object — those are encounter-specific (Lex Luthor's
+      // control deck, Doom's summon deck, random act-tier rolls); skip
+      // the random STARTER_DECKS pick. Otherwise: never-mirror random
+      // pick (existing My Decks behavior).
       let aiDeck;
-      let aiDeckKey = null;  // captured for match-history archetype tracking
-      if (typeof STARTER_DECKS !== 'undefined') {
+      let aiDeckKey = null;
+      if (this.state.mode.aiDeck) {
+        aiDeck = this.state.mode.aiDeck;
+        this.log(`[AI DECK] Encounter: ${aiDeck.name || aiDeck.persona || 'roguelite opponent'}`);
+      } else if (typeof STARTER_DECKS !== 'undefined') {
         const keys = Object.keys(STARTER_DECKS);
-        // Figure out whether playerDeck matches one of the starters by
-        // comparing card lists. Name match would be cleaner but custom
-        // decks may carry a player-authored name.
         const normalize = (list) => (list || []).slice().sort().join('|');
         const pFingerprint = normalize(playerDeck.cards);
         const nonMirrorKeys = keys.filter(k => normalize(STARTER_DECKS[k].cards) !== pFingerprint);
@@ -787,9 +805,6 @@ const Game = {
       } else {
         aiDeck = defaultStarter;
       }
-      // Stash the archetype on state so match-history can record it
-      // when the game ends. Key (e.g. 'aggro') = stable internal id;
-      // name (e.g. 'Aggro Rush') = human-readable label.
       this.state.aiArchetype = aiDeckKey || (aiDeck && aiDeck.name) || null;
       this.state.aiArchetypeName = (aiDeck && aiDeck.name) || aiDeckKey || 'Unknown';
       const expand = (names, pool) => this.shuffle(
@@ -798,7 +813,14 @@ const Game = {
           return def ? { ...def } : null;
         }).filter(Boolean)
       );
-      this.state.player.drawPile       = expand(playerDeck.cards,  CARD_DEFS);
+      // Player deck — accept pre-built instances (roguelite passes these
+      // pre-loaded with etches via Roguelite.buildRunCard) or expand
+      // names from CARD_DEFS (My Decks / Classic).
+      if (playerDeck.cardInstances) {
+        this.state.player.drawPile = this.shuffle(playerDeck.cardInstances.slice());
+      } else {
+        this.state.player.drawPile = expand(playerDeck.cards, CARD_DEFS);
+      }
       this.state.ai.drawPile           = expand(aiDeck.cards,      CARD_DEFS);
       this.state.player.trickDrawPile  = expand(playerDeck.tricks, TRICK_DEFS);
       this.state.ai.trickDrawPile      = expand(aiDeck.tricks,     TRICK_DEFS);
@@ -885,7 +907,21 @@ const Game = {
       const openingCards = 5, openingTricks = 2;
       for (let i = 0; i < openingCards && cardPile.length; i++) {
         const def = cardPile.pop();
-        p.hand.push(this.createCardInstance(def, owner));
+        // Roguelite paths put pre-built card instances into drawPile via
+        // Roguelite.buildRunCard — those already have correct attack/HP,
+        // etches applied, _runDeckCardRef set, and any onPlay/onDeath
+        // callbacks. Re-running createCardInstance on them treats the
+        // instance as a def: def.health is undefined → safeHp floors to
+        // 1, every etch is lost, runRef vanishes. Detect via
+        // _isCardInstance and use directly.
+        let card;
+        if (def && def._isCardInstance) {
+          card = def;
+          card.currentHealth = card.maxHealth;
+        } else {
+          card = this.createCardInstance(def, owner);
+        }
+        p.hand.push(card);
       }
       for (let i = 0; i < openingTricks && trickPile.length; i++) {
         const def = trickPile.pop();
@@ -1180,13 +1216,25 @@ const Game = {
     };
     this.log(`--- Round ${r} --- ${this.state.firstPlayer === 'player' ? 'You go' : 'AI goes'} first`);
 
+    // Roguelite faster-pacing: energy = round × 2 (round 1 → 2 energy,
+    // round 2 → 4, ... round 5 → 10) instead of += 1 per round. Snappier
+    // matches that end in 5-6 rounds. User spec: "should just start on
+    // round two and then each round we go up to. So two, four, six,
+    // eight, 10."
+    const rogueliteEnergyMul = (this.state.mode && this.state.mode._roguelite) ? 2 : 1;
+    // Relic-driven energy bonus (Battery, Speed Force) — only applies
+    // to the player side. Stacks across multiple relics. Pulled from
+    // the run state which Roguelite._launchFight refreshed via the
+    // onFightStart hook chain right before startMatch fired.
+    const relicEnergyBonus = (this.state.roguelite && this.state.roguelite._extraEnergy) || 0;
     ['player', 'ai'].forEach(o => {
       // batmanBlocked is now a round-number marker set to R+1 when Batman
       // plays in round R. Clearing it unconditionally here would wipe the
       // lock before the opponent's scheduled turn; isCardBatmanBlocked
       // compares against the current round, so a stale value from a past
       // round is already treated as inactive without a forced reset.
-      let cur = r + this.state[o].nextTurnCurrency;
+      let cur = (r * rogueliteEnergyMul) + this.state[o].nextTurnCurrency;
+      if (o === 'player' && relicEnergyBonus) cur += relicEnergyBonus;
       this.getAllCardsOf(o).forEach(c => {
         // Attribute each passive's energy bonus to the generating card +
         // its summon chain so the MVP formula credits every ancestor.
@@ -1263,9 +1311,18 @@ const Game = {
       }
 
       // Foresee peeks the OWNER's pile — in Deckbuilder it's their own
-      // deck, in Classic the shared pile. The "other" card still goes to
-      // the opponent's hand (the trick's signature twist), so in
-      // Deckbuilder a card can briefly cross deck boundaries.
+      // deck, in Classic the shared pile.
+      //
+      // ROGUELITE MODE: pop the top 3 from the owner's deck, owner picks
+      // 1 to draw, the rest go to the BOTTOM of the owner's own deck.
+      // User direction: "you're scrying your own deck. So you choose
+      // the card you want to draw. And the one(s) you don't draw go to
+      // the bottom of your deck." Same for Eye of Agamotto / Dormammu
+      // (which all share this `drStrangeReorder` flag).
+      //
+      // CLASSIC MODE: top 2 → keep 1, other goes to opponent's hand
+      // (the original drift mechanic, kept intact for non-roguelite).
+      const isRoguelite = !!(this.state.mode && this.state.mode._roguelite);
       const pile = this.getDrawPile(owner);
       if (pile.length === 0) {
         this.log(`  [${tag}] Draw pile empty — vision fizzles.`);
@@ -1281,7 +1338,45 @@ const Game = {
         return;
       }
 
-      // Pop the top 2 cards from the owner's draw pile
+      if (isRoguelite) {
+        // Pop top 3 (or fewer if pile is small)
+        const peekCount = Math.min(3, pile.length);
+        const choices = [];
+        for (let k = 0; k < peekCount; k++) choices.push(pile.pop());
+
+        const distributeR = (picked) => {
+          const others = choices.filter(c => c !== picked);
+          // Picked card → owner's hand
+          this.addToHand(owner, this.createCardInstance(picked, owner));
+          // Others → bottom of OWNER's pile (unshift = front-of-array =
+          // bottom-of-stack since pop() draws from the end). Order
+          // randomized so the player can't perfectly predict next draw.
+          const shuffled = others.slice().sort(() => Math.random() - 0.5);
+          shuffled.forEach(c => pile.unshift(c));
+          const ownWho = owner === 'player' ? 'You take' : 'AI takes';
+          const otherList = others.map(c => c.name).join(', ');
+          this.log(`  [${tag}] ${ownWho} ${picked.name}; ${otherList} sent to the bottom of your deck.`);
+          peeked.add(owner);
+          processNext(i + 1);
+        };
+
+        if (this.isHuman(owner)) {
+          // Build runtime instances for the prompt UI so they render
+          // with their full cards. Distribute receives the original
+          // def by name back since we map through choices.
+          this.promptCardChoice(owner, choices, `${source} — Scry`,
+            "Choose 1 card to draw. The others go to the bottom of your deck.",
+            distributeR,
+            (cards) => cards.slice().sort((a, b) => b.cost - a.cost)[0]);
+        } else {
+          const best = choices.slice().sort((a, b) => b.cost - a.cost)[0];
+          distributeR(best);
+        }
+        return;
+      }
+
+      // Classic / non-roguelite — original "give the other to opponent"
+      // behavior. Pop top 2 from the owner's draw pile.
       const top1 = pile.pop();
       const top2 = pile.pop();
       const choices = [top1, top2];
@@ -1293,26 +1388,17 @@ const Game = {
         const ownWho = owner === 'player' ? 'You take' : 'AI takes';
         const oppWho = opp === 'player' ? 'you receive' : 'AI receives';
         this.log(`  [${tag}] ${ownWho} ${picked.name}; ${oppWho} ${other.name}.`);
-        // The peek consumed BOTH sides' draw this round — the owner
-        // chose a card, the opponent received the discard. Both are
-        // cards added to a hand from the draw pile, so neither side
-        // gets a "draw 1" on top. User report: "[DR. STRANGE] AI takes
-        // X; you receive Y. [DRAW] You draw 1: Z — no this isn't how
-        // it works, the foresee acts as the draw for that turn."
         peeked.add(owner);
         peeked.add(opp);
         processNext(i + 1);
       };
 
       if (this.isHuman(owner)) {
-        // Human: route through promptCardChoice with a smart default so if
-        // the player times out, AI's "keep higher cost" logic fires.
         this.promptCardChoice(owner, choices, `${source} — Foresee`,
           "Choose 1 card to draw. The other goes to your enemy's hand.",
           distribute,
           (cards) => cards.slice().sort((a, b) => b.cost - a.cost)[0]);
       } else {
-        // AI keeps the higher-cost card for itself
         const best = choices.slice().sort((a, b) => b.cost - a.cost)[0];
         distribute(best);
       }
@@ -1683,9 +1769,17 @@ const Game = {
       if (c.passive === 'cardPlayedBuff' && c.id !== card.id) { this.buffCard(card, 1, 1); }
     });
 
-    // Hunt — hunter arrives after the card is placed, so splash/onMoved can hit it
+    // Hunt — hunter arrives after the card is placed, so splash/onMoved can hit it.
+    // Frozen / stunned hunters can't move (they're locked in lane until the
+    // status clears). User report: "Jango Frozen by venom. But then he moved
+    // — you can't move when you're frozen." Jango's Hunt was bypassing the
+    // moveCard freeze check via direct lane assignment.
     this.getAllCardsOf(opp).forEach(c => {
       if (c.hasHunt) {
+        if (c.isFrozen || c.isStunned) {
+          this.log(`[HUNT BLOCKED] ${c.name} is ${c.isFrozen ? 'FROZEN' : 'STUNNED'} — can't hunt.`);
+          return;
+        }
         const from = this.findCardLane(c);
         if (from >= 0 && from !== laneIdx && !this.state.lanes[laneIdx][opp]) {
           this.state.lanes[from][opp] = null;
@@ -1710,6 +1804,10 @@ const Game = {
       if (actuallyDrawn > 0) this._creditChain(card, 'statsCardAdvantage', actuallyDrawn);
       this.log(`${card.name} draws ${n} card${n > 1 ? 's' : ''}.`);
     }
+    // Cantrip etch — draw 1 (per stack) right after onPlay + drawOnPlay.
+    this._resolveCantripOnPlay(card);
+    // Fear etch — fear an enemy when this card is played.
+    this._resolveFearOnPlay(card);
     this.cleanupDead();
     // Apply Magneto debuffs to newly placed cards
     this.applyMagnetoDebuffs();
@@ -1782,13 +1880,24 @@ const Game = {
     });
 
     this._runHook(card, 'onPlay', this, card, laneIdx);
+    // Cantrip etch — draw 1 on play (jump / free-play path).
+    this._resolveCantripOnPlay(card);
+    this._resolveFearOnPlay(card);
     this.cleanupDead();
   },
 
   getTrickCost(owner, trick) {
     let cost = trick.cost;
     const opp = this.opponent(owner);
-    this.getAllCardsOf(opp).forEach(c => { if (c.passive === 'trickCostIncrease') cost += 1; });
+    // Each Sandman adds his rarity-scaled tax to the enemy's trick cost.
+    // Common: +0 (just a body), Rare: +1 (listed), Special: +2,
+    // Legendary: +3. Defaults to +1 in classic mode (no _runRarity).
+    this.getAllCardsOf(opp).forEach(c => {
+      if (c.passive === 'trickCostIncrease') {
+        const tax = this.rarityValue(c, { common: 0, rare: 1, special: 2, legendary: 3 });
+        cost += tax;
+      }
+    });
     return cost;
   },
 
@@ -2570,6 +2679,140 @@ const Game = {
     }
   },
 
+  // ----- Etch effect helpers (Roguelite mode keyword etches) -----
+  // These run at fixed combat events to give Thorns / Lifesteal /
+  // Berserker / Zealot / Phoenix their declared engine effects. The
+  // boolean stack counters (hasThorns, hasLifesteal, etc.) are set by
+  // Roguelite.ETCHES[*].apply on cards that earn the etch, so a card
+  // can carry multiple stacks for compounding effect (Thorns 2 = deal
+  // 2 back, Lifesteal 2 = heal 2 per damage instance, etc.).
+
+  // Berserker (+1 ATK while damaged) + Zealot (+1 ATK at full HP).
+  // Returns the bonus to apply to attacker's damage roll for this swing.
+  // Both stack with their counter so a card with hasBerserker=2 swings
+  // for +2 while damaged.
+  _getEtchAttackBonus(attacker) {
+    if (!attacker) return 0;
+    let bonus = 0;
+    if (attacker.hasBerserker && attacker.currentHealth < attacker.maxHealth) {
+      bonus += attacker.hasBerserker;
+    }
+    if (attacker.hasZealot && attacker.currentHealth >= attacker.maxHealth) {
+      bonus += attacker.hasZealot;
+    }
+    return bonus;
+  },
+
+  // Thorns retaliation — when `target` takes damage from `attacker`,
+  // chip the attacker for hasThorns dmg. Direct HP subtract (NOT
+  // dealDamage) to avoid recursive Thorns/Lifesteal/death-handler
+  // triggers — purely a reactive chip. Skips when attacker is null
+  // (trick / passive damage), already dead, or the same card (self-hit).
+  _resolveThorns(target, attacker) {
+    if (!target || !target.hasThorns) return;
+    if (!attacker || attacker.id == null || attacker === target) return;
+    if (attacker.currentHealth <= 0) return;
+    if (attacker.owner === target.owner) return;
+    if (attacker.invincibleTurns > 0 || attacker.hasDamageImmunity) return;
+    const n = target.hasThorns;
+    // Armor reduces Thorns chip — feels right since armor is a flat
+    // mitigation and Thorns is small chip damage. If armor fully soaks,
+    // no chip lands.
+    let chip = n;
+    if (attacker.armorValue > 0) {
+      if (chip <= attacker.armorValue) {
+        this.log(`  [THORNS] ${target.name} retaliates ${n} → ${attacker.name}'s Armor ${attacker.armorValue} absorbs all`);
+        this._creditAbsorb(attacker, 'Armor', chip);
+        return;
+      }
+      this._creditAbsorb(attacker, 'Armor', attacker.armorValue);
+      chip -= attacker.armorValue;
+    }
+    attacker.currentHealth -= chip;
+    this.emitDmg(attacker.id, chip, 'hit', undefined, target && target.id);
+    this.log(`  [THORNS] ${target.name} retaliates ${chip} damage to ${attacker.name} → ${Math.max(0, attacker.currentHealth)}/${attacker.maxHealth} HP`);
+    this._creditChain(target, 'statsEnemyDamage', chip);
+    if (attacker.currentHealth <= 0) {
+      this._creditChain(target, 'statsKills', 1);
+      const l = this.findCardLane(attacker);
+      if (l >= 0) this.handleDeath(attacker, l, target);
+    }
+  },
+
+  // Lifesteal — `attacker` deals `actual` damage and heals its owner's
+  // HP by hasLifesteal × 1 (per stack). Capped to maxHealth via
+  // healPlayer's existing clamp. Counts toward the etched card's
+  // statsHealingDone (and feeds the leveraged-heal MVP component).
+  _resolveLifesteal(attacker, actual) {
+    if (!attacker || !attacker.hasLifesteal) return;
+    if (actual <= 0) return;
+    const heal = attacker.hasLifesteal;
+    this.log(`  [LIFESTEAL] ${attacker.name} drains ${heal} HP for ${attacker.owner === 'player' ? 'you' : 'AI'}`);
+    this.healPlayer(attacker.owner, heal, attacker);
+  },
+
+  // Cantrip — draw 1 (per stack) when this card is played. Fires after
+  // onPlay so the card itself has resolved. Mirrors drawOnPlay behavior
+  // but stacks independently. Echoes once per Echo stack.
+  // Roguelite-only rarity variants — read a per-tier value off a map
+  // for the calling card. Common = nerfed branch, Rare = baseline (the
+  // listed text), Special = upgraded, Legendary = biggest. Cards opt
+  // in by reading `Game.rarityValue(self, { common, rare, special,
+  // legendary })` inside their ability hooks. Classic mode + summoned
+  // tokens have no `_runRarity` → default to 'rare' → baseline behavior
+  // unchanged. User direction: "do not change cards from roguelite
+  // into the game — they're two separate entities." Same code, but
+  // the only behavioral fork is when the runtime card carries the
+  // roguelite rarity tag.
+  rarityValue(self, map) {
+    const tier = (self && self._runRarity) || 'rare';
+    if (map[tier] != null) return map[tier];
+    return map.rare != null ? map.rare : map.common;
+  },
+
+  _resolveCantripOnPlay(card) {
+    if (!card || !card.hasCantrip) return;
+    const echoMul = 1 + (card.hasEcho || 0);
+    const n = card.hasCantrip * echoMul;
+    const before = this.state[card.owner].hand.length;
+    this.drawCards(card.owner, n);
+    const drawn = this.state[card.owner].hand.length - before;
+    if (drawn > 0) {
+      const tag = echoMul > 1 ? 'CANTRIP+ECHO' : 'CANTRIP';
+      this.log(`  [${tag}] ${card.name} draws ${drawn} card${drawn > 1 ? 's' : ''}`);
+      this._creditChain(card, 'statsCardAdvantage', drawn);
+    }
+  },
+
+  // Fear etch — fire `Fear N` on a random enemy when this card is
+  // played. User report: "I etched Fear 1 onto my Thug but he didn't
+  // get the ability — fear 1 isn't a status thing." Now it IS: hasFear
+  // counter triggers fearCard on a chosen target. AI auto-picks the
+  // highest-ATK enemy so the debuff lands where it hurts.
+  _resolveFearOnPlay(card) {
+    if (!card || !card.hasFear) return;
+    const n = card.hasFear * (1 + (card.hasEcho || 0));
+    const enemies = this.getEnemiesOf(card.owner).filter(e => e.currentHealth > 0 && !e.isFeared);
+    if (!enemies.length) return;
+    // Pick highest-ATK target — usually the highest-impact lock.
+    const target = enemies.slice().sort((a, b) => (b.attack || 0) - (a.attack || 0))[0];
+    this.fearCard(target, card, n);
+  },
+
+  // Phoenix — once-per-life revive at full HP. Returns true if the
+  // card was rezzed (caller should treat the death as canceled).
+  // Marked _phoenixUsed so subsequent deaths don't loop.
+  _resolvePhoenix(card) {
+    if (!card || !card.hasPhoenix || card._phoenixUsed) return false;
+    card._phoenixUsed = true;
+    card.currentHealth = card.maxHealth;
+    this.log(`  [PHOENIX] ${card.name} rises from the ashes at full HP!`);
+    if (typeof UI !== 'undefined' && UI.sfx && UI.sfx.playEffectSfx) {
+      try { UI.sfx.playEffectSfx('Phoenix', card); } catch (e) {}
+    }
+    return true;
+  },
+
   // opts.deferOnKill — when true, the `onKill` hook is NOT fired here
   // even if the swing killed the target. Caller (resolveLaneCombat) is
   // responsible for firing it AFTER both sides' simultaneous swings have
@@ -2618,6 +2861,19 @@ const Game = {
     }
 
     let dmg = attacker.attack;
+    // Berserker / Zealot etch bonuses — additive ATK that scales with
+    // attacker's HP state (Berserker: while damaged; Zealot: while at
+    // full HP). Applied BEFORE Palpatine's frozen-double so the bonus
+    // is also doubled against frozen targets — feels right since the
+    // etch represents raw "fighting harder" rather than a separate
+    // damage source.
+    const etchBonus = this._getEtchAttackBonus(attacker);
+    if (etchBonus > 0) {
+      const tag = (attacker.hasBerserker && attacker.currentHealth < attacker.maxHealth)
+        ? 'BERSERKER' : 'ZEALOT';
+      this.log(`  [${tag}] ${attacker.name} +${etchBonus} ATK (${dmg} → ${dmg + etchBonus})`);
+      dmg += etchBonus;
+    }
     // Palpatine's "While Active: Frozen enemies take double damage" passive —
     // any ally of the attacker with passive 'doubleFrozenDamage' (Palpatine)
     // doubles combat damage against a frozen target. Check AFTER armor/evade
@@ -2656,14 +2912,35 @@ const Game = {
     // AND walk up the summon chain so the summoner inherits the damage
     // (Hela's zombies → Hela) per the MVP "full chain" spec.
     this._creditChain(attacker, 'statsEnemyDamage', dmg);
+    // Lifesteal etch — heal attacker's owner per stack of hasLifesteal
+    // when this swing actually landed dmg > 0 on enemy HP.
+    if (dmg > 0) this._resolveLifesteal(attacker, dmg);
     if (target.onDamaged) target.onDamaged(this, target, attacker, dmg);
 
     if (target.currentHealth <= 0) {
+      // Phoenix etch — try to revive the target at full HP before the
+      // [KILLED] log fires. If revived, attacker still gets the swing's
+      // ATK damage credit but no kill counter (target survived). Thorns
+      // STILL chips since the victim's bramble fires the moment damage
+      // lands. Echo'd phoenix ALL spend their charges across separate
+      // deaths so a single hit only consumes one charge.
+      if (this._resolvePhoenix(target)) {
+        this._resolveThorns(target, attacker);
+        return false;
+      }
       this.log(`  [KILLED] ${target.name} is destroyed by ${attacker.name}!`);
       this._creditChain(attacker, 'statsKills', 1);
       if (attacker.onKill && !(opts && opts.deferOnKill)) attacker.onKill(this, attacker);
+      // Thorns can still chip the attacker even after target died — the
+      // hit landed, and the victim's last-gasp bramble retaliates. May
+      // kill attacker too (mutual-destruction outcome).
+      this._resolveThorns(target, attacker);
       return true;
     }
+    // Thorns retaliation — chip attacker for hasThorns dmg whenever
+    // target survived AND took damage (>0). No retaliation on whiffs
+    // (full armor block, evade) — no damage = no thorn-poke.
+    if (dmg > 0) this._resolveThorns(target, attacker);
     return false;
   },
 
@@ -3014,10 +3291,17 @@ const Game = {
     // draw pile, so drawing again would be double-dipping. handleDrStrangeReorder's
     // callback reports which owners consumed their draw via peek; we
     // skip drawCards for them.
+    // Roguelite faster-pacing: draw 2 per round instead of 1. User spec:
+    // "each time we draw two cards." Doubles the option density per turn
+    // and ramps deck-cycling to match the energy curve.
+    const baseDraw = (this.state.mode && this.state.mode._roguelite) ? 2 : 1;
+    // Relic-driven extra draws (Old Manuscript) — player only.
+    const relicDrawBonus = (this.state.roguelite && this.state.roguelite._extraDraw) || 0;
+    const playerDraw = baseDraw + relicDrawBonus;
     this.handleDrStrangeReorder((peeked) => {
-      if (!peeked.has('player')) this.drawCards('player', 1);
+      if (!peeked.has('player')) this.drawCards('player', playerDraw);
       else this.log(`  [FORESEE] Peek counts as your draw this round.`);
-      if (!peeked.has('ai')) this.drawCards('ai', 1);
+      if (!peeked.has('ai')) this.drawCards('ai', baseDraw);
       else this.log(`  [FORESEE] Peek counts as AI's draw this round.`);
       if (onComplete) onComplete();
     });
@@ -3041,11 +3325,95 @@ const Game = {
       }
       const drawPile = this.getDrawPile(owner);
       if (!drawPile.length) {
-        this.log(`[DECK] Draw pile empty — no cards to draw!`);
-        break;
+        // Roguelite mode: reshuffle the dead pile back into the draw
+        // pile so deck doesn't bottom out mid-fight. User spec: "when
+        // your deck is empty, it's not drawing from the dead pile and
+        // reintroducing the cards back into your deck. Can we fix
+        // that?" Cards keep their _runDeckCardRef so XP still tracks.
+        // Deck-cycling is intentional in roguelite — energy ramps fast,
+        // matches end in 5-6 rounds, the player will run out of cards.
+        const isRoguelite = this.state.mode && this.state.mode._roguelite;
+        const dead = this.state[owner] && this.state[owner].deadPile;
+        if (isRoguelite && owner === 'player' && dead && dead.length) {
+          const recycled = dead.splice(0, dead.length);
+          // Fisher-Yates shuffle in-place before merging back
+          for (let j = recycled.length - 1; j > 0; j--) {
+            const k = Math.floor(Math.random() * (j + 1));
+            [recycled[j], recycled[k]] = [recycled[k], recycled[j]];
+          }
+          drawPile.push(...recycled);
+          this.log(`[RESHUFFLE] Draw pile empty — ${recycled.length} dead-pile cards shuffled back in.`);
+        } else {
+          this.log(`[DECK] Draw pile empty — no cards to draw!`);
+          break;
+        }
       }
       const def = drawPile.pop();
-      const card = this.createCardInstance(def, owner);
+      // Roguelite paths populate the draw pile with PRE-BUILT card
+      // instances from buildRunCard — they already carry the right
+      // attack/baseHealth/etches/relics/_runDeckCardRef. Re-running
+      // createCardInstance would treat them as defs (via def.health
+      // which is undefined on instances → safeHp=1 floor → all cards
+      // come out as ATK/1) AND zero out their etches. Detect a pre-
+      // built instance via the marker `_isCardInstance` (set during
+      // createCardInstance) and bypass the rebuild — we still need
+      // to refresh per-fight state (currentHealth = maxHealth, status
+      // counters cleared) but not full re-instantiation.
+      let card;
+      if (def && def._isCardInstance) {
+        card = def;
+        // Fresh-fight reset on per-fight transient state (statuses,
+        // bonus-attack queue, etc.). Etches and stat bumps stay; HP
+        // tops back up to maxHealth.
+        card.currentHealth = card.maxHealth;
+        card.isStunned = false; card.isFrozen = false; card.isFeared = false; card.isMindControlled = false;
+        card.stunnedTurns = 0; card.frozenTurns = 0; card.fearedTurns = 0;
+        card.bonusAttack = false;
+        card.tauntTurns = 0;
+        card._deathHandled = false;
+        card._phoenixUsed = false;
+      } else {
+        card = this.createCardInstance(def, owner);
+        // Preserve roguelite run metadata from a dead-pile→draw-pile
+        // reshuffle path (createCardInstance doesn't know about these
+        // run-only fields, so re-attach them so XP attribution + the
+        // rarity-tinted UI both keep working on respawned cards).
+        if (def && def._runDeckCardRef) card._runDeckCardRef = def._runDeckCardRef;
+        if (def && def._runRarity) card._runRarity = def._runRarity;
+        // Fallback: pull rarity from the deckCardRef if the direct
+        // _runRarity wasn't set (e.g. older saves from before the
+        // rarity-preservation fix). User: "they're placed on board
+        // and they're blue. They should keep the same rarity."
+        if (!card._runRarity && card._runDeckCardRef && card._runDeckCardRef.rarity) {
+          card._runRarity = card._runDeckCardRef.rarity;
+        }
+        // SAFETY NET — if the dead-pile entry's callback fields were
+        // somehow stripped (e.g. a buggy face-down handler that nulled
+        // them on the live card before death, or an old save state),
+        // re-pull the canonical callbacks from CARD_DEFS where the
+        // CARD_ABILITIES merge already lives. User report: "Thug died,
+        // got redrawn from the dead pile. I played him. His on-play
+        // ability did not happen. Same for Gorilla Grodd."
+        if (typeof CARD_DEFS !== 'undefined') {
+          const liveDef = CARD_DEFS.find(d => d.name === card.name);
+          if (liveDef) {
+            if (!card.onPlay && liveDef.onPlay) card.onPlay = liveDef.onPlay;
+            if (!card.onDeath && liveDef.onDeath) card.onDeath = liveDef.onDeath;
+            if (!card.onDamaged && liveDef.onDamaged) card.onDamaged = liveDef.onDamaged;
+            if (!card.onKill && liveDef.onKill) card.onKill = liveDef.onKill;
+            if (!card.onEvade && liveDef.onEvade) card.onEvade = liveDef.onEvade;
+            if (!card.onAllyKilled && liveDef.onAllyKilled) card.onAllyKilled = liveDef.onAllyKilled;
+            if (!card.onBeforeAttack && liveDef.onBeforeAttack) card.onBeforeAttack = liveDef.onBeforeAttack;
+            if (!card.onDamagePlayer && liveDef.onDamagePlayer) card.onDamagePlayer = liveDef.onDamagePlayer;
+            if (!card.onAnyCardPlayed && liveDef.onAnyCardPlayed) card.onAnyCardPlayed = liveDef.onAnyCardPlayed;
+            if (!card.onTurnStart && liveDef.onTurnStart) card.onTurnStart = liveDef.onTurnStart;
+            if (!card.onBeforeTricks && liveDef.onBeforeTricks) card.onBeforeTricks = liveDef.onBeforeTricks;
+            if (!card.onEndOfTurn && liveDef.onEndOfTurn) card.onEndOfTurn = liveDef.onEndOfTurn;
+            if (!card.onMoved && liveDef.onMoved) card.onMoved = liveDef.onMoved;
+            if (!card.passive && liveDef.passive) card.passive = liveDef.passive;
+          }
+        }
+      }
       // Apply Mr. Fantastic next-draw discount permanently. Stash the
       // source amount on the card so hover tooltips can attribute "why
       // is this card cheaper than its base cost?" post-hoc.
@@ -3119,6 +3487,23 @@ const Game = {
   handleDeath(card, laneIdx, killer) {
     if (card._deathHandled) return;
     card._deathHandled = true;
+    // Phoenix etch — once-per-life revive at full HP. Cancels the
+    // death entirely: clear the guard, restore HP, fire onDeath-style
+    // visuals via the helper, return early so dead-pile push and
+    // killer-credit don't fire. Killer still got the [HIT] log + damage
+    // credit (those happen in applyCombatDamage / dealDamage), so the
+    // sting against the attacker is preserved — they just don't get
+    // the kill counter. For Echo+Phoenix, the multiple revive charges
+    // are spent across separate deaths (not a single one).
+    if (this._resolvePhoenix(card)) {
+      card._deathHandled = false;
+      // Re-credit the killer's miss — they thought they killed it. The
+      // [KILLED] line in applyCombatDamage already logged the swing as
+      // lethal; statsKills was already incremented. We don't undo those
+      // here (it'd be very expensive to track), but the in-game flow is
+      // correct: card is back at full HP and on the board.
+      return;
+    }
     // Track the kill for the round recap. Card dying on AI side = player's kill.
     if (this.state._roundStats) {
       const rs = this.state._roundStats;
@@ -3270,6 +3655,12 @@ const Game = {
       type: card.type,
       desc: card.desc, onPlay: card.onPlay, onDeath: card.onDeath,
       onDamaged: card.onDamaged, onKill: card.onKill, passive: card.passive,
+      // Preserve roguelite run metadata so XP attribution can find this
+      // dead card's deckCard-of-record + the deck-reshuffle-into-draw
+      // path can reconstruct the run instance with all etches/relics
+      // intact (re-enters via Roguelite._reshuffleDeadIntoDraw).
+      _runDeckCardRef: card._runDeckCardRef || null,
+      _runRarity: card._runRarity || null,
       // Preserve per-card stats so the victory screen can tally top performers
       // across the whole game (cards that died count just as much as living).
       statsHealthbarDamage: card.statsHealthbarDamage || 0,
@@ -3425,13 +3816,45 @@ const Game = {
   _runHook(card, hookName, ...args) {
     if (!card || typeof card[hookName] !== 'function') return undefined;
     this._pushSummonSource(card);
+    let result;
     try {
-      return card[hookName](...args);
+      result = card[hookName](...args);
     } catch (e) {
       console.error('[' + hookName + ']', e);
     } finally {
       this._popSummonSource();
     }
+    // Echo etch — re-fire `onPlay` and `onDeath` once per stack of
+    // hasEcho. Only the splashy "play" / "death" hooks echo (re-firing
+    // onDamaged or onAnyCardPlayed would explode reactive chains and
+    // double-credit defensive stats). The card must still be alive
+    // for re-fires (a Phoenix-revived card can echo its onPlay; a
+    // hard-killed card can't). For onDeath we explicitly allow the
+    // re-fire even when currentHealth ≤ 0 since onDeath itself fires
+    // on a dying card.
+    const echoable = (hookName === 'onPlay' || hookName === 'onDeath');
+    if (echoable && card.hasEcho && !card._echoing) {
+      const stacks = card.hasEcho;
+      card._echoing = true;
+      try {
+        for (let i = 0; i < stacks; i++) {
+          if (typeof card[hookName] !== 'function') break;
+          if (hookName === 'onPlay' && card.currentHealth <= 0) break;
+          this.log(`  [ECHO] ${card.name}'s ${hookName === 'onPlay' ? 'arrival' : 'death'} effect repeats!`);
+          this._pushSummonSource(card);
+          try {
+            card[hookName](...args);
+          } catch (e) {
+            console.error('[ECHO ' + hookName + ']', e);
+          } finally {
+            this._popSummonSource();
+          }
+        }
+      } finally {
+        card._echoing = false;
+      }
+    }
+    return result;
   },
   opponent(o) { return o === 'player' ? 'ai' : 'player'; },
   // True if `owner` is controlled by a human (gets modal prompts). False
@@ -3602,6 +4025,12 @@ const Game = {
     if (actual > 0 && source && source.id != null && source.owner !== card.owner) {
       this._creditChain(source, 'statsEnemyDamage', actual);
     }
+    // Lifesteal etch — when source is a card with the etch and it
+    // dealt actual dmg, heal source's owner. Mirrors combat-damage
+    // path so splash / on-hit triggers also drain.
+    if (actual > 0 && source && source.id != null && source.owner !== card.owner) {
+      this._resolveLifesteal(source, actual);
+    }
     if (card.onDamaged) card.onDamaged(this, card, source, actual);
     if (card.currentHealth <= 0) {
       // Credit the source with this kill — ability/splash/trick damage
@@ -3610,8 +4039,16 @@ const Game = {
       if (source && source.id != null && source.owner !== card.owner) {
         this._creditChain(source, 'statsKills', 1);
       }
+      // Thorns even on the killing blow — target's bramble can chip
+      // the source post-mortem. Skipped for non-card sources (tricks).
+      if (source && source.id != null && source.owner !== card.owner) {
+        this._resolveThorns(card, source);
+      }
       const l = this.findCardLane(card);
       if (l >= 0) this.handleDeath(card, l, source || null);
+    } else if (actual > 0 && source && source.id != null && source.owner !== card.owner) {
+      // Thorns chip on surviving hit — same gating as combat path.
+      this._resolveThorns(card, source);
     }
   },
 
@@ -4319,6 +4756,10 @@ const Game = {
           if (actuallyDrawn > 0) this._creditChain(card, 'statsCardAdvantage', actuallyDrawn);
           this.log(`${card.name} draws ${n} card${n > 1 ? 's' : ''}.`);
         }
+        // Cantrip etch — fire on summon-spawned real cards too.
+        this._resolveCantripOnPlay(card);
+        // Fear etch — same thing.
+        this._resolveFearOnPlay(card);
       }
       this.cleanupDead();
       this.applyMagnetoDebuffs();
@@ -4737,6 +5178,9 @@ const Game = {
     const safeHp  = (typeof def.health === 'number' && Number.isFinite(def.health) && def.health > 0) ? def.health : 1;
     const card = {
       id: nextCardId++,
+      // Marker so drawCards can detect a pre-built card instance vs a
+      // raw def — roguelite drives drawPile with pre-built instances.
+      _isCardInstance: true,
       name: def.name, cost: def.actualCost || def.cost, baseCost: def.cost,
       attack: safeAtk, currentHealth: safeHp, maxHealth: safeHp,
       // Snapshot of the def's starting stats so the UI can tell at render
@@ -5371,54 +5815,79 @@ const Game = {
     const pBullseye = !!(p && p.isBullseye);
     const aBullseye = !!(a && a.isBullseye);
 
-    // Step 1: front-on-front swings (only when BOTH cards are present).
-    // SEMANTICS: pDmgIn = damage incoming to the PLAYER side, aDmgIn =
-    // damage incoming to the AI side. So the AI's swing (aAtk) lands on
-    // p (player) → adds to pDmgIn. Player's swing (pAtk) lands on a
-    // (AI) → adds to aDmgIn. The variable assignments were swapped
-    // before this fix, which corrupted the dmgIn reading the UI badge
-    // uses — the `dies` flag was still correct (computed from
-    // currentHealth, which applyHit mutates correctly) but dmgIn ended
-    // up showing the OPPOSITE side's incoming damage. Step 2/3 (splash)
-    // already used the correct semantics, so the post-fix variables
-    // are consistent across all three steps.
-    if (p && a) {
-      pDmgIn += applyHit(p, aAtk, aBullseye);   // AI's swing damages player
-      aDmgIn += applyHit(a, pAtk, pBullseye);   // Player's swing damages AI
-    }
-
-    // Step 2: own-lane splash from each side (splash also lands on the
-    // front enemy in the same lane).
-    if (p && a && pSplash > 0) pDmgIn; // self bookkeeping ignored — own splash hits enemy below
-    if (a && pSplash > 0) { aDmgIn += applyHit(a, pSplash, pBullseye); }
-    if (p && aSplash > 0) { pDmgIn += applyHit(p, aSplash, aBullseye); }
-
-    // Step 3: splash from adjacent enemies. The opposing side's
-    // adjacent cards splash into this lane.
-    [laneIdx - 1, laneIdx + 1].forEach((li) => {
-      if (li < 0 || li >= this.LANE_COUNT) return;
-      const adj = this.state.lanes[li];
-      if (!adj) return;
-      // Enemy adjacents that splash onto MY player card. Splash
-      // requires the attacker to actually swing — same status gate as
-      // the front-on-front swing (stun / freeze / fear / mind-control
-      // all cancel the splash).
+    // Step 0 (PRE-SPLASH from LEFT adjacent): real combat resolves
+    // lanes left-to-right, so the splash from idx-1's stepFinish lands
+    // on idx's cards BEFORE idx's front-on-front swing happens. This
+    // can KILL the front cards before their own swing, turning what
+    // looks like a TRADE into a WIN/LOSE. Concrete case the user hit:
+    // Yoda (Splash 4) in lane 3 + Kang (1 HP) + Venom in lane 4 →
+    // lane 3 resolves, Yoda splash kills Kang, lane 4 becomes
+    // uncontested → Venom strikes face. Without this step the
+    // forecast counts Kang's swing landing on Venom and reads TRADE.
+    // Right-adjacent (idx+1) splash is handled as POST below since
+    // those lanes resolve AFTER this one — their splash adds damage
+    // but doesn't prevent THIS lane's front swing.
+    const leftAdj = laneIdx > 0 ? this.state.lanes[laneIdx - 1] : null;
+    if (leftAdj) {
       if (p) {
-        const e = adj.ai;
+        const e = leftAdj.ai;
         if (e && e.currentHealth > 0 && (e.splashRange | 0) > 0
             && !e.isStunned && !e.isFrozen && !e.isFeared && !e.isMindControlled) {
           pDmgIn += applyHit(p, e.splashRange | 0, !!e.isBullseye);
         }
       }
-      // Player adjacents that splash onto MY ai card
       if (a) {
-        const e = adj.player;
+        const e = leftAdj.player;
         if (e && e.currentHealth > 0 && (e.splashRange | 0) > 0
             && !e.isStunned && !e.isFrozen && !e.isFeared && !e.isMindControlled) {
           aDmgIn += applyHit(a, e.splashRange | 0, !!e.isBullseye);
         }
       }
-    });
+    }
+
+    // Step 1: front-on-front swings (only when BOTH cards are still
+    // ALIVE after pre-splash). SEMANTICS: pDmgIn = damage incoming to
+    // the PLAYER side, aDmgIn = damage incoming to the AI side. So the
+    // AI's swing (aAtk) lands on p (player) → adds to pDmgIn. Player's
+    // swing (pAtk) lands on a (AI) → adds to aDmgIn. If pre-splash from
+    // step 0 already killed one or both, the front swing doesn't fire
+    // — real combat skips contested-lane resolution when one side is
+    // already dead before the lane starts.
+    if (p && a && p.currentHealth > 0 && a.currentHealth > 0) {
+      pDmgIn += applyHit(p, aAtk, aBullseye);   // AI's swing damages player
+      aDmgIn += applyHit(a, pAtk, pBullseye);   // Player's swing damages AI
+    }
+
+    // Step 2: own-lane splash from each side (splash also lands on the
+    // front enemy in the same lane). Skipped when the splasher's front
+    // didn't get to swing (already-dead from pre-splash → no swing →
+    // no splash). The pre-step pre-emptively zeroes pSplash/aSplash
+    // for status-locked cards already, but not for "killed by left-adj
+    // splash" — hence the explicit alive-gate via the swing condition.
+    if (p && p.currentHealth > 0 && pSplash > 0 && a) { aDmgIn += applyHit(a, pSplash, pBullseye); }
+    if (a && a.currentHealth > 0 && aSplash > 0 && p) { pDmgIn += applyHit(p, aSplash, aBullseye); }
+
+    // Step 3 (POST-SPLASH from RIGHT adjacent): idx+1's lane resolves
+    // AFTER this lane, so its splash lands AFTER this lane's outcome
+    // is decided. It still adds damage that can flip pDies/aDies, but
+    // it doesn't prevent step 1's swings (those already happened).
+    const rightAdj = laneIdx < this.LANE_COUNT - 1 ? this.state.lanes[laneIdx + 1] : null;
+    if (rightAdj) {
+      if (p) {
+        const e = rightAdj.ai;
+        if (e && e.currentHealth > 0 && (e.splashRange | 0) > 0
+            && !e.isStunned && !e.isFrozen && !e.isFeared && !e.isMindControlled) {
+          pDmgIn += applyHit(p, e.splashRange | 0, !!e.isBullseye);
+        }
+      }
+      if (a) {
+        const e = rightAdj.player;
+        if (e && e.currentHealth > 0 && (e.splashRange | 0) > 0
+            && !e.isStunned && !e.isFrozen && !e.isFeared && !e.isMindControlled) {
+          aDmgIn += applyHit(a, e.splashRange | 0, !!e.isBullseye);
+        }
+      }
+    }
 
     return {
       player: p ? {

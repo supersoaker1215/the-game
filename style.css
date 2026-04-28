@@ -423,29 +423,31 @@ body.round-first-ai     .hud-round { color: #f3bfb8; text-shadow: 0 0 6px rgba(2
   display: inline-flex; align-items: center; justify-content: center;
   width: 22px; height: 22px; padding: 0;
   background: transparent; border: none;
-  color: #ffe066;
+  /* Default to the active theme accent so the round-pip recolors with
+     the user's selected neon (blue / red / green / purple). User
+     report: "the round-1 diamond shows green even though my theme
+     is blue." Round-first overrides below repaint per opener. */
+  color: var(--theme-accent-bright, rgb(var(--theme-rgb, 79,195,247)));
   font-family: 'Rajdhani', sans-serif;
   font-weight: 700; font-size: 13px;
   letter-spacing: 0;
-  text-shadow: 0 0 6px rgba(255,215,0,0.95), 0 0 12px rgba(255,215,0,0.45);
+  text-shadow:
+    0 0 6px rgba(var(--theme-rgb, 79,195,247), 0.95),
+    0 0 12px rgba(var(--theme-rgb, 79,195,247), 0.45);
   line-height: 1;
   font-variant-numeric: tabular-nums;
   transition: color 0.3s, text-shadow 0.3s;
 }
-/* Diamond backdrop — same shape as the card-cost + energy orb so the
-   HUD round pip matches the rest of the Tron chrome. Round-opener hue
-   is painted on the ::before pseudo so round-first-player /
-   round-first-ai overrides below can repaint just the diamond. */
 .hud-round #round-num::before {
   content: '';
   position: absolute; inset: 1px;
   background: #000000;
-  border: 1px solid rgba(255,215,0,0.95);
+  border: 1px solid rgba(var(--theme-rgb, 79,195,247), 0.95);
   transform: rotate(45deg);
   box-shadow:
-    inset 0 0 0 1px rgba(255,215,0,0.22),
-    0 0 10px rgba(255,215,0,0.70),
-    0 0 22px rgba(255,215,0,0.32);
+    inset 0 0 0 1px rgba(var(--theme-rgb, 79,195,247), 0.22),
+    0 0 10px rgba(var(--theme-rgb, 79,195,247), 0.70),
+    0 0 22px rgba(var(--theme-rgb, 79,195,247), 0.32);
   z-index: -1;
   transition: border-color 0.3s, box-shadow 0.3s;
 }
@@ -5348,6 +5350,44 @@ body.hit-pause .ai-hand * {
 .badge-insane     { color: #c77dff; animation: cardCrazyGlitch 1.4s steps(3, end) infinite; }
 .badge-charmed    { color: var(--kw-charm); }
 .badge-draw       { color: var(--kw-draw); }
+/* Curse cards — bad cards added to your deck via cursed events. Dim
+   purple-black tint so they stand apart from real cards in the deck
+   viewer. Removable at the Merchant's "remove a card" service. */
+.card.hand-card.rl-curse {
+  border-color: rgba(120,60,140,0.85) !important;
+  box-shadow:
+    0 0 10px rgba(120,60,140,0.55),
+    0 0 24px rgba(80,30,100,0.30),
+    inset 0 0 0 1px rgba(80,30,100,0.10) !important;
+  filter: saturate(0.6) brightness(0.85);
+}
+.card.hand-card.rl-curse .card-name {
+  color: rgba(200,160,220,0.95) !important;
+  text-shadow: 0 0 6px rgba(120,60,140,0.55) !important;
+}
+.card.hand-card.rl-curse .card-cost {
+  color: rgba(200,160,220,0.95) !important;
+  text-shadow: 0 0 6px rgba(120,60,140,0.55) !important;
+}
+.card.hand-card.rl-curse .card-cost::before {
+  border-color: rgba(120,60,140,0.95) !important;
+}
+.card.hand-card.rl-curse .rarity-strip .rpip { background: rgba(120,60,140,0.85) !important; }
+.card.hand-card.rl-curse .card-name-banner::after {
+  background: linear-gradient(90deg, transparent, rgba(120,60,140,0.85), transparent) !important;
+}
+
+/* Roguelite etch-driven keyword badges. Each gets a distinct neon
+   tint matching its KEYWORD_DATA color so a hover-tooltip + the
+   on-card pill read as the same effect. */
+.badge-thorns     { color: #2ecc71; }
+.badge-lifesteal  { color: #e74c3c; }
+.badge-berserker  { color: #c0392b; }
+.badge-zealot     { color: #f1c40f; }
+.badge-echo       { color: #bb8fce; }
+.badge-phoenix    { color: #e67e22; }
+.badge-fear       { color: #5a5a5a; }
+.badge-discount   { color: #16a085; }
 .card.status-charmed { box-shadow: 0 0 12px rgba(155,89,182,0.6), 0 0 24px rgba(155,89,182,0.25) !important; }
 
 /* Corner charge indicators removed — keyword badges under the name cover this. */
@@ -19062,6 +19102,56 @@ body.killing-blow-cinema::after {
   margin: 8px 0 4px;
   cursor: default;
 }
+/* Rarity-based borders + halo, mirroring .draft-card.cost-* so the
+   MVP / runner-up cards advertise their tier. User feedback: "the MVP
+   and runner up should be the color of their respective rarity." */
+.go-mvp-card.cost-0, .go-mvp-card.cost-1, .go-mvp-card.cost-2, .go-mvp-card.cost-3 {
+  border: 1px solid rgba(46,204,113,0.95) !important;
+  background:
+    linear-gradient(180deg, rgba(46,204,113,0.07) 0%, rgba(46,204,113,0) 45%),
+    #060a12 !important;
+  box-shadow:
+    0 0 10px rgba(46,204,113,0.45),
+    0 0 20px rgba(46,204,113,0.18),
+    inset 0 0 0 1px rgba(46,204,113,0.10) !important;
+}
+.go-mvp-card.cost-4, .go-mvp-card.cost-5, .go-mvp-card.cost-6 {
+  border: 1px solid rgba(79,195,247,0.95) !important;
+  background:
+    linear-gradient(180deg, rgba(79,195,247,0.06) 0%, rgba(79,195,247,0) 45%),
+    #060a12 !important;
+  box-shadow:
+    0 0 10px rgba(79,195,247,0.45),
+    0 0 20px rgba(79,195,247,0.18),
+    inset 0 0 0 1px rgba(79,195,247,0.10) !important;
+}
+.go-mvp-card.cost-7, .go-mvp-card.cost-8 {
+  border: 1px solid rgba(220,230,240,0.95) !important;
+  background:
+    linear-gradient(180deg, rgba(220,230,240,0.10) 0%, rgba(220,230,240,0) 45%),
+    #060a12 !important;
+  box-shadow:
+    0 0 10px rgba(220,230,240,0.45),
+    0 0 20px rgba(220,230,240,0.18),
+    inset 0 0 0 1px rgba(220,230,240,0.10) !important;
+}
+.go-mvp-card.cost-9, .go-mvp-card.cost-10 {
+  border: 1px solid rgba(255,215,0,0.95) !important;
+  background:
+    linear-gradient(180deg, rgba(255,215,0,0.10) 0%, rgba(255,215,0,0) 45%),
+    #060a12 !important;
+  box-shadow:
+    0 0 10px rgba(255,215,0,0.55),
+    0 0 22px rgba(255,215,0,0.22),
+    inset 0 0 0 1px rgba(255,215,0,0.12) !important;
+}
+/* Card name color also tracks the rarity tier — green / cyan / silver / gold */
+.go-mvp-card.cost-0 .card-name, .go-mvp-card.cost-1 .card-name,
+.go-mvp-card.cost-2 .card-name, .go-mvp-card.cost-3 .card-name { color: #5be39a !important; }
+.go-mvp-card.cost-4 .card-name, .go-mvp-card.cost-5 .card-name,
+.go-mvp-card.cost-6 .card-name { color: #7fd0ff !important; }
+.go-mvp-card.cost-7 .card-name, .go-mvp-card.cost-8 .card-name { color: #e6ecf2 !important; }
+.go-mvp-card.cost-9 .card-name, .go-mvp-card.cost-10 .card-name { color: #ffe066 !important; }
 .go-mvp-stats {
   width: 100%;
   display: flex; flex-direction: column;
@@ -19158,3 +19248,1672 @@ body.killing-blow-cinema::after {
   .go-top5 { padding: 6px 8px; }
   .go-top5-item { font-size: 11px; padding: 3px 6px; }
 }
+
+/* ============================================================
+   ROGUELITE MODE
+   ============================================================
+   Slay-the-Spire-shaped run with lane combat. Overlay sits above
+   the main game-area and uses the same Tron chrome palette. */
+.roguelite-overlay {
+  position: fixed; inset: 0;
+  display: flex; align-items: center; justify-content: center;
+  background: #000;
+  z-index: 220;
+  padding: 24px 14px;
+  box-sizing: border-box;
+}
+.rl-panel {
+  position: relative;
+  width: 100%; max-width: 880px; max-height: 92vh;
+  padding: 32px 36px 28px;
+  background: #000;
+  border: 1px solid var(--theme-accent-bright, rgba(79,195,247,0.55));
+  border-radius: 6px;
+  box-shadow:
+    0 0 14px var(--theme-glow-outer, rgba(79,195,247,0.55)),
+    0 0 28px var(--theme-glow-inner, rgba(79,195,247,0.25));
+  color: #e6eef5;
+  overflow-y: auto;
+}
+.rl-title {
+  margin: 0 0 4px;
+  font-family: 'Rajdhani', sans-serif;
+  font-size: 28px; font-weight: 800;
+  letter-spacing: 6px; text-transform: uppercase;
+  text-align: center;
+  color: var(--theme-accent-bright, #f5fbff);
+  text-shadow:
+    0 0 8px var(--theme-accent-bright, rgba(79,195,247,0.85)),
+    0 0 18px var(--theme-glow-outer, rgba(79,195,247,0.45));
+}
+.rl-subtitle {
+  margin: 0 0 22px;
+  font-family: 'Rajdhani', sans-serif;
+  font-size: 12px; letter-spacing: 4px; text-transform: uppercase;
+  text-align: center;
+  color: rgba(220,225,235,0.65);
+}
+
+/* Boon picker */
+.rl-boon-grid {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 14px;
+  margin-top: 12px;
+}
+.rl-boon-card {
+  background: #060a12;
+  border: 1px solid var(--theme-accent-edge, rgba(79,195,247,0.40));
+  border-radius: 4px;
+  padding: 18px 18px 16px;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 0.15s, box-shadow 0.15s, transform 0.15s;
+  font-family: inherit;
+  color: inherit;
+}
+.rl-boon-card:hover {
+  border-color: var(--theme-accent-bright, rgba(79,195,247,0.85));
+  box-shadow: 0 0 12px var(--theme-glow-outer, rgba(79,195,247,0.45));
+  transform: translateY(-2px);
+}
+.rl-boon-name {
+  font-family: 'Rajdhani', sans-serif;
+  font-size: 16px; font-weight: 800; letter-spacing: 2px; text-transform: uppercase;
+  color: var(--theme-accent-bright, #b9f5cb);
+  margin-bottom: 6px;
+  text-shadow: 0 0 6px var(--theme-glow-outer);
+}
+.rl-boon-desc { font-size: 13px; line-height: 1.4; color: #cfd6df; }
+
+/* Map HUD + node track */
+.rl-hud {
+  display: flex; gap: 18px; justify-content: center; align-items: center;
+  margin: 0 0 14px;
+  font-family: 'Rajdhani', sans-serif;
+  font-size: 14px; letter-spacing: 1px; text-transform: uppercase;
+  flex-wrap: wrap;
+}
+.rl-hud-stat { color: rgba(220,225,235,0.85); }
+.rl-hud-stat b {
+  color: var(--theme-accent-bright, #b9f5cb);
+  margin-right: 6px;
+  text-shadow: 0 0 6px var(--theme-glow-outer);
+}
+
+/* New Tron-flavored HUD pills — one row of glyph + label + value with
+   a thin neon underline. Dynamic via theme variables so the user's
+   selected accent (blue / red / green / purple) recolors the entire
+   strip. The HP pill has an additional fill-bar; relic/deck/trick
+   pills are clickable buttons that share the .tron-fx hover ring. */
+.rl-hud-tron {
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.rl-hud-pill {
+  position: relative;
+  display: inline-flex; align-items: center; gap: 8px;
+  padding: 8px 14px;
+  background: linear-gradient(180deg, rgba(255,255,255,0.04), rgba(0,0,0,0.55));
+  border: 1px solid var(--theme-accent-edge, rgba(79,195,247,0.55));
+  border-radius: 4px;
+  color: var(--theme-accent-bright, #d4ecff);
+  text-shadow: 0 0 6px var(--theme-glow-outer, rgba(79,195,247,0.55));
+  box-shadow:
+    0 0 10px var(--theme-glow-outer, rgba(79,195,247,0.25)),
+    inset 0 0 0 1px rgba(255,255,255,0.05);
+  font-family: 'Rajdhani', sans-serif;
+  font-size: 13px; letter-spacing: 1.5px; text-transform: uppercase;
+  font-weight: 600;
+}
+.rl-hud-pill .rl-hud-glyph {
+  width: 18px; height: 18px;
+  color: var(--theme-accent-bright, #d4ecff);
+  filter:
+    drop-shadow(0 0 4px var(--theme-glow-outer, rgba(79,195,247,0.75)))
+    drop-shadow(0 0 8px var(--theme-glow-inner, rgba(79,195,247,0.35)));
+  flex-shrink: 0;
+}
+.rl-hud-pill .rl-hud-label {
+  font-size: 10px; letter-spacing: 2.5px;
+  color: rgba(220,235,250,0.65);
+  text-shadow: none;
+  font-weight: 700;
+}
+.rl-hud-pill .rl-hud-value {
+  font-size: 16px; font-weight: 700; letter-spacing: 1px;
+  color: var(--theme-accent-bright, #f5fbff);
+  text-shadow:
+    0 0 4px var(--theme-glow-outer, rgba(79,195,247,0.85)),
+    0 0 10px var(--theme-glow-outer, rgba(79,195,247,0.45));
+}
+.rl-hud-pill .rl-hud-sep {
+  margin: 0 2px; opacity: 0.45; font-weight: 500;
+}
+.rl-hud-pill.rl-hud-btn {
+  cursor: pointer;
+  transition: transform 0.15s, border-color 0.15s, box-shadow 0.15s;
+}
+.rl-hud-pill.rl-hud-btn:hover {
+  transform: translateY(-1px);
+  border-color: var(--theme-accent-bright, rgba(79,195,247,1));
+  box-shadow:
+    0 0 16px var(--theme-glow-outer, rgba(79,195,247,0.55)),
+    0 0 32px var(--theme-glow-inner, rgba(79,195,247,0.22));
+}
+.rl-hud-bar {
+  display: inline-block;
+  width: 56px; height: 4px;
+  background: rgba(0,0,0,0.55);
+  border: 1px solid var(--theme-accent-edge, rgba(79,195,247,0.35));
+  border-radius: 2px;
+  overflow: hidden;
+  margin-left: 4px;
+}
+.rl-hud-bar-fill {
+  display: block;
+  height: 100%;
+  background: linear-gradient(90deg,
+    var(--theme-accent-bright, rgba(79,195,247,0.95)),
+    var(--theme-accent, rgba(79,195,247,0.65)));
+  box-shadow: 0 0 8px var(--theme-glow-outer, rgba(79,195,247,0.65));
+}
+
+/* Menu pill — leftmost HUD slot, opens an abandon-confirm. Tinted
+   warning-red so it reads as "exit" without shouting; theme accent
+   still lights it up on hover. */
+.rl-hud-menu {
+  color: rgba(255,180,170,0.95);
+  border-color: rgba(255,150,140,0.55);
+  text-shadow: 0 0 5px rgba(255,150,140,0.55);
+  margin-right: 6px;
+}
+.rl-hud-menu .rl-hud-glyph {
+  color: rgba(255,180,170,0.95);
+  filter:
+    drop-shadow(0 0 4px rgba(255,150,140,0.85))
+    drop-shadow(0 0 8px rgba(255,120,120,0.35));
+}
+.rl-hud-menu:hover {
+  border-color: rgba(255,200,180,1);
+  color: rgba(255,220,200,1);
+  box-shadow:
+    0 0 16px rgba(255,150,140,0.55),
+    0 0 32px rgba(255,120,120,0.22);
+}
+.rl-last-note {
+  text-align: center;
+  margin: 0 0 14px;
+  padding: 8px 12px;
+  font-size: 13px;
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.10);
+  border-radius: 3px;
+  color: rgba(220,225,235,0.85);
+}
+/* Relic strip — sits just below HUD on map view. Now neon-themed
+   so the active accent color flows through the chip border + glyph. */
+.rl-relic-strip {
+  display: flex; gap: 10px; flex-wrap: wrap;
+  justify-content: center; align-items: center;
+  margin: 0 0 14px;
+}
+.rl-relic-chip {
+  position: relative;
+  display: inline-flex; align-items: center; gap: 8px;
+  padding: 6px 14px;
+  background: linear-gradient(180deg, rgba(255,255,255,0.05), rgba(0,0,0,0.50));
+  border: 1px solid var(--theme-accent-edge, rgba(79,195,247,0.55));
+  border-radius: 18px;
+  font-family: 'Rajdhani', sans-serif;
+  font-size: 11px; letter-spacing: 1.6px;
+  color: var(--theme-accent-bright, #d4ecff);
+  text-shadow: 0 0 5px var(--theme-glow-outer, rgba(79,195,247,0.55));
+  text-transform: uppercase;
+  font-weight: 700;
+  box-shadow:
+    0 0 10px var(--theme-glow-outer, rgba(79,195,247,0.25)),
+    inset 0 0 0 1px rgba(255,255,255,0.05);
+  cursor: help;
+  transition: transform 0.15s, border-color 0.15s, box-shadow 0.15s, padding 0.15s;
+}
+.rl-relic-chip:hover {
+  transform: translateY(-1px);
+  border-color: var(--theme-accent-bright, rgba(79,195,247,1));
+  box-shadow:
+    0 0 14px var(--theme-glow-outer, rgba(79,195,247,0.55)),
+    0 0 28px var(--theme-glow-inner, rgba(79,195,247,0.22));
+}
+.rl-relic-chip-icon {
+  font-size: 16px; line-height: 1;
+  color: var(--theme-accent-bright, #d4ecff);
+  filter:
+    drop-shadow(0 0 4px var(--theme-glow-outer, rgba(79,195,247,0.85)))
+    drop-shadow(0 0 8px var(--theme-glow-inner, rgba(79,195,247,0.35)));
+}
+.rl-relic-chip-name {
+  font-size: 11px; letter-spacing: 2px;
+}
+/* Rarity overrides (rare/boss tint stronger) but still flow theme */
+.rl-relic-common { /* uses theme accent — no override */ }
+.rl-relic-rare {
+  border-color: rgba(180,210,255,0.85);
+  box-shadow:
+    0 0 12px rgba(180,210,255,0.30),
+    inset 0 0 0 1px rgba(180,210,255,0.10);
+}
+.rl-relic-boss {
+  border-color: rgba(255,215,140,0.95);
+  box-shadow:
+    0 0 14px rgba(255,215,140,0.55),
+    inset 0 0 0 1px rgba(255,215,140,0.18);
+}
+.rl-relic-rare .rl-relic-chip-icon { color: rgba(200,225,255,1); filter: drop-shadow(0 0 4px rgba(180,210,255,0.85)) drop-shadow(0 0 8px rgba(180,210,255,0.45)); }
+.rl-relic-boss .rl-relic-chip-icon { color: rgba(255,225,160,1); filter: drop-shadow(0 0 4px rgba(255,215,140,0.95)) drop-shadow(0 0 10px rgba(255,200,80,0.55)); }
+
+/* Relic viewer modal */
+.rl-relic-grid {
+  display: grid; gap: 12px;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  padding: 12px 4px;
+}
+.rl-relic-card {
+  padding: 14px;
+  background: rgba(10,14,22,0.88);
+  border: 1px solid rgba(255,255,255,0.18);
+  border-radius: 4px;
+  font-family: 'Rajdhani', sans-serif;
+  display: flex; flex-direction: column; align-items: center; gap: 6px;
+  text-align: center;
+}
+.rl-relic-card.rl-relic-common  { border-color: rgba(180,200,220,0.45); }
+.rl-relic-card.rl-relic-rare    { border-color: rgba(120,180,255,0.7); box-shadow: 0 0 10px rgba(120,180,255,0.20) inset; }
+.rl-relic-card.rl-relic-boss    { border-color: rgba(255,200,120,0.85); box-shadow: 0 0 14px rgba(255,200,120,0.30) inset; }
+.rl-relic-card-icon {
+  font-size: 30px; line-height: 1;
+  color: var(--theme-accent-bright, #b9f5cb);
+  text-shadow: 0 0 8px var(--theme-glow-outer);
+  margin-bottom: 4px;
+}
+.rl-relic-card.rl-relic-rare .rl-relic-card-icon { color: rgba(180,210,255,1); }
+.rl-relic-card.rl-relic-boss .rl-relic-card-icon { color: rgba(255,215,140,1); }
+.rl-relic-card-name {
+  font-size: 16px; font-weight: 600; letter-spacing: 0.5px;
+  color: rgba(235,240,250,1);
+}
+.rl-relic-card-rarity {
+  font-size: 9px; letter-spacing: 1.5px;
+  color: rgba(180,200,220,0.7);
+  margin-bottom: 4px;
+}
+.rl-relic-card-desc {
+  font-size: 12px; line-height: 1.4;
+  color: rgba(200,210,225,0.85);
+  font-family: 'Inter', sans-serif;
+}
+.rl-empty-state {
+  padding: 24px;
+  text-align: center;
+  color: rgba(180,200,220,0.7);
+  font-family: 'Rajdhani', sans-serif; font-size: 14px;
+  font-style: italic;
+}
+
+/* 3-step progress strip on the run-start pick screens. Theme-driven
+   so the active step glows with the user's selected neon accent. */
+.rl-pick-progress {
+  display: flex; justify-content: center; align-items: center;
+  gap: 8px;
+  font-family: 'Rajdhani', sans-serif;
+  font-size: 11px; letter-spacing: 2.5px; font-weight: 700;
+  margin: 0 0 26px;
+}
+.rl-pick-step {
+  padding: 5px 16px;
+  background: linear-gradient(180deg, rgba(255,255,255,0.04), rgba(0,0,0,0.50));
+  border: 1px solid rgba(255,255,255,0.18);
+  border-radius: 16px;
+  color: rgba(160,180,200,0.55);
+  text-transform: uppercase;
+  transition: color 0.2s, border-color 0.2s, box-shadow 0.2s;
+}
+.rl-pick-step-active {
+  color: var(--theme-accent-bright, #d4ecff);
+  border-color: var(--theme-accent-bright, rgba(79,195,247,1));
+  text-shadow: 0 0 6px var(--theme-glow-outer, rgba(79,195,247,0.85));
+  box-shadow:
+    0 0 12px var(--theme-glow-outer, rgba(79,195,247,0.45)),
+    0 0 28px var(--theme-glow-inner, rgba(79,195,247,0.18)),
+    inset 0 0 0 1px rgba(255,255,255,0.08);
+}
+.rl-pick-step-done {
+  color: var(--theme-accent, rgba(120,180,220,0.85));
+  border-color: var(--theme-accent-edge, rgba(79,195,247,0.45));
+  opacity: 0.7;
+}
+
+/* Pick-screen panel — wider so 2 .mm-option columns can fit comfortably. */
+.rl-pick-panel { max-width: 880px; }
+.rl-pick-panel .mm-options { padding: 0 8px; }
+
+/* Glyph wrapper inside a picker .mm-option's icon slot. The relic
+   icon library returns Unicode glyphs (♥, ⚡, ✱, etc.) — render them
+   centered with the same neon glow the .mm-svg gets. */
+.rl-mm-glyph {
+  font-size: 28px; line-height: 1;
+  color: var(--theme-accent-bright, #d4ecff);
+  filter:
+    drop-shadow(0 0 4px var(--theme-glow-outer, rgba(79,195,247,0.85)))
+    drop-shadow(0 0 10px var(--theme-glow-inner, rgba(79,195,247,0.35)));
+  transition: transform 0.2s, filter 0.25s;
+}
+.mm-option-rl:hover .rl-mm-glyph {
+  transform: scale(1.12);
+  filter:
+    drop-shadow(0 0 6px var(--theme-glow-outer, rgba(79,195,247,1)))
+    drop-shadow(0 0 14px var(--theme-glow-inner, rgba(79,195,247,0.55)));
+}
+/* Picker variant of .mm-option — uses theme variables instead of the
+   hardcoded blue values from the main menu, so changing the user's
+   neon accent recolors every pick screen automatically. */
+.mm-option-rl {
+  background:
+    linear-gradient(90deg, var(--theme-accent-edge, rgba(79,195,247,0.06)) 0%, rgba(0,0,0,0) 55%),
+    rgba(0,0,0,0.85);
+  border-color: var(--theme-accent-edge, rgba(79,195,247,0.55));
+  color: var(--theme-accent-bright, #f5fbff);
+  box-shadow:
+    0 0 10px var(--theme-glow-outer, rgba(79,195,247,0.18)),
+    inset 0 0 0 1px rgba(255,255,255,0.05);
+}
+.mm-option-rl::before {
+  background: var(--theme-accent-bright, rgba(79,195,247,0.60));
+  box-shadow: 0 0 6px var(--theme-glow-outer, rgba(79,195,247,0.55));
+}
+.mm-option-rl:hover {
+  border-color: var(--theme-accent-bright, rgba(79,195,247,1));
+  background:
+    linear-gradient(90deg, var(--theme-accent-edge, rgba(79,195,247,0.12)) 0%, rgba(0,0,0,0) 55%),
+    rgba(0,0,0,0.85);
+  box-shadow:
+    0 0 20px var(--theme-glow-outer, rgba(79,195,247,0.55)),
+    0 0 40px var(--theme-glow-inner, rgba(79,195,247,0.22)),
+    inset 0 0 0 1px rgba(255,255,255,0.10);
+}
+.mm-option-rl .mm-option-icon { color: var(--theme-accent-bright, #d4ecff); }
+.mm-option-rl .mm-option-label { color: var(--theme-accent-bright, #d4ecff); text-shadow: 0 0 8px var(--theme-glow-outer, rgba(79,195,247,0.70)); }
+.mm-option-rl .mm-option-sub { color: rgba(220,235,250,0.85); }
+
+/* Card-pick layout — 3 large cards in a row, draft-screen sized so
+   they fill the panel. User: "you could probably fit three cards
+   here. Just like the draft screen — like, look how big these
+   cards could be." Then later: "Sometimes the card can be a little
+   bit too long, just make the box itself wider." So we widen panel +
+   add more vertical breathing room around the cards (more negative
+   space top, even spacing top/bottom). */
+.rl-pick-panel-cards { max-width: 1320px; padding: 40px 50px 50px; }
+.rl-pick-cards-row {
+  display: flex; gap: 60px; justify-content: center; align-items: flex-start;
+  flex-wrap: wrap;
+  padding: 32px 8px 64px;
+}
+.rl-pick-cardslot {
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 6px;
+  transition: transform 0.18s, filter 0.18s;
+  filter: drop-shadow(0 0 8px var(--theme-glow-outer, rgba(79,195,247,0.18)));
+}
+.rl-pick-cardslot-big {
+  /* Scale the codex chrome up to feel close to draft-screen size. */
+  transform: scale(1.55);
+  transform-origin: center top;
+  margin: 0 32px 90px;
+}
+.rl-pick-cardslot:hover {
+  transform: scale(1.50) translateY(-4px);
+  filter:
+    drop-shadow(0 0 14px var(--theme-glow-outer, rgba(79,195,247,0.75)))
+    drop-shadow(0 0 30px var(--theme-glow-inner, rgba(79,195,247,0.30)));
+}
+.rl-pick-cardslot:focus-visible {
+  outline: none;
+  filter:
+    drop-shadow(0 0 14px var(--theme-glow-outer, rgba(79,195,247,0.75)))
+    drop-shadow(0 0 30px var(--theme-glow-inner, rgba(79,195,247,0.30)));
+}
+
+/* Layout helpers for the pick screens. mm-options is a single column
+   by default (.mm-options is in .rl-panel which is centered) — so
+   .rl-mm-options-centered just enforces a max-width to kill empty
+   left/right space. .rl-mm-options-2col arranges the boon picks as
+   a 2x2 grid (user spec: "2 buttons left, 2 buttons right"). */
+.rl-mm-options-centered {
+  max-width: 520px;
+  margin-left: auto; margin-right: auto;
+}
+.rl-mm-options-2col {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+  max-width: 800px;
+  margin-left: auto; margin-right: auto;
+}
+
+/* Relic cards inside YOUR RELICS modal — full Tron chrome with
+   beveled corner brackets, neon halo, and theme-driven accent.
+   User direction: "needs to look way more Tron, kinda like a
+   card or something." */
+.rl-relic-grid-tron {
+  display: grid; gap: 18px;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  padding: 8px 4px;
+}
+.rl-relic-card-tron {
+  position: relative;
+  padding: 24px 18px 18px;
+  background:
+    linear-gradient(180deg, var(--theme-accent-edge, rgba(79,195,247,0.10)) 0%, rgba(0,0,0,0) 50%),
+    #060a12;
+  border: 1px solid var(--theme-accent-edge, rgba(79,195,247,0.55));
+  border-radius: 6px;
+  box-shadow:
+    0 0 16px var(--theme-glow-outer, rgba(79,195,247,0.35)),
+    0 0 36px var(--theme-glow-inner, rgba(79,195,247,0.12)),
+    inset 0 1px 0 var(--theme-accent-edge, rgba(79,195,247,0.20)),
+    inset 0 0 0 1px rgba(255,255,255,0.04);
+  display: flex; flex-direction: column; align-items: center;
+  text-align: center;
+  transition: transform 0.18s, box-shadow 0.18s, border-color 0.18s;
+  overflow: hidden;
+}
+.rl-relic-card-tron:hover {
+  transform: translateY(-2px);
+  border-color: var(--theme-accent-bright, rgba(79,195,247,1));
+  box-shadow:
+    0 0 22px var(--theme-glow-outer, rgba(79,195,247,0.65)),
+    0 0 48px var(--theme-glow-inner, rgba(79,195,247,0.25)),
+    inset 0 1px 0 var(--theme-accent-bright, rgba(79,195,247,0.30));
+}
+.rl-relic-card-corner {
+  position: absolute; width: 12px; height: 12px;
+  pointer-events: none;
+  filter: drop-shadow(0 0 4px var(--theme-glow-outer, rgba(79,195,247,0.85)));
+}
+.rl-relic-card-corner-tl { top: 4px; left: 4px;
+  border-top: 2px solid var(--theme-accent-bright, #4fc3f7);
+  border-left: 2px solid var(--theme-accent-bright, #4fc3f7); }
+.rl-relic-card-corner-tr { top: 4px; right: 4px;
+  border-top: 2px solid var(--theme-accent-bright, #4fc3f7);
+  border-right: 2px solid var(--theme-accent-bright, #4fc3f7); }
+.rl-relic-card-corner-bl { bottom: 4px; left: 4px;
+  border-bottom: 2px solid var(--theme-accent-bright, #4fc3f7);
+  border-left: 2px solid var(--theme-accent-bright, #4fc3f7); }
+.rl-relic-card-corner-br { bottom: 4px; right: 4px;
+  border-bottom: 2px solid var(--theme-accent-bright, #4fc3f7);
+  border-right: 2px solid var(--theme-accent-bright, #4fc3f7); }
+.rl-relic-card-tron .rl-relic-card-icon {
+  font-size: 36px; line-height: 1;
+  color: var(--theme-accent-bright, #d4ecff);
+  text-shadow:
+    0 0 8px var(--theme-glow-outer, rgba(79,195,247,0.85)),
+    0 0 16px var(--theme-glow-inner, rgba(79,195,247,0.45));
+  margin-bottom: 8px;
+}
+.rl-relic-card-tron .rl-relic-card-name {
+  font-family: 'Rajdhani', sans-serif;
+  font-size: 17px; font-weight: 700;
+  letter-spacing: 3px; text-transform: uppercase;
+  color: var(--theme-accent-bright, #f5fbff);
+  text-shadow: 0 0 6px var(--theme-glow-outer, rgba(79,195,247,0.65));
+  margin-bottom: 4px;
+}
+.rl-relic-card-tron .rl-relic-card-rarity {
+  font-family: 'Rajdhani', sans-serif;
+  font-size: 9px; letter-spacing: 2.5px; font-weight: 700;
+  color: var(--theme-accent, rgba(120,180,220,0.85));
+  margin-bottom: 8px;
+}
+.rl-relic-card-tron .rl-relic-card-desc {
+  font-family: 'Inter', sans-serif;
+  font-size: 12px; line-height: 1.45;
+  color: rgba(220,235,250,0.85);
+}
+.rl-relic-card-glow {
+  position: absolute; inset: 0;
+  background: radial-gradient(circle at 50% 0%, var(--theme-glow-outer, rgba(79,195,247,0.35)) 0%, rgba(0,0,0,0) 60%);
+  pointer-events: none;
+  opacity: 0.55;
+}
+/* Rare / boss tints on the relic card override the theme accent so
+   they still pop with their distinct rarity color. */
+.rl-relic-card-tron.rl-relic-rare { border-color: rgba(180,210,255,0.85); }
+.rl-relic-card-tron.rl-relic-rare .rl-relic-card-icon { color: rgba(200,225,255,1); }
+.rl-relic-card-tron.rl-relic-boss { border-color: rgba(255,215,140,0.95); box-shadow: 0 0 22px rgba(255,200,80,0.45), 0 0 48px rgba(255,200,80,0.18); }
+.rl-relic-card-tron.rl-relic-boss .rl-relic-card-icon { color: rgba(255,225,160,1); }
+.rl-relic-card-tron.rl-relic-boss .rl-relic-card-name { color: rgba(255,235,180,1); }
+
+/* Map node icons — neon Tron pulse on legal nodes, dim on locked,
+   gold ring on the current node. All theme-aware so changing the
+   active color recolors every legal-path indicator. */
+.rl-mapnode { pointer-events: bounding-box; }
+.rl-mapnode .rl-mapnode-halo {
+  fill: transparent;
+  stroke: transparent;
+  transition: stroke 0.25s, opacity 0.25s;
+}
+.rl-mapnode .rl-mapnode-ring {
+  fill: #060a12;
+  stroke: rgba(255,255,255,0.20);
+  stroke-width: 2;
+  transition: stroke 0.25s, fill 0.25s, stroke-width 0.25s;
+}
+.rl-mapnode .rl-mapnode-icon {
+  color: rgba(220,235,250,0.55);
+  transition: color 0.25s, filter 0.25s;
+}
+.rl-mapnode-legal { cursor: pointer; }
+.rl-mapnode-legal .rl-mapnode-ring {
+  stroke: var(--theme-accent-bright, rgba(79,195,247,1));
+  stroke-width: 2;
+  filter: drop-shadow(0 0 6px var(--theme-glow-outer, rgba(79,195,247,0.85)));
+}
+.rl-mapnode-legal .rl-mapnode-icon {
+  color: var(--theme-accent-bright, #d4ecff);
+  filter:
+    drop-shadow(0 0 4px var(--theme-glow-outer, rgba(79,195,247,0.85)))
+    drop-shadow(0 0 8px var(--theme-glow-inner, rgba(79,195,247,0.35)));
+}
+.rl-mapnode-legal .rl-mapnode-halo {
+  stroke: var(--theme-accent-bright, rgba(79,195,247,0.85));
+  stroke-width: 1;
+  opacity: 0.45;
+  animation: rl-mapnode-halo-pulse 2.4s ease-in-out infinite;
+}
+.rl-mapnode-legal:hover .rl-mapnode-ring {
+  stroke-width: 3;
+  filter: drop-shadow(0 0 10px var(--theme-glow-outer, rgba(79,195,247,1)));
+}
+.rl-mapnode-legal:hover .rl-mapnode-icon { transform: scale(1.05); transform-origin: center; }
+@keyframes rl-mapnode-halo-pulse {
+  0%, 100% { opacity: 0.25; r: 24; }
+  50%      { opacity: 0.55; r: 28; }
+}
+.rl-mapnode-current .rl-mapnode-ring {
+  stroke: #ffe066;
+  stroke-width: 3;
+  filter: drop-shadow(0 0 10px rgba(255,215,0,0.85)) drop-shadow(0 0 20px rgba(255,215,0,0.35));
+}
+.rl-mapnode-current .rl-mapnode-icon {
+  color: #ffe066;
+  filter:
+    drop-shadow(0 0 4px rgba(255,215,0,0.95))
+    drop-shadow(0 0 10px rgba(255,215,0,0.45));
+}
+.rl-mapnode-current .rl-mapnode-halo {
+  stroke: #ffe066;
+  stroke-width: 1;
+  opacity: 0.55;
+  animation: rl-mapnode-halo-pulse 1.8s ease-in-out infinite;
+}
+.rl-mapnode-done {
+  opacity: 0.35;
+}
+.rl-mapnode-locked {
+  opacity: 0.55;
+}
+/* Type-specific node tints — boss/elite get a stronger glow so the
+   player's eye can find the danger nodes at a glance. */
+.rl-mapnode-boss .rl-mapnode-icon, .rl-mapnode-final-boss .rl-mapnode-icon { color: rgba(255,140,140,0.85); }
+.rl-mapnode-boss.rl-mapnode-legal .rl-mapnode-icon, .rl-mapnode-final-boss.rl-mapnode-legal .rl-mapnode-icon { color: rgba(255,180,180,1); filter: drop-shadow(0 0 6px rgba(255,120,120,0.95)) drop-shadow(0 0 12px rgba(255,80,80,0.45)); }
+.rl-mapnode-elite .rl-mapnode-icon { color: rgba(220,180,255,0.85); }
+.rl-mapnode-event .rl-mapnode-icon { color: rgba(180,255,220,0.85); }
+.rl-mapnode-shop .rl-mapnode-icon { color: rgba(255,225,150,0.85); }
+.rl-mapnode-rest .rl-mapnode-icon { color: rgba(180,200,255,0.85); }
+.rl-mapnode-treasure .rl-mapnode-icon { color: rgba(255,225,150,0.95); }
+.rl-mapnode-treasure.rl-mapnode-legal .rl-mapnode-icon { color: rgba(255,235,170,1); filter: drop-shadow(0 0 6px rgba(255,210,100,0.95)) drop-shadow(0 0 12px rgba(255,200,80,0.45)); }
+.rl-mapnode-treasure.rl-mapnode-legal .rl-mapnode-ring { stroke: rgba(255,215,140,0.95); filter: drop-shadow(0 0 6px rgba(255,200,80,0.85)); }
+
+/* Codex card XP progress strip — sits just above the bottom edge of
+   the card. Thin neon bar with a centered "X/Y XP" label. Capped
+   legendary cards show MAX in gold. */
+.rl-card-xp {
+  position: absolute;
+  left: 6px; right: 6px; bottom: 4px;
+  display: flex; flex-direction: column; gap: 2px;
+  pointer-events: none;
+  font-family: 'Rajdhani', sans-serif;
+}
+.rl-card-xp-bar {
+  height: 3px;
+  background: rgba(0,0,0,0.55);
+  border: 1px solid rgba(120,160,200,0.35);
+  border-radius: 2px;
+  overflow: hidden;
+}
+.rl-card-xp-fill {
+  height: 100%;
+  background: linear-gradient(90deg, rgba(120,200,255,0.85), rgba(180,230,255,0.95));
+  box-shadow: 0 0 6px rgba(120,200,255,0.65);
+}
+.rl-card-xp-label {
+  text-align: center;
+  font-size: 8px; letter-spacing: 0.5px;
+  color: rgba(180,210,235,0.85);
+  line-height: 1;
+}
+.rl-card-xp-cap {
+  text-align: center;
+  font-size: 9px; letter-spacing: 1.5px;
+  color: rgba(255,215,140,0.95);
+  text-shadow: 0 0 5px rgba(255,200,100,0.55);
+  font-weight: 700;
+}
+/* When a card is shown in the rewards / shop / pickers, the XP bar
+   should hide (no progression context yet for unowned cards). Add a
+   parent flag the renderer can toggle. */
+.rl-reward-slot .rl-card-xp,
+.rl-shop-item .rl-card-xp { display: none; }
+
+/* Event narrative modal */
+.rl-event-flavor {
+  font-family: 'Rajdhani', sans-serif;
+  font-size: 15px; line-height: 1.55;
+  color: rgba(220,225,235,0.95);
+  text-align: center;
+  padding: 12px 20px 20px;
+  font-style: italic;
+}
+.rl-event-choices {
+  display: flex; flex-direction: column; gap: 10px;
+  padding: 0 20px 16px;
+}
+.rl-event-choice {
+  padding: 14px 18px;
+  background: rgba(15,18,25,0.85);
+  border: 1px solid rgba(255,255,255,0.25);
+  border-radius: 4px;
+  font-family: 'Rajdhani', sans-serif;
+  font-size: 14px; letter-spacing: 0.5px;
+  color: rgba(220,225,235,0.95);
+  text-transform: uppercase;
+  text-align: left;
+  cursor: pointer;
+  transition: transform 0.15s, border-color 0.15s, background 0.15s, box-shadow 0.15s;
+}
+.rl-event-choice:hover:not([disabled]) {
+  transform: translateY(-1px);
+  border-color: var(--theme-accent-bright, #b9f5cb);
+  background: rgba(20,30,40,0.95);
+  box-shadow: 0 0 12px var(--theme-glow-outer, rgba(120,255,180,0.4));
+}
+.rl-event-choice[disabled] {
+  cursor: not-allowed;
+}
+
+/* Tier-color text helper for level-up modal */
+.rl-tier-common-text  { color: rgba(220,225,235,1); }
+.rl-tier-rare-text    { color: rgba(120,180,255,1); text-shadow: 0 0 6px rgba(120,180,255,0.5); }
+.rl-tier-special-text { color: rgba(200,160,255,1); text-shadow: 0 0 6px rgba(200,160,255,0.5); }
+.rl-tier-legendary-text { color: rgba(255,215,140,1); text-shadow: 0 0 8px rgba(255,215,140,0.6); }
+
+/* Shop UI */
+/* ============ TRON-STYLE SHOP ============ */
+/* User direction: "Shop needs a big overhaul. The cards should match
+   their actual rolled rarity, the buttons need to be neon highlighted,
+   and the whole thing needs to look like a professional TCG shop in
+   the same boon-picker style." */
+
+/* Top of shop — single big "GOLD: 50g" pill that mirrors the map HUD. */
+.rl-shop-hud-tron {
+  display: flex; justify-content: center;
+  margin: 0 0 22px;
+  padding-bottom: 18px;
+  border-bottom: 1px solid var(--theme-accent-edge, rgba(79,195,247,0.18));
+}
+.rl-shop-hud-pill {
+  display: inline-flex; align-items: center; gap: 10px;
+  padding: 10px 22px;
+  background: linear-gradient(180deg, var(--theme-accent-edge, rgba(79,195,247,0.10)), rgba(0,0,0,0.55));
+  border: 1px solid var(--theme-accent-bright, rgba(79,195,247,0.85));
+  border-radius: 4px;
+  box-shadow:
+    0 0 14px var(--theme-glow-outer, rgba(79,195,247,0.45)),
+    0 0 32px var(--theme-glow-inner, rgba(79,195,247,0.18)),
+    inset 0 0 0 1px rgba(255,255,255,0.05);
+  font-family: 'Rajdhani', sans-serif;
+}
+.rl-shop-hud-pill .rl-hud-glyph {
+  width: 22px; height: 22px;
+  color: rgba(255,225,140,0.95);
+  filter: drop-shadow(0 0 5px rgba(255,210,100,0.85)) drop-shadow(0 0 10px rgba(255,200,80,0.45));
+}
+.rl-shop-hud-pill .rl-shop-hud-label {
+  font-size: 11px; letter-spacing: 3px; font-weight: 700;
+  color: rgba(180,200,220,0.65);
+}
+.rl-shop-hud-pill .rl-shop-hud-value {
+  font-size: 22px; font-weight: 800; letter-spacing: 1px;
+  color: rgba(255,225,150,1);
+  text-shadow:
+    0 0 6px rgba(255,210,100,0.85),
+    0 0 14px rgba(255,200,80,0.45);
+}
+
+/* Section blocks — each (CARDS, ETCHES, RELICS, SERVICES) gets a
+   neon-bracket title and a centered row of slot panels. */
+.rl-shop-section-tron {
+  margin-bottom: 24px;
+}
+.rl-shop-section-title-tron {
+  position: relative;
+  font-family: 'Rajdhani', sans-serif;
+  font-size: 12px; font-weight: 700;
+  letter-spacing: 4px; text-transform: uppercase;
+  text-align: center;
+  margin-bottom: 14px;
+  padding: 0 14px;
+  color: var(--theme-accent-bright, #d4ecff);
+  text-shadow: 0 0 6px var(--theme-glow-outer, rgba(79,195,247,0.65));
+}
+.rl-shop-section-title-tron::before,
+.rl-shop-section-title-tron::after {
+  content: '';
+  position: absolute; top: 50%;
+  width: calc(50% - 60px); height: 1px;
+  background: linear-gradient(90deg, transparent, var(--theme-accent-edge, rgba(79,195,247,0.55)), transparent);
+}
+.rl-shop-section-title-tron::before { left: 0; }
+.rl-shop-section-title-tron::after { right: 0; }
+.rl-shop-section-title-tron span {
+  display: inline-block;
+  padding: 4px 16px;
+  background: rgba(0,0,0,0.85);
+  border: 1px solid var(--theme-accent-edge, rgba(79,195,247,0.45));
+  border-radius: 14px;
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,0.04);
+}
+
+.rl-shop-row {
+  display: flex; flex-wrap: wrap; gap: 16px;
+  justify-content: center;
+}
+.rl-shop-row-cards { gap: 22px; }
+
+/* Slot panel — common shell for card / etch / relic / service items.
+   Beveled corners + neon halo + theme-driven accent. Sold/cant-afford
+   variants dim the chrome. */
+.rl-shop-slot {
+  position: relative;
+  display: flex; flex-direction: column; align-items: center; gap: 10px;
+  padding: 22px 16px 16px;
+  background:
+    linear-gradient(180deg, var(--theme-accent-edge, rgba(79,195,247,0.06)) 0%, rgba(0,0,0,0) 50%),
+    rgba(8,12,18,0.92);
+  border: 1px solid var(--theme-accent-edge, rgba(79,195,247,0.45));
+  border-radius: 5px;
+  font-family: 'Rajdhani', sans-serif;
+  box-shadow:
+    0 0 10px var(--theme-glow-outer, rgba(79,195,247,0.18)),
+    inset 0 1px 0 var(--theme-accent-edge, rgba(79,195,247,0.18));
+  transition: transform 0.18s, border-color 0.18s, box-shadow 0.18s;
+}
+.rl-shop-slot:hover {
+  transform: translateY(-2px);
+  border-color: var(--theme-accent-bright, rgba(79,195,247,1));
+  box-shadow:
+    0 0 18px var(--theme-glow-outer, rgba(79,195,247,0.55)),
+    0 0 36px var(--theme-glow-inner, rgba(79,195,247,0.22)),
+    inset 0 1px 0 var(--theme-accent-bright, rgba(79,195,247,0.30));
+}
+.rl-shop-slot-sold { opacity: 0.4; pointer-events: none; }
+.rl-shop-slot-cant { opacity: 0.6; }
+.rl-shop-slot-corner {
+  position: absolute; width: 10px; height: 10px;
+  pointer-events: none;
+  filter: drop-shadow(0 0 4px var(--theme-glow-outer, rgba(79,195,247,0.85)));
+}
+.rl-shop-slot-corner-tl { top: 4px; left: 4px;
+  border-top: 2px solid var(--theme-accent-bright, #4fc3f7);
+  border-left: 2px solid var(--theme-accent-bright, #4fc3f7); }
+.rl-shop-slot-corner-tr { top: 4px; right: 4px;
+  border-top: 2px solid var(--theme-accent-bright, #4fc3f7);
+  border-right: 2px solid var(--theme-accent-bright, #4fc3f7); }
+.rl-shop-slot-corner-bl { bottom: 4px; left: 4px;
+  border-bottom: 2px solid var(--theme-accent-bright, #4fc3f7);
+  border-left: 2px solid var(--theme-accent-bright, #4fc3f7); }
+.rl-shop-slot-corner-br { bottom: 4px; right: 4px;
+  border-bottom: 2px solid var(--theme-accent-bright, #4fc3f7);
+  border-right: 2px solid var(--theme-accent-bright, #4fc3f7); }
+
+/* Card slot — wraps the codex card inside, plus a "RARITY: COMMON"
+   tag at the top so the shop reads as a draft kiosk. */
+.rl-shop-slot-card {
+  padding: 30px 14px 18px;
+}
+.rl-shop-slot-rarity {
+  font-size: 10px; letter-spacing: 2.5px; font-weight: 700;
+  color: var(--theme-accent, rgba(120,180,220,0.85));
+  margin-bottom: 4px;
+}
+.rl-shop-slot-card.rl-tier-common .rl-shop-slot-rarity { color: rgba(91,227,154,1); }
+.rl-shop-slot-card.rl-tier-rare .rl-shop-slot-rarity { color: rgba(127,208,255,1); }
+.rl-shop-slot-card.rl-tier-special .rl-shop-slot-rarity { color: rgba(230,236,242,1); }
+.rl-shop-slot-card.rl-tier-legendary .rl-shop-slot-rarity { color: rgba(255,224,102,1); }
+.rl-shop-slot-card.rl-tier-rare { border-color: rgba(127,208,255,0.7); }
+.rl-shop-slot-card.rl-tier-special { border-color: rgba(220,230,240,0.85); }
+.rl-shop-slot-card.rl-tier-legendary { border-color: rgba(255,215,0,0.85); box-shadow: 0 0 16px rgba(255,200,60,0.40), 0 0 32px rgba(255,200,60,0.18); }
+.rl-shop-slot-card-wrap {
+  display: flex; align-items: center; justify-content: center;
+}
+
+/* Etch slot — diamond glyph + name + flavor + buy. */
+.rl-shop-slot-etch {
+  min-width: 220px; max-width: 240px;
+  text-align: center;
+}
+.rl-shop-etch-glyph {
+  width: 32px; height: 32px;
+  display: flex; align-items: center; justify-content: center;
+  color: var(--theme-accent-bright, #d4ecff);
+  filter:
+    drop-shadow(0 0 5px var(--theme-glow-outer, rgba(79,195,247,0.85)))
+    drop-shadow(0 0 10px var(--theme-glow-inner, rgba(79,195,247,0.45)));
+}
+.rl-shop-etch-glyph svg { width: 100%; height: 100%; }
+.rl-shop-etch-name {
+  font-size: 16px; font-weight: 700; letter-spacing: 2.5px;
+  text-transform: uppercase;
+  color: var(--theme-accent-bright, #f5fbff);
+  text-shadow: 0 0 6px var(--theme-glow-outer, rgba(79,195,247,0.55));
+}
+.rl-shop-etch-flavor {
+  font-family: 'Inter', sans-serif;
+  font-size: 11px; line-height: 1.4;
+  color: rgba(220,235,250,0.75);
+}
+
+/* Relic slot — same etch shell + bigger glyph. */
+.rl-shop-slot-relic {
+  min-width: 240px; max-width: 260px;
+  text-align: center;
+}
+.rl-shop-slot-relic .rl-shop-relic-icon {
+  font-size: 32px; line-height: 1;
+  color: var(--theme-accent-bright, #d4ecff);
+  text-shadow:
+    0 0 8px var(--theme-glow-outer, rgba(79,195,247,0.85)),
+    0 0 16px var(--theme-glow-inner, rgba(79,195,247,0.45));
+  margin-bottom: 4px;
+}
+.rl-shop-slot-relic .rl-shop-relic-name {
+  font-size: 16px; font-weight: 700; letter-spacing: 2px;
+  text-transform: uppercase;
+  color: var(--theme-accent-bright, #f5fbff);
+  text-shadow: 0 0 6px var(--theme-glow-outer, rgba(79,195,247,0.55));
+}
+.rl-shop-slot-relic .rl-shop-relic-rarity {
+  font-size: 9px; letter-spacing: 2.5px; font-weight: 700;
+  color: var(--theme-accent, rgba(120,180,220,0.85));
+}
+.rl-shop-slot-relic .rl-shop-relic-desc {
+  font-family: 'Inter', sans-serif;
+  font-size: 11px; line-height: 1.4;
+  color: rgba(220,235,250,0.85);
+}
+.rl-shop-slot-relic.rl-relic-rare { border-color: rgba(127,208,255,0.85); }
+.rl-shop-slot-relic.rl-relic-rare .rl-shop-relic-icon { color: rgba(180,210,255,1); }
+.rl-shop-slot-relic.rl-relic-boss { border-color: rgba(255,215,140,0.95); box-shadow: 0 0 18px rgba(255,200,80,0.45); }
+.rl-shop-slot-relic.rl-relic-boss .rl-shop-relic-icon { color: rgba(255,225,160,1); }
+
+/* Service slot — same shell, smaller. */
+.rl-shop-slot-service {
+  min-width: 280px; max-width: 320px;
+  text-align: center;
+}
+
+/* Buy button — Tron-styled per state. Ready = bright theme accent.
+   Cant = dim. Sold = grayed muted. Always uses .tron-fx hover for
+   the breathing perimeter. */
+.rl-shop-buy {
+  margin-top: 6px;
+  padding: 8px 22px;
+  background: linear-gradient(180deg, var(--theme-accent-edge, rgba(79,195,247,0.20)) 0%, rgba(0,0,0,0.85) 100%);
+  border: 1px solid var(--theme-accent-bright, rgba(79,195,247,0.85));
+  border-radius: 4px;
+  color: var(--theme-accent-bright, #d4ecff);
+  font-family: 'Rajdhani', sans-serif;
+  font-size: 14px; font-weight: 800;
+  letter-spacing: 2px; text-transform: uppercase;
+  cursor: pointer;
+  text-shadow: 0 0 6px var(--theme-glow-outer, rgba(79,195,247,0.65));
+  box-shadow:
+    0 0 8px var(--theme-glow-outer, rgba(79,195,247,0.30)),
+    inset 0 0 0 1px rgba(255,255,255,0.05);
+  transition: background 0.18s, color 0.18s, box-shadow 0.18s, transform 0.15s;
+  position: relative;
+  overflow: hidden;
+}
+.rl-shop-buy-suffix {
+  font-size: 11px; opacity: 0.7;
+  margin-left: 1px;
+  font-weight: 700;
+}
+.rl-shop-buy-ready:hover {
+  background: linear-gradient(180deg, var(--theme-accent-bright, rgba(79,195,247,0.95)) 0%, var(--theme-accent, rgba(79,195,247,0.55)) 100%);
+  color: #001018;
+  text-shadow: none;
+  transform: translateY(-1px);
+  box-shadow:
+    0 0 16px var(--theme-glow-outer, rgba(79,195,247,0.85)),
+    0 0 36px var(--theme-glow-inner, rgba(79,195,247,0.35));
+}
+.rl-shop-buy-cant {
+  border-color: rgba(180,200,220,0.30);
+  color: rgba(180,200,220,0.55);
+  text-shadow: none;
+  cursor: not-allowed;
+  background: rgba(0,0,0,0.65);
+  box-shadow: none;
+}
+.rl-shop-buy-sold {
+  border-color: rgba(120,140,160,0.30);
+  color: rgba(140,160,180,0.55);
+  text-shadow: none;
+  cursor: not-allowed;
+  background: rgba(0,0,0,0.50);
+  box-shadow: none;
+}
+.rl-shop-buy[disabled] { cursor: not-allowed; }
+
+.rl-shop-footer {
+  text-align: center;
+  padding-top: 18px;
+  border-top: 1px solid var(--theme-accent-edge, rgba(79,195,247,0.18));
+}
+.rl-shop-leave {
+  position: relative;
+  overflow: hidden;
+  padding: 10px 26px;
+  background: rgba(8,12,18,0.92);
+  border: 1px solid rgba(255,150,140,0.55);
+  border-radius: 4px;
+  color: rgba(255,200,180,0.95);
+  font-family: 'Rajdhani', sans-serif;
+  font-size: 14px; font-weight: 800;
+  letter-spacing: 2px; text-transform: uppercase;
+  cursor: pointer;
+  text-shadow: 0 0 6px rgba(255,150,140,0.55);
+  box-shadow:
+    0 0 10px rgba(255,150,140,0.30),
+    inset 0 0 0 1px rgba(255,255,255,0.04);
+  transition: background 0.18s, color 0.18s, box-shadow 0.18s, transform 0.15s;
+}
+.rl-shop-leave:hover {
+  background: linear-gradient(180deg, rgba(255,150,140,0.25), rgba(255,90,90,0.12));
+  border-color: rgba(255,200,180,1);
+  color: rgba(255,235,220,1);
+  transform: translateY(-1px);
+  box-shadow:
+    0 0 18px rgba(255,150,140,0.65),
+    0 0 36px rgba(255,120,120,0.25);
+}
+.rl-map-track {
+  display: flex; align-items: center; justify-content: center;
+  gap: 4px; flex-wrap: wrap;
+  padding: 18px 0 24px;
+}
+.rl-node {
+  display: flex; flex-direction: column; align-items: center; gap: 4px;
+  width: 78px; padding: 12px 6px;
+  background: #060a12;
+  border: 1px solid rgba(255,255,255,0.20);
+  border-radius: 4px;
+  cursor: pointer;
+  font-family: 'Rajdhani', sans-serif;
+  color: #cfd6df;
+  transition: border-color 0.15s, box-shadow 0.15s, transform 0.15s;
+}
+.rl-node-icon { font-size: 22px; line-height: 1; }
+.rl-node-label { font-size: 10px; letter-spacing: 1.5px; text-transform: uppercase; }
+.rl-node-link {
+  width: 30px; height: 1px;
+  background: rgba(255,255,255,0.20);
+}
+.rl-node-current {
+  border-color: var(--theme-accent-bright, rgba(79,195,247,0.95));
+  box-shadow: 0 0 12px var(--theme-glow-outer, rgba(79,195,247,0.50));
+  color: var(--theme-accent-bright, #b9f5cb);
+}
+.rl-node-current:hover { transform: translateY(-2px); }
+.rl-node-done {
+  border-color: rgba(46,204,113,0.55);
+  color: rgba(46,204,113,0.65);
+  cursor: default;
+  opacity: 0.55;
+}
+.rl-node-locked {
+  cursor: not-allowed;
+  opacity: 0.30;
+}
+
+.rl-deck-peek {
+  margin-top: 8px;
+  background: rgba(255,255,255,0.03);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 4px;
+  padding: 8px 12px;
+}
+.rl-deck-peek summary {
+  cursor: pointer;
+  font-family: 'Rajdhani', sans-serif;
+  font-size: 11px; letter-spacing: 2px; text-transform: uppercase;
+  color: rgba(220,225,235,0.75);
+}
+.rl-deck-list {
+  margin-top: 10px;
+  display: flex; flex-wrap: wrap; gap: 4px;
+}
+.rl-deck-card {
+  display: inline-block;
+  padding: 3px 8px;
+  background: #060a12;
+  border: 1px solid rgba(255,255,255,0.15);
+  border-radius: 3px;
+  font-size: 11px; font-family: 'Rajdhani', sans-serif;
+}
+.rl-deck-card em { font-style: normal; opacity: 0.65; font-size: 9px; }
+.rl-rarity-common    { border-color: rgba(46,204,113,0.55);  color: #5be39a; }
+.rl-rarity-rare      { border-color: rgba(79,195,247,0.55);  color: #7fd0ff; }
+.rl-rarity-special   { border-color: rgba(220,230,240,0.55); color: #e6ecf2; }
+.rl-rarity-legendary { border-color: rgba(255,215,0,0.65);   color: #ffe066; }
+
+/* Rewards picker (post-fight) */
+.rl-rewards-grid {
+  display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 14px;
+  margin: 18px 0;
+}
+.rl-reward-card {
+  background: #060a12;
+  border: 1px solid rgba(79,195,247,0.55);
+  border-radius: 4px;
+  padding: 18px 14px;
+  cursor: pointer;
+  text-align: center;
+  font-family: inherit;
+  color: inherit;
+  transition: border-color 0.15s, box-shadow 0.15s, transform 0.15s;
+}
+.rl-reward-card:hover {
+  border-color: rgba(79,195,247,0.95);
+  box-shadow: 0 0 12px rgba(79,195,247,0.45);
+  transform: translateY(-2px);
+}
+.rl-reward-name {
+  font-family: 'Rajdhani', sans-serif;
+  font-size: 14px; font-weight: 800; letter-spacing: 2px; text-transform: uppercase;
+  color: #b9f5cb;
+  margin-bottom: 4px;
+}
+.rl-reward-stats { font-size: 11px; opacity: 0.65; margin-bottom: 8px; letter-spacing: 1px; }
+.rl-reward-desc { font-size: 11px; line-height: 1.35; color: #cfd6df; }
+.rl-rewards-skip { text-align: center; }
+.rl-skip-btn {
+  background: transparent;
+  border: 1px solid rgba(255,255,255,0.20);
+  color: #cfd6df;
+  padding: 6px 14px;
+  border-radius: 3px;
+  font-family: 'Rajdhani', sans-serif;
+  font-size: 11px; letter-spacing: 2px; text-transform: uppercase;
+  cursor: pointer;
+}
+
+/* End-of-run summary */
+.rl-end-stats {
+  display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 8px;
+  margin: 18px 0;
+  font-family: 'Rajdhani', sans-serif;
+  text-align: center;
+  font-size: 13px;
+}
+.rl-end-stats > div { padding: 8px; background: rgba(255,255,255,0.03); border-radius: 3px; }
+.rl-end-stats b { color: #b9f5cb; margin-right: 6px; }
+.rl-end-deck {
+  display: flex; flex-wrap: wrap; gap: 4px;
+  margin: 10px 0 18px;
+  justify-content: center;
+}
+.rl-end-actions {
+  display: flex; gap: 12px; justify-content: center;
+}
+.rl-end-victory { color: #ffe066; text-shadow: 0 0 12px rgba(255,215,0,0.65); }
+.rl-end-defeat  { color: #ff8c7a; text-shadow: 0 0 12px rgba(231,76,60,0.55); }
+
+/* ----- Branching map (SVG) ----- */
+/* 18-row 3-act map needs to be tall + scrollable. The svg itself
+   doesn't shrink to viewport height; the wrapper handles vertical
+   pan. We auto-scroll the player's current row into view on render. */
+.rl-map-svg-wrap {
+  margin: 6px 0 12px;
+  padding: 12px;
+  background: rgba(0,0,0,0.45);
+  border: 1px solid rgba(255,255,255,0.06);
+  border-radius: 4px;
+  max-height: 60vh;
+  overflow-y: auto;
+  scroll-behavior: smooth;
+}
+.rl-map-svg-wrap svg {
+  display: block;
+  width: 100%;
+  max-width: 540px;
+  margin: 0 auto;
+}
+/* Act divider line + label rendered as horizontal bar at the start
+   of each act in the SVG. */
+.rl-act-divider-text {
+  font-family: 'Rajdhani', sans-serif;
+  font-size: 14px; font-weight: 800;
+  letter-spacing: 4px; text-transform: uppercase;
+  fill: rgba(255,225,150,0.85);
+}
+.rl-mapnode { transition: opacity 0.15s; }
+.rl-mapnode:hover circle { stroke-width: 3; }
+.rl-map-hint {
+  text-align: center;
+  font-family: 'Rajdhani', sans-serif;
+  font-size: 12px; letter-spacing: 3px; text-transform: uppercase;
+  color: rgba(255,225,150,0.75);
+  margin: 6px 0 0;
+}
+.rl-map-legend {
+  display: flex; justify-content: center; gap: 14px; flex-wrap: wrap;
+  font-family: 'Rajdhani', sans-serif;
+  font-size: 11px; letter-spacing: 1.5px; text-transform: uppercase;
+  color: rgba(220,225,235,0.55);
+  margin-top: 4px;
+}
+.rl-legend-icon {
+  display: inline-block;
+  margin-right: 4px;
+  color: var(--theme-accent-bright, #b9f5cb);
+  font-size: 13px;
+}
+
+/* ============ BOSS PREVIEW BANNER ============ */
+/* Sits between the HUD and the map. Compact Tron card with the act's
+   boss persona, archetype, HP range, and a one-line "what to pack"
+   tip. Per-act tint flowing through corner brackets + glyph. */
+.rl-boss-preview {
+  position: relative;
+  display: flex; align-items: center; gap: 16px;
+  margin: 0 auto 14px;
+  padding: 14px 22px 14px 18px;
+  max-width: 760px;
+  background:
+    linear-gradient(90deg, rgba(255,90,90,0.08) 0%, rgba(0,0,0,0) 70%),
+    linear-gradient(180deg, rgba(255,255,255,0.04), rgba(0,0,0,0.55));
+  border: 1px solid rgba(255,150,140,0.55);
+  border-radius: 5px;
+  box-shadow:
+    0 0 12px rgba(255,150,140,0.25),
+    0 0 28px rgba(255,90,90,0.10),
+    inset 0 1px 0 rgba(255,150,140,0.20);
+  overflow: hidden;
+}
+.rl-boss-preview-act2 {
+  border-color: rgba(220,180,255,0.65);
+  box-shadow: 0 0 12px rgba(220,180,255,0.25), 0 0 28px rgba(180,140,255,0.10), inset 0 1px 0 rgba(220,180,255,0.18);
+  background:
+    linear-gradient(90deg, rgba(180,140,255,0.08) 0%, rgba(0,0,0,0) 70%),
+    linear-gradient(180deg, rgba(255,255,255,0.04), rgba(0,0,0,0.55));
+}
+.rl-boss-preview-act3 {
+  border-color: rgba(255,215,140,0.85);
+  box-shadow: 0 0 14px rgba(255,200,80,0.40), 0 0 32px rgba(255,200,80,0.15), inset 0 1px 0 rgba(255,215,140,0.30);
+  background:
+    linear-gradient(90deg, rgba(255,200,80,0.10) 0%, rgba(0,0,0,0) 70%),
+    linear-gradient(180deg, rgba(255,255,255,0.05), rgba(0,0,0,0.55));
+}
+.rl-boss-preview-corner {
+  position: absolute; width: 10px; height: 10px;
+  pointer-events: none;
+  filter: drop-shadow(0 0 4px currentColor);
+  color: rgba(255,150,140,1);
+}
+.rl-boss-preview-act2 .rl-boss-preview-corner { color: rgba(220,180,255,1); }
+.rl-boss-preview-act3 .rl-boss-preview-corner { color: rgba(255,215,140,1); }
+.rl-boss-preview-corner-tl { top: 4px; left: 4px;
+  border-top: 2px solid currentColor; border-left: 2px solid currentColor; }
+.rl-boss-preview-corner-tr { top: 4px; right: 4px;
+  border-top: 2px solid currentColor; border-right: 2px solid currentColor; }
+.rl-boss-preview-corner-bl { bottom: 4px; left: 4px;
+  border-bottom: 2px solid currentColor; border-left: 2px solid currentColor; }
+.rl-boss-preview-corner-br { bottom: 4px; right: 4px;
+  border-bottom: 2px solid currentColor; border-right: 2px solid currentColor; }
+.rl-boss-preview-icon {
+  flex-shrink: 0;
+  width: 42px; height: 42px;
+  display: flex; align-items: center; justify-content: center;
+  color: rgba(255,180,170,1);
+  filter:
+    drop-shadow(0 0 5px rgba(255,150,140,0.85))
+    drop-shadow(0 0 10px rgba(255,90,90,0.45));
+}
+.rl-boss-preview-act2 .rl-boss-preview-icon { color: rgba(230,200,255,1); filter: drop-shadow(0 0 5px rgba(220,180,255,0.85)) drop-shadow(0 0 10px rgba(180,140,255,0.45)); }
+.rl-boss-preview-act3 .rl-boss-preview-icon { color: rgba(255,225,160,1); filter: drop-shadow(0 0 5px rgba(255,215,140,0.95)) drop-shadow(0 0 12px rgba(255,200,80,0.55)); }
+.rl-boss-preview-icon svg { width: 30px; height: 30px; }
+.rl-boss-preview-text { flex: 1; min-width: 0;
+  font-family: 'Rajdhani', sans-serif;
+}
+.rl-boss-preview-act-tag {
+  font-size: 9px; letter-spacing: 3px; font-weight: 700;
+  color: rgba(255,200,180,0.65);
+}
+.rl-boss-preview-act2 .rl-boss-preview-act-tag { color: rgba(220,200,255,0.65); }
+.rl-boss-preview-act3 .rl-boss-preview-act-tag { color: rgba(255,225,180,0.75); }
+.rl-boss-preview-name {
+  font-size: 18px; font-weight: 800; letter-spacing: 2.5px;
+  text-transform: uppercase;
+  color: rgba(255,200,180,1);
+  text-shadow: 0 0 6px rgba(255,150,140,0.55);
+  margin: 1px 0 2px;
+}
+.rl-boss-preview-act2 .rl-boss-preview-name { color: rgba(230,200,255,1); text-shadow: 0 0 6px rgba(220,180,255,0.55); }
+.rl-boss-preview-act3 .rl-boss-preview-name { color: rgba(255,225,160,1); text-shadow: 0 0 6px rgba(255,200,80,0.55); }
+.rl-boss-preview-meta {
+  font-size: 11px; letter-spacing: 1.5px;
+  color: rgba(220,225,235,0.85);
+  margin-bottom: 2px;
+}
+.rl-boss-preview-arch { font-weight: 700; }
+.rl-boss-preview-sep { margin: 0 6px; opacity: 0.5; }
+.rl-boss-preview-flavor {
+  font-family: 'Inter', sans-serif;
+  font-size: 11px; line-height: 1.4;
+  color: rgba(200,210,225,0.75);
+}
+
+/* SVG-native tooltip — the browser renders <title> as a hover tooltip.
+   Locked / done nodes get a help cursor (you can read what's there
+   even if you can't click). Legal stays pointer (click action). */
+.rl-mapnode-locked, .rl-mapnode-done { cursor: help; }
+
+/* Tron-style bottom legend — neon pill per node-type with a colored
+   SVG glyph + label. Each pill borrows the same color the corresponding
+   map node uses (boss = red, elite = purple, event = green, etc.) so
+   the legend doubles as a color key. User feedback: "the icons at the
+   bottom kinda is flat right now. I'd like that to look a little
+   bit better." */
+.rl-map-legend-tron {
+  gap: 8px;
+  padding: 10px 0 6px;
+}
+.rl-legend-pill {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 5px 12px;
+  background: linear-gradient(180deg, rgba(255,255,255,0.04), rgba(0,0,0,0.55));
+  border: 1px solid rgba(255,255,255,0.18);
+  border-radius: 14px;
+  font-size: 10px; letter-spacing: 2px;
+  font-weight: 700;
+}
+.rl-legend-pill svg {
+  width: 14px; height: 14px;
+  stroke-width: 1.8;
+  filter: drop-shadow(0 0 4px currentColor) drop-shadow(0 0 8px currentColor);
+  opacity: 0.85;
+}
+.rl-legend-combat { color: var(--theme-accent-bright, #d4ecff); border-color: var(--theme-accent-edge, rgba(79,195,247,0.55)); }
+.rl-legend-event  { color: rgba(180,255,220,0.95); border-color: rgba(180,255,220,0.45); }
+.rl-legend-shop   { color: rgba(255,225,150,0.95); border-color: rgba(255,225,150,0.45); }
+.rl-legend-rest   { color: rgba(180,200,255,0.95); border-color: rgba(180,200,255,0.45); }
+.rl-legend-elite  { color: rgba(220,180,255,0.95); border-color: rgba(220,180,255,0.45); }
+.rl-legend-treasure { color: rgba(255,225,150,0.95); border-color: rgba(255,225,150,0.55); }
+.rl-legend-boss   { color: rgba(255,150,150,0.95); border-color: rgba(255,150,150,0.55); }
+.rl-hud-deckbtn {
+  background: transparent;
+  border: 1px solid rgba(255,255,255,0.20);
+  color: rgba(220,225,235,0.85);
+  padding: 4px 10px;
+  border-radius: 3px;
+  font-family: 'Rajdhani', sans-serif;
+  font-size: 11px; letter-spacing: 1.5px; text-transform: uppercase;
+  cursor: pointer;
+  transition: border-color 0.15s, color 0.15s;
+}
+.rl-hud-deckbtn:hover {
+  border-color: rgba(46,204,113,0.85);
+  color: #b9f5cb;
+}
+
+/* ----- Rarity tier styling (cards in rewards / deck viewer) ----- */
+.rl-tier-common    { --tier-color: rgba(46,204,113,0.95);  --tier-name: #5be39a; }
+.rl-tier-rare      { --tier-color: rgba(79,195,247,0.95);  --tier-name: #7fd0ff; }
+.rl-tier-special   { --tier-color: rgba(220,230,240,0.95); --tier-name: #e6ecf2; }
+.rl-tier-legendary { --tier-color: rgba(255,215,0,0.95);   --tier-name: #ffe066; }
+
+/* Reward picker — three cards floating like a draft, no wrapper chrome.
+   The card itself wears the rarity colors (border, cost diamond, name,
+   rarity-strip pips). User feedback: "no border around the cards. Just
+   three cards. Just like you're drafting." */
+.rl-reward-slot {
+  display: flex; flex-direction: column; align-items: center; gap: 8px;
+  background: transparent;
+  border: none !important;
+  padding: 8px 4px;
+  cursor: pointer;
+  font-family: inherit;
+  color: inherit;
+  transition: transform 0.15s;
+  position: relative;
+}
+.rl-reward-slot:hover { transform: translateY(-3px); }
+.rl-reward-slot:hover .card.hand-card { box-shadow: 0 0 16px var(--tier-color), 0 0 32px var(--tier-color) !important; }
+.rl-reward-slot .card.hand-card {
+  cursor: pointer;
+  pointer-events: none;  /* clicks routed to the wrapping button */
+  transition: box-shadow 0.15s;
+}
+.rl-reward-rarity {
+  font-size: 11px; letter-spacing: 2px;
+  color: var(--tier-name);
+  font-family: 'Rajdhani', sans-serif;
+  font-weight: 800;
+  text-shadow: 0 0 6px var(--tier-color);
+}
+
+/* ----- Rarity-tinted card chrome -----
+   Overrides EVERY cost-class color (border, halo, cost diamond, name,
+   rarity-strip pips) so a card's RUN rarity wins over its intrinsic
+   cost tier. So a Common Homelander (cost 4 → would normally be cyan)
+   shows fully green; a Legendary Goon (cost 1 → would normally be green)
+   shows fully gold. */
+
+/* Border + outer halo */
+.rl-tier-common .card.hand-card { border-color: rgba(46,204,113,0.95) !important; box-shadow: 0 0 10px rgba(46,204,113,0.45), 0 0 20px rgba(46,204,113,0.18) !important; }
+.rl-tier-rare .card.hand-card { border-color: rgba(79,195,247,0.95) !important; box-shadow: 0 0 10px rgba(79,195,247,0.45), 0 0 20px rgba(79,195,247,0.18) !important; }
+.rl-tier-special .card.hand-card { border-color: rgba(220,230,240,0.95) !important; box-shadow: 0 0 10px rgba(220,230,240,0.45), 0 0 20px rgba(220,230,240,0.18) !important; }
+.rl-tier-legendary .card.hand-card { border-color: rgba(255,215,0,0.95) !important; box-shadow: 0 0 12px rgba(255,215,0,0.55), 0 0 24px rgba(255,215,0,0.22) !important; }
+
+/* Card name */
+.rl-tier-common .card.hand-card .card-name { color: #5be39a !important; text-shadow: 0 0 6px rgba(46,204,113,0.55) !important; }
+.rl-tier-rare .card.hand-card .card-name { color: #7fd0ff !important; text-shadow: 0 0 6px rgba(79,195,247,0.55) !important; }
+.rl-tier-special .card.hand-card .card-name { color: #e6ecf2 !important; text-shadow: 0 0 6px rgba(220,230,240,0.55) !important; }
+.rl-tier-legendary .card.hand-card .card-name { color: #ffe066 !important; text-shadow: 0 0 6px rgba(255,215,0,0.55) !important; }
+
+/* Cost diamond (top-left). The ::before is the rotated black square
+   with the tier-colored border. */
+.rl-tier-common .card.hand-card .card-cost { color: #5be39a !important; text-shadow: 0 0 6px rgba(46,204,113,0.95), 0 0 12px rgba(46,204,113,0.45) !important; }
+.rl-tier-rare .card.hand-card .card-cost { color: #7fd0ff !important; text-shadow: 0 0 6px rgba(79,195,247,0.95), 0 0 12px rgba(79,195,247,0.45) !important; }
+.rl-tier-special .card.hand-card .card-cost { color: #e6ecf2 !important; text-shadow: 0 0 6px rgba(220,230,240,0.95), 0 0 12px rgba(220,230,240,0.45) !important; }
+.rl-tier-legendary .card.hand-card .card-cost { color: #ffe066 !important; text-shadow: 0 0 6px rgba(255,215,0,0.95), 0 0 12px rgba(255,215,0,0.45) !important; }
+.rl-tier-common .card.hand-card .card-cost::before { border-color: rgba(46,204,113,1) !important; box-shadow: 0 0 12px rgba(46,204,113,0.75), 0 0 24px rgba(46,204,113,0.30) !important; }
+.rl-tier-rare .card.hand-card .card-cost::before { border-color: rgba(79,195,247,1) !important; box-shadow: 0 0 12px rgba(79,195,247,0.75), 0 0 24px rgba(79,195,247,0.30) !important; }
+.rl-tier-special .card.hand-card .card-cost::before { border-color: rgba(220,230,240,1) !important; box-shadow: 0 0 12px rgba(220,230,240,0.75), 0 0 24px rgba(220,230,240,0.30) !important; }
+.rl-tier-legendary .card.hand-card .card-cost::before { border-color: rgba(255,215,0,1) !important; box-shadow: 0 0 12px rgba(255,215,0,0.75), 0 0 24px rgba(255,215,0,0.30) !important; }
+
+/* Rarity-strip pips (top-right tier indicator). Render N pips matching
+   the run rarity tier instead of the cost-based tier. */
+.rl-tier-common .card.hand-card .rarity-strip .rpip { background: rgba(46,204,113,0.95) !important; box-shadow: 0 0 4px rgba(46,204,113,0.65) !important; }
+.rl-tier-rare .card.hand-card .rarity-strip .rpip { background: rgba(79,195,247,0.95) !important; box-shadow: 0 0 4px rgba(79,195,247,0.65) !important; }
+.rl-tier-special .card.hand-card .rarity-strip .rpip { background: rgba(220,230,240,0.95) !important; box-shadow: 0 0 4px rgba(220,230,240,0.65) !important; }
+.rl-tier-legendary .card.hand-card .rarity-strip .rpip { background: rgba(255,215,0,0.95) !important; box-shadow: 0 0 4px rgba(255,215,0,0.65) !important; }
+
+/* Name-banner underline (the green hairline under the card name).
+   Original uses a gradient via ::after — recolor it per tier. */
+.rl-tier-common .card.hand-card .card-name-banner::after { background: linear-gradient(90deg, transparent, rgba(46,204,113,0.85) 35%, rgba(46,204,113,0.85) 65%, transparent) !important; }
+.rl-tier-rare .card.hand-card .card-name-banner::after { background: linear-gradient(90deg, transparent, rgba(79,195,247,0.85) 35%, rgba(79,195,247,0.85) 65%, transparent) !important; }
+.rl-tier-special .card.hand-card .card-name-banner::after { background: linear-gradient(90deg, transparent, rgba(220,230,240,0.85) 35%, rgba(220,230,240,0.85) 65%, transparent) !important; }
+.rl-tier-legendary .card.hand-card .card-name-banner::after { background: linear-gradient(90deg, transparent, rgba(255,215,0,0.85) 35%, rgba(255,215,0,0.85) 65%, transparent) !important; }
+
+/* In-game (hand + board) rarity tinting — when the rarity class is
+   applied DIRECTLY to the .card element (via UI.makeCardEl seeing
+   card._runRarity), the codex selectors don't match because they
+   require a parent with the class. These additional rules cover the
+   in-game render path so a Rare drafted card glows blue, a Legendary
+   glows gold, etc., the same as it does in the deck viewer. */
+.card.hand-card.rl-tier-common,
+.card.ally-card.rl-tier-common,
+.card.enemy-card.rl-tier-common { border-color: rgba(46,204,113,0.95) !important; box-shadow: 0 0 10px rgba(46,204,113,0.45), 0 0 20px rgba(46,204,113,0.18) !important; }
+.card.hand-card.rl-tier-rare,
+.card.ally-card.rl-tier-rare,
+.card.enemy-card.rl-tier-rare { border-color: rgba(79,195,247,0.95) !important; box-shadow: 0 0 10px rgba(79,195,247,0.45), 0 0 20px rgba(79,195,247,0.18) !important; }
+.card.hand-card.rl-tier-special,
+.card.ally-card.rl-tier-special,
+.card.enemy-card.rl-tier-special { border-color: rgba(220,230,240,0.95) !important; box-shadow: 0 0 10px rgba(220,230,240,0.45), 0 0 20px rgba(220,230,240,0.18) !important; }
+.card.hand-card.rl-tier-legendary,
+.card.ally-card.rl-tier-legendary,
+.card.enemy-card.rl-tier-legendary { border-color: rgba(255,215,0,0.95) !important; box-shadow: 0 0 12px rgba(255,215,0,0.55), 0 0 24px rgba(255,215,0,0.22) !important; }
+
+/* Card name color, cost diamond, rarity pips, and name-banner underline
+   for in-game cards (matching codex tinting). */
+.card.rl-tier-common .card-name { color: #5be39a !important; text-shadow: 0 0 6px rgba(46,204,113,0.55) !important; }
+.card.rl-tier-rare .card-name { color: #7fd0ff !important; text-shadow: 0 0 6px rgba(79,195,247,0.55) !important; }
+.card.rl-tier-special .card-name { color: #e6ecf2 !important; text-shadow: 0 0 6px rgba(220,230,240,0.55) !important; }
+.card.rl-tier-legendary .card-name { color: #ffe066 !important; text-shadow: 0 0 6px rgba(255,215,0,0.55) !important; }
+.card.rl-tier-common .card-cost { color: #5be39a !important; text-shadow: 0 0 6px rgba(46,204,113,0.95), 0 0 12px rgba(46,204,113,0.45) !important; }
+.card.rl-tier-rare .card-cost { color: #7fd0ff !important; text-shadow: 0 0 6px rgba(79,195,247,0.95), 0 0 12px rgba(79,195,247,0.45) !important; }
+.card.rl-tier-special .card-cost { color: #e6ecf2 !important; text-shadow: 0 0 6px rgba(220,230,240,0.95), 0 0 12px rgba(220,230,240,0.45) !important; }
+.card.rl-tier-legendary .card-cost { color: #ffe066 !important; text-shadow: 0 0 6px rgba(255,215,0,0.95), 0 0 12px rgba(255,215,0,0.45) !important; }
+.card.rl-tier-common .card-cost::before { border-color: rgba(46,204,113,1) !important; box-shadow: 0 0 12px rgba(46,204,113,0.75), 0 0 24px rgba(46,204,113,0.30) !important; }
+.card.rl-tier-rare .card-cost::before { border-color: rgba(79,195,247,1) !important; box-shadow: 0 0 12px rgba(79,195,247,0.75), 0 0 24px rgba(79,195,247,0.30) !important; }
+.card.rl-tier-special .card-cost::before { border-color: rgba(220,230,240,1) !important; box-shadow: 0 0 12px rgba(220,230,240,0.75), 0 0 24px rgba(220,230,240,0.30) !important; }
+.card.rl-tier-legendary .card-cost::before { border-color: rgba(255,215,0,1) !important; box-shadow: 0 0 12px rgba(255,215,0,0.75), 0 0 24px rgba(255,215,0,0.30) !important; }
+.card.rl-tier-common .rarity-strip .rpip { background: rgba(46,204,113,0.95) !important; box-shadow: 0 0 4px rgba(46,204,113,0.65) !important; }
+.card.rl-tier-rare .rarity-strip .rpip { background: rgba(79,195,247,0.95) !important; box-shadow: 0 0 4px rgba(79,195,247,0.65) !important; }
+.card.rl-tier-special .rarity-strip .rpip { background: rgba(220,230,240,0.95) !important; box-shadow: 0 0 4px rgba(220,230,240,0.65) !important; }
+.card.rl-tier-legendary .rarity-strip .rpip { background: rgba(255,215,0,0.95) !important; box-shadow: 0 0 4px rgba(255,215,0,0.65) !important; }
+.card.rl-tier-common .card-name-banner::after { background: linear-gradient(90deg, transparent, rgba(46,204,113,0.85) 35%, rgba(46,204,113,0.85) 65%, transparent) !important; }
+.card.rl-tier-rare .card-name-banner::after { background: linear-gradient(90deg, transparent, rgba(79,195,247,0.85) 35%, rgba(79,195,247,0.85) 65%, transparent) !important; }
+.card.rl-tier-special .card-name-banner::after { background: linear-gradient(90deg, transparent, rgba(220,230,240,0.85) 35%, rgba(220,230,240,0.85) 65%, transparent) !important; }
+.card.rl-tier-legendary .card-name-banner::after { background: linear-gradient(90deg, transparent, rgba(255,215,0,0.85) 35%, rgba(255,215,0,0.85) 65%, transparent) !important; }
+
+/* Stat-roll indicators — when a rolled card's stats deviate from base,
+   the orb gets a subtle up/down arrow color tint so the player can see
+   at a glance "this Goon is +2 ATK" or "this Batman rolled low." */
+.card.hand-card .stat-circle.stat-rolled-up {
+  outline: 1px solid rgba(255,225,150,0.85);
+  box-shadow:
+    0 0 8px rgba(255,225,150,0.55),
+    inset 0 0 4px rgba(255,225,150,0.45);
+}
+.card.hand-card .stat-circle.stat-rolled-up::after {
+  content: '▲';
+  position: absolute;
+  top: -8px; right: -2px;
+  font-size: 8px;
+  color: rgba(255,225,150,1);
+  text-shadow: 0 0 4px rgba(255,215,0,0.75);
+  pointer-events: none;
+}
+.card.hand-card .stat-circle.stat-rolled-down {
+  outline: 1px solid rgba(231,76,60,0.55);
+  opacity: 0.85;
+}
+.card.hand-card .stat-circle.stat-rolled-down::after {
+  content: '▼';
+  position: absolute;
+  top: -8px; right: -2px;
+  font-size: 8px;
+  color: rgba(231,76,60,0.85);
+  pointer-events: none;
+}
+
+/* Deck viewer slot — same chrome, smaller scale. */
+.rl-deck-slot {
+  display: flex; flex-direction: column; align-items: center; gap: 6px;
+  padding: 12px 8px 10px;
+  background: transparent;
+  border: 1px solid var(--tier-color);
+  border-radius: 5px;
+}
+.rl-deck-rarity {
+  font-size: 10px; letter-spacing: 1.5px;
+  color: var(--tier-name);
+  font-family: 'Rajdhani', sans-serif;
+  font-weight: 800;
+}
+.rl-etch-pip {
+  display: inline-block;
+  padding: 2px 6px;
+  background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(255,255,255,0.20);
+  border-radius: 9px;
+  font-size: 10px; letter-spacing: 0.5px;
+  color: rgba(220,225,235,0.85);
+}
+
+/* ----- Deck / Trick viewer modal ----- */
+.rl-modal {
+  position: fixed; inset: 0;
+  display: none; align-items: center; justify-content: center;
+  z-index: 280;
+}
+.rl-modal-backdrop {
+  position: absolute; inset: 0;
+  background: rgba(0,0,0,0.85);
+}
+.rl-modal-panel {
+  position: relative;
+  width: 96%; max-width: 1080px;
+  max-height: 86vh;
+  padding: 36px 36px 32px;
+  background:
+    linear-gradient(180deg, var(--theme-accent-edge, rgba(79,195,247,0.05)) 0%, rgba(0,0,0,0) 40%),
+    #000;
+  border: 1px solid var(--theme-accent-bright, rgba(79,195,247,0.55));
+  border-radius: 6px;
+  box-shadow:
+    0 0 32px var(--theme-glow-inner, rgba(79,195,247,0.30)),
+    0 0 72px var(--theme-glow-outer, rgba(79,195,247,0.14)),
+    inset 0 0 0 1px var(--theme-accent-edge, rgba(79,195,247,0.08)),
+    inset 0 1px 0 var(--theme-accent-edge, rgba(79,195,247,0.35));
+  overflow-y: auto;
+  color: #e6eef5;
+}
+/* Corner brackets like the main-menu .mm-panel — gives every modal
+   the same Tron HUD treatment so titles feel weighty. */
+.rl-modal-panel::before, .rl-modal-panel::after {
+  content: ""; position: absolute; width: 16px; height: 16px;
+  pointer-events: none;
+}
+.rl-modal-panel::before {
+  top: -1px; left: -1px;
+  border-top: 2px solid var(--theme-accent-bright, #4fc3f7);
+  border-left: 2px solid var(--theme-accent-bright, #4fc3f7);
+  filter: drop-shadow(0 0 6px var(--theme-glow-outer, rgba(79,195,247,0.75)));
+}
+.rl-modal-panel::after {
+  bottom: -1px; right: -1px;
+  border-bottom: 2px solid var(--theme-accent-bright, #4fc3f7);
+  border-right: 2px solid var(--theme-accent-bright, #4fc3f7);
+  filter: drop-shadow(0 0 6px var(--theme-glow-outer, rgba(79,195,247,0.75)));
+}
+.rl-modal-close {
+  position: absolute; top: 10px; right: 14px;
+  background: transparent; border: none;
+  color: rgba(220,225,235,0.55);
+  font-size: 24px; cursor: pointer; line-height: 1;
+  z-index: 5;
+}
+.rl-modal-close:hover { color: #fff; }
+/* Modal title now uses the same display-headline treatment as the
+   main menu's "THE GAME" — big, sparse-letter-spacing, multi-layer
+   text-shadow glow. User direction: "the same highlights as the
+   game in the main menu — that's kinda what I want as the title
+   highlights." */
+.rl-modal-title {
+  margin: 0 0 20px;
+  font-family: 'Rajdhani', sans-serif;
+  font-size: 32px; font-weight: 700;
+  letter-spacing: 8px; text-transform: uppercase;
+  text-align: center;
+  color: #f5fbff;
+  line-height: 1;
+  text-indent: 8px;
+  text-shadow:
+    0 0 10px var(--theme-glow-outer, rgba(79,195,247,0.85)),
+    0 0 28px var(--theme-glow-outer, rgba(79,195,247,0.45)),
+    0 0 48px var(--theme-glow-inner, rgba(79,195,247,0.18));
+}
+.rl-deck-grid {
+  display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px 14px;
+  justify-items: center;
+}
+.rl-deck-grid-tricks { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+/* Bare grid (no slot wrapper) — used by the deck modal. Cards
+   render their own rarity tinting via .rl-tier-* on the card class. */
+.rl-deck-grid-bare {
+  gap: 18px 16px;
+  padding: 4px 8px;
+}
+.rl-deck-grid-bare > .card.hand-card {
+  /* Slight scale-up so the cards fill the wider modal panel. */
+  transform: scale(1.03);
+  transform-origin: center top;
+  margin-bottom: 8px;
+}
+.rl-deck-grid-bare > .card.hand-card:hover {
+  transform: scale(1.07) translateY(-2px);
+  filter:
+    drop-shadow(0 0 10px var(--theme-glow-outer, rgba(79,195,247,0.55)))
+    drop-shadow(0 0 22px var(--theme-glow-inner, rgba(79,195,247,0.22)));
+}
+.rl-card-tile {
+  padding: 8px 10px;
+  background: #060a12;
+  border: 1px solid var(--tier-color, rgba(255,255,255,0.20));
+  border-radius: 4px;
+  font-family: 'Rajdhani', sans-serif;
+  font-size: 11px;
+  color: #cfd6df;
+  position: relative;
+}
+.rl-card-tile-header {
+  display: flex; align-items: center; gap: 6px;
+  margin-bottom: 4px;
+}
+.rl-card-cost {
+  display: inline-block;
+  width: 18px; height: 18px;
+  text-align: center; line-height: 18px;
+  background: #000;
+  border: 1px solid var(--tier-color);
+  border-radius: 2px;
+  font-weight: 800;
+  color: var(--tier-name);
+  font-size: 11px;
+}
+.rl-card-name {
+  flex: 1;
+  font-weight: 800; letter-spacing: 1px;
+  color: var(--tier-name);
+}
+.rl-card-stats {
+  font-size: 10px;
+  color: rgba(220,225,235,0.65);
+  letter-spacing: 0.5px;
+}
+.rl-card-desc {
+  font-size: 10px; line-height: 1.35;
+  color: rgba(220,225,235,0.75);
+  margin-bottom: 4px;
+}
+.rl-card-etches {
+  display: flex; flex-wrap: wrap; gap: 3px;
+  margin-top: 4px;
+}
+.rl-card-tile-trick { border-style: dashed; }
+
+/* Mobile */
+@container (max-width: 520px) {
+  .rl-panel { padding: 18px 14px; }
+  .rl-title { font-size: 22px; letter-spacing: 4px; }
+  .rl-boon-grid { grid-template-columns: 1fr; }
+  .rl-rewards-grid { grid-template-columns: 1fr; }
+  .rl-end-stats { grid-template-columns: 1fr 1fr; }
+  .rl-deck-grid { grid-template-columns: 1fr 1fr; }
+  .rl-deck-grid-tricks { grid-template-columns: 1fr; }
+  .rl-map-svg-wrap { padding: 6px; max-height: 50vh; }
+}
+

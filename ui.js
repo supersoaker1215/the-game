@@ -2949,13 +2949,18 @@ const UI = {
     const s = Game.state;
     const ranks = { player: { firstId: null, secondId: null }, ai: { firstId: null, secondId: null } };
     if (!s) return ranks;
+    // Bail when not in a combat — Roguelite map / boon / rewards screens
+    // null out s.lanes; the dashboard isn't visible there anyway.
+    if (!s.lanes || !Array.isArray(s.lanes)) return ranks;
     ['player', 'ai'].forEach(side => {
       const pool = [];
       for (let i = 0; i < Game.LANE_COUNT; i++) {
-        const c = s.lanes[i][side];
+        const lane = s.lanes[i];
+        if (!lane) continue;
+        const c = lane[side];
         if (c) pool.push(c);
       }
-      (s[side].deadPile || []).forEach(c => pool.push(c));
+      (s[side] && s[side].deadPile || []).forEach(c => pool.push(c));
       pool.sort((a, b) => this.mvpScoreOf(b) - this.mvpScoreOf(a));
       // Only record cards with positive score — a tied-at-zero pool
       // shouldn't crown anyone.
@@ -3017,8 +3022,9 @@ const UI = {
     if (statsOverlay)    statsOverlay.style.display = isStats ? 'flex' : 'none';
     if (dbOverlay)       dbOverlay.style.display = isDeckBuilder ? 'flex' : 'none';
     this.draftEl.style.display = isDraft ? 'flex' : 'none';
+    const isRoguelite = s.phase && s.phase.startsWith('roguelite');
     document.getElementById('game-area').style.display =
-      (isDraft || isMainMenu || isModeSelect || isMyDecks || isStats || isDeckBuilder) ? 'none' : '';
+      (isDraft || isMainMenu || isModeSelect || isMyDecks || isStats || isDeckBuilder || isRoguelite) ? 'none' : '';
 
     if (isMainMenu)    { this.renderMainMenu(s); return; }
     if (isModeSelect)  { this.renderModeSelect(s); return; }
@@ -3026,6 +3032,12 @@ const UI = {
     if (isStats)       { this.renderStats(s); return; }
     if (isDeckBuilder) { this.renderDeckBuilder(s); return; }
     if (isDraft)       { this.renderDraft(s); return; }
+    if (isRoguelite && typeof Roguelite !== 'undefined') {
+      if (Roguelite.renderPhase(s)) return;
+    } else if (typeof Roguelite !== 'undefined') {
+      // Hide the overlay when we leave a roguelite phase (return to main menu, etc.)
+      Roguelite.hideOverlay();
+    }
 
     // Capture card positions/HTML BEFORE any DOM mutation so we can
     // FLIP-animate hand→board moves and spawn death ghosts for vanished cards.
@@ -3975,6 +3987,10 @@ const UI = {
           <div class="mm-section-label">Play</div>
           <div class="mm-grid mm-grid-section">
             ${btn('mm-play',    'Solo Match',   'Play against the AI',                                    SVG.play,     "Game.goToModeSelect()")}
+            ${(typeof Roguelite !== 'undefined' && Roguelite.hasSavedRun && Roguelite.hasSavedRun())
+              ? btn('mm-rogue-resume', 'Continue Run', 'Resume your saved roguelite climb',                 SVG.play,    "Roguelite.resumeRun()")
+              : ''}
+            ${btn('mm-rogue',   'Roguelite',    'Climb a 6-fight ladder — build your deck as you go · beta', SVG.play,  "Roguelite.enterRun()")}
             ${btn('mm-multi',   'Multiplayer',  'Match a friend over the internet · beta',                SVG.multi,    "UI.openMultiplayer()")}
             ${btn('mm-tutorial','Tutorial',     'Two-minute primer on how to play',                       helpSVG,      "UI.openTutorial()")}
           </div>
@@ -7681,6 +7697,13 @@ const UI = {
   makeCardEl(card, inHand, side) {
     const el = document.createElement('div');
     el.className = `card ${this.getCostClass(card.baseCost || card.cost)}`;
+    // Roguelite rarity tinting — when a card carries `_runRarity`
+    // (set by Roguelite.buildRunCard), add `rl-tier-<rarity>` so the
+    // rarity-themed CSS overrides the cost-class colors. Non-roguelite
+    // cards skip this and keep the cost-tier styling unchanged.
+    if (card._runRarity) {
+      el.classList.add('rl-tier-' + card._runRarity);
+    }
     if (card.id) el.setAttribute('data-card-id', card.id);
     // Name attribute powers the per-card SFX registry (hover/play/ability/
     // attack/death). Event delegation + Game patches in installCardSfx
@@ -8250,7 +8273,19 @@ const UI = {
     'Power Stone': { color: '#9b59b6', svg: '<svg viewBox="0 0 12 12"><path d="M6 2 L8 5 L11 5 L8.5 7 L9.5 10 L6 8 L2.5 10 L3.5 7 L1 5 L4 5 Z" fill="currentColor"/></svg>', tip: 'Infinity Stone — gives an ally a big ATK buff.' },
     'Soul Stone':  { color: '#e67e22', svg: '<svg viewBox="0 0 12 12"><circle cx="6" cy="6" r="3.5" fill="currentColor"/><path d="M6 1 V3 M6 9 V11 M1 6 H3 M9 6 H11" stroke="currentColor" stroke-width="1"/></svg>', tip: 'Infinity Stone — drains a card\'s soul (HP/ATK transfer).' },
     'Mind Stone':  { color: '#f1c40f', svg: '<svg viewBox="0 0 12 12"><circle cx="6" cy="6" r="4" stroke="currentColor" stroke-width="1.2" fill="none"/><path d="M6 3 Q4 5 6 6 Q8 7 6 9" stroke="currentColor" stroke-width="1.2" fill="none"/></svg>', tip: 'Infinity Stone — Mind Control 1 (Unresistible) on an enemy this turn.' },
-    'Reality Stone':{ color: '#e74c3c', svg: '<svg viewBox="0 0 12 12"><path d="M3 3 L9 9 M9 3 L3 9 M6 1 V11 M1 6 H11" stroke="currentColor" stroke-width="1" fill="none"/></svg>', tip: 'Infinity Stone — permanently swap an ally\'s ATK/HP with an enemy\'s.' }
+    'Reality Stone':{ color: '#e74c3c', svg: '<svg viewBox="0 0 12 12"><path d="M3 3 L9 9 M9 3 L3 9 M6 1 V11 M1 6 H11" stroke="currentColor" stroke-width="1" fill="none"/></svg>', tip: 'Infinity Stone — permanently swap an ally\'s ATK/HP with an enemy\'s.' },
+
+    // ===== Roguelite etch-driven keywords =====
+    // Earned via the etch system; described here so the tooltip
+    // pipeline (formatAbilityBadges + kw-pill) lights up on hover.
+    'Cantrip':    { color: '#5dade2', svg: '<svg viewBox="0 0 12 12"><path d="M3 2 H8 L9 3 V10 H3 Z M5 5 H7 M5 7 H7" stroke="currentColor" stroke-width="1.2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>', tip: 'When played: draw 1 card per stack.' },
+    'Thorns':     { color: '#27ae60', svg: '<svg viewBox="0 0 12 12"><path d="M2 6 L4 4 L4 6 L6 4 L6 6 L8 4 L8 6 L10 4 L10 8 L2 8 Z" stroke="currentColor" stroke-width="1.2" fill="none" stroke-linejoin="round"/></svg>', tip: 'When damaged: deal N damage back to the attacker.' },
+    'Lifesteal':  { color: '#e74c3c', svg: '<svg viewBox="0 0 12 12"><path d="M6 11 C2 8 2 5 4 4 C5 3.5 6 4 6 5 C6 4 7 3.5 8 4 C10 5 10 8 6 11 Z" fill="currentColor"/><path d="M5 6 H7 M6 5 V7" stroke="#fff" stroke-width="0.8"/></svg>', tip: 'When this card deals damage: heal your HP by N.' },
+    'Berserker':  { color: '#c0392b', svg: '<svg viewBox="0 0 12 12"><path d="M3 3 L9 3 L9 7 L6 11 L3 7 Z M5 5 L7 5 M5 7 L7 7" stroke="currentColor" stroke-width="1.2" fill="none" stroke-linejoin="round"/></svg>', tip: '+1 ATK while damaged (per stack). The card hits harder when bloodied.' },
+    'Zealot':     { color: '#f1c40f', svg: '<svg viewBox="0 0 12 12"><path d="M6 1 L7 5 L11 5 L8 7 L9 11 L6 9 L3 11 L4 7 L1 5 L5 5 Z" stroke="currentColor" stroke-width="1.2" fill="none" stroke-linejoin="round"/></svg>', tip: '+1 ATK while at full HP (per stack). Pristine fury.' },
+    'Echo':       { color: '#bb8fce', svg: '<svg viewBox="0 0 12 12"><circle cx="6" cy="6" r="2" stroke="currentColor" stroke-width="1.2" fill="none"/><circle cx="6" cy="6" r="4" stroke="currentColor" stroke-width="1" fill="none" stroke-opacity="0.55"/></svg>', tip: 'On-play / on-death effects fire twice (per stack).' },
+    'Phoenix':    { color: '#e67e22', svg: '<svg viewBox="0 0 12 12"><path d="M6 1 L8 4 L11 4 L9 7 L10 11 L6 9 L2 11 L3 7 L1 4 L4 4 Z" fill="currentColor"/></svg>', tip: 'Once per life: revive at full HP when killed.' },
+    'Discount':   { color: '#16a085', svg: '<svg viewBox="0 0 12 12"><path d="M2 10 L10 2 M3 4 a1 1 0 1 1 2 0 a1 1 0 0 1 -2 0 z M7 8 a1 1 0 1 1 2 0 a1 1 0 0 1 -2 0 z" stroke="currentColor" stroke-width="1.2" fill="none"/></svg>', tip: 'This card costs N less energy.' },
   },
 
   formatAbilities(abilities) {
@@ -8295,7 +8330,17 @@ const UI = {
     'Drain': 'badge-debuff',
     'Draw': 'badge-draw',
     'Crazy':  'badge-crazy',
-    'Insane': 'badge-insane'
+    'Insane': 'badge-insane',
+    // Roguelite etch keywords (tooltips wired via KEYWORD_DATA)
+    'Cantrip':    'badge-draw',
+    'Thorns':     'badge-thorns',
+    'Lifesteal':  'badge-lifesteal',
+    'Berserker':  'badge-berserker',
+    'Zealot':     'badge-zealot',
+    'Echo':       'badge-echo',
+    'Phoenix':    'badge-phoenix',
+    'Fear':       'badge-fear',
+    'Discount':   'badge-discount'
   },
   formatAbilityBadges(abilities) {
     if (!abilities || !abilities.length) return '';
@@ -9061,6 +9106,19 @@ const UI = {
   showGameOverScreen(winner) {
     const overlay = document.getElementById('game-over-overlay');
     if (!overlay || overlay.style.display === 'flex') return;
+    // Roguelite mode owns its own post-fight flow (rewards screen,
+    // level-up etch picks, return to map). Suppress the standard
+    // VICTORY/DEFEAT overlay entirely — Roguelite._onFightEnd takes
+    // over via the gameOver watcher and routes to roguelite-rewards
+    // / roguelite-end. The Rematch button shouldn't appear here at
+    // all in this mode (user direction: "rematch breaks everything,
+    // just give me Next or Return-to-Map"). Keeping the suppression
+    // here belt-and-suspenders even though _onFightEnd hides the
+    // overlay too, since this fires earlier in the lifecycle.
+    if (Game.state && Game.state.mode && Game.state.mode._roguelite) {
+      overlay.style.display = 'none';
+      return;
+    }
     // Make sure the floating restore pill is hidden whenever the
     // overlay opens (handles re-entry after the user toggled away).
     const peekPill = document.getElementById('peek-restore');
@@ -12021,7 +12079,16 @@ const UI = {
   openDeckViewer(kind) {
     if (!Game.state) return;
     kind = kind || 'cards';
-    const pile = kind === 'tricks' ? Game.state.trickDrawPile : Game.state.drawPile;
+    // Deckbuilder + roguelite store per-side piles on state.player.* —
+    // read from there. Classic uses the shared state.drawPile /
+    // state.trickDrawPile. Without this branch the modal showed empty
+    // in deckbuilder runs even when the HUD count said the pile had
+    // cards. User report: "the draw pile is empty even though it shows
+    // five. Same thing with the tricks."
+    const isDeckbuilder = Game.state.mode && Game.state.mode.deck === 'deckbuilder';
+    const pile = isDeckbuilder
+      ? (kind === 'tricks' ? Game.state.player.trickDrawPile : Game.state.player.drawPile)
+      : (kind === 'tricks' ? Game.state.trickDrawPile : Game.state.drawPile);
     const titleEl = document.querySelector('.deck-viewer-title');
     if (titleEl) titleEl.textContent = kind === 'tricks' ? 'Trick Pile' : 'Draw Pile';
     const body = document.getElementById('deck-viewer-body');
