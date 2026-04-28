@@ -246,8 +246,17 @@ const CARD_ABILITIES = {
         enemy._debuffStacks = (enemy._debuffStacks || 0) + 1;
         G.log(`[DEBUFF] Man-Bat weakens ${enemy.name} by -1/-1`);
       };
-      if (Game.isHuman(self.owner) && open.length > 1) {
-        G.promptLaneChoice(self.owner, open, "Man-Bat — Move", "Choose a lane to move Man-Bat to", (to) => {
+      // Include the current lane as a "stay" option. User direction:
+      // "for moving like man bat and omni man have the choice not to
+      // move." Player can click Man-Bat's own lane to stay put — the
+      // -1/-1 debuff and move both skip when stay is picked.
+      if (Game.isHuman(self.owner)) {
+        const choices = [lane, ...open];
+        G.promptLaneChoice(self.owner, choices, "Man-Bat — Move", "Choose a lane to move to (current = stay)", (to) => {
+          if (to === lane) {
+            G.log(`Man-Bat stays put in lane ${lane + 1}.`);
+            return;
+          }
           G.moveCard(self, lane, to);
           applyDebuff(G.state.lanes[to][G.opponent(self.owner)]);
         });
@@ -659,8 +668,15 @@ const CARD_ABILITIES = {
         }
       }
       if (!targetLanes.length) return;
+      // Stay-option same as Man-Bat / Omni-Man — pick own lane to skip
+      // the relocation. Splash also skips since it fires off the move.
       if (Game.isHuman(self.owner)) {
-        G.promptLaneChoice(self.owner, targetLanes, "Green Goblin — Move", "Choose an enemy lane to move Green Goblin to", (to) => {
+        const choices = [lane, ...targetLanes];
+        G.promptLaneChoice(self.owner, choices, "Green Goblin — Move", "Choose a lane to move to (current = stay)", (to) => {
+          if (to === lane) {
+            G.log(`Green Goblin stays put in lane ${lane + 1}.`);
+            return;
+          }
           G.moveCard(self, lane, to);
           G.splashDamage(to, self.owner, 1);
           const e = G.state.lanes[to][opp];
@@ -2241,8 +2257,16 @@ const CARD_ABILITIES = {
       }
       const open = G.getOpenLanes(self.owner).filter(l => l !== lane);
       if (!open.length) return;
+      // Include the current lane as a "stay" option — same affordance
+      // as Man-Bat. Player can pick Omni-Man's own lane to skip the
+      // relocation entirely.
       if (Game.isHuman(self.owner)) {
-        G.promptLaneChoice(self.owner, open, "Omni-Man — Move", "Choose a lane to move Omni-Man to", (to) => {
+        const choices = [lane, ...open];
+        G.promptLaneChoice(self.owner, choices, "Omni-Man — Move", "Choose a lane to move to (current = stay)", (to) => {
+          if (to === lane) {
+            G.log(`Omni-Man stays put in lane ${lane + 1}.`);
+            return;
+          }
           G.moveCard(self, lane, to);
         });
       } else {
