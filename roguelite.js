@@ -1471,17 +1471,17 @@ const Roguelite = {
   // direction: "Slay the Spire-shaped polish — boss preview banner."
   BOSS_PREVIEWS: {
     1: { key: 'act1-luthor',  persona: 'Lex Luthor', archetype: 'Control',
-         flavor: 'Locks down lanes, fears your high-cost cards, snipes your low-HP bodies. Pack ATK debuff and Bullseye.',
+         flavor: 'Locks down lanes, fears your high-cost cards, snipes your low-HP bodies. Pack ATK debuff and Bullseye. Deck rolls fresh each run — supporting cast varies.',
          hpRange: '28–38',
          signature: ['Lex Luthor', 'Joker', 'Magneto'] },
     2: { key: 'act2-doom',    persona: 'Doctor Doom', archetype: 'Summon Swarm',
-         flavor: 'Floods the board with Doombots and revives. Pack lane denial, Splash, and direct destroy.',
+         flavor: 'Floods the board with Doombots and revives. Pack lane denial, Splash, and direct destroy. Deck rolls fresh each run — supporting cast varies.',
          hpRange: '40–55',
-         signature: ['Doctor Doom', 'Hela', 'Mother Box'] },
+         signature: ['Dr. Doom', 'Hela', 'Knull'] },
     3: { key: 'act3-galactus', persona: 'Galactus', archetype: 'Devour / Cosmic',
-         flavor: 'Devours weak cards, drops 10-cost titans, slows energy. Pack Untrickable and Armor.',
+         flavor: 'Devours weak cards, drops 10-cost titans, slows energy. Pack Untrickable and Armor. Deck rolls fresh each run — supporting cast varies.',
          hpRange: '70–90',
-         signature: ['Galactus', 'Trigon', 'Cosmic Cube'] },
+         signature: ['Galactus', 'Trigon', 'Knull'] },
   },
 
   BOSS_DECKS: {
@@ -1561,6 +1561,180 @@ const Roguelite = {
       ],
       tricks: ['Phantom Zone', 'Power Battery', 'Eye of Agamotto', 'Cosmic Cube', 'Infinity Gauntlet'],
     },
+  },
+
+  // ----- Randomized boss deck pools -----------------------------------
+  // User direction: "Can I get some new decks in the roguelike? I want
+  // every time it I want it to be random every time. Like, I kinda
+  // know what to expect on each boss." Each boss now has a small set
+  // of THEMATIC ANCHORS (always present so the persona reads cleanly)
+  // and a wider POOL the rest of the deck rolls from. _buildBossDeck()
+  // assembles a fresh deck per run by anchoring the signature cards
+  // and filling the remaining slots with random picks from the pool
+  // (max 2 copies per name). Tricks follow the same anchor + pool
+  // pattern. Result: each boss still feels like itself (you'll see
+  // Lex/Joker/Magneto on Act 1, Doom/Hela on Act 2, Galactus on Act 3),
+  // but the supporting cast — and the trick lineup — varies between
+  // runs so memorization doesn't trivialize the matchup.
+  BOSS_DECK_POOLS: {
+    'act1-luthor': {
+      // Control / debuff / lockdown. Anchors lock in the persona;
+      // pool covers cost 1-5 grunts and mid-cost utility.
+      anchors: ['Lex Luthor', 'Lex Luthor', 'Joker', 'Magneto'],
+      pool: [
+        // Cost 1
+        'Black Widow', 'Gorilla Grodd', 'Hawkeye', 'King Shark',
+        'Man-Bat', 'Mr. Freeze', 'Poison Ivy', 'Sabertooth',
+        'Harley Quinn', 'Mr. Fantastic',
+        // Cost 2
+        'Bane', 'Drax', 'Ghostface', 'Jango Fett', 'Juggernaut',
+        'Nightwing', 'Peacemaker', 'Rocket Raccoon', 'Sandman',
+        'The Flash', 'The Thing',
+        // Cost 3
+        'Ahsoka', 'Carnage', 'Deathstroke', 'Green Goblin', 'Jigsaw',
+        'Loki', 'Moder', 'Red Skull', 'Scarlet Witch', 'Solomon Grundy',
+        'Star-Lord', 'Symbiote Spider-Man', 'Winter Soldier',
+        // Cost 4-5 (small utility)
+        'Catwoman', 'Anti-Venom', 'Wonder Woman', 'Predator',
+      ],
+      deckSize: 30,
+      maxCopies: 2,
+      tricks: {
+        anchors: ['Fear Toxin'],
+        pool: ['Smoke Pellet', 'Bat Signal', 'Mother Box', 'Bifrost',
+               "Joker's Playing Card", 'Anti-Life Equation', 'Lasso of Truth',
+               'Two-Face Coin', 'Lazarus Pit', 'Power Stone', 'Batarangs'],
+        count: 5,
+      },
+    },
+    'act2-doom': {
+      // Summon swarm / midrange threats. Anchors keep Doom + Hela
+      // (the swarm engines); pool covers cost 3-7 hitters.
+      anchors: ['Dr. Doom', 'Dr. Doom', 'Hela', 'Knull'],
+      pool: [
+        // Cost 3-4 setup
+        'Carnage', 'Deathstroke', 'Green Goblin', 'Loki', 'Moder',
+        'Red Skull', 'Star-Lord', 'Symbiote Spider-Man', 'Winter Soldier',
+        'Anti-Venom', 'Black Panther', 'Cyborg', 'Jason Voorhees', 'Kang',
+        'Martian Manhunter', 'Optimus Prime', 'Predator', 'Raven',
+        'The Grinch', 'Venom', 'Wolverine', 'Wonder Woman',
+        // Cost 5-6 finishers
+        'Aquaman', 'Captain America', 'Iron Man', 'Lex Luthor',
+        'Spider-Man', 'The Batman Who Laughs', 'Hulk', 'Magneto',
+        'Obi-Wan', 'Ultron', 'Hela',
+        // Cost 7 closers (smaller chance of multiple)
+        'Mahoraga', 'Gorr', 'Gojo', 'Omni-Man', 'Silver Surfer',
+        // Anchor secondaries
+        'Joker', 'Sabertooth', 'Bane', 'Sandman', 'Hawkeye', 'Drax',
+        'Ahsoka', 'Dr. Octopus',
+      ],
+      deckSize: 30,
+      maxCopies: 2,
+      tricks: {
+        anchors: ['Mother Box'],
+        pool: ['Lazarus Pit', 'Soul Stone', 'Vibranium', 'Mobius Chair',
+               'Phantom Zone', 'Adamantium', 'Eye of Agamotto', 'Power Stone',
+               'The Darkhold', 'Mind Stone', 'Nth Metal', 'Power Battery',
+               'Super Soldier Serum'],
+        count: 5,
+      },
+    },
+    'act3-galactus': {
+      // Cosmic legendaries. Anchors set the tone with Galactus + Knull
+      // + Trigon. Pool weighted toward cost 6-10 closers but keeps a
+      // sprinkling of mid-cost so the deck isn't pure 10-cost mush.
+      anchors: ['Galactus', 'Galactus', 'Trigon', 'Knull'],
+      pool: [
+        // Cost 6-7 mid
+        'Hela', 'Hulk', 'Magneto', 'Obi-Wan', 'Ultron',
+        'Dr. Doom', 'Gojo', 'Gorr', 'Mahoraga', 'Omni-Man', 'Silver Surfer',
+        // Cost 8-9 heavy
+        'Darth Vader', 'Emperor Palpatine', 'Luke Skywalker', 'Thor',
+        'Yoda', 'Batman', 'Darkseid', 'Superman', 'Thanos',
+        // Cost 10 cosmic
+        'Anakin Skywalker', 'Dormammu', 'Dr. Manhattan', 'Knull', 'Trigon',
+        // Cost 4-5 utility (a little)
+        'Iron Man', 'The Batman Who Laughs', 'Spider-Man', 'Predator',
+        'Anti-Venom', 'Black Panther', 'Wolverine', 'Optimus Prime',
+        'Cyborg', 'Aquaman', 'Lex Luthor', 'Captain America',
+      ],
+      deckSize: 30,
+      maxCopies: 2,
+      tricks: {
+        anchors: ['Phantom Zone'],
+        pool: ['Power Battery', 'Eye of Agamotto', 'Soul Stone',
+               'Reality Stone', 'Mind Stone', 'Time Stone', 'Space Stone',
+               'Anti-Life Equation', 'Mobius Chair', 'Adamantium',
+               'The Darkhold', 'Power Stone', 'Nth Metal'],
+        count: 5,
+      },
+    },
+  },
+
+  // Build a fresh boss deck — anchors first, then random fill from the
+  // themed pool (max copies cap per name). Returns { deck, tricks } so
+  // buildAiEncounter can wire the rest. If a boss key isn't in
+  // BOSS_DECK_POOLS this falls back to BOSS_DECKS so existing fights
+  // never break. Filters out any pool entries that aren't registered
+  // in CARD_DEFS or TRICK_DEFS (defensive — protects against typos).
+  _buildBossDeck(key) {
+    const cfg = this.BOSS_DECK_POOLS && this.BOSS_DECK_POOLS[key];
+    if (!cfg) {
+      const t = (this.BOSS_DECKS && this.BOSS_DECKS[key]) || null;
+      return t ? { deck: t.deck.slice(), tricks: t.tricks.slice() } : null;
+    }
+    const validCard = (typeof CARD_DEFS !== 'undefined')
+      ? new Set(CARD_DEFS.map(d => d.name))
+      : null;
+    const validTrick = (typeof TRICK_DEFS !== 'undefined')
+      ? new Set(TRICK_DEFS.map(d => d.name))
+      : null;
+    const deck = [];
+    const counts = {};
+    const addCard = (name) => {
+      if (validCard && !validCard.has(name)) return false;
+      counts[name] = (counts[name] || 0) + 1;
+      deck.push(name);
+      return true;
+    };
+    // Anchors land first so the persona is guaranteed visible. Note
+    // anchor duplicates (e.g. Lex Luthor x2) push the count past the
+    // pool's maxCopies cap — that's intentional. The cap only applies
+    // to random fills.
+    cfg.anchors.forEach(addCard);
+    // Random fill — pull from the pool until we hit deckSize or the
+    // pool is exhausted (every name at cap). Fisher-Yates shuffle the
+    // pool first so we don't bias the early cards.
+    const pool = (cfg.pool || []).filter(n => !validCard || validCard.has(n));
+    for (let i = pool.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [pool[i], pool[j]] = [pool[j], pool[i]];
+    }
+    const cap = cfg.maxCopies || 2;
+    let attempts = 0;
+    while (deck.length < cfg.deckSize && pool.length > 0 && attempts < 500) {
+      attempts++;
+      const name = pool[Math.floor(Math.random() * pool.length)];
+      if ((counts[name] || 0) >= cap) {
+        // every pool name capped? bail.
+        if (pool.every(n => (counts[n] || 0) >= cap)) break;
+        continue;
+      }
+      addCard(name);
+    }
+    // Tricks — same anchor + random fill pattern.
+    const tricks = [];
+    const trickCfg = cfg.tricks || { anchors: [], pool: [], count: 5 };
+    (trickCfg.anchors || []).forEach(name => {
+      if ((!validTrick || validTrick.has(name)) && !tricks.includes(name)) tricks.push(name);
+    });
+    const trickPool = (trickCfg.pool || []).filter(n => (!validTrick || validTrick.has(n)) && !tricks.includes(n));
+    while (tricks.length < (trickCfg.count || 5) && trickPool.length > 0) {
+      const idx = Math.floor(Math.random() * trickPool.length);
+      tricks.push(trickPool[idx]);
+      trickPool.splice(idx, 1);
+    }
+    return { deck, tricks };
   },
 
   // Hand-crafted etches per boss signature card. User feedback: "I
@@ -1671,28 +1845,33 @@ const Roguelite = {
     // / Galactus body actually contests a buffed player late-game.
     if (node.type === 'final-boss') {
       const key = 'act3-galactus';
-      const t = this.BOSS_DECKS[key];
+      const persona = (this.BOSS_DECKS[key] && this.BOSS_DECKS[key].persona) || 'Galactus';
+      const built = this._buildBossDeck(key);
+      const deck = built ? built.deck : this.BOSS_DECKS[key].deck.slice();
+      const tricks = built ? built.tricks : this.BOSS_DECKS[key].tricks.slice();
       const hp = Math.floor(this._randInRange(70, 90) * ascHpMul);
-      const tricks = t.tricks.slice();
       if (asc >= 4 && tricks.length) tricks.push(tricks[Math.floor(Math.random() * tricks.length)]);
-      const cardInstances = this._buildAiCardInstances(t.deck, {
+      const cardInstances = this._buildAiCardInstances(deck, {
         bossKey: key,
         baseRarity: 'legendary',  // Galactus' deck = +2/+2 base on every card
       });
-      return { deckNames: t.deck.slice(), cardInstances, tricks, hp, difficulty: 'hard', persona: t.persona };
+      return { deckNames: deck.slice(), cardInstances, tricks, hp, difficulty: 'hard', persona };
     }
     if (node.type === 'boss') {
       const key = node.tier === 1 ? 'act1-luthor' : 'act2-doom';
-      const t = this.BOSS_DECKS[key];
+      const persona = (this.BOSS_DECKS[key] && this.BOSS_DECKS[key].persona)
+        || (key === 'act1-luthor' ? 'Lex Luthor' : 'Doctor Doom');
+      const built = this._buildBossDeck(key);
+      const deck = built ? built.deck : this.BOSS_DECKS[key].deck.slice();
+      const tricks = built ? built.tricks : this.BOSS_DECKS[key].tricks.slice();
       const baseHp = node.tier === 1 ? this._randInRange(28, 38) : this._randInRange(40, 55);
       const hp = Math.floor(baseHp * ascHpMul);
-      const tricks = t.tricks.slice();
       if (asc >= 4 && tricks.length) tricks.push(tricks[Math.floor(Math.random() * tricks.length)]);
-      const cardInstances = this._buildAiCardInstances(t.deck, {
+      const cardInstances = this._buildAiCardInstances(deck, {
         bossKey: key,
         baseRarity: node.tier === 1 ? 'rare' : 'special',
       });
-      return { deckNames: t.deck.slice(), cardInstances, tricks, hp, difficulty: 'normal', persona: t.persona };
+      return { deckNames: deck.slice(), cardInstances, tricks, hp, difficulty: 'normal', persona };
     }
     // Random fight — scaled by tier. Tier 1 follows a strict spec:
     // exactly 3 real (cost 1-3) cards, rest are vanilla bodies. So the
