@@ -11238,12 +11238,16 @@ body {
     0 0 8px rgba(var(--enemy-r), var(--enemy-g), var(--enemy-b), 0.32),
     0 0 16px rgba(var(--enemy-r), var(--enemy-g), var(--enemy-b), 0.12) !important;
 }
-/* Contested centerline — blend of both */
+/* Contested centerline — color-mix midpoint between AI accent and
+   player accent. No more hardcoded gold; the seam now reflects the
+   actual color blend. */
 .lane.occ-both .lane-sep::before {
   background: linear-gradient(90deg,
     transparent,
     rgba(var(--enemy-r), var(--enemy-g), var(--enemy-b), 0.70) 20%,
-    rgba(255,215,0,0.95) 50%,
+    color-mix(in srgb,
+      rgba(var(--enemy-r), var(--enemy-g), var(--enemy-b), 1) 50%,
+      rgba(var(--player-r), var(--player-g), var(--player-b), 1) 50%) 50%,
     rgba(var(--player-r), var(--player-g), var(--player-b), 0.70) 80%,
     transparent) !important;
 }
@@ -12078,15 +12082,31 @@ body.round-first-ai .hud-pill-main {
    inside lanes?" — answer: now the right seam of a contested
    lane mirrors its left so inside contested lanes are framed
    symmetrically. */
+/* Theme-aware contested lane — uses color-mix() to compute the seam
+   midpoint live from AI red + the player's actual theme accent. So:
+     • cyan player → red→PURPLE→cyan (preserved)
+     • white/silver player → red→PINK→white (the user's specific case)
+     • gold player → red→ORANGE→gold
+     • green player → red→muddy ochre→green, etc.
+   Selector list explicitly covers :first-child and :last-child variants
+   to win over the `.board .lane:last-child` rule (specificity 0,2,1)
+   that paints every lane's outer-frame border with a hardcoded white
+   middle band. Without these :child variants, the default empty-lane
+   gradient bleeds through and the player sees red→white→silver
+   instead of red→pink→silver under the silver theme. */
 .board .lane.occ-both,
-.board .lane.occ-both + .lane {
+.board .lane.occ-both + .lane,
+.board .lane:first-child.occ-both,
+.board .lane:last-child.occ-both,
+.board .lane:first-child.occ-both + .lane,
+.board .lane:last-child.occ-both + .lane {
   border-color: transparent !important;
   border-image: linear-gradient(180deg,
       rgba(231, 76, 60, 0.95) 0%,
       rgba(231, 76, 60, 0.90) 32%,
-      rgba(155, 89, 182, 1) 50%,
-      rgba(79, 195, 247, 0.90) 68%,
-      rgba(79, 195, 247, 0.95) 100%
+      color-mix(in srgb, rgb(231, 76, 60) 50%, rgba(var(--player-r, 79), var(--player-g, 195), var(--player-b, 247), 1) 50%) 50%,
+      rgba(var(--player-r, 79), var(--player-g, 195), var(--player-b, 247), 0.90) 68%,
+      rgba(var(--player-r, 79), var(--player-g, 195), var(--player-b, 247), 0.95) 100%
     ) 1 !important;
 }
 /* (Reverted: this slot held a `.lane.occ-both + .lane` rule that
@@ -16747,32 +16767,28 @@ body.defeat-pose .board .card.enemy-card {
     rgba(231,76,60,0.02) 100%);
 }
 .lane.occ-player::before {
-  /* Player owns — cyan wash anchored at the PLAYER half (bottom).
-     Alpha values reduced ~40% per user feedback ("the gradient in
-     the lane needs to be less intense at the bottom") — the wash
-     was overpowering the card itself. Now reads as a quiet under-
-     glow rather than a saturated floor.
-       was 0.32/0.20/0.08/0.02 → now 0.18/0.11/0.04/0.01 */
+  /* Player wash anchored at the PLAYER half (bottom). Theme-aware via
+     --player-r/g/b so it picks up the active player accent (cyan
+     default, white on silver theme, gold on gold theme, etc.). */
   background: radial-gradient(ellipse 75% 55% at 50% 78%,
-    rgba(127,208,255,0.18) 0%,
-    rgba(127,208,255,0.11) 35%,
-    rgba(127,208,255,0.04) 65%,
-    rgba(127,208,255,0.01) 100%);
+    rgba(var(--player-r,127), var(--player-g,208), var(--player-b,255), 0.18) 0%,
+    rgba(var(--player-r,127), var(--player-g,208), var(--player-b,255), 0.11) 35%,
+    rgba(var(--player-r,127), var(--player-g,208), var(--player-b,255), 0.04) 65%,
+    rgba(var(--player-r,127), var(--player-g,208), var(--player-b,255), 0.01) 100%);
 }
 .lane.occ-both::before {
-  /* Both sides occupying — TWO stacked radial gradients, one per
-     half. Player half (bottom) reduced to match the standalone
-     occ-player softening; AI half (top) left at its prior weight
-     since the user only flagged the bottom as too intense. */
+  /* Both sides occupying — TWO stacked radial gradients (AI top half,
+     player bottom half). Both use theme-aware variables so the
+     contested wash reads as red→player-accent regardless of theme. */
   background:
     radial-gradient(ellipse 75% 50% at 50% 25%,
-      rgba(231,76,60,0.26) 0%,
-      rgba(231,76,60,0.14) 40%,
-      rgba(231,76,60,0)    80%),
+      rgba(var(--enemy-r,231), var(--enemy-g,76), var(--enemy-b,60), 0.26) 0%,
+      rgba(var(--enemy-r,231), var(--enemy-g,76), var(--enemy-b,60), 0.14) 40%,
+      rgba(var(--enemy-r,231), var(--enemy-g,76), var(--enemy-b,60), 0)    80%),
     radial-gradient(ellipse 75% 50% at 50% 75%,
-      rgba(127,208,255,0.16) 0%,
-      rgba(127,208,255,0.09) 40%,
-      rgba(127,208,255,0)    80%);
+      rgba(var(--player-r,127), var(--player-g,208), var(--player-b,255), 0.16) 0%,
+      rgba(var(--player-r,127), var(--player-g,208), var(--player-b,255), 0.09) 40%,
+      rgba(var(--player-r,127), var(--player-g,208), var(--player-b,255), 0)    80%);
 }
 .lane.destroyed::before {
   /* Destroyed lane goes dark — no wash. */
