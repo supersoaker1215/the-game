@@ -162,19 +162,56 @@ const Roguelite = {
   // renderer shows the badge. User direction: "really cut back on the
   // rarity of edges. A lot of them should be common." So commons are
   // the bulk of the pool — simple stat bumps + basic keywords.
+  // Helper: bump a stackable counter keyword to a new total. Replaces
+  // an existing "Keyword N" badge with "Keyword <total>" so etching
+  // Splash 1 onto a card that already has Splash 4 reads as a single
+  // Splash 5 badge instead of two stacked rows. User report:
+  // "Deathstroke base Splash 4 + Splash 1 etch should just be Splash 5,
+  // not two badges." Same logic applies to Evade, Armor, Taunt,
+  // Discount, Splash, etc. — anything with a "<Keyword> N" form.
+  _bumpKw(c, keyword, total) {
+    if (!c || !Array.isArray(c.abilities)) return;
+    const re = new RegExp('^' + keyword + '(\\s+\\d+)?$', 'i');
+    const idx = c.abilities.findIndex(a => re.test(a));
+    const badge = `${keyword} ${total}`;
+    if (idx >= 0) c.abilities[idx] = badge;
+    else c.abilities.push(badge);
+  },
+
+  // Display-name map for rarity labels. Internal tier strings are
+  // common/rare/special/legendary (kept stable so we don't break
+  // RARITY_DESCS keys, ETCHES tiers, save state, etc.). User direction:
+  // "the naming of green is common, blue is uncommon, white is rare,
+  // and gold is legendary." So the labels we SHOW the player are:
+  //   common    → "Common"
+  //   rare      → "Uncommon"
+  //   special   → "Rare"
+  //   legendary → "Legendary"
+  // The displayRarity helper applies this mapping everywhere a rarity
+  // label gets rendered.
+  RARITY_LABELS: {
+    common:    'Common',
+    rare:      'Uncommon',
+    special:   'Rare',
+    legendary: 'Legendary',
+  },
+  displayRarity(rarity) {
+    return (this.RARITY_LABELS && this.RARITY_LABELS[rarity]) || (rarity ? rarity[0].toUpperCase() + rarity.slice(1) : '');
+  },
+
   ETCHES: {
     common: [
       { id: 'plus1-atk',     name: '+1 ATK',    apply: c => { c.attack += 1; } },
       { id: 'plus1-hp',      name: '+1 HP',     apply: c => { c.health += 1; c.maxHealth += 1; c.currentHealth += 1; } },
       { id: 'plus1-atk-hp',  name: '+1/+1',     apply: c => { c.attack += 1; c.health += 1; c.maxHealth += 1; c.currentHealth += 1; } },
-      { id: 'evade-1',       name: 'Evade 1',   apply: c => { c.evadeCharges = (c.evadeCharges || 0) + 1; if (!c.abilities.includes('Evade 1')) c.abilities.push('Evade 1'); } },
+      { id: 'evade-1',       name: 'Evade 1',   apply: c => { c.evadeCharges = (c.evadeCharges || 0) + 1; Roguelite._bumpKw(c, 'Evade', c.evadeCharges); } },
       { id: 'bullseye',      name: 'Bullseye',  apply: c => { c.isBullseye = true; if (!c.abilities.includes('Bullseye')) c.abilities.push('Bullseye'); } },
-      { id: 'splash-1',      name: 'Splash 1',  apply: c => { c.splashRange = (c.splashRange || 0) + 1; if (!c.abilities.includes('Splash 1')) c.abilities.push('Splash 1'); } },
-      { id: 'armor-1',       name: 'Armor 1',   apply: c => { c.armorValue = (c.armorValue || 0) + 1; if (!c.abilities.includes('Armor 1')) c.abilities.push('Armor 1'); } },
+      { id: 'splash-1',      name: 'Splash 1',  apply: c => { c.splashRange = (c.splashRange || 0) + 1; Roguelite._bumpKw(c, 'Splash', c.splashRange); } },
+      { id: 'armor-1',       name: 'Armor 1',   apply: c => { c.armorValue = (c.armorValue || 0) + 1; Roguelite._bumpKw(c, 'Armor', c.armorValue); } },
       { id: 'hunt',          name: 'Hunt',      apply: c => { c.hasHunt = true; if (!c.abilities.includes('Hunt')) c.abilities.push('Hunt'); } },
       { id: 'untrickable',   name: 'Untrickable', apply: c => { c.isUntrickable = true; if (!c.abilities.includes('Untrickable')) c.abilities.push('Untrickable'); } },
-      { id: 'discount-1',    name: 'Discount 1', apply: c => { c.cost = Math.max(0, (c.cost || 0) - 1); c.baseCost = Math.max(0, (c.baseCost || c.cost || 0) - 1); if (!c.abilities.includes('Discount 1')) c.abilities.push('Discount 1'); } },
-      { id: 'taunt-1',       name: 'Taunt 1',   apply: c => { c.tauntTurns = Math.max(c.tauntTurns || 0, 1); if (!c.abilities.includes('Taunt 1')) c.abilities.push('Taunt 1'); } },
+      { id: 'discount-1',    name: 'Discount 1', apply: c => { const before = c.baseCost || c.cost || 0; c.cost = Math.max(0, (c.cost || 0) - 1); c.baseCost = Math.max(0, (c.baseCost || before) - 1); c._discountTotal = (c._discountTotal || 0) + 1; Roguelite._bumpKw(c, 'Discount', c._discountTotal); } },
+      { id: 'taunt-1',       name: 'Taunt 1',   apply: c => { c.tauntTurns = Math.max(c.tauntTurns || 0, 0) + 1; Roguelite._bumpKw(c, 'Taunt', c.tauntTurns); } },
       // Crazy + Insane intentionally NOT in the etch pool — they're
       // ATK-randomizers (debuff-shaped), not upgrades. User: "kinda
       // like debuffs to the cards, just get those out of there."
@@ -183,23 +220,23 @@ const Roguelite = {
       { id: 'plus2-atk',     name: '+2 ATK',    apply: c => { c.attack += 2; } },
       { id: 'plus2-hp',      name: '+2 HP',     apply: c => { c.health += 2; c.maxHealth += 2; c.currentHealth += 2; } },
       { id: 'plus2-atk-hp',  name: '+2/+2',     apply: c => { c.attack += 2; c.health += 2; c.maxHealth += 2; c.currentHealth += 2; } },
-      { id: 'evade-2',       name: 'Evade 2',   apply: c => { c.evadeCharges = (c.evadeCharges || 0) + 2; if (!c.abilities.includes('Evade 2')) c.abilities.push('Evade 2'); } },
+      { id: 'evade-2',       name: 'Evade 2',   apply: c => { c.evadeCharges = (c.evadeCharges || 0) + 2; Roguelite._bumpKw(c, 'Evade', c.evadeCharges); } },
       { id: 'overdrive',     name: 'Overdrive', apply: c => { c.isOverdrive = true; if (!c.abilities.includes('Overdrive')) c.abilities.push('Overdrive'); } },
-      { id: 'splash-2',      name: 'Splash 2',  apply: c => { c.splashRange = (c.splashRange || 0) + 2; if (!c.abilities.includes('Splash 2')) c.abilities.push('Splash 2'); } },
-      { id: 'armor-2',       name: 'Armor 2',   apply: c => { c.armorValue = (c.armorValue || 0) + 2; if (!c.abilities.includes('Armor 2')) c.abilities.push('Armor 2'); } },
-      { id: 'fear-1',        name: 'Fear 1',    apply: c => { c.hasFear = (c.hasFear || 0) + 1; if (!c.abilities.includes('Fear 1')) c.abilities.push('Fear 1'); } },
-      { id: 'discount-2',    name: 'Discount 2', apply: c => { c.cost = Math.max(0, (c.cost || 0) - 2); c.baseCost = Math.max(0, (c.baseCost || c.cost || 0) - 2); if (!c.abilities.includes('Discount 2')) c.abilities.push('Discount 2'); } },
-      { id: 'thorns',        name: 'Thorns',    apply: c => { c.hasThorns = (c.hasThorns || 0) + 1; if (!c.abilities.includes('Thorns')) c.abilities.push('Thorns'); } },
-      { id: 'cantrip',       name: 'Cantrip',   apply: c => { c.hasCantrip = (c.hasCantrip || 0) + 1; if (!c.abilities.includes('Cantrip')) c.abilities.push('Cantrip'); } },
+      { id: 'splash-2',      name: 'Splash 2',  apply: c => { c.splashRange = (c.splashRange || 0) + 2; Roguelite._bumpKw(c, 'Splash', c.splashRange); } },
+      { id: 'armor-2',       name: 'Armor 2',   apply: c => { c.armorValue = (c.armorValue || 0) + 2; Roguelite._bumpKw(c, 'Armor', c.armorValue); } },
+      { id: 'fear-1',        name: 'Fear 1',    apply: c => { c.hasFear = (c.hasFear || 0) + 1; Roguelite._bumpKw(c, 'Fear', c.hasFear); } },
+      { id: 'discount-2',    name: 'Discount 2', apply: c => { const before = c.baseCost || c.cost || 0; c.cost = Math.max(0, (c.cost || 0) - 2); c.baseCost = Math.max(0, (c.baseCost || before) - 2); c._discountTotal = (c._discountTotal || 0) + 2; Roguelite._bumpKw(c, 'Discount', c._discountTotal); } },
+      { id: 'thorns',        name: 'Thorns',    apply: c => { c.hasThorns = (c.hasThorns || 0) + 1; Roguelite._bumpKw(c, 'Thorns', c.hasThorns); } },
+      { id: 'cantrip',       name: 'Cantrip',   apply: c => { c.hasCantrip = (c.hasCantrip || 0) + 1; Roguelite._bumpKw(c, 'Cantrip', c.hasCantrip); } },
     ],
     special: [
       { id: 'plus3-atk',     name: '+3 ATK',    apply: c => { c.attack += 3; } },
       { id: 'plus3-hp',      name: '+3 HP',     apply: c => { c.health += 3; c.maxHealth += 3; c.currentHealth += 3; } },
       { id: 'plus3-atk-hp',  name: '+3/+3',     apply: c => { c.attack += 3; c.health += 3; c.maxHealth += 3; c.currentHealth += 3; } },
-      { id: 'splash-3',      name: 'Splash 3',  apply: c => { c.splashRange = (c.splashRange || 0) + 3; if (!c.abilities.includes('Splash 3')) c.abilities.push('Splash 3'); } },
-      { id: 'invincible-1',  name: 'Invincible 1', apply: c => { c.invincibleTurns = 1; if (!c.abilities.includes('Invincible 1')) c.abilities.push('Invincible 1'); } },
-      { id: 'unresistible-1',name: 'Unresistible 1', apply: c => { c.unresistibleTurns = 1; if (!c.abilities.includes('Unresistible 1')) c.abilities.push('Unresistible 1'); } },
-      { id: 'discount-3',    name: 'Discount 3', apply: c => { c.cost = Math.max(0, (c.cost || 0) - 3); c.baseCost = Math.max(0, (c.baseCost || c.cost || 0) - 3); if (!c.abilities.includes('Discount 3')) c.abilities.push('Discount 3'); } },
+      { id: 'splash-3',      name: 'Splash 3',  apply: c => { c.splashRange = (c.splashRange || 0) + 3; Roguelite._bumpKw(c, 'Splash', c.splashRange); } },
+      { id: 'invincible-1',  name: 'Invincible 1', apply: c => { c.invincibleTurns = Math.max(c.invincibleTurns || 0, 0) + 1; Roguelite._bumpKw(c, 'Invincible', c.invincibleTurns); } },
+      { id: 'unresistible-1',name: 'Unresistible 1', apply: c => { c.unresistibleTurns = Math.max(c.unresistibleTurns || 0, 0) + 1; Roguelite._bumpKw(c, 'Unresistible', c.unresistibleTurns); } },
+      { id: 'discount-3',    name: 'Discount 3', apply: c => { const before = c.baseCost || c.cost || 0; c.cost = Math.max(0, (c.cost || 0) - 3); c.baseCost = Math.max(0, (c.baseCost || before) - 3); c._discountTotal = (c._discountTotal || 0) + 3; Roguelite._bumpKw(c, 'Discount', c._discountTotal); } },
       { id: 'lifesteal',     name: 'Lifesteal', apply: c => { c.hasLifesteal = (c.hasLifesteal || 0) + 1; if (!c.abilities.includes('Lifesteal')) c.abilities.push('Lifesteal'); } },
       { id: 'berserker',     name: 'Berserker', apply: c => { c.hasBerserker = (c.hasBerserker || 0) + 1; if (!c.abilities.includes('Berserker')) c.abilities.push('Berserker'); } },
       { id: 'zealot',        name: 'Zealot',    apply: c => { c.hasZealot = (c.hasZealot || 0) + 1; if (!c.abilities.includes('Zealot')) c.abilities.push('Zealot'); } },
@@ -207,11 +244,11 @@ const Roguelite = {
     legendary: [
       { id: 'plus4-atk',     name: '+4 ATK',    apply: c => { c.attack += 4; } },
       { id: 'plus4-atk-hp',  name: '+4/+4',     apply: c => { c.attack += 4; c.health += 4; c.maxHealth += 4; c.currentHealth += 4; } },
-      { id: 'splash-4',      name: 'Splash 4',  apply: c => { c.splashRange = (c.splashRange || 0) + 4; if (!c.abilities.includes('Splash 4')) c.abilities.push('Splash 4'); } },
-      { id: 'evade-4',       name: 'Evade 4',   apply: c => { c.evadeCharges = (c.evadeCharges || 0) + 4; if (!c.abilities.includes('Evade 4')) c.abilities.push('Evade 4'); } },
+      { id: 'splash-4',      name: 'Splash 4',  apply: c => { c.splashRange = (c.splashRange || 0) + 4; Roguelite._bumpKw(c, 'Splash', c.splashRange); } },
+      { id: 'evade-4',       name: 'Evade 4',   apply: c => { c.evadeCharges = (c.evadeCharges || 0) + 4; Roguelite._bumpKw(c, 'Evade', c.evadeCharges); } },
       { id: 'echo',          name: 'Echo',      apply: c => { c.hasEcho = (c.hasEcho || 0) + 1; if (!c.abilities.includes('Echo')) c.abilities.push('Echo'); } },
       { id: 'phoenix',       name: 'Phoenix',   apply: c => { c.hasPhoenix = (c.hasPhoenix || 0) + 1; if (!c.abilities.includes('Phoenix')) c.abilities.push('Phoenix'); } },
-      { id: 'discount-4',    name: 'Discount 4', apply: c => { c.cost = Math.max(0, (c.cost || 0) - 4); c.baseCost = Math.max(0, (c.baseCost || c.cost || 0) - 4); if (!c.abilities.includes('Discount 4')) c.abilities.push('Discount 4'); } },
+      { id: 'discount-4',    name: 'Discount 4', apply: c => { const before = c.baseCost || c.cost || 0; c.cost = Math.max(0, (c.cost || 0) - 4); c.baseCost = Math.max(0, (c.baseCost || before) - 4); c._discountTotal = (c._discountTotal || 0) + 4; Roguelite._bumpKw(c, 'Discount', c._discountTotal); } },
       // ----- TEXT etch -----
       // Scales this card's printed ability up by one rarity tier when
       // Game.rarityValue() resolves it. So a Rare Hawkeye with a Text+
@@ -1739,7 +1776,7 @@ const Roguelite = {
           <span class="rl-relic-card-corner rl-relic-card-corner-br"></span>
           <div class="rl-relic-card-icon">${this._relicIcon(relic)}</div>
           <div class="rl-relic-card-name">${relic.name}</div>
-          <div class="rl-relic-card-rarity">${relic.rarity.toUpperCase()}</div>
+          <div class="rl-relic-card-rarity">${this.displayRarity(relic.rarity).toUpperCase()}</div>
           <div class="rl-relic-card-desc">${relic.desc}</div>
         </div>
       </div>
@@ -2373,7 +2410,7 @@ const Roguelite = {
       const stateCls = sold ? 'rl-shop-slot-sold' : (cant ? 'rl-shop-slot-cant' : '');
       return `
         <div class="rl-shop-slot rl-shop-slot-card rl-tier-${item.payload.rarity} ${stateCls}">
-          <div class="rl-shop-slot-rarity">${item.payload.rarity.toUpperCase()}</div>
+          <div class="rl-shop-slot-rarity">${this.displayRarity(item.payload.rarity).toUpperCase()}</div>
           <div class="rl-shop-slot-card-wrap">
             ${this._renderCodexCard(item.payload)}
           </div>
@@ -2410,7 +2447,7 @@ const Roguelite = {
           <span class="rl-shop-slot-corner rl-shop-slot-corner-br"></span>
           <div class="rl-shop-relic-icon">${this._relicIcon(item.payload)}</div>
           <div class="rl-shop-relic-name">${item.payload.name}</div>
-          <div class="rl-shop-relic-rarity">${item.payload.rarity.toUpperCase()}</div>
+          <div class="rl-shop-relic-rarity">${this.displayRarity(item.payload.rarity).toUpperCase()}</div>
           <div class="rl-shop-relic-desc">${item.payload.desc}</div>
           ${buyBtn('relic', idx, sold, cant, item.price)}
         </div>`;
@@ -2913,7 +2950,7 @@ const Roguelite = {
       <div class="rl-levelup-card-line">
         <span class="rl-levelup-card-name">${lu.defName}</span>
         <span class="rl-levelup-arrow">▸</span>
-        <span class="rl-tier-${lu.newRarity}-text rl-levelup-new-tier">${lu.newRarity.toUpperCase()}</span>
+        <span class="rl-tier-${lu.newRarity}-text rl-levelup-new-tier">${this.displayRarity(lu.newRarity).toUpperCase()}</span>
       </div>
       ${autoTraitLine}
       <div class="rl-levelup-prompt">Pick an etch:</div>
@@ -3391,7 +3428,7 @@ const Roguelite = {
           <span class="rl-relic-card-corner rl-relic-card-corner-br"></span>
           <div class="rl-relic-card-icon">${this._relicIcon(r)}</div>
           <div class="rl-relic-card-name">${r.name}</div>
-          <div class="rl-relic-card-rarity">${r.rarity.toUpperCase()}</div>
+          <div class="rl-relic-card-rarity">${this.displayRarity(r.rarity).toUpperCase()}</div>
           <div class="rl-relic-card-desc">${r.desc}</div>
           <span class="rl-relic-card-glow" aria-hidden="true"></span>
         </div>`;
@@ -3516,7 +3553,7 @@ const Roguelite = {
         <div class="rl-rewards-grid">
           ${run.pendingRewards.map((deckCard, i) => `
             <button type="button" class="rl-reward-slot rl-tier-${deckCard.rarity}" onclick="Roguelite.pickReward(${i})">
-              <div class="rl-reward-rarity">${deckCard.rarity.toUpperCase()}</div>
+              <div class="rl-reward-rarity">${this.displayRarity(deckCard.rarity).toUpperCase()}</div>
               ${this._renderCodexCard(deckCard)}
             </button>
           `).join('')}

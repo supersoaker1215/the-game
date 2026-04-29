@@ -2207,7 +2207,7 @@ body.hit-pause .ai-hand * {
 }
 .stats-table tr.cost-7 .stats-name-text, .stats-table tr.cost-8 .stats-name-text {
   color: #f4f8fd;
-  text-shadow: 0 0 4px rgba(220,230,240,1), 0 0 10px rgba(220,230,240,0.55);
+  text-shadow: 0 0 4px rgba(240,245,250,1), 0 0 10px rgba(240,245,250,0.55);
 }
 .stats-table tr.cost-9 .stats-name-text, .stats-table tr.cost-10 .stats-name-text {
   color: #ffe066;
@@ -2572,8 +2572,8 @@ body.hit-pause .ai-hand * {
 .db-grid-item.cost-7 .db-grid-name, .db-grid-item.cost-8 .db-grid-name {
   color: #f4f8fd;
   text-shadow:
-    0 0 4px rgba(220,230,240,1),
-    0 0 10px rgba(220,230,240,0.55);
+    0 0 4px rgba(240,245,250,1),
+    0 0 10px rgba(240,245,250,0.55);
 }
 .db-grid-item.cost-9 .db-grid-name, .db-grid-item.cost-10 .db-grid-name {
   color: #ffe066;
@@ -2594,7 +2594,7 @@ body.hit-pause .ai-hand * {
 }
 .db-deck-row.cost-7 .db-deck-name, .db-deck-row.cost-8 .db-deck-name {
   color: #f4f8fd;
-  text-shadow: 0 0 4px rgba(220,230,240,0.85);
+  text-shadow: 0 0 4px rgba(240,245,250,0.85);
 }
 .db-deck-row.cost-9 .db-deck-name, .db-deck-row.cost-10 .db-deck-name {
   color: #ffe066;
@@ -2687,11 +2687,11 @@ body.hit-pause .ai-hand * {
   text-shadow: 0 0 4px rgba(79,195,247,0.85), 0 0 10px rgba(79,195,247,0.40);
 }
 .db-grid-item.cost-7, .db-grid-item.cost-8 {
-  border-color: rgba(220,230,240,0.70);
+  border-color: rgba(240,245,250,0.70);
 }
 .db-grid-item.cost-7 .db-grid-cost, .db-grid-item.cost-8 .db-grid-cost {
   color: #f4f8fd;
-  text-shadow: 0 0 4px rgba(220,230,240,0.95), 0 0 10px rgba(220,230,240,0.50);
+  text-shadow: 0 0 4px rgba(240,245,250,0.95), 0 0 10px rgba(240,245,250,0.50);
 }
 .db-grid-item.cost-9, .db-grid-item.cost-10 {
   border-color: rgba(255,215,0,0.70);
@@ -2820,7 +2820,7 @@ body.hit-pause .ai-hand * {
 /* Rarity tint on deck rows — matches the grid palette. */
 .db-deck-row.cost-0, .db-deck-row.cost-1, .db-deck-row.cost-2, .db-deck-row.cost-3 { border-color: rgba(46,204,113,0.50); }
 .db-deck-row.cost-4, .db-deck-row.cost-5, .db-deck-row.cost-6 { border-color: rgba(79,195,247,0.50); }
-.db-deck-row.cost-7, .db-deck-row.cost-8 { border-color: rgba(220,230,240,0.60); }
+.db-deck-row.cost-7, .db-deck-row.cost-8 { border-color: rgba(240,245,250,0.60); }
 .db-deck-row.cost-9, .db-deck-row.cost-10 { border-color: rgba(255,215,0,0.70); }
 
 /* ---- Footer: save / load / start ---- */
@@ -3631,15 +3631,15 @@ body.hit-pause .ai-hand * {
     inset 0 0 0 1px rgba(79,195,247,0.10) !important;
 }
 .draft-card.cost-7, .draft-card.cost-8 {
-  border-color: rgba(220,230,240,0.95) !important;
+  border-color: rgba(240,245,250,0.95) !important;
   background:
-    linear-gradient(180deg, rgba(220,230,240,0.10) 0%, rgba(220,230,240,0) 45%),
+    linear-gradient(180deg, rgba(240,245,250,0.10) 0%, rgba(240,245,250,0) 45%),
     #060a12 !important;
   box-shadow:
-    0 0 12px rgba(220,230,240,0.45),
-    0 0 24px rgba(220,230,240,0.18),
+    0 0 12px rgba(240,245,250,0.45),
+    0 0 24px rgba(240,245,250,0.18),
     0 6px 18px rgba(0,0,0,0.55),
-    inset 0 0 0 1px rgba(220,230,240,0.10) !important;
+    inset 0 0 0 1px rgba(240,245,250,0.10) !important;
 }
 .draft-card.cost-9, .draft-card.cost-10 {
   border-color: rgba(255,215,0,0.95) !important;
@@ -3698,10 +3698,10 @@ body.hit-pause .ai-hand * {
 .draft-card.cost-8:hover {
   border-color: rgba(230,240,250,1) !important;
   box-shadow:
-    0 0 26px rgba(220,230,240,0.85),
-    0 0 44px rgba(220,230,240,0.40),
+    0 0 26px rgba(240,245,250,0.85),
+    0 0 44px rgba(240,245,250,0.40),
     0 14px 32px rgba(0,0,0,0.55),
-    inset 0 0 0 1px rgba(220,230,240,0.20) !important;
+    inset 0 0 0 1px rgba(240,245,250,0.20) !important;
 }
 /* Legendary (cost 9-10) — gold hover */
 .draft-card.cost-9:hover,
@@ -3742,7 +3742,7 @@ body.hit-pause .ai-hand * {
 .draft-card.cost-0, .draft-card.cost-1,
 .draft-card.cost-2, .draft-card.cost-3 { --card-edge: rgba(46,204,113,0.85); }
 .draft-card.cost-4, .draft-card.cost-5, .draft-card.cost-6 { --card-edge: rgba(79,195,247,0.80); }
-.draft-card.cost-7, .draft-card.cost-8 { --card-edge: rgba(220,230,240,0.90); }
+.draft-card.cost-7, .draft-card.cost-8 { --card-edge: rgba(240,245,250,0.90); }
 .draft-card.cost-9, .draft-card.cost-10 { --card-edge: rgba(255,215,0,0.95); }
 
 /* Name banner — single underscan + centered diamond node, same language as
@@ -3792,9 +3792,9 @@ body.hit-pause .ai-hand * {
 .draft-card.cost-7 .card-name, .draft-card.cost-8 .card-name {
   color: #f4f8fd;
   text-shadow:
-    0 0 4px rgba(220,230,240,1),
-    0 0 12px rgba(220,230,240,0.85),
-    0 0 20px rgba(220,230,240,0.50),
+    0 0 4px rgba(240,245,250,1),
+    0 0 12px rgba(240,245,250,0.85),
+    0 0 20px rgba(240,245,250,0.50),
     0 1px 2px rgba(0,0,0,0.95);
 }
 .draft-card.cost-9 .card-name, .draft-card.cost-10 .card-name {
@@ -3840,7 +3840,7 @@ body.hit-pause .ai-hand * {
 }
 .draft-card.cost-7 .card-desc b, .draft-card.cost-8 .card-desc b {
   color: #f4f8fd !important;
-  text-shadow: 0 0 4px rgba(220,230,240,0.95), 0 0 10px rgba(220,230,240,0.55);
+  text-shadow: 0 0 4px rgba(240,245,250,0.95), 0 0 10px rgba(240,245,250,0.55);
 }
 .draft-card.cost-9 .card-desc b, .draft-card.cost-10 .card-desc b {
   color: #ffe066 !important;
@@ -3951,7 +3951,7 @@ body.hit-pause .ai-hand * {
 .draft-card.cost-7 .card-type-sigil,
 .draft-card.cost-8 .card-type-sigil {
   color: #e8eef6;
-  text-shadow: 0 0 10px rgba(220,230,240,0.9);
+  text-shadow: 0 0 10px rgba(240,245,250,0.9);
 }
 /* Cost 9-10 — gold legendary */
 .draft-card.cost-9 .card-type-sigil,
@@ -4055,9 +4055,9 @@ body.hit-pause .ai-hand * {
 /* Cards: cost 7-8 → silver rare */
 .drafted-tag.cost-7,  .drafted-tag.cost-8 {
   color: #e8eef6;
-  border-color: rgba(220,230,240,0.95);
-  box-shadow: 0 0 8px rgba(220,230,240,0.40), 0 0 16px rgba(220,230,240,0.18);
-  text-shadow: 0 0 4px rgba(220,230,240,0.55);
+  border-color: rgba(240,245,250,0.95);
+  box-shadow: 0 0 8px rgba(240,245,250,0.40), 0 0 16px rgba(240,245,250,0.18);
+  text-shadow: 0 0 4px rgba(240,245,250,0.55);
 }
 /* Cards: cost 9-10 → gold legendary */
 .drafted-tag.cost-9,  .drafted-tag.cost-10 {
@@ -4080,9 +4080,9 @@ body.hit-pause .ai-hand * {
 /* Tricks: cost 4 → silver */
 .drafted-tag.drafted-tag-trick.cost-4 {
   color: #e8eef6;
-  border-color: rgba(220,230,240,0.95);
-  box-shadow: 0 0 8px rgba(220,230,240,0.40), 0 0 16px rgba(220,230,240,0.18);
-  text-shadow: 0 0 4px rgba(220,230,240,0.55);
+  border-color: rgba(240,245,250,0.95);
+  box-shadow: 0 0 8px rgba(240,245,250,0.40), 0 0 16px rgba(240,245,250,0.18);
+  text-shadow: 0 0 4px rgba(240,245,250,0.55);
 }
 /* Tricks: cost 5+ → gold */
 .drafted-tag.drafted-tag-trick.cost-5,
@@ -4290,7 +4290,7 @@ body.hit-pause .ai-hand * {
 }
 .card-mvp-star.mvp-gold svg { fill: #ffd77a; }
 .card-mvp-star.mvp-silver {
-  filter: drop-shadow(0 0 2px rgba(220,230,240,0.95)) drop-shadow(0 0 5px rgba(220,230,240,0.55));
+  filter: drop-shadow(0 0 2px rgba(240,245,250,0.95)) drop-shadow(0 0 5px rgba(240,245,250,0.55));
 }
 .card-mvp-star.mvp-silver svg { fill: #dbe6ef; }
 /* Dead-pile cards don't have a rarity strip, so position the star
@@ -4672,9 +4672,9 @@ body.hit-pause .ai-hand * {
 .card.hand-card.cost-7 .card-name, .card.hand-card.cost-8 .card-name {
   color: #f4f8fd;
   text-shadow:
-    0 0 4px rgba(220,230,240,1),
-    0 0 12px rgba(220,230,240,0.8),
-    0 0 20px rgba(220,230,240,0.45),
+    0 0 4px rgba(240,245,250,1),
+    0 0 12px rgba(240,245,250,0.8),
+    0 0 20px rgba(240,245,250,0.45),
     0 1px 2px rgba(0,0,0,0.95);
 }
 .card.hand-card.cost-9 .card-name, .card.hand-card.cost-10 .card-name {
@@ -4738,7 +4738,7 @@ body.hit-pause .ai-hand * {
 }
 .cost-7 .rarity-strip .rpip, .cost-8 .rarity-strip .rpip {
   background: rgba(235,242,250,1);
-  box-shadow: 0 0 4px rgba(220,230,240,1), 0 0 10px rgba(220,230,240,0.65);
+  box-shadow: 0 0 4px rgba(240,245,250,1), 0 0 10px rgba(240,245,250,0.65);
 }
 .cost-9 .rarity-strip .rpip, .cost-10 .rarity-strip .rpip {
   background: rgba(255,215,0,1);
@@ -4770,7 +4770,7 @@ body.hit-pause .ai-hand * {
 .card.ally-card.cost-7 .rpip, .card.ally-card.cost-8 .rpip,
 .card.enemy-card.cost-7 .rpip, .card.enemy-card.cost-8 .rpip {
   background: rgba(235,242,250,1);
-  box-shadow: 0 0 4px rgba(220,230,240,1), 0 0 10px rgba(220,230,240,0.65);
+  box-shadow: 0 0 4px rgba(240,245,250,1), 0 0 10px rgba(240,245,250,0.65);
 }
 .card.ally-card.cost-9 .rpip, .card.ally-card.cost-10 .rpip,
 .card.enemy-card.cost-9 .rpip, .card.enemy-card.cost-10 .rpip {
@@ -4829,7 +4829,7 @@ body.hit-pause .ai-hand * {
 .trick-rarity-silver .rpip,
 .cost-4.trick-draft .rarity-strip .rpip {
   background: rgba(235,242,250,1) !important;
-  box-shadow: 0 0 4px rgba(220,230,240,1), 0 0 10px rgba(220,230,240,0.65) !important;
+  box-shadow: 0 0 4px rgba(240,245,250,1), 0 0 10px rgba(240,245,250,0.65) !important;
 }
 .trick-rarity-gold .rpip,
 .cost-5.trick-draft .rarity-strip .rpip,
@@ -4995,7 +4995,7 @@ body.hit-pause .ai-hand * {
 }
 .cost-7 .card-trick-passive, .cost-8 .card-trick-passive {
   color: #dbe6ef;
-  text-shadow: 0 0 4px rgba(220,230,240,0.70), 0 0 8px rgba(220,230,240,0.35);
+  text-shadow: 0 0 4px rgba(240,245,250,0.70), 0 0 8px rgba(240,245,250,0.35);
 }
 .cost-9 .card-trick-passive, .cost-10 .card-trick-passive {
   color: #ffd77a;
@@ -5019,7 +5019,7 @@ body.hit-pause .ai-hand * {
 .card.hand-card.cost-7 .card-desc b,
 .card.hand-card.cost-8 .card-desc b {
   color: #f4f8fd !important;
-  text-shadow: 0 0 4px rgba(220,230,240,0.95), 0 0 8px rgba(220,230,240,0.55);
+  text-shadow: 0 0 4px rgba(240,245,250,0.95), 0 0 8px rgba(240,245,250,0.55);
 }
 .card.hand-card.cost-9 .card-desc b,
 .card.hand-card.cost-10 .card-desc b {
@@ -5611,7 +5611,7 @@ body.hit-pause .ai-hand * {
 .card.hand-card.cost-5,
 .card.hand-card.cost-6    { --card-edge: rgba(79,195,247,0.75); }
 .card.hand-card.cost-7,
-.card.hand-card.cost-8    { --card-edge: rgba(220,230,240,0.85); }
+.card.hand-card.cost-8    { --card-edge: rgba(240,245,250,0.85); }
 .card.hand-card.cost-9,
 .card.hand-card.cost-10   { --card-edge: rgba(255,215,0,0.90); }
 
@@ -6938,9 +6938,9 @@ body.hit-pause .ai-hand * {
 .game-over-stats .go-mvp-silver {
   color: #dbe6ef;
   background: rgba(40,48,58,0.25);
-  border: 1px solid rgba(220,230,240,0.70);
-  text-shadow: 0 0 6px rgba(220,230,240,0.75), 0 0 14px rgba(220,230,240,0.35);
-  box-shadow: 0 0 10px rgba(220,230,240,0.45), 0 0 22px rgba(220,230,240,0.18), inset 0 0 8px rgba(220,230,240,0.10);
+  border: 1px solid rgba(240,245,250,0.70);
+  text-shadow: 0 0 6px rgba(240,245,250,0.75), 0 0 14px rgba(240,245,250,0.35);
+  box-shadow: 0 0 10px rgba(240,245,250,0.45), 0 0 22px rgba(240,245,250,0.18), inset 0 0 8px rgba(240,245,250,0.10);
 }
 /* MVP-row label inside each chip — small uppercase tag distinguishing
    "IMPACT" (raw) from "RATE" (per-cost MVP+ index). Sits left of the
@@ -10801,90 +10801,90 @@ body {
    5-color palette so nothing in the game is off-family.
    ============================================================ */
 .trick-card {
-  border-color: rgba(220,230,240,0.85);
+  border-color: rgba(240,245,250,0.85);
   background-color: #060a12;
   background-image: linear-gradient(180deg,
-    rgba(220,230,240,0.12) 0%,
-    rgba(220,230,240,0) 55%);
-  outline: 1px solid rgba(220,230,240,0.22);
+    rgba(240,245,250,0.12) 0%,
+    rgba(240,245,250,0) 55%);
+  outline: 1px solid rgba(240,245,250,0.22);
   box-shadow:
-    inset 0 0 0 1px rgba(220,230,240,0.16),
-    0 0 8px rgba(220,230,240,0.26),
-    0 0 18px rgba(220,230,240,0.10),
+    inset 0 0 0 1px rgba(240,245,250,0.16),
+    0 0 8px rgba(240,245,250,0.26),
+    0 0 18px rgba(240,245,250,0.10),
     0 4px 12px rgba(0,0,0,0.55);
 }
 .trick-card.playable:hover {
-  outline-color: rgba(220,230,240,0.45);
+  outline-color: rgba(240,245,250,0.45);
   box-shadow:
-    inset 0 0 0 1px rgba(220,230,240,0.30),
-    0 0 12px rgba(220,230,240,0.55),
-    0 0 24px rgba(220,230,240,0.22),
+    inset 0 0 0 1px rgba(240,245,250,0.30),
+    0 0 12px rgba(240,245,250,0.55),
+    0 0 24px rgba(240,245,250,0.22),
     0 4px 12px rgba(0,0,0,0.55);
 }
 .trick-card::before {
   background:
-    linear-gradient(rgba(220,230,240,0.75), rgba(220,230,240,0.75)) top    left   / 10px 1px no-repeat,
-    linear-gradient(rgba(220,230,240,0.75), rgba(220,230,240,0.75)) top    left   / 1px 10px no-repeat,
-    linear-gradient(rgba(220,230,240,0.75), rgba(220,230,240,0.75)) top    right  / 10px 1px no-repeat,
-    linear-gradient(rgba(220,230,240,0.75), rgba(220,230,240,0.75)) top    right  / 1px 10px no-repeat,
-    linear-gradient(rgba(220,230,240,0.75), rgba(220,230,240,0.75)) bottom left   / 10px 1px no-repeat,
-    linear-gradient(rgba(220,230,240,0.75), rgba(220,230,240,0.75)) bottom left   / 1px 10px no-repeat,
-    linear-gradient(rgba(220,230,240,0.75), rgba(220,230,240,0.75)) bottom right  / 10px 1px no-repeat,
-    linear-gradient(rgba(220,230,240,0.75), rgba(220,230,240,0.75)) bottom right  / 1px 10px no-repeat;
+    linear-gradient(rgba(240,245,250,0.75), rgba(240,245,250,0.75)) top    left   / 10px 1px no-repeat,
+    linear-gradient(rgba(240,245,250,0.75), rgba(240,245,250,0.75)) top    left   / 1px 10px no-repeat,
+    linear-gradient(rgba(240,245,250,0.75), rgba(240,245,250,0.75)) top    right  / 10px 1px no-repeat,
+    linear-gradient(rgba(240,245,250,0.75), rgba(240,245,250,0.75)) top    right  / 1px 10px no-repeat,
+    linear-gradient(rgba(240,245,250,0.75), rgba(240,245,250,0.75)) bottom left   / 10px 1px no-repeat,
+    linear-gradient(rgba(240,245,250,0.75), rgba(240,245,250,0.75)) bottom left   / 1px 10px no-repeat,
+    linear-gradient(rgba(240,245,250,0.75), rgba(240,245,250,0.75)) bottom right  / 10px 1px no-repeat,
+    linear-gradient(rgba(240,245,250,0.75), rgba(240,245,250,0.75)) bottom right  / 1px 10px no-repeat;
 }
 .trick-cost {
   color: #e8eef6 !important;
-  border-color: rgba(220,230,240,0.85) !important;
-  box-shadow: 0 0 7px rgba(220,230,240,0.40), 0 0 14px rgba(220,230,240,0.18) !important;
-  text-shadow: 0 0 5px rgba(220,230,240,0.60) !important;
+  border-color: rgba(240,245,250,0.85) !important;
+  box-shadow: 0 0 7px rgba(240,245,250,0.40), 0 0 14px rgba(240,245,250,0.18) !important;
+  text-shadow: 0 0 5px rgba(240,245,250,0.60) !important;
 }
 .trick-name {
   color: #e8eef6 !important;
-  border-bottom-color: rgba(220,230,240,0.60) !important;
-  text-shadow: 0 0 8px rgba(220,230,240,0.55), 0 1px 2px rgba(0,0,0,0.85) !important;
+  border-bottom-color: rgba(240,245,250,0.60) !important;
+  text-shadow: 0 0 8px rgba(240,245,250,0.55), 0 1px 2px rgba(0,0,0,0.85) !important;
 }
 .trick-name::after {
-  background: rgba(220,230,240,0.85) !important;
-  box-shadow: 0 0 4px rgba(220,230,240,0.85), 0 0 8px rgba(220,230,240,0.50) !important;
+  background: rgba(240,245,250,0.85) !important;
+  box-shadow: 0 0 4px rgba(240,245,250,0.85), 0 0 8px rgba(240,245,250,0.50) !important;
 }
 /* Trick draft panel + draft card purple → silver. */
 .draft-card.trick-draft {
   background:
-    linear-gradient(180deg, rgba(220,230,240,0.08) 0%, rgba(220,230,240,0) 45%),
+    linear-gradient(180deg, rgba(240,245,250,0.08) 0%, rgba(240,245,250,0) 45%),
     #060a12 !important;
-  border-color: rgba(220,230,240,0.70) !important;
+  border-color: rgba(240,245,250,0.70) !important;
   box-shadow:
-    0 0 10px rgba(220,230,240,0.30),
+    0 0 10px rgba(240,245,250,0.30),
     0 6px 18px rgba(0,0,0,0.55),
-    inset 0 0 0 1px rgba(220,230,240,0.08) !important;
+    inset 0 0 0 1px rgba(240,245,250,0.08) !important;
 }
 .draft-card.trick-draft::before {
-  border-color: rgba(220,230,240,0.18) !important;
+  border-color: rgba(240,245,250,0.18) !important;
 }
 .draft-card.trick-draft::after {
   background:
-    linear-gradient(rgba(220,230,240,0.65), rgba(220,230,240,0.65)) top    left   / 12px 1px no-repeat,
-    linear-gradient(rgba(220,230,240,0.65), rgba(220,230,240,0.65)) top    left   / 1px 12px no-repeat,
-    linear-gradient(rgba(220,230,240,0.65), rgba(220,230,240,0.65)) top    right  / 12px 1px no-repeat,
-    linear-gradient(rgba(220,230,240,0.65), rgba(220,230,240,0.65)) top    right  / 1px 12px no-repeat,
-    linear-gradient(rgba(220,230,240,0.65), rgba(220,230,240,0.65)) bottom left   / 12px 1px no-repeat,
-    linear-gradient(rgba(220,230,240,0.65), rgba(220,230,240,0.65)) bottom left   / 1px 12px no-repeat,
-    linear-gradient(rgba(220,230,240,0.65), rgba(220,230,240,0.65)) bottom right  / 12px 1px no-repeat,
-    linear-gradient(rgba(220,230,240,0.65), rgba(220,230,240,0.65)) bottom right  / 1px 12px no-repeat !important;
+    linear-gradient(rgba(240,245,250,0.65), rgba(240,245,250,0.65)) top    left   / 12px 1px no-repeat,
+    linear-gradient(rgba(240,245,250,0.65), rgba(240,245,250,0.65)) top    left   / 1px 12px no-repeat,
+    linear-gradient(rgba(240,245,250,0.65), rgba(240,245,250,0.65)) top    right  / 12px 1px no-repeat,
+    linear-gradient(rgba(240,245,250,0.65), rgba(240,245,250,0.65)) top    right  / 1px 12px no-repeat,
+    linear-gradient(rgba(240,245,250,0.65), rgba(240,245,250,0.65)) bottom left   / 12px 1px no-repeat,
+    linear-gradient(rgba(240,245,250,0.65), rgba(240,245,250,0.65)) bottom left   / 1px 12px no-repeat,
+    linear-gradient(rgba(240,245,250,0.65), rgba(240,245,250,0.65)) bottom right  / 12px 1px no-repeat,
+    linear-gradient(rgba(240,245,250,0.65), rgba(240,245,250,0.65)) bottom right  / 1px 12px no-repeat !important;
 }
 .draft-card.trick-draft:hover {
-  border-color: rgba(220,230,240,1) !important;
+  border-color: rgba(240,245,250,1) !important;
   box-shadow:
-    0 0 18px rgba(220,230,240,0.55),
-    0 14px 32px rgba(220,230,240,0.20),
-    inset 0 0 0 1px rgba(220,230,240,0.14) !important;
+    0 0 18px rgba(240,245,250,0.55),
+    0 14px 32px rgba(240,245,250,0.20),
+    inset 0 0 0 1px rgba(240,245,250,0.14) !important;
 }
 /* Draft trick brackets on the draft panel — override the earlier
    purple variant to silver. */
 .draft-panel.draft-tricks::before,
 .draft-panel.draft-tricks::after {
-  border-color: rgba(220,230,240,0.90) !important;
-  filter: drop-shadow(0 0 6px rgba(220,230,240,0.70)) !important;
+  border-color: rgba(240,245,250,0.90) !important;
+  filter: drop-shadow(0 0 6px rgba(240,245,250,0.70)) !important;
 }
 /* HUD tricks count silver. */
 .hud-count-tricks {
@@ -10892,24 +10892,24 @@ body {
 }
 .hud-count-tricks b {
   color: #e8eef6 !important;
-  border-color: rgba(220,230,240,0.85) !important;
+  border-color: rgba(240,245,250,0.85) !important;
   box-shadow:
-    0 0 5px rgba(220,230,240,0.35),
-    0 0 10px rgba(220,230,240,0.14),
-    inset 0 0 5px rgba(220,230,240,0.08) !important;
-  text-shadow: 0 0 6px rgba(220,230,240,0.80), 0 0 10px rgba(220,230,240,0.40) !important;
+    0 0 5px rgba(240,245,250,0.35),
+    0 0 10px rgba(240,245,250,0.14),
+    inset 0 0 5px rgba(240,245,250,0.08) !important;
+  text-shadow: 0 0 6px rgba(240,245,250,0.80), 0 0 10px rgba(240,245,250,0.40) !important;
 }
 /* Drafted-tag trick sidebar + AI mini-hand trick-back cards silver. */
 .drafted-tag.drafted-tag-trick {
   color: #e8eef6 !important;
-  border-color: rgba(220,230,240,0.85) !important;
-  box-shadow: 0 0 6px rgba(220,230,240,0.28), 0 0 12px rgba(220,230,240,0.10) !important;
-  text-shadow: 0 0 4px rgba(220,230,240,0.45) !important;
+  border-color: rgba(240,245,250,0.85) !important;
+  box-shadow: 0 0 6px rgba(240,245,250,0.28), 0 0 12px rgba(240,245,250,0.10) !important;
+  text-shadow: 0 0 4px rgba(240,245,250,0.45) !important;
 }
 .ai-hand-mini .card-back.trick-back {
-  border-color: rgba(220,230,240,0.75) !important;
-  color: rgba(220,230,240,0.80) !important;
-  box-shadow: 0 0 5px rgba(220,230,240,0.30), 0 0 10px rgba(220,230,240,0.10) !important;
+  border-color: rgba(240,245,250,0.75) !important;
+  color: rgba(240,245,250,0.80) !important;
+  box-shadow: 0 0 5px rgba(240,245,250,0.30), 0 0 10px rgba(240,245,250,0.10) !important;
 }
 .drafted-list-trick strong { color: #e8eef6 !important; }
 
@@ -12235,7 +12235,7 @@ body.round-first-ai .hud-pill-main {
 .draft-card.cost-7 .card-trick-passive,
 .draft-card.cost-8 .card-trick-passive {
   color: #e8eef6 !important;
-  text-shadow: 0 0 4px rgba(220,230,240,0.70), 0 0 8px rgba(220,230,240,0.35) !important;
+  text-shadow: 0 0 4px rgba(240,245,250,0.70), 0 0 8px rgba(240,245,250,0.35) !important;
 }
 .card.hand-card.cost-9 .card-trick-passive,
 .card.hand-card.cost-10 .card-trick-passive,
@@ -13468,7 +13468,7 @@ body.theme-purple .board-section {
 .tut-rarity-rare {
   color: #e8eef6;
   font-weight: 800;
-  text-shadow: 0 0 4px rgba(220,230,240,0.85), 0 0 10px rgba(220,230,240,0.45);
+  text-shadow: 0 0 4px rgba(240,245,250,0.85), 0 0 10px rgba(240,245,250,0.45);
 }
 .tut-rarity-legendary {
   color: #ffe066;
@@ -14635,7 +14635,7 @@ body.phase-menu .kb-hints { display: none; }
 }
 .cost-7 .rarity-strip .rpip, .cost-8 .rarity-strip .rpip {
   background: rgba(235,242,250,1) !important;
-  box-shadow: 0 0 4px rgba(220,230,240,1), 0 0 10px rgba(220,230,240,0.65) !important;
+  box-shadow: 0 0 4px rgba(240,245,250,1), 0 0 10px rgba(240,245,250,0.65) !important;
 }
 .cost-9 .rarity-strip .rpip, .cost-10 .rarity-strip .rpip {
   background: rgba(255,215,0,1) !important;
@@ -19145,14 +19145,14 @@ body.killing-blow-cinema::after {
     inset 0 0 0 1px rgba(79,195,247,0.10) !important;
 }
 .go-mvp-card.cost-7, .go-mvp-card.cost-8 {
-  border: 1px solid rgba(220,230,240,0.95) !important;
+  border: 1px solid rgba(240,245,250,0.95) !important;
   background:
-    linear-gradient(180deg, rgba(220,230,240,0.10) 0%, rgba(220,230,240,0) 45%),
+    linear-gradient(180deg, rgba(240,245,250,0.10) 0%, rgba(240,245,250,0) 45%),
     #060a12 !important;
   box-shadow:
-    0 0 10px rgba(220,230,240,0.45),
-    0 0 20px rgba(220,230,240,0.18),
-    inset 0 0 0 1px rgba(220,230,240,0.10) !important;
+    0 0 10px rgba(240,245,250,0.45),
+    0 0 20px rgba(240,245,250,0.18),
+    inset 0 0 0 1px rgba(240,245,250,0.10) !important;
 }
 .go-mvp-card.cost-9, .go-mvp-card.cost-10 {
   border: 1px solid rgba(255,215,0,0.95) !important;
@@ -19978,10 +19978,14 @@ body.killing-blow-cinema::after {
   cursor: not-allowed;
 }
 
-/* Tier-color text helper for level-up modal */
-.rl-tier-common-text  { color: rgba(220,225,235,1); }
+/* Tier-color text helper for level-up modal.
+   User direction (color renaming): "green is common, blue is uncommon,
+   white is rare, gold is legendary." Internal `special` tier is the
+   one displayed as "Rare" — its color is now pure white. Internal
+   `rare` tier → "Uncommon" → blue (unchanged). */
+.rl-tier-common-text  { color: rgba(140,235,170,1); text-shadow: 0 0 6px rgba(91,227,154,0.55); }
 .rl-tier-rare-text    { color: rgba(120,180,255,1); text-shadow: 0 0 6px rgba(120,180,255,0.5); }
-.rl-tier-special-text { color: rgba(200,160,255,1); text-shadow: 0 0 6px rgba(200,160,255,0.5); }
+.rl-tier-special-text { color: rgba(255,255,255,1); text-shadow: 0 0 8px rgba(255,255,255,0.55); }
 .rl-tier-legendary-text { color: rgba(255,215,140,1); text-shadow: 0 0 8px rgba(255,215,140,0.6); }
 
 /* ============================================================
@@ -20084,44 +20088,75 @@ body.killing-blow-cinema::after {
   display: flex; flex-direction: column; gap: 10px;
 }
 
-/* Each level-up choice — neon card with bucket caption, etch name,
-   and description. Bucket-specific border + glow color so the player
-   can scan all the picks at a glance. Hover lifts + brightens. */
+/* Each level-up choice — uses the EXACT same chrome as a main-menu
+   button (.mm-option): horizontal gradient + black bg, neon border,
+   left-edge accent bar that grows on hover, lift + brighten on hover.
+   User direction: "the buttons should look like the buttons of the
+   menu — they shouldn't look like soulless gray buttons." Bucket
+   coloring rides on top via per-bucket border + glow tint.
+   Defaults below assume cyan; per-bucket overrides further down
+   swap to green/cyan/gold/purple based on the bucket caption. */
 .rl-levelup-choice {
   position: relative;
-  display: grid;
-  grid-template-columns: 1fr;
-  gap: 6px;
-  padding: 14px 18px;
+  overflow: hidden;
+  display: flex; flex-direction: column;
+  justify-content: center;
+  gap: 4px;
+  padding: 14px 22px;
   text-align: center;
   font-family: 'Rajdhani', sans-serif;
   cursor: pointer;
-  background: linear-gradient(180deg, rgba(20,28,40,0.90) 0%, rgba(8,12,20,0.95) 100%);
-  border: 1px solid rgba(79,195,247,0.45);
+  background:
+    linear-gradient(90deg, rgba(79,195,247,0.06) 0%, rgba(0,0,0,0) 55%),
+    #000;
+  border: 1px solid rgba(79,195,247,0.55);
   border-radius: 4px;
   color: #f5fbff;
   box-shadow:
     0 0 10px rgba(79,195,247,0.18),
-    inset 0 0 0 1px rgba(255,255,255,0.03);
-  transition: transform 0.15s, border-color 0.2s, box-shadow 0.25s, background 0.2s;
+    inset 0 0 0 1px rgba(79,195,247,0.05);
+  transition: border-color 0.2s, box-shadow 0.25s, transform 0.15s, background 0.2s, padding-left 0.2s;
+}
+.rl-levelup-choice::before {
+  content: "";
+  position: absolute;
+  left: 0; top: 10%; bottom: 10%;
+  width: 2px;
+  background: rgba(79,195,247,0.60);
+  box-shadow: 0 0 6px rgba(79,195,247,0.55);
+  transition: width 0.2s, background 0.2s, box-shadow 0.2s, top 0.2s, bottom 0.2s;
 }
 .rl-levelup-choice:hover {
   transform: translateY(-1px);
-  background: linear-gradient(180deg, rgba(28,40,60,0.95) 0%, rgba(12,18,28,0.98) 100%);
-  border-color: rgba(79,195,247,0.95);
+  border-color: rgba(79,195,247,1);
+  background:
+    linear-gradient(90deg, rgba(79,195,247,0.12) 0%, rgba(0,0,0,0) 55%),
+    rgba(79,195,247,0.04);
+  padding-left: 26px;
   box-shadow:
-    0 0 18px rgba(79,195,247,0.55),
-    0 0 36px rgba(79,195,247,0.20),
-    inset 0 0 0 1px rgba(255,255,255,0.08);
+    0 0 20px rgba(79,195,247,0.55),
+    0 0 40px rgba(79,195,247,0.22),
+    inset 0 0 0 1px rgba(79,195,247,0.18);
+}
+.rl-levelup-choice:hover::before {
+  width: 3px; top: 0; bottom: 0;
+  background: #4fc3f7;
+  box-shadow: 0 0 10px rgba(79,195,247,1), 0 0 18px rgba(79,195,247,0.55);
+}
+.rl-levelup-choice:active {
+  transform: translateY(0);
+  box-shadow:
+    0 0 14px rgba(79,195,247,0.40),
+    inset 0 0 12px rgba(79,195,247,0.18);
 }
 
 /* Bucket caption — small uppercase tag, takes its color from a
-   per-bucket modifier class (rl-bucket-stats / -trait / -energy /
-   -text) so the four buckets read as four distinct flavors. */
+   per-bucket modifier class so the four buckets read as four
+   distinct flavors. */
 .rl-levelup-bucket {
   display: inline-block;
-  font-size: 10px; letter-spacing: 3px; text-transform: uppercase;
-  font-weight: 600;
+  font-size: 10px; letter-spacing: 4px; text-transform: uppercase;
+  font-weight: 700;
   opacity: 0.95;
 }
 .rl-bucket-stats  { color: #5be39a; text-shadow: 0 0 4px rgba(91,227,154,0.55); }
@@ -20129,16 +20164,60 @@ body.killing-blow-cinema::after {
 .rl-bucket-energy { color: #ffe066; text-shadow: 0 0 4px rgba(255,224,102,0.55); }
 .rl-bucket-text   { color: #d8a8ff; text-shadow: 0 0 4px rgba(216,168,255,0.65); }
 
-/* Per-bucket choice border tint so the four picks are visually
-   coded at a glance. */
-.rl-levelup-choice:has(.rl-bucket-stats)  { border-color: rgba(91,227,154,0.50);  box-shadow: 0 0 10px rgba(91,227,154,0.18),  inset 0 0 0 1px rgba(255,255,255,0.03); }
-.rl-levelup-choice:has(.rl-bucket-trait)  { border-color: rgba(127,208,255,0.55); box-shadow: 0 0 10px rgba(127,208,255,0.20), inset 0 0 0 1px rgba(255,255,255,0.03); }
-.rl-levelup-choice:has(.rl-bucket-energy) { border-color: rgba(255,224,102,0.50); box-shadow: 0 0 10px rgba(255,224,102,0.18), inset 0 0 0 1px rgba(255,255,255,0.03); }
-.rl-levelup-choice:has(.rl-bucket-text)   { border-color: rgba(216,168,255,0.65); box-shadow: 0 0 14px rgba(216,168,255,0.30), 0 0 26px rgba(216,168,255,0.14), inset 0 0 0 1px rgba(255,255,255,0.06); }
-.rl-levelup-choice:hover:has(.rl-bucket-stats)  { border-color: rgba(91,227,154,1);   box-shadow: 0 0 18px rgba(91,227,154,0.55),  0 0 36px rgba(91,227,154,0.20),  inset 0 0 0 1px rgba(255,255,255,0.08); }
-.rl-levelup-choice:hover:has(.rl-bucket-trait)  { border-color: rgba(127,208,255,1);  box-shadow: 0 0 18px rgba(127,208,255,0.65), 0 0 36px rgba(127,208,255,0.25), inset 0 0 0 1px rgba(255,255,255,0.08); }
-.rl-levelup-choice:hover:has(.rl-bucket-energy) { border-color: rgba(255,224,102,1);  box-shadow: 0 0 18px rgba(255,224,102,0.55), 0 0 36px rgba(255,224,102,0.20), inset 0 0 0 1px rgba(255,255,255,0.08); }
-.rl-levelup-choice:hover:has(.rl-bucket-text)   { border-color: rgba(216,168,255,1);  box-shadow: 0 0 22px rgba(216,168,255,0.80), 0 0 48px rgba(216,168,255,0.35), inset 0 0 0 1px rgba(255,255,255,0.10); }
+/* Per-bucket border + glow + accent-bar overrides — same mm-option
+   chrome but recolored per bucket so the four picks read at a glance
+   without forcing the user to read the labels. */
+.rl-levelup-choice:has(.rl-bucket-stats) {
+  background: linear-gradient(90deg, rgba(91,227,154,0.06) 0%, rgba(0,0,0,0) 55%), #000;
+  border-color: rgba(91,227,154,0.55);
+  box-shadow: 0 0 10px rgba(91,227,154,0.18), inset 0 0 0 1px rgba(91,227,154,0.05);
+}
+.rl-levelup-choice:has(.rl-bucket-stats)::before { background: rgba(91,227,154,0.65); box-shadow: 0 0 6px rgba(91,227,154,0.55); }
+.rl-levelup-choice:hover:has(.rl-bucket-stats) {
+  border-color: rgba(91,227,154,1);
+  background: linear-gradient(90deg, rgba(91,227,154,0.12) 0%, rgba(0,0,0,0) 55%), rgba(91,227,154,0.04);
+  box-shadow: 0 0 20px rgba(91,227,154,0.55), 0 0 40px rgba(91,227,154,0.22), inset 0 0 0 1px rgba(91,227,154,0.18);
+}
+.rl-levelup-choice:hover:has(.rl-bucket-stats)::before { background: #5be39a; box-shadow: 0 0 10px rgba(91,227,154,1), 0 0 18px rgba(91,227,154,0.55); }
+
+.rl-levelup-choice:has(.rl-bucket-trait) {
+  background: linear-gradient(90deg, rgba(127,208,255,0.06) 0%, rgba(0,0,0,0) 55%), #000;
+  border-color: rgba(127,208,255,0.55);
+  box-shadow: 0 0 10px rgba(127,208,255,0.18), inset 0 0 0 1px rgba(127,208,255,0.05);
+}
+.rl-levelup-choice:has(.rl-bucket-trait)::before { background: rgba(127,208,255,0.60); box-shadow: 0 0 6px rgba(127,208,255,0.55); }
+.rl-levelup-choice:hover:has(.rl-bucket-trait) {
+  border-color: rgba(127,208,255,1);
+  background: linear-gradient(90deg, rgba(127,208,255,0.12) 0%, rgba(0,0,0,0) 55%), rgba(127,208,255,0.04);
+  box-shadow: 0 0 20px rgba(127,208,255,0.55), 0 0 40px rgba(127,208,255,0.22), inset 0 0 0 1px rgba(127,208,255,0.18);
+}
+.rl-levelup-choice:hover:has(.rl-bucket-trait)::before { background: #7fd0ff; box-shadow: 0 0 10px rgba(127,208,255,1), 0 0 18px rgba(127,208,255,0.55); }
+
+.rl-levelup-choice:has(.rl-bucket-energy) {
+  background: linear-gradient(90deg, rgba(255,224,102,0.06) 0%, rgba(0,0,0,0) 55%), #000;
+  border-color: rgba(255,224,102,0.55);
+  box-shadow: 0 0 10px rgba(255,224,102,0.18), inset 0 0 0 1px rgba(255,224,102,0.05);
+}
+.rl-levelup-choice:has(.rl-bucket-energy)::before { background: rgba(255,224,102,0.55); box-shadow: 0 0 6px rgba(255,224,102,0.55); }
+.rl-levelup-choice:hover:has(.rl-bucket-energy) {
+  border-color: rgba(255,224,102,1);
+  background: linear-gradient(90deg, rgba(255,224,102,0.12) 0%, rgba(0,0,0,0) 55%), rgba(255,224,102,0.04);
+  box-shadow: 0 0 20px rgba(255,224,102,0.55), 0 0 40px rgba(255,224,102,0.22), inset 0 0 0 1px rgba(255,224,102,0.18);
+}
+.rl-levelup-choice:hover:has(.rl-bucket-energy)::before { background: #ffe066; box-shadow: 0 0 10px rgba(255,224,102,1), 0 0 18px rgba(255,224,102,0.55); }
+
+.rl-levelup-choice:has(.rl-bucket-text) {
+  background: linear-gradient(90deg, rgba(216,168,255,0.08) 0%, rgba(0,0,0,0) 55%), #000;
+  border-color: rgba(216,168,255,0.65);
+  box-shadow: 0 0 14px rgba(216,168,255,0.30), 0 0 26px rgba(216,168,255,0.14), inset 0 0 0 1px rgba(216,168,255,0.06);
+}
+.rl-levelup-choice:has(.rl-bucket-text)::before { background: rgba(216,168,255,0.70); box-shadow: 0 0 6px rgba(216,168,255,0.65); }
+.rl-levelup-choice:hover:has(.rl-bucket-text) {
+  border-color: rgba(216,168,255,1);
+  background: linear-gradient(90deg, rgba(216,168,255,0.16) 0%, rgba(0,0,0,0) 55%), rgba(216,168,255,0.05);
+  box-shadow: 0 0 22px rgba(216,168,255,0.80), 0 0 48px rgba(216,168,255,0.35), inset 0 0 0 1px rgba(216,168,255,0.20);
+}
+.rl-levelup-choice:hover:has(.rl-bucket-text)::before { background: #d8a8ff; box-shadow: 0 0 10px rgba(216,168,255,1), 0 0 18px rgba(216,168,255,0.55); }
 
 .rl-levelup-name {
   font-size: 18px; font-weight: 700;
@@ -20298,7 +20377,7 @@ body.killing-blow-cinema::after {
 .rl-shop-slot-card.rl-tier-special .rl-shop-slot-rarity { color: rgba(230,236,242,1); }
 .rl-shop-slot-card.rl-tier-legendary .rl-shop-slot-rarity { color: rgba(255,224,102,1); }
 .rl-shop-slot-card.rl-tier-rare { border-color: rgba(127,208,255,0.7); }
-.rl-shop-slot-card.rl-tier-special { border-color: rgba(220,230,240,0.85); }
+.rl-shop-slot-card.rl-tier-special { border-color: rgba(240,245,250,0.85); }
 .rl-shop-slot-card.rl-tier-legendary { border-color: rgba(255,215,0,0.85); box-shadow: 0 0 16px rgba(255,200,60,0.40), 0 0 32px rgba(255,200,60,0.18); }
 .rl-shop-slot-card-wrap {
   display: flex; align-items: center; justify-content: center;
@@ -20522,7 +20601,7 @@ body.killing-blow-cinema::after {
 .rl-deck-card em { font-style: normal; opacity: 0.65; font-size: 9px; }
 .rl-rarity-common    { border-color: rgba(46,204,113,0.55);  color: #5be39a; }
 .rl-rarity-rare      { border-color: rgba(79,195,247,0.55);  color: #7fd0ff; }
-.rl-rarity-special   { border-color: rgba(220,230,240,0.55); color: #e6ecf2; }
+.rl-rarity-special   { border-color: rgba(240,245,250,0.55); color: #e6ecf2; }
 .rl-rarity-legendary { border-color: rgba(255,215,0,0.65);   color: #ffe066; }
 
 /* Rewards picker (post-fight) */
@@ -20788,7 +20867,7 @@ body.killing-blow-cinema::after {
 /* ----- Rarity tier styling (cards in rewards / deck viewer) ----- */
 .rl-tier-common    { --tier-color: rgba(46,204,113,0.95);  --tier-name: #5be39a; }
 .rl-tier-rare      { --tier-color: rgba(79,195,247,0.95);  --tier-name: #7fd0ff; }
-.rl-tier-special   { --tier-color: rgba(220,230,240,0.95); --tier-name: #e6ecf2; }
+.rl-tier-special   { --tier-color: rgba(240,245,250,0.95); --tier-name: #e6ecf2; }
 .rl-tier-legendary { --tier-color: rgba(255,215,0,0.95);   --tier-name: #ffe066; }
 
 /* Reward picker — three cards floating like a draft, no wrapper chrome.
@@ -20831,39 +20910,49 @@ body.killing-blow-cinema::after {
 /* Border + outer halo */
 .rl-tier-common .card.hand-card { border-color: rgba(46,204,113,0.95) !important; box-shadow: 0 0 10px rgba(46,204,113,0.45), 0 0 20px rgba(46,204,113,0.18) !important; }
 .rl-tier-rare .card.hand-card { border-color: rgba(79,195,247,0.95) !important; box-shadow: 0 0 10px rgba(79,195,247,0.45), 0 0 20px rgba(79,195,247,0.18) !important; }
-.rl-tier-special .card.hand-card { border-color: rgba(220,230,240,0.95) !important; box-shadow: 0 0 10px rgba(220,230,240,0.45), 0 0 20px rgba(220,230,240,0.18) !important; }
+.rl-tier-special .card.hand-card { border-color: rgba(240,245,250,0.95) !important; box-shadow: 0 0 10px rgba(240,245,250,0.45), 0 0 20px rgba(240,245,250,0.18) !important; }
 .rl-tier-legendary .card.hand-card { border-color: rgba(255,215,0,0.95) !important; box-shadow: 0 0 12px rgba(255,215,0,0.55), 0 0 24px rgba(255,215,0,0.22) !important; }
 
 /* Card name */
 .rl-tier-common .card.hand-card .card-name { color: #5be39a !important; text-shadow: 0 0 6px rgba(46,204,113,0.55) !important; }
 .rl-tier-rare .card.hand-card .card-name { color: #7fd0ff !important; text-shadow: 0 0 6px rgba(79,195,247,0.55) !important; }
-.rl-tier-special .card.hand-card .card-name { color: #e6ecf2 !important; text-shadow: 0 0 6px rgba(220,230,240,0.55) !important; }
+.rl-tier-special .card.hand-card .card-name { color: #ffffff !important; text-shadow: 0 0 6px rgba(240,245,250,0.65) !important; }
 .rl-tier-legendary .card.hand-card .card-name { color: #ffe066 !important; text-shadow: 0 0 6px rgba(255,215,0,0.55) !important; }
 
 /* Cost diamond (top-left). The ::before is the rotated black square
    with the tier-colored border. */
 .rl-tier-common .card.hand-card .card-cost { color: #5be39a !important; text-shadow: 0 0 6px rgba(46,204,113,0.95), 0 0 12px rgba(46,204,113,0.45) !important; }
 .rl-tier-rare .card.hand-card .card-cost { color: #7fd0ff !important; text-shadow: 0 0 6px rgba(79,195,247,0.95), 0 0 12px rgba(79,195,247,0.45) !important; }
-.rl-tier-special .card.hand-card .card-cost { color: #e6ecf2 !important; text-shadow: 0 0 6px rgba(220,230,240,0.95), 0 0 12px rgba(220,230,240,0.45) !important; }
+.rl-tier-special .card.hand-card .card-cost { color: #ffffff !important; text-shadow: 0 0 6px rgba(240,245,250,1), 0 0 12px rgba(240,245,250,0.55) !important; }
 .rl-tier-legendary .card.hand-card .card-cost { color: #ffe066 !important; text-shadow: 0 0 6px rgba(255,215,0,0.95), 0 0 12px rgba(255,215,0,0.45) !important; }
 .rl-tier-common .card.hand-card .card-cost::before { border-color: rgba(46,204,113,1) !important; box-shadow: 0 0 12px rgba(46,204,113,0.75), 0 0 24px rgba(46,204,113,0.30) !important; }
 .rl-tier-rare .card.hand-card .card-cost::before { border-color: rgba(79,195,247,1) !important; box-shadow: 0 0 12px rgba(79,195,247,0.75), 0 0 24px rgba(79,195,247,0.30) !important; }
-.rl-tier-special .card.hand-card .card-cost::before { border-color: rgba(220,230,240,1) !important; box-shadow: 0 0 12px rgba(220,230,240,0.75), 0 0 24px rgba(220,230,240,0.30) !important; }
+.rl-tier-special .card.hand-card .card-cost::before { border-color: rgba(240,245,250,1) !important; box-shadow: 0 0 12px rgba(240,245,250,0.75), 0 0 24px rgba(240,245,250,0.30) !important; }
 .rl-tier-legendary .card.hand-card .card-cost::before { border-color: rgba(255,215,0,1) !important; box-shadow: 0 0 12px rgba(255,215,0,0.75), 0 0 24px rgba(255,215,0,0.30) !important; }
 
 /* Rarity-strip pips (top-right tier indicator). Render N pips matching
    the run rarity tier instead of the cost-based tier. */
 .rl-tier-common .card.hand-card .rarity-strip .rpip { background: rgba(46,204,113,0.95) !important; box-shadow: 0 0 4px rgba(46,204,113,0.65) !important; }
 .rl-tier-rare .card.hand-card .rarity-strip .rpip { background: rgba(79,195,247,0.95) !important; box-shadow: 0 0 4px rgba(79,195,247,0.65) !important; }
-.rl-tier-special .card.hand-card .rarity-strip .rpip { background: rgba(220,230,240,0.95) !important; box-shadow: 0 0 4px rgba(220,230,240,0.65) !important; }
+.rl-tier-special .card.hand-card .rarity-strip .rpip { background: rgba(240,245,250,0.95) !important; box-shadow: 0 0 4px rgba(240,245,250,0.65) !important; }
 .rl-tier-legendary .card.hand-card .rarity-strip .rpip { background: rgba(255,215,0,0.95) !important; box-shadow: 0 0 4px rgba(255,215,0,0.65) !important; }
 
-/* Name-banner underline (the green hairline under the card name).
-   Original uses a gradient via ::after — recolor it per tier. */
-.rl-tier-common .card.hand-card .card-name-banner::after { background: linear-gradient(90deg, transparent, rgba(46,204,113,0.85) 35%, rgba(46,204,113,0.85) 65%, transparent) !important; }
-.rl-tier-rare .card.hand-card .card-name-banner::after { background: linear-gradient(90deg, transparent, rgba(79,195,247,0.85) 35%, rgba(79,195,247,0.85) 65%, transparent) !important; }
-.rl-tier-special .card.hand-card .card-name-banner::after { background: linear-gradient(90deg, transparent, rgba(220,230,240,0.85) 35%, rgba(220,230,240,0.85) 65%, transparent) !important; }
-.rl-tier-legendary .card.hand-card .card-name-banner::after { background: linear-gradient(90deg, transparent, rgba(255,215,0,0.85) 35%, rgba(255,215,0,0.85) 65%, transparent) !important; }
+/* Name-banner underline. Two surfaces need per-rarity tinting:
+   1) `.card-name-banner` itself has a `border-bottom: 1px solid var(--card-edge)`
+      that draws the actual horizontal hairline. Without an override it
+      stays the default theme-cyan and reads as a "wrong-color line"
+      on legendary cards. User report: "the underneath line is not
+      [yellow]." Fixed by tinting border-bottom per tier.
+   2) The `::after` pseudo-element draws the centered diamond accent
+      below the line — recolor its background + glow too. */
+.rl-tier-common .card.hand-card .card-name-banner       { border-bottom-color: rgba(46,204,113,0.85) !important; }
+.rl-tier-rare .card.hand-card .card-name-banner         { border-bottom-color: rgba(79,195,247,0.85) !important; }
+.rl-tier-special .card.hand-card .card-name-banner      { border-bottom-color: rgba(240,245,250,0.85) !important; }
+.rl-tier-legendary .card.hand-card .card-name-banner    { border-bottom-color: rgba(255,215,0,0.95) !important; }
+.rl-tier-common .card.hand-card .card-name-banner::after    { background: rgba(46,204,113,1) !important; box-shadow: 0 0 4px rgba(46,204,113,0.85), 0 0 8px rgba(46,204,113,0.45) !important; }
+.rl-tier-rare .card.hand-card .card-name-banner::after      { background: rgba(79,195,247,1) !important; box-shadow: 0 0 4px rgba(79,195,247,0.85), 0 0 8px rgba(79,195,247,0.45) !important; }
+.rl-tier-special .card.hand-card .card-name-banner::after   { background: rgba(240,245,250,1) !important; box-shadow: 0 0 4px rgba(240,245,250,0.85), 0 0 8px rgba(240,245,250,0.45) !important; }
+.rl-tier-legendary .card.hand-card .card-name-banner::after { background: rgba(255,215,0,1) !important; box-shadow: 0 0 4px rgba(255,215,0,0.85), 0 0 8px rgba(255,215,0,0.45) !important; }
 
 /* In-game (hand + board) rarity tinting — when the rarity class is
    applied DIRECTLY to the .card element (via UI.makeCardEl seeing
@@ -20879,7 +20968,7 @@ body.killing-blow-cinema::after {
 .card.enemy-card.rl-tier-rare { border-color: rgba(79,195,247,0.95) !important; box-shadow: 0 0 10px rgba(79,195,247,0.45), 0 0 20px rgba(79,195,247,0.18) !important; }
 .card.hand-card.rl-tier-special,
 .card.ally-card.rl-tier-special,
-.card.enemy-card.rl-tier-special { border-color: rgba(220,230,240,0.95) !important; box-shadow: 0 0 10px rgba(220,230,240,0.45), 0 0 20px rgba(220,230,240,0.18) !important; }
+.card.enemy-card.rl-tier-special { border-color: rgba(240,245,250,0.95) !important; box-shadow: 0 0 10px rgba(240,245,250,0.45), 0 0 20px rgba(240,245,250,0.18) !important; }
 .card.hand-card.rl-tier-legendary,
 .card.ally-card.rl-tier-legendary,
 .card.enemy-card.rl-tier-legendary { border-color: rgba(255,215,0,0.95) !important; box-shadow: 0 0 12px rgba(255,215,0,0.55), 0 0 24px rgba(255,215,0,0.22) !important; }
@@ -20888,23 +20977,23 @@ body.killing-blow-cinema::after {
    for in-game cards (matching codex tinting). */
 .card.rl-tier-common .card-name { color: #5be39a !important; text-shadow: 0 0 6px rgba(46,204,113,0.55) !important; }
 .card.rl-tier-rare .card-name { color: #7fd0ff !important; text-shadow: 0 0 6px rgba(79,195,247,0.55) !important; }
-.card.rl-tier-special .card-name { color: #e6ecf2 !important; text-shadow: 0 0 6px rgba(220,230,240,0.55) !important; }
+.card.rl-tier-special .card-name { color: #e6ecf2 !important; text-shadow: 0 0 6px rgba(240,245,250,0.55) !important; }
 .card.rl-tier-legendary .card-name { color: #ffe066 !important; text-shadow: 0 0 6px rgba(255,215,0,0.55) !important; }
 .card.rl-tier-common .card-cost { color: #5be39a !important; text-shadow: 0 0 6px rgba(46,204,113,0.95), 0 0 12px rgba(46,204,113,0.45) !important; }
 .card.rl-tier-rare .card-cost { color: #7fd0ff !important; text-shadow: 0 0 6px rgba(79,195,247,0.95), 0 0 12px rgba(79,195,247,0.45) !important; }
-.card.rl-tier-special .card-cost { color: #e6ecf2 !important; text-shadow: 0 0 6px rgba(220,230,240,0.95), 0 0 12px rgba(220,230,240,0.45) !important; }
+.card.rl-tier-special .card-cost { color: #e6ecf2 !important; text-shadow: 0 0 6px rgba(240,245,250,0.95), 0 0 12px rgba(240,245,250,0.45) !important; }
 .card.rl-tier-legendary .card-cost { color: #ffe066 !important; text-shadow: 0 0 6px rgba(255,215,0,0.95), 0 0 12px rgba(255,215,0,0.45) !important; }
 .card.rl-tier-common .card-cost::before { border-color: rgba(46,204,113,1) !important; box-shadow: 0 0 12px rgba(46,204,113,0.75), 0 0 24px rgba(46,204,113,0.30) !important; }
 .card.rl-tier-rare .card-cost::before { border-color: rgba(79,195,247,1) !important; box-shadow: 0 0 12px rgba(79,195,247,0.75), 0 0 24px rgba(79,195,247,0.30) !important; }
-.card.rl-tier-special .card-cost::before { border-color: rgba(220,230,240,1) !important; box-shadow: 0 0 12px rgba(220,230,240,0.75), 0 0 24px rgba(220,230,240,0.30) !important; }
+.card.rl-tier-special .card-cost::before { border-color: rgba(240,245,250,1) !important; box-shadow: 0 0 12px rgba(240,245,250,0.75), 0 0 24px rgba(240,245,250,0.30) !important; }
 .card.rl-tier-legendary .card-cost::before { border-color: rgba(255,215,0,1) !important; box-shadow: 0 0 12px rgba(255,215,0,0.75), 0 0 24px rgba(255,215,0,0.30) !important; }
 .card.rl-tier-common .rarity-strip .rpip { background: rgba(46,204,113,0.95) !important; box-shadow: 0 0 4px rgba(46,204,113,0.65) !important; }
 .card.rl-tier-rare .rarity-strip .rpip { background: rgba(79,195,247,0.95) !important; box-shadow: 0 0 4px rgba(79,195,247,0.65) !important; }
-.card.rl-tier-special .rarity-strip .rpip { background: rgba(220,230,240,0.95) !important; box-shadow: 0 0 4px rgba(220,230,240,0.65) !important; }
+.card.rl-tier-special .rarity-strip .rpip { background: rgba(240,245,250,0.95) !important; box-shadow: 0 0 4px rgba(240,245,250,0.65) !important; }
 .card.rl-tier-legendary .rarity-strip .rpip { background: rgba(255,215,0,0.95) !important; box-shadow: 0 0 4px rgba(255,215,0,0.65) !important; }
 .card.rl-tier-common .card-name-banner::after { background: linear-gradient(90deg, transparent, rgba(46,204,113,0.85) 35%, rgba(46,204,113,0.85) 65%, transparent) !important; }
 .card.rl-tier-rare .card-name-banner::after { background: linear-gradient(90deg, transparent, rgba(79,195,247,0.85) 35%, rgba(79,195,247,0.85) 65%, transparent) !important; }
-.card.rl-tier-special .card-name-banner::after { background: linear-gradient(90deg, transparent, rgba(220,230,240,0.85) 35%, rgba(220,230,240,0.85) 65%, transparent) !important; }
+.card.rl-tier-special .card-name-banner::after { background: linear-gradient(90deg, transparent, rgba(240,245,250,0.85) 35%, rgba(240,245,250,0.85) 65%, transparent) !important; }
 .card.rl-tier-legendary .card-name-banner::after { background: linear-gradient(90deg, transparent, rgba(255,215,0,0.85) 35%, rgba(255,215,0,0.85) 65%, transparent) !important; }
 
 /* Stat-roll indicators — when a rolled card's stats deviate from base,
@@ -20977,16 +21066,17 @@ body.killing-blow-cinema::after {
   width: 96%; max-width: 1080px;
   max-height: 86vh;
   padding: 36px 36px 32px;
-  background:
-    linear-gradient(180deg, var(--theme-accent-edge, rgba(79,195,247,0.05)) 0%, rgba(0,0,0,0) 40%),
-    #000;
+  /* Solid black panel — the previous top-fade gradient read as a
+     "weird stripe" against the modal title. User report: "this weird
+     gradient or whatever on the top." Pure black + the corner-bracket
+     accents + outer glow are enough Tron treatment. */
+  background: #000;
   border: 1px solid var(--theme-accent-bright, rgba(79,195,247,0.55));
   border-radius: 6px;
   box-shadow:
     0 0 32px var(--theme-glow-inner, rgba(79,195,247,0.30)),
     0 0 72px var(--theme-glow-outer, rgba(79,195,247,0.14)),
-    inset 0 0 0 1px var(--theme-accent-edge, rgba(79,195,247,0.08)),
-    inset 0 1px 0 var(--theme-accent-edge, rgba(79,195,247,0.35));
+    inset 0 0 0 1px var(--theme-accent-edge, rgba(79,195,247,0.08));
   overflow-y: auto;
   color: #e6eef5;
 }
