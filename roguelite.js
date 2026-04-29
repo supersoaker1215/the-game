@@ -1030,6 +1030,14 @@ const Roguelite = {
       const e = this.ETCHES[tier].find(x => x.id === etchId);
       if (e) return e;
     }
+    // Also check the per-card Text+ table — those upgrade definitions
+    // are stored by card name but each has a unique id we can match.
+    if (this.CARD_TEXT_UPGRADES) {
+      for (const name of Object.keys(this.CARD_TEXT_UPGRADES)) {
+        const u = this.CARD_TEXT_UPGRADES[name];
+        if (u && u.id === etchId) return u;
+      }
+    }
     return null;
   },
 
@@ -1502,28 +1510,115 @@ const Roguelite = {
   // Cantrip, Echo, Phoenix, Berserker, etc. all classify as traits.
   _isTraitEtch(id)    { return !this._isStatBumpEtch(id) && !this._isEnergyEtch(id) && !this._isTextEtch(id); },
 
-  // Cards whose abilities scale via Game.rarityValue() — these are the
-  // ONLY cards eligible for the Text+ etch. User feedback: "I got Text+
-  // on Winter Soldier and it said 'Splash 2' but Winter Soldier doesn't
-  // have splash. The text upgrade has to be specific to each card."
-  //
-  // Text+ promotes the card's effective rarity tier so its built-in
-  // ability scales (Hawkeye Splash 1 → 2, Black Widow Freeze 1 → 2,
-  // Galactus devour 2 → 3, etc.). For cards with FIXED text (Winter
-  // Soldier's "destroy ≤3 ATK" + "+1/+1 on destroy"), there's nothing
-  // for Text+ to scale, so we hide it from the picker.
-  //
-  // Long-term: per-card Text+ definitions for the remaining cards
-  // (e.g. Winter Soldier could choose "destroy ≤4 ATK" or "+2/+2 on
-  // destroy"). For now, gate Text+ to just the rarity-scaled set.
+  // Cards whose abilities scale via Game.rarityValue() — these get the
+  // generic 'text-upgrade' etch which bumps the effective rarity tier.
+  // (Hawkeye Splash 1 → 2, Black Widow Freeze 1 → 2, etc.)
   RARITY_SCALED_CARDS: new Set([
     'Black Widow', 'Gorilla Grodd', 'Hawkeye', 'Mr. Freeze', 'Xenomorph',
     'Rocket Raccoon', 'Loki', 'Star-Lord', 'Captain America', 'Iron Man',
     'Joker', 'Hela', 'Magneto', 'Thanos', 'Anakin Skywalker', 'Galactus',
     'Trigon', 'Sandman',
   ]),
+
+  // ----- Per-card Text+ definitions (Phase 2) -----
+  // User direction: "The text upgrade has to be specific to each card.
+  // Winter Soldier's text upgrade should be 'destroy enemy with 4 ATK
+  // or less' or '+2/+2 on destroy'. Every text is different."
+  //
+  // Each entry is { id, name, desc, apply } where apply mutates the
+  // runtime card instance with a flag the card's onPlay / onDeath /
+  // etc. reads. CRITICAL: ROGUELITE-ONLY — the card's ability code
+  // reads each flag with a classic-mode default (e.g. `self._wsCostThreshold || 3`)
+  // so Classic-mode behavior is completely unchanged.
+  //
+  // A card is "Text+-eligible" if EITHER:
+  //   1. It's in RARITY_SCALED_CARDS (uses the generic rarity-tier bump), OR
+  //   2. It has an entry in CARD_TEXT_UPGRADES (gets its specific upgrade)
+  CARD_TEXT_UPGRADES: {
+    'Winter Soldier': {
+      id: 'ws-text', name: 'Bigger Targets',
+      desc: 'WHEN PLAYED destroys enemies with ≤4 ATK (was 3). WHILE ACTIVE buff bumps to +2/+2.',
+      apply: c => { c._wsCostThreshold = 4; c._wsBuffSize = 2; },
+    },
+    'Drax': {
+      id: 'drax-text', name: 'Reach',
+      desc: 'Drax now Splashes 1 on attack.',
+      apply: c => { c.splashRange = (c.splashRange || 0) + 1; if (!c.abilities.includes('Splash 1')) c.abilities.push('Splash 1'); },
+    },
+    'Cyborg': {
+      id: 'cyborg-text', name: 'Replication',
+      desc: 'Summon TWO random cards in Cyborg\'s lane on death (was 1).',
+      apply: c => { c._cyborgSummons = 2; },
+    },
+    /* Jason Voorhees Text+ deferred — his revive uses an owner-level
+       once-per-game flag (jasonReviveUsed) that blocks repeat revives
+       even with extra reviveCharges. Would need a deeper rework to
+       support a "revive twice" upgrade. Skipped for this batch. */
+    'Wolverine': {
+      id: 'wolverine-text', name: 'Adamantium',
+      desc: 'Slays attackers with cost ≤8 (was 7). Revive 2 (was 1).',
+      apply: c => { c._wolverineKillThreshold = 8; c.reviveCharges = (c.reviveCharges || 0) + 1; },
+    },
+    'Bane': {
+      id: 'bane-text', name: 'Venom Surge',
+      desc: 'Bane rages for +2/+2 when damaged (was +1/+1).',
+      apply: c => { c._baneRageSize = 2; },
+    },
+    'Catwoman': {
+      id: 'catwoman-text', name: 'Cat Burglar',
+      desc: 'WHEN DISCARDED steals 2 Energy from the opponent next turn (was 1).',
+      apply: c => { c._catwomanSteal = 2; },
+    },
+    /* Dr. Strange Text+ deferred — his peek mechanic is already
+       roguelite-specific (peek 3 vs 2) and the upgrade would need
+       deeper plumbing through handleDrStrangeReorder. Skipped for
+       this batch. */
+    'Ghostface': {
+      id: 'ghostface-text', name: 'Mass Hysteria',
+      desc: 'WHEN PLAYED summons TWO (2/1) Ghostfaces with Bullseye (was 1).',
+      apply: c => { c._ghostfaceSpawns = 2; },
+    },
+    'Harley Quinn': {
+      id: 'harley-text', name: 'Chaos!',
+      desc: 'Both players draw 2 instead of 1.',
+      apply: c => { c._harleyDraw = 2; },
+    },
+    'Invisible Woman': {
+      id: 'iw-text', name: 'Force Field',
+      desc: 'Grant Evade 2 instead of Evade 1.',
+      apply: c => { c._iwEvadeAmount = 2; },
+    },
+    'Sabertooth': {
+      id: 'sabertooth-text', name: 'Bloodthirst',
+      desc: 'Sabertooth gains +2 ATK per kill (was +1).',
+      apply: c => { c._sabertoothRageSize = 2; },
+    },
+    'Solomon Grundy': {
+      id: 'grundy-text', name: 'Born on Monday',
+      desc: 'WHEN DESTROYED draw 2 cards from the shared dead pile (was 1).',
+      apply: c => { c._grundyDeathDraw = 2; },
+    },
+    'Mr. Fantastic': {
+      id: 'fantastic-text', name: 'Maximum Stretch',
+      desc: 'Next card drawn costs 4 less (was 2).',
+      apply: c => { c._fantasticDiscount = 4; },
+    },
+    'Anti-Venom': {
+      id: 'antivenom-text', name: 'Cleanse',
+      desc: 'Heals you for 6 (was 4).',
+      apply: c => { c._antivenomHeal = 6; },
+    },
+  },
+
   cardCanUseTextUpgrade(cardName) {
-    return this.RARITY_SCALED_CARDS.has(cardName);
+    return this.RARITY_SCALED_CARDS.has(cardName)
+        || (this.CARD_TEXT_UPGRADES && this.CARD_TEXT_UPGRADES[cardName] != null);
+  },
+  // Returns the per-card Text+ definition for a given card name, or
+  // null if the card uses the generic rarity-bump path (or is
+  // ineligible). Used by the level-up picker + buildRunCard.
+  cardTextUpgrade(cardName) {
+    return (this.CARD_TEXT_UPGRADES && this.CARD_TEXT_UPGRADES[cardName]) || null;
   },
 
   // Pick one Common-tier trait etch the card doesn't already have.
@@ -1563,10 +1658,11 @@ const Roguelite = {
     // so we hide it from the picker. User feedback: "I got Text+ on
     // Winter Soldier — but Winter Soldier doesn't have anything that
     // scales. The text upgrade has to be specific to each card."
+    // Resolve the Text+ entry for this specific card. Prefer the
+    // card-specific upgrade (CARD_TEXT_UPGRADES) — falls back to the
+    // generic rarity-bump etch for the original 18 rarity-scaled cards.
     const cardName = cardRef && cardRef.defName;
-    const textEtch = (cardName && this.cardCanUseTextUpgrade(cardName))
-      ? this._findEtch('text-upgrade')
-      : null;
+    const textEtch = this._resolveTextEtchForCard(cardName);
     const pickFrom = (poolArr, label) => {
       if (!poolArr.length) return null;
       const e = poolArr[Math.floor(Math.random() * poolArr.length)];
@@ -1575,12 +1671,25 @@ const Roguelite = {
     const a = pickFrom(stats,  'Stats');
     const useText = textEtch && Math.random() < 0.05;
     const b = useText
-      ? { id: textEtch.id, name: textEtch.name, bucket: 'Text', desc: this.etchDesc(textEtch.id) }
+      ? { id: textEtch.id, name: textEtch.name, bucket: 'Text', desc: textEtch.desc || this.etchDesc(textEtch.id) }
       : pickFrom(traits, 'Trait');
     const c = pickFrom(energy, 'Energy');
     const out = [];
     [a, b, c].forEach(x => { if (x) out.push(x); });
     return out;
+  },
+
+  // Returns the Text+ etch object for a given card name. Card-specific
+  // upgrades win — they have hand-tuned text describing what changes.
+  // Falls back to the generic 'text-upgrade' etch (rarity-tier bump)
+  // for the 18 cards in RARITY_SCALED_CARDS. Cards in neither set
+  // return null (Text+ skipped from the picker).
+  _resolveTextEtchForCard(cardName) {
+    if (!cardName) return null;
+    const custom = this.cardTextUpgrade(cardName);
+    if (custom) return custom;
+    if (this.RARITY_SCALED_CARDS.has(cardName)) return this._findEtch('text-upgrade');
+    return null;
   },
 
   _rollLevelUpChoices(targetRarity, n, cardRef) {
@@ -1605,16 +1714,16 @@ const Roguelite = {
       // rare or fallback — common-floor upgrade band.
       tierPool = [...this.ETCHES.common, ...this.ETCHES.rare];
     }
-    // Hide Text+ from the picker for cards whose abilities don't scale
-    // by rarity tier. User feedback: "Text+ on Winter Soldier did
-    // nothing — text upgrades have to be specific to each card."
+    // Resolve the per-card Text+ entry. Card-specific custom upgrade
+    // wins; falls back to the generic rarity-bump etch for cards in
+    // RARITY_SCALED_CARDS; otherwise null = no Text+ for this card.
     const cardName = cardRef && cardRef.defName;
-    const textAllowed = !!(cardName && this.cardCanUseTextUpgrade(cardName));
+    const cardTextEtch = this._resolveTextEtchForCard(cardName);
     const buckets = {
       stats:  tierPool.filter(e => this._isStatBumpEtch(e.id)),
       trait:  tierPool.filter(e => this._isTraitEtch(e.id) && !this._isTextEtch(e.id)),
       energy: tierPool.filter(e => this._isEnergyEtch(e.id)),
-      text:   textAllowed ? tierPool.filter(e => this._isTextEtch(e.id)) : [],
+      text:   cardTextEtch ? [cardTextEtch] : [],
     };
     const labelOf = { stats: 'Stats', trait: 'Trait', energy: 'Energy', text: 'Text' };
     const rollBucket = () => {
@@ -1640,7 +1749,10 @@ const Roguelite = {
       const cand = pool[Math.floor(Math.random() * pool.length)];
       if (usedIds.has(cand.id)) continue;
       usedIds.add(cand.id);
-      choices.push({ id: cand.id, name: cand.name, bucket: labelOf[bucket], desc: this.etchDesc(cand.id) });
+      // Card-specific Text+ entries carry their own `desc` field; for
+      // generic etches, fall back to the ETCH_DESCS lookup.
+      const desc = cand.desc || this.etchDesc(cand.id);
+      choices.push({ id: cand.id, name: cand.name, bucket: labelOf[bucket], desc });
     }
     return choices;
   },

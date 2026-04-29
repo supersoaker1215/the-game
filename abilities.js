@@ -269,9 +269,11 @@ const CARD_ABILITIES = {
   },
   "Harley Quinn": {
     onPlay(G, self, lane) {
-      G.drawCards(self.owner, 1);
-      G.drawCards(G.opponent(self.owner), 1);
-      G.log("Harley Quinn makes everyone draw!");
+      // Roguelite Text+ override — _harleyDraw scales the draw amount.
+      const n = self._harleyDraw || 1;
+      G.drawCards(self.owner, n);
+      G.drawCards(G.opponent(self.owner), n);
+      G.log(`Harley Quinn makes everyone draw ${n}!`);
       // First ATK roll happens immediately on play — startRound's
       // sweep handles subsequent rerolls via the Crazy trait.
       G.rerollCrazyInsane(self);
@@ -332,10 +334,12 @@ const CARD_ABILITIES = {
   "Mr. Fantastic": {
     isDiscardEffect: true,
     onDiscard(G, owner, self) {
-      G.state[owner].nextDrawDiscount += 2;
+      // Roguelite Text+ override — _fantasticDiscount scales the next-draw
+      // discount from 2 to whatever's set (4 with Text+).
+      const disc = (self && self._fantasticDiscount) || 2;
+      G.state[owner].nextDrawDiscount += disc;
       // Track the Mr. Fantastic instance that set this so drawCards can
-      // credit him with actual `statsDiscountValue` at apply time
-      // (matches the amount actually used, not the 2 we just posted).
+      // credit him with actual `statsDiscountValue` at apply time.
       if (self) G.state[owner]._nextDrawDiscountSource = self;
     }
   },
@@ -366,8 +370,10 @@ const CARD_ABILITIES = {
   },
   "Sabertooth": {
     onDamagePlayer(G, self) {
-      G.buffCard(self, 1, 1);
-      G.log("Sabertooth grows! +1/+1");
+      // Roguelite Text+ override — _sabertoothRageSize scales the buff.
+      const n = self._sabertoothRageSize || 1;
+      G.buffCard(self, n, n);
+      G.log(`Sabertooth grows! +${n}/+${n}`);
     }
   },
   "Xenomorph": {
@@ -415,22 +421,25 @@ const CARD_ABILITIES = {
     onDamaged(G, self) {
       // Only rage if Bane actually survived the hit. No auto-revive from 0 HP.
       if (self.currentHealth <= 0) return;
-      self.attack += 1;
-      self.maxHealth += 1;
-      self.currentHealth += 1;
-      G.log(`Bane rages! +1/+1 → ${self.attack}/${self.currentHealth}`);
+      // Roguelite Text+ override — _baneRageSize scales the +N/+N buff.
+      const n = self._baneRageSize || 1;
+      self.attack += n;
+      self.maxHealth += n;
+      self.currentHealth += n;
+      G.log(`Bane rages! +${n}/+${n} → ${self.attack}/${self.currentHealth}`);
     }
   },
   "Catwoman": {
     isDiscardEffect: true,
     onDiscard(G, owner, self) {
+      // Roguelite Text+ override — _catwomanSteal scales the swing.
+      const n = (self && self._catwomanSteal) || 1;
       const opp = G.opponent(owner);
-      G.addNextTurnCurrency(owner, 1);
-      G.addNextTurnCurrency(opp, -1);
-      G.log("Catwoman steals 1 energy from the enemy next turn!");
-      // v3 — credit Catwoman with the 2 energy swing (gain 1 self,
-      // deny 1 enemy). Counts as tempo/discount value.
-      if (self) G._creditChain(self, 'statsDiscountValue', 2);
+      G.addNextTurnCurrency(owner, n);
+      G.addNextTurnCurrency(opp, -n);
+      G.log(`Catwoman steals ${n} energy from the enemy next turn!`);
+      // v3 — credit Catwoman with the energy swing (gain N self, deny N enemy).
+      if (self) G._creditChain(self, 'statsDiscountValue', n * 2);
     }
   },
   "Dr. Strange": (() => {
@@ -497,7 +506,11 @@ const CARD_ABILITIES = {
   },
   "Ghostface": {
     onPlay(G, self, lane) {
-      G.summonCardChoice(self.owner, "Ghostface", 2, 2, 1, ["Bullseye"]);
+      // Roguelite Text+ override — _ghostfaceSpawns scales the count.
+      const count = self._ghostfaceSpawns || 1;
+      for (let i = 0; i < count; i++) {
+        G.summonCardChoice(self.owner, "Ghostface", 2, 2, 1, ["Bullseye"]);
+      }
     }
   },
   "Human Torch": {
@@ -515,13 +528,15 @@ const CARD_ABILITIES = {
   },
   "Invisible Woman": {
     onPlay(G, self, lane) {
+      // Roguelite Text+ override — _iwEvadeAmount scales the grant.
+      const evadeN = self._iwEvadeAmount || 1;
       const allies = G.getAlliesOf(self.owner).filter(a => a.id !== self.id);
       const grant = (a) => {
-        G.grantTempBuff(a, { evadeCharges: 1 });
-        G.log(`Invisible Woman grants Evade to ${a.name} for 1 turn!`);
+        G.grantTempBuff(a, { evadeCharges: evadeN });
+        G.log(`Invisible Woman grants Evade ${evadeN} to ${a.name} for 1 turn!`);
       };
       if (allies.length) {
-        G.promptCardChoice(self.owner, allies, "Invisible Woman — Evade", "Choose ally to give Evade 1 (1 turn)", grant,
+        G.promptCardChoice(self.owner, allies, "Invisible Woman — Evade", `Choose ally to give Evade ${evadeN} (1 turn)`, grant,
           cards => cards.sort((a, b) => b.attack - a.attack)[0]);
       }
     },
@@ -886,8 +901,11 @@ const CARD_ABILITIES = {
   },
   "Solomon Grundy": {
     onDeath(G, self, lane) {
-      const allDead = [...G.state.player.deadPile, ...G.state.ai.deadPile];
-      if (allDead.length) {
+      // Roguelite Text+ override — _grundyDeathDraw scales draw count.
+      const draws = self._grundyDeathDraw || 1;
+      for (let i = 0; i < draws; i++) {
+        const allDead = [...G.state.player.deadPile, ...G.state.ai.deadPile];
+        if (!allDead.length) break;
         const idx = Math.floor(Math.random() * allDead.length);
         let card;
         if (idx < G.state.player.deadPile.length) {
@@ -972,23 +990,31 @@ const CARD_ABILITIES = {
   },
   "Winter Soldier": {
     onPlay(G, self, lane) {
-      const targets = G.getEnemiesOf(self.owner).filter(c => c.attack <= 3);
+      // Roguelite Text+ override — promotes destroy threshold from 3
+      // to whatever's in self._wsCostThreshold. Defaults to 3 so classic
+      // mode is unchanged.
+      const threshold = self._wsCostThreshold || 3;
+      const targets = G.getEnemiesOf(self.owner).filter(c => c.attack <= threshold);
       if (targets.length) {
-        G.promptCardChoice(self.owner, targets, "Winter Soldier — Eliminate", "Choose enemy with 3 or less ATK to destroy", (t) => {
+        G.promptCardChoice(self.owner, targets, "Winter Soldier — Eliminate", `Choose enemy with ${threshold} or less ATK to destroy`, (t) => {
           G.log(`Winter Soldier eliminates ${t.name}!`); G.killCard(t, self);
         }, _aiThreatPicker);
       }
     },
     onKill(G, self) {
-      G.buffCard(self, 1, 1);
-      G.log(`Winter Soldier toughens! +1/+1 → ${self.attack}/${self.currentHealth}`);
+      // Roguelite Text+ override — buff size scales via _wsBuffSize.
+      const buff = self._wsBuffSize || 1;
+      G.buffCard(self, buff, buff);
+      G.log(`Winter Soldier toughens! +${buff}/+${buff} → ${self.attack}/${self.currentHealth}`);
     }
   },
 
   // ==================== COST 4 ====================
   "Anti-Venom": {
     onPlay(G, self, lane) {
-      G.healPlayer(self.owner, 4, self);
+      // Roguelite Text+ override — _antivenomHeal scales heal amount.
+      const heal = self._antivenomHeal || 4;
+      G.healPlayer(self.owner, heal, self);
       const allies = G.getAlliesOf(self.owner).filter(a => a.id !== self.id);
       const open = G.getOpenLanes(self.owner);
       if (allies.length && open.length) {
@@ -1054,33 +1080,40 @@ const CARD_ABILITIES = {
   },
   "Cyborg": {
     onDeath(G, self, lane) {
+      // Roguelite Text+ override — _cyborgSummons scales the count.
+      // Each summon needs a target lane. We try Cyborg's slot first,
+      // then any open ally lane. Stops if no eligible card or lane.
+      const summons = self._cyborgSummons || 1;
       const hand = G.state[self.owner].hand;
-      if (!hand.length) return;
-      // Filter out discard-effect cards (Catwoman, Loki, etc.) — they
-      // have 0/0 stats and would land as a dead body with no discard
-      // trigger firing, since Cyborg's last-act path bypasses the
-      // hand-discard step. User report: "Catwoman was summoned onto
-      // board from a summon — that's a bug."
-      const eligible = hand.filter(c => !c.isDiscardEffect);
-      if (!eligible.length) return;
-      // Clear Cyborg from the slot so the new card can take its place
+      // Clear Cyborg from the slot so the first summon can take its place
       if (G.state.lanes[lane] && G.state.lanes[lane][self.owner] === self) {
         G.state.lanes[lane][self.owner] = null;
       }
-      const card = eligible[Math.floor(Math.random() * eligible.length)];
-      const handIdx = hand.indexOf(card);
-      if (handIdx >= 0) hand.splice(handIdx, 1);
-      // Look up the full card definition so onPlay / passives fire like a normal play
-      const def = (typeof CARD_DEFS !== 'undefined' && CARD_DEFS.find(d => d.name === card.name)) || card;
-      G.log(`Cyborg's last act: summoning ${card.name} from your hand!`);
-      G.summonCard(
-        self.owner, lane, card.name,
-        card.baseCost || card.cost,
-        card.attack,
-        card.maxHealth || card.health,
-        card.abilities || [],
-        def
-      );
+      for (let i = 0; i < summons; i++) {
+        if (!hand.length) break;
+        const eligible = hand.filter(c => !c.isDiscardEffect);
+        if (!eligible.length) break;
+        // Pick destination — prefer Cyborg's lane, fall back to any open ally lane.
+        let targetLane = lane;
+        if (G.state.lanes[targetLane] && G.state.lanes[targetLane][self.owner]) {
+          const open = G.getOpenLanes(self.owner);
+          if (!open.length) break;
+          targetLane = open[0];
+        }
+        const card = eligible[Math.floor(Math.random() * eligible.length)];
+        const handIdx = hand.indexOf(card);
+        if (handIdx >= 0) hand.splice(handIdx, 1);
+        const def = (typeof CARD_DEFS !== 'undefined' && CARD_DEFS.find(d => d.name === card.name)) || card;
+        G.log(`Cyborg's last act: summoning ${card.name} from your hand!`);
+        G.summonCard(
+          self.owner, targetLane, card.name,
+          card.baseCost || card.cost,
+          card.attack,
+          card.maxHealth || card.health,
+          card.abilities || [],
+          def
+        );
+      }
     }
   },
   "Deadpool": {
@@ -1434,7 +1467,10 @@ const CARD_ABILITIES = {
   },
   "Wolverine": {
     onDamaged(G, self, attacker) {
-      if (attacker && (attacker.baseCost || attacker.cost) <= 7) { G.killCard(attacker, self); G.log(`Wolverine slays ${attacker.name}!`); }
+      // Roguelite Text+ ("Adamantium") can raise the kill ceiling via
+      // self._wolverineKillThreshold; classic mode falls back to 7.
+      const threshold = (self && self._wolverineKillThreshold) || 7;
+      if (attacker && (attacker.baseCost || attacker.cost) <= threshold) { G.killCard(attacker, self); G.log(`Wolverine slays ${attacker.name}!`); }
     },
     onDeath(G, self, lane) {
       if (self.reviveCharges > 0) {
