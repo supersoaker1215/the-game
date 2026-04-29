@@ -333,6 +333,8 @@ const UI = {
       'Harley Quinn':     { death: 'audio/cards/harley-death.mp3' },
       // Joker deathfall — 0.83s clip, plays on every Joker kill.
       'Joker':            { death: 'audio/cards/joker-death.mp3' },
+      // Poison Ivy death — 0.58s clip, plays on every Ivy kill.
+      'Poison Ivy':       { death: 'audio/cards/poison-ivy-death.mp3' },
       // Winter Soldier hover: 52s of Henry Jackman's "End Of The Line"
       // (1:05 → 1:57 of the source) — the cold-war motif build. -20 LUFS
       // unified-baseline, 1s fade-in / 2s fade-out baked. maxDur 53 lets
