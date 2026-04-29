@@ -322,25 +322,39 @@ const Roguelite = {
   // keyword etches on every card; boss relics are big run-defining mods.
   RELICS: [
     // ----- Common (event + shop) -----
+    // ----- STARTER-RELIC BALANCE -----
+    // User feedback (paraphrased): "Battery and Old Manuscript are
+    // broken — I just choose those every time. Crimson Cuirass and
+    // Lucky Coin are weak. Lucky Coin should give +10g per win, not 5."
+    //
+    // Slay-the-Spire-style: each starter relic should be a distinct
+    // playstyle anchor at roughly equivalent power, not a power-creep
+    // ladder. So:
+    //   • Cuirass    → bigger HP buffer (+10 max + 10 heal). Survival anchor.
+    //   • Lucky Coin → +10g/win (was 5). Economy anchor.
+    //   • Manuscript → ROUND-1 ONLY +1 draw. Burst anchor.
+    //   • Battery    → ROUND-1 ONLY +1 energy. Burst anchor.
+    // The two "burst" relics give a tempo lead in round 1 without
+    // free-rolling +1 energy/draw every round of every fight.
     {
       id: 'crimson-cuirass', name: 'Crimson Cuirass', rarity: 'common',
-      desc: '+5 max HP. Heal 5 HP on pickup.',
-      onAcquire(run) { run.maxHp += 5; run.hp = Math.min(run.maxHp, run.hp + 5); },
+      desc: '+10 max HP. Heal 10 HP on pickup.',
+      onAcquire(run) { run.maxHp += 10; run.hp = Math.min(run.maxHp, run.hp + 10); },
     },
     {
       id: 'lucky-coin', name: 'Lucky Coin', rarity: 'common',
-      desc: 'Gain +5 gold after every fight won.',
-      onFightEnd(run, won) { if (won) run.gold += 5; },
+      desc: 'Gain +10 gold after every fight won.',
+      onFightEnd(run, won) { if (won) run.gold += 10; },
     },
     {
       id: 'old-manuscript', name: 'Old Manuscript', rarity: 'common',
-      desc: 'Start each combat round with +1 card drawn.',
-      onFightStart(run) { run._extraDraw = (run._extraDraw || 0) + 1; },
+      desc: 'Round 1 of each fight: draw +1 card.',
+      onFightStart(run) { run._extraDrawR1 = (run._extraDrawR1 || 0) + 1; },
     },
     {
       id: 'battery', name: 'Battery', rarity: 'common',
-      desc: 'Start each combat round with +1 energy.',
-      onFightStart(run) { run._extraEnergy = (run._extraEnergy || 0) + 1; },
+      desc: 'Round 1 of each fight: +1 energy.',
+      onFightStart(run) { run._extraEnergyR1 = (run._extraEnergyR1 || 0) + 1; },
     },
     {
       id: 'healing-brew', name: 'Healing Brew', rarity: 'common',
@@ -1848,6 +1862,9 @@ const Roguelite = {
     // each fight from relic onFightStart hooks).
     _preservedRun._extraEnergy = 0;
     _preservedRun._extraDraw = 0;
+    // Round-1-only counters from starter Battery / Old Manuscript.
+    _preservedRun._extraEnergyR1 = 0;
+    _preservedRun._extraDrawR1 = 0;
     this._applyRelicHook(_preservedRun, 'onFightStart');
     // Hand off to the existing combat engine. The mode shape:
     //   players:1v1, deck:deckbuilder (per-side piles, no shared)

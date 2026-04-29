@@ -1241,6 +1241,11 @@ const Game = {
     // the run state which Roguelite._launchFight refreshed via the
     // onFightStart hook chain right before startMatch fired.
     const relicEnergyBonus = (this.state.roguelite && this.state.roguelite._extraEnergy) || 0;
+    // Round-1-only energy bonus from starter relics (Battery). Applies
+    // ONCE on round 1 of each fight, not every round. User direction:
+    // "Battery is broken — I pick it every time." So flat per-round
+    // becomes a tempo lead in round 1.
+    const relicEnergyBonusR1 = (this.state.roguelite && this.state.roguelite._extraEnergyR1 && r === 1) || 0;
     ['player', 'ai'].forEach(o => {
       // batmanBlocked is now a round-number marker set to R+1 when Batman
       // plays in round R. Clearing it unconditionally here would wipe the
@@ -1249,6 +1254,7 @@ const Game = {
       // round is already treated as inactive without a forced reset.
       let cur = (r * rogueliteEnergyMul) + this.state[o].nextTurnCurrency;
       if (o === 'player' && relicEnergyBonus) cur += relicEnergyBonus;
+      if (o === 'player' && relicEnergyBonusR1) cur += relicEnergyBonusR1;
       this.getAllCardsOf(o).forEach(c => {
         // Attribute each passive's energy bonus to the generating card +
         // its summon chain so the MVP formula credits every ancestor.
@@ -3326,9 +3332,15 @@ const Game = {
     // "each time we draw two cards." Doubles the option density per turn
     // and ramps deck-cycling to match the energy curve.
     const baseDraw = (this.state.mode && this.state.mode._roguelite) ? 2 : 1;
-    // Relic-driven extra draws (Old Manuscript) — player only.
+    // Relic-driven extra draws (Old Manuscript) — player only. Flat
+    // per-round bonus from rare/boss relics, plus a round-1-only bonus
+    // from the starter Old Manuscript (Slay-the-Spire Ring-of-the-Snake
+    // style). User direction: starter relic "Old Manuscript is broken
+    // — I pick it every time" → reframed as round-1-only tempo.
     const relicDrawBonus = (this.state.roguelite && this.state.roguelite._extraDraw) || 0;
-    const playerDraw = baseDraw + relicDrawBonus;
+    const isRound1 = (this.state.round || 1) === 1;
+    const relicDrawBonusR1 = (isRound1 && this.state.roguelite && this.state.roguelite._extraDrawR1) || 0;
+    const playerDraw = baseDraw + relicDrawBonus + relicDrawBonusR1;
     this.handleDrStrangeReorder((peeked) => {
       if (!peeked.has('player')) this.drawCards('player', playerDraw);
       else this.log(`  [FORESEE] Peek counts as your draw this round.`);
