@@ -21630,13 +21630,21 @@ body.killing-blow-cinema::after {
    AI side theme so the lane chrome reads coherently. Codex / deck /
    rewards modals keep the full rarity tint above (those rules win by
    specificity within their containers; this override only fires inside
-   .player-hand-section or .board). User direction: "they should be
-   neon highlighted (theme), the only thing that describes rarity is
-   the squares."
+   .board). User direction: "the cards should be neon highlighted
+   (theme), the only thing that describes rarity is the squares."
+
+   ROGUELITE EXCEPTION (board only): originally this override applied
+   to in-hand cards too, painting them theme-cyan / silver / etc. User
+   later asked to revert hand cards back to their rarity color: "I
+   would like the rarity color to stay the same so they can be green —
+   not white in hand, but on board they look really good right now."
+   So the .player-hand-section selectors were removed from each rule
+   below. In-hand cards now fall back to the rarity tinting up at lines
+   ~21534-21620 (common→green, rare→cyan, special→white, legendary→gold).
+   Board cards still use side-theme.
    ============================================================================ */
 
-/* Player-side cards (in-hand + on board) — border / glow use player theme. */
-.player-hand-section .card.hand-card[class*="rl-tier-"]:not(.rl-curse),
+/* Ally-side cards on board — border / glow use player theme. */
 .board .card.ally-card[class*="rl-tier-"]:not(.rl-curse) {
   border-color: var(--player-accent-bright) !important;
   box-shadow:
@@ -21652,7 +21660,6 @@ body.killing-blow-cinema::after {
 }
 
 /* Card name color — match the side the card belongs to. */
-.player-hand-section .card.hand-card[class*="rl-tier-"]:not(.rl-curse) .card-name,
 .board .card.ally-card[class*="rl-tier-"]:not(.rl-curse) .card-name {
   color: rgba(var(--player-r), var(--player-g), var(--player-b), 1) !important;
   text-shadow: 0 0 6px var(--player-glow-outer) !important;
@@ -21663,7 +21670,6 @@ body.killing-blow-cinema::after {
 }
 
 /* Cost diamond (number) — same side-color treatment. */
-.player-hand-section .card.hand-card[class*="rl-tier-"]:not(.rl-curse) .card-cost,
 .board .card.ally-card[class*="rl-tier-"]:not(.rl-curse) .card-cost {
   color: rgba(var(--player-r), var(--player-g), var(--player-b), 1) !important;
   text-shadow:
@@ -21678,7 +21684,6 @@ body.killing-blow-cinema::after {
 }
 
 /* Cost diamond border (the rotated square frame). */
-.player-hand-section .card.hand-card[class*="rl-tier-"]:not(.rl-curse) .card-cost::before,
 .board .card.ally-card[class*="rl-tier-"]:not(.rl-curse) .card-cost::before {
   border-color: var(--player-accent-bright) !important;
   box-shadow:
@@ -21693,14 +21698,12 @@ body.killing-blow-cinema::after {
 }
 
 /* Card-name banner underline — matches the side. */
-.player-hand-section .card.hand-card[class*="rl-tier-"]:not(.rl-curse) .card-name-banner,
 .board .card.ally-card[class*="rl-tier-"]:not(.rl-curse) .card-name-banner {
   border-bottom-color: var(--player-accent-bright) !important;
 }
 .board .card.enemy-card[class*="rl-tier-"]:not(.rl-curse) .card-name-banner {
   border-bottom-color: var(--enemy-accent-bright) !important;
 }
-.player-hand-section .card.hand-card[class*="rl-tier-"]:not(.rl-curse) .card-name-banner::after,
 .board .card.ally-card[class*="rl-tier-"]:not(.rl-curse) .card-name-banner::after {
   background: var(--player-accent-bright) !important;
   box-shadow: 0 0 4px var(--player-accent-bright), 0 0 8px var(--player-glow-outer) !important;
