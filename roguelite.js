@@ -1898,7 +1898,56 @@ const Roguelite = {
     return choices;
   },
 
-  attributeXp(run, s) {
+  // Apply XP to one deck card. Returns a level-up bucket object if the
+  // card crossed its tier threshold (caller pushes into the modal list),
+  // or null when there's no level-up to surface. Curse cards and
+  // already-legendary cards short-circuit immediately.
+  _grantXp(ref, amount) {
+    if (!ref || amount <= 0) return null;
+    if (ref._isCurse) return null;
+    ref.xp = (ref.xp || 0) + amount;
+    const tierIdx = this.TIER_INDEX[ref.rarity];
+    if (tierIdx == null || tierIdx >= 3) return null;
+    const threshold = this.XP_THRESHOLDS[ref.rarity];
+    if (ref.xp < threshold) return null;
+    ref.rarity = this.TIERS[tierIdx + 1];
+    ref.xp = 0;  // reset on bump
+    // Level-up bucket logic. User direction (most recent): "From
+    // uncommon to rare you auto-get a trait and also 1 upgrade for
+    // stats / text / energy. Then from rare to special it's just
+    // random."
+    //
+    // common → rare: AUTO-GRANT a random Trait keyword (Bullseye,
+    //   Hunt, Armor 1, Taunt 1, Evade 1, Untrickable, Splash 1,
+    //   Overdrive — the keywords stripped from base cards). Plus a
+    //   1-of-3 picker spanning Stats / Trait / Energy buckets.
+    //
+    // rare → special / special → legendary: random 2-pick from the
+    // existing weighted bucket roller (60/25/10/5 Stats/Trait/
+    // Energy/Text).
+    let autoTrait = null;
+    let choices;
+    if (ref.rarity === 'rare') {
+      const trait = this._rollAutoTrait(ref);
+      if (trait) {
+        ref.statuses = ref.statuses || [];
+        ref.statuses.push(trait.id);
+        autoTrait = { id: trait.id, name: trait.name, desc: this.etchDesc(trait.id) };
+      }
+      choices = this._rollCommonToRareChoices(ref);
+    } else {
+      choices = this._rollLevelUpChoices(ref.rarity, 2, ref);
+    }
+    return {
+      defName: ref.defName,
+      newRarity: ref.rarity,
+      choices,
+      autoTrait,
+      cardRef: ref,
+    };
+  },
+
+  attributeXp(run, s, won) {
     if (!run || !s || !s.player) return [];
     const pool = [];
     for (let i = 0; i < Game.LANE_COUNT; i++) {
@@ -1913,57 +1962,36 @@ const Roguelite = {
       const dmg = (card.statsHealthbarDamage || 0) + (card.statsEnemyDamage || 0);
       const kills = card.statsKills || 0;
       const earned = dmg * 1 + kills * 5 + (survived ? 10 : 0);
-      const ref = card._runDeckCardRef;
-      ref.xp += earned;
-      // Check rarity bump
-      const tierIdx = this.TIER_INDEX[ref.rarity];
-      if (tierIdx < 3) {
-        const threshold = this.XP_THRESHOLDS[ref.rarity];
-        if (ref.xp >= threshold) {
-          ref.rarity = this.TIERS[tierIdx + 1];
-          ref.xp = 0;  // reset on bump
-          // Level-up bucket logic. User direction (most recent):
-          // "From uncommon to rare you auto-get a trait and also 1
-          // upgrade for stats / text / energy. Then from rare to
-          // special it's just random."
-          //
-          // common → rare: AUTO-GRANT a random Trait keyword (Bullseye,
-          //   Hunt, Armor 1, Taunt 1, Evade 1, Untrickable, Splash 1,
-          //   Overdrive — the keywords stripped from base cards). Plus
-          //   a 1-of-3 picker spanning the three buckets:
-          //     stats   → flat ATK/HP bumps
-          //     text    → text/keyword etches (Cantrip, Echo, Phoenix…)
-          //     energy  → cost reductions (discount-N)
-          //   So the player ALWAYS gets a baseline keyword on first
-          //   promotion, plus their pick of stat/text/energy.
-          //
-          // rare → special / special → legendary: random 2-pick from
-          //   the existing weighted bucket roller (80% stat / 20% text).
-          let autoTrait = null;
-          let choices;
-          if (ref.rarity === 'rare') {
-            // Just bumped from common → rare. Auto-grant trait + 3-bucket pick.
-            const trait = this._rollAutoTrait(ref);
-            if (trait) {
-              ref.statuses = ref.statuses || [];
-              ref.statuses.push(trait.id);
-              autoTrait = { id: trait.id, name: trait.name, desc: this.etchDesc(trait.id) };
-            }
-            choices = this._rollCommonToRareChoices(ref);
-          } else {
-            // Higher tier promotion — keep the existing 2-pick random.
-            choices = this._rollLevelUpChoices(ref.rarity, 2, ref);
-          }
-          levelUps.push({
-            defName: ref.defName,
-            newRarity: ref.rarity,
-            choices,
-            autoTrait,
-            cardRef: ref,
-          });
-        }
-      }
+      const lu = this._grantXp(card._runDeckCardRef, earned);
+      if (lu) levelUps.push(lu);
     });
+    // PARTICIPATION XP — every deck card that didn't play gets a small
+    // XP boost on a win, so the player isn't punished for finishing
+    // fast. User direction: "if you finish a match quickly, all your
+    // cards should get XP because you shouldn't be punished for
+    // winning early." Amount scales inversely with round count so a
+    // round-1 stomp pays MORE than a round-5 grind: bigger consolation
+    // when the fight ended before most of the deck got dealt out.
+    //
+    // Formula: max(3, 12 - 2*round), clamped to a 3-XP floor.
+    //   Round 1 win → +10 XP per unplayed card  (heavy reward for fast wins)
+    //   Round 2 win → +8 XP
+    //   Round 3 win → +6 XP
+    //   Round 4 win → +4 XP
+    //   Round 5+    → +3 XP                     (floor — every win pays)
+    if (won) {
+      const round = (s && s.round) || 1;
+      const participationXp = Math.max(3, 12 - 2 * round);
+      const playedRefs = new Set();
+      pool.forEach(p => { if (p.card._runDeckCardRef) playedRefs.add(p.card._runDeckCardRef); });
+      (run.deck || []).forEach(deckCard => {
+        if (!deckCard) return;
+        if (playedRefs.has(deckCard)) return;     // already got fight XP
+        if (deckCard._isCurse) return;            // curses can't level up
+        const lu = this._grantXp(deckCard, participationXp);
+        if (lu) levelUps.push(lu);
+      });
+    }
     return levelUps;
   },
 
@@ -2645,8 +2673,11 @@ const Roguelite = {
         if (idx >= 0) run.tricks.splice(idx, 1);
       });
     }
-    // XP attribution + level-ups for cards that participated.
-    const levelUps = this.attributeXp(run, Game.state);
+    // XP attribution + level-ups for cards that participated. Pass
+    // `won` so the participation-XP path inside attributeXp can reward
+    // unplayed deck cards on a win (round-scaled — fast wins pay
+    // more, see _grantXp / participationXp formula in attributeXp).
+    const levelUps = this.attributeXp(run, Game.state, won);
     // Run relic onFightEnd (gold gain, post-fight heals, gauntlet ticks).
     const goldBefore = run.gold || 0;
     this._applyRelicHook(run, 'onFightEnd', won);
