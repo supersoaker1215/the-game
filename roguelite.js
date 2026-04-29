@@ -1657,15 +1657,20 @@ const Roguelite = {
     const shuffled = pool.slice().sort(() => Math.random() - 0.5);
     return shuffled.slice(0, 4);
   },
-  // Roll 3 unique common cards (cost 1-3, real cards — no vanillas, no
-  // starter bodies). Pre-rolled with no etches; treated as Common rarity
-  // when added to the deck (so they get the −1/−1 tier penalty).
+  // Roll 3 unique cards from the FULL CARD_DEFS pool — any cost, any
+  // archetype. User direction: "card rewards can be not just one-to-three
+  // costs." Previously this was capped at cost 1-3 which clipped out
+  // every mid- and high-cost card from the starter pick. Now the
+  // starter offer can include a 6-cost Black Widow or a 9-cost Galactus
+  // — same Common rarity (so they take the -1/-1 tier penalty until
+  // leveled up).
   _rollStarterCardPool() {
     if (typeof CARD_DEFS === 'undefined') return [];
     const pool = CARD_DEFS.filter(d =>
-      (d.cost || 0) >= 1 && (d.cost || 0) <= 3
+      (d.cost || 0) >= 1
       && !this.AI_VANILLA_DEFS.find(v => v.name === d.name)
       && !this.STARTER_DEFS.find(s => s.name === d.name)
+      && (!this.isRogueliteOnlyName || !this.isRogueliteOnlyName(d.name))
     );
     const shuffled = pool.slice().sort(() => Math.random() - 0.5);
     return shuffled.slice(0, 3).map(d => ({ name: d.name, cost: d.cost, attack: d.attack, health: d.health, abilities: d.abilities, desc: d.desc }));
