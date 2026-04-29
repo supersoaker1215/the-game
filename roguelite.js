@@ -683,6 +683,19 @@ const Roguelite = {
       boon: boon || null,
       pendingRewards: null,
       lastResult: null,
+      // Lifetime run counters — surfaced on the end-of-run summary.
+      // User polish suggestion: "Add a 'Run Complete' panel with total
+      // gold earned, fights won, time taken, etc." Counters increment
+      // in _onFightEnd and other state-mutation hooks.
+      _stats: {
+        startTime: Date.now(),
+        fightsWon: 0,
+        elitesWon: 0,
+        bossesWon: 0,
+        goldEarned: (boon && boon.gold) || 50,
+        totalDamageDealt: 0,
+        totalHpLost: 0,
+      },
     };
     if (boon) {
       if (boon.bonusCard) {
@@ -1143,13 +1156,16 @@ const Roguelite = {
   BOSS_PREVIEWS: {
     1: { key: 'act1-luthor',  persona: 'Lex Luthor', archetype: 'Control',
          flavor: 'Locks down lanes, fears your high-cost cards, snipes your low-HP bodies. Pack ATK debuff and Bullseye.',
-         hpRange: '28–38' },
+         hpRange: '28–38',
+         signature: ['Lex Luthor', 'Joker', 'Magneto'] },
     2: { key: 'act2-doom',    persona: 'Doctor Doom', archetype: 'Summon Swarm',
          flavor: 'Floods the board with Doombots and revives. Pack lane denial, Splash, and direct destroy.',
-         hpRange: '40–55' },
+         hpRange: '40–55',
+         signature: ['Doctor Doom', 'Hela', 'Mother Box'] },
     3: { key: 'act3-galactus', persona: 'Galactus', archetype: 'Devour / Cosmic',
          flavor: 'Devours weak cards, drops 10-cost titans, slows energy. Pack Untrickable and Armor.',
-         hpRange: '70–90' },
+         hpRange: '70–90',
+         signature: ['Galactus', 'Trigon', 'Cosmic Cube'] },
   },
 
   BOSS_DECKS: {
@@ -1977,7 +1993,23 @@ const Roguelite = {
     // XP attribution + level-ups for cards that participated.
     const levelUps = this.attributeXp(run, Game.state);
     // Run relic onFightEnd (gold gain, post-fight heals, gauntlet ticks).
+    const goldBefore = run.gold || 0;
     this._applyRelicHook(run, 'onFightEnd', won);
+    const relicGoldGain = Math.max(0, (run.gold || 0) - goldBefore);
+    // Lifetime stat counters — surfaced on the end-of-run summary.
+    if (run._stats) {
+      if (won) {
+        run._stats.fightsWon = (run._stats.fightsWon || 0) + 1;
+        if (node.type === 'elite') run._stats.elitesWon = (run._stats.elitesWon || 0) + 1;
+        if (node.type === 'boss' || node.type === 'final-boss') run._stats.bossesWon = (run._stats.bossesWon || 0) + 1;
+      }
+      run._stats.totalHpLost = (run._stats.totalHpLost || 0) + (hpLoss || 0);
+      // Track gold gain from relic hooks (Lucky Coin, etc.) here. Combat
+      // gold + boss reward gold is added in the branches below — wrap
+      // those increments through _trackGold so the lifetime total stays
+      // accurate.
+      run._stats.goldEarned = (run._stats.goldEarned || 0) + relicGoldGain;
+    }
     run.lastResult = { hpLoss, won, levelUps, nodeType: node.type, phoenixFeather: !!run._phoenixFeatherFired };
     run._phoenixFeatherFired = false;
     // Suppress the engine's game-over overlay — we own the post-match flow.
@@ -2015,6 +2047,7 @@ const Roguelite = {
     if (node.type === 'boss') {
       const goldGained = 50;
       run.gold += goldGained;
+      if (run._stats) run._stats.goldEarned = (run._stats.goldEarned || 0) + goldGained;
       const bossRelic = this.rollRelic(run, 'boss');
       if (bossRelic) this.grantRelic(run, bossRelic.id);
       // Boss always drops a trick reward — guaranteed alongside the
@@ -2044,6 +2077,7 @@ const Roguelite = {
     }
     if (combatGold > 0) {
       run.gold += combatGold;
+      if (run._stats) run._stats.goldEarned = (run._stats.goldEarned || 0) + combatGold;
       run.lastResult = run.lastResult || {};
       run.lastResult.gold = combatGold;
     }
@@ -2449,7 +2483,7 @@ const Roguelite = {
     const relicItems = [];
     if (relicA) relicItems.push({ kind: 'relic', payload: relicA, price: 80 });
     if (relicB) relicItems.push({ kind: 'relic', payload: relicB, price: 150 });
-    return { cards: cardItems, etches: etchItems, relics: relicItems, removeCardPrice: 50, soldIdx: new Set() };
+    return { cards: cardItems, etches: etchItems, relics: relicItems, removeCardPrice: 50, removeEtchPrice: 75, soldIdx: new Set() };
   },
 
   _renderShopModal() {
@@ -2527,6 +2561,17 @@ const Roguelite = {
                        : removeCant ? 'rl-shop-buy rl-shop-buy-cant'
                        : 'rl-shop-buy rl-shop-buy-ready tron-fx tron-fx-breathe';
     const removeBtn = `<button type="button" class="${removeBtnCls}" ${removeUsed || removeCant ? 'disabled' : ''} onclick="Roguelite._buyShopItem('remove')">${removeBtnLabel}${(!removeUsed && !removeCant) ? '<span class="tron-sweep" aria-hidden="true"></span>' : ''}</button>`;
+    // Remove-an-Etch service — symmetric with Remove a Card. Lets the
+    // player undo a bad Hunt roll on a Goon, etc. Slightly more
+    // expensive (75g vs 50g) so card removal stays the cheap option.
+    const reEtchUsed = inv.soldIdx.has('remove-etch');
+    const reEtchCant = !reEtchUsed && run.gold < inv.removeEtchPrice;
+    const reEtchStateCls = reEtchUsed ? 'rl-shop-slot-sold' : (reEtchCant ? 'rl-shop-slot-cant' : '');
+    const reEtchBtnLabel = reEtchUsed ? 'USED' : `${inv.removeEtchPrice}<span class="rl-shop-buy-suffix">g</span>`;
+    const reEtchBtnCls = reEtchUsed ? 'rl-shop-buy rl-shop-buy-sold'
+                       : reEtchCant ? 'rl-shop-buy rl-shop-buy-cant'
+                       : 'rl-shop-buy rl-shop-buy-ready tron-fx tron-fx-breathe';
+    const reEtchBtn = `<button type="button" class="${reEtchBtnCls}" ${reEtchUsed || reEtchCant ? 'disabled' : ''} onclick="Roguelite._buyShopItem('remove-etch')">${reEtchBtnLabel}${(!reEtchUsed && !reEtchCant) ? '<span class="tron-sweep" aria-hidden="true"></span>' : ''}</button>`;
     const body = `
       <div class="rl-shop-hud rl-shop-hud-tron">
         <div class="rl-shop-hud-pill">
@@ -2561,6 +2606,18 @@ const Roguelite = {
             <div class="rl-shop-etch-name">Remove a Card</div>
             <div class="rl-shop-etch-flavor">Wipe a card from your deck.</div>
             ${removeBtn}
+          </div>
+          <div class="rl-shop-slot rl-shop-slot-service ${reEtchStateCls}">
+            <span class="rl-shop-slot-corner rl-shop-slot-corner-tl"></span>
+            <span class="rl-shop-slot-corner rl-shop-slot-corner-tr"></span>
+            <span class="rl-shop-slot-corner rl-shop-slot-corner-bl"></span>
+            <span class="rl-shop-slot-corner rl-shop-slot-corner-br"></span>
+            <div class="rl-shop-etch-glyph">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4 L20 20 M20 4 L4 20"/></svg>
+            </div>
+            <div class="rl-shop-etch-name">Remove an Etch</div>
+            <div class="rl-shop-etch-flavor">Strip one etch from a card.</div>
+            ${reEtchBtn}
           </div>
         </div>
       </div>
@@ -2605,6 +2662,91 @@ const Roguelite = {
       run._pendingCardRemoval = true;
       this._renderCardRemovalPicker();
       return;
+    } else if (kind === 'remove-etch') {
+      if (run.gold < inv.removeEtchPrice) return;
+      // Confirm at least one card has at least one etch.
+      const hasAnyEtches = run.deck.some(d => Array.isArray(d.statuses) && d.statuses.length > 0);
+      if (!hasAnyEtches) return;
+      run.gold -= inv.removeEtchPrice;
+      inv.soldIdx.add('remove-etch');
+      this._renderEtchRemovalCardPicker();
+      return;
+    }
+    this._renderShopModal();
+  },
+
+  // ----- Etch removal flow -----
+  // Step 1: pick a card that HAS etches.
+  // Step 2: pick which etch to strip.
+  // Step 3: splice it from card.statuses, return to shop.
+  _renderEtchRemovalCardPicker() {
+    const run = Game.state.roguelite;
+    if (!run) return;
+    const cards = run.deck.map((d, i) => {
+      const has = Array.isArray(d.statuses) && d.statuses.length > 0;
+      const dim = has ? '' : 'opacity:0.35;cursor:not-allowed;';
+      const click = has ? `onclick="Roguelite._renderEtchRemovalEtchPicker(${i})"` : '';
+      return `
+        <div class="rl-deck-slot rl-tier-${d.rarity}" ${click} style="cursor:pointer;${dim}">
+          ${this._renderCodexCard(d)}
+        </div>`;
+    }).join('');
+    const body = `
+      <div class="rl-event-flavor">Pick a card. (Cards with no etches are dimmed.)</div>
+      <div class="rl-deck-grid">${cards}</div>
+      <div class="rl-shop-footer">
+        <button type="button" class="rl-shop-leave" onclick="Roguelite._cancelEtchRemoval()">Cancel (refund)</button>
+      </div>`;
+    this._modal('REMOVE AN ETCH', body);
+  },
+
+  _renderEtchRemovalEtchPicker(cardIdx) {
+    const run = Game.state.roguelite;
+    if (!run) return;
+    const card = run.deck[cardIdx];
+    if (!card || !card.statuses || !card.statuses.length) {
+      this._renderEtchRemovalCardPicker();
+      return;
+    }
+    const etchHtml = card.statuses.map((id, i) => {
+      const e = this._findEtch(id);
+      const name = e ? e.name : id;
+      const desc = this.etchDesc(id);
+      return `
+        <button type="button" class="rl-event-choice rl-levelup-choice" onclick="Roguelite._executeEtchRemoval(${cardIdx}, ${i})">
+          <span class="rl-levelup-name">${name}</span>
+          ${desc ? `<span class="rl-levelup-desc">${desc}</span>` : ''}
+        </button>`;
+    }).join('');
+    const body = `
+      <div class="rl-event-flavor">Strip which etch from <b>${card.defName}</b>?</div>
+      <div class="rl-event-choices">${etchHtml}</div>
+      <div class="rl-shop-footer">
+        <button type="button" class="rl-shop-leave" onclick="Roguelite._renderEtchRemovalCardPicker()">Back</button>
+      </div>`;
+    this._modal('STRIP ETCH', body);
+  },
+
+  _executeEtchRemoval(cardIdx, etchIdx) {
+    const run = Game.state.roguelite;
+    if (!run) return;
+    const card = run.deck[cardIdx];
+    if (!card || !card.statuses || !card.statuses[etchIdx]) return;
+    const etch = this._findEtch(card.statuses[etchIdx]);
+    const removed = etch ? etch.name : card.statuses[etchIdx];
+    card.statuses.splice(etchIdx, 1);
+    run.lastResult = { event: `Stripped ${removed} from ${card.defName}.` };
+    this._closeModal();
+    this._renderShopModal();
+  },
+
+  _cancelEtchRemoval() {
+    const run = Game.state.roguelite;
+    if (!run) return;
+    const inv = run._shopInventory;
+    if (inv) {
+      inv.soldIdx.delete('remove-etch');
+      run.gold += inv.removeEtchPrice;
     }
     this._renderShopModal();
   },
@@ -3471,6 +3613,11 @@ const Roguelite = {
             <span class="rl-boss-preview-hp">${preview.hpRange} HP</span>
           </div>
           <div class="rl-boss-preview-flavor">${preview.flavor}</div>
+          ${preview.signature && preview.signature.length ? `
+            <div class="rl-boss-preview-sig">
+              <span class="rl-boss-preview-sig-label">Signature:</span>
+              ${preview.signature.map(n => `<span class="rl-boss-preview-sig-card">${n}</span>`).join('<span class="rl-boss-preview-sig-sep">·</span>')}
+            </div>` : ''}
         </div>
       </div>`;
   },
@@ -3779,16 +3926,95 @@ const Roguelite = {
   _renderEnd() {
     const run = Game.state.roguelite;
     if (!run) return '';
-    const won = run.hp > 0 && run.currentNode >= run.totalNodes;
+    // Detect victory by reaching the final boss row, not by node count
+    // (the saved-run path doesn't always update currentNode).
+    const finalBossKilled = run.lastResult && run.lastResult.nodeType === 'final-boss' && run.lastResult.won;
+    const won = finalBossKilled || run.hp > 0 && run.currentNode >= (run.totalNodes || 0) && run.totalNodes > 0;
+    const stats = run._stats || {};
+    // Run-time formatter — m:ss or h:mm:ss.
+    const elapsedMs = stats.startTime ? Math.max(0, Date.now() - stats.startTime) : 0;
+    const totalSec = Math.floor(elapsedMs / 1000);
+    const hh = Math.floor(totalSec / 3600);
+    const mm = Math.floor((totalSec % 3600) / 60);
+    const ss = totalSec % 60;
+    const timeStr = hh > 0
+      ? `${hh}:${String(mm).padStart(2, '0')}:${String(ss).padStart(2, '0')}`
+      : `${mm}:${String(ss).padStart(2, '0')}`;
+    // MVP card — top XP-earning card from the run deck. Skip starters
+    // (they level slow and would dominate by participation). XP since
+    // last promotion is what's stored on deckCard.xp; pair with rarity
+    // for a "value" sort.
+    const tierIdx = (r) => this.TIER_INDEX[r] || 0;
+    const sortedByXp = (run.deck || []).slice()
+      .filter(d => !d._isStarter && !d._isCurse)
+      .sort((a, b) => (tierIdx(b.rarity) - tierIdx(a.rarity)) || ((b.xp || 0) - (a.xp || 0)));
+    const mvp = sortedByXp[0];
+    // Best relic — rarest one collected (boss > rare > common).
+    const relicRank = { common: 1, rare: 2, special: 3, boss: 4 };
+    const sortedRelics = (run.relics || []).map(rid => this.RELICS.find(r => r.id === rid)).filter(Boolean)
+      .sort((a, b) => (relicRank[b.rarity] || 0) - (relicRank[a.rarity] || 0));
+    const bestRelic = sortedRelics[0];
+    const titleLine = won ? 'RUN COMPLETE' : 'YOU FELL';
+    const subtitle = won
+      ? 'You reached the top of the grid.'
+      : (stats.fightsWon || 0) >= 5 ? 'A long climb, but the grid claimed you in the end.'
+      : 'A short run. The grid didn\'t make it easy.';
     return `
       <div class="rl-panel rl-end-panel">
-        <h1 class="rl-title rl-end-title ${won ? 'rl-end-victory' : 'rl-end-defeat'}">${won ? 'RUN COMPLETE' : 'YOU FELL'}</h1>
-        <div class="rl-end-stats">
-          <div><b>Final HP</b> ${run.hp}/${run.maxHp}</div>
-          <div><b>Gold</b> ${run.gold}</div>
-          <div><b>Deck size</b> ${run.deck.length}</div>
-          <div><b>Nodes cleared</b> ${run.currentNode}/${run.totalNodes}</div>
+        <h1 class="rl-title rl-end-title ${won ? 'rl-end-victory' : 'rl-end-defeat'}">${titleLine}</h1>
+        <p class="rl-end-subtitle">${subtitle}</p>
+        <div class="rl-end-stat-grid">
+          <div class="rl-end-stat-tile">
+            <div class="rl-end-stat-label">Fights Won</div>
+            <div class="rl-end-stat-value">${stats.fightsWon || 0}</div>
+          </div>
+          <div class="rl-end-stat-tile">
+            <div class="rl-end-stat-label">Elites</div>
+            <div class="rl-end-stat-value">${stats.elitesWon || 0}</div>
+          </div>
+          <div class="rl-end-stat-tile">
+            <div class="rl-end-stat-label">Bosses</div>
+            <div class="rl-end-stat-value">${stats.bossesWon || 0}</div>
+          </div>
+          <div class="rl-end-stat-tile">
+            <div class="rl-end-stat-label">Gold Earned</div>
+            <div class="rl-end-stat-value">${stats.goldEarned || run.gold || 0}</div>
+          </div>
+          <div class="rl-end-stat-tile">
+            <div class="rl-end-stat-label">Final HP</div>
+            <div class="rl-end-stat-value">${run.hp}/${run.maxHp}</div>
+          </div>
+          <div class="rl-end-stat-tile">
+            <div class="rl-end-stat-label">Deck Size</div>
+            <div class="rl-end-stat-value">${run.deck.length}</div>
+          </div>
+          <div class="rl-end-stat-tile">
+            <div class="rl-end-stat-label">Run Time</div>
+            <div class="rl-end-stat-value">${timeStr}</div>
+          </div>
+          <div class="rl-end-stat-tile">
+            <div class="rl-end-stat-label">HP Lost</div>
+            <div class="rl-end-stat-value">${stats.totalHpLost || 0}</div>
+          </div>
         </div>
+        ${mvp ? `
+          <div class="rl-end-mvp">
+            <div class="rl-end-section-title">★ MVP CARD</div>
+            <div class="rl-end-mvp-row">
+              <span class="rl-end-mvp-name rl-tier-${mvp.rarity}-text">${mvp.defName}</span>
+              <span class="rl-end-mvp-meta">${this.displayRarity(mvp.rarity)} · ${mvp.xp || 0} XP</span>
+            </div>
+          </div>` : ''}
+        ${bestRelic ? `
+          <div class="rl-end-relic">
+            <div class="rl-end-section-title">★ STANDOUT RELIC</div>
+            <div class="rl-end-mvp-row">
+              <span class="rl-end-mvp-name">${bestRelic.name}</span>
+              <span class="rl-end-mvp-meta">${this.displayRarity(bestRelic.rarity || 'common')}</span>
+            </div>
+            <div class="rl-end-relic-desc">${bestRelic.desc || ''}</div>
+          </div>` : ''}
+        <div class="rl-end-section-title">★ FINAL DECK (${run.deck.length})</div>
         <div class="rl-end-deck">
           ${run.deck.map(d => `<span class="rl-deck-card rl-rarity-${d.rarity}">${d.defName}</span>`).join('')}
         </div>

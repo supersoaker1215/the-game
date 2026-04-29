@@ -20690,16 +20690,72 @@ body.killing-blow-cinema::after {
   cursor: pointer;
 }
 
-/* End-of-run summary */
-.rl-end-stats {
-  display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 8px;
-  margin: 18px 0;
-  font-family: 'Rajdhani', sans-serif;
+/* End-of-run summary — full Tron-styled run report. */
+.rl-end-subtitle {
   text-align: center;
-  font-size: 13px;
+  font-family: 'Rajdhani', sans-serif;
+  font-size: 13px; letter-spacing: 1.5px;
+  color: rgba(200,210,225,0.65);
+  margin: 0 0 22px;
 }
-.rl-end-stats > div { padding: 8px; background: rgba(255,255,255,0.03); border-radius: 3px; }
-.rl-end-stats b { color: #b9f5cb; margin-right: 6px; }
+.rl-end-stat-grid {
+  display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px;
+  margin: 18px 0 22px;
+  font-family: 'Rajdhani', sans-serif;
+}
+.rl-end-stat-tile {
+  position: relative;
+  padding: 12px 14px;
+  background: linear-gradient(180deg, var(--theme-wash-08, rgba(79,195,247,0.08)) 0%, rgba(0,0,0,0) 100%), rgba(0,0,0,0.55);
+  border: 1px solid var(--theme-accent-edge, rgba(79,195,247,0.45));
+  border-radius: 4px;
+  box-shadow:
+    0 0 10px var(--theme-glow-outer, rgba(79,195,247,0.18)),
+    inset 0 0 0 1px rgba(255,255,255,0.04);
+  text-align: center;
+}
+.rl-end-stat-label {
+  font-size: 10px; letter-spacing: 3px; text-transform: uppercase;
+  color: color-mix(in srgb, var(--theme-accent, rgb(79,195,247)) 50%, #94a8c0);
+  margin-bottom: 6px;
+}
+.rl-end-stat-value {
+  font-size: 22px; font-weight: 700;
+  color: #ffffff;
+  text-shadow: 0 0 8px var(--theme-glow-outer, rgba(79,195,247,0.65));
+}
+.rl-end-section-title {
+  text-align: center;
+  font-family: 'Rajdhani', sans-serif;
+  font-size: 11px; letter-spacing: 4px; text-transform: uppercase;
+  color: rgba(255,200,80,0.85);
+  margin: 18px 0 8px;
+  text-shadow: 0 0 8px rgba(255,210,100,0.45);
+}
+.rl-end-mvp, .rl-end-relic {
+  margin: 12px 0;
+  text-align: center;
+  font-family: 'Rajdhani', sans-serif;
+}
+.rl-end-mvp-row {
+  display: flex; align-items: baseline; justify-content: center;
+  gap: 12px;
+}
+.rl-end-mvp-name {
+  font-size: 22px; font-weight: 700;
+  letter-spacing: 2px; text-transform: uppercase;
+  color: #ffffff;
+}
+.rl-end-mvp-meta {
+  font-size: 11px; letter-spacing: 2px; text-transform: uppercase;
+  color: rgba(220,225,235,0.65);
+}
+.rl-end-relic-desc {
+  font-family: 'Inter', sans-serif;
+  font-size: 12px;
+  color: rgba(200,210,225,0.75);
+  margin-top: 4px;
+}
 .rl-end-deck {
   display: flex; flex-wrap: wrap; gap: 4px;
   margin: 10px 0 18px;
@@ -20707,9 +20763,13 @@ body.killing-blow-cinema::after {
 }
 .rl-end-actions {
   display: flex; gap: 12px; justify-content: center;
+  margin-top: 8px;
 }
 .rl-end-victory { color: #ffe066; text-shadow: 0 0 12px rgba(255,215,0,0.65); }
 .rl-end-defeat  { color: #ff8c7a; text-shadow: 0 0 12px rgba(231,76,60,0.55); }
+@media (max-width: 720px) {
+  .rl-end-stat-grid { grid-template-columns: repeat(2, 1fr); }
+}
 
 /* ----- Branching map (SVG) ----- */
 /* 18-row 3-act map needs to be tall + scrollable. The svg itself
@@ -20855,6 +20915,27 @@ body.killing-blow-cinema::after {
   font-size: 11px; line-height: 1.4;
   color: rgba(200,210,225,0.75);
 }
+/* Signature-card preview row for the boss banner. Reads as a small
+   "expect to see:" tag list so the player can plan tech around the
+   matchup. */
+.rl-boss-preview-sig {
+  margin-top: 4px;
+  font-family: 'Rajdhani', sans-serif;
+  font-size: 10px; letter-spacing: 1.2px; text-transform: uppercase;
+  color: rgba(220,225,235,0.85);
+  display: flex; align-items: center; flex-wrap: wrap; gap: 6px;
+}
+.rl-boss-preview-sig-label {
+  color: rgba(255,200,80,0.75);
+  font-weight: 700;
+  letter-spacing: 2px;
+}
+.rl-boss-preview-sig-card {
+  color: rgba(255,235,170,1);
+  font-weight: 700;
+  text-shadow: 0 0 6px rgba(255,210,100,0.45);
+}
+.rl-boss-preview-sig-sep { color: rgba(255,200,80,0.40); }
 
 /* SVG-native tooltip — the browser renders <title> as a hover tooltip.
    Locked / done nodes get a help cursor (you can read what's there
