@@ -4428,6 +4428,26 @@ const Roguelite = {
       return;
     }
     const lu = run._pendingLevelUps[0];
+    // STALE-DATA GUARD: regenerate the level-up choices if they were
+    // built by a pre-2-pick / pre-tier-tag version of the code. The
+    // signature is "no .tier field on any choice" — every fresh roll
+    // tags it. User report: still seeing 3 choices with bucket-based
+    // borders even after the code changes. Resolves by rebuilding the
+    // choices via _rollCommonToRareChoices / _rollLevelUpChoices using
+    // the current rarity (cardRef.rarity is the POST-bump tier so we
+    // pick the right roller).
+    const stale = !lu.choices || !lu.choices.length || lu.choices.some(c => !c.tier);
+    if (stale && lu.cardRef) {
+      // newRarity is what we just promoted TO — common→rare uses the
+      // dedicated common-to-rare roller (with the auto-trait already
+      // granted earlier in _grantXp), everything else uses the level-
+      // up roller bumped down a tier so it pulls from the right band.
+      if (lu.newRarity === 'rare') {
+        lu.choices = this._rollCommonToRareChoices(lu.cardRef);
+      } else {
+        lu.choices = this._rollLevelUpChoices(lu.newRarity, 2, lu.cardRef);
+      }
+    }
     // First level-up triggers a teaching tip.
     this._maybeTutorial('level-up', 'Cards level up by earning XP from damage and kills. Each tier gives you a new etch.');
     // Choice cards — each gets:

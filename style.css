@@ -20797,18 +20797,18 @@ body.killing-blow-cinema::after {
 /* Each level-up choice — uses the EXACT same chrome as a main-menu
    button (.mm-option): horizontal gradient + black bg, neon border,
    left-edge accent bar that grows on hover, lift + brighten on hover.
-   User direction: "the buttons should look like the buttons of the
-   menu — they shouldn't look like soulless gray buttons." Bucket
-   coloring rides on top via per-bucket border + glow tint.
-   Defaults below assume cyan; per-bucket overrides further down
-   swap to green/cyan/gold/purple based on the bucket caption. */
+   User direction: "they should look like Tron-inspired buttons, like
+   the menu." Tier-based color overrides further down recolor the
+   border / glow / accent bar based on the etch's RARITY (not bucket).
+   Plus angular corner-clip + faint scanline overlay so the buttons
+   read as a Tron HUD pick instead of a generic shell rectangle. */
 .rl-levelup-choice {
   position: relative;
   overflow: hidden;
   display: flex; flex-direction: column;
   justify-content: center;
   gap: 4px;
-  padding: 14px 22px;
+  padding: 16px 22px 16px 26px;
   text-align: center;
   font-family: 'Rajdhani', sans-serif;
   cursor: pointer;
@@ -20822,6 +20822,33 @@ body.killing-blow-cinema::after {
     0 0 10px rgba(79,195,247,0.18),
     inset 0 0 0 1px rgba(79,195,247,0.05);
   transition: border-color 0.2s, box-shadow 0.25s, transform 0.15s, background 0.2s, padding-left 0.2s;
+  /* Angular corner notches — Tron HUD shape. Top-right and bottom-left
+     are clipped at a small 45° to break the rectangular silhouette. */
+  clip-path: polygon(
+    0 0,
+    calc(100% - 14px) 0,
+    100% 14px,
+    100% 100%,
+    14px 100%,
+    0 calc(100% - 14px)
+  );
+}
+/* Faint diagonal scanline shimmer — a static "data is flowing" pattern
+   layered over the gradient so the button feels like a Tron HUD slot
+   rather than a flat fill. Pure visual flair, no interaction. */
+.rl-levelup-choice::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: repeating-linear-gradient(
+    115deg,
+    rgba(255,255,255,0.03) 0,
+    rgba(255,255,255,0.03) 1px,
+    transparent 1px,
+    transparent 7px
+  );
+  pointer-events: none;
+  opacity: 0.6;
 }
 .rl-levelup-choice::before {
   content: "";
