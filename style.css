@@ -11066,13 +11066,45 @@ body.theme-purple { --theme-r: 155; --theme-g: 89; --theme-b: 182; }
 body {
   --player-r: 79;  --player-g: 195; --player-b: 247;   /* cyan default */
   --enemy-r:  231; --enemy-g:  76;  --enemy-b:  60;    /* red default */
+  /* Hand-picked POP color for the contested-lane midpoint. The naive
+     50/50 sRGB mix between AI red and the player accent produces
+     muddy, low-saturation mids (cyan+red = washed mauve, white+red =
+     dull salmon). User direction: "make the middle POP — like
+     red+blue should be vibrant magenta, not muddy purple." So we
+     hand-pick a saturated, vivid mid per theme that LOOKS like the
+     color-wheel mix but stays neon-bright.
+       cyan default + red → vivid magenta */
+  --contest-pop: rgb(255, 60, 200);
+  --contest-pop-soft: rgba(255, 60, 200, 0.55);
 }
-body.theme-red    { --player-r: 231; --player-g: 76;  --player-b: 60;
-                    --enemy-r:  79;  --enemy-g:  195; --enemy-b:  247; }
-body.theme-gold   { --player-r: 255; --player-g: 215; --player-b: 0;   }
-body.theme-green  { --player-r: 46;  --player-g: 204; --player-b: 113; }
-body.theme-silver { --player-r: 220; --player-g: 226; --player-b: 234; }
-body.theme-purple { --player-r: 155; --player-g: 89;  --player-b: 182; }
+/* Per-theme contest-pop overrides — hand-tuned so the midpoint always
+   reads as saturated neon, never muddy. */
+body.theme-red    {
+  --player-r: 231; --player-g: 76;  --player-b: 60;
+  --enemy-r:  79;  --enemy-g:  195; --enemy-b:  247;
+  --contest-pop: rgb(255, 60, 200);
+  --contest-pop-soft: rgba(255, 60, 200, 0.55);
+}
+body.theme-gold   {
+  --player-r: 255; --player-g: 215; --player-b: 0;
+  --contest-pop: rgb(255, 130, 20);            /* vivid orange (gold+red) */
+  --contest-pop-soft: rgba(255, 130, 20, 0.55);
+}
+body.theme-green  {
+  --player-r: 46;  --player-g: 204; --player-b: 113;
+  --contest-pop: rgb(255, 220, 30);            /* bright yellow (green+red) */
+  --contest-pop-soft: rgba(255, 220, 30, 0.55);
+}
+body.theme-silver {
+  --player-r: 220; --player-g: 226; --player-b: 234;
+  --contest-pop: rgb(255, 80, 170);            /* HOT PINK (white+red) */
+  --contest-pop-soft: rgba(255, 80, 170, 0.55);
+}
+body.theme-purple {
+  --player-r: 155; --player-g: 89;  --player-b: 182;
+  --contest-pop: rgb(230, 50, 150);            /* vivid magenta (purple+red) */
+  --contest-pop-soft: rgba(230, 50, 150, 0.55);
+}
 body {
   --player-accent:       rgb(var(--player-r), var(--player-g), var(--player-b));
   --player-accent-edge:  rgba(var(--player-r), var(--player-g), var(--player-b), 0.55);
@@ -11238,16 +11270,13 @@ body {
     0 0 8px rgba(var(--enemy-r), var(--enemy-g), var(--enemy-b), 0.32),
     0 0 16px rgba(var(--enemy-r), var(--enemy-g), var(--enemy-b), 0.12) !important;
 }
-/* Contested centerline — color-mix midpoint between AI accent and
-   player accent. No more hardcoded gold; the seam now reflects the
-   actual color blend. */
+/* Contested centerline — uses the hand-picked --contest-pop mid color
+   so the seam saturates instead of muddying. */
 .lane.occ-both .lane-sep::before {
   background: linear-gradient(90deg,
     transparent,
     rgba(var(--enemy-r), var(--enemy-g), var(--enemy-b), 0.70) 20%,
-    color-mix(in srgb,
-      rgba(var(--enemy-r), var(--enemy-g), var(--enemy-b), 1) 50%,
-      rgba(var(--player-r), var(--player-g), var(--player-b), 1) 50%) 50%,
+    var(--contest-pop, rgb(255, 60, 200)) 50%,
     rgba(var(--player-r), var(--player-g), var(--player-b), 0.70) 80%,
     transparent) !important;
 }
@@ -11840,36 +11869,30 @@ body.round-first-ai .hud-pill-main {
    Defines a per-lane CSS variable --contest-mix once, then both
    surfaces (sep::before bar + lane-number circle) derive from it
    with brightness-shifted variants. */
-.lane.occ-both {
-  --contest-mix: color-mix(in srgb,
-    rgb(231, 76, 60) 50%,
-    rgba(var(--player-r, 79), var(--player-g, 195), var(--player-b, 247), 1) 50%);
-}
+/* Contested centerline + middle circle now use var(--contest-pop) —
+   the hand-picked vivid neon set per theme on body. Each theme picks
+   its OWN saturated mid color (silver→hot pink, gold→orange,
+   green→yellow, etc.) so the seam never desaturates. */
 .lane.occ-both .lane-sep::before {
-  /* Centerline glow uses the mid-shifted contest color so it visually
-     "lights up" as the seam between AI red and player accent. */
   background: linear-gradient(90deg,
     transparent 0%,
-    var(--contest-mix) 8%,
-    var(--contest-mix) 92%,
+    var(--contest-pop, rgb(255, 60, 200)) 8%,
+    var(--contest-pop, rgb(255, 60, 200)) 92%,
     transparent 100%) !important;
   box-shadow:
-    0 0 14px var(--contest-mix),
-    0 0 32px color-mix(in srgb, var(--contest-mix) 55%, transparent),
-    0 0 56px color-mix(in srgb, var(--contest-mix) 25%, transparent) !important;
+    0 0 14px var(--contest-pop, rgb(255, 60, 200)),
+    0 0 32px var(--contest-pop-soft, rgba(255, 60, 200, 0.55)),
+    0 0 56px var(--contest-pop-soft, rgba(255, 60, 200, 0.25)) !important;
 }
 .lane.occ-both .lane-number {
-  /* Middle circle = the "magenta point" — the actual color-wheel
-     midpoint between AI red and player accent. Shifts to the warmer
-     side of the mix for visual punch on the central node. */
-  border-color: var(--contest-mix) !important;
-  color: color-mix(in srgb, var(--contest-mix) 40%, white) !important;
-  background: color-mix(in srgb, var(--contest-mix) 18%, rgba(0,0,0,0.85)) !important;
+  border-color: var(--contest-pop, rgb(255, 60, 200)) !important;
+  color: color-mix(in srgb, var(--contest-pop, rgb(255, 60, 200)) 40%, white) !important;
+  background: color-mix(in srgb, var(--contest-pop, rgb(255, 60, 200)) 18%, rgba(0,0,0,0.85)) !important;
   box-shadow:
-    0 0 14px var(--contest-mix),
-    0 0 28px color-mix(in srgb, var(--contest-mix) 45%, transparent),
-    inset 0 0 6px color-mix(in srgb, var(--contest-mix) 20%, transparent) !important;
-  text-shadow: 0 0 6px var(--contest-mix);
+    0 0 14px var(--contest-pop, rgb(255, 60, 200)),
+    0 0 28px var(--contest-pop-soft, rgba(255, 60, 200, 0.45)),
+    inset 0 0 6px color-mix(in srgb, var(--contest-pop, rgb(255, 60, 200)) 20%, transparent) !important;
+  text-shadow: 0 0 6px var(--contest-pop, rgb(255, 60, 200));
 }
 
 /* AI mini-hand card-backs — enemy theme (was hardcoded red). */
@@ -12082,18 +12105,19 @@ body.round-first-ai .hud-pill-main {
    inside lanes?" — answer: now the right seam of a contested
    lane mirrors its left so inside contested lanes are framed
    symmetrically. */
-/* Theme-aware contested lane — uses color-mix() to compute the seam
-   midpoint live from AI red + the player's actual theme accent. So:
-     • cyan player → red→PURPLE→cyan (preserved)
-     • white/silver player → red→PINK→white (the user's specific case)
-     • gold player → red→ORANGE→gold
-     • green player → red→muddy ochre→green, etc.
-   Selector list explicitly covers :first-child and :last-child variants
-   to win over the `.board .lane:last-child` rule (specificity 0,2,1)
-   that paints every lane's outer-frame border with a hardcoded white
-   middle band. Without these :child variants, the default empty-lane
-   gradient bleeds through and the player sees red→white→silver
-   instead of red→pink→silver under the silver theme. */
+/* Theme-aware contested lane — uses var(--contest-pop) for the
+   midpoint so the seam color is hand-tuned per theme (vivid neon
+   instead of muddy sRGB-average). User direction: "make the middle
+   POP." Per-theme blends:
+     • cyan default + red → vivid magenta
+     • silver/white + red → HOT PINK
+     • gold + red → vivid orange
+     • green + red → bright yellow (the warm-color complement)
+     • purple + red → vivid magenta
+   Selector list explicitly covers :first-child and :last-child
+   variants to win over the `.board .lane:last-child` rule (which
+   has specificity 0,2,1 — same as ours; without :child we'd lose
+   on source-order). */
 .board .lane.occ-both,
 .board .lane.occ-both + .lane,
 .board .lane:first-child.occ-both,
@@ -12104,7 +12128,7 @@ body.round-first-ai .hud-pill-main {
   border-image: linear-gradient(180deg,
       rgba(231, 76, 60, 0.95) 0%,
       rgba(231, 76, 60, 0.90) 32%,
-      color-mix(in srgb, rgb(231, 76, 60) 50%, rgba(var(--player-r, 79), var(--player-g, 195), var(--player-b, 247), 1) 50%) 50%,
+      var(--contest-pop, rgb(255, 60, 200)) 50%,
       rgba(var(--player-r, 79), var(--player-g, 195), var(--player-b, 247), 0.90) 68%,
       rgba(var(--player-r, 79), var(--player-g, 195), var(--player-b, 247), 0.95) 100%
     ) 1 !important;
@@ -17539,16 +17563,15 @@ body.defeat-pose .board .card.enemy-card {
   --lane-pulse-edge:    rgba(var(--player-r), var(--player-g), var(--player-b), 0.55);
   --lane-pulse-edge-on: rgba(var(--player-r), var(--player-g), var(--player-b), 1.00);
 }
-/* Contested lane circle pulse — pulses with the LIVE color-mix of AI
-   red and the player's theme accent. Inherits --contest-mix from the
-   .lane.occ-both rule above. So the breathing color tracks the
-   player's chosen palette (pink under white theme, purple under cyan,
-   orange under gold, etc.) instead of being hardcoded. */
+/* Contested lane circle pulse — pulses with --contest-pop so the
+   breathing color is hand-tuned vivid neon per theme (hot pink under
+   silver, vivid magenta under cyan, orange under gold, etc.) instead
+   of a desaturated sRGB mix. */
 .lane.occ-both .lane-number {
-  --lane-pulse-soft:    color-mix(in srgb, var(--contest-mix) 35%, transparent);
-  --lane-pulse-strong:  color-mix(in srgb, var(--contest-mix) 75%, transparent);
-  --lane-pulse-edge:    color-mix(in srgb, var(--contest-mix) 65%, transparent);
-  --lane-pulse-edge-on: var(--contest-mix);
+  --lane-pulse-soft:    color-mix(in srgb, var(--contest-pop, rgb(255, 60, 200)) 35%, transparent);
+  --lane-pulse-strong:  color-mix(in srgb, var(--contest-pop, rgb(255, 60, 200)) 75%, transparent);
+  --lane-pulse-edge:    color-mix(in srgb, var(--contest-pop, rgb(255, 60, 200)) 65%, transparent);
+  --lane-pulse-edge-on: var(--contest-pop, rgb(255, 60, 200));
 }
 @keyframes tronCirclePulse {
   0%, 100% {
