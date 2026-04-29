@@ -20108,6 +20108,170 @@ body.killing-blow-cinema::after {
   font-family: 'Rajdhani', sans-serif;
   animation: rl-levelup-burst 0.85s cubic-bezier(0.22, 1, 0.36, 1) both;
 }
+/* Card preview slot — renders the deck card via _renderCodexCard so
+   the player can see stats / etches / cost / abilities at the new
+   tier while picking. Centered, with a small lift-in animation that
+   lands a beat after the title burst so the eye flows top → card →
+   pick. User direction: "I'd like to see the card itself so you can
+   see the stats and everything on it." */
+.rl-levelup-card-preview {
+  display: flex; justify-content: center;
+  margin: 0 0 18px;
+  animation: rl-levelup-card-in 0.7s cubic-bezier(0.22, 1, 0.36, 1) 0.20s both;
+}
+.rl-levelup-card-preview .card.hand-card {
+  /* Codex render is sized for a denser grid; bump it slightly here
+     so the level-up modal has presence. */
+  transform: scale(1.04);
+  transform-origin: center;
+}
+@keyframes rl-levelup-card-in {
+  0%   { transform: translateY(8px) scale(0.96); opacity: 0; }
+  100% { transform: translateY(0)   scale(1.00); opacity: 1; }
+}
+
+/* ============= REST SITE — TWO-TILE PICKER ============= */
+/* User direction: "Make the buttons more neon-highlighted and Tron —
+   they look very stale, very shell." Same .mm-option chrome family:
+   black bg + faint linear-gradient sheen + neon border + left-edge
+   accent bar that grows on hover. Two side-by-side tiles, big glyph
+   on top, title + sub-line below. Fires a soft scale-in on modal
+   open so they feel like they LAND instead of just appearing. */
+.rl-rest-tiles {
+  display: grid; grid-template-columns: 1fr 1fr;
+  gap: 14px;
+  margin: 6px 0 4px;
+}
+.rl-rest-tile {
+  position: relative;
+  overflow: hidden;
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  gap: 8px;
+  padding: 28px 18px;
+  text-align: center;
+  font-family: 'Rajdhani', sans-serif;
+  cursor: pointer;
+  background:
+    linear-gradient(90deg, rgba(79,195,247,0.08) 0%, rgba(0,0,0,0) 55%),
+    #000;
+  border: 1px solid rgba(79,195,247,0.55);
+  border-radius: 4px;
+  color: #f5fbff;
+  box-shadow:
+    0 0 12px rgba(79,195,247,0.20),
+    inset 0 0 0 1px rgba(79,195,247,0.06);
+  transition: border-color 0.2s, box-shadow 0.25s, transform 0.15s, background 0.2s, padding-left 0.2s;
+  animation: rl-rest-tile-in 0.55s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+.rl-rest-tile:nth-child(1) { animation-delay: 0.05s; }
+.rl-rest-tile:nth-child(2) { animation-delay: 0.15s; }
+@keyframes rl-rest-tile-in {
+  0%   { transform: translateY(8px) scale(0.97); opacity: 0; }
+  100% { transform: translateY(0)   scale(1.00); opacity: 1; }
+}
+.rl-rest-tile::before {
+  content: "";
+  position: absolute;
+  left: 0; top: 12%; bottom: 12%;
+  width: 2px;
+  background: rgba(79,195,247,0.65);
+  box-shadow: 0 0 6px rgba(79,195,247,0.55);
+  transition: width 0.2s, background 0.2s, box-shadow 0.2s, top 0.2s, bottom 0.2s;
+}
+.rl-rest-tile:hover {
+  transform: translateY(-2px);
+  border-color: rgba(79,195,247,1);
+  background:
+    linear-gradient(90deg, rgba(79,195,247,0.16) 0%, rgba(0,0,0,0) 55%),
+    rgba(79,195,247,0.05);
+  padding-left: 22px;
+  box-shadow:
+    0 0 22px rgba(79,195,247,0.65),
+    0 0 44px rgba(79,195,247,0.28),
+    inset 0 0 0 1px rgba(79,195,247,0.20);
+}
+.rl-rest-tile:hover::before {
+  width: 3px; top: 0; bottom: 0;
+  background: #4fc3f7;
+  box-shadow: 0 0 10px rgba(79,195,247,1), 0 0 18px rgba(79,195,247,0.55);
+}
+.rl-rest-tile:active { transform: translateY(0); }
+.rl-rest-tile-glyph {
+  font-size: 36px;
+  line-height: 1;
+  color: #4fc3f7;
+  text-shadow:
+    0 0 8px rgba(79,195,247,0.85),
+    0 0 18px rgba(79,195,247,0.40);
+}
+.rl-rest-tile-title {
+  font-size: 18px; font-weight: 700;
+  letter-spacing: 4px; text-transform: uppercase;
+  color: #ffffff;
+  text-shadow: 0 0 8px rgba(79,195,247,0.65);
+}
+.rl-rest-tile-sub {
+  font-size: 12px; font-weight: 400;
+  color: rgba(220,235,250,0.75);
+  letter-spacing: 1px;
+  text-transform: uppercase;
+}
+/* Heal tile — green flavor variant (matches the universal HP color). */
+.rl-rest-tile-heal {
+  background:
+    linear-gradient(90deg, rgba(46,204,113,0.08) 0%, rgba(0,0,0,0) 55%),
+    #000;
+  border-color: rgba(46,204,113,0.55);
+  box-shadow: 0 0 12px rgba(46,204,113,0.20), inset 0 0 0 1px rgba(46,204,113,0.06);
+}
+.rl-rest-tile-heal::before { background: rgba(46,204,113,0.65); box-shadow: 0 0 6px rgba(46,204,113,0.55); }
+.rl-rest-tile-heal:hover {
+  border-color: rgba(46,204,113,1);
+  background: linear-gradient(90deg, rgba(46,204,113,0.16) 0%, rgba(0,0,0,0) 55%), rgba(46,204,113,0.05);
+  box-shadow: 0 0 22px rgba(46,204,113,0.65), 0 0 44px rgba(46,204,113,0.28), inset 0 0 0 1px rgba(46,204,113,0.20);
+}
+.rl-rest-tile-heal:hover::before { background: #2ecc71; box-shadow: 0 0 10px rgba(46,204,113,1), 0 0 18px rgba(46,204,113,0.55); }
+.rl-rest-tile-heal .rl-rest-tile-glyph {
+  color: #2ecc71;
+  text-shadow: 0 0 8px rgba(46,204,113,0.85), 0 0 18px rgba(46,204,113,0.40);
+}
+.rl-rest-tile-heal .rl-rest-tile-title {
+  text-shadow: 0 0 8px rgba(46,204,113,0.65);
+}
+/* Upgrade tile — gold flavor variant (matches the legendary tier
+   color, signals "level up = power up"). */
+.rl-rest-tile-upgrade {
+  background:
+    linear-gradient(90deg, rgba(255,215,0,0.08) 0%, rgba(0,0,0,0) 55%),
+    #000;
+  border-color: rgba(255,215,0,0.55);
+  box-shadow: 0 0 14px rgba(255,215,0,0.22), inset 0 0 0 1px rgba(255,215,0,0.06);
+}
+.rl-rest-tile-upgrade::before { background: rgba(255,215,0,0.65); box-shadow: 0 0 6px rgba(255,215,0,0.55); }
+.rl-rest-tile-upgrade:hover {
+  border-color: rgba(255,215,0,1);
+  background: linear-gradient(90deg, rgba(255,215,0,0.16) 0%, rgba(0,0,0,0) 55%), rgba(255,215,0,0.05);
+  box-shadow: 0 0 22px rgba(255,215,0,0.75), 0 0 44px rgba(255,215,0,0.32), inset 0 0 0 1px rgba(255,215,0,0.22);
+}
+.rl-rest-tile-upgrade:hover::before { background: #ffe066; box-shadow: 0 0 10px rgba(255,215,0,1), 0 0 18px rgba(255,215,0,0.55); }
+.rl-rest-tile-upgrade .rl-rest-tile-glyph {
+  color: #ffe066;
+  text-shadow: 0 0 8px rgba(255,215,0,0.85), 0 0 18px rgba(255,215,0,0.40);
+}
+.rl-rest-tile-upgrade .rl-rest-tile-title {
+  text-shadow: 0 0 8px rgba(255,215,0,0.65);
+}
+/* Mobile — stack vertically. */
+@media (max-width: 720px) {
+  .rl-rest-tiles { grid-template-columns: 1fr; }
+}
+/* Disabled-card reason tag in the rest upgrade picker. */
+.rl-rest-card-reason {
+  font-size: 10px; letter-spacing: 1px; text-transform: uppercase;
+  text-align: center; padding: 4px 0;
+  color: rgba(220,235,250,0.55);
+}
 .rl-levelup-auto-trait {
   animation: rl-levelup-glow-pulse 1.2s ease-out both;
 }

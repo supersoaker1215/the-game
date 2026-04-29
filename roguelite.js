@@ -4049,13 +4049,26 @@ const Roguelite = {
     run._pendingRestEtch = null;
     run._pendingStatBumpIdx = null;
     const heal = Math.floor(run.maxHp * 0.3);
+    // Two-tile rest site — REST or UPGRADE A CARD. User direction:
+    // "At the rest site you should see Rest or Upgrade a card. So
+    // you take it a full level up. Nothing else. Those are the only
+    // two options. Also make it more neon-highlighted and Tron — the
+    // buttons don't look that good. It looks very stale, very shell."
+    // Tiles use the same chrome as .mm-option / level-up picks: black
+    // bg + neon border + left-edge accent bar that glows on hover.
     const body = `
-      <div class="rl-event-flavor">A safe pocket of unused grid. Spend the moment as you choose.</div>
-      <div class="rl-event-choices">
-        <button type="button" class="rl-event-choice" onclick="Roguelite._restHeal()">Rest — heal ${heal} HP</button>
-        <button type="button" class="rl-event-choice" onclick="Roguelite._restUpgrade()">Etch a card — apply a random Common etch</button>
-        <button type="button" class="rl-event-choice" onclick="Roguelite._restStatBump()">Sharpen a card — pick which stat to +1 (ATK or HP)</button>
-        <button type="button" class="rl-shop-leave" onclick="Roguelite._restLeave()">Leave site (no action)</button>
+      <div class="rl-event-flavor">A safe pocket of unused grid. Heal up, or push a card to its next tier.</div>
+      <div class="rl-rest-tiles">
+        <button type="button" class="rl-rest-tile rl-rest-tile-heal" onclick="Roguelite._restHeal()">
+          <span class="rl-rest-tile-glyph">♥</span>
+          <span class="rl-rest-tile-title">Rest</span>
+          <span class="rl-rest-tile-sub">Heal ${heal} HP</span>
+        </button>
+        <button type="button" class="rl-rest-tile rl-rest-tile-upgrade" onclick="Roguelite._restUpgradeCardPick()">
+          <span class="rl-rest-tile-glyph">▲</span>
+          <span class="rl-rest-tile-title">Upgrade</span>
+          <span class="rl-rest-tile-sub">Level up a card</span>
+        </button>
       </div>`;
     this._modal('REST SITE', body);
   },
@@ -4139,6 +4152,61 @@ const Roguelite = {
     this._closeModal();
     Game.state.phase = 'roguelite-map';
     UI.render();
+  },
+
+  // Rest-site card upgrade — full level-up on the chosen card. Bumps
+  // rarity tier (common→rare→special→legendary), grants the auto-trait
+  // on a common→rare promotion, and routes through the standard 2-pick
+  // etch picker. User direction: "At the rest site you should see Rest
+  // or Upgrade a card. So you take it a full level up." Replaces the
+  // previous "single random etch" + "sharpen +1 stat" rest options.
+  _restUpgradeCardPick() {
+    const run = Game.state.roguelite;
+    const cards = run.deck.map((d, i) => {
+      const isMaxed = d.rarity === 'legendary';
+      const isCurse = !!d._isCurse;
+      const disabled = isMaxed || isCurse;
+      const click = disabled ? '' : `onclick="Roguelite._restApplyUpgrade(${i})"`;
+      const style = disabled ? 'opacity:0.35;cursor:not-allowed;' : 'cursor:pointer;';
+      const reason = isMaxed ? 'Already legendary'
+                   : isCurse ? 'Curses can\'t be upgraded'
+                   : '';
+      const reasonTag = reason ? `<div class="rl-rest-card-reason">${reason}</div>` : '';
+      return `<div class="rl-deck-slot rl-tier-${d.rarity}" ${click} style="${style}" title="${reason}">
+        ${this._renderCodexCard(d)}
+        ${reasonTag}
+      </div>`;
+    }).join('');
+    const body = `
+      <div class="rl-event-flavor">Pick a card to push to its next tier. You'll choose a new etch after.</div>
+      <div class="rl-deck-grid">${cards}</div>
+      <div class="rl-shop-footer">
+        <button type="button" class="rl-shop-leave" onclick="Roguelite._renderRestModal()">Back</button>
+      </div>`;
+    this._modal('UPGRADE A CARD', body);
+  },
+
+  _restApplyUpgrade(cardIdx) {
+    const run = Game.state.roguelite;
+    const card = run.deck && run.deck[cardIdx];
+    if (!card) return;
+    if (card._isCurse) return;
+    if (card.rarity === 'legendary') return;
+    // Top up XP to the threshold so _grantXp deterministically promotes
+    // the card. _grantXp handles auto-trait + 2-pick etch generation +
+    // returns the levelUp object the picker modal expects. Same code
+    // path as a fight-earned level-up — keeps behavior consistent.
+    const threshold = (this.XP_THRESHOLDS && this.XP_THRESHOLDS[card.rarity]) || 0;
+    const needed = Math.max(1, threshold - (card.xp || 0));
+    const lu = this._grantXp(card, needed);
+    if (!lu) return;
+    run._pendingLevelUps = [lu];
+    run.lastResult = { event: `Upgraded ${card.defName} → ${this.displayRarity(card.rarity)}` };
+    this._closeModal();
+    // Route into the existing level-up picker — auto-trait header,
+    // 2 tier-bordered etch choices, card preview at the new tier all
+    // come for free.
+    this._renderLevelUpPicker();
   },
 
   // Step 1 of the etch flow: roll a random Common etch, show it in a
@@ -4377,12 +4445,25 @@ const Roguelite = {
            ${lu.autoTrait.desc ? `<span class="rl-levelup-auto-desc">${lu.autoTrait.desc}</span>` : ''}
          </div>`
       : '';
+    // Card preview — render the leveled-up card itself so the player
+    // can see the new tier's stats / etches / abilities at a glance
+    // while picking. User direction: "On the level-up screen I'd like
+    // to see the card itself so you can see the stats and everything
+    // on it. I think that would be very helpful." Uses the same codex
+    // renderer as the deck list so the chrome matches everywhere else.
+    // At this point ref.rarity has already advanced to lu.newRarity
+    // and any auto-trait is in statuses, so the card draws AT the new
+    // tier — the player sees exactly what they just earned.
+    const cardPreview = lu.cardRef
+      ? `<div class="rl-levelup-card-preview">${this._renderCodexCard(lu.cardRef)}</div>`
+      : '';
     const body = `
       <div class="rl-levelup-card-line">
         <span class="rl-levelup-card-name">${lu.defName}</span>
         <span class="rl-levelup-arrow">▸</span>
         <span class="rl-tier-${lu.newRarity}-text rl-levelup-new-tier">${this.displayRarity(lu.newRarity).toUpperCase()}</span>
       </div>
+      ${cardPreview}
       ${autoTraitLine}
       <div class="rl-levelup-prompt">Pick an etch:</div>
       <div class="rl-levelup-choice-grid">${choices}</div>`;
