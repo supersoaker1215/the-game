@@ -3569,7 +3569,38 @@ const Game = {
     if (source && source.id != null) {
       this._creditChain(source, 'statsCardAdvantage', 1);
     }
+    // Retroactive Jump scan. The event-driven checkJumpConditions only
+    // fires AT THE MOMENT a triggering card is played — so if Michael
+    // Myers is drawn AFTER a lower-cost enemy already landed, his
+    // jump window stayed shut. User report: "Michael didn't get the
+    // option to jump even though these mercenaries are too low cost."
+    // Fix: when Michael Myers enters the hand, scan the current enemy
+    // board and trigger if any live card has cost < his cost.
+    this._checkJumpOnDraw(owner, card);
     return true;
+  },
+
+  // State-based jump check — fires at draw/addToHand time. Only Michael
+  // Myers has a state-based trigger (any enemy card with cost < his on
+  // board). Ghostface (enemy trick) and Jason Voorhees (ally died) are
+  // event-only — by the time the card lands in hand, the trick is
+  // resolved or the death already happened, so retroactive doesn't fit.
+  _checkJumpOnDraw(owner, card) {
+    if (!card || card.jumpReady) return;
+    if (card.name !== 'Michael Myers') return;
+    const opp = this.opponent(owner);
+    const myCost = (card.baseCost != null ? card.baseCost : card.cost);
+    for (let i = 0; i < Game.LANE_COUNT; i++) {
+      const e = this.state.lanes[i] && this.state.lanes[i][opp];
+      if (!e || e.currentHealth <= 0) continue;
+      const eCost = (e.baseCost != null ? e.baseCost : e.cost);
+      if (eCost < myCost) {
+        card.jumpReady = true;
+        card.jumpLane = i;
+        this.log(`  [JUMP] Michael Myers senses weakness in lane ${i + 1}! Free play available.`);
+        return;
+      }
+    }
   },
   addToTrickHand(owner, trick) {
     const p = this.state[owner];
