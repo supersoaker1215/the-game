@@ -344,6 +344,10 @@ const UI = {
       // -20 LUFS unified-baseline, 1s fade-in / 2s fade-out baked. maxDur
       // 66 lets the full phrase play across re-hovers (resume-from-pause).
       'Homelander':       { hover: { src: 'audio/cards/homelander-hover.mp3', maxDur: 66 } },
+      // Captain America hover: 65s of Harry James's "It's Been a Long, Long
+      // Time" (start → 1:05) — the period-correct cue from CA's WWII era.
+      // -20 LUFS unified-baseline, 1s fade-in / 2s fade-out baked.
+      'Captain America':  { hover: { src: 'audio/cards/captain-america-hover.mp3', maxDur: 66 } },
       // Winter Soldier hover: 52s of Henry Jackman's "End Of The Line"
       // (1:05 → 1:57 of the source) — the cold-war motif build. -20 LUFS
       // unified-baseline, 1s fade-in / 2s fade-out baked. maxDur 53 lets
