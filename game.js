@@ -5528,6 +5528,17 @@ const Game = {
     // normally (intrinsic Harley regains her identity once fear ends,
     // Joker-stamped Crazy on enemies likewise resumes).
     if (card.isCrazy && !card.isFeared) {
+      // STEADY etch — consumes one charge to cancel this reroll. ATK
+      // reverts to base (or stays at base if it never moved). Roguelite-
+      // only counterplay to Joker / Harley pressure. Stacks; once
+      // hasSteady drops to 0, Crazy rerolls resume normally.
+      if (card.hasSteady > 0) {
+        card.hasSteady--;
+        card.attack = card.baseAttack || card.attack;
+        const left = card.hasSteady;
+        this.log(`  [STEADY] ${card.name} negates Crazy reroll (${left} charge${left === 1 ? '' : 's'} left)`);
+        return;
+      }
       let r; do { r = 1 + Math.floor(Math.random() * 4); } while (r === card._lastCrazyRoll);
       card._lastCrazyRoll = r; card.attack = r;
       this.log(`  [CRAZY] ${card.name} rolls ATK ${before} → ${r}`);

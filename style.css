@@ -5470,6 +5470,8 @@ body.hit-pause .ai-hand * {
 .badge-echo       { color: #bb8fce; }
 .badge-phoenix    { color: #e67e22; }
 .badge-fear       { color: #5a5a5a; }
+.badge-freeze     { color: #85c1e9; }
+.badge-steady     { color: #16a085; }
 .badge-discount   { color: #16a085; }
 .card.status-charmed { box-shadow: 0 0 12px rgba(155,89,182,0.6), 0 0 24px rgba(155,89,182,0.25) !important; }
 

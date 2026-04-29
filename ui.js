@@ -8738,6 +8738,7 @@ const UI = {
     if (c.hasThorns > 0) b.push(badge('badge-thorns', c.hasThorns > 1 ? `Thorns ${c.hasThorns}` : 'Thorns', 'Thorns'));
     if (c.hasFear > 0) b.push(badge('badge-fear', `Fear ${c.hasFear}`, 'Fear'));
     if (c.hasFreeze > 0) b.push(badge('badge-freeze', `Freeze ${c.hasFreeze}`, 'Freeze'));
+    if (c.hasSteady > 0) b.push(badge('badge-steady', `Steady ${c.hasSteady}`, 'Steady'));
     if (c._discountTotal > 0) b.push(badge('badge-discount', `Discount ${c._discountTotal}`, 'Discount'));
     // "Crazy" / "Insane" — no KEYWORD_DATA entry yet, so badge() omits
     // data-kw and they stay non-interactive.
@@ -8769,6 +8770,7 @@ const UI = {
     'Stun':        { color: '#3498db', svg: '<svg viewBox="0 0 12 12"><path d="M3 2 L6 5 L4 5 L8 10 L6 7 L8 7 Z" fill="currentColor"/></svg>', tip: 'Cannot attack or dodge this turn.' },
     'Freeze':      { color: '#85c1e9', svg: '<svg viewBox="0 0 12 12"><path d="M6 1 V11 M1.5 3.5 L10.5 8.5 M10.5 3.5 L1.5 8.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>', tip: 'Cannot attack. Takes double damage while frozen.' },
     'Fear':        { color: '#5a5a5a', svg: '<svg viewBox="0 0 12 12"><circle cx="4" cy="5" r="1" fill="currentColor"/><circle cx="8" cy="5" r="1" fill="currentColor"/><path d="M3 9 Q6 7 9 9" stroke="currentColor" stroke-width="1.2" fill="none"/></svg>', tip: 'Attacks itself instead of the enemy.' },
+    'Steady':      { color: '#16a085', svg: '<svg viewBox="0 0 12 12"><circle cx="6" cy="6" r="2.5" stroke="currentColor" stroke-width="1.2" fill="none"/><path d="M3 6 H9 M6 3 V9" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>', tip: 'Cancels one Crazy reroll per charge — ATK stays at base for that turn.' },
     'Drain':       { color: '#8e44ad', svg: '<svg viewBox="0 0 12 12"><path d="M6 2 L8 6 C8 8 7 9 6 9 C5 9 4 8 4 6 Z" fill="currentColor"/></svg>', tip: 'Steals ATK/HP from an enemy.' },
     'Revive':      { color: '#27ae60', svg: '<svg viewBox="0 0 12 12"><path d="M6 10 V4 M6 4 L3 7 M6 4 L9 7" stroke="currentColor" stroke-width="1.4" fill="none" stroke-linecap="round" stroke-linejoin="round"/><path d="M3 2 H9" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>', tip: 'When destroyed, revive N times with modified stats.' },
     'Draw':        { color: '#5dade2', svg: '<svg viewBox="0 0 12 12"><path d="M3 2 V8 M6 2 V9 M9 2 V10" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>', tip: 'Draw N extra cards from your deck.' },
@@ -8857,6 +8859,8 @@ const UI = {
     'Echo':       'badge-echo',
     'Phoenix':    'badge-phoenix',
     'Fear':       'badge-fear',
+    'Freeze':     'badge-freeze',
+    'Steady':     'badge-steady',
     'Discount':   'badge-discount'
   },
   formatAbilityBadges(abilities) {

@@ -834,7 +834,16 @@ const CARD_ABILITIES = {
           const l = G.state.lanes[i];
           if (!l.destroyed && !l[opp] && !l.trap) open.push(i);
         }
-        if (remaining <= 0 || open.length === 0) { moveEnemyStep(); return; }
+        if (remaining <= 0) { moveEnemyStep(); return; }
+        // No empty enemy lanes — log so the player isn't surprised when
+        // some/all bear traps silently fail to place. Audit finding:
+        // Jigsaw used to disappear with no message when no slots were
+        // available, leaving the player wondering what happened.
+        if (open.length === 0) {
+          G.log(`Jigsaw — no empty enemy lanes, ${remaining} bear trap${remaining === 1 ? '' : 's'} wasted.`);
+          moveEnemyStep();
+          return;
+        }
         G.promptLaneChoice(owner, open,
           `Jigsaw — Set Bear Trap`,
           `Choose an enemy lane to set a Reverse Bear Trap (${remaining} remaining)`,

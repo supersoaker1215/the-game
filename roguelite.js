@@ -238,6 +238,14 @@ const Roguelite = {
       // Fear had a scalable etch but Freeze didn't, leaving cold-deck
       // builds without a parallel etch lever.
       { id: 'freeze-1',      name: 'Freeze 1',  apply: c => { c.hasFreeze = (c.hasFreeze || 0) + 1; Roguelite._bumpKw(c, 'Freeze', c.hasFreeze); } },
+      // Steady etch — defensive counterplay to Crazy. Each charge
+      // cancels one Crazy reroll (ATK reverts to base for the affected
+      // turn). Audit finding: Crazy was a debuff with NO counterplay
+      // — once a card was hit by Joker's Crazy stamp the player just
+      // suffered RNG. Stacks (hasSteady=2 = 2 cancellations). Works
+      // on intrinsic Crazy holders (Harley) too — a Steady-etched
+      // Harley gets one "normal ATK" turn before chaos resumes.
+      { id: 'steady',        name: 'Steady',    apply: c => { c.hasSteady = (c.hasSteady || 0) + 1; Roguelite._bumpKw(c, 'Steady', c.hasSteady); } },
       { id: 'immunity-1',    name: 'Immunity 1', apply: c => { c.immunityCharges = (c.immunityCharges || 0) + 1; Roguelite._bumpKw(c, 'Immunity', c.immunityCharges); } },
       { id: 'draw-1',        name: 'Draw 1',    apply: c => { c.drawOnPlay = (c.drawOnPlay || 0) + 1; Roguelite._bumpKw(c, 'Draw', c.drawOnPlay); } },
       { id: 'discount-2',    name: 'Discount 2', apply: c => { const before = c.baseCost || c.cost || 0; c.cost = Math.max(0, (c.cost || 0) - 2); c.baseCost = Math.max(0, (c.baseCost || before) - 2); c._discountTotal = (c._discountTotal || 0) + 2; Roguelite._bumpKw(c, 'Discount', c._discountTotal); } },
@@ -320,6 +328,7 @@ const Roguelite = {
     'fear-1':        'Fear 1 — applies Fear to one enemy on play.',
     'freeze-1':      'Freeze 1 — freezes one enemy for 1 turn on play.',
     'freeze-2':      'Freeze 2 — freezes one enemy for 2 turns on play.',
+    'steady':        'Steady — cancels one Crazy reroll (ATK stays at base). Stacks per charge.',
     'immunity-1':    'Immunity 1 — blocks the next debuff (freeze, stun, fear, mind control, etc.) cast on this card.',
     'draw-1':        'Draw 1 — draw 1 card when this is played.',
     'draw-2':        'Draw 2 — draw 2 cards when this is played.',
@@ -370,12 +379,20 @@ const Roguelite = {
       // Now just bumps both max HP and current HP by 10 — clean
       // survival-anchor messaging.
       desc: '+10 max HP.',
-      onAcquire(run) { run.maxHp += 10; run.hp += 10; },
+      onAcquire(run) {
+        run.maxHp += 10; run.hp += 10;
+        if (typeof Game !== 'undefined' && Game.log) Game.log('[RELIC] Crimson Cuirass: +10 max HP.');
+      },
     },
     {
       id: 'lucky-coin', name: 'Lucky Coin', rarity: 'common',
       desc: 'Gain +10 gold after every fight won.',
-      onFightEnd(run, won) { if (won) run.gold += 10; },
+      onFightEnd(run, won) {
+        if (won) {
+          run.gold += 10;
+          if (typeof Game !== 'undefined' && Game.log) Game.log('[RELIC] Lucky Coin: +10 gold.');
+        }
+      },
     },
     {
       id: 'old-manuscript', name: 'Old Manuscript', rarity: 'common',
@@ -390,7 +407,14 @@ const Roguelite = {
     {
       id: 'healing-brew', name: 'Healing Brew', rarity: 'common',
       desc: 'Heal 5 HP after every fight won.',
-      onFightEnd(run, won) { if (won) run.hp = Math.min(run.maxHp, run.hp + 5); },
+      onFightEnd(run, won) {
+        if (won) {
+          const before = run.hp;
+          run.hp = Math.min(run.maxHp, run.hp + 5);
+          const healed = run.hp - before;
+          if (healed > 0 && typeof Game !== 'undefined' && Game.log) Game.log(`[RELIC] Healing Brew: +${healed} HP.`);
+        }
+      },
     },
     {
       id: 'steel-heart', name: 'Steel Heart', rarity: 'common',
@@ -421,7 +445,12 @@ const Roguelite = {
       // Heals on ANY fight ending — distinct from Healing Brew (which
       // only heals on wins). Soft buffer for risky elite attempts.
       desc: 'Heal 3 HP after every fight (win or lose).',
-      onFightEnd(run) { run.hp = Math.min(run.maxHp, run.hp + 3); },
+      onFightEnd(run) {
+        const before = run.hp;
+        run.hp = Math.min(run.maxHp, run.hp + 3);
+        const healed = run.hp - before;
+        if (healed > 0 && typeof Game !== 'undefined' && Game.log) Game.log(`[RELIC] Toy Ornithopter: +${healed} HP.`);
+      },
     },
 
     // ----- Rare (elite + shop) -----
@@ -518,6 +547,9 @@ const Roguelite = {
         if (run._gauntletWins >= 5 && !run._gauntletConsumed) {
           run.hp = run.maxHp;
           run._gauntletConsumed = true;
+          if (typeof Game !== 'undefined' && Game.log) Game.log('[RELIC] Thanos Gauntlet snaps — full heal!');
+        } else if (!run._gauntletConsumed && typeof Game !== 'undefined' && Game.log) {
+          Game.log(`[RELIC] Thanos Gauntlet: ${run._gauntletWins}/5 wins.`);
         }
       },
     },
