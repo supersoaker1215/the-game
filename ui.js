@@ -328,6 +328,9 @@ const UI = {
       // verse). -20 LUFS unified-baseline, 1s fade-in / 2s fade-out
       // baked in. maxDur 59 lets the full phrase play.
       'Ghostface':        { hover: { src: 'audio/cards/ghostface-hover.mp3?v=2', maxDur: 59 } },
+      // Harley deathfall — 0.58s clip, plays whenever Harley is killed.
+      // Already under the 1.5s death-cap so no maxDur needed.
+      'Harley Quinn':     { death: 'audio/cards/harley-death.mp3' },
       // Winter Soldier hover: 52s of Henry Jackman's "End Of The Line"
       // (1:05 → 1:57 of the source) — the cold-war motif build. -20 LUFS
       // unified-baseline, 1s fade-in / 2s fade-out baked. maxDur 53 lets
