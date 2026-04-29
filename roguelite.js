@@ -1131,6 +1131,20 @@ const Roguelite = {
     // def fields, so re-stamp it from the def/deckCard. The dim purple
     // tint, deck-removal hint, and tier-bypass logic all key off this.
     if (def._isCurse || deckCard._isCurse) card._isCurse = true;
+    // PER-RARITY DESCRIPTION SWAP. For cards in RARITY_DESCS (Mr. Freeze,
+    // Hawkeye, Black Widow, etc.), the rarity tier widens the actual
+    // behavior — Mr. Freeze legendary freezes 3 lanes via rarityValue
+    // — but the def's classic desc still reads "Freeze 1 the enemy
+    // opposite". User report: "Card text says Freeze 1, but it acted
+    // like a splash freeze. The text didn't say that. This isn't the
+    // interaction I wanted." Fix: pull the rarity-scaled variant onto
+    // card.desc so the in-game render and tooltips match what actually
+    // happens. Codex / deck list / reward picker already do their own
+    // RARITY_DESCS lookup; this aligns the in-lane render with that.
+    const variantDescs = this.RARITY_DESCS && this.RARITY_DESCS[deckCard.defName];
+    if (variantDescs && variantDescs[deckCard.rarity]) {
+      card.desc = variantDescs[deckCard.rarity];
+    }
     return card;
   },
 
