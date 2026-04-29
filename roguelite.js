@@ -99,6 +99,27 @@ const Roguelite = {
     return pick.name;
   },
 
+  // Hide roguelite-only cards from Classic mode (codex, deckbuilder,
+  // draft pile, summon pool). User report: "brute goon and thug made
+  // its way to the game, not just the roguelike — they need to be
+  // removed there and only in the roguelike." STARTER_DEFS get injected
+  // into CARD_DEFS at boot so the engine can name-resolve them during
+  // a run; this helper lets every classic-mode pool filter them back
+  // out without touching the def store. Same treatment for the AI
+  // vanilla bodies (Soldier / Mercenary / Operator) and curses
+  // (Wound / Doubt / Regret).
+  _rogueliteOnlyNames: null,
+  isRogueliteOnlyName(name) {
+    if (!this._rogueliteOnlyNames) {
+      const set = new Set();
+      (this.STARTER_DEFS || []).forEach(d => set.add(d.name));
+      (this.AI_VANILLA_DEFS || []).forEach(d => set.add(d.name));
+      (this.CURSE_DEFS || []).forEach(d => set.add(d.name));
+      this._rogueliteOnlyNames = set;
+    }
+    return this._rogueliteOnlyNames.has(name);
+  },
+
   STARTER_DEFS: [
     // The 3 vanilla starter bodies. User spec: "I just want Goon, who's
     // a one energy 1/1. Thug, two energy 2/2. Brute, three energy 3/4.

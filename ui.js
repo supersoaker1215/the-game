@@ -4103,7 +4103,14 @@ const UI = {
     if (!ov) return;
     const f = this._encyc;
     const isCards = f.section === 'cards';
-    const pool = isCards ? CARD_DEFS : (typeof TRICK_DEFS !== 'undefined' ? TRICK_DEFS : []);
+    // Filter out roguelite-only cards (Goon/Thug/Brute, Soldier/Mercenary/
+    // Operator, Wound/Doubt/Regret) from the classic-mode codex. They're
+    // in CARD_DEFS so the engine can name-resolve them during a run but
+    // shouldn't show up in the Classic encyclopedia.
+    const isRL = (typeof Roguelite !== 'undefined' && Roguelite.isRogueliteOnlyName)
+      ? (n) => Roguelite.isRogueliteOnlyName(n) : () => false;
+    const rawPool = isCards ? CARD_DEFS : (typeof TRICK_DEFS !== 'undefined' ? TRICK_DEFS : []);
+    const pool = rawPool.filter(c => !isRL(c.name));
     const costBuckets = isCards
       ? [ ['all','All'], ['0-3','0-3'], ['4-6','4-6'], ['7-8','7-8'], ['9-10','9-10'] ]
       : [ ['all','All'], ['0-2','0-2'], ['3-4','3-4'], ['5+','5+'] ];
@@ -5880,7 +5887,11 @@ const UI = {
     db.tricks.forEach(n => { trickCountMap[n] = (trickCountMap[n] || 0) + 1; });
 
     const isCards = filter.section === 'cards';
-    const pool = isCards ? CARD_DEFS : TRICK_DEFS;
+    // Hide roguelite-only cards from the deckbuilder pool too.
+    const isRL = (typeof Roguelite !== 'undefined' && Roguelite.isRogueliteOnlyName)
+      ? (n) => Roguelite.isRogueliteOnlyName(n) : () => false;
+    const rawPool = isCards ? CARD_DEFS : TRICK_DEFS;
+    const pool = rawPool.filter(c => !isRL(c.name));
     const costs = isCards ? ['all', '0-3', '4-6', '7-8', '9-10'] : ['all', '0-2', '3-4', '5+'];
     const inRange = (c) => {
       if (filter.cost === 'all') return true;

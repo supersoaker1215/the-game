@@ -834,8 +834,14 @@ const Game = {
       this._initSummonDeck();
       return;
     }
-    // Classic — single shared card draw pile — one copy of every card definition (95 total)
-    const deck = CARD_DEFS.map(d => ({ ...d }));
+    // Classic — single shared card draw pile — one copy of every card definition (95 total).
+    // Filter out roguelite-only entries (STARTER_DEFS Goon/Thug/Brute,
+    // AI_VANILLA_DEFS Soldier/Mercenary/Operator, CURSE_DEFS Wound/Doubt/
+    // Regret) — they live in CARD_DEFS so the engine can name-resolve
+    // them during a run, but they shouldn't appear in classic draft pulls.
+    const isRL = (typeof Roguelite !== 'undefined' && Roguelite.isRogueliteOnlyName)
+      ? (n) => Roguelite.isRogueliteOnlyName(n) : () => false;
+    const deck = CARD_DEFS.filter(d => !isRL(d.name)).map(d => ({ ...d }));
     this.state.drawPile = this.shuffle(deck);
 
     // Single shared trick draw pile — one copy of every trick (27 total)
@@ -866,8 +872,16 @@ const Game = {
       this.state.summonDeck = [];
       return;
     }
+    // Mother Box / Bat Signal / Super Soldier Serum etc. pull from this
+    // pool — exclude roguelite-only names so a Classic match can't
+    // randomly summon a Goon or a Wound. Inside a roguelite run, the
+    // run-scoped summon paths build their own pools, so filtering here
+    // doesn't break those.
+    const isRL = (typeof Roguelite !== 'undefined' && Roguelite.isRogueliteOnlyName)
+      ? (n) => Roguelite.isRogueliteOnlyName(n) : () => false;
     const summonDeck = CARD_DEFS
       .filter(d => !d.isDiscardEffect) // discard-effect cards are 0/0 — never sensible to summon
+      .filter(d => !isRL(d.name))
       .map(d => ({ ...d }));
     this.state.summonDeck = this.shuffle(summonDeck);
   },
