@@ -1656,12 +1656,12 @@ const UI = {
           this._tone({ type: 'sine', freq: 880, dur: 0.035, gain: 0.08, release: 0.05 });
           break;
         case 'uiHover':
-          // Tron-style digital hover blip — triangle wave with a quick
-          // upward sweep + sine harmonic shimmer for a clean synthetic
-          // feel. Kept short and quiet so rapid button-to-button hovers
-          // layer gracefully instead of becoming a pulse.
-          this._tone({ type: 'triangle', freq: 860, freqEnd: 1280, dur: 0.055, gain: 0.08, attack: 0.002, release: 0.09 });
-          this._tone({ type: 'sine',     freq: 1720, freqEnd: 2160, dur: 0.04,  gain: 0.04, attack: 0.002, release: 0.06, delay: 0.012 });
+          // User-supplied MENUMOVE blip (audio/ui-hover.mp3). Replaces
+          // the previous procedural triangle/sine sweep. The 3-clone
+          // pool inside _playSample handles rapid button-to-button
+          // sweeps; a short fade-in/out keeps onset clicks down. No
+          // maxDur because the source is already 0.14s.
+          this._playSample('audio/ui-hover.mp3', { fadeIn: 5, fadeOut: 30 });
           break;
         case 'kill':
           // "Got 'em" confirm — two ascending triangle blips with a tiny
