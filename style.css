@@ -5472,6 +5472,7 @@ body.hit-pause .ai-hand * {
 .badge-fear       { color: #5a5a5a; }
 .badge-freeze     { color: #85c1e9; }
 .badge-steady     { color: #16a085; }
+.badge-curse      { color: #c39bd3; }
 .badge-discount   { color: #16a085; }
 .card.status-charmed { box-shadow: 0 0 12px rgba(155,89,182,0.6), 0 0 24px rgba(155,89,182,0.25) !important; }
 
@@ -23382,3 +23383,67 @@ input[type="number"]::-webkit-outer-spin-button {
   box-shadow: inset 0 0 16px rgba(255,215,0,0.12);
 }
 .rl-end-relic-card.rl-relic-boss .rl-end-relic-card-rarity { color: #ffe066; }
+
+/* ============ CURSE INTRO MODAL ============ */
+/* Banner shown the first time a player picks up a curse this run.
+   Explains what curses are so the mechanic doesn't blindside new
+   roguelite players. Reuses .rl-modal scaffold; this just styles the
+   inner copy. */
+.rl-curse-intro {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  padding: 8px 0 4px;
+  max-width: 640px;
+  margin: 0 auto;
+}
+.rl-curse-intro-glyph {
+  font-family: 'Rajdhani', sans-serif;
+  font-size: 56px;
+  line-height: 1;
+  color: #c39bd3;
+  text-shadow:
+    0 0 12px rgba(155,60,127,0.7),
+    0 0 28px rgba(155,60,127,0.35);
+  letter-spacing: 0;
+}
+.rl-curse-intro-lede {
+  text-align: center;
+  font-size: 15px;
+  line-height: 1.5;
+  color: #e6eef5;
+  margin: 0 0 4px;
+}
+.rl-curse-intro-lede b {
+  color: #c39bd3;
+  text-shadow: 0 0 4px rgba(155,60,127,0.4);
+}
+.rl-curse-intro-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+}
+.rl-curse-intro-list li {
+  position: relative;
+  padding: 8px 12px 8px 28px;
+  background: rgba(155,60,127,0.06);
+  border: 1px solid rgba(155,60,127,0.20);
+  border-radius: 4px;
+  font-size: 13px;
+  line-height: 1.45;
+  color: rgba(220,225,235,0.9);
+}
+.rl-curse-intro-list li::before {
+  content: "✕";
+  position: absolute;
+  left: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: rgba(195,155,211,0.8);
+  font-weight: 700;
+}

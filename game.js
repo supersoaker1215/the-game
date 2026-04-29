@@ -3416,6 +3416,43 @@ const Game = {
     const drawn = [];
     for (let i = 0; i < count; i++) {
       if (p.hand.length >= p.maxHandSize) {
+        // Auto-discard floor — if the next-to-draw is a discard-only
+        // card (Mr. Fantastic / Catwoman / Jigsaw / Professor X), fire
+        // its effect for FREE instead of silently losing the card to
+        // the hand cap. Audit finding: discard-onlys felt useless late
+        // in a roguelite run when the player's hand stayed full.
+        // Roguelite-only + player-only — AI's discard plays are
+        // handled by the AI's strategic card-selection layer; classic
+        // mode behavior unchanged.
+        const isRogueliteAuto = this.state.mode && this.state.mode._roguelite;
+        if (isRogueliteAuto && owner === 'player') {
+          const drawPile = this.getDrawPile(owner);
+          const top = drawPile.length ? drawPile[drawPile.length - 1] : null;
+          if (top && top.isDiscardEffect) {
+            drawPile.pop();
+            // Rebuild via the same path drawCards uses below for normal
+            // draws, so etches / _runDeckCardRef / XP attribution stay
+            // intact. Roguelite player cards always carry _runDeckCardRef.
+            const ref = top._runDeckCardRef;
+            let card;
+            if (ref && typeof Roguelite !== 'undefined' && Roguelite.buildRunCard) {
+              card = Roguelite.buildRunCard(ref, owner) || top;
+            } else if (top._isCardInstance) {
+              card = top;
+            } else {
+              card = this.createCardInstance(top, owner);
+            }
+            this.log(`  [AUTO-DISCARD] ${who} discard ${card.name} at hand cap — effect fires free.`);
+            this.state[owner].discardPile.push({
+              name: card.name, cost: card.baseCost || card.cost,
+              type: card.type, abilities: card.abilities, desc: card.desc,
+              isDiscardEffect: true,
+              _sourceInstance: card,
+            });
+            if (card.onDiscard) card.onDiscard(this, owner, card);
+            continue;  // try the next draw — multi-stack discards keep firing
+          }
+        }
         this.log(`  [HAND FULL] ${who} hand at max (${p.maxHandSize}) — stop drawing.`);
         break;
       }

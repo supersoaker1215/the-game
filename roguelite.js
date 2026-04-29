@@ -98,6 +98,28 @@ const Roguelite = {
     });
     // Curse-warning toast — purple tint, ✕ glyph.
     this.showToast(`<span class="rl-toast-glyph">✕</span><span class="rl-toast-text"><b>${pick.name}</b><span class="rl-toast-sub">CURSE ADDED</span></span>`, 'curse');
+    // First-curse intro modal — explains what curses are. Audit
+    // finding: no in-game tooltip / banner explained the curse
+    // mechanic, so new roguelite players hit a weird card with no
+    // context. The flag persists on the run object so subsequent
+    // curses just toast (no repeat banner). Defer the modal one tick
+    // so the toast lands first and the player sees the cause-effect.
+    if (!run._curseIntroSeen) {
+      run._curseIntroSeen = true;
+      setTimeout(() => {
+        this._modal('CURSE ACQUIRED', `
+          <div class="rl-curse-intro">
+            <div class="rl-curse-intro-glyph" aria-hidden="true">✕</div>
+            <p class="rl-curse-intro-lede"><b>${pick.name}</b> joined your deck. It's a <b>curse</b> — a permanent liability you took on by reaching for a payoff.</p>
+            <ul class="rl-curse-intro-list">
+              <li>Curses sit in your deck like any other card. They draw, they clog your hand.</li>
+              <li>Some are duds (zero stats); some have a downside when played (Regret loses 2 HP).</li>
+              <li>Curses can\'t be drafted away with reward picks. They have to be removed at a Rest Site or specific events.</li>
+              <li>Hover any curse card in your deck to see what it does.</li>
+            </ul>
+          </div>`);
+      }, 50);
+    }
     return pick.name;
   },
 
@@ -752,6 +774,17 @@ const Roguelite = {
       rare:      'WHEN PLAYED: Even-lane enemies get -1/-2. Force opponent\'s next 2 card placements.',
       special:   'WHEN PLAYED: Even-lane enemies get -1/-2. Force opponent\'s next 3 card placements.',
       legendary: 'WHEN PLAYED: Even-lane enemies get -1/-2. Force opponent\'s next 4 card placements.',
+    },
+    // Dr. Strange — text fix. cards.js prints "peek at the top 2 cards
+    // — keep one, the other goes to the opponent" (the classic-mode
+    // path), but roguelite scry is peek-3 and the others sink to the
+    // bottom of YOUR pile (not the opponent's hand). This mismatch
+    // surfaced in the audit's #1 sweep.
+    'Dr. Strange': {
+      common:    'WHEN PLAYED: Next draw phase, peek at the top 3 cards — keep one, the other two sink to the bottom of your draw pile. WHILE ACTIVE: Adjacent allies gain Untrickable.',
+      rare:      'WHEN PLAYED: Next draw phase, peek at the top 3 cards — keep one, the other two sink to the bottom of your draw pile. WHILE ACTIVE: Adjacent allies gain Untrickable.',
+      special:   'WHEN PLAYED: Next draw phase, peek at the top 3 cards — keep one, the other two sink to the bottom of your draw pile. WHILE ACTIVE: Adjacent allies gain Untrickable.',
+      legendary: 'WHEN PLAYED: Next draw phase, peek at the top 3 cards — keep one, the other two sink to the bottom of your draw pile. WHILE ACTIVE: Adjacent allies gain Untrickable.',
     },
     // Solomon Grundy — text fix. cards.js prints "shared Dead Pile" but
     // the roguelite engine path scavenges from YOUR dead pile only
@@ -5743,6 +5776,10 @@ const Roguelite = {
       });
       if (textPlus && !abilities.includes('Text+')) abilities.push('Text+');
     }
+    // Curse cards get a 'Curse' status badge so the keyword tooltip
+    // surfaces explanation on hover. Rendered alongside any other
+    // abilities the curse may carry (Regret has WHEN PLAYED logic).
+    if (deckCard._isCurse && !abilities.includes('Curse')) abilities.push('Curse');
     const costClass = 'cost-' + Math.min(10, Math.max(0, cost));
     // Pip count tracks RUN rarity, not intrinsic cost — common=1, rare=2,
     // special=3, legendary=4. So a Legendary Goon shows 4 gold pips.
