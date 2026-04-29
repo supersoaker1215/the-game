@@ -1956,6 +1956,74 @@ const Roguelite = {
         { label: 'Move on', resolve() { return 'You leave the dead in peace.'; } },
       ],
     },
+    // ----- Slay-the-Spire-style add/remove card events -----
+    // User direction: "some events should allow you to add cards and
+    // remove cards just like Slay the Spire."
+    {
+      id: 'pruning-shears',
+      name: 'Pruning Shears',
+      flavor: 'A pair of mirror-blade shears glints on a stone table. The grid hums: "FOR EVERY CUT, A COST."',
+      choices: [
+        // Pay 5 HP to remove any card from the deck. Return the
+        // OPEN_REMOVAL sentinel so _resolveEventChoice routes to the
+        // card-removal picker instead of just setting lastResult.
+        { label: 'Lose 5 HP — remove a card from your deck', resolve(run) {
+          if (run.hp <= 5) return 'You are too wounded to spare any blood.';
+          if (run.deck.length <= 1) return 'Your deck is too thin to prune further.';
+          run.hp -= 5;
+          return 'OPEN_REMOVAL';
+        } },
+        { label: 'Pay 75 gold — remove a card from your deck', cost: 75, resolve(run) {
+          if (run.gold < 75) return 'Not enough gold.';
+          if (run.deck.length <= 1) return 'Your deck is too thin to prune further.';
+          run.gold -= 75;
+          return 'OPEN_REMOVAL';
+        } },
+        { label: 'Walk past — leave the shears behind', resolve() { return 'The blades go untouched.'; } },
+      ],
+    },
+    {
+      id: 'strange-library',
+      name: 'Strange Library',
+      flavor: 'A flickering library of grid-shadows. The shelves whisper: "READ ME — CHOOSE WISELY."',
+      choices: [
+        // Pick 1 of 3 random Rare-or-better cards (free).
+        { label: 'Pick from 3 Rare-or-better cards', resolve(run) {
+          run.pendingRewards = Roguelite.rollRewards(run.act, { rarityFloor: 'rare' });
+          return 'PICK_REWARD';
+        } },
+        // Lose 6 HP for a Special-floor card pick (better odds).
+        { label: 'Lose 6 HP — pick from 3 Special-or-better cards', resolve(run) {
+          if (run.hp <= 6) return 'You are too wounded to risk it.';
+          run.hp -= 6;
+          run.pendingRewards = Roguelite.rollRewards(run.act, { rarityFloor: 'special' });
+          return 'PICK_REWARD';
+        } },
+        { label: 'Skip — close the book', resolve() { return 'The whispers fade.'; } },
+      ],
+    },
+    {
+      id: 'forgotten-forge',
+      name: 'Forgotten Forge',
+      flavor: 'A dormant grid-forge sparks back to life. Its furnace asks for fuel — gold or pain.',
+      choices: [
+        // Pay 40 gold to add a free Common card to your deck.
+        { label: 'Pay 40 gold — add a Common card from 3 picks', cost: 40, resolve(run) {
+          if (run.gold < 40) return 'Not enough gold.';
+          run.gold -= 40;
+          run.pendingRewards = Roguelite.rollRewards(run.act, {});
+          return 'PICK_REWARD';
+        } },
+        // Pay 8 HP for a free Rare-or-better pick.
+        { label: 'Lose 8 HP — pick a Rare-or-better card', resolve(run) {
+          if (run.hp <= 8) return 'Your wounds would kill you.';
+          run.hp -= 8;
+          run.pendingRewards = Roguelite.rollRewards(run.act, { rarityFloor: 'rare' });
+          return 'PICK_REWARD';
+        } },
+        { label: 'Walk away — let the forge sleep', resolve() { return 'The sparks die down.'; } },
+      ],
+    },
   ],
 
   _showEvent(node) {
@@ -1996,7 +2064,41 @@ const Roguelite = {
       UI.render();
       return;
     }
+    // Card-removal sentinel — paid the cost in resolve(), now open the
+    // deck picker so the player chooses which card to prune.
+    if (result === 'OPEN_REMOVAL') {
+      this._renderEventCardRemoval();
+      return;
+    }
     run.lastResult = { event: result };
+    Game.state.phase = 'roguelite-map';
+    UI.render();
+  },
+
+  // Event-driven card-removal picker — same affordance as the Merchant's
+  // remove service but invoked from a Pruning Shears event. The cost
+  // (HP / gold) was already deducted in the event's resolve(); this
+  // step just lets the player commit the cut.
+  _renderEventCardRemoval() {
+    const run = Game.state.roguelite;
+    if (!run) return;
+    const cards = run.deck.map((d, i) => `
+      <div class="rl-deck-slot rl-tier-${d.rarity}" onclick="Roguelite._executeEventCardRemoval(${i})" style="cursor:pointer">
+        ${this._renderCodexCard(d)}
+      </div>`).join('');
+    const body = `
+      <div class="rl-event-flavor">Pick a card to remove from your deck.</div>
+      <div class="rl-deck-grid">${cards}</div>`;
+    this._modal('REMOVE A CARD', body);
+  },
+
+  _executeEventCardRemoval(cardIdx) {
+    const run = Game.state.roguelite;
+    if (!run || cardIdx < 0 || cardIdx >= run.deck.length) return;
+    const removed = run.deck[cardIdx];
+    run.deck.splice(cardIdx, 1);
+    run.lastResult = { event: `Pruned: ${removed.defName} removed from your deck.` };
+    this._closeModal();
     Game.state.phase = 'roguelite-map';
     UI.render();
   },

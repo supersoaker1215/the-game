@@ -92,7 +92,13 @@ const TRICK_DEFS = [
       // cards already in hand. Filter: cost ≤ 1 OR Batman, no discard-
       // effect cards. Restored balance: previously cost ≤ 2 made
       // mid-cost cards (Black Widow, Thanos's tier-2 etc.) too cheap.
-      const d = G.drawFromSummonDeck(c => !c.isDiscardEffect && (c.cost <= 1 || c.name === 'Batman'));
+      //
+      // Roguelite-only: Batman is excluded from the pool. User direction:
+      // "remove the spawn Darkseid and Batman from Mother Box / Bat
+      // Signal only in the roguelite." Classic mode keeps the legendary
+      // boss-card jackpot.
+      const isRoguelite = !!(G.state.mode && G.state.mode._roguelite);
+      const d = G.drawFromSummonDeck(c => !c.isDiscardEffect && (c.cost <= 1 || (!isRoguelite && c.name === 'Batman')));
       if (d) {
         G.summonCardChoice(owner, d.name, d.cost, d.attack, d.health, d.abilities || [], null, null, d);
         G.log(`Bat Signal summons ${d.name}!`);
@@ -200,7 +206,13 @@ const TRICK_DEFS = [
       // no discard-effect cards. Same scope shift as Bat Signal — was
       // cost ≤ 2 which routinely produced 2-cost cards from a 1-cost
       // trick.
-      const d = G.drawFromSummonDeck(c => !c.isDiscardEffect && (c.cost <= 1 || c.name === 'Darkseid'));
+      //
+      // Roguelite-only: Darkseid is excluded from the pool. User
+      // direction: "remove the spawn Darkseid and Batman from Mother
+      // Box / Bat Signal only in the roguelite." Classic mode keeps
+      // the boss-card jackpot.
+      const isRoguelite = !!(G.state.mode && G.state.mode._roguelite);
+      const d = G.drawFromSummonDeck(c => !c.isDiscardEffect && (c.cost <= 1 || (!isRoguelite && c.name === 'Darkseid')));
       if (d) {
         G.summonCardChoice(owner, d.name, d.cost, d.attack, d.health, d.abilities || [], null, null, d);
         G.log(`Mother Box summons ${d.name}!`);
