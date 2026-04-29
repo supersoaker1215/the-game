@@ -677,6 +677,22 @@ const Roguelite = {
       special:   'WHEN PLAYED: Even-lane enemies get -1/-2. Force opponent\'s next 3 card placements.',
       legendary: 'WHEN PLAYED: Even-lane enemies get -1/-2. Force opponent\'s next 4 card placements.',
     },
+    // Lex Luthor — softened from the classic full lock. User direction:
+    // "Have Lex Luthor say while active, the opponent only draws one
+    // card per turn. That's his rare ability. If you upgrade it for
+    // the text, it would be the opponent cannot draw any cards or
+    // make bonus attacks." All four tiers print the soft cap; the
+    // Text+ etch (CARD_TEXT_UPGRADES['Lex Luthor']) restores the full
+    // lockdown via the _lexFullLock flag read by drawCards /
+    // drainBonusAttacks. Roguelite-only — classic-mode Lex always
+    // applies the full block (his preventDraw passive is unconditional
+    // outside the roguelite mode check in drawCards).
+    'Lex Luthor': {
+      common:    'WHILE ACTIVE: The opponent only draws 1 card per turn. (Tricks unaffected.)',
+      rare:      'WHILE ACTIVE: The opponent only draws 1 card per turn. (Tricks unaffected.)',
+      special:   'WHILE ACTIVE: The opponent only draws 1 card per turn. (Tricks unaffected.)',
+      legendary: 'WHILE ACTIVE: The opponent only draws 1 card per turn. (Tricks unaffected.)',
+    },
     'Sandman': {
       common:    'A pile of sand — no while-active effect (just a 1/3 body).',
       rare:      'WHILE ACTIVE: Enemy Tricks cost 1 more Energy.',
@@ -2303,6 +2319,19 @@ const Roguelite = {
       desc: 'Skip the give-back — steal an enemy card without trade.',
       descOverride: 'When Destroyed: Steal a face-down card from the enemy\'s hand (no give-back).',
       apply: c => { c._deadpoolNoGiveBack = true; },
+    },
+    // Lex Luthor — Text+ restores the classic full lockdown. Default
+    // Lex (rare) only caps the opponent at 1 draw per turn (see
+    // RARITY_DESCS['Lex Luthor']). The Text+ flag _lexFullLock is read
+    // by drawCards (full block) and drainBonusAttacks (bonus-attack
+    // suppression) in game.js. User direction: "If you upgrade it for
+    // the text, it would be the opponent cannot draw any cards or
+    // make bonus attacks."
+    'Lex Luthor': {
+      id: 'lex-text', name: 'Total Lockdown',
+      desc: 'Restores the full lock — opponent cannot draw cards OR make bonus attacks.',
+      descOverride: 'WHILE ACTIVE: The opponent cannot draw cards or make bonus attacks. (Tricks can still be drawn.)',
+      apply: c => { c._lexFullLock = true; },
     },
   },
 

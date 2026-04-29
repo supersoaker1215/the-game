@@ -3372,23 +3372,26 @@ const Game = {
 
     // Lex Luthor's preventDraw passive. In CLASSIC mode this is a hard
     // block (matches the canonical "opponent cannot draw cards" text on
-    // his card). In ROGUELITE the boss has 2× Lex Luthor in his deck
-    // and the lock-out becomes oppressive — user feedback: "Lex Luthor
-    // boss is so hard, he prevents you from drawing cards." Soften
-    // there to a per-Lex draw reduction (1 Lex on board = -1 draw, 2
-    // Lex = -2). At base draw 2 the player still gets 1 card with one
-    // Lex on the table, 0 with two — same worst-case but a meaningful
-    // softer floor that lets the player still scrape something.
+    // his card). In ROGUELITE the default behavior softens to a 1-draw
+    // cap per turn — user direction: "Have Lex Luthor say while active,
+    // the opponent only draws one card per turn. That's his rare
+    // ability." A Lex carrying the Text+ etch (`_lexFullLock`) restores
+    // the original full lockdown so the upgrade is a meaningful power
+    // spike. With multiple Lexes alive, ANY full-lock Lex on the board
+    // wins (full block); otherwise the cap is 1 regardless of count.
     const lexes = this.getAllCardsOf(opp).filter(c => c.passive === 'preventDraw');
     if (lexes.length) {
       const isRoguelite = this.state.mode && this.state.mode._roguelite;
       if (isRoguelite) {
-        const reduced = Math.max(0, count - lexes.length);
-        if (reduced < count) {
-          this.log(`  [LEX] Lex Luthor (×${lexes.length}) cuts ${who}'s draw to ${reduced}.`);
-          count = reduced;
+        const fullLock = lexes.some(c => c._lexFullLock);
+        if (fullLock) {
+          this.log(`[BLOCKED] Lex Luthor (Total Lockdown) prevents ${who} from drawing!`);
+          return;
         }
-        if (count === 0) return;
+        if (count > 1) {
+          this.log(`  [LEX] Lex Luthor caps ${who}'s draw at 1.`);
+          count = 1;
+        }
       } else {
         this.log(`[BLOCKED] Lex Luthor prevents ${who} from drawing!`);
         return;
@@ -3853,7 +3856,18 @@ const Game = {
     let remaining = typeof c.bonusAttack === 'number' ? c.bonusAttack : (c.bonusAttack ? 1 : 0);
     if (remaining <= 0) return;
     const oppSide = this.opponent(c.owner);
-    if (this.getAllCardsOf(oppSide).some(e => e.name === 'Lex Luthor')) {
+    // Lex Luthor's bonus-attack suppression. CLASSIC: any Lex on the
+    // opposite side blocks bonus attacks (matches his canonical card
+    // text). ROGUELITE: only Lexes carrying the Text+ etch
+    // (`_lexFullLock`) suppress — default Lex just caps draws to 1.
+    // User direction: "Have Lex Luthor say while active, the opponent
+    // only draws one card per turn. If you upgrade it for the text,
+    // it would be the opponent cannot draw any cards or make bonus
+    // attacks."
+    const isRoguelite = this.state.mode && this.state.mode._roguelite;
+    const lexes = this.getAllCardsOf(oppSide).filter(e => e.name === 'Lex Luthor');
+    const suppress = isRoguelite ? lexes.some(e => e._lexFullLock) : lexes.length > 0;
+    if (suppress) {
       this.log(`  [LUTHOR] ${c.name}'s bonus attack is suppressed by Lex Luthor!`);
       c.bonusAttack = false;
       return;
