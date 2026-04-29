@@ -1108,7 +1108,11 @@ const Roguelite = {
     // 70% real (cost 2-5). Tier 3 is full pool, cost 3-8.
     let costMin, costMax, hpMin, hpMax, difficulty, trickCount;
     if (node.tier === 1) {
-      costMin = 1; costMax = 3; hpMin = 9;  hpMax = 17; difficulty = 'easy';   trickCount = 1;
+      // Tier 1 HP nudged down (was 9-17). With baseline keyword strip
+      // applied to the player's deck (no Bullseye / Hunt / Splash on
+      // baseline cards), early fights need a slightly lower ceiling
+      // so a 1/1 Goon line can actually finish a fight in 4-5 rounds.
+      costMin = 1; costMax = 3; hpMin = 8;  hpMax = 14; difficulty = 'easy';   trickCount = 1;
     } else if (node.tier === 2) {
       costMin = 2; costMax = 5; hpMin = 17; hpMax = 30; difficulty = 'normal'; trickCount = 2;
     } else {
@@ -1117,7 +1121,19 @@ const Roguelite = {
     let hp = this._randInRange(hpMin, hpMax);
     if (node.type === 'elite') { hp += this._randInRange(8, 14); difficulty = 'hard'; trickCount += 1; }
 
-    const vanillaPool = this.AI_VANILLA_DEFS.filter(c => c.cost >= costMin && c.cost <= costMax);
+    // Tier 1 vanilla pool excludes Operator (3/4). User feedback:
+    // "too many operators for the opponent in the first couple rounds —
+    // it's hard to kill the AI." With round 2 = 4 energy, the AI was
+    // dropping Operator (3/4) + Soldier (1/1) every round, which the
+    // player's starter Goons (1/1) and Thugs (2/2) couldn't match.
+    // Restricting tier 1 to Soldier + Mercenary keeps early fights
+    // tractable; Operator returns at tier 2+ when the player has
+    // upgraded cards, etches, and tricks to handle 3/4 bodies.
+    const vanillaPool = this.AI_VANILLA_DEFS.filter(c => {
+      if (c.cost < costMin || c.cost > costMax) return false;
+      if (node.tier === 1 && c.name === 'Operator') return false;
+      return true;
+    });
     const realPool = CARD_DEFS.filter(c =>
       (c.cost || 0) >= costMin && (c.cost || 0) <= costMax
       && !this.AI_VANILLA_DEFS.find(v => v.name === c.name)
@@ -1136,10 +1152,21 @@ const Roguelite = {
         if (!realPicks.has(pick.name)) realPicks.add(pick.name);
       }
       Array.from(realPicks).forEach(n => deck.push(n));
+      // Soft cap per vanilla so a deck doesn't read as "Soldier × 27"
+      // — but the cap has to be loose enough that the deck can still
+      // reach 30 cards. After excluding Operator from tier 1 (so the
+      // pool is just Soldier + Mercenary), the old cap=12 made the
+      // loop infinite (max fill = 24, target = 27 leftover). Cap
+      // bumped to ⌈(target / pool.length) + 2⌉ so it always converges,
+      // and we break out when every pool member is at cap.
+      const target = 30 - deck.length;
+      const cap = Math.ceil(target / Math.max(1, vanillaPool.length)) + 2;
       while (deck.length < 30 && vanillaPool.length) {
+        const allCapped = vanillaPool.every(v => (counts[v.name] || 0) >= cap);
+        if (allCapped) break;
         const pick = pickFrom(vanillaPool);
+        if ((counts[pick.name] || 0) >= cap) continue;
         counts[pick.name] = (counts[pick.name] || 0) + 1;
-        if (counts[pick.name] > 12) continue;  // soft cap so it varies
         deck.push(pick.name);
       }
     } else {
