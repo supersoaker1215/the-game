@@ -1657,17 +1657,16 @@ const Roguelite = {
     const shuffled = pool.slice().sort(() => Math.random() - 0.5);
     return shuffled.slice(0, 4);
   },
-  // Roll 3 unique cards from the FULL CARD_DEFS pool — any cost, any
-  // archetype. User direction: "card rewards can be not just one-to-three
-  // costs." Previously this was capped at cost 1-3 which clipped out
-  // every mid- and high-cost card from the starter pick. Now the
-  // starter offer can include a 6-cost Black Widow or a 9-cost Galactus
-  // — same Common rarity (so they take the -1/-1 tier penalty until
-  // leveled up).
+  // Roll 3 unique cards from the act-1 cost range (1-4) — same range
+  // post-combat rewards use in act 1, so the starter pick reads as a
+  // first reward rather than a separately-clipped pool. User direction:
+  // "If act 1 is correct (1-4), I like that — revert the starter pool
+  // change." Pre-rolled with no etches, treated as Common rarity at
+  // pickup (so they take the -1/-1 tier penalty until leveled up).
   _rollStarterCardPool() {
     if (typeof CARD_DEFS === 'undefined') return [];
     const pool = CARD_DEFS.filter(d =>
-      (d.cost || 0) >= 1
+      (d.cost || 0) >= 1 && (d.cost || 0) <= 4
       && !this.AI_VANILLA_DEFS.find(v => v.name === d.name)
       && !this.STARTER_DEFS.find(s => s.name === d.name)
       && (!this.isRogueliteOnlyName || !this.isRogueliteOnlyName(d.name))
