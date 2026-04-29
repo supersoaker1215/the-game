@@ -144,7 +144,13 @@ const CARD_ABILITIES = {
         G.log(`[POISON IVY] No allies available to charm this turn.`);
         return;
       }
-      const pick = allies[Math.floor(Math.random() * allies.length)];
+      // Roguelite Text+ override — _ivyChooseHighest copies the strongest
+      // ally's attack instead of a random one. Default random (classic);
+      // Text+ true picks max-attack each round, so a Hulk on the board
+      // means Ivy reliably swings as a Hulk-1.
+      const pick = self._ivyChooseHighest
+        ? allies.slice().sort((a, b) => (b.attack || 0) - (a.attack || 0))[0]
+        : allies[Math.floor(Math.random() * allies.length)];
       self._ivyAlly = pick;
       self._ivyCharmedId = pick.id; // tracked so handleDeath can strip the buff
       const bonus = pick.attack || 0;
@@ -244,11 +250,14 @@ const CARD_ABILITIES = {
       // 1-HP enemy instead of flooring at 1 HP — Man-Bat moving in front
       // of a 1-HP Undead Warrior now immediately destroys it, matching
       // the intuitive read of "weakens adjacent enemy by -1/-1".
+      // Roguelite Text+ override — _manBatDebuffSize scales the on-arrival
+      // weaken. Default 1 (classic -1/-1); Text+ raises to 2 (-2/-2).
+      const debuffSize = self._manBatDebuffSize || 1;
       const applyDebuff = (enemy) => {
         if (!enemy) return;
-        G.debuffCard(enemy, 1, 1, true, self);
+        G.debuffCard(enemy, debuffSize, debuffSize, true, self);
         enemy._debuffStacks = (enemy._debuffStacks || 0) + 1;
-        G.log(`[DEBUFF] Man-Bat weakens ${enemy.name} by -1/-1`);
+        G.log(`[DEBUFF] Man-Bat weakens ${enemy.name} by -${debuffSize}/-${debuffSize}`);
       };
       // Include the current lane as a "stay" option. User direction:
       // "for moving like man bat and omni man have the choice not to
@@ -757,12 +766,21 @@ const CARD_ABILITIES = {
   "Groot": {
     onPlay(G, self, lane) {
       const own = self.owner;
-      [lane - 1, lane + 1].forEach(l => {
+      // Roguelite Text+ override — _grootProtectsSelf includes Groot
+      // himself in the immunity grant. Default false (classic protects
+      // adjacent allies only); Text+ true so Groot is also untouchable
+      // for the round (3 cards safe instead of 2).
+      const includeSelf = !!self._grootProtectsSelf;
+      const lanes = [lane - 1, lane + 1];
+      if (includeSelf) lanes.push(lane);
+      lanes.forEach(l => {
         if (l >= 0 && l < Game.LANE_COUNT && G.state.lanes[l][own]) {
           G.grantTempBuff(G.state.lanes[l][own], { hasDamageImmunity: true });
         }
       });
-      G.log("Groot protects adjacent allies for 1 turn!");
+      G.log(includeSelf
+        ? "Groot protects himself AND adjacent allies for 1 turn!"
+        : "Groot protects adjacent allies for 1 turn!");
     }
   },
   "Jigsaw": {
@@ -928,9 +946,14 @@ const CARD_ABILITIES = {
     onPlay(G, self, lane) {
       const opp = G.opponent(self.owner);
       const enemy = G.state.lanes[lane] && G.state.lanes[lane][opp];
+      // Roguelite Text+ override — _witchHexBonus adds extra ATK/HP on
+      // top of the copied stats. Default 0 (classic mirrors exactly);
+      // Text+ raises to 2 so Scarlet Witch comes in +2/+2 over her
+      // hex target — turns mirror into outright trade.
+      const bonus = self._witchHexBonus || 0;
       if (enemy && enemy.currentHealth > 0) {
-        const adoptAtk = enemy.attack || 0;
-        const adoptHp  = enemy.currentHealth || enemy.maxHealth || 1;
+        const adoptAtk = (enemy.attack || 0) + bonus;
+        const adoptHp  = (enemy.currentHealth || enemy.maxHealth || 1) + bonus;
         self.attack = adoptAtk;
         self.baseAttack = adoptAtk;
         self.currentHealth = adoptHp;
@@ -941,13 +964,13 @@ const CARD_ABILITIES = {
       } else {
         // No enemy to copy — fall back to her old 3/4 fingerprint so she
         // isn't a permanent 0/0 dud when played into an empty lane.
-        self.attack = 3;
-        self.baseAttack = 3;
-        self.currentHealth = 4;
-        self.maxHealth = 4;
-        self.baseHealth = 4;
+        self.attack = 3 + bonus;
+        self.baseAttack = 3 + bonus;
+        self.currentHealth = 4 + bonus;
+        self.maxHealth = 4 + bonus;
+        self.baseHealth = 4 + bonus;
         self.copiesOpposite = false;
-        G.log(`Scarlet Witch finds nothing to copy — defaults to 3/4.`);
+        G.log(`Scarlet Witch finds nothing to copy — defaults to ${3 + bonus}/${4 + bonus}.`);
       }
     }
   },
@@ -1255,8 +1278,13 @@ const CARD_ABILITIES = {
       const dmg = self._damageDealtThisTurn || 0;
       self._damageDealtThisTurn = 0;
       if (dmg > 0) {
-        G.addNextTurnCurrency(self.owner, dmg);
-        G.log(`Green Lantern channels ${dmg} damage into +${dmg} energy next round!`);
+        // Roguelite Text+ override — _lanternEnergyBonus adds flat energy
+        // on top of the damage conversion. Default 0 (classic 1:1);
+        // Text+ to 2 so a 4-damage round becomes +6 energy next turn.
+        const bonus = self._lanternEnergyBonus || 0;
+        const grant = dmg + bonus;
+        G.addNextTurnCurrency(self.owner, grant);
+        G.log(`Green Lantern channels ${dmg} damage into +${grant} energy next round${bonus > 0 ? ` (+${bonus} bonus)` : ''}!`);
       }
     },
     // If Green Lantern dies during combat (e.g. takes lethal damage AFTER
@@ -1465,6 +1493,10 @@ const CARD_ABILITIES = {
   "Raven": {
     onPlay(G, self, lane) {
       const opp = G.opponent(self.owner);
+      // Capture the opp's meter BEFORE zeroing so the Text+ steal path
+      // can transfer it to the player. _ravenStealsBlock = true sets
+      // the steal mode; default is just-drain.
+      const drainedAmount = G.state[opp].blockMeter || 0;
       G.state[opp].blockMeter = 0;
       G.log(`Raven empties the opponent's Block Meter!`);
       G.getAlliesOf(self.owner).forEach(a => {
@@ -1474,6 +1506,13 @@ const CARD_ABILITIES = {
         a.frozenTurns  = 0; a.isFrozen  = false;
       });
       G.log("Raven cleanses all allies!");
+      // Roguelite Text+ override — _ravenStealsBlock converts the
+      // drain into a transfer. Default false (classic just zeroes
+      // opp); Text+ pours the drained amount into your own meter.
+      if (self._ravenStealsBlock && drainedAmount > 0) {
+        G.state[self.owner].blockMeter = Math.min(Game.BLOCK_MAX, (G.state[self.owner].blockMeter || 0) + drainedAmount);
+        G.log(`Raven steals ${drainedAmount} block from the opponent!`);
+      }
     }
   },
   "The Grinch": {
@@ -2335,8 +2374,13 @@ const CARD_ABILITIES = {
   "Gorr": {
     onPlay(G, self, lane) {
       // Kill the highest-cost card in BOTH players' hands and show the victims.
+      // Roguelite Text+ override — _gorrEnemyOnly limits the devour to
+      // the OPPONENT'S hand (skips your own). Default false (classic
+      // hits both); Text+ true makes the play purely punitive.
+      const enemyOnly = !!self._gorrEnemyOnly;
+      const sides = enemyOnly ? [G.opponent(self.owner)] : ['player', 'ai'];
       const killed = { player: null, ai: null };
-      ['player', 'ai'].forEach(p => {
+      sides.forEach(p => {
         const hand = G.state[p].hand;
         if (!hand.length) return;
         // Find the highest-cost card without permanently re-sorting the hand.
@@ -2403,8 +2447,12 @@ const CARD_ABILITIES = {
     // hook to one trigger per instance.
     _recurringBT: true,
     onPlay(G, self, lane) {
-      G.getEnemiesOf(self.owner).forEach(e => G.dealDamage(e, 3, self));
-      G.log("Omni-Man devastates all enemies for 3!");
+      // Roguelite Text+ override — _omniManSweep scales the AOE damage.
+      // Default 3 (classic); Text+ raises to 5 so the entry sweep clears
+      // 5-HP bodies and softens up everything else.
+      const sweep = self._omniManSweep || 3;
+      G.getEnemiesOf(self.owner).forEach(e => G.dealDamage(e, sweep, self));
+      G.log(`Omni-Man devastates all enemies for ${sweep}!`);
     },
     // Mobility hook — same shape as Man-Bat's. Start of Tricks, Omni-Man
     // relocates to an empty ally lane (if one exists). Stun/freeze
@@ -2443,10 +2491,14 @@ const CARD_ABILITIES = {
   },
   "Silver Surfer": {
     onPlay(G, self, lane) {
+      // Roguelite Text+ override — _surferDebuff scales the ATK strip.
+      // Default 3 (classic); Text+ to 5 so Hulks and Doombots are
+      // reduced to non-threats in one play.
+      const debuff = self._surferDebuff || 3;
       const enemies = G.getEnemiesOf(self.owner);
       if (enemies.length) {
-        G.promptCardChoice(self.owner, enemies, "Silver Surfer — Weaken", "Choose enemy to remove 3 Attack from", (t) => {
-          G.debuffCard(t, 3, 0, false, self); G.log(`Silver Surfer weakens ${t.name} by 3 ATK!`);
+        G.promptCardChoice(self.owner, enemies, "Silver Surfer — Weaken", `Choose enemy to remove ${debuff} Attack from`, (t) => {
+          G.debuffCard(t, debuff, 0, false, self); G.log(`Silver Surfer weakens ${t.name} by ${debuff} ATK!`);
         }, _aiThreatPicker);
       }
     },
@@ -3113,7 +3165,14 @@ const CARD_ABILITIES = {
     }
   },
   "Dr. Manhattan": {
-    onPlay(G, self, lane) { G.healPlayer(self.owner, 5, self); G.log("Dr. Manhattan heals 5!"); },
+    onPlay(G, self, lane) {
+      // Roguelite Text+ override — _manhattanHeal scales the heal-on-play.
+      // Default 5 (classic); Text+ raises to 10 so a single play double-
+      // dips on the run-HP economy.
+      const heal = self._manhattanHeal || 5;
+      G.healPlayer(self.owner, heal, self);
+      G.log(`Dr. Manhattan heals ${heal}!`);
+    },
     passive: "extraCurrency2"
   },
   "Galactus": {

@@ -2073,6 +2073,56 @@ const Roguelite = {
       desc: 'Drains up to 5 enemies (was 3).',
       apply: c => { c._dormammuDrainMax = 5; },
     },
+    'Man-Bat': {
+      id: 'manbat-text', name: 'Sonar Scream',
+      desc: 'On move, weakens adj enemy by -2/-2 (was -1/-1).',
+      apply: c => { c._manBatDebuffSize = 2; },
+    },
+    'Groot': {
+      id: 'groot-text', name: 'I Am Groot',
+      desc: 'Also grants Damage Immunity to Groot himself.',
+      apply: c => { c._grootProtectsSelf = true; },
+    },
+    'Silver Surfer': {
+      id: 'surfer-text', name: 'Power Cosmic',
+      desc: 'Removes 5 ATK from an enemy (was 3).',
+      apply: c => { c._surferDebuff = 5; },
+    },
+    'Green Lantern': {
+      id: 'gl-text', name: 'Brightest Day',
+      desc: '+2 bonus energy on top of damage-converted energy each round.',
+      apply: c => { c._lanternEnergyBonus = 2; },
+    },
+    'Omni-Man': {
+      id: 'omniman-text', name: 'Viltrumite Pride',
+      desc: 'Devastates all enemies for 5 (was 3).',
+      apply: c => { c._omniManSweep = 5; },
+    },
+    'Dr. Manhattan': {
+      id: 'manhattan-text', name: 'Quantum Leap',
+      desc: 'WHEN PLAYED heals you for 10 (was 5).',
+      apply: c => { c._manhattanHeal = 10; },
+    },
+    'Raven': {
+      id: 'raven-text', name: 'Soul Self',
+      desc: 'STEALS the opponent\'s block instead of just emptying it.',
+      apply: c => { c._ravenStealsBlock = true; },
+    },
+    'Poison Ivy': {
+      id: 'ivy-text', name: 'Femme Fatale',
+      desc: 'Charms the HIGHEST-ATK ally each round (was random).',
+      apply: c => { c._ivyChooseHighest = true; },
+    },
+    'Gorr': {
+      id: 'gorr-text', name: 'Necrosword',
+      desc: 'Devours from the OPPONENT\'S hand only (no self-cost).',
+      apply: c => { c._gorrEnemyOnly = true; },
+    },
+    'Scarlet Witch': {
+      id: 'witch-text', name: 'Chaos Magic',
+      desc: 'Hexes for the enemy\'s stats +2/+2 (outright over-trade).',
+      apply: c => { c._witchHexBonus = 2; },
+    },
   },
 
   cardCanUseTextUpgrade(cardName) {
