@@ -1571,9 +1571,15 @@ const CARD_ABILITIES = {
         // so kept tricks are completely free.
         const keepBump = (self._grinchKeepCostBump != null) ? self._grinchKeepCostBump : 1;
         const keep = () => {
-          chosen.cost += keepBump;
+          // Clamp at 0 — multiple Text+ stacks can drive keepBump
+          // negative (refund), but a trick can't have a sub-zero cost
+          // in the engine. Negative bumps still floor the trick to 0.
+          chosen.cost = Math.max(0, (chosen.cost || 0) + keepBump);
           G.addToTrickHand(self.owner, chosen);
-          G.log(`The Grinch keeps ${chosen.name}${keepBump > 0 ? ` (cost +${keepBump})` : ' (free!)'}!`);
+          const label = keepBump > 0 ? ` (cost +${keepBump})`
+            : keepBump < 0 ? ` (cost ${keepBump} → ${chosen.cost})`
+            : ' (free!)';
+          G.log(`The Grinch keeps ${chosen.name}${label}!`);
         };
         const giveBack = () => {
           G.addToTrickHand(opp, chosen);
@@ -1587,7 +1593,9 @@ const CARD_ABILITIES = {
             cards: [
               { name: `Keep ${chosen.name}`, desc: keepBump > 0
                 ? `Add to your tricks (cost +${keepBump}, becomes ${chosen.cost + keepBump})`
-                : `Add to your tricks at the same cost (${chosen.cost}) — free!`, _action: 'keep' },
+                : keepBump < 0
+                  ? `Add to your tricks at reduced cost (${Math.max(0, chosen.cost + keepBump)})`
+                  : `Add to your tricks at the same cost (${chosen.cost}) — free!`, _action: 'keep' },
               { name: "Give it back", desc: "Return the trick — Grinch's stats triple!", _action: 'giveback' }
             ],
             title: "The Grinch — Keep or Discard?",

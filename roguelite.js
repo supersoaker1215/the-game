@@ -458,8 +458,16 @@ const Roguelite = {
     // ----- Boss (act-clear rewards) -----
     {
       id: 'mirror-shard', name: 'Mirror Shard', rarity: 'boss',
-      desc: 'All your cards gain Echo (effects fire twice).',
-      onCardBuild(run, card) { card.hasEcho = (card.hasEcho || 0) + 1; if (!card.abilities.includes('Echo')) card.abilities.push('Echo'); },
+      // Capped to cost ≤ 5 — applying Echo to a Galactus / Dr. Manhattan /
+      // Knull / 10-cost crusher made one relic auto-win the run. The
+      // intended swarm-doubling fantasy still works on every cheap and
+      // mid-cost body, just without the late-game double-tap.
+      desc: 'Your cards with cost ≤ 5 gain Echo (effects fire twice).',
+      onCardBuild(run, card) {
+        if ((card.baseCost || card.cost || 0) > 5) return;
+        card.hasEcho = (card.hasEcho || 0) + 1;
+        if (!card.abilities.includes('Echo')) card.abilities.push('Echo');
+      },
     },
     {
       id: 'speed-force', name: 'Speed Force', rarity: 'boss',
@@ -468,8 +476,19 @@ const Roguelite = {
     },
     {
       id: 'reality-stone', name: 'Reality Stone', rarity: 'boss',
-      desc: 'All your cards cost 1 less (min 0).',
-      onCardBuild(run, card) { card.cost = Math.max(0, (card.cost || 0) - 1); card.baseCost = Math.max(0, (card.baseCost || card.cost || 0) - 1); },
+      // Rarity-tiered floor — common cards can hit 0 (the original
+      // full discount), but rare and above stay anchored to a minimum
+      // cost so the relic doesn't trivialize the whole deck. Audit
+      // finding: blanket -1 with min 0 made every cheap body free
+      // and turned high-cost cards into mid-cost cards every run.
+      desc: 'Cards cost 1 less. Floor by rarity: Common→0 · Rare→1 · Special→2 · Legendary→3.',
+      onCardBuild(run, card) {
+        const rarity = card._runRarity || 'common';
+        const floors = { common: 0, rare: 1, special: 2, legendary: 3 };
+        const floor = floors[rarity] != null ? floors[rarity] : 0;
+        card.cost = Math.max(floor, (card.cost || 0) - 1);
+        card.baseCost = Math.max(floor, (card.baseCost || card.cost || 0) - 1);
+      },
     },
     {
       id: 'thanos-gauntlet', name: "Thanos Gauntlet", rarity: 'boss',
@@ -2201,9 +2220,25 @@ const Roguelite = {
     },
     'The Grinch': {
       id: 'grinch-text', name: 'Heart Two Sizes Bigger',
-      desc: 'Kept stolen tricks cost +0 (was +1) — keep them all without penalty.',
-      descOverride: 'When Played: Steal a Trick (opponent picks). Keep it FREE (cost +0) or return it to triple The Grinch\'s stats. If opponent has no tricks, stats triple.',
-      apply: c => { c._grinchKeepCostBump = 0; },
+      desc: 'STACKING: each Text+ reduces kept-trick cost by 1 (base +1 → first stack: free → second stack: refund 1) AND grants Grinch Discount 1.',
+      descOverride: 'When Played: Steal a Trick (opponent picks). Keep it (cost reduces with each Heart Two Sizes Bigger stack) or return it to triple Grinch\'s stats. If opponent has no tricks, stats triple. Stacks: each Text+ reduces kept-trick cost by 1 and lowers Grinch\'s own cost by 1.',
+      apply: c => {
+        // Stack: each application drops kept-trick cost by 1.
+        // Default 1 (classic +1) → first stack 0 (free) → second -1
+        // (refund) → third -2, etc. Roguelite-only via the
+        // _grinchKeepCostBump flag in abilities.js; clamped at the
+        // engine side so trick.cost can never go negative.
+        const cur = (c._grinchKeepCostBump != null) ? c._grinchKeepCostBump : 1;
+        c._grinchKeepCostBump = cur - 1;
+        // Also reduce Grinch's own cost by 1 per stack — user
+        // direction: "his cost will be reduced more" each upgrade.
+        c.cost = Math.max(0, (c.cost || 0) - 1);
+        c.baseCost = Math.max(0, (c.baseCost || c.cost || 0) - 1);
+        c._discountTotal = (c._discountTotal || 0) + 1;
+        if (typeof Roguelite !== 'undefined' && Roguelite._bumpKw) {
+          Roguelite._bumpKw(c, 'Discount', c._discountTotal);
+        }
+      },
     },
     'Aquaman': {
       id: 'aquaman-text', name: 'Trident\'s Edge',
@@ -2537,6 +2572,19 @@ const Roguelite = {
     return (this.CARD_TEXT_UPGRADES && this.CARD_TEXT_UPGRADES[cardName]) || null;
   },
 
+  // Cards whose level-up etch picks bias HEAVILY toward Energy + Text
+  // and away from Stats/Trait. User direction (for The Grinch): "have
+  // his stat increases be very rare to get… most of the time, the text
+  // upgrade is what you get — the trick you keep gets more cost
+  // reduction, or his cost gets reduced more. Touching stats is rare
+  // for him." So the bucket weights flip: Energy is the dominant pick,
+  // Text+ second (when available), Trait/Stats become tail outcomes.
+  // Add other "stat-light" cards to this set as the design demands.
+  STAT_LIGHT_CARDS: new Set(['The Grinch']),
+  _isStatLightCard(name) {
+    return this.STAT_LIGHT_CARDS && this.STAT_LIGHT_CARDS.has(name);
+  },
+
   // Pick one Common-tier trait etch the card doesn't already have.
   // Returns null if the card has every trait already (rare).
   _rollAutoTrait(cardRef) {
@@ -2589,6 +2637,26 @@ const Roguelite = {
       if (e) out.push(e);
       if (textEtch) {
         out.push({ id: textEtch.id, name: textEtch.name, bucket: 'Text', desc: textEtch.desc || this.etchDesc(textEtch.id), tier: this._etchTier(textEtch.id) });
+      }
+      return out.slice(0, 2);
+    }
+    // STAT-LIGHT cards (e.g. The Grinch): always include Energy as
+    // one pick; second pick is a 70/30 split between Text+ (if
+    // available) and Trait. Stats are excluded from the picker
+    // entirely. User direction: "Touching stats is rare for him."
+    if (this._isStatLightCard(cardName)) {
+      const out = [];
+      const e = pickFrom(energy, 'Energy');
+      if (e) out.push(e);
+      const wantText = textEtch && Math.random() < 0.70;
+      if (wantText) {
+        out.push({ id: textEtch.id, name: textEtch.name, bucket: 'Text', desc: textEtch.desc || this.etchDesc(textEtch.id), tier: this._etchTier(textEtch.id) });
+      } else {
+        const t = pickFrom(traits, 'Trait');
+        if (t) out.push(t);
+        else if (textEtch) {
+          out.push({ id: textEtch.id, name: textEtch.name, bucket: 'Text', desc: textEtch.desc || this.etchDesc(textEtch.id), tier: this._etchTier(textEtch.id) });
+        }
       }
       return out.slice(0, 2);
     }
@@ -2682,8 +2750,18 @@ const Roguelite = {
     // per level-up (1 - 0.85²), so a typical run will surface 1-2
     // Text+ options. Stats stays the dominant pick (50%), Trait is
     // the secondary (25%), Energy and Text both at 15% / 10%.
+    // Stat-light cards (e.g. The Grinch) use an inverted weight curve:
+    // Energy is the dominant bucket, Text+ second, Trait/Stats are tail
+    // outcomes. User direction: "Touching stats is rare for him."
+    const isStatLight = this._isStatLightCard(cardName);
     const rollBucket = () => {
       const r = Math.random();
+      if (isStatLight) {
+        if (r < 0.50) return 'energy';
+        if (r < 0.85) return 'text';
+        if (r < 0.95) return 'trait';
+        return 'stats';
+      }
       if (r < 0.50) return 'stats';
       if (r < 0.75) return 'trait';
       if (r < 0.85) return 'energy';
