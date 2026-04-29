@@ -652,7 +652,16 @@ const Roguelite = {
       if (boon.bonusCard) {
         run.deck.push(this._makeDeckCard(boon.bonusCard, 'rare'));
       }
-      if (boon.startingHp != null) { run.hp = boon.startingHp; run.maxHp = boon.startingHp; }
+      // startingHp = current HP value at run start.
+      // startingMaxHp = max HP cap at run start. If a boon only sets
+      // startingHp, the cap stays at the default 30 — so a 20-HP start
+      // begins INJURED at 20/30 and can heal back up to 30. User
+      // direction: "When you start with 20 HP, your max is 30. So if
+      // you heal, you should be able to heal up to 30." Boons that
+      // want to extend the cap (Robust → 40 max) set startingMaxHp
+      // explicitly.
+      if (boon.startingMaxHp != null) run.maxHp = boon.startingMaxHp;
+      if (boon.startingHp != null)    run.hp    = boon.startingHp;
       if (boon.startingRelic) {
         // Use grantRelic so onAcquire fires (some relics adjust maxHp /
         // gold / charges on pickup — boon-granted ones must too).
@@ -708,7 +717,7 @@ const Roguelite = {
       id: 'beefier',
       name: 'Robust',
       desc: 'Begin with 40 max HP (instead of 30).',
-      apply: () => ({ startingHp: 40 }),
+      apply: () => ({ startingHp: 40, startingMaxHp: 40 }),
     },
   ],
 
