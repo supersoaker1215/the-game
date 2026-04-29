@@ -1758,6 +1758,101 @@ const UI = {
           this._tone({ type: 'sawtooth', freq: 147, dur: 0.8, gain: 0.14, release: 1.0, delay: 0.4 });
           this._noise({ dur: 0.6, gain: 0.05, highpass: 80, lowpass: 900, delay: 0.1 });
           break;
+
+        // ---- Roguelite UI cues (audit wave 3) ----------------------
+        case 'modalOpen':
+          // Soft swoosh-in — quick rising sine + faint noise puff.
+          // Reads as "panel slid in." Quiet so back-to-back modal
+          // opens layer cleanly.
+          this._tone({ type: 'sine', freq: 220, freqEnd: 540, dur: 0.10, gain: 0.06, attack: 0.005, release: 0.13 });
+          this._noise({ dur: 0.08, gain: 0.025, highpass: 1200, lowpass: 4000 });
+          break;
+        case 'modalClose':
+          // Snap-out — falling sine + tiny click. Distinct from modalOpen
+          // so the player feels the modal commit on close.
+          this._tone({ type: 'sine', freq: 540, freqEnd: 220, dur: 0.08, gain: 0.05, attack: 0.002, release: 0.10 });
+          this._tone({ type: 'triangle', freq: 1200, dur: 0.025, gain: 0.04, release: 0.04, delay: 0.04 });
+          break;
+        case 'rewardPick':
+          // Major-chord rise — the "you got it" moment for a card pick.
+          // Triangle chord (G5-B5-D6) with high-sine shimmer, slightly
+          // brighter / longer than 'cardPlay' so it reads as a meta-pick
+          // rather than an in-fight play.
+          this._tone({ type: 'triangle', freq: 784,  dur: 0.26, gain: 0.13, attack: 0.003, release: 0.32 });
+          this._tone({ type: 'triangle', freq: 988,  dur: 0.26, gain: 0.11, attack: 0.003, release: 0.32, delay: 0.05 });
+          this._tone({ type: 'triangle', freq: 1175, dur: 0.30, gain: 0.09, attack: 0.003, release: 0.36, delay: 0.10 });
+          this._tone({ type: 'sine',     freq: 2349, dur: 0.18, gain: 0.05, attack: 0.003, release: 0.22, delay: 0.14 });
+          break;
+        case 'levelUpPick':
+          // Sharper synth-burst tied to a card leveling — bright triangle
+          // up-sweep with two harmonic shimmer layers. Distinct from
+          // rewardPick so the ear reads "card upgraded" vs "deck added".
+          this._tone({ type: 'triangle', freq: 660,  freqEnd: 1320, dur: 0.13, gain: 0.11, attack: 0.002, release: 0.16 });
+          this._tone({ type: 'sine',     freq: 1320, freqEnd: 2640, dur: 0.10, gain: 0.06, attack: 0.002, release: 0.13, delay: 0.04 });
+          this._tone({ type: 'sine',     freq: 1980, dur: 0.07, gain: 0.04, attack: 0.002, release: 0.10, delay: 0.08 });
+          break;
+        case 'relicAcquire':
+          // Golden fanfare — five-note ascending arpeggio (E4-G#4-B4-E5-G#5)
+          // on triangle waves with a sustained sine overtone for warmth.
+          // Reads as "treasure earned" — the meta moment of relic pickup.
+          this._tone({ type: 'triangle', freq: 330,  dur: 0.18, gain: 0.13, attack: 0.003, release: 0.22 });
+          this._tone({ type: 'triangle', freq: 415,  dur: 0.18, gain: 0.13, attack: 0.003, release: 0.22, delay: 0.08 });
+          this._tone({ type: 'triangle', freq: 494,  dur: 0.20, gain: 0.13, attack: 0.003, release: 0.24, delay: 0.16 });
+          this._tone({ type: 'triangle', freq: 659,  dur: 0.22, gain: 0.13, attack: 0.003, release: 0.28, delay: 0.24 });
+          this._tone({ type: 'triangle', freq: 831,  dur: 0.30, gain: 0.12, attack: 0.003, release: 0.36, delay: 0.32 });
+          this._tone({ type: 'sine',     freq: 1660, dur: 0.40, gain: 0.06, attack: 0.05,  release: 0.44, delay: 0.34 });
+          break;
+        case 'curseAcquire':
+          // Descending dissonant buzz — inverse of relicAcquire. Sawtooth
+          // tritone slide from F#4 → C4, low rumble underneath, faint
+          // band-passed noise wash for menace.
+          this._tone({ type: 'sawtooth', freq: 370, freqEnd: 220, dur: 0.32, gain: 0.10, attack: 0.005, release: 0.36 });
+          this._tone({ type: 'sawtooth', freq: 277, freqEnd: 165, dur: 0.36, gain: 0.10, attack: 0.005, release: 0.40, delay: 0.06 });
+          this._tone({ type: 'sine',     freq: 80,  freqEnd: 50,  dur: 0.40, gain: 0.12, release: 0.44 });
+          this._noise({ dur: 0.30, gain: 0.04, highpass: 200, lowpass: 1100, delay: 0.04 });
+          break;
+        case 'bossSting':
+          // Deep rumble + low brassy sting — the moment the boss intro
+          // splash lands. Sub-bass + low-pass noise bed + a single
+          // descending sawtooth phrase.
+          this._tone({ type: 'sine',     freq: 55,  dur: 0.85, gain: 0.20, release: 0.95 });
+          this._tone({ type: 'sawtooth', freq: 110, freqEnd: 82, dur: 0.55, gain: 0.10, attack: 0.05, release: 0.65, delay: 0.10 });
+          this._tone({ type: 'sawtooth', freq: 165, freqEnd: 123, dur: 0.55, gain: 0.08, attack: 0.05, release: 0.65, delay: 0.18 });
+          this._noise({ dur: 0.55, gain: 0.045, highpass: 60, lowpass: 600, delay: 0.05 });
+          break;
+        case 'statusFreeze':
+          // Crystalline shimmer — high sine with tremolo-style harmonic.
+          // Reads as "ice formed" without a sharp attack.
+          this._tone({ type: 'sine', freq: 1760, dur: 0.18, gain: 0.06, attack: 0.005, release: 0.22 });
+          this._tone({ type: 'sine', freq: 2349, dur: 0.16, gain: 0.04, attack: 0.005, release: 0.20, delay: 0.04 });
+          this._noise({ dur: 0.10, gain: 0.02, highpass: 4000, lowpass: 9000, delay: 0.02 });
+          break;
+        case 'statusStun':
+          // Electric crackle — quick noise burst + descending square
+          // chirp. Reads as "zapped."
+          this._noise({ dur: 0.10, gain: 0.10, highpass: 1500, lowpass: 6000 });
+          this._tone({ type: 'square', freq: 880, freqEnd: 220, dur: 0.10, gain: 0.06, attack: 0.001, release: 0.12, delay: 0.005 });
+          break;
+        case 'statusFear':
+          // Eerie low-pass moan — slow sine with detuned partial below.
+          // Reads as "spooked."
+          this._tone({ type: 'sine', freq: 196, freqEnd: 233, dur: 0.30, gain: 0.10, attack: 0.04, release: 0.34 });
+          this._tone({ type: 'sine', freq: 147, freqEnd: 175, dur: 0.32, gain: 0.07, attack: 0.04, release: 0.36, delay: 0.02 });
+          this._noise({ dur: 0.20, gain: 0.025, highpass: 100, lowpass: 600, delay: 0.05 });
+          break;
+        case 'statusMindCtrl':
+          // Warbling sweep — pitch-modulated sine pair. Reads as "you
+          // are not yourself anymore."
+          this._tone({ type: 'sine', freq: 440, freqEnd: 660, dur: 0.22, gain: 0.08, attack: 0.005, release: 0.26 });
+          this._tone({ type: 'sine', freq: 660, freqEnd: 440, dur: 0.22, gain: 0.07, attack: 0.005, release: 0.26, delay: 0.03 });
+          break;
+        case 'etchApply':
+          // Synth-tick when an etch applies to a card. Two-tone rising
+          // ping. Distinct from rewardPick / levelUpPick so chained
+          // cues read clearly.
+          this._tone({ type: 'triangle', freq: 1175, dur: 0.05, gain: 0.07, attack: 0.001, release: 0.07 });
+          this._tone({ type: 'sine',     freq: 2349, dur: 0.04, gain: 0.04, attack: 0.001, release: 0.06, delay: 0.025 });
+          break;
       }
     }
   },

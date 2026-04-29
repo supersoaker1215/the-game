@@ -96,8 +96,12 @@ const Roguelite = {
       _isStarter: false,
       _isCurse: true,
     });
-    // Curse-warning toast — purple tint, ✕ glyph.
+    // Curse-warning toast — purple tint, ✕ glyph + descending dissonant
+    // SFX cue. Audit finding: curse acquisition was silent.
     this.showToast(`<span class="rl-toast-glyph">✕</span><span class="rl-toast-text"><b>${pick.name}</b><span class="rl-toast-sub">CURSE ADDED</span></span>`, 'curse');
+    if (typeof UI !== 'undefined' && UI.sfx && UI.sfx.play) {
+      try { UI.sfx.play('curseAcquire'); } catch (e) {}
+    }
     // First-curse intro modal — explains what curses are. Audit
     // finding: no in-game tooltip / banner explained the curse
     // mechanic, so new roguelite players hit a weird card with no
@@ -651,6 +655,11 @@ const Roguelite = {
     // Toast — show the icon glyph + relic name with rarity tint.
     const glyph = this._relicIcon(r);
     this.showToast(`<span class="rl-toast-glyph">${glyph}</span><span class="rl-toast-text"><b>${r.name}</b><span class="rl-toast-sub">${this.displayRarity(r.rarity).toUpperCase()} RELIC</span></span>`, 'relic');
+    // Audio cue — golden fanfare on relic pickup. Audit finding:
+    // relic acquisition was silent.
+    if (typeof UI !== 'undefined' && UI.sfx && UI.sfx.play) {
+      try { UI.sfx.play('relicAcquire'); } catch (e) {}
+    }
     return true;
   },
 
@@ -3525,6 +3534,10 @@ const Roguelite = {
     // Legality check: must be reachable from current node
     const legal = this.legalNextNodes(run);
     if (!legal.find(n => n.id === nodeId)) return;
+    // Audio cue — Battlefront-style click on map navigation.
+    if (typeof UI !== 'undefined' && UI.sfx && UI.sfx.playNav) {
+      try { UI.sfx.playNav(); } catch (e) {}
+    }
     run.activeNode = node;
     // Sync run.act to whichever act this node belongs to. run.act is
     // initialised to 1 at run start and never auto-bumped — without
@@ -3691,6 +3704,13 @@ const Roguelite = {
     // shouldn't dismiss it. Player must hit BEGIN FIGHT.
     const m = document.getElementById('rl-modal');
     if (m) m.dataset.escDisabled = '1';
+    // Boss sting — deep rumble + low brassy phrase when the splash
+    // lands. Layered AFTER modalOpen so the cues don't compete: a
+    // brief 200ms delay lets the modalOpen swoosh play, then the
+    // sting hits as the splash settles.
+    if (typeof UI !== 'undefined' && UI.sfx && UI.sfx.play) {
+      setTimeout(() => { try { UI.sfx.play('bossSting'); } catch (e) {} }, 200);
+    }
   },
   _beginBossFight() {
     const run = Game.state.roguelite;
@@ -4839,6 +4859,10 @@ const Roguelite = {
       // serializable run-state object).
       const { _def, ...deckCard } = rolled;
       run.deck.push(deckCard);
+      // Audio cue — major-chord rise on card acquisition.
+      if (typeof UI !== 'undefined' && UI.sfx && UI.sfx.play) {
+        try { UI.sfx.play('rewardPick'); } catch (e) {}
+      }
     } else if (rewardIdx == null && run.pendingRewards && run.pendingRewards.length) {
       // SKIP CONSOLATION. User direction (paraphrased): "StS rewards
       // skipping a card with a small consolation — lets thin-deck
@@ -4921,6 +4945,9 @@ const Roguelite = {
       run.tricks.push({ defName, rarity: 'common' });
       // Acquire toast so the player notices a new trick joined the deck.
       this.showToast(`<span class="rl-toast-glyph">✦</span><span class="rl-toast-text"><b>${defName}</b><span class="rl-toast-sub">NEW TRICK</span></span>`, 'trick');
+      if (typeof UI !== 'undefined' && UI.sfx && UI.sfx.play) {
+        try { UI.sfx.play('rewardPick'); } catch (e) {}
+      }
     }
     run.pendingTrickReward = null;
     this._closeModal();
@@ -5039,6 +5066,11 @@ const Roguelite = {
     if (pick && lu.cardRef) {
       lu.cardRef.statuses = lu.cardRef.statuses || [];
       lu.cardRef.statuses.push(pick.id);
+      // Audio cue — sharp synth-burst when an etch lands. Audit
+      // finding: level-up etch pick was silent.
+      if (typeof UI !== 'undefined' && UI.sfx && UI.sfx.play) {
+        try { UI.sfx.play('levelUpPick'); } catch (e) {}
+      }
     }
     this._closeModal();
     // Queue next or finish
@@ -5612,6 +5644,12 @@ const Roguelite = {
         ${body}
       </div>`;
     modal.style.display = 'flex';
+    // Audio cue — soft swoosh when a modal opens. Audit finding:
+    // every modal opened silently. Wired here so EVERY modal flow
+    // (treasure, reward, level-up, rest, etc.) inherits the cue.
+    if (typeof UI !== 'undefined' && UI.sfx && UI.sfx.play) {
+      try { UI.sfx.play('modalOpen'); } catch (e) {}
+    }
     // Wire ESC to close — single shared listener that auto-detaches on
     // close. Audit finding: modals had no keyboard support; pressing
     // Esc did nothing.
@@ -5641,6 +5679,9 @@ const Roguelite = {
     // the rAF chain hides the element so a re-open animates in
     // cleanly.
     m.classList.add('rl-modal-closing');
+    if (typeof UI !== 'undefined' && UI.sfx && UI.sfx.play) {
+      try { UI.sfx.play('modalClose'); } catch (e) {}
+    }
     const finalize = () => {
       // Re-check — if the modal was reopened during the fade, abort.
       if (!m.classList.contains('rl-modal-closing')) return;

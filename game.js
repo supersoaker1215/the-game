@@ -4639,6 +4639,9 @@ const Game = {
       this.log(`  [STUN] ${card.name} is stunned (${total})!`);
       this._simulatePhantomSwing(source, card);
       this._creditChain(source, 'statsStunsApplied', turns);
+      if (typeof UI !== 'undefined' && UI.sfx && UI.sfx.play) {
+        try { UI.sfx.play('statusStun'); } catch (e) {}
+      }
     });
   },
   freezeCard(card, source, n) {
@@ -4651,6 +4654,9 @@ const Game = {
       this.log(`  [FREEZE] ${card.name} is frozen (${total})!`);
       this._simulatePhantomSwing(source, card);
       this._creditChain(source, 'statsFreezesApplied', turns);
+      if (typeof UI !== 'undefined' && UI.sfx && UI.sfx.play) {
+        try { UI.sfx.play('statusFreeze'); } catch (e) {}
+      }
     });
   },
   fearCard(card, source, n) {
@@ -4677,6 +4683,9 @@ const Game = {
       this.log(`  [FEAR] ${card.name} is feared (${total})!`);
       this._simulatePhantomSwing(source, card);
       this._creditChain(source, 'statsFearsApplied', turns);
+      if (typeof UI !== 'undefined' && UI.sfx && UI.sfx.play) {
+        try { UI.sfx.play('statusFear'); } catch (e) {}
+      }
     });
   },
 
@@ -4697,6 +4706,9 @@ const Game = {
       // lives in the weighted-impact formula at display time, not here.
       this._simulatePhantomSwing(source, card);
       this._creditChain(source, 'statsMcApplied', 1);
+      if (typeof UI !== 'undefined' && UI.sfx && UI.sfx.play) {
+        try { UI.sfx.play('statusMindCtrl'); } catch (e) {}
+      }
       if (typeof onApply === 'function') onApply();
     });
   },
