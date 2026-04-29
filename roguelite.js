@@ -1097,6 +1097,27 @@ const Roguelite = {
       const run = Game.state && Game.state.roguelite;
       if (run) this._applyRelicHook(run, 'onCardBuild', card);
     }
+    // DISCARD-ONLY INVARIANT: cards with isDiscardEffect: true never
+    // touch the board — they fire when discarded. Stat values are
+    // meaningless for them. User direction: "Discards can't gain
+    // stats. It can only be energy reduction. And text." So after
+    // every etch + relic has run, force discard cards back to 0/0 so
+    // a stray +1 ATK etch (rolled before this filter shipped) or a
+    // global-stats relic (Whetstone, Bag of Marbles) can't paint them
+    // with body stats. Splash/armor/etc. ALSO get cleared since the
+    // card never enters a lane.
+    if (this._isDiscardOnlyCard(deckCard.defName)) {
+      card.attack = 0;
+      card.baseAttack = 0;
+      card.health = 0;
+      card.baseHealth = 0;
+      card.maxHealth = 0;
+      card.currentHealth = 0;
+      card.armorValue = 0;
+      card.evadeCharges = 0;
+      card.splashRange = 0;
+      card.tauntTurns = 0;
+    }
     // Curse flag — Game.createCardInstance doesn't pass through arbitrary
     // def fields, so re-stamp it from the def/deckCard. The dim purple
     // tint, deck-removal hint, and tier-bypass logic all key off this.
@@ -1157,7 +1178,7 @@ const Roguelite = {
       if (usedNames.has(def.name)) continue;
       usedNames.add(def.name);
       const rarity = this._rollRarity(opts.rarityFloor, act);
-      const deckCard = this._makeDeckCard(def.name, rarity, this._rollEtchesForRarity(rarity));
+      const deckCard = this._makeDeckCard(def.name, rarity, this._rollEtchesForRarity(rarity, def.name));
       // Reference to the def for the reward picker UI (cost, stats, desc).
       deckCard._def = def;
       out.push(deckCard);
@@ -1187,16 +1208,37 @@ const Roguelite = {
 
   // Pre-populate etches based on the rolled rarity. A rare gets 1 random
   // etch from common/rare; a legendary gets 3 from any tier.
-  _rollEtchesForRarity(rarity) {
+  // Discard-only check — cards like Catwoman / Mr. Fantastic / Jigsaw
+  // / Professor X have isDiscardEffect: true in CARD_ABILITIES and never
+  // enter a lane. Stat / trait etches are pointless on them, so the
+  // rolling and picking flows below restrict their etch pool to energy
+  // (cost reduction) + text (per-card effect upgrades) only.
+  _isDiscardOnlyCard(defName) {
+    if (!defName || typeof CARD_ABILITIES === 'undefined') return false;
+    const ab = CARD_ABILITIES[defName];
+    return !!(ab && ab.isDiscardEffect);
+  },
+
+  _rollEtchesForRarity(rarity, defName) {
     const count = this.CARD_RARITY_ETCH_COUNT[rarity] || 0;
     if (!count) return [];
     // Build a pool of etch IDs allowed at this rarity (current tier
     // plus all lower tiers).
     const tierIdx = this.TIER_INDEX[rarity];
-    const allowed = [];
+    let allowed = [];
     for (let i = 0; i <= tierIdx; i++) {
       const t = this.TIERS[i];
       this.ETCHES[t].forEach(e => allowed.push(e.id));
+    }
+    // Discard-only cards: drop stat-bump and trait etches from the
+    // pool. Keep energy (discount-N) only — these are the only etches
+    // that meaningfully change a card that never enters the board.
+    // Card-specific Text+ entries (CARD_TEXT_UPGRADES) are NOT in the
+    // ETCHES tier lists; they get surfaced through the level-up picker
+    // separately (see _rollLevelUpChoices), so this filter doesn't
+    // need to consider them.
+    if (this._isDiscardOnlyCard(defName)) {
+      allowed = allowed.filter(id => this._isEnergyEtch(id));
     }
     const out = [];
     while (out.length < count && allowed.length > 0) {
@@ -1747,6 +1789,19 @@ const Roguelite = {
       const e = poolArr[Math.floor(Math.random() * poolArr.length)];
       return { id: e.id, name: e.name, bucket: label, desc: this.etchDesc(e.id) };
     };
+    // DISCARD-ONLY cards: skip Stats and Trait buckets entirely (they
+    // don't apply to cards that never enter a lane). Surface only
+    // Energy + Text choices. User direction: "Discards can't gain
+    // stats. It can only be energy reduction. And text."
+    if (this._isDiscardOnlyCard(cardName)) {
+      const out = [];
+      const e = pickFrom(energy, 'Energy');
+      if (e) out.push(e);
+      if (textEtch) {
+        out.push({ id: textEtch.id, name: textEtch.name, bucket: 'Text', desc: textEtch.desc || this.etchDesc(textEtch.id) });
+      }
+      return out;
+    }
     const a = pickFrom(stats,  'Stats');
     const useText = textEtch && Math.random() < 0.05;
     const b = useText
@@ -1798,9 +1853,16 @@ const Roguelite = {
     // RARITY_SCALED_CARDS; otherwise null = no Text+ for this card.
     const cardName = cardRef && cardRef.defName;
     const cardTextEtch = this._resolveTextEtchForCard(cardName);
+    // DISCARD-ONLY cards: no Stats / Trait buckets — those etches do
+    // nothing on a card that never enters a lane. User direction:
+    // "Discards can't gain stats. It can only be energy reduction.
+    // And text." The rollBucket function below already falls back to
+    // a non-empty bucket when its first roll lands on an empty one,
+    // so muting the two buckets is sufficient.
+    const isDiscard = this._isDiscardOnlyCard(cardName);
     const buckets = {
-      stats:  tierPool.filter(e => this._isStatBumpEtch(e.id)),
-      trait:  tierPool.filter(e => this._isTraitEtch(e.id) && !this._isTextEtch(e.id)),
+      stats:  isDiscard ? [] : tierPool.filter(e => this._isStatBumpEtch(e.id)),
+      trait:  isDiscard ? [] : tierPool.filter(e => this._isTraitEtch(e.id) && !this._isTextEtch(e.id)),
       energy: tierPool.filter(e => this._isEnergyEtch(e.id)),
       text:   cardTextEtch ? [cardTextEtch] : [],
     };
@@ -2372,7 +2434,7 @@ const Roguelite = {
       // Hired Help boon: add a random low-cost Rare card. Pre-roll one
       // etch from the rare tier so it lands with a meaningful body —
       // matches the Rare drop-from-rewards shape (1 etch on rare).
-      const rareEtches = this._rollEtchesForRarity('rare');
+      const rareEtches = this._rollEtchesForRarity('rare', params.hiredHelpCard);
       Game.state.roguelite.deck.push(this._makeDeckCard(params.hiredHelpCard, 'rare', rareEtches, false));
     }
     Game.state.roguelite.map = this.generateMap(Game.state.roguelite);
