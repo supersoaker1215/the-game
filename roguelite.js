@@ -2291,6 +2291,10 @@ const Roguelite = {
 
   _renderRestModal() {
     const run = Game.state.roguelite;
+    // Defensive: make sure no stale rest pending state lingers if the
+    // player bounced through a sub-modal and came back.
+    run._pendingRestEtch = null;
+    run._pendingStatBumpIdx = null;
     const heal = Math.floor(run.maxHp * 0.3);
     const body = `
       <div class="rl-event-flavor">A safe pocket of unused grid. Spend the moment as you choose.</div>
@@ -2298,8 +2302,28 @@ const Roguelite = {
         <button type="button" class="rl-event-choice" onclick="Roguelite._restHeal()">Rest — heal ${heal} HP</button>
         <button type="button" class="rl-event-choice" onclick="Roguelite._restUpgrade()">Etch a card — apply a random Common etch</button>
         <button type="button" class="rl-event-choice" onclick="Roguelite._restStatBump()">Sharpen a card — pick which stat to +1 (ATK or HP)</button>
+        <button type="button" class="rl-shop-leave" onclick="Roguelite._restLeave()">Leave site (no action)</button>
       </div>`;
     this._modal('REST SITE', body);
+  },
+
+  // Bail out of the rest site cleanly. User report: "He clicked etch a
+  // card, it gave him Taunt 1, he didn't want to taunt a card, so he
+  // tried to quit out of it — and it kinda glitched his game out."
+  // The X button closed the modal but left _pendingRestEtch hanging
+  // and the player on the rest node with no resolution. Now there's
+  // an explicit Leave option, and any back-out routes through here
+  // so pending state always clears.
+  _restLeave() {
+    const run = Game.state.roguelite;
+    if (run) {
+      run._pendingRestEtch = null;
+      run._pendingStatBumpIdx = null;
+      run.lastResult = { event: 'You leave the rest site without taking action.' };
+    }
+    this._closeModal();
+    Game.state.phase = 'roguelite-map';
+    UI.render();
   },
 
   // Card upgrade at rest — user direction: "pick which stat to +1
@@ -2364,23 +2388,71 @@ const Roguelite = {
     UI.render();
   },
 
+  // Step 1 of the etch flow: roll a random Common etch, show it in a
+  // preview modal with Apply / Reroll / Cancel. Player gets to see what
+  // they're getting BEFORE committing to a card. User report fixed:
+  // they were forced into a card-pick screen with a pre-rolled etch
+  // and the only escape was X-out, which left state inconsistent.
   _restUpgrade() {
     const run = Game.state.roguelite;
-    // Pick a random common etch to offer
     const pool = this.ETCHES.common;
     const etch = pool[Math.floor(Math.random() * pool.length)];
     run._pendingRestEtch = etch.id;
+    this._renderRestEtchPreview();
+  },
+
+  _renderRestEtchPreview() {
+    const run = Game.state.roguelite;
+    const etch = this._findEtch(run._pendingRestEtch);
+    if (!etch) { this._renderRestModal(); return; }
+    const body = `
+      <div class="rl-event-flavor">The grid offers <b>${etch.name}</b>. Apply it to a card, reroll, or back out.</div>
+      <div class="rl-event-choices">
+        <button type="button" class="rl-event-choice" onclick="Roguelite._renderRestEtchPicker()">Apply ${etch.name} to a card</button>
+        <button type="button" class="rl-event-choice" onclick="Roguelite._restEtchReroll()">Reroll the etch</button>
+        <button type="button" class="rl-shop-leave" onclick="Roguelite._restEtchCancel()">Back</button>
+      </div>`;
+    this._modal('ETCH OFFER', body);
+  },
+
+  _restEtchReroll() {
+    const run = Game.state.roguelite;
+    const pool = this.ETCHES.common;
+    // Avoid rolling the same etch twice in a row when possible.
+    let etch = pool[Math.floor(Math.random() * pool.length)];
+    if (pool.length > 1) {
+      let attempts = 0;
+      while (etch.id === run._pendingRestEtch && attempts < 8) {
+        etch = pool[Math.floor(Math.random() * pool.length)];
+        attempts++;
+      }
+    }
+    run._pendingRestEtch = etch.id;
+    this._renderRestEtchPreview();
+  },
+
+  _restEtchCancel() {
+    const run = Game.state.roguelite;
+    if (run) run._pendingRestEtch = null;
+    this._renderRestModal();
+  },
+
+  // Step 2: pick which card receives the previewed etch.
+  _renderRestEtchPicker() {
+    const run = Game.state.roguelite;
+    const etch = this._findEtch(run._pendingRestEtch);
+    if (!etch) { this._renderRestModal(); return; }
     const cards = run.deck.map((d, i) => `
       <div class="rl-deck-slot rl-tier-${d.rarity}" onclick="Roguelite._applyRestEtch(${i})" style="cursor:pointer">
         ${this._renderCodexCard(d)}
       </div>`).join('');
     const body = `
-      <div class="rl-event-flavor">You etch <b>${etch.name}</b> into a card. Which one?</div>
+      <div class="rl-event-flavor">Apply <b>${etch.name}</b> to which card?</div>
       <div class="rl-deck-grid">${cards}</div>
       <div class="rl-shop-footer">
-        <button type="button" class="rl-shop-leave" onclick="Roguelite._renderRestModal()">Back</button>
+        <button type="button" class="rl-shop-leave" onclick="Roguelite._renderRestEtchPreview()">Back</button>
       </div>`;
-    this._modal('SHARPEN A CARD', body);
+    this._modal('APPLY ETCH', body);
   },
 
   _applyRestEtch(cardIdx) {
