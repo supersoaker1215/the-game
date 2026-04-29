@@ -4118,57 +4118,12 @@ const Roguelite = {
     UI.render();
   },
 
-  // Card upgrade at rest — user direction: "pick which stat to +1
-  // (ATK or HP) for non-XP stat agency at rest sites." Player picks
-  // a card from their deck, then chooses ATK or HP. Permanent +1 to
-  // the chosen stat for all future runs of that card.
-  _restStatBump() {
-    const run = Game.state.roguelite;
-    const cards = run.deck.map((d, i) => `
-      <div class="rl-deck-slot rl-tier-${d.rarity}" onclick="Roguelite._chooseStatBumpCard(${i})" style="cursor:pointer">
-        ${this._renderCodexCard(d)}
-      </div>`).join('');
-    const body = `
-      <div class="rl-event-flavor">Pick a card to sharpen. You'll choose +1 ATK or +1 HP next.</div>
-      <div class="rl-deck-grid">${cards}</div>
-      <div class="rl-shop-footer">
-        <button type="button" class="rl-shop-leave" onclick="Roguelite._renderRestModal()">Back</button>
-      </div>`;
-    this._modal('SHARPEN A CARD', body);
-  },
-  _chooseStatBumpCard(cardIdx) {
-    const run = Game.state.roguelite;
-    const card = run.deck[cardIdx];
-    if (!card) return;
-    run._pendingStatBumpIdx = cardIdx;
-    const body = `
-      <div class="rl-event-flavor">Sharpen <b>${card.defName}</b> — which stat?</div>
-      <div class="rl-event-choices">
-        <button type="button" class="rl-event-choice" onclick="Roguelite._applyStatBump('atk')">+1 ATK</button>
-        <button type="button" class="rl-event-choice" onclick="Roguelite._applyStatBump('hp')">+1 HP</button>
-      </div>
-      <div class="rl-shop-footer">
-        <button type="button" class="rl-shop-leave" onclick="Roguelite._restStatBump()">Back</button>
-      </div>`;
-    this._modal('STAT TO SHARPEN', body);
-  },
-  _applyStatBump(stat) {
-    const run = Game.state.roguelite;
-    const idx = run._pendingStatBumpIdx;
-    if (idx == null) return;
-    const card = run.deck[idx];
-    if (!card) return;
-    // Apply via etch — same pipeline as etch-driven stat bumps. So
-    // re-builds always restore the bump. plus1-atk / plus1-hp.
-    const etchId = stat === 'atk' ? 'plus1-atk' : 'plus1-hp';
-    card.statuses = card.statuses || [];
-    card.statuses.push(etchId);
-    run.lastResult = { event: `Sharpened ${card.defName} (+1 ${stat.toUpperCase()})` };
-    run._pendingStatBumpIdx = null;
-    this._closeModal();
-    Game.state.phase = 'roguelite-map';
-    UI.render();
-  },
+  // _restStatBump / _chooseStatBumpCard / _applyStatBump removed —
+  // the rest site is now Rest-or-Upgrade only (see _renderRestModal).
+  // The "+1 ATK or HP" sharpen path was the third option from the old
+  // four-option modal; the new full-level-up Upgrade flow folds the
+  // stat agency into the etch picker (every level-up offers a Stats
+  // bucket pick alongside Trait / Energy).
 
   _restHeal() {
     const run = Game.state.roguelite;
@@ -4235,85 +4190,11 @@ const Roguelite = {
     this._renderLevelUpPicker();
   },
 
-  // Step 1 of the etch flow: roll a random Common etch, show it in a
-  // preview modal with Apply / Reroll / Cancel. Player gets to see what
-  // they're getting BEFORE committing to a card. User report fixed:
-  // they were forced into a card-pick screen with a pre-rolled etch
-  // and the only escape was X-out, which left state inconsistent.
-  _restUpgrade() {
-    const run = Game.state.roguelite;
-    const pool = this.ETCHES.common;
-    const etch = pool[Math.floor(Math.random() * pool.length)];
-    run._pendingRestEtch = etch.id;
-    this._renderRestEtchPreview();
-  },
-
-  _renderRestEtchPreview() {
-    const run = Game.state.roguelite;
-    const etch = this._findEtch(run._pendingRestEtch);
-    if (!etch) { this._renderRestModal(); return; }
-    const body = `
-      <div class="rl-event-flavor">The grid offers <b>${etch.name}</b>. Apply it to a card, reroll, or back out.</div>
-      <div class="rl-event-choices">
-        <button type="button" class="rl-event-choice" onclick="Roguelite._renderRestEtchPicker()">Apply ${etch.name} to a card</button>
-        <button type="button" class="rl-event-choice" onclick="Roguelite._restEtchReroll()">Reroll the etch</button>
-        <button type="button" class="rl-shop-leave" onclick="Roguelite._restEtchCancel()">Back</button>
-      </div>`;
-    this._modal('ETCH OFFER', body);
-  },
-
-  _restEtchReroll() {
-    const run = Game.state.roguelite;
-    const pool = this.ETCHES.common;
-    // Avoid rolling the same etch twice in a row when possible.
-    let etch = pool[Math.floor(Math.random() * pool.length)];
-    if (pool.length > 1) {
-      let attempts = 0;
-      while (etch.id === run._pendingRestEtch && attempts < 8) {
-        etch = pool[Math.floor(Math.random() * pool.length)];
-        attempts++;
-      }
-    }
-    run._pendingRestEtch = etch.id;
-    this._renderRestEtchPreview();
-  },
-
-  _restEtchCancel() {
-    const run = Game.state.roguelite;
-    if (run) run._pendingRestEtch = null;
-    this._renderRestModal();
-  },
-
-  // Step 2: pick which card receives the previewed etch.
-  _renderRestEtchPicker() {
-    const run = Game.state.roguelite;
-    const etch = this._findEtch(run._pendingRestEtch);
-    if (!etch) { this._renderRestModal(); return; }
-    const cards = run.deck.map((d, i) => `
-      <div class="rl-deck-slot rl-tier-${d.rarity}" onclick="Roguelite._applyRestEtch(${i})" style="cursor:pointer">
-        ${this._renderCodexCard(d)}
-      </div>`).join('');
-    const body = `
-      <div class="rl-event-flavor">Apply <b>${etch.name}</b> to which card?</div>
-      <div class="rl-deck-grid">${cards}</div>
-      <div class="rl-shop-footer">
-        <button type="button" class="rl-shop-leave" onclick="Roguelite._renderRestEtchPreview()">Back</button>
-      </div>`;
-    this._modal('APPLY ETCH', body);
-  },
-
-  _applyRestEtch(cardIdx) {
-    const run = Game.state.roguelite;
-    const card = run.deck[cardIdx];
-    if (!card || !run._pendingRestEtch) return;
-    card.statuses = card.statuses || [];
-    card.statuses.push(run._pendingRestEtch);
-    run.lastResult = { event: `Etched ${card.defName} with ${this._findEtch(run._pendingRestEtch).name}` };
-    run._pendingRestEtch = null;
-    this._closeModal();
-    Game.state.phase = 'roguelite-map';
-    UI.render();
-  },
+  // _restUpgrade / _renderRestEtchPreview / _restEtchReroll /
+  // _restEtchCancel / _renderRestEtchPicker / _applyRestEtch all
+  // removed — the old "single random Common etch" path was the
+  // second option in the four-option rest modal. New flow is full
+  // level-up via _restUpgradeCardPick / _restApplyUpgrade above.
 
   pickReward(rewardIdx) {
     const run = Game.state.roguelite;
