@@ -4960,6 +4960,52 @@ body.hit-pause .ai-hand * {
   color: #7fd0ff !important;
   text-shadow: 0 0 4px rgba(79,195,247,0.70), 0 0 8px rgba(79,195,247,0.35);
 }
+
+/* Text+ etch line — surfaces card-specific Text+ upgrades on rolled
+   reward / codex / deck-list / level-up preview cards. User direction:
+   "If there were gonna be a text-based etch, I'd like it highlighted
+   kinda like the WHILE ACTIVE colon." Mirrors the .card-desc trigger-
+   label treatment but in legendary-gold (Text+ is the jackpot etch
+   tier). Sits below the regular desc as its own visually anchored
+   row so the player can't miss it. */
+.card-text-plus {
+  display: block;
+  margin: 4px 6px 0;
+  padding: 5px 7px;
+  background: rgba(255,215,0,0.06);
+  border-left: 2px solid rgba(255,215,0,0.55);
+  border-radius: 2px;
+  font-size: 9.5px;
+  line-height: 1.35;
+  text-align: left;
+  position: relative;
+  z-index: 1;
+}
+.card-text-plus-tag {
+  display: block;
+  font-weight: 700;
+  letter-spacing: 1.1px;
+  font-size: 8.5px;
+  text-transform: uppercase;
+  color: #ffe066;
+  text-shadow:
+    0 0 4px rgba(255,215,0,0.75),
+    0 0 8px rgba(255,215,0,0.35);
+  margin-bottom: 2px;
+}
+.card-text-plus-body {
+  display: block;
+  color: rgba(220,235,250,0.85);
+  font-weight: 400;
+}
+/* Stack tighter on the smaller card chrome used inside the codex
+   grid / deck-list — those slots already cap at ~150px wide, so the
+   Text+ row needs the same tight padding as the desc above. */
+.rl-deck-grid .card-text-plus,
+.encyclopedia-overlay .card-text-plus {
+  font-size: 9px;
+  padding: 4px 6px;
+}
 .card.enemy-card .card-desc b {
   color: #ff9a8c !important;
   text-shadow: 0 0 4px rgba(231,76,60,0.75), 0 0 8px rgba(231,76,60,0.40);

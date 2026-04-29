@@ -5219,6 +5219,39 @@ const Roguelite = {
     const descHtml = descText
       ? `<div class="card-desc">${(typeof UI !== 'undefined' && UI.formatDesc) ? UI.formatDesc.call(UI, descText) : descText}</div>`
       : '';
+    // Text+ etch display — surface card-specific text upgrades as
+    // highlighted lines below the body desc. User direction: "If there
+    // were gonna be a text based etch I'd like it highlighted, kinda
+    // like the WHILE ACTIVE colon." Same neon-label treatment as the
+    // other trigger lines but in legendary-gold so the player
+    // immediately reads "this card has a unique upgrade." Generic
+    // rarity-bump text-upgrade etches (the 18 RARITY_SCALED_CARDS)
+    // already promote the displayed tier text via dispTier above —
+    // this section handles the per-card CARD_TEXT_UPGRADES entries
+    // that scale specific mechanics.
+    let textPlusHtml = '';
+    if (this.CARD_TEXT_UPGRADES) {
+      const upgrades = [];
+      const seenIds = new Set();
+      (deckCard.statuses || []).forEach(etchId => {
+        if (seenIds.has(etchId)) return;
+        for (const name in this.CARD_TEXT_UPGRADES) {
+          const u = this.CARD_TEXT_UPGRADES[name];
+          if (u && u.id === etchId) {
+            upgrades.push(u);
+            seenIds.add(etchId);
+            break;
+          }
+        }
+      });
+      if (upgrades.length) {
+        textPlusHtml = upgrades.map(u => `
+          <div class="card-text-plus">
+            <span class="card-text-plus-tag">Text+ · ${u.name}</span>
+            <span class="card-text-plus-body">${u.desc}</span>
+          </div>`).join('');
+      }
+    }
     // Stat-deviation indicator vs. the def's RARE-tier base. Common
     // versions show ▼ on stats below base, Special/Legendary show ▲
     // on stats above. Etch bumps also push stats above base → ▲.
@@ -5240,6 +5273,7 @@ const Roguelite = {
         <div class="card-name-banner"><div class="card-name">${def.name}</div></div>
         ${abilitiesHtml}
         ${descHtml}
+        ${textPlusHtml}
         <span class="stat-circle stat-atk ${atkClass}">${atk}</span>
         <span class="stat-circle stat-hp ${hpClass}">${hp}</span>
         ${xpHtml}
