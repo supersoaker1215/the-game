@@ -3806,13 +3806,22 @@ const Game = {
         this.applyCombatDamage(c, enemy);
         this.cleanupDead();
       } else if (!enemy) {
-        const dmg = c.attack + (c.splashRange || 0);
+        // Splash does NOT stack on the HP-bar hit when the lane is
+        // uncontested — same rule as normal attacks (see line ~3105
+        // and the long comment there). User report: Ahsoka with 1 ATK
+        // and Splash 1 was hitting the HP bar for 2 on a bonus attack.
+        // The bug was here adding splashRange to the direct-HP damage;
+        // normal attacks correctly omit it. Now bonus attacks deal
+        // pure ATK to the HP bar, and splash fires separately to
+        // adjacent lanes via applySplash.
+        const dmg = c.attack;
         // Log BEFORE the damagePlayer call so that if Mr Freeze negates the
         // hit (damagePlayer logs [FROZEN HP] and returns early), the
         // transcript reads "attempt then outcome" instead of showing a
         // misleading "hits for N" line AFTER the negation line.
         this.log(`  [BONUS ATTACK] ${c.name} hits ${opp} health bar for ${dmg}!`);
         this.damagePlayer(opp, dmg, c.isBullseye, c);
+        if (c.splashRange > 0) this.applySplash(c, lane);
       }
     }
   },
