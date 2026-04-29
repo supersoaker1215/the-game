@@ -8723,6 +8723,21 @@ const UI = {
       b.push(badge('badge-mind-ctrl', `MIND${tgtName ? ' - ' + tgtName : ''}`, 'Mind Control'));
     }
     if (c._debuffStacks > 0) b.push(badge('badge-debuff', `-${c._debuffStacks}/-${c._debuffStacks}`));
+    // Etch-driven roguelite traits — these are flags set by etch.apply()
+    // in Roguelite.buildRunCard. User report: "Phoenix for Flash has
+    // disappeared, but I didn't see it as an etch on the card. That
+    // needs to be on the card so you don't forget about it." Same
+    // principle for Cantrip / Lifesteal / Echo / Berserker / Zealot /
+    // Thorns / Discount / Fear — all earned via level-up etches.
+    if (c.hasPhoenix > 0) b.push(badge('badge-phoenix', 'Phoenix', 'Phoenix'));
+    if (c.hasCantrip > 0) b.push(badge('badge-cantrip', c.hasCantrip > 1 ? `Cantrip ${c.hasCantrip}` : 'Cantrip', 'Cantrip'));
+    if (c.hasLifesteal > 0) b.push(badge('badge-lifesteal', 'Lifesteal', 'Lifesteal'));
+    if (c.hasEcho > 0) b.push(badge('badge-echo', c.hasEcho > 1 ? `Echo ${c.hasEcho}` : 'Echo', 'Echo'));
+    if (c.hasBerserker > 0) b.push(badge('badge-berserker', 'Berserker', 'Berserker'));
+    if (c.hasZealot > 0) b.push(badge('badge-zealot', 'Zealot', 'Zealot'));
+    if (c.hasThorns > 0) b.push(badge('badge-thorns', c.hasThorns > 1 ? `Thorns ${c.hasThorns}` : 'Thorns', 'Thorns'));
+    if (c.hasFear > 0) b.push(badge('badge-fear', `Fear ${c.hasFear}`, 'Fear'));
+    if (c._discountTotal > 0) b.push(badge('badge-discount', `Discount ${c._discountTotal}`, 'Discount'));
     // "Crazy" / "Insane" — no KEYWORD_DATA entry yet, so badge() omits
     // data-kw and they stay non-interactive.
     if (c.isInsane) b.push(badge('badge-insane', 'Insane'));

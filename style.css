@@ -21825,14 +21825,45 @@ body.killing-blow-cinema::after {
       [yellow]." Fixed by tinting border-bottom per tier.
    2) The `::after` pseudo-element draws the centered diamond accent
       below the line — recolor its background + glow too. */
-.rl-tier-common .card.hand-card .card-name-banner       { border-bottom-color: rgba(46,204,113,0.85) !important; }
-.rl-tier-rare .card.hand-card .card-name-banner         { border-bottom-color: rgba(79,195,247,0.85) !important; }
-.rl-tier-special .card.hand-card .card-name-banner      { border-bottom-color: rgba(240,245,250,0.85) !important; }
-.rl-tier-legendary .card.hand-card .card-name-banner    { border-bottom-color: rgba(255,215,0,0.95) !important; }
-.rl-tier-common .card.hand-card .card-name-banner::after    { background: rgba(46,204,113,1) !important; box-shadow: 0 0 4px rgba(46,204,113,0.85), 0 0 8px rgba(46,204,113,0.45) !important; }
-.rl-tier-rare .card.hand-card .card-name-banner::after      { background: rgba(79,195,247,1) !important; box-shadow: 0 0 4px rgba(79,195,247,0.85), 0 0 8px rgba(79,195,247,0.45) !important; }
-.rl-tier-special .card.hand-card .card-name-banner::after   { background: rgba(240,245,250,1) !important; box-shadow: 0 0 4px rgba(240,245,250,0.85), 0 0 8px rgba(240,245,250,0.45) !important; }
-.rl-tier-legendary .card.hand-card .card-name-banner::after { background: rgba(255,215,0,1) !important; box-shadow: 0 0 4px rgba(255,215,0,0.85), 0 0 8px rgba(255,215,0,0.45) !important; }
+/* Underline color on the card-name-banner — was firing only when
+   .rl-tier-X sat on a PARENT (codex / deck-list / rewards modal,
+   where _renderCodexCard puts the class on a wrapper). For IN-GAME
+   hand cards the class lives directly on the .card element (set by
+   ui.js makeCardEl line ~8195 from card._runRarity). User report:
+   "the underline of these cards are still green because they are
+   one of three cost cards. But in roguelike it's just based on the
+   rarity of the card." Fix: add the compound .card.hand-card.rl-tier-X
+   form so both class-placement patterns hit the same color. */
+.rl-tier-common .card.hand-card .card-name-banner,
+.card.hand-card.rl-tier-common .card-name-banner       { border-bottom-color: rgba(46,204,113,0.85) !important; }
+.rl-tier-rare .card.hand-card .card-name-banner,
+.card.hand-card.rl-tier-rare .card-name-banner         { border-bottom-color: rgba(79,195,247,0.85) !important; }
+.rl-tier-special .card.hand-card .card-name-banner,
+.card.hand-card.rl-tier-special .card-name-banner      { border-bottom-color: rgba(240,245,250,0.85) !important; }
+.rl-tier-legendary .card.hand-card .card-name-banner,
+.card.hand-card.rl-tier-legendary .card-name-banner    { border-bottom-color: rgba(255,215,0,0.95) !important; }
+.rl-tier-common .card.hand-card .card-name-banner::after,
+.card.hand-card.rl-tier-common .card-name-banner::after    { background: rgba(46,204,113,1) !important; box-shadow: 0 0 4px rgba(46,204,113,0.85), 0 0 8px rgba(46,204,113,0.45) !important; }
+.rl-tier-rare .card.hand-card .card-name-banner::after,
+.card.hand-card.rl-tier-rare .card-name-banner::after      { background: rgba(79,195,247,1) !important; box-shadow: 0 0 4px rgba(79,195,247,0.85), 0 0 8px rgba(79,195,247,0.45) !important; }
+.rl-tier-special .card.hand-card .card-name-banner::after,
+.card.hand-card.rl-tier-special .card-name-banner::after   { background: rgba(240,245,250,1) !important; box-shadow: 0 0 4px rgba(240,245,250,0.85), 0 0 8px rgba(240,245,250,0.45) !important; }
+.rl-tier-legendary .card.hand-card .card-name-banner::after,
+.card.hand-card.rl-tier-legendary .card-name-banner::after { background: rgba(255,215,0,1) !important; box-shadow: 0 0 4px rgba(255,215,0,0.85), 0 0 8px rgba(255,215,0,0.45) !important; }
+/* Also recolor the trigger labels ("WHEN PLAYED:" / "WHILE ACTIVE:"
+   etc.) inside .card-desc to match the rarity tier. User direction:
+   "The when played should also be matching the neon rarity. For
+   Flash the when played should be yellow, for Thug it should be
+   blue, etc." Default is cyan via .card-desc b — these tier-scoped
+   rules win on roguelite cards. */
+.card.hand-card.rl-tier-common .card-desc b,
+.rl-tier-common .card.hand-card .card-desc b       { color: #5be39a !important; text-shadow: 0 0 4px rgba(46,204,113,0.70), 0 0 8px rgba(46,204,113,0.35) !important; }
+.card.hand-card.rl-tier-rare .card-desc b,
+.rl-tier-rare .card.hand-card .card-desc b         { color: #7fd0ff !important; text-shadow: 0 0 4px rgba(79,195,247,0.70), 0 0 8px rgba(79,195,247,0.35) !important; }
+.card.hand-card.rl-tier-special .card-desc b,
+.rl-tier-special .card.hand-card .card-desc b      { color: #e6ecf2 !important; text-shadow: 0 0 4px rgba(240,245,250,0.70), 0 0 8px rgba(240,245,250,0.35) !important; }
+.card.hand-card.rl-tier-legendary .card-desc b,
+.rl-tier-legendary .card.hand-card .card-desc b    { color: #ffe066 !important; text-shadow: 0 0 4px rgba(255,215,0,0.70), 0 0 8px rgba(255,215,0,0.35) !important; }
 
 /* In-game (hand + board) rarity tinting — kicks in only on cards
    inside the codex / deck list / rewards modals. User direction:
