@@ -4225,52 +4225,57 @@ body.hit-pause .ai-hand * {
    sides are present, the frame splits top-half red / bottom-half blue via a
    vertical linear-gradient border-image — visually saying "contested".
    .lane-active (gold combat pulse) and .destroyed override via specificity. */
+/* User direction: "When this is coded it has to be unique for every
+   single neon highlight. It doesn't make sense for the lane to be
+   blue when the player is white. White and red make pink in the
+   middle. Everything has to be unique to the active theme."
+   So contested-lane chrome now reads the player's actual theme via
+   --player-r/g/b and uses color-mix() to compute the contested
+   midpoint between AI red and the player accent. White theme →
+   pink in the middle. Cyan theme → purple. Gold theme → orange.
+   Green theme → muddy ochre. Silver theme → salmon. Etc. */
 .lane.occ-ai {
-  /* AI owns — the vertical line becomes red end-to-end, with a short purple
-     kiss at the very bottom where the red "meets" the player banner's blue
-     edge. Top meets the AI banner's red edge (same color, no transition). */
+  /* AI owns — vertical line is red end-to-end, with a short kiss
+     at the bottom where it would meet the player accent. */
   border-image: linear-gradient(180deg,
       rgba(231,76,60,0.95)  0%,
       rgba(231,76,60,0.95)  91%,
-      rgba(155,89,182,0.95) 97%,   /* purple at the red/blue meeting point */
-      rgba(79,195,247,0.95) 100%
+      color-mix(in srgb, rgb(231,76,60) 50%, rgba(var(--player-r,79), var(--player-g,195), var(--player-b,247), 0.95)) 97%,
+      rgba(var(--player-r,79), var(--player-g,195), var(--player-b,247), 0.95) 100%
     ) 1;
   box-shadow:
     0 0 12px rgba(231,76,60,0.55),
     0 0 24px rgba(231,76,60,0.22);
 }
 .lane.occ-player {
-  /* Player owns — mirror: blue end-to-end, with a purple kiss at the top
-     where blue meets the AI banner's red edge. */
+  /* Player owns — mirror: theme accent end-to-end, with a kiss
+     at the top where it would meet AI red. */
   border-image: linear-gradient(180deg,
       rgba(231,76,60,0.95)  0%,
-      rgba(155,89,182,0.95) 3%,    /* purple at the red/blue meeting point */
-      rgba(79,195,247,0.95) 9%,
-      rgba(79,195,247,0.95) 100%
+      color-mix(in srgb, rgb(231,76,60) 50%, rgba(var(--player-r,79), var(--player-g,195), var(--player-b,247), 0.95)) 3%,
+      rgba(var(--player-r,79), var(--player-g,195), var(--player-b,247), 0.95) 9%,
+      rgba(var(--player-r,79), var(--player-g,195), var(--player-b,247), 0.95) 100%
     ) 1;
   box-shadow:
-    0 0 12px rgba(79,195,247,0.55),
-    0 0 24px rgba(79,195,247,0.22);
+    0 0 12px rgba(var(--player-r,79), var(--player-g,195), var(--player-b,247), 0.55),
+    0 0 24px rgba(var(--player-r,79), var(--player-g,195), var(--player-b,247), 0.22);
 }
 .lane.occ-both {
-  /* Smooth red→purple→blue column — the old 46/54 crisp tri-band read as
-     three discrete blocks stacked up; the new gradient blends the seams so
-     the contested state feels like light diffusing through the lane rather
-     than three posters taped together. */
+  /* Smooth red → mix → player-accent column. The midpoint is the
+     ACTUAL color-wheel blend between AI red and the player's chosen
+     theme accent — pink when player is white, purple when cyan,
+     orange when gold, etc. */
   border-color: transparent;
   border-image: linear-gradient(180deg,
       rgba(231,76,60,0.95)  0%,
       rgba(231,76,60,0.90)  32%,
-      rgba(155,89,182,0.95) 50%,
-      rgba(79,195,247,0.90) 68%,
-      rgba(79,195,247,0.95) 100%) 1;
-  /* Soft unified halo — red above, purple breathing middle, blue below,
-     but the middle shadow's larger blur overlaps both ends so the three
-     read as one continuous gradient of light rather than discrete bands. */
+      color-mix(in srgb, rgb(231,76,60) 50%, rgba(var(--player-r,79), var(--player-g,195), var(--player-b,247), 0.95)) 50%,
+      rgba(var(--player-r,79), var(--player-g,195), var(--player-b,247), 0.90) 68%,
+      rgba(var(--player-r,79), var(--player-g,195), var(--player-b,247), 0.95) 100%) 1;
   box-shadow:
     0 -4px 16px -3px rgba(231,76,60,0.40),
-    0  0   22px     rgba(155,89,182,0.30),
-    0  4px 16px -3px rgba(79,195,247,0.40);
+    0  0   22px     color-mix(in srgb, rgb(231,76,60) 50%, rgba(var(--player-r,79), var(--player-g,195), var(--player-b,247), 0.95)),
+    0  4px 16px -3px rgba(var(--player-r,79), var(--player-g,195), var(--player-b,247), 0.40);
 }
 /* ---- LIVE MVP STAR — per-card tracker ----
    Tiny 5×5 star pip sitting as the FIRST child of the rarity strip
@@ -11817,37 +11822,50 @@ body.round-first-ai .hud-pill-main {
    physically meet. User spec: "color theory and a cool little
    mechanic — implement it like a professional game dev."
    ============================================================ */
+/* Theme-aware contested lane chrome. The centerline + middle circle
+   compute their colors as the LIVE color-mix of AI red and the
+   player's current theme accent. So the seam reads as:
+     player cyan   + AI red → purple/violet
+     player white  + AI red → pink         (silver theme)
+     player gold   + AI red → orange
+     player green  + AI red → muddy ochre
+     player purple + AI red → red-violet
+   User direction: "It doesn't make sense for the lane to be blue when
+   the player is white. White and red make pink in the middle.
+   Everything has to be unique to each neon highlight."
+   Defines a per-lane CSS variable --contest-mix once, then both
+   surfaces (sep::before bar + lane-number circle) derive from it
+   with brightness-shifted variants. */
+.lane.occ-both {
+  --contest-mix: color-mix(in srgb,
+    rgb(231, 76, 60) 50%,
+    rgba(var(--player-r, 79), var(--player-g, 195), var(--player-b, 247), 1) 50%);
+}
 .lane.occ-both .lane-sep::before {
-  /* Neon purple centerline — bright, with double halo so the contested
-     seam reads as the brightest line on the board. User direction:
-     "the contested lanes need to be neon highlighted as well — its
-     blur should be purple." Brighter purple (180,90,220) replaces the
-     darker trick-purple here so the contested state pops at all zoom
-     levels. */
+  /* Centerline glow uses the mid-shifted contest color so it visually
+     "lights up" as the seam between AI red and player accent. */
   background: linear-gradient(90deg,
     transparent 0%,
-    rgba(180, 90, 220, 1) 8%,
-    rgba(180, 90, 220, 1) 92%,
+    var(--contest-mix) 8%,
+    var(--contest-mix) 92%,
     transparent 100%) !important;
   box-shadow:
-    0 0 14px rgba(180, 90, 220, 0.95),
-    0 0 32px rgba(180, 90, 220, 0.55),
-    0 0 56px rgba(180, 90, 220, 0.25) !important;
+    0 0 14px var(--contest-mix),
+    0 0 32px color-mix(in srgb, var(--contest-mix) 55%, transparent),
+    0 0 56px color-mix(in srgb, var(--contest-mix) 25%, transparent) !important;
 }
 .lane.occ-both .lane-number {
-  /* Magenta middle circle — purple+red mix on the color wheel, the
-     visual "blend" of the AI red top rim and the player purple/blue
-     bottom rim meeting at the contested seam. User direction: "the
-     middle circle should be the mix between purple and red on the
-     color wheel."  */
-  border-color: rgba(220, 50, 130, 1) !important;
-  color: #ff8fc0 !important;
-  background: rgba(40, 8, 24, 0.85) !important;
+  /* Middle circle = the "magenta point" — the actual color-wheel
+     midpoint between AI red and player accent. Shifts to the warmer
+     side of the mix for visual punch on the central node. */
+  border-color: var(--contest-mix) !important;
+  color: color-mix(in srgb, var(--contest-mix) 40%, white) !important;
+  background: color-mix(in srgb, var(--contest-mix) 18%, rgba(0,0,0,0.85)) !important;
   box-shadow:
-    0 0 14px rgba(220, 50, 130, 0.90),
-    0 0 28px rgba(220, 50, 130, 0.45),
-    inset 0 0 6px rgba(220, 50, 130, 0.20) !important;
-  text-shadow: 0 0 6px rgba(220, 50, 130, 0.85);
+    0 0 14px var(--contest-mix),
+    0 0 28px color-mix(in srgb, var(--contest-mix) 45%, transparent),
+    inset 0 0 6px color-mix(in srgb, var(--contest-mix) 20%, transparent) !important;
+  text-shadow: 0 0 6px var(--contest-mix);
 }
 
 /* AI mini-hand card-backs — enemy theme (was hardcoded red). */
@@ -17505,17 +17523,16 @@ body.defeat-pose .board .card.enemy-card {
   --lane-pulse-edge:    rgba(var(--player-r), var(--player-g), var(--player-b), 0.55);
   --lane-pulse-edge-on: rgba(var(--player-r), var(--player-g), var(--player-b), 1.00);
 }
-/* Contested lane circle drives the breathing pulse via these CSS
-   variables. User direction: "the middle circle should be the mix
-   between purple and red on the color wheel." Magenta (220,50,130)
-   = the purple+red blend; the centerline sep::before stays bright
-   purple (180,90,220) so the column reads as a purple beam capped
-   by a magenta node where AI red meets player purple/cyan. */
+/* Contested lane circle pulse — pulses with the LIVE color-mix of AI
+   red and the player's theme accent. Inherits --contest-mix from the
+   .lane.occ-both rule above. So the breathing color tracks the
+   player's chosen palette (pink under white theme, purple under cyan,
+   orange under gold, etc.) instead of being hardcoded. */
 .lane.occ-both .lane-number {
-  --lane-pulse-soft:    rgba(220, 50, 130, 0.35);
-  --lane-pulse-strong:  rgba(220, 50, 130, 0.75);
-  --lane-pulse-edge:    rgba(220, 50, 130, 0.65);
-  --lane-pulse-edge-on: rgba(220, 50, 130, 1.00);
+  --lane-pulse-soft:    color-mix(in srgb, var(--contest-mix) 35%, transparent);
+  --lane-pulse-strong:  color-mix(in srgb, var(--contest-mix) 75%, transparent);
+  --lane-pulse-edge:    color-mix(in srgb, var(--contest-mix) 65%, transparent);
+  --lane-pulse-edge-on: var(--contest-mix);
 }
 @keyframes tronCirclePulse {
   0%, 100% {
