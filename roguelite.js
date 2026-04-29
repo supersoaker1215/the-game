@@ -840,15 +840,16 @@ const Roguelite = {
     {
       id: 'hired-help',
       name: 'Hired Help',
-      desc: 'Add a random Rare card (cost 1-2) to your starting deck.',
+      desc: 'Add a random Rare card (cost 2-6) to your starting deck.',
       apply: () => {
-        // Roll a real (non-vanilla, non-starter) card with cost 1-2
-        // and serve it as a Rare deck-card. Filtered to cost 1-2 so it
-        // can land round 1 or 2 — a Rare 7-cost would be dead in hand
-        // for the first half of Act 1.
+        // Roll a real (non-vanilla, non-starter) card with cost 2-6.
+        // User direction: "Hire to help should be two to six cost."
+        // Wider band than the original 1-2 so the boon can land mid-
+        // game finishers (Aquaman, Wonder Woman, Carnage, etc.) instead
+        // of just early-curve bodies.
         if (typeof CARD_DEFS === 'undefined') return {};
         const pool = CARD_DEFS.filter(d =>
-          (d.cost || 0) >= 1 && (d.cost || 0) <= 2
+          (d.cost || 0) >= 2 && (d.cost || 0) <= 6
           && !Roguelite.AI_VANILLA_DEFS.find(v => v.name === d.name)
           && !Roguelite.STARTER_DEFS.find(s => s.name === d.name)
         );
