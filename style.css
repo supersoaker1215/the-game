@@ -20042,11 +20042,46 @@ body.killing-blow-cinema::after {
    that means."
    ============================================================ */
 
-/* Card-name → new-tier indicator at the top of the modal. */
+/* Card-name → new-tier indicator at the top of the modal. Fires a
+   one-shot scale-in + glow burst on modal open so the player FEELS
+   the level-up land. User polish suggestion: "level-up XP visual
+   feedback — players don't feel the ding of progress." */
 .rl-levelup-card-line {
   display: flex; align-items: baseline; justify-content: center;
   gap: 12px; margin: 4px 0 18px;
   font-family: 'Rajdhani', sans-serif;
+  animation: rl-levelup-burst 0.85s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+.rl-levelup-auto-trait {
+  animation: rl-levelup-glow-pulse 1.2s ease-out both;
+}
+@keyframes rl-levelup-burst {
+  0%   { transform: scale(0.85); opacity: 0; filter: brightness(0.6); }
+  35%  { transform: scale(1.08); opacity: 1; filter: brightness(1.5); }
+  60%  { transform: scale(1.02); filter: brightness(1.2); }
+  100% { transform: scale(1.00); filter: brightness(1.0); }
+}
+@keyframes rl-levelup-glow-pulse {
+  0%   { box-shadow:
+           0 0 4px var(--theme-glow-outer, rgba(79,195,247,0.3)),
+           0 0 12px var(--theme-glow-outer, rgba(79,195,247,0.15)); }
+  35%  { box-shadow:
+           0 0 28px var(--theme-glow-outer, rgba(79,195,247,1)),
+           0 0 60px var(--theme-glow-inner, rgba(79,195,247,0.55)); }
+  100% { box-shadow:
+           0 0 16px var(--theme-glow-outer, rgba(79,195,247,0.55)),
+           0 0 36px var(--theme-glow-inner, rgba(79,195,247,0.25)); }
+}
+/* Per-bucket choice cards stagger in for a satisfying cascade. */
+.rl-levelup-choice {
+  animation: rl-levelup-choice-in 0.6s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+.rl-levelup-choice:nth-child(1) { animation-delay: 0.10s; }
+.rl-levelup-choice:nth-child(2) { animation-delay: 0.20s; }
+.rl-levelup-choice:nth-child(3) { animation-delay: 0.30s; }
+@keyframes rl-levelup-choice-in {
+  0%   { transform: translateY(8px); opacity: 0; }
+  100% { transform: translateY(0);   opacity: 1; }
 }
 .rl-levelup-card-name {
   font-size: 22px; font-weight: 700;
@@ -20062,6 +20097,23 @@ body.killing-blow-cinema::after {
 .rl-levelup-new-tier {
   font-size: 18px; font-weight: 700;
   letter-spacing: 4px; text-transform: uppercase;
+}
+
+/* Current-ascension highlight in the pre-run picker. */
+.rl-asc-cur {
+  border-color: rgba(255,200,80,0.95) !important;
+  box-shadow:
+    0 0 16px rgba(255,210,100,0.55),
+    0 0 36px rgba(255,200,80,0.20),
+    inset 0 0 0 1px rgba(255,255,255,0.10) !important;
+}
+.rl-asc-cur::before {
+  background: rgba(255,210,100,0.85) !important;
+  box-shadow: 0 0 10px rgba(255,210,100,1), 0 0 18px rgba(255,200,80,0.55) !important;
+}
+.rl-asc-cur .rl-levelup-bucket {
+  color: #ffe066 !important;
+  text-shadow: 0 0 6px rgba(255,210,100,0.85) !important;
 }
 
 /* Auto-granted-trait banner — neon panel with corner accents and a

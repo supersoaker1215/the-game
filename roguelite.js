@@ -696,7 +696,16 @@ const Roguelite = {
         totalDamageDealt: 0,
         totalHpLost: 0,
       },
+      // Snapshot of the ascension level at run start so save/resume
+      // and the end-of-run summary can show what difficulty was used.
+      ascension: this.currentAscension(),
     };
+    // Ascension 2+ — start at 25 max HP instead of 30. Stacks with the
+    // Fragile Power boon if both are picked (boon further trims hp).
+    if (run.ascension >= 2) {
+      run.maxHp = 25;
+      run.hp = 25;
+    }
     if (boon) {
       if (boon.bonusCard) {
         run.deck.push(this._makeDeckCard(boon.bonusCard, 'rare'));
@@ -1297,17 +1306,27 @@ const Roguelite = {
   buildAiEncounter(node, run) {
     if (typeof CARD_DEFS === 'undefined') return null;
     this._ensureVanillaDefsRegistered();
+    // Ascension difficulty multiplier — A1+ adds 10% enemy HP across
+    // the board. A4 adds an extra trick to bosses.
+    const asc = (run && run.ascension) || 0;
+    const ascHpMul = asc >= 1 ? 1.10 : 1.0;
     // Boss / final-boss — handcrafted decks (full power) with a small
     // HP wobble so even bosses don't always read the same.
     if (node.type === 'final-boss') {
       const t = this.BOSS_DECKS['act3-galactus'];
-      return { deckNames: t.deck.slice(), tricks: t.tricks.slice(), hp: this._randInRange(70, 90), difficulty: 'hard', persona: t.persona };
+      const hp = Math.floor(this._randInRange(70, 90) * ascHpMul);
+      const tricks = t.tricks.slice();
+      if (asc >= 4 && tricks.length) tricks.push(tricks[Math.floor(Math.random() * tricks.length)]);
+      return { deckNames: t.deck.slice(), tricks, hp, difficulty: 'hard', persona: t.persona };
     }
     if (node.type === 'boss') {
       const key = node.tier === 1 ? 'act1-luthor' : 'act2-doom';
       const t = this.BOSS_DECKS[key];
-      const hp = node.tier === 1 ? this._randInRange(28, 38) : this._randInRange(40, 55);
-      return { deckNames: t.deck.slice(), tricks: t.tricks.slice(), hp, difficulty: 'normal', persona: t.persona };
+      const baseHp = node.tier === 1 ? this._randInRange(28, 38) : this._randInRange(40, 55);
+      const hp = Math.floor(baseHp * ascHpMul);
+      const tricks = t.tricks.slice();
+      if (asc >= 4 && tricks.length) tricks.push(tricks[Math.floor(Math.random() * tricks.length)]);
+      return { deckNames: t.deck.slice(), tricks, hp, difficulty: 'normal', persona: t.persona };
     }
     // Random fight — scaled by tier. Tier 1 follows a strict spec:
     // exactly 3 real (cost 1-3) cards, rest are vanilla bodies. So the
@@ -1328,6 +1347,8 @@ const Roguelite = {
     }
     let hp = this._randInRange(hpMin, hpMax);
     if (node.type === 'elite') { hp += this._randInRange(8, 14); difficulty = 'hard'; trickCount += 1; }
+    // Apply ascension HP multiplier to regular + elite fights.
+    if (ascHpMul > 1) hp = Math.floor(hp * ascHpMul);
 
     // Tier 1 vanilla pool excludes Operator (3/4). User feedback:
     // "too many operators for the opponent in the first couple rounds —
@@ -1707,6 +1728,29 @@ const Roguelite = {
     UI.render();
   },
 
+  // ----- Ascension difficulty levels -----
+  // StS-style ascension. Each level stacks on top of the lower ones,
+  // so A4 = A1+A2+A3+A4 cumulative. v1 ships 5 tiers; persistent in
+  // localStorage so the player's chosen difficulty survives reloads.
+  ASCENSION_LEVELS: [
+    { level: 0, name: 'Standard',  desc: 'No modifiers — the baseline run.' },
+    { level: 1, name: 'Hardened',  desc: 'Enemies have +10% HP.' },
+    { level: 2, name: 'Frail',     desc: '+ You start at 25 max HP (was 30).' },
+    { level: 3, name: 'Spartan',   desc: '+ Battery and Old Manuscript removed from the starter pool.' },
+    { level: 4, name: 'Cosmic',    desc: '+ Bosses gain an extra trick in their deck.' },
+  ],
+  _ASCENSION_KEY: 'clb_ascension',
+  currentAscension() {
+    if (typeof localStorage === 'undefined') return 0;
+    const raw = parseInt(localStorage.getItem(this._ASCENSION_KEY) || '0', 10);
+    if (isNaN(raw)) return 0;
+    return Math.max(0, Math.min(this.ASCENSION_LEVELS.length - 1, raw));
+  },
+  setAscension(level) {
+    if (typeof localStorage === 'undefined') return;
+    localStorage.setItem(this._ASCENSION_KEY, String(level));
+  },
+
   enterRun() {
     // Confirm before nuking an in-progress save. The Continue Run
     // button on the main menu is the safe path; clicking the regular
@@ -1715,20 +1759,46 @@ const Roguelite = {
       const ok = confirm('You have a saved run in progress. Start a new run anyway? (Your save will be overwritten when you reach the map.)');
       if (!ok) return;
     }
+    // Show ascension picker first so the player can up the difficulty
+    // before committing to relic / card / boon picks.
+    this._renderAscensionPicker();
+  },
+
+  _renderAscensionPicker() {
+    const cur = this.currentAscension();
+    const buttons = this.ASCENSION_LEVELS.map(a => {
+      const isCur = a.level === cur;
+      const cls = isCur ? 'rl-event-choice rl-asc-cur' : 'rl-event-choice';
+      return `<button type="button" class="${cls}" onclick="Roguelite._pickAscension(${a.level})">
+        <span class="rl-levelup-bucket">Ascension ${a.level}</span>
+        <span class="rl-levelup-name">${a.name}</span>
+        <span class="rl-levelup-desc">${a.desc}</span>
+      </button>`;
+    }).join('');
+    const body = `
+      <div class="rl-event-flavor">Pick your difficulty. Higher tiers stack: A2 includes A1, A3 includes A2, and so on.</div>
+      <div class="rl-event-choices">${buttons}</div>`;
+    this._modal('ASCENSION', body);
+  },
+
+  _pickAscension(level) {
+    this.setAscension(level);
+    this._closeModal();
     Game.state._starterPicks = {};
-    // Roll 3 common relics for the relic-pick screen, excluding Steel
-    // Heart since the user flagged it as too strong for a starter.
     Game.state._starterRelicPool = this._rollStarterRelicPool();
     Game.state._starterCardPool  = this._rollStarterCardPool();
     Game.state.phase = 'roguelite-pick-relic';
     UI.render();
   },
 
-  // Common relics minus Steel Heart (user direction). Sample 4 unique
-  // for the 2x2 grid layout. User: "make it four relics at the
-  // beginning that you can pick. Just like the boon."
+  // Common relics minus Steel Heart (always excluded — too strong for
+  // a starter). At Ascension 3+, Battery and Old Manuscript are also
+  // removed — losing the burst-tempo comfort picks ramps the early
+  // difficulty meaningfully.
   _rollStarterRelicPool() {
-    const pool = this.RELICS.filter(r => r.rarity === 'common' && r.id !== 'steel-heart');
+    const asc = this.currentAscension();
+    const a3Excluded = new Set(asc >= 3 ? ['steel-heart', 'battery', 'old-manuscript'] : ['steel-heart']);
+    const pool = this.RELICS.filter(r => r.rarity === 'common' && !a3Excluded.has(r.id));
     const shuffled = pool.slice().sort(() => Math.random() - 0.5);
     return shuffled.slice(0, 4);
   },
@@ -3955,10 +4025,13 @@ const Roguelite = {
       .sort((a, b) => (relicRank[b.rarity] || 0) - (relicRank[a.rarity] || 0));
     const bestRelic = sortedRelics[0];
     const titleLine = won ? 'RUN COMPLETE' : 'YOU FELL';
-    const subtitle = won
+    const ascLevel = run.ascension || 0;
+    const ascName = (this.ASCENSION_LEVELS[ascLevel] || {}).name || 'Standard';
+    const ascTag = ascLevel > 0 ? ` · A${ascLevel} ${ascName}` : '';
+    const subtitle = (won
       ? 'You reached the top of the grid.'
       : (stats.fightsWon || 0) >= 5 ? 'A long climb, but the grid claimed you in the end.'
-      : 'A short run. The grid didn\'t make it easy.';
+      : 'A short run. The grid didn\'t make it easy.') + ascTag;
     return `
       <div class="rl-panel rl-end-panel">
         <h1 class="rl-title rl-end-title ${won ? 'rl-end-victory' : 'rl-end-defeat'}">${titleLine}</h1>
