@@ -21421,6 +21421,18 @@ body.killing-blow-cinema::after {
 .rl-reward-stats { font-size: 11px; opacity: 0.65; margin-bottom: 8px; letter-spacing: 1px; }
 .rl-reward-desc { font-size: 11px; line-height: 1.35; color: #cfd6df; }
 .rl-rewards-skip { text-align: center; }
+/* Subtle hover-tip nudge under the Victory subtitle so first-time
+   players know etch badges are interactive (cursor:help + brighten
+   already signal it, but a printed line removes any ambiguity). */
+.rl-rewards-hint {
+  text-align: center;
+  font-size: 11px;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: rgba(220,235,250,0.45);
+  margin: -10px 0 16px;
+  font-family: 'Rajdhani', sans-serif;
+}
 .rl-skip-btn {
   background: transparent;
   border: 1px solid rgba(255,255,255,0.20);

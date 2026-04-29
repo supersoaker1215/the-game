@@ -8779,7 +8779,7 @@ const UI = {
     // ===== Roguelite etch-driven keywords =====
     // Earned via the etch system; described here so the tooltip
     // pipeline (formatAbilityBadges + kw-pill) lights up on hover.
-    'Cantrip':    { color: '#5dade2', svg: '<svg viewBox="0 0 12 12"><path d="M3 2 H8 L9 3 V10 H3 Z M5 5 H7 M5 7 H7" stroke="currentColor" stroke-width="1.2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>', tip: 'When played: draw 1 card per stack.' },
+    'Cantrip':    { color: '#5dade2', svg: '<svg viewBox="0 0 12 12"><path d="M3 2 H8 L9 3 V10 H3 Z M5 5 H7 M5 7 H7" stroke="currentColor" stroke-width="1.2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>', tip: 'Draws 1 card from your deck when this card is played (per stack). Same effect as Draw 1.' },
     'Thorns':     { color: '#27ae60', svg: '<svg viewBox="0 0 12 12"><path d="M2 6 L4 4 L4 6 L6 4 L6 6 L8 4 L8 6 L10 4 L10 8 L2 8 Z" stroke="currentColor" stroke-width="1.2" fill="none" stroke-linejoin="round"/></svg>', tip: 'When damaged: deal N damage back to the attacker.' },
     'Lifesteal':  { color: '#e74c3c', svg: '<svg viewBox="0 0 12 12"><path d="M6 11 C2 8 2 5 4 4 C5 3.5 6 4 6 5 C6 4 7 3.5 8 4 C10 5 10 8 6 11 Z" fill="currentColor"/><path d="M5 6 H7 M6 5 V7" stroke="#fff" stroke-width="0.8"/></svg>', tip: 'When this card deals damage: heal your HP by N.' },
     'Berserker':  { color: '#c0392b', svg: '<svg viewBox="0 0 12 12"><path d="M3 3 L9 3 L9 7 L6 11 L3 7 Z M5 5 L7 5 M5 7 L7 7" stroke="currentColor" stroke-width="1.2" fill="none" stroke-linejoin="round"/></svg>', tip: '+1 ATK while damaged (per stack). The card hits harder when bloodied.' },

@@ -5093,6 +5093,7 @@ const Roguelite = {
       <div class="rl-panel rl-rewards-panel">
         <h1 class="rl-title">Victory</h1>
         <p class="rl-subtitle">Pick one card to add to your deck — <span class="rl-kb-hint">1/2/3 to pick · S to skip</span></p>
+        <p class="rl-rewards-hint">Hover any etch badge to see what it does · click to pin</p>
         <div class="rl-rewards-grid">
           ${run.pendingRewards.map((deckCard, i) => `
             <button type="button" class="rl-reward-slot rl-tier-${deckCard.rarity}" onclick="Roguelite.pickReward(${i})">
