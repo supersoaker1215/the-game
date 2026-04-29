@@ -2922,12 +2922,16 @@ const Roguelite = {
   },
   // Glyph for each relic (Tron-flavored ASCII / Unicode marks). Falls
   // back to first letter of name when no explicit glyph defined.
+  // Glyphs that have emoji presentation by default (⚡, ♥, ✊) get the
+  // U+FE0E variation selector appended so the OS renders them as text
+  // characters instead of colored emoji — that way the CSS neon glow
+  // (color + drop-shadow filters on .rl-mm-glyph) actually paints them.
   _relicIcon(r) {
     const map = {
-      'crimson-cuirass':  '♥',
+      'crimson-cuirass':  '♥︎',  // ♥
       'lucky-coin':       '⌽',
       'old-manuscript':   '✎',
-      'battery':          '⚡',
+      'battery':          '⚡︎',  // ⚡ forced to text presentation
       'healing-brew':     '⚗',
       'steel-heart':      '◈',
       'spider-web':       '✱',
@@ -2938,7 +2942,7 @@ const Roguelite = {
       'mirror-shard':     '◢◣',
       'speed-force':      '⟪',
       'reality-stone':    '◎',
-      'thanos-gauntlet':  '✊',
+      'thanos-gauntlet':  '✊︎',  // ✊
     };
     return map[r.id] || (r.name[0] || '?');
   },

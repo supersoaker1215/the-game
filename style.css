@@ -19588,10 +19588,20 @@ body.killing-blow-cinema::after {
 .rl-mm-glyph {
   font-size: 28px; line-height: 1;
   color: var(--theme-accent-bright, #d4ecff);
+  /* Force text presentation on glyphs that the OS would otherwise render
+     as emoji (⚡, ♥, ✊). Combined with the U+FE0E variation selector in
+     the source string, this means the CSS color + drop-shadow neon glow
+     actually paints the icon instead of getting overwritten by the
+     emoji color font. */
+  font-variant-emoji: text;
+  -webkit-font-feature-settings: "liga" 0;
   filter:
     drop-shadow(0 0 4px var(--theme-glow-outer, rgba(79,195,247,0.85)))
     drop-shadow(0 0 10px var(--theme-glow-inner, rgba(79,195,247,0.35)));
   transition: transform 0.2s, filter 0.25s;
+  text-shadow:
+    0 0 6px var(--theme-glow-outer, rgba(79,195,247,0.85)),
+    0 0 14px var(--theme-glow-inner, rgba(79,195,247,0.45));
 }
 .mm-option-rl:hover .rl-mm-glyph {
   transform: scale(1.12);
