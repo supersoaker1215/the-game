@@ -315,7 +315,7 @@ const UI = {
       // Watchful Guardian" (Dark Knight OST), 2:15 → 4:00 of source.
       // -20 LUFS unified-baseline, 1s fade-in / 2s fade-out. maxDur 106
       // lets the full phrase play.
-      'Batman':           { hover: { src: 'audio/cards/batman-hover.mp3?v=2', maxDur: 106 } },
+      'Batman':           { hover: { src: 'audio/cards/batman-hover.mp3?v=2', maxDur: 106 }, death: 'audio/cards/batman-death.mp3' },
       // Spider-Man hover: first 1:20 of Danny Elfman's "Main Title"
       // (Spider-Man 2002). Normalized to -20 LUFS — the unified baseline
       // for signature cinematic hovers (Spider-Man / Anakin / Superman
