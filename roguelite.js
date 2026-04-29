@@ -1502,6 +1502,30 @@ const Roguelite = {
   // Cantrip, Echo, Phoenix, Berserker, etc. all classify as traits.
   _isTraitEtch(id)    { return !this._isStatBumpEtch(id) && !this._isEnergyEtch(id) && !this._isTextEtch(id); },
 
+  // Cards whose abilities scale via Game.rarityValue() — these are the
+  // ONLY cards eligible for the Text+ etch. User feedback: "I got Text+
+  // on Winter Soldier and it said 'Splash 2' but Winter Soldier doesn't
+  // have splash. The text upgrade has to be specific to each card."
+  //
+  // Text+ promotes the card's effective rarity tier so its built-in
+  // ability scales (Hawkeye Splash 1 → 2, Black Widow Freeze 1 → 2,
+  // Galactus devour 2 → 3, etc.). For cards with FIXED text (Winter
+  // Soldier's "destroy ≤3 ATK" + "+1/+1 on destroy"), there's nothing
+  // for Text+ to scale, so we hide it from the picker.
+  //
+  // Long-term: per-card Text+ definitions for the remaining cards
+  // (e.g. Winter Soldier could choose "destroy ≤4 ATK" or "+2/+2 on
+  // destroy"). For now, gate Text+ to just the rarity-scaled set.
+  RARITY_SCALED_CARDS: new Set([
+    'Black Widow', 'Gorilla Grodd', 'Hawkeye', 'Mr. Freeze', 'Xenomorph',
+    'Rocket Raccoon', 'Loki', 'Star-Lord', 'Captain America', 'Iron Man',
+    'Joker', 'Hela', 'Magneto', 'Thanos', 'Anakin Skywalker', 'Galactus',
+    'Trigon', 'Sandman',
+  ]),
+  cardCanUseTextUpgrade(cardName) {
+    return this.RARITY_SCALED_CARDS.has(cardName);
+  },
+
   // Pick one Common-tier trait etch the card doesn't already have.
   // Returns null if the card has every trait already (rare).
   _rollAutoTrait(cardRef) {
@@ -1534,9 +1558,15 @@ const Roguelite = {
     const traits = pool.filter(e =>
       this._isTraitEtch(e.id) && !this._isTextEtch(e.id) && !ownedTraits.has(e.id)
     );
-    // Text+ lives in the legendary tier — pull only that one etch for
-    // the rare-substitution chance.
-    const textEtch = this._findEtch('text-upgrade');
+    // Text+ only applies to cards with rarity-scaled abilities — for
+    // cards with fixed text (most of the pool), Text+ does nothing,
+    // so we hide it from the picker. User feedback: "I got Text+ on
+    // Winter Soldier — but Winter Soldier doesn't have anything that
+    // scales. The text upgrade has to be specific to each card."
+    const cardName = cardRef && cardRef.defName;
+    const textEtch = (cardName && this.cardCanUseTextUpgrade(cardName))
+      ? this._findEtch('text-upgrade')
+      : null;
     const pickFrom = (poolArr, label) => {
       if (!poolArr.length) return null;
       const e = poolArr[Math.floor(Math.random() * poolArr.length)];
@@ -1553,7 +1583,7 @@ const Roguelite = {
     return out;
   },
 
-  _rollLevelUpChoices(targetRarity, n) {
+  _rollLevelUpChoices(targetRarity, n, cardRef) {
     // Higher-tier promotions (rare→special, special→legendary) scale
     // their pick pool to the target tier so the upgrade strength
     // tracks the promotion's importance. User feedback: "+3/+3 stats
@@ -1575,11 +1605,16 @@ const Roguelite = {
       // rare or fallback — common-floor upgrade band.
       tierPool = [...this.ETCHES.common, ...this.ETCHES.rare];
     }
+    // Hide Text+ from the picker for cards whose abilities don't scale
+    // by rarity tier. User feedback: "Text+ on Winter Soldier did
+    // nothing — text upgrades have to be specific to each card."
+    const cardName = cardRef && cardRef.defName;
+    const textAllowed = !!(cardName && this.cardCanUseTextUpgrade(cardName));
     const buckets = {
       stats:  tierPool.filter(e => this._isStatBumpEtch(e.id)),
       trait:  tierPool.filter(e => this._isTraitEtch(e.id) && !this._isTextEtch(e.id)),
       energy: tierPool.filter(e => this._isEnergyEtch(e.id)),
-      text:   tierPool.filter(e => this._isTextEtch(e.id)),
+      text:   textAllowed ? tierPool.filter(e => this._isTextEtch(e.id)) : [],
     };
     const labelOf = { stats: 'Stats', trait: 'Trait', energy: 'Energy', text: 'Text' };
     const rollBucket = () => {
@@ -1664,7 +1699,7 @@ const Roguelite = {
             choices = this._rollCommonToRareChoices(ref);
           } else {
             // Higher tier promotion — keep the existing 2-pick random.
-            choices = this._rollLevelUpChoices(ref.rarity, 2);
+            choices = this._rollLevelUpChoices(ref.rarity, 2, ref);
           }
           levelUps.push({
             defName: ref.defName,
