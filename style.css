@@ -5388,6 +5388,26 @@ body.hit-pause .ai-hand * {
 .card.hand-card.rl-curse .card-name-banner::after {
   background: linear-gradient(90deg, transparent, rgba(120,60,140,0.85), transparent) !important;
 }
+/* Big translucent X mark across cursed cards in the deck modal —
+   makes curses readable at a glance when scanning a 12-card deck.
+   User direction: "Cards with _isCurse already render dim purple,
+   show a small X overlay so the player can immediately count their
+   curses without reading names." */
+.card.hand-card.rl-curse::before {
+  content: "✕";
+  position: absolute;
+  top: 50%; left: 50%;
+  transform: translate(-50%, -50%);
+  font-size: 56px;
+  font-weight: 900;
+  color: rgba(200,80,200,0.30);
+  text-shadow:
+    0 0 8px rgba(200,80,200,0.55),
+    0 0 18px rgba(120,60,140,0.40);
+  pointer-events: none;
+  z-index: 4;
+  font-family: 'Rajdhani', system-ui, sans-serif;
+}
 
 /* Roguelite etch-driven keyword badges. Each gets a distinct neon
    tint matching its KEYWORD_DATA color so a hover-tooltip + the
@@ -19900,6 +19920,31 @@ body.killing-blow-cinema::after {
 .rl-mapnode-treasure .rl-mapnode-icon { color: rgba(255,225,150,0.95); }
 .rl-mapnode-treasure.rl-mapnode-legal .rl-mapnode-icon { color: rgba(255,235,170,1); filter: drop-shadow(0 0 6px rgba(255,210,100,0.95)) drop-shadow(0 0 12px rgba(255,200,80,0.45)); }
 .rl-mapnode-treasure.rl-mapnode-legal .rl-mapnode-ring { stroke: rgba(255,215,140,0.95); filter: drop-shadow(0 0 6px rgba(255,200,80,0.85)); }
+/* Tier-graded treasure — Tier 1 plain chest, Tier 2 brighter cyan
+   tint, Tier 3 (boss) full gold + larger ring + breathing pulse so
+   it visually screams "boss-tier loot." */
+.rl-mapnode-treasure.rl-mapnode-tier-1 .rl-mapnode-icon { color: rgba(120,235,165,0.95); }
+.rl-mapnode-treasure.rl-mapnode-tier-1 .rl-mapnode-ring { stroke: rgba(120,235,165,0.65); }
+.rl-mapnode-treasure.rl-mapnode-tier-2 .rl-mapnode-icon { color: rgba(127,208,255,1); filter: drop-shadow(0 0 6px rgba(79,195,247,0.85)) drop-shadow(0 0 12px rgba(79,195,247,0.40)); }
+.rl-mapnode-treasure.rl-mapnode-tier-2 .rl-mapnode-ring { stroke: rgba(127,208,255,0.85); }
+.rl-mapnode-treasure.rl-mapnode-tier-3 .rl-mapnode-icon {
+  color: rgba(255,235,170,1);
+  filter: drop-shadow(0 0 8px rgba(255,210,100,1)) drop-shadow(0 0 18px rgba(255,200,80,0.65));
+  transform: scale(1.15);
+  transform-origin: center;
+  transform-box: fill-box;
+}
+.rl-mapnode-treasure.rl-mapnode-tier-3 .rl-mapnode-ring {
+  stroke: rgba(255,215,0,1);
+  stroke-width: 2.5;
+  filter: drop-shadow(0 0 8px rgba(255,210,100,1));
+}
+.rl-mapnode-treasure.rl-mapnode-tier-3 .rl-mapnode-halo {
+  stroke: rgba(255,215,0,0.85);
+  stroke-width: 1;
+  opacity: 0.45;
+  animation: rl-mapnode-halo-pulse 2.2s ease-in-out infinite;
+}
 
 /* Codex card XP progress strip — sits just above the bottom edge of
    the card. Thin neon bar with a centered "X/Y XP" label. Capped

@@ -596,11 +596,28 @@ const Roguelite = {
   // common (just base text); rares are notable, specials are punchy,
   // legendaries are the "I just topdecked god" moments. Each rarity
   // confers N starter etches, scaled by tier.
+  // Per-act card-rarity drop weights. User direction (paraphrased):
+  // "Act 1 should rarely show Special/Legendary, Act 3 should rarely
+  // show Common." This tilts the reward curve so early-act picks feel
+  // like grunts and late-act picks feel like jackpots.
+  //   Act 1 — Common-heavy:    65 / 30 / 5 / 0
+  //   Act 2 — balanced mid:    35 / 40 / 20 / 5
+  //   Act 3 — Legendary-bias:   5 / 25 / 50 / 20
+  // The legacy `CARD_DROP_WEIGHTS` field stays as a pre-act fallback
+  // (used when act isn't passed, e.g. event-bridged rolls).
   CARD_DROP_WEIGHTS: { common: 60, rare: 25, special: 12, legendary: 3 },
+  CARD_DROP_WEIGHTS_BY_ACT: {
+    1: { common: 65, rare: 30, special: 5,  legendary: 0  },
+    2: { common: 35, rare: 40, special: 20, legendary: 5  },
+    3: { common: 5,  rare: 25, special: 50, legendary: 20 },
+  },
   CARD_RARITY_ETCH_COUNT: { common: 0, rare: 1, special: 2, legendary: 3 },
-  // When a leveled-up card hits a new tier, that's worth its own etch
-  // count. XP thresholds increase per tier so legendary takes commitment.
-  XP_THRESHOLDS: { common: 40, rare: 120, special: 280 },
+  // Tiered XP thresholds — Common→Uncommon is fast (early commitment),
+  // Uncommon→Rare medium, Rare→Legendary a real grind. Previous flat-ish
+  // curve (40/120/280) made Legendary unreachable in a single run; the
+  // new curve (30/80/160) lands a Legendary on a 4-5 fight commitment
+  // for a card you actually use.
+  XP_THRESHOLDS: { common: 30, rare: 80, special: 160 },
   TIERS: ['common', 'rare', 'special', 'legendary'],
   TIER_INDEX: { common: 0, rare: 1, special: 2, legendary: 3 },
 
@@ -995,7 +1012,7 @@ const Roguelite = {
       const def = pool[Math.floor(Math.random() * pool.length)];
       if (usedNames.has(def.name)) continue;
       usedNames.add(def.name);
-      const rarity = this._rollRarity(opts.rarityFloor);
+      const rarity = this._rollRarity(opts.rarityFloor, act);
       const deckCard = this._makeDeckCard(def.name, rarity, this._rollEtchesForRarity(rarity));
       // Reference to the def for the reward picker UI (cost, stats, desc).
       deckCard._def = def;
@@ -1004,16 +1021,21 @@ const Roguelite = {
     return out;
   },
 
-  // Rarity dice — weighted roll across CARD_DROP_WEIGHTS.
-  _rollRarity(floor) {
-    const w = this.CARD_DROP_WEIGHTS;
+  // Rarity dice — weighted roll. Uses per-act weights when an act is
+  // provided so Act 1 leans Common and Act 3 leans Legendary; falls
+  // back to the flat CARD_DROP_WEIGHTS when no act passed (for events
+  // that bridge between rewards).
+  _rollRarity(floor, act) {
     const tiers = ['common', 'rare', 'special', 'legendary'];
+    const w = (act && this.CARD_DROP_WEIGHTS_BY_ACT && this.CARD_DROP_WEIGHTS_BY_ACT[act])
+      || this.CARD_DROP_WEIGHTS;
     const startIdx = floor ? this.TIER_INDEX[floor] : 0;
     let total = 0;
-    for (let i = startIdx; i < tiers.length; i++) total += w[tiers[i]];
+    for (let i = startIdx; i < tiers.length; i++) total += (w[tiers[i]] || 0);
+    if (total <= 0) return tiers[startIdx];
     let roll = Math.random() * total;
     for (let i = startIdx; i < tiers.length; i++) {
-      roll -= w[tiers[i]];
+      roll -= (w[tiers[i]] || 0);
       if (roll <= 0) return tiers[i];
     }
     return tiers[startIdx];
@@ -2867,6 +2889,14 @@ const Roguelite = {
       // serializable run-state object).
       const { _def, ...deckCard } = rolled;
       run.deck.push(deckCard);
+    } else if (rewardIdx == null && run.pendingRewards && run.pendingRewards.length) {
+      // SKIP CONSOLATION. User direction (paraphrased): "StS rewards
+      // skipping a card with a small consolation — lets thin-deck
+      // strategies thrive." 50g if you skip the card pick; gives the
+      // skip a real economic option instead of pure deck-thinning.
+      run.gold += 50;
+      run.lastResult = run.lastResult || {};
+      run.lastResult.skippedCardReward = 50;
     }
     run.pendingRewards = null;
     // Trick reward — if rolled at fight end, surface it now (after the
@@ -3303,8 +3333,12 @@ const Roguelite = {
                      : isDone ? 'rl-mapnode-done' : 'rl-mapnode-locked';
       const click = isLegal ? `onclick="Roguelite.enterNode(${n.id})"` : '';
       const tt = nodeTooltip(n);
+      // Tier modifier on treasure nodes — drives a tier-specific size
+      // + glow class in CSS so the player can read loot quality from
+      // the map at a glance.
+      const tierMod = n.type === 'treasure' && n.tier ? ` rl-mapnode-tier-${n.tier}` : '';
       return `
-        <g class="rl-mapnode rl-mapnode-${n.type} ${stateCls}" ${click}>
+        <g class="rl-mapnode rl-mapnode-${n.type} ${stateCls}${tierMod}" ${click}>
           <title>${tt}</title>
           <circle class="rl-mapnode-halo" cx="${cx}" cy="${cy}" r="26"/>
           <circle class="rl-mapnode-ring" cx="${cx}" cy="${cy}" r="20"/>
