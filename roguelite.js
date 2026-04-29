@@ -338,8 +338,13 @@ const Roguelite = {
     // free-rolling +1 energy/draw every round of every fight.
     {
       id: 'crimson-cuirass', name: 'Crimson Cuirass', rarity: 'common',
-      desc: '+10 max HP. Heal 10 HP on pickup.',
-      onAcquire(run) { run.maxHp += 10; run.hp = Math.min(run.maxHp, run.hp + 10); },
+      // User direction: "Crimson Cuirass is at the beginning of the
+      // run, so you don't need to heal on pickup." The "heal 10" was
+      // a no-op when the player was already at full HP at run start.
+      // Now just bumps both max HP and current HP by 10 — clean
+      // survival-anchor messaging.
+      desc: '+10 max HP.',
+      onAcquire(run) { run.maxHp += 10; run.hp += 10; },
     },
     {
       id: 'lucky-coin', name: 'Lucky Coin', rarity: 'common',
