@@ -3728,6 +3728,23 @@ const UI = {
       else if (ev.type === 'heal') float.textContent = `+${ev.amount}`;
       const dx = (Math.random() * 26 - 13) | 0;
       float.style.setProperty('--dx', dx + 'px');
+      // Vertical stagger — track per-card float count in a 1.2s
+      // rolling window so multi-hit damage (splash + main + thorns +
+      // chain) stacks readably instead of overlapping. Each subsequent
+      // float on the same card rises higher than the last.
+      // Audit finding: "Numbers stack illegibly on multi-hit (splash
+      // + main + chain)."
+      if (!this._dmgFloatStack) this._dmgFloatStack = new Map();
+      const stack = this._dmgFloatStack;
+      const key = ev.cardId;
+      const now = performance.now();
+      const slot = stack.get(key);
+      let stackIdx = 0;
+      if (slot && now - slot.t < 1100) stackIdx = slot.n + 1;
+      stack.set(key, { n: stackIdx, t: now });
+      // Each stack step lifts the float ~16px and adds a tiny
+      // horizontal drift so the column doesn't read like a vertical bar.
+      float.style.setProperty('--stack-dy', (stackIdx * -14) + 'px');
       cardEl.style.position = 'relative';
       cardEl.appendChild(float);
       setTimeout(() => float.remove(), 1200);
@@ -12386,10 +12403,50 @@ const UI = {
     // When the next one comes in within 700ms, the counter ticks up
     // and trigger banners at 2, 3, 4+.
     this._recordMultikill(killingSide);
+    // Scatter shards — bigger, irregular wedges that fly outward with
+    // rotation + gravity. Layered on top of the radial particle burst
+    // so kills feel explosive, not just dissolved. Audit finding:
+    // "death reads as fade not explosion."
+    this.spawnDestroyShards(cardEl, owner);
     // Single-kill haptic — distinct from hit; slightly longer pulse
     // so you can feel the difference between a chip-damage hit and
     // a card actually dying.
     this._haptic('kill');
+  },
+
+  // Bigger, irregular wedge-shaped shards that fly out + spin + fall.
+  // Spawned alongside spawnDestroyParticles. Each shard has a random
+  // angle, distance, rotation, and size — looks like the card LITERALLY
+  // shattered into pieces. 5-7 shards per kill to read as substantial
+  // without overwhelming the particle burst.
+  spawnDestroyShards(cardEl, owner) {
+    if (!cardEl) return;
+    if (this._reducedMotion && this._reducedMotion()) return;
+    const host = document.createElement('div');
+    host.className = 'destroy-shards';
+    cardEl.appendChild(host);
+    const N = 5 + Math.floor(Math.random() * 3); // 5-7 shards
+    for (let i = 0; i < N; i++) {
+      const shard = document.createElement('div');
+      shard.className = 'destroy-shard';
+      // Wide angle spread (full 360°) but biased outward via large dx/dy.
+      const angle = (Math.random() * 360);
+      const dist = 60 + Math.random() * 70;       // 60-130 px
+      const dx = Math.cos(angle * Math.PI / 180) * dist;
+      const dy = Math.sin(angle * Math.PI / 180) * dist + 30; // gravity bias
+      const rot = (Math.random() * 720 - 360);     // -360 to +360 deg
+      const size = 7 + Math.random() * 8;          // 7-15 px
+      const dur = 600 + Math.random() * 240;       // 600-840 ms
+      shard.style.setProperty('--dx', dx + 'px');
+      shard.style.setProperty('--dy', dy + 'px');
+      shard.style.setProperty('--rot', rot + 'deg');
+      shard.style.width = size + 'px';
+      shard.style.height = (size * 0.6) + 'px';
+      shard.style.animationDuration = dur + 'ms';
+      shard.style.animationDelay = (Math.random() * 40) + 'ms';
+      host.appendChild(shard);
+    }
+    setTimeout(() => host.remove(), 900);
   },
 
   // Multikill tracker — counts deaths credited to each side within a

@@ -6079,10 +6079,14 @@ body.hit-pause .ai-hand * {
   100% { opacity: 0; transform: scale(1.4); }
 }
 @keyframes dmgFloat {
-  0%   { opacity: 0; transform: translateX(calc(-50% + var(--dx, 0px))) translateY(8px)   scale(0.7); }
-  15%  { opacity: 1; transform: translateX(calc(-50% + var(--dx, 0px))) translateY(-2px)  scale(1.35); }
-  70%  { opacity: 1; transform: translateX(calc(-50% + var(--dx, 0px))) translateY(-28px) scale(1.0); }
-  100% { opacity: 0; transform: translateX(calc(-50% + var(--dx, 0px))) translateY(-48px) scale(0.85); }
+  /* --stack-dy added for multi-hit clarity. Each subsequent hit on
+     the same card spawns higher than the previous (incremented in
+     ui.js _dmgFloatStack) so splash + main + thorns + chain numbers
+     read as a stack instead of a smear. */
+  0%   { opacity: 0; transform: translateX(calc(-50% + var(--dx, 0px))) translateY(calc(8px   + var(--stack-dy, 0px))) scale(0.7); }
+  15%  { opacity: 1; transform: translateX(calc(-50% + var(--dx, 0px))) translateY(calc(-2px  + var(--stack-dy, 0px))) scale(1.35); }
+  70%  { opacity: 1; transform: translateX(calc(-50% + var(--dx, 0px))) translateY(calc(-28px + var(--stack-dy, 0px))) scale(1.0); }
+  100% { opacity: 0; transform: translateX(calc(-50% + var(--dx, 0px))) translateY(calc(-48px + var(--stack-dy, 0px))) scale(0.85); }
 }
 /* Card hit flash */
 .card.hit-flash { animation: hitFlash 0.3s ease-out; }
@@ -12878,6 +12882,37 @@ body.round-transition .board-section::before {
 }
 .card.ally-card .destroy-particle  { color: var(--player-accent-bright); }
 .card.enemy-card .destroy-particle { color: var(--enemy-accent-bright); }
+
+/* Destroy shards — irregular wedge-shaped pieces that fly out + spin
+   + fall on card death. Layered alongside the radial particle burst
+   so kills feel substantive (the card SHATTERS) rather than dissolved.
+   Audit finding: "death reads as fade not explosion." Spawned by
+   UI.spawnDestroyShards in ui.js with random angle / distance / size /
+   rotation per shard. */
+@keyframes destroyShard {
+  0%   { opacity: 1; transform: translate(-50%, -50%) rotate(0deg) scale(1); }
+  60%  { opacity: 0.85; }
+  100% { opacity: 0; transform: translate(calc(-50% + var(--dx, 0px)), calc(-50% + var(--dy, 0px))) rotate(var(--rot, 360deg)) scale(0.4); }
+}
+.destroy-shards {
+  position: absolute; left: 50%; top: 50%;
+  width: 0; height: 0;
+  pointer-events: none;
+  z-index: 62;
+}
+.destroy-shard {
+  position: absolute; left: 50%; top: 50%;
+  background: currentColor;
+  /* Irregular wedge shape via clip-path so each shard reads as a
+     broken piece, not a uniform square. Asymmetric polygon. */
+  clip-path: polygon(0 0, 100% 35%, 78% 100%, 18% 78%);
+  transform: translate(-50%, -50%);
+  animation: destroyShard 720ms cubic-bezier(0.36, 0, 0.66, 0.4) forwards;
+  box-shadow: 0 0 10px currentColor, 0 0 20px currentColor;
+  filter: brightness(1.2);
+}
+.card.ally-card .destroy-shard  { color: var(--player-accent-bright); }
+.card.enemy-card .destroy-shard { color: var(--enemy-accent-bright); }
 
 /* ============================================================
    HIT CHIPS — partial-disintegration burst on card-takes-damage.
