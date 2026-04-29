@@ -96,10 +96,14 @@ const CARD_ABILITIES = {
   "Ant-Man": {
     onPlay(G, self, lane) {
       const afterSummon = () => {
-        const targets = G.getEnemiesOf(self.owner).filter(c => c.attack <= 1 || c.currentHealth <= 1);
+        // Roguelite Text+ override — _antManKillThreshold raises the
+        // pick window. Default 1 (classic ≤1 ATK or ≤1 HP); Text+
+        // bumps to 2 so 2/2 bodies are also valid targets.
+        const t = self._antManKillThreshold || 1;
+        const targets = G.getEnemiesOf(self.owner).filter(c => c.attack <= t || c.currentHealth <= t);
         if (targets.length) {
-          G.promptCardChoice(self.owner, targets, "Ant-Man — Destroy", "Choose an enemy to destroy (1 ATK or 1 HP)", (t) => {
-            G.log(`[KILL] ${self.name} destroys ${t.name}!`); G.killCard(t, self);
+          G.promptCardChoice(self.owner, targets, "Ant-Man — Destroy", `Choose an enemy to destroy (${t} ATK or ${t} HP)`, (target) => {
+            G.log(`[KILL] ${self.name} destroys ${target.name}!`); G.killCard(target, self);
           }, _aiThreatPicker);
         }
       };
@@ -288,8 +292,12 @@ const CARD_ABILITIES = {
   },
   "Jango Fett": {
     onMoved(G, self, toLane) {
-      G.splashDamage(toLane, self.owner, 1);
-      G.log(`Jango Fett splashes lane ${toLane + 1} for 1 on arrival!`);
+      // Roguelite Text+ override — _jangoSplashOnMove scales the
+      // arrival splash. Default 1 (classic); Text+ raises to 2 so
+      // moving him hits a wider cone for double the damage.
+      const dmg = self._jangoSplashOnMove || 1;
+      G.splashDamage(toLane, self.owner, dmg);
+      G.log(`Jango Fett splashes lane ${toLane + 1} for ${dmg} on arrival!`);
     }
   },
   "Gorilla Grodd": {
@@ -492,9 +500,13 @@ const CARD_ABILITIES = {
       // was gaining (+1/+1) twice after a Bear Trap damage tick. Gamora
       // now delegates entirely to the universal rule and just does her
       // execute on entry.
-      const targets = G.getEnemiesOf(self.owner).filter(c => c.currentHealth <= 2);
+      // Roguelite Text+ override — _gamoraExecuteThreshold raises the
+      // execute ceiling. Default 2 (classic); Text+ bumps to 4 so mid-
+      // tier targets are also one-shot eligible.
+      const threshold = self._gamoraExecuteThreshold || 2;
+      const targets = G.getEnemiesOf(self.owner).filter(c => c.currentHealth <= threshold);
       if (targets.length) {
-        G.promptCardChoice(self.owner, targets, "Gamora — Execute", "Choose enemy with 2 or less HP to destroy", (t) => {
+        G.promptCardChoice(self.owner, targets, "Gamora — Execute", `Choose enemy with ${threshold} or less HP to destroy`, (t) => {
           G.log(`Gamora executes ${t.name}!`); G.killCard(t, self);
         }, _aiThreatPicker);
       }
@@ -515,14 +527,18 @@ const CARD_ABILITIES = {
   },
   "Human Torch": {
     onPlay(G, self, lane) {
+      // Roguelite Text+ override — _humanTorchBlast scales the targeted
+      // damage. Default 2 (classic); Text+ raises to 4 so the directed
+      // blast can finish mid-cost bodies on its own.
+      const blast = self._humanTorchBlast || 2;
       // Splash 1 at arrival — hits front enemy + adjacent enemy lanes for 1.
       G.splashDamage(lane, self.owner, 1);
       G.log(`Human Torch ignites on arrival — Splash 1!`);
       const enemies = G.getEnemiesOf(self.owner);
       if (enemies.length) {
-        G.promptCardChoice(self.owner, enemies, "Human Torch — Blast", "Choose enemy to deal 2 damage", (t) => {
-          G.dealDamage(t, 2); G.log(`Human Torch blasts ${t.name} for 2!`);
-        }, cards => _aiKillPicker(cards, 2));
+        G.promptCardChoice(self.owner, enemies, "Human Torch — Blast", `Choose enemy to deal ${blast} damage`, (t) => {
+          G.dealDamage(t, blast); G.log(`Human Torch blasts ${t.name} for ${blast}!`);
+        }, cards => _aiKillPicker(cards, blast));
       }
     }
   },
@@ -668,9 +684,13 @@ const CARD_ABILITIES = {
   "Green Goblin": {
     _recurringBT: true,
     onPlay(G, self, lane) {
-      G.splashDamage(lane, self.owner, 1);
-      G.splashDamage(lane, self.owner, 2);
-      G.log("Green Goblin throws pumpkin bombs! Splash 1 then Splash 2!");
+      // Roguelite Text+ override — _goblinBombBoost adds +1 to each
+      // pumpkin-bomb splash. Default 0 (classic 1+2); Text+ sets to 1
+      // so the bombs hit for 2+3 (one extra damage on each splash).
+      const boost = self._goblinBombBoost || 0;
+      G.splashDamage(lane, self.owner, 1 + boost);
+      G.splashDamage(lane, self.owner, 2 + boost);
+      G.log(`Green Goblin throws pumpkin bombs! Splash ${1 + boost} then Splash ${2 + boost}!`);
     },
     onBeforeTricks(G, self, lane) {
       // Stun / freeze blocks the move AND the follow-up splash. Same
@@ -1363,7 +1383,14 @@ const CARD_ABILITIES = {
             G.log(`Optimus commands ${ally.name} to attack ${targets[0].name} for ${ally.attack}!`);
           }
         };
-        if (Game.isHuman(self.owner)) {
+        // Roguelite Text+ override — _optimusCommandsBoth makes him
+        // command BOTH adjacent allies to attack instead of just one.
+        // Default false (classic — pick one); Text+ true (skip the
+        // pick, fire both). User direction: scaling that fits the
+        // Autobot-leader fantasy.
+        if (self._optimusCommandsBoth) {
+          adj.forEach(ally => doAttack(ally));
+        } else if (Game.isHuman(self.owner)) {
           G.promptCardChoice(self.owner, adj, "Optimus — Choose Ally", "Choose adjacent ally to command", doAttack);
         } else {
           doAttack(adj[0]);
@@ -2143,9 +2170,13 @@ const CARD_ABILITIES = {
           // green (common). The cost should drop but the rarity should
           // stay blue." Bug was reducing baseCost too — fixed by only
           // touching `cost`.
-          card.cost = Math.max(0, card.cost - 3);
+          // Roguelite Text+ override — _doomReviveDiscount scales the
+          // cost cut on revive. Default 3 (classic); Text+ raises to 5
+          // so even legendary revives drop to a reasonable curve cost.
+          const reviveCut = self._doomReviveDiscount || 3;
+          card.cost = Math.max(0, card.cost - reviveCut);
           G.addToHand(owner, card, self);
-          G.log(`Dr. Doom revives ${card.name} to hand! Cost permanently reduced by 3 → ${card.cost}.`);
+          G.log(`Dr. Doom revives ${card.name} to hand! Cost permanently reduced by ${reviveCut} → ${card.cost}.`);
           summonDoombot();
         },
         // AI picker: highest-cost revive gets the most value out of -3
@@ -2485,15 +2516,20 @@ const CARD_ABILITIES = {
       // dead ones were). User report: "Luke mind controls an enemy
       // but the choices shown are the ones he killed, not the live
       // ones on the board."
+      // Roguelite Text+ override — _lukeAuraSize scales the buff/debuff
+      // magnitude. Default 1 (classic +1/+1 / -1/-1); Text+ raises to
+      // 2 so a 2-ally board jumps +4/+4 in one play and 1-HP enemies
+      // get cleared by the aura alone.
+      const auraSize = self._lukeAuraSize || 1;
       G.getAlliesOf(self.owner).filter(a => a.id !== self.id).forEach(a => {
-        G.buffCard(a, 1, 1);
+        G.buffCard(a, auraSize, auraSize);
         a._lukeBuff = true;
       });
       G.getEnemiesOf(self.owner).forEach(e => {
-        G.debuffCard(e, 1, 1, true, self);
+        G.debuffCard(e, auraSize, auraSize, true, self);
         e._lukeDebuff = true;
       });
-      G.log("Luke Skywalker inspires allies (+1/+1) and weakens enemies (-1/-1)!");
+      G.log(`Luke Skywalker inspires allies (+${auraSize}/+${auraSize}) and weakens enemies (-${auraSize}/-${auraSize})!`);
       // Now snapshot the remaining LIVE enemies and prompt for MC.
       // getEnemiesOf already filters by `currentHealth > 0`, so dead
       // cards from the aura won't show up.
@@ -2505,27 +2541,31 @@ const CARD_ABILITIES = {
       }
     },
     onAnyCardPlayed(G, self) {
-      // Apply aura to any new card that enters the board.
+      // Apply aura to any new card that enters the board. Text+ scaling
+      // shared with the onPlay call (same _lukeAuraSize flag).
+      const auraSize = self._lukeAuraSize || 1;
       G.getAlliesOf(self.owner).filter(a => a.id !== self.id && !a._lukeBuff).forEach(a => {
-        G.buffCard(a, 1, 1);
+        G.buffCard(a, auraSize, auraSize);
         a._lukeBuff = true;
       });
       G.getEnemiesOf(self.owner).filter(e => !e._lukeDebuff).forEach(e => {
         // allowKill=true mirrors the onPlay call — a freshly-played
         // 1/1 token should die to Luke's aura the moment it lands.
-        G.debuffCard(e, 1, 1, true, self);
+        G.debuffCard(e, auraSize, auraSize, true, self);
         e._lukeDebuff = true;
       });
     },
     onDeath(G, self, lane) {
-      // Remove aura when Luke dies
+      // Remove aura when Luke dies. Use the same _lukeAuraSize so a
+      // Text+ Luke pulls back the right amount when he falls.
+      const auraSize = self._lukeAuraSize || 1;
       G.getAllCardsOnBoard().forEach(c => {
         if (c._lukeBuff) {
-          G.debuffCard(c, 1, 1);
+          G.debuffCard(c, auraSize, auraSize);
           delete c._lukeBuff;
         }
         if (c._lukeDebuff) {
-          G.buffCard(c, 1, 1);
+          G.buffCard(c, auraSize, auraSize);
           delete c._lukeDebuff;
         }
       });
@@ -2538,13 +2578,17 @@ const CARD_ABILITIES = {
       // Let the player pick where the freeze lands — was hardcoded to the
       // lane-opposite enemy. AI fallback picks the highest-threat unfrozen
       // enemy so the CPU still plays Thor competently.
+      // Roguelite Text+ override — _thorThunderDamage scales the lane-
+      // adjacent strike. Default 5 (classic); Text+ raises to 7 for a
+      // crushing 3-lane finisher.
+      const thunderDmg = self._thorThunderDamage || 5;
       const splashBurst = () => {
         [lane - 1, lane, lane + 1].forEach(li => {
           if (li >= 0 && li < Game.LANE_COUNT) {
             const e = G.state.lanes[li][opp];
             if (e && e.currentHealth > 0) {
-              G.dealDamage(e, 5, self);
-              G.log(`Thor's thunder strikes ${e.name} for 5!`);
+              G.dealDamage(e, thunderDmg, self);
+              G.log(`Thor's thunder strikes ${e.name} for ${thunderDmg}!`);
             }
           }
         });
@@ -2598,31 +2642,36 @@ const CARD_ABILITIES = {
       G.log(`Batman locks down the opponent's highest cost card for next turn!`);
       const enemies = G.getEnemiesOf(self.owner);
       if (!enemies.length) return;
+      // Roguelite Text+ override — _batmanStrikeDamage scales each of
+      // the two batarang strikes. Default 2 (classic); Text+ raises to
+      // 3 so a feared enemy + 3 + 3 = 6 damage / play. The lockout +
+      // fear sequence stays unchanged.
+      const strikeDmg = self._batmanStrikeDamage || 2;
       const pickThreat = cards => cards.slice().sort((a, b) => AI.threatScore(b) - AI.threatScore(a))[0];
       const pickDamage = cards => {
-        // Lower kill threshold to match the new 2-damage-per-hit ceiling.
-        // Cards with ≤2 HP are now the "this hit alone could kill" pool.
-        const killable = cards.filter(c => c.currentHealth <= 2);
+        // Kill-threshold tracks the per-strike ceiling so the AI prefers
+        // a one-shot trade when one is available.
+        const killable = cards.filter(c => c.currentHealth <= strikeDmg);
         const pool = killable.length ? killable : cards;
         return pool.slice().sort((a, b) => AI.threatScore(b) - AI.threatScore(a))[0];
       };
 
-      // Step 3: second 2-damage strike — any live enemy.
+      // Step 3: second strike — any live enemy.
       const strike2 = () => {
         const pool = G.getEnemiesOf(self.owner).filter(e => e.currentHealth > 0);
         if (!pool.length) return;
-        G.promptCardChoice(self.owner, pool, "Batman — Strike 2", "Deal 2 damage to any enemy", (t) => {
-          G.dealDamage(t, 2, self);
-          G.log(`Batman strike 2: deals 2 to ${t.name}!`);
+        G.promptCardChoice(self.owner, pool, "Batman — Strike 2", `Deal ${strikeDmg} damage to any enemy`, (t) => {
+          G.dealDamage(t, strikeDmg, self);
+          G.log(`Batman strike 2: deals ${strikeDmg} to ${t.name}!`);
         }, pickDamage);
       };
-      // Step 2: first 2-damage strike — any live enemy (may be the feared one).
+      // Step 2: first strike — any live enemy (may be the feared one).
       const strike1 = () => {
         const pool = G.getEnemiesOf(self.owner).filter(e => e.currentHealth > 0);
         if (!pool.length) return;
-        G.promptCardChoice(self.owner, pool, "Batman — Strike 1", "Deal 2 damage to any enemy", (t) => {
-          G.dealDamage(t, 2, self);
-          G.log(`Batman strike 1: deals 2 to ${t.name}!`);
+        G.promptCardChoice(self.owner, pool, "Batman — Strike 1", `Deal ${strikeDmg} damage to any enemy`, (t) => {
+          G.dealDamage(t, strikeDmg, self);
+          G.log(`Batman strike 1: deals ${strikeDmg} to ${t.name}!`);
           strike2();
         }, pickDamage);
       };
@@ -3067,13 +3116,18 @@ const CARD_ABILITIES = {
   },
   "Knull": {
     onPlay(G, self, lane) {
+      // Roguelite Text+ override — _knullCostFloor raises the minimum
+      // cost of the random pull pool. Default 1 (classic); Text+ sets
+      // to 4 so the lottery skips the cheap chaff and only pulls
+      // mid-or-higher cost cards (Wonder Woman, Carnage, Doom, etc.).
+      const minCost = self._knullCostFloor || 1;
       G.getOpenLanes(self.owner).filter(l => l !== lane).forEach(l => {
         // Pull from the shared summon deck so Knull's lottery spreads
-        // across the full 95-card pool. Filter: cost 1-9, attack > 0,
+        // across the full 95-card pool. Filter: cost minCost-9, attack > 0,
         // not a discard-effect card. The boss-card odds (Batman /
         // Darkseid / Galactus) are now ~1% per slot instead of ~5%
         // when pulling from a 30-card drafted deck.
-        const d = G.drawFromSummonDeck(c => !c.isDiscardEffect && c.cost >= 1 && c.cost <= 9 && (c.attack || 0) > 0);
+        const d = G.drawFromSummonDeck(c => !c.isDiscardEffect && c.cost >= minCost && c.cost <= 9 && (c.attack || 0) > 0);
         if (d) {
           G.summonCard(self.owner, l, d.name, d.cost, d.attack, d.health, d.abilities || [], d);
         }

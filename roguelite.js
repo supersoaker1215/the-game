@@ -1949,6 +1949,61 @@ const Roguelite = {
       desc: 'WHEN PLAYED deals 4 damage to all enemies (was 2).',
       apply: c => { c._hulkSmashDamage = 4; },
     },
+    'Ant-Man': {
+      id: 'antman-text', name: 'Subatomic Strike',
+      desc: 'Destroys enemies with ≤2 ATK or ≤2 HP (was ≤1).',
+      apply: c => { c._antManKillThreshold = 2; },
+    },
+    'Jango Fett': {
+      id: 'jango-text', name: 'Jetpack Salvo',
+      desc: 'Splash 2 on arrival when moved (was 1).',
+      apply: c => { c._jangoSplashOnMove = 2; },
+    },
+    'Gamora': {
+      id: 'gamora-text', name: 'Most Dangerous Woman',
+      desc: 'Executes enemies with ≤4 HP (was ≤2).',
+      apply: c => { c._gamoraExecuteThreshold = 4; },
+    },
+    'Human Torch': {
+      id: 'humantorch-text', name: 'Nova Burst',
+      desc: 'WHEN PLAYED targeted blast does 4 damage (was 2).',
+      apply: c => { c._humanTorchBlast = 4; },
+    },
+    'Green Goblin': {
+      id: 'goblin-text', name: 'Bigger Bombs',
+      desc: 'Pumpkin bombs Splash 2 then Splash 3 (was 1 then 2).',
+      apply: c => { c._goblinBombBoost = 1; },
+    },
+    'Dr. Doom': {
+      id: 'doom-text', name: 'Latverian Discount',
+      desc: 'Revived ally\'s cost is permanently reduced by 5 (was 3).',
+      apply: c => { c._doomReviveDiscount = 5; },
+    },
+    'Thor': {
+      id: 'thor-text', name: 'Stormbreaker',
+      desc: 'Thunder strikes lane ±1 enemies for 7 (was 5).',
+      apply: c => { c._thorThunderDamage = 7; },
+    },
+    'Luke Skywalker': {
+      id: 'luke-text', name: 'A New Hope',
+      desc: 'Inspires allies +2/+2 and weakens enemies -2/-2 (was 1/1).',
+      apply: c => { c._lukeAuraSize = 2; },
+    },
+    'Batman': {
+      id: 'batman-text', name: 'Dark Knight',
+      desc: 'Each batarang strike deals 3 damage (was 2).',
+      apply: c => { c._batmanStrikeDamage = 3; },
+    },
+    'Knull': {
+      id: 'knull-text', name: 'God of Symbiotes',
+      desc: 'Random pulls draw only cost 4+ cards (skips the cheap chaff).',
+      apply: c => { c._knullCostFloor = 4; },
+    },
+    'Optimus Prime': {
+      id: 'optimus-text', name: 'Roll Out',
+      desc: 'Commands BOTH adjacent allies to attack (was 1).',
+      apply: c => { c._optimusCommandsBoth = true; },
+    },
   },
 
   cardCanUseTextUpgrade(cardName) {
