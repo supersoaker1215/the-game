@@ -21773,3 +21773,757 @@ body.killing-blow-cinema::after {
   .rl-map-svg-wrap { padding: 6px; max-height: 50vh; }
 }
 
+/* ============================================================================
+   PROFESSIONAL POLISH PASS — top-tier production qualities
+   ----------------------------------------------------------------------------
+   Foundational chrome that lifts the entire game from "hobbyist site" to
+   "App Store launch trailer." Every interactive surface should feel
+   intentional, on-brand, and never default-styled.
+   ============================================================================ */
+
+/* ---- Custom themed scrollbar — every overlay/modal/codex surface gets the
+        same Tron neon scrollbar. Webkit (most browsers) + Firefox fallback. */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(79,195,247,0.45) rgba(0,0,0,0.55);
+}
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+  background: rgba(0,0,0,0.55);
+}
+::-webkit-scrollbar-track {
+  background: rgba(0,0,0,0.55);
+  border-left: 1px solid rgba(79,195,247,0.10);
+}
+::-webkit-scrollbar-thumb {
+  background: linear-gradient(180deg, rgba(79,195,247,0.55), rgba(79,195,247,0.30));
+  border-radius: 4px;
+  box-shadow:
+    inset 0 0 0 1px rgba(79,195,247,0.35),
+    0 0 4px rgba(79,195,247,0.45);
+}
+::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(180deg, rgba(79,195,247,0.85), rgba(79,195,247,0.55));
+  box-shadow:
+    inset 0 0 0 1px rgba(79,195,247,0.65),
+    0 0 8px rgba(79,195,247,0.85);
+}
+::-webkit-scrollbar-corner { background: transparent; }
+
+/* ---- Themed text selection — neon cyan glow when the player highlights
+        text anywhere in the app. */
+::selection {
+  background: rgba(79,195,247,0.45);
+  color: #ffffff;
+  text-shadow: 0 0 8px rgba(79,195,247,0.85);
+}
+::-moz-selection {
+  background: rgba(79,195,247,0.45);
+  color: #ffffff;
+}
+
+/* ---- Universal focus ring — the browser's default outline reads "1990s
+        software." This replaces it with a theme-tinted neon ring that
+        composites cleanly over any background. Only fires for keyboard
+        focus (:focus-visible) so mouse clicks don't spawn rings. */
+:focus { outline: none; }
+:focus-visible {
+  outline: 2px solid var(--theme-accent-bright, rgba(79,195,247,0.95));
+  outline-offset: 2px;
+  border-radius: 4px;
+  box-shadow:
+    0 0 0 4px rgba(79,195,247,0.20),
+    0 0 14px var(--theme-glow-outer, rgba(79,195,247,0.55));
+}
+button:focus-visible, .btn:focus-visible {
+  border-radius: 4px;
+}
+
+/* ---- Reusable typography classes — drop-in tier system so any new
+        section can pull from a consistent visual hierarchy without
+        re-inventing letter-spacing / font-weight / shadow per component. */
+.tron-h1 {
+  font-family: 'Rajdhani', sans-serif;
+  font-size: 38px; font-weight: 700;
+  letter-spacing: 8px; text-transform: uppercase;
+  color: #ffffff;
+  text-shadow:
+    0 0 12px var(--theme-glow-outer, rgba(79,195,247,0.85)),
+    0 0 32px var(--theme-glow-inner, rgba(79,195,247,0.45));
+}
+.tron-h2 {
+  font-family: 'Rajdhani', sans-serif;
+  font-size: 22px; font-weight: 700;
+  letter-spacing: 5px; text-transform: uppercase;
+  color: var(--theme-accent-bright, #d4ecff);
+  text-shadow: 0 0 8px var(--theme-glow-outer, rgba(79,195,247,0.55));
+}
+.tron-tag {
+  font-family: 'Rajdhani', sans-serif;
+  font-size: 10px; font-weight: 700;
+  letter-spacing: 4px; text-transform: uppercase;
+  color: color-mix(in srgb, var(--theme-accent, rgb(79,195,247)) 50%, #94a8c0);
+}
+.tron-body {
+  font-family: 'Inter', 'Segoe UI', system-ui, sans-serif;
+  font-size: 13px; line-height: 1.5;
+  color: rgba(220,225,235,0.85);
+}
+
+/* ---- Modal entrance — every overlay dialog should fade + scale in
+        from 0.96 to 1.0. Cheap on the GPU (transform + opacity), reads
+        as deliberate. Apply via class .tron-modal-in (or rely on the
+        rl-modal-panel rule below for auto-application).  */
+@keyframes tron-modal-in {
+  0%   { opacity: 0; transform: scale(0.96) translateY(8px); }
+  100% { opacity: 1; transform: scale(1.00) translateY(0); }
+}
+@keyframes tron-modal-backdrop-in {
+  0%   { opacity: 0; backdrop-filter: blur(0px); }
+  100% { opacity: 1; backdrop-filter: blur(4px); }
+}
+.rl-modal-panel,
+.encyc-panel,
+.settings-panel,
+.mm-panel,
+.deckbuilder-panel,
+.match-history-panel,
+.stats-panel {
+  animation: tron-modal-in 0.32s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+.rl-modal-backdrop,
+.settings-overlay,
+.encyclopedia-overlay,
+.match-history-overlay,
+.stats-overlay,
+.my-decks-overlay {
+  animation: tron-modal-backdrop-in 0.28s ease-out both;
+}
+
+/* ---- Ambient grid background — extremely subtle moving grid that lives
+        behind every overlay so the "Tron computer screen" feel is
+        ambient, not stuck on one screen. Pure CSS, GPU-only. Disabled
+        for users with prefers-reduced-motion. */
+body::before {
+  content: "";
+  position: fixed;
+  inset: -50px;
+  z-index: 0;
+  pointer-events: none;
+  background-image:
+    linear-gradient(0deg,  transparent 0,  transparent 49.5px, rgba(79,195,247,0.04) 49.5px, rgba(79,195,247,0.04) 50px),
+    linear-gradient(90deg, transparent 0,  transparent 49.5px, rgba(79,195,247,0.04) 49.5px, rgba(79,195,247,0.04) 50px);
+  background-size: 50px 50px;
+  opacity: 0.65;
+  animation: tron-grid-drift 24s linear infinite;
+  will-change: background-position;
+}
+@keyframes tron-grid-drift {
+  0%   { background-position: 0 0, 0 0; }
+  100% { background-position: 50px 50px, 50px 50px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  body::before { animation: none; }
+  .rl-modal-panel, .encyc-panel, .settings-panel { animation: none; }
+}
+
+/* ---- Vignette overlay — soft radial-darken at the edges so the player's
+        eye centers on the active surface. Behind everything else. */
+body::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  background: radial-gradient(ellipse 100% 70% at 50% 50%, transparent 50%, rgba(0,0,0,0.45) 100%);
+}
+
+/* ---- Universal button reset — any <button> not already styled gets a
+        clean Tron baseline so a forgotten utility button can't ship as
+        a default browser button. Surgical: only applies to .btn class
+        + plain buttons that aren't tagged with rl-/mm-/db-/match- etc. */
+button.btn,
+button.btn-primary,
+button.btn-secondary {
+  font-family: 'Rajdhani', sans-serif;
+  font-size: 12px; font-weight: 700;
+  letter-spacing: 3px; text-transform: uppercase;
+  padding: 10px 22px;
+  background:
+    linear-gradient(90deg, var(--theme-wash-08, rgba(79,195,247,0.08)) 0%, rgba(0,0,0,0) 60%),
+    rgba(0,0,0,0.85);
+  border: 1px solid var(--theme-accent-edge, rgba(79,195,247,0.55));
+  border-radius: 4px;
+  color: var(--theme-accent-bright, #d4ecff);
+  cursor: pointer;
+  transition: transform 0.15s, border-color 0.2s, box-shadow 0.25s, background 0.2s;
+  box-shadow:
+    0 0 10px var(--theme-glow-outer, rgba(79,195,247,0.18)),
+    inset 0 0 0 1px rgba(255,255,255,0.04);
+}
+button.btn:hover, button.btn-primary:hover, button.btn-secondary:hover {
+  transform: translateY(-1px);
+  border-color: var(--theme-accent-bright, rgba(79,195,247,1));
+  box-shadow:
+    0 0 18px var(--theme-glow-outer, rgba(79,195,247,0.55)),
+    0 0 36px var(--theme-glow-inner, rgba(79,195,247,0.20)),
+    inset 0 0 0 1px rgba(255,255,255,0.10);
+  color: #ffffff;
+}
+button.btn:active, button.btn-primary:active, button.btn-secondary:active {
+  transform: translateY(0);
+  box-shadow:
+    0 0 12px var(--theme-glow-outer, rgba(79,195,247,0.40)),
+    inset 0 0 12px var(--theme-glow-inner, rgba(79,195,247,0.18));
+}
+button.btn-primary {
+  border-color: var(--theme-accent-bright, rgba(79,195,247,0.95));
+  color: #ffffff;
+  text-shadow: 0 0 6px var(--theme-glow-outer, rgba(79,195,247,0.65));
+  box-shadow:
+    0 0 14px var(--theme-glow-outer, rgba(79,195,247,0.35)),
+    inset 0 0 0 1px rgba(255,255,255,0.06);
+}
+
+/* ---- Universal input style — text inputs / search fields anywhere. */
+input[type="text"],
+input[type="search"],
+input[type="number"],
+textarea {
+  background: rgba(0,0,0,0.65);
+  border: 1px solid var(--theme-accent-edge, rgba(79,195,247,0.35));
+  border-radius: 3px;
+  color: #f5fbff;
+  font-family: 'Inter', 'Segoe UI', system-ui, sans-serif;
+  font-size: 13px;
+  padding: 8px 12px;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+input[type="text"]:focus,
+input[type="search"]:focus,
+input[type="number"]:focus,
+textarea:focus {
+  outline: none;
+  border-color: var(--theme-accent-bright, rgba(79,195,247,0.95));
+  box-shadow:
+    0 0 0 3px rgba(79,195,247,0.12),
+    0 0 8px var(--theme-glow-outer, rgba(79,195,247,0.45));
+}
+input::placeholder, textarea::placeholder {
+  color: rgba(150,165,180,0.55);
+  letter-spacing: 0.5px;
+}
+
+/* ---- Polished disabled state — across all buttons, no ghostly browser
+        gray. Reads as "intentionally locked," not "broken." */
+button:disabled, button[disabled] {
+  cursor: not-allowed;
+  filter: saturate(0.4) brightness(0.65);
+}
+
+/* ---- Modal close button (×) — uniform across every dialog. Larger
+        hit target, softer hover. ONLY targets dedicated × buttons —
+        NOT general back / menu buttons (those use .md-back / .mm-back
+        and have their own labels). */
+.rl-modal-close,
+.encyc-close {
+  width: 32px; height: 32px;
+  border: 1px solid transparent;
+  border-radius: 50%;
+  background: transparent;
+  color: rgba(220,225,235,0.55);
+  font-size: 22px; line-height: 1;
+  cursor: pointer;
+  transition: color 0.2s, background 0.2s, border-color 0.2s, transform 0.15s;
+  display: flex; align-items: center; justify-content: center;
+}
+.rl-modal-close:hover,
+.encyc-close:hover {
+  color: #ffffff;
+  background: rgba(231,76,60,0.20);
+  border-color: rgba(231,76,60,0.55);
+  transform: rotate(90deg);
+}
+
+/* ---- Loading shimmer — for any list that's still resolving. Apply
+        .tron-shimmer to any block to get the diagonal sweep. */
+@keyframes tron-shimmer {
+  0%   { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+.tron-shimmer {
+  background:
+    linear-gradient(90deg,
+      rgba(79,195,247,0.05) 0%,
+      rgba(79,195,247,0.18) 50%,
+      rgba(79,195,247,0.05) 100%);
+  background-size: 200% 100%;
+  animation: tron-shimmer 1.6s ease-in-out infinite;
+}
+
+/* ---- Empty-state polish — generic .rl-empty-state already exists; this
+        adds a subtle icon glow + better typography rhythm so an empty
+        deck doesn't read as "broken." */
+.rl-empty-state {
+  font-family: 'Rajdhani', sans-serif;
+  letter-spacing: 1.5px;
+  color: rgba(180,195,210,0.55);
+  text-align: center;
+  padding: 36px 20px;
+  border: 1px dashed rgba(79,195,247,0.20);
+  border-radius: 4px;
+  background:
+    linear-gradient(180deg, rgba(79,195,247,0.03) 0%, transparent 60%),
+    rgba(0,0,0,0.30);
+}
+
+/* ---- Dialog/Tooltip universal arrow + corner accents — adds tiny
+        Tron corner brackets to any element with .tron-bracketed class
+        for instant "this is a panel, not a div" treatment. */
+.tron-bracketed {
+  position: relative;
+}
+.tron-bracketed::before,
+.tron-bracketed::after {
+  content: "";
+  position: absolute;
+  width: 12px; height: 12px;
+  pointer-events: none;
+}
+.tron-bracketed::before {
+  top: -1px; left: -1px;
+  border-top: 2px solid var(--theme-accent-bright, #4fc3f7);
+  border-left: 2px solid var(--theme-accent-bright, #4fc3f7);
+  filter: drop-shadow(0 0 4px var(--theme-glow-outer, rgba(79,195,247,0.65)));
+}
+.tron-bracketed::after {
+  bottom: -1px; right: -1px;
+  border-bottom: 2px solid var(--theme-accent-bright, #4fc3f7);
+  border-right: 2px solid var(--theme-accent-bright, #4fc3f7);
+  filter: drop-shadow(0 0 4px var(--theme-glow-outer, rgba(79,195,247,0.65)));
+}
+
+/* ---- Subtle "screen scanline" overlay on the body — extremely subtle
+        horizontal lines for the CRT/Tron computer-screen vibe. Very low
+        opacity so it doesn't compete with the actual UI. */
+body {
+  position: relative;
+}
+body > .scanline-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 2;
+  pointer-events: none;
+  background: repeating-linear-gradient(
+    0deg,
+    transparent 0,
+    transparent 2px,
+    rgba(255,255,255,0.012) 2px,
+    rgba(255,255,255,0.012) 3px
+  );
+  mix-blend-mode: overlay;
+}
+
+/* ---- Make sure roguelite + main content sits above the body::before grid.
+        DO NOT override `position` here — every overlay sets its own
+        position:fixed in its own rule (and we need to preserve that
+        for full-screen layout). Only bump z-index. */
+#main-menu-overlay,
+#mode-select-overlay,
+#settings-overlay,
+#encyclopedia-overlay,
+#deckbuilder-overlay,
+#stats-overlay,
+#match-history-overlay,
+#tutorial-overlay,
+#my-decks-overlay,
+#multiplayer-overlay,
+#draft-overlay,
+#roguelite-overlay {
+  z-index: 100;
+}
+#game-area { position: relative; z-index: 100; }
+
+/* ============================================================================
+   HARMONY PASS — every panel, every overlay, every section reads as the
+   SAME PRODUCT. Same border ring. Same corner brackets. Same gradient
+   wash. Same text shadows. Same modal entrance animation. The user
+   directive: "every piece connects to one another, the same look and
+   feel everywhere."
+   ============================================================================ */
+
+/* ---- Universal panel chrome — pulls every major overlay panel into
+        one consistent treatment so .mm-panel, .encyc-panel,
+        .settings-panel, .stats-panel, .match-history-panel,
+        .my-decks-panel, .deckbuilder-panel, .multiplayer-panel,
+        .roguelite-panel all read as the same product. Theme-aware
+        via CSS variables so per-theme tinting stays coherent. */
+.mm-panel,
+.encyc-panel,
+.settings-panel,
+.stats-panel,
+.match-history-panel,
+.my-decks-panel,
+.deckbuilder-panel,
+.multiplayer-panel,
+.tutorial-panel,
+.mode-panel,
+.md-panel,
+.rl-panel {
+  background:
+    linear-gradient(180deg, var(--theme-wash-05, rgba(79,195,247,0.05)) 0%, rgba(0,0,0,0) 40%),
+    #000 !important;
+  border: 1px solid var(--theme-accent-edge, rgba(79,195,247,0.55)) !important;
+  border-radius: 4px !important;
+  box-shadow:
+    0 0 32px var(--theme-glow-inner, rgba(79,195,247,0.30)),
+    0 0 72px var(--theme-glow-outer, rgba(79,195,247,0.14)),
+    inset 0 0 0 1px var(--theme-wash-08, rgba(79,195,247,0.08)),
+    inset 0 1px 0 var(--theme-accent-edge, rgba(79,195,247,0.35)) !important;
+  position: relative;
+}
+
+/* ---- Universal corner brackets — every panel above gets the same
+        L-shaped brackets at top-left + bottom-right. We DON'T add the
+        ::before/::after rule blanket to .mm-panel + .encyc-panel
+        because those already have it (don't double-stack); the new
+        rule targets panels that previously lacked the brackets. */
+.settings-panel,
+.stats-panel,
+.match-history-panel,
+.my-decks-panel,
+.deckbuilder-panel,
+.multiplayer-panel,
+.tutorial-panel,
+.md-panel {
+  position: relative;
+}
+.settings-panel::before, .settings-panel::after,
+.stats-panel::before, .stats-panel::after,
+.match-history-panel::before, .match-history-panel::after,
+.my-decks-panel::before, .my-decks-panel::after,
+.deckbuilder-panel::before, .deckbuilder-panel::after,
+.multiplayer-panel::before, .multiplayer-panel::after,
+.tutorial-panel::before, .tutorial-panel::after,
+.md-panel::before, .md-panel::after {
+  content: "";
+  position: absolute;
+  width: 14px; height: 14px;
+  pointer-events: none;
+}
+.settings-panel::before,
+.stats-panel::before,
+.match-history-panel::before,
+.my-decks-panel::before,
+.deckbuilder-panel::before,
+.multiplayer-panel::before,
+.tutorial-panel::before,
+.md-panel::before {
+  top: -1px; left: -1px;
+  border-top: 2px solid var(--theme-accent-bright, #4fc3f7);
+  border-left: 2px solid var(--theme-accent-bright, #4fc3f7);
+  filter: drop-shadow(0 0 5px var(--theme-glow-outer, rgba(79,195,247,0.65)));
+}
+.settings-panel::after,
+.stats-panel::after,
+.match-history-panel::after,
+.my-decks-panel::after,
+.deckbuilder-panel::after,
+.multiplayer-panel::after,
+.tutorial-panel::after,
+.md-panel::after {
+  bottom: -1px; right: -1px;
+  border-bottom: 2px solid var(--theme-accent-bright, #4fc3f7);
+  border-right: 2px solid var(--theme-accent-bright, #4fc3f7);
+  filter: drop-shadow(0 0 5px var(--theme-glow-outer, rgba(79,195,247,0.65)));
+}
+
+/* ---- Backdrop unification — every overlay backdrop blurs the layer
+        behind it identically so swapping between Codex / Stats /
+        Settings / etc. feels like one continuous stack. */
+.settings-overlay,
+.encyclopedia-overlay,
+.match-history-overlay,
+.stats-overlay,
+.my-decks-overlay,
+.deckbuilder-overlay,
+.tutorial-overlay,
+.multiplayer-overlay,
+.mode-select-overlay {
+  backdrop-filter: blur(6px) saturate(0.85);
+  -webkit-backdrop-filter: blur(6px) saturate(0.85);
+  background: rgba(2,4,8,0.78) !important;
+}
+
+/* ---- Title harmony — every overlay's primary heading uses the SAME
+        display-typography treatment (the "THE GAME" hero look at a
+        slightly smaller scale). Color picks up the active theme. */
+.encyc-title,
+.settings-panel h2,
+.stats-panel h1, .stats-panel h2,
+.match-history-panel h1, .match-history-panel h2,
+.my-decks-panel h1, .my-decks-panel h2,
+.deckbuilder-panel h1, .deckbuilder-panel h2,
+.multiplayer-panel h1, .multiplayer-panel h2,
+.tutorial-panel h1, .tutorial-panel h2,
+.md-panel h1, .md-panel h2,
+.rl-title {
+  font-family: 'Rajdhani', sans-serif !important;
+  font-weight: 700 !important;
+  letter-spacing: 6px !important;
+  text-transform: uppercase !important;
+  color: #ffffff !important;
+  text-shadow:
+    0 0 10px var(--theme-glow-outer, rgba(79,195,247,0.85)),
+    0 0 28px var(--theme-glow-inner, rgba(79,195,247,0.45)) !important;
+}
+
+/* ---- Subtitle / tag harmony — the small-caps tag line above titles. */
+.encyc-tag,
+.encyc-sub,
+.rl-subtitle,
+.mm-subtitle {
+  font-family: 'Rajdhani', sans-serif !important;
+  font-size: 11px !important;
+  letter-spacing: 4px !important;
+  text-transform: uppercase !important;
+  color: color-mix(in srgb, var(--theme-accent, rgb(79,195,247)) 45%, #94a8c0) !important;
+}
+
+/* ---- Section divider — any list/section in any overlay can use
+        .tron-divider for a consistent neon hairline. */
+.tron-divider {
+  height: 1px;
+  background: linear-gradient(90deg,
+    transparent 0%,
+    var(--theme-accent-edge, rgba(79,195,247,0.45)) 30%,
+    var(--theme-accent-edge, rgba(79,195,247,0.45)) 70%,
+    transparent 100%);
+  margin: 16px 0;
+  filter: drop-shadow(0 0 4px var(--theme-glow-outer, rgba(79,195,247,0.45)));
+}
+
+/* ---- Universal "info pill" — any small badge/stat-pill anywhere in
+        the app gets the same neon HUD treatment via .tron-pill. */
+.tron-pill {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 4px 12px;
+  font-family: 'Rajdhani', sans-serif;
+  font-size: 11px; font-weight: 700;
+  letter-spacing: 2px; text-transform: uppercase;
+  background: rgba(0,0,0,0.65);
+  border: 1px solid var(--theme-accent-edge, rgba(79,195,247,0.55));
+  border-radius: 999px;
+  color: var(--theme-accent-bright, #d4ecff);
+  box-shadow: 0 0 6px var(--theme-glow-outer, rgba(79,195,247,0.18));
+}
+
+/* ---- Tab/button-group harmony — applies to .db-tab, .encyc-tab,
+        .stats-tab, etc. unified hover + active state. */
+.db-tab, .encyc-tab, .stats-tab, .mh-tab {
+  font-family: 'Rajdhani', sans-serif;
+  font-size: 11px; font-weight: 700;
+  letter-spacing: 3px; text-transform: uppercase;
+  padding: 8px 16px;
+  background: rgba(0,0,0,0.65);
+  border: 1px solid var(--theme-accent-edge, rgba(79,195,247,0.35));
+  border-radius: 3px;
+  color: rgba(180,200,220,0.65);
+  cursor: pointer;
+  transition: border-color 0.2s, box-shadow 0.2s, color 0.2s, background 0.2s;
+}
+.db-tab:hover, .encyc-tab:hover, .stats-tab:hover, .mh-tab:hover {
+  border-color: var(--theme-accent-bright, rgba(79,195,247,0.95));
+  color: var(--theme-accent-bright, #d4ecff);
+  box-shadow: 0 0 10px var(--theme-glow-outer, rgba(79,195,247,0.40));
+}
+.db-tab.db-filter-active, .encyc-tab.db-filter-active,
+.stats-tab.db-filter-active, .mh-tab.db-filter-active,
+.db-tab.active, .encyc-tab.active, .stats-tab.active, .mh-tab.active {
+  background: var(--theme-wash-08, rgba(79,195,247,0.10));
+  border-color: var(--theme-accent-bright, rgba(79,195,247,1));
+  color: #ffffff;
+  text-shadow: 0 0 6px var(--theme-glow-outer, rgba(79,195,247,0.65));
+  box-shadow:
+    0 0 14px var(--theme-glow-outer, rgba(79,195,247,0.55)),
+    inset 0 0 0 1px rgba(255,255,255,0.06);
+}
+
+/* ---- Soft section card — for sub-blocks inside an overlay (a settings
+        group, a stats row, etc.). Pulls the same treatment so the
+        eye doesn't have to retrain on every screen. */
+.tron-section {
+  padding: 16px 20px;
+  background: linear-gradient(180deg, var(--theme-wash-05, rgba(79,195,247,0.04)) 0%, rgba(0,0,0,0) 80%), rgba(0,0,0,0.45);
+  border: 1px solid var(--theme-accent-edge, rgba(79,195,247,0.30));
+  border-radius: 4px;
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,0.03);
+}
+
+/* ---- Hover-link harmony — any inline interactive text gets a soft
+        glow on hover instead of plain blue underline. */
+a, .tron-link {
+  color: var(--theme-accent-bright, #7fd0ff);
+  text-decoration: none;
+  transition: color 0.2s, text-shadow 0.2s;
+}
+a:hover, .tron-link:hover {
+  color: #ffffff;
+  text-shadow: 0 0 8px var(--theme-glow-outer, rgba(79,195,247,0.85));
+}
+
+/* ---- Native form control harmony. Browsers ship default styles for
+        <select>, <input type="checkbox">, <input type="range"> that
+        clash with the rest of the Tron chrome. Override at the
+        foundation so every form anywhere reads as the same product. */
+
+/* Select / dropdown. */
+select {
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  background:
+    linear-gradient(45deg, transparent 50%, var(--theme-accent-bright, rgba(127,208,255,0.75)) 50%) calc(100% - 14px) calc(50% - 3px) / 6px 6px no-repeat,
+    rgba(0,0,0,0.65);
+  border: 1px solid var(--theme-accent-edge, rgba(79,195,247,0.45));
+  border-radius: 3px;
+  color: #f5fbff;
+  font-family: 'Rajdhani', sans-serif;
+  font-size: 12px; font-weight: 600;
+  letter-spacing: 1.2px; text-transform: uppercase;
+  padding: 6px 28px 6px 12px;
+  cursor: pointer;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+select:hover {
+  border-color: var(--theme-accent-bright, rgba(79,195,247,0.85));
+  box-shadow: 0 0 8px var(--theme-glow-outer, rgba(79,195,247,0.30));
+}
+select:focus {
+  outline: none;
+  border-color: var(--theme-accent-bright, rgba(79,195,247,1));
+  box-shadow:
+    0 0 0 3px rgba(79,195,247,0.12),
+    0 0 8px var(--theme-glow-outer, rgba(79,195,247,0.55));
+}
+select option {
+  background: #06090d;
+  color: #f5fbff;
+  font-family: 'Rajdhani', sans-serif;
+}
+
+/* Checkbox — themed neon tick. Custom-painted via accent-color
+   first (Chromium 80+, Firefox 92+), with a CSS custom-rendered
+   fallback for older renderers. */
+input[type="checkbox"] {
+  accent-color: var(--theme-accent-bright, #4fc3f7);
+  width: 18px; height: 18px;
+  cursor: pointer;
+  filter: drop-shadow(0 0 4px var(--theme-glow-outer, rgba(79,195,247,0.45)));
+}
+
+/* Range slider — tron neon track + glowing thumb. */
+input[type="range"] {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 160px; height: 4px;
+  background: linear-gradient(90deg, var(--theme-accent-bright, #4fc3f7), rgba(79,195,247,0.30));
+  border-radius: 2px;
+  outline: none;
+  cursor: pointer;
+}
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 14px; height: 14px;
+  border-radius: 50%;
+  background: var(--theme-accent-bright, #4fc3f7);
+  border: 2px solid #ffffff;
+  box-shadow:
+    0 0 6px var(--theme-glow-outer, rgba(79,195,247,0.85)),
+    0 0 14px var(--theme-glow-inner, rgba(79,195,247,0.45));
+  cursor: pointer;
+  transition: transform 0.15s, box-shadow 0.2s;
+}
+input[type="range"]::-webkit-slider-thumb:hover {
+  transform: scale(1.2);
+  box-shadow:
+    0 0 10px var(--theme-glow-outer, rgba(79,195,247,1)),
+    0 0 22px var(--theme-glow-inner, rgba(79,195,247,0.65));
+}
+input[type="range"]::-moz-range-thumb {
+  width: 14px; height: 14px;
+  border-radius: 50%;
+  background: var(--theme-accent-bright, #4fc3f7);
+  border: 2px solid #ffffff;
+  box-shadow: 0 0 6px var(--theme-glow-outer, rgba(79,195,247,0.85));
+  cursor: pointer;
+}
+
+/* Number-input spinner buttons — match the rest of the chrome. */
+input[type="number"]::-webkit-inner-spin-button,
+input[type="number"]::-webkit-outer-spin-button {
+  filter: invert(0.65) sepia(0.4) saturate(2) hue-rotate(160deg);
+}
+
+/* ---- Polish on stat metric cards (used by the Stats overlay) so
+        the My Games / Sim Games / Sim Seat Split tiles all read as
+        the same chrome family. */
+.tron-metric-card {
+  padding: 16px 18px;
+  background: linear-gradient(180deg, var(--theme-wash-08, rgba(79,195,247,0.06)) 0%, rgba(0,0,0,0) 70%), rgba(0,0,0,0.55);
+  border: 1px solid var(--theme-accent-edge, rgba(79,195,247,0.40));
+  border-radius: 4px;
+  text-align: center;
+  font-family: 'Rajdhani', sans-serif;
+  box-shadow: 0 0 10px var(--theme-glow-outer, rgba(79,195,247,0.18));
+}
+.tron-metric-card .label {
+  font-size: 10px; letter-spacing: 3px; text-transform: uppercase;
+  color: color-mix(in srgb, var(--theme-accent, rgb(79,195,247)) 40%, #94a8c0);
+}
+.tron-metric-card .value {
+  font-size: 28px; font-weight: 700;
+  color: #ffffff;
+  text-shadow: 0 0 8px var(--theme-glow-outer, rgba(79,195,247,0.65));
+  margin-top: 4px;
+}
+
+/* ---- Polished microcopy spans — for every "no items yet" or "loading"
+        helper text anywhere. */
+.tron-helper-text {
+  font-family: 'Rajdhani', sans-serif;
+  font-size: 11px; letter-spacing: 1.5px;
+  color: rgba(180,195,210,0.55);
+}
+
+/* ---- Toggle pill (used as on/off in settings) — replaces the bare
+        checkbox where a bigger affordance is wanted. */
+.tron-toggle {
+  display: inline-flex; align-items: center;
+  width: 42px; height: 22px;
+  background: rgba(0,0,0,0.65);
+  border: 1px solid var(--theme-accent-edge, rgba(79,195,247,0.45));
+  border-radius: 999px;
+  cursor: pointer;
+  transition: background 0.2s, border-color 0.2s;
+}
+.tron-toggle::after {
+  content: "";
+  width: 16px; height: 16px;
+  border-radius: 50%;
+  background: rgba(180,200,220,0.65);
+  margin-left: 2px;
+  transition: transform 0.2s, background 0.2s, box-shadow 0.2s;
+}
+.tron-toggle.on {
+  background: var(--theme-wash-15, rgba(79,195,247,0.18));
+  border-color: var(--theme-accent-bright, rgba(79,195,247,0.95));
+}
+.tron-toggle.on::after {
+  transform: translateX(20px);
+  background: var(--theme-accent-bright, #4fc3f7);
+  box-shadow: 0 0 8px var(--theme-glow-outer, rgba(79,195,247,0.85));
+}
+
