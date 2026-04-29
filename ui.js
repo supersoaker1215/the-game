@@ -505,6 +505,11 @@ const UI = {
 
     // Per-trick SFX registry. Events: hover, play.
     TRICK_SFX: {
+      // Batarang spin loop — 0.89s clip, fires every time Batarangs
+      // is played. Already under the 1.5s play-cap so no maxDur tweak.
+      'Batarangs': {
+        play: 'audio/cards/batarangs-play.mp3'
+      },
       'Time Stone': {
         hover: 'audio/cards/time-stone-hover.mp3',
         play:  'audio/cards/time-stone-play.mp3'
