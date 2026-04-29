@@ -96,6 +96,8 @@ const Roguelite = {
       _isStarter: false,
       _isCurse: true,
     });
+    // Curse-warning toast — purple tint, ✕ glyph.
+    this.showToast(`<span class="rl-toast-glyph">✕</span><span class="rl-toast-text"><b>${pick.name}</b><span class="rl-toast-sub">CURSE ADDED</span></span>`, 'curse');
     return pick.name;
   },
 
@@ -470,7 +472,8 @@ const Roguelite = {
 
   // Grant a relic to the run. Idempotent — duplicates rejected.
   // Fires onAcquire so any one-shot effect (HP bump, gold, etc.) lands
-  // immediately. Caller is responsible for showing the toast / cue.
+  // immediately. Spawns an acquire toast so the player notices the
+  // addition (was silent — relics just appeared in the count).
   grantRelic(run, relicId) {
     if (!run || !relicId) return false;
     if (run.relics.includes(relicId)) return false;
@@ -480,6 +483,12 @@ const Roguelite = {
     if (typeof r.onAcquire === 'function') {
       try { r.onAcquire(run); } catch (e) { console.warn('[RELIC onAcquire]', relicId, e); }
     }
+    // Mark as recently triggered so the HUD button pulses.
+    run._relicPulses = run._relicPulses || {};
+    run._relicPulses[relicId] = Date.now();
+    // Toast — show the icon glyph + relic name with rarity tint.
+    const glyph = this._relicIcon(r);
+    this.showToast(`<span class="rl-toast-glyph">${glyph}</span><span class="rl-toast-text"><b>${r.name}</b><span class="rl-toast-sub">${this.displayRarity(r.rarity).toUpperCase()} RELIC</span></span>`, 'relic');
     return true;
   },
 
@@ -1670,6 +1679,30 @@ const Roguelite = {
     return levelUps;
   },
 
+  // ----- Toast notifications -----
+  // Stackable corner toasts for relic / trick / curse pickups so the
+  // player notices acquisitions instead of seeing the count change
+  // silently. Variants: 'relic' (gold), 'trick' (purple), 'curse'
+  // (curse-purple), 'card' (theme accent).
+  showToast(text, variant) {
+    if (typeof document === 'undefined') return;
+    let stack = document.getElementById('rl-toast-stack');
+    if (!stack) {
+      stack = document.createElement('div');
+      stack.id = 'rl-toast-stack';
+      stack.className = 'rl-toast-stack';
+      document.body.appendChild(stack);
+    }
+    const t = document.createElement('div');
+    t.className = `rl-toast rl-toast-${variant || 'card'}`;
+    t.innerHTML = text;
+    stack.appendChild(t);
+    setTimeout(() => {
+      t.classList.add('rl-toast-out');
+      setTimeout(() => t.remove(), 350);
+    }, 2200);
+  },
+
   // Boss-clear splash. Full-screen 1.6s celebratory overlay with the
   // boss name + "DEFEATED" banner, then fires the callback so the
   // existing reward / end-of-run flow can proceed. Adds a real
@@ -1792,6 +1825,116 @@ const Roguelite = {
     { level: 4, name: 'Cosmic',    desc: '+ Bosses gain an extra trick in their deck.' },
   ],
   _ASCENSION_KEY: 'clb_ascension',
+  // ----- First-run tutorial -----
+  // Stores which tutorial steps the player has seen so they only fire
+  // once. Steps surface as small toasts at key beats (relic pick, first
+  // map view, first reward, first level-up, first curse).
+  _TUTORIAL_KEY: 'clb_rl_tutorial_seen',
+  _tutorialSeen() {
+    if (typeof localStorage === 'undefined') return {};
+    try {
+      const raw = localStorage.getItem(this._TUTORIAL_KEY);
+      return raw ? JSON.parse(raw) : {};
+    } catch (e) { return {}; }
+  },
+  _markTutorialSeen(stepId) {
+    if (typeof localStorage === 'undefined') return;
+    try {
+      const seen = this._tutorialSeen();
+      seen[stepId] = true;
+      localStorage.setItem(this._TUTORIAL_KEY, JSON.stringify(seen));
+    } catch (e) {}
+  },
+  // Show a tutorial toast IF the step hasn't fired yet. Toasts read
+  // as flavored teaching moments — no big modals, no flow blocking.
+  _maybeTutorial(stepId, text) {
+    const seen = this._tutorialSeen();
+    if (seen[stepId]) return;
+    this._markTutorialSeen(stepId);
+    this.showToast(`<span class="rl-toast-glyph">?</span><span class="rl-toast-text"><b>Tip</b><span class="rl-toast-sub">${text}</span></span>`, 'tutorial');
+  },
+
+  // ----- Lifetime per-card XP / play count -----
+  // Persistent stat per card name across all runs. Pure ego stat, no
+  // gameplay impact. Surfaced in the codex via getLifetimeCardStat().
+  // User polish: "career-mode bait — Hawkeye total: 1,240 XP across
+  // 8 runs."
+  _CARD_LIFETIME_KEY: 'clb_card_lifetime',
+  _loadLifetimeCardStats() {
+    if (typeof localStorage === 'undefined') return {};
+    try {
+      const raw = localStorage.getItem(this._CARD_LIFETIME_KEY);
+      return raw ? JSON.parse(raw) : {};
+    } catch (e) { return {}; }
+  },
+  _saveLifetimeCardStats(stats) {
+    if (typeof localStorage === 'undefined') return;
+    try { localStorage.setItem(this._CARD_LIFETIME_KEY, JSON.stringify(stats)); } catch (e) {}
+  },
+  // Bumps lifetime totals for every non-starter, non-curse card in
+  // the run's deck at run end. Tracks { xp, plays, runs } per name.
+  recordLifetimeCardStats(run) {
+    if (!run || !run.deck) return;
+    const stats = this._loadLifetimeCardStats();
+    run.deck.forEach(d => {
+      if (d._isStarter || d._isCurse) return;
+      const name = d.defName;
+      if (!stats[name]) stats[name] = { xp: 0, runs: 0 };
+      stats[name].xp += (d.xp || 0);
+      stats[name].runs += 1;
+    });
+    this._saveLifetimeCardStats(stats);
+  },
+  getLifetimeCardStat(name) {
+    const stats = this._loadLifetimeCardStats();
+    return stats[name] || { xp: 0, runs: 0 };
+  },
+
+  // ----- Per-run achievements -----
+  // Computed at run end from run state + lifetime stats. Pure cosmetic
+  // badges on the summary screen — no metaprogression / unlocks. Adds
+  // variety goals so players self-impose challenge runs.
+  computeRunAchievements(run, won) {
+    if (!run) return [];
+    const stats = run._stats || {};
+    const out = [];
+    // Ironclad — won AND no HP lost across the entire run.
+    if (won && (stats.totalHpLost || 0) === 0) {
+      out.push({ id: 'ironclad', label: 'Ironclad', desc: 'Cleared the run without losing a single HP.', tier: 'gold' });
+    }
+    // Pacifist — won OR cleared most of the run AND zero elites engaged.
+    if ((stats.fightsWon || 0) >= 6 && (stats.elitesWon || 0) === 0) {
+      out.push({ id: 'pacifist', label: 'Pacifist', desc: '6+ fights cleared without engaging an elite.', tier: 'silver' });
+    }
+    // Cursed Path — completed run with 3+ curses still in deck.
+    const curseCount = (run.deck || []).filter(d => d._isCurse).length;
+    if (curseCount >= 3) {
+      out.push({ id: 'cursed', label: 'Cursed Path', desc: `Carried ${curseCount} curses through the run.`, tier: 'purple' });
+    }
+    // Purist — won AND no Special / Legendary cards in final deck.
+    const hasHigh = (run.deck || []).some(d => d.rarity === 'special' || d.rarity === 'legendary');
+    if (won && !hasHigh) {
+      out.push({ id: 'purist', label: 'Purist', desc: 'Cleared the run with only Common and Uncommon cards.', tier: 'green' });
+    }
+    // Hoarder — finished with 200+ gold (used or unused).
+    if ((run.gold || 0) >= 200) {
+      out.push({ id: 'hoarder', label: 'Hoarder', desc: 'Ended the run with 200+ gold in pocket.', tier: 'gold' });
+    }
+    // Speedrun — won in under 15 minutes.
+    if (won && stats.startTime && (Date.now() - stats.startTime) < 15 * 60 * 1000) {
+      out.push({ id: 'speedrun', label: 'Speedrun', desc: 'Cleared the run in under 15 minutes.', tier: 'cyan' });
+    }
+    // Boss Sweeper — defeated all 3 act bosses.
+    if ((stats.bossesWon || 0) >= 3) {
+      out.push({ id: 'boss-sweep', label: 'Boss Sweeper', desc: 'Defeated all three act bosses in one run.', tier: 'gold' });
+    }
+    // Ascended — won at A2+.
+    if (won && (run.ascension || 0) >= 2) {
+      out.push({ id: 'ascended', label: `Ascended A${run.ascension}`, desc: `Cleared the run at Ascension ${run.ascension}.`, tier: 'cyan' });
+    }
+    return out;
+  },
+
   // ----- Run history (last 10) -----
   // Persisted to localStorage so the player has a "career stats" page.
   // Each entry: { date, ascension, won, fightsWon, bossesWon, deckSize,
@@ -2056,7 +2199,14 @@ const Roguelite = {
     run.lastResult = { event: `Treasure! Gained relic: ${relic.name}` };
     const body = `
       <div class="rl-event-flavor">A neon chest hums on the path. You crack it open.</div>
-      <div class="rl-relic-grid rl-relic-grid-tron" style="margin-top:8px;">
+      <div class="rl-treasure-burst" aria-hidden="true">
+        <span class="rl-treasure-ray rl-treasure-ray-1"></span>
+        <span class="rl-treasure-ray rl-treasure-ray-2"></span>
+        <span class="rl-treasure-ray rl-treasure-ray-3"></span>
+        <span class="rl-treasure-ray rl-treasure-ray-4"></span>
+        <span class="rl-treasure-flash"></span>
+      </div>
+      <div class="rl-relic-grid rl-relic-grid-tron rl-treasure-reveal" style="margin-top:8px;">
         <div class="rl-relic-card rl-relic-card-tron rl-relic-${relic.rarity}">
           <span class="rl-relic-card-corner rl-relic-card-corner-tl"></span>
           <span class="rl-relic-card-corner rl-relic-card-corner-tr"></span>
@@ -3325,7 +3475,10 @@ const Roguelite = {
     const run = Game.state.roguelite;
     if (!run) return;
     if (take && run.pendingTrickReward) {
-      run.tricks.push({ defName: run.pendingTrickReward.defName, rarity: 'common' });
+      const defName = run.pendingTrickReward.defName;
+      run.tricks.push({ defName, rarity: 'common' });
+      // Acquire toast so the player notices a new trick joined the deck.
+      this.showToast(`<span class="rl-toast-glyph">✦</span><span class="rl-toast-text"><b>${defName}</b><span class="rl-toast-sub">NEW TRICK</span></span>`, 'trick');
     }
     run.pendingTrickReward = null;
     this._closeModal();
@@ -3350,6 +3503,8 @@ const Roguelite = {
       return;
     }
     const lu = run._pendingLevelUps[0];
+    // First level-up triggers a teaching tip.
+    this._maybeTutorial('level-up', 'Cards level up by earning XP from damage and kills. Each tier gives you a new etch.');
     // Choice cards — each gets:
     //   • a small bucket caption (Stats / Trait / Energy / Text) so
     //     the player can read which bucket fed the option
@@ -3467,11 +3622,20 @@ const Roguelite = {
       document.body.appendChild(el);
     }
     el.style.display = 'flex';
-    if (phase === 'roguelite-pick-relic') el.innerHTML = this._renderPickRelic();
+    if (phase === 'roguelite-pick-relic') {
+      el.innerHTML = this._renderPickRelic();
+      this._maybeTutorial('relic-pick', 'Relics are run-long buffs. Pick the one that fits your playstyle.');
+    }
     else if (phase === 'roguelite-pick-card') el.innerHTML = this._renderPickCard();
     else if (phase === 'roguelite-start') el.innerHTML = this._renderStart();
-    else if (phase === 'roguelite-map') el.innerHTML = this._renderMap();
-    else if (phase === 'roguelite-rewards') el.innerHTML = this._renderRewards();
+    else if (phase === 'roguelite-map') {
+      el.innerHTML = this._renderMap();
+      this._maybeTutorial('map', 'Click a node to enter. Combat, events, shops, treasures, rests — pick your path.');
+    }
+    else if (phase === 'roguelite-rewards') {
+      el.innerHTML = this._renderRewards();
+      this._maybeTutorial('reward', 'Pick one card to add. Skip for +50 gold and a thinner deck.');
+    }
     else if (phase === 'roguelite-end') el.innerHTML = this._renderEnd();
     // Save / clear hooks — every map render snapshots state to
     // localStorage; the run-end screen clears the save (no resuming
@@ -3488,6 +3652,8 @@ const Roguelite = {
         const finalBossKilled = run.lastResult && run.lastResult.nodeType === 'final-boss' && run.lastResult.won;
         const won = finalBossKilled || (run.hp > 0 && run.currentNode >= (run.totalNodes || 0) && run.totalNodes > 0);
         this._saveRunHistoryEntry(run, won);
+        // Lifetime per-card XP / runs counters — career-stats bait.
+        this.recordLifetimeCardStats(run);
       }
     }
     if (UI.applyTronFx) UI.applyTronFx();
@@ -4028,22 +4194,53 @@ const Roguelite = {
   _renderRewards() {
     const run = Game.state.roguelite;
     if (!run || !run.pendingRewards) return '';
+    // Wire up keyboard shortcuts on the rewards screen — 1/2/3 picks
+    // the matching card, S/Esc skips. Only attach once per render.
+    this._installRewardKeyboard();
     return `
       <div class="rl-panel rl-rewards-panel">
         <h1 class="rl-title">Victory</h1>
-        <p class="rl-subtitle">Pick one card to add to your deck</p>
+        <p class="rl-subtitle">Pick one card to add to your deck — <span class="rl-kb-hint">1/2/3 to pick · S to skip</span></p>
         <div class="rl-rewards-grid">
           ${run.pendingRewards.map((deckCard, i) => `
             <button type="button" class="rl-reward-slot rl-tier-${deckCard.rarity}" onclick="Roguelite.pickReward(${i})">
+              <span class="rl-reward-kb">${i + 1}</span>
               <div class="rl-reward-rarity">${this.displayRarity(deckCard.rarity).toUpperCase()}</div>
               ${this._renderCodexCard(deckCard)}
             </button>
           `).join('')}
         </div>
         <div class="rl-rewards-skip">
-          <button type="button" class="rl-skip-btn" onclick="Roguelite.pickReward(null)">Skip (no card)</button>
+          <button type="button" class="rl-skip-btn" onclick="Roguelite.pickReward(null)">Skip — +50g <span class="rl-kb-hint">(S)</span></button>
         </div>
       </div>`;
+  },
+
+  // Keyboard handler for the reward screen — 1/2/3 picks, S/Esc skips.
+  // User polish: "faster runs for keyboard players." Idempotent —
+  // re-installs cleanly on every render without leaking old listeners.
+  _installRewardKeyboard() {
+    if (this._rewardKbHandler) {
+      document.removeEventListener('keydown', this._rewardKbHandler);
+    }
+    this._rewardKbHandler = (e) => {
+      // Only fire while we're on the rewards phase and not typing in an input.
+      if (Game.state.phase !== 'roguelite-rewards') return;
+      const ae = document.activeElement;
+      if (ae && (ae.tagName === 'INPUT' || ae.tagName === 'TEXTAREA' || ae.isContentEditable)) return;
+      if (e.key >= '1' && e.key <= '9') {
+        const idx = parseInt(e.key, 10) - 1;
+        const run = Game.state.roguelite;
+        if (run && run.pendingRewards && run.pendingRewards[idx]) {
+          e.preventDefault();
+          this.pickReward(idx);
+        }
+      } else if (e.key === 's' || e.key === 'S' || e.key === 'Escape') {
+        e.preventDefault();
+        this.pickReward(null);
+      }
+    };
+    document.addEventListener('keydown', this._rewardKbHandler);
   },
 
   // Render a deck card using the EXACT same chrome as the codex /
@@ -4256,6 +4453,19 @@ const Roguelite = {
             <div class="rl-end-stat-value">${stats.totalHpLost || 0}</div>
           </div>
         </div>
+        ${(() => {
+          const achievements = this.computeRunAchievements(run, won);
+          if (!achievements.length) return '';
+          const badges = achievements.map(a =>
+            `<div class="rl-end-achievement rl-end-achievement-${a.tier}" title="${a.desc.replace(/"/g, '&quot;')}">
+              <span class="rl-end-achievement-glyph">★</span>
+              <span class="rl-end-achievement-label">${a.label}</span>
+            </div>`
+          ).join('');
+          return `
+            <div class="rl-end-section-title">★ ACHIEVEMENTS</div>
+            <div class="rl-end-achievements">${badges}</div>`;
+        })()}
         ${mvp ? `
           <div class="rl-end-mvp">
             <div class="rl-end-section-title">★ MVP CARD</div>

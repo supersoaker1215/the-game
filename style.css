@@ -20099,6 +20099,229 @@ body.killing-blow-cinema::after {
   letter-spacing: 4px; text-transform: uppercase;
 }
 
+/* Reward-screen keyboard hint number (top-left of each reward slot). */
+.rl-reward-slot { position: relative; }
+.rl-reward-kb {
+  position: absolute;
+  top: 4px; left: 4px;
+  z-index: 10;
+  width: 22px; height: 22px;
+  display: flex; align-items: center; justify-content: center;
+  font-family: 'Rajdhani', sans-serif;
+  font-size: 13px; font-weight: 800;
+  color: rgba(255,255,255,0.85);
+  background: rgba(0,0,0,0.65);
+  border: 1px solid var(--theme-accent-bright, rgba(79,195,247,0.65));
+  border-radius: 3px;
+  text-shadow: 0 0 4px var(--theme-glow-outer, rgba(79,195,247,0.55));
+  box-shadow: 0 0 6px var(--theme-glow-outer, rgba(79,195,247,0.30));
+  pointer-events: none;
+}
+.rl-kb-hint {
+  font-size: 10px; letter-spacing: 1.5px;
+  color: var(--theme-accent-bright, rgba(127,208,255,0.85));
+  margin-left: 4px;
+  font-weight: 600;
+}
+
+/* Per-run achievement badges on the end-of-run summary. */
+.rl-end-achievements {
+  display: flex; flex-wrap: wrap; gap: 8px; justify-content: center;
+  margin: 4px 0 18px;
+}
+.rl-end-achievement {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 6px 14px;
+  font-family: 'Rajdhani', sans-serif;
+  font-size: 11px; letter-spacing: 2.5px; text-transform: uppercase;
+  font-weight: 700;
+  background: rgba(0,0,0,0.65);
+  border: 1px solid rgba(255,255,255,0.20);
+  border-radius: 999px;
+  color: #ffffff;
+  cursor: help;
+  transition: transform 0.15s, box-shadow 0.2s;
+}
+.rl-end-achievement:hover { transform: translateY(-1px); }
+.rl-end-achievement-glyph { font-size: 14px; }
+.rl-end-achievement-gold {
+  border-color: rgba(255,210,100,0.85);
+  color: #ffe066;
+  box-shadow: 0 0 10px rgba(255,210,100,0.35);
+}
+.rl-end-achievement-silver {
+  border-color: rgba(220,225,235,0.65);
+  color: #ffffff;
+  box-shadow: 0 0 10px rgba(220,225,235,0.25);
+}
+.rl-end-achievement-cyan {
+  border-color: rgba(127,208,255,0.85);
+  color: #7fd0ff;
+  box-shadow: 0 0 10px rgba(127,208,255,0.35);
+}
+.rl-end-achievement-green {
+  border-color: rgba(91,227,154,0.85);
+  color: #5be39a;
+  box-shadow: 0 0 10px rgba(91,227,154,0.35);
+}
+.rl-end-achievement-purple {
+  border-color: rgba(180,90,220,0.85);
+  color: #d8a8ff;
+  box-shadow: 0 0 10px rgba(180,90,220,0.35);
+}
+
+/* ============================================================
+   ACQUIRE TOASTS — corner stack of relic / trick / curse pickups
+   so the player notices acquisitions instead of seeing the count
+   change silently. Slides in from the right, holds 2.2s, slides
+   back out.
+   ============================================================ */
+.rl-toast-stack {
+  position: fixed;
+  top: 80px; right: 24px;
+  z-index: 8500;
+  display: flex; flex-direction: column; gap: 10px;
+  pointer-events: none;
+}
+.rl-toast {
+  display: flex; align-items: center; gap: 12px;
+  min-width: 240px;
+  padding: 10px 14px;
+  background: rgba(8,12,20,0.95);
+  border: 1px solid rgba(79,195,247,0.65);
+  border-radius: 4px;
+  font-family: 'Rajdhani', sans-serif;
+  color: #f5fbff;
+  box-shadow:
+    0 0 18px rgba(79,195,247,0.55),
+    0 0 36px rgba(79,195,247,0.20),
+    inset 0 0 0 1px rgba(255,255,255,0.05);
+  animation: rl-toast-in 0.45s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+.rl-toast-out {
+  animation: rl-toast-out 0.35s ease-in forwards;
+}
+.rl-toast-glyph {
+  font-size: 22px; font-weight: 900;
+  line-height: 1;
+  filter: drop-shadow(0 0 6px currentColor);
+}
+.rl-toast-text { display: flex; flex-direction: column; gap: 2px; }
+.rl-toast-text b {
+  font-size: 14px; font-weight: 700;
+  letter-spacing: 1.5px;
+  color: #ffffff;
+}
+.rl-toast-sub {
+  font-size: 9px; letter-spacing: 3px; text-transform: uppercase;
+  color: rgba(220,225,235,0.65);
+}
+/* Variant tints — relic gold, trick purple, curse curse-purple. */
+.rl-toast-relic {
+  border-color: rgba(255,210,100,0.85);
+  box-shadow:
+    0 0 18px rgba(255,210,100,0.55),
+    0 0 36px rgba(255,210,100,0.20),
+    inset 0 0 0 1px rgba(255,255,255,0.06);
+}
+.rl-toast-relic .rl-toast-glyph { color: #ffe066; }
+.rl-toast-trick {
+  border-color: rgba(180,90,220,0.85);
+  box-shadow:
+    0 0 18px rgba(180,90,220,0.55),
+    0 0 36px rgba(180,90,220,0.20),
+    inset 0 0 0 1px rgba(255,255,255,0.06);
+}
+.rl-toast-trick .rl-toast-glyph { color: #d8a8ff; }
+.rl-toast-curse {
+  border-color: rgba(120,60,140,0.85);
+  background: rgba(20,10,28,0.95);
+  box-shadow:
+    0 0 18px rgba(120,60,140,0.55),
+    0 0 36px rgba(80,30,100,0.30),
+    inset 0 0 0 1px rgba(255,255,255,0.04);
+}
+.rl-toast-curse .rl-toast-glyph { color: #c87dd8; }
+.rl-toast-tutorial {
+  border-color: rgba(127,208,255,0.85);
+  box-shadow:
+    0 0 18px rgba(127,208,255,0.55),
+    0 0 36px rgba(127,208,255,0.20),
+    inset 0 0 0 1px rgba(255,255,255,0.06);
+}
+.rl-toast-tutorial .rl-toast-glyph {
+  color: #7fd0ff;
+  width: 26px; height: 26px;
+  border: 2px solid #7fd0ff;
+  border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 14px;
+  filter: drop-shadow(0 0 6px rgba(127,208,255,0.85));
+}
+@keyframes rl-toast-in {
+  0%   { transform: translateX(120%); opacity: 0; }
+  100% { transform: translateX(0);    opacity: 1; }
+}
+@keyframes rl-toast-out {
+  0%   { transform: translateX(0);    opacity: 1; }
+  100% { transform: translateX(120%); opacity: 0; }
+}
+
+/* ============================================================
+   TREASURE-CHEST OPENING — radial burst behind the relic card on
+   treasure-node reveal. Adds a "moment" to the chest crack instead
+   of just showing the relic card silently.
+   ============================================================ */
+.rl-treasure-burst {
+  position: relative;
+  width: 0; height: 0;
+  margin: 0 auto;
+  pointer-events: none;
+}
+.rl-treasure-ray {
+  position: absolute;
+  top: 0; left: 50%;
+  width: 4px; height: 80px;
+  background: linear-gradient(180deg, transparent, rgba(255,210,100,0.95), transparent);
+  transform-origin: top center;
+  filter: drop-shadow(0 0 6px rgba(255,210,100,0.85));
+  animation: rl-treasure-ray 0.9s ease-out forwards;
+  opacity: 0;
+}
+.rl-treasure-ray-1 { transform: translateX(-50%) rotate(  0deg); }
+.rl-treasure-ray-2 { transform: translateX(-50%) rotate( 90deg); }
+.rl-treasure-ray-3 { transform: translateX(-50%) rotate(180deg); }
+.rl-treasure-ray-4 { transform: translateX(-50%) rotate(270deg); }
+@keyframes rl-treasure-ray {
+  0%   { opacity: 0; height: 20px; }
+  35%  { opacity: 1; height: 90px; }
+  100% { opacity: 0; height: 110px; }
+}
+.rl-treasure-flash {
+  position: absolute;
+  top: 0; left: 50%;
+  width: 80px; height: 80px;
+  margin-left: -40px; margin-top: -40px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(255,210,100,0.85) 0%, rgba(255,210,100,0.30) 35%, transparent 70%);
+  filter: blur(2px);
+  animation: rl-treasure-flash 0.9s ease-out forwards;
+  opacity: 0;
+}
+@keyframes rl-treasure-flash {
+  0%   { opacity: 0; transform: scale(0.3); }
+  35%  { opacity: 1; transform: scale(1.4); }
+  100% { opacity: 0; transform: scale(2.0); }
+}
+.rl-treasure-reveal {
+  animation: rl-treasure-reveal 0.85s cubic-bezier(0.22, 1, 0.36, 1) 0.30s both;
+}
+@keyframes rl-treasure-reveal {
+  0%   { transform: scale(0.7); opacity: 0; filter: blur(6px); }
+  35%  { transform: scale(1.06); opacity: 1; filter: blur(0); }
+  100% { transform: scale(1.00); }
+}
+
 /* Run history list — career log of the last 10 runs. */
 .rl-history-list {
   display: flex; flex-direction: column; gap: 8px;
