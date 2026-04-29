@@ -339,6 +339,11 @@ const UI = {
       'Man-Bat':          { death: 'audio/cards/man-bat-death.mp3' },
       // Bane death — 0.58s clip, plays on every Bane kill.
       'Bane':             { death: 'audio/cards/bane-death.mp3' },
+      // Homelander hover: 65s of Christopher Lennertz's "I Can Do Anything"
+      // finale from The Boys — the swelling Homelander hero-theme reprise.
+      // -20 LUFS unified-baseline, 1s fade-in / 2s fade-out baked. maxDur
+      // 66 lets the full phrase play across re-hovers (resume-from-pause).
+      'Homelander':       { hover: { src: 'audio/cards/homelander-hover.mp3', maxDur: 66 } },
       // Winter Soldier hover: 52s of Henry Jackman's "End Of The Line"
       // (1:05 → 1:57 of the source) — the cold-war motif build. -20 LUFS
       // unified-baseline, 1s fade-in / 2s fade-out baked. maxDur 53 lets
