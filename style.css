@@ -21577,12 +21577,16 @@ body.killing-blow-cinema::after {
 .rl-tier-special .card.hand-card .card-name-banner::after   { background: rgba(240,245,250,1) !important; box-shadow: 0 0 4px rgba(240,245,250,0.85), 0 0 8px rgba(240,245,250,0.45) !important; }
 .rl-tier-legendary .card.hand-card .card-name-banner::after { background: rgba(255,215,0,1) !important; box-shadow: 0 0 4px rgba(255,215,0,0.85), 0 0 8px rgba(255,215,0,0.45) !important; }
 
-/* In-game (hand + board) rarity tinting — when the rarity class is
-   applied DIRECTLY to the .card element (via UI.makeCardEl seeing
-   card._runRarity), the codex selectors don't match because they
-   require a parent with the class. These additional rules cover the
-   in-game render path so a Rare drafted card glows blue, a Legendary
-   glows gold, etc., the same as it does in the deck viewer. */
+/* In-game (hand + board) rarity tinting — kicks in only on cards
+   inside the codex / deck list / rewards modals. User direction:
+   "for the roguelike, they should be neon highlighted (player theme)
+   borders. The only thing that changes that describes them are the
+   rarity squares." So in-game cards (player hand + board) use the
+   PLAYER/AI side accent for border + name + cost, with only the
+   rarity-strip pips reflecting tier. Codex/deck/rewards modals keep
+   the rarity tint so the player can compare rarities at a glance.
+   Implementation: scope rarity overrides to in-game cards lower in
+   this file; the rules below remain for codex/deck/rewards contexts. */
 .card.hand-card.rl-tier-common,
 .card.ally-card.rl-tier-common,
 .card.enemy-card.rl-tier-common { border-color: rgba(46,204,113,0.95) !important; box-shadow: 0 0 10px rgba(46,204,113,0.45), 0 0 20px rgba(46,204,113,0.18) !important; }
@@ -21618,6 +21622,98 @@ body.killing-blow-cinema::after {
 .card.rl-tier-rare .card-name-banner::after { background: linear-gradient(90deg, transparent, rgba(79,195,247,0.85) 35%, rgba(79,195,247,0.85) 65%, transparent) !important; }
 .card.rl-tier-special .card-name-banner::after { background: linear-gradient(90deg, transparent, rgba(240,245,250,0.85) 35%, rgba(240,245,250,0.85) 65%, transparent) !important; }
 .card.rl-tier-legendary .card-name-banner::after { background: linear-gradient(90deg, transparent, rgba(255,215,0,0.85) 35%, rgba(255,215,0,0.85) 65%, transparent) !important; }
+
+/* ============================================================================
+   IN-GAME ROGUELITE OVERRIDE — scoped to the actual play surfaces (player
+   hand section + board) so rarity tinting only colors the rarity squares.
+   The card border / cost diamond / name / banner all use the PLAYER or
+   AI side theme so the lane chrome reads coherently. Codex / deck /
+   rewards modals keep the full rarity tint above (those rules win by
+   specificity within their containers; this override only fires inside
+   .player-hand-section or .board). User direction: "they should be
+   neon highlighted (theme), the only thing that describes rarity is
+   the squares."
+   ============================================================================ */
+
+/* Player-side cards (in-hand + on board) — border / glow use player theme. */
+.player-hand-section .card.hand-card[class*="rl-tier-"]:not(.rl-curse),
+.board .card.ally-card[class*="rl-tier-"]:not(.rl-curse) {
+  border-color: var(--player-accent-bright) !important;
+  box-shadow:
+    0 0 12px var(--player-glow-outer),
+    0 0 24px var(--player-glow-inner) !important;
+}
+/* AI-side cards on board — border / glow use enemy theme. */
+.board .card.enemy-card[class*="rl-tier-"]:not(.rl-curse) {
+  border-color: var(--enemy-accent-bright) !important;
+  box-shadow:
+    0 0 12px var(--enemy-glow-outer),
+    0 0 24px var(--enemy-glow-inner) !important;
+}
+
+/* Card name color — match the side the card belongs to. */
+.player-hand-section .card.hand-card[class*="rl-tier-"]:not(.rl-curse) .card-name,
+.board .card.ally-card[class*="rl-tier-"]:not(.rl-curse) .card-name {
+  color: rgba(var(--player-r), var(--player-g), var(--player-b), 1) !important;
+  text-shadow: 0 0 6px var(--player-glow-outer) !important;
+}
+.board .card.enemy-card[class*="rl-tier-"]:not(.rl-curse) .card-name {
+  color: rgba(var(--enemy-r), var(--enemy-g), var(--enemy-b), 1) !important;
+  text-shadow: 0 0 6px var(--enemy-glow-outer) !important;
+}
+
+/* Cost diamond (number) — same side-color treatment. */
+.player-hand-section .card.hand-card[class*="rl-tier-"]:not(.rl-curse) .card-cost,
+.board .card.ally-card[class*="rl-tier-"]:not(.rl-curse) .card-cost {
+  color: rgba(var(--player-r), var(--player-g), var(--player-b), 1) !important;
+  text-shadow:
+    0 0 6px var(--player-accent-bright),
+    0 0 12px var(--player-glow-outer) !important;
+}
+.board .card.enemy-card[class*="rl-tier-"]:not(.rl-curse) .card-cost {
+  color: rgba(var(--enemy-r), var(--enemy-g), var(--enemy-b), 1) !important;
+  text-shadow:
+    0 0 6px var(--enemy-accent-bright),
+    0 0 12px var(--enemy-glow-outer) !important;
+}
+
+/* Cost diamond border (the rotated square frame). */
+.player-hand-section .card.hand-card[class*="rl-tier-"]:not(.rl-curse) .card-cost::before,
+.board .card.ally-card[class*="rl-tier-"]:not(.rl-curse) .card-cost::before {
+  border-color: var(--player-accent-bright) !important;
+  box-shadow:
+    0 0 12px var(--player-glow-outer),
+    0 0 24px var(--player-glow-inner) !important;
+}
+.board .card.enemy-card[class*="rl-tier-"]:not(.rl-curse) .card-cost::before {
+  border-color: var(--enemy-accent-bright) !important;
+  box-shadow:
+    0 0 12px var(--enemy-glow-outer),
+    0 0 24px var(--enemy-glow-inner) !important;
+}
+
+/* Card-name banner underline — matches the side. */
+.player-hand-section .card.hand-card[class*="rl-tier-"]:not(.rl-curse) .card-name-banner,
+.board .card.ally-card[class*="rl-tier-"]:not(.rl-curse) .card-name-banner {
+  border-bottom-color: var(--player-accent-bright) !important;
+}
+.board .card.enemy-card[class*="rl-tier-"]:not(.rl-curse) .card-name-banner {
+  border-bottom-color: var(--enemy-accent-bright) !important;
+}
+.player-hand-section .card.hand-card[class*="rl-tier-"]:not(.rl-curse) .card-name-banner::after,
+.board .card.ally-card[class*="rl-tier-"]:not(.rl-curse) .card-name-banner::after {
+  background: var(--player-accent-bright) !important;
+  box-shadow: 0 0 4px var(--player-accent-bright), 0 0 8px var(--player-glow-outer) !important;
+}
+.board .card.enemy-card[class*="rl-tier-"]:not(.rl-curse) .card-name-banner::after {
+  background: var(--enemy-accent-bright) !important;
+  box-shadow: 0 0 4px var(--enemy-accent-bright), 0 0 8px var(--enemy-glow-outer) !important;
+}
+/* The rarity-strip .rpip pips KEEP their rarity color — this is the
+   intentional tier indicator. The previous rule blocks already paint
+   the pips per tier; we don't override here, so they remain
+   green/cyan/white/gold by rarity. That's the "rarity squares" the
+   user explicitly wanted preserved. */
 
 /* Stat-roll indicators — when a rolled card's stats deviate from base,
    the orb gets a subtle up/down arrow color tint so the player can see
