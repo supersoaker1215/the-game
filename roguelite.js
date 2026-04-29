@@ -432,12 +432,38 @@ const Roguelite = {
 
   // Apply a hook across all owned relics. Errors caught + logged so a
   // bad relic def doesn't kill the run.
+  // Returns true if any relic fired a hook in the last 3 seconds.
+  // Drives the brief gold pulse on the RELICS HUD button so the
+  // player notices their relics actually triggered. The 3s window
+  // covers the post-fight banner + the rewards screen entry.
+  _relicPulseRecent(run) {
+    if (!run || !run._relicPulses) return false;
+    const now = Date.now();
+    const recent = Object.values(run._relicPulses).some(t => (now - (t || 0)) < 3000);
+    if (!recent) {
+      // GC stale entries so the map doesn't grow unbounded.
+      Object.keys(run._relicPulses).forEach(k => {
+        if ((now - (run._relicPulses[k] || 0)) >= 3000) delete run._relicPulses[k];
+      });
+    }
+    return recent;
+  },
+
   _applyRelicHook(run, hookName, ...args) {
     if (!run || !run.relics) return;
     run.relics.forEach(rid => {
       const r = this.RELICS.find(x => x.id === rid);
       if (r && typeof r[hookName] === 'function') {
         try { r[hookName](run, ...args); } catch (e) { console.warn('[RELIC]', rid, hookName, e); }
+        // Mark relic as "recently triggered" so the next render flashes
+        // its chip in the relic strip. User polish: "when a relic
+        // fires, the chip pulses gold so the player sees that the
+        // relic actually did something." Skip onCardBuild — it fires
+        // for every card and would just constant-pulse the chips.
+        if (hookName !== 'onCardBuild') {
+          run._relicPulses = run._relicPulses || {};
+          run._relicPulses[rid] = Date.now();
+        }
       }
     });
   },
@@ -1644,6 +1670,32 @@ const Roguelite = {
     return levelUps;
   },
 
+  // Boss-clear splash. Full-screen 1.6s celebratory overlay with the
+  // boss name + "DEFEATED" banner, then fires the callback so the
+  // existing reward / end-of-run flow can proceed. Adds a real
+  // "moment" between killing the boss and being handed loot.
+  _showBossClearSplash(act, bossName, onComplete) {
+    const existing = document.getElementById('rl-boss-clear-splash');
+    if (existing) existing.remove();
+    const splash = document.createElement('div');
+    splash.id = 'rl-boss-clear-splash';
+    splash.className = 'rl-boss-clear-splash';
+    splash.innerHTML = `
+      <div class="rl-boss-clear-inner">
+        <div class="rl-boss-clear-act">ACT ${act} CLEARED</div>
+        <div class="rl-boss-clear-name">${bossName}</div>
+        <div class="rl-boss-clear-tag">DEFEATED</div>
+      </div>`;
+    document.body.appendChild(splash);
+    setTimeout(() => {
+      splash.classList.add('rl-boss-clear-splash-out');
+      setTimeout(() => {
+        if (splash.parentNode) splash.parentNode.removeChild(splash);
+        if (onComplete) onComplete();
+      }, 350);
+    }, 1300);
+  },
+
   // ----- Phase entry helpers -----
   // Run start has THREE pick screens, in order:
   //   roguelite-pick-relic  — pick 1 of 3 common relics (excludes Steel Heart)
@@ -1740,6 +1792,93 @@ const Roguelite = {
     { level: 4, name: 'Cosmic',    desc: '+ Bosses gain an extra trick in their deck.' },
   ],
   _ASCENSION_KEY: 'clb_ascension',
+  // ----- Run history (last 10) -----
+  // Persisted to localStorage so the player has a "career stats" page.
+  // Each entry: { date, ascension, won, fightsWon, bossesWon, deckSize,
+  // mvpName, mvpRarity, finalHp, maxHp, timeStr }. Cap at 10 entries
+  // FIFO so the storage doesn't grow unbounded.
+  _RUN_HISTORY_KEY: 'clb_run_history',
+  _RUN_HISTORY_MAX: 10,
+  _saveRunHistoryEntry(run, won) {
+    if (typeof localStorage === 'undefined' || !run) return;
+    try {
+      const stats = run._stats || {};
+      const elapsedMs = stats.startTime ? Math.max(0, Date.now() - stats.startTime) : 0;
+      const totalSec = Math.floor(elapsedMs / 1000);
+      const mm = Math.floor(totalSec / 60);
+      const ss = totalSec % 60;
+      const timeStr = `${mm}:${String(ss).padStart(2, '0')}`;
+      // MVP — top tier non-starter card.
+      const tierIdx = (r) => this.TIER_INDEX[r] || 0;
+      const sortedByXp = (run.deck || []).slice()
+        .filter(d => !d._isStarter && !d._isCurse)
+        .sort((a, b) => (tierIdx(b.rarity) - tierIdx(a.rarity)) || ((b.xp || 0) - (a.xp || 0)));
+      const mvp = sortedByXp[0];
+      const entry = {
+        date: Date.now(),
+        ascension: run.ascension || 0,
+        won: !!won,
+        fightsWon: stats.fightsWon || 0,
+        elitesWon: stats.elitesWon || 0,
+        bossesWon: stats.bossesWon || 0,
+        goldEarned: stats.goldEarned || 0,
+        deckSize: (run.deck || []).length,
+        mvpName: mvp ? mvp.defName : null,
+        mvpRarity: mvp ? mvp.rarity : null,
+        finalHp: run.hp || 0,
+        maxHp: run.maxHp || 0,
+        timeStr,
+      };
+      const raw = localStorage.getItem(this._RUN_HISTORY_KEY);
+      const list = raw ? JSON.parse(raw) : [];
+      list.unshift(entry);
+      // Keep only the most recent N.
+      if (list.length > this._RUN_HISTORY_MAX) list.length = this._RUN_HISTORY_MAX;
+      localStorage.setItem(this._RUN_HISTORY_KEY, JSON.stringify(list));
+    } catch (e) { console.warn('[RUN HISTORY] save failed', e); }
+  },
+  _loadRunHistory() {
+    if (typeof localStorage === 'undefined') return [];
+    try {
+      const raw = localStorage.getItem(this._RUN_HISTORY_KEY);
+      return raw ? JSON.parse(raw) : [];
+    } catch (e) { return []; }
+  },
+  openRunHistory() {
+    const list = this._loadRunHistory();
+    if (!list.length) {
+      this._modal('RUN HISTORY', '<div class="rl-empty-state">No runs recorded yet. Climb the grid to start your career log.</div>');
+      return;
+    }
+    const fmtDate = (ts) => {
+      const d = new Date(ts);
+      const mo = d.getMonth() + 1;
+      const da = d.getDate();
+      const yr = d.getFullYear();
+      return `${mo}/${da}/${yr}`;
+    };
+    const rows = list.map((e, i) => `
+      <div class="rl-history-row ${e.won ? 'rl-history-win' : 'rl-history-loss'}">
+        <div class="rl-history-result">${e.won ? '★ WIN' : '✕ LOSS'}</div>
+        <div class="rl-history-meta">
+          <span class="rl-history-date">${fmtDate(e.date)}</span>
+          <span class="rl-history-asc">A${e.ascension || 0}</span>
+        </div>
+        <div class="rl-history-stats">
+          <span><b>${e.fightsWon || 0}</b> fights</span>
+          <span>·</span>
+          <span><b>${e.bossesWon || 0}</b> bosses</span>
+          <span>·</span>
+          <span><b>${e.timeStr || '0:00'}</b></span>
+          <span>·</span>
+          <span><b>${e.finalHp || 0}/${e.maxHp || 0}</b> HP</span>
+        </div>
+        ${e.mvpName ? `<div class="rl-history-mvp">MVP: <span class="rl-tier-${e.mvpRarity}-text">${e.mvpName}</span> (${this.displayRarity(e.mvpRarity || 'common')})</div>` : ''}
+      </div>`).join('');
+    const body = `<div class="rl-history-list">${rows}</div>`;
+    this._modal('RUN HISTORY', body);
+  },
+
   currentAscension() {
     if (typeof localStorage === 'undefined') return 0;
     const raw = parseInt(localStorage.getItem(this._ASCENSION_KEY) || '0', 10);
@@ -2132,8 +2271,18 @@ const Roguelite = {
       };
       // Pre-roll 3 LEGENDARY cards for the next reward screen.
       run.pendingRewards = this.rollRewards(run.act, { rarityFloor: 'legendary' });
-      Game.state.phase = 'roguelite-rewards';
-      UI.render();
+      // Boss-clear splash banner — 1.6s celebratory full-screen
+      // overlay before the rewards modal opens. User polish: "drop
+      // a 1.5s flash 'ACT N CLEARED' between the boss death and the
+      // reward screen." Pulls boss persona from BOSS_PREVIEWS and
+      // figures out the act from the node tier.
+      const bossAct = node.tier || this._currentAct(run) || 1;
+      const bossPrev = this.BOSS_PREVIEWS[bossAct];
+      const bossName = (bossPrev && bossPrev.persona) || 'Boss';
+      this._showBossClearSplash(bossAct, bossName, () => {
+        Game.state.phase = 'roguelite-rewards';
+        UI.render();
+      });
       return;
     }
     // Gold drops on every non-boss combat win. User direction: "in Slay
@@ -3328,8 +3477,45 @@ const Roguelite = {
     // localStorage; the run-end screen clears the save (no resuming
     // a finished run).
     if (phase === 'roguelite-map') this._saveRun();
-    else if (phase === 'roguelite-end') this._clearSavedRun();
+    else if (phase === 'roguelite-end') {
+      this._clearSavedRun();
+      // Append this run to the lifetime history (last-10 buffer).
+      // Guarded by a flag so re-renders of the same end screen don't
+      // duplicate the entry.
+      const run = Game.state.roguelite;
+      if (run && !run._historySaved) {
+        run._historySaved = true;
+        const finalBossKilled = run.lastResult && run.lastResult.nodeType === 'final-boss' && run.lastResult.won;
+        const won = finalBossKilled || (run.hp > 0 && run.currentNode >= (run.totalNodes || 0) && run.totalNodes > 0);
+        this._saveRunHistoryEntry(run, won);
+      }
+    }
     if (UI.applyTronFx) UI.applyTronFx();
+    // Gold-gain floater. Compare the gold-pill's data-gold from the
+    // PREVIOUS render to the new value; if it went up, spawn a "+N"
+    // floater that rises off the pill. Mirrors the in-combat HP-bar
+    // damage popup for visual symmetry. User polish: "every income
+    // source should get a floater to confirm gold actually moved."
+    if (phase === 'roguelite-map' && Game.state.roguelite) {
+      const newGold = Game.state.roguelite.gold || 0;
+      const prevGold = this._prevGold == null ? newGold : this._prevGold;
+      const delta = newGold - prevGold;
+      if (delta > 0) {
+        requestAnimationFrame(() => {
+          const pill = document.getElementById('rl-hud-gold');
+          if (!pill) return;
+          const float = document.createElement('div');
+          float.className = 'rl-gold-float';
+          float.textContent = `+${delta}g`;
+          pill.style.position = pill.style.position || 'relative';
+          pill.appendChild(float);
+          setTimeout(() => float.remove(), 1300);
+        });
+      }
+      this._prevGold = newGold;
+    } else if (phase !== 'roguelite-map') {
+      this._prevGold = null; // reset on non-map screens
+    }
     // Auto-scroll the map to the player's current row so a tall 18-row
     // run doesn't dump the player at the top of the SVG. Defer one frame
     // to let the freshly-rendered DOM settle.
@@ -3583,7 +3769,7 @@ const Roguelite = {
           <span class="rl-hud-value">${run.hp}<span class="rl-hud-sep">/</span>${run.maxHp}</span>
           <span class="rl-hud-bar"><span class="rl-hud-bar-fill" style="width:${hpPct}%"></span></span>
         </div>
-        <div class="rl-hud-pill rl-hud-gold" title="Gold ${run.gold}">
+        <div class="rl-hud-pill rl-hud-gold" id="rl-hud-gold" title="Gold ${run.gold}" data-gold="${run.gold}">
           <svg class="rl-hud-glyph" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8"/><path d="M9 9h6M9 15h6M12 7v10"/></svg>
           <span class="rl-hud-label">GOLD</span>
           <span class="rl-hud-value">${run.gold}</span>
@@ -3600,7 +3786,7 @@ const Roguelite = {
           <span class="rl-hud-value">${run.tricks.length}</span>
           <span class="tron-sweep" aria-hidden="true"></span>
         </button>
-        <button type="button" class="rl-hud-pill rl-hud-btn tron-fx tron-fx-breathe" onclick="Roguelite.openRelicViewer()" title="View relics">
+        <button type="button" class="rl-hud-pill rl-hud-btn tron-fx tron-fx-breathe ${this._relicPulseRecent(run) ? 'rl-hud-relic-pulse' : ''}" onclick="Roguelite.openRelicViewer()" title="View relics">
           <svg class="rl-hud-glyph" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 L20 8 L17 19 L7 19 L4 8 Z"/><circle cx="12" cy="11" r="2"/></svg>
           <span class="rl-hud-label">RELICS</span>
           <span class="rl-hud-value">${run.relics.length}</span>
@@ -4093,6 +4279,7 @@ const Roguelite = {
         </div>
         <div class="rl-end-actions">
           <button type="button" class="btn btn-primary" onclick="Roguelite.enterRun()">New Run</button>
+          <button type="button" class="btn btn-secondary" onclick="Roguelite.openRunHistory()">Run History</button>
           <button type="button" class="btn btn-secondary" onclick="Roguelite.abandonRun()">Main Menu</button>
         </div>
       </div>`;

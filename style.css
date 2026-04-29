@@ -20099,6 +20099,172 @@ body.killing-blow-cinema::after {
   letter-spacing: 4px; text-transform: uppercase;
 }
 
+/* Run history list — career log of the last 10 runs. */
+.rl-history-list {
+  display: flex; flex-direction: column; gap: 8px;
+  max-height: 60vh; overflow-y: auto;
+  padding: 4px 0;
+}
+.rl-history-row {
+  display: grid;
+  grid-template-columns: auto auto 1fr;
+  grid-template-rows: auto auto;
+  gap: 4px 14px;
+  align-items: center;
+  padding: 10px 14px;
+  font-family: 'Rajdhani', sans-serif;
+  background: rgba(0,0,0,0.55);
+  border: 1px solid rgba(79,195,247,0.30);
+  border-radius: 4px;
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,0.03);
+}
+.rl-history-row.rl-history-win {
+  border-color: rgba(255,210,100,0.70);
+  background: linear-gradient(90deg, rgba(255,210,100,0.06) 0%, rgba(0,0,0,0) 60%), rgba(0,0,0,0.55);
+}
+.rl-history-row.rl-history-loss {
+  border-color: rgba(231,90,76,0.55);
+  opacity: 0.85;
+}
+.rl-history-result {
+  font-size: 14px; font-weight: 700;
+  letter-spacing: 2px; text-transform: uppercase;
+  grid-row: 1 / span 2;
+  align-self: center;
+  padding-right: 12px;
+  border-right: 1px solid rgba(255,255,255,0.10);
+}
+.rl-history-row.rl-history-win .rl-history-result {
+  color: #ffe066;
+  text-shadow: 0 0 8px rgba(255,210,100,0.55);
+}
+.rl-history-row.rl-history-loss .rl-history-result {
+  color: #ff8c7a;
+}
+.rl-history-meta {
+  font-size: 11px; letter-spacing: 1.5px; text-transform: uppercase;
+  color: rgba(220,225,235,0.65);
+  display: flex; gap: 10px; align-items: center;
+}
+.rl-history-asc {
+  color: rgba(255,200,80,0.85);
+  font-weight: 700;
+}
+.rl-history-stats {
+  font-size: 12px;
+  color: rgba(220,225,235,0.85);
+  display: flex; gap: 6px; align-items: baseline; flex-wrap: wrap;
+}
+.rl-history-stats b { color: #ffffff; font-weight: 700; }
+.rl-history-mvp {
+  grid-column: 2 / span 2;
+  font-size: 11px;
+  color: rgba(200,210,225,0.75);
+  letter-spacing: 0.8px;
+}
+
+/* RELICS HUD button pulse — fires for ~3s after any relic hook
+   triggers (onAcquire / onFightStart / onFightEnd). User polish:
+   "tells the player their relics actually did something." Gold
+   ring + box-shadow ramp pulses twice then settles. */
+.rl-hud-relic-pulse {
+  animation: rl-hud-relic-pulse 1.4s ease-out 2;
+}
+@keyframes rl-hud-relic-pulse {
+  0%   { box-shadow: 0 0 0 0 rgba(255,210,100,0.85), 0 0 0 0 rgba(255,210,100,0); }
+  35%  { box-shadow: 0 0 18px 2px rgba(255,210,100,1), 0 0 36px 6px rgba(255,210,100,0.45); border-color: rgba(255,210,100,1) !important; }
+  100% { box-shadow: 0 0 0 0 rgba(255,210,100,0); }
+}
+
+/* Gold-gain floater — rises off the gold HUD pill when the player
+   earns gold (combat win, relic trigger, treasure pickup, etc.).
+   Mirrors the in-combat .hp-dmg-float pattern. User polish: "every
+   income source should confirm gold actually moved." */
+.rl-gold-float {
+  position: absolute;
+  top: 50%; left: 50%;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+  font-family: 'Rajdhani', sans-serif;
+  font-size: 18px; font-weight: 800;
+  color: #ffe066;
+  text-shadow:
+    0 0 6px rgba(255,210,100,1),
+    0 0 16px rgba(255,200,80,0.55);
+  letter-spacing: 1px;
+  white-space: nowrap;
+  z-index: 50;
+  animation: rl-gold-float-rise 1.3s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+@keyframes rl-gold-float-rise {
+  0%   { transform: translate(-50%, -50%); opacity: 0; }
+  20%  { transform: translate(-50%, -90%); opacity: 1; }
+  80%  { transform: translate(-50%, -180%); opacity: 1; }
+  100% { transform: translate(-50%, -240%); opacity: 0; }
+}
+
+/* ============================================================
+   BOSS-CLEAR SPLASH — 1.6s celebratory full-screen overlay between
+   the boss death and the reward modal. User polish suggestion:
+   "Drop a full-screen flash 'ACT 1 CLEARED — LEX LUTHOR DEFEATED'
+   so the boss kill has a real moment instead of dumping straight
+   into rewards."
+   ============================================================ */
+.rl-boss-clear-splash {
+  position: fixed; inset: 0;
+  z-index: 9000;
+  display: flex; align-items: center; justify-content: center;
+  background:
+    radial-gradient(ellipse 80% 50% at 50% 50%, rgba(255,210,100,0.25) 0%, rgba(0,0,0,0.92) 60%, rgba(0,0,0,0.96) 100%);
+  animation: rl-boss-clear-in 0.45s cubic-bezier(0.22, 1, 0.36, 1) both;
+  pointer-events: none;
+}
+.rl-boss-clear-splash.rl-boss-clear-splash-out {
+  animation: rl-boss-clear-out 0.35s ease-in forwards;
+}
+.rl-boss-clear-inner {
+  text-align: center;
+  font-family: 'Rajdhani', sans-serif;
+  animation: rl-boss-clear-text 1.2s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+.rl-boss-clear-act {
+  font-size: 14px; letter-spacing: 8px; text-transform: uppercase;
+  color: rgba(255,200,80,0.85);
+  text-shadow: 0 0 8px rgba(255,210,100,0.55);
+  margin-bottom: 12px;
+}
+.rl-boss-clear-name {
+  font-size: 56px; letter-spacing: 6px; text-transform: uppercase;
+  font-weight: 900;
+  color: #ffffff;
+  text-shadow:
+    0 0 12px rgba(255,210,100,1),
+    0 0 32px rgba(255,200,80,0.75),
+    0 0 64px rgba(255,200,80,0.40);
+  line-height: 1;
+  margin-bottom: 16px;
+}
+.rl-boss-clear-tag {
+  font-size: 28px; letter-spacing: 18px; text-transform: uppercase;
+  font-weight: 700;
+  color: rgba(255,210,100,0.95);
+  text-shadow: 0 0 10px rgba(255,210,100,0.85);
+}
+@keyframes rl-boss-clear-in {
+  0%   { opacity: 0; }
+  100% { opacity: 1; }
+}
+@keyframes rl-boss-clear-out {
+  0%   { opacity: 1; }
+  100% { opacity: 0; }
+}
+@keyframes rl-boss-clear-text {
+  0%   { transform: scale(0.7); opacity: 0; filter: blur(8px); }
+  35%  { transform: scale(1.10); opacity: 1; filter: blur(0); }
+  60%  { transform: scale(0.98); }
+  100% { transform: scale(1.00); }
+}
+
 /* Current-ascension highlight in the pre-run picker. */
 .rl-asc-cur {
   border-color: rgba(255,200,80,0.95) !important;
