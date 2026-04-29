@@ -1339,7 +1339,10 @@ const Roguelite = {
     // not 3 stat/trait etches + Text+.
     const textEtch = this.cardTextUpgrade(defName);
     if (textEtch && out.length > 0) {
-      const textChance = { rare: 0.05, special: 0.10, legendary: 0.20 }[rarity] || 0;
+      // Bumped from 5/10/20 → 12/22/40 per user feedback that Text+
+      // never showed up across many rolls. Still rare-jackpot feel,
+      // just actually visible across a typical run.
+      const textChance = { rare: 0.12, special: 0.22, legendary: 0.40 }[rarity] || 0;
       if (Math.random() < textChance) {
         const slot = Math.floor(Math.random() * out.length);
         out[slot] = textEtch.id;
@@ -2297,7 +2300,9 @@ const Roguelite = {
     const picks = buckets.slice(0, 2)
       .map(b => pickFrom(b.pool, b.name))
       .filter(Boolean);
-    if (textEtch && picks.length > 0 && Math.random() < 0.05) {
+    // Common→Rare Text+ jackpot bumped from 5% → 15% per user feedback
+    // ("I've upgraded a lot of cards and haven't seen one text upgrade").
+    if (textEtch && picks.length > 0 && Math.random() < 0.15) {
       const slot = Math.floor(Math.random() * picks.length);
       picks[slot] = { id: textEtch.id, name: textEtch.name, bucket: 'Text', desc: textEtch.desc || this.etchDesc(textEtch.id), tier: this._etchTier(textEtch.id) };
     }
@@ -2358,11 +2363,19 @@ const Roguelite = {
       text:   cardTextEtch ? [cardTextEtch] : [],
     };
     const labelOf = { stats: 'Stats', trait: 'Trait', energy: 'Energy', text: 'Text' };
+    // Bucket weights — Text+ bumped from 5% → 15% per pick. User
+    // report: "I've upgraded a lot of cards and haven't seen one
+    // text upgrade." At 5% with 2 picks per level-up the expected
+    // Text+ appearance was ~10% per level-up — easy to miss across
+    // a 5-10 fight run. New 15% per-pick rate works out to ~28%
+    // per level-up (1 - 0.85²), so a typical run will surface 1-2
+    // Text+ options. Stats stays the dominant pick (50%), Trait is
+    // the secondary (25%), Energy and Text both at 15% / 10%.
     const rollBucket = () => {
       const r = Math.random();
-      if (r < 0.60) return 'stats';
-      if (r < 0.85) return 'trait';
-      if (r < 0.95) return 'energy';
+      if (r < 0.50) return 'stats';
+      if (r < 0.75) return 'trait';
+      if (r < 0.85) return 'energy';
       return 'text';
     };
     const choices = [];
