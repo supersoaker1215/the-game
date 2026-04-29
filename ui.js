@@ -1511,7 +1511,11 @@ const UI = {
       const opts = { ...(resolved.opts || {}) };
       if (event === 'hover') {
         opts.hover = true;
-        opts.maxDur  = opts.maxDur  ?? 8.0;
+        // Hover plays the full clip — no default maxDur cap. Per the
+        // user's audio rule: "hover/music stay full length." Cards
+        // that DO want a trim still set maxDur explicitly in their
+        // CARD_SFX entry, but the global 8s ceiling that previously
+        // truncated every un-tagged hover is gone.
         opts.fadeIn  = opts.fadeIn  ?? 1000;
         opts.fadeOut = opts.fadeOut ?? 2000;
         // Duck the menu music while a hover theme is live so the two
