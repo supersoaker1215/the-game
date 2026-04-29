@@ -2434,6 +2434,36 @@ const Roguelite = {
     };
   },
 
+  // Speed multiplier — shorter wins pay more, longer wins pay less.
+  // User direction: "you're incentivized to drag the fight on. Time
+  // it by a multiplier when the round ended. We need to get away
+  // from staying in matches just to grind XP." Stepped curve so the
+  // bands are easy to read:
+  //
+  //   Round 1 win → 2.0×   (one-shot — earned the bonus)
+  //   Round 2 win → 1.6×
+  //   Round 3 win → 1.3×
+  //   Round 4 win → 1.1×
+  //   Round 5     → 1.0×   (baseline — typical fight)
+  //   Round 6     → 0.85×  (drag penalty kicks in)
+  //   Round 7     → 0.70×
+  //   Round 8+    → 0.60×  (floor — actively dragging)
+  //
+  // Loss path is always 1.0× — losing already costs HP, no need to
+  // double-punish the XP earned along the way.
+  _xpSpeedMultiplier(round, won) {
+    if (!won) return 1.0;
+    const r = round | 0;
+    if (r <= 1) return 2.0;
+    if (r === 2) return 1.6;
+    if (r === 3) return 1.3;
+    if (r === 4) return 1.1;
+    if (r === 5) return 1.0;
+    if (r === 6) return 0.85;
+    if (r === 7) return 0.70;
+    return 0.60;
+  },
+
   attributeXp(run, s, won) {
     if (!run || !s || !s.player) return [];
     const pool = [];
@@ -2444,31 +2474,35 @@ const Roguelite = {
     (s.player.deadPile || []).forEach(c => {
       if (c._runDeckCardRef) pool.push({ card: c, survived: false });
     });
+    // Speed multiplier — drives both the played-card XP and the
+    // participation-XP path so the entire reward stack tracks fight
+    // length consistently.
+    const round = (s && s.round) || 1;
+    const speedMul = this._xpSpeedMultiplier(round, won);
     const levelUps = [];
-    pool.forEach(({ card, survived }) => {
+    pool.forEach(({ card }) => {
       const dmg = (card.statsHealthbarDamage || 0) + (card.statsEnemyDamage || 0);
       const kills = card.statsKills || 0;
-      const earned = dmg * 1 + kills * 5 + (survived ? 10 : 0);
+      // Tank XP — replaces the old flat "+10 if survived" bonus. User
+      // direction: "Surviving isn't that important. Maybe should be
+      // damage taken." A 7 HP tank that ate 5 damage earns +5 here
+      // whether it lived or died; a Goon that wasn't targeted earns 0
+      // (it didn't actually do anything tank-flavored).
+      const tank = card.statsHpTaken || 0;
+      const raw = dmg * 1 + kills * 5 + tank * 1;
+      const earned = Math.round(raw * speedMul);
       const lu = this._grantXp(card._runDeckCardRef, earned);
       if (lu) levelUps.push(lu);
     });
-    // PARTICIPATION XP — every deck card that didn't play gets a small
-    // XP boost on a win, so the player isn't punished for finishing
-    // fast. User direction: "if you finish a match quickly, all your
-    // cards should get XP because you shouldn't be punished for
-    // winning early." Amount scales inversely with round count so a
-    // round-1 stomp pays MORE than a round-5 grind: bigger consolation
-    // when the fight ended before most of the deck got dealt out.
-    //
-    // Formula: max(3, 12 - 2*round), clamped to a 3-XP floor.
-    //   Round 1 win → +10 XP per unplayed card  (heavy reward for fast wins)
-    //   Round 2 win → +8 XP
-    //   Round 3 win → +6 XP
-    //   Round 4 win → +4 XP
-    //   Round 5+    → +3 XP                     (floor — every win pays)
+    // PARTICIPATION XP — every deck card that didn't play still gets a
+    // small XP boost on a win so the player isn't punished for fast
+    // finishes. Same speed multiplier applies, scaled around a baseline
+    // of 5 XP. So a Round-1 stomp pays unplayed cards 10 XP each, a
+    // Round-5 grind 5 XP, a Round-8 drag 3 XP. Cumulatively the deck
+    // earns less the longer the fight runs — same incentive as the
+    // played-card path.
     if (won) {
-      const round = (s && s.round) || 1;
-      const participationXp = Math.max(3, 12 - 2 * round);
+      const participationXp = Math.max(1, Math.round(speedMul * 5));
       const playedRefs = new Set();
       pool.forEach(p => { if (p.card._runDeckCardRef) playedRefs.add(p.card._runDeckCardRef); });
       (run.deck || []).forEach(deckCard => {

@@ -2758,6 +2758,7 @@ const Game = {
       chip -= attacker.armorValue;
     }
     attacker.currentHealth -= chip;
+    attacker.statsHpTaken = (attacker.statsHpTaken || 0) + chip;
     this.emitDmg(attacker.id, chip, 'hit', undefined, target && target.id);
     this.log(`  [THORNS] ${target.name} retaliates ${chip} damage to ${attacker.name} → ${Math.max(0, attacker.currentHealth)}/${attacker.maxHealth} HP`);
     this._creditChain(target, 'statsEnemyDamage', chip);
@@ -2948,6 +2949,11 @@ const Game = {
     }
 
     target.currentHealth -= dmg;
+    // Tank-XP tracker — credit the target with HP it just ate. Drives
+    // the roguelite "damage taken = XP" path that replaces the old
+    // flat "+10 if survived" bonus. Lives on the card instance, gets
+    // snapshotted into the dead pile so resurrects keep the credit.
+    target.statsHpTaken = (target.statsHpTaken || 0) + dmg;
     this.emitDmg(target.id, dmg, 'hit', undefined, attacker && attacker.id);
     this.log(`  [HIT] ${attacker.name} deals ${dmg} to ${target.name} → ${Math.max(0, target.currentHealth)}/${target.maxHealth} HP`);
     // Track landed damage for the currencyOnDamage passive (e.g. Green Lantern)
@@ -3175,6 +3181,7 @@ const Game = {
         this.log(`  [ARMOR] ${mahoraga.name}'s Armor ${mahoraga.armorValue} reduces damage to ${dmg}`);
       }
       mahoraga.currentHealth -= dmg;
+      mahoraga.statsHpTaken = (mahoraga.statsHpTaken || 0) + dmg;
       this.emitDmg(mahoraga.id, dmg, 'hit');
       this.log(`  [HIT] ${mahoraga.name} takes ${dmg} → ${Math.max(0, mahoraga.currentHealth)}/${mahoraga.maxHealth} HP`);
       if (mahoraga.onDamaged) mahoraga.onDamaged(this, mahoraga, source, dmg);
@@ -3802,6 +3809,7 @@ const Game = {
       statsAbsorbRedirect:   card.statsAbsorbRedirect   || 0,
       statsAbsorbLockdown:   card.statsAbsorbLockdown   || 0,
       statsAbsorbShield:     card.statsAbsorbShield     || 0,
+      statsHpTaken:          card.statsHpTaken          || 0,
       statsKills: card.statsKills || 0,
       statsEnergyGenerated: card.statsEnergyGenerated || 0,
       statsHealLeveraged: card.statsHealLeveraged || 0,
@@ -4155,6 +4163,7 @@ const Game = {
       this._creditAbsorb(card, 'Armor', card.armorValue);
     }
     card.currentHealth -= actual;
+    if (actual > 0) card.statsHpTaken = (card.statsHpTaken || 0) + actual;
     // Track landed damage for the currencyOnDamage passive (e.g. Green Lantern)
     if (source && source.passive === 'currencyOnDamage' && actual > 0) {
       source._damageDealtThisTurn = (source._damageDealtThisTurn || 0) + actual;
@@ -5393,6 +5402,12 @@ const Game = {
       statsHealthbarDamage: 0,
       statsEnemyDamage: 0,
       statsDamageAbsorbed: 0,
+      // Tank stat — actual HP this card LOST to incoming damage (after
+      // armor / evade / etc. have done their work). Drives roguelite
+      // tank-XP: a card that ate 5 HP earns +5 XP whether it lived or
+      // died, replacing the old flat "+10 if survived" bonus that
+      // rewarded passive bench cards.
+      statsHpTaken: 0,
       // v7 sabermetrics — per-prevention-type breakdown of damage
       // denied. Sum of these five = statsDamageAbsorbed. Surfaced in
       // the dashboard as discrete stat rows so the player can see
