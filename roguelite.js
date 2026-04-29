@@ -3687,6 +3687,10 @@ const Roguelite = {
         </div>
       </div>`;
     this._modal(banner, body);
+    // Boss intro is a commit-required moment — Esc / backdrop click
+    // shouldn't dismiss it. Player must hit BEGIN FIGHT.
+    const m = document.getElementById('rl-modal');
+    if (m) m.dataset.escDisabled = '1';
   },
   _beginBossFight() {
     const run = Game.state.roguelite;
@@ -5598,18 +5602,53 @@ const Roguelite = {
       modal.className = 'rl-modal';
       document.body.appendChild(modal);
     }
+    // Drop any closing-state class so a re-open mid-fade plays cleanly.
+    modal.classList.remove('rl-modal-closing');
     modal.innerHTML = `
       <div class="rl-modal-backdrop" onclick="Roguelite._closeModal()"></div>
       <div class="rl-modal-panel">
-        <button type="button" class="rl-modal-close" onclick="Roguelite._closeModal()">×</button>
+        <button type="button" class="rl-modal-close" onclick="Roguelite._closeModal()" aria-label="Close">×</button>
         <h2 class="rl-modal-title">${title}</h2>
         ${body}
       </div>`;
     modal.style.display = 'flex';
+    // Wire ESC to close — single shared listener that auto-detaches on
+    // close. Audit finding: modals had no keyboard support; pressing
+    // Esc did nothing.
+    if (!this._modalEscHandler) {
+      this._modalEscHandler = (e) => {
+        if (e.key === 'Escape' || e.key === 'Esc') {
+          const m = document.getElementById('rl-modal');
+          if (m && m.style.display !== 'none') {
+            // Skip Esc-close on modals that need an explicit player choice
+            // (boss intro is a commit-required moment). Identified by an
+            // attribute we set on those modals.
+            if (m.dataset.escDisabled === '1') return;
+            this._closeModal();
+            e.preventDefault();
+          }
+        }
+      };
+      document.addEventListener('keydown', this._modalEscHandler);
+    }
   },
   _closeModal() {
     const m = document.getElementById('rl-modal');
-    if (m) m.style.display = 'none';
+    if (!m || m.style.display === 'none') return;
+    // Play exit animation, then hide. Audit finding: modals just
+    // disappeared with display:none — felt like a hard cut. The
+    // closing class triggers a 220ms fade+scale-down via CSS, then
+    // the rAF chain hides the element so a re-open animates in
+    // cleanly.
+    m.classList.add('rl-modal-closing');
+    const finalize = () => {
+      // Re-check — if the modal was reopened during the fade, abort.
+      if (!m.classList.contains('rl-modal-closing')) return;
+      m.style.display = 'none';
+      m.classList.remove('rl-modal-closing');
+      m.dataset.escDisabled = '';
+    };
+    setTimeout(finalize, 230);
   },
   _renderDeckList() {
     const run = Game.state.roguelite;

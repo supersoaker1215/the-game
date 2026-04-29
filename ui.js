@@ -3573,13 +3573,21 @@ const UI = {
     setTimeout(() => overlay.remove(), 900);
   },
 
-  _screenShake() {
+  _screenShake(intensity) {
     const area = document.getElementById('game-area');
     if (!area) return;
-    area.classList.remove('screen-shake');
+    // Audit finding: every hit shook the screen the same. Now hits
+    // scale: light (chip damage) = small wobble, heavy (≥30% max HP
+    // or ≥10 raw damage) = big shake. Caller passes intensity 'light'
+    // / 'medium' / 'heavy'; unknown defaults to medium.
+    const cls = intensity === 'heavy' ? 'screen-shake-heavy'
+      : intensity === 'light' ? 'screen-shake-light'
+      : 'screen-shake';
+    area.classList.remove('screen-shake', 'screen-shake-light', 'screen-shake-heavy');
     void area.offsetWidth;
-    area.classList.add('screen-shake');
-    setTimeout(() => area.classList.remove('screen-shake'), 300);
+    area.classList.add(cls);
+    const dur = intensity === 'heavy' ? 460 : intensity === 'light' ? 220 : 300;
+    setTimeout(() => area.classList.remove(cls), dur);
   },
 
   showDamageFloats() {
@@ -3623,8 +3631,17 @@ const UI = {
           hpText.classList.add('hp-shake');
           setTimeout(() => hpText.classList.remove('hp-shake'), 300);
         }
-        // Screen shake — magnitude scales with damage (min 1, max 3 steps)
-        if (ev.amount > 0) this._screenShake();
+        // Screen shake — magnitude scales with damage. Heavy = ≥30% of
+        // max HP OR ≥10 raw damage (catches both early-game small-bar
+        // chip and late-game massive blasts). Light = ≤2 damage (chip).
+        if (ev.amount > 0) {
+          const maxHp = ev.owner === 'player'
+            ? (Game.state.player && Game.state.player.maxHealth) || 30
+            : (Game.state.ai && Game.state.ai.maxHealth) || 30;
+          const heavy = ev.amount >= 10 || ev.amount >= maxHp * 0.30;
+          const light = ev.amount <= 2;
+          this._screenShake(heavy ? 'heavy' : light ? 'light' : 'medium');
+        }
         // Floating damage number on the health bar
         const container = fill ? fill.closest('.health-container') : null;
         if (container && ev.amount > 0) {

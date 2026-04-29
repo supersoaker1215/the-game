@@ -5749,8 +5749,16 @@ body.hit-pause .ai-hand * {
   opacity: 1;
   background-position: 0% 0%, 0 0;
 }
-/* Screen shake — triggered on hero HP damage only.
-   Short (280ms), small magnitude (4px), so it registers without seasickness. */
+/* Screen shake — three intensities. Audit finding: every hit shook
+   the screen the same magnitude. Now light/medium/heavy variants
+   scale shake amplitude + duration with damage so chip damage
+   wobbles and lethal blows really LAND. */
+@keyframes screenShakeLight {
+  0%, 100% { transform: translate(0, 0); }
+  25%      { transform: translate(-2px, 1px); }
+  50%      { transform: translate(2px, -1px); }
+  75%      { transform: translate(-1px, 1px); }
+}
 @keyframes screenShake {
   0%, 100% { transform: translate(0, 0); }
   15%      { transform: translate(-4px, 1px); }
@@ -5759,7 +5767,19 @@ body.hit-pause .ai-hand * {
   60%      { transform: translate(2px, -1px); }
   75%      { transform: translate(-2px, 1px); }
 }
+@keyframes screenShakeHeavy {
+  0%, 100% { transform: translate(0, 0); }
+  10%      { transform: translate(-8px, 2px); }
+  20%      { transform: translate(7px, -3px); }
+  30%      { transform: translate(-6px, 3px); }
+  40%      { transform: translate(5px, -2px); }
+  55%      { transform: translate(-5px, 2px); }
+  70%      { transform: translate(3px, -1px); }
+  85%      { transform: translate(-2px, 1px); }
+}
+#game-area.screen-shake-light { animation: screenShakeLight 0.20s ease-out; }
 #game-area.screen-shake { animation: screenShake 0.28s ease-out; }
+#game-area.screen-shake-heavy { animation: screenShakeHeavy 0.45s cubic-bezier(0.36, 0, 0.66, -0.56); }
 
 /* ---- THANOS SNAP LANE FLASH ----
    Temporarily paints rolled lanes with a fading purple "gauntlet" glow so
@@ -5909,7 +5929,12 @@ body.hit-pause .ai-hand * {
 /* Card draw fly-in — new hand cards slide in from the deck side with a slight
    rotation and fade. One-shot, 400ms. */
 .hand-card-wrapper.card-draw-in {
+  /* Stagger via --idx so multiple cards arriving in the same draw
+     phase don't fly in unison. 60ms apart reads as a quick deal,
+     not slow enough to feel laggy. Audit finding: hand cards
+     animated in unison instead of cascading. */
   animation: cardDrawIn 0.45s cubic-bezier(0.22, 1, 0.36, 1);
+  animation-delay: calc(var(--idx, 0) * 60ms);
 }
 @keyframes cardDrawIn {
   0%   { opacity: 0; transform: translate(80px, -30px) rotate(-18deg) scale(0.7); }
@@ -22072,7 +22097,42 @@ body.killing-blow-cinema::after {
 }
 .rl-modal-backdrop {
   position: absolute; inset: 0;
-  background: rgba(0,0,0,0.85);
+  background: rgba(0,0,0,0.78);
+  /* Subtle blur depth so the world behind reads "out of focus" rather
+     than just hidden under flat black. Audit finding: every modal had
+     opaque black backdrop with no separation cue. */
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  animation: rl-modal-backdrop-in 220ms ease-out;
+}
+/* Entry / exit animations applied uniformly so every modal opens and
+   closes the same way (audit finding: hard cuts on dismiss). The
+   .rl-modal-closing class is toggled by _closeModal in roguelite.js
+   to reverse the entry animation before display:none lands. */
+@keyframes rl-modal-backdrop-in {
+  from { opacity: 0; backdrop-filter: blur(0); -webkit-backdrop-filter: blur(0); }
+  to   { opacity: 1; backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px); }
+}
+@keyframes rl-modal-panel-in {
+  from { opacity: 0; transform: translateY(12px) scale(0.96); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+@keyframes rl-modal-panel-out {
+  from { opacity: 1; transform: translateY(0) scale(1); }
+  to   { opacity: 0; transform: translateY(8px) scale(0.97); }
+}
+@keyframes rl-modal-backdrop-out {
+  from { opacity: 1; }
+  to   { opacity: 0; }
+}
+.rl-modal:not(.rl-modal-closing) .rl-modal-panel {
+  animation: rl-modal-panel-in 240ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+.rl-modal-closing .rl-modal-panel {
+  animation: rl-modal-panel-out 220ms cubic-bezier(0.4, 0, 0.6, 1) forwards;
+}
+.rl-modal-closing .rl-modal-backdrop {
+  animation: rl-modal-backdrop-out 220ms ease-in forwards;
 }
 .rl-modal-panel {
   position: relative;
@@ -23446,4 +23506,128 @@ input[type="number"]::-webkit-outer-spin-button {
   transform: translateY(-50%);
   color: rgba(195,155,211,0.8);
   font-weight: 700;
+}
+
+/* ============================================================
+   POLISH PASS — visual-audit findings batch (commercial feel)
+   ============================================================ */
+
+/* ---- Universal :disabled button state ----
+   Audit finding: disabled buttons had no visual cue. Now consistently
+   desaturated, dimmed, with strikethrough on the label. Applies to
+   any element using .btn / .rl-event-choice / .rl-shop-buy / etc. */
+.btn:disabled,
+.btn[disabled],
+.rl-event-choice:disabled,
+.rl-event-choice[disabled],
+.rl-shop-buy:disabled,
+.rl-shop-buy[disabled] {
+  opacity: 0.42 !important;
+  filter: grayscale(0.4);
+  cursor: not-allowed !important;
+  pointer-events: none;
+  text-decoration: line-through;
+  text-decoration-color: rgba(255,80,80,0.55);
+  text-decoration-thickness: 1px;
+  box-shadow:
+    0 0 6px rgba(79,195,247,0.10),
+    0 0 12px rgba(79,195,247,0.04),
+    inset 0 0 0 1px rgba(79,195,247,0.06) !important;
+}
+
+/* ---- Active press feedback on .btn family ----
+   Audit finding: most .btn variants only changed brightness on
+   :active. Now they sink 1px + scale 96% for tactile click feel.
+   Quick 70ms transition keeps the press feeling responsive. */
+.btn:active,
+.btn-primary:active,
+.btn-secondary:active,
+.btn-danger:active,
+.rl-event-choice:active,
+.rl-shop-buy:active,
+.rl-shop-leave:active,
+.rl-boss-intro-begin:active {
+  transform: translateY(1px) scale(0.97) !important;
+  filter: brightness(0.88) !important;
+  transition: transform 70ms ease-out, filter 70ms ease-out !important;
+}
+
+/* ---- Status effect pulse (frozen / stunned / feared / mind-ctrl) ----
+   Audit finding: status glows were static. Now they slowly breathe
+   so the player can read "this card is locked" at a glance. 1.6s
+   loop, ease-in-out, glow intensity oscillates ±25%. */
+@keyframes statusGlowPulse {
+  0%, 100% { filter: brightness(1) saturate(1); }
+  50%      { filter: brightness(1.18) saturate(1.15); }
+}
+.card.status-stunned,
+.card.status-frozen,
+.card.status-feared,
+.card.status-mind-ctrl {
+  animation: statusGlowPulse 1.6s ease-in-out infinite;
+}
+
+/* ---- Block meter full pulse ----
+   When the meter caps and a free trick is ready, pulse to draw
+   the eye. Identified by the .block-full class added by the
+   engine when block hits BLOCK_MAX. */
+@keyframes blockFullPulse {
+  0%, 100% { box-shadow: 0 0 8px var(--theme-glow-inner, rgba(241,196,15,0.4)), 0 0 16px var(--theme-glow-outer, rgba(241,196,15,0.2)); }
+  50%      { box-shadow: 0 0 14px rgba(241,196,15,0.85), 0 0 28px rgba(241,196,15,0.45), 0 0 48px rgba(241,196,15,0.18); }
+}
+.block-circle.block-full,
+.block-meter.block-full {
+  animation: blockFullPulse 1.4s ease-in-out infinite;
+}
+
+/* ---- Settings panel scanline texture ----
+   Audit finding: large flat black panel reads as cheap. Add a
+   horizontal scanline + subtle top-down gradient. */
+.settings-panel {
+  background:
+    linear-gradient(180deg, rgba(79,195,247,0.05) 0%, transparent 45%),
+    repeating-linear-gradient(0deg, transparent 0 2px, rgba(79,195,247,0.025) 2px 3px),
+    #060a12 !important;
+}
+
+/* ---- Tutorial panel scanline + noise ---- */
+.tutorial-panel {
+  background:
+    repeating-linear-gradient(0deg, rgba(79,195,247,0.022) 0 2px, transparent 2px 4px),
+    linear-gradient(180deg, rgba(79,195,247,0.06) 0%, rgba(0,0,0,0) 38%),
+    #000 !important;
+}
+
+/* ---- Card grid (deck builder) inner gradient ----
+   Cards in the deck-builder grid had solid black backgrounds.
+   A 135deg gradient + inset glow gives them a sense of depth. */
+.db-grid-item {
+  background:
+    linear-gradient(135deg, rgba(79,195,247,0.05) 0%, transparent 65%),
+    #000 !important;
+  box-shadow: inset 0 0 8px rgba(79,195,247,0.06) !important;
+}
+.db-grid-item:hover {
+  background:
+    linear-gradient(135deg, rgba(79,195,247,0.10) 0%, transparent 65%),
+    #000 !important;
+  box-shadow: inset 0 0 12px rgba(79,195,247,0.10) !important;
+}
+
+/* ---- Inset glow stack on .btn family ----
+   Audit finding: button borders looked thin. An inset 1px glow
+   atop the existing outer halo gives them a "premium object" edge. */
+.btn-primary {
+  box-shadow:
+    inset 0 0 0 1px rgba(79,195,247,0.30),
+    inset 0 0 6px rgba(79,195,247,0.05),
+    0 0 12px rgba(79,195,247,0.40),
+    0 0 24px rgba(79,195,247,0.18);
+}
+.btn-secondary {
+  box-shadow:
+    inset 0 0 0 1px rgba(180,200,220,0.20),
+    inset 0 0 6px rgba(180,200,220,0.04),
+    0 0 8px rgba(180,200,220,0.25),
+    0 0 18px rgba(180,200,220,0.10);
 }
