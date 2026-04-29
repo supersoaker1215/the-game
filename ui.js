@@ -4048,7 +4048,6 @@ const UI = {
           <div class="mm-section-label">Library</div>
           <div class="mm-grid mm-grid-section">
             ${btn('mm-encyc',   'Codex',        'Every card and trick in the game',                       SVG.decks,    "UI.openEncyclopedia()")}
-            ${btn('mm-history', 'Match History','Recent matches with MVP cards and final HP',             SVG.stats,    "UI.openMatchHistory()")}
             ${btn('mm-stats',   'Stats',        'Card win rates and balance trends',                      SVG.stats,    "Game.goToStats()")}
             ${btn('mm-audio',   'Audio Audit',  'Per-card audio coverage + inline splicer · dev',          SVG.settings, "UI.openAudioAudit()")}
           </div>
