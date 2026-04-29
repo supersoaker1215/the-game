@@ -373,6 +373,31 @@ const Roguelite = {
       desc: 'All your cards gain Armor 1.',
       onCardBuild(run, card) { card.armorValue = (card.armorValue || 0) + 1; if (!card.abilities.includes('Armor 1')) card.abilities.push('Armor 1'); },
     },
+    // Slay-the-Spire-inspired additions. Each one slots a distinct
+    // playstyle nudge so the common pool isn't just six survival
+    // anchors. User direction: "Maybe there should be more relics in
+    // the game. We can just add some. Just take inspiration from Slay
+    // the Spire."
+    {
+      id: 'anchor', name: 'Anchor', rarity: 'common',
+      desc: '+2 HP-loss reduction every fight (passive).',
+      // Same flag Iron Maiden uses, but no max-HP penalty — common-tier
+      // payoff is half the Iron Maiden DR with no downside, so picking
+      // it never feels like a regret.
+      onAcquire(run) { run._dmgReduction = (run._dmgReduction || 0) + 2; },
+    },
+    {
+      id: 'whetstone', name: 'Whetstone', rarity: 'common',
+      desc: 'All your cards gain +1 ATK.',
+      onCardBuild(run, card) { card.attack = (card.attack || 0) + 1; },
+    },
+    {
+      id: 'toy-ornithopter', name: 'Toy Ornithopter', rarity: 'common',
+      // Heals on ANY fight ending — distinct from Healing Brew (which
+      // only heals on wins). Soft buffer for risky elite attempts.
+      desc: 'Heal 3 HP after every fight (win or lose).',
+      onFightEnd(run) { run.hp = Math.min(run.maxHp, run.hp + 3); },
+    },
 
     // ----- Rare (elite + shop) -----
     {
@@ -399,6 +424,27 @@ const Roguelite = {
       id: 'gamblers-glove', name: "Gambler's Glove", rarity: 'rare',
       desc: '+25 gold now. Spend 25g to reroll any reward (UI: future).',
       onAcquire(run) { run.gold += 25; run._canRerollRewards = true; },
+    },
+    // Slay-the-Spire-inspired rare additions.
+    {
+      id: 'bag-of-marbles', name: 'Bag of Marbles', rarity: 'rare',
+      desc: 'All your cards gain +1 max HP.',
+      onCardBuild(run, card) {
+        card.health = (card.health || 0) + 1;
+        card.maxHealth = (card.maxHealth || card.health) + 1;
+        card.currentHealth = (card.currentHealth || card.maxHealth);
+      },
+    },
+    {
+      id: 'smiling-mask', name: 'Smiling Mask', rarity: 'rare',
+      // Starter-card-only buff so this relic shines in thin starter-heavy
+      // decks. The _runDeckCardRef tag (set right above _applyRelicHook
+      // in buildRunCard) carries the _isStarter flag through.
+      desc: '+2 ATK on starter cards (Goon, Thug, Brute).',
+      onCardBuild(run, card) {
+        const ref = card._runDeckCardRef;
+        if (ref && ref._isStarter) card.attack = (card.attack || 0) + 2;
+      },
     },
 
     // ----- Boss (act-clear rewards) -----
@@ -429,6 +475,18 @@ const Roguelite = {
           run._gauntletConsumed = true;
         }
       },
+    },
+    // Slay-the-Spire-inspired boss addition. StS Cursed Key trades a
+    // free energy/turn for a curse card — we don't have a curse system
+    // wired into the rng deck, so the cost lands on max HP instead.
+    {
+      id: 'cursed-key', name: 'Cursed Key', rarity: 'boss',
+      desc: '+1 starting energy each round. -10 max HP on pickup.',
+      onAcquire(run) {
+        run.maxHp = Math.max(10, run.maxHp - 10);
+        run.hp = Math.min(run.hp, run.maxHp);
+      },
+      onFightStart(run) { run._extraEnergy = (run._extraEnergy || 0) + 1; },
     },
   ],
 
@@ -879,6 +937,23 @@ const Roguelite = {
           mk(r, c + offset, type, tier);
         }
       }
+      // Guarantee at least one elite per act in the body rows. User
+      // direction: "with elites, there should always be one elite per
+      // act that you can fight, and that's a guaranteed common relic."
+      // The combat-rewards path already grants the relic — see line
+      // ~2607 (rollRelic('common') on elite win). All we need is to
+      // make sure the random roll above didn't shut the player out of
+      // the elite path entirely. If no elite landed, promote a random
+      // body-row combat node to elite so the act always has the
+      // guaranteed-relic detour available.
+      const bodyNodes = nodes.filter(n => n.row >= bodyStart + 1 && n.row <= bodyEndRow);
+      if (!bodyNodes.some(n => n.type === 'elite')) {
+        const combats = bodyNodes.filter(n => n.type === 'combat');
+        if (combats.length) {
+          const pick = combats[Math.floor(rng() * combats.length)];
+          pick.type = 'elite';
+        }
+      }
       // Treasure chest row — single centered relic node. User: "every
       // act should have a treasure chest that contains a relic."
       mk(act.treasureRow, 2, 'treasure', tier);
@@ -1011,13 +1086,17 @@ const Roguelite = {
     // run is the player's, AI-side build paths come through different
     // routes (buildAiEncounter assembles raw defs, doesn't touch
     // relics).
+    // Tag the card with its run metadata BEFORE the relic hook so
+    // onCardBuild handlers (e.g. Smiling Mask, which keys off the
+    // _isStarter flag on the deckCard) can read run-scoped fields off
+    // the card. Order matters: was previously tagged after the hook,
+    // but new relics need this context.
+    card._runDeckCardRef = deckCard;
+    card._runRarity = deckCard.rarity;
     if (owner === 'player') {
       const run = Game.state && Game.state.roguelite;
       if (run) this._applyRelicHook(run, 'onCardBuild', card);
     }
-    // Tag the card with its run metadata so XP can be credited at end of fight
-    card._runDeckCardRef = deckCard;
-    card._runRarity = deckCard.rarity;
     // Curse flag — Game.createCardInstance doesn't pass through arbitrary
     // def fields, so re-stamp it from the def/deckCard. The dim purple
     // tint, deck-removal hint, and tier-bypass logic all key off this.
@@ -2310,6 +2389,14 @@ const Roguelite = {
     const legal = this.legalNextNodes(run);
     if (!legal.find(n => n.id === nodeId)) return;
     run.activeNode = node;
+    // Sync run.act to whichever act this node belongs to. run.act is
+    // initialised to 1 at run start and never auto-bumped — without
+    // this update, post-combat reward rolls (rollRewards(run.act, ...))
+    // would always pull from the act-1 weight table even after the
+    // player crosses into Act 2 / 3. ACT_BOUNDS row ranges are the
+    // single source of truth for which act a row belongs to.
+    const bounds = this.ACT_BOUNDS && this.ACT_BOUNDS.find(a => node.row >= a.startRow && node.row <= a.endRow);
+    if (bounds) run.act = bounds.act;
     if (node.type === 'combat' || node.type === 'boss' || node.type === 'elite' || node.type === 'final-boss') {
       this._launchFight(node);
     } else if (node.type === 'event') {
@@ -3583,11 +3670,14 @@ const Roguelite = {
       run.currentNodeId = run.activeNode.id;
       run.currentRow = run.activeNode.row;
     }
-    if (run.activeNode && run.activeNode.type === 'boss') {
-      Game.state.phase = 'roguelite-end';
-      UI.render();
-      return;
-    }
+    // Note: Act 1 + 2 bosses route here after rewards. Final boss kill
+    // already short-circuits to 'roguelite-end' inside handleCombatEnd
+    // (see line ~2542). So at this point the player has cleared a
+    // non-final boss and SHOULD return to the map — the cross-act edges
+    // (see generateMap line ~910) connect the boss node into the next
+    // act's row-0 entries. User report: "Roguelike stops at act one. I
+    // defeated the Lex Luthor Boss and it showed YOU FELL. I want to go
+    // all the way to act 3."
     Game.state.phase = 'roguelite-map';
     UI.render();
   },
@@ -3635,17 +3725,15 @@ const Roguelite = {
   _renderLevelUpPicker() {
     const run = Game.state.roguelite;
     if (!run || !run._pendingLevelUps || !run._pendingLevelUps.length) {
-      // All level-ups resolved — proceed to map
+      // All level-ups resolved — proceed to map. Final-boss end is
+      // handled in handleCombatEnd before rewards, so a 'boss' here is
+      // always an Act 1/2 boss that should advance to the next act.
       run._pendingLevelUps = null;
       if (run.activeNode) {
         run.currentNodeId = run.activeNode.id;
         run.currentRow = run.activeNode.row;
       }
-      if (run.activeNode && run.activeNode.type === 'boss') {
-        Game.state.phase = 'roguelite-end';
-      } else {
-        Game.state.phase = 'roguelite-map';
-      }
+      Game.state.phase = 'roguelite-map';
       UI.render();
       return;
     }
@@ -3710,16 +3798,15 @@ const Roguelite = {
     if (run._pendingLevelUps.length) {
       this._renderLevelUpPicker();
     } else {
+      // Last level-up consumed — return to the map. Same rule as the
+      // empty-pendingLevelUps early-exit above: only final-boss should
+      // ever end the run, and that's handled at fight end, not here.
       run._pendingLevelUps = null;
       if (run.activeNode) {
         run.currentNodeId = run.activeNode.id;
         run.currentRow = run.activeNode.row;
       }
-      if (run.activeNode && run.activeNode.type === 'boss') {
-        Game.state.phase = 'roguelite-end';
-      } else {
-        Game.state.phase = 'roguelite-map';
-      }
+      Game.state.phase = 'roguelite-map';
       UI.render();
     }
   },
@@ -4243,15 +4330,21 @@ const Roguelite = {
       'battery':          '⚡︎',  // ⚡ forced to text presentation
       'healing-brew':     '⚗',
       'steel-heart':      '◈',
+      'anchor':           '⚓︎',  // ⚓ forced to text presentation
+      'whetstone':        '⌖',
+      'toy-ornithopter':  '⌬',
       'spider-web':       '✱',
       'vampire-fang':     '◢',
       'iron-maiden':      '☗',
       'phoenix-feather':  '☼',
       'gamblers-glove':   '◇',
+      'bag-of-marbles':   '◉',
+      'smiling-mask':     '☻',
       'mirror-shard':     '◢◣',
       'speed-force':      '⟪',
       'reality-stone':    '◎',
       'thanos-gauntlet':  '✊︎',  // ✊
+      'cursed-key':       '⚷',
     };
     return map[r.id] || (r.name[0] || '?');
   },
