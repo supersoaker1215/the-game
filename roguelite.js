@@ -1402,35 +1402,38 @@ const Roguelite = {
     return this._findEtch(id);
   },
 
-  // Common→Rare: 3 picks, one from each of {Stats, Trait, Energy}.
-  // Text is the Legendary-quality scalar upgrade — too strong to be in
-  // every common→rare picker. It gets a small (~12%) chance to replace
-  // the Trait slot, otherwise the player picks from the standard three.
+  // Common→Rare ("Uncommon"): 3 picks, one from each of {Stats, Trait,
+  // Energy}. SCOPED to the common etch tier only — the first promotion
+  // is a small bump, not a power spike. So picks are +1 ATK / +1 HP /
+  // +1/+1 (stats), Evade 1 / Splash 1 / Armor 1 / Hunt / Untrickable /
+  // Taunt 1 / Bullseye (traits), Discount 1 (energy). User feedback:
+  // "+3/+3 stats is insane, Evade 4 is ridiculous, Discount 3 is
+  // ridiculous. These scalars have to be toned down."
+  //
+  // Text+ (legendary) gets a small (~5%) chance to substitute — that's
+  // the rare jackpot drop. Otherwise the player picks from the
+  // common-tier-only buckets.
   _rollCommonToRareChoices(cardRef) {
-    const all = [
-      ...this.ETCHES.common,
-      ...this.ETCHES.rare,
-      ...this.ETCHES.special,
-      ...this.ETCHES.legendary,
-    ];
-    const stats  = all.filter(e => this._isStatBumpEtch(e.id));
-    const energy = all.filter(e => this._isEnergyEtch(e.id));
-    const text   = all.filter(e => this._isTextEtch(e.id));
-    // Trait pool excludes the basic auto-trait keywords if the card was
-    // just auto-granted one — no point offering them as a paid pick on
-    // the same level-up. Cantrip/Echo/Thorns/Phoenix/etc. stay.
+    const pool = this.ETCHES.common.slice();
+    const stats  = pool.filter(e => this._isStatBumpEtch(e.id));
+    const energy = pool.filter(e => this._isEnergyEtch(e.id));
     const ownedTraits = new Set(cardRef && cardRef.statuses ? cardRef.statuses : []);
-    const traits = all.filter(e =>
+    const traits = pool.filter(e =>
       this._isTraitEtch(e.id) && !this._isTextEtch(e.id) && !ownedTraits.has(e.id)
     );
-    const pickFrom = (pool, label) => {
-      if (!pool.length) return null;
-      const e = pool[Math.floor(Math.random() * pool.length)];
+    // Text+ lives in the legendary tier — pull only that one etch for
+    // the rare-substitution chance.
+    const textEtch = this._findEtch('text-upgrade');
+    const pickFrom = (poolArr, label) => {
+      if (!poolArr.length) return null;
+      const e = poolArr[Math.floor(Math.random() * poolArr.length)];
       return { id: e.id, name: e.name, bucket: label, desc: this.etchDesc(e.id) };
     };
     const a = pickFrom(stats,  'Stats');
-    const useText = text.length && Math.random() < 0.12;
-    const b = useText ? pickFrom(text, 'Text') : pickFrom(traits, 'Trait');
+    const useText = textEtch && Math.random() < 0.05;
+    const b = useText
+      ? { id: textEtch.id, name: textEtch.name, bucket: 'Text', desc: this.etchDesc(textEtch.id) }
+      : pickFrom(traits, 'Trait');
     const c = pickFrom(energy, 'Energy');
     const out = [];
     [a, b, c].forEach(x => { if (x) out.push(x); });
@@ -1438,26 +1441,32 @@ const Roguelite = {
   },
 
   _rollLevelUpChoices(targetRarity, n) {
-    // Higher-tier promotions (rare→special, special→legendary) roll
-    // from the leveled-up tier's pool + common fallback so the bucket
-    // has variety. Buckets are weighted:
-    //   60% Stats   — flat damage / HP / discount picks
-    //   25% Trait   — keyword etches (Thorns, Cantrip, Echo, etc.)
-    //   10% Energy  — explicit cost reduction
-    //    5% Text+   — legendary scalar upgrade, rare drop
-    // Deduplicate by ID. User direction: "from rare to special it's
-    // just random." So no auto-grant at higher tiers — pure luck.
-    const tierPool = this.ETCHES[targetRarity] || [];
-    const allEtches = [
-      ...tierPool,
-      ...this.ETCHES.common,
-      ...this.ETCHES.legendary,  // for the Text+ chance
-    ];
+    // Higher-tier promotions (rare→special, special→legendary) scale
+    // their pick pool to the target tier so the upgrade strength
+    // tracks the promotion's importance. User feedback: "+3/+3 stats
+    // is insane on a common→rare bump." Now the SCOPE is bounded:
+    //
+    //   target = rare       → pool = common + rare       (small/mid)
+    //   target = special    → pool = rare + special      (mid/strong)
+    //   target = legendary  → pool = special + legendary (strong/max)
+    //
+    // Plus a small Text+ chance at the special / legendary promotions
+    // (5% bucket weight). Buckets weighted:
+    //   60% Stats / 25% Trait / 10% Energy / 5% Text.
+    let tierPool;
+    if (targetRarity === 'special') {
+      tierPool = [...this.ETCHES.rare, ...this.ETCHES.special];
+    } else if (targetRarity === 'legendary') {
+      tierPool = [...this.ETCHES.special, ...this.ETCHES.legendary];
+    } else {
+      // rare or fallback — common-floor upgrade band.
+      tierPool = [...this.ETCHES.common, ...this.ETCHES.rare];
+    }
     const buckets = {
-      stats:  allEtches.filter(e => this._isStatBumpEtch(e.id)),
-      trait:  allEtches.filter(e => this._isTraitEtch(e.id) && !this._isTextEtch(e.id)),
-      energy: allEtches.filter(e => this._isEnergyEtch(e.id)),
-      text:   allEtches.filter(e => this._isTextEtch(e.id)),
+      stats:  tierPool.filter(e => this._isStatBumpEtch(e.id)),
+      trait:  tierPool.filter(e => this._isTraitEtch(e.id) && !this._isTextEtch(e.id)),
+      energy: tierPool.filter(e => this._isEnergyEtch(e.id)),
+      text:   tierPool.filter(e => this._isTextEtch(e.id)),
     };
     const labelOf = { stats: 'Stats', trait: 'Trait', energy: 'Energy', text: 'Text' };
     const rollBucket = () => {
