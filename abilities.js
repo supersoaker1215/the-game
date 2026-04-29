@@ -560,19 +560,27 @@ const CARD_ABILITIES = {
   },
   "Nightwing": {
     onPlay(G, self, lane) {
+      // Roguelite Text+ override — _nightwingDebuff scales the ATK strip.
+      // Default 2 (classic); Text+ raises to 3 so big bodies (Hulk, Doom)
+      // get reduced to swingable numbers in one play.
+      const debuff = self._nightwingDebuff || 2;
       const enemies = G.getEnemiesOf(self.owner);
       if (enemies.length) {
-        G.promptCardChoice(self.owner, enemies, "Nightwing — Weaken", "Choose enemy to remove 2 Attack from", (t) => {
-          G.debuffCard(t, 2, 0, false, self); G.log(`Nightwing weakens ${t.name} by 2 ATK!`);
+        G.promptCardChoice(self.owner, enemies, "Nightwing — Weaken", `Choose enemy to remove ${debuff} Attack from`, (t) => {
+          G.debuffCard(t, debuff, 0, false, self); G.log(`Nightwing weakens ${t.name} by ${debuff} ATK!`);
         }, _aiThreatPicker);
       }
     }
   },
   "Peacemaker": {
     onPlay(G, self, lane) {
-      const targets = G.getEnemiesOf(self.owner).filter(c => c.attack <= 2);
+      // Roguelite Text+ override — _peacemakerKillThreshold raises the
+      // ATK ceiling for the eliminate. Default 2 (classic); Text+ to 4
+      // so mid-range threats (Drax, Wonder Woman) are valid targets.
+      const threshold = self._peacemakerKillThreshold || 2;
+      const targets = G.getEnemiesOf(self.owner).filter(c => c.attack <= threshold);
       if (targets.length) {
-        G.promptCardChoice(self.owner, targets, "Peacemaker — Eliminate", "Choose enemy with 2 or less ATK to destroy", (t) => {
+        G.promptCardChoice(self.owner, targets, "Peacemaker — Eliminate", `Choose enemy with ${threshold} or less ATK to destroy`, (t) => {
           G.log(`Peacemaker eliminates ${t.name}!`); G.killCard(t, self);
         }, _aiThreatPicker);
       }
@@ -600,8 +608,16 @@ const CARD_ABILITIES = {
   "The Flash": {
     onPlay(G, self, lane) {
       const adj = G.getAdjacentEnemiesInContext(lane, self.owner);
+      // Roguelite Text+ override — _flashFreezeAll skips the picker and
+      // freezes BOTH adjacent enemies. Default false (classic — pick 1);
+      // Text+ true (freeze all adj). User direction: Speed Force scaling
+      // — the Flash literally moves twice.
+      const freezeAll = !!self._flashFreezeAll;
       const freezeTarget = () => {
-        if (adj.length > 1) {
+        if (freezeAll && adj.length) {
+          adj.forEach(e => G.freezeCard(e, self));
+          chooseFirst();
+        } else if (adj.length > 1) {
           G.promptCardChoice(self.owner, adj, "The Flash — Freeze", "Choose adjacent enemy to freeze", (t) => {
             G.freezeCard(t, self);
             chooseFirst();
@@ -642,7 +658,11 @@ const CARD_ABILITIES = {
   "Ahsoka": {
     onAllyKilled(G, self) {
       // Queue a bonus attack for every ally death, not just the first one this combat.
-      self.bonusAttack = (typeof self.bonusAttack === 'number' ? self.bonusAttack : 0) + 1;
+      // Roguelite Text+ override — _ahsokaBonusAttacksPerKill scales the
+      // bonus attacks granted per ally death. Default 1 (classic);
+      // Text+ raises to 2 so a 2-ally trade gives Ahsoka 4 free swings.
+      const grant = self._ahsokaBonusAttacksPerKill || 1;
+      self.bonusAttack = (typeof self.bonusAttack === 'number' ? self.bonusAttack : 0) + grant;
     }
   },
   "Carnage": {
@@ -880,15 +900,19 @@ const CARD_ABILITIES = {
       // hero-leaning decks (e.g. Synergy Swarm) use Red Skull as the
       // tricks-phase enabler without a type-tax on which ally gets the
       // empower.
+      // Roguelite Text+ override — _redSkullEmpower scales the buff.
+      // Default 2 (classic +2/+2); Text+ raises to 3 (+3/+3) for an
+      // even bigger finisher buff.
+      const empower = self._redSkullEmpower || 2;
       const allies = G.getAlliesOf(self.owner).filter(a => a.id !== self.id);
       const grant = (a) => {
-        G.buffCard(a, 2, 2);
-        G.log(`Red Skull empowers ${a.name} +2/+2!`);
+        G.buffCard(a, empower, empower);
+        G.log(`Red Skull empowers ${a.name} +${empower}/+${empower}!`);
       };
       if (allies.length) {
-        G.promptCardChoice(self.owner, allies, "Red Skull — Empower", "Choose an ally to give +2/+2", grant,
+        G.promptCardChoice(self.owner, allies, "Red Skull — Empower", `Choose an ally to give +${empower}/+${empower}`, grant,
           // AI picks the highest-cost ally — biggest absolute swing
-          // from the +2/+2 (a 9-cost finisher gets disproportionately
+          // from the flat buff (a 9-cost finisher gets disproportionately
           // more value from a flat buff than a 1-cost token).
           cards => cards.slice().sort((a, b) => (b.cost || 0) - (a.cost || 0))[0]);
       }
@@ -1424,12 +1448,16 @@ const CARD_ABILITIES = {
   "Michael Myers": {
     // Jump mechanic — actual logic lives in Game.checkJumpConditions / Game.playJumpCard.
     // When Played: lone-wolf bonus. If no other allies are on the board when he arrives,
-    // Michael Myers is at his deadliest — +1/+1.
+    // Michael Myers is at his deadliest — +1/+1 (or +2/+2 with Text+).
     onPlay(G, self, lane) {
       const allies = G.getAlliesOf(self.owner).filter(a => a.id !== self.id && a.currentHealth > 0);
       if (!allies.length) {
-        G.buffCard(self, 1, 1);
-        G.log(`Michael Myers stalks alone — +1/+1!`);
+        // Roguelite Text+ override — _myersAloneBuff scales the lone-
+        // wolf reward. Default 1 (classic +1/+1); Text+ raises to 2
+        // so the stalker fantasy hits harder when isolation pays off.
+        const buff = self._myersAloneBuff || 1;
+        G.buffCard(self, buff, buff);
+        G.log(`Michael Myers stalks alone — +${buff}/+${buff}!`);
       }
     },
     onDeath(G, self) { self.jumpReady = false; self.jumpLane = undefined; }
@@ -1803,10 +1831,16 @@ const CARD_ABILITIES = {
     // it as the 4th arg. Falls back to attacker.attack if actual
     // wasn't supplied (e.g. legacy callers).
     onDamaged(G, self, attacker, actual) {
-      const dmg = (typeof actual === 'number' && actual > 0)
+      let dmg = (typeof actual === 'number' && actual > 0)
         ? actual
         : (attacker ? attacker.attack : 1);
       if (dmg <= 0) return;
+      // Roguelite Text+ override — _redHulkRetaliateBonus adds extra
+      // damage to the splash AND block-meter add. Default 0 (classic);
+      // Text+ sets to 2 so a 3-damage hit triggers a 5-damage splash
+      // and 5 block meter — the rage feedback loop scales harder.
+      const bonus = self._redHulkRetaliateBonus || 0;
+      dmg += bonus;
       G.state[self.owner].blockMeter = Math.min(Game.BLOCK_MAX, G.state[self.owner].blockMeter + dmg);
       G.log(`Red Hulk adds ${dmg} to Block Meter!`);
       const lane = G.findCardLane(self);
@@ -2131,8 +2165,14 @@ const CARD_ABILITIES = {
   "Ultron": {
     onDeath(G, self, lane) {
       const open = G.getOpenLanes(self.owner);
-      if (open.length >= 1) G.summonCard(self.owner, open[0], "Ultron", 6, 5, 3, []);
-      if (open.length >= 2) G.summonCard(self.owner, open[open.length - 1], "Ultron", 6, 5, 3, []);
+      // Roguelite Text+ override — _ultronReplicateStats bumps each
+      // replica's stats. Default { atk: 5, hp: 3 } (classic); Text+
+      // sets to { atk: 7, hp: 5 } so the replication line is closer
+      // to a fresh Ultron each time.
+      const repAtk = (self._ultronReplicateAtk != null) ? self._ultronReplicateAtk : 5;
+      const repHp  = (self._ultronReplicateHp  != null) ? self._ultronReplicateHp  : 3;
+      if (open.length >= 1) G.summonCard(self.owner, open[0], "Ultron", 6, repAtk, repHp, []);
+      if (open.length >= 2) G.summonCard(self.owner, open[open.length - 1], "Ultron", 6, repAtk, repHp, []);
       G.log("Ultron replicates!");
     }
   },
@@ -2615,14 +2655,18 @@ const CARD_ABILITIES = {
   },
   "Yoda": {
     onPlay(G, self, lane) {
+      // Roguelite Text+ override — _yodaEmpowerSize scales the buff he
+      // grants. Default 4 (classic +4/+4 + Evade 1); Text+ raises to
+      // 6 (+6/+6) so a recipient ally swings as a finisher tier body.
+      const buff = self._yodaEmpowerSize || 4;
       const allies = G.getAlliesOf(self.owner).filter(a => a.id !== self.id);
       const grant = (a) => {
         G.grantTempBuff(a, { evadeCharges: 1 });
-        G.buffCard(a, 4, 4);
-        G.log(`Yoda empowers ${a.name} with Evade +4/+4!`);
+        G.buffCard(a, buff, buff);
+        G.log(`Yoda empowers ${a.name} with Evade +${buff}/+${buff}!`);
       };
       if (allies.length) {
-        G.promptCardChoice(self.owner, allies, "Yoda — Empower", "Choose ally to give Evade +4/+4", grant);
+        G.promptCardChoice(self.owner, allies, "Yoda — Empower", `Choose ally to give Evade +${buff}/+${buff}`, grant);
       } else {
         G.buffCard(self, 2, 3);
         G.log("Yoda empowers himself +2/+3!");
@@ -2859,13 +2903,17 @@ const CARD_ABILITIES = {
       // Freeze 2 enemies chosen by the player. Chains two promptCardChoice
       // calls: the first pick filters out of the pool for the second so the
       // same enemy can't be picked twice. AI picks the top two threat scores.
+      // Roguelite Text+ override — _supermanBlast scales the heat-vision
+      // damage. Default 5 (classic); Text+ raises to 8 so a Doom or
+      // Hulk eats one nuke instead of needing chip first.
+      const blastDmg = self._supermanBlast || 5;
       const doBlast = () => {
         const enemies = G.getEnemiesOf(self.owner);
         if (enemies.length) {
-          G.promptCardChoice(self.owner, enemies, "Superman — Blast", "Choose enemy to deal 5 damage", (t) => {
-            G.dealDamage(t, 5); G.log(`Superman blasts ${t.name} for 5!`);
+          G.promptCardChoice(self.owner, enemies, "Superman — Blast", `Choose enemy to deal ${blastDmg} damage`, (t) => {
+            G.dealDamage(t, blastDmg); G.log(`Superman blasts ${t.name} for ${blastDmg}!`);
           }, cards => {
-            const killable = cards.filter(c => c.currentHealth <= 5);
+            const killable = cards.filter(c => c.currentHealth <= blastDmg);
             const pool = killable.length ? killable : cards;
             return pool.slice().sort((a, b) => AI.threatScore(b) - AI.threatScore(a))[0];
           });
@@ -3020,7 +3068,11 @@ const CARD_ABILITIES = {
       const enemies = G.getEnemiesOf(self.owner);
       if (!enemies.length) return;
       self.dormammuDrained = true;
-      const drainCount = Math.min(3, enemies.length);
+      // Roguelite Text+ override — _dormammuDrainMax raises the drain
+      // ceiling. Default 3 (classic); Text+ to 5 so the full board
+      // can be drained when Dormammu lands on a packed lane.
+      const drainCap = self._dormammuDrainMax || 3;
+      const drainCount = Math.min(drainCap, enemies.length);
       const drainChain = (remaining, picked) => {
         // Previously this stopped when `picked` was empty — which is the
         // STARTING state, so the chain returned immediately on the first

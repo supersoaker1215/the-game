@@ -2004,6 +2004,61 @@ const Roguelite = {
       desc: 'Commands BOTH adjacent allies to attack (was 1).',
       apply: c => { c._optimusCommandsBoth = true; },
     },
+    'Nightwing': {
+      id: 'nightwing-text', name: 'Escrima Strike',
+      desc: 'Removes 3 ATK from an enemy (was 2).',
+      apply: c => { c._nightwingDebuff = 3; },
+    },
+    'Peacemaker': {
+      id: 'peacemaker-text', name: 'Whatever It Takes',
+      desc: 'Eliminates enemies with ≤4 ATK (was ≤2).',
+      apply: c => { c._peacemakerKillThreshold = 4; },
+    },
+    'The Flash': {
+      id: 'flash-text', name: 'Speed Force',
+      desc: 'Freezes BOTH adjacent enemies (was 1).',
+      apply: c => { c._flashFreezeAll = true; },
+    },
+    'Ahsoka': {
+      id: 'ahsoka-text', name: 'Padawan Forever',
+      desc: 'Bonus attack +2 per ally death (was +1).',
+      apply: c => { c._ahsokaBonusAttacksPerKill = 2; },
+    },
+    'Red Skull': {
+      id: 'redskull-text', name: 'Hydra Vanguard',
+      desc: 'Empowers an ally +3/+3 (was +2/+2).',
+      apply: c => { c._redSkullEmpower = 3; },
+    },
+    'Michael Myers': {
+      id: 'myers-text', name: 'The Shape',
+      desc: 'Stalks alone +2/+2 when no other ally is on the board (was +1/+1).',
+      apply: c => { c._myersAloneBuff = 2; },
+    },
+    'Red Hulk': {
+      id: 'redhulk-text', name: 'Rampage',
+      desc: 'WHILE ACTIVE retaliation hits for +2 extra damage (block & splash both scale).',
+      apply: c => { c._redHulkRetaliateBonus = 2; },
+    },
+    'Ultron': {
+      id: 'ultron-text', name: 'Singularity',
+      desc: 'Replicates as 7/5 Ultrons on death (was 5/3).',
+      apply: c => { c._ultronReplicateAtk = 7; c._ultronReplicateHp = 5; },
+    },
+    'Yoda': {
+      id: 'yoda-text', name: 'Grand Master',
+      desc: 'Empowers ally with Evade + 6/+6 (was +4/+4).',
+      apply: c => { c._yodaEmpowerSize = 6; },
+    },
+    'Superman': {
+      id: 'superman-text', name: 'Last Son of Krypton',
+      desc: 'Heat-vision blast deals 8 damage (was 5).',
+      apply: c => { c._supermanBlast = 8; },
+    },
+    'Dormammu': {
+      id: 'dormammu-text', name: 'Dark Dimension',
+      desc: 'Drains up to 5 enemies (was 3).',
+      apply: c => { c._dormammuDrainMax = 5; },
+    },
   },
 
   cardCanUseTextUpgrade(cardName) {
