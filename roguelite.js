@@ -205,7 +205,9 @@ const Roguelite = {
     common: [
       { id: 'plus1-atk',     name: '+1 ATK',    apply: c => { c.attack += 1; } },
       { id: 'plus1-hp',      name: '+1 HP',     apply: c => { c.health += 1; c.maxHealth += 1; c.currentHealth += 1; } },
-      { id: 'plus1-atk-hp',  name: '+1/+1',     apply: c => { c.attack += 1; c.health += 1; c.maxHealth += 1; c.currentHealth += 1; } },
+      // plus1-atk-hp moved to rare tier — audit finding: a single
+      // common etch worth two stat picks was rare-tier value at common
+      // pricing. The combined +1/+1 now lives at rare alongside +2/+2.
       { id: 'evade-1',       name: 'Evade 1',   apply: c => { c.evadeCharges = (c.evadeCharges || 0) + 1; Roguelite._bumpKw(c, 'Evade', c.evadeCharges); } },
       { id: 'bullseye',      name: 'Bullseye',  apply: c => { c.isBullseye = true; if (!c.abilities.includes('Bullseye')) c.abilities.push('Bullseye'); } },
       { id: 'splash-1',      name: 'Splash 1',  apply: c => { c.splashRange = (c.splashRange || 0) + 1; Roguelite._bumpKw(c, 'Splash', c.splashRange); } },
@@ -222,11 +224,20 @@ const Roguelite = {
       { id: 'plus2-atk',     name: '+2 ATK',    apply: c => { c.attack += 2; } },
       { id: 'plus2-hp',      name: '+2 HP',     apply: c => { c.health += 2; c.maxHealth += 2; c.currentHealth += 2; } },
       { id: 'plus2-atk-hp',  name: '+2/+2',     apply: c => { c.attack += 2; c.health += 2; c.maxHealth += 2; c.currentHealth += 2; } },
+      // Promoted from common — audit finding: +1/+1 in one etch was
+      // rare-tier value. Stays at +1/+1 (not bumped to +1.5/+1.5);
+      // serves as the early/mid rare stat pick alongside +2/+2.
+      { id: 'plus1-atk-hp',  name: '+1/+1',     apply: c => { c.attack += 1; c.health += 1; c.maxHealth += 1; c.currentHealth += 1; } },
       { id: 'evade-2',       name: 'Evade 2',   apply: c => { c.evadeCharges = (c.evadeCharges || 0) + 2; Roguelite._bumpKw(c, 'Evade', c.evadeCharges); } },
       { id: 'overdrive',     name: 'Overdrive', apply: c => { c.isOverdrive = true; if (!c.abilities.includes('Overdrive')) c.abilities.push('Overdrive'); } },
       { id: 'splash-2',      name: 'Splash 2',  apply: c => { c.splashRange = (c.splashRange || 0) + 2; Roguelite._bumpKw(c, 'Splash', c.splashRange); } },
       { id: 'armor-2',       name: 'Armor 2',   apply: c => { c.armorValue = (c.armorValue || 0) + 2; Roguelite._bumpKw(c, 'Armor', c.armorValue); } },
       { id: 'fear-1',        name: 'Fear 1',    apply: c => { c.hasFear = (c.hasFear || 0) + 1; Roguelite._bumpKw(c, 'Fear', c.hasFear); } },
+      // Freeze etch (rare) — symmetric to Fear 1. When this card is
+      // played, it freezes a chosen enemy for 1 turn. Audit finding:
+      // Fear had a scalable etch but Freeze didn't, leaving cold-deck
+      // builds without a parallel etch lever.
+      { id: 'freeze-1',      name: 'Freeze 1',  apply: c => { c.hasFreeze = (c.hasFreeze || 0) + 1; Roguelite._bumpKw(c, 'Freeze', c.hasFreeze); } },
       { id: 'immunity-1',    name: 'Immunity 1', apply: c => { c.immunityCharges = (c.immunityCharges || 0) + 1; Roguelite._bumpKw(c, 'Immunity', c.immunityCharges); } },
       { id: 'draw-1',        name: 'Draw 1',    apply: c => { c.drawOnPlay = (c.drawOnPlay || 0) + 1; Roguelite._bumpKw(c, 'Draw', c.drawOnPlay); } },
       { id: 'discount-2',    name: 'Discount 2', apply: c => { const before = c.baseCost || c.cost || 0; c.cost = Math.max(0, (c.cost || 0) - 2); c.baseCost = Math.max(0, (c.baseCost || before) - 2); c._discountTotal = (c._discountTotal || 0) + 2; Roguelite._bumpKw(c, 'Discount', c._discountTotal); } },
@@ -238,6 +249,9 @@ const Roguelite = {
       { id: 'plus3-hp',      name: '+3 HP',     apply: c => { c.health += 3; c.maxHealth += 3; c.currentHealth += 3; } },
       { id: 'plus3-atk-hp',  name: '+3/+3',     apply: c => { c.attack += 3; c.health += 3; c.maxHealth += 3; c.currentHealth += 3; } },
       { id: 'splash-3',      name: 'Splash 3',  apply: c => { c.splashRange = (c.splashRange || 0) + 3; Roguelite._bumpKw(c, 'Splash', c.splashRange); } },
+      // Freeze 2 etch (special) — same pattern as Fear, scaled up.
+      // When this card is played, it freezes a chosen enemy for 2 turns.
+      { id: 'freeze-2',      name: 'Freeze 2',  apply: c => { c.hasFreeze = (c.hasFreeze || 0) + 2; Roguelite._bumpKw(c, 'Freeze', c.hasFreeze); } },
       { id: 'draw-2',        name: 'Draw 2',    apply: c => { c.drawOnPlay = (c.drawOnPlay || 0) + 2; Roguelite._bumpKw(c, 'Draw', c.drawOnPlay); } },
       { id: 'invincible-1',  name: 'Invincible 1', apply: c => { c.invincibleTurns = Math.max(c.invincibleTurns || 0, 0) + 1; Roguelite._bumpKw(c, 'Invincible', c.invincibleTurns); } },
       { id: 'unresistible-1',name: 'Unresistible 1', apply: c => { c.unresistibleTurns = Math.max(c.unresistibleTurns || 0, 0) + 1; Roguelite._bumpKw(c, 'Unresistible', c.unresistibleTurns); } },
@@ -304,6 +318,8 @@ const Roguelite = {
     'taunt-1':       'Taunt 1 — intercepts 1 attack aimed at allies next turn.',
     'overdrive':     'Overdrive — attacks twice this turn.',
     'fear-1':        'Fear 1 — applies Fear to one enemy on play.',
+    'freeze-1':      'Freeze 1 — freezes one enemy for 1 turn on play.',
+    'freeze-2':      'Freeze 2 — freezes one enemy for 2 turns on play.',
     'immunity-1':    'Immunity 1 — blocks the next debuff (freeze, stun, fear, mind control, etc.) cast on this card.',
     'draw-1':        'Draw 1 — draw 1 card when this is played.',
     'draw-2':        'Draw 2 — draw 2 cards when this is played.',
@@ -445,13 +461,15 @@ const Roguelite = {
     },
     {
       id: 'smiling-mask', name: 'Smiling Mask', rarity: 'rare',
-      // Starter-card-only buff so this relic shines in thin starter-heavy
-      // decks. The _runDeckCardRef tag (set right above _applyRelicHook
-      // in buildRunCard) carries the _isStarter flag through.
-      desc: '+2 ATK on starter cards (Goon, Thug, Brute).',
+      // Broadened from starter-only to ANY cost-1 card. Audit finding:
+      // starter-only buff went dead after Act 1 once Goon/Thug/Brute
+      // rotated out of the active deck. Cost-1 stays relevant the whole
+      // run because every act drafts at least a few cheap bodies.
+      desc: '+2 ATK on all cost-1 cards.',
       onCardBuild(run, card) {
-        const ref = card._runDeckCardRef;
-        if (ref && ref._isStarter) card.attack = (card.attack || 0) + 2;
+        if ((card.baseCost || card.cost || 0) <= 1) {
+          card.attack = (card.attack || 0) + 2;
+        }
       },
     },
 
@@ -508,10 +526,15 @@ const Roguelite = {
     // wired into the rng deck, so the cost lands on max HP instead.
     {
       id: 'cursed-key', name: 'Cursed Key', rarity: 'boss',
-      desc: '+1 starting energy each round. -10 max HP on pickup.',
+      // Softened — old behavior was -10 max HP, which made this a TRAP
+      // pickup at low HP (a 12 HP run couldn't even afford to take it).
+      // Now -5 max HP plus a 5 HP heal on pickup, so the long-run cost
+      // stays meaningful but the bar moves and current HP doesn't drop
+      // immediately. The +1 energy/round value remains.
+      desc: '+1 starting energy each round. -5 max HP on pickup (heals 5 HP up to the new cap).',
       onAcquire(run) {
-        run.maxHp = Math.max(10, run.maxHp - 10);
-        run.hp = Math.min(run.hp, run.maxHp);
+        run.maxHp = Math.max(10, run.maxHp - 5);
+        run.hp = Math.min(run.maxHp, run.hp + 5);
       },
       onFightStart(run) { run._extraEnergy = (run._extraEnergy || 0) + 1; },
     },

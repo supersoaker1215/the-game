@@ -8737,6 +8737,7 @@ const UI = {
     if (c.hasZealot > 0) b.push(badge('badge-zealot', 'Zealot', 'Zealot'));
     if (c.hasThorns > 0) b.push(badge('badge-thorns', c.hasThorns > 1 ? `Thorns ${c.hasThorns}` : 'Thorns', 'Thorns'));
     if (c.hasFear > 0) b.push(badge('badge-fear', `Fear ${c.hasFear}`, 'Fear'));
+    if (c.hasFreeze > 0) b.push(badge('badge-freeze', `Freeze ${c.hasFreeze}`, 'Freeze'));
     if (c._discountTotal > 0) b.push(badge('badge-discount', `Discount ${c._discountTotal}`, 'Discount'));
     // "Crazy" / "Insane" — no KEYWORD_DATA entry yet, so badge() omits
     // data-kw and they stay non-interactive.

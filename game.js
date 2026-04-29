@@ -1837,6 +1837,7 @@ const Game = {
     this._resolveCantripOnPlay(card);
     // Fear etch — fear an enemy when this card is played.
     this._resolveFearOnPlay(card);
+    this._resolveFreezeOnPlay(card);
     this.cleanupDead();
     // Apply Magneto debuffs to newly placed cards
     this.applyMagnetoDebuffs();
@@ -1912,6 +1913,7 @@ const Game = {
     // Cantrip etch — draw 1 on play (jump / free-play path).
     this._resolveCantripOnPlay(card);
     this._resolveFearOnPlay(card);
+    this._resolveFreezeOnPlay(card);
     this.cleanupDead();
   },
 
@@ -2844,6 +2846,19 @@ const Game = {
     // Pick highest-ATK target — usually the highest-impact lock.
     const target = enemies.slice().sort((a, b) => (b.attack || 0) - (a.attack || 0))[0];
     this.fearCard(target, card, n);
+  },
+
+  // Freeze etch — symmetric to Fear. Roguelite-only via the
+  // Freeze 1 (rare) and Freeze 2 (special) etches that bump
+  // hasFreeze on the carrier. Auto-picks the highest-ATK enemy
+  // that isn't already frozen so the lock lands where it hurts.
+  _resolveFreezeOnPlay(card) {
+    if (!card || !card.hasFreeze) return;
+    const n = card.hasFreeze * (1 + (card.hasEcho || 0));
+    const enemies = this.getEnemiesOf(card.owner).filter(e => e.currentHealth > 0 && !e.isFrozen);
+    if (!enemies.length) return;
+    const target = enemies.slice().sort((a, b) => (b.attack || 0) - (a.attack || 0))[0];
+    this.freezeCard(target, card, n);
   },
 
   // Phoenix — once-per-life revive at full HP. Returns true if the
@@ -4936,6 +4951,7 @@ const Game = {
         this._resolveCantripOnPlay(card);
         // Fear etch — same thing.
         this._resolveFearOnPlay(card);
+    this._resolveFreezeOnPlay(card);
       }
       this.cleanupDead();
       this.applyMagnetoDebuffs();

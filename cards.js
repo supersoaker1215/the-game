@@ -88,7 +88,7 @@ const CARD_DEFS = [
   { name: "Nightwing", cost: 2, attack: 3, health: 1, type: "hero",
     abilities: ["Evade 1"],
     desc: "When Played: Remove 2 ATK from an enemy." },
-  { name: "Peacemaker", cost: 2, attack: 2, health: 2, type: "hero",
+  { name: "Peacemaker", cost: 2, attack: 2, health: 3, type: "hero",
     abilities: [],
     desc: "When Played: Destroy an enemy with ≤ 2 ATK. While Active: Add (+1/+1) when destroying an enemy." },
   { name: "Rocket Raccoon", cost: 2, attack: 2, health: 1, type: "hero",
