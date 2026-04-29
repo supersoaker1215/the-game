@@ -4584,6 +4584,15 @@ const Game = {
     this.tryApplyDebuff(source, card, 'Fear', () => {
       card.fearedTurns = (card.fearedTurns || 0) + turns;
       card.isFeared = true;
+      // Crazy can't coexist with Feared — both flags hijack the
+      // combat target. User rule: "Crazy cannot be applied to feared
+      // enemies." Same intent in reverse: when a Crazy card gets
+      // Feared, the Crazy flag is cleared so the new Fear takes
+      // sole control of the swing.
+      if (card.isCrazy) {
+        card.isCrazy = false;
+        delete card._crazyAppliedBy;
+      }
       const total = card.fearedTurns;
       this.log(`  [FEAR] ${card.name} is feared (${total})!`);
       this._simulatePhantomSwing(source, card);
@@ -5472,6 +5481,19 @@ const Game = {
   // Joker to CRAZY the highest-attack enemy.
   applyCrazyToCard(card) {
     if (!card || card.isCrazy || card.currentHealth <= 0) return;
+    // Feared cards can't ALSO be Crazy. User direction (cross-mode):
+    // "Crazy cannot be applied to feared enemies." Two reasons:
+    //   1. Both flags hijack the card's combat target — Feared makes
+    //      it attack its own ally; Crazy rerolls its ATK roll. Stacking
+    //      them creates ambiguous "feared crazy" behavior with no
+    //      coherent design intent.
+    //   2. The application order is incidental: a card that's Feared
+    //      first then Crazy'd second would behave differently than
+    //      the reverse, breaking the "the user always sees the same
+    //      result" rule.
+    // Skip silently — Joker / Sandman flavor still fires on un-feared
+    // cards in the same swing.
+    if (card.isFeared || (card.fearedTurns || 0) > 0) return;
     card.isCrazy = true;
     card._crazyAppliedBy = true;
     this.rerollCrazyInsane(card);
