@@ -3355,9 +3355,29 @@ const Game = {
     const opp = this.opponent(owner);
     const who = owner === 'player' ? 'You' : 'AI';
 
-    if (this.getAllCardsOf(opp).find(c => c.passive === 'preventDraw')) {
-      this.log(`[BLOCKED] Lex Luthor prevents ${who} from drawing!`);
-      return;
+    // Lex Luthor's preventDraw passive. In CLASSIC mode this is a hard
+    // block (matches the canonical "opponent cannot draw cards" text on
+    // his card). In ROGUELITE the boss has 2× Lex Luthor in his deck
+    // and the lock-out becomes oppressive — user feedback: "Lex Luthor
+    // boss is so hard, he prevents you from drawing cards." Soften
+    // there to a per-Lex draw reduction (1 Lex on board = -1 draw, 2
+    // Lex = -2). At base draw 2 the player still gets 1 card with one
+    // Lex on the table, 0 with two — same worst-case but a meaningful
+    // softer floor that lets the player still scrape something.
+    const lexes = this.getAllCardsOf(opp).filter(c => c.passive === 'preventDraw');
+    if (lexes.length) {
+      const isRoguelite = this.state.mode && this.state.mode._roguelite;
+      if (isRoguelite) {
+        const reduced = Math.max(0, count - lexes.length);
+        if (reduced < count) {
+          this.log(`  [LEX] Lex Luthor (×${lexes.length}) cuts ${who}'s draw to ${reduced}.`);
+          count = reduced;
+        }
+        if (count === 0) return;
+      } else {
+        this.log(`[BLOCKED] Lex Luthor prevents ${who} from drawing!`);
+        return;
+      }
     }
 
     const drawn = [];

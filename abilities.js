@@ -903,15 +903,27 @@ const CARD_ABILITIES = {
     onDeath(G, self, lane) {
       // Roguelite Text+ override — _grundyDeathDraw scales draw count.
       const draws = self._grundyDeathDraw || 1;
+      // ROGUELITE-ONLY: Grundy scavenges from his OWN dead pile only.
+      // User feedback: "Solomon Grundy is such a broken card because
+      // you just get more card draw" — the cross-side scavenge stacks
+      // with the Lex-block bypass to make Grundy mandatory in roguelite.
+      // Classic Grundy keeps the canonical "shared Dead Pile" text.
+      const isRoguelite = G.state.mode && G.state.mode._roguelite;
+      const ownDead = G.state[self.owner] && G.state[self.owner].deadPile;
+      const oppDead = G.state[G.opponent(self.owner)] && G.state[G.opponent(self.owner)].deadPile;
       for (let i = 0; i < draws; i++) {
-        const allDead = [...G.state.player.deadPile, ...G.state.ai.deadPile];
-        if (!allDead.length) break;
-        const idx = Math.floor(Math.random() * allDead.length);
+        const dead = isRoguelite
+          ? (ownDead || [])
+          : [...(ownDead || []), ...(oppDead || [])];
+        if (!dead.length) break;
+        const idx = Math.floor(Math.random() * dead.length);
         let card;
-        if (idx < G.state.player.deadPile.length) {
-          card = G.state.player.deadPile.splice(idx, 1)[0];
+        if (isRoguelite) {
+          card = ownDead.splice(idx, 1)[0];
+        } else if (idx < (ownDead || []).length) {
+          card = ownDead.splice(idx, 1)[0];
         } else {
-          card = G.state.ai.deadPile.splice(idx - G.state.player.deadPile.length, 1)[0];
+          card = oppDead.splice(idx - ownDead.length, 1)[0];
         }
         G.addToHand(self.owner, G.createCardInstance(card, self.owner), self);
         G.log(`Solomon Grundy's death draws ${card.name} from the dead pile!`);
