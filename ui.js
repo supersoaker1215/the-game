@@ -357,6 +357,10 @@ const UI = {
       // Tony's signature entrance riff. -20 LUFS unified-baseline, 1s
       // fade-in / 2s fade-out baked.
       'Iron Man':         { hover: { src: 'audio/cards/iron-man-hover.mp3', maxDur: 82 } },
+      // Black Panther hover: 69s of Kendrick Lamar & SZA's "All The Stars"
+      // (1:58 → 3:07) — the Wakandan signature cue. -20 LUFS unified-
+      // baseline, 1s fade-in / 2s fade-out baked.
+      'Black Panther':    { hover: { src: 'audio/cards/black-panther-hover.mp3', maxDur: 70 } },
       // Winter Soldier hover: 52s of Henry Jackman's "End Of The Line"
       // (1:05 → 1:57 of the source) — the cold-war motif build. -20 LUFS
       // unified-baseline, 1s fade-in / 2s fade-out baked. maxDur 53 lets
