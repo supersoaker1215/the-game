@@ -3017,8 +3017,13 @@ const Roguelite = {
       UI.render();
       return;
     }
-    this.grantRelic(run, relic.id);
-    run.lastResult = { event: `Treasure! Gained relic: ${relic.name}` };
+    // Stash the rolled relic so the take/leave handlers can see what
+    // was offered without re-rolling. User direction: "Should have a
+    // choice to NOT take a relic from the treasure chest." Previously
+    // the chest auto-granted on open and the only button was "Take it"
+    // (which was a no-op since you already had it). Now the open is
+    // pure preview — grant only fires on the explicit Take.
+    run._pendingTreasure = relic.id;
     const body = `
       <div class="rl-event-flavor">A neon chest hums on the path. You crack it open.</div>
       <div class="rl-treasure-burst" aria-hidden="true">
@@ -3041,9 +3046,28 @@ const Roguelite = {
         </div>
       </div>
       <div class="rl-event-choices">
-        <button type="button" class="rl-event-choice" onclick="Roguelite._closeTreasure()">Take it</button>
+        <button type="button" class="rl-event-choice" onclick="Roguelite._takeTreasure()">Take it</button>
+        <button type="button" class="rl-shop-leave" onclick="Roguelite._leaveTreasure()">Leave it behind</button>
       </div>`;
     this._modal('TREASURE', body);
+  },
+  _takeTreasure() {
+    const run = Game.state.roguelite;
+    if (run && run._pendingTreasure) {
+      const relic = this.RELICS.find(r => r.id === run._pendingTreasure);
+      this.grantRelic(run, run._pendingTreasure);
+      run.lastResult = { event: `Treasure! Gained relic: ${relic ? relic.name : 'unknown'}` };
+      run._pendingTreasure = null;
+    }
+    this._closeTreasure();
+  },
+  _leaveTreasure() {
+    const run = Game.state.roguelite;
+    if (run) {
+      run._pendingTreasure = null;
+      run.lastResult = { event: 'You leave the chest sealed and walk on.' };
+    }
+    this._closeTreasure();
   },
   _closeTreasure() {
     this._closeModal();
