@@ -2123,6 +2123,46 @@ const Roguelite = {
       desc: 'Hexes for the enemy\'s stats +2/+2 (outright over-trade).',
       apply: c => { c._witchHexBonus = 2; },
     },
+    'Jigsaw': {
+      id: 'jigsaw-text', name: 'Game Master',
+      desc: 'WHEN DISCARDED places 5 Reverse Bear Traps (was 3).',
+      apply: c => { c._jigsawTrapCount = 5; },
+    },
+    'Moder': {
+      id: 'moder-text', name: 'Echo of Silence',
+      desc: 'Strips abilities from the next 2 enemies in his lane (was 1).',
+      apply: c => { c._moderStripCount = 2; },
+    },
+    'Professor X': {
+      id: 'profx-text', name: 'Master Telepath',
+      desc: 'Converts enemies with cost ≤6 (was ≤4).',
+      apply: c => { c._profXConvertCost = 6; },
+    },
+    'Mahoraga': {
+      id: 'mahoraga-text', name: 'Adaptive Wheel',
+      desc: 'Revives at 9/12 with Armor 1 + Immunity 1 (was 7/9).',
+      apply: c => { c._mahoragaReviveAtk = 9; c._mahoragaReviveHp = 12; },
+    },
+    'Obi-Wan': {
+      id: 'obiwan-text', name: 'Will of the Force',
+      desc: 'Reflected damage doubles (1:2 instead of 1:1).',
+      apply: c => { c._obiWanReflectMul = 2; },
+    },
+    'The Batman Who Laughs': {
+      id: 'bwl-text', name: 'Endless Hex',
+      desc: 'Removes the once-per-game lock — every BWL play arms a fresh steal.',
+      apply: c => { c._bwlUnlimited = true; },
+    },
+    'Symbiote Spider-Man': {
+      id: 'symbiote-text', name: 'Black Suit',
+      desc: 'Shuffles ONLY the opponent\'s hand back (your hand stays put).',
+      apply: c => { c._symbioteSkipSelf = true; },
+    },
+    'Homelander': {
+      id: 'homelander-text', name: 'Above the Law',
+      desc: 'Sacrifice damage = ally cost + 3 (was ally cost only).',
+      apply: c => { c._homelanderDmgBonus = 3; },
+    },
   },
 
   cardCanUseTextUpgrade(cardName) {

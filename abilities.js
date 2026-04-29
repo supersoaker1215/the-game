@@ -785,7 +785,7 @@ const CARD_ABILITIES = {
   },
   "Jigsaw": {
     isDiscardEffect: true,
-    onDiscard(G, owner) {
+    onDiscard(G, owner, self) {
       const opp = G.opponent(owner);
 
       // Step 2: After all traps are placed, move an enemy card to any open lane.
@@ -846,8 +846,12 @@ const CARD_ABILITIES = {
           opp);
       };
 
+      // Roguelite Text+ override — _jigsawTrapCount scales the trap
+      // count. Default 3 (classic); Text+ to 5 so a fresh Jigsaw can
+      // mine the entire enemy side.
+      const trapCount = (self && self._jigsawTrapCount) || 3;
       G.log(`Jigsaw's game begins — choose where to set your traps.`);
-      placeTrapStep(3);
+      placeTrapStep(trapCount);
     }
   },
   "Loki": {
@@ -890,21 +894,28 @@ const CARD_ABILITIES = {
         const opp = G.opponent(self.owner);
         // Force opponent's next card into Moder's lane. Do NOT strip anyone
         // already there — only the single forced arrival loses abilities.
+        // Roguelite Text+ override — _moderStripCount lets Moder strip
+        // multiple subsequent arrivals. Default 1 (classic); Text+ to 2
+        // so two consecutive enemies coming into his lane both lose
+        // their kits. The forcedLane only fires once per round (engine
+        // limitation), but the strip-pending counter persists until
+        // exhausted, so the SECOND target gets stripped on whichever
+        // round it lands.
         G.state[opp].forcedLane = lane;
-        self._moderStripPending = true;
+        self._moderStripPending = (self._moderStripCount || 1);
         G.log(`Moder compels the next enemy card into lane ${lane + 1}!`);
       },
       onAnyCardPlayed(G, self) {
-        // Strip exactly one card: the first enemy that lands in Moder's lane
-        // after he was played. Once consumed, no further cards are affected.
-        if (!self._moderStripPending) return;
+        // Strip the next N cards that land in Moder's lane, where N is
+        // _moderStripPending (1 or 2). Each strip decrements the counter.
+        if (!self._moderStripPending || self._moderStripPending <= 0) return;
         const myLane = G.findCardLane(self);
         if (myLane < 0) return;
         const opp = G.opponent(self.owner);
         const enemy = G.state.lanes[myLane][opp];
         if (enemy && !enemy._moderStripped) {
           strip(enemy, G);
-          self._moderStripPending = false;
+          self._moderStripPending -= 1;
         }
       }
     };
@@ -1067,12 +1078,20 @@ const CARD_ABILITIES = {
       };
       // Process owner first, then opponent, then heal
       const opp = G.opponent(self.owner);
-      doPlayerShuffle(self.owner, () => {
-        doPlayerShuffle(opp, () => {
-          G.healPlayer(self.owner, 2, self);
-          G.log("Symbiote Spider-Man heals you for 2!");
-        });
-      });
+      // Roguelite Text+ override — _symbioteSkipSelf makes the shuffle
+      // hit only the OPPONENT's hand (your own hand stays put). Default
+      // false (classic shuffles both); Text+ true makes it pure
+      // disruption with no self-cost.
+      const skipSelf = !!self._symbioteSkipSelf;
+      const finish = () => {
+        G.healPlayer(self.owner, 2, self);
+        G.log("Symbiote Spider-Man heals you for 2!");
+      };
+      if (skipSelf) {
+        doPlayerShuffle(opp, finish);
+      } else {
+        doPlayerShuffle(self.owner, () => doPlayerShuffle(opp, finish));
+      }
     }
   },
   "Winter Soldier": {
@@ -1797,11 +1816,15 @@ const CARD_ABILITIES = {
   },
   "Professor X": {
     isDiscardEffect: true,
-    onDiscard(G, owner) {
+    onDiscard(G, owner, self) {
       const opp = G.opponent(owner);
-      const enemies = G.getEnemiesOf(owner).filter(e => (e.baseCost != null ? e.baseCost : e.cost) <= 4);
+      // Roguelite Text+ override — _profXConvertCost raises the cost
+      // ceiling for convertible enemies. Default 4 (classic); Text+
+      // to 6 so even Iron Man / Captain America are valid targets.
+      const maxCost = (self && self._profXConvertCost) || 4;
+      const enemies = G.getEnemiesOf(owner).filter(e => (e.baseCost != null ? e.baseCost : e.cost) <= maxCost);
       if (!enemies.length) return;
-      G.promptCardChoice(owner, enemies, "Professor X — Convert", "Choose enemy with base cost 4 or less to permanently join your team", (t) => {
+      G.promptCardChoice(owner, enemies, "Professor X — Convert", `Choose enemy with base cost ${maxCost} or less to permanently join your team`, (t) => {
         const oldLane = G.findCardLane(t);
         if (oldLane >= 0) G.state.lanes[oldLane][opp] = null;
         t.owner = owner;
@@ -1915,7 +1938,10 @@ const CARD_ABILITIES = {
     onPlay(G, self, lane) {
       // Only 1 intercept per owner per game. Second+ BWLs on the same
       // side still land as bodies but don't arm another steal.
-      if (G.state[self.owner].bwlInterceptUsed) {
+      // Roguelite Text+ override — _bwlUnlimited removes the once-per-
+      // game lock so every BWL play arms a fresh steal. Default false
+      // (classic single-use); Text+ true makes him a recurring siphon.
+      if (!self._bwlUnlimited && G.state[self.owner].bwlInterceptUsed) {
         G.log("Batman Who Laughs arrives — but his hex has already been spent this game.");
         return;
       }
@@ -2017,7 +2043,9 @@ const CARD_ABILITIES = {
           G.log(`Homelander surveys the field — no worthwhile sacrifice. Holds the strike.`);
           return;
         }
-        const dmg = trade.ally.baseCost || trade.ally.cost;
+        // Match the human-path dmg formula: ally.cost + Text+ bonus.
+        const aiBonus = self._homelanderDmgBonus || 0;
+        const dmg = (trade.ally.baseCost || trade.ally.cost) + aiBonus;
         G.killCard(trade.ally);
         if (trade.mode === 'destroy') {
           G.killCard(trade.enemy, self);
@@ -2046,7 +2074,13 @@ const CARD_ABILITIES = {
             return;
           }
           const victim = picked;
-          const dmg = victim.baseCost || victim.cost;
+          // Roguelite Text+ override — _homelanderDmgBonus adds flat
+          // damage on top of the sacrificed ally's cost. Default 0
+          // (classic = ally cost); Text+ to 3 so a 2-cost sacrifice
+          // does 5 damage / destroys ≤5 cost. Cheap allies become a
+          // viable currency for big trades.
+          const homeBonus = self._homelanderDmgBonus || 0;
+          const dmg = (victim.baseCost || victim.cost) + homeBonus;
           // Step 2 — Damage vs Destroy. Both are synthetic choice tiles.
           const damageOpt = {
             _hlMode: 'damage',
@@ -2185,8 +2219,14 @@ const CARD_ABILITIES = {
       const atkLane = G.findCardLane(attacker);
       if (selfLane < 0 || atkLane < 0 || atkLane === selfLane) return;
       self._obiWanReflecting = true;
-      G.log(`  [REFLECT] Obi-Wan deflects ${dmg} damage back to ${attacker.name}!`);
-      G.dealDamage(attacker, dmg, self);
+      // Roguelite Text+ override — _obiWanReflectMul scales the reflect
+      // damage. Default 1 (classic 1:1); Text+ to 2 so a 5-damage hit
+      // bounces back as 10. Big bodies that swing across lanes pay
+      // double for the trade.
+      const mul = self._obiWanReflectMul || 1;
+      const reflectDmg = dmg * mul;
+      G.log(`  [REFLECT] Obi-Wan deflects ${reflectDmg} damage back to ${attacker.name}!`);
+      G.dealDamage(attacker, reflectDmg, self);
       self._obiWanReflecting = false;
     },
     onDeath(G, self, lane) {
@@ -2424,18 +2464,24 @@ const CARD_ABILITIES = {
     onDeath(G, self, lane) {
       if (self.reviveCharges > 0) {
         self.reviveCharges--;
+        // Roguelite Text+ override — _mahoragaReviveAtk / _mahoragaReviveHp
+        // bump the revive stats. Default 7/9 (classic); Text+ to 9/12 so
+        // the second body is closer to a fresh-Mahoraga rather than a
+        // weakened revival.
+        const revAtk = (self._mahoragaReviveAtk != null) ? self._mahoragaReviveAtk : 7;
+        const revHp  = (self._mahoragaReviveHp  != null) ? self._mahoragaReviveHp  : 9;
         // Adapts: revives at 7/9 with Immunity 1 AND Armor 1 (new). The
         // armor stacks with the immunity so the first hit on the revived
         // body is fully blocked, the second hit is reduced by 1, and
         // subsequent hits go through. Per balance pass: "give Mahoraga
         // armor 1 on revive".
-        self.attack = 7;
-        self.currentHealth = 9;
-        self.maxHealth = 9;
+        self.attack = revAtk;
+        self.currentHealth = revHp;
+        self.maxHealth = revHp;
         self.immunityCharges = 1;
         self.armorValue = Math.max(self.armorValue || 0, 1);
         G.placeInLane(self.owner, self, lane);
-        G.log(`Mahoraga adapts! 7/9 Armor 1 + Immunity 1! (Revive ${self.reviveCharges} left)`);
+        G.log(`Mahoraga adapts! ${revAtk}/${revHp} Armor 1 + Immunity 1! (Revive ${self.reviveCharges} left)`);
         return true;
       }
     }
