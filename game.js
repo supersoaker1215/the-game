@@ -4593,14 +4593,19 @@ const Game = {
     this.tryApplyDebuff(source, card, 'Fear', () => {
       card.fearedTurns = (card.fearedTurns || 0) + turns;
       card.isFeared = true;
-      // Crazy can't coexist with Feared — both flags hijack the
-      // combat target. User rule: "Crazy cannot be applied to feared
-      // enemies." Same intent in reverse: when a Crazy card gets
-      // Feared, the Crazy flag is cleared so the new Fear takes
-      // sole control of the swing.
+      // Crazy is SUPPRESSED (not stripped) while feared. User
+      // direction: "If they are feared, they cannot have Crazy.
+      // Joker can still have Insane, Harley can't have Crazy."
+      // Crazy is the rerolling-ATK trait — gets paused while fear
+      // hijacks the combat target, ATK reverts to base. When fear
+      // wears off, the next rerollCrazyInsane sweep resumes Crazy
+      // normally. The flag persists so an intrinsic Crazy holder
+      // (Harley) doesn't permanently lose her identity to a single
+      // Fear application. Insane (Joker's intrinsic) is left alone
+      // — it fires through fear and rolls 2-7 every round.
       if (card.isCrazy) {
-        card.isCrazy = false;
-        delete card._crazyAppliedBy;
+        card.attack = card.baseAttack || 0;
+        card._lastCrazyRoll = null;
       }
       const total = card.fearedTurns;
       this.log(`  [FEAR] ${card.name} is feared (${total})!`);
@@ -5480,11 +5485,19 @@ const Game = {
   rerollCrazyInsane(card) {
     if (!card || card.currentHealth <= 0) return;
     const before = card.attack;
+    // INSANE always fires — Joker's intrinsic chaos isn't stoppable by
+    // Fear. He keeps rolling 2-7 even when terrified.
     if (card.isInsane) {
       let r; do { r = 2 + Math.floor(Math.random() * 6); } while (r === card._lastInsaneRoll);
       card._lastInsaneRoll = r; card.attack = r;
       this.log(`  [INSANE] ${card.name} rolls ATK ${before} → ${r}`);
-    } else if (card.isCrazy) {
+      return;
+    }
+    // CRAZY is suppressed by Fear. ATK stays at base for the duration;
+    // the flag persists so the next reroll post-fear resumes Crazy
+    // normally (intrinsic Harley regains her identity once fear ends,
+    // Joker-stamped Crazy on enemies likewise resumes).
+    if (card.isCrazy && !card.isFeared) {
       let r; do { r = 1 + Math.floor(Math.random() * 4); } while (r === card._lastCrazyRoll);
       card._lastCrazyRoll = r; card.attack = r;
       this.log(`  [CRAZY] ${card.name} rolls ATK ${before} → ${r}`);
