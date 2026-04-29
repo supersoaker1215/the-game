@@ -1241,11 +1241,12 @@ const Game = {
     // the run state which Roguelite._launchFight refreshed via the
     // onFightStart hook chain right before startMatch fired.
     const relicEnergyBonus = (this.state.roguelite && this.state.roguelite._extraEnergy) || 0;
-    // Round-1-only energy bonus from starter relics (Battery). Applies
-    // ONCE on round 1 of each fight, not every round. User direction:
-    // "Battery is broken — I pick it every time." So flat per-round
-    // becomes a tempo lead in round 1.
-    const relicEnergyBonusR1 = (this.state.roguelite && this.state.roguelite._extraEnergyR1 && r === 1) || 0;
+    // Every-other-round energy bonus from starter relic Battery.
+    // Applies on odd rounds only (1, 3, 5, …) so the player gets
+    // ~half the upside of a flat per-round bonus. User direction:
+    // "Have it for every other turn." Stronger than round-1-only,
+    // weaker than every-round.
+    const relicEnergyBonusAlt = (this.state.roguelite && this.state.roguelite._extraEnergyAlt && (r % 2 === 1)) || 0;
     ['player', 'ai'].forEach(o => {
       // batmanBlocked is now a round-number marker set to R+1 when Batman
       // plays in round R. Clearing it unconditionally here would wipe the
@@ -1254,7 +1255,7 @@ const Game = {
       // round is already treated as inactive without a forced reset.
       let cur = (r * rogueliteEnergyMul) + this.state[o].nextTurnCurrency;
       if (o === 'player' && relicEnergyBonus) cur += relicEnergyBonus;
-      if (o === 'player' && relicEnergyBonusR1) cur += relicEnergyBonusR1;
+      if (o === 'player' && relicEnergyBonusAlt) cur += relicEnergyBonusAlt;
       this.getAllCardsOf(o).forEach(c => {
         // Attribute each passive's energy bonus to the generating card +
         // its summon chain so the MVP formula credits every ancestor.
@@ -3333,14 +3334,13 @@ const Game = {
     // and ramps deck-cycling to match the energy curve.
     const baseDraw = (this.state.mode && this.state.mode._roguelite) ? 2 : 1;
     // Relic-driven extra draws (Old Manuscript) — player only. Flat
-    // per-round bonus from rare/boss relics, plus a round-1-only bonus
-    // from the starter Old Manuscript (Slay-the-Spire Ring-of-the-Snake
-    // style). User direction: starter relic "Old Manuscript is broken
-    // — I pick it every time" → reframed as round-1-only tempo.
+    // per-round bonus from rare/boss relics, plus an every-other-round
+    // bonus from the starter Old Manuscript. User direction:
+    // "Have it for every other turn" — applies on odd rounds (1, 3, 5).
     const relicDrawBonus = (this.state.roguelite && this.state.roguelite._extraDraw) || 0;
-    const isRound1 = (this.state.round || 1) === 1;
-    const relicDrawBonusR1 = (isRound1 && this.state.roguelite && this.state.roguelite._extraDrawR1) || 0;
-    const playerDraw = baseDraw + relicDrawBonus + relicDrawBonusR1;
+    const isOddRound = ((this.state.round || 1) % 2) === 1;
+    const relicDrawBonusAlt = (isOddRound && this.state.roguelite && this.state.roguelite._extraDrawAlt) || 0;
+    const playerDraw = baseDraw + relicDrawBonus + relicDrawBonusAlt;
     this.handleDrStrangeReorder((peeked) => {
       if (!peeked.has('player')) this.drawCards('player', playerDraw);
       else this.log(`  [FORESEE] Peek counts as your draw this round.`);

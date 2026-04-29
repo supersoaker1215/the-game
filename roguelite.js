@@ -353,13 +353,13 @@ const Roguelite = {
     },
     {
       id: 'old-manuscript', name: 'Old Manuscript', rarity: 'common',
-      desc: 'Round 1 of each fight: draw +1 card.',
-      onFightStart(run) { run._extraDrawR1 = (run._extraDrawR1 || 0) + 1; },
+      desc: 'Every other round: draw +1 card.',
+      onFightStart(run) { run._extraDrawAlt = (run._extraDrawAlt || 0) + 1; },
     },
     {
       id: 'battery', name: 'Battery', rarity: 'common',
-      desc: 'Round 1 of each fight: +1 energy.',
-      onFightStart(run) { run._extraEnergyR1 = (run._extraEnergyR1 || 0) + 1; },
+      desc: 'Every other round: +1 energy.',
+      onFightStart(run) { run._extraEnergyAlt = (run._extraEnergyAlt || 0) + 1; },
     },
     {
       id: 'healing-brew', name: 'Healing Brew', rarity: 'common',
@@ -1867,9 +1867,10 @@ const Roguelite = {
     // each fight from relic onFightStart hooks).
     _preservedRun._extraEnergy = 0;
     _preservedRun._extraDraw = 0;
-    // Round-1-only counters from starter Battery / Old Manuscript.
-    _preservedRun._extraEnergyR1 = 0;
-    _preservedRun._extraDrawR1 = 0;
+    // Every-other-round counters from starter Battery / Old Manuscript.
+    // Apply on odd rounds only (1, 3, 5, …).
+    _preservedRun._extraEnergyAlt = 0;
+    _preservedRun._extraDrawAlt = 0;
     this._applyRelicHook(_preservedRun, 'onFightStart');
     // Hand off to the existing combat engine. The mode shape:
     //   players:1v1, deck:deckbuilder (per-side piles, no shared)
