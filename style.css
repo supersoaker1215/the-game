@@ -19984,44 +19984,174 @@ body.killing-blow-cinema::after {
 .rl-tier-special-text { color: rgba(200,160,255,1); text-shadow: 0 0 6px rgba(200,160,255,0.5); }
 .rl-tier-legendary-text { color: rgba(255,215,140,1); text-shadow: 0 0 8px rgba(255,215,140,0.6); }
 
-/* Auto-granted-trait banner inside the level-up modal — shows the
-   freebie keyword the player got on the common→rare promotion.
-   Theme-aware so it picks up gold/blue/etc. */
+/* ============================================================
+   LEVEL-UP MODAL — Tron-styled chrome, per-bucket-colored choice
+   cards with a description line. Replaces the flat single-button
+   layout; reads as a deliberate UI surface, not a quick prompt.
+   User direction: "make it more Tron styled menu styled — this
+   looks flat. When it says Thorns I want a description of what
+   that means."
+   ============================================================ */
+
+/* Card-name → new-tier indicator at the top of the modal. */
+.rl-levelup-card-line {
+  display: flex; align-items: baseline; justify-content: center;
+  gap: 12px; margin: 4px 0 18px;
+  font-family: 'Rajdhani', sans-serif;
+}
+.rl-levelup-card-name {
+  font-size: 22px; font-weight: 700;
+  letter-spacing: 3px; text-transform: uppercase;
+  color: #ffffff;
+  text-shadow: 0 0 10px var(--theme-glow-outer, rgba(79,195,247,0.65));
+}
+.rl-levelup-arrow {
+  font-size: 18px;
+  color: var(--theme-accent-bright, #4fc3f7);
+  text-shadow: 0 0 8px var(--theme-glow-outer, rgba(79,195,247,0.75));
+}
+.rl-levelup-new-tier {
+  font-size: 18px; font-weight: 700;
+  letter-spacing: 4px; text-transform: uppercase;
+}
+
+/* Auto-granted-trait banner — neon panel with corner accents and a
+   pulsing ring that telegraphs "freebie." */
 .rl-levelup-auto-trait {
-  margin: 6px 0 14px;
-  padding: 8px 14px;
+  position: relative;
+  margin: 0 0 22px;
+  padding: 14px 22px;
   text-align: center;
   font-family: 'Rajdhani', sans-serif;
-  font-size: 14px;
-  letter-spacing: 2px;
-  text-transform: uppercase;
-  color: var(--theme-accent-bright, #d4ecff);
-  background: rgba(0,0,0,0.55);
-  border: 1px solid var(--theme-accent-edge, rgba(79,195,247,0.55));
+  background:
+    linear-gradient(180deg, var(--theme-wash-08, rgba(79,195,247,0.10)) 0%, rgba(0,0,0,0) 70%),
+    rgba(8,12,20,0.88);
+  border: 1px solid var(--theme-accent-bright, rgba(79,195,247,0.85));
   border-radius: 4px;
   box-shadow:
-    0 0 12px var(--theme-glow-outer, rgba(79,195,247,0.45)),
-    inset 0 0 0 1px rgba(255,255,255,0.05);
+    0 0 16px var(--theme-glow-outer, rgba(79,195,247,0.55)),
+    0 0 36px var(--theme-glow-inner, rgba(79,195,247,0.25)),
+    inset 0 0 0 1px rgba(255,255,255,0.04);
+  display: flex; flex-direction: column; gap: 4px;
 }
-.rl-levelup-auto-trait b {
+.rl-levelup-auto-trait::before,
+.rl-levelup-auto-trait::after {
+  content: ''; position: absolute; width: 10px; height: 10px;
+  pointer-events: none;
+  filter: drop-shadow(0 0 4px var(--theme-glow-outer, rgba(79,195,247,0.85)));
+}
+.rl-levelup-auto-trait::before {
+  top: -1px; left: -1px;
+  border-top: 2px solid var(--theme-accent-bright, #4fc3f7);
+  border-left: 2px solid var(--theme-accent-bright, #4fc3f7);
+}
+.rl-levelup-auto-trait::after {
+  bottom: -1px; right: -1px;
+  border-bottom: 2px solid var(--theme-accent-bright, #4fc3f7);
+  border-right: 2px solid var(--theme-accent-bright, #4fc3f7);
+}
+.rl-levelup-auto-tag {
+  font-size: 10px; letter-spacing: 4px; text-transform: uppercase;
+  color: color-mix(in srgb, var(--theme-accent, rgb(79,195,247)) 50%, #94a8c0);
+}
+.rl-levelup-auto-name {
+  font-size: 22px; font-weight: 700;
+  letter-spacing: 3px; text-transform: uppercase;
   color: #ffffff;
-  text-shadow: 0 0 8px var(--theme-glow-outer, rgba(79,195,247,0.85));
+  text-shadow:
+    0 0 8px var(--theme-glow-outer, rgba(79,195,247,1)),
+    0 0 18px var(--theme-glow-inner, rgba(79,195,247,0.5));
 }
-/* Bucket caption above each level-up choice — small uppercase tag
-   so the player can tell which bucket (Stats / Text / Energy) the
-   option came from at a glance. Common→rare 3-bucket flow only;
-   higher promotions don't set bucket so the caption stays empty. */
+.rl-levelup-auto-desc {
+  margin-top: 2px;
+  font-size: 13px; font-weight: 500;
+  color: rgba(220,235,250,0.85);
+  letter-spacing: 0.4px; text-transform: none;
+  line-height: 1.35;
+}
+
+/* "Pick an etch:" subheading. */
+.rl-levelup-prompt {
+  margin: 0 0 10px;
+  text-align: center;
+  font-family: 'Rajdhani', sans-serif;
+  font-size: 11px; letter-spacing: 4px; text-transform: uppercase;
+  color: color-mix(in srgb, var(--theme-accent, rgb(79,195,247)) 35%, #94a8c0);
+}
+
+/* Choice grid — vertical stack of 2-3 picks with breathing space. */
+.rl-levelup-choice-grid {
+  display: flex; flex-direction: column; gap: 10px;
+}
+
+/* Each level-up choice — neon card with bucket caption, etch name,
+   and description. Bucket-specific border + glow color so the player
+   can scan all the picks at a glance. Hover lifts + brightens. */
 .rl-levelup-choice {
-  display: flex; flex-direction: column; align-items: center; gap: 4px;
+  position: relative;
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 6px;
+  padding: 14px 18px;
+  text-align: center;
+  font-family: 'Rajdhani', sans-serif;
+  cursor: pointer;
+  background: linear-gradient(180deg, rgba(20,28,40,0.90) 0%, rgba(8,12,20,0.95) 100%);
+  border: 1px solid rgba(79,195,247,0.45);
+  border-radius: 4px;
+  color: #f5fbff;
+  box-shadow:
+    0 0 10px rgba(79,195,247,0.18),
+    inset 0 0 0 1px rgba(255,255,255,0.03);
+  transition: transform 0.15s, border-color 0.2s, box-shadow 0.25s, background 0.2s;
 }
+.rl-levelup-choice:hover {
+  transform: translateY(-1px);
+  background: linear-gradient(180deg, rgba(28,40,60,0.95) 0%, rgba(12,18,28,0.98) 100%);
+  border-color: rgba(79,195,247,0.95);
+  box-shadow:
+    0 0 18px rgba(79,195,247,0.55),
+    0 0 36px rgba(79,195,247,0.20),
+    inset 0 0 0 1px rgba(255,255,255,0.08);
+}
+
+/* Bucket caption — small uppercase tag, takes its color from a
+   per-bucket modifier class (rl-bucket-stats / -trait / -energy /
+   -text) so the four buckets read as four distinct flavors. */
 .rl-levelup-bucket {
   display: inline-block;
   font-size: 10px; letter-spacing: 3px; text-transform: uppercase;
-  color: color-mix(in srgb, var(--theme-accent, rgb(79,195,247)) 45%, #94a8c0);
-  opacity: 0.85;
+  font-weight: 600;
+  opacity: 0.95;
 }
+.rl-bucket-stats  { color: #5be39a; text-shadow: 0 0 4px rgba(91,227,154,0.55); }
+.rl-bucket-trait  { color: #7fd0ff; text-shadow: 0 0 4px rgba(127,208,255,0.55); }
+.rl-bucket-energy { color: #ffe066; text-shadow: 0 0 4px rgba(255,224,102,0.55); }
+.rl-bucket-text   { color: #d8a8ff; text-shadow: 0 0 4px rgba(216,168,255,0.65); }
+
+/* Per-bucket choice border tint so the four picks are visually
+   coded at a glance. */
+.rl-levelup-choice:has(.rl-bucket-stats)  { border-color: rgba(91,227,154,0.50);  box-shadow: 0 0 10px rgba(91,227,154,0.18),  inset 0 0 0 1px rgba(255,255,255,0.03); }
+.rl-levelup-choice:has(.rl-bucket-trait)  { border-color: rgba(127,208,255,0.55); box-shadow: 0 0 10px rgba(127,208,255,0.20), inset 0 0 0 1px rgba(255,255,255,0.03); }
+.rl-levelup-choice:has(.rl-bucket-energy) { border-color: rgba(255,224,102,0.50); box-shadow: 0 0 10px rgba(255,224,102,0.18), inset 0 0 0 1px rgba(255,255,255,0.03); }
+.rl-levelup-choice:has(.rl-bucket-text)   { border-color: rgba(216,168,255,0.65); box-shadow: 0 0 14px rgba(216,168,255,0.30), 0 0 26px rgba(216,168,255,0.14), inset 0 0 0 1px rgba(255,255,255,0.06); }
+.rl-levelup-choice:hover:has(.rl-bucket-stats)  { border-color: rgba(91,227,154,1);   box-shadow: 0 0 18px rgba(91,227,154,0.55),  0 0 36px rgba(91,227,154,0.20),  inset 0 0 0 1px rgba(255,255,255,0.08); }
+.rl-levelup-choice:hover:has(.rl-bucket-trait)  { border-color: rgba(127,208,255,1);  box-shadow: 0 0 18px rgba(127,208,255,0.65), 0 0 36px rgba(127,208,255,0.25), inset 0 0 0 1px rgba(255,255,255,0.08); }
+.rl-levelup-choice:hover:has(.rl-bucket-energy) { border-color: rgba(255,224,102,1);  box-shadow: 0 0 18px rgba(255,224,102,0.55), 0 0 36px rgba(255,224,102,0.20), inset 0 0 0 1px rgba(255,255,255,0.08); }
+.rl-levelup-choice:hover:has(.rl-bucket-text)   { border-color: rgba(216,168,255,1);  box-shadow: 0 0 22px rgba(216,168,255,0.80), 0 0 48px rgba(216,168,255,0.35), inset 0 0 0 1px rgba(255,255,255,0.10); }
+
 .rl-levelup-name {
-  font-size: 14px; font-weight: 600;
+  font-size: 18px; font-weight: 700;
+  letter-spacing: 2px; text-transform: uppercase;
+  color: #ffffff;
+  text-shadow: 0 0 6px var(--theme-glow-outer, rgba(79,195,247,0.55));
+}
+.rl-levelup-desc {
+  font-size: 12px; font-weight: 400;
+  color: rgba(220,235,250,0.78);
+  letter-spacing: 0.3px;
+  line-height: 1.4;
+  text-transform: none;
 }
 
 /* Shop UI */

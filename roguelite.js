@@ -212,7 +212,67 @@ const Roguelite = {
       { id: 'echo',          name: 'Echo',      apply: c => { c.hasEcho = (c.hasEcho || 0) + 1; if (!c.abilities.includes('Echo')) c.abilities.push('Echo'); } },
       { id: 'phoenix',       name: 'Phoenix',   apply: c => { c.hasPhoenix = (c.hasPhoenix || 0) + 1; if (!c.abilities.includes('Phoenix')) c.abilities.push('Phoenix'); } },
       { id: 'discount-4',    name: 'Discount 4', apply: c => { c.cost = Math.max(0, (c.cost || 0) - 4); c.baseCost = Math.max(0, (c.baseCost || c.cost || 0) - 4); if (!c.abilities.includes('Discount 4')) c.abilities.push('Discount 4'); } },
+      // ----- TEXT etch -----
+      // Scales this card's printed ability up by one rarity tier when
+      // Game.rarityValue() resolves it. So a Rare Hawkeye with a Text+
+      // etch reads its Splash value at the Special tier (Splash 2),
+      // and a Black Widow with Text+ freezes 2 instead of 1. User
+      // direction: "the text etch should effect the scalar on the
+      // text ability — like Hawkeye's 'When played: Splash 1' becomes
+      // 'When played: Splash 2'. The text tech is the Legendary quality
+      // upgrade so it's rare to get." Lives in the legendary tier so
+      // it only drops on big promotions.
+      { id: 'text-upgrade', name: 'Text+', apply: c => { c.textTierBumps = (c.textTierBumps || 0) + 1; if (!c.abilities.includes('Text+')) c.abilities.push('Text+'); } },
     ],
+  },
+
+  // Etch description book — surfaced in the level-up modal so the
+  // player knows what each keyword/etch actually does. Keys are etch
+  // IDs from the ETCHES table above.
+  ETCH_DESCS: {
+    'plus1-atk':     '+1 attack power.',
+    'plus1-hp':      '+1 hit points.',
+    'plus1-atk-hp':  '+1 attack and +1 hit points.',
+    'plus2-atk':     '+2 attack power.',
+    'plus2-hp':      '+2 hit points.',
+    'plus2-atk-hp':  '+2 attack and +2 hit points.',
+    'plus3-atk':     '+3 attack power.',
+    'plus3-hp':      '+3 hit points.',
+    'plus3-atk-hp':  '+3 attack and +3 hit points.',
+    'plus4-atk':     '+4 attack power.',
+    'plus4-atk-hp':  '+4 attack and +4 hit points.',
+    'discount-1':    'Costs 1 less energy to play.',
+    'discount-2':    'Costs 2 less energy to play.',
+    'discount-3':    'Costs 3 less energy to play.',
+    'discount-4':    'Costs 4 less energy to play.',
+    'evade-1':       'Evade 1 — first incoming damage is avoided.',
+    'evade-2':       'Evade 2 — first two incoming hits are avoided.',
+    'evade-4':       'Evade 4 — first four incoming hits are avoided.',
+    'bullseye':      'Bullseye — attacks ignore Armor and pass through to the player when no enemy is in lane.',
+    'splash-1':      'Splash 1 — deal +1 splash damage to adjacent lanes.',
+    'splash-2':      'Splash 2 — splash damage hits adjacent lanes for +2.',
+    'splash-3':      'Splash 3 — splash damage hits adjacent lanes for +3.',
+    'splash-4':      'Splash 4 — splash damage hits adjacent lanes for +4.',
+    'armor-1':       'Armor 1 — reduces every incoming hit by 1.',
+    'armor-2':       'Armor 2 — reduces every incoming hit by 2.',
+    'hunt':          'Hunt — moves to the lane of newly-played enemies on arrival.',
+    'untrickable':   'Untrickable — immune to enemy tricks.',
+    'taunt-1':       'Taunt 1 — intercepts 1 attack aimed at allies next turn.',
+    'overdrive':     'Overdrive — attacks twice this turn.',
+    'fear-1':        'Fear 1 — applies Fear to one enemy on play.',
+    'thorns':        'Thorns — counter-damage attackers for 1 each time you\'re hit.',
+    'cantrip':       'Cantrip — draw 1 card whenever you play this card.',
+    'echo':          'Echo — duplicates this card\'s when-played effect.',
+    'phoenix':       'Phoenix — once per life, revive at full HP when killed.',
+    'lifesteal':     'Lifesteal — heal yourself for damage dealt.',
+    'berserker':     'Berserker — gain +1 attack each time you take damage.',
+    'zealot':        'Zealot — gain +1/+1 each time an ally dies.',
+    'invincible-1':  'Invincible 1 — take no damage for 1 turn after arrival.',
+    'unresistible-1':'Unresistible — your attacks cannot be blocked by Evade or Immunity.',
+    'text-upgrade':  'Text+ — scales this card\'s printed ability up one tier (e.g. Splash 1 → Splash 2). Legendary-quality upgrade.',
+  },
+  etchDesc(id) {
+    return this.ETCH_DESCS[id] || '';
   },
 
   // ----- Relics (run-scoped passive modifiers) -----
@@ -1241,19 +1301,32 @@ const Roguelite = {
   _isStatEtch(id) {
     return /^(plus\d|discount-\d)/.test(id);
   },
-  // Three-bucket categorization for the common→rare upgrade picker:
-  //   stats   — flat ATK/HP bumps (plus1-atk, plus1-hp, plus1-atk-hp)
-  //   energy  — cost reductions (discount-N)
-  //   text    — everything else that ISN'T a trait keyword
-  // Trait keywords (Bullseye, Hunt, Armor 1, Taunt 1, Evade 1, etc.)
-  // are auto-granted on the common→rare bump per user direction:
-  // "from uncommon to rare you auto get a trait and also 1 upgrade
-  // for stats, text, energy."
+  // Four-bucket categorization for level-up choices.
+  //
+  //   stats   — flat ATK/HP bumps (plus*)
+  //   energy  — cost reductions (discount-*)
+  //   trait   — keyword etches the card "wears" (Bullseye, Hunt,
+  //             Armor, Taunt, Evade, Splash, Untrickable, Overdrive,
+  //             Thorns, Cantrip, Echo, Phoenix, Lifesteal, Berserker,
+  //             Zealot, Fear, etc.)
+  //   text    — the legendary-rarity Text+ etch that scales the
+  //             card's PRINTED ability up one tier (Splash 1 → 2,
+  //             Freeze 1 → 2). User direction: "Thorns is a trait
+  //             like Bullseye. The text tech is the Legendary quality
+  //             upgrade so it's rare to get."
+  //
+  // The auto-grant on common→rare pulls from a smaller TRAIT pool of
+  // basic keywords — Thorns/Cantrip/Echo/Phoenix etc. are too strong
+  // to hand out for free, so they're trait *etches* (player can pick
+  // them) but NOT in the auto-grant list.
   TRAIT_ETCH_IDS: ['bullseye', 'hunt', 'armor-1', 'taunt-1', 'evade-1', 'untrickable', 'splash-1', 'overdrive'],
+  TEXT_ETCH_IDS:  ['text-upgrade'],
   _isStatBumpEtch(id) { return /^plus\d/.test(id); },
   _isEnergyEtch(id)   { return /^discount-\d/.test(id); },
-  _isTraitEtch(id)    { return this.TRAIT_ETCH_IDS.includes(id); },
-  _isTextEtch(id)     { return !this._isStatBumpEtch(id) && !this._isEnergyEtch(id) && !this._isTraitEtch(id); },
+  _isTextEtch(id)     { return this.TEXT_ETCH_IDS.includes(id); },
+  // Trait = anything that isn't stats / energy / text. So Thorns,
+  // Cantrip, Echo, Phoenix, Berserker, etc. all classify as traits.
+  _isTraitEtch(id)    { return !this._isStatBumpEtch(id) && !this._isEnergyEtch(id) && !this._isTextEtch(id); },
 
   // Pick one Common-tier trait etch the card doesn't already have.
   // Returns null if the card has every trait already (rare).
@@ -1268,47 +1341,88 @@ const Roguelite = {
     return this._findEtch(id);
   },
 
-  // Common→Rare: 3 picks, one from each bucket {stats, text, energy}.
-  _rollCommonToRareChoices() {
-    const all = [...this.ETCHES.common, ...this.ETCHES.rare];
+  // Common→Rare: 3 picks, one from each of {Stats, Trait, Energy}.
+  // Text is the Legendary-quality scalar upgrade — too strong to be in
+  // every common→rare picker. It gets a small (~12%) chance to replace
+  // the Trait slot, otherwise the player picks from the standard three.
+  _rollCommonToRareChoices(cardRef) {
+    const all = [
+      ...this.ETCHES.common,
+      ...this.ETCHES.rare,
+      ...this.ETCHES.special,
+      ...this.ETCHES.legendary,
+    ];
     const stats  = all.filter(e => this._isStatBumpEtch(e.id));
     const energy = all.filter(e => this._isEnergyEtch(e.id));
     const text   = all.filter(e => this._isTextEtch(e.id));
-    const out = [];
+    // Trait pool excludes the basic auto-trait keywords if the card was
+    // just auto-granted one — no point offering them as a paid pick on
+    // the same level-up. Cantrip/Echo/Thorns/Phoenix/etc. stay.
+    const ownedTraits = new Set(cardRef && cardRef.statuses ? cardRef.statuses : []);
+    const traits = all.filter(e =>
+      this._isTraitEtch(e.id) && !this._isTextEtch(e.id) && !ownedTraits.has(e.id)
+    );
     const pickFrom = (pool, label) => {
       if (!pool.length) return null;
       const e = pool[Math.floor(Math.random() * pool.length)];
-      return { id: e.id, name: e.name, bucket: label };
+      return { id: e.id, name: e.name, bucket: label, desc: this.etchDesc(e.id) };
     };
     const a = pickFrom(stats,  'Stats');
-    const b = pickFrom(text,   'Text');
+    const useText = text.length && Math.random() < 0.12;
+    const b = useText ? pickFrom(text, 'Text') : pickFrom(traits, 'Trait');
     const c = pickFrom(energy, 'Energy');
+    const out = [];
     [a, b, c].forEach(x => { if (x) out.push(x); });
     return out;
   },
 
   _rollLevelUpChoices(targetRarity, n) {
-    // Pull from the leveled-up tier's pool + common fallback so the
-    // bucket has variety; deduplicate by ID so the same etch can't
-    // appear twice in a single 1-of-2 prompt.
+    // Higher-tier promotions (rare→special, special→legendary) roll
+    // from the leveled-up tier's pool + common fallback so the bucket
+    // has variety. Buckets are weighted:
+    //   60% Stats   — flat damage / HP / discount picks
+    //   25% Trait   — keyword etches (Thorns, Cantrip, Echo, etc.)
+    //   10% Energy  — explicit cost reduction
+    //    5% Text+   — legendary scalar upgrade, rare drop
+    // Deduplicate by ID. User direction: "from rare to special it's
+    // just random." So no auto-grant at higher tiers — pure luck.
     const tierPool = this.ETCHES[targetRarity] || [];
-    const allEtches = [...tierPool, ...this.ETCHES.common];
-    const stats = allEtches.filter(e => this._isStatEtch(e.id));
-    const text  = allEtches.filter(e => !this._isStatEtch(e.id));
+    const allEtches = [
+      ...tierPool,
+      ...this.ETCHES.common,
+      ...this.ETCHES.legendary,  // for the Text+ chance
+    ];
+    const buckets = {
+      stats:  allEtches.filter(e => this._isStatBumpEtch(e.id)),
+      trait:  allEtches.filter(e => this._isTraitEtch(e.id) && !this._isTextEtch(e.id)),
+      energy: allEtches.filter(e => this._isEnergyEtch(e.id)),
+      text:   allEtches.filter(e => this._isTextEtch(e.id)),
+    };
+    const labelOf = { stats: 'Stats', trait: 'Trait', energy: 'Energy', text: 'Text' };
+    const rollBucket = () => {
+      const r = Math.random();
+      if (r < 0.60) return 'stats';
+      if (r < 0.85) return 'trait';
+      if (r < 0.95) return 'energy';
+      return 'text';
+    };
     const choices = [];
     const usedIds = new Set();
     let attempts = 0;
-    while (choices.length < n && attempts < 50) {
+    while (choices.length < n && attempts < 80) {
       attempts++;
-      const useStat = Math.random() < 0.80;  // 80% stat / 20% text
-      const pool = useStat
-        ? (stats.length ? stats : text)
-        : (text.length ? text : stats);
-      if (!pool.length) break;
+      let bucket = rollBucket();
+      // Fall back if the chosen bucket is empty (e.g. text unavailable).
+      if (!buckets[bucket].length) {
+        const nonEmpty = Object.keys(buckets).filter(k => buckets[k].length);
+        if (!nonEmpty.length) break;
+        bucket = nonEmpty[Math.floor(Math.random() * nonEmpty.length)];
+      }
+      const pool = buckets[bucket];
       const cand = pool[Math.floor(Math.random() * pool.length)];
       if (usedIds.has(cand.id)) continue;
       usedIds.add(cand.id);
-      choices.push({ id: cand.id, name: cand.name });
+      choices.push({ id: cand.id, name: cand.name, bucket: labelOf[bucket], desc: this.etchDesc(cand.id) });
     }
     return choices;
   },
@@ -1362,9 +1476,9 @@ const Roguelite = {
             if (trait) {
               ref.statuses = ref.statuses || [];
               ref.statuses.push(trait.id);
-              autoTrait = { id: trait.id, name: trait.name };
+              autoTrait = { id: trait.id, name: trait.name, desc: this.etchDesc(trait.id) };
             }
-            choices = this._rollCommonToRareChoices();
+            choices = this._rollCommonToRareChoices(ref);
           } else {
             // Higher tier promotion — keep the existing 2-pick random.
             choices = this._rollLevelUpChoices(ref.rarity, 2);
@@ -2748,30 +2862,47 @@ const Roguelite = {
       return;
     }
     const lu = run._pendingLevelUps[0];
-    // Choice buttons. For the common→rare 3-bucket flow, each choice
-    // carries its bucket label (Stats / Text / Energy) — surface it
-    // as a small caption above the etch name so the player can see
-    // which bucket the option came from.
+    // Choice cards — each gets:
+    //   • a small bucket caption (Stats / Trait / Energy / Text) so
+    //     the player can read which bucket fed the option
+    //   • the etch name, big and centered, theme-tinted
+    //   • a description line below the name explaining what the etch
+    //     actually does — pulled from ETCH_DESCS via etchDesc(id).
+    //     User direction: "when it says Thorns I want a description
+    //     of what that means."
+    const bucketClassMap = { Stats: 'rl-bucket-stats', Trait: 'rl-bucket-trait', Energy: 'rl-bucket-energy', Text: 'rl-bucket-text' };
     const choices = lu.choices.map((c, i) => {
+      const bucketCls = bucketClassMap[c.bucket] || '';
       const bucket = c.bucket
-        ? `<span class="rl-levelup-bucket">${c.bucket}</span>`
+        ? `<span class="rl-levelup-bucket ${bucketCls}">${c.bucket}</span>`
+        : '';
+      const desc = c.desc
+        ? `<span class="rl-levelup-desc">${c.desc}</span>`
         : '';
       return `<button type="button" class="rl-event-choice rl-levelup-choice" onclick="Roguelite._pickLevelUpEtch(${i})">
-        ${bucket}<span class="rl-levelup-name">${c.name}</span>
+        ${bucket}
+        <span class="rl-levelup-name">${c.name}</span>
+        ${desc}
       </button>`;
     }).join('');
     // Auto-trait header — shown when a common→rare bump auto-granted
-    // a baseline keyword. User direction: "from uncommon to rare you
-    // auto get a trait." Surface it prominently so the player sees
-    // the freebie.
+    // a baseline keyword. Includes the trait's description for clarity.
     const autoTraitLine = lu.autoTrait
-      ? `<div class="rl-levelup-auto-trait">Auto-granted <b>${lu.autoTrait.name}</b></div>`
+      ? `<div class="rl-levelup-auto-trait">
+           <span class="rl-levelup-auto-tag">Auto-granted</span>
+           <span class="rl-levelup-auto-name">${lu.autoTrait.name}</span>
+           ${lu.autoTrait.desc ? `<span class="rl-levelup-auto-desc">${lu.autoTrait.desc}</span>` : ''}
+         </div>`
       : '';
     const body = `
-      <div class="rl-event-flavor"><b>${lu.defName}</b> leveled up to <span class="rl-tier-${lu.newRarity}-text">${lu.newRarity.toUpperCase()}</span>!</div>
+      <div class="rl-levelup-card-line">
+        <span class="rl-levelup-card-name">${lu.defName}</span>
+        <span class="rl-levelup-arrow">▸</span>
+        <span class="rl-tier-${lu.newRarity}-text rl-levelup-new-tier">${lu.newRarity.toUpperCase()}</span>
+      </div>
       ${autoTraitLine}
-      <div class="rl-event-flavor">Pick an etch:</div>
-      <div class="rl-event-choices">${choices}</div>`;
+      <div class="rl-levelup-prompt">Pick an etch:</div>
+      <div class="rl-levelup-choice-grid">${choices}</div>`;
     this._modal('LEVEL UP', body);
   },
 
@@ -3440,8 +3571,28 @@ const Roguelite = {
     // RARITY_DESCS entry override their def desc so the text matches
     // the actual ability variant at this tier. Falls through to base
     // def text when the card has no rarity-specific variant.
+    //
+    // Common-tier cards explicitly read the BASE (rare) text. User
+    // direction: "don't touch the text for common cards — revert that
+    // change." So a Common Hawkeye displays the same printed ability
+    // as a Rare Hawkeye; the only common-tier nerf is the -1/-1 stat
+    // penalty. Special and Legendary still get their scaled-up text
+    // variants. Text+ etches earned via level-up promote the displayed
+    // tier (Rare card with Text+ reads as Special).
     const variantDescs = this.RARITY_DESCS[def.name];
-    const variantDesc = variantDescs && variantDescs[deckCard.rarity];
+    const tiers = ['common', 'rare', 'special', 'legendary'];
+    let dispTier = deckCard.rarity || 'rare';
+    if (dispTier === 'common') dispTier = 'rare';
+    // If the card carries text-upgrade etches in its statuses, bump
+    // the display tier up by that count so the printed ability matches
+    // what the engine will actually do at runtime.
+    const textBumps = (deckCard.statuses || []).filter(id => id === 'text-upgrade').length;
+    if (textBumps) {
+      let i = tiers.indexOf(dispTier);
+      i = Math.min(tiers.length - 1, i + textBumps);
+      dispTier = tiers[i];
+    }
+    const variantDesc = variantDescs && variantDescs[dispTier];
     const descText = variantDesc || def.desc;
     const descHtml = descText
       ? `<div class="card-desc">${(typeof UI !== 'undefined' && UI.formatDesc) ? UI.formatDesc.call(UI, descText) : descText}</div>`

@@ -2779,7 +2779,24 @@ const Game = {
   // the only behavioral fork is when the runtime card carries the
   // roguelite rarity tag.
   rarityValue(self, map) {
-    const tier = (self && self._runRarity) || 'rare';
+    const tiers = ['common', 'rare', 'special', 'legendary'];
+    let baseTier = (self && self._runRarity) || 'rare';
+    // Common-tier cards resolve abilities as if they were Rare. User
+    // direction: "don't touch the text for common cards." So the only
+    // common-tier nerf is the -1/-1 stat penalty applied in
+    // Roguelite._resolveStats — printed text + ability behavior match
+    // the rare baseline.
+    if (baseTier === 'common') baseTier = 'rare';
+    let idx = tiers.indexOf(baseTier);
+    if (idx < 0) idx = 1; // default to rare
+    // Text-upgrade etches scale the card's ability up one tier per
+    // stack. So a Rare Hawkeye with one Text+ etch reads as Special
+    // for rarityValue lookups (Splash 1 → Splash 2). User direction:
+    // "the text etch should effect the text like Splash 1 → Splash 2.
+    // Text is the legendary quality upgrade so it's rare to get."
+    const bumps = (self && self.textTierBumps) || 0;
+    idx = Math.min(tiers.length - 1, idx + bumps);
+    const tier = tiers[idx];
     if (map[tier] != null) return map[tier];
     return map.rare != null ? map.rare : map.common;
   },
