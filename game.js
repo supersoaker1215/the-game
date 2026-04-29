@@ -3391,7 +3391,25 @@ const Game = {
       // to refresh per-fight state (currentHealth = maxHealth, status
       // counters cleared) but not full re-instantiation.
       let card;
-      if (def && def._isCardInstance) {
+      // ROGUELITE STARTER GUARD. User report: "There's still a Brute
+      // in the deck that doesn't have Taunt 1." Root cause was the
+      // dead-pile reshuffle path leaving a Brute's abilities array in
+      // a drifted state across the fight. Whenever a player-side card
+      // comes through the reshuffle with a `_runDeckCardRef` (meaning
+      // it's a roguelite deck card), defer to Roguelite.buildRunCard
+      // which always reconstructs from the canonical STARTER_DEFS / def
+      // source + applies fresh etches. Guarantees a starter Brute is
+      // always ['Taunt 1'].
+      const ref = def && def._runDeckCardRef;
+      if (ref && owner === 'player' && typeof Roguelite !== 'undefined' && Roguelite.buildRunCard) {
+        const rebuilt = Roguelite.buildRunCard(ref, 'player');
+        if (rebuilt) {
+          card = rebuilt;
+          card.currentHealth = card.maxHealth;
+        } else {
+          card = def;
+        }
+      } else if (def && def._isCardInstance) {
         card = def;
         // Fresh-fight reset on per-fight transient state (statuses,
         // bonus-attack queue, etc.). Etches and stat bumps stay; HP
@@ -3403,6 +3421,16 @@ const Game = {
         card.tauntTurns = 0;
         card._deathHandled = false;
         card._phoenixUsed = false;
+        // Re-stamp Taunt counter for cards whose abilities still list
+        // a Taunt N keyword. Starter Brute (always ['Taunt 1']) and
+        // any card that earned Taunt via etch rely on this — without
+        // it, the previous reset zeroes their taunt for every fight.
+        if (Array.isArray(card.abilities)) {
+          card.abilities.forEach(ab => {
+            const m = /^Taunt\s+(\d+)$/i.exec(ab);
+            if (m) card.tauntTurns = Math.max(card.tauntTurns, parseInt(m[1]) || 1);
+          });
+        }
       } else {
         card = this.createCardInstance(def, owner);
         // Preserve roguelite run metadata from a dead-pile→draw-pile

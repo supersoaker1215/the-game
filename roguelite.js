@@ -834,8 +834,23 @@ const Roguelite = {
     // Revive N stays (death-trigger identity is core for revivers).
     // Starter cards keep their baseline (Brute's Taunt 1) — that was
     // an explicit balance call. Curses have no abilities anyway.
-    const rawAbilities = [...(def.abilities || [])];
-    const abilities = (deckCard._isStarter || def._isCurse)
+    // STARTER ABILITY INTEGRITY GUARD. User report (multiple times):
+    // "There's still a Brute in the deck that doesn't have Taunt 1.
+    // How many times do we have to go over this? Fix it."
+    //
+    // Root cause: somewhere in the dead-pile → reshuffle → createCardInstance
+    // chain, abilities arrays were drifting. Bulletproof fix: for any
+    // card whose name matches a STARTER_DEFS entry, OR any deck-entry
+    // tagged `_isStarter`, ALWAYS rebuild the abilities from the
+    // canonical STARTER_DEFS source. This way even if `def.abilities`
+    // got mutated, lost, or was pulled from a stale dead-pile entry,
+    // every Brute we build is guaranteed to ship with `['Taunt 1']`.
+    const starterDef = this.STARTER_DEFS.find(s => s.name === deckCard.defName);
+    const isStarter  = deckCard._isStarter || !!starterDef;
+    const rawAbilities = (isStarter && starterDef)
+      ? [...(starterDef.abilities || [])]   // canonical — never trust runtime drift
+      : [...(def.abilities || [])];
+    const abilities = (isStarter || def._isCurse)
       ? rawAbilities
       : rawAbilities.filter(ab => /^Revive(\s|$)/i.test(ab));
     const clone = Object.assign({}, def, { abilities });
