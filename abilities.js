@@ -634,17 +634,25 @@ const CARD_ABILITIES = {
       if (self.carnageHealed) return;
       const ct = G.getEnemiesOf(self.owner).length;
       if (ct > 0) {
-        G.healPlayer(self.owner, ct, self);
-        G.log(`Carnage heals you for ${ct}!`);
+        // Roguelite Text+ override — _carnageHealMul doubles the heal
+        // per enemy. Default 1 (classic); Text+ sets to 2 so a 4-enemy
+        // board heals you for 8 instead of 4.
+        const mul = self._carnageHealMul || 1;
+        G.healPlayer(self.owner, ct * mul, self);
+        G.log(`Carnage heals you for ${ct * mul}!`);
         self.carnageHealed = true;
       }
     }
   },
   "Deathstroke": {
     onPlay(G, self, lane) {
-      const targets = G.getEnemiesOf(self.owner).filter(c => c.currentHealth <= 3);
+      // Roguelite Text+ override — _deathstrokeKillThreshold raises the
+      // assassinate ceiling. Default 3 (classic); Text+ sets to 5 so
+      // mid-tier targets are also one-shot-able.
+      const threshold = self._deathstrokeKillThreshold || 3;
+      const targets = G.getEnemiesOf(self.owner).filter(c => c.currentHealth <= threshold);
       if (targets.length) {
-        G.promptCardChoice(self.owner, targets, "Deathstroke — Assassinate", "Choose enemy with 3 or less HP to destroy", (t) => {
+        G.promptCardChoice(self.owner, targets, "Deathstroke — Assassinate", `Choose enemy with ${threshold} or less HP to destroy`, (t) => {
           G.log(`Deathstroke assassinates ${t.name}!`); G.killCard(t, self);
         }, _aiThreatPicker);
       }
@@ -1054,7 +1062,12 @@ const CARD_ABILITIES = {
   "Black Panther": {
     onPlay(G, self, lane) {
       const hand = G.state[self.owner].hand;
-      const freeCards = hand.filter(c => (c.baseCost != null ? c.baseCost : c.cost) <= 3 && !c.isDiscardEffect);
+      // Roguelite Text+ override — _blackPantherFreeThreshold raises the
+      // ceiling for free-cast picks. Default 3 (classic); Text+ raises
+      // to 5 so mid-cost cards (Wonder Woman, Superman, etc.) become
+      // free-cast candidates.
+      const threshold = self._blackPantherFreeThreshold || 3;
+      const freeCards = hand.filter(c => (c.baseCost != null ? c.baseCost : c.cost) <= threshold && !c.isDiscardEffect);
       if (freeCards.length) {
         const playFree = (freeCard) => {
           const open = G.getOpenLanes(self.owner);
@@ -1360,16 +1373,20 @@ const CARD_ABILITIES = {
   },
   "Predator": {
     onPlay(G, self, lane) {
+      // Roguelite Text+ override — _predatorStrikeDamage scales the
+      // initial strike. Default 3 (classic); Text+ raises to 5 so
+      // bigger targets eat the opener.
+      const dmg = self._predatorStrikeDamage || 3;
       const enemies = G.getEnemiesOf(self.owner);
       if (enemies.length) {
-        G.promptCardChoice(self.owner, enemies, "Predator — Strike", "Choose enemy to deal 3 damage", (t) => {
-          G.dealDamage(t, 3);
-          G.log(`Predator strikes ${t.name} for 3!`);
+        G.promptCardChoice(self.owner, enemies, "Predator — Strike", `Choose enemy to deal ${dmg} damage`, (t) => {
+          G.dealDamage(t, dmg);
+          G.log(`Predator strikes ${t.name} for ${dmg}!`);
           if (t.currentHealth <= 0) {
             G.buffCard(self, 1, 0);
             G.log(`Predator claims a trophy! +1 ATK → ${self.attack}`);
           }
-        }, cards => _aiKillPicker(cards, 3));
+        }, cards => _aiKillPicker(cards, dmg));
       }
     },
     onKill(G, self) {
@@ -1420,10 +1437,14 @@ const CARD_ABILITIES = {
       const resolveGrinchChoice = (chosen) => {
         const idx = th.findIndex(t => t.name === chosen.name);
         if (idx >= 0) th.splice(idx, 1);
+        // Roguelite Text+ override — _grinchKeepCostBump scales the cost
+        // penalty on kept tricks. Default 1 (classic); Text+ sets to 0
+        // so kept tricks are completely free.
+        const keepBump = (self._grinchKeepCostBump != null) ? self._grinchKeepCostBump : 1;
         const keep = () => {
-          chosen.cost += 1;
+          chosen.cost += keepBump;
           G.addToTrickHand(self.owner, chosen);
-          G.log(`The Grinch keeps ${chosen.name} (cost +1)!`);
+          G.log(`The Grinch keeps ${chosen.name}${keepBump > 0 ? ` (cost +${keepBump})` : ' (free!)'}!`);
         };
         const giveBack = () => {
           G.addToTrickHand(opp, chosen);
@@ -1435,7 +1456,9 @@ const CARD_ABILITIES = {
           G.state.pendingCardChoice = {
             owner: self.owner,
             cards: [
-              { name: `Keep ${chosen.name}`, desc: `Add to your tricks (cost +1, becomes ${chosen.cost + 1})`, _action: 'keep' },
+              { name: `Keep ${chosen.name}`, desc: keepBump > 0
+                ? `Add to your tricks (cost +${keepBump}, becomes ${chosen.cost + keepBump})`
+                : `Add to your tricks at the same cost (${chosen.cost}) — free!`, _action: 'keep' },
               { name: "Give it back", desc: "Return the trick — Grinch's stats triple!", _action: 'giveback' }
             ],
             title: "The Grinch — Keep or Discard?",
@@ -1471,8 +1494,12 @@ const CARD_ABILITIES = {
       if (self.venomHealed) return;          // fires exactly once per instance
       const ct = G.getAlliesOf(self.owner).length;
       if (ct > 0) {
-        G.healPlayer(self.owner, ct, self);
-        G.log(`Venom heals you for ${ct}!`);
+        // Roguelite Text+ override — _venomHealMul doubles the heal-
+        // per-ally rate. Default 1 (classic); Text+ sets to 2 so a
+        // 4-ally board heals 8 instead of 4.
+        const mul = self._venomHealMul || 1;
+        G.healPlayer(self.owner, ct * mul, self);
+        G.log(`Venom heals you for ${ct * mul}!`);
         self.venomHealed = true;
       }
     }
@@ -1508,8 +1535,12 @@ const CARD_ABILITIES = {
     onPlay(G, self, lane) {
       const e = G.state.lanes[lane] ? G.state.lanes[lane][G.opponent(self.owner)] : null;
       if (e) { G.stunCard(e, self); }
-      G.state[self.owner].blockMeter = Math.min(Game.BLOCK_MAX, G.state[self.owner].blockMeter + 2);
-      G.log(`Wonder Woman stuns ${e ? e.name : 'nothing'} and adds 2 Block Meter!`);
+      // Roguelite Text+ override — _wonderWomanBlockGain scales the
+      // block meter add. Default 2 (classic); Text+ bumps to 4 so her
+      // play does more for the meter on hard-block builds.
+      const blockGain = self._wonderWomanBlockGain || 2;
+      G.state[self.owner].blockMeter = Math.min(Game.BLOCK_MAX, G.state[self.owner].blockMeter + blockGain);
+      G.log(`Wonder Woman stuns ${e ? e.name : 'nothing'} and adds ${blockGain} Block Meter!`);
     },
     onBeforeAttack(G, self) {
       const chainDmg = self.attack - 1;
@@ -1533,7 +1564,11 @@ const CARD_ABILITIES = {
   // ==================== COST 5 ====================
   "Aquaman": {
     onPlay(G, self, lane) {
-      G.summonCardChoice(self.owner, "Creature of the Deep", 4, 5, 3, []);
+      // Roguelite Text+ override — _aquamanCreatureBump grows the
+      // summoned Creature of the Deep. Default 0 (classic 5/3); Text+
+      // bumps to +1/+1 (so 6/4) so the summon hits harder and tanks more.
+      const bump = self._aquamanCreatureBump || 0;
+      G.summonCardChoice(self.owner, "Creature of the Deep", 4, 5 + bump, 3 + bump, []);
     }
   },
   "Captain America": {
@@ -1764,8 +1799,12 @@ const CARD_ABILITIES = {
       }
     },
     onEvade(G, self) {
-      G.buffCard(self, 1, 1);
-      G.log(`Spider-Man evades and grows! +1/+1`);
+      // Roguelite Text+ override — _spiderManEvadeBuff scales the
+      // evade-grow buff. Default 1 (classic +1/+1); Text+ sets to 2
+      // so each dodge swings him +2/+2.
+      const buff = self._spiderManEvadeBuff || 1;
+      G.buffCard(self, buff, buff);
+      G.log(`Spider-Man evades and grows! +${buff}/+${buff}`);
       if (Math.random() < 0.5) {
         self.evadeCharges += 1;
         G.log(`Spider-Man's spider-sense tingles! Extra evade charge!`);
@@ -1959,17 +1998,21 @@ const CARD_ABILITIES = {
   },
   "Hulk": {
     onPlay(G, self, lane) {
+      // Roguelite Text+ override — _hulkSmashDamage scales the SMASH
+      // sweep. Default 2 (classic, hits all enemies for 2); Text+
+      // raises to 4 for a board-clearing alpha strike.
+      const smashDmg = self._hulkSmashDamage || 2;
       self.splashRange = self.attack;
       const opp = G.opponent(self.owner);
       const hit = [];
       for (let i = 0; i < Game.LANE_COUNT; i++) {
         const e = G.state.lanes[i][opp];
         if (e && e.currentHealth > 0) {
-          G.dealDamage(e, 2, self);
+          G.dealDamage(e, smashDmg, self);
           hit.push(e.name);
         }
       }
-      if (hit.length) G.log(`Hulk SMASH! Deals 2 damage to all enemies: ${hit.join(', ')}!`);
+      if (hit.length) G.log(`Hulk SMASH! Deals ${smashDmg} damage to all enemies: ${hit.join(', ')}!`);
     },
     onBeforeAttack(G, self) {
       self.splashRange = self.attack;

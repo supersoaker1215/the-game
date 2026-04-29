@@ -1246,6 +1246,34 @@ const Roguelite = {
       if (out.includes(pick)) continue;
       out.push(pick);
     }
+    // STARTER TEXT+ ROLL — small chance that a higher-rarity reward
+    // card lands with its card-specific Text+ etch ALREADY APPLIED.
+    // User direction: "When you select the card from a card reward,
+    // they can't have a text change in them as an upgrade — they can
+    // come pre-loaded with one. So if you get a legendary Grinch, it
+    // could be he got a stat increase, a discount, AND maybe his
+    // tricks-cost-less. Each time you see a card it could have gotten
+    // a Text+. Now it's rare to have that happen, but it could."
+    //
+    // Rarity-scaled odds — common can't roll Text+ (zero starter etches
+    // anyway), legendary has the best shot:
+    //   common    → 0% (no starter etch slots)
+    //   rare      → 5%   (1 etch slot)
+    //   special   → 10%  (2 etch slots — better odds, more interesting cards)
+    //   legendary → 20%  (3 etch slots — the jackpot pull)
+    //
+    // When it triggers we REPLACE one of the rolled etches (not add a
+    // new slot) so the total power level matches the rarity tier —
+    // a legendary Grinch with Text+ has 2 stat/trait etches + Text+,
+    // not 3 stat/trait etches + Text+.
+    const textEtch = this.cardTextUpgrade(defName);
+    if (textEtch && out.length > 0) {
+      const textChance = { rare: 0.05, special: 0.10, legendary: 0.20 }[rarity] || 0;
+      if (Math.random() < textChance) {
+        const slot = Math.floor(Math.random() * out.length);
+        out[slot] = textEtch.id;
+      }
+    }
     return out;
   },
 
@@ -1842,6 +1870,56 @@ const Roguelite = {
       id: 'antivenom-text', name: 'Cleanse',
       desc: 'Heals you for 6 (was 4).',
       apply: c => { c._antivenomHeal = 6; },
+    },
+    'The Grinch': {
+      id: 'grinch-text', name: 'Heart Two Sizes Bigger',
+      desc: 'Kept stolen tricks cost +0 (was +1) — keep them all without penalty.',
+      apply: c => { c._grinchKeepCostBump = 0; },
+    },
+    'Aquaman': {
+      id: 'aquaman-text', name: 'Trident\'s Edge',
+      desc: 'Creature of the Deep summons as a 6/4 (was 5/3).',
+      apply: c => { c._aquamanCreatureBump = 1; },
+    },
+    'Carnage': {
+      id: 'carnage-text', name: 'Bloodbath',
+      desc: 'WHILE ACTIVE heals you for 2× the enemy count (was 1×).',
+      apply: c => { c._carnageHealMul = 2; },
+    },
+    'Wonder Woman': {
+      id: 'wonder-woman-text', name: 'Lasso of Truth',
+      desc: 'WHEN PLAYED adds 4 Block Meter (was 2).',
+      apply: c => { c._wonderWomanBlockGain = 4; },
+    },
+    'Deathstroke': {
+      id: 'deathstroke-text', name: 'Master Strategist',
+      desc: 'Assassinates enemies with ≤5 HP (was ≤3).',
+      apply: c => { c._deathstrokeKillThreshold = 5; },
+    },
+    'Spider-Man': {
+      id: 'spiderman-text', name: 'Spider-Sense',
+      desc: 'WHILE ACTIVE buff bumps to +2/+2 on each evade (was +1/+1).',
+      apply: c => { c._spiderManEvadeBuff = 2; },
+    },
+    'Predator': {
+      id: 'predator-text', name: 'Plasma Caster',
+      desc: 'WHEN PLAYED deals 5 damage (was 3).',
+      apply: c => { c._predatorStrikeDamage = 5; },
+    },
+    'Black Panther': {
+      id: 'black-panther-text', name: 'King of Wakanda',
+      desc: 'WHEN PLAYED can free-cast cards with cost ≤5 (was ≤3).',
+      apply: c => { c._blackPantherFreeThreshold = 5; },
+    },
+    'Venom': {
+      id: 'venom-text', name: 'Symbiote Bond',
+      desc: 'WHILE ACTIVE heals you for 2× the ally count (was 1×).',
+      apply: c => { c._venomHealMul = 2; },
+    },
+    'Hulk': {
+      id: 'hulk-text', name: 'World Breaker',
+      desc: 'WHEN PLAYED deals 4 damage to all enemies (was 2).',
+      apply: c => { c._hulkSmashDamage = 4; },
     },
   },
 
