@@ -821,7 +821,15 @@ const Game = {
       } else {
         this.state.player.drawPile = expand(playerDeck.cards, CARD_DEFS);
       }
-      this.state.ai.drawPile           = expand(aiDeck.cards,      CARD_DEFS);
+      // AI deck — same dual-path. Roguelite's late-act AI passes pre-
+      // built instances with rarity stat bumps + boss-deck signature
+      // etches via Roguelite._buildAiCardInstances; classic / starter
+      // decks fall through to expand-by-names.
+      if (aiDeck.cardInstances) {
+        this.state.ai.drawPile = this.shuffle(aiDeck.cardInstances.slice());
+      } else {
+        this.state.ai.drawPile = expand(aiDeck.cards, CARD_DEFS);
+      }
       this.state.player.trickDrawPile  = expand(playerDeck.tricks, TRICK_DEFS);
       this.state.ai.trickDrawPile      = expand(aiDeck.tricks,     TRICK_DEFS);
       // Leave shared piles empty so any missed retrofit reads an empty

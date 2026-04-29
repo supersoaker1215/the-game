@@ -1420,6 +1420,46 @@ const Roguelite = {
     },
   },
 
+  // Hand-crafted etches per boss signature card. User feedback: "I
+  // got a 24/33 Grinch via the trick-return combo. Do enemies get
+  // cards like this?" — they didn't. Now they do, scaled per act so
+  // the boss matchup actually contests a buffed player deck.
+  //
+  // These etches are APPLIED ON TOP OF the per-act base rarity bump
+  // applied in buildAiEncounter (Act 1 boss = rare base / Act 2 = special /
+  // Act 3 = legendary). So Act 3 Galactus = legendary base (+2/+2 stats)
+  // + the etches listed below = the strongest single body in the run.
+  //
+  // Cards NOT in the map for a given boss still get the base rarity
+  // bump (no extra etch), so even unlisted Galactus cards land at a
+  // healthier level than today's raw-stats AI.
+  BOSS_DECK_ETCHES: {
+    'act1-luthor': {
+      'Lex Luthor':     ['armor-1'],          // tankier draw-blocker
+      'Joker':          ['plus1-atk'],        // chaos pressure
+      'Magneto':        ['plus1-atk-hp'],     // signature secondary
+      'Solomon Grundy': ['plus1-hp'],         // bigger bag of stats
+    },
+    'act2-doom': {
+      'Dr. Doom':   ['plus2-atk-hp'],         // signature presence
+      'Hela':       ['echo'],                 // doubles her hand-spam
+      'Magneto':    ['plus1-atk-hp'],
+      'Knull':      ['plus1-atk-hp'],
+      'Iron Man':   ['plus1-atk-hp'],
+      'Hulk':       ['plus1-hp'],
+    },
+    'act3-galactus': {
+      'Galactus':           ['plus2-atk-hp', 'echo'],   // signature double-tap
+      'Trigon':             ['plus2-atk-hp'],
+      'Knull':              ['plus2-atk-hp'],
+      'Dr. Manhattan':      ['plus1-atk-hp'],
+      'Darth Vader':        ['plus1-atk-hp'],
+      'Emperor Palpatine':  ['plus1-atk-hp'],
+      'Thanos':             ['plus1-atk-hp'],
+      'Anakin Skywalker':   ['plus1-atk-hp'],
+    },
+  },
+
   // Vanilla-strength AI bodies — direct mirror of the player's starter
   // deck (Goon/Thug/Brute) so Act 1 fights feel like grunts on grunts.
   // User spec: "First couple fights, have them only have like, three
@@ -1475,13 +1515,21 @@ const Roguelite = {
     const asc = (run && run.ascension) || 0;
     const ascHpMul = asc >= 1 ? 1.10 : 1.0;
     // Boss / final-boss — handcrafted decks (full power) with a small
-    // HP wobble so even bosses don't always read the same.
+    // HP wobble so even bosses don't always read the same. AI cards
+    // come pre-built via _buildAiCardInstances with a per-act base
+    // rarity bump + signature etches from BOSS_DECK_ETCHES so a Doom
+    // / Galactus body actually contests a buffed player late-game.
     if (node.type === 'final-boss') {
-      const t = this.BOSS_DECKS['act3-galactus'];
+      const key = 'act3-galactus';
+      const t = this.BOSS_DECKS[key];
       const hp = Math.floor(this._randInRange(70, 90) * ascHpMul);
       const tricks = t.tricks.slice();
       if (asc >= 4 && tricks.length) tricks.push(tricks[Math.floor(Math.random() * tricks.length)]);
-      return { deckNames: t.deck.slice(), tricks, hp, difficulty: 'hard', persona: t.persona };
+      const cardInstances = this._buildAiCardInstances(t.deck, {
+        bossKey: key,
+        baseRarity: 'legendary',  // Galactus' deck = +2/+2 base on every card
+      });
+      return { deckNames: t.deck.slice(), cardInstances, tricks, hp, difficulty: 'hard', persona: t.persona };
     }
     if (node.type === 'boss') {
       const key = node.tier === 1 ? 'act1-luthor' : 'act2-doom';
@@ -1490,7 +1538,11 @@ const Roguelite = {
       const hp = Math.floor(baseHp * ascHpMul);
       const tricks = t.tricks.slice();
       if (asc >= 4 && tricks.length) tricks.push(tricks[Math.floor(Math.random() * tricks.length)]);
-      return { deckNames: t.deck.slice(), tricks, hp, difficulty: 'normal', persona: t.persona };
+      const cardInstances = this._buildAiCardInstances(t.deck, {
+        bossKey: key,
+        baseRarity: node.tier === 1 ? 'rare' : 'special',
+      });
+      return { deckNames: t.deck.slice(), cardInstances, tricks, hp, difficulty: 'normal', persona: t.persona };
     }
     // Random fight — scaled by tier. Tier 1 follows a strict spec:
     // exactly 3 real (cost 1-3) cards, rest are vanilla bodies. So the
@@ -1591,7 +1643,69 @@ const Roguelite = {
       const pick = trickPool[Math.floor(Math.random() * trickPool.length)];
       if (!tricks.includes(pick.name)) tricks.push(pick.name);
     }
-    return { deckNames: deck, tricks, hp, difficulty, persona: 'AI' };
+    // Per-tier AI rarity scaling — gives a small chunk of the AI deck
+    // bumped stats so a buffed player late-game has someone to fight.
+    // User feedback: "I got a 24/33 Grinch, do enemies get cards like
+    // this?" Tier 1 stays gentle (pure vanilla feel), tier 2 sprinkles
+    // rare bumps, tier 3 sprinkles rare + occasional special. Vanilla
+    // bodies (Soldier/Mercenary/Operator) skip promotion — they stay
+    // in their identity as raw bodies.
+    let cardInstances = null;
+    if (node.tier >= 2) {
+      cardInstances = this._buildAiCardInstances(deck, {
+        // Tier 2: 20% rare, no special. Tier 3: 30% rare, 10% special.
+        rareChance: node.tier === 2 ? 0.20 : 0.30,
+        specialChance: node.tier === 3 ? 0.10 : 0,
+        // Elite scales tighter — +10% to both odds — so the relic-
+        // payoff route still feels like a serious fight.
+        eliteBoost: node.type === 'elite',
+        skipNames: this.AI_VANILLA_DEFS.map(d => d.name),
+      });
+    }
+    return { deckNames: deck, cardInstances, tricks, hp, difficulty, persona: 'AI' };
+  },
+
+  // ----- AI deck instance builder ------------------------------------
+  // Turns a deck of names into an array of pre-built card instances
+  // with per-card rarity bumps and (optional) signature etches. The
+  // engine accepts these via aiDeck.cardInstances (game.js line ~824).
+  //
+  // Two scaling modes:
+  //   • Boss decks: opts.bossKey + opts.baseRarity. Every card gets
+  //     baseRarity (so all Doom/Galactus cards land at rare/special/
+  //     legendary), and any name in BOSS_DECK_ETCHES[bossKey] also
+  //     receives those etches. Result: Galactus = legendary base
+  //     (+2/+2) + ['plus2-atk-hp', 'echo'] = a 12 ATK / 14 HP body
+  //     that fires twice. Player Grinch territory.
+  //   • Regular tier-2/3 fights: opts.rareChance / opts.specialChance.
+  //     Each card rolls independently. Vanilla bodies (skipNames) are
+  //     never promoted — they stay raw 1/1 / 2/2 / 3/4. Etches not
+  //     applied here, just rarity stat bump.
+  _buildAiCardInstances(deckNames, opts) {
+    opts = opts || {};
+    const out = [];
+    const bossEtches = (opts.bossKey && this.BOSS_DECK_ETCHES && this.BOSS_DECK_ETCHES[opts.bossKey]) || null;
+    const skipSet = new Set(opts.skipNames || []);
+    const eliteBoost = opts.eliteBoost ? 0.10 : 0;
+    deckNames.forEach(name => {
+      let rarity = opts.baseRarity || 'common';
+      let statuses = [];
+      if (bossEtches && bossEtches[name]) {
+        statuses = bossEtches[name].slice();
+      }
+      // Regular-fight rarity roll — only if no baseRarity (i.e. not boss).
+      if (!opts.baseRarity && !skipSet.has(name)) {
+        const r = Math.random();
+        const rareChance = (opts.rareChance || 0) + eliteBoost;
+        const specialChance = (opts.specialChance || 0) + eliteBoost;
+        if (r < specialChance) rarity = 'special';
+        else if (r < specialChance + rareChance) rarity = 'rare';
+      }
+      const deckCard = this._makeDeckCard(name, rarity, statuses, /*isStarter*/ false);
+      const inst = this.buildRunCard(deckCard, 'ai');
+      if (inst) out.push(inst);
+    });
+    return out;
   },
 
   // ----- XP attribution after a fight -----
@@ -2612,6 +2726,11 @@ const Roguelite = {
       aiDeck: {
         name: encounter.persona,
         cards: encounter.deckNames,
+        // Pre-built instances with rarity stat bumps + boss signature
+        // etches (when available — buildAiEncounter only emits these
+        // for boss / final-boss / tier 2/3 fights). Engine prefers
+        // cardInstances over cards when present.
+        cardInstances: encounter.cardInstances || null,
         tricks: encounter.tricks,
       },
       playerHp: run.hp,
