@@ -4050,6 +4050,7 @@ const UI = {
             ${btn('mm-encyc',   'Codex',        'Every card and trick in the game',                       SVG.decks,    "UI.openEncyclopedia()")}
             ${btn('mm-history', 'Match History','Recent matches with MVP cards and final HP',             SVG.stats,    "UI.openMatchHistory()")}
             ${btn('mm-stats',   'Stats',        'Card win rates and balance trends',                      SVG.stats,    "Game.goToStats()")}
+            ${btn('mm-audio',   'Audio Audit',  'Per-card audio coverage + inline splicer · dev',          SVG.settings, "UI.openAudioAudit()")}
           </div>
         </div>
       </div>`;
@@ -4136,6 +4137,444 @@ const UI = {
     if (ov) ov.style.display = 'none';
     // Restore the dev toggle when returning to the menu.
     document.body.classList.remove('clb-toggle-hidden');
+  },
+
+  // ===================== AUDIO AUDIT (dev) =====================
+  // Per-card audio coverage table. Surfaces what's wired in CARD_SFX /
+  // TRICK_SFX vs. what falls back to procedural CARD_PROCEDURAL or to
+  // the global DEFAULT_CARD_SFX. User direction: "I can have a checklist
+  // of every card and if they have audio for each specific part. And
+  // then if they do, I can splice it with the fade-in/out already
+  // there." So each cell is one of:
+  //   • file path  → registered .mp3 / .wav with optional maxDur
+  //   • generic    → procedural synth fallback (CARD_PROCEDURAL or
+  //                  DEFAULT_CARD_SFX[event])
+  //   • —          → no audio at all (event won't fire anything)
+  //
+  // Clicking a registered file opens the inline splicer — re-trim the
+  // existing clip with adjustable IN/OUT and fade durations, export as
+  // WAV. The user runs the standard ffmpeg pipeline on the WAV to get
+  // the final 48k stereo 192k mp3 with -20 LUFS norm.
+  _audioAudit: { query: '', section: 'cards' },
+  openAudioAudit() {
+    this.renderAudioAudit();
+    const ov = document.getElementById('audio-audit-overlay');
+    if (ov) ov.style.display = 'flex';
+    document.body.classList.add('clb-toggle-hidden');
+  },
+  closeAudioAudit() {
+    const ov = document.getElementById('audio-audit-overlay');
+    if (ov) ov.style.display = 'none';
+    document.body.classList.remove('clb-toggle-hidden');
+    // Stop any in-flight previews when leaving.
+    if (this._audioAuditPreview) {
+      try { this._audioAuditPreview.pause(); } catch (e) {}
+      this._audioAuditPreview = null;
+    }
+  },
+  _audioAuditSetQuery(q)   { this._audioAudit.query = q || ''; this.renderAudioAudit(); },
+  _audioAuditSetSection(s) { this._audioAudit.section = s; this.renderAudioAudit(); },
+  // Resolve the audio status for one (name, event) pair. Returns one of:
+  //   { kind: 'file', src: '<path>', maxDur?: <num> }
+  //   { kind: 'generic', via: 'procedural' | 'default-file' }
+  //   { kind: 'none' }
+  _audioStatus(name, event, isTrick) {
+    const sfx = this.sfx;
+    if (!sfx) return { kind: 'none' };
+    const reg = isTrick ? (sfx.TRICK_SFX || {}) : (sfx.CARD_SFX || {});
+    const def = isTrick ? (sfx.DEFAULT_TRICK_SFX || {}) : (sfx.DEFAULT_CARD_SFX || {});
+    // Per-card file entry wins
+    const entry = (reg[name] || {})[event];
+    if (entry) {
+      if (typeof entry === 'string') return { kind: 'file', src: entry };
+      if (entry && entry.src) return { kind: 'file', src: entry.src, maxDur: entry.maxDur };
+    }
+    // Procedural per-card synth (cards only)
+    if (!isTrick) {
+      const proc = (sfx.CARD_PROCEDURAL || {})[name];
+      if (proc && typeof proc[event] === 'function') return { kind: 'generic', via: 'procedural' };
+    }
+    // Global default file (CARD_SFX has 'death' default; TRICK has none)
+    const dflt = def[event];
+    if (dflt) {
+      const src = (typeof dflt === 'string') ? dflt : (dflt && dflt.src);
+      if (src) return { kind: 'generic', via: 'default-file', src };
+    }
+    return { kind: 'none' };
+  },
+  renderAudioAudit() {
+    const ov = document.getElementById('audio-audit-overlay');
+    if (!ov) return;
+    const f = this._audioAudit;
+    const isTrick = f.section === 'tricks';
+    const defs = isTrick
+      ? (typeof TRICK_DEFS !== 'undefined' ? TRICK_DEFS : [])
+      : (typeof CARD_DEFS !== 'undefined' ? CARD_DEFS : []);
+    const events = isTrick ? ['hover', 'play'] : ['hover', 'play', 'death', 'ability'];
+    // Filter: name search, case-insensitive substring
+    const q = (f.query || '').trim().toLowerCase();
+    const list = defs.filter(d => !q || d.name.toLowerCase().includes(q));
+    // Coverage tally — % of cards × events that have a NON-none cell.
+    let cells = 0, covered = 0, fileBacked = 0;
+    list.forEach(d => events.forEach(ev => {
+      cells++;
+      const s = this._audioStatus(d.name, ev, isTrick);
+      if (s.kind !== 'none') covered++;
+      if (s.kind === 'file') fileBacked++;
+    }));
+    const pctCovered = cells ? Math.round((covered / cells) * 100) : 0;
+    const pctFile    = cells ? Math.round((fileBacked / cells) * 100) : 0;
+    const cellHtml = (name, ev) => {
+      const s = this._audioStatus(name, ev, isTrick);
+      // JS-escape the name for use inside the inline onclick string
+      // literal. The HTML attribute is double-quoted; the JS string is
+      // single-quoted; so we backslash-escape any backslash or apostrophe
+      // in the name (e.g. "Joker's Playing Card" → "Joker\'s Playing Card").
+      const jsName = String(name).replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+      if (s.kind === 'file') {
+        const display = s.src.split('/').pop().replace(/\?.*$/, '');
+        const maxDur = s.maxDur ? `<span class="aa-cell-maxdur">${s.maxDur}s cap</span>` : '';
+        return `<div class="aa-cell aa-cell-file">
+          <button type="button" class="aa-cell-play" title="Play"
+            onclick="UI._audioAuditPlay('${s.src}')">▶</button>
+          <span class="aa-cell-file-name" title="${s.src}">${display}</span>
+          ${maxDur}
+          <button type="button" class="aa-cell-splice" title="Splice / re-trim"
+            onclick="UI._audioAuditSplice('${s.src}', '${jsName}', '${ev}')">✂</button>
+        </div>`;
+      }
+      if (s.kind === 'generic') {
+        return `<div class="aa-cell aa-cell-generic" title="${s.via === 'procedural' ? 'Procedural synth fallback (CARD_PROCEDURAL)' : 'Global default file'}">generic</div>`;
+      }
+      return `<div class="aa-cell aa-cell-none">—</div>`;
+    };
+    const headerCols = events.map(ev => `<th>${ev}</th>`).join('');
+    const rows = list.map(d => `
+      <tr>
+        <td class="aa-row-name">${d.name}</td>
+        ${events.map(ev => `<td>${cellHtml(d.name, ev)}</td>`).join('')}
+      </tr>`).join('');
+    const sectionTabs = `
+      <div class="aa-tabs">
+        <button type="button" class="aa-tab ${!isTrick ? 'aa-tab-active' : ''}" onclick="UI._audioAuditSetSection('cards')">Cards (${(typeof CARD_DEFS !== 'undefined' ? CARD_DEFS.length : 0)})</button>
+        <button type="button" class="aa-tab ${ isTrick ? 'aa-tab-active' : ''}" onclick="UI._audioAuditSetSection('tricks')">Tricks (${(typeof TRICK_DEFS !== 'undefined' ? TRICK_DEFS.length : 0)})</button>
+      </div>`;
+    ov.innerHTML = `
+      <div class="encyc-panel audio-audit-panel">
+        <button type="button" class="encyc-close" onclick="UI.closeAudioAudit()">← Menu</button>
+        <h1 class="encyc-title">Audio Audit</h1>
+        <div class="aa-summary">
+          <span><b>${list.length}</b> ${isTrick ? 'tricks' : 'cards'}</span>
+          <span><b>${covered}</b>/${cells} cells covered (${pctCovered}%)</span>
+          <span><b>${fileBacked}</b>/${cells} backed by a file (${pctFile}%)</span>
+        </div>
+        ${sectionTabs}
+        <div class="aa-controls">
+          <input class="aa-search" type="search" placeholder="Filter by name…"
+            value="${(f.query || '').replace(/"/g, '&quot;')}"
+            oninput="UI._audioAuditSetQuery(this.value)">
+        </div>
+        <div class="aa-table-wrap">
+          <table class="aa-table">
+            <thead><tr><th class="aa-row-name">Name</th>${headerCols}</tr></thead>
+            <tbody>${rows || `<tr><td colspan="${events.length+1}" class="aa-empty">No matches.</td></tr>`}</tbody>
+          </table>
+        </div>
+        <div id="aa-splicer-mount"></div>
+      </div>`;
+  },
+  _audioAuditPlay(src) {
+    if (this._audioAuditPreview) {
+      try { this._audioAuditPreview.pause(); } catch (e) {}
+    }
+    if (!this.sfx || !this.sfx._playSample) return;
+    this._audioAuditPreview = this.sfx._playSample(src, { fadeIn: 1000, fadeOut: 2000 });
+  },
+
+  // ----- Splicer ------------------------------------------------------
+  // In-browser audio editor: load the registered file, decode, render
+  // waveform with draggable IN / OUT markers, configurable fade-in /
+  // fade-out, preview with the fades applied, and export as a WAV.
+  // Output is intentionally WAV (no MP3 encoder lib) so the user can
+  // run the existing ffmpeg pipeline on it for final encoding:
+  //   ffmpeg -y -i x.wav -ar 48000 -ac 2 -b:a 192k \
+  //     -af "loudnorm=I=-20:TP=-1.5:LRA=11" x.mp3
+  _audioAuditSplice(src, name, event) {
+    const mount = document.getElementById('aa-splicer-mount');
+    if (!mount) return;
+    mount.innerHTML = `
+      <div class="aa-splicer">
+        <div class="aa-splicer-header">
+          <div class="aa-splicer-title">Splicer · <b>${name}</b> <span class="aa-splicer-event">${event}</span></div>
+          <button type="button" class="aa-splicer-close" onclick="document.getElementById('aa-splicer-mount').innerHTML = ''">×</button>
+        </div>
+        <div class="aa-splicer-src">${src}</div>
+        <canvas class="aa-splicer-wave" width="1080" height="120"></canvas>
+        <div class="aa-splicer-controls">
+          <label>IN <input type="number" class="aa-splicer-in"  step="0.01" min="0" value="0"></label>
+          <label>OUT <input type="number" class="aa-splicer-out" step="0.01" min="0" value="0"></label>
+          <label>fade-in (s) <input type="number" class="aa-splicer-fadein"  step="0.1" min="0" value="1"></label>
+          <label>fade-out (s) <input type="number" class="aa-splicer-fadeout" step="0.1" min="0" value="2"></label>
+          <button type="button" class="aa-splicer-preview">▶ Preview slice</button>
+          <button type="button" class="aa-splicer-export">⬇ Export WAV</button>
+          <button type="button" class="aa-splicer-copyffmpeg" title="Copy ffmpeg command for the current trim">⌘ Copy ffmpeg</button>
+        </div>
+        <div class="aa-splicer-status"></div>
+      </div>`;
+    const splicerEl = mount.querySelector('.aa-splicer');
+    const canvas = splicerEl.querySelector('.aa-splicer-wave');
+    const inEl  = splicerEl.querySelector('.aa-splicer-in');
+    const outEl = splicerEl.querySelector('.aa-splicer-out');
+    const fiEl  = splicerEl.querySelector('.aa-splicer-fadein');
+    const foEl  = splicerEl.querySelector('.aa-splicer-fadeout');
+    const previewBtn = splicerEl.querySelector('.aa-splicer-preview');
+    const exportBtn  = splicerEl.querySelector('.aa-splicer-export');
+    const copyBtn    = splicerEl.querySelector('.aa-splicer-copyffmpeg');
+    const status     = splicerEl.querySelector('.aa-splicer-status');
+    const setStatus = (msg) => { status.textContent = msg || ''; };
+    setStatus('Loading…');
+    // Decode the source into an AudioBuffer.
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    let buf = null, peakAmp = 1;
+    fetch(src).then(r => r.arrayBuffer()).then(ab => ctx.decodeAudioData(ab)).then(b => {
+      buf = b;
+      outEl.value = b.duration.toFixed(2);
+      outEl.max = b.duration;
+      inEl.max  = b.duration;
+      // Find peak for waveform scaling.
+      const ch0 = buf.getChannelData(0);
+      const ch1 = buf.numberOfChannels > 1 ? buf.getChannelData(1) : null;
+      const step = Math.max(1, Math.floor(ch0.length / 50000));
+      let p = 0;
+      for (let i = 0; i < ch0.length; i += step) {
+        let v = Math.abs(ch0[i]);
+        if (ch1) v = Math.max(v, Math.abs(ch1[i]));
+        if (v > p) p = v;
+      }
+      peakAmp = Math.max(0.05, p);
+      drawWave();
+      setStatus(`Loaded · ${b.duration.toFixed(2)}s · ${b.numberOfChannels}ch · ${b.sampleRate}Hz`);
+    }).catch(e => setStatus('Decode failed: ' + e.message));
+    // Waveform render with IN/OUT shading + fade-in/out zones.
+    const drawWave = (playheadSec = -1) => {
+      if (!buf) return;
+      const w = canvas.width, h = canvas.height;
+      const c = canvas.getContext('2d');
+      c.clearRect(0, 0, w, h);
+      const dur = buf.duration;
+      const inT  = Math.max(0, Math.min(dur, parseFloat(inEl.value)  || 0));
+      const outT = Math.max(0, Math.min(dur, parseFloat(outEl.value) || dur));
+      const fi   = Math.max(0, parseFloat(fiEl.value) || 0);
+      const fo   = Math.max(0, parseFloat(foEl.value) || 0);
+      // Gray out everything outside [in, out]
+      c.fillStyle = 'rgba(0,0,0,0.55)';
+      c.fillRect(0, 0, (inT / dur) * w, h);
+      c.fillRect((outT / dur) * w, 0, w - (outT / dur) * w, h);
+      // Fade zones inside the selection
+      const inX  = (inT / dur) * w;
+      const outX = (outT / dur) * w;
+      const fiW  = ((fi  / dur) * w);
+      const foW  = ((fo  / dur) * w);
+      c.fillStyle = 'rgba(74,255,140,0.18)';
+      c.fillRect(inX, 0, fiW, h);
+      c.fillStyle = 'rgba(255,120,90,0.18)';
+      c.fillRect(outX - foW, 0, foW, h);
+      // Waveform
+      const ch0 = buf.getChannelData(0);
+      const ch1 = buf.numberOfChannels > 1 ? buf.getChannelData(1) : null;
+      const samplesPerPx = Math.max(1, Math.floor(ch0.length / w));
+      const scale = 1 / peakAmp;
+      c.strokeStyle = '#4af';
+      c.lineWidth = 1;
+      c.beginPath();
+      for (let x = 0; x < w; x++) {
+        let mn = 1, mx = -1;
+        const start = x * samplesPerPx;
+        const end = Math.min(ch0.length, start + samplesPerPx);
+        for (let i = start; i < end; i++) {
+          let v = ch0[i];
+          if (ch1) v = (v + ch1[i]) * 0.5;
+          if (v < mn) mn = v;
+          if (v > mx) mx = v;
+        }
+        const mxN = Math.max(-1, Math.min(1, mx * scale));
+        const mnN = Math.max(-1, Math.min(1, mn * scale));
+        c.moveTo(x + 0.5, ((1 - mxN) / 2) * h);
+        c.lineTo(x + 0.5, ((1 - mnN) / 2) * h);
+      }
+      c.stroke();
+      // Markers
+      const drawMarker = (xPx, color, label) => {
+        c.strokeStyle = color;
+        c.lineWidth = 2;
+        c.beginPath(); c.moveTo(xPx, 0); c.lineTo(xPx, h); c.stroke();
+        c.fillStyle = color;
+        c.font = '10px ui-monospace, monospace';
+        c.fillText(label, xPx + 4, 12);
+      };
+      drawMarker(inX, '#4af', 'IN');
+      drawMarker(outX, '#fc6', 'OUT');
+      // Tick marks every 10s
+      c.fillStyle = 'rgba(154,184,204,0.6)';
+      c.font = '9px ui-monospace, monospace';
+      for (let t = 0; t <= dur; t += 10) {
+        const x = (t / dur) * w;
+        c.fillRect(x, h - 6, 1, 4);
+        if (t > 0 && t < dur - 5) c.fillText(`${t}s`, x + 2, h - 8);
+      }
+      // Playhead
+      if (playheadSec >= 0 && playheadSec <= dur) {
+        const x = (playheadSec / dur) * w;
+        c.strokeStyle = '#fff';
+        c.lineWidth = 1.5;
+        c.beginPath(); c.moveTo(x, 0); c.lineTo(x, h); c.stroke();
+      }
+    };
+    // Drag IN/OUT markers on the canvas for tactile editing.
+    let dragging = null;  // 'in' | 'out' | null
+    canvas.addEventListener('mousedown', (e) => {
+      if (!buf) return;
+      const r = canvas.getBoundingClientRect();
+      const x = (e.clientX - r.left) * (canvas.width / r.width);
+      const dur = buf.duration;
+      const inX  = (parseFloat(inEl.value)  / dur) * canvas.width;
+      const outX = (parseFloat(outEl.value) / dur) * canvas.width;
+      // Pick whichever marker is closer (within 18px tolerance)
+      const dIn  = Math.abs(x - inX);
+      const dOut = Math.abs(x - outX);
+      if (dIn < 18 && dIn <= dOut) dragging = 'in';
+      else if (dOut < 18) dragging = 'out';
+      else dragging = null;
+    });
+    window.addEventListener('mousemove', (e) => {
+      if (!dragging || !buf) return;
+      const r = canvas.getBoundingClientRect();
+      const x = Math.max(0, Math.min(canvas.width, (e.clientX - r.left) * (canvas.width / r.width)));
+      const t = (x / canvas.width) * buf.duration;
+      if (dragging === 'in')  inEl.value  = Math.min(t, parseFloat(outEl.value) - 0.1).toFixed(2);
+      if (dragging === 'out') outEl.value = Math.max(t, parseFloat(inEl.value)  + 0.1).toFixed(2);
+      drawWave();
+    });
+    window.addEventListener('mouseup', () => { dragging = null; });
+    [inEl, outEl, fiEl, foEl].forEach(el => el.addEventListener('input', () => drawWave()));
+    // Preview the slice with WebAudio gain envelope (fade-in / fade-out)
+    let previewSrc = null;
+    previewBtn.addEventListener('click', () => {
+      if (!buf) return;
+      if (previewSrc) { try { previewSrc.stop(); } catch(e){} previewSrc = null; }
+      const inT  = parseFloat(inEl.value);
+      const outT = parseFloat(outEl.value);
+      const fi   = parseFloat(fiEl.value);
+      const fo   = parseFloat(foEl.value);
+      const sliceLen = Math.max(0.01, outT - inT);
+      const src = ctx.createBufferSource();
+      src.buffer = buf;
+      const gain = ctx.createGain();
+      const vol = (UI.settings && UI.settings.sfxVolume != null) ? UI.settings.sfxVolume : 0.6;
+      const t0 = ctx.currentTime;
+      gain.gain.setValueAtTime(0, t0);
+      gain.gain.linearRampToValueAtTime(vol, t0 + Math.min(fi, sliceLen / 2));
+      gain.gain.setValueAtTime(vol, t0 + Math.max(0, sliceLen - fo));
+      gain.gain.linearRampToValueAtTime(0, t0 + sliceLen);
+      src.connect(gain).connect(ctx.destination);
+      src.start(t0, inT, sliceLen);
+      previewSrc = src;
+      // Animate playhead
+      let raf;
+      const startedAt = performance.now();
+      const tick = () => {
+        const elapsed = (performance.now() - startedAt) / 1000;
+        if (elapsed >= sliceLen) { drawWave(-1); return; }
+        drawWave(inT + elapsed);
+        raf = requestAnimationFrame(tick);
+      };
+      tick();
+      src.addEventListener('ended', () => { if (raf) cancelAnimationFrame(raf); drawWave(-1); previewSrc = null; });
+    });
+    // Export the slice + fades as a WAV download.
+    exportBtn.addEventListener('click', async () => {
+      if (!buf) return;
+      const inT  = parseFloat(inEl.value);
+      const outT = parseFloat(outEl.value);
+      const fi   = parseFloat(fiEl.value);
+      const fo   = parseFloat(foEl.value);
+      const sliceLen = Math.max(0.01, outT - inT);
+      const sr = buf.sampleRate;
+      const offline = new OfflineAudioContext(buf.numberOfChannels, Math.ceil(sliceLen * sr), sr);
+      const src = offline.createBufferSource();
+      src.buffer = buf;
+      const gain = offline.createGain();
+      const t0 = 0;
+      gain.gain.setValueAtTime(0, t0);
+      gain.gain.linearRampToValueAtTime(1, t0 + Math.min(fi, sliceLen / 2));
+      gain.gain.setValueAtTime(1, t0 + Math.max(0, sliceLen - fo));
+      gain.gain.linearRampToValueAtTime(0, t0 + sliceLen);
+      src.connect(gain).connect(offline.destination);
+      src.start(0, inT, sliceLen);
+      setStatus('Rendering…');
+      const rendered = await offline.startRendering();
+      const wavBlob = UI._audioBufferToWav(rendered);
+      const safeName = String(name).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+      const fname = `${safeName}-${event}-splice.wav`;
+      const url = URL.createObjectURL(wavBlob);
+      const a = document.createElement('a');
+      a.href = url; a.download = fname;
+      document.body.appendChild(a); a.click(); a.remove();
+      URL.revokeObjectURL(url);
+      setStatus(`Exported ${fname} · ${sliceLen.toFixed(2)}s · drop into audio/cards/ then run the ffmpeg pipeline.`);
+    });
+    // Copy the equivalent ffmpeg command (so the user can re-derive
+    // the same trim deterministically from the SOURCE file).
+    copyBtn.addEventListener('click', () => {
+      const inT  = parseFloat(inEl.value);
+      const outT = parseFloat(outEl.value);
+      const fi   = parseFloat(fiEl.value);
+      const fo   = parseFloat(foEl.value);
+      const sliceLen = Math.max(0.01, outT - inT);
+      const fadeOutStart = Math.max(0, sliceLen - fo);
+      const safeName = String(name).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+      const cmd = `ffmpeg -y -i "${src}" -ss ${inT.toFixed(2)} -t ${sliceLen.toFixed(2)} -ar 48000 -ac 2 -b:a 192k -af "afade=t=in:st=0:d=${fi},afade=t=out:st=${fadeOutStart.toFixed(2)}:d=${fo},loudnorm=I=-20:TP=-1.5:LRA=11" "audio/cards/${safeName}-${event}.mp3"`;
+      navigator.clipboard.writeText(cmd).then(() => setStatus('ffmpeg command copied to clipboard.'),
+                                                () => setStatus('Clipboard copy failed — command logged to console.'));
+      console.log('[audio-audit ffmpeg]', cmd);
+    });
+  },
+  // Tiny WAV encoder — float32 PCM → 16-bit PCM WAV. ~40 lines, no
+  // external dep. Output matches the audio system's expected stereo
+  // 48k formats but inherits whatever sampleRate the source had so
+  // the user's ffmpeg pipeline can resample on the way to MP3.
+  _audioBufferToWav(buffer) {
+    const numCh = buffer.numberOfChannels;
+    const sr = buffer.sampleRate;
+    const length = buffer.length * numCh * 2 + 44;
+    const ab = new ArrayBuffer(length);
+    const view = new DataView(ab);
+    const writeStr = (off, s) => { for (let i = 0; i < s.length; i++) view.setUint8(off + i, s.charCodeAt(i)); };
+    writeStr(0, 'RIFF');
+    view.setUint32(4, length - 8, true);
+    writeStr(8, 'WAVE');
+    writeStr(12, 'fmt ');
+    view.setUint32(16, 16, true);                    // chunk size
+    view.setUint16(20, 1, true);                     // PCM
+    view.setUint16(22, numCh, true);
+    view.setUint32(24, sr, true);
+    view.setUint32(28, sr * numCh * 2, true);
+    view.setUint16(32, numCh * 2, true);
+    view.setUint16(34, 16, true);
+    writeStr(36, 'data');
+    view.setUint32(40, length - 44, true);
+    let off = 44;
+    const channels = [];
+    for (let c = 0; c < numCh; c++) channels.push(buffer.getChannelData(c));
+    for (let i = 0; i < buffer.length; i++) {
+      for (let c = 0; c < numCh; c++) {
+        let s = Math.max(-1, Math.min(1, channels[c][i]));
+        s = s < 0 ? s * 0x8000 : s * 0x7fff;
+        view.setInt16(off, s | 0, true);
+        off += 2;
+      }
+    }
+    return new Blob([ab], { type: 'audio/wav' });
   },
   _encycSetSection(s) { this._encyc.section = s; this._encyc.cost = 'all'; this._persistSet('codex', this._encyc); this.renderEncyclopedia(); },
   _encycSetCost(c)    { this._encyc.cost = c; this._persistSet('codex', this._encyc); this.renderEncyclopedia(); },

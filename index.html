@@ -13,7 +13,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap">
-  <link rel="stylesheet" href="style.css?v=424">
+  <link rel="stylesheet" href="style.css?v=425">
   <script>
     // Lightweight error reporter (pre-Sentry) — capture runtime JS
     // errors + unhandled promise rejections to a localStorage ring
@@ -263,6 +263,10 @@
   <!-- CARD ENCYCLOPEDIA — browsable grid of every card/trick in the
        pool, with live name/cost/trait filtering. Read-only. -->
   <div id="encyclopedia-overlay" class="encyclopedia-overlay" style="display:none"></div>
+
+  <!-- AUDIO AUDIT — dev panel showing audio coverage per card/event,
+       with an inline splicer for re-trimming registered files. -->
+  <div id="audio-audit-overlay" class="encyclopedia-overlay audio-audit-overlay" style="display:none"></div>
 
   <!-- MULTIPLAYER LOBBY — create or join a room with a 4-letter code.
        Reuses the same chrome as match-history / encyclopedia for visual
@@ -648,7 +652,7 @@
        0.peerjs.com signaling cloud — no server needed on our side. -->
   <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
   <script src="multiplayer.js?v=4"></script>
-  <script src="ui.js?v=435"></script>
+  <script src="ui.js?v=437"></script>
   <script src="logger.js?v=5"></script>
 </body>
 </html>
