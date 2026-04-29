@@ -23163,3 +23163,222 @@ input[type="number"]::-webkit-outer-spin-button {
   box-shadow: 0 0 8px var(--theme-glow-outer, rgba(79,195,247,0.85));
 }
 
+/* ============ BOSS INTRO SPLASH ============ */
+/* Cinematic pause modal that appears when entering a boss/final-boss
+   node. Persona name reads as a Tron HUD headline; archetype and
+   flavor sit beneath it, signature card pills cluster below, and a
+   single neon BEGIN FIGHT button drops the player into the fight. */
+.rl-boss-intro {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  padding: 8px 0 4px;
+}
+.rl-boss-intro-banner {
+  font-family: 'Rajdhani', sans-serif;
+  font-size: 13px;
+  letter-spacing: 6px;
+  color: var(--theme-accent-bright, #4fc3f7);
+  text-shadow: 0 0 8px var(--theme-glow-outer, rgba(79,195,247,0.7));
+  text-transform: uppercase;
+  margin-bottom: 4px;
+}
+.rl-boss-intro-name {
+  font-family: 'Rajdhani', sans-serif;
+  font-size: 56px;
+  font-weight: 700;
+  letter-spacing: 10px;
+  text-transform: uppercase;
+  color: #ffffff;
+  text-shadow:
+    0 0 16px rgba(255,255,255,0.8),
+    0 0 32px var(--theme-glow-inner, rgba(79,195,247,0.55)),
+    0 0 64px var(--theme-glow-outer, rgba(79,195,247,0.30));
+  text-align: center;
+  line-height: 1;
+}
+.rl-boss-intro-archetype {
+  font-family: 'Rajdhani', sans-serif;
+  font-size: 18px;
+  letter-spacing: 4px;
+  text-transform: uppercase;
+  color: var(--theme-accent-bright, #4fc3f7);
+  text-shadow: 0 0 6px var(--theme-glow-inner, rgba(79,195,247,0.5));
+  margin-bottom: 6px;
+}
+.rl-boss-intro-flavor {
+  max-width: 720px;
+  text-align: center;
+  font-size: 14px;
+  line-height: 1.5;
+  color: rgba(220,230,240,0.85);
+  font-style: italic;
+}
+.rl-boss-intro-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 12px;
+  padding: 16px 22px;
+  background: rgba(79,195,247,0.04);
+  border: 1px solid rgba(79,195,247,0.18);
+  border-radius: 4px;
+  width: 100%;
+  max-width: 760px;
+}
+.rl-boss-intro-meta-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+.rl-boss-intro-meta-label {
+  font-family: 'Rajdhani', sans-serif;
+  font-size: 11px;
+  letter-spacing: 3px;
+  text-transform: uppercase;
+  color: rgba(180,200,220,0.6);
+  min-width: 88px;
+}
+.rl-boss-intro-meta-value {
+  font-family: 'Rajdhani', sans-serif;
+  font-size: 15px;
+  letter-spacing: 2px;
+  color: var(--theme-accent-bright, #4fc3f7);
+  text-shadow: 0 0 4px var(--theme-glow-inner, rgba(79,195,247,0.4));
+}
+.rl-boss-intro-sig {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.rl-boss-sig-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px 4px 4px;
+  border: 1px solid rgba(79,195,247,0.25);
+  border-radius: 14px;
+  background: rgba(0,0,0,0.5);
+  font-size: 12px;
+  letter-spacing: 0.5px;
+  color: #d8e3ee;
+}
+.rl-boss-sig-cost {
+  display: inline-flex;
+  align-items: center; justify-content: center;
+  width: 18px; height: 18px;
+  border-radius: 50%;
+  background: rgba(79,195,247,0.2);
+  font-weight: 700;
+  font-size: 11px;
+  color: #fff;
+}
+.rl-boss-sig-pill.cost-1 .rl-boss-sig-cost,
+.rl-boss-sig-pill.cost-2 .rl-boss-sig-cost { background: #2ecc71; }
+.rl-boss-sig-pill.cost-3 .rl-boss-sig-cost,
+.rl-boss-sig-pill.cost-4 .rl-boss-sig-cost { background: #3498db; }
+.rl-boss-sig-pill.cost-5 .rl-boss-sig-cost,
+.rl-boss-sig-pill.cost-6 .rl-boss-sig-cost { background: #9b59b6; }
+.rl-boss-sig-pill.cost-7 .rl-boss-sig-cost,
+.rl-boss-sig-pill.cost-8 .rl-boss-sig-cost { background: #e67e22; }
+.rl-boss-sig-pill.cost-9 .rl-boss-sig-cost,
+.rl-boss-sig-pill.cost-10 .rl-boss-sig-cost { background: #e74c3c; }
+.rl-boss-intro-actions {
+  margin-top: 18px;
+  display: flex;
+  gap: 12px;
+}
+.rl-boss-intro-begin {
+  font-family: 'Rajdhani', sans-serif;
+  font-size: 17px;
+  font-weight: 700;
+  letter-spacing: 6px;
+  padding: 14px 36px;
+  border: 1px solid var(--theme-accent-bright, #4fc3f7);
+  background: linear-gradient(180deg, rgba(79,195,247,0.18), rgba(79,195,247,0.08));
+  color: #fff;
+  text-shadow: 0 0 6px var(--theme-glow-inner, rgba(79,195,247,0.6));
+  cursor: pointer;
+  border-radius: 4px;
+  text-transform: uppercase;
+  transition: all 120ms ease;
+  box-shadow:
+    0 0 10px var(--theme-glow-inner, rgba(79,195,247,0.35)),
+    0 0 22px var(--theme-glow-outer, rgba(79,195,247,0.18));
+}
+.rl-boss-intro-begin:hover {
+  background: linear-gradient(180deg, rgba(79,195,247,0.30), rgba(79,195,247,0.16));
+  box-shadow:
+    0 0 14px var(--theme-glow-inner, rgba(79,195,247,0.55)),
+    0 0 32px var(--theme-glow-outer, rgba(79,195,247,0.32));
+}
+
+/* ============ RUN-END ENHANCEMENTS ============ */
+/* Rarity breakdown line beneath the final-deck title — quick read of
+   how many tiers the run earned. Pip colors mirror tier-text classes
+   so Legendary reads gold, Special silver, Rare cyan, Common green. */
+.rl-end-rarity-line {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  margin: 6px 0 10px;
+  font-size: 12px;
+  letter-spacing: 1px;
+  color: rgba(200,210,220,0.75);
+}
+.rl-end-rarity-pip {
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 10px;
+  background: rgba(255,255,255,0.04);
+}
+.rl-end-rarity-pip.rl-curse {
+  color: #c0392b;
+  background: rgba(192,57,43,0.12);
+}
+/* All-relics grid — small Tron tiles with name + rarity. Boss relics
+   read first thanks to the sortedRelics order. */
+.rl-end-relics-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 8px;
+  margin-top: 8px;
+}
+.rl-end-relic-card {
+  border: 1px solid rgba(79,195,247,0.25);
+  background: rgba(0,0,0,0.5);
+  border-radius: 4px;
+  padding: 8px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.rl-end-relic-card-name {
+  font-family: 'Rajdhani', sans-serif;
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: 1px;
+  color: #f5fbff;
+}
+.rl-end-relic-card-rarity {
+  font-size: 10px;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: rgba(180,200,220,0.6);
+}
+.rl-end-relic-card.rl-relic-rare {
+  border-color: rgba(79,195,247,0.5);
+  box-shadow: inset 0 0 12px rgba(79,195,247,0.08);
+}
+.rl-end-relic-card.rl-relic-rare .rl-end-relic-card-rarity { color: #4fc3f7; }
+.rl-end-relic-card.rl-relic-special {
+  border-color: rgba(192,192,192,0.55);
+  box-shadow: inset 0 0 14px rgba(192,192,192,0.10);
+}
+.rl-end-relic-card.rl-relic-special .rl-end-relic-card-rarity { color: #c0c0c0; }
+.rl-end-relic-card.rl-relic-boss {
+  border-color: rgba(255,215,0,0.6);
+  box-shadow: inset 0 0 16px rgba(255,215,0,0.12);
+}
+.rl-end-relic-card.rl-relic-boss .rl-end-relic-card-rarity { color: #ffe066; }

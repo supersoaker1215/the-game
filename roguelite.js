@@ -3483,7 +3483,13 @@ const Roguelite = {
     // single source of truth for which act a row belongs to.
     const bounds = this.ACT_BOUNDS && this.ACT_BOUNDS.find(a => node.row >= a.startRow && node.row <= a.endRow);
     if (bounds) run.act = bounds.act;
-    if (node.type === 'combat' || node.type === 'boss' || node.type === 'elite' || node.type === 'final-boss') {
+    if (node.type === 'boss' || node.type === 'final-boss') {
+      // Boss/final-boss types route through the cinematic intro splash
+      // first — the player sees a moment of "here's who you're fighting"
+      // before round 1. _beginBossFight closes the modal and calls
+      // _launchFight to spin up the actual encounter.
+      this._showBossIntro(node);
+    } else if (node.type === 'combat' || node.type === 'elite') {
       this._launchFight(node);
     } else if (node.type === 'event') {
       this._showEvent(node);
@@ -3571,6 +3577,73 @@ const Roguelite = {
     this._closeModal();
     Game.state.phase = 'roguelite-map';
     UI.render();
+  },
+
+  // ----- Boss intro splash -----
+  // Cinematic pause before a boss / final-boss fight begins. Pulls
+  // persona / archetype / flavor / hpRange / signature cards from
+  // BOSS_PREVIEWS and renders a Tron-styled modal — same scaffold as
+  // _showTreasure (rl-modal). User direction (audit follow-up):
+  // "the moment of 'here's who you're fighting' before round 1
+  // builds tension and makes the boss feel like a milestone."
+  _showBossIntro(node) {
+    const run = Game.state.roguelite;
+    if (!run) return;
+    run.currentNodeId = node.id;
+    run.currentRow = node.row;
+    // Stash the node so _beginBossFight can hand it back to _launchFight
+    // unmodified. Stored on the run so a quick map-back doesn't lose it.
+    run._pendingBossNode = node;
+    // Look up the preview metadata. final-boss is always Galactus / act 3;
+    // regular boss nodes look up by tier.
+    const tier = node.type === 'final-boss' ? 3 : node.tier;
+    const preview = (this.BOSS_PREVIEWS && this.BOSS_PREVIEWS[tier]) || null;
+    if (!preview) {
+      // No preview metadata? Skip the splash, go straight to the fight.
+      run._pendingBossNode = null;
+      this._launchFight(node);
+      return;
+    }
+    // Signature card thumbnails — render each as a small card-name pill
+    // with the cost color so the player gets a glance at what's coming.
+    const sigCards = (preview.signature || []).map(name => {
+      const def = (typeof CARD_DEFS !== 'undefined') ? CARD_DEFS.find(d => d.name === name) : null;
+      const cost = def ? (def.cost || 0) : 0;
+      const costClass = 'cost-' + Math.min(10, Math.max(0, cost));
+      return `<span class="rl-boss-sig-pill ${costClass}"><span class="rl-boss-sig-cost">${cost}</span><span class="rl-boss-sig-name">${name}</span></span>`;
+    }).join('');
+    // Final-boss banner copy reads as a higher-stakes flourish.
+    const isFinal = node.type === 'final-boss';
+    const banner = isFinal ? 'FINAL BOSS' : `ACT ${tier} BOSS`;
+    const body = `
+      <div class="rl-boss-intro">
+        <div class="rl-boss-intro-banner">${banner}</div>
+        <div class="rl-boss-intro-name">${preview.persona}</div>
+        <div class="rl-boss-intro-archetype">${preview.archetype}</div>
+        <div class="rl-boss-intro-flavor">${preview.flavor}</div>
+        <div class="rl-boss-intro-meta">
+          <div class="rl-boss-intro-meta-row">
+            <span class="rl-boss-intro-meta-label">SIGNATURE</span>
+            <div class="rl-boss-intro-sig">${sigCards}</div>
+          </div>
+          <div class="rl-boss-intro-meta-row">
+            <span class="rl-boss-intro-meta-label">ENEMY HP</span>
+            <span class="rl-boss-intro-meta-value">${preview.hpRange}</span>
+          </div>
+        </div>
+        <div class="rl-boss-intro-actions">
+          <button type="button" class="rl-event-choice rl-boss-intro-begin" onclick="Roguelite._beginBossFight()">BEGIN FIGHT</button>
+        </div>
+      </div>`;
+    this._modal(banner, body);
+  },
+  _beginBossFight() {
+    const run = Game.state.roguelite;
+    if (!run || !run._pendingBossNode) { this._closeModal(); return; }
+    const node = run._pendingBossNode;
+    run._pendingBossNode = null;
+    this._closeModal();
+    this._launchFight(node);
   },
 
   _launchFight(node) {
@@ -3722,7 +3795,16 @@ const Roguelite = {
       // accurate.
       run._stats.goldEarned = (run._stats.goldEarned || 0) + relicGoldGain;
     }
-    run.lastResult = { hpLoss, won, levelUps, nodeType: node.type, phoenixFeather: !!run._phoenixFeatherFired };
+    // Stash the boss persona if this was a boss/final-boss node so the
+    // run-end "fell to" line reads cleanly. Pulled from BOSS_PREVIEWS
+    // by tier; final-boss is always Galactus / act 3.
+    let bossPersona = null;
+    if (node.type === 'boss' || node.type === 'final-boss') {
+      const tier = node.type === 'final-boss' ? 3 : node.tier;
+      const preview = (this.BOSS_PREVIEWS && this.BOSS_PREVIEWS[tier]) || null;
+      if (preview) bossPersona = preview.persona;
+    }
+    run.lastResult = { hpLoss, won, levelUps, nodeType: node.type, nodeAct: run.act, bossPersona, phoenixFeather: !!run._phoenixFeatherFired };
     run._phoenixFeatherFired = false;
     // Suppress the engine's game-over overlay — we own the post-match flow.
     const goOverlay = document.getElementById('game-over-overlay');
@@ -5798,10 +5880,44 @@ const Roguelite = {
     const ascLevel = run.ascension || 0;
     const ascName = (this.ASCENSION_LEVELS[ascLevel] || {}).name || 'Standard';
     const ascTag = ascLevel > 0 ? ` · A${ascLevel} ${ascName}` : '';
-    const subtitle = (won
-      ? 'You reached the top of the grid.'
-      : (stats.fightsWon || 0) >= 5 ? 'A long climb, but the grid claimed you in the end.'
-      : 'A short run. The grid didn\'t make it easy.') + ascTag;
+    // Defeat-detail subtitle. If the player fell at a boss / final-boss
+    // node we know which persona ended the run (stashed in lastResult);
+    // surface that for a sharper end-of-run read instead of generic
+    // "the grid claimed you" copy. User direction (audit follow-up):
+    // "what was killed by what boss" closes the loop on the run.
+    let subtitle;
+    if (won) {
+      subtitle = 'You reached the top of the grid.';
+    } else {
+      const lr = run.lastResult || {};
+      if (lr.bossPersona) {
+        const actLbl = lr.nodeType === 'final-boss' ? 'the final boss' : `the Act ${lr.nodeAct || run.act} boss`;
+        subtitle = `Fell to ${lr.bossPersona} — ${actLbl}.`;
+      } else if ((stats.fightsWon || 0) >= 5) {
+        subtitle = 'A long climb, but the grid claimed you in the end.';
+      } else {
+        subtitle = 'A short run. The grid didn\'t make it easy.';
+      }
+    }
+    subtitle += ascTag;
+    // Final deck rarity breakdown — "Common: 6 · Rare: 3 · Special: 2 ·
+    // Legendary: 1". Curses are tallied separately so a deck with one
+    // junk curse still reads honestly.
+    const rarityCounts = { common: 0, rare: 0, special: 0, legendary: 0, curse: 0 };
+    (run.deck || []).forEach(d => {
+      if (d._isCurse) rarityCounts.curse++;
+      else if (rarityCounts[d.rarity] != null) rarityCounts[d.rarity]++;
+    });
+    const rarityRows = [];
+    if (rarityCounts.legendary) rarityRows.push(`<span class="rl-end-rarity-pip rl-tier-legendary-text">Legendary ${rarityCounts.legendary}</span>`);
+    if (rarityCounts.special)   rarityRows.push(`<span class="rl-end-rarity-pip rl-tier-special-text">Special ${rarityCounts.special}</span>`);
+    if (rarityCounts.rare)      rarityRows.push(`<span class="rl-end-rarity-pip rl-tier-rare-text">Rare ${rarityCounts.rare}</span>`);
+    if (rarityCounts.common)    rarityRows.push(`<span class="rl-end-rarity-pip rl-tier-common-text">Common ${rarityCounts.common}</span>`);
+    if (rarityCounts.curse)     rarityRows.push(`<span class="rl-end-rarity-pip rl-curse">Curse ${rarityCounts.curse}</span>`);
+    const rarityLine = rarityRows.length ? `<div class="rl-end-rarity-line">${rarityRows.join(' · ')}</div>` : '';
+    // All relics earned this run (not just the standout). Sorted by
+    // rarity desc so boss relics read first.
+    const allRelics = sortedRelics;
     return `
       <div class="rl-panel rl-end-panel">
         <h1 class="rl-title rl-end-title ${won ? 'rl-end-victory' : 'rl-end-defeat'}">${titleLine}</h1>
@@ -5861,16 +5977,19 @@ const Roguelite = {
               <span class="rl-end-mvp-meta">${this.displayRarity(mvp.rarity)} · ${mvp.xp || 0} XP</span>
             </div>
           </div>` : ''}
-        ${bestRelic ? `
+        ${allRelics.length ? `
           <div class="rl-end-relic">
-            <div class="rl-end-section-title">★ STANDOUT RELIC</div>
-            <div class="rl-end-mvp-row">
-              <span class="rl-end-mvp-name">${bestRelic.name}</span>
-              <span class="rl-end-mvp-meta">${this.displayRarity(bestRelic.rarity || 'common')}</span>
+            <div class="rl-end-section-title">★ RELICS COLLECTED (${allRelics.length})</div>
+            <div class="rl-end-relics-grid">
+              ${allRelics.map(r => `
+                <div class="rl-end-relic-card rl-relic-${r.rarity || 'common'}">
+                  <div class="rl-end-relic-card-name">${r.name}</div>
+                  <div class="rl-end-relic-card-rarity">${this.displayRarity(r.rarity || 'common')}</div>
+                </div>`).join('')}
             </div>
-            <div class="rl-end-relic-desc">${bestRelic.desc || ''}</div>
           </div>` : ''}
         <div class="rl-end-section-title">★ FINAL DECK (${run.deck.length})</div>
+        ${rarityLine}
         <div class="rl-end-deck">
           ${run.deck.map(d => `<span class="rl-deck-card rl-rarity-${d.rarity}">${d.defName}</span>`).join('')}
         </div>
