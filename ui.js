@@ -337,6 +337,8 @@ const UI = {
       'Poison Ivy':       { death: 'audio/cards/poison-ivy-death.mp3' },
       // Man-Bat death — 0.65s clip, plays on every Man-Bat kill.
       'Man-Bat':          { death: 'audio/cards/man-bat-death.mp3' },
+      // Bane death — 0.58s clip, plays on every Bane kill.
+      'Bane':             { death: 'audio/cards/bane-death.mp3' },
       // Winter Soldier hover: 52s of Henry Jackman's "End Of The Line"
       // (1:05 → 1:57 of the source) — the cold-war motif build. -20 LUFS
       // unified-baseline, 1s fade-in / 2s fade-out baked. maxDur 53 lets
