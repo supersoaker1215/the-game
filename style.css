@@ -5833,20 +5833,27 @@ body.hit-pause .ai-hand * {
   position: fixed !important;
   z-index: 9999;
   pointer-events: none;
-  /* Slowed from 0.42s → 0.85s so the card READS as physically
-     traveling from hand to lane instead of teleporting. The
-     ease-out-expo curve gives strong deceleration so the card
-     "settles" into the lane rather than colliding with it.
-     Box-shadow + filter follow the same curve so glow / brightness
-     resolve in lockstep with arrival. */
-  transition: transform   0.85s var(--ease-out-expo),
-              box-shadow  0.85s var(--ease-out-soft),
-              filter      0.85s var(--ease-out-soft);
-  will-change: transform;
+  will-change: transform, filter;
   /* Brighter glow during flight than the static card so the eye
-     follows it through the air. Falls off as the flight ends via
-     the same transition. */
+     follows it through the air. Resolves via the keyframe transition. */
   filter: brightness(1.25) drop-shadow(0 0 14px rgba(120,220,255,0.65));
+  transition: filter 0.4s var(--ease-out-soft);
+}
+/* Parabolic arc trajectory — the ghost rises through a midpoint
+   (--fly-peak-y above the linear path) before descending into the
+   lane. JS sets --fly-dx, --fly-dy, --fly-peak-y per spawn. The
+   45% peak fires before the halfway mark so the card already
+   begins descending before it crosses 50% of the horizontal
+   distance, which reads as a more graceful arc than a perfectly
+   symmetric parabola. End includes a tiny overshoot (1.025) that
+   the 78%→100% settle bleeds back to 1.0 — same micro-thud feel
+   the previous transition-based stage B had. Audit finding:
+   "trajectory is linear, no arc, no weight." */
+@keyframes cardFlightArc {
+  0%   { transform: translate3d(0, 0, 0) rotate(-6deg) scale(0.96); }
+  45%  { transform: translate3d(calc(var(--fly-dx, 0px) * 0.45), calc(var(--fly-dy, 0px) * 0.45 - var(--fly-peak-y, 60px)), 0) rotate(-2deg) scale(1.07); }
+  78%  { transform: translate3d(var(--fly-dx, 0px), var(--fly-dy, 0px), 0) rotate(0deg) scale(1.025); }
+  100% { transform: translate3d(var(--fly-dx, 0px), var(--fly-dy, 0px), 0) rotate(0deg) scale(1.0); }
 }
 /* Real card stays hidden the entire duration of the flight (matches
    the new 850ms ghost duration). The 0.05s opacity transition
@@ -12913,6 +12920,52 @@ body.round-transition .board-section::before {
 }
 .card.ally-card .destroy-shard  { color: var(--player-accent-bright); }
 .card.enemy-card .destroy-shard { color: var(--enemy-accent-bright); }
+
+/* ---- Phase transition wipe ----
+   Tron-scan overlay that sweeps across the screen on major roguelite
+   phase boundaries (map → fight, fight → rewards, rewards → map).
+   Three layered scan lines move at slightly different speeds + the
+   leading edge has a bright glow so it reads as a "boot-up" sweep
+   rather than a flat curtain. Audit finding: "phase changes are hard
+   cuts." Total duration 540ms. Triggered from UI._maybePhaseWipe. */
+@keyframes rlPhaseWipeSweep {
+  0%   { transform: translateX(-100%); opacity: 0; }
+  10%  { opacity: 1; }
+  90%  { opacity: 1; }
+  100% { transform: translateX(100%); opacity: 0; }
+}
+.rl-phase-wipe {
+  position: fixed; inset: 0;
+  pointer-events: none;
+  z-index: 9998;
+  overflow: hidden;
+}
+.rl-phase-wipe::before,
+.rl-phase-wipe::after {
+  content: ""; position: absolute; top: 0; bottom: 0;
+  width: 35%;
+}
+/* Leading edge — bright neon glow with hard scan-line texture. */
+.rl-phase-wipe::before {
+  left: 0;
+  background:
+    linear-gradient(90deg, transparent 0%, rgba(79,195,247,0.08) 30%, rgba(79,195,247,0.18) 70%, rgba(79,195,247,0.55) 95%, #4fc3f7 100%),
+    repeating-linear-gradient(0deg, rgba(79,195,247,0.05) 0 2px, transparent 2px 5px);
+  box-shadow:
+    8px 0 24px rgba(79,195,247,0.55),
+    16px 0 48px rgba(79,195,247,0.30);
+  animation: rlPhaseWipeSweep 540ms cubic-bezier(0.65, 0, 0.35, 1) forwards;
+}
+/* Trailing fill — opaque black so the screen swap is briefly hidden. */
+.rl-phase-wipe::after {
+  left: -35%;
+  background:
+    linear-gradient(90deg, #000 0%, #000 60%, rgba(0,0,0,0.85) 90%, transparent 100%),
+    repeating-linear-gradient(0deg, rgba(79,195,247,0.025) 0 2px, transparent 2px 4px);
+  width: 70%;
+  animation: rlPhaseWipeSweep 540ms cubic-bezier(0.65, 0, 0.35, 1) forwards;
+  animation-delay: 30ms;
+}
 
 /* ============================================================
    HIT CHIPS — partial-disintegration burst on card-takes-damage.

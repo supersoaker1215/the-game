@@ -3113,6 +3113,14 @@ const UI = {
     const s = Game.state;
     if (!s) return;
 
+    // Phase transition wipe — a brief Tron-scan overlay that sweeps
+    // across the screen whenever the player crosses a major boundary
+    // (map → fight, fight → rewards, rewards → map). Audit finding:
+    // "phase changes were hard cuts." Skipped for modal-driven flows
+    // (treasure, rest, event, etc.) since those already animate via
+    // the modal scaffold. Tracked via this._lastPhase across renders.
+    if (this._maybePhaseWipe) this._maybePhaseWipe(s.phase);
+
     // Clean up any stuck hover-magnify popup before re-rendering. If the
     // card the popup cloned has been removed from the DOM (played,
     // killed, discarded), the mouseout handler never got a chance to
@@ -3582,60 +3590,36 @@ const UI = {
     const dx = toRect.left - fromRect.left;
     const dy = toRect.top - fromRect.top;
 
-    // Two-stage flight for a "professional" feel:
-    //   Stage A (0 → 78%, 660ms): arc-and-travel. Card scales briefly
-    //     up to 1.05 mid-flight (visual lift), translates with an
-    //     ease-out-expo so the bulk of the distance is covered fast
-    //     then decelerates into the lane.
-    //   Stage B (78% → 100%, 180ms): micro-overshoot + settle. Card
-    //     lands slightly oversized (1.025) then eases back to 1.0
-    //     using a softer cubic-bezier — gives the impression of a
-    //     small physical "thud" without a hard bounce.
-    // Result: 840ms total — almost identical to the prior 850ms but
-    // the trajectory now reads as a single fluid motion instead of a
-    // straight-line teleport. No mid-flight stutter because every
-    // animatable property uses the same ease curve and stage timing.
-    const STAGE_A_MS = 660;
-    const STAGE_B_MS = 180;
-    ghost.style.willChange = 'transform, filter, box-shadow';
-    // Lock the from-state in its own paint frame BEFORE we kick the
-    // transition — without double-rAF, browsers occasionally apply
-    // both initial + target transforms in the same frame, producing
-    // the perceived "snap" / janky start. This is the single biggest
+    // Parabolic arc trajectory — the ghost lifts up at the midpoint
+    // then descends to the lane, instead of moving in a straight line.
+    // Audit finding: "card-play trajectory was linear (no arc)." Arc
+    // peak height scales with horizontal travel: short hops barely
+    // arc; longer flights to far lanes lift higher. Min lift 60px so
+    // even neighbor-lane plays read as airborne rather than slid.
+    const peakY = Math.max(60, Math.abs(dx) * 0.22 + Math.abs(dy) * 0.10);
+    ghost.style.setProperty('--fly-dx', dx + 'px');
+    ghost.style.setProperty('--fly-dy', dy + 'px');
+    ghost.style.setProperty('--fly-peak-y', peakY + 'px');
+    ghost.style.willChange = 'transform, filter';
+    // Lock the from-state in its own paint frame BEFORE we trigger the
+    // animation — without double-rAF, browsers occasionally apply both
+    // initial + target transforms in the same frame, producing the
+    // perceived "snap" / janky start. This is the single biggest
     // smoothness win for FLIP animations.
+    const TOTAL_MS = 840;
     requestAnimationFrame(() => {
       requestAnimationFrame(() => {
-        ghost.style.transition =
-          `transform ${STAGE_A_MS}ms cubic-bezier(0.16, 1, 0.3, 1),` +
-          `filter ${STAGE_A_MS}ms cubic-bezier(0.16, 1, 0.3, 1),` +
-          `box-shadow ${STAGE_A_MS}ms cubic-bezier(0.16, 1, 0.3, 1)`;
-        // Stage A target: arrive at the lane slightly oversized for the
-        // micro-overshoot in stage B. translate3d keeps it on the
-        // composite layer so the GPU does the heavy lifting.
-        ghost.style.transform =
-          `translate3d(${dx}px, ${dy}px, 0) rotate(0deg) scale(1.025)`;
+        ghost.style.animation = `cardFlightArc ${TOTAL_MS}ms cubic-bezier(0.16, 1, 0.3, 1) forwards`;
         ghost.style.filter = 'brightness(1.10) drop-shadow(0 0 8px rgba(120,220,255,0.35))';
       });
     });
-    // Stage B — settle from 1.025 → 1.0 with a gentle cubic. Triggered
-    // when stage A's transition would have ended.
-    setTimeout(() => {
-      // If the ghost was already removed (rare race), bail.
-      if (!ghost.isConnected) return;
-      ghost.style.transition =
-        `transform ${STAGE_B_MS}ms cubic-bezier(0.34, 1.36, 0.64, 1),` +
-        `filter ${STAGE_B_MS}ms cubic-bezier(0.22, 1, 0.36, 1)`;
-      ghost.style.transform =
-        `translate3d(${dx}px, ${dy}px, 0) rotate(0deg) scale(1)`;
-      ghost.style.filter = 'brightness(1.0)';
-    }, STAGE_A_MS - 10);
-    // Cleanup at 860ms = stage A + B + small grace buffer. The real
-    // card stays hidden under .card-flying until the ghost is gone,
-    // so the swap is invisible (no double-render flicker).
+    // Cleanup at TOTAL_MS + small grace buffer. The real card stays
+    // hidden under .card-flying until the ghost is gone, so the swap
+    // is invisible (no double-render flicker).
     setTimeout(() => {
       ghost.remove();
       realEl.classList.remove('card-flying');
-    }, STAGE_A_MS + STAGE_B_MS + 20);
+    }, TOTAL_MS + 30);
   },
 
   _spawnDeathGhost(rect, html) {
@@ -3666,6 +3650,42 @@ const UI = {
     overlay.className = 'combat-reveal-overlay';
     board.appendChild(overlay);
     setTimeout(() => overlay.remove(), 900);
+  },
+
+  // Phase transition wipe — Tron-scan overlay that sweeps across the
+  // screen on major roguelite phase boundaries. Audit finding: "phase
+  // changes were hard cuts." Tracks the last seen phase across
+  // renders; if the new phase belongs to one of the roguelite
+  // transitions we want to punctuate, fire a brief wipe overlay.
+  // Skipped for non-roguelite phases and reduced-motion users.
+  _maybePhaseWipe(currentPhase) {
+    if (!currentPhase) { this._lastPhase = currentPhase; return; }
+    const prev = this._lastPhase;
+    this._lastPhase = currentPhase;
+    if (!prev || prev === currentPhase) return;
+    if (this._reducedMotion && this._reducedMotion()) return;
+    // Only fire for roguelite-level transitions — other phase swaps
+    // (main-menu ↔ mode-select, deckbuilder, drafts) have their own
+    // entry animations and don't need a wipe.
+    const ROGUELITE_PHASES = new Set([
+      'roguelite-map', 'roguelite-rewards', 'roguelite-pick-relic',
+      'roguelite-pick-card', 'roguelite-end', 'roguelite-start',
+    ]);
+    const FIGHT_PHASE = (currentPhase === 'play' || prev === 'play');
+    const isRogueTransition = (ROGUELITE_PHASES.has(prev) && ROGUELITE_PHASES.has(currentPhase))
+      || (ROGUELITE_PHASES.has(prev) && FIGHT_PHASE)
+      || (FIGHT_PHASE && ROGUELITE_PHASES.has(currentPhase));
+    if (!isRogueTransition) return;
+    // Avoid stacking wipes on rapid back-to-back phase changes.
+    if (this._wipeFiring) return;
+    this._wipeFiring = true;
+    const wipe = document.createElement('div');
+    wipe.className = 'rl-phase-wipe';
+    document.body.appendChild(wipe);
+    setTimeout(() => {
+      wipe.remove();
+      this._wipeFiring = false;
+    }, 540);
   },
 
   _screenShake(intensity) {
