@@ -5219,7 +5219,7 @@ const Game = {
   },
 
   // Start Vader's chain. Player picks starting target, then direction for auto-chain.
-  startVaderChain(owner, callback) {
+  startVaderChain(owner, callback, vader) {
     const opp = this.opponent(owner);
     const enemyLanes = [];
     for (let i = 0; i < this.LANE_COUNT; i++) {
@@ -5228,23 +5228,30 @@ const Game = {
     }
     if (!enemyLanes.length) { if (callback) callback(); return; }
 
+    // Roguelite Text+ override — _vaderChainDamage scales the opening
+    // chain hit. Default 7 (classic); Text+ to 9 so a Doombot or Hulk
+    // eats the opening swing instead of just chipping. Subsequent
+    // chain steps still reduce by 1 per step from the new ceiling.
+    const startDmg = (vader && vader._vaderChainDamage) || 7;
+    const followDmg = startDmg - 1;
+
     const hitAndChain = (lane) => {
       const target = this.state.lanes[lane][opp];
       if (!target || target.currentHealth <= 0) { if (callback) callback(); return; }
 
-      const dealt = this.dealChainDamage(target, 7, "VADER CHAIN");
+      const dealt = this.dealChainDamage(target, startDmg, "VADER CHAIN");
       this.cleanupDead();
 
       if (!dealt) { if (callback) callback(); return; }
 
-      // Continue chain from this lane with 6 damage, reducing by 1 per step
-      this.autoChainDamage(owner, lane, 6, 1, callback, "VADER CHAIN");
+      // Continue chain from this lane with reduced damage, reducing by 1 per step
+      this.autoChainDamage(owner, lane, followDmg, 1, callback, "VADER CHAIN");
     };
 
     if (!this.isHuman(owner)) {
       // AI-controlled Vader: score each candidate start lane. Reject
-      // targets that absorb the first 7-damage hit outright (evade /
-      // invincible / dmg-immune / armor ≥ 7). Prefer clean kills + long
+      // targets that absorb the opening hit outright (evade /
+      // invincible / dmg-immune / armor ≥ startDmg). Prefer clean kills + long
       // chain reach.
       const scoreStart = (lane) => {
         const t = this.state.lanes[lane][opp];
@@ -5252,7 +5259,7 @@ const Game = {
         if (t.evadeCharges > 0) return -Infinity;
         if (t.invincibleTurns > 0) return -Infinity;
         if (t.hasDamageImmunity) return -Infinity;
-        const dmg = Math.max(0, 7 - (t.armorValue || 0));
+        const dmg = Math.max(0, startDmg - (t.armorValue || 0));
         if (dmg === 0) return -Infinity; // armor soaks, chain aborts
         let lReach = 0, rReach = 0;
         for (let l = lane - 1; l >= 0; l--) {
@@ -5295,11 +5302,11 @@ const Game = {
       // land on the right targets.
       this.promptLaneChoice(owner, enemyLanes,
         "Vader's Chain — Pick Starting Target",
-        "Choose any enemy card to start the 7-damage chain",
+        `Choose any enemy card to start the ${startDmg}-damage chain`,
         (lane) => { hitAndChain(lane); },
         this.opponent(owner),
         null,    // previewCard not used for own-side placement
-        7        // previewDamage — Vader's chain start hits for 7
+        startDmg // previewDamage — Vader's chain start hits for startDmg
       );
     }
   },

@@ -1244,6 +1244,10 @@ const CARD_ABILITIES = {
         const j = Math.floor(Math.random() * (i + 1));
         [faceDownDeck[i], faceDownDeck[j]] = [faceDownDeck[j], faceDownDeck[i]];
       }
+      // Roguelite Text+ override — _deadpoolNoGiveBack skips the trade
+      // step entirely. Default false (classic — give one back); Text+
+      // true makes Deadpool a pure card thief: steal one, no return.
+      const skipGiveBack = !!self._deadpoolNoGiveBack;
       G.promptCardChoice(self.owner, faceDownDeck,
         "Deadpool's Final Trick",
         "Pick a face-down card from the enemy's hand to steal",
@@ -1253,6 +1257,11 @@ const CARD_ABILITIES = {
           stolen.owner = self.owner;
           G.addToHand(self.owner, stolen, self);
           G.log(`Deadpool steals ${stolen.name} from the enemy's hand!`);
+
+          if (skipGiveBack) {
+            G.log(`Deadpool keeps ${stolen.name} — no trade!`);
+            return;
+          }
 
           // Step 2: Player picks a card from their own hand to give to the enemy.
           const myHand = G.state[self.owner].hand.slice();
@@ -1325,23 +1334,30 @@ const CARD_ABILITIES = {
   },
   "Jason Voorhees": {
     onDeath(G, self, lane) {
-      // Jason revives ONCE PER GAME (not per-instance). If a prior Jason
-      // already revived this game, subsequent plays/jumps get no revive.
-      // Flag lives on the owner's state so a freshly-played Jason can't
-      // "reset" the revive by being a new instance.
-      if (G.state[self.owner].jasonReviveUsed) {
+      // Jason revives ONCE PER GAME (not per-instance) by default. If a
+      // prior Jason already revived this game, subsequent plays/jumps
+      // get no revive. Flag lives on the owner's state so a freshly-
+      // played Jason can't "reset" the revive by being a new instance.
+      // Roguelite Text+ override — _jasonNoOnceLimit removes the once-
+      // per-game lock so Jason can revive on every kill (provided he
+      // still has reviveCharges). Default false (classic single-use);
+      // Text+ true makes him a recurring slasher.
+      if (!self._jasonNoOnceLimit && G.state[self.owner].jasonReviveUsed) {
         return; // already used this game
       }
       if (self.reviveCharges > 0) {
         self.reviveCharges--;
-        G.state[self.owner].jasonReviveUsed = true;
+        if (!self._jasonNoOnceLimit) {
+          G.state[self.owner].jasonReviveUsed = true;
+        }
         self.attack += 1; self.maxHealth += 2; self.currentHealth = self.maxHealth;
         G.placeInLane(self.owner, self, lane);
         // Revive bypasses Game.playCard, so the registry-based play cue
         // wouldn't auto-fire here — call it explicitly so the ki-ki-ki /
         // ma-ma-ma sting lands on resurrection too.
         if (typeof UI !== 'undefined' && UI.sfx) UI.sfx.playCardSfx('Jason Voorhees', 'play');
-        G.log(`Jason Voorhees rises again as ${self.attack}/${self.maxHealth} (once per game)`);
+        const limitText = self._jasonNoOnceLimit ? '' : ' (once per game)';
+        G.log(`Jason Voorhees rises again as ${self.attack}/${self.maxHealth}${limitText}`);
         return true;
       }
     }
@@ -2623,13 +2639,14 @@ const CARD_ABILITIES = {
 
       // Step 3: Vader chain (existing 7-damage chain). Fires the 'throw'
       // ability cue — lightsaber-throw moment in the chain attack.
+      // Pass `self` so startVaderChain can read the Text+ damage flag.
       moveStep(() => {
         fearStep(() => {
           absfx('throw');
           G.startVaderChain(self.owner, () => {
             G.cleanupDead();
             if (typeof UI !== 'undefined' && UI.render) UI.render();
-          });
+          }, self);
         });
       });
     }

@@ -1855,10 +1855,11 @@ const Roguelite = {
       desc: 'Summon TWO random cards in Cyborg\'s lane on death (was 1).',
       apply: c => { c._cyborgSummons = 2; },
     },
-    /* Jason Voorhees Text+ deferred — his revive uses an owner-level
-       once-per-game flag (jasonReviveUsed) that blocks repeat revives
-       even with extra reviveCharges. Would need a deeper rework to
-       support a "revive twice" upgrade. Skipped for this batch. */
+    'Jason Voorhees': {
+      id: 'jason-text', name: 'Crystal Lake Killer',
+      desc: 'Removes the once-per-game lock — Jason can revive on every kill.',
+      apply: c => { c._jasonNoOnceLimit = true; },
+    },
     'Wolverine': {
       id: 'wolverine-text', name: 'Adamantium',
       desc: 'Slays attackers with cost ≤8 (was 7). Revive 2 (was 1).',
@@ -2162,6 +2163,16 @@ const Roguelite = {
       id: 'homelander-text', name: 'Above the Law',
       desc: 'Sacrifice damage = ally cost + 3 (was ally cost only).',
       apply: c => { c._homelanderDmgBonus = 3; },
+    },
+    'Darth Vader': {
+      id: 'vader-text', name: 'Power of the Dark Side',
+      desc: 'Chain opens at 9 damage (was 7) — every chain step shifts up.',
+      apply: c => { c._vaderChainDamage = 9; },
+    },
+    'Deadpool': {
+      id: 'deadpool-text', name: 'Maximum Effort',
+      desc: 'Skip the give-back — steal an enemy card without trade.',
+      apply: c => { c._deadpoolNoGiveBack = true; },
     },
   },
 
