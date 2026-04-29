@@ -241,28 +241,39 @@ html:has(body.preview-mobile) {
   background-image:
     radial-gradient(ellipse 70% 50% at 50% 0%, rgba(79,195,247,0.06), transparent 70%);
 }
-/* Floating Web/Mobile toggle button — fixed top-left, mirrors the
-   visual language of the settings cog. */
+/* Floating Web/Mobile toggle button — mirrors the settings cog's neon
+   language so the corner pair reads as a matched UI set. User report:
+   "the mobile view button needs to be neon highlighted." Theme-aware
+   ring + double box-shadow halo + glowing icon, with a stronger pulse
+   on hover. */
 .viewport-toggle {
   position: fixed;
-  top: 12px; left: 12px;
+  top: 14px; left: 14px;
   z-index: 600;
   width: 36px; height: 36px;
-  background: rgba(0,0,0,0.85);
-  border: 1px solid var(--tron-edge);
+  background: #000000;
+  border: 1px solid var(--theme-accent-bright, rgba(79,195,247,0.95));
   border-radius: 50%;
-  color: var(--tron);
+  color: var(--theme-accent-bright, #a8dcff);
   cursor: pointer;
   display: flex; align-items: center; justify-content: center;
   font-family: 'Rajdhani', sans-serif;
-  transition: transform 0.15s, box-shadow 0.15s, border-color 0.15s;
-  /* Hidden on actual phone-sized viewports — when the device is
-     already a phone, the toggle is noise. Only useful on desktop. */
+  text-shadow: 0 0 6px var(--theme-glow-outer, rgba(79,195,247,1));
+  box-shadow:
+    0 0 12px var(--theme-glow-outer, rgba(79,195,247,0.65)),
+    0 0 24px var(--theme-glow-inner, rgba(79,195,247,0.30)),
+    inset 0 0 0 1px var(--theme-wash-08, rgba(79,195,247,0.22));
+  transition: transform 0.2s, box-shadow 0.25s, color 0.2s, background 0.2s, border-color 0.2s;
 }
 .viewport-toggle:hover {
-  border-color: var(--tron);
-  box-shadow: 0 0 12px rgba(79,195,247,0.45);
-  transform: scale(1.05);
+  border-color: var(--theme-accent-bright, rgba(79,195,247,1));
+  color: #ffffff;
+  background: var(--theme-wash-08, rgba(79,195,247,0.08));
+  transform: scale(1.08);
+  box-shadow:
+    0 0 16px var(--theme-glow-outer, rgba(79,195,247,0.95)),
+    0 0 32px var(--theme-glow-inner, rgba(79,195,247,0.55)),
+    inset 0 0 0 1px var(--theme-wash-15, rgba(79,195,247,0.30));
 }
 .viewport-toggle svg {
   width: 18px; height: 18px;
@@ -271,6 +282,7 @@ html:has(body.preview-mobile) {
   stroke-width: 1.8;
   stroke-linecap: round;
   stroke-linejoin: round;
+  filter: drop-shadow(0 0 4px var(--theme-glow-outer, rgba(79,195,247,0.85)));
 }
 /* When in mobile-preview mode, slide the toggle outside the phone
    frame so it doesn't intrude on the simulated app surface. */
@@ -9162,18 +9174,31 @@ body.turn-combat .board .lane.lane-active {
     0 0 12px rgba(79,195,247,0.55),
     0 0 24px rgba(79,195,247,0.22);
 }
+/* Contested lane mid-divider — neon purple bar with a stronger halo
+   so the contested seam reads as the brightest line on the board.
+   User direction: "the contested lanes need to be neon highlighted as
+   well — its blur should be purple."  */
 .lane.occ-both .lane-sep::before {
-  background: linear-gradient(90deg, transparent 0%, rgba(155,89,182,0.95) 30%, rgba(155,89,182,0.95) 70%, transparent 100%);
+  background: linear-gradient(90deg, transparent 0%, rgba(180,90,220,1) 30%, rgba(180,90,220,1) 70%, transparent 100%);
   box-shadow:
-    0 0 12px rgba(155,89,182,0.60),
-    0 0 24px rgba(155,89,182,0.25);
+    0 0 14px rgba(180,90,220,0.85),
+    0 0 32px rgba(180,90,220,0.40),
+    0 0 56px rgba(180,90,220,0.18);
 }
+/* Contested lane-number circle — a purple-red MIX (magenta on the
+   color wheel) so it reads as the visual blend of the AI red rim and
+   the player purple/blue rim meeting in the middle. User direction:
+   "the middle circle should be the mix between purple and red on the
+   color wheel."  */
 .lane.occ-both .lane-number {
-  border-color: rgba(155,89,182,0.95);
-  color: #d7b3e6;
+  border-color: rgba(220,50,130,1);
+  color: #ff8fc0;
+  background: rgba(40,8,24,0.85);
   box-shadow:
-    0 0 12px rgba(155,89,182,0.60),
-    0 0 24px rgba(155,89,182,0.25);
+    0 0 14px rgba(220,50,130,0.85),
+    0 0 28px rgba(220,50,130,0.40),
+    inset 0 0 6px rgba(220,50,130,0.20);
+  text-shadow: 0 0 6px rgba(220,50,130,0.85);
 }
 
 /* Parity removed from the pip — lane numbers are the indicator. Keeping the
@@ -11773,32 +11798,36 @@ body.round-first-ai .hud-pill-main {
    mechanic — implement it like a professional game dev."
    ============================================================ */
 .lane.occ-both .lane-sep::before {
-  /* SOLID trick purple centerline — no red/cyan slivers at the edges
-     anymore. User spec: "those areas need to be all purple." Thin
-     transparent fade at each end so the line still feels like a
-     beam (not a hard rectangle), but every visible pixel of the line
-     itself is the same `rgb(155, 89, 182)` as the rest of the trick
-     palette. */
+  /* Neon purple centerline — bright, with double halo so the contested
+     seam reads as the brightest line on the board. User direction:
+     "the contested lanes need to be neon highlighted as well — its
+     blur should be purple." Brighter purple (180,90,220) replaces the
+     darker trick-purple here so the contested state pops at all zoom
+     levels. */
   background: linear-gradient(90deg,
     transparent 0%,
-    rgba(155, 89, 182, 1) 8%,
-    rgba(155, 89, 182, 1) 92%,
+    rgba(180, 90, 220, 1) 8%,
+    rgba(180, 90, 220, 1) 92%,
     transparent 100%) !important;
   box-shadow:
-    0 0 10px rgba(155, 89, 182, 0.85),
-    0 0 22px rgba(155, 89, 182, 0.55) !important;
+    0 0 14px rgba(180, 90, 220, 0.95),
+    0 0 32px rgba(180, 90, 220, 0.55),
+    0 0 56px rgba(180, 90, 220, 0.25) !important;
 }
 .lane.occ-both .lane-number {
-  /* Border + text + glow all draw from the same trick purple. The
-     keyframe-driven pulse (tronCirclePulse) overrides this with the
-     CSS-variable values defined on `.lane.occ-both .lane-number`
-     above; both surfaces converge on the same 155/89/182 hex so the
-     pulse and the static glow stay coherent. */
-  border-color: rgba(155, 89, 182, 1) !important;
-  color: rgba(155, 89, 182, 1) !important;
+  /* Magenta middle circle — purple+red mix on the color wheel, the
+     visual "blend" of the AI red top rim and the player purple/blue
+     bottom rim meeting at the contested seam. User direction: "the
+     middle circle should be the mix between purple and red on the
+     color wheel."  */
+  border-color: rgba(220, 50, 130, 1) !important;
+  color: #ff8fc0 !important;
+  background: rgba(40, 8, 24, 0.85) !important;
   box-shadow:
-    0 0 10px rgba(155, 89, 182, 0.85),
-    0 0 22px rgba(155, 89, 182, 0.55) !important;
+    0 0 14px rgba(220, 50, 130, 0.90),
+    0 0 28px rgba(220, 50, 130, 0.45),
+    inset 0 0 6px rgba(220, 50, 130, 0.20) !important;
+  text-shadow: 0 0 6px rgba(220, 50, 130, 0.85);
 }
 
 /* AI mini-hand card-backs — enemy theme (was hardcoded red). */
@@ -17456,15 +17485,17 @@ body.defeat-pose .board .card.enemy-card {
   --lane-pulse-edge:    rgba(var(--player-r), var(--player-g), var(--player-b), 0.55);
   --lane-pulse-edge-on: rgba(var(--player-r), var(--player-g), var(--player-b), 1.00);
 }
-/* Contested lane uses the EXACT trick purple (rgb 155, 89, 182) so
-   the centerline mix visually matches the purple chrome on every
-   trick card in the game. User spec: "the purple should match the
-   same purple of the tricks." */
+/* Contested lane circle drives the breathing pulse via these CSS
+   variables. User direction: "the middle circle should be the mix
+   between purple and red on the color wheel." Magenta (220,50,130)
+   = the purple+red blend; the centerline sep::before stays bright
+   purple (180,90,220) so the column reads as a purple beam capped
+   by a magenta node where AI red meets player purple/cyan. */
 .lane.occ-both .lane-number {
-  --lane-pulse-soft:    rgba(155, 89, 182, 0.30);
-  --lane-pulse-strong:  rgba(155, 89, 182, 0.65);
-  --lane-pulse-edge:    rgba(155, 89, 182, 0.55);
-  --lane-pulse-edge-on: rgba(155, 89, 182, 1.00);
+  --lane-pulse-soft:    rgba(220, 50, 130, 0.35);
+  --lane-pulse-strong:  rgba(220, 50, 130, 0.75);
+  --lane-pulse-edge:    rgba(220, 50, 130, 0.65);
+  --lane-pulse-edge-on: rgba(220, 50, 130, 1.00);
 }
 @keyframes tronCirclePulse {
   0%, 100% {

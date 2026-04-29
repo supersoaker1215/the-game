@@ -7882,8 +7882,18 @@ const UI = {
     // Rarity pips — tiny neon squares in the top-right corner, 1-4 count
     // encodes the rarity tier (common/uncommon/rare/legendary). The MVP
     // star slots in as the leftmost element of this row when present.
+    //
+    // Roguelite cards key off their `_runRarity` directly (1 common,
+    // 2 rare, 3 special, 4 legendary). Classic-mode cards fall back
+    // to the cost-tier proxy. User direction: "these cards on board
+    // need to be neon-highlighted to designate their rarity — it's
+    // the number-of-rarity squares."
     const _rarityCost = card.baseCost || card.cost || 0;
-    const _pipCount = _rarityCost <= 3 ? 1 : _rarityCost <= 6 ? 2 : _rarityCost <= 8 ? 3 : 4;
+    let _pipCount = _rarityCost <= 3 ? 1 : _rarityCost <= 6 ? 2 : _rarityCost <= 8 ? 3 : 4;
+    if (card._runRarity) {
+      const _rlPips = { common: 1, rare: 2, special: 3, legendary: 4 };
+      if (_rlPips[card._runRarity]) _pipCount = _rlPips[card._runRarity];
+    }
     const rarityStrip = `<span class="rarity-strip" aria-hidden="true">${mvpStarSpan}${'<span class="rpip"></span>'.repeat(_pipCount)}</span>`;
 
     // Placeholder kept for template — mvp star is injected above inside

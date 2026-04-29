@@ -829,13 +829,22 @@ const Roguelite = {
   rollRewards(act, opts) {
     opts = opts || {};
     if (typeof CARD_DEFS === 'undefined') return [];
+    // Exclude roguelite-only entries (starters Goon/Thug/Brute, AI vanilla
+    // Soldier/Mercenary/Operator, curses Wound/Doubt/Regret) from the
+    // reward pool. They live in CARD_DEFS so the engine can name-resolve
+    // them during a run, but they shouldn't appear as card rewards.
+    // User report: "one of the brutes doesn't have taunt 1" — turned out
+    // a non-starter Brute got pulled from rewards and the baseline
+    // keyword strip in buildRunCard nuked its Taunt 1 (only starters
+    // are exempt from the strip).
+    const isRL = (n) => this.isRogueliteOnlyName(n);
     let pool;
     if (act === 1) {
-      pool = CARD_DEFS.filter(c => (c.cost || 0) <= 4);
+      pool = CARD_DEFS.filter(c => (c.cost || 0) <= 4 && !isRL(c.name));
     } else if (act === 2) {
-      pool = CARD_DEFS.filter(c => (c.cost || 0) >= 3 && (c.cost || 0) <= 7);
+      pool = CARD_DEFS.filter(c => (c.cost || 0) >= 3 && (c.cost || 0) <= 7 && !isRL(c.name));
     } else {
-      pool = CARD_DEFS.filter(c => (c.cost || 0) >= 5);
+      pool = CARD_DEFS.filter(c => (c.cost || 0) >= 5 && !isRL(c.name));
     }
     const count = opts.count || 3;
     const out = [];
@@ -1231,6 +1240,51 @@ const Roguelite = {
   // and rolls at lower frequency. Used by level-up bucket roller.
   _isStatEtch(id) {
     return /^(plus\d|discount-\d)/.test(id);
+  },
+  // Three-bucket categorization for the common→rare upgrade picker:
+  //   stats   — flat ATK/HP bumps (plus1-atk, plus1-hp, plus1-atk-hp)
+  //   energy  — cost reductions (discount-N)
+  //   text    — everything else that ISN'T a trait keyword
+  // Trait keywords (Bullseye, Hunt, Armor 1, Taunt 1, Evade 1, etc.)
+  // are auto-granted on the common→rare bump per user direction:
+  // "from uncommon to rare you auto get a trait and also 1 upgrade
+  // for stats, text, energy."
+  TRAIT_ETCH_IDS: ['bullseye', 'hunt', 'armor-1', 'taunt-1', 'evade-1', 'untrickable', 'splash-1', 'overdrive'],
+  _isStatBumpEtch(id) { return /^plus\d/.test(id); },
+  _isEnergyEtch(id)   { return /^discount-\d/.test(id); },
+  _isTraitEtch(id)    { return this.TRAIT_ETCH_IDS.includes(id); },
+  _isTextEtch(id)     { return !this._isStatBumpEtch(id) && !this._isEnergyEtch(id) && !this._isTraitEtch(id); },
+
+  // Pick one Common-tier trait etch the card doesn't already have.
+  // Returns null if the card has every trait already (rare).
+  _rollAutoTrait(cardRef) {
+    const owned = new Set(cardRef.statuses || []);
+    // Also treat the card's def-side baseline keywords as "owned" so
+    // the auto-grant doesn't dupe an ability the card was already
+    // shipped with (matters for starters like Brute → already Taunt 1).
+    const candidates = this.TRAIT_ETCH_IDS.filter(id => !owned.has(id));
+    if (!candidates.length) return null;
+    const id = candidates[Math.floor(Math.random() * candidates.length)];
+    return this._findEtch(id);
+  },
+
+  // Common→Rare: 3 picks, one from each bucket {stats, text, energy}.
+  _rollCommonToRareChoices() {
+    const all = [...this.ETCHES.common, ...this.ETCHES.rare];
+    const stats  = all.filter(e => this._isStatBumpEtch(e.id));
+    const energy = all.filter(e => this._isEnergyEtch(e.id));
+    const text   = all.filter(e => this._isTextEtch(e.id));
+    const out = [];
+    const pickFrom = (pool, label) => {
+      if (!pool.length) return null;
+      const e = pool[Math.floor(Math.random() * pool.length)];
+      return { id: e.id, name: e.name, bucket: label };
+    };
+    const a = pickFrom(stats,  'Stats');
+    const b = pickFrom(text,   'Text');
+    const c = pickFrom(energy, 'Energy');
+    [a, b, c].forEach(x => { if (x) out.push(x); });
+    return out;
   },
 
   _rollLevelUpChoices(targetRarity, n) {
