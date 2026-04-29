@@ -1241,6 +1241,29 @@ const Roguelite = {
     return !!(ab && ab.isDiscardEffect);
   },
 
+  // Resolve which rarity tier (common / rare / special / legendary) an
+  // etch ID lives in — drives the level-up picker border coloring. User
+  // direction: "I don't want HP to always be green and trait to always
+  // be blue and energy always to be gold. I want it based on the rarity
+  // of the etch you get." So a +1 ATK (common tier) shows a green
+  // border, +2/+2 (rare) shows cyan, +3/+3 (special) white, +4/+4
+  // (legendary) gold. Card-specific Text+ entries map to legendary
+  // since they're the rare-jackpot pull.
+  _etchTier(etchId) {
+    if (!etchId || !this.ETCHES) return 'common';
+    for (const tier of this.TIERS) {
+      const list = this.ETCHES[tier];
+      if (list && list.some(e => e.id === etchId)) return tier;
+    }
+    if (this.CARD_TEXT_UPGRADES) {
+      for (const name in this.CARD_TEXT_UPGRADES) {
+        const u = this.CARD_TEXT_UPGRADES[name];
+        if (u && u.id === etchId) return 'legendary';
+      }
+    }
+    return 'common';
+  },
+
   // Strip etches that don't belong on a discard-only card. For Catwoman,
   // Mr. Fantastic, Jigsaw, and Professor X, only energy etches and
   // card-specific Text+ entries are kept; stat bumps and trait keywords
@@ -2230,38 +2253,48 @@ const Roguelite = {
     // so we hide it from the picker. User feedback: "I got Text+ on
     // Winter Soldier — but Winter Soldier doesn't have anything that
     // scales. The text upgrade has to be specific to each card."
-    // Resolve the Text+ entry for this specific card. Prefer the
-    // card-specific upgrade (CARD_TEXT_UPGRADES) — falls back to the
-    // generic rarity-bump etch for the original 18 rarity-scaled cards.
     const cardName = cardRef && cardRef.defName;
     const textEtch = this._resolveTextEtchForCard(cardName);
     const pickFrom = (poolArr, label) => {
       if (!poolArr.length) return null;
       const e = poolArr[Math.floor(Math.random() * poolArr.length)];
-      return { id: e.id, name: e.name, bucket: label, desc: this.etchDesc(e.id) };
+      return { id: e.id, name: e.name, bucket: label, desc: this.etchDesc(e.id), tier: this._etchTier(e.id) };
     };
-    // DISCARD-ONLY cards: skip Stats and Trait buckets entirely (they
-    // don't apply to cards that never enter a lane). Surface only
-    // Energy + Text choices. User direction: "Discards can't gain
-    // stats. It can only be energy reduction. And text."
+    // DISCARD-ONLY cards: only Energy + Text picks (stat/trait etches
+    // do nothing on a card that never enters a lane).
     if (this._isDiscardOnlyCard(cardName)) {
       const out = [];
       const e = pickFrom(energy, 'Energy');
       if (e) out.push(e);
       if (textEtch) {
-        out.push({ id: textEtch.id, name: textEtch.name, bucket: 'Text', desc: textEtch.desc || this.etchDesc(textEtch.id) });
+        out.push({ id: textEtch.id, name: textEtch.name, bucket: 'Text', desc: textEtch.desc || this.etchDesc(textEtch.id), tier: this._etchTier(textEtch.id) });
       }
-      return out;
+      return out.slice(0, 2);
     }
-    const a = pickFrom(stats,  'Stats');
-    const useText = textEtch && Math.random() < 0.05;
-    const b = useText
-      ? { id: textEtch.id, name: textEtch.name, bucket: 'Text', desc: textEtch.desc || this.etchDesc(textEtch.id) }
-      : pickFrom(traits, 'Trait');
-    const c = pickFrom(energy, 'Energy');
-    const out = [];
-    [a, b, c].forEach(x => { if (x) out.push(x); });
-    return out;
+    // Standard pickers: roll TWO distinct buckets out of {Stats, Trait,
+    // Energy}. User direction: "for the level up screen I just want
+    // two choices." Drop the third — picking 2 of 3 buckets gives the
+    // player a meaningful choice while keeping the screen tight.
+    // Text+ jackpot still has a small chance to substitute one of the
+    // picks for the card's specific upgrade.
+    const buckets = [
+      { name: 'Stats',  pool: stats  },
+      { name: 'Trait',  pool: traits },
+      { name: 'Energy', pool: energy },
+    ].filter(b => b.pool.length > 0);
+    // Fisher-Yates shuffle
+    for (let i = buckets.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [buckets[i], buckets[j]] = [buckets[j], buckets[i]];
+    }
+    const picks = buckets.slice(0, 2)
+      .map(b => pickFrom(b.pool, b.name))
+      .filter(Boolean);
+    if (textEtch && picks.length > 0 && Math.random() < 0.05) {
+      const slot = Math.floor(Math.random() * picks.length);
+      picks[slot] = { id: textEtch.id, name: textEtch.name, bucket: 'Text', desc: textEtch.desc || this.etchDesc(textEtch.id), tier: this._etchTier(textEtch.id) };
+    }
+    return picks;
   },
 
   // Returns the Text+ etch object for a given card name. Card-specific
@@ -2342,9 +2375,11 @@ const Roguelite = {
       if (usedIds.has(cand.id)) continue;
       usedIds.add(cand.id);
       // Card-specific Text+ entries carry their own `desc` field; for
-      // generic etches, fall back to the ETCH_DESCS lookup.
+      // generic etches, fall back to the ETCH_DESCS lookup. The `tier`
+      // field drives the level-up picker border color (per the user's
+      // rarity-based-borders direction).
       const desc = cand.desc || this.etchDesc(cand.id);
-      choices.push({ id: cand.id, name: cand.name, bucket: labelOf[bucket], desc });
+      choices.push({ id: cand.id, name: cand.name, bucket: labelOf[bucket], desc, tier: this._etchTier(cand.id) });
     }
     return choices;
   },
@@ -4309,16 +4344,25 @@ const Roguelite = {
     //     actually does — pulled from ETCH_DESCS via etchDesc(id).
     //     User direction: "when it says Thorns I want a description
     //     of what that means."
+    // Border color = etch RARITY TIER (not bucket type). User direction:
+    // "I don't want HP to always be green and trait to always be blue
+    // and energy always to be gold. I want it based on the rarity of
+    // the etch you get." So a +1 ATK (common) gets a green border, a
+    // +2/+2 (rare) gets cyan, +3/+3 (special) white, +4/+4 / Text+
+    // (legendary) gold. The bucket caption stays as a small uppercase
+    // tag inside the button — useful info, but no longer the color
+    // driver.
     const bucketClassMap = { Stats: 'rl-bucket-stats', Trait: 'rl-bucket-trait', Energy: 'rl-bucket-energy', Text: 'rl-bucket-text' };
     const choices = lu.choices.map((c, i) => {
       const bucketCls = bucketClassMap[c.bucket] || '';
+      const tierCls = c.tier ? `rl-levelup-tier-${c.tier}` : 'rl-levelup-tier-common';
       const bucket = c.bucket
         ? `<span class="rl-levelup-bucket ${bucketCls}">${c.bucket}</span>`
         : '';
       const desc = c.desc
         ? `<span class="rl-levelup-desc">${c.desc}</span>`
         : '';
-      return `<button type="button" class="rl-event-choice rl-levelup-choice" onclick="Roguelite._pickLevelUpEtch(${i})">
+      return `<button type="button" class="rl-event-choice rl-levelup-choice ${tierCls}" onclick="Roguelite._pickLevelUpEtch(${i})">
         ${bucket}
         <span class="rl-levelup-name">${c.name}</span>
         ${desc}

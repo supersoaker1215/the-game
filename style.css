@@ -20706,60 +20706,68 @@ body.killing-blow-cinema::after {
 .rl-bucket-energy { color: #ffe066; text-shadow: 0 0 4px rgba(255,224,102,0.55); }
 .rl-bucket-text   { color: #d8a8ff; text-shadow: 0 0 4px rgba(216,168,255,0.65); }
 
-/* Per-bucket border + glow + accent-bar overrides — same mm-option
-   chrome but recolored per bucket so the four picks read at a glance
-   without forcing the user to read the labels. */
-.rl-levelup-choice:has(.rl-bucket-stats) {
-  background: linear-gradient(90deg, rgba(91,227,154,0.06) 0%, rgba(0,0,0,0) 55%), #000;
-  border-color: rgba(91,227,154,0.55);
-  box-shadow: 0 0 10px rgba(91,227,154,0.18), inset 0 0 0 1px rgba(91,227,154,0.05);
-}
-.rl-levelup-choice:has(.rl-bucket-stats)::before { background: rgba(91,227,154,0.65); box-shadow: 0 0 6px rgba(91,227,154,0.55); }
-.rl-levelup-choice:hover:has(.rl-bucket-stats) {
-  border-color: rgba(91,227,154,1);
-  background: linear-gradient(90deg, rgba(91,227,154,0.12) 0%, rgba(0,0,0,0) 55%), rgba(91,227,154,0.04);
-  box-shadow: 0 0 20px rgba(91,227,154,0.55), 0 0 40px rgba(91,227,154,0.22), inset 0 0 0 1px rgba(91,227,154,0.18);
-}
-.rl-levelup-choice:hover:has(.rl-bucket-stats)::before { background: #5be39a; box-shadow: 0 0 10px rgba(91,227,154,1), 0 0 18px rgba(91,227,154,0.55); }
+/* Per-RARITY-TIER border + glow + accent-bar overrides. User direction:
+   "I don't want HP to always be green and trait to always be blue and
+   energy always to be gold. I want it based on the rarity of the etch
+   you get." So a +1 ATK (common) gets a green border, +2/+2 (rare)
+   cyan, +3/+3 (special) white, +4/+4 / Text+ (legendary) gold. The
+   class is set on the button itself in JS (rl-levelup-tier-{tier}).
 
-.rl-levelup-choice:has(.rl-bucket-trait) {
-  background: linear-gradient(90deg, rgba(127,208,255,0.06) 0%, rgba(0,0,0,0) 55%), #000;
-  border-color: rgba(127,208,255,0.55);
-  box-shadow: 0 0 10px rgba(127,208,255,0.18), inset 0 0 0 1px rgba(127,208,255,0.05);
+   COMMON — green */
+.rl-levelup-choice.rl-levelup-tier-common {
+  background: linear-gradient(90deg, rgba(46,204,113,0.06) 0%, rgba(0,0,0,0) 55%), #000;
+  border-color: rgba(46,204,113,0.55);
+  box-shadow: 0 0 10px rgba(46,204,113,0.18), inset 0 0 0 1px rgba(46,204,113,0.05);
 }
-.rl-levelup-choice:has(.rl-bucket-trait)::before { background: rgba(127,208,255,0.60); box-shadow: 0 0 6px rgba(127,208,255,0.55); }
-.rl-levelup-choice:hover:has(.rl-bucket-trait) {
-  border-color: rgba(127,208,255,1);
-  background: linear-gradient(90deg, rgba(127,208,255,0.12) 0%, rgba(0,0,0,0) 55%), rgba(127,208,255,0.04);
-  box-shadow: 0 0 20px rgba(127,208,255,0.55), 0 0 40px rgba(127,208,255,0.22), inset 0 0 0 1px rgba(127,208,255,0.18);
+.rl-levelup-choice.rl-levelup-tier-common::before { background: rgba(46,204,113,0.65); box-shadow: 0 0 6px rgba(46,204,113,0.55); }
+.rl-levelup-choice.rl-levelup-tier-common:hover {
+  border-color: rgba(46,204,113,1);
+  background: linear-gradient(90deg, rgba(46,204,113,0.12) 0%, rgba(0,0,0,0) 55%), rgba(46,204,113,0.04);
+  box-shadow: 0 0 20px rgba(46,204,113,0.55), 0 0 40px rgba(46,204,113,0.22), inset 0 0 0 1px rgba(46,204,113,0.18);
 }
-.rl-levelup-choice:hover:has(.rl-bucket-trait)::before { background: #7fd0ff; box-shadow: 0 0 10px rgba(127,208,255,1), 0 0 18px rgba(127,208,255,0.55); }
+.rl-levelup-choice.rl-levelup-tier-common:hover::before { background: #2ecc71; box-shadow: 0 0 10px rgba(46,204,113,1), 0 0 18px rgba(46,204,113,0.55); }
 
-.rl-levelup-choice:has(.rl-bucket-energy) {
-  background: linear-gradient(90deg, rgba(255,224,102,0.06) 0%, rgba(0,0,0,0) 55%), #000;
-  border-color: rgba(255,224,102,0.55);
-  box-shadow: 0 0 10px rgba(255,224,102,0.18), inset 0 0 0 1px rgba(255,224,102,0.05);
+/* RARE — cyan (uncommon to the user, "rare" internally) */
+.rl-levelup-choice.rl-levelup-tier-rare {
+  background: linear-gradient(90deg, rgba(79,195,247,0.06) 0%, rgba(0,0,0,0) 55%), #000;
+  border-color: rgba(79,195,247,0.55);
+  box-shadow: 0 0 10px rgba(79,195,247,0.18), inset 0 0 0 1px rgba(79,195,247,0.05);
 }
-.rl-levelup-choice:has(.rl-bucket-energy)::before { background: rgba(255,224,102,0.55); box-shadow: 0 0 6px rgba(255,224,102,0.55); }
-.rl-levelup-choice:hover:has(.rl-bucket-energy) {
-  border-color: rgba(255,224,102,1);
-  background: linear-gradient(90deg, rgba(255,224,102,0.12) 0%, rgba(0,0,0,0) 55%), rgba(255,224,102,0.04);
-  box-shadow: 0 0 20px rgba(255,224,102,0.55), 0 0 40px rgba(255,224,102,0.22), inset 0 0 0 1px rgba(255,224,102,0.18);
+.rl-levelup-choice.rl-levelup-tier-rare::before { background: rgba(79,195,247,0.60); box-shadow: 0 0 6px rgba(79,195,247,0.55); }
+.rl-levelup-choice.rl-levelup-tier-rare:hover {
+  border-color: rgba(79,195,247,1);
+  background: linear-gradient(90deg, rgba(79,195,247,0.12) 0%, rgba(0,0,0,0) 55%), rgba(79,195,247,0.04);
+  box-shadow: 0 0 20px rgba(79,195,247,0.55), 0 0 40px rgba(79,195,247,0.22), inset 0 0 0 1px rgba(79,195,247,0.18);
 }
-.rl-levelup-choice:hover:has(.rl-bucket-energy)::before { background: #ffe066; box-shadow: 0 0 10px rgba(255,224,102,1), 0 0 18px rgba(255,224,102,0.55); }
+.rl-levelup-choice.rl-levelup-tier-rare:hover::before { background: #4fc3f7; box-shadow: 0 0 10px rgba(79,195,247,1), 0 0 18px rgba(79,195,247,0.55); }
 
-.rl-levelup-choice:has(.rl-bucket-text) {
-  background: linear-gradient(90deg, rgba(216,168,255,0.08) 0%, rgba(0,0,0,0) 55%), #000;
-  border-color: rgba(216,168,255,0.65);
-  box-shadow: 0 0 14px rgba(216,168,255,0.30), 0 0 26px rgba(216,168,255,0.14), inset 0 0 0 1px rgba(216,168,255,0.06);
+/* SPECIAL — white */
+.rl-levelup-choice.rl-levelup-tier-special {
+  background: linear-gradient(90deg, rgba(240,245,250,0.06) 0%, rgba(0,0,0,0) 55%), #000;
+  border-color: rgba(240,245,250,0.65);
+  box-shadow: 0 0 12px rgba(240,245,250,0.22), inset 0 0 0 1px rgba(240,245,250,0.06);
 }
-.rl-levelup-choice:has(.rl-bucket-text)::before { background: rgba(216,168,255,0.70); box-shadow: 0 0 6px rgba(216,168,255,0.65); }
-.rl-levelup-choice:hover:has(.rl-bucket-text) {
-  border-color: rgba(216,168,255,1);
-  background: linear-gradient(90deg, rgba(216,168,255,0.16) 0%, rgba(0,0,0,0) 55%), rgba(216,168,255,0.05);
-  box-shadow: 0 0 22px rgba(216,168,255,0.80), 0 0 48px rgba(216,168,255,0.35), inset 0 0 0 1px rgba(216,168,255,0.20);
+.rl-levelup-choice.rl-levelup-tier-special::before { background: rgba(240,245,250,0.70); box-shadow: 0 0 6px rgba(240,245,250,0.55); }
+.rl-levelup-choice.rl-levelup-tier-special:hover {
+  border-color: rgba(255,255,255,1);
+  background: linear-gradient(90deg, rgba(240,245,250,0.14) 0%, rgba(0,0,0,0) 55%), rgba(240,245,250,0.05);
+  box-shadow: 0 0 22px rgba(240,245,250,0.65), 0 0 44px rgba(240,245,250,0.28), inset 0 0 0 1px rgba(240,245,250,0.20);
 }
-.rl-levelup-choice:hover:has(.rl-bucket-text)::before { background: #d8a8ff; box-shadow: 0 0 10px rgba(216,168,255,1), 0 0 18px rgba(216,168,255,0.55); }
+.rl-levelup-choice.rl-levelup-tier-special:hover::before { background: #ffffff; box-shadow: 0 0 10px rgba(240,245,250,1), 0 0 18px rgba(240,245,250,0.55); }
+
+/* LEGENDARY — gold (Text+ jackpots and any +4/+4 etches land here) */
+.rl-levelup-choice.rl-levelup-tier-legendary {
+  background: linear-gradient(90deg, rgba(255,215,0,0.08) 0%, rgba(0,0,0,0) 55%), #000;
+  border-color: rgba(255,215,0,0.65);
+  box-shadow: 0 0 14px rgba(255,215,0,0.30), 0 0 26px rgba(255,215,0,0.14), inset 0 0 0 1px rgba(255,215,0,0.06);
+}
+.rl-levelup-choice.rl-levelup-tier-legendary::before { background: rgba(255,215,0,0.70); box-shadow: 0 0 6px rgba(255,215,0,0.65); }
+.rl-levelup-choice.rl-levelup-tier-legendary:hover {
+  border-color: rgba(255,215,0,1);
+  background: linear-gradient(90deg, rgba(255,215,0,0.16) 0%, rgba(0,0,0,0) 55%), rgba(255,215,0,0.05);
+  box-shadow: 0 0 22px rgba(255,215,0,0.80), 0 0 48px rgba(255,215,0,0.35), inset 0 0 0 1px rgba(255,215,0,0.22);
+}
+.rl-levelup-choice.rl-levelup-tier-legendary:hover::before { background: #ffe066; box-shadow: 0 0 10px rgba(255,215,0,1), 0 0 18px rgba(255,215,0,0.55); }
 
 .rl-levelup-name {
   font-size: 18px; font-weight: 700;
