@@ -1308,6 +1308,24 @@ const Roguelite = {
         }
       });
     }
+    // ALSO show Text+ when the card is a RARITY_SCALED_CARDS entry and
+    // its effective tier is special or legendary — at those tiers the
+    // PRINTED text reads as the boosted variant (e.g. legendary
+    // Xenomorph reads +2/+2 splash 3 instead of the rare +1/+1 splash 1).
+    // User direction (screenshot): "It says while active +2/+2, but
+    // doesn't say Text+ on it. I'd want it to say that." Effective tier
+    // = card rarity + any text-upgrade etches stacked on top.
+    if (!textPlusActive && this.RARITY_SCALED_CARDS && this.RARITY_SCALED_CARDS.has(deckCard.defName)) {
+      const tiers = ['common', 'rare', 'special', 'legendary'];
+      const baseIdx = Math.max(0, tiers.indexOf(deckCard.rarity || 'common'));
+      const bumps = (deckCard.statuses || []).filter(id => id === 'text-upgrade').length;
+      const effIdx = Math.min(tiers.length - 1, baseIdx + bumps);
+      // common + rare both read the rare baseline; special + legendary
+      // are the boosted variants.
+      if (tiers[effIdx] === 'special' || tiers[effIdx] === 'legendary') {
+        textPlusActive = true;
+      }
+    }
     if (textPlusActive && Array.isArray(card.abilities) && !card.abilities.includes('Text+')) {
       card.abilities.push('Text+');
     }
@@ -5766,16 +5784,26 @@ const Roguelite = {
     // show the upgraded card text directly. User direction: "Any etch
     // that you get from upgrading should be on the card so you don't
     // forget about it."
+    let textPlus = false;
     if (this.CARD_TEXT_UPGRADES) {
-      let textPlus = false;
       (deckCard.statuses || []).forEach(etchId => {
         for (const name in this.CARD_TEXT_UPGRADES) {
           const u = this.CARD_TEXT_UPGRADES[name];
           if (u && u.id === etchId) { textPlus = true; break; }
         }
       });
-      if (textPlus && !abilities.includes('Text+')) abilities.push('Text+');
     }
+    // Also show Text+ when a RARITY_SCALED_CARDS card's effective tier
+    // is special or legendary — its PRINTED text already reads the
+    // boosted variant (legendary Xenomorph reads +2/+2 splash 3, etc).
+    // User direction (screenshot): the boosted-text card should
+    // visually be marked Text+ even when the scaling came from the
+    // card's own rarity rather than a Text+ etch. dispTier above
+    // already accounts for both rarity AND text-upgrade etch bumps.
+    if (!textPlus && this.RARITY_SCALED_CARDS && this.RARITY_SCALED_CARDS.has(def.name)) {
+      if (dispTier === 'special' || dispTier === 'legendary') textPlus = true;
+    }
+    if (textPlus && !abilities.includes('Text+')) abilities.push('Text+');
     // Curse cards get a 'Curse' status badge so the keyword tooltip
     // surfaces explanation on hover. Rendered alongside any other
     // abilities the curse may carry (Regret has WHEN PLAYED logic).
