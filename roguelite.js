@@ -1151,6 +1151,31 @@ const Roguelite = {
     if (variantDescs && variantDescs[deckCard.rarity]) {
       card.desc = variantDescs[deckCard.rarity];
     }
+    // TEXT+ DESCRIPTION OVERRIDE. User direction: "I would like it to
+    // be literally the text changed on the card. Just literally change
+    // the text of the card." Each CARD_TEXT_UPGRADES entry carries an
+    // optional `descOverride` — the full replacement card desc with
+    // the upgraded values inline. So a Bigger Targets Winter Soldier
+    // shows "destroy enemy with ≤4 ATK" / "(+2/+2) when destroying"
+    // directly in the body text, not as a separate appendix.
+    // Also stamp 'Text+' onto the abilities array so a status badge
+    // surfaces — the player can see the card is upgraded at a glance.
+    let textPlusActive = false;
+    if (this.CARD_TEXT_UPGRADES) {
+      (deckCard.statuses || []).forEach(etchId => {
+        for (const name in this.CARD_TEXT_UPGRADES) {
+          const u = this.CARD_TEXT_UPGRADES[name];
+          if (u && u.id === etchId) {
+            textPlusActive = true;
+            if (u.descOverride) card.desc = u.descOverride;
+            break;
+          }
+        }
+      });
+    }
+    if (textPlusActive && Array.isArray(card.abilities) && !card.abilities.includes('Text+')) {
+      card.abilities.push('Text+');
+    }
     return card;
   },
 
@@ -1882,36 +1907,43 @@ const Roguelite = {
     'Winter Soldier': {
       id: 'ws-text', name: 'Bigger Targets',
       desc: 'WHEN PLAYED destroys enemies with ≤4 ATK (was 3). WHILE ACTIVE buff bumps to +2/+2.',
+      descOverride: 'When Played: Destroy an enemy with ≤ 4 ATK. While Active: Add (+2/+2) when destroying an enemy.',
       apply: c => { c._wsCostThreshold = 4; c._wsBuffSize = 2; },
     },
     'Drax': {
       id: 'drax-text', name: 'Reach',
       desc: 'Drax now Splashes 1 on attack.',
+      descOverride: 'While Active: Splash 1 to adjacent lanes when attacking.',
       apply: c => { c.splashRange = (c.splashRange || 0) + 1; if (!c.abilities.includes('Splash 1')) c.abilities.push('Splash 1'); },
     },
     'Cyborg': {
       id: 'cyborg-text', name: 'Replication',
       desc: 'Summon TWO random cards in Cyborg\'s lane on death (was 1).',
+      descOverride: 'When Destroyed: Summon TWO random cards from your hand in Cyborg\'s lane.',
       apply: c => { c._cyborgSummons = 2; },
     },
     'Jason Voorhees': {
       id: 'jason-text', name: 'Crystal Lake Killer',
       desc: 'Removes the once-per-game lock — Jason can revive on every kill.',
+      descOverride: 'Jump: When any ally dies, Jason glows — play for free. When Destroyed: Revive as (3/4) — every kill.',
       apply: c => { c._jasonNoOnceLimit = true; },
     },
     'Wolverine': {
       id: 'wolverine-text', name: 'Adamantium',
       desc: 'Slays attackers with cost ≤8 (was 7). Revive 2 (was 1).',
+      descOverride: 'While Active: Destroy any enemy with cost ≤ 8 that damages Wolverine. When Destroyed: Revive twice as (6/5) with Overdrive.',
       apply: c => { c._wolverineKillThreshold = 8; c.reviveCharges = (c.reviveCharges || 0) + 1; },
     },
     'Bane': {
       id: 'bane-text', name: 'Venom Surge',
       desc: 'Bane rages for +2/+2 when damaged (was +1/+1).',
+      descOverride: 'When Played: Give an enemy (−1/−1) and remove all Evade. While Active: Add (+2/+2) when damaged.',
       apply: c => { c._baneRageSize = 2; },
     },
     'Catwoman': {
       id: 'catwoman-text', name: 'Cat Burglar',
       desc: 'WHEN DISCARDED steals 2 Energy from the opponent next turn (was 1).',
+      descOverride: 'When Discarded: Steal 2 Energy from the opponent next turn.',
       apply: c => { c._catwomanSteal = 2; },
     },
     /* Dr. Strange Text+ deferred — his peek mechanic is already
@@ -1921,296 +1953,355 @@ const Roguelite = {
     'Ghostface': {
       id: 'ghostface-text', name: 'Mass Hysteria',
       desc: 'WHEN PLAYED summons TWO (2/1) Ghostfaces with Bullseye (was 1).',
+      descOverride: 'Jump: When the enemy plays a Trick, Ghostface glows — play for free. When Played: Summon TWO (2/1) Ghostfaces with Bullseye in any lane.',
       apply: c => { c._ghostfaceSpawns = 2; },
     },
     'Harley Quinn': {
       id: 'harley-text', name: 'Chaos!',
       desc: 'Both players draw 2 instead of 1.',
+      descOverride: 'When Played: Both players draw 2 cards. While Active: Deals 1 damage to your HP before attacking. Splash 1.',
       apply: c => { c._harleyDraw = 2; },
     },
     'Invisible Woman': {
       id: 'iw-text', name: 'Force Field',
       desc: 'Grant Evade 2 instead of Evade 1.',
+      descOverride: 'When Played: Give an ally Evade 2 for 1 turn. While Active: You can play cards face-down; they\'re immune to everything until revealed before Tricks.',
       apply: c => { c._iwEvadeAmount = 2; },
     },
     'Sabertooth': {
       id: 'sabertooth-text', name: 'Bloodthirst',
-      desc: 'Sabertooth gains +2 ATK per kill (was +1).',
+      desc: 'Sabertooth gains +2/+2 per HP-bar damage (was +1/+1).',
+      descOverride: 'While Active: Add (+2/+2) when dealing damage to the opponent\'s HP.',
       apply: c => { c._sabertoothRageSize = 2; },
     },
     'Solomon Grundy': {
       id: 'grundy-text', name: 'Born on Monday',
       desc: 'WHEN DESTROYED draw 2 cards from the shared dead pile (was 1).',
+      descOverride: 'When Destroyed: Draw 2 random cards from your dead pile to your hand.',
       apply: c => { c._grundyDeathDraw = 2; },
     },
     'Mr. Fantastic': {
       id: 'fantastic-text', name: 'Maximum Stretch',
       desc: 'Next card drawn costs 4 less (was 2).',
+      descOverride: 'When Discarded: The next card you draw costs 4 less.',
       apply: c => { c._fantasticDiscount = 4; },
     },
     'Anti-Venom': {
       id: 'antivenom-text', name: 'Cleanse',
       desc: 'Heals you for 6 (was 4).',
+      descOverride: 'When Played: Heal yourself for 6. Move an ally to another empty lane.',
       apply: c => { c._antivenomHeal = 6; },
     },
     'The Grinch': {
       id: 'grinch-text', name: 'Heart Two Sizes Bigger',
       desc: 'Kept stolen tricks cost +0 (was +1) — keep them all without penalty.',
+      descOverride: 'When Played: Steal a Trick (opponent picks). Keep it FREE (cost +0) or return it to triple The Grinch\'s stats. If opponent has no tricks, stats triple.',
       apply: c => { c._grinchKeepCostBump = 0; },
     },
     'Aquaman': {
       id: 'aquaman-text', name: 'Trident\'s Edge',
       desc: 'Creature of the Deep summons as a 6/4 (was 5/3).',
+      descOverride: 'When Played: Summon a (6/4) Creature of the Deep in any lane.',
       apply: c => { c._aquamanCreatureBump = 1; },
     },
     'Carnage': {
       id: 'carnage-text', name: 'Bloodbath',
       desc: 'WHILE ACTIVE heals you for 2× the enemy count (was 1×).',
+      descOverride: 'Start of Tricks (once): Heal yourself for 2× each enemy on board.',
       apply: c => { c._carnageHealMul = 2; },
     },
     'Wonder Woman': {
       id: 'wonder-woman-text', name: 'Lasso of Truth',
       desc: 'WHEN PLAYED adds 4 Block Meter (was 2).',
+      descOverride: 'When Played: Stun 1 the enemy opposite. Add 4 to your Block Meter. While Active: Your attack chains (ATK−1) to 1 adjacent enemy.',
       apply: c => { c._wonderWomanBlockGain = 4; },
     },
     'Deathstroke': {
       id: 'deathstroke-text', name: 'Master Strategist',
       desc: 'Assassinates enemies with ≤5 HP (was ≤3).',
+      descOverride: 'When Played: Destroy an enemy with ≤ 5 HP. While Active: Add (+1/+1) when destroying an enemy.',
       apply: c => { c._deathstrokeKillThreshold = 5; },
     },
     'Spider-Man': {
       id: 'spiderman-text', name: 'Spider-Sense',
       desc: 'WHILE ACTIVE buff bumps to +2/+2 on each evade (was +1/+1).',
+      descOverride: 'When Played: Freeze 1 an enemy. While Active: Add (+2/+2) when evading. 50% chance to regain a charge on evade.',
       apply: c => { c._spiderManEvadeBuff = 2; },
     },
     'Predator': {
       id: 'predator-text', name: 'Plasma Caster',
       desc: 'WHEN PLAYED deals 5 damage (was 3).',
+      descOverride: 'When Played: Deal 5 damage to an enemy. While Active: Add (+1/+0) when destroying an enemy.',
       apply: c => { c._predatorStrikeDamage = 5; },
     },
     'Black Panther': {
       id: 'black-panther-text', name: 'King of Wakanda',
       desc: 'WHEN PLAYED can free-cast cards with cost ≤5 (was ≤3).',
+      descOverride: 'When Played: Play a card from your hand with cost ≤ 5 for free. While Active: Add (+1/+1) to each card you play.',
       apply: c => { c._blackPantherFreeThreshold = 5; },
     },
     'Venom': {
       id: 'venom-text', name: 'Symbiote Bond',
       desc: 'WHILE ACTIVE heals you for 2× the ally count (was 1×).',
+      descOverride: 'When Played: Freeze 1 an enemy. Start of Tricks (once): Heal yourself for 2× each ally on board.',
       apply: c => { c._venomHealMul = 2; },
     },
     'Hulk': {
       id: 'hulk-text', name: 'World Breaker',
       desc: 'WHEN PLAYED deals 4 damage to all enemies (was 2).',
+      descOverride: 'When Played: Deal 4 damage to all enemies. While Active: Splash equals Hulk\'s ATK. Add (+1/+1) when damaged.',
       apply: c => { c._hulkSmashDamage = 4; },
     },
     'Ant-Man': {
       id: 'antman-text', name: 'Subatomic Strike',
       desc: 'Destroys enemies with ≤2 ATK or ≤2 HP (was ≤1).',
+      descOverride: 'When Played: Summon a (1/1) Ant with Bullseye in any lane. Destroy an enemy with ≤ 2 ATK or ≤ 2 HP.',
       apply: c => { c._antManKillThreshold = 2; },
     },
     'Jango Fett': {
       id: 'jango-text', name: 'Jetpack Salvo',
       desc: 'Splash 2 on arrival when moved (was 1).',
+      descOverride: 'While Active: Splash 2 when moving to a new lane.',
       apply: c => { c._jangoSplashOnMove = 2; },
     },
     'Gamora': {
       id: 'gamora-text', name: 'Most Dangerous Woman',
       desc: 'Executes enemies with ≤4 HP (was ≤2).',
+      descOverride: 'When Played: Destroy an enemy with ≤ 4 HP. While Active: Add (+1/+1) when destroying an enemy.',
       apply: c => { c._gamoraExecuteThreshold = 4; },
     },
     'Human Torch': {
       id: 'humantorch-text', name: 'Nova Burst',
       desc: 'WHEN PLAYED targeted blast does 4 damage (was 2).',
+      descOverride: 'When Played: Splash 1 to the enemy lane and deal 4 damage to an enemy.',
       apply: c => { c._humanTorchBlast = 4; },
     },
     'Green Goblin': {
       id: 'goblin-text', name: 'Bigger Bombs',
       desc: 'Pumpkin bombs Splash 2 then Splash 3 (was 1 then 2).',
+      descOverride: 'When Played: Splash 2, then Splash 3. Start of Tricks: Move to an empty lane opposite an enemy and Splash 2.',
       apply: c => { c._goblinBombBoost = 1; },
     },
     'Dr. Doom': {
       id: 'doom-text', name: 'Latverian Discount',
       desc: 'Revived ally\'s cost is permanently reduced by 5 (was 3).',
+      descOverride: 'When Played: Return a card from your Dead Pile (cost ≤ 9) to your hand with its cost permanently reduced by 5. Summon a (5/5) Doombot.',
       apply: c => { c._doomReviveDiscount = 5; },
     },
     'Thor': {
       id: 'thor-text', name: 'Stormbreaker',
       desc: 'Thunder strikes lane ±1 enemies for 7 (was 5).',
+      descOverride: 'When Played: Choose an enemy to Freeze 1, then Splash 7. Start of Tricks: Freeze 1 a random unfrozen enemy.',
       apply: c => { c._thorThunderDamage = 7; },
     },
     'Luke Skywalker': {
       id: 'luke-text', name: 'A New Hope',
       desc: 'Inspires allies +2/+2 and weakens enemies -2/-2 (was 1/1).',
+      descOverride: 'When Played: Mind Control 1 an enemy. While Active: All allies get (+2/+2) and all enemies get (−2/−2).',
       apply: c => { c._lukeAuraSize = 2; },
     },
     'Batman': {
       id: 'batman-text', name: 'Dark Knight',
       desc: 'Each batarang strike deals 3 damage (was 2).',
+      descOverride: 'When Played: Lock the highest-cost card the opponent can play next turn. Fear 1 any enemy, then throw Batarangs (3 damage each).',
       apply: c => { c._batmanStrikeDamage = 3; },
     },
     'Knull': {
       id: 'knull-text', name: 'God of Symbiotes',
       desc: 'Random pulls draw only cost 4+ cards (skips the cheap chaff).',
+      descOverride: 'When Played: Summon a random card (cost 4-9) in each of your empty lanes.',
       apply: c => { c._knullCostFloor = 4; },
     },
     'Optimus Prime': {
       id: 'optimus-text', name: 'Roll Out',
       desc: 'Commands BOTH adjacent allies to attack (was 1).',
+      descOverride: 'When Played: Both adjacent allies immediately attack an enemy opposite or adjacent to Optimus Prime.',
       apply: c => { c._optimusCommandsBoth = true; },
     },
     'Nightwing': {
       id: 'nightwing-text', name: 'Escrima Strike',
       desc: 'Removes 3 ATK from an enemy (was 2).',
+      descOverride: 'When Played: Remove 3 ATK from an enemy.',
       apply: c => { c._nightwingDebuff = 3; },
     },
     'Peacemaker': {
       id: 'peacemaker-text', name: 'Whatever It Takes',
       desc: 'Eliminates enemies with ≤4 ATK (was ≤2).',
+      descOverride: 'When Played: Destroy an enemy with ≤ 4 ATK. While Active: Add (+1/+1) when destroying an enemy.',
       apply: c => { c._peacemakerKillThreshold = 4; },
     },
     'The Flash': {
       id: 'flash-text', name: 'Speed Force',
       desc: 'Freezes BOTH adjacent enemies (was 1).',
+      descOverride: 'When Played: Freeze 1 BOTH adjacent enemies. Choose who plays first next turn.',
       apply: c => { c._flashFreezeAll = true; },
     },
     'Ahsoka': {
       id: 'ahsoka-text', name: 'Padawan Forever',
       desc: 'Bonus attack +2 per ally death (was +1).',
+      descOverride: 'While Active: 2 bonus attacks each time an ally is destroyed.',
       apply: c => { c._ahsokaBonusAttacksPerKill = 2; },
     },
     'Red Skull': {
       id: 'redskull-text', name: 'Hydra Vanguard',
       desc: 'Empowers an ally +3/+3 (was +2/+2).',
+      descOverride: 'When Played: Give an ally (+3/+3). While Active: Your cards can be played during the Trick Phase.',
       apply: c => { c._redSkullEmpower = 3; },
     },
     'Michael Myers': {
       id: 'myers-text', name: 'The Shape',
       desc: 'Stalks alone +2/+2 when no other ally is on the board (was +1/+1).',
+      descOverride: 'Jump: When the enemy plays a card costing less than Michael Myers, he glows — play for free. While Active: Add (+2/+2) when alone on the board.',
       apply: c => { c._myersAloneBuff = 2; },
     },
     'Red Hulk': {
       id: 'redhulk-text', name: 'Rampage',
       desc: 'WHILE ACTIVE retaliation hits for +2 extra damage (block & splash both scale).',
+      descOverride: 'While Active: When damaged, add that damage +2 to your Block Meter and Splash it back +2.',
       apply: c => { c._redHulkRetaliateBonus = 2; },
     },
     'Ultron': {
       id: 'ultron-text', name: 'Singularity',
       desc: 'Replicates as 7/5 Ultrons on death (was 5/3).',
+      descOverride: 'When Destroyed: Summon 2 (7/5) Ultron copies in the lowest and highest empty lanes. Copies don\'t trigger this effect.',
       apply: c => { c._ultronReplicateAtk = 7; c._ultronReplicateHp = 5; },
     },
     'Yoda': {
       id: 'yoda-text', name: 'Grand Master',
       desc: 'Empowers ally with Evade + 6/+6 (was +4/+4).',
+      descOverride: 'When Played: Give an ally Evade 1 for 1 turn and (+6/+6). If no allies, add (+2/+3).',
       apply: c => { c._yodaEmpowerSize = 6; },
     },
     'Superman': {
       id: 'superman-text', name: 'Last Son of Krypton',
       desc: 'Heat-vision blast deals 8 damage (was 5).',
+      descOverride: 'When Played: Strike the enemy opposite immediately (or the opponent\'s HP if the lane is empty). Choose two enemies to Freeze 1. Deal 8 damage to an enemy.',
       apply: c => { c._supermanBlast = 8; },
     },
     'Dormammu': {
       id: 'dormammu-text', name: 'Dark Dimension',
       desc: 'Drains up to 5 enemies (was 3).',
+      descOverride: 'When Played: Gain foresight for 2 draw phases — peek at the top 2 cards and keep one (the other goes to the opponent). Start of Tricks (once): Drain 5 enemies, leaving them as (0/1).',
       apply: c => { c._dormammuDrainMax = 5; },
     },
     'Man-Bat': {
       id: 'manbat-text', name: 'Sonar Scream',
       desc: 'On move, weakens adj enemy by -2/-2 (was -1/-1).',
+      descOverride: 'Start of Tricks: Move to an empty lane. The enemy opposite takes (−2/−2).',
       apply: c => { c._manBatDebuffSize = 2; },
     },
     'Groot': {
       id: 'groot-text', name: 'I Am Groot',
       desc: 'Also grants Damage Immunity to Groot himself.',
+      descOverride: 'When Played: Give Groot and adjacent allies Damage Immunity for 1 turn.',
       apply: c => { c._grootProtectsSelf = true; },
     },
     'Silver Surfer': {
       id: 'surfer-text', name: 'Power Cosmic',
       desc: 'Removes 5 ATK from an enemy (was 3).',
+      descOverride: 'When Played: Remove 5 ATK from an enemy. While Active: Enemy cards cost 1 more Energy. (Tricks unaffected.)',
       apply: c => { c._surferDebuff = 5; },
     },
     'Green Lantern': {
       id: 'gl-text', name: 'Brightest Day',
       desc: '+2 bonus energy on top of damage-converted energy each round.',
+      descOverride: 'While Active: Add extra Energy next turn equal to damage Green Lantern dealt this turn, +2 bonus Energy.',
       apply: c => { c._lanternEnergyBonus = 2; },
     },
     'Omni-Man': {
       id: 'omniman-text', name: 'Viltrumite Pride',
       desc: 'Devastates all enemies for 5 (was 3).',
+      descOverride: 'When Played: Deal 5 damage to all enemies. Start of Tricks: Move to another empty lane. While Active: Add 1 to your Block Meter for each enemy destroyed.',
       apply: c => { c._omniManSweep = 5; },
     },
     'Dr. Manhattan': {
       id: 'manhattan-text', name: 'Quantum Leap',
       desc: 'WHEN PLAYED heals you for 10 (was 5).',
+      descOverride: 'When Played: Heal yourself for 10. While Active: Add 2 extra Energy each round.',
       apply: c => { c._manhattanHeal = 10; },
     },
     'Raven': {
       id: 'raven-text', name: 'Soul Self',
       desc: 'STEALS the opponent\'s block instead of just emptying it.',
+      descOverride: 'When Played: STEAL the opponent\'s Block Meter (transfer to yours). Unfreeze and unstun all allies.',
       apply: c => { c._ravenStealsBlock = true; },
     },
     'Poison Ivy': {
       id: 'ivy-text', name: 'Femme Fatale',
       desc: 'Charms the HIGHEST-ATK ally each round (was random).',
+      descOverride: 'Each Turn: Charm the HIGHEST-ATK ally — Poison Ivy gains ATK equal to that ally\'s ATK for this turn (lost if the charmed ally dies).',
       apply: c => { c._ivyChooseHighest = true; },
     },
     'Gorr': {
       id: 'gorr-text', name: 'Necrosword',
       desc: 'Devours from the OPPONENT\'S hand only (no self-cost).',
+      descOverride: 'When Played: Devour the highest-cost card from the OPPONENT\'S hand only. Summon a random card (cost 2-9) in any lane.',
       apply: c => { c._gorrEnemyOnly = true; },
     },
     'Scarlet Witch': {
       id: 'witch-text', name: 'Chaos Magic',
       desc: 'Hexes for the enemy\'s stats +2/+2 (outright over-trade).',
+      descOverride: 'When Played: Copy the ATK and HP of the enemy directly opposite, then add (+2/+2). (Her stat orbs read "?" until she lands.)',
       apply: c => { c._witchHexBonus = 2; },
     },
     'Jigsaw': {
       id: 'jigsaw-text', name: 'Game Master',
       desc: 'WHEN DISCARDED places 5 Reverse Bear Traps (was 3).',
+      descOverride: 'When Discarded: Set up to 5 Bear Traps in empty enemy lanes — the first enemy to enter takes (−1/−1). Then drag an enemy to another empty lane.',
       apply: c => { c._jigsawTrapCount = 5; },
     },
     'Moder': {
       id: 'moder-text', name: 'Echo of Silence',
       desc: 'Strips abilities from the next 2 enemies in his lane (was 1).',
+      descOverride: 'When Played: The opponent\'s next 2 cards are forced into this lane. Those cards lose all abilities and keywords.',
       apply: c => { c._moderStripCount = 2; },
     },
     'Professor X': {
       id: 'profx-text', name: 'Master Telepath',
       desc: 'Converts enemies with cost ≤6 (was ≤4).',
+      descOverride: 'When Discarded: Permanently convert an enemy with cost ≤ 6 to your team. Its abilities reactivate.',
       apply: c => { c._profXConvertCost = 6; },
     },
     'Mahoraga': {
       id: 'mahoraga-text', name: 'Adaptive Wheel',
       desc: 'Revives at 9/12 with Armor 1 + Immunity 1 (was 7/9).',
+      descOverride: 'While Active: Absorb all damage that would hit your HP. When Destroyed: Revive as (9/12) with Armor 1 and Immunity 1.',
       apply: c => { c._mahoragaReviveAtk = 9; c._mahoragaReviveHp = 12; },
     },
     'Obi-Wan': {
       id: 'obiwan-text', name: 'Will of the Force',
       desc: 'Reflected damage doubles (1:2 instead of 1:1).',
+      descOverride: 'While Active: Damage from enemies in other lanes reflects back DOUBLED (1:2). The enemy directly opposite is exempt. When Destroyed: The enemy opposite loses all ATK this combat.',
       apply: c => { c._obiWanReflectMul = 2; },
     },
     'The Batman Who Laughs': {
       id: 'bwl-text', name: 'Endless Hex',
       desc: 'Removes the once-per-game lock — every BWL play arms a fresh steal.',
+      descOverride: 'When Played: The next card the enemy plays goes to your hand — every play. Choose to keep it or destroy it for (+2/+2).',
       apply: c => { c._bwlUnlimited = true; },
     },
     'Symbiote Spider-Man': {
       id: 'symbiote-text', name: 'Black Suit',
       desc: 'Shuffles ONLY the opponent\'s hand back (your hand stays put).',
+      descOverride: 'When Played: The OPPONENT shuffles 2 cards back into the deck and draws 2 (your hand stays put). Heal yourself for 2.',
       apply: c => { c._symbioteSkipSelf = true; },
     },
     'Homelander': {
       id: 'homelander-text', name: 'Above the Law',
       desc: 'Sacrifice damage = ally cost + 3 (was ally cost only).',
+      descOverride: 'When Played: Choose to sacrifice an ally — either deal damage equal to that ally\'s cost +3, or destroy an enemy with cost ≤ that ally\'s cost. (Skip if you\'d rather not.)',
       apply: c => { c._homelanderDmgBonus = 3; },
     },
     'Darth Vader': {
       id: 'vader-text', name: 'Power of the Dark Side',
       desc: 'Chain opens at 9 damage (was 7) — every chain step shifts up.',
+      descOverride: 'When Played: Move an enemy to an empty lane. Fear 1 an enemy. Then start a 9-damage chain — pick direction each step; damage decreases by 1 per hit. Chain stops at Evade, Invincible, or Armor.',
       apply: c => { c._vaderChainDamage = 9; },
     },
     'Deadpool': {
       id: 'deadpool-text', name: 'Maximum Effort',
       desc: 'Skip the give-back — steal an enemy card without trade.',
+      descOverride: 'When Destroyed: Steal a face-down card from the enemy\'s hand (no give-back).',
       apply: c => { c._deadpoolNoGiveBack = true; },
     },
   },
@@ -5201,6 +5292,22 @@ const Roguelite = {
       hp = probe.health;
       cost = probe.cost;
     });
+    // Stamp 'Text+' onto the abilities row so a status badge surfaces
+    // when this card carries a Text+ etch — same logic as buildRunCard
+    // so the codex / reward picker / deck list / level-up preview all
+    // show the upgraded card text directly. User direction: "Any etch
+    // that you get from upgrading should be on the card so you don't
+    // forget about it."
+    if (this.CARD_TEXT_UPGRADES) {
+      let textPlus = false;
+      (deckCard.statuses || []).forEach(etchId => {
+        for (const name in this.CARD_TEXT_UPGRADES) {
+          const u = this.CARD_TEXT_UPGRADES[name];
+          if (u && u.id === etchId) { textPlus = true; break; }
+        }
+      });
+      if (textPlus && !abilities.includes('Text+')) abilities.push('Text+');
+    }
     const costClass = 'cost-' + Math.min(10, Math.max(0, cost));
     // Pip count tracks RUN rarity, not intrinsic cost — common=1, rare=2,
     // special=3, legendary=4. So a Legendary Goon shows 4 gold pips.
@@ -5235,43 +5342,26 @@ const Roguelite = {
       dispTier = tiers[i];
     }
     const variantDesc = variantDescs && variantDescs[dispTier];
-    const descText = variantDesc || def.desc;
-    const descHtml = descText
-      ? `<div class="card-desc">${(typeof UI !== 'undefined' && UI.formatDesc) ? UI.formatDesc.call(UI, descText) : descText}</div>`
-      : '';
-    // Text+ etch display — surface card-specific text upgrades as
-    // highlighted lines below the body desc. User direction: "If there
-    // were gonna be a text based etch I'd like it highlighted, kinda
-    // like the WHILE ACTIVE colon." Same neon-label treatment as the
-    // other trigger lines but in legendary-gold so the player
-    // immediately reads "this card has a unique upgrade." Generic
-    // rarity-bump text-upgrade etches (the 18 RARITY_SCALED_CARDS)
-    // already promote the displayed tier text via dispTier above —
-    // this section handles the per-card CARD_TEXT_UPGRADES entries
-    // that scale specific mechanics.
-    let textPlusHtml = '';
+    let descText = variantDesc || def.desc;
+    // TEXT+ DESCRIPTION OVERRIDE — if any Text+ etch on this card has
+    // a descOverride, swap it in for the body text. Same logic as
+    // buildRunCard so codex / reward picker / shop / deck list all
+    // show the upgraded card text directly. User direction: "Just
+    // literally change the text of the card."
     if (this.CARD_TEXT_UPGRADES) {
-      const upgrades = [];
-      const seenIds = new Set();
       (deckCard.statuses || []).forEach(etchId => {
-        if (seenIds.has(etchId)) return;
         for (const name in this.CARD_TEXT_UPGRADES) {
           const u = this.CARD_TEXT_UPGRADES[name];
           if (u && u.id === etchId) {
-            upgrades.push(u);
-            seenIds.add(etchId);
+            if (u.descOverride) descText = u.descOverride;
             break;
           }
         }
       });
-      if (upgrades.length) {
-        textPlusHtml = upgrades.map(u => `
-          <div class="card-text-plus">
-            <span class="card-text-plus-tag">Text+ · ${u.name}</span>
-            <span class="card-text-plus-body">${u.desc}</span>
-          </div>`).join('');
-      }
     }
+    const descHtml = descText
+      ? `<div class="card-desc">${(typeof UI !== 'undefined' && UI.formatDesc) ? UI.formatDesc.call(UI, descText) : descText}</div>`
+      : '';
     // Stat-deviation indicator vs. the def's RARE-tier base. Common
     // versions show ▼ on stats below base, Special/Legendary show ▲
     // on stats above. Etch bumps also push stats above base → ▲.
@@ -5293,7 +5383,6 @@ const Roguelite = {
         <div class="card-name-banner"><div class="card-name">${def.name}</div></div>
         ${abilitiesHtml}
         ${descHtml}
-        ${textPlusHtml}
         <span class="stat-circle stat-atk ${atkClass}">${atk}</span>
         <span class="stat-circle stat-hp ${hpClass}">${hp}</span>
         ${xpHtml}
