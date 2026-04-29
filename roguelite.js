@@ -1075,6 +1075,15 @@ const Roguelite = {
     clone.attack = resolved.atk;
     clone.health = resolved.hp;
     const card = Game.createCardInstance(clone, owner);
+    // Strip etches that don't belong on this card type. For discard-only
+    // cards (Catwoman / Mr. Fantastic / Jigsaw / Professor X) only
+    // energy + Text+ etches are valid — anything else (stat bumps,
+    // trait keywords) was rolled by an old build before the discard
+    // filter shipped. User report: "Mr. Fantastic showed up with
+    // Evade 2 + Unresistible 1, doesn't make sense, he's not on the
+    // board." Sanitizing here AND at codex/reward render time ensures
+    // existing saves get cleaned without forcing a run reset.
+    this._sanitizeDeckCardStatuses(deckCard);
     // Apply etches in order
     (deckCard.statuses || []).forEach(etchId => {
       const etch = this._findEtch(etchId);
@@ -1217,6 +1226,25 @@ const Roguelite = {
     if (!defName || typeof CARD_ABILITIES === 'undefined') return false;
     const ab = CARD_ABILITIES[defName];
     return !!(ab && ab.isDiscardEffect);
+  },
+
+  // Strip etches that don't belong on a discard-only card. For Catwoman,
+  // Mr. Fantastic, Jigsaw, and Professor X, only energy etches and
+  // card-specific Text+ entries are kept; stat bumps and trait keywords
+  // are removed. Idempotent — safe to call multiple times. Mutates the
+  // deckCard's statuses array in place. No-op for non-discard cards.
+  // User report: stale Evade 2 + Unresistible 1 on Mr. Fantastic from a
+  // run started before the discard filter shipped.
+  _sanitizeDeckCardStatuses(deckCard) {
+    if (!deckCard || !this._isDiscardOnlyCard(deckCard.defName)) return;
+    if (!Array.isArray(deckCard.statuses) || !deckCard.statuses.length) return;
+    const textEtch = this.cardTextUpgrade(deckCard.defName);
+    const allowedTextId = textEtch ? textEtch.id : null;
+    deckCard.statuses = deckCard.statuses.filter(id => {
+      if (this._isEnergyEtch(id)) return true;
+      if (allowedTextId && id === allowedTextId) return true;
+      return false;
+    });
   },
 
   _rollEtchesForRarity(rarity, defName) {
@@ -2316,6 +2344,13 @@ const Roguelite = {
     const saved = this._loadSavedRun();
     if (!saved) return;
     this._ensureVanillaDefsRegistered();
+    // Sanitize any stale incompatible etches on discard cards in the
+    // saved deck + pendingRewards. Old saves may have stat/trait
+    // etches baked onto Catwoman / Mr. Fantastic / Jigsaw / Professor X
+    // from before the discard filter shipped — sweep them out so the
+    // codex display matches the actual behavior.
+    if (Array.isArray(saved.deck)) saved.deck.forEach(d => this._sanitizeDeckCardStatuses(d));
+    if (Array.isArray(saved.pendingRewards)) saved.pendingRewards.forEach(d => this._sanitizeDeckCardStatuses(d));
     Game.state.roguelite = saved;
     Game.state.phase = 'roguelite-map';
     UI.render();
@@ -4780,6 +4815,11 @@ const Roguelite = {
   // for common, cyan for rare, silver for special, gold for legendary.
   // Etches stack into the abilities row so they read inline.
   _renderCodexCard(deckCard) {
+    // Sanitize stale incompatible etches first so the renderer reads
+    // the cleaned-up etch list. Idempotent — no-op for non-discard
+    // cards or already-clean ones. Defensively also runs in
+    // buildRunCard at fight-start time.
+    this._sanitizeDeckCardStatuses(deckCard);
     const def = deckCard._def
       || (typeof CARD_DEFS !== 'undefined' ? CARD_DEFS.find(d => d.name === deckCard.defName) : null)
       || this.STARTER_DEFS.find(d => d.name === deckCard.defName)
