@@ -19984,6 +19984,46 @@ body.killing-blow-cinema::after {
 .rl-tier-special-text { color: rgba(200,160,255,1); text-shadow: 0 0 6px rgba(200,160,255,0.5); }
 .rl-tier-legendary-text { color: rgba(255,215,140,1); text-shadow: 0 0 8px rgba(255,215,140,0.6); }
 
+/* Auto-granted-trait banner inside the level-up modal — shows the
+   freebie keyword the player got on the common→rare promotion.
+   Theme-aware so it picks up gold/blue/etc. */
+.rl-levelup-auto-trait {
+  margin: 6px 0 14px;
+  padding: 8px 14px;
+  text-align: center;
+  font-family: 'Rajdhani', sans-serif;
+  font-size: 14px;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: var(--theme-accent-bright, #d4ecff);
+  background: rgba(0,0,0,0.55);
+  border: 1px solid var(--theme-accent-edge, rgba(79,195,247,0.55));
+  border-radius: 4px;
+  box-shadow:
+    0 0 12px var(--theme-glow-outer, rgba(79,195,247,0.45)),
+    inset 0 0 0 1px rgba(255,255,255,0.05);
+}
+.rl-levelup-auto-trait b {
+  color: #ffffff;
+  text-shadow: 0 0 8px var(--theme-glow-outer, rgba(79,195,247,0.85));
+}
+/* Bucket caption above each level-up choice — small uppercase tag
+   so the player can tell which bucket (Stats / Text / Energy) the
+   option came from at a glance. Common→rare 3-bucket flow only;
+   higher promotions don't set bucket so the caption stays empty. */
+.rl-levelup-choice {
+  display: flex; flex-direction: column; align-items: center; gap: 4px;
+}
+.rl-levelup-bucket {
+  display: inline-block;
+  font-size: 10px; letter-spacing: 3px; text-transform: uppercase;
+  color: color-mix(in srgb, var(--theme-accent, rgb(79,195,247)) 45%, #94a8c0);
+  opacity: 0.85;
+}
+.rl-levelup-name {
+  font-size: 14px; font-weight: 600;
+}
+
 /* Shop UI */
 /* ============ TRON-STYLE SHOP ============ */
 /* User direction: "Shop needs a big overhaul. The cards should match

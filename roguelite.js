@@ -1337,20 +1337,43 @@ const Roguelite = {
         if (ref.xp >= threshold) {
           ref.rarity = this.TIERS[tierIdx + 1];
           ref.xp = 0;  // reset on bump
-          // Pick-1-of-2 etch options on level-up. User direction:
-          // "reduce to 2 possibilities. Most likely roll discount /
-          // damage / health. Text-based upgrade is rare." So we roll
-          // each slot via a weighted bucket pick:
-          //   80% → STAT bucket (damage/HP/discount/+combined-stat)
-          //   20% → TEXT bucket (keyword/trait — Cantrip, Echo, etc.)
-          // The buckets pull from the new tier's pool + common
-          // fallback so a rare card-up-card can still see common
-          // stat etches as the boring safe pick.
-          const choices = this._rollLevelUpChoices(ref.rarity, 2);
+          // Level-up bucket logic. User direction (most recent):
+          // "From uncommon to rare you auto-get a trait and also 1
+          // upgrade for stats / text / energy. Then from rare to
+          // special it's just random."
+          //
+          // common → rare: AUTO-GRANT a random Trait keyword (Bullseye,
+          //   Hunt, Armor 1, Taunt 1, Evade 1, Untrickable, Splash 1,
+          //   Overdrive — the keywords stripped from base cards). Plus
+          //   a 1-of-3 picker spanning the three buckets:
+          //     stats   → flat ATK/HP bumps
+          //     text    → text/keyword etches (Cantrip, Echo, Phoenix…)
+          //     energy  → cost reductions (discount-N)
+          //   So the player ALWAYS gets a baseline keyword on first
+          //   promotion, plus their pick of stat/text/energy.
+          //
+          // rare → special / special → legendary: random 2-pick from
+          //   the existing weighted bucket roller (80% stat / 20% text).
+          let autoTrait = null;
+          let choices;
+          if (ref.rarity === 'rare') {
+            // Just bumped from common → rare. Auto-grant trait + 3-bucket pick.
+            const trait = this._rollAutoTrait(ref);
+            if (trait) {
+              ref.statuses = ref.statuses || [];
+              ref.statuses.push(trait.id);
+              autoTrait = { id: trait.id, name: trait.name };
+            }
+            choices = this._rollCommonToRareChoices();
+          } else {
+            // Higher tier promotion — keep the existing 2-pick random.
+            choices = this._rollLevelUpChoices(ref.rarity, 2);
+          }
           levelUps.push({
             defName: ref.defName,
             newRarity: ref.rarity,
             choices,
+            autoTrait,
             cardRef: ref,
           });
         }
@@ -2725,11 +2748,29 @@ const Roguelite = {
       return;
     }
     const lu = run._pendingLevelUps[0];
-    const choices = lu.choices.map((c, i) => `
-      <button type="button" class="rl-event-choice" onclick="Roguelite._pickLevelUpEtch(${i})">${c.name}</button>
-    `).join('');
+    // Choice buttons. For the common→rare 3-bucket flow, each choice
+    // carries its bucket label (Stats / Text / Energy) — surface it
+    // as a small caption above the etch name so the player can see
+    // which bucket the option came from.
+    const choices = lu.choices.map((c, i) => {
+      const bucket = c.bucket
+        ? `<span class="rl-levelup-bucket">${c.bucket}</span>`
+        : '';
+      return `<button type="button" class="rl-event-choice rl-levelup-choice" onclick="Roguelite._pickLevelUpEtch(${i})">
+        ${bucket}<span class="rl-levelup-name">${c.name}</span>
+      </button>`;
+    }).join('');
+    // Auto-trait header — shown when a common→rare bump auto-granted
+    // a baseline keyword. User direction: "from uncommon to rare you
+    // auto get a trait." Surface it prominently so the player sees
+    // the freebie.
+    const autoTraitLine = lu.autoTrait
+      ? `<div class="rl-levelup-auto-trait">Auto-granted <b>${lu.autoTrait.name}</b></div>`
+      : '';
     const body = `
-      <div class="rl-event-flavor"><b>${lu.defName}</b> leveled up to <span class="rl-tier-${lu.newRarity}-text">${lu.newRarity.toUpperCase()}</span>! Pick an etch:</div>
+      <div class="rl-event-flavor"><b>${lu.defName}</b> leveled up to <span class="rl-tier-${lu.newRarity}-text">${lu.newRarity.toUpperCase()}</span>!</div>
+      ${autoTraitLine}
+      <div class="rl-event-flavor">Pick an etch:</div>
       <div class="rl-event-choices">${choices}</div>`;
     this._modal('LEVEL UP', body);
   },
