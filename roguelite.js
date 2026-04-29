@@ -381,9 +381,10 @@ const Roguelite = {
     {
       id: 'anchor', name: 'Anchor', rarity: 'common',
       desc: '+2 HP-loss reduction every fight (passive).',
-      // Same flag Iron Maiden uses, but no max-HP penalty — common-tier
-      // payoff is half the Iron Maiden DR with no downside, so picking
-      // it never feels like a regret.
+      // Passive damage reduction relic. The previous Iron Maiden (rare)
+      // also touched _dmgReduction but pinched the player's max HP as a
+      // trade — Iron Maiden has been removed, so Anchor is now the
+      // unambiguous DR pick with no downside.
       onAcquire(run) { run._dmgReduction = (run._dmgReduction || 0) + 2; },
     },
     {
@@ -410,11 +411,10 @@ const Roguelite = {
       desc: 'All your cards gain Lifesteal 1.',
       onCardBuild(run, card) { card.hasLifesteal = (card.hasLifesteal || 0) + 1; if (!card.abilities.includes('Lifesteal')) card.abilities.push('Lifesteal'); },
     },
-    {
-      id: 'iron-maiden', name: 'Iron Maiden', rarity: 'rare',
-      desc: 'Start each fight with -2 HP loss reduction. Max HP -10.',
-      onAcquire(run) { run.maxHp = Math.max(10, run.maxHp - 10); run.hp = Math.min(run.hp, run.maxHp); run._dmgReduction = (run._dmgReduction || 0) + 2; },
-    },
+    // Iron Maiden removed per user direction. Same reasoning as the
+    // ascension-2 player-HP nerf: trade-relics that pinch the player's
+    // max HP feel like punishment, not strategy. Anchor (common) covers
+    // the "passive HP loss reduction" niche without the maxHp penalty.
     {
       id: 'phoenix-feather', name: 'Phoenix Feather', rarity: 'rare',
       desc: 'Once per run, revive from lethal HP loss to 1 HP.',
@@ -3150,7 +3150,8 @@ const Roguelite = {
     const won = Game.state.winner === 'player';
     let hpRemaining = Math.max(0, Game.state.player.health || 0);
     let hpLoss = Math.max(0, run.hp - hpRemaining);
-    // Iron Maiden — flat HP loss reduction every fight.
+    // Anchor (and historically Iron Maiden, since removed) — flat
+    // HP-loss reduction every fight via the run._dmgReduction stack.
     if (run._dmgReduction && hpLoss > 0) {
       const reduced = Math.min(run._dmgReduction, hpLoss);
       hpLoss -= reduced;
@@ -5021,7 +5022,6 @@ const Roguelite = {
       'toy-ornithopter':  '⌬',
       'spider-web':       '✱',
       'vampire-fang':     '◢',
-      'iron-maiden':      '☗',
       'phoenix-feather':  '☼',
       'gamblers-glove':   '◇',
       'bag-of-marbles':   '◉',
