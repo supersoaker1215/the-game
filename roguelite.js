@@ -793,12 +793,11 @@ const Roguelite = {
       // and the end-of-run summary can show what difficulty was used.
       ascension: this.currentAscension(),
     };
-    // Ascension 2+ — start at 25 max HP instead of 30. Stacks with the
-    // Fragile Power boon if both are picked (boon further trims hp).
-    if (run.ascension >= 2) {
-      run.maxHp = 25;
-      run.hp = 25;
-    }
+    // Ascension 2 used to nerf the player to 25 max HP. User feedback:
+    // "Don't touch my max HP. Just make their max health more." A2 is
+    // now an enemy-HP escalation (see ASCENSION_LEVELS above + the
+    // ascHpMul step in buildAiEncounter). Player max HP starts at the
+    // boon-defined value regardless of ascension level.
     if (boon) {
       if (boon.bonusCard) {
         run.deck.push(this._makeDeckCard(boon.bonusCard, 'rare'));
@@ -1583,7 +1582,14 @@ const Roguelite = {
     // Ascension difficulty multiplier — A1+ adds 10% enemy HP across
     // the board. A4 adds an extra trick to bosses.
     const asc = (run && run.ascension) || 0;
-    const ascHpMul = asc >= 1 ? 1.10 : 1.0;
+    // Ascension HP scaling — stacks each tier. A1 = +10%, A2 = +20%
+    // (was +10% with a player-HP nerf at A2; user moved the difficulty
+    // onto the enemy side instead). Higher tiers stay at 1.20× because
+    // A3 / A4 attach their own difficulty levers (relic pool, trick
+    // count) — bumping enemy HP further would compound too aggressively.
+    let ascHpMul = 1.0;
+    if (asc >= 1) ascHpMul = 1.10;
+    if (asc >= 2) ascHpMul = 1.20;
     // Boss / final-boss — handcrafted decks (full power) with a small
     // HP wobble so even bosses don't always read the same. AI cards
     // come pre-built via _buildAiCardInstances with a per-act base
@@ -2588,7 +2594,12 @@ const Roguelite = {
   ASCENSION_LEVELS: [
     { level: 0, name: 'Standard',  desc: 'No modifiers — the baseline run.' },
     { level: 1, name: 'Hardened',  desc: 'Enemies have +10% HP.' },
-    { level: 2, name: 'Frail',     desc: '+ You start at 25 max HP (was 30).' },
+    // A2 used to drop the player's max HP from 30 → 25. User feedback:
+    // "I don't like how max HP goes down. That's lazy. Don't touch my
+    // max HP. Just make their max health more." So A2 now stacks
+    // ANOTHER +10% on enemy HP (cumulative 20% over baseline) instead
+    // of cutting the player's pool.
+    { level: 2, name: 'Reinforced', desc: '+ Enemies have +20% HP (cumulative).' },
     { level: 3, name: 'Spartan',   desc: '+ Battery and Old Manuscript removed from the starter pool.' },
     { level: 4, name: 'Cosmic',    desc: '+ Bosses gain an extra trick in their deck.' },
   ],
