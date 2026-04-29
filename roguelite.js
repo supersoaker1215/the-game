@@ -248,6 +248,7 @@ const Roguelite = {
     ],
     legendary: [
       { id: 'plus4-atk',     name: '+4 ATK',    apply: c => { c.attack += 4; } },
+      { id: 'plus4-hp',      name: '+4 HP',     apply: c => { c.health += 4; c.maxHealth += 4; c.currentHealth += 4; } },
       { id: 'plus4-atk-hp',  name: '+4/+4',     apply: c => { c.attack += 4; c.health += 4; c.maxHealth += 4; c.currentHealth += 4; } },
       { id: 'splash-4',      name: 'Splash 4',  apply: c => { c.splashRange = (c.splashRange || 0) + 4; Roguelite._bumpKw(c, 'Splash', c.splashRange); } },
       { id: 'evade-4',       name: 'Evade 4',   apply: c => { c.evadeCharges = (c.evadeCharges || 0) + 4; Roguelite._bumpKw(c, 'Evade', c.evadeCharges); } },
@@ -282,6 +283,7 @@ const Roguelite = {
     'plus3-hp':      '+3 hit points.',
     'plus3-atk-hp':  '+3 attack and +3 hit points.',
     'plus4-atk':     '+4 attack power.',
+    'plus4-hp':      '+4 hit points.',
     'plus4-atk-hp':  '+4 attack and +4 hit points.',
     'discount-1':    'Costs 1 less energy to play.',
     'discount-2':    'Costs 2 less energy to play.',
@@ -361,12 +363,12 @@ const Roguelite = {
     },
     {
       id: 'old-manuscript', name: 'Old Manuscript', rarity: 'common',
-      desc: 'Every other round: draw +1 card.',
+      desc: 'On odd rounds (1, 3, 5…): draw +1 card.',
       onFightStart(run) { run._extraDrawAlt = (run._extraDrawAlt || 0) + 1; },
     },
     {
       id: 'battery', name: 'Battery', rarity: 'common',
-      desc: 'Every other round: +1 energy.',
+      desc: 'On odd rounds (1, 3, 5…): +1 energy.',
       onFightStart(run) { run._extraEnergyAlt = (run._extraEnergyAlt || 0) + 1; },
     },
     {
@@ -676,6 +678,16 @@ const Roguelite = {
       rare:      'WHEN PLAYED: Even-lane enemies get -1/-2. Force opponent\'s next 2 card placements.',
       special:   'WHEN PLAYED: Even-lane enemies get -1/-2. Force opponent\'s next 3 card placements.',
       legendary: 'WHEN PLAYED: Even-lane enemies get -1/-2. Force opponent\'s next 4 card placements.',
+    },
+    // Solomon Grundy — text fix. cards.js prints "shared Dead Pile" but
+    // the roguelite engine path scavenges from YOUR dead pile only
+    // (user feedback: shared scavenge stacked too easily with Lex
+    // bypass). Override desc so the printed text matches behavior.
+    'Solomon Grundy': {
+      common:    'WHEN DESTROYED: Draw a random card from your Dead Pile to your hand.',
+      rare:      'WHEN DESTROYED: Draw a random card from your Dead Pile to your hand.',
+      special:   'WHEN DESTROYED: Draw a random card from your Dead Pile to your hand.',
+      legendary: 'WHEN DESTROYED: Draw a random card from your Dead Pile to your hand.',
     },
     // Lex Luthor — softened from the classic full lock. User direction:
     // "Have Lex Luthor say while active, the opponent only draws one
