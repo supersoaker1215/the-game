@@ -741,9 +741,23 @@ const Roguelite = {
     // Thug's strike, and any other ability hook for starter cards.
     // Deep-copy the abilities array (only mutable list field we care
     // about) so etch-driven abilities.push doesn't mutate the source.
-    const clone = Object.assign({}, def, {
-      abilities: [...(def.abilities || [])],
-    });
+    //
+    // Roguelite-only ability strip. User direction: "all status traits
+    // need to be removed from the cards besides Revive — that's the
+    // whole point, to get new status on cards and create more RNG."
+    // So Bullseye, Hunt, Armor N, Taunt N, Evade N, Untrickable,
+    // Overdrive, Splash N, Immunity, Invincible N, Unresistible, Crazy,
+    // Insane all drop here for non-starter / non-curse cards. Etches +
+    // level-ups + relics are how the player EARNS keywords back.
+    //
+    // Revive N stays (death-trigger identity is core for revivers).
+    // Starter cards keep their baseline (Brute's Taunt 1) — that was
+    // an explicit balance call. Curses have no abilities anyway.
+    const rawAbilities = [...(def.abilities || [])];
+    const abilities = (deckCard._isStarter || def._isCurse)
+      ? rawAbilities
+      : rawAbilities.filter(ab => /^Revive(\s|$)/i.test(ab));
+    const clone = Object.assign({}, def, { abilities });
     // Apply tier-based stat bump BEFORE createCardInstance so the
     // engine's createCardInstance picks up the modified stats as
     // baseAttack/baseHealth. Starter cards bypass the Common penalty.
@@ -3069,7 +3083,14 @@ const Roguelite = {
     let atk = resolved.atk;
     let hp = resolved.hp;
     let cost = def.cost || 0;
-    const abilities = (def.abilities || []).slice();
+    // Strip baseline keyword badges in roguelite — same rule as
+    // buildRunCard, so the codex display matches what the card
+    // actually does in-game. Etch-added abilities still flow in
+    // through the etch.apply probe loop below.
+    const rawAbilities = (def.abilities || []).slice();
+    const abilities = (deckCard._isStarter || def._isCurse)
+      ? rawAbilities
+      : rawAbilities.filter(ab => /^Revive(\s|$)/i.test(ab));
     // Step 2: stack each etch on a probe so we can read final stats +
     // capture cost mods + ability adds without touching the live card.
     (deckCard.statuses || []).forEach(id => {
