@@ -348,6 +348,11 @@ const UI = {
       // Time" (start → 1:05) — the period-correct cue from CA's WWII era.
       // -20 LUFS unified-baseline, 1s fade-in / 2s fade-out baked.
       'Captain America':  { hover: { src: 'audio/cards/captain-america-hover.mp3', maxDur: 66 } },
+      // Optimus Prime hover: 57s of Steve Jablonsky's "Bumblebee Captured"
+      // (0:24 → 1:21) — the Autobot-leader theme reprise from the
+      // Transformers OST. -20 LUFS unified-baseline, 1s fade-in / 2s
+      // fade-out baked.
+      'Optimus Prime':    { hover: { src: 'audio/cards/optimus-prime-hover.mp3', maxDur: 58 } },
       // Winter Soldier hover: 52s of Henry Jackman's "End Of The Line"
       // (1:05 → 1:57 of the source) — the cold-war motif build. -20 LUFS
       // unified-baseline, 1s fade-in / 2s fade-out baked. maxDur 53 lets
