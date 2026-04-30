@@ -6342,13 +6342,18 @@ body.hit-pause .ai-hand * {
   background: #000000;
 }
 .btn-primary {
-  border-color: rgba(79,195,247,0.95); color: #7fd0ff;
-  box-shadow: 0 0 12px rgba(79,195,247,0.45), 0 0 24px rgba(79,195,247,0.18);
-  text-shadow: 0 0 6px rgba(79,195,247,0.50);
+  border-color: rgba(var(--theme-rgb, 79,195,247),0.95);
+  color: rgba(var(--theme-rgb, 79,195,247),0.95);
+  box-shadow:
+    0 0 12px rgba(var(--theme-rgb, 79,195,247),0.45),
+    0 0 24px rgba(var(--theme-rgb, 79,195,247),0.18);
+  text-shadow: 0 0 6px rgba(var(--theme-rgb, 79,195,247),0.50);
 }
 .btn-primary:hover {
   color: #f5fbff; transform: translateY(-2px);
-  box-shadow: 0 0 14px rgba(79,195,247,0.80), 0 0 28px rgba(79,195,247,0.35);
+  box-shadow:
+    0 0 14px rgba(var(--theme-rgb, 79,195,247),0.80),
+    0 0 28px rgba(var(--theme-rgb, 79,195,247),0.35);
 }
 .btn:active { transform: translateY(0); filter: brightness(0.92); }
 .btn-secondary {
@@ -8315,29 +8320,33 @@ body.turn-combat .board .lane.lane-active {
   position: fixed !important; top: 14px; right: 14px; z-index: 500 !important;
   width: 42px; height: 42px; border-radius: 50%;
   background: #000000;
-  border: 1px solid rgba(79,195,247,0.95);
-  color: #a8dcff;
+  border: 1px solid rgba(var(--theme-rgb, 79,195,247),0.95);
+  color: rgba(var(--theme-rgb, 79,195,247),0.95);
   font-family: 'Rajdhani', sans-serif;
   font-size: 20px; font-weight: 700;
   line-height: 1;
   cursor: pointer;
   display: flex; align-items: center; justify-content: center;
-  text-shadow: 0 0 6px rgba(79,195,247,1), 0 0 12px rgba(79,195,247,0.45);
+  text-shadow:
+    0 0 6px rgba(var(--theme-rgb, 79,195,247),1),
+    0 0 12px rgba(var(--theme-rgb, 79,195,247),0.45);
   box-shadow:
-    0 0 12px rgba(79,195,247,0.65),
-    0 0 24px rgba(79,195,247,0.30),
-    inset 0 0 0 1px rgba(79,195,247,0.22);
+    0 0 12px rgba(var(--theme-rgb, 79,195,247),0.65),
+    0 0 24px rgba(var(--theme-rgb, 79,195,247),0.30),
+    inset 0 0 0 1px rgba(var(--theme-rgb, 79,195,247),0.22);
   transition: transform 0.2s, box-shadow 0.25s, color 0.2s, background 0.2s;
 }
 .settings-cog:hover {
   transform: rotate(45deg) scale(1.06);
-  color: #d4ecff;
-  background: rgba(79,195,247,0.08);
-  text-shadow: 0 0 8px rgba(79,195,247,1), 0 0 16px rgba(79,195,247,0.65);
+  color: rgba(var(--theme-rgb, 79,195,247),1);
+  background: rgba(var(--theme-rgb, 79,195,247),0.08);
+  text-shadow:
+    0 0 8px rgba(var(--theme-rgb, 79,195,247),1),
+    0 0 16px rgba(var(--theme-rgb, 79,195,247),0.65);
   box-shadow:
-    0 0 16px rgba(79,195,247,0.85),
-    0 0 32px rgba(79,195,247,0.45),
-    inset 0 0 0 1px rgba(79,195,247,0.30);
+    0 0 16px rgba(var(--theme-rgb, 79,195,247),0.85),
+    0 0 32px rgba(var(--theme-rgb, 79,195,247),0.45),
+    inset 0 0 0 1px rgba(var(--theme-rgb, 79,195,247),0.30);
 }
 .settings-overlay {
   position: fixed !important; inset: 0; background: rgba(0,0,0,0.7);
@@ -8345,7 +8354,7 @@ body.turn-combat .board .lane.lane-active {
 }
 .settings-panel {
   background: #060a12;
-  border: 1px solid rgba(79,195,247,0.55);
+  border: 1px solid rgba(var(--theme-rgb, 79,195,247),0.55);
   border-radius: 8px;
   padding: 22px 28px; min-width: 360px;
   font-family: 'Inter', 'Segoe UI', system-ui, sans-serif;
@@ -8362,7 +8371,7 @@ body.turn-combat .board .lane.lane-active {
 .settings-row {
   display: flex; justify-content: space-between; align-items: center;
   padding: 8px 0;
-  border-bottom: 1px solid rgba(79,195,247,0.10);
+  border-bottom: 1px solid rgba(var(--theme-rgb, 79,195,247),0.10);
 }
 /* Grouped sections — give Visuals / Audio / Gameplay clear
    separation instead of one long flat list of rows. */
