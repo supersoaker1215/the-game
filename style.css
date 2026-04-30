@@ -24241,7 +24241,16 @@ input[type="number"]::-webkit-outer-spin-button {
 /* MODE-SELECT HOVER THEME ADOPTION. .mode-option:hover was hardcoded
    blue gradient + accent bar — on non-blue themes the fill stayed
    blue while the rest of the menu (corner brackets, divider, button
-   highlights) painted in the user's color. Convert to theme. */
+   highlights) painted in the user's color. Convert to theme.
+
+   User feedback Apr-30 ("see how it fills up… I don't want that"):
+   the mode-option buttons are wider/squarer than mm-option, so the
+   same 0.12-alpha gradient that reads as a subtle edge-tint on the
+   tall mm-option columns reads as a full inside-fill on mode-option.
+   Solution: kill the gradient + wash on hover entirely — keep just
+   the border + outer glow + 3px ::before accent bar so hover feels
+   "outline only" instead of "fills with blue." Base state keeps a
+   very faint left-edge wash to give the resting button some depth. */
 .mode-option {
   background:
     linear-gradient(90deg, rgba(var(--theme-rgb, 79,195,247),0.06) 0%, rgba(0,0,0,0) 55%),
@@ -24252,9 +24261,13 @@ input[type="number"]::-webkit-outer-spin-button {
   box-shadow: 0 0 6px rgba(var(--theme-rgb, 79,195,247),0.55) !important;
 }
 .mode-option:hover {
+  /* Outline-only on hover — bg stays at the resting wash so the
+     button doesn't appear to "fill" with theme color. The border
+     + outer glow on .mode-option:hover (line ~1255) carries the
+     visual signal. */
   background:
-    linear-gradient(90deg, rgba(var(--theme-rgb, 79,195,247),0.12) 0%, rgba(0,0,0,0) 55%),
-    rgba(var(--theme-rgb, 79,195,247),0.04) !important;
+    linear-gradient(90deg, rgba(var(--theme-rgb, 79,195,247),0.06) 0%, rgba(0,0,0,0) 55%),
+    #000 !important;
 }
 .mode-option:hover::before {
   background: rgb(var(--theme-rgb, 79,195,247)) !important;
