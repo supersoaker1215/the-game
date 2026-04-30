@@ -1930,6 +1930,21 @@ const UI = {
     this.phaseBanner = document.getElementById('phase-banner');
     this.phaseBannerText = document.getElementById('phase-banner-text');
     this.tooltipEl = document.getElementById('kw-tooltip');
+    // Cache stable overlay refs once at init — render() previously called
+    // getElementById() ~9× per frame just to check visibility for the
+    // top-left toggle. These overlays are persistent page elements that
+    // never get torn down, so a one-time bind is safe and saves every
+    // render from re-walking the DOM. Each ref is null-tolerant; render
+    // already guards with truthy checks.
+    this._encyclopediaOverlay  = document.getElementById('encyclopedia-overlay');
+    this._matchHistoryOverlay  = document.getElementById('match-history-overlay');
+    this._multiplayerOverlay   = document.getElementById('multiplayer-overlay');
+    this._mainMenuOverlay      = document.getElementById('main-menu-overlay');
+    this._modeSelectOverlay    = document.getElementById('mode-select-overlay');
+    this._myDecksOverlay       = document.getElementById('my-decks-overlay');
+    this._statsOverlay         = document.getElementById('stats-overlay');
+    this._deckbuilderOverlay   = document.getElementById('deckbuilder-overlay');
+    this._gameAreaEl           = document.getElementById('game-area');
     this.installKeywordTooltips();
     this.installKeyboardShortcuts();
     this.wireUndoButton();
@@ -3200,26 +3215,28 @@ const UI = {
     // Also hidden when any modal-style overlay (encyclopedia, multi-
     // player, match-history) is open via UI._encyc/UI._mp/etc state.
     const isLandingScreen = isMainMenu || isModeSelect;
-    const overlayOpen = !!(
-      (document.getElementById('encyclopedia-overlay') && document.getElementById('encyclopedia-overlay').style.display !== 'none' && document.getElementById('encyclopedia-overlay').style.display !== '')
-      || (document.getElementById('match-history-overlay') && document.getElementById('match-history-overlay').style.display !== 'none' && document.getElementById('match-history-overlay').style.display !== '')
-      || (document.getElementById('multiplayer-overlay') && document.getElementById('multiplayer-overlay').style.display !== 'none' && document.getElementById('multiplayer-overlay').style.display !== '')
+    // Use cached overlay refs (bound once in init) instead of re-querying
+    // the DOM 9× per frame. Helper inlines the visibility check.
+    const isOverlayVisible = (el) => {
+      if (!el) return false;
+      const d = el.style.display;
+      return d !== 'none' && d !== '';
+    };
+    const overlayOpen = (
+      isOverlayVisible(this._encyclopediaOverlay) ||
+      isOverlayVisible(this._matchHistoryOverlay) ||
+      isOverlayVisible(this._multiplayerOverlay)
     );
     document.body.classList.toggle('clb-toggle-hidden', !isLandingScreen || overlayOpen);
-    // Pre-match overlays — only one is visible at a time.
-    const mainMenuOverlay = document.getElementById('main-menu-overlay');
-    const modeOverlay     = document.getElementById('mode-select-overlay');
-    const myDecksOverlay  = document.getElementById('my-decks-overlay');
-    const statsOverlay    = document.getElementById('stats-overlay');
-    const dbOverlay       = document.getElementById('deckbuilder-overlay');
-    if (mainMenuOverlay) mainMenuOverlay.style.display = isMainMenu ? 'flex' : 'none';
-    if (modeOverlay)     modeOverlay.style.display = isModeSelect ? 'flex' : 'none';
-    if (myDecksOverlay)  myDecksOverlay.style.display = isMyDecks ? 'flex' : 'none';
-    if (statsOverlay)    statsOverlay.style.display = isStats ? 'flex' : 'none';
-    if (dbOverlay)       dbOverlay.style.display = isDeckBuilder ? 'flex' : 'none';
+    // Pre-match overlays — only one is visible at a time. Refs cached at init.
+    if (this._mainMenuOverlay)    this._mainMenuOverlay.style.display    = isMainMenu ? 'flex' : 'none';
+    if (this._modeSelectOverlay)  this._modeSelectOverlay.style.display  = isModeSelect ? 'flex' : 'none';
+    if (this._myDecksOverlay)     this._myDecksOverlay.style.display     = isMyDecks ? 'flex' : 'none';
+    if (this._statsOverlay)       this._statsOverlay.style.display       = isStats ? 'flex' : 'none';
+    if (this._deckbuilderOverlay) this._deckbuilderOverlay.style.display = isDeckBuilder ? 'flex' : 'none';
     this.draftEl.style.display = isDraft ? 'flex' : 'none';
     const isRoguelite = s.phase && s.phase.startsWith('roguelite');
-    document.getElementById('game-area').style.display =
+    (this._gameAreaEl || document.getElementById('game-area')).style.display =
       (isDraft || isMainMenu || isModeSelect || isMyDecks || isStats || isDeckBuilder || isRoguelite) ? 'none' : '';
 
     if (isMainMenu)    { this.renderMainMenu(s); return; }

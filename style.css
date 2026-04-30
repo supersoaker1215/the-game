@@ -397,12 +397,16 @@ body::after {
    carries the current-turn colour separately (see .hud-phase rules below).
    Applied via round-first-* body classes from UI.checkPhaseTransition. */
 body.round-first-player .hud-pill-main {
-  border-color: rgba(79,195,247,0.95);
-  box-shadow: 0 0 12px rgba(79,195,247,0.45), 0 0 24px rgba(79,195,247,0.18);
+  border-color: rgba(var(--player-r, 79), var(--player-g, 195), var(--player-b, 247), 0.95);
+  box-shadow:
+    0 0 12px rgba(var(--player-r, 79), var(--player-g, 195), var(--player-b, 247), 0.45),
+    0 0 24px rgba(var(--player-r, 79), var(--player-g, 195), var(--player-b, 247), 0.18);
 }
 body.round-first-ai .hud-pill-main {
-  border-color: rgba(231,76,60,0.95);
-  box-shadow: 0 0 12px rgba(231,76,60,0.55), 0 0 24px rgba(231,76,60,0.25);
+  border-color: rgba(var(--enemy-r, 231), var(--enemy-g, 76), var(--enemy-b, 60), 0.95);
+  box-shadow:
+    0 0 12px rgba(var(--enemy-r, 231), var(--enemy-g, 76), var(--enemy-b, 60), 0.55),
+    0 0 24px rgba(var(--enemy-r, 231), var(--enemy-g, 76), var(--enemy-b, 60), 0.25);
 }
 .hud-pill-main { padding: 5px 13px; }
 
@@ -427,8 +431,14 @@ body.round-first-ai .hud-pill-main {
 }
 /* Label hue follows the round-opener too — same colour system as the
    badge itself so the whole "ROUND N" unit reads as one signal. */
-body.round-first-player .hud-round { color: #b7dff3; text-shadow: 0 0 6px rgba(79,195,247,0.40); }
-body.round-first-ai     .hud-round { color: #f3bfb8; text-shadow: 0 0 6px rgba(231,76,60,0.40); }
+body.round-first-player .hud-round {
+  color: rgba(var(--player-r, 79), var(--player-g, 195), var(--player-b, 247), 1);
+  text-shadow: 0 0 6px rgba(var(--player-r, 79), var(--player-g, 195), var(--player-b, 247), 0.40);
+}
+body.round-first-ai     .hud-round {
+  color: rgba(var(--enemy-r, 231), var(--enemy-g, 76), var(--enemy-b, 60), 1);
+  text-shadow: 0 0 6px rgba(var(--enemy-r, 231), var(--enemy-g, 76), var(--enemy-b, 60), 0.40);
+}
 
 .hud-round #round-num {
   position: relative;
@@ -466,26 +476,30 @@ body.round-first-ai     .hud-round { color: #f3bfb8; text-shadow: 0 0 6px rgba(2
 /* Round badge — repaint by round opener. Same Tron double-ring spec as the
    gold default, just the hue changes to signal initiative. */
 body.round-first-player .hud-round #round-num {
-  color: #a8dcff;
-  text-shadow: 0 0 6px rgba(79,195,247,0.95), 0 0 12px rgba(79,195,247,0.45);
+  color: rgba(var(--player-r, 79), var(--player-g, 195), var(--player-b, 247), 1);
+  text-shadow:
+    0 0 6px rgba(var(--player-r, 79), var(--player-g, 195), var(--player-b, 247), 0.95),
+    0 0 12px rgba(var(--player-r, 79), var(--player-g, 195), var(--player-b, 247), 0.45);
 }
 body.round-first-player .hud-round #round-num::before {
-  border-color: rgba(79,195,247,0.95);
+  border-color: rgba(var(--player-r, 79), var(--player-g, 195), var(--player-b, 247), 0.95);
   box-shadow:
-    inset 0 0 0 1px rgba(79,195,247,0.22),
-    0 0 10px rgba(79,195,247,0.70),
-    0 0 22px rgba(79,195,247,0.32);
+    inset 0 0 0 1px rgba(var(--player-r, 79), var(--player-g, 195), var(--player-b, 247), 0.22),
+    0 0 10px rgba(var(--player-r, 79), var(--player-g, 195), var(--player-b, 247), 0.70),
+    0 0 22px rgba(var(--player-r, 79), var(--player-g, 195), var(--player-b, 247), 0.32);
 }
 body.round-first-ai .hud-round #round-num {
-  color: rgb(231,76,60);
-  text-shadow: 0 0 6px rgba(231,76,60,0.95), 0 0 12px rgba(231,76,60,0.45);
+  color: rgb(var(--enemy-r, 231), var(--enemy-g, 76), var(--enemy-b, 60));
+  text-shadow:
+    0 0 6px rgba(var(--enemy-r, 231), var(--enemy-g, 76), var(--enemy-b, 60), 0.95),
+    0 0 12px rgba(var(--enemy-r, 231), var(--enemy-g, 76), var(--enemy-b, 60), 0.45);
 }
 body.round-first-ai .hud-round #round-num::before {
-  border-color: rgba(231,76,60,0.95);
+  border-color: rgba(var(--enemy-r, 231), var(--enemy-g, 76), var(--enemy-b, 60), 0.95);
   box-shadow:
-    inset 0 0 0 1px rgba(231,76,60,0.22),
-    0 0 10px rgba(231,76,60,0.70),
-    0 0 22px rgba(231,76,60,0.32);
+    inset 0 0 0 1px rgba(var(--enemy-r, 231), var(--enemy-g, 76), var(--enemy-b, 60), 0.22),
+    0 0 10px rgba(var(--enemy-r, 231), var(--enemy-g, 76), var(--enemy-b, 60), 0.70),
+    0 0 22px rgba(var(--enemy-r, 231), var(--enemy-g, 76), var(--enemy-b, 60), 0.32);
 }
 .hud-phase {
   color: #f5fbff;
@@ -500,12 +514,16 @@ body.round-first-ai .hud-round #round-num::before {
 /* Phase label — tints by CURRENT turn (not round opener). So the pill outline
    holds the round-opener colour while the phase word tracks who's acting now. */
 body.turn-player .hud-phase {
-  color: #a8dcff;
-  text-shadow: 0 0 6px rgba(79,195,247,0.65), 0 0 12px rgba(79,195,247,0.30);
+  color: rgba(var(--player-r, 79), var(--player-g, 195), var(--player-b, 247), 1);
+  text-shadow:
+    0 0 6px rgba(var(--player-r, 79), var(--player-g, 195), var(--player-b, 247), 0.65),
+    0 0 12px rgba(var(--player-r, 79), var(--player-g, 195), var(--player-b, 247), 0.30);
 }
 body.turn-ai .hud-phase {
-  color: #ff8a7a;
-  text-shadow: 0 0 6px rgba(231,76,60,0.70), 0 0 12px rgba(231,76,60,0.35);
+  color: rgba(var(--enemy-r, 231), var(--enemy-g, 76), var(--enemy-b, 60), 1);
+  text-shadow:
+    0 0 6px rgba(var(--enemy-r, 231), var(--enemy-g, 76), var(--enemy-b, 60), 0.70),
+    0 0 12px rgba(var(--enemy-r, 231), var(--enemy-g, 76), var(--enemy-b, 60), 0.35);
 }
 body.turn-combat .hud-phase {
   color: #ffd77a;
@@ -555,8 +573,10 @@ body.turn-combat::before { background: linear-gradient(to bottom, rgba(255,215,0
   box-shadow: 0 0 5px rgba(255,255,255,0.65), 0 0 10px rgba(255,255,255,0.35);
 }
 .hud-divider.hud-divider-cyan {
-  background: #4fc3f7;
-  box-shadow: 0 0 5px rgba(79,195,247,1), 0 0 12px rgba(79,195,247,0.55);
+  background: rgb(var(--theme-rgb, 79,195,247));
+  box-shadow:
+    0 0 5px rgba(var(--theme-rgb, 79,195,247), 1),
+    0 0 12px rgba(var(--theme-rgb, 79,195,247), 0.55);
 }
 .hud-divider.hud-divider-purple {
   /* Amethyst node — same purple family as the trick cards. */
@@ -587,12 +607,17 @@ body.turn-combat::before { background: linear-gradient(to bottom, rgba(255,215,0
   border: 1px solid rgba(255,255,255,0.55);
   transition: border-color 0.3s, box-shadow 0.3s, color 0.3s;
 }
-.hud-count-deck { color: #b7dff3; }
+.hud-count-deck { color: rgb(var(--theme-rgb, 79,195,247)); }
 .hud-count-deck b {
-  color: #4fc3f7;
-  border-color: rgba(79,195,247,0.95);
-  box-shadow: 0 0 8px rgba(79,195,247,0.55), 0 0 14px rgba(79,195,247,0.25), inset 0 0 6px rgba(79,195,247,0.10);
-  text-shadow: 0 0 6px rgba(79,195,247,0.90), 0 0 12px rgba(79,195,247,0.45);
+  color: rgb(var(--theme-rgb, 79,195,247));
+  border-color: rgba(var(--theme-rgb, 79,195,247), 0.95);
+  box-shadow:
+    0 0 8px rgba(var(--theme-rgb, 79,195,247), 0.55),
+    0 0 14px rgba(var(--theme-rgb, 79,195,247), 0.25),
+    inset 0 0 6px rgba(var(--theme-rgb, 79,195,247), 0.10);
+  text-shadow:
+    0 0 6px rgba(var(--theme-rgb, 79,195,247), 0.90),
+    0 0 12px rgba(var(--theme-rgb, 79,195,247), 0.45);
 }
 .hud-count-tricks { color: #d7b3e6; }
 .hud-count-tricks b {
@@ -629,27 +654,27 @@ body.turn-combat::before { background: linear-gradient(to bottom, rgba(255,215,0
    blue need higher alpha than white to appear equally luminous. */
 .info-bar.ai-bar {
   background:
-    linear-gradient(180deg, rgba(231,76,60,0.08), transparent 50%),
+    linear-gradient(180deg, rgba(var(--enemy-r, 231), var(--enemy-g, 76), var(--enemy-b, 60), 0.08), transparent 50%),
     linear-gradient(180deg, #0a0f18, #07080f);
-  border-top: 1px solid rgba(231,76,60,0.95);
-  border-bottom: 1px solid rgba(231,76,60,0.95);
+  border-top: 1px solid rgba(var(--enemy-r, 231), var(--enemy-g, 76), var(--enemy-b, 60), 0.95);
+  border-bottom: 1px solid rgba(var(--enemy-r, 231), var(--enemy-g, 76), var(--enemy-b, 60), 0.95);
   box-shadow:
-    0 0 12px rgba(231,76,60,0.65),
-    0 0 24px rgba(231,76,60,0.30),
-    inset 0 1px 0 rgba(231,76,60,0.30),
-    inset 0 -1px 0 rgba(231,76,60,0.30);
+    0 0 12px rgba(var(--enemy-r, 231), var(--enemy-g, 76), var(--enemy-b, 60), 0.65),
+    0 0 24px rgba(var(--enemy-r, 231), var(--enemy-g, 76), var(--enemy-b, 60), 0.30),
+    inset 0 1px 0 rgba(var(--enemy-r, 231), var(--enemy-g, 76), var(--enemy-b, 60), 0.30),
+    inset 0 -1px 0 rgba(var(--enemy-r, 231), var(--enemy-g, 76), var(--enemy-b, 60), 0.30);
 }
 .info-bar.player-bar {
   background:
-    linear-gradient(0deg, rgba(79,195,247,0.08), transparent 50%),
+    linear-gradient(0deg, rgba(var(--player-r, 79), var(--player-g, 195), var(--player-b, 247), 0.08), transparent 50%),
     linear-gradient(180deg, #07080f, #0a0f18);
-  border-top: 1px solid rgba(79,195,247,0.95);
-  border-bottom: 1px solid rgba(79,195,247,0.95);
+  border-top: 1px solid rgba(var(--player-r, 79), var(--player-g, 195), var(--player-b, 247), 0.95);
+  border-bottom: 1px solid rgba(var(--player-r, 79), var(--player-g, 195), var(--player-b, 247), 0.95);
   box-shadow:
-    0 0 12px rgba(79,195,247,0.55),
-    0 0 24px rgba(79,195,247,0.25),
-    inset 0 1px 0 rgba(79,195,247,0.30),
-    inset 0 -1px 0 rgba(79,195,247,0.30);
+    0 0 12px rgba(var(--player-r, 79), var(--player-g, 195), var(--player-b, 247), 0.55),
+    0 0 24px rgba(var(--player-r, 79), var(--player-g, 195), var(--player-b, 247), 0.25),
+    inset 0 1px 0 rgba(var(--player-r, 79), var(--player-g, 195), var(--player-b, 247), 0.30),
+    inset 0 -1px 0 rgba(var(--player-r, 79), var(--player-g, 195), var(--player-b, 247), 0.30);
 }
 
 /* Mini enemy hand centered in the enemy banner */
@@ -4172,19 +4197,19 @@ body.hit-pause .ai-hand * {
   border-right: 1px solid transparent;
   border-radius: 0;
   border-image: linear-gradient(180deg,
-      rgba(231,76,60,0.95)   0%,    /* meets the AI banner's red edge */
-      rgba(231,76,60,0.95)   2%,
+      rgba(var(--enemy-r, 231), var(--enemy-g, 76), var(--enemy-b, 60), 0.95)   0%,    /* meets the AI banner's enemy edge */
+      rgba(var(--enemy-r, 231), var(--enemy-g, 76), var(--enemy-b, 60), 0.95)   2%,
       rgba(255,255,255,0.22) 9%,    /* dim middle — was 0.90 (stark white).
                                        Bright white was bleeding visibly
                                        into contested lanes and reading as
                                        a "muddy white glow" between the
-                                       red and blue halves. 0.22 keeps the
+                                       enemy and player halves. 0.22 keeps the
                                        neutral baseline visible on empty
                                        lanes without competing with the
                                        colored occupancy overrides. */
       rgba(255,255,255,0.22) 91%,
-      rgba(79,195,247,0.95)  98%,   /* transitions to blue over ~7% */
-      rgba(79,195,247,0.95)  100%   /* meets the player banner's blue edge */
+      rgba(var(--player-r, 79), var(--player-g, 195), var(--player-b, 247), 0.95)  98%,   /* transitions to player accent */
+      rgba(var(--player-r, 79), var(--player-g, 195), var(--player-b, 247), 0.95)  100%   /* meets the player banner's accent edge */
     ) 1;
   /* Symmetric layout: the lane is split into AI-slot / sep / player-slot with
      the two card slots sharing available vertical space EQUALLY (flex 1 1 0).
@@ -4204,19 +4229,20 @@ body.hit-pause .ai-hand * {
   transition: border-color 0.25s, box-shadow 0.25s;
 }
 .lane:hover {
-  /* Hover tints the whole vertical line cyan, but still picks up the banner
-     colors at each end so the circuit continuity is preserved. */
+  /* Hover tints the whole vertical line in the player's theme accent, but
+     still picks up the enemy banner color at the top so the circuit
+     continuity is preserved. */
   border-image: linear-gradient(180deg,
-      rgba(231,76,60,0.95)  0%,
-      rgba(231,76,60,0.95)  2%,
-      rgba(79,195,247,0.95) 9%,
-      rgba(79,195,247,0.95) 91%,
-      rgba(79,195,247,0.95) 98%,
-      rgba(79,195,247,0.95) 100%
+      rgba(var(--enemy-r, 231), var(--enemy-g, 76), var(--enemy-b, 60), 0.95)  0%,
+      rgba(var(--enemy-r, 231), var(--enemy-g, 76), var(--enemy-b, 60), 0.95)  2%,
+      rgba(var(--player-r, 79), var(--player-g, 195), var(--player-b, 247), 0.95) 9%,
+      rgba(var(--player-r, 79), var(--player-g, 195), var(--player-b, 247), 0.95) 91%,
+      rgba(var(--player-r, 79), var(--player-g, 195), var(--player-b, 247), 0.95) 98%,
+      rgba(var(--player-r, 79), var(--player-g, 195), var(--player-b, 247), 0.95) 100%
     ) 1;
   box-shadow:
-    0 0 12px rgba(79,195,247,0.60),
-    0 0 24px rgba(79,195,247,0.25);
+    0 0 12px rgba(var(--player-r, 79), var(--player-g, 195), var(--player-b, 247), 0.60),
+    0 0 24px rgba(var(--player-r, 79), var(--player-g, 195), var(--player-b, 247), 0.25);
 }
 
 /* ---- LANE OCCUPANCY — Tron current state ----

@@ -888,7 +888,30 @@ const CARD_ABILITIES = {
     }
   },
   "Moder": (() => {
+    // Fields that get nulled / zeroed on strip. Listed once so the strip
+    // and restore paths can't drift.
+    const STRIP_FIELDS = [
+      'onPlay', 'onDeath', 'onDamaged', 'onKill', 'onBeforeTricks',
+      'onBeforeAttack', 'onEndOfTurn', 'onAnyCardPlayed', 'onAllyKilled',
+      'onEvade', 'onDamagePlayer', 'onTurnStart', 'passive',
+      'evadeCharges', 'armorValue', 'isOverdrive', 'isBullseye',
+      'immunityCharges', 'hasHunt', 'hasDamageImmunity',
+      'unresistibleCharges', 'splashRange', 'invincibleTurns', 'tauntTurns',
+      'isUntrickable',
+    ];
     const strip = (card, G) => {
+      // Bug fix: previously a stripped card that returned to hand via
+      // Phantom Zone (or any future bounce) stayed permanently de-fanged
+      // because addToHand had no restore path. Snapshot the original
+      // values so unstrip() can put them back when the card leaves the
+      // board. Only snapshot once — re-stripping shouldn't overwrite the
+      // backup with already-stripped values.
+      if (!card._moderBackup) {
+        const backup = {};
+        for (const k of STRIP_FIELDS) backup[k] = card[k];
+        backup._permanentUntrickable = !!card.permanentUntrickable;
+        card._moderBackup = backup;
+      }
       card.onPlay = null; card.onDeath = null; card.onDamaged = null;
       card.onKill = null; card.onBeforeTricks = null; card.onBeforeAttack = null;
       card.onEndOfTurn = null; card.onAnyCardPlayed = null; card.onAllyKilled = null;
@@ -900,6 +923,17 @@ const CARD_ABILITIES = {
       card.splashRange = 0; card.invincibleTurns = 0; card.tauntTurns = 0;
       if (!card.permanentUntrickable) card.isUntrickable = false;
       card._moderStripped = true;
+      // Stamp the restore function ON the card so the engine can call
+      // card._unstripModer() without importing Moder's internals. Engine
+      // calls this from addToHand() when a stripped card bounces back.
+      card._unstripModer = () => {
+        if (!card._moderStripped || !card._moderBackup) return;
+        const b = card._moderBackup;
+        for (const k of STRIP_FIELDS) card[k] = b[k];
+        card._moderStripped = false;
+        card._moderBackup = null;
+        card._unstripModer = null;
+      };
       G.log(`Moder strips all abilities from ${card.name}!`);
     };
     return {

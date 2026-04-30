@@ -2883,11 +2883,13 @@ const Game = {
   // lands in the same instant. [KILLED] log and statsKills credit still
   // happen at damage time since those are factual telemetry, not gameplay
   // state mutations.
-  applyCombatDamage(attacker, target, opts) {
-    if (!target || target.currentHealth <= 0) return false;
-    // Defensive coerce — if either card's stats drifted to NaN from an
-    // earlier corruption path, fall back to base values before combat
-    // so we don't propagate NaN through the HP subtraction below.
+  // ===================== applyCombatDamage helpers =====================
+  // Extracted from the combat-damage hot path so each step is unit-testable
+  // and the main applyCombatDamage stays under ~75 lines.
+
+  // Defensive coerce — guard against NaN drift from earlier corruption.
+  // No-op for healthy cards; bumps NaN stats back to base values.
+  _coerceCombatStats(attacker, target) {
     if (typeof target.currentHealth !== 'number' || !Number.isFinite(target.currentHealth)) {
       target.currentHealth = target.baseHealth || 1;
     }
@@ -2897,9 +2899,77 @@ const Game = {
     if (attacker && (typeof attacker.attack !== 'number' || !Number.isFinite(attacker.attack))) {
       attacker.attack = attacker.baseAttack || 0;
     }
+  },
 
+  // Compute the raw damage value AFTER attacker-side modifiers but BEFORE
+  // target-side reductions (armor). Stacks: base ATK → Berserker/Zealot
+  // etch bonus → Palpatine frozen-double. Logs each step.
+  _computeIncomingDamage(attacker, target) {
+    let dmg = attacker.attack;
+    const etchBonus = this._getEtchAttackBonus(attacker);
+    if (etchBonus > 0) {
+      const tag = (attacker.hasBerserker && attacker.currentHealth < attacker.maxHealth)
+        ? 'BERSERKER' : 'ZEALOT';
+      this.log(`  [${tag}] ${attacker.name} +${etchBonus} ATK (${dmg} → ${dmg + etchBonus})`);
+      dmg += etchBonus;
+    }
+    if (target.isFrozen) {
+      const hasDoubleFrozen = this.getAllCardsOf(attacker.owner).some(
+        c => c.passive === 'doubleFrozenDamage' && c.currentHealth > 0
+      );
+      if (hasDoubleFrozen) {
+        const doubled = dmg * 2;
+        this.log(`  [PALPATINE] ${target.name} is frozen — ${attacker.name}'s damage doubled (${dmg} → ${doubled})`);
+        dmg = doubled;
+      }
+    }
+    return dmg;
+  },
+
+  // Apply Armor reduction. Returns the reduced damage to apply, or null
+  // if Armor fully absorbed the hit (caller bails out early). Credits
+  // absorb stats and emits the block visualization.
+  _applyArmorReduction(attacker, target, dmg) {
+    if (target.armorValue <= 0) return dmg;
+    if (dmg <= target.armorValue) {
+      this.log(`  [ARMOR] ${target.name}'s Armor ${target.armorValue} absorbs ${attacker.name}'s ${dmg} damage`);
+      this.emitDmg(target.id, 0, 'armor');
+      this._creditAbsorb(target, 'Armor', dmg);
+      return null;
+    }
+    this._creditAbsorb(target, 'Armor', target.armorValue);
+    const reduced = dmg - target.armorValue;
+    this.log(`  [ARMOR] ${target.name}'s Armor ${target.armorValue} reduces damage to ${reduced}`);
+    return reduced;
+  },
+
+  // Resolve a target dropping to <=0 HP. Phoenix etch revival fires first;
+  // on revival, thorns still chips but the target is declared alive (return
+  // false → caller treats as survived). On true death, kill log + onKill +
+  // thorns. Returns true if the target died, false if revived.
+  _resolveTargetDeath(attacker, target, opts) {
+    if (this._resolvePhoenix(target)) {
+      this._resolveThorns(target, attacker);
+      return false;
+    }
+    this.log(`  [KILLED] ${target.name} is destroyed by ${attacker.name}!`);
+    this._creditChain(attacker, 'statsKills', 1);
+    if (attacker.onKill && !(opts && opts.deferOnKill)) attacker.onKill(this, attacker);
+    // Thorns can still chip the attacker even after target died — the
+    // hit landed, and the victim's last-gasp bramble retaliates.
+    this._resolveThorns(target, attacker);
+    return true;
+  },
+
+  applyCombatDamage(attacker, target, opts) {
+    if (!target || target.currentHealth <= 0) return false;
+    this._coerceCombatStats(attacker, target);
+
+    // Pre-damage absorbs: Evade → Invincible → Damage Immunity. Each
+    // bails out early without modifying HP. Kept inline because each
+    // branch has a distinct log/credit signature and Stunned/Frozen
+    // gate Evade specifically.
     const canDodge = !target.isStunned && !target.isFrozen;
-
     if (target.evadeCharges > 0 && canDodge) {
       target.evadeCharges--;
       this.log(`  [EVADE] ${target.name} dodges ${attacker.name}! (${target.evadeCharges} charges left)`);
@@ -2908,7 +2978,6 @@ const Game = {
       if (target.onEvade) target.onEvade(this, target);
       return false;
     }
-
     if (target.invincibleTurns > 0) {
       this.log(`  [INVINCIBLE] ${target.name} takes no damage! (${target.invincibleTurns} turns left)`);
       this.emitDmg(target.id, 0, 'block');
@@ -2922,91 +2991,29 @@ const Game = {
       return false;
     }
 
-    let dmg = attacker.attack;
-    // Berserker / Zealot etch bonuses — additive ATK that scales with
-    // attacker's HP state (Berserker: while damaged; Zealot: while at
-    // full HP). Applied BEFORE Palpatine's frozen-double so the bonus
-    // is also doubled against frozen targets — feels right since the
-    // etch represents raw "fighting harder" rather than a separate
-    // damage source.
-    const etchBonus = this._getEtchAttackBonus(attacker);
-    if (etchBonus > 0) {
-      const tag = (attacker.hasBerserker && attacker.currentHealth < attacker.maxHealth)
-        ? 'BERSERKER' : 'ZEALOT';
-      this.log(`  [${tag}] ${attacker.name} +${etchBonus} ATK (${dmg} → ${dmg + etchBonus})`);
-      dmg += etchBonus;
-    }
-    // Palpatine's "While Active: Frozen enemies take double damage" passive —
-    // any ally of the attacker with passive 'doubleFrozenDamage' (Palpatine)
-    // doubles combat damage against a frozen target. Check AFTER armor/evade
-    // skipping but BEFORE armor reduction so armor still blunts the doubled
-    // value rather than the raw attack stat.
-    if (target.isFrozen) {
-      const hasDoubleFrozen = this.getAllCardsOf(attacker.owner).some(
-        c => c.passive === 'doubleFrozenDamage' && c.currentHealth > 0
-      );
-      if (hasDoubleFrozen) {
-        const doubled = dmg * 2;
-        this.log(`  [PALPATINE] ${target.name} is frozen — ${attacker.name}'s damage doubled (${dmg} → ${doubled})`);
-        dmg = doubled;
-      }
-    }
-    if (target.armorValue > 0) {
-      if (dmg <= target.armorValue) {
-        this.log(`  [ARMOR] ${target.name}'s Armor ${target.armorValue} absorbs ${attacker.name}'s ${dmg} damage`);
-        this.emitDmg(target.id, 0, 'armor');
-        this._creditAbsorb(target, 'Armor', dmg);
-        return false;
-      }
-      this._creditAbsorb(target, 'Armor', target.armorValue);
-      dmg -= target.armorValue;
-      this.log(`  [ARMOR] ${target.name}'s Armor ${target.armorValue} reduces damage to ${dmg}`);
-    }
+    let dmg = this._computeIncomingDamage(attacker, target);
+    const afterArmor = this._applyArmorReduction(attacker, target, dmg);
+    if (afterArmor === null) return false;
+    dmg = afterArmor;
 
     target.currentHealth -= dmg;
     // Tank-XP tracker — credit the target with HP it just ate. Drives
-    // the roguelite "damage taken = XP" path that replaces the old
-    // flat "+10 if survived" bonus. Lives on the card instance, gets
-    // snapshotted into the dead pile so resurrects keep the credit.
+    // the roguelite "damage taken = XP" path. Snapshotted into the dead
+    // pile so resurrects keep the credit.
     target.statsHpTaken = (target.statsHpTaken || 0) + dmg;
     this.emitDmg(target.id, dmg, 'hit', undefined, attacker && attacker.id);
     this.log(`  [HIT] ${attacker.name} deals ${dmg} to ${target.name} → ${Math.max(0, target.currentHealth)}/${target.maxHealth} HP`);
-    // Track landed damage for the currencyOnDamage passive (e.g. Green Lantern)
     if (attacker.passive === 'currencyOnDamage' && dmg > 0) {
       attacker._damageDealtThisTurn = (attacker._damageDealtThisTurn || 0) + dmg;
     }
-    // Per-card stats — attribute damage-dealt-to-enemies to the attacker
-    // AND walk up the summon chain so the summoner inherits the damage
-    // (Hela's zombies → Hela) per the MVP "full chain" spec.
     this._creditChain(attacker, 'statsEnemyDamage', dmg);
-    // Lifesteal etch — heal attacker's owner per stack of hasLifesteal
-    // when this swing actually landed dmg > 0 on enemy HP.
     if (dmg > 0) this._resolveLifesteal(attacker, dmg);
     if (target.onDamaged) target.onDamaged(this, target, attacker, dmg);
 
     if (target.currentHealth <= 0) {
-      // Phoenix etch — try to revive the target at full HP before the
-      // [KILLED] log fires. If revived, attacker still gets the swing's
-      // ATK damage credit but no kill counter (target survived). Thorns
-      // STILL chips since the victim's bramble fires the moment damage
-      // lands. Echo'd phoenix ALL spend their charges across separate
-      // deaths so a single hit only consumes one charge.
-      if (this._resolvePhoenix(target)) {
-        this._resolveThorns(target, attacker);
-        return false;
-      }
-      this.log(`  [KILLED] ${target.name} is destroyed by ${attacker.name}!`);
-      this._creditChain(attacker, 'statsKills', 1);
-      if (attacker.onKill && !(opts && opts.deferOnKill)) attacker.onKill(this, attacker);
-      // Thorns can still chip the attacker even after target died — the
-      // hit landed, and the victim's last-gasp bramble retaliates. May
-      // kill attacker too (mutual-destruction outcome).
-      this._resolveThorns(target, attacker);
-      return true;
+      return this._resolveTargetDeath(attacker, target, opts);
     }
-    // Thorns retaliation — chip attacker for hasThorns dmg whenever
-    // target survived AND took damage (>0). No retaliation on whiffs
-    // (full armor block, evade) — no damage = no thorn-poke.
+    // Survivor thorns retaliation — only on landed damage, not whiffs.
     if (dmg > 0) this._resolveThorns(target, attacker);
     return false;
   },
@@ -3623,6 +3630,15 @@ const Game = {
     if (p.hand.length >= p.maxHandSize) {
       this.log(`  [HAND FULL] ${owner === 'player' ? 'Your' : "AI's"} hand is full (${p.maxHandSize}) — ${card && card.name ? card.name : 'card'} discarded.`);
       return false;
+    }
+    // Bug fix: Moder-stripped cards that bounce back to hand (Phantom
+    // Zone, future bounce mechanics) used to stay permanently de-fanged
+    // because nobody restored their abilities. The card class stamps a
+    // _unstripModer() restore on itself when it gets stripped; we call
+    // it here so the card returns to hand with its original kit intact.
+    // Idempotent + null-safe — runs on any card, no-op for unstripped.
+    if (card && typeof card._unstripModer === 'function') {
+      try { card._unstripModer(); } catch (e) { console.error('[unstripModer]', e); }
     }
     p.hand.push(card);
     // Card advantage — if a specific source card caused this hand gain
