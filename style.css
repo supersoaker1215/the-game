@@ -3634,9 +3634,13 @@ body.hit-pause .ai-hand * {
   transition: transform 0.2s, box-shadow 0.2s, border-color 0.2s;
   position: relative;
   color: #e6eef5;
-  background:
-    linear-gradient(180deg, rgba(46,204,113,0.07) 0%, rgba(46,204,113,0) 45%),
-    #060a12 !important;
+  /* User feedback Apr-30: "see how it fills up, and it's like a blue,
+     I don't want that." The rarity-tinted top-down gradient on the
+     card background read as the whole top half of an uncommon card
+     filling with cyan (or gold for legendary, etc). Killed the fill;
+     cards now sit on pure black with the rarity color carried only
+     by the border + outer glow + corner orbs. */
+  background: #060a12 !important;
   border: 1px solid rgba(46,204,113,0.95) !important;
   box-shadow:
     0 0 12px rgba(46,204,113,0.45),
@@ -3646,9 +3650,7 @@ body.hit-pause .ai-hand * {
 }
 .draft-card.cost-4, .draft-card.cost-5, .draft-card.cost-6 {
   border-color: rgba(79,195,247,0.95) !important;
-  background:
-    linear-gradient(180deg, rgba(79,195,247,0.06) 0%, rgba(79,195,247,0) 45%),
-    #060a12 !important;
+  background: #060a12 !important;
   box-shadow:
     0 0 12px rgba(79,195,247,0.45),
     0 0 24px rgba(79,195,247,0.18),
@@ -3657,9 +3659,7 @@ body.hit-pause .ai-hand * {
 }
 .draft-card.cost-7, .draft-card.cost-8 {
   border-color: rgba(240,245,250,0.95) !important;
-  background:
-    linear-gradient(180deg, rgba(240,245,250,0.10) 0%, rgba(240,245,250,0) 45%),
-    #060a12 !important;
+  background: #060a12 !important;
   box-shadow:
     0 0 12px rgba(240,245,250,0.45),
     0 0 24px rgba(240,245,250,0.18),
@@ -3668,9 +3668,7 @@ body.hit-pause .ai-hand * {
 }
 .draft-card.cost-9, .draft-card.cost-10 {
   border-color: rgba(255,215,0,0.95) !important;
-  background:
-    linear-gradient(180deg, rgba(255,215,0,0.10) 0%, rgba(255,215,0,0) 45%),
-    #060a12 !important;
+  background: #060a12 !important;
   box-shadow:
     0 0 12px rgba(255,215,0,0.45),
     0 0 24px rgba(255,215,0,0.18),
@@ -24241,16 +24239,7 @@ input[type="number"]::-webkit-outer-spin-button {
 /* MODE-SELECT HOVER THEME ADOPTION. .mode-option:hover was hardcoded
    blue gradient + accent bar — on non-blue themes the fill stayed
    blue while the rest of the menu (corner brackets, divider, button
-   highlights) painted in the user's color. Convert to theme.
-
-   User feedback Apr-30 ("see how it fills up… I don't want that"):
-   the mode-option buttons are wider/squarer than mm-option, so the
-   same 0.12-alpha gradient that reads as a subtle edge-tint on the
-   tall mm-option columns reads as a full inside-fill on mode-option.
-   Solution: kill the gradient + wash on hover entirely — keep just
-   the border + outer glow + 3px ::before accent bar so hover feels
-   "outline only" instead of "fills with blue." Base state keeps a
-   very faint left-edge wash to give the resting button some depth. */
+   highlights) painted in the user's color. Convert to theme. */
 .mode-option {
   background:
     linear-gradient(90deg, rgba(var(--theme-rgb, 79,195,247),0.06) 0%, rgba(0,0,0,0) 55%),
@@ -24261,13 +24250,9 @@ input[type="number"]::-webkit-outer-spin-button {
   box-shadow: 0 0 6px rgba(var(--theme-rgb, 79,195,247),0.55) !important;
 }
 .mode-option:hover {
-  /* Outline-only on hover — bg stays at the resting wash so the
-     button doesn't appear to "fill" with theme color. The border
-     + outer glow on .mode-option:hover (line ~1255) carries the
-     visual signal. */
   background:
-    linear-gradient(90deg, rgba(var(--theme-rgb, 79,195,247),0.06) 0%, rgba(0,0,0,0) 55%),
-    #000 !important;
+    linear-gradient(90deg, rgba(var(--theme-rgb, 79,195,247),0.12) 0%, rgba(0,0,0,0) 55%),
+    rgba(var(--theme-rgb, 79,195,247),0.04) !important;
 }
 .mode-option:hover::before {
   background: rgb(var(--theme-rgb, 79,195,247)) !important;
