@@ -13,7 +13,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap">
-  <link rel="stylesheet" href="style.css?v=447">
+  <link rel="stylesheet" href="style.css?v=448">
   <script>
     // Lightweight error reporter (pre-Sentry) — capture runtime JS
     // errors + unhandled promise rejections to a localStorage ring
@@ -143,8 +143,13 @@
 
       <div class="tutorial-section">
         <div class="tutorial-section-title">Energy &amp; Turns</div>
-        <p>You spend <span class="kw kw-energy">Energy</span> to play cards. You gain <span class="kw kw-energy">Energy</span> equal to the round number each round — round 1 gives 1, round 2 gives 2, etc. Round 6 is typically the last.</p>
-        <p>Each round has phases: <strong>Cards</strong> (play creatures), <span class="kw tut-tricks">Tricks</span> (play instant effects), then <strong>Combat</strong> where every lane attacks at once.</p>
+        <p>You spend <span class="kw kw-energy">Energy</span> to play cards. You gain <span class="kw kw-energy">Energy</span> equal to the round number each round — round 1 gives 1, round 2 gives 2, etc. Most matches end around round 6, but Energy keeps scaling if a fight goes longer.</p>
+        <p>Each round has three phases:</p>
+        <ul>
+          <li><strong>Cards</strong> — play creatures into lanes.</li>
+          <li><span class="kw tut-tricks">Tricks</span> — play instant effects (damage, control, swing tools).</li>
+          <li><strong>Combat</strong> — every lane attacks simultaneously.</li>
+        </ul>
       </div>
 
       <div class="tutorial-section">
@@ -160,12 +165,13 @@
 
       <div class="tutorial-section">
         <div class="tutorial-section-title">Block Meter</div>
-        <p>When you take damage, your <span class="kw kw-block">Block Meter</span> fills. At <span class="kw kw-block">8/8</span> you draw a free <span class="kw tut-tricks">Trick</span> and the next hit is absorbed entirely.</p>
+        <p>When you take damage, your <span class="kw kw-block">Block Meter</span> fills. At <span class="kw kw-block">8/8</span> the meter <strong>triggers during the next Tricks phase</strong>: a free <span class="kw tut-tricks">Trick</span> is added to your hand and the next incoming damage is fully absorbed. The meter resets when consumed.</p>
       </div>
 
       <div class="tutorial-section">
         <div class="tutorial-section-title">Tricks</div>
         <p>Small purple cards below your hand. Play them during the <span class="kw tut-tricks">Tricks</span> phase for one-shot effects: <span class="kw kw-destroy">damage</span>, <span class="kw kw-revive">heal</span>, buff, control.</p>
+        <p><strong>Tricks are single-use.</strong> Once played, they leave your deck permanently — they don't go to the dead pile, and they can't be revived. Plan your trick draft accordingly: each trick you take is one swing tool you'll have ALL run, but only ONCE.</p>
       </div>
 
       <div class="tutorial-section">
@@ -192,10 +198,18 @@
       </div>
 
       <div class="tutorial-section">
-        <div class="tutorial-section-title">Mind Control &amp; Fear</div>
-        <p><span class="kw kw-mindcontrol">Mind Control</span> (Gorilla Grodd, Luke Skywalker, Mind Stone, Michael Myers) turns an enemy against its own side. The controlled card swings at one of your opponent's own allies next combat — you pick which when combat resolves.</p>
-        <p><span class="kw kw-fear">Fear</span> (Joker, Batman, Fear Toxin, Scarecrow) forces the target to attack <strong>itself</strong> next combat, often killing it outright.</p>
-        <p><span class="kw kw-freeze">Freeze</span> and <span class="kw kw-stun">Stun</span> both prevent the target from attacking or dodging that combat. The difference: Freeze lets Palpatine deal double damage to frozen targets; Stun doesn't.</p>
+        <div class="tutorial-section-title">Status Effects</div>
+        <p>Cards can take on temporary states that change how they behave:</p>
+        <ul>
+          <li><span class="kw kw-mindcontrol">Mind Control</span> (Gorilla Grodd, Luke Skywalker, Mind Stone, Michael Myers) — the controlled card swings at one of its own allies next combat. You pick which.</li>
+          <li><span class="kw kw-fear">Fear</span> (Joker, Batman, Fear Toxin, Darth Vader) — the target attacks <strong>itself</strong> next combat, often killing it outright.</li>
+          <li><span class="kw kw-freeze">Freeze</span> — can't attack or dodge; Palpatine doubles his damage to frozen targets.</li>
+          <li><span class="kw kw-stun">Stun</span> — can't attack or dodge (no double-damage interaction).</li>
+          <li><strong>Crazy</strong> — Joker stamps "Crazy" on the highest-ATK enemy. Crazy cards reroll their ATK between 1-4 every turn (chaotic).</li>
+          <li><strong>Insane</strong> — Joker's intrinsic state. He rolls ATK 2-7 every turn — Fear and Steady can't suppress it.</li>
+          <li><strong>Charmed</strong> — Poison Ivy charms a random ally. The charmed card's ATK is "loaned" to Ivy for the round; the charmed card swings normally on its own lane.</li>
+        </ul>
+        <p>Etches let you mitigate or apply status. <strong>Steady</strong> (rare etch) cancels Crazy rerolls per charge. <span class="kw kw-immunity">Immunity</span> negates incoming debuffs.</p>
       </div>
 
       <div class="tutorial-section">
@@ -219,6 +233,20 @@
           <li><span class="kw kw-untrickable">Untrickable</span> — automatic on every 10-cost card; tricks simply don't affect them.</li>
           <li><span class="kw kw-unresistible">Unresistible</span> — bypasses one Immunity charge; consumed when it fires.</li>
         </ul>
+      </div>
+
+      <div class="tutorial-section">
+        <div class="tutorial-section-title">Roguelite Mode</div>
+        <p>A separate mode from the main menu. Climb a 3-act ladder of fights, each with a boss at the end:</p>
+        <ul>
+          <li><strong>Run map</strong> — choose your path through combat, elite, treasure, rest, shop, and event nodes. Each act ends with a boss.</li>
+          <li><strong>Deck evolves</strong> — start with a small starter deck. Earn cards from victory rewards, level them up via XP, and apply Etches that scale their abilities.</li>
+          <li><strong>Etches</strong> — keyword upgrades cards earn on level-up: stat bumps (+1 ATK, +1 HP, +1/+1), traits (Bullseye, Splash, Evade, Hunt, Untrickable, Armor, Taunt, Cantrip, Echo, Phoenix), energy (Discount), and Text+ (rewrites the card's text with stronger numbers).</li>
+          <li><strong>Relics</strong> — passive run-wide modifiers earned from bosses, treasure chests, and events. Each one tilts the run a different way.</li>
+          <li><strong>Curses</strong> — penalty cards that join your deck from risky events. They clog your hand and may have downsides when played. Removable at Rest Sites.</li>
+          <li><strong>Boss intro splash</strong> — when you click a boss node, a cinematic banner shows the boss persona, archetype, and signature cards before the fight starts.</li>
+        </ul>
+        <p>Energy in Roguelite scales 2× faster than Classic — round 1 starts at 2 energy. Combats end faster, so each play matters more.</p>
       </div>
 
       <div class="tutorial-section">

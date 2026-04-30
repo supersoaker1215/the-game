@@ -24414,3 +24414,25 @@ input[type="number"]::-webkit-outer-spin-button {
   border-radius: 4px !important;
   text-align: center !important;
 }
+
+/* ============================================================
+   WAVE B-2 — TUTORIAL VISUAL POLISH
+   ============================================================
+   Content was rewritten in index.html (Roguelite mode, Etches,
+   Curses, Relics, Status Effects expansion, Block Meter clarif,
+   Tricks discard semantics). Visual polish: align tutorial
+   section titles to the settings-group-title pattern (11px /
+   2.5px letter-spacing / theme color / glow). */
+.tutorial-section-title {
+  font-family: 'Rajdhani', sans-serif !important;
+  font-size: 11px !important;
+  letter-spacing: 2.5px !important;
+  text-transform: uppercase !important;
+  color: rgba(var(--theme-rgb, 79,195,247), 1) !important;
+  text-shadow:
+    0 0 6px rgba(var(--theme-rgb, 79,195,247), 0.55),
+    0 0 14px rgba(var(--theme-rgb, 79,195,247), 0.25) !important;
+  border-bottom: 1px solid rgba(var(--theme-rgb, 79,195,247), 0.55) !important;
+  padding-bottom: 4px !important;
+  margin-bottom: 10px !important;
+}
