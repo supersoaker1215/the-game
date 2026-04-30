@@ -24571,15 +24571,114 @@ input[type="number"]::-webkit-outer-spin-button {
   color: rgba(var(--theme-rgb, 79,195,247), 0.95) !important;
 }
 
-/* MAIN MENU — reduce top space. User direction: "I would like it
-   to be kind of cut a little bit so you can see space above it.
-   There's black space above." Move panel up by switching from
-   center-align to top-align with a small breathing offset. */
+/* MAIN MENU — reduce top space + add bottom space. User direction:
+   "Cut it a little so you can see space above it. Also add space
+   at the bottom — should be centered frame." Move panel toward
+   top with even-ish padding above and below. */
 .main-menu-overlay {
   align-items: flex-start !important;
   padding-top: 40px !important;
+  padding-bottom: 60px !important;
+  overflow-y: auto !important;
 }
 @media (max-height: 720px) {
-  .main-menu-overlay { padding-top: 20px !important; }
+  .main-menu-overlay { padding-top: 20px !important; padding-bottom: 40px !important; }
   .mm-panel { padding-top: 32px !important; }
+}
+
+/* ============================================================
+   WAVE D — root-cause fixes for player-side blue bleed
+   ============================================================
+   The player-bar + block-circle inner ring + main-menu options
+   used hardcoded `--player-*` CSS variables (which are pinned to
+   blue regardless of theme) instead of the theme system. That's
+   why the inside of the block circle, the energy diamond's
+   surrounding tint, the bar gradient, and the menu hover were
+   all still painting blue on non-blue themes. Defensive overrides
+   directly use rgba(var(--theme-rgb)) so player-side adopts the
+   theme color end-to-end. AI side stays red.
+   ============================================================ */
+
+/* Player bar gradient + borders + glow — was hardcoded blue
+   wash + blue border + blue inset highlights via --player-*
+   vars. Now follows theme. */
+.info-bar.player-bar {
+  background:
+    linear-gradient(0deg, rgba(var(--theme-rgb, 79,195,247), 0.08), transparent 50%),
+    linear-gradient(180deg, #07080f, #0a0f18) !important;
+  border-top-color: rgba(var(--theme-rgb, 79,195,247), 0.95) !important;
+  border-bottom-color: rgba(var(--theme-rgb, 79,195,247), 0.95) !important;
+  box-shadow:
+    0 0 6px rgba(var(--theme-rgb, 79,195,247), 0.30),
+    0 0 12px rgba(var(--theme-rgb, 79,195,247), 0.18),
+    inset 0 1px 0 rgba(var(--theme-rgb, 79,195,247), 0.22),
+    inset 0 -1px 0 rgba(var(--theme-rgb, 79,195,247), 0.22) !important;
+}
+
+/* Player HP bar — was using --player-accent-bright. Theme it. */
+.player-bar .health-bar {
+  border-color: rgba(var(--theme-rgb, 79,195,247), 0.95) !important;
+  box-shadow:
+    0 0 6px rgba(var(--theme-rgb, 79,195,247), 0.45),
+    0 0 14px rgba(var(--theme-rgb, 79,195,247), 0.20) !important;
+}
+
+/* Block circle's progress ring (the conic gradient inside the circle)
+   — was colored via --player-accent-bright. This is the real source
+   of the "inside is blue" report — not the .block-fill bar. */
+.player-bar .block-circle::before {
+  color: rgb(var(--theme-rgb, 79,195,247)) !important;
+}
+
+/* Main menu options — were hardcoded blue gradient + border + glow
+   stack. Convert to theme. .mode-option was already done; now
+   .mm-option matches. */
+.mm-option {
+  background:
+    linear-gradient(90deg, rgba(var(--theme-rgb, 79,195,247),0.06) 0%, rgba(0,0,0,0) 55%),
+    repeating-linear-gradient(0deg, transparent 0 2px, rgba(var(--theme-rgb, 79,195,247),0.015) 2px 3px),
+    #060a12 !important;
+  border-color: rgba(var(--theme-rgb, 79,195,247), 0.55) !important;
+  box-shadow:
+    0 0 10px rgba(var(--theme-rgb, 79,195,247), 0.18),
+    inset 0 0 0 1px rgba(var(--theme-rgb, 79,195,247), 0.05) !important;
+}
+.mm-option::before {
+  background: rgba(var(--theme-rgb, 79,195,247), 0.60) !important;
+  box-shadow: 0 0 6px rgba(var(--theme-rgb, 79,195,247), 0.55) !important;
+}
+.mm-option:hover {
+  border-color: rgba(var(--theme-rgb, 79,195,247), 1) !important;
+  background:
+    linear-gradient(90deg, rgba(var(--theme-rgb, 79,195,247),0.12) 0%, rgba(0,0,0,0) 55%),
+    rgba(var(--theme-rgb, 79,195,247), 0.04) !important;
+  box-shadow:
+    0 0 20px rgba(var(--theme-rgb, 79,195,247), 0.55),
+    0 0 40px rgba(var(--theme-rgb, 79,195,247), 0.20),
+    inset 0 0 0 1px rgba(var(--theme-rgb, 79,195,247), 0.20) !important;
+}
+.mm-option:hover::before {
+  background: rgb(var(--theme-rgb, 79,195,247)) !important;
+  box-shadow:
+    0 0 10px rgba(var(--theme-rgb, 79,195,247), 1),
+    0 0 18px rgba(var(--theme-rgb, 79,195,247), 0.55) !important;
+}
+
+/* PHASE WIPE — user direction: "have my animation go first, then
+   the other animation go. Right now it feels like another animation
+   is playing over it."
+   Solution: add a 20% pure-black HOLD at the start of the keyframe
+   so the viewport sits fully black for ~260ms before the leading
+   edge starts sweeping. That gives any concurrent animations
+   (handDealIn stagger, banner slide, etc) ~260ms to do their early
+   frames hidden behind black, then the wipe reveals everything in
+   one continuous motion. Also bumped duration 1100ms → 1300ms for
+   more drama. */
+@keyframes rlPhaseWipeSweep {
+  0%   { transform: translate3d(-50%, 0, 0); }
+  20%  { transform: translate3d(-50%, 0, 0); }
+  100% { transform: translate3d(50%, 0, 0); }
+}
+.rl-phase-wipe::before {
+  animation: rlPhaseWipeSweep 1300ms cubic-bezier(0.65, 0, 0.35, 1) forwards !important;
 }
