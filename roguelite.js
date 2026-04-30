@@ -2283,8 +2283,8 @@ const Roguelite = {
     },
     'Catwoman': {
       id: 'catwoman-text', name: 'Cat Burglar',
-      desc: 'WHEN DISCARDED steals 2 Energy from the opponent next turn (was 1).',
-      descOverride: 'When Discarded: Steal 2 Energy from the opponent next turn.',
+      desc: 'WHEN PLAYED steals 2 Energy from the opponent next turn (was 1).',
+      descOverride: 'When Played: Steal 2 Energy from the opponent next turn.',
       apply: c => { c._catwomanSteal = 2; },
     },
     /* Dr. Strange Text+ deferred — his peek mechanic is already

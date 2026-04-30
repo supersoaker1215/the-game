@@ -447,16 +447,20 @@ const CARD_ABILITIES = {
     }
   },
   "Catwoman": {
-    isDiscardEffect: true,
-    onDiscard(G, owner, self) {
+    onPlay(G, self, lane) {
+      // Cost-1 1/1 with Bullseye + Evade 1 (def-side). On play she
+      // steals N energy from the opponent next turn — same swing the
+      // old isDiscardEffect Catwoman had, just on a real body now.
       // Roguelite Text+ override — _catwomanSteal scales the swing.
+      const owner = self && self.owner;
+      if (!owner) return;
       const n = (self && self._catwomanSteal) || 1;
       const opp = G.opponent(owner);
       G.addNextTurnCurrency(owner, n);
       G.addNextTurnCurrency(opp, -n);
       G.log(`Catwoman steals ${n} energy from the enemy next turn!`);
       // v3 — credit Catwoman with the energy swing (gain N self, deny N enemy).
-      if (self) G._creditChain(self, 'statsDiscountValue', n * 2);
+      G._creditChain(self, 'statsDiscountValue', n * 2);
     }
   },
   "Dr. Strange": (() => {
