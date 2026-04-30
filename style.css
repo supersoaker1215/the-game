@@ -20869,6 +20869,59 @@ body.killing-blow-cinema::after {
   60%  { transform: scale(0.98); }
   100% { transform: scale(1.00); }
 }
+/* Boss-clear ray burst + shockwave — layered behind the text so the
+   "DEFEATED" reveal lands with kinetic weight. 6 radial rays sweep
+   outward from center while a single expanding ring punches through.
+   Audit polish: splash was visually crisp but felt static. */
+.rl-boss-clear-rays {
+  position: absolute; inset: 0;
+  pointer-events: none;
+  display: flex; align-items: center; justify-content: center;
+  overflow: hidden;
+}
+.rl-boss-clear-ray {
+  position: absolute; left: 50%; top: 50%;
+  width: 4px; height: 200vh;
+  margin-left: -2px;
+  margin-top: -100vh;
+  background: linear-gradient(180deg,
+    transparent 0%,
+    rgba(255,210,100,0.10) 38%,
+    rgba(255,220,140,0.55) 50%,
+    rgba(255,210,100,0.10) 62%,
+    transparent 100%);
+  transform-origin: 50% 50%;
+  opacity: 0;
+  animation: rl-boss-clear-ray 1.4s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+.rl-boss-clear-ray-1 { transform: rotate(  0deg); animation-delay: 0.10s; }
+.rl-boss-clear-ray-2 { transform: rotate( 60deg); animation-delay: 0.16s; }
+.rl-boss-clear-ray-3 { transform: rotate(120deg); animation-delay: 0.22s; }
+.rl-boss-clear-ray-4 { transform: rotate(180deg); animation-delay: 0.28s; }
+.rl-boss-clear-ray-5 { transform: rotate(240deg); animation-delay: 0.34s; }
+.rl-boss-clear-ray-6 { transform: rotate(300deg); animation-delay: 0.40s; }
+@keyframes rl-boss-clear-ray {
+  0%   { opacity: 0; filter: blur(4px); }
+  18%  { opacity: 0.85; filter: blur(0); }
+  60%  { opacity: 0.6; }
+  100% { opacity: 0; }
+}
+.rl-boss-clear-shock {
+  position: absolute; left: 50%; top: 50%;
+  width: 80px; height: 80px;
+  border-radius: 50%;
+  border: 2px solid rgba(255,210,100,0.85);
+  transform: translate(-50%, -50%);
+  box-shadow:
+    0 0 24px rgba(255,210,100,0.55),
+    0 0 56px rgba(255,200,80,0.30);
+  animation: rl-boss-clear-shock 1.0s cubic-bezier(0.22, 1, 0.36, 1) 0.20s both;
+}
+@keyframes rl-boss-clear-shock {
+  0%   { width: 80px; height: 80px; opacity: 0; }
+  20%  { opacity: 1; }
+  100% { width: 1400px; height: 1400px; opacity: 0; border-width: 1px; }
+}
 
 /* Current-ascension highlight in the pre-run picker. */
 .rl-asc-cur {
@@ -22518,6 +22571,82 @@ button:focus-visible, .btn:focus-visible {
 }
 .classic-overlay-closing {
   animation: tron-modal-backdrop-out 220ms ease-in forwards !important;
+}
+
+/* ---- CRT scanline overlay (opt-in via Settings → Visuals → CRT scanlines) ----
+   Subtle full-viewport monitor texture: horizontal scanlines + a faint
+   dark vignette + a slow-rolling brightness wave. Sits ABOVE everything
+   except modals (z 9997, modals are 9998+). pointer-events:none so it
+   doesn't intercept clicks. Toggle adds/removes .crt-on on body. */
+body.crt-on::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 9997;
+  pointer-events: none;
+  background:
+    /* Tight 2px horizontal scanlines. Very low contrast — readable
+       text + sharp animations win over heavy texture. */
+    repeating-linear-gradient(
+      0deg,
+      rgba(0,0,0,0.18) 0,
+      rgba(0,0,0,0.18) 1px,
+      transparent 1px,
+      transparent 3px
+    ),
+    /* Faint vertical RGB triplet (CRT phosphor mask) at sub-pixel scale. */
+    repeating-linear-gradient(
+      90deg,
+      rgba(255,0,0,0.025) 0,
+      rgba(0,255,0,0.025) 1px,
+      rgba(0,0,255,0.025) 2px,
+      transparent 3px
+    );
+  /* Replace the body::before grid drift on crt-on so we don't double-paint
+     a perpetual animation. The grid drift stays for non-CRT users. */
+  animation: none !important;
+  /* Slight chromatic aberration via mix-blend so the scanlines pull
+     toward the underlying neon glow rather than flattening it. */
+  mix-blend-mode: multiply;
+}
+body.crt-on::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 9996;
+  pointer-events: none;
+  /* Slow-rolling brightness wave — the big horizontal sweep CRT
+     monitors do every few seconds. Disabled under reduced-motion. */
+  background: linear-gradient(180deg,
+    transparent 0%,
+    rgba(255,255,255,0.06) 45%,
+    rgba(255,255,255,0.10) 50%,
+    rgba(255,255,255,0.06) 55%,
+    transparent 100%);
+  background-size: 100% 200%;
+  animation: crt-roll 9s linear infinite;
+}
+@keyframes crt-roll {
+  0%   { background-position: 0 -100%; }
+  100% { background-position: 0 200%; }
+}
+@media (prefers-reduced-motion: reduce) {
+  body.crt-on::after { animation: none; opacity: 0; }
+}
+
+/* ---- Round transition punctuation ----
+   180ms board desaturate→resaturate pulse fired at round start
+   (UI.startRound wrap → punctuateRound). Gives each round boundary
+   a real "beat" instead of a continuous trickle. The dimming sits
+   underneath the existing round echo ring so you get a layered
+   moment: dim flash → ring expands → board snaps back to color. */
+@keyframes boardRoundPulse {
+  0%   { filter: saturate(1) brightness(1); }
+  18%  { filter: saturate(0.6) brightness(0.78) blur(0.4px); }
+  100% { filter: saturate(1) brightness(1); }
+}
+#board.board-round-pulse {
+  animation: boardRoundPulse 480ms cubic-bezier(0.36, 0, 0.66, 1);
 }
 
 /* ---- Ambient grid background — extremely subtle moving grid that lives

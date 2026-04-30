@@ -13,7 +13,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap">
-  <link rel="stylesheet" href="style.css?v=439">
+  <link rel="stylesheet" href="style.css?v=440">
   <script>
     // Lightweight error reporter (pre-Sentry) — capture runtime JS
     // errors + unhandled promise rejections to a localStorage ring
@@ -559,6 +559,10 @@
           <input type="checkbox" id="setting-tooltips" checked>
         </div>
         <div class="settings-row">
+          <label for="setting-crt" title="Subtle CRT scanline overlay across the screen. Adds Tron-monitor texture. Toggle off if it strains your eyes.">CRT scanlines</label>
+          <input type="checkbox" id="setting-crt">
+        </div>
+        <div class="settings-row">
           <label for="setting-ui-scale" title="Zoom the entire UI. Useful for small screens, high-DPI monitors, or accessibility.">UI scale</label>
           <select id="setting-ui-scale">
             <option value="0.85">85%</option>
@@ -647,12 +651,12 @@
   <script src="decks.js?v=4"></script>
   <script src="game.js?v=243"></script>
   <script src="ai.js?v=45"></script>
-  <script src="roguelite.js?v=95"></script>
+  <script src="roguelite.js?v=96"></script>
   <!-- PeerJS for WebRTC peer-to-peer multiplayer. Uses the public
        0.peerjs.com signaling cloud — no server needed on our side. -->
   <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
   <script src="multiplayer.js?v=4"></script>
-  <script src="ui.js?v=448"></script>
+  <script src="ui.js?v=449"></script>
   <script src="logger.js?v=5"></script>
 </body>
 </html>

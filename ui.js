@@ -64,6 +64,8 @@ const UI = {
     // the first board render (otherwise the player sees a flash of
     // non-cb styling before Save is toggled).
     document.body.classList.toggle('colorblind', !!this.settings.colorblind);
+    // Apply CRT scanline overlay if enabled.
+    document.body.classList.toggle('crt-on', !!this.settings.crt);
     // Apply UI scale on load so the first render is at the user's
     // chosen zoom, not a flash of 100% followed by resize.
     this._applyUiScale(this.settings.uiScale || 1);
@@ -145,6 +147,13 @@ const UI = {
     // the phone's buzz is annoying in long sessions.
     const hapEl = g('setting-haptics-off');
     if (hapEl) this.settings.hapticsOff = hapEl.checked;
+    // CRT scanlines — toggleable Tron monitor overlay. Off by default
+    // because it can strain eyes during long sessions.
+    const crtEl = g('setting-crt');
+    if (crtEl) {
+      this.settings.crt = crtEl.checked;
+      document.body.classList.toggle('crt-on', !!this.settings.crt);
+    }
     // UI scale — scales the root font-size so em-based CSS scales in
     // turn, plus applies a CSS transform on the body for pixel
     // fidelity on the parts of the game that use fixed pixel sizes.
@@ -171,6 +180,11 @@ const UI = {
     g('setting-ai-speed').value   = this.settings.aiSpeed;
     g('setting-round-recap').checked = this.settings.roundRecap;
     g('setting-tooltips').checked   = this.settings.tooltips;
+    const crtElLoad = g('setting-crt');
+    if (crtElLoad) {
+      crtElLoad.checked = !!this.settings.crt;
+      document.body.classList.toggle('crt-on', !!this.settings.crt);
+    }
     const aiPacingEl = g('setting-ai-pacing');
     if (aiPacingEl) aiPacingEl.value = this.settings.aiPacing || 'animated';
     const trackStatsEl = g('setting-track-stats');
@@ -11812,6 +11826,27 @@ const UI = {
       board.appendChild(ring);
       setTimeout(() => ring.remove(), 880);
     };
+    // Round transition punctuation — the previous code only fired a
+    // soft ring echo. Audit finding: "round changes feel like a
+    // continuous trickle, not a clear beat." Adds a brief board
+    // desaturate→resaturate pulse + soft tick SFX so each round-start
+    // reads as a real boundary.
+    const punctuateRound = () => {
+      if (reduceMotion) return;
+      const board = document.getElementById('board');
+      if (!board) return;
+      board.classList.remove('board-round-pulse');
+      void board.offsetWidth;
+      board.classList.add('board-round-pulse');
+      setTimeout(() => board.classList.remove('board-round-pulse'), 480);
+      // Subtle tick — same family as 'select' but lower / quieter.
+      if (this.sfx && this.sfx._init && this.sfx._init()) {
+        try {
+          this.sfx._tone({ type: 'sine', freq: 440, dur: 0.06, gain: 0.06, attack: 0.003, release: 0.10 });
+          this.sfx._tone({ type: 'sine', freq: 660, dur: 0.05, gain: 0.04, attack: 0.003, release: 0.08, delay: 0.025 });
+        } catch (e) {}
+      }
+    };
     if (Game.startRound) {
       const origRound = Game.startRound.bind(Game);
       Game.startRound = (...rest) => {
@@ -11820,6 +11855,7 @@ const UI = {
         // no previous round to "echo from."
         if (Game.state && Game.state.round && Game.state.round > 1) {
           spawnRoundEcho();
+          punctuateRound();
         }
         return r;
       };

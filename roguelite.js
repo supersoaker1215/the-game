@@ -3074,19 +3074,38 @@ const Roguelite = {
     splash.id = 'rl-boss-clear-splash';
     splash.className = 'rl-boss-clear-splash';
     splash.innerHTML = `
+      <div class="rl-boss-clear-rays" aria-hidden="true">
+        <span class="rl-boss-clear-ray rl-boss-clear-ray-1"></span>
+        <span class="rl-boss-clear-ray rl-boss-clear-ray-2"></span>
+        <span class="rl-boss-clear-ray rl-boss-clear-ray-3"></span>
+        <span class="rl-boss-clear-ray rl-boss-clear-ray-4"></span>
+        <span class="rl-boss-clear-ray rl-boss-clear-ray-5"></span>
+        <span class="rl-boss-clear-ray rl-boss-clear-ray-6"></span>
+        <span class="rl-boss-clear-shock"></span>
+      </div>
       <div class="rl-boss-clear-inner">
         <div class="rl-boss-clear-act">ACT ${act} CLEARED</div>
         <div class="rl-boss-clear-name">${bossName}</div>
         <div class="rl-boss-clear-tag">DEFEATED</div>
       </div>`;
     document.body.appendChild(splash);
+    // Audio cue — victory sting layered on top of the existing
+    // gameplay 'victory' that the engine fires. The relicAcquire
+    // fanfare sits brighter and reads as "moment of triumph" rather
+    // than "fight ended." Audit polish: boss-clear was visually
+    // crisp but lacked an audio punctuation when the splash landed.
+    if (typeof UI !== 'undefined' && UI.sfx && UI.sfx.play) {
+      try { UI.sfx.play('relicAcquire'); } catch (e) {}
+    }
+    // Hold extended from 1300ms → 1700ms — the ray/shockwave layers
+    // need an extra beat to resolve before the splash cleans up.
     setTimeout(() => {
       splash.classList.add('rl-boss-clear-splash-out');
       setTimeout(() => {
         if (splash.parentNode) splash.parentNode.removeChild(splash);
         if (onComplete) onComplete();
       }, 350);
-    }, 1300);
+    }, 1700);
   },
 
   // ----- Phase entry helpers -----
