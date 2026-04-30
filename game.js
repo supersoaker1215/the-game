@@ -1612,6 +1612,106 @@ const Game = {
     return (card.baseCost || card.cost) === maxCost;
   },
 
+  // ===================== playCard helpers =====================
+
+  // Moder + Magneto can pre-empt the player's chosen lane. Returns the
+  // (possibly redirected) laneIdx. Discard-effect cards bypass both
+  // mechanics entirely. Idempotent — clears the forced-lane state once
+  // the redirect either lands or fails (lane destroyed / occupied).
+  _redirectForForcedLane(owner, card, laneIdx) {
+    if (card.isDiscardEffect) return laneIdx;
+    // Moder forced lane — next non-discard card is pulled into forced lane.
+    if (this.state[owner].forcedLane != null) {
+      const fl = this.state[owner].forcedLane;
+      const flLane = this.state.lanes[fl];
+      if (flLane && !flLane.destroyed && !flLane[owner]) {
+        laneIdx = fl;
+        this.state[owner].forcedLane = null;
+        this.log(`[MODER] ${card.name} is pulled into lane ${fl + 1} by Moder!`);
+      } else {
+        this.state[owner].forcedLane = null;
+      }
+    }
+    // Magneto forced lanes — opponent's next cards go to lanes chosen
+    // by Magneto's owner. Stack consumed one-per-play.
+    const queue = this.state[owner].magnetoForcedLanes;
+    if (queue && queue.length > 0) {
+      const fl = queue.shift();
+      const flLane = this.state.lanes[fl];
+      if (flLane && !flLane.destroyed && !flLane[owner]) {
+        laneIdx = fl;
+        this.log(`[MAGNETO] ${card.name} is forced into lane ${fl + 1} by Magneto!`);
+      }
+      if (!queue.length) delete this.state[owner].magnetoForcedLanes;
+    }
+    return laneIdx;
+  },
+
+  // Batman Who Laughs intercept — when the playing side has a flagged
+  // pending steal, the card transfers to the opponent's hand instead of
+  // landing on the board. Player gets a destroy/keep choice; AI auto-
+  // decides by cost. Returns true if the intercept fired (caller bails).
+  _resolveBwlIntercept(owner, card, cost) {
+    if (!this.state[owner].nextCardStolen) return false;
+    this.state[owner].nextCardStolen = false;
+    const opp = this.opponent(owner);
+    // Mark BWL's owner as having consumed their 1-per-game intercept so
+    // subsequent BWL plays on that side don't re-arm the steal.
+    this.state[opp].bwlInterceptUsed = true;
+    const idx = this.state[owner].hand.indexOf(card);
+    if (idx > -1) this.state[owner].hand.splice(idx, 1);
+    this.state[owner].currency -= cost;
+    card.owner = opp;
+    this.log(`[STOLEN] ${card.name} is intercepted by Batman Who Laughs!`);
+    const bwl = this.getAllCardsOf(opp).find(c => c.name === 'The Batman Who Laughs');
+    if (opp === 'player') {
+      // Player chooses keep or destroy via prompt.
+      this.state[opp].stolenByBWL = { card, bwl };
+      UI.render();
+      this._startPromptTimeout(() => {
+        const data = this.state[opp].stolenByBWL;
+        if (!data) return;
+        this.state[opp].stolenByBWL = null;
+        // Default: keep (matches typical player intent — preserves a card)
+        this.addToHand(opp, data.card, data.bwl);
+        this.log(`  [BWL] You keep ${data.card.name} in hand!`);
+        this.resumeCombatIfWaiting();
+        UI.render();
+      });
+    } else {
+      // AI auto-keeps high cost, destroys low cost.
+      if (card.baseCost <= 3 && bwl) {
+        this.buffCard(bwl, 2, 2);
+        this.log(`  [BWL] AI destroys ${card.name} — Batman Who Laughs gains +2/+2!`);
+      } else {
+        this.addToHand(opp, card, bwl);
+        this.log(`  [BWL] AI keeps ${card.name} in hand!`);
+      }
+    }
+    return true;
+  },
+
+  // Hunt mechanic — any opponent card with hasHunt may chase the card
+  // into its lane (frozen/stunned hunters can't move). Direct lane
+  // assignment; onMoved fires post-relocation.
+  _resolveHuntChase(opp, card, laneIdx) {
+    this.getAllCardsOf(opp).forEach(c => {
+      if (!c.hasHunt) return;
+      if (c.isFrozen || c.isStunned) {
+        this.log(`[HUNT BLOCKED] ${c.name} is ${c.isFrozen ? 'FROZEN' : 'STUNNED'} — can't hunt.`);
+        return;
+      }
+      const from = this.findCardLane(c);
+      if (from >= 0 && from !== laneIdx && !this.state.lanes[laneIdx][opp]) {
+        this.state.lanes[from][opp] = null;
+        this.state.lanes[laneIdx][opp] = c;
+        this.log(`[HUNT] ${c.name} hunts ${card.name} to lane ${laneIdx + 1}!`);
+        this.checkLaneTrap(c, laneIdx);
+        if (c.onMoved) c.onMoved(this, c, laneIdx);
+      }
+    });
+  },
+
   playCard(owner, card, laneIdx) {
     if (this.state.gameOver) return false;
     // Multiplayer guest: forward to host instead of executing locally.
@@ -1628,28 +1728,7 @@ const Game = {
       this.log(`[BATMAN] ${card.name} is locked by Batman — cannot be played!`);
       return false;
     }
-    // Moder forced lane — next non-discard card is pulled into forced lane
-    if (!card.isDiscardEffect && this.state[owner].forcedLane != null) {
-      const fl = this.state[owner].forcedLane;
-      const flLane = this.state.lanes[fl];
-      if (flLane && !flLane.destroyed && !flLane[owner]) {
-        laneIdx = fl;
-        this.state[owner].forcedLane = null;
-        this.log(`[MODER] ${card.name} is pulled into lane ${fl + 1} by Moder!`);
-      } else {
-        this.state[owner].forcedLane = null;
-      }
-    }
-    // Magneto forced lanes — opponent's next cards go to lanes chosen by Magneto's owner
-    if (!card.isDiscardEffect && this.state[owner].magnetoForcedLanes && this.state[owner].magnetoForcedLanes.length > 0) {
-      const fl = this.state[owner].magnetoForcedLanes.shift();
-      const flLane = this.state.lanes[fl];
-      if (flLane && !flLane.destroyed && !flLane[owner]) {
-        laneIdx = fl;
-        this.log(`[MAGNETO] ${card.name} is forced into lane ${fl + 1} by Magneto!`);
-      }
-      if (!this.state[owner].magnetoForcedLanes.length) delete this.state[owner].magnetoForcedLanes;
-    }
+    laneIdx = this._redirectForForcedLane(owner, card, laneIdx);
     const lane = this.state.lanes[laneIdx];
     if (!lane || lane.destroyed) return false;
     // Snapshot before any player-initiated card play so the action can be undone.
@@ -1698,46 +1777,11 @@ const Game = {
     const cost = this.getCardCost(owner, card);
     if (this.state[owner].currency < cost) return false;
 
-    // Intercepted by Batman Who Laughs — card goes to opponent's HAND
     const opp = this.opponent(owner);
-    if (this.state[owner].nextCardStolen) {
-      this.state[owner].nextCardStolen = false;
-      // Mark BWL's owner as having consumed their 1-per-game intercept so
-      // subsequent BWL plays on that side don't re-arm the steal.
-      this.state[opp].bwlInterceptUsed = true;
-      const idx = this.state[owner].hand.indexOf(card);
-      if (idx > -1) this.state[owner].hand.splice(idx, 1);
-      this.state[owner].currency -= cost;
-      card.owner = opp;
-      this.log(`[STOLEN] ${card.name} is intercepted by Batman Who Laughs!`);
-      // Find BWL on board to reference for +2/+2
-      const bwl = this.getAllCardsOf(opp).find(c => c.name === 'The Batman Who Laughs');
-      if (opp === 'player') {
-        // Player chooses keep or destroy
-        this.state[opp].stolenByBWL = { card, bwl };
-        UI.render();
-        this._startPromptTimeout(() => {
-          const data = this.state[opp].stolenByBWL;
-          if (!data) return;
-          this.state[opp].stolenByBWL = null;
-          // Default: keep (matches typical player intent — preserves a card)
-          this.addToHand(opp, data.card, data.bwl);
-          this.log(`  [BWL] You keep ${data.card.name} in hand!`);
-          this.resumeCombatIfWaiting();
-          UI.render();
-        });
-      } else {
-        // AI auto-keeps high cost, destroys low cost
-        if (card.baseCost <= 3 && bwl) {
-          this.buffCard(bwl, 2, 2);
-          this.log(`  [BWL] AI destroys ${card.name} — Batman Who Laughs gains +2/+2!`);
-        } else {
-          this.addToHand(opp, card, bwl);
-          this.log(`  [BWL] AI keeps ${card.name} in hand!`);
-        }
-      }
-      return true;
-    }
+    // Batman Who Laughs intercept — extracted to _resolveBwlIntercept;
+    // returns true if the steal fired, in which case we bail out of the
+    // normal play flow.
+    if (this._resolveBwlIntercept(owner, card, cost)) return true;
 
     this.state[owner].currency -= cost;
     if (this.state._stats && this.state._stats[owner]) this.state._stats[owner].energySpent += cost;
@@ -1798,27 +1842,9 @@ const Game = {
       if (c.passive === 'cardPlayedBuff' && c.id !== card.id) { this.buffCard(card, 1, 1); }
     });
 
-    // Hunt — hunter arrives after the card is placed, so splash/onMoved can hit it.
-    // Frozen / stunned hunters can't move (they're locked in lane until the
-    // status clears). User report: "Jango Frozen by venom. But then he moved
-    // — you can't move when you're frozen." Jango's Hunt was bypassing the
-    // moveCard freeze check via direct lane assignment.
-    this.getAllCardsOf(opp).forEach(c => {
-      if (c.hasHunt) {
-        if (c.isFrozen || c.isStunned) {
-          this.log(`[HUNT BLOCKED] ${c.name} is ${c.isFrozen ? 'FROZEN' : 'STUNNED'} — can't hunt.`);
-          return;
-        }
-        const from = this.findCardLane(c);
-        if (from >= 0 && from !== laneIdx && !this.state.lanes[laneIdx][opp]) {
-          this.state.lanes[from][opp] = null;
-          this.state.lanes[laneIdx][opp] = c;
-          this.log(`[HUNT] ${c.name} hunts ${card.name} to lane ${laneIdx + 1}!`);
-          this.checkLaneTrap(c, laneIdx);
-          if (c.onMoved) c.onMoved(this, c, laneIdx);
-        }
-      }
-    });
+    // Hunt mechanic — extracted to _resolveHuntChase. Frozen/stunned
+    // hunters can't move; direct-lane assignment fires onMoved post-jump.
+    this._resolveHuntChase(opp, card, laneIdx);
 
     this._runHook(card, 'onPlay', this, card, laneIdx);
     // Draw-on-play trait — resolves after onPlay. Zeroing drawOnPlay removes the badge from the board display.
