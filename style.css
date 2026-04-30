@@ -22495,6 +22495,31 @@ button:focus-visible, .btn:focus-visible {
   animation: tron-modal-backdrop-in 0.28s ease-out both;
 }
 
+/* Graceful exit for classic overlays — wrapped via UI._closeClassicOverlay.
+   The .classic-overlay-closing class on the OVERLAY element fires a
+   reverse fade-out on the panel + backdrop in lockstep, then the JS
+   hides display:none after the animation completes. Audit finding:
+   classic overlays closed with no exit animation. */
+@keyframes tron-modal-out {
+  from { opacity: 1; transform: translateY(0) scale(1); }
+  to   { opacity: 0; transform: translateY(8px) scale(0.97); }
+}
+@keyframes tron-modal-backdrop-out {
+  from { opacity: 1; }
+  to   { opacity: 0; }
+}
+.classic-overlay-closing .encyc-panel,
+.classic-overlay-closing .settings-panel,
+.classic-overlay-closing .match-history-panel,
+.classic-overlay-closing .stats-panel,
+.classic-overlay-closing .deckbuilder-panel,
+.classic-overlay-closing .mm-panel {
+  animation: tron-modal-out 220ms cubic-bezier(0.4, 0, 0.6, 1) forwards !important;
+}
+.classic-overlay-closing {
+  animation: tron-modal-backdrop-out 220ms ease-in forwards !important;
+}
+
 /* ---- Ambient grid background — extremely subtle moving grid that lives
         behind every overlay so the "Tron computer screen" feel is
         ambient, not stuck on one screen. Pure CSS, GPU-only. Disabled

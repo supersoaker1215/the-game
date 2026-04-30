@@ -203,11 +203,35 @@ const UI = {
     // Re-apply theme on open so the swatch grid reflects the current theme
     // even if the picker was re-rendered. No-op if nothing changed.
     this.applyTheme(this.settings.theme || 'blue');
-    g('settings-overlay').style.display = 'flex';
+    const ov = g('settings-overlay');
+    ov.classList.remove('classic-overlay-closing');
+    ov.style.display = 'flex';
+    if (this.sfx && this.sfx.play) {
+      try { this.sfx.play('modalOpen'); } catch (e) {}
+    }
   },
   // Live-preview the theme as the user changes the dropdown (before Save).
   previewTheme(theme) { this.applyTheme(theme); },
-  closeSettings() { document.getElementById('settings-overlay').style.display = 'none'; },
+  closeSettings() { this._closeClassicOverlay('settings-overlay'); },
+
+  // Graceful exit for classic overlays — adds .classic-overlay-closing
+  // which reverses the entry animation, then hides via display:none
+  // after the animation completes. Audit finding: classic overlays
+  // closed with no exit animation (hard cut). Same UX pattern as the
+  // roguelite rl-modal closing flow.
+  _closeClassicOverlay(overlayId) {
+    const ov = typeof overlayId === 'string' ? document.getElementById(overlayId) : overlayId;
+    if (!ov || ov.style.display === 'none') return;
+    ov.classList.add('classic-overlay-closing');
+    if (this.sfx && this.sfx.play) {
+      try { this.sfx.play('modalClose'); } catch (e) {}
+    }
+    setTimeout(() => {
+      if (!ov.classList.contains('classic-overlay-closing')) return;
+      ov.style.display = 'none';
+      ov.classList.remove('classic-overlay-closing');
+    }, 220);
+  },
 
   // Abandon the current match / draft / deckbuilder session from the
   // Settings modal and bounce back to the main menu. Confirms first so
@@ -3653,37 +3677,45 @@ const UI = {
   },
 
   // Phase transition wipe — Tron-scan overlay that sweeps across the
-  // screen on major roguelite phase boundaries. Audit finding: "phase
-  // changes were hard cuts." Tracks the last seen phase across
-  // renders; if the new phase belongs to one of the roguelite
-  // transitions we want to punctuate, fire a brief wipe overlay.
-  // Skipped for non-roguelite phases and reduced-motion users.
+  // screen on major phase boundaries (both roguelite + classic).
+  // Audit finding: "phase changes were hard cuts." Tracks the last
+  // seen phase across renders; fires a brief wipe overlay when the
+  // transition involves combat or the major prep screens. Skipped
+  // for landing screens (main-menu ↔ mode-select) and reduced-motion.
   _maybePhaseWipe(currentPhase) {
     if (!currentPhase) { this._lastPhase = currentPhase; return; }
     const prev = this._lastPhase;
     this._lastPhase = currentPhase;
     if (!prev || prev === currentPhase) return;
     if (this._reducedMotion && this._reducedMotion()) return;
-    // Only fire for roguelite-level transitions — other phase swaps
-    // (main-menu ↔ mode-select, deckbuilder, drafts) have their own
-    // entry animations and don't need a wipe.
-    const ROGUELITE_PHASES = new Set([
+    // Phases that should punctuate transitions with the wipe.
+    // Excludes the bouncing utility screens (my-decks, stats) and
+    // the main-menu ↔ mode-select hops which already have their own
+    // entry animations.
+    const SIGNIFICANT = new Set([
+      // Roguelite
       'roguelite-map', 'roguelite-rewards', 'roguelite-pick-relic',
       'roguelite-pick-card', 'roguelite-end', 'roguelite-start',
+      // Classic flow
+      'play', 'game-over',
+      'draft-cards', 'draft-tricks',
+      'deckbuilder-build',
     ]);
+    // The 'play' phase is the boundary that earns the most weight —
+    // entering or leaving combat should always wipe. Other transitions
+    // wipe only when both endpoints are in the SIGNIFICANT set.
     const FIGHT_PHASE = (currentPhase === 'play' || prev === 'play');
-    const isRogueTransition = (ROGUELITE_PHASES.has(prev) && ROGUELITE_PHASES.has(currentPhase))
-      || (ROGUELITE_PHASES.has(prev) && FIGHT_PHASE)
-      || (FIGHT_PHASE && ROGUELITE_PHASES.has(currentPhase));
-    if (!isRogueTransition) return;
+    const wipe = FIGHT_PHASE
+      || (SIGNIFICANT.has(prev) && SIGNIFICANT.has(currentPhase));
+    if (!wipe) return;
     // Avoid stacking wipes on rapid back-to-back phase changes.
     if (this._wipeFiring) return;
     this._wipeFiring = true;
-    const wipe = document.createElement('div');
-    wipe.className = 'rl-phase-wipe';
-    document.body.appendChild(wipe);
+    const wipeEl = document.createElement('div');
+    wipeEl.className = 'rl-phase-wipe';
+    document.body.appendChild(wipeEl);
     setTimeout(() => {
-      wipe.remove();
+      wipeEl.remove();
       this._wipeFiring = false;
     }, 540);
   },
@@ -4211,10 +4243,16 @@ const UI = {
     ov.scrollTop = 0;
     const panel = ov.querySelector('.tutorial-panel');
     if (panel) panel.scrollTop = 0;
+    if (this.sfx && this.sfx.play) {
+      try { this.sfx.play('modalOpen'); } catch (e) {}
+    }
   },
   closeTutorial() {
     const ov = document.getElementById('tutorial-overlay');
     if (ov) ov.classList.remove('open');
+    if (this.sfx && this.sfx.play) {
+      try { this.sfx.play('modalClose'); } catch (e) {}
+    }
   },
 
   // Card / trick encyclopedia — browseable grid of everything in the
@@ -4276,13 +4314,18 @@ const UI = {
     }
     this.renderEncyclopedia();
     const ov = document.getElementById('encyclopedia-overlay');
-    if (ov) ov.style.display = 'flex';
+    if (ov) {
+      ov.classList.remove('classic-overlay-closing');
+      ov.style.display = 'flex';
+    }
+    if (this.sfx && this.sfx.play) {
+      try { this.sfx.play('modalOpen'); } catch (e) {}
+    }
     // Hide the dev viewport-toggle while this overlay is open.
     document.body.classList.add('clb-toggle-hidden');
   },
   closeEncyclopedia() {
-    const ov = document.getElementById('encyclopedia-overlay');
-    if (ov) ov.style.display = 'none';
+    this._closeClassicOverlay('encyclopedia-overlay');
     // Restore the dev toggle when returning to the menu.
     document.body.classList.remove('clb-toggle-hidden');
   },
@@ -4855,12 +4898,17 @@ const UI = {
   openMatchHistory() {
     this.renderMatchHistory();
     const ov = document.getElementById('match-history-overlay');
-    if (ov) { ov.style.display = 'flex'; }
+    if (ov) {
+      ov.classList.remove('classic-overlay-closing');
+      ov.style.display = 'flex';
+    }
+    if (this.sfx && this.sfx.play) {
+      try { this.sfx.play('modalOpen'); } catch (e) {}
+    }
     document.body.classList.add('clb-toggle-hidden');
   },
   closeMatchHistory() {
-    const ov = document.getElementById('match-history-overlay');
-    if (ov) { ov.style.display = 'none'; }
+    this._closeClassicOverlay('match-history-overlay');
     document.body.classList.remove('clb-toggle-hidden');
   },
   renderMatchHistory() {
