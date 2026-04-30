@@ -24230,3 +24230,187 @@ input[type="number"]::-webkit-outer-spin-button {
 .audio-audit-panel .aa-table tbody tr:hover td {
   background: rgba(var(--theme-rgb, 79,195,247), 0.04) !important;
 }
+
+/* ============================================================
+   WAVE A.5 — extra fixes from screenshot 2
+   ============================================================ */
+
+/* FROZEN ICON RED BLEED FIX. The snowflake at .health-container.hp-frozen::before
+   sits at left:-20px which puts it OUTSIDE the health-container, on top
+   of whatever chrome the parent .ai-bar / .player-bar has. The red glow
+   from the AI side bleeds through the snowflake area as a subtle red
+   square. Solution: give the snowflake its own dark circular backdrop
+   that masks anything behind it. */
+.health-container.hp-frozen::before {
+  background: radial-gradient(circle, rgba(0,0,0,0.85) 50%, rgba(0,0,0,0) 80%) !important;
+  padding: 2px 4px !important;
+  border-radius: 50% !important;
+}
+
+/* MODE-SELECT HOVER THEME ADOPTION. .mode-option:hover was hardcoded
+   blue gradient + accent bar — on non-blue themes the fill stayed
+   blue while the rest of the menu (corner brackets, divider, button
+   highlights) painted in the user's color. Convert to theme. */
+.mode-option {
+  background:
+    linear-gradient(90deg, rgba(var(--theme-rgb, 79,195,247),0.06) 0%, rgba(0,0,0,0) 55%),
+    #000 !important;
+}
+.mode-option::before {
+  background: rgba(var(--theme-rgb, 79,195,247),0.60) !important;
+  box-shadow: 0 0 6px rgba(var(--theme-rgb, 79,195,247),0.55) !important;
+}
+.mode-option:hover {
+  background:
+    linear-gradient(90deg, rgba(var(--theme-rgb, 79,195,247),0.12) 0%, rgba(0,0,0,0) 55%),
+    rgba(var(--theme-rgb, 79,195,247),0.04) !important;
+}
+.mode-option:hover::before {
+  background: rgb(var(--theme-rgb, 79,195,247)) !important;
+  box-shadow:
+    0 0 10px rgba(var(--theme-rgb, 79,195,247),1),
+    0 0 18px rgba(var(--theme-rgb, 79,195,247),0.55) !important;
+}
+
+/* ============================================================
+   WAVE B-1 — MULTIPLAYER PANEL POLISH
+   ============================================================
+   Agent audit findings (14 items synthesized): theme-aware borders,
+   3-layer glow stack, settings-style texture, button polish. The
+   .mp-panel inherits from a shared .mh-panel rule, but several
+   .mp-* selectors had their own divergent chrome. */
+
+/* Multiplayer panel — match settings-style surface treatment.
+   Already gets the gradient + scanline texture via the parent
+   panel rule earlier in the polish pass. Add the 3-layer glow
+   and theme border specifically. */
+.multiplayer-panel,
+.mp-panel {
+  border: 1px solid rgba(var(--theme-rgb, 79,195,247), 0.55) !important;
+  box-shadow:
+    0 0 32px rgba(var(--theme-rgb, 79,195,247), 0.30),
+    0 0 72px rgba(var(--theme-rgb, 79,195,247), 0.14),
+    inset 0 0 0 1px rgba(var(--theme-rgb, 79,195,247), 0.08) !important;
+}
+
+/* Multiplayer overlay — backdrop blur for focus separation. */
+.multiplayer-overlay {
+  backdrop-filter: blur(4px) !important;
+  -webkit-backdrop-filter: blur(4px) !important;
+}
+
+/* Multiplayer tabs + form inputs — theme-aware borders. */
+.mp-tabs,
+.mp-code-input,
+.mp-code-display {
+  border-color: rgba(var(--theme-rgb, 79,195,247), 0.45) !important;
+}
+.mp-tab-active {
+  background: rgba(var(--theme-rgb, 79,195,247), 0.12) !important;
+  border-color: rgba(var(--theme-rgb, 79,195,247), 0.95) !important;
+  color: rgba(var(--theme-rgb, 79,195,247), 1) !important;
+  box-shadow:
+    0 0 10px rgba(var(--theme-rgb, 79,195,247), 0.45),
+    inset 0 0 8px rgba(var(--theme-rgb, 79,195,247), 0.10) !important;
+}
+.mp-code-input:focus,
+.mp-code-display:focus {
+  outline: none !important;
+  border-color: rgba(var(--theme-rgb, 79,195,247), 1) !important;
+  box-shadow: 0 0 0 2px rgba(var(--theme-rgb, 79,195,247), 0.30) !important;
+}
+
+/* Multiplayer leave button — match the secondary button glow stack. */
+.mp-leave {
+  box-shadow:
+    inset 0 0 0 1px rgba(180,200,220,0.20),
+    inset 0 0 6px rgba(180,200,220,0.04),
+    0 0 8px rgba(180,200,220,0.25),
+    0 0 18px rgba(180,200,220,0.10) !important;
+}
+
+/* ============================================================
+   WAVE B-3 — DECK BUILDER POLISH
+   ============================================================
+   Agent audit findings (16 items synthesized): title size parity
+   with settings reference, section group titles, theme-aware
+   borders, hover lifts, glow stacks. */
+
+/* Deck builder title — bump to settings reference (32px / 8px ls). */
+.db-title {
+  font-size: 32px !important;
+  letter-spacing: 8px !important;
+}
+
+/* Deck builder section headings — match .settings-group-title.
+   These were 10px without text-shadow; now consistent across panels. */
+.db-deck-heading,
+.db-section-title {
+  font-family: 'Rajdhani', sans-serif !important;
+  font-size: 11px !important;
+  letter-spacing: 2.5px !important;
+  text-transform: uppercase !important;
+  color: rgba(var(--theme-rgb, 79,195,247), 1) !important;
+  text-shadow:
+    0 0 6px rgba(var(--theme-rgb, 79,195,247), 0.55),
+    0 0 14px rgba(var(--theme-rgb, 79,195,247), 0.25) !important;
+  border-bottom: 1px solid rgba(var(--theme-rgb, 79,195,247), 0.55) !important;
+  padding-bottom: 4px !important;
+}
+
+/* Deck builder grid card hover — add the proper glow stack so cards
+   read as theme-active when hovered, not just shifted up 1px. */
+.db-grid-item {
+  border-color: rgba(var(--theme-rgb, 79,195,247), 0.25) !important;
+  transition: all 0.15s !important;
+}
+.db-grid-item:hover {
+  transform: translateY(-2px) !important;
+  border-color: rgba(var(--theme-rgb, 79,195,247), 0.85) !important;
+  box-shadow:
+    0 0 12px rgba(var(--theme-rgb, 79,195,247), 0.40),
+    0 0 24px rgba(var(--theme-rgb, 79,195,247), 0.18) !important;
+}
+
+/* Deck builder action buttons — match .btn-primary glow stack. */
+.db-save-btn,
+.db-load-btn,
+.db-start-btn {
+  transition: transform 0.15s, box-shadow 0.15s, color 0.15s !important;
+}
+.db-save-btn:hover,
+.db-load-btn:hover,
+.db-start-btn:hover {
+  transform: translateY(-2px) !important;
+}
+
+/* Deck builder search focus — settings-reference 2-layer glow. */
+.db-search:focus {
+  outline: none !important;
+  border-color: rgba(var(--theme-rgb, 79,195,247), 1) !important;
+  box-shadow:
+    0 0 10px rgba(var(--theme-rgb, 79,195,247), 0.50),
+    0 0 20px rgba(var(--theme-rgb, 79,195,247), 0.25) !important;
+}
+
+/* Deck builder tab hover lift consistency. */
+.db-tab:hover {
+  transform: translateY(-1px) !important;
+}
+
+/* Deck builder cost chip — theme-aware base border (was hardcoded white). */
+.db-cost-chip {
+  border-color: rgba(var(--theme-rgb, 79,195,247), 0.30) !important;
+}
+.db-cost-chip:hover {
+  border-color: rgba(var(--theme-rgb, 79,195,247), 0.70) !important;
+}
+
+/* Deck builder empty state — themed dashed border. */
+.db-deck-empty {
+  border: 1px dashed rgba(var(--theme-rgb, 79,195,247), 0.25) !important;
+  background: rgba(var(--theme-rgb, 79,195,247), 0.03) !important;
+  padding: 12px !important;
+  border-radius: 4px !important;
+  text-align: center !important;
+}
