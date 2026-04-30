@@ -23896,3 +23896,118 @@ input[type="number"]::-webkit-outer-spin-button {
     0 0 8px rgba(180,200,220,0.25),
     0 0 18px rgba(180,200,220,0.10);
 }
+
+/* ============================================================
+   PANEL CHROME PARITY — settings-panel design language applied
+   ============================================================
+   User direction (looking at gold-themed Settings): "I really like
+   how the menu settings look. This looks professional grade quality.
+   Now run agents in order to emulate exactly what you did here
+   across the entire game."
+
+   The settings-panel "premium feel" is a stack of:
+     1. Solid #060a12 background (deep blue-black)
+     2. Subtle vertical theme-tinted gradient wash
+     3. Subtle horizontal scanline texture
+     4. 1px theme-bright border
+     5. Three-layer box-shadow glow (inner / outer / inset edge)
+     6. Backdrop blur 4px on the overlay
+
+   This pass applies items 2-3 to every other major panel + unifies
+   any divergent box-shadow stacks. Texture overlays + scanlines now
+   theme-tint via var(--theme-rgb), so a gold theme paints gold
+   ambient surface, blue paints blue, etc.
+
+   Keep these as polish OVERRIDES at the end of the cascade so we
+   don't touch the inline CSS for each panel. Lower-traffic panels
+   that already feel right (encyc, match-history) only get the
+   scanline texture; chrome stays untouched. */
+
+/* Theme-ize the existing wave-1 polish texture so the gradient +
+   scanline tint follow the user's chosen color. (Was hardcoded blue
+   in the original audit pass.) */
+.settings-panel {
+  background:
+    linear-gradient(180deg, rgba(var(--theme-rgb, 79,195,247),0.05) 0%, transparent 45%),
+    repeating-linear-gradient(0deg, transparent 0 2px, rgba(var(--theme-rgb, 79,195,247),0.025) 2px 3px),
+    #060a12 !important;
+}
+.tutorial-panel {
+  background:
+    repeating-linear-gradient(0deg, rgba(var(--theme-rgb, 79,195,247),0.022) 0 2px, transparent 2px 4px),
+    linear-gradient(180deg, rgba(var(--theme-rgb, 79,195,247),0.06) 0%, rgba(0,0,0,0) 38%),
+    #000 !important;
+}
+
+/* Apply the same gradient + scanline texture to every major panel. */
+.round-summary-panel,
+.match-history-panel,
+.stats-panel,
+.md-panel,
+.encyc-panel,
+.draft-panel,
+.mode-panel,
+.game-over-content {
+  background:
+    linear-gradient(180deg, rgba(var(--theme-rgb, 79,195,247),0.05) 0%, transparent 45%),
+    repeating-linear-gradient(0deg, transparent 0 2px, rgba(var(--theme-rgb, 79,195,247),0.025) 2px 3px),
+    #060a12 !important;
+}
+
+/* Unify the glow-stack across panels — settings reference is:
+     0 0 32px inner-glow, 0 0 72px outer-glow, inset 0 0 0 1px wash
+   Several panels were using a single-layer shadow or a custom
+   stack. Override here so every major panel gets the same depth.
+
+   Scoped via :where() so specificity stays low — inline panel CSS
+   that intentionally diverges (boss-clear splash, treasure burst,
+   etc.) wins. */
+.round-summary-panel,
+.mode-panel,
+.draft-panel,
+.md-panel,
+.stats-panel {
+  box-shadow:
+    0 0 32px rgba(var(--theme-rgb, 79,195,247),0.30),
+    0 0 72px rgba(var(--theme-rgb, 79,195,247),0.14),
+    inset 0 0 0 1px rgba(var(--theme-rgb, 79,195,247),0.08) !important;
+  border: 1px solid rgba(var(--theme-rgb, 79,195,247),0.55) !important;
+}
+
+/* Game-over content was hardcoded white border + shadow (the
+   default state). Unify with the theme system. Victory/defeat
+   tints (the colored overlay variants) override this in their
+   own scoped rules. */
+.game-over-content {
+  border: 1px solid rgba(var(--theme-rgb, 79,195,247),0.55) !important;
+  box-shadow:
+    0 0 32px rgba(var(--theme-rgb, 79,195,247),0.30),
+    0 0 72px rgba(var(--theme-rgb, 79,195,247),0.14),
+    inset 0 0 0 1px rgba(var(--theme-rgb, 79,195,247),0.08) !important;
+}
+
+/* Floating prompt panel (Block Trick / Time Stone / etc.) used a
+   custom 3-step shadow. Replace with the canonical reference. */
+.floating-prompt-panel,
+.fp-panel {
+  box-shadow:
+    0 0 32px rgba(var(--theme-rgb, 79,195,247),0.30),
+    0 0 72px rgba(var(--theme-rgb, 79,195,247),0.14),
+    inset 0 0 0 1px rgba(var(--theme-rgb, 79,195,247),0.08) !important;
+}
+
+/* Title size parity — md-title and stats-title were 26px; bump
+   to 32px to match the .settings-panel h2 reference + .rl-modal-title. */
+.md-title,
+.stats-title {
+  font-size: 32px !important;
+  letter-spacing: 8px !important;
+}
+
+/* Backdrop blur on the dead-pile peek popover — was a flat dark
+   panel without focus separation. Settings overlay has blur 4px;
+   this matches it. Subtle so combat readability stays. */
+.dead-peek {
+  backdrop-filter: blur(4px) !important;
+  -webkit-backdrop-filter: blur(4px) !important;
+}
