@@ -24682,3 +24682,116 @@ input[type="number"]::-webkit-outer-spin-button {
 .rl-phase-wipe::before {
   animation: rlPhaseWipeSweep 1300ms cubic-bezier(0.65, 0, 0.35, 1) forwards !important;
 }
+
+/* ============================================================
+   WAVE E — comprehensive default-blue purge round 3
+   ============================================================
+   User direction: "everything that's blue should also be green,
+   red, white, purple, etc. depending on the neon theme. The little
+   inconsistencies pull you out of immersion."
+
+   Three parallel agents found ~50 remaining hardcoded blue spots
+   that bypass the theme system. Filtered for ones that should
+   actually theme (vs gameplay signaling like rarity colors,
+   cost-tier colors, log event colors, freeze/fear/stun status
+   colors which stay constant).
+
+   Strategy:
+   - Player-side chrome → rgba(var(--player-r), var(--player-g),
+     var(--player-b), N) — auto-themes via the body.theme-* class
+     system (already wired)
+   - Pure UI chrome → rgba(var(--theme-rgb), N)
+   ============================================================ */
+
+/* HUD chrome — top strip, dividers, deck count badge.
+   These are pure UI chrome (not player vs AI signaling), so
+   they should follow the theme picker. */
+.hud-divider.hud-divider-cyan {
+  background: rgb(var(--theme-rgb, 79,195,247)) !important;
+  box-shadow:
+    0 0 5px rgba(var(--theme-rgb, 79,195,247), 1),
+    0 0 12px rgba(var(--theme-rgb, 79,195,247), 0.55) !important;
+}
+.hud-eyebrow {
+  color: rgb(var(--theme-rgb, 79,195,247)) !important;
+  text-shadow: 0 0 6px rgba(var(--theme-rgb, 79,195,247), 0.45) !important;
+}
+/* General HUD divider (not the cyan-specific one). */
+.hud-divider:not(.hud-divider-cyan) {
+  background: linear-gradient(90deg,
+    transparent 0%,
+    rgba(var(--theme-rgb, 79,195,247), 0.55) 30%,
+    rgba(var(--theme-rgb, 79,195,247), 0.55) 70%,
+    transparent 100%) !important;
+}
+.hud-divider:not(.hud-divider-cyan)::after {
+  background: rgb(var(--theme-rgb, 79,195,247)) !important;
+  box-shadow:
+    0 0 6px rgba(var(--theme-rgb, 79,195,247), 1),
+    0 0 14px rgba(var(--theme-rgb, 79,195,247), 0.65) !important;
+}
+.hud-count-deck b {
+  color: rgb(var(--theme-rgb, 79,195,247)) !important;
+  border-color: rgba(var(--theme-rgb, 79,195,247), 0.95) !important;
+}
+
+/* Round-opener + phase tint — these signal "you go first" / "AI goes
+   first." Player-first uses --player-* so it themes automatically. */
+body.round-first-player .hud-round {
+  text-shadow: 0 0 6px rgba(var(--player-r, 79), var(--player-g, 195), var(--player-b, 247), 0.40) !important;
+}
+body.round-first-player .hud-round #round-num {
+  color: rgb(var(--player-r, 79), var(--player-g, 195), var(--player-b, 247)) !important;
+  text-shadow:
+    0 0 6px rgba(var(--player-r, 79), var(--player-g, 195), var(--player-b, 247), 0.95),
+    0 0 14px rgba(var(--player-r, 79), var(--player-g, 195), var(--player-b, 247), 0.45) !important;
+}
+body.turn-player .hud-phase {
+  color: rgb(var(--player-r, 79), var(--player-g, 195), var(--player-b, 247)) !important;
+  text-shadow:
+    0 0 6px rgba(var(--player-r, 79), var(--player-g, 195), var(--player-b, 247), 0.65),
+    0 0 14px rgba(var(--player-r, 79), var(--player-g, 195), var(--player-b, 247), 0.30) !important;
+}
+
+/* Lane hover (player's own lane) — was hardcoded blue. Use
+   --player-* so it follows theme. */
+.lane:hover {
+  border-image: linear-gradient(180deg,
+    rgba(var(--player-r, 79), var(--player-g, 195), var(--player-b, 247), 0.95) 0%,
+    rgba(var(--player-r, 79), var(--player-g, 195), var(--player-b, 247), 0.95) 9%,
+    transparent 9%, transparent 91%,
+    rgba(var(--player-r, 79), var(--player-g, 195), var(--player-b, 247), 0.95) 91%,
+    rgba(var(--player-r, 79), var(--player-g, 195), var(--player-b, 247), 0.95) 100%) 1 !important;
+  box-shadow:
+    0 0 12px rgba(var(--player-r, 79), var(--player-g, 195), var(--player-b, 247), 0.60),
+    inset 0 0 18px rgba(var(--player-r, 79), var(--player-g, 195), var(--player-b, 247), 0.25) !important;
+}
+.lane-label.lane-active {
+  background: rgba(var(--player-r, 79), var(--player-g, 195), var(--player-b, 247), 0.12) !important;
+}
+
+/* Card abilities divider strip — small horizontal accent line above
+   the keyword chip row. Was hardcoded blue gradient. Theme it. */
+.card .card-abilities:not(:empty)::before {
+  background: linear-gradient(90deg,
+    transparent,
+    rgba(var(--theme-rgb, 79,195,247), 0.22),
+    transparent) !important;
+}
+
+/* Ally card edge tint — was hardcoded blue, should use player. */
+.card.ally-card {
+  --card-edge: rgba(var(--player-r, 79), var(--player-g, 195), var(--player-b, 247), 0.85) !important;
+}
+
+/* Draft card chrome — outer border ghost, name + desc text-shadow.
+   These read as the player's selection chrome, theme via theme-rgb. */
+.draft-card::before {
+  border-color: rgba(var(--theme-rgb, 79,195,247), 0.12) !important;
+}
+.draft-card .card-name {
+  text-shadow: 0 0 8px rgba(var(--theme-rgb, 79,195,247), 0.50), 0 1px 3px rgba(0,0,0,0.95) !important;
+}
+.draft-card .card-desc {
+  text-shadow: 0 0 4px rgba(var(--theme-rgb, 79,195,247), 0.25) !important;
+}
