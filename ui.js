@@ -3758,10 +3758,16 @@ const UI = {
     const wipeEl = document.createElement('div');
     wipeEl.className = 'rl-phase-wipe';
     document.body.appendChild(wipeEl);
+    // Bug fix: removal timeout was 540ms but the CSS animation duration
+    // was bumped to 1300ms (style.css:24672 — `rlPhaseWipeSweep 1300ms`).
+    // The wipe element was getting ripped out of the DOM at the ~25%
+    // mark (right after the 20% black-hold ended), so users only saw
+    // the leading edge appear and snap away. Extended to 1320ms (slight
+    // buffer past animation end) so the sweep plays through completely.
     setTimeout(() => {
       wipeEl.remove();
       this._wipeFiring = false;
-    }, 540);
+    }, 1320);
   },
 
   _screenShake(intensity) {
