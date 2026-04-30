@@ -20946,21 +20946,23 @@ body.killing-blow-cinema::after {
   100% { width: 1400px; height: 1400px; opacity: 0; border-width: 1px; }
 }
 
-/* Current-ascension highlight in the pre-run picker. */
+/* Current-ascension highlight in the pre-run picker — follows neon theme. */
 .rl-asc-cur {
-  border-color: rgba(255,200,80,0.95) !important;
+  border-color: rgba(var(--theme-rgb, 79,195,247), 0.95) !important;
   box-shadow:
-    0 0 16px rgba(255,210,100,0.55),
-    0 0 36px rgba(255,200,80,0.20),
+    0 0 16px rgba(var(--theme-rgb, 79,195,247), 0.55),
+    0 0 36px rgba(var(--theme-rgb, 79,195,247), 0.20),
     inset 0 0 0 1px rgba(255,255,255,0.10) !important;
 }
 .rl-asc-cur::before {
-  background: rgba(255,210,100,0.85) !important;
-  box-shadow: 0 0 10px rgba(255,210,100,1), 0 0 18px rgba(255,200,80,0.55) !important;
+  background: rgba(var(--theme-rgb, 79,195,247), 0.85) !important;
+  box-shadow:
+    0 0 10px rgba(var(--theme-rgb, 79,195,247), 1),
+    0 0 18px rgba(var(--theme-rgb, 79,195,247), 0.55) !important;
 }
 .rl-asc-cur .rl-levelup-bucket {
-  color: #ffe066 !important;
-  text-shadow: 0 0 6px rgba(255,210,100,0.85) !important;
+  color: rgba(var(--theme-rgb, 79,195,247), 1) !important;
+  text-shadow: 0 0 6px rgba(var(--theme-rgb, 79,195,247), 0.85) !important;
 }
 
 /* Auto-granted-trait banner — neon panel with corner accents and a
