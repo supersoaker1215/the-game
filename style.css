@@ -12922,17 +12922,17 @@ body.round-transition .board-section::before {
 .card.enemy-card .destroy-shard { color: var(--enemy-accent-bright); }
 
 /* ---- Phase transition wipe ----
-   Tron-scan overlay that sweeps across the screen on major roguelite
-   phase boundaries (map → fight, fight → rewards, rewards → map).
-   Three layered scan lines move at slightly different speeds + the
-   leading edge has a bright glow so it reads as a "boot-up" sweep
-   rather than a flat curtain. Audit finding: "phase changes are hard
-   cuts." Total duration 540ms. Triggered from UI._maybePhaseWipe. */
+   Tron-scan overlay that sweeps across the screen on major phase
+   boundaries. Single full-viewport gradient bar sweeps left → right
+   with a bright theme-colored leading edge that decays into a
+   translucent darkening so the screen-swap is hidden mid-sweep
+   without leaving an opaque black gap. Theme-aware via --theme-rgb.
+   Audit follow-up: previous version hardcoded blue + had a visible
+   black gap mid-wipe; this version uses var(--theme-rgb) and a
+   single continuous gradient. */
 @keyframes rlPhaseWipeSweep {
-  0%   { transform: translateX(-100%); opacity: 0; }
-  10%  { opacity: 1; }
-  90%  { opacity: 1; }
-  100% { transform: translateX(100%); opacity: 0; }
+  0%   { transform: translate3d(-110%, 0, 0); }
+  100% { transform: translate3d(110%, 0, 0); }
 }
 .rl-phase-wipe {
   position: fixed; inset: 0;
@@ -12940,31 +12940,45 @@ body.round-transition .board-section::before {
   z-index: 9998;
   overflow: hidden;
 }
-.rl-phase-wipe::before,
-.rl-phase-wipe::after {
-  content: ""; position: absolute; top: 0; bottom: 0;
-  width: 35%;
-}
-/* Leading edge — bright neon glow with hard scan-line texture. */
+/* Single sweeping bar — wide enough to fully cover the viewport at
+   the midpoint, with a bright leading edge and a soft trailing
+   shadow that fades out the same way. The viewport-spanning width
+   means there's never a "gap" between the leading edge and the
+   trailing fill — they're one continuous element. Texture lives in
+   the gradient itself; scanlines layered on top via background-blend.
+   Theme-tinted via --theme-rgb so red/gold/green/purple/silver runs
+   sweep in their respective neons instead of a hardcoded blue. */
 .rl-phase-wipe::before {
+  content: "";
+  position: absolute; top: 0; bottom: 0;
   left: 0;
+  width: 200%;
+  /* Layered backgrounds (front → back):
+     1. Bright leading-edge spike — narrow neon line at the front.
+     2. Theme-tinted body wash — the bar's inner glow that prevents
+        the screen behind from being visible mid-sweep.
+     3. Soft trailing shadow — fades out the bar without leaving a
+        hard edge.
+     4. Scan-line texture — subtle horizontal lines for Tron feel. */
   background:
-    linear-gradient(90deg, transparent 0%, rgba(79,195,247,0.08) 30%, rgba(79,195,247,0.18) 70%, rgba(79,195,247,0.55) 95%, #4fc3f7 100%),
-    repeating-linear-gradient(0deg, rgba(79,195,247,0.05) 0 2px, transparent 2px 5px);
+    linear-gradient(90deg,
+      transparent 0%,
+      rgba(0,0,0,0.20) 30%,
+      rgba(var(--theme-rgb, 79,195,247), 0.20) 44%,
+      rgba(var(--theme-rgb, 79,195,247), 0.55) 49%,
+      rgb(var(--theme-rgb, 79,195,247)) 50%,
+      rgba(var(--theme-rgb, 79,195,247), 0.55) 51%,
+      rgba(var(--theme-rgb, 79,195,247), 0.18) 56%,
+      rgba(0,0,0,0.18) 65%,
+      transparent 95%),
+    repeating-linear-gradient(0deg,
+      rgba(var(--theme-rgb, 79,195,247), 0.04) 0 2px,
+      transparent 2px 5px);
+  background-blend-mode: screen, normal;
   box-shadow:
-    8px 0 24px rgba(79,195,247,0.55),
-    16px 0 48px rgba(79,195,247,0.30);
+    inset 0 0 60px rgba(var(--theme-rgb, 79,195,247), 0.20);
   animation: rlPhaseWipeSweep 540ms cubic-bezier(0.65, 0, 0.35, 1) forwards;
-}
-/* Trailing fill — opaque black so the screen swap is briefly hidden. */
-.rl-phase-wipe::after {
-  left: -35%;
-  background:
-    linear-gradient(90deg, #000 0%, #000 60%, rgba(0,0,0,0.85) 90%, transparent 100%),
-    repeating-linear-gradient(0deg, rgba(79,195,247,0.025) 0 2px, transparent 2px 4px);
-  width: 70%;
-  animation: rlPhaseWipeSweep 540ms cubic-bezier(0.65, 0, 0.35, 1) forwards;
-  animation-delay: 30ms;
+  will-change: transform;
 }
 
 /* ============================================================
