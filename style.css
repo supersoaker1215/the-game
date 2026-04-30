@@ -24011,3 +24011,72 @@ input[type="number"]::-webkit-outer-spin-button {
   backdrop-filter: blur(4px) !important;
   -webkit-backdrop-filter: blur(4px) !important;
 }
+
+/* ============================================================
+   IN-FIGHT BOARD + MAIN MENU — settings-panel polish extension
+   ============================================================
+   User direction (looking at gold-themed Settings while on the
+   in-fight board): "Can we apply this to the actual board?"
+   Same ask for main menu.
+
+   CRITICAL — combat readability wins on the board. Texture
+   added here is at very low opacity (0.020-0.030) so HP flashes,
+   damage pulses, status glows, and active animations stay
+   crisp. ONLY chrome elements get the polish — lane interiors,
+   card renders, HP fills, energy rings, block meters all stay
+   untouched. */
+
+/* Top HUD strip — ROUND / DECK / TRICKS pill row. Was flat
+   black with a hairline white border. Settings-style scanline
+   gives it the same "panel surface" feel as the modals. */
+.turn-hud {
+  background:
+    linear-gradient(180deg, rgba(var(--theme-rgb, 79,195,247),0.04) 0%, transparent 50%),
+    repeating-linear-gradient(0deg, transparent 0 2px, rgba(var(--theme-rgb, 79,195,247),0.020) 2px 3px),
+    rgba(0,0,0,0.6) !important;
+}
+
+/* Phase banner — appears between rounds + during state transitions.
+   Gets the same texture treatment so it reads as part of the same
+   premium panel system. Variant-specific tints (combat=gold,
+   tricks=purple, etc.) override the gradient color via cascade. */
+.phase-banner-text {
+  background:
+    linear-gradient(180deg, rgba(var(--theme-rgb, 79,195,247),0.05) 0%, transparent 45%),
+    repeating-linear-gradient(0deg, transparent 0 2px, rgba(var(--theme-rgb, 79,195,247),0.025) 2px 3px),
+    #060a12 !important;
+}
+
+/* Board outer wrapper — gets a subtle gradient wash + scanline
+   that fades into transparent so the lane interiors stay clean.
+   Texture only paints on the OUTER edges where there's no
+   gameplay content. */
+.board-section {
+  background:
+    linear-gradient(180deg, rgba(var(--theme-rgb, 79,195,247),0.04) 0%, transparent 28%, transparent 72%, rgba(var(--theme-rgb, 79,195,247),0.04) 100%),
+    repeating-linear-gradient(0deg, transparent 0 2px, rgba(var(--theme-rgb, 79,195,247),0.015) 2px 3px),
+    #060a12 !important;
+}
+
+/* Main menu panel — was solid #000 background. Switching to
+   the same #060a12 base + gradient + scanline that settings
+   uses, so the menu reads as the same "professional surface"
+   the user complimented. Theme-aware so a gold theme paints
+   gold ambient texture, blue paints blue, etc. */
+.mm-panel {
+  background:
+    linear-gradient(180deg, rgba(var(--theme-rgb, 79,195,247),0.05) 0%, transparent 45%),
+    repeating-linear-gradient(0deg, transparent 0 2px, rgba(var(--theme-rgb, 79,195,247),0.025) 2px 3px),
+    #060a12 !important;
+}
+
+/* Main menu options (the big button list) — subtle scanline so
+   they feel like part of the same surface as the panel they sit
+   in. Lower opacity than the panel itself (0.015 vs 0.025) so
+   the button doesn't read as a separate textured slab. */
+.mm-option {
+  background:
+    linear-gradient(180deg, rgba(var(--theme-rgb, 79,195,247),0.025) 0%, transparent 50%),
+    repeating-linear-gradient(0deg, transparent 0 2px, rgba(var(--theme-rgb, 79,195,247),0.015) 2px 3px),
+    #060a12 !important;
+}
