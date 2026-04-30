@@ -4224,10 +4224,18 @@ const UI = {
           <div class="mm-section-label">Play</div>
           <div class="mm-grid mm-grid-section">
             ${btn('mm-play',    'Solo Match',   'Play against the AI',                                    SVG.play,     "Game.goToModeSelect()")}
-            ${(typeof Roguelite !== 'undefined' && Roguelite.hasSavedRun && Roguelite.hasSavedRun())
-              ? btn('mm-rogue-resume', 'Continue Run', 'Resume your saved roguelite climb',                 SVG.play,    "Roguelite.resumeRun()")
-              : ''}
-            ${btn('mm-rogue',   'Roguelite',    'Climb a 6-fight ladder — build your deck as you go · beta', SVG.play,  "Roguelite.enterRun()")}
+            ${(() => {
+              // Consolidated Continue Run + Roguelite button. User
+              // direction: "Get rid of Continue Run completely, just
+              // implement that into the Roguelite button — when it
+              // says ascension zero, it'll just say continue last run."
+              // Trims the menu by one button when a save exists.
+              const savedInfo = (typeof Roguelite !== 'undefined' && Roguelite.savedRunInfo) ? Roguelite.savedRunInfo() : null;
+              if (savedInfo) {
+                return btn('mm-rogue', 'Roguelite', `${savedInfo.label} · ${savedInfo.fightsWon} fights won`, SVG.play, "Roguelite.resumeRun()");
+              }
+              return btn('mm-rogue', 'Roguelite', 'Climb a 6-fight ladder — build your deck as you go · beta', SVG.play, "Roguelite.enterRun()");
+            })()}
             ${btn('mm-multi',   'Multiplayer',  'Match a friend over the internet · beta',                SVG.multi,    "UI.openMultiplayer()")}
             ${btn('mm-tutorial','Tutorial',     'Two-minute primer on how to play',                       helpSVG,      "UI.openTutorial()")}
           </div>

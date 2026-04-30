@@ -24436,3 +24436,150 @@ input[type="number"]::-webkit-outer-spin-button {
   padding-bottom: 4px !important;
   margin-bottom: 10px !important;
 }
+
+/* ============================================================
+   WAVE C — comprehensive default-blue sweep round 2
+   ============================================================
+   User reported still seeing blue defaults in:
+     - Stats panel (chips, source buttons, table headers, AI weights,
+       sim history)
+     - Block circle inner fill (the colored progress bar inside)
+     - Energy circle ring
+     - Mobile preview toggle button
+     - Deck builder cards/tricks panel borders
+   Plus menu compaction: trim top space + consolidate Continue Run
+   into Roguelite button.
+   ============================================================ */
+
+/* STATS PANEL — Agent-audited 25 hardcoded blue values converted
+   to theme. Covers summary chips, source buttons, view tabs,
+   AI weights panel, table headers, sim run history. */
+.stats-summary-chip {
+  border-color: rgba(var(--theme-rgb, 79,195,247), 0.55) !important;
+  box-shadow:
+    0 0 10px rgba(var(--theme-rgb, 79,195,247), 0.25),
+    inset 0 0 0 1px rgba(var(--theme-rgb, 79,195,247), 0.08) !important;
+}
+.stats-summary-label,
+.stats-subtitle,
+.stats-source-btn,
+.stats-view-btn,
+.ai-weight-group-title,
+.ai-weights-caret,
+.stats-hist-count {
+  color: rgba(var(--theme-rgb, 79,195,247), 0.70) !important;
+}
+.stats-source-btn,
+.stats-view-btn,
+.stats-export-btn {
+  border-color: rgba(var(--theme-rgb, 79,195,247), 0.45) !important;
+}
+.stats-source-btn:hover,
+.stats-view-btn:hover {
+  border-color: rgba(var(--theme-rgb, 79,195,247), 0.85) !important;
+  color: rgba(var(--theme-rgb, 79,195,247), 0.95) !important;
+}
+.stats-source-active,
+.stats-view-active {
+  background: rgba(var(--theme-rgb, 79,195,247), 0.15) !important;
+  border-color: rgba(var(--theme-rgb, 79,195,247), 1) !important;
+  color: rgba(var(--theme-rgb, 79,195,247), 1) !important;
+}
+.ai-weights-panel {
+  border-color: rgba(var(--theme-rgb, 79,195,247), 0.35) !important;
+}
+.ai-weights-toggle {
+  color: rgba(var(--theme-rgb, 79,195,247), 0.80) !important;
+}
+.ai-weights-body {
+  border-top-color: rgba(var(--theme-rgb, 79,195,247), 0.20) !important;
+}
+.ai-weight-group-title {
+  border-bottom-color: rgba(var(--theme-rgb, 79,195,247), 0.15) !important;
+}
+.ai-weight-row {
+  background: rgba(var(--theme-rgb, 79,195,247), 0.04) !important;
+}
+.ai-weight-row:hover {
+  background: rgba(var(--theme-rgb, 79,195,247), 0.10) !important;
+}
+.ai-weight-label {
+  color: rgba(var(--theme-rgb, 79,195,247), 0.88) !important;
+}
+.stats-export-btn {
+  color: rgba(var(--theme-rgb, 79,195,247), 0.80) !important;
+}
+.stats-table th {
+  color: rgba(var(--theme-rgb, 79,195,247), 0.70) !important;
+  border-bottom-color: rgba(var(--theme-rgb, 79,195,247), 0.35) !important;
+}
+
+/* BLOCK CIRCLE INNER FILL — the colored progress bar inside the
+   block circle was hardcoded blue gradient (#2980b9 → #3498db).
+   Player-side now follows theme; AI side stays red. */
+.player-bar .block-fill {
+  background: linear-gradient(90deg,
+    rgba(var(--theme-rgb, 79,195,247), 0.85),
+    rgba(var(--theme-rgb, 79,195,247), 1)) !important;
+}
+.player-bar .block-text {
+  color: rgba(var(--theme-rgb, 79,195,247), 1) !important;
+}
+.ai-bar .block-fill {
+  background: linear-gradient(90deg, rgba(231,76,60,0.85), rgba(231,76,60,1)) !important;
+}
+.ai-bar .block-text {
+  color: rgba(231,76,60,1) !important;
+}
+
+/* VIEWPORT TOGGLE (mobile preview button) — was using var(--theme-*)
+   indirection which sometimes didn't resolve. Defensive direct
+   rgba(var(--theme-rgb)) override so the preview-mode toggle
+   always paints in the user's theme. */
+.viewport-toggle {
+  border-color: rgba(var(--theme-rgb, 79,195,247), 0.95) !important;
+  color: rgba(var(--theme-rgb, 79,195,247), 1) !important;
+  text-shadow:
+    0 0 6px rgba(var(--theme-rgb, 79,195,247), 1),
+    0 0 12px rgba(var(--theme-rgb, 79,195,247), 0.45) !important;
+  box-shadow:
+    0 0 12px rgba(var(--theme-rgb, 79,195,247), 0.65),
+    0 0 24px rgba(var(--theme-rgb, 79,195,247), 0.30),
+    inset 0 0 0 1px rgba(var(--theme-rgb, 79,195,247), 0.22) !important;
+}
+.viewport-toggle:hover {
+  border-color: rgba(var(--theme-rgb, 79,195,247), 1) !important;
+  background: rgba(var(--theme-rgb, 79,195,247), 0.08) !important;
+  box-shadow:
+    0 0 16px rgba(var(--theme-rgb, 79,195,247), 0.95),
+    0 0 32px rgba(var(--theme-rgb, 79,195,247), 0.55),
+    inset 0 0 0 1px rgba(var(--theme-rgb, 79,195,247), 0.30) !important;
+}
+
+/* DECK BUILDER cards/tricks empty-state panels — the inner section
+   borders + dashed empty-state placeholders were defaulting to blue.
+   Defensive theme override matching settings reference. */
+.db-deck-list,
+.db-cards-section,
+.db-tricks-section,
+.db-deck-section {
+  border-color: rgba(var(--theme-rgb, 79,195,247), 0.55) !important;
+}
+.db-deck-counter,
+.db-deck-summary {
+  border-color: rgba(var(--theme-rgb, 79,195,247), 0.55) !important;
+  color: rgba(var(--theme-rgb, 79,195,247), 0.95) !important;
+}
+
+/* MAIN MENU — reduce top space. User direction: "I would like it
+   to be kind of cut a little bit so you can see space above it.
+   There's black space above." Move panel up by switching from
+   center-align to top-align with a small breathing offset. */
+.main-menu-overlay {
+  align-items: flex-start !important;
+  padding-top: 40px !important;
+}
+@media (max-height: 720px) {
+  .main-menu-overlay { padding-top: 20px !important; }
+  .mm-panel { padding-top: 32px !important; }
+}

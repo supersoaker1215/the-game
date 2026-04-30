@@ -3161,6 +3161,29 @@ const Roguelite = {
     } catch (e) { return false; }
   },
 
+  // Lightweight saved-run summary for the main-menu Roguelite button —
+  // returns null if no saved run, otherwise { ascension, label } so
+  // the UI can show "Continue · Ascension X" instead of the default
+  // "Climb a 6-fight ladder" sub-text. User direction: collapse the
+  // separate Continue Run button into the Roguelite button to keep
+  // the menu trim.
+  savedRunInfo() {
+    if (typeof localStorage === 'undefined') return null;
+    try {
+      const raw = localStorage.getItem(this.SAVE_KEY);
+      if (!raw) return null;
+      const data = JSON.parse(raw);
+      if (!data || !data.deck || !data.map || !(data.hp > 0)) return null;
+      const asc = data.ascension || 0;
+      const fights = (data._stats && data._stats.fightsWon) || 0;
+      return {
+        ascension: asc,
+        fightsWon: fights,
+        label: asc > 0 ? `Continue · Ascension ${asc}` : 'Continue last run',
+      };
+    } catch (e) { return null; }
+  },
+
   _loadSavedRun() {
     if (typeof localStorage === 'undefined') return null;
     try {
