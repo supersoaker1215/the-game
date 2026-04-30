@@ -5900,6 +5900,21 @@ const Roguelite = {
       hp = probe.health;
       cost = probe.cost;
     });
+    // Compute the effective display tier FIRST so the Text+ badge
+    // logic below can read it. Common-tier cards display rare text
+    // (base/baseline); special and legendary display their scaled-up
+    // text variants. text-upgrade etches bump the displayed tier up
+    // one step per etch.
+    const variantDescs = this.RARITY_DESCS[def.name];
+    const tiers = ['common', 'rare', 'special', 'legendary'];
+    let dispTier = deckCard.rarity || 'rare';
+    if (dispTier === 'common') dispTier = 'rare';
+    const textBumps = (deckCard.statuses || []).filter(id => id === 'text-upgrade').length;
+    if (textBumps) {
+      let i = tiers.indexOf(dispTier);
+      i = Math.min(tiers.length - 1, i + textBumps);
+      dispTier = tiers[i];
+    }
     // Stamp 'Text+' onto the abilities row so a status badge surfaces
     // when this card carries a Text+ etch — same logic as buildRunCard
     // so the codex / reward picker / deck list / level-up preview all
@@ -5920,8 +5935,7 @@ const Roguelite = {
     // boosted variant (legendary Xenomorph reads +2/+2 splash 3, etc).
     // User direction (screenshot): the boosted-text card should
     // visually be marked Text+ even when the scaling came from the
-    // card's own rarity rather than a Text+ etch. dispTier above
-    // already accounts for both rarity AND text-upgrade etch bumps.
+    // card's own rarity rather than a Text+ etch.
     if (!textPlus && this.RARITY_SCALED_CARDS && this.RARITY_SCALED_CARDS.has(def.name)) {
       if (dispTier === 'special' || dispTier === 'legendary') textPlus = true;
     }
@@ -5938,31 +5952,10 @@ const Roguelite = {
     const rarityPips = `<span class="rarity-strip" aria-hidden="true">${'<span class="rpip"></span>'.repeat(pips)}</span>`;
     const abilitiesHtml = abilities.length
       ? `<div class="card-abilities status-badges">${(typeof UI !== 'undefined' && UI.formatAbilityBadges) ? UI.formatAbilityBadges(abilities) : abilities.map(a => `<span class="status-badge">${a}</span>`).join('')}</div>` : '';
-    // Per-rarity description swap (roguelite-only). Cards with a
-    // RARITY_DESCS entry override their def desc so the text matches
-    // the actual ability variant at this tier. Falls through to base
-    // def text when the card has no rarity-specific variant.
-    //
-    // Common-tier cards explicitly read the BASE (rare) text. User
-    // direction: "don't touch the text for common cards — revert that
-    // change." So a Common Hawkeye displays the same printed ability
-    // as a Rare Hawkeye; the only common-tier nerf is the -1/-1 stat
-    // penalty. Special and Legendary still get their scaled-up text
-    // variants. Text+ etches earned via level-up promote the displayed
-    // tier (Rare card with Text+ reads as Special).
-    const variantDescs = this.RARITY_DESCS[def.name];
-    const tiers = ['common', 'rare', 'special', 'legendary'];
-    let dispTier = deckCard.rarity || 'rare';
-    if (dispTier === 'common') dispTier = 'rare';
-    // If the card carries text-upgrade etches in its statuses, bump
-    // the display tier up by that count so the printed ability matches
-    // what the engine will actually do at runtime.
-    const textBumps = (deckCard.statuses || []).filter(id => id === 'text-upgrade').length;
-    if (textBumps) {
-      let i = tiers.indexOf(dispTier);
-      i = Math.min(tiers.length - 1, i + textBumps);
-      dispTier = tiers[i];
-    }
+    // Per-rarity description swap (roguelite-only) — uses dispTier
+    // computed above. Common-tier cards explicitly read the BASE (rare)
+    // text. User direction: "don't touch the text for common cards —
+    // revert that change."
     const variantDesc = variantDescs && variantDescs[dispTier];
     let descText = variantDesc || def.desc;
     // TEXT+ DESCRIPTION OVERRIDE — if any Text+ etch on this card has

@@ -39,9 +39,22 @@ const UI = {
   applyTheme(theme) {
     if (!this.THEME_VALUES.includes(theme)) theme = 'blue';
     const body = document.body;
-    this.THEME_VALUES.forEach(t => body.classList.remove('theme-' + t));
+    const root = document.documentElement;
+    this.THEME_VALUES.forEach(t => {
+      body.classList.remove('theme-' + t);
+      root.classList.remove('theme-' + t);
+    });
     // 'blue' is the :root default — no class needed, keeps CSS specificity simple.
-    if (theme !== 'blue') body.classList.add('theme-' + theme);
+    // Class applied to BOTH body AND documentElement so theme custom
+    // properties cascade to elements that live OUTSIDE body — e.g.
+    // the .viewport-toggle which initViewportMode() relocates to be a
+    // direct child of <html> so it stays in viewport-coordinate space
+    // during mobile-preview transforms. Before this, theme vars only
+    // existed on body.theme-X so the toggle stayed Tron-blue forever.
+    if (theme !== 'blue') {
+      body.classList.add('theme-' + theme);
+      root.classList.add('theme-' + theme);
+    }
     this.settings.theme = theme;
     // Reflect active swatch in the custom theme picker if it's rendered.
     const picker = document.getElementById('setting-theme-picker');

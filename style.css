@@ -10727,16 +10727,16 @@ body.round-first-ai .hud-pill-main {
    them at :root, CSS would evaluate the rgba(var(...)) composition
    once at :root scope with :root's numbers and the theme override
    would never take effect. */
-body {
+body, :root {
   --theme-r: 79;
   --theme-g: 195;
   --theme-b: 247;
 }
-body.theme-red    { --theme-r: 231; --theme-g: 76;  --theme-b: 60;  }
-body.theme-gold   { --theme-r: 255; --theme-g: 215; --theme-b: 0;   }
-body.theme-green  { --theme-r: 46;  --theme-g: 204; --theme-b: 113; }
-body.theme-silver { --theme-r: 220; --theme-g: 226; --theme-b: 234; }
-body {
+body.theme-red,    :root.theme-red    { --theme-r: 231; --theme-g: 76;  --theme-b: 60;  }
+body.theme-gold,   :root.theme-gold   { --theme-r: 255; --theme-g: 215; --theme-b: 0;   }
+body.theme-green,  :root.theme-green  { --theme-r: 46;  --theme-g: 204; --theme-b: 113; }
+body.theme-silver, :root.theme-silver { --theme-r: 220; --theme-g: 226; --theme-b: 234; }
+body, :root {
   --theme-accent:       rgb(var(--theme-r), var(--theme-g), var(--theme-b));
   --theme-accent-dim:   rgba(var(--theme-r), var(--theme-g), var(--theme-b), 0.28);
   --theme-accent-edge:  rgba(var(--theme-r), var(--theme-g), var(--theme-b), 0.55);
@@ -11038,7 +11038,7 @@ body {
    prefers the signature purple for tricks + a 6th "purple" theme
    option alongside blue/red/gold/green/silver.
    ============================================================ */
-body.theme-purple { --theme-r: 155; --theme-g: 89; --theme-b: 182; }
+body.theme-purple, :root.theme-purple { --theme-r: 155; --theme-g: 89; --theme-b: 182; }
 
 /* Restore trick chrome to purple (overrides the silver block above
    it since this rule comes later in the cascade). */
@@ -11157,7 +11157,7 @@ body.theme-purple { --theme-r: 155; --theme-g: 89; --theme-b: 182; }
    Uses --player-* and --enemy-* RGB triplets declared on body;
    each body.theme-* variant sets both.
    ============================================================ */
-body {
+body, :root {
   --player-r: 79;  --player-g: 195; --player-b: 247;   /* cyan default */
   --enemy-r:  231; --enemy-g:  76;  --enemy-b:  60;    /* red default */
   /* Hand-picked POP color for the contested-lane midpoint. The naive
@@ -11173,28 +11173,28 @@ body {
 }
 /* Per-theme contest-pop overrides — hand-tuned so the midpoint always
    reads as saturated neon, never muddy. */
-body.theme-red    {
+body.theme-red, :root.theme-red {
   --player-r: 231; --player-g: 76;  --player-b: 60;
   --enemy-r:  79;  --enemy-g:  195; --enemy-b:  247;
   --contest-pop: rgb(255, 60, 200);
   --contest-pop-soft: rgba(255, 60, 200, 0.55);
 }
-body.theme-gold   {
+body.theme-gold, :root.theme-gold {
   --player-r: 255; --player-g: 215; --player-b: 0;
   --contest-pop: rgb(255, 130, 20);            /* vivid orange (gold+red) */
   --contest-pop-soft: rgba(255, 130, 20, 0.55);
 }
-body.theme-green  {
+body.theme-green, :root.theme-green {
   --player-r: 46;  --player-g: 204; --player-b: 113;
   --contest-pop: rgb(255, 220, 30);            /* bright yellow (green+red) */
   --contest-pop-soft: rgba(255, 220, 30, 0.55);
 }
-body.theme-silver {
+body.theme-silver, :root.theme-silver {
   --player-r: 220; --player-g: 226; --player-b: 234;
   --contest-pop: rgb(255, 80, 170);            /* HOT PINK (white+red) */
   --contest-pop-soft: rgba(255, 80, 170, 0.55);
 }
-body.theme-purple {
+body.theme-purple, :root.theme-purple {
   --player-r: 155; --player-g: 89;  --player-b: 182;
   --contest-pop: rgb(230, 50, 150);            /* vivid magenta (purple+red) */
   --contest-pop-soft: rgba(230, 50, 150, 0.55);
