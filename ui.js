@@ -2629,12 +2629,28 @@ const UI = {
     window.addEventListener('resize', () => {
       if (pop.style.display === 'block') hide();
     });
-    // Expose a teardown hook the main render loop can call — if the card
-    // the popup cloned has been removed from DOM (played, moved, etc.),
-    // hide the popup so it can't linger.
+    // Expose a teardown hook the main render loop can call. User report
+    // May-1: "hover magnify blips in and out during AI turns." Root
+    // cause: render() called this hook unconditionally at the start of
+    // every render (ui.js:3195), which closed the popup → 280ms
+    // HOVER_DELAY before the user's continued hover re-opened it. With
+    // AI playing every ~450ms, that's a constant blip cycle.
+    //
+    // Fix: only force-close if the SOURCE card the popup is cloning
+    // has actually been removed from the DOM. With the transplant fix
+    // in makeCardElCached, played cards keep their parent .card
+    // identity — so an open magnify of a still-on-board card no longer
+    // needs the periodic teardown. Genuine removals (card destroyed,
+    // moved to discard pile, hand reshuffled) DO still trigger the
+    // hide path because openEl will be detached.
     this._hideHoverMagnify = () => {
+      // Source still in DOM? Leave the popup as-is; the user's hover
+      // is still valid. mouseout will hide it naturally when they
+      // move off the card.
+      if (openEl && document.body.contains(openEl)) return;
+      // Source gone (or never opened) — sweep up.
       if (fadedEl && !document.body.contains(fadedEl)) {
-        fadedEl = null; // already gone — don't try to un-hide it
+        fadedEl = null;
       }
       clearTimeout(timer);
       if (pop.style.display === 'block') hide();
@@ -7685,22 +7701,37 @@ const UI = {
       // Move children from fresh into cached without recreating fresh
       // (replaceChildren is faster + avoids innerHTML stringification).
       cached.replaceChildren(...fresh.childNodes);
-      // Sync className + dataset (snap stamp + any inline attrs the
-      // builder set, like data-card-name / data-card-id which may have
-      // been re-stamped identically; safe to overwrite).
-      cached.className = fresh.className;
+      // CRITICAL: diff the className rather than wholesale-assign.
+      // User report May-1: "Carnage's tilt animation keeps restarting
+      // during AI turns; hover magnify blips in and out." Three
+      // parallel investigation agents converged on the root cause:
+      // `cached.className = fresh.className` triggers a browser style
+      // recalc that restarts CSS animations on matched selectors like
+      // `.card.vibe-symbiote:not(.card-enter):not(.card-exit)` —
+      // EVEN WHEN THE RESULTING CLASS SET IS IDENTICAL. Browsers
+      // re-evaluate animation: properties on any className mutation,
+      // not just on actual class changes.
+      //
+      // Fix: compute the diff and only call classList.add/remove for
+      // classes that actually changed. Identical class sets become a
+      // genuine no-op — animations keep their phase across the
+      // transplant.
+      const oldClasses = cached.className ? cached.className.trim().split(/\s+/) : [];
+      const newClasses = fresh.className ? fresh.className.trim().split(/\s+/) : [];
+      const oldSet = new Set(oldClasses);
+      const newSet = new Set(newClasses);
+      for (const c of oldClasses) if (!newSet.has(c)) cached.classList.remove(c);
+      for (const c of newClasses) if (!oldSet.has(c)) cached.classList.add(c);
+      // Sync dataset (snap stamp + builder-set attrs like data-card-name).
       Object.keys(fresh.dataset).forEach(k => { cached.dataset[k] = fresh.dataset[k]; });
-      // Drop any stale dataset keys that aren't on fresh anymore.
       Object.keys(cached.dataset).forEach(k => {
         if (!(k in fresh.dataset) && k !== 'snap') delete cached.dataset[k];
       });
       cached.dataset.snap = snap;
-      // Preserve cached's inline style — fresh's inline style was the
-      // builder's pre-decoration baseline; keep whatever post-mount
-      // logic added to cached (e.g. --card-anim-phase set by
-      // applyPhaseOffset). Hovever DO overwrite if fresh set them.
-      if (fresh.style.cssText) {
-        // Merge fresh's set styles onto cached (fresh overrides).
+      // Sync inline styles fresh set (e.g. --card-anim-phase, etc.).
+      // length > 0 catches CSS-variable-only mutations that cssText
+      // sometimes misses on certain browsers.
+      if (fresh.style.length > 0) {
         for (let i = 0; i < fresh.style.length; i++) {
           const prop = fresh.style[i];
           cached.style.setProperty(prop, fresh.style.getPropertyValue(prop));
@@ -7765,7 +7796,24 @@ const UI = {
     // KEEP their in-flight CSS animations across renders instead of
     // restarting at 0% on every phase change.
     this._captureBoardCardEls();
-    this.board.innerHTML = '';
+    // SMART WIPE — board.innerHTML = '' detaches every descendant
+    // including the cached lanes, slots, and cards. Browsers reset
+    // CSS animations on any element that is detached + reattached,
+    // even if the JS reference is the same. That's the deep reason
+    // Carnage's vibe-symbiote tilt was restarting on every render —
+    // no class change, no inline-style change, just attach/reattach
+    // through the board.innerHTML wipe.
+    //
+    // Fix: clear only the watermark + motes (the actually disposable
+    // children), and KEEP the cached lane subtrees attached. Lanes
+    // re-append below (which is a no-op when already attached);
+    // slots inside them stay continuously rooted, and the cards
+    // inside the slots keep their CSS animation timelines intact.
+    Array.from(this.board.children).forEach(child => {
+      if (child.classList && (child.classList.contains('round-watermark') || child.classList.contains('board-mote'))) {
+        child.remove();
+      }
+    });
     const canPlay = this.canPlayerPlayCards(s);
     const cc = s.pendingCardChoice;
     const lc = s.pendingLaneChoice;
@@ -7809,9 +7857,20 @@ const UI = {
         el = document.createElement('div');
         this._laneEls[i] = el;
       } else {
-        // Clear children (slots, labels, status row) so they get
-        // rebuilt fresh below — but the lane element itself persists.
-        el.innerHTML = '';
+        // Selective clear — preserve the slots + sep (which contain
+        // cards whose CSS animations must stay continuous). Remove
+        // only transient children: status-row, lane-trap, dmg-preview
+        // chain, claim-wave / dust-kick / landing-ring spawned by
+        // play animations. The slots + sep get reused via
+        // querySelector below; their card children stay attached.
+        const KEEP = el.querySelector(':scope > .ai-slot');
+        const KEEP_SEP = el.querySelector(':scope > .lane-sep');
+        const KEEP_PSLOT = el.querySelector(':scope > .player-slot');
+        Array.from(el.children).forEach(child => {
+          if (child !== KEEP && child !== KEEP_SEP && child !== KEEP_PSLOT) {
+            child.remove();
+          }
+        });
         // Strip any decoration classes that might have been added
         // outside the className-rewrite path. forecast data-attrs are
         // overwritten below or removed if no longer relevant.
@@ -7916,9 +7975,24 @@ const UI = {
         el.appendChild(trapEl);
       }
 
-      // AI slot
-      const aiSlot = document.createElement('div');
-      aiSlot.className = 'card-slot ai-slot';
+      // AI slot — reuse existing if cached lane already has one. Keeps
+      // the slot continuously attached so its card child's CSS
+      // animations don't restart on render.
+      let aiSlot = el.querySelector(':scope > .ai-slot');
+      if (!aiSlot) {
+        aiSlot = document.createElement('div');
+      }
+      // Replace inner content (the card or empty-glyph) below; class
+      // is idempotent (same string = no animation impact, but we
+      // assign here so a fresh slot gets the right class too).
+      if (aiSlot.className !== 'card-slot ai-slot') aiSlot.className = 'card-slot ai-slot';
+      // Drop transient inline content (empty-glyph, dust-kick, ring)
+      // but preserve the .card child if present — it'll be replaced
+      // by makeCardElCached returning the same node, OR removed
+      // below if lane.ai is null.
+      Array.from(aiSlot.children).forEach(child => {
+        if (!child.classList || !child.classList.contains('card')) child.remove();
+      });
       if (lane.ai) {
         const cardEl = lane.ai.isFaceDown ? this.makeFaceDownEl() : this.makeCardElCached(lane.ai, false, 'enemy');
         if (lane.ai.id !== undefined) currentBoardIds.add(lane.ai.id);
@@ -7993,7 +8067,11 @@ const UI = {
             aiSlot.appendChild(dmgPreview);
           }
         }
-        aiSlot.appendChild(cardEl);
+        // Append card only if not already attached to this slot —
+        // re-appending the same child detaches + re-attaches it which
+        // kills CSS animation timing (verified: vibeSymbioteOoze
+        // resets from 96s back to 0 on slot.appendChild(sameCard)).
+        if (cardEl.parentNode !== aiSlot) aiSlot.appendChild(cardEl);
       } else if (lc && lcTargetSide === 'ai' && lc.lanes.includes(i)) {
         aiSlot.classList.add('target-highlight');
         aiSlot.addEventListener('click', () => laneChoicePick(i));
@@ -8004,18 +8082,34 @@ const UI = {
         empty.innerHTML = '&#xFF0B;';
         aiSlot.appendChild(empty);
       }
-      el.appendChild(aiSlot);
+      // Same anti-reattach guard for the slot itself.
+      if (aiSlot.parentNode !== el) el.appendChild(aiSlot);
 
       // Battle centerline separator with embedded lane number — sits between
       // the AI and player halves so it never overlaps card content (Marvel Snap style).
-      const sep = document.createElement('div');
-      sep.className = 'lane-sep' + (s._activeLane === i ? ' lane-active' : '');
-      sep.innerHTML = `<span class="lane-number">${i + 1}</span>`;
-      el.appendChild(sep);
+      // Reuse existing sep if present so the .lane-number's 3s
+      // tronCirclePulse animation keeps its phase continuous.
+      let sep = el.querySelector(':scope > .lane-sep');
+      if (!sep) {
+        sep = document.createElement('div');
+        sep.innerHTML = `<span class="lane-number">${i + 1}</span>`;
+      }
+      const sepCls = 'lane-sep' + (s._activeLane === i ? ' lane-active' : '');
+      if (sep.className !== sepCls) sep.className = sepCls;
+      // Append only if not already a child (appendChild on already-
+      // attached child triggers detach-reattach which kills CSS
+      // animation timing).
+      if (sep.parentNode !== el) el.appendChild(sep);
 
-      // Player slot
-      const pSlot = document.createElement('div');
-      pSlot.className = 'card-slot player-slot';
+      // Player slot — reuse existing if cached lane already has one.
+      let pSlot = el.querySelector(':scope > .player-slot');
+      if (!pSlot) {
+        pSlot = document.createElement('div');
+      }
+      if (pSlot.className !== 'card-slot player-slot') pSlot.className = 'card-slot player-slot';
+      Array.from(pSlot.children).forEach(child => {
+        if (!child.classList || !child.classList.contains('card')) child.remove();
+      });
       if (lane.player) {
         const cardEl = this.makeCardElCached(lane.player, false, 'ally');
         if (lane.player.isFaceDown) cardEl.classList.add('face-down');
@@ -8054,7 +8148,8 @@ const UI = {
           cardEl.style.cursor = 'pointer';
           cardEl.addEventListener('click', () => laneChoicePick(i));
         }
-        pSlot.appendChild(cardEl);
+        // Anti-reattach guard — see ai-slot equivalent above.
+        if (cardEl.parentNode !== pSlot) pSlot.appendChild(cardEl);
       } else if (lc && lcTargetSide === 'player' && lc.lanes.includes(i)) {
         pSlot.classList.add('target-highlight');
         pSlot.addEventListener('click', () => laneChoicePick(i));
@@ -8081,8 +8176,8 @@ const UI = {
         empty.innerHTML = '&#xFF0B;';
         pSlot.appendChild(empty);
       }
-      el.appendChild(pSlot);
-      this.board.appendChild(el);
+      if (pSlot.parentNode !== el) el.appendChild(pSlot);
+      if (el.parentNode !== this.board) this.board.appendChild(el);
     }
     // Any card present last render but missing now was destroyed, bounced,
     // or stolen — fire a short destroy SFX once per removed id. We only
@@ -8503,6 +8598,20 @@ const UI = {
     if (!inHand && side === 'ally') el.classList.add('ally-card');
     if (!inHand && side === 'enemy') el.classList.add('enemy-card');
     if (inHand) el.classList.add('hand-card');
+
+    // Tron perimeter chrome — applyTronFx() adds these post-mount, but
+    // we add them upfront here so the FRESH element built during a
+    // cache-miss transplant already has them. Without this, the
+    // makeCardElCached diff sees `tron-perimeter` on the cached el
+    // (added by post-mount applyTronFx) but missing from fresh, and
+    // removes it — which kicks the .tron-perimeter::after rule out
+    // and back in, restarting the animation. User report: "Carnage's
+    // tilt animation keeps restarting during AI turns." Adding both
+    // perimeter classes here makes fresh.classList match cached's
+    // post-mount state, so the diff is a true no-op.
+    if (!inHand) {
+      el.classList.add('tron-perimeter', 'tron-perimeter-card');
+    }
 
     // (AAA) HP-critical tremor — board cards at 1 HP get a sub-pixel
     // tremble + red rim accent so the player can read "lethal range"
