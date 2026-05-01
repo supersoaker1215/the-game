@@ -7582,6 +7582,18 @@ const UI = {
   // renderBoard so stale references don't accumulate.
   _capturedBoardCardEls: null,
 
+  // Persistent lane DOM cache. The board's innerHTML gets wiped every
+  // render (to flush watermark / motes / etc.), but the lane <div>s
+  // themselves are reused across renders so their long-running CSS
+  // animations (.lane-number tronCirclePulse 3s infinite, .lane Tron
+  // perimeter sweep, hover state) don't restart on every AI step.
+  // Indexed by lane idx (0-5). Lazy-initialized on first render.
+  // User-visible bug this fixes: "when AI is thinking, lane circles
+  // kinda pulse + hovers don't work" — root cause was the lane DOM
+  // being destroyed + recreated on every render, which restarted the
+  // pulse animations from 0% and detached any active :hover state.
+  _laneEls: null,
+
   // Set of class names that are applied per-render based on transient
   // game-state context (target highlight, dimmed-by-selection, etc.).
   // Stripped before a cached element is reused so they don't leak.
@@ -7780,7 +7792,27 @@ const UI = {
 
     for (let i = 0; i < Game.LANE_COUNT; i++) {
       const lane = s.lanes[i];
-      const el = document.createElement('div');
+      // Reuse cached lane element if present so .lane-number's 3s
+      // infinite tronCirclePulse animation and any in-flight CSS
+      // transitions don't restart on every render. board.innerHTML
+      // detached the element above, but the JS reference still points
+      // to the live DOM node — re-appending later in this loop puts
+      // it back in place with its animation timeline intact.
+      if (!this._laneEls) this._laneEls = [];
+      let el = this._laneEls[i];
+      if (!el) {
+        el = document.createElement('div');
+        this._laneEls[i] = el;
+      } else {
+        // Clear children (slots, labels, status row) so they get
+        // rebuilt fresh below — but the lane element itself persists.
+        el.innerHTML = '';
+        // Strip any decoration classes that might have been added
+        // outside the className-rewrite path. forecast data-attrs are
+        // overwritten below or removed if no longer relevant.
+        delete el.dataset.forecast;
+        delete el.dataset.forecastCls;
+      }
       const parityClass = (i % 2 === 0) ? 'lane-odd' : 'lane-even';
       // Tron-style occupancy state — lane frame tints by who holds the slot.
       //   empty  → neutral white (default)
@@ -7800,7 +7832,13 @@ const UI = {
       const aiPulse = s._aiPulse;
       const aiPulseActive = aiPulse && aiPulse.laneIdx === i && (Date.now() - aiPulse.at < 1500);
       const pulseClass = aiPulseActive ? ' lane-ai-just-played' : '';
-      el.className = `lane ${parityClass}${occClass}` + (lane.destroyed ? ' destroyed' : '') + (s._activeLane === i ? ' lane-active' : '') + pulseClass;
+      // Only assign className if it actually changed — assigning the
+      // same string is technically a no-op for layout but DOES still
+      // bump some browsers' style-recalc cost and (more importantly)
+      // any class-toggle observers downstream. Keeping it idempotent
+      // means truly unchanged lanes pay zero cost on re-render.
+      const nextCls = `lane ${parityClass}${occClass}` + (lane.destroyed ? ' destroyed' : '') + (s._activeLane === i ? ' lane-active' : '') + pulseClass;
+      if (el.className !== nextCls) el.className = nextCls;
       if (aiPulseActive && !this._aiPulseClearScheduled) {
         // Schedule a re-render once the pulse window expires so the
         // class drops cleanly. Single-shot — only schedule once per pulse.
