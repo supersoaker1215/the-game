@@ -7728,9 +7728,20 @@ const UI = {
         if (!(k in fresh.dataset) && k !== 'snap') delete cached.dataset[k];
       });
       cached.dataset.snap = snap;
-      // Sync inline styles fresh set (e.g. --card-anim-phase, etc.).
-      // length > 0 catches CSS-variable-only mutations that cssText
-      // sometimes misses on certain browsers.
+      // Sync inline styles. CRITICAL: first REMOVE all properties
+      // currently on cached so stale values from previous renders
+      // (e.g. `position: relative` set by spawnHitChips at ui.js:3870
+      // / 3883 / 3923 during damage bursts, or transient `transform`
+      // values from one-shot animations) don't accumulate. Otherwise
+      // they linger and can produce visible layout glitches like
+      // cards rendering outside their lane bounds — user reported a
+      // DEATHSTROKE clipping into lane 4 that traced to this exact
+      // pattern. After the cleanup, re-apply fresh's inline styles
+      // (which include the up-to-date --card-anim-phase /
+      // --tremor-phase variables for animation continuity).
+      const cachedStyleProps = [];
+      for (let i = 0; i < cached.style.length; i++) cachedStyleProps.push(cached.style[i]);
+      cachedStyleProps.forEach(p => cached.style.removeProperty(p));
       if (fresh.style.length > 0) {
         for (let i = 0; i < fresh.style.length; i++) {
           const prop = fresh.style[i];
@@ -9553,6 +9564,14 @@ const UI = {
         Object.keys(existing.dataset).forEach(k => {
           if (!(k in fresh.dataset)) delete existing.dataset[k];
         });
+        // Same stale-style cleanup as makeCardElCached's transplant —
+        // remove all current inline styles before applying fresh's so
+        // residue from previous renders (animation transforms, hover
+        // positioning, etc.) can't accumulate into visible layout
+        // glitches.
+        const oldStyleProps = [];
+        for (let i = 0; i < existing.style.length; i++) oldStyleProps.push(existing.style[i]);
+        oldStyleProps.forEach(p => existing.style.removeProperty(p));
         if (fresh.style.length > 0) {
           for (let i = 0; i < fresh.style.length; i++) {
             const prop = fresh.style[i];
