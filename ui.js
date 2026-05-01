@@ -7666,10 +7666,55 @@ const UI = {
       this._capturedBoardCardEls.delete(idStr);
       return cached;
     }
-    // Fresh build — either no cache or visual state changed materially.
-    const el = this.makeCardEl(card, inHand, side);
-    el.dataset.snap = snap;
-    return el;
+    // STATE CHANGED — but if we have a cached DOM node for this card,
+    // TRANSPLANT new content into it instead of returning a fresh node.
+    // This is the key fix for the "Carnage's tilt restarts during AI
+    // turn" / "hover magnify blips in and out" reports. The infinite
+    // CSS animations (.vibe-*, .tron-perimeter-card, .card-hp-critical
+    // tremor) live on the parent .card element. As long as the parent
+    // element identity persists across renders, those animations keep
+    // running. Replacing only the inner content + className lets us
+    // refresh stat numbers, status badges, dmg-preview, etc. without
+    // restarting the parent's animations OR breaking the user's
+    // active hover state (which is what was causing the magnified
+    // preview to "blip in and out" during AI thinking — old element
+    // gets destroyed, magnify hides, new element appears, magnify
+    // re-fires after the 280ms HOVER_DELAY).
+    const fresh = this.makeCardEl(card, inHand, side);
+    if (cached) {
+      // Move children from fresh into cached without recreating fresh
+      // (replaceChildren is faster + avoids innerHTML stringification).
+      cached.replaceChildren(...fresh.childNodes);
+      // Sync className + dataset (snap stamp + any inline attrs the
+      // builder set, like data-card-name / data-card-id which may have
+      // been re-stamped identically; safe to overwrite).
+      cached.className = fresh.className;
+      Object.keys(fresh.dataset).forEach(k => { cached.dataset[k] = fresh.dataset[k]; });
+      // Drop any stale dataset keys that aren't on fresh anymore.
+      Object.keys(cached.dataset).forEach(k => {
+        if (!(k in fresh.dataset) && k !== 'snap') delete cached.dataset[k];
+      });
+      cached.dataset.snap = snap;
+      // Preserve cached's inline style — fresh's inline style was the
+      // builder's pre-decoration baseline; keep whatever post-mount
+      // logic added to cached (e.g. --card-anim-phase set by
+      // applyPhaseOffset). Hovever DO overwrite if fresh set them.
+      if (fresh.style.cssText) {
+        // Merge fresh's set styles onto cached (fresh overrides).
+        for (let i = 0; i < fresh.style.length; i++) {
+          const prop = fresh.style[i];
+          cached.style.setProperty(prop, fresh.style.getPropertyValue(prop));
+        }
+      }
+      // Mark consumed so the captured map doesn't try to re-use it.
+      this._capturedBoardCardEls.delete(idStr);
+      return cached;
+    }
+    // No prior cache — first time seeing this card on board. Return
+    // the fresh element directly; subsequent renders will transplant
+    // into it.
+    fresh.dataset.snap = snap;
+    return fresh;
   },
 
   // ===================== PHASE PERSISTENCE HELPER =====================
