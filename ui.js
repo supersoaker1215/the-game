@@ -8036,6 +8036,19 @@ const UI = {
       Array.from(aiSlot.children).forEach(child => {
         if (child !== aiCardEl) child.remove();
       });
+      // FORCE-ATTACH IMMEDIATELY after sweep. User report May-1
+      // (annotated screenshot): "There is somebody there, but I can't
+      // see them." Forecast strip showed -8 EXPOSED for lane 2 but
+      // the AI card was invisible. Symptom: lane.ai existed in state,
+      // cardEl was computed, but never landed in the slot DOM.
+      // The trailing append-if-not-attached at the bottom of the
+      // lane.ai block was supposed to be the safety net, but in
+      // some flow path it wasn't running. Move the attach here so
+      // it's the FIRST thing after the sweep — anti-invisible-card
+      // primary defense. Idempotent if already attached.
+      if (aiCardEl && aiCardEl.parentNode !== aiSlot) {
+        aiSlot.appendChild(aiCardEl);
+      }
       if (lane.ai) {
         const cardEl = aiCardEl;
         if (lane.ai.id !== undefined) currentBoardIds.add(lane.ai.id);
@@ -8161,6 +8174,11 @@ const UI = {
       Array.from(pSlot.children).forEach(child => {
         if (child !== plCardEl) child.remove();
       });
+      // Same anti-invisible-card force-attach as ai-slot. Primary
+      // defense against the state-says-card-here-but-DOM-empty bug.
+      if (plCardEl && plCardEl.parentNode !== pSlot) {
+        pSlot.appendChild(plCardEl);
+      }
       if (lane.player) {
         const cardEl = plCardEl;
         if (lane.player.isFaceDown) cardEl.classList.add('face-down');
