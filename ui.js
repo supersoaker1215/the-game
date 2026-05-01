@@ -8602,16 +8602,12 @@ const UI = {
     // Tron perimeter chrome — applyTronFx() adds these post-mount, but
     // we add them upfront here so the FRESH element built during a
     // cache-miss transplant already has them. Without this, the
-    // makeCardElCached diff sees `tron-perimeter` on the cached el
-    // (added by post-mount applyTronFx) but missing from fresh, and
-    // removes it — which kicks the .tron-perimeter::after rule out
-    // and back in, restarting the animation. User report: "Carnage's
-    // tilt animation keeps restarting during AI turns." Adding both
-    // perimeter classes here makes fresh.classList match cached's
-    // post-mount state, so the diff is a true no-op.
-    if (!inHand) {
-      el.classList.add('tron-perimeter', 'tron-perimeter-card');
-    }
+    // diff sees `tron-perimeter` on the cached el (added by post-mount
+    // applyTronFx) but missing from fresh, and removes it — which
+    // kicks the .tron-perimeter::after rule out and back in,
+    // restarting the animation. Applies to BOTH board and hand cards
+    // (applyTronFx targets both via _TRON_PERIM_CARD_SELECTORS).
+    el.classList.add('tron-perimeter', 'tron-perimeter-card');
 
     // (AAA) HP-critical tremor — board cards at 1 HP get a sub-pixel
     // tremble + red rim accent so the player can read "lethal range"
@@ -9450,13 +9446,38 @@ const UI = {
   // ===================== HANDS =====================
 
   renderPlayerHand(s) {
-    this.playerHand.innerHTML = '';
+    // Smart wipe — keep hand-card wrappers + their .card children
+    // continuously attached to playerHand so CSS animations
+    // (vibe-*, tron-perimeter-card) don't restart and active hover
+    // state doesn't reset on every render. User report May-1 (after
+    // the board fix shipped at commit 53ad0f4): "the hover hand is
+    // still not fixed. Cards in hand essentially disappear then
+    // reappear during AI turn." Same detach-reattach pattern from
+    // the board, different container.
+    //
+    // Hand cards have their OWN cache map (separate from
+    // _capturedBoardCardEls) to avoid cross-contamination. The
+    // board's makeCardElCached should NEVER reach for a hand-card
+    // DOM node because it's not in the same DOM subtree and would
+    // produce visual collisions like the Peacemaker clip-off bug
+    // (caught at commit 6924a86's revert).
+    if (!this._handWrappers) this._handWrappers = new Map(); // id → wrapper
+
+    // BWL intercept warning — toggle in-place rather than wipe + recreate.
+    let warn = this.playerHand.querySelector(':scope > .bwl-intercept-warning');
     if (s.player.nextCardStolen) {
-      const warn = document.createElement('div');
-      warn.className = 'bwl-intercept-warning';
-      warn.innerHTML = `<span class="bwl-icon">⚠</span> Next card will be intercepted by <strong>The Batman Who Laughs</strong>`;
-      this.playerHand.appendChild(warn);
+      if (!warn) {
+        warn = document.createElement('div');
+        warn.className = 'bwl-intercept-warning';
+        warn.innerHTML = `<span class="bwl-icon">⚠</span> Next card will be intercepted by <strong>The Batman Who Laughs</strong>`;
+        this.playerHand.insertBefore(warn, this.playerHand.firstChild);
+      }
+    } else if (warn) {
+      warn.remove();
     }
+    // Empty-hand placeholder — recreated below if hand truly empty.
+    const oldEmpty = this.playerHand.querySelector(':scope > .empty-hand');
+    if (oldEmpty) oldEmpty.remove();
     const canPlay = this.canPlayerPlayCards(s);
     const cc = s.pendingCardChoice;
     const lc = s.pendingLaneChoice;
@@ -9480,25 +9501,86 @@ const UI = {
     });
 
     const handCount = handDisplay.length;
+    // Track which wrapper ids we used this render — anything in
+    // cache but not used got played/discarded and gets removed below.
+    const usedIds = new Set();
     handDisplay.forEach((card, idx) => {
-      const wrap = document.createElement('div');
-      wrap.className = 'hand-card-wrapper';
-      // Per-card index drives the stagger in handDealIn keyframe. Set only
-      // when the full hand is new (e.g. match start); mid-game hand renders
-      // skip the stagger so existing cards don't re-animate on every tick.
-      wrap.style.setProperty('--idx', idx);
-      if (this._pendingHandDealAnim) wrap.classList.add('hand-deal-in');
-      // Newly-drawn cards get the fly-in animation
-      if (newIds.has(card.id)) wrap.classList.add('card-draw-in');
-      // No fan tilt — cards sit flat in a straight row. (--fan-rotate and
-      // --fan-lift remain defined in CSS at 0 so hover/draw-in animations
-      // still resolve correctly.)
-      const el = this.makeCardEl(card, true);
+      const cardId = String(card.id);
+      usedIds.add(cardId);
+      // Reuse cached wrapper if we have one — keeps it continuously
+      // attached so the .card child's CSS animations + :hover state
+      // survive the render.
+      let wrap = this._handWrappers.get(cardId);
+      const wrapIsNew = !wrap;
+      if (!wrap) {
+        wrap = document.createElement('div');
+        this._handWrappers.set(cardId, wrap);
+      }
+      // Idempotent class assignment — avoids the className-mutation
+      // style recalc that restarts CSS animations even when the
+      // resulting class set is identical.
+      const wantsDealIn = !!this._pendingHandDealAnim;
+      const wantsDrawIn = newIds.has(card.id);
+      const desiredCls = 'hand-card-wrapper'
+        + (wantsDealIn ? ' hand-deal-in' : '')
+        + (wantsDrawIn ? ' card-draw-in' : '');
+      if (wrap.className !== desiredCls) wrap.className = desiredCls;
+      const idxStr = String(idx);
+      if (wrap.style.getPropertyValue('--idx') !== idxStr) {
+        wrap.style.setProperty('--idx', idxStr);
+      }
+      // No fan tilt — cards sit flat in a straight row.
+
+      // Build the card element fresh (gets up-to-date class strings,
+      // badges, content). If the wrapper already has a .card child
+      // from a previous render, transplant content into it so the
+      // parent .card identity persists and CSS animation timing
+      // doesn't reset.
+      const fresh = this.makeCardEl(card, true);
+      const existing = wrap.querySelector(':scope > .card');
+      let el;
+      if (existing) {
+        // Transplant content + diff classes (same pattern as
+        // makeCardElCached for board cards).
+        existing.replaceChildren(...fresh.childNodes);
+        const oldClasses = existing.className ? existing.className.trim().split(/\s+/) : [];
+        const newClasses = fresh.className ? fresh.className.trim().split(/\s+/) : [];
+        const oldSet = new Set(oldClasses);
+        const newSet = new Set(newClasses);
+        for (const c of oldClasses) if (!newSet.has(c)) existing.classList.remove(c);
+        for (const c of newClasses) if (!oldSet.has(c)) existing.classList.add(c);
+        Object.keys(fresh.dataset).forEach(k => { existing.dataset[k] = fresh.dataset[k]; });
+        Object.keys(existing.dataset).forEach(k => {
+          if (!(k in fresh.dataset)) delete existing.dataset[k];
+        });
+        if (fresh.style.length > 0) {
+          for (let i = 0; i < fresh.style.length; i++) {
+            const prop = fresh.style[i];
+            existing.style.setProperty(prop, fresh.style.getPropertyValue(prop));
+          }
+        }
+        el = existing;
+      } else {
+        el = fresh;
+      }
+      // Reset the click handler. We use el.onclick = ... rather than
+      // addEventListener so this assignment REPLACES any prior handler
+      // (addEventListener stacks, which would compound a play action
+      // across renders). The downstream code below uses
+      // el.addEventListener — we override with onclick on the same
+      // element so both reach the same target. New el.onclick = null
+      // upfront here so click handlers from previous renders don't
+      // fire after the card's affordability state changed.
+      el.onclick = null;
 
       if (cc && targetHandIds.has(card.id)) {
         el.classList.add('target-highlight');
         const idx = cc.cards.findIndex(c => c.id === card.id);
-        el.addEventListener('click', () => cardChoicePick(idx));
+        // Use onclick property assignment instead of addEventListener
+        // so reused .card elements don't accumulate stacked listeners
+        // across renders (each render would otherwise add a fresh
+        // click handler on top of the previous ones).
+        el.onclick = () => cardChoicePick(idx);
       } else if (!hasPending) {
         const cost = Game.getCardCost('player', card);
         const afford = s.player.currency >= cost;
@@ -9519,9 +9601,7 @@ const UI = {
           el.title = 'Blocked by Batman — card is locked this turn.';
         } else if (card.jumpReady && hasOpen) {
           el.classList.add('jump-ready');
-          el.addEventListener('click', () => {
-            Game.playJumpCard('player', card);
-          });
+          el.onclick = () => Game.playJumpCard('player', card);
         } else if (phaseAllowsThisCard && afford && hasOpen) {
           el.classList.add('playable');
           if (s.selectedCard === card) {
@@ -9532,7 +9612,7 @@ const UI = {
             // the user's attention on the active object.
             el.classList.add('dimmed-by-selection');
           }
-          el.addEventListener('click', () => this.onCardClick(card));
+          el.onclick = () => this.onCardClick(card);
         } else {
           el.classList.add('unplayable');
           // Explain why it's unplayable on hover
@@ -9557,11 +9637,55 @@ const UI = {
       } else {
         el.classList.add('unplayable');
       }
-      wrap.appendChild(el);
-      this.playerHand.appendChild(wrap);
+      // Anti-reattach guards: only call appendChild if the child
+      // isn't already in the right parent. Re-appending an
+      // already-attached child triggers detach-reattach which
+      // resets CSS animation timing.
+      if (el.parentNode !== wrap) wrap.appendChild(el);
+      if (wrap.parentNode !== this.playerHand) this.playerHand.appendChild(wrap);
     });
 
-    if (!s.player.hand.length) this.playerHand.innerHTML = '<div class="empty-hand">No cards</div>';
+    // Sweep wrappers for cards no longer in hand (played, discarded).
+    for (const [id, wrap] of this._handWrappers) {
+      if (!usedIds.has(id)) {
+        if (wrap.parentNode) wrap.remove();
+        this._handWrappers.delete(id);
+      }
+    }
+
+    // Reorder children to match handDisplay sort order. Only do
+    // explicit reorder when the current sequence doesn't match the
+    // desired one — minimizes appendChild calls (which detach +
+    // reattach and reset animations).
+    const desiredOrder = handDisplay.map(c => this._handWrappers.get(String(c.id)));
+    const currentChildren = Array.from(this.playerHand.children).filter(
+      c => c.classList && c.classList.contains('hand-card-wrapper')
+    );
+    const orderMatches = desiredOrder.length === currentChildren.length &&
+      desiredOrder.every((w, i) => w === currentChildren[i]);
+    if (!orderMatches) {
+      // Sort in place via appendChild (which moves an attached child
+      // to the end). Each move detaches + reattaches that wrapper,
+      // which resets its child .card's animation. Acceptable cost
+      // because reorder happens only when sort actually changed
+      // (cost change, draws, plays) — not on every render.
+      desiredOrder.forEach(w => { if (w) this.playerHand.appendChild(w); });
+    }
+
+    if (!s.player.hand.length) {
+      // Empty-hand placeholder. Wipe wrappers cache so an empty hand
+      // doesn't accumulate stale refs across draws.
+      this._handWrappers.clear();
+      const empty = document.createElement('div');
+      empty.className = 'empty-hand';
+      empty.textContent = 'No cards';
+      // Remove any existing wrappers (defensive — usedIds was empty,
+      // so the sweep above already cleared them).
+      Array.from(this.playerHand.children).forEach(c => {
+        if (c.classList && c.classList.contains('hand-card-wrapper')) c.remove();
+      });
+      this.playerHand.appendChild(empty);
+    }
     // Record current ids for next render's newly-drawn detection
     this._lastHandIds = currentIds;
   },
