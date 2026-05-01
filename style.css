@@ -5513,20 +5513,68 @@ body.hit-pause .ai-hand * {
 .trick-card.unplayable { opacity: 0.45; filter: grayscale(30%); }
 
 /* ---- CARD ANIMATIONS ----
-   Snap-style entrance: card arcs in from above-offset with a slight
-   rotation, overshoots the target, squashes wide on impact, rebounds
-   tall, then settles. The non-uniform scales (1.14,0.90 and 0.94,1.05)
-   are the "squash & stretch" cartoon principle — cards feel weighty
-   and physical instead of sliding in straight. Curve uses a custom
-   spring ease so the settle reads as momentum decay, not a linear stop. */
-@keyframes cardPlayIn {
-  0%   { opacity: 0; transform: translateY(-70px) translateX(10px) rotate(-5deg) scale(0.72); filter: blur(5px) brightness(1.6); }
-  45%  { opacity: 1; transform: translateY(-10px) rotate(1deg) scale(1.14, 0.90); filter: blur(0) brightness(1.22); }
-  65%  { transform: translateY(4px) rotate(0) scale(0.94, 1.05); filter: brightness(1.05); }
-  82%  { transform: translateY(-2px) scale(1.02, 0.98); filter: brightness(1); }
-  100% { opacity: 1; transform: translateY(0) scale(1); filter: brightness(1); }
+   Tron-style "construct" entrance: the card builds from the bottom
+   up behind a horizontal scan line. Mirrors the death derezz which
+   collapses the card downward + sweeps a line up — play/die now
+   share visual language so it reads as one Tron metaphor: cards
+   materialize bottom-up on play, dematerialize bottom-up on death.
+
+   User direction May-1: "When the card gets placed on the board it
+   would be cool if it built itself into the card you see, the
+   reverse of the death animation. Removing what we already have
+   and changing it with this."
+
+   Implementation:
+     • .card transforms scaleY 0 → 1 with transform-origin at bottom,
+       so the card grows upward from a 1-pixel-tall sliver.
+     • A pseudo-element scan line (.card-enter::before) rides on the
+       card's TOP edge — appears at the bottom edge when the card
+       starts as a sliver, then "rises" with the card's growing top
+       as scaleY approaches 1. The line fades out at the end.
+     • Color follows --player-r/g/b (ally) or --enemy-r/g/b (enemy),
+       set via the .ally-card / .enemy-card class on the card itself.
+     • 600ms total — same as the previous cardPlayIn so combat pacing
+       doesn't shift. */
+@keyframes cardBuildIn {
+  0%   { opacity: 0; transform: scaleY(0); filter: brightness(1.4); }
+  6%   { opacity: 1; transform: scaleY(0.02); filter: brightness(1.4); }
+  100% { opacity: 1; transform: scaleY(1); filter: brightness(1); }
 }
-.card.card-enter { animation: cardPlayIn 0.6s cubic-bezier(0.34, 1.56, 0.64, 1); }
+@keyframes cardBuildInLine {
+  0%   { opacity: 0; }
+  8%   { opacity: 1; }
+  92%  { opacity: 1; }
+  100% { opacity: 0; }
+}
+.card.card-enter {
+  animation: cardBuildIn 0.6s cubic-bezier(0.22, 1, 0.36, 1) both;
+  transform-origin: 50% 100%; /* anchor at bottom — scaleY grows upward */
+}
+.card.card-enter::before {
+  content: '';
+  position: absolute;
+  /* Sit just above the card's top edge so the line tracks the
+     scaling card's growing top boundary visually. As the card scales
+     from 0→1, this top:0 line appears to rise with the card's
+     top edge (because the parent is the card itself). */
+  top: -1px; left: -4px; right: -4px;
+  height: 2px;
+  /* Theme-aware via --build-color (set per ally/enemy below). */
+  --build-color: rgba(var(--player-r, 79), var(--player-g, 195), var(--player-b, 247), 1);
+  background: var(--build-color);
+  box-shadow:
+    0 0 8px var(--build-color),
+    0 0 18px var(--build-color);
+  pointer-events: none;
+  z-index: 50;
+  animation: cardBuildInLine 0.6s linear both;
+}
+.card.card-enter.ally-card::before {
+  --build-color: rgba(var(--player-r, 79), var(--player-g, 195), var(--player-b, 247), 1);
+}
+.card.card-enter.enemy-card::before {
+  --build-color: rgba(var(--enemy-r, 231), var(--enemy-g, 76), var(--enemy-b, 60), 1);
+}
 
 /* Landing ring ripple — a thin concentric ring that expands outward
    from the card's base on entry, making the "land" beat feel
@@ -5876,13 +5924,30 @@ body.hit-pause .ai-hand * {
   position: absolute;
   left: -4px; right: -4px;
   height: 2px;
-  background: rgba(231,76,60,1);
+  /* Theme-aware death scan line. Was hardcoded red regardless of
+     whose card died or what theme was active — felt incongruent
+     when a player-side green card died and the death sweep flashed
+     red. Now reads --derezz-color, set per ally/enemy below.
+     Defaults to enemy-red so any uncategorized death (e.g.
+     legacy code paths) still has a visible signal. */
+  --derezz-color: rgba(var(--enemy-r, 231), var(--enemy-g, 76), var(--enemy-b, 60), 1);
+  background: var(--derezz-color);
   box-shadow:
-    0 0 10px rgba(231,76,60,0.95),
-    0 0 20px rgba(231,76,60,0.55);
+    0 0 10px var(--derezz-color),
+    0 0 20px var(--derezz-color);
   top: 100%;
   animation: derezzLine 0.7s linear forwards;
   transform: translateY(0);
+}
+/* Player-side death sweep follows --player-r/g/b — silver/red/gold/
+   green/purple themes get their actual neon as the dying line. */
+.card-death-ghost.ally-card::after {
+  --derezz-color: rgba(var(--player-r, 79), var(--player-g, 195), var(--player-b, 247), 1);
+}
+/* Enemy death sweep stays in --enemy-r/g/b (which itself flips when
+   the player picks red theme — enemy becomes blue). */
+.card-death-ghost.enemy-card::after {
+  --derezz-color: rgba(var(--enemy-r, 231), var(--enemy-g, 76), var(--enemy-b, 60), 1);
 }
 @keyframes derezz {
   0%   { opacity: 1; transform: scaleY(1); }
