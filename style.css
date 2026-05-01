@@ -24682,13 +24682,21 @@ input[type="number"]::-webkit-outer-spin-button {
    frames hidden behind black, then the wipe reveals everything in
    one continuous motion. Also bumped duration 1100ms → 1300ms for
    more drama. */
+/* User feedback May-1: "There's still, like, a little bit of a pause.
+   It looks like it stops and pauses." Root cause: the 20% black hold
+   at the start (0-260ms of static viewport before the sweep began)
+   was reading as a pause. Removed the hold so the bar sweeps from
+   start to finish in one continuous motion, and switched to Material
+   Design standard easing (0.4, 0.0, 0.2, 1.0) which is smoother than
+   the previous symmetric 0.65/0/0.35/1 curve — gentle ease-out at
+   both ends, constant velocity through the middle, no perceived
+   stop/start anywhere along the path. */
 @keyframes rlPhaseWipeSweep {
   0%   { transform: translate3d(-50%, 0, 0); }
-  20%  { transform: translate3d(-50%, 0, 0); }
   100% { transform: translate3d(50%, 0, 0); }
 }
 .rl-phase-wipe::before {
-  animation: rlPhaseWipeSweep 1300ms cubic-bezier(0.65, 0, 0.35, 1) forwards !important;
+  animation: rlPhaseWipeSweep 1100ms cubic-bezier(0.4, 0, 0.2, 1) forwards !important;
 }
 
 /* ============================================================
