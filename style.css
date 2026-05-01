@@ -24893,3 +24893,47 @@ body.turn-player .hud-phase {
 .draft-card .card-desc {
   text-shadow: 0 0 4px rgba(var(--theme-rgb, 79,195,247), 0.25) !important;
 }
+
+/* ============================================================
+   DEATH GHOST — derezz scan line cascade fix
+   ============================================================
+   User report May-1: "I still see the death scan line as blue
+   even after the theme fix."
+
+   The fix at style.css:5874 set background + box-shadow via
+   --derezz-color, but it was being overridden by the diagonal
+   sheen rule at line 16003 (.card.hand-card::after,
+   .card.ally-card::after, .card.enemy-card::after) which has
+   specificity (0,0,2,1) and comes LATER in the cascade than
+   the death-ghost rule at line 5874 (specificity 0,0,1,1).
+
+   The earlier .card-death-ghost.ally-card::after at line 5944
+   matched specificity (0,0,2,1) but still came BEFORE the
+   sheen rule in the cascade, so it lost the tie-break.
+
+   Solution: append the override here, at the very end of the
+   file, so the cascade-order tie resolves in our favor. The
+   sheen's diagonal blue gradient is suppressed (background:
+   none) and only the thin derezz line remains, painted in the
+   active player/enemy theme color. */
+.card-death-ghost::after {
+  background: var(--derezz-color, rgba(var(--enemy-r, 231), var(--enemy-g, 76), var(--enemy-b, 60), 1)) !important;
+  background-image: none !important;  /* suppress the diagonal sheen */
+  inset: auto !important;              /* override the sheen rule's inset:0 */
+  top: 100% !important;
+  left: -4px !important;
+  right: -4px !important;
+  height: 2px !important;
+  border-radius: 0 !important;
+  opacity: 1 !important;                /* sheen sets opacity:0 by default */
+  box-shadow:
+    0 0 10px var(--derezz-color, rgba(var(--enemy-r, 231), var(--enemy-g, 76), var(--enemy-b, 60), 0.95)),
+    0 0 20px var(--derezz-color, rgba(var(--enemy-r, 231), var(--enemy-g, 76), var(--enemy-b, 60), 0.55)) !important;
+  animation: derezzLine 0.7s linear forwards !important;
+}
+.card-death-ghost.ally-card::after {
+  --derezz-color: rgba(var(--player-r, 79), var(--player-g, 195), var(--player-b, 247), 1) !important;
+}
+.card-death-ghost.enemy-card::after {
+  --derezz-color: rgba(var(--enemy-r, 231), var(--enemy-g, 76), var(--enemy-b, 60), 1) !important;
+}

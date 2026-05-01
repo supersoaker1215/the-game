@@ -3637,57 +3637,20 @@ const UI = {
   },
 
   _animateFly(realEl, fromRect) {
-    const toRect = realEl.getBoundingClientRect();
-    if (toRect.width < 1) return;
-    // Clone the target card's look so the ghost matches final appearance.
-    const ghost = realEl.cloneNode(true);
-    ghost.classList.remove('card-enter');
-    ghost.classList.add('card-flight-ghost');
-    ghost.style.top = fromRect.top + 'px';
-    ghost.style.left = fromRect.left + 'px';
-    ghost.style.width = fromRect.width + 'px';
-    ghost.style.height = fromRect.height + 'px';
-    ghost.style.transformOrigin = '50% 50%';
-    ghost.style.transform = 'translate3d(0,0,0) rotate(-6deg) scale(0.96)';
-    document.body.appendChild(ghost);
-
-    // Hide the real element so we don't double-draw.
-    realEl.classList.add('card-flying');
-    realEl.classList.remove('card-enter'); // suppress the generic entry anim
-
-    const dx = toRect.left - fromRect.left;
-    const dy = toRect.top - fromRect.top;
-
-    // Parabolic arc trajectory — the ghost lifts up at the midpoint
-    // then descends to the lane, instead of moving in a straight line.
-    // Audit finding: "card-play trajectory was linear (no arc)." Arc
-    // peak height scales with horizontal travel: short hops barely
-    // arc; longer flights to far lanes lift higher. Min lift 60px so
-    // even neighbor-lane plays read as airborne rather than slid.
-    const peakY = Math.max(60, Math.abs(dx) * 0.22 + Math.abs(dy) * 0.10);
-    ghost.style.setProperty('--fly-dx', dx + 'px');
-    ghost.style.setProperty('--fly-dy', dy + 'px');
-    ghost.style.setProperty('--fly-peak-y', peakY + 'px');
-    ghost.style.willChange = 'transform, filter';
-    // Lock the from-state in its own paint frame BEFORE we trigger the
-    // animation — without double-rAF, browsers occasionally apply both
-    // initial + target transforms in the same frame, producing the
-    // perceived "snap" / janky start. This is the single biggest
-    // smoothness win for FLIP animations.
-    const TOTAL_MS = 840;
-    requestAnimationFrame(() => {
-      requestAnimationFrame(() => {
-        ghost.style.animation = `cardFlightArc ${TOTAL_MS}ms cubic-bezier(0.16, 1, 0.3, 1) forwards`;
-        ghost.style.filter = 'brightness(1.10) drop-shadow(0 0 8px rgba(120,220,255,0.35))';
-      });
-    });
-    // Cleanup at TOTAL_MS + small grace buffer. The real card stays
-    // hidden under .card-flying until the ghost is gone, so the swap
-    // is invisible (no double-render flicker).
-    setTimeout(() => {
-      ghost.remove();
-      realEl.classList.remove('card-flying');
-    }, TOTAL_MS + 30);
+    // User direction May-1: "Replace what we already have as an
+    // animation when you place a card with this build-in." The
+    // 840ms parabolic flight ghost was the actual visible play
+    // animation — it suppressed card-enter (line ~3656 used to
+    // strip card-enter from realEl) so the new cardBuildIn keyframe
+    // never had a chance to play. Now disabled: the real card stays
+    // visible immediately on placement and animates in via the
+    // cardBuildIn keyframe (.card.card-enter, style.css:5546).
+    //
+    // Kept the function as a stub (instead of removing the call
+    // site at line ~3626) so any future code path that still calls
+    // _animateFly is a no-op rather than a crash. If we ever want
+    // a flight back, restore the body and re-add a config flag.
+    return;
   },
 
   _spawnDeathGhost(rect, html) {
