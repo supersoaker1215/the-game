@@ -450,21 +450,27 @@ function checkInvariants(G, out) {
   if (s.ai.blockMeter < 0 || s.ai.blockMeter > BLOCK_MAX) {
     out.push('ai block meter out of bounds: ' + s.ai.blockMeter);
   }
-  // Hand size never exceeds maxHandSize (default 7).
-  var MAX_HAND = s.player.maxHandSize || 7;
-  if ((s.player.hand || []).length > MAX_HAND) {
-    out.push('player hand size ' + s.player.hand.length + ' > max ' + MAX_HAND);
+  // Hand size never exceeds maxHandSize (default 7). Each side carries
+  // its OWN cap — Eye of Agamotto permanently raises the playing
+  // side's cap (tricks.js:260), so cross-comparing AI vs player.cap
+  // would falsely flag a legitimate AI cap raise. Read each side's
+  // own max independently.
+  var PLAYER_MAX_HAND = s.player.maxHandSize || 7;
+  var AI_MAX_HAND     = s.ai.maxHandSize     || 7;
+  if ((s.player.hand || []).length > PLAYER_MAX_HAND) {
+    out.push('player hand size ' + s.player.hand.length + ' > max ' + PLAYER_MAX_HAND);
   }
-  if ((s.ai.hand || []).length > MAX_HAND) {
-    out.push('ai hand size ' + s.ai.hand.length + ' > max ' + MAX_HAND);
+  if ((s.ai.hand || []).length > AI_MAX_HAND) {
+    out.push('ai hand size ' + s.ai.hand.length + ' > max ' + AI_MAX_HAND);
   }
-  // Trick hand size.
-  var MAX_TRICK = s.player.maxTrickHandSize || 3;
-  if ((s.player.trickHand || []).length > MAX_TRICK) {
-    out.push('player trick hand ' + s.player.trickHand.length + ' > max ' + MAX_TRICK);
+  // Trick hand size — same per-side cap discipline.
+  var PLAYER_MAX_TRICK = s.player.maxTrickHandSize || 3;
+  var AI_MAX_TRICK     = s.ai.maxTrickHandSize     || 3;
+  if ((s.player.trickHand || []).length > PLAYER_MAX_TRICK) {
+    out.push('player trick hand ' + s.player.trickHand.length + ' > max ' + PLAYER_MAX_TRICK);
   }
-  if ((s.ai.trickHand || []).length > MAX_TRICK) {
-    out.push('ai trick hand ' + s.ai.trickHand.length + ' > max ' + MAX_TRICK);
+  if ((s.ai.trickHand || []).length > AI_MAX_TRICK) {
+    out.push('ai trick hand ' + s.ai.trickHand.length + ' > max ' + AI_MAX_TRICK);
   }
   // firstPlayer / activePlayer must be valid sides (not null mid-match).
   if (s.round > 0 && s.firstPlayer !== 'player' && s.firstPlayer !== 'ai') {
@@ -751,6 +757,245 @@ test('HUNTER: pinpoint which code path NaNs currentHealth', function () {
     throw new Error('First NaN at ' + firstNaN.site + ' for ' + firstNaN.name
       + ' (amount=' + firstNaN.amount + ', before=' + firstNaN.before + ', result=' + firstNaN.result + ')');
   }
+});
+
+// ============================================================
+// ---- COMBAT EDGE-CASE LAB ----------------------------------
+// Added 2026-05-01 — combat invariants discovered via the
+// Preview-tool edge-case sweep. Each test exercises one concrete
+// interaction the live test playthroughs wouldn't catch. Most
+// use synthetic minimal cards (no CARD_DEFS lookup) so they
+// stay fast and don't drift if a real card is rebalanced.
+// ============================================================
+
+// Minimal synthetic card for combat-mechanic tests. Avoids the
+// CARD_DEFS dependency for invariants that are about the engine,
+// not a specific card. Borrows the same shape createCardInstance
+// produces so applyCombatDamage / damagePlayer treat it normally.
+function mkSynth(o) {
+  o = o || {};
+  var c = {
+    id: Math.random(),
+    name: o.name || 'Synth',
+    attack: (o.attack != null) ? o.attack : 3,
+    currentHealth: (o.currentHealth != null) ? o.currentHealth : 5,
+    maxHealth: (o.maxHealth != null) ? o.maxHealth : 5,
+    baseAttack: (o.attack != null) ? o.attack : 3,
+    baseHealth: (o.maxHealth != null) ? o.maxHealth : 5,
+    cost: (o.cost != null) ? o.cost : 2,
+    baseCost: (o.cost != null) ? o.cost : 2,
+    owner: o.owner || 'player',
+    armorValue: 0, evadeCharges: 0, invincibleTurns: 0,
+    hasDamageImmunity: false, isStunned: false, isFrozen: false,
+    isFaceDown: false, tauntTurns: 0, passive: null,
+    hasPhoenix: false, hasThorns: 0, hasBerserker: false, hasZealot: false,
+    hasLifesteal: 0, splashRange: 0, statsKills: 0,
+    onDeath: null, onDamaged: null, onPlay: null, onEvade: null, onKill: null
+  };
+  for (var k in o) c[k] = o[k];
+  return c;
+}
+
+test('Phoenix revives once on lethal (hasPhoenix flag)', function () {
+  var G = freshGame();
+  var target = mkSynth({ name: 'Pho', currentHealth: 3, maxHealth: 10, owner: 'ai', hasPhoenix: true });
+  var attacker = mkSynth({ name: 'Hit', attack: 50, owner: 'player' });
+  G.state.lanes[0].player = attacker; G.state.lanes[0].ai = target;
+  var died = G.applyCombatDamage(attacker, target);
+  assertEq(died, false, 'Phoenix should keep target alive');
+  assertEq(target.currentHealth, target.maxHealth, 'Phoenix should restore full HP');
+  assert(target._phoenixUsed, 'Phoenix _phoenixUsed flag set');
+});
+
+test('Phoenix only fires once per game', function () {
+  var G = freshGame();
+  var target = mkSynth({ name: 'Pho', currentHealth: 3, maxHealth: 10, owner: 'ai', hasPhoenix: true });
+  var attacker = mkSynth({ name: 'Hit', attack: 50, owner: 'player' });
+  G.state.lanes[0].player = attacker; G.state.lanes[0].ai = target;
+  G.applyCombatDamage(attacker, target);  // first lethal — revives
+  target.currentHealth = 3;
+  var died = G.applyCombatDamage(attacker, target);  // second lethal
+  assertEq(died, true, 'Second lethal must kill (no second Phoenix)');
+});
+
+test('Stunned target cannot evade', function () {
+  var G = freshGame();
+  var target = mkSynth({ name: 'Sleeper', evadeCharges: 1, isStunned: true, owner: 'ai' });
+  var attacker = mkSynth({ name: 'Hit', attack: 3, owner: 'player' });
+  G.state.lanes[0].player = attacker; G.state.lanes[0].ai = target;
+  G.applyCombatDamage(attacker, target);
+  assertEq(target.evadeCharges, 1, 'Evade should not consume on stunned dodge attempt');
+  assertEq(target.currentHealth, 2, 'Damage should land through stun-blocked evade');
+});
+
+test('Frozen target cannot evade', function () {
+  var G = freshGame();
+  var target = mkSynth({ name: 'Frosty', evadeCharges: 1, isFrozen: true, owner: 'ai' });
+  var attacker = mkSynth({ name: 'Hit', attack: 3, owner: 'player' });
+  G.state.lanes[0].player = attacker; G.state.lanes[0].ai = target;
+  G.applyCombatDamage(attacker, target);
+  assertEq(target.evadeCharges, 1, 'Evade should not consume on frozen target');
+});
+
+test('Armor exactly equals damage — full absorb, no HP loss', function () {
+  var G = freshGame();
+  var target = mkSynth({ name: 'Tank', armorValue: 3, owner: 'ai' });
+  var attacker = mkSynth({ name: 'Hit', attack: 3, owner: 'player' });
+  G.state.lanes[0].player = attacker; G.state.lanes[0].ai = target;
+  var ret = G.applyCombatDamage(attacker, target);
+  assertEq(target.currentHealth, 5, 'Equal-armor hit should not chip HP');
+  assertEq(ret, false, 'Target survives');
+});
+
+test('Damage Immune absorbs full hit', function () {
+  var G = freshGame();
+  var target = mkSynth({ name: 'Ghost', hasDamageImmunity: true, owner: 'ai' });
+  var attacker = mkSynth({ name: 'Hit', attack: 999, owner: 'player' });
+  G.state.lanes[0].player = attacker; G.state.lanes[0].ai = target;
+  G.applyCombatDamage(attacker, target);
+  assertEq(target.currentHealth, 5, 'Damage Immune should fully block');
+});
+
+test('Thorns retaliates on landed hit', function () {
+  var G = freshGame();
+  var target = mkSynth({ name: 'Bramble', hasThorns: 2, currentHealth: 10, owner: 'ai' });
+  var attacker = mkSynth({ name: 'Glass', currentHealth: 5, attack: 3, owner: 'player' });
+  G.state.lanes[0].player = attacker; G.state.lanes[0].ai = target;
+  G.applyCombatDamage(attacker, target);
+  assertEq(attacker.currentHealth, 3, 'Thorns should chip attacker for 2');
+});
+
+test('Lifesteal heals owner equal to dmg dealt', function () {
+  var G = freshGame();
+  G.state.player.health = 20; G.state.player.maxHealth = 30;
+  var attacker = mkSynth({ name: 'Vamp', attack: 4, hasLifesteal: 1, owner: 'player' });
+  var target = mkSynth({ name: 'Victim', owner: 'ai' });
+  G.state.lanes[0].player = attacker; G.state.lanes[0].ai = target;
+  G.applyCombatDamage(attacker, target);
+  assert(G.state.player.health > 20, 'Lifesteal should heal owner');
+});
+
+test('Lifesteal does NOT heal on absorbed hit (whiff)', function () {
+  var G = freshGame();
+  G.state.player.health = 20; G.state.player.maxHealth = 30;
+  var attacker = mkSynth({ name: 'Vamp', attack: 2, hasLifesteal: 1, owner: 'player' });
+  var target = mkSynth({ name: 'Tank', armorValue: 5, owner: 'ai' });
+  G.state.lanes[0].player = attacker; G.state.lanes[0].ai = target;
+  G.applyCombatDamage(attacker, target);
+  assertEq(G.state.player.health, 20, 'Lifesteal should not trigger when armor fully absorbs');
+});
+
+test('NaN currentHealth coerces to baseHealth (no propagation)', function () {
+  var G = freshGame();
+  var target = mkSynth({ name: 'Glitch', baseHealth: 8, owner: 'ai' });
+  target.currentHealth = NaN;
+  target.maxHealth = NaN;
+  var attacker = mkSynth({ name: 'Hit', attack: 3, owner: 'player' });
+  G.state.lanes[0].player = attacker; G.state.lanes[0].ai = target;
+  G.applyCombatDamage(attacker, target);
+  assert(Number.isFinite(target.currentHealth), 'currentHealth should be finite after coerce');
+  assertEq(target.currentHealth, 5, 'Expected 8 - 3 = 5 after coerce');
+});
+
+test('addToHand returns false when hand is full', function () {
+  var G = freshGame();
+  G.state.player.hand = [];
+  G.state.player.maxHandSize = 2;
+  G.state.player.hand.push(mkSynth({ name: 'A' }));
+  G.state.player.hand.push(mkSynth({ name: 'B' }));
+  var ret = G.addToHand('player', mkSynth({ name: 'C' }));
+  assertEq(ret, false, 'addToHand must return false when capped');
+  assertEq(G.state.player.hand.length, 2, 'Hand must not grow past cap');
+});
+
+test('Moder strip + _unstripModer roundtrip restores fields', function () {
+  var G = freshGame();
+  // Use a real Moder + a synthetic victim so the strip helper runs
+  // its actual logic against a card with onPlay/onDeath/passives.
+  var victim = mkSynth({ name: 'Victim', armorValue: 2, evadeCharges: 1, passive: 'somePassive' });
+  victim.onDeath = function () { return 'death-fn'; };
+  victim.onPlay = function () { return 'play-fn'; };
+  var moder = mkSynth({ name: 'Moder', owner: 'ai', _moderStripPending: 1 });
+  G.state.lanes[0].player = victim; G.state.lanes[0].ai = moder;
+  CARD_ABILITIES['Moder'].onAnyCardPlayed(G, moder);
+  assert(victim._moderStripped, 'Moder should set _moderStripped');
+  assertEq(victim.onDeath, null, 'onDeath should be nulled');
+  assertEq(typeof victim._unstripModer, 'function', '_unstripModer must be on card');
+  victim._unstripModer();
+  assert(!victim._moderStripped, 'Strip flag should clear');
+  assertEq(typeof victim.onDeath, 'function', 'onDeath should be restored');
+  assertEq(victim.armorValue, 2, 'Armor should be restored');
+});
+
+test('addToHand un-strips Moder-stripped card on bounce', function () {
+  // Regression for #73cf0c8 — the Moder bounce bug. Bouncing a
+  // stripped card via Phantom Zone (or any bounce) used to leave
+  // it permanently de-fanged because addToHand had no restore
+  // path. Now addToHand calls card._unstripModer() before pushing.
+  var G = freshGame();
+  G.state.player.hand = [];
+  G.state.player.maxHandSize = 7;
+  var card = mkSynth({ name: 'Bounce', owner: 'player' });
+  card.onPlay = function () { return 'fn'; };
+  var moder = mkSynth({ name: 'Moder', owner: 'ai', _moderStripPending: 1 });
+  G.state.lanes[0].player = card; G.state.lanes[0].ai = moder;
+  CARD_ABILITIES['Moder'].onAnyCardPlayed(G, moder);
+  assert(card._moderStripped, 'precondition: card should be stripped');
+  G.addToHand('player', card);
+  assert(!card._moderStripped, 'Strip flag must clear on hand re-entry');
+  assertEq(typeof card.onPlay, 'function', 'onPlay must be restored on bounce');
+});
+
+test('Direct-attack path: damagePlayer drops .health', function () {
+  var G = freshGame();
+  G.state.ai.health = 30; G.state.ai.blockMeter = 0;
+  var attacker = mkSynth({ name: 'Hit', attack: 5, owner: 'player' });
+  // isBullseye=true bypasses the block-meter randomness — keeps test
+  // deterministic. Real direct hits would roll the meter normally.
+  G.damagePlayer('ai', 5, true, attacker);
+  assertEq(G.state.ai.health, 25, 'damagePlayer should reduce .health by amount');
+});
+
+test('damagePlayer to 0 sets gameOver + winner', function () {
+  var G = freshGame();
+  G.state.ai.health = 5; G.state.ai.blockMeter = 0;
+  var attacker = mkSynth({ name: 'KO', attack: 10, owner: 'player' });
+  G.damagePlayer('ai', 10, true, attacker);
+  assertEq(G.state.ai.health, 0, 'health floors at 0');
+  assert(G.state.gameOver, 'gameOver flag should set');
+  assertEq(G.state.winner, 'player', 'Winner is opposite of damaged side');
+});
+
+test('Frozen HP bar negates first incoming damage', function () {
+  var G = freshGame();
+  G.state.ai.health = 30;
+  G.state.ai.healthFrozen = true;
+  G.damagePlayer('ai', 5, true);
+  assertEq(G.state.ai.health, 30, 'First hit should be fully negated');
+  assertEq(G.state.ai.healthFrozen, false, 'healthFrozen flag must clear after one negation');
+});
+
+test('getCardCost respects discount (positive)', function () {
+  var G = freshGame();
+  G.state.player.discount = 1;
+  var cost = G.getCardCost('player', mkSynth({ cost: 4 }));
+  assertEq(cost, 3, 'Cost should reduce by discount');
+});
+
+test('getCardCost floors at 0 (huge discount)', function () {
+  var G = freshGame();
+  G.state.player.discount = 99;
+  var cost = G.getCardCost('player', mkSynth({ cost: 4 }));
+  assert(cost >= 0, 'Cost cannot go negative');
+});
+
+test('Hit on already-dead card returns false (no double-kill credit)', function () {
+  var G = freshGame();
+  var target = mkSynth({ name: 'Dead', currentHealth: 0, owner: 'ai' });
+  var attacker = mkSynth({ name: 'Hit', attack: 3, owner: 'player' });
+  G.state.lanes[0].player = attacker; G.state.lanes[0].ai = target;
+  var ret = G.applyCombatDamage(attacker, target);
+  assertEq(ret, false, 'No-op on already-dead target');
 });
 
 // ============================================================
