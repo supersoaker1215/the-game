@@ -7638,12 +7638,26 @@ const UI = {
   // board.innerHTML = '' wipes the DOM. Walks the current board, grabs
   // every card element by data-card-id, and stashes them in a Map.
   // makeCardElCached() consumes this map during the rebuild.
+  //
+  // CRITICAL: Map is keyed by id but stores an ARRAY of elements per id.
+  // Multiple instances of the same card design can exist on the board
+  // simultaneously — Roguelite Jason can have 6 copies across 6 lanes,
+  // multi-Goon swarms, etc. If we keyed by single element, only one lane
+  // would reuse its DOM node; the other 5 lanes would build fresh nodes
+  // each render and stack up in their slots because their stale copies
+  // had data-card-id matching the current occupant id and weren't
+  // distinguishable from each other. Bug surfaced as: lane 1 ai slot
+  // accumulating 18 Jason copies stacked horizontally. Fix is to
+  // capture all instances per id, then consume them one-by-one as
+  // makeCardElCached() is called during the rebuild.
   _captureBoardCardEls() {
     const fresh = new Map();
     if (this.board) {
       this.board.querySelectorAll('.card[data-card-id]').forEach(el => {
         const id = el.getAttribute('data-card-id');
-        if (id) fresh.set(id, el);
+        if (!id) return;
+        if (!fresh.has(id)) fresh.set(id, []);
+        fresh.get(id).push(el);
       });
     }
     this._capturedBoardCardEls = fresh;
@@ -7668,7 +7682,15 @@ const UI = {
       return this.makeCardEl(card, inHand, side);
     }
     const idStr = String(card.id);
-    const cached = this._capturedBoardCardEls && this._capturedBoardCardEls.get(idStr);
+    // shift() consumes the FIRST element from this id's array. Multiple
+    // instances of the same card produce multiple entries — each
+    // makeCardElCached call hands back one until the array empties.
+    // Capture order ≈ left-to-right board scan; subsequent renders
+    // build cardEls in the same lane order, so each lane's element
+    // tends to round-trip back to the same lane (animations stay
+    // continuous per-lane).
+    const list = this._capturedBoardCardEls && this._capturedBoardCardEls.get(idStr);
+    const cached = (list && list.length) ? list.shift() : null;
     const snap = this._cardVisualSnapshot(card);
     if (cached && cached.dataset && cached.dataset.snap === snap) {
       // STATE UNCHANGED — reuse the existing DOM node. CSS animations on
@@ -7678,8 +7700,6 @@ const UI = {
       this._DECORATION_CLASSES.forEach(c => cached.classList.remove(c));
       // Clean stale inline styles that decorations may have left.
       cached.style.cursor = '';
-      // Mark the cached entry consumed so we don't double-attach.
-      this._capturedBoardCardEls.delete(idStr);
       return cached;
     }
     // STATE CHANGED — but if we have a cached DOM node for this card,
@@ -7748,8 +7768,8 @@ const UI = {
           cached.style.setProperty(prop, fresh.style.getPropertyValue(prop));
         }
       }
-      // Mark consumed so the captured map doesn't try to re-use it.
-      this._capturedBoardCardEls.delete(idStr);
+      // (Already consumed via list.shift() at lookup time — no extra
+      // bookkeeping needed.)
       return cached;
     }
     // No prior cache — first time seeing this card on board. Return
@@ -7997,29 +8017,27 @@ const UI = {
       // is idempotent (same string = no animation impact, but we
       // assign here so a fresh slot gets the right class too).
       if (aiSlot.className !== 'card-slot ai-slot') aiSlot.className = 'card-slot ai-slot';
-      // Drop transient inline content (empty-glyph, dust-kick, ring).
-      // KEEP only the .card whose data-card-id matches the current
-      // lane occupant — any other lingering .card from a previous
-      // render (e.g. a card that moved out / got replaced) gets
-      // removed. User report May-1 (annotated screenshot): "Jason
-      // is scrunched up." Root cause was multiple .card elements
-      // accumulating in the same slot when the lane's AI occupant
-      // changed: my earlier slot-reuse logic preserved ALL .card
-      // children unconditionally, then appended the new one, leaving
-      // 2 cards in the slot. Flex squeezed both into the slot's
-      // 134px width → ~69px per card.
-      const aiKeepId = lane.ai && lane.ai.id != null ? String(lane.ai.id) : null;
+      // Decide the card element FIRST (via cache lookup or fresh build),
+      // then sweep — keeping ONLY the chosen element. User report May-1
+      // (annotated screenshot): "underneath the lane itself, the
+      // [cards] are making infinite copies." Root cause: matching by
+      // data-card-id alone wasn't unique when multiple instances of
+      // the same card existed (e.g. Roguelite Jason copies). The
+      // capture Map only held one element per id, so 5 of 6 lanes
+      // built fresh nodes each render and stacked them in their slot
+      // (since stale copies all matched the keep-id). Now we capture
+      // arrays per id (see _captureBoardCardEls) and remove anything
+      // that ISN'T the chosen cardEl, regardless of id matching. Single
+      // path, single result — no chance of accumulation.
+      let aiCardEl = null;
+      if (lane.ai) {
+        aiCardEl = lane.ai.isFaceDown ? this.makeFaceDownEl() : this.makeCardElCached(lane.ai, false, 'enemy');
+      }
       Array.from(aiSlot.children).forEach(child => {
-        if (!child.classList) { child.remove(); return; }
-        if (child.classList.contains('card')) {
-          const id = child.getAttribute('data-card-id');
-          if (id !== aiKeepId) child.remove();
-        } else {
-          child.remove();
-        }
+        if (child !== aiCardEl) child.remove();
       });
       if (lane.ai) {
-        const cardEl = lane.ai.isFaceDown ? this.makeFaceDownEl() : this.makeCardElCached(lane.ai, false, 'enemy');
+        const cardEl = aiCardEl;
         if (lane.ai.id !== undefined) currentBoardIds.add(lane.ai.id);
         if (!this._lastBoardCardIds.has(lane.ai.id)) {
           // Enemy cards get a 3D flip-in ON TOP of the cardPlayIn entry so
@@ -8132,21 +8150,19 @@ const UI = {
         pSlot = document.createElement('div');
       }
       if (pSlot.className !== 'card-slot player-slot') pSlot.className = 'card-slot player-slot';
-      // Same id-match cleanup as ai-slot — only keep the .card whose
-      // data-card-id is the current lane occupant; remove all other
-      // cards (stale from previous renders) and transient children.
-      const playerKeepId = lane.player && lane.player.id != null ? String(lane.player.id) : null;
+      // Same chosen-element cleanup as ai-slot — compute the cardEl
+      // first, then remove any child that isn't it. Handles multi-
+      // instance scenarios (e.g. cloned player cards) without
+      // accumulation.
+      let plCardEl = null;
+      if (lane.player) {
+        plCardEl = this.makeCardElCached(lane.player, false, 'ally');
+      }
       Array.from(pSlot.children).forEach(child => {
-        if (!child.classList) { child.remove(); return; }
-        if (child.classList.contains('card')) {
-          const id = child.getAttribute('data-card-id');
-          if (id !== playerKeepId) child.remove();
-        } else {
-          child.remove();
-        }
+        if (child !== plCardEl) child.remove();
       });
       if (lane.player) {
-        const cardEl = this.makeCardElCached(lane.player, false, 'ally');
+        const cardEl = plCardEl;
         if (lane.player.isFaceDown) cardEl.classList.add('face-down');
         if (lane.player.id !== undefined) currentBoardIds.add(lane.player.id);
         if (!this._lastBoardCardIds.has(lane.player.id)) {
