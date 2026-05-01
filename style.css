@@ -14201,23 +14201,31 @@ body.theme-purple .board-section {
   pointer-events: none;
   z-index: 25;
   /* width / height / left / top / border-radius come from JS based
-     on the source card's getBoundingClientRect(). */
-  border: 2.5px solid rgba(127,208,255,0.95);
+     on the source card's getBoundingClientRect(). User report May-1:
+     "The death scan line still looks blue in green theme." Root
+     cause turned out to be HERE: the splash-shockwave ring (which
+     fires whenever a card with Splash deals damage — often killing
+     adjacent enemies) was hardcoded rgba(127,208,255) cyan for
+     player-side. It fires right when cards die from splash, so the
+     user perceived the cyan ring as "the death scan line." Now
+     follows --player-rgb (player-side ring) / --enemy-rgb (AI ring)
+     so all six themes paint the splash flash in their own neon. */
+  border: 2.5px solid rgba(var(--player-r, 127), var(--player-g, 208), var(--player-b, 255), 0.95);
   background: transparent; /* hollow ring — the card sits inside */
   box-shadow:
-    0 0 14px rgba(127,208,255,0.55),
-    0 0 32px rgba(127,208,255,0.30),
-    inset 0 0 12px rgba(127,208,255,0.30);
+    0 0 14px rgba(var(--player-r, 127), var(--player-g, 208), var(--player-b, 255), 0.55),
+    0 0 32px rgba(var(--player-r, 127), var(--player-g, 208), var(--player-b, 255), 0.30),
+    inset 0 0 12px rgba(var(--player-r, 127), var(--player-g, 208), var(--player-b, 255), 0.30);
   animation: splashShockwave 540ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
   opacity: 1;
   transform-origin: 50% 50%;
 }
 .splash-shockwave.ring-ai {
-  border-color: rgba(255,127,127,0.95);
+  border-color: rgba(var(--enemy-r, 255), var(--enemy-g, 127), var(--enemy-b, 127), 0.95);
   box-shadow:
-    0 0 14px rgba(255,127,127,0.55),
-    0 0 32px rgba(255,127,127,0.30),
-    inset 0 0 12px rgba(255,127,127,0.30);
+    0 0 14px rgba(var(--enemy-r, 255), var(--enemy-g, 127), var(--enemy-b, 127), 0.55),
+    0 0 32px rgba(var(--enemy-r, 255), var(--enemy-g, 127), var(--enemy-b, 127), 0.30),
+    inset 0 0 12px rgba(var(--enemy-r, 255), var(--enemy-g, 127), var(--enemy-b, 127), 0.30);
 }
 /* A second, thinner trailing ring for the "secondary wave" — gives
    the ripple a multi-pass feel instead of a single expanding loop.
