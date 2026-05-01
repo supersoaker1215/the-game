@@ -7572,29 +7572,27 @@ const UI = {
   // (faster than parseInt; treats null/undefined as 0).
   _cardVisualSnapshot(card) {
     if (!card) return '';
-    // Lane-context fingerprint: the incoming-damage badge (skull / HP-
-    // after-combat) on a board card depends on the OPPOSING card's
-    // ATK/armor/etc., not just this card's own state. If we only
-    // snapshot self-state, an enemy played into the lane → player card's
-    // snapshot unchanged → cached DOM reused → stale badge (no skull on
-    // a card that should now die). User report: "there are multiple
-    // missing damage and death previews on the cards." Fix: bake the
-    // predicted incoming-damage + dies-flag into the snapshot so any
-    // change in lane combat outcome busts the cache. Cheap (one
-    // predictLaneOutcome call per card per render — pure function).
-    let lc = '';
-    try {
-      if (card.currentHealth > 0 && Game.findCardLane && typeof Game.predictLaneOutcome === 'function') {
-        const li = Game.findCardLane(card);
-        if (li >= 0) {
-          const r = Game.predictLaneOutcome(li);
-          if (r) {
-            const me = r[card.owner];
-            if (me) lc = (me.dmgIn | 0) + ':' + (me.dies ? 1 : 0) + ':' + (me.hpAfter | 0);
-          }
-        }
-      }
-    } catch (e) { /* swallow — predict failure means we still cache, just on self-state alone */ }
+    // The lane-combat prediction (`lc`) used to live in this snapshot
+    // so that an enemy played into a lane busts the player card's
+    // cache → fresh DOM → updated damage badge. But that came at a
+    // real cost: during AI thinking, every AI play changes `lc` for
+    // every opposing player card, which busts the cache, which
+    // recreates the DOM, which restarts the .tron-perimeter-card
+    // pulse animation at 0% — every ~450ms. Players saw their cards
+    // visibly pulsing/twitching whenever the AI was acting.
+    //
+    // User report May-1 (after the lane-DOM cache fix): "My cards are
+    // still pulsing during AI turn." Root cause was here: card-level
+    // cache invalidation on every AI step.
+    //
+    // Trade-off: the dmg-preview badges on player cards may be 1
+    // render stale when an AI play updates lane combat math without
+    // changing self-state. The next stat-changing event (combat
+    // resolution, status change, end of turn) busts cache anyway and
+    // refreshes them. This is a much smaller visual issue than the
+    // pulse storm — and the SIM preview boxes at the bottom of each
+    // lane (.dmg-preview) update independently every render so the
+    // current-card prediction is still always live.
     return JSON.stringify({
       n:  card.name,
       a:  card.attack | 0,
@@ -7617,7 +7615,6 @@ const UI = {
       cr: !!card.isCrazy, ins: !!card.isInsane,
       fd: !!card.isFaceDown, jr: !!card.jumpReady,
       ut: !!card.isUntrickable,
-      lc, // lane-combat predicted incoming-damage fingerprint
     });
   },
 
