@@ -7997,12 +7997,26 @@ const UI = {
       // is idempotent (same string = no animation impact, but we
       // assign here so a fresh slot gets the right class too).
       if (aiSlot.className !== 'card-slot ai-slot') aiSlot.className = 'card-slot ai-slot';
-      // Drop transient inline content (empty-glyph, dust-kick, ring)
-      // but preserve the .card child if present — it'll be replaced
-      // by makeCardElCached returning the same node, OR removed
-      // below if lane.ai is null.
+      // Drop transient inline content (empty-glyph, dust-kick, ring).
+      // KEEP only the .card whose data-card-id matches the current
+      // lane occupant — any other lingering .card from a previous
+      // render (e.g. a card that moved out / got replaced) gets
+      // removed. User report May-1 (annotated screenshot): "Jason
+      // is scrunched up." Root cause was multiple .card elements
+      // accumulating in the same slot when the lane's AI occupant
+      // changed: my earlier slot-reuse logic preserved ALL .card
+      // children unconditionally, then appended the new one, leaving
+      // 2 cards in the slot. Flex squeezed both into the slot's
+      // 134px width → ~69px per card.
+      const aiKeepId = lane.ai && lane.ai.id != null ? String(lane.ai.id) : null;
       Array.from(aiSlot.children).forEach(child => {
-        if (!child.classList || !child.classList.contains('card')) child.remove();
+        if (!child.classList) { child.remove(); return; }
+        if (child.classList.contains('card')) {
+          const id = child.getAttribute('data-card-id');
+          if (id !== aiKeepId) child.remove();
+        } else {
+          child.remove();
+        }
       });
       if (lane.ai) {
         const cardEl = lane.ai.isFaceDown ? this.makeFaceDownEl() : this.makeCardElCached(lane.ai, false, 'enemy');
@@ -8118,8 +8132,18 @@ const UI = {
         pSlot = document.createElement('div');
       }
       if (pSlot.className !== 'card-slot player-slot') pSlot.className = 'card-slot player-slot';
+      // Same id-match cleanup as ai-slot — only keep the .card whose
+      // data-card-id is the current lane occupant; remove all other
+      // cards (stale from previous renders) and transient children.
+      const playerKeepId = lane.player && lane.player.id != null ? String(lane.player.id) : null;
       Array.from(pSlot.children).forEach(child => {
-        if (!child.classList || !child.classList.contains('card')) child.remove();
+        if (!child.classList) { child.remove(); return; }
+        if (child.classList.contains('card')) {
+          const id = child.getAttribute('data-card-id');
+          if (id !== playerKeepId) child.remove();
+        } else {
+          child.remove();
+        }
       });
       if (lane.player) {
         const cardEl = this.makeCardElCached(lane.player, false, 'ally');
