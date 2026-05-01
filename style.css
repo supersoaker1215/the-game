@@ -9415,7 +9415,7 @@ body.turn-combat .board .lane.lane-active {
    slots when a card is selected. Neutral white so the numbers are the
    whole story; no outcome color-coding. */
 .dmg-preview {
-  position: absolute; bottom: 6px; left: 50%; transform: translateX(-50%);
+  position: absolute; bottom: 6px; left: 50%;
   background: rgba(10,10,14,0.88);
   border: 1px solid rgba(231,76,60,0.85);
   border-radius: 4px;
@@ -9430,6 +9430,17 @@ body.turn-combat .board .lane.lane-active {
     0 0 8px rgba(231,76,60,0.55),
     0 0 18px rgba(231,76,60,0.22);
   z-index: 5;
+  /* Smooth fade-in when SIM previews appear on card selection — was
+     popping in abruptly before. Fade is fast (180ms) so the response
+     to selection still feels immediate; the slight scale-up adds a
+     subtle "settling into place" beat without making the preview
+     feel laggy. */
+  transform: translateX(-50%);
+  animation: dmgPreviewIn 180ms cubic-bezier(0.4, 0, 0.2, 1) both;
+}
+@keyframes dmgPreviewIn {
+  0%   { opacity: 0; transform: translateX(-50%) translateY(4px) scale(0.94); }
+  100% { opacity: 1; transform: translateX(-50%) translateY(0) scale(1); }
 }
 .dmg-preview .dp-row {
   display: flex; justify-content: space-between; align-items: baseline; gap: 10px;
@@ -18346,10 +18357,16 @@ body::after {
    in on class add via transition, fades out on class remove. */
 .lane.lane-receptive {
   /* Inner glow inset — uses box-shadow with negative spread so it
-     stays inside the lane bounds. */
+     stays inside the lane bounds. Theme-aware: was hardcoded cyan,
+     now follows --theme-rgb so the "ready to catch your card" glow
+     paints in red/green/silver/purple themes too. !important needed
+     to win over the .lane { box-shadow ... !important } override at
+     line ~12245 (which sets the canonical empty-lane white shadow).
+     Without !important, the receptive cue silently falls off and the
+     player gets no "leaning in" feedback when holding a card. */
   box-shadow:
-    inset 0 0 16px rgba(127,208,255,0.18),
-    inset 0 0 32px rgba(127,208,255,0.08);
+    inset 0 0 16px rgba(var(--theme-rgb, 127,208,255), 0.18),
+    inset 0 0 32px rgba(var(--theme-rgb, 127,208,255), 0.08) !important;
   transition: box-shadow 320ms var(--ease-out-soft);
 }
 .lane:not(.lane-receptive) {
