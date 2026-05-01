@@ -310,16 +310,22 @@ body.clb-toggle-hidden .viewport-toggle {
 body::before {
   content: "";
   position: fixed; inset: 0; pointer-events: none; z-index: 0;
+  /* Top vignette = AI/enemy side, bottom vignette = player side.
+     Was hardcoded blue/red; now follows --enemy-rgb / --player-rgb so
+     a red-theme player sees a red bottom + blue top, etc. User
+     feedback May-1: "the area to the left/right of the lanes feels
+     kinda blue" — root cause was this vignette bleeding through the
+     side gaps even when the active theme wasn't blue. */
   background:
-    radial-gradient(ellipse 70% 55% at 50% 0%, rgba(79,195,247,0.06), transparent 70%),
-    radial-gradient(ellipse 70% 55% at 50% 100%, rgba(231,76,60,0.04), transparent 70%);
+    radial-gradient(ellipse 70% 55% at 50% 0%, rgba(var(--enemy-r, 231), var(--enemy-g, 76), var(--enemy-b, 60), 0.06), transparent 70%),
+    radial-gradient(ellipse 70% 55% at 50% 100%, rgba(var(--player-r, 79), var(--player-g, 195), var(--player-b, 247), 0.04), transparent 70%);
 }
 body::after {
   content: "";
   position: fixed; inset: 0; pointer-events: none; z-index: 0;
   background-image:
-    linear-gradient(to right, rgba(79,195,247,0.035) 1px, transparent 1px),
-    linear-gradient(to bottom, rgba(79,195,247,0.035) 1px, transparent 1px);
+    linear-gradient(to right, rgba(var(--theme-rgb, 79,195,247), 0.035) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(var(--theme-rgb, 79,195,247), 0.035) 1px, transparent 1px);
   background-size: 48px 48px;
   mask-image: radial-gradient(ellipse 80% 70% at 50% 50%, #000 55%, transparent 100%);
   -webkit-mask-image: radial-gradient(ellipse 80% 70% at 50% 50%, #000 55%, transparent 100%);
@@ -547,8 +553,11 @@ body::after {
   opacity: 0;
   transition: opacity 0.25s ease;
 }
-body::before { top: 0;    background: linear-gradient(to bottom, rgba(231,76,60,0.75), transparent); box-shadow: 0 0 22px 2px rgba(231,76,60,0.55); }
-body::after  { bottom: 0; background: linear-gradient(to top,   rgba(79,195,247,0.75), transparent); box-shadow: 0 0 22px 2px rgba(79,195,247,0.55); }
+/* Top edge = AI/enemy turn glow → --enemy-rgb (red default; flips
+   when player picks red theme). Bottom edge = player turn glow →
+   --player-rgb (blue default; follows active theme). */
+body::before { top: 0;    background: linear-gradient(to bottom, rgba(var(--enemy-r, 231), var(--enemy-g, 76), var(--enemy-b, 60), 0.75), transparent); box-shadow: 0 0 22px 2px rgba(var(--enemy-r, 231), var(--enemy-g, 76), var(--enemy-b, 60), 0.55); }
+body::after  { bottom: 0; background: linear-gradient(to top,   rgba(var(--player-r, 79), var(--player-g, 195), var(--player-b, 247), 0.75), transparent); box-shadow: 0 0 22px 2px rgba(var(--player-r, 79), var(--player-g, 195), var(--player-b, 247), 0.55); }
 body.turn-player::after { opacity: 1; animation: turnEdgePulse 2s ease-in-out infinite; }
 body.turn-ai::before    { opacity: 1; animation: turnEdgePulse 2s ease-in-out infinite; }
 body.turn-combat::before,
@@ -9668,11 +9677,13 @@ body.turn-combat .board .lane.lane-active {
   display: inline-block;
   font-size: 7px; letter-spacing: 1.4px; text-transform: uppercase;
   font-weight: 800;
-  color: rgba(127,208,255,0.90);
-  text-shadow: 0 0 4px rgba(79,195,247,0.5);
+  /* User feedback May-1: SIM pill stayed cyan even in red/green/silver/
+     purple themes. Now follows the active neon. */
+  color: rgba(var(--theme-rgb, 127,208,255), 0.90);
+  text-shadow: 0 0 4px rgba(var(--theme-rgb, 79,195,247), 0.5);
   margin-top: 3px;
   padding: 1px 4px;
-  border: 1px solid rgba(127,208,255,0.40);
+  border: 1px solid rgba(var(--theme-rgb, 127,208,255), 0.40);
   border-radius: 2px;
 }
 .dmg-preview .dp-side {
@@ -17560,10 +17571,14 @@ body.defeat-pose .board .card.enemy-card {
      rectangles. Sized to read clearly without overwhelming the
      border (~14px is the sweet spot on HUD chips). */
   --tron-perim-pulse-size: 14px;
-  /* Color (default cyan; per-element overrides below for AI-side). */
-  --tron-perim-r: 127;
-  --tron-perim-g: 208;
-  --tron-perim-b: 255;
+  /* Color follows the active theme via --theme-r/g/b (set per
+     body.theme-X class). User feedback May-1: "the inside shining
+     bit on the block meter circle and energy diamond is blue even
+     when I pick white/red/green/purple." Was hardcoded cyan; now
+     defaults to the theme. AI-side override below uses --enemy-*. */
+  --tron-perim-r: var(--theme-r, 127);
+  --tron-perim-g: var(--theme-g, 208);
+  --tron-perim-b: var(--theme-b, 255);
 }
 
 /* RECTANGLE BASE — pulsing tube of light along the perimeter.
@@ -17678,13 +17693,14 @@ body.defeat-pose .board .card.enemy-card {
   to { --tron-flow-angle: 360deg; }
 }
 
-/* AI-side perimeter — red current. Apply on the AI HP bar, energy
-   pill, etc. */
+/* AI-side perimeter — enemy current. Apply on the AI HP bar, energy
+   pill, etc. Follows --enemy-r/g/b so when the player picks red, the
+   enemy flips to blue and the spinning ring follows. */
 .ai-bar .tron-perimeter,
 .tron-perimeter-ai {
-  --tron-perim-r: 255;
-  --tron-perim-g: 138;
-  --tron-perim-b: 122;
+  --tron-perim-r: var(--enemy-r, 255);
+  --tron-perim-g: var(--enemy-g, 138);
+  --tron-perim-b: var(--enemy-b, 122);
 }
 
 /* DIAMOND PERIMETER — energy orb specifically. The conic ring lives
@@ -22671,9 +22687,12 @@ body::before {
   inset: -50px;
   z-index: 0;
   pointer-events: none;
+  /* Theme-aware grid lines — was hardcoded cyan, now follows
+     --theme-rgb so red/green/silver/purple themes don't get an
+     incongruent blue circuit pattern in the background. */
   background-image:
-    linear-gradient(0deg,  transparent 0,  transparent 49.5px, rgba(79,195,247,0.04) 49.5px, rgba(79,195,247,0.04) 50px),
-    linear-gradient(90deg, transparent 0,  transparent 49.5px, rgba(79,195,247,0.04) 49.5px, rgba(79,195,247,0.04) 50px);
+    linear-gradient(0deg,  transparent 0,  transparent 49.5px, rgba(var(--theme-rgb, 79,195,247), 0.04) 49.5px, rgba(var(--theme-rgb, 79,195,247), 0.04) 50px),
+    linear-gradient(90deg, transparent 0,  transparent 49.5px, rgba(var(--theme-rgb, 79,195,247), 0.04) 49.5px, rgba(var(--theme-rgb, 79,195,247), 0.04) 50px);
   background-size: 50px 50px;
   opacity: 0.65;
   animation: tron-grid-drift 24s linear infinite;
