@@ -54,6 +54,59 @@ const UI = {
     const file = this.getCardArtVariant(name);
     return `audio/cards/art/${encodeURIComponent(file)}?v=${this._CARD_ART_VERSION || 1}`;
   },
+  // Wire up the global alt-art picker.
+  //
+  // Behavior: right-click (or two-finger click on Mac trackpad, or
+  // long-press on touch) ANY card element with `data-card-name` →
+  // cycles its art to the next variant if the manifest declares two
+  // or more files for that character. Pass-through (no preventDefault)
+  // when the card has no variants, so the browser's standard context
+  // menu still opens for debugging.
+  //
+  // Rendering: setCardArtVariant inside cycleCardArt fires a render()
+  // pass that re-builds every card portrait from the new path. No
+  // refresh, no codex round-trip — the swap shows up on the board,
+  // in hand, in the draft picker, and in the codex simultaneously.
+  // User direction: "I'd rather be somewhere else and not have to
+  // restart the whole entire server. Just have it, like, flip to the
+  // next card art."
+  installAltArtPicker() {
+    document.addEventListener('contextmenu', (e) => {
+      const cardEl = e.target && e.target.closest && e.target.closest('[data-card-name]');
+      if (!cardEl) return;
+      const name = cardEl.getAttribute('data-card-name');
+      if (!name) return;
+      const variants = this.getCardArtVariants(name);
+      if (!variants || variants.length < 2) return;
+      e.preventDefault();
+      this.cycleCardArt(name);
+    });
+    // Touch long-press fallback for mobile / iPad — fire the cycle
+    // after a 550 ms hold. Cancel on move or release so the gesture
+    // can't accidentally pre-empt a play / select tap.
+    let _lpTimer = null, _lpCardEl = null;
+    const cancelLp = () => {
+      if (_lpTimer) { clearTimeout(_lpTimer); _lpTimer = null; }
+      _lpCardEl = null;
+    };
+    document.addEventListener('touchstart', (e) => {
+      const cardEl = e.target && e.target.closest && e.target.closest('[data-card-name]');
+      if (!cardEl) return;
+      const name = cardEl.getAttribute('data-card-name');
+      if (!name) return;
+      const variants = this.getCardArtVariants(name);
+      if (!variants || variants.length < 2) return;
+      _lpCardEl = cardEl;
+      _lpTimer = setTimeout(() => {
+        if (_lpCardEl === cardEl) this.cycleCardArt(name);
+        cancelLp();
+      }, 550);
+    }, { passive: true });
+    document.addEventListener('touchmove',  cancelLp, { passive: true });
+    document.addEventListener('touchend',   cancelLp, { passive: true });
+    document.addEventListener('touchcancel', cancelLp, { passive: true });
+  },
+
   cycleCardArt(name) {
     // Advance the selected variant by one and wrap. Used by the
     // codex's small "ART N/M" badge — single tap cycles through every
@@ -2389,6 +2442,7 @@ const UI = {
     this.installTronFlare();    // Mouse-parallax + chromatic-on-hit + play afterimage + game-over glitch
     this.installAiActionHighlight(); // Pulse the lane the AI just played in
     this.installUndoFeedback();  // Toast + board flash on undo
+    this.installAltArtPicker();  // Right-click any card → cycle art variant
     this.sfx.arm();
     this.sfx.setVolume(this.settings.sfxVolume ?? 0.55);
     // Flag menu music as "should be playing" on boot — we start on the main
@@ -6039,20 +6093,7 @@ const UI = {
           // No separate name-banner row — name lives inside the portrait
           // as a translucent bottom strip.
           const portraitFile = UI.getCardArtPath(def.name);
-          // Variant picker badge — only injected when the card has 2+
-          // entries in CARD_ART_VARIANTS. Single tap cycles to the next
-          // alt art and re-renders the codex (and any in-game card
-          // showing this character). User direction: "the card can have
-          // multiple pictures, and depending on what picture you want,
-          // you can choose it as the main primary one."
-          const _variants = UI.getCardArtVariants(def.name);
-          const _curVariant = UI.getCardArtVariant(def.name);
-          const _variantIdx = _variants ? _variants.indexOf(_curVariant) + 1 : 0;
-          const _safeName = def.name.replace(/'/g, "\\'");
-          const variantBadge = (_variants && _variants.length > 1)
-            ? `<button type="button" class="art-variant-badge" title="Tap to cycle through ${_variants.length} alt arts" onclick="event.stopPropagation();UI.cycleCardArt('${_safeName}')">ART ${_variantIdx}/${_variants.length}</button>`
-            : '';
-          const portraitHtml = `<div class="card-portrait" style="--portrait-bg:url('${portraitFile}')"><div class="card-name-overlay">${def.name}</div>${variantBadge}</div>`;
+          const portraitHtml = `<div class="card-portrait" style="--portrait-bg:url('${portraitFile}')"><div class="card-name-overlay">${def.name}</div></div>`;
           // [ CARD DATA ] divider was removed — user direction: "it's
           // distracting and it doesn't add anything." The painting →
           // status badges → desc → orbs hierarchy already reads clearly
