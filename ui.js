@@ -549,6 +549,12 @@ const UI = {
       // captain identity. -20 LUFS, 1s fade-in / 2s fade-out baked.
       // maxDur 72 lets the full music-box phrase play.
       'Davy Jones':       { hover: { src: 'audio/cards/davy-jones-hover.mp3', maxDur: 72 } },
+      // Emperor Palpatine hover: 65s of John Williams's "The
+      // Emperor" theme, 0:21 → 1:26 — the slow gregorian chant
+      // build that defines Sidious's throne-room menace. -20 LUFS,
+      // 1s fade-in / 2s fade-out baked. maxDur 65 lets the full
+      // sustained-choir phrase play across re-hovers.
+      'Emperor Palpatine': { hover: { src: 'audio/cards/emperor-palpatine-hover.mp3', maxDur: 65 } },
       // Captain America hover: 65s of Harry James's "It's Been a Long, Long
       // Time" (start → 1:05) — the period-correct cue from CA's WWII era.
       // -20 LUFS unified-baseline, 1s fade-in / 2s fade-out baked.
