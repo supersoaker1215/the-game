@@ -5196,7 +5196,12 @@ body.hit-pause .ai-hand * {
   font-family: 'JetBrains Mono', 'SF Mono', ui-monospace, Menlo, Consolas, monospace;
   font-weight: 700;
   letter-spacing: 0.7px;
-  font-size: 8px;
+  /* Trigger labels read louder than the body copy on every render
+     (hand / board / draft / codex) — user direction: trigger label
+     bigger than body, not smaller. Base body is 8.5 px so 9.5 px
+     sits just above. Codex override below pushes this to 13 px to
+     match the codex's larger 12 px body. */
+  font-size: 9.5px;
   text-transform: uppercase;
   color: rgba(var(--portrait-frame-rgb, 79,195,247), 1) !important;
   text-shadow:
@@ -16760,6 +16765,15 @@ body.phase-menu .kb-hints { display: none; }
      overhangs other than the cost diamond which is at the corner. */
   gap: 60px 32px;     /* row × column */
   align-items: start;
+  /* Each row sizes to the TALLEST card in it. Without this explicit
+     rule, browsers sometimes lock rows to the first card's intrinsic
+     height; a long-desc card (Anakin Skywalker, Knull, Trigon — every
+     legendary with 4 keyword badges) would then overflow its row and
+     visually intrude into the row below. User feedback: "Null is
+     overlapping with Anakin and Trigon's overlapping with Dormammu
+     because they're a little bit longer." `max-content` forces each
+     row to grow to fit its tallest card. */
+  grid-auto-rows: max-content;
 }
 /* Codex stat orbs intentionally inherit the base `.stat-atk` /
    `.stat-hp` corner anchors (bottom-left for ATK, bottom-right for
@@ -16833,7 +16847,13 @@ body.phase-menu .kb-hints { display: none; }
      reference doc. Plenty of vertical room with the new min-height. */
   font-size: 12px !important;
   line-height: 1.45 !important;
-  padding: 4px 10px 10px !important;
+  /* Bottom padding clears the 30 px stat orbs (anchored at bottom:8,
+     so they span bottom:8 → bottom:38). The previous 10 px padding
+     let the last line of desc text bleed into the orb's vertical band
+     — user feedback: "text is going into the green and red health and
+     damage symbols." 44 px = orb height (30) + anchor offset (8) +
+     6 px clear gap, so the desc text always ends ABOVE the orbs. */
+  padding: 4px 10px 44px !important;
 }
 .encyc-grid .card.hand-card.enc-card .card-name {
   /* Title gets a touch more presence in the codex too. */
@@ -16859,7 +16879,14 @@ body.phase-menu .kb-hints { display: none; }
 .encyc-grid .card.hand-card.enc-card .stat-atk { left: 8px; }
 .encyc-grid .card.hand-card.enc-card .stat-hp  { right: 8px; }
 .encyc-grid .card.hand-card.enc-card .card-desc b {
-  font-size: 11px;
+  /* Trigger labels in the codex should READ LOUDER than the body
+     copy, not quieter. Previously 11 px sat below the 12 px body which
+     read backwards — user feedback: "the on play text is smaller
+     than the regular text, which looks weird. It should be the
+     opposite way." 13 px puts the bold ON PLAY / PASSIVE / TRICK
+     PHASE labels just above the body weight so the eye anchors on
+     the trigger first, then reads the effect. */
+  font-size: 13px;
   letter-spacing: 0.6px;
 }
 /* Trick variant — purple, compact, matches in-game trick look. */

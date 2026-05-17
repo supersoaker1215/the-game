@@ -3240,7 +3240,7 @@ const Roguelite = {
     'Darth Vader': {
       id: 'vader-text', name: 'Power of the Dark Side',
       desc: 'Chain opens at 9 damage (was 7) — every chain step shifts up.',
-      descOverride: 'When Played: Move an enemy to an empty lane. Fear 1 an enemy. Then start a 9-damage chain — pick direction each step; damage decreases by 1 per hit. Chain stops at Evade, Invincible, or Armor.',
+      descOverride: 'When Played: Move an enemy to an empty lane. Fear 1 an enemy. Then start a 9-damage chain — pick direction each step; damage decreases by 1 per hit.',
       apply: c => { c._vaderChainDamage = 9; },
     },
     'Deadpool': {
