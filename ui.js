@@ -11353,6 +11353,25 @@ const UI = {
       t = t.replace(re, (_m, word) =>
         `<span class="kw kw-card-ref" data-kw="card:${canonical}">${word}</span>`);
     });
+    // Unwrap nested kw spans. The kwMap loop above tries to skip
+    // already-wrapped matches via a `(?<!<[^>]*)` lookbehind, but
+    // that lookbehind only catches positions INSIDE a tag's
+    // attributes — not text content sitting between an open and
+    // close tag. So "Damage Immunity" gets wrapped as kw-dmg-immune,
+    // then the later kw-immune pattern matches "Immunity" inside
+    // the span and double-wraps it. Result on Groot: "Damage" in
+    // one color (orange dmg-immune) and "Immunity" in another
+    // (yellow immune). User feedback: "On Groot, Damage and
+    // Immunity are different colors — they should be the same
+    // color as Damage Immunity is a trait." Iteratively strip any
+    // inner kw span that sits between an outer kw span's tags.
+    let _prev;
+    do {
+      _prev = t;
+      t = t.replace(
+        /(<span class="kw kw-[^"]+"[^>]*>)([^<]*)<span class="kw kw-[^"]+"[^>]*>([^<]*)<\/span>([^<]*)(<\/span>)/g,
+        '$1$2$3$4$5');
+    } while (t !== _prev);
     // Strip the trailing period at the very end of the description. Mid-
     // sentence periods between clauses stay because they aid scanning;
     // a final period after the last word adds noise once the desc is
