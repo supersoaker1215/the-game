@@ -13,7 +13,7 @@ const UI = {
   // cached PNGs (which don't have built-in cache busters since they're
   // referenced via background-image url() and not the index.html
   // version-suffix system). Bump this every time you regen art.
-  _CARD_ART_VERSION: 10,
+  _CARD_ART_VERSION: 11,
 
   // ===================== SETTINGS (persisted in localStorage) =====================
   settings: {

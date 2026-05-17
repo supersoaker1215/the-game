@@ -78,7 +78,12 @@ TARGET_W = 360
 # new PSDs come in.
 PSD_TO_CARD = {
     'Anti Venom.psd': 'Anti-Venom',
-    'Batman 2 (1).psd': 'Batman',
+    # Batman is intentionally NOT mapped — the current Batman.png is a
+    # hand-placed AI portrait (cropped + resized straight to the art
+    # folder, not extracted from a PSD). Re-add this entry only if a
+    # new Batman card-template PSD lands in the V2 folder and you want
+    # the script to overwrite the hand-placed image.
+    # 'Batman 2 (1).psd': 'Batman',
     'Black Panther.psd': 'Black Panther',
     'Captain.psd': 'Captain America',
     'Darksied.psd': 'Darkseid',
