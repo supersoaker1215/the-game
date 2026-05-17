@@ -16878,6 +16878,45 @@ body.phase-menu .kb-hints { display: none; }
 }
 .encyc-grid .card.hand-card.enc-card .stat-atk { left: 8px; }
 .encyc-grid .card.hand-card.enc-card .stat-hp  { right: 8px; }
+/* Alt-art picker badge — only renders in the codex when a card has
+   2+ entries in CARD_ART_VARIANTS. Sits at the bottom-center of the
+   portrait so it doesn't compete with the corner chrome (cost square
+   top-left, rarity pip top-right, name overlay across the bottom
+   gradient). Single tap cycles to the next variant. Hover state
+   lights up the neon outline so it reads as "interactive" without
+   needing a separate icon. */
+.art-variant-badge {
+  position: absolute;
+  left: 50%;
+  bottom: 4px;
+  transform: translateX(-50%);
+  z-index: 5;
+  padding: 3px 9px;
+  background: rgba(6, 10, 18, 0.85);
+  border: 1px solid rgba(79, 195, 247, 0.55);
+  border-radius: 3px;
+  color: rgba(230, 240, 250, 0.92);
+  font-family: 'JetBrains Mono', 'SF Mono', ui-monospace, Menlo, Consolas, monospace;
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 0.7px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.15s, border-color 0.15s, color 0.15s, transform 0.15s;
+  backdrop-filter: blur(2px);
+  -webkit-backdrop-filter: blur(2px);
+}
+.art-variant-badge:hover {
+  background: rgba(79, 195, 247, 0.22);
+  border-color: rgba(79, 195, 247, 1);
+  color: #ffffff;
+  transform: translateX(-50%) translateY(-1px);
+  box-shadow: 0 0 10px rgba(79, 195, 247, 0.45);
+}
+.art-variant-badge:active {
+  transform: translateX(-50%) translateY(0px);
+}
+
 .encyc-grid .card.hand-card.enc-card .card-desc b {
   /* Trigger labels in the codex should READ LOUDER than the body
      copy, not quieter. Previously 11 px sat below the 12 px body which

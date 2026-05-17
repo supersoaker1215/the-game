@@ -15,6 +15,73 @@ const UI = {
   // version-suffix system). Bump this every time you regen art.
   _CARD_ART_VERSION: 11,
 
+  // =====================================================================
+  // CARD ART VARIANTS
+  // =====================================================================
+  // Each card can have multiple portrait files (Batman ships with two:
+  // the dramatic-cape AI render and the original white-background paint).
+  // Variants are declared in card-art-manifest.js — a card listed there
+  // gets a picker badge in the codex; cards without an entry just use
+  // their default `<Name>.png` (no UI rendered).
+  //
+  // Selected variant is persisted under clb-ui-prefs.cardArt.<CardName>
+  // so the choice survives reloads. Default (first manifest entry, or
+  // `<Name>.png` for unlisted cards) is used until the player picks.
+  // =====================================================================
+
+  getCardArtVariants(name) {
+    const map = (typeof window !== 'undefined' && window.CARD_ART_VARIANTS) || {};
+    return map[name] || null;
+  },
+  getCardArtVariant(name) {
+    // Returns the FILE NAME (e.g. "Batman 2.png") for the player's
+    // currently-selected variant of this card. Falls back to the
+    // manifest's first entry, then to "<Name>.png" if not in manifest.
+    if (!name) return null;
+    const stored = this._persistGet('cardArt.' + name, null);
+    const variants = this.getCardArtVariants(name);
+    // Validate: stored choice must still exist in the manifest. If a
+    // variant was renamed or removed, fall back to default instead of
+    // returning a dead path.
+    if (stored && variants && variants.indexOf(stored) >= 0) return stored;
+    if (variants && variants.length) return variants[0];
+    return name + '.png';
+  },
+  getCardArtPath(name) {
+    // Full URL with cache buster — drop-in for every old call site
+    // that used to build `audio/cards/art/${name}.png?v=...` inline.
+    if (!name) return null;
+    const file = this.getCardArtVariant(name);
+    return `audio/cards/art/${encodeURIComponent(file)}?v=${this._CARD_ART_VERSION || 1}`;
+  },
+  cycleCardArt(name) {
+    // Advance the selected variant by one and wrap. Used by the
+    // codex's small "ART N/M" badge — single tap cycles through every
+    // alt art on file for this card. No-op if the card has fewer than
+    // 2 entries in the manifest.
+    const variants = this.getCardArtVariants(name);
+    if (!variants || variants.length < 2) return;
+    const current = this.getCardArtVariant(name);
+    const i = variants.indexOf(current);
+    const next = variants[(i + 1) % variants.length];
+    this.setCardArtVariant(name, next);
+  },
+  setCardArtVariant(name, file) {
+    // Persist + re-render. Validates against the manifest so a typo
+    // or stale localStorage write can't poison the UI.
+    if (!name || !file) return;
+    const variants = this.getCardArtVariants(name);
+    if (!variants || variants.indexOf(file) < 0) return;
+    this._persistSet('cardArt.' + name, file);
+    // Re-render the codex if open, otherwise the next game render
+    // will pick up the new variant automatically.
+    if (this.renderEncyclopedia) {
+      const ov = document.getElementById('encyclopedia-overlay');
+      if (ov && ov.style.display !== 'none') this.renderEncyclopedia();
+    }
+    if (this.render) this.render();
+  },
+
   // ===================== SETTINGS (persisted in localStorage) =====================
   settings: {
     difficulty: 'normal',  // easy | normal | hard
@@ -5971,8 +6038,21 @@ const UI = {
           // REDESIGN: art-at-top with name overlay (same as makeCardEl).
           // No separate name-banner row — name lives inside the portrait
           // as a translucent bottom strip.
-          const portraitFile = `audio/cards/art/${encodeURIComponent(def.name)}.png?v=${UI._CARD_ART_VERSION || 1}`;
-          const portraitHtml = `<div class="card-portrait" style="--portrait-bg:url('${portraitFile}')"><div class="card-name-overlay">${def.name}</div></div>`;
+          const portraitFile = UI.getCardArtPath(def.name);
+          // Variant picker badge — only injected when the card has 2+
+          // entries in CARD_ART_VARIANTS. Single tap cycles to the next
+          // alt art and re-renders the codex (and any in-game card
+          // showing this character). User direction: "the card can have
+          // multiple pictures, and depending on what picture you want,
+          // you can choose it as the main primary one."
+          const _variants = UI.getCardArtVariants(def.name);
+          const _curVariant = UI.getCardArtVariant(def.name);
+          const _variantIdx = _variants ? _variants.indexOf(_curVariant) + 1 : 0;
+          const _safeName = def.name.replace(/'/g, "\\'");
+          const variantBadge = (_variants && _variants.length > 1)
+            ? `<button type="button" class="art-variant-badge" title="Tap to cycle through ${_variants.length} alt arts" onclick="event.stopPropagation();UI.cycleCardArt('${_safeName}')">ART ${_variantIdx}/${_variants.length}</button>`
+            : '';
+          const portraitHtml = `<div class="card-portrait" style="--portrait-bg:url('${portraitFile}')"><div class="card-name-overlay">${def.name}</div>${variantBadge}</div>`;
           // [ CARD DATA ] divider was removed — user direction: "it's
           // distracting and it doesn't add anything." The painting →
           // status badges → desc → orbs hierarchy already reads clearly
@@ -8729,7 +8809,7 @@ const UI = {
         // larger picker footprint and hover lift. `hand-card` is omitted
         // intentionally — its `:hover { transform: none !important; }`
         // lock would suppress the draft picker's translateY(-8px) lift.
-        const portraitFile = `audio/cards/art/${encodeURIComponent(c.name)}.png?v=${UI._CARD_ART_VERSION || 1}`;
+        const portraitFile = UI.getCardArtPath(c.name);
         const portraitHtml = `<div class="card-portrait" style="--portrait-bg:url('${portraitFile}')"><div class="card-name-overlay">${c.name}</div></div>`;
         html += `<div class="card draft-card ${this.getCostClass(c.cost)}${c.isDiscardEffect ? ' discard-effect' : ''}" data-card-name="${c.name}" onclick="draftPick(${i})">
           <span class="card-cost">${c.cost}</span>
@@ -10448,9 +10528,7 @@ const UI = {
     // stale cached PNGs. PNG files don't have a built-in cache buster
     // (unlike HTML/CSS/JS which use ?v=N in index.html), so we append
     // it here at render time.
-    const portraitFile = card.name
-      ? `audio/cards/art/${encodeURIComponent(card.name)}.png?v=${UI._CARD_ART_VERSION || 1}`
-      : null;
+    const portraitFile = card.name ? UI.getCardArtPath(card.name) : null;
     // REDESIGN: art-at-top with name overlay (Marvel Snap pattern).
     // Standalone .card-name-banner row removed — the name now lives as
     // a translucent strip across the BOTTOM of the portrait. One
