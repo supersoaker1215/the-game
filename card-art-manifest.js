@@ -27,4 +27,5 @@ window.CARD_ART_VARIANTS = {
   'Spider-Man':          ['Spider-Man.png',          'Spider-Man 2.png'],
   'The Flash':           ['The Flash.png',           'The Flash 2.png'],
   'Omni-Man':            ['Omni-Man.png',            'Omni-Man 2.png'],
+  'Xenomorph':           ['Xenomorph.png',           'Xenomorph 2.png'],
 };
