@@ -200,9 +200,9 @@ const CARD_DEFS = [
     desc: "When Played: Stun 1 the enemy opposite. Add 2 to your Block Meter. While Active: Your attack chains (ATK−1) to 1 adjacent enemy." },
 
   // ==================== COST 5 ====================
-  { name: "Aquaman", cost: 5, attack: 3, health: 6, type: "hero",
+  { name: "Davy Jones", cost: 5, attack: 3, health: 6, type: "villain",
     abilities: [],
-    desc: "When Played: Summon a (5/3) Creature of the Deep in any lane." },
+    desc: "When Played: Summon The Kraken (5/3) in any lane." },
   { name: "Captain America", cost: 5, attack: 3, health: 4, type: "hero",
     abilities: ["Armor 1"],
     desc: "When Played: Give an ally Invincible 1. While Active: All cards in your hand cost 1 less Energy." },

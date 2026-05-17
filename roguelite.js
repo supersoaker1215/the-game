@@ -1117,7 +1117,7 @@ const Roguelite = {
         // Roll a real (non-vanilla, non-starter) card with cost 2-6.
         // User direction: "Hire to help should be two to six cost."
         // Wider band than the original 1-2 so the boon can land mid-
-        // game finishers (Aquaman, Wonder Woman, Carnage, etc.) instead
+        // game finishers (Davy Jones, Wonder Woman, Carnage, etc.) instead
         // of just early-curve bodies.
         if (typeof CARD_DEFS === 'undefined') return {};
         const pool = CARD_DEFS.filter(d =>
@@ -1861,7 +1861,7 @@ const Roguelite = {
         'Dr. Doom', 'Dr. Doom',
         'Hela', 'Hela',
         'Knull',
-        'Aquaman', 'Aquaman',
+        'Davy Jones', 'Davy Jones',
         'Cyborg', 'Cyborg',
         'Hulk', 'Hulk',
         'Ultron', 'Ultron',
@@ -1979,7 +1979,7 @@ const Roguelite = {
         'Predator', 'Predator',
         'Spider-Man',
         'Wonder Woman',
-        'Aquaman',
+        'Davy Jones',
         'Captain America',
       ],
       tricks: ['Lazarus Pit', 'Soul Stone', 'The Darkhold', 'Vibranium', 'Eye of Agamotto'],
@@ -1997,7 +1997,7 @@ const Roguelite = {
         'Hulk',
         'Spider-Man',
         'Black Panther',
-        'Aquaman', 'Aquaman',
+        'Davy Jones', 'Davy Jones',
         'Carnage',
         'Wonder Woman',
         'Lex Luthor',
@@ -2121,7 +2121,7 @@ const Roguelite = {
         'Martian Manhunter', 'Optimus Prime', 'Predator', 'Raven',
         'The Grinch', 'Venom', 'Wolverine', 'Wonder Woman',
         // Cost 5-6 finishers
-        'Aquaman', 'Captain America', 'Iron Man', 'Lex Luthor',
+        'Davy Jones', 'Captain America', 'Iron Man', 'Lex Luthor',
         'Spider-Man', 'The Batman Who Laughs', 'Hulk', 'Magneto',
         'Obi-Wan', 'Ultron', 'Hela',
         // Cost 7 closers (smaller chance of multiple)
@@ -2158,7 +2158,7 @@ const Roguelite = {
         // Cost 4-5 utility (a little)
         'Iron Man', 'The Batman Who Laughs', 'Spider-Man', 'Predator',
         'Anti-Venom', 'Black Panther', 'Wolverine', 'Optimus Prime',
-        'Cyborg', 'Aquaman', 'Lex Luthor', 'Captain America',
+        'Cyborg', 'Davy Jones', 'Lex Luthor', 'Captain America',
       ],
       deckSize: 30,
       maxCopies: 2,
@@ -2229,7 +2229,7 @@ const Roguelite = {
         'Anti-Venom', 'Black Panther', 'Cyborg', 'Wolverine',
         'Martian Manhunter', 'Carnage', 'Loki', 'The Grinch',
         'Predator', 'Spider-Man', 'Optimus Prime', 'Wonder Woman',
-        'Captain America', 'Aquaman', 'Iron Man', 'Lex Luthor',
+        'Captain America', 'Davy Jones', 'Iron Man', 'Lex Luthor',
         'Hulk', 'Mahoraga', 'Knull', 'Magneto', 'Obi-Wan', 'Ultron',
         'Gorr', 'Gojo', 'Omni-Man', 'Silver Surfer',
         'Ahsoka', 'Sabertooth', 'Bane', 'Hawkeye', 'Drax',
@@ -2250,7 +2250,7 @@ const Roguelite = {
       anchors: ['Magneto', 'Magneto', 'Iron Man', 'Ultron'],
       pool: [
         'Cyborg', 'Knull', 'Optimus Prime', 'Hawkeye', 'Hulk',
-        'Spider-Man', 'Black Panther', 'Aquaman', 'Carnage',
+        'Spider-Man', 'Black Panther', 'Davy Jones', 'Carnage',
         'Wonder Woman', 'Lex Luthor', 'Predator', 'Wolverine',
         'Captain America', 'The Batman Who Laughs', 'Mr. Freeze',
         'Bane', 'Sabertooth', 'Hawkeye', 'Joker',
@@ -2279,7 +2279,7 @@ const Roguelite = {
         'Hela', 'Obi-Wan', 'Ultron', 'Dr. Doom', 'Gojo',
         'Omni-Man', 'Silver Surfer', 'Darth Vader', 'Emperor Palpatine',
         'Luke Skywalker', 'Thor', 'Batman', 'Darkseid', 'Superman',
-        'Thanos', 'Aquaman', 'Lex Luthor', 'Carnage', 'Black Panther',
+        'Thanos', 'Davy Jones', 'Lex Luthor', 'Carnage', 'Black Panther',
       ],
       deckSize: 30,
       maxCopies: 2,
@@ -2299,7 +2299,7 @@ const Roguelite = {
         'Emperor Palpatine', 'Hulk', 'Magneto', 'Mahoraga', 'Gojo',
         'Superman', 'Wonder Woman', 'Iron Man', 'Optimus Prime',
         'Hela', 'Jango Fett', 'Predator', 'Yoda', 'Batman',
-        'Luke Skywalker', 'Thor', 'Aquaman', 'Captain America',
+        'Luke Skywalker', 'Thor', 'Davy Jones', 'Captain America',
         'Lex Luthor', 'Carnage', 'Black Panther', 'Obi-Wan',
         'Ultron', 'Dr. Doom', 'Omni-Man', 'Silver Surfer',
         'Spider-Man', 'Dr. Manhattan', 'Dormammu', 'Trigon',
@@ -2941,10 +2941,10 @@ const Roguelite = {
         }
       },
     },
-    'Aquaman': {
-      id: 'aquaman-text', name: 'Trident\'s Edge',
-      desc: 'Creature of the Deep summons as a 9/9 (was 5/3).',
-      descOverride: 'When Played: Summon a (9/9) Creature of the Deep in any lane.',
+    'Davy Jones': {
+      id: 'davy-jones-text', name: 'Locker of the Deep',
+      desc: 'The Kraken summons as a 9/9 (was 5/3).',
+      descOverride: 'When Played: Summon The Kraken (9/9) in any lane.',
       // Base creature is 5/3. Set explicit target stats so the buff is
       // unambiguous: 9 ATK = +4 from base, 9 HP = +6 from base.
       apply: c => { c._aquamanCreatureAtkBump = 4; c._aquamanCreatureHpBump = 6; },

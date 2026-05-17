@@ -188,7 +188,7 @@ const STARTER_DECKS = {
       'Groot', 'Groot',
       'Moder', 'Moder',
       // Mid-curve threats that buy time
-      'Aquaman', 'Aquaman',
+      'Davy Jones', 'Davy Jones',
       'Spider-Man', 'Spider-Man',
       'Hulk', 'Hulk',
       'Obi-Wan', 'Obi-Wan',

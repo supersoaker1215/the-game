@@ -172,7 +172,7 @@ var SimStats = (function () {
         // (across both sides) — this is the denominator for MVP Rate.
         //
         // Token instances (Undead Warrior, Doombot, Ant, Null, Parademon,
-        // Loki Clone, Creature of the Deep, etc.) are SKIPPED because:
+        // Loki Clone, The Kraken, etc.) are SKIPPED because:
         //   1. they aren't draftable — nobody can pick them
         //   2. their stats are already credited up-chain to the summoner
         //      via _creditChain (so counting them again double-attributes)

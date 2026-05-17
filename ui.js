@@ -13,7 +13,7 @@ const UI = {
   // cached PNGs (which don't have built-in cache busters since they're
   // referenced via background-image url() and not the index.html
   // version-suffix system). Bump this every time you regen art.
-  _CARD_ART_VERSION: 14,
+  _CARD_ART_VERSION: 15,
 
   // =====================================================================
   // CARD ART VARIANTS
@@ -901,7 +901,7 @@ const UI = {
         attack: function() { this._tone({ type:'sine', freq:220, freqEnd:2640, dur:0.07, gain:0.13, release:0.1 }); this._tone({ type:'sine', freq:440, freqEnd:3520, dur:0.06, gain:0.08, release:0.09, delay:0.035 }); },
         death:  function() { this._tone({ type:'sine', freq:2200, freqEnd:110, dur:0.7, gain:0.14, release:0.85 }); },
       },
-      'Aquaman': {
+      'Davy Jones': {
         play:   function() { this._noise({ dur:0.3, gain:0.10, highpass:80, lowpass:1500 }); this._tone({ type:'triangle', freq:165, freqEnd:440, dur:0.3, gain:0.12, release:0.36, delay:0.03 }); },
         attack: function() { this._noise({ dur:0.12, gain:0.12, highpass:200, lowpass:2500 }); this._tone({ type:'triangle', freq:880, freqEnd:330, dur:0.1, gain:0.10, release:0.14 }); },
         death:  function() { this._tone({ type:'triangle', freq:440, freqEnd:110, dur:0.7, gain:0.14, release:0.85 }); },

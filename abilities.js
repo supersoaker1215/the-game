@@ -2032,15 +2032,17 @@ const CARD_ABILITIES = {
   },
 
   // ==================== COST 5 ====================
-  "Aquaman": {
+  "Davy Jones": {
     onPlay(G, self, lane) {
       // Roguelite Text+ override — _aquamanCreatureAtkBump and
-      // _aquamanCreatureHpBump scale the summoned Creature of the
-      // Deep above its 5/3 base. Default 0/0 (classic 5/3); Text+
-      // sets +4/+6 (9/9) so the summon is a real threat.
+      // _aquamanCreatureHpBump scale the summoned Kraken above its
+      // 5/3 base. Default 0/0 (classic 5/3); Text+ sets +4/+6 (9/9)
+      // so the summon is a real threat. (Roguelite property names
+      // kept as `_aquaman*` for save-data compatibility — the card
+      // is functionally the same, just rebranded to Davy Jones.)
       const atkBump = self._aquamanCreatureAtkBump || 0;
       const hpBump  = self._aquamanCreatureHpBump  || 0;
-      G.summonCardChoice(self.owner, "Creature of the Deep", 4, 5 + atkBump, 3 + hpBump, []);
+      G.summonCardChoice(self.owner, "The Kraken", 4, 5 + atkBump, 3 + hpBump, []);
     }
   },
   "Captain America": {

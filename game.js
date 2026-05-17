@@ -496,7 +496,7 @@ const Game = {
 
     // Per-side MVP + side-total weighted impact (for contribution share).
     // Skip TOKEN instances — names not in CARD_DEFS (Undead Warrior,
-    // Doombot, Ant, Null, Parademon, Loki Clone, Creature of the Deep,
+    // Doombot, Ant, Null, Parademon, Loki Clone, The Kraken,
     // etc.). Their stats are already credited up-chain via _creditChain
     // and counting the tokens themselves would double-attribute damage
     // AND pollute the stats table with rows for undraftable cards.
@@ -5276,7 +5276,7 @@ const Game = {
     const card = this.createCardInstance(def, owner);
     // Flag tokens so they can be excluded from the dead pile on death.
     // Tokens are inline-defined summons (Ant, Parademon, Undead Warrior,
-    // Creature of the Deep, etc.) — they're not part of either player's
+    // The Kraken, etc.) — they're not part of either player's
     // drafted deck, so they shouldn't come back via Lazarus Pit, Solomon
     // Grundy's onDeath draw, Hela's resurrection, or any other dead-pile
     // effect. Real-card summons (Bat Signal pulling a drafted card from
