@@ -209,7 +209,7 @@ const STARTER_DECKS = {
   // ----------------------------------------------------------------
   // BURN RUSH — beats the opponent's HP bar before they can build a
   // board. Sabertooth's "+1/+1 on HP damage" snowballs each round.
-  // Hawkeye splash + Carnage / Drax direct damage tear through HP.
+  // Hawkeye splash + Carnage / Spawn direct damage tear through HP.
   // Late finishers (Thor, Homelander, Gorr) close out before turn 5.
   // Loses to taunt / armor / heavy block-meter generation.
   // ----------------------------------------------------------------
@@ -223,7 +223,7 @@ const STARTER_DECKS = {
       'Hawkeye', 'Hawkeye',                // splash
       // 2-cost burn curve
       'Human Torch', 'Human Torch',
-      'Drax', 'Drax',
+      'Spawn', 'Spawn',
       'Peacemaker', 'Peacemaker',          // grows on kill
       'Gamora', 'Gamora',
       // 3-4 cost — direct damage payoffs

@@ -61,7 +61,7 @@ const CARD_DEFS = [
   { name: "Catwoman", cost: 1, attack: 1, health: 1, type: "villain",
     abilities: ["Bullseye", "Evade 1"],
     desc: "When Played: Steal 1 Energy from the opponent next turn." },
-  { name: "Drax", cost: 2, attack: 3, health: 3, type: "hero",
+  { name: "Spawn", cost: 2, attack: 3, health: 3, type: "villain",
     abilities: ["Bullseye", "Overdrive"],
     desc: "" },
   { name: "Dr. Strange", cost: 2, attack: 2, health: 1, type: "hero",

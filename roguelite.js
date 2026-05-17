@@ -1844,7 +1844,7 @@ const Roguelite = {
         'Catwoman', 'Catwoman',
         'Carnage', 'Carnage',
         'Red Skull',
-        'Drax', 'Drax',
+        'Spawn', 'Spawn',
         'Deathstroke',
         'Sabertooth', 'Sabertooth',
         'King Shark', 'King Shark',
@@ -1920,7 +1920,7 @@ const Roguelite = {
         'The Grinch',
         'Ghostface', 'Ghostface',
         'Sabertooth',
-        'Drax', 'Drax',
+        'Spawn', 'Spawn',
         'Harley Quinn',
         'Joker',
         'Carnage',
@@ -1946,7 +1946,7 @@ const Roguelite = {
         'Sabertooth',
         'Sandman', 'Sandman',
         'King Shark',
-        'Drax',
+        'Spawn',
         'Ghostface',
         'Carnage', 'Carnage',
         'Loki',
@@ -2044,7 +2044,7 @@ const Roguelite = {
         'Darkseid', 'Darkseid',
         'Knull', 'Knull',
         'Galactus',
-        'Drax', 'Drax',
+        'Spawn', 'Spawn',
         'Gorr',
         'Anakin Skywalker',
         'Darth Vader',
@@ -2089,7 +2089,7 @@ const Roguelite = {
         'Man-Bat', 'Mr. Freeze', 'Poison Ivy', 'Sabertooth',
         'Harley Quinn', 'Mr. Fantastic',
         // Cost 2
-        'Bane', 'Drax', 'Ghostface', 'Jango Fett', 'Juggernaut',
+        'Bane', 'Spawn', 'Ghostface', 'Jango Fett', 'Juggernaut',
         'Nightwing', 'Peacemaker', 'Rocket Raccoon', 'Sandman',
         'The Flash', 'The Thing',
         // Cost 3
@@ -2127,7 +2127,7 @@ const Roguelite = {
         // Cost 7 closers (smaller chance of multiple)
         'Mahoraga', 'Gorr', 'Gojo', 'Omni-Man', 'Silver Surfer',
         // Anchor secondaries
-        'Joker', 'Sabertooth', 'Bane', 'Sandman', 'Hawkeye', 'Drax',
+        'Joker', 'Sabertooth', 'Bane', 'Sandman', 'Hawkeye', 'Spawn',
         'Ahsoka', 'Dr. Octopus',
       ],
       deckSize: 30,
@@ -2181,7 +2181,7 @@ const Roguelite = {
         'Black Widow', 'Catwoman', 'Hawkeye', 'King Shark',
         'Man-Bat', 'Mr. Freeze', 'Poison Ivy', 'Sabertooth', 'Harley Quinn',
         // Cost 2 disruption
-        'Bane', 'Drax', 'Ghostface', 'Jango Fett', 'Sandman',
+        'Bane', 'Spawn', 'Ghostface', 'Jango Fett', 'Sandman',
         'Nightwing', 'Peacemaker', 'The Flash',
         // Cost 3 deception
         'Carnage', 'Deathstroke', 'Joker', 'Scarlet Witch',
@@ -2206,7 +2206,7 @@ const Roguelite = {
       pool: [
         'Black Widow', 'Catwoman', 'Hawkeye', 'King Shark',
         'Man-Bat', 'Sabertooth', 'Harley Quinn',
-        'Bane', 'Drax', 'Ghostface', 'Jango Fett', 'Sandman',
+        'Bane', 'Spawn', 'Ghostface', 'Jango Fett', 'Sandman',
         'Nightwing', 'Peacemaker', 'The Flash', 'Mr. Fantastic',
         'Carnage', 'Deathstroke', 'Loki', 'Solomon Grundy', 'Star-Lord',
         'Symbiote Spider-Man', 'Winter Soldier', 'Jigsaw', 'Joker',
@@ -2232,7 +2232,7 @@ const Roguelite = {
         'Captain America', 'Davy Jones', 'Iron Man', 'Lex Luthor',
         'Hulk', 'Mahoraga', 'Knull', 'Magneto', 'Obi-Wan', 'Ultron',
         'Gorr', 'Gojo', 'Omni-Man', 'Silver Surfer',
-        'Ahsoka', 'Sabertooth', 'Bane', 'Hawkeye', 'Drax',
+        'Ahsoka', 'Sabertooth', 'Bane', 'Hawkeye', 'Spawn',
         'Joker', 'Sandman',
       ],
       deckSize: 30,
@@ -2295,7 +2295,7 @@ const Roguelite = {
       // Reality Snap / lane destruction. Anchors Thanos + Darkseid + Knull.
       anchors: ['Thanos', 'Thanos', 'Darkseid', 'Knull'],
       pool: [
-        'Galactus', 'Drax', 'Gorr', 'Anakin Skywalker', 'Darth Vader',
+        'Galactus', 'Spawn', 'Gorr', 'Anakin Skywalker', 'Darth Vader',
         'Emperor Palpatine', 'Hulk', 'Magneto', 'Mahoraga', 'Gojo',
         'Superman', 'Wonder Woman', 'Iron Man', 'Optimus Prime',
         'Hela', 'Jango Fett', 'Predator', 'Yoda', 'Batman',
@@ -2467,7 +2467,7 @@ const Roguelite = {
       'Darkseid':              ['plus2-atk-hp'],
       'Knull':                 ['plus2-atk-hp'],
       'Galactus':              ['plus1-atk-hp'],
-      'Drax':                  ['plus1-atk-hp'],
+      'Spawn':                  ['plus1-atk-hp'],
       'Anakin Skywalker':      ['plus1-atk-hp'],
       'Darth Vader':           ['plus1-atk-hp'],
       'Emperor Palpatine':     ['plus1-atk-hp'],
@@ -2823,9 +2823,9 @@ const Roguelite = {
       descOverride: 'When Played: Destroy an enemy with ≤ 5 ATK. While Active: Add (+2/+2) when destroying an enemy.',
       apply: c => { c._wsCostThreshold = 5; c._wsBuffSize = 2; },
     },
-    'Drax': {
-      id: 'drax-text', name: 'The Destroyer',
-      desc: 'Drax revives once with (+5/+5) on revive.',
+    'Spawn': {
+      id: 'spawn-text', name: 'Hellspawn Rises',
+      desc: 'Spawn revives once with (+5/+5) on revive.',
       descOverride: 'When Destroyed: Revive once with (+5/+5).',
       apply: c => { c.reviveCharges = (c.reviveCharges || 0) + 1; c._draxReviveBuff = 5; },
     },

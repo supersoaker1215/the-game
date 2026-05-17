@@ -758,7 +758,7 @@ const CARD_ABILITIES = {
     onPlay(G, self, lane) {
       // Roguelite Text+ override — _peacemakerKillThreshold raises the
       // ATK ceiling for the eliminate. Default 2 (classic); Text+ to 4
-      // so mid-range threats (Drax, Wonder Woman) are valid targets.
+      // so mid-range threats (Spawn, Wonder Woman) are valid targets.
       const threshold = self._peacemakerKillThreshold || 2;
       const targets = G.getEnemiesOf(self.owner).filter(c => c.attack <= threshold);
       if (targets.length) {
@@ -892,11 +892,14 @@ const CARD_ABILITIES = {
   "Dr. Octopus": {
     passive: "extraCurrency"
   },
-  "Drax": {
-    // Classic Drax has no special onDeath — he's a vanilla 3/3 with
-    // Bullseye + Overdrive. The Roguelite Text+ ("The Destroyer")
+  "Spawn": {
+    // Classic Spawn has no special onDeath — he's a vanilla 3/3 with
+    // Bullseye + Overdrive. The Roguelite Text+ ("Hellspawn Rises")
     // upgrade flips his death into a self-revive with +5/+5 by
-    // setting reviveCharges = 1 and _draxReviveBuff = 5.
+    // setting reviveCharges = 1 and _draxReviveBuff = 5. (Internal
+    // `_draxReviveBuff` name kept for save-data back-compat — the
+    // card was renamed from Drax but the state property name
+    // stays put.)
     onDeath(G, self, lane) {
       if (!(self.reviveCharges > 0) || !self._draxReviveBuff) return;
       self.reviveCharges--;
@@ -905,7 +908,7 @@ const CARD_ABILITIES = {
       self.maxHealth += buff;
       self.currentHealth = self.maxHealth;
       G.placeInLane(self.owner, self, lane);
-      G.log(`Drax the Destroyer rises! +${buff}/+${buff} → ${self.attack}/${self.maxHealth}`);
+      G.log(`Spawn rises from the abyss! +${buff}/+${buff} → ${self.attack}/${self.maxHealth}`);
       return true;
     }
   },
