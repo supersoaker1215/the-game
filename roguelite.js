@@ -1897,7 +1897,7 @@ const Roguelite = {
         'Emperor Palpatine', 'Emperor Palpatine',
         'Darth Vader', 'Darth Vader',
         'Luke Skywalker',
-        'Yoda',
+        'Revan',
         'Gojo',
         'Gorr',
         'Mahoraga',
@@ -2031,7 +2031,7 @@ const Roguelite = {
         'Wolverine',
         'Wonder Woman',
         'Spider-Man',
-        'Yoda',
+        'Revan',
         'Predator',
         'Captain America',
       ],
@@ -2152,7 +2152,7 @@ const Roguelite = {
         'Dr. Doom', 'Gojo', 'Gorr', 'Mahoraga', 'Omni-Man', 'Silver Surfer',
         // Cost 8-9 heavy
         'Darth Vader', 'Emperor Palpatine', 'Luke Skywalker', 'Thor',
-        'Yoda', 'Batman', 'Darkseid', 'Superman', 'Thanos',
+        'Revan', 'Batman', 'Darkseid', 'Superman', 'Thanos',
         // Cost 10 cosmic
         'Anakin Skywalker', 'Dormammu', 'Dr. Manhattan', 'Knull', 'Trigon',
         // Cost 4-5 utility (a little)
@@ -2275,7 +2275,7 @@ const Roguelite = {
         'Scarlet Witch', 'Dormammu', 'Dr. Manhattan', 'Knull',
         'Galactus', 'Mahoraga', 'Gorr', 'Anakin Skywalker',
         'Hulk', 'Magneto', 'Iron Man', 'Wolverine', 'Wonder Woman',
-        'Spider-Man', 'Yoda', 'Predator', 'Captain America',
+        'Spider-Man', 'Revan', 'Predator', 'Captain America',
         'Hela', 'Obi-Wan', 'Ultron', 'Dr. Doom', 'Gojo',
         'Omni-Man', 'Silver Surfer', 'Darth Vader', 'Emperor Palpatine',
         'Luke Skywalker', 'Thor', 'Batman', 'Darkseid', 'Superman',
@@ -2298,7 +2298,7 @@ const Roguelite = {
         'Galactus', 'Spawn', 'Gorr', 'Anakin Skywalker', 'Darth Vader',
         'Emperor Palpatine', 'Hulk', 'Magneto', 'Mahoraga', 'Gojo',
         'Superman', 'Wonder Woman', 'Iron Man', 'Optimus Prime',
-        'Hela', 'Jango Fett', 'Predator', 'Yoda', 'Batman',
+        'Hela', 'Jango Fett', 'Predator', 'Revan', 'Batman',
         'Luke Skywalker', 'Thor', 'Davy Jones', 'Captain America',
         'Lex Luthor', 'Carnage', 'Black Panther', 'Obi-Wan',
         'Ultron', 'Dr. Doom', 'Omni-Man', 'Silver Surfer',
@@ -3111,8 +3111,8 @@ const Roguelite = {
       descOverride: 'When Destroyed: Summon 2 (7/5) Ultron copies in the lowest and highest empty lanes. Copies don\'t trigger this effect.',
       apply: c => { c._ultronReplicateAtk = 7; c._ultronReplicateHp = 5; },
     },
-    'Yoda': {
-      id: 'yoda-text', name: 'Grand Master',
+    'Revan': {
+      id: 'revan-text', name: 'Dark Lord of the Sith',
       desc: 'Empowers ally with Evade + 6/+6 (was +4/+4).',
       descOverride: 'When Played: Give an ally Evade 1 for 1 turn and (+6/+6). If no allies, add (+2/+3).',
       apply: c => { c._yodaEmpowerSize = 6; },

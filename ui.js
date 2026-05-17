@@ -610,7 +610,6 @@ const UI = {
       // 300ms out), bare-string registry entry. Lane-gating already
       // ensures only the highest-cost dying card per lane plays its cue,
       // so a single big combat doesn't stack overlapping LEGO yelps.
-      'Yoda':             { death: 'audio/cards/yoda-death.mp3' },
       // ---- PER-CARD EFFECT OVERRIDES ----
       // The `effects` map lets a card's source-of-effect lookup win
       // over the global EFFECT_SFX entry. Use this when a card has
@@ -804,10 +803,10 @@ const UI = {
         death:  function() { this._tone({ type:'sawtooth', freq:220, freqEnd:55, dur:0.55, gain:0.18, release:0.7 }); this._tone({ type:'sine', freq:110, freqEnd:40, dur:0.8, gain:0.14, release:0.9, delay:0.1 }); },
         move:   function() { this._tone({ type:'sine', freq:82, freqEnd:55, dur:0.3, gain:0.16, release:0.34 }); this._noise({ dur:0.18, gain:0.04, highpass:80, lowpass:600, delay:0.02 }); },
       },
-      'Yoda': {
-        play:   function() { this._tone({ type:'sine', freq:523, dur:0.35, gain:0.10, attack:0.02, release:0.45 }); this._tone({ type:'sine', freq:659, dur:0.35, gain:0.08, attack:0.02, release:0.45, delay:0.08 }); this._tone({ type:'sine', freq:784, dur:0.4,  gain:0.07, attack:0.02, release:0.5,  delay:0.16 }); },
-        attack: function() { this._tone({ type:'sawtooth', freq:1400, freqEnd:700, dur:0.15, gain:0.10, release:0.18 }); this._noise({ dur:0.08, gain:0.05, highpass:2500, lowpass:7000 }); },
-        death:  function() { this._tone({ type:'sine', freq:784, freqEnd:523, dur:0.9, gain:0.10, release:1.1 }); this._tone({ type:'sine', freq:1046, freqEnd:784, dur:0.8, gain:0.07, release:1.0, delay:0.2 }); },
+      'Revan': {
+        play:   function() { this._tone({ type:'sawtooth', freq:110, freqEnd:55, dur:0.5, gain:0.14, release:0.6 }); this._noise({ dur:0.3, gain:0.05, highpass:80, lowpass:600, delay:0.1 }); },
+        attack: function() { this._tone({ type:'sawtooth', freq:1760, freqEnd:330, dur:0.13, gain:0.13, release:0.17 }); this._noise({ dur:0.06, gain:0.06, highpass:2500, lowpass:7000 }); },
+        death:  function() { this._tone({ type:'sawtooth', freq:330, freqEnd:55, dur:1.0, gain:0.14, release:1.2 }); },
       },
       'Obi-Wan': {
         play:   function() { this._tone({ type:'triangle', freq:440, dur:0.3, gain:0.12, release:0.36 }); this._tone({ type:'sine', freq:659, dur:0.3, gain:0.08, release:0.36, delay:0.06 }); },

@@ -284,7 +284,7 @@ const CARD_DEFS = [
   { name: "Thor", cost: 8, attack: 7, health: 7, type: "hero",
     abilities: ["Splash 5", "Unresistible"],
     desc: "When Played: Choose an enemy to Freeze 1, then Splash 5. Start of Tricks: Freeze 1 a random unfrozen enemy." },
-  { name: "Yoda", cost: 8, attack: 6, health: 5, type: "hero",
+  { name: "Revan", cost: 8, attack: 6, health: 5, type: "villain",
     abilities: ["Evade 1", "Immunity", "Splash 4"],
     desc: "When Played: Give an ally Evade 1 for 1 turn and (+4/+4). If no allies, add (+2/+3)." },
 

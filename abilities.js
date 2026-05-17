@@ -3157,17 +3157,20 @@ const CARD_ABILITIES = {
       }
     }
   },
-  "Yoda": {
+  "Revan": {
     onPlay(G, self, lane) {
       // Roguelite Text+ override — _yodaEmpowerSize scales the buff he
       // grants. Default 4 (classic +4/+4 + Evade 1); Text+ raises to
       // 6 (+6/+6) so a recipient ally swings as a finisher tier body.
+      // (Internal state name _yodaEmpowerSize kept for save-data
+      // back-compat — the card was renamed from Yoda but the
+      // property key stays.)
       const buff = self._yodaEmpowerSize || 4;
       const allies = G.getAlliesOf(self.owner).filter(a => a.id !== self.id);
       const grant = (a) => {
         G.grantTempBuff(a, { evadeCharges: 1 });
         G.buffCard(a, buff, buff);
-        G.log(`Yoda empowers ${a.name} with Evade +${buff}/+${buff}!`);
+        G.log(`Revan channels the Force through ${a.name} — Evade +${buff}/+${buff}!`);
       };
       if (allies.length) {
         G.promptCardChoice(self.owner, allies, "Yoda — Empower", `Choose ally to give Evade +${buff}/+${buff}`, grant);
