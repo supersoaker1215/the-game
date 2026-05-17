@@ -36,9 +36,13 @@ import numpy as np
 import sys
 
 
-# Background color used when letterboxing (matches the in-game card
-# body so the padding bleeds into the card frame cleanly).
-LETTERBOX_FILL = (8, 12, 22)
+# NOTE: letterboxing was previously a fallback when the source image
+# couldn't be extended to target aspect without cropping into the
+# subject. User direction made that fallback obsolete — we now always
+# crop into the figure (preferring legs over head) instead of showing
+# pad bars. The constant is left here as documentation of the previous
+# pad color in case letterbox is ever reintroduced.
+# LETTERBOX_FILL = (8, 12, 22)
 
 # Target aspect — locked to 3:4 (360:472, the canonical portrait size).
 TARGET_W = 360
@@ -87,19 +91,40 @@ def smart_crop(src, dest, pad_pct=0.05, std_threshold=15):
     bw = x2 - x1
     bh = y2 - y1
 
-    # Extend bbox to target aspect WITHOUT touching the subject. If
-    # the bbox is narrower than target, grow horizontally; if taller,
-    # grow vertically with a 35/65 top/bottom split so heads stay
-    # well-clear of the top edge (chrome lives there).
+    # Extend bbox to target aspect. Two strategies depending on the
+    # bbox's current aspect vs target:
+    #
+    #   bbox NARROWER than target  → grow horizontally (pull in side
+    #                                background). If the source image
+    #                                isn't wide enough, fall back to
+    #                                cropping the bbox SHORTER from
+    #                                the bottom (cut legs).
+    #   bbox WIDER than target     → grow vertically with 35/65 top/
+    #                                bottom split (head-room first).
+    #                                If the source image isn't tall
+    #                                enough, fall back to narrowing
+    #                                the bbox (cut sides equally).
+    #
+    # User direction: "i dont want any black to show so if thats the
+    # case always default to cutting off the legs first" — the
+    # letterbox fallback is gone; we'd rather lose figure pixels
+    # (preferring legs over head / face) than show pad bars.
     cur_aspect = bw / bh
     if cur_aspect < TARGET_ASPECT:
         target_w = int(round(bh * TARGET_ASPECT))
         cx = (x1 + x2) // 2
         x1 = max(0, cx - target_w // 2)
-        x2 = x1 + target_w
-        if x2 > W:
-            x2 = W
-            x1 = max(0, x2 - target_w)
+        x2 = min(W, x1 + target_w)
+        x1 = max(0, x2 - target_w)  # re-anchor if clamped at right
+        if x2 - x1 < target_w:
+            # Source isn't wide enough — keep full width, shorten the
+            # bbox height from the BOTTOM (cuts legs, preserves head +
+            # face + torso).
+            new_bh = int(round((x2 - x1) / TARGET_ASPECT))
+            y2 = y1 + new_bh
+            # Clamp at image bottom if needed.
+            if y2 > H:
+                y2 = H
     else:
         target_h = int(round(bw / TARGET_ASPECT))
         extra = target_h - bh
@@ -107,34 +132,17 @@ def smart_crop(src, dest, pad_pct=0.05, std_threshold=15):
         grow_dn = extra - grow_up
         y1_new = max(0, y1 - grow_up)
         y2_new = min(H, y2 + grow_dn)
-        # If one edge clamped, push the remainder to the other side.
         if y2_new - y1_new < target_h:
-            if y1_new == 0:
-                y2_new = min(H, y1_new + target_h)
-            elif y2_new == H:
-                y1_new = max(0, y2_new - target_h)
+            # Couldn't grow vertically enough — narrow the bbox
+            # horizontally (cut sides equally so face stays centered).
+            new_bw = int(round((y2_new - y1_new) * TARGET_ASPECT))
+            cx = (x1 + x2) // 2
+            x1 = max(0, cx - new_bw // 2)
+            x2 = min(W, x1 + new_bw)
+            x1 = max(0, x2 - new_bw)
         y1, y2 = y1_new, y2_new
 
-    bw = x2 - x1
-    bh = y2 - y1
     cropped = img.crop((x1, y1, x2, y2))
-
-    # If the source wasn't wide / tall enough to reach target aspect,
-    # letterbox with the card-body fill so we never crop into the
-    # subject just to hit aspect.
-    cur_aspect = bw / bh
-    if abs(cur_aspect - TARGET_ASPECT) > 0.01:
-        if cur_aspect < TARGET_ASPECT:
-            new_w = int(round(bh * TARGET_ASPECT))
-            pad_l = (new_w - bw) // 2
-            canvas = Image.new('RGB', (new_w, bh), LETTERBOX_FILL)
-            canvas.paste(cropped, (pad_l, 0))
-        else:
-            new_h = int(round(bw / TARGET_ASPECT))
-            pad_t = (new_h - bh) // 2
-            canvas = Image.new('RGB', (bw, new_h), LETTERBOX_FILL)
-            canvas.paste(cropped, (0, pad_t))
-        cropped = canvas
 
     out = cropped.resize((TARGET_W, TARGET_H), Image.LANCZOS)
     out.save(dest, optimize=True)
