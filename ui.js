@@ -561,6 +561,11 @@ const UI = {
       // riff build through to the percussive payoff. -20 LUFS,
       // 1s fade-in / 2s fade-out baked.
       'Wonder Woman':     { hover: { src: 'audio/cards/wonder-woman-hover.mp3', maxDur: 115 } },
+      // Deadpool hover: 80 s of *NSYNC's "Bye Bye Bye" (the
+      // Deadpool & Wolverine slo-mo intro track), 0:00 → 1:20 —
+      // captures the iconic backing-vocal build through the first
+      // full chorus. -20 LUFS, 1 s fade-in / 2 s fade-out baked.
+      'Deadpool':         { hover: { src: 'audio/cards/deadpool-hover.mp3', maxDur: 80 } },
       // Captain America hover: 65s of Harry James's "It's Been a Long, Long
       // Time" (start → 1:05) — the period-correct cue from CA's WWII era.
       // -20 LUFS unified-baseline, 1s fade-in / 2s fade-out baked.
