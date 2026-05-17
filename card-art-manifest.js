@@ -30,4 +30,5 @@ window.CARD_ART_VARIANTS = {
   'Xenomorph':           ['Xenomorph.png',           'Xenomorph 2.png'],
   'Jason Voorhees':      ['Jason Voorhees.png',      'Jason Voorhees 2.png'],
   'Anakin Skywalker':    ['Anakin Skywalker.png',    'Anakin Skywalker 2.png'],
+  'Ahsoka':              ['Ahsoka.png',              'Ahsoka 2.png'],
 };
