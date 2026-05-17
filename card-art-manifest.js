@@ -34,4 +34,5 @@ window.CARD_ART_VARIANTS = {
   'Emperor Palpatine':   ['Emperor Palpatine.png',   'Emperor Palpatine 2.png'],
   'Iron Man':            ['Iron Man.png',            'Iron Man 2.png',           'Iron Man 3.png'],
   'Superman':            ['Superman.png',            'Superman 2.png'],
+  'Wolverine':           ['Wolverine.png',           'Wolverine 2.png'],
 };
