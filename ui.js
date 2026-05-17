@@ -56,55 +56,36 @@ const UI = {
   },
   // Wire up the global alt-art picker.
   //
-  // Behavior: right-click (or two-finger click on Mac trackpad, or
-  // long-press on touch) ANY card element with `data-card-name` →
-  // cycles its art to the next variant if the manifest declares two
-  // or more files for that character. Pass-through (no preventDefault)
-  // when the card has no variants, so the browser's standard context
-  // menu still opens for debugging.
+  // Gesture: a click on the card's NAME STRIP (`.card-name-overlay`,
+  // the translucent gradient that sits across the bottom of the
+  // portrait). Each click rotates the painting to the next variant
+  // declared in CARD_ART_VARIANTS for that character. Click again →
+  // next. Wraps around at the end. User direction: "have it so the
+  // name is clickable for each card, and then each time you click
+  // the name, it rotates through a gallery of cards that I have
+  // imported for that specific card."
   //
-  // Rendering: setCardArtVariant inside cycleCardArt fires a render()
-  // pass that re-builds every card portrait from the new path. No
-  // refresh, no codex round-trip — the swap shows up on the board,
-  // in hand, in the draft picker, and in the codex simultaneously.
-  // User direction: "I'd rather be somewhere else and not have to
-  // restart the whole entire server. Just have it, like, flip to the
-  // next card art."
+  // The listener runs in CAPTURE PHASE so it fires before the card's
+  // own onclick handler (which selects / plays the card). When the
+  // card has 2+ variants we stopPropagation so the name-strip click
+  // never reaches the play handler — feels like a dedicated "switch
+  // art" hit zone. When the card has zero or one variants the
+  // listener is a no-op and the click bubbles normally to play the
+  // card, so cards without alt art keep their original behavior.
   installAltArtPicker() {
-    document.addEventListener('contextmenu', (e) => {
-      const cardEl = e.target && e.target.closest && e.target.closest('[data-card-name]');
+    document.addEventListener('click', (e) => {
+      const overlay = e.target && e.target.closest && e.target.closest('.card-name-overlay');
+      if (!overlay) return;
+      const cardEl = overlay.closest('[data-card-name]');
       if (!cardEl) return;
       const name = cardEl.getAttribute('data-card-name');
       if (!name) return;
       const variants = this.getCardArtVariants(name);
       if (!variants || variants.length < 2) return;
       e.preventDefault();
+      e.stopPropagation();
       this.cycleCardArt(name);
-    });
-    // Touch long-press fallback for mobile / iPad — fire the cycle
-    // after a 550 ms hold. Cancel on move or release so the gesture
-    // can't accidentally pre-empt a play / select tap.
-    let _lpTimer = null, _lpCardEl = null;
-    const cancelLp = () => {
-      if (_lpTimer) { clearTimeout(_lpTimer); _lpTimer = null; }
-      _lpCardEl = null;
-    };
-    document.addEventListener('touchstart', (e) => {
-      const cardEl = e.target && e.target.closest && e.target.closest('[data-card-name]');
-      if (!cardEl) return;
-      const name = cardEl.getAttribute('data-card-name');
-      if (!name) return;
-      const variants = this.getCardArtVariants(name);
-      if (!variants || variants.length < 2) return;
-      _lpCardEl = cardEl;
-      _lpTimer = setTimeout(() => {
-        if (_lpCardEl === cardEl) this.cycleCardArt(name);
-        cancelLp();
-      }, 550);
-    }, { passive: true });
-    document.addEventListener('touchmove',  cancelLp, { passive: true });
-    document.addEventListener('touchend',   cancelLp, { passive: true });
-    document.addEventListener('touchcancel', cancelLp, { passive: true });
+    }, true /* capture: fire before card.onclick */);
   },
 
   cycleCardArt(name) {
