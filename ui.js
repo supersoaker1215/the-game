@@ -566,6 +566,12 @@ const UI = {
       // captures the iconic backing-vocal build through the first
       // full chorus. -20 LUFS, 1 s fade-in / 2 s fade-out baked.
       'Deadpool':         { hover: { src: 'audio/cards/deadpool-hover.mp3', maxDur: 80 } },
+      // Wolverine hover: 79 s of "Like a Prayer (Choir Version)"
+      // from Deadpool & Wolverine, 1:05 → 2:24 — the sustained
+      // choir build that scores his entrance. Pairs intentionally
+      // with Deadpool's "Bye Bye Bye" cue. -20 LUFS, 1 s fade-in /
+      // 2 s fade-out baked.
+      'Wolverine':        { hover: { src: 'audio/cards/wolverine-hover.mp3', maxDur: 79 } },
       // Captain America hover: 65s of Harry James's "It's Been a Long, Long
       // Time" (start → 1:05) — the period-correct cue from CA's WWII era.
       // -20 LUFS unified-baseline, 1s fade-in / 2s fade-out baked.
