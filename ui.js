@@ -543,6 +543,12 @@ const UI = {
       // menace-with-momentum. -20 LUFS, 1s fade-in / 2s fade-out
       // baked. maxDur 81 = full clip plays across re-hovers.
       'Omni-Man':         { hover: { src: 'audio/cards/omni-man-hover.mp3', maxDur: 81 } },
+      // Davy Jones hover: 72s from "Davy Jones" theme (Pirates of
+      // the Caribbean — Hans Zimmer / Klaus Badelt), 0:00 → 1:12 —
+      // the music-box organ intro that establishes the cursed-
+      // captain identity. -20 LUFS, 1s fade-in / 2s fade-out baked.
+      // maxDur 72 lets the full music-box phrase play.
+      'Davy Jones':       { hover: { src: 'audio/cards/davy-jones-hover.mp3', maxDur: 72 } },
       // Captain America hover: 65s of Harry James's "It's Been a Long, Long
       // Time" (start → 1:05) — the period-correct cue from CA's WWII era.
       // -20 LUFS unified-baseline, 1s fade-in / 2s fade-out baked.
