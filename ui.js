@@ -1768,7 +1768,7 @@ const UI = {
     // pass) so browsers refetch instead of serving stale cached bytes.
     // Only applied when the src doesn't already carry its own `?v=...`
     // override (so individually-bumped entries like Thanos's stay intact).
-    _CARD_AUDIO_VERSION: 8,
+    _CARD_AUDIO_VERSION: 9,
     _bustCache(src) {
       if (typeof src !== 'string' || src.indexOf('?') !== -1) return src;
       return src + '?cv=' + this._CARD_AUDIO_VERSION;
@@ -1950,7 +1950,18 @@ const UI = {
         }, fadeStartMs);
       };
       const maxDur = opts && opts.maxDur;
-      if (maxDur && maxDur > 0) {
+      // SKIP the programmatic cap-fade when `fullDuration` is set
+      // (hover SFX). User spec: "no max restriction on how long a
+      // hover is. I dictate where to start and stop the song."
+      // Hover MP3s already have their fade-out BAKED IN by the
+      // ffmpeg pipeline at clip-time — stacking the engine's own
+      // 2s ease-out on top of that compounded into a fade that
+      // killed the volume ~2s before the user's intended end. The
+      // audio now plays naturally to its `ended` event with the
+      // baked fade as the only taper.
+      if (opts && opts.fullDuration) {
+        // intentionally no cap-fade scheduled
+      } else if (maxDur && maxDur > 0) {
         scheduleCapFade(maxDur);
       } else if (!isNaN(pick.duration) && pick.duration > 0) {
         scheduleCapFade(pick.duration);
@@ -2028,13 +2039,20 @@ const UI = {
       const opts = { ...(resolved.opts || {}) };
       if (event === 'hover') {
         opts.hover = true;
-        // Hover plays the full clip — no default maxDur cap. Per the
-        // user's audio rule: "hover/music stay full length." Cards
-        // that DO want a trim still set maxDur explicitly in their
-        // CARD_SFX entry, but the global 8s ceiling that previously
-        // truncated every un-tagged hover is gone.
+        // Hover plays the FULL clip with no programmatic taper. User
+        // direction: "no max restriction on how long a hover is. I
+        // dictate where to start and stop the song." The ffmpeg
+        // pipeline already bakes a 1 s fade-in / 2 s fade-out into
+        // every hover MP3 at clip-time — letting the engine schedule
+        // its own cap-fade on top of that produced a compounded
+        // ease-out that audibly killed the clip ~2 s before its
+        // intended end. Strip every registry-side maxDur and set the
+        // fullDuration sentinel so _playSample skips its cap-fade
+        // and lets the file play to natural `ended`.
         opts.fadeIn  = opts.fadeIn  ?? 1000;
         opts.fadeOut = opts.fadeOut ?? 2000;
+        opts.fullDuration = true;
+        delete opts.maxDur;
         // Duck the menu music while a hover theme is live so the two
         // don't muddy each other. _stopHover restores the music level
         // when the cursor leaves the card.
@@ -2092,6 +2110,7 @@ const UI = {
       if (event === 'hover') {
         opts.hover = true;          // enables resume-from-pause in _playSample
         opts.category = 'hover';
+        opts.fullDuration = true;   // skip _playSample cap-fade (see playCardSfx note)
         delete opts.maxDur;         // hover is full-length per user spec
       } else {
         // Non-hover trick events (play) get the same 1.5s cap as cards.
