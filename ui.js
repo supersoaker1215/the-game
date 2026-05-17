@@ -555,6 +555,12 @@ const UI = {
       // 1s fade-in / 2s fade-out baked. maxDur 65 lets the full
       // sustained-choir phrase play across re-hovers.
       'Emperor Palpatine': { hover: { src: 'audio/cards/emperor-palpatine-hover.mp3', maxDur: 65 } },
+      // Wonder Woman hover: 115 s of Hans Zimmer + Junkie XL's "Is
+      // She With You" — Diana's electric-cello entrance theme from
+      // BvS / Wonder Woman. Clipped 0:00 → 1:55 to ride the full
+      // riff build through to the percussive payoff. -20 LUFS,
+      // 1s fade-in / 2s fade-out baked.
+      'Wonder Woman':     { hover: { src: 'audio/cards/wonder-woman-hover.mp3', maxDur: 115 } },
       // Captain America hover: 65s of Harry James's "It's Been a Long, Long
       // Time" (start → 1:05) — the period-correct cue from CA's WWII era.
       // -20 LUFS unified-baseline, 1s fade-in / 2s fade-out baked.
