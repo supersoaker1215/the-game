@@ -572,6 +572,12 @@ const UI = {
       // with Deadpool's "Bye Bye Bye" cue. -20 LUFS, 1 s fade-in /
       // 2 s fade-out baked.
       'Wolverine':        { hover: { src: 'audio/cards/wolverine-hover.mp3', maxDur: 79 } },
+      // The Flash hover: 67 s of Junkie XL's "At the Speed of
+      // Force" (Justice League / The Flash motif), 1:35 → 2:42 —
+      // the percussive run sequence that scores Barry's speed-
+      // force traversals. -20 LUFS, 1 s fade-in / 2 s fade-out
+      // baked.
+      'The Flash':        { hover: { src: 'audio/cards/the-flash-hover.mp3', maxDur: 67 } },
       // Captain America hover: 65s of Harry James's "It's Been a Long, Long
       // Time" (start → 1:05) — the period-correct cue from CA's WWII era.
       // -20 LUFS unified-baseline, 1s fade-in / 2s fade-out baked.
