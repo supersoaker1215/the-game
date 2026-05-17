@@ -538,6 +538,11 @@ const UI = {
       // -20 LUFS unified-baseline, 1s fade-in / 2s fade-out baked. maxDur
       // 66 lets the full phrase play across re-hovers (resume-from-pause).
       'Homelander':       { hover: { src: 'audio/cards/homelander-hover.mp3', maxDur: 66 } },
+      // Omni-Man hover: 81s of Holy Fuck's "Tom Tom" (0:14 → 1:35) —
+      // the percussive synth-driven build that fits Nolan Grayson's
+      // menace-with-momentum. -20 LUFS, 1s fade-in / 2s fade-out
+      // baked. maxDur 81 = full clip plays across re-hovers.
+      'Omni-Man':         { hover: { src: 'audio/cards/omni-man-hover.mp3', maxDur: 81 } },
       // Captain America hover: 65s of Harry James's "It's Been a Long, Long
       // Time" (start → 1:05) — the period-correct cue from CA's WWII era.
       // -20 LUFS unified-baseline, 1s fade-in / 2s fade-out baked.
