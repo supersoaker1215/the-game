@@ -20,7 +20,6 @@
 window.CARD_ART_VARIANTS = {
   'Batman':              ['Batman.png',              'Batman 2.png'],
   'Hulk':                ['Hulk.png',                'Hulk 2.png'],
-  'Dr. Strange':         ['Dr. Strange.png',         'Dr. Strange 2.png'],
   'Dr. Doom':            ['Dr. Doom.png',            'Dr. Doom 2.png'],
   'Darth Vader':         ['Darth Vader.png',         'Darth Vader 2.png'],
   'Symbiote Spider-Man': ['Symbiote Spider-Man.png', 'Symbiote Spider-Man 2.png'],
