@@ -1768,7 +1768,7 @@ const UI = {
     // pass) so browsers refetch instead of serving stale cached bytes.
     // Only applied when the src doesn't already carry its own `?v=...`
     // override (so individually-bumped entries like Thanos's stay intact).
-    _CARD_AUDIO_VERSION: 7,
+    _CARD_AUDIO_VERSION: 8,
     _bustCache(src) {
       if (typeof src !== 'string' || src.indexOf('?') !== -1) return src;
       return src + '?cv=' + this._CARD_AUDIO_VERSION;
