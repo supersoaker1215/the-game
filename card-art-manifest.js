@@ -19,4 +19,5 @@
 
 window.CARD_ART_VARIANTS = {
   'Batman': ['Batman.png', 'Batman 2.png'],
+  'Hulk':   ['Hulk.png',   'Hulk 2.png'],
 };
