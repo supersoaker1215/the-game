@@ -629,7 +629,14 @@ const UI = {
       // kept for the Hollow Purple cue (fires from inside abilities.js
       // when Hollow Purple resolves, not on play).
       'Gojo':             { hover: { src: 'audio/cards/gojo-hover.mp3?v=2', maxDur: 60 }, ability: { src: 'audio/cards/gojo-ability.mp3', maxDur: 4.0 } },
-      'Xenomorph':        { hover: 'audio/cards/xenomorph-hover.mp3', play: 'audio/cards/xenomorph-play.mp3', attack: 'audio/cards/xenomorph-attack.mp3', death: 'audio/cards/xenomorph-death.mp3' },
+      // Xenomorph hover: 62 s of Jed Kurzel's "The Covenant" theme
+      // (Alien: Covenant OST), 0:48 → 1:50 — the slow dread-build
+      // string section that scores the xenomorph's first hunt
+      // sequences. -20 LUFS, 1 s fade-in / 2 s fade-out baked.
+      // Replaced an earlier shorter cue per user direction "get rid
+      // of the other." Play / attack / death stay on the original
+      // 1.5-3 s SFX clips with their own duration caps baked in.
+      'Xenomorph':        { hover: { src: 'audio/cards/xenomorph-hover.mp3', maxDur: 62 }, play: 'audio/cards/xenomorph-play.mp3', attack: 'audio/cards/xenomorph-attack.mp3', death: 'audio/cards/xenomorph-death.mp3' },
       'Predator':         { hover: 'audio/cards/predator-hover.mp3', ability: { src: 'audio/cards/predator-ability.mp3', maxDur: 3.0 } },
       'Thor':             { hover: 'audio/cards/thor-hover.mp3', attack: { src: 'audio/cards/thor-attack.mp3', maxDur: 1.5 } },
       // Lightsaber hum — Jedi only (Yoda, Obi-Wan, Ahsoka, Anakin).
