@@ -159,10 +159,9 @@
    against the dark desc background. */
 .kw {
   font-weight: 700;
-  /* Keyword highlights match the bold-label size so the "highlight
-     tier" reads as one consistent layer above the body copy.
-     Card-desc body is 8.5 px, bold labels + kw are 11 px. */
-  font-size: 11px;
+  /* Keyword highlights match the bold-label size — one "highlight
+     tier" sitting just above the body. Body 8.5 px, kw 10 px. */
+  font-size: 10px;
   text-shadow: 0 0 6px currentColor, 0 1px 2px rgba(0,0,0,0.85);
 }
 /* Tooltipable body keywords — when a `.kw` span carries `data-kw` it's
@@ -5200,15 +5199,14 @@ body.hit-pause .ai-hand * {
   font-family: 'JetBrains Mono', 'SF Mono', ui-monospace, Menlo, Consolas, monospace;
   font-weight: 700;
   letter-spacing: 0.7px;
-  /* Bold trigger labels (ON PLAY / PASSIVE / 1ST TRICK PHASE) and
-     keyword highlights (.kw) are the HIGHLIGHT layer — should read
-     visibly larger than the body copy. User direction (May-17):
-     "Bolded colored text should be the big text. The actual card
-     text should be the size of on play." Body sits at 8.5 px; bold
-     bumped to 11 px (28 % larger) so uppercase monospace glyphs
-     don't visually under-weight the mixed-case Rajdhani body even
-     after font-metric differences. */
-  font-size: 11px;
+  /* Bold trigger labels (ON PLAY / PASSIVE / 1ST TRICK PHASE) sit
+     just above the body copy in size — SUBTLE hierarchy, not a
+     dramatic jump. User feedback (round 2): "you just made the
+     highlighted text bigger. That's not what I wanted at all... I
+     need the on play to be just a little bit bigger." Body 8.5 px,
+     bold 10 px (~18 % larger). Keyword spans match at 10 px so
+     bold + kw read as one highlight tier. */
+  font-size: 10px;
   text-transform: uppercase;
   color: rgba(var(--portrait-frame-rgb, 79,195,247), 1) !important;
   text-shadow:
@@ -16889,16 +16887,14 @@ body.phase-menu .kb-hints { display: none; }
 .encyc-grid .card.hand-card.enc-card .stat-hp  { right: 8px; }
 .encyc-grid .card.hand-card.enc-card .card-desc b,
 .encyc-grid .card.hand-card.enc-card .card-desc .kw {
-  /* Codex highlight tier — bold labels AND keyword spans both at
-     16 px against an 11 px body (codex override below). User
-     direction (May-17): "on play is smaller text than freeze one.
-     Bolded colored text should be the big text. The actual card
-     text should be the size of on play. The on play currently
-     should match freeze one." Pushing bold + kw both to 16 px
-     (vs body 11 px) makes the highlight layer ~45 % larger than
-     the body copy, so the eye anchors on the trigger + keyword
-     hits first and only then reads the connecting text. */
-  font-size: 16px;
+  /* Codex highlight tier — bold labels + kw spans both at 13 px
+     vs an 11 px body. User feedback (round 2): "the on play is
+     too small — make it just a little bit bigger. Mind Control
+     keyword should be the same size as on play."  13 px sits
+     subtly above the 11 px body (~18 % larger) and gives bold +
+     kw a unified hit-zone weight without the dramatic 16 px jump
+     from the prior pass that read as oversized. */
+  font-size: 13px;
   letter-spacing: 0.6px;
 }
 /* Trick variant — purple, compact, matches in-game trick look. */
