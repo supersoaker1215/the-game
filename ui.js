@@ -120,19 +120,32 @@ const UI = {
     this.setCardArtVariant(name, next);
   },
   setCardArtVariant(name, file) {
-    // Persist + re-render. Validates against the manifest so a typo
-    // or stale localStorage write can't poison the UI.
+    // Persist + SURGICAL swap. Previously this called `render()` which
+    // rebuilt the entire game DOM — felt like the page was reloading,
+    // killed in-flight animations, reset hover state. User direction:
+    // "not have to restart the whole entire server. Just have it,
+    // like, flip to the next card."
+    //
+    // The new path: write localStorage, then walk every card element
+    // currently in the DOM that carries this character's name and
+    // update ONLY its portrait's --portrait-bg CSS variable. No DOM
+    // tear-down, no class shuffle, no animation reset — the painting
+    // just changes in place. Future render() passes still pull the
+    // correct file because getCardArtPath always reads the live
+    // localStorage value.
+    //
+    // Validates against the manifest so a typo or stale localStorage
+    // write can't poison the UI (selection silently ignored).
     if (!name || !file) return;
     const variants = this.getCardArtVariants(name);
     if (!variants || variants.indexOf(file) < 0) return;
     this._persistSet('cardArt.' + name, file);
-    // Re-render the codex if open, otherwise the next game render
-    // will pick up the new variant automatically.
-    if (this.renderEncyclopedia) {
-      const ov = document.getElementById('encyclopedia-overlay');
-      if (ov && ov.style.display !== 'none') this.renderEncyclopedia();
-    }
-    if (this.render) this.render();
+    const bgValue = `url('${this.getCardArtPath(name)}')`;
+    document.querySelectorAll('[data-card-name]').forEach(el => {
+      if (el.getAttribute('data-card-name') !== name) return;
+      const portrait = el.querySelector('.card-portrait');
+      if (portrait) portrait.style.setProperty('--portrait-bg', bgValue);
+    });
   },
 
   // ===================== SETTINGS (persisted in localStorage) =====================
