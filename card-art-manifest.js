@@ -28,4 +28,5 @@ window.CARD_ART_VARIANTS = {
   'The Flash':           ['The Flash.png',           'The Flash 2.png'],
   'Omni-Man':            ['Omni-Man.png',            'Omni-Man 2.png'],
   'Xenomorph':           ['Xenomorph.png',           'Xenomorph 2.png'],
+  'Jason Voorhees':      ['Jason Voorhees.png',      'Jason Voorhees 2.png'],
 };
