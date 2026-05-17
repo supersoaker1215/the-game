@@ -107,7 +107,11 @@ const CARD_ABILITIES = {
           }, _aiThreatPicker);
         }
       };
-      G.summonCardChoice(self.owner, "Ant", 1, 1, 1, ["Bullseye"], afterSummon);
+      // _antManAntAtk / _antManAntHp let Text+ bump the summoned Ant
+      // beyond its 1/1 base. Default 1/1 (classic); Text+ sets 4/4.
+      const antAtk = self._antManAntAtk || 1;
+      const antHp  = self._antManAntHp  || 1;
+      G.summonCardChoice(self.owner, "Ant", 1, antAtk, antHp, ["Bullseye"], afterSummon);
     }
   },
   "Poison Ivy": {
@@ -137,6 +141,19 @@ const CARD_ABILITIES = {
           self._grantedBuffs.splice(idx, 1);
         }
       }
+      // Clear the previous charm target's "_charmedByIvy" tag (if any)
+      // so the badge moves cleanly when we re-pick. The tag mirrors
+      // _ivyAlly/.id so the badge renderer doesn't depend on object
+      // identity (which can break across re-instantiations / saves).
+      if (self._ivyAlly && self._ivyAlly._charmedByIvy === self.id) {
+        delete self._ivyAlly._charmedByIvy;
+      }
+      // Belt-and-suspenders: scan board for any stale tag pointing at
+      // this Ivy and clear it. Cheap (≤12 cards) and survives weird
+      // re-instantiation flows.
+      G.getAllCardsOnBoard().forEach(c => {
+        if (c._charmedByIvy === self.id) delete c._charmedByIvy;
+      });
       self._ivyAlly = null;
       self._ivyCharmedId = null;
       const allies = G.getAlliesOf(self.owner).filter(a => a.id !== self.id && a.currentHealth > 0 && (a.attack || 0) > 0);
@@ -153,6 +170,12 @@ const CARD_ABILITIES = {
         : allies[Math.floor(Math.random() * allies.length)];
       self._ivyAlly = pick;
       self._ivyCharmedId = pick.id; // tracked so handleDeath can strip the buff
+      // Stamp a direct flag on the charmed ally pointing back at Ivy.
+      // The badge renderer reads this flag — much more reliable than
+      // matching object identity across getAllCardsOnBoard calls. User
+      // report: "the charm status badge isn't on any ally card for ivy
+      // so I can't tell who she's gaining attack from."
+      pick._charmedByIvy = self.id;
       const bonus = pick.attack || 0;
       if (bonus > 0) {
         // Temp buff, auto-expires after 1 turn. Re-charming on the
@@ -190,11 +213,24 @@ const CARD_ABILITIES = {
       // Post-combat — if the charmed ally died this round, re-charm
       // a new living ally so Ivy's CHARMED badge is always visible
       // on someone (mirrors Joker's onEndOfTurn re-stamp pattern).
-      // No-op if the current charm target is still alive (the
-      // _ivyAlly check below short-circuits before grantTempBuff
-      // would re-grant a duplicate). User spec: "while active all
-      // the time when they are on board their debuff/buff is always
-      // on board showing."
+      const target = self._ivyAlly;
+      const alive = target && target.currentHealth > 0 && G.findCardLane(target) >= 0;
+      if (alive) return;
+      CARD_ABILITIES['Poison Ivy']._charm(G, self);
+    },
+    onAnyCardPlayed(G, self) {
+      // Persistent charm coverage during the PLAY phase — when Ivy
+      // enters before any ally lands (or when her current target is
+      // gone), re-charm as soon as a fresh ally arrives so the
+      // CHARMED badge tracks board state in real time. Locked once
+      // tricks/combat begin: the charm is fixed for the round, and
+      // if the target dies during attack phase the buff is gone with
+      // no re-pick. User spec: "no ally can be charmed during the
+      // attack phase, but right when the next turn starts ivy
+      // charms iron man." onEndOfTurn (post-combat) handles the
+      // "next turn starts" re-pick.
+      const phase = (G.state && G.state.phase) || '';
+      if (phase.indexOf('tricks') >= 0 || phase === 'combat') return;
       const target = self._ivyAlly;
       const alive = target && target.currentHealth > 0 && G.findCardLane(target) >= 0;
       if (alive) return;
@@ -203,6 +239,26 @@ const CARD_ABILITIES = {
   },
   "Black Widow": {
     onPlay(G, self, lane) {
+      // Roguelite Text+ ("Wide Web") — _blackWidowSplashFreeze freezes
+      // the front enemy AND both adjacent enemies (splash radius)
+      // automatically. Skips the choice prompt since the targets are
+      // fully implied by lane geometry.
+      if (self._blackWidowSplashFreeze) {
+        const opp = G.opponent(self.owner);
+        const targets = [];
+        const front = G.state.lanes[lane] && G.state.lanes[lane][opp];
+        if (front && front.currentHealth > 0) targets.push(front);
+        for (const dir of [-1, 1]) {
+          const adjLane = lane + dir;
+          if (adjLane < 0 || adjLane >= Game.LANE_COUNT) continue;
+          const t = G.state.lanes[adjLane] && G.state.lanes[adjLane][opp];
+          if (t && t.currentHealth > 0 && !t.isFrozen) targets.push(t);
+        }
+        if (!targets.length) return;
+        targets.forEach(t => G.freezeCard(t, self));
+        G.log(`Black Widow's web freezes ${targets.length} enemies in splash radius!`);
+        return;
+      }
       // Roguelite rarity variant — number of freezes scales with tier.
       //   common    → 1 adjacent freeze (listed)
       //   rare      → 1 adjacent freeze (listed)
@@ -297,6 +353,17 @@ const CARD_ABILITIES = {
     onBeforeAttack(G, self) {
       G.damagePlayer(self.owner, 1, false);
       G.log(`[HIT] Harley Quinn deals 1 to her own team before attacking!`);
+    },
+    onDamaged(G, self) {
+      // Roguelite Text+ ("Chaos!") — _harleyBlockOnDmg adds N to the
+      // owner's Block Meter every time Harley takes damage. Default
+      // 0 (classic — no block gain); Text+ sets 3 so the chaos pivots
+      // into a hard-block defensive payoff.
+      const gain = self._harleyBlockOnDmg || 0;
+      if (gain <= 0) return;
+      const meter = G.state[self.owner].blockMeter || 0;
+      G.state[self.owner].blockMeter = Math.min(Game.BLOCK_MAX, meter + gain);
+      G.log(`Harley Quinn cackles — +${gain} Block Meter!`);
     }
   },
   "Jango Fett": {
@@ -307,6 +374,32 @@ const CARD_ABILITIES = {
       const dmg = self._jangoSplashOnMove || 1;
       G.splashDamage(toLane, self.owner, dmg);
       G.log(`Jango Fett splashes lane ${toLane + 1} for ${dmg} on arrival!`);
+    },
+    onBeforeTricks(G, self, lane) {
+      // Roguelite Text+ ("Jetpack Salvo") — _jangoMoveLikeManBat gives
+      // Jango a Man-Bat-style relocation at Start of Tricks. The
+      // existing onMoved handler picks up the arrival splash. Classic
+      // Jango has no movement of his own — this hook is gated.
+      if (!self._jangoMoveLikeManBat) return;
+      if (self.isStunned || self.isFrozen) {
+        G.log(`  [SKIP] ${self.name} is ${self.isStunned ? 'STUNNED' : 'FROZEN'} — stays put.`);
+        return;
+      }
+      const open = G.getOpenLanes(self.owner).filter(l => l !== lane);
+      if (!open.length) return;
+      if (Game.isHuman(self.owner)) {
+        const choices = [lane, ...open];
+        G.promptLaneChoice(self.owner, choices, "Jango Fett — Move", "Choose a lane to move to (current = stay)", (to) => {
+          if (to === lane) {
+            G.log(`Jango Fett holds his position in lane ${lane + 1}.`);
+            return;
+          }
+          G.moveCard(self, lane, to);
+        });
+      } else {
+        const to = open[Math.floor(Math.random() * open.length)];
+        G.moveCard(self, lane, to);
+      }
     }
   },
   "Gorilla Grodd": {
@@ -317,7 +410,11 @@ const CARD_ABILITIES = {
       //   rare      → cost ≤ 3 (listed)
       //   special   → cost ≤ 5
       //   legendary → cost ≤ 9 (anything that isn't a 10-cost titan)
-      const maxCost = G.rarityValue(self, { common: 1, rare: 3, special: 5, legendary: 9 });
+      // Roguelite Text+ ("Brute Telepath") — _groddMcCostMax overrides
+      // the rarity-tier cost gate with a fixed ceiling (5).
+      const maxCost = self._groddMcCostMax
+        ? self._groddMcCostMax
+        : G.rarityValue(self, { common: 1, rare: 3, special: 5, legendary: 9 });
       const enemySide = G.opponent(self.owner);
       const jugg = G.getAllCardsOf(enemySide).find(c => c.name === 'Juggernaut');
       if (jugg) { G.log(`Juggernaut blocks Gorilla Grodd's mind control!`); return; }
@@ -340,9 +437,11 @@ const CARD_ABILITIES = {
   },
   "Hawkeye": {
     onPlay(G, self, lane) {
-      // Splash radius scales with tier: 1 / 1 / 2 / 2 (and gains Bullseye
-      // at legendary so the splash bypasses block meter).
-      const splash = G.rarityValue(self, { common: 1, rare: 1, special: 2, legendary: 2 });
+      // Roguelite Text+ ("Trick Arrows") — _hawkeyeSplash overrides the
+      // rarity-driven splash count with a fixed value (3).
+      const splash = self._hawkeyeSplash
+        ? self._hawkeyeSplash
+        : G.rarityValue(self, { common: 1, rare: 1, special: 2, legendary: 2 });
       G.splashDamage(lane, self.owner, splash);
       G.log(`Hawkeye splashes adjacent enemies for ${splash}!`);
     },
@@ -351,13 +450,26 @@ const CARD_ABILITIES = {
   "Mr. Fantastic": {
     isDiscardEffect: true,
     onDiscard(G, owner, self) {
-      // Roguelite Text+ override — _fantasticDiscount scales the next-draw
-      // discount from 2 to whatever's set (4 with Text+).
-      const disc = (self && self._fantasticDiscount) || 2;
-      G.state[owner].nextDrawDiscount += disc;
+      // User spec (May 2026): "the next two cards drawn are reduced
+      // by one energy" + has the "Draw 1" keyword.
+      // Default (classic) = 1 off each of the next 2 draws.
+      // Roguelite Text+ overrides — _fantasticDiscount scales the
+      // per-draw rate; _fantasticCount sets how many draws benefit.
+      const disc = (self && self._fantasticDiscount) || 1;
+      const count = (self && self._fantasticCount) || 2;
+      // Per-draw rate is the max in flight (multi-Mr.F overlap is rare;
+      // the larger discount wins). Count accumulates so back-to-back
+      // discards still hand out their share of cheaper draws.
+      G.state[owner].nextDrawDiscount = Math.max(G.state[owner].nextDrawDiscount || 0, disc);
+      G.state[owner].nextDrawDiscountCount = (G.state[owner].nextDrawDiscountCount || 0) + count;
       // Track the Mr. Fantastic instance that set this so drawCards can
       // credit him with actual `statsDiscountValue` at apply time.
       if (self) G.state[owner]._nextDrawDiscountSource = self;
+      // "Draw 1" keyword effect — fire the actual draw. Done AFTER
+      // setting the discount above so the drawn card itself benefits
+      // from the cheaper-draw aura (the user's intent: discarding
+      // Mr. F should immediately give them a cheaper card).
+      G.drawCards(owner, 1);
     }
   },
   "Mr. Freeze": {
@@ -365,6 +477,11 @@ const CARD_ABILITIES = {
       // Targets scale with tier: just front (common/rare), front + 1
       // adjacent (special), front + both adjacents (legendary).
       const reach = G.rarityValue(self, { common: 0, rare: 0, special: 1, legendary: 2 });
+      // Roguelite Text+ ("Cryo Wall") — _mrFreezeFreezeSize raises the
+      // freeze duration on each card from 1 turn to N. _mrFreezeHpFreezeHits
+      // sets how many incoming HP-bar hits the shield negates (default 1).
+      const freezeN = self._mrFreezeFreezeSize || 1;
+      const hpHits = self._mrFreezeHpFreezeHits || 1;
       const opp = G.opponent(self.owner);
       const targets = [];
       const front = G.state.lanes[lane] ? G.state.lanes[lane][opp] : null;
@@ -377,12 +494,12 @@ const CARD_ABILITIES = {
         const right = lane < Game.LANE_COUNT - 1 && G.state.lanes[lane + 1] ? G.state.lanes[lane + 1][opp] : null;
         if (right) targets.push(right);
       }
-      targets.forEach(t => G.freezeCard(t, self));
-      G.state[self.owner].healthFrozen = true;
+      targets.forEach(t => G.freezeCard(t, self, freezeN));
+      G.state[self.owner].healthFrozen = hpHits;
       G.state[self.owner]._healthFrozenBy = self;
       const who = Game.isHuman(self.owner) ? 'your' : 'its';
       const list = targets.length ? targets.map(t => t.name).join(', ') + ' and ' : '';
-      G.log(`Mr. Freeze freezes ${list}${who} health bar!`);
+      G.log(`Mr. Freeze freezes ${list}${who} health bar (${hpHits} hits)!`);
     }
   },
   "Sabertooth": {
@@ -421,6 +538,18 @@ const CARD_ABILITIES = {
   },
 
   // ==================== COST 2 ====================
+  "King Shark": {
+    // Classic King Shark is a vanilla 3/3 Overdrive — no special hooks.
+    // Roguelite Text+ ("Apex Predator") wires onKill to buff +N/+N
+    // every time he destroys an enemy. The flag is set in apply, so
+    // un-upgraded King Sharks fall through with no buff.
+    onKill(G, self) {
+      const buff = self._kingSharkKillBuff || 0;
+      if (buff <= 0) return;
+      G.buffCard(self, buff, buff);
+      G.log(`King Shark feasts! +${buff}/+${buff} → ${self.attack}/${self.currentHealth}`);
+    }
+  },
   "Bane": {
     onPlay(G, self, lane) {
       const enemies = G.getEnemiesOf(self.owner);
@@ -525,13 +654,31 @@ const CARD_ABILITIES = {
       }
     },
     onKill(G, self) {
-      G.buffCard(self, 1, 1);
-      G.log(`Gamora grows stronger! +1/+1 → ${self.attack}/${self.currentHealth}`);
+      // Roguelite Text+ ("Most Dangerous Woman") — _gamoraKillBuff
+      // scales the on-kill buff. Default 1 (classic +1/+1); Text+ to 3.
+      const buff = self._gamoraKillBuff || 1;
+      G.buffCard(self, buff, buff);
+      G.log(`Gamora grows stronger! +${buff}/+${buff} → ${self.attack}/${self.currentHealth}`);
     }
   },
   "Ghostface": {
     onPlay(G, self, lane) {
-      // Roguelite Text+ override — _ghostfaceSpawns scales the count.
+      // Roguelite Text+ ("Mass Hysteria") swaps the classic (2/1)
+      // Bullseye summon for a personal-power upgrade: Overdrive + Evade
+      // 3 (set in apply) plus +1/+1 per card in hand on play. Apply
+      // path already added Overdrive and Evade 3 to the runtime card,
+      // so we only need to handle the hand-count buff here.
+      // Classic path: spawn the (2/1) Bullseye summon (legacy behavior).
+      if (self._ghostfaceHandBuff) {
+        const handCount = (G.state[self.owner].hand || []).length;
+        if (handCount > 0) {
+          G.buffCard(self, handCount, handCount);
+          G.log(`Ghostface stalks the crowd! +${handCount}/+${handCount} (one for each card in hand).`);
+        }
+        return;
+      }
+      // _ghostfaceSpawns left for save-state compatibility — defaults
+      // to 1 if undefined so classic Ghostface still summons one body.
       const count = self._ghostfaceSpawns || 1;
       for (let i = 0; i < count; i++) {
         G.summonCardChoice(self.owner, "Ghostface", 2, 2, 1, ["Bullseye"]);
@@ -544,9 +691,11 @@ const CARD_ABILITIES = {
       // damage. Default 2 (classic); Text+ raises to 4 so the directed
       // blast can finish mid-cost bodies on its own.
       const blast = self._humanTorchBlast || 2;
-      // Splash 1 at arrival — hits front enemy + adjacent enemy lanes for 1.
-      G.splashDamage(lane, self.owner, 1);
-      G.log(`Human Torch ignites on arrival — Splash 1!`);
+      // _humanTorchArrivalSplash scales the splash on entry. Default 1
+      // (classic); Text+ raises to 3.
+      const arrival = self._humanTorchArrivalSplash || 1;
+      G.splashDamage(lane, self.owner, arrival);
+      G.log(`Human Torch ignites on arrival — Splash ${arrival}!`);
       const enemies = G.getEnemiesOf(self.owner);
       if (enemies.length) {
         G.promptCardChoice(self.owner, enemies, "Human Torch — Blast", `Choose enemy to deal ${blast} damage`, (t) => {
@@ -557,15 +706,35 @@ const CARD_ABILITIES = {
   },
   "Invisible Woman": {
     onPlay(G, self, lane) {
-      // Roguelite Text+ override — _iwEvadeAmount scales the grant.
+      // Roguelite Text+ ("Force Field") swaps the classic Evade grant
+      // for Invincibility N turns + (+M/+M). _iwInvincibility / _iwBuffSize
+      // are set by the apply hook; default falls back to the classic
+      // Evade-1 grant scaled by _iwEvadeAmount.
+      const invincN = self._iwInvincibility || 0;
+      const buffN = self._iwBuffSize || 0;
       const evadeN = self._iwEvadeAmount || 1;
       const allies = G.getAlliesOf(self.owner).filter(a => a.id !== self.id);
       const grant = (a) => {
-        G.grantTempBuff(a, { evadeCharges: evadeN });
-        G.log(`Invisible Woman grants Evade ${evadeN} to ${a.name} for 1 turn!`);
+        if (invincN > 0) {
+          // Permanent stat bump (no temp-buff turns) so the +3/+3 sticks
+          // beyond the Invincibility window — matches the Yoda /
+          // Star-Lord buff convention. Invincibility itself uses
+          // grantTempBuff so it expires after N turns.
+          if (buffN > 0) G.buffCard(a, buffN, buffN);
+          G.grantTempBuff(a, { invincibleTurns: invincN }, invincN);
+          const tail = buffN > 0 ? ` and (+${buffN}/+${buffN})` : '';
+          G.log(`Invisible Woman grants Invincibility ${invincN}${tail} to ${a.name}!`);
+        } else {
+          G.grantTempBuff(a, { evadeCharges: evadeN });
+          G.log(`Invisible Woman grants Evade ${evadeN} to ${a.name} for 1 turn!`);
+        }
       };
       if (allies.length) {
-        G.promptCardChoice(self.owner, allies, "Invisible Woman — Evade", `Choose ally to give Evade ${evadeN} (1 turn)`, grant,
+        const title = invincN > 0 ? "Invisible Woman — Invincibility" : "Invisible Woman — Evade";
+        const desc = invincN > 0
+          ? `Choose ally to give Invincibility ${invincN}${buffN > 0 ? ` and (+${buffN}/+${buffN})` : ''}`
+          : `Choose ally to give Evade ${evadeN} (1 turn)`;
+        G.promptCardChoice(self.owner, allies, title, desc, grant,
           cards => cards.sort((a, b) => b.attack - a.attack)[0]);
       }
     },
@@ -681,14 +850,20 @@ const CARD_ABILITIES = {
   "Carnage": {
     onBeforeTricks(G, self, lane) {
       if (self.carnageHealed) return;
-      const ct = G.getEnemiesOf(self.owner).length;
-      if (ct > 0) {
-        // Roguelite Text+ override — _carnageHealMul doubles the heal
-        // per enemy. Default 1 (classic); Text+ sets to 2 so a 4-enemy
-        // board heals you for 8 instead of 4.
+      // Roguelite Text+ ("Bloodbath") — _carnageHealAllCards counts
+      // EVERY card on the board (your allies + opp's enemies).
+      // Classic / no-upgrade path counts only enemies × _carnageHealMul.
+      let amount;
+      if (self._carnageHealAllCards) {
+        amount = G.getAllCardsOnBoard().length;
+      } else {
+        const ct = G.getEnemiesOf(self.owner).length;
         const mul = self._carnageHealMul || 1;
-        G.healPlayer(self.owner, ct * mul, self);
-        G.log(`Carnage heals you for ${ct * mul}!`);
+        amount = ct * mul;
+      }
+      if (amount > 0) {
+        G.healPlayer(self.owner, amount, self);
+        G.log(`Carnage heals you for ${amount}!`);
         self.carnageHealed = true;
       }
     }
@@ -707,12 +882,32 @@ const CARD_ABILITIES = {
       }
     },
     onKill(G, self) {
-      G.buffCard(self, 1, 1);
-      G.log(`Deathstroke sharpens! +1/+1 → ${self.attack}/${self.currentHealth}`);
+      // Roguelite Text+ override — _deathstrokeKillBuff scales the
+      // on-kill buff. Default 1 (classic +1/+1); Text+ raises to 2.
+      const buff = self._deathstrokeKillBuff || 1;
+      G.buffCard(self, buff, buff);
+      G.log(`Deathstroke sharpens! +${buff}/+${buff} → ${self.attack}/${self.currentHealth}`);
     }
   },
   "Dr. Octopus": {
     passive: "extraCurrency"
+  },
+  "Drax": {
+    // Classic Drax has no special onDeath — he's a vanilla 3/3 with
+    // Bullseye + Overdrive. The Roguelite Text+ ("The Destroyer")
+    // upgrade flips his death into a self-revive with +5/+5 by
+    // setting reviveCharges = 1 and _draxReviveBuff = 5.
+    onDeath(G, self, lane) {
+      if (!(self.reviveCharges > 0) || !self._draxReviveBuff) return;
+      self.reviveCharges--;
+      const buff = self._draxReviveBuff;
+      self.attack += buff;
+      self.maxHealth += buff;
+      self.currentHealth = self.maxHealth;
+      G.placeInLane(self.owner, self, lane);
+      G.log(`Drax the Destroyer rises! +${buff}/+${buff} → ${self.attack}/${self.maxHealth}`);
+      return true;
+    }
   },
   "Green Goblin": {
     _recurringBT: true,
@@ -831,6 +1026,10 @@ const CARD_ABILITIES = {
       };
 
       // Step 1: Place up to 3 Reverse Bear Traps in open enemy lanes.
+      // Roguelite Text+ override — _jigsawTrapCount scales the trap
+      // count. Default 3 (classic); Text+ to 5 so a fresh Jigsaw can
+      // mine the entire enemy side.
+      const trapCount = (self && self._jigsawTrapCount) || 3;
       const placeTrapStep = (remaining) => {
         // Only lanes that are empty on the enemy side AND not already trapped qualify.
         const open = [];
@@ -839,31 +1038,31 @@ const CARD_ABILITIES = {
           if (!l.destroyed && !l[opp] && !l.trap) open.push(i);
         }
         if (remaining <= 0) { moveEnemyStep(); return; }
-        // No empty enemy lanes — log so the player isn't surprised when
-        // some/all bear traps silently fail to place. Audit finding:
-        // Jigsaw used to disappear with no message when no slots were
-        // available, leaving the player wondering what happened.
         if (open.length === 0) {
           G.log(`Jigsaw — no empty enemy lanes, ${remaining} bear trap${remaining === 1 ? '' : 's'} wasted.`);
           moveEnemyStep();
           return;
         }
+        // Trap N of 3 wording — user feedback: "Jigsaw is only placing
+        // two traps for me." The previous "(3 remaining)" / "(2
+        // remaining)" / "(1 remaining)" wording was ambiguous —
+        // "remaining" reads to some users as "already placed" so they
+        // stop after seeing "1 remaining" thinking the chain is over.
+        // "Trap N of 3" makes it unambiguous which step you're on.
+        const stepNumber = trapCount - remaining + 1;
         G.promptLaneChoice(owner, open,
           `Jigsaw — Set Bear Trap`,
-          `Choose an enemy lane to set a Reverse Bear Trap (${remaining} remaining)`,
+          `Choose an enemy lane to set Bear Trap ${stepNumber} of ${trapCount}`,
           (lane) => {
-            G.state.lanes[lane].trap = { placedBy: owner };
-            G.log(`[BEAR TRAP] Jigsaw sets a Reverse Bear Trap in lane ${lane + 1}!`);
+            const debuff = (self && self._jigsawTrapDebuff) || 1;
+            G.state.lanes[lane].trap = { placedBy: owner, debuff };
+            G.log(`[BEAR TRAP ${stepNumber}/${trapCount}] Jigsaw sets a Reverse Bear Trap in lane ${lane + 1}!`);
             placeTrapStep(remaining - 1);
           },
           opp);
       };
 
-      // Roguelite Text+ override — _jigsawTrapCount scales the trap
-      // count. Default 3 (classic); Text+ to 5 so a fresh Jigsaw can
-      // mine the entire enemy side.
-      const trapCount = (self && self._jigsawTrapCount) || 3;
-      G.log(`Jigsaw's game begins — choose where to set your traps.`);
+      G.log(`Jigsaw's game begins — set ${trapCount} traps, then drag an enemy.`);
       placeTrapStep(trapCount);
     }
   },
@@ -1034,7 +1233,22 @@ const CARD_ABILITIES = {
   },
   "Solomon Grundy": {
     onDeath(G, self, lane) {
-      // Roguelite Text+ override — _grundyDeathDraw scales draw count.
+      // Roguelite Text+ ("Born on Monday") replaces the dead-pile draw
+      // with a revive-and-grow loop. _grundyReviveBuff is the per-revive
+      // ATK/HP gain; reviveCharges (set in apply) gates how many times
+      // he can come back. When the upgrade is active we revive him in
+      // place and skip the classic draw entirely.
+      if (self._grundyReviveBuff && self.reviveCharges > 0) {
+        self.reviveCharges--;
+        const buff = self._grundyReviveBuff;
+        self.attack += buff;
+        self.maxHealth += buff;
+        self.currentHealth = self.maxHealth;
+        G.placeInLane(self.owner, self, lane);
+        G.log(`Solomon Grundy returns from the muck! +${buff}/+${buff} → ${self.attack}/${self.maxHealth} (${self.reviveCharges} revives left)`);
+        return true;
+      }
+      // Classic / non-upgraded path — draw from dead pile.
       const draws = self._grundyDeathDraw || 1;
       // ROGUELITE-ONLY: Grundy scavenges from his OWN dead pile only.
       // User feedback: "Solomon Grundy is such a broken card because
@@ -1238,27 +1452,27 @@ const CARD_ABILITIES = {
   },
   "Cyborg": {
     onDeath(G, self, lane) {
-      // Roguelite Text+ override — _cyborgSummons scales the count.
-      // Each summon needs a target lane. We try Cyborg's slot first,
-      // then any open ally lane. Stops if no eligible card or lane.
-      const summons = self._cyborgSummons || 1;
+      // Classic: random card pulled from your hand and summoned in
+      // Cyborg's slot. Roguelite Text+ ("Replication") sets
+      // _cyborgChooseFromHand so the human player gets to PICK which
+      // card to summon — turning Cyborg into a controllable late-game
+      // closer instead of a roll of the dice.
       const hand = G.state[self.owner].hand;
-      // Clear Cyborg from the slot so the first summon can take its place
+      // Clear Cyborg from the slot so the summon can take its place.
       if (G.state.lanes[lane] && G.state.lanes[lane][self.owner] === self) {
         G.state.lanes[lane][self.owner] = null;
       }
-      for (let i = 0; i < summons; i++) {
-        if (!hand.length) break;
-        const eligible = hand.filter(c => !c.isDiscardEffect);
-        if (!eligible.length) break;
-        // Pick destination — prefer Cyborg's lane, fall back to any open ally lane.
-        let targetLane = lane;
-        if (G.state.lanes[targetLane] && G.state.lanes[targetLane][self.owner]) {
-          const open = G.getOpenLanes(self.owner);
-          if (!open.length) break;
-          targetLane = open[0];
-        }
-        const card = eligible[Math.floor(Math.random() * eligible.length)];
+      const eligible = hand.filter(c => !c.isDiscardEffect);
+      if (!eligible.length) return;
+      // Pick destination — prefer Cyborg's old lane, fall back to any open.
+      const pickTargetLane = () => {
+        if (G.state.lanes[lane] && !G.state.lanes[lane][self.owner]) return lane;
+        const open = G.getOpenLanes(self.owner);
+        return open.length ? open[0] : -1;
+      };
+      const summonChoice = (card) => {
+        const targetLane = pickTargetLane();
+        if (targetLane < 0) return;
         const handIdx = hand.indexOf(card);
         if (handIdx >= 0) hand.splice(handIdx, 1);
         const def = (typeof CARD_DEFS !== 'undefined' && CARD_DEFS.find(d => d.name === card.name)) || card;
@@ -1271,6 +1485,19 @@ const CARD_ABILITIES = {
           card.abilities || [],
           def
         );
+      };
+      if (self._cyborgChooseFromHand && Game.isHuman(self.owner)) {
+        G.promptCardChoice(self.owner, eligible,
+          'Cyborg — Replication',
+          'Choose a card from your hand to summon in Cyborg\'s lane',
+          summonChoice,
+          cards => cards.slice().sort((a, b) => (b.baseCost || b.cost) - (a.baseCost || a.cost))[0]);
+      } else {
+        // Classic / AI path — random pick (matches the previous default
+        // behavior; AI can also follow this branch for the upgraded
+        // card since prompting an AI seat for a hand pick has no UX).
+        const pick = eligible[Math.floor(Math.random() * eligible.length)];
+        summonChoice(pick);
       }
     }
   },
@@ -1295,6 +1522,20 @@ const CARD_ABILITIES = {
       // step entirely. Default false (classic — give one back); Text+
       // true makes Deadpool a pure card thief: steal one, no return.
       const skipGiveBack = !!self._deadpoolNoGiveBack;
+      // When AI's Deadpool dies, the AI auto-picks both cards in
+      // the trade — the player sees their hand silently change. To
+      // make the swap legible, fire a single AI-trick toast with
+      // both card names once the trade resolves. Only shows when
+      // the human player is the victim (self.owner === 'ai'); a
+      // human Deadpool already chose the cards themselves.
+      const showVictimToast = (stolenName, givenName) => {
+        if (self.owner === 'ai' && typeof UI !== 'undefined' && UI.showAITrickToast) {
+          const desc = givenName
+            ? `Stole <b>${stolenName}</b> · gave you <b>${givenName}</b>`
+            : `Stole <b>${stolenName}</b> — no trade.`;
+          try { UI.showAITrickToast("Deadpool's Final Trick", desc, 'trick'); } catch (e) {}
+        }
+      };
       G.promptCardChoice(self.owner, faceDownDeck,
         "Deadpool's Final Trick",
         "Pick a face-down card from the enemy's hand to steal",
@@ -1307,6 +1548,7 @@ const CARD_ABILITIES = {
 
           if (skipGiveBack) {
             G.log(`Deadpool keeps ${stolen.name} — no trade!`);
+            showVictimToast(stolen.name, null);
             return;
           }
 
@@ -1314,6 +1556,7 @@ const CARD_ABILITIES = {
           const myHand = G.state[self.owner].hand.slice();
           if (!myHand.length) {
             G.log("Deadpool has no cards to give in return.");
+            showVictimToast(stolen.name, null);
             return;
           }
           G.promptCardChoice(self.owner, myHand,
@@ -1325,6 +1568,7 @@ const CARD_ABILITIES = {
               given.owner = opp;
               G.addToHand(opp, given);
               G.log(`Deadpool slips ${given.name} into the enemy's hand!`);
+              showVictimToast(stolen.name, given.name);
             },
             cards => cards.slice().sort((a, b) => (a.baseCost || a.cost) - (b.baseCost || b.cost))[0]);
         },
@@ -1397,7 +1641,18 @@ const CARD_ABILITIES = {
         if (!self._jasonNoOnceLimit) {
           G.state[self.owner].jasonReviveUsed = true;
         }
-        self.attack += 1; self.maxHealth += 2; self.currentHealth = self.maxHealth;
+        // Roguelite Text+ ("Crystal Lake Killer") — _jasonReviveBuff
+        // raises the per-revive ATK and HP gain. Default classic
+        // behavior is +1 ATK / +2 HP; Text+ sets +3/+3 each revive.
+        const buff = self._jasonReviveBuff;
+        if (buff) {
+          self.attack += buff;
+          self.maxHealth += buff;
+        } else {
+          self.attack += 1;
+          self.maxHealth += 2;
+        }
+        self.currentHealth = self.maxHealth;
         G.placeInLane(self.owner, self, lane);
         // Revive bypasses Game.playCard, so the registry-based play cue
         // wouldn't auto-fire here — call it explicitly so the ki-ki-ki /
@@ -1533,6 +1788,17 @@ const CARD_ABILITIES = {
     }
   },
   "Predator": {
+    // Trophy buff applied on every Predator kill — the body shape is
+    // shared between the on-play strike that finishes off the target
+    // and the generic onKill that fires when Predator wins a normal
+    // combat exchange. Classic = +1/+0; Text+ "_predatorTrophyBuff"
+    // bumps to +N/+N (apply-side default 2).
+    _claimTrophy(G, self) {
+      const atk = self._predatorTrophyBuff || 1;
+      const hp  = self._predatorTrophyBuff || 0;
+      G.buffCard(self, atk, hp);
+      G.log(`Predator claims a trophy! +${atk}/+${hp} → ${self.attack}/${self.currentHealth}`);
+    },
     onPlay(G, self, lane) {
       // Roguelite Text+ override — _predatorStrikeDamage scales the
       // initial strike. Default 3 (classic); Text+ raises to 5 so
@@ -1543,16 +1809,12 @@ const CARD_ABILITIES = {
         G.promptCardChoice(self.owner, enemies, "Predator — Strike", `Choose enemy to deal ${dmg} damage`, (t) => {
           G.dealDamage(t, dmg);
           G.log(`Predator strikes ${t.name} for ${dmg}!`);
-          if (t.currentHealth <= 0) {
-            G.buffCard(self, 1, 0);
-            G.log(`Predator claims a trophy! +1 ATK → ${self.attack}`);
-          }
+          if (t.currentHealth <= 0) CARD_ABILITIES.Predator._claimTrophy(G, self);
         }, cards => _aiKillPicker(cards, dmg));
       }
     },
     onKill(G, self) {
-      G.buffCard(self, 1, 0);
-      G.log(`Predator claims a trophy! +1 ATK → ${self.attack}`);
+      CARD_ABILITIES.Predator._claimTrophy(G, self);
     }
   },
   "Michael Myers": {
@@ -1667,23 +1929,32 @@ const CARD_ABILITIES = {
   },
   "Venom": {
     onPlay(G, self, lane) {
+      // Roguelite Text+ — _venomFreezeSize scales the freeze. Default
+      // 1 (classic); Text+ sets 2.
+      const freezeN = self._venomFreezeSize || 1;
       const enemies = G.getEnemiesOf(self.owner);
       if (enemies.length) {
-        G.promptCardChoice(self.owner, enemies, "Venom — Freeze", "Choose enemy to freeze", (e) => {
-          G.freezeCard(e, self);
+        G.promptCardChoice(self.owner, enemies, "Venom — Freeze", `Choose enemy to Freeze ${freezeN}`, (e) => {
+          G.freezeCard(e, self, freezeN);
         }, _aiThreatPicker);
       }
     },
     onBeforeTricks(G, self, lane) {
-      if (self.venomHealed) return;          // fires exactly once per instance
-      const ct = G.getAlliesOf(self.owner).length;
-      if (ct > 0) {
-        // Roguelite Text+ override — _venomHealMul doubles the heal-
-        // per-ally rate. Default 1 (classic); Text+ sets to 2 so a
-        // 4-ally board heals 8 instead of 4.
+      if (self.venomHealed) return;
+      // Roguelite Text+ ("Symbiote Bond") — _venomHealAllCards counts
+      // every card on board (your allies + opp's). Classic path heals
+      // ally count × _venomHealMul.
+      let amount;
+      if (self._venomHealAllCards) {
+        amount = G.getAllCardsOnBoard().length;
+      } else {
+        const ct = G.getAlliesOf(self.owner).length;
         const mul = self._venomHealMul || 1;
-        G.healPlayer(self.owner, ct * mul, self);
-        G.log(`Venom heals you for ${ct * mul}!`);
+        amount = ct * mul;
+      }
+      if (amount > 0) {
+        G.healPlayer(self.owner, amount, self);
+        G.log(`Venom heals you for ${amount}!`);
         self.venomHealed = true;
       }
     }
@@ -1717,14 +1988,16 @@ const CARD_ABILITIES = {
   },
   "Wonder Woman": {
     onPlay(G, self, lane) {
+      // Roguelite Text+ — _wwStunSize scales the stun duration. Default
+      // 1 (classic); Text+ sets 2.
+      const stunN = self._wwStunSize || 1;
       const e = G.state.lanes[lane] ? G.state.lanes[lane][G.opponent(self.owner)] : null;
-      if (e) { G.stunCard(e, self); }
-      // Roguelite Text+ override — _wonderWomanBlockGain scales the
-      // block meter add. Default 2 (classic); Text+ bumps to 4 so her
-      // play does more for the meter on hard-block builds.
+      if (e) { G.stunCard(e, self, stunN); }
+      // _wonderWomanBlockGain scales the block meter add. Default 2
+      // (classic); Text+ bumps to 4.
       const blockGain = self._wonderWomanBlockGain || 2;
       G.state[self.owner].blockMeter = Math.min(Game.BLOCK_MAX, G.state[self.owner].blockMeter + blockGain);
-      G.log(`Wonder Woman stuns ${e ? e.name : 'nothing'} and adds ${blockGain} Block Meter!`);
+      G.log(`Wonder Woman Stuns ${e ? e.name : 'nothing'} (${stunN}) and adds ${blockGain} Block Meter!`);
     },
     onBeforeAttack(G, self) {
       const chainDmg = self.attack - 1;
@@ -1732,14 +2005,27 @@ const CARD_ABILITIES = {
       const myLane = G.findCardLane(self);
       if (myLane < 0) return;
       // Chain only fires when Wonder Woman's main swing lands on an
-      // enemy CARD. If her lane is uncontested (swing goes to HP bar),
-      // the lasso has no card to ricochet off of — skip the chain.
-      // User spec: "Chain only happens between cards. If Wonder Woman
-      // hits the health bar, her damage does not chain to an adjacent
-      // enemy. Same goes for any chain — card-to-card only."
+      // enemy CARD — card-to-card only.
       const opp = G.opponent(self.owner);
       const target = G.state.lanes[myLane][opp];
       if (!target || target.currentHealth <= 0) return;
+      // Roguelite Text+ ("Lasso of Truth") — _wwChainAllAdj fires the
+      // chain at BOTH adjacent enemies simultaneously (no direction
+      // prompt). Classic path keeps the single-direction chain so the
+      // human picks left or right.
+      if (self._wwChainAllAdj) {
+        const both = [];
+        for (const dir of [-1, 1]) {
+          const adjLane = myLane + dir;
+          if (adjLane < 0 || adjLane >= Game.LANE_COUNT) continue;
+          const t = G.state.lanes[adjLane] && G.state.lanes[adjLane][opp];
+          if (t && t.currentHealth > 0) both.push(t);
+        }
+        if (both.length === 0) return;
+        G.log(`Wonder Woman's lasso fans out — ${chainDmg} damage to ${both.length} adjacent enemies!`);
+        both.forEach(t => G.dealDamage(t, chainDmg, self));
+        return;
+      }
       G.log(`Wonder Woman's lasso chains — ${chainDmg} chain damage!`);
       G.autoChainDamage(self.owner, myLane, chainDmg, 0, null, "LASSO CHAIN");
     }
@@ -1748,26 +2034,26 @@ const CARD_ABILITIES = {
   // ==================== COST 5 ====================
   "Aquaman": {
     onPlay(G, self, lane) {
-      // Roguelite Text+ override — _aquamanCreatureBump grows the
-      // summoned Creature of the Deep. Default 0 (classic 5/3); Text+
-      // bumps to +1/+1 (so 6/4) so the summon hits harder and tanks more.
-      const bump = self._aquamanCreatureBump || 0;
-      G.summonCardChoice(self.owner, "Creature of the Deep", 4, 5 + bump, 3 + bump, []);
+      // Roguelite Text+ override — _aquamanCreatureAtkBump and
+      // _aquamanCreatureHpBump scale the summoned Creature of the
+      // Deep above its 5/3 base. Default 0/0 (classic 5/3); Text+
+      // sets +4/+6 (9/9) so the summon is a real threat.
+      const atkBump = self._aquamanCreatureAtkBump || 0;
+      const hpBump  = self._aquamanCreatureHpBump  || 0;
+      G.summonCardChoice(self.owner, "Creature of the Deep", 4, 5 + atkBump, 3 + hpBump, []);
     }
   },
   "Captain America": {
     onPlay(G, self, lane) {
-      // Discount-amount scales with tier: 1 / 1 / 2 / 2.
+      // Cost reduction is now LIVE — no card.cost mutation here.
+      // Game.getCardCost subtracts the discount per active CA at
+      // query time, so the moment Cap dies the discount vanishes
+      // automatically. This onPlay only handles the Invincible
+      // grant on an ally. User-facing log message is fired here
+      // (one-time at play) so the player still gets the "Cap
+      // rallied the team" feedback at the play moment.
       const disc = G.rarityValue(self, { common: 1, rare: 1, special: 2, legendary: 2 });
-      let count = 0;
-      G.state[self.owner].hand.forEach(card => {
-        if (card.cost > 0) {
-          const amt = Math.min(disc, card.cost);
-          card.cost -= amt;
-          card._capAmericaDiscount = (card._capAmericaDiscount || 0) + amt;
-          count++;
-        }
-      });
+      const count = G.state[self.owner].hand.filter(c => c.cost > 0).length;
       G.log(`Captain America rallies the team — ${count} card${count === 1 ? '' : 's'} in hand cost ${disc} less!`);
       const allies = G.getAlliesOf(self.owner).filter(a => a.id !== self.id);
       const grant = (a) => {
@@ -1778,17 +2064,6 @@ const CARD_ABILITIES = {
         G.promptCardChoice(self.owner, allies, "Captain America — Shield", "Choose an ally to grant Invincible 1", grant,
           cards => cards.sort((a, b) => b.attack - a.attack)[0]);
       }
-    },
-    onDeath(G, self, lane) {
-      let count = 0;
-      G.state[self.owner].hand.forEach(card => {
-        if (card._capAmericaDiscount > 0) {
-          card.cost += 1;
-          card._capAmericaDiscount -= 1;
-          count++;
-        }
-      });
-      G.log(`Captain America falls — the cost reduction fades from ${count} card${count === 1 ? '' : 's'}.`);
     },
     passive: "allyCostReduction"
   },
@@ -1929,21 +2204,24 @@ const CARD_ABILITIES = {
         G.promptLaneChoice(owner, open, `Place ${t.name}`, `Choose a lane for ${t.name}`, (l) => {
           G.state.lanes[l][owner] = t;
           G.log(`${t.name} joins your side in lane ${l + 1}!`);
-          // "Its abilities reactivate" — re-fire When Played, the
-          // cross-board aura sweep, and any cardPlayedBuff passive,
-          // and resolve the Draw N keyword. Mirrors the same trio
-          // that summonCard fires for fresh card arrivals so a
-          // converted Ghostface re-summons its Bullseye token, a
-          // converted Hela re-summons her Undead Warriors, etc.
-          // User report: "professor x isnt reactivateing cards when
-          // played abilites on my side like ghostface".
+          // "Its abilities reactivate" — re-fire When Played first,
+          // THEN sweep sibling reactions (onAnyCardPlayed) and the
+          // cardPlayedBuff passive. Order matters: cards like Scarlet
+          // Witch (copiesOpposite) start at 0/0 placeholder stats and
+          // resolve real stats inside their own onPlay. If sibling
+          // auras (Luke Skywalker -1/-1) fire FIRST, they kill her
+          // at 0/0 before she can copy the enemy. User report: "I
+          // [used] Professor X [on] a Scarlet Witch which was 0/1,
+          // tried to place her in front of Dormammu, but they had
+          // Luke Skywalker on the board. It should copy the stats
+          // of Dormammu, not die."
+          G._runHook(t, 'onPlay', G, t, l);
           G.getAllCardsOnBoard().forEach(c => {
             if (c.onAnyCardPlayed && c.id !== t.id) c.onAnyCardPlayed(G, c);
           });
           G.getAllCardsOf(owner).forEach(c => {
-            if (c.passive === 'cardPlayedBuff' && c.id !== t.id) G.buffCard(t, 1, 1);
+            if (c.passive === 'cardPlayedBuff' && c.id !== t.id) { const n = c._bpAuraSize || 1; G.buffCard(t, n, n); }
           });
-          G._runHook(t, 'onPlay', G, t, l);
           if (t.drawOnPlay > 0) {
             const n = t.drawOnPlay;
             t.drawOnPlay = 0;
@@ -1985,21 +2263,26 @@ const CARD_ABILITIES = {
   },
   "Spider-Man": {
     onPlay(G, self, lane) {
+      // Roguelite Text+ — _spiderManFreezeSize raises the freeze
+      // duration. Default 1 turn (classic); Text+ sets 2 turns.
+      const freezeN = self._spiderManFreezeSize || 1;
       const enemies = G.getEnemiesOf(self.owner);
       if (enemies.length) {
-        G.promptCardChoice(self.owner, enemies, "Spider-Man — Freeze", "Choose enemy to freeze", (t) => {
-          G.freezeCard(t, self); G.log(`Spider-Man freezes ${t.name}!`);
+        G.promptCardChoice(self.owner, enemies, "Spider-Man — Freeze", `Choose enemy to Freeze ${freezeN}`, (t) => {
+          G.freezeCard(t, self, freezeN); G.log(`Spider-Man freezes ${t.name} for ${freezeN}!`);
         }, _aiThreatPicker);
       }
     },
     onEvade(G, self) {
-      // Roguelite Text+ override — _spiderManEvadeBuff scales the
-      // evade-grow buff. Default 1 (classic +1/+1); Text+ sets to 2
-      // so each dodge swings him +2/+2.
+      // Roguelite Text+ overrides — _spiderManEvadeBuff scales the
+      // grow buff (default +1/+1, Text+ +2/+2); _spiderManRegainChance
+      // raises the chance of getting another evade charge back
+      // (default 0.5, Text+ 0.75).
       const buff = self._spiderManEvadeBuff || 1;
+      const regain = (typeof self._spiderManRegainChance === 'number') ? self._spiderManRegainChance : 0.5;
       G.buffCard(self, buff, buff);
       G.log(`Spider-Man evades and grows! +${buff}/+${buff}`);
-      if (Math.random() < 0.5) {
+      if (Math.random() < regain) {
         self.evadeCharges += 1;
         G.log(`Spider-Man's spider-sense tingles! Extra evade charge!`);
       }
@@ -2007,15 +2290,13 @@ const CARD_ABILITIES = {
   },
   "The Batman Who Laughs": {
     onPlay(G, self, lane) {
-      // Only 1 intercept per owner per game. Second+ BWLs on the same
-      // side still land as bodies but don't arm another steal.
-      // Roguelite Text+ override — _bwlUnlimited removes the once-per-
-      // game lock so every BWL play arms a fresh steal. Default false
-      // (classic single-use); Text+ true makes him a recurring siphon.
-      if (!self._bwlUnlimited && G.state[self.owner].bwlInterceptUsed) {
-        G.log("Batman Who Laughs arrives — but his hex has already been spent this game.");
-        return;
-      }
+      // Every BWL play arms a fresh intercept. The previous once-per-
+      // owner-per-game lock (bwlInterceptUsed) was removed per user
+      // direction — running multiple BWLs in a deck is a legitimate
+      // synergy and each copy should fire its hex independently. The
+      // `bwlInterceptUsed` state field is left in place (still flipped
+      // by _resolveBwlIntercept) so save data / multiplayer sync stays
+      // schema-compatible, but it no longer gates new plays.
       G.state[G.opponent(self.owner)].nextCardStolen = true;
       G.log("Batman Who Laughs lurks... next enemy card will be intercepted!");
     }
@@ -2031,7 +2312,6 @@ const CARD_ABILITIES = {
       //   legendary → 3 zombies, 2 dead-pile draws
       const zombies = G.rarityValue(self, { common: 1, rare: 2, special: 2, legendary: 3 });
       const pulls   = G.rarityValue(self, { common: 1, rare: 1, special: 2, legendary: 2 });
-      let summonCount = 0;
       const drawFromDead = (n) => {
         for (let i = 0; i < n; i++) {
           const allDead = [...G.state.player.deadPile, ...G.state.ai.deadPile];
@@ -2049,6 +2329,31 @@ const CARD_ABILITIES = {
           G.log(`Hela draws ${card.name} from the dead pile!`);
         }
       };
+      // User spec: "if there's only two open spaces, I shouldn't have
+      // to place the warriors. They should be placed for me." When
+      // open-lane count is ≤ zombies-to-summon, every choice is
+      // forced — the warriors are identical 3/1 tokens, no
+      // meaningful strategic differentiation. Auto-place all in
+      // order without prompting. If there are MORE open lanes than
+      // zombies, the player still gets prompted for each one (since
+      // they're choosing WHERE to place each warrior among multiple
+      // candidates).
+      const openLanes = G.getOpenLanes(self.owner);
+      if (openLanes.length <= zombies) {
+        // Auto-place: fill each open lane in order with one warrior.
+        // If zombies > openLanes, only openLanes-many actually summon
+        // (no choice, no overflow). The remainder is silently
+        // dropped — same outcome as the prompt path returning
+        // early when no lanes remain.
+        for (let i = 0; i < openLanes.length && i < zombies; i++) {
+          G.summonCard(self.owner, openLanes[i], "Undead Warrior", 1, 3, 1, []);
+        }
+        drawFromDead(pulls);
+        return;
+      }
+      // More open lanes than warriors → meaningful placement
+      // choices remain; use the prompt chain.
+      let summonCount = 0;
       const doSummon = () => {
         summonCount++;
         if (summonCount < zombies) {
@@ -2535,17 +2840,25 @@ const CARD_ABILITIES = {
     onDeath(G, self, lane) {
       if (self.reviveCharges > 0) {
         self.reviveCharges--;
-        // Roguelite Text+ override — _mahoragaReviveAtk / _mahoragaReviveHp
-        // bump the revive stats. Default 7/9 (classic); Text+ to 9/12 so
-        // the second body is closer to a fresh-Mahoraga rather than a
-        // weakened revival.
-        const revAtk = (self._mahoragaReviveAtk != null) ? self._mahoragaReviveAtk : 7;
-        const revHp  = (self._mahoragaReviveHp  != null) ? self._mahoragaReviveHp  : 9;
-        // Adapts: revives at 7/9 with Immunity 1 AND Armor 1 (new). The
-        // armor stacks with the immunity so the first hit on the revived
-        // body is fully blocked, the second hit is reduced by 1, and
-        // subsequent hits go through. Per balance pass: "give Mahoraga
-        // armor 1 on revive".
+        // Roguelite Text+ ("Adaptive Wheel") — _mahoragaReviveBuff
+        // adds +N/+N on top of base stats at revive. Falls back to
+        // explicit revAtk/revHp legacy flags, then to classic 7/9.
+        let revAtk, revHp;
+        if (self._mahoragaReviveBuff) {
+          const buff = self._mahoragaReviveBuff;
+          revAtk = (self.baseAttack || 7) + buff;
+          revHp  = (self.baseHealth || 9) + buff;
+        } else if (self._mahoragaReviveAtk != null || self._mahoragaReviveHp != null) {
+          revAtk = (self._mahoragaReviveAtk != null) ? self._mahoragaReviveAtk : 7;
+          revHp  = (self._mahoragaReviveHp  != null) ? self._mahoragaReviveHp  : 9;
+        } else {
+          revAtk = 7;
+          revHp  = 9;
+        }
+        // Adapts: revives at the chosen stats with Immunity 1 AND Armor 1.
+        // The armor stacks with the immunity so the first hit on the
+        // revived body is fully blocked, the second is reduced by 1, and
+        // subsequent hits go through.
         self.attack = revAtk;
         self.currentHealth = revHp;
         self.maxHealth = revHp;
@@ -2602,22 +2915,38 @@ const CARD_ABILITIES = {
       }
     },
     onKill(G, self) {
-      G.state[self.owner].blockMeter = Math.min(Game.BLOCK_MAX, G.state[self.owner].blockMeter + 1);
-      G.log("Omni-Man adds 1 Block Meter!");
+      // Roguelite Text+ ("Viltrumite Pride") — _omniManBlockOnKill
+      // scales the per-kill block meter add. Default 1 (classic);
+      // Text+ raises to 2.
+      const gain = self._omniManBlockOnKill || 1;
+      G.state[self.owner].blockMeter = Math.min(Game.BLOCK_MAX, G.state[self.owner].blockMeter + gain);
+      G.log(`Omni-Man adds ${gain} Block Meter!`);
     }
   },
   "Silver Surfer": {
     onPlay(G, self, lane) {
-      // Roguelite Text+ override — _surferDebuff scales the ATK strip.
-      // Default 3 (classic); Text+ to 5 so Hulks and Doombots are
-      // reduced to non-threats in one play.
+      // Roguelite Text+ overrides — _surferDebuff scales the ATK strip
+      // (default 3 / Text+ 4); _surferTargets sets how many enemies
+      // get hit (default 1 / Text+ 2). The cost-bump passive uses
+      // _surferCostBump (default 1 / Text+ 2) read in game.js's
+      // enemyCostIncrease site.
       const debuff = self._surferDebuff || 3;
-      const enemies = G.getEnemiesOf(self.owner);
-      if (enemies.length) {
-        G.promptCardChoice(self.owner, enemies, "Silver Surfer — Weaken", `Choose enemy to remove ${debuff} Attack from`, (t) => {
-          G.debuffCard(t, debuff, 0, false, self); G.log(`Silver Surfer weakens ${t.name} by ${debuff} ATK!`);
-        }, _aiThreatPicker);
-      }
+      const targets = self._surferTargets || 1;
+      const debuffed = new Set();
+      const pickNext = () => {
+        if (debuffed.size >= targets) return;
+        const remaining = G.getEnemiesOf(self.owner).filter(e => !debuffed.has(e.id) && e.currentHealth > 0);
+        if (!remaining.length) return;
+        G.promptCardChoice(self.owner, remaining, "Silver Surfer — Weaken",
+          `Choose enemy to remove ${debuff} ATK from (${debuffed.size + 1}/${targets})`,
+          (t) => {
+            G.debuffCard(t, debuff, 0, false, self);
+            G.log(`Silver Surfer weakens ${t.name} by ${debuff} ATK!`);
+            debuffed.add(t.id);
+            if (debuffed.size < targets) pickNext();
+          }, _aiThreatPicker);
+      };
+      pickNext();
     },
     passive: "enemyCostIncrease"
   },
@@ -2849,11 +3178,16 @@ const CARD_ABILITIES = {
     onPlay(G, self, lane) {
       const opp = G.opponent(self.owner);
       // Lock the opponent's highest-cost hand card for their NEXT round.
-      // Store the round number at which the lock is active, not a boolean
-      // (startRound's per-round reset used to wipe a boolean flag before
-      // the opponent ever got their turn).
-      G.state[opp].batmanBlocked = (G.state.round || 0) + 1;
-      G.log(`Batman locks down the opponent's highest cost card for next turn!`);
+      // Store the start round (always round + 1) and the inclusive end
+      // round (round + lockTurns). Classic Text+ defaults to 1 turn so
+      // start === end; "Dark Knight" Text+ sets lockTurns = 2 for a
+      // two-round lock.
+      const lockTurns = self._batmanLockTurns || 1;
+      const start = (G.state.round || 0) + 1;
+      const until = (G.state.round || 0) + lockTurns;
+      G.state[opp].batmanBlocked = start;
+      G.state[opp].batmanBlockedUntil = Math.max(G.state[opp].batmanBlockedUntil || 0, until);
+      G.log(`Batman locks down the opponent's highest cost card for ${lockTurns} turn${lockTurns === 1 ? '' : 's'}!`);
       const enemies = G.getEnemiesOf(self.owner);
       if (!enemies.length) return;
       // Roguelite Text+ override — _batmanStrikeDamage scales each of
@@ -2914,12 +3248,16 @@ const CARD_ABILITIES = {
         G.destroyLane(i, 3);
         G.log(`Darkseid destroys lane ${i + 1}!`);
       };
+      // Roguelite Text+ ("Apokoliptan Legion") — _darkseidAnyContested
+      // drops the odd/even gate and accepts any contested lane.
+      const anyContested = !!self._darkseidAnyContested;
       const pickLanes = (isOdd) => {
         const eligible = [];
         for (let i = 0; i < Game.LANE_COUNT; i++) {
           if (i === lane) continue;
           const laneIsOdd = (i + 1) % 2 === 1;
-          if (laneIsOdd === isOdd && G.state.lanes[i][self.owner] && G.state.lanes[i][opp]) {
+          const passesParity = anyContested ? true : (laneIsOdd === isOdd);
+          if (passesParity && G.state.lanes[i][self.owner] && G.state.lanes[i][opp]) {
             eligible.push(i);
           }
         }
@@ -2982,11 +3320,14 @@ const CARD_ABILITIES = {
         pickNext();
       };
       // Purge step is wrapped in a function so it fires AFTER the Parademon
-      // summon resolves. Previously the summon prompt and the purge prompt
-      // were queued back-to-back synchronously, which let the purge modal
-      // open before the player had placed the Parademon — i.e. lanes got
-      // collapsed before the new 2/1 could contest one.
+      // summon resolves.
       const startPurge = () => {
+        // Text+ ("Apokoliptan Legion") skips the odd/even prompt entirely
+        // and lets the player pick from ALL contested lanes at once.
+        if (anyContested) {
+          pickLanes(true /* unused — anyContested overrides */);
+          return;
+        }
         const oddChoice = { name: "Odd Lanes (1, 3, 5)", desc: "Pick which contested odd lanes to destroy" };
         const evenChoice = { name: "Even Lanes (2, 4, 6)", desc: "Pick which contested even lanes to destroy" };
         G.promptCardChoice(self.owner, [oddChoice, evenChoice],
@@ -3022,34 +3363,41 @@ const CARD_ABILITIES = {
         );
       };
 
-      // Step 1: Summon Parademon. Step 2 (purge) chains off the summon's
-      // onComplete so it only runs once the Parademon has landed. The AI
-      // path passes a pre-picked best lane; the human path lets summon-
-      // CardChoice prompt for placement. Either way, startPurge fires
-      // after the summon (or immediately, if no open lanes were found).
-      if (!Game.isHuman(self.owner)) {
-        const openLanes = G.getOpenLanes(self.owner).filter(i => i !== lane);
-        if (openLanes.length) {
-          let bestLane = openLanes[0];
-          let bestScore = -Infinity;
-          openLanes.forEach(i => {
-            const enemy = G.state.lanes[i][opp];
-            let score = 0;
-            if (enemy && enemy.currentHealth > 0) {
-              score += AI.threatScore(enemy) * 2;
-              if (enemy.invincibleTurns > 0 || enemy.hasDamageImmunity) score += 3;
-            } else {
-              score -= 2;
-            }
-            if (score > bestScore) { bestScore = score; bestLane = i; }
-          });
-          G.summonCardChoice(self.owner, "Parademon", 1, 2, 1, [], [bestLane], startPurge);
+      // Step 1: Summon Parademon(s). Roguelite Text+ ("Apokoliptan
+      // Legion") spawns 2 of them at (4/4); classic spawns 1 at (2/1).
+      // Each summon chains into the next via onComplete; the final one
+      // chains into startPurge.
+      const parademonCount = self._darkseidParademonCount || 1;
+      const parademonAtk = self._darkseidParademonAtk || 2;
+      const parademonHp  = self._darkseidParademonHp  || 1;
+      const summonChain = (remaining) => {
+        if (remaining <= 0) { startPurge(); return; }
+        const next = () => summonChain(remaining - 1);
+        if (!Game.isHuman(self.owner)) {
+          const openLanes = G.getOpenLanes(self.owner).filter(i => i !== lane);
+          if (openLanes.length) {
+            let bestLane = openLanes[0];
+            let bestScore = -Infinity;
+            openLanes.forEach(i => {
+              const enemy = G.state.lanes[i][opp];
+              let score = 0;
+              if (enemy && enemy.currentHealth > 0) {
+                score += AI.threatScore(enemy) * 2;
+                if (enemy.invincibleTurns > 0 || enemy.hasDamageImmunity) score += 3;
+              } else {
+                score -= 2;
+              }
+              if (score > bestScore) { bestScore = score; bestLane = i; }
+            });
+            G.summonCardChoice(self.owner, "Parademon", 1, parademonAtk, parademonHp, [], [bestLane], next);
+          } else {
+            next();
+          }
         } else {
-          startPurge();
+          G.summonCardChoice(self.owner, "Parademon", 1, parademonAtk, parademonHp, [], null, next);
         }
-      } else {
-        G.summonCardChoice(self.owner, "Parademon", 1, 2, 1, [], null, startPurge);
-      }
+      };
+      summonChain(parademonCount);
     },
     onBeforeAttack(G, self) {
       if (self.isFeared || self.isMindControlled) return;
@@ -3077,6 +3425,9 @@ const CARD_ABILITIES = {
       // damage. Default 5 (classic); Text+ raises to 8 so a Doom or
       // Hulk eats one nuke instead of needing chip first.
       const blastDmg = self._supermanBlast || 5;
+      // _supermanFreezeSize raises the freeze duration on each Freeze
+      // pick. Default 1 (classic); Text+ sets 2.
+      const freezeN = self._supermanFreezeSize || 1;
       const doBlast = () => {
         const enemies = G.getEnemiesOf(self.owner);
         if (enemies.length) {
@@ -3091,14 +3442,14 @@ const CARD_ABILITIES = {
       };
       const unfrozen1 = G.getEnemiesOf(self.owner).filter(e => !e.isFrozen);
       if (!unfrozen1.length) { doBlast(); return; }
-      G.promptCardChoice(self.owner, unfrozen1, "Superman — Freeze (1 of 2)", "Choose the first enemy to Freeze 1", (t1) => {
-        G.freezeCardUnresistible(t1, self);
-        G.log(`Superman freezes ${t1.name}!`);
+      G.promptCardChoice(self.owner, unfrozen1, `Superman — Freeze (1 of 2)`, `Choose the first enemy to Freeze ${freezeN}`, (t1) => {
+        G.freezeCardUnresistible(t1, self, freezeN);
+        G.log(`Superman freezes ${t1.name} for ${freezeN}!`);
         const unfrozen2 = G.getEnemiesOf(self.owner).filter(e => !e.isFrozen);
         if (!unfrozen2.length) { doBlast(); return; }
-        G.promptCardChoice(self.owner, unfrozen2, "Superman — Freeze (2 of 2)", "Choose the second enemy to Freeze 1", (t2) => {
-          G.freezeCardUnresistible(t2, self);
-          G.log(`Superman freezes ${t2.name}!`);
+        G.promptCardChoice(self.owner, unfrozen2, `Superman — Freeze (2 of 2)`, `Choose the second enemy to Freeze ${freezeN}`, (t2) => {
+          G.freezeCardUnresistible(t2, self, freezeN);
+          G.log(`Superman freezes ${t2.name} for ${freezeN}!`);
           doBlast();
         }, cards => cards.slice().sort((a, b) => AI.threatScore(b) - AI.threatScore(a))[0]);
       }, cards => cards.slice().sort((a, b) => AI.threatScore(b) - AI.threatScore(a))[0]);
@@ -3108,7 +3459,11 @@ const CARD_ABILITIES = {
     trickPhasePlayable: true,
     onPlay(G, self, lane) {
       // Lanes destroyed scales with tier: 2 / 3 / 4 / 5.
-      const numRolls = G.rarityValue(self, { common: 2, rare: 3, special: 4, legendary: 5 });
+      // Roguelite Text+ ("Reality Snap") — _thanosLanes pins the count
+      // at a fixed value (4) regardless of rarity.
+      const numRolls = self._thanosLanes
+        ? self._thanosLanes
+        : G.rarityValue(self, { common: 2, rare: 3, special: 4, legendary: 5 });
       const rolled = new Set();
       let killed = 0;
       const maxLanes = Game.LANE_COUNT;
@@ -3159,67 +3514,64 @@ const CARD_ABILITIES = {
     },
     onBeforeTricks(G, self, lane) {
       if (self.anakinMoved) return;           // fires exactly once per instance
-      // Stun / freeze blocks the move AND the queued bonus attack. Same
-      // guard as Man-Bat / Green Goblin — without this, moveCard refuses
-      // silently but self.bonusAttack still queues up.
       if (self.isStunned || self.isFrozen) {
         G.log(`  [SKIP] ${self.name} is ${self.isStunned ? 'STUNNED' : 'FROZEN'} — stays put.`);
         return;
       }
-      // "Open lane" = a lane where Anakin's own side is empty (so he can slot
-      // in without displacing an ally). The destination may still have an
-      // enemy opposite; the queued bonus attack will land on them if so,
-      // otherwise it hits the enemy health bar.
-      const eligible = [];
-      for (let i = 0; i < Game.LANE_COUNT; i++) {
-        if (i === lane) continue;
-        if (G.state.lanes[i].destroyed) continue;
-        if (!G.state.lanes[i][self.owner]) eligible.push(i);
-      }
-      if (!eligible.length) return;
+      // Roguelite Text+ ("Twin Strike") — _anakinDoubleMove lets Anakin
+      // move TWICE per turn, queueing a bonus attack each time. Classic
+      // is single-move.
+      const moveCount = self._anakinDoubleMove ? 2 : 1;
       const opp = G.opponent(self.owner);
+      const eligibleNow = () => {
+        const out = [];
+        const cur = G.findCardLane(self);
+        for (let i = 0; i < Game.LANE_COUNT; i++) {
+          if (i === cur) continue;
+          if (G.state.lanes[i].destroyed) continue;
+          if (!G.state.lanes[i][self.owner]) out.push(i);
+        }
+        return out;
+      };
       const doMove = (toLane) => {
-        G.moveCard(self, lane, toLane);
-        // Queue + drain in the same beat so the bonus attack fires
-        // IMMEDIATELY after the move log line, not at end of round.
-        // User spec: "Anakin's bonus attack is still firing at the end
-        // of the turn — bonus attacks should all act like Superman's
-        // strike" (instant). Without the inline drain, drainBonusAttacks
-        // didn't run until postCombat (or the end-of-runBeforeTricks
-        // safety pass), making the attack feel disconnected from the
-        // move that triggered it.
+        const cur = G.findCardLane(self);
+        G.moveCard(self, cur, toLane);
         self.bonusAttack = (typeof self.bonusAttack === 'number' ? self.bonusAttack : 0) + 1;
         const targetNote = G.state.lanes[toLane][opp] ? ` — locked on ${G.state.lanes[toLane][opp].name}` : '';
         G.log(`Anakin moves to lane ${toLane + 1} and strikes${targetNote}!`);
-        self.anakinMoved = true;
         G.drainBonusAttacks(self);
       };
-      if (Game.isHuman(self.owner)) {
-        const laneChoices = eligible.map(i => {
-          const e = G.state.lanes[i][opp];
-          const desc = e && e.currentHealth > 0
-            ? `Move here — bonus attack on ${e.name} (${e.attack}/${e.currentHealth})`
-            : `Move here — bonus attack on enemy HP`;
-          return { name: `Lane ${i + 1}`, desc, _lane: i };
-        });
-        G.promptCardChoice(self.owner, laneChoices, "Anakin — Move & Bonus Attack",
-          "Choose an open lane to move to",
-          (choice) => doMove(choice._lane),
-          // AI picks the biggest impact: lane with a killable enemy > lane
-          // with a contested enemy > open lane for direct HP damage.
-          (choices) => {
-            const scored = choices.slice().sort((a, b) => {
-              const ea = G.state.lanes[a._lane][opp];
-              const eb = G.state.lanes[b._lane][opp];
-              const aScore = ea ? (self.attack >= ea.currentHealth ? 10 + (ea.cost || 0) : 5 + (ea.cost || 0)) : 3;
-              const bScore = eb ? (self.attack >= eb.currentHealth ? 10 + (eb.cost || 0) : 5 + (eb.cost || 0)) : 3;
-              return bScore - aScore;
-            });
-            return scored[0];
+      const moveChain = (remaining) => {
+        if (remaining <= 0) { self.anakinMoved = true; return; }
+        const eligible = eligibleNow();
+        if (!eligible.length) { self.anakinMoved = true; return; }
+        if (Game.isHuman(self.owner)) {
+          const laneChoices = eligible.map(i => {
+            const e = G.state.lanes[i][opp];
+            const desc = e && e.currentHealth > 0
+              ? `Move here — bonus attack on ${e.name} (${e.attack}/${e.currentHealth})`
+              : `Move here — bonus attack on enemy HP`;
+            return { name: `Lane ${i + 1}`, desc, _lane: i };
           });
-      } else {
-        doMove(eligible[0]);
-      }
+          G.promptCardChoice(self.owner, laneChoices, `Anakin — Move & Bonus Attack (${moveCount - remaining + 1}/${moveCount})`,
+            "Choose an open lane to move to",
+            (choice) => { doMove(choice._lane); moveChain(remaining - 1); },
+            (choices) => {
+              const scored = choices.slice().sort((a, b) => {
+                const ea = G.state.lanes[a._lane][opp];
+                const eb = G.state.lanes[b._lane][opp];
+                const aScore = ea ? (self.attack >= ea.currentHealth ? 10 + (ea.cost || 0) : 5 + (ea.cost || 0)) : 3;
+                const bScore = eb ? (self.attack >= eb.currentHealth ? 10 + (eb.cost || 0) : 5 + (eb.cost || 0)) : 3;
+                return bScore - aScore;
+              });
+              return scored[0];
+            });
+        } else {
+          doMove(eligible[0]);
+          moveChain(remaining - 1);
+        }
+      };
+      moveChain(moveCount);
     },
     onAllyKilled(G, self) {
       // Queue a bonus attack for every ally death, not just the first one this combat.
@@ -3299,8 +3651,12 @@ const CARD_ABILITIES = {
       const enemies = G.getEnemiesOf(self.owner);
       if (!enemies.length) return;
       self.galactusDevoured = true;
-      // Devour count scales: 1 / 2 (listed) / 3 / 4.
-      const baseDevour = G.rarityValue(self, { common: 1, rare: 2, special: 3, legendary: 4 });
+      // Devour count scales: 1 / 2 (listed) / 3 / 4. Roguelite Text+
+      // ("World Eater") — _galactusDevourCount pins it at 3 regardless
+      // of rarity.
+      const baseDevour = self._galactusDevourCount
+        ? self._galactusDevourCount
+        : G.rarityValue(self, { common: 1, rare: 2, special: 3, legendary: 4 });
       const devourCount = Math.min(baseDevour, enemies.length);
       const devourChain = (remaining, picked) => {
         if (remaining <= 0) return;
@@ -3350,13 +3706,14 @@ const CARD_ABILITIES = {
       // to 4 so the lottery skips the cheap chaff and only pulls
       // mid-or-higher cost cards (Wonder Woman, Carnage, Doom, etc.).
       const minCost = self._knullCostFloor || 1;
+      // _knullCostCeiling raises the upper bound from 9 to 10 with Text+
+      // ("God of Symbiotes") so the lottery can roll 10-cost titans.
+      const maxCost = self._knullCostCeiling || 9;
       G.getOpenLanes(self.owner).filter(l => l !== lane).forEach(l => {
         // Pull from the shared summon deck so Knull's lottery spreads
-        // across the full 95-card pool. Filter: cost minCost-9, attack > 0,
-        // not a discard-effect card. The boss-card odds (Batman /
-        // Darkseid / Galactus) are now ~1% per slot instead of ~5%
-        // when pulling from a 30-card drafted deck.
-        const d = G.drawFromSummonDeck(c => !c.isDiscardEffect && c.cost >= minCost && c.cost <= 9 && (c.attack || 0) > 0);
+        // across the full 95-card pool. Filter: cost minCost-maxCost,
+        // attack > 0, not a discard-effect card.
+        const d = G.drawFromSummonDeck(c => !c.isDiscardEffect && c.cost >= minCost && c.cost <= maxCost && (c.attack || 0) > 0);
         if (d) {
           G.summonCard(self.owner, l, d.name, d.cost, d.attack, d.health, d.abilities || [], d);
         }

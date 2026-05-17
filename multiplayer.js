@@ -147,14 +147,16 @@ const Multiplayer = {
       case 'opponentLeft':
         this._emit('opponentLeft', msg);
         break;
-      case 'state':
+      case 'state': {
         // Rehydrate function references on every received state.
         // This is what makes the JSON-roundtripped engine usable
         // again on the client — without rehydration, every onPlay /
-        // play / canPlay callback is null after the trip.
+        // play / canPlay callback is null after the trip. Block
+        // scope so const doesn't leak across case clauses.
         const rehydrated = this._rehydrateState(msg.state);
         this._emit('state', { state: rehydrated });
         break;
+      }
       case 'error':
         this._emit('error', msg);
         break;

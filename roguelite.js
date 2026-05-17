@@ -83,7 +83,7 @@ const Roguelite = {
 
   // Add a random curse to the run's deck. Used by events / future
   // shop-mishaps. Returns the curse name.
-  addRandomCurse(run, weights) {
+  addRandomCurse(run) {
     if (!run) return null;
     this._ensureCurseDefsRegistered();
     const pool = this.CURSE_DEFS;
@@ -264,19 +264,15 @@ const Roguelite = {
       // Fear had a scalable etch but Freeze didn't, leaving cold-deck
       // builds without a parallel etch lever.
       { id: 'freeze-1',      name: 'Freeze 1',  apply: c => { c.hasFreeze = (c.hasFreeze || 0) + 1; Roguelite._bumpKw(c, 'Freeze', c.hasFreeze); } },
-      // Steady etch — defensive counterplay to Crazy. Each charge
-      // cancels one Crazy reroll (ATK reverts to base for the affected
-      // turn). Audit finding: Crazy was a debuff with NO counterplay
-      // — once a card was hit by Joker's Crazy stamp the player just
-      // suffered RNG. Stacks (hasSteady=2 = 2 cancellations). Works
-      // on intrinsic Crazy holders (Harley) too — a Steady-etched
-      // Harley gets one "normal ATK" turn before chaos resumes.
-      { id: 'steady',        name: 'Steady',    apply: c => { c.hasSteady = (c.hasSteady || 0) + 1; Roguelite._bumpKw(c, 'Steady', c.hasSteady); } },
       { id: 'immunity-1',    name: 'Immunity 1', apply: c => { c.immunityCharges = (c.immunityCharges || 0) + 1; Roguelite._bumpKw(c, 'Immunity', c.immunityCharges); } },
       { id: 'draw-1',        name: 'Draw 1',    apply: c => { c.drawOnPlay = (c.drawOnPlay || 0) + 1; Roguelite._bumpKw(c, 'Draw', c.drawOnPlay); } },
       { id: 'discount-2',    name: 'Discount 2', apply: c => { const before = c.baseCost || c.cost || 0; c.cost = Math.max(0, (c.cost || 0) - 2); c.baseCost = Math.max(0, (c.baseCost || before) - 2); c._discountTotal = (c._discountTotal || 0) + 2; Roguelite._bumpKw(c, 'Discount', c._discountTotal); } },
       { id: 'thorns',        name: 'Thorns',    apply: c => { c.hasThorns = (c.hasThorns || 0) + 1; Roguelite._bumpKw(c, 'Thorns', c.hasThorns); } },
-      { id: 'cantrip',       name: 'Cantrip',   apply: c => { c.hasCantrip = (c.hasCantrip || 0) + 1; Roguelite._bumpKw(c, 'Cantrip', c.hasCantrip); } },
+      // MC 1 (rare) — on play, mind-control 1 enemy this turn.
+      // Symmetric with Fear 1 / Freeze 1 at the same tier.
+      { id: 'mc-1',          name: 'MC 1',      apply: c => { c.hasMc = (c.hasMc || 0) + 1; Roguelite._bumpKw(c, 'MC', c.hasMc); } },
+      // (Cantrip removed — its effect was identical to Draw 1; merged.)
+      // (Steady moved to _INTERNAL — used only by save-compat lookup.)
     ],
     special: [
       { id: 'plus3-atk',     name: '+3 ATK',    apply: c => { c.attack += 3; } },
@@ -291,8 +287,17 @@ const Roguelite = {
       { id: 'unresistible-1',name: 'Unresistible 1', apply: c => { c.unresistibleTurns = Math.max(c.unresistibleTurns || 0, 0) + 1; Roguelite._bumpKw(c, 'Unresistible', c.unresistibleTurns); } },
       { id: 'discount-3',    name: 'Discount 3', apply: c => { const before = c.baseCost || c.cost || 0; c.cost = Math.max(0, (c.cost || 0) - 3); c.baseCost = Math.max(0, (c.baseCost || before) - 3); c._discountTotal = (c._discountTotal || 0) + 3; Roguelite._bumpKw(c, 'Discount', c._discountTotal); } },
       { id: 'lifesteal',     name: 'Lifesteal', apply: c => { c.hasLifesteal = (c.hasLifesteal || 0) + 1; if (!c.abilities.includes('Lifesteal')) c.abilities.push('Lifesteal'); } },
-      { id: 'berserker',     name: 'Berserker', apply: c => { c.hasBerserker = (c.hasBerserker || 0) + 1; if (!c.abilities.includes('Berserker')) c.abilities.push('Berserker'); } },
-      { id: 'zealot',        name: 'Zealot',    apply: c => { c.hasZealot = (c.hasZealot || 0) + 1; if (!c.abilities.includes('Zealot')) c.abilities.push('Zealot'); } },
+      // Fear 2 (special) — symmetric with Freeze 2 above. Higher N is
+      // a rarer roll, lasts more turns.
+      { id: 'fear-2',        name: 'Fear 2',    apply: c => { c.hasFear = (c.hasFear || 0) + 2; Roguelite._bumpKw(c, 'Fear', c.hasFear); } },
+      // MC 2 (special) — on play, mind-control up to 2 enemies.
+      { id: 'mc-2',          name: 'MC 2',      apply: c => { c.hasMc = (c.hasMc || 0) + 2; Roguelite._bumpKw(c, 'MC', c.hasMc); } },
+      // Mark (special) — adjacent allies gain Bullseye on this card's
+      // play. Aura-style support for splash / direct-damage builds.
+      { id: 'mark',          name: 'Mark',      apply: c => { c.hasMark = (c.hasMark || 0) + 1; if (!c.abilities.includes('Mark')) c.abilities.push('Mark'); } },
+      // (Berserker / Zealot moved to _INTERNAL — boss decks still
+      // reference these via BOSS_DECK_ETCHES; level-up roller iterates
+      // TIERS only and so won't draft them.)
     ],
     legendary: [
       { id: 'plus4-atk',     name: '+4 ATK',    apply: c => { c.attack += 4; } },
@@ -300,8 +305,11 @@ const Roguelite = {
       { id: 'plus4-atk-hp',  name: '+4/+4',     apply: c => { c.attack += 4; c.health += 4; c.maxHealth += 4; c.currentHealth += 4; } },
       { id: 'splash-4',      name: 'Splash 4',  apply: c => { c.splashRange = (c.splashRange || 0) + 4; Roguelite._bumpKw(c, 'Splash', c.splashRange); } },
       { id: 'evade-4',       name: 'Evade 4',   apply: c => { c.evadeCharges = (c.evadeCharges || 0) + 4; Roguelite._bumpKw(c, 'Evade', c.evadeCharges); } },
-      { id: 'echo',          name: 'Echo',      apply: c => { c.hasEcho = (c.hasEcho || 0) + 1; if (!c.abilities.includes('Echo')) c.abilities.push('Echo'); } },
       { id: 'phoenix',       name: 'Phoenix',   apply: c => { c.hasPhoenix = (c.hasPhoenix || 0) + 1; if (!c.abilities.includes('Phoenix')) c.abilities.push('Phoenix'); } },
+      // (Echo moved to _INTERNAL — heavily used in BOSS_DECK_ETCHES
+      // signatures (Hela, Galactus, Trigon, Loki, etc.). Removed from
+      // the legendary draft pool so players can't roll it from level-
+      // ups, but boss decks still look it up via _findEtch.)
       { id: 'discount-4',    name: 'Discount 4', apply: c => { const before = c.baseCost || c.cost || 0; c.cost = Math.max(0, (c.cost || 0) - 4); c.baseCost = Math.max(0, (c.baseCost || before) - 4); c._discountTotal = (c._discountTotal || 0) + 4; Roguelite._bumpKw(c, 'Discount', c._discountTotal); } },
       // ----- TEXT etch -----
       // Scales this card's printed ability up by one rarity tier when
@@ -314,6 +322,18 @@ const Roguelite = {
       // upgrade so it's rare to get." Lives in the legendary tier so
       // it only drops on big promotions.
       { id: 'text-upgrade', name: 'Text+', apply: c => { c.textTierBumps = (c.textTierBumps || 0) + 1; if (!c.abilities.includes('Text+')) c.abilities.push('Text+'); } },
+    ],
+    // ----- Internal-only etches -----
+    // Defined here so `_findEtch` can still resolve them (boss decks
+    // reference these via BOSS_DECK_ETCHES, and saved decks built
+    // before the keyword pruning may still carry them). NOT in the
+    // TIERS list, so the level-up bucket roller and rarity coloring
+    // never see them — players can't draft these from picks.
+    _internal: [
+      { id: 'echo',          name: 'Echo',      apply: c => { c.hasEcho = (c.hasEcho || 0) + 1; if (!c.abilities.includes('Echo')) c.abilities.push('Echo'); } },
+      { id: 'berserker',     name: 'Berserker', apply: c => { c.hasBerserker = (c.hasBerserker || 0) + 1; if (!c.abilities.includes('Berserker')) c.abilities.push('Berserker'); } },
+      { id: 'zealot',        name: 'Zealot',    apply: c => { c.hasZealot = (c.hasZealot || 0) + 1; if (!c.abilities.includes('Zealot')) c.abilities.push('Zealot'); } },
+      { id: 'steady',        name: 'Steady',    apply: c => { c.hasSteady = (c.hasSteady || 0) + 1; Roguelite._bumpKw(c, 'Steady', c.hasSteady); } },
     ],
   },
 
@@ -351,20 +371,19 @@ const Roguelite = {
     'untrickable':   'Untrickable — immune to enemy tricks.',
     'taunt-1':       'Taunt 1 — intercepts 1 attack aimed at allies next turn.',
     'overdrive':     'Overdrive — attacks twice this turn.',
-    'fear-1':        'Fear 1 — applies Fear to one enemy on play.',
+    'fear-1':        'Fear 1 — applies Fear (1 turn) to one enemy on play.',
+    'fear-2':        'Fear 2 — applies Fear (2 turns) to one enemy on play.',
     'freeze-1':      'Freeze 1 — freezes one enemy for 1 turn on play.',
     'freeze-2':      'Freeze 2 — freezes one enemy for 2 turns on play.',
-    'steady':        'Steady — cancels one Crazy reroll (ATK stays at base). Stacks per charge.',
+    'mc-1':          'MC 1 — mind-controls 1 enemy this turn on play.',
+    'mc-2':          'MC 2 — mind-controls up to 2 enemies this turn on play.',
+    'mark':          'Mark — adjacent allies gain Bullseye for the turn when this is played.',
     'immunity-1':    'Immunity 1 — blocks the next debuff (freeze, stun, fear, mind control, etc.) cast on this card.',
     'draw-1':        'Draw 1 — draw 1 card when this is played.',
     'draw-2':        'Draw 2 — draw 2 cards when this is played.',
     'thorns':        'Thorns — counter-damage attackers for 1 each time you\'re hit.',
-    'cantrip':       'Cantrip — draw 1 card whenever you play this card.',
-    'echo':          'Echo — duplicates this card\'s when-played effect.',
     'phoenix':       'Phoenix — once per life, revive at full HP when killed.',
     'lifesteal':     'Lifesteal — heal yourself for damage dealt.',
-    'berserker':     'Berserker — gain +1 attack each time you take damage.',
-    'zealot':        'Zealot — gain +1/+1 each time an ally dies.',
     'invincible-1':  'Invincible 1 — take no damage for 1 turn after arrival.',
     'unresistible-1':'Unresistible — your attacks cannot be blocked by Evade or Immunity.',
     'text-upgrade':  'Text+ — scales this card\'s printed ability up one tier (e.g. Splash 1 → Splash 2). Legendary-quality upgrade.',
@@ -516,13 +535,14 @@ const Roguelite = {
     },
     {
       id: 'smiling-mask', name: 'Smiling Mask', rarity: 'rare',
-      // Broadened from starter-only to ANY cost-1 card. Audit finding:
-      // starter-only buff went dead after Act 1 once Goon/Thug/Brute
-      // rotated out of the active deck. Cost-1 stays relevant the whole
-      // run because every act drafts at least a few cheap bodies.
-      desc: '+2 ATK on all cost-1 cards.',
+      // Broadened from starter-only → cost-1 → cost-≤3 per user
+      // direction. Cost-1 stays relevant but the buff was hitting too
+      // narrow a slice; cost-≤3 covers the common-rarity body bracket
+      // (Goon, Thug, Brute, Penguin, Black Cat, Joker, etc.) without
+      // touching the high-cost finishers. Re-tune ATK if it overshoots.
+      desc: '+2 ATK on all cost-3 or lower cards.',
       onCardBuild(run, card) {
-        if ((card.baseCost || card.cost || 0) <= 1) {
+        if ((card.baseCost || card.cost || 0) <= 3) {
           card.attack = (card.attack || 0) + 2;
         }
       },
@@ -595,6 +615,95 @@ const Roguelite = {
         run.hp = Math.min(run.maxHp, run.hp + 5);
       },
       onFightStart(run) { run._extraEnergy = (run._extraEnergy || 0) + 1; },
+    },
+    // ===== Expansion pack — round-N relic additions ==================
+    // User direction: "more relics." All wire through the existing
+    // hooks (onAcquire / onCardBuild / onFightStart / onFightEnd) so
+    // no engine surgery — they just modify run state or runtime card
+    // stats at canonical decision points.
+    // ----- Common -----
+    {
+      id: 'iron-toes', name: 'Iron Toes', rarity: 'common',
+      desc: '+5 max HP and heal 5 HP on pickup.',
+      onAcquire(run) {
+        run.maxHp += 5; run.hp = Math.min(run.maxHp, run.hp + 5);
+        if (typeof Game !== 'undefined' && Game.log) Game.log('[RELIC] Iron Toes: +5 max HP / +5 HP.');
+      },
+    },
+    {
+      id: 'rusty-coin', name: 'Rusty Coin', rarity: 'common',
+      desc: 'Gain +5 gold after every fight won (stacks with Lucky Coin).',
+      onFightEnd(run, won) {
+        if (won) {
+          run.gold += 5;
+          if (typeof Game !== 'undefined' && Game.log) Game.log('[RELIC] Rusty Coin: +5 gold.');
+        }
+      },
+    },
+    {
+      id: 'splinter', name: 'Splinter', rarity: 'common',
+      desc: 'Cost-≤2 cards gain +1 ATK.',
+      onCardBuild(run, card) {
+        if ((card.baseCost || card.cost || 0) <= 2) {
+          card.attack = (card.attack || 0) + 1;
+        }
+      },
+    },
+    // ----- Rare -----
+    {
+      id: 'vampire-coil', name: 'Vampire Coil', rarity: 'rare',
+      desc: 'Heal 3 HP after every fight won.',
+      onFightEnd(run, won) {
+        if (won) {
+          const before = run.hp;
+          run.hp = Math.min(run.maxHp, run.hp + 3);
+          const healed = run.hp - before;
+          if (healed > 0 && typeof Game !== 'undefined' && Game.log) Game.log(`[RELIC] Vampire Coil: +${healed} HP.`);
+        }
+      },
+    },
+    {
+      id: 'steel-bands', name: 'Steel Bands', rarity: 'rare',
+      desc: 'All your cards gain +1 max HP.',
+      onCardBuild(run, card) {
+        card.maxHealth = (card.maxHealth || 1) + 1;
+        card.currentHealth = card.maxHealth;
+      },
+    },
+    {
+      id: 'cracked-ledger', name: 'Cracked Ledger', rarity: 'rare',
+      desc: '-5 max HP on pickup. Gain +5 gold after every fight (win or lose).',
+      onAcquire(run) {
+        run.maxHp = Math.max(10, run.maxHp - 5);
+        run.hp = Math.min(run.maxHp, run.hp);
+        if (typeof Game !== 'undefined' && Game.log) Game.log('[RELIC] Cracked Ledger: -5 max HP — but the gold flows.');
+      },
+      onFightEnd(run) {
+        run.gold += 5;
+        if (typeof Game !== 'undefined' && Game.log) Game.log('[RELIC] Cracked Ledger: +5 gold.');
+      },
+    },
+    // ----- Special -----
+    {
+      id: 'crucible', name: 'Crucible', rarity: 'special',
+      desc: 'Cost-≥6 cards gain (+1/+1).',
+      onCardBuild(run, card) {
+        if ((card.baseCost || card.cost || 0) >= 6) {
+          card.attack = (card.attack || 0) + 1;
+          card.maxHealth = (card.maxHealth || 1) + 1;
+          card.currentHealth = card.maxHealth;
+        }
+      },
+    },
+    // ----- Boss -----
+    {
+      id: 'star-forge', name: 'Star Forge', rarity: 'boss',
+      desc: 'All your cards gain (+1/+1).',
+      onCardBuild(run, card) {
+        card.attack = (card.attack || 0) + 1;
+        card.maxHealth = (card.maxHealth || 1) + 1;
+        card.currentHealth = card.maxHealth;
+      },
     },
   ],
 
@@ -918,9 +1027,13 @@ const Roguelite = {
       deck: starterDeck,
       tricks: starterTricks,
       relics: [],
+      // Boss rotation — one boss key per act, rolled at run start. Used
+      // by buildAiEncounter and the preview banner so every run sees a
+      // different lineup.
+      bossKeys: this._rollBossKeys(),
       currentNode: 0,
       currentRow: 0,
-      totalRows: 6,
+      totalRows: 8,
       act: 1,
       seed: Math.random().toString(36).slice(2, 10),
       boon: boon || null,
@@ -967,6 +1080,15 @@ const Roguelite = {
         // gold / charges on pickup — boon-granted ones must too).
         this.grantRelic(run, boon.startingRelic);
       }
+    }
+    // A6 (Cursed) — drop a random curse into the run's deck so every
+    // start has a built-in liability. Picked from CURSE_DEFS so the
+    // exact curse rotates each run.
+    if (this.currentAscension() >= 6) {
+      try {
+        this.addRandomCurse(run);
+        if (typeof Game !== 'undefined' && Game.log) Game.log('[ASCENSION] Cursed: a random curse seeds your starting deck.');
+      } catch (e) { console.warn('[ASC6] addRandomCurse failed', e); }
     }
     return run;
   },
@@ -1037,11 +1159,17 @@ const Roguelite = {
   //   row 5   — pre-boss rest stop
   //   row 6   — single boss (was 2 boss options)
   ACT_BOUNDS: [
-    { act: 1, startRow: 0,  endRow: 6,  treasureRow: 4, bossRow: 6,  tier: 1 },
-    { act: 2, startRow: 7,  endRow: 13, treasureRow: 11, bossRow: 13, tier: 2 },
-    { act: 3, startRow: 14, endRow: 20, treasureRow: 18, bossRow: 20, tier: 3 },
+    // 8 rows per act:
+    //   row 0     entry (6 combat nodes)
+    //   rows 1-4  body (mix — guarantees of combat/event/shop/rest/elite)
+    //   row 5     treasure
+    //   row 6     pre-boss rest
+    //   row 7     boss / final-boss
+    { act: 1, startRow: 0,  endRow: 7,  treasureRow: 5,  bossRow: 7,  tier: 1 },
+    { act: 2, startRow: 8,  endRow: 15, treasureRow: 13, bossRow: 15, tier: 2 },
+    { act: 3, startRow: 16, endRow: 23, treasureRow: 21, bossRow: 23, tier: 3 },
   ],
-  TOTAL_ROWS: 21,
+  TOTAL_ROWS: 24,
 
   generateMap(run) {
     const ROWS = this.TOTAL_ROWS;
@@ -1067,47 +1195,49 @@ const Roguelite = {
       //   row 6 (bossRow)= single boss (or final-boss for act 3)
       const bodyEndRow = act.treasureRow - 1;
 
-      // Row 0 — 3-4 entry combat nodes
-      const startCount = 3 + Math.floor(rng() * 2);
+      // Row 0 — 6 entry combat nodes (was 3-4). User direction: "have
+      // the web have 6 starting points." Entry row is wider than the
+      // 5-col body so the lane visual reads as a fan-out.
+      const startCount = 6;
       for (let c = 0; c < startCount; c++) {
-        mk(bodyStart, c + Math.floor((5 - startCount) / 2), 'combat', tier);
+        mk(bodyStart, c, 'combat', tier);
       }
-      // Body rows (1..3) — combat/event/shop/rest/elite mix
+      // Body rows (1..bodyEndRow) — combat/event/shop/rest/elite mix.
+      // bodyEndRow widened to 4 (was 3) since acts now have 8 rows.
       for (let r = bodyStart + 1; r <= bodyEndRow; r++) {
         const count = 3 + Math.floor(rng() * 3); // 3-5 nodes
-        const offset = Math.floor((5 - count) / 2);
+        const offset = Math.floor((6 - count) / 2);
         for (let c = 0; c < count; c++) {
           const roll = rng();
           let type;
-          if (roll < 0.50) type = 'combat';
-          else if (roll < 0.72) type = 'event';
-          else if (roll < 0.85) type = 'shop';
-          else if (roll < 0.95) type = 'rest';
+          if (roll < 0.45) type = 'combat';
+          else if (roll < 0.65) type = 'event';
+          else if (roll < 0.80) type = 'shop';
+          else if (roll < 0.92) type = 'rest';
           else type = 'elite';
           mk(r, c + offset, type, tier);
         }
       }
-      // Guarantee at least one elite per act in the body rows. User
-      // direction: "with elites, there should always be one elite per
-      // act that you can fight, and that's a guaranteed common relic."
-      // The combat-rewards path already grants the relic — see line
-      // ~2607 (rollRelic('common') on elite win). All we need is to
-      // make sure the random roll above didn't shut the player out of
-      // the elite path entirely. If no elite landed, promote a random
-      // body-row combat node to elite so the act always has the
-      // guaranteed-relic detour available.
+      // Per-type guarantee. User direction: "make every act have at
+      // least 1 of every possible stage: combat, event, shop, rest,
+      // elite etc." The boss/treasure/pre-boss-rest are already
+      // guaranteed by their hardcoded rows below; combat is guaranteed
+      // by the entry row. So we only need to ensure body rows contain
+      // at least one event, shop, rest, AND elite. If any are missing
+      // after the random roll, promote a random body combat node.
       const bodyNodes = nodes.filter(n => n.row >= bodyStart + 1 && n.row <= bodyEndRow);
-      if (!bodyNodes.some(n => n.type === 'elite')) {
+      ['event', 'shop', 'rest', 'elite'].forEach(needed => {
+        if (bodyNodes.some(n => n.type === needed)) return;
         const combats = bodyNodes.filter(n => n.type === 'combat');
-        if (combats.length) {
-          const pick = combats[Math.floor(rng() * combats.length)];
-          pick.type = 'elite';
-        }
-      }
+        if (!combats.length) return;
+        const pick = combats[Math.floor(rng() * combats.length)];
+        pick.type = needed;
+      });
       // Treasure chest row — single centered relic node. User: "every
       // act should have a treasure chest that contains a relic."
       mk(act.treasureRow, 2, 'treasure', tier);
-      // Pre-boss rest stop centered in the 5-col grid
+      // Pre-boss rest stop centered in the 6-col grid (cols 2-3 are
+      // both visually centered; pick 2 to match treasure / boss).
       mk(act.endRow - 1, 2, 'rest', tier);
       // Boss row — ONE node per act now. User: "I want there to only
       // be one boss node. Just like Act 3 has one final boss."
@@ -1234,6 +1364,15 @@ const Roguelite = {
     // board." Sanitizing here AND at codex/reward render time ensures
     // existing saves get cleaned without forcing a run reset.
     this._sanitizeDeckCardStatuses(deckCard);
+    // Migrate the now-removed `cantrip` etch id to `draw-1` (same
+    // effect, identical stacking) so saved runs keep their card-draw
+    // upgrade after the keyword merge. One-time, in-place — fresh
+    // runs never have `cantrip` in their statuses.
+    if (Array.isArray(deckCard.statuses)) {
+      for (let i = 0; i < deckCard.statuses.length; i++) {
+        if (deckCard.statuses[i] === 'cantrip') deckCard.statuses[i] = 'draw-1';
+      }
+    }
     // Apply etches in order
     (deckCard.statuses || []).forEach(etchId => {
       const etch = this._findEtch(etchId);
@@ -1615,19 +1754,80 @@ const Roguelite = {
   // Per-act boss preview metadata. Surface at the top of the map so
   // the player can plan their route around the boss's archetype. User
   // direction: "Slay the Spire-shaped polish — boss preview banner."
-  BOSS_PREVIEWS: {
-    1: { key: 'act1-luthor',  persona: 'Lex Luthor', archetype: 'Control',
+  // Per-act boss preview metadata. Each act now has THREE possible
+  // bosses; the actual boss for a run is rolled at run start and stored
+  // on run.bossKeys (see _rollBossKeys). The preview banner reads from
+  // run.bossKeys via getBossPreview() so the player sees the boss
+  // they'll actually fight, not a hardcoded default.
+  BOSS_PREVIEWS_BY_KEY: {
+    'act1-luthor':  { key: 'act1-luthor',  persona: 'Lex Luthor', archetype: 'Control',
          flavor: 'Locks down lanes, fears your high-cost cards, snipes your low-HP bodies. Pack ATK debuff and Bullseye. Deck rolls fresh each run — supporting cast varies.',
          hpRange: '28–38',
          signature: ['Lex Luthor', 'Joker', 'Magneto'] },
-    2: { key: 'act2-doom',    persona: 'Doctor Doom', archetype: 'Summon Swarm',
+    'act1-loki':    { key: 'act1-loki',    persona: 'Loki', archetype: 'Trickster',
+         flavor: 'Cycles tricks fast, baits your cards into bad lanes, loves Mobius / Joker shenanigans. Pack Untrickable and direct removal.',
+         hpRange: '28–38',
+         signature: ['Loki', 'Mr. Fantastic', 'Joker'] },
+    'act1-grodd':   { key: 'act1-grodd',   persona: 'Gorilla Grodd', archetype: 'Mind Control',
+         flavor: 'Steals your best card, fears your high-ATK threats, freezes your lanes. Pack 10-cost Untrickable bodies and Immunity.',
+         hpRange: '28–38',
+         signature: ['Gorilla Grodd', 'Poison Ivy', 'Mr. Freeze'] },
+    'act2-doom':    { key: 'act2-doom',    persona: 'Doctor Doom', archetype: 'Summon Swarm',
          flavor: 'Floods the board with Doombots and revives. Pack lane denial, Splash, and direct destroy. Deck rolls fresh each run — supporting cast varies.',
          hpRange: '40–55',
          signature: ['Dr. Doom', 'Hela', 'Knull'] },
-    3: { key: 'act3-galactus', persona: 'Galactus', archetype: 'Devour / Cosmic',
+    'act2-hela':    { key: 'act2-hela',    persona: 'Hela', archetype: 'Necromancy',
+         flavor: 'Revive chains everywhere — Hela, Grundy, Jason, Wolverine. Pack hard-removal that kills permanently (devour/freeze) and watch the dead pile.',
+         hpRange: '40–55',
+         signature: ['Hela', 'Solomon Grundy', 'Jason Voorhees'] },
+    'act2-magneto': { key: 'act2-magneto', persona: 'Magneto', archetype: 'Iron Storm',
+         flavor: 'Tempo + AOE — Iron Man trick-phase kills, Ultron replication, Hawkeye splash. Pack Armor and aura denial.',
+         hpRange: '40–55',
+         signature: ['Magneto', 'Iron Man', 'Ultron'] },
+    'act3-galactus': { key: 'act3-galactus', persona: 'Galactus', archetype: 'Devour / Cosmic',
          flavor: 'Devours weak cards, drops 10-cost titans, slows energy. Pack Untrickable and Armor. Deck rolls fresh each run — supporting cast varies.',
          hpRange: '70–90',
          signature: ['Galactus', 'Trigon', 'Knull'] },
+    'act3-trigon':  { key: 'act3-trigon',  persona: 'Trigon', archetype: 'Hex / Steal',
+         flavor: 'Steals your block meter, hexes your stats, fears the entire board with The Darkhold. Pack block generation and Untrickable.',
+         hpRange: '70–90',
+         signature: ['Trigon', 'Raven', 'The Batman Who Laughs'] },
+    'act3-thanos':  { key: 'act3-thanos',  persona: 'Thanos', archetype: 'Reality Snap',
+         flavor: 'Destroys lanes at random, drops 10-cost finishers, packs Cosmic Cube. Pack Untrickable, Damage Immunity, and lane redundancy.',
+         hpRange: '70–90',
+         signature: ['Thanos', 'Darkseid', 'Knull'] },
+  },
+  // The full pool of boss keys per act — _rollBossKeys randomizes one
+  // pick per act per run. User direction: "rotating bosses in act 1,
+  // act 2 and act 3 just like slay the spire to have a little change
+  // of pace."
+  BOSS_KEYS_BY_ACT: {
+    1: ['act1-luthor', 'act1-loki', 'act1-grodd'],
+    2: ['act2-doom',   'act2-hela', 'act2-magneto'],
+    3: ['act3-galactus', 'act3-trigon', 'act3-thanos'],
+  },
+  // Backwards-compat shim so any caller still indexing by integer act
+  // (legacy preview banner code paths) gets the run's chosen boss
+  // rather than a fixed default. Lookup walks state.roguelite.bossKeys.
+  get BOSS_PREVIEWS() {
+    const run = (typeof Game !== 'undefined' && Game.state && Game.state.roguelite) || null;
+    const ks = (run && run.bossKeys) || { 1: 'act1-luthor', 2: 'act2-doom', 3: 'act3-galactus' };
+    return {
+      1: this.BOSS_PREVIEWS_BY_KEY[ks[1]] || this.BOSS_PREVIEWS_BY_KEY['act1-luthor'],
+      2: this.BOSS_PREVIEWS_BY_KEY[ks[2]] || this.BOSS_PREVIEWS_BY_KEY['act2-doom'],
+      3: this.BOSS_PREVIEWS_BY_KEY[ks[3]] || this.BOSS_PREVIEWS_BY_KEY['act3-galactus'],
+    };
+  },
+  // Roll boss picks once at run start. Stored on run state so map
+  // generation, encounter building, and preview rendering all agree on
+  // the same picks for the duration of the run.
+  _rollBossKeys() {
+    const pick = (arr) => arr[Math.floor(Math.random() * arr.length)];
+    return {
+      1: pick(this.BOSS_KEYS_BY_ACT[1]),
+      2: pick(this.BOSS_KEYS_BY_ACT[2]),
+      3: pick(this.BOSS_KEYS_BY_ACT[3]),
+    };
   },
 
   BOSS_DECKS: {
@@ -1706,6 +1906,162 @@ const Roguelite = {
         'Iron Man',
       ],
       tricks: ['Phantom Zone', 'Power Battery', 'Eye of Agamotto', 'Cosmic Cube', 'Infinity Gauntlet'],
+    },
+    // ---- Alternate Act 1 bosses ----------------------------------------
+    'act1-loki': {
+      persona: 'Loki',
+      deck: [
+        'Loki', 'Loki',
+        'Mr. Fantastic', 'Mr. Fantastic',
+        'Sandman', 'Sandman',
+        'Dr. Strange',
+        'Scarlet Witch',
+        'Catwoman', 'Catwoman',
+        'The Grinch',
+        'Ghostface', 'Ghostface',
+        'Sabertooth',
+        'Drax', 'Drax',
+        'Harley Quinn',
+        'Joker',
+        'Carnage',
+        'Symbiote Spider-Man',
+        'Black Widow', 'Black Widow',
+        'Peacemaker',
+        'Star-Lord',
+        'Nightwing',
+        'Solomon Grundy',
+      ],
+      tricks: ["Joker's Playing Card", 'Mobius Chair', 'Two-Face Coin', 'Smoke Pellet', 'Lasso of Truth'],
+    },
+    'act1-grodd': {
+      persona: 'Gorilla Grodd',
+      deck: [
+        'Gorilla Grodd', 'Gorilla Grodd',
+        'Poison Ivy', 'Poison Ivy',
+        'Mr. Freeze', 'Mr. Freeze',
+        'Man-Bat', 'Man-Bat',
+        'Catwoman', 'Catwoman',
+        'Bane', 'Bane',
+        'Black Widow',
+        'Sabertooth',
+        'Sandman', 'Sandman',
+        'King Shark',
+        'Drax',
+        'Ghostface',
+        'Carnage', 'Carnage',
+        'Loki',
+        'Solomon Grundy',
+        'Winter Soldier',
+        'Jigsaw',
+        'Harley Quinn',
+        'Hawkeye',
+      ],
+      tricks: ['Fear Toxin', 'Anti-Life Equation', 'Mind Stone', 'Bat Signal', 'Lazarus Pit'],
+    },
+    // ---- Alternate Act 2 bosses ----------------------------------------
+    'act2-hela': {
+      persona: 'Hela',
+      deck: [
+        'Hela', 'Hela',
+        'Solomon Grundy', 'Solomon Grundy',
+        'Jason Voorhees', 'Jason Voorhees',
+        'Mahoraga',
+        'Wolverine', 'Wolverine',
+        'Martian Manhunter', 'Martian Manhunter',
+        'Anti-Venom',
+        'Ahsoka',
+        'Carnage',
+        'Knull',
+        'Cyborg', 'Cyborg',
+        'Loki',
+        'Hulk',
+        'The Grinch',
+        'Predator', 'Predator',
+        'Spider-Man',
+        'Wonder Woman',
+        'Aquaman',
+        'Captain America',
+      ],
+      tricks: ['Lazarus Pit', 'Soul Stone', 'The Darkhold', 'Vibranium', 'Eye of Agamotto'],
+    },
+    'act2-magneto': {
+      persona: 'Magneto',
+      deck: [
+        'Magneto', 'Magneto',
+        'Iron Man', 'Iron Man',
+        'Ultron', 'Ultron',
+        'Cyborg', 'Cyborg',
+        'Knull',
+        'Optimus Prime', 'Optimus Prime',
+        'Hawkeye',
+        'Hulk',
+        'Spider-Man',
+        'Black Panther',
+        'Aquaman', 'Aquaman',
+        'Carnage',
+        'Wonder Woman',
+        'Lex Luthor',
+        'Predator',
+        'Wolverine',
+        'Captain America',
+        'The Batman Who Laughs',
+        'Mr. Freeze',
+        'Bane',
+      ],
+      tricks: ['Vibranium', 'Power Stone', 'Mother Box', 'Adamantium', 'Nth Metal'],
+    },
+    // ---- Alternate Act 3 bosses ----------------------------------------
+    'act3-trigon': {
+      persona: 'Trigon',
+      deck: [
+        'Trigon', 'Trigon',
+        'Raven', 'Raven',
+        'The Batman Who Laughs', 'The Batman Who Laughs',
+        'Scarlet Witch',
+        'Dormammu',
+        'Dr. Manhattan',
+        'Knull',
+        'Galactus',
+        'Mahoraga',
+        'Gorr',
+        'Anakin Skywalker',
+        'Hulk', 'Hulk',
+        'Magneto',
+        'Iron Man',
+        'Wolverine',
+        'Wonder Woman',
+        'Spider-Man',
+        'Yoda',
+        'Predator',
+        'Captain America',
+      ],
+      tricks: ['The Darkhold', 'Phantom Zone', 'Mind Stone', 'Anti-Life Equation', 'Reality Stone'],
+    },
+    'act3-thanos': {
+      persona: 'Thanos',
+      deck: [
+        'Thanos', 'Thanos',
+        'Darkseid', 'Darkseid',
+        'Knull', 'Knull',
+        'Galactus',
+        'Drax', 'Drax',
+        'Gorr',
+        'Anakin Skywalker',
+        'Darth Vader',
+        'Emperor Palpatine',
+        'Hulk',
+        'Magneto',
+        'Mahoraga',
+        'Gojo',
+        'Superman', 'Superman',
+        'Wonder Woman',
+        'Iron Man',
+        'Optimus Prime',
+        'Hela',
+        'Jango Fett',
+        'Predator',
+      ],
+      tricks: ['Cosmic Cube', 'Infinity Gauntlet', 'Power Battery', 'Reality Stone', 'Time Stone'],
     },
   },
 
@@ -1815,6 +2171,149 @@ const Roguelite = {
         count: 5,
       },
     },
+    // ---- Alternate Act 1 ------------------------------------------------
+    'act1-loki': {
+      // Trickster — leans on tricks + deception cards. Anchors keep Loki
+      // and Mr. Fantastic (his on-discard discount fuels trick chains).
+      anchors: ['Loki', 'Loki', 'Mr. Fantastic'],
+      pool: [
+        // Cost 1 utility
+        'Black Widow', 'Catwoman', 'Hawkeye', 'King Shark',
+        'Man-Bat', 'Mr. Freeze', 'Poison Ivy', 'Sabertooth', 'Harley Quinn',
+        // Cost 2 disruption
+        'Bane', 'Drax', 'Ghostface', 'Jango Fett', 'Sandman',
+        'Nightwing', 'Peacemaker', 'The Flash',
+        // Cost 3 deception
+        'Carnage', 'Deathstroke', 'Joker', 'Scarlet Witch',
+        'Solomon Grundy', 'Star-Lord', 'Symbiote Spider-Man',
+        'Winter Soldier', 'The Grinch', 'Dr. Strange',
+        // Mid-cost finishers
+        'Anti-Venom', 'Wonder Woman', 'Predator',
+      ],
+      deckSize: 30,
+      maxCopies: 2,
+      tricks: {
+        anchors: ["Joker's Playing Card", 'Mobius Chair'],
+        pool: ['Two-Face Coin', 'Smoke Pellet', 'Bat Signal',
+               'Anti-Life Equation', 'Bifrost', 'Mind Stone',
+               'Power Stone', 'Lazarus Pit'],
+        count: 5,
+      },
+    },
+    'act1-grodd': {
+      // Mind control / fear / debuff lockdown. Heavy on mental disruption.
+      anchors: ['Gorilla Grodd', 'Gorilla Grodd', 'Poison Ivy', 'Mr. Freeze'],
+      pool: [
+        'Black Widow', 'Catwoman', 'Hawkeye', 'King Shark',
+        'Man-Bat', 'Sabertooth', 'Harley Quinn',
+        'Bane', 'Drax', 'Ghostface', 'Jango Fett', 'Sandman',
+        'Nightwing', 'Peacemaker', 'The Flash', 'Mr. Fantastic',
+        'Carnage', 'Deathstroke', 'Loki', 'Solomon Grundy', 'Star-Lord',
+        'Symbiote Spider-Man', 'Winter Soldier', 'Jigsaw', 'Joker',
+        'Scarlet Witch', 'Anti-Venom', 'Wonder Woman', 'Predator',
+      ],
+      deckSize: 30,
+      maxCopies: 2,
+      tricks: {
+        anchors: ['Fear Toxin', 'Anti-Life Equation'],
+        pool: ['Mind Stone', 'Bat Signal', 'Lazarus Pit', 'Smoke Pellet',
+               'Two-Face Coin', "Joker's Playing Card", 'Bifrost', 'Power Stone'],
+        count: 5,
+      },
+    },
+    // ---- Alternate Act 2 ------------------------------------------------
+    'act2-hela': {
+      // Necromancy — heavy on revives and dead-pile interactions.
+      anchors: ['Hela', 'Hela', 'Solomon Grundy', 'Jason Voorhees'],
+      pool: [
+        'Anti-Venom', 'Black Panther', 'Cyborg', 'Wolverine',
+        'Martian Manhunter', 'Carnage', 'Loki', 'The Grinch',
+        'Predator', 'Spider-Man', 'Optimus Prime', 'Wonder Woman',
+        'Captain America', 'Aquaman', 'Iron Man', 'Lex Luthor',
+        'Hulk', 'Mahoraga', 'Knull', 'Magneto', 'Obi-Wan', 'Ultron',
+        'Gorr', 'Gojo', 'Omni-Man', 'Silver Surfer',
+        'Ahsoka', 'Sabertooth', 'Bane', 'Hawkeye', 'Drax',
+        'Joker', 'Sandman',
+      ],
+      deckSize: 30,
+      maxCopies: 2,
+      tricks: {
+        anchors: ['Lazarus Pit', 'Soul Stone'],
+        pool: ['The Darkhold', 'Vibranium', 'Eye of Agamotto', 'Mind Stone',
+               'Mobius Chair', 'Phantom Zone', 'Power Stone', 'Nth Metal'],
+        count: 5,
+      },
+    },
+    'act2-magneto': {
+      // Metal/AOE. Anchors lock Magneto + Iron Man + Ultron. Pool is
+      // weighted toward heavy hitters and tempo cards.
+      anchors: ['Magneto', 'Magneto', 'Iron Man', 'Ultron'],
+      pool: [
+        'Cyborg', 'Knull', 'Optimus Prime', 'Hawkeye', 'Hulk',
+        'Spider-Man', 'Black Panther', 'Aquaman', 'Carnage',
+        'Wonder Woman', 'Lex Luthor', 'Predator', 'Wolverine',
+        'Captain America', 'The Batman Who Laughs', 'Mr. Freeze',
+        'Bane', 'Sabertooth', 'Hawkeye', 'Joker',
+        'Mahoraga', 'Gorr', 'Gojo', 'Omni-Man', 'Silver Surfer',
+        'Obi-Wan', 'Hela', 'Star-Lord', 'Anti-Venom', 'Venom',
+      ],
+      deckSize: 30,
+      maxCopies: 2,
+      tricks: {
+        anchors: ['Vibranium', 'Power Stone'],
+        pool: ['Mother Box', 'Adamantium', 'Nth Metal', 'Mind Stone',
+               'Eye of Agamotto', 'Phantom Zone', 'Mobius Chair', 'The Darkhold'],
+        count: 5,
+      },
+    },
+    // ---- Alternate Act 3 ------------------------------------------------
+    'act3-trigon': {
+      // Hex / block-steal / fear. Anchors Trigon + Raven + BWL. Block
+      // theft + dread tricks define the threat.
+      anchors: ['Trigon', 'Trigon', 'Raven', 'The Batman Who Laughs'],
+      pool: [
+        'Scarlet Witch', 'Dormammu', 'Dr. Manhattan', 'Knull',
+        'Galactus', 'Mahoraga', 'Gorr', 'Anakin Skywalker',
+        'Hulk', 'Magneto', 'Iron Man', 'Wolverine', 'Wonder Woman',
+        'Spider-Man', 'Yoda', 'Predator', 'Captain America',
+        'Hela', 'Obi-Wan', 'Ultron', 'Dr. Doom', 'Gojo',
+        'Omni-Man', 'Silver Surfer', 'Darth Vader', 'Emperor Palpatine',
+        'Luke Skywalker', 'Thor', 'Batman', 'Darkseid', 'Superman',
+        'Thanos', 'Aquaman', 'Lex Luthor', 'Carnage', 'Black Panther',
+      ],
+      deckSize: 30,
+      maxCopies: 2,
+      tricks: {
+        anchors: ['The Darkhold', 'Phantom Zone'],
+        pool: ['Mind Stone', 'Anti-Life Equation', 'Reality Stone',
+               'Soul Stone', 'Time Stone', 'Space Stone', 'Power Stone',
+               'Mobius Chair', 'Adamantium', 'Eye of Agamotto', 'Nth Metal'],
+        count: 5,
+      },
+    },
+    'act3-thanos': {
+      // Reality Snap / lane destruction. Anchors Thanos + Darkseid + Knull.
+      anchors: ['Thanos', 'Thanos', 'Darkseid', 'Knull'],
+      pool: [
+        'Galactus', 'Drax', 'Gorr', 'Anakin Skywalker', 'Darth Vader',
+        'Emperor Palpatine', 'Hulk', 'Magneto', 'Mahoraga', 'Gojo',
+        'Superman', 'Wonder Woman', 'Iron Man', 'Optimus Prime',
+        'Hela', 'Jango Fett', 'Predator', 'Yoda', 'Batman',
+        'Luke Skywalker', 'Thor', 'Aquaman', 'Captain America',
+        'Lex Luthor', 'Carnage', 'Black Panther', 'Obi-Wan',
+        'Ultron', 'Dr. Doom', 'Omni-Man', 'Silver Surfer',
+        'Spider-Man', 'Dr. Manhattan', 'Dormammu', 'Trigon',
+      ],
+      deckSize: 30,
+      maxCopies: 2,
+      tricks: {
+        anchors: ['Cosmic Cube', 'Infinity Gauntlet'],
+        pool: ['Power Battery', 'Reality Stone', 'Time Stone', 'Space Stone',
+               'Soul Stone', 'Mind Stone', 'Power Stone', 'Eye of Agamotto',
+               'Phantom Zone', 'Anti-Life Equation', 'Adamantium', 'Mobius Chair'],
+        count: 5,
+      },
+    },
   },
 
   // Build a fresh boss deck — anchors first, then random fill from the
@@ -1921,6 +2420,58 @@ const Roguelite = {
       'Thanos':             ['plus1-atk-hp'],
       'Anakin Skywalker':   ['plus1-atk-hp'],
     },
+    // Alt-boss etch sets — same shape as the originals: signatures get
+    // a meaty buff so the persona reads, supporting cast gets a smaller
+    // bump.
+    'act1-loki': {
+      'Loki':           ['plus1-atk-hp', 'echo'],   // double his trick-bounce
+      'Mr. Fantastic':  ['plus1-hp'],               // sticks around longer
+      'Joker':          ['plus1-atk'],
+      'Sandman':        ['plus1-hp'],
+      'Dr. Strange':    ['plus1-atk-hp'],
+    },
+    'act1-grodd': {
+      'Gorilla Grodd': ['plus1-atk-hp', 'echo'],    // re-fires mind control
+      'Poison Ivy':    ['plus1-atk-hp'],
+      'Mr. Freeze':    ['plus1-atk-hp'],
+      'Catwoman':      ['plus1-atk'],
+      'Bane':          ['plus1-hp'],
+    },
+    'act2-hela': {
+      'Hela':           ['plus2-atk-hp', 'echo'],   // doubles her summons
+      'Solomon Grundy': ['plus1-atk-hp'],
+      'Jason Voorhees': ['plus1-atk-hp'],
+      'Wolverine':      ['plus1-hp'],
+      'Mahoraga':       ['plus1-atk-hp'],
+      'Knull':          ['plus1-atk-hp'],
+    },
+    'act2-magneto': {
+      'Magneto':       ['plus2-atk-hp'],
+      'Iron Man':      ['plus1-atk-hp', 'echo'],    // double trick-phase kill
+      'Ultron':        ['plus1-atk-hp'],
+      'Cyborg':        ['plus1-atk-hp'],
+      'Knull':         ['plus1-atk-hp'],
+      'Hulk':          ['plus1-hp'],
+    },
+    'act3-trigon': {
+      'Trigon':                    ['plus2-atk-hp', 'echo'],   // double block-steal
+      'Raven':                     ['plus2-atk-hp'],
+      'The Batman Who Laughs':     ['plus1-atk-hp'],
+      'Scarlet Witch':             ['plus1-atk-hp'],
+      'Dormammu':                  ['plus1-atk-hp'],
+      'Dr. Manhattan':             ['plus1-atk-hp'],
+      'Knull':                     ['plus1-atk-hp'],
+    },
+    'act3-thanos': {
+      'Thanos':                ['plus2-atk-hp', 'echo'],     // double snap
+      'Darkseid':              ['plus2-atk-hp'],
+      'Knull':                 ['plus2-atk-hp'],
+      'Galactus':              ['plus1-atk-hp'],
+      'Drax':                  ['plus1-atk-hp'],
+      'Anakin Skywalker':      ['plus1-atk-hp'],
+      'Darth Vader':           ['plus1-atk-hp'],
+      'Emperor Palpatine':     ['plus1-atk-hp'],
+    },
   },
 
   // Vanilla-strength AI bodies — direct mirror of the player's starter
@@ -1984,19 +2535,35 @@ const Roguelite = {
     let ascHpMul = 1.0;
     if (asc >= 1) ascHpMul = 1.10;
     if (asc >= 2) ascHpMul = 1.20;
+    // A5 (Brutal) extends the HP ladder one more step. A6-A8 attach
+    // their own difficulty levers (curse / rest / trick count) so they
+    // don't pile more HP on top.
+    if (asc >= 5) ascHpMul = 1.30;
     // Boss / final-boss — handcrafted decks (full power) with a small
     // HP wobble so even bosses don't always read the same. AI cards
     // come pre-built via _buildAiCardInstances with a per-act base
     // rarity bump + signature etches from BOSS_DECK_ETCHES so a Doom
     // / Galactus body actually contests a buffed player late-game.
     if (node.type === 'final-boss') {
-      const key = 'act3-galactus';
+      // Boss rotation — pull the act-3 pick from run.bossKeys so each
+      // run faces one of: Galactus / Trigon / Thanos. Falls back to
+      // Galactus if bossKeys wasn't initialized (legacy save).
+      const key = (run && run.bossKeys && run.bossKeys[3]) || 'act3-galactus';
       const persona = (this.BOSS_DECKS[key] && this.BOSS_DECKS[key].persona) || 'Galactus';
       const built = this._buildBossDeck(key);
       const deck = built ? built.deck : this.BOSS_DECKS[key].deck.slice();
       const tricks = built ? built.tricks : this.BOSS_DECKS[key].tricks.slice();
-      const hp = Math.floor(this._randInRange(70, 90) * ascHpMul);
+      // A9 (Apex) — final boss gets +50% HP on top of the regular
+      // ascHpMul ladder. Multiplier is applied AFTER the base roll so
+      // a high-HP roll caps out very nasty.
+      const finalHpBoost = asc >= 9 ? 1.50 : 1.00;
+      const hp = Math.floor(this._randInRange(70, 90) * ascHpMul * finalHpBoost);
       if (asc >= 4 && tricks.length) tricks.push(tricks[Math.floor(Math.random() * tricks.length)]);
+      // A8 (Cosmic II) doubles the bonus-trick gift to BOTH bosses
+      // and final boss. A9 (Apex) layers another extra trick on top
+      // of the final boss specifically.
+      if (asc >= 8 && tricks.length) tricks.push(tricks[Math.floor(Math.random() * tricks.length)]);
+      if (asc >= 9 && tricks.length) tricks.push(tricks[Math.floor(Math.random() * tricks.length)]);
       const cardInstances = this._buildAiCardInstances(deck, {
         bossKey: key,
         baseRarity: 'legendary',  // Galactus' deck = +2/+2 base on every card
@@ -2004,7 +2571,10 @@ const Roguelite = {
       return { deckNames: deck.slice(), cardInstances, tricks, hp, difficulty: 'hard', persona };
     }
     if (node.type === 'boss') {
-      const key = node.tier === 1 ? 'act1-luthor' : 'act2-doom';
+      // Pull the act-1 / act-2 pick from run.bossKeys (rotation).
+      // Falls back to the legacy hardcoded keys if bossKeys absent.
+      const fallback = node.tier === 1 ? 'act1-luthor' : 'act2-doom';
+      const key = (run && run.bossKeys && run.bossKeys[node.tier]) || fallback;
       const persona = (this.BOSS_DECKS[key] && this.BOSS_DECKS[key].persona)
         || (key === 'act1-luthor' ? 'Lex Luthor' : 'Doctor Doom');
       const built = this._buildBossDeck(key);
@@ -2013,6 +2583,8 @@ const Roguelite = {
       const baseHp = node.tier === 1 ? this._randInRange(28, 38) : this._randInRange(40, 55);
       const hp = Math.floor(baseHp * ascHpMul);
       if (asc >= 4 && tricks.length) tricks.push(tricks[Math.floor(Math.random() * tricks.length)]);
+      // A8 (Cosmic II) — second extra trick on regular bosses too.
+      if (asc >= 8 && tricks.length) tricks.push(tricks[Math.floor(Math.random() * tricks.length)]);
       const cardInstances = this._buildAiCardInstances(deck, {
         bossKey: key,
         baseRarity: node.tier === 1 ? 'rare' : 'special',
@@ -2247,27 +2819,27 @@ const Roguelite = {
   CARD_TEXT_UPGRADES: {
     'Winter Soldier': {
       id: 'ws-text', name: 'Bigger Targets',
-      desc: 'WHEN PLAYED destroys enemies with ≤4 ATK (was 3). WHILE ACTIVE buff bumps to +2/+2.',
-      descOverride: 'When Played: Destroy an enemy with ≤ 4 ATK. While Active: Add (+2/+2) when destroying an enemy.',
-      apply: c => { c._wsCostThreshold = 4; c._wsBuffSize = 2; },
+      desc: 'WHEN PLAYED destroys enemies with ≤5 ATK (was 3). WHILE ACTIVE buff bumps to +2/+2.',
+      descOverride: 'When Played: Destroy an enemy with ≤ 5 ATK. While Active: Add (+2/+2) when destroying an enemy.',
+      apply: c => { c._wsCostThreshold = 5; c._wsBuffSize = 2; },
     },
     'Drax': {
-      id: 'drax-text', name: 'Reach',
-      desc: 'Drax now Splashes 1 on attack.',
-      descOverride: 'While Active: Splash 1 to adjacent lanes when attacking.',
-      apply: c => { c.splashRange = (c.splashRange || 0) + 1; if (!c.abilities.includes('Splash 1')) c.abilities.push('Splash 1'); },
+      id: 'drax-text', name: 'The Destroyer',
+      desc: 'Drax revives once with (+5/+5) on revive.',
+      descOverride: 'When Destroyed: Revive once with (+5/+5).',
+      apply: c => { c.reviveCharges = (c.reviveCharges || 0) + 1; c._draxReviveBuff = 5; },
     },
     'Cyborg': {
       id: 'cyborg-text', name: 'Replication',
-      desc: 'Summon TWO random cards in Cyborg\'s lane on death (was 1).',
-      descOverride: 'When Destroyed: Summon TWO random cards from your hand in Cyborg\'s lane.',
-      apply: c => { c._cyborgSummons = 2; },
+      desc: 'Choose which card to summon from your hand on death (was random).',
+      descOverride: 'When Destroyed: Choose a card from your hand to summon in Cyborg\'s lane.',
+      apply: c => { c._cyborgChooseFromHand = true; },
     },
     'Jason Voorhees': {
       id: 'jason-text', name: 'Crystal Lake Killer',
-      desc: 'Removes the once-per-game lock — Jason can revive on every kill.',
-      descOverride: 'Jump: When any ally dies, Jason glows — play for free. When Destroyed: Revive as (3/4) — every kill.',
-      apply: c => { c._jasonNoOnceLimit = true; },
+      desc: 'Revives 2 times, gains +3/+3 each revive (was once-per-game +1/+2).',
+      descOverride: 'Jump: When any ally dies, Jason glows — play for free. When Destroyed: Revive up to 2 times with (+3/+3) each revive.',
+      apply: c => { c._jasonNoOnceLimit = true; c.reviveCharges = (c.reviveCharges || 0) + 1; c._jasonReviveBuff = 3; },
     },
     'Wolverine': {
       id: 'wolverine-text', name: 'Adamantium',
@@ -2277,15 +2849,15 @@ const Roguelite = {
     },
     'Bane': {
       id: 'bane-text', name: 'Venom Surge',
-      desc: 'Bane rages for +2/+2 when damaged (was +1/+1).',
-      descOverride: 'When Played: Give an enemy (−1/−1) and remove all Evade. While Active: Add (+2/+2) when damaged.',
-      apply: c => { c._baneRageSize = 2; },
+      desc: 'Bane rages for +4/+4 when damaged (was +1/+1).',
+      descOverride: 'When Played: Give an enemy (−1/−1) and remove all Evade. While Active: Add (+4/+4) when damaged.',
+      apply: c => { c._baneRageSize = 4; },
     },
     'Catwoman': {
       id: 'catwoman-text', name: 'Cat Burglar',
-      desc: 'WHEN PLAYED steals 2 Energy from the opponent next turn (was 1).',
-      descOverride: 'When Played: Steal 2 Energy from the opponent next turn.',
-      apply: c => { c._catwomanSteal = 2; },
+      desc: 'WHEN PLAYED steals 3 Energy from the opponent next turn (was 1).',
+      descOverride: 'When Played: Steal 3 Energy from the opponent next turn.',
+      apply: c => { c._catwomanSteal = 3; },
     },
     /* Dr. Strange Text+ deferred — his peek mechanic is already
        roguelite-specific (peek 3 vs 2) and the upgrade would need
@@ -2293,39 +2865,53 @@ const Roguelite = {
        this batch. */
     'Ghostface': {
       id: 'ghostface-text', name: 'Mass Hysteria',
-      desc: 'WHEN PLAYED summons TWO (2/1) Ghostfaces with Bullseye (was 1).',
-      descOverride: 'Jump: When the enemy plays a Trick, Ghostface glows — play for free. When Played: Summon TWO (2/1) Ghostfaces with Bullseye in any lane.',
-      apply: c => { c._ghostfaceSpawns = 2; },
+      desc: 'Gains Overdrive + Evade 3, plus +1/+1 for every card in hand when played.',
+      descOverride: 'Jump: When the enemy plays a Trick, Ghostface glows — play for free. While Active: Overdrive + Evade 3. When Played: Add (+1/+1) for every card in your hand.',
+      apply: c => {
+        c._ghostfaceOverdrive = true;
+        c._ghostfaceEvade = 3;
+        c._ghostfaceHandBuff = true;
+        // Apply persistent traits up front so the summoned card already
+        // has Overdrive + Evade 3 visible. Hand-buff fires in onPlay.
+        c.isOverdrive = true;
+        if (!c.abilities.includes('Overdrive')) c.abilities.push('Overdrive');
+        c.evadeCharges = Math.max(c.evadeCharges || 0, 3);
+        if (!c.abilities.some(a => a === 'Evade 3' || /^Evade \d+$/.test(a) === false ? false : true)) {
+          // Drop any prior "Evade N" badge so the renderer shows the new total.
+          c.abilities = c.abilities.filter(a => !/^Evade \d+$/.test(a));
+          c.abilities.push('Evade 3');
+        }
+      },
     },
     'Harley Quinn': {
       id: 'harley-text', name: 'Chaos!',
-      desc: 'Both players draw 2 instead of 1.',
-      descOverride: 'When Played: Both players draw 2 cards. While Active: Deals 1 damage to your HP before attacking. Splash 1.',
-      apply: c => { c._harleyDraw = 2; },
+      desc: 'Both draw 2 (was 1). Always gain 3 Block Meter when damaged.',
+      descOverride: 'When Played: Both players draw 2 cards. While Active: Deals 1 damage to your HP before attacking. Gain 3 Block Meter when damaged.',
+      apply: c => { c._harleyDraw = 2; c._harleyBlockOnDmg = 3; },
     },
     'Invisible Woman': {
       id: 'iw-text', name: 'Force Field',
-      desc: 'Grant Evade 2 instead of Evade 1.',
-      descOverride: 'When Played: Give an ally Evade 2 for 1 turn. While Active: You can play cards face-down; they\'re immune to everything until revealed before Tricks.',
-      apply: c => { c._iwEvadeAmount = 2; },
+      desc: 'Grant Invincibility 2 + (+3/+3) instead of Evade 1.',
+      descOverride: 'When Played: Give an ally Invincibility 2 (turns) and (+3/+3). While Active: You can play cards face-down; they\'re immune to everything until revealed before Tricks.',
+      apply: c => { c._iwInvincibility = 2; c._iwBuffSize = 3; },
     },
     'Sabertooth': {
       id: 'sabertooth-text', name: 'Bloodthirst',
-      desc: 'Sabertooth gains +2/+2 per HP-bar damage (was +1/+1).',
-      descOverride: 'While Active: Add (+2/+2) when dealing damage to the opponent\'s HP.',
-      apply: c => { c._sabertoothRageSize = 2; },
+      desc: 'Sabertooth gains +3/+3 per HP-bar damage (was +1/+1).',
+      descOverride: 'While Active: Add (+3/+3) when dealing damage to the opponent\'s HP.',
+      apply: c => { c._sabertoothRageSize = 3; },
     },
     'Solomon Grundy': {
       id: 'grundy-text', name: 'Born on Monday',
-      desc: 'WHEN DESTROYED draw 2 cards from the shared dead pile (was 1).',
-      descOverride: 'When Destroyed: Draw 2 random cards from your dead pile to your hand.',
-      apply: c => { c._grundyDeathDraw = 2; },
+      desc: 'Revives up to 2 times, each revive gains +3/+3 (was dead-pile draw).',
+      descOverride: 'When Destroyed: Revive up to 2 times. Each revive gains (+3/+3).',
+      apply: c => { c._grundyReviveBuff = 3; c.reviveCharges = (c.reviveCharges || 0) + 2; },
     },
     'Mr. Fantastic': {
       id: 'fantastic-text', name: 'Maximum Stretch',
-      desc: 'Next card drawn costs 4 less (was 2).',
-      descOverride: 'When Discarded: The next card you draw costs 4 less.',
-      apply: c => { c._fantasticDiscount = 4; },
+      desc: 'Next 2 cards drawn cost 3 less each (was 1 card cost 2 less).',
+      descOverride: 'When Discarded: The next 2 cards you draw each cost 3 less.',
+      apply: c => { c._fantasticDiscount = 3; c._fantasticCount = 2; },
     },
     'Anti-Venom': {
       id: 'antivenom-text', name: 'Cleanse',
@@ -2357,51 +2943,53 @@ const Roguelite = {
     },
     'Aquaman': {
       id: 'aquaman-text', name: 'Trident\'s Edge',
-      desc: 'Creature of the Deep summons as a 6/4 (was 5/3).',
-      descOverride: 'When Played: Summon a (6/4) Creature of the Deep in any lane.',
-      apply: c => { c._aquamanCreatureBump = 1; },
+      desc: 'Creature of the Deep summons as a 9/9 (was 5/3).',
+      descOverride: 'When Played: Summon a (9/9) Creature of the Deep in any lane.',
+      // Base creature is 5/3. Set explicit target stats so the buff is
+      // unambiguous: 9 ATK = +4 from base, 9 HP = +6 from base.
+      apply: c => { c._aquamanCreatureAtkBump = 4; c._aquamanCreatureHpBump = 6; },
     },
     'Carnage': {
       id: 'carnage-text', name: 'Bloodbath',
-      desc: 'WHILE ACTIVE heals you for 2× the enemy count (was 1×).',
-      descOverride: 'Start of Tricks (once): Heal yourself for 2× each enemy on board.',
-      apply: c => { c._carnageHealMul = 2; },
+      desc: 'Heals you for the TOTAL number of cards on board (allies + enemies).',
+      descOverride: 'Start of Tricks (once): Heal yourself for each card on the board (allies + enemies).',
+      apply: c => { c._carnageHealAllCards = true; },
     },
     'Wonder Woman': {
       id: 'wonder-woman-text', name: 'Lasso of Truth',
-      desc: 'WHEN PLAYED adds 4 Block Meter (was 2).',
-      descOverride: 'When Played: Stun 1 the enemy opposite. Add 4 to your Block Meter. While Active: Your attack chains (ATK−1) to 1 adjacent enemy.',
-      apply: c => { c._wonderWomanBlockGain = 4; },
+      desc: 'Stun 2 (was 1), +4 Block, chain hits ALL adjacent enemies (was just 1 step).',
+      descOverride: 'When Played: Stun 2 the enemy opposite. Add 4 to your Block Meter. While Active: Your attack chains (ATK−1) to BOTH adjacent enemies.',
+      apply: c => { c._wonderWomanBlockGain = 4; c._wwStunSize = 2; c._wwChainAllAdj = true; },
     },
     'Deathstroke': {
       id: 'deathstroke-text', name: 'Master Strategist',
-      desc: 'Assassinates enemies with ≤5 HP (was ≤3).',
-      descOverride: 'When Played: Destroy an enemy with ≤ 5 HP. While Active: Add (+1/+1) when destroying an enemy.',
-      apply: c => { c._deathstrokeKillThreshold = 5; },
+      desc: 'Assassinates enemies with ≤6 HP (was ≤3). Buff bumps to +2/+2 on kill.',
+      descOverride: 'When Played: Destroy an enemy with ≤ 6 HP. While Active: Add (+2/+2) when destroying an enemy.',
+      apply: c => { c._deathstrokeKillThreshold = 6; c._deathstrokeKillBuff = 2; },
     },
     'Spider-Man': {
       id: 'spiderman-text', name: 'Spider-Sense',
-      desc: 'WHILE ACTIVE buff bumps to +2/+2 on each evade (was +1/+1).',
-      descOverride: 'When Played: Freeze 1 an enemy. While Active: Add (+2/+2) when evading. 50% chance to regain a charge on evade.',
-      apply: c => { c._spiderManEvadeBuff = 2; },
+      desc: 'Freeze 2 (was 1). +2/+2 on evade (was +1/+1). 75% chance to regain charge (was 50%).',
+      descOverride: 'When Played: Freeze 2 an enemy. While Active: Add (+2/+2) when evading. 75% chance to regain a charge on evade.',
+      apply: c => { c._spiderManEvadeBuff = 2; c._spiderManFreezeSize = 2; c._spiderManRegainChance = 0.75; },
     },
     'Predator': {
       id: 'predator-text', name: 'Plasma Caster',
-      desc: 'WHEN PLAYED deals 5 damage (was 3).',
-      descOverride: 'When Played: Deal 5 damage to an enemy. While Active: Add (+1/+0) when destroying an enemy.',
-      apply: c => { c._predatorStrikeDamage = 5; },
+      desc: 'WHEN PLAYED deals 5 damage (was 3). Trophy buff bumps to +2/+2 (was +1/+0).',
+      descOverride: 'When Played: Deal 5 damage to an enemy. While Active: Add (+2/+2) when destroying an enemy.',
+      apply: c => { c._predatorStrikeDamage = 5; c._predatorTrophyBuff = 2; },
     },
     'Black Panther': {
       id: 'black-panther-text', name: 'King of Wakanda',
-      desc: 'WHEN PLAYED can free-cast cards with cost ≤5 (was ≤3).',
-      descOverride: 'When Played: Play a card from your hand with cost ≤ 5 for free. While Active: Add (+1/+1) to each card you play.',
-      apply: c => { c._blackPantherFreeThreshold = 5; },
+      desc: 'WHEN PLAYED free-casts ≤5. Aura bumps to +2/+2 per card you play (was +1/+1).',
+      descOverride: 'When Played: Play a card from your hand with cost ≤ 5 for free. While Active: Add (+2/+2) to each card you play.',
+      apply: c => { c._blackPantherFreeThreshold = 5; c._bpAuraSize = 2; },
     },
     'Venom': {
       id: 'venom-text', name: 'Symbiote Bond',
-      desc: 'WHILE ACTIVE heals you for 2× the ally count (was 1×).',
-      descOverride: 'When Played: Freeze 1 an enemy. Start of Tricks (once): Heal yourself for 2× each ally on board.',
-      apply: c => { c._venomHealMul = 2; },
+      desc: 'Freeze 2 (was 1). Heal for the TOTAL cards on board (allies + enemies).',
+      descOverride: 'When Played: Freeze 2 an enemy. Start of Tricks (once): Heal yourself for each card on the board (allies + enemies).',
+      apply: c => { c._venomFreezeSize = 2; c._venomHealAllCards = true; },
     },
     'Hulk': {
       id: 'hulk-text', name: 'World Breaker',
@@ -2411,27 +2999,27 @@ const Roguelite = {
     },
     'Ant-Man': {
       id: 'antman-text', name: 'Subatomic Strike',
-      desc: 'Destroys enemies with ≤2 ATK or ≤2 HP (was ≤1).',
-      descOverride: 'When Played: Summon a (1/1) Ant with Bullseye in any lane. Destroy an enemy with ≤ 2 ATK or ≤ 2 HP.',
-      apply: c => { c._antManKillThreshold = 2; },
+      desc: 'Summons a (4/4) Ant (was 1/1). Destroy threshold stays ≤2.',
+      descOverride: 'When Played: Summon a (4/4) Ant with Bullseye in any lane. Destroy an enemy with ≤ 2 ATK or ≤ 2 HP.',
+      apply: c => { c._antManKillThreshold = 2; c._antManAntAtk = 4; c._antManAntHp = 4; },
     },
     'Jango Fett': {
       id: 'jango-text', name: 'Jetpack Salvo',
-      desc: 'Splash 2 on arrival when moved (was 1).',
-      descOverride: 'While Active: Splash 2 when moving to a new lane.',
-      apply: c => { c._jangoSplashOnMove = 2; },
+      desc: 'Gains a Man-Bat-style move at Start of Tricks; splash bumps to 2 on arrival.',
+      descOverride: 'Start of Tricks: Move to an empty lane (or stay). While Active: Splash 2 when moving to a new lane.',
+      apply: c => { c._jangoSplashOnMove = 2; c._jangoMoveLikeManBat = true; c._recurringBT = true; },
     },
     'Gamora': {
       id: 'gamora-text', name: 'Most Dangerous Woman',
-      desc: 'Executes enemies with ≤4 HP (was ≤2).',
-      descOverride: 'When Played: Destroy an enemy with ≤ 4 HP. While Active: Add (+1/+1) when destroying an enemy.',
-      apply: c => { c._gamoraExecuteThreshold = 4; },
+      desc: 'Executes ≤4 HP. Buff bumps to +3/+3 on kill (was +1/+1).',
+      descOverride: 'When Played: Destroy an enemy with ≤ 4 HP. While Active: Add (+3/+3) when destroying an enemy.',
+      apply: c => { c._gamoraExecuteThreshold = 4; c._gamoraKillBuff = 3; },
     },
     'Human Torch': {
       id: 'humantorch-text', name: 'Nova Burst',
-      desc: 'WHEN PLAYED targeted blast does 4 damage (was 2).',
-      descOverride: 'When Played: Splash 1 to the enemy lane and deal 4 damage to an enemy.',
-      apply: c => { c._humanTorchBlast = 4; },
+      desc: 'On-arrival splash bumps to 3 (was 1). Targeted blast stays 4.',
+      descOverride: 'When Played: Splash 3 to the enemy lane and deal 4 damage to an enemy.',
+      apply: c => { c._humanTorchBlast = 4; c._humanTorchArrivalSplash = 3; },
     },
     'Green Goblin': {
       id: 'goblin-text', name: 'Bigger Bombs',
@@ -2459,15 +3047,15 @@ const Roguelite = {
     },
     'Batman': {
       id: 'batman-text', name: 'Dark Knight',
-      desc: 'Each batarang strike deals 3 damage (was 2).',
-      descOverride: 'When Played: Lock the highest-cost card the opponent can play next turn. Fear 1 any enemy, then throw Batarangs (3 damage each).',
-      apply: c => { c._batmanStrikeDamage = 3; },
+      desc: 'Lock lasts 2 turns (was 1). Each batarang still deals 3 damage.',
+      descOverride: 'When Played: Lock the highest-cost card the opponent can play for the next 2 turns. Fear 1 any enemy, then throw Batarangs (3 damage each).',
+      apply: c => { c._batmanStrikeDamage = 3; c._batmanLockTurns = 2; },
     },
     'Knull': {
       id: 'knull-text', name: 'God of Symbiotes',
-      desc: 'Random pulls draw only cost 4+ cards (skips the cheap chaff).',
-      descOverride: 'When Played: Summon a random card (cost 4-9) in each of your empty lanes.',
-      apply: c => { c._knullCostFloor = 4; },
+      desc: 'Random pulls draw cost 4-10 cards (10-cost titans now in pool).',
+      descOverride: 'When Played: Summon a random card (cost 4-10) in each of your empty lanes.',
+      apply: c => { c._knullCostFloor = 4; c._knullCostCeiling = 10; },
     },
     'Optimus Prime': {
       id: 'optimus-text', name: 'Roll Out',
@@ -2531,9 +3119,9 @@ const Roguelite = {
     },
     'Superman': {
       id: 'superman-text', name: 'Last Son of Krypton',
-      desc: 'Heat-vision blast deals 8 damage (was 5).',
-      descOverride: 'When Played: Strike the enemy opposite immediately (or the opponent\'s HP if the lane is empty). Choose two enemies to Freeze 1. Deal 8 damage to an enemy.',
-      apply: c => { c._supermanBlast = 8; },
+      desc: 'Freezes both targets for 2 turns. Heat-vision blast deals 9 damage.',
+      descOverride: 'When Played: Strike the enemy opposite immediately (or the opponent\'s HP if the lane is empty). Choose two enemies to Freeze 2. Deal 9 damage to an enemy.',
+      apply: c => { c._supermanBlast = 9; c._supermanFreezeSize = 2; },
     },
     'Dormammu': {
       id: 'dormammu-text', name: 'Dark Dimension',
@@ -2543,9 +3131,9 @@ const Roguelite = {
     },
     'Man-Bat': {
       id: 'manbat-text', name: 'Sonar Scream',
-      desc: 'On move, weakens adj enemy by -2/-2 (was -1/-1).',
-      descOverride: 'Start of Tricks: Move to an empty lane. The enemy opposite takes (−2/−2).',
-      apply: c => { c._manBatDebuffSize = 2; },
+      desc: 'On move, weakens enemy opposite by -3/-3 (was -1/-1).',
+      descOverride: 'Start of Tricks: Move to an empty lane. The enemy opposite takes (−3/−3).',
+      apply: c => { c._manBatDebuffSize = 3; },
     },
     'Groot': {
       id: 'groot-text', name: 'I Am Groot',
@@ -2555,9 +3143,9 @@ const Roguelite = {
     },
     'Silver Surfer': {
       id: 'surfer-text', name: 'Power Cosmic',
-      desc: 'Removes 5 ATK from an enemy (was 3).',
-      descOverride: 'When Played: Remove 5 ATK from an enemy. While Active: Enemy cards cost 1 more Energy. (Tricks unaffected.)',
-      apply: c => { c._surferDebuff = 5; },
+      desc: 'Removes 4 ATK from 2 enemies. Enemy cards cost 2 more (was 1).',
+      descOverride: 'When Played: Remove 4 ATK from up to 2 enemies. While Active: Enemy cards cost 2 more Energy. (Tricks unaffected.)',
+      apply: c => { c._surferDebuff = 4; c._surferTargets = 2; c._surferCostBump = 2; },
     },
     'Green Lantern': {
       id: 'gl-text', name: 'Brightest Day',
@@ -2567,9 +3155,9 @@ const Roguelite = {
     },
     'Omni-Man': {
       id: 'omniman-text', name: 'Viltrumite Pride',
-      desc: 'Devastates all enemies for 5 (was 3).',
-      descOverride: 'When Played: Deal 5 damage to all enemies. Start of Tricks: Move to another empty lane. While Active: Add 1 to your Block Meter for each enemy destroyed.',
-      apply: c => { c._omniManSweep = 5; },
+      desc: 'Devastates for 6 (was 3). +2 Block per enemy destroyed (was +1).',
+      descOverride: 'When Played: Deal 6 damage to all enemies. Start of Tricks: Move to another empty lane. While Active: Add 2 to your Block Meter for each enemy destroyed.',
+      apply: c => { c._omniManSweep = 6; c._omniManBlockOnKill = 2; },
     },
     'Dr. Manhattan': {
       id: 'manhattan-text', name: 'Quantum Leap',
@@ -2603,9 +3191,9 @@ const Roguelite = {
     },
     'Jigsaw': {
       id: 'jigsaw-text', name: 'Game Master',
-      desc: 'WHEN DISCARDED places 5 Reverse Bear Traps (was 3).',
-      descOverride: 'When Discarded: Set up to 5 Bear Traps in empty enemy lanes — the first enemy to enter takes (−1/−1). Then drag an enemy to another empty lane.',
-      apply: c => { c._jigsawTrapCount = 5; },
+      desc: 'Traps drop to 3 but each one hits for (-3/-3) (was 3 × -1/-1).',
+      descOverride: 'When Discarded: Set up to 3 Bear Traps in empty enemy lanes — the first enemy to enter takes (−3/−3). Then drag an enemy to another empty lane.',
+      apply: c => { c._jigsawTrapCount = 3; c._jigsawTrapDebuff = 3; },
     },
     'Moder': {
       id: 'moder-text', name: 'Echo of Silence',
@@ -2621,9 +3209,9 @@ const Roguelite = {
     },
     'Mahoraga': {
       id: 'mahoraga-text', name: 'Adaptive Wheel',
-      desc: 'Revives at 9/12 with Armor 1 + Immunity 1 (was 7/9).',
-      descOverride: 'While Active: Absorb all damage that would hit your HP. When Destroyed: Revive as (9/12) with Armor 1 and Immunity 1.',
-      apply: c => { c._mahoragaReviveAtk = 9; c._mahoragaReviveHp = 12; },
+      desc: 'Revives at base stats + (+5/+5) with Armor 1 and Immunity 1.',
+      descOverride: 'While Active: Absorb all damage that would hit your HP. When Destroyed: Revive at base stats + (+5/+5) with Armor 1 and Immunity 1.',
+      apply: c => { c._mahoragaReviveBuff = 5; },
     },
     'Obi-Wan': {
       id: 'obiwan-text', name: 'Will of the Force',
@@ -2673,6 +3261,60 @@ const Roguelite = {
       desc: 'Restores the full lock — opponent cannot draw cards OR make bonus attacks.',
       descOverride: 'WHILE ACTIVE: The opponent cannot draw cards or make bonus attacks. (Tricks can still be drawn.)',
       apply: c => { c._lexFullLock = true; },
+    },
+    'Black Widow': {
+      id: 'black-widow-text', name: 'Wide Web',
+      desc: 'Freeze 1 the front enemy and BOTH adjacent enemies (splash radius).',
+      descOverride: 'When Played: Freeze 1 the enemy directly opposite and both adjacent enemies (splash radius).',
+      apply: c => { c._blackWidowSplashFreeze = true; },
+    },
+    'Gorilla Grodd': {
+      id: 'grodd-text', name: 'Brute Telepath',
+      desc: 'Mind Control any enemy with cost ≤5 (overrides rarity gate).',
+      descOverride: 'When Played: Mind Control 1 an enemy with cost ≤ 5. You choose which of its own allies it attacks this turn.',
+      apply: c => { c._groddMcCostMax = 5; },
+    },
+    'Hawkeye': {
+      id: 'hawkeye-text', name: 'Trick Arrows',
+      desc: 'Splash 3 on play (was 1). Splash damage from allies removes 3 ATK (was 1).',
+      descOverride: 'When Played: Splash 3. While Active: Splash damage from allies also removes 3 ATK.',
+      apply: c => { c._hawkeyeSplash = 3; c._hawkeyeSplashWeaken = 3; },
+    },
+    'King Shark': {
+      id: 'king-shark-text', name: 'Apex Predator',
+      desc: 'Gains (+3/+3) every time he destroys an enemy.',
+      descOverride: 'While Active: Add (+3/+3) when destroying an enemy.',
+      apply: c => { c._kingSharkKillBuff = 3; },
+    },
+    'Mr. Freeze': {
+      id: 'freeze-text', name: 'Cryo Wall',
+      desc: 'Freezes the enemy opposite for 2 turns. HP-bar freeze negates the next 2 hits (was 1).',
+      descOverride: 'When Played: Freeze 2 the enemy opposite. Freeze your HP bar — the next 2 hits are negated.',
+      apply: c => { c._mrFreezeFreezeSize = 2; c._mrFreezeHpFreezeHits = 2; },
+    },
+    'Thanos': {
+      id: 'thanos-text', name: 'Reality Snap',
+      desc: 'Destroys enemies in 4 random lanes (overrides rarity gate).',
+      descOverride: 'Can be played during the Trick Phase. When Played: Destroy enemies in 4 random lanes.',
+      apply: c => { c._thanosLanes = 4; },
+    },
+    'Darkseid': {
+      id: 'darkseid-text', name: 'Apokoliptan Legion',
+      desc: 'Summons 2 (4/4) Parademons and lets you destroy ANY contested lanes (no odd/even gate).',
+      descOverride: 'When Played: Summon 2 (4/4) Parademons in any open lanes. Then choose any contested lanes to destroy.',
+      apply: c => { c._darkseidParademonCount = 2; c._darkseidParademonAtk = 4; c._darkseidParademonHp = 4; c._darkseidAnyContested = true; },
+    },
+    'Galactus': {
+      id: 'galactus-text', name: 'World Eater',
+      desc: 'Devours 3 enemies on entry (overrides rarity gate).',
+      descOverride: 'Start of Tricks (once): Devour 3 enemies. Each Turn: Devour any enemy with ≤ 4 ATK.',
+      apply: c => { c._galactusDevourCount = 3; },
+    },
+    'Anakin Skywalker': {
+      id: 'anakin-text', name: 'Twin Strike',
+      desc: 'Moves to TWO open lanes per turn, bonus attacks each time.',
+      descOverride: 'When Played: Draw 1. Fear 1 an enemy. Start of Tricks: Move TWICE — bonus attack on each move. While Active: Bonus attack on ally death.',
+      apply: c => { c._anakinDoubleMove = true; },
     },
   },
 
@@ -2915,9 +3557,16 @@ const Roguelite = {
   _grantXp(ref, amount) {
     if (!ref || amount <= 0) return null;
     if (ref._isCurse) return null;
-    ref.xp = (ref.xp || 0) + amount;
+    // Cap-aware short-circuit. Cards already at the top tier
+    // (legendary) can't promote further, so we DON'T add XP — the
+    // underlying field stays clean and the codex / on-board chip
+    // can keep reading 0 / "MAX" without drift across runs.
     const tierIdx = this.TIER_INDEX[ref.rarity];
-    if (tierIdx == null || tierIdx >= 3) return null;
+    if (tierIdx == null || tierIdx >= 3) {
+      ref.xp = 0;
+      return null;
+    }
+    ref.xp = (ref.xp || 0) + amount;
     const threshold = this.XP_THRESHOLDS[ref.rarity];
     if (ref.xp < threshold) return null;
     ref.rarity = this.TIERS[tierIdx + 1];
@@ -2985,6 +3634,23 @@ const Roguelite = {
     if (r === 6) return 0.85;
     if (r === 7) return 0.70;
     return 0.60;
+  },
+
+  // Project the XP a card would earn if the fight ended right now —
+  // mirrors the played-card path inside attributeXp (damage + 5×kills
+  // + tank) × current-round speed multiplier. Used by the on-board /
+  // in-hand XP chip so the player sees live earnings, not stale
+  // stored XP. User report: "Ahsoka killed a card and the XP didn't
+  // go up." Now it does, in real time.
+  projectedXp(card) {
+    if (!card) return 0;
+    const dmg   = (card.statsHealthbarDamage || 0) + (card.statsEnemyDamage || 0);
+    const kills = card.statsKills || 0;
+    const tank  = card.statsHpTaken || 0;
+    const raw   = dmg * 1 + kills * 5 + tank * 1;
+    if (raw <= 0) return 0;
+    const round = (typeof Game !== 'undefined' && Game.state && Game.state.round) || 1;
+    return Math.round(raw * this._xpSpeedMultiplier(round, true));
   },
 
   attributeXp(run, s, won) {
@@ -3143,7 +3809,6 @@ const Roguelite = {
         _pendingCardRemoval: false,
         _pendingRestEtch: null,
         _pendingLevelUps: null,
-        _marketBuyPending: false,
         activeNode: null,
         activeNodeId: run.activeNode ? run.activeNode.id : null,
       };
@@ -3237,6 +3902,12 @@ const Roguelite = {
     { level: 2, name: 'Reinforced', desc: '+ Enemies have +20% HP (cumulative).' },
     { level: 3, name: 'Spartan',   desc: '+ Battery and Old Manuscript removed from the starter pool.' },
     { level: 4, name: 'Cosmic',    desc: '+ Bosses gain an extra trick in their deck.' },
+    // ----- Expansion (5-9) — extra ascension challenge tiers -----
+    { level: 5, name: 'Brutal',    desc: '+ Enemies have +30% HP (cumulative over baseline).' },
+    { level: 6, name: 'Cursed',    desc: '+ Start every run with a random Curse already in your deck.' },
+    { level: 7, name: 'Stingy',    desc: '+ Rest sites heal half as much (15% max HP, was 30%).' },
+    { level: 8, name: 'Cosmic II', desc: '+ Bosses gain TWO extra tricks (was 1).' },
+    { level: 9, name: 'Apex',      desc: '+ Final boss has +50% HP and gains an extra trick.' },
   ],
   _ASCENSION_KEY: 'clb_ascension',
   // ----- First-run tutorial -----
@@ -3458,6 +4129,119 @@ const Roguelite = {
     // Show ascension picker first so the player can up the difficulty
     // before committing to relic / card / boon picks.
     this._renderAscensionPicker();
+  },
+
+  // ===================== DAILY RUN =====================
+  // Once-per-day seeded run. The seed is derived from today's UTC
+  // date so every player gets the SAME starter relic pool and card
+  // pool. Ascension is fixed at 0 — the challenge is "what's the
+  // best run you can build from this exact starting hand?" — so
+  // every comparison is apples-to-apples.
+  //
+  // Determinism note: only the starter rolls are seeded today. The
+  // run-time rolls (deck shuffle, AI deck, reward rolls, map gen)
+  // still use Math.random until the broader determinism migration
+  // (deferred per Plan agent's recommendation in session 4). So
+  // two players with identical picks WILL diverge during play —
+  // but the starting conditions are identical, which is the v1
+  // promise of a daily challenge.
+  _DAILY_KEY: 'clb-daily-run',
+  // Today's date in YYYY-MM-DD (UTC). One key per day.
+  _todayKey() {
+    try {
+      return new Date().toISOString().slice(0, 10);
+    } catch (e) { return null; }
+  },
+  // Returns { date, attempted, result? } or null on storage error.
+  dailyStatus() {
+    const today = this._todayKey();
+    if (!today) return null;
+    let saved = null;
+    try { saved = JSON.parse(localStorage.getItem(this._DAILY_KEY) || 'null'); }
+    catch (e) {}
+    const attempted = !!(saved && saved.date === today);
+    return {
+      date: today,
+      attempted,
+      result: attempted ? saved.result : null,
+    };
+  },
+  _markDailyAttempted() {
+    const today = this._todayKey();
+    if (!today) return;
+    try { localStorage.setItem(this._DAILY_KEY, JSON.stringify({ date: today, result: null })); }
+    catch (e) {}
+  },
+  // Hook for run end — called from finalizeRun (win) / endRun (loss).
+  _markDailyResult(result) {
+    const today = this._todayKey();
+    if (!today) return;
+    try {
+      const cur = JSON.parse(localStorage.getItem(this._DAILY_KEY) || 'null');
+      if (cur && cur.date === today) {
+        cur.result = result;
+        localStorage.setItem(this._DAILY_KEY, JSON.stringify(cur));
+      }
+    } catch (e) {}
+  },
+  enterDailyRun() {
+    const status = this.dailyStatus();
+    if (status && status.attempted) {
+      // Already played today. Show a friendly confirm before letting
+      // the player blow past the lockout (they can if they want, but
+      // see the warning so they know the rules).
+      if (typeof confirm === 'function') {
+        const proceed = confirm('You already started today\'s Daily Run. Play it again anyway? (Your previous attempt counts as the official one.)');
+        if (!proceed) return;
+      }
+    }
+    if (this.hasSavedRun() && typeof confirm === 'function') {
+      const ok = confirm('You have a saved run in progress. Start the Daily Run anyway? (Your save will be overwritten when you reach the map.)');
+      if (!ok) return;
+    }
+    // Hijack Math.random with a deterministic stream derived from
+    // today's date so the starter relic / card pools are identical
+    // for every player on the same day. Restored after the rolls.
+    const today = this._todayKey() || 'fallback';
+    const seedFn = (typeof mulberry32 === 'function' && typeof hashString === 'function')
+      ? mulberry32(hashString(today))
+      : null;
+    const origRandom = Math.random;
+    if (seedFn) Math.random = seedFn;
+    try {
+      // Force Ascension 0 for daily (consistent baseline). Don't
+      // persist via setAscension — we want to leave their normal
+      // Roguelite ascension preference untouched.
+      const cur = this.currentAscension();
+      try {
+        // Use private storage write so this doesn't update the
+        // user's saved preference. The matchmaking-level read-back
+        // happens via currentAscension() which prefers the live
+        // override below if present.
+        Game.state._dailyAscensionOverride = 0;
+      } catch (e) {}
+      Game.state._starterPicks = {};
+      Game.state._starterRelicPool = this._rollStarterRelicPool();
+      Game.state._starterCardPool  = this._rollStarterCardPool();
+      Game.state._dailySeedLabel = today;
+      Game.state.phase = 'roguelite-pick-relic';
+      this._markDailyAttempted();
+      UI.render();
+      // Optional ambient beat — same cue as Reward Pick to stamp the
+      // moment as significant.
+      if (typeof UI !== 'undefined' && UI.sfx && UI.sfx.play) {
+        try { UI.sfx.play('rewardPick'); } catch (e) {}
+      }
+      // We deliberately DON'T early-return ascension to `cur` because
+      // the daily run runs at A0; if the user later starts a normal
+      // Roguelite run, the regular ascension picker re-prompts.
+      void cur;
+    } finally {
+      // Restore the real Math.random so the rest of the run plays
+      // with normal randomness. Run-time determinism would require
+      // the deferred Phase-2 migration of Math.random → Game.rng.
+      Math.random = origRandom;
+    }
   },
 
   _renderAscensionPicker() {
@@ -3934,17 +4718,20 @@ const Roguelite = {
     // Roguelite progression
     if (!won) {
       // Defeat — run ends regardless of HP value.
+      this._markDailyResult('loss');
       Game.state.phase = 'roguelite-end';
       UI.render();
       return;
     }
     if (run.hp <= 0) {
+      this._markDailyResult('loss');
       Game.state.phase = 'roguelite-end';
       UI.render();
       return;
     }
     // Final-boss kill = victorious run end
     if (node.type === 'final-boss') {
+      this._markDailyResult('win');
       run.currentNodeId = node.id;
       run.currentRow = node.row;
       Game.state.phase = 'roguelite-end';
@@ -4158,8 +4945,6 @@ const Roguelite = {
           if (run.gold < 50) return 'Not enough gold.';
           run.gold -= 50;
           run.pendingRewards = Roguelite.rollRewards(run.act, { rarityFloor: 'rare' });
-          // Side effect: jump to rewards screen, but mark it
-          run._marketBuyPending = true;
           return 'PICK_REWARD';
         } },
         { label: 'Buy a relic (75g)', cost: 75, resolve(run) {
@@ -4823,7 +5608,10 @@ const Roguelite = {
 
   _restHeal() {
     const run = Game.state.roguelite;
-    const heal = Math.floor(run.maxHp * 0.3);
+    // A7 (Stingy) halves the rest heal — 30% max HP → 15%.
+    const asc = (run && run.ascension) || 0;
+    const rate = asc >= 7 ? 0.15 : 0.30;
+    const heal = Math.floor(run.maxHp * rate);
     run.hp = Math.min(run.maxHp, run.hp + heal);
     run.lastResult = { event: `Rest site — healed ${heal} HP.` };
     this._closeModal();
@@ -5359,11 +6147,12 @@ const Roguelite = {
     if (run.currentNodeId != null) visitedIds.add(run.currentNodeId);
     // Build SVG: rows × cols grid, nodes as circles, edges as polylines.
     const ROWS = run.map.rows;
-    // Wider grid (5 cols) + a bigger overall canvas to absorb the
-    // denser node layout introduced when we bumped the per-row count
-    // from 2-3 to 3-5. User direction: "more nodes."
-    const COLS = 5;
-    const W = 720;
+    // 6-col grid + wider canvas. Entry row spans all 6 columns;
+    // body rows keep using 3-5 nodes centered in the 6-col space.
+    // Canvas widened so the extra column doesn't crush horizontal
+    // spacing.
+    const COLS = 6;
+    const W = 820;
     const ROW_SPACING = 70;
     const H = 60 + ROWS * ROW_SPACING;
     const xFor = (col) => 70 + col * ((W - 140) / (COLS - 1));
@@ -6004,25 +6793,20 @@ const Roguelite = {
       </div>`;
   },
 
-  // Compact XP progress strip — shown at the bottom of each codex card
-  // so the player can see how much XP each card has accumulated and
-  // how close it is to its next tier. Legendaries are capped, no bar.
+  // Compact XP chip — same visual treatment used on the on-board card
+  // chip (`.card-xp-chip` in style.css), so the deck modal / codex
+  // listing matches what the player sees mid-fight. Legendary cards
+  // show a "MAX" pill instead of a progress fill.
   _renderCodexXp(deckCard) {
     if (!deckCard) return '';
     if (deckCard.rarity === 'legendary') {
-      return '<div class="rl-card-xp rl-card-xp-cap">MAX</div>';
+      return '<span class="card-xp-chip card-xp-cap" title="Legendary — XP capped">MAX</span>';
     }
     const xp = deckCard.xp || 0;
     const threshold = (this.XP_THRESHOLDS && this.XP_THRESHOLDS[deckCard.rarity]) || 0;
     if (!threshold) return '';
     const pct = Math.min(100, Math.max(0, Math.round((xp / threshold) * 100)));
-    return `
-      <div class="rl-card-xp">
-        <div class="rl-card-xp-bar">
-          <div class="rl-card-xp-fill" style="width:${pct}%"></div>
-        </div>
-        <div class="rl-card-xp-label">${xp}/${threshold} XP</div>
-      </div>`;
+    return `<span class="card-xp-chip" title="XP toward next tier: ${xp}/${threshold}"><span class="card-xp-fill" style="width:${pct}%"></span><span class="card-xp-text">${xp}/${threshold}</span></span>`;
   },
 
   _renderEnd() {

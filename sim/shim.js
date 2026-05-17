@@ -76,7 +76,10 @@ this.window = this;
 
 // ---- load game files in canonical order ----
 var __SIM_ROOT = (typeof __SIM_ROOT_OVERRIDE === 'string') ? __SIM_ROOT_OVERRIDE : '.';
-var __SIM_FILES = ['cards.js', 'tricks.js', 'abilities.js', 'decks.js', 'game.js', 'ai.js'];
+// engine/combat.js loads BEFORE game.js so Game._snapForPredict /
+// Game._canSwingForward (now thin forwarders) find CombatEngine on
+// global scope. Mirrors the index.html script-tag order.
+var __SIM_FILES = ['cards.js', 'tricks.js', 'abilities.js', 'engine/combat.js', 'decks.js', 'game.js', 'ai.js'];
 for (var __i = 0; __i < __SIM_FILES.length; __i++) {
   load(__SIM_ROOT + '/' + __SIM_FILES[__i]);
 }

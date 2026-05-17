@@ -7,6 +7,14 @@ const UI = {
   _lastPhase: null,
   _lastBoardCardIds: new Set(),
 
+  // Cache-bust suffix for card portrait PNGs (audio/cards/art/*.png).
+  // Bumped whenever tools/extract_card_art.py is re-run so browsers
+  // refetch the latest extracted artwork instead of serving stale
+  // cached PNGs (which don't have built-in cache busters since they're
+  // referenced via background-image url() and not the index.html
+  // version-suffix system). Bump this every time you regen art.
+  _CARD_ART_VERSION: 10,
+
   // ===================== SETTINGS (persisted in localStorage) =====================
   settings: {
     difficulty: 'normal',  // easy | normal | hard
@@ -317,7 +325,11 @@ const UI = {
     Object.assign(this.settings, payload.settings);
     try { localStorage.setItem(this.SETTINGS_KEY, JSON.stringify(this.settings)); } catch (e) {}
     if (payload.savedDecks && typeof payload.savedDecks === 'object') {
-      this._dbSetSavedDecks(payload.savedDecks);
+      const { decks, dropped } = this._validateImportedDecks(payload.savedDecks);
+      this._dbSetSavedDecks(decks);
+      if (dropped.length) {
+        console.warn('[importSettings] dropped malformed decks:', dropped);
+      }
     }
     // Re-apply visual settings immediately.
     if (this.applyTheme) this.applyTheme(this.settings.theme || 'blue');
@@ -366,7 +378,17 @@ const UI = {
       // Watchful Guardian" (Dark Knight OST), 2:15 → 4:00 of source.
       // -20 LUFS unified-baseline, 1s fade-in / 2s fade-out. maxDur 106
       // lets the full phrase play.
-      'Batman':           { hover: { src: 'audio/cards/batman-hover.mp3?v=2', maxDur: 106 }, death: 'audio/cards/batman-death.mp3' },
+      'Batman':           {
+        hover: { src: 'audio/cards/batman-hover.mp3?v=2', maxDur: 106 },
+        play:  { src: 'audio/cards/batman-play.mp3', maxDur: 20 },
+        death: 'audio/cards/batman-death.mp3',
+        // When Batman deals damage (his "Strike 1" / "Strike 2"
+        // batarang throws after the Fear pick), fire the Batarangs
+        // trick SFX instead of the generic procedural 'hit' synth.
+        // Two short throws (0.89s each) layer cleanly over the Arkham
+        // theme + ducked hover bed.
+        effects: { damage: 'audio/cards/batarangs-play.mp3' },
+      },
       // Spider-Man hover: first 1:20 of Danny Elfman's "Main Title"
       // (Spider-Man 2002). Normalized to -20 LUFS — the unified baseline
       // for signature cinematic hovers (Spider-Man / Anakin / Superman
@@ -378,7 +400,14 @@ const UI = {
       // Hand" (start → 0:58 of the source — intro through the first
       // verse). -20 LUFS unified-baseline, 1s fade-in / 2s fade-out
       // baked in. maxDur 59 lets the full phrase play.
-      'Ghostface':        { hover: { src: 'audio/cards/ghostface-hover.mp3?v=2', maxDur: 59 } },
+      // Ghostface play: 2.6s Voicemod-clipped "What's your favorite
+      // scary movie?" stinger. Sits just under the 3s play-cap, with
+      // a 0.2s fade-out baked into the encode so the tail blends out
+      // cleanly. Fires every time Ghostface lands on the board.
+      'Ghostface':        {
+        hover: { src: 'audio/cards/ghostface-hover.mp3?v=2', maxDur: 59 },
+        play:  { src: 'audio/cards/ghostface-play.mp3',  maxDur: 5.0 },
+      },
       // Harley deathfall — 0.58s clip, plays whenever Harley is killed.
       // Already under the 1.5s death-cap so no maxDur needed.
       'Harley Quinn':     { death: 'audio/cards/harley-death.mp3' },
@@ -421,7 +450,7 @@ const UI = {
       // (start → 1:09) — the Saw signature theme intro. -20 LUFS unified-
       // baseline, 1s fade-in / 2s fade-out baked. maxDur 70 lets the full
       // phrase play.
-      'Jigsaw':           { hover: { src: 'audio/cards/jigsaw-hover.mp3?v=1', maxDur: 70 } },
+      'Jigsaw':           { hover: { src: 'audio/cards/jigsaw-hover.mp3?v=1', maxDur: 70 }, play: 'audio/cards/jigsaw-play.mp3' },
       // Star-Lord hover: 65s of Redbone's "Come And Get Your Love" (start
       // → 1:05) — the GOTG opening-scene cue. -20 LUFS unified-baseline,
       // 1s fade-in / 2s fade-out baked. maxDur 66 lets the full phrase
@@ -430,15 +459,15 @@ const UI = {
       // Hulk hover: 42s of Danny Elfman's "End Credits — From Hulk"
       // (0:27 → 1:09 of the source). -20 LUFS unified-baseline, 1s
       // fade-in / 2s fade-out baked. maxDur 43 lets the full phrase play.
-      'Hulk':             { hover: { src: 'audio/cards/hulk-hover.mp3?v=1', maxDur: 43 } },
-      'Symbiote Spider-Man': { play: { src: 'audio/cards/symbiote-spider-man-play.mp3', maxDur: 3.0 } },
+      'Hulk':             { hover: { src: 'audio/cards/hulk-hover.mp3?v=1', maxDur: 43 }, play: 'audio/cards/hulk-play.mp3' },
+      'Symbiote Spider-Man': { play: { src: 'audio/cards/symbiote-spider-man-play.mp3', maxDur: 5.0 } },
       'Jango Fett':       { attack: 'audio/cards/jango-fett-attack.mp3', death: 'audio/cards/jango-fett-death.mp3' },
-      'Jason Voorhees':   { play: { src: 'audio/cards/jason-play.mp3', maxDur: 3.0 } },
+      'Jason Voorhees':   { play: { src: 'audio/cards/jason-play.mp3', maxDur: 5.0 } },
       // Michael Myers hover: 55s of John & Cody Carpenter's "The Shape
       // Returns" (start → 0:55) — the Halloween theme reborn. -20 LUFS
       // unified-baseline, 1s fade-in / 2s fade-out baked. maxDur 56 lets
       // the full phrase play; play slot keeps the existing stinger.
-      'Michael Myers':    { hover: { src: 'audio/cards/michael-myers-hover.mp3?v=1', maxDur: 56 }, play: { src: 'audio/cards/michael-myers-play.mp3', maxDur: 3.0 } },
+      'Michael Myers':    { hover: { src: 'audio/cards/michael-myers-hover.mp3?v=1', maxDur: 56 }, play: { src: 'audio/cards/michael-myers-play.mp3', maxDur: 5.0 } },
       'Thanos':           { hover: 'audio/cards/thanos-hover.mp3?v=3', ability: 'audio/cards/thanos-ability.mp3?v=2', voiceLine: 'audio/cards/thanos-kill.mp3' },
       // Gojo hover: 59s of Lady Gaga's "Judas" (3:11 → end of source) — the
       // outro/refrain section. -20 LUFS unified-baseline, 1s fade-in / 2s
@@ -566,9 +595,18 @@ const UI = {
     playEffect(effectName, source, opts) {
       if (!UI.settings || UI.settings.sfxVolume === 0) return null;
       const now = performance.now();
-      const last = this._lastEffectTimes[effectName] || 0;
+      // Per-source cooldown — was just `effectName` which dedupe'd
+      // SAME-effect-from-DIFFERENT-source within 80ms. That made
+      // simultaneous Fears from Batman + a trick suppress one of
+      // them. Source-aware key lets parallel effects layer cleanly.
+      // Same source firing the SAME effect within 80ms is still
+      // suppressed (the original anti-machine-gun guard for chain
+      // damage etc.).
+      const sourceTag = (source && source.name) ? source.name : '_global';
+      const cooldownKey = effectName + '|' + sourceTag;
+      const last = this._lastEffectTimes[cooldownKey] || 0;
       if (now - last < this._effectCooldownMs) return null;
-      this._lastEffectTimes[effectName] = now;
+      this._lastEffectTimes[cooldownKey] = now;
       // 1. Per-source-card override (Mr. Freeze's freeze gun, etc.)
       let file = null;
       if (source && source.name) {
@@ -578,7 +616,10 @@ const UI = {
       // 2. Global default
       if (!file) file = this.EFFECT_SFX[effectName];
       if (file) {
-        const playOpts = Object.assign({ maxDur: 1.5, fadeIn: 100, fadeOut: 200 }, opts || {});
+        // Effect SFX (fear, freeze, stun, damage, etc.) sit at the
+        // 'effect' tier — 0.7× of base sfxVolume — so they layer
+        // underneath play/voice marquee events.
+        const playOpts = Object.assign({ maxDur: 1.5, fadeIn: 100, fadeOut: 200, category: 'effect' }, opts || {});
         return this._playSample(file, playOpts);
       }
       // 3. Procedural fallback
@@ -1260,6 +1301,144 @@ const UI = {
       src.start(t0); src.stop(t0 + dur);
     },
 
+    // ===================== AAA AMBIENT ARENA HUM =====================
+    // Procedural drone that plays during a match — fades in at match
+    // start, fades out at game-over / return-to-menu. Three layers:
+    //   • Sub-pad: detuned sawtooth pair at 55 Hz / 55.4 Hz through a
+    //     400 Hz lowpass. Wide, slow, "powered on" feel.
+    //   • Mid pad: sine at 165 Hz, ~3% amplitude. Gives the low pad
+    //     a perceivable pitch.
+    //   • Shimmer: sine at 4400 Hz at 0.4% amplitude — barely audible
+    //     high-end texture so the drone has air, not just rumble.
+    //   • LFO: 0.13 Hz triangle modulating the sub-pad gain ±25%
+    //     so the drone breathes instead of sitting flat.
+    // Volume is tied to the sfxVolume master, scaled to ~7% peak so
+    // it sits well behind every other game sound.
+    arenaHumStart() {
+      if (!this._init()) return;
+      if (this._arenaHum) return; // already running
+      if (!UI.settings || UI.settings.sfxVolume === 0) return;
+      const ctx = this._ctx;
+      const now = ctx.currentTime;
+      // Master gain for the entire hum stack — makes it easy to fade
+      // the whole thing out as one unit on stop.
+      const bus = ctx.createGain();
+      bus.gain.setValueAtTime(0, now);
+      bus.gain.linearRampToValueAtTime(0.55, now + 1.6); // gentle fade-in
+      bus.connect(this._master);
+      // Lowpass on the sub-pad to keep it warm/round
+      const lp = ctx.createBiquadFilter();
+      lp.type = 'lowpass';
+      lp.frequency.value = 480;
+      lp.Q.value = 0.5;
+      lp.connect(bus);
+      // Sub-pad: two slightly-detuned saws into the lowpass
+      const subA = ctx.createOscillator();
+      subA.type = 'sawtooth'; subA.frequency.value = 55.0;
+      const subB = ctx.createOscillator();
+      subB.type = 'sawtooth'; subB.frequency.value = 55.4;
+      const subGain = ctx.createGain();
+      subGain.gain.setValueAtTime(0.045, now);
+      subA.connect(subGain); subB.connect(subGain);
+      subGain.connect(lp);
+      // Mid pad: sine for pitch perception
+      const mid = ctx.createOscillator();
+      mid.type = 'sine'; mid.frequency.value = 165;
+      const midGain = ctx.createGain();
+      midGain.gain.setValueAtTime(0.025, now);
+      mid.connect(midGain); midGain.connect(bus);
+      // Shimmer: very quiet high sine
+      const sh = ctx.createOscillator();
+      sh.type = 'sine'; sh.frequency.value = 4400;
+      const shGain = ctx.createGain();
+      shGain.gain.setValueAtTime(0.0035, now);
+      sh.connect(shGain); shGain.connect(bus);
+      // LFO breathing on the sub gain — modulate ±0.012 around 0.045
+      const lfo = ctx.createOscillator();
+      lfo.type = 'triangle'; lfo.frequency.value = 0.13;
+      const lfoGain = ctx.createGain();
+      lfoGain.gain.value = 0.012;
+      lfo.connect(lfoGain);
+      lfoGain.connect(subGain.gain);
+      // Start everything together
+      subA.start(now); subB.start(now); mid.start(now); sh.start(now); lfo.start(now);
+      this._arenaHum = { bus, subA, subB, mid, sh, lfo };
+    },
+
+    arenaHumStop() {
+      const h = this._arenaHum;
+      if (!h || !this._ctx) return;
+      const ctx = this._ctx;
+      const now = ctx.currentTime;
+      // 1.4s fade-out, then disconnect
+      try {
+        h.bus.gain.cancelScheduledValues(now);
+        h.bus.gain.setValueAtTime(h.bus.gain.value, now);
+        h.bus.gain.linearRampToValueAtTime(0.0001, now + 1.4);
+      } catch (e) {}
+      const stopAt = now + 1.45;
+      try { h.subA.stop(stopAt); h.subB.stop(stopAt); h.mid.stop(stopAt); h.sh.stop(stopAt); h.lfo.stop(stopAt); } catch (e) {}
+      // Clear the handle immediately so a re-start can build a fresh
+      // stack while the old one fades. The stop()-scheduled nodes will
+      // GC themselves once the destination releases them.
+      this._arenaHum = null;
+    },
+
+    // ===================== COMBAT ANTICIPATION THUMP =====================
+    // Sub-bass thump fired alongside the .combat-anticipate body class.
+    // 60 Hz exp-decay sine + a soft noise tail. Brief — ~280ms total —
+    // so it lands as a kick, not a drone.
+    combatAnticipateThump() {
+      if (!this._init()) return;
+      if (!UI.settings || UI.settings.sfxVolume === 0) return;
+      // Sub-bass kick — 60 Hz dropping to 38 Hz, fast attack, exp release
+      this._tone({ type: 'sine', freq: 60, freqEnd: 38, dur: 0.32, gain: 0.18, attack: 0.004, release: 0.32, delay: 0 });
+      // Tail noise — short, low-passed, gives the kick "body"
+      this._noise({ dur: 0.16, gain: 0.05, highpass: 60, lowpass: 600, delay: 0.02 });
+      // High click — 1.8kHz pip on top so the kick has presence on
+      // small speakers / phones where the sub-bass is weak.
+      this._tone({ type: 'triangle', freq: 1800, freqEnd: 600, dur: 0.06, gain: 0.04, attack: 0.001, release: 0.06, delay: 0 });
+    },
+
+    // Boot-sequence audio — fires when the game enters its first
+    // combat phase out of trick-draft. Three layers, all timed to
+    // match the visual boot sequence in style.css:
+    //   - Whoosh (0-1100ms): wide-band noise sweep matching the
+    //     scanline crossing the screen. Two slightly-staggered
+    //     bursts at different freq bands give it a "filter sweep"
+    //     feel without needing a real animated filter.
+    //   - Hum (100-1900ms): low sustained pad — the "computer is
+    //     powered on" baseline drone. Subtle 80→100Hz wobble.
+    //   - Power-on bleep (550ms): rising sine pip at the scan peak.
+    //   - Per-card ticks (1100ms+): one short blip per hand card,
+    //     spaced 110ms apart matching the bootCardEnter stagger.
+    // Caller passes cardCount so we generate the right number of
+    // ticks. Respects the master sfx volume; bails clean if audio
+    // is unsupported / muted.
+    playBootSequence(cardCount) {
+      if (!this._init()) return;
+      if (!UI.settings || UI.settings.sfxVolume === 0) return;
+      // Whoosh — two filtered noise bursts overlapping. First sits
+      // low-mid, second rises into the high-mid as the scan peaks.
+      this._noise({ dur: 0.85, gain: 0.08, highpass: 200,  lowpass: 1800, delay: 0.00 });
+      this._noise({ dur: 0.95, gain: 0.10, highpass: 1200, lowpass: 5500, delay: 0.20 });
+      // Power-on hum — long low pad, fades in slow, hangs through
+      // the rest of the boot, then fades naturally.
+      this._tone({ type: 'sawtooth', freq: 80,  freqEnd: 100, dur: 1.8, gain: 0.06, attack: 0.30, release: 1.8, delay: 0.10 });
+      this._tone({ type: 'sine',     freq: 160, freqEnd: 200, dur: 1.8, gain: 0.04, attack: 0.30, release: 1.8, delay: 0.10 });
+      // Power-on bleep — at scan peak. Quick rising sine pip.
+      this._tone({ type: 'sine', freq: 440,  freqEnd: 880,  dur: 0.18, gain: 0.18, attack: 0.005, release: 0.18, delay: 0.55 });
+      this._tone({ type: 'sine', freq: 880,  freqEnd: 1760, dur: 0.14, gain: 0.10, attack: 0.005, release: 0.14, delay: 0.62 });
+      // Per-card ticks — terminal "blip" as each hand card lands.
+      // Same 110ms stagger and 1100ms base delay as bootCardEnter.
+      const n = Math.max(0, Math.min(8, cardCount | 0));
+      for (let i = 0; i < n; i++) {
+        const t = 1.10 + i * 0.110;
+        this._tone({ type: 'square',   freq: 1800, freqEnd: 1200, dur: 0.05, gain: 0.10, attack: 0.002, release: 0.05, delay: t });
+        this._tone({ type: 'triangle', freq: 600,  freqEnd: 400,  dur: 0.06, gain: 0.06, attack: 0.002, release: 0.06, delay: t + 0.005 });
+      }
+    },
+
     // Menu-nav cue — plays a sampled WAV (separate path from the procedural
     // engine since file playback is simpler via HTMLAudioElement, and
     // AudioContext decoding would add async boot cost for a single asset).
@@ -1429,15 +1608,36 @@ const UI = {
     // pass) so browsers refetch instead of serving stale cached bytes.
     // Only applied when the src doesn't already carry its own `?v=...`
     // override (so individually-bumped entries like Thanos's stay intact).
-    _CARD_AUDIO_VERSION: 5,
+    _CARD_AUDIO_VERSION: 6,
     _bustCache(src) {
       if (typeof src !== 'string' || src.indexOf('?') !== -1) return src;
       return src + '?cv=' + this._CARD_AUDIO_VERSION;
+    },
+    // ===================== AAA AUDIO BUSES =====================
+    // Category-based gain multipliers establish a priority hierarchy
+    // so layered audio reads as intentional rather than chaotic.
+    // Voice/play sit at marquee level (1.0); supporting effects sit
+    // underneath at 0.7 so they don't fight the moment. Pattern from
+    // AAA mixing practice (Wwise HDR / Unity audio mixer): "dialogue
+    // ducks SFX 10-15dB, ambient ducks both." Without this every
+    // category played at flat sfxVolume and a Batman play + Fear +
+    // 2 Strikes all stacked at the same loudness — fine alone, but
+    // collectively a wall of sound. Per-category gain creates space
+    // for each layer to be heard. */
+    _CATEGORY_GAIN: {
+      voiceLine: 1.10,  // dialogue/character voice — highest priority
+      play:      1.00,  // marquee play SFX (Arkham theme, HULK SMASH, laughs)
+      ability:   1.00,  // mid-play ability SFX (Gojo's Hollow Purple resolve)
+      death:     0.90,  // dramatic but slightly softer (chains avoid wall)
+      hover:     0.85,  // ambient bed under everything else
+      effect:    0.70,  // fear/freeze/stun/damage cues — supporting layer
     },
     _playSample(src, opts) {
       if (!src) return null;
       if (!UI.settings || UI.settings.sfxVolume === 0) return null;
       if (!this._samplePool) this._samplePool = new Map();
+      if (!this._activeHover) this._activeHover = new Set();
+      if (!this._activeNonHover) this._activeNonHover = new Set();
       src = this._bustCache(src);
       let clones = this._samplePool.get(src);
       if (!clones) {
@@ -1458,9 +1658,84 @@ const UI = {
         pick = resumable || clones.find(a => a.paused || a.ended) || clones[0];
       } else {
         pick = clones.find(a => a.paused || a.ended) || clones[0];
+        // HOVER DUCKING — when a non-hover SFX fires (play, ability,
+        // death, etc.), dip any currently-playing hover audio so the
+        // player can hear the new cue cleanly while the hover music
+        // keeps drifting underneath at lower volume. User spec:
+        // "I pressed jigsaw, and I heard the laugh and the hover
+        // music at the same time, which is kinda cool... like, hover
+        // music kind of blends with whatever the wind blade is. Just
+        // would have to be a little bit softer."
+        if (this._activeHover.size > 0) {
+          const duckMs = (opts && opts.fadeIn) || 200;
+          const restoreMs = (opts && opts.fadeOut) || 600;
+          // The play SFX's own scheduled-end is at `maxDur` (or natural
+          // duration). Restore hover after it ends so the duck duration
+          // matches the cue's actual lifespan.
+          const playLife = (opts && opts.maxDur)
+            ? opts.maxDur * 1000
+            : 1500;
+          this._activeHover.forEach(hov => {
+            if (hov === pick) return;
+            // Stash the original target volume so we can restore it.
+            // If a duck is already in flight, keep the EARLIER pre-duck
+            // value so back-to-back SFX don't compound the dip.
+            if (hov._preDuckVol == null) hov._preDuckVol = hov.volume;
+            this._clearFadeTimers(hov, '_duckInInterval');
+            this._clearFadeTimers(hov, '_duckOutInterval');
+            // Fade DOWN to 50% of pre-duck volume — user spec:
+            // "the hover music plays, but just like at, like, 50%
+            // of its actual decibels, and then the [play SFX] is on
+            // top of that." Sweet spot — quiet enough to give the
+            // play cue room, loud enough to feel like a continuous
+            // bed.
+            const targetDown = hov._preDuckVol * 0.50;
+            this._fadeVolume(hov, targetDown, duckMs, '_duckInInterval');
+            // Schedule restore once the play SFX is mostly done.
+            clearTimeout(hov._duckRestoreTimer);
+            hov._duckRestoreTimer = setTimeout(() => {
+              if (!this._activeHover.has(hov)) return; // hover already stopped — let _stopHover handle volume
+              this._fadeVolume(hov, hov._preDuckVol, restoreMs, '_duckOutInterval');
+              hov._preDuckVol = null;
+            }, Math.max(playLife - restoreMs / 2, duckMs + 50));
+          });
+        }
       }
       this._clearFadeTimers(pick);
-      const vol = Math.max(0, Math.min(1, (UI.settings.sfxVolume ?? 0.55)));
+      // Apply category-based gain — voice/play sit at full volume,
+      // supporting effects 30% quieter so the mix has hierarchy.
+      const cat = (opts && opts.category) || (isHover ? 'hover' : 'effect');
+      const catGain = this._CATEGORY_GAIN[cat] ?? 1.0;
+      const vol = Math.max(0, Math.min(1, (UI.settings.sfxVolume ?? 0.55) * catGain));
+      // Tag the audio element with its category so other code paths
+      // (voice-first ducking below) can decide who-ducks-who.
+      pick._sfxCategory = cat;
+      // VOICE-FIRST DUCKING: when a play/voiceLine SFX fires, briefly
+      // duck OTHER active non-hover SFX (effects) so the marquee event
+      // is the focal point. AAA-mix principle: voice ducks SFX, SFX
+      // doesn't duck voice. Implemented per priority — the new SFX
+      // ducks any active SFX of LOWER or EQUAL tier. */
+      if (!isHover && (cat === 'play' || cat === 'voiceLine' || cat === 'ability')) {
+        const restoreMs = (opts && opts.fadeOut) || 600;
+        const playLife = (opts && opts.maxDur) ? opts.maxDur * 1000 : 1500;
+        this._activeNonHover.forEach(other => {
+          if (other === pick) return;
+          // Don't duck higher-priority audio (voiceLine should never be ducked).
+          if (other._sfxCategory === 'voiceLine') return;
+          if (other._sfxPreDuck == null) other._sfxPreDuck = other.volume;
+          this._clearFadeTimers(other, '_voiceDuckInterval');
+          // Duck to 60% of current — supporting effects step back so
+          // the play moment lands cleanly.
+          const tgt = other._sfxPreDuck * 0.60;
+          this._fadeVolume(other, tgt, 150, '_voiceDuckInterval');
+          clearTimeout(other._sfxRestoreTimer);
+          other._sfxRestoreTimer = setTimeout(() => {
+            if (!this._activeNonHover.has(other)) return;
+            this._fadeVolume(other, other._sfxPreDuck, restoreMs, '_voiceDuckRestore');
+            other._sfxPreDuck = null;
+          }, Math.max(playLife - restoreMs, 200));
+        });
+      }
       // Fade IN from silence — prevents a click on sharp-onset files
       // and makes every cue land softly. For hover samples we resume
       // at currentTime instead of jumping back to 0; for everything
@@ -1472,6 +1747,20 @@ const UI = {
         const p = pick.play();
         if (p && p.catch) p.catch(() => {});
       } catch (e) { return null; }
+      // Track active audio in category-aware sets so the duck logic
+      // can operate on the right group. Hover gets its own set
+      // (the existing 50% bed duck path); everything else goes in
+      // _activeNonHover so the voice-first ducking can step them
+      // back when a play/voiceLine fires.
+      if (isHover) {
+        this._activeHover.add(pick);
+        pick.addEventListener('ended', () => this._activeHover.delete(pick), { once: true });
+        pick.addEventListener('pause', () => this._activeHover.delete(pick), { once: true });
+      } else {
+        this._activeNonHover.add(pick);
+        pick.addEventListener('ended', () => this._activeNonHover.delete(pick), { once: true });
+        pick.addEventListener('pause', () => this._activeNonHover.delete(pick), { once: true });
+      }
       const fadeInMs = (opts && opts.fadeIn) ? opts.fadeIn : 130;
       this._fadeVolume(pick, vol, fadeInMs, '_fadeInInterval');
       // Fade OUT — schedule an ease-out ramp that lands at the clip's
@@ -1591,11 +1880,18 @@ const UI = {
         // when the cursor leaves the card.
         this.duckMusic();
       } else if (event === 'play' || event === 'ability') {
-        opts.maxDur  = opts.maxDur  ?? 4.0;
+        // 5s cap per user spec — "force ghostface his whole sound bite
+        // should play. So whenever a unique sound I put in for when
+        // played for cards, increase the duration to just five
+        // seconds." Cards with shorter unique audio just play in full
+        // and silence; the cap only kicks in for clips longer than 5s.
+        opts.maxDur  = opts.maxDur  ?? 5.0;
         opts.fadeIn  = opts.fadeIn  ?? 500;
         opts.fadeOut = opts.fadeOut ?? 1000;
+        opts.category = event;  // 'play' or 'ability' — full marquee gain
       } else {
         opts.maxDur = opts.maxDur ?? 1.5;          // death — keep tight for chains
+        opts.category = 'death';
       }
       return this._playSample(resolved.src, opts);
     },
@@ -1635,10 +1931,12 @@ const UI = {
       const opts = { ...(resolved.opts || {}) };
       if (event === 'hover') {
         opts.hover = true;          // enables resume-from-pause in _playSample
+        opts.category = 'hover';
         delete opts.maxDur;         // hover is full-length per user spec
       } else {
         // Non-hover trick events (play) get the same 1.5s cap as cards.
         opts.maxDur = Math.min(1.5, opts.maxDur ?? 1.5);
+        opts.category = 'play';     // tricks use marquee tier on play
       }
       return this._playSample(resolved.src, opts);
     },
@@ -1648,7 +1946,22 @@ const UI = {
     // restarting. Fades out the volume smoothly before pausing so
     // there's no click. Vader's breathing / Predator's clicking pick
     // up mid-breath when the user re-hovers the card.
-    _stopHover() {
+    _stopHover(force) {
+      // Keep hover audio running while the card is SELECTED (clicked
+      // but not yet placed). User spec: "if you click a card, right,
+      // and you're gonna place the card, I think it should be playing
+      // the whole time as you're clicking it, as it's selected."
+      // The mouseout-triggered stop respects this guard; only the
+      // post-play stop (force=true) pushes through it.
+      if (!force) {
+        const sel = (typeof Game !== 'undefined' && Game.state) ? Game.state.selectedCard : null;
+        if (sel && this._currentHoverName && sel.name === this._currentHoverName) {
+          // Mouse left the card but it's still selected — keep music
+          // playing. Don't even clear `_currentHoverEl` so re-entry
+          // doesn't restart the audio.
+          return;
+        }
+      }
       // Also clear any pending dwell-delay timer — once we're tearing
       // down hover state, a queued play would be operating on a stale
       // element by the time it fires.
@@ -1665,6 +1978,7 @@ const UI = {
       if (a && !a.paused) this._fadeToPauseAtPosition(a, 1000);
       this._currentHoverAudio = null;
       this._currentHoverEl = null;
+      this._currentHoverName = null;
       // Restore the menu music to its full target volume.
       this.restoreMusic();
     },
@@ -1904,6 +2218,35 @@ const UI = {
           this._tone({ type: 'triangle', freq: 1175, dur: 0.05, gain: 0.07, attack: 0.001, release: 0.07 });
           this._tone({ type: 'sine',     freq: 2349, dur: 0.04, gain: 0.04, attack: 0.001, release: 0.06, delay: 0.025 });
           break;
+        // ---- Phase-transition variants (audit wave 4) -----------
+        case 'phaseEngage':
+          // Combat-ready snap — rising sawtooth pulse with a sharp
+          // noise crack. Distinct from boot's rolling whoosh; this
+          // is fast and aggressive, the moment of "weapons hot."
+          // Fires on roguelite-map → first-fight-phase.
+          this._tone({ type: 'sawtooth', freq: 220, freqEnd: 660, dur: 0.18, gain: 0.14, attack: 0.002, release: 0.22 });
+          this._tone({ type: 'sawtooth', freq: 165, freqEnd: 110, dur: 0.16, gain: 0.10, attack: 0.002, release: 0.20, delay: 0.10 });
+          this._noise({ dur: 0.06, gain: 0.10, highpass: 2200, lowpass: 6500, delay: 0.04 });
+          this._tone({ type: 'sine', freq: 90, freqEnd: 55, dur: 0.20, gain: 0.18, attack: 0.005, release: 0.24 });
+          break;
+        case 'phaseCommit':
+          // Calm "saving data" descending three-tone — soft sines on
+          // a major triad descent (G5 → E5 → C5). Reads as the run
+          // committing the result, not a fanfare. Fires on
+          // in-fight → roguelite-rewards.
+          this._tone({ type: 'sine', freq: 784, dur: 0.22, gain: 0.10, attack: 0.005, release: 0.26 });
+          this._tone({ type: 'sine', freq: 659, dur: 0.22, gain: 0.09, attack: 0.005, release: 0.26, delay: 0.18 });
+          this._tone({ type: 'sine', freq: 523, dur: 0.32, gain: 0.08, attack: 0.005, release: 0.40, delay: 0.36 });
+          this._noise({ dur: 0.30, gain: 0.02, highpass: 600, lowpass: 3000, delay: 0.04 });
+          break;
+        case 'phaseReturn':
+          // Contemplative ink-spread — slow sustained sine pad with
+          // a faint shimmer. The "back to the map" beat. No drum,
+          // no edge, just a quiet wash.
+          this._tone({ type: 'sine', freq: 220, freqEnd: 196, dur: 0.65, gain: 0.07, attack: 0.10, release: 0.75 });
+          this._tone({ type: 'sine', freq: 330, dur: 0.55, gain: 0.05, attack: 0.10, release: 0.65, delay: 0.10 });
+          this._tone({ type: 'sine', freq: 1100, dur: 0.40, gain: 0.03, attack: 0.10, release: 0.50, delay: 0.20 });
+          break;
       }
     }
   },
@@ -1970,11 +2313,13 @@ const UI = {
     this.installLongPressInspect();
     this.installDrawAnimation();
     this.installTronGridFx();
+    this.installCameraParallax();   // Wave 3 #8 — mouse-driven camera pivot
     this.installPolishLayer();  // Tier 1-4 reactive + ambient FX
     this.installAudioHooks();   // Game event → audio cue mapping
     this.installSplashFx();     // Splash damage → shockwave + lunge
     this.installBoardCursorLight(); // Cursor-anchored board brightness boost
     this.installRoundSweep();   // Soft beam between rounds
+    this.installTronFlare();    // Mouse-parallax + chromatic-on-hit + play afterimage + game-over glitch
     this.installAiActionHighlight(); // Pulse the lane the AI just played in
     this.installUndoFeedback();  // Toast + board flash on undo
     this.sfx.arm();
@@ -2082,9 +2427,15 @@ const UI = {
         this.sfx._currentHoverEl = curr;
         return;
       }
-      // Moving from one card to another — stop the previous card's sample
-      // (and cancel any pending one that hasn't fired yet).
-      if (this.sfx._currentHoverEl) this.sfx._stopHover();
+      // Moving from one card to another — FORCE stop the previous
+      // card's sample. The selectedCard guard in _stopHover only
+      // protects "mouse left card to non-card area" (keep playing
+      // while selected). Moving to another card means a new hover
+      // is taking over — old must die or it orphans and plays for
+      // its full duration. User report: "sometimes the hover music
+      // gets stuck playing way after the cards played and im not
+      // hovering."
+      if (this.sfx._currentHoverEl) this.sfx._stopHover(true);
       cancelPendingHover();
       this.sfx._currentHoverEl = curr;
       // Schedule the SFX to fire after the dwell timeout. If the user
@@ -2096,11 +2447,30 @@ const UI = {
         // Re-confirm the cursor is still on this element — guards against
         // any race where we missed a mouseout cancel.
         if (this.sfx._currentHoverEl !== curr) return;
+        // POST-PLAY LOCKOUT — block hover audio from re-arming during
+        // the brief window after a card is played. When the user clicks
+        // a lane to place a card, the cursor lands on the freshly-
+        // materialized board card; without this gate, the dwell timer
+        // would fire 280ms later and re-trigger hover audio that the
+        // play hook had just faded out, producing the "hover never
+        // stopped" perception. Two tiers: a global 1.6s lock on ALL
+        // hover, and a 2.4s lock on the SAME card name we just played
+        // (since same-name resume from the pool is the worst offender —
+        // sonically identical to "the audio didn't stop at all"). On
+        // expiry we silently allow the hover to fire normally.
+        const now = Date.now();
+        const sfx = this.sfx;
+        if (sfx._postPlayHoverLockUntil && now < sfx._postPlayHoverLockUntil) return;
+        if (sfx._postPlayHoverLockName === name && now < (sfx._postPlayHoverLockNameUntil || 0)) return;
         const isCard = curr.hasAttribute('data-card-name');
         const audio = isCard ? this.sfx.playCardSfx(name, 'hover')
                              : this.sfx.playTrickSfx(name, 'hover');
         if (!audio) this.sfx.play('cardHover');
         this.sfx._currentHoverAudio = audio;
+        // Track the source card NAME so _stopHover can keep the audio
+        // running when the card is selected (mid-placement). User
+        // spec: hover music continues through the click→place flow.
+        this.sfx._currentHoverName = name;
         if (name) lastHoverByName[name] = Date.now();
       }, HOVER_SFX_DELAY_MS);
     });
@@ -2110,7 +2480,13 @@ const UI = {
       const to = getHoverTarget(e.relatedTarget);
       if (to === curr) return; // still inside the same card
       if (this.sfx._hoverDelayEl === curr) cancelPendingHover();
-      if (this.sfx._currentHoverEl === curr) this.sfx._stopHover();
+      // Force-stop only when moving to ANOTHER card (or other hover-
+      // target like a draft pick) — that's a definitive "new hover
+      // taking over." Mouse leaving to non-card areas (lanes, body,
+      // overlays) goes through the selection guard so a clicked-and-
+      // moved card keeps its hover music while the player is mid-
+      // placement.
+      if (this.sfx._currentHoverEl === curr) this.sfx._stopHover(!!to);
     });
 
     // ---- Audio model v3 ----
@@ -2139,6 +2515,58 @@ const UI = {
           // SFX (after target 1 picked) → freeze SFX (after target 2) →
           // damage SFX (after final target).
           this.sfx.playCardSfx(card.name, 'play', card);
+          // POST-PLAY HOVER LOCKOUT — when the user clicks a lane to
+          // place a card, the cursor naturally lands on the freshly-
+          // placed board card (since the card materializes under the
+          // cursor). The mouseenter dwell timer would then fire 280ms
+          // later and RESUME the hover audio from where the post-play
+          // fade left off, making it sound like "the hover never
+          // stopped." User report: "I played Obi Wan. and his hover
+          // was still going on when I was not hovering over him." The
+          // lockout suppresses any new hover firing for ~1.6s after
+          // any play, plus on the same-named card we cap it at 2.4s
+          // since the resume from the played card's own audio is
+          // sonically identical to "still playing."
+          this.sfx._postPlayHoverLockUntil = Date.now() + 1600;
+          this.sfx._postPlayHoverLockName = card.name;
+          this.sfx._postPlayHoverLockNameUntil = Date.now() + 2400;
+          // After the card plays, GRADUALLY fade out the hover audio
+          // over 3 seconds. The hover music has already been ducked to
+          // 50% by the play SFX (see _playSample's duck logic), and
+          // this long fade-out ensures it gracefully blends into
+          // silence as the play SFX runs its course. User spec: "the
+          // hover music plays, but just like at, like, 50% of its
+          // actual decibels, and then the [play SFX] is on top of
+          // that... I think that'd be really, really smooth."
+          // 3s gives the play SFX (max 5s capped) plenty of overlap
+          // before the hover fully fades out.
+          //
+          // Same-name fast path: fade the tracked _currentHoverAudio.
+          // Different name (or null) path: walk _activeHover and fade
+          // ALL active hover clones — covers the case where the user
+          // hovered another card briefly between hovering Obi-Wan and
+          // playing him, leaving an orphan still in the active set.
+          const sfx = this.sfx;
+          if (owner === 'player') {
+            if (sfx._currentHoverName === card.name) {
+              const a = sfx._currentHoverAudio;
+              if (a && !a.paused) sfx._fadeToPauseAtPosition(a, 3000);
+            }
+            // Fade out EVERY active hover clone, not just the tracked
+            // one. Belt-and-suspenders: even if the bookkeeping above
+            // missed an orphan (e.g. a leaked sample from a quick
+            // hover swap), this catches it. Caps the perceived
+            // "hover lingering after play" bug entirely.
+            if (sfx._activeHover && sfx._activeHover.size > 0) {
+              sfx._activeHover.forEach(h => {
+                if (h && !h.paused) sfx._fadeToPauseAtPosition(h, 3000);
+              });
+            }
+            sfx._currentHoverAudio = null;
+            sfx._currentHoverEl = null;
+            sfx._currentHoverName = null;
+            sfx.restoreMusic();
+          }
         }
         return r;
       };
@@ -2460,6 +2888,15 @@ const UI = {
     if (typeof origRound === 'function') {
       Game.startRound = (...args) => {
         this.sfx.stopMusic();
+        // (AAA) Ambient arena hum — kicks in at the FIRST round of a
+        // match (draft is over, gameplay starts). Idempotent:
+        // arenaHumStart bails if already running. Hum fades in over
+        // 1.6s on its own bus so it doesn't pop in jarringly.
+        try {
+          if (!Game.state.gameOver && this.sfx && this.sfx.arenaHumStart) {
+            this.sfx.arenaHumStart();
+          }
+        } catch (e) {}
         return origRound.apply(Game, args);
       };
     }
@@ -2517,6 +2954,24 @@ const UI = {
       pop.style.top  = Math.round(pick.y) + 'px';
     };
     const show = (el) => {
+      // Hand cards AND board cards (ally/enemy): NO clone popup.
+      // Marvel-Snap-style in-place enlarge — the card itself grows on
+      // :hover via the CSS rules at `.hand-card-wrapper:hover .card.hand-card`
+      // (hand) and `.card.ally-card:hover, .card.enemy-card:hover` (board).
+      // Keeping the popup meant TWO of the same card on screen and the
+      // .magnifying class lock killed the 3D tilt mid-hover. User spec:
+      // "I would love it so you don't have, like, two cards. Just the
+      // card that you select gets bigger... still has a geometry
+      // [tilt] that you can do, easier to click on bullseye, on jump,
+      // on all the keywords... like Marvel Snap." Then: "this should
+      // also happen to enemy cards on board." Draft/trick cards still
+      // get the clone popup — different layouts, popup is fine there.
+      if (el.classList.contains('hand-card') ||
+          el.classList.contains('ally-card') ||
+          el.classList.contains('enemy-card')) {
+        openEl = el;
+        return;
+      }
       // Clone the card with the same interior. Strip interactive +
       // animation classes so the magnified clone stays perfectly still
       // (user flagged a pulse while hovering — traced to lingering
@@ -3044,6 +3499,27 @@ const UI = {
     if (s.phase && s.phase.startsWith('player')) document.body.classList.add('turn-player');
     else if (s.phase && s.phase.startsWith('ai')) document.body.classList.add('turn-ai');
     else if (s.phase === 'combat') document.body.classList.add('turn-combat');
+    // (AAA) Combat anticipation pulse — fires the radial wash + ring
+    // animation + sub-bass thump exactly once per combat phase entry.
+    // _lastCombatPhase tracks the last seen phase so we don't re-fire
+    // while sitting in combat across multiple renders. Skipped during
+    // game-over / draft / menu phases where it'd be out of place.
+    if (s.phase === 'combat' && this._lastCombatPhase !== 'combat' && !s.gameOver) {
+      document.body.classList.remove('combat-anticipate');
+      void document.body.offsetWidth;
+      document.body.classList.add('combat-anticipate');
+      if (this._combatAnticipateTimer) clearTimeout(this._combatAnticipateTimer);
+      this._combatAnticipateTimer = setTimeout(() => {
+        document.body.classList.remove('combat-anticipate');
+      }, 360);
+      // Sub-bass thump on the same beat. Bail clean if audio not init.
+      try {
+        if (this.sfx && this.sfx.combatAnticipateThump) {
+          this.sfx.combatAnticipateThump();
+        }
+      } catch (e) {}
+    }
+    this._lastCombatPhase = s.phase;
     // Round-first ownership — who had initiative this round. Tints the round
     // badge and the HUD pill outline so the pill colour reflects the round's
     // opener, while the phase label (.hud-phase) keeps showing the ACTIVE turn.
@@ -3058,6 +3534,18 @@ const UI = {
       document.body.classList.add('round-transition');
       clearTimeout(this._roundTransitionTimer);
       this._roundTransitionTimer = setTimeout(() => document.body.classList.remove('round-transition'), 1000);
+      // Polish D — CRT boot-up scan: the bright horizontal scan line
+      // sweeps top→bottom across the arena once at round start. Reinforces
+      // "you're watching this on a Tron broadcast monitor." Class self-
+      // removes after the 1.2s animation; reflowing the node before re-
+      // adding lets it replay each round.
+      const bsEl = document.querySelector('.board-section');
+      if (bsEl) {
+        bsEl.classList.remove('boot-scan');
+        void bsEl.offsetWidth;
+        bsEl.classList.add('boot-scan');
+        setTimeout(() => bsEl.classList.remove('boot-scan'), 1300);
+      }
       // (e) Round badge tick — flip the round number in place.
       const rn = document.getElementById('round-num');
       if (rn) {
@@ -3070,6 +3558,8 @@ const UI = {
       this.showRoundBanner(s.round);
       // (F) Currency orb spin
       this.spinEnergyOrbs();
+      // (AAA) Round-tick — fires the centerline gradient sweep
+      this.fireRoundTick();
     }
     // Particle systems — menu particles while the main menu is visible,
     // game particles otherwise (inside a match). Draft overlay has its
@@ -3120,14 +3610,8 @@ const UI = {
     this._prevEnergy[containerId] = current;
     // PRO FIX: never replace the .energy-text node on re-render.
     // The previous innerHTML rebuild destroyed the element on every
-    // single render, which restarted any infinite animations on it
-    // (energyPlayablePulse, perimeter pulse, can-play breathing).
-    // Result: every phase change made the energy diamond's light
-    // visibly "skip" or restart. By updating textContent in place,
-    // the same DOM node persists across renders and animations
-    // continue smoothly. The .energy-boost class is applied as a
-    // one-shot 600ms pulse, then auto-removed — so it doesn't
-    // accumulate.
+    // single render, which restarted any infinite animations on it.
+    // By updating textContent in place, the same DOM node persists.
     let span = el.querySelector('.energy-text');
     if (!span) {
       // First paint — create the element once. All subsequent calls
@@ -3147,6 +3631,49 @@ const UI = {
       span.classList.add('energy-boost');
       setTimeout(() => span.classList.remove('energy-boost'), 620);
     }
+    // (REMOVED per user feedback) The hex pip row that lived to the
+    // left of the diamond is gone — the integer alone is the cleaner
+    // read. Belt-and-suspenders: tear down any leftover .energy-pips
+    // node so cached DOM from the previous build doesn't ghost.
+    const stalePips = el.querySelector('.energy-pips');
+    if (stalePips) stalePips.remove();
+  },
+
+  // (REMOVED) HP Nexus tier — the hex frame around the HP integer
+  // was removed per user feedback ("don't like the little sticker
+  // behind the health number"). Function is kept as a no-op so any
+  // stray callers don't blow up. Also strips any leftover
+  // data-hp-tier attribute from cached DOM.
+  applyHpNexusTier() {
+    document.querySelectorAll('.health-text[data-hp-tier]').forEach(el => {
+      el.removeAttribute('data-hp-tier');
+    });
+  },
+
+  // (AAA) ROUND-TICK — fires a 700ms body class .round-tick on
+  // round start. The CSS uses it to drive the centerline gradient
+  // sweep. JS handles the trigger; the existing _lastRound watch
+  // in checkPhaseTransition is the natural firing point.
+  fireRoundTick() {
+    document.body.classList.remove('round-tick');
+    void document.body.offsetWidth;
+    document.body.classList.add('round-tick');
+    clearTimeout(this._roundTickTimer);
+    this._roundTickTimer = setTimeout(() => {
+      document.body.classList.remove('round-tick');
+    }, 720);
+  },
+
+  // (AAA) HAND FAN — set --hand-i and --hand-n on each hand-card
+  // wrapper so the CSS fan formula can lay them out in a subtle
+  // arc. Called after renderHand each tick.
+  applyHandFanVars() {
+    const wrappers = document.querySelectorAll('.player-hand-section .hand-card-wrapper');
+    const n = wrappers.length;
+    wrappers.forEach((w, i) => {
+      w.style.setProperty('--hand-i', i);
+      w.style.setProperty('--hand-n', n);
+    });
   },
 
   // ===================== MVP RANKING =====================
@@ -3191,9 +3718,46 @@ const UI = {
 
   // ===================== MAIN RENDER =====================
 
+  // ---- Render coalescing (perf Tier-A #1) -----------------------
+  // Many engine paths fire `UI.render()` synchronously several times
+  // in a single tick (combat resolution, prompt clears, hand updates).
+  // This wrapper collapses repeated calls in the same frame into one
+  // rAF-flushed pass. Cuts render-pass count ~5-10× on combat turns.
+  //
+  // `renderSync()` is the escape hatch — call it when downstream code
+  // immediately reads layout (offsetHeight, getBoundingClientRect)
+  // and needs the DOM to be current.
   render() {
+    if (this._renderQueued) return;
+    this._renderQueued = true;
+    requestAnimationFrame(() => {
+      this._renderQueued = false;
+      this._renderImpl();
+      if (window.PerfOverlay && window.PerfOverlay.tickRender) {
+        window.PerfOverlay.tickRender();
+      }
+    });
+  },
+  renderSync() {
+    this._renderQueued = false;
+    this._renderImpl();
+    if (window.PerfOverlay && window.PerfOverlay.tickRender) {
+      window.PerfOverlay.tickRender();
+    }
+  },
+  _renderImpl() {
     const s = Game.state;
     if (!s) return;
+    // Reset and IMMEDIATELY repopulate the per-render combat-prediction
+    // cache. The card-DOM diff cache (makeCardElCached → snap) reads
+    // pred fields out of this cache; if it were lazy-populated by the
+    // first makeCardEl call, early snaps would see `pred=null` while
+    // later ones see real values, causing stale skull badges to stick
+    // around (user report: "There's nothing on board and it has the
+    // skull symbol"). One call up-front, then everyone reads the same
+    // result.
+    this._combatPredCache = (Game && typeof Game.predictCombatGlobal === 'function')
+      ? Game.predictCombatGlobal() : null;
 
     // Phase transition wipe — a brief Tron-scan overlay that sweeps
     // across the screen whenever the player crosses a major boundary
@@ -3374,6 +3938,14 @@ const UI = {
     const aiMaxEnergy = Math.max(s.round || 1, s.ai.currency);
     this.renderEnergyOrbs('player-energy-display', s.player.currency, maxEnergy);
     this.renderEnergyOrbs('ai-energy-display', s.ai.currency, aiMaxEnergy);
+    // PERF FIX: applyHpNexusTier and applyHandFanVars were no-ops or
+    // setting unused CSS variables (HP Nexus frame was removed by the
+    // user, hand fan tilt was removed by the user). Both still ran
+    // querySelectorAll('.health-text[data-hp-tier]') / querySelector
+    // ('.player-hand-section .hand-card-wrapper') on EVERY render
+    // (60-120Hz), generating layout-sync overhead per frame for no
+    // visible effect. Calls removed; functions stay defined for
+    // legacy reference. */
     // Playable-pulse on the player energy orb — signals "you have
     // cards you can afford to play right now, it's your turn". The
     // CSS animation (energyPlayablePulse) fires while the class is
@@ -3438,6 +4010,7 @@ const UI = {
     this.renderPromptBanner(s);
 
     this.renderRoundTrack(s);
+    this._updateDominanceVars(s);  // Color Invasion — write dominance CSS vars before rendering
     this.renderBoard(s);
     this.renderPlayerHand(s);
     this.renderAIHand(s);
@@ -3720,32 +4293,188 @@ const UI = {
       'roguelite-map', 'roguelite-rewards', 'roguelite-pick-relic',
       'roguelite-pick-card', 'roguelite-end', 'roguelite-start',
       // Classic flow
-      'play', 'game-over',
+      'game-over',
       'draft-cards', 'draft-tricks',
       'deckbuilder-build',
     ]);
-    // The 'play' phase is the boundary that earns the most weight —
-    // entering or leaving combat should always wipe. Other transitions
-    // wipe only when both endpoints are in the SIGNIFICANT set.
-    const FIGHT_PHASE = (currentPhase === 'play' || prev === 'play');
-    const wipe = FIGHT_PHASE
+    // In-fight phase family: anything where the player is on the
+    // board (cards/tricks/combat). Treated as a single unit — wipes
+    // fire crossing INTO or OUT of this family, not within it (no
+    // jarring flash every time the active player flips). Bug fix:
+    // earlier code checked currentPhase === 'play', but 'play' is
+    // never actually written as a phase value — so the wipe never
+    // fired on draft-tricks → player-cards (the curtain-rise moment
+    // the user actually wanted animated).
+    const INFIGHT_PHASES = new Set([
+      'player-cards', 'ai-cards',
+      'player-cards-tricks', 'ai-cards-tricks',
+      'player-tricks', 'ai-tricks',
+      'combat',
+    ]);
+    const inFightNow  = INFIGHT_PHASES.has(currentPhase);
+    const inFightPrev = INFIGHT_PHASES.has(prev);
+    const enterOrLeaveFight = inFightNow !== inFightPrev;
+    const wipe = enterOrLeaveFight
       || (SIGNIFICANT.has(prev) && SIGNIFICANT.has(currentPhase));
     if (!wipe) return;
     // Avoid stacking wipes on rapid back-to-back phase changes.
     if (this._wipeFiring) return;
     this._wipeFiring = true;
+    // ---- Transition flavor detection -----------------------------
+    // Each phase boundary gets its own personality. Boot is the
+    // game's curtain-rise (trick-draft → first-fight-phase). Other
+    // boundaries riff on the same scan-wipe with their own pacing
+    // and SFX so map → fight feels DIFFERENT from rewards → map etc.
+    //   - boot   : ANY pre-fight → first-fight-phase of a new run
+    //              (classic trick-draft → board, roguelite/daily start
+    //              → board, deckbuilder match-start → board). The
+    //              theatrical curtain-rise that says "the run begins."
+    //   - engage : roguelite-map → in-fight (combat-ready, fast + sharp)
+    //              Fires on per-fight entries WITHIN a run, NOT on
+    //              the first fight (that's boot).
+    //   - commit : in-fight → roguelite-rewards (calm, "saving data")
+    //   - return : roguelite-rewards → roguelite-map (contemplative ink)
+    //
+    // User report: "now the start up animation doesn't happen for the
+    // lanes... when you load into the game." Was playing roguelite/daily;
+    // boot was gated to classic-only via prev==='draft-tricks'. Now also
+    // fires on roguelite-start (the boon → first-fight bridge) and
+    // deckbuilder-build, so every fresh run gets the curtain-rise.
+    const isBoot = inFightNow && (
+      prev === 'draft-tricks'      ||
+      prev === 'roguelite-start'   ||
+      prev === 'deckbuilder-build'
+    );
+    const isEngage = (prev === 'roguelite-map'     && inFightNow && !isBoot);
+    const isCommit = (inFightPrev && currentPhase === 'roguelite-rewards');
+    const isReturn = (prev === 'roguelite-rewards' && currentPhase === 'roguelite-map');
+    let variant = '';
+    if (isBoot)        variant = 'boot';
+    else if (isEngage) variant = 'engage';
+    else if (isCommit) variant = 'commit';
+    else if (isReturn) variant = 'return';
     const wipeEl = document.createElement('div');
-    wipeEl.className = 'rl-phase-wipe';
+    wipeEl.className = 'rl-phase-wipe' + (variant ? ' ' + variant : '');
     document.body.appendChild(wipeEl);
-    // CSS animation duration is set in style.css (rlPhaseWipeSweep).
-    // Latest tuning: 1100ms with no black-hold + Material Design easing
-    // — single source-of-truth pin, both numbers must move together.
-    // Use a slight buffer past animation end so transform doesn't
-    // snap back before the element is removed.
+    if (isBoot) {
+      document.body.classList.add('boot-sequence');
+      // Publish a "boot ends at" timestamp so the engine can defer
+      // the AI's first action until the curtain finishes. Without
+      // this, AI started at 1200ms while the boot ran ~2200ms — its
+      // play landed under the closing scan, hard to follow. Read by
+      // game.js startPhase1 (ai-cards branch).
+      if (Game && Game.state) {
+        Game.state._bootSequenceEndsAt = performance.now() + 2300;
+      }
+      // Stamp per-element index so CSS can stagger via custom property
+      // — but DEFER one frame because _maybePhaseWipe runs at the
+      // start of _renderImpl (before the new phase's DOM has been
+      // built). nth-child fallbacks in style.css cover the common
+      // case (always 6 lanes); the JS stamping is the precision pass
+      // for when DOM order doesn't match logical order.
+      requestAnimationFrame(() => {
+        const board = document.getElementById('board');
+        if (board) board.querySelectorAll('.lane').forEach((el, i) => el.style.setProperty('--lane-i', String(i)));
+        const hand = document.getElementById('player-hand');
+        if (hand) hand.querySelectorAll('.hand-card-wrapper').forEach((el, i) => el.style.setProperty('--card-i', String(i)));
+        // Fire the audio cue + HUD numeral scramble in lockstep with
+        // the visuals. Both kick off here on the same rAF as the
+        // index stamping so the curtain-rise reads as one event.
+        if (this.sfx && this.sfx.playBootSequence) {
+          const cardCount = (Game.state && Game.state.player && Game.state.player.hand) ? Game.state.player.hand.length : 0;
+          try { this.sfx.playBootSequence(cardCount); } catch (e) {}
+        }
+        if (this._bootScrambleHud) this._bootScrambleHud();
+      });
+    }
+    // Fire variant-specific SFX in lockstep with the visual.
+    // Procedural via UI.sfx.play(name) so no asset files needed.
+    if (variant === 'engage' && this.sfx && this.sfx.play) {
+      try { this.sfx.play('phaseEngage'); } catch (e) {}
+    } else if (variant === 'commit' && this.sfx && this.sfx.play) {
+      try { this.sfx.play('phaseCommit'); } catch (e) {}
+    } else if (variant === 'return' && this.sfx && this.sfx.play) {
+      try { this.sfx.play('phaseReturn'); } catch (e) {}
+    }
+    // CSS animation duration is set in style.css per variant.
+    // - standard: 540ms anim, 1120ms cleanup
+    // - boot:     1100ms anim, 2300ms cleanup (lane stagger + card stagger)
+    // - engage:   700ms anim, 760ms cleanup (sharp combat-ready snap)
+    // - commit:   950ms anim, 1010ms cleanup (calm "saving data" fade)
+    // - return:   950ms anim, 1010ms cleanup (contemplative ink spread)
+    const cleanupMs = variant === 'boot'   ? 2300
+                    : variant === 'engage' ? 760
+                    : variant === 'commit' ? 1010
+                    : variant === 'return' ? 1010
+                    : 1120;
     setTimeout(() => {
       wipeEl.remove();
+      if (isBoot) {
+        document.body.classList.remove('boot-sequence');
+        const board = document.getElementById('board');
+        if (board) board.querySelectorAll('.lane').forEach(el => el.style.removeProperty('--lane-i'));
+        const hand = document.getElementById('player-hand');
+        if (hand) hand.querySelectorAll('.hand-card-wrapper').forEach(el => el.style.removeProperty('--card-i'));
+      }
       this._wipeFiring = false;
-    }, 1120);
+    }, cleanupMs);
+  },
+
+  // HUD numeral scramble — fires alongside the boot wipe. The
+  // round digit, both HP bars, and both energy displays cycle
+  // through random characters at ~12 Hz for ~600ms before settling.
+  // Reads like an old-school terminal locking on its values.
+  //
+  // Implementation note: the real elements stay live; we briefly
+  // overwrite their textContent with random glyphs and restore the
+  // truth at the end. If UI.render() fires mid-scramble it'll
+  // overwrite our random text with the correct value — that's
+  // graceful: visually the scramble just settles a frame early.
+  _bootScrambleHud() {
+    if (this._reducedMotion && this._reducedMotion()) return;
+    // Real HUD numeric element IDs in index.html — bumping any of
+    // these names requires updating both places. Energy displays
+    // (#player-energy-display / #ai-energy-display) are skipped
+    // because their text is built dynamically inside nested spans
+    // and the text node moves between renders.
+    const ids = [
+      'round-num',
+      'draw-pile-count', 'trick-pile-count',
+      'player-health',   'ai-health',
+    ];
+    const targets = [];
+    ids.forEach(id => {
+      const el = document.getElementById(id);
+      if (!el) return;
+      // Some HUD numerals live inside nested spans — find the deepest
+      // text-bearing node so we scramble the digits, not the chrome.
+      let node = el;
+      while (node.children && node.children.length === 1 && node.firstElementChild) {
+        node = node.firstElementChild;
+      }
+      const original = node.textContent;
+      // Skip if not numeric — we don't want to scramble labels.
+      if (!/^[0-9./-]+$/.test(original.trim())) return;
+      targets.push({ node, original });
+    });
+    if (!targets.length) return;
+    const GLYPHS = '0123456789ABCDEF';
+    const randDigit = () => GLYPHS[(Math.random() * GLYPHS.length) | 0];
+    const scramble = (text) => text.replace(/[0-9A-F]/g, randDigit);
+    const start = performance.now();
+    const DURATION = 600;
+    const tick = () => {
+      const elapsed = performance.now() - start;
+      if (elapsed >= DURATION) {
+        // Settle — restore originals.
+        targets.forEach(t => { t.node.textContent = t.original; });
+        return;
+      }
+      targets.forEach(t => { t.node.textContent = scramble(t.original); });
+      // ~12 Hz scramble rate; rAF gives us free vsync-aware pacing.
+      setTimeout(() => requestAnimationFrame(tick), 80);
+    };
+    requestAnimationFrame(tick);
   },
 
   _screenShake(intensity) {
@@ -4028,21 +4757,39 @@ const UI = {
       }
     }
 
-    // Render EVERY card in the prompt's `cc.cards` list, regardless of
-    // whether it's on the board, in hand, or synthetic. The tray was
-    // previously a "fallback" that only showed cards NOT on the board —
-    // the assumption being that on-board cards get target-highlight
-    // glows. But that left the user stranded any time a card-vs-id
-    // mismatch caused only one option to appear in the tray (e.g. a
-    // stale reference to an enemy after a mid-onPlay relocation): the
-    // player would see "1 valid target" in the tray and not realize
-    // the other 3 enemies were ALSO clickable on the board. User
-    // report: "why can i only choose to attack soloman grundy for my
-    // predators attack" — there were 4 valid enemies, but the tray
-    // only surfaced one. Showing every option in the tray makes the
-    // prompt unambiguous; on-board target glows still work as a
-    // parallel direct-click path.
-    const unmatched = cc.cards.filter(c => c.id !== '_healthbar_mc');
+    // Only render the floating tray for candidates that AREN'T already
+    // visible somewhere on screen. If every non-healthbar option is a
+    // live card on the board or in the player's hand, those positions
+    // already pulse gold (via .target-highlight) and are directly
+    // clickable — a redundant centered popup just covers the lanes the
+    // player is trying to pick from. User direction: "I'd rather it
+    // just do it on board... highlight the cards in yellow."
+    //
+    // Build a set of currently-visible card IDs across board + hand.
+    // Candidates with no `id` (synthetic option cards — e.g. Vader's
+    // chain direction picks, Mind Control "attack health bar" tile)
+    // are never on-board and ALWAYS need the tray.
+    const visibleIds = new Set();
+    if (s.lanes) {
+      s.lanes.forEach(lane => {
+        if (lane.player && lane.player.id !== undefined) visibleIds.add(lane.player.id);
+        if (lane.ai && lane.ai.id !== undefined) visibleIds.add(lane.ai.id);
+      });
+    }
+    if (s.player && s.player.hand) {
+      s.player.hand.forEach(c => { if (c && c.id !== undefined) visibleIds.add(c.id); });
+    }
+    if (s.ai && s.ai.hand) {
+      s.ai.hand.forEach(c => { if (c && c.id !== undefined) visibleIds.add(c.id); });
+    }
+    // Filter to candidates that need the tray: skip the healthbar
+    // marker (wired separately above) AND skip anything already
+    // glowing in place.
+    const unmatched = cc.cards.filter(c => {
+      if (c.id === '_healthbar_mc') return false;
+      if (c.id !== undefined && visibleIds.has(c.id)) return false;
+      return true;
+    });
     if (!unmatched.length) return;
 
     // Floating "Discover"-style tray — bottom-anchored panel with a dim
@@ -4250,6 +4997,20 @@ const UI = {
               }
               return btn('mm-rogue', 'Roguelite', 'Climb a 6-fight ladder — build your deck as you go · beta', SVG.play, "Roguelite.enterRun()");
             })()}
+            ${(() => {
+              // Daily Run — same starter pools for everyone today.
+              // Subline reflects whether today's attempt is locked in.
+              const dailyStatus = (typeof Roguelite !== 'undefined' && Roguelite.dailyStatus) ? Roguelite.dailyStatus() : null;
+              if (dailyStatus && dailyStatus.attempted) {
+                const result = dailyStatus.result;
+                const sub = result === 'win'  ? `Today's run: WON · ${dailyStatus.date}`
+                          : result === 'loss' ? `Today's run: LOST · ${dailyStatus.date}`
+                          : `Today's attempt locked in · ${dailyStatus.date}`;
+                return btn('mm-daily', 'Daily Run', sub, SVG.stats, 'Roguelite.enterDailyRun()');
+              }
+              const sub = dailyStatus ? `Same starter pools for everyone today · ${dailyStatus.date}` : 'Same starter pools for everyone today';
+              return btn('mm-daily', 'Daily Run', sub, SVG.stats, 'Roguelite.enterDailyRun()');
+            })()}
             ${btn('mm-multi',   'Multiplayer',  'Match a friend over the internet · beta',                SVG.multi,    "UI.openMultiplayer()")}
             ${btn('mm-tutorial','Tutorial',     'Two-minute primer on how to play',                       helpSVG,      "UI.openTutorial()")}
           </div>
@@ -4267,6 +5028,7 @@ const UI = {
             ${btn('mm-encyc',   'Codex',        'Every card and trick in the game',                       SVG.decks,    "UI.openEncyclopedia()")}
             ${btn('mm-stats',   'Stats',        'Card win rates and balance trends',                      SVG.stats,    "Game.goToStats()")}
             ${btn('mm-audio',   'Audio Audit',  'Per-card audio coverage + inline splicer · dev',          SVG.settings, "UI.openAudioAudit()")}
+            ${btn('mm-sandbox', 'Sandbox',      'Free-play with unlimited energy + spawn any card · dev', SVG.settings, "UI.startSandbox()")}
           </div>
         </div>
       </div>`;
@@ -4338,8 +5100,11 @@ const UI = {
   },
 
   // Codex filter state — restored from persistence on first access,
-  // saved on every change via the setter helpers below.
-  _encyc: { section: 'cards', query: '', cost: 'all' },
+  // saved on every change via the setter helpers below. `rl` toggles
+  // the Roguelite Text+ overlay so each card's text becomes the
+  // upgraded `descOverride` (where one exists) instead of its classic
+  // desc — handy for browsing the upgrade pool without firing a run.
+  _encyc: { section: 'cards', query: '', cost: 'all', rl: false },
   openEncyclopedia() {
     // Restore last-used filter state (section / cost bucket / search
     // query) so opening the codex feels like resuming where you
@@ -4389,6 +5154,110 @@ const UI = {
     if (ov) ov.style.display = 'flex';
     document.body.classList.add('clb-toggle-hidden');
   },
+
+  // ===================== SANDBOX (dev free-play) =====================
+  // Free-play mode: skip draft, unlimited energy, AI is passive, and a
+  // floating panel lets you spawn any card / trick into your hand by
+  // name. Press `~` (or click the panel toggle) to open the spawner.
+  // Console API also exposed: Sandbox.spawn('Hulk'), Sandbox.energy(99),
+  // Sandbox.heal(), Sandbox.clearBoard(). User spec: "I'd like to
+  // have an area where I can just playtest and have a card in my hand
+  // if I want to with unlimited energy."
+  startSandbox() {
+    // Bypass the menu and start a classic match. We'll skip draft +
+    // boost energy after the match initializes.
+    Game.startMatch('classic');
+    // Mark sandbox mode so per-tick logic can keep energy maxed
+    // even after the engine ticks state[player].currency.
+    Game.state._sandbox = true;
+    // Auto-draft a starting hand so we don't have to click through.
+    // We just pick the first option each time.
+    const tick = () => {
+      const draftEls = Array.from(document.querySelectorAll('.draft-card, .draft-option, .draft-pick, .draft-trick'))
+        .filter(c => c.offsetWidth > 0);
+      if (draftEls.length) {
+        draftEls[0].click();
+        setTimeout(tick, 220);
+      } else {
+        // Draft done — boost energy and open the spawner.
+        if (Game.state && Game.state.player) {
+          Game.state.player.currency = 99;
+          Game.state.player.energy = 99;
+        }
+        UI.openSandboxPanel();
+        UI.render();
+      }
+    };
+    setTimeout(tick, 250);
+  },
+
+  openSandboxPanel() {
+    let ov = document.getElementById('sandbox-overlay');
+    if (!ov) {
+      ov = document.createElement('div');
+      ov.id = 'sandbox-overlay';
+      ov.className = 'sandbox-overlay';
+      ov.innerHTML = `
+        <div class="sandbox-panel">
+          <div class="sandbox-header">
+            <span class="sandbox-title">SANDBOX</span>
+            <button type="button" class="sandbox-close" aria-label="Close" onclick="UI.closeSandboxPanel()">&times;</button>
+          </div>
+          <div class="sandbox-controls">
+            <button type="button" class="sandbox-btn" onclick="Sandbox.energy(99)">+99 ⚡</button>
+            <button type="button" class="sandbox-btn" onclick="Sandbox.heal()">Full HP</button>
+            <button type="button" class="sandbox-btn" onclick="Sandbox.clearBoard()">Clear board</button>
+            <button type="button" class="sandbox-btn" onclick="Sandbox.advanceRound()">Next round</button>
+          </div>
+          <input type="search" id="sandbox-search" class="sandbox-search" placeholder="Search any card or trick name..." />
+          <div class="sandbox-list" id="sandbox-list"></div>
+          <div class="sandbox-hint">Press <kbd>~</kbd> to toggle this panel anytime.</div>
+        </div>
+      `;
+      document.body.appendChild(ov);
+      const search = ov.querySelector('#sandbox-search');
+      search.addEventListener('input', () => this.renderSandboxList());
+    }
+    ov.style.display = 'flex';
+    this.renderSandboxList();
+    setTimeout(() => { const s = document.getElementById('sandbox-search'); if (s) s.focus(); }, 50);
+  },
+
+  closeSandboxPanel() {
+    const ov = document.getElementById('sandbox-overlay');
+    if (ov) ov.style.display = 'none';
+  },
+
+  toggleSandboxPanel() {
+    const ov = document.getElementById('sandbox-overlay');
+    if (!ov || ov.style.display === 'none') this.openSandboxPanel();
+    else this.closeSandboxPanel();
+  },
+
+  renderSandboxList() {
+    const list = document.getElementById('sandbox-list');
+    const search = document.getElementById('sandbox-search');
+    if (!list) return;
+    const q = (search?.value || '').trim().toLowerCase();
+    const cardDefs = (typeof CARD_DEFS !== 'undefined') ? CARD_DEFS : [];
+    const trickDefs = (typeof TRICK_DEFS !== 'undefined') ? TRICK_DEFS : [];
+    const all = [
+      ...cardDefs.map(d => ({ kind: 'card', def: d })),
+      ...trickDefs.map(d => ({ kind: 'trick', def: d })),
+    ].filter(e => !q || e.def.name.toLowerCase().includes(q));
+    list.innerHTML = all.slice(0, 80).map(e => {
+      const cost = e.def.cost ?? 0;
+      const stats = e.kind === 'card' ? `<span class="sb-stats">${e.def.attack ?? 0}/${e.def.health ?? 0}</span>` : '';
+      const klass = e.kind === 'trick' ? 'sb-row sb-trick' : 'sb-row sb-card';
+      return `<div class="${klass}" onclick="Sandbox.spawn('${e.def.name.replace(/'/g, "\\'")}')">
+        <span class="sb-cost">${cost}</span>
+        <span class="sb-name">${e.def.name}</span>
+        ${stats}
+        <span class="sb-kind">${e.kind}</span>
+      </div>`;
+    }).join('');
+    if (!all.length) list.innerHTML = '<div class="sb-empty">No matches</div>';
+  },
   closeAudioAudit() {
     const ov = document.getElementById('audio-audit-overlay');
     if (ov) ov.style.display = 'none';
@@ -4429,11 +5298,233 @@ const UI = {
     }
     return { kind: 'none' };
   },
+  // ===================== SYSTEM SFX DIRECTORY =====================
+  // A flat catalog of every NON-card / NON-trick sound the engine
+  // can play — UI cues, combat events, status effects, transitions,
+  // match outcomes, and the boot sequence. Lets the audio audit
+  // panel surface them so the user can hear each one in isolation
+  // and decide which to swap. Each entry is { id, category, name,
+  // desc, kind: 'procedural'|'file', src?, play }.
+  //
+  // `id` matches the literal passed to UI.sfx.play(name) for
+  // procedural entries — keeps the directory in lock-step with the
+  // play() switch in UI.sfx without duplicating the synth graphs.
+  _systemSfxDirectory() {
+    const sfx = this.sfx;
+    if (!sfx) return [];
+    // Procedural entries that route through UI.sfx.play(name). Any
+    // case in that switch should appear here so the audit covers it.
+    const proc = (id, category, name, desc) => ({
+      id, category, name, desc,
+      kind: 'procedural',
+      play: () => sfx.play(id),
+    });
+    return [
+      // ---- UI ----
+      proc('uiHover',   'UI',     'UI hover',          'Tron-digital hover blip — triangle sweep + sine shimmer. Fires on menu/HUD button hover.'),
+      proc('select',    'UI',     'Select tick',       'Short sine click. Fires on selection toggle.'),
+      proc('cardHover', 'UI',     'Card hover (default)', 'Deeper Tron blip used as the fallback for any card / trick without a registered hover file.'),
+      proc('modalOpen', 'UI',     'Modal open',        'Soft swoosh-in — rising sine + faint noise puff.'),
+      proc('modalClose','UI',     'Modal close',       'Snap-out — falling sine + tiny click.'),
+      // ---- Card events ----
+      proc('cardPlay',      'Cards', 'Card play (ally)',  'Heroic ally arrival — staggered C-major triad on triangle waves with a high shimmer.'),
+      proc('cardPlayEnemy', 'Cards', 'Card play (enemy)', 'Menacing enemy arrival — descending sawtooth A-minor triad over a sub bass.'),
+      proc('cardDestroy',   'Cards', 'Card destroyed',    'Falling sawtooth + filtered noise. Generic destroy cue.'),
+      proc('defaultAbility','Cards', 'Default ability',   'Generic ability confirm fallback — triangle up-sweep + sine shimmer.'),
+      // ---- Combat ----
+      proc('hit',       'Combat', 'Hit',             'Plasma / forcefield impact — sub thump + mid pitch drop + high digital snap.'),
+      proc('hpHit',     'Combat', 'HP bar hit',      'Sawtooth + noise body — fires when face HP takes damage.'),
+      proc('kill',      'Combat', 'Kill confirm',    '"Got \'em" — two ascending triangle blips + high-sine shimmer when YOU kill an enemy.'),
+      proc('evade',     'Combat', 'Evade dodge',     'Quick rising sine sweep + high-shelf noise puff. Fires when evade consumes a charge.'),
+      proc('armor',     'Combat', 'Armor block',     'Sawtooth plink + bright noise burst — shield ting.'),
+      proc('heal',      'Combat', 'Heal chime',      'Rising major-third triad on soft sines.'),
+      proc('blockFull', 'Combat', 'Block meter full','Three-note major chord — fires when block meter caps and absorbs the next hit.'),
+      // ---- Tricks ----
+      proc('trick',     'Tricks', 'Trick activate',  'Synth-circuit trigger — two-tone sine sweep with delayed harmonic.'),
+      // ---- Status effects ----
+      proc('statusFreeze',   'Status', 'Freeze applied',       'Status-apply cue for Freeze.'),
+      proc('statusStun',     'Status', 'Stun applied',         'Status-apply cue for Stun.'),
+      proc('statusFear',     'Status', 'Fear applied',         'Status-apply cue for Fear.'),
+      proc('statusMindCtrl', 'Status', 'Mind Control applied', 'Status-apply cue for Mind Control.'),
+      // ---- Roguelite progression ----
+      proc('rewardPick',   'Roguelite', 'Reward pick',   'Major-chord rise — the "you got it" moment for a card pick.'),
+      proc('levelUpPick',  'Roguelite', 'Level-up pick', 'Sharper synth-burst — bright triangle up-sweep + harmonic shimmer for a card upgrade.'),
+      proc('relicAcquire', 'Roguelite', 'Relic acquire', 'Golden five-note ascending arpeggio + sustained sine overtone — treasure earned.'),
+      proc('curseAcquire', 'Roguelite', 'Curse acquire', 'Descending dissonant buzz — inverse of relic.'),
+      proc('bossSting',    'Roguelite', 'Boss sting',    'Heavy-low sting that lands when a boss node is entered.'),
+      proc('etchApply',    'Roguelite', 'Etch apply',    'Confirmation cue when an etch lands on a card.'),
+      // ---- Match outcomes ----
+      proc('victory', 'Match', 'Victory fanfare', 'Ascending C-major triad + sustained shimmer. Match win.'),
+      proc('defeat',  'Match', 'Defeat dirge',    'Descending sawtooth chord + low-pass noise. Match loss.'),
+      // ---- Transitions ----
+      // Boot-sequence components — exposed individually so each
+      // layer can be auditioned in isolation, plus a "Full sequence"
+      // entry that fires the actual boot routine.
+      {
+        id: 'boot-whoosh-low',  category: 'Transitions', kind: 'procedural',
+        name: 'Boot whoosh (low)',
+        desc: 'Wide-band noise burst, 200-1800 Hz, 0.85s. First half of the trick-draft → board boot scan.',
+        play: () => sfx._noise({ dur: 0.85, gain: 0.08, highpass: 200, lowpass: 1800 }),
+      },
+      {
+        id: 'boot-whoosh-high', category: 'Transitions', kind: 'procedural',
+        name: 'Boot whoosh (high)',
+        desc: 'Higher-band noise 1200-5500 Hz at 0.20s offset. Pairs with the low whoosh for a filter-sweep feel.',
+        play: () => sfx._noise({ dur: 0.95, gain: 0.10, highpass: 1200, lowpass: 5500 }),
+      },
+      {
+        id: 'boot-hum', category: 'Transitions', kind: 'procedural',
+        name: 'Boot hum (pad)',
+        desc: 'Low sawtooth pad 80→100 Hz + sine harmonic. The "computer powered on" baseline drone.',
+        play: () => {
+          sfx._tone({ type: 'sawtooth', freq: 80,  freqEnd: 100, dur: 1.8, gain: 0.06, attack: 0.30, release: 1.8 });
+          sfx._tone({ type: 'sine',     freq: 160, freqEnd: 200, dur: 1.8, gain: 0.04, attack: 0.30, release: 1.8 });
+        },
+      },
+      {
+        id: 'boot-bleep', category: 'Transitions', kind: 'procedural',
+        name: 'Boot bleep (lock-on)',
+        desc: 'Rising sine pip 440→880 Hz + harmonic 880→1760 Hz. The "lock-on" cue at scan peak.',
+        play: () => {
+          sfx._tone({ type: 'sine', freq: 440, freqEnd: 880,  dur: 0.18, gain: 0.18, attack: 0.005 });
+          sfx._tone({ type: 'sine', freq: 880, freqEnd: 1760, dur: 0.14, gain: 0.10, attack: 0.005, delay: 0.07 });
+        },
+      },
+      {
+        id: 'boot-tick', category: 'Transitions', kind: 'procedural',
+        name: 'Boot card tick',
+        desc: 'Per-card landing blip — square + triangle blend. Fires once per card during the hand stagger.',
+        play: () => {
+          sfx._tone({ type: 'square',   freq: 1800, freqEnd: 1200, dur: 0.05, gain: 0.10 });
+          sfx._tone({ type: 'triangle', freq: 600,  freqEnd: 400,  dur: 0.06, gain: 0.06, delay: 0.005 });
+        },
+      },
+      {
+        id: 'boot-full', category: 'Transitions', kind: 'procedural',
+        name: 'Boot sequence (full)',
+        desc: 'Full ~2.2s boot-up — all whoosh + hum + bleep + 4 ticks layered with their real timings. Plays on trick-draft → first combat phase.',
+        play: () => sfx.playBootSequence(4),
+      },
+      proc('phaseEngage', 'Transitions', 'Engage cue (map → fight)',
+        'Combat-ready snap — rising sawtooth pulse + sharp noise crack + sub thump. Distinct from boot; this is fast and aggressive ("weapons hot"). Fires on roguelite-map → first-fight-phase.'),
+      proc('phaseCommit', 'Transitions', 'Commit cue (fight → rewards)',
+        'Descending three-tone major triad on soft sines (G5→E5→C5) with a low noise wash. The "saving data" beat. Fires on in-fight → roguelite-rewards.'),
+      proc('phaseReturn', 'Transitions', 'Return cue (rewards → map)',
+        'Contemplative sustained sine pad with a faint shimmer. The quiet "back to the map" beat — no drum, no edge. Fires on roguelite-rewards → roguelite-map.'),
+      // ---- Music & file-backed UI ----
+      {
+        id: 'nav', category: 'Music & Files', kind: 'file',
+        name: 'Menu navigation',
+        desc: 'Sampled WAV played on every menu navigation click.',
+        src: sfx.NAV_SRC || 'audio/ui_planetzoom.wav',
+        play: () => sfx.playNav(),
+      },
+      {
+        id: 'music', category: 'Music & Files', kind: 'file',
+        name: 'Menu music (loop)',
+        desc: 'Looping background music that plays on the menu screens.',
+        src: (sfx.MUSIC_SRC || 'audio/menu_music.mp3').split('?')[0],
+        play: () => { try { sfx.startMusic(); } catch (e) {} },
+      },
+      {
+        id: 'heal-hp', category: 'Music & Files', kind: 'file',
+        name: 'Heal HP cue',
+        desc: 'File-backed HP heal sample.',
+        src: 'audio/heal-hp.mp3',
+        play: () => sfx._playSample('audio/heal-hp.mp3', { fadeIn: 0, fadeOut: 200, maxDur: 1.5 }),
+      },
+    ];
+  },
+  // Public play helper invoked by the inline ▶ buttons in the
+  // system-sounds table. Wraps the entry's play fn in a try/catch
+  // so a busted entry doesn't take down the whole audit.
+  _audioAuditPlaySystem(id) {
+    const list = this._systemSfxDirectory();
+    const entry = list.find(e => e.id === id);
+    if (!entry) return;
+    try { entry.play(); } catch (e) { console.warn('[audio-audit] play failed', id, e); }
+  },
+
+  // Render the "Game Sounds" tab. Single column of rows grouped by
+  // category (UI / Combat / Status / Tricks / Roguelite / Match /
+  // Transitions / Music & Files). Each row: ▶ play button, name,
+  // ID/source pill, description. Filterable by name + description
+  // via the same search box the cards/tricks tabs use.
+  _renderAudioAuditSystem(ov, f) {
+    const all = this._systemSfxDirectory();
+    const q = (f.query || '').trim().toLowerCase();
+    const list = all.filter(e =>
+      !q || e.name.toLowerCase().includes(q) || e.id.toLowerCase().includes(q) || (e.desc || '').toLowerCase().includes(q)
+    );
+    // Group by category, preserving directory order within each.
+    const byCat = new Map();
+    list.forEach(e => {
+      if (!byCat.has(e.category)) byCat.set(e.category, []);
+      byCat.get(e.category).push(e);
+    });
+    const escAttr = (s) => String(s).replace(/"/g, '&quot;');
+    const escText = (s) => String(s)
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    const rowHtml = (e) => {
+      const kindBadge = e.kind === 'file'
+        ? `<span class="aa-sys-kind aa-sys-kind-file" title="File-backed">file</span>`
+        : `<span class="aa-sys-kind aa-sys-kind-proc" title="Procedural — generated by Web Audio">synth</span>`;
+      const srcLine = e.kind === 'file' && e.src
+        ? `<div class="aa-sys-src" title="${escAttr(e.src)}">${escText(e.src)}</div>`
+        : `<div class="aa-sys-src aa-sys-src-id">id: <code>${escText(e.id)}</code></div>`;
+      return `
+        <tr class="aa-sys-row">
+          <td class="aa-sys-play-cell">
+            <button type="button" class="aa-cell-play" title="Play"
+              onclick="UI._audioAuditPlaySystem('${escAttr(e.id)}')">▶</button>
+          </td>
+          <td class="aa-sys-name-cell">
+            <div class="aa-sys-name">${escText(e.name)} ${kindBadge}</div>
+            ${srcLine}
+            <div class="aa-sys-desc">${escText(e.desc || '')}</div>
+          </td>
+        </tr>`;
+    };
+    const sections = Array.from(byCat.entries()).map(([cat, entries]) => `
+      <tbody class="aa-sys-group">
+        <tr><td colspan="2" class="aa-sys-cat">${escText(cat)} <span class="aa-sys-cat-count">${entries.length}</span></td></tr>
+        ${entries.map(rowHtml).join('')}
+      </tbody>`).join('');
+    const sysCount = all.length;
+    const cardsCount = (typeof CARD_DEFS !== 'undefined' ? CARD_DEFS.length : 0);
+    const tricksCount = (typeof TRICK_DEFS !== 'undefined' ? TRICK_DEFS.length : 0);
+    ov.innerHTML = `
+      <div class="encyc-panel audio-audit-panel">
+        <button type="button" class="encyc-close" onclick="UI.closeAudioAudit()">← Menu</button>
+        <h1 class="encyc-title">Audio Audit</h1>
+        <div class="aa-summary">
+          <span><b>${list.length}</b>/${sysCount} game sounds</span>
+        </div>
+        <div class="aa-tabs">
+          <button type="button" class="aa-tab" onclick="UI._audioAuditSetSection('cards')">Cards (${cardsCount})</button>
+          <button type="button" class="aa-tab" onclick="UI._audioAuditSetSection('tricks')">Tricks (${tricksCount})</button>
+          <button type="button" class="aa-tab aa-tab-active" onclick="UI._audioAuditSetSection('system')">Game Sounds (${sysCount})</button>
+        </div>
+        <div class="aa-controls">
+          <input class="aa-search" type="search" placeholder="Filter by name, id, or description…"
+            value="${escAttr(f.query || '')}"
+            oninput="UI._audioAuditSetQuery(this.value)">
+        </div>
+        <div class="aa-table-wrap">
+          <table class="aa-table aa-table-system">
+            ${sections || `<tbody><tr><td colspan="2" class="aa-empty">No matches.</td></tr></tbody>`}
+          </table>
+        </div>
+      </div>`;
+  },
+
   renderAudioAudit() {
     const ov = document.getElementById('audio-audit-overlay');
     if (!ov) return;
     const f = this._audioAudit;
-    const isTrick = f.section === 'tricks';
+    const section = f.section || 'cards';
+    if (section === 'system') return this._renderAudioAuditSystem(ov, f);
+    const isTrick = section === 'tricks';
     const defs = isTrick
       ? (typeof TRICK_DEFS !== 'undefined' ? TRICK_DEFS : [])
       : (typeof CARD_DEFS !== 'undefined' ? CARD_DEFS : []);
@@ -4481,10 +5572,12 @@ const UI = {
         <td class="aa-row-name">${d.name}</td>
         ${events.map(ev => `<td>${cellHtml(d.name, ev)}</td>`).join('')}
       </tr>`).join('');
+    const sysCount = this._systemSfxDirectory().length;
     const sectionTabs = `
       <div class="aa-tabs">
         <button type="button" class="aa-tab ${!isTrick ? 'aa-tab-active' : ''}" onclick="UI._audioAuditSetSection('cards')">Cards (${(typeof CARD_DEFS !== 'undefined' ? CARD_DEFS.length : 0)})</button>
         <button type="button" class="aa-tab ${ isTrick ? 'aa-tab-active' : ''}" onclick="UI._audioAuditSetSection('tricks')">Tricks (${(typeof TRICK_DEFS !== 'undefined' ? TRICK_DEFS.length : 0)})</button>
+        <button type="button" class="aa-tab" onclick="UI._audioAuditSetSection('system')">Game Sounds (${sysCount})</button>
       </div>`;
     ov.innerHTML = `
       <div class="encyc-panel audio-audit-panel">
@@ -4806,6 +5899,7 @@ const UI = {
   _encycSetSection(s) { this._encyc.section = s; this._encyc.cost = 'all'; this._persistSet('codex', this._encyc); this.renderEncyclopedia(); },
   _encycSetCost(c)    { this._encyc.cost = c; this._persistSet('codex', this._encyc); this.renderEncyclopedia(); },
   _encycSetQuery(q)   { this._encyc.query = q || ''; this._persistSet('codex', this._encyc); this.renderEncyclopedia(); },
+  _encycToggleRl()    { this._encyc.rl = !this._encyc.rl; this._persistSet('codex', this._encyc); this.renderEncyclopedia(); },
   renderEncyclopedia() {
     const ov = document.getElementById('encyclopedia-overlay');
     if (!ov) return;
@@ -4853,6 +5947,14 @@ const UI = {
         // as a card currently in the player's hand. Board-only status
         // classes (stunned, frozen, MVP star) are skipped because the
         // `inHand` branch of makeCardEl doesn't read them.
+        // Roguelite Text+ overlay — when f.rl is on, swap each card's
+        // classic desc for its upgraded `descOverride` (if one exists
+        // in CARD_TEXT_UPGRADES). Cards without a Text+ entry show
+        // their default text unchanged. Upgraded cards also get a
+        // small "+" badge so you can see at a glance which cards
+        // changed.
+        const rlOn = !!f.rl;
+        const upgrades = (typeof Roguelite !== 'undefined' && Roguelite.CARD_TEXT_UPGRADES) || {};
         body = filtered.map(def => {
           const costClass = 'cost-' + Math.min(10, Math.max(0, def.cost || 0));
           const abilitiesHtml = (def.abilities && def.abilities.length)
@@ -4860,13 +5962,28 @@ const UI = {
           const cost = def.cost || 0;
           const _dpPips = cost <= 3 ? 1 : cost <= 6 ? 2 : cost <= 8 ? 3 : 4;
           const rarityPips = `<span class="rarity-strip" aria-hidden="true">${'<span class="rpip"></span>'.repeat(_dpPips)}</span>`;
-          const descAttr = (def.desc || '').replace(/"/g, '&quot;');
-          return `<div class="card hand-card ${costClass} enc-card" data-card-name="${def.name}" title="${descAttr}">
+          const upgrade = rlOn ? upgrades[def.name] : null;
+          const desc = upgrade && upgrade.descOverride ? upgrade.descOverride : (def.desc || '');
+          const descAttr = desc.replace(/"/g, '&quot;');
+          const upgradedClass = upgrade ? ' enc-card-upgraded' : '';
+          const upgradeBadge = upgrade
+            ? `<span class="enc-rl-badge" title="${(upgrade.name || 'Roguelite Text+').replace(/"/g, '&quot;')}">+</span>` : '';
+          // REDESIGN: art-at-top with name overlay (same as makeCardEl).
+          // No separate name-banner row — name lives inside the portrait
+          // as a translucent bottom strip.
+          const portraitFile = `audio/cards/art/${encodeURIComponent(def.name)}.png?v=${UI._CARD_ART_VERSION || 1}`;
+          const portraitHtml = `<div class="card-portrait" style="--portrait-bg:url('${portraitFile}')"><div class="card-name-overlay">${def.name}</div></div>`;
+          // [ CARD DATA ] divider was removed — user direction: "it's
+          // distracting and it doesn't add anything." The painting →
+          // status badges → desc → orbs hierarchy already reads clearly
+          // without an explicit seam between the art and the data.
+          return `<div class="card hand-card ${costClass} enc-card${upgradedClass}" data-card-name="${def.name}" title="${descAttr}">
             <span class="card-cost">${cost}</span>
             ${rarityPips}
-            <div class="card-name-banner"><div class="card-name">${def.name}</div></div>
+            ${upgradeBadge}
+            ${portraitHtml}
             ${abilitiesHtml}
-            <div class="card-desc">${this.formatDesc(def.desc || '')}</div>
+            <div class="card-desc">${this.formatDesc(desc)}</div>
             <span class="stat-circle stat-atk">${def.attack}</span>
             <span class="stat-circle stat-hp">${def.health}</span>
           </div>`;
@@ -4913,6 +6030,9 @@ const UI = {
           <div class="db-cost-row">
             ${costBuckets.map(([k, lbl]) => `<button type="button" class="db-cost-chip ${f.cost===k?'db-cost-active':''}" onclick="UI._encycSetCost('${k}')">${lbl}</button>`).join('')}
           </div>
+          ${isCards ? `<button type="button" class="encyc-rl-toggle ${f.rl ? 'encyc-rl-active' : ''}" onclick="UI._encycToggleRl()" title="Show Roguelite Text+ upgrades on cards that have one">
+            <span class="encyc-rl-dot"></span>Roguelite ${f.rl ? 'ON' : 'OFF'}
+          </button>` : ''}
         </div>
         <div class="db-grid encyc-grid">${body}</div>
       </div>`;
@@ -6961,6 +8081,31 @@ const UI = {
     try { localStorage.setItem(this._DB_STORAGE_KEY, JSON.stringify(obj)); }
     catch (e) { /* quota or disabled — swallow silently */ }
   },
+  // Sanitize an imported decks map. Tampered or out-of-date backup JSON
+  // could otherwise crash the deckbuilder when it later calls .slice() on
+  // a non-array, or surface phantom card names that no longer exist in
+  // CARD_DEFS. Returns { decks, dropped } where dropped lists deck names
+  // that were rejected so the caller can warn the user.
+  _validateImportedDecks(raw) {
+    const out = {};
+    const dropped = [];
+    if (!raw || typeof raw !== 'object') return { decks: out, dropped };
+    const cardNames = (typeof CARD_DEFS !== 'undefined')
+      ? new Set(CARD_DEFS.map(c => c.name)) : null;
+    const trickNames = (typeof TRICK_DEFS !== 'undefined')
+      ? new Set(TRICK_DEFS.map(t => t.name)) : null;
+    for (const [name, deck] of Object.entries(raw)) {
+      if (typeof name !== 'string' || !name.trim()) { dropped.push(String(name)); continue; }
+      if (!deck || typeof deck !== 'object') { dropped.push(name); continue; }
+      const cards = Array.isArray(deck.cards) ? deck.cards : null;
+      const tricks = Array.isArray(deck.tricks) ? deck.tricks : null;
+      if (!cards || !tricks) { dropped.push(name); continue; }
+      const cleanCards = cards.filter(n => typeof n === 'string' && (!cardNames || cardNames.has(n)));
+      const cleanTricks = tricks.filter(n => typeof n === 'string' && (!trickNames || trickNames.has(n)));
+      out[name] = { cards: cleanCards, tricks: cleanTricks };
+    }
+    return { decks: out, dropped };
+  },
 
   // ===================== MATCH HISTORY =====================
   // Rolling log of the last 10 matches — enough for "show me my
@@ -7079,6 +8224,283 @@ const UI = {
     } else {
       window.prompt('Copy your match summary:', text);
     }
+  },
+
+  // ===================== AAA SHARE CARD =====================
+  // Opens the share-card modal and renders a 1080x1080 canvas
+  // summary the user can save (PNG download) or copy to clipboard
+  // (Image API). Pulls from the same replay data the text share
+  // uses so the two stay consistent. The image is built top-down:
+  //   1. Background: dark Tron grid + theme accent gradient
+  //   2. Headline: VICTORY / DEFEAT (color-coded)
+  //   3. MVP card name + score
+  //   4. HP curve mini-chart (player vs AI lines)
+  //   5. Footer: rounds, mode, AI persona, date
+  // Each pass below builds a discrete chunk so future variants can
+  // remix layout without touching every step.
+  openShareCardModal() {
+    const modal = document.getElementById('share-card-modal');
+    if (!modal) return;
+    const canvas = document.getElementById('share-card-canvas');
+    if (!canvas) return;
+    this._buildShareCardImage(canvas);
+    modal.classList.add('open');
+    // ESC closes — install a one-shot listener that auto-removes.
+    const onKey = (e) => {
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        this.closeShareCardModal();
+        document.removeEventListener('keydown', onKey);
+      }
+    };
+    document.addEventListener('keydown', onKey);
+    this._scmKeyListener = onKey;
+  },
+
+  closeShareCardModal() {
+    const modal = document.getElementById('share-card-modal');
+    if (modal) modal.classList.remove('open');
+    if (this._scmKeyListener) {
+      document.removeEventListener('keydown', this._scmKeyListener);
+      this._scmKeyListener = null;
+    }
+  },
+
+  // Trigger PNG download. Uses canvas.toBlob → URL.createObjectURL
+  // → invisible <a download> click → URL.revokeObjectURL. File name
+  // is `card-lane-<verdict>-<yyyymmdd-hhmm>.png`.
+  downloadShareCard() {
+    const canvas = document.getElementById('share-card-canvas');
+    if (!canvas) return;
+    const verdict = this._scmLastVerdict || 'match';
+    const stamp = this._scmStamp();
+    const name = `card-lane-${verdict.toLowerCase()}-${stamp}.png`;
+    canvas.toBlob((blob) => {
+      if (!blob) { this._scmToast('Save failed — try Copy instead'); return; }
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url; a.download = name;
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 1500);
+      this._scmToast('Saved to Downloads');
+    }, 'image/png');
+  },
+
+  // Try the Clipboard API (image MIME). Falls back to a "long-press
+  // the canvas to copy" hint on browsers where it's not supported.
+  copyShareCard() {
+    const canvas = document.getElementById('share-card-canvas');
+    if (!canvas) return;
+    if (!window.ClipboardItem || !navigator.clipboard || !navigator.clipboard.write) {
+      this._scmToast('Long-press the image to copy');
+      return;
+    }
+    canvas.toBlob((blob) => {
+      if (!blob) { this._scmToast('Copy failed'); return; }
+      try {
+        const item = new ClipboardItem({ 'image/png': blob });
+        navigator.clipboard.write([item]).then(
+          () => this._scmToast('Image copied'),
+          () => this._scmToast('Copy blocked — try Download')
+        );
+      } catch (e) {
+        this._scmToast('Copy not supported here');
+      }
+    }, 'image/png');
+  },
+
+  _scmStamp() {
+    const d = new Date();
+    const p = (n) => String(n).padStart(2, '0');
+    return `${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}-${p(d.getHours())}${p(d.getMinutes())}`;
+  },
+
+  _scmToast(msg) {
+    const t = document.getElementById('scm-toast');
+    if (!t) return;
+    t.textContent = msg;
+    t.classList.add('show');
+    clearTimeout(this._scmToastTimer);
+    this._scmToastTimer = setTimeout(() => t.classList.remove('show'), 1800);
+  },
+
+  _buildShareCardImage(canvas) {
+    const ctx = canvas.getContext('2d');
+    const W = canvas.width, H = canvas.height;
+    // Resolve theme accent for this build. Falls back to cyan.
+    const cs = getComputedStyle(document.body);
+    const themeRgb = (cs.getPropertyValue('--theme-rgb') || '79, 195, 247').trim();
+    const accent = `rgb(${themeRgb})`;
+    const accentDim = `rgba(${themeRgb}, 0.35)`;
+    const accentSoft = `rgba(${themeRgb}, 0.12)`;
+
+    // Pull the replay summary so the card matches Share Result.
+    const replay = this._loadReplay && this._loadReplay();
+    const summary = (replay && replay.summary) || {};
+    const winner = summary.winner || (Game.state ? Game.state.winner : null);
+    const verdict = winner === 'player' ? 'VICTORY' : winner === 'ai' ? 'DEFEAT' : 'DRAW';
+    this._scmLastVerdict = verdict;
+    const verdictColor = winner === 'player' ? accent : winner === 'ai' ? '#e74c3c' : '#bdc3c7';
+
+    // ----- LAYER 1: BACKGROUND -----
+    // Dark base
+    ctx.fillStyle = '#050a10';
+    ctx.fillRect(0, 0, W, H);
+    // Radial accent from upper-left
+    const grad = ctx.createRadialGradient(W * 0.2, H * 0.15, 0, W * 0.5, H * 0.5, W * 0.9);
+    grad.addColorStop(0, accentSoft);
+    grad.addColorStop(0.5, 'rgba(0, 0, 0, 0.10)');
+    grad.addColorStop(1, 'rgba(0, 0, 0, 0.55)');
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, W, H);
+    // Tron grid
+    ctx.strokeStyle = accentDim;
+    ctx.lineWidth = 1.2;
+    ctx.beginPath();
+    const step = 60;
+    for (let x = 0; x <= W; x += step) { ctx.moveTo(x + 0.5, 0); ctx.lineTo(x + 0.5, H); }
+    for (let y = 0; y <= H; y += step) { ctx.moveTo(0, y + 0.5); ctx.lineTo(W, y + 0.5); }
+    ctx.stroke();
+    // Outer frame
+    ctx.strokeStyle = accent;
+    ctx.lineWidth = 4;
+    ctx.strokeRect(20, 20, W - 40, H - 40);
+    ctx.lineWidth = 1;
+    ctx.strokeStyle = accentDim;
+    ctx.strokeRect(36, 36, W - 72, H - 72);
+
+    // Diagonal corner cuts for chrome
+    ctx.fillStyle = accent;
+    [[20, 20, 1, 1], [W - 20, 20, -1, 1], [20, H - 20, 1, -1], [W - 20, H - 20, -1, -1]].forEach(([x, y, sx, sy]) => {
+      ctx.beginPath();
+      ctx.moveTo(x, y);
+      ctx.lineTo(x + sx * 36, y);
+      ctx.lineTo(x, y + sy * 36);
+      ctx.closePath();
+      ctx.fill();
+    });
+
+    // ----- LAYER 2: HEADLINE -----
+    ctx.textAlign = 'center';
+    ctx.fillStyle = 'rgba(255,255,255,0.75)';
+    ctx.font = '500 28px "Rajdhani", "Inter", sans-serif';
+    ctx.fillText('CARD LANE BATTLE', W / 2, 130);
+
+    ctx.fillStyle = verdictColor;
+    ctx.font = '800 140px "Rajdhani", "Inter", sans-serif';
+    ctx.shadowColor = verdictColor;
+    ctx.shadowBlur = 28;
+    ctx.fillText(verdict, W / 2, 270);
+    ctx.shadowBlur = 0;
+
+    // Underline divider
+    ctx.strokeStyle = accent;
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(W * 0.25, 310);
+    ctx.lineTo(W * 0.75, 310);
+    ctx.stroke();
+
+    // ----- LAYER 3: MVP -----
+    const mvp = summary.mvp;
+    ctx.fillStyle = 'rgba(255,255,255,0.65)';
+    ctx.font = '600 22px "Rajdhani", sans-serif';
+    ctx.fillText('MATCH MVP', W / 2, 370);
+    ctx.fillStyle = '#ffffff';
+    ctx.font = '700 60px "Rajdhani", sans-serif';
+    const mvpName = mvp ? mvp.name : '—';
+    ctx.fillText(mvpName, W / 2, 440);
+    if (mvp) {
+      ctx.fillStyle = mvp.owner === 'player' ? accent : '#e74c3c';
+      ctx.font = '600 24px "Rajdhani", sans-serif';
+      ctx.fillText(mvp.owner === 'player' ? 'YOUR ALLY' : 'ENEMY THREAT', W / 2, 480);
+    }
+
+    // ----- LAYER 4: HP CURVE -----
+    const history = (replay && replay.hpHistory) || [];
+    const chartTop = 540, chartBot = 800, chartLeft = 100, chartRight = W - 100;
+    const chartW = chartRight - chartLeft, chartH = chartBot - chartTop;
+    // Frame + label
+    ctx.fillStyle = 'rgba(255,255,255,0.55)';
+    ctx.font = '600 20px "Rajdhani", sans-serif';
+    ctx.textAlign = 'left';
+    ctx.fillText('HP HISTORY', chartLeft, chartTop - 14);
+    ctx.strokeStyle = accentDim;
+    ctx.lineWidth = 1;
+    ctx.strokeRect(chartLeft, chartTop, chartW, chartH);
+    // Horizontal grid at quartiles
+    ctx.strokeStyle = 'rgba(255,255,255,0.07)';
+    for (let q = 1; q < 4; q++) {
+      const y = chartTop + (q / 4) * chartH;
+      ctx.beginPath();
+      ctx.moveTo(chartLeft, y);
+      ctx.lineTo(chartRight, y);
+      ctx.stroke();
+    }
+    if (history.length >= 2) {
+      const maxHp = 30;
+      const drawLine = (key, color, glow) => {
+        ctx.strokeStyle = color;
+        ctx.lineWidth = 4;
+        ctx.shadowColor = glow;
+        ctx.shadowBlur = 14;
+        ctx.beginPath();
+        history.forEach((h, i) => {
+          const x = chartLeft + (i / (history.length - 1)) * chartW;
+          const v = Math.max(0, Math.min(maxHp, h[key] || 0));
+          const y = chartBot - (v / maxHp) * chartH;
+          if (i === 0) ctx.moveTo(x, y);
+          else ctx.lineTo(x, y);
+        });
+        ctx.stroke();
+        ctx.shadowBlur = 0;
+      };
+      drawLine('player', accent, accent);
+      drawLine('ai', '#e74c3c', '#e74c3c');
+      // Legend
+      ctx.font = '600 18px "Rajdhani", sans-serif';
+      ctx.fillStyle = accent;
+      ctx.fillText('YOU', chartLeft + 12, chartTop + 28);
+      ctx.fillStyle = '#e74c3c';
+      ctx.fillText('AI', chartLeft + 78, chartTop + 28);
+    } else {
+      ctx.textAlign = 'center';
+      ctx.fillStyle = 'rgba(255,255,255,0.35)';
+      ctx.font = '500 22px "Rajdhani", sans-serif';
+      ctx.fillText('No HP history captured', W / 2, chartTop + chartH / 2 + 8);
+    }
+
+    // ----- LAYER 5: STAT GRID -----
+    ctx.textAlign = 'center';
+    const statY = 870;
+    const statCols = [
+      { label: 'ROUNDS', value: String(summary.rounds || (Game.state ? Game.state.round : 0) || 0) },
+      { label: 'YOUR HP', value: String(summary.playerHp != null ? summary.playerHp : (Game.state && Game.state.player ? Game.state.player.health : 0)) },
+      { label: 'AI HP', value: String(summary.aiHp != null ? summary.aiHp : (Game.state && Game.state.ai ? Game.state.ai.health : 0)) },
+      { label: 'MODE', value: (summary.mode || 'classic').toUpperCase() }
+    ];
+    const colW = (W - 200) / statCols.length;
+    statCols.forEach((sc, i) => {
+      const cx = 100 + colW * (i + 0.5);
+      ctx.fillStyle = 'rgba(255,255,255,0.55)';
+      ctx.font = '600 18px "Rajdhani", sans-serif';
+      ctx.fillText(sc.label, cx, statY);
+      ctx.fillStyle = '#ffffff';
+      ctx.font = '700 48px "Rajdhani", sans-serif';
+      ctx.fillText(sc.value, cx, statY + 56);
+    });
+
+    // ----- LAYER 6: FOOTER -----
+    const persona = this._currentAiPersonality;
+    const oppName = persona ? `${persona.name} • ${persona.tag}` : 'AI Opponent';
+    const dateStr = new Date().toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
+    ctx.textAlign = 'center';
+    ctx.fillStyle = 'rgba(255,255,255,0.55)';
+    ctx.font = '600 22px "Rajdhani", sans-serif';
+    ctx.fillText(`vs ${oppName}  ·  ${dateStr}`, W / 2, H - 70);
+    ctx.fillStyle = accent;
+    ctx.font = '700 18px "Rajdhani", sans-serif';
+    ctx.fillText('CARD LANE BATTLE', W / 2, H - 40);
   },
   _renderReplayOverlay(r) {
     // Remove any stale overlay.
@@ -7299,10 +8721,20 @@ const UI = {
         const _dpCost = c.cost || 0;
         const _dpPips = _dpCost <= 3 ? 1 : _dpCost <= 6 ? 2 : _dpCost <= 8 ? 3 : 4;
         const rarityPips = `<span class="rarity-strip">${'<span class="rpip"></span>'.repeat(_dpPips)}</span>`;
-        html += `<div class="draft-card ${this.getCostClass(c.cost)}${c.isDiscardEffect ? ' discard-effect' : ''}" data-card-name="${c.name}" onclick="draftPick(${i})">
+        // Draft picks render with the SAME structure as in-hand cards so
+        // the chrome (portrait + name overlay + chamfered octagon orbs +
+        // monospace desc) is identical end-to-end: draft → hand → board.
+        // `card` pulls in the --rarity-rgb / --portrait-frame-rgb cascade
+        // and the unified element styles; `draft-card` only carries the
+        // larger picker footprint and hover lift. `hand-card` is omitted
+        // intentionally — its `:hover { transform: none !important; }`
+        // lock would suppress the draft picker's translateY(-8px) lift.
+        const portraitFile = `audio/cards/art/${encodeURIComponent(c.name)}.png?v=${UI._CARD_ART_VERSION || 1}`;
+        const portraitHtml = `<div class="card-portrait" style="--portrait-bg:url('${portraitFile}')"><div class="card-name-overlay">${c.name}</div></div>`;
+        html += `<div class="card draft-card ${this.getCostClass(c.cost)}${c.isDiscardEffect ? ' discard-effect' : ''}" data-card-name="${c.name}" onclick="draftPick(${i})">
           <span class="card-cost">${c.cost}</span>
           ${rarityPips}
-          <div class="card-name-banner"><div class="card-name">${c.name}</div></div>
+          ${portraitHtml}
           <div class="card-abilities status-badges">${this.formatAbilityBadges(c.abilities)}</div>
           <div class="card-desc">${this.formatDesc(c.desc)}</div>
           ${statOrbs}
@@ -7588,27 +9020,35 @@ const UI = {
   // (faster than parseInt; treats null/undefined as 0).
   _cardVisualSnapshot(card) {
     if (!card) return '';
-    // The lane-combat prediction (`lc`) used to live in this snapshot
-    // so that an enemy played into a lane busts the player card's
-    // cache → fresh DOM → updated damage badge. But that came at a
-    // real cost: during AI thinking, every AI play changes `lc` for
-    // every opposing player card, which busts the cache, which
-    // recreates the DOM, which restarts the .tron-perimeter-card
-    // pulse animation at 0% — every ~450ms. Players saw their cards
-    // visibly pulsing/twitching whenever the AI was acting.
-    //
-    // User report May-1 (after the lane-DOM cache fix): "My cards are
-    // still pulsing during AI turn." Root cause was here: card-level
-    // cache invalidation on every AI step.
-    //
-    // Trade-off: the dmg-preview badges on player cards may be 1
-    // render stale when an AI play updates lane combat math without
-    // changing self-state. The next stat-changing event (combat
-    // resolution, status change, end of turn) busts cache anyway and
-    // refreshes them. This is a much smaller visual issue than the
-    // pulse storm — and the SIM preview boxes at the bottom of each
-    // lane (.dmg-preview) update independently every render so the
-    // current-card prediction is still always live.
+    // Prediction fields included so the cached DOM busts when the
+    // global combat predictor's verdict for this card changes (e.g.
+    // a new enemy lands and now this card is predicted to die).
+    // Earlier the snap intentionally excluded predictor data to avoid
+    // pulse-storm during AI thinking — but that left stale skull
+    // badges (user report: "where are the damage previews here").
+    // The pulse churn is mild because the predictor is stable while
+    // nobody is acting; it only re-renders when the verdict actually
+    // flips. Reads from the per-render cache (UI._combatPredCache)
+    // populated at render start so this is O(1) per card.
+    let pred = null;
+    if (this._combatPredCache && this._combatPredCache.byId) {
+      pred = this._combatPredCache.byId.get(card.id);
+    }
+    // In-fight XP also affects the chip text, so factor projected XP
+    // into the snap. Prevents the chip from showing stale XP when a
+    // kill happens but the card's own state didn't change.
+    let pxp = 0;
+    if (card._runDeckCardRef && typeof Roguelite !== 'undefined' && Roguelite.projectedXp) {
+      pxp = Roguelite.projectedXp(card) | 0;
+    }
+    // Effective cost includes opponent passives (Silver Surfer +1) and
+    // own-side discounts (Captain America). Without this, the cached
+    // hand-card DOM keeps showing the BASE cost when SS lands on the
+    // enemy board — only cards whose other stats changed would
+    // re-render, leaving most of the hand showing stale costs even
+    // though Game.getCardCost is correctly returning +1 (which is why
+    // playing was blocked but the displayed cost was wrong).
+    const ec = (card.owner && Game.getCardCost) ? Game.getCardCost(card.owner, card) | 0 : (card.cost | 0);
     return JSON.stringify({
       n:  card.name,
       a:  card.attack | 0,
@@ -7618,6 +9058,7 @@ const UI = {
       bh: card.baseHealth | 0,
       bc: card.baseCost | 0,
       c:  card.cost | 0,
+      ec, // effective cost (with auras/discounts) — busts cache on SS land/die
       // Status counters drive multiple class-based glows + status badges
       st: card.stunnedTurns | 0, frT: card.frozenTurns | 0, feT: card.fearedTurns | 0,
       stB: !!card.isStunned, frB: !!card.isFrozen, feB: !!card.isFeared,
@@ -7631,6 +9072,12 @@ const UI = {
       cr: !!card.isCrazy, ins: !!card.isInsane,
       fd: !!card.isFaceDown, jr: !!card.jumpReady,
       ut: !!card.isUntrickable,
+      // Predictor + projected XP fields — keep last so they're visible
+      // in the data-snap attr for debugging.
+      pdi: pred ? (pred.dmgIn | 0) : 0,
+      pdd: pred ? !!pred.dies : false,
+      cby: card._charmedByIvy != null ? (card._charmedByIvy | 0) : 0,
+      pxp: pxp,
     });
   },
 
@@ -8033,6 +9480,17 @@ const UI = {
       if (lane.ai) {
         aiCardEl = lane.ai.isFaceDown ? this.makeFaceDownEl() : this.makeCardElCached(lane.ai, false, 'enemy');
       }
+      // Clear stale click handlers BEFORE conditional re-assignment below.
+      // makeCardElCached returns the same DOM element across renders; if
+      // we used addEventListener('click', ...) here the handlers would
+      // STACK, and the first-registered (now-stale) one would fire with
+      // a captured idx pointing at a card from an earlier prompt. User
+      // report: "I selected Loki but Bane's ability went to King Shark."
+      // The accumulated listener from a previous prompt was firing first
+      // with its own captured idx. .onclick = ... replaces; null clears
+      // when no prompt applies.
+      aiSlot.onclick = null;
+      if (aiCardEl) aiCardEl.onclick = null;
       Array.from(aiSlot.children).forEach(child => {
         if (child !== aiCardEl) child.remove();
       });
@@ -8053,12 +9511,16 @@ const UI = {
         const cardEl = aiCardEl;
         if (lane.ai.id !== undefined) currentBoardIds.add(lane.ai.id);
         if (!this._lastBoardCardIds.has(lane.ai.id)) {
-          // Enemy cards get a 3D flip-in ON TOP of the cardPlayIn entry so
-          // the card reveals face-up from edge — telegraphs AI placement
-          // distinctly from our own summon (player cards keep the existing
-          // drop-in animation).
-          cardEl.classList.add('card-enter', 'card-reveal-flip');
-          setTimeout(() => cardEl.classList.remove('card-enter', 'card-reveal-flip'), 680);
+          // Enemy cards use the same "build from grid" animation as
+          // ally cards (1.0s clip-path reveal from bottom up + traveling
+          // scan line). Removed the competing card-reveal-flip class —
+          // the new build-in IS the load animation; user spec: "I want
+          // there to be a little bit of an animation... show the card
+          // literally being built from bottom to top." Same animation
+          // for both sides keeps the play moment legible. Timeout matches
+          // the 1.0s animation duration plus a small safety margin.
+          cardEl.classList.add('card-enter');
+          setTimeout(() => cardEl.classList.remove('card-enter'), 1100);
           // (h) landing dip + (k) claim wave + dust kick + ring ripple —
           // the ring is the Snap-style concentric pulse under the card.
           el.classList.add('lane-landed');
@@ -8079,7 +9541,7 @@ const UI = {
         if (cc && targetCardIds.has(lane.ai.id)) {
           cardEl.classList.add('target-highlight');
           const idx = cc.cards.findIndex(c => c.id === lane.ai.id);
-          cardEl.addEventListener('click', () => cardChoicePick(idx));
+          cardEl.onclick = () => cardChoicePick(idx);
         }
         // Lane-choice prompts (Vader's chain, Green Goblin target-lane,
         // etc.) that target the AI side need clicks on the OCCUPIED
@@ -8091,7 +9553,7 @@ const UI = {
           aiSlot.classList.add('target-highlight');
           cardEl.classList.add('target-highlight');
           cardEl.style.cursor = 'pointer';
-          cardEl.addEventListener('click', () => laneChoicePick(i));
+          cardEl.onclick = () => laneChoicePick(i);
           // Chain-ability damage preview — when promptLaneChoice was
           // called with previewDamage (Vader chain = 7, etc.), attach
           // a small "− N HP" label to each candidate showing the
@@ -8130,7 +9592,7 @@ const UI = {
         if (cardEl.parentNode !== aiSlot) aiSlot.appendChild(cardEl);
       } else if (lc && lcTargetSide === 'ai' && lc.lanes.includes(i)) {
         aiSlot.classList.add('target-highlight');
-        aiSlot.addEventListener('click', () => laneChoicePick(i));
+        aiSlot.onclick = () => laneChoicePick(i);
       } else if (!lane.destroyed) {
         // Empty-lane drop glyph — faint "+" hinting at placement
         const empty = document.createElement('div');
@@ -8171,6 +9633,11 @@ const UI = {
       if (lane.player) {
         plCardEl = this.makeCardElCached(lane.player, false, 'ally');
       }
+      // Mirror of the AI-side stale-handler clear above. Prevents the
+      // "wrong card got selected" bug when a prompt re-fires across
+      // renders with different cc.cards indices.
+      pSlot.onclick = null;
+      if (plCardEl) plCardEl.onclick = null;
       Array.from(pSlot.children).forEach(child => {
         if (child !== plCardEl) child.remove();
       });
@@ -8184,8 +9651,9 @@ const UI = {
         if (lane.player.isFaceDown) cardEl.classList.add('face-down');
         if (lane.player.id !== undefined) currentBoardIds.add(lane.player.id);
         if (!this._lastBoardCardIds.has(lane.player.id)) {
+          // 1.0s "build from grid" animation; +100ms safety margin.
           cardEl.classList.add('card-enter');
-          setTimeout(() => cardEl.classList.remove('card-enter'), 650);
+          setTimeout(() => cardEl.classList.remove('card-enter'), 1100);
           // (h) landing dip + (k) claim wave + dust kick + ring ripple —
           // ring is the Snap-style concentric pulse under the card.
           el.classList.add('lane-landed');
@@ -8206,7 +9674,7 @@ const UI = {
         if (cc && targetCardIds.has(lane.player.id)) {
           cardEl.classList.add('target-highlight');
           const idx = cc.cards.findIndex(c => c.id === lane.player.id);
-          cardEl.addEventListener('click', () => cardChoicePick(idx));
+          cardEl.onclick = () => cardChoicePick(idx);
         }
         // Lane-choice click on an occupied PLAYER card — mirror of the
         // AI-side handler. Covers any prompt that wants the player to
@@ -8215,13 +9683,13 @@ const UI = {
           pSlot.classList.add('target-highlight');
           cardEl.classList.add('target-highlight');
           cardEl.style.cursor = 'pointer';
-          cardEl.addEventListener('click', () => laneChoicePick(i));
+          cardEl.onclick = () => laneChoicePick(i);
         }
         // Anti-reattach guard — see ai-slot equivalent above.
         if (cardEl.parentNode !== pSlot) pSlot.appendChild(cardEl);
       } else if (lc && lcTargetSide === 'player' && lc.lanes.includes(i)) {
         pSlot.classList.add('target-highlight');
-        pSlot.addEventListener('click', () => laneChoicePick(i));
+        pSlot.onclick = () => laneChoicePick(i);
         // Summon preview — when summonCardChoice supplies a previewCard
         // (Ant-Man's Ant, Cyborg's Doombot, Hela's zombies, etc.) show
         // makeDamagePreview against the opposing enemy so the player
@@ -8599,7 +10067,18 @@ const UI = {
     const lines = [];
     const base = card.baseCost != null ? card.baseCost : card.cost;
     if (card._nextDrawDiscount) lines.push(`Mr. Fantastic discount: −${card._nextDrawDiscount}`);
-    if (card._capAmericaDiscount) lines.push(`Captain America discount: −${card._capAmericaDiscount}`);
+    // Captain America discount is LIVE — count active CAs on the
+    // owner's side and show their tier-discount sum. When CA dies
+    // the count drops and the line disappears, matching the live
+    // cost change in Game.getCardCost.
+    if (owner) {
+      const cas = Game.getAllCardsOf(owner).filter(c => c.passive === 'allyCostReduction' && c.currentHealth > 0);
+      if (cas.length) {
+        let total = 0;
+        cas.forEach(ca => { total += Game.rarityValue(ca, { common: 1, rare: 1, special: 2, legendary: 2 }); });
+        lines.push(`Captain America discount: −${total}`);
+      }
+    }
     // Silver Surfer enemy-cost aura only affects cards in HAND, applied
     // live by Game.getCardCost — so only show this line for hand cards.
     if (owner) {
@@ -8689,6 +10168,32 @@ const UI = {
       el.classList.add('card-hp-critical');
     }
 
+    // (AAA) PERSISTENT DAMAGE MARKS — cards that took damage but
+    // didn't die show physical scarring that stays until they're
+    // healed back to full. Three tiers based on damage proportion:
+    //   light  — any damage taken      (single hairline crack)
+    //   heavy  — ≥40% of max HP gone   (forking crack + dark smudge)
+    //   crit   — only 1 HP remaining   (full shatter pattern)
+    // Hand cards skipped (hand HP doesn't matter until played). Cards
+    // born at 1 HP can't be scarred. Re-rendering reuses the same
+    // overlay so the cracks aren't re-randomized every tick — the
+    // overlay's clip-path is keyed off card.id so each card gets a
+    // unique-but-stable shatter shape. Already-dead cards skipped.
+    if (!inHand && card.currentHealth > 0 && (card.maxHealth || 0) > 1) {
+      const dmgTaken = card.maxHealth - card.currentHealth;
+      if (dmgTaken > 0) {
+        const ratio = dmgTaken / card.maxHealth;
+        el.classList.add('card-scarred');
+        if (ratio >= 0.4) el.classList.add('card-scarred-heavy');
+        if (card.currentHealth === 1 && card.maxHealth >= 3) el.classList.add('card-scarred-crit');
+        // Stable per-card variant index 0..3 — picks one of four crack
+        // patterns so cards on the same board don't all share the
+        // identical shatter (would read as a tile, not a wound).
+        const variant = ((card.id | 0) * 2654435761 >>> 0) % 4;
+        el.style.setProperty('--scar-variant', variant);
+      }
+    }
+
     // (PRO) Animation phase persistence — every UI.render() that does
     // a fresh build creates a new DOM node, restarting CSS animations
     // at 0%. The phaseOffsetFor() helper deterministically hashes
@@ -8718,9 +10223,26 @@ const UI = {
     else if (card.armorValue > 0) el.classList.add('status-armor');
     else if (card.evadeCharges > 0) el.classList.add('status-evade');
 
-    // Poison Ivy charmed glow (additive, doesn't replace status glow)
-    const ivyCharm = Game.getAllCardsOnBoard().find(x => x.name === 'Poison Ivy' && x.owner === card.owner && x._ivyAlly && x._ivyAlly.id === card.id);
-    if (ivyCharm) el.classList.add('status-charmed');
+    // Poison Ivy charmed glow (additive, doesn't replace status glow).
+    // Mirror the three-layer match used by the badge filter above so
+    // the visual stays in sync — flag, then legacy ref, then ATK-delta
+    // self-heal.
+    const ivyOnSide = Game.getAllCardsOnBoard().filter(x =>
+      x.name === 'Poison Ivy' && x.owner === card.owner && x.currentHealth > 0
+    );
+    let glowMatch = false;
+    for (const ivy of ivyOnSide) {
+      if (card._charmedByIvy != null && card._charmedByIvy === ivy.id) { glowMatch = true; break; }
+      if (ivy._ivyAlly && ivy._ivyAlly.id === card.id) { glowMatch = true; break; }
+      const buff = (ivy._grantedBuffs || []).find(b => b && b._ivyCharm && (b.delta | 0) > 0);
+      if (!buff) continue;
+      const allies = Game.getAllCardsOf(ivy.owner).filter(a => a.id !== ivy.id && a.currentHealth > 0 && (a.attack || 0) > 0);
+      if (!allies.length) continue;
+      const matching = allies.filter(a => (a.attack | 0) === (buff.delta | 0));
+      const pick = (matching.length ? matching : allies).slice().sort((a, b) => (b.attack || 0) - (a.attack || 0))[0];
+      if (pick && pick.id === card.id) { glowMatch = true; break; }
+    }
+    if (glowMatch) el.classList.add('status-charmed');
 
     // Crazy flag — cards whose attack is randomized each turn get a
     // wobble + hue-glitch effect so the dice-roll feel reads at a
@@ -8863,34 +10385,92 @@ const UI = {
     let incomingBadge = '';
     if (!inHand && Game.state && !card.isFaceDown && card.currentHealth > 0
         && !Game.state.gameOver
-        && typeof Game.predictLaneOutcome === 'function') {
-      const laneIdx = Game.findCardLane ? Game.findCardLane(card) : -1;
-      if (laneIdx >= 0) {
-        let result = null;
-        try { result = Game.predictLaneOutcome(laneIdx); } catch (e) { /* swallow */ }
-        if (result) {
-          const mySide = card.owner;
-          const me = result[mySide];
-          if (me && me.dmgIn > 0) {
-            const hpAfter = me.hpAfter;
-            const lethal = me.dies;
-            if (lethal) {
-              incomingBadge = `<span class="incoming-damage lethal" title="Dies in combat (takes ${me.dmgIn})">${this.skullSVG()}</span>`;
-            } else {
-              incomingBadge = `<span class="incoming-damage" title="HP after combat: ${hpAfter} (takes ${me.dmgIn})">${hpAfter}</span>`;
-            }
-          }
+        && typeof Game.predictCombatGlobal === 'function') {
+      // Cache one global combat prediction per render so each card
+      // lookup is O(1). Cleared at the start of each top-level render.
+      let pred = this._combatPredCache;
+      if (!pred) {
+        try { pred = Game.predictCombatGlobal(); } catch (e) { pred = null; }
+        this._combatPredCache = pred;
+      }
+      const me = pred && pred.byId && pred.byId.get(card.id);
+      if (me && me.dies) {
+        incomingBadge = `<span class="incoming-damage lethal" title="Dies in combat${me.dmgIn > 0 ? ' (takes ' + me.dmgIn + ')' : ''}">${this.skullSVG()}</span>`;
+      } else if (me && me.dmgIn > 0) {
+        // Show damage as "−N" (negative HP delta) instead of just the
+        // hpAfter number. User report: "why is it saying that the goons
+        // won't take damage? they only have armor 1 so they will take
+        // 1 damage" — the previous "3" badge (meaning hpAfter=3) was
+        // easy to confuse with stat orbs and didn't read as a damage
+        // intake. The minus sign + delta is unambiguous.
+        incomingBadge = `<span class="incoming-damage" title="HP after combat: ${me.hpAfter} (takes ${me.dmgIn})">−${me.dmgIn}</span>`;
+      }
+    }
+    // Card-XP chip — sits in the same bottom-center slot as the
+    // incoming-damage badge. Mutually exclusive on the BOARD: damage
+    // badge wins. In HAND there's no damage prediction, so the chip
+    // always renders. User spec: "I'd like it to be current to see
+    // which cards I want to play to level up, on board and in hand I
+    // want to see the XP."
+    let xpChip = '';
+    if (!incomingBadge && card._runDeckCardRef && typeof Roguelite !== 'undefined') {
+      const dc = card._runDeckCardRef;
+      if (dc.rarity === 'legendary') {
+        xpChip = `<span class="card-xp-chip card-xp-cap" title="Legendary — XP capped">MAX</span>`;
+      } else {
+        const stored = dc.xp || 0;
+        // Add in-fight stats live so the chip reflects what the card
+        // has earned so far this combat. Hand cards have no stats
+        // accumulated, so projected = 0 and the chip just shows
+        // stored XP.
+        const projected = (Roguelite.projectedXp ? Roguelite.projectedXp(card) : 0);
+        const xp = stored + projected;
+        const threshold = (Roguelite.XP_THRESHOLDS && Roguelite.XP_THRESHOLDS[dc.rarity]) || 0;
+        if (threshold > 0) {
+          const pct = Math.min(100, Math.max(0, Math.round((xp / threshold) * 100)));
+          const tip = projected > 0
+            ? `XP toward next tier: ${xp}/${threshold} (${stored} stored + ${projected} this fight)`
+            : `XP toward next tier: ${xp}/${threshold}`;
+          xpChip = `<span class="card-xp-chip" title="${tip}"><span class="card-xp-fill" style="width:${pct}%"></span><span class="card-xp-text">${xp}/${threshold}</span></span>`;
         }
       }
     }
 
     const costTip = costTipLines ? ` title="${costTipLines.join('&#10;').replace(/"/g, '&quot;')}"` : '';
+    // (AAA) PORTRAIT — extracted from your full-card PSDs via the
+    // batch script in tools/. Falls back to no-portrait when the
+    // PNG file is missing (cards without art-source still render
+    // fine, just without the painted portrait). The art lives at
+    // audio/cards/art/<exact card name>.png so the path resolution
+    // is name-driven; no per-card lookup table needed.
+    // Cache buster — bumped whenever extract_card_art.py is re-run
+    // so the browser re-fetches updated portraits instead of serving
+    // stale cached PNGs. PNG files don't have a built-in cache buster
+    // (unlike HTML/CSS/JS which use ?v=N in index.html), so we append
+    // it here at render time.
+    const portraitFile = card.name
+      ? `audio/cards/art/${encodeURIComponent(card.name)}.png?v=${UI._CARD_ART_VERSION || 1}`
+      : null;
+    // REDESIGN: art-at-top with name overlay (Marvel Snap pattern).
+    // Standalone .card-name-banner row removed — the name now lives as
+    // a translucent strip across the BOTTOM of the portrait. One
+    // unified visual block instead of "title row / art / text / stats".
+    // Cards without art still render the box with the name overlay so
+    // the layout stays consistent. Per-card name escape: text content
+    // only, no HTML, so a card named with special chars renders safely.
+    const portraitStyle = portraitFile ? `--portrait-bg:url('${portraitFile}')` : '';
+    const portraitHtml = `<div class="card-portrait" style="${portraitStyle}"><div class="card-name-overlay">${card.name || ''}</div></div>`;
+    // [ CARD DATA ] divider was removed per user feedback — read as
+    // distracting, didn't add information beyond the visual gap that
+    // already exists between the portrait and the desc text. The
+    // painting → status → desc → orbs chain reads cleanly without it.
     el.innerHTML = `
       <span class="card-cost"${costStyle ? ` style="${costStyle}"` : ''}${costTip}>${displayCost}</span>
       ${rarityStrip}
+      ${xpChip}
       ${mvpStarHtml}
       ${cornerIndicators}
-      <div class="card-name-banner"><div class="card-name">${card.name}</div></div>
+      ${portraitHtml}
       ${statusHtml}
       ${descHtml}
       ${activeHtml}
@@ -9167,7 +10747,12 @@ const UI = {
         b.push(badge('badge-splash', 'Splash', 'Splash'));
       }
     }
-    if (c.immunityCharges > 0) b.push(badge('badge-immune', `Immunity ${c.immunityCharges}`, 'Immunity'));
+    // User feedback: "IMMUNITY 1" reads like damage immunity (most TCG
+    // players' default mental model), but this keyword only blocks
+    // status debuffs (Freeze, Stun, Fear, etc.). Renamed display label
+    // to "Status Immunity N" so the badge is unambiguous. Internal
+    // keyword stays 'Immunity' for tooltip + class lookup.
+    if (c.immunityCharges > 0) b.push(badge('badge-immune', `Status Immunity ${c.immunityCharges}`, 'Immunity'));
     if (c.invincibleTurns > 0) b.push(badge('badge-invincible', `Invincible ${c.invincibleTurns}`, 'Invincible'));
     if (c.unresistibleCharges > 0) b.push(badge('badge-unresistible', `Unresistible ${c.unresistibleCharges}`, 'Unresistible'));
     if (c.tauntTurns > 0) b.push(badge('badge-taunt', `Taunt ${c.tauntTurns}`, 'Taunt'));
@@ -9201,7 +10786,10 @@ const UI = {
     // principle for Cantrip / Lifesteal / Echo / Berserker / Zealot /
     // Thorns / Discount / Fear — all earned via level-up etches.
     if (c.hasPhoenix > 0) b.push(badge('badge-phoenix', 'Phoenix', 'Phoenix'));
-    if (c.hasCantrip > 0) b.push(badge('badge-cantrip', c.hasCantrip > 1 ? `Cantrip ${c.hasCantrip}` : 'Cantrip', 'Cantrip'));
+    // Cantrip merged into Draw — both render the Draw N badge above
+    // via card.drawOnPlay. Legacy in-flight cards with `hasCantrip`
+    // also surface as Draw via the on-play resolution shim.
+    if (c.hasCantrip > 0 && !(c.drawOnPlay > 0)) b.push(badge('badge-draw', `Draw ${c.hasCantrip}`, 'Draw'));
     if (c.hasLifesteal > 0) b.push(badge('badge-lifesteal', 'Lifesteal', 'Lifesteal'));
     if (c.hasEcho > 0) b.push(badge('badge-echo', c.hasEcho > 1 ? `Echo ${c.hasEcho}` : 'Echo', 'Echo'));
     if (c.hasBerserker > 0) b.push(badge('badge-berserker', 'Berserker', 'Berserker'));
@@ -9209,15 +10797,51 @@ const UI = {
     if (c.hasThorns > 0) b.push(badge('badge-thorns', c.hasThorns > 1 ? `Thorns ${c.hasThorns}` : 'Thorns', 'Thorns'));
     if (c.hasFear > 0) b.push(badge('badge-fear', `Fear ${c.hasFear}`, 'Fear'));
     if (c.hasFreeze > 0) b.push(badge('badge-freeze', `Freeze ${c.hasFreeze}`, 'Freeze'));
+    // MC N — offensive-side mind control etch (mc-1 / mc-2). Reuses
+    // the badge-mind-ctrl color so the visual lineage is "this card
+    // does mind control on play." The defensive `isMindControlled`
+    // badge above is what shows on a card that's BEEN mind-controlled.
+    if (c.hasMc > 0) b.push(badge('badge-mind-ctrl', `MC ${c.hasMc}`, 'Mind Control'));
+    // Mark — adjacent-ally Bullseye aura on play.
+    if (c.hasMark > 0) b.push(badge('badge-mark', 'Mark', 'Mark'));
     if (c.hasSteady > 0) b.push(badge('badge-steady', `Steady ${c.hasSteady}`, 'Steady'));
     if (c._discountTotal > 0) b.push(badge('badge-discount', `Discount ${c._discountTotal}`, 'Discount'));
     // "Crazy" / "Insane" — no KEYWORD_DATA entry yet, so badge() omits
     // data-kw and they stay non-interactive.
     if (c.isInsane) b.push(badge('badge-insane', 'Insane'));
     else if (c.isCrazy) b.push(badge('badge-crazy', 'Crazy'));
-    // Poison Ivy charmed ally indicator
-    const ivys = Game.getAllCardsOnBoard().filter(x => x.name === 'Poison Ivy' && x.owner === c.owner && x._ivyAlly && x._ivyAlly.id === c.id);
-    if (ivys.length) b.push(badge('badge-charmed', 'Charmed', 'Charm'));
+    // Poison Ivy charmed ally indicator. Three layers, in order:
+    //   1. Direct flag set on the ally (`_charmedByIvy = ivyId`).
+    //   2. Legacy `_ivyAlly` object-ref match.
+    //   3. Self-healing fallback — if Ivy is actively charming (has an
+    //      _ivyCharm temp buff with a delta) but neither the flag nor
+    //      the ref points anywhere, attribute the charm to the highest-
+    //      ATK ally on Ivy's side whose ATK matches the buff delta.
+    //      Catches edge cases where _charm fired with a dead-pile or
+    //      summon flow that didn't preserve the reference. User report:
+    //      "still no charm how hard is it?" — at least make the badge
+    //      visible whenever Ivy IS charming.
+    const sideIvys = Game.getAllCardsOnBoard().filter(x =>
+      x.name === 'Poison Ivy' && x.owner === c.owner && x.currentHealth > 0
+    );
+    let charmed = false;
+    for (const ivy of sideIvys) {
+      // Layer 1 — explicit flag set in _charm
+      if (c._charmedByIvy != null && c._charmedByIvy === ivy.id) { charmed = true; break; }
+      // Layer 2 — legacy object-ref match
+      if (ivy._ivyAlly && ivy._ivyAlly.id === c.id) { charmed = true; break; }
+      // Layer 3 — self-heal: if Ivy has an active charm buff and this
+      // ally is the highest-ATK match for the buff delta, claim it.
+      const buff = (ivy._grantedBuffs || []).find(b => b && b._ivyCharm && (b.delta | 0) > 0);
+      if (!buff) continue;
+      const allies = Game.getAllCardsOf(ivy.owner).filter(a => a.id !== ivy.id && a.currentHealth > 0 && (a.attack || 0) > 0);
+      if (!allies.length) continue;
+      // Pick whoever's ATK matches the buff delta (Ivy gained +N → ally has N ATK).
+      const matching = allies.filter(a => (a.attack | 0) === (buff.delta | 0));
+      const sortedByAtk = (matching.length ? matching : allies).slice().sort((a, b) => (b.attack || 0) - (a.attack || 0));
+      if (sortedByAtk[0] && sortedByAtk[0].id === c.id) { charmed = true; break; }
+    }
+    if (charmed) b.push(badge('badge-charmed', 'Charmed', 'Charm'));
     return b.join('');
   },
 
@@ -9229,7 +10853,7 @@ const UI = {
     'Mind Control': { color: '#f1c40f', svg: '<svg viewBox="0 0 12 12"><circle cx="6" cy="6" r="4" stroke="currentColor" stroke-width="1.2" fill="none"/><path d="M6 3 Q4 5 6 6 Q8 7 6 9" stroke="currentColor" stroke-width="1.2" fill="none"/></svg>', tip: 'Force an enemy card to attack its own side.' },
     'Bullseye':    { color: '#e74c3c', svg: '<svg viewBox="0 0 12 12"><circle cx="6" cy="6" r="5" stroke="currentColor" stroke-width="1" fill="none"/><circle cx="6" cy="6" r="2.5" stroke="currentColor" stroke-width="1" fill="none"/><circle cx="6" cy="6" r="0.8" fill="currentColor"/></svg>', tip: 'Damage bypasses Block Meter.' },
     'Overdrive':   { color: '#e67e22', svg: '<svg viewBox="0 0 12 12"><path d="M2 6 L5 3 L5 5 L9 5 L9 3 L12 6 L9 9 L9 7 L5 7 L5 9 Z" fill="currentColor"/></svg>', tip: 'Attacks again after killing an enemy.' },
-    'Hunt':        { color: '#ff6b35', svg: '<svg viewBox="0 0 12 12"><circle cx="6" cy="6" r="4.5" stroke="currentColor" stroke-width="1" fill="none"/><path d="M6 1 V4 M6 8 V11 M1 6 H4 M8 6 H11" stroke="currentColor" stroke-width="1.2"/></svg>', tip: 'Seeks out the weakest enemy.' },
+    'Hunt':        { color: '#ff6b35', svg: '<svg viewBox="0 0 12 12"><circle cx="6" cy="6" r="4.5" stroke="currentColor" stroke-width="1" fill="none"/><path d="M6 1 V4 M6 8 V11 M1 6 H4 M8 6 H11" stroke="currentColor" stroke-width="1.2"/></svg>', tip: 'Seeks out any enemy played in an uncontested lane.' },
     'Splash':      { color: '#1abc9c', svg: '<svg viewBox="0 0 12 12"><circle cx="3" cy="6" r="1.5" fill="currentColor"/><circle cx="6" cy="6" r="2" fill="currentColor"/><circle cx="9" cy="6" r="1.5" fill="currentColor"/></svg>', tip: 'Damages adjacent enemies as well.' },
     'Armor':       { color: '#cdaa6e', svg: '<svg viewBox="0 0 12 12"><path d="M6 1 L10 3 V6 C10 9 6 11 6 11 C6 11 2 9 2 6 V3 Z" stroke="currentColor" stroke-width="1.2" fill="none"/></svg>', tip: 'Reduces incoming damage by N. Zero damage if fully absorbed.' },
     'Evade':       { color: '#2ecc71', svg: '<svg viewBox="0 0 12 12"><path d="M2 8 Q6 2 10 8" stroke="currentColor" stroke-width="1.4" fill="none" stroke-linecap="round"/><circle cx="6" cy="5.5" r="1" fill="currentColor"/></svg>', tip: 'Dodges the next N attacks completely.' },
@@ -9239,7 +10863,7 @@ const UI = {
     'Unresistible':{ color: '#ff4757', svg: '<svg viewBox="0 0 12 12"><path d="M2 6 L10 6 M7 3 L10 6 L7 9" stroke="currentColor" stroke-width="1.4" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>', tip: 'Bypasses Immunity when applying debuffs.' },
     'Untrickable': { color: '#95a5a6', svg: '<svg viewBox="0 0 12 12"><circle cx="6" cy="6" r="4.5" stroke="currentColor" stroke-width="1.2" fill="none"/><path d="M3 9 L9 3" stroke="currentColor" stroke-width="1.2"/></svg>', tip: 'Cannot be targeted by Tricks.' },
     'Stun':        { color: '#3498db', svg: '<svg viewBox="0 0 12 12"><path d="M3 2 L6 5 L4 5 L8 10 L6 7 L8 7 Z" fill="currentColor"/></svg>', tip: 'Cannot attack or dodge this turn.' },
-    'Freeze':      { color: '#85c1e9', svg: '<svg viewBox="0 0 12 12"><path d="M6 1 V11 M1.5 3.5 L10.5 8.5 M10.5 3.5 L1.5 8.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>', tip: 'Cannot attack. Takes double damage while frozen.' },
+    'Freeze':      { color: '#85c1e9', svg: '<svg viewBox="0 0 12 12"><path d="M6 1 V11 M1.5 3.5 L10.5 8.5 M10.5 3.5 L1.5 8.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>', tip: 'Cannot attack while frozen.' },
     'Fear':        { color: '#5a5a5a', svg: '<svg viewBox="0 0 12 12"><circle cx="4" cy="5" r="1" fill="currentColor"/><circle cx="8" cy="5" r="1" fill="currentColor"/><path d="M3 9 Q6 7 9 9" stroke="currentColor" stroke-width="1.2" fill="none"/></svg>', tip: 'Attacks itself instead of the enemy.' },
     'Steady':      { color: '#16a085', svg: '<svg viewBox="0 0 12 12"><circle cx="6" cy="6" r="2.5" stroke="currentColor" stroke-width="1.2" fill="none"/><path d="M3 6 H9 M6 3 V9" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>', tip: 'Cancels one Crazy reroll per charge — ATK stays at base for that turn.' },
     'Curse':       { color: '#9b3c7f', svg: '<svg viewBox="0 0 12 12"><path d="M3 3 L9 9 M9 3 L3 9" stroke="currentColor" stroke-width="1.4" fill="none" stroke-linecap="round"/><circle cx="6" cy="6" r="4.5" stroke="currentColor" stroke-width="0.8" fill="none" stroke-dasharray="1.5 1"/></svg>', tip: 'Permanent deck liability — clogs your hand, may trigger a downside when played. Cannot be drafted away. Removable at Rest Sites or specific events.' },
@@ -9269,7 +10893,8 @@ const UI = {
     // ===== Roguelite etch-driven keywords =====
     // Earned via the etch system; described here so the tooltip
     // pipeline (formatAbilityBadges + kw-pill) lights up on hover.
-    'Cantrip':    { color: '#5dade2', svg: '<svg viewBox="0 0 12 12"><path d="M3 2 H8 L9 3 V10 H3 Z M5 5 H7 M5 7 H7" stroke="currentColor" stroke-width="1.2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>', tip: 'Draws 1 card from your deck when this card is played (per stack). Same effect as Draw 1.' },
+    // (Cantrip removed — its effect was identical to Draw N; merged.)
+    'Mark':       { color: '#ffce5c', svg: '<svg viewBox="0 0 12 12"><circle cx="6" cy="6" r="4" stroke="currentColor" stroke-width="1.2" fill="none"/><circle cx="6" cy="6" r="1.4" fill="currentColor"/></svg>', tip: 'Mark — adjacent allies gain Bullseye for the turn when this is played.' },
     'Thorns':     { color: '#27ae60', svg: '<svg viewBox="0 0 12 12"><path d="M2 6 L4 4 L4 6 L6 4 L6 6 L8 4 L8 6 L10 4 L10 8 L2 8 Z" stroke="currentColor" stroke-width="1.2" fill="none" stroke-linejoin="round"/></svg>', tip: 'When damaged: deal N damage back to the attacker.' },
     'Lifesteal':  { color: '#e74c3c', svg: '<svg viewBox="0 0 12 12"><path d="M6 11 C2 8 2 5 4 4 C5 3.5 6 4 6 5 C6 4 7 3.5 8 4 C10 5 10 8 6 11 Z" fill="currentColor"/><path d="M5 6 H7 M6 5 V7" stroke="#fff" stroke-width="0.8"/></svg>', tip: 'When this card deals damage: heal your HP by N.' },
     'Berserker':  { color: '#c0392b', svg: '<svg viewBox="0 0 12 12"><path d="M3 3 L9 3 L9 7 L6 11 L3 7 Z M5 5 L7 5 M5 7 L7 7" stroke="currentColor" stroke-width="1.2" fill="none" stroke-linejoin="round"/></svg>', tip: '+1 ATK while damaged (per stack). The card hits harder when bloodied.' },
@@ -9323,7 +10948,6 @@ const UI = {
     'Crazy':  'badge-crazy',
     'Insane': 'badge-insane',
     // Roguelite etch keywords (tooltips wired via KEYWORD_DATA)
-    'Cantrip':    'badge-draw',
     'Thorns':     'badge-thorns',
     'Lifesteal':  'badge-lifesteal',
     'Berserker':  'badge-berserker',
@@ -9341,10 +10965,12 @@ const UI = {
     const cls = this.TRAIT_BADGE_CLASSES;
     const defaults1 = ['Immunity', 'Unresistible'];
     const kws = Object.keys(cls).sort((b, c) => c.length - b.length);
-    // Status-badge tooltip wiring — same data-kw flow the kw-pill body
-    // already uses, so hovering / clicking a badge fires the keyword
-    // tooltip with the canonical name. User spec: "same with the
-    // status badges."
+    // Display-label override map. Keyword used for tooltip + class
+    // lookup stays the same; only the visible text in the badge gets
+    // overridden. User feedback: "IMMUNITY 1" misreads as damage
+    // immunity, but the keyword actually only blocks status debuffs.
+    // Renamed display to "Status Immunity N" so it's unambiguous.
+    const LABEL_OVERRIDE = { 'Immunity': 'Status Immunity' };
     return abilities.map(a => {
       let text = a;
       defaults1.forEach(d => { if (text === d) text = d + ' 1'; });
@@ -9357,7 +10983,10 @@ const UI = {
           // for this kw (Crazy / Insane don't, so they remain plain).
           const hasTip = !!this.KEYWORD_DATA[kw];
           const dataAttr = hasTip ? ` data-kw="${kw}"` : '';
-          return `<span class="status-badge ${cls[kw]}"${dataAttr}>${m[1]}${num ? ' ' + num : ''}</span>`;
+          // Swap visible text via LABEL_OVERRIDE so the badge reads
+          // "Status Immunity 1" while the data-kw stays "Immunity".
+          const visibleText = LABEL_OVERRIDE[m[1]] || m[1];
+          return `<span class="status-badge ${cls[kw]}"${dataAttr}>${visibleText}${num ? ' ' + num : ''}</span>`;
         }
       }
       return `<span class="status-badge">${text}</span>`;
@@ -9403,8 +11032,46 @@ const UI = {
       t = t.replace(tpRe, '').trim();
       trickPhaseFooter = `<div class="card-trick-passive">Can be played during the Trick Phase</div>`;
     }
-    // Bold any label before a colon (e.g. "When Played:", "While Active:")
-    t = t.replace(/([A-Z][^:.]*?):/g, '<b style="color:#fff">$1:</b>');
+    // Per-card phrase cuts — user direction: "trying to reduce the
+    // words so the cards fit better." Display-only edits; card data
+    // (cards.js / roguelite.js descOverrides) stays unchanged so the
+    // engine's ability-trigger lookups and roguelite text+ swaps
+    // continue to match the long-form strings.
+    //   • Ghostface — drop ", Ghostface glows — play for free" from
+    //     the Jump trigger sentence (Jump kw + tooltip already cover
+    //     the "free play" mechanic).
+    //   • Gorilla Grodd — drop the "You choose..." sentence (Mind
+    //     Control kw tooltip already covers the choice mechanic).
+    //   • Grinch — drop the "If opponent has no tricks, stats triple"
+    //     clause (engine handles the edge case silently).
+    //   • Scarlet Witch — drop the "(Her stat orbs read ? until she
+    //     lands.)" parenthetical (visible in-game on the orbs).
+    //   • Jigsaw — drop the "— the first enemy to enter takes (−1/−1)"
+    //     mechanical detail (Bear Trap kw tooltip carries it).
+    t = t.replace(/,\s*Ghostface glows\s*[—-]\s*play for free\.?/gi, '.');
+    t = t.replace(/\.\s*You choose which of its own allies it attacks this turn\.?/gi, '.');
+    t = t.replace(/\.\s*If opponent has no tricks,\s*stats triple\.?/gi, '.');
+    t = t.replace(/\s*\(Her stat orbs read [^)]*?\)\.?/gi, '');
+    t = t.replace(/\s*[—-]\s*the first enemy to enter takes \([^)]*\)/gi, '');
+    // Generic redundant phrase — "in any lane" / "in any open lanes"
+    // / "in any empty lane(s)" after a Summon is always implied (the
+    // lane prompt always picks a lane). Strip it everywhere it shows
+    // up so descriptions read as bare "Summon a (1/1) Ant with
+    // Bullseye." instead of "...in any lane."
+    t = t.replace(/\s+in any(?:\s+open|\s+empty)?\s+lanes?\b/gi, '');
+    // Compact trigger labels. Order matters: the "(once)" variant of
+    // Start of Tricks must match BEFORE the bare Start of Tricks,
+    // otherwise the shorter pattern eats the prefix and leaves an
+    // orphan "(once)" behind.
+    t = t.replace(/\bStart of Tricks \(once\)/gi, '1st Trick Phase');
+    t = t.replace(/\bStart of Tricks\b/gi,        'Trick Phase');
+    t = t.replace(/\bWhen Played\b/gi,            'On Play');
+    t = t.replace(/\bWhile Active\b/gi,           'Passive');
+    // Bold any label before a colon. Leading char accepts digits too
+    // (the trigger pass above can emit "1st Trick Phase:"); without
+    // it that whole label would render plain because the regex
+    // previously required [A-Z] at position 1.
+    t = t.replace(/([1-9A-Z][^:.]*?):/g, '<b style="color:#fff">$1:</b>');
     // Color stat patterns like (+1/+2), (−1/−1), or (1/1) — class-based so the
     // number gets the same neon glow as the attack/health orbs on the card
     // chrome. The sign class accepts BOTH ASCII hyphen `-` and Unicode minus
@@ -9508,6 +11175,12 @@ const UI = {
       t = t.replace(re, (_m, word) =>
         `<span class="kw kw-card-ref" data-kw="card:${canonical}">${word}</span>`);
     });
+    // Strip the trailing period at the very end of the description. Mid-
+    // sentence periods between clauses stay because they aid scanning;
+    // a final period after the last word adds noise once the desc is
+    // visually framed by the card border. Tolerates trailing whitespace
+    // and any closing inline tags from the keyword-wrap pass above.
+    t = t.replace(/\.\s*(<\/[^>]+>\s*)*$/i, '$1').trimEnd();
     return t + trickPhaseFooter;
   },
 
@@ -9588,8 +11261,18 @@ const UI = {
       // Idempotent class assignment — avoids the className-mutation
       // style recalc that restarts CSS animations even when the
       // resulting class set is identical.
-      const wantsDealIn = !!this._pendingHandDealAnim;
-      const wantsDrawIn = newIds.has(card.id);
+      //
+      // Boot-sequence guard: when the trick-draft → first-fight
+      // boot is playing, the hand-card-wrapper's bootCardEnter
+      // animation IS the entrance. Adding `hand-deal-in` /
+      // `card-draw-in` on top stacks two competing animations on
+      // the same element — the dealt-in flicker is the visible
+      // result. User report: "the cards should just be there.
+      // There's no reason for that hand draw animation to take
+      // place on round one."
+      const inBoot = document.body.classList.contains('boot-sequence');
+      const wantsDealIn = !inBoot && !!this._pendingHandDealAnim;
+      const wantsDrawIn = !inBoot && newIds.has(card.id);
       const desiredCls = 'hand-card-wrapper'
         + (wantsDealIn ? ' hand-deal-in' : '')
         + (wantsDrawIn ? ' card-draw-in' : '');
@@ -9600,45 +11283,68 @@ const UI = {
       }
       // No fan tilt — cards sit flat in a straight row.
 
-      // Build the card element fresh (gets up-to-date class strings,
-      // badges, content). If the wrapper already has a .card child
-      // from a previous render, transplant content into it so the
-      // parent .card identity persists and CSS animation timing
-      // doesn't reset.
-      const fresh = this.makeCardEl(card, true);
+      // Hand-card snapshot cache (Tier B perf). Mirrors the board's
+      // makeCardElCached pattern — if the card's visual state hasn't
+      // changed since last render, reuse the existing .card element
+      // wholesale without rebuilding via makeCardEl. Hand cards are
+      // 6+ per render and were rebuilding every frame even when no
+      // stat changed, which dominated the 3ms avg render budget.
+      // Now: unchanged hand cards cost ~0 per render; changed ones
+      // pay the same makeCardEl + transplant cost as before.
       const existing = wrap.querySelector(':scope > .card');
+      const snap = this._cardVisualSnapshot(card);
       let el;
-      if (existing) {
-        // Transplant content + diff classes (same pattern as
-        // makeCardElCached for board cards).
-        existing.replaceChildren(...fresh.childNodes);
-        const oldClasses = existing.className ? existing.className.trim().split(/\s+/) : [];
-        const newClasses = fresh.className ? fresh.className.trim().split(/\s+/) : [];
-        const oldSet = new Set(oldClasses);
-        const newSet = new Set(newClasses);
-        for (const c of oldClasses) if (!newSet.has(c)) existing.classList.remove(c);
-        for (const c of newClasses) if (!oldSet.has(c)) existing.classList.add(c);
-        Object.keys(fresh.dataset).forEach(k => { existing.dataset[k] = fresh.dataset[k]; });
-        Object.keys(existing.dataset).forEach(k => {
-          if (!(k in fresh.dataset)) delete existing.dataset[k];
-        });
-        // Same stale-style cleanup as makeCardElCached's transplant —
-        // remove all current inline styles before applying fresh's so
-        // residue from previous renders (animation transforms, hover
-        // positioning, etc.) can't accumulate into visible layout
-        // glitches.
-        const oldStyleProps = [];
-        for (let i = 0; i < existing.style.length; i++) oldStyleProps.push(existing.style[i]);
-        oldStyleProps.forEach(p => existing.style.removeProperty(p));
-        if (fresh.style.length > 0) {
-          for (let i = 0; i < fresh.style.length; i++) {
-            const prop = fresh.style[i];
-            existing.style.setProperty(prop, fresh.style.getPropertyValue(prop));
-          }
-        }
+      if (existing && existing.dataset.snap === snap) {
+        // Snapshot match — reuse the existing element. Strip the
+        // transient state classes the affordability decoration
+        // code below will re-apply this render. Without this strip
+        // they STACK across renders (afford+unafford+playable+
+        // unplayable simultaneously), which made dim/lit hand
+        // cards inconsistent. User report: "why are only some
+        // cards lit up while others are not even though i have
+        // enough energy."
+        this._DECORATION_CLASSES.forEach(c => existing.classList.remove(c));
+        existing.classList.remove(
+          'afford', 'unafford', 'playable', 'unplayable',
+          'card-draw-in', 'card-enter', 'card-exit',
+          'hit-flash', 'armor-burst', 'stat-changed', 'cant-afford'
+        );
+        existing.style.cursor = '';
         el = existing;
       } else {
-        el = fresh;
+        // Build fresh and transplant into the existing wrapper child
+        // (or use fresh directly if no existing). Same pattern as
+        // before this cache was added.
+        const fresh = this.makeCardEl(card, true);
+        if (existing) {
+          existing.replaceChildren(...fresh.childNodes);
+          const oldClasses = existing.className ? existing.className.trim().split(/\s+/) : [];
+          const newClasses = fresh.className ? fresh.className.trim().split(/\s+/) : [];
+          const oldSet = new Set(oldClasses);
+          const newSet = new Set(newClasses);
+          for (const c of oldClasses) if (!newSet.has(c)) existing.classList.remove(c);
+          for (const c of newClasses) if (!oldSet.has(c)) existing.classList.add(c);
+          Object.keys(fresh.dataset).forEach(k => { existing.dataset[k] = fresh.dataset[k]; });
+          Object.keys(existing.dataset).forEach(k => {
+            if (!(k in fresh.dataset)) delete existing.dataset[k];
+          });
+          const oldStyleProps = [];
+          for (let i = 0; i < existing.style.length; i++) oldStyleProps.push(existing.style[i]);
+          oldStyleProps.forEach(p => existing.style.removeProperty(p));
+          if (fresh.style.length > 0) {
+            for (let i = 0; i < fresh.style.length; i++) {
+              const prop = fresh.style[i];
+              existing.style.setProperty(prop, fresh.style.getPropertyValue(prop));
+            }
+          }
+          el = existing;
+        } else {
+          el = fresh;
+        }
+        // Stamp the snapshot so the next render can short-circuit.
+        // makeCardEl already sets dataset.snap on the fresh element;
+        // when we transplant into existing we explicitly rewrite it.
+        el.dataset.snap = snap;
       }
       // Reset the click handler. We use el.onclick = ... rather than
       // addEventListener so this assignment REPLACES any prior handler
@@ -9765,6 +11471,40 @@ const UI = {
     }
     // Record current ids for next render's newly-drawn detection
     this._lastHandIds = currentIds;
+
+    // Regression guardrail. Catches the class-stacking bug where a
+    // hand card ends up with both `afford` and `unafford` (or
+    // `playable` and `unplayable`) applied because the cache-hit
+    // path reused the element without stripping prior state classes
+    // before the affordability code re-added new ones. The fix lives
+    // above (~line 10227); this is the watchman so a future change
+    // can't silently re-introduce the bug.
+    //
+    // Gated on PerfOverlay (?perf=1) or debug mode — production
+    // gameplay pays nothing. console.warn lists the offending card
+    // ids + which class pairs collided so the bug is self-diagnosing.
+    if ((typeof PerfOverlay !== 'undefined' && PerfOverlay.isEnabled) ||
+        (typeof localStorage !== 'undefined' && localStorage.getItem('debugMode') === '1')) {
+      const wrappers = this.playerHand
+        ? this.playerHand.querySelectorAll(':scope > .hand-card-wrapper > .card')
+        : [];
+      const offenders = [];
+      wrappers.forEach(c => {
+        const cl = c.classList;
+        const afford = cl.contains('afford') && cl.contains('unafford');
+        const playable = cl.contains('playable') && cl.contains('unplayable');
+        if (afford || playable) {
+          offenders.push({
+            id: c.dataset.cardId,
+            classes: c.className,
+            badPairs: [afford && 'afford+unafford', playable && 'playable+unplayable'].filter(Boolean),
+          });
+        }
+      });
+      if (offenders.length) {
+        console.warn('[hand-class-stacking] contradictory class pairs on hand cards — class strip on cache hit may have regressed:', offenders);
+      }
+    }
   },
 
   renderAIHand(s) {
@@ -9921,11 +11661,19 @@ const UI = {
     const lane = s && s.lanes && s.lanes[laneIdx];
     if (!lane || lane.destroyed) return { label: '—', cls: 'lf-destroyed' };
     if (!lane.player && !lane.ai) return { label: '—', cls: 'lf-empty' };
-    let result = null;
-    try { result = Game.predictLaneOutcome(laneIdx); } catch (e) { /* swallow */ }
-    if (!result) return { label: '—', cls: 'lf-empty' };
-    const pDies = !!(result.player && result.player.dies);
-    const aDies = !!(result.ai && result.ai.dies);
+    // Use the GLOBAL predictor (already cached on UI._combatPredCache
+    // at the start of every render). Cross-lane Taunt redirection,
+    // splash from adjacent lanes, and chained kills are all baked in
+    // here — predictLaneOutcome only sees one lane at a time and
+    // missed taunt-soaking from other lanes. User report: "It will
+    // still say TRADE in lane three if lane one is taunting."
+    const global = (this._combatPredCache && this._combatPredCache.byId)
+      ? this._combatPredCache
+      : (typeof Game.predictCombatGlobal === 'function' ? Game.predictCombatGlobal() : null);
+    const pPred = (lane.player && global && global.byId) ? global.byId.get(lane.player.id) : null;
+    const aPred = (lane.ai     && global && global.byId) ? global.byId.get(lane.ai.id)     : null;
+    const pDies = !!(pPred && pPred.dies);
+    const aDies = !!(aPred && aPred.dies);
     if (lane.player && !lane.ai) {
       // Uncontested — player hits face. "STRIKE" verdict (or LOSE if
       // an adjacent splasher would kill the entering card).
@@ -10026,28 +11774,49 @@ const UI = {
     // No label — just the 6 cells. Cell widths are sized at render
     // time below to match the actual rendered .lane width so each
     // cell sits directly under its lane regardless of viewport size.
-    strip.innerHTML = cells.join('');
+    //
+    // Skip the innerHTML rewrite if the rendered content is bit-for-
+    // bit identical to last frame. Was a major jitter source —
+    // rebuilding every render flickered the cells (children rebuilt
+    // → momentary layout-shift → cell-width measurement applied a
+    // frame later). Now content-stable renders cost ~0 DOM work.
+    const html = cells.join('');
+    const htmlChanged = this._laneStripLastHtml !== html;
+    if (htmlChanged) {
+      strip.innerHTML = html;
+      this._laneStripLastHtml = html;
+    }
     // Two-pass alignment: read the actual rendered lane widths AND
     // the board's bounding box, then size the strip + cells to match.
     // Defers to the next animation frame so the board's own layout
     // has settled before we measure (otherwise we'd read the layout
     // from the previous render). User spec: "Just make it literally
     // the width of the lane."
+    //
+    // Re-apply cell widths whenever the HTML was rewritten (new cells
+    // come back to default browser sizing) OR when the lane width
+    // changed since last render. Skipping both means a content-stable,
+    // viewport-stable render does zero style writes here. User report:
+    // "the lane preview is not under the lanes" — caused by an earlier
+    // version that skipped sizing on content changes too, leaving new
+    // cells at default flex sizing → justify-content shifted the row.
     requestAnimationFrame(() => {
       const board = document.getElementById('board');
       const firstLane = board && board.querySelector('.lane');
       if (!board || !firstLane) return;
       const laneRect = firstLane.getBoundingClientRect();
       const boardRect = board.getBoundingClientRect();
-      // Pin the strip's outer footprint to the board's footprint so
-      // its centered children land in the same horizontal positions.
+      const w = laneRect.width;
+      const lastSize = this._laneStripLastSize;
+      const sizeUnchanged = lastSize && lastSize.w === w && lastSize.bw === boardRect.width;
+      if (sizeUnchanged && !htmlChanged) return;
+      this._laneStripLastSize = { w, bw: boardRect.width };
       strip.style.maxWidth = boardRect.width + 'px';
       strip.style.marginLeft = 'auto';
       strip.style.marginRight = 'auto';
       // Match each cell's flex sizing to the actual lane width (px).
       // Set min/max to the same value so flex-shrink can't compress
       // them at narrow viewports.
-      const w = laneRect.width;
       strip.querySelectorAll('.lf-cell').forEach(cell => {
         cell.style.width = w + 'px';
         cell.style.minWidth = w + 'px';
@@ -12137,31 +13906,13 @@ const UI = {
     }
 
     // ---- T3.1 HOVER PARALLAX TILT --------------------------------------
-    // mousemove on hand cards → set --tilt-x / --tilt-y CSS vars based
-    // on cursor position relative to card center. Tilt amplitude clamped
-    // to ±5deg so it's noticeable but not gimmicky.
-    if (!reduceMotion) {
-      const handSection = document.querySelector('.player-hand-section');
-      if (handSection) {
-        handSection.addEventListener('mousemove', (e) => {
-          const card = e.target.closest('.hand-cards .card');
-          if (!card) return;
-          const r = card.getBoundingClientRect();
-          const cx = (e.clientX - r.left) / r.width  - 0.5; // -0.5 .. 0.5
-          const cy = (e.clientY - r.top ) / r.height - 0.5;
-          card.style.setProperty('--tilt-x', (-cy * 8) + 'deg');  // up = tilts back
-          card.style.setProperty('--tilt-y', ( cx * 8) + 'deg');
-          card.classList.add('tilt-active');
-        }, { passive: true });
-        handSection.addEventListener('mouseout', (e) => {
-          const card = e.target.closest('.hand-cards .card');
-          if (!card) return;
-          card.classList.remove('tilt-active');
-          card.style.removeProperty('--tilt-x');
-          card.style.removeProperty('--tilt-y');
-        }, { passive: true });
-      }
-    }
+    // (Legacy hand-section listener removed — installHandTilt() at line
+    // ~14284 owns this now. The legacy version set --tilt-x/y *with*
+    // 'deg' suffix on the .card itself, which conflicts with the newer
+    // unitless var on the wrapper: when both fired, the card's own
+    // var won inheritance and turned `calc(var(--tilt-x) * 6deg)` into
+    // `calc(-3.2deg * 6deg)` — invalid (can't multiply two angles), so
+    // the calc fell back to 0 and the tilt silently vanished.)
 
     // ---- T3.3 FORESEE PEEK X-RAY ---------------------------------------
     // Helper exposed as UI.applyForeseeXray(els) for ability code or
@@ -12585,6 +14336,13 @@ const UI = {
         // single biggest "weight" addition for combat. Eye locks onto
         // the moment of death instead of the chain blurring past.
         this.hitPause(90);
+        // (AAA) Kill-cam micro-cinema — fires the radial warm flash
+        // anchored on the dying card's screen position, desaturates
+        // the rest of the board for ~320ms, and pops the dying card
+        // briefly. Layered on top of the hit-pause, NOT a replacement.
+        // Keep this AFTER hitPause so the freeze blocks the pop scale
+        // and we read the freeze AS the hold — not a competing motion.
+        if (this.killcamFlash) this.killcamFlash(target);
       } else if (target) {
         A.hit();
       }
@@ -12679,6 +14437,10 @@ const UI = {
         this._gameOverCued = true;
         if (s.winner === 'player') A.victory();
         else                       A.defeat();
+        // (AAA) Fade out the ambient arena hum on match end. 1.4s
+        // tail so it doesn't disappear abruptly under the victory
+        // sting.
+        try { if (A && A.arenaHumStop) A.arenaHumStop(); } catch (e) {}
       } else if (s && !s.gameOver) {
         // Reset the latch when a new game starts.
         this._gameOverCued = false;
@@ -12714,6 +14476,21 @@ const UI = {
   _animateCardDraw(owner, count) {
     if (!count || count <= 0) return;
     if (this._reducedMotion && this._reducedMotion()) return;
+    // Skip the deck-to-hand ghost-card flight while the boot
+    // sequence is running. The boot's hand-card stagger is its own
+    // entrance animation; layering the ghost flight on top crowds
+    // the moment and clobbers the staged reveal. User report: "when
+    // a card goes from deck into hand, that animation is happening
+    // too. It kinda takes away from the boot up card sequence."
+    if (document.body.classList.contains('boot-sequence')) return;
+    // ALSO skip on round 1 — the boot sequence fires AFTER drawCards
+    // runs (during startRound's first call) so the boot-sequence
+    // class isn't on body yet at this point. The cards should just
+    // appear as part of the boot's hand-card stagger; no ghost
+    // flight from the deck pip needed for the initial fill. User
+    // report: "the cards should just be there. There's no reason
+    // for that hand draw animation to take place on round one."
+    if (Game && Game.state && (Game.state.round || 0) <= 1) return;
     // Source element: the deck-count indicator in the HUD. For AI
     // side we don't have a separate indicator, so we use the same
     // target as the player (still looks directional — from the top-
@@ -12882,7 +14659,7 @@ const UI = {
     // mobile long-press too. User spec: "do the hovers work on mobile?"
     if (this.sfx) {
       try {
-        var inspectAudio = isTrick
+        const inspectAudio = isTrick
           ? this.sfx.playTrickSfx(name, 'hover')
           : this.sfx.playCardSfx(name, 'hover');
         if (!inspectAudio) this.sfx.play('cardHover');
@@ -13520,6 +15297,76 @@ const UI = {
     if (cellEl) cellEl.title = `${list[idx].name} — ${list[idx].tag}`;
   },
 
+  // ===================== COLOR INVASION =====================
+  // Computes lane-control dominance each render and writes it as
+  // CSS variables on body so the rest of the UI can react.
+  // Empty lanes and contested lanes count for nobody. Single-side
+  // occupancy contributes 1 lane to that side. Dominance is the
+  // fraction of (player_lanes - enemy_lanes) / 6, clamped to 0..1
+  // for each side. Both can be 0 (e.g. board empty) but never both
+  // simultaneously >0 — only the leading side has positive value.
+  // The CSS uses these to:
+  //   • Tint each HUD's border + glow toward the LEADING side's color
+  //   • Paint an "invasion gradient" on the LOSING HUD's inside edge
+  //   • At >50% dominance, tint the LOSING HUD's HP-trough
+  //   • Bias empty lane mid-color toward the leading side
+  // 800ms CSS transitions on the affected properties make changes
+  // feel like atmospheric shifts rather than UI flashes.
+  _updateDominanceVars(s) {
+    if (!s || !s.lanes) return;
+    let pl = 0, ai = 0;
+    for (const lane of s.lanes) {
+      const hasP = lane.player && lane.player.currentHealth > 0;
+      const hasA = lane.ai     && lane.ai.currentHealth > 0;
+      // Only single-occupancy counts toward dominance. Contested
+      // and empty are neutral. This keeps the signal pure: lots of
+      // GREEN ON BOARD = strong player dominance; lots of YELLOW
+      // (contested) = stalemate; the dominance bar stays moderate.
+      if (hasP && !hasA) pl++;
+      else if (hasA && !hasP) ai++;
+    }
+    // Net advantage in 0..1 each direction. 6 lanes max.
+    const net = pl - ai;          // -6..+6
+    const playerDom = Math.max(0, net) / 6;   // 0..1
+    const enemyDom  = Math.max(0, -net) / 6;  // 0..1
+    document.body.style.setProperty('--player-dominance', playerDom.toFixed(3));
+    document.body.style.setProperty('--enemy-dominance',  enemyDom.toFixed(3));
+  },
+
+  // Wave 3 #8 — MOUSE-PARALLAX CAMERA. Tiny rotateY/X on
+  // #game-area driven by cursor distance from screen center.
+  // The CSS rule reads --cam-tx (-1..1) / --cam-ty (-1..1) we
+  // set here. Magnitudes capped at ±2° in CSS so the playfield
+  // pivots subtly — "looking around" a Tron room — without
+  // making anyone seasick. Skipped in reduced-motion.
+  installCameraParallax() {
+    if (this._cameraParallaxInstalled) return;
+    this._cameraParallaxInstalled = true;
+    if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    const ga = document.getElementById('game-area');
+    if (!ga) return;
+    let rafScheduled = false;
+    let nextX = 0, nextY = 0;
+    const flush = () => {
+      rafScheduled = false;
+      ga.style.setProperty('--cam-tx', nextX.toFixed(3));
+      ga.style.setProperty('--cam-ty', nextY.toFixed(3));
+    };
+    document.addEventListener('mousemove', (e) => {
+      // -1 at left edge, +1 at right; same for vertical
+      const cx = (e.clientX / window.innerWidth)  * 2 - 1;
+      const cy = (e.clientY / window.innerHeight) * 2 - 1;
+      // Soft attenuation — the eye shouldn't see jitter, only
+      // smooth drift as the cursor crosses the screen.
+      nextX = Math.max(-1, Math.min(1, cx));
+      nextY = Math.max(-1, Math.min(1, cy));
+      if (!rafScheduled) {
+        rafScheduled = true;
+        requestAnimationFrame(flush);
+      }
+    }, { passive: true });
+  },
+
   installHandTilt() {
     if (this._handTiltInstalled) return;
     this._handTiltInstalled = true;
@@ -13528,25 +15375,124 @@ const UI = {
     // that wrapper's hover + its child card). Tricks don't have a
     // wrapper — the .trick-card / .draft-card.trick-draft element
     // IS the tilt target, so we set the vars on the card itself.
-    // User spec: "card geometry when the cursor is over a certain
-    // part of the card — fix in draft [too]".
-    const TILT_SELECTORS = '.hand-card-wrapper, .trick-card, .draft-card.trick-draft';
+    // Targets: hand-wrapper (sets vars on wrapper, child card reads them),
+    // trick / draft / board-ally / board-enemy (vars set on the card
+    // itself since they have no wrapper).
+    //
+    // ============================================================
+    // AAA RE-WRITE — rAF LERP LOOP
+    // ============================================================
+    // Previous implementation wrote --tilt-x / --tilt-y CSS variables
+    // DIRECTLY from raw mousemove (60-120 Hz). That fought the CSS
+    // `transition: transform 180ms` on the hover state — every
+    // mousemove restarted the transition, producing the judder the
+    // user reported ("very janky, not smooth at all"). Industry
+    // consensus (rachsmith.com/lerp, simeydotme/pokemon-cards-css):
+    // mousemove writes a TARGET, rAF lerps current → target each
+    // frame, rAF writes the CSS var. Active-hover CSS transition
+    // also dropped (see style.css block) so the rAF loop fully owns
+    // the per-frame transform.
+    //
+    // Lerp factor: 0.20 — pokemon-cards-css uses spring-damp
+    // equivalent ~0.18; bumping slightly to 0.20 gives a touch more
+    // responsiveness without overshoot. Smaller = silkier but more
+    // lag; larger = snappier but the lerp benefit fades.
+    //
+    // ONE rAF loop runs at a time, walking the active-target list
+    // (kept tiny — usually 0 or 1 card hovered at once). The loop
+    // self-terminates when every target is at-rest (|delta| < 0.001).
+    // .enc-card added so codex cards also get cursor-following bevel +
+    // holographic sheen on the portrait. Those effects read --tilt-x /
+    // --tilt-y CSS variables; without enc-card in the selector list
+    // the codex portrait would show a flat fallback (tilt=0) instead
+    // of the 3D hologram effect.
+    const TILT_SELECTORS = '.hand-card-wrapper, .trick-card, .draft-card.trick-draft, .card.ally-card, .card.enemy-card, .card.enc-card';
+    const clamp = (v) => v < -1 ? -1 : v > 1 ? 1 : v;
+    const LERP = 0.20;
+    const REST_EPSILON = 0.001;
+    // Per-target state: { current: {x,y}, target: {x,y} }. Stored
+    // in a WeakMap so DOM removal cleans up automatically.
+    const tiltState = new WeakMap();
+    let raf = 0;
+
+    const ensureState = (el) => {
+      let s = tiltState.get(el);
+      if (!s) {
+        s = { cx: 0, cy: 0, tx: 0, ty: 0, active: false };
+        tiltState.set(el, s);
+      }
+      return s;
+    };
+
+    // The hovered list — targets that have non-zero target OR
+    // current values, so the loop can iterate without scanning the
+    // whole DOM. Kept as a Set so add/remove is O(1) and we de-dupe.
+    const hovered = new Set();
+
+    const writeVars = (el, x, y) => {
+      el.style.setProperty('--tilt-x', x.toFixed(3));
+      el.style.setProperty('--tilt-y', y.toFixed(3));
+    };
+
+    const tick = () => {
+      raf = 0;
+      let stillMoving = false;
+      hovered.forEach(el => {
+        const s = tiltState.get(el);
+        if (!s) { hovered.delete(el); return; }
+        // Lerp current toward target.
+        s.cx = s.cx + (s.tx - s.cx) * LERP;
+        s.cy = s.cy + (s.ty - s.cy) * LERP;
+        // Snap to exact target when within epsilon — prevents
+        // floating-point creep that would keep the rAF alive forever.
+        const dx = Math.abs(s.tx - s.cx);
+        const dy = Math.abs(s.ty - s.cy);
+        if (dx < REST_EPSILON && dy < REST_EPSILON) {
+          s.cx = s.tx; s.cy = s.ty;
+          // If target is also (0, 0) AND not actively hovered, drop
+          // it from the loop so we don't tick forever.
+          if (!s.active && s.tx === 0 && s.ty === 0) hovered.delete(el);
+        } else {
+          stillMoving = true;
+        }
+        writeVars(el, s.cx, s.cy);
+      });
+      if (stillMoving || hovered.size > 0) raf = requestAnimationFrame(tick);
+    };
+
+    const kick = () => { if (!raf) raf = requestAnimationFrame(tick); };
+
     document.addEventListener('mousemove', (e) => {
       const target = e.target.closest && e.target.closest(TILT_SELECTORS);
       if (!target) return;
-      const r = target.getBoundingClientRect();
-      const x = ((e.clientX - r.left) / r.width  - 0.5) * 2;  // -1..1
-      const y = ((e.clientY - r.top)  / r.height - 0.5) * 2;
-      target.style.setProperty('--tilt-x', x.toFixed(3));
-      target.style.setProperty('--tilt-y', y.toFixed(3));
+      // For .hand-card-wrapper the wrapper itself ISN'T scaled (only
+      // the inner .card.hand-card is). Read from the inner card's
+      // rect so the tilt magnitude maps to the visible enlarged card.
+      const inner = target.classList.contains('hand-card-wrapper')
+        ? target.querySelector('.card.hand-card')
+        : null;
+      const r = (inner || target).getBoundingClientRect();
+      const x = clamp(((e.clientX - r.left) / r.width  - 0.5) * 2);
+      const y = clamp(((e.clientY - r.top)  / r.height - 0.5) * 2);
+      const s = ensureState(target);
+      s.tx = x; s.ty = y; s.active = true;
+      hovered.add(target);
+      kick();
     }, { passive: true });
-    document.addEventListener('mouseleave', (e) => {
+
+    // Mouseleave per-target: set target to 0,0 so the lerp eases
+    // back smoothly. Don't drop from hovered immediately — let tick
+    // remove it once current also hits 0.
+    document.addEventListener('mouseout', (e) => {
       const target = e.target.closest && e.target.closest(TILT_SELECTORS);
-      if (target) {
-        target.style.setProperty('--tilt-x', 0);
-        target.style.setProperty('--tilt-y', 0);
-      }
-    }, { passive: true, capture: true });
+      if (!target) return;
+      // relatedTarget inside the same tilt element = still inside
+      const to = e.relatedTarget && e.relatedTarget.closest && e.relatedTarget.closest(TILT_SELECTORS);
+      if (to === target) return;
+      const s = ensureState(target);
+      s.tx = 0; s.ty = 0; s.active = false;
+      kick();
+    }, { passive: true });
   },
 
   // (b) Block-fill spark — on emitDmg 'block' events the block meter
@@ -13718,23 +15664,83 @@ const UI = {
     if (!board) return;
     this._boardCursorLightInstalled = true;
     let pendingX = 50, pendingY = 50, raf = null;
+    // PERF FIX: cache the board rect and only recompute on resize.
+    // Previously getBoundingClientRect() ran on EVERY mousemove (60-
+    // 120Hz), forcing a synchronous layout read on each event before
+    // the rAF throttle could even kick in. The event handler blocked
+    // until the layout read completed, causing the "cursor takes
+    // time to register" lag the user reported. Now the rect is
+    // computed lazily and reused across events; only invalidated
+    // when the window resizes (board layout changes).
+    let cachedRect = null;
+    const getRect = () => {
+      if (!cachedRect) cachedRect = board.getBoundingClientRect();
+      return cachedRect;
+    };
+    const invalidateRect = () => { cachedRect = null; };
+    window.addEventListener('resize', invalidateRect, { passive: true });
+    window.addEventListener('scroll', invalidateRect, { passive: true });
     const flush = () => {
       raf = null;
       board.style.setProperty('--bx', pendingX + '%');
       board.style.setProperty('--by', pendingY + '%');
     };
     board.addEventListener('mousemove', (e) => {
-      const rect = board.getBoundingClientRect();
+      const rect = getRect();
       pendingX = ((e.clientX - rect.left) / rect.width  * 100).toFixed(1);
       pendingY = ((e.clientY - rect.top)  / rect.height * 100).toFixed(1);
       if (!raf) raf = requestAnimationFrame(flush);
-    });
+    }, { passive: true });
     board.addEventListener('mouseenter', () => {
+      // Recompute on enter — board could have moved (round transition).
+      invalidateRect();
       board.style.setProperty('--b-light', '1');
     });
     board.addEventListener('mouseleave', () => {
       board.style.setProperty('--b-light', '0');
     });
+  },
+
+  // ===================== KILL-CAM MICRO-CINEMA =====================
+  // Fired in addition to the regular 90ms hit-pause when a board card
+  // dies. Adds a radial warm flash anchored at the killed card's
+  // viewport coords, plus a brief desaturation of the rest of the
+  // board so the eye locks on the kill. Pairs with a pop-out scale
+  // animation on the dying card itself before renderBoard wipes it.
+  //
+  // killedCard: the card object that just hit 0 HP. We look up its
+  //   DOM element by data-card-id to get the rect. If the element
+  //   isn't found (cleanup race), fall back to centering on the board.
+  killcamFlash(killedCard) {
+    if (this._killcamSuppressed) return;
+    const board = document.getElementById('board');
+    if (!board) return;
+    let cx = 50, cy = 50;
+    let cardEl = null;
+    if (killedCard && killedCard.id != null) {
+      cardEl = board.querySelector(`.card[data-card-id="${killedCard.id}"]`);
+      if (cardEl) {
+        const rect = cardEl.getBoundingClientRect();
+        const bRect = board.getBoundingClientRect();
+        cx = ((rect.left + rect.width / 2 - bRect.left) / bRect.width * 100).toFixed(1);
+        cy = ((rect.top  + rect.height / 2 - bRect.top)  / bRect.height * 100).toFixed(1);
+      }
+    }
+    board.style.setProperty('--kc-x', cx + '%');
+    board.style.setProperty('--kc-y', cy + '%');
+    document.body.classList.remove('killcam');
+    void document.body.offsetWidth;
+    document.body.classList.add('killcam');
+    if (cardEl) {
+      cardEl.classList.remove('card-killcam-target');
+      void cardEl.offsetWidth;
+      cardEl.classList.add('card-killcam-target');
+    }
+    if (this._killcamTimer) clearTimeout(this._killcamTimer);
+    this._killcamTimer = setTimeout(() => {
+      document.body.classList.remove('killcam');
+      this._killcamTimer = null;
+    }, 320);
   },
 
   // ===================== ROUND-END BEAM SWEEP =====================
@@ -13765,6 +15771,143 @@ const UI = {
       }
       return r;
     };
+  },
+
+  // ===================== TRON FLARE PASS =====================
+  // Visual polish wave inspired by Tron Legacy / Cyberpunk 2077 /
+  // Marvel Snap research. Adds:
+  //   • Mouse-parallax background grid (~5px max, subtle depth)
+  //   • Chromatic-aberration flash on card hit (RGB split, 220ms)
+  //   • Play-afterimage trail (200ms ghost in lane after card lands)
+  //   • Game-over glitch text (RGB-split scramble, 380ms)
+  //
+  // Hooks Game.applyCombatDamage, Game.dealDamage, Game.playCard,
+  // Game.playCardFree, and UI.showGameOverScreen so the engine fires
+  // these naturally without flag-passing. All gated on prefers-
+  // reduced-motion and skipped when Game.state isn't present.
+  installTronFlare() {
+    if (this._tronFlareHooked) return;
+    this._tronFlareHooked = true;
+    if (this._reducedMotion && this._reducedMotion()) return;
+
+    // Mouse-parallax: smooth pointer-tracked offset on body, read by
+    // CSS to translate the background grid. Listener is passive so
+    // it never blocks scroll; throttled via rAF so high-DPI mice
+    // don't ddos style recalc.
+    let pendingMx = 0, pendingMy = 0, rafScheduled = false;
+    const setParallax = () => {
+      rafScheduled = false;
+      document.body.style.setProperty('--mx', pendingMx.toFixed(1) + 'px');
+      document.body.style.setProperty('--my', pendingMy.toFixed(1) + 'px');
+    };
+    window.addEventListener('mousemove', (e) => {
+      const cx = window.innerWidth / 2;
+      const cy = window.innerHeight / 2;
+      // Clamp to ±5px, multiply by -1 so background drifts AGAINST
+      // the cursor (depth illusion: closer thing follows cursor,
+      // farther background pushes opposite).
+      pendingMx = ((cx - e.clientX) / cx) * 5;
+      pendingMy = ((cy - e.clientY) / cy) * 5;
+      if (!rafScheduled) {
+        rafScheduled = true;
+        requestAnimationFrame(setParallax);
+      }
+    }, { passive: true });
+
+    // Chromatic-aberration flash on hit. Wrap applyCombatDamage so any
+    // landed combat hit pulses .hit-chrom on the target card element.
+    if (typeof Game !== 'undefined' && Game.applyCombatDamage) {
+      const orig = Game.applyCombatDamage.bind(Game);
+      Game.applyCombatDamage = function (attacker, target, opts) {
+        const r = orig(attacker, target, opts);
+        // Only flash on actually-landed damage. r === true means kill,
+        // r === false means evade/block/whiff. Either way the swing
+        // landed visually, but only damage-landed events should pulse
+        // — so check the target's currentHealth went down OR it died.
+        if (r === true && target && target.id != null) {
+          UI._flashHitChrom(target.id);
+        }
+        return r;
+      };
+    }
+    // Same wrap for dealDamage (handles trick + ability + splash hits).
+    if (typeof Game !== 'undefined' && Game.dealDamage) {
+      const orig = Game.dealDamage.bind(Game);
+      Game.dealDamage = function (card, amount, source) {
+        const before = card && card.currentHealth;
+        const r = orig(card, amount, source);
+        const after = card && card.currentHealth;
+        if (card && card.id != null && typeof before === 'number' && typeof after === 'number' && after < before) {
+          UI._flashHitChrom(card.id);
+        }
+        return r;
+      };
+    }
+
+    // Play-afterimage. Wrap playCard / playCardFree so a 380ms ghost
+    // stays in the lane the card just entered.
+    const wrapPlay = (fnName) => {
+      if (!Game[fnName]) return;
+      const orig = Game[fnName].bind(Game);
+      Game[fnName] = function (owner, card, laneIdx) {
+        const r = orig(owner, card, laneIdx);
+        // Only spawn afterimage if the card actually landed in the lane.
+        if (card && card.id != null && typeof laneIdx === 'number' && laneIdx >= 0
+            && Game.state && Game.state.lanes[laneIdx]
+            && Game.state.lanes[laneIdx][owner] === card) {
+          UI._spawnPlayAfterimage(card.id, laneIdx);
+        }
+        return r;
+      };
+    };
+    wrapPlay('playCard');
+    wrapPlay('playCardFree');
+
+    // Game-over glitch. Wrap showGameOverScreen to add .glitch class
+    // to the title element after it renders. Removes the class when
+    // the screen closes so the animation plays again on rematch.
+    if (typeof this.showGameOverScreen === 'function') {
+      const orig = this.showGameOverScreen.bind(this);
+      this.showGameOverScreen = function (winner) {
+        const r = orig(winner);
+        // Defer to next rAF so the title element is in the DOM.
+        requestAnimationFrame(() => {
+          const title = document.querySelector('.game-over-title');
+          if (title) {
+            title.classList.remove('glitch');
+            void title.offsetWidth;
+            title.classList.add('glitch');
+          }
+        });
+        return r;
+      };
+    }
+  },
+  // Helpers — kept on UI so hooks above can reach them. Cheap, no-op
+  // on missing element.
+  _flashHitChrom(cardId) {
+    const sel = '.card[data-card-id="' + String(cardId) + '"]';
+    document.querySelectorAll(sel).forEach((el) => {
+      el.classList.remove('hit-chrom');
+      void el.offsetWidth;
+      el.classList.add('hit-chrom');
+      setTimeout(() => el.classList.remove('hit-chrom'), 260);
+    });
+  },
+  _spawnPlayAfterimage(cardId, laneIdx) {
+    const sel = '.card[data-card-id="' + String(cardId) + '"]';
+    const src = document.querySelector(sel);
+    if (!src) return;
+    const r = src.getBoundingClientRect();
+    if (!r.width || !r.height) return;
+    const ghost = document.createElement('div');
+    ghost.className = 'card-play-afterimage';
+    ghost.style.left = r.left + 'px';
+    ghost.style.top = r.top + 'px';
+    ghost.style.width = r.width + 'px';
+    ghost.style.height = r.height + 'px';
+    document.body.appendChild(ghost);
+    setTimeout(() => ghost.remove(), 420);
   },
 
   // ===================== UNDO FEEDBACK =====================
@@ -14003,10 +16146,16 @@ const UI = {
       const dirX = (Math.random() - 0.5) * 1.5;
       const dirY = (Math.random() - 0.5) * 1.5;
       const len = 200 + Math.random() * 400;
+      // Wave 3 #9 — random Z depth (-200..+150) so when the
+      // camera-parallax pivots, near particles slide more than
+      // far ones. Real stereoscopic depth, not layered 2D
+      // parallax. Negative Z = recessed deeper into the scene.
+      const pz = (Math.random() * 350) - 200;
       p.style.left = `${startX}%`;
       p.style.top = `${startY}%`;
       p.style.setProperty('--dx', `${dirX * len}px`);
       p.style.setProperty('--dy', `${dirY * len}px`);
+      p.style.setProperty('--pz', `${pz.toFixed(0)}px`);
       p.style.animationDuration = `${25 + Math.random() * 20}s`;
       p.style.animationDelay = `${-Math.random() * 30}s`;
       host.appendChild(p);
@@ -14810,6 +16959,82 @@ function toggleTrickHistory(owner) {
   }
   overlay.style.display = 'flex';
 }
+
+// ===================== SANDBOX (global console API) =====================
+// Console-friendly façade so the user can drop into devtools and run:
+//   Sandbox.spawn('Hulk')              → drops Hulk into player hand
+//   Sandbox.spawn('Batarangs')         → drops the trick into player tricks
+//   Sandbox.energy(99)                 → max energy
+//   Sandbox.heal()                     → refill HP both sides
+//   Sandbox.clearBoard()               → wipe all lanes
+//   Sandbox.advanceRound()             → skip to next round
+//   Sandbox.summonOnBoard('Iron Man', 0, 'ai') → place enemy in lane 0
+window.Sandbox = {
+  spawn(name) {
+    if (!Game.state || !Game.state.player) { console.warn('Sandbox: no game in progress'); return null; }
+    const cardDef = (typeof CARD_DEFS !== 'undefined') ? CARD_DEFS.find(c => c.name === name) : null;
+    if (cardDef) {
+      const inst = Game.createCardInstance(cardDef, 'player');
+      Game.state.player.hand.push(inst);
+      UI.render();
+      return inst;
+    }
+    const trickDef = (typeof TRICK_DEFS !== 'undefined') ? TRICK_DEFS.find(t => t.name === name) : null;
+    if (trickDef) {
+      const inst = Game.createCardInstance ? Game.createCardInstance(trickDef, 'player') : Object.assign({}, trickDef);
+      inst.id = 'sb_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6);
+      Game.state.player.tricks.push(inst);
+      UI.render();
+      return inst;
+    }
+    console.warn('Sandbox: no card or trick named', name);
+    return null;
+  },
+  energy(n) {
+    if (!Game.state || !Game.state.player) return;
+    Game.state.player.currency = n;
+    Game.state.player.energy = n;
+    UI.render();
+  },
+  heal(n) {
+    if (!Game.state) return;
+    n = n ?? 30;
+    if (Game.state.player) Game.state.player.health = n;
+    if (Game.state.ai)     Game.state.ai.health = n;
+    UI.render();
+  },
+  clearBoard() {
+    if (!Game.state || !Game.state.lanes) return;
+    Game.state.lanes.forEach(L => { L.ai = null; L.player = null; L.trap = null; L.destroyed = false; });
+    UI.render();
+  },
+  advanceRound() {
+    if (!Game.state) return;
+    Game.state.round = (Game.state.round || 0) + 1;
+    UI.render();
+  },
+  summonOnBoard(name, laneIdx, side) {
+    side = side || 'player';
+    if (!Game.state || !Game.state.lanes || !Game.state.lanes[laneIdx]) return null;
+    const def = (typeof CARD_DEFS !== 'undefined') ? CARD_DEFS.find(c => c.name === name) : null;
+    if (!def) { console.warn('Sandbox: no card named', name); return null; }
+    const inst = Game.createCardInstance(def, side);
+    inst.lane = laneIdx;
+    Game.state.lanes[laneIdx][side] = inst;
+    UI.render();
+    return inst;
+  },
+};
+
+// Hotkey toggle for the sandbox panel: ` (backtick / tilde key).
+// Works at any time after a match starts.
+document.addEventListener('keydown', (e) => {
+  if (e.key !== '`' && e.key !== '~') return;
+  // Don't fire while the user is typing in an input/textarea.
+  const tag = (e.target && e.target.tagName || '').toLowerCase();
+  if (tag === 'input' || tag === 'textarea') return;
+  if (UI.toggleSandboxPanel) UI.toggleSandboxPanel();
+});
 
 // Auto-start
 UI.init();

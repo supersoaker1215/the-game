@@ -13,7 +13,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap">
-  <link rel="stylesheet" href="style.css?v=468">
+  <link rel="stylesheet" href="style.css?v=565">
   <script>
     // Lightweight error reporter (pre-Sentry) — capture runtime JS
     // errors + unhandled promise rejections to a localStorage ring
@@ -372,8 +372,22 @@
       <div class="ai-thinking-dots" aria-hidden="true"><span></span><span></span><span></span></div>
     </div>
 
-    <!-- BOARD -->
+    <!-- BOARD — the Tron arcade arena. Flat top-down view (the
+         lightcycle arena IS flat — depth comes from atmosphere,
+         not perspective foreshortening). Bezel frame + CRT scanlines
+         + broadcast-carrier stripe + boot scan supply the "monitor"
+         feel; lane pillars + card 3D supply the depth. -->
     <div class="board-section">
+      <!-- CRT scanlines (Polish A) — drift slowly down the arena
+           simulating an old broadcast monitor. -->
+      <div class="crt-scanlines" aria-hidden="true"></div>
+      <!-- Broadcast-carrier stripe — bright pulsing theme-color bar
+           pinned at the TOP of the arena. Pure Tron-Legacy carrier-wave
+           accent; the eye reads it as "this monitor is live." -->
+      <div class="carrier-stripe" aria-hidden="true"></div>
+      <!-- Boot-up scan line (Polish D) — sweeps top→bottom on round-
+           start when JS adds .boot-scan class to .board-section. -->
+      <div class="boot-scan-beam" aria-hidden="true"></div>
       <div id="board" class="board"></div>
     </div>
 
@@ -442,8 +456,24 @@
           <button class="btn btn-primary game-over-btn game-over-rematch" onclick="rematch()" id="game-over-rematch-btn">Rematch</button>
           <button class="btn btn-secondary game-over-btn" onclick="UI.openReplay()">View Replay</button>
           <button class="btn btn-secondary game-over-btn" onclick="UI.shareResultSummary()" title="Copy a text summary of this match to clipboard">Share Result</button>
+          <button class="btn btn-secondary game-over-btn game-over-btn-share" onclick="UI.openShareCardModal()" title="Generate a shareable image of this match">Share Card</button>
           <button class="btn btn-secondary game-over-btn" onclick="newGame()">Main Menu</button>
           <button class="btn btn-secondary game-over-btn" onclick="UI.toggleGameOverLog()">Battle Log</button>
+        </div>
+      </div>
+    </div>
+    <!-- AAA SHARE CARD MODAL — wraps a 1080x1080 canvas summary the
+         user can save (PNG download) or copy to clipboard. Built by
+         UI.openShareCardModal at game-over time so the contents
+         reflect the final state. Hidden by default. -->
+    <div id="share-card-modal" class="share-card-modal" onclick="if(event.target===this)UI.closeShareCardModal()">
+      <div class="scm-frame">
+        <canvas id="share-card-canvas" class="scm-canvas" width="1080" height="1080"></canvas>
+        <div class="scm-toast" id="scm-toast"></div>
+        <div class="scm-actions">
+          <button class="scm-btn" onclick="UI.downloadShareCard()">Download PNG</button>
+          <button class="scm-btn" onclick="UI.copyShareCard()">Copy Image</button>
+          <button class="scm-btn scm-btn-secondary" onclick="UI.closeShareCardModal()">Close</button>
         </div>
       </div>
     </div>
@@ -672,19 +702,30 @@
     </div>
   </div>
 
-  <script src="cards.js?v=97"></script>
-  <script src="tricks.js?v=52"></script>
-  <script src="abilities.js?v=178"></script>
+  <script src="cards.js?v=100"></script>
+  <script src="tricks.js?v=53"></script>
+  <script src="abilities.js?v=191"></script>
+  <!-- Combat-rule helpers shared by resolver + predictor (Phase 1
+       extraction). Loaded BEFORE game.js so Game.* methods can
+       forward to it. See engine/combat.js header. -->
+  <script src="engine/combat.js?v=1"></script>
   <!-- (game.js / ui.js / roguelite.js cache bumps follow) -->
   <script src="decks.js?v=4"></script>
-  <script src="game.js?v=245"></script>
+  <script src="game.js?v=265"></script>
   <script src="ai.js?v=45"></script>
-  <script src="roguelite.js?v=99"></script>
+  <script src="roguelite.js?v=112"></script>
   <!-- PeerJS for WebRTC peer-to-peer multiplayer. Uses the public
        0.peerjs.com signaling cloud — no server needed on our side. -->
   <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
-  <script src="multiplayer.js?v=4"></script>
-  <script src="ui.js?v=469"></script>
+  <script src="multiplayer.js?v=5"></script>
+  <script src="ui.js?v=556"></script>
   <script src="logger.js?v=5"></script>
+  <!-- Always-on crash capture. Hooks window.onerror +
+       unhandledrejection, surfaces a "Copy bug report" button when
+       errors fire. Zero overhead until something throws. -->
+  <script src="error-reporter.js?v=1"></script>
+  <!-- Devtools-gated FPS / frame-time / long-task HUD.
+       Enable with ?perf=1 or localStorage.perfOverlay='1'. -->
+  <script src="perf-overlay.js?v=1"></script>
 </body>
 </html>

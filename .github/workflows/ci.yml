@@ -1,0 +1,138 @@
+name: CI
+
+# Release-gate checks: JSC test suite + Deno lint + 500-game balance sim.
+# Mirrors the three commands the maintainer runs locally before every cache
+# bump. See .github/workflows/README.md for what each check enforces and
+# how to run them locally.
+
+on:
+  push:
+    branches: ['**']
+  pull_request:
+    branches: ['**']
+
+jobs:
+  checks:
+    name: tests + lint + balance sim
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # --- JSC install ---------------------------------------------------
+      # JavaScriptCore CLI is shipped via the WebKitGTK packages on Ubuntu.
+      # 22.04 / 24.04 expose it as libjavascriptcoregtk-4.1-bin (binary at
+      # /usr/lib/x86_64-linux-gnu/webkit2gtk-4.1/jsc); 20.04 ships the older
+      # 4.0 variant. We install whichever is available and symlink to /usr/
+      # local/bin/jsc so subsequent steps can invoke `jsc` unqualified, the
+      # same way macOS callers use the binary at the Helpers/ path.
+      - name: Install JavaScriptCore (JSC)
+        id: jsc
+        run: |
+          set -euxo pipefail
+          sudo apt-get update
+          if apt-cache show libjavascriptcoregtk-4.1-bin >/dev/null 2>&1; then
+            sudo apt-get install -y libjavascriptcoregtk-4.1-bin
+            JSC_BIN=/usr/lib/x86_64-linux-gnu/webkit2gtk-4.1/jsc
+          else
+            sudo apt-get install -y libjavascriptcoregtk-4.0-bin
+            JSC_BIN=/usr/lib/x86_64-linux-gnu/webkit2gtk-4.0/jsc
+          fi
+          if [ ! -x "$JSC_BIN" ]; then
+            # Fallback: locate jsc anywhere under /usr/lib (path varies by
+            # webkitgtk minor version on some Ubuntu point releases).
+            JSC_BIN=$(find /usr/lib -name jsc -type f -executable 2>/dev/null | head -n1)
+          fi
+          if [ -z "$JSC_BIN" ] || [ ! -x "$JSC_BIN" ]; then
+            echo "::error::Could not locate jsc binary after install"
+            exit 1
+          fi
+          sudo ln -sf "$JSC_BIN" /usr/local/bin/jsc
+          jsc --help >/dev/null 2>&1 || true
+          echo "jsc_path=$JSC_BIN" >> "$GITHUB_OUTPUT"
+
+      # --- Deno install (cached) ----------------------------------------
+      - name: Setup Deno
+        uses: denoland/setup-deno@v1
+        with:
+          deno-version: v1.x
+
+      # --- 1. JSC regression test suite ---------------------------------
+      # test.js prints "=== N passed, M failed ===" and always exits 0,
+      # so we capture stdout, tee it, and grep for the success line.
+      - name: JSC test suite
+        id: tests
+        run: |
+          set -euo pipefail
+          jsc sim/test.js | tee tests.out
+          if grep -qE '=== [0-9]+ passed, 0 failed ===' tests.out; then
+            COUNTS=$(grep -oE '=== [0-9]+ passed, [0-9]+ failed ===' tests.out | tail -n1)
+            echo "counts=$COUNTS" >> "$GITHUB_OUTPUT"
+          else
+            echo "::error::JSC test suite reported failures"
+            grep -E '^  FAIL|=== [0-9]+ passed' tests.out || true
+            exit 1
+          fi
+
+      # --- 2. Deno lint --------------------------------------------------
+      - name: Deno lint
+        id: lint
+        run: |
+          set -euo pipefail
+          deno lint 2>&1 | tee lint.out
+          # `deno lint` exits non-zero on rule violations, so reaching this
+          # line means clean. Capture the "Checked N files" footer for the
+          # job summary.
+          CHECKED=$(grep -oE 'Checked [0-9]+ file[s]?' lint.out | tail -n1 || echo 'Checked ? files')
+          echo "checked=$CHECKED" >> "$GITHUB_OUTPUT"
+
+      # --- 3. 500-game balance sim --------------------------------------
+      # Output format (from sim/run.js):
+      #   === 500 games in 12.34s (40.5 g/s) ===
+      #     player-seat wins: 248  ai-seat wins: 245  draws: 7
+      #     avg rounds: 18.42
+      # Balance gate: |player_wins - ai_wins| <= 50  (i.e. each side within
+      # ±25 of 250). Crashes show up as JSC non-zero exit OR as missing
+      # output lines.
+      - name: 500-game balance sim
+        id: sim
+        run: |
+          set -euo pipefail
+          jsc sim/run.js -- --games 500 --quiet | tee sim.out
+          LINE=$(grep -E 'player-seat wins:' sim.out | tail -n1 || true)
+          if [ -z "$LINE" ]; then
+            echo "::error::Balance sim produced no win-count line (likely crashed)"
+            exit 1
+          fi
+          P=$(echo "$LINE" | grep -oE 'player-seat wins: [0-9]+' | grep -oE '[0-9]+')
+          A=$(echo "$LINE" | grep -oE 'ai-seat wins: [0-9]+' | grep -oE '[0-9]+')
+          D=$(echo "$LINE" | grep -oE 'draws: [0-9]+' | grep -oE '[0-9]+')
+          DIFF=$((P - A)); ABS_DIFF=${DIFF#-}
+          echo "player=$P" >> "$GITHUB_OUTPUT"
+          echo "ai=$A" >> "$GITHUB_OUTPUT"
+          echo "draws=$D" >> "$GITHUB_OUTPUT"
+          echo "abs_diff=$ABS_DIFF" >> "$GITHUB_OUTPUT"
+          if [ "$ABS_DIFF" -gt 50 ]; then
+            echo "::error::Balance out of tolerance: P=$P A=$A (|diff|=$ABS_DIFF > 50, target each side within ±25 of 250)"
+            exit 1
+          fi
+          echo "Balance OK: P=$P A=$A draws=$D (|diff|=$ABS_DIFF, threshold 50)"
+
+      # --- 4. Job summary -----------------------------------------------
+      # Always run so the summary still posts when an earlier step fails;
+      # missing outputs render as blank rather than aborting the step.
+      - name: Job summary
+        if: always()
+        run: |
+          {
+            echo "## CI Results"
+            echo ""
+            echo "| Check | Result |"
+            echo "|---|---|"
+            echo "| JSC tests | ${{ steps.tests.outputs.counts || 'n/a' }} |"
+            echo "| Deno lint | ${{ steps.lint.outputs.checked || 'n/a' }} |"
+            echo "| Balance sim | P=${{ steps.sim.outputs.player || '?' }} A=${{ steps.sim.outputs.ai || '?' }} draws=${{ steps.sim.outputs.draws || '?' }} (\\|diff\\|=${{ steps.sim.outputs.abs_diff || '?' }}) |"
+            echo ""
+            echo "_JSC: ${{ steps.jsc.outputs.jsc_path || 'install failed' }}_"
+          } >> "$GITHUB_STEP_SUMMARY"

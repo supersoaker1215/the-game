@@ -1,0 +1,31 @@
+{
+  "lint": {
+    "include": [
+      "cards.js",
+      "tricks.js",
+      "abilities.js",
+      "decks.js",
+      "engine/combat.js",
+      "error-reporter.js",
+      "game.js",
+      "perf-overlay.js",
+      "ai.js",
+      "logger.js",
+      "multiplayer.js",
+      "roguelite.js",
+      "ui.js",
+      "sw.js"
+    ],
+    "rules": {
+      "tags": ["recommended"],
+      "exclude": [
+        "no-unused-vars",
+        "no-empty",
+        "no-window",
+        "no-window-prefix",
+        "prefer-const",
+        "no-var"
+      ]
+    }
+  }
+}

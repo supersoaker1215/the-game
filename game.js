@@ -3,6 +3,31 @@
 // ============================================================
 let nextCardId = 1;
 
+// ----- Deterministic RNG seam (Phase 1, see Plan agent output) -----
+// Adds the primitive without migrating any callsites. Math.random()
+// stays the default everywhere; opt-in seeding via Game.startSeededRun
+// or by setting state._rng directly. Lets future fuzzer / replay /
+// daily-challenge work plug in without touching the resolver.
+function mulberry32(seed) {
+  let s = (seed | 0) >>> 0;
+  return function () {
+    s = (s + 0x6D2B79F5) >>> 0;
+    let t = s;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+function hashString(str) {
+  // 32-bit FNV-1a — stable, dependency-free, fine for seed derivation.
+  let h = 0x811c9dc5;
+  for (let i = 0; i < str.length; i++) {
+    h ^= str.charCodeAt(i);
+    h = Math.imul(h, 0x01000193);
+  }
+  return h >>> 0;
+}
+
 const Game = {
   LANE_COUNT: 6,
   BLOCK_MAX: 8,
@@ -10,6 +35,26 @@ const Game = {
   _dmgEvents: [], // { cardId, amount, type: 'hit'|'heal'|'block'|'evade'|'hpHit', owner }
   emitDmg(cardId, amount, type, owner, attackerId) { this._dmgEvents.push({ cardId, amount, type, owner, attackerId }); },
   flushDmg() { const e = this._dmgEvents.splice(0); return e; },
+
+  // ----- Deterministic RNG seam (Phase 1) -----
+  // Reads state._rng if a seed was set, else falls back to Math.random.
+  // Callsites can opt in by switching `Math.random()` → `Game.rng()`;
+  // Phase 1 doesn't migrate anything, so non-seeded play stays bit-for-
+  // bit identical to today.
+  rng() {
+    return (this.state && this.state._rng) ? this.state._rng() : Math.random();
+  },
+  // Entry point for seeded runs. Accepts a string or numeric seed,
+  // hashes strings to uint32, installs the RNG on game state. Match
+  // is started via the standard startMatch path so all the existing
+  // setup runs unchanged.
+  startSeededRun(seed, mode) {
+    if (typeof this.init === 'function') this.init();
+    const numericSeed = (typeof seed === 'string') ? hashString(seed) : (seed | 0);
+    this.state._seed = seed;
+    this.state._rng = mulberry32(numericSeed);
+    if (typeof this.startMatch === 'function') this.startMatch(mode || 'classic');
+  },
 
   // Check if any player prompt is pending and defer continuation until resolved
   hasPendingPrompt() {
@@ -20,6 +65,13 @@ const Game = {
       this.state.pendingKangChoice ||
       this.state.pendingJumpOffer ||
       this.state.pendingTimeStoneIntercept ||
+      // AI auto-resolved actions are also "pending" while their delay
+      // is in flight — without this, the AI queue advances mid-chain
+      // (e.g. Jigsaw places only 2 of 3 bear traps because the queue
+      // moves to the next play before the second trap's setTimeout
+      // callback fires). User report: "Jigsaw is making two bear
+      // traps instead of three."
+      (this.state._pendingAIActions && this.state._pendingAIActions > 0) ||
       (this.state.player && this.state.player.stolenByBWL) ||
       (this.state.ai && this.state.ai.stolenByBWL)
     );
@@ -741,7 +793,7 @@ const Game = {
       deadPile: [],       // cards that died on board
       discardPile: [],    // cards discarded from hand
       playedTrickPile: [], // tricks that were played
-      blockMeter: 0, discount: 0, nextDrawDiscount: 0,
+      blockMeter: 0, discount: 0, nextDrawDiscount: 0, nextDrawDiscountCount: 0,
       nextTurnCurrency: 0, maxHandSize: 7, maxTrickHandSize: 3,
       nextCardStolen: false, stolenByBWL: null, bwlInterceptUsed: false,
       drStrangeReorder: false, faceDownAvailable: false,
@@ -1453,7 +1505,19 @@ const Game = {
       // broadcast updated state (guest). User report: "the ai plays
       // for the person im playing there should be no ai opponet PvP"
       if (this.isMultiplayer()) return;
-      setTimeout(() => { AI.playCards('ai', () => this.endPhase1()); }, 1200);
+      // Defer the AI's first move until the boot-sequence curtain is
+      // off-screen. The boot animation runs ~2200ms; without this gate
+      // the AI used to start playing while the scan was still closing,
+      // which made its move feel like it appeared from nowhere. The
+      // boot publishes _bootSequenceEndsAt; we wait for it + a short
+      // 200ms breathing room. Falls through to the normal 1200ms cadence
+      // for every later turn.
+      const now = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
+      const bootEnd = this.state._bootSequenceEndsAt || 0;
+      const bootRemain = Math.max(0, bootEnd - now);
+      const aiDelay = Math.max(1200, bootRemain + 200);
+      if (bootRemain > 0) delete this.state._bootSequenceEndsAt; // one-shot
+      setTimeout(() => { AI.playCards('ai', () => this.endPhase1()); }, aiDelay);
     }
   },
 
@@ -1586,17 +1650,32 @@ const Game = {
   getCardCost(owner, card) {
     let cost = Math.max(0, card.cost - this.state[owner].discount);
     const opp = this.opponent(owner);
-    this.getAllCardsOf(opp).forEach(c => { if (c.passive === 'enemyCostIncrease') cost += 1; });
+    this.getAllCardsOf(opp).forEach(c => { if (c.passive === 'enemyCostIncrease') cost += (c._surferCostBump || 1); });
+    // Captain America's "WHILE ACTIVE: All cards in your hand cost
+    // 1 less" — computed LIVE here so the discount automatically
+    // vanishes when CA dies. User report: "his ability should go
+    // away when he dies. Right now in hand, my card still cost
+    // less when he was dead." Each active CA on the owner's side
+    // contributes its rarity-tier discount (1 / 1 / 2 / 2). When
+    // CA dies, getAllCardsOf no longer returns it → no discount
+    // applied → next render shows full cost.
+    this.getAllCardsOf(owner).forEach(c => {
+      if (c.passive === 'allyCostReduction' && c.currentHealth > 0) {
+        const disc = this.rarityValue(c, { common: 1, rare: 1, special: 2, legendary: 2 });
+        cost -= disc;
+      }
+    });
     return Math.max(0, cost);
   },
 
   isCardBatmanBlocked(owner, card) {
-    // batmanBlocked holds the round number during which the lock applies
-    // (set to state.round+1 by Batman's onPlay). Only returns true when
-    // that scheduled round matches the current round — past-round values
-    // are effectively inert.
-    const scheduled = this.state[owner].batmanBlocked;
-    if (!scheduled || scheduled !== this.state.round) return false;
+    // batmanBlocked is the round the lock STARTS (always round + 1 from
+    // Batman's onPlay). batmanBlockedUntil is the inclusive END round —
+    // classic Batman omits it (single-turn lock, end = start), Text+
+    // "Dark Knight" sets it to round + lockTurns for multi-turn locks.
+    const start = this.state[owner].batmanBlocked;
+    const until = this.state[owner].batmanBlockedUntil || start;
+    if (!start || this.state.round < start || this.state.round > until) return false;
     const hand = this.state[owner].hand;
     if (!hand.length) return false;
     // Only lock the highest-cost card the opponent could actually play
@@ -1839,7 +1918,7 @@ const Game = {
 
     this.getAllCardsOnBoard().forEach(c => { if (c.onAnyCardPlayed && c.id !== card.id) c.onAnyCardPlayed(this, c); });
     this.getAllCardsOf(owner).forEach(c => {
-      if (c.passive === 'cardPlayedBuff' && c.id !== card.id) { this.buffCard(card, 1, 1); }
+      if (c.passive === 'cardPlayedBuff' && c.id !== card.id) { const n = c._bpAuraSize || 1; this.buffCard(card, n, n); }
     });
 
     // Hunt mechanic — extracted to _resolveHuntChase. Frozen/stunned
@@ -1861,9 +1940,13 @@ const Game = {
     }
     // Cantrip etch — draw 1 (per stack) right after onPlay + drawOnPlay.
     this._resolveCantripOnPlay(card);
-    // Fear etch — fear an enemy when this card is played.
+    // Status etches — fire on play. Fear/Freeze pick a single enemy
+    // for N turns; MC picks up to N enemies for the turn; Mark grants
+    // adjacent allies Bullseye.
     this._resolveFearOnPlay(card);
     this._resolveFreezeOnPlay(card);
+    this._resolveMindControlOnPlay(card);
+    this._resolveMarkOnPlay(card);
     this.cleanupDead();
     // Apply Magneto debuffs to newly placed cards
     this.applyMagnetoDebuffs();
@@ -1930,8 +2013,9 @@ const Game = {
     this.getAllCardsOnBoard().forEach(c => { if (c.onAnyCardPlayed && c.id !== card.id) c.onAnyCardPlayed(this, c); });
     this.getAllCardsOf(owner).forEach(c => {
       if (c.passive === 'cardPlayedBuff' && c.id !== card.id) {
-        this.buffCard(card, 1, 1);
-        this.log(`  [BUFF] ${c.name} gives ${card.name} +1/+1`);
+        const n = c._bpAuraSize || 1;
+        this.buffCard(card, n, n);
+        this.log(`  [BUFF] ${c.name} gives ${card.name} +${n}/+${n}`);
       }
     });
 
@@ -1940,6 +2024,8 @@ const Game = {
     this._resolveCantripOnPlay(card);
     this._resolveFearOnPlay(card);
     this._resolveFreezeOnPlay(card);
+    this._resolveMindControlOnPlay(card);
+    this._resolveMarkOnPlay(card);
     this.cleanupDead();
   },
 
@@ -2198,6 +2284,18 @@ const Game = {
       this.whenPromptCleared(() => this.resolveCombat());
       return;
     }
+    // Phase 1 dual-run instrument — captures the predictor's forecast
+    // BEFORE combat runs so postCombat can compare actual outcomes vs.
+    // predicted. Off by default; set Game.DEBUG_DUAL_RUN = true in
+    // devtools to surface predictor/resolver divergences.
+    if (this.DEBUG_DUAL_RUN) {
+      try {
+        // predictCombatGlobal returns { byId: Map<id, {hpAfter, dies, dmgIn}> }.
+        // Stash the Map directly so dualRunDiff sees the right shape.
+        const pred = this.predictCombatGlobal();
+        this._dualRunForecast = pred && pred.byId ? pred.byId : null;
+      } catch (e) { console.warn('[DUAL-RUN] forecast capture failed', e); }
+    }
     // Snapshot pre-combat state so the player can undo a "Done Playing Tricks" click.
     this.snapshot();
     this.log('--- Combat Phase ---');
@@ -2270,6 +2368,23 @@ const Game = {
   },
 
   postCombat() {
+    // Phase 1 dual-run instrument — compare forecast to actual.
+    // Runs before cleanupDead so dead cards still have currentHealth
+    // visible for the diff. console.warn each divergence; production
+    // unaffected when DEBUG_DUAL_RUN is false (forecast never captured).
+    if (this._dualRunForecast) {
+      try {
+        const playerCards = this.state.lanes.map(l => l.player).filter(Boolean);
+        const aiCards     = this.state.lanes.map(l => l.ai).filter(Boolean);
+        const diffs = CombatEngine.dualRunDiff(this._dualRunForecast, playerCards, aiCards);
+        if (diffs.length) {
+          console.warn(`[DUAL-RUN] ${diffs.length} predictor/resolver divergence(s):`, diffs);
+        }
+      } catch (e) {
+        console.warn('[DUAL-RUN] diff failed', e);
+      }
+      delete this._dualRunForecast;
+    }
     this.cleanupDead();
 
     // Poison Ivy's charm mechanic was simplified: the charmed ally's
@@ -2874,17 +2989,78 @@ const Game = {
     this.fearCard(target, card, n);
   },
 
-  // Freeze etch — symmetric to Fear. Roguelite-only via the
-  // Freeze 1 (rare) and Freeze 2 (special) etches that bump
-  // hasFreeze on the carrier. Auto-picks the highest-ATK enemy
-  // that isn't already frozen so the lock lands where it hurts.
+  // Freeze etch — Freeze 1 (rare) and Freeze 2 (special) etches add
+  // hasFreeze to the carrier. User report: "[Freeze 1] auto chose the
+  // enemy to freeze, that shouldn't happen — the user should choose."
+  // Human-owned carriers now prompt; AI seats fall back to the highest-
+  // ATK heuristic so non-human plays don't stall.
   _resolveFreezeOnPlay(card) {
     if (!card || !card.hasFreeze) return;
     const n = card.hasFreeze * (1 + (card.hasEcho || 0));
     const enemies = this.getEnemiesOf(card.owner).filter(e => e.currentHealth > 0 && !e.isFrozen);
     if (!enemies.length) return;
+    if (this.isHuman(card.owner)) {
+      const aiPicker = (cards) => cards.slice().sort((a, b) => (b.attack || 0) - (a.attack || 0))[0];
+      this.promptCardChoice(card.owner, enemies, `${card.name} — Freeze ${n}`,
+        `Choose an enemy to Freeze ${n}`, (target) => {
+          this.freezeCard(target, card, n);
+        }, aiPicker);
+      return;
+    }
     const target = enemies.slice().sort((a, b) => (b.attack || 0) - (a.attack || 0))[0];
     this.freezeCard(target, card, n);
+  },
+
+  // Mind Control etch — MC 1 (rare) / MC 2 (special) set hasMc on the
+  // carrier. On play, mind-control up to N distinct enemies for this
+  // turn. Mirrors the Fear / Freeze etch pattern; humans get a target
+  // prompt per pick, AI auto-picks highest-threat.
+  _resolveMindControlOnPlay(card) {
+    if (!card || !card.hasMc) return;
+    const total = card.hasMc * (1 + (card.hasEcho || 0));
+    const aiPicker = (cards) => cards.slice().sort((a, b) =>
+      (typeof AI !== 'undefined' && AI.threatScore
+        ? (AI.threatScore(b) - AI.threatScore(a))
+        : (b.attack || 0) - (a.attack || 0)))[0];
+    const picked = new Set();
+    const pickNext = (remaining) => {
+      if (remaining <= 0) return;
+      const pool = this.getEnemiesOf(card.owner).filter(e =>
+        e.currentHealth > 0 && !e.isMindControlled && !picked.has(e.id));
+      if (!pool.length) return;
+      if (this.isHuman(card.owner)) {
+        this.promptCardChoice(card.owner, pool, `${card.name} — Mind Control`,
+          `Choose an enemy to Mind Control (${total - remaining + 1}/${total})`,
+          (target) => {
+            this.mindControlCard(target, card);
+            picked.add(target.id);
+            pickNext(remaining - 1);
+          }, aiPicker);
+      } else {
+        const target = aiPicker(pool);
+        this.mindControlCard(target, card);
+        picked.add(target.id);
+        pickNext(remaining - 1);
+      }
+    };
+    pickNext(total);
+  },
+
+  // Mark etch — adjacent allies gain Bullseye for the turn when this
+  // card is played. Etch counterpart to Black Widow's legendary-tier
+  // signal effect.
+  _resolveMarkOnPlay(card) {
+    if (!card || !card.hasMark) return;
+    const lane = this.findCardLane(card);
+    if (lane < 0) return;
+    const owner = card.owner;
+    [lane - 1, lane + 1].forEach(l => {
+      if (l < 0 || l >= this.LANE_COUNT) return;
+      const ally = this.state.lanes[l] && this.state.lanes[l][owner];
+      if (!ally || ally.id === card.id || ally.currentHealth <= 0) return;
+      this.grantTempBuff(ally, { isBullseye: true });
+    });
+    this.log(`[MARK] ${card.name} marks adjacent allies — they gain Bullseye this turn.`);
   },
 
   // Phoenix — once-per-life revive at full HP. Returns true if the
@@ -3096,7 +3272,41 @@ const Game = {
   resolveUncontestedLane(laneIdx, side, advanceCallback) {
     const lane = this.state.lanes[laneIdx];
     const card = lane[side];
-    if (!card || card.attack <= 0 || card.currentHealth <= 0) return;
+    if (!card || card.currentHealth <= 0) return;
+
+    // Mind-controlled cards take precedence over the gating early
+    // returns below. Even if the card is frozen / stunned / 0-atk
+    // and can't actually swing, we MUST run the async MC chain so
+    // its callback fires advanceCallback — otherwise combat stalls.
+    // Repro: fuzzer seed 263 round 10 — Flash was MC + Frozen, the
+    // frozen-early-return bailed before MC handling, the caller
+    // (resolveLane) deferred on `isMindControlled` assuming an
+    // async chain was in flight, no chain ever fired, combat hung.
+    if (card.isMindControlled) {
+      const controller = this.opponent(card.owner);
+      this.getMindControlTarget(card, controller, (target) => {
+        const canSwing = !card.isStunned && !card.isFrozen
+          && (card.attack || 0) > 0 && card.currentHealth > 0;
+        if (canSwing) {
+          if (card.onBeforeAttack) card.onBeforeAttack(this, card);
+          if (target && target.currentHealth > 0) {
+            this.log(`[LANE ${laneIdx + 1}] [MIND CTRL] ${card.name} attacks ${target.name}!`);
+            this.applyCombatDamage(card, target);
+          } else {
+            // No valid ally target — swing whiffs. Mind Control never
+            // routes through the controlled side's HP bar.
+            this.log(`[LANE ${laneIdx + 1}] [MIND CTRL] ${card.name} has no valid ally to attack — swing whiffs.`);
+          }
+        } else {
+          this.log(`[LANE ${laneIdx + 1}] [MIND CTRL] ${card.name} can't act this turn (stunned / frozen / 0 ATK).`);
+        }
+        this.cleanupDead();
+        if (advanceCallback) advanceCallback();
+      });
+      return;
+    }
+
+    if (card.attack <= 0) return;
     if (card.isStunned || card.isFrozen) return;
 
     // Feared card attacks itself even when uncontested
@@ -3105,25 +3315,6 @@ const Game = {
       this.log(`[LANE ${laneIdx + 1}] ${card.name} is FEARED and attacks itself!`);
       this.applyCombatDamage(card, card);
       this.cleanupDead();
-      return;
-    }
-
-    // Mind-controlled uncontested card attacks its own side
-    if (card.isMindControlled) {
-      const controller = this.opponent(card.owner);
-      this.getMindControlTarget(card, controller, (target) => {
-        if (card.onBeforeAttack) card.onBeforeAttack(this, card);
-        if (target && target.currentHealth > 0) {
-          this.log(`[LANE ${laneIdx + 1}] [MIND CTRL] ${card.name} attacks ${target.name}!`);
-          this.applyCombatDamage(card, target);
-        } else {
-          // No valid ally target — swing whiffs. Mind Control never
-          // routes through the controlled side's HP bar.
-          this.log(`[LANE ${laneIdx + 1}] [MIND CTRL] ${card.name} has no valid ally to attack — swing whiffs.`);
-        }
-        this.cleanupDead();
-        if (advanceCallback) advanceCallback();
-      });
       return;
     }
 
@@ -3164,6 +3355,17 @@ const Game = {
     // 7 ATK hitting an open lane deals 7 to the HP bar (not 12); the
     // splash then fires to adjacent lanes as its own effect.
     this.log(`[LANE ${laneIdx + 1}] ${card.name} (${card.attack} ATK) is uncontested`);
+    // Mark the attacker as having swung BEFORE damagePlayer fires so
+    // any block-trick that triggers inside (e.g. Fear Toxin played as
+    // a free block-meter trick) sees `_combatSwungThisRound = true`
+    // on this attacker, which makes tryApplyDebuff stamp
+    // `_debuffDelayedClear` so the debuff survives this round's
+    // postCombat decrement and lands for next round's swing.
+    // User report: "if i use a trick like fear toxin when i block
+    // mid combat phase, that debuff should stick until the lane does
+    // combat again." Pre-fix the contested path covered this (line
+    // 2773), the uncontested path did not.
+    card._combatSwungThisRound = true;
     this.damagePlayer(targetOwner, card.attack, card.isBullseye, card);
     if (card.onDamagePlayer) card.onDamagePlayer(this, card);
     if (card.splashRange > 0) this.applySplash(card, laneIdx);
@@ -3181,17 +3383,19 @@ const Game = {
     const p = this.state[owner];
     const who = owner === 'player' ? 'You' : 'AI';
 
-    // Mr Freeze health bar freeze — negate first damage
+    // Mr Freeze health bar freeze — negate damage. healthFrozen is a
+    // counter (truthy when > 0); classic Mr. Freeze sets it to 1 for a
+    // single negation, Text+ "Cryo Wall" sets 2 so the next 2 hits are
+    // both negated.
     if (p.healthFrozen) {
-      p.healthFrozen = false;
-      // Credit Mr. Freeze (+ chain) with the negated damage. Categorized
-      // as 'Shield' since it's a one-shot HP-bar negation (different
-      // from cards that redirect to themselves like Mahoraga).
+      const remaining = (typeof p.healthFrozen === 'number' ? p.healthFrozen : 1) - 1;
+      p.healthFrozen = remaining > 0 ? remaining : false;
       if (p._healthFrozenBy) {
         this._creditAbsorb(p._healthFrozenBy, 'Shield', amount);
-        p._healthFrozenBy = null;
+        if (!p.healthFrozen) p._healthFrozenBy = null;
       }
-      this.log(`  [FROZEN HP] ${who} health bar was frozen — ${amount} damage negated!`);
+      const tail = p.healthFrozen ? ` (${p.healthFrozen} more left)` : '';
+      this.log(`  [FROZEN HP] ${who} health bar was frozen — ${amount} damage negated!${tail}`);
       return;
     }
 
@@ -3500,7 +3704,14 @@ const Game = {
         // matches end in 5-6 rounds, the player will run out of cards.
         const isRoguelite = this.state.mode && this.state.mode._roguelite;
         const dead = this.state[owner] && this.state[owner].deadPile;
-        if (isRoguelite && owner === 'player' && dead && dead.length) {
+        // Roguelite reshuffle now applies to BOTH sides. Player-only
+        // gating used to make boss fights win-by-attrition: against
+        // Lex Luthor especially, the AI's 30-card deck would deplete
+        // and the player ran out the clock. Boss intent is "outpunch
+        // them," not "outlast them." User report: "the way I win is
+        // that the AI runs out of cards." Fix: AI reshuffles its
+        // dead pile too so each fight stays an HP race.
+        if (isRoguelite && dead && dead.length) {
           const recycled = dead.splice(0, dead.length);
           // Fisher-Yates shuffle in-place before merging back
           for (let j = recycled.length - 1; j > 0; j--) {
@@ -3508,7 +3719,7 @@ const Game = {
             [recycled[j], recycled[k]] = [recycled[k], recycled[j]];
           }
           drawPile.push(...recycled);
-          this.log(`[RESHUFFLE] Draw pile empty — ${recycled.length} dead-pile cards shuffled back in.`);
+          this.log(`[RESHUFFLE] ${owner}'s draw pile empty — ${recycled.length} dead-pile cards shuffled back in.`);
         } else {
           this.log(`[DECK] Draw pile empty — no cards to draw!`);
           break;
@@ -3611,31 +3822,29 @@ const Game = {
       // Apply Mr. Fantastic next-draw discount permanently. Stash the
       // source amount on the card so hover tooltips can attribute "why
       // is this card cheaper than its base cost?" post-hoc.
-      if (p.nextDrawDiscount > 0) {
+      // Mr. Fantastic next-draw discount. nextDrawDiscount is the
+      // per-draw rate; nextDrawDiscountCount tracks how many draws still
+      // get the discount (Text+ sets it to 2 for the "next 2 draws"
+      // upgrade; classic onDiscard sets it to 1).
+      if (p.nextDrawDiscount > 0 && (p.nextDrawDiscountCount || 0) > 0) {
         const applied = Math.min(card.cost, p.nextDrawDiscount);
         card.cost -= applied;
         card._nextDrawDiscount = (card._nextDrawDiscount || 0) + applied;
         this.log(`  [DISCOUNT] ${card.name} costs ${applied} less! Now costs ${card.cost}`);
-        // v3 instrumentation — credit Mr. Fantastic (or whoever set it)
-        // with the energy we actually saved, not the full posted amount.
         if (p._nextDrawDiscountSource) {
           this._creditChain(p._nextDrawDiscountSource, 'statsDiscountValue', applied);
         }
-        p.nextDrawDiscount = 0;
-        p._nextDrawDiscountSource = null;
+        p.nextDrawDiscountCount -= 1;
+        if (p.nextDrawDiscountCount <= 0) {
+          p.nextDrawDiscount = 0;
+          p._nextDrawDiscountSource = null;
+        }
       }
-      // Captain America: apply -1 per active CA on the board (visible discount).
-      // v3 — credit each CA instance with its share of the reduction.
-      const capCards = this.getAllCardsOf(owner).filter(c => c.passive === 'allyCostReduction');
-      const capCount = capCards.length;
-      if (capCount > 0 && card.cost > 0) {
-        const reduction = Math.min(card.cost, capCount);
-        card.cost -= reduction;
-        card._capAmericaDiscount = (card._capAmericaDiscount || 0) + reduction;
-        // Split credit equally among active CA instances (usually 1).
-        const perCap = reduction / capCount;
-        capCards.forEach(cap => this._creditChain(cap, 'statsDiscountValue', perCap));
-      }
+      // (Captain America discount is now applied LIVE in
+      // Game.getCardCost — no mutation needed at draw time. This
+      // means CA's discount tracks the LIVE board state: if CA
+      // dies, the next getCardCost call returns full cost. User
+      // spec: "his ability should go away when he dies.")
       if (!this.addToHand(owner, card)) break;
       drawn.push(card.name);
     }
@@ -3769,6 +3978,10 @@ const Game = {
         c._grantedBuffs.splice(idx, 1);
         c._ivyAlly = null;
         c._ivyCharmedId = null;
+        // Mirror the cleanup of the dead ally's _charmedByIvy tag so
+        // any in-flight references stay consistent (re-summons via
+        // Hela / Lazarus / etc. won't carry a stale charm flag).
+        if (card && card._charmedByIvy === c.id) delete card._charmedByIvy;
         this.log(`[POISON IVY] ${card.name} died — charm bonus fades (-${b.delta || 0} ATK, now ${c.attack}).`);
       });
     } catch (e) { console.error(e); }
@@ -4549,9 +4762,10 @@ const Game = {
     return true;
   },
 
-  freezeCardUnresistible(card, source) {
+  freezeCardUnresistible(card, source, n) {
     if (!card) return;
     if (this._trickBlocked(card)) return;
+    const turns = Math.max(1, n || 1);
     if (this.is10CostImmune(source, card)) { this.log(`  [IMMUNE] ${card.name} is immune to ${source.name ? source.name + "'s " : ''}freeze!`); return; }
     if (card.immunityCharges > 0) {
       // If the source has Unresistible, it bypasses Immunity — only
@@ -4567,8 +4781,9 @@ const Game = {
         this.log(`  [IMMUNITY] ${card.name}'s Immunity consumed by forced freeze! (${card.immunityCharges} remaining)`);
       }
     }
-    // Stack-aware: increment counter + sync flag. Default 1 turn.
-    card.frozenTurns = (card.frozenTurns || 0) + 1;
+    // Stack-aware: increment counter + sync flag. Default 1 turn;
+    // callers (e.g. Superman Text+) may pass `n` for multi-turn freezes.
+    card.frozenTurns = (card.frozenTurns || 0) + turns;
     card.isFrozen = true;
     this.log(`  [FREEZE] ${card.name} is frozen (${card.frozenTurns})!`);
     this._simulatePhantomSwing(source, card);
@@ -4621,33 +4836,11 @@ const Game = {
     // Legacy-removed: the old post-defense + HP-cap math is retained as
     // dead code below for reference. Net-prevention undercounted "true"
     // defensive value of a freeze when the swing target had high HP.
-    // If you ever need a "what would have ACTUALLY landed" stat in
-    // addition to gross prevention, fork this function — don't replace
-    // the gross credit above.
-    /*
-    const phantomLanded = (attackValue, target) => {
-      if (!target || target.currentHealth <= 0) return 0;
-      if (target.invincibleTurns > 0 || target.hasDamageImmunity) return 0;
-      const canDodge = !target.isStunned && !target.isFrozen;
-      if (target.evadeCharges > 0 && canDodge && !frozen.isBullseye) return 0;
-      const armored = Math.max(0, attackValue - (target.armorValue || 0));
-      return Math.min(armored, target.currentHealth || 0);
-    };
-    let absorbed = 0;
-    const frontTarget = this.state.lanes[lane][opp];
-    if (frontTarget) {
-      const landed = phantomLanded(atk, frontTarget);
-      absorbed += Math.max(0, atk - landed);
-      const splash = frozen.splashRange || 0;
-      if (splash > 0) {
-        const splashLanded = phantomLanded(splash, frontTarget);
-        absorbed += Math.max(0, splash - splashLanded);
-      }
-    } else {
-      const hpLeft = Math.max(0, this.state[opp].health || 0);
-      absorbed += Math.min(atk, hpLeft);
-    }
-    */
+    // If you ever need a "what would have ACTUALLY landed" stat
+    // (post-Armor / Evade / Invincible), fork this function rather
+    // than replacing the gross credit above. The gross figure is
+    // intentional — it represents how much pressure the lockdown
+    // actually relieved, regardless of downstream defensive blocks.
 
     if (absorbed > 0) this._creditAbsorb(source, 'Lockdown', absorbed);
     return absorbed;
@@ -4818,7 +5011,62 @@ const Game = {
     }, duration);
   },
 
+  // ===================== AI ACTION DELAY =====================
+  // When the AI auto-resolves a prompt (target pick, lane pick, etc.),
+  // fire a brief toast + target-card highlight, wait the configured
+  // step delay, THEN run the callback. Without this, every AI choice
+  // resolves in the same render frame and the player can't tell what
+  // the AI just did. User report: "my opponent played Gojo in lane 1,
+  // but I have no idea which person he moved... could you have a
+  // system where I see the person Gojo moved." Same fix for Jigsaw
+  // bear traps, Captain America's Invincible target, Black Panther's
+  // free-play pick, etc. Delay is configurable (UI.aiStepDelay) so
+  // players who like fast AI can dial it down via settings.
+  //   info: { title, desc, kind?, targetCard?, targetLane? }
+  _aiActionDelay(callback, info) {
+    info = info || {};
+    const delayMs = (typeof UI !== 'undefined' && UI.aiStepDelay) ? UI.aiStepDelay() : 450;
+    // Increment pending-AI-actions counter so the AI queue's
+    // `hasPendingPrompt()` gate correctly waits for this delay
+    // before advancing to the next play. Critical for chained
+    // calls (Jigsaw's 3 traps, Hela's multi-summon, etc.) — each
+    // recursive prompt schedules another _aiActionDelay; without
+    // this counter the queue would race ahead and only the first
+    // 1-2 actions would actually resolve before the round ends.
+    this.state._pendingAIActions = (this.state._pendingAIActions || 0) + 1;
+    // Toast immediately so the player has time to read it during the wait.
+    if (info.title && typeof UI !== 'undefined' && UI.showAITrickToast) {
+      try { UI.showAITrickToast(info.title, info.desc || '', info.kind || 'info'); } catch (e) { /* swallow */ }
+    }
+    // Brief target-highlight pulse on the affected card so the player
+    // SEES which card the AI is targeting/moving/buffing/etc.
+    if (info.targetCard && info.targetCard.id != null) {
+      setTimeout(() => {
+        try {
+          const el = document.querySelector(`.card[data-card-id="${info.targetCard.id}"]`);
+          if (el) {
+            el.classList.add('target-highlight');
+            setTimeout(() => { try { el.classList.remove('target-highlight'); } catch (e) {} }, Math.max(700, delayMs));
+          }
+        } catch (e) { /* swallow */ }
+      }, 30);
+    }
+    setTimeout(() => {
+      try { callback(); } catch (e) { console.error('[_aiActionDelay] callback threw:', e); }
+      this.state._pendingAIActions = Math.max(0, (this.state._pendingAIActions || 0) - 1);
+      this.resumeCombatIfWaiting();
+      if (typeof UI !== 'undefined') UI.render();
+    }, delayMs);
+  },
+
   promptLaneChoice(owner, lanes, title, desc, callback, targetSide, previewCard, previewDamage) {
+    if (!lanes || !lanes.length) {
+      // No valid lanes — caller's effect can't resolve. Unstick combat so
+      // the engine doesn't hang waiting on a callback that will never fire.
+      console.warn('[promptLaneChoice] no valid lanes for', title, '(owner=' + owner + ') — unsticking combat');
+      this.resumeCombatIfWaiting();
+      return;
+    }
     if (this.isHuman(owner) && lanes.length > 1) {
       // previewCard (optional) — synthetic card representing what lands
       //   in the chosen lane. Used for summon placement; UI renders
@@ -4843,15 +5091,46 @@ const Game = {
         UI.render();
       });
     } else if (this.isHuman(owner) && lanes.length === 1) {
+      // Single valid lane — auto-resolve. Match promptCardChoice and
+      // surface a toast so the player sees WHY no choice screen
+      // appeared. Wording is intentionally neutral ("Lane N — only
+      // option") because callers split between placement-style
+      // ("Place X") and damage-targeting ("Vader chain start") and
+      // a more specific verb would be wrong half the time.
+      try {
+        if (typeof UI !== 'undefined' && UI.showAITrickToast) {
+          UI.showAITrickToast(
+            `Lane ${lanes[0] + 1} — only option`,
+            title.replace(/^[^—]*—\s*/, '') || title,
+            'info'
+          );
+        }
+      } catch (e) { /* swallow */ }
       callback(lanes[0]);
     } else {
+      // AI auto-resolve. Add a delay + toast so the player sees
+      // WHICH lane the AI picked instead of the choice happening
+      // invisibly in the same frame as the play.
       const pick = lanes.length ? lanes[0] : -1;
-      if (pick >= 0) callback(pick);
+      if (pick >= 0) {
+        this._aiActionDelay(() => callback(pick), {
+          title: title.replace(/\s*—.*$/, ''),
+          desc: `${desc || 'Lane ' + (pick + 1)}`,
+          kind: 'info',
+        });
+      }
     }
   },
 
   promptCardChoice(owner, cards, title, desc, callback, aiPicker, options) {
-    if (!cards.length) return;
+    if (!cards || !cards.length) {
+      // No valid targets — log and unstick combat so an empty filter
+      // upstream (e.g. chain ability with no enemies) doesn't strand
+      // the engine waiting on a callback. Previously returned silently.
+      console.warn('[promptCardChoice] no valid targets for', title, '(owner=' + owner + ') — unsticking combat');
+      this.resumeCombatIfWaiting();
+      return;
+    }
     if (this.isHuman(owner) && cards.length > 1) {
       this.state.pendingCardChoice = { owner, cards, title, desc, callback, faceDown: !!(options && options.faceDown) };
       UI.render();
@@ -4863,14 +5142,14 @@ const Game = {
         this.resumeCombatIfWaiting();
         UI.render();
       });
-    } else if (owner === 'player' && cards.length === 1) {
+    } else if (this.isHuman(owner) && cards.length === 1) {
       // Auto-resolve when there's only one valid target. Previously
       // this fired silently, leaving the player wondering why a
-      // multi-target ability "only let them target Poison Ivy."
-      // Now we emit a visible toast first so the player can see
-      // both WHAT was auto-targeted and that the system found no
-      // other valid options. Tiny delay (350ms) gives the toast
-      // time to register before the effect resolves.
+      // multi-target ability "only let them target Poison Ivy." Now
+      // we emit a visible toast before the effect resolves so the
+      // player can see WHAT was auto-targeted. isHuman() so the
+      // toast also fires for the joiner in multiplayer (was literal
+      // 'player' before, which suppressed it for the AI-side seat).
       const target = cards[0];
       try {
         if (typeof UI !== 'undefined' && UI.showAITrickToast) {
@@ -4883,8 +5162,16 @@ const Game = {
       } catch (e) { /* swallow */ }
       callback(target);
     } else {
+      // AI auto-resolve. Show a toast naming the chosen target +
+      // briefly highlight the target card so the player SEES which
+      // ally/enemy the AI's effect is hitting.
       const pick = aiPicker ? aiPicker(cards) : cards[0];
-      callback(pick);
+      this._aiActionDelay(() => callback(pick), {
+        title: title.replace(/\s*—.*$/, ''),
+        desc: `Targeting ${pick.name}`,
+        targetCard: pick,
+        kind: 'info',
+      });
     }
   },
 
@@ -4896,8 +5183,24 @@ const Game = {
     const open = preferredLanes || this.getOpenLanes(owner);
     if (!open.length) { if (onComplete) onComplete(); return; }
     if (!this.isHuman(owner) || open.length === 1) {
-      this.summonCard(owner, open[0], name, cost, attack, health, abilities, sourceDef);
-      if (onComplete) onComplete();
+      // The summon itself fires immediately (its own card-build-in
+      // animation IS the visual cue showing WHERE the summon went).
+      // For AI summons specifically, delay the onComplete so chained
+      // summons (Hela's 2 warriors, etc.) feel sequential rather
+      // than all flashing in one frame.
+      const lane = open[0];
+      this.summonCard(owner, lane, name, cost, attack, health, abilities, sourceDef);
+      if (onComplete) {
+        if (!this.isHuman(owner)) {
+          this._aiActionDelay(onComplete, {
+            title: `${name} summoned`,
+            desc: `Lane ${lane + 1}`,
+            kind: 'info',
+          });
+        } else {
+          onComplete();
+        }
+      }
     } else {
       // Build a synthetic preview card matching what would land in the
       // chosen lane so the per-lane damage preview can show the trade
@@ -5019,7 +5322,7 @@ const Game = {
       // (Luke's debuff, Captain America's squad buff, etc.) hit them.
       this.getAllCardsOnBoard().forEach(c => { if (c.onAnyCardPlayed && c.id !== card.id) c.onAnyCardPlayed(this, c); });
       this.getAllCardsOf(owner).forEach(c => {
-        if (c.passive === 'cardPlayedBuff' && c.id !== card.id) { this.buffCard(card, 1, 1); }
+        if (c.passive === 'cardPlayedBuff' && c.id !== card.id) { const n = c._bpAuraSize || 1; this.buffCard(card, n, n); }
       });
       // onPlay still only fires for real-card summons.
       if (sourceDef) {
@@ -5040,9 +5343,11 @@ const Game = {
         }
         // Cantrip etch — fire on summon-spawned real cards too.
         this._resolveCantripOnPlay(card);
-        // Fear etch — same thing.
+        // Fear / Freeze / MC / Mark etches — same on-play firing.
         this._resolveFearOnPlay(card);
-    this._resolveFreezeOnPlay(card);
+        this._resolveFreezeOnPlay(card);
+        this._resolveMindControlOnPlay(card);
+        this._resolveMarkOnPlay(card);
       }
       this.cleanupDead();
       this.applyMagnetoDebuffs();
@@ -5094,23 +5399,29 @@ const Game = {
       this.log(`  [BEAR TRAP] ${card.name} steps on a Reverse Bear Trap — Invincibility absorbs it!`);
       return;
     }
+    // Trap-set Text+ ("Game Master") stamps a custom debuff on each
+    // trap; default is the classic 1 (so -1/-1).
+    const debuff = (lane.trap && lane.trap.debuff) || 1;
     lane.trap = null;
-    card.attack = Math.max(0, card.attack - 1);
-    card.maxHealth = Math.max(1, card.maxHealth - 1);
-    card.currentHealth = Math.max(0, card.currentHealth - 1);
-    this.log(`  [BEAR TRAP] ${card.name} triggers a Reverse Bear Trap! -1/-1 → ${card.attack}/${card.currentHealth}`);
+    card.attack = Math.max(0, card.attack - debuff);
+    card.maxHealth = Math.max(1, card.maxHealth - debuff);
+    card.currentHealth = Math.max(0, card.currentHealth - debuff);
+    this.log(`  [BEAR TRAP] ${card.name} triggers a Reverse Bear Trap! -${debuff}/-${debuff} → ${card.attack}/${card.currentHealth}`);
   },
 
   applyHawkeyePassive(owner, splashedEnemies) {
     if (!splashedEnemies.length) return;
     const hawkeye = this.getAllCardsOf(owner).find(c => c.passive === 'splashWeaken');
     if (!hawkeye) return;
+    // Roguelite Text+ ("Trick Arrows") — _hawkeyeSplashWeaken raises
+    // the per-hit ATK strip from 1 to 3.
+    const strip = hawkeye._hawkeyeSplashWeaken || 1;
     splashedEnemies.forEach(e => {
       if (e.attack > 0) {
-        e.attack = Math.max(0, e.attack - 1);
-        this.log(`  [HAWKEYE] ${e.name} loses 1 ATK from splash! (now ${e.attack})`);
-        // v3 — credit Hawkeye with the ATK point removed.
-        this._creditChain(hawkeye, 'statsDebuffValue', 1);
+        const taken = Math.min(strip, e.attack);
+        e.attack = Math.max(0, e.attack - taken);
+        this.log(`  [HAWKEYE] ${e.name} loses ${taken} ATK from splash! (now ${e.attack})`);
+        this._creditChain(hawkeye, 'statsDebuffValue', taken);
       }
     });
   },
@@ -6070,27 +6381,17 @@ const Game = {
   // Snapshot the fields that affect combat math. Plain object copy —
   // never returns a reference to the live card. Exposed so the UI's
   // damage-preview can build snaps for hypothetical (in-hand) cards.
+  // Forward to engine/combat.js — single source of truth for the
+  // snap shape used by predictors. See engine/combat.js header for
+  // the full Phase 1 extraction rationale.
   _snapForPredict(c) {
-    return c ? {
-      name: c.name,
-      currentHealth: c.currentHealth | 0,
-      attack: c.attack | 0,
-      splashRange: c.splashRange | 0,
-      armorValue: c.armorValue | 0,
-      evadeCharges: c.evadeCharges | 0,
-      invincibleTurns: c.invincibleTurns | 0,
-      hasDamageImmunity: !!c.hasDamageImmunity,
-      isStunned: !!c.isStunned,
-      isFrozen:  !!c.isFrozen,
-      // Feared cards swing at their own allies; MC'd cards swing for the
-      // opponent. From the forecast's "what enemy/face damage will this
-      // lane produce?" angle, both behaviors mean the card produces ZERO
-      // damage on the enemy side — same effective gate as stun/freeze.
-      isFeared:  !!c.isFeared,
-      isMindControlled: !!c.isMindControlled,
-      isBullseye: !!c.isBullseye,
-      owner: c.owner,
-    } : null;
+    return CombatEngine.snapCard(c);
+  },
+
+  // Forward to engine/combat.js — single source of truth for the
+  // swing-forward gate.
+  _canSwingForward(c) {
+    return CombatEngine.canSwingForward(c);
   },
 
   // hypothetical: optional `{ player?: snap, ai?: snap }` — replaces the
@@ -6128,14 +6429,11 @@ const Game = {
 
     // Snapshot pre-swing ATKs — both swings happen "simultaneously",
     // so a card that dies in this exchange still gets to swing.
-    // Status gates: stunned/frozen → can't swing at all. Feared → swings
-    // at own allies (zero damage to the enemy lane). Mind-controlled →
-    // swings for the opponent (also zero damage to the enemy lane from
-    // this card's perspective). All four collapse to "no damage from
-    // this card hitting the enemy front" for forecast purposes.
-    const canHitEnemy = (c) => !!c && !c.isStunned && !c.isFrozen && !c.isFeared && !c.isMindControlled;
-    const pCanSwing = canHitEnemy(p);
-    const aCanSwing = canHitEnemy(a);
+    // _canSwingForward gates: stunned/frozen can't swing at all;
+    // feared/mind-controlled swing at own side (zero forecast damage
+    // to the opposing lane).
+    const pCanSwing = this._canSwingForward(p);
+    const aCanSwing = this._canSwingForward(a);
     const pAtk = pCanSwing ? p.attack : 0;
     const aAtk = aCanSwing ? a.attack : 0;
     const pSplash = pCanSwing ? p.splashRange : 0;
@@ -6229,6 +6527,128 @@ const Game = {
         dmgIn: aDmgIn,
       } : null,
     };
+  },
+
+  // ===================== GLOBAL COMBAT PREDICTOR =====================
+  // predictLaneOutcome runs per-lane and misses cross-lane Taunt
+  // redirection: a Brute with Taunt 1 will soak damage from OTHER lanes'
+  // enemy attacks, which the per-lane predictor never sees. The result is
+  // missing death-skull badges on cards that the engine will actually
+  // kill via redirected hits. This function runs all 6 lanes in a single
+  // pass with shared snapshot state so taunt redirects are accounted for.
+  // User report: "the death skulls are a little bugged because brute in
+  // lane 1 will die yet has no death skull."
+  //
+  // Returns { byId: Map<id, {hpAfter, dmgIn, dies}> }. Looked up by
+  // rendering for the per-card incoming-damage badge.
+  predictCombatGlobal() {
+    const out = new Map();
+    if (!this.state || !this.state.lanes) return { byId: out };
+
+    // Snapshot every living card. We track effective HP, accumulated
+    // dmgIn, mutable evade charges, and a back-ref to the live card so
+    // we can read static stats (armor, status, isBullseye) without
+    // mutating live state.
+    const snap = new Map();
+    for (let i = 0; i < this.LANE_COUNT; i++) {
+      const lane = this.state.lanes[i];
+      if (!lane || lane.destroyed) continue;
+      ['player', 'ai'].forEach(side => {
+        const c = lane && lane[side];
+        if (c && c.currentHealth > 0) {
+          snap.set(c.id, {
+            ref: c, owner: c.owner, lane: i,
+            hp: c.currentHealth, dmgIn: 0,
+            evade: c.evadeCharges | 0,
+          });
+        }
+      });
+    }
+
+    const canHitEnemy = this._canSwingForward.bind(this);
+
+    // applyHit handles taunt redirect → evade → armor → HP. The first
+    // taunter on the target's side that ISN'T the target absorbs the
+    // hit, mirroring live combat's `getAllCardsOf().find()` lookup.
+    const applyHit = (targetCard, raw, attackerBullseye) => {
+      if (!targetCard || raw <= 0) return 0;
+      let final = snap.get(targetCard.id);
+      if (!final || final.hp <= 0) return 0;
+      // Taunt redirection — pick the first non-target taunter by lane order.
+      const owner = targetCard.owner;
+      let taunterPick = null;
+      let taunterPickLane = Infinity;
+      snap.forEach(s => {
+        if (s.owner !== owner) return;
+        if (s.id === targetCard.id) return;
+        if (!s.ref.tauntTurns || s.ref.tauntTurns <= 0) return;
+        if (s.hp <= 0) return;
+        if (s.lane < taunterPickLane) {
+          taunterPick = s;
+          taunterPickLane = s.lane;
+        }
+      });
+      if (taunterPick) final = taunterPick;
+      // After possible redirect, re-check for kill-block defenses.
+      if (final.ref.invincibleTurns > 0 || final.ref.hasDamageImmunity) return 0;
+      const canDodge = !final.ref.isStunned && !final.ref.isFrozen;
+      if (canDodge && final.evade > 0 && !attackerBullseye) { final.evade--; return 0; }
+      const landed = Math.max(0, raw - (final.ref.armorValue | 0));
+      final.hp -= landed;
+      final.dmgIn += landed;
+      return landed;
+    };
+
+    // For each lane in left-to-right order: pre-splash from left adj,
+    // front-on-front swings, own-lane splash. Right-adjacent splash is
+    // handled implicitly by the next lane's "left-adjacent" step.
+    for (let i = 0; i < this.LANE_COUNT; i++) {
+      const lane = this.state.lanes[i];
+      if (!lane || lane.destroyed) continue;
+      const p = lane.player, a = lane.ai;
+
+      // Step 0: pre-splash from left adj (only when this lane has cards
+      // that could be hit).
+      if (i > 0) {
+        const left = this.state.lanes[i - 1];
+        if (left && !left.destroyed) {
+          if (left.ai && (left.ai.splashRange | 0) > 0 && canHitEnemy(left.ai) && p) {
+            applyHit(p, left.ai.splashRange | 0, !!left.ai.isBullseye);
+          }
+          if (left.player && (left.player.splashRange | 0) > 0 && canHitEnemy(left.player) && a) {
+            applyHit(a, left.player.splashRange | 0, !!left.player.isBullseye);
+          }
+        }
+      }
+
+      // Step 1: front-on-front (simultaneous — snapshot ATK first).
+      const pSnap = snap.get(p && p.id);
+      const aSnap = snap.get(a && a.id);
+      if (pSnap && aSnap && pSnap.hp > 0 && aSnap.hp > 0) {
+        const pAtk = canHitEnemy(p) ? (p.attack | 0) : 0;
+        const aAtk = canHitEnemy(a) ? (a.attack | 0) : 0;
+        applyHit(p, aAtk, !!a.isBullseye);
+        applyHit(a, pAtk, !!p.isBullseye);
+      }
+
+      // Step 2: own-lane splash.
+      if (pSnap && pSnap.hp > 0 && (p.splashRange | 0) > 0 && a) {
+        applyHit(a, p.splashRange | 0, !!p.isBullseye);
+      }
+      if (aSnap && aSnap.hp > 0 && (a.splashRange | 0) > 0 && p) {
+        applyHit(p, a.splashRange | 0, !!a.isBullseye);
+      }
+    }
+
+    // Build the result map keyed by card id.
+    snap.forEach(s => {
+      out.set(s.ref.id, {
+        hpAfter: Math.max(0, s.hp),
+        dmgIn: s.dmgIn,
+        dies: s.hp <= 0,
+      });
+    });
+    return { byId: out };
   },
 
   // ===================== PLACEMENT PREVIEW (safe onPlay sim) =====================

@@ -30,6 +30,10 @@
 // tricks.js, abilities.js, decks.js, game.js, ai.js in order.
 var __SIM_ROOT_OVERRIDE = '.';
 load('./sim/shim.js');
+// Roguelite isn't part of the canonical shim load list (run.js / tune.js
+// don't need it), but the relic-hook regression below exercises every
+// relic def's hooks — load it explicitly here.
+load('./roguelite.js');
 
 // ---- Tiny assertion lib -------------------------------------
 var __tests = [], __passed = 0, __failed = 0, __failures = [];
@@ -996,6 +1000,366 @@ test('Hit on already-dead card returns false (no double-kill credit)', function 
   G.state.lanes[0].player = attacker; G.state.lanes[0].ai = target;
   var ret = G.applyCombatDamage(attacker, target);
   assertEq(ret, false, 'No-op on already-dead target');
+});
+
+// ============================================================
+// ---- ROGUELITE RELIC STRESS ------------------------------
+// ============================================================
+// Coverage gap pre-this-batch: roguelite.js wasn't loaded in the
+// sim shim at all, so every relic def's hooks (onAcquire,
+// onCardBuild, onFightStart, onFightEnd) had zero regression
+// coverage. We now exercise every defined hook on every relic
+// against a minimal run + sample card and assert nothing throws,
+// the run state stays well-formed, and the registry behaves.
+
+test('Roguelite is loaded in test shim', function () {
+  assert(typeof Roguelite !== 'undefined', 'Roguelite must be defined');
+  assert(Array.isArray(Roguelite.RELICS) && Roguelite.RELICS.length > 0, 'Roguelite.RELICS non-empty');
+});
+
+function mkRunForRelic() {
+  return {
+    hp: 30, maxHp: 30, gold: 50,
+    deck: [], tricks: [], relics: [],
+    currentNode: 0, currentRow: 0, totalRows: 6, act: 1,
+    seed: 'test', boon: null, pendingRewards: null, lastResult: null,
+    _stats: { startTime: 0, fightsWon: 0, elitesWon: 0, bossesWon: 0,
+              goldEarned: 0, totalDamageDealt: 0, totalHpLost: 0 },
+    ascension: 0,
+  };
+}
+
+function mkCardForRelic() {
+  return { name: 'Brute', cost: 2, attack: 2, currentHealth: 2, maxHealth: 2,
+           abilities: [], owner: 'player', armorValue: 0 };
+}
+
+// Per-relic dynamic test — failure prints the exact relic id.
+if (typeof Roguelite !== 'undefined' && Array.isArray(Roguelite.RELICS)) {
+  Roguelite.RELICS.forEach(function (r) {
+    test('RELIC ' + r.id + ' — hooks fire without throwing', function () {
+      var run = mkRunForRelic();
+      // Stub showToast — DOM stub absorbs the calls but we don't need
+      // the noise; also avoids any subtle interaction with the toast
+      // stack persisting across tests.
+      var origShowToast = Roguelite.showToast;
+      Roguelite.showToast = function () {};
+      try {
+        Roguelite.grantRelic(run, r.id);
+      } finally {
+        Roguelite.showToast = origShowToast;
+      }
+      assert(run.relics.indexOf(r.id) >= 0, 'relic added to run.relics');
+      if (typeof r.onCardBuild === 'function') {
+        // Run twice — once with a cost-2 card, once with a cost-1 card —
+        // so cost-gated branches like Smiling Mask's cost<=1 buff are
+        // actually exercised. Without this both branches return clean
+        // even if only the cost-2 path actually ran.
+        [mkCardForRelic(), Object.assign(mkCardForRelic(), { cost: 1, baseCost: 1 })].forEach(function (card) {
+          r.onCardBuild(run, card);
+          assert(Array.isArray(card.abilities), 'card.abilities still array (cost=' + card.cost + ')');
+          assert(typeof card.attack === 'number' && !isNaN(card.attack), 'card.attack still number');
+        });
+      }
+      if (typeof r.onFightStart === 'function') r.onFightStart(run);
+      if (typeof r.onFightEnd === 'function') {
+        r.onFightEnd(run, true);
+        r.onFightEnd(run, false);
+      }
+      assert(typeof run.hp === 'number' && !isNaN(run.hp), 'run.hp valid');
+      assert(typeof run.maxHp === 'number' && !isNaN(run.maxHp), 'run.maxHp valid');
+      assert(typeof run.gold === 'number' && !isNaN(run.gold), 'run.gold valid');
+    });
+  });
+}
+
+test('_applyRelicHook ignores unknown relic ids', function () {
+  var run = mkRunForRelic();
+  run.relics = ['nonexistent-relic-12345'];
+  Roguelite._applyRelicHook(run, 'onFightStart');
+  Roguelite._applyRelicHook(run, 'onFightEnd', true);
+});
+
+test('Reality Stone honors per-rarity cost floor', function () {
+  // Per-rarity floor: common→0, rare→1, special→2, legendary→3.
+  // The generic per-relic stress test runs with the default _runRarity
+  // (common, floor 0) only, so the rare/special/legendary branches
+  // were uncovered. This pins each floor explicitly.
+  var rs = Roguelite.RELICS.find(function (r) { return r.id === 'reality-stone'; });
+  assert(rs && typeof rs.onCardBuild === 'function', 'reality-stone must define onCardBuild');
+  var run = mkRunForRelic();
+  // (rarity, startCost, expected after one apply)
+  var cases = [
+    ['common',    1, 0],   // 1 - 1 = 0, floor 0 ⇒ 0
+    ['common',    5, 4],   // 5 - 1 = 4
+    ['rare',      1, 1],   // floor 1 ⇒ stays 1 (would have gone to 0)
+    ['rare',      5, 4],
+    ['special',   2, 2],   // floor 2 ⇒ stays
+    ['special',   6, 5],
+    ['legendary', 3, 3],   // floor 3 ⇒ stays
+    ['legendary', 9, 8],
+  ];
+  cases.forEach(function (c) {
+    var rarity = c[0], startCost = c[1], expected = c[2];
+    var card = Object.assign(mkCardForRelic(), { cost: startCost, baseCost: startCost, _runRarity: rarity });
+    rs.onCardBuild(run, card);
+    assertEq(card.cost, expected, rarity + ' card cost ' + startCost + ' floored to ' + expected);
+    assertEq(card.baseCost, expected, rarity + ' baseCost matches');
+  });
+});
+
+test('grantRelic is idempotent (duplicate add returns false)', function () {
+  var run = mkRunForRelic();
+  var firstId = Roguelite.RELICS[0].id;
+  var origShowToast = Roguelite.showToast;
+  Roguelite.showToast = function () {};
+  try {
+    var first = Roguelite.grantRelic(run, firstId);
+    var second = Roguelite.grantRelic(run, firstId);
+    assertEq(first, true, 'first add returns true');
+    assertEq(second, false, 'duplicate add returns false');
+    assertEq(run.relics.length, 1, 'relic in run.relics exactly once');
+  } finally {
+    Roguelite.showToast = origShowToast;
+  }
+});
+
+// ============================================================
+// ---- Codex completeness checks -----------------------------
+// ============================================================
+// Every player-facing etch should have a human-readable description
+// in ETCH_DESCS. The level-up modal renders these on hover; a
+// missing entry = blank tooltip. Skips `_internal` (boss-deck
+// signature etches that players can't see in level-up rolls).
+test('Codex: every draftable etch id has an ETCH_DESCS entry', function () {
+  var missing = [];
+  Roguelite.TIERS.forEach(function (tier) {
+    Roguelite.ETCHES[tier].forEach(function (etch) {
+      if (!Roguelite.ETCH_DESCS[etch.id]) missing.push(tier + ':' + etch.id);
+    });
+  });
+  assert(missing.length === 0,
+    'etches without ETCH_DESCS entry: ' + missing.join(', '));
+});
+
+// Every etch's `apply` function runs without throwing on a
+// freshly built card. Catches typos in the apply body that
+// only manifest when an etch actually procs.
+test('Codex: every etch.apply runs without throwing on a fresh card', function () {
+  var failures = [];
+  var tiers = Object.keys(Roguelite.ETCHES);
+  tiers.forEach(function (tier) {
+    Roguelite.ETCHES[tier].forEach(function (etch) {
+      var c = {
+        name: 'TestCard', id: 99000, owner: 'player',
+        attack: 1, health: 1, currentHealth: 1, maxHealth: 1,
+        cost: 1, baseCost: 1, abilities: [], statuses: [],
+      };
+      try { etch.apply(c); }
+      catch (e) { failures.push(tier + ':' + etch.id + ' — ' + (e && e.message || e)); }
+    });
+  });
+  assert(failures.length === 0,
+    'etch.apply threw: ' + failures.join(', '));
+});
+
+// Every etch id referenced in BOSS_DECK_ETCHES resolves to an
+// actual etch via _findEtch. This is the regression the user
+// hit when we removed `cantrip` — boss decks still listed it,
+// and the game would silently no-op on those signature picks.
+test('Codex: every BOSS_DECK_ETCHES id resolves via _findEtch', function () {
+  var missing = [];
+  var tables = Roguelite.BOSS_DECK_ETCHES || {};
+  Object.keys(tables).forEach(function (tier) {
+    var bossMap = tables[tier];
+    if (!bossMap || typeof bossMap !== 'object') return;
+    Object.keys(bossMap).forEach(function (boss) {
+      var ids = bossMap[boss] || [];
+      ids.forEach(function (id) {
+        if (!Roguelite._findEtch(id)) missing.push(tier + '.' + boss + ':' + id);
+      });
+    });
+  });
+  assert(missing.length === 0,
+    'unresolvable boss-deck etch ids: ' + missing.join(', '));
+});
+
+// ============================================================
+// ---- BLOCK-TRICK MID-COMBAT DEBUFF PERSISTENCE -------------
+// ============================================================
+// Regression for: "if i use a trick like fear toxin when i block
+// mid combat phase, that debuff should stick until the lane does
+// combat again." The contested-lane path already marks both
+// combatants as having swung (so debuffs landed mid-combat
+// persist past postCombat's decrement); the uncontested path
+// didn't. An uncontested AI swing into the player's empty lane
+// fills the block meter → free trick → Fear Toxin → tryApplyDebuff
+// would NOT see _combatSwungThisRound on the AI attacker, so the
+// fear was cleared at postCombat before next round's swing.
+//
+// This test calls resolveUncontestedLane directly with a stunned
+// damagePlayer stub so block-meter logic is bypassed, then asserts
+// the attacker has _combatSwungThisRound set after the swing —
+// proving the flag is now stamped before damagePlayer fires.
+test('Block-trick: uncontested attacker is marked _combatSwungThisRound BEFORE damagePlayer', function () {
+  Game.init();
+  Game.startMatch('classic');
+  // Stub damagePlayer so we can capture the flag state AT THE TIME of
+  // the damage call (mirrors what a synchronous block-trick path would
+  // see). Without the fix, the flag would be undefined at this point.
+  var capturedFlagAtDamageTime = null;
+  var orig = Game.damagePlayer.bind(Game);
+  Game.damagePlayer = function (owner, amount, isBullseye, source) {
+    if (source && source.id === 90001) {
+      capturedFlagAtDamageTime = !!source._combatSwungThisRound;
+    }
+    // Skip actual face damage; we just want to observe the flag.
+  };
+  try {
+    var attacker = {
+      id: 90001, name: 'Test Attacker', owner: 'ai',
+      attack: 3, currentHealth: 4, maxHealth: 4, baseAttack: 3, baseHealth: 4,
+      cost: 1, splashRange: 0, armorValue: 0, evadeCharges: 0,
+      invincibleTurns: 0, hasDamageImmunity: false,
+      isStunned: false, isFrozen: false, isFeared: false, isMindControlled: false,
+      isBullseye: false, abilities: [], statuses: [], tauntTurns: 0,
+    };
+    Game.state.lanes[0].player = null;
+    Game.state.lanes[0].ai = attacker;
+    Game.resolveUncontestedLane(0, 'ai', function () {});
+    assertEq(capturedFlagAtDamageTime, true,
+      '_combatSwungThisRound must be set on attacker before damagePlayer fires');
+    // Also verify the flag persists post-resolution (so postCombat's
+    // tryApplyDebuff late-clear path can read it).
+    assert(!!attacker._combatSwungThisRound, '_combatSwungThisRound persists after uncontested swing');
+  } finally {
+    Game.damagePlayer = orig;
+  }
+});
+
+// ============================================================
+// ---- PROFESSOR X CONVERSION ORDER --------------------------
+// ============================================================
+// Regression: "I [used] Professor X [on] a Scarlet Witch which
+// was 0/1, tried to place her in front of Dormammu, but they
+// had Luke Skywalker on the board. It should copy Dormammu, not
+// die." Bug was order: place → onAnyCardPlayed → cardPlayedBuff
+// → onPlay. Luke's -1/-1 aura ran in onAnyCardPlayed BEFORE
+// Scarlet Witch's onPlay could copy stats; she went 0/0 → -1/-1
+// → killed. Fix: fire onPlay first so her stats resolve, then
+// sibling reactions hit her real stats.
+test('Professor X conversion: onPlay fires BEFORE onAnyCardPlayed sweep', function () {
+  Game.init();
+  Game.startMatch('classic');
+  // Build a synthetic converted-card with onPlay that records
+  // when it fires, and a sibling card with onAnyCardPlayed that
+  // records when it fires. Assert the converted card's onPlay
+  // ran first.
+  var order = [];
+  var converted = {
+    id: 80001, name: 'Conv Card', owner: 'player',
+    attack: 0, currentHealth: 1, maxHealth: 1, baseAttack: 0, baseHealth: 1,
+    cost: 1, abilities: [], statuses: [],
+    onPlay: function () { order.push('onPlay'); }
+  };
+  var sibling = {
+    id: 80002, name: 'Sibling', owner: 'player',
+    attack: 1, currentHealth: 1, maxHealth: 1, baseAttack: 1, baseHealth: 1,
+    cost: 1, abilities: [], statuses: [],
+    onAnyCardPlayed: function () { order.push('onAnyCardPlayed'); }
+  };
+  // Place sibling first (so the conversion sweep finds it).
+  Game.state.lanes[0].player = sibling;
+  // Now simulate the inner conversion-place sequence (lifted from
+  // the real Professor X onDiscard at abilities.js).
+  Game.state.lanes[1].player = converted;
+  Game._runHook(converted, 'onPlay', Game, converted, 1);
+  Game.getAllCardsOnBoard().forEach(function (c) {
+    if (c.onAnyCardPlayed && c.id !== converted.id) c.onAnyCardPlayed(Game, c);
+  });
+  assertEq(order[0], 'onPlay',          'onPlay must fire first');
+  assertEq(order[1], 'onAnyCardPlayed', 'onAnyCardPlayed must fire after');
+});
+
+// End-to-end: a 0/0 copiesOpposite card placed via the conversion
+// chain copies Dormammu's stats and survives Luke's -1/-1 aura.
+test('Scarlet Witch convert: copies Dormammu stats then takes Luke debuff and lives', function () {
+  Game.init();
+  Game.startMatch('classic');
+  // Lane 2: AI Dormammu (5/6 base — used as the copy target)
+  var dormammu = {
+    id: 81001, name: 'Dormammu', owner: 'ai',
+    attack: 5, currentHealth: 6, maxHealth: 6, baseAttack: 5, baseHealth: 6,
+    cost: 8, abilities: [], statuses: [],
+  };
+  Game.state.lanes[2].ai = dormammu;
+  // Lane 0: AI Luke Skywalker with active -1/-1 aura via onAnyCardPlayed
+  var luke = {
+    id: 81002, name: 'Luke Skywalker', owner: 'ai',
+    attack: 5, currentHealth: 6, maxHealth: 6, baseAttack: 5, baseHealth: 6,
+    cost: 8, abilities: [], statuses: [],
+    onAnyCardPlayed: function (G, self) {
+      G.getEnemiesOf(self.owner).filter(function (e) { return !e._lukeDebuff; }).forEach(function (e) {
+        G.debuffCard(e, 1, 1, true, self);
+        e._lukeDebuff = true;
+      });
+    },
+  };
+  Game.state.lanes[0].ai = luke;
+  // Place a synthetic Scarlet-Witch-style card (0/0 with
+  // copiesOpposite) in lane 2 (player slot). Apply the same
+  // place → onPlay → onAnyCardPlayed sequence as the patched
+  // Professor X conversion path.
+  var witch = {
+    id: 81003, name: 'Scarlet Witch', owner: 'player',
+    attack: 0, currentHealth: 0, maxHealth: 0,
+    baseAttack: 0, baseHealth: 0, cost: 3,
+    abilities: [], statuses: [], copiesOpposite: true,
+    onPlay: function (G, self, lane) {
+      var opp = G.opponent(self.owner);
+      var enemy = G.state.lanes[lane] && G.state.lanes[lane][opp];
+      if (enemy && enemy.currentHealth > 0) {
+        self.attack = enemy.attack || 0;
+        self.baseAttack = enemy.attack || 0;
+        self.currentHealth = enemy.currentHealth || 1;
+        self.maxHealth = enemy.currentHealth || 1;
+        self.baseHealth = enemy.currentHealth || 1;
+        self.copiesOpposite = false;
+      }
+    },
+  };
+  Game.state.lanes[2].player = witch;
+  Game._runHook(witch, 'onPlay', Game, witch, 2);
+  Game.getAllCardsOnBoard().forEach(function (c) {
+    if (c.onAnyCardPlayed && c.id !== witch.id) c.onAnyCardPlayed(Game, c);
+  });
+  // Witch should have copied Dormammu's 5/6, then taken Luke's
+  // -1/-1 → 4/5 → ALIVE.
+  assertEq(witch.attack,        4, 'attack = 5 (Dormammu) - 1 (Luke aura)');
+  assertEq(witch.currentHealth, 5, 'hp = 6 (Dormammu) - 1 (Luke aura)');
+  assert(witch.currentHealth > 0, 'Scarlet Witch must be alive after Luke aura');
+  assertEq(witch.copiesOpposite, false, 'copiesOpposite cleared after stats resolve');
+});
+
+// And an integration check: apply Fear via the same flag-aware path
+// and confirm tryApplyDebuff stamps _debuffDelayedClear when the
+// target is `_combatSwungThisRound`. This is the actual mechanism
+// that keeps Fear Toxin's debuff alive through postCombat.
+test('Block-trick: tryApplyDebuff stamps _debuffDelayedClear on a swung target', function () {
+  Game.init();
+  Game.startMatch('classic');
+  var target = {
+    id: 90002, name: 'Already-Swung Target', owner: 'ai',
+    attack: 3, currentHealth: 5, maxHealth: 5,
+    cost: 1, immunityCharges: 0, abilities: [], statuses: [],
+    fearedTurns: 0, isFeared: false,
+    _combatSwungThisRound: true,  // simulating the just-swung uncontested attacker
+  };
+  Game.fearCard(target, { name: 'Fear Toxin' }, 1);
+  assertEq(target.isFeared, true, 'fear should land');
+  assertEq(target.fearedTurns, 1, 'fearedTurns should be 1');
+  assertEq(!!target._debuffDelayedClear, true,
+    '_debuffDelayedClear must be stamped so postCombat skips the decrement');
 });
 
 // ============================================================

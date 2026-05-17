@@ -133,12 +133,12 @@ const TRICK_DEFS = [
     }
   },
   { name: "Kryptonite", cost: 1,
-    desc: "Remove 2 ATK from an enemy. If the enemy is Superman, remove all his ATK.",
+    desc: "Remove 3 ATK from an enemy. If the enemy is Superman, remove all his ATK.",
     play(G, owner) {
       const enemies = G.getEnemiesOf(owner);
       if (enemies.length) {
         G.promptCardChoice(owner, enemies, "Kryptonite — Weaken", "Choose enemy to weaken", (t) => {
-          const r = t.name === "Superman" ? t.attack : 2;
+          const r = t.name === "Superman" ? t.attack : 3;
           G.debuffCard(t, r, 0);
           G.log(`Kryptonite: ${t.name} -${r} ATK!`);
         }, cards => cards.sort((a, b) => b.attack - a.attack)[0]);

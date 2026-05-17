@@ -75,6 +75,82 @@
      / .stat-hp color values in CSS). */
   --kw-stat-atk:       #7ee8a5;
   --kw-stat-hp:        #f1948a;
+
+  /* ============================================================
+     DESIGN SYSTEM TOKENS (polish-pass Tier 1)
+     ============================================================
+     Standardized scales for type, spacing, glow intensity, and
+     interactive state animation. Defined here so any rule can
+     read `var(--type-body)` / `var(--space-md)` etc. and the
+     whole UI stays in rhythm.
+
+     Migration policy: NEW rules use these vars; existing rules
+     migrate opportunistically when touched. We don't audit-and-
+     replace 14k lines in one pass.
+     ============================================================ */
+
+  /* ----- Type scale -----
+     Six tiers covering everything from microcopy to hero titles.
+     Sizes hit a clean major-second ratio (~1.125) up to body, then
+     wider 1.25-1.5 jumps for hierarchy at the heading tiers. Line
+     heights at the 1.4-1.5 range per typography-research consensus. */
+  --type-caption:     10px;   /* timestamps, kbd hints, microcopy */
+  --type-caption-lh:  1.40;
+  --type-body:        12px;   /* default UI copy, badges, pills */
+  --type-body-lh:     1.45;
+  --type-sub:         13px;   /* sub-labels, button sub-text */
+  --type-sub-lh:      1.40;
+  --type-label:       14px;   /* primary labels, tab labels */
+  --type-label-lh:    1.30;
+  --type-heading:     18px;   /* panel titles, modal headings */
+  --type-heading-lh:  1.30;
+  --type-hero:        32px;   /* hero text — main menu title only */
+  --type-hero-lh:     1.10;
+
+  /* ----- Spacing scale -----
+     8/12/16/24/32/48 base rhythm. Use consistently across padding,
+     margin, and gap. Avoids the "every component picks its own
+     padding" amateur tell. */
+  --space-xs:   4px;
+  --space-sm:   8px;
+  --space-md:   12px;
+  --space-lg:   16px;
+  --space-xl:   24px;
+  --space-2xl:  32px;
+  --space-3xl:  48px;
+
+  /* ----- Glow tier system -----
+     Three intensity levels. Reserve `focal` for elements that
+     need MAX attention right now (active player's HUD, selected
+     card, current phase indicator). Demoting ambient elements to
+     `subtle` lets the focal pop.
+
+     All three pull from --theme-rgb so the active Neon Theme
+     drives them. Each tier composes outer glow + a faint inset
+     ring for depth. */
+  --glow-subtle:
+    0 0 6px  rgba(var(--theme-rgb, 79,195,247), 0.18),
+    0 0 14px rgba(var(--theme-rgb, 79,195,247), 0.08);
+  --glow-standard:
+    0 0 10px rgba(var(--theme-rgb, 79,195,247), 0.35),
+    0 0 22px rgba(var(--theme-rgb, 79,195,247), 0.14),
+    inset 0 0 0 1px rgba(var(--theme-rgb, 79,195,247), 0.10);
+  --glow-focal:
+    0 0 16px rgba(var(--theme-rgb, 79,195,247), 0.65),
+    0 0 36px rgba(var(--theme-rgb, 79,195,247), 0.28),
+    inset 0 0 0 1px rgba(var(--theme-rgb, 79,195,247), 0.30);
+
+  /* ----- Interactive state ramps -----
+     Universal hover / press / click contract. Buttons that want
+     the standard feel pull `transition: var(--ix-transition)`
+     and apply the hover/active transforms below. */
+  --ix-transition:
+    background 140ms cubic-bezier(0.2, 0, 0, 1),
+    border-color 140ms cubic-bezier(0.2, 0, 0, 1),
+    box-shadow 140ms cubic-bezier(0.2, 0, 0, 1),
+    transform 90ms cubic-bezier(0.2, 0, 0, 1);
+  --ix-hover-translate:  translateY(-1px);
+  --ix-active-translate: translateY(1px);
 }
 
 /* ---- Keyword span — generic base style + per-keyword color via var ----
@@ -362,14 +438,19 @@ body::after {
   text-shadow: 0 0 8px rgba(255,255,255,0.35);
   animation: bannerSlideIn 1.6s cubic-bezier(0.22, 1, 0.36, 1);
 }
-/* Combat banner — gold pill */
+/* Combat banner — was gold pill, but user feedback repeatedly:
+   "little yellow blip when changing phases, get rid of it." The
+   gold combat banner was the source of that flash on phase
+   transitions. Now: theme-cyan (or white if no theme) to match
+   the rest of the HUD chrome — no faction-conflicting gold flash
+   when combat starts. */
 .phase-banner-text.phase-combat {
-  color: #ffd77a;
-  border-color: rgba(255,215,0,0.95);
+  color: color-mix(in srgb, rgb(var(--theme-rgb, 79, 195, 247)) 65%, white);
+  border-color: rgba(var(--theme-rgb, 79, 195, 247), 0.85);
   box-shadow:
-    0 0 12px rgba(255,215,0,0.60),
-    0 0 24px rgba(255,215,0,0.25);
-  text-shadow: 0 0 8px rgba(255,215,0,0.55);
+    0 0 12px rgba(var(--theme-rgb, 79, 195, 247), 0.50),
+    0 0 24px rgba(var(--theme-rgb, 79, 195, 247), 0.20);
+  text-shadow: 0 0 8px rgba(var(--theme-rgb, 79, 195, 247), 0.50);
 }
 @keyframes bannerSlideIn {
   0%   { opacity: 0; transform: scale(0.85) translateY(12px); }
@@ -517,6 +598,42 @@ body.round-first-ai .hud-round #round-num::before {
   text-shadow: 0 0 6px rgba(255,255,255,0.25);
   transition: color 0.3s, text-shadow 0.3s;
 }
+/* ============================================================
+   FOCAL-HIERARCHY POLISH (Tier 3 polish-pass)
+   ============================================================
+   "At any moment, ONE element is THE thing." Whoever's acting
+   gets max glow; the inactive side dims so the eye lands on the
+   right place automatically. Builds on the existing edge-glow
+   strip (below) — that's the AMBIENT cue; this is the focal
+   layer that promotes the active info-bar.
+
+   Default behavior: both bars share their normal glow. With
+   `body.turn-player` or `body.turn-ai`, the active side ramps
+   UP and the inactive side ramps DOWN. Leaving combat returns
+   both to baseline. Animations tied to the existing 2s edge
+   pulse so the transition reads as one cohesive system.
+   ============================================================ */
+body.turn-player .info-bar.player-bar,
+body.turn-ai     .info-bar.ai-bar {
+  /* Active side — focal glow, full opacity. Same color base as
+     the bar's own theme color; just brightened. */
+  filter: brightness(1.04) saturate(1.10);
+}
+body.turn-player .info-bar.ai-bar,
+body.turn-ai     .info-bar.player-bar {
+  /* Inactive side — dim 30%. Doesn't disappear (player still
+     needs to see HP) but visually recedes so the active bar
+     pops by contrast. */
+  filter: brightness(0.62) saturate(0.85);
+  opacity: 0.85;
+}
+body.turn-player .info-bar.player-bar,
+body.turn-ai     .info-bar.ai-bar,
+body.turn-player .info-bar.ai-bar,
+body.turn-ai     .info-bar.player-bar {
+  transition: filter 0.35s cubic-bezier(0.2, 0, 0, 1), opacity 0.35s cubic-bezier(0.2, 0, 0, 1);
+}
+
 /* Phase label — tints by CURRENT turn (not round opener). So the pill outline
    holds the round-opener colour while the phase word tracks who's acting now. */
 body.turn-player .hud-phase {
@@ -3670,20 +3787,74 @@ body.hit-pause .ai-hand * {
    draft → hand → board without the draft looking dimmer). The 6px
    vertical drop-shadow layer is kept for depth against the dark draft
    overlay background. */
-.draft-card,
-.draft-card.cost-0, .draft-card.cost-1, .draft-card.cost-2, .draft-card.cost-3 {
-  width: 220px; min-height: 280px; padding: 20px 14px 24px;
-  border-radius: 6px;
+/* Draft-card chrome.
+   Sizing follows user direction in two passes:
+     pass 1: "the smaller spacing is right" — unify at hand-card 140 px
+     pass 2: "still too small... I want them to be like playing cards.
+             take up the screen, but keep the consistency in where all
+             the elements are in the small version"
+   Final: 220 px wide draft cards (≈1.57× the 140 px hand card) with the
+   chrome (cost, orbs, name overlay, desc, bold labels) scaled by the
+   same factor so badges, stats, and text retain the same in-card
+   PROPORTIONS as the small in-hand version — just rendered at picker
+   scale so 4-badge cards like Galactus stop spilling over the right
+   edge. The .card.draft-card selector (specificity 0,2,0) beats both
+   .card (140 px) and the bare .draft-card rule (no width), which is
+   why we anchor on the chained class for the override. */
+.draft-card {
   cursor: pointer;
   transition: transform 0.2s, box-shadow 0.2s, border-color 0.2s;
   position: relative;
   color: #e6eef5;
-  /* User feedback Apr-30: "see how it fills up, and it's like a blue,
-     I don't want that." The rarity-tinted top-down gradient on the
-     card background read as the whole top half of an uncommon card
-     filling with cyan (or gold for legendary, etc). Killed the fill;
-     cards now sit on pure black with the rarity color carried only
-     by the border + outer glow + corner orbs. */
+}
+.card.draft-card {
+  width: 220px !important;
+  min-height: 320px;
+  padding: 8px 8px 10px;
+}
+.card.draft-card .card-cost {
+  width: 32px; height: 32px;
+  font-size: 16px;
+  top: 9px; left: 9px;
+}
+.card.draft-card .stat-circle {
+  width: 32px; height: 32px;
+  font-size: 15px;
+  bottom: 8px;
+}
+.card.draft-card .stat-atk { left: 8px; }
+.card.draft-card .stat-hp  { right: 8px; }
+.card.draft-card .card-name-overlay {
+  font-size: 14px;
+  letter-spacing: 0.10em;
+  padding: 14px 8px 6px;
+}
+.card.draft-card .card-desc {
+  font-size: 11px;
+  letter-spacing: 0.20px;
+  padding-bottom: 38px;
+}
+.card.draft-card .card-desc b {
+  font-size: 10px;
+  letter-spacing: 0.65px;
+}
+.card.draft-card .status-badge {
+  font-size: 10px;
+  padding: 2px 6px;
+  letter-spacing: 0.45px;
+}
+/* Trick-draft cards lost their width when .draft-card's blanket 220 px
+   override was removed — the bare .draft-card selector now sets no
+   width and .trick-draft doesn't carry the `card` class, so without
+   this restore the trick picker stretched to fill the viewport. Match
+   the card draft's 220 px so both pickers feel like one screen. */
+.draft-card.trick-draft {
+  width: 220px;
+  min-height: 200px;
+  padding: 14px 14px 18px;
+}
+.draft-card,
+.draft-card.cost-0, .draft-card.cost-1, .draft-card.cost-2, .draft-card.cost-3 {
   background: #060a12 !important;
   border: 1px solid rgba(46,204,113,0.95) !important;
   box-shadow:
@@ -3781,28 +3952,11 @@ body.hit-pause .ai-hand * {
     inset 0 0 0 1px rgba(255,215,0,0.22) !important;
 }
 
-.draft-card .card-cost {
-  position: absolute; top: -12px; left: -12px;
-  width: 28px; height: 28px;
-  background: transparent; border: none; border-radius: 0;
-  color: #ffe066; font-weight: 900; font-size: 16px;
-  display: flex; align-items: center; justify-content: center;
-  text-shadow: 0 0 6px rgba(255,215,0,0.95), 0 0 12px rgba(255,215,0,0.45);
-  z-index: 3;
-}
-/* Draft-card cost re-uses the same diamond + neon glow treatment as the
-   in-hand card badge, just bigger to match the blown-up draft render. */
-.draft-card .card-cost::before {
-  content: '';
-  position: absolute; inset: 0;
-  background: #000000;
-  border: 1.2px solid rgba(255,215,0,1);
-  transform: rotate(45deg);
-  box-shadow:
-    0 0 12px rgba(255,215,0,0.85),
-    0 0 24px rgba(255,215,0,0.40);
-  z-index: -1;
-}
+/* Draft-card cost + orbs now inherit from the unified `.card-cost`
+   and `.stat-atk` / `.stat-hp` base rules — same chamfered octagon
+   mask + neon outline + drop-shadow as the in-hand and on-board
+   chrome. No separate draft-only treatment: the picker reads as
+   "this is the same card you'll see in your hand." */
 
 /* Draft-card tier edge variable — used by the name banner's underscan hairline
    and diamond node. Keeps the rarity signal consistent with hand/board cards. */
@@ -3880,61 +4034,11 @@ body.hit-pause .ai-hand * {
   text-transform: uppercase;
   min-height: 0;
 }
-/* Body text — Rajdhani for Tron continuity; per-tier trigger labels
-   so the rarity signal carries into the card copy itself. */
-.draft-card .card-desc {
-  font-family: 'Rajdhani', 'Inter', 'Segoe UI', system-ui, sans-serif;
-  font-size: 12px; color: #f5fbff; line-height: 1.50;
-  max-height: none; overflow: visible;
-  padding: 0 6px; letter-spacing: 0.35px;
-  font-weight: 500;
-  text-shadow: 0 0 4px rgba(79,195,247,0.25);
-}
-.draft-card .card-desc b {
-  font-weight: 700;
-  letter-spacing: 0.9px;
-  font-size: 11px;
-  text-transform: uppercase;
-}
-.draft-card.cost-0 .card-desc b, .draft-card.cost-1 .card-desc b,
-.draft-card.cost-2 .card-desc b, .draft-card.cost-3 .card-desc b {
-  color: #8ef2ad !important;
-  text-shadow: 0 0 4px rgba(46,204,113,0.85), 0 0 10px rgba(46,204,113,0.45);
-}
-.draft-card.cost-4 .card-desc b, .draft-card.cost-5 .card-desc b, .draft-card.cost-6 .card-desc b {
-  color: #9adcff !important;
-  text-shadow: 0 0 4px rgba(79,195,247,0.85), 0 0 10px rgba(79,195,247,0.45);
-}
-.draft-card.cost-7 .card-desc b, .draft-card.cost-8 .card-desc b {
-  color: #f4f8fd !important;
-  text-shadow: 0 0 4px rgba(240,245,250,0.95), 0 0 10px rgba(240,245,250,0.55);
-}
-.draft-card.cost-9 .card-desc b, .draft-card.cost-10 .card-desc b {
-  color: #ffe066 !important;
-  text-shadow: 0 0 4px rgba(255,215,0,0.90), 0 0 10px rgba(255,215,0,0.50);
-}
-
-/* Stat circles on draft cards — larger Tron chips with the same triple-layer
-   glow + inset shadow as hand/board cards (scaled up). */
-.draft-card .stat-circle {
-  width: 38px; height: 38px;
-  font-size: 17px;
-  bottom: -12px;
-}
-.draft-card .stat-atk {
-  left: -12px;
-  box-shadow:
-    0 0 14px rgba(46,204,113,0.80),
-    0 0 28px rgba(46,204,113,0.35),
-    inset 0 0 10px rgba(0,0,0,0.6);
-}
-.draft-card .stat-hp {
-  right: -12px;
-  box-shadow:
-    0 0 14px rgba(231,76,60,0.85),
-    0 0 28px rgba(231,76,60,0.40),
-    inset 0 0 10px rgba(0,0,0,0.6);
-}
+/* Draft-card body text + stat orbs intentionally inherit the
+   unified `.card-desc` + `.stat-circle` rules (monospace + rarity-
+   tinted base, chamfered octagon orbs). The previous draft-only
+   Rajdhani-white desc and oversized -12px corner orbs were removed
+   so the picker chrome matches the hand and board exactly. */
 
 /* ---- Trick draft — purple neon edge (no rarity — all tricks look equal) ---- */
 .draft-card.trick-draft {
@@ -4216,12 +4320,16 @@ body.hit-pause .ai-hand * {
   padding: 0;
 }
 .lane {
-  /* Lane width deliberately wider than the 120px card so the card's corner
-     orbs (cost, type sigil, ATK, HP) — which sit at -7px / -5px offsets past
-     the card's own edge — have clear space inside the lane before the side
-     border. 140 − 120 = 20px, split as 10px margin per side; orb overshoot
-     of 7px leaves ~3px of safe clearance to the inner border edge. */
-  width: 140px; min-width: 140px;
+  /* Lane width: 160px (was 140). Bumped per user feedback "lanes need
+     to be wider to support a wider card." The wider lane lets the card
+     show the full painting at its native 3:4 portrait aspect without
+     cropping figures. Card is 140px (was 120); 160-140 = 20px lane
+     padding split 10/10 keeps the corner-orb overshoot guard intact. */
+  width: 160px; min-width: 160px;
+  /* Perf: lane subtree is independent — when one lane updates, the
+     others don't restyle/relay. paint containment is omitted (cards
+     can overflow lane edges during animations). */
+  contain: layout style;
   background: #000000;
   /* Left/right only — no top/bottom borders. The red AI banner's bottom edge
      IS the top of every lane; the blue player banner's top edge IS the bottom
@@ -4485,13 +4593,12 @@ body.hit-pause .ai-hand * {
 }
 .card-slot {
   /* Slot sizes to max(min-height floor, its card's actual height). flex basis
-     auto = content-size, so tall-description cards (Trigon, Omni-Man) push the
-     slot taller rather than overflowing into the banner where they got clipped
-     previously. flex-grow 1 lets slots still share any extra lane space when
-     both are shorter than the min-height floor. Width sits just inside the
-     lane's padding so empty-slot hover halos don't bleed past the lane
-     border. */
-  width: 134px;
+     auto = content-size. Width was 134px (sized for 120px card + 14px lane
+     padding); bumped to 154px to match the new 140px card width + 14px lane
+     padding (lane 160px - 6px outer margin). Without this bump the card
+     overflowed the 134px slot, which clipped/offset it within the 160px
+     lane and made the card visibly left-aligned rather than centered. */
+  width: 154px;
   flex: 1 1 auto;
   min-height: 175px;
   display: flex; justify-content: center; border-radius: 8px;
@@ -4535,83 +4642,112 @@ body.hit-pause .ai-hand * {
 
 /* ---- CARDS — BASE (pure black fill, white hairline, unified glow on hover) ---- */
 .card {
-  width: 120px; min-height: 130px; border-radius: 5px; padding: 5px;
+  /* Width bumped 120 → 140 per user feedback ("cards need to be wider
+     themselves, not just the pictures"). The wider card has room to
+     show the full 3:4 portrait painting without cropping any figure
+     content. Lane width was also bumped 140 → 160 so the card still
+     has 10px of side margin for corner-orb clearance. */
+  width: 140px; min-height: 130px; border-radius: 5px; padding: 5px;
   position: relative;
   background: #000000;
   border: 1px solid rgba(255,255,255,0.40);
   transition: transform 0.2s, box-shadow 0.2s, border-color 0.2s;
   box-shadow: 0 0 12px rgba(255,255,255,0.10), 0 0 24px rgba(255,255,255,0.05);
   overflow: visible;
+  /* Perf: tell the browser this card's layout/style is independent —
+     a single card's HP / state badge change doesn't recompute the
+     rest of the board. `paint` containment is intentionally OMITTED
+     because the corner badges (cost, ATK, HP at -7/-5px offsets)
+     legitimately overflow the box and need to render past edges. */
+  contain: layout style;
 }
 /* Cost badge — black-hole style: pure black core + legendary-gold ring.
    Glow matches the .energy-text orb spec so every cost pip on the board
    reads as the same "legendary yellow" chrome as the player/AI energy
    orbs and the 9/10-cost rarity tier. */
+/* Cost badge — corner-cut square anchored INSIDE the card's upper-
+   left corner. Etched-in (not plastered-on) look: translucent dark
+   well lets the painting + scanlines bleed through; the neon outline
+   is a separate SVG-mask layer so the rarity-tinted stroke follows
+   the chamfered shape exactly. Two pseudo-elements:
+     ::before  = filled silhouette (dark translucent fill)
+     ::after   = stroke-only outline (rarity-colored)
+   Both masked to the same chamfered-square SVG so they line up.
+   Digit text is debossed (dark below, faint catch-light above). */
 .card-cost {
-  position: absolute; top: -8px; left: -8px;
-  width: 20px; height: 20px;
+  position: absolute; top: 6px; left: 6px;
+  width: 22px; height: 22px;
   background: transparent;
   border: none;
-  color: #ffe066; font-weight: 700; font-size: 12px;
+  color: rgba(var(--portrait-frame-rgb, 255,215,0), 1);
+  font-weight: 700; font-size: 12px;
   display: flex; align-items: center; justify-content: center;
-  z-index: 2;
-  text-shadow: 0 0 6px rgba(255,215,0,0.95), 0 0 12px rgba(255,215,0,0.45);
-  font-family: 'Rajdhani', sans-serif;
+  z-index: 4;
+  text-shadow:
+    0 1px 0 rgba(0,0,0,0.95),
+    0 -0.5px 0 rgba(var(--portrait-frame-rgb, 255,215,0), 0.35),
+    0 0 4px rgba(var(--portrait-frame-rgb, 255,215,0), 0.35);
+  font-family: 'JetBrains Mono', 'SF Mono', ui-monospace, Menlo, Consolas, monospace;
   font-variant-numeric: tabular-nums;
 }
-/* Diamond backdrop — rotated square behind the upright numeral. Color
-   source depends on context (overrides below): hand card = rarity tier
-   (--card-edge); ally board card = player theme; enemy board card =
-   red; fallback gold for everything else (draft etc.). */
+/* Filled well — chamfered-square silhouette via SVG mask (smoother
+   edges than clip-path under sub-pixel rendering). Translucent dark
+   fill so the painting + scanlines below stay visible THROUGH the
+   shape — the strongest signal that the badge is part of the card
+   surface rather than sitting on top of it. */
 .card-cost::before {
   content: '';
   position: absolute; inset: 0;
-  background: #000000;
-  border: 1px solid rgba(255,215,0,1);
-  transform: rotate(45deg);
-  box-shadow:
-    0 0 10px rgba(255,215,0,0.85),
-    0 0 22px rgba(255,215,0,0.40);
+  background: rgba(0, 8, 14, 0.48);
+  -webkit-mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100' preserveAspectRatio='none'><path fill='black' d='M16,0 L84,0 L100,16 L100,84 L84,100 L16,100 L0,84 L0,16 Z'/></svg>") center/100% 100% no-repeat;
+          mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100' preserveAspectRatio='none'><path fill='black' d='M16,0 L84,0 L100,16 L100,84 L84,100 L16,100 L0,84 L0,16 Z'/></svg>") center/100% 100% no-repeat;
+  filter: drop-shadow(0 0 3px rgba(var(--portrait-frame-rgb, 255,215,0), 0.45));
+  z-index: -2;
+}
+/* Stroke-only neon outline — rarity-tinted, follows the chamfered
+   silhouette exactly because the mask is the path's stroke. This is
+   what carries the "laser-cut into the card" reading. */
+.card-cost::after {
+  content: '';
+  position: absolute; inset: 0;
+  background: rgba(var(--portrait-frame-rgb, 255,215,0), 0.95);
+  -webkit-mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100' preserveAspectRatio='none'><path fill='none' stroke='black' stroke-width='8' stroke-linejoin='round' d='M16,0 L84,0 L100,16 L100,84 L84,100 L16,100 L0,84 L0,16 Z'/></svg>") center/100% 100% no-repeat;
+          mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100' preserveAspectRatio='none'><path fill='none' stroke='black' stroke-width='8' stroke-linejoin='round' d='M16,0 L84,0 L100,16 L100,84 L84,100 L16,100 L0,84 L0,16 Z'/></svg>") center/100% 100% no-repeat;
   z-index: -1;
+  pointer-events: none;
 }
 
-/* Hand cards — diamond + numeral follow the rarity tier color. */
-.card.hand-card .card-cost { color: var(--card-edge); text-shadow: 0 0 6px var(--card-edge), 0 0 12px color-mix(in srgb, var(--card-edge) 45%, transparent); }
-.card.hand-card .card-cost::before {
-  border-color: var(--card-edge);
-  box-shadow:
-    0 0 10px color-mix(in srgb, var(--card-edge) 80%, transparent),
-    0 0 22px color-mix(in srgb, var(--card-edge) 40%, transparent);
-}
-/* Draft cards — same rule (they already set --card-edge per cost). */
-.draft-card .card-cost { color: var(--card-edge); text-shadow: 0 0 6px var(--card-edge), 0 0 12px color-mix(in srgb, var(--card-edge) 45%, transparent); }
-.draft-card .card-cost::before {
-  border-color: var(--card-edge);
-  box-shadow:
-    0 0 12px color-mix(in srgb, var(--card-edge) 80%, transparent),
-    0 0 24px color-mix(in srgb, var(--card-edge) 40%, transparent);
-}
-/* Ally-side board card — diamond + numeral paint in the active player theme. */
-.card.ally-card .card-cost {
-  color: rgb(var(--theme-rgb, 79,195,247));
+/* Per-context digit overrides — the etched shape (::before fill +
+   ::after outline) already paints via --portrait-frame-rgb, so we
+   only need to fine-tune the DIGIT's color + glow here. The shape's
+   neon outline auto-tints from the cascade. */
+.card.hand-card .card-cost {
+  color: rgba(var(--portrait-frame-rgb, 255,215,0), 1);
   text-shadow:
-    0 0 6px rgba(var(--theme-rgb, 79,195,247), 0.95),
-    0 0 12px rgba(var(--theme-rgb, 79,195,247), 0.45);
+    0 1px 0 rgba(0,0,0,0.95),
+    0 -0.5px 0 rgba(var(--portrait-frame-rgb, 255,215,0), 0.40),
+    0 0 5px rgba(var(--portrait-frame-rgb, 255,215,0), 0.45);
 }
-.card.ally-card .card-cost::before {
-  border-color: rgba(var(--theme-rgb, 79,195,247), 1);
-  box-shadow:
-    0 0 10px rgba(var(--theme-rgb, 79,195,247), 0.85),
-    0 0 22px rgba(var(--theme-rgb, 79,195,247), 0.40);
+.draft-card .card-cost {
+  color: rgba(var(--portrait-frame-rgb, 255,215,0), 1);
+  text-shadow:
+    0 1px 0 rgba(0,0,0,0.95),
+    0 -0.5px 0 rgba(var(--portrait-frame-rgb, 255,215,0), 0.40),
+    0 0 5px rgba(var(--portrait-frame-rgb, 255,215,0), 0.45);
 }
-/* Enemy-side board card — red diamond to match the rest of the enemy chrome. */
+.card.ally-card .card-cost {
+  color: rgba(var(--portrait-frame-rgb, 79,195,247), 1);
+  text-shadow:
+    0 1px 0 rgba(0,0,0,0.95),
+    0 -0.5px 0 rgba(var(--portrait-frame-rgb, 79,195,247), 0.40),
+    0 0 5px rgba(var(--portrait-frame-rgb, 79,195,247), 0.45);
+}
 .card.enemy-card .card-cost {
-  color: rgb(231,76,60);
-  text-shadow: 0 0 6px rgba(231,76,60,0.95), 0 0 12px rgba(231,76,60,0.45);
-}
-.card.enemy-card .card-cost::before {
-  border-color: rgba(231,76,60,1);
-  box-shadow: 0 0 10px rgba(231,76,60,0.85), 0 0 22px rgba(231,76,60,0.40);
+  color: rgba(var(--portrait-frame-rgb, 231,76,60), 1);
+  text-shadow:
+    0 1px 0 rgba(0,0,0,0.95),
+    0 -0.5px 0 rgba(var(--portrait-frame-rgb, 231,76,60), 0.40),
+    0 0 5px rgba(var(--portrait-frame-rgb, 231,76,60), 0.45);
 }
 /* Type sigils on in-hand / on-board cards — mirror the trick sigil placement
    but with a different glyph+color per card kind (⚔ character / ♺ discard). */
@@ -4896,34 +5032,91 @@ body.hit-pause .ai-hand * {
   display: flex; justify-content: space-between; align-items: center;
   margin: 2px -2px 2px -2px; padding: 0 2px;
 }
-/* Stat circles — black-hole style: pure black core + neon ring + unified glow */
+/* Stat orbs — moved INSIDE the card frame per user feedback. ATK is
+   now a TRIANGLE in the bottom-left (right-pointing — reads as a
+   "strike" arrow). HP is a HEART in the bottom-right (universal
+   visual for life). Both anchored 4px in from the card edge. The
+   number renders OVER the shape via a transparent backdrop on the
+   element + the shape drawn via clip-path. */
 .stat-circle {
-  width: 24px; height: 24px; border-radius: 50%;
+  width: 22px; height: 22px;
   display: flex; align-items: center; justify-content: center;
-  font-size: 13px; font-weight: 900; z-index: 2;
-  position: absolute; bottom: -5px;
-  background: #000000;
-  border: 1px solid;
+  font-size: 11px; font-weight: 900; z-index: 4;
+  position: absolute; bottom: 5px;
+  background: transparent;
+  border: 0;
   font-family: 'Rajdhani', sans-serif;
   font-variant-numeric: tabular-nums;
+  text-shadow: 0 0 4px rgba(0,0,0,0.95), 0 1px 2px rgba(0,0,0,0.85);
 }
+/* ATK — VERTICAL hex (pointy top + bottom, flat sides). Replaces
+   the up-pointing triangle, which obscured the digit at its narrow
+   center. The vertical hex reads as a spearhead / crystal / disc-
+   launcher aperture — Tron's signature data-vessel — while giving
+   a clean 100x50 horizontal slot at the middle where the digit
+   sits. Plenty of headroom for 2-digit values (10+). Color stays
+   green (universal "attack"). Two-pseudo etched stack: translucent
+   dark fill + neon stroke. */
 .stat-atk {
-  left: -5px;
-  color: #7ee8a5; border-color: rgba(46,204,113,0.95);
-  box-shadow:
-    0 0 10px rgba(46,204,113,0.70),
-    0 0 22px rgba(46,204,113,0.30),
-    inset 0 0 8px rgba(0,0,0,0.6);
-  text-shadow: 0 0 4px rgba(46,204,113,0.95), 0 0 8px rgba(46,204,113,0.55);
+  left: 4px;
+  color: #7ee8a5;
+  text-shadow:
+    0 1px 0 rgba(0,0,0,0.95),
+    0 -0.5px 0 rgba(46,204,113,0.40),
+    0 0 4px rgba(46,204,113,0.50);
+  font-family: 'JetBrains Mono', 'SF Mono', ui-monospace, Menlo, Consolas, monospace;
+}
+/* ATK + HP use the SAME chamfered-octagon mask as the cost square.
+   One shape vocabulary across all three orbs makes the chrome read
+   as a unified design system — color + position carry the role
+   (rarity-top-left = cost, green-bottom-left = ATK, red-bottom-right
+   = HP). The previous vertical/horizontal hex pair gave a stronger
+   semantic split but read as visually inconsistent with the cost
+   square. User direction: "consistent with the card." */
+.stat-atk::before {
+  content: '';
+  position: absolute; inset: 0;
+  background: rgba(0, 8, 14, 0.48);
+  -webkit-mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100' preserveAspectRatio='none'><path fill='black' d='M16,0 L84,0 L100,16 L100,84 L84,100 L16,100 L0,84 L0,16 Z'/></svg>") center/100% 100% no-repeat;
+          mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100' preserveAspectRatio='none'><path fill='black' d='M16,0 L84,0 L100,16 L100,84 L84,100 L16,100 L0,84 L0,16 Z'/></svg>") center/100% 100% no-repeat;
+  filter: drop-shadow(0 0 3px rgba(46,204,113,0.45));
+  z-index: -2;
+}
+.stat-atk::after {
+  content: '';
+  position: absolute; inset: 0;
+  background: rgba(46,204,113,0.95);
+  -webkit-mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100' preserveAspectRatio='none'><path fill='none' stroke='black' stroke-width='8' stroke-linejoin='round' d='M16,0 L84,0 L100,16 L100,84 L84,100 L16,100 L0,84 L0,16 Z'/></svg>") center/100% 100% no-repeat;
+          mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100' preserveAspectRatio='none'><path fill='none' stroke='black' stroke-width='8' stroke-linejoin='round' d='M16,0 L84,0 L100,16 L100,84 L84,100 L16,100 L0,84 L0,16 Z'/></svg>") center/100% 100% no-repeat;
+  z-index: -1;
+  pointer-events: none;
 }
 .stat-hp {
-  right: -5px;
-  color: #f1948a; border-color: rgba(231,76,60,0.95);
-  box-shadow:
-    0 0 10px rgba(231,76,60,0.75),
-    0 0 22px rgba(231,76,60,0.35),
-    inset 0 0 8px rgba(0,0,0,0.6);
-  text-shadow: 0 0 4px rgba(231,76,60,1), 0 0 8px rgba(231,76,60,0.6);
+  right: 4px;
+  color: #f1948a;
+  text-shadow:
+    0 1px 0 rgba(0,0,0,0.95),
+    0 -0.5px 0 rgba(231,76,60,0.40),
+    0 0 4px rgba(231,76,60,0.50);
+  font-family: 'JetBrains Mono', 'SF Mono', ui-monospace, Menlo, Consolas, monospace;
+}
+.stat-hp::before {
+  content: '';
+  position: absolute; inset: 0;
+  background: rgba(0, 8, 14, 0.48);
+  -webkit-mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100' preserveAspectRatio='none'><path fill='black' d='M16,0 L84,0 L100,16 L100,84 L84,100 L16,100 L0,84 L0,16 Z'/></svg>") center/100% 100% no-repeat;
+          mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100' preserveAspectRatio='none'><path fill='black' d='M16,0 L84,0 L100,16 L100,84 L84,100 L16,100 L0,84 L0,16 Z'/></svg>") center/100% 100% no-repeat;
+  filter: drop-shadow(0 0 3px rgba(231,76,60,0.45));
+  z-index: -2;
+}
+.stat-hp::after {
+  content: '';
+  position: absolute; inset: 0;
+  background: rgba(231,76,60,0.95);
+  -webkit-mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100' preserveAspectRatio='none'><path fill='none' stroke='black' stroke-width='8' stroke-linejoin='round' d='M16,0 L84,0 L100,16 L100,84 L84,100 L16,100 L0,84 L0,16 Z'/></svg>") center/100% 100% no-repeat;
+          mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100' preserveAspectRatio='none'><path fill='none' stroke='black' stroke-width='8' stroke-linejoin='round' d='M16,0 L84,0 L100,16 L100,84 L84,100 L16,100 L0,84 L0,16 Z'/></svg>") center/100% 100% no-repeat;
+  z-index: -1;
+  pointer-events: none;
 }
 /* Buff / debuff indicators — the orb core stays pure black. The NUMBER
    itself carries the signal: a buffed stat shows a brighter/pulsed
@@ -4962,36 +5155,53 @@ body.hit-pause .ai-hand * {
   font-weight: 600;
   word-break: break-word; margin-top: 2px;
 }
-/* Body text — Rajdhani for Tron continuity with names/HUD. Base tone is a
-   faint cyan-tinted off-white; ally/enemy overrides tint further toward
-   their side color without sacrificing readability. */
+/* Body text — monospace terminal-readout, mirrors the [ CARD DATA ] divider
+   so the whole card reads as one diegetic data screen. Color flows through
+   --portrait-frame-rgb so the base text follows the active framing color:
+   rarity in hand, theme on ally board, red on enemy board. Keyword spans
+   (.kw-*) override locally to keep their accent hues — base text is the
+   "voice", keywords are the highlights. */
 .card-desc {
-  font-family: 'Rajdhani', 'Inter', 'Segoe UI', system-ui, sans-serif;
-  font-size: 9px; color: #f5fbff; text-align: center;
-  margin-top: 4px; line-height: 1.40; letter-spacing: 0.35px;
+  font-family: 'JetBrains Mono', 'SF Mono', ui-monospace, Menlo, Consolas, monospace;
+  font-size: 8.5px; text-align: center;
+  color: rgba(var(--portrait-frame-rgb, 79,195,247), 0.94);
+  margin-top: 4px; line-height: 1.42; letter-spacing: 0.15px;
   font-weight: 500;
   overflow: visible; word-break: break-word; padding-bottom: 22px;
-  text-shadow: 0 0 4px rgba(79,195,247,0.25);
+  text-shadow:
+    0 0 4px rgba(var(--portrait-frame-rgb, 79,195,247), 0.40),
+    0 1px 1px rgba(0,0,0,0.85);
 }
-/* Faction readability — keep the side-colored halo but the base text stays
-   clean white so descs read consistently across ally/enemy. */
+/* Faction readability — ally/enemy already provide their own
+   --portrait-frame-rgb (theme / red), so the same var rule paints them.
+   These overrides just tune the halo intensity per side. */
 .card.ally-card .card-desc {
-  color: #f5fbff;
-  text-shadow: 0 0 5px rgba(79,195,247,0.50), 0 0 10px rgba(79,195,247,0.25);
+  color: rgba(var(--portrait-frame-rgb, 79,195,247), 0.95);
+  text-shadow:
+    0 0 5px rgba(var(--portrait-frame-rgb, 79,195,247), 0.50),
+    0 0 10px rgba(var(--portrait-frame-rgb, 79,195,247), 0.20),
+    0 1px 1px rgba(0,0,0,0.85);
 }
 .card.enemy-card .card-desc {
-  color: #f5fbff;
-  text-shadow: 0 0 5px rgba(231,76,60,0.45), 0 0 10px rgba(231,76,60,0.25);
+  color: rgba(var(--portrait-frame-rgb, 231,76,60), 0.95);
+  text-shadow:
+    0 0 5px rgba(var(--portrait-frame-rgb, 231,76,60), 0.50),
+    0 0 10px rgba(var(--portrait-frame-rgb, 231,76,60), 0.22),
+    0 1px 1px rgba(0,0,0,0.85);
 }
-/* Trigger labels — bold uppercase in the side/tier color. Reads as the
-   primary visual anchor of each sentence. */
+/* Trigger labels — same monospace family as body, brightened color +
+   a tighter glow so they read as the anchor of each sentence without
+   breaking the unified rarity-color voice. */
 .card-desc b {
+  font-family: 'JetBrains Mono', 'SF Mono', ui-monospace, Menlo, Consolas, monospace;
   font-weight: 700;
-  letter-spacing: 0.9px;
-  font-size: 8.5px;
+  letter-spacing: 0.7px;
+  font-size: 8px;
   text-transform: uppercase;
-  color: #7fd0ff !important;
-  text-shadow: 0 0 4px rgba(79,195,247,0.70), 0 0 8px rgba(79,195,247,0.35);
+  color: rgba(var(--portrait-frame-rgb, 79,195,247), 1) !important;
+  text-shadow:
+    0 0 4px rgba(var(--portrait-frame-rgb, 79,195,247), 0.70),
+    0 0 8px rgba(var(--portrait-frame-rgb, 79,195,247), 0.30);
 }
 
 /* Text+ etch line — surfaces card-specific Text+ upgrades on rolled
@@ -5040,8 +5250,10 @@ body.hit-pause .ai-hand * {
   padding: 4px 6px;
 }
 .card.enemy-card .card-desc b {
-  color: #ff9a8c !important;
-  text-shadow: 0 0 4px rgba(231,76,60,0.75), 0 0 8px rgba(231,76,60,0.40);
+  color: rgba(var(--portrait-frame-rgb, 231,76,60), 1) !important;
+  text-shadow:
+    0 0 4px rgba(var(--portrait-frame-rgb, 231,76,60), 0.75),
+    0 0 8px rgba(var(--portrait-frame-rgb, 231,76,60), 0.40);
 }
 /* "Can be played during the Trick Phase" passive line — stripped from the
    body copy by formatDesc() and appended here as a footer. Same blue as
@@ -5173,7 +5385,10 @@ body.hit-pause .ai-hand * {
   white-space: nowrap;
   z-index: 3;
 }
-.hand-card-wrapper .card-desc { font-size: 8px; max-height: none; color: #f5fbff; }
+/* Hand-card wrappers — let the base .card-desc (rarity-tied var) paint
+   the color so a green-tier card stays green in hand. Only the size and
+   max-height differ from the on-board rendering. */
+.hand-card-wrapper .card-desc { font-size: 8px; max-height: none; }
 /* Active-ability text (Red Skull's "Cards playable during Trick Phase",
    Moder's forced lane status, etc.). Needs bottom padding so it doesn't
    collide with the absolute stat-circles at bottom:-5px. */
@@ -5402,19 +5617,30 @@ body.hit-pause .ai-hand * {
   .card.vibe-magnetic, .card.vibe-alien { animation: none; }
 }
 
-/* ---- KEYWORD TRAIT BADGES — unified black-hole spec (matches kw-pill) ---- */
-.status-badges { display: flex; flex-wrap: wrap; gap: 3px; justify-content: center; margin-top: 2px; }
+/* ---- KEYWORD TRAIT BADGES — condensed terminal-tag spec ---------------
+   Old badges were full uppercase words ("EVADE 1") in 8px Rajdhani —
+   user feedback: they were "taking up a lot of space". New spec: 7px
+   monospace, tight padding, translucent dark fill (so the painting
+   bleeds through, matching the etched orbs), thin 1px rarity-tinted
+   outline. The keyword name stays so newcomers can read what each
+   status does at a glance, but the chip footprint is ~40% smaller. */
+.status-badges {
+  display: flex; flex-wrap: wrap; gap: 2px;
+  justify-content: center; margin-top: 2px;
+  padding: 0 2px;
+}
 .status-badge {
-  font-family: 'Rajdhani', sans-serif;
-  font-size: 8px; font-weight: 700; padding: 1px 6px; border-radius: 4px;
-  line-height: 1.3; letter-spacing: 0.8px; white-space: nowrap;
+  font-family: 'JetBrains Mono', 'SF Mono', ui-monospace, Menlo, Consolas, monospace;
+  font-size: 7px; font-weight: 700; padding: 0 4px; border-radius: 2px;
+  line-height: 1.35; letter-spacing: 0.3px; white-space: nowrap;
   text-transform: uppercase;
-  background: #000000;
+  background: rgba(0, 8, 14, 0.55);
   border: 1px solid currentColor;
-  /* color-mix gives us a glow that tracks the badge's own color — one spec fits all */
+  /* Subtle inner glow + tight outer halo. Pills feel etched (like the
+     orbs) rather than glowing-pill-on-painting. */
   box-shadow:
-    0 0 8px color-mix(in srgb, currentColor 40%, transparent),
-    0 0 16px color-mix(in srgb, currentColor 18%, transparent);
+    inset 0 0 4px color-mix(in srgb, currentColor 18%, transparent),
+    0 0 4px color-mix(in srgb, currentColor 28%, transparent);
 }
 /* Badge colors resolve through :root palette so descriptions and pills
    share one source of truth. Rebrand any keyword by editing :root. */
@@ -5504,6 +5730,7 @@ body.hit-pause .ai-hand * {
 .badge-phoenix    { color: #e67e22; }
 .badge-fear       { color: #5a5a5a; }
 .badge-freeze     { color: #85c1e9; }
+.badge-mark       { color: #ffce5c; }
 .badge-steady     { color: #16a085; }
 .badge-curse      { color: #c39bd3; }
 .badge-discount   { color: #16a085; }
@@ -5544,8 +5771,17 @@ body.hit-pause .ai-hand * {
   font-size: 9px; font-weight: 800; letter-spacing: 1px; color: #f1c40f;
   text-shadow: 0 1px 2px rgba(0,0,0,0.7); pointer-events: none; white-space: nowrap;
 }
-.card.unplayable { opacity: 0.45; filter: grayscale(30%); }
-.trick-card.unplayable { opacity: 0.45; filter: grayscale(30%); }
+/* Disabled card "look declined-but-readable." Earlier this used
+   `opacity: 0.45` which made the card semi-transparent — the lane
+   chrome / arena grid behind the card bled through and the text
+   was hard to read. User report: "When you hover over a grayed
+   out card... it's kinda hard to read. You can see the background
+   behind it." Now: keep the card OPAQUE (no `opacity` drop) and
+   communicate the disabled state via a strong desaturation +
+   brightness drop — same "muted" read, but the card body stays
+   solid so the body text and stat circles remain legible. */
+.card.unplayable { filter: grayscale(0.6) brightness(0.65); }
+.trick-card.unplayable { filter: grayscale(0.6) brightness(0.65); }
 
 /* ---- CARD ANIMATIONS ----
    Tron-style "construct" entrance: the card builds from the bottom
@@ -5570,39 +5806,71 @@ body.hit-pause .ai-hand * {
        set via the .ally-card / .enemy-card class on the card itself.
      • 600ms total — same as the previous cardPlayIn so combat pacing
        doesn't shift. */
+/* Card "loading from grid" animation — user spec: "you literally
+   can't see the card until that line rises up. So essentially,
+   like, it's blank, behind it. You can only see the lane behind
+   it. And then once the line goes up, then you start seeing the
+   card."
+   Implementation: a clip-path inset animates the card's TOP edge
+   from 100% (fully clipped, only bottom edge visible) to 0%
+   (fully revealed). The scan-line ::before animates its `top`
+   value from 100% to 0% — i.e. it travels from the bottom of
+   the card to the top.
+   CRITICAL: BOTH animations use the IDENTICAL easing curve so
+   the scan-line position and the clip-edge position match
+   exactly at every frame. With mismatched easings (linear vs
+   cubic-bezier) the clip-edge would race ahead of the line and
+   the user would see the card materializing above where the
+   scan line actually was. */
 @keyframes cardBuildIn {
-  0%   { opacity: 0; transform: scaleY(0); filter: brightness(1.4); }
-  6%   { opacity: 1; transform: scaleY(0.02); filter: brightness(1.4); }
-  100% { opacity: 1; transform: scaleY(1); filter: brightness(1); }
+  0%   { clip-path: inset(100% 0 0 0); opacity: 0; filter: brightness(1.6) saturate(1.3); }
+  8%   { clip-path: inset(100% 0 0 0); opacity: 1; filter: brightness(1.6) saturate(1.3); }
+  100% { clip-path: inset(0    0 0 0); opacity: 1; filter: brightness(1)   saturate(1);   }
 }
-@keyframes cardBuildInLine {
+/* Scan line uses TWO independent animations on the same
+   element — `top` movement uses the IDENTICAL cubic-bezier as
+   the parent's clip-path, while opacity is on its own LINEAR
+   timeline that holds at 1 until the very end then fades.
+   Earlier the line had a 92% keyframe with `top: 8%` that
+   created a subtle slowdown right before the line reached the
+   top — user reported "it kind of stops, like, at the last
+   end of it." Splitting the animations decouples the curves so
+   the line tracks the clip-edge precisely all the way up and
+   only fades in the last 2% when it's at the top. */
+@keyframes cardBuildInLineTop {
+  0%   { top: 100%; }
+  8%   { top: 100%; }
+  100% { top: 0%; }
+}
+@keyframes cardBuildInLineOpacity {
   0%   { opacity: 0; }
   8%   { opacity: 1; }
-  92%  { opacity: 1; }
+  98%  { opacity: 1; }
   100% { opacity: 0; }
 }
 .card.card-enter {
-  animation: cardBuildIn 0.6s cubic-bezier(0.22, 1, 0.36, 1) both;
-  transform-origin: 50% 100%; /* anchor at bottom — scaleY grows upward */
+  animation: cardBuildIn 1.0s cubic-bezier(0.22, 1, 0.36, 1) both;
+  transform-origin: 50% 100%;
 }
 .card.card-enter::before {
   content: '';
   position: absolute;
-  /* Sit just above the card's top edge so the line tracks the
-     scaling card's growing top boundary visually. As the card scales
-     from 0→1, this top:0 line appears to rise with the card's
-     top edge (because the parent is the card itself). */
-  top: -1px; left: -4px; right: -4px;
-  height: 2px;
-  /* Theme-aware via --build-color (set per ally/enemy below). */
+  left: -4px; right: -4px;
+  height: 3px;
   --build-color: rgba(var(--player-r, 79), var(--player-g, 195), var(--player-b, 247), 1);
   background: var(--build-color);
   box-shadow:
-    0 0 8px var(--build-color),
-    0 0 18px var(--build-color);
+    0 0 10px var(--build-color),
+    0 0 22px var(--build-color),
+    0 0 40px color-mix(in srgb, var(--build-color) 60%, transparent);
   pointer-events: none;
   z-index: 50;
-  animation: cardBuildInLine 0.6s linear both;
+  /* Two animations: the position animation matches the parent's
+     cubic-bezier, the opacity animation is a separate linear
+     timeline. */
+  animation:
+    cardBuildInLineTop 1.0s cubic-bezier(0.22, 1, 0.36, 1) both,
+    cardBuildInLineOpacity 1.0s linear both;
 }
 .card.card-enter.ally-card::before {
   --build-color: rgba(var(--player-r, 79), var(--player-g, 195), var(--player-b, 247), 1);
@@ -6221,8 +6489,13 @@ body.hit-pause .ai-hand * {
   100% { filter: brightness(1); }
 }
 
-/* Energy orb — gain pulse (Tron ring) */
-.energy-text.energy-boost { animation: energyBoost 0.55s ease-out; }
+/* Energy orb — gain pulse (Tron ring) — DISABLED per user feedback
+   ("there's a little yellow blip when a phase or round starts and I
+   don't like it"). The animation flashed gold on energy gain, which
+   conflicted with the stationary-pulse preference set earlier on
+   the energy diamond. The keyframe stays defined for any legacy
+   class consumer, but no rule applies it. */
+.energy-text.energy-boost { animation: none; }
 @keyframes energyBoost {
   0% { transform: scale(1); box-shadow: 0 0 12px rgba(243,156,18,0.55), inset 0 0 0 1px rgba(255,215,0,0.35); }
   45% { transform: scale(1.18); box-shadow: 0 0 26px rgba(243,156,18,1), inset 0 0 0 1px rgba(255,215,0,0.7); }
@@ -6286,10 +6559,23 @@ body.hit-pause .ai-hand * {
      and the top edge of the hand section / the first card in hand.
      Previously the orb's glow clipped into the section's top border. */
   padding: 12px 16px 14px;
-  background: #05080c;
+  /* Pure black to match the lanes — was #05080c which read as a
+     subtle bluish strip to the left/right of the centered hand
+     cards (and to the left of lane 1 / right of lane 6 below
+     them). User spec: "match the same color." */
+  background: #000000;
   border-top: 1px solid var(--tron-dim);
   box-shadow: 0 -1px 0 var(--tron-glow);
-  position: relative; z-index: 2;
+  position: relative;
+  /* z-index 10 sits ABOVE the .info-bar.player-bar's z-index: 5 so when
+     a hand card hover-lifts upward, it paints OVER the HUD bar instead
+     of getting clipped behind it. User report: "When I hover over a card
+     like King Shark, it goes behind the health banner of on my side."
+     Root cause: stacking-context trap — the wrapper's z-index: 1000
+     can't escape its parent's z-index. Bumping the parent fixes it.
+     `!important` because `#game-area > *` at line 415 sets z-index: 1
+     with higher specificity (id+universal beats single-class). */
+  z-index: 10 !important;
   /* Clip ONLY the bottom edge so hover-lifted cards can escape upward for
      readability but never cross into the tricks row below. overflow:hidden
      would block the upward lift too. */
@@ -6326,7 +6612,58 @@ body.hit-pause .ai-hand * {
      to cause the hover audio to pulse. */
   z-index: 50;
 }
-.empty-hand { color: #444; font-style: italic; font-size: 13px; display: flex; align-items: center; min-height: 80px; }
+/* Empty-hand placeholder — polish-pass Tier 2.
+   Replaces the flat "No cards" text with a Tron-themed card-back
+   silhouette + caption. Reads as "this is where cards would be"
+   instead of as missing UI. Theme-tinted via --theme-rgb so the
+   neon matches the active palette. */
+.empty-hand {
+  display: flex; align-items: center; justify-content: center;
+  gap: var(--space-md, 12px);
+  min-height: 80px; padding: 0 var(--space-md, 12px);
+  color: rgba(var(--theme-rgb, 79,195,247), 0.40);
+  font-family: 'Rajdhani', sans-serif;
+  font-size: var(--type-body, 12px);
+  font-weight: 600;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+}
+.empty-hand::before {
+  content: "";
+  width: 36px; height: 50px;
+  border: 1.5px dashed rgba(var(--theme-rgb, 79,195,247), 0.30);
+  border-radius: 4px;
+  background:
+    radial-gradient(circle at 50% 50%,
+      rgba(var(--theme-rgb, 79,195,247), 0.18) 0%,
+      rgba(var(--theme-rgb, 79,195,247), 0.05) 35%,
+      transparent 70%),
+    repeating-linear-gradient(0deg,
+      rgba(var(--theme-rgb, 79,195,247), 0.04) 0 2px,
+      transparent 2px 5px);
+  position: relative;
+  flex-shrink: 0;
+  animation: emptyHandPulse 3.2s ease-in-out infinite;
+}
+.empty-hand::after {
+  content: "";
+  position: absolute;
+  width: 8px; height: 8px;
+  border: 1.5px solid rgba(var(--theme-rgb, 79,195,247), 0.45);
+  background: rgba(0,0,0,0.6);
+  transform: rotate(45deg);
+  /* Anchored to the ::before's center via flex alignment — sits
+     inside the dashed card silhouette as a Tron-diamond marker. */
+  margin-left: -27px;
+  box-shadow: 0 0 6px rgba(var(--theme-rgb, 79,195,247), 0.35);
+}
+@keyframes emptyHandPulse {
+  0%, 100% { opacity: 0.55; }
+  50%      { opacity: 0.95; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .empty-hand::before { animation: none; }
+}
 
 /* ---- TRICKS (Purple — unified utility identity, no rarity) ----
    Same black-core + neon-edge chrome as character cards, but keyed to a single
@@ -7931,7 +8268,12 @@ body.turn-combat .board .lane.lane-active {
    on cards in hand" — keeping the sheen live matters more than this
    tiny affordability pip. */
 .hand-card-wrapper .card.unafford {
-  filter: grayscale(0.25) brightness(0.80);
+  /* Stronger desaturation + brightness drop than before so the
+     "can't afford" state reads at a glance without needing
+     opacity. Stays opaque — text + stat circles remain legible
+     against the lane chrome. Matches the .unplayable filter
+     above so all "disabled card" surfaces feel consistent. */
+  filter: grayscale(0.6) brightness(0.65);
 }
 
 /* Keyword tooltip — fixed, lightweight. Shown via JS on hover. */
@@ -9334,21 +9676,31 @@ body.turn-combat .board .lane.lane-active {
     0 0 12px rgba(255,255,255,0.35),
     0 0 24px rgba(255,255,255,0.15);
 }
-/* Active lane — gold with the identical glow stack (consistency) */
+/* Active lane — was gold/yellow per "actively resolving" cue, but
+   it overrode the lane's occupancy color story (red for AI, blue
+   for player, purple for contested), making the centerline read
+   yellow when it should be reading the lane's faction color. User
+   feedback: "the middle section where the yellow is for the red
+   and blue is a little off." Now: instead of gold, the active
+   lane gets a WHITE pulse (occupancy color underneath stays visible)
+   plus the existing 1.2s opacity pulse for the "resolving now"
+   cue. The whitepulse doesn't fight the lane's faction color. */
 .lane .lane-sep.lane-active .lane-number {
   background: #000000;
-  border-color: rgba(255,215,0,0.95);
-  color: #ffd77a;
+  border-color: rgba(255,255,255,0.85);
+  color: #f5fbff;
   box-shadow:
-    0 0 12px rgba(255,215,0,0.60),
-    0 0 24px rgba(255,215,0,0.25);
+    0 0 10px rgba(255,255,255,0.45),
+    0 0 22px rgba(255,255,255,0.20);
   animation: laneActivePulse 1.2s ease-in-out infinite;
 }
 .lane .lane-sep.lane-active::before {
-  background: linear-gradient(90deg, transparent 0%, rgba(255,215,0,0.95) 30%, rgba(255,215,0,0.95) 70%, transparent 100%);
+  /* Active line stays neutral white at low alpha so the occupancy
+     red/blue/purple still bleeds through. */
+  background: linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.55) 30%, rgba(255,255,255,0.55) 70%, transparent 100%);
   box-shadow:
-    0 0 12px rgba(255,215,0,0.60),
-    0 0 24px rgba(255,215,0,0.25);
+    0 0 10px rgba(255,255,255,0.40),
+    0 0 22px rgba(255,255,255,0.18);
 }
 @keyframes laneActivePulse {
   0%, 100% { opacity: 1; }
@@ -9387,6 +9739,19 @@ body.turn-combat .board .lane.lane-active {
   box-shadow:
     0 0 12px rgba(79,195,247,0.55),
     0 0 24px rgba(79,195,247,0.22);
+}
+/* Hide the lane-number pip whenever the lane has a card in it. The
+   number is a navigation hint for empty lanes — once a card lands,
+   the card itself is the visual marker and the floating digit below
+   the portrait clutters the readout. Empty lanes still show the
+   number so the player can scan deployable slots at a glance.
+   User feedback: "lane number is still present over the text" — the
+   card body was visually overlapping the number pip in the seam. */
+.lane.occ-ai .lane-number,
+.lane.occ-player .lane-number,
+.lane.occ-both .lane-number {
+  opacity: 0;
+  visibility: hidden;
 }
 /* Contested lane mid-divider — neon purple bar with a stronger halo
    so the contested seam reads as the brightest line on the board.
@@ -9584,8 +9949,18 @@ body.turn-combat .board .lane.lane-active {
   gap: 4px;
   padding: 4px 0;
   background: linear-gradient(180deg, rgba(8,14,22,0.55) 0%, rgba(8,14,22,0.85) 100%);
-  border-top: 1px solid rgba(79,195,247,0.18);
-  border-bottom: 1px solid rgba(79,195,247,0.10);
+  /* Theme-driven neon highlight. Reads --theme-rgb (the same triplet
+     the rest of the project's theming uses — see body::before, lane
+     borders, glow halos). White theme → white neon; blue → blue;
+     green → green. Falls back to the project's default sky-blue
+     (79,195,247) if --theme-rgb hasn't been set. User spec: "I want
+     it to match whatever neon highlight you have." */
+  border-top:    1px solid rgba(var(--theme-rgb, 79,195,247), 0.55);
+  border-bottom: 1px solid rgba(var(--theme-rgb, 79,195,247), 0.40);
+  box-shadow:
+    inset 0  1px 0 rgba(var(--theme-rgb, 79,195,247), 0.18),
+    inset 0 -1px 0 rgba(var(--theme-rgb, 79,195,247), 0.10),
+    0 0 12px       rgba(var(--theme-rgb, 79,195,247), 0.18);
   font-family: 'Rajdhani', 'Inter', sans-serif;
 }
 .lane-forecast-strip .lf-cell {
@@ -9600,10 +9975,16 @@ body.turn-combat .board .lane.lane-active {
   justify-content: space-between;
   gap: 4px;
   padding: 3px 6px;
-  border: 1px solid rgba(79,195,247,0.20);
+  /* Theme-driven neon outline (was hardcoded purple, was originally
+     sky-blue). Verdict-specific overrides below replace the border/
+     background for win/lose/trade cells with their semantic colors. */
+  border: 1px solid rgba(var(--theme-rgb, 79,195,247), 0.55);
   border-radius: 4px;
   background: rgba(8,14,22,0.55);
-  transition: border-color 0.15s, background 0.15s;
+  box-shadow:
+    0 0 6px       rgba(var(--theme-rgb, 79,195,247), 0.22),
+    inset 0 0 8px rgba(var(--theme-rgb, 79,195,247), 0.08);
+  transition: border-color 0.15s, background 0.15s, box-shadow 0.15s;
   box-sizing: border-box;
 }
 .lane-forecast-strip .lf-verdict {
@@ -9645,19 +10026,28 @@ body.turn-combat .board .lane.lane-active {
   color: rgba(255,255,255,0.22);
 }
 /* Verdict color palette — matches .dmg-preview's verdicts so the
-   two readouts feel like the same system. */
-.lane-forecast-strip .lf-cell.lf-win    { border-color: rgba(110,245,139,0.55); background: rgba(110,245,139,0.08); }
+   two readouts feel like the same system. Each verdict overrides
+   the base purple neon glow with its own semantic color so the
+   verdict cell glow matches the verdict text. Purple glow remains
+   the default for empty/idle cells. */
+.lane-forecast-strip .lf-cell.lf-win    { border-color: rgba(110,245,139,0.55); background: rgba(110,245,139,0.08); box-shadow: 0 0 6px rgba(110,245,139,0.30), inset 0 0 8px rgba(110,245,139,0.10); }
 .lane-forecast-strip .lf-cell.lf-win    .lf-verdict { color: #6ef58b; text-shadow: 0 0 5px rgba(110,245,139,0.55); }
-.lane-forecast-strip .lf-cell.lf-lose   { border-color: rgba(255,122,122,0.55); background: rgba(255,122,122,0.08); }
+.lane-forecast-strip .lf-cell.lf-lose   { border-color: rgba(255,122,122,0.55); background: rgba(255,122,122,0.08); box-shadow: 0 0 6px rgba(255,122,122,0.30), inset 0 0 8px rgba(255,122,122,0.10); }
 .lane-forecast-strip .lf-cell.lf-lose   .lf-verdict { color: #ff7a7a; text-shadow: 0 0 5px rgba(255,122,122,0.55); }
-.lane-forecast-strip .lf-cell.lf-trade  { border-color: rgba(255,215,122,0.55); background: rgba(255,215,122,0.08); }
+.lane-forecast-strip .lf-cell.lf-trade  { border-color: rgba(255,215,122,0.55); background: rgba(255,215,122,0.08); box-shadow: 0 0 6px rgba(255,215,122,0.30), inset 0 0 8px rgba(255,215,122,0.10); }
 .lane-forecast-strip .lf-cell.lf-trade  .lf-verdict { color: #ffd77a; text-shadow: 0 0 5px rgba(255,215,122,0.55); }
-.lane-forecast-strip .lf-cell.lf-stall  { border-color: rgba(198,208,219,0.35); }
+.lane-forecast-strip .lf-cell.lf-stall  { border-color: rgba(198,208,219,0.35); box-shadow: 0 0 6px rgba(198,208,219,0.18), inset 0 0 8px rgba(198,208,219,0.05); }
 .lane-forecast-strip .lf-cell.lf-stall  .lf-verdict { color: #c6d0db; }
 .lane-forecast-strip .lf-cell.lf-empty,
 .lane-forecast-strip .lf-cell.lf-destroyed {
-  opacity: 0.35;
-  border-color: rgba(255,255,255,0.10);
+  opacity: 0.45;
+  /* Empty/idle cells keep the theme neon glow but at reduced
+     intensity so they read as "no action here" without losing the
+     theme identity. */
+  border-color: rgba(var(--theme-rgb, 79,195,247), 0.30);
+  box-shadow:
+    0 0 4px       rgba(var(--theme-rgb, 79,195,247), 0.12),
+    inset 0 0 6px rgba(var(--theme-rgb, 79,195,247), 0.06);
 }
 .lane-forecast-strip .lf-cell.lf-empty .lf-verdict,
 .lane-forecast-strip .lf-cell.lf-destroyed .lf-verdict {
@@ -9873,6 +10263,51 @@ body.turn-combat .board .lane.lane-active {
   animation: lethalPulse 1.0s ease-in-out infinite;
   padding: 1px 5px;
 }
+/* Card XP chip — sits in the same bottom-center slot as the
+   incoming-damage badge so the two are mutually exclusive. The
+   renderer only emits the chip when no damage badge is being shown
+   (i.e. no predicted combat damage on this card). User spec: "place
+   it here but just have it vanish once the predictor comes with the
+   skull or numbers." */
+.card-xp-chip {
+  position: absolute;
+  bottom: 3px; left: 50%; transform: translateX(-50%);
+  height: 14px;
+  min-width: 42px;
+  padding: 0 6px;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: rgba(8, 14, 22, 0.92);
+  border: 1px solid rgba(160, 200, 255, 0.55);
+  border-radius: 10px;
+  font-family: 'Rajdhani', sans-serif; font-size: 9px; font-weight: 700;
+  color: rgba(220, 240, 255, 0.95);
+  letter-spacing: 0.3px;
+  z-index: 4;
+  overflow: hidden;
+  pointer-events: auto;
+  white-space: nowrap;
+}
+.card-xp-fill {
+  position: absolute; left: 0; top: 0; bottom: 0;
+  background: linear-gradient(90deg, rgba(80, 200, 255, 0.55), rgba(120, 220, 255, 0.85));
+  z-index: 0;
+  border-radius: 10px 0 0 10px;
+}
+.card-xp-text {
+  position: relative; z-index: 1;
+  text-shadow: 0 0 4px rgba(0, 0, 0, 0.85);
+}
+.card-xp-cap {
+  background: linear-gradient(135deg, #ffcf66, #ff9b3a);
+  color: #1a1006;
+  border-color: rgba(255, 240, 200, 0.85);
+  box-shadow: 0 0 6px rgba(255, 200, 90, 0.55);
+}
+/* AI-side cards mirror with a red tint on the chip border so the chip
+   reads against the red lane glow. */
+.card.enemy-card .card-xp-chip {
+  border-color: rgba(255, 140, 130, 0.55);
+}
 .incoming-damage.lethal .incoming-skull {
   width: 14px; height: 14px; display: block;
   filter: drop-shadow(0 0 6px rgba(231,76,60,0.85));
@@ -9908,7 +10343,16 @@ body.turn-combat .board .lane.lane-active {
   font-size: 16px; cursor: pointer; padding: 0 4px;
 }
 .log-close:hover { color: #f0f6fb; }
-.log-drawer.collapsed { transform: translateX(100%); }
+.log-drawer.collapsed {
+  transform: translateX(100%);
+  /* When collapsed (off-screen right), kill the left-side glow so
+     it doesn't bleed into the visible viewport. User flagged this
+     as "a bunch of green on the right of lane 6, like, in the
+     edge" — the 20px blur on the leftward shadow reached into
+     the visible area even though the drawer body was off-screen. */
+  box-shadow: none !important;
+  border-left: none !important;
+}
 .log-drawer .game-log {
   flex: 1 1 auto; overflow-y: auto; padding-right: 4px;
   max-height: none; min-height: 0; height: auto;
@@ -11730,15 +12174,19 @@ body {
     0 0 20px var(--enemy-glow-inner),
     0 1px 2px rgba(0,0,0,0.95) !important;
 }
-/* "WHEN PLAYED:" / "START OF TRICKS:" trigger labels */
+/* "WHEN PLAYED:" / "START OF TRICKS:" trigger labels. Keep them in
+   the full faction/rarity color via --portrait-frame-rgb instead of
+   mixing with white — user direction: "all the text be that one
+   color". The side-glow text-shadow stays so the label still anchors
+   visually against the painting. */
 .card.ally-card .card-desc b {
-  color: color-mix(in srgb, var(--player-accent) 40%, white) !important;
+  color: rgba(var(--portrait-frame-rgb, 79,195,247), 1) !important;
   text-shadow:
     0 0 4px var(--player-accent-bright),
     0 0 8px var(--player-glow-outer) !important;
 }
 .card.enemy-card .card-desc b {
-  color: color-mix(in srgb, rgb(var(--enemy-r), var(--enemy-g), var(--enemy-b)) 40%, white) !important;
+  color: rgba(var(--portrait-frame-rgb, 231,76,60), 1) !important;
   text-shadow:
     0 0 4px var(--enemy-accent-bright),
     0 0 8px var(--enemy-glow-outer) !important;
@@ -11819,40 +12267,47 @@ body.turn-ai .hud-phase {
    The diamond shape is the `::before` pseudo of #round-num, so the
    border-color + box-shadow have to be overridden THERE (not on the
    parent) to actually repaint the ring. */
+/* Round-first overrides: previously hardcoded green (player-first) and
+   red (ai-first) regardless of the user's chosen Neon Theme. User
+   report: "in white preview the round is green for some reason."
+   Now driven by the same --player-r/g/b / --enemy-r/g/b triplets the
+   rest of the chrome uses; each body.theme-* class redefines those so
+   the ROUND pill recolors with the picked theme. !important kept to
+   beat the catch-all base rule lower in the file. */
 body.round-first-player .hud-round {
-  color: #b9f5cb !important;
-  text-shadow: 0 0 6px rgba(46,204,113,0.55) !important;
+  color: rgba(var(--player-r, 79), var(--player-g, 195), var(--player-b, 247), 1) !important;
+  text-shadow: 0 0 6px rgba(var(--player-r, 79), var(--player-g, 195), var(--player-b, 247), 0.55) !important;
 }
 body.round-first-player .hud-round #round-num {
-  color: #d6f8e2 !important;
+  color: rgba(var(--player-r, 79), var(--player-g, 195), var(--player-b, 247), 1) !important;
   text-shadow:
-    0 0 6px rgba(46,204,113,1),
-    0 0 14px rgba(46,204,113,0.55) !important;
+    0 0 6px  rgba(var(--player-r, 79), var(--player-g, 195), var(--player-b, 247), 1),
+    0 0 14px rgba(var(--player-r, 79), var(--player-g, 195), var(--player-b, 247), 0.55) !important;
 }
 body.round-first-player .hud-round #round-num::before {
-  border-color: rgba(46,204,113,1) !important;
+  border-color: rgba(var(--player-r, 79), var(--player-g, 195), var(--player-b, 247), 1) !important;
   box-shadow:
-    inset 0 0 0 1px rgba(46,204,113,0.30),
-    0 0 10px rgba(46,204,113,0.85),
-    0 0 22px rgba(46,204,113,0.45) !important;
+    inset 0 0 0 1px rgba(var(--player-r, 79), var(--player-g, 195), var(--player-b, 247), 0.30),
+    0 0 10px        rgba(var(--player-r, 79), var(--player-g, 195), var(--player-b, 247), 0.85),
+    0 0 22px        rgba(var(--player-r, 79), var(--player-g, 195), var(--player-b, 247), 0.45) !important;
 }
-/* AI goes first — red neon, matching the enemy HUD bar tint. */
+/* AI goes first — enemy color, theme-aware. */
 body.round-first-ai .hud-round {
-  color: #f3bfb8 !important;
-  text-shadow: 0 0 6px rgba(231,76,60,0.55) !important;
+  color: rgba(var(--enemy-r, 231), var(--enemy-g, 76), var(--enemy-b, 60), 1) !important;
+  text-shadow: 0 0 6px rgba(var(--enemy-r, 231), var(--enemy-g, 76), var(--enemy-b, 60), 0.55) !important;
 }
 body.round-first-ai .hud-round #round-num {
-  color: #ffd2cc !important;
+  color: rgba(var(--enemy-r, 231), var(--enemy-g, 76), var(--enemy-b, 60), 1) !important;
   text-shadow:
-    0 0 6px rgba(231,76,60,1),
-    0 0 14px rgba(231,76,60,0.55) !important;
+    0 0 6px  rgba(var(--enemy-r, 231), var(--enemy-g, 76), var(--enemy-b, 60), 1),
+    0 0 14px rgba(var(--enemy-r, 231), var(--enemy-g, 76), var(--enemy-b, 60), 0.55) !important;
 }
 body.round-first-ai .hud-round #round-num::before {
-  border-color: rgba(231,76,60,1) !important;
+  border-color: rgba(var(--enemy-r, 231), var(--enemy-g, 76), var(--enemy-b, 60), 1) !important;
   box-shadow:
-    inset 0 0 0 1px rgba(231,76,60,0.30),
-    0 0 10px rgba(231,76,60,0.85),
-    0 0 22px rgba(231,76,60,0.45) !important;
+    inset 0 0 0 1px rgba(var(--enemy-r, 231), var(--enemy-g, 76), var(--enemy-b, 60), 0.30),
+    0 0 10px        rgba(var(--enemy-r, 231), var(--enemy-g, 76), var(--enemy-b, 60), 0.85),
+    0 0 22px        rgba(var(--enemy-r, 231), var(--enemy-g, 76), var(--enemy-b, 60), 0.45) !important;
 }
 /* Deck + Tricks counters both follow theme now — user wants every HUD
    segment connected to the picked neon. Tricks card-body still purple. */
@@ -12320,21 +12775,11 @@ body.round-first-ai .hud-pill-main {
    variants to win over the `.board .lane:last-child` rule (which
    has specificity 0,2,1 — same as ours; without :child we'd lose
    on source-order). */
-.board .lane.occ-both,
-.board .lane.occ-both + .lane,
-.board .lane:first-child.occ-both,
-.board .lane:last-child.occ-both,
-.board .lane:first-child.occ-both + .lane,
-.board .lane:last-child.occ-both + .lane {
-  border-color: transparent !important;
-  border-image: linear-gradient(180deg,
-      rgba(231, 76, 60, 0.95) 0%,
-      rgba(231, 76, 60, 0.90) 32%,
-      var(--contest-pop, rgb(255, 60, 200)) 50%,
-      rgba(var(--player-r, 79), var(--player-g, 195), var(--player-b, 247), 0.90) 68%,
-      rgba(var(--player-r, 79), var(--player-g, 195), var(--player-b, 247), 0.95) 100%
-    ) 1 !important;
-}
+/* (REMOVED — same rationale as the occ-ai/occ-player adjacency
+   rules above. The contested (occ-both) lane no longer paints
+   its neighbors; each lane renders its own borders via the
+   --lane-mid-color system. The contested lane itself gets the
+   color-mix() blend in its OWN border, which IS the story. */
 /* (Reverted: this slot held a `.lane.occ-both + .lane` rule that
    painted the right-side seam with a banded purple gradient. User
    asked for the lane borders to look "like they were before" — so
@@ -12388,79 +12833,28 @@ body.round-first-ai .hud-pill-main {
       var(--player-accent-bright)  100%
     ) 1 !important;
 }
-.board .lane:last-child {
-  border-right: 1px solid transparent !important;
-  border-image: linear-gradient(180deg,
-      var(--enemy-accent-bright)   0%,
-      var(--enemy-accent-bright)   2%,
-      rgba(255,255,255,0.90)       9%,
-      rgba(255,255,255,0.90)       91%,
-      var(--player-accent-bright)  98%,
-      var(--player-accent-bright)  100%
-    ) 1 !important;
-}
-.lane + .lane {
-  border-left: 1px solid transparent !important;
-  /* border-image takes over the visible colour — inherits the same
-     end-to-end gradient each lane had before. */
-  border-image: linear-gradient(180deg,
-      var(--enemy-accent-bright)   0%,
-      var(--enemy-accent-bright)   2%,
-      rgba(255,255,255,0.90)       9%,
-      rgba(255,255,255,0.90)       91%,
-      var(--player-accent-bright)  98%,
-      var(--player-accent-bright)  100%
-    ) 1 !important;
-}
-/* Occupancy variants — match the inner-lane colouring too. These
-   selectors also target the first-/last-child outer frame borders
-   so the left edge of lane 1 and right edge of lane 6 light up the
-   same way an inter-lane seam does when a card is placed. */
-.lane.occ-ai + .lane,
-.lane + .lane.occ-ai,
-.board .lane:first-child.occ-ai,
-.board .lane:last-child.occ-ai {
-  border-image: linear-gradient(180deg,
-      var(--enemy-accent-bright)  0%,
-      var(--enemy-accent-bright)  91%,
-      color-mix(in srgb,
-        rgb(var(--enemy-r), var(--enemy-g), var(--enemy-b)) 50%,
-        rgb(var(--player-r), var(--player-g), var(--player-b))) 97%,
-      var(--player-accent-bright) 100%
-    ) 1 !important;
-}
-.lane.occ-player + .lane,
-.lane + .lane.occ-player,
-.board .lane:first-child.occ-player,
-.board .lane:last-child.occ-player {
-  border-image: linear-gradient(180deg,
-      var(--enemy-accent-bright)  0%,
-      color-mix(in srgb,
-        rgb(var(--enemy-r), var(--enemy-g), var(--enemy-b)) 50%,
-        rgb(var(--player-r), var(--player-g), var(--player-b))) 3%,
-      var(--player-accent-bright) 9%,
-      var(--player-accent-bright) 100%
-    ) 1 !important;
-}
+/* (REMOVED — these legacy adjacent-lane painting rules were the
+   cause of "lane 2 lit up with red" when lane 1 has an enemy.
+   They painted the adjacent lane's border with the occupied
+   lane's color, which violated the user's color-story spec:
+   "if there's nobody contesting the lane, it should be all white...
+   when I hover over lane one, lane two is also highlighting."
+   Each lane now paints ITS OWN borders via .board-section .lane —
+   no neighbor influence. If two adjacent lanes are both occupied,
+   each shows its own color independently. The 2px combined
+   thickness at adjacent-lane seams is acceptable and crisp. */
 /* (Reverted: previous experiment painted the right seam solid purple,
    but that broke the lane separation the user wanted. The seam to the
    right of a contested lane now falls back to the next lane's own
    default occupancy / hover styling — exactly how it looked before
    the contested-purple experiment. Only the CENTERLINE is purple
    now, not the vertical border seams.) */
-/* Lane hover override — applied to the sibling border AND the
-   first/last outer-frame border when the lane itself is hovered. */
-.lane:hover + .lane,
-.lane + .lane:hover,
-.board .lane:first-child:hover,
-.board .lane:last-child:hover {
-  border-image: linear-gradient(180deg,
-      var(--enemy-accent-bright)   0%,
-      var(--enemy-accent-bright)   2%,
-      var(--player-accent-bright)  9%,
-      var(--player-accent-bright)  100%
-    ) 1 !important;
-}
+/* (Sibling-lane hover paint REMOVED per user feedback: "when I
+   hover over lane one, lane two is also highlighting. Which is
+   kind of distracting." The original `.lane:hover + .lane` rule
+   here painted the adjacent lane's border alongside the hovered
+   one — clean visual idea but read as a bug to the player. Only
+   the actually-hovered lane should respond.) */
 
 /* Kill the .board-section corner brackets (they framed outside
    lane 1 / lane 6 and read as disconnected chrome). ::before is
@@ -12733,11 +13127,15 @@ body.round-first-ai .hud-pill-main {
 .phase-banner.active .phase-banner-text::after {
   animation: phaseScanline 1.2s cubic-bezier(0.25, 1, 0.5, 1) 0.15s;
 }
+/* Perf: previously animated `left: -30% → 120%` which forced layout
+   each frame. Element rests at left:-30% width:40%; the on-screen
+   travel of 150% of parent width = 375% of element width.
+   Y centering preserved via translateY(-50%). */
 @keyframes phaseScanline {
-  0%   { left: -30%; opacity: 0; }
+  0%   { transform: translate(0, -50%); opacity: 0; }
   15%  { opacity: 0.9; }
   85%  { opacity: 0.9; }
-  100% { left: 120%; opacity: 0; }
+  100% { transform: translate(375%, -50%); opacity: 0; }
 }
 
 /* ---- #7 Round-start current sweep across the lanes ---- */
@@ -12804,6 +13202,11 @@ body.round-transition .board-section::before {
   filter: blur(1px);
   animation: gameOverScan 3s linear infinite;
 }
+/* Perf note: this animates `top` (forces layout per frame) instead
+   of transform. Left as-is intentionally — fires once per game on
+   the game-over screen, not in any hot path. Migration would need
+   a JS-set `--gst-h` custom property since transform translates by
+   the element's own height (2px), not the parent's height. */
 @keyframes gameOverScan {
   0%   { top: 0%; opacity: 0; }
   10%  { opacity: 1; }
@@ -12846,16 +13249,17 @@ body.round-transition .board-section::before {
 }
 
 /* ---- #10 Keyword badge chip shape ---- */
-/* Cut the top-left and bottom-right corners into a 6px chamfer so
+/* Cut the top-left and bottom-right corners into a 3px chamfer so
    status-badge pills read as a "cut-corner chip" instead of a
-   rounded capsule. Done with clip-path — transparent to the fill
-   and border, so the black core + currentColor border both clip
-   cleanly. */
+   rounded capsule. Smaller chamfer to match the new condensed pill
+   sizing (7px font, 0/4px padding). Done with clip-path —
+   transparent to the fill and border, so the dark core +
+   currentColor border both clip cleanly. */
 .status-badge {
   clip-path: polygon(
-    6px 0, 100% 0,
-    100% calc(100% - 6px), calc(100% - 6px) 100%,
-    0 100%, 0 6px
+    3px 0, 100% 0,
+    100% calc(100% - 3px), calc(100% - 3px) 100%,
+    0 100%, 0 3px
   );
   border-radius: 0 !important;
 }
@@ -13096,6 +13500,216 @@ body.round-transition .board-section::before {
     inset 0 0 60px rgba(var(--theme-rgb, 79,195,247), 0.20);
   animation: rlPhaseWipeSweep 540ms cubic-bezier(0.65, 0, 0.35, 1) forwards;
   will-change: transform;
+}
+/* ---- Boot-up variant: trick-draft → play -------------------
+   "Old-school boot sequence" — slower scan, brighter trail, the
+   board lanes "infect" left-to-right and the hand staggers in
+   one card at a time. User spec: "you can kinda see from left to
+   right, the light start to infect all the things on the board
+   state in light up... your cards appear one by one. Like an
+   old school boot up."
+   Wipe alone is ~1100ms; the lane/card stagger animations below
+   take it through ~1900ms; full cleanup at 2300ms. */
+.rl-phase-wipe.boot::before {
+  /* Slower, smoother S-curve so the eye follows the leading edge.
+     Brighter peak so the moment of "infection" reads clearly.
+     `!important` here mirrors the global override at the bottom of
+     this file (May-1 user feedback) — without it the variant's
+     duration / easing wouldn't beat that locked default. */
+  animation: rlPhaseWipeSweep 1100ms cubic-bezier(0.45, 0, 0.55, 1) forwards !important;
+  background:
+    linear-gradient(90deg,
+      transparent 0%,
+      rgba(0,0,0,0.18) 28%,
+      rgba(var(--theme-rgb, 79,195,247), 0.32) 42%,
+      rgba(var(--theme-rgb, 79,195,247), 0.78) 49%,
+      rgb(var(--theme-rgb, 79,195,247)) 50%,
+      rgba(var(--theme-rgb, 79,195,247), 0.78) 51%,
+      rgba(var(--theme-rgb, 79,195,247), 0.28) 58%,
+      rgba(0,0,0,0.20) 70%,
+      transparent 96%),
+    repeating-linear-gradient(0deg,
+      rgba(var(--theme-rgb, 79,195,247), 0.06) 0 2px,
+      transparent 2px 5px);
+  box-shadow:
+    inset 0 0 80px rgba(var(--theme-rgb, 79,195,247), 0.30);
+}
+
+/* ---- Engage variant: roguelite-map → first-fight-phase ----
+   Combat-ready snap. Faster than boot (700ms), harder edge, an
+   enemy-red wash blended with the theme tint so the moment reads
+   as "weapons hot." Sharp ease-out so the leading edge punches in
+   then decelerates. */
+.rl-phase-wipe.engage::before {
+  animation: rlPhaseWipeSweep 700ms cubic-bezier(0.18, 0.89, 0.32, 1.04) forwards !important;
+  background:
+    linear-gradient(90deg,
+      transparent 0%,
+      rgba(0,0,0,0.10) 35%,
+      rgba(var(--enemy-r, 231), var(--enemy-g, 76), var(--enemy-b, 60), 0.45) 46%,
+      rgba(var(--enemy-r, 231), var(--enemy-g, 76), var(--enemy-b, 60), 0.95) 50%,
+      rgba(var(--theme-rgb, 79,195,247), 0.40) 54%,
+      rgba(0,0,0,0.10) 65%,
+      transparent 95%),
+    repeating-linear-gradient(0deg,
+      rgba(var(--enemy-r, 231), var(--enemy-g, 76), var(--enemy-b, 60), 0.08) 0 1px,
+      transparent 1px 4px);
+  box-shadow:
+    inset 0 0 50px rgba(var(--enemy-r, 231), var(--enemy-g, 76), var(--enemy-b, 60), 0.30);
+}
+
+/* ---- Commit variant: in-fight → roguelite-rewards ----
+   Calm "saving data" sweep. Slower (950ms), gentler easing, lower
+   peak intensity. The result is committed; no need to shout. */
+.rl-phase-wipe.commit::before {
+  animation: rlPhaseWipeSweep 950ms cubic-bezier(0.4, 0.0, 0.2, 1) forwards !important;
+  background:
+    linear-gradient(90deg,
+      transparent 0%,
+      rgba(0,0,0,0.06) 30%,
+      rgba(var(--theme-rgb, 79,195,247), 0.18) 44%,
+      rgba(var(--theme-rgb, 79,195,247), 0.40) 49%,
+      rgba(var(--theme-rgb, 79,195,247), 0.55) 50%,
+      rgba(var(--theme-rgb, 79,195,247), 0.40) 51%,
+      rgba(var(--theme-rgb, 79,195,247), 0.18) 56%,
+      rgba(0,0,0,0.06) 70%,
+      transparent 96%),
+    repeating-linear-gradient(0deg,
+      rgba(var(--theme-rgb, 79,195,247), 0.03) 0 3px,
+      transparent 3px 7px);
+  box-shadow:
+    inset 0 0 40px rgba(var(--theme-rgb, 79,195,247), 0.10);
+}
+
+/* ---- Return variant: roguelite-rewards → roguelite-map ----
+   Contemplative ink-spread. Slowest of the three (950ms with a
+   long ease-in-out), lowest contrast. Theme-tinted but with a
+   soft center, no hard leading edge — feels like a thought
+   settling rather than an action committing. */
+.rl-phase-wipe.return::before {
+  animation: rlPhaseWipeSweep 950ms cubic-bezier(0.65, 0, 0.35, 1) forwards !important;
+  background:
+    linear-gradient(90deg,
+      transparent 0%,
+      rgba(var(--theme-rgb, 79,195,247), 0.12) 38%,
+      rgba(var(--theme-rgb, 79,195,247), 0.32) 50%,
+      rgba(var(--theme-rgb, 79,195,247), 0.12) 62%,
+      transparent 100%);
+  box-shadow:
+    inset 0 0 60px rgba(var(--theme-rgb, 79,195,247), 0.08);
+  filter: blur(0.5px);
+}
+
+/* Lanes "boot up" as the scanline crosses — each lane delays
+   100ms beyond the previous one so the power-on visibly travels
+   left to right. animation-fill-mode: backwards holds the 0%
+   state during the delay so the lane stays dim until its turn.
+   Six lanes; delays 400ms..900ms cluster behind the scan line
+   peak (around 550ms into the sweep). */
+@keyframes bootLanePower {
+  0%   { opacity: 0; transform: scaleY(0.92); filter: brightness(0); }
+  35%  { opacity: 1; filter: brightness(2.4); }
+  70%  { opacity: 1; filter: brightness(1.4); }
+  100% { opacity: 1; transform: scaleY(1); filter: brightness(1); }
+}
+body.boot-sequence .lane {
+  animation: bootLanePower 720ms cubic-bezier(0.34, 1.4, 0.5, 1) backwards;
+  /* nth-child fallback delays so the stagger reads even before the
+     JS index stamping lands (which races the DOM rebuild). When
+     --lane-i IS present (from the rAF post-render pass below), it
+     wins over the nth-child delays via specificity. */
+  animation-delay: calc(400ms + var(--lane-i, 0) * 100ms);
+}
+body.boot-sequence .lane:nth-child(1) { animation-delay: 400ms; }
+body.boot-sequence .lane:nth-child(2) { animation-delay: 500ms; }
+body.boot-sequence .lane:nth-child(3) { animation-delay: 600ms; }
+body.boot-sequence .lane:nth-child(4) { animation-delay: 700ms; }
+body.boot-sequence .lane:nth-child(5) { animation-delay: 800ms; }
+body.boot-sequence .lane:nth-child(6) { animation-delay: 900ms; }
+/* Boot-glow inset on lanes during the power-up — gives the
+   "infected" lane a brief theme-tinted aura that the standard
+   lane has no time to replicate at idle. Layered via a sibling
+   ::after on the lane so the lane's own contents stay clean. */
+body.boot-sequence .lane::after {
+  content: "";
+  position: absolute; inset: 0;
+  pointer-events: none;
+  background: radial-gradient(ellipse at center,
+    rgba(var(--theme-rgb, 79,195,247), 0.35) 0%,
+    rgba(var(--theme-rgb, 79,195,247), 0.10) 45%,
+    transparent 75%);
+  mix-blend-mode: screen;
+  opacity: 0;
+  animation: bootLaneAura 800ms cubic-bezier(0.45, 0, 0.55, 1) backwards;
+  animation-delay: calc(420ms + var(--lane-i, 0) * 100ms);
+}
+body.boot-sequence .lane:nth-child(1)::after { animation-delay: 420ms; }
+body.boot-sequence .lane:nth-child(2)::after { animation-delay: 520ms; }
+body.boot-sequence .lane:nth-child(3)::after { animation-delay: 620ms; }
+body.boot-sequence .lane:nth-child(4)::after { animation-delay: 720ms; }
+body.boot-sequence .lane:nth-child(5)::after { animation-delay: 820ms; }
+body.boot-sequence .lane:nth-child(6)::after { animation-delay: 920ms; }
+@keyframes bootLaneAura {
+  0%   { opacity: 0;    }
+  30%  { opacity: 0.85; }
+  100% { opacity: 0;    }
+}
+
+/* Lane number labels (1-6) pop in between the lane power-up and
+   the card stagger — gives the boot sequence a "labeling each
+   sector" beat between the grid lighting and the hand reveal.
+   Slight overshoot scale + theme-tinted brightness flash. */
+@keyframes bootLaneNumPop {
+  0%   { opacity: 0; transform: scale(0.20); filter: brightness(0); }
+  60%  { opacity: 1; transform: scale(1.40); filter: brightness(2.6); }
+  100% { opacity: 1; transform: scale(1.00); filter: brightness(1); }
+}
+body.boot-sequence .lane-number {
+  animation: bootLaneNumPop 480ms cubic-bezier(0.34, 1.56, 0.64, 1) backwards;
+  /* Defaults to mid-sequence; nth-child overrides below stagger
+     each lane label by 80ms in lockstep with the lane power-up.
+     Numbers light up just BEHIND the lane's own power-on so the
+     sequence reads as: lane lights → number stamps → next lane. */
+  animation-delay: calc(700ms + var(--lane-i, 0) * 80ms);
+}
+body.boot-sequence .lane:nth-child(1) .lane-number { animation-delay: 700ms; }
+body.boot-sequence .lane:nth-child(2) .lane-number { animation-delay: 780ms; }
+body.boot-sequence .lane:nth-child(3) .lane-number { animation-delay: 860ms; }
+body.boot-sequence .lane:nth-child(4) .lane-number { animation-delay: 940ms; }
+body.boot-sequence .lane:nth-child(5) .lane-number { animation-delay: 1020ms; }
+body.boot-sequence .lane:nth-child(6) .lane-number { animation-delay: 1100ms; }
+
+/* Hand cards stagger in after the lanes have finished lighting
+   up. Each card slides up + fades + brightens. Staggered 110ms
+   apart starting at 1100ms; supports up to 8 cards in hand. */
+@keyframes bootCardEnter {
+  0%   { opacity: 0; transform: translateY(38px) scale(0.86); filter: brightness(0.45); }
+  60%  { opacity: 1; filter: brightness(1.6); }
+  100% { opacity: 1; transform: translateY(0) scale(1); filter: brightness(1); }
+}
+body.boot-sequence .hand-card-wrapper {
+  animation: bootCardEnter 520ms cubic-bezier(0.34, 1.4, 0.5, 1) backwards;
+  animation-delay: calc(1100ms + var(--card-i, 0) * 110ms);
+}
+body.boot-sequence .hand-card-wrapper:nth-child(1) { animation-delay: 1100ms; }
+body.boot-sequence .hand-card-wrapper:nth-child(2) { animation-delay: 1210ms; }
+body.boot-sequence .hand-card-wrapper:nth-child(3) { animation-delay: 1320ms; }
+body.boot-sequence .hand-card-wrapper:nth-child(4) { animation-delay: 1430ms; }
+body.boot-sequence .hand-card-wrapper:nth-child(5) { animation-delay: 1540ms; }
+body.boot-sequence .hand-card-wrapper:nth-child(6) { animation-delay: 1650ms; }
+body.boot-sequence .hand-card-wrapper:nth-child(7) { animation-delay: 1760ms; }
+body.boot-sequence .hand-card-wrapper:nth-child(8) { animation-delay: 1870ms; }
+
+/* Reduced-motion users skip the staged sequence entirely; lanes
+   and cards just appear. The body class still gets added by JS
+   but the animations no-op so the gameplay is unblocked. */
+@media (prefers-reduced-motion: reduce) {
+  body.boot-sequence .lane,
+  body.boot-sequence .lane::after,
+  body.boot-sequence .lane-number,
+  body.boot-sequence .hand-card-wrapper {
+    animation: none !important;
+  }
 }
 
 /* ============================================================
@@ -13428,10 +14042,13 @@ input, textarea, select, [contenteditable="true"] { cursor: text !important; }
     inset 0 0 10px var(--theme-accent-bright);
   animation: cursorPress 220ms cubic-bezier(0.22, 1, 0.36, 1);
 }
+/* Perf: previously animated `width/height: 26 → 40 → 26px`, which
+   forced layout each frame. Now scales the existing translate(-50%)
+   center transform, GPU-only. 40/26 = 1.538 scale at peak. */
 @keyframes cursorPress {
-  0%   { width: 26px; height: 26px; }
-  50%  { width: 40px; height: 40px; }
-  100% { width: 26px; height: 26px; }
+  0%   { transform: translate(-50%, -50%) scale(1);     }
+  50%  { transform: translate(-50%, -50%) scale(1.538); }
+  100% { transform: translate(-50%, -50%) scale(1);     }
 }
 
 /* Trail dots — disabled per user feedback: "get rid of the little tail
@@ -13868,31 +14485,31 @@ body.theme-purple .board-section {
   position: relative;
   overflow: visible;
 }
-.block-circle::before {
-  content: "";
-  position: absolute;
-  inset: -3px;
-  border-radius: 50%;
-  pointer-events: none;
-  /* Fill arc — two-stop conic: solid colour from 0 to --fill,
-     transparent after. Mask makes it a ring (hollow centre). */
-  background: conic-gradient(from -90deg,
-    currentColor 0%,
-    currentColor var(--fill, 0%),
-    transparent var(--fill, 0%),
-    transparent 100%);
-  -webkit-mask: radial-gradient(circle, transparent 55%, #000 57%, #000 100%);
-  mask: radial-gradient(circle, transparent 55%, #000 57%, #000 100%);
-  filter: drop-shadow(0 0 4px currentColor) drop-shadow(0 0 10px currentColor);
-  opacity: 0.85;
-  transition: background 350ms cubic-bezier(0.22, 1, 0.36, 1);
+/* CONIC PROGRESS ARC REMOVED — per user feedback ("rather have just
+   a stationary pulse instead of the block meter constantly moving
+   in a circle"). The progress is already conveyed by the X/8 number
+   inside the ring; the rotating fill arc was redundant motion.
+   Replaced by a stationary breathing glow on the ring border —
+   lives on .block-circle's own border-color/box-shadow which we
+   already pulse via aaaBlockBreathe below. */
+.block-circle::before { display: none !important; }
+
+/* Stationary breath pulse — same opacity-only language as the DONE
+   button bottom-edge accent so all HUD chrome shares one motion
+   vocabulary: gentle 2.4s ease-in-out breathing, no rotation, no
+   scale. JS no longer needs to update --fill since the conic is
+   gone, but leaving the old setProperty call in renderHud is
+   harmless (just sets an unused variable). */
+.block-circle {
+  animation: aaaBlockBreathe 2.4s ease-in-out infinite;
 }
-/* Per-side colour — player uses --player-*, AI uses --enemy-*. */
-.player-bar .block-circle::before { color: var(--player-accent-bright); }
-.ai-bar     .block-circle::before { color: var(--enemy-accent-bright); }
-/* At 8/8 (full) hide the progressive ring and let the existing
-   .block-circle.full conic gold take over — signals "BLOCK READY". */
-.block-circle.full::before { display: none; }
+@keyframes aaaBlockBreathe {
+  0%, 100% { filter: brightness(0.95); }
+  50%      { filter: brightness(1.18); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .block-circle { animation: none; }
+}
 
 /* ============================================================
    ANIMATION PASS (a–o): energy pulse, block spark, draw slide,
@@ -13901,8 +14518,9 @@ body.theme-purple .board-section {
    deck preview, combat lunges, reveal flip, AI thinking.
    ============================================================ */
 
-/* (a) Energy gain pulse — keyframe refinement: bigger scale,
-   keeping the existing .energy-boost class UI already toggles. */
+/* (a) Energy gain pulse — DEFINITION KEPT for legacy reference, but
+   no longer applied. See note at the .energy-text.energy-boost
+   override above (line ~6388). */
 @keyframes energyBoost {
   0%   { transform: scale(1);    box-shadow: 0 0 7px var(--theme-glow-outer), 0 0 14px var(--theme-glow-inner); }
   45%  { transform: scale(1.18); box-shadow: 0 0 14px rgba(255,215,0,0.90), 0 0 30px rgba(255,215,0,0.55); }
@@ -13988,18 +14606,185 @@ body.theme-purple .board-section {
 .hand-card-wrapper {
   perspective: 700px;
 }
+/* Marvel-Snap-style in-place enlarge. Hover any hand card → the
+   card grows up + scales up while keeping its 3D rotateX/Y tilt
+   driven by cursor position. transform-origin: center bottom
+   anchors it to the hand-row baseline so it grows UPWARD into
+   the lane area (the .player-hand-section's clip-path leaves
+   the top open). z-index spike puts the enlarged card above
+   its neighbors cleanly. User spec: "the card just gets
+   bigger... still has a geometry [tilt] that you can do, easier
+   to click on bullseye, on jump, on all the keywords."
+   Magnify-popup clone is suppressed for hand cards in JS so
+   only ONE card is on screen at a time.
+   `!important` beats the .card.hand-card:hover `transform: none`
+   lock at line ~5654. */
 .hand-card-wrapper:hover .card.hand-card {
-  transform: rotateX(calc(var(--tilt-y, 0) * -6deg))
-             rotateY(calc(var(--tilt-x, 0) * 6deg));
-  transition: transform 90ms ease-out;
-  will-change: transform;
+  transform: translateY(-30px)
+             scale(1.6)
+             rotateX(calc(var(--tilt-y, 0) * -6deg))
+             rotateY(calc(var(--tilt-x, 0) * 6deg)) !important;
+  transform-origin: center bottom;
+  /* CRISP-RENDER PATH — diagnosis: previously had `will-change:
+     transform` + `backface-visibility: hidden` on the hover state,
+     which promote the card to a frozen GPU bitmap that the browser
+     then bilinear-stretches when scale changes. That's why text and
+     edges read as out-of-focus on the magnified card. Dropping both
+     hints lets the browser re-rasterize the element each frame
+     during the scale change → text stays sharp. The `filter: blur(0)`
+     trick still forces the high-quality filter pipeline (free
+     belt-and-suspenders against bilinear blur on Webkit). Source:
+     Chrome dev blog on re-rastering composited layers. */
+  filter: blur(0);
+  /* Sharper edge anti-aliasing while transformed. */
+  -webkit-font-smoothing: antialiased;
+  text-rendering: geometricPrecision;
+  /* NO `transition: transform` on the active hover state. The JS
+     `installHandTilt` rAF lerp loop owns the per-frame transform
+     interpolation now; a CSS transition would fight it (interpret
+     each rAF write as a new transition target → judder). The
+     non-hover baseline below keeps the transition for the snap-back
+     to rest when the cursor leaves. */
+}
+.hand-card-wrapper:hover {
+  z-index: 1000 !important;
 }
 .hand-card-wrapper .card.hand-card {
+  /* Baseline transition — covers the 240ms snap-back when cursor
+     leaves a card. Active hover writes via rAF lerp at higher rate
+     so the transition only fires on hover-end. */
   transition: transform 240ms cubic-bezier(0.22, 1, 0.36, 1);
   transform-style: preserve-3d;
+  transform-origin: center bottom;
 }
 @media (prefers-reduced-motion: reduce) {
   .hand-card-wrapper:hover .card.hand-card { transform: none !important; }
+}
+
+/* ---- BOARD CARD HOVER ENLARGE (Marvel-Snap parity) ---------------
+   Same in-place grow + 3D tilt for ally and enemy cards on the board.
+   User spec: "this should also happen to enemy cards on board."
+   Magnify-popup clone is suppressed in JS for these cards too — only
+   ONE card is on screen.
+   - Perspective lives on the .card-slot so rotateX/Y see a 3D vanishing
+     point. Without this the rotations look flat.
+   - Scale is slightly tamer than hand cards (1.4 vs 1.6) because lanes
+     are narrower and adjacent lanes are RIGHT THERE — 1.6 would visibly
+     overlap into the neighbor lane chrome.
+   - transform-origin: center keeps the grow centered in the slot
+     (lanes have headroom both up and down).
+   - z-index spike so the enlarged card paints above sibling cards in
+     adjacent lanes when it overflows. */
+.card-slot {
+  perspective: 700px;
+}
+.card.ally-card,
+.card.enemy-card {
+  transform-style: preserve-3d;
+  transform-origin: center;
+  transition: transform 240ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+.card.enemy-card:hover {
+  transform: scale(1.4)
+             rotateX(calc(var(--tilt-y, 0) * -6deg))
+             rotateY(calc(var(--tilt-x, 0) * 6deg)) !important;
+  transform-origin: center top;
+  z-index: 100;
+  position: relative;
+  /* Crisp-render path — see .hand-card-wrapper:hover comment for
+     full diagnosis. No `will-change`, no `backface-visibility`, no
+     active-hover `transition` (rAF lerp owns it). */
+  filter: blur(0);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: geometricPrecision;
+}
+.card.ally-card:hover {
+  transform: scale(1.4)
+             rotateX(calc(var(--tilt-y, 0) * -6deg))
+             rotateY(calc(var(--tilt-x, 0) * 6deg)) !important;
+  transform-origin: center bottom;
+  z-index: 100;
+  position: relative;
+  filter: blur(0);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: geometricPrecision;
+}
+
+/* CRITICAL — when a board card is hovered, BUMP THE WHOLE LANE
+   to a higher z-index so the scaled card paints OVER adjacent
+   lanes, the centerline lane number, and any other UI in
+   sibling stacking contexts. User report: "if I hover over the
+   enemy cards, it goes behind the center lane and the player's
+   cards... it should be the top layer." Root cause: the card's
+   z-index: 100 only affects siblings INSIDE its slot — the
+   parent lane itself is at z-index 1, so adjacent lanes (also
+   z-index 1) at later DOM order paint OVER the scaled card's
+   right side. Lifting the whole hovered lane to z:50 (vs other
+   lanes at z:1) puts its entire content stack above neighbors.
+   :has() is supported in all current browsers (Chrome/Safari/
+   Firefox 121+). Falls back gracefully — older browsers just
+   keep the previous slight clipping. */
+.board .lane:has(.card.ally-card:hover),
+.board .lane:has(.card.enemy-card:hover) {
+  z-index: 50 !important;
+}
+@media (prefers-reduced-motion: reduce) {
+  .card.ally-card:hover,
+  .card.enemy-card:hover { transform: none !important; }
+}
+
+/* ---- #8 Card hover content parallax (Tron-flare wave 2) ----
+   Inner card elements pop forward at different translateZ depths
+   so when the card tilts on hover, content shifts at different
+   apparent rates relative to the card surface. This is the
+   "premium TCG" trick from Marvel Snap / Hearthstone / Pokemon
+   TCG Live where cards feel like physical light-projected objects
+   rather than flat sprites.
+   Layered back→front:
+     surface (body bg)  ........... 0px  (the card itself)
+     description text  ............ 4px  (readable, slight depth)
+     name banner  ................. 8px  (title "rises" off body)
+     status badges row  ........... 12px (pops above name)
+     stat circles (atk / hp)  ..... 18px (orbs very prominent)
+     cost orb  .................... 24px (most forward — top-left
+                                          corner reads as "tag" on top
+                                          of the projected hologram)
+   Only applied within :hover so idle hand cards don't promote N
+   compositor layers per card. transition is on transform so the
+   pop-out feels mechanical rather than instant. */
+.hand-card-wrapper:hover .card.hand-card .card-desc {
+  transform: translateZ(4px);
+}
+.hand-card-wrapper:hover .card.hand-card .card-name-banner {
+  transform: translateZ(8px);
+}
+.hand-card-wrapper:hover .card.hand-card .status-badges {
+  transform: translateZ(12px);
+}
+.hand-card-wrapper:hover .card.hand-card .stat-circle {
+  transform: translateZ(18px);
+}
+.hand-card-wrapper:hover .card.hand-card .card-cost {
+  /* Cost has its own existing transform (rotate(45deg) for the
+     diamond shape). Append translateZ via a second declaration —
+     the browser composes transforms so both apply. */
+  transform: translateZ(24px);
+}
+.hand-card-wrapper .card.hand-card .card-desc,
+.hand-card-wrapper .card.hand-card .card-name-banner,
+.hand-card-wrapper .card.hand-card .status-badges,
+.hand-card-wrapper .card.hand-card .stat-circle,
+.hand-card-wrapper .card.hand-card .card-cost {
+  transition: transform 200ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+@media (prefers-reduced-motion: reduce) {
+  .hand-card-wrapper:hover .card.hand-card .card-desc,
+  .hand-card-wrapper:hover .card.hand-card .card-name-banner,
+  .hand-card-wrapper:hover .card.hand-card .status-badges,
+  .hand-card-wrapper:hover .card.hand-card .stat-circle,
+  .hand-card-wrapper:hover .card.hand-card .card-cost {
+    transform: none !important;
+  }
 }
 
 /* (g) Active-lane pip breathing — heartbeat on the lane number
@@ -14439,14 +15224,17 @@ body.ai-thinking .ai-thinking-dots { display: inline-flex; }
   100% { opacity: 0;   transform: translate(-50%, -180%) scale(1); }
 }
 
-/* F — Currency orb 360° spin on round start energy gain. Combines
-   with the existing energy-boost scale pulse. */
+/* F — Currency orb 360° spin on round start — DISABLED per user
+   feedback ("yellow blip when a phase or round starts and I don't
+   like it"). The 600ms spin combined with the gold brightness boost
+   was the source of the rotating yellow flash. Keyframe kept for
+   reference; the .energy-round-spin class is now a no-op. */
 @keyframes energyRoundSpin {
   0%   { transform: rotate(0deg)   scale(1); }
   50%  { transform: rotate(180deg) scale(1.12); filter: brightness(1.3); }
   100% { transform: rotate(360deg) scale(1); }
 }
-.energy-text.energy-round-spin { animation: energyRoundSpin 600ms cubic-bezier(0.22, 1, 0.36, 1); }
+.energy-text.energy-round-spin { animation: none; }
 
 /* C — Unified focus outline. Earlier rules declared focus rings
    piecemeal; here we normalize a single spec keyed to theme so every
@@ -15902,6 +16690,53 @@ body.phase-menu .kb-hints { display: none; }
 }
 .encyc-toolbar .db-search-wrap { flex: 1 1 240px; min-width: 200px; max-width: 420px; }
 .encyc-toolbar .db-cost-row { margin: 0; flex: 0 0 auto; }
+/* Roguelite Text+ overlay toggle. Pill button in the toolbar, OFF by
+   default, glows amber-on-black when ON. Mirrors the rest of the
+   neon/Tron UI palette. */
+.encyc-rl-toggle {
+  flex: 0 0 auto;
+  display: inline-flex; align-items: center; gap: 8px;
+  padding: 6px 14px; border-radius: 999px;
+  background: rgba(20, 20, 28, 0.6);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  color: rgba(255, 255, 255, 0.72);
+  font-size: 12px; font-weight: 600; letter-spacing: 0.06em;
+  cursor: pointer; transition: all 0.18s ease;
+}
+.encyc-rl-toggle:hover {
+  border-color: rgba(255, 200, 90, 0.55);
+  color: rgba(255, 230, 160, 0.95);
+}
+.encyc-rl-toggle .encyc-rl-dot {
+  width: 8px; height: 8px; border-radius: 50%;
+  background: rgba(255, 255, 255, 0.32);
+  transition: background 0.18s ease, box-shadow 0.18s ease;
+}
+.encyc-rl-active {
+  background: linear-gradient(135deg, rgba(255, 180, 60, 0.18), rgba(255, 120, 30, 0.10));
+  border-color: rgba(255, 180, 60, 0.78);
+  color: rgba(255, 230, 160, 1);
+  box-shadow: 0 0 10px rgba(255, 180, 60, 0.35), inset 0 0 10px rgba(255, 180, 60, 0.18);
+}
+.encyc-rl-active .encyc-rl-dot {
+  background: rgba(255, 200, 90, 1);
+  box-shadow: 0 0 8px rgba(255, 200, 90, 0.85);
+}
+/* Per-card "+" badge that marks Text+-eligible cards while the
+   overlay is on. Sits in the upper-right corner. */
+.enc-card-upgraded { box-shadow: 0 0 0 1px rgba(255, 180, 60, 0.55), 0 0 14px rgba(255, 180, 60, 0.22); }
+.enc-rl-badge {
+  position: absolute; top: 6px; right: 8px;
+  width: 18px; height: 18px; border-radius: 50%;
+  display: inline-flex; align-items: center; justify-content: center;
+  font-size: 13px; font-weight: 700; line-height: 1;
+  color: #1a1006;
+  background: linear-gradient(135deg, #ffcf66, #ff9b3a);
+  border: 1px solid rgba(255, 240, 200, 0.85);
+  box-shadow: 0 0 8px rgba(255, 180, 60, 0.85);
+  pointer-events: none;
+  z-index: 4;
+}
 /* Codex grid — sized to hold hand-card style tiles. Each card is
    the same portrait-shape as a card in hand (~140×200px). Gap bumped
    to a generous 44px row × 32px column so the black background panel
@@ -15948,14 +16783,84 @@ body.phase-menu .kb-hints { display: none; }
 .encyc-grid .card.hand-card.enc-card {
   position: relative;
   width: 100%;
-  min-width: 150px;
-  max-width: 220px;
+  /* Wider + shorter than v1 — user feedback "the cards are too thin
+     looking." 460px tall × 280px wide was 0.61 aspect, way taller
+     than a real TCG card. Bumping max-width to 320 + dropping min-
+     height to 420 gives an aspect closer to 0.76 (Magic / Pokemon
+     range) so cards feel like proper trading cards instead of
+     elongated banners. */
+  min-width: 220px;
+  max-width: 320px;
   margin: 0 auto;
-  min-height: 200px;
+  min-height: 420px;
   cursor: default;
 }
 .encyc-grid .card.hand-card.enc-card:hover {
   transform: none !important;
+}
+/* Codex-only portrait + description treatment. The codex shows
+   each card as a "trading-card spec sheet" — readable description
+   text + the painting as the unambiguous focal point.
+
+   Sizing/placement evolution per user feedback:
+     v1: 92% wide → felt "too zoomed in"
+     v2: 70% wide → "could be wider, or placed in a different area"
+     v3 (current): 86% wide + tighter to title banner
+   The 86% gives the painting real estate without competing with
+   the cost diamond + rarity pips at the top corners. Tight 2px
+   top margin tucks it under the title so the card reads as one
+   continuous unit instead of "title above, picture below, text
+   below" three separate strips. */
+.encyc-grid .card.hand-card.enc-card .card-portrait {
+  /* Full-width portrait so the cost square (top-left) and rarity
+     pip (top-right) sit AT the portrait's corners instead of
+     floating in the card body's padding 7% inset away. User
+     feedback: "the energy square on the top left and the rarity
+     square on the top right of the codex cards are still not
+     correctly placed inside the top corners of the portrait."
+     The previous 86% width left a side-margin where the chrome
+     visually orphaned itself against the dark card body. */
+  width: 100%;
+  margin: 0 auto 6px;
+  /* Codex overrides the in-match 5/6 default with the original
+     360/472 (3:4) so the full painting shows in the codex's
+     wider grid cells. In-match cards keep the shorter 5/6 to
+     prevent the "too thin" elongated-strip feel. */
+  aspect-ratio: 360 / 472;
+}
+.encyc-grid .card.hand-card.enc-card .card-desc {
+  /* Bump from 9px to 12px so the codex actually functions as a
+     reference doc. Plenty of vertical room with the new min-height. */
+  font-size: 12px !important;
+  line-height: 1.45 !important;
+  padding: 4px 10px 10px !important;
+}
+.encyc-grid .card.hand-card.enc-card .card-name {
+  /* Title gets a touch more presence in the codex too. */
+  font-size: 14px;
+  letter-spacing: 0.06em;
+}
+/* Codex chrome scale-up — user feedback: "the energy symbol on the
+   top left in the codex is not correct. Same with rarity square.
+   They're not how it looks on board." The codex card is 220-320px
+   wide (vs 140px in hand), so the 22px cost-square + stat orbs and
+   the 8px bold trigger labels were proportionally tiny next to the
+   12px codex body text. Bumping all three keeps the SAME chamfered
+   octagon mask and rarity-tinted bold styling — just scaled to read
+   correctly at codex card size. */
+.encyc-grid .card.hand-card.enc-card .card-cost {
+  width: 30px; height: 30px; font-size: 15px;
+  top: 8px; left: 8px;
+}
+.encyc-grid .card.hand-card.enc-card .stat-circle {
+  width: 30px; height: 30px; font-size: 14px;
+  bottom: 8px;
+}
+.encyc-grid .card.hand-card.enc-card .stat-atk { left: 8px; }
+.encyc-grid .card.hand-card.enc-card .stat-hp  { right: 8px; }
+.encyc-grid .card.hand-card.enc-card .card-desc b {
+  font-size: 11px;
+  letter-spacing: 0.6px;
 }
 /* Trick variant — purple, compact, matches in-game trick look. */
 .encyc-grid .trick-card.enc-trick {
@@ -16080,22 +16985,27 @@ body.colorblind .ai-bar .health-container {
 /* ---- 2. Glass / blur HUD chrome ----
    The top HUD strip, player bar, and ai bar get a glassmorphism
    treatment: semi-transparent background + backdrop-filter blur.
-   Makes them read as "overlaid" above the board instead of flat
-   panels. Mirror's mobile Hearthstone's status chrome. */
+   PERF FIX: blur radius reduced from 10px → 4px. backdrop-filter
+   blur is one of the most expensive CSS properties (forces an
+   off-screen render pass + gaussian convolution on the entire
+   underlying region). 10px blur on multiple HUD bars + their
+   duplicate generic-class selectors meant 5+ off-screen passes
+   per frame. 4px is visually nearly identical (still reads as
+   glassy) at a fraction of the cost. */
 .hud-strip,
 .top-hud,
 .game-hud,
 .player-bar,
 .ai-bar {
-  backdrop-filter: blur(10px) saturate(135%);
-  -webkit-backdrop-filter: blur(10px) saturate(135%);
+  backdrop-filter: blur(4px) saturate(125%);
+  -webkit-backdrop-filter: blur(4px) saturate(125%);
 }
 /* If those class names don't match, target generic HUD siblings
    (guards against layout drift). */
 #game-area > div[class*="hud"],
 #game-area > div[class*="bar"] {
-  backdrop-filter: blur(10px) saturate(135%);
-  -webkit-backdrop-filter: blur(10px) saturate(135%);
+  backdrop-filter: blur(4px) saturate(125%);
+  -webkit-backdrop-filter: blur(4px) saturate(125%);
 }
 
 /* ---- 3. Card lift + rise when selected from hand ----
@@ -16153,28 +17063,18 @@ body::before {
    it's their turn, the energy orb pulses a gentle heartbeat so the
    player always knows "you can act now". The class is toggled by
    UI.render's energy-bar painter. */
-/* Per user feedback: pulse the player's NEON HIGHLIGHT color, not
-   the universal gold. Uses --theme-rgb (cyan default for player,
-   overridable per theme). The keyframe references the variable so
-   if the user picks the red/green/purple theme later, the pulse
-   color follows automatically. */
+/* STATIONARY BREATH (was: energyPlayablePulse) — per user feedback
+   replacing the box-shadow size pulse with a flat opacity/brightness
+   breath that doesn't change the diamond's perceived scale. Same
+   2.4s tempo as the DONE button bottom-edge pulse and the new block-
+   meter breath, so all three HUD focal points share one motion
+   vocabulary. */
 @keyframes energyPlayablePulse {
-  0%, 100% {
-    box-shadow:
-      0 0 10px rgba(var(--theme-rgb, 79, 195, 247), 0.45),
-      0 0 22px rgba(var(--theme-rgb, 79, 195, 247), 0.20);
-  }
-  50% {
-    box-shadow:
-      0 0 18px rgba(var(--theme-rgb, 79, 195, 247), 0.90),
-      0 0 40px rgba(var(--theme-rgb, 79, 195, 247), 0.45),
-      0 0 60px rgba(var(--theme-rgb, 79, 195, 247), 0.20);
-  }
+  0%, 100% { filter: brightness(0.95); }
+  50%      { filter: brightness(1.22); }
 }
 .player-bar .energy-text.can-play::before {
-  /* Organic heartbeat curve — sharp build, longer recovery, like a
-     pulse not a sine wave. ease-in-out felt mechanical. */
-  animation: energyPlayablePulse 1.6s var(--ease-pulse-organic) infinite;
+  animation: energyPlayablePulse 2.4s ease-in-out infinite;
 }
 
 /* ---- 6. HP bar critical pulse ----
@@ -16309,69 +17209,16 @@ body {
 }
 .board { position: relative; }
 
-/* ---- 11. Deck pile as stacked card backs ----
-   Wrap the existing deck count pill in a stack of 3-4 card-back
-   rectangles offset slightly so it reads as "cards waiting". Click
-   behavior + count text stays the same. */
-.hud-count-deck {
-  position: relative;
-  padding-left: 26px !important;
-}
-.hud-count-deck::before,
-.hud-count-deck::after {
-  content: "";
-  position: absolute;
-  left: 0;
-  top: 50%;
-  width: 16px;
-  height: 22px;
-  background: linear-gradient(135deg, rgba(var(--theme-rgb, 79,195,247), 0.25), rgba(0,0,0,0.85));
-  border: 1px solid rgba(var(--theme-rgb, 79,195,247), 0.7);
-  border-radius: 2px;
-  transform: translateY(-50%);
-  pointer-events: none;
-  box-shadow: 0 0 4px rgba(var(--theme-rgb, 79,195,247), 0.35);
-}
-.hud-count-deck::before {
-  left: 0px;
-  transform: translateY(-50%) rotate(-3deg);
-  opacity: 0.55;
-}
-.hud-count-deck::after {
-  left: 4px;
-  transform: translateY(-50%) rotate(2deg);
-  opacity: 0.85;
-}
-/* Same for the trick pile — purple-tinted. */
-.hud-count-tricks {
-  position: relative;
-  padding-left: 26px !important;
-}
-.hud-count-tricks::before,
-.hud-count-tricks::after {
-  content: "";
-  position: absolute;
-  left: 0;
-  top: 50%;
-  width: 16px;
-  height: 22px;
-  background: linear-gradient(135deg, rgba(155, 89, 182, 0.30), rgba(0,0,0,0.85));
-  border: 1px solid rgba(155, 89, 182, 0.75);
-  border-radius: 2px;
-  transform: translateY(-50%);
-  pointer-events: none;
-  box-shadow: 0 0 4px rgba(155, 89, 182, 0.35);
-}
-.hud-count-tricks::before {
-  left: 0px;
-  transform: translateY(-50%) rotate(-3deg);
-  opacity: 0.55;
-}
-.hud-count-tricks::after {
-  left: 4px;
-  transform: translateY(-50%) rotate(2deg);
-  opacity: 0.85;
-}
+/* ---- 11. Deck / tricks count icons — REMOVED ----
+   Earlier version added decorative "stacked card-back" pseudo
+   elements before each pip's count, theme-tinted blue for Deck
+   and hardcoded purple for Tricks. User feedback: "the deck and
+   card Symbols look a little off, I'd rather them be reverted
+   to what they were previously. The deck blue 85 is different
+   from the Trix white 23. I'd rather those be consistent."
+   Removed both decorations so the pills read as plain text labels
+   (Deck N / Tricks N) — consistent typography, no color clash
+   between the two pips. */
 
 /* ---- 12. Can't-afford energy shake ----
    When player tries to play an unaffordable card (via JS-fired
@@ -17239,7 +18086,7 @@ body.defeat-pose .board .card.enemy-card {
      enters fast and decelerates as it dissipates, like real
      light traveling through a bounded medium. */
   animation: tronHpPulse 900ms var(--ease-out-expo) forwards;
-  will-change: left, opacity;
+  will-change: transform, opacity;
 }
 .player-bar .health-bar.hp-pulse::after {
   /* Brighter side bands and bigger glow halo than before. */
@@ -17266,12 +18113,14 @@ body.defeat-pose .board .card.enemy-card {
     0 0 32px rgba(231,76,60,0.85),
     0 0 56px rgba(231,76,60,0.45);
 }
+/* Perf: previously animated `left: -35% → 100%` (135% of parent =
+   ~385% of element width since element is 35% of parent). Element
+   stays anchored at left:-35% and translates via transform — keeps
+   the layout pipeline out of the per-frame work. */
 @keyframes tronHpPulse {
-  /* Hold peak opacity until 70% of duration before fading — keeps
-     the packet clearly visible across the full traversal. */
-  0%   { left: -35%; opacity: 1;    }
-  70%  {             opacity: 0.85; }
-  100% { left: 100%; opacity: 0;    }
+  0%   { transform: translateX(0);      opacity: 1;    }
+  70%  {                                opacity: 0.85; }
+  100% { transform: translateX(385.7%); opacity: 0;    }
 }
 @media (prefers-reduced-motion: reduce) {
   .health-bar.hp-pulse::after { animation: none; opacity: 0; }
@@ -18275,16 +19124,16 @@ body.defeat-pose .board .card.enemy-card {
 }
 
 /* === T3.1 HOVER PARALLAX — hand cards rotate toward the cursor.
-   Keep the existing translateY(-8px) lift; add transform-style
-   for 3D children (cost diamond, stat orbs) so they catch the
-   tilt naturally. JS sets --tilt-x, --tilt-y per card on
-   mousemove. */
+   The active rule lives at line ~14464 (.hand-card-wrapper:hover
+   .card.hand-card) — it reads unitless --tilt-x/--tilt-y set by
+   installHandTilt() on the wrapper. The legacy .tilt-active rule
+   that used deg-formatted vars is dead code (the listener that
+   added that class was removed) and was poisoning the same vars
+   on the .card itself, so the unitless rule's calc fell back to
+   0 and the tilt silently vanished. */
 .player-hand-section .hand-cards .card {
   transform-style: preserve-3d;
   perspective: 800px;
-}
-.player-hand-section .hand-cards .card.tilt-active {
-  transform: translateY(-8px) rotateX(var(--tilt-x, 0deg)) rotateY(var(--tilt-y, 0deg));
 }
 
 /* === T3.2 DROP SHADOW PROJECTION — when a hand card is hovered,
@@ -19036,16 +19885,17 @@ html {
 }
 
 /* Disabled / unaffordable card — when energy < cost, the card
-   needs to LOOK declined-but-present. Existing .unafford class
-   has muted colors; we add a subtle pointer-events guard hint
-   via cursor + a faint red outline on hover to communicate
-   "you can't play this right now" specifically. */
+   needs to LOOK declined-but-present. The .unafford class above
+   already applies grayscale + brightness drop; the cursor is
+   the only signal we add here. Earlier we also painted a 1px
+   dashed red outline on hover, but the user reported it looked
+   like a stray red line over the grayed-out card and asked for
+   it removed: "you can see, like, a little red outline, dotted
+   outline as well just over the grayed out." The card-shake +
+   energy-orb shake on click already give a clean rejection cue,
+   so the hover outline was redundant. */
 .player-hand-section .hand-cards .card.unafford {
   cursor: not-allowed;
-}
-.player-hand-section .hand-cards .card.unafford:hover {
-  outline: 1px dashed rgba(231, 76, 60, 0.45);
-  outline-offset: 2px;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -23074,6 +23924,69 @@ button:disabled, button[disabled] {
   border: 1px dashed rgba(120,140,160,0.2);
 }
 
+/* ---- Game Sounds tab ----------------------------------------
+   The system-SFX directory uses a different shape than the cards/
+   tricks tabs (single description column, grouped by category)
+   so it gets its own table styling rather than reusing aa-cell-*.
+*/
+.audio-audit-panel .aa-table-system { width: 100%; border-collapse: collapse; }
+.audio-audit-panel .aa-sys-cat {
+  padding: 14px 12px 6px;
+  font-family: 'Rajdhani', sans-serif;
+  font-weight: 800;
+  font-size: 12px;
+  letter-spacing: 1.6px;
+  text-transform: uppercase;
+  color: rgba(var(--theme-rgb, 79,195,247), 0.95);
+  text-shadow: 0 0 6px rgba(var(--theme-rgb, 79,195,247), 0.45);
+  border-bottom: 1px solid rgba(var(--theme-rgb, 79,195,247), 0.30);
+}
+.audio-audit-panel .aa-sys-cat-count {
+  margin-left: 6px; opacity: 0.55; font-weight: 600; letter-spacing: 1px;
+}
+.audio-audit-panel .aa-sys-row td {
+  padding: 8px 10px;
+  border-bottom: 1px solid rgba(255,255,255,0.05);
+  vertical-align: top;
+}
+.audio-audit-panel .aa-sys-row:hover td { background: rgba(var(--theme-rgb, 79,195,247), 0.05); }
+.audio-audit-panel .aa-sys-play-cell { width: 44px; }
+.audio-audit-panel .aa-sys-name {
+  font-size: 13px; font-weight: 700; color: #e6eef8;
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+}
+.audio-audit-panel .aa-sys-kind {
+  font-size: 9px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase;
+  padding: 1px 6px; border-radius: 3px;
+  font-family: ui-monospace, SF Mono, monospace;
+}
+.audio-audit-panel .aa-sys-kind-proc {
+  color: #ffce5c;
+  background: rgba(255,206,92,0.10);
+  border: 1px solid rgba(255,206,92,0.35);
+}
+.audio-audit-panel .aa-sys-kind-file {
+  color: #6ef58b;
+  background: rgba(110,245,139,0.08);
+  border: 1px solid rgba(110,245,139,0.35);
+}
+.audio-audit-panel .aa-sys-src {
+  font-size: 10px; color: #7fcf9b; opacity: 0.85;
+  font-family: ui-monospace, SF Mono, monospace;
+  margin-top: 2px;
+  word-break: break-all;
+}
+.audio-audit-panel .aa-sys-src-id { color: #a0a8b0; }
+.audio-audit-panel .aa-sys-src-id code { color: #ffce5c; background: rgba(255,206,92,0.06); padding: 0 4px; border-radius: 2px; }
+.audio-audit-panel .aa-sys-desc {
+  font-size: 11px; color: #c0c8d0; opacity: 0.85;
+  margin-top: 4px;
+  line-height: 1.45;
+}
+.audio-audit-panel .aa-empty {
+  padding: 20px; text-align: center; color: #5a6a78; font-style: italic;
+}
+
 /* Splicer sub-panel — appears below the audit table when a file cell is
    clicked. Locked to the bottom of the audit panel via flex-grow on
    parent (encyc-panel uses overflow:auto). */
@@ -24180,15 +25093,19 @@ input[type="number"]::-webkit-outer-spin-button {
     #060a12 !important;
 }
 
-/* Board outer wrapper — gets a subtle gradient wash + scanline
-   that fades into transparent so the lane interiors stay clean.
-   Texture only paints on the OUTER edges where there's no
-   gameplay content. */
+/* Board outer wrapper — base is pure black so the strips of
+   .board-section showing to the LEFT of lane 1 and RIGHT of
+   lane 6 read as the same black as the lanes themselves. The
+   subtle theme gradient + scanline still paint on top, but
+   against #000 they're nearly invisible (low alpha) — exactly
+   what we want for those margins. User spec: "The space to
+   the left of lane one and right of lane six I want to be
+   black just like the lanes." */
 .board-section {
   background:
     linear-gradient(180deg, rgba(var(--theme-rgb, 79,195,247),0.04) 0%, transparent 28%, transparent 72%, rgba(var(--theme-rgb, 79,195,247),0.04) 100%),
     repeating-linear-gradient(0deg, transparent 0 2px, rgba(var(--theme-rgb, 79,195,247),0.015) 2px 3px),
-    #060a12 !important;
+    #000000 !important;
 }
 
 /* Main menu panel — was solid #000 background. Switching to
@@ -24980,3 +25897,1926 @@ body.turn-player .hud-phase {
 .card-death-ghost.enemy-card::after {
   --derezz-color: rgba(var(--enemy-r, 231), var(--enemy-g, 76), var(--enemy-b, 60), 1) !important;
 }
+
+/* ============================================================
+   TRON FLARE PASS — visual polish wave (research-driven)
+   ============================================================
+   Sources: GMUNK Tron Legacy work, Cyberpunk 2077 HUD, Marvel
+   Snap "piano glass," CRT shader patterns. Dialed for THIS
+   game's existing language (theme-rgb tokens, Tron neon vocab).
+   Each block is gated to play nice with `prefers-reduced-motion`.
+   ============================================================ */
+
+/* ---- #10 CRT scanline overlay (always-on, faint) ----
+   2px repeating-gradient drawn on html::before so it sits above
+   every layer including modals. mix-blend-mode: overlay so it
+   composites with content rather than dimming it. Opacity ~5%
+   at idle, intensifies via .crt-burst class for one-shot beats
+   (card death, big damage, phase wipes). pointer-events: none. */
+html::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 99996;
+  pointer-events: none;
+  background:
+    repeating-linear-gradient(
+      0deg,
+      rgba(255,255,255,0.045) 0 1px,
+      transparent 1px 3px);
+  mix-blend-mode: overlay;
+  opacity: 1;
+  transition: opacity 0.4s ease;
+}
+@media (prefers-reduced-motion: reduce) {
+  html::before { display: none; }
+}
+/* Card-death burst — bumps scanline opacity briefly. The
+   burst class is added to body by ui.js _onCardDeath hook
+   when wired; pure CSS for now — animates from 1 to ~3 to 1. */
+@keyframes crtBurst {
+  0%, 100% { opacity: 1; }
+  20%      { opacity: 3; }
+  60%      { opacity: 1.6; }
+}
+body.crt-burst::before { animation: crtBurst 380ms ease-out; }
+
+/* ---- #5 HUD pill broadcast scanline — REMOVED ----
+   Earlier draft added a sweeping 1px line on .hud-pill-main /
+   .hud-round / .hud-count plus `overflow: hidden` to clip it.
+   The overflow clipped the round-number diamond's corners and
+   the theme-tinted line read as a stray blue highlight behind
+   the AI-red diamond. User report: "in the top pill you can
+   kinda see, like, a blue highlight behind the diamond, and it
+   kinda looks weird." Pulled the rule entirely. The CRT overlay
+   on html::before already provides ambient broadcast feel
+   without artifacting on the round badge. */
+
+/* ---- #9 Lane depth gradient (active lane rises, idle lanes sink) ----
+   Each lane gets a faint radial inset on idle that suggests it
+   sinks slightly into the screen. The active-lane (mid-combat)
+   loses the inset and reads as "raised toward the viewer." */
+.lane {
+  position: relative;
+}
+.lane::before {
+  /* Existing .lane::before may already exist as a beam-of-light
+     wash; if it does, this rule's box-shadow combines additively
+     since browsers stack inset shadows. */
+  background-image:
+    radial-gradient(ellipse 80% 60% at 50% 50%,
+      rgba(0,0,0,0.0) 0%,
+      rgba(0,0,0,0.18) 60%,
+      rgba(0,0,0,0.32) 100%);
+  pointer-events: none;
+  transition: opacity 0.3s ease;
+}
+.lane[data-active="true"]::before,
+.state-combat .lane._activeLane::before {
+  opacity: 0.35;
+}
+
+/* ---- #4 Projection-base glow under board cards ----
+   Trapezoidal beam emanating from the lane floor up under each
+   card on the board — reads as "this card is being holographically
+   projected from the lane." Theme-tinted, pulses gently. */
+.lane > .card.tron-perimeter-card::after {
+  content: "";
+  position: absolute;
+  left: 50%; bottom: -22px;
+  transform: translateX(-50%);
+  width: 70%; height: 24px;
+  background: radial-gradient(ellipse 100% 100% at 50% 0%,
+    rgba(var(--theme-rgb, 79,195,247), 0.22) 0%,
+    rgba(var(--theme-rgb, 79,195,247), 0.10) 35%,
+    transparent 70%);
+  pointer-events: none;
+  filter: blur(4px);
+  opacity: 0.65;
+  z-index: -1;
+}
+.lane > .card.player-card.tron-perimeter-card::after {
+  background: radial-gradient(ellipse 100% 100% at 50% 0%,
+    rgba(var(--player-r, 79), var(--player-g, 195), var(--player-b, 247), 0.28) 0%,
+    rgba(var(--player-r, 79), var(--player-g, 195), var(--player-b, 247), 0.10) 35%,
+    transparent 70%);
+}
+.lane > .card.enemy-card.tron-perimeter-card::after {
+  bottom: auto; top: -22px;
+  background: radial-gradient(ellipse 100% 100% at 50% 100%,
+    rgba(var(--enemy-r, 231), var(--enemy-g, 76), var(--enemy-b, 60), 0.28) 0%,
+    rgba(var(--enemy-r, 231), var(--enemy-g, 76), var(--enemy-b, 60), 0.10) 35%,
+    transparent 70%);
+}
+
+/* ---- #2 Hexagonal lane separator caps ----
+   Tron Legacy used hex motifs throughout (costumes, vehicles,
+   environment). The lane vertical separator gradient terminates
+   in a hex-edge marker at top + bottom — small, ~6px hexagons
+   in the active lane theme. Pure CSS via clip-path. */
+.lane:not(:last-child)::after {
+  /* existing ::after may be in use; if so this stacks. We use
+     a pseudo on the SEPARATOR rather than the lane to avoid
+     collision. Capped via :not(:last-child) so the rightmost
+     lane doesn't sprout a ghost separator. */
+}
+.lane-hex-cap {
+  position: absolute;
+  width: 8px; height: 8px;
+  background: rgba(var(--theme-rgb, 79,195,247), 0.55);
+  clip-path: polygon(25% 0%, 75% 0%, 100% 50%, 75% 100%, 25% 100%, 0% 50%);
+  pointer-events: none;
+  filter: drop-shadow(0 0 4px rgba(var(--theme-rgb, 79,195,247), 0.55));
+}
+.lane-hex-cap.top    { top: -4px; }
+.lane-hex-cap.bottom { bottom: -4px; }
+
+/* ---- #11 Chromatic aberration on hit ----
+   When a card takes damage, its border briefly splits into a
+   red-cyan ghosting via two ::before / ::after offsets. 80ms
+   pulse, then snaps back. Triggered by adding .hit-chrom class
+   (engine code that emits hit events can add this). */
+@keyframes hitChromaticAberration {
+  0%   { filter: drop-shadow(-3px 0 0 rgba(255,80,80,0.95)) drop-shadow(3px 0 0 rgba(80,200,255,0.95)); }
+  60%  { filter: drop-shadow(-1px 0 0 rgba(255,80,80,0.45)) drop-shadow(1px 0 0 rgba(80,200,255,0.45)); }
+  100% { filter: none; }
+}
+.card.hit-chrom { animation: hitChromaticAberration 220ms ease-out; }
+
+/* ---- #15 Light-cycle HP trail ----
+   When the .health-bar updates, a thin neon "lightcycle" line
+   sweeps across the surface where the new fill ends. Builds on
+   the existing .hp-pulse class (already wired via UI). New rule
+   adds the leading-edge spike behavior. */
+.health-bar.hp-cycle::before {
+  content: "";
+  position: absolute;
+  top: 0; bottom: 0;
+  width: 3px;
+  background: rgba(255,255,255,0.95);
+  box-shadow:
+    0 0 8px  rgba(var(--theme-rgb, 79,195,247), 0.85),
+    0 0 16px rgba(var(--theme-rgb, 79,195,247), 0.55);
+  left: 0;
+  animation: hpLightCycle 480ms cubic-bezier(0.22, 1, 0.36, 1) forwards;
+  pointer-events: none;
+  z-index: 4;
+}
+@keyframes hpLightCycle {
+  0%   { left: 0%;   opacity: 0; }
+  20%  { opacity: 1; }
+  100% { left: 100%; opacity: 0; }
+}
+
+/* ---- #17 Identity-disc arc behind hover-magnified card ----
+   When the magnify popup spawns, an arc of light traces around
+   the card from one corner. Direct Tron-disc reference. Pure
+   CSS via box-shadow + rotating mask. */
+@keyframes identityDiscSweep {
+  0%   { transform: translate(-50%, -50%) rotate(0deg);   opacity: 0; }
+  20%  { opacity: 0.85; }
+  100% { transform: translate(-50%, -50%) rotate(360deg); opacity: 0; }
+}
+.magnify-popup::before {
+  content: "";
+  position: absolute;
+  left: 50%; top: 50%;
+  width: 110%; aspect-ratio: 1;
+  border-radius: 50%;
+  border: 2px solid transparent;
+  border-top-color: rgba(var(--theme-rgb, 79,195,247), 0.85);
+  border-right-color: rgba(var(--theme-rgb, 79,195,247), 0.30);
+  pointer-events: none;
+  animation: identityDiscSweep 1.4s linear forwards;
+  filter: blur(0.5px) drop-shadow(0 0 8px rgba(var(--theme-rgb, 79,195,247), 0.55));
+}
+
+/* ---- #12 Game-over glitch text (one-shot scramble) ----
+   The big VICTORY / DEFEAT title gets a 280ms RGB-split scramble
+   when it lands, then settles. Triggered by .game-over-glitch
+   class on the title element. */
+@keyframes gameOverGlitch {
+  0%, 100% { transform: translate(0, 0); text-shadow: none; }
+  10%  { transform: translate(-2px, 1px); text-shadow: -2px 0 rgba(255,80,80,0.9), 2px 0 rgba(80,200,255,0.9); }
+  20%  { transform: translate(2px, -1px);  text-shadow: 2px 0 rgba(255,80,80,0.9), -2px 0 rgba(80,200,255,0.9); }
+  35%  { transform: translate(-1px, 0);    text-shadow: -1px 0 rgba(255,80,80,0.7), 1px 0 rgba(80,200,255,0.7); }
+  55%  { transform: translate(1px, 0);     text-shadow: 1px 0 rgba(255,80,80,0.5), -1px 0 rgba(80,200,255,0.5); }
+}
+.game-over-title.glitch { animation: gameOverGlitch 380ms steps(8, end); }
+
+/* ---- #7 Mouse-parallax background grid ----
+   The body's existing grid is shifted by --mx / --my custom
+   props that ui.js installs on a passive mousemove listener.
+   ~5-6px max travel — subtle depth without distraction. */
+body {
+  --mx: 0px;
+  --my: 0px;
+}
+.background-grid,
+body > .grid-bg {
+  transform: translate3d(var(--mx, 0), var(--my, 0), 0);
+  transition: transform 220ms cubic-bezier(0.2, 0, 0.4, 1);
+  will-change: transform;
+}
+
+/* ---- #14 Card-play afterimage trail ----
+   When a card lands, a 200ms ghost copy of its silhouette stays
+   behind, then dissolves. Used by ui.js _spawnPlayAfterimage on
+   playCard. */
+.card-play-afterimage {
+  position: absolute;
+  pointer-events: none;
+  z-index: 50;
+  background: rgba(var(--theme-rgb, 79,195,247), 0.18);
+  border: 1px solid rgba(var(--theme-rgb, 79,195,247), 0.55);
+  border-radius: 5px;
+  filter: blur(1px) drop-shadow(0 0 12px rgba(var(--theme-rgb, 79,195,247), 0.55));
+  animation: playAfterimage 380ms ease-out forwards;
+}
+@keyframes playAfterimage {
+  0%   { opacity: 0.7; transform: scale(1);    }
+  60%  { opacity: 0.35; transform: scale(1.04); }
+  100% { opacity: 0;   transform: scale(1.08); }
+}
+
+/* ---- #6 Phase banner refraction ----
+   The phase banner text gets a chromatic-aberration split when
+   it appears, converging to clean text at ~60% of the banner's
+   visible window. Builds on existing .phase-banner.active. */
+@keyframes phaseBannerRefract {
+  0%   { text-shadow: -3px 0 rgba(255,80,80,0.85), 3px 0 rgba(80,200,255,0.85); }
+  60%  { text-shadow: -1px 0 rgba(255,80,80,0.45), 1px 0 rgba(80,200,255,0.45); }
+  100% { text-shadow: 0 0 8px rgba(var(--theme-rgb, 79,195,247), 0.65); }
+}
+.phase-banner.active .phase-banner-text {
+  animation: phaseBannerRefract 700ms ease-out;
+}
+
+/* ============================================================
+   WAVE 1 — "STEP INTO THE GRID" 3D ENVIRONMENT
+   ============================================================
+   Goal: turn the 2D side-scroller view into a proper 3D scene
+   where the player feels like they're STANDING IN the Tron
+   grid, looking across the playfield at the opponent.
+
+   Strategy:
+     1. #game-area gets a CSS `perspective` so all child 3D
+        transforms have a coherent vanishing point.
+     2. .board-section (the lane container) tilts back on the X
+        axis ~10° so its top edge recedes into the distance —
+        enemy lanes feel "further away" than player lanes.
+     3. .grid-floor is a new flat plane painted with a Tron
+        cyan grid (repeating-linear-gradient), rotated 60° on
+        X and pushed back/down so it lays UNDER the lanes and
+        recedes toward a horizon.
+     4. .board-haze fades the back of the board to soft theme-
+        color fog — distance cue used by every 3D game.
+     5. .info-bar HUDs get translateZ(40px) so when the board
+        tilts they stay flat-on-camera and visibly float above
+        the receding playfield (cockpit overlay feel).
+
+   Compositor cost: pure transforms + gradients, GPU-accelerated.
+   No layout thrash. Reduced-motion users get a flat 2D fallback
+   via the @media block at the bottom.
+   ============================================================ */
+
+#game-area {
+  /* The vanishing point. Higher = subtler 3D; lower = more
+     dramatic. 1500px reads as "moderately deep room" — strong
+     enough to feel volumetric, not so strong it warps cards. */
+  perspective: 1500px;
+  perspective-origin: 50% 75%; /* below the board so player side stays close */
+}
+
+/* ---- TRON ARCADE ARENA architecture ------------------------
+   User feedback: "lane lines are not correct... stuff behind
+   the lanes... a lot of things are off." Root cause: a 3D-
+   tilted grid floor intersects the 2D-vertical lane DOM, and
+   they geometrically don't belong together. Switching to a
+   FLAT arena (the way real Tron lightcycle arenas actually
+   look) where depth comes from atmosphere, contrast, and
+   card-level 3D — not from perspective tilt of the playfield.
+   The arena is now a literal Tron broadcast monitor: bezel
+   frame, CRT scanlines, broadcast-carrier stripe, hex texture.
+   HUDs sit flat above and below as separate UI panels.
+*/
+.board-section {
+  /* No tilt — flat top-down. Depth lives in the cards (hover
+     scale + tilt) and the lane pillars when occupied. */
+  transform: none;
+  /* overflow:visible — when a board card hovers, it scales 1.4x
+     and would otherwise be CLIPPED by overflow:hidden when the
+     enlarged top/bottom extends past the section bounds. User
+     report: "when you hover over a card on board, It gets cut
+     off... the lane cuts it off." The grid-floor that originally
+     needed overflow:hidden is now display:none, so we can
+     safely allow vertical escape. Side-margin black is preserved
+     because nothing inside the section paints into the side
+     margins anymore. */
+  overflow: visible !important;
+  position: relative;
+  /* Pure black backdrop — the bezel rectangle the user
+     called "distracting" is gone. The arena now reads as a
+     boundless black void with the lanes as the only structure
+     in it. The only chrome is the subtle motherboard texture. */
+  background:
+    radial-gradient(circle at 12px 12px,
+      rgba(var(--theme-rgb, 46, 204, 113), 0.08) 0.5px,
+      transparent 1.5px) 0 0 / 24px 24px,
+    #000000 !important;
+  /* No border, no box-shadow — bezel removed per user feedback:
+     "this little rectangle around the board is kinda distracting.
+     I'd rather just this not be in the game at all." */
+  border: none !important;
+  box-shadow: none !important;
+}
+
+/* Grid floor + haze are removed — they were the source of the
+   "stuff behind the lanes" problem. The base styles below now
+   no-op them in case any leftover DOM sneaks through. */
+.board-section .grid-floor,
+.board-section .board-haze { display: none !important; }
+
+/* Tron grid floor — fills the board-section, then rotateX(60deg)
+   stands it up on its bottom edge so it lays nearly horizontal
+   in 3D space. Combined with the parent's rotateX(12deg) and
+   #game-area's perspective, the grid lines recede to a vanishing
+   point behind the enemy lanes — exactly the Tron POV.
+   Painted with two repeating-linear-gradients (one per axis). */
+.board-section .grid-floor {
+  position: absolute;
+  /* Extend BELOW the board so the floor stretches "into the
+     distance" past the back wall. Negative top + bigger height
+     = floor that exits both edges of the visible board, with
+     the perspective transform converging the lines. */
+  left: -50%; right: -50%;
+  top: 50%;
+  height: 1500px;
+  pointer-events: none;
+  transform: rotateX(70deg);
+  transform-origin: top center;
+  background:
+    /* Vertical lines aligned to the LANE WIDTH (134px). The
+       earlier 40px spacing fought visually with the lanes —
+       two competing line systems made the back of the playfield
+       look noisy. With the grid stride matching lane stride,
+       the floor reads as a literal extension of the lane
+       boundaries running off into the distance. */
+    repeating-linear-gradient(90deg,
+      transparent 0,
+      transparent 133px,
+      rgba(var(--theme-rgb, 46, 204, 113), 0.45) 133px,
+      rgba(var(--theme-rgb, 46, 204, 113), 0.45) 134px),
+    /* Horizontal lines (perpendicular to viewer, recede with
+       perspective). Slightly tighter (90px) so the receding
+       lines paint a solid ground texture. */
+    repeating-linear-gradient(0deg,
+      transparent 0,
+      transparent 89px,
+      rgba(var(--theme-rgb, 46, 204, 113), 0.30) 89px,
+      rgba(var(--theme-rgb, 46, 204, 113), 0.30) 90px),
+    /* Subtle theme glow underwash so even the empty cells
+       between lines pick up a hint of color */
+    radial-gradient(ellipse at center top,
+      rgba(var(--theme-rgb, 46, 204, 113), 0.10) 0%,
+      transparent 60%);
+  /* Fade the floor to black at the far horizon so the lines
+     vanish into shadow rather than a hard tile-edge — that's
+     the Tron "more grid beyond, lost in the dark" cue. */
+  -webkit-mask-image: linear-gradient(180deg,
+    rgba(0,0,0,1) 0%,
+    rgba(0,0,0,0.75) 25%,
+    rgba(0,0,0,0.35) 60%,
+    transparent 100%);
+          mask-image: linear-gradient(180deg,
+    rgba(0,0,0,1) 0%,
+    rgba(0,0,0,0.75) 25%,
+    rgba(0,0,0,0.35) 60%,
+    transparent 100%);
+  z-index: 0;
+}
+
+/* Atmospheric haze. Applied as an overlay on the board-section
+   that fades from clear (near, player side) to soft theme fog
+   (far, enemy side). This is THE classic depth cue — distant
+   things desaturate and tint toward the ambient sky color. */
+.board-section .board-haze {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(180deg,
+    rgba(var(--theme-rgb, 46, 204, 113), 0.32) 0%,
+    rgba(var(--theme-rgb, 46, 204, 113), 0.18) 18%,
+    rgba(var(--theme-rgb, 46, 204, 113), 0.06) 40%,
+    transparent 65%);
+  z-index: 1;
+  /* Add a subtle edge vignette to deepen the "you're inside a
+     room looking down a corridor" feel — corners darken slightly. */
+  box-shadow: inset 0 0 80px 0 rgba(0, 0, 0, 0.6);
+  /* Stays parallel to the lanes so when the board tilts, the
+     haze tilts with it — the "far" of the board IS the foggy
+     part. */
+}
+
+/* HUDs are flat UI panels — they live OUTSIDE the 3D arena
+   like the bezel housing of a TV. No transforms; they sit
+   above and below the arena window as separate, clean panels. */
+#game-area .info-bar.ai-bar,
+#game-area .info-bar.player-bar {
+  position: relative;
+  z-index: 5;
+}
+
+/* The lanes need to render IN FRONT of the floor + haze. */
+.board-section #board {
+  position: relative;
+  z-index: 2;
+}
+
+/* User vision: "Story through colors. White = neutral, player
+   theme = ally only, enemy theme = enemy only, color-mix blend
+   for contested. Color theory: green+red→yellow. Different
+   themes blend to different colors — purple+red different from
+   blue+red different from green+red."
+
+   Implementation: the lane border is painted via a 6-stop linear
+   gradient that always shows:
+     0–3%   = enemy red (the persistent TOP TICK)
+     9–91%  = --lane-mid-color (the OCCUPANCY signal)
+     97–100% = player theme (the persistent BOTTOM TICK)
+   Single CSS variable --lane-mid-color drives the middle band.
+   Default is white (empty/neutral), occupancy classes redefine
+   it. Contested lanes use color-mix() for true light blending. */
+.board-section .lane {
+  /* Empty/neutral lane — uses the SPECIAL tier white from the
+     canonical rarity color system (cost-7/8 cards). User spec:
+     "the white I use is the same as the seven cost and eight
+     cost cards white." Single source of truth for the whole
+     game's "neutral" color. */
+  --lane-mid-color: rgba(240, 245, 250, 0.85);
+  border-image: linear-gradient(180deg,
+      rgba(var(--enemy-r, 231), var(--enemy-g, 76), var(--enemy-b, 60), 0.95)   0%,
+      rgba(var(--enemy-r, 231), var(--enemy-g, 76), var(--enemy-b, 60), 0.95)   3%,
+      var(--lane-mid-color) 9%,
+      var(--lane-mid-color) 91%,
+      rgba(var(--player-r, 79), var(--player-g, 195), var(--player-b, 247), 0.95) 97%,
+      rgba(var(--player-r, 79), var(--player-g, 195), var(--player-b, 247), 0.95) 100%
+    ) 1 !important;
+  border-width: 1px !important;
+  border-style: solid !important;
+  box-shadow: none !important;
+}
+
+/* Ally only — middle band is the player theme color. */
+.board-section .lane.occ-player {
+  --lane-mid-color: rgba(var(--player-r, 79), var(--player-g, 195), var(--player-b, 247), 0.85);
+}
+
+/* Enemy only — middle band is enemy red. */
+.board-section .lane.occ-ai {
+  --lane-mid-color: rgba(var(--enemy-r, 231), var(--enemy-g, 76), var(--enemy-b, 60), 0.85);
+}
+
+/* Contested — the BORDER stays in three discrete zones with
+   HARD edges (no blending). Top half = enemy red. Middle thin
+   band = LEGENDARY GOLD (rgba(255,215,0,0.95)) — the canonical
+   rarity color from the cost-9/10 cards. User spec: "this
+   yellow should be the same yellow you use as in legendaries.
+   Like, just how they were perfect, but I would like the
+   legendaries... that same legendary middle, like, the same
+   gradient behind a legendary card. For the middle." Single
+   source of truth across the game's color vocabulary. */
+.board-section .lane.occ-both {
+  --lane-mid-color: rgba(255, 215, 0, 0.95);
+  border-image: linear-gradient(180deg,
+    rgba(var(--enemy-r, 231), var(--enemy-g, 76), var(--enemy-b, 60), 0.95)   0%,
+    rgba(var(--enemy-r, 231), var(--enemy-g, 76), var(--enemy-b, 60), 0.95)   46%,
+    var(--lane-mid-color) 47%,
+    var(--lane-mid-color) 53%,
+    rgba(var(--player-r, 79), var(--player-g, 195), var(--player-b, 247), 0.95) 54%,
+    rgba(var(--player-r, 79), var(--player-g, 195), var(--player-b, 247), 0.95) 100%
+  ) 1 !important;
+}
+
+/* Hover — brighten the middle band to the player theme color
+   (the "click to play" affordance). Inset glow only — no outer
+   bleed so neighboring lanes don't pick up false highlight. */
+.board-section .lane:hover {
+  --lane-mid-color: rgba(var(--player-r, 79), var(--player-g, 195), var(--player-b, 247), 0.95);
+  box-shadow:
+    inset 0 0 16px rgba(var(--player-r, 79), var(--player-g, 195), var(--player-b, 247), 0.18) !important;
+}
+
+/* ============================================================
+   WAVE 2 — LANE VOLUME (cards stop being flat stickers)
+   ============================================================ */
+
+/* #5 — VOLUMETRIC LANE LIGHT PILLAR
+   Mirrors the --lane-mid-color border system above. A subtle
+   inner glow in the same occupancy color so the lane reads as
+   "filled with this color's energy" — not just outlined.
+   For contested (occ-both) lanes, color-mix() blends the two
+   theme colors so the pillar IS the contested-blend visual
+   (e.g., yellow for green+red). Story-through-color in 3D. */
+.lane.occ-ai::before,
+.lane.occ-player::before,
+.lane.occ-both::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  /* Mid-band soft glow + edge lighting using the same
+     --lane-mid-color the border-image uses. The fade-to-
+     transparent at top/bottom keeps the persistent enemy/player
+     ticks (painted by border-image) the strongest signal at
+     the edges. */
+  background: linear-gradient(180deg,
+    transparent 0%,
+    var(--pillar-tint, transparent) 22%,
+    var(--pillar-tint, transparent) 78%,
+    transparent 100%);
+  box-shadow:
+    inset 18px 0 30px -20px var(--pillar-edge, transparent),
+    inset -18px 0 30px -20px var(--pillar-edge, transparent);
+}
+.lane.occ-ai::before {
+  --pillar-tint: rgba(var(--enemy-r, 231), var(--enemy-g, 76), var(--enemy-b, 60), 0.10);
+  --pillar-edge: rgba(var(--enemy-r, 231), var(--enemy-g, 76), var(--enemy-b, 60), 0.28);
+}
+.lane.occ-player::before {
+  --pillar-tint: rgba(var(--player-r, 79), var(--player-g, 195), var(--player-b, 247), 0.10);
+  --pillar-edge: rgba(var(--player-r, 79), var(--player-g, 195), var(--player-b, 247), 0.28);
+}
+/* Contested pillar — RED top half (behind AI card) → tiny GOLD
+   tint in the middle (where cards meet) → GREEN bottom half
+   (behind player card). The gold appears ONLY on the lane edges
+   (border-image, defined above) — the lane interior just shows
+   subtle red and green halves with no center beam. User spec:
+   "scrap [the gold halo band] idea... make it look regular,
+   just gold." The border-image gold band IS the gold signal;
+   the interior doesn't need to repeat it. */
+.lane.occ-both::before {
+  background: linear-gradient(180deg,
+    transparent 0%,
+    rgba(var(--enemy-r, 231), var(--enemy-g, 76), var(--enemy-b, 60), 0.10) 22%,
+    rgba(var(--enemy-r, 231), var(--enemy-g, 76), var(--enemy-b, 60), 0.10) 46%,
+    transparent 50%,
+    rgba(var(--player-r, 79), var(--player-g, 195), var(--player-b, 247), 0.10) 54%,
+    rgba(var(--player-r, 79), var(--player-g, 195), var(--player-b, 247), 0.10) 78%,
+    transparent 100%);
+  box-shadow:
+    inset 18px 0 30px -20px rgba(var(--enemy-r, 231), var(--enemy-g, 76), var(--enemy-b, 60), 0.28),
+    inset -18px 0 30px -20px rgba(var(--enemy-r, 231), var(--enemy-g, 76), var(--enemy-b, 60), 0.28),
+    inset 0 18px 30px -20px rgba(var(--enemy-r, 231), var(--enemy-g, 76), var(--enemy-b, 60), 0.18),
+    inset 0 -18px 30px -20px rgba(var(--player-r, 79), var(--player-g, 195), var(--player-b, 247), 0.18);
+}
+
+/* #6 — CARD FLOOR SHADOWS
+   Each card on the board casts a soft elliptical shadow on the
+   grid plane beneath it. Implemented as `::after` with rotateX
+   to lay it nearly flat, with a strong blur so it reads as a
+   diffuse contact shadow rather than a hard projection.
+   Anchored to the card's BOTTOM so when the playfield tilts,
+   the shadow stays visually below the card.
+   This sells "the card is a physical token resting on the
+   table" rather than "a sticker pasted to the surface." */
+.card.ally-card::after,
+.card.enemy-card::after {
+  content: '';
+  position: absolute;
+  bottom: -12px;
+  left: 8%;
+  right: 8%;
+  height: 28px;
+  pointer-events: none;
+  background: radial-gradient(ellipse at center,
+    rgba(0,0,0,0.55) 0%,
+    rgba(0,0,0,0.30) 40%,
+    transparent 75%);
+  filter: blur(4px);
+  z-index: -1;
+  /* Lay the shadow flat onto the floor plane. The board tilts
+     forward 10°; the floor under it is rotateX(70°) effectively.
+     This shadow tilts roughly with the floor so it appears to
+     rest on the same plane. */
+  transform: rotateX(60deg);
+  transform-origin: top center;
+  /* Pulse subtly with the lane's living chrome. */
+  opacity: 0.85;
+}
+
+/* #7 — ON-PLAY FLOOR RIPPLE (enhance existing card-landing-ring)
+   The existing card-landing-ring expands as a vertical ring on
+   the card surface. Re-orient it to lay on the FLOOR plane so
+   the ripple radiates outward across the grid like a data-pulse,
+   not floats up off the card. rotateX(60deg) drops it onto the
+   floor; the existing scale-and-fade animation does the rest. */
+.card-landing-ring {
+  transform: translate(-50%, -50%) rotateX(60deg) !important;
+  transform-origin: center center;
+}
+
+/* ============================================================
+   WAVE 3 — CAMERA + IMMERSION POLISH
+   ============================================================ */
+
+/* #8 — MOUSE-PARALLAX CAMERA FOLLOW
+   The cursor's distance from screen center drives a tiny
+   rotateY/X on the entire #game-area, so the whole scene
+   pivots subtly as you "look around." Compose with the
+   existing perspective for a real "I'm in this room" feel.
+   The actual transform values are JS-driven via CSS vars
+   --cam-tx (-1..1) / --cam-ty (-1..1), set by installCameraParallax(). */
+#game-area {
+  /* `transform` here composes with the parent perspective —
+     since we're a 3D context, this rotation becomes a real
+     camera pivot, not a 2D rotation. Magnitudes are tiny
+     (±2°) so the playfield doesn't feel seasick. */
+  transform: rotateY(calc(var(--cam-tx, 0) * 2deg))
+             rotateX(calc(var(--cam-ty, 0) * -1.5deg));
+  transform-origin: center bottom;
+  transition: transform 220ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* #9 — PARTICLES IN TRUE 3D SPACE
+   The existing .game-particle divs got a translateZ via a CSS
+   variable --pz set by JS (0 if not assigned). Combined with
+   the parent's 3D perspective, particles at different Z
+   distances move at different apparent rates when the
+   camera-parallax pivots — actual stereoscopic depth, not
+   layered 2D parallax. Also distance-fade so the deepest
+   particles dim toward the haze color. */
+.game-particle {
+  transform: translateZ(var(--pz, 0px));
+  /* Far particles dim, near ones stay bright. */
+  opacity: calc(0.6 + 0.4 * (1 - abs(var(--pz, 0px) / 250px)));
+}
+
+/* #11 — DEEPER CARD INTERIOR Z-LAYERS (push current values further)
+   Earlier the card hover parallax shifted content layers at
+   4-24px depths. Bumping the deepest layers (cost orb, stat
+   circles) pushes the "card holds a miniature 3D world" feel
+   further — when tilted, you visibly see PAST the card body. */
+.hand-card-wrapper:hover .card.hand-card .card-cost {
+  transform: translateZ(40px) !important;
+}
+.hand-card-wrapper:hover .card.hand-card .stat-circle {
+  transform: translateZ(28px) !important;
+}
+.hand-card-wrapper:hover .card.hand-card .status-badges {
+  transform: translateZ(20px) !important;
+}
+.hand-card-wrapper:hover .card.hand-card .card-name-banner {
+  transform: translateZ(12px) !important;
+}
+.hand-card-wrapper:hover .card.hand-card .card-desc {
+  transform: translateZ(6px) !important;
+}
+
+/* ============================================================
+   TRON RETRO POLISH — A, B, D from the suggestion list
+   ============================================================ */
+
+/* Polish A — CRT SCANLINES on the arena ONLY. Subtle horizontal
+   scan lines drift slowly down the arena, simulating an old
+   CRT broadcasting the Tron signal. Pure decoration; never
+   eats clicks. The animation moves at 12s per cycle so it's
+   ambient, not distracting. Stays inside .board-section's
+   overflow:hidden so it never bleeds into HUDs.
+   Lives as a dedicated DIV (not ::before) because ::before is
+   reserved by the existing round-transition sweep system. */
+.board-section .crt-scanlines {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 6;
+  background:
+    /* Two-line scanline pattern at 3px stride */
+    repeating-linear-gradient(0deg,
+      transparent 0,
+      transparent 2px,
+      rgba(255, 255, 255, 0.025) 2px,
+      rgba(255, 255, 255, 0.025) 3px);
+  /* Slow vertical drift — CRT raster scan feel */
+  animation: crtScanDrift 12s linear infinite;
+  /* Subtle screen-blend so the lines glow rather than darken */
+  mix-blend-mode: screen;
+}
+@keyframes crtScanDrift {
+  0%   { background-position: 0 0; }
+  100% { background-position: 0 60px; }
+}
+
+/* (Carrier-stripe removed per user feedback: "a bunch of green
+   on top below the enemy health bar... a lot of extra stuff."
+   It was the prominent green horizontal beam at the top of the
+   arena. Cleaner without it.) */
+.board-section .carrier-stripe { display: none !important; }
+
+/* Polish D — BOOT-UP SCAN. Bright horizontal scan line travels
+   top→bottom across the arena once at round start, like a CRT
+   powering on. Default state: invisible. JS adds .boot-scan
+   class to .board-section to trigger the 1.2s animation on
+   the inner .boot-scan-beam element. */
+.board-section .boot-scan-beam {
+  position: absolute;
+  left: 0; right: 0;
+  top: 0;
+  height: 4px;
+  background: linear-gradient(90deg,
+    transparent 0%,
+    rgba(var(--theme-rgb, 46, 204, 113), 1) 50%,
+    transparent 100%);
+  box-shadow:
+    0 0 16px rgba(var(--theme-rgb, 46, 204, 113), 0.95),
+    0 0 32px rgba(var(--theme-rgb, 46, 204, 113), 0.55),
+    0 0 64px rgba(var(--theme-rgb, 46, 204, 113), 0.30);
+  pointer-events: none;
+  z-index: 7;
+  opacity: 0;
+}
+.board-section.boot-scan .boot-scan-beam {
+  animation: bootScan 1.2s cubic-bezier(0.4, 0, 0.6, 1) forwards;
+}
+@keyframes bootScan {
+  0%   { top: 0;    opacity: 0; }
+  10%  { opacity: 1; }
+  85%  { opacity: 1; }
+  100% { top: 100%; opacity: 0; }
+}
+
+/* ============================================================
+   COLOR INVASION — winning side's color bleeds into the loser's
+   UI as the game progresses. Vars come from JS via
+   _updateDominanceVars() each render. Smooth 800ms transitions
+   make changes feel atmospheric, not flashy.
+     --player-dominance : 0..1  (how much player leads in lane control)
+     --enemy-dominance  : 0..1  (how much enemy leads)
+   At most one is >0 at a time; the other is 0. "Confident"
+   intensity = 50% mix at full dominance. User can dial up/down.
+   ============================================================ */
+
+/* COLOR INVASION — HARD-EDGE LINE CONVERSION
+   User spec: "instead of having, like, this weird green overlay,
+   I would rather it just the red starts to turn into green...
+   some of the lines start to turn green. I never want green and
+   red to make, like, go over one another or any color for that
+   matter. I want there to be distinct lines when the color
+   starts and stops."
+   Replaces the previous color-mix overlay (which BLENDED red→
+   olive→green) with a HARD-STOP linear-gradient on the border-
+   image. The LEFT N% of the border is literally PLAYER COLOR.
+   The RIGHT (100-N)% is literally ENEMY RED. There's a hard cut
+   between them — no blending, no overlay, no muddy middle.
+   Capped at 60% conversion so the loser's HUD always retains
+   identity color on the right edge. */
+.info-bar.ai-bar {
+  /* The dominance position determines where the hard color cut
+     happens. At dominance 0.6 → cut at 60% (LEFT 60% green,
+     RIGHT 40% red). */
+  --inv-stop: calc(var(--player-dominance, 0) * 60%);
+  border-image-source: linear-gradient(90deg,
+    rgba(var(--player-r, 79), var(--player-g, 195), var(--player-b, 247), 0.95) 0%,
+    rgba(var(--player-r, 79), var(--player-g, 195), var(--player-b, 247), 0.95) var(--inv-stop),
+    rgba(var(--enemy-r, 231), var(--enemy-g, 76), var(--enemy-b, 60), 0.95) var(--inv-stop),
+    rgba(var(--enemy-r, 231), var(--enemy-g, 76), var(--enemy-b, 60), 0.95) 100%) !important;
+  border-image-slice: 1 !important;
+  /* Halo: weakens proportionally as dominance grows so the
+     invaded HUD literally dims as its lines convert. No green
+     glow added — the line conversion IS the signal. */
+  box-shadow:
+    0 0 6px rgba(var(--enemy-r, 231), var(--enemy-g, 76), var(--enemy-b, 60),
+      calc(0.45 * (1 - var(--player-dominance, 0) * 0.6))),
+    0 0 12px rgba(var(--enemy-r, 231), var(--enemy-g, 76), var(--enemy-b, 60),
+      calc(0.22 * (1 - var(--player-dominance, 0) * 0.6))) !important;
+  transition: border-image-source 800ms ease-out, box-shadow 800ms ease-out;
+}
+
+.info-bar.player-bar {
+  --inv-stop: calc(var(--enemy-dominance, 0) * 60%);
+  border-image-source: linear-gradient(90deg,
+    rgba(var(--enemy-r, 231), var(--enemy-g, 76), var(--enemy-b, 60), 0.95) 0%,
+    rgba(var(--enemy-r, 231), var(--enemy-g, 76), var(--enemy-b, 60), 0.95) var(--inv-stop),
+    rgba(var(--player-r, 79), var(--player-g, 195), var(--player-b, 247), 0.95) var(--inv-stop),
+    rgba(var(--player-r, 79), var(--player-g, 195), var(--player-b, 247), 0.95) 100%) !important;
+  border-image-slice: 1 !important;
+  box-shadow:
+    0 0 6px rgba(var(--player-r, 79), var(--player-g, 195), var(--player-b, 247),
+      calc(0.30 * (1 - var(--enemy-dominance, 0) * 0.6))),
+    0 0 12px rgba(var(--player-r, 79), var(--player-g, 195), var(--player-b, 247),
+      calc(0.18 * (1 - var(--enemy-dominance, 0) * 0.6))) !important;
+  transition: border-image-source 800ms ease-out, box-shadow 800ms ease-out;
+}
+
+/* HUD content: only .bar-cell children need z-index promotion
+   (NOT the SVG .ai-thinking-ring — see grid-row phantom-row bug
+   from earlier). */
+.info-bar > .bar-cell { position: relative; z-index: 2; }
+
+/* EMPTY LANE BIAS — empty lanes shift slightly toward the
+   dominant side's color. At full dominance, white lanes pick
+   up a 12% color bias. Subtle but cumulative — a board with
+   4-of-6 player lanes will have its 2 empties subtly green-
+   tinted, a board you're losing has empties red-tinted. */
+.board-section .lane.occ-none {
+  --lane-mid-color: color-mix(in srgb,
+    rgba(255, 255, 255, 0.30) calc(100% - (var(--player-dominance, 0) + var(--enemy-dominance, 0)) * 12%),
+    color-mix(in srgb,
+      rgba(var(--player-r, 79), var(--player-g, 195), var(--player-b, 247), 0.30)
+        calc(50% + (var(--player-dominance, 0) - var(--enemy-dominance, 0)) * 50%),
+      rgba(var(--enemy-r, 231), var(--enemy-g, 76), var(--enemy-b, 60), 0.30)
+        calc(50% - (var(--player-dominance, 0) - var(--enemy-dominance, 0)) * 50%))
+    calc((var(--player-dominance, 0) + var(--enemy-dominance, 0)) * 12%));
+  transition: border-image 800ms ease-out;
+}
+
+/* Reduced-motion users get the old flat 2D view. The 3D
+   perspective tilt can trigger motion-sensitivity issues, so
+   we honor the OS preference. */
+@media (prefers-reduced-motion: reduce) {
+  #game-area {
+    perspective: none;
+    transform: none !important;
+  }
+  .board-section {
+    transform: none;
+    transform-style: flat;
+    border: 1px solid rgba(var(--theme-rgb, 46, 204, 113), 0.6);
+    box-shadow: none;
+  }
+  .board-section .crt-scanlines { display: none; }
+  .board-section .boot-scan-beam { display: none; }
+  .board-section .carrier-stripe { animation: none; }
+  #game-area .info-bar.ai-bar,
+  #game-area .info-bar.player-bar { transform: none; }
+  .lane.occ-ai::before,
+  .lane.occ-player::before,
+  .lane.occ-both::before { display: none; }
+  .card.ally-card::after,
+  .card.enemy-card::after { display: none; }
+  .card-landing-ring { transform: translate(-50%, -50%) !important; }
+  .game-particle { transform: none; }
+}
+
+/* ============================================================
+   SANDBOX (dev playtest panel) — floating overlay with a
+   card-search field, action buttons, and a click-to-spawn list.
+   Triggered by main-menu Sandbox option OR `~` hotkey in-game.
+   ============================================================ */
+.sandbox-overlay {
+  position: fixed;
+  top: 80px; right: 16px;
+  width: 340px; max-height: 80vh;
+  z-index: 200;
+  display: none;
+  font-family: 'Rajdhani', sans-serif;
+}
+.sandbox-overlay[style*="display: flex"] { display: flex !important; }
+.sandbox-panel {
+  width: 100%;
+  background: #060a12;
+  border: 1px solid rgba(var(--theme-rgb, 46, 204, 113), 0.85);
+  border-radius: 6px;
+  box-shadow:
+    0 0 12px rgba(var(--theme-rgb, 46, 204, 113), 0.45),
+    0 0 24px rgba(var(--theme-rgb, 46, 204, 113), 0.18),
+    0 8px 32px rgba(0, 0, 0, 0.75);
+  display: flex; flex-direction: column;
+  overflow: hidden;
+}
+.sandbox-header {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 10px 14px;
+  border-bottom: 1px solid rgba(var(--theme-rgb, 46, 204, 113), 0.45);
+  background: linear-gradient(180deg, rgba(var(--theme-rgb, 46, 204, 113), 0.10), rgba(var(--theme-rgb, 46, 204, 113), 0));
+}
+.sandbox-title {
+  font-weight: 700; letter-spacing: 3px;
+  color: rgb(var(--theme-rgb, 46, 204, 113));
+  text-shadow: 0 0 8px rgba(var(--theme-rgb, 46, 204, 113), 0.6);
+}
+.sandbox-close {
+  background: transparent; border: none; cursor: pointer;
+  font-size: 22px; line-height: 1;
+  color: rgba(var(--theme-rgb, 46, 204, 113), 0.85);
+}
+.sandbox-close:hover { color: #fff; }
+.sandbox-controls {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 6px;
+  padding: 8px 12px;
+  border-bottom: 1px solid rgba(var(--theme-rgb, 46, 204, 113), 0.25);
+}
+.sandbox-btn {
+  background: rgba(var(--theme-rgb, 46, 204, 113), 0.10);
+  border: 1px solid rgba(var(--theme-rgb, 46, 204, 113), 0.55);
+  color: #d6e3eb;
+  font-family: inherit;
+  font-size: 12px; font-weight: 600;
+  letter-spacing: 1px;
+  padding: 8px 10px;
+  cursor: pointer;
+  border-radius: 3px;
+  transition: background 120ms;
+}
+.sandbox-btn:hover {
+  background: rgba(var(--theme-rgb, 46, 204, 113), 0.25);
+}
+.sandbox-search {
+  margin: 8px 12px 6px;
+  padding: 8px 10px;
+  background: #0a0e16;
+  border: 1px solid rgba(var(--theme-rgb, 46, 204, 113), 0.45);
+  color: #f0f6fb;
+  font-family: inherit;
+  font-size: 13px;
+  border-radius: 3px;
+}
+.sandbox-search:focus {
+  outline: none;
+  border-color: rgba(var(--theme-rgb, 46, 204, 113), 0.95);
+  box-shadow: 0 0 6px rgba(var(--theme-rgb, 46, 204, 113), 0.55);
+}
+.sandbox-list {
+  flex: 1 1 auto;
+  overflow-y: auto;
+  padding: 4px 12px 12px;
+  max-height: 50vh;
+  font-size: 12px;
+}
+.sb-row {
+  display: grid;
+  grid-template-columns: 24px 1fr 50px 40px;
+  gap: 8px;
+  align-items: center;
+  padding: 6px 8px;
+  border-radius: 3px;
+  cursor: pointer;
+  transition: background 100ms;
+  border: 1px solid transparent;
+}
+.sb-row:hover {
+  background: rgba(var(--theme-rgb, 46, 204, 113), 0.10);
+  border-color: rgba(var(--theme-rgb, 46, 204, 113), 0.40);
+}
+.sb-cost {
+  width: 22px; height: 22px;
+  display: inline-flex; justify-content: center; align-items: center;
+  border: 1px solid rgba(var(--theme-rgb, 46, 204, 113), 0.65);
+  border-radius: 50%;
+  font-weight: 700;
+  background: #000;
+  color: rgba(var(--theme-rgb, 46, 204, 113), 1);
+}
+.sb-name {
+  color: #e6ecf2;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+}
+.sb-stats {
+  color: rgba(255, 255, 255, 0.55);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+.sb-kind {
+  color: rgba(155, 89, 182, 0.85);
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 1.5px;
+  text-align: right;
+}
+.sb-row.sb-trick .sb-cost {
+  border-color: rgba(155, 89, 182, 0.65);
+  color: rgba(217, 165, 255, 1);
+}
+.sb-empty {
+  text-align: center; padding: 16px;
+  color: rgba(255, 255, 255, 0.4);
+}
+.sandbox-hint {
+  padding: 6px 12px 10px;
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.5);
+  border-top: 1px solid rgba(var(--theme-rgb, 46, 204, 113), 0.20);
+}
+.sandbox-hint kbd {
+  background: rgba(var(--theme-rgb, 46, 204, 113), 0.18);
+  padding: 1px 6px;
+  border-radius: 2px;
+  font-family: 'Rajdhani', monospace;
+}
+
+/* ============================================================
+   AAA PASS — PERSISTENT DAMAGE MARKS
+   Cards that took damage but survived show physical scarring.
+   Three tiers: card-scarred (light), card-scarred-heavy (≥40%
+   damage), card-scarred-crit (1 HP left). The overlay is a
+   pseudo-element on the card that paints SVG-like cracks via a
+   layered mask of repeating-conic gradients + a clip-path
+   variant. Composes UNDER stat circles (z:1) so badges still
+   read clearly. JS sets --scar-variant 0..3 to vary the shape.
+   ============================================================ */
+.card.card-scarred { position: relative; }
+.card.card-scarred::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 1;
+  /* Variant base — four cracking patterns rotated/skewed by the
+     --scar-variant value (0..3). Each is a thin diagonal crack
+     painted via two overlaid linear-gradients with hard color
+     stops, plus a chip of dark soot. Using calc(var(...) * 90deg)
+     would over-rotate; we use individual rotations 18deg / 108deg
+     / 198deg / 288deg so each card gets a different "fall line"
+     for the crack. */
+  --scar-rot: calc(18deg + var(--scar-variant, 0) * 90deg);
+  background:
+    /* Primary crack — thin sharp dark line */
+    linear-gradient(
+      var(--scar-rot),
+      transparent 0%,
+      transparent 38%,
+      rgba(15, 4, 6, 0.55) 39%,
+      rgba(85, 20, 25, 0.30) 40%,
+      transparent 41%,
+      transparent 100%
+    ),
+    /* Secondary spider crack — perpendicular, fainter */
+    linear-gradient(
+      calc(var(--scar-rot) + 76deg),
+      transparent 0%,
+      transparent 49%,
+      rgba(15, 4, 6, 0.30) 50%,
+      transparent 51%,
+      transparent 100%
+    ),
+    /* Soot smudge — a faint dark blot near the crack origin */
+    radial-gradient(
+      ellipse 38% 32% at 30% 70%,
+      rgba(15, 4, 6, 0.18) 0%,
+      transparent 60%
+    );
+  background-blend-mode: multiply, multiply, multiply;
+  mix-blend-mode: multiply;
+  opacity: 0.55;
+  border-radius: inherit;
+  /* Mask the cracks to the card body so they don't bleed past
+     rounded corners. */
+  -webkit-mask: linear-gradient(#000, #000);
+          mask: linear-gradient(#000, #000);
+}
+
+/* Heavy damage — second crack layer + a chipped corner. The
+   ::after on a scarred card paints a forking secondary crack
+   that doesn't overlap the primary, giving "the surface is
+   really compromised" read at a glance. */
+.card.card-scarred-heavy::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 1;
+  --scar-rot2: calc(var(--scar-variant, 0) * 90deg + 142deg);
+  background:
+    /* Forking crack — Y-junction painted with two overlapping
+       hard-edged linears. */
+    linear-gradient(
+      var(--scar-rot2),
+      transparent 0%,
+      transparent 28%,
+      rgba(8, 2, 3, 0.65) 29%,
+      rgba(120, 30, 40, 0.32) 30%,
+      transparent 31%,
+      transparent 65%,
+      rgba(8, 2, 3, 0.50) 66%,
+      transparent 67%,
+      transparent 100%
+    ),
+    /* Branch fork */
+    linear-gradient(
+      calc(var(--scar-rot2) - 32deg),
+      transparent 0%,
+      transparent 60%,
+      rgba(8, 2, 3, 0.45) 61%,
+      transparent 62%,
+      transparent 100%
+    );
+  background-blend-mode: multiply, multiply;
+  mix-blend-mode: multiply;
+  opacity: 0.78;
+  border-radius: inherit;
+  /* Add a faint red rim wash on heavy damage — telegraphs "this
+     card is in serious trouble" without competing with the
+     existing 1-HP red rim. */
+  box-shadow: inset 0 0 14px rgba(180, 35, 45, 0.18);
+}
+
+/* Critical (1 HP, ≥3 max) — full shatter. Adds a dense crack
+   web by intensifying both layers and bumping opacity. Composes
+   on top of the .card-hp-critical red-rim glow rule above so
+   the card reads "scarred AND on the edge of death." */
+.card.card-scarred-crit::before {
+  opacity: 0.78;
+}
+.card.card-scarred-crit::after {
+  opacity: 0.92;
+  box-shadow:
+    inset 0 0 18px rgba(220, 50, 60, 0.30),
+    inset 0 0 4px rgba(15, 4, 6, 0.45);
+}
+
+/* Reduced motion — keep the marks (they're not motion) but
+   knock the heavy/crit layers down a notch since the visual
+   complexity can be overstimulating. */
+@media (prefers-reduced-motion: reduce) {
+  .card.card-scarred::before          { opacity: 0.42; }
+  .card.card-scarred-heavy::after     { opacity: 0.55; }
+  .card.card-scarred-crit::before     { opacity: 0.55; }
+  .card.card-scarred-crit::after      { opacity: 0.65; }
+}
+
+/* ============================================================
+   AAA PASS — KILL-CAM MICRO-CINEMA
+   Layered on top of the existing 90ms hit-pause / 220ms killing-
+   blow cinema for board-card kills (NOT face damage). When a
+   board card dies, body gets `.killcam` for 320ms which drives:
+     • a brief 6% saturation drop on .board (everything but the
+       kill desaturates so the eye locks on)
+     • a radial flash anchored at --kc-x/--kc-y (the killed card's
+       position, set by JS)
+     • a brief outline pop on the killed card's lane slot
+   The hit-pause already freezes everything — this just paints
+   the freeze. Skipped under reduced-motion.
+   ============================================================ */
+body.killcam .board {
+  filter: saturate(0.78) brightness(1.04);
+  transition: filter 80ms ease-out;
+}
+body.killcam .board::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 5;
+  background: radial-gradient(circle 200px at var(--kc-x, 50%) var(--kc-y, 50%),
+    rgba(255, 235, 200, 0.32) 0%,
+    rgba(231, 76, 60, 0.20) 18%,
+    transparent 60%);
+  animation: killcamFlash 320ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  mix-blend-mode: screen;
+}
+@keyframes killcamFlash {
+  0%   { opacity: 0; transform: scale(0.6); }
+  18%  { opacity: 1; transform: scale(1.0); }
+  60%  { opacity: 0.55; transform: scale(1.05); }
+  100% { opacity: 0;   transform: scale(1.15); }
+}
+
+/* The killed card itself (briefly tagged before death cleanup)
+   gets a pop-out scale + warm rim flash. The class is removed
+   when renderBoard re-builds, so no cleanup needed. */
+.card.card-killcam-target {
+  animation: killcamPop 320ms cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+  z-index: 7;
+}
+@keyframes killcamPop {
+  0%   { transform: scale(1.0);  filter: none; }
+  35%  { transform: scale(1.10); filter: brightness(1.4) saturate(1.2) drop-shadow(0 0 16px rgba(255, 200, 150, 0.7)); }
+  100% { transform: scale(1.0);  filter: brightness(1.0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  body.killcam .board                 { filter: none; }
+  body.killcam .board::before         { display: none; }
+  .card.card-killcam-target           { animation: none; }
+}
+
+/* ============================================================
+   AAA PASS — COMBAT ANTICIPATION PULSE
+   Body gets `.combat-anticipate` for ~320ms right before lane-
+   by-lane combat resolution kicks off. Drives a brief warm
+   theme-tinted screen wash (very subtle, ~6% peak alpha) plus a
+   tightening ring anchored center-board. Pairs with a Web Audio
+   sub-bass thump scheduled in JS at the same moment. Reads as
+   "OK, here we go" without obscuring the action.
+   ============================================================ */
+body.combat-anticipate::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 9985;
+  background: radial-gradient(ellipse 120% 80% at 50% 50%,
+    transparent 0%,
+    rgba(var(--theme-rgb, 79, 195, 247), 0.06) 55%,
+    rgba(var(--theme-rgb, 79, 195, 247), 0.16) 100%);
+  animation: combatAnticipateWash 320ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+body.combat-anticipate::after {
+  content: '';
+  position: fixed;
+  left: 50%; top: 50%;
+  width: 120vmin; height: 120vmin;
+  margin-left: -60vmin; margin-top: -60vmin;
+  pointer-events: none;
+  z-index: 9986;
+  border: 2px solid rgba(var(--theme-rgb, 79, 195, 247), 0.55);
+  border-radius: 50%;
+  box-shadow:
+    0 0 24px rgba(var(--theme-rgb, 79, 195, 247), 0.40),
+    inset 0 0 18px rgba(var(--theme-rgb, 79, 195, 247), 0.25);
+  animation: combatAnticipateRing 360ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  opacity: 0;
+}
+@keyframes combatAnticipateWash {
+  0%   { opacity: 0; }
+  25%  { opacity: 1; }
+  100% { opacity: 0; }
+}
+@keyframes combatAnticipateRing {
+  0%   { transform: scale(1.30); opacity: 0; }
+  35%  { transform: scale(1.00); opacity: 1; }
+  100% { transform: scale(0.55); opacity: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  body.combat-anticipate::before,
+  body.combat-anticipate::after { display: none; }
+}
+
+/* ============================================================
+   AAA PASS — RUN-END SHARE CARD
+   Modal anchored to the game-over overlay. Wrapped in its own
+   container so it can be torn down without disturbing the stats
+   panel. Renders a 1080×1080 canvas summary the user can save
+   or copy to clipboard. Image generation is in JS; styles here
+   just frame the modal + give the buttons consistent chrome.
+   ============================================================ */
+.share-card-modal {
+  position: fixed;
+  inset: 0;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.72);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  z-index: 11000;
+}
+.share-card-modal.open { display: flex; }
+.share-card-modal .scm-frame {
+  background: linear-gradient(180deg, rgba(8, 14, 22, 0.96), rgba(4, 8, 14, 0.96));
+  border: 2px solid rgba(var(--theme-rgb, 79, 195, 247), 0.55);
+  box-shadow:
+    0 0 32px rgba(var(--theme-rgb, 79, 195, 247), 0.30),
+    0 12px 48px rgba(0, 0, 0, 0.55);
+  padding: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  align-items: center;
+  max-width: 92vw;
+  max-height: 92vh;
+}
+.share-card-modal canvas.scm-canvas {
+  width: min(440px, 80vw);
+  height: min(440px, 80vw);
+  background: #050a10;
+  border: 1px solid rgba(var(--theme-rgb, 79, 195, 247), 0.30);
+  display: block;
+}
+.share-card-modal .scm-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+.share-card-modal .scm-btn {
+  background: rgba(var(--theme-rgb, 79, 195, 247), 0.12);
+  border: 1px solid rgba(var(--theme-rgb, 79, 195, 247), 0.55);
+  color: rgba(255, 255, 255, 0.92);
+  padding: 8px 18px;
+  font-family: 'Rajdhani', sans-serif;
+  font-weight: 700;
+  font-size: 14px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  cursor: pointer;
+  transition: background 120ms ease;
+}
+.share-card-modal .scm-btn:hover {
+  background: rgba(var(--theme-rgb, 79, 195, 247), 0.22);
+}
+.share-card-modal .scm-btn.scm-btn-secondary {
+  border-color: rgba(255, 255, 255, 0.22);
+  background: rgba(255, 255, 255, 0.04);
+}
+.share-card-modal .scm-btn.scm-btn-secondary:hover {
+  background: rgba(255, 255, 255, 0.10);
+}
+.share-card-modal .scm-toast {
+  font-size: 12px;
+  font-family: 'Rajdhani', sans-serif;
+  color: rgba(var(--theme-rgb, 79, 195, 247), 0.85);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  opacity: 0;
+  transition: opacity 200ms ease;
+  height: 14px;
+}
+.share-card-modal .scm-toast.show { opacity: 1; }
+
+/* Game-over screen "Share Card" trigger button — matches the
+   existing rematch/main-menu chrome but tinted theme accent. */
+.game-over-actions .game-over-btn-share {
+  background: rgba(var(--theme-rgb, 79, 195, 247), 0.16);
+  border-color: rgba(var(--theme-rgb, 79, 195, 247), 0.55);
+}
+.game-over-actions .game-over-btn-share:hover {
+  background: rgba(var(--theme-rgb, 79, 195, 247), 0.28);
+}
+
+/* ============================================================
+   AAA POLISH PASS — TRON CENTERLINE ACCENT
+   ============================================================
+   The board already has a faint motherboard-dot grid (line ~26016,
+   user-validated aesthetic). What it's missing is a CENTERPIECE —
+   a horizontal "datastream" between the ally and enemy lane bands.
+   This single accent gives the play area a designed focal point
+   without disturbing the existing background pattern.
+   ============================================================ */
+/* Datastream strip — the centerpiece anchor between ally and
+   enemy lane rows. A thin horizontal line where AI lanes meet
+   player lanes. Sits at the board's vertical center via
+   absolute-positioned ::before on .board (which has
+   position:relative from existing rules). Pulse animates its
+   opacity slowly so it feels alive. */
+.board {
+  position: relative;
+}
+.board::before {
+  content: '';
+  position: absolute;
+  left: 0; right: 0;
+  top: 50%;
+  height: 1px;
+  pointer-events: none;
+  z-index: 0;
+  background: linear-gradient(90deg,
+    transparent 0%,
+    rgba(var(--theme-rgb, 79, 195, 247), 0.20) 18%,
+    rgba(var(--theme-rgb, 79, 195, 247), 0.45) 50%,
+    rgba(var(--theme-rgb, 79, 195, 247), 0.20) 82%,
+    transparent 100%);
+  box-shadow:
+    0 0 8px rgba(var(--theme-rgb, 79, 195, 247), 0.35),
+    0 0 24px rgba(var(--theme-rgb, 79, 195, 247), 0.12);
+  animation: aaaCenterlinePulse 6s ease-in-out infinite;
+  transform-origin: center;
+}
+@keyframes aaaCenterlinePulse {
+  0%, 100% { opacity: 0.55; }
+  50%      { opacity: 1.0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .board-section { animation: none; }
+  .board::before { animation: none; opacity: 0.6; }
+}
+
+/* ============================================================
+   AAA POLISH PASS — CARD PORTRAITS
+   ============================================================
+   Painted character art extracted from the user's V2 Photoshop
+   templates (see tools/extract_card_art.py). Sits between the
+   name banner and the description text. Uses background-image
+   on a div (not <img>) so we can crop with object-fit: cover
+   semantics via background-size: cover and avoid layout shift
+   when a portrait fails to load. If the PNG is missing the div
+   stays empty — no broken image icon.
+   ============================================================ */
+/* ----------------------------------------------------------------
+   RARITY-TINTED CARD CHROME (--rarity-rgb)
+   ----------------------------------------------------------------
+   One CSS variable per cost tier drives the color of the portrait
+   frame and outer rim glow — so each card's painting reads as part
+   of the same chromatic family as its existing card border (--card-
+   edge at line ~5920). The rarity palette is HARD-CODED per tier
+   and does NOT follow --theme-rgb, matching the existing card-edge
+   spec. (Earlier this used theme-rgb which made cost-4/5/6 portrait
+   frames go green when the theme was green, while the card border
+   stayed cyan — a chromatic mismatch the user flagged.)
+     • cost 0-3  → green   (46, 204, 113)
+     • cost 4-6  → cyan    (79, 195, 247)  — fixed, NOT theme-rgb
+     • cost 7-8  → silver  (240, 245, 250)
+     • cost 9-10 → gold    (255, 215, 100)
+   ---------------------------------------------------------------- */
+.card.cost-0,  .card.cost-1, .card.cost-2,  .card.cost-3  { --rarity-rgb: 46, 204, 113; }
+.card.cost-4,  .card.cost-5, .card.cost-6                { --rarity-rgb: 79, 195, 247; }
+.card.cost-7,  .card.cost-8                              { --rarity-rgb: 240, 245, 250; }
+.card.cost-9,  .card.cost-10                             { --rarity-rgb: 255, 215, 100; }
+
+/* ----------------------------------------------------------------
+   SIMPLIFIED PORTRAIT — MINIMAL CHROME, NO EFFECTS LAYER STACK
+   ----------------------------------------------------------------
+   User feedback ("I liked the original design with no art... too
+   much going on, clashing styles, game running slower") triggered
+   a from-scratch rewrite. The previous stack ran on every card:
+     • background-blend-mode multi-layer (scanlines + RGB subpixels)
+     • mix-blend-mode cursor-tracked iridescent rainbow + gem facet
+     • ::before/::after pseudo-element overlays
+     • screen-breath keyframe animation
+     • 6+ inset shadow layers (recessed ring + concentric bezel +
+       cursor-tracked highlight/shadow + monitor bezel)
+     • drop shadow
+
+   That's ~90% of the per-portrait GPU cost and most of it was
+   fighting the painting's own composition. The redesigned rule
+   below keeps ONLY what reads:
+
+     • The painting (background-image only, no blend modes)
+     • A thin rarity-tinted frame
+     • A soft inner vignette so edges feather into the card body
+     • A simple drop shadow for depth
+     • Card name overlay strip at the bottom (replaces removed
+       standalone name banner row above the portrait)
+
+   Result: clean read of the painting, the rest of the card chrome
+   stays in the Tron line-work language, no clashing.
+   ---------------------------------------------------------------- */
+/* --portrait-frame-rgb MOVED UP to the .card level so it cascades to
+   ALL card children — .card-data-divider, .card-desc, .status-badges
+   all read it for their context color. Previously it was scoped to
+   .card-portrait, so siblings got the fallback cyan regardless of
+   the card's actual rarity/faction tier. */
+.card {
+  --portrait-frame-rgb: var(--rarity-rgb, 79, 195, 247);
+}
+.card.ally-card  { --portrait-frame-rgb: var(--theme-rgb, 79, 195, 247); }
+.card.enemy-card { --portrait-frame-rgb: 231, 76, 60; }
+
+.card-portrait {
+  /* Sits at the TOP of the card now — the standalone name banner row
+     was removed and the name lives as an overlay strip on the bottom
+     of this portrait (see .card-name-overlay below). Full card width,
+     zero top margin so the portrait flush-mounts to the card's upper
+     edge. Aspect 360:472 (native PNG) keeps the full figure visible. */
+  position: relative;
+  width: 100%;
+  aspect-ratio: 360 / 472;
+  margin: 0 auto 4px;
+  border: 0;
+
+  /* Just the painting — no scanlines, no RGB subpixel tint, no
+     background-blend-mode chain. URL comes from --portrait-bg
+     (set inline by JS). Cover-crop fills the box at native aspect. */
+  background-image: var(--portrait-bg, none);
+  background-size: cover;
+  background-position: center center;
+  background-repeat: no-repeat;
+
+  /* === TRON GEM CONTAINER — soft shading + double-line frame ===
+     The portrait is now framed as a real "container for the gem"
+     per user feedback. Three groups of inset effects:
+
+     (A) Soft cursor-tracked shading — wide-blur highlight + shadow
+         that subtly drifts with cursor position. No hard edges
+         (those snapped weirdly between bright/dark stripes).
+
+     (B) Inner vignette — feathered fade so the painting bleeds into
+         the dark card body at the edges. The user's "blurred edge"
+         preference from their original flipped-card design.
+
+     (C) Tron double-line frame — three layered inset stripes that
+         paint a clean rarity-color outer line + dark gap + faint
+         rarity inner line. Reads as a designed "data window" frame
+         around the painting. Earlier entries in box-shadow paint
+         OVER later, so:
+           1.5px outer rarity stripe  (paints first, visible at edge)
+           3px   dark gap              (paints under, fills 1.5-3px)
+           4px   faint rarity stripe   (paints last, fills 3-4px)
+
+     (D) Outer drop shadow — gem floats off the card surface. */
+  /* --portrait-frame-rgb is now inherited from .card (set up at top
+     of file). Box-shadow uses it for the thin frame line below. */
+  box-shadow:
+    /* Thin context-tinted frame */
+    inset 0 0 0 1px rgba(var(--portrait-frame-rgb), 0.55),
+    /* Soft inner vignette — edges feather into card body */
+    inset 0 0 18px 4px rgba(0, 0, 0, 0.55);
+
+  /* Slight desaturation in rest state — reads as embedded into the
+     card surface rather than a bright sticker on top. */
+  filter: saturate(0.94) brightness(0.97);
+  transition: filter 220ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* ----------------------------------------------------------------
+   [ CARD DATA ] DIVIDER — the seam between painting and stats area.
+   Cyberpunk 2077 augmented-UI pattern: a theme-tinted hairline runs
+   across the card, broken in the center by a small monospace label
+   chip. Visually says "this is where the readout begins." Cheap —
+   one element + ::before line + 4 corner-bracket gradients via
+   background-image.
+   ---------------------------------------------------------------- */
+.card-data-divider {
+  position: relative;
+  height: 12px;
+  margin: 4px 6px 2px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  pointer-events: none;
+}
+.card-data-divider::before {
+  /* The hairline itself — fades in/out at each end so it doesn't
+     cut to a hard edge. Uses --portrait-frame-rgb so it picks up
+     the card's context color (rarity in hand, ally cyan, enemy red). */
+  content: '';
+  position: absolute;
+  left: 0; right: 0;
+  top: 50%;
+  height: 1px;
+  background: linear-gradient(to right,
+    transparent 0%,
+    rgba(var(--portrait-frame-rgb, 79, 195, 247), 0.45) 18%,
+    rgba(var(--portrait-frame-rgb, 79, 195, 247), 0.45) 82%,
+    transparent 100%);
+}
+.card-data-divider::after {
+  /* Four L-bracket caps at the very ends of the hairline — small
+     marks that punctuate the seam (the "corner brackets" pattern
+     applied to the divider). 6px arms in the same context color. */
+  content: '';
+  position: absolute;
+  left: 4px; right: 4px;
+  top: calc(50% - 3px);
+  height: 7px;
+  pointer-events: none;
+  background:
+    /* TL horizontal */ linear-gradient(rgba(var(--portrait-frame-rgb, 79, 195, 247), 0.6), rgba(var(--portrait-frame-rgb, 79, 195, 247), 0.6)) top left / 5px 1px no-repeat,
+    /* TL vertical */   linear-gradient(rgba(var(--portrait-frame-rgb, 79, 195, 247), 0.6), rgba(var(--portrait-frame-rgb, 79, 195, 247), 0.6)) top left / 1px 5px no-repeat,
+    /* TR horizontal */ linear-gradient(rgba(var(--portrait-frame-rgb, 79, 195, 247), 0.6), rgba(var(--portrait-frame-rgb, 79, 195, 247), 0.6)) top right / 5px 1px no-repeat,
+    /* TR vertical */   linear-gradient(rgba(var(--portrait-frame-rgb, 79, 195, 247), 0.6), rgba(var(--portrait-frame-rgb, 79, 195, 247), 0.6)) top right / 1px 5px no-repeat;
+}
+.card-data-divider .cdd-label {
+  /* Center label — small monospace, dark background masks the line. */
+  position: relative;
+  z-index: 1;
+  background: #000;
+  padding: 0 4px;
+  font-family: ui-monospace, 'JetBrains Mono', Menlo, monospace;
+  font-size: 7px;
+  font-weight: 500;
+  letter-spacing: 0.18em;
+  color: rgba(var(--portrait-frame-rgb, 79, 195, 247), 0.75);
+}
+
+/* ----------------------------------------------------------------
+   TERMINAL-STYLE DESCRIPTION — kept the scanline backdrop only.
+   The [ ABILITY ] and [ STATUS ] section labels were REMOVED per
+   user feedback ("it has the text and trait boxes still there, and
+   then it says card data ability — it hasn't been rendered over").
+   The existing "WHEN PLAYED:" prefix in the description and the
+   visible badge pills already function as their own labels — the
+   extra terminal headers were redundant noise stacked on top.
+   The [ CARD DATA ] divider strip remains as the single section
+   marker between the painting and the data readout.
+   ---------------------------------------------------------------- */
+.card .card-desc {
+  /* Subtle scanlines BEHIND the description text only. Scoped to
+     the description so the painting stays clean. Static paint —
+     no blend-mode, no animation. */
+  background-image: repeating-linear-gradient(
+    0deg,
+    transparent 0px,
+    transparent 2px,
+    rgba(var(--portrait-frame-rgb, 79, 195, 247), 0.035) 2px,
+    rgba(var(--portrait-frame-rgb, 79, 195, 247), 0.035) 3px
+  );
+  position: relative;
+}
+
+/* ----------------------------------------------------------------
+   CARD NAME OVERLAY — the name now lives as a translucent strip
+   across the BOTTOM of the portrait, replacing the standalone
+   name-banner row that used to sit above the art. Marvel Snap
+   pattern. One unified visual block instead of stacked sections.
+   ---------------------------------------------------------------- */
+.card-portrait .card-name-overlay {
+  position: absolute;
+  left: 0; right: 0; bottom: 0;
+  /* Dark gradient backdrop so the name reads against any painting */
+  background: linear-gradient(180deg,
+    transparent 0%,
+    rgba(0, 0, 0, 0.55) 35%,
+    rgba(0, 0, 0, 0.92) 100%);
+  color: rgba(255, 255, 255, 0.96);
+  font-family: 'Rajdhani', sans-serif;
+  font-weight: 700;
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  text-align: center;
+  padding: 12px 6px 4px;
+  pointer-events: none;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.85), 0 0 6px rgba(0, 0, 0, 0.55);
+}
+
+/* ============================================================
+   TRON BRIDGE PASS — three art↔chrome bridge layers via the two
+   portrait pseudo-elements. Total cost: zero blend-modes, zero
+   filters, zero animations. Just static paint via gradients.
+
+   ::before = scanlines + color-grade overlay (sells "the painting
+              is a transmission rendered on a tech surface")
+   ::after  = four L-shaped corner brackets (Tron diegetic
+              containment — GMUNK reference)
+   ============================================================ */
+.card-portrait::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  display: block;
+  background:
+    /* Horizontal scanlines — 1px dark every 3px stride at 4% alpha.
+       Reads as "this image is a CRT signal" (Mass Effect codex). */
+    repeating-linear-gradient(
+      0deg,
+      transparent 0px,
+      transparent 2px,
+      rgba(0, 200, 255, 0.045) 2px,
+      rgba(0, 200, 255, 0.045) 3px
+    ),
+    /* Top-down rarity-tinted color-grade — 6% at top, fading to
+       transparent by 45%. Pulls the painting toward the Tron palette
+       without affecting the figure's mid-tones (Destiny 2 subclass
+       tint pattern). Uses --portrait-frame-rgb so it shifts with the
+       card's context: rarity in hand, cyan ally, red enemy. */
+    linear-gradient(
+      180deg,
+      rgba(var(--portrait-frame-rgb, 79, 195, 247), 0.07) 0%,
+      transparent 45%);
+  z-index: 1;
+}
+.card-portrait::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  display: block;
+  /* Four L-shaped corner brackets — 8 stripes via 8 linear-gradients
+     positioned at each corner. Frame color follows the portrait's
+     context (rarity/ally/enemy via --portrait-frame-rgb). */
+  background:
+    /* TL horizontal arm */ linear-gradient(rgba(var(--portrait-frame-rgb, 79, 195, 247), 0.75), rgba(var(--portrait-frame-rgb, 79, 195, 247), 0.75)) top left / 9px 1.5px no-repeat,
+    /* TL vertical arm */   linear-gradient(rgba(var(--portrait-frame-rgb, 79, 195, 247), 0.75), rgba(var(--portrait-frame-rgb, 79, 195, 247), 0.75)) top left / 1.5px 9px no-repeat,
+    /* TR horizontal arm */ linear-gradient(rgba(var(--portrait-frame-rgb, 79, 195, 247), 0.75), rgba(var(--portrait-frame-rgb, 79, 195, 247), 0.75)) top right / 9px 1.5px no-repeat,
+    /* TR vertical arm */   linear-gradient(rgba(var(--portrait-frame-rgb, 79, 195, 247), 0.75), rgba(var(--portrait-frame-rgb, 79, 195, 247), 0.75)) top right / 1.5px 9px no-repeat,
+    /* BL horizontal arm */ linear-gradient(rgba(var(--portrait-frame-rgb, 79, 195, 247), 0.75), rgba(var(--portrait-frame-rgb, 79, 195, 247), 0.75)) bottom left / 9px 1.5px no-repeat,
+    /* BL vertical arm */   linear-gradient(rgba(var(--portrait-frame-rgb, 79, 195, 247), 0.75), rgba(var(--portrait-frame-rgb, 79, 195, 247), 0.75)) bottom left / 1.5px 9px no-repeat,
+    /* BR horizontal arm */ linear-gradient(rgba(var(--portrait-frame-rgb, 79, 195, 247), 0.75), rgba(var(--portrait-frame-rgb, 79, 195, 247), 0.75)) bottom right / 9px 1.5px no-repeat,
+    /* BR vertical arm */   linear-gradient(rgba(var(--portrait-frame-rgb, 79, 195, 247), 0.75), rgba(var(--portrait-frame-rgb, 79, 195, 247), 0.75)) bottom right / 1.5px 9px no-repeat;
+  z-index: 2;
+}
+/* Name overlay (existing child div) sits above the scanlines + brackets. */
+.card-portrait .card-name-overlay { z-index: 3; }
+
+/* (Original sheen rule kept below for legacy reference but now
+   inert due to the new ::before above taking over.) */
+.card-portrait_disabled_sheen {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  display: block;
+  background:
+    /* (1) Gem facet — focused bright radial spot at cursor pos.
+       Cursor at (-1,-1) → spot at (0%, 0%) (upper-left).
+       Cursor at (+1,+1) → spot at (100%, 100%) (lower-right).
+       Linear mapping: pos = 50% + tilt * 50%. */
+    radial-gradient(
+      ellipse 38% 38% at
+        calc(50% + var(--tilt-x, 0) * 50%)
+        calc(50% + var(--tilt-y, 0) * 50%),
+      rgba(255, 255, 255, 0.28) 0%,
+      rgba(255, 255, 255, 0.14) 22%,
+      rgba(255, 255, 255, 0.04) 50%,
+      transparent 75%),
+    /* (2) Conic iridescent rainbow — rotates with cursor. */
+    conic-gradient(
+      from calc(var(--tilt-x, 0) * 90deg + 45deg) at 50% 50%,
+      rgba(255, 130, 130, 0) 0%,
+      rgba(255, 200, 100, 0.12) 18%,
+      rgba(120, 230, 200, 0.14) 38%,
+      rgba(120, 180, 255, 0.16) 55%,
+      rgba(200, 130, 255, 0.14) 75%,
+      rgba(255, 130, 130, 0) 100%);
+  mix-blend-mode: color-dodge;
+  /* Sheen visibility ramps with tilt magnitude — resting cards stay
+     subtle, active cards shimmer. */
+  opacity: calc(0.22 + abs(var(--tilt-x, 0)) * 0.40 + abs(var(--tilt-y, 0)) * 0.22);
+}
+
+/* Hover bumps the sheen baseline so the shimmer is more pronounced
+   when you're actively engaging with a card. */
+.card:hover .card-portrait::before,
+.hand-card-wrapper:hover .card-portrait::before {
+  opacity: calc(0.32 + abs(var(--tilt-x, 0)) * 0.55 + abs(var(--tilt-y, 0)) * 0.35);
+}
+
+/* ----------------------------------------------------------------
+   CORNER ACCENT REINFORCEMENTS — reduced to ~50% per user feedback
+   ("you could probably get rid of the corners, or reduce them by
+   fifty percent"). The Tron double-line frame above is the primary
+   container; these tiny corner glows just reinforce the chamfer
+   geometry where the frame angles meet, so the eye reads them as
+   "tech detail" rather than "decorative corners." Half-alpha vs
+   the previous version, smaller falloff (5% vs 9%).
+   ---------------------------------------------------------------- */
+.card-portrait::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  display: block;
+  background:
+    /* Top-left chamfer reinforcement */
+    linear-gradient(135deg,
+      rgba(var(--rarity-rgb, var(--theme-rgb, 79, 195, 247)), 0.28) 0%,
+      rgba(var(--rarity-rgb, var(--theme-rgb, 79, 195, 247)), 0.08) 2%,
+      transparent 5%),
+    /* Top-right chamfer reinforcement */
+    linear-gradient(225deg,
+      rgba(var(--rarity-rgb, var(--theme-rgb, 79, 195, 247)), 0.28) 0%,
+      rgba(var(--rarity-rgb, var(--theme-rgb, 79, 195, 247)), 0.08) 2%,
+      transparent 5%),
+    /* Bottom-left chamfer reinforcement */
+    linear-gradient(45deg,
+      rgba(var(--rarity-rgb, var(--theme-rgb, 79, 195, 247)), 0.28) 0%,
+      rgba(var(--rarity-rgb, var(--theme-rgb, 79, 195, 247)), 0.08) 2%,
+      transparent 5%),
+    /* Bottom-right chamfer reinforcement */
+    linear-gradient(315deg,
+      rgba(var(--rarity-rgb, var(--theme-rgb, 79, 195, 247)), 0.28) 0%,
+      rgba(var(--rarity-rgb, var(--theme-rgb, 79, 195, 247)), 0.08) 2%,
+      transparent 5%);
+  mix-blend-mode: screen;
+}
+
+/* (Both ::before and ::after are now actively used by the holographic
+   sheen + circuit-corner accents above. The historical display:none
+   overrides were removed when those effects were re-introduced as
+   tilt-aware Tron-flavored layers — different intent than the
+   earlier muddy color wash the user removed.) */
+
+/* HOVER LIFT — saturation comes up + the screen brightens slightly,
+   like the monitor's backlight intensifies when you focus on it.
+   The cursor-following gem facet on ::before already tracks cursor
+   movement, so the hover state just needs to bring the painting
+   forward and pause the breath animation (it's distracting on the
+   focal card). */
+.card:hover .card-portrait,
+.hand-card-wrapper:hover .card-portrait {
+  filter: saturate(1.10) brightness(1.06);
+  animation-play-state: paused;
+}
+
+/* Screen breath — slow brightness pulse mimicking a CRT refresh
+   subtle enough to register as "alive monitor" rather than "thing
+   that's animating." 1.5% brightness range. */
+@keyframes aaaScreenBreath {
+  0%, 100% { filter: saturate(0.92) brightness(0.96); }
+  50%      { filter: saturate(0.94) brightness(0.985); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .card-portrait { animation: none; }
+}
+
+/* Portrait frame color follows the card's CONTEXT, not its tier, once
+   it hits the board. User feedback: "the bevel around the card art
+   needs to match the color of said card. When Batman is in hand,
+   it's gold, but when he's played on board, it's the neon highlight
+   the player has chosen." So:
+     • In hand / codex / draft → --rarity-rgb (cost-tier color)
+     • On board, ally side    → --theme-rgb (player accent, cyan default)
+     • On board, enemy side   → red (231, 76, 60)
+   The default rule above sets --portrait-frame-rgb to rarity; these
+   override per-context. */
+/* (--portrait-frame-rgb is set at .card level now — no need to
+   re-declare here. Just the filter overrides for ally/enemy.) */
+.card.ally-card .card-portrait {
+  filter: saturate(0.94) brightness(0.97);
+}
+.card.enemy-card .card-portrait {
+  filter: saturate(0.90) brightness(0.94) hue-rotate(-4deg);
+}
+.card.ally-card:hover .card-portrait {
+  filter: saturate(1.05) brightness(1.04);
+}
+.card.enemy-card:hover .card-portrait {
+  filter: saturate(1.02) brightness(1.0) hue-rotate(-4deg);
+}
+
+/* AAA POLISH PASS — HEX PIP ENERGY ROW — REMOVED PER USER FEEDBACK
+   ("whatever is on the left of the Diamond Energy Ring, you can
+   get rid of that"). The pip row competed with the existing diamond
+   for attention; the integer alone is the cleaner read. The
+   renderEnergyOrbs JS still creates the .energy-pips container but
+   we hide it here so any leftover DOM from cached pages stays
+   invisible. New JS path also stops creating the pips entirely. */
+.energy-pips { display: none !important; }
+
+/* AAA POLISH PASS — HP NEXUS BLOCKS — REMOVED PER USER FEEDBACK
+   ("don't like the little sticker behind the health number"). The
+   hex frame around the HP integer was visually noisy; the existing
+   HP bar is sufficient. Hit-shake animation is also dropped since
+   the frame was its main carrier. */
+
+/* ============================================================
+   AAA POLISH PASS — ROUND-TICK OVERLAY
+   ============================================================
+   Body class .round-tick fired by JS for ~700ms at round start.
+   Triggers: a thin gradient sweep across the centerline + a
+   single luminance pulse on the board grid.
+   ============================================================ */
+body.round-tick .board::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 4;
+  background: linear-gradient(90deg,
+    transparent 0%,
+    rgba(var(--theme-rgb, 79, 195, 247), 0.18) 35%,
+    rgba(255, 255, 255, 0.32) 50%,
+    rgba(var(--theme-rgb, 79, 195, 247), 0.18) 65%,
+    transparent 100%);
+  animation: aaaRoundSweep 700ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  mix-blend-mode: screen;
+  /* Mask: center-vertical strip ±40px so the sweep lights only
+     the centerline band, not the whole board. */
+  mask-image: linear-gradient(180deg,
+    transparent 38%, #000 46%, #000 54%, transparent 62%);
+  -webkit-mask-image: linear-gradient(180deg,
+    transparent 38%, #000 46%, #000 54%, transparent 62%);
+}
+@keyframes aaaRoundSweep {
+  0%   { transform: translateX(-100%); opacity: 0; }
+  20%  { opacity: 1; }
+  100% { transform: translateX(100%); opacity: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  body.round-tick .board::after { display: none; }
+}
+
+/* ============================================================
+   AAA POLISH PASS — DONE BUTTON CIRCUIT-EDGE GLOW
+   ============================================================
+   The existing #btn-action ("Done" button) gets a subtle ambient
+   accent along its bottom edge — a thin theme-glow line that
+   pulses gently to draw the eye when it's the player's turn to
+   commit. Unlike Hearthstone's "rope" cue, this isn't a timer
+   (we're turn-based without a clock); it's just a "this is the
+   action button" indicator that gives the button presence.
+   ============================================================ */
+#btn-action {
+  position: relative;
+  overflow: hidden;
+}
+#btn-action::after {
+  content: '';
+  position: absolute;
+  left: 8%; right: 8%;
+  bottom: 0;
+  height: 2px;
+  background: linear-gradient(90deg,
+    transparent 0%,
+    rgba(var(--theme-rgb, 79, 195, 247), 0.85) 30%,
+    rgba(255, 255, 255, 0.95) 50%,
+    rgba(var(--theme-rgb, 79, 195, 247), 0.85) 70%,
+    transparent 100%);
+  box-shadow:
+    0 0 6px rgba(var(--theme-rgb, 79, 195, 247), 0.65),
+    0 0 14px rgba(var(--theme-rgb, 79, 195, 247), 0.35);
+  pointer-events: none;
+  animation: aaaDoneEdgePulse 2.2s ease-in-out infinite;
+}
+@keyframes aaaDoneEdgePulse {
+  0%, 100% { opacity: 0.50; transform: scaleX(0.92); }
+  50%      { opacity: 1.00; transform: scaleX(1.00); }
+}
+@media (prefers-reduced-motion: reduce) {
+  #btn-action::after { animation: none; opacity: 0.7; transform: scaleX(1); }
+}
+
+/* HAND FAN CURVE — REMOVED per user feedback ("I don't like the
+   new card tilt, let's get rid of that completely"). The CSS variables
+   --hand-i / --hand-n that the JS sets on each wrapper are now no-ops;
+   no transform is applied based on hand position. The base
+   .hand-card-wrapper rule above (line ~6491) sets --fan-rotate:0deg
+   and --fan-lift:0px, so cards sit flat in a clean row.
+   The applyHandFanVars JS call still runs (sets the unused variables
+   harmlessly) — leaving it in place rather than ripping it out so any
+   future fan-style return is one CSS block away. */
