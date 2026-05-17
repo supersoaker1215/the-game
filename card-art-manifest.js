@@ -31,4 +31,5 @@ window.CARD_ART_VARIANTS = {
   'Jason Voorhees':      ['Jason Voorhees.png',      'Jason Voorhees 2.png'],
   'Anakin Skywalker':    ['Anakin Skywalker.png',    'Anakin Skywalker 2.png'],
   'Ahsoka':              ['Ahsoka.png',              'Ahsoka 2.png'],
+  'Emperor Palpatine':   ['Emperor Palpatine.png',   'Emperor Palpatine 2.png'],
 };
