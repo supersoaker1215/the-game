@@ -37,8 +37,18 @@ const UI = {
     // Returns the FILE NAME (e.g. "Batman 2.png") for the player's
     // currently-selected variant of this card. Falls back to the
     // manifest's first entry, then to "<Name>.png" if not in manifest.
+    //
+    // Storage: a flat `cardArtSelections` object keyed by EXACT card
+    // name. The earlier `_persistSet('cardArt.' + name)` form split
+    // the path on every `.`, which broke for "Dr. Strange" and
+    // "Dr. Doom" — the period in "Dr." was treated as a separator
+    // and the data got nested as `cardArt → Dr → " Strange"`. The
+    // legacy nested form is migrated on first read so users with
+    // existing localStorage don't lose their selections.
     if (!name) return null;
-    const stored = this._persistGet('cardArt.' + name, null);
+    const flat = this._persistGet('cardArtSelections', null);
+    const legacy = this._persistGet('cardArt', null);
+    const stored = (flat && flat[name]) || (legacy && legacy[name]);
     const variants = this.getCardArtVariants(name);
     // Validate: stored choice must still exist in the manifest. If a
     // variant was renamed or removed, fall back to default instead of
@@ -120,7 +130,14 @@ const UI = {
     if (!name || !file) return;
     const variants = this.getCardArtVariants(name);
     if (!variants || variants.indexOf(file) < 0) return;
-    this._persistSet('cardArt.' + name, file);
+    // Read the current flat-key map, mutate the single entry, write
+    // back. `_persistSet` previously split the path on `.` which
+    // mis-stored dotted names like "Dr. Strange" / "Dr. Doom" as
+    // nested keys (cardArt → Dr → " Strange"). Storing the entire
+    // map at one top-level key skips the dot-splitter entirely.
+    const sel = this._persistGet('cardArtSelections', null) || {};
+    sel[name] = file;
+    this._persistSet('cardArtSelections', sel);
     const bgValue = `url('${this.getCardArtPath(name)}')`;
     document.querySelectorAll('[data-card-name]').forEach(el => {
       if (el.getAttribute('data-card-name') !== name) return;
