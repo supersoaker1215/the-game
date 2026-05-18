@@ -1759,6 +1759,37 @@ const CARD_ABILITIES = {
       if (lane > 0 && G.state.lanes[lane-1][own]) adj.push(G.state.lanes[lane-1][own]);
       if (lane < Game.LANE_COUNT-1 && G.state.lanes[lane+1][own]) adj.push(G.state.lanes[lane+1][own]);
       if (adj.length) {
+        // Wrap the chain attack so an Overdrive ally (Michael Myers,
+        // King Shark, Wolverine post-revive, etc.) still gets its
+        // "attack again on kill" bonus when the kill came from
+        // Optimus's command rather than the normal combat phase.
+        //
+        // User report: "I played Optimus Prime on Michael Myers, and
+        // he killed somebody in front of him. He has Overdrive. So
+        // technically he should attack again and hit face."
+        //
+        // The vanilla combat path (Game.resolveCombatLane) already
+        // calls handleOverdrive after combat damage when a kill
+        // happens (game.js:2799-2800). dealDamage doesn't — it has
+        // no concept of "this was an attack." So when the chain
+        // damage finishes off the target, we manually fire
+        // handleOverdrive at the ally's lane. handleOverdrive picks
+        // its own next target (post-cleanup opposite-lane enemy or
+        // face damage) and recurses on subsequent kills, matching
+        // the in-combat behavior exactly.
+        const chainAttack = (ally, target) => {
+          const targetHpBefore = target.currentHealth;
+          G.dealDamage(target, ally.attack, ally);
+          // Determine if THIS specific dealDamage landed the kill —
+          // can't just check ally.currentHealth or target.currentHealth
+          // alone since the target could already be dead from another
+          // ability earlier this frame.
+          const killed = targetHpBefore > 0 && target.currentHealth <= 0;
+          if (killed && ally.isOverdrive && ally.currentHealth > 0) {
+            const allyLane = G.findCardLane(ally);
+            if (allyLane >= 0) G.handleOverdrive(ally, allyLane);
+          }
+        };
         const doAttack = (ally) => {
           const opp = G.opponent(self.owner);
           let targets = [];
@@ -1767,11 +1798,11 @@ const CARD_ABILITIES = {
           G.getAdjacentEnemiesInContext(lane, self.owner).forEach(e => { if (e.currentHealth > 0 && !targets.includes(e)) targets.push(e); });
           if (Game.isHuman(self.owner) && targets.length) {
             G.promptCardChoice(self.owner, targets, "Optimus — Target", `Choose enemy for ${ally.name} to attack`, (target) => {
-              G.dealDamage(target, ally.attack, ally);
+              chainAttack(ally, target);
               G.log(`Optimus commands ${ally.name} to attack ${target.name} for ${ally.attack}!`);
             });
           } else if (targets.length) {
-            G.dealDamage(targets[0], ally.attack, ally);
+            chainAttack(ally, targets[0]);
             G.log(`Optimus commands ${ally.name} to attack ${targets[0].name} for ${ally.attack}!`);
           }
         };

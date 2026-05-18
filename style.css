@@ -5441,6 +5441,47 @@ body.hit-pause .ai-hand * {
    cursor since the inspect onclick is also skipped for them. */
 .card-slot.ai-slot .card:not(.face-down-hidden),
 .card-slot.player-slot .card { cursor: pointer; }
+/* Reserve ~30px at the bottom of the on-board card exclusively for
+   the cost / atk / hp orbs so they NEVER overlap the portrait's
+   name strip or the status badges. Without this, orbs at
+   `bottom: 2-5px` landed directly on top of the portrait's bottom
+   edge — eating name letters at each corner. User report:
+   "PEACEMAKER" reading as "EACEMAKE" with the green ATK orb
+   covering the P and red HP orb covering the R. The dedicated
+   30px strip is enough for the 22px orbs (desktop) plus a small
+   gap of clear space between the portrait's bottom and the top
+   of the orbs. */
+.card-slot.ai-slot > .card,
+.card-slot.player-slot > .card {
+  padding-bottom: 30px;
+}
+/* Status badges on board → ALWAYS stack VERTICALLY (one per row)
+   instead of wrapping horizontally. User direction: "For cards
+   with a lot of status traits, like evade 1 and taunt 1 together,
+   I'd rather them be vertically down and make the card taller…
+   gets rid of the problem of having it be underneath the damage
+   and HP orbs. So have each one lined up vertically ascending."
+   The card naturally grows taller to fit the column because
+   .card uses default block-flow sizing — no fixed height. Stat
+   orbs sit in the dedicated `padding-bottom: 30px` zone below
+   the badge column, so even a card with five stacked badges
+   never collides with them. */
+.card-slot.ai-slot .status-badges,
+.card-slot.player-slot .status-badges {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  flex-wrap: nowrap;
+  margin-top: 3px;
+}
+/* Each badge takes its own row — fit-content so the pill stays
+   compact instead of stretching to the column's full width. */
+.card-slot.ai-slot .status-badges .status-badge,
+.card-slot.player-slot .status-badges .status-badge {
+  width: fit-content;
+  align-self: center;
+}
 /* Active-ability text (Red Skull's "Cards playable during Trick Phase",
    Moder's forced lane status, etc.). Needs bottom padding so it doesn't
    collide with the absolute stat-circles at bottom:-5px. */
@@ -7678,8 +7719,14 @@ body.turn-combat .board .lane.lane-active {
   .board { width: 100%; min-width: 0; gap: 2px; padding: 0 2px; justify-content: stretch; box-sizing: border-box; }
   .lane { width: auto; min-width: 0; flex: 1 1 0; scroll-snap-align: none; }
   /* Scope shrink to BOARD cards only — hand cards live in their own
-     row with fixed widths so multiple fit horizontally. */
-  .board .card { width: 100%; min-height: 64px; font-size: 8px; padding: 4px 2px 14px; }
+     row with fixed widths so multiple fit horizontally.
+     Bottom padding is 24px (vs the original 14px) to give the cost
+     / atk / hp orbs a dedicated strip below the portrait + name
+     strip so they don't land on top of the name letters at the
+     card corners. The mobile orbs are 16-18px tall sitting at
+     `bottom: 2px`, so 24px of clear space accommodates them with
+     room to breathe. */
+  .board .card { width: 100%; min-height: 64px; font-size: 8px; padding: 4px 2px 24px; }
   .card-slot { width: 100%; min-width: 0; }
   .board .card .card-name { font-size: 8px; letter-spacing: 0.2px; }
   /* Description hidden — at 50px-wide cards it's unreadable. Tap-and-
