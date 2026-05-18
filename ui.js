@@ -193,19 +193,16 @@ const UI = {
     modal.appendChild(cardEl);
     // Rarity ribbon — colored by tier (1..4 maps to common /
     // rare / super-rare / legendary, in line with the rarity-pip
-    // count on the live tile).
+    // count on the live tile). Sits just below the card with a
+    // small gap (see .card-inspect-modal { gap: 10px }).
     const rarity = this._cardRarityLabel(card);
     const ribbon = document.createElement('div');
     ribbon.className = `card-inspect-rarity rarity-tier-${rarity.tier}`;
     ribbon.textContent = rarity.label;
     modal.appendChild(ribbon);
-    // Close X — top-right of the modal.
-    const close = document.createElement('button');
-    close.className = 'card-inspect-close';
-    close.setAttribute('aria-label', 'Close card details');
-    close.textContent = '×';   /* multiplication sign — denser than 'x' */
-    close.onclick = (e) => { e.stopPropagation(); this.closeCardInspect(); };
-    modal.appendChild(close);
+    // Close X removed — user direction: backdrop tap + Escape are
+    // enough, and the visible X read as overkill clutter against
+    // the painted card. The whole backdrop is the dismiss target.
     // Backdrop click dismisses (but only if the click target IS the
     // backdrop — clicks on the modal or card don't bubble through).
     backdrop.onclick = (e) => {
@@ -223,23 +220,18 @@ const UI = {
       if (e.key === 'Escape' || e.key === 'Esc') this.closeCardInspect();
     };
     document.addEventListener('keydown', this._inspectEscHandler);
-    // Mobile parity for hover audio — desktop hovers trigger the
-    // per-card SFX (hover audio for Superman, Anakin, etc.) via
-    // mouseover, but touch has no cursor. Opening the inspect modal
-    // IS the mobile equivalent of "dwelling on a card," so fire the
-    // same hover cue here. Stopped in closeCardInspect via
-    // sfx._stopHover.
-    //
-    // GATED to touch-only — on desktop, the mouseover-driven hover
-    // is already playing for the card the user hovered before
-    // clicking. Re-triggering here would restart the track from 0,
-    // chopping off the moment the user wanted to inspect. The match-
-    // media check is cheap and lets the desktop click path stay
-    // audio-quiet (the SFX is still playing from the prior hover).
-    const isTouch = (typeof window !== 'undefined') &&
-                    (window.matchMedia && window.matchMedia('(hover: none)').matches);
-    if (isTouch && this.sfx && card.name) {
+    // Auto-play the hover SFX when inspect opens — same per-card
+    // theme audio (Superman, Anakin, Hulk, etc.) that desktop fires
+    // on mouseover dwell. User direction: "once you're in this
+    // section, that's when the hover plays automatically." Runs on
+    // every device, not just touch. Stop any in-flight desktop
+    // hover first so a fresh playback starts from t=0 with the
+    // baked-in fade-in (otherwise we'd hear the tail of the prior
+    // hover smash-cut into the new one). closeCardInspect stops it
+    // again on dismiss.
+    if (this.sfx && card.name) {
       try {
+        if (typeof this.sfx._stopHover === 'function') this.sfx._stopHover();
         const inspectAudio = this.sfx.playCardSfx(card.name, 'hover');
         if (!inspectAudio && typeof this.sfx.play === 'function') this.sfx.play('cardHover');
         this.sfx._currentHoverAudio = inspectAudio;
@@ -2811,13 +2803,31 @@ const UI = {
       const to = getHoverTarget(e.relatedTarget);
       if (to === curr) return; // still inside the same card
       if (this.sfx._hoverDelayEl === curr) cancelPendingHover();
-      // Force-stop only when moving to ANOTHER card (or other hover-
-      // target like a draft pick) — that's a definitive "new hover
-      // taking over." Mouse leaving to non-card areas (lanes, body,
-      // overlays) goes through the selection guard so a clicked-and-
-      // moved card keeps its hover music while the player is mid-
-      // placement.
-      if (this.sfx._currentHoverEl === curr) this.sfx._stopHover(!!to);
+      // Only stop hover audio when the cursor moves to ANOTHER
+      // hover target (different card, trick, draft pick). Moving
+      // to empty space (board lanes, body, overlays) LETS THE
+      // AUDIO PLAY TO ITS NATURAL END.
+      //
+      // User direction (2026-05-18): "Can you hover over a card in
+      // your hand? It doesn't go — so then you'll get cut off,
+      // which is not what I want." Previously the mouseout-to-
+      // non-card path called _stopHover(false), which (unless the
+      // card was selected) faded the audio over 1 s — felt like the
+      // theme got chopped right when the user finally let it play.
+      //
+      // The natural-end now is governed by the baked-in ffmpeg
+      // fade-out on the clip itself, not by the engine. New hover
+      // on a different card still preempts (so two themes never
+      // overlap), and the post-play lockout + _stopHover(true) in
+      // the play hook still cut the audio when the card is actually
+      // played. Only the "I moved my cursor away" case is changed.
+      if (to && this.sfx._currentHoverEl === curr) this.sfx._stopHover(true);
+      // Clear the "currently hovered element" tracker even when we
+      // don't stop the audio, so a fresh mouseover on this same
+      // card later restarts the dwell timer (otherwise the curr ===
+      // _currentHoverEl guard at the top of the mouseover handler
+      // would suppress the new hover).
+      else if (this.sfx._currentHoverEl === curr) this.sfx._currentHoverEl = null;
     });
 
     // ---- Audio model v3 ----

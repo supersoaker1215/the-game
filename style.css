@@ -7690,11 +7690,19 @@ body.turn-combat .board .lane.lane-active {
   /* Status badges shrink so multiple fit at this size. */
   .board .card .card-abilities.status-badges { font-size: 6.5px; gap: 1px; flex-wrap: wrap; }
   .board .card .status-badge { padding: 1px 3px; font-size: 6.5px; letter-spacing: 0.4px; }
-  /* Cost orb + stat orbs scale down to fit the compact card. */
-  .board .card .card-cost { width: 18px; height: 18px; font-size: 11px; top: -7px; left: -7px; }
+  /* Cost orb + stat orbs scale down to fit the compact card.
+     User direction (2026-05-18): "the damage and the health
+     squares and the energy squares are not positioned correctly
+     on mobile." Earlier rule placed them HANGING OFF the corners
+     (top: -7px / left: -6px etc) — that read as misaligned chrome
+     on the tight mobile tile. Now they sit INSIDE the card edge
+     at +2px inset, matching the desktop "etched into the corner"
+     framing and the PvZ Heroes reference where cost / stats stay
+     within the card frame on mobile. */
+  .board .card .card-cost { width: 18px; height: 18px; font-size: 11px; top: 2px; left: 2px; }
   .board .card .stat-circle { width: 16px; height: 16px; font-size: 10px; }
-  .board .card .stat-circle.stat-atk { bottom: -7px; left: -6px; }
-  .board .card .stat-circle.stat-hp  { bottom: -7px; right: -6px; }
+  .board .card .stat-circle.stat-atk { bottom: 2px; left: 2px; }
+  .board .card .stat-circle.stat-hp  { bottom: 2px; right: 2px; }
   .board .card .rarity-strip { top: -2px; right: -2px; transform: scale(0.65); transform-origin: top right; }
   /* Card name banner — slimmer at this size. */
   .board .card .card-name-banner { padding: 2px 1px; margin-top: 1px; }
@@ -27948,14 +27956,16 @@ body.round-tick .board::after {
   position: fixed;
   inset: 0;
   z-index: 1500;             /* above board, below toasts (z>2000) */
-  /* Heavier dim than the typical modal backdrop — the inspect view
-     is a reference card moment, so the board should fade out
-     enough that lane-number pips / forecast strips don't bleed
-     through and visually clutter the scaled card. ~92% black
-     keeps the painting in the modal as the unambiguous focal point. */
-  background: rgba(2, 8, 18, 0.92);
-  backdrop-filter: blur(8px) saturate(0.6);
-  -webkit-backdrop-filter: blur(8px) saturate(0.6);
+  /* PvZ-Heroes-style flip view: the board STAYS visible behind a
+     light dim + minimal blur, so the player still sees the lane
+     state while reading the card. User direction: "When you click
+     on a card on board, I want it to still see the board. Just
+     have it be really... the card really big just like PvZ
+     Heroes." A 38% dim is enough to send the board to the back
+     of attention without erasing it. */
+  background: rgba(2, 8, 18, 0.38);
+  backdrop-filter: blur(2px) saturate(0.85);
+  -webkit-backdrop-filter: blur(2px) saturate(0.85);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -27971,15 +27981,17 @@ body.round-tick .board::after {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 14px;
-  /* Width wraps the visible (post-scale) card — the .card is 108px
-     wide intrinsically, scaled 1.7× ≈ 184px on screen. We give the
-     modal box a hair more so the close X anchors right at the
-     scaled card's visual top-right corner, not floating in dead
-     space. Layout-box of .inspect-card stays the unscaled 108px
-     (transform doesn't reflow), so we ignore it via the max-width
-     wrap and use the explicit width here. */
-  width: 200px;
+  /* Tight gap between card and ribbon — the user wants the ribbon
+     to feel like part of the same card unit, not floating in dead
+     space below. `zoom: 1.7` on the card makes its layout-box
+     actually take up its visible footprint, so this gap renders
+     literally as the distance between the painted bottom edge of
+     the card and the top of the ribbon. */
+  gap: 10px;
+  /* Sized to the visible card. .card is 108px intrinsic, zoomed
+     1.7× = 184px. Modal width matches so the modal is no wider
+     than the card itself — no dead margin, no detached chrome. */
+  width: fit-content;
   max-width: 96vw;
   animation: cardInspectPopIn 260ms cubic-bezier(.18,1.04,.45,1.18);
   /* Stop click-through — only the backdrop dismisses */
@@ -27991,20 +28003,16 @@ body.round-tick .board::after {
   100% { transform: scale(1.00); }
 }
 /* Bigger card inside the modal — the same .card markup as on
-   board, just scaled up so the painted portrait + description
-   are readable at arm's length. Transform-scale keeps every
-   CSS animation (perimeter pulse, tron chrome, vibe wobbles)
-   working without reflow math. The layout-box stays at the
-   original 108×~309px, so we reserve the post-scale overflow
-   below via margin-bottom so the rarity ribbon doesn't
-   collide with the card body. */
+   board, but resized via `zoom` so the LAYOUT BOX scales with the
+   visual. `transform: scale()` made the layout box stay 1× and the
+   ribbon below sat ~230px lower than expected (huge dead gap
+   between card and ribbon). `zoom` is the right tool: every modern
+   browser now supports it baseline (Chrome, Safari, Firefox), and
+   it scales the box's reflow footprint along with the paint —
+   so the ribbon naturally sits right under the visible card edge.
+   No artificial margin-bottom reserve needed. */
 .card-inspect-modal .inspect-card {
-  transform: scale(1.7);
-  transform-origin: top center;
-  /* Layout-box stays unscaled; visible overflow at 1.7× scale is
-     ~(0.7 × height) = ~0.7 × 309 ≈ 216px below the box. Reserve
-     a hair more so the ribbon sits clear of the scaled chrome. */
-  margin-bottom: 230px;
+  zoom: 1.7;
   cursor: default !important;
   /* Reset any board-side overrides so the inspect card always
      looks "fresh" — no MVP-rank scaling, no tron border glitches. */
@@ -28076,18 +28084,16 @@ body.round-tick .board::after {
     inset 0 0 10px rgba(var(--theme-rgb, 79,195,247), 0.25);
 }
 .card-inspect-close:active { transform: scale(0.96); }
-/* Smaller-screen sizing — give the modal more breathing room and
-   shrink the card scale so the whole thing fits without scroll.
-   Phones at ~390px wide are the target. */
+/* Smaller-screen sizing — slightly smaller zoom factor on phones
+   so the card doesn't overflow the viewport (a 1.7× zoom on a
+   108px card = 184px visible, which is fine on a 375px phone,
+   but the absolute orbs that bleed outside the card edge add ~10px
+   on each side, getting tight. 1.45× gives more clearance). */
 @media (max-width: 480px) {
   .card-inspect-backdrop { padding: 12px; }
-  /* Phone: scale-down to 1.45 (108 × 1.45 ≈ 157px visible), modal
-     width snug at 172px. Margin-bottom for post-scale overflow:
-     ~0.45 × 309 ≈ 140px. */
-  .card-inspect-modal { gap: 10px; width: 172px; }
-  .card-inspect-modal .inspect-card { transform: scale(1.45); margin-bottom: 155px; }
+  .card-inspect-modal { gap: 8px; }
+  .card-inspect-modal .inspect-card { zoom: 1.45; }
   .card-inspect-rarity { font-size: 12px; padding: 5px 16px; letter-spacing: 1.8px; }
-  .card-inspect-close { width: 34px; height: 34px; line-height: 30px; font-size: 20px; right: -12px; }
 }
 
 /* ============================================================
