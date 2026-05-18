@@ -766,6 +766,18 @@ body.turn-combat::before { background: linear-gradient(to bottom, rgba(255,215,0
   gap: 16px;
   height: 64px;
   box-sizing: border-box;
+  /* Sit ABOVE the Tron cursor-trail SVG (#tron-cursor-trail
+     z-index 200) so the trail's mix-blend-mode: screen can't paint
+     cyan over the HP bar, block circle, energy diamond, etc. User
+     report 2026-05-18: "when I have more blue than red, there's
+     like a little blue section on their health bar." The cursor
+     trail was screen-blending its theme color onto the dark bar
+     background, which read as the player's blue encroaching into
+     the enemy's red HP bar. Raising the HUD strip above the trail
+     keeps the trail visible everywhere else (board surface, hand,
+     menus) without contaminating the score-read chrome. */
+  position: relative;
+  z-index: 210;
 }
 .bar-cell { display: flex; align-items: center; height: 100%; }
 /* Explicit grid-column pins each cell to its intended track. Required because
@@ -855,11 +867,14 @@ body.turn-combat::before { background: linear-gradient(to bottom, rgba(255,215,0
   line-height: 1;
   font-variant-numeric: tabular-nums;
 }
-/* Full state — gold ring fully lit + pulsing glow */
+/* Full state — gold ring fully lit. Idle pulse DISABLED per
+   user feedback: "Get rid of these running animations of the
+   block meter." A solid bright gold glow at 8/8 still reads as
+   "ready" without continuous motion. */
 .block-circle.full {
   background: conic-gradient(from -90deg, rgba(255,215,0,0.95) 0 100%, rgba(255,215,0,0.95) 100%);
   box-shadow: 0 0 14px rgba(255,215,0,0.80), 0 0 28px rgba(255,215,0,0.40);
-  animation: blockFullPulse 1.2s ease-in-out infinite;
+  animation: none;
 }
 .block-circle.full .block-circle-value { color: #ffd77a; text-shadow: 0 0 8px rgba(255,215,0,0.85); }
 @keyframes blockFullPulse {
@@ -14607,18 +14622,17 @@ body.theme-purple .board-section {
    already pulse via aaaBlockBreathe below. */
 .block-circle::before { display: none !important; }
 
-/* Stationary breath pulse — same opacity-only language as the DONE
-   button bottom-edge accent so all HUD chrome shares one motion
-   vocabulary: gentle 2.4s ease-in-out breathing, no rotation, no
-   scale. JS no longer needs to update --fill since the conic is
-   gone, but leaving the old setProperty call in renderHud is
-   harmless (just sets an unused variable). */
+/* Stationary breath pulse — DISABLED per user feedback 2026-05-18:
+   "Get rid of these running animations of the block meter and of
+   the energy diamond." The HUD now reads as static chrome unless
+   something actually changes (block-fill spark, energy-spend
+   shrink, HP shake). No idle motion. */
 .block-circle {
-  animation: aaaBlockBreathe 2.4s ease-in-out infinite;
+  animation: none;
 }
 @keyframes aaaBlockBreathe {
-  0%, 100% { filter: brightness(0.95); }
-  50%      { filter: brightness(1.18); }
+  0%, 100% { filter: brightness(1); }
+  50%      { filter: brightness(1); }
 }
 @media (prefers-reduced-motion: reduce) {
   .block-circle { animation: none; }
@@ -17201,18 +17215,18 @@ body::before {
    it's their turn, the energy orb pulses a gentle heartbeat so the
    player always knows "you can act now". The class is toggled by
    UI.render's energy-bar painter. */
-/* STATIONARY BREATH (was: energyPlayablePulse) — per user feedback
-   replacing the box-shadow size pulse with a flat opacity/brightness
-   breath that doesn't change the diamond's perceived scale. Same
-   2.4s tempo as the DONE button bottom-edge pulse and the new block-
-   meter breath, so all three HUD focal points share one motion
-   vocabulary. */
+/* IDLE PULSE — DISABLED 2026-05-18 per user feedback: "Get rid
+   of these running animations of the block meter and of the
+   energy diamond." Energy diamond reads as static chrome now;
+   the energy-spend / energy-cost-float / energy-drain animations
+   that fire on actual state CHANGES still play — only the idle
+   "you can play" breath is gone. */
 @keyframes energyPlayablePulse {
-  0%, 100% { filter: brightness(0.95); }
-  50%      { filter: brightness(1.22); }
+  0%, 100% { filter: brightness(1); }
+  50%      { filter: brightness(1); }
 }
 .player-bar .energy-text.can-play::before {
-  animation: energyPlayablePulse 2.4s ease-in-out infinite;
+  animation: none;
 }
 
 /* ---- 6. HP bar critical pulse ----
@@ -25024,9 +25038,12 @@ input[type="number"]::-webkit-outer-spin-button {
   0%, 100% { box-shadow: 0 0 8px var(--theme-glow-inner, rgba(241,196,15,0.4)), 0 0 16px var(--theme-glow-outer, rgba(241,196,15,0.2)); }
   50%      { box-shadow: 0 0 14px rgba(241,196,15,0.85), 0 0 28px rgba(241,196,15,0.45), 0 0 48px rgba(241,196,15,0.18); }
 }
+/* Block-full pulse — DISABLED 2026-05-18. The static gold-fill +
+   glow on .block-circle.full above is enough state signal. User
+   feedback: no idle running animations on the HUD. */
 .block-circle.block-full,
 .block-meter.block-full {
-  animation: blockFullPulse 1.4s ease-in-out infinite;
+  animation: none;
 }
 
 /* ---- Settings panel scanline texture ----
@@ -26458,11 +26475,17 @@ body > .grid-bg {
 
 /* HUDs are flat UI panels — they live OUTSIDE the 3D arena
    like the bezel housing of a TV. No transforms; they sit
-   above and below the arena window as separate, clean panels. */
+   above and below the arena window as separate, clean panels.
+   z-index raised to 210 (was 5) so the Tron cursor-trail SVG
+   (#tron-cursor-trail z-index 200) can't paint cyan over the
+   HP bar / block circle / energy diamond via its
+   mix-blend-mode: screen. User report 2026-05-18: "encroaching
+   color, when I have more blue than red, there's like a little
+   blue section on their health bar." */
 #game-area .info-bar.ai-bar,
 #game-area .info-bar.player-bar {
   position: relative;
-  z-index: 5;
+  z-index: 210;
 }
 
 /* The lanes need to render IN FRONT of the floor + haze. */
@@ -27239,34 +27262,18 @@ body.killcam .board::before {
    sub-bass thump scheduled in JS at the same moment. Reads as
    "OK, here we go" without obscuring the action.
    ============================================================ */
-body.combat-anticipate::before {
-  content: '';
-  position: fixed;
-  inset: 0;
-  pointer-events: none;
-  z-index: 9985;
-  background: radial-gradient(ellipse 120% 80% at 50% 50%,
-    transparent 0%,
-    rgba(var(--theme-rgb, 79, 195, 247), 0.06) 55%,
-    rgba(var(--theme-rgb, 79, 195, 247), 0.16) 100%);
-  animation: combatAnticipateWash 320ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
-}
-body.combat-anticipate::after {
-  content: '';
-  position: fixed;
-  left: 50%; top: 50%;
-  width: 120vmin; height: 120vmin;
-  margin-left: -60vmin; margin-top: -60vmin;
-  pointer-events: none;
-  z-index: 9986;
-  border: 2px solid rgba(var(--theme-rgb, 79, 195, 247), 0.55);
-  border-radius: 50%;
-  box-shadow:
-    0 0 24px rgba(var(--theme-rgb, 79, 195, 247), 0.40),
-    inset 0 0 18px rgba(var(--theme-rgb, 79, 195, 247), 0.25);
-  animation: combatAnticipateRing 360ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
-  opacity: 0;
-}
+/* DISABLED 2026-05-18 — user direction: "there's a yellow pulse
+   with the combat phase starts… I want that gone. It's yellow."
+   On the gold theme `--theme-rgb` = (255,215,0), so the pulse painted
+   literal yellow when combat began; on cyan it tinted blue but still
+   read as a screen flash the user didn't want. The body class is
+   still toggled by JS (renderHud combat-anticipate hook) but the
+   ::before wash + ::after ring no longer render. The sub-bass thump
+   on the same beat is preserved — only the visual flash is removed.
+   To bring it back: restore `content: ''` and the keyframe animation
+   declarations below. */
+body.combat-anticipate::before { content: none !important; }
+body.combat-anticipate::after  { content: none !important; }
 @keyframes combatAnticipateWash {
   0%   { opacity: 0; }
   25%  { opacity: 1; }
