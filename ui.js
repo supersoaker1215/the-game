@@ -221,22 +221,39 @@ const UI = {
     };
     document.addEventListener('keydown', this._inspectEscHandler);
     // Auto-play the hover SFX when inspect opens — same per-card
-    // theme audio (Superman, Anakin, Hulk, etc.) that desktop fires
-    // on mouseover dwell. User direction: "once you're in this
-    // section, that's when the hover plays automatically." Runs on
-    // every device, not just touch. Stop any in-flight desktop
-    // hover first so a fresh playback starts from t=0 with the
-    // baked-in fade-in (otherwise we'd hear the tail of the prior
-    // hover smash-cut into the new one). closeCardInspect stops it
-    // again on dismiss.
+    // theme audio (Superman, Anakin, Hulk, etc.). User direction:
+    // "on this menu is when the hover should play automatically."
+    //
+    // DEDUP — if the same card's hover audio is ALREADY playing
+    // (from the desktop mouseover dwell that fired before the
+    // click), DON'T restart it. Restart causes a 1 s overlap
+    // between the old audio fading out and the new audio fading
+    // in, which sounds like the song is playing twice. User
+    // report: "I did this for Michael Myers, and it was playing,
+    // like, the song twice." Continue the existing playback
+    // instead. The closeCardInspect path stops the audio on
+    // dismiss either way (same _currentHoverEl tracking).
     if (this.sfx && card.name) {
-      try {
-        if (typeof this.sfx._stopHover === 'function') this.sfx._stopHover();
-        const inspectAudio = this.sfx.playCardSfx(card.name, 'hover');
-        if (!inspectAudio && typeof this.sfx.play === 'function') this.sfx.play('cardHover');
-        this.sfx._currentHoverAudio = inspectAudio;
+      const already = this.sfx._currentHoverName === card.name
+        && this.sfx._currentHoverAudio
+        && !this.sfx._currentHoverAudio.paused;
+      if (already) {
+        // Just take ownership of the existing playback — _stopHover
+        // on close will fade it out.
         this.sfx._currentHoverEl = modal;
-      } catch (e) { /* swallow — audio failure shouldn't break inspect */ }
+      } else {
+        try {
+          // Different card (or no audio at all) — force-stop the
+          // previous and start fresh. Force=true bypasses the
+          // selectedCard guard so the stop actually proceeds.
+          if (typeof this.sfx._stopHover === 'function') this.sfx._stopHover(true);
+          const inspectAudio = this.sfx.playCardSfx(card.name, 'hover');
+          if (!inspectAudio && typeof this.sfx.play === 'function') this.sfx.play('cardHover');
+          this.sfx._currentHoverAudio = inspectAudio;
+          this.sfx._currentHoverEl = modal;
+          this.sfx._currentHoverName = card.name;
+        } catch (e) { /* swallow — audio failure shouldn't break inspect */ }
+      }
     }
   },
   closeCardInspect() {
@@ -3253,8 +3270,30 @@ const UI = {
   // Snap, LoR) all do — readers don't want the preview moving while they're
   // reading it. Compositor-cheap (transform + opacity only).
   installHoverMagnify() {
+    // DISABLED 2026-05-18 — the new card-inspect popup (openCardInspect)
+    // replaces this Hearthstone-style hover-magnify. User direction:
+    // "when you tap on the card on mobile, I think it looks very good.
+    // I don't think there needs to be a zoom in function after that.
+    // there's also been a magnifier even on top of that. So just get
+    // rid of that."
+    //
+    // Tap / click the card → inspect modal (full description, stats,
+    // rarity ribbon, keyword tooltips). The on-hover dwell-magnify is
+    // now redundant on desktop and was firing a competing audio path
+    // on top of inspect-open hover SFX. Early-return preserves the
+    // install gate (no double-install) and the rest of init keeps
+    // working unchanged.
     if (this._hoverMagnifyInstalled) return;
     this._hoverMagnifyInstalled = true;
+    // Hide any stale popup element so a previously-rendered magnify
+    // can't linger across a hot-reload.
+    const popEl = document.getElementById('hover-magnify');
+    if (popEl) { popEl.style.display = 'none'; popEl.innerHTML = ''; }
+    return;
+    /* eslint-disable no-unreachable */
+    // Legacy implementation preserved below in case the user ever
+    // wants the hover-magnify back. The early return above keeps it
+    // off without deleting the working code.
     const pop = document.getElementById('hover-magnify');
     if (!pop) return;
     const HOVER_DELAY = 280;       // ms before magnify reveals

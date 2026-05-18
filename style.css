@@ -8386,7 +8386,13 @@ body.turn-combat .board .lane.lane-active {
 /* Keyword tooltip — fixed, lightweight. Shown via JS on hover. */
 .kw-tooltip {
   position: fixed !important;
-  z-index: 1100 !important;
+  /* z-index sits ABOVE the card inspect backdrop (1500) so clicking a
+     keyword pill inside the inspect popup shows the definition
+     tooltip on top of the modal instead of being hidden behind it.
+     User direction: "I would like you to be able to click on, like,
+     'destroy', and it has a definition of what destroy is, with a
+     little popout box… you can do it here [inside the inspect]." */
+  z-index: 1700 !important;
   max-width: 240px;
   padding: 8px 12px;
   background: rgba(8,14,22,0.96);
