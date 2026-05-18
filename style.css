@@ -5399,6 +5399,48 @@ body.hit-pause .ai-hand * {
    the color so a green-tier card stays green in hand. Only the size and
    max-height differ from the on-board rendering. */
 .hand-card-wrapper .card-desc { font-size: 8px; max-height: none; }
+
+/* ============================================================
+   ON-BOARD MINIMALIST TILES (PvZ Heroes pattern, 2026-05-18)
+   ------------------------------------------------------------
+   User direction: "in hand, yes, we can keep [the description].
+   But on board, it should just be the picture, the name, and the
+   stats, and the rarity and energy cost. If you wanna know what
+   the card does, you click on it, and then it pops up just like
+   line dancing zombie — too cluttered otherwise."
+
+   Hand cards stay full-text (you need the desc to decide what to
+   play). Board cards drop the desc + active-ability text so the
+   lane reads as a glanceable picture grid. The full info lives in
+   the inspect popup (openCardInspect — backdrop modal that floats
+   above the board). Status badges + incoming-damage chips stay —
+   they're glanceable icons, not text walls.
+
+   The hide rule keys off the parent slot (.card-slot.ai-slot /
+   .card-slot.player-slot) so anything rendered OUTSIDE a slot —
+   the inspect modal, hover-magnify popup, draft trays, codex —
+   keeps its description intact. The `.inspect-card` escape hatch
+   below also forces desc visibility for the modal card so a
+   future change of selector scope can't accidentally suppress
+   it. */
+.card-slot.ai-slot .card-desc,
+.card-slot.player-slot .card-desc,
+.card-slot.ai-slot .card-active-text,
+.card-slot.player-slot .card-active-text {
+  display: none !important;
+}
+/* Inspect-modal card forces desc back ON even if a future board
+   selector tightens. Defensive — the modal lives outside .card-slot
+   today so the rule above already misses it, but this guard means
+   any future scope change can't break the inspect view. */
+.inspect-card .card-desc,
+.inspect-card .card-active-text { display: block !important; }
+/* Board cards advertise their tap-to-inspect affordance via the
+   pointer cursor (desktop only — touch suppresses it via the
+   pointer-coarse override below). Face-down enemy tiles skip the
+   cursor since the inspect onclick is also skipped for them. */
+.card-slot.ai-slot .card:not(.face-down-hidden),
+.card-slot.player-slot .card { cursor: pointer; }
 /* Active-ability text (Red Skull's "Cards playable during Trick Phase",
    Moder's forced lane status, etc.). Needs bottom padding so it doesn't
    collide with the absolute stat-circles at bottom:-5px. */
@@ -27883,3 +27925,212 @@ body.round-tick .board::after {
    The applyHandFanVars JS call still runs (sets the unused variables
    harmlessly) — leaving it in place rather than ripping it out so any
    future fan-style return is one CSS block away. */
+
+/* ============================================================
+   CARD INSPECT MODAL — tap a board card to read its full kit
+   ============================================================
+   Reference: PvZ Heroes mobile, where tapping a board card flips
+   into a big card-detail view (large portrait, full description,
+   rarity banner, flavor text). The board tile itself stays
+   minimal — picture / name / stats / rarity / cost — and any
+   text-heavy info lives behind this popup.
+
+   Layout: a fixed-position backdrop that dims the board, with a
+   centered modal that scales the existing .card markup up ~1.7×.
+   The card's full description (hidden on board via the
+   .card-slot scope rule above) is forced back on by .inspect-card,
+   so the same makeCardEl output renders correctly without forking
+   the renderer.
+
+   Dismissal: tap backdrop, tap the X, or press Escape.
+   ============================================================ */
+.card-inspect-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1500;             /* above board, below toasts (z>2000) */
+  /* Heavier dim than the typical modal backdrop — the inspect view
+     is a reference card moment, so the board should fade out
+     enough that lane-number pips / forecast strips don't bleed
+     through and visually clutter the scaled card. ~92% black
+     keeps the painting in the modal as the unambiguous focal point. */
+  background: rgba(2, 8, 18, 0.92);
+  backdrop-filter: blur(8px) saturate(0.6);
+  -webkit-backdrop-filter: blur(8px) saturate(0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  animation: cardInspectFadeIn 220ms ease-out;
+}
+@keyframes cardInspectFadeIn {
+  from { opacity: 0; backdrop-filter: blur(0px); -webkit-backdrop-filter: blur(0px); }
+  to   { opacity: 1; }
+}
+.card-inspect-modal {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  /* Width wraps the visible (post-scale) card — the .card is 108px
+     wide intrinsically, scaled 1.7× ≈ 184px on screen. We give the
+     modal box a hair more so the close X anchors right at the
+     scaled card's visual top-right corner, not floating in dead
+     space. Layout-box of .inspect-card stays the unscaled 108px
+     (transform doesn't reflow), so we ignore it via the max-width
+     wrap and use the explicit width here. */
+  width: 200px;
+  max-width: 96vw;
+  animation: cardInspectPopIn 260ms cubic-bezier(.18,1.04,.45,1.18);
+  /* Stop click-through — only the backdrop dismisses */
+  pointer-events: auto;
+}
+@keyframes cardInspectPopIn {
+  0%   { transform: scale(0.72); opacity: 0; }
+  60%  { transform: scale(1.04); opacity: 1; }
+  100% { transform: scale(1.00); }
+}
+/* Bigger card inside the modal — the same .card markup as on
+   board, just scaled up so the painted portrait + description
+   are readable at arm's length. Transform-scale keeps every
+   CSS animation (perimeter pulse, tron chrome, vibe wobbles)
+   working without reflow math. The layout-box stays at the
+   original 108×~309px, so we reserve the post-scale overflow
+   below via margin-bottom so the rarity ribbon doesn't
+   collide with the card body. */
+.card-inspect-modal .inspect-card {
+  transform: scale(1.7);
+  transform-origin: top center;
+  /* Layout-box stays unscaled; visible overflow at 1.7× scale is
+     ~(0.7 × height) = ~0.7 × 309 ≈ 216px below the box. Reserve
+     a hair more so the ribbon sits clear of the scaled chrome. */
+  margin-bottom: 230px;
+  cursor: default !important;
+  /* Reset any board-side overrides so the inspect card always
+     looks "fresh" — no MVP-rank scaling, no tron border glitches. */
+  pointer-events: auto;
+}
+.card-inspect-rarity {
+  position: relative;
+  z-index: 2;
+  padding: 6px 22px;
+  font-family: 'Rajdhani', sans-serif;
+  font-weight: 800;
+  font-size: 14px;
+  letter-spacing: 2.2px;
+  text-transform: uppercase;
+  border-radius: 3px;
+  color: #fff;
+  text-shadow:
+    0 0 6px currentColor,
+    0 0 14px currentColor,
+    0 0 24px rgba(0,0,0,0.65);
+  background: linear-gradient(
+    90deg,
+    rgba(0,0,0,0.0) 0%,
+    rgba(0,0,0,0.55) 20%,
+    rgba(0,0,0,0.85) 50%,
+    rgba(0,0,0,0.55) 80%,
+    rgba(0,0,0,0.0) 100%);
+  border-top: 1px solid currentColor;
+  border-bottom: 1px solid currentColor;
+  box-shadow:
+    0 0 12px rgba(0,0,0,0.6),
+    inset 0 0 22px rgba(255,255,255,0.04);
+}
+/* Rarity-tier coloring — mirrors the cost-tier RGB the game uses
+   for stat orbs / card chrome (cost-1..cost-3 green, etc.) but
+   tuned brighter for the modal banner. The four tiers also map
+   to roguelite rarity (common / rare / special / legendary).      */
+.card-inspect-rarity.rarity-tier-1 { color: #7fd09a; }   /* common  — green */
+.card-inspect-rarity.rarity-tier-2 { color: #5cb8ff; }   /* rare    — blue  */
+.card-inspect-rarity.rarity-tier-3 { color: #b88cff; }   /* sup-r   — purple */
+.card-inspect-rarity.rarity-tier-4 { color: #ffc24a; }   /* legend  — gold  */
+
+.card-inspect-close {
+  position: absolute;
+  top: -2px;
+  right: -14px;       /* sit just outside the scaled card's top-right edge */
+  z-index: 3;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  border: 1px solid rgba(var(--theme-rgb, 79,195,247), 0.55);
+  background: rgba(8, 18, 32, 0.92);
+  color: rgba(var(--theme-rgb, 79,195,247), 0.95);
+  font-size: 22px;
+  font-weight: 700;
+  line-height: 32px;
+  text-align: center;
+  cursor: pointer;
+  padding: 0;
+  box-shadow:
+    0 0 10px rgba(var(--theme-rgb, 79,195,247), 0.35),
+    inset 0 0 8px rgba(var(--theme-rgb, 79,195,247), 0.15);
+  transition: transform 120ms ease-out, box-shadow 120ms ease-out;
+}
+.card-inspect-close:hover {
+  transform: scale(1.08);
+  box-shadow:
+    0 0 14px rgba(var(--theme-rgb, 79,195,247), 0.55),
+    inset 0 0 10px rgba(var(--theme-rgb, 79,195,247), 0.25);
+}
+.card-inspect-close:active { transform: scale(0.96); }
+/* Smaller-screen sizing — give the modal more breathing room and
+   shrink the card scale so the whole thing fits without scroll.
+   Phones at ~390px wide are the target. */
+@media (max-width: 480px) {
+  .card-inspect-backdrop { padding: 12px; }
+  /* Phone: scale-down to 1.45 (108 × 1.45 ≈ 157px visible), modal
+     width snug at 172px. Margin-bottom for post-scale overflow:
+     ~0.45 × 309 ≈ 140px. */
+  .card-inspect-modal { gap: 10px; width: 172px; }
+  .card-inspect-modal .inspect-card { transform: scale(1.45); margin-bottom: 155px; }
+  .card-inspect-rarity { font-size: 12px; padding: 5px 16px; letter-spacing: 1.8px; }
+  .card-inspect-close { width: 34px; height: 34px; line-height: 30px; font-size: 20px; right: -12px; }
+}
+
+/* ============================================================
+   MOBILE / TOUCH CURSOR HYGIENE
+   ============================================================
+   User report: "on mobile, there's a constant cursor that needs
+   to go away on mobile." Two known offenders:
+
+   (1) The phase-banner typing animation paints a `▍` block caret
+       via .phase-banner-text.typing::after, blinking 480ms. Under
+       normal flow the .typing class is removed once all letters
+       finish revealing (~25ms × len = 200-500ms). But if a phase
+       banner is interrupted (back-to-back showPhaseBanner calls,
+       tab backgrounded mid-type-on so setTimeout drops, or a
+       reduce-motion check that races), the class can linger and
+       the caret blinks forever. On touch devices the caret reads
+       as a stuck system cursor — disorienting.
+
+   (2) Generic `cursor: pointer` on board cards / buttons —
+       harmless on desktop, but iPad / iPhone Safari with a
+       hardware trackpad shows the cursor as a hand permanently
+       on cards because there's no mouseleave equivalent.
+
+   Fix:
+   - Gate the blinking caret to `@media (hover: hover)` so touch
+     devices never paint the cursor pseudo-element, period.
+   - Force `cursor: default` on touch-primary devices anywhere
+     game tiles currently use `cursor: pointer`. Doesn't affect
+     desktop, doesn't break tap input. */
+@media (hover: none) {
+  /* Kill the blinking type-on caret on touch devices. The phase
+     banner still types in (CSS opacity reveal on individual
+     letter spans driven by JS), just without the trailing █. */
+  .phase-banner-text.typing::after { content: none !important; }
+}
+@media (pointer: coarse) {
+  /* Suppress pointer-hand cursor on board tiles for touch users —
+     there's no hover state on a finger, so the hand cursor just
+     reads as a stuck system indicator. Inspect popup is still
+     tap-to-open via JS onclick, which doesn't need a cursor cue. */
+  .card-slot.ai-slot .card,
+  .card-slot.player-slot .card,
+  .card.playable {
+    cursor: default !important;
+  }
+}

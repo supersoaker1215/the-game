@@ -146,6 +146,140 @@ const UI = {
     });
   },
 
+  // ===================== CARD INSPECT MODAL =====================
+  // PvZ Heroes-style detail popup. The lane-tile rendering drops the
+  // description and active-ability text (see .card-slot...card-desc
+  // hide rule in style.css) so the board reads as a glanceable
+  // picture grid. To see what a card does, tap it — this opens a
+  // backdrop modal with the same card markup scaled 1.7×, the full
+  // description forced back on (.inspect-card escape hatch), and a
+  // rarity-tier ribbon below.
+  //
+  // User direction: "in hand, yes, we can keep [the description].
+  // But on board, it should just be the picture, the name, and the
+  // stats, and the rarity and energy cost. If you wanna know what
+  // the card does, you click on it, and then it pops up just like
+  // line dancing zombie. Otherwise it gets cluttered."
+  //
+  // Mid-targeting (s.pendingCardChoice / pendingLaneChoice) the
+  // candidate cards' onclicks override to the pick-target handler
+  // — see the lane render in render(). Non-candidates still open
+  // inspect, which is useful: the player can review any card on
+  // board before committing to a target.
+  openCardInspect(card) {
+    if (!card) return;
+    this.closeCardInspect();   // dismiss any open inspect first
+    // Build the backdrop + modal containers.
+    const backdrop = document.createElement('div');
+    backdrop.className = 'card-inspect-backdrop';
+    backdrop.id = 'card-inspect-backdrop';
+    const modal = document.createElement('div');
+    modal.className = 'card-inspect-modal';
+    modal.setAttribute('role', 'dialog');
+    modal.setAttribute('aria-label', card.name || 'Card details');
+    // Render the card via makeCardEl. inHand=false so the displayed
+    // cost is the card's actual cost (not the +1 enemy-passive
+    // modifier you'd see in hand), and side maps to owner so the
+    // ally/enemy color chrome matches what's on board. The .inspect-card
+    // class re-enables the .card-desc + .card-active-text that
+    // .card-slot scope hides on the live board.
+    const side = card.owner === 'ai' ? 'enemy' : 'ally';
+    const cardEl = this.makeCardEl(card, false, side);
+    cardEl.classList.add('inspect-card');
+    // Strip status / animation classes that would only make sense on
+    // the live board — the inspect view should feel like a frozen
+    // reference card, not a re-render of the live tile.
+    cardEl.classList.remove('card-enter', 'lane-landed', 'card-hp-critical', 'target-highlight');
+    modal.appendChild(cardEl);
+    // Rarity ribbon — colored by tier (1..4 maps to common /
+    // rare / super-rare / legendary, in line with the rarity-pip
+    // count on the live tile).
+    const rarity = this._cardRarityLabel(card);
+    const ribbon = document.createElement('div');
+    ribbon.className = `card-inspect-rarity rarity-tier-${rarity.tier}`;
+    ribbon.textContent = rarity.label;
+    modal.appendChild(ribbon);
+    // Close X — top-right of the modal.
+    const close = document.createElement('button');
+    close.className = 'card-inspect-close';
+    close.setAttribute('aria-label', 'Close card details');
+    close.textContent = '×';   /* multiplication sign — denser than 'x' */
+    close.onclick = (e) => { e.stopPropagation(); this.closeCardInspect(); };
+    modal.appendChild(close);
+    // Backdrop click dismisses (but only if the click target IS the
+    // backdrop — clicks on the modal or card don't bubble through).
+    backdrop.onclick = (e) => {
+      if (e.target === backdrop) this.closeCardInspect();
+    };
+    // Stop card-click from re-opening / closing the inspect (the
+    // global capture-phase alt-art picker still fires; that's fine
+    // — tapping the name strip inside the inspect cycles art with
+    // a live in-modal swap, which is actually nice).
+    modal.addEventListener('click', (e) => e.stopPropagation());
+    backdrop.appendChild(modal);
+    document.body.appendChild(backdrop);
+    // Escape dismisses too — keyboard-friendly close.
+    this._inspectEscHandler = (e) => {
+      if (e.key === 'Escape' || e.key === 'Esc') this.closeCardInspect();
+    };
+    document.addEventListener('keydown', this._inspectEscHandler);
+    // Mobile parity for hover audio — desktop hovers trigger the
+    // per-card SFX (hover audio for Superman, Anakin, etc.) via
+    // mouseover, but touch has no cursor. Opening the inspect modal
+    // IS the mobile equivalent of "dwelling on a card," so fire the
+    // same hover cue here. Stopped in closeCardInspect via
+    // sfx._stopHover.
+    //
+    // GATED to touch-only — on desktop, the mouseover-driven hover
+    // is already playing for the card the user hovered before
+    // clicking. Re-triggering here would restart the track from 0,
+    // chopping off the moment the user wanted to inspect. The match-
+    // media check is cheap and lets the desktop click path stay
+    // audio-quiet (the SFX is still playing from the prior hover).
+    const isTouch = (typeof window !== 'undefined') &&
+                    (window.matchMedia && window.matchMedia('(hover: none)').matches);
+    if (isTouch && this.sfx && card.name) {
+      try {
+        const inspectAudio = this.sfx.playCardSfx(card.name, 'hover');
+        if (!inspectAudio && typeof this.sfx.play === 'function') this.sfx.play('cardHover');
+        this.sfx._currentHoverAudio = inspectAudio;
+        this.sfx._currentHoverEl = modal;
+      } catch (e) { /* swallow — audio failure shouldn't break inspect */ }
+    }
+  },
+  closeCardInspect() {
+    const bd = document.getElementById('card-inspect-backdrop');
+    if (bd) bd.remove();
+    if (this._inspectEscHandler) {
+      document.removeEventListener('keydown', this._inspectEscHandler);
+      this._inspectEscHandler = null;
+    }
+    // Stop any hover SFX that was started when the inspect opened —
+    // mirrors the desktop mouseout cleanup. Silent no-op when no
+    // hover was active.
+    if (this.sfx && typeof this.sfx._stopHover === 'function') {
+      try { this.sfx._stopHover(); } catch (e) {}
+    }
+  },
+  // Pick a rarity tier + label for a card. Roguelite cards carry an
+  // explicit `_runRarity` (common / rare / special / legendary); for
+  // classic-mode cards we fall back to the cost-tier proxy that drives
+  // the on-board rarity pips (1 pip = cost ≤3, 2 = ≤6, 3 = ≤8, 4 = 9+).
+  // Same tier number → same ribbon color, so a 9-cost classic card
+  // and a roguelite legendary read identically.
+  _cardRarityLabel(card) {
+    if (card._runRarity) {
+      const map = { common: 1, rare: 2, special: 3, legendary: 4 };
+      const tier = map[card._runRarity] || 1;
+      return { tier, label: card._runRarity.toUpperCase() };
+    }
+    const cost = card.baseCost || card.cost || 0;
+    if (cost >= 9) return { tier: 4, label: 'LEGENDARY' };
+    if (cost >= 7) return { tier: 3, label: 'SUPER-RARE' };
+    if (cost >= 4) return { tier: 2, label: 'RARE' };
+    return { tier: 1, label: 'COMMON' };
+  },
+
   // ===================== SETTINGS (persisted in localStorage) =====================
   settings: {
     difficulty: 'normal',  // easy | normal | hard
@@ -9735,6 +9869,17 @@ const UI = {
           aiSlot.appendChild(ring);
           setTimeout(() => ring.remove(), 900);
         }
+        // DEFAULT click handler — tap a board card to open the inspect
+        // popup (PvZ Heroes-style full-detail view: big art, name,
+        // stats, full description, rarity ribbon). The cc / lc
+        // branches below override this when the card is a valid
+        // target during a card-choice or lane-choice prompt, so
+        // targeting flow is preserved. Skipped for face-down enemy
+        // tiles — exposing a hidden card via inspect would leak
+        // information the player isn't supposed to see yet.
+        if (!lane.ai.isFaceDown) {
+          cardEl.onclick = () => UI.openCardInspect(lane.ai);
+        }
         if (cc && targetCardIds.has(lane.ai.id)) {
           cardEl.classList.add('target-highlight');
           const idx = cc.cards.findIndex(c => c.id === lane.ai.id);
@@ -9868,6 +10013,12 @@ const UI = {
           pSlot.appendChild(ring);
           setTimeout(() => ring.remove(), 900);
         }
+        // Mirror of the AI-side default-onclick — tap your own board
+        // card to open the inspect popup. cc / lc branches still
+        // override during targeting prompts. lane.player can't be
+        // face-down for the player's own side, so no face-down
+        // guard needed here.
+        cardEl.onclick = () => UI.openCardInspect(lane.player);
         if (cc && targetCardIds.has(lane.player.id)) {
           cardEl.classList.add('target-highlight');
           const idx = cc.cards.findIndex(c => c.id === lane.player.id);
@@ -14104,10 +14255,30 @@ const UI = {
         // Hide all initially
         letterEls.forEach(le => le.style.opacity = '0');
         el.classList.add('typing');
+        // Safety belt — if the reveal chain is interrupted (tab
+        // backgrounded so setTimeouts drop, a second banner call
+        // racing in, render() teardown removing letterEls mid-
+        // reveal), the .typing class can linger and the blinking
+        // ▍ caret stays on screen forever. On mobile that reads as
+        // a stuck system cursor (user report: "constant cursor on
+        // mobile"). Schedule a hard removal at the expected
+        // end-time + 250ms slack. The reveal closure also clears
+        // .typing on natural completion; this is just the
+        // defense-in-depth backstop.
+        const maxRevealMs = letterEls.length * 22 + 250;
+        if (this._typingSafetyTimer) clearTimeout(this._typingSafetyTimer);
+        this._typingSafetyTimer = setTimeout(() => {
+          el.classList.remove('typing');
+          this._typingSafetyTimer = null;
+        }, maxRevealMs);
         let i = 0;
         const reveal = () => {
           if (i >= letterEls.length) {
             el.classList.remove('typing');
+            if (this._typingSafetyTimer) {
+              clearTimeout(this._typingSafetyTimer);
+              this._typingSafetyTimer = null;
+            }
             return;
           }
           letterEls[i].style.opacity = '1';
@@ -14830,7 +15001,25 @@ const UI = {
   // via data-card-name or data-trick-name) so it always shows the
   // canonical text, not the possibly-buffed in-play values. Tap
   // anywhere outside to close.
+  //
+  // BOARD CARDS get routed to the newer openCardInspect path (PvZ
+  // Heroes-style full-card modal) which uses the LIVE card object —
+  // buffs, current HP, status effects all reflected. This keeps the
+  // long-press gesture (touch) consistent with the new click gesture
+  // (desktop board cards), so both gestures land in the same visual
+  // even though the underlying renderer differs.
   showCardInspect(cardEl) {
+    // Board card → route to the new full-card inspect (uses live state).
+    if (cardEl && cardEl.closest && cardEl.closest('.card-slot')) {
+      const idAttr = cardEl.dataset.cardId;
+      if (idAttr != null && typeof Game !== 'undefined' && Game.state) {
+        const id = +idAttr;
+        for (const lane of (Game.state.lanes || [])) {
+          if (lane.ai && lane.ai.id === id) { this.openCardInspect(lane.ai); return; }
+          if (lane.player && lane.player.id === id) { this.openCardInspect(lane.player); return; }
+        }
+      }
+    }
     // Close any existing inspect first.
     const stale = document.getElementById('card-inspect-modal');
     if (stale) stale.remove();
