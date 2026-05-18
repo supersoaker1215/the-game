@@ -38,11 +38,12 @@ window.CARD_ART_VARIANTS = {
   'Superman':            ['Superman 2.png',           'Superman.png'],
   'Symbiote Spider-Man': ['Symbiote Spider-Man 2.png','Symbiote Spider-Man.png'],
   'The Flash':           ['The Flash 2.png',          'The Flash.png'],
+  // ── Variant-2 promoted in second pass (2026-05-18 follow-up) ──
+  'Ahsoka':              ['Ahsoka 2.png',             'Ahsoka.png'],
+  'Xenomorph':           ['Xenomorph 2.png',          'Xenomorph.png'],
   // ── Variant-1 default kept (user kept original) ──
-  'Ahsoka':              ['Ahsoka.png',               'Ahsoka 2.png'],
   'Anakin Skywalker':    ['Anakin Skywalker.png',     'Anakin Skywalker 2.png'],
   'Batman':              ['Batman.png',               'Batman 2.png'],
   'Venom':               ['Venom.png',                'Venom 2.png'],
   'Wolverine':           ['Wolverine.png',            'Wolverine 2.png'],
-  'Xenomorph':           ['Xenomorph.png',            'Xenomorph 2.png'],
 };
