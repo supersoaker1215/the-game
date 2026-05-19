@@ -6675,15 +6675,19 @@ body.hit-pause .ai-hand * {
   border-top: 1px solid var(--tron-dim);
   box-shadow: 0 -1px 0 var(--tron-glow);
   position: relative;
-  /* z-index 10 sits ABOVE the .info-bar.player-bar's z-index: 5 so when
-     a hand card hover-lifts upward, it paints OVER the HUD bar instead
-     of getting clipped behind it. User report: "When I hover over a card
-     like King Shark, it goes behind the health banner of on my side."
-     Root cause: stacking-context trap — the wrapper's z-index: 1000
-     can't escape its parent's z-index. Bumping the parent fixes it.
-     `!important` because `#game-area > *` at line 415 sets z-index: 1
-     with higher specificity (id+universal beats single-class). */
-  z-index: 10 !important;
+  /* z-index 220 sits ABOVE the .info-bar.player-bar's z-index: 210
+     so when a hand card hover-lifts upward, it paints OVER the HUD
+     bar instead of being clipped behind it. The player-bar was
+     bumped to 210 (was 5) to sit above the Tron cursor-trail SVG
+     (z-index 200), and that move accidentally trapped the hand
+     section below the bar — hovering a hand card slid it under
+     the banner. User report 2026-05-18: "whenever I hover over a
+     card in my hand, it gets blocked by the player banner. Like,
+     it goes underneath the player banner."
+     `!important` because `#game-area > *` at line 415 sets
+     z-index: 1 with higher specificity (id+universal beats single-
+     class). */
+  z-index: 220 !important;
   /* Clip ONLY the bottom edge so hover-lifted cards can escape upward for
      readability but never cross into the tricks row below. overflow:hidden
      would block the upward lift too. */
@@ -17424,6 +17428,16 @@ body.ai-thinking .ai-thinking-ring { opacity: 1; }
    Pure CSS — positioned via percentages, travel via a single
    keyframe with individual delays so they never sync. */
 .board-mote {
+  /* DISABLED 2026-05-18 per user feedback: "Blue specks that come
+     out, if you can get rid of that as well… I just really wanna
+     cut down on the animation so that the performance is better."
+     The 4 drifting motes were tinted by --theme-rgb (cyan default),
+     each running a 9s infinite drift loop on every frame. Setting
+     `display: none` keeps the markup harmless (UI.render still
+     emits the 4 .board-mote divs) but stops the per-frame
+     compositor work entirely. To restore: remove `display: none`
+     and the original sizing / animation rules below take over. */
+  display: none !important;
   position: absolute;
   width: 3px; height: 3px;
   border-radius: 50%;
@@ -18807,7 +18821,17 @@ body.defeat-pose .board .card.enemy-card {
     linear-gradient(#000 0 0) content-box,
     linear-gradient(#000 0 0);
           mask-composite: exclude;
-  animation: tronConicFlow var(--tron-perim-hud-cycle) linear infinite;
+  /* tronConicFlow — DISABLED 2026-05-18 per user feedback "I don't
+     want too many cost or animations running… performance is
+     better." The rotating bright head on the block circle / energy
+     diamond / lane lane-number diamonds traced a perimeter ring
+     every 6 s — a continuous compositor cost on every frame for
+     every diamond on screen. Without the flow animation the conic
+     gradient stays parked at --tron-flow-angle: 0deg, leaving a
+     stationary bright spot. To bring it back later: re-enable
+     `animation: tronConicFlow var(--tron-perim-hud-cycle) linear
+     infinite;` here. */
+  animation: none;
 }
 @keyframes tronConicFlow {
   to { --tron-flow-angle: 360deg; }
@@ -26486,6 +26510,19 @@ body > .grid-bg {
 #game-area .info-bar.player-bar {
   position: relative;
   z-index: 210;
+}
+/* HP bar perimeter pulse — DISABLED 2026-05-18 per user feedback:
+   "the animations are still running, so those need to be killed
+   because I don't want too many animations going because that's
+   what's gonna slow down the game on mobile."
+   The tronTubePulse on .health-bar::after was animating border-
+   color + box-shadow every 6s. Even at the lower 50% alpha peak
+   this rendered as a continually brightening rim around both HP
+   bars — perceived as the bar "glowing in/out" which the user
+   wanted off. Border + box-shadow stay (the bars still have a
+   static red/cyan rim), just no longer pulsed. */
+.info-bar .health-bar.tron-perimeter::after {
+  animation: none !important;
 }
 
 /* The lanes need to render IN FRONT of the floor + haze. */
