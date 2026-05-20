@@ -3747,11 +3747,60 @@ const UI = {
   moveTooltip(e) {
     const t = this.tooltipEl;
     const pad = 14;
+    // offsetWidth / offsetHeight force a sync layout, returning the
+    // tooltip's actual painted dimensions even though the innerHTML
+    // was just set in the click handler one tick ago. Using
+    // getBoundingClientRect here returned 0×0 because the browser
+    // hadn't reflowed yet, causing the left-of-modal placement to
+    // collapse onto the modal edge.
+    const tw = t.offsetWidth;
+    const th = t.offsetHeight;
+    // INSIDE THE INSPECT MODAL — anchor the tooltip to the modal's
+    // side instead of the cursor. User report 2026-05-19: "when I
+    // click on Summon, it's not on this screen but on board" —
+    // cursor-anchored placement put the tooltip below the click
+    // point, which (for keywords near the bottom of Dr. Doom's
+    // description) landed in the dimmed board area visible
+    // through the inspect backdrop. Anchoring to the modal keeps
+    // the popout firmly attached to the screen the user is
+    // actually looking at, mirroring the PvZ Heroes side-bar
+    // layout the user referenced earlier.
+    //
+    // Priority: LEFT of modal → RIGHT of modal → cursor fallback.
+    // Vertically aligns with the clicked keyword when possible so
+    // there's still a visual connection between word and tip.
+    const inspectModal = document.querySelector('#card-inspect-backdrop .card-inspect-modal');
+    if (inspectModal && e.target && e.target.closest && e.target.closest('#card-inspect-backdrop')) {
+      const modalRect = inspectModal.getBoundingClientRect();
+      let placedX, placedY;
+      // Vertical anchor — center on the click point so the tip
+      // reads as connected to the clicked keyword, then clamp.
+      placedY = e.clientY - th / 2;
+      placedY = Math.max(pad, Math.min(window.innerHeight - th - pad, placedY));
+      // Horizontal — left of modal first.
+      placedX = modalRect.left - tw - pad;
+      if (placedX < pad) {
+        // Try right of modal.
+        placedX = modalRect.right + pad;
+      }
+      if (placedX + tw > window.innerWidth - pad) {
+        // Both sides cramped (narrow viewport / mobile) — fall back
+        // to cursor placement (with viewport clamping below).
+        placedX = e.clientX + pad;
+        placedY = e.clientY + pad;
+        if (placedX + tw > window.innerWidth - 8) placedX = e.clientX - tw - pad;
+        if (placedY + th > window.innerHeight - 8) placedY = e.clientY - th - pad;
+      }
+      t.style.left = placedX + 'px';
+      t.style.top  = placedY + 'px';
+      return;
+    }
+    // Default cursor-anchored placement (everywhere outside the
+    // inspect modal — hand cards, board cards, codex, draft).
     let x = e.clientX + pad;
     let y = e.clientY + pad;
-    const r = t.getBoundingClientRect();
-    if (x + r.width > window.innerWidth - 8) x = e.clientX - r.width - pad;
-    if (y + r.height > window.innerHeight - 8) y = e.clientY - r.height - pad;
+    if (x + tw > window.innerWidth - 8) x = e.clientX - tw - pad;
+    if (y + th > window.innerHeight - 8) y = e.clientY - th - pad;
     t.style.left = x + 'px';
     t.style.top  = y + 'px';
   },
@@ -11405,7 +11454,7 @@ const UI = {
     'Unresistible':{ color: '#ff4757', svg: '<svg viewBox="0 0 12 12"><path d="M2 6 L10 6 M7 3 L10 6 L7 9" stroke="currentColor" stroke-width="1.4" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>', tip: 'Bypasses Immunity when applying debuffs.' },
     'Untrickable': { color: '#95a5a6', svg: '<svg viewBox="0 0 12 12"><circle cx="6" cy="6" r="4.5" stroke="currentColor" stroke-width="1.2" fill="none"/><path d="M3 9 L9 3" stroke="currentColor" stroke-width="1.2"/></svg>', tip: 'Cannot be targeted by Tricks.' },
     'Stun':        { color: '#3498db', svg: '<svg viewBox="0 0 12 12"><path d="M3 2 L6 5 L4 5 L8 10 L6 7 L8 7 Z" fill="currentColor"/></svg>', tip: 'Cannot attack or dodge this turn.' },
-    'Freeze':      { color: '#85c1e9', svg: '<svg viewBox="0 0 12 12"><path d="M6 1 V11 M1.5 3.5 L10.5 8.5 M10.5 3.5 L1.5 8.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>', tip: 'Cannot attack while frozen.' },
+    'Freeze':      { color: '#85c1e9', svg: '<svg viewBox="0 0 12 12"><path d="M6 1 V11 M1.5 3.5 L10.5 8.5 M10.5 3.5 L1.5 8.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>', tip: 'Can\'t attack or move while frozen.' },
     'Fear':        { color: '#5a5a5a', svg: '<svg viewBox="0 0 12 12"><circle cx="4" cy="5" r="1" fill="currentColor"/><circle cx="8" cy="5" r="1" fill="currentColor"/><path d="M3 9 Q6 7 9 9" stroke="currentColor" stroke-width="1.2" fill="none"/></svg>', tip: 'Attacks itself instead of the enemy.' },
     'Steady':      { color: '#16a085', svg: '<svg viewBox="0 0 12 12"><circle cx="6" cy="6" r="2.5" stroke="currentColor" stroke-width="1.2" fill="none"/><path d="M3 6 H9 M6 3 V9" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>', tip: 'Cancels one Crazy reroll per charge — ATK stays at base for that turn.' },
     'Curse':       { color: '#9b3c7f', svg: '<svg viewBox="0 0 12 12"><path d="M3 3 L9 9 M9 3 L3 9" stroke="currentColor" stroke-width="1.4" fill="none" stroke-linecap="round"/><circle cx="6" cy="6" r="4.5" stroke="currentColor" stroke-width="0.8" fill="none" stroke-dasharray="1.5 1"/></svg>', tip: 'Permanent deck liability — clogs your hand, may trigger a downside when played. Cannot be drafted away. Removable at Rest Sites or specific events.' },
