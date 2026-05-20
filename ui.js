@@ -2309,6 +2309,14 @@ const UI = {
         this._hoverDelayTimer = null;
         this._hoverDelayEl = null;
       }
+      // Clear the mouseout-to-empty delayed stop too. If we're
+      // tearing down hover state right now, there's no point in a
+      // scheduled stop firing later — it'd no-op against a null
+      // audio ref but stays as dead state. Safer to clean it up.
+      if (this._pendingStopHover) {
+        clearTimeout(this._pendingStopHover);
+        this._pendingStopHover = null;
+      }
       const a = this._currentHoverAudio;
       // 1-second fade-out on hover stop so leaving a card feels seamless
       // (user spec: "hard to tell there was an audio difference at all").
@@ -2751,6 +2759,16 @@ const UI = {
       if (!curr) return;
       const from = getHoverTarget(e.relatedTarget);
       if (from === curr) return; // still inside the same card; bubbled child
+      // CANCEL any pending mouseout-to-empty stop — the user came
+      // back onto a hover target before the 3 s delayed-stop fired,
+      // so we want to keep the audio playing without interruption
+      // (or take a clean handoff if they re-hover a different card).
+      // Scoped here because both the same-card return AND the
+      // different-card stopHover paths below need the cancel.
+      if (this.sfx._pendingStopHover) {
+        clearTimeout(this.sfx._pendingStopHover);
+        this.sfx._pendingStopHover = null;
+      }
       // Already hovering this exact element — skip to avoid retriggering
       // audio on any browser quirk that fires a spurious mouseover from
       // outside (e.g. brief transform flicker).
@@ -2850,27 +2868,46 @@ const UI = {
       const to = getHoverTarget(e.relatedTarget);
       if (to === curr) return; // still inside the same card
       if (this.sfx._hoverDelayEl === curr) cancelPendingHover();
-      // Only stop hover audio when the cursor moves to ANOTHER
-      // hover target (different card, trick, draft pick). Moving
-      // to empty space lets the clip play out via its baked
-      // ffmpeg fade-out — user direction (2026-05-18) "Can you
-      // hover over a card in your hand? It doesn't go — so then
-      // you'll get cut off, which is not what I want."
+      // Mouseout handling — three cases:
       //
-      // KEEP _currentHoverEl pointing at the now-vacated card
-      // when leaving to empty space, so the NEXT mouseover on a
-      // different card finds the lingering audio and stops it
-      // (via the `if (_currentHoverEl) _stopHover(true)` line in
-      // mouseover). Without this, my earlier cleanup-to-null
-      // change broke that handoff and let multiple hover tracks
-      // pile up. User report 2026-05-19: "the audio will keep
-      // playing after I'm done hover over the card creating
-      // multiple hovers playing at once which lags the game."
-      // The natural-end / pause handlers attached when audio
-      // started (see mouseover handler above) clear the refs
-      // once the clip actually finishes, so a re-hover on the
-      // same card after the audio ended works correctly.
-      if (to && this.sfx._currentHoverEl === curr) this.sfx._stopHover(true);
+      //   (a) Moving to ANOTHER hover target (a different card or
+      //       trick): fire _stopHover(true) immediately so the
+      //       new mouseover starts cleanly. The new hover's
+      //       1.5 s dwell timer covers the transition.
+      //
+      //   (b) Moving to EMPTY SPACE (board lanes, body, hand row
+      //       gap, codex panel padding, etc.): SCHEDULE a stop
+      //       3 s out instead of firing immediately. If the user
+      //       returns to the SAME card within that window
+      //       (briefly slid off then back on), the mouseover
+      //       handler cancels the scheduled stop and the audio
+      //       keeps playing — covers the user's earlier
+      //       direction "Can you hover over a card in your hand?
+      //       It doesn't go — so then you get cut off, which is
+      //       not what I want." If they don't return, the
+      //       scheduled stop fires and the clip gracefully fades
+      //       — covers today's direction "the audio will keep
+      //       playing after I'm done hover over the card
+      //       creating multiple hovers playing at once which lags
+      //       the game" (codex Jigsaw → leave → audio
+      //       orphaned). 3 s is generous enough for "I'm
+      //       repositioning my cursor on this card" but short
+      //       enough that abandoned hovers don't tail forever.
+      if (to && this.sfx._currentHoverEl === curr) {
+        // Different-card transition — stop now.
+        if (this.sfx._pendingStopHover) {
+          clearTimeout(this.sfx._pendingStopHover);
+          this.sfx._pendingStopHover = null;
+        }
+        this.sfx._stopHover(true);
+      } else if (!to && this.sfx._currentHoverEl === curr) {
+        // Empty-space transition — schedule a delayed stop.
+        if (this.sfx._pendingStopHover) clearTimeout(this.sfx._pendingStopHover);
+        this.sfx._pendingStopHover = setTimeout(() => {
+          this.sfx._pendingStopHover = null;
+          this.sfx._stopHover(true);
+        }, 3000);
+      }
     });
 
     // ---- Audio model v3 ----
