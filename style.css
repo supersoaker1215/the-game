@@ -28313,3 +28313,45 @@ body.round-tick .board::after {
     cursor: default !important;
   }
 }
+
+/* ============================================================
+   IRON MAN KILL PREVIEW — red lethal glow on damaged enemies
+   ============================================================
+   When the player selects Iron Man from hand, every enemy card
+   he WILL finish off on play gets this glow so the value of the
+   play is unambiguous at a glance. User direction 2026-05-19:
+   "highlight all enemy cards he would kill before playing him
+   because right now you can't technically tell whose been hurt."
+   Distinct from .target-highlight (gold "pick this") so the
+   reading is "this WILL die when I play Iron Man," not "I have
+   to pick this." */
+.card.card-kill-preview {
+  outline: 2px solid rgba(231, 76, 60, 0.9);
+  outline-offset: -2px;
+  box-shadow:
+    0 0 12px rgba(231, 76, 60, 0.75),
+    0 0 22px rgba(231, 76, 60, 0.45),
+    inset 0 0 12px rgba(231, 76, 60, 0.35) !important;
+  animation: ironManKillPreviewPulse 1.4s ease-in-out infinite;
+}
+.card.card-kill-preview::after {
+  content: '☠';
+  position: absolute;
+  top: 4px; right: 4px;
+  font-size: 14px;
+  line-height: 1;
+  color: rgba(255, 100, 90, 0.95);
+  text-shadow: 0 0 6px rgba(231, 76, 60, 0.85),
+               0 0 12px rgba(231, 76, 60, 0.55);
+  z-index: 5;
+  pointer-events: none;
+  animation: ironManKillPreviewPulse 1.4s ease-in-out infinite;
+}
+@keyframes ironManKillPreviewPulse {
+  0%, 100% { filter: brightness(1.0); }
+  50%      { filter: brightness(1.35); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .card.card-kill-preview { animation: none; }
+  .card.card-kill-preview::after { animation: none; }
+}

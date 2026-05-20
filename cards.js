@@ -273,7 +273,7 @@ const CARD_DEFS = [
 
   // ==================== COST 8 ====================
   { name: "Darth Vader", cost: 8, attack: 6, health: 7, type: "villain",
-    abilities: ["Armor 1"],
+    abilities: ["Armor 1", "Unresistible 1"],
     desc: "When Played: Move an enemy to an empty lane. Fear 1 an enemy. Then start a 7-damage chain — pick direction each step; damage decreases by 1 per hit." },
   { name: "Emperor Palpatine", cost: 8, attack: 6, health: 8, type: "villain",
     abilities: ["Unresistible"],

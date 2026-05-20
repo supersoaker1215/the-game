@@ -10130,6 +10130,35 @@ const UI = {
           const idx = cc.cards.findIndex(c => c.id === lane.ai.id);
           cardEl.onclick = () => cardChoicePick(idx);
         }
+        // ---- Iron Man kill preview (2026-05-19) ----
+        // User direction: "for Iron Man it would be nice to highlight
+        // all enemy cards he would kill before playing him because
+        // right now you can't technically tell whose been hurt."
+        // When the player has Iron Man selected from hand, mark every
+        // damaged enemy whose cost is within Iron Man's tier-gated
+        // ceiling (common ≤5, rare ≤8, special ≤9, legendary any) so
+        // the player can see exactly which cards will be finished off
+        // when he lands. Mirrors the existing Iron Man.onPlay filter
+        // in abilities.js. The `card-kill-preview` class wires up a
+        // skull-glow effect (added below) — a different visual from
+        // .target-highlight so the player can distinguish "I have to
+        // pick this" (target-highlight) from "this WILL die when I
+        // play" (kill-preview).
+        if (s.selectedCard && s.selectedCard.name === 'Iron Man'
+            && lane.ai.currentHealth < lane.ai.maxHealth) {
+          const ironRarity = s.selectedCard._runRarity;
+          const ironCap = ironRarity === 'legendary' ? 99
+            : ironRarity === 'special' ? 9
+            : ironRarity === 'rare' ? 8
+            : 5;
+          const enemyCost = lane.ai.baseCost || lane.ai.cost || 0;
+          if (enemyCost <= ironCap) cardEl.classList.add('card-kill-preview');
+          else cardEl.classList.remove('card-kill-preview');
+        } else {
+          // Clear the preview class when Iron Man is no longer
+          // selected so a stale highlight doesn't linger.
+          cardEl.classList.remove('card-kill-preview');
+        }
         // Lane-choice prompts (Vader's chain, Green Goblin target-lane,
         // etc.) that target the AI side need clicks on the OCCUPIED
         // card, not just an empty slot. Previously the target-highlight
