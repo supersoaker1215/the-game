@@ -6025,6 +6025,16 @@ const Game = {
     if (card.isFeared || (card.fearedTurns || 0) > 0) return;
     card.isCrazy = true;
     card._crazyAppliedBy = true;
+    // Snapshot the pre-Crazy ATK so it can be RESTORED if the source
+    // (Joker) dies. User bug report 2026-05-19: "Joker died, but
+    // Dormammu's stats stayed at whatever debuff he rolled for the
+    // crazy. That's not how it works. He should now get his stats
+    // back to what they were previously because he no longer has the
+    // crazy status trait." The snapshot captures whatever the card's
+    // current attack is (base + any pre-existing buffs), so the
+    // restore goes back to exactly the value the player saw before
+    // Crazy hijacked the orb. Joker.onDeath reads this and resets.
+    card._preCrazyAttack = card.attack;
     this.rerollCrazyInsane(card);
   },
 

@@ -2173,13 +2173,34 @@ const CARD_ABILITIES = {
     },
     onDeath(G, self) {
       // When Joker dies, strip the Crazy stamp from any enemies he had
-      // infected — their ATK freezes at its current rolled value (the
-      // trait no longer forces a per-round reroll).
+      // infected AND restore their pre-Crazy ATK (which Game.applyCrazyToCard
+      // snapshotted onto `_preCrazyAttack` when the trait was applied).
+      //
+      // User bug report 2026-05-19: "Joker died, but Dormammu's stats
+      // stayed at whatever debuff he rolled for the crazy. That's not
+      // how it works. He should now get his stats back to what they
+      // were previously because he no longer has the crazy status
+      // trait." Previously this hook only stripped the flag and left
+      // the rolled value pinned — fixed by restoring the snapshot.
+      // Falls back to baseAttack if for some reason the snapshot is
+      // missing (e.g. a card that got Crazy'd before the snapshot
+      // logic shipped). Restoration also clears the per-roll memory
+      // so a future re-Crazy (different Joker enters play later)
+      // starts fresh.
       G.getAllCardsOnBoard().forEach(c => {
         if (c._crazyAppliedBy) {
           c.isCrazy = false;
           delete c._crazyAppliedBy;
-          G.log(`  [CRAZY] ${c.name} is no longer Crazy — Joker is gone.`);
+          const restoreTo = (c._preCrazyAttack != null) ? c._preCrazyAttack : (c.baseAttack || c.attack);
+          if (typeof restoreTo === 'number' && restoreTo !== c.attack) {
+            const wasAtk = c.attack;
+            c.attack = restoreTo;
+            G.log(`  [CRAZY] ${c.name} is no longer Crazy — ATK restored ${wasAtk} → ${restoreTo}.`);
+          } else {
+            G.log(`  [CRAZY] ${c.name} is no longer Crazy — Joker is gone.`);
+          }
+          delete c._preCrazyAttack;
+          delete c._lastCrazyRoll;
         }
       });
     },
