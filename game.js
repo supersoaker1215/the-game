@@ -307,6 +307,66 @@ const Game = {
     else if (state.currentTurn === 'ai') state.currentTurn = 'player';
     if (state.winner === 'player') state.winner = 'ai';
     else if (state.winner === 'ai') state.winner = 'player';
+    // ---- Phase-string seat swap (2026-05-19) ----
+    // The phase names hard-encode whose seat is acting — e.g.
+    // `player-cards`, `ai-cards`, `player-cards-tricks`,
+    // `ai-cards-tricks`, `player-tricks`, `ai-tricks`. Without
+    // flipping these on the guest, the guest's local view sees
+    // (for example) `phase = 'ai-cards'` when the host has set
+    // 'ai-cards' meaning "AI seat plays" — but from the guest's
+    // perspective they ARE the AI seat and it's THEIR turn. The
+    // UI reads `phase` to gate hand-click handlers (only allow
+    // plays during the right phase), so without this flip the
+    // guest couldn't actually play any cards — the host would
+    // wait for guest input that the guest's own UI was blocking.
+    // User report 2026-05-19: "we are not facing each other…
+    // direct PvP where it's random who plays first and we just
+    // take turns with NO AI." The AI logic IS correctly gated
+    // off in multiplayer (the host doesn't auto-play for the
+    // 'ai' seat); the missing piece was the guest's UI couldn't
+    // tell it was their turn.
+    //
+    // `firstPlayer`, `oddPlayer`, and other seat-label fields
+    // also get swapped here for parity — anywhere the UI / game
+    // logic reads "who is X" should be consistent post-flip.
+    if (typeof state.phase === 'string') {
+      if (state.phase.startsWith('player-')) state.phase = 'ai-' + state.phase.slice(7);
+      else if (state.phase.startsWith('ai-')) state.phase = 'player-' + state.phase.slice(3);
+    }
+    if (state.firstPlayer === 'player') state.firstPlayer = 'ai';
+    else if (state.firstPlayer === 'ai') state.firstPlayer = 'player';
+    if (state.oddPlayer === 'player') state.oddPlayer = 'ai';
+    else if (state.oddPlayer === 'ai') state.oddPlayer = 'player';
+    if (state.activePlayer === 'player') state.activePlayer = 'ai';
+    else if (state.activePlayer === 'ai') state.activePlayer = 'player';
+    // Per-side stats blob (block triggers, peakRoundDamage, kills, etc.)
+    // — swap so each side's UI dashboard reads its own numbers.
+    if (state._stats) {
+      const _tStat = state._stats.player;
+      state._stats.player = state._stats.ai;
+      state._stats.ai = _tStat;
+    }
+    // Pending-choice owner/targetSide labels — when the host
+    // emits a prompt, the OWNER (who needs to pick) is encoded as
+    // 'player' or 'ai' from the host's perspective. Flip to the
+    // guest's perspective so the guest's UI shows the prompt to
+    // the right side. Skipped silently when no pending choice
+    // is active.
+    const flipSeat = (s) => s === 'player' ? 'ai' : s === 'ai' ? 'player' : s;
+    if (state.pendingCardChoice) {
+      const pc = state.pendingCardChoice;
+      pc.owner = flipSeat(pc.owner);
+      pc.targetSide = flipSeat(pc.targetSide);
+    }
+    if (state.pendingLaneChoice) {
+      const lc = state.pendingLaneChoice;
+      lc.owner = flipSeat(lc.owner);
+      lc.targetSide = flipSeat(lc.targetSide);
+    }
+    if (state.pendingBlockTrick) {
+      const bt = state.pendingBlockTrick;
+      if (bt.owner) bt.owner = flipSeat(bt.owner);
+    }
     // ---- Draft-state perspective swap (2026-05-19) ----
     // Without this, both players see the HOST's draft picks in
     // their own "your choices" slot — i.e. one shared draft room
