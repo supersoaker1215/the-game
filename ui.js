@@ -1877,38 +1877,73 @@ const UI = {
     // clone. Called when the clone is re-used for a new play so the old
     // timers don't fight with the new one's volume.
     _clearFadeTimers(a) {
-      if (a._fadeInInterval) { clearInterval(a._fadeInInterval); a._fadeInInterval = null; }
-      if (a._capTimeout)     { clearTimeout(a._capTimeout);      a._capTimeout = null; }
-      if (a._capInterval)    { clearInterval(a._capInterval);    a._capInterval = null; }
-      if (a._stopInterval)   { clearInterval(a._stopInterval);   a._stopInterval = null; }
+      // After the 2026-05-19 fade-engine rewrite, these IDs are RAF
+      // handles, not setInterval IDs. Cancel via cancelAnimationFrame
+      // primarily; clearInterval kept as a belt-and-braces fallback
+      // in case a fade from the legacy setInterval path is still in
+      // flight when this helper runs (e.g. mid-deploy, hot-reload).
+      const cancel = (id) => {
+        if (id == null) return;
+        try { cancelAnimationFrame(id); } catch (e) {}
+        try { clearInterval(id); } catch (e) {}
+      };
+      if (a._fadeInInterval) { cancel(a._fadeInInterval); a._fadeInInterval = null; }
+      if (a._capTimeout)     { clearTimeout(a._capTimeout);  a._capTimeout = null; }
+      if (a._capInterval)    { cancel(a._capInterval);   a._capInterval = null; }
+      if (a._stopInterval)   { cancel(a._stopInterval);  a._stopInterval = null; }
     },
 
     // Volume ramp helper — eases a clone's .volume from its current value
     // to `toVol` over `durMs`, calling `onDone` when finished. Holds the
-    // interval id on the element so a follow-up play can cancel it.
+    // RAF id on the element so a follow-up play can cancel it.
     // Tracks under `slot` so fade-in / fade-out / stop fades don't step on
     // each other. Fades DOWN use an ease-out-quad curve so the tail
     // lingers at low volume and the cut to silence doesn't click; fades
     // UP are linear (sharp transients still read as immediate).
+    //
+    // 2026-05-19 — switched from setInterval(20 ms) to
+    // requestAnimationFrame. The 20 ms timer fired 50 Hz unsynced with
+    // the browser's paint schedule, so every fade contended with the
+    // main thread; multiple simultaneous fades (old hover fading out +
+    // new hover fading in + music ducking) compounded into perceived
+    // lag during transitions. User report: "it's kinda lagging, how
+    // can we make the audio smoother transitions?" RAF syncs the
+    // volume writes with the next paint (~16.67 ms at 60 Hz, fewer
+    // ticks total) and auto-pauses when the tab is backgrounded — no
+    // wasted work and smoother per-frame interpolation. We cancel via
+    // `cancelAnimationFrame` instead of `clearInterval`. The `slot`
+    // contract stays the same so all the existing fade-in /
+    // fade-out / stop / duck call sites work unchanged.
     _fadeVolume(a, toVol, durMs, slot, onDone) {
       const startVol = a.volume;
       const goingDown = toVol < startVol;
-      const t0 = Date.now();
+      const t0 = (typeof performance !== 'undefined' ? performance.now() : Date.now());
       const key = slot || '_fadeInterval';
-      if (a[key]) { clearInterval(a[key]); a[key] = null; }
-      a[key] = setInterval(() => {
-        const p = Math.min(1, (Date.now() - t0) / durMs);
+      // Cancel any in-flight RAF in the same slot. Belt-and-braces
+      // clearInterval too in case a fade was queued under the old
+      // setInterval implementation and the engine is mid-transition.
+      if (a[key]) {
+        try { cancelAnimationFrame(a[key]); } catch (e) {}
+        try { clearInterval(a[key]); } catch (e) {}
+        a[key] = null;
+      }
+      const tick = () => {
+        const now = (typeof performance !== 'undefined' ? performance.now() : Date.now());
+        const p = Math.min(1, (now - t0) / durMs);
         // Ease-out-quad on the way down: amplitude drops more quickly
         // initially, so we spend the last portion of the fade at quiet
-        // levels where a straight cut would otherwise stand out. Up-ramps
-        // stay linear — they're short and don't benefit from easing.
+        // levels where a straight cut would otherwise stand out. Up-
+        // ramps stay linear — they're short and don't benefit from easing.
         const eased = goingDown ? 1 - Math.pow(1 - p, 2) : p;
         a.volume = Math.max(0, Math.min(1, startVol + (toVol - startVol) * eased));
         if (p >= 1) {
-          clearInterval(a[key]); a[key] = null;
+          a[key] = null;
           if (onDone) onDone();
+          return;
         }
-      }, 20);
+        a[key] = requestAnimationFrame(tick);
+      };
+      a[key] = requestAnimationFrame(tick);
     },
 
     // Fade a clone down to 0 then pause + rewind. Restores the original
@@ -2094,19 +2129,25 @@ const UI = {
         pick._capTimeout = setTimeout(() => {
           pick._capTimeout = null;
           const startVol = pick.volume;
-          const t0 = Date.now();
-          pick._capInterval = setInterval(() => {
-            const elapsed = Date.now() - t0;
-            const p = Math.min(1, elapsed / fadeMs);
-            // Ease-out-quad matches _fadeVolume so the end-of-clip taper
-            // feels the same shape as every other down-fade.
+          const t0 = (typeof performance !== 'undefined' ? performance.now() : Date.now());
+          // RAF-driven taper — synced to paint, no main-thread 50 Hz
+          // setInterval. Matches the rest of the fade engine (see
+          // _fadeVolume) so multiple simultaneous fades share one
+          // animation tick instead of contending. 2026-05-19
+          // smoother-transitions pass.
+          const capTick = () => {
+            const now = (typeof performance !== 'undefined' ? performance.now() : Date.now());
+            const p = Math.min(1, (now - t0) / fadeMs);
             const eased = 1 - Math.pow(1 - p, 2);
             pick.volume = startVol * (1 - eased);
             if (p >= 1) {
-              clearInterval(pick._capInterval); pick._capInterval = null;
+              pick._capInterval = null;
               try { pick.pause(); pick.currentTime = 0; pick.volume = startVol; } catch (e) {}
+              return;
             }
-          }, 20);
+            pick._capInterval = requestAnimationFrame(capTick);
+          };
+          pick._capInterval = requestAnimationFrame(capTick);
         }, fadeStartMs);
       };
       const maxDur = opts && opts.maxDur;
