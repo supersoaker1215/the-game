@@ -9076,6 +9076,22 @@ const UI = {
     html += `</div>`;
     html += `<div class="draft-choices">`;
 
+    // Multiplayer mid-round wait state — the local player has already
+    // committed their pick for this round (playerChoices cleared by
+    // game.js draftPick) but the opponent hasn't. Show a clear
+    // "waiting for opponent" placeholder instead of an empty picker.
+    // User direction 2026-05-19: "the draft shared and you continue
+    // when the other person is ready" — visualises that here. The
+    // opponent's `aiChoices` stays populated server-side so they
+    // can still pick; this client just shows the wait.
+    if (Game.isMultiplayer && Game.isMultiplayer() && (!choices || !choices.length)) {
+      html += `<div class="draft-waiting">`;
+      html +=   `<div class="draft-waiting-spinner"></div>`;
+      html +=   `<div class="draft-waiting-title">Waiting for opponent…</div>`;
+      html +=   `<div class="draft-waiting-sub">They're picking from their own offers.</div>`;
+      html += `</div>`;
+    }
+
     choices.forEach((c, i) => {
       if (isCards) {
         // Same "?" rule the in-hand renderer uses — Scarlet Witch hides

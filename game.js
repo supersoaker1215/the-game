@@ -307,6 +307,34 @@ const Game = {
     else if (state.currentTurn === 'ai') state.currentTurn = 'player';
     if (state.winner === 'player') state.winner = 'ai';
     else if (state.winner === 'ai') state.winner = 'player';
+    // ---- Draft-state perspective swap (2026-05-19) ----
+    // Without this, both players see the HOST's draft picks in
+    // their own "your choices" slot — i.e. one shared draft room
+    // instead of each player picking from their own offers. User
+    // report: "we get into the same draft room… there needs to be 2
+    // separate draft rooms but drafting from the same deck just
+    // how AI vs a player would be."
+    //
+    // The architecture already supports independent picking
+    // (presentDraftChoices skips the auto-AI-pick in multiplayer,
+    // draftPick advances only when both sides have committed, and
+    // the guest's pick forwards to the host as 'draftPick'). The
+    // ONLY missing piece was this swap on the guest's local state
+    // copy — host's `aiChoices` IS the guest's "your choices."
+    //
+    // Choices and drafted lists swap; the shared holding pools and
+    // history snapshots don't (cardHolding / trickHolding are a
+    // single pool of leftovers both sides draw from; history is a
+    // local undo stack and undo is disabled in multiplayer
+    // anyway). pickedThisRound, mulliganUsed, phase, round are
+    // perspective-neutral.
+    const d = state.draft;
+    if (d) {
+      const swap = (a, b) => { const t = d[a]; d[a] = d[b]; d[b] = t; };
+      swap('playerChoices',      'aiChoices');
+      swap('playerDrafted',      'aiDrafted');
+      swap('playerTrickDrafted', 'aiTrickDrafted');
+    }
     return state;
   },
 
@@ -1105,14 +1133,38 @@ const Game = {
     // AI's pick was already pushed by presentDraftChoices, which
     // means aiDrafted is already 1-ahead-of-d.round so the comparison
     // always passes immediately after the player's pick).
+    //
+    // In MULTIPLAYER, on partial-pick (one side committed but the
+    // other hasn't) we CLEAR the committed side's `*Choices` array
+    // so the UI shows a waiting state instead of the stale picker
+    // (the picked card would still be visible because we read
+    // without splicing). The OTHER side's choices stay populated
+    // so they can still pick. Once they do, the bothPicked branch
+    // below fires presentDraftChoices which clears + redraws both.
     if (d.phase === 'cards') {
       const bothPicked = d.playerDrafted.length === d.aiDrafted.length;
-      if (!bothPicked) { UI.render(); return; }
+      if (!bothPicked) {
+        if (this.isMultiplayer()) {
+          if (who === 'player') d.playerChoices = [];
+          else if (who === 'ai') d.aiChoices = [];
+        }
+        this._mpBroadcast();
+        UI.render();
+        return;
+      }
       d.round++;
       if (d.round > 5) { this.finishCardDraft(); return; }
     } else {
       const bothPicked = d.playerTrickDrafted.length === d.aiTrickDrafted.length;
-      if (!bothPicked) { UI.render(); return; }
+      if (!bothPicked) {
+        if (this.isMultiplayer()) {
+          if (who === 'player') d.playerChoices = [];
+          else if (who === 'ai') d.aiChoices = [];
+        }
+        this._mpBroadcast();
+        UI.render();
+        return;
+      }
       d.round++;
       if (d.round > 2) { this.finishTrickDraft(); return; }
     }
@@ -1121,6 +1173,12 @@ const Game = {
     d.playerChoices = [];
     d.aiChoices = [];
     this.presentDraftChoices();
+    // Sync fresh offers + advanced round to the guest. _mpBroadcast
+    // is a no-op when this client isn't the host, so the host's
+    // own pick path triggers the broadcast while the guest's pick
+    // path (which forwarded to host and never reaches this line)
+    // is broadcast by _mpApplyAction's trailing broadcast call.
+    this._mpBroadcast();
     UI.render();
   },
 

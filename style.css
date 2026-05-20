@@ -3793,6 +3793,61 @@ body.hit-pause .ai-hand * {
 }
 .draft-choices { display: flex; gap: 48px; justify-content: center; margin-bottom: 24px; flex-wrap: wrap; }
 
+/* ---- Multiplayer draft "waiting for opponent" placeholder ----
+   Shown when this client has picked but the other hasn't.
+   `playerChoices` is cleared after a partial pick (see game.js
+   draftPick) and this card slides in in their place. Keeps the
+   draft layout reserving the same vertical real-estate so the
+   chrome above (pip strip, mulligan, etc.) doesn't jump. */
+.draft-waiting {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  min-height: 320px;
+  min-width: 240px;
+  padding: 32px 28px;
+  border: 1px dashed rgba(var(--theme-rgb, 79, 195, 247), 0.45);
+  border-radius: 8px;
+  background:
+    radial-gradient(ellipse at 50% 30%,
+      rgba(var(--theme-rgb, 79, 195, 247), 0.06) 0%,
+      transparent 70%),
+    #060a12;
+  color: rgba(255, 255, 255, 0.82);
+  box-shadow: 0 0 18px rgba(var(--theme-rgb, 79, 195, 247), 0.15);
+}
+.draft-waiting-spinner {
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  border: 2px solid rgba(var(--theme-rgb, 79, 195, 247), 0.18);
+  border-top-color: rgba(var(--theme-rgb, 79, 195, 247), 0.95);
+  animation: draftWaitingSpin 1.1s linear infinite;
+}
+@keyframes draftWaitingSpin {
+  to { transform: rotate(360deg); }
+}
+.draft-waiting-title {
+  font-family: 'Rajdhani', sans-serif;
+  font-weight: 700;
+  font-size: 18px;
+  letter-spacing: 1.4px;
+  text-transform: uppercase;
+  color: rgba(var(--theme-rgb, 79, 195, 247), 0.95);
+  text-shadow: 0 0 8px rgba(var(--theme-rgb, 79, 195, 247), 0.45);
+}
+.draft-waiting-sub {
+  font-family: 'Inter', system-ui, sans-serif;
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.55);
+  letter-spacing: 0.3px;
+}
+@media (prefers-reduced-motion: reduce) {
+  .draft-waiting-spinner { animation: none; }
+}
+
 /* ---- Draft card — Tron: black core, rarity tint via border ---- */
 /* Rarity scale:
      cost 0-3  → green  (common)
