@@ -1831,7 +1831,12 @@ const UI = {
     // User spec: "when you hover a card I'd like the main menu music
     // to be quieter so it isn't muddy."
     _MUSIC_DUCK_FACTOR: 0.18,  // duck to ~18% of normal level (-15 dB)
-    _MUSIC_DUCK_FADE_MS: 600,
+    // 2026-05-19 — dropped 600 → 220 ms so the bed responds at the
+    // same pace as the hover audio's 120 ms fade-in. With a 600 ms
+    // duck the menu music was still loud for half a second after
+    // the hover SFX started playing — felt sluggish. 220 ms keeps
+    // the duck inaudible-but-responsive.
+    _MUSIC_DUCK_FADE_MS: 220,
     duckMusic() {
       if (!this._music || this._music.paused) return;
       if (this._musicDucked) return;
@@ -2250,7 +2255,16 @@ const UI = {
         // intended end. Strip every registry-side maxDur and set the
         // fullDuration sentinel so _playSample skips its cap-fade
         // and lets the file play to natural `ended`.
-        opts.fadeIn  = opts.fadeIn  ?? 1000;
+        // 2026-05-19 — fade-in dropped 1000 → 120 ms for snappier
+        // hover-to-audible feel. The ffmpeg-baked 1 s fade-in on
+        // every hover MP3 already supplies the gentle ramp the user
+        // hears; layering a 1 s engine fade on top of it was double-
+        // ramping the first second and contributing to "delay
+        // causing the lag." 120 ms is just enough to avoid an
+        // audible click when the engine starts playback.
+        // fadeOut here is the cap-fade tail — gated off by
+        // fullDuration: true below, so the value is dead for hover.
+        opts.fadeIn  = opts.fadeIn  ?? 120;
         opts.fadeOut = opts.fadeOut ?? 2000;
         opts.fullDuration = true;
         delete opts.maxDur;
@@ -2359,11 +2373,13 @@ const UI = {
         this._pendingStopHover = null;
       }
       const a = this._currentHoverAudio;
-      // 1-second fade-out on hover stop so leaving a card feels seamless
-      // (user spec: "hard to tell there was an audio difference at all").
-      // Longer than a typical fade so the tail blends into silence
-      // instead of ducking audibly.
-      if (a && !a.paused) this._fadeToPauseAtPosition(a, 1000);
+      // Quick stop fade — 250 ms is short enough to feel SHARP when
+      // the cursor leaves a card (user report 2026-05-19: "it should
+      // be sharp when it start playing and when it ends") but long
+      // enough to avoid an audible click as the volume hits zero.
+      // Was 1000 ms previously — the longer tail kept audio
+      // audibly bleeding into the next hover's start.
+      if (a && !a.paused) this._fadeToPauseAtPosition(a, 250);
       this._currentHoverAudio = null;
       this._currentHoverEl = null;
       this._currentHoverName = null;
@@ -2780,10 +2796,15 @@ const UI = {
     // Intent delay — user has to dwell on a card for HOVER_SFX_DELAY_MS
     // before its hover audio fires. Without this gate, sweeping the
     // cursor across the hand triggers a chain of overlapping hover cues
-    // (each cut by the next), which sounds messy. User spec: "i want a
-    // 1.5 second delay before playing the audio so it doesnt get messy
-    // going over cards."
-    const HOVER_SFX_DELAY_MS = 1500;
+    // (each cut by the next), which sounds messy.
+    //
+    // 2026-05-19 — dropped from 1500 → 300 ms. User report: "it should
+    // be sharp when it start playing and when it ends the delay is
+    // causing the lag." 1.5 s dwell + 1 s fade-in = ~2.5 s from hover
+    // to audible, which felt like the app was sluggish to react.
+    // 300 ms is still enough to filter accidental swipe-overs but
+    // makes the hover→audio transition feel immediate.
+    const HOVER_SFX_DELAY_MS = 300;
     const lastHoverByName = {};
     // Cancel any scheduled-but-not-yet-fired hover SFX. Called on mouse-
     // out, on movement to another card, and from _stopHover so the timer
@@ -2942,12 +2963,18 @@ const UI = {
         }
         this.sfx._stopHover(true);
       } else if (!to && this.sfx._currentHoverEl === curr) {
-        // Empty-space transition — schedule a delayed stop.
+        // Empty-space transition — schedule a delayed stop. 2026-05-19,
+        // dropped from 3000 → 200 ms per user direction: the lingering
+        // 3 s tail was perceived as lag ("the delay is causing the
+        // lag"). 200 ms is enough to absorb a tiny cursor wobble off
+        // the card edge without restarting the audio (re-hover within
+        // this window cancels the pending stop), but quick enough
+        // that "actually moved off" feels immediate.
         if (this.sfx._pendingStopHover) clearTimeout(this.sfx._pendingStopHover);
         this.sfx._pendingStopHover = setTimeout(() => {
           this.sfx._pendingStopHover = null;
           this.sfx._stopHover(true);
-        }, 3000);
+        }, 200);
       }
     });
 
