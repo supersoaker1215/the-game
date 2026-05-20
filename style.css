@@ -28170,6 +28170,27 @@ body.round-tick .board::after {
      looks "fresh" — no MVP-rank scaling, no tron border glitches. */
   pointer-events: auto;
 }
+/* Hover effects DISABLED inside the inspect modal — the card is
+   already zoomed 1.7× via `zoom`; any additional lift / scale
+   from the global card-hover rules (.card.playable:hover
+   translateY(-6px), :hover filter glows, etc.) read as a second
+   magnification on top of the inspect view. User direction
+   2026-05-19: "I love this popup but can we get rid of the
+   magnifying just on this section because it's already zoomed
+   in." `!important` overrides the more-specific source rules. */
+.card-inspect-modal .inspect-card:hover,
+.card-inspect-modal .inspect-card.playable:hover,
+.card-inspect-modal .inspect-card.hand-card:hover,
+.card-inspect-modal .inspect-card.ally-card:hover,
+.card-inspect-modal .inspect-card.enemy-card:hover {
+  transform: none !important;
+  filter: none !important;
+}
+.card-inspect-modal .inspect-card .card-portrait,
+.card-inspect-modal .inspect-card .card-portrait:hover {
+  transform: none !important;
+  filter: none !important;
+}
 .card-inspect-rarity {
   position: relative;
   z-index: 2;
