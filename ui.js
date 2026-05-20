@@ -2812,6 +2812,36 @@ const UI = {
         // spec: hover music continues through the click→place flow.
         this.sfx._currentHoverName = name;
         if (name) lastHoverByName[name] = Date.now();
+        // NATURAL-END CLEANUP — when the hover audio finishes by
+        // itself (clip reached its baked fade-out, or capFade
+        // wound it down), clear the tracker refs so a subsequent
+        // mouseover on the same card can start a fresh playback.
+        // Without this, _currentHoverEl + _currentHoverName stay
+        // pinned to the now-silent card forever, and the
+        // same-card-re-hover guard at the top of mouseover (line
+        // 2740) would suppress the next hover indefinitely.
+        // Also: a stale _currentHoverAudio = audio that's already
+        // ended means the "is this card's audio still playing?"
+        // check in openCardInspect dedup falls through to "yes"
+        // and skips re-triggering — leaving silence. User report
+        // 2026-05-19: "the audio will keep playing after I'm done
+        // hover over the card creating multiple hovers playing at
+        // once." Stops the pile-up by ensuring each card's audio
+        // has exactly one lifecycle.
+        if (audio && typeof audio.addEventListener === 'function') {
+          const sfx = this.sfx;
+          const cleanup = () => {
+            if (sfx._currentHoverAudio === audio) {
+              sfx._currentHoverAudio = null;
+              sfx._currentHoverEl = null;
+              sfx._currentHoverName = null;
+            }
+          };
+          audio.addEventListener('ended', cleanup, { once: true });
+          // Pause may fire from a fade-out (engine cap or
+          // _stopHover) before 'ended' — treat both as terminal.
+          audio.addEventListener('pause', cleanup, { once: true });
+        }
       }, HOVER_SFX_DELAY_MS);
     });
     document.addEventListener('mouseout', (e) => {
@@ -2822,29 +2852,25 @@ const UI = {
       if (this.sfx._hoverDelayEl === curr) cancelPendingHover();
       // Only stop hover audio when the cursor moves to ANOTHER
       // hover target (different card, trick, draft pick). Moving
-      // to empty space (board lanes, body, overlays) LETS THE
-      // AUDIO PLAY TO ITS NATURAL END.
+      // to empty space lets the clip play out via its baked
+      // ffmpeg fade-out — user direction (2026-05-18) "Can you
+      // hover over a card in your hand? It doesn't go — so then
+      // you'll get cut off, which is not what I want."
       //
-      // User direction (2026-05-18): "Can you hover over a card in
-      // your hand? It doesn't go — so then you'll get cut off,
-      // which is not what I want." Previously the mouseout-to-
-      // non-card path called _stopHover(false), which (unless the
-      // card was selected) faded the audio over 1 s — felt like the
-      // theme got chopped right when the user finally let it play.
-      //
-      // The natural-end now is governed by the baked-in ffmpeg
-      // fade-out on the clip itself, not by the engine. New hover
-      // on a different card still preempts (so two themes never
-      // overlap), and the post-play lockout + _stopHover(true) in
-      // the play hook still cut the audio when the card is actually
-      // played. Only the "I moved my cursor away" case is changed.
+      // KEEP _currentHoverEl pointing at the now-vacated card
+      // when leaving to empty space, so the NEXT mouseover on a
+      // different card finds the lingering audio and stops it
+      // (via the `if (_currentHoverEl) _stopHover(true)` line in
+      // mouseover). Without this, my earlier cleanup-to-null
+      // change broke that handoff and let multiple hover tracks
+      // pile up. User report 2026-05-19: "the audio will keep
+      // playing after I'm done hover over the card creating
+      // multiple hovers playing at once which lags the game."
+      // The natural-end / pause handlers attached when audio
+      // started (see mouseover handler above) clear the refs
+      // once the clip actually finishes, so a re-hover on the
+      // same card after the audio ended works correctly.
       if (to && this.sfx._currentHoverEl === curr) this.sfx._stopHover(true);
-      // Clear the "currently hovered element" tracker even when we
-      // don't stop the audio, so a fresh mouseover on this same
-      // card later restarts the dwell timer (otherwise the curr ===
-      // _currentHoverEl guard at the top of the mouseover handler
-      // would suppress the new hover).
-      else if (this.sfx._currentHoverEl === curr) this.sfx._currentHoverEl = null;
     });
 
     // ---- Audio model v3 ----
