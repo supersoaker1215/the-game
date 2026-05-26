@@ -41,6 +41,8 @@ window.CARD_ART_VARIANTS = {
   // ── Variant-2 promoted in second pass (2026-05-18 follow-up) ──
   'Ahsoka':              ['Ahsoka 2.png',             'Ahsoka.png'],
   'Xenomorph':           ['Xenomorph 2.png',          'Xenomorph.png'],
+  // ── Silver Surfer chrome / cosmic portrait additions (2026-05-26) ──
+  'Silver Surfer':       ['Silver Surfer 2.png',      'Silver Surfer 3.png',     'Silver Surfer.png'],
   // ── Variant-1 default kept (user kept original) ──
   'Anakin Skywalker':    ['Anakin Skywalker.png',     'Anakin Skywalker 2.png'],
   'Batman':              ['Batman.png',               'Batman 2.png'],
