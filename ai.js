@@ -1057,6 +1057,62 @@ const AI = {
       if (best >= 2) return 3;
       return -1;
     },
+
+    'Space Stone': function (ai, owner = 'ai') {
+      // Space Stone is a SETUP tool — it lets the AI play a card from
+      // hand during the upcoming Trick Phase (at the card's normal
+      // cost). User report 2026-05-19: "The AI just played Space
+      // Stone in preview after they played Harley Quinn… that is a
+      // dumb play." The generic scoring path was giving Space Stone
+      // a +1 baseline whenever the AI had any allies on board, so it
+      // fired every round it was in hand regardless of whether
+      // trick-phase tempo would actually matter.
+      //
+      // Strategic value test: Space Stone is only worth casting when
+      // BOTH of these are true:
+      //   (a) The AI has a card in hand it COULDN'T play this turn
+      //       (cost > current currency) — otherwise the AI could
+      //       just play it normally and the trick wastes a slot.
+      //   (b) The card it would unlock will be affordable in the
+      //       trick phase. Tricks fire at the end of the round, and
+      //       the AI's currency rolls over to the next round, so we
+      //       can use the post-cards-phase currency as the
+      //       projection — same as currentCurrency since nothing
+      //       between this trick and the trick phase spends more
+      //       energy. (Refunds aren't part of standard Space-Stone
+      //       use; if the AI was holding a finisher, they want to
+      //       drop it as a reactive answer, not a setup.)
+      //
+      // Reactive-finisher heuristic — value scales with the cost of
+      // the unlockable card (proxy for "this is a real threat
+      // worth saving for trick-phase reveal"). Cards ≤2 cost get a
+      // negative score so Ant-Man / Poison Ivy don't trigger a
+      // Space Stone. Cards ≥6 cost get a strong positive so titans
+      // (Hulk, Dr. Doom, Magneto) reliably unlock.
+      const s = Game.state;
+      const cur = s[owner].currency || 0;
+      const hand = s[owner].hand.filter(c => !c.isDiscardEffect && !c.trickPhasePlayable);
+      if (!hand.length) return -1;
+      // The card unlocks for play during the trick phase at its
+      // normal cost. So it only matters if (a) the AI can't afford
+      // it THIS turn (no point Space-Stoning a card you could just
+      // play) AND (b) it'll be affordable when the trick phase
+      // fires. Trick-phase energy = current + next-turn carryover.
+      const nextTurnEnergy = cur + (s[owner].nextTurnCurrency || 0);
+      const setupTargets = hand.filter(c => {
+        const cost = Game.getCardCost ? Game.getCardCost(owner, c) : (c.cost || 0);
+        // Can't afford this turn but COULD afford with carryover.
+        // High-cost cards (≥6) are the worthwhile setups.
+        return cost > cur && cost <= nextTurnEnergy && cost >= 4;
+      });
+      if (!setupTargets.length) return -1;
+      // Score by the top setup target's cost — 4-5 = modest, 6-7 = good, 8+ = great.
+      const top = setupTargets.reduce((a, b) => (b.cost || 0) > (a.cost || 0) ? b : a);
+      const c = top.cost || 0;
+      if (c >= 8) return 6;
+      if (c >= 6) return 4;
+      return 2;
+    },
   },
 
   // Evaluate whether to play a trick right now. Returns a score; <=0 means hold.
