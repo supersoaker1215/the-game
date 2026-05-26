@@ -157,12 +157,26 @@ const TRICK_DEFS = [
         return;
       }
       const c = h[Math.floor(Math.random() * h.length)];
-      G.log(`[REVEAL] Lasso of Truth reveals from opponent's hand: ${c.name} (${c.cost} cost, ${c.attack}/${c.currentHealth || c.maxHealth})`);
-      // Show the revealed card prominently to the player via the pending-choice modal.
-      // Single-card "choice" — clicking dismisses it.
+      G.log(`[REVEAL] Lasso of Truth reveals from opponent's hand: ${c.name} (${c.cost} cost, ${c.attack || '?'}/${c.currentHealth || c.maxHealth || c.health || '?'})`);
+      // Show the revealed card prominently to the player via the
+      // pending-choice modal. Single-card "choice" — clicking
+      // dismisses it.
+      //
+      // BUG FIX 2026-05-19: `owner` field was hardcoded 'player',
+      // which in multiplayer routed the prompt to the host's UI
+      // regardless of who actually played the trick. In a guest-
+      // played Lasso of Truth the host got a phantom "Revealed"
+      // modal pointing at a card the guest revealed from the host
+      // (the host already knows what they hold) — a state mismatch
+      // that desynced the two clients and could disconnect the
+      // session. User report: "the Lasso of Truth is bugging out
+      // the game when I play it. The game will log itself out."
+      // Routing the prompt to the actual `owner` (the player who
+      // played the trick) restores the canonical "reveal goes to
+      // the trick caster" semantics on both sides.
       if (Game.isHuman(owner)) {
         G.state.pendingCardChoice = {
-          owner: 'player',
+          owner: owner,
           cards: [c],
           title: "Lasso of Truth — Revealed",
           desc: `The opponent is holding ${c.name}. Click to acknowledge.`,

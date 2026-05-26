@@ -3708,7 +3708,15 @@ const CARD_ABILITIES = {
   "Galactus": {
     onBeforeTricks(G, self, lane) {
       if (self.galactusDevoured) return;   // fires exactly once per instance
-      const enemies = G.getEnemiesOf(self.owner);
+      // Pass {source: self} so getEnemiesOf strips 10-cost enemies
+      // from the devour menu — Galactus can't pick Dr. Manhattan
+      // (or another Galactus, Knull, Trigon, Anakin). User
+      // direction 2026-05-19: "you can't target tens with other
+      // tens abilities. So even if Galactus' devour doesn't work
+      // on Manhattan, you shouldn't even have the option to target
+      // Manhattan." Engine-level is10CostImmune still backs this
+      // up if a trick or future code path slips through.
+      const enemies = G.getEnemiesOf(self.owner, { source: self });
       if (!enemies.length) return;
       self.galactusDevoured = true;
       // Devour count scales: 1 / 2 (listed) / 3 / 4. Roguelite Text+

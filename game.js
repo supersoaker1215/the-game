@@ -4021,9 +4021,20 @@ const Game = {
     if (card.name !== 'Michael Myers') return;
     const opp = this.opponent(owner);
     const myCost = (card.baseCost != null ? card.baseCost : card.cost);
+    // User direction 2026-05-19: "Michael's jump needs to be
+    // contained to each round. He can't jump against an enemy
+    // played last round." The event-driven path
+    // (checkJumpConditions on cardPlayed) already only fires for
+    // this-round plays. The retroactive scan here was the loophole
+    // — Michael drawn mid-round would scan ALL living enemies,
+    // including ones who entered prior rounds. Gate by
+    // statsEnteredRound (stamped at addToLane / playCardFree) so
+    // only enemies who entered THIS round count.
+    const thisRound = this.state.round || 1;
     for (let i = 0; i < Game.LANE_COUNT; i++) {
       const e = this.state.lanes[i] && this.state.lanes[i][opp];
       if (!e || e.currentHealth <= 0) continue;
+      if (e.statsEnteredRound !== thisRound) continue;
       const eCost = (e.baseCost != null ? e.baseCost : e.cost);
       if (eCost < myCost) {
         card.jumpReady = true;
@@ -6232,7 +6243,46 @@ const Game = {
 
   // ===================== QUERIES =====================
 
-  getEnemiesOf(owner) { return this.getAllCardsOf(this.opponent(owner)); },
+  getEnemiesOf(owner, options) {
+    // Base list — every living enemy. `options.source` and the
+    // engine's `_inTrick` flag drive contextual filters so trick /
+    // 10-cost abilities don't even SEE invalid targets in their
+    // prompt lists.
+    //
+    // User direction 2026-05-19:
+    //   "Untrickable should mean that any tricks, ally or enemy,
+    //    should not be able to work or target the card. The card
+    //    should not even be targetable from tricks."
+    //   "for 10-cost abilities, they shouldn't target tens. You
+    //    can't target tens with other tens abilities. So even if
+    //    Galactus' devour doesn't work on Manhattan, you shouldn't
+    //    even have the option to target Manhattan."
+    //
+    // Two filters layered on top of the base list:
+    //   • In-trick path: drop every Untrickable enemy. The
+    //     engine-side _trickBlocked guard already aborts effects
+    //     mid-resolution, but several tricks (Phantom Zone,
+    //     Eye of Agamotto, etc.) bypass it by calling
+    //     removeFromLane / addToHand directly — pre-filtering
+    //     prevents the player from picking the target at all,
+    //     no matter what raw API the trick calls afterward.
+    //   • source-10-cost path: when the caller passes its own
+    //     instance via options.source AND that source is cost ≥10,
+    //     drop every enemy that's also cost ≥10. Mirrors
+    //     is10CostImmune so the "I can't even pick this" UX
+    //     matches the "the effect refuses to land" engine guard.
+    let list = this.getAllCardsOf(this.opponent(owner));
+    if (this.state && this.state._inTrick) {
+      list = list.filter(c => !c.isUntrickable);
+    }
+    if (options && options.source) {
+      const srcCost = options.source.baseCost || options.source.cost || 0;
+      if (srcCost >= 10) {
+        list = list.filter(c => (c.baseCost || c.cost || 0) < 10);
+      }
+    }
+    return list;
+  },
   getAlliesOf(owner) { return this.getAllCardsOf(owner); },
 
   getAllCardsOf(owner) {
