@@ -45,6 +45,7 @@ window.CARD_ART_VARIANTS = {
   'Silver Surfer':       ['Silver Surfer 2.png',      'Silver Surfer 3.png',     'Silver Surfer.png'],
   'Galactus':            ['Galactus 2.png',           'Galactus.png'],
   'Scarlet Witch':       ['Scarlet Witch 2.png',      'Scarlet Witch.png'],
+  'Deathstroke':         ['Deathstroke 2.png',        'Deathstroke.png'],
   // ── Variant-1 default kept (user kept original) ──
   'Anakin Skywalker':    ['Anakin Skywalker.png',     'Anakin Skywalker 2.png'],
   'Batman':              ['Batman.png',               'Batman 2.png'],
