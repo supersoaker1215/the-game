@@ -2234,6 +2234,16 @@ const Game = {
     this.cleanupDead();
     // Check jump conditions — a trick was played
     this.checkJumpConditions('trickPlayed', { owner });
+    // Dispatch onAnyTrickPlayed to every live card with that hook.
+    // Used by Darth Maul (passive: +2/+0 each time a Trick is played
+    // by either player) and any future "react to tricks" passive.
+    // Fired AFTER cleanupDead so we only buff survivors, and after
+    // checkJumpConditions so jumps stay event-ordered consistently.
+    this.getAllCardsOnBoard().forEach(c => {
+      if (c.currentHealth > 0 && c.onAnyTrickPlayed) {
+        try { c.onAnyTrickPlayed(this, c, owner, trick); } catch (e) { console.error(e); }
+      }
+    });
     return true;
   },
 
@@ -3563,7 +3573,16 @@ const Game = {
     }
 
     let blockedByMeter = false;
-    if (!isBullseye) {
+    // General Grievous passive — while he's alive on the OPPOSING
+    // board, the victim's Block Meter doesn't charge from face hits.
+    // _grievousActiveFor[victim_owner] is set/cleared in his
+    // onPlay / onDeath hooks. User direction 2026-05-19: "the
+    // opposing player cannot charge block when hit for as long
+    // as Grievous is alive." Bullseye-skip path doesn't run this
+    // either since Grievous's gate is broader than Bullseye.
+    const grievousGate = this.state._grievousActiveFor
+      && (this.state._grievousActiveFor[owner] || 0) > 0;
+    if (!isBullseye && !grievousGate) {
       const roll = 1 + Math.floor(Math.random() * 3);
       p.blockMeter += roll;
       this.log(`  [BLOCK METER] ${who} roll d3=${roll} → meter ${p.blockMeter}/${this.BLOCK_MAX}`);
@@ -6044,6 +6063,10 @@ const Game = {
       onBeforeTricks: def.onBeforeTricks || null, onEndOfTurn: def.onEndOfTurn || null,
       onMoved: def.onMoved || null,
       onLaneResolved: def.onLaneResolved || null,
+      // onAnyTrickPlayed — fires for every trick played by either
+      // player, AFTER cleanupDead. Used by Darth Maul (passive
+      // +2/+0 per trick). Dispatched from playTrick in game.js.
+      onAnyTrickPlayed: def.onAnyTrickPlayed || null,
       beforeTricksFired: false,
       passive: def.passive || null,
       isDiscardEffect: def.isDiscardEffect || false, onDiscard: def.onDiscard || null,

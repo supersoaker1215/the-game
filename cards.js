@@ -183,6 +183,9 @@ const CARD_DEFS = [
   { name: "Predator", cost: 4, attack: 3, health: 4, type: "villain",
     abilities: ["Bullseye", "Evade 1", "Hunt"],
     desc: "When Played: Deal 3 damage to an enemy. While Active: Add (+1/+0) when destroying an enemy." },
+  { name: "Darth Maul", cost: 4, attack: 4, health: 4, type: "villain",
+    abilities: [],
+    desc: "When Played: Draw a Trick; it costs 1 less. While Active: Add (+2/+0) for each Trick played by either player." },
   { name: "Raven", cost: 3, attack: 3, health: 4, type: "hero",
     abilities: [],
     desc: "When Played: Empty the opponent's Block Meter. Unfreeze and unstun all allies." },
@@ -230,6 +233,9 @@ const CARD_DEFS = [
   { name: "The Batman Who Laughs", cost: 5, attack: 3, health: 3, type: "villain",
     abilities: [],
     desc: "When Played: The next card the enemy plays goes to your hand. Choose to keep it or destroy it for (+2/+2)." },
+  { name: "General Grievous", cost: 5, attack: 4, health: 7, type: "villain",
+    abilities: [],
+    desc: "While Active: The opposing player cannot charge their Block Meter when hit." },
 
   // ==================== COST 6 ====================
   { name: "Hela", cost: 6, attack: 5, health: 6, type: "villain",
@@ -270,6 +276,9 @@ const CARD_DEFS = [
   { name: "Silver Surfer", cost: 7, attack: 7, health: 7, type: "hero",
     abilities: [],
     desc: "When Played: Remove 3 ATK from an enemy. While Active: Enemy cards cost 1 more Energy. (Tricks unaffected.)" },
+  { name: "Revan", cost: 7, attack: 6, health: 8, type: "villain",
+    abilities: [],
+    desc: "When Played: Give another ally Revive 1." },
 
   // ==================== COST 8 ====================
   { name: "Darth Vader", cost: 8, attack: 6, health: 7, type: "villain",
@@ -284,9 +293,9 @@ const CARD_DEFS = [
   { name: "Thor", cost: 8, attack: 7, health: 7, type: "hero",
     abilities: ["Splash 5", "Unresistible"],
     desc: "When Played: Choose an enemy to Freeze 1, then Splash 5. Start of Tricks: Freeze 1 a random unfrozen enemy." },
-  { name: "Revan", cost: 8, attack: 6, health: 5, type: "villain",
-    abilities: ["Evade 1", "Immunity", "Splash 4"],
-    desc: "When Played: Give an ally Evade 1 for 1 turn and (+4/+4). If no allies, add (+2/+3)." },
+  { name: "Yoda", cost: 8, attack: 4, health: 5, type: "hero",
+    abilities: ["Immunity"],
+    desc: "When Played: Add (+4/+4) to an ally. If no allies, add (+2/+3) to self and cleanse all debuffs on every ally." },
 
   // ==================== COST 9 ====================
   { name: "Batman", cost: 9, attack: 7, health: 5, type: "hero",

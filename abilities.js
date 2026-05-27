@@ -3210,25 +3210,110 @@ const CARD_ABILITIES = {
     }
   },
   "Revan": {
+    // 2026-05-26 — Revan rebuilt at cost 7 (6/8) per user spec:
+    // "Give another ally card Revive 1." The previous Revan
+    // (cost 8, 6/5 Evade/Immunity/Splash empower) is now Yoda
+    // (entry below). Revan now reads as a defensive enabler —
+    // sacrifices nothing immediately but lets a chosen ally
+    // come back swinging once if it dies.
     onPlay(G, self, lane) {
-      // Roguelite Text+ override — _yodaEmpowerSize scales the buff he
-      // grants. Default 4 (classic +4/+4 + Evade 1); Text+ raises to
-      // 6 (+6/+6) so a recipient ally swings as a finisher tier body.
-      // (Internal state name _yodaEmpowerSize kept for save-data
-      // back-compat — the card was renamed from Yoda but the
-      // property key stays.)
-      const buff = self._yodaEmpowerSize || 4;
-      const allies = G.getAlliesOf(self.owner).filter(a => a.id !== self.id);
+      const allies = G.getAlliesOf(self.owner).filter(a => a.id !== self.id && a.currentHealth > 0);
       const grant = (a) => {
-        G.grantTempBuff(a, { evadeCharges: 1 });
-        G.buffCard(a, buff, buff);
-        G.log(`Revan channels the Force through ${a.name} — Evade +${buff}/+${buff}!`);
+        // Stack with any existing Revive charges. Cards born with
+        // Revive (Jason, Mahoraga, Wolverine) already have
+        // reviveCharges set in applyAbilities; we add 1 more.
+        a.reviveCharges = (a.reviveCharges || 0) + 1;
+        a.canRevive = true;
+        G.log(`Revan grants ${a.name} Revive 1! (${a.reviveCharges} charge${a.reviveCharges === 1 ? '' : 's'})`);
       };
+      if (!allies.length) {
+        G.log("Revan finds no other allies to empower.");
+        return;
+      }
+      G.promptCardChoice(self.owner, allies, "Revan — Grant Revive",
+        "Choose an ally to give Revive 1", grant);
+    }
+  },
+  "Yoda": {
+    // 2026-05-26 — restored as a fresh cost-8 hero. Same buff/cleanse
+    // pattern the old Yoda (pre-rename) had, with Immunity bolted on
+    // for trait depth. Lone-wolf fallback +2/+3 + a board-wide
+    // debuff sweep — the cleanse turns him into an "elder Jedi"
+    // counter to Frozen / Stunned / Fear / Mind-Control lockouts.
+    onPlay(G, self, lane) {
+      const allies = G.getAlliesOf(self.owner).filter(a => a.id !== self.id && a.currentHealth > 0);
       if (allies.length) {
-        G.promptCardChoice(self.owner, allies, "Yoda — Empower", `Choose ally to give Evade +${buff}/+${buff}`, grant);
+        G.promptCardChoice(self.owner, allies, "Yoda — Empower",
+          "Choose an ally to buff (+4/+4)", (a) => {
+            G.buffCard(a, 4, 4);
+            G.log(`Yoda empowers ${a.name} +4/+4!`);
+          });
       } else {
         G.buffCard(self, 2, 3);
         G.log("Yoda empowers himself +2/+3!");
+        // Cleanse only fires on the lone-wolf path — explicit
+        // user spec: "if there are no allies, add (2/3) to self
+        // and cleanse all debuffs on all ally cards." (The buff
+        // branch is its own moment of empowerment.)
+        G.getAlliesOf(self.owner).forEach(a => {
+          let cleared = 0;
+          if (a.isStunned)         { a.isStunned = false; a.stunnedTurns = 0; cleared++; }
+          if (a.isFrozen)          { a.isFrozen  = false; a.frozenTurns  = 0; cleared++; }
+          if (a.isFeared)          { a.isFeared  = false; a.fearedTurns  = 0; cleared++; }
+          if (a.isMindControlled)  { a.isMindControlled = false; cleared++; }
+          if (cleared > 0) G.log(`  [CLEANSE] ${a.name} is freed from ${cleared} debuff${cleared === 1 ? '' : 's'}.`);
+        });
+      }
+    }
+  },
+  "Darth Maul": {
+    // 2026-05-26 — onPlay draws a Trick at -1 cost; passive grants
+    // +2/+0 each time a Trick is played by EITHER player. The
+    // per-trick buff fires via the global onAnyTrickPlayed hook
+    // (game.js dispatches it from playTrick) — Maul's
+    // `_maulSawTricks` flag could track triggers for cooldown but
+    // we just buff straight on each event.
+    onPlay(G, self, lane) {
+      // Draw a trick — find the next trick in the deck or pool.
+      // drawTrickCards isn't exposed publicly the same way as
+      // drawCards; fall through to direct trick-hand population
+      // by drawing from trickDrawPile.
+      const tdraw = G.state.trickDrawPile || [];
+      if (!tdraw.length) {
+        G.log(`Darth Maul finds no Tricks to draw.`);
+        return;
+      }
+      const trick = tdraw.shift();
+      // -1 cost discount on the drawn trick (floors at 0).
+      trick.cost = Math.max(0, (trick.cost || 0) - 1);
+      G.addToTrickHand(self.owner, trick);
+      G.log(`Darth Maul draws ${trick.name} (cost ${trick.cost} after -1 discount).`);
+    },
+    onAnyTrickPlayed(G, self, owner, trick) {
+      if (self.currentHealth <= 0) return;
+      G.buffCard(self, 2, 0);
+      G.log(`Darth Maul fuels his rage with ${trick.name} — +2/+0! (now ${self.attack}/${self.currentHealth})`);
+    }
+  },
+  "General Grievous": {
+    // 2026-05-26 — passive: while Grievous is alive on the AI's
+    // (or player's) board, the OPPOSING player cannot charge their
+    // Block Meter from face damage. The damagePlayer path reads
+    // state._grievousActiveFor[opp] to decide whether to fill the
+    // block. State flag is set on play and cleared on death.
+    onPlay(G, self, lane) {
+      const opp = G.opponent(self.owner);
+      if (!G.state._grievousActiveFor) G.state._grievousActiveFor = {};
+      G.state._grievousActiveFor[opp] = (G.state._grievousActiveFor[opp] || 0) + 1;
+      G.log(`General Grievous strangles ${opp === 'ai' ? "the AI's" : "your"} Block Meter — no more block charges while he stands!`);
+    },
+    onDeath(G, self) {
+      const opp = G.opponent(self.owner);
+      if (G.state._grievousActiveFor && G.state._grievousActiveFor[opp] > 0) {
+        G.state._grievousActiveFor[opp]--;
+        if (G.state._grievousActiveFor[opp] === 0) {
+          G.log(`Grievous falls — ${opp === 'ai' ? "AI's" : "your"} Block Meter recharges normally.`);
+        }
       }
     }
   },
