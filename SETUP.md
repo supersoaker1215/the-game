@@ -1,7 +1,5 @@
 # 🎮 The Game — Setup Guide
 
-Yo — taking the wheel for a bit. Here's the full setup. Takes ~20 min and then you can work with Claude Code exactly the way I do. If anything breaks, screenshot the error and send it to me.
-
 ## The game lives in two places
 
 - **Code:** this repo — `https://github.com/supersoaker1215/the-game` (you've got collaborator access, accept the email invite first)
