@@ -10454,11 +10454,11 @@ const UI = {
           const preview = this.makeDamagePreview(lc.previewCard, lane.ai, i);
           if (preview) pSlot.appendChild(preview);
         }
-      } else if (!lane.destroyed && canPlay && s.selectedCard && !s.selectedCard.isDiscardEffect && !cc && !lc && !lane.player) {
+      } else if (!lane.destroyed && canPlay && s.selectedCard && !s.selectedCard.isDiscardEffect && !cc && !lc && (!lane.player || s.selectedCard.isEnvironment)) {
         pSlot.classList.add('playable');
         pSlot.addEventListener('click', () => this.onLaneClick(i));
         // Damage preview — show how this card would trade if placed here.
-        const preview = this.makeDamagePreview(s.selectedCard, lane.ai, i);
+        const preview = s.selectedCard.isEnvironment ? null : this.makeDamagePreview(s.selectedCard, lane.ai, i);
         if (preview) pSlot.appendChild(preview);
       } else if (!lane.destroyed && !lane.player && !cc && !lc) {
         // Empty ally slot + nothing selected — show the drop glyph
@@ -10900,6 +10900,7 @@ const UI = {
     if (!inHand && side === 'ally') el.classList.add('ally-card');
     if (!inHand && side === 'enemy') el.classList.add('enemy-card');
     if (inHand) el.classList.add('hand-card');
+    if (card.isEnvironment) el.classList.add('env-card');
 
     // Tron perimeter chrome — applyTronFx() adds these post-mount, but
     // we add them upfront here so the FRESH element built during a
@@ -11060,7 +11061,7 @@ const UI = {
     const hideAtk = inHand && (card.copiesOpposite || card.isCrazy || card.isInsane);
     const atkCell = hideAtk ? '?' : card.attack;
     const hpCell  = hideAllStats ? '?' : card.currentHealth;
-    const statOrbs = card.isDiscardEffect ? '' : `
+    const statOrbs = (card.isDiscardEffect || card.isEnvironment) ? '' : `
       <span class="stat-circle stat-atk${atkCls}"${atkTip}>${atkCell}</span>
       <span class="stat-circle stat-hp${hpCls}"${hpTip}>${hpCell}</span>`;
 
@@ -12140,7 +12141,7 @@ const UI = {
       } else if (!hasPending) {
         const cost = Game.getCardCost('player', card);
         const afford = s.player.currency >= cost;
-        const hasOpen = Game.getOpenLanes('player').length > 0 || card.isDiscardEffect;
+        const hasOpen = Game.getOpenLanes('player').length > 0 || card.isDiscardEffect || card.isEnvironment;
         const batBlocked = Game.isCardBatmanBlocked('player', card) && !card.isDiscardEffect;
         // Per-card phase check — fixes the trick-phase bug where ALL
         // hand cards looked playable when only a single trickPhasePlayable

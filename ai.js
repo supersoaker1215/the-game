@@ -699,7 +699,11 @@ const AI = {
     const s = Game.state;
     const opp = Game.opponent(owner);
     const open = Game.getOpenLanes(owner);
-    if (!open.length) return -1;
+    if (!open.length) {
+      // Environments can go into any lane even if the owner already has a card there.
+      if (card && card.isEnvironment) return Math.floor(Math.random() * Game.LANE_COUNT);
+      return -1;
+    }
     const hasTaunter = this.opponentHasTaunter(owner);
     const useLookahead = this.difficulty() !== 'easy' && this.WEIGHTS.lookaheadMult > 0;
 

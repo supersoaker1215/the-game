@@ -28475,6 +28475,18 @@ body.round-tick .board::after {
   border: 1px solid rgba(0, 200, 80, 0.28);
 }
 
+/* Environment cards in hand — no stat orbs, distinct border so they
+   read as a "place-and-forget" effect rather than a fighter. */
+.hand-card.env-card {
+  border-color: rgba(180, 120, 255, 0.85);
+  box-shadow: 0 0 10px rgba(180, 120, 255, 0.35), 0 0 22px rgba(180, 120, 255, 0.15);
+}
+.hand-card.env-card.selected {
+  border-color: #f1c40f !important;
+  box-shadow: 0 0 24px rgba(241,196,15,0.55) !important;
+}
+.hand-card.env-card .stat-circle { display: none; }
+
 /* Labels anchored to the edge of whichever side owns the env */
 .env-bg-label {
   font-size: 8px;

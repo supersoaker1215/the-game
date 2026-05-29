@@ -6016,6 +6016,7 @@ const Game = {
       // Marker so drawCards can detect a pre-built card instance vs a
       // raw def — roguelite drives drawPile with pre-built instances.
       _isCardInstance: true,
+      isEnvironment: !!def.isEnvironment,
       name: def.name, cost: def.actualCost || def.cost, baseCost: def.cost,
       attack: safeAtk, currentHealth: safeHp, maxHealth: safeHp,
       // Snapshot of the def's starting stats so the UI can tell at render
