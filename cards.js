@@ -175,7 +175,7 @@ const CARD_DEFS = [
   { name: "Pennywise", cost: 4, attack: 3, health: 5, type: "villain",
     _spawnOnly: true,
     abilities: [],
-    desc: "Passive: While active, ALL ally damage to the enemy player bypasses the Block Meter (counts as Bullseye). (Spawned only by Sewers.)" },
+    desc: "On Play: For the next 3 rounds, ALL ally damage to the enemy player bypasses the Block Meter (counts as Bullseye). (Spawned only by Sewers.)" },
   { name: "Anti-Venom", cost: 4, attack: 3, health: 5, type: "hero",
     abilities: [],
     desc: "When Played: Heal yourself for 4. Move an ally to another empty lane." },

@@ -3624,11 +3624,11 @@ const Game = {
     }
 
     let blockedByMeter = false;
-    // Pennywise aura — while Pennywise is alive on the attacker's side,
-    // all face damage bypasses the block meter (treated as Bullseye).
+    // Pennywise aura — for 3 rounds after spawning, all face damage on
+    // the attacker's side bypasses the block meter (treated as Bullseye).
     if (!isBullseye) {
       const attackerSide = this.opponent(owner);
-      if (this.getAllCardsOf(attackerSide).some(c => c.passive === 'pennywiseAura' && c.currentHealth > 0)) {
+      if (this.getAllCardsOf(attackerSide).some(c => c._bullseyeRoundsLeft > 0 && c.currentHealth > 0)) {
         isBullseye = true;
       }
     }

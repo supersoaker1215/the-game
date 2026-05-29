@@ -4165,7 +4165,20 @@ const CARD_ABILITIES = {
     },
   },
   "Pennywise": {
-    passive: 'pennywiseAura',
+    onPlay(G, self) {
+      self._bullseyeRoundsLeft = 3;
+      G.log(`[PENNYWISE] Fear takes hold — enemy Block Meter bypassed for 3 rounds!`);
+    },
+    onEndOfTurn(G, self) {
+      if (self._bullseyeRoundsLeft > 0) {
+        self._bullseyeRoundsLeft--;
+        if (self._bullseyeRoundsLeft > 0) {
+          G.log(`[PENNYWISE] Bullseye aura: ${self._bullseyeRoundsLeft} round${self._bullseyeRoundsLeft === 1 ? '' : 's'} remaining.`);
+        } else {
+          G.log(`[PENNYWISE] Fear fades — enemy Block Meter restored.`);
+        }
+      }
+    },
     onDeath(G, self, laneIdx) {
       // Clear the Sewers that spawned this Pennywise
       const l = (self._envLane !== undefined) ? self._envLane : laneIdx;
