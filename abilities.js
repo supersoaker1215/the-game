@@ -3996,27 +3996,34 @@ const CARD_ABILITIES = {
     onPlay(G, self, lane) {
       const AB = CARD_ABILITIES['Boiler Room'];
       const opp = G.opponent(self.owner);
-      G.getEnemiesOf(self.owner).forEach(e => AB._applyBurning(e));
-      // Adjacent lane enemies also get burning immediately
-      [lane - 1, lane + 1].forEach(adj => {
-        if (adj >= 0 && adj < G.LANE_COUNT) {
-          const c = G.state.lanes[adj][opp];
-          if (c && c.currentHealth > 0) AB._applyBurning(c);
-        }
-      });
       const enemy = G.state.lanes[lane][opp];
-      if (enemy && enemy.currentHealth > 0) self._brEnemyId = enemy.id;
-      G.log('Boiler Room ignites — all enemies are burning!');
-    },
-    onAnyCardPlayed(G, self) {
-      const AB = CARD_ABILITIES['Boiler Room'];
-      G.getEnemiesOf(self.owner).forEach(e => AB._applyBurning(e));
+      if (enemy && enemy.currentHealth > 0) {
+        AB._applyBurning(enemy);
+        self._brEnemyId = enemy.id;
+      }
+      self._adjBurnPending = true;
+      G.log('Boiler Room ignites — the enemy in this lane is burning!');
     },
     onEndOfTurn(G, self) {
       if (self._brSpawned) return;
       const laneIdx = G.findCardLane(self);
       if (laneIdx < 0) return;
+      const AB = CARD_ABILITIES['Boiler Room'];
       const opp = G.opponent(self.owner);
+
+      if (self._adjBurnPending) {
+        self._adjBurnPending = false;
+        [laneIdx - 1, laneIdx + 1].forEach(adj => {
+          if (adj >= 0 && adj < G.LANE_COUNT) {
+            const c = G.state.lanes[adj][opp];
+            if (c && c.currentHealth > 0) {
+              AB._applyBurning(c);
+              G.log(`[BURN] Boiler Room spreads — ${c.name} in lane ${adj + 1} is now burning!`);
+            }
+          }
+        });
+      }
+
       const enemyNow = G.state.lanes[laneIdx][opp];
       if (self._brEnemyId === undefined) {
         if (enemyNow && enemyNow.currentHealth > 0) self._brEnemyId = enemyNow.id;
