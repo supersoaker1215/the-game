@@ -3934,6 +3934,96 @@ const CARD_ABILITIES = {
       }
     }
   },
+  "Boiler Room": {
+    _applyBurning(card) {
+      if (!card || card.isBurning) return;
+      card.isBurning = true;
+      const prev = card.onBeforeAttack || null;
+      card.onBeforeAttack = function(G, self) {
+        if (self.isBurning && self.currentHealth > 0) {
+          G.dealDamage(self, 1, null);
+          G.log(`[BURN] ${self.name} takes 1 burn damage before attacking!`);
+          if (self.currentHealth <= 0) self._skipNormalAttack = true;
+        }
+        if (self.currentHealth > 0 && prev) prev.call(this, G, self);
+      };
+    },
+    _spawnFreddy(G, owner, laneIdx) {
+      const fredDef = (typeof CARD_DEFS !== 'undefined')
+        ? CARD_DEFS.find(d => d.name === 'Freddy Krueger') : null;
+      G.summonCard(owner, laneIdx, 'Freddy Krueger', 2, 1, 4, [], fredDef);
+      G.log(`Freddy Krueger rises from the Boiler Room in lane ${laneIdx + 1}!`);
+      if (typeof UI !== 'undefined' && UI._freddyJumpscare) {
+        setTimeout(() => UI._freddyJumpscare(laneIdx, owner), 60);
+      }
+    },
+    onPlay(G, self, lane) {
+      const AB = CARD_ABILITIES['Boiler Room'];
+      const opp = G.opponent(self.owner);
+      G.getEnemiesOf(self.owner).forEach(e => AB._applyBurning(e));
+      // Adjacent lane enemies also get burning immediately
+      [lane - 1, lane + 1].forEach(adj => {
+        if (adj >= 0 && adj < G.LANE_COUNT) {
+          const c = G.state.lanes[adj][opp];
+          if (c && c.currentHealth > 0) AB._applyBurning(c);
+        }
+      });
+      const enemy = G.state.lanes[lane][opp];
+      if (enemy && enemy.currentHealth > 0) self._brEnemyId = enemy.id;
+      G.log('Boiler Room ignites — all enemies are burning!');
+    },
+    onAnyCardPlayed(G, self) {
+      const AB = CARD_ABILITIES['Boiler Room'];
+      G.getEnemiesOf(self.owner).forEach(e => AB._applyBurning(e));
+    },
+    onEndOfTurn(G, self) {
+      if (self._brSpawned) return;
+      const laneIdx = G.findCardLane(self);
+      if (laneIdx < 0) return;
+      const opp = G.opponent(self.owner);
+      const enemyNow = G.state.lanes[laneIdx][opp];
+      if (self._brEnemyId === undefined) {
+        // Start tracking once an enemy occupies this lane
+        if (enemyNow && enemyNow.currentHealth > 0) self._brEnemyId = enemyNow.id;
+        return;
+      }
+      const stillHere = enemyNow && enemyNow.id === self._brEnemyId && enemyNow.currentHealth > 0;
+      if (!stillHere) {
+        // Tracked enemy left the lane (died or bounced) — spawn Freddy
+        self._brSpawned = true;
+        G.removeFromLane(self, laneIdx);
+        CARD_ABILITIES['Boiler Room']._spawnFreddy(G, self.owner, laneIdx);
+      }
+    },
+    onDeath(G, self, laneIdx) {
+      if (self._brSpawned) return;
+      self._brSpawned = true;
+      CARD_ABILITIES['Boiler Room']._spawnFreddy(G, self.owner, laneIdx);
+    },
+  },
+  "Freddy Krueger": {
+    onAnyCardPlayed(G, self) {
+      const AB = CARD_ABILITIES['Boiler Room'];
+      if (AB) G.getEnemiesOf(self.owner).forEach(e => AB._applyBurning(e));
+    },
+    onBeforeAttack(G, self) {
+      const opp = G.opponent(self.owner);
+      const hand = (G.state[opp] && G.state[opp].hand) || [];
+      const targets = hand.filter(c => (c.currentHealth !== undefined ? c.currentHealth : (c.health || 0)) > 0);
+      if (!targets.length) return;
+      const t = targets[Math.floor(Math.random() * targets.length)];
+      const dmg = self.attack || 1;
+      const curHp = t.currentHealth !== undefined ? t.currentHealth : (t.health || 0);
+      t.currentHealth = Math.max(0, curHp - dmg);
+      G.log(`[FREDDY] Freddy slashes ${t.name} in the enemy's hand for ${dmg}!`);
+      if (t.currentHealth <= 0) {
+        const idx = hand.indexOf(t);
+        if (idx >= 0) hand.splice(idx, 1);
+        G.log(`[FREDDY] ${t.name} was destroyed before it could be played!`);
+      }
+      self._skipNormalAttack = true;
+    },
+  },
   "Padme Amidala": {
     onEndOfTurn(G, self) {
       G.getAlliesOf(self.owner).forEach(c => {

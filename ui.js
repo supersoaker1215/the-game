@@ -1476,6 +1476,11 @@ const UI = {
         attack: function() { this._tone({ type:'sawtooth', freq:440, freqEnd:110, dur:0.13, gain:0.14, release:0.17 }); this._noise({ dur:0.09, gain:0.1, highpass:400, lowpass:3500 }); },
         death:  function() { this._tone({ type:'sawtooth', freq:220, freqEnd:55, dur:0.85, gain:0.15, release:1.05 }); },
       },
+      'Freddy Krueger': {
+        play:   function() { this._tone({ type:'sawtooth', freq:120, freqEnd:55, dur:0.45, gain:0.20, release:0.55 }); this._noise({ dur:0.32, gain:0.14, highpass:180, lowpass:2800, delay:0.05 }); },
+        attack: function() { this._noise({ dur:0.15, gain:0.18, highpass:280, lowpass:3800 }); this._tone({ type:'sawtooth', freq:300, freqEnd:65, dur:0.13, gain:0.15, release:0.17 }); },
+        death:  function() { this._tone({ type:'sawtooth', freq:180, freqEnd:35, dur:0.95, gain:0.16, release:1.15 }); this._noise({ dur:0.35, gain:0.06, highpass:120, lowpass:1800, delay:0.05 }); },
+      },
       'Predator': {
         play:   function() { this._noise({ dur:0.25, gain:0.05, highpass:1200, lowpass:6500 }); this._tone({ type:'sawtooth', freq:220, freqEnd:110, dur:0.25, gain:0.1, release:0.3, delay:0.04 }); },
         attack: function() { this._noise({ dur:0.11, gain:0.13, highpass:1500, lowpass:7000 }); this._tone({ type:'sawtooth', freq:880, freqEnd:220, dur:0.09, gain:0.09, release:0.12 }); },
@@ -5056,6 +5061,45 @@ const UI = {
     area.classList.add(cls);
     const dur = intensity === 'heavy' ? 460 : intensity === 'light' ? 220 : 300;
     setTimeout(() => area.classList.remove(cls), dur);
+  },
+
+  _freddyJumpscare(laneIdx, owner) {
+    const lanes = document.querySelectorAll('.board > .lane');
+    const laneEl = lanes[laneIdx] || null;
+    const slotSel = owner === 'player' ? '.player-slot .card' : '.ai-slot .card';
+    const cardEl  = laneEl && laneEl.querySelector(slotSel);
+
+    if (this.sfx) this.sfx.playCardSfx('Freddy Krueger', 'play');
+    this._screenShake('heavy');
+
+    const overlay = document.createElement('div');
+    overlay.className = 'freddy-dark-overlay';
+    document.body.appendChild(overlay);
+
+    setTimeout(() => {
+      overlay.classList.add('freddy-flash-red');
+      this._screenShake('heavy');
+
+      if (cardEl) {
+        cardEl.classList.remove('freddy-slash-in');
+        void cardEl.offsetWidth;
+        cardEl.classList.add('freddy-slash-in');
+        setTimeout(() => cardEl.classList.remove('freddy-slash-in'), 650);
+      }
+
+      if (laneEl) {
+        const marks = document.createElement('div');
+        marks.className = 'freddy-slash-marks';
+        laneEl.appendChild(marks);
+        setTimeout(() => marks.remove(), 900);
+      }
+
+      setTimeout(() => {
+        overlay.style.opacity = '0';
+        overlay.style.transition = 'opacity 440ms ease-out';
+        setTimeout(() => overlay.remove(), 440);
+      }, 340);
+    }, 140);
   },
 
   showDamageFloats() {
@@ -10848,6 +10892,7 @@ const UI = {
     else if (card.tauntTurns > 0) el.classList.add('status-taunt');
     else if (card.armorValue > 0) el.classList.add('status-armor');
     else if (card.evadeCharges > 0) el.classList.add('status-evade');
+    if (card.isBurning) el.classList.add('status-burning');
 
     // Poison Ivy charmed glow (additive, doesn't replace status glow).
     // Mirror the three-layer match used by the badge filter above so
@@ -11308,7 +11353,7 @@ const UI = {
     'Venom':'symbiote', 'Carnage':'symbiote', 'Symbiote Spider-Man':'symbiote',
     'Anti-Venom':'symbiote', 'Knull':'symbiote',
     'Ghostface':'slasher', 'Jason Voorhees':'slasher',
-    'Michael Myers':'slasher', 'Predator':'slasher',
+    'Michael Myers':'slasher', 'Predator':'slasher', 'Freddy Krueger':'slasher',
     'Thanos':'titan', 'Hulk':'titan', 'Red Hulk':'titan',
     'Darkseid':'titan', 'Mahoraga':'titan', 'Solomon Grundy':'titan',
     'Juggernaut':'titan', 'The Thing':'titan', 'Trigon':'titan',

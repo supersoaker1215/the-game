@@ -28355,3 +28355,76 @@ body.round-tick .board::after {
   .card.card-kill-preview { animation: none; }
   .card.card-kill-preview::after { animation: none; }
 }
+
+/* ============================================================
+   FREDDY KRUEGER JUMPSCARE + BURNING STATUS
+   ============================================================ */
+
+/* Full-screen dark overlay that snaps in on Freddy's spawn */
+.freddy-dark-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.82);
+  z-index: 9998;
+  pointer-events: none;
+  animation: freddyDarkenIn 0.12s ease-in both;
+}
+.freddy-dark-overlay.freddy-flash-red {
+  background: rgba(155, 0, 0, 0.68) !important;
+  transition: background 0.08s ease-in;
+}
+@keyframes freddyDarkenIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+/* Freddy slashes in from off-screen left — diagonal razor-fast cleave,
+   unique vs the normal card-enter scan-build the other slashers get. */
+@keyframes freddySlashIn {
+  0%   { transform: translateX(-140%) rotate(-14deg) scaleY(1.1);
+         opacity: 0;
+         filter: brightness(3) saturate(0.1) contrast(2); }
+  55%  { transform: translateX(5%) rotate(1.5deg) scaleY(1);
+         opacity: 1;
+         filter: brightness(1.8) saturate(1.5) drop-shadow(0 0 16px rgba(255,30,30,0.95)); }
+  100% { transform: translateX(0) rotate(0deg) scaleY(1);
+         opacity: 1;
+         filter: none; }
+}
+.card.freddy-slash-in {
+  animation: freddySlashIn 0.52s cubic-bezier(0.08, 0.82, 0.28, 1.0) forwards !important;
+}
+
+/* Red claw marks that flash on the lane then fade */
+@keyframes freddySlashFade {
+  0%   { opacity: 0.85; }
+  35%  { opacity: 0.70; }
+  100% { opacity: 0;    }
+}
+.freddy-slash-marks {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 20;
+  background:
+    linear-gradient(-52deg, transparent 28%, rgba(215,12,12,0.55) 28%, rgba(215,12,12,0.55) 32%, transparent 32%),
+    linear-gradient(-52deg, transparent 54%, rgba(195,8,8,0.40)   54%, rgba(195,8,8,0.40)   58%, transparent 58%);
+  animation: freddySlashFade 0.88s ease-out forwards;
+}
+
+/* Burning card — pulsing ember-orange glow (additive, shown alongside
+   any other status colour; deferred during card-enter so it doesn't
+   compete with the entrance animation). */
+@keyframes statusBurningPulse {
+  0%,100% { box-shadow: 0 0 8px  rgba(255,110,0,0.62), 0 0 18px rgba(255,60,0,0.26); }
+  50%     { box-shadow: 0 0 18px rgba(255,165,0,0.90), 0 0 32px rgba(255,85,0,0.50); }
+}
+.card.status-burning:not(.card-enter):not(.card-exit) {
+  animation: statusBurningPulse 1.8s ease-in-out infinite !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .card.freddy-slash-in     { animation: none !important; }
+  .card.status-burning      { animation: none !important; }
+  .freddy-slash-marks       { animation: none; opacity: 0; }
+}

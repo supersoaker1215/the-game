@@ -989,7 +989,7 @@ const Game = {
     // them during a run, but they shouldn't appear in classic draft pulls.
     const isRL = (typeof Roguelite !== 'undefined' && Roguelite.isRogueliteOnlyName)
       ? (n) => Roguelite.isRogueliteOnlyName(n) : () => false;
-    const deck = CARD_DEFS.filter(d => !isRL(d.name)).map(d => ({ ...d }));
+    const deck = CARD_DEFS.filter(d => !isRL(d.name) && !d._spawnOnly).map(d => ({ ...d }));
     this.state.drawPile = this.shuffle(deck);
 
     // Single shared trick draw pile — one copy of every trick (27 total)
@@ -1030,6 +1030,7 @@ const Game = {
     const summonDeck = CARD_DEFS
       .filter(d => !d.isDiscardEffect) // discard-effect cards are 0/0 — never sensible to summon
       .filter(d => !isRL(d.name))
+      .filter(d => !d._spawnOnly)      // spawn-only cards enter only via their trigger (e.g. Freddy)
       .map(d => ({ ...d }));
     this.state.summonDeck = this.shuffle(summonDeck);
   },
