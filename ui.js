@@ -10149,12 +10149,19 @@ const UI = {
           const primary = envAi || envPl;
           const safeClass = 'env-' + primary.name.toLowerCase().replace(/\s+/g, '-');
           envBg.className = `lane-env-bg ${safeClass}`;
+          const artPath = this.getCardArtPath(primary.name);
+          if (artPath) {
+            envBg.style.background = `linear-gradient(rgba(0,0,0,0.35), rgba(0,0,0,0.35)), url("${artPath}") center/cover no-repeat`;
+          } else {
+            envBg.style.background = '';
+          }
           let html = '';
           if (envAi) html += `<div class="env-bg-label env-bg-label-ai">${envAi.name}</div>`;
           if (envPl) html += `<div class="env-bg-label env-bg-label-player">${envPl.name}</div>`;
           if (envBg.innerHTML !== html) envBg.innerHTML = html;
           envBg.onclick = (e) => { UI.openCardInspect(envAi || envPl); e.stopPropagation(); };
         } else if (envBg) {
+          envBg.style.background = '';
           envBg.remove();
         }
       }
