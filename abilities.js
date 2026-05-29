@@ -3933,6 +3933,16 @@ const CARD_ABILITIES = {
         G.log(`Trigon chains destruction to ${t.name}!`);
       }
     }
+  },
+  "Padme Amidala": {
+    onEndOfTurn(G, self) {
+      G.getAlliesOf(self.owner).forEach(c => {
+        if (c.currentHealth > 0) {
+          c.currentHealth = Math.min(c.currentHealth + 1, c.maxHealth);
+        }
+      });
+      G.log(`Padme Amidala heals all allies for 1 HP.`);
+    }
   }
 };
 

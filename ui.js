@@ -282,6 +282,10 @@ const UI = {
       const tier = map[card._runRarity] || 1;
       return { tier, label: card._runRarity.toUpperCase() };
     }
+    if (card.rarity) {
+      const labels = ['', 'COMMON', 'RARE', 'SUPER-RARE', 'LEGENDARY'];
+      return { tier: card.rarity, label: labels[card.rarity] || 'SPECIAL' };
+    }
     const cost = card.baseCost || card.cost || 0;
     if (cost >= 9) return { tier: 4, label: 'LEGENDARY' };
     if (cost >= 7) return { tier: 3, label: 'SUPER-RARE' };
@@ -6520,7 +6524,7 @@ const UI = {
           const abilitiesHtml = (def.abilities && def.abilities.length)
             ? `<div class="card-abilities status-badges">${this.formatAbilityBadges(def.abilities)}</div>` : '';
           const cost = def.cost || 0;
-          const _dpPips = cost <= 3 ? 1 : cost <= 6 ? 2 : cost <= 8 ? 3 : 4;
+          const _dpPips = def.rarity || (cost <= 3 ? 1 : cost <= 6 ? 2 : cost <= 8 ? 3 : 4);
           const rarityPips = `<span class="rarity-strip" aria-hidden="true">${'<span class="rpip"></span>'.repeat(_dpPips)}</span>`;
           const upgrade = rlOn ? upgrades[def.name] : null;
           const desc = upgrade && upgrade.descOverride ? upgrade.descOverride : (def.desc || '');
@@ -9295,7 +9299,7 @@ const UI = {
         // Rarity pips — same 1-4 tier rule as hand/board cards, so the rarity
         // signal reads continuously from draft → hand → board.
         const _dpCost = c.cost || 0;
-        const _dpPips = _dpCost <= 3 ? 1 : _dpCost <= 6 ? 2 : _dpCost <= 8 ? 3 : 4;
+        const _dpPips = c.rarity || (_dpCost <= 3 ? 1 : _dpCost <= 6 ? 2 : _dpCost <= 8 ? 3 : 4);
         const rarityPips = `<span class="rarity-strip">${'<span class="rpip"></span>'.repeat(_dpPips)}</span>`;
         // Draft picks render with the SAME structure as in-hand cards so
         // the chrome (portrait + name overlay + chamfered octagon orbs +
