@@ -3999,10 +3999,26 @@ const CARD_ABILITIES = {
       const enemy = G.state.lanes[lane][opp];
       if (enemy && enemy.currentHealth > 0) {
         AB._applyBurning(enemy);
-        self._brEnemyId = enemy.id;
+        self._brTrackedEnemy = enemy.id;
       }
       self._adjBurnPending = true;
       G.log('Boiler Room ignites — the enemy in this lane is burning!');
+    },
+    onAnyCardPlayed(G, self) {
+      if (self._brSpawned) return;
+      const laneIdx = G.findCardLane(self);
+      if (laneIdx < 0) return;
+      const AB = CARD_ABILITIES['Boiler Room'];
+      const opp = G.opponent(self.owner);
+      const enemy = G.state.lanes[laneIdx][opp];
+      if (enemy && enemy.currentHealth > 0) {
+        // Burn every new enemy that enters this lane.
+        AB._applyBurning(enemy);
+        // Track the first enemy we see — Freddy spawns once they die.
+        if (self._brTrackedEnemy === undefined) {
+          self._brTrackedEnemy = enemy.id;
+        }
+      }
     },
     onEndOfTurn(G, self) {
       if (self._brSpawned) return;
@@ -4011,6 +4027,7 @@ const CARD_ABILITIES = {
       const AB = CARD_ABILITIES['Boiler Room'];
       const opp = G.opponent(self.owner);
 
+      // Spread burn to adjacent lanes after the first turn.
       if (self._adjBurnPending) {
         self._adjBurnPending = false;
         [laneIdx - 1, laneIdx + 1].forEach(adj => {
@@ -4024,22 +4041,15 @@ const CARD_ABILITIES = {
         });
       }
 
-      const enemyNow = G.state.lanes[laneIdx][opp];
-      if (self._brEnemyId === undefined) {
-        if (enemyNow && enemyNow.currentHealth > 0) self._brEnemyId = enemyNow.id;
-        return;
+      // Once we have a tracked enemy, spawn Freddy as soon as they're gone.
+      if (self._brTrackedEnemy !== undefined) {
+        const enemyNow = G.state.lanes[laneIdx][opp];
+        const stillHere = enemyNow && enemyNow.id === self._brTrackedEnemy && enemyNow.currentHealth > 0;
+        if (!stillHere) {
+          self._brSpawned = true;
+          AB._spawnFreddy(G, self.owner, laneIdx);
+        }
       }
-      const stillHere = enemyNow && enemyNow.id === self._brEnemyId && enemyNow.currentHealth > 0;
-      if (!stillHere) {
-        self._brSpawned = true;
-        CARD_ABILITIES['Boiler Room']._spawnFreddy(G, self.owner, laneIdx);
-      }
-    },
-    onDeath(G, self, laneIdx) {
-      // Environments shouldn't reach onDeath in normal play, but guard just in case.
-      if (self._brSpawned) return;
-      self._brSpawned = true;
-      CARD_ABILITIES['Boiler Room']._spawnFreddy(G, self.owner, laneIdx);
     },
   },
   "Freddy Krueger": {
