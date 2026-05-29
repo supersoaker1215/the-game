@@ -10023,8 +10023,9 @@ const UI = {
         const KEEP = el.querySelector(':scope > .ai-slot');
         const KEEP_SEP = el.querySelector(':scope > .lane-sep');
         const KEEP_PSLOT = el.querySelector(':scope > .player-slot');
+        const KEEP_ENV = el.querySelector(':scope > .lane-env-bg');
         Array.from(el.children).forEach(child => {
-          if (child !== KEEP && child !== KEEP_SEP && child !== KEEP_PSLOT) {
+          if (child !== KEEP && child !== KEEP_SEP && child !== KEEP_PSLOT && child !== KEEP_ENV) {
             child.remove();
           }
         });
@@ -10133,6 +10134,31 @@ const UI = {
         el.appendChild(trapEl);
       }
 
+      // Environment background layer — sits behind both card slots.
+      // Reuse existing element across renders so it doesn't flicker.
+      {
+        const envAi = lane._env && lane._env.ai;
+        const envPl = lane._env && lane._env.player;
+        let envBg = el.querySelector(':scope > .lane-env-bg');
+        if (envAi || envPl) {
+          if (!envBg) {
+            envBg = document.createElement('div');
+            // Insert as the very first child so CSS z-index keeps it behind the slots.
+            el.insertBefore(envBg, el.firstChild);
+          }
+          const primary = envAi || envPl;
+          const safeClass = 'env-' + primary.name.toLowerCase().replace(/\s+/g, '-');
+          envBg.className = `lane-env-bg ${safeClass}`;
+          let html = '';
+          if (envAi) html += `<div class="env-bg-label env-bg-label-ai">${envAi.name}</div>`;
+          if (envPl) html += `<div class="env-bg-label env-bg-label-player">${envPl.name}</div>`;
+          if (envBg.innerHTML !== html) envBg.innerHTML = html;
+          envBg.onclick = (e) => { UI.openCardInspect(envAi || envPl); e.stopPropagation(); };
+        } else if (envBg) {
+          envBg.remove();
+        }
+      }
+
       // AI slot — reuse existing if cached lane already has one. Keeps
       // the slot continuously attached so its card child's CSS
       // animations don't restart on render.
@@ -10157,11 +10183,10 @@ const UI = {
       // that ISN'T the chosen cardEl, regardless of id matching. Single
       // path, single result — no chance of accumulation.
       const aiEnvCard = lane._env && lane._env.ai;
-      const aiDisplayCard = lane.ai || aiEnvCard;
+      const aiDisplayCard = lane.ai;
       let aiCardEl = null;
       if (aiDisplayCard) {
         aiCardEl = aiDisplayCard.isFaceDown ? this.makeFaceDownEl() : this.makeCardElCached(aiDisplayCard, false, 'enemy');
-        if (aiEnvCard && !lane.ai) aiCardEl.classList.add('card-environment');
       }
       // Clear stale click handlers BEFORE conditional re-assignment below.
       // makeCardElCached returns the same DOM element across renders; if
@@ -10229,10 +10254,8 @@ const UI = {
         // targeting flow is preserved. Skipped for face-down enemy
         // tiles — exposing a hidden card via inspect would leak
         // information the player isn't supposed to see yet.
-        if (!aiDisplayCard.isFaceDown && !aiEnvCard) {
+        if (!aiDisplayCard.isFaceDown) {
           cardEl.onclick = () => UI.openCardInspect(aiDisplayCard);
-        } else if (aiEnvCard && !lane.ai) {
-          cardEl.onclick = () => UI.openCardInspect(aiEnvCard);
         }
         if (cc && targetCardIds.has(aiDisplayCard.id)) {
           cardEl.classList.add('target-highlight');
@@ -10355,11 +10378,10 @@ const UI = {
       // instance scenarios (e.g. cloned player cards) without
       // accumulation.
       const plEnvCard = lane._env && lane._env.player;
-      const plDisplayCard = lane.player || plEnvCard;
+      const plDisplayCard = lane.player;
       let plCardEl = null;
       if (plDisplayCard) {
         plCardEl = this.makeCardElCached(plDisplayCard, false, 'ally');
-        if (plEnvCard && !lane.player) plCardEl.classList.add('card-environment');
       }
       // Mirror of the AI-side stale-handler clear above. Prevents the
       // "wrong card got selected" bug when a prompt re-fires across
@@ -10438,19 +10460,12 @@ const UI = {
         // Damage preview — show how this card would trade if placed here.
         const preview = this.makeDamagePreview(s.selectedCard, lane.ai, i);
         if (preview) pSlot.appendChild(preview);
-      } else if (!lane.destroyed && !lane.player && !plEnvCard && !cc && !lc) {
+      } else if (!lane.destroyed && !lane.player && !cc && !lc) {
         // Empty ally slot + nothing selected — show the drop glyph
         const empty = document.createElement('div');
         empty.className = 'empty-lane-glyph';
         empty.innerHTML = '&#xFF0B;';
         pSlot.appendChild(empty);
-      }
-      // When only an env card is present (no real ally), still mark the slot
-      // playable so the player can deploy alongside the environment.
-      if (!lane.destroyed && !lane.player && plEnvCard && canPlay && s.selectedCard
-          && !s.selectedCard.isDiscardEffect && !s.selectedCard.isEnvironment && !cc && !lc) {
-        pSlot.classList.add('playable');
-        pSlot.addEventListener('click', () => this.onLaneClick(i));
       }
       if (pSlot.parentNode !== el) el.appendChild(pSlot);
       if (el.parentNode !== this.board) this.board.appendChild(el);

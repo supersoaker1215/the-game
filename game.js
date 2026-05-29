@@ -2003,7 +2003,8 @@ const Game = {
     }
 
     // Environments go to the _env sub-slot; normal cards go to the main combat slot.
-    if (card.isEnvironment ? (lane._env && lane._env[owner]) : lane[owner]) return false;
+    // Envs can always be played (replacing an existing env); only regular cards block on the main slot.
+    if (!card.isEnvironment && lane[owner]) return false;
     const cost = this.getCardCost(owner, card);
     if (this.state[owner].currency < cost) return false;
 
@@ -2131,7 +2132,7 @@ const Game = {
       }
       return true;
     }
-    if ((card.isEnvironment ? (this.state.lanes[laneIdx]._env && this.state.lanes[laneIdx]._env[owner]) : this.state.lanes[laneIdx][owner]) || this.state.lanes[laneIdx].destroyed) return;
+    if ((!card.isEnvironment && this.state.lanes[laneIdx][owner]) || this.state.lanes[laneIdx].destroyed) return;
     const opp = this.opponent(owner);
     // Intercepted by Batman Who Laughs — even jump/free plays should be
     // stolen. Previously jump-path cards (Michael Myers locking onto his
@@ -6378,7 +6379,7 @@ const Game = {
       const c = this.state.lanes[i][owner];
       if (c && c.currentHealth > 0) out.push(c);
       const e = this.state.lanes[i]._env && this.state.lanes[i]._env[owner];
-      if (e && e.currentHealth > 0) out.push(e);
+      if (e) out.push(e);
     }
     return out;
   },
@@ -6390,8 +6391,8 @@ const Game = {
       if (l.player && l.player.currentHealth > 0) out.push(l.player);
       if (l.ai    && l.ai.currentHealth    > 0) out.push(l.ai);
       if (l._env) {
-        if (l._env.player && l._env.player.currentHealth > 0) out.push(l._env.player);
-        if (l._env.ai     && l._env.ai.currentHealth     > 0) out.push(l._env.ai);
+        if (l._env.player) out.push(l._env.player);
+        if (l._env.ai)     out.push(l._env.ai);
       }
     }
     return out;
