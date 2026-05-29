@@ -28412,6 +28412,18 @@ body.round-tick .board::after {
   animation: freddySlashFade 0.88s ease-out forwards;
 }
 
+/* Freddy hand-slash — red flash on whichever hand card Freddy targeted */
+@keyframes freddyHandSlash {
+  0%   { box-shadow: 0 0 0 2px rgba(220,20,20,0); outline: 2px solid rgba(220,20,20,0); }
+  15%  { box-shadow: 0 0 18px 4px rgba(220,20,20,0.9), 0 0 36px rgba(180,0,0,0.6); outline: 2px solid rgba(220,20,20,0.9); filter: brightness(1.4); }
+  100% { box-shadow: 0 0 0 2px rgba(220,20,20,0); outline: 2px solid rgba(220,20,20,0); filter: brightness(1); }
+}
+.card.freddy-hand-slash {
+  animation: freddyHandSlash 0.9s ease-out forwards !important;
+  z-index: 20;
+  position: relative;
+}
+
 /* Burning card — pulsing ember-orange glow (additive, shown alongside
    any other status colour; deferred during card-enter so it doesn't
    compete with the entrance animation). */

@@ -4063,6 +4063,14 @@ const CARD_ABILITIES = {
       const curHp = t.currentHealth !== undefined ? t.currentHealth : (t.health || 0);
       t.currentHealth = Math.max(0, curHp - dmg);
       G.log(`[FREDDY] Freddy slashes ${t.name} in the enemy's hand for ${dmg}!`);
+      // Flash the targeted hand card with a red slash highlight.
+      if (typeof document !== 'undefined' && t.id != null) {
+        const el = document.querySelector(`[data-card-id="${t.id}"]`);
+        if (el) {
+          el.classList.add('freddy-hand-slash');
+          setTimeout(() => el.classList.remove('freddy-hand-slash'), 900);
+        }
+      }
       if (t.currentHealth <= 0) {
         const idx = hand.indexOf(t);
         if (idx >= 0) hand.splice(idx, 1);
