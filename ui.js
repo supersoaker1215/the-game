@@ -5072,34 +5072,19 @@ const UI = {
     if (this.sfx) this.sfx.playCardSfx('Freddy Krueger', 'play');
     this._screenShake('heavy');
 
-    const overlay = document.createElement('div');
-    overlay.className = 'freddy-dark-overlay';
-    document.body.appendChild(overlay);
+    if (cardEl) {
+      cardEl.classList.remove('freddy-slash-in');
+      void cardEl.offsetWidth;
+      cardEl.classList.add('freddy-slash-in');
+      setTimeout(() => cardEl.classList.remove('freddy-slash-in'), 650);
+    }
 
-    setTimeout(() => {
-      overlay.classList.add('freddy-flash-red');
-      this._screenShake('heavy');
-
-      if (cardEl) {
-        cardEl.classList.remove('freddy-slash-in');
-        void cardEl.offsetWidth;
-        cardEl.classList.add('freddy-slash-in');
-        setTimeout(() => cardEl.classList.remove('freddy-slash-in'), 650);
-      }
-
-      if (laneEl) {
-        const marks = document.createElement('div');
-        marks.className = 'freddy-slash-marks';
-        laneEl.appendChild(marks);
-        setTimeout(() => marks.remove(), 900);
-      }
-
-      setTimeout(() => {
-        overlay.style.opacity = '0';
-        overlay.style.transition = 'opacity 440ms ease-out';
-        setTimeout(() => overlay.remove(), 440);
-      }, 340);
-    }, 140);
+    if (laneEl) {
+      const marks = document.createElement('div');
+      marks.className = 'freddy-slash-marks';
+      laneEl.appendChild(marks);
+      setTimeout(() => marks.remove(), 900);
+    }
   },
 
   _pennywiseJumpscare(laneIdx, owner) {
@@ -5126,34 +5111,19 @@ const UI = {
 
       this._screenShake('heavy');
 
-      const overlay = document.createElement('div');
-      overlay.className = 'pennywise-overlay';
-      document.body.appendChild(overlay);
+      if (cardEl) {
+        cardEl.classList.remove('pennywise-burst-in');
+        void cardEl.offsetWidth;
+        cardEl.classList.add('pennywise-burst-in');
+        setTimeout(() => cardEl.classList.remove('pennywise-burst-in'), 700);
+      }
 
-      setTimeout(() => {
-        overlay.classList.add('pennywise-flash-red');
-        this._screenShake('heavy');
-
-        if (cardEl) {
-          cardEl.classList.remove('pennywise-burst-in');
-          void cardEl.offsetWidth;
-          cardEl.classList.add('pennywise-burst-in');
-          setTimeout(() => cardEl.classList.remove('pennywise-burst-in'), 700);
-        }
-
-        if (laneEl) {
-          const splatter = document.createElement('div');
-          splatter.className = 'pennywise-splatter';
-          laneEl.appendChild(splatter);
-          setTimeout(() => splatter.remove(), 900);
-        }
-
-        setTimeout(() => {
-          overlay.style.opacity = '0';
-          overlay.style.transition = 'opacity 440ms ease-out';
-          setTimeout(() => overlay.remove(), 440);
-        }, 340);
-      }, 140);
+      if (laneEl) {
+        const splatter = document.createElement('div');
+        splatter.className = 'pennywise-splatter';
+        laneEl.appendChild(splatter);
+        setTimeout(() => splatter.remove(), 900);
+      }
     }, 820);
   },
 
