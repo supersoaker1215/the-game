@@ -5102,6 +5102,61 @@ const UI = {
     }, 140);
   },
 
+  _pennywiseJumpscare(laneIdx, owner) {
+    const lanes = document.querySelectorAll('.board > .lane');
+    const laneEl = lanes[laneIdx] || null;
+    const slotSel = owner === 'player' ? '.player-slot .card' : '.ai-slot .card';
+    const cardEl  = laneEl && laneEl.querySelector(slotSel);
+
+    if (this.sfx) this.sfx.playCardSfx('Pennywise', 'play');
+
+    // Step 1: red balloon floats up from the bottom of the lane
+    const balloon = laneEl && document.createElement('div');
+    if (balloon) {
+      balloon.className = 'pennywise-balloon';
+      laneEl.appendChild(balloon);
+    }
+
+    // Step 2: after balloon reaches top, pop it + Pennywise bursts out
+    setTimeout(() => {
+      if (balloon) {
+        balloon.classList.add('pennywise-balloon-pop');
+        setTimeout(() => balloon.remove(), 420);
+      }
+
+      this._screenShake('heavy');
+
+      const overlay = document.createElement('div');
+      overlay.className = 'pennywise-overlay';
+      document.body.appendChild(overlay);
+
+      setTimeout(() => {
+        overlay.classList.add('pennywise-flash-red');
+        this._screenShake('heavy');
+
+        if (cardEl) {
+          cardEl.classList.remove('pennywise-burst-in');
+          void cardEl.offsetWidth;
+          cardEl.classList.add('pennywise-burst-in');
+          setTimeout(() => cardEl.classList.remove('pennywise-burst-in'), 700);
+        }
+
+        if (laneEl) {
+          const splatter = document.createElement('div');
+          splatter.className = 'pennywise-splatter';
+          laneEl.appendChild(splatter);
+          setTimeout(() => splatter.remove(), 900);
+        }
+
+        setTimeout(() => {
+          overlay.style.opacity = '0';
+          overlay.style.transition = 'opacity 440ms ease-out';
+          setTimeout(() => overlay.remove(), 440);
+        }, 340);
+      }, 140);
+    }, 820);
+  },
+
   showDamageFloats() {
     const events = Game.flushDmg();
     for (const ev of events) {
@@ -9985,7 +10040,8 @@ const UI = {
       //   ai     → red (enemy side lit)
       //   player → blue (ally side lit)
       //   both   → top-half red / bottom-half blue (split)
-      const hasAi = !!lane.ai, hasPl = !!lane.player;
+      const hasAi = !!(lane.ai || (lane._env && lane._env.ai));
+      const hasPl = !!(lane.player || (lane._env && lane._env.player));
       const occClass = lane.destroyed
         ? ''
         : hasAi && hasPl ? ' occ-both'
@@ -10100,9 +10156,12 @@ const UI = {
       // arrays per id (see _captureBoardCardEls) and remove anything
       // that ISN'T the chosen cardEl, regardless of id matching. Single
       // path, single result — no chance of accumulation.
+      const aiEnvCard = lane._env && lane._env.ai;
+      const aiDisplayCard = lane.ai || aiEnvCard;
       let aiCardEl = null;
-      if (lane.ai) {
-        aiCardEl = lane.ai.isFaceDown ? this.makeFaceDownEl() : this.makeCardElCached(lane.ai, false, 'enemy');
+      if (aiDisplayCard) {
+        aiCardEl = aiDisplayCard.isFaceDown ? this.makeFaceDownEl() : this.makeCardElCached(aiDisplayCard, false, 'enemy');
+        if (aiEnvCard && !lane.ai) aiCardEl.classList.add('card-environment');
       }
       // Clear stale click handlers BEFORE conditional re-assignment below.
       // makeCardElCached returns the same DOM element across renders; if
@@ -10131,10 +10190,10 @@ const UI = {
       if (aiCardEl && aiCardEl.parentNode !== aiSlot) {
         aiSlot.appendChild(aiCardEl);
       }
-      if (lane.ai) {
+      if (aiDisplayCard) {
         const cardEl = aiCardEl;
-        if (lane.ai.id !== undefined) currentBoardIds.add(lane.ai.id);
-        if (!this._lastBoardCardIds.has(lane.ai.id)) {
+        if (aiDisplayCard.id !== undefined) currentBoardIds.add(aiDisplayCard.id);
+        if (!this._lastBoardCardIds.has(aiDisplayCard.id)) {
           // Enemy cards use the same "build from grid" animation as
           // ally cards (1.0s clip-path reveal from bottom up + traveling
           // scan line). Removed the competing card-reveal-flip class —
@@ -10170,12 +10229,14 @@ const UI = {
         // targeting flow is preserved. Skipped for face-down enemy
         // tiles — exposing a hidden card via inspect would leak
         // information the player isn't supposed to see yet.
-        if (!lane.ai.isFaceDown) {
-          cardEl.onclick = () => UI.openCardInspect(lane.ai);
+        if (!aiDisplayCard.isFaceDown && !aiEnvCard) {
+          cardEl.onclick = () => UI.openCardInspect(aiDisplayCard);
+        } else if (aiEnvCard && !lane.ai) {
+          cardEl.onclick = () => UI.openCardInspect(aiEnvCard);
         }
-        if (cc && targetCardIds.has(lane.ai.id)) {
+        if (cc && targetCardIds.has(aiDisplayCard.id)) {
           cardEl.classList.add('target-highlight');
-          const idx = cc.cards.findIndex(c => c.id === lane.ai.id);
+          const idx = cc.cards.findIndex(c => c.id === aiDisplayCard.id);
           cardEl.onclick = () => cardChoicePick(idx);
         }
         // ---- Iron Man kill preview (2026-05-19) ----
@@ -10293,9 +10354,12 @@ const UI = {
       // first, then remove any child that isn't it. Handles multi-
       // instance scenarios (e.g. cloned player cards) without
       // accumulation.
+      const plEnvCard = lane._env && lane._env.player;
+      const plDisplayCard = lane.player || plEnvCard;
       let plCardEl = null;
-      if (lane.player) {
-        plCardEl = this.makeCardElCached(lane.player, false, 'ally');
+      if (plDisplayCard) {
+        plCardEl = this.makeCardElCached(plDisplayCard, false, 'ally');
+        if (plEnvCard && !lane.player) plCardEl.classList.add('card-environment');
       }
       // Mirror of the AI-side stale-handler clear above. Prevents the
       // "wrong card got selected" bug when a prompt re-fires across
@@ -10310,11 +10374,11 @@ const UI = {
       if (plCardEl && plCardEl.parentNode !== pSlot) {
         pSlot.appendChild(plCardEl);
       }
-      if (lane.player) {
+      if (plDisplayCard) {
         const cardEl = plCardEl;
-        if (lane.player.isFaceDown) cardEl.classList.add('face-down');
-        if (lane.player.id !== undefined) currentBoardIds.add(lane.player.id);
-        if (!this._lastBoardCardIds.has(lane.player.id)) {
+        if (lane.player && lane.player.isFaceDown) cardEl.classList.add('face-down');
+        if (plDisplayCard.id !== undefined) currentBoardIds.add(plDisplayCard.id);
+        if (!this._lastBoardCardIds.has(plDisplayCard.id)) {
           // 1.0s "build from grid" animation; +100ms safety margin.
           cardEl.classList.add('card-enter');
           setTimeout(() => cardEl.classList.remove('card-enter'), 1100);
@@ -10340,16 +10404,14 @@ const UI = {
         // override during targeting prompts. lane.player can't be
         // face-down for the player's own side, so no face-down
         // guard needed here.
-        cardEl.onclick = () => UI.openCardInspect(lane.player);
-        if (cc && targetCardIds.has(lane.player.id)) {
+        cardEl.onclick = () => UI.openCardInspect(plDisplayCard);
+        if (cc && targetCardIds.has(plDisplayCard.id)) {
           cardEl.classList.add('target-highlight');
-          const idx = cc.cards.findIndex(c => c.id === lane.player.id);
+          const idx = cc.cards.findIndex(c => c.id === plDisplayCard.id);
           cardEl.onclick = () => cardChoicePick(idx);
         }
-        // Lane-choice click on an occupied PLAYER card — mirror of the
-        // AI-side handler. Covers any prompt that wants the player to
-        // pick one of their own cards by lane.
-        if (lc && lcTargetSide === 'player' && lc.lanes.includes(i)) {
+        // Lane-choice click on an occupied PLAYER card — only for real (non-env) cards.
+        if (lane.player && lc && lcTargetSide === 'player' && lc.lanes.includes(i)) {
           pSlot.classList.add('target-highlight');
           cardEl.classList.add('target-highlight');
           cardEl.style.cursor = 'pointer';
@@ -10370,18 +10432,25 @@ const UI = {
           const preview = this.makeDamagePreview(lc.previewCard, lane.ai, i);
           if (preview) pSlot.appendChild(preview);
         }
-      } else if (!lane.destroyed && canPlay && s.selectedCard && !s.selectedCard.isDiscardEffect && !cc && !lc) {
+      } else if (!lane.destroyed && canPlay && s.selectedCard && !s.selectedCard.isDiscardEffect && !cc && !lc && !lane.player) {
         pSlot.classList.add('playable');
         pSlot.addEventListener('click', () => this.onLaneClick(i));
         // Damage preview — show how this card would trade if placed here.
         const preview = this.makeDamagePreview(s.selectedCard, lane.ai, i);
         if (preview) pSlot.appendChild(preview);
-      } else if (!lane.destroyed && !lane.player && !cc && !lc) {
+      } else if (!lane.destroyed && !lane.player && !plEnvCard && !cc && !lc) {
         // Empty ally slot + nothing selected — show the drop glyph
         const empty = document.createElement('div');
         empty.className = 'empty-lane-glyph';
         empty.innerHTML = '&#xFF0B;';
         pSlot.appendChild(empty);
+      }
+      // When only an env card is present (no real ally), still mark the slot
+      // playable so the player can deploy alongside the environment.
+      if (!lane.destroyed && !lane.player && plEnvCard && canPlay && s.selectedCard
+          && !s.selectedCard.isDiscardEffect && !s.selectedCard.isEnvironment && !cc && !lc) {
+        pSlot.classList.add('playable');
+        pSlot.addEventListener('click', () => this.onLaneClick(i));
       }
       if (pSlot.parentNode !== el) el.appendChild(pSlot);
       if (el.parentNode !== this.board) this.board.appendChild(el);
@@ -11354,6 +11423,7 @@ const UI = {
     'Anti-Venom':'symbiote', 'Knull':'symbiote',
     'Ghostface':'slasher', 'Jason Voorhees':'slasher',
     'Michael Myers':'slasher', 'Predator':'slasher', 'Freddy Krueger':'slasher',
+    'Pennywise':'slasher', 'Freddy Fazbear':'slasher',
     'Thanos':'titan', 'Hulk':'titan', 'Red Hulk':'titan',
     'Darkseid':'titan', 'Mahoraga':'titan', 'Solomon Grundy':'titan',
     'Juggernaut':'titan', 'The Thing':'titan', 'Trigon':'titan',

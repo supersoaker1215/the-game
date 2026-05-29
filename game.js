@@ -436,7 +436,7 @@ const Game = {
       voidPile: [],       // devoured cards — cannot be recovered
       player: Object.assign(this.makePlayer(), { isHuman: true }),
       ai: Object.assign(this.makePlayer(), { isHuman: false }),
-      lanes: Array.from({ length: 6 }, () => ({ player: null, ai: null, destroyed: false, destroyedTurns: 0, protected: null, trap: null })),
+      lanes: Array.from({ length: 6 }, () => ({ player: null, ai: null, _env: null, destroyed: false, destroyedTurns: 0, protected: null, trap: null })),
       selectedCard: null, selectedTrick: null,
       log: [], gameOver: false, winner: null,
       _stats: {
@@ -1640,6 +1640,29 @@ const Game = {
     }
   },
 
+  // Freddy Fazbear — jump offer + passive flag check at end of a player's card phase.
+  // Called from endPhase1 (first player) and endPhase2 (second player).
+  _checkFreddyFazbear(owner) {
+    if (!this.state[owner] || this.state[owner].currency <= 0) return;
+    // Jump: Freddy in hand → offer free play
+    const inHand = this.state[owner].hand.find(c => c.name === 'Freddy Fazbear');
+    if (inHand && !inHand.jumpReady) {
+      inHand.jumpReady = true;
+      this.log(`  [JUMP] Freddy Fazbear senses ${this.state[owner].currency} unspent energy — free play available!`);
+      if (this.isHuman(owner) && !this.state.pendingJumpOffer) {
+        this.state.pendingJumpOffer = { cardId: inHand.id };
+        if (typeof UI !== 'undefined') UI.render();
+      } else if (!this.isHuman(owner)) {
+        const open = this.getOpenLanes(owner);
+        inHand.jumpReady = false;
+        if (open.length) this.playCardFree(owner, inHand, open[0]);
+      }
+    }
+    // Passive: Freddy on the board → flag to drain energy next round start
+    const onBoard = this.getAlliesOf(owner).find(c => c.name === 'Freddy Fazbear' && c.currentHealth > 0);
+    if (onBoard) onBoard._triggerNextRound = true;
+  },
+
   endPhase1() {
     // Guest forwards Done to the host — host is authoritative on the
     // engine. Without this, the guest's local engine would advance
@@ -1650,35 +1673,39 @@ const Game = {
       if (typeof Multiplayer !== 'undefined') Multiplayer.send({ t: 'doneTurn' });
       return;
     }
-    const sp = this.opponent(this.state.firstPlayer);
-    this.state.activePlayer = sp;
-    this.state.selectedCard = null;
-    this.state.selectedTrick = null;
-    if (sp === 'player') {
-      this.state.phase = 'player-cards-tricks';
-      this.clearHistory(); // new player turn — undo cannot cross this boundary
-      UI.render();
-    } else {
-      this.state.phase = 'ai-cards-tricks';
-      UI.render();
-      // Multiplayer: don't run AI for the opponent (they're a real
-      // human on the other side). Wait for their actions.
-      if (this.isMultiplayer()) return;
-      // Phase 2 = AI going second: it's the AI's full turn (cards + tricks).
-      // Call playTrickPhaseCards BETWEEN playCards and playTricks so Thanos /
-      // Iron Man still fire — playCards() now defers them waiting for a
-      // Phase 3 that never comes when AI goes second. Calling
-      // playTrickPhaseCards here gives them their "post-opponent-commit"
-      // timing: Phase 1 (opponent plays) → Phase 2 (AI plays cards, then
-      // trick-phase cards against the committed board, then tricks).
-      setTimeout(() => {
-        AI.playCards('ai', () => {
-          AI.playTrickPhaseCards('ai', () => {
-            AI.playTricks('ai', () => this.endPhase2());
+    // Freddy Fazbear jump / passive check for the first player (who just committed cards)
+    this._checkFreddyFazbear(this.state.firstPlayer);
+    this.whenPromptCleared(() => {
+      const sp = this.opponent(this.state.firstPlayer);
+      this.state.activePlayer = sp;
+      this.state.selectedCard = null;
+      this.state.selectedTrick = null;
+      if (sp === 'player') {
+        this.state.phase = 'player-cards-tricks';
+        this.clearHistory(); // new player turn — undo cannot cross this boundary
+        UI.render();
+      } else {
+        this.state.phase = 'ai-cards-tricks';
+        UI.render();
+        // Multiplayer: don't run AI for the opponent (they're a real
+        // human on the other side). Wait for their actions.
+        if (this.isMultiplayer()) return;
+        // Phase 2 = AI going second: it's the AI's full turn (cards + tricks).
+        // Call playTrickPhaseCards BETWEEN playCards and playTricks so Thanos /
+        // Iron Man still fire — playCards() now defers them waiting for a
+        // Phase 3 that never comes when AI goes second. Calling
+        // playTrickPhaseCards here gives them their "post-opponent-commit"
+        // timing: Phase 1 (opponent plays) → Phase 2 (AI plays cards, then
+        // trick-phase cards against the committed board, then tricks).
+        setTimeout(() => {
+          AI.playCards('ai', () => {
+            AI.playTrickPhaseCards('ai', () => {
+              AI.playTricks('ai', () => this.endPhase2());
+            });
           });
-        });
-      }, 1200);
-    }
+        }, 1200);
+      }
+    });
   },
 
   endPhase2() {
@@ -1687,40 +1714,44 @@ const Game = {
       if (typeof Multiplayer !== 'undefined') Multiplayer.send({ t: 'doneTurn' });
       return;
     }
-    // Reveal face-down cards before the final trick phase
-    this.revealFaceDownCards();
+    // Freddy Fazbear jump / passive check for the second player (who just committed their phase)
+    this._checkFreddyFazbear(this.opponent(this.state.firstPlayer));
+    this.whenPromptCleared(() => {
+      // Reveal face-down cards before the final trick phase
+      this.revealFaceDownCards();
 
-    // Run "Before Tricks" effects for all cards on board
-    this.runBeforeTricks();
-    this.cleanupDead();
+      // Run "Before Tricks" effects for all cards on board
+      this.runBeforeTricks();
+      this.cleanupDead();
 
-    const fp = this.state.firstPlayer;
-    this.state.activePlayer = fp;
-    this.state.selectedCard = null;
-    this.state.selectedTrick = null;
-    if (fp === 'player') {
-      this.state.phase = 'player-tricks';
-      this.clearHistory(); // new player turn — undo cannot cross this boundary
-      UI.render();
-    } else {
-      this.state.phase = 'ai-tricks';
-      UI.render();
-      // Multiplayer: don't run AI for the opponent.
-      if (this.isMultiplayer()) return;
-      setTimeout(() => {
-        const nextStep = () => {
-          AI.playTrickPhaseCards('ai', () => {
-            AI.playTricks('ai', () => this.endPhase3());
-          });
-        };
-        // Red Skull: AI may also deploy character cards during its trick phase.
-        if (this.getAllCardsOf('ai').some(c => c.passive === 'allowCardsInTricksPhase')) {
-          AI.playCards('ai', nextStep);
-        } else {
-          nextStep();
-        }
-      }, 1200);
-    }
+      const fp = this.state.firstPlayer;
+      this.state.activePlayer = fp;
+      this.state.selectedCard = null;
+      this.state.selectedTrick = null;
+      if (fp === 'player') {
+        this.state.phase = 'player-tricks';
+        this.clearHistory(); // new player turn — undo cannot cross this boundary
+        UI.render();
+      } else {
+        this.state.phase = 'ai-tricks';
+        UI.render();
+        // Multiplayer: don't run AI for the opponent.
+        if (this.isMultiplayer()) return;
+        setTimeout(() => {
+          const nextStep = () => {
+            AI.playTrickPhaseCards('ai', () => {
+              AI.playTricks('ai', () => this.endPhase3());
+            });
+          };
+          // Red Skull: AI may also deploy character cards during its trick phase.
+          if (this.getAllCardsOf('ai').some(c => c.passive === 'allowCardsInTricksPhase')) {
+            AI.playCards('ai', nextStep);
+          } else {
+            nextStep();
+          }
+        }, 1200);
+      }
+    });
   },
 
   runBeforeTricks() {
@@ -1971,7 +2002,8 @@ const Game = {
       return true;
     }
 
-    if (lane[owner]) return false;
+    // Environments go to the _env sub-slot; normal cards go to the main combat slot.
+    if (card.isEnvironment ? (lane._env && lane._env[owner]) : lane[owner]) return false;
     const cost = this.getCardCost(owner, card);
     if (this.state[owner].currency < cost) return false;
 
@@ -1993,6 +2025,23 @@ const Game = {
     }
     const idx = this.state[owner].hand.indexOf(card);
     if (idx > -1) this.state[owner].hand.splice(idx, 1);
+
+    // Environment cards occupy the _env sub-slot so allies can share the lane.
+    // They don't participate in combat, can't be attacked, and skip most on-play hooks.
+    if (card.isEnvironment) {
+      if (!lane._env) lane._env = {};
+      lane._env[owner] = card;
+      if (card.statsEnteredRound == null) card.statsEnteredRound = this.state.round || 1;
+      this.state[owner].discount = 0;
+      this.log(`[PLAY] ${who} place ${card.name} in lane ${laneIdx + 1} for ${cost} energy`);
+      this._runHook(card, 'onPlay', this, card, laneIdx);
+      this.getAllCardsOnBoard().forEach(c => { if (c.onAnyCardPlayed && c.id !== card.id) c.onAnyCardPlayed(this, c); });
+      this.checkJumpConditions('cardPlayed', { owner, cost: card.baseCost || card.cost, laneIdx });
+      this.applyMagnetoDebuffs();
+      if (typeof UI !== 'undefined' && UI.render) UI.render();
+      return true;
+    }
+
     lane[owner] = card;
     if (card.statsEnteredRound == null) card.statsEnteredRound = this.state.round || 1;
     this.state[owner].discount = 0;
@@ -2025,8 +2074,8 @@ const Game = {
     this.log(`[PLAY] ${who} play ${card.name} (${card.attack}/${card.currentHealth}) in lane ${laneIdx + 1} for ${cost} energy`);
     this.checkLaneTrap(card, laneIdx);
 
-    // Lone wolf: +1/+1 when played with no other allies on the board
-    const otherAllies = this.getAllCardsOf(owner).filter(c => c.id !== card.id && c.currentHealth > 0);
+    // Lone wolf: +1/+1 when played with no other allies on the board (environments don't count)
+    const otherAllies = this.getAllCardsOf(owner).filter(c => c.id !== card.id && c.currentHealth > 0 && !c.isEnvironment);
     if (otherAllies.length === 0) {
       this.buffCard(card, 1, 1);
       this.log(`  [LONE WOLF] ${card.name} enters alone — +1/+1!`);
@@ -2082,7 +2131,7 @@ const Game = {
       }
       return true;
     }
-    if (this.state.lanes[laneIdx][owner] || this.state.lanes[laneIdx].destroyed) return;
+    if ((card.isEnvironment ? (this.state.lanes[laneIdx]._env && this.state.lanes[laneIdx]._env[owner]) : this.state.lanes[laneIdx][owner]) || this.state.lanes[laneIdx].destroyed) return;
     const opp = this.opponent(owner);
     // Intercepted by Batman Who Laughs — even jump/free plays should be
     // stolen. Previously jump-path cards (Michael Myers locking onto his
@@ -3574,6 +3623,14 @@ const Game = {
     }
 
     let blockedByMeter = false;
+    // Pennywise aura — while Pennywise is alive on the attacker's side,
+    // all face damage bypasses the block meter (treated as Bullseye).
+    if (!isBullseye) {
+      const attackerSide = this.opponent(owner);
+      if (this.getAllCardsOf(attackerSide).some(c => c.passive === 'pennywiseAura' && c.currentHealth > 0)) {
+        isBullseye = true;
+      }
+    }
     // General Grievous passive — while he's alive on the OPPOSING
     // board, the victim's Block Meter doesn't charge from face hits.
     // _grievousActiveFor[victim_owner] is set/cleared in his
@@ -4574,6 +4631,7 @@ const Game = {
 
   dealDamage(card, amount, source) {
     if (!card || card.currentHealth <= 0) return;
+    if (card.isEnvironment) return;
     if (this._trickBlocked(card)) return;
     // Invincible / Damage Immunity blocks — attribute the full amount to
     // the blocking card's `statsDamageAbsorbed` so the Stats dashboard
@@ -4684,6 +4742,7 @@ const Game = {
 
   killCard(card, source) {
     if (!card) return;
+    if (card.isEnvironment) return;
     if (this._trickBlocked(card)) return;
     if (this.is10CostImmune(source, card)) { this.log(`  [IMMUNE] ${card.name} is immune to ${source.name}'s destruction!`); return; }
     if (card.invincibleTurns > 0) {
@@ -5483,7 +5542,7 @@ const Game = {
       this._summonChain = true;
       // Lone wolf is a real-summon flavor only — skip for tokens.
       if (sourceDef) {
-        const otherAllies = this.getAllCardsOf(owner).filter(c => c.id !== card.id && c.currentHealth > 0);
+        const otherAllies = this.getAllCardsOf(owner).filter(c => c.id !== card.id && c.currentHealth > 0 && !c.isEnvironment);
         if (otherAllies.length === 0) {
           this.buffCard(card, 1, 1);
           this.log(`  [LONE WOLF] ${card.name} enters alone — +1/+1!`);
@@ -5551,7 +5610,10 @@ const Game = {
   },
 
   removeFromLane(card, l) {
-    if (l >= 0 && l < this.LANE_COUNT && this.state.lanes[l][card.owner] === card) this.state.lanes[l][card.owner] = null;
+    if (l < 0 || l >= this.LANE_COUNT) return;
+    const lane = this.state.lanes[l];
+    if (lane[card.owner] === card) { lane[card.owner] = null; return; }
+    if (lane._env && lane._env[card.owner] === card) lane._env[card.owner] = null;
   },
 
   // Reverse Bear Trap (placed by Jigsaw): when an enemy of the trap-placer enters
@@ -6295,7 +6357,7 @@ const Game = {
     //     drop every enemy that's also cost ≥10. Mirrors
     //     is10CostImmune so the "I can't even pick this" UX
     //     matches the "the effect refuses to land" engine guard.
-    let list = this.getAllCardsOf(this.opponent(owner));
+    let list = this.getAllCardsOf(this.opponent(owner)).filter(c => !c.isEnvironment);
     if (this.state && this.state._inTrick) {
       list = list.filter(c => !c.isUntrickable);
     }
@@ -6307,19 +6369,30 @@ const Game = {
     }
     return list;
   },
-  getAlliesOf(owner) { return this.getAllCardsOf(owner); },
+  // getAlliesOf excludes environment cards so buffs/heals only reach combat cards.
+  getAlliesOf(owner) { return this.getAllCardsOf(owner).filter(c => !c.isEnvironment); },
 
   getAllCardsOf(owner) {
     const out = [];
-    for (let i = 0; i < this.LANE_COUNT; i++) if (this.state.lanes[i][owner] && this.state.lanes[i][owner].currentHealth > 0) out.push(this.state.lanes[i][owner]);
+    for (let i = 0; i < this.LANE_COUNT; i++) {
+      const c = this.state.lanes[i][owner];
+      if (c && c.currentHealth > 0) out.push(c);
+      const e = this.state.lanes[i]._env && this.state.lanes[i]._env[owner];
+      if (e && e.currentHealth > 0) out.push(e);
+    }
     return out;
   },
 
   getAllCardsOnBoard() {
     const out = [];
     for (let i = 0; i < this.LANE_COUNT; i++) {
-      if (this.state.lanes[i].player && this.state.lanes[i].player.currentHealth > 0) out.push(this.state.lanes[i].player);
-      if (this.state.lanes[i].ai && this.state.lanes[i].ai.currentHealth > 0) out.push(this.state.lanes[i].ai);
+      const l = this.state.lanes[i];
+      if (l.player && l.player.currentHealth > 0) out.push(l.player);
+      if (l.ai    && l.ai.currentHealth    > 0) out.push(l.ai);
+      if (l._env) {
+        if (l._env.player && l._env.player.currentHealth > 0) out.push(l._env.player);
+        if (l._env.ai     && l._env.ai.currentHealth     > 0) out.push(l._env.ai);
+      }
     }
     return out;
   },
@@ -6339,7 +6412,11 @@ const Game = {
   },
 
   findCardLane(card) {
-    for (let i = 0; i < this.LANE_COUNT; i++) if (this.state.lanes[i].player === card || this.state.lanes[i].ai === card) return i;
+    for (let i = 0; i < this.LANE_COUNT; i++) {
+      const l = this.state.lanes[i];
+      if (l.player === card || l.ai === card) return i;
+      if (l._env && (l._env.player === card || l._env.ai === card)) return i;
+    }
     return -1;
   },
 

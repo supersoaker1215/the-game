@@ -3936,7 +3936,7 @@ const CARD_ABILITIES = {
   },
   "Boiler Room": {
     _applyBurning(card) {
-      if (!card || card.isBurning) return;
+      if (!card || card.isBurning || card.isEnvironment) return;
       card.isBurning = true;
       const prev = card.onBeforeAttack || null;
       card.onBeforeAttack = function(G, self) {
@@ -3949,12 +3949,48 @@ const CARD_ABILITIES = {
       };
     },
     _spawnFreddy(G, owner, laneIdx) {
+      const lane = G.state.lanes[laneIdx];
+      // Clear the environment sub-slot
+      if (lane._env) lane._env[owner] = null;
+
       const fredDef = (typeof CARD_DEFS !== 'undefined')
         ? CARD_DEFS.find(d => d.name === 'Freddy Krueger') : null;
-      G.summonCard(owner, laneIdx, 'Freddy Krueger', 2, 1, 4, [], fredDef);
-      G.log(`Freddy Krueger rises from the Boiler Room in lane ${laneIdx + 1}!`);
-      if (typeof UI !== 'undefined' && UI._freddyJumpscare) {
-        setTimeout(() => UI._freddyJumpscare(laneIdx, owner), 60);
+      const allyInLane = lane[owner];
+
+      const finishSpawn = (atk, hp) => {
+        G.summonCard(owner, laneIdx, 'Freddy Krueger', 2, atk, hp, [], fredDef);
+        const freddy = G.state.lanes[laneIdx][owner];
+        if (freddy) freddy._envLane = laneIdx;
+        G.log(`Freddy Krueger rises from the Boiler Room in lane ${laneIdx + 1}!`);
+        if (typeof UI !== 'undefined' && UI._freddyJumpscare) {
+          setTimeout(() => UI._freddyJumpscare(laneIdx, owner), 60);
+        }
+      };
+
+      if (allyInLane && allyInLane.currentHealth > 0) {
+        const openLanes = G.getOpenLanes(owner).filter(l => l !== laneIdx);
+        if (openLanes.length > 0) {
+          G.promptLaneChoice(owner, openLanes,
+            `Freddy Krueger — Move ${allyInLane.name}`,
+            `Freddy needs this lane. Move ${allyInLane.name} to another lane.`,
+            (targetLane) => {
+              lane[owner] = null;
+              G.state.lanes[targetLane][owner] = allyInLane;
+              G.log(`  [DISPLACED] ${allyInLane.name} moved to lane ${targetLane + 1} to make room for Freddy.`);
+              G.checkLaneTrap(allyInLane, targetLane);
+              if (allyInLane.onMoved) allyInLane.onMoved(G, allyInLane, targetLane);
+              finishSpawn(1, 4);
+            }
+          );
+        } else {
+          const extraAtk = allyInLane.attack;
+          const extraHp  = allyInLane.currentHealth;
+          G.log(`  [ABSORB] Freddy Krueger absorbs ${allyInLane.name} (+${extraAtk}/+${extraHp})!`);
+          G.handleDeath(allyInLane, laneIdx, null);
+          finishSpawn(1 + extraAtk, 4 + extraHp);
+        }
+      } else {
+        finishSpawn(1, 4);
       }
     },
     onPlay(G, self, lane) {
@@ -3983,19 +4019,17 @@ const CARD_ABILITIES = {
       const opp = G.opponent(self.owner);
       const enemyNow = G.state.lanes[laneIdx][opp];
       if (self._brEnemyId === undefined) {
-        // Start tracking once an enemy occupies this lane
         if (enemyNow && enemyNow.currentHealth > 0) self._brEnemyId = enemyNow.id;
         return;
       }
       const stillHere = enemyNow && enemyNow.id === self._brEnemyId && enemyNow.currentHealth > 0;
       if (!stillHere) {
-        // Tracked enemy left the lane (died or bounced) — spawn Freddy
         self._brSpawned = true;
-        G.removeFromLane(self, laneIdx);
         CARD_ABILITIES['Boiler Room']._spawnFreddy(G, self.owner, laneIdx);
       }
     },
     onDeath(G, self, laneIdx) {
+      // Environments shouldn't reach onDeath in normal play, but guard just in case.
       if (self._brSpawned) return;
       self._brSpawned = true;
       CARD_ABILITIES['Boiler Room']._spawnFreddy(G, self.owner, laneIdx);
@@ -4023,6 +4057,28 @@ const CARD_ABILITIES = {
       }
       self._skipNormalAttack = true;
     },
+    onDeath(G, self, laneIdx) {
+      // Clear the Boiler Room that spawned this Freddy
+      const l = (self._envLane !== undefined) ? self._envLane : laneIdx;
+      const lane = G.state.lanes[l];
+      if (lane && lane._env) lane._env[self.owner] = null;
+    },
+  },
+  "Freddy Fazbear": {
+    onTurnStart(G, self) {
+      if (!self._triggerNextRound) return;
+      self._triggerNextRound = false;
+      const opp = G.opponent(self.owner);
+      // Drain 1 energy from opponent
+      if (G.state[opp].currency > 0) {
+        G.state[opp].currency = Math.max(0, G.state[opp].currency - 1);
+        G.log(`[FREDDY FAZBEAR] Drains 1 energy from the ${opp}! (now ${G.state[opp].currency})`);
+        G._creditChain(self, 'statsEnergyGenerated', 1);
+      }
+      // Gain 1 HP (up to max)
+      self.currentHealth = Math.min(self.currentHealth + 1, self.maxHealth);
+      G.log(`[FREDDY FAZBEAR] Gains +1 HP! (${self.currentHealth}/${self.maxHealth})`);
+    },
   },
   "Padme Amidala": {
     onEndOfTurn(G, self) {
@@ -4033,7 +4089,83 @@ const CARD_ABILITIES = {
       });
       G.log(`Padme Amidala heals all allies for 1 HP.`);
     }
-  }
+  },
+  "Sewers": {
+    _spawnPennywise(G, owner, laneIdx) {
+      const lane = G.state.lanes[laneIdx];
+      // Clear the environment sub-slot
+      if (lane._env) lane._env[owner] = null;
+
+      const def = (typeof CARD_DEFS !== 'undefined')
+        ? CARD_DEFS.find(d => d.name === 'Pennywise') : null;
+      const allyInLane = lane[owner];
+
+      const finishSpawn = (atk, hp) => {
+        G.summonCard(owner, laneIdx, 'Pennywise', 4, atk, hp, [], def);
+        const pennywise = G.state.lanes[laneIdx][owner];
+        if (pennywise) pennywise._envLane = laneIdx;
+        G.log(`Pennywise rises from the Sewers in lane ${laneIdx + 1}!`);
+        if (typeof UI !== 'undefined' && UI._pennywiseJumpscare) {
+          setTimeout(() => UI._pennywiseJumpscare(laneIdx, owner), 60);
+        }
+      };
+
+      if (allyInLane && allyInLane.currentHealth > 0) {
+        const openLanes = G.getOpenLanes(owner).filter(l => l !== laneIdx);
+        if (openLanes.length > 0) {
+          G.promptLaneChoice(owner, openLanes,
+            `Pennywise — Move ${allyInLane.name}`,
+            `Pennywise needs this lane. Move ${allyInLane.name} to another lane.`,
+            (targetLane) => {
+              lane[owner] = null;
+              G.state.lanes[targetLane][owner] = allyInLane;
+              G.log(`  [DISPLACED] ${allyInLane.name} moved to lane ${targetLane + 1} to make room for Pennywise.`);
+              G.checkLaneTrap(allyInLane, targetLane);
+              if (allyInLane.onMoved) allyInLane.onMoved(G, allyInLane, targetLane);
+              finishSpawn(3, 5);
+            }
+          );
+        } else {
+          const extraAtk = allyInLane.attack;
+          const extraHp  = allyInLane.currentHealth;
+          G.log(`  [ABSORB] Pennywise absorbs ${allyInLane.name} (+${extraAtk}/+${extraHp})!`);
+          G.handleDeath(allyInLane, laneIdx, null);
+          finishSpawn(3 + extraAtk, 5 + extraHp);
+        }
+      } else {
+        finishSpawn(3, 5);
+      }
+    },
+    onPlay(G, self, lane) {
+      const opp = G.opponent(self.owner);
+      const existing = G.state.lanes[lane][opp];
+      // Record current enemy so onAnyCardPlayed only fires on a NEW arrival
+      self._sewersTrackedEnemy = (existing && existing.currentHealth > 0) ? existing.id : null;
+    },
+    onAnyCardPlayed(G, self) {
+      if (self._sewersTriggered) return;
+      const laneIdx = G.findCardLane(self);
+      if (laneIdx < 0) return;
+      const opp = G.opponent(self.owner);
+      const enemy = G.state.lanes[laneIdx][opp];
+      const enemyId = (enemy && enemy.currentHealth > 0) ? enemy.id : null;
+      if (enemyId && enemyId !== self._sewersTrackedEnemy) {
+        self._sewersTriggered = true;
+        CARD_ABILITIES['Sewers']._spawnPennywise(G, self.owner, laneIdx);
+      } else if (!self._sewersTriggered) {
+        self._sewersTrackedEnemy = enemyId;
+      }
+    },
+  },
+  "Pennywise": {
+    passive: 'pennywiseAura',
+    onDeath(G, self, laneIdx) {
+      // Clear the Sewers that spawned this Pennywise
+      const l = (self._envLane !== undefined) ? self._envLane : laneIdx;
+      const lane = G.state.lanes[l];
+      if (lane && lane._env) lane._env[self.owner] = null;
+    },
+  },
 };
 
 // Merge abilities into CARD_DEFS (cards.js must load before this file)

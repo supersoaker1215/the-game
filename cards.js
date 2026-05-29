@@ -50,7 +50,8 @@ const CARD_DEFS = [
   { name: "Sabertooth", cost: 1, attack: 2, health: 3, type: "villain",
     abilities: [],
     desc: "While Active: Add (+1/+1) when dealing damage to the opponent's HP." },
-  { name: "Boiler Room", cost: 1, attack: 0, health: 2, type: "environment",
+  { name: "Boiler Room", cost: 1, attack: 0, health: 1, type: "environment",
+    isEnvironment: true,
     abilities: [],
     desc: "When Played: All enemy cards gain Burning (take 1 damage before attacking). Once any card in this lane dies, Freddy Krueger spawns in its place." },
   { name: "Xenomorph", cost: 2, attack: 0, health: 1, type: "villain",
@@ -58,6 +59,10 @@ const CARD_DEFS = [
     desc: "While Active: Add (+1/+1) for each card played (not summoned). When Destroyed: Splash 1." },
 
   // ==================== COST 2 ====================
+  { name: "Sewers", cost: 2, attack: 0, health: 1, type: "environment",
+    isEnvironment: true,
+    abilities: [],
+    desc: "When the enemy plays a card in this lane, Pennywise rises from the depths with a jumpscare entrance. When Pennywise dies, Sewers vanishes too." },
   { name: "Bane", cost: 2, attack: 2, health: 3, type: "villain",
     abilities: ["Overdrive"],
     desc: "When Played: Give an enemy (−1/−1) and remove all Evade. While Active: Add (+1/+1) when damaged." },
@@ -70,6 +75,9 @@ const CARD_DEFS = [
   { name: "Dr. Strange", cost: 2, attack: 2, health: 1, type: "hero",
     abilities: ["Untrickable", "Evade 1"],
     desc: "When Played: Next draw phase, peek at the top 2 cards — keep one, the other goes to the opponent. While Active: Adjacent allies gain Untrickable." },
+  { name: "Freddy Fazbear", cost: 3, attack: 3, health: 4, type: "villain",
+    abilities: [],
+    desc: "Jump: When you end a turn with unspent energy, you may deploy Freddy for free. While Active: Each round you ended with unspent energy, Freddy drains 1 Energy from the opponent at round start and gains +1 HP." },
   { name: "Freddy Krueger", cost: 2, attack: 1, health: 4, type: "villain",
     _spawnOnly: true,
     abilities: [],
@@ -164,6 +172,10 @@ const CARD_DEFS = [
     desc: "When Played: Destroy an enemy with ≤ 3 ATK. While Active: Add (+1/+1) when destroying an enemy." },
 
   // ==================== COST 4 ====================
+  { name: "Pennywise", cost: 4, attack: 3, health: 5, type: "villain",
+    _spawnOnly: true,
+    abilities: [],
+    desc: "Passive: While active, ALL ally damage to the enemy player bypasses the Block Meter (counts as Bullseye). (Spawned only by Sewers.)" },
   { name: "Anti-Venom", cost: 4, attack: 3, health: 5, type: "hero",
     abilities: [],
     desc: "When Played: Heal yourself for 4. Move an ally to another empty lane." },

@@ -28428,3 +28428,132 @@ body.round-tick .board::after {
   .card.status-burning      { animation: none !important; }
   .freddy-slash-marks       { animation: none; opacity: 0; }
 }
+
+/* =====================================================================
+   ENVIRONMENT CARDS (Boiler Room, Sewers)
+   These sit in their own sub-slot alongside allies. They are indestructible
+   and not targetable. Visual treatment: dimmed, purple-green border, no HP bar.
+   ===================================================================== */
+
+.card.card-environment {
+  opacity: 0.82;
+  border-color: rgba(100, 200, 100, 0.55) !important;
+  box-shadow: 0 0 10px rgba(80, 180, 80, 0.35), inset 0 0 8px rgba(0, 0, 0, 0.4) !important;
+  pointer-events: auto;
+}
+.card.card-environment .card-hp,
+.card.card-environment .card-atk,
+.card.card-environment .stat-orb {
+  display: none !important;
+}
+/* Small "ENV" badge in the top-right corner */
+.card.card-environment::after {
+  content: 'ENV';
+  position: absolute;
+  top: 3px;
+  right: 3px;
+  font-size: 8px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  color: rgba(120, 240, 120, 0.9);
+  background: rgba(0, 0, 0, 0.6);
+  padding: 1px 3px;
+  border-radius: 2px;
+  pointer-events: none;
+  z-index: 5;
+}
+
+/* =====================================================================
+   PENNYWISE / SEWERS — balloon jumpscare entrance
+   ===================================================================== */
+
+/* Red balloon that floats up from the bottom of the lane */
+@keyframes pennywiseBalloonRise {
+  0%   { transform: translateX(-50%) translateY(0)    scale(1);    opacity: 0.9; }
+  70%  { transform: translateX(-50%) translateY(-85%) scale(1.08); opacity: 1;   }
+  100% { transform: translateX(-50%) translateY(-80%) scale(1.08); opacity: 1;   }
+}
+.pennywise-balloon {
+  position: absolute;
+  bottom: 8px;
+  left: 50%;
+  width: 36px;
+  height: 52px;
+  /* round balloon body */
+  background: radial-gradient(circle at 38% 32%, #ff7070 0%, #cc0000 55%, #880000 100%);
+  border-radius: 50% 50% 48% 48% / 56% 56% 44% 44%;
+  z-index: 30;
+  pointer-events: none;
+  animation: pennywiseBalloonRise 0.82s cubic-bezier(0.22, 0.61, 0.36, 1) forwards;
+}
+/* Balloon string */
+.pennywise-balloon::after {
+  content: '';
+  position: absolute;
+  bottom: -10px;
+  left: 50%;
+  width: 1px;
+  height: 10px;
+  background: #cc0000;
+  transform: translateX(-50%);
+}
+/* Balloon pops and explodes outward */
+@keyframes pennywiseBalloonPop {
+  0%   { transform: translateX(-50%) translateY(-80%) scale(1.08);  opacity: 1; filter: none; }
+  25%  { transform: translateX(-50%) translateY(-82%) scale(2.8);   opacity: 0.95; filter: brightness(4) saturate(0.5); }
+  100% { transform: translateX(-50%) translateY(-82%) scale(0.1);   opacity: 0; filter: brightness(6); }
+}
+.pennywise-balloon.pennywise-balloon-pop {
+  animation: pennywiseBalloonPop 0.38s ease-in forwards !important;
+}
+
+/* Pennywise card bursts out of the balloon explosion */
+@keyframes pennywiseBurstIn {
+  0%   { transform: scale(0.05) rotate(-8deg); opacity: 0;
+         filter: brightness(5) saturate(0.1) contrast(2); }
+  50%  { transform: scale(1.18) rotate(2deg);  opacity: 1;
+         filter: brightness(2.2) saturate(2) drop-shadow(0 0 22px rgba(255, 0, 0, 0.95)); }
+  100% { transform: scale(1)    rotate(0deg);  opacity: 1; filter: none; }
+}
+.card.pennywise-burst-in {
+  animation: pennywiseBurstIn 0.65s cubic-bezier(0.08, 0.82, 0.28, 1.0) forwards !important;
+}
+
+/* Red balloon-pop splatter on the lane walls */
+@keyframes pennywiseSplatterFade {
+  0%   { opacity: 0.80; }
+  30%  { opacity: 0.65; }
+  100% { opacity: 0;    }
+}
+.pennywise-splatter {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 20;
+  background:
+    radial-gradient(circle at 30% 40%, rgba(200, 0, 0, 0.55) 0%, transparent 45%),
+    radial-gradient(circle at 70% 55%, rgba(180, 0, 0, 0.45) 0%, transparent 40%),
+    radial-gradient(circle at 50% 30%, rgba(220, 10, 10, 0.50) 0%, transparent 38%);
+  animation: pennywiseSplatterFade 0.9s ease-out forwards;
+}
+
+/* Pennywise full-screen dark + red overlay */
+.pennywise-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.82);
+  z-index: 9998;
+  pointer-events: none;
+  animation: freddyDarkenIn 0.12s ease-in both;
+}
+.pennywise-overlay.pennywise-flash-red {
+  background: rgba(160, 0, 0, 0.70) !important;
+  transition: background 0.08s ease-in;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pennywise-balloon       { animation: none !important; }
+  .pennywise-balloon-pop   { animation: none !important; opacity: 0; }
+  .card.pennywise-burst-in { animation: none !important; }
+  .pennywise-splatter      { animation: none; opacity: 0; }
+}
