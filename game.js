@@ -4577,9 +4577,10 @@ const Game = {
   // card. Card-ability paths don't set _inTrick, so cards can still
   // interact with Untrickable targets normally.
   _trickBlocked(target) {
-    if (!this.state._inTrick || !target || !target.isUntrickable) return false;
-    this.log(`  [UNTRICKABLE] ${target.name} cannot be affected by tricks!`);
-    return true;
+    if (!this.state._inTrick || !target) return false;
+    if (target.isUntrickable) { this.log(`  [UNTRICKABLE] ${target.name} cannot be affected by tricks!`); return true; }
+    if ((target.baseCost || target.cost || 0) >= 10) { this.log(`  [UNTRICKABLE] ${target.name} is a 10-cost card and cannot be affected by tricks!`); return true; }
+    return false;
   },
 
   // General stat debuff: -atk ATK, -hp HP (ATK floors at 0, HP floors at 1).
@@ -6373,7 +6374,7 @@ const Game = {
     //     matches the "the effect refuses to land" engine guard.
     let list = this.getAllCardsOf(this.opponent(owner)).filter(c => !c.isEnvironment);
     if (this.state && this.state._inTrick) {
-      list = list.filter(c => !c.isUntrickable);
+      list = list.filter(c => !c.isUntrickable && (c.baseCost || c.cost || 0) < 10);
     }
     if (options && options.source) {
       const srcCost = options.source.baseCost || options.source.cost || 0;
@@ -6389,7 +6390,7 @@ const Game = {
   getAlliesOf(owner) {
     let list = this.getAllCardsOf(owner).filter(c => !c.isEnvironment);
     if (this.state && this.state._inTrick) {
-      list = list.filter(c => !c.isUntrickable);
+      list = list.filter(c => !c.isUntrickable && (c.baseCost || c.cost || 0) < 10);
     }
     return list;
   },
