@@ -6847,6 +6847,13 @@ body.hit-pause .ai-hand * {
   background-repeat: no-repeat;
   border-radius: 3px;
 }
+.enc-trick .trick-portrait,
+.trick-draft .trick-portrait {
+  height: 110px;
+  background-size: contain;
+  background-position: center center;
+  background-color: #0a0a0a;
+}
 .trick-cost {
   position: absolute; top: -7px; left: -7px;
   width: 22px; height: 22px; border-radius: 50%;
