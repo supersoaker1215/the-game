@@ -11478,6 +11478,7 @@ const UI = {
     if (c.evadeCharges > 0) b.push(badge('badge-evade', `Evade ${c.evadeCharges}`, 'Evade'));
     if (c.armorValue > 0) b.push(badge('badge-armor', `Armor ${c.armorValue}`, 'Armor'));
     if (c.isBullseye) b.push(badge('badge-bullseye', 'Bullseye', 'Bullseye'));
+    if (c._bullseyeRoundsLeft > 0) b.push(badge('badge-bullseye', `Fear ${c._bullseyeRoundsLeft}`, 'Bullseye'));
     if (c.isOverdrive) b.push(badge('badge-overdrive', 'Overdrive', 'Overdrive'));
     if (c.splashRange > 0) b.push(badge('badge-splash', `Splash ${c.splashRange}`, 'Splash'));
     // Red Hulk's reactive splash — see longer comment below in original.
