@@ -12323,9 +12323,14 @@ const UI = {
         ? `<div class="card-abilities status-badges">${this.formatAbilityBadges(trick.abilities)}</div>`
         : '';
       const rarityStrip = this.getTrickRarityStrip(trick.cost || 0);
+      const trickArtPath = this.getCardArtPath(trick.name);
+      const trickPortrait = trickArtPath
+        ? `<div class="trick-portrait" style="background-image:url('${trickArtPath}')"></div>`
+        : '';
       el.innerHTML = `
         <span class="trick-cost">${cost}</span>
         ${rarityStrip}
+        ${trickPortrait}
         <div class="trick-name">${trick.name}</div>
         ${trickBadges}
         <div class="trick-desc">${this.formatDesc(trick.desc)}</div>

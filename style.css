@@ -6838,6 +6838,14 @@ body.hit-pause .ai-hand * {
     0 0 16px rgba(155,89,182,0.95),
     0 0 32px rgba(155,89,182,0.55);
 }
+.trick-portrait {
+  width: calc(100% + 14px);
+  margin: -6px -7px 5px;
+  height: 70px;
+  background: #0a0a14 center/cover no-repeat;
+  border-radius: 4px 4px 0 0;
+  flex-shrink: 0;
+}
 .trick-cost {
   position: absolute; top: -7px; left: -7px;
   width: 22px; height: 22px; border-radius: 50%;
