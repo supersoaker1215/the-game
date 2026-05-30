@@ -1673,8 +1673,6 @@ const Game = {
       if (typeof Multiplayer !== 'undefined') Multiplayer.send({ t: 'doneTurn' });
       return;
     }
-    // Freddy Fazbear jump / passive check for the first player (who just committed cards)
-    this._checkFreddyFazbear(this.state.firstPlayer);
     this.whenPromptCleared(() => {
       const sp = this.opponent(this.state.firstPlayer);
       this.state.activePlayer = sp;
@@ -1778,13 +1776,11 @@ const Game = {
       if (typeof Multiplayer !== 'undefined') Multiplayer.send({ t: 'doneTurn' });
       return;
     }
-    // If Phase 3 (typically AI's trick phase when AI goes first) left any
-    // player card jump-ready — e.g. Ghostface reacting to an AI trick —
-    // offer the jump modal before combat. resolveCombat's whenPromptCleared
-    // gate defers until the player plays or skips.
-    // Only raise the pre-combat jump modal for HUMAN-owned jump-ready
-    // cards. Sim seats are AI-controlled (isHuman=false), so this safely
-    // no-ops headless and doesn't stall waiting for UI input.
+    // Freddy Fazbear jump / passive check for the first player — after their
+    // tricks phase so unspent energy is measured after ALL spending is done.
+    this._checkFreddyFazbear(this.state.firstPlayer);
+    // If Phase 3 left any player card jump-ready (Ghostface, Freddy Fazbear,
+    // etc.), offer the jump modal before combat.
     if (this.isHuman('player') && !this.state.pendingJumpOffer) {
       const readyCard = this.state.player.hand.find(c => c.jumpReady);
       if (readyCard) this.state.pendingJumpOffer = { cardId: readyCard.id };
