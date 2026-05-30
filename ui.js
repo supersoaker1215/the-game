@@ -11493,6 +11493,7 @@ const UI = {
     if (c.hasDamageImmunity) b.push(badge('badge-dmg-immune', 'DmgImmune', 'Damage Immunity'));
     if (c.isUntrickable) b.push(badge('badge-untrickable', 'Untrickable', 'Untrickable'));
     // Stack-aware status badges — counters drive these.
+    if (c.isBurning) b.push(badge('badge-burning', 'Burning', 'Burning'));
     if (c.isStunned) {
       const n = c.stunnedTurns > 0 ? c.stunnedTurns : 1;
       b.push(badge('badge-stunned', `Stunned ${n}`, 'Stun'));

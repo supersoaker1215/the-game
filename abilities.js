@@ -3935,9 +3935,23 @@ const CARD_ABILITIES = {
     }
   },
   "Boiler Room": {
-    _markBurning(card) {
+    _markBurning(card, boilerRoom) {
       if (!card || card.isBurning || card.isEnvironment) return;
       card.isBurning = true;
+      if (boilerRoom) {
+        const orig = card.onDeath || null;
+        card.onDeath = function(G, self, laneIdx) {
+          if (orig) orig.call(this, G, self, laneIdx);
+          const AB = CARD_ABILITIES['Boiler Room'];
+          if (AB && !boilerRoom._brSpawned) {
+            const brLane = G.findCardLane(boilerRoom);
+            if (brLane >= 0) {
+              boilerRoom._brSpawned = true;
+              AB._spawnFreddy(G, boilerRoom.owner, brLane);
+            }
+          }
+        };
+      }
     },
     _spawnFreddy(G, owner, laneIdx) {
       const lane = G.state.lanes[laneIdx];
@@ -3988,7 +4002,7 @@ const CARD_ABILITIES = {
       const AB = CARD_ABILITIES['Boiler Room'];
       const opp = G.opponent(self.owner);
       const enemy = G.state.lanes[lane][opp];
-      if (enemy && enemy.currentHealth > 0) AB._markBurning(enemy);
+      if (enemy && enemy.currentHealth > 0) AB._markBurning(enemy, self);
       self._adjBurnPending = true;
       G.log('Boiler Room ignites — the enemy in this lane is burning!');
     },
@@ -3999,7 +4013,7 @@ const CARD_ABILITIES = {
       const AB = CARD_ABILITIES['Boiler Room'];
       const opp = G.opponent(self.owner);
       const enemy = G.state.lanes[laneIdx][opp];
-      if (enemy && enemy.currentHealth > 0) AB._markBurning(enemy);
+      if (enemy && enemy.currentHealth > 0) AB._markBurning(enemy, self);
     },
     onTurnStart(G, self) {
       if (self._brSpawned) return;
@@ -4015,7 +4029,7 @@ const CARD_ABILITIES = {
           if (adj >= 0 && adj < G.LANE_COUNT) {
             const c = G.state.lanes[adj][opp];
             if (c && c.currentHealth > 0) {
-              AB._markBurning(c);
+              AB._markBurning(c, self);
               G.log(`[BURN] Boiler Room spreads — ${c.name} in lane ${adj + 1} is now burning!`);
             }
           }
@@ -4023,29 +4037,16 @@ const CARD_ABILITIES = {
       }
 
       // Deal 1 damage to every burning enemy in and around this lane.
-      // If the enemy in THIS lane is killed by burn, flag Freddy to spawn.
+      // Freddy spawns via onDeath chain set in _markBurning — no kill
+      // tracking needed here.
       const burnLanes = [laneIdx - 1, laneIdx, laneIdx + 1].filter(l => l >= 0 && l < G.LANE_COUNT);
       burnLanes.forEach(l => {
         const c = G.state.lanes[l][opp];
         if (c && c.isBurning && c.currentHealth > 0) {
           G.dealDamage(c, 1, null);
           G.log(`[BURN] ${c.name} takes 1 burn damage!`);
-          if (l === laneIdx && c.currentHealth <= 0) {
-            self._brBurnKill = true;
-          }
         }
       });
-    },
-    onEndOfTurn(G, self) {
-      if (self._brSpawned) return;
-      const laneIdx = G.findCardLane(self);
-      if (laneIdx < 0) return;
-
-      // Spawn Freddy only when the enemy in this lane was killed by burn.
-      if (self._brBurnKill) {
-        self._brSpawned = true;
-        CARD_ABILITIES['Boiler Room']._spawnFreddy(G, self.owner, laneIdx);
-      }
     },
   },
   "Freddy Krueger": {

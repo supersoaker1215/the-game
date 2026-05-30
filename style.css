@@ -49,6 +49,7 @@
   --kw-stun:           #ffe066;   /* gold */
   --kw-freeze:         #7fd0ff;   /* blue */
   --kw-fear:           #e8eef6;   /* silver */
+  --kw-burn:           #ff7a00;   /* orange */
   --kw-charm:          #d7b3e6;   /* purple */
   --kw-energy:         #ffe066;   /* gold */
   /* New mechanic verbs */
@@ -5782,6 +5783,11 @@ body.hit-pause .ai-hand * {
 }
 /* Badge colors resolve through :root palette so descriptions and pills
    share one source of truth. Rebrand any keyword by editing :root. */
+.badge-burning    { color: var(--kw-burn); animation: burn-flicker 1.2s ease-in-out infinite alternate; }
+@keyframes burn-flicker {
+  from { opacity: 1; text-shadow: 0 0 4px rgba(255,122,0,0.9); }
+  to   { opacity: 0.7; text-shadow: 0 0 10px rgba(255,180,0,0.6); }
+}
 .badge-stunned    { color: var(--kw-stun); }
 .badge-frozen     { color: var(--kw-freeze); }
 .badge-invincible { color: var(--kw-invincible); }
