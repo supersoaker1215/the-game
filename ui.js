@@ -6632,10 +6632,13 @@ const UI = {
           const abilitiesHtml = (t.abilities && t.abilities.length)
             ? `<div class="card-abilities status-badges">${this.formatAbilityBadges(t.abilities)}</div>` : '';
           const rarityStrip = this.getTrickRarityStrip ? this.getTrickRarityStrip(cost) : '';
+          const trickArtPath = this.getCardArtPath(t.name);
+          const trickPortraitStyle = trickArtPath ? `style="--portrait-bg:url('${trickArtPath}')"` : '';
           return `<div class="trick-card enc-trick" data-trick-name="${t.name}">
             <span class="trick-cost">${cost}</span>
             ${rarityStrip}
             <div class="trick-name">${t.name}</div>
+            <div class="trick-portrait" ${trickPortraitStyle}></div>
             ${abilitiesHtml}
             <div class="trick-desc">${this.formatDesc(t.desc || '')}</div>
           </div>`;
@@ -9396,10 +9399,13 @@ const UI = {
           ? `<div class="card-abilities status-badges">${this.formatAbilityBadges(c.abilities)}</div>`
           : '';
         const draftTrickRarity = this.getTrickRarityStrip(c.cost || 0);
+        const draftTrickArtPath = this.getCardArtPath(c.name);
+        const draftTrickPortraitStyle = draftTrickArtPath ? `style="--portrait-bg:url('${draftTrickArtPath}')"` : '';
         html += `<div class="draft-card trick-draft" data-trick-name="${c.name}" onclick="draftPick(${i})">
           <span class="trick-cost">${c.cost}</span>
           ${draftTrickRarity}
           <div class="trick-name">${c.name}</div>
+          <div class="trick-portrait" ${draftTrickPortraitStyle}></div>
           ${draftTrickBadges}
           <div class="trick-desc">${this.formatDesc(c.desc)||''}</div>
         </div>`;
