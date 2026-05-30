@@ -4556,6 +4556,7 @@ const Game = {
   // General stat buff: +atk ATK, +hp HP (increases maxHealth and currentHealth)
   buffCard(card, atk, hp) {
     if (!card) return;
+    if (this._trickBlocked(card)) return;
     // Defensive: if the card's stats have already been corrupted to
     // NaN/undefined by some earlier bug (see sim/test.js invariant
     // sweep), heal them back to a known-safe floor before applying
@@ -6261,6 +6262,7 @@ const Game = {
   // Example: G.grantTempBuff(ally, { attack: 2, maxHealth: 2, currentHealth: 2 })
   grantTempBuff(target, buffs, duration = 1) {
     if (!target || !buffs) return;
+    if (this._trickBlocked(target)) return;
     if (!target._grantedBuffs) target._grantedBuffs = [];
     Object.entries(buffs).forEach(([prop, value]) => {
       if (typeof value === 'boolean') {
