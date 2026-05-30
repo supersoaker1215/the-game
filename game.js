@@ -4200,6 +4200,20 @@ const Game = {
         return;
       }
     }
+    // Generic Revive — for any card granted reviveCharges by an ability
+    // (e.g. Revan). Cards with custom revive logic (Jason, Grundy, Drax)
+    // consume their charges inside onDeath and return true, so they never
+    // reach here.
+    if (card.reviveCharges > 0) {
+      card.reviveCharges--;
+      card.currentHealth = card.maxHealth;
+      card._deathHandled = false;
+      this.log(`  [REVIVE] ${card.name} revives! (${card.reviveCharges} charges left)`);
+      if (typeof UI !== 'undefined' && UI.sfx && UI.sfx.playEffectSfx) {
+        try { UI.sfx.playEffectSfx('Revive', card); } catch (e) {}
+      }
+      return;
+    }
     const who = card.owner === 'player' ? 'Your' : "AI's";
     this.log(`[DEAD] ${who} ${card.name} destroyed in lane ${laneIdx + 1} → dead pile`);
     // Spawn destroy particles at the card's current DOM location so the

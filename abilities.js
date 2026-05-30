@@ -4097,8 +4097,9 @@ const CARD_ABILITIES = {
         G.log(`[FREDDY FAZBEAR] Drains 1 energy from the ${opp}! (now ${G.state[opp].currency})`);
         G._creditChain(self, 'statsEnergyGenerated', 1);
       }
-      // Gain 1 HP (up to max)
-      self.currentHealth = Math.min(self.currentHealth + 1, self.maxHealth);
+      // Gain 1 HP permanently (grows beyond starting max)
+      self.maxHealth += 1;
+      self.currentHealth += 1;
       G.log(`[FREDDY FAZBEAR] Gains +1 HP! (${self.currentHealth}/${self.maxHealth})`);
     },
   },
