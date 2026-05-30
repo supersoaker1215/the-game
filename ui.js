@@ -12324,13 +12324,14 @@ const UI = {
         : '';
       const rarityStrip = this.getTrickRarityStrip(trick.cost || 0);
       const trickArtPath = this.getCardArtPath(trick.name);
-      const trickPortrait = trickArtPath
-        ? `<div class="trick-portrait" style="background-image:url('${trickArtPath}')"></div>`
-        : '';
+      if (trickArtPath) {
+        el.style.backgroundImage = `linear-gradient(to bottom, rgba(0,0,0,0.15) 0%, rgba(0,0,0,0.72) 52%, rgba(0,0,0,0.96) 100%), url('${trickArtPath}')`;
+        el.style.backgroundSize = 'cover';
+        el.style.backgroundPosition = 'center top';
+      }
       el.innerHTML = `
         <span class="trick-cost">${cost}</span>
         ${rarityStrip}
-        ${trickPortrait}
         <div class="trick-name">${trick.name}</div>
         ${trickBadges}
         <div class="trick-desc">${this.formatDesc(trick.desc)}</div>

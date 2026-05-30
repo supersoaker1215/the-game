@@ -6814,7 +6814,7 @@ body.hit-pause .ai-hand * {
   overflow: visible;
 }
 .trick-card {
-  width: 108px; padding: 6px 7px 6px;
+  width: 132px; padding: 6px 7px 6px;
   background: #000000;
   border: 1px solid rgba(155,89,182,0.95);
   border-radius: 5px;
@@ -6837,14 +6837,6 @@ body.hit-pause .ai-hand * {
   box-shadow:
     0 0 16px rgba(155,89,182,0.95),
     0 0 32px rgba(155,89,182,0.55);
-}
-.trick-portrait {
-  width: calc(100% + 14px);
-  margin: -6px -7px 5px;
-  height: 70px;
-  background: #0a0a14 center/cover no-repeat;
-  border-radius: 4px 4px 0 0;
-  flex-shrink: 0;
 }
 .trick-cost {
   position: absolute; top: -7px; left: -7px;
@@ -7957,7 +7949,7 @@ body.turn-combat .board .lane.lane-active {
   .player-hand-section .hand-cards .card .stat-circle.stat-atk { bottom: -8px; left: -7px; }
   .player-hand-section .hand-cards .card .stat-circle.stat-hp  { bottom: -8px; right: -7px; }
   .trick-cards { gap: 4px; }
-  .trick-card { width: 92px; }
+  .trick-card { width: 110px; }
 
   /* Floating prompt panels (block trick, time stone, etc.) need to fit
      within the narrow viewport. */
