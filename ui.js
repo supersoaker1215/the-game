@@ -5412,9 +5412,9 @@ const UI = {
     if (s.player && s.player.hand) {
       s.player.hand.forEach(c => { if (c && c.id !== undefined) visibleIds.add(c.id); });
     }
-    if (s.ai && s.ai.hand) {
-      s.ai.hand.forEach(c => { if (c && c.id !== undefined) visibleIds.add(c.id); });
-    }
+    // AI hand cards are NOT visible to the human player, so don't include
+    // them — otherwise revealed/stolen AI cards (Lasso of Truth, Deadpool)
+    // get filtered out and the choice tray never renders.
     // Filter to candidates that need the tray: skip the healthbar
     // marker (wired separately above) AND skip anything already
     // glowing in place.
