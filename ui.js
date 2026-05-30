@@ -5420,7 +5420,10 @@ const UI = {
     // glowing in place.
     const unmatched = cc.cards.filter(c => {
       if (c.id === '_healthbar_mc') return false;
-      if (c.id !== undefined && visibleIds.has(c.id)) return false;
+      // faceDown choices (Deadpool steal) must always show in the tray —
+      // the enemy hand cards are in visibleIds but aren't visible to the
+      // player, so skip the on-screen filter for face-down prompts.
+      if (!cc.faceDown && c.id !== undefined && visibleIds.has(c.id)) return false;
       return true;
     });
     if (!unmatched.length) return;
