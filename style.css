@@ -4531,15 +4531,8 @@ body.hit-pause .ai-hand * {
    round counter. Restores to a normal playable lane when the counter hits
    0 in drawPhase. */
 .lane.destroyed {
-  background: radial-gradient(
-    ellipse at 50% 50%,
-    rgba(80,20,110,0.55) 0%,
-    rgba(40,10,60,0.45) 35%,
-    rgba(8,4,14,0.80) 70%,
-    rgba(0,0,0,0.95) 100%
-  );
-  /* Cracked-purple border, overrides the standard lane border-image so the
-     destroyed lane reads as a broken circuit segment. */
+  background:
+    url('audio/cards/art/Collapsed Lane.png') center / cover no-repeat;
   border-image: linear-gradient(180deg,
     rgba(155,89,182,0.70) 0%,
     rgba(74,35,90,0.40)  25%,
@@ -4553,38 +4546,20 @@ body.hit-pause .ai-hand * {
   position: relative;
   overflow: hidden;
 }
-/* Static Tron-style singularity — sharp neon hairlines radiating from a
-   dark purple core. No motion; reads as a frozen black-hole explosion. */
+/* Slow spin applied to the background via a pseudo — the image itself
+   is square so rotating it 360° looks like the vortex is turning. */
 .lane.destroyed::after {
   content: '';
   position: absolute;
-  left: 50%; top: 50%;
-  width: 140%; height: 140%;
-  transform: translate(-50%, -50%);
-  background:
-    /* neon ring */
-    radial-gradient(circle at 50% 50%,
-      rgba(0,0,0,0) 28%,
-      rgba(186,104,200,0.55) 30%,
-      rgba(186,104,200,0) 32%),
-    /* inner dark core */
-    radial-gradient(circle at 50% 50%,
-      rgba(5,2,10,0.95) 0%,
-      rgba(40,10,60,0.75) 18%,
-      rgba(60,20,90,0.0) 40%),
-    /* 8-point Tron hairline burst */
-    repeating-conic-gradient(
-      from 0deg at 50% 50%,
-      rgba(186,104,200,0) 0deg,
-      rgba(186,104,200,0) 43deg,
-      rgba(186,104,200,0.55) 44deg,
-      rgba(186,104,200,0.85) 45deg,
-      rgba(186,104,200,0.55) 46deg,
-      rgba(186,104,200,0) 47deg
-    );
+  inset: -30%;
+  background: url('audio/cards/art/Collapsed Lane.png') center / cover no-repeat;
+  animation: void-spin 12s linear infinite;
   pointer-events: none;
-  mix-blend-mode: screen;
-  opacity: 0.75;
+  opacity: 0.9;
+}
+@keyframes void-spin {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
 }
 /* Hide the normal lane-sep horizontal line and the light-bleed
    ::before for destroyed lanes — they'd conflict with the void gradient. */
