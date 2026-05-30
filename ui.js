@@ -13,7 +13,7 @@ const UI = {
   // cached PNGs (which don't have built-in cache busters since they're
   // referenced via background-image url() and not the index.html
   // version-suffix system). Bump this every time you regen art.
-  _CARD_ART_VERSION: 56,
+  _CARD_ART_VERSION: 57,
 
   // =====================================================================
   // CARD ART VARIANTS
@@ -9724,6 +9724,7 @@ const UI = {
       cr: !!card.isCrazy, ins: !!card.isInsane,
       fd: !!card.isFaceDown, jr: !!card.jumpReady,
       ut: !!card.isUntrickable,
+      fks: !!card._freddySlashing,
       // Predictor + projected XP fields — keep last so they're visible
       // in the data-snap attr for debugging.
       pdi: pred ? (pred.dmgIn | 0) : 0,
@@ -10869,7 +10870,7 @@ const UI = {
     if (card._runRarity) {
       el.classList.add('rl-tier-' + card._runRarity);
     }
-    if (card.id) el.setAttribute('data-card-id', card.id);
+    if (card.id != null) el.setAttribute('data-card-id', card.id);
     // Name attribute powers the per-card SFX registry (hover/play/ability/
     // attack/death). Event delegation + Game patches in installCardSfx
     // look up sounds via this attribute, so every card element — hand,
@@ -10880,6 +10881,7 @@ const UI = {
     if (!inHand && side === 'ally') el.classList.add('ally-card');
     if (!inHand && side === 'enemy') el.classList.add('enemy-card');
     if (inHand) el.classList.add('hand-card');
+    if (inHand && card._freddySlashing) el.classList.add('freddy-hand-slash');
     if (card.isEnvironment) el.classList.add('env-card');
 
     // Tron perimeter chrome — applyTronFx() adds these post-mount, but
