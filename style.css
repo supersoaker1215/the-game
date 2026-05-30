@@ -4547,20 +4547,24 @@ body.hit-pause .ai-hand * {
   position: relative;
   overflow: hidden;
 }
-/* Slow spin applied to the background via a pseudo — the image itself
-   is square so rotating it 360° looks like the vortex is turning. */
+/* Slow spin — element is 400% of the lane in both directions, centered
+   on the lane's midpoint via translate. The lane's overflow:hidden clips
+   it cleanly so the image never reveals its edges during rotation. */
 .lane.destroyed::after {
   content: '';
   position: absolute;
-  inset: -30%;
+  left: 50%;
+  top: 50%;
+  width: 400%;
+  height: 400%;
   background: url('audio/cards/art/Collapsed Lane.png') center / cover no-repeat;
   animation: void-spin 12s linear infinite;
   pointer-events: none;
   opacity: 0.9;
 }
 @keyframes void-spin {
-  from { transform: rotate(0deg); }
-  to   { transform: rotate(360deg); }
+  from { transform: translate(-50%, -50%) rotate(0deg); }
+  to   { transform: translate(-50%, -50%) rotate(360deg); }
 }
 /* Hide the normal lane-sep horizontal line and the light-bleed
    ::before for destroyed lanes — they'd conflict with the void gradient. */
