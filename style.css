@@ -6842,11 +6842,9 @@ body.hit-pause .ai-hand * {
   width: 100%;
   height: 80px;
   margin: 4px 0 5px;
-  background-image: var(--portrait-bg, none);
   background-size: cover;
   background-position: center center;
   background-repeat: no-repeat;
-  background-color: #111;
   border-radius: 3px;
 }
 .trick-cost {

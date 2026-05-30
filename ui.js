@@ -6633,7 +6633,8 @@ const UI = {
             ? `<div class="card-abilities status-badges">${this.formatAbilityBadges(t.abilities)}</div>` : '';
           const rarityStrip = this.getTrickRarityStrip ? this.getTrickRarityStrip(cost) : '';
           const trickArtPath = this.getCardArtPath(t.name);
-          const trickPortraitStyle = trickArtPath ? `style="--portrait-bg:url('${trickArtPath}')"` : '';
+          const safeEncUrl = trickArtPath ? trickArtPath.replace(/'/g, '%27') : '';
+          const trickPortraitStyle = safeEncUrl ? `style="background-image:url('${safeEncUrl}')"` : '';
           return `<div class="trick-card enc-trick" data-trick-name="${t.name}">
             <span class="trick-cost">${cost}</span>
             ${rarityStrip}
@@ -9400,7 +9401,8 @@ const UI = {
           : '';
         const draftTrickRarity = this.getTrickRarityStrip(c.cost || 0);
         const draftTrickArtPath = this.getCardArtPath(c.name);
-        const draftTrickPortraitStyle = draftTrickArtPath ? `style="--portrait-bg:url('${draftTrickArtPath}')"` : '';
+        const safeDraftUrl = draftTrickArtPath ? draftTrickArtPath.replace(/'/g, '%27') : '';
+        const draftTrickPortraitStyle = safeDraftUrl ? `style="background-image:url('${safeDraftUrl}')"` : '';
         html += `<div class="draft-card trick-draft" data-trick-name="${c.name}" onclick="draftPick(${i})">
           <span class="trick-cost">${c.cost}</span>
           ${draftTrickRarity}
@@ -12330,7 +12332,8 @@ const UI = {
         : '';
       const rarityStrip = this.getTrickRarityStrip(trick.cost || 0);
       const trickArtPath = this.getCardArtPath(trick.name);
-      const trickPortraitStyle = trickArtPath ? `style="--portrait-bg:url('${trickArtPath}')"` : '';
+      const safeArtUrl = trickArtPath ? trickArtPath.replace(/'/g, '%27') : '';
+      const trickPortraitStyle = safeArtUrl ? `style="background-image:url('${safeArtUrl}')"` : '';
       el.innerHTML = `
         <span class="trick-cost">${cost}</span>
         ${rarityStrip}
