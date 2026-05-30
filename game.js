@@ -6372,7 +6372,15 @@ const Game = {
     return list;
   },
   // getAlliesOf excludes environment cards so buffs/heals only reach combat cards.
-  getAlliesOf(owner) { return this.getAllCardsOf(owner).filter(c => !c.isEnvironment); },
+  // Also excludes Untrickable allies during trick resolution so 10-cost cards
+  // can't be targeted by their own owner's tricks either.
+  getAlliesOf(owner) {
+    let list = this.getAllCardsOf(owner).filter(c => !c.isEnvironment);
+    if (this.state && this.state._inTrick) {
+      list = list.filter(c => !c.isUntrickable);
+    }
+    return list;
+  },
 
   getAllCardsOf(owner) {
     const out = [];
