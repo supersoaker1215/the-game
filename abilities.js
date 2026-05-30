@@ -3965,7 +3965,13 @@ const CARD_ABILITIES = {
       const finishSpawn = (atk, hp) => {
         G.summonCard(owner, laneIdx, 'Freddy Krueger', 2, atk, hp, [], fredDef);
         const freddy = G.state.lanes[laneIdx][owner];
-        if (freddy) freddy._envLane = laneIdx;
+        if (freddy) {
+          freddy._envLane = laneIdx;
+          // summonCard ignores atk/hp when sourceDef is provided; set directly
+          freddy.attack = atk;
+          freddy.currentHealth = hp;
+          freddy.maxHealth = hp;
+        }
         G.log(`Freddy Krueger rises from the Boiler Room in lane ${laneIdx + 1}!`);
         if (typeof UI !== 'undefined' && UI._freddyJumpscare) {
           setTimeout(() => UI._freddyJumpscare(laneIdx, owner), 60);
@@ -4127,7 +4133,13 @@ const CARD_ABILITIES = {
       const finishSpawn = (atk, hp) => {
         G.summonCard(owner, laneIdx, 'Pennywise', 4, atk, hp, [], def);
         const pennywise = G.state.lanes[laneIdx][owner];
-        if (pennywise) pennywise._envLane = laneIdx;
+        if (pennywise) {
+          pennywise._envLane = laneIdx;
+          // summonCard ignores atk/hp when sourceDef is provided; set directly
+          pennywise.attack = atk;
+          pennywise.currentHealth = hp;
+          pennywise.maxHealth = hp;
+        }
         G.log(`Pennywise rises from the Sewers in lane ${laneIdx + 1}!`);
         if (typeof UI !== 'undefined' && UI._pennywiseJumpscare) {
           setTimeout(() => UI._pennywiseJumpscare(laneIdx, owner), 60);
