@@ -47,7 +47,7 @@ window.CARD_ART_VARIANTS = {
   'Scarlet Witch':       ['Scarlet Witch 2.png',      'Scarlet Witch.png'],
   'Deathstroke':         ['Deathstroke 2.png',        'Deathstroke.png'],
   // ── Single-art entries (webp) ──
-  'Pennywise':           ['Pennywise.webp'],
+  'Pennywise':           ['Pennywise.png'],
   // ── Variant-1 default kept (user kept original) ──
   'Anakin Skywalker':    ['Anakin Skywalker.png',     'Anakin Skywalker 2.png'],
   'Batman':              ['Batman.png',               'Batman 2.png'],
