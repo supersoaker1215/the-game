@@ -473,6 +473,45 @@ const UI = {
     try { localStorage.setItem(this.SETTINGS_KEY, JSON.stringify(this.settings)); } catch (e) {}
     this.closeSettings();
   },
+  // Sync the current page to the latest GitHub Pages deploy.
+  // Triggered by the sync-btn next to the settings gear. Clears
+  // the service-worker cache (sw.js holds onto scripts across
+  // navigations) and the browser Cache API store, then hard-
+  // reloads with a cache-bust query so the JS / CSS / portrait
+  // PNGs come down fresh. Whoever pushed last (player or brother)
+  // shows up immediately.
+  //
+  // User direction 2026-05-26: "my brother updated it from his
+  // side. But, of course, it hasn't re-updated it for me. So we
+  // need to find a way for me to be able to pull from the GitHub
+  // server back to my local computer for the update." — this is
+  // the in-game UI equivalent of the desktop Sync command. Works
+  // identically on the live deploy. On localhost it reloads from
+  // disk (won't see brother's edits without a git pull first; the
+  // Desktop button handles that case).
+  async syncFromServer() {
+    const btn = document.querySelector('.sync-btn');
+    if (btn) btn.classList.add('syncing');
+    try {
+      // Clear all Cache API entries (sw.js populates these).
+      if (typeof caches !== 'undefined' && caches.keys) {
+        const keys = await caches.keys();
+        await Promise.all(keys.map(k => caches.delete(k)));
+      }
+      // Unregister the service worker so the next page load
+      // doesn't hit its cache before we re-register.
+      if (typeof navigator !== 'undefined' && navigator.serviceWorker) {
+        const regs = await navigator.serviceWorker.getRegistrations();
+        await Promise.all(regs.map(r => r.unregister()));
+      }
+    } catch (e) { /* swallow — best-effort cache clear, reload below proceeds anyway */ }
+    // Hard reload with cache-bust. The query-string change forces
+    // the browser to skip its disk cache for the index document,
+    // and the ?v=N versioning on every script/stylesheet inside
+    // index.html handles the rest.
+    location.href = location.pathname + '?sync=' + Date.now();
+  },
+
   openSettings() {
     const g = (id) => document.getElementById(id);
     g('setting-difficulty').value = this.settings.difficulty;

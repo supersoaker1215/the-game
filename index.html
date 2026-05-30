@@ -13,7 +13,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap">
-  <link rel="stylesheet" href="style.css?v=596">
+  <link rel="stylesheet" href="style.css?v=597">
   <script>
     // Lightweight error reporter (pre-Sentry) — capture runtime JS
     // errors + unhandled promise rejections to a localStorage ring
@@ -595,6 +595,12 @@
   <!-- SETTINGS MODAL — lives outside #game-area so it can open from the
        draft screen (where game-area is display:none) as well as in-game. -->
   <button class="settings-cog" title="Settings" onclick="UI.openSettings()">&#9881;</button>
+  <!-- Sync-from-server button — clears the service-worker cache and
+       hard-reloads so the user pulls the latest commit from GitHub
+       Pages (or whoever pushed last). Sits to the LEFT of the
+       settings cog (top-right corner). User direction 2026-05-26:
+       "I want it where that red circle is." -->
+  <button class="sync-btn" title="Sync from GitHub" onclick="UI.syncFromServer()" aria-label="Sync from GitHub">&#10227;</button>
   <div id="settings-overlay" class="settings-overlay" style="display:none">
     <div class="settings-panel">
       <h2>Settings</h2>
@@ -719,7 +725,7 @@
   <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
   <script src="multiplayer.js?v=5"></script>
   <script src="card-art-manifest.js?v=29"></script>
-  <script src="ui.js?v=647"></script>
+  <script src="ui.js?v=648"></script>
   <script src="logger.js?v=5"></script>
   <!-- Always-on crash capture. Hooks window.onerror +
        unhandledrejection, surfaces a "Copy bug report" button when

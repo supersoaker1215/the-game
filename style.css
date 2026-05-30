@@ -8945,6 +8945,49 @@ body.turn-combat .board .lane.lane-active {
     inset 0 0 0 1px rgba(var(--theme-rgb, 79,195,247),0.22);
   transition: transform 0.2s, box-shadow 0.25s, color 0.2s, background 0.2s;
 }
+/* Sync-from-GitHub button — sibling of the settings cog, sits
+   52 px to its left (42 px button + 10 px gap). Same Tron-chrome
+   visual language so the two read as a unit in the top-right
+   corner. Click clears the service-worker cache and hard-reloads
+   so the user pulls the latest deploy. */
+.sync-btn {
+  position: fixed !important; top: 14px; right: 66px; z-index: 500 !important;
+  width: 42px; height: 42px; border-radius: 50%;
+  background: #000000;
+  border: 1px solid rgba(var(--theme-rgb, 79,195,247),0.95);
+  color: rgba(var(--theme-rgb, 79,195,247),0.95);
+  font-family: 'Rajdhani', sans-serif;
+  font-size: 20px; font-weight: 700;
+  line-height: 1;
+  cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  text-shadow:
+    0 0 6px rgba(var(--theme-rgb, 79,195,247),1),
+    0 0 12px rgba(var(--theme-rgb, 79,195,247),0.45);
+  box-shadow:
+    0 0 12px rgba(var(--theme-rgb, 79,195,247),0.65),
+    0 0 24px rgba(var(--theme-rgb, 79,195,247),0.30),
+    inset 0 0 0 1px rgba(var(--theme-rgb, 79,195,247),0.22);
+  transition: transform 0.4s cubic-bezier(.4,0,.2,1), box-shadow 0.25s, color 0.2s, background 0.2s;
+}
+.sync-btn:hover {
+  transform: rotate(180deg) scale(1.06);
+  color: rgba(var(--theme-rgb, 79,195,247),1);
+  background: rgba(var(--theme-rgb, 79,195,247),0.08);
+  text-shadow:
+    0 0 10px rgba(var(--theme-rgb, 79,195,247),1),
+    0 0 22px rgba(var(--theme-rgb, 79,195,247),0.65);
+}
+/* When the sync is mid-flight, spin the icon continuously so the
+   user gets visual feedback that something is happening. JS adds
+   the .syncing class right before clearing caches + reloading. */
+.sync-btn.syncing {
+  animation: syncBtnSpin 0.8s linear infinite;
+  pointer-events: none;
+}
+@keyframes syncBtnSpin {
+  to { transform: rotate(360deg); }
+}
 .settings-cog:hover {
   transform: rotate(45deg) scale(1.06);
   color: rgba(var(--theme-rgb, 79,195,247),1);
