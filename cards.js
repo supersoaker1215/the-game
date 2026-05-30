@@ -53,7 +53,7 @@ const CARD_DEFS = [
   { name: "Boiler Room", cost: 1, attack: 0, health: 1, type: "environment",
     isEnvironment: true,
     abilities: [],
-    desc: "ON PLAY: Enemy cards in this lane gain Burning. Each round, burning cards take 1 damage. Adjacent enemies gain Burning after the next turn. Once the enemy in this lane is killed by Burning, Freddy Krueger spawns." },
+    desc: "ON PLAY: Enemy cards in this lane gain Burning. Each round, burning cards take 1 damage. Adjacent enemies gain burning after the next turn. Once an enemy card is killed with the Burning effect, Freddy Krueger appears in this lane." },
   { name: "Xenomorph", cost: 2, attack: 0, health: 1, type: "villain",
     abilities: [],
     desc: "While Active: Add (+1/+1) for each card played (not summoned). When Destroyed: Splash 1." },
