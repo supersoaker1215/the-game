@@ -5126,6 +5126,31 @@ const UI = {
     }
   },
 
+  _freddyHandSlash(cardName, dmg, cardId, destroyed) {
+    if (this.sfx) this.sfx.playCardSfx('Freddy Krueger', 'play');
+    this._screenShake('medium');
+
+    // Toast notification so the player always sees the hit
+    const msg = destroyed
+      ? `Slashes <b>${cardName}</b> in your hand — DESTROYED!`
+      : `Slashes <b>${cardName}</b> in your hand for <b>${dmg} damage</b>!`;
+    this.showAITrickToast('Freddy Krueger', msg, 'trick');
+
+    // Overlay claw marks on the specific hand card, falling back to the whole hand section
+    const cardEl = cardId !== undefined
+      ? document.querySelector(`.player-hand-section .card[data-card-id="${cardId}"]`)
+      : null;
+    const target = cardEl || document.querySelector('.player-hand-section');
+    if (target) {
+      const marks = document.createElement('div');
+      marks.className = 'freddy-slash-marks';
+      marks.style.borderRadius = '8px';
+      target.style.position = 'relative';
+      target.appendChild(marks);
+      setTimeout(() => marks.remove(), 900);
+    }
+  },
+
   _pennywiseJumpscare(laneIdx, owner) {
     const lanes = document.querySelectorAll('.board > .lane');
     const laneEl = lanes[laneIdx] || null;
