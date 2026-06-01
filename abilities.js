@@ -3292,6 +3292,7 @@ const CARD_ABILITIES = {
     },
     onAnyTrickPlayed(G, self, owner, trick) {
       if (self.currentHealth <= 0) return;
+      if (owner !== self.owner) return;
       G.buffCard(self, 2, 0);
       G.log(`Darth Maul fuels his rage with ${trick.name} — +2/+0! (now ${self.attack}/${self.currentHealth})`);
     }

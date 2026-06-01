@@ -208,7 +208,7 @@ const CARD_DEFS = [
     desc: "When Played: Deal 3 damage to an enemy. While Active: Add (+1/+0) when destroying an enemy." },
   { name: "Darth Maul", cost: 4, attack: 4, health: 4, type: "villain",
     abilities: [],
-    desc: "When Played: Draw a Trick; it costs 1 less. While Active: Add (+2/+0) for each Trick played by either player." },
+    desc: "When Played: Draw a Trick; it costs 1 less. While Active: Gain (+2/+0) each time YOU play a Trick." },
   { name: "Raven", cost: 3, attack: 3, health: 4, type: "hero",
     abilities: [],
     desc: "When Played: Empty the opponent's Block Meter. Unfreeze and unstun all allies." },
