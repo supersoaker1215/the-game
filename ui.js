@@ -10196,33 +10196,25 @@ const UI = {
           } else {
             envBg.style.background = '';
           }
-          let html = '';
-          if (envAi) html += `<div class="env-bg-label env-bg-label-ai">${envAi.name}</div>`;
-          if (envPl) html += `<div class="env-bg-label env-bg-label-player">${envPl.name}</div>`;
-          if (envBg.innerHTML !== html) envBg.innerHTML = html;
-          envBg.onclick = (e) => { UI.openCardInspect(envAi || envPl); e.stopPropagation(); };
-          // Wire labels individually so clicks above card-slot z-index reach inspect.
+          if (envBg.innerHTML !== '') envBg.innerHTML = '';
         } else if (envBg) {
           envBg.style.background = '';
           envBg.remove();
         }
 
-        // Env info button — a sibling of the card slots (not inside envBg)
-        // so it can have its own z-index above the slots and be reliably clickable.
-        let envBtn = el.querySelector(':scope > .env-info-btn');
-        if (envAi || envPl) {
-          if (!envBtn) {
-            envBtn = document.createElement('div');
-            envBtn.className = 'env-info-btn';
-            el.appendChild(envBtn);
-          }
-          const primary = envAi || envPl;
-          envBtn.title = `${primary.name} — click to read`;
-          envBtn.textContent = primary.name;
-          envBtn.onclick = (e) => { UI.openCardInspect(primary); e.stopPropagation(); };
-        } else if (envBtn) {
-          envBtn.remove();
-        }
+        // Env labels as direct lane children so their z-index beats .card-slot.
+        let envLabelAi = el.querySelector(':scope > .env-bg-label-ai');
+        let envLabelPl = el.querySelector(':scope > .env-bg-label-player');
+        if (envAi) {
+          if (!envLabelAi) { envLabelAi = document.createElement('div'); envLabelAi.className = 'env-bg-label env-bg-label-ai'; el.appendChild(envLabelAi); }
+          if (envLabelAi.textContent !== envAi.name) envLabelAi.textContent = envAi.name;
+          envLabelAi.onclick = (e) => { UI.openCardInspect(envAi); e.stopPropagation(); };
+        } else if (envLabelAi) { envLabelAi.remove(); }
+        if (envPl) {
+          if (!envLabelPl) { envLabelPl = document.createElement('div'); envLabelPl.className = 'env-bg-label env-bg-label-player'; el.appendChild(envLabelPl); }
+          if (envLabelPl.textContent !== envPl.name) envLabelPl.textContent = envPl.name;
+          envLabelPl.onclick = (e) => { UI.openCardInspect(envPl); e.stopPropagation(); };
+        } else if (envLabelPl) { envLabelPl.remove(); }
       }
 
       // AI slot — reuse existing if cached lane already has one. Keeps
