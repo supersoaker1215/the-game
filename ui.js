@@ -5130,12 +5130,6 @@ const UI = {
     if (this.sfx) this.sfx.playCardSfx('Freddy Krueger', 'play');
     this._screenShake('medium');
 
-    // Toast notification so the player always sees the hit
-    const msg = destroyed
-      ? `Slashes <b>${cardName}</b> in your hand — DESTROYED!`
-      : `Slashes <b>${cardName}</b> in your hand for <b>${dmg} damage</b>!`;
-    this.showAITrickToast('Freddy Krueger', msg, 'trick');
-
     // Overlay claw marks on the specific hand card, falling back to the whole hand section
     const cardEl = cardId !== undefined
       ? document.querySelector(`.player-hand-section .card[data-card-id="${cardId}"]`)
@@ -10207,6 +10201,9 @@ const UI = {
           if (envPl) html += `<div class="env-bg-label env-bg-label-player">${envPl.name}</div>`;
           if (envBg.innerHTML !== html) envBg.innerHTML = html;
           envBg.onclick = (e) => { UI.openCardInspect(envAi || envPl); e.stopPropagation(); };
+          // Wire labels individually so clicks above card-slot z-index reach inspect.
+          if (envAi) { const lbl = envBg.querySelector('.env-bg-label-ai'); if (lbl) lbl.onclick = (e) => { UI.openCardInspect(envAi); e.stopPropagation(); }; }
+          if (envPl) { const lbl = envBg.querySelector('.env-bg-label-player'); if (lbl) lbl.onclick = (e) => { UI.openCardInspect(envPl); e.stopPropagation(); }; }
         } else if (envBg) {
           envBg.style.background = '';
           envBg.remove();
