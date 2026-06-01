@@ -2033,7 +2033,7 @@ const Game = {
       this.log(`[PLAY] ${who} place ${card.name} in lane ${laneIdx + 1} for ${cost} energy`);
       this._runHook(card, 'onPlay', this, card, laneIdx);
       this.getAllCardsOnBoard().forEach(c => { if (c.onAnyCardPlayed && c.id !== card.id) c.onAnyCardPlayed(this, c); });
-      this.checkJumpConditions('cardPlayed', { owner, cost: card.baseCost || card.cost, laneIdx });
+      this.checkJumpConditions('cardPlayed', { owner, cost: card.baseCost || card.cost, laneIdx, isEnvironment: true });
       this.applyMagnetoDebuffs();
       if (typeof UI !== 'undefined' && UI.render) UI.render();
       return true;
@@ -6461,7 +6461,7 @@ const Game = {
           this.log(`  [JUMP] Ghostface senses a trick! Free play available.`);
           if (this.isHuman(owner)) playerJumpNowReady = card;
         }
-        if (card.name === 'Michael Myers' && trigger === 'cardPlayed' && data.owner !== owner && data.cost < card.cost) {
+        if (card.name === 'Michael Myers' && trigger === 'cardPlayed' && !data.isEnvironment && data.owner !== owner && data.cost < card.cost) {
           card.jumpReady = true;
           // Lock MM to the lane directly in front of the enemy card that triggered the jump
           card.jumpLane = data.laneIdx;
