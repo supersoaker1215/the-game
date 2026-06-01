@@ -28493,6 +28493,33 @@ body.round-tick .board::after {
   z-index: 1;
 }
 
+/* Env info button — floats at the center of the lane, above card slots */
+.env-info-btn {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 10;
+  font-size: 7px;
+  font-weight: 700;
+  letter-spacing: 0.6px;
+  text-transform: uppercase;
+  padding: 2px 6px;
+  border-radius: 3px;
+  background: rgba(0, 0, 0, 0.55);
+  color: rgba(255, 255, 255, 0.75);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  cursor: pointer;
+  pointer-events: auto;
+  white-space: nowrap;
+  transition: background 0.15s, color 0.15s;
+}
+.env-info-btn:hover {
+  background: rgba(0, 0, 0, 0.8);
+  color: #fff;
+  border-color: rgba(255, 255, 255, 0.5);
+}
+
 /* Boiler Room — fire/orange tint */
 .lane-env-bg.env-boiler-room {
   background:

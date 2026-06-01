@@ -10202,11 +10202,26 @@ const UI = {
           if (envBg.innerHTML !== html) envBg.innerHTML = html;
           envBg.onclick = (e) => { UI.openCardInspect(envAi || envPl); e.stopPropagation(); };
           // Wire labels individually so clicks above card-slot z-index reach inspect.
-          if (envAi) { const lbl = envBg.querySelector('.env-bg-label-ai'); if (lbl) lbl.onclick = (e) => { UI.openCardInspect(envAi); e.stopPropagation(); }; }
-          if (envPl) { const lbl = envBg.querySelector('.env-bg-label-player'); if (lbl) lbl.onclick = (e) => { UI.openCardInspect(envPl); e.stopPropagation(); }; }
         } else if (envBg) {
           envBg.style.background = '';
           envBg.remove();
+        }
+
+        // Env info button — a sibling of the card slots (not inside envBg)
+        // so it can have its own z-index above the slots and be reliably clickable.
+        let envBtn = el.querySelector(':scope > .env-info-btn');
+        if (envAi || envPl) {
+          if (!envBtn) {
+            envBtn = document.createElement('div');
+            envBtn.className = 'env-info-btn';
+            el.appendChild(envBtn);
+          }
+          const primary = envAi || envPl;
+          envBtn.title = `${primary.name} — click to read`;
+          envBtn.textContent = primary.name;
+          envBtn.onclick = (e) => { UI.openCardInspect(primary); e.stopPropagation(); };
+        } else if (envBtn) {
+          envBtn.remove();
         }
       }
 
