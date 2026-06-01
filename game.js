@@ -4093,6 +4093,10 @@ const Game = {
   _checkJumpOnDraw(owner, card) {
     if (!card || card.jumpReady) return;
     if (card.name !== 'Michael Myers') return;
+    // Don't trigger during the end-of-round draw phase — combat is already
+    // done and the jumpReady would bleed into the next round. Myers must
+    // be in hand WHEN a triggering card is played, not drawn afterwards.
+    if (this.state._combatFinishedThisRound) return;
     const opp = this.opponent(owner);
     const myCost = (card.baseCost != null ? card.baseCost : card.cost);
     // User direction 2026-05-19: "Michael's jump needs to be
