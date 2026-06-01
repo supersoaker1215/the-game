@@ -5126,15 +5126,23 @@ const UI = {
     }
   },
 
-  _freddyHandSlash(cardName, dmg, cardId, destroyed) {
+  _freddyHandSlash(cardName, dmg, cardId, handIdx, handOwner, destroyed) {
     if (this.sfx) this.sfx.playCardSfx('Freddy Krueger', 'play');
     this._screenShake('medium');
 
-    // Overlay claw marks on the specific hand card, falling back to the whole hand section
-    const cardEl = cardId !== undefined
-      ? document.querySelector(`.player-hand-section .card[data-card-id="${cardId}"]`)
-      : null;
-    const target = cardEl || document.querySelector('.player-hand-section');
+    let target = null;
+    if (handOwner === 'player') {
+      // Player hand cards are rendered with data-card-id — target the specific card.
+      target = cardId !== undefined
+        ? document.querySelector(`.player-hand-section .card[data-card-id="${cardId}"]`)
+        : null;
+      if (!target) target = document.querySelector('.player-hand-section');
+    } else {
+      // AI hand cards are face-down backs with no id — target by index.
+      const backs = document.querySelectorAll('#ai-hand .card-back');
+      target = (handIdx >= 0 && backs[handIdx]) ? backs[handIdx] : document.getElementById('ai-hand');
+    }
+
     if (target) {
       const marks = document.createElement('div');
       marks.className = 'freddy-slash-marks';

@@ -4077,14 +4077,14 @@ const CARD_ABILITIES = {
       // because UI.render() rebuilds the element when currentHealth changes.
       t._freddySlashing = true;
       setTimeout(() => { t._freddySlashing = false; }, 900);
+      const handIdx = hand.indexOf(t);
       const destroyed = t.currentHealth <= 0;
       if (destroyed) {
-        const idx = hand.indexOf(t);
-        if (idx >= 0) hand.splice(idx, 1);
+        if (handIdx >= 0) hand.splice(handIdx, 1);
         G.log(`[FREDDY] ${t.name} was destroyed before it could be played!`);
       }
       if (typeof UI !== 'undefined' && UI._freddyHandSlash) {
-        setTimeout(() => UI._freddyHandSlash(t.name, dmg, t.id, destroyed), 60);
+        setTimeout(() => UI._freddyHandSlash(t.name, dmg, t.id, handIdx, opp, destroyed), 60);
       }
       self._skipNormalAttack = true;
     },
