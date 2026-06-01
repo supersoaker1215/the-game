@@ -5462,7 +5462,8 @@ const UI = {
       // faceDown choices (Deadpool steal) must always show in the tray —
       // the enemy hand cards are in visibleIds but aren't visible to the
       // player, so skip the on-screen filter for face-down prompts.
-      if (!cc.faceDown && c.id !== undefined && visibleIds.has(c.id)) return false;
+      // inlineTray forces ALL choices into the tray regardless of board visibility.
+      if (!cc.faceDown && !cc.inlineTray && c.id !== undefined && visibleIds.has(c.id)) return false;
       return true;
     });
     if (!unmatched.length) return;

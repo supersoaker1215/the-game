@@ -1556,7 +1556,8 @@ const CARD_ABILITIES = {
           }
 
           // Step 2: Player picks a card from their own hand to give to the enemy.
-          const myHand = G.state[self.owner].hand.slice();
+          // Exclude the just-stolen card so the player can't immediately give it back.
+          const myHand = G.state[self.owner].hand.filter(c => c.id !== stolen.id);
           if (!myHand.length) {
             G.log("Deadpool has no cards to give in return.");
             showVictimToast(stolen.name, null);
@@ -2560,7 +2561,7 @@ const CARD_ABILITIES = {
           if (trade) return trade.ally;
           const skip = cards.find(c => c && c._isSkipOption);
           return skip || cards[0];
-        });
+        }, { inlineTray: true });
     }
   },
   "Hulk": {
@@ -3547,8 +3548,8 @@ const CARD_ABILITIES = {
     onBeforeAttack(G, self) {
       if (self.isFeared || self.isMindControlled) return;
       const enemies = G.getEnemiesOf(self.owner).filter(e => e.currentHealth > 0);
-      if (enemies.length === 0) return;
       self._skipNormalAttack = true;
+      if (enemies.length === 0) return;
       G.distributeOmegaBeam(self);
     }
   },

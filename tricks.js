@@ -425,12 +425,16 @@ const TRICK_DEFS = [
         G.promptCardChoice(owner, enemies, "Phantom Zone — Bounce", "Choose enemy to bounce back to hand", (t) => {
           const l = G.findCardLane(t);
           G.removeFromLane(t, l);
+          // Create a fresh instance so the bounced card returns to hand at
+          // base stats — no accumulated buffs, debuffs, or status effects.
+          const def = CARD_DEFS.find(d => d.name === t.name) || t;
+          const fresh = G.createCardInstance(def, t.owner);
           // Route through addToHand so the hand-size cap (maxHandSize=7)
           // is honored. Previously a direct push let Phantom Zone push
           // a hand to 8 — caught by the sim/test.js invariant sweep.
           // If the target's hand is full, addToHand logs and returns
           // false; the card is lost (same semantics as any cap-hit).
-          G.addToHand(t.owner, t);
+          G.addToHand(t.owner, fresh);
           G.log(`Phantom Zone bounces ${t.name}!`);
         }, cards => cards.sort((a, b) => b.cost - a.cost)[0]);
       }

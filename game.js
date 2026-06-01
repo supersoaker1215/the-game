@@ -5375,7 +5375,7 @@ const Game = {
       return;
     }
     if (this.isHuman(owner) && cards.length > 1) {
-      this.state.pendingCardChoice = { owner, cards, title, desc, callback, faceDown: !!(options && options.faceDown) };
+      this.state.pendingCardChoice = { owner, cards, title, desc, callback, faceDown: !!(options && options.faceDown), inlineTray: !!(options && options.inlineTray) };
       UI.render();
       this._startPromptTimeout(() => {
         if (!this.state.pendingCardChoice) return;
