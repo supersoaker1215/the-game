@@ -17014,6 +17014,11 @@ body.phase-menu .kb-hints { display: none; }
   margin: 0 auto;
   min-height: 420px;
   cursor: default;
+  /* Skip layout + paint for off-screen cards — eliminates scroll lag
+     when all 95 cards are in the DOM at once. `auto` size hint keeps
+     the scrollbar height accurate before first render. */
+  content-visibility: auto;
+  contain-intrinsic-size: auto 480px;
 }
 .encyc-grid .card.hand-card.enc-card:hover {
   transform: none !important;
@@ -17106,6 +17111,8 @@ body.phase-menu .kb-hints { display: none; }
   max-width: 220px;
   margin: 0 auto;
   cursor: default;
+  content-visibility: auto;
+  contain-intrinsic-size: auto 280px;
 }
 @media (max-width: 720px) {
   .encyc-panel { padding: 44px 16px 18px; }
