@@ -3928,24 +3928,18 @@ const CARD_ABILITIES = {
       CARD_ABILITIES.Trigon._massFreezeOnce(G, self);
     },
     onKill(G, self) {
-      // Passive: each kill spawns another kill, chaining until no enemies
-      // remain or Trigon dies. Re-entry guard lets the outer loop drive
-      // the chain rather than recursive onKill fires stacking up.
+      // Passive: each kill triggers one bonus random kill. Re-entry guard
+      // prevents the bonus kill from spawning another bonus kill.
       if (self._trigonChaining) return;
+      const targets = G.getEnemiesOf(self.owner).filter(
+        e => e.currentHealth > 0 && (e.baseCost || e.cost) < 10
+      );
+      if (!targets.length) return;
+      const t = targets[Math.floor(Math.random() * targets.length)];
       self._trigonChaining = true;
-      let targets;
-      while (
-        self.currentHealth > 0 &&
-        G.findCardLane(self) >= 0 &&
-        (targets = G.getEnemiesOf(self.owner).filter(
-          e => e.currentHealth > 0 && (e.baseCost || e.cost) < 10
-        )).length
-      ) {
-        const t = targets[Math.floor(Math.random() * targets.length)];
-        G.killCard(t, self);
-        G.log(`Trigon destroys ${t.name}!`);
-      }
+      G.killCard(t, self);
       self._trigonChaining = false;
+      G.log(`Trigon destroys ${t.name}!`);
     }
   },
   "Boiler Room": {
