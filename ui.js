@@ -876,6 +876,7 @@ const UI = {
       'Superman':         { hover: { src: 'audio/cards/superman-hover.mp3?v=7', maxDur: 75 } },
       // The Grinch hover: 43s clip. maxDur 44 lets the full phrase play.
       'The Grinch':       { hover: { src: 'audio/cards/the-grinch-hover.mp3', maxDur: 44 } },
+      'Green Goblin':     { hover: { src: 'audio/cards/green-goblin-hover.mp3', maxDur: 24 } },
     },
     // Default files for the per-card events — used when a card's
     // CARD_SFX entry doesn't have that event. If neither the card-
