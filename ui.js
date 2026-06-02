@@ -840,7 +840,7 @@ const UI = {
       'Predator':         { hover: 'audio/cards/predator-hover.mp3', ability: { src: 'audio/cards/predator-ability.mp3', maxDur: 3.0 } },
       'Thor':             { hover: 'audio/cards/thor-hover.mp3', attack: { src: 'audio/cards/thor-attack.mp3', maxDur: 1.5 } },
       // Lightsaber hum — Jedi only (Yoda, Obi-Wan, Ahsoka, Anakin).
-      // Yoda — no hover (intentional silence), LEGO death sting on kill.
+      // Yoda hover: ~51s clip. maxDur 52 lets the full phrase play.
       // The whole death-cue family follows the LEGO rule: short
       // (~1–2s native), -14 LUFS, NO baked fades (engine adds 130ms in /
       // 300ms out), bare-string registry entry. Lane-gating already
@@ -859,6 +859,7 @@ const UI = {
       // baseline, 1s fade-in / 2s fade-out baked. maxDur 99 lets the full
       // phrase play.
       'Luke Skywalker':   { hover: { src: 'audio/cards/luke-hover.mp3?v=2', maxDur: 99 } },
+      'Yoda':             { hover: { src: 'audio/cards/yoda-hover.mp3', maxDur: 52 } },
       'Obi-Wan':          { hover: 'audio/cards/default-hover.mp3', death: 'audio/cards/obi-wan-death.mp3' },
       'Ahsoka':           { hover: 'audio/cards/default-hover.mp3' },
       // Anakin Skywalker hover: 109s of John Williams' "Anakin's Dark Deeds"
