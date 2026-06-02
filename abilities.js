@@ -3928,12 +3928,14 @@ const CARD_ABILITIES = {
       CARD_ABILITIES.Trigon._massFreezeOnce(G, self);
     },
     onKill(G, self) {
-      const targets = G.getChainedEnemies(self);
-      if (targets.length) {
-        const t = targets[Math.floor(Math.random() * targets.length)];
-        G.killCard(t, self);
-        G.log(`Trigon chains destruction to ${t.name}!`);
-      }
+      if (self._trigonChaining) return;
+      const targets = G.getEnemiesOf(self.owner).filter(e => e.currentHealth > 0 && e.cost < 10);
+      if (!targets.length) return;
+      const t = targets[Math.floor(Math.random() * targets.length)];
+      self._trigonChaining = true;
+      G.killCard(t, self);
+      self._trigonChaining = false;
+      G.log(`Trigon destroys ${t.name}!`);
     }
   },
   "Boiler Room": {

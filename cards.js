@@ -352,6 +352,6 @@ const CARD_DEFS = [
     desc: "When Played: Summon a random card (cost 1-9) in each of your empty lanes." },
   { name: "Trigon", cost: 10, attack: 9, health: 8, type: "villain",
     abilities: ["Immunity", "Invincible 1", "Unresistible 3", "Draw 1"],
-    desc: "When Played: Steal the opponent's Block Meter. Start of Tricks (once): Freeze 1 all enemies. While Active: When Trigon destroys an enemy, destroy another chained enemy." }
+    desc: "When Played: Steal the opponent's Block Meter. Start of Tricks (once): Freeze 1 all enemies. While Active: When Trigon destroys an enemy, destroy another random enemy (not 10-cost)." }
 ];
 
