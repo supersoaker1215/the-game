@@ -859,7 +859,7 @@ const UI = {
       // baseline, 1s fade-in / 2s fade-out baked. maxDur 99 lets the full
       // phrase play.
       'Luke Skywalker':   { hover: { src: 'audio/cards/luke-hover.mp3?v=2', maxDur: 99 } },
-      'Yoda':             { hover: { src: 'audio/cards/yoda-hover.mp3', maxDur: 52 } },
+      'Yoda':             { hover: { src: 'audio/cards/yoda-hover.mp3', maxDur: 52 }, death: 'audio/cards/yoda-death.mp3' },
       'Obi-Wan':          { hover: 'audio/cards/default-hover.mp3', death: 'audio/cards/obi-wan-death.mp3' },
       'Ahsoka':           { hover: 'audio/cards/default-hover.mp3' },
       // Anakin Skywalker hover: 109s of John Williams' "Anakin's Dark Deeds"
