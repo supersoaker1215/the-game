@@ -8,50 +8,40 @@ const AI = {
   // this object before AI methods are called, or by loading a JSON file via
   // `--weights path.json` in the simulator.
   WEIGHTS: {
-    // Draft curve
-    draftBucketDeficitMult: 3,
-    draftBucketOverPenalty: 4,
-    draftEarlyFloorBase: 4,
-    draftEarlyFloorRamp: 2,
-    draftLowBias: 1.5,
-    draftHighOverPenalty: 3,
-    draftStatMult: 1.2,
-    // Threat scoring (enemy card danger).
-    // Priority order per design:
-    //   1. raw attack — damage dominates (added directly as base)
-    //   2. bullseye — bypasses block meter, every hit lands on HP
-    //   3. splash — area pressure
-    //   4. everything else (overdrive / invincible / etc.)
-    // Tuned so bullseye > splash at equal attack, but a clearly higher
-    // attack card still beats a lower-attack card with bullseye: a plain
-    // 6 ATK (threat 6) beats a 4 ATK + Bullseye (threat 4+2 = 6 — tie,
-    // at equal attack bullseye edges it). A 7 ATK plain (threat 7) clearly
-    // tops any 4 ATK bullseye variant.
-    threatSplashMult: 1,        // was 2 — demoted below bullseye
-    threatOverdriveBonus: 1.5,
-    threatBullseyeBonus: 2,     // was 1.5 — bumped above splash but not enough to beat +2 attack
-    threatInvincibleBonus: 1.5,
-    threatEvadeBonus: 1,
-    threatArmorMult: 0.5,
-    threatTauntBonus: 1.5,
-    // Block / defensive play
-    blockKillBonus: 6,
-    blockSurviveBonus: 3,
-    blockTradePenalty: -4,
-    blockCostDeltaMult: 0.6,
-    blockExpensiveOverKillPenalty: -4,
-    defensiveThresholdNormal: 5,
-    defensiveThresholdHard: 4,
-    defensiveThresholdEasy: 8,
-    // Trick evaluation
-    trickRemovalHigh: 6,
-    trickRemovalMid: 3,
-    trickRemovalLowPenalty: -3,
-    trickDamageKillable: 4,
-    trickFreezeBigThreat: 5,
-    trickBuffAlly: 3,
-    trickDrawBonus: 2.5,
-    trickSummonBonus: 3,
+    // Draft curve — CEM-tuned 2026-06-02 (gen 10, 30-pop, 40 games/sample)
+    draftBucketDeficitMult: 3.384,
+    draftBucketOverPenalty: 7.176,
+    draftEarlyFloorBase: 2.452,
+    draftEarlyFloorRamp: 0.512,
+    draftLowBias: 1.550,
+    draftHighOverPenalty: 2.218,
+    draftStatMult: 1.549,
+    // Threat scoring — CEM-tuned
+    threatSplashMult: -0.441,
+    threatOverdriveBonus: 1.991,
+    threatBullseyeBonus: 3.063,
+    threatInvincibleBonus: 1.336,
+    threatEvadeBonus: 2.047,
+    threatArmorMult: 0.490,
+    threatTauntBonus: 1.229,
+    // Block / defensive play — CEM-tuned
+    blockKillBonus: 4.244,
+    blockSurviveBonus: 4.237,
+    blockTradePenalty: -5.899,
+    blockCostDeltaMult: 0.525,
+    blockExpensiveOverKillPenalty: -3.369,
+    defensiveThresholdNormal: 5.096,
+    defensiveThresholdHard: 3.135,
+    defensiveThresholdEasy: 17.274,
+    // Trick evaluation — CEM-tuned
+    trickRemovalHigh: 8.385,
+    trickRemovalMid: 2.186,
+    trickRemovalLowPenalty: -4.066,
+    trickDamageKillable: 4.280,
+    trickFreezeBigThreat: 3.457,
+    trickBuffAlly: 3.986,
+    trickDrawBonus: 2.369,
+    trickSummonBonus: 2.392,
     // 1-ply lookahead — runs a simplified combat sim against each
     // candidate placement and adds the post-combat HP swing + body
     // delta as an extra score term. Infrastructure is in place
