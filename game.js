@@ -3684,7 +3684,11 @@ const Game = {
               if (owner === 'ai' && typeof UI !== 'undefined' && UI.showAITrickToast) {
                 UI.showAITrickToast(`AI BLOCKED → ${trick.name}`, trick.desc || '', 'trick');
               }
+              this.state._inTrick = true;
+              this.state._trickOwner = owner;
               try { trick.play(this, owner); } catch (e) { console.error(e); }
+              this.state._inTrick = false;
+              this.state._trickOwner = null;
             } else {
               this.addToTrickHand(owner, trick);
               this.log(`  [BLOCK TRICK] ${owner === 'ai' ? 'AI' : owner} keeps ${trick.name} in hand`);
