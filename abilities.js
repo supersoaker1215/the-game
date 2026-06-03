@@ -3719,7 +3719,7 @@ const CARD_ABILITIES = {
       moveChain(moveCount);
     },
     onAllyKilled(G, self) {
-      // Queue a bonus attack for every ally death, not just the first one this combat.
+      if (self.isStunned || self.isFrozen) return;
       self.bonusAttack = (typeof self.bonusAttack === 'number' ? self.bonusAttack : 0) + 1;
     }
   },
