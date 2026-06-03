@@ -4756,6 +4756,15 @@ const Game = {
   destroyLane(laneIdx, duration = 3) {
     const lane = this.state.lanes[laneIdx];
     if (!lane) return;
+    // Invincible cards block lane destruction — if any living card in
+    // the lane is invincible (killCard already returned early for it),
+    // the collapse is cancelled entirely.
+    const cards = ['player', 'ai'].map(s => lane[s]).filter(c => c && c.currentHealth > 0);
+    const invCard = cards.find(c => c.invincibleTurns > 0);
+    if (invCard) {
+      this.log(`  [INVINCIBLE] ${invCard.name} blocks lane ${laneIdx + 1} from collapsing!`);
+      return;
+    }
     lane.destroyed = true;
     lane.destroyedTurns = duration;
   },

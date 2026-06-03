@@ -474,8 +474,12 @@ const TRICK_DEFS = [
       const contested = [];
       for (let i = 0; i < Game.LANE_COUNT; i++) {
         const opp = G.opponent(owner);
-        if (G.state.lanes[i][owner] && G.state.lanes[i][opp] && !G.state.lanes[i].destroyed) {
-          contested.push(i);
+        const mine = G.state.lanes[i][owner];
+        const theirs = G.state.lanes[i][opp];
+        if (mine && theirs && !G.state.lanes[i].destroyed) {
+          // Skip lanes containing any 10-cost card — tricks can't touch them.
+          const has10 = (mine.baseCost || mine.cost || 0) >= 10 || (theirs.baseCost || theirs.cost || 0) >= 10;
+          if (!has10) contested.push(i);
         }
       }
       if (Game.isHuman(owner) && contested.length) {
