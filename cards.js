@@ -318,7 +318,7 @@ const CARD_DEFS = [
     desc: "When Played: Choose an enemy to Freeze 1, then Splash 5. Start of Tricks: Freeze 1 a random unfrozen enemy." },
   { name: "Yoda", cost: 8, attack: 4, health: 5, type: "hero",
     abilities: ["Immunity"],
-    desc: "When Played: Add (+4/+4) to an ally. If no allies, add (+2/+3) to self and cleanse all debuffs on every ally." },
+    desc: "When Played: Add (+4/+4) to an ally (or +2/+3 to self if alone). Always cleanses all debuffs from every ally." },
 
   // ==================== COST 9 ====================
   { name: "Batman", cost: 9, attack: 7, health: 5, type: "hero",

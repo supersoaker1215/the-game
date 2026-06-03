@@ -736,6 +736,7 @@ const UI = {
       'Man-Bat':          { death: 'audio/cards/man-bat-death.mp3' },
       // Bane death — 0.58s clip, plays on every Bane kill.
       'Bane':             { hover: { src: 'audio/cards/bane-hover.mp3', maxDur: 21 }, death: 'audio/cards/bane-death.mp3' },
+      'King Shark':       { play: { src: 'audio/cards/king-shark-play.mp3', maxDur: 2 } },
       // Homelander hover: 65s of Christopher Lennertz's "I Can Do Anything"
       // finale from The Boys — the swelling Homelander hero-theme reprise.
       // -20 LUFS unified-baseline, 1s fade-in / 2s fade-out baked. maxDur

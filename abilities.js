@@ -3252,19 +3252,17 @@ const CARD_ABILITIES = {
       } else {
         G.buffCard(self, 2, 3);
         G.log("Yoda empowers himself +2/+3!");
-        // Cleanse only fires on the lone-wolf path — explicit
-        // user spec: "if there are no allies, add (2/3) to self
-        // and cleanse all debuffs on all ally cards." (The buff
-        // branch is its own moment of empowerment.)
-        G.getAlliesOf(self.owner).forEach(a => {
-          let cleared = 0;
-          if (a.isStunned)         { a.isStunned = false; a.stunnedTurns = 0; cleared++; }
-          if (a.isFrozen)          { a.isFrozen  = false; a.frozenTurns  = 0; cleared++; }
-          if (a.isFeared)          { a.isFeared  = false; a.fearedTurns  = 0; cleared++; }
-          if (a.isMindControlled)  { a.isMindControlled = false; cleared++; }
-          if (cleared > 0) G.log(`  [CLEANSE] ${a.name} is freed from ${cleared} debuff${cleared === 1 ? '' : 's'}.`);
-        });
       }
+      // Cleanse always fires — remove all debuffs from every ally.
+      G.getAlliesOf(self.owner).forEach(a => {
+        let cleared = 0;
+        if (a.isStunned)        { a.isStunned = false; a.stunnedTurns = 0; cleared++; }
+        if (a.isFrozen)         { a.isFrozen  = false; a.frozenTurns  = 0; cleared++; }
+        if (a.isFeared)         { a.isFeared  = false; a.fearedTurns  = 0; cleared++; }
+        if (a.isMindControlled) { a.isMindControlled = false; cleared++; }
+        if (a.isBurning)        { a.isBurning = false; cleared++; }
+        if (cleared > 0) G.log(`  [CLEANSE] ${a.name} is freed from ${cleared} debuff${cleared === 1 ? '' : 's'}.`);
+      });
     }
   },
   "Darth Maul": {
