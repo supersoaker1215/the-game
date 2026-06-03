@@ -4029,7 +4029,10 @@ const CARD_ABILITIES = {
       const AB = CARD_ABILITIES['Boiler Room'];
       const opp = G.opponent(self.owner);
       const enemy = G.state.lanes[laneIdx][opp];
-      if (enemy && enemy.currentHealth > 0) AB._markBurning(enemy, self);
+      // Only mark cards that haven't been hooked yet — prevents re-burning
+      // a card that was cleansed (by Yoda etc.) since _brDeathHooked stays
+      // set even after isBurning is cleared.
+      if (enemy && enemy.currentHealth > 0 && !enemy._brDeathHooked) AB._markBurning(enemy, self);
     },
     onTurnStart(G, self) {
       if (self._brSpawned) return;
