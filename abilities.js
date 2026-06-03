@@ -3942,9 +3942,13 @@ const CARD_ABILITIES = {
   },
   "Boiler Room": {
     _markBurning(card, boilerRoom) {
-      if (!card || card.isBurning || card.isEnvironment) return;
+      if (!card || card.isEnvironment) return;
       card.isBurning = true;
-      if (boilerRoom) {
+      // Add the Freddy spawn onDeath hook independently of isBurning so
+      // a card pre-marked by another source (Knull, Freddy Krueger passive)
+      // still triggers the spawn when it dies in the Boiler Room's lane.
+      if (boilerRoom && !card._brDeathHooked) {
+        card._brDeathHooked = true;
         const orig = card.onDeath || null;
         card.onDeath = function(G, self, laneIdx) {
           if (orig) orig.call(this, G, self, laneIdx);

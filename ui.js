@@ -13960,7 +13960,6 @@ const UI = {
         (choice) => {
           if (choice.id === 'facedown_opt') {
             card._playFaceDown = true;
-            s.player.faceDownAvailable = false;
           }
           if (Game.playCard('player', card, i)) s.selectedCard = null;
           this.render();
