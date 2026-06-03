@@ -4532,7 +4532,8 @@ body.hit-pause .ai-hand * {
    round counter. Restores to a normal playable lane when the counter hits
    0 in drawPhase. */
 .lane.destroyed {
-  background: #050008;
+  background:
+    url('audio/cards/art/Collapsed Lane.png') center / cover no-repeat;
   border-image: linear-gradient(180deg,
     rgba(155,89,182,0.70) 0%,
     rgba(74,35,90,0.40)  25%,
@@ -4546,35 +4547,9 @@ body.hit-pause .ai-hand * {
   position: relative;
   overflow: hidden;
 }
-/* Spinning void art — oversized so corners never peek through at any
-   rotation angle. 500% width/height guarantees the image diagonal
-   always covers the lane even at 45°. Slow 45s spin reads as a
-   gravity well rather than a spinning card. */
-.lane.destroyed::after {
-  content: '';
-  position: absolute;
-  width: 500%;
-  height: 500%;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%) rotate(0deg);
-  background: url('audio/cards/art/Collapsed Lane.png') center / cover no-repeat;
-  animation: voidLaneSpin 45s linear infinite;
-  pointer-events: none;
-  z-index: 0;
-}
-/* Push lane number and glyph above the spinning art */
-.lane.destroyed .lane-number,
-.lane.destroyed .glyph-destroyed,
-.lane.destroyed .lane-status-row,
-.lane.destroyed .lane-sep { position: relative; z-index: 1; }
 /* Hide the normal lane-sep horizontal line and the light-bleed
    ::before for destroyed lanes — they'd conflict with the void gradient. */
 .lane.destroyed::before { display: none; }
-@keyframes voidLaneSpin {
-  from { transform: translate(-50%, -50%) rotate(0deg); }
-  to   { transform: translate(-50%, -50%) rotate(360deg); }
-}
 .lane.destroyed .lane-sep::before { display: none; }
 .lane.destroyed .lane-number {
   background: rgba(8,4,14,0.9);
