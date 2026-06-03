@@ -2955,11 +2955,11 @@ const Game = {
         // trade. User report: "Hulk in lane 6 (3/5) attacked Magneto and
         // his splash didn't hit Joker (lane 5) or stack onto Magneto."
         // (Hulk took 5 from Magneto and died → splash was suppressed.)
-        // Suppress splash for mind-controlled cards — their attack is
-        // redirected to their own side, so firing splash at the original
-        // opponent's lane would hit the wrong team.
-        if (pCard.splashRange > 0 && pCanAttack && !pCard.isMindControlled) this.applySplash(pCard, laneIdx);
-        if (aCard.splashRange > 0 && aCanAttack && !aCard.isMindControlled) this.applySplash(aCard, laneIdx);
+        // Suppress splash for mind-controlled or feared cards — their
+        // attack is redirected to their own side, so splash must not
+        // radiate outward onto the opposing team.
+        if (pCard.splashRange > 0 && pCanAttack && !pCard.isMindControlled && !pCard.isFeared) this.applySplash(pCard, laneIdx);
+        if (aCard.splashRange > 0 && aCanAttack && !aCard.isMindControlled && !aCard.isFeared) this.applySplash(aCard, laneIdx);
 
         // Per-card "has swung this round" marker. Set after THIS card
         // resolves combat so any debuff landed AFTER this point (e.g.
