@@ -735,7 +735,7 @@ const UI = {
       // Man-Bat death — 0.65s clip, plays on every Man-Bat kill.
       'Man-Bat':          { death: 'audio/cards/man-bat-death.mp3' },
       // Bane death — 0.58s clip, plays on every Bane kill.
-      'Bane':             { death: 'audio/cards/bane-death.mp3' },
+      'Bane':             { hover: { src: 'audio/cards/bane-hover.mp3', maxDur: 21 }, death: 'audio/cards/bane-death.mp3' },
       // Homelander hover: 65s of Christopher Lennertz's "I Can Do Anything"
       // finale from The Boys — the swelling Homelander hero-theme reprise.
       // -20 LUFS unified-baseline, 1s fade-in / 2s fade-out baked. maxDur
@@ -853,7 +853,7 @@ const UI = {
       // gun vs a generic ice sting; Spider-Man's web freeze vs Thor's
       // lightning freeze; etc.). User spec: "the freezes are going to
       // be all different."
-      'Mr. Freeze':       { effects: { freeze: 'audio/cards/mr-freeze-freeze.mp3' } },
+      'Mr. Freeze':       { play: { src: 'audio/cards/mr-freeze-play.mp3', maxDur: 4 }, effects: { freeze: 'audio/cards/mr-freeze-freeze.mp3' } },
       // Luke Skywalker hover: 98s of Samuel Kim's "A Jedi's Fury" (0:31 →
       // 2:09 of source) — the heroic-build section. -20 LUFS unified-
       // baseline, 1s fade-in / 2s fade-out baked. maxDur 99 lets the full
