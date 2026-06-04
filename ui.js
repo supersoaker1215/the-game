@@ -14606,7 +14606,11 @@ const UI = {
             }
           }
         }
-        return origDeath(card, laneIdx, killer);
+        const result = origDeath(card, laneIdx, killer);
+        // If the card was revived (Phoenix/etc), _deathHandled is reset to false.
+        // Clear our audio flag so the card's death sound plays on its next death.
+        if (!card._deathHandled) card._deathAudioFired = false;
+        return result;
       };
     }
 
