@@ -713,6 +713,7 @@ const UI = {
       // lets the full phrase play; ability slot kept for the legacy
       // Spider-Man swing cue.
       'Spider-Man':       { hover: { src: 'audio/cards/spider-man-hover.mp3?v=3', maxDur: 81 }, ability: 'audio/cards/spider-man-ability.mp3' },
+      'Ant-Man':          { death: { src: 'audio/cards/ant-man-death.m4a', fullDuration: true } },
       // Ghostface hover: 58s of Nick Cave & The Bad Seeds' "Red Right
       // Hand" (start → 0:58 of the source — intro through the first
       // verse). -20 LUFS unified-baseline, 1s fade-in / 2s fade-out
@@ -2291,7 +2292,10 @@ const UI = {
       //     Purple resolving after 2 combats).
       //   • kill      — fires on the KILLER when it destroys an enemy card.
       //     5s cap; only registered for cards with a unique kill cue.
-      const ALLOWED = { hover: 1, play: 1, death: 1, ability: 1, kill: 1 };
+      //   • spawn     — fires when a card enters play via code (e.g. Freddy
+      //     Krueger nightmare trigger, Pennywise rising from the Sewers).
+      //     Same cap/fade settings as play; NOT auto-fired by playCard.
+      const ALLOWED = { hover: 1, play: 1, death: 1, ability: 1, kill: 1, spawn: 1 };
       if (!ALLOWED[event]) return null;
       // Resolve file: card-specific first, else global default.
       const reg = this.CARD_SFX[name] || {};
@@ -2341,7 +2345,7 @@ const UI = {
         // don't muddy each other. _stopHover restores the music level
         // when the cursor leaves the card.
         this.duckMusic();
-      } else if (event === 'play' || event === 'ability') {
+      } else if (event === 'play' || event === 'ability' || event === 'spawn') {
         // 5s cap per user spec — "force ghostface his whole sound bite
         // should play. So whenever a unique sound I put in for when
         // played for cards, increase the duration to just five
@@ -2350,7 +2354,7 @@ const UI = {
         opts.maxDur  = opts.maxDur  ?? 5.0;
         opts.fadeIn  = opts.fadeIn  ?? 500;
         opts.fadeOut = opts.fadeOut ?? 1000;
-        opts.category = event;  // 'play' or 'ability' — full marquee gain
+        opts.category = (event === 'spawn') ? 'play' : event;  // spawn gets full marquee gain
       } else if (event === 'kill') {
         opts.maxDur  = opts.maxDur  ?? 5.0;
         opts.fadeIn  = opts.fadeIn  ?? 200;
@@ -5142,7 +5146,7 @@ const UI = {
     const slotSel = owner === 'player' ? '.player-slot .card' : '.ai-slot .card';
     const cardEl  = laneEl && laneEl.querySelector(slotSel);
 
-    if (this.sfx) this.sfx.playCardSfx('Freddy Krueger', 'play');
+    if (this.sfx) this.sfx.playCardSfx('Freddy Krueger', 'spawn');
     this._screenShake('heavy');
 
     if (cardEl) {
@@ -5161,7 +5165,7 @@ const UI = {
   },
 
   _freddyHandSlash(cardName, dmg, cardId, handIdx, handOwner, destroyed) {
-    if (this.sfx) this.sfx.playCardSfx('Freddy Krueger', 'play');
+    if (this.sfx) this.sfx.playCardSfx('Freddy Krueger', 'spawn');
     this._screenShake('medium');
 
     let target = null;
@@ -5193,7 +5197,7 @@ const UI = {
     const slotSel = owner === 'player' ? '.player-slot .card' : '.ai-slot .card';
     const cardEl  = laneEl && laneEl.querySelector(slotSel);
 
-    if (this.sfx) this.sfx.playCardSfx('Pennywise', 'play');
+    if (this.sfx) this.sfx.playCardSfx('Pennywise', 'spawn');
 
     // Step 1: red balloon floats up from the bottom of the lane
     const balloon = laneEl && document.createElement('div');
