@@ -863,7 +863,7 @@ const UI = {
       'Yoda':             { hover: { src: 'audio/cards/yoda-hover.mp3', maxDur: 52 }, death: 'audio/cards/yoda-death.mp3' },
       'Darth Maul':       { hover: { src: 'audio/cards/darth-maul-hover.mp3', maxDur: 255 } },
       'Padme Amidala':    { hover: { src: 'audio/cards/padme-amidala-hover.mp3', maxDur: 334 } },
-      'General Grievous': { hover: { src: 'audio/cards/general-grievous-hover.mp3', maxDur: 169 } },
+      'General Grievous': { hover: { src: 'audio/cards/general-grievous-hover.mp3', maxDur: 169 }, kill: { src: 'audio/cards/general-grievous-kill.mp3', maxDur: 3 } },
       'Obi-Wan':          { hover: 'audio/cards/default-hover.mp3', death: 'audio/cards/obi-wan-death.mp3' },
       'Ahsoka':           { hover: 'audio/cards/default-hover.mp3' },
       // Anakin Skywalker hover: 109s of John Williams' "Anakin's Dark Deeds"
@@ -2279,7 +2279,9 @@ const UI = {
       //     fired by the play hook — only when an ability explicitly
       //     triggers it from inside abilities.js, e.g. Gojo's Hollow
       //     Purple resolving after 2 combats).
-      const ALLOWED = { hover: 1, play: 1, death: 1, ability: 1 };
+      //   • kill      — fires on the KILLER when it destroys an enemy card.
+      //     5s cap; only registered for cards with a unique kill cue.
+      const ALLOWED = { hover: 1, play: 1, death: 1, ability: 1, kill: 1 };
       if (!ALLOWED[event]) return null;
       // Resolve file: card-specific first, else global default.
       const reg = this.CARD_SFX[name] || {};
@@ -2339,6 +2341,11 @@ const UI = {
         opts.fadeIn  = opts.fadeIn  ?? 500;
         opts.fadeOut = opts.fadeOut ?? 1000;
         opts.category = event;  // 'play' or 'ability' — full marquee gain
+      } else if (event === 'kill') {
+        opts.maxDur  = opts.maxDur  ?? 5.0;
+        opts.fadeIn  = opts.fadeIn  ?? 200;
+        opts.fadeOut = opts.fadeOut ?? 800;
+        opts.category = 'play';
       } else {
         opts.maxDur = opts.maxDur ?? 1.5;          // death — keep tight for chains
         opts.category = 'death';
@@ -3278,6 +3285,12 @@ const UI = {
           this.sfx._laneAudioEndsAt = performance.now() + playMs + 150; // +150 for fade tail
         }
 
+        // Kill sound on the source card (trick/ability kills).
+        // Set _killAudioFiredFor so handleDeath wrapper doesn't double-play.
+        if (killerName && this.sfx && this.sfx.playCardSfx) {
+          if (source) source._killAudioFiredFor = card.id;
+          try { this.sfx.playCardSfx(killerName, 'kill', source); } catch (e) {}
+        }
         return origK(card, source, ...rest);
       };
     }
@@ -6242,7 +6255,7 @@ const UI = {
     const defs = isTrick
       ? (typeof TRICK_DEFS !== 'undefined' ? TRICK_DEFS : [])
       : (typeof CARD_DEFS !== 'undefined' ? CARD_DEFS : []);
-    const events = isTrick ? ['hover', 'play'] : ['hover', 'play', 'death', 'ability'];
+    const events = isTrick ? ['hover', 'play'] : ['hover', 'play', 'death', 'ability', 'kill'];
     // Filter: name search, case-insensitive substring
     const q = (f.query || '').trim().toLowerCase();
     const list = defs.filter(d => !q || d.name.toLowerCase().includes(q));
@@ -14613,6 +14626,15 @@ const UI = {
         // If the card was revived (Phoenix/etc), _deathHandled is reset to false.
         // Clear our audio flag so the card's death sound plays on its next death.
         if (!card._deathHandled) card._deathAudioFired = false;
+        // Kill sound — fires on the killer card when it destroys an enemy.
+        // Use killer arg (trick/ability kills) or _killedBy (combat kills).
+        // Skip if killCard wrapper already played it (_killAudioFiredFor guard).
+        const effectiveKiller = killer || card._killedBy;
+        if (effectiveKiller && effectiveKiller.name && effectiveKiller.owner !== card.owner
+            && this.sfx && this.sfx.playCardSfx
+            && effectiveKiller._killAudioFiredFor !== card.id) {
+          try { this.sfx.playCardSfx(effectiveKiller.name, 'kill', effectiveKiller); } catch (e) {}
+        }
         return result;
       };
     }

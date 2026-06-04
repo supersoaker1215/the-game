@@ -3334,6 +3334,9 @@ const Game = {
     }
     this.log(`  [KILLED] ${target.name} is destroyed by ${attacker.name}!`);
     this._creditChain(attacker, 'statsKills', 1);
+    // Tag the dying card with its killer so handleDeath can fire kill audio
+    // even though cleanupDead passes null for the killer argument.
+    target._killedBy = attacker;
     if (attacker.onKill && !(opts && opts.deferOnKill)) attacker.onKill(this, attacker);
     // Thorns can still chip the attacker even after target died — the
     // hit landed, and the victim's last-gasp bramble retaliates.
