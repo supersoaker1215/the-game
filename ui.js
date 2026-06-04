@@ -6373,6 +6373,8 @@ const UI = {
           <label>fade-in (s) <input type="number" class="aa-splicer-fadein"  step="0.1" min="0" value="1"></label>
           <label>fade-out (s) <input type="number" class="aa-splicer-fadeout" step="0.1" min="0" value="2"></label>
           <button type="button" class="aa-splicer-preview">▶ Preview slice</button>
+          <button type="button" class="aa-splicer-pause" title="Stop the current preview">⏸ Pause</button>
+          <button type="button" class="aa-splicer-save" title="Save these IN / OUT / fade values to localStorage and copy the ffmpeg command — survives page reloads, lets Claude apply on next message">💾 Save trim</button>
           <button type="button" class="aa-splicer-export">⬇ Export WAV</button>
           <button type="button" class="aa-splicer-copyffmpeg" title="Copy ffmpeg command for the current trim">⌘ Copy ffmpeg</button>
         </div>
@@ -6385,9 +6387,16 @@ const UI = {
     const fiEl  = splicerEl.querySelector('.aa-splicer-fadein');
     const foEl  = splicerEl.querySelector('.aa-splicer-fadeout');
     const previewBtn = splicerEl.querySelector('.aa-splicer-preview');
+    const pauseBtn   = splicerEl.querySelector('.aa-splicer-pause');
+    const saveBtn    = splicerEl.querySelector('.aa-splicer-save');
     const exportBtn  = splicerEl.querySelector('.aa-splicer-export');
     const copyBtn    = splicerEl.querySelector('.aa-splicer-copyffmpeg');
     const status     = splicerEl.querySelector('.aa-splicer-status');
+    // Per-card+event localStorage key for trim params. Lets the user
+    // save IN/OUT/fade values across page reloads instead of having
+    // to re-find their sweet-spot every time. Same key is checked on
+    // splicer open to auto-restore.
+    const trimKey = 'aa-trim::' + String(name) + '::' + String(event);
     const setStatus = (msg) => { status.textContent = msg || ''; };
     setStatus('Loading…');
     // Decode the source into an AudioBuffer.
@@ -6398,6 +6407,19 @@ const UI = {
       outEl.value = b.duration.toFixed(2);
       outEl.max = b.duration;
       inEl.max  = b.duration;
+      // Restore previously saved trim params if the user has hit Save
+      // for this card+event before. Skips if any field would be out
+      // of range (e.g. file got re-encoded shorter since the save).
+      try {
+        const saved = localStorage.getItem(trimKey);
+        if (saved) {
+          const p = JSON.parse(saved);
+          if (typeof p.in === 'number' && p.in >= 0 && p.in < b.duration) inEl.value = p.in.toFixed(2);
+          if (typeof p.out === 'number' && p.out > 0 && p.out <= b.duration) outEl.value = p.out.toFixed(2);
+          if (typeof p.fadeIn === 'number' && p.fadeIn >= 0) fiEl.value = p.fadeIn;
+          if (typeof p.fadeOut === 'number' && p.fadeOut >= 0) foEl.value = p.fadeOut;
+        }
+      } catch (e) { /* swallow — bad JSON shouldn't break the splicer */ }
       // Find peak for waveform scaling.
       const ch0 = buf.getChannelData(0);
       const ch1 = buf.numberOfChannels > 1 ? buf.getChannelData(1) : null;
@@ -6547,6 +6569,53 @@ const UI = {
       };
       tick();
       src.addEventListener('ended', () => { if (raf) cancelAnimationFrame(raf); drawWave(-1); previewSrc = null; });
+    });
+    // Pause button — stops the current preview playback and clears
+    // the playhead marker. Re-clicking Preview restarts from the IN
+    // marker (Web Audio BufferSource is one-shot, so pause/resume
+    // semantics map to stop/restart). User direction 2026-05-26:
+    // "for the hover splicer I want a pause button so the audio can
+    // be paused."
+    pauseBtn.addEventListener('click', () => {
+      if (previewSrc) {
+        try { previewSrc.stop(); } catch (e) {}
+        previewSrc = null;
+        drawWave(-1);
+        setStatus('Preview stopped.');
+      }
+    });
+    // Save button — persists the current IN / OUT / fade values to
+    // localStorage so they survive page reloads, AND auto-copies the
+    // equivalent ffmpeg command to the clipboard. Two-in-one because
+    // saving without an apply-path leaves the changes stranded; the
+    // ffmpeg command is what actually re-encodes the file when run.
+    // User direction 2026-05-26: "and a save button." The persist
+    // path means the user can dial in trim points across multiple
+    // sessions; the auto-copy gives them (or me, on the next chat
+    // message) a one-paste command to apply.
+    saveBtn.addEventListener('click', () => {
+      if (!buf) return;
+      const inT  = parseFloat(inEl.value)  || 0;
+      const outT = parseFloat(outEl.value) || buf.duration;
+      const fi   = parseFloat(fiEl.value)  || 0;
+      const fo   = parseFloat(foEl.value)  || 0;
+      try {
+        localStorage.setItem(trimKey, JSON.stringify({
+          in: inT, out: outT, fadeIn: fi, fadeOut: fo,
+          savedAt: Date.now(),
+          name, event,
+        }));
+      } catch (e) { /* localStorage quota / disabled — keep going */ }
+      // Build the same ffmpeg command the Copy button produces.
+      const sliceLen = Math.max(0.01, outT - inT);
+      const fadeOutStart = Math.max(0, sliceLen - fo);
+      const safeName = String(name).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+      const cmd = `ffmpeg -y -i "${src}" -ss ${inT.toFixed(2)} -t ${sliceLen.toFixed(2)} -ar 48000 -ac 2 -b:a 192k -af "afade=t=in:st=0:d=${fi},afade=t=out:st=${fadeOutStart.toFixed(2)}:d=${fo},loudnorm=I=-20:TP=-1.5:LRA=11" "audio/cards/${safeName}-${event}.mp3"`;
+      navigator.clipboard.writeText(cmd).then(
+        () => setStatus(`✓ Saved trim (IN ${inT.toFixed(2)}s · OUT ${outT.toFixed(2)}s · ${sliceLen.toFixed(2)}s slice) + ffmpeg copied. Tell Claude to apply, or paste the command into Terminal yourself.`),
+        () => setStatus(`✓ Saved trim locally. ffmpeg copy failed — command logged to console.`)
+      );
+      console.log('[audio-audit save]', { name, event, in: inT, out: outT, fadeIn: fi, fadeOut: fo, cmd });
     });
     // Export the slice + fades as a WAV download.
     exportBtn.addEventListener('click', async () => {
