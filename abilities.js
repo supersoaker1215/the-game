@@ -2328,6 +2328,7 @@ const CARD_ABILITIES = {
       if (enemies.length) {
         G.promptCardChoice(self.owner, enemies, "Spider-Man — Freeze", `Choose enemy to Freeze ${freezeN}`, (t) => {
           G.freezeCard(t, self, freezeN); G.log(`Spider-Man freezes ${t.name} for ${freezeN}!`);
+          if (typeof UI !== 'undefined' && UI.sfx) UI.sfx.playCardSfx('Spider-Man', 'ability', self);
         }, _aiThreatPicker);
       }
     },
