@@ -697,7 +697,7 @@ const UI = {
       // lets the full phrase play.
       'Batman':           {
         hover: { src: 'audio/cards/batman-hover.mp3?v=2', maxDur: 106 },
-        play:  { src: 'audio/cards/batman-play.mp3', maxDur: 20 },
+        play:  { src: 'audio/cards/batman-play.mp3', maxDur: 10 },
         death: 'audio/cards/batman-death.mp3',
         // When Batman deals damage (his "Strike 1" / "Strike 2"
         // batarang throws after the Fear pick), fire the Batarangs
