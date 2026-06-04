@@ -736,7 +736,7 @@ const UI = {
       'Man-Bat':          { death: 'audio/cards/man-bat-death.mp3' },
       // Bane death — 0.58s clip, plays on every Bane kill.
       'Bane':             { hover: { src: 'audio/cards/bane-hover.mp3', maxDur: 21 }, death: 'audio/cards/bane-death.mp3' },
-      'King Shark':       { play: { src: 'audio/cards/king-shark-play.mp3', maxDur: 2 } },
+      'King Shark':       { play: { src: 'audio/cards/king-shark-play.mp3', fullDuration: true } },
       // Homelander hover: 65s of Christopher Lennertz's "I Can Do Anything"
       // finale from The Boys — the swelling Homelander hero-theme reprise.
       // -20 LUFS unified-baseline, 1s fade-in / 2s fade-out baked. maxDur
@@ -885,7 +885,7 @@ const UI = {
       'The Grinch':       { hover: { src: 'audio/cards/the-grinch-hover.mp3', maxDur: 44 } },
       'Green Goblin':     { hover: { src: 'audio/cards/green-goblin-hover.mp3', maxDur: 24 } },
       'Dr. Octopus':      { play: { src: 'audio/cards/dr-octopus-play.mp3?v=2', maxDur: 5 } },
-      'Sandman':          { hover: { src: 'audio/cards/sandman-hover.mp3', maxDur: 194 }, death: { src: 'audio/cards/sandman-death.mp3', maxDur: 5 } },
+      'Sandman':          { hover: { src: 'audio/cards/sandman-hover.mp3', maxDur: 194 }, death: { src: 'audio/cards/sandman-death.mp3', fullDuration: true } },
       'Trigon':           { play: { src: 'audio/cards/trigon-play.mp3', maxDur: 10 } },
       'Freddy Fazbear':   { hover: { src: 'audio/cards/freddy-fazbear-hover.mp3', maxDur: 31 }, play: { src: 'audio/cards/freddy-fazbear-when-played.mp3', maxDur: 12 } },
       'Boiler Room':      { hover: { src: 'audio/cards/boiler-room-hover.mp3', maxDur: 25 } },
@@ -2248,7 +2248,11 @@ const UI = {
     _resolveSfxEntry(entry) {
       if (!entry) return null;
       if (typeof entry === 'string') return { src: entry, opts: null };
-      if (typeof entry === 'object' && entry.src) return { src: entry.src, opts: { maxDur: entry.maxDur } };
+      if (typeof entry === 'object' && entry.src) {
+        const opts = { maxDur: entry.maxDur };
+        if (entry.fullDuration !== undefined) opts.fullDuration = entry.fullDuration;
+        return { src: entry.src, opts };
+      }
       return null;
     },
 
