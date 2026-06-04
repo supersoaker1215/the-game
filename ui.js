@@ -881,7 +881,7 @@ const UI = {
       // The Grinch hover: 43s clip. maxDur 44 lets the full phrase play.
       'The Grinch':       { hover: { src: 'audio/cards/the-grinch-hover.mp3', maxDur: 44 } },
       'Green Goblin':     { hover: { src: 'audio/cards/green-goblin-hover.mp3', maxDur: 24 } },
-      'Sandman':          { hover: { src: 'audio/cards/sandman-hover.mp3', maxDur: 194 } },
+      'Sandman':          { hover: { src: 'audio/cards/sandman-hover.mp3', maxDur: 194 }, death: { src: 'audio/cards/sandman-death.mp3', maxDur: 5 } },
       'Freddy Fazbear':   { hover: { src: 'audio/cards/freddy-fazbear-hover.mp3', maxDur: 31 }, play: { src: 'audio/cards/freddy-fazbear-when-played.mp3', maxDur: 12 } },
     },
     // Default files for the per-card events — used when a card's
