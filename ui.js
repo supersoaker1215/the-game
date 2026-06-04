@@ -758,7 +758,7 @@ const UI = {
       // build that defines Sidious's throne-room menace. -20 LUFS,
       // 1s fade-in / 2s fade-out baked. maxDur 65 lets the full
       // sustained-choir phrase play across re-hovers.
-      'Emperor Palpatine': { hover: { src: 'audio/cards/emperor-palpatine-hover.mp3', maxDur: 65 }, play: { src: 'audio/cards/emperor-palpatine-play.mp3', maxDur: 8 } },
+      'Emperor Palpatine': { hover: { src: 'audio/cards/emperor-palpatine-hover.mp3', maxDur: 165 }, play: { src: 'audio/cards/emperor-palpatine-play.mp3', maxDur: 8 } },
       // Wonder Woman hover: 115 s of Hans Zimmer + Junkie XL's "Is
       // She With You" — Diana's electric-cello entrance theme from
       // BvS / Wonder Woman. Clipped 0:00 → 1:55 to ride the full
