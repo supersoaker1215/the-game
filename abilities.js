@@ -3622,6 +3622,7 @@ const CARD_ABILITIES = {
         }
       }
       G.log(`Thanos snaps! Lanes ${[...rolled].map(n => n + 1).sort().join(', ')} — ${killed} enemies erased!`);
+      if (typeof UI !== 'undefined' && UI.sfx) UI.sfx.playCardSfx('Thanos', 'ability', self);
       // Flash the rolled lanes so the player can SEE which 3 lanes got hit
       // (some may have had no target to kill, which the log line alone
       // doesn't make obvious — the flash surfaces the roll transparently).
@@ -4167,6 +4168,12 @@ const CARD_ABILITIES = {
             `Pennywise — Move ${allyInLane.name}`,
             `Pennywise needs this lane. Move ${allyInLane.name} to another lane.`,
             (targetLane) => {
+              if (allyInLane.currentHealth <= 0) {
+                // Card died while the lane-choice was pending — skip the move
+                if (lane[owner] === allyInLane) lane[owner] = null;
+                finishSpawn(3, 5);
+                return;
+              }
               lane[owner] = null;
               G.state.lanes[targetLane][owner] = allyInLane;
               G.log(`  [DISPLACED] ${allyInLane.name} moved to lane ${targetLane + 1} to make room for Pennywise.`);
