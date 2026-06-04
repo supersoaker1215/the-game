@@ -758,7 +758,7 @@ const UI = {
       // build that defines Sidious's throne-room menace. -20 LUFS,
       // 1s fade-in / 2s fade-out baked. maxDur 65 lets the full
       // sustained-choir phrase play across re-hovers.
-      'Emperor Palpatine': { hover: { src: 'audio/cards/emperor-palpatine-hover.mp3', maxDur: 65 } },
+      'Emperor Palpatine': { hover: { src: 'audio/cards/emperor-palpatine-hover.mp3', maxDur: 65 }, play: { src: 'audio/cards/emperor-palpatine-play.mp3', maxDur: 8 } },
       // Wonder Woman hover: 115 s of Hans Zimmer + Junkie XL's "Is
       // She With You" — Diana's electric-cello entrance theme from
       // BvS / Wonder Woman. Clipped 0:00 → 1:55 to ride the full
@@ -863,6 +863,7 @@ const UI = {
       'Yoda':             { hover: { src: 'audio/cards/yoda-hover.mp3', maxDur: 52 }, death: 'audio/cards/yoda-death.mp3' },
       'Darth Maul':       { hover: { src: 'audio/cards/darth-maul-hover.mp3', maxDur: 255 } },
       'Padme Amidala':    { hover: { src: 'audio/cards/padme-amidala-hover.mp3', maxDur: 334 } },
+      'General Grievous': { hover: { src: 'audio/cards/general-grievous-hover.mp3', maxDur: 169 } },
       'Obi-Wan':          { hover: 'audio/cards/default-hover.mp3', death: 'audio/cards/obi-wan-death.mp3' },
       'Ahsoka':           { hover: 'audio/cards/default-hover.mp3' },
       // Anakin Skywalker hover: 109s of John Williams' "Anakin's Dark Deeds"
@@ -871,7 +872,7 @@ const UI = {
       // signature-hover baseline), 1s fade-in / 2s fade-out baked in.
       // maxDur 110 lets the full phrase play across re-hovers.
       'Anakin Skywalker': { hover: { src: 'audio/cards/anakin-hover.mp3?v=4', maxDur: 110 }, death: 'audio/cards/anakin-death.mp3' },
-      'Dr. Manhattan':    { hover: { src: 'audio/cards/dr-manhattan-hover.mp3', maxDur: 101 } },
+      'Dr. Manhattan':    { hover: { src: 'audio/cards/dr-manhattan-hover.mp3', maxDur: 101 }, play: { src: 'audio/cards/dr-manhattan-play.mp3', maxDur: 10 } },
       'Red Skull':        { hover: 'audio/cards/red-skull-hover.mp3', play: 'audio/cards/red-skull-play.mp3' },
       // Superman hover: first 1:14 of Hans Zimmer's "Krypton's Last" — the
        // opening swell through the first cadence. Normalized to -20 LUFS
