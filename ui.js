@@ -886,6 +886,7 @@ const UI = {
       'Green Goblin':     { hover: { src: 'audio/cards/green-goblin-hover.mp3', maxDur: 24 } },
       'Dr. Octopus':      { play: { src: 'audio/cards/dr-octopus-play.mp3', maxDur: 14 } },
       'Sandman':          { hover: { src: 'audio/cards/sandman-hover.mp3', maxDur: 194 }, death: { src: 'audio/cards/sandman-death.mp3', maxDur: 5 } },
+      'Trigon':           { play: { src: 'audio/cards/trigon-play.mp3', maxDur: 10 } },
       'Freddy Fazbear':   { hover: { src: 'audio/cards/freddy-fazbear-hover.mp3', maxDur: 31 }, play: { src: 'audio/cards/freddy-fazbear-when-played.mp3', maxDur: 12 } },
     },
     // Default files for the per-card events — used when a card's
