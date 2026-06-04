@@ -3262,6 +3262,8 @@ const UI = {
           }
           chosen = this.sfx.playCardSfx(deadName, 'death', card);
           this.sfx._laneDeathCost = deadCost;
+          // Mark so handleDeath wrapper doesn't double-play
+          card._deathAudioFired = true;
         }
 
         // Record expected end-time so the lane advance can wait on it.
@@ -14579,6 +14581,31 @@ const UI = {
       const origDeath = Game.handleDeath.bind(Game);
       Game.handleDeath = (card, laneIdx, killer) => {
         spawnDerez(card);  // capture rect BEFORE engine teardown
+        // Play death audio for combat kills — the killCard wrapper only
+        // fires for trick/ability kills. Combat deaths (cleanupDead path)
+        // reach here directly, so we play the cue here with the same
+        // lane-gating logic. The _deathAudioFired flag prevents double-
+        // play when killCard already handled it.
+        if (!card._deathAudioFired && card.name && this.sfx && this.sfx.playCardSfx) {
+          card._deathAudioFired = true;
+          const deadCost = card.baseCost || card.cost || 0;
+          const currentDeathCost = this.sfx._laneDeathCost ?? -1;
+          const winsLane = (deadCost > currentDeathCost)
+            || (deadCost === currentDeathCost && Math.random() < 0.5);
+          if (winsLane) {
+            if (this.sfx._laneAudioEl) {
+              try { this.sfx._laneAudioEl.volume = 0; this.sfx._laneAudioEl.pause(); } catch (e) {}
+            }
+            const chosen = this.sfx.playCardSfx(card.name, 'death', card);
+            this.sfx._laneDeathCost = deadCost;
+            if (chosen) {
+              this.sfx._laneAudioEl = chosen;
+              const fileDur = (!isNaN(chosen.duration) && chosen.duration > 0) ? chosen.duration : 1.5;
+              const playMs = Math.min(1.5, fileDur) * 1000;
+              this.sfx._laneAudioEndsAt = performance.now() + playMs + 150;
+            }
+          }
+        }
         return origDeath(card, laneIdx, killer);
       };
     }
