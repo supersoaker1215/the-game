@@ -299,7 +299,7 @@ const CARD_DEFS = [
   { name: "Silver Surfer", cost: 7, attack: 7, health: 7, type: "hero",
     abilities: [],
     desc: "When Played: Remove 3 ATK from an enemy. While Active: Enemy cards cost 1 more Energy. (Tricks unaffected.)" },
-  { name: "Revan", cost: 7, attack: 6, health: 8, type: "villain",
+  { name: "Revan", cost: 6, attack: 6, health: 8, type: "villain",
     abilities: [],
     desc: "When Played: Give another ally Revive 1." },
 
