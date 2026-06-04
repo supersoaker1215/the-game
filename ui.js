@@ -823,7 +823,7 @@ const UI = {
       // unified-baseline, 1s fade-in / 2s fade-out baked. maxDur 56 lets
       // the full phrase play; play slot keeps the existing stinger.
       'Michael Myers':    { hover: { src: 'audio/cards/michael-myers-hover.mp3?v=1', maxDur: 56 }, play: { src: 'audio/cards/michael-myers-play.mp3', maxDur: 5.0 } },
-      'Thanos':           { hover: 'audio/cards/thanos-hover.mp3?v=3', ability: 'audio/cards/thanos-ability.mp3?v=2', voiceLine: 'audio/cards/thanos-kill.mp3' },
+      'Thanos':           { hover: 'audio/cards/thanos-hover.mp3?v=3', ability: { src: 'audio/cards/thanos-ability.mp3?v=3', maxDur: 16 }, voiceLine: 'audio/cards/thanos-kill.mp3' },
       // Gojo hover: 59s of Lady Gaga's "Judas" (3:11 → end of source) — the
       // outro/refrain section. -20 LUFS unified-baseline, 1s fade-in / 2s
       // fade-out baked. maxDur 60 lets the full phrase play; ability slot
