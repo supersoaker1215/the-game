@@ -6537,52 +6537,150 @@ const UI = {
     window.addEventListener('mouseup', () => { dragging = null; });
     [inEl, outEl, fiEl, foEl].forEach(el => el.addEventListener('input', () => drawWave()));
     // Preview the slice with WebAudio gain envelope (fade-in / fade-out)
+    // + actual pause/resume semantics. Web Audio BufferSource is
+    // one-shot (stop() can't be undone), so "pause" captures the
+    // current offset and the next Preview click rebuilds a fresh
+    // BufferSource that starts mid-slice from that saved offset.
+    //
+    // State variables:
+    //   previewSrc       — live BufferSource (null when paused/stopped)
+    //   previewPausedAt  — offset in SECONDS FROM THE IN MARKER where
+    //                       the user paused. null when no resume is
+    //                       pending (next Preview starts fresh from IN).
+    //   previewRaf       — outer-closure handle so Pause can cancel
+    //                       the playhead animation cleanly.
     let previewSrc = null;
+    let previewPausedAt = null;
+    let previewRaf = null;
+    // Editing any of the IN / OUT / fade params invalidates the saved
+    // pause offset — the slice geometry changes and the offset would
+    // mean something different. Clear it so the next Preview rebuilds
+    // fresh from IN.
+    [inEl, outEl, fiEl, foEl].forEach(el => {
+      el.addEventListener('input', () => { previewPausedAt = null; });
+    });
     previewBtn.addEventListener('click', () => {
       if (!buf) return;
       if (previewSrc) { try { previewSrc.stop(); } catch(e){} previewSrc = null; }
+      if (previewRaf) { cancelAnimationFrame(previewRaf); previewRaf = null; }
       const inT  = parseFloat(inEl.value);
       const outT = parseFloat(outEl.value);
       const fi   = parseFloat(fiEl.value);
       const fo   = parseFloat(foEl.value);
       const sliceLen = Math.max(0.01, outT - inT);
+      // Resume mid-slice if Pause set an offset; otherwise start fresh.
+      const resumeOffset = (previewPausedAt != null && previewPausedAt < sliceLen) ? previewPausedAt : 0;
+      const remainingLen = Math.max(0.01, sliceLen - resumeOffset);
       const src = ctx.createBufferSource();
       src.buffer = buf;
       const gain = ctx.createGain();
       const vol = (UI.settings && UI.settings.sfxVolume != null) ? UI.settings.sfxVolume : 0.6;
       const t0 = ctx.currentTime;
-      gain.gain.setValueAtTime(0, t0);
-      gain.gain.linearRampToValueAtTime(vol, t0 + Math.min(fi, sliceLen / 2));
-      gain.gain.setValueAtTime(vol, t0 + Math.max(0, sliceLen - fo));
-      gain.gain.linearRampToValueAtTime(0, t0 + sliceLen);
+      // Fade envelope must be REWRITTEN for the resume case so the
+      // fade-out lands at the same real-time moment in the clip,
+      // not `fo` seconds after the resume point. Three regions:
+      //   • Fade-in region [0, fi):     ramp 0 → vol over fi seconds (from IN)
+      //   • Body region    [fi, len-fo): constant vol
+      //   • Fade-out region [len-fo, len]: ramp vol → 0 over fo seconds
+      // When resuming at offset T, we shift each region by -T and clip
+      // the leading edge of any region whose start is now negative.
+      const fadeInEndOrig  = Math.min(fi, sliceLen / 2);
+      const fadeOutStartOrig = Math.max(0, sliceLen - fo);
+      // Project these into the resumed timeline (ctx-clock-relative).
+      // If we resume PAST a region's start, its volume contribution at
+      // resume time is whatever the envelope was at that offset.
+      let startVol;
+      if (resumeOffset < fadeInEndOrig) {
+        // Inside fade-in — partial-volume start, finish ramp to vol.
+        startVol = (resumeOffset / Math.max(0.0001, fadeInEndOrig)) * vol;
+        const fadeInRemaining = fadeInEndOrig - resumeOffset;
+        gain.gain.setValueAtTime(startVol, t0);
+        gain.gain.linearRampToValueAtTime(vol, t0 + fadeInRemaining);
+      } else {
+        // Past fade-in — full volume start.
+        startVol = vol;
+        gain.gain.setValueAtTime(vol, t0);
+      }
+      // Fade-out: hold vol until we hit (len-fo)-T, then ramp to 0
+      // over fo seconds (or whatever remains of fo if we're already
+      // past its start).
+      const fadeOutStartShifted = Math.max(0, fadeOutStartOrig - resumeOffset);
+      if (fadeOutStartShifted > 0) {
+        gain.gain.setValueAtTime(vol, t0 + fadeOutStartShifted);
+        gain.gain.linearRampToValueAtTime(0, t0 + remainingLen);
+      } else {
+        // Resumed mid-fade-out — partial ramp from current envelope
+        // value down to 0 over what's left of the slice.
+        const fadeOutProgress = (resumeOffset - fadeOutStartOrig) / Math.max(0.0001, fo);
+        const cur = vol * (1 - fadeOutProgress);
+        gain.gain.setValueAtTime(cur, t0);
+        gain.gain.linearRampToValueAtTime(0, t0 + remainingLen);
+      }
       src.connect(gain).connect(ctx.destination);
-      src.start(t0, inT, sliceLen);
+      // BufferSource start: (when, offset_in_buffer, duration)
+      src.start(t0, inT + resumeOffset, remainingLen);
+      // Stash the ctx-clock start time and the resume offset on the
+      // source object so the Pause handler can derive "elapsed since
+      // playback started" + "where in the slice we are." Web Audio
+      // doesn't expose a current-position read on BufferSource, so we
+      // track it manually via these two anchors.
+      src._startCtxT = t0;
+      src._resumeOffset = resumeOffset;
       previewSrc = src;
-      // Animate playhead
-      let raf;
+      previewPausedAt = null;     // resume consumed; next pause sets a fresh offset
+      // Animate playhead from the resume offset onward.
       const startedAt = performance.now();
+      const startOffsetMs = resumeOffset * 1000;
       const tick = () => {
-        const elapsed = (performance.now() - startedAt) / 1000;
-        if (elapsed >= sliceLen) { drawWave(-1); return; }
-        drawWave(inT + elapsed);
-        raf = requestAnimationFrame(tick);
+        const elapsedMs = (performance.now() - startedAt) + startOffsetMs;
+        const elapsedSec = elapsedMs / 1000;
+        if (elapsedSec >= sliceLen) { drawWave(-1); previewRaf = null; return; }
+        drawWave(inT + elapsedSec);
+        previewRaf = requestAnimationFrame(tick);
       };
       tick();
-      src.addEventListener('ended', () => { if (raf) cancelAnimationFrame(raf); drawWave(-1); previewSrc = null; });
+      src.addEventListener('ended', () => {
+        if (previewRaf) { cancelAnimationFrame(previewRaf); previewRaf = null; }
+        // Only clear when the playback finishes naturally — Pause
+        // sets the offset before stop() and we don't want this
+        // listener to wipe it before the next Preview reads it.
+        if (previewSrc === src) {
+          drawWave(-1);
+          previewSrc = null;
+          previewPausedAt = null;  // natural end resets to "fresh next time"
+        }
+      });
     });
-    // Pause button — stops the current preview playback and clears
-    // the playhead marker. Re-clicking Preview restarts from the IN
-    // marker (Web Audio BufferSource is one-shot, so pause/resume
-    // semantics map to stop/restart). User direction 2026-05-26:
-    // "for the hover splicer I want a pause button so the audio can
-    // be paused."
+    // Pause — capture the current playback position (relative to the
+    // IN marker), stop the BufferSource, and stash the offset so the
+    // next Preview click resumes from here. User direction 2026-05-26:
+    // "the pause restarts the audio file not just pause it." Now it
+    // actually pauses.
     pauseBtn.addEventListener('click', () => {
-      if (previewSrc) {
-        try { previewSrc.stop(); } catch (e) {}
-        previewSrc = null;
-        drawWave(-1);
-        setStatus('Preview stopped.');
-      }
+      if (!previewSrc) return;
+      const inT  = parseFloat(inEl.value);
+      const outT = parseFloat(outEl.value);
+      const sliceLen = Math.max(0.01, outT - inT);
+      // Figure out how far we've played so far. We need the offset
+      // relative to the IN marker (not to ctx.currentTime), so we
+      // derive it from the playhead animation's elapsed time. The
+      // playhead tick draws at `inT + elapsedSec` — read the canvas
+      // attribute? No: stash the latest elapsed in a variable.
+      // Simpler: compute via ctx.currentTime - source's logical start.
+      // We track that on previewSrc by setting a custom property.
+      // Approach: capture `ctx.currentTime` against a stamp set when
+      // the source started. The Preview handler sets src._startCtxT.
+      const startCtxT = previewSrc._startCtxT;
+      const resumeFrom = previewSrc._resumeOffset || 0;
+      const elapsed = (typeof startCtxT === 'number')
+        ? (ctx.currentTime - startCtxT) + resumeFrom
+        : resumeFrom;
+      previewPausedAt = Math.max(0, Math.min(sliceLen - 0.01, elapsed));
+      try { previewSrc.stop(); } catch (e) {}
+      previewSrc = null;
+      if (previewRaf) { cancelAnimationFrame(previewRaf); previewRaf = null; }
+      drawWave(-1);
+      setStatus(`Paused at ${(inT + previewPausedAt).toFixed(2)}s · click ▶ Preview slice to resume.`);
     });
     // Save button — persists the current IN / OUT / fade values to
     // localStorage so they survive page reloads, AND auto-copies the
