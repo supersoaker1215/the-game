@@ -769,7 +769,7 @@ const UI = {
       // Deadpool & Wolverine slo-mo intro track), 0:00 → 1:20 —
       // captures the iconic backing-vocal build through the first
       // full chorus. -20 LUFS, 1 s fade-in / 2 s fade-out baked.
-      'Deadpool':         { hover: { src: 'audio/cards/deadpool-hover.mp3', maxDur: 80 } },
+      'Deadpool':         { hover: { src: 'audio/cards/deadpool-hover.mp3', maxDur: 80 }, play: { src: 'audio/cards/deadpool-play.mp3', maxDur: 3 } },
       // Wolverine hover: 79 s of "Like a Prayer (Choir Version)"
       // from Deadpool & Wolverine, 1:05 → 2:24 — the sustained
       // choir build that scores his entrance. Pairs intentionally
