@@ -889,6 +889,7 @@ const UI = {
       'Trigon':           { play: { src: 'audio/cards/trigon-play.mp3', maxDur: 10 } },
       'Freddy Fazbear':   { hover: { src: 'audio/cards/freddy-fazbear-hover.mp3', maxDur: 31 }, play: { src: 'audio/cards/freddy-fazbear-when-played.mp3', maxDur: 12 } },
       'Boiler Room':      { hover: { src: 'audio/cards/boiler-room-hover.mp3', maxDur: 25 } },
+      'Ultron':           { hover: { src: 'audio/cards/ultron-hover.mp3', maxDur: 29 } },
     },
     // Default files for the per-card events — used when a card's
     // CARD_SFX entry doesn't have that event. If neither the card-
