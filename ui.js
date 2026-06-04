@@ -889,6 +889,7 @@ const UI = {
       'Sandman':          { hover: { src: 'audio/cards/sandman-hover.mp3', maxDur: 194, gain: 1.5 }, death: { src: 'audio/cards/sandman-death.m4a', fullDuration: true, gain: 3.0 } },
       'Trigon':           { play: { src: 'audio/cards/trigon-play.mp3', maxDur: 10 } },
       'Freddy Fazbear':   { hover: { src: 'audio/cards/freddy-fazbear-hover.mp3', maxDur: 31 }, play: { src: 'audio/cards/freddy-fazbear-when-played.mp3', maxDur: 12 } },
+      'Freddy Krueger':   { spawn: { src: 'audio/cards/freddy-krueger-spawn.m4a', maxDur: 5.5 } },
       'Boiler Room':      { hover: { src: 'audio/cards/boiler-room-hover.mp3', maxDur: 25 } },
       'Ultron':           { hover: { src: 'audio/cards/ultron-hover.mp3', maxDur: 29 } },
     },
