@@ -729,7 +729,7 @@ const UI = {
       // Already under the 1.5s death-cap so no maxDur needed.
       'Harley Quinn':     { death: 'audio/cards/harley-death.mp3' },
       // Joker deathfall — 0.83s clip, plays on every Joker kill.
-      'Joker':            { hover: { src: 'audio/cards/joker-hover.mp3', maxDur: 46 }, death: 'audio/cards/joker-death.mp3' },
+      'Joker':            { hover: { src: 'audio/cards/joker-hover.mp3', maxDur: 46, gain: 1.5 }, death: 'audio/cards/joker-death.mp3' },
       // Poison Ivy death — 0.58s clip, plays on every Ivy kill.
       'Poison Ivy':       { death: 'audio/cards/poison-ivy-death.mp3' },
       // Man-Bat death — 0.65s clip, plays on every Man-Bat kill.
@@ -2127,7 +2127,8 @@ const UI = {
       // supporting effects 30% quieter so the mix has hierarchy.
       const cat = (opts && opts.category) || (isHover ? 'hover' : 'effect');
       const catGain = this._CATEGORY_GAIN[cat] ?? 1.0;
-      const vol = Math.max(0, Math.min(1, (UI.settings.sfxVolume ?? 0.55) * catGain));
+      const entryGain = (opts && opts.gain) ? opts.gain : 1.0;
+      const vol = Math.max(0, Math.min(1, (UI.settings.sfxVolume ?? 0.55) * catGain * entryGain));
       // Tag the audio element with its category so other code paths
       // (voice-first ducking below) can decide who-ducks-who.
       pick._sfxCategory = cat;
@@ -2251,6 +2252,7 @@ const UI = {
       if (typeof entry === 'object' && entry.src) {
         const opts = { maxDur: entry.maxDur };
         if (entry.fullDuration !== undefined) opts.fullDuration = entry.fullDuration;
+        if (entry.gain !== undefined) opts.gain = entry.gain;
         return { src: entry.src, opts };
       }
       return null;
