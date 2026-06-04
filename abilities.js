@@ -1842,6 +1842,7 @@ const CARD_ABILITIES = {
       const enemies = G.getEnemiesOf(self.owner);
       if (enemies.length) {
         G.promptCardChoice(self.owner, enemies, "Predator — Strike", `Choose enemy to deal ${dmg} damage`, (t) => {
+          if (typeof UI !== 'undefined' && UI.sfx) UI.sfx.playCardSfx('Predator', 'ability', self);
           G.dealDamage(t, dmg);
           G.log(`Predator strikes ${t.name} for ${dmg}!`);
           if (t.currentHealth <= 0) CARD_ABILITIES.Predator._claimTrophy(G, self);
