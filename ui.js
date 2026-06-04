@@ -872,7 +872,7 @@ const UI = {
       // signature-hover baseline), 1s fade-in / 2s fade-out baked in.
       // maxDur 110 lets the full phrase play across re-hovers.
       'Anakin Skywalker': { hover: { src: 'audio/cards/anakin-hover.mp3?v=4', maxDur: 110 }, death: 'audio/cards/anakin-death.mp3' },
-      'Dr. Manhattan':    { hover: { src: 'audio/cards/dr-manhattan-hover.mp3', maxDur: 101 }, play: { src: 'audio/cards/dr-manhattan-play.mp3', maxDur: 10 } },
+      'Dr. Manhattan':    { hover: { src: 'audio/cards/dr-manhattan-hover.mp3', maxDur: 101, gain: 1.5 }, play: { src: 'audio/cards/dr-manhattan-play.mp3', maxDur: 10 } },
       'Red Skull':        { hover: 'audio/cards/red-skull-hover.mp3', play: 'audio/cards/red-skull-play.mp3' },
       'Winter Soldier':   { hover: { src: 'audio/cards/winter-soldier-hover.mp3', maxDur: 338 } },
       // Superman hover: first 1:14 of Hans Zimmer's "Krypton's Last" — the
@@ -885,7 +885,7 @@ const UI = {
       'The Grinch':       { hover: { src: 'audio/cards/the-grinch-hover.mp3', maxDur: 44 } },
       'Green Goblin':     { hover: { src: 'audio/cards/green-goblin-hover.mp3', maxDur: 24 } },
       'Dr. Octopus':      { play: { src: 'audio/cards/dr-octopus-play.mp3?v=2', maxDur: 5 } },
-      'Sandman':          { hover: { src: 'audio/cards/sandman-hover.mp3', maxDur: 194 }, death: { src: 'audio/cards/sandman-death.m4a', fullDuration: true } },
+      'Sandman':          { hover: { src: 'audio/cards/sandman-hover.mp3', maxDur: 194, gain: 1.5 }, death: { src: 'audio/cards/sandman-death.m4a', fullDuration: true, gain: 1.5 } },
       'Trigon':           { play: { src: 'audio/cards/trigon-play.mp3', maxDur: 10 } },
       'Freddy Fazbear':   { hover: { src: 'audio/cards/freddy-fazbear-hover.mp3', maxDur: 31 }, play: { src: 'audio/cards/freddy-fazbear-when-played.mp3', maxDur: 12 } },
       'Boiler Room':      { hover: { src: 'audio/cards/boiler-room-hover.mp3', maxDur: 25 } },
