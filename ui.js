@@ -871,6 +871,7 @@ const UI = {
       // signature-hover baseline), 1s fade-in / 2s fade-out baked in.
       // maxDur 110 lets the full phrase play across re-hovers.
       'Anakin Skywalker': { hover: { src: 'audio/cards/anakin-hover.mp3?v=4', maxDur: 110 }, death: 'audio/cards/anakin-death.mp3' },
+      'Dr. Manhattan':    { hover: { src: 'audio/cards/dr-manhattan-hover.mp3', maxDur: 101 } },
       'Red Skull':        { hover: 'audio/cards/red-skull-hover.mp3', play: 'audio/cards/red-skull-play.mp3' },
       // Superman hover: first 1:14 of Hans Zimmer's "Krypton's Last" — the
        // opening swell through the first cadence. Normalized to -20 LUFS
