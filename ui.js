@@ -882,7 +882,7 @@ const UI = {
        // position across visits.
       'Superman':         { hover: { src: 'audio/cards/superman-hover.mp3?v=7', maxDur: 75 } },
       // The Grinch hover: 43s clip. maxDur 44 lets the full phrase play.
-      'The Grinch':       { hover: { src: 'audio/cards/the-grinch-hover.mp3', maxDur: 44 } },
+      'The Grinch':       { hover: { src: 'audio/cards/the-grinch-hover.mp3', maxDur: 44, gain: 1.5 } },
       'Green Goblin':     { hover: { src: 'audio/cards/green-goblin-hover.mp3', maxDur: 24 } },
       'Dr. Octopus':      { play: { src: 'audio/cards/dr-octopus-play.mp3?v=2', maxDur: 5 } },
       'Sandman':          { hover: { src: 'audio/cards/sandman-hover.mp3', maxDur: 194, gain: 1.5 }, death: { src: 'audio/cards/sandman-death.m4a', fullDuration: true, gain: 3.0 } },
