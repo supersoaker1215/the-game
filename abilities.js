@@ -3965,6 +3965,18 @@ const CARD_ABILITIES = {
           }
         };
       }
+      // Pre-attack burn tick — deal 1 damage to this card before it swings.
+      if (!card._brAttackHooked) {
+        card._brAttackHooked = true;
+        const origAttack = card.onBeforeAttack || null;
+        card.onBeforeAttack = function(G, self) {
+          if (self.isBurning && self.currentHealth > 0) {
+            G.dealDamage(self, 1, null);
+            G.log(`[BURN] ${self.name} takes 1 burn damage before attacking!`);
+          }
+          if (origAttack) origAttack.call(this, G, self);
+        };
+      }
     },
     _spawnFreddy(G, owner, laneIdx) {
       const lane = G.state.lanes[laneIdx];
@@ -4058,17 +4070,7 @@ const CARD_ABILITIES = {
         });
       }
 
-      // Deal 1 damage to every burning enemy in and around this lane.
-      // Freddy spawns via onDeath chain set in _markBurning — no kill
-      // tracking needed here.
-      const burnLanes = [laneIdx - 1, laneIdx, laneIdx + 1].filter(l => l >= 0 && l < G.LANE_COUNT);
-      burnLanes.forEach(l => {
-        const c = G.state.lanes[l][opp];
-        if (c && c.isBurning && c.currentHealth > 0) {
-          G.dealDamage(c, 1, null);
-          G.log(`[BURN] ${c.name} takes 1 burn damage!`);
-        }
-      });
+      // Burn damage now fires via onBeforeAttack on each marked card.
     },
   },
   "Freddy Krueger": {
