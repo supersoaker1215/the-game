@@ -816,6 +816,7 @@ const UI = {
       // (0:27 → 1:09 of the source). -20 LUFS unified-baseline, 1s
       // fade-in / 2s fade-out baked. maxDur 43 lets the full phrase play.
       'Hulk':             { hover: { src: 'audio/cards/hulk-hover.mp3?v=1', maxDur: 43 }, play: 'audio/cards/hulk-play.mp3' },
+      'Groot':            { play: { src: 'audio/cards/groot-play.mp3', maxDur: 5.5 } },
       'Symbiote Spider-Man': { play: { src: 'audio/cards/symbiote-spider-man-play.mp3', maxDur: 5.0 } },
       'Jango Fett':       { attack: 'audio/cards/jango-fett-attack.mp3', death: 'audio/cards/jango-fett-death.mp3' },
       'Jason Voorhees':   { play: { src: 'audio/cards/jason-play.mp3', maxDur: 5.0 } },
