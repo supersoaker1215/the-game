@@ -1032,7 +1032,7 @@ const CARD_ABILITIES = {
       // Roguelite Text+ override — _jigsawTrapCount scales the trap
       // count. Default 3 (classic); Text+ to 5 so a fresh Jigsaw can
       // mine the entire enemy side.
-      const trapCount = (self && self._jigsawTrapCount) || 3;
+      const trapCount = (self && self._jigsawTrapCount) || 2;
       const placeTrapStep = (remaining) => {
         // Only lanes that are empty on the enemy side AND not already trapped qualify.
         const open = [];
@@ -1057,7 +1057,7 @@ const CARD_ABILITIES = {
           `Jigsaw — Set Bear Trap`,
           `Choose an enemy lane to set Bear Trap ${stepNumber} of ${trapCount}`,
           (lane) => {
-            const debuff = (self && self._jigsawTrapDebuff) || 1;
+            const debuff = (self && self._jigsawTrapDebuff) || 2;
             G.state.lanes[lane].trap = { placedBy: owner, debuff };
             G.log(`[BEAR TRAP ${stepNumber}/${trapCount}] Jigsaw sets a Reverse Bear Trap in lane ${lane + 1}!`);
             placeTrapStep(remaining - 1);
@@ -1065,7 +1065,7 @@ const CARD_ABILITIES = {
           opp);
       };
 
-      G.log(`Jigsaw's game begins — set ${trapCount} traps, then drag an enemy.`);
+      G.log(`Jigsaw's game begins — set ${trapCount} trap${trapCount === 1 ? '' : 's'}, then drag an enemy.`);
       placeTrapStep(trapCount);
     }
   },

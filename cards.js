@@ -140,7 +140,7 @@ const CARD_DEFS = [
     desc: "When Played: Give adjacent allies Damage Immunity for 1 turn." },
   { name: "Jigsaw", cost: 2, attack: 0, health: 0, type: "villain",
     abilities: [],
-    desc: "When Discarded: Set up to 3 Bear Traps in empty enemy lanes — the first enemy to enter takes (−1/−1). Then drag an enemy to another empty lane." },
+    desc: "When Discarded: Set up 2 Bear Traps in empty enemy lanes. Cards in those lanes lose (2/2). Then drag an enemy to another empty lane." },
   { name: "Loki", cost: 3, attack: 2, health: 1, type: "villain",
     abilities: ["Evade 1"],
     desc: "When Played: Fill your Block Meter." },
