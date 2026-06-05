@@ -53,4 +53,9 @@ window.CARD_ART_VARIANTS = {
   'Batman':              ['Batman.png',               'Batman 2.png'],
   'Venom':               ['Venom.png',                'Venom 2.png'],
   'Wolverine':           ['Wolverine.png',            'Wolverine 2.png'],
+  // ── New art additions ──
+  'Han Solo':            ['Han Solo.jpg'],
+  'Darth Maul':          ['Darth Maul.jpg'],
+  'Padme Amidala':       ['Padme Amidala.png'],
+  'Luke Skywalker':      ['Luke Skywalker.png',       'Luke Skywalker 2.jpg'],
 };
