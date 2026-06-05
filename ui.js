@@ -5212,7 +5212,6 @@ const UI = {
   },
 
   _freddyHandSlash(cardName, dmg, cardId, handIdx, handOwner, destroyed) {
-    if (this.sfx) this.sfx.playCardSfx('Freddy Krueger', 'spawn');
     this._screenShake('medium');
 
     let target = null;
@@ -10053,6 +10052,7 @@ const UI = {
       ut: !!card.isUntrickable,
       fks: !!card._freddySlashing,
       crit: !!card._criticalThisRound, burn: !!card.isBurning,
+      brl: card._bullseyeRoundsLeft | 0, ds: card._debuffStacks | 0,
       // Predictor + projected XP fields — keep last so they're visible
       // in the data-snap attr for debugging.
       pdi: pred ? (pred.dmgIn | 0) : 0,
