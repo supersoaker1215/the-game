@@ -3085,7 +3085,16 @@ const UI = {
           // triggered them. So Superman's flow is: placement cue → freeze
           // SFX (after target 1 picked) → freeze SFX (after target 2) →
           // damage SFX (after final target).
-          this.sfx.playCardSfx(card.name, 'play', card);
+          const _playSfxEl = this.sfx.playCardSfx(card.name, 'play', card);
+          // Track when the play SFX ends so the AI queue and player click
+          // handler can stagger the next card play until the audio finishes.
+          if (_playSfxEl) {
+            const _sfxMaxDur = 5.0;
+            const _sfxDur = (!isNaN(_playSfxEl.duration) && _playSfxEl.duration > 0)
+              ? Math.min(_playSfxEl.duration, _sfxMaxDur)
+              : _sfxMaxDur;
+            this.sfx._playCardSfxEndsAt = Date.now() + _sfxDur * 1000;
+          }
           // POST-PLAY HOVER LOCKOUT — when the user clicks a lane to
           // place a card, the cursor naturally lands on the freshly-
           // placed board card (since the card materializes under the
@@ -13840,6 +13849,8 @@ const UI = {
   onCardClick(card) {
     const s = Game.state;
     if (!this.canPlayerPlayCards(s)) return;
+    // Stagger: block new card plays while a when-played SFX is still running
+    if (this.sfx && this.sfx._playCardSfxEndsAt && Date.now() < this.sfx._playCardSfxEndsAt) return;
     // In trick phase, only allow trickPhasePlayable cards unless Red Skull passive is active
     if (s.phase === 'player-tricks' && !card.trickPhasePlayable &&
         !Game.getAllCardsOf('player').some(c => c.passive === 'allowCardsInTricksPhase')) {

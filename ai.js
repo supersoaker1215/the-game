@@ -395,8 +395,12 @@ const AI = {
         try { fn(); } catch (e) { console.error(e); }
         if (typeof UI !== 'undefined' && UI.render) UI.render();
         // Phase B — post-play hold for animations to settle.
-        if (postDelay > 0) {
-          setTimeout(step, postDelay);
+        // Wait for any when-played SFX to finish before the next card.
+        const sfxEndsAt = (typeof UI !== 'undefined' && UI.sfx && UI.sfx._playCardSfxEndsAt) || 0;
+        const sfxRemaining = Math.max(0, sfxEndsAt - Date.now());
+        const stepDelay = Math.max(postDelay, sfxRemaining + 80);
+        if (stepDelay > 0) {
+          setTimeout(step, stepDelay);
         } else {
           step();
         }
