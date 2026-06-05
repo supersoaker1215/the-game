@@ -3107,9 +3107,15 @@ const UI = {
           // any play, plus on the same-named card we cap it at 2.4s
           // since the resume from the played card's own audio is
           // sonically identical to "still playing."
-          this.sfx._postPlayHoverLockUntil = Date.now() + 1600;
+          // Extend hover lockout to cover the full when-played SFX duration
+          // so hovering during a play sound doesn't start a new hover track
+          // on top of it. Floor at 1600ms for cards with no registered SFX.
+          const _sfxLockMs = (this.sfx._playCardSfxEndsAt && this.sfx._playCardSfxEndsAt > Date.now())
+            ? Math.max(1600, this.sfx._playCardSfxEndsAt - Date.now())
+            : 1600;
+          this.sfx._postPlayHoverLockUntil = Date.now() + _sfxLockMs;
           this.sfx._postPlayHoverLockName = card.name;
-          this.sfx._postPlayHoverLockNameUntil = Date.now() + 2400;
+          this.sfx._postPlayHoverLockNameUntil = Date.now() + Math.max(2400, _sfxLockMs);
           // After the card plays, GRADUALLY fade out the hover audio
           // over 3 seconds. The hover music has already been ducked to
           // 50% by the play SFX (see _playSample's duck logic), and
