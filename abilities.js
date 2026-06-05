@@ -1455,6 +1455,8 @@ const CARD_ABILITIES = {
   },
   "Cyborg": {
     onDeath(G, self, lane) {
+      // Skip the summon if the lane itself was destroyed (Anti-Life Equation / Darkseid Collapse).
+      if (G.state.lanes[lane] && G.state.lanes[lane].destroyed) return;
       // Classic: random card pulled from your hand and summoned in
       // Cyborg's slot. Roguelite Text+ ("Replication") sets
       // _cyborgChooseFromHand so the human player gets to PICK which
@@ -1469,7 +1471,7 @@ const CARD_ABILITIES = {
       if (!eligible.length) return;
       // Pick destination — prefer Cyborg's old lane, fall back to any open.
       const pickTargetLane = () => {
-        if (G.state.lanes[lane] && !G.state.lanes[lane].destroyed && !G.state.lanes[lane][self.owner]) return lane;
+        if (G.state.lanes[lane] && !G.state.lanes[lane][self.owner]) return lane;
         const open = G.getOpenLanes(self.owner);
         return open.length ? open[0] : -1;
       };
