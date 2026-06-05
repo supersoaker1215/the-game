@@ -730,7 +730,7 @@ const UI = {
       // Already under the 1.5s death-cap so no maxDur needed.
       'Harley Quinn':     { death: 'audio/cards/harley-death.mp3' },
       // Joker deathfall — 0.83s clip, plays on every Joker kill.
-      'Joker':            { hover: { src: 'audio/cards/joker-hover.mp3', maxDur: 46, gain: 3.0 }, death: 'audio/cards/joker-death.mp3' },
+      'Joker':            { hover: { src: 'audio/cards/joker-hover.mp3', maxDur: 46, gain: 6.0 }, death: 'audio/cards/joker-death.mp3' },
       // Poison Ivy death — 0.58s clip, plays on every Ivy kill.
       'Poison Ivy':       { death: 'audio/cards/poison-ivy-death.mp3' },
       // Man-Bat death — 0.65s clip, plays on every Man-Bat kill.
