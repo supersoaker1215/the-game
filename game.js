@@ -3312,6 +3312,12 @@ const Game = {
       this.log(`  [CRITICAL] ${attacker.name} CRITICAL HIT! (${dmg} → ${crit})`);
       dmg = crit;
     }
+    // Yoda shield — target's side takes half combat damage (rounded up)
+    if (this.state._yodaShieldFor && this.state._yodaShieldFor[target.owner] > 0 && dmg > 0) {
+      const halved = Math.ceil(dmg / 2);
+      this.log(`  [YODA SHIELD] ${target.name} takes half damage (${dmg} → ${halved})`);
+      dmg = halved;
+    }
     if (target.isFrozen) {
       const hasDoubleFrozen = this.getAllCardsOf(attacker.owner).some(
         c => c.passive === 'doubleFrozenDamage' && c.currentHealth > 0
