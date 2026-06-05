@@ -3142,6 +3142,27 @@ const UI = {
       };
     }
 
+    // ---- Play cue for summoned real cards (Mother Box, Bat Signal, SSS, etc.) ----
+    // summonCard bypasses the playCard hook, so summoned real cards never
+    // triggered their play SFX. Hook summonCard and fire 'play' for any
+    // summon that has a sourceDef (i.e. a real card, not a token).
+    // Pennywise and Freddy Krueger are excluded — their jumpscare helpers
+    // already fire 'spawn' + 'play' 60 ms later via setTimeout.
+    if (Game.summonCard) {
+      const origSummon = Game.summonCard.bind(Game);
+      Game.summonCard = (owner, laneIdx, name, cost, attack, health, abilities, sourceDef) => {
+        const r = origSummon(owner, laneIdx, name, cost, attack, health, abilities, sourceDef);
+        if (sourceDef && name && name !== 'Pennywise' && name !== 'Freddy Krueger') {
+          const lane = Game.state && Game.state.lanes && Game.state.lanes[laneIdx];
+          const card = lane && lane[owner];
+          if (card && card.name === name) {
+            this.sfx.playCardSfx(card.name, 'play', card);
+          }
+        }
+        return r;
+      };
+    }
+
     // ---- Play (trick) — separate registry from cards ----
     if (Game.playTrick) {
       const origT = Game.playTrick.bind(Game);
@@ -3280,15 +3301,20 @@ const UI = {
         // killed"). Lane-gating still applies so chained deaths in the
         // same combat don't pile up.
         let chosen = null;
-        const currentDeathCost = this.sfx._laneDeathCost ?? -1;
+        // Lane-gating (one audio slot per lane) only applies during combat
+        // resolution — ability kills outside combat (e.g. Homelander
+        // sacrificing an ally then destroying an enemy) each get their own
+        // slot so neither death sound blocks the other.
+        const inCombat = !!this.sfx._inCombat;
+        const currentDeathCost = inCombat ? (this.sfx._laneDeathCost ?? -1) : -1;
         const winsLane = (deadCost > currentDeathCost)
           || (deadCost === currentDeathCost && Math.random() < 0.5);
         if (winsLane) {
-          if (this.sfx._laneAudioEl) {
+          if (inCombat && this.sfx._laneAudioEl) {
             try { this.sfx._laneAudioEl.volume = 0; this.sfx._laneAudioEl.pause(); } catch (e) {}
           }
           chosen = this.sfx.playCardSfx(deadName, 'death', card);
-          this.sfx._laneDeathCost = deadCost;
+          if (inCombat) this.sfx._laneDeathCost = deadCost;
           // Mark so handleDeath wrapper doesn't double-play
           card._deathAudioFired = true;
         }
@@ -3327,6 +3353,7 @@ const UI = {
         this.sfx._laneAudioEl = null;
         this.sfx._laneAudioEndsAt = 0;
         this.sfx._laneDeathCost = null;
+        this.sfx._inCombat = false;
         return origSR(...rest);
       };
     }
@@ -3365,6 +3392,7 @@ const UI = {
         this.sfx._laneAudioEl = null;
         this.sfx._laneAudioEndsAt = 0;
         this.sfx._laneDeathCost = null;
+        this.sfx._inCombat = true;
         return origRC(...rest);
       };
     }
@@ -14789,20 +14817,23 @@ const UI = {
         if (!card._deathAudioFired && card.name && this.sfx && this.sfx.playCardSfx) {
           card._deathAudioFired = true;
           const deadCost = card.baseCost || card.cost || 0;
-          const currentDeathCost = this.sfx._laneDeathCost ?? -1;
+          const inCombat = !!this.sfx._inCombat;
+          const currentDeathCost = inCombat ? (this.sfx._laneDeathCost ?? -1) : -1;
           const winsLane = (deadCost > currentDeathCost)
             || (deadCost === currentDeathCost && Math.random() < 0.5);
           if (winsLane) {
-            if (this.sfx._laneAudioEl) {
+            if (inCombat && this.sfx._laneAudioEl) {
               try { this.sfx._laneAudioEl.volume = 0; this.sfx._laneAudioEl.pause(); } catch (e) {}
             }
             const chosen = this.sfx.playCardSfx(card.name, 'death', card);
-            this.sfx._laneDeathCost = deadCost;
-            if (chosen) {
-              this.sfx._laneAudioEl = chosen;
-              const fileDur = (!isNaN(chosen.duration) && chosen.duration > 0) ? chosen.duration : 1.5;
-              const playMs = Math.min(1.5, fileDur) * 1000;
-              this.sfx._laneAudioEndsAt = performance.now() + playMs + 150;
+            if (inCombat) {
+              this.sfx._laneDeathCost = deadCost;
+              if (chosen) {
+                this.sfx._laneAudioEl = chosen;
+                const fileDur = (!isNaN(chosen.duration) && chosen.duration > 0) ? chosen.duration : 1.5;
+                const playMs = Math.min(1.5, fileDur) * 1000;
+                this.sfx._laneAudioEndsAt = performance.now() + playMs + 150;
+              }
             }
           }
         }
