@@ -3238,39 +3238,41 @@ const CARD_ABILITIES = {
     }
   },
   "Han Solo": {
-    onPlay(G, self, lane) {
+    _recurringBT: true,
+    onBeforeTricks(G, self, lane) {
+      if (self.isStunned || self.isFrozen) return;
       const opp = G.opponent(self.owner);
-      // Collect lanes with an enemy card (not Han's own lane)
       const redirectLanes = [];
       for (let i = 0; i < G.LANE_COUNT; i++) {
         if (i === lane) continue;
         const e = G.state.lanes[i][opp];
         if (e && e.currentHealth > 0) redirectLanes.push(i);
       }
-      if (!redirectLanes.length) return; // nowhere to redirect
+      if (!redirectLanes.length) return;
 
-      // AI: sort by threat (ATK × HP) so auto-pick targets the biggest threat
-      if (!Game.isHuman(self.owner)) {
+      const choices = [lane, ...redirectLanes];
+      if (Game.isHuman(self.owner)) {
+        G.promptLaneChoice(self.owner, choices,
+          'Han Solo — Take the Shot',
+          `Choose a lane to attack this combat. Lane ${lane + 1} = stay and fight normally.`,
+          (chosen) => {
+            if (chosen !== lane) {
+              self._hanRedirectLane = chosen;
+              G.log(`[HAN SOLO] Lining up a shot into lane ${chosen + 1}!`);
+            } else {
+              G.log(`[HAN SOLO] Han Solo stays and fights his own lane.`);
+            }
+          },
+          opp, null, self.attack);
+      } else {
+        // AI: pick biggest threat
         redirectLanes.sort((a, b) => {
           const ea = G.state.lanes[a][opp], eb = G.state.lanes[b][opp];
           return (eb.attack * eb.currentHealth) - (ea.attack * ea.currentHealth);
         });
+        self._hanRedirectLane = redirectLanes[0];
+        G.log(`[HAN SOLO] Lining up a shot into lane ${redirectLanes[0] + 1}!`);
       }
-
-      // Own lane is always the "stay" option; redirect lanes follow
-      const choices = [lane, ...redirectLanes];
-      G.promptLaneChoice(self.owner, choices,
-        'Han Solo — Take the Shot',
-        `Choose a lane to attack this combat. Lane ${lane + 1} = stay and fight normally.`,
-        (chosen) => {
-          if (chosen !== lane) {
-            self._hanRedirectLane = chosen;
-            G.log(`[HAN SOLO] Lining up a shot into lane ${chosen + 1}!`);
-          } else {
-            G.log(`[HAN SOLO] Han Solo stays and fights his own lane.`);
-          }
-        },
-        opp, null, self.attack);
     },
     onBeforeAttack(G, self) {
       if (self._hanRedirectLane == null) return;
@@ -4085,6 +4087,9 @@ const CARD_ABILITIES = {
       const allyInLane = lane[owner];
 
       const finishSpawn = (atk, hp) => {
+        // Freddy's arrival ends the burning — all fire is extinguished when he rises.
+        const opp = G.opponent(owner);
+        G.getAllCardsOf(opp).forEach(e => { e.isBurning = false; });
         G.summonCard(owner, laneIdx, 'Freddy Krueger', 2, atk, hp, [], fredDef);
         const freddy = G.state.lanes[laneIdx][owner];
         if (freddy) {
@@ -4131,7 +4136,6 @@ const CARD_ABILITIES = {
       const opp = G.opponent(self.owner);
       const enemy = G.state.lanes[lane][opp];
       if (enemy && enemy.currentHealth > 0) AB._markBurning(enemy, self);
-      self._adjBurnPending = true;
       G.log('Boiler Room ignites — the enemy in this lane is burning!');
     },
     onAnyCardPlayed(G, self) {
@@ -4148,26 +4152,26 @@ const CARD_ABILITIES = {
     },
     onTurnStart(G, self) {
       if (self._brSpawned) return;
-      const laneIdx = G.findCardLane(self);
-      if (laneIdx < 0) return;
+      if (G.findCardLane(self) < 0) return;
       const AB = CARD_ABILITIES['Boiler Room'];
       const opp = G.opponent(self.owner);
 
-      // Spread burn mark to adjacent lanes after the first round.
-      if (self._adjBurnPending) {
-        self._adjBurnPending = false;
-        [laneIdx - 1, laneIdx + 1].forEach(adj => {
+      // Each round, spread burning from every currently burning card to its adjacent lanes.
+      const toBurn = [];
+      G.getAllCardsOf(opp).filter(c => c.isBurning && c.currentHealth > 0).forEach(burningCard => {
+        const bLane = G.findCardLane(burningCard);
+        if (bLane < 0) return;
+        [bLane - 1, bLane + 1].forEach(adj => {
           if (adj >= 0 && adj < G.LANE_COUNT) {
             const c = G.state.lanes[adj][opp];
-            if (c && c.currentHealth > 0) {
-              AB._markBurning(c, self);
-              G.log(`[BURN] Boiler Room spreads — ${c.name} in lane ${adj + 1} is now burning!`);
-            }
+            if (c && c.currentHealth > 0 && !c.isBurning && !toBurn.includes(c)) toBurn.push(c);
           }
         });
-      }
-
-      // Burn damage now fires via onBeforeAttack on each marked card.
+      });
+      toBurn.forEach(c => {
+        AB._markBurning(c, self);
+        G.log(`[BURN] Boiler Room spreads — ${c.name} in lane ${G.findCardLane(c) + 1} is now burning!`);
+      });
     },
     onDeath(G, self) {
       // Boiler Room removed without spawning Freddy (e.g. destroyed by a trick)
@@ -4177,10 +4181,6 @@ const CARD_ABILITIES = {
     },
   },
   "Freddy Krueger": {
-    onDeath(G, self) {
-      // When Freddy dies the burn he brought clears from all enemies.
-      G.getEnemiesOf(self.owner).forEach(e => { e.isBurning = false; });
-    },
     onBeforeAttack(G, self) {
       const opp = G.opponent(self.owner);
       const hand = (G.state[opp] && G.state[opp].hand) || [];
@@ -4208,7 +4208,9 @@ const CARD_ABILITIES = {
       self._skipNormalAttack = true;
     },
     onDeath(G, self, laneIdx) {
-      // Clear the Boiler Room that spawned this Freddy
+      // Clear burning from all enemies when Freddy dies
+      G.getEnemiesOf(self.owner).forEach(e => { e.isBurning = false; });
+      // Clear the Boiler Room env slot that spawned this Freddy
       const l = (self._envLane !== undefined) ? self._envLane : laneIdx;
       const lane = G.state.lanes[l];
       if (lane && lane._env) lane._env[self.owner] = null;

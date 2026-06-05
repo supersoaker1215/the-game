@@ -231,7 +231,7 @@ const CARD_DEFS = [
     desc: "When Played: Summon The Kraken (5/3) in any lane." },
   { name: "Han Solo", cost: 5, attack: 3, health: 4, type: "hero",
     abilities: [],
-    desc: "ON PLAY: You may choose an enemy lane to attack this combat phase instead of your own (may choose own lane). PASSIVE: At the start of each round, allies have a 50% chance to gain Critical (deals double damage)." },
+    desc: "PASSIVE: Before each tricks phase, choose any enemy lane to attack instead of your own (may choose own lane to stay). At the start of each round, allies have a 50% chance to gain Critical (deals double damage)." },
   { name: "Captain America", cost: 5, attack: 3, health: 4, type: "hero",
     abilities: ["Armor 1"],
     desc: "When Played: Give an ally Invincible 1. While Active: All cards in your hand cost 1 less Energy." },

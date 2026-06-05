@@ -3078,6 +3078,10 @@ const Game = {
       this._creditAbsorb(attacker, 'Armor', attacker.armorValue);
       chip -= attacker.armorValue;
     }
+    if (this.state._yodaShieldFor && this.state._yodaShieldFor[attacker.owner] > 0) {
+      chip = Math.ceil(chip / 2);
+      if (chip <= 0) return;
+    }
     attacker.currentHealth -= chip;
     attacker.statsHpTaken = (attacker.statsHpTaken || 0) + chip;
     this.emitDmg(attacker.id, chip, 'hit', undefined, target && target.id);
@@ -5818,6 +5822,10 @@ const Game = {
       this.log(`  [ARMOR] ${card.name}'s Armor ${card.armorValue} reduces chain damage to ${amount}`);
     }
 
+    if (this.state._yodaShieldFor && this.state._yodaShieldFor[card.owner] > 0) {
+      amount = Math.ceil(amount / 2);
+      if (amount <= 0) return true;
+    }
     card.currentHealth -= amount;
     this.log(`  [${tag}] ${card.name} takes ${amount} → ${Math.max(0, card.currentHealth)} HP`);
     if (card.onDamaged) card.onDamaged(this, card, null, amount);
@@ -6556,12 +6564,11 @@ const Game = {
           if (this.isHuman(owner)) playerJumpNowReady = card;
         }
         if (card.name === 'Jason Voorhees' && trigger === 'allyDied' && data.owner === owner) {
-          // Jason can only jump INTO the lane where the ally died — locked,
-          // not a free pick anywhere on board. If the lane is now blocked
-          // (e.g. another ally moved in, or lane got destroyed), the jump
-          // check at play-time cancels cleanly.
+          const tgtLane = (typeof data.laneIdx === 'number') ? data.laneIdx : undefined;
+          // Don't offer jump into a destroyed lane (e.g. Anti-Life Equation / Darkseid Collapse)
+          if (tgtLane !== undefined && this.state.lanes[tgtLane] && this.state.lanes[tgtLane].destroyed) return;
           card.jumpReady = true;
-          card.jumpLane = (typeof data.laneIdx === 'number') ? data.laneIdx : undefined;
+          card.jumpLane = tgtLane;
           const laneStr = card.jumpLane !== undefined ? ` in lane ${card.jumpLane + 1}` : '';
           this.log(`  [JUMP] Jason Voorhees rises to avenge${laneStr}! Free play available.`);
           if (this.isHuman(owner)) playerJumpNowReady = card;
