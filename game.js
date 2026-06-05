@@ -3293,6 +3293,18 @@ const Game = {
       this.log(`  [${tag}] ${attacker.name} +${etchBonus} ATK (${dmg} → ${dmg + etchBonus})`);
       dmg += etchBonus;
     }
+    // Yoda combined-force strike — both chosen allies deal combined ATK
+    if (attacker._yodaCombinedAtk) {
+      const combined = attacker._yodaCombinedAtk;
+      this.log(`  [YODA] ${attacker.name} strikes with combined Force! (${dmg} → ${combined})`);
+      dmg = combined;
+    }
+    // Han Solo Critical — double damage for this round
+    if (attacker._criticalThisRound) {
+      const crit = dmg * 2;
+      this.log(`  [CRITICAL] ${attacker.name} CRITICAL HIT! (${dmg} → ${crit})`);
+      dmg = crit;
+    }
     if (target.isFrozen) {
       const hasDoubleFrozen = this.getAllCardsOf(attacker.owner).some(
         c => c.passive === 'doubleFrozenDamage' && c.currentHealth > 0
@@ -3722,23 +3734,31 @@ const Game = {
     p.health = Math.max(0, p.health - amount);
     this.emitDmg(null, amount, 'hpHit', owner);
     // Yoda passive — when an ally deals direct hero damage, a random ally
-    // on the attacker's side gains Armor 1, Evade 1, or Bullseye.
+    // (never Yoda himself) gains a buff it doesn't already have at cap.
     if (source && source.id != null) {
       const attackerOwner = source.owner || this.opponent(owner);
       if (this.state._yodaShieldFor && this.state._yodaShieldFor[attackerOwner] > 0) {
-        const pool = this.getAllCardsOf(attackerOwner).filter(c => c.currentHealth > 0);
+        const pool = this.getAllCardsOf(attackerOwner).filter(
+          c => c.currentHealth > 0 && c.name !== 'Yoda'
+        );
         if (pool.length) {
-          const target = pool[Math.floor(Math.random() * pool.length)];
-          const roll = Math.floor(Math.random() * 3);
-          if (roll === 0) {
-            target.armorValue = (target.armorValue || 0) + 1;
-            this.log(`  [YODA AURA] ${target.name} gains Armor 1!`);
-          } else if (roll === 1) {
-            target.evadeCharges = (target.evadeCharges || 0) + 1;
-            this.log(`  [YODA AURA] ${target.name} gains Evade 1!`);
-          } else {
-            target.isBullseye = true;
-            this.log(`  [YODA AURA] ${target.name} gains Bullseye!`);
+          const tgt = pool[Math.floor(Math.random() * pool.length)];
+          const available = [];
+          if (!(tgt.armorValue >= 1))   available.push('armor');
+          if (!(tgt.evadeCharges >= 1)) available.push('evade');
+          if (!tgt.isBullseye)          available.push('bullseye');
+          if (available.length) {
+            const choice = available[Math.floor(Math.random() * available.length)];
+            if (choice === 'armor') {
+              tgt.armorValue = 1;
+              this.log(`  [YODA AURA] ${tgt.name} gains Armor 1!`);
+            } else if (choice === 'evade') {
+              tgt.evadeCharges = 1;
+              this.log(`  [YODA AURA] ${tgt.name} gains Evade 1!`);
+            } else {
+              tgt.isBullseye = true;
+              this.log(`  [YODA AURA] ${tgt.name} gains Bullseye!`);
+            }
           }
         }
       }

@@ -3237,6 +3237,69 @@ const CARD_ABILITIES = {
         "Choose an ally to give Revive 1", grant);
     }
   },
+  "Han Solo": {
+    onPlay(G, self, lane) {
+      const opp = G.opponent(self.owner);
+      // Collect lanes with an enemy card (not Han's own lane)
+      const redirectLanes = [];
+      for (let i = 0; i < G.LANE_COUNT; i++) {
+        if (i === lane) continue;
+        const e = G.state.lanes[i][opp];
+        if (e && e.currentHealth > 0) redirectLanes.push(i);
+      }
+      if (!redirectLanes.length) return; // nowhere to redirect
+
+      // AI: sort by threat (ATK × HP) so auto-pick targets the biggest threat
+      if (!Game.isHuman(self.owner)) {
+        redirectLanes.sort((a, b) => {
+          const ea = G.state.lanes[a][opp], eb = G.state.lanes[b][opp];
+          return (eb.attack * eb.currentHealth) - (ea.attack * ea.currentHealth);
+        });
+      }
+
+      // Own lane is always the "stay" option; redirect lanes follow
+      const choices = [lane, ...redirectLanes];
+      G.promptLaneChoice(self.owner, choices,
+        'Han Solo — Take the Shot',
+        `Choose a lane to attack this combat. Lane ${lane + 1} = stay and fight normally.`,
+        (chosen) => {
+          if (chosen !== lane) {
+            self._hanRedirectLane = chosen;
+            G.log(`[HAN SOLO] Lining up a shot into lane ${chosen + 1}!`);
+          } else {
+            G.log(`[HAN SOLO] Han Solo stays and fights his own lane.`);
+          }
+        },
+        opp, null, self.attack);
+    },
+    onBeforeAttack(G, self) {
+      if (self._hanRedirectLane == null) return;
+      const targetLane = self._hanRedirectLane;
+      self._hanRedirectLane = null;
+      const opp = G.opponent(self.owner);
+      const enemy = G.state.lanes[targetLane][opp];
+      if (enemy && enemy.currentHealth > 0) {
+        G.log(`[HAN SOLO] Han fires across to lane ${targetLane + 1}!`);
+        G.applyCombatDamage(self, enemy);
+        if (self.splash > 0) G.splashDamage(targetLane, self.owner, self.splash);
+        self._skipNormalAttack = true;
+      }
+      // If enemy died before combat, Han fights his own lane normally (no skip)
+    },
+    onTurnStart(G, self) {
+      if (self.currentHealth <= 0) return;
+      G.getAllCardsOf(self.owner).filter(c => c.currentHealth > 0).forEach(a => {
+        a._criticalThisRound = Math.random() < 0.5;
+        if (a._criticalThisRound) G.log(`[HAN SOLO] ${a.name} is feeling lucky — Critical this round!`);
+      });
+    },
+    onEndOfTurn(G, self) {
+      G.getAllCardsOf(self.owner).forEach(a => { delete a._criticalThisRound; });
+    },
+    onDeath(G, self) {
+      G.getAllCardsOf(self.owner).forEach(a => { delete a._criticalThisRound; });
+    }
+  },
   "Yoda": {
     passive: 'yodaShield',
     onPlay(G, self, lane) {
@@ -3244,7 +3307,6 @@ const CARD_ABILITIES = {
       if (!G.state._yodaShieldFor) G.state._yodaShieldFor = {};
       G.state._yodaShieldFor[self.owner] = (G.state._yodaShieldFor[self.owner] || 0) + 1;
 
-      const opp = G.opponent(self.owner);
       const allAllies = G.getAlliesOf(self.owner).filter(a => a.currentHealth > 0);
 
       const _cleanse = () => {
@@ -3259,50 +3321,37 @@ const CARD_ABILITIES = {
         });
       };
 
-      const _strike = (a1, a2) => {
+      const _markCombined = (a1, a2) => {
         const combined = a1.attack + a2.attack;
-        [a1, a2].forEach(ally => {
-          const li = G.findCardLane(ally);
-          if (li < 0) return;
-          const enemy = G.state.lanes[li][opp];
-          if (enemy && enemy.currentHealth > 0) {
-            G.dealDamage(enemy, combined, ally);
-            G.log(`[YODA] ${ally.name} (lane ${li + 1}) strikes for ${combined} combined damage!`);
-          } else {
-            G.damagePlayer(opp, combined, ally.isBullseye, ally);
-            G.log(`[YODA] ${ally.name} (lane ${li + 1}) strikes enemy hero for ${combined}!`);
-          }
-          if (ally.splash && ally.splash > 0) G.splashDamage(li, ally.owner, ally.splash);
-        });
-        G.cleanupDead();
+        a1._yodaCombinedAtk = combined;
+        a2._yodaCombinedAtk = combined;
+        G.log(`[YODA] ${a1.name} and ${a2.name} will strike with combined force (${combined} ATK) this combat!`);
         _cleanse();
       };
 
-      // Yoda is always one of the two options. If there is only 1 other
-      // ally, auto-pair so no prompt is needed.
       const others = allAllies.filter(a => a.id !== self.id);
       if (others.length === 0) {
-        // Only Yoda — attack his own lane with his own ATK, then cleanse.
-        _strike(self, self);
+        _cleanse();
       } else if (others.length === 1) {
-        G.log(`Yoda and ${others[0].name} strike together!`);
-        _strike(self, others[0]);
+        _markCombined(self, others[0]);
       } else {
-        // 2+ other allies — pick first, then second (excluding first).
         const pool = [self, ...others];
         G.promptCardChoice(self.owner, pool,
           'Yoda — First Ally',
-          'Choose first ally to strike (Yoda is always an option)',
+          'Choose first ally to channel Force through (Yoda always available)',
           (first) => {
             const pool2 = pool.filter(a => a.id !== first.id);
             G.promptCardChoice(self.owner, pool2,
               'Yoda — Second Ally',
-              'Choose second ally to strike alongside',
-              (second) => { _strike(first, second); },
+              'Choose second ally to channel Force through',
+              (second) => { _markCombined(first, second); },
               cards => cards.slice().sort((a, b) => b.attack - a.attack)[0]);
           },
           cards => cards.slice().sort((a, b) => b.attack - a.attack)[0]);
       }
+    },
+    onEndOfTurn(G, self) {
+      G.getAllCardsOf(self.owner).forEach(a => { delete a._yodaCombinedAtk; });
     },
     onDeath(G, self) {
       if (G.state._yodaShieldFor && G.state._yodaShieldFor[self.owner] > 0) {
@@ -3310,6 +3359,7 @@ const CARD_ABILITIES = {
         if (G.state._yodaShieldFor[self.owner] === 0)
           G.log('Yoda falls — the Force shield fades.');
       }
+      G.getAllCardsOf(self.owner).forEach(a => { delete a._yodaCombinedAtk; });
     }
   },
   "Darth Maul": {
