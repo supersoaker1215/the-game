@@ -3153,7 +3153,7 @@ const UI = {
       const origSummon = Game.summonCard.bind(Game);
       Game.summonCard = (owner, laneIdx, name, cost, attack, health, abilities, sourceDef) => {
         const r = origSummon(owner, laneIdx, name, cost, attack, health, abilities, sourceDef);
-        if (sourceDef && name && name !== 'Pennywise' && name !== 'Freddy Krueger') {
+        if (sourceDef && name && name !== 'Pennywise' && name !== 'Freddy Krueger' && !Game._suppressSummonSfx) {
           const lane = Game.state && Game.state.lanes && Game.state.lanes[laneIdx];
           const card = lane && lane[owner];
           if (card && card.name === name) {

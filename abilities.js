@@ -3865,6 +3865,7 @@ const CARD_ABILITIES = {
       // _knullCostCeiling raises the upper bound from 9 to 10 with Text+
       // ("God of Symbiotes") so the lottery can roll 10-cost titans.
       const maxCost = self._knullCostCeiling || 9;
+      G._suppressSummonSfx = true;
       G.getOpenLanes(self.owner).filter(l => l !== lane).forEach(l => {
         // Pull from the shared summon deck so Knull's lottery spreads
         // across the full 95-card pool. Filter: cost minCost-maxCost,
@@ -3874,6 +3875,7 @@ const CARD_ABILITIES = {
           G.summonCard(self.owner, l, d.name, d.cost, d.attack, d.health, d.abilities || [], d);
         }
       });
+      G._suppressSummonSfx = false;
       G.log("Knull fills the battlefield!");
     }
   },
