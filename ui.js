@@ -11282,6 +11282,7 @@ const UI = {
     else if (card.armorValue > 0) el.classList.add('status-armor');
     else if (card.evadeCharges > 0) el.classList.add('status-evade');
     if (card.isBurning) el.classList.add('status-burning');
+    if (card._criticalThisRound) el.classList.add('status-critical');
 
     // Poison Ivy charmed glow (additive, doesn't replace status glow).
     // Mirror the three-layer match used by the badge filter above so
@@ -11821,6 +11822,7 @@ const UI = {
     if (c.hasDamageImmunity) b.push(badge('badge-dmg-immune', 'DmgImmune', 'Damage Immunity'));
     if (c.isUntrickable) b.push(badge('badge-untrickable', 'Untrickable', 'Untrickable'));
     // Stack-aware status badges — counters drive these.
+    if (c._criticalThisRound) b.push(badge('badge-critical', 'CRITICAL', 'Critical — deals double damage this round'));
     if (c.isBurning) b.push(badge('badge-burning', 'Burning', 'Burning'));
     if (c.isStunned) {
       const n = c.stunnedTurns > 0 ? c.stunnedTurns : 1;

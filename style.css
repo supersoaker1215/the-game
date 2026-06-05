@@ -5584,6 +5584,11 @@ body.hit-pause .ai-hand * {
 /* Only NEGATIVE / control statuses override the card frame glow.
    Positive traits (invincible, taunt, dmg-immune, armor, evade) live in the
    trait badge row, not on the frame. */
+.card.status-critical { box-shadow: 0 0 14px rgba(255,105,180,0.9), 0 0 28px rgba(255,20,147,0.5) !important; animation: critical-pulse 0.7s ease-in-out infinite alternate; }
+@keyframes critical-pulse {
+  from { box-shadow: 0 0 10px rgba(255,105,180,0.8), 0 0 20px rgba(255,20,147,0.4) !important; }
+  to   { box-shadow: 0 0 22px rgba(255,105,180,1.0), 0 0 44px rgba(255,20,147,0.7) !important; }
+}
 .card.status-stunned { box-shadow: 0 0 14px rgba(241,196,15,0.8), 0 0 28px rgba(241,196,15,0.3) !important; }
 .card.status-frozen { box-shadow: 0 0 14px rgba(133,193,233,0.7), 0 0 28px rgba(174,214,241,0.3) !important; }
 .card.status-feared { box-shadow: 0 0 14px rgba(0,0,0,0.8), 0 0 28px rgba(40,0,40,0.5), inset 0 0 8px rgba(0,0,0,0.3) !important; }
@@ -5768,6 +5773,11 @@ body.hit-pause .ai-hand * {
 }
 /* Badge colors resolve through :root palette so descriptions and pills
    share one source of truth. Rebrand any keyword by editing :root. */
+.badge-critical   { color: #ff69b4; animation: critical-badge-flash 0.6s ease-in-out infinite alternate; font-weight: 700; }
+@keyframes critical-badge-flash {
+  from { opacity: 1; text-shadow: 0 0 4px rgba(255,105,180,0.9); }
+  to   { opacity: 0.75; text-shadow: 0 0 10px rgba(255,20,147,0.7); }
+}
 .badge-burning    { color: var(--kw-burn); animation: burn-flicker 1.2s ease-in-out infinite alternate; }
 @keyframes burn-flicker {
   from { opacity: 1; text-shadow: 0 0 4px rgba(255,122,0,0.9); }
