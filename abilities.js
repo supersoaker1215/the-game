@@ -4169,11 +4169,17 @@ const CARD_ABILITIES = {
 
       // Burn damage now fires via onBeforeAttack on each marked card.
     },
+    onDeath(G, self) {
+      // Boiler Room removed without spawning Freddy (e.g. destroyed by a trick)
+      // — clear burning from all enemies so it doesn't persist.
+      const opp = G.opponent(self.owner);
+      G.getAllCardsOf(opp).forEach(e => { e.isBurning = false; });
+    },
   },
   "Freddy Krueger": {
-    onAnyCardPlayed(G, self) {
-      const AB = CARD_ABILITIES['Boiler Room'];
-      if (AB) G.getEnemiesOf(self.owner).forEach(e => AB._markBurning(e));
+    onDeath(G, self) {
+      // When Freddy dies the burn he brought clears from all enemies.
+      G.getEnemiesOf(self.owner).forEach(e => { e.isBurning = false; });
     },
     onBeforeAttack(G, self) {
       const opp = G.opponent(self.owner);
