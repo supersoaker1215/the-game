@@ -3238,33 +3238,78 @@ const CARD_ABILITIES = {
     }
   },
   "Yoda": {
-    // 2026-05-26 — restored as a fresh cost-8 hero. Same buff/cleanse
-    // pattern the old Yoda (pre-rename) had, with Immunity bolted on
-    // for trait depth. Lone-wolf fallback +2/+3 + a board-wide
-    // debuff sweep — the cleanse turns him into an "elder Jedi"
-    // counter to Frozen / Stunned / Fear / Mind-Control lockouts.
+    passive: 'yodaShield',
     onPlay(G, self, lane) {
-      const allies = G.getAlliesOf(self.owner).filter(a => a.id !== self.id && a.currentHealth > 0);
-      if (allies.length) {
-        G.promptCardChoice(self.owner, allies, "Yoda — Empower",
-          "Choose an ally to buff (+4/+4)", (a) => {
-            G.buffCard(a, 4, 4);
-            G.log(`Yoda empowers ${a.name} +4/+4!`);
-          });
+      // Activate the shield passive immediately on entry.
+      if (!G.state._yodaShieldFor) G.state._yodaShieldFor = {};
+      G.state._yodaShieldFor[self.owner] = (G.state._yodaShieldFor[self.owner] || 0) + 1;
+
+      const opp = G.opponent(self.owner);
+      const allAllies = G.getAlliesOf(self.owner).filter(a => a.currentHealth > 0);
+
+      const _cleanse = () => {
+        allAllies.forEach(a => {
+          let n = 0;
+          if (a.isStunned)        { a.isStunned = false; a.stunnedTurns = 0; n++; }
+          if (a.isFrozen)         { a.isFrozen  = false; a.frozenTurns  = 0; n++; }
+          if (a.isFeared)         { a.isFeared  = false; a.fearedTurns  = 0; n++; }
+          if (a.isMindControlled) { a.isMindControlled = false; n++; }
+          if (a.isBurning)        { a.isBurning = false; n++; }
+          if (n > 0) G.log(`  [CLEANSE] ${a.name} freed from ${n} debuff${n === 1 ? '' : 's'}.`);
+        });
+      };
+
+      const _strike = (a1, a2) => {
+        const combined = a1.attack + a2.attack;
+        [a1, a2].forEach(ally => {
+          const li = G.findCardLane(ally);
+          if (li < 0) return;
+          const enemy = G.state.lanes[li][opp];
+          if (enemy && enemy.currentHealth > 0) {
+            G.dealDamage(enemy, combined, ally);
+            G.log(`[YODA] ${ally.name} (lane ${li + 1}) strikes for ${combined} combined damage!`);
+          } else {
+            G.damagePlayer(opp, combined, ally.isBullseye, ally);
+            G.log(`[YODA] ${ally.name} (lane ${li + 1}) strikes enemy hero for ${combined}!`);
+          }
+          if (ally.splash && ally.splash > 0) G.splashDamage(li, ally.owner, ally.splash);
+        });
+        G.cleanupDead();
+        _cleanse();
+      };
+
+      // Yoda is always one of the two options. If there is only 1 other
+      // ally, auto-pair so no prompt is needed.
+      const others = allAllies.filter(a => a.id !== self.id);
+      if (others.length === 0) {
+        // Only Yoda — attack his own lane with his own ATK, then cleanse.
+        _strike(self, self);
+      } else if (others.length === 1) {
+        G.log(`Yoda and ${others[0].name} strike together!`);
+        _strike(self, others[0]);
       } else {
-        G.buffCard(self, 2, 3);
-        G.log("Yoda empowers himself +2/+3!");
+        // 2+ other allies — pick first, then second (excluding first).
+        const pool = [self, ...others];
+        G.promptCardChoice(self.owner, pool,
+          'Yoda — First Ally',
+          'Choose first ally to strike (Yoda is always an option)',
+          (first) => {
+            const pool2 = pool.filter(a => a.id !== first.id);
+            G.promptCardChoice(self.owner, pool2,
+              'Yoda — Second Ally',
+              'Choose second ally to strike alongside',
+              (second) => { _strike(first, second); },
+              cards => cards.slice().sort((a, b) => b.attack - a.attack)[0]);
+          },
+          cards => cards.slice().sort((a, b) => b.attack - a.attack)[0]);
       }
-      // Cleanse always fires — remove all debuffs from every ally.
-      G.getAlliesOf(self.owner).forEach(a => {
-        let cleared = 0;
-        if (a.isStunned)        { a.isStunned = false; a.stunnedTurns = 0; cleared++; }
-        if (a.isFrozen)         { a.isFrozen  = false; a.frozenTurns  = 0; cleared++; }
-        if (a.isFeared)         { a.isFeared  = false; a.fearedTurns  = 0; cleared++; }
-        if (a.isMindControlled) { a.isMindControlled = false; cleared++; }
-        if (a.isBurning)        { a.isBurning = false; cleared++; }
-        if (cleared > 0) G.log(`  [CLEANSE] ${a.name} is freed from ${cleared} debuff${cleared === 1 ? '' : 's'}.`);
-      });
+    },
+    onDeath(G, self) {
+      if (G.state._yodaShieldFor && G.state._yodaShieldFor[self.owner] > 0) {
+        G.state._yodaShieldFor[self.owner]--;
+        if (G.state._yodaShieldFor[self.owner] === 0)
+          G.log('Yoda falls — the Force shield fades.');
+      }
     }
   },
   "Darth Maul": {

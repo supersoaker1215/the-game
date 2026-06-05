@@ -318,7 +318,7 @@ const CARD_DEFS = [
     desc: "When Played: Choose an enemy to Freeze 1, then Splash 5. Start of Tricks: Freeze 1 a random unfrozen enemy." },
   { name: "Yoda", cost: 8, attack: 4, health: 5, type: "hero",
     abilities: ["Immunity"],
-    desc: "When Played: Add (+4/+4) to an ally (or +2/+3 to self if alone). Always cleanses all debuffs from every ally." },
+    desc: "When Played: Choose 2 allies — both strike their own lanes with combined ATK. Splash applies normally. Cleanses all ally debuffs. While Active: Allies and hero health take ½ damage (rounded up). Whenever an ally deals direct hero damage, a random ally gains Armor 1, Evade 1, or Bullseye." },
 
   // ==================== COST 9 ====================
   { name: "Batman", cost: 9, attack: 7, health: 5, type: "hero",

@@ -3561,6 +3561,11 @@ const Game = {
 
   damagePlayer(owner, amount, isBullseye, source) {
     if (amount <= 0) return;
+    // Yoda shield — hero health takes half damage (rounded up)
+    if (this.state._yodaShieldFor && this.state._yodaShieldFor[owner] > 0) {
+      amount = Math.ceil(amount / 2);
+      if (amount <= 0) return;
+    }
     const p = this.state[owner];
     const who = owner === 'player' ? 'You' : 'AI';
 
@@ -3716,6 +3721,28 @@ const Game = {
     // sweep in sim/test.js.
     p.health = Math.max(0, p.health - amount);
     this.emitDmg(null, amount, 'hpHit', owner);
+    // Yoda passive — when an ally deals direct hero damage, a random ally
+    // on the attacker's side gains Armor 1, Evade 1, or Bullseye.
+    if (source && source.id != null) {
+      const attackerOwner = source.owner || this.opponent(owner);
+      if (this.state._yodaShieldFor && this.state._yodaShieldFor[attackerOwner] > 0) {
+        const pool = this.getAllCardsOf(attackerOwner).filter(c => c.currentHealth > 0);
+        if (pool.length) {
+          const target = pool[Math.floor(Math.random() * pool.length)];
+          const roll = Math.floor(Math.random() * 3);
+          if (roll === 0) {
+            target.armorValue = (target.armorValue || 0) + 1;
+            this.log(`  [YODA AURA] ${target.name} gains Armor 1!`);
+          } else if (roll === 1) {
+            target.evadeCharges = (target.evadeCharges || 0) + 1;
+            this.log(`  [YODA AURA] ${target.name} gains Evade 1!`);
+          } else {
+            target.isBullseye = true;
+            this.log(`  [YODA AURA] ${target.name} gains Bullseye!`);
+          }
+        }
+      }
+    }
     // Track face damage for the round recap. Damage to player = damage AI dealt.
     if (this.state._roundStats) {
       const rs = this.state._roundStats;
@@ -4676,6 +4703,11 @@ const Game = {
       return;
     }
     if (this.is10CostImmune(source, card)) { this.log(`  [IMMUNE] ${card.name} is immune to ${source.name}'s ability!`); return; }
+    // Yoda shield — allies take half damage (rounded up) while Yoda is active
+    if (this.state._yodaShieldFor && this.state._yodaShieldFor[card.owner] > 0) {
+      amount = Math.ceil(amount / 2);
+      if (amount <= 0) return;
+    }
     if (card.evadeCharges > 0 && !card.isStunned && !card.isFrozen) {
       card.evadeCharges--;
       this.log(`  [EVADE] ${card.name} dodges ${amount} damage! (${card.evadeCharges} charges left)`);
