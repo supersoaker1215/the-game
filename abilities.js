@@ -1469,7 +1469,7 @@ const CARD_ABILITIES = {
       if (!eligible.length) return;
       // Pick destination — prefer Cyborg's old lane, fall back to any open.
       const pickTargetLane = () => {
-        if (G.state.lanes[lane] && !G.state.lanes[lane][self.owner]) return lane;
+        if (G.state.lanes[lane] && !G.state.lanes[lane].destroyed && !G.state.lanes[lane][self.owner]) return lane;
         const open = G.getOpenLanes(self.owner);
         return open.length ? open[0] : -1;
       };
