@@ -11397,37 +11397,7 @@ const UI = {
     const descHtml = card._moderStripped
       ? `<div class="card-desc desc-stripped">⛔ Abilities Stripped</div>`
       : `<div class="card-desc">${this.formatDesc(card.desc)}</div>`;
-    // Combine base ability keywords (always shown) with dynamic runtime
-    // status (Burning, Stunned, Critical, etc.). getStatusBadges already
-    // covers live values for abilities like Evade/Armor/Bullseye, so we
-    // only add base-ability badges for keywords that have NO live-state
-    // counterpart (Overdrive, Splash, Untrickable, Hunt, Draw, etc.) or
-    // whose live property is currently falsy (e.g. Evade 0 after use).
-    const _liveCoversAbility = (ab) => {
-      const kw = ab.split(' ')[0];
-      const n  = parseInt(ab.split(' ')[1]) || 0;
-      switch (kw) {
-        case 'Evade':      return card.evadeCharges > 0;
-        case 'Armor':      return card.armorValue > 0;
-        case 'Bullseye':   return !!card.isBullseye;
-        case 'Taunt':      return card.tauntTurns > 0;
-        case 'Invincible': return card.invincibleTurns > 0;
-        case 'Immunity':   return card.immunityCharges > 0;
-        case 'Revive':     return card.reviveCharges > 0;
-        case 'Unresistible': return card.unresistibleCharges > 0;
-        case 'Overdrive':  return !!card.isOverdrive;
-        case 'Splash':     return card.splashRange > 0;
-        case 'Hunt':       return !!card.hasHunt;
-        case 'Draw':       return card.drawOnPlay > 0;
-        case 'Untrickable': return !!card.isUntrickable;
-        default:           return false;
-      }
-    };
-    const baseAbilityBadges = !inHand && (card.abilities || []).length
-      ? (card.abilities || []).filter(ab => !_liveCoversAbility(ab))
-          .map(ab => this.formatAbilityBadges([ab])).join('')
-      : '';
-    const statusHtml = `<div class="status-badges">${this.getStatusBadges(card)}${baseAbilityBadges}</div>`;
+    const statusHtml = `<div class="status-badges">${this.getStatusBadges(card)}</div>`;
     const activeHtml = card._moderStripped ? '' : this.getActiveAbilityText(card);
 
     // Live MVP tracker — only the TOP TWO cards per side (by composite
