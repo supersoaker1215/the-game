@@ -3284,6 +3284,13 @@ const Game = {
   // Compute the raw damage value AFTER attacker-side modifiers but BEFORE
   // target-side reductions (armor). Stacks: base ATK → Berserker/Zealot
   // etch bonus → Palpatine frozen-double. Logs each step.
+  // Effective ATK for a card, accounting for Yoda's combined-force mark
+  // and Han Solo's Critical. Used for both contested and uncontested paths.
+  _cardEffectiveAtk(card) {
+    let atk = (card._yodaCombinedAtk != null) ? card._yodaCombinedAtk : card.attack;
+    if (card._criticalThisRound) atk *= 2;
+    return atk;
+  },
   _computeIncomingDamage(attacker, target) {
     let dmg = attacker.attack;
     const etchBonus = this._getEtchAttackBonus(attacker);
@@ -3450,11 +3457,9 @@ const Game = {
     let target = this.getAttackTarget(card.owner, laneIdx);
     if (!target || target.currentHealth <= 0) target = this.state.lanes[laneIdx][defOwner];
     if (!target || target.currentHealth <= 0) {
-      // Log BEFORE damagePlayer so Mr Freeze's "[FROZEN HP] negated" line
-      // follows the attempt instead of preceding a misleading "hits for N"
-      // line (which reads like damage actually landed).
-      this.log(`  [OVERDRIVE] ${card.name} hits health bar for ${card.attack}!`);
-      this.damagePlayer(defOwner, card.attack, card.isBullseye, card);
+      const overdriveDmg = this._cardEffectiveAtk(card);
+      this.log(`  [OVERDRIVE] ${card.name} hits health bar for ${overdriveDmg}!`);
+      this.damagePlayer(defOwner, overdriveDmg, card.isBullseye, card);
       return;
     }
     const killed = this.applyCombatDamage(card, target);
@@ -3547,7 +3552,8 @@ const Game = {
     // swing when the lane is uncontested. A splash-5 attacker with
     // 7 ATK hitting an open lane deals 7 to the HP bar (not 12); the
     // splash then fires to adjacent lanes as its own effect.
-    this.log(`[LANE ${laneIdx + 1}] ${card.name} (${card.attack} ATK) is uncontested`);
+    const uncontestedDmg = this._cardEffectiveAtk(card);
+    this.log(`[LANE ${laneIdx + 1}] ${card.name} (${uncontestedDmg} ATK) is uncontested`);
     // Mark the attacker as having swung BEFORE damagePlayer fires so
     // any block-trick that triggers inside (e.g. Fear Toxin played as
     // a free block-meter trick) sees `_combatSwungThisRound = true`
@@ -3559,7 +3565,7 @@ const Game = {
     // combat again." Pre-fix the contested path covered this (line
     // 2773), the uncontested path did not.
     card._combatSwungThisRound = true;
-    this.damagePlayer(targetOwner, card.attack, card.isBullseye, card);
+    this.damagePlayer(targetOwner, uncontestedDmg, card.isBullseye, card);
     if (card.onDamagePlayer) card.onDamagePlayer(this, card);
     if (card.splashRange > 0) this.applySplash(card, laneIdx);
     // Uncontested survivor fires onLaneResolved same as a contested winner.
