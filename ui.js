@@ -10037,6 +10037,7 @@ const UI = {
       fd: !!card.isFaceDown, jr: !!card.jumpReady,
       ut: !!card.isUntrickable,
       fks: !!card._freddySlashing,
+      crit: !!card._criticalThisRound, burn: !!card.isBurning,
       // Predictor + projected XP fields — keep last so they're visible
       // in the data-snap attr for debugging.
       pdi: pred ? (pred.dmgIn | 0) : 0,
