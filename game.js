@@ -2452,6 +2452,22 @@ const Game = {
   },
 
   resolveCombat() {
+    // Pre-combat choices (e.g. Han Solo lane redirect) — fire onBeforeCombat
+    // hooks once per combat, then re-enter. Prompt-setting hooks will be
+    // picked up by the hasPendingPrompt guard below on the next call.
+    if (!this.state._beforeCombatFired) {
+      this.state._beforeCombatFired = true;
+      this.getAllCardsOnBoard().forEach(c => {
+        if (c.onBeforeCombat && c.currentHealth > 0) {
+          try { c.onBeforeCombat(this, c, this.findCardLane(c)); } catch (e) { console.error(e); }
+        }
+      });
+      if (this.hasPendingPrompt()) {
+        this.whenPromptCleared(() => this.resolveCombat());
+        return;
+      }
+    }
+    delete this.state._beforeCombatFired;
     // If an async prompt from Before-Tricks (e.g. Man-Bat's lane choice) is still pending,
     // wait for it to resolve before starting combat. Otherwise combat captures cached
     // lane references and can land a hit on a card that has already moved out.
@@ -6233,6 +6249,7 @@ const Game = {
       onBeforeAttack: def.onBeforeAttack || null, onDamagePlayer: def.onDamagePlayer || null,
       onAnyCardPlayed: def.onAnyCardPlayed || null, onTurnStart: def.onTurnStart || null,
       onBeforeTricks: def.onBeforeTricks || null, onEndOfTurn: def.onEndOfTurn || null,
+      onBeforeCombat: def.onBeforeCombat || null,
       onMoved: def.onMoved || null,
       onLaneResolved: def.onLaneResolved || null,
       // onAnyTrickPlayed — fires for every trick played by either

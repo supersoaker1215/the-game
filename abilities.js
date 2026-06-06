@@ -3240,8 +3240,7 @@ const CARD_ABILITIES = {
     }
   },
   "Han Solo": {
-    _recurringBT: true,
-    onBeforeTricks(G, self, lane) {
+    onBeforeCombat(G, self, lane) {
       if (self.isStunned || self.isFrozen) return;
       const opp = G.opponent(self.owner);
       const redirectLanes = [];
@@ -3267,7 +3266,6 @@ const CARD_ABILITIES = {
           },
           opp, null, self.attack);
       } else {
-        // AI: pick biggest threat
         redirectLanes.sort((a, b) => {
           const ea = G.state.lanes[a][opp], eb = G.state.lanes[b][opp];
           return (eb.attack * eb.currentHealth) - (ea.attack * ea.currentHealth);
@@ -3486,12 +3484,13 @@ const CARD_ABILITIES = {
     onPlay(G, self, lane) {
       const opp = G.opponent(self.owner);
       const destroyLane = (i) => {
+        // Collapse first so Jason's allyDied trigger sees lane.destroyed = true
+        G.destroyLane(i, 3);
         // Pass self as source — killCard's guard `card.owner !== source.owner`
         // ensures Darkseid isn't credited for killing his own card,
         // only the enemy side.
         G.killCard(G.state.lanes[i][self.owner], self);
         G.killCard(G.state.lanes[i][opp], self);
-        G.destroyLane(i, 3);
         G.log(`Darkseid destroys lane ${i + 1}!`);
       };
       // Roguelite Text+ ("Apokoliptan Legion") — _darkseidAnyContested

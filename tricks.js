@@ -485,17 +485,18 @@ const TRICK_DEFS = [
       if (Game.isHuman(owner) && contested.length) {
         G.promptLaneChoice(owner, contested, "Anti-Life — Destroy Lane", "Choose contested lane to destroy", (i) => {
           const opp = G.opponent(owner);
+          // Collapse first so Jason's allyDied trigger sees lane.destroyed = true
+          G.destroyLane(i, 3);
           G.killCard(G.state.lanes[i][owner]);
           G.killCard(G.state.lanes[i][opp]);
-          G.destroyLane(i, 3);
           G.log(`Anti-Life destroys lane ${i + 1}!`);
         });
       } else if (contested.length) {
         const i = contested[0];
         const opp = G.opponent(owner);
+        G.destroyLane(i, 3);
         G.killCard(G.state.lanes[i][owner]);
         G.killCard(G.state.lanes[i][opp]);
-        G.destroyLane(i, 3);
         G.log(`Anti-Life destroys lane ${i + 1}!`);
       }
     }
