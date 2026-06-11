@@ -6108,10 +6108,17 @@ body.hit-pause .ai-hand * {
   animation: cardDestroy 0.9s cubic-bezier(0.4, 0, 0.6, 1) forwards;
 }
 @keyframes cardDestroy {
+  /* Perf 2026-06: dropped the per-frame filter:blur() that ran on
+     every card death. The mask-position dissolve already carries the
+     "sweeping away" read; the trailing 1px blur added near-invisible
+     softening at a real compositor cost (blur is the most expensive
+     per-frame filter and stacked across every death). Brightness +
+     saturate stay — they're a single short chrome flash, cheap, and
+     do the visible work. */
   0% {
     opacity: 1;
     transform: scale(1);
-    filter: brightness(1) saturate(1) blur(0);
+    filter: brightness(1) saturate(1);
     /* Mask shifted so the BLACK (visible) portion fully covers the
        card and the transparent edge is off the top-left corner. */
     -webkit-mask-position: 100% 100%;
@@ -6130,7 +6137,7 @@ body.hit-pause .ai-hand * {
        diagonal "front" of the dissolve has swept across. */
     opacity: 0.6;
     transform: scale(0.96);
-    filter: brightness(2.4) saturate(1.4) blur(1px);
+    filter: brightness(2.4) saturate(1.4);
     -webkit-mask-position: -20% -20%;
             mask-position: -20% -20%;
   }
@@ -13568,9 +13575,16 @@ body.round-transition .board-section::before {
    transform origin is the top edge so the "rest" position (static
    fan) lines up cleanly when the animation finishes. */
 @keyframes handDealIn {
-  0%   { opacity: 0; transform: translateY(70px) rotate(var(--fan-rotate, 0deg)) scale(0.85); filter: blur(6px); }
-  60%  { opacity: 1; transform: translateY(-8px) rotate(var(--fan-rotate, 0deg)) scale(1.03); filter: blur(0); }
-  100% { opacity: 1; transform: translateY(var(--fan-lift, 0)) rotate(var(--fan-rotate, 0deg)) scale(1); filter: blur(0); }
+  /* Perf 2026-06: dropped filter:blur(6px)→0. This fires on every
+     card dealt to hand (5+ per draw, every round) and the blur is a
+     full-card-area composite per card per frame. The scale(0.85)→1
+     + translateY + opacity already deliver the "materialize up from
+     below" feel; the blur-in was a soft-focus flourish the eye barely
+     registers at 550ms but the GPU pays for every frame. Transform +
+     opacity are compositor-only — no layout, no paint. */
+  0%   { opacity: 0; transform: translateY(70px) rotate(var(--fan-rotate, 0deg)) scale(0.85); }
+  60%  { opacity: 1; transform: translateY(-8px) rotate(var(--fan-rotate, 0deg)) scale(1.03); }
+  100% { opacity: 1; transform: translateY(var(--fan-lift, 0)) rotate(var(--fan-rotate, 0deg)) scale(1); }
 }
 .hand-card-wrapper.hand-deal-in {
   animation: handDealIn 550ms cubic-bezier(0.22, 1, 0.36, 1) both;

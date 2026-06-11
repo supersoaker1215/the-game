@@ -4880,23 +4880,47 @@ const UI = {
 
   // --- MOTION HELPERS -------------------------------------------------
 
+  // Collect the cards the motion system cares about — board + player
+  // hand only. Scoped to those two containers instead of a full-
+  // document querySelectorAll: codex / draft / sandbox / inspect-modal
+  // cards never FLIP-animate, so scanning them every render was pure
+  // waste. (Perf pass 2026-06: this runs twice per render — capture
+  // before, apply after — at 5-10 renders/sec during combat.)
+  _motionCardEls() {
+    const out = [];
+    if (this.board) this.board.querySelectorAll('.card[data-card-id]').forEach(el => out.push(el));
+    const hand = this.playerHand || document.getElementById('player-hand');
+    if (hand) hand.querySelectorAll('.card[data-card-id]').forEach(el => out.push(el));
+    return out;
+  },
+
   _capturePositions() {
     this._prevRects = new Map();
-    this._prevHtml = new Map();
-    document.querySelectorAll('.card[data-card-id]').forEach(el => {
+    // Hold the actual ELEMENT reference for board cards instead of
+    // serializing el.outerHTML every render. outerHTML is only ever
+    // consumed by _spawnDeathGhost, which fires for the rare card
+    // that vanished this render (0 most frames, 1-3 on a death). The
+    // old code stringified every board card every render — a hidden
+    // per-frame CPU tax. Now we defer: stash the reference here
+    // (cheap), serialize outerHTML lazily in _applyMotionEffects ONLY
+    // for cards that actually died. A detached node's outerHTML still
+    // reflects its last-rendered state, so the death ghost is
+    // identical.
+    this._prevEls = new Map();
+    this._motionCardEls().forEach(el => {
       const id = el.getAttribute('data-card-id');
       const rect = el.getBoundingClientRect();
       if (rect.width < 1) return; // hidden / zero-size — skip
       const inHand = el.classList.contains('hand-card');
       this._prevRects.set(id, { rect, inHand });
-      if (!inHand) this._prevHtml.set(id, el.outerHTML);
+      if (!inHand) this._prevEls.set(id, el);
     });
   },
 
   _applyMotionEffects() {
     if (!this._prevRects) return;
     const current = new Map();
-    document.querySelectorAll('.card[data-card-id]').forEach(el => {
+    this._motionCardEls().forEach(el => {
       current.set(el.getAttribute('data-card-id'), el);
     });
 
@@ -4908,13 +4932,17 @@ const UI = {
       this._animateFly(el, prev.rect);
     }
 
-    // Deaths — board cards that are no longer present anywhere
+    // Deaths — board cards that are no longer present anywhere.
+    // Serialize outerHTML lazily here (only for the vanished card)
+    // instead of for every card at capture time. The held element
+    // reference is detached from the DOM by now but its outerHTML
+    // still reflects the card's final rendered state.
     for (const [id, prev] of this._prevRects) {
       if (current.has(id)) continue;
       if (prev.inHand) continue;
-      const html = this._prevHtml.get(id);
-      if (!html) continue;
-      this._spawnDeathGhost(prev.rect, html);
+      const deadEl = this._prevEls.get(id);
+      if (!deadEl) continue;
+      this._spawnDeathGhost(prev.rect, deadEl.outerHTML);
     }
   },
 
