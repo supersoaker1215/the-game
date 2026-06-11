@@ -5305,6 +5305,74 @@ const UI = {
     }, 820);
   },
 
+  // ===================== DAMAGE MAGNITUDE TIER =====================
+  // One shared classifier that maps a hit's magnitude to a feedback
+  // intensity tier, and one parameter table that every feedback
+  // channel reads from. Before this, every card hit — 1 damage or 12 —
+  // produced identical flash / burst / chips / shake / sound / float,
+  // so the game's biggest moments (a 9-damage lethal) felt exactly
+  // like its smallest (a 1-chip poke). The professional fix isn't just
+  // "make big hits bigger" — it's ALSO pulling the low end DOWN so the
+  // contrast makes heavy/lethal hits read as genuinely heavier. A 1-2
+  // damage tap now gets a small dim flash, no screen shake, a tiny
+  // burst, 2 chips; a kill gets max flash + heavy shake + a hit-pause
+  // freeze-frame + max-scale everything. Restraint is the juice.
+  //
+  // Tiers:
+  //   light  (1-2)   — minimal: small flash, no shake, no knockback
+  //   medium (3-5)   — standard combat feedback
+  //   heavy  (6+)    — amplified: bright flash, medium shake, recoil
+  //   lethal (kill)  — maximum: brightest, heavy shake, hit-pause,
+  //                    vignette pulse, biggest float
+  _damageTier(amount, lethal) {
+    if (lethal) return 'lethal';
+    const a = amount || 0;
+    if (a >= 6) return 'heavy';
+    if (a >= 3) return 'medium';
+    return 'light';
+  },
+  // Per-tier feedback parameters. Each channel in the hit handler reads
+  // its value here so the whole feedback set stays coordinated — tune
+  // one row and every channel for that tier moves together.
+  _TIER_FX: {
+    light:  { flashMs: 230, flashCls: '',             shake: null,     knockback: 0,  burst: 0.62, pop: 1.00, chips: 2, hitPause: 0,   sfxGain: 0.78 },
+    medium: { flashMs: 330, flashCls: '',             shake: 'light',  knockback: 5,  burst: 1.00, pop: 1.16, chips: 4, hitPause: 0,   sfxGain: 1.00 },
+    heavy:  { flashMs: 430, flashCls: 'hit-flash-heavy',  shake: 'medium', knockback: 10, burst: 1.45, pop: 1.42, chips: 6, hitPause: 0,   sfxGain: 1.22 },
+    lethal: { flashMs: 520, flashCls: 'hit-flash-lethal', shake: 'heavy',  knockback: 15, burst: 1.90, pop: 1.70, chips: 8, hitPause: 220, sfxGain: 1.40 },
+  },
+  // Brief board-wide freeze-frame on lethal hits — the cel-animation
+  // "hit-pause" that makes a kill register as an EVENT, not a blip.
+  // Adds body.hit-pause (CSS pauses all board animation/transition)
+  // for `ms`, then releases. Gated under reduced-motion. Distinct from
+  // the existing 90ms generic hit-pause: a kill freezes longer (220ms)
+  // so the death beat lands harder than a chip.
+  _hitPauseFreeze(ms) {
+    if (!ms) return;
+    if (this._reducedMotion && this._reducedMotion()) return;
+    document.body.classList.add('hit-pause');
+    if (this._hitPauseTimer) clearTimeout(this._hitPauseTimer);
+    this._hitPauseTimer = setTimeout(() => {
+      document.body.classList.remove('hit-pause');
+      this._hitPauseTimer = null;
+    }, ms);
+  },
+  // Card recoil — the target jolts AWAY from its attacker on impact.
+  // Lane combat is vertical (ally on the bottom slot, enemy on top), so
+  // an ally hit by the enemy opposite recoils downward (+Y) and an
+  // enemy recoils upward (−Y). Magnitude comes from the tier's
+  // knockback px. Pure transform (compositor-only), auto-cleans.
+  _cardKnockback(cardEl, px) {
+    if (!px || !cardEl) return;
+    if (this._reducedMotion && this._reducedMotion()) return;
+    const isAlly = cardEl.classList.contains('ally-card');
+    const dir = isAlly ? 1 : -1; // ally jolts down, enemy jolts up
+    cardEl.style.setProperty('--kb-y', (dir * px) + 'px');
+    cardEl.classList.remove('card-knockback');
+    void cardEl.offsetWidth;
+    cardEl.classList.add('card-knockback');
+    setTimeout(() => cardEl.classList.remove('card-knockback'), 360);
+  },
+
   showDamageFloats() {
     const events = Game.flushDmg();
     for (const ev of events) {
@@ -5376,37 +5444,50 @@ const UI = {
       // Card-targeted events — find card element on board
       const cardEl = document.querySelector(`[data-card-id="${ev.cardId}"]`);
       if (!cardEl) continue;
-      // Hit flash + strike burst ring + card shake
+      // Hit flash + strike burst ring + card shake — ALL magnitude-
+      // scaled. The tier classifier maps this hit's damage (and
+      // lethality) to a feedback intensity; every channel below reads
+      // its parameter from the shared _TIER_FX table so a 1-chip tap
+      // and a 9-damage lethal feel genuinely different.
       if (ev.type === 'hit') {
+        const tier = this._damageTier(ev.amount, ev.lethal);
+        const fx = this._TIER_FX[tier] || this._TIER_FX.medium;
+        ev._popScale = fx.pop;   // read later by the floating-number block
         // Attack beam — laser line from attacker to target. Fires only
         // when the attacker is known (direct combat hits). Skipped for
         // splash/chain/trick damage where the attackerId is undefined.
         if (ev.attackerId != null && ev.amount > 0) {
           this._spawnAttackBeam(ev.attackerId, ev.cardId);
         }
+        // Tiered flash — brightness peak + duration scale with tier.
+        // Light hits get a short dim flash; lethal gets the longest,
+        // brightest one (via the hit-flash-heavy/-lethal modifier
+        // classes that lift the keyframe peak).
         cardEl.classList.add('hit-flash');
-        setTimeout(() => cardEl.classList.remove('hit-flash'), 350);
-        // Chip-shedding particle burst — small cubes "fall off" the
-        // card on hit, like a partial disintegration. Replaces the
-        // earlier 320ms horizontal shake which the user flagged as
-        // distracting ("when a card is hurt it shakes a round get
-        // rid of that... start the death animation. cubic
-        // disintegration"). Spawns 4-5 ~5px squares at random
-        // positions on the card body; they tumble off with rotation
-        // + fade. Same visual family as the .destroy-particle
-        // burst that fires on actual kills, so a hit reads as the
-        // card "starting to die" — a partial preview of the full
-        // dissolve.
-        this.spawnHitChips(cardEl);
+        if (fx.flashCls) cardEl.classList.add(fx.flashCls);
+        cardEl.style.setProperty('--flash-ms', fx.flashMs + 'ms');
+        setTimeout(() => cardEl.classList.remove('hit-flash', 'hit-flash-heavy', 'hit-flash-lethal'), fx.flashMs);
+        // Chip-shedding particle burst — count scales with tier (2 for
+        // a tap, 8 for a kill). spawnHitChips reads the override.
+        this.spawnHitChips(cardEl, fx.chips);
+        // Card recoil — jolt away from the attacker, distance by tier.
+        this._cardKnockback(cardEl, fx.knockback);
+        // Screen shake — RESTRAINT at the low end: light hits do NOT
+        // shake at all (fx.shake === null), so the screen only moves
+        // for hits that earned it. medium/heavy/lethal escalate.
+        if (fx.shake) this._screenShake(fx.shake);
+        // Lethal hit-pause — brief board freeze-frame so a kill lands
+        // as a discrete beat. No-op for non-lethal tiers.
+        if (fx.hitPause) this._hitPauseFreeze(fx.hitPause);
         this.sfx.play('hit');
         // Haptic — fires for EVERY hit, not just player-side. The
         // phone doesn't know which side is "yours", so a tick per
         // hit is honest feedback and subtle enough not to be spammy.
         if (ev.amount > 0) this._haptic('hit');
-        // Concussive ring burst — spawns a single expanding circle
-        // tinted by the receiving card's side theme.
+        // Concussive ring burst — size scales with tier via --burst-scale.
         const burst = document.createElement('div');
         burst.className = 'strike-burst';
+        burst.style.setProperty('--burst-scale', String(fx.burst));
         cardEl.style.position = 'relative';
         cardEl.appendChild(burst);
         setTimeout(() => burst.remove(), 600);
@@ -5441,6 +5522,15 @@ const UI = {
       else if (ev.type === 'block') float.textContent = 'BLOCKED';
       else if (ev.type === 'armor') float.textContent = 'ARMOR';
       else if (ev.type === 'heal') float.textContent = `+${ev.amount}`;
+      // Magnitude pop — the bigger the hit, the bigger the number
+      // punches in. _popScale was stamped on the event by the hit
+      // handler above (1.0 for a tap → 1.7 for a lethal). Heavy/lethal
+      // tiers also get a tier class for an additive glow. Non-hit
+      // events default to 1.0.
+      const popScale = ev._popScale || 1.0;
+      float.style.setProperty('--pop-scale', String(popScale));
+      if (popScale >= 1.6) float.classList.add('dmg-float-lethal');
+      else if (popScale >= 1.35) float.classList.add('dmg-float-heavy');
       const dx = (Math.random() * 26 - 13) | 0;
       float.style.setProperty('--dx', dx + 'px');
       // Vertical stagger — track per-card float count in a 1.2s
@@ -15902,7 +15992,7 @@ const UI = {
   // distinct from hit-flash (color burst) and the strike-burst ring.
   // Replaced the earlier .hit-shake camera-shake which the user
   // flagged as distracting.
-  spawnHitChips(cardEl) {
+  spawnHitChips(cardEl, countOverride) {
     if (!cardEl) return;
     // Reduced-motion gate (2026-06 accessibility sweep). Purely
     // cosmetic chip burst — the damage/HP change still happens via
@@ -15913,7 +16003,12 @@ const UI = {
     const host = document.createElement('div');
     host.className = 'hit-chips';
     cardEl.appendChild(host);
-    const N = 4 + Math.floor(Math.random() * 2); // 4-5 chips per hit
+    // Chip count scales with the damage tier (2 for a tap, up to 8 for
+    // a lethal). Falls back to the original 4-5 random when no override
+    // is passed (e.g. legacy callers).
+    const N = (countOverride != null)
+      ? countOverride
+      : 4 + Math.floor(Math.random() * 2);
     for (let i = 0; i < N; i++) {
       const chip = document.createElement('div');
       chip.className = 'hit-chip';

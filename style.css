@@ -6608,10 +6608,20 @@ body.hit-pause .ai-hand * {
   100% { opacity: 0; transform: translateX(calc(-50% + var(--dx, 0px))) translateY(calc(-48px + var(--stack-dy, 0px))) scale(0.85); }
 }
 /* Card hit flash */
-.card.hit-flash { animation: hitFlash 0.3s ease-out; }
+/* Magnitude-tiered hit flash. Duration comes from --flash-ms (set per
+   hit by ui.js from the damage tier); brightness peak comes from
+   --flash-bright. Light taps get a short dim flash; heavy/lethal get
+   a longer, brighter one via the modifier classes below — so a kill
+   visibly flares harder than a chip. */
+.card.hit-flash {
+  animation: hitFlash var(--flash-ms, 0.3s) ease-out;
+  --flash-bright: 2;
+}
+.card.hit-flash.hit-flash-heavy  { --flash-bright: 2.6; }
+.card.hit-flash.hit-flash-lethal { --flash-bright: 3.3; }
 @keyframes hitFlash {
   0% { filter: brightness(1); }
-  30% { filter: brightness(2) saturate(0.5); }
+  30% { filter: brightness(var(--flash-bright, 2)) saturate(0.5); }
   100% { filter: brightness(1); }
 }
 /* HP bar hit flash + subtle shake */
@@ -13506,10 +13516,16 @@ body.round-transition .board-section::before {
 
 /* Refined damage float — slight scale-up on spawn for punch. */
 @keyframes dmgFloat {
-  0%   { opacity: 0; transform: translate(-50%, 0) scale(0.85); }
-  15%  { opacity: 1; transform: translate(-50%, -8px) scale(1.08); }
-  60%  { opacity: 1; transform: translate(-50%, -26px) scale(1); }
-  100% { opacity: 0; transform: translate(-50%, -44px) scale(0.95); }
+  /* Peak punch-in scale multiplied by --pop-scale (set per hit by
+     ui.js from the damage tier — 1.0 for a tap, 1.7 for a lethal).
+     The bigger the hit, the bigger the number snaps in before it
+     settles and rises. Settle/exit scales stay near 1× so only the
+     entrance is amplified — the number is biggest at the moment of
+     impact, then reads normally as it floats up. */
+  0%   { opacity: 0; transform: translate(-50%, 0)     scale(calc(0.85 * var(--pop-scale, 1))); }
+  15%  { opacity: 1; transform: translate(-50%, -8px)  scale(calc(1.08 * var(--pop-scale, 1))); }
+  60%  { opacity: 1; transform: translate(-50%, -26px) scale(calc(1.00 * var(--pop-scale, 1))); }
+  100% { opacity: 0; transform: translate(-50%, -44px) scale(calc(0.95 * var(--pop-scale, 1))); }
 }
 
 /* ============================================================
@@ -13596,9 +13612,12 @@ body.round-transition .board-section::before {
    the hit-flash. Short, sharp, theme-tinted scanline expanding
    outward, simulating a concussive strike. */
 @keyframes combatStrike {
+  /* Final ring size scales with --burst-scale (set per hit by ui.js
+     from the damage tier — 0.62 for a tap, 1.9 for a lethal). A
+     bigger hit throws a visibly bigger concussion ring. */
   0%   { opacity: 0; transform: translate(-50%, -50%) scale(0.2); }
   25%  { opacity: 1; }
-  100% { opacity: 0; transform: translate(-50%, -50%) scale(2.2); }
+  100% { opacity: 0; transform: translate(-50%, -50%) scale(calc(2.2 * var(--burst-scale, 1))); }
 }
 .card.hit-flash {
   position: relative;
@@ -13621,6 +13640,50 @@ body.round-transition .board-section::before {
 /* Tint the strike burst by who's receiving it. */
 .card.ally-card .strike-burst  { color: rgba(var(--enemy-r), var(--enemy-g), var(--enemy-b), 0.9); }
 .card.enemy-card .strike-burst { color: rgba(var(--player-r), var(--player-g), var(--player-b), 0.9); }
+
+/* ============================================================
+   DAMAGE MAGNITUDE TIER — recoil + escalated number glow
+   ------------------------------------------------------------
+   Companion to the _TIER_FX system in ui.js. The card recoil and
+   the heavy/lethal number glow finish the escalation language:
+   small hits barely move the card and the number reads plain;
+   big hits jolt the target and the number flares.
+   ============================================================ */
+/* Card recoil — the target jolts away from its attacker on impact,
+   distance from --kb-y (ui.js sets it per hit: +down for allies,
+   -up for enemies, magnitude by tier). A quick out-and-back so the
+   card "absorbs" the blow then settles. transform-only (compositor)
+   so it never costs layout. */
+.card.card-knockback {
+  animation: cardKnockback 360ms var(--ease-out-soft);
+}
+@keyframes cardKnockback {
+  0%   { transform: translateY(0); }
+  28%  { transform: translateY(var(--kb-y, 0)); }
+  100% { transform: translateY(0); }
+}
+/* Heavy/lethal damage numbers flare brighter than a normal hit. The
+   pop-scale already makes them bigger; this adds a hotter glow so a
+   kill's number reads as a different CLASS of event, not just a
+   bigger one. */
+.dmg-float.dmg-float-heavy {
+  color: #ffb0a0;
+  border-color: rgba(255,90,70,1);
+  box-shadow: 0 0 18px rgba(255,76,60,0.8), 0 0 34px rgba(255,76,60,0.4);
+  text-shadow: 0 0 10px rgba(255,76,60,0.8);
+}
+.dmg-float.dmg-float-lethal {
+  color: #fff;
+  border-color: rgba(255,255,255,0.95);
+  box-shadow:
+    0 0 20px rgba(255,90,70,1),
+    0 0 40px rgba(255,76,60,0.6),
+    0 0 64px rgba(255,76,60,0.3);
+  text-shadow: 0 0 12px rgba(255,255,255,0.9), 0 0 22px rgba(255,76,60,0.7);
+}
+@media (prefers-reduced-motion: reduce) {
+  .card.card-knockback { animation: none; }
+}
 
 /* ---- #3 Card-destroy particle burst ----
    Dying card gets a ring of small squares radiating out, plus the

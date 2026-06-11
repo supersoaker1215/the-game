@@ -33,7 +33,7 @@ const Game = {
   BLOCK_MAX: 8,
   state: null,
   _dmgEvents: [], // { cardId, amount, type: 'hit'|'heal'|'block'|'evade'|'hpHit', owner }
-  emitDmg(cardId, amount, type, owner, attackerId) { this._dmgEvents.push({ cardId, amount, type, owner, attackerId }); },
+  emitDmg(cardId, amount, type, owner, attackerId, lethal) { this._dmgEvents.push({ cardId, amount, type, owner, attackerId, lethal: !!lethal }); },
   flushDmg() { const e = this._dmgEvents.splice(0); return e; },
 
   // ----- Deterministic RNG seam (Phase 1) -----
@@ -3100,7 +3100,7 @@ const Game = {
     }
     attacker.currentHealth -= chip;
     attacker.statsHpTaken = (attacker.statsHpTaken || 0) + chip;
-    this.emitDmg(attacker.id, chip, 'hit', undefined, target && target.id);
+    this.emitDmg(attacker.id, chip, 'hit', undefined, target && target.id, attacker.currentHealth <= 0);
     this.log(`  [THORNS] ${target.name} retaliates ${chip} damage to ${attacker.name} → ${Math.max(0, attacker.currentHealth)}/${attacker.maxHealth} HP`);
     this._creditChain(target, 'statsEnemyDamage', chip);
     if (attacker.currentHealth <= 0) {
@@ -3429,7 +3429,11 @@ const Game = {
     // the roguelite "damage taken = XP" path. Snapshotted into the dead
     // pile so resurrects keep the credit.
     target.statsHpTaken = (target.statsHpTaken || 0) + dmg;
-    this.emitDmg(target.id, dmg, 'hit', undefined, attacker && attacker.id);
+    // Lethal flag drives the UI magnitude tier — a hit that drops the
+    // card to 0 HP gets the full escalation (heavy shake + hit-pause
+    // freeze + max-scale flash/burst/float). currentHealth was already
+    // reduced above, so this read is the post-hit state.
+    this.emitDmg(target.id, dmg, 'hit', undefined, attacker && attacker.id, target.currentHealth <= 0);
     this.log(`  [HIT] ${attacker.name} deals ${dmg} to ${target.name} → ${Math.max(0, target.currentHealth)}/${target.maxHealth} HP`);
     if (attacker.passive === 'currencyOnDamage' && dmg > 0) {
       attacker._damageDealtThisTurn = (attacker._damageDealtThisTurn || 0) + dmg;
@@ -3664,7 +3668,7 @@ const Game = {
       }
       mahoraga.currentHealth -= dmg;
       mahoraga.statsHpTaken = (mahoraga.statsHpTaken || 0) + dmg;
-      this.emitDmg(mahoraga.id, dmg, 'hit');
+      this.emitDmg(mahoraga.id, dmg, 'hit', undefined, undefined, mahoraga.currentHealth <= 0);
       this.log(`  [HIT] ${mahoraga.name} takes ${dmg} → ${Math.max(0, mahoraga.currentHealth)}/${mahoraga.maxHealth} HP`);
       if (mahoraga.onDamaged) mahoraga.onDamaged(this, mahoraga, source, dmg);
       if (mahoraga.currentHealth <= 0) {
