@@ -15904,6 +15904,11 @@ const UI = {
   // flagged as distracting.
   spawnHitChips(cardEl) {
     if (!cardEl) return;
+    // Reduced-motion gate (2026-06 accessibility sweep). Purely
+    // cosmetic chip burst — the damage/HP change still happens via
+    // game state + the normal render, so skipping the particles
+    // loses nothing functional for motion-sensitive players.
+    if (this._reducedMotion && this._reducedMotion()) return;
     cardEl.style.position = 'relative';
     const host = document.createElement('div');
     host.className = 'hit-chips';
@@ -15941,6 +15946,14 @@ const UI = {
     if (cardId == null) return;
     const cardEl = document.querySelector(`[data-card-id="${cardId}"]`);
     if (!cardEl) return;
+    // Reduced-motion gate (2026-06 accessibility sweep). The 8-particle
+    // burst + shockwave + shard spray + Tron-dissolve are all cosmetic;
+    // the card still leaves the board via the normal render. Motion-
+    // sensitive players get a clean removal with no flying debris.
+    // (fireCritFlash and spawnDestroyShards already gate themselves;
+    // this guards the main death-particle entry point so nothing
+    // downstream of it fires either.)
+    if (this._reducedMotion && this._reducedMotion()) return;
     cardEl.style.position = 'relative';
     // Apply the Tron-dissolve scan-line animation to the card itself.
     // Was dead code before — `.card-exit` class was being removed in
