@@ -13255,17 +13255,29 @@ const UI = {
     // transition. Tinted by outcome (cyan victory / red defeat).
     const losingSide = isVictory ? 'ai' : 'player';
     if (this.killingBlowCinema) this.killingBlowCinema(losingSide);
-    // Victory / defeat pose — animate the living board cards with a
-    // celebratory rise (winning side) + a defeated slump (losing side).
-    // Triggered BEFORE the overlay opens so the player briefly sees
-    // their board react before the score panel takes over.
-    document.body.classList.remove('victory-pose', 'defeat-pose');
+    // CINEMATIC BUILD (2026-06) — sequence the win/loss moment into a
+    // climax instead of dumping board-pose + overlay + confetti +
+    // stats all at t=0. Timeline:
+    //   t=0      board camera push-in + card poses + fanfare + haptic
+    //            (the board REACTION is the first thing the player sees)
+    //   t~520ms  result panel rises (board beat has had its moment)
+    //   t~720ms  confetti volley (victory only)
+    //   t~1000ms stats roll up
+    // The overlay is shown (display:flex) immediately so the existing
+    // re-entry guard engages — but the PANEL is held hidden via
+    // .go-cinema-hold until the reveal beat, so re-renders during the
+    // build don't re-fire anything.
+    const reduced = this._reducedMotion && this._reducedMotion();
+    // Board camera beat — the frame itself reacts (push-in on victory,
+    // pull-back + desaturate on defeat). Pairs with the card poses.
+    document.body.classList.remove('victory-pose', 'defeat-pose', 'victory-cinema', 'defeat-cinema');
     document.body.classList.add(isVictory ? 'victory-pose' : 'defeat-pose');
-    // Strip the pose class a few seconds later so a subsequent match
-    // doesn't inherit it on the first render.
+    document.body.classList.add(isVictory ? 'victory-cinema' : 'defeat-cinema');
+    // Strip the pose/cinema classes a few seconds later so a subsequent
+    // match doesn't inherit them on the first render.
     setTimeout(() => {
-      document.body.classList.remove('victory-pose', 'defeat-pose');
-    }, 2200);
+      document.body.classList.remove('victory-pose', 'defeat-pose', 'victory-cinema', 'defeat-cinema');
+    }, 2400);
     // Capture match config BEFORE Game.init() nukes it, so the Rematch
     // button can spin up an identical match. Mode is the deck key
     // (classic / deckbuilder); customDeck is the user's saved-deck body
@@ -13283,20 +13295,24 @@ const UI = {
     // Record this match in the rolling history (last 10). Fires exactly
     // once per game-over regardless of how the user dismisses.
     this._recordMatchInHistory(winner);
+    // Build the (still-hidden) result panel now so it's ready to reveal.
+    // display:flex engages the re-entry guard at the top of this
+    // function immediately; .go-cinema-hold keeps the panel invisible
+    // until the reveal beat so the board camera push-in plays solo
+    // first.
     overlay.className = 'game-over-overlay ' + (isVictory ? 'victory' : 'defeat');
-    overlay.style.display = 'flex';
     document.getElementById('game-over-title').textContent = isVictory ? 'VICTORY' : 'DEFEAT';
+    this.renderGameOverStats();
+    overlay.style.display = 'flex';
+    if (!reduced) overlay.classList.add('go-cinema-hold');
+    // Fanfare + haptic land IMMEDIATELY — the sound and feel of the
+    // result shouldn't wait for the visual build.
     this.sfx.play(isVictory ? 'victory' : 'defeat');
-    if (isVictory) this.launchVictoryConfetti(overlay);
-    // Victory haptic — triple buzz pattern; defeat gets a single long rumble.
     if (navigator.vibrate) {
       try { navigator.vibrate(isVictory ? [70, 60, 70, 60, 200] : [300]); } catch (e) {}
     }
-    this.renderGameOverStats();
-    // (O) Count-up any integer <b> values inside the stats panel so the
-    // numbers roll up from 0 when the screen appears. Floats and ranges
-    // (e.g. "50.2%") are skipped — only bare integers.
-    setTimeout(() => {
+    // Stats count-up helper — rolls bare-integer <b> values from 0.
+    const rollStats = () => {
       const panel = document.getElementById('game-over-stats');
       if (!panel) return;
       panel.querySelectorAll('b').forEach((b) => {
@@ -13306,7 +13322,21 @@ const UI = {
         if (target <= 0) return;
         this.animateCountUp(b, target, 700);
       });
-    }, 280);
+    };
+    if (reduced) {
+      // Reduced-motion: skip the build, reveal everything at once.
+      rollStats();
+      return;
+    }
+    // ---- Sequenced reveal ----
+    const REVEAL_AT = 520;   // board push-in + poses play solo first
+    setTimeout(() => {
+      overlay.classList.remove('go-cinema-hold'); // panel rises
+      // Confetti blooms just after the panel starts rising.
+      if (isVictory) setTimeout(() => this.launchVictoryConfetti(overlay), 200);
+      // Stats roll up once the panel has landed.
+      setTimeout(rollStats, 460);
+    }, REVEAL_AT);
   },
 
   // Canvas confetti burst on victory. Two waves (bottom-left, bottom-right)

@@ -7348,6 +7348,19 @@ body.hit-pause .ai-hand * {
     0 0 18px rgba(255,255,255,0.55),
     0 0 38px rgba(255,255,255,0.25);
 }
+/* Cinematic hold — the result panel is kept hidden + pushed down while
+   the board camera push-in plays solo for the first ~520ms (see the
+   sequenced reveal in showGameOverScreen). Removing the class lets the
+   panel rise into its resting state via the transition above, so the
+   reveal reads as "board reacts → panel rises → confetti → stats"
+   instead of everything landing at once. The entrance keyframe is
+   suppressed here so only the transition drives the rise. */
+.game-over-overlay.go-cinema-hold .game-over-content {
+  opacity: 0 !important;
+  transform: translateY(34px) scale(0.97) !important;
+  animation: none !important;
+  pointer-events: none !important;
+}
 /* Victory = the player's active theme color. Tracks --theme-rgb so a
    green-theme win gets a green frame, purple a purple frame, etc. —
    makes the victory panel feel "yours" instead of a fixed gold skin.
@@ -17771,6 +17784,55 @@ body.defeat-pose .board .card.enemy-card {
 @media (prefers-reduced-motion: reduce) {
   body.victory-pose .board .card,
   body.defeat-pose .board .card { animation: none !important; }
+}
+
+/* ============================================================
+   CINEMATIC CAMERA BEATS (2026-06 feel pass)
+   ------------------------------------------------------------
+   The board cards already pose on win/loss, but the board FRAME
+   stayed static — the missing "the world reacts" beat. These add
+   a subtle camera push-in (victory) / pull-back (defeat) and a
+   quick inward brace at combat start. All transform + filter
+   only — compositor-cheap, no layout. Paired with the existing
+   card poses, killing-blow vignette, confetti, and fanfare, now
+   sequenced into a build (see showGameOverScreen timeline).
+   ============================================================ */
+/* Victory — the board breathes IN and warms, like a camera pushing
+   toward the winning field. Blooms at ~30% then settles held. */
+body.victory-cinema .board {
+  animation: victoryBoardPush 1.7s var(--ease-out-soft) forwards;
+}
+@keyframes victoryBoardPush {
+  0%   { transform: scale(1);     filter: brightness(1)    saturate(1); }
+  30%  { transform: scale(1.035); filter: brightness(1.14) saturate(1.18); }
+  100% { transform: scale(1.02);  filter: brightness(1.06) saturate(1.08); }
+}
+/* Defeat — the board pulls slightly back and the color drains, a
+   deflating "the moment slips away" read. */
+body.defeat-cinema .board {
+  animation: defeatBoardPull 1.7s ease-in forwards;
+}
+@keyframes defeatBoardPull {
+  0%   { transform: scale(1);     filter: brightness(1)   saturate(1); }
+  100% { transform: scale(0.985); filter: brightness(0.7) saturate(0.45); }
+}
+/* Combat-start brace — a quick inward dip + slight desaturate the
+   instant combat resolution begins, replacing the removed yellow
+   flash with a tasteful "here we go" beat that pairs with the
+   existing sub-bass thump. Snaps back fast so it reads as a brace,
+   not a zoom. */
+body.combat-anticipate .board {
+  animation: combatBrace 220ms ease-out;
+}
+@keyframes combatBrace {
+  0%   { transform: scale(1);     filter: saturate(1); }
+  45%  { transform: scale(0.992); filter: saturate(0.82); }
+  100% { transform: scale(1);     filter: saturate(1); }
+}
+@media (prefers-reduced-motion: reduce) {
+  body.victory-cinema .board,
+  body.defeat-cinema .board,
+  body.combat-anticipate .board { animation: none !important; }
 }
 
 /* ============================================================
