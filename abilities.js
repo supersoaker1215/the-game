@@ -4175,7 +4175,8 @@ const CARD_ABILITIES = {
       const targets = hand.filter(c => (c.currentHealth !== undefined ? c.currentHealth : (c.health || 0)) > 0);
       if (!targets.length) return;
       const t = targets[Math.floor(Math.random() * targets.length)];
-      const dmg = self.attack || 1;
+      let dmg = self.attack || 1;
+      if (G.state._yodaShieldFor && G.state._yodaShieldFor[opp] > 0) dmg = Math.ceil(dmg / 2);
       const curHp = t.currentHealth !== undefined ? t.currentHealth : (t.health || 0);
       t.currentHealth = Math.max(0, curHp - dmg);
       G.log(`[FREDDY] Freddy slashes ${t.name} in the enemy's hand for ${dmg}!`);

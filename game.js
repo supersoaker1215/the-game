@@ -6885,7 +6885,9 @@ const Game = {
       if (tgt.invincibleTurns > 0 || tgt.hasDamageImmunity) return 0;
       const canDodge = !tgt.isStunned && !tgt.isFrozen;
       if (canDodge && tgt.evadeCharges > 0 && !attackerBullseye) { tgt.evadeCharges--; return 0; }
-      const landed = Math.max(0, raw - tgt.armorValue);
+      let dmg = raw;
+      if (this.state._yodaShieldFor && this.state._yodaShieldFor[tgt.owner] > 0) dmg = Math.ceil(dmg / 2);
+      const landed = Math.max(0, dmg - tgt.armorValue);
       tgt.currentHealth -= landed;
       return landed;
     };
