@@ -2027,6 +2027,16 @@ const Game = {
     // They don't participate in combat, can't be attacked, and skip most on-play hooks.
     if (card.isEnvironment) {
       if (!lane._env) lane._env = {};
+      // Only one environment may be active per lane — kill any existing env from
+      // either side before placing the new one so its effects are cleaned up.
+      const envOpp = this.opponent(owner);
+      [owner, envOpp].forEach(side => {
+        const existing = lane._env[side];
+        if (existing && existing !== card) {
+          existing.currentHealth = 0;
+          this.handleDeath(existing, laneIdx, null);
+        }
+      });
       lane._env[owner] = card;
       if (card.statsEnteredRound == null) card.statsEnteredRound = this.state.round || 1;
       this.state[owner].discount = 0;
