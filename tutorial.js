@@ -1,4 +1,4 @@
-// tutorial.js — v2
+// tutorial.js — v3
 // Scripted in-game tutorial. Loaded after ui.js so UI/Game are available.
 
 const Tutorial = {
@@ -32,6 +32,12 @@ const Tutorial = {
       target: '.player-bar .bar-hp', pos: 'top', type: 'next',
     },
     {
+      id: 'block-meter',
+      title: 'The Block Meter',
+      text: 'Right next to your HP is the <strong>Block Meter</strong>. Every time you take damage, it fills up.<br><br>When it reaches <strong>8/8</strong> — the next incoming hit is <em>completely blocked</em> and you draw a <strong>free Trick card</strong>. Then it resets to 0.<br><br>A perfectly timed block can completely swing a round.',
+      target: '.player-bar .bar-block', pos: 'top', type: 'next',
+    },
+    {
       id: 'ai-hp',
       title: "The Enemy's HP",
       text: 'The AI also starts at <strong>30 HP</strong>. Drain it to 0 and you win. Keep both bars in mind as you decide which lanes to contest.',
@@ -52,7 +58,7 @@ const Tutorial = {
     {
       id: 'read-card',
       title: 'Reading a Card — Gamora',
-      text: 'This is <strong>Gamora</strong>.<br><br>🔢 <strong>Top-left</strong> — Energy cost (2).<br>🗡️ <strong>Sword icon (green)</strong> = Attack — damage dealt in combat (2).<br>❤️ <strong>Heart icon (red)</strong> = Health — damage she can absorb (3).<br><br>She also has an ability: on play she <em>destroys any enemy with 2 HP or less</em>, and gains +1/+1 each time she kills.',
+      text: 'This is <strong>Gamora</strong>.<br><br>🔢 <strong>Top-left number</strong> — Energy cost to play her (2).<br>🟢 <strong>Green box (bottom-left)</strong> = Attack — damage dealt in combat (2).<br>🔴 <strong>Red box (bottom-right)</strong> = Health — how much damage she can take (3).<br><br>She also has an ability: on play she <em>destroys any enemy at 2 HP or less</em>, and gains +1/+1 each time she gets a kill.',
       target: '.player-hand-section .hand-card-wrapper:first-child', pos: 'top', type: 'next',
     },
     {
@@ -90,12 +96,6 @@ const Tutorial = {
       title: 'Tricks',
       text: 'Tricks are <strong>instant, one-use effects</strong> — damage, buffs, healing, control. They\'re gone once used, so spend them wisely.<br><br>You have <em>Vibranium</em> in your trick hand: +1/+1 to all allies. Play it or click <strong>Done</strong> to skip to combat.',
       target: '#player-tricks', pos: 'top', type: 'wait', waitEvent: 'post-combat',
-    },
-    {
-      id: 'block-meter',
-      title: 'The Block Meter',
-      text: 'Combat resolved! See the <strong>Block Meter</strong>? It fills every time you take damage.<br><br>At <strong>8/8</strong> it triggers: the next incoming attack is fully blocked and you draw a <em>free Trick card</em>. Then it resets to 0. Managing it is a key defensive tool.',
-      target: '.player-bar .bar-block', pos: 'top', type: 'next',
     },
     {
       id: 'done',
@@ -245,6 +245,10 @@ const Tutorial = {
     } else if (step.target) {
       targetEl = document.querySelector(step.target);
     }
+
+    // Auto-minimize on steps that need free player interaction; auto-expand otherwise
+    const shouldMinimize = step.type === 'wait';
+    if (shouldMinimize !== this._minimized) this.toggleMinimize();
 
     const isFull = step.full || !targetEl;
     this._overlay.classList.toggle('tut-full', !!step.full);
