@@ -5074,42 +5074,94 @@ body.hit-pause .ai-hand * {
    element + the shape drawn via clip-path. */
 .stat-circle {
   width: 22px; height: 22px;
-  display: block;
-  z-index: 4;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 11px; font-weight: 900; z-index: 4;
   position: absolute; bottom: 5px;
-  overflow: visible;
+  background: transparent;
+  border: 0;
+  font-family: 'Rajdhani', sans-serif;
+  font-variant-numeric: tabular-nums;
+  text-shadow: 0 0 4px rgba(0,0,0,0.95), 0 1px 2px rgba(0,0,0,0.85);
 }
-/* ATK — upward sword outline (green) containing the attack number. */
+/* ATK — chamfered-octagon badge (green). */
 .stat-atk {
   left: 4px;
   color: #7ee8a5;
-  filter: drop-shadow(0 0 3px rgba(46,204,113,0.5)) drop-shadow(0 1px 2px rgba(0,0,0,0.9));
+  text-shadow:
+    0 1px 0 rgba(0,0,0,0.95),
+    0 -0.5px 0 rgba(46,204,113,0.40),
+    0 0 4px rgba(46,204,113,0.50);
+  font-family: 'JetBrains Mono', 'SF Mono', ui-monospace, Menlo, Consolas, monospace;
 }
-/* HP — heart outline (red) containing the current HP number. */
+.stat-atk::before {
+  content: '';
+  position: absolute; inset: 0;
+  background: rgba(0, 8, 14, 0.48);
+  -webkit-mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100' preserveAspectRatio='none'><path fill='black' d='M16,0 L84,0 L100,16 L100,84 L84,100 L16,100 L0,84 L0,16 Z'/></svg>") center/100% 100% no-repeat;
+          mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100' preserveAspectRatio='none'><path fill='black' d='M16,0 L84,0 L100,16 L100,84 L84,100 L16,100 L0,84 L0,16 Z'/></svg>") center/100% 100% no-repeat;
+  filter: drop-shadow(0 0 3px rgba(46,204,113,0.45));
+  z-index: -2;
+}
+.stat-atk::after {
+  content: '';
+  position: absolute; inset: 0;
+  background: rgba(46,204,113,0.95);
+  -webkit-mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100' preserveAspectRatio='none'><path fill='none' stroke='black' stroke-width='8' stroke-linejoin='round' d='M16,0 L84,0 L100,16 L100,84 L84,100 L16,100 L0,84 L0,16 Z'/></svg>") center/100% 100% no-repeat;
+          mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100' preserveAspectRatio='none'><path fill='none' stroke='black' stroke-width='8' stroke-linejoin='round' d='M16,0 L84,0 L100,16 L100,84 L84,100 L16,100 L0,84 L0,16 Z'/></svg>") center/100% 100% no-repeat;
+  z-index: -1;
+  pointer-events: none;
+}
+/* HP — chamfered-octagon badge (red). */
 .stat-hp {
   right: 4px;
   color: #f1948a;
-  filter: drop-shadow(0 0 3px rgba(231,76,60,0.5)) drop-shadow(0 1px 2px rgba(0,0,0,0.9));
+  text-shadow:
+    0 1px 0 rgba(0,0,0,0.95),
+    0 -0.5px 0 rgba(231,76,60,0.40),
+    0 0 4px rgba(231,76,60,0.50);
+  font-family: 'JetBrains Mono', 'SF Mono', ui-monospace, Menlo, Consolas, monospace;
 }
-/* Buff / debuff — shift icon glow to match polarity. */
-/* Buffed ATK — brighter green with a stronger glow. */
+.stat-hp::before {
+  content: '';
+  position: absolute; inset: 0;
+  background: rgba(0, 8, 14, 0.48);
+  -webkit-mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100' preserveAspectRatio='none'><path fill='black' d='M16,0 L84,0 L100,16 L100,84 L84,100 L16,100 L0,84 L0,16 Z'/></svg>") center/100% 100% no-repeat;
+          mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100' preserveAspectRatio='none'><path fill='black' d='M16,0 L84,0 L100,16 L100,84 L84,100 L16,100 L0,84 L0,16 Z'/></svg>") center/100% 100% no-repeat;
+  filter: drop-shadow(0 0 3px rgba(231,76,60,0.45));
+  z-index: -2;
+}
+.stat-hp::after {
+  content: '';
+  position: absolute; inset: 0;
+  background: rgba(231,76,60,0.95);
+  -webkit-mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100' preserveAspectRatio='none'><path fill='none' stroke='black' stroke-width='8' stroke-linejoin='round' d='M16,0 L84,0 L100,16 L100,84 L84,100 L16,100 L0,84 L0,16 Z'/></svg>") center/100% 100% no-repeat;
+          mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100' preserveAspectRatio='none'><path fill='none' stroke='black' stroke-width='8' stroke-linejoin='round' d='M16,0 L84,0 L100,16 L100,84 L84,100 L16,100 L0,84 L0,16 Z'/></svg>") center/100% 100% no-repeat;
+  z-index: -1;
+  pointer-events: none;
+}
+/* Buff / debuff indicators. */
+.stat-circle.stat-buffed,
+.stat-circle.stat-debuffed {
+  background: #000000;
+}
+/* Buffed ATK — brighter green number with a stronger glow. */
 .stat-atk.stat-buffed {
   color: #a8f5c4;
-  filter: drop-shadow(0 0 6px rgba(46,204,113,1)) drop-shadow(0 0 12px rgba(46,204,113,0.7));
+  text-shadow: 0 0 6px rgba(46,204,113,1), 0 0 14px rgba(46,204,113,0.75);
 }
-/* Buffed HP — brighter red-pink with a stronger glow. */
+/* Buffed HP — brighter red-pink number with a stronger glow. */
 .stat-hp.stat-buffed {
   color: #ffb5ad;
-  filter: drop-shadow(0 0 6px rgba(231,76,60,1)) drop-shadow(0 0 12px rgba(231,76,60,0.7));
+  text-shadow: 0 0 6px rgba(231,76,60,1), 0 0 14px rgba(231,76,60,0.75);
 }
-/* Debuffed stats — muted, dim glow. */
+/* Debuffed stats — muted fill. */
 .stat-atk.stat-debuffed {
   color: #5aa775;
-  filter: drop-shadow(0 0 2px rgba(46,204,113,0.35));
+  text-shadow: 0 0 4px rgba(46,204,113,0.55);
 }
 .stat-hp.stat-debuffed {
   color: #b07068;
-  filter: drop-shadow(0 0 2px rgba(231,76,60,0.35));
+  text-shadow: 0 0 4px rgba(231,76,60,0.55);
 }
 .card-abilities {
   font-family: 'Rajdhani', 'Segoe UI', system-ui, sans-serif;

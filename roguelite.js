@@ -6787,16 +6787,8 @@ const Roguelite = {
         <div class="card-name-banner"><div class="card-name">${def.name}</div></div>
         ${abilitiesHtml}
         ${descHtml}
-        <svg class="stat-circle stat-atk ${atkClass}" viewBox="0 0 22 22" overflow="visible">
-          <path d="M11 1L19 14L19 16.5L13 16.5L13 22L9 22L9 16.5L3 16.5L3 14Z" fill="rgba(0,8,14,0.68)" stroke="currentColor" stroke-width="1.25" stroke-linejoin="round"/>
-          ${atkClass === 'stat-rolled-up' ? `<text x="20" y="-1" text-anchor="middle" fill="rgba(255,225,150,1)" font-size="8" font-weight="900">▲</text>` : atkClass === 'stat-rolled-down' ? `<text x="20" y="-1" text-anchor="middle" fill="rgba(231,76,60,0.85)" font-size="8">▼</text>` : ''}
-          <text x="11" y="10" text-anchor="middle" dominant-baseline="middle" fill="currentColor" font-size="8.5" font-weight="900" font-family="'JetBrains Mono',monospace">${atk}</text>
-        </svg>
-        <svg class="stat-circle stat-hp ${hpClass}" viewBox="0 0 22 22" overflow="visible">
-          <path d="M11 20C11 20 1 13.5 1 7A5.5 5.5 0 0 1 11 4A5.5 5.5 0 0 1 21 7C21 13.5 11 20 11 20Z" fill="rgba(0,8,14,0.68)" stroke="currentColor" stroke-width="1.25"/>
-          ${hpClass === 'stat-rolled-up' ? `<text x="20" y="-1" text-anchor="middle" fill="rgba(255,225,150,1)" font-size="8" font-weight="900">▲</text>` : hpClass === 'stat-rolled-down' ? `<text x="20" y="-1" text-anchor="middle" fill="rgba(231,76,60,0.85)" font-size="8">▼</text>` : ''}
-          <text x="11" y="11" text-anchor="middle" dominant-baseline="middle" fill="currentColor" font-size="8.5" font-weight="900" font-family="'JetBrains Mono',monospace">${hp}</text>
-        </svg>
+        <span class="stat-circle stat-atk ${atkClass}">${atk}</span>
+        <span class="stat-circle stat-hp ${hpClass}">${hp}</span>
         ${xpHtml}
       </div>`;
   },
