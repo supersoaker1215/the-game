@@ -1730,6 +1730,7 @@ const Game = {
         this.state.phase = 'player-tricks';
         this.clearHistory(); // new player turn — undo cannot cross this boundary
         UI.render();
+        if (typeof Tutorial !== 'undefined' && Tutorial.active) Tutorial.notify('phase-tricks', {});
       } else {
         this.state.phase = 'ai-tricks';
         UI.render();
@@ -2127,6 +2128,9 @@ const Game = {
     this.applyMagnetoDebuffs();
     // Check jump conditions — enemy played a card (pass laneIdx so MM can lock its lane)
     this.checkJumpConditions('cardPlayed', { owner, cost: card.baseCost || card.cost, laneIdx });
+    if (owner === 'player' && typeof Tutorial !== 'undefined' && Tutorial.active) {
+      Tutorial.notify('card-played', { laneIdx, card });
+    }
     return true;
   },
 
@@ -2703,6 +2707,7 @@ const Game = {
     // letting it carry over across rounds matches intent.
 
     UI.render();
+    if (typeof Tutorial !== 'undefined' && Tutorial.active) Tutorial.notify('post-combat', {});
 
     if (this.state.player.health <= 0) { this.state.gameOver = true; this.state.winner = 'ai'; this.log('=== GAME OVER — AI Wins! ==='); }
     if (this.state.ai.health <= 0) { this.state.gameOver = true; this.state.winner = 'player'; this.log('=== GAME OVER — You Win! ==='); }
@@ -4872,6 +4877,18 @@ const Game = {
     }
     lane.destroyed = true;
     lane.destroyedTurns = duration;
+    // Any environment in this lane is also destroyed by the collapse —
+    // clear its effects via handleDeath, then null the slot.
+    if (lane._env) {
+      ['player', 'ai'].forEach(side => {
+        const env = lane._env[side];
+        if (env) {
+          env.currentHealth = 0;
+          this.handleDeath(env, laneIdx, null);
+          lane._env[side] = null;
+        }
+      });
+    }
   },
 
   killCard(card, source) {

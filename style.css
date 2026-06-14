@@ -28832,3 +28832,119 @@ body.round-tick .board::after {
     scroll-behavior: auto !important;
   }
 }
+
+/* ============================================================
+   TUTORIAL OVERLAY
+   ============================================================ */
+#tut-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9000;
+  pointer-events: none;
+}
+/* Full-screen dim for welcome/done steps */
+.tut-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.78);
+  display: none;
+  pointer-events: all;
+}
+#tut-overlay.tut-full .tut-backdrop { display: block; }
+
+/* Callout card */
+.tut-callout {
+  position: fixed;
+  background: #0d1117;
+  border: 1.5px solid #4fc3f7;
+  border-radius: 12px;
+  padding: 18px 20px 14px;
+  box-shadow: 0 8px 40px rgba(0,0,0,0.9), 0 0 0 1px rgba(79,195,247,0.15);
+  pointer-events: all;
+  z-index: 1;
+  min-width: 260px;
+  font-size: 0.93rem;
+  line-height: 1.5;
+  color: #e0e0e0;
+}
+.tut-callout-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+.tut-callout-icon { font-size: 1.1em; }
+.tut-callout-title {
+  font-weight: 700;
+  font-size: 1.05em;
+  color: #4fc3f7;
+  letter-spacing: 0.01em;
+}
+.tut-callout-body {
+  color: #cdd5e0;
+  margin-bottom: 14px;
+}
+.tut-callout-body strong { color: #fff; }
+.tut-callout-body em { color: #b0c4de; font-style: normal; }
+.tut-callout-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding-top: 10px;
+  border-top: 1px solid rgba(79,195,247,0.15);
+}
+.tut-callout-counter {
+  font-size: 0.78em;
+  color: #607a8a;
+  white-space: nowrap;
+}
+.tut-callout-btns { display: flex; gap: 8px; }
+.tut-btn-skip {
+  background: none;
+  border: 1px solid #334;
+  color: #607a8a;
+  border-radius: 6px;
+  padding: 5px 11px;
+  font-size: 0.82em;
+  cursor: pointer;
+  transition: color 0.15s, border-color 0.15s;
+}
+.tut-btn-skip:hover { color: #ccc; border-color: #556; }
+.tut-btn-next {
+  background: #4fc3f7;
+  border: none;
+  color: #000;
+  border-radius: 6px;
+  padding: 5px 14px;
+  font-size: 0.88em;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 0.15s, transform 0.1s;
+}
+.tut-btn-next:hover { background: #81d4fa; transform: translateY(-1px); }
+
+/* Inline keyword demo chip in tutorial text */
+.tut-kw-demo {
+  display: inline-block;
+  background: #1e4d7b;
+  color: #88c0ff;
+  padding: 1px 6px;
+  border-radius: 4px;
+  font-size: 0.84em;
+  font-weight: 600;
+}
+
+/* Pulsing gold ring on the highlighted element */
+.tut-target-highlight {
+  outline: 2.5px solid #ffd700 !important;
+  outline-offset: 3px !important;
+  border-radius: 6px;
+  position: relative;
+  z-index: 9001 !important;
+  animation: tut-pulse 1.6s ease-in-out infinite;
+}
+@keyframes tut-pulse {
+  0%, 100% { outline-color: #ffd700; box-shadow: 0 0 0 0 rgba(255,215,0,0.0); }
+  50%       { outline-color: #fff9c4; box-shadow: 0 0 12px 3px rgba(255,215,0,0.45); }
+}

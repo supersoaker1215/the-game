@@ -5917,7 +5917,7 @@ const UI = {
               return btn('mm-daily', 'Daily Run', sub, SVG.stats, 'Roguelite.enterDailyRun()');
             })()}
             ${btn('mm-multi',   'Multiplayer',  'Match a friend over the internet · beta',                SVG.multi,    "UI.openMultiplayer()")}
-            ${btn('mm-tutorial','Tutorial',     'Two-minute primer on how to play',                       helpSVG,      "UI.openTutorial()")}
+            ${btn('mm-tutorial','Tutorial',     'Guided walkthrough — play a scripted round',              helpSVG,      "Tutorial.start()")}
           </div>
         </div>
         <div class="mm-section">
