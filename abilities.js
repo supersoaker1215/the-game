@@ -3311,29 +3311,16 @@ const CARD_ABILITIES = {
 
       const allAllies = G.getAlliesOf(self.owner).filter(a => a.currentHealth > 0);
 
-      const _cleanse = () => {
-        allAllies.forEach(a => {
-          let n = 0;
-          if (a.isStunned)        { a.isStunned = false; a.stunnedTurns = 0; n++; }
-          if (a.isFrozen)         { a.isFrozen  = false; a.frozenTurns  = 0; n++; }
-          if (a.isFeared)         { a.isFeared  = false; a.fearedTurns  = 0; n++; }
-          if (a.isMindControlled) { a.isMindControlled = false; n++; }
-          if (a.isBurning)        { a.isBurning = false; n++; }
-          if (n > 0) G.log(`  [CLEANSE] ${a.name} freed from ${n} debuff${n === 1 ? '' : 's'}.`);
-        });
-      };
-
       const _markCombined = (a1, a2) => {
         const combined = a1.attack + a2.attack;
         a1._yodaCombinedAtk = combined;
         a2._yodaCombinedAtk = combined;
         G.log(`[YODA] ${a1.name} and ${a2.name} will strike with combined force (${combined} ATK) this combat!`);
-        _cleanse();
       };
 
       const others = allAllies.filter(a => a.id !== self.id);
       if (others.length === 0) {
-        _cleanse();
+        // No allies to combine with — nothing to do on play
       } else if (others.length === 1) {
         _markCombined(self, others[0]);
       } else {
