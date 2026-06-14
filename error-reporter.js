@@ -110,21 +110,31 @@
   // to the clipboard for pasting into a bug ticket / chat thread.
   function showButton(count) {
     if (typeof document === 'undefined') return;
-    var btn = document.getElementById(BTN_ID);
-    if (!btn) {
-      btn = document.createElement('button');
+    var wrap = document.getElementById(BTN_ID + '-wrap');
+    if (!wrap) {
+      wrap = document.createElement('div');
+      wrap.id = BTN_ID + '-wrap';
+      wrap.style.cssText = 'position:fixed;bottom:12px;right:12px;z-index:99999;display:flex;gap:4px;align-items:center';
+      var btn = document.createElement('button');
       btn.id = BTN_ID;
       btn.type = 'button';
-      btn.style.cssText = [
-        'position:fixed', 'bottom:12px', 'right:12px', 'z-index:99999',
-        'background:#c0392b', 'color:#fff', 'border:none',
-        'padding:8px 12px', 'border-radius:6px', 'font:13px system-ui',
-        'cursor:pointer', 'box-shadow:0 2px 8px rgba(0,0,0,0.3)',
-      ].join(';');
+      btn.style.cssText = 'background:#c0392b;color:#fff;border:none;padding:8px 12px;border-radius:6px;font:13px system-ui;cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,0.3)';
       btn.addEventListener('click', onClick);
-      document.body.appendChild(btn);
+      var clrBtn = document.createElement('button');
+      clrBtn.type = 'button';
+      clrBtn.title = 'Dismiss';
+      clrBtn.style.cssText = 'background:#555;color:#fff;border:none;padding:8px 10px;border-radius:6px;font:13px system-ui;cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,0.3)';
+      clrBtn.textContent = '✕';
+      clrBtn.addEventListener('click', function () {
+        try { localStorage.removeItem(STORAGE_KEY); } catch(e) {}
+        if (wrap.parentNode) wrap.parentNode.removeChild(wrap);
+      });
+      wrap.appendChild(btn);
+      wrap.appendChild(clrBtn);
+      document.body.appendChild(wrap);
     }
-    btn.textContent = '⚠ Copy bug report (' + count + ')';
+    var btn = document.getElementById(BTN_ID);
+    if (btn) btn.textContent = '⚠ Copy bug report (' + count + ')';
   }
 
   function onClick() {
@@ -138,7 +148,6 @@
       if (navigator.clipboard && navigator.clipboard.writeText) {
         navigator.clipboard.writeText(text).then(function () { ok = true; });
       } else {
-        // Legacy fallback for older Safari etc.
         ta = document.createElement('textarea');
         ta.value = text;
         document.body.appendChild(ta); ta.select();
