@@ -1,4 +1,4 @@
-// tutorial.js — v3
+// tutorial.js — v4
 // Scripted in-game tutorial. Loaded after ui.js so UI/Game are available.
 
 const Tutorial = {
@@ -206,6 +206,7 @@ const Tutorial = {
 
   // ── STEP RENDER ────────────────────────────────────────────────────────
   advance(idx) {
+    if (!this.active || !this._callout) return;
     if (idx >= this.steps.length) { this.complete(); return; }
     this.stepIdx = idx;
     const step = this.steps[idx];
