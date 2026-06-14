@@ -11500,9 +11500,15 @@ const UI = {
     const hideAtk = inHand && (card.copiesOpposite || card.isCrazy || card.isInsane);
     const atkCell = hideAtk ? '?' : card.attack;
     const hpCell  = hideAllStats ? '?' : card.currentHealth;
-    const statOrbs = (card.isDiscardEffect || card.isEnvironment) ? '' : `
-      <span class="stat-circle stat-atk${atkCls}"${atkTip}>${atkCell}</span>
-      <span class="stat-circle stat-hp${hpCls}"${hpTip}>${hpCell}</span>`;
+    const statOrbs = (card.isDiscardEffect || card.isEnvironment) ? '' :
+      `<svg class="stat-circle stat-atk${atkCls}" viewBox="0 0 22 22" overflow="visible"${atkTip}>`
+      + `<path d="M11 1L19 14L19 16.5L13 16.5L13 22L9 22L9 16.5L3 16.5L3 14Z" fill="rgba(0,8,14,0.68)" stroke="currentColor" stroke-width="1.25" stroke-linejoin="round"/>`
+      + `<text x="11" y="10" text-anchor="middle" dominant-baseline="middle" fill="currentColor" font-size="8.5" font-weight="900" font-family="'JetBrains Mono',monospace">${atkCell}</text>`
+      + `</svg>`
+      + `<svg class="stat-circle stat-hp${hpCls}" viewBox="0 0 22 22" overflow="visible"${hpTip}>`
+      + `<path d="M11 20C11 20 1 13.5 1 7A5.5 5.5 0 0 1 11 4A5.5 5.5 0 0 1 21 7C21 13.5 11 20 11 20Z" fill="rgba(0,8,14,0.68)" stroke="currentColor" stroke-width="1.25"/>`
+      + `<text x="11" y="11" text-anchor="middle" dominant-baseline="middle" fill="currentColor" font-size="8.5" font-weight="900" font-family="'JetBrains Mono',monospace">${hpCell}</text>`
+      + `</svg>`;
 
     // Moder strips abilities — show a clean, obvious "no abilities" state
     // for the card's INNATE description and active-ability text. Status

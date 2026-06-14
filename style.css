@@ -5074,113 +5074,42 @@ body.hit-pause .ai-hand * {
    element + the shape drawn via clip-path. */
 .stat-circle {
   width: 22px; height: 22px;
-  display: flex; align-items: center; justify-content: center;
-  font-size: 11px; font-weight: 900; z-index: 4;
+  display: block;
+  z-index: 4;
   position: absolute; bottom: 5px;
-  background: transparent;
-  border: 0;
-  font-family: 'Rajdhani', sans-serif;
-  font-variant-numeric: tabular-nums;
-  text-shadow: 0 0 4px rgba(0,0,0,0.95), 0 1px 2px rgba(0,0,0,0.85);
+  overflow: visible;
 }
-/* ATK — VERTICAL hex (pointy top + bottom, flat sides). Replaces
-   the up-pointing triangle, which obscured the digit at its narrow
-   center. The vertical hex reads as a spearhead / crystal / disc-
-   launcher aperture — Tron's signature data-vessel — while giving
-   a clean 100x50 horizontal slot at the middle where the digit
-   sits. Plenty of headroom for 2-digit values (10+). Color stays
-   green (universal "attack"). Two-pseudo etched stack: translucent
-   dark fill + neon stroke. */
+/* ATK — upward sword outline (green) containing the attack number. */
 .stat-atk {
   left: 4px;
   color: #7ee8a5;
-  text-shadow:
-    0 1px 0 rgba(0,0,0,0.95),
-    0 -0.5px 0 rgba(46,204,113,0.40),
-    0 0 4px rgba(46,204,113,0.50);
-  font-family: 'JetBrains Mono', 'SF Mono', ui-monospace, Menlo, Consolas, monospace;
+  filter: drop-shadow(0 0 3px rgba(46,204,113,0.5)) drop-shadow(0 1px 2px rgba(0,0,0,0.9));
 }
-/* ATK + HP use the SAME chamfered-octagon mask as the cost square.
-   One shape vocabulary across all three orbs makes the chrome read
-   as a unified design system — color + position carry the role
-   (rarity-top-left = cost, green-bottom-left = ATK, red-bottom-right
-   = HP). The previous vertical/horizontal hex pair gave a stronger
-   semantic split but read as visually inconsistent with the cost
-   square. User direction: "consistent with the card." */
-.stat-atk::before {
-  content: '';
-  position: absolute; inset: 0;
-  background: rgba(0, 8, 14, 0.48);
-  -webkit-mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100' preserveAspectRatio='none'><path fill='black' d='M16,0 L84,0 L100,16 L100,84 L84,100 L16,100 L0,84 L0,16 Z'/></svg>") center/100% 100% no-repeat;
-          mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100' preserveAspectRatio='none'><path fill='black' d='M16,0 L84,0 L100,16 L100,84 L84,100 L16,100 L0,84 L0,16 Z'/></svg>") center/100% 100% no-repeat;
-  filter: drop-shadow(0 0 3px rgba(46,204,113,0.45));
-  z-index: -2;
-}
-.stat-atk::after {
-  content: '';
-  position: absolute; inset: 0;
-  background: rgba(46,204,113,0.95);
-  -webkit-mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100' preserveAspectRatio='none'><path fill='none' stroke='black' stroke-width='8' stroke-linejoin='round' d='M16,0 L84,0 L100,16 L100,84 L84,100 L16,100 L0,84 L0,16 Z'/></svg>") center/100% 100% no-repeat;
-          mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100' preserveAspectRatio='none'><path fill='none' stroke='black' stroke-width='8' stroke-linejoin='round' d='M16,0 L84,0 L100,16 L100,84 L84,100 L16,100 L0,84 L0,16 Z'/></svg>") center/100% 100% no-repeat;
-  z-index: -1;
-  pointer-events: none;
-}
+/* HP — heart outline (red) containing the current HP number. */
 .stat-hp {
   right: 4px;
   color: #f1948a;
-  text-shadow:
-    0 1px 0 rgba(0,0,0,0.95),
-    0 -0.5px 0 rgba(231,76,60,0.40),
-    0 0 4px rgba(231,76,60,0.50);
-  font-family: 'JetBrains Mono', 'SF Mono', ui-monospace, Menlo, Consolas, monospace;
+  filter: drop-shadow(0 0 3px rgba(231,76,60,0.5)) drop-shadow(0 1px 2px rgba(0,0,0,0.9));
 }
-.stat-hp::before {
-  content: '';
-  position: absolute; inset: 0;
-  background: rgba(0, 8, 14, 0.48);
-  -webkit-mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100' preserveAspectRatio='none'><path fill='black' d='M16,0 L84,0 L100,16 L100,84 L84,100 L16,100 L0,84 L0,16 Z'/></svg>") center/100% 100% no-repeat;
-          mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100' preserveAspectRatio='none'><path fill='black' d='M16,0 L84,0 L100,16 L100,84 L84,100 L16,100 L0,84 L0,16 Z'/></svg>") center/100% 100% no-repeat;
-  filter: drop-shadow(0 0 3px rgba(231,76,60,0.45));
-  z-index: -2;
-}
-.stat-hp::after {
-  content: '';
-  position: absolute; inset: 0;
-  background: rgba(231,76,60,0.95);
-  -webkit-mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100' preserveAspectRatio='none'><path fill='none' stroke='black' stroke-width='8' stroke-linejoin='round' d='M16,0 L84,0 L100,16 L100,84 L84,100 L16,100 L0,84 L0,16 Z'/></svg>") center/100% 100% no-repeat;
-          mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100' preserveAspectRatio='none'><path fill='none' stroke='black' stroke-width='8' stroke-linejoin='round' d='M16,0 L84,0 L100,16 L100,84 L84,100 L16,100 L0,84 L0,16 Z'/></svg>") center/100% 100% no-repeat;
-  z-index: -1;
-  pointer-events: none;
-}
-/* Buff / debuff indicators — the orb core stays pure black. The NUMBER
-   itself carries the signal: a buffed stat shows a brighter/pulsed
-   text-shadow in the buff-polarity hue, a debuffed stat dims down. No
-   radial tint behind the number so the Tron chrome stays clean.
-   Applied by ui.js when card.attack or card.maxHealth has drifted away
-   from the instance's baseAttack / baseHealth snapshot. */
-.stat-circle.stat-buffed,
-.stat-circle.stat-debuffed {
-  background: #000000;
-}
-/* Buffed ATK — brighter green number with a stronger glow. */
+/* Buff / debuff — shift icon glow to match polarity. */
+/* Buffed ATK — brighter green with a stronger glow. */
 .stat-atk.stat-buffed {
   color: #a8f5c4;
-  text-shadow: 0 0 6px rgba(46,204,113,1), 0 0 14px rgba(46,204,113,0.75);
+  filter: drop-shadow(0 0 6px rgba(46,204,113,1)) drop-shadow(0 0 12px rgba(46,204,113,0.7));
 }
-/* Buffed HP — brighter red-pink number with a stronger glow. */
+/* Buffed HP — brighter red-pink with a stronger glow. */
 .stat-hp.stat-buffed {
   color: #ffb5ad;
-  text-shadow: 0 0 6px rgba(231,76,60,1), 0 0 14px rgba(231,76,60,0.75);
+  filter: drop-shadow(0 0 6px rgba(231,76,60,1)) drop-shadow(0 0 12px rgba(231,76,60,0.7));
 }
-/* Debuffed stats — muted fill, kept in their base hue so the polarity
-   stays legible without adding a background tint. */
+/* Debuffed stats — muted, dim glow. */
 .stat-atk.stat-debuffed {
   color: #5aa775;
-  text-shadow: 0 0 4px rgba(46,204,113,0.55);
+  filter: drop-shadow(0 0 2px rgba(46,204,113,0.35));
 }
 .stat-hp.stat-debuffed {
   color: #b07068;
-  text-shadow: 0 0 4px rgba(231,76,60,0.55);
+  filter: drop-shadow(0 0 2px rgba(231,76,60,0.35));
 }
 .card-abilities {
   font-family: 'Rajdhani', 'Segoe UI', system-ui, sans-serif;
@@ -28879,6 +28808,30 @@ body.round-tick .board::after {
   font-size: 1.05em;
   color: #4fc3f7;
   letter-spacing: 0.01em;
+  flex: 1;
+}
+/* Minimize toggle — collapses the callout to header-only so the player
+   can interact with game elements underneath the callout. */
+.tut-btn-minimize {
+  background: none;
+  border: 1px solid #334;
+  color: #4fc3f7;
+  border-radius: 4px;
+  width: 22px; height: 22px;
+  font-size: 1.1em; font-weight: 700;
+  line-height: 1;
+  cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+  transition: border-color 0.15s, color 0.15s;
+}
+.tut-btn-minimize:hover { border-color: #4fc3f7; color: #81d4fa; }
+.tut-callout.tut-minimized .tut-callout-body,
+.tut-callout.tut-minimized .tut-callout-footer {
+  display: none;
+}
+.tut-callout.tut-minimized {
+  padding-bottom: 14px;
 }
 .tut-callout-body {
   color: #cdd5e0;

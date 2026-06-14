@@ -1,4 +1,4 @@
-// tutorial.js — v1
+// tutorial.js — v2
 // Scripted in-game tutorial. Loaded after ui.js so UI/Game are available.
 
 const Tutorial = {
@@ -9,6 +9,7 @@ const Tutorial = {
   _callout: null,
   _backdrop: null,
   _prevTarget: null,
+  _minimized: false,
 
   // ── STEPS ──────────────────────────────────────────────────────────────
   steps: [
@@ -51,7 +52,7 @@ const Tutorial = {
     {
       id: 'read-card',
       title: 'Reading a Card — Gamora',
-      text: 'This is <strong>Gamora</strong>.<br><br>🔢 <strong>Top-left number</strong> — Energy cost to play her (2).<br>⚔️ <strong>Attack</strong> — damage she deals in combat (2).<br>❤️ <strong>Health</strong> — damage she can take before dying (3).<br><br>Gamora has no keywords — pure raw power.',
+      text: 'This is <strong>Gamora</strong>.<br><br>🔢 <strong>Top-left</strong> — Energy cost (2).<br>🗡️ <strong>Sword icon (green)</strong> = Attack — damage dealt in combat (2).<br>❤️ <strong>Heart icon (red)</strong> = Health — damage she can absorb (3).<br><br>She also has an ability: on play she <em>destroys any enemy with 2 HP or less</em>, and gains +1/+1 each time she kills.',
       target: '.player-hand-section .hand-card-wrapper:first-child', pos: 'top', type: 'next',
     },
     {
@@ -110,6 +111,7 @@ const Tutorial = {
     this.stepIdx = -1;
     this._lastPlayedLane = -1;
     this._prevTarget = null;
+    this._minimized = false;
     this._launchGame();
     this._buildOverlay();
     this.advance(0);
@@ -185,6 +187,7 @@ const Tutorial = {
       <div class="tut-callout-header">
         <span class="tut-callout-icon">🎮</span>
         <span class="tut-callout-title"></span>
+        <button class="tut-btn-minimize" title="Minimize" onclick="Tutorial.toggleMinimize()">−</button>
       </div>
       <div class="tut-callout-body"></div>
       <div class="tut-callout-footer">
@@ -257,6 +260,15 @@ const Tutorial = {
 
   next() { this.advance(this.stepIdx + 1); },
 
+  toggleMinimize() {
+    this._minimized = !this._minimized;
+    const c = this._callout;
+    if (!c) return;
+    c.classList.toggle('tut-minimized', this._minimized);
+    const btn = c.querySelector('.tut-btn-minimize');
+    if (btn) btn.textContent = this._minimized ? '+' : '−';
+  },
+
   // ── POSITIONING ────────────────────────────────────────────────────────
   _positionNear(el, pref) {
     const c   = this._callout;
@@ -320,8 +332,8 @@ const Tutorial = {
       if (event === 'card-played' && data && typeof data.laneIdx === 'number') {
         this._lastPlayedLane = data.laneIdx;
       }
-      // Small delay so the board re-renders before the callout repositions
-      setTimeout(() => this.next(), 120);
+      // Wait one animation frame so the board re-renders before repositioning
+      requestAnimationFrame(() => this.next());
     }
   },
 
