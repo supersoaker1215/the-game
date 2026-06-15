@@ -58,4 +58,10 @@ window.CARD_ART_VARIANTS = {
   'Darth Maul':          ['Darth Maul.jpg'],
   'Padme Amidala':       ['Padme Amidala.png'],
   'Luke Skywalker':      ['Luke Skywalker.png',       'Luke Skywalker 2.jpg'],
+  // ── New portraits (2026-06-15) ──
+  'Joker':               ['Joker.png'],
+  'Carnage':             ['Carnage.png'],
+  'Cyborg':              ['Cyborg.png'],
+  'Rocket Raccoon':      ['Rocket Raccoon.png'],
+  'Kang':                ['Kang.png'],
 };

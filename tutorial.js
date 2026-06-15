@@ -1,4 +1,4 @@
-// tutorial.js — v4
+// tutorial.js — v5
 // Scripted in-game tutorial. Loaded after ui.js so UI/Game are available.
 
 const Tutorial = {
@@ -254,7 +254,11 @@ const Tutorial = {
     const isFull = step.full || !targetEl;
     this._overlay.classList.toggle('tut-full', !!step.full);
 
-    if (targetEl) {
+    // When minimized, pin to top-right corner so the thin header bar
+    // never lands over lane slots or hand cards the player needs to click.
+    if (this._minimized) {
+      this._positionCorner();
+    } else if (targetEl) {
       targetEl.classList.add('tut-target-highlight');
       this._prevTarget = targetEl;
       this._positionNear(targetEl, step.pos || 'bottom');
@@ -272,9 +276,25 @@ const Tutorial = {
     c.classList.toggle('tut-minimized', this._minimized);
     const btn = c.querySelector('.tut-btn-minimize');
     if (btn) btn.textContent = this._minimized ? '+' : '−';
+    // Reposition when toggling manually — expand goes back to center,
+    // minimize goes to corner so it doesn't block gameplay.
+    if (this._minimized) this._positionCorner();
+    else this._positionCenter();
   },
 
   // ── POSITIONING ────────────────────────────────────────────────────────
+  _positionCorner() {
+    const c = this._callout;
+    const vw = window.innerWidth;
+    const GAP = 14;
+    const CW = Math.min(340, vw - 32);
+    c.style.position  = 'fixed';
+    c.style.width     = CW + 'px';
+    c.style.top       = GAP + 'px';
+    c.style.left      = (vw - CW - GAP) + 'px';
+    c.style.transform = '';
+  },
+
   _positionNear(el, pref) {
     const c   = this._callout;
     const rect = el.getBoundingClientRect();
