@@ -19,7 +19,7 @@ const UI = {
   // Use when an image crops poorly at the default — e.g. a head gets cut
   // off at the top or feet dominate instead of the face.
   PORTRAIT_POSITION: {
-    'Joker': 'center 15%',
+    'Joker': 'center 5%',
   },
 
   // =====================================================================
