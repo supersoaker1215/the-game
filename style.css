@@ -27771,7 +27771,7 @@ body.combat-anticipate::after  { content: none !important; }
      (set inline by JS). Cover-crop fills the box at native aspect. */
   background-image: var(--portrait-bg, none);
   background-size: cover;
-  background-position: center center;
+  background-position: var(--portrait-pos, center center);
   background-repeat: no-repeat;
 
   /* === TRON GEM CONTAINER — soft shading + double-line frame ===

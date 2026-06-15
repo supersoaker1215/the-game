@@ -13,7 +13,14 @@ const UI = {
   // cached PNGs (which don't have built-in cache busters since they're
   // referenced via background-image url() and not the index.html
   // version-suffix system). Bump this every time you regen art.
-  _CARD_ART_VERSION: 61,
+  _CARD_ART_VERSION: 62,
+
+  // Per-card background-position overrides. Default is "center center".
+  // Use when an image crops poorly at the default — e.g. a head gets cut
+  // off at the top or feet dominate instead of the face.
+  PORTRAIT_POSITION: {
+    'Joker': 'center 15%',
+  },
 
   // =====================================================================
   // CARD ART VARIANTS
@@ -7044,7 +7051,8 @@ const UI = {
           // No separate name-banner row — name lives inside the portrait
           // as a translucent bottom strip.
           const portraitFile = UI.getCardArtPath(def.name);
-          const portraitHtml = `<div class="card-portrait" style="--portrait-bg:url('${portraitFile}')"><div class="card-name-overlay">${def.name}</div></div>`;
+          const portraitPos = UI.PORTRAIT_POSITION[def.name] || '';
+          const portraitHtml = `<div class="card-portrait" style="--portrait-bg:url('${portraitFile}')${portraitPos ? `;--portrait-pos:${portraitPos}` : ''}"><div class="card-name-overlay">${def.name}</div></div>`;
           // [ CARD DATA ] divider was removed — user direction: "it's
           // distracting and it doesn't add anything." The painting →
           // status badges → desc → orbs hierarchy already reads clearly
@@ -9822,7 +9830,8 @@ const UI = {
         // intentionally — its `:hover { transform: none !important; }`
         // lock would suppress the draft picker's translateY(-8px) lift.
         const portraitFile = UI.getCardArtPath(c.name);
-        const portraitHtml = `<div class="card-portrait" style="--portrait-bg:url('${portraitFile}')"><div class="card-name-overlay">${c.name}</div></div>`;
+        const portraitPos = UI.PORTRAIT_POSITION[c.name] || '';
+        const portraitHtml = `<div class="card-portrait" style="--portrait-bg:url('${portraitFile}')${portraitPos ? `;--portrait-pos:${portraitPos}` : ''}"><div class="card-name-overlay">${c.name}</div></div>`;
         html += `<div class="card draft-card ${this.getCostClass(c.cost)}${c.isDiscardEffect ? ' discard-effect' : ''}" data-card-name="${c.name}" onclick="draftPick(${i})">
           <span class="card-cost">${c.cost}</span>
           ${rarityPips}
@@ -11651,7 +11660,8 @@ const UI = {
     // Cards without art still render the box with the name overlay so
     // the layout stays consistent. Per-card name escape: text content
     // only, no HTML, so a card named with special chars renders safely.
-    const portraitStyle = portraitFile ? `--portrait-bg:url('${portraitFile}')` : '';
+    const portraitPos = UI.PORTRAIT_POSITION[card.name] || '';
+    const portraitStyle = portraitFile ? `--portrait-bg:url('${portraitFile}')${portraitPos ? `;--portrait-pos:${portraitPos}` : ''}` : '';
     const portraitHtml = `<div class="card-portrait" style="${portraitStyle}"><div class="card-name-overlay">${card.name || ''}</div></div>`;
     // [ CARD DATA ] divider was removed per user feedback — read as
     // distracting, didn't add information beyond the visual gap that
