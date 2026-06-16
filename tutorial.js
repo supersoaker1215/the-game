@@ -1,4 +1,4 @@
-// tutorial.js — v6
+// tutorial.js — v7
 // Scripted in-game tutorial. Loaded after ui.js so UI/Game are available.
 
 const Tutorial = {
@@ -153,9 +153,24 @@ const Tutorial = {
     const vibranium = trickDefs.find(t => t.name === 'Vibranium');
     s.player.trickHand = vibranium ? [Object.assign({}, vibranium)] : [];
 
-    // AI card pre-placed in lane 0 — will hit player face if unblocked
+    // AI card pre-placed in lane 0 — will hit player face if unblocked.
+    // Null out all ability callbacks so no card effect fires during the
+    // tutorial and accidentally changes game state mid-walkthrough.
     const groodDef = defs.find(c => c.name === 'Gorilla Grodd');
-    if (groodDef) s.lanes[0].ai = Game.createCardInstance(groodDef, 'ai');
+    if (groodDef) {
+      const groodInst = Game.createCardInstance(groodDef, 'ai');
+      groodInst.onPlay = null;
+      groodInst.onAnyCardPlayed = null;
+      groodInst.onDeath = null;
+      groodInst.onKill = null;
+      groodInst.onDamaged = null;
+      groodInst.onBeforeTricks = null;
+      groodInst.onBeforeAttack = null;
+      groodInst.onEndOfTurn = null;
+      groodInst.onAllyKilled = null;
+      groodInst.onEvade = null;
+      s.lanes[0].ai = groodInst;
+    }
 
     // Empty draw piles — tutorial is a single round
     s.drawPile      = [];
@@ -363,8 +378,7 @@ const Tutorial = {
       if (event === 'card-played' && data && typeof data.laneIdx === 'number') {
         this._lastPlayedLane = data.laneIdx;
       }
-      // Wait one animation frame so the board re-renders before repositioning
-      requestAnimationFrame(() => this.next());
+      this.next();
     }
   },
 

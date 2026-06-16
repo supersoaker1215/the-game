@@ -28953,3 +28953,568 @@ body.round-tick .board::after {
   0%, 100% { outline-color: #ffd700; box-shadow: 0 0 0 0 rgba(255,215,0,0.0); }
   50%       { outline-color: #fff9c4; box-shadow: 0 0 12px 3px rgba(255,215,0,0.45); }
 }
+
+/* ================================================================
+   2v2 MODE STYLES
+   ================================================================ */
+
+.twoVTwo-overlay {
+  position: fixed;
+  inset: 0;
+  background: #0a0d12;
+  z-index: 800;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  overflow-y: auto;
+}
+
+/* --- Team Setup Screen --- */
+.twov2-panel {
+  background: #111720;
+  border: 1.5px solid #2a3a50;
+  border-radius: 14px;
+  padding: 32px 36px 28px;
+  max-width: 500px;
+  width: 94%;
+  margin: auto;
+}
+.twov2-title {
+  color: #4fc3f7;
+  font-size: 1.5rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-align: center;
+  margin: 0 0 6px;
+}
+.twov2-subtitle {
+  color: #88a0b8;
+  text-align: center;
+  margin: 0 0 22px;
+  font-size: 0.92rem;
+}
+.twov2-names-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin-bottom: 24px;
+}
+.twov2-name-row {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.twov2-name-label {
+  color: #88a0b8;
+  font-size: 0.82rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+.twov2-name-input {
+  background: #0d1520;
+  border: 1.5px solid #2a3a50;
+  border-radius: 6px;
+  color: #e0e8f0;
+  padding: 7px 10px;
+  font-size: 0.95rem;
+  outline: none;
+  transition: border-color 0.15s;
+}
+.twov2-name-input:focus { border-color: #4fc3f7; }
+.twov2-team-assign {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 24px;
+  justify-content: center;
+}
+.twov2-team-box {
+  flex: 1;
+  background: #0d1520;
+  border: 1.5px solid #2a3a50;
+  border-radius: 8px;
+  padding: 12px;
+  text-align: center;
+}
+.twov2-team-label {
+  font-weight: 700;
+  font-size: 1rem;
+  margin-bottom: 8px;
+  letter-spacing: 0.06em;
+}
+.twov2-team-members { display: flex; flex-direction: column; gap: 4px; }
+.twov2-member { color: #cdd5e0; font-size: 0.9rem; }
+.twov2-team-vs {
+  color: #f5a623;
+  font-size: 1.3rem;
+  font-weight: 900;
+  flex-shrink: 0;
+}
+.twov2-actions {
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+  margin-bottom: 16px;
+}
+.twov2-btn {
+  padding: 11px 22px;
+  border-radius: 8px;
+  border: none;
+  font-weight: 700;
+  font-size: 0.95rem;
+  cursor: pointer;
+  transition: opacity 0.15s, transform 0.1s;
+}
+.twov2-btn:hover { opacity: 0.88; transform: translateY(-1px); }
+.twov2-btn-pri {
+  background: #4fc3f7;
+  color: #0a0d12;
+}
+.twov2-btn-sec {
+  background: #1e2d3e;
+  color: #4fc3f7;
+  border: 1.5px solid #4fc3f7;
+}
+.twov2-back-btn {
+  display: block;
+  margin: 0 auto;
+  background: none;
+  border: none;
+  color: #88a0b8;
+  font-size: 0.9rem;
+  cursor: pointer;
+}
+.twov2-back-btn:hover { color: #cdd5e0; }
+
+/* --- Pass Screen --- */
+.twov2-pass-panel {
+  text-align: center;
+  max-width: 380px;
+  width: 90%;
+  padding: 48px 32px;
+}
+.twov2-pass-icon { font-size: 3rem; margin-bottom: 14px; }
+.twov2-pass-heading {
+  color: #88a0b8;
+  font-size: 1rem;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  margin-bottom: 10px;
+}
+.twov2-pass-name {
+  font-size: 1.8rem;
+  font-weight: 800;
+  margin-bottom: 10px;
+}
+.twov2-pass-sub {
+  color: #6a7f96;
+  font-size: 0.9rem;
+  margin-bottom: 32px;
+}
+.twov2-ready-btn {
+  padding: 14px 36px;
+  font-size: 1.05rem;
+}
+
+/* --- In-Game Layout --- */
+.twov2-game-wrap {
+  width: 100%;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 10px 8px 80px;
+  box-sizing: border-box;
+}
+
+/* Team health bars */
+.twov2-health-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  max-width: 900px;
+  margin-bottom: 10px;
+  padding: 8px 12px;
+  background: #0d1520;
+  border-radius: 8px;
+  border: 1px solid #1e2d3e;
+}
+.twov2-hb-team {
+  flex: 1;
+  border: 1.5px solid;
+  border-radius: 6px;
+  padding: 6px 10px;
+  text-align: center;
+}
+.twov2-hb-label {
+  font-weight: 700;
+  font-size: 0.85rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  display: block;
+}
+.twov2-hb-hp {
+  font-size: 1.05rem;
+  font-weight: 700;
+  display: block;
+}
+.twov2-hb-round {
+  color: #f5a623;
+  font-weight: 800;
+  font-size: 1rem;
+  flex-shrink: 0;
+}
+.twov2-block-pip-row {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  justify-content: center;
+  margin-top: 4px;
+}
+.twov2-block-pip {
+  width: 10px; height: 10px;
+  border-radius: 2px;
+  background: #1e2d3e;
+  border: 1px solid #2a3a50;
+}
+.twov2-pip-filled { background: #4fc3f7; border-color: #4fc3f7; }
+.twov2-block-label { color: #88a0b8; font-size: 0.7rem; margin-left: 4px; }
+
+/* 8-lane board */
+.twov2-board {
+  display: flex;
+  gap: 6px;
+  width: 100%;
+  max-width: 900px;
+  margin-bottom: 10px;
+  padding: 10px 8px;
+  background: #0d1520;
+  border-radius: 8px;
+  border: 1px solid #1e2d3e;
+  overflow-x: auto;
+}
+.twov2-lane {
+  flex: 1;
+  min-width: 80px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+.twov2-lane-num {
+  color: #88a0b8;
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-align: center;
+}
+.twov2-lane-slot {
+  width: 100%;
+  min-height: 60px;
+  border-radius: 6px;
+  border: 1.5px solid #1e2d3e;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 4px;
+  box-sizing: border-box;
+}
+.twov2-lane-slot-empty { border-style: dashed; }
+.twov2-lane-card {
+  border-color: #2a3a50;
+}
+.twov2-card-name {
+  color: #cdd5e0;
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-align: center;
+  line-height: 1.2;
+}
+.twov2-card-stats {
+  color: #f5a623;
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+.twov2-lane-divider {
+  width: 100%;
+  height: 2px;
+  background: #1e2d3e;
+  border-radius: 1px;
+}
+
+/* Active player bar */
+.twov2-active-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  max-width: 900px;
+  background: #0d1520;
+  border-radius: 8px;
+  border: 1px solid #1e2d3e;
+  padding: 8px 14px;
+  margin-bottom: 10px;
+  box-sizing: border-box;
+}
+.twov2-active-name {
+  font-weight: 800;
+  font-size: 1.1rem;
+}
+.twov2-energy-display {
+  color: #f5a623;
+  font-weight: 700;
+  font-size: 1rem;
+}
+.twov2-combat-label {
+  color: #ff9800;
+  font-size: 0.9rem;
+  font-weight: 700;
+  animation: pulse 1s ease-in-out infinite alternate;
+}
+
+/* Hand area */
+.twov2-hand-wrap {
+  width: 100%;
+  max-width: 900px;
+  background: #0d1520;
+  border-radius: 8px;
+  border: 1px solid #1e2d3e;
+  padding: 10px 12px;
+  margin-bottom: 10px;
+  box-sizing: border-box;
+}
+.twov2-hand-label {
+  color: #88a0b8;
+  font-size: 0.8rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  margin-bottom: 8px;
+}
+.twov2-hand {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.twov2-hand-empty {
+  color: #4a5a6a;
+  font-size: 0.9rem;
+  padding: 12px 0;
+}
+.twov2-hand-card {
+  background: #111820;
+  border: 1.5px solid #2a3a50;
+  border-radius: 8px;
+  padding: 8px 10px;
+  cursor: pointer;
+  min-width: 80px;
+  transition: border-color 0.15s, background 0.15s;
+  position: relative;
+}
+.twov2-card-play { border-color: #4fc3f7; }
+.twov2-hand-card:hover.twov2-card-play { background: #0d1e2e; }
+.twov2-card-selected {
+  border-color: #ffd700 !important;
+  background: #1e1a0a !important;
+  box-shadow: 0 0 0 2px rgba(255,215,0,0.4);
+}
+.twov2-hcard-cost {
+  position: absolute;
+  top: 4px; left: 6px;
+  color: #f5a623;
+  font-weight: 800;
+  font-size: 0.85rem;
+}
+.twov2-hcard-name {
+  color: #cdd5e0;
+  font-size: 0.82rem;
+  font-weight: 600;
+  margin-top: 14px;
+  margin-bottom: 4px;
+}
+.twov2-hcard-stats {
+  font-size: 0.78rem;
+  color: #88a0b8;
+}
+.twov2-tricks-row {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.twov2-trick-card {
+  background: #0d1e14;
+  border: 1.5px solid #1e5a2e;
+  border-radius: 8px;
+  padding: 8px 10px;
+  cursor: pointer;
+  min-width: 80px;
+  position: relative;
+}
+.twov2-trick-card:hover { background: #122a1a; }
+.twov2-trick-cost { color: #4caf50 !important; }
+
+/* Lane selection */
+.twov2-lane-select {
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  max-width: 900px;
+  background: #111820;
+  border: 1.5px solid #ffd700;
+  border-radius: 8px;
+  padding: 12px;
+  box-sizing: border-box;
+  margin-bottom: 10px;
+}
+.twov2-ls-label {
+  color: #ffd700;
+  font-weight: 700;
+  font-size: 0.9rem;
+}
+.twov2-ls-row {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+.twov2-ls-btn {
+  padding: 8px 12px;
+  background: #1e2d3e;
+  border: 1.5px solid #4fc3f7;
+  border-radius: 6px;
+  color: #4fc3f7;
+  font-weight: 700;
+  cursor: pointer;
+  min-width: 64px;
+}
+.twov2-ls-btn:hover:not(:disabled) { background: #0d1e2e; }
+.twov2-ls-blocked { opacity: 0.35; cursor: default; }
+.twov2-ls-cancel {
+  background: none;
+  border: 1px solid #556;
+  color: #88a0b8;
+  border-radius: 6px;
+  padding: 6px 14px;
+  cursor: pointer;
+  font-size: 0.85rem;
+}
+
+/* Done button */
+.twov2-done-btn {
+  position: fixed;
+  bottom: 20px;
+  right: 20px;
+  background: #4fc3f7;
+  color: #0a0d12;
+  border: none;
+  border-radius: 10px;
+  padding: 12px 28px;
+  font-weight: 800;
+  font-size: 1rem;
+  cursor: pointer;
+  box-shadow: 0 4px 20px rgba(79,195,247,0.4);
+  z-index: 10;
+}
+.twov2-done-btn:hover { background: #81d4fa; }
+
+/* ===== 2v2 DRAFT SCREEN ===== */
+.twov2-draft-heading {
+  font-size: 1.2rem;
+  font-weight: 800;
+  margin-bottom: 6px;
+}
+.twov2-draft-sub {
+  color: #aaa;
+  font-size: 0.9rem;
+  margin-bottom: 16px;
+}
+.twov2-draft-choices {
+  display: flex;
+  gap: 16px;
+  justify-content: center;
+  flex-wrap: wrap;
+  margin-bottom: 16px;
+}
+.twov2-draft-choice {
+  background: #1a2433;
+  border: 2px solid #4fc3f7;
+  border-radius: 12px;
+  color: #e0f0ff;
+  padding: 16px 20px;
+  cursor: pointer;
+  width: 160px;
+  text-align: center;
+  transition: background 0.15s, transform 0.1s;
+}
+.twov2-draft-choice:hover { background: #0d1e30; transform: scale(1.04); }
+.twov2-dc-name { font-weight: 800; font-size: 1rem; margin-bottom: 6px; }
+.twov2-dc-stats { color: #ffd700; font-size: 0.85rem; margin-bottom: 4px; }
+.twov2-dc-cost  { color: #f97316; font-size: 0.8rem; margin-bottom: 6px; }
+.twov2-dc-desc  { color: #88a0b8; font-size: 0.75rem; line-height: 1.3; }
+.twov2-draft-progress {
+  font-size: 0.8rem;
+  color: #556;
+  margin-top: 8px;
+}
+
+/* ===== 2v2 ONLINE LOBBY ===== */
+.twov2-lobby-form {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  align-items: center;
+  margin: 18px 0;
+}
+.twov2-lobby-divider { color: #556; font-size: 0.85rem; margin: 6px 0; }
+.twov2-lobby-code-wrap {
+  background: #0d1520;
+  border: 2px solid #4fc3f7;
+  border-radius: 10px;
+  padding: 14px 28px;
+  text-align: center;
+  margin: 14px 0;
+}
+.twov2-lobby-code-label { color: #888; font-size: 0.75rem; letter-spacing: 2px; }
+.twov2-lobby-code { font-size: 2.5rem; font-weight: 900; color: #4fc3f7; letter-spacing: 8px; }
+.twov2-lobby-code-sub { color: #556; font-size: 0.8rem; margin-top: 4px; }
+.twov2-lobby-players {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 14px 0;
+  min-width: 220px;
+}
+.twov2-lobby-player {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: #141c28;
+  border: 1px solid #2a3a50;
+  border-radius: 8px;
+  padding: 8px 14px;
+  color: #556;
+}
+.twov2-lobby-joined { border-color: #4fc3f7; color: #e0f0ff; }
+.twov2-lobby-slot  { font-size: 0.7rem; font-weight: 700; color: #888; min-width: 24px; }
+.twov2-lobby-name  { flex: 1; font-weight: 600; }
+.twov2-lobby-check { color: #4caf50; font-weight: 700; }
+.twov2-lobby-waiting { color: #888; font-size: 0.9rem; margin: 10px 0; }
+.twov2-lobby-error { color: #f44336; font-size: 0.85rem; margin: 8px 0; }
+
+/* ===== ONLINE WAITING BANNER ===== */
+.twov2-waiting-banner {
+  text-align: center;
+  color: #ffd700;
+  font-size: 1rem;
+  font-weight: 700;
+  padding: 12px 0;
+  animation: pulse 1.5s ease-in-out infinite;
+}
+@keyframes pulse {
+  0%,100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}

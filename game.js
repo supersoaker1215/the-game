@@ -30,6 +30,7 @@ function hashString(str) {
 
 const Game = {
   LANE_COUNT: 6,
+  LANE_COUNT_2V2: 8,
   BLOCK_MAX: 8,
   state: null,
   _dmgEvents: [], // { cardId, amount, type: 'hit'|'heal'|'block'|'evade'|'hpHit', owner }
@@ -457,6 +458,7 @@ const Game = {
     // PLAY sub-screen. Headless sim harnesses call startMatch('classic')
     // directly without going through the UI, so init() doesn't build
     // decks here.
+    this.LANE_COUNT = 6;  // reset to 1v1 default; 2v2 overrides to 8 before calling init()
     nextCardId = 1;
     this.state = {
       phase: 'main-menu',
@@ -475,7 +477,7 @@ const Game = {
       voidPile: [],       // devoured cards — cannot be recovered
       player: Object.assign(this.makePlayer(), { isHuman: true }),
       ai: Object.assign(this.makePlayer(), { isHuman: false }),
-      lanes: Array.from({ length: 6 }, () => ({ player: null, ai: null, _env: null, destroyed: false, destroyedTurns: 0, protected: null, trap: null })),
+      lanes: Array.from({ length: this.LANE_COUNT }, () => ({ player: null, ai: null, _env: null, destroyed: false, destroyedTurns: 0, protected: null, trap: null })),
       selectedCard: null, selectedTrick: null,
       log: [], gameOver: false, winner: null,
       _stats: {
@@ -3763,6 +3765,21 @@ const Game = {
         }
         this.log(`  [BLOCKED!] ${amount} damage fully blocked! Meter reset to 0`);
         this.emitDmg(null, amount, 'blocked', owner);
+        // 2v2: both teammates draw a trick directly from the shared 2v2 trick pile
+        if (this.is2v2()) {
+          const tt = this.state.twoVTwo;
+          const team = owner === 'player' ? 'A' : 'B';
+          Object.keys(tt.players)
+            .filter(pk => tt.players[pk].team === team)
+            .forEach(pk => {
+              if (tt.trickDrawPile.length > 0) {
+                const def = tt.trickDrawPile.pop();
+                tt.players[pk].trickHand.push({ ...def, id: nextCardId++ });
+                this.log(`  [BLOCK DRAW] ${tt.players[pk].name} draws: ${def.name}`);
+              }
+            });
+          return;
+        }
         // Draw a trick card on block — can play free now or keep at regular cost.
         // Pulls from the owner's trick pile (Classic = shared, Deckbuilder = per-player).
         const blockTrickPile = this.getTrickPile(owner);
@@ -7433,5 +7450,585 @@ const Game = {
       }
     }
     return result;
-  }
+  },
+
+  // ===================== 2v2 GAME MODE =====================
+  // Team A (p1+p2) maps to the 'player' combat side.
+  // Team B (p3+p4) maps to the 'ai'    combat side.
+  // Per-player hand/energy/trickHand live in state.twoVTwo.players[pN].
+  // Team health, block meter, and dead pile live in state.twoVTwo.teams.
+  // 6-phase turn order rotates on a 4-round cycle:
+  //   Round 1: p1-cards → p3-cards → p2-cards-tricks → p4-cards-tricks → p1-tricks → p3-tricks
+  //   Round 2: p2-cards → p3-cards → p4-cards-tricks → p1-cards-tricks → p2-tricks → p3-tricks
+  //   Round 3: p3-cards → p4-cards → p1-cards-tricks → p2-cards-tricks → p3-tricks → p4-tricks
+  //   Round 4: p4-cards → p1-cards → p3-cards-tricks → p2-cards-tricks → p4-tricks → p1-tricks
+  //   (then repeats)
+  // Between each player's phase, a "pass the device" splash screen is shown.
+
+  _2v2PlayerTeam: { p1: 'A', p2: 'A', p3: 'B', p4: 'B' },
+  _2v2TeamSide:   { A: 'player', B: 'ai' },
+
+  _2v2ComputePhaseOrder(round) {
+    const patterns = [
+      ['p1-cards', 'p3-cards', 'p2-cards-tricks', 'p4-cards-tricks', 'p1-tricks', 'p3-tricks'],
+      ['p2-cards', 'p3-cards', 'p4-cards-tricks', 'p1-cards-tricks', 'p2-tricks', 'p3-tricks'],
+      ['p3-cards', 'p4-cards', 'p1-cards-tricks', 'p2-cards-tricks', 'p3-tricks', 'p4-tricks'],
+      ['p4-cards', 'p1-cards', 'p3-cards-tricks', 'p2-cards-tricks', 'p4-tricks', 'p1-tricks'],
+    ];
+    return patterns[(round - 1) % 4];
+  },
+
+  _2v2CanPlayCards(subPhase) {
+    return !!subPhase && subPhase.includes('cards');
+  },
+
+  _2v2CanPlayTricks(subPhase) {
+    return !!subPhase && subPhase.includes('tricks');
+  },
+
+  _2v2ActivePlayer() {
+    const tt = this.state.twoVTwo;
+    if (!tt) return null;
+    const order = this._2v2ComputePhaseOrder(tt.round || 1);
+    const subPhase = order[tt.subPhaseIdx];
+    return subPhase ? subPhase.split('-')[0] : null;  // 'p1', 'p2', etc.
+  },
+
+  _2v2ActiveTeam() {
+    const ap = this._2v2ActivePlayer();
+    return ap ? this._2v2PlayerTeam[ap] : null;
+  },
+
+  _2v2ActiveSide() {
+    const team = this._2v2ActiveTeam();
+    return team ? this._2v2TeamSide[team] : null;
+  },
+
+  _2v2SubPhase() {
+    const tt = this.state.twoVTwo;
+    if (!tt) return null;
+    const order = this._2v2ComputePhaseOrder(tt.round || 1);
+    return order[tt.subPhaseIdx] || null;
+  },
+
+  start2v2Match(opts) {
+    // opts: { names: { p1, p2, p3, p4 }, teamAssignment: 'random'|{ A: [p1,p2], B: [p3,p4] } }
+    this.LANE_COUNT = this.LANE_COUNT_2V2;  // expand to 8 lanes
+    this.init();  // resets state with 8 lanes
+    const s = this.state;
+    s.phase = '2v2-team-setup';
+    s.mode = { players: '2v2', deck: 'classic' };
+
+    // Build per-player name map
+    const names = (opts && opts.names) || { p1: 'Player 1', p2: 'Player 2', p3: 'Player 3', p4: 'Player 4' };
+
+    // Build 2v2 state
+    s.twoVTwo = {
+      players: {
+        p1: { name: names.p1, team: 'A', hand: [], trickHand: [], energy: 0, usedEnergy: 0 },
+        p2: { name: names.p2, team: 'A', hand: [], trickHand: [], energy: 0, usedEnergy: 0 },
+        p3: { name: names.p3, team: 'B', hand: [], trickHand: [], energy: 0, usedEnergy: 0 },
+        p4: { name: names.p4, team: 'B', hand: [], trickHand: [], energy: 0, usedEnergy: 0 },
+      },
+      teams: {
+        A: { health: 30, maxHealth: 30, blockMeter: 0, deadPile: [] },
+        B: { health: 30, maxHealth: 30, blockMeter: 0, deadPile: [] },
+      },
+      subPhaseIdx: 0,
+      round: 0,
+      // Shared draw piles
+      drawPile: [],
+      trickDrawPile: [],
+    };
+
+    // Sync team health into state.player / state.ai so existing combat engine reads correctly
+    s.player.health = s.player.maxHealth = 30;
+    s.ai.health     = s.ai.maxHealth     = 30;
+    s.player.isHuman = true;
+    s.ai.isHuman     = true;  // both sides are human in 2v2
+
+    this._2v2BuildDecks();
+    if (typeof UI !== 'undefined' && UI.render) UI.render();
+  },
+
+  _2v2BuildDecks() {
+    const s = this.state;
+    // Shuffle a fresh card pool and deal initial hands (no draft for 2v2 — straight deal)
+    const allCards = (typeof CARD_DEFS !== 'undefined' ? CARD_DEFS : []).slice();
+    const allTricks = (typeof TRICK_DEFS !== 'undefined' ? TRICK_DEFS : []).slice();
+
+    // Shuffle helpers
+    const shuffle = (arr) => {
+      for (let i = arr.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [arr[i], arr[j]] = [arr[j], arr[i]];
+      }
+      return arr;
+    };
+
+    // Each player gets their own draw pile (equal share of shuffled pool)
+    const tt = s.twoVTwo;
+    const cardPool = shuffle(allCards.filter(c => !c.isEnvironment));
+    const trickPool = shuffle(allTricks.slice());
+
+    // Deal: 5 cards + 2 tricks to each player
+    const dealCards = (playerKey, start, count) => {
+      const hand = [];
+      for (let i = 0; i < count; i++) {
+        const def = cardPool[(start * count + i) % cardPool.length];
+        if (def) hand.push(this.createCardInstance(def, this._2v2TeamSide[tt.players[playerKey].team]));
+      }
+      return hand;
+    };
+    const dealTricks = (start, count) => {
+      const hand = [];
+      for (let i = 0; i < count; i++) {
+        const def = trickPool[(start * count + i) % trickPool.length];
+        if (def) hand.push(Object.assign({}, def));
+      }
+      return hand;
+    };
+
+    ['p1', 'p2', 'p3', 'p4'].forEach((pk, idx) => {
+      tt.players[pk].hand      = dealCards(pk, idx, 5);
+      tt.players[pk].trickHand = dealTricks(idx, 2);
+      tt.players[pk].energy    = 0;
+    });
+
+    // Shared draw piles (remainder)
+    tt.drawPile      = shuffle(cardPool.slice());
+    tt.trickDrawPile = shuffle(trickPool.slice());
+  },
+
+  start2v2Round() {
+    const s = this.state;
+    const tt = s.twoVTwo;
+    tt.round = (tt.round || 0) + 1;
+    tt.subPhaseIdx = 0;
+
+    // Grant energy for this round (round number)
+    const energy = tt.round;
+    Object.values(tt.players).forEach(p => { p.energy = energy; p.usedEnergy = 0; });
+
+    this.log(`=== 2v2 Round ${tt.round} begins ===`);
+    this._2v2StartSubPhase();
+  },
+
+  _2v2StartSubPhase() {
+    const s = this.state;
+    const tt = s.twoVTwo;
+    const subPhase = this._2v2SubPhase();
+    const activeKey = this._2v2ActivePlayer();
+    const activeTeam = this._2v2ActiveTeam();
+
+    if (!subPhase || !activeKey) {
+      // All 6 sub-phases done — resolve combat
+      this._2v2ResolveCombat();
+      return;
+    }
+
+    const playerName = tt.players[activeKey].name;
+    this.log(`[2v2] ${playerName}'s turn — ${subPhase}`);
+
+    // Sync the active player's hand/energy into state.player or state.ai
+    // so existing UI/ability code can read it
+    const side = this._2v2ActiveSide();
+    this._2v2SyncActivePlayer();
+
+    // Set the game phase so UI knows what to show
+    // Online: no pass-device needed; local: show pass screen between players
+    if (tt.online) {
+      s.phase = '2v2-' + subPhase;
+      this._2v2OnlineBroadcast();
+    } else if (tt.subPhaseIdx === 0) {
+      s.phase = '2v2-' + subPhase;
+    } else {
+      s.phase = '2v2-pass';  // "Pass to [playerName]" screen
+      s._2v2NextPhase = '2v2-' + subPhase;  // phase to go to after confirmation
+    }
+
+    if (typeof UI !== 'undefined' && UI.render) UI.render();
+  },
+
+  _2v2SyncActivePlayer() {
+    const s = this.state;
+    const tt = s.twoVTwo;
+    const activeKey = this._2v2ActivePlayer();
+    if (!activeKey) return;
+    const ap = tt.players[activeKey];
+    const side = this._2v2TeamSide[ap.team];
+
+    // Sync hand and energy so existing card-play code works
+    s[side].hand      = ap.hand;
+    s[side].trickHand = ap.trickHand;
+    s[side].currency  = ap.energy - ap.usedEnergy;
+    // Block meter and health come from team state
+    s[side].health    = tt.teams[ap.team].health;
+    s[side].maxHealth = tt.teams[ap.team].maxHealth;
+    s[side].blockMeter = tt.teams[ap.team].blockMeter;
+    // Dead pile is shared per team
+    s[side].deadPile  = tt.teams[ap.team].deadPile;
+  },
+
+  _2v2ReadBackActivePlayer() {
+    const s = this.state;
+    const tt = s.twoVTwo;
+    const activeKey = this._2v2ActivePlayer();
+    if (!activeKey) return;
+    const ap = tt.players[activeKey];
+    const side = this._2v2TeamSide[ap.team];
+
+    // Read back any changes made by ability code
+    ap.hand      = s[side].hand;
+    ap.trickHand = s[side].trickHand;
+    ap.usedEnergy = ap.energy - s[side].currency;
+    // Read back team state
+    tt.teams[ap.team].health    = s[side].health;
+    tt.teams[ap.team].blockMeter = s[side].blockMeter;
+    tt.teams[ap.team].deadPile  = s[side].deadPile;
+  },
+
+  end2v2Phase() {
+    const s = this.state;
+    const tt = s.twoVTwo;
+
+    // Save any changes made during this sub-phase
+    this._2v2ReadBackActivePlayer();
+
+    // Advance to next sub-phase
+    tt.subPhaseIdx++;
+    this._2v2StartSubPhase();
+  },
+
+  confirm2v2Pass() {
+    const s = this.state;
+    if (s._2v2NextPhase) {
+      s.phase = s._2v2NextPhase;
+      delete s._2v2NextPhase;
+    }
+    const activeKey = this._2v2ActivePlayer();
+    if (activeKey) this._2v2SyncActivePlayer();
+    if (typeof UI !== 'undefined' && UI.render) UI.render();
+  },
+
+  _2v2ResolveCombat() {
+    const s = this.state;
+    const tt = s.twoVTwo;
+
+    // Sync both teams' health into state.player/ai before combat
+    s.player.health    = tt.teams.A.health;
+    s.player.maxHealth = tt.teams.A.maxHealth;
+    s.player.blockMeter = tt.teams.A.blockMeter;
+    s.player.deadPile  = tt.teams.A.deadPile;
+    s.ai.health    = tt.teams.B.health;
+    s.ai.maxHealth = tt.teams.B.maxHealth;
+    s.ai.blockMeter = tt.teams.B.blockMeter;
+    s.ai.deadPile  = tt.teams.B.deadPile;
+
+    s.phase = '2v2-combat';
+    if (typeof UI !== 'undefined' && UI.render) UI.render();
+
+    // Run standard combat
+    setTimeout(() => {
+      this.resolveCombat();
+
+      // Read back team health after combat
+      tt.teams.A.health    = s.player.health;
+      tt.teams.A.blockMeter = s.player.blockMeter;
+      tt.teams.A.deadPile  = s.player.deadPile;
+      tt.teams.B.health    = s.ai.health;
+      tt.teams.B.blockMeter = s.ai.blockMeter;
+      tt.teams.B.deadPile  = s.ai.deadPile;
+
+      if (!s.gameOver) {
+        if (tt.online) this._2v2OnlineBroadcast();
+        this._2v2DrawPhase();
+      }
+    }, 300);
+  },
+
+  _2v2DrawPhase() {
+    const s = this.state;
+    const tt = s.twoVTwo;
+
+    // Each player draws 2 cards
+    ['p1', 'p2', 'p3', 'p4'].forEach(pk => {
+      const p = tt.players[pk];
+      const side = this._2v2TeamSide[p.team];
+      for (let i = 0; i < 2 && tt.drawPile.length > 0; i++) {
+        const def = tt.drawPile.pop();
+        if (def) p.hand.push(this.createCardInstance(def, side));
+      }
+      // Draw 1 trick
+      if (tt.trickDrawPile.length > 0) {
+        p.trickHand.push(Object.assign({}, tt.trickDrawPile.pop()));
+      }
+    });
+
+    // Start next round
+    this.start2v2Round();
+  },
+
+  // Check if 2v2 is active
+  is2v2() {
+    return !!(this.state && this.state.mode && this.state.mode.players === '2v2' && this.state.twoVTwo);
+  },
+
+  // Enter 2v2 mode setup from main menu
+  goTo2v2Setup() {
+    this.LANE_COUNT = this.LANE_COUNT_2V2;
+    this.init();
+    this.state.phase = '2v2-team-setup';
+    this.state.mode = { players: '2v2', deck: 'classic' };
+    this.state.twoVTwo = {
+      players: {
+        p1: { name: 'Player 1', team: 'A', hand: [], trickHand: [], energy: 0, usedEnergy: 0 },
+        p2: { name: 'Player 2', team: 'A', hand: [], trickHand: [], energy: 0, usedEnergy: 0 },
+        p3: { name: 'Player 3', team: 'B', hand: [], trickHand: [], energy: 0, usedEnergy: 0 },
+        p4: { name: 'Player 4', team: 'B', hand: [], trickHand: [], energy: 0, usedEnergy: 0 },
+      },
+      teams: {
+        A: { health: 30, maxHealth: 30, blockMeter: 0, deadPile: [] },
+        B: { health: 30, maxHealth: 30, blockMeter: 0, deadPile: [] },
+      },
+      subPhaseIdx: 0,
+      round: 0,
+      drawPile: [],
+      trickDrawPile: [],
+    };
+    this.state.player.health = this.state.player.maxHealth = 30;
+    this.state.ai.health     = this.state.ai.maxHealth     = 30;
+    this.state.player.isHuman = true;
+    this.state.ai.isHuman     = true;
+    if (typeof UI !== 'undefined' && UI.render) UI.render();
+  },
+
+  // ===================== 2v2 DRAFT =====================
+
+  _2v2StartDraft() {
+    const s = this.state;
+    const tt = s.twoVTwo;
+    const allCards = (typeof CARD_DEFS !== 'undefined' ? CARD_DEFS : [])
+      .filter(c => !c.isEnvironment).slice();
+    const allTricks = (typeof TRICK_DEFS !== 'undefined' ? TRICK_DEFS : []).slice();
+
+    tt.draft = {
+      phase: 'cards',
+      round: 1,
+      pickerOrder: ['p1', 'p2', 'p3', 'p4'],
+      pickerIdx: 0,
+      choices: [],
+      cardPool: this.shuffle(allCards),
+      trickPool: this.shuffle(allTricks),
+    };
+
+    ['p1','p2','p3','p4'].forEach(pk => {
+      tt.players[pk].hand = [];
+      tt.players[pk].trickHand = [];
+      tt.players[pk].energy = 0;
+      tt.players[pk].usedEnergy = 0;
+    });
+
+    this._2v2PresentDraftChoices();
+    s.phase = '2v2-draft-pass';
+    s._2v2DraftNextPhase = '2v2-draft';
+    if (typeof UI !== 'undefined' && UI.render) UI.render();
+  },
+
+  _2v2PresentDraftChoices() {
+    const tt = this.state.twoVTwo;
+    const d = tt.draft;
+    const pool = d.phase === 'cards' ? d.cardPool : d.trickPool;
+    d.choices = [pool.pop(), pool.pop()].filter(Boolean);
+  },
+
+  _2v2DraftPick(index) {
+    const s = this.state;
+    const tt = s.twoVTwo;
+    const d = tt.draft;
+    if (!d) return;
+
+    const chosen = d.choices[index];
+    const rejected = d.choices[1 - index];
+    if (!chosen) return;
+
+    const pickerKey = d.pickerOrder[d.pickerIdx];
+    const pickerSide = this._2v2TeamSide[tt.players[pickerKey].team];
+
+    if (d.phase === 'cards') {
+      tt.players[pickerKey].hand.push(this.createCardInstance(chosen, pickerSide));
+    } else {
+      tt.players[pickerKey].trickHand.push({ ...chosen, id: nextCardId++ });
+    }
+
+    // Return rejected to bottom of pool so it can resurface
+    if (rejected) {
+      const pool = d.phase === 'cards' ? d.cardPool : d.trickPool;
+      pool.unshift(rejected);
+    }
+
+    d.pickerIdx++;
+    if (d.pickerIdx >= d.pickerOrder.length) {
+      d.pickerIdx = 0;
+      d.round++;
+      const maxRounds = d.phase === 'cards' ? 5 : 2;
+      if (d.round > maxRounds) {
+        if (d.phase === 'cards') {
+          d.phase = 'tricks';
+          d.round = 1;
+        } else {
+          // Draft complete — build shared piles and start
+          tt.drawPile   = this.shuffle(d.cardPool);
+          tt.trickDrawPile = this.shuffle(d.trickPool);
+          delete tt.draft;
+          this.start2v2Round();
+          return;
+        }
+      }
+    }
+
+    this._2v2PresentDraftChoices();
+    s.phase = '2v2-draft-pass';
+    s._2v2DraftNextPhase = '2v2-draft';
+    if (typeof UI !== 'undefined' && UI.render) UI.render();
+  },
+
+  confirm2v2DraftPass() {
+    const s = this.state;
+    if (s._2v2DraftNextPhase) {
+      s.phase = s._2v2DraftNextPhase;
+      delete s._2v2DraftNextPhase;
+    }
+    if (typeof UI !== 'undefined' && UI.render) UI.render();
+  },
+
+  // ===================== 2v2 ONLINE =====================
+
+  goTo2v2OnlineLobby() {
+    this.LANE_COUNT = this.LANE_COUNT_2V2;
+    this.init();
+    const s = this.state;
+    s.phase = '2v2-online-lobby';
+    s.mode = { players: '2v2', deck: 'classic', online: true };
+    s.twoVTwo = {
+      players: {
+        p1: { name: 'Player 1', team: 'A', hand: [], trickHand: [], energy: 0, usedEnergy: 0 },
+        p2: { name: 'Player 2', team: 'A', hand: [], trickHand: [], energy: 0, usedEnergy: 0 },
+        p3: { name: 'Player 3', team: 'B', hand: [], trickHand: [], energy: 0, usedEnergy: 0 },
+        p4: { name: 'Player 4', team: 'B', hand: [], trickHand: [], energy: 0, usedEnergy: 0 },
+      },
+      teams: {
+        A: { health: 30, maxHealth: 30, blockMeter: 0, deadPile: [] },
+        B: { health: 30, maxHealth: 30, blockMeter: 0, deadPile: [] },
+      },
+      subPhaseIdx: 0,
+      round: 0,
+      drawPile: [],
+      trickDrawPile: [],
+      online: true,
+      you: null,       // set when room is joined ('p1'|'p2'|'p3'|'p4')
+      joinedPlayers: { p1: false, p2: false, p3: false, p4: false },
+    };
+    s.player.health = s.player.maxHealth = 30;
+    s.ai.health     = s.ai.maxHealth     = 30;
+    s.player.isHuman = true;
+    s.ai.isHuman     = true;
+    if (typeof UI !== 'undefined' && UI.render) UI.render();
+  },
+
+  // Host: start online match once all players have joined
+  start2v2OnlineMatch() {
+    const s = this.state;
+    const tt = s.twoVTwo;
+    tt.joinedPlayers = { p1: true, p2: true, p3: true, p4: true };
+    this._2v2StartDraft();
+  },
+
+  // Apply an action received from a joiner (host only)
+  _apply2v2OnlineAction(msg) {
+    const pk = msg.playerKey;
+    if (!pk) return;
+    switch (msg.t) {
+      case 'play2v2Card':
+        this._2v2OnlinePlayCard(pk, msg.cardIdx, msg.laneIdx);
+        break;
+      case 'play2v2Trick':
+        this._2v2OnlinePlayTrick(pk, msg.trickIdx);
+        break;
+      case 'end2v2Phase':
+        this.end2v2Phase();
+        break;
+      case '2v2DraftPick':
+        this._2v2DraftPick(msg.index);
+        break;
+    }
+    this._2v2OnlineBroadcast();
+  },
+
+  _2v2OnlinePlayCard(playerKey, cardIdx, laneIdx) {
+    const s = this.state;
+    const tt = s.twoVTwo;
+    if (!tt) return;
+    const ap = tt.players[playerKey];
+    if (!ap) return;
+    const card = ap.hand[cardIdx];
+    if (!card) return;
+    const side = this._2v2TeamSide[ap.team];
+    const energy = ap.energy - ap.usedEnergy;
+    if (energy < (card.cost || 0)) return;
+    if (!s.lanes[laneIdx] || s.lanes[laneIdx][side]) return;
+    s.lanes[laneIdx][side] = card;
+    ap.hand.splice(cardIdx, 1);
+    ap.usedEnergy = (ap.usedEnergy || 0) + (card.cost || 0);
+    if (card.onPlay) try { card.onPlay(this, card, laneIdx); } catch (e) { console.error(e); }
+  },
+
+  _2v2OnlinePlayTrick(playerKey, trickIdx) {
+    const s = this.state;
+    const tt = s.twoVTwo;
+    if (!tt) return;
+    const ap = tt.players[playerKey];
+    if (!ap) return;
+    const trick = ap.trickHand[trickIdx];
+    if (!trick) return;
+    const side = this._2v2TeamSide[ap.team];
+    const energy = ap.energy - ap.usedEnergy;
+    if (energy < (trick.cost || 0)) return;
+    ap.trickHand.splice(trickIdx, 1);
+    ap.usedEnergy = (ap.usedEnergy || 0) + (trick.cost || 0);
+    if (trick.play) try { trick.play(this, side); } catch (e) { console.error(e); }
+  },
+
+  // Host broadcasts current state to all joiners via Multiplayer4
+  _2v2OnlineBroadcast() {
+    if (typeof Multiplayer4 !== 'undefined' && Multiplayer4.broadcastState) {
+      const clone = (typeof Multiplayer !== 'undefined' && Multiplayer.serializeState)
+        ? Multiplayer.serializeState(this.state)
+        : JSON.parse(JSON.stringify(this.state));
+      Multiplayer4.broadcastState(clone);
+    }
+    if (typeof UI !== 'undefined' && UI.render) UI.render();
+  },
+
+  // Called from team setup UI once player names (and optionally team assignments) are set
+  confirm2v2Teams(names, teams) {
+    const s = this.state;
+    const tt = s.twoVTwo;
+
+    // Apply names
+    if (names) {
+      ['p1', 'p2', 'p3', 'p4'].forEach(pk => {
+        if (names[pk]) tt.players[pk].name = names[pk];
+      });
+    }
+
+    // Apply team assignments (teams.A = [playerKey, playerKey], teams.B = [...])
+    if (teams) {
+      teams.A.forEach((pk, i) => { tt.players[pk].team = 'A'; });
+      teams.B.forEach((pk, i) => { tt.players[pk].team = 'B'; });
+    }
+
+    // Start the draft phase (pick 5 cards + 2 tricks per player)
+    this._2v2StartDraft();
+  },
 };

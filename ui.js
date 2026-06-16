@@ -4488,6 +4488,7 @@ const UI = {
     const isStats       = s.phase === 'stats';
     const isDeckBuilder = s.phase === 'deckbuilder-build';
     const isDraft = s.phase === 'draft-cards' || s.phase === 'draft-tricks';
+    const is2v2 = s.phase && s.phase.startsWith('2v2-');
     // Hide the dev Web/Mobile preview toggle on every screen EXCEPT the
     // main menu and mode-select. It's a developer affordance, not part
     // of the player UI. User feedback: "the blue square on the top left
@@ -4517,7 +4518,7 @@ const UI = {
     this.draftEl.style.display = isDraft ? 'flex' : 'none';
     const isRoguelite = s.phase && s.phase.startsWith('roguelite');
     (this._gameAreaEl || document.getElementById('game-area')).style.display =
-      (isDraft || isMainMenu || isModeSelect || isMyDecks || isStats || isDeckBuilder || isRoguelite) ? 'none' : '';
+      (isDraft || isMainMenu || isModeSelect || isMyDecks || isStats || isDeckBuilder || isRoguelite || is2v2) ? 'none' : '';
 
     if (isMainMenu)    { this.renderMainMenu(s); return; }
     if (isModeSelect)  { this.renderModeSelect(s); return; }
@@ -4525,6 +4526,7 @@ const UI = {
     if (isStats)       { this.renderStats(s); return; }
     if (isDeckBuilder) { this.renderDeckBuilder(s); return; }
     if (isDraft)       { this.renderDraft(s); return; }
+    if (is2v2)         { this.render2v2(s); return; }
     if (isRoguelite && typeof Roguelite !== 'undefined') {
       if (Roguelite.renderPhase(s)) return;
     } else if (typeof Roguelite !== 'undefined') {
@@ -5787,9 +5789,12 @@ const UI = {
                 'Bring your own 30-card deck. Match starts with the first 5 in hand.',
                 true, '', "openDeckBuilder()")}
           <div class="mode-row-label">Two on Two</div>
-          ${btn('mode-2v2-classic', 'Classic Draft',
-                'Teams of two. Each side drafts together from a shared pool.',
-                false, 'Not yet available', '')}
+          ${btn('mode-2v2-classic', '2v2 Local Play',
+                '4 players, same device. Teams of 2 share health and block meter.',
+                true, '', "Game.goTo2v2Setup()")}
+          ${btn('mode-2v2-online', '2v2 Online',
+                'Play over the internet — each player on their own device.',
+                true, '', "Game.goTo2v2OnlineLobby()")}
           ${btn('mode-2v2-deck', 'My Deck',
                 'Teams of two. Each player brings their own deck.',
                 false, 'Not yet available', '')}
@@ -5803,6 +5808,391 @@ const UI = {
     // FX list — but the CSS suppresses animations via [disabled] /
     // [aria-disabled] / .mode-option-disabled checks.
     if (this.applyTronFx) this.applyTronFx();
+  },
+
+  // ===================== 2v2 MODE RENDERING =====================
+  render2v2(s) {
+    const phase = s.phase;
+    const tt = s.twoVTwo;
+    let el = document.getElementById('twoVTwo-overlay');
+    if (!el) {
+      el = document.createElement('div');
+      el.id = 'twoVTwo-overlay';
+      el.className = 'twoVTwo-overlay';
+      document.body.appendChild(el);
+    }
+    el.style.display = 'flex';
+
+    if (phase === '2v2-team-setup')   { this._render2v2TeamSetup(el, s, tt); return; }
+    if (phase === '2v2-pass')         { this._render2v2Pass(el, s, tt); return; }
+    if (phase === '2v2-draft')        { this._render2v2Draft(el, s, tt); return; }
+    if (phase === '2v2-draft-pass')   { this._render2v2DraftPass(el, s, tt); return; }
+    if (phase === '2v2-online-lobby') { this._render2v2OnlineLobby(el, s, tt); return; }
+    this._render2v2Game(el, s, tt, phase);
+  },
+
+  _render2v2TeamSetup(el, s, tt) {
+    const playerKeys = ['p1', 'p2', 'p3', 'p4'];
+    const teamColors = { A: '#4fc3f7', B: '#f44336' };
+
+    el.innerHTML = `
+      <div class="twov2-panel">
+        <h2 class="twov2-title">2v2 Setup</h2>
+        <p class="twov2-subtitle">Enter player names, then assign teams.</p>
+
+        <div class="twov2-names-grid">
+          ${playerKeys.map(pk => `
+            <div class="twov2-name-row">
+              <label class="twov2-name-label">Player ${pk[1]}</label>
+              <input class="twov2-name-input" id="2v2-name-${pk}" type="text"
+                     maxlength="18" placeholder="${tt.players[pk].name}"
+                     value="${tt.players[pk].name}" />
+            </div>
+          `).join('')}
+        </div>
+
+        <div class="twov2-team-assign">
+          <div class="twov2-team-box" id="2v2-teamA">
+            <div class="twov2-team-label" style="color:${teamColors.A}">Team A</div>
+            <div class="twov2-team-members">
+              ${['p1','p2'].map(pk => `<div class="twov2-member">${tt.players[pk].name}</div>`).join('')}
+            </div>
+          </div>
+          <div class="twov2-team-vs">VS</div>
+          <div class="twov2-team-box" id="2v2-teamB">
+            <div class="twov2-team-label" style="color:${teamColors.B}">Team B</div>
+            <div class="twov2-team-members">
+              ${['p3','p4'].map(pk => `<div class="twov2-member">${tt.players[pk].name}</div>`).join('')}
+            </div>
+          </div>
+        </div>
+
+        <div class="twov2-actions">
+          <button class="twov2-btn twov2-btn-sec" onclick="start2v2RandomTeams()">🎲 Random Teams</button>
+          <button class="twov2-btn twov2-btn-pri" onclick="start2v2Confirm()">Start Game →</button>
+        </div>
+        <button class="twov2-back-btn" onclick="Game.goToModeSelect()">← Back</button>
+      </div>`;
+  },
+
+  _render2v2Pass(el, s, tt) {
+    const nextPhase = s._2v2NextPhase || '';
+    const nextPlayerKey = Game._2v2ActivePlayer();
+    const nextName = nextPlayerKey ? tt.players[nextPlayerKey].name : 'Next Player';
+    const team = nextPlayerKey ? tt.players[nextPlayerKey].team : 'A';
+    const teamColor = team === 'A' ? '#4fc3f7' : '#f44336';
+
+    el.innerHTML = `
+      <div class="twov2-pass-panel">
+        <div class="twov2-pass-icon">🔒</div>
+        <div class="twov2-pass-heading">Hand off the device</div>
+        <div class="twov2-pass-name" style="color:${teamColor}">
+          ${nextName}'s Turn
+        </div>
+        <div class="twov2-pass-sub">
+          Don't show the screen until ${nextName} is holding it.
+        </div>
+        <button class="twov2-btn twov2-btn-pri twov2-ready-btn"
+                onclick="Game.confirm2v2Pass()">
+          I'm Ready — Show My Cards
+        </button>
+      </div>`;
+  },
+
+  _render2v2Draft(el, s, tt) {
+    const d = tt && tt.draft;
+    if (!d) return;
+    const pickerKey = d.pickerOrder[d.pickerIdx];
+    const picker = tt.players[pickerKey];
+    const team = picker.team;
+    const teamColor = team === 'A' ? '#4fc3f7' : '#f44336';
+    const isCards = d.phase === 'cards';
+    const roundLabel = isCards
+      ? `Card Pick ${d.round} of 5 — ${picker.name}`
+      : `Trick Pick ${d.round} of 2 — ${picker.name}`;
+
+    const choiceHtml = d.choices.map((item, idx) => {
+      if (!item) return '';
+      if (isCards) {
+        return `<button class="twov2-draft-choice" onclick="twov2DraftPick(${idx})">
+          <div class="twov2-dc-name">${item.name}</div>
+          <div class="twov2-dc-stats">${item.attack} ATK · ${item.health} HP</div>
+          <div class="twov2-dc-cost">Cost ${item.cost}</div>
+          <div class="twov2-dc-desc">${item.desc || ''}</div>
+        </button>`;
+      } else {
+        return `<button class="twov2-draft-choice" onclick="twov2DraftPick(${idx})">
+          <div class="twov2-dc-name">${item.name}</div>
+          <div class="twov2-dc-cost">Cost ${item.cost}</div>
+          <div class="twov2-dc-desc">${item.desc || ''}</div>
+        </button>`;
+      }
+    }).join('');
+
+    el.innerHTML = `
+      <div class="twov2-pass-panel">
+        <div class="twov2-draft-heading" style="color:${teamColor}">${roundLabel}</div>
+        <div class="twov2-draft-sub">Pick one ${isCards ? 'card' : 'trick'} for your hand:</div>
+        <div class="twov2-draft-choices">${choiceHtml}</div>
+        <div class="twov2-draft-progress">
+          ${picker.name} has ${isCards ? picker.hand.length : picker.trickHand.length}
+          ${isCards ? 'card' : 'trick'}${(isCards ? picker.hand.length : picker.trickHand.length) !== 1 ? 's' : ''} drafted
+        </div>
+      </div>`;
+  },
+
+  _render2v2DraftPass(el, s, tt) {
+    const d = tt && tt.draft;
+    if (!d) return;
+    const pickerKey = d.pickerOrder[d.pickerIdx];
+    const picker = tt.players[pickerKey];
+    const team = picker.team;
+    const teamColor = team === 'A' ? '#4fc3f7' : '#f44336';
+    const isCards = d.phase === 'cards';
+
+    el.innerHTML = `
+      <div class="twov2-pass-panel">
+        <div class="twov2-pass-icon">🔒</div>
+        <div class="twov2-pass-heading">Hand off the device</div>
+        <div class="twov2-pass-name" style="color:${teamColor}">
+          ${picker.name}'s Draft Turn
+        </div>
+        <div class="twov2-pass-sub">
+          ${picker.name} is picking ${isCards ? 'card ' + d.round + ' of 5' : 'trick ' + d.round + ' of 2'}.
+          Don't show the screen until they're holding it.
+        </div>
+        <button class="twov2-btn twov2-btn-pri twov2-ready-btn"
+                onclick="Game.confirm2v2DraftPass()">
+          I'm Ready — Show My Choices
+        </button>
+      </div>`;
+  },
+
+  _render2v2OnlineLobby(el, s, tt) {
+    const isHost = tt && tt.you === 'p1';
+    const code = this._2v2OnlineRoomCode || '';
+    const players = tt ? tt.players : {};
+    const joined = tt ? (tt.joinedPlayers || {}) : {};
+    const joinedCount = Object.values(joined).filter(Boolean).length;
+
+    const playerList = ['p1','p2','p3','p4'].map(pk => {
+      const hasJoined = joined[pk];
+      const name = hasJoined ? players[pk].name : (pk === 'p1' ? '(Host)' : '...');
+      return `<div class="twov2-lobby-player ${hasJoined ? 'twov2-lobby-joined' : ''}">
+        <span class="twov2-lobby-slot">P${pk[1]}</span>
+        <span class="twov2-lobby-name">${name}</span>
+        ${hasJoined ? '<span class="twov2-lobby-check">✓</span>' : ''}
+      </div>`;
+    }).join('');
+
+    const errorHtml = this._2v2OnlineError
+      ? `<div class="twov2-lobby-error">${this._2v2OnlineError}</div>` : '';
+
+    if (!tt || !tt.you) {
+      // Pre-join screen — enter name and room code
+      el.innerHTML = `
+        <div class="twov2-panel">
+          <h2 class="twov2-title">Online 2v2</h2>
+          <p class="twov2-subtitle">Play with friends over the internet. P1 creates, others join with the code.</p>
+          ${errorHtml}
+          <div class="twov2-lobby-form">
+            <input class="twov2-name-input" id="2v2-online-name" type="text"
+                   maxlength="18" placeholder="Your name" value="" />
+            <button class="twov2-btn twov2-btn-pri" onclick="twov2OnlineCreate()">
+              Create Room (Host)
+            </button>
+            <div class="twov2-lobby-divider">— or —</div>
+            <input class="twov2-name-input" id="2v2-online-code" type="text"
+                   maxlength="4" placeholder="Room code" style="text-transform:uppercase" />
+            <button class="twov2-btn twov2-btn-sec" onclick="twov2OnlineJoin()">
+              Join Room
+            </button>
+          </div>
+          <button class="twov2-back-btn" onclick="Game.goToModeSelect()">← Back</button>
+        </div>`;
+      return;
+    }
+
+    // Waiting room — show room code and player list
+    el.innerHTML = `
+      <div class="twov2-panel">
+        <h2 class="twov2-title">Online 2v2 Lobby</h2>
+        ${isHost ? `<div class="twov2-lobby-code-wrap">
+          <div class="twov2-lobby-code-label">Room Code</div>
+          <div class="twov2-lobby-code">${code}</div>
+          <div class="twov2-lobby-code-sub">Share this with your 3 friends</div>
+        </div>` : `<div class="twov2-lobby-code-sub">Waiting for host to start…</div>`}
+        ${errorHtml}
+        <div class="twov2-lobby-players">${playerList}</div>
+        ${isHost && joinedCount === 4 ? `
+          <button class="twov2-btn twov2-btn-pri" onclick="twov2OnlineStart()">
+            Start Match →
+          </button>
+        ` : `<div class="twov2-lobby-waiting">${joinedCount}/4 players joined</div>`}
+        <button class="twov2-back-btn" onclick="twov2OnlineLeave()">← Leave</button>
+      </div>`;
+  },
+
+  _render2v2Game(el, s, tt, phase) {
+    if (!tt) return;
+    const activeKey = Game._2v2ActivePlayer();
+    const activeTeam = Game._2v2ActiveTeam();
+    const subPhase = Game._2v2SubPhase();
+    if (!activeKey || !subPhase) return;
+
+    // Online: show MY player's hand, but only allow actions when it's my turn
+    const isOnline = !!tt.online;
+    const myKey = isOnline ? (tt.you || activeKey) : activeKey;
+    const isMyTurn = !isOnline || (activeKey === myKey);
+    const ap = tt.players[myKey] || tt.players[activeKey];
+
+    const teamA = tt.teams.A;
+    const teamB = tt.teams.B;
+    const round = tt.round || 1;
+    const canCards  = isMyTurn && Game._2v2CanPlayCards(subPhase);
+    const canTricks = isMyTurn && Game._2v2CanPlayTricks(subPhase);
+
+    // Card/trick click targets differ between local and online mode
+    const cardClick  = isOnline
+      ? (idx) => `twov2OnlineSelectCard(${idx})`
+      : (idx) => `twov2SelectCard(${idx})`;
+    const trickClick = isOnline
+      ? (idx) => `twov2OnlineTrick(${idx})`
+      : (idx) => `twov2PlayTrick(${idx})`;
+    const doneClick  = isOnline ? 'twov2OnlineDone()' : 'Game.end2v2Phase()';
+
+    // Build lane HTML for 8 lanes
+    const laneHtml = s.lanes.map((lane, i) => {
+      const playerCard = lane.player;
+      const aiCard     = lane.ai;
+      const makeSlot = (card, side) => {
+        if (!card) return `<div class="twov2-lane-slot twov2-lane-slot-empty"></div>`;
+        return `<div class="twov2-lane-slot twov2-lane-card" style="background:${side==='player'?'#1e3a2e':'#3a1e1e'}">
+          <div class="twov2-card-name">${card.name}</div>
+          <div class="twov2-card-stats">${card.attack}/${card.currentHealth}</div>
+        </div>`;
+      };
+      return `<div class="twov2-lane" data-lane="${i}">
+        <div class="twov2-lane-num">${i+1}</div>
+        ${makeSlot(aiCard, 'ai')}
+        <div class="twov2-lane-divider"></div>
+        ${makeSlot(playerCard, 'player')}
+      </div>`;
+    }).join('');
+
+    // Build hand HTML
+    const handHtml = ap.hand.map((card, idx) => {
+      const affordable = ap.energy - ap.usedEnergy >= card.cost;
+      return `<div class="twov2-hand-card ${affordable?'twov2-card-play':''}" onclick="${cardClick(idx)}"
+               data-card-idx="${idx}" id="twov2-hcard-${idx}">
+        <div class="twov2-hcard-cost">${card.cost}</div>
+        <div class="twov2-hcard-name">${card.name}</div>
+        <div class="twov2-hcard-stats">${card.attack}<span style="color:#888">atk</span> ${card.currentHealth}<span style="color:#888">hp</span></div>
+      </div>`;
+    }).join('') || '<div class="twov2-hand-empty">No cards in hand</div>';
+
+    const trickHtml = (canTricks && ap.trickHand.length > 0)
+      ? ap.trickHand.map((t, idx) =>
+          `<div class="twov2-trick-card" onclick="${trickClick(idx)}">
+            <div class="twov2-hcard-cost twov2-trick-cost">${t.cost}</div>
+            <div class="twov2-hcard-name">${t.name}</div>
+          </div>`).join('')
+      : '';
+
+    const teamAColor = '#4fc3f7';
+    const teamBColor = '#f44336';
+    const energy = ap.energy - ap.usedEnergy;
+
+    el.innerHTML = `
+      <div class="twov2-game-wrap">
+        <!-- Team health bars -->
+        <div class="twov2-health-bar">
+          <div class="twov2-hb-team" style="border-color:${teamAColor}">
+            <span class="twov2-hb-label" style="color:${teamAColor}">Team A</span>
+            <span class="twov2-hb-hp" style="color:${teamAColor}">${teamA.health}/${teamA.maxHealth} HP</span>
+            <div class="twov2-block-pip-row">
+              ${Array.from({length:Game.BLOCK_MAX}, (_,i) =>
+                `<div class="twov2-block-pip ${i < teamA.blockMeter ? 'twov2-pip-filled' : ''}"></div>`
+              ).join('')}
+              <span class="twov2-block-label">Block</span>
+            </div>
+          </div>
+          <div class="twov2-hb-round">Round ${round}</div>
+          <div class="twov2-hb-team" style="border-color:${teamBColor}">
+            <span class="twov2-hb-label" style="color:${teamBColor}">Team B</span>
+            <span class="twov2-hb-hp" style="color:${teamBColor}">${teamB.health}/${teamB.maxHealth} HP</span>
+            <div class="twov2-block-pip-row">
+              ${Array.from({length:Game.BLOCK_MAX}, (_,i) =>
+                `<div class="twov2-block-pip ${i < teamB.blockMeter ? 'twov2-pip-filled' : ''}"></div>`
+              ).join('')}
+              <span class="twov2-block-label">Block</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Board (8 lanes) -->
+        <div class="twov2-board">
+          ${laneHtml}
+        </div>
+
+        <!-- Active player info -->
+        <div class="twov2-active-bar">
+          <div class="twov2-active-name" style="color:${activeTeam==='A'?teamAColor:teamBColor}">
+            ${ap.name}'s Turn
+          </div>
+          <div class="twov2-energy-display">
+            ⚡ ${energy} Energy
+          </div>
+          ${phase === '2v2-combat' ? '<div class="twov2-combat-label">⚔️ Combat Resolving…</div>' : ''}
+        </div>
+
+        <!-- Player hand -->
+        <div class="twov2-hand-wrap">
+          <div class="twov2-hand-label">Your Hand ${canCards ? '' : '(Tricks Only)'}</div>
+          <div class="twov2-hand" id="twov2-hand">
+            ${canCards ? handHtml : '<div class="twov2-hand-empty">Cards locked this phase</div>'}
+          </div>
+          ${canTricks && trickHtml ? `
+            <div class="twov2-hand-label" style="margin-top:8px">Tricks</div>
+            <div class="twov2-tricks-row">${trickHtml}</div>
+          ` : ''}
+        </div>
+
+        ${isOnline && !isMyTurn ? `
+          <div class="twov2-waiting-banner">⏳ Waiting for ${tt.players[activeKey].name}…</div>
+        ` : ''}
+
+        <!-- Lane selection (shown when a card is selected) -->
+        <div class="twov2-lane-select" id="twov2-lane-select" style="display:none">
+          <div class="twov2-ls-label">Pick a lane (1–${Game.LANE_COUNT}):</div>
+          <div class="twov2-ls-row">
+            ${s.lanes.map((ln, i) => {
+              const myTeam = isOnline ? (tt.players[myKey] && tt.players[myKey].team) : activeTeam;
+              const side = myTeam === 'A' ? 'player' : 'ai';
+              const blocked = !!(ln[side]);
+              const placeCmd = isOnline ? `twov2OnlinePlaceCard(${i})` : `twov2PlaceCard(${i})`;
+              return `<button class="twov2-ls-btn${blocked?' twov2-ls-blocked':''}"
+                        onclick="${placeCmd}" ${blocked?'disabled':''}>
+                Lane ${i+1}
+              </button>`;
+            }).join('')}
+          </div>
+          <button class="twov2-ls-cancel" onclick="twov2CancelCard()">Cancel</button>
+        </div>
+
+        <!-- Done button -->
+        ${phase !== '2v2-combat' && isMyTurn ? `
+          <button class="twov2-done-btn" onclick="${doneClick}">Done →</button>
+        ` : ''}
+      </div>`;
+
+    // Store selected card index for lane pick
+    if (this._2v2SelectedCardIdx != null) {
+      const sel = document.getElementById(`twov2-hcard-${this._2v2SelectedCardIdx}`);
+      if (sel) sel.classList.add('twov2-card-selected');
+      const lsEl = document.getElementById('twov2-lane-select');
+      if (lsEl) lsEl.style.display = 'flex';
+    }
   },
 
   // ===================== MAIN MENU (phase 4a) =====================
@@ -18448,6 +18838,319 @@ document.addEventListener('keydown', (e) => {
   if (tag === 'input' || tag === 'textarea') return;
   if (UI.toggleSandboxPanel) UI.toggleSandboxPanel();
 });
+
+// ===================== 2v2 INTERACTION HELPERS =====================
+// These are global functions called from inline onclick handlers
+// in the 2v2 UI rendered by UI.render2v2().
+
+function start2v2Confirm() {
+  const names = {};
+  ['p1','p2','p3','p4'].forEach(pk => {
+    const el = document.getElementById('2v2-name-' + pk);
+    names[pk] = (el && el.value.trim()) || ('Player ' + pk[1]);
+  });
+  // Apply names and use default teams (A: p1+p2, B: p3+p4)
+  const tt = Game.state.twoVTwo;
+  if (tt) {
+    ['p1','p2','p3','p4'].forEach(pk => { tt.players[pk].name = names[pk]; });
+  }
+  Game.confirm2v2Teams(names, null);
+}
+
+function start2v2RandomTeams() {
+  const names = {};
+  ['p1','p2','p3','p4'].forEach(pk => {
+    const el = document.getElementById('2v2-name-' + pk);
+    names[pk] = (el && el.value.trim()) || ('Player ' + pk[1]);
+  });
+  // Shuffle the 4 players and assign first 2 to A, last 2 to B
+  const keys = ['p1','p2','p3','p4'];
+  for (let i = keys.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [keys[i], keys[j]] = [keys[j], keys[i]];
+  }
+  // Update team field in twoVTwo.players
+  const tt = Game.state.twoVTwo;
+  if (tt) {
+    keys.forEach((pk, i) => {
+      tt.players[pk].name = names[pk];
+      tt.players[pk].team = i < 2 ? 'A' : 'B';
+    });
+  }
+  // Re-render team setup to show new assignment
+  const teamA = keys.slice(0, 2);
+  const teamB = keys.slice(2, 4);
+  Game.confirm2v2Teams(names, { A: teamA, B: teamB });
+}
+
+// 2v2 in-game card selection state
+UI._2v2SelectedCardIdx = null;
+
+function twov2SelectCard(idx) {
+  UI._2v2SelectedCardIdx = UI._2v2SelectedCardIdx === idx ? null : idx;
+  UI.render();
+}
+
+function twov2CancelCard() {
+  UI._2v2SelectedCardIdx = null;
+  UI.render();
+}
+
+function twov2PlaceCard(laneIdx) {
+  const idx = UI._2v2SelectedCardIdx;
+  if (idx == null) return;
+  const s = Game.state;
+  const tt = s.twoVTwo;
+  const activeKey = Game._2v2ActivePlayer();
+  if (!activeKey || !tt) return;
+  const ap = tt.players[activeKey];
+  const card = ap.hand[idx];
+  if (!card) return;
+  const side = Game._2v2TeamSide[ap.team];
+
+  // Check energy
+  const energy = ap.energy - ap.usedEnergy;
+  const cost = card.cost || 0;
+  if (energy < cost) { return; }
+
+  // Check lane not occupied
+  if (s.lanes[laneIdx] && s.lanes[laneIdx][side]) return;
+
+  // Place card
+  if (!s.lanes[laneIdx]) return;
+  s.lanes[laneIdx][side] = card;
+  ap.hand.splice(idx, 1);
+  ap.usedEnergy = (ap.usedEnergy || 0) + cost;
+
+  // Run onPlay if exists
+  if (card.onPlay) {
+    try { card.onPlay(Game, card, laneIdx); } catch(e) { console.error(e); }
+  }
+
+  UI._2v2SelectedCardIdx = null;
+  UI.render();
+}
+
+function twov2PlayTrick(idx) {
+  const s = Game.state;
+  const tt = s.twoVTwo;
+  const activeKey = Game._2v2ActivePlayer();
+  if (!activeKey || !tt) return;
+  const ap = tt.players[activeKey];
+  const trick = ap.trickHand[idx];
+  if (!trick) return;
+  const side = Game._2v2TeamSide[ap.team];
+
+  const energy = ap.energy - ap.usedEnergy;
+  if (energy < (trick.cost || 0)) return;
+
+  ap.trickHand.splice(idx, 1);
+  ap.usedEnergy = (ap.usedEnergy || 0) + (trick.cost || 0);
+
+  if (trick.play) {
+    try { trick.play(Game, side); } catch(e) { console.error(e); }
+  }
+
+  UI.render();
+}
+
+// ----- 2v2 Draft helpers -----
+function twov2DraftPick(index) {
+  Game._2v2DraftPick(index);
+}
+
+// ----- 2v2 Online helpers -----
+UI._2v2OnlineRoomCode = null;
+UI._2v2OnlineError    = null;
+
+function twov2OnlineCreate() {
+  const nameEl = document.getElementById('2v2-online-name');
+  const name = nameEl ? (nameEl.value.trim() || 'Player 1') : 'Player 1';
+
+  if (typeof WebRTC4Transport === 'undefined') {
+    UI._2v2OnlineError = 'WebRTC not available in this browser.';
+    UI.render(); return;
+  }
+
+  const transport = new WebRTC4Transport();
+  Multiplayer4.init(transport);
+
+  Multiplayer4.on('roomCreated', ({ code, you }) => {
+    const tt = Game.state.twoVTwo;
+    if (tt) {
+      tt.you = you;
+      tt.players.p1.name = name;
+      tt.joinedPlayers = tt.joinedPlayers || {};
+      tt.joinedPlayers.p1 = true;
+    }
+    UI._2v2OnlineRoomCode = code;
+    UI.render();
+  });
+
+  Multiplayer4.on('playerJoined', ({ playerKey, name: pname }) => {
+    const tt = Game.state.twoVTwo;
+    if (tt && tt.players[playerKey]) {
+      tt.players[playerKey].name = pname || playerKey;
+      tt.joinedPlayers = tt.joinedPlayers || {};
+      tt.joinedPlayers[playerKey] = true;
+    }
+    UI.render();
+  });
+
+  Multiplayer4.on('allPlayersReady', () => {
+    UI.render();
+  });
+
+  Multiplayer4.on('action', (msg) => {
+    Game._apply2v2OnlineAction(msg);
+  });
+
+  Multiplayer4.on('state', ({ state }) => {
+    // Non-host: apply received state and re-render
+    Game.state = state;
+    UI.render();
+  });
+
+  Multiplayer4.on('error', ({ message }) => {
+    UI._2v2OnlineError = message;
+    UI.render();
+  });
+
+  const code = Multiplayer4.createRoom({ name });
+  UI._2v2OnlineRoomCode = code;
+}
+
+function twov2OnlineJoin() {
+  const nameEl = document.getElementById('2v2-online-name');
+  const codeEl = document.getElementById('2v2-online-code');
+  const name = nameEl ? (nameEl.value.trim() || 'Player') : 'Player';
+  const code = codeEl ? (codeEl.value.trim().toUpperCase()) : '';
+  if (!code || code.length !== 4) {
+    UI._2v2OnlineError = 'Enter a 4-letter room code.';
+    UI.render(); return;
+  }
+
+  const transport = new WebRTC4Transport();
+  Multiplayer4.init(transport);
+
+  Multiplayer4.on('roomJoined', ({ code: c, you }) => {
+    const tt = Game.state.twoVTwo;
+    if (tt) {
+      tt.you = you;
+      tt.players[you].name = name;
+      tt.joinedPlayers = tt.joinedPlayers || {};
+      tt.joinedPlayers[you] = true;
+    }
+    UI._2v2OnlineRoomCode = c;
+    UI.render();
+  });
+
+  Multiplayer4.on('state', ({ state }) => {
+    // Joiner: full state replacement from host
+    const mySlot = Game.state.twoVTwo && Game.state.twoVTwo.you;
+    Game.state = state;
+    if (Game.state.twoVTwo) {
+      // Preserve which slot we are
+      if (mySlot) Game.state.twoVTwo.you = mySlot;
+    }
+    UI.render();
+  });
+
+  Multiplayer4.on('playerJoined', ({ playerKey, name: pname }) => {
+    const tt = Game.state.twoVTwo;
+    if (tt && tt.players[playerKey]) {
+      tt.players[playerKey].name = pname || playerKey;
+      tt.joinedPlayers = tt.joinedPlayers || {};
+      tt.joinedPlayers[playerKey] = true;
+    }
+    UI.render();
+  });
+
+  Multiplayer4.on('allPlayersReady', () => { UI.render(); });
+
+  Multiplayer4.on('error', ({ message }) => {
+    UI._2v2OnlineError = message;
+    UI.render();
+  });
+
+  Multiplayer4.on('playerLeft', () => {
+    UI._2v2OnlineError = 'A player disconnected.';
+    UI.render();
+  });
+
+  Multiplayer4.joinRoom(code, { name });
+}
+
+function twov2OnlineStart() {
+  // Host only — start the match once all 4 are in the lobby
+  const tt = Game.state.twoVTwo;
+  if (!tt || tt.you !== 'p1') return;
+  Game.start2v2OnlineMatch();
+  Game._2v2OnlineBroadcast();
+}
+
+function twov2OnlineLeave() {
+  if (typeof Multiplayer4 !== 'undefined') Multiplayer4.leave();
+  UI._2v2OnlineRoomCode = null;
+  UI._2v2OnlineError = null;
+  Game.goToModeSelect();
+}
+
+// Online: select a card (same as local, just sets the selected index)
+function twov2OnlineSelectCard(idx) {
+  UI._2v2SelectedCardIdx = UI._2v2SelectedCardIdx === idx ? null : idx;
+  UI.render();
+}
+
+// Online: place selected card into a lane
+function twov2OnlinePlaceCard(laneIdx) {
+  const idx = UI._2v2SelectedCardIdx;
+  if (idx == null) return;
+  twov2OnlinePlayCard(idx, laneIdx);
+}
+
+// Online card/trick play — joiner sends action to host; host applies directly
+function twov2OnlinePlayCard(cardIdx, laneIdx) {
+  const tt = Game.state.twoVTwo;
+  if (!tt) return;
+  const you = tt.you;
+  const isHost = you === 'p1';
+  if (isHost) {
+    Game._2v2OnlinePlayCard(you, cardIdx, laneIdx);
+    Game._2v2OnlineBroadcast();
+  } else {
+    Multiplayer4.send({ t: 'play2v2Card', playerKey: you, cardIdx, laneIdx });
+  }
+  UI._2v2SelectedCardIdx = null;
+  UI.render();
+}
+
+function twov2OnlineTrick(trickIdx) {
+  const tt = Game.state.twoVTwo;
+  if (!tt) return;
+  const you = tt.you;
+  const isHost = you === 'p1';
+  if (isHost) {
+    Game._2v2OnlinePlayTrick(you, trickIdx);
+    Game._2v2OnlineBroadcast();
+  } else {
+    Multiplayer4.send({ t: 'play2v2Trick', playerKey: you, trickIdx });
+  }
+  UI.render();
+}
+
+function twov2OnlineDone() {
+  const tt = Game.state.twoVTwo;
+  if (!tt) return;
+  const you = tt.you;
+  const isHost = you === 'p1';
+  if (isHost) {
+    Game.end2v2Phase();
+    Game._2v2OnlineBroadcast();
+  } else {
+    Multiplayer4.send({ t: 'end2v2Phase', playerKey: you });
+  }
+}
 
 // Auto-start
 UI.init();

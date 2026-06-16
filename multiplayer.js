@@ -725,3 +725,275 @@ Multiplayer.WebRTCTransport = WebRTCTransport;
 // Browser global so other modules (ui.js, eventually game.js) can
 // access without a build step.
 if (typeof window !== 'undefined') window.Multiplayer = Multiplayer;
+
+// ============================================================
+// WEBRTC 4-PLAYER TRANSPORT — star topology for 2v2 online
+// ============================================================
+// Host (P1) claims a peer ID and accepts exactly 3 connections.
+// Each joiner connects to the same host peer ID; host assigns
+// slots p2/p3/p4 in connection order. All game state flows from
+// host outward; joiners send action messages to the host only.
+//
+// Peer ID format: 'clb-4p-ABCD' to avoid collisions with 1v1.
+// broadcastState(stateClone) — sends serialized state to all 3 joiners.
+// send(msg) — joiners send actions to host.
+
+class WebRTC4Transport {
+  constructor() {
+    this._peer = null;
+    this._isHost = false;
+    this._roomCode = null;
+    this._conns = {};          // { p2: DataConnection, p3: ..., p4: ... }
+    this._hostConn = null;     // joiner's single connection to host
+    this._mySlot = null;       // 'p1' | 'p2' | 'p3' | 'p4'
+    this._handlers = { message: [], close: [], error: [] };
+    this._sendQueue = [];
+  }
+
+  _peerIdFor(code) { return 'clb-4p-' + String(code || '').toUpperCase(); }
+
+  open() {}
+
+  send(msg) {
+    if (typeof Peer === 'undefined') {
+      this._dispatchError('PeerJS not loaded');
+      return;
+    }
+    if (msg && msg.t === 'createRoom') { this._openAsHost(msg); return; }
+    if (msg && msg.t === 'joinRoom')   { this._openAsJoiner(msg); return; }
+    // Game action — joiner sends to host; host echoes to self via dispatch
+    if (this._isHost) {
+      this._dispatch(msg);
+    } else if (this._hostConn && this._hostConn.open) {
+      this._hostConn.send(msg);
+    } else {
+      this._sendQueue.push(msg);
+    }
+  }
+
+  _openAsHost(msg) {
+    this._isHost = true;
+    this._mySlot = 'p1';
+    this._roomCode = msg.code;
+    try {
+      this._peer = new Peer(this._peerIdFor(msg.code), { debug: 1 });
+    } catch (e) {
+      this._dispatchError('Peer init failed: ' + (e && e.message || e));
+      return;
+    }
+    this._peer.on('open', () => {
+      this._dispatch({ t: 'roomCreated', code: msg.code, you: 'p1' });
+    });
+    this._peer.on('connection', (conn) => {
+      const slots = ['p2', 'p3', 'p4'];
+      const taken = Object.keys(this._conns);
+      const slot = slots.find(s => !taken.includes(s));
+      if (!slot) { conn.close(); return; }  // room full
+      this._conns[slot] = conn;
+      conn.on('open', () => {
+        conn.send({ t: '_slotAssigned', slot });
+        const name = (conn.metadata && conn.metadata.name) || `Player ${slot[1]}`;
+        this._dispatch({ t: 'playerJoined', playerKey: slot, name });
+        if (Object.keys(this._conns).length === 3) {
+          this._dispatch({ t: 'allPlayersReady' });
+        }
+      });
+      conn.on('data', (data) => {
+        if (data && data.t) this._dispatch({ ...data, _from: slot });
+      });
+      conn.on('close', () => {
+        delete this._conns[slot];
+        this._dispatch({ t: 'playerLeft', playerKey: slot });
+      });
+      conn.on('error', (err) => this._dispatchError('Conn error: ' + ((err && err.message) || err)));
+    });
+    this._peer.on('error', (err) => this._handlePeerError(err));
+    this._peer.on('disconnected', () => { try { this._peer.reconnect(); } catch (e) {} });
+  }
+
+  _openAsJoiner(msg) {
+    this._roomCode = msg.code;
+    try {
+      this._peer = new Peer({ debug: 1 });
+    } catch (e) {
+      this._dispatchError('Peer init failed: ' + (e && e.message || e));
+      return;
+    }
+    this._peer.on('open', () => {
+      const conn = this._peer.connect(this._peerIdFor(msg.code), {
+        reliable: true,
+        metadata: { name: msg.name || 'Player' },
+      });
+      this._hostConn = conn;
+      conn.on('open', () => {
+        this._sendQueue.forEach(m => { try { conn.send(m); } catch (e) {} });
+        this._sendQueue = [];
+      });
+      conn.on('data', (data) => {
+        if (!data || !data.t) return;
+        if (data.t === '_slotAssigned') {
+          this._mySlot = data.slot;
+          this._dispatch({ t: 'roomJoined', code: this._roomCode, you: data.slot });
+          return;
+        }
+        this._dispatch(data);
+      });
+      conn.on('close', () => this._dispatch({ t: 'playerLeft', playerKey: 'p1' }));
+      conn.on('error', (err) => this._dispatchError('Conn error: ' + ((err && err.message) || err)));
+    });
+    this._peer.on('error', (err) => this._handlePeerError(err));
+  }
+
+  // Host broadcasts state to all 3 joiners
+  broadcastState(stateClone) {
+    const msg = { t: 'state', state: stateClone };
+    Object.values(this._conns).forEach(conn => {
+      if (conn && conn.open) try { conn.send(msg); } catch (e) {}
+    });
+  }
+
+  close() {
+    Object.values(this._conns).forEach(c => { try { c.close(); } catch (e) {} });
+    if (this._hostConn) { try { this._hostConn.close(); } catch (e) {} }
+    if (this._peer) { try { this._peer.destroy(); } catch (e) {} }
+    this._conns = {};
+    this._hostConn = null;
+    this._peer = null;
+    this._handlers.close.forEach(fn => { try { fn(); } catch (e) {} });
+  }
+
+  onMessage(fn) { this._handlers.message.push(fn); }
+  onClose(fn)   { this._handlers.close.push(fn); }
+  onError(fn)   { this._handlers.error.push(fn); }
+
+  _dispatch(msg) {
+    this._handlers.message.forEach(fn => { try { fn(msg); } catch (e) { console.error(e); } });
+  }
+  _dispatchError(message) {
+    this._handlers.error.forEach(fn => { try { fn(message); } catch (e) {} });
+  }
+  _handlePeerError(err) {
+    const type = err && err.type;
+    let msg = (err && err.message) || String(err);
+    if (type === 'unavailable-id') msg = 'Room code already in use.';
+    else if (type === 'peer-unavailable') msg = "Couldn't find that room — check the code.";
+    else if (type === 'network') msg = 'Network error reaching signaling server.';
+    this._dispatchError(msg);
+  }
+}
+
+// ============================================================
+// MULTIPLAYER4 — thin adapter over WebRTC4Transport for 2v2 online
+// ============================================================
+// Same event model as Multiplayer but with 4-player semantics.
+// 'you' is 'p1'|'p2'|'p3'|'p4' instead of 'player'|'ai'.
+// The host also receives 'playerJoined', 'allPlayersReady', 'playerLeft'.
+
+const Multiplayer4 = {
+  _transport: null,
+  _listeners: {},
+  _you: null,
+  _room: null,
+
+  init(transport) {
+    if (this._transport) this.leave();
+    this._transport = transport;
+    transport.onMessage((msg) => this._handleMsg(msg));
+    transport.onClose(() => this._emit('playerLeft', {}));
+    transport.onError((e) => this._emit('error', { message: String(e) }));
+  },
+
+  createRoom(opts) {
+    const code = this._genCode();
+    this._send({ t: 'createRoom', code, name: opts && opts.name });
+    return code;
+  },
+
+  joinRoom(code, opts) {
+    this._send({ t: 'joinRoom', code: code.toUpperCase(), name: opts && opts.name });
+  },
+
+  send(action) { this._send(action); },
+
+  // Host broadcasts current game state to all joiners
+  broadcastState(stateClone) {
+    if (this._transport && this._transport.broadcastState) {
+      this._transport.broadcastState(stateClone);
+    }
+  },
+
+  leave() {
+    if (this._transport) { try { this._transport.close(); } catch (e) {} }
+    this._transport = null;
+    this._you = null;
+    this._room = null;
+  },
+
+  on(name, fn)  { (this._listeners[name] = this._listeners[name] || []).push(fn); },
+  off(name, fn) {
+    const arr = this._listeners[name];
+    if (!arr) return;
+    const i = arr.indexOf(fn);
+    if (i >= 0) arr.splice(i, 1);
+  },
+
+  _emit(name, payload) {
+    (this._listeners[name] || []).forEach(fn => {
+      try { fn(payload); } catch (e) { console.error('M4 listener error', e); }
+    });
+  },
+  _send(msg) { if (this._transport) this._transport.send(msg); },
+  _genCode() {
+    const alpha = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+    let s = '';
+    for (let i = 0; i < 4; i++) s += alpha[Math.floor(Math.random() * alpha.length)];
+    return s;
+  },
+
+  _GAME_ACTION_TYPES: new Set([
+    'play2v2Card', 'play2v2Trick', 'end2v2Phase', '2v2DraftPick', 'start2v2'
+  ]),
+  _handleMsg(msg) {
+    if (!msg || typeof msg !== 'object') return;
+    if (this._GAME_ACTION_TYPES.has(msg.t)) {
+      this._emit('action', msg);
+      return;
+    }
+    switch (msg.t) {
+      case 'roomCreated':
+        this._room = msg.code;
+        this._you = msg.you;
+        this._emit('roomCreated', msg);
+        break;
+      case 'roomJoined':
+        this._room = msg.code;
+        this._you = msg.you;
+        this._emit('roomJoined', msg);
+        break;
+      case 'playerJoined':
+        this._emit('playerJoined', msg);
+        break;
+      case 'allPlayersReady':
+        this._emit('allPlayersReady', msg);
+        break;
+      case 'playerLeft':
+        this._emit('playerLeft', msg);
+        break;
+      case 'state': {
+        const rehydrated = Multiplayer._rehydrateState
+          ? Multiplayer._rehydrateState(msg.state)
+          : msg.state;
+        this._emit('state', { state: rehydrated });
+        break;
+      }
+      case 'error':
+        this._emit('error', msg);
+        break;
+    }
+  },
+};
+
+if (typeof window !== 'undefined') {
+  window.Multiplayer4 = Multiplayer4;
+  window.WebRTC4Transport = WebRTC4Transport;
+}
