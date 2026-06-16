@@ -8201,12 +8201,21 @@ const UI = {
     const tabsRow = (st.status === 'idle')
       ? `<div class="mp-tabs">${tabBtn('create', 'Create Room')}${tabBtn('join', 'Join Room')}</div>`
       : '';
+    const twov2Row = (st.status === 'idle') ? `
+      <div class="mp-mode-divider">— or —</div>
+      <button type="button" class="btn btn-secondary mp-2v2-btn"
+              onclick="UI.closeMultiplayer(); Game.goTo2v2OnlineLobby()">
+        2v2 Online →
+      </button>
+      <div class="mp-mode-sub">4 players · each on their own device</div>
+    ` : '';
     ov.innerHTML = `
       <div class="mh-panel mp-panel">
         <button type="button" class="md-back" onclick="UI.closeMultiplayer()" title="Back to main menu">&larr; Menu</button>
         <h1 class="mh-title">Multiplayer</h1>
         ${tabsRow}
         ${body}
+        ${twov2Row}
       </div>`;
     // Re-apply the Tron interaction layer to the freshly-rendered
     // tabs / CTA / leave button so they pick up the hover sweep,

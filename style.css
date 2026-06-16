@@ -3345,6 +3345,17 @@ body.hit-pause .ai-hand * {
   box-shadow: 0 0 10px rgba(231,76,60,0.45);
   color: #ffb5ad;
 }
+.mp-mode-divider {
+  font-size: 11px; color: #4a5a68; letter-spacing: 2px;
+  text-transform: uppercase; margin: 16px 0 8px; text-align: center;
+}
+.mp-2v2-btn {
+  align-self: center;
+  min-width: 180px;
+}
+.mp-mode-sub {
+  font-size: 11px; color: #7a8a98; text-align: center; margin-top: 4px;
+}
 .mp-hint {
   font-size: 11px; line-height: 1.5;
   color: #7a8a98;

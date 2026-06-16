@@ -268,9 +268,8 @@ const Tutorial = {
       targetEl = document.querySelector(step.target);
     }
 
-    // Auto-minimize on steps that need free player interaction; auto-expand otherwise
-    const shouldMinimize = step.type === 'wait';
-    if (shouldMinimize !== this._minimized) this.toggleMinimize();
+    // Always start each step expanded; player can manually minimize with −
+    if (this._minimized) this.toggleMinimize();
 
     const isFull = step.full || !targetEl;
     this._overlay.classList.toggle('tut-full', !!step.full);
