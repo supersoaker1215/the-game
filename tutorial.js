@@ -1,4 +1,4 @@
-// tutorial.js — v5
+// tutorial.js — v6
 // Scripted in-game tutorial. Loaded after ui.js so UI/Game are available.
 
 const Tutorial = {
@@ -90,6 +90,12 @@ const Tutorial = {
       title: 'End the Cards Phase',
       text: 'You can keep playing cards while you have Energy, or click <strong>Done</strong> to move on. The AI will take its turn, then you\'ll reach the Tricks phase.',
       target: '#btn-action', pos: 'top', type: 'wait', waitEvent: 'phase-tricks',
+    },
+    {
+      id: 'round-structure',
+      title: 'How Rounds Work',
+      text: 'Each round has three phases before combat fires:<br><br><strong>① Cards only</strong> — the first player places cards. No tricks yet.<br><strong>② Cards + Tricks</strong> — the second player places cards <em>and</em> plays tricks.<br><strong>③ Tricks</strong> — the first player gets their tricks phase (you\'re here now!).<br><br>Who goes first alternates every round. When you go <em>second</em>, you can play cards <strong>and</strong> tricks in the same turn — letting you react to what the AI just placed.',
+      target: null, pos: 'top', type: 'next',
     },
     {
       id: 'tricks',
