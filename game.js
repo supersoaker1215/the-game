@@ -2102,6 +2102,7 @@ const Game = {
         onPlay: card.onPlay, onDeath: card.onDeath, onDamaged: card.onDamaged,
         onKill: card.onKill, onBeforeTricks: card.onBeforeTricks, onBeforeAttack: card.onBeforeAttack,
         onEndOfTurn: card.onEndOfTurn, onAnyCardPlayed: card.onAnyCardPlayed, onAllyKilled: card.onAllyKilled,
+        onEnemyKilled: card.onEnemyKilled,
         onEvade: card.onEvade, onDamagePlayer: card.onDamagePlayer, onTurnStart: card.onTurnStart,
         onLaneResolved: card.onLaneResolved,
         passive: card.passive
@@ -2109,6 +2110,7 @@ const Game = {
       card.onPlay = null; card.onDeath = null; card.onDamaged = null;
       card.onKill = null; card.onBeforeTricks = null; card.onBeforeAttack = null;
       card.onEndOfTurn = null; card.onAnyCardPlayed = null; card.onAllyKilled = null;
+      card.onEnemyKilled = null;
       card.onEvade = null; card.onDamagePlayer = null; card.onTurnStart = null;
       card.onLaneResolved = null;
       card.passive = null;
@@ -2431,6 +2433,7 @@ const Game = {
           card.onPlay = orig.onPlay; card.onDeath = orig.onDeath; card.onDamaged = orig.onDamaged;
           card.onKill = orig.onKill; card.onBeforeTricks = orig.onBeforeTricks; card.onBeforeAttack = orig.onBeforeAttack;
           card.onEndOfTurn = orig.onEndOfTurn; card.onAnyCardPlayed = orig.onAnyCardPlayed; card.onAllyKilled = orig.onAllyKilled;
+          card.onEnemyKilled = orig.onEnemyKilled;
           card.onEvade = orig.onEvade; card.onDamagePlayer = orig.onDamagePlayer; card.onTurnStart = orig.onTurnStart;
           card.onLaneResolved = orig.onLaneResolved;
           card.passive = orig.passive;
@@ -4164,6 +4167,7 @@ const Game = {
             if (!card.onKill && liveDef.onKill) card.onKill = liveDef.onKill;
             if (!card.onEvade && liveDef.onEvade) card.onEvade = liveDef.onEvade;
             if (!card.onAllyKilled && liveDef.onAllyKilled) card.onAllyKilled = liveDef.onAllyKilled;
+            if (!card.onEnemyKilled && liveDef.onEnemyKilled) card.onEnemyKilled = liveDef.onEnemyKilled;
             if (!card.onBeforeAttack && liveDef.onBeforeAttack) card.onBeforeAttack = liveDef.onBeforeAttack;
             if (!card.onDamagePlayer && liveDef.onDamagePlayer) card.onDamagePlayer = liveDef.onDamagePlayer;
             if (!card.onAnyCardPlayed && liveDef.onAnyCardPlayed) card.onAnyCardPlayed = liveDef.onAnyCardPlayed;
@@ -4427,6 +4431,8 @@ const Game = {
       if (killer && killer.onKill) killer.onKill(this, killer);
       const livingAllies = this.getAllCardsOf(card.owner);
       livingAllies.forEach(a => { if (a.onAllyKilled) a.onAllyKilled(this, a); });
+      const livingEnemiesT = this.getAllCardsOf(this.opponent(card.owner));
+      livingEnemiesT.forEach(a => { if (a.onEnemyKilled) a.onEnemyKilled(this, a); });
       // User spec: "Anakin and bonus attacks in general shouldn't happen
       // at the end of the round but instead immediately." Drain right
       // here so the bonus swing lands in the same beat as the death
@@ -4516,6 +4522,8 @@ const Game = {
     if (killer && killer.onKill) killer.onKill(this, killer);
     const livingAllies = this.getAllCardsOf(card.owner);
     livingAllies.forEach(a => { if (a.onAllyKilled) a.onAllyKilled(this, a); });
+    const livingEnemies = this.getAllCardsOf(this.opponent(card.owner));
+    livingEnemies.forEach(a => { if (a.onEnemyKilled) a.onEnemyKilled(this, a); });
     // Drain bonus attacks immediately on every death — combat or
     // trick-triggered. User spec: "Anakin and bonus attacks in general
     // shouldn't happen at the end of the round but instead immediately."
@@ -6332,7 +6340,7 @@ const Game = {
       statsLeftRound: null,
       onPlay: def.onPlay || null, onDeath: def.onDeath || null,
       onDamaged: def.onDamaged || null, onKill: def.onKill || null,
-      onEvade: def.onEvade || null, onAllyKilled: def.onAllyKilled || null,
+      onEvade: def.onEvade || null, onAllyKilled: def.onAllyKilled || null, onEnemyKilled: def.onEnemyKilled || null,
       onBeforeAttack: def.onBeforeAttack || null, onDamagePlayer: def.onDamagePlayer || null,
       onAnyCardPlayed: def.onAnyCardPlayed || null, onTurnStart: def.onTurnStart || null,
       onBeforeTricks: def.onBeforeTricks || null, onEndOfTurn: def.onEndOfTurn || null,

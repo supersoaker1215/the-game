@@ -1094,7 +1094,7 @@ const CARD_ABILITIES = {
     // and restore paths can't drift.
     const STRIP_FIELDS = [
       'onPlay', 'onDeath', 'onDamaged', 'onKill', 'onBeforeTricks',
-      'onBeforeAttack', 'onEndOfTurn', 'onAnyCardPlayed', 'onAllyKilled',
+      'onBeforeAttack', 'onEndOfTurn', 'onAnyCardPlayed', 'onAllyKilled', 'onEnemyKilled',
       'onEvade', 'onDamagePlayer', 'onTurnStart', 'passive',
       'evadeCharges', 'armorValue', 'isOverdrive', 'isBullseye',
       'immunityCharges', 'hasHunt', 'hasDamageImmunity',
@@ -1117,6 +1117,7 @@ const CARD_ABILITIES = {
       card.onPlay = null; card.onDeath = null; card.onDamaged = null;
       card.onKill = null; card.onBeforeTricks = null; card.onBeforeAttack = null;
       card.onEndOfTurn = null; card.onAnyCardPlayed = null; card.onAllyKilled = null;
+      card.onEnemyKilled = null;
       card.onEvade = null; card.onDamagePlayer = null; card.onTurnStart = null;
       card.passive = null;
       card.evadeCharges = 0; card.armorValue = 0; card.isOverdrive = false;
@@ -1730,6 +1731,7 @@ const CARD_ABILITIES = {
         if (abilityDef.onEndOfTurn) self.onEndOfTurn = abilityDef.onEndOfTurn;
         if (abilityDef.onAnyCardPlayed) self.onAnyCardPlayed = abilityDef.onAnyCardPlayed;
         if (abilityDef.onAllyKilled) self.onAllyKilled = abilityDef.onAllyKilled;
+        if (abilityDef.onEnemyKilled) self.onEnemyKilled = abilityDef.onEnemyKilled;
         if (abilityDef.onEvade) self.onEvade = abilityDef.onEvade;
         if (abilityDef.onDamagePlayer) self.onDamagePlayer = abilityDef.onDamagePlayer;
         if (abilityDef.onTurnStart) self.onTurnStart = abilityDef.onTurnStart;
@@ -2248,6 +2250,7 @@ const CARD_ABILITIES = {
           if (abilityDef.onEndOfTurn) t.onEndOfTurn = abilityDef.onEndOfTurn;
           if (abilityDef.onAnyCardPlayed) t.onAnyCardPlayed = abilityDef.onAnyCardPlayed;
           if (abilityDef.onAllyKilled) t.onAllyKilled = abilityDef.onAllyKilled;
+          if (abilityDef.onEnemyKilled) t.onEnemyKilled = abilityDef.onEnemyKilled;
           if (abilityDef.onEvade) t.onEvade = abilityDef.onEvade;
           if (abilityDef.onDamagePlayer) t.onDamagePlayer = abilityDef.onDamagePlayer;
           if (abilityDef.onTurnStart) t.onTurnStart = abilityDef.onTurnStart;
@@ -3011,6 +3014,33 @@ const CARD_ABILITIES = {
       pickNext();
     },
     passive: "enemyCostIncrease"
+  },
+
+  "Mace Windu": {
+    onPlay(G, self) {
+      const opp = G.opponent(self.owner);
+      const hand = G.state[opp].hand;
+      if (!hand.length) { G.log("Mace Windu: opponent's hand is empty."); return; }
+      hand.forEach(c => {
+        c.attack       = Math.max(0, (c.attack       || 0) - 1);
+        c.baseAttack   = Math.max(0, (c.baseAttack   || 0) - 1);
+        c.currentHealth = Math.max(1, (c.currentHealth|| 0) - 1);
+        c.maxHealth     = Math.max(1, (c.maxHealth    || 0) - 1);
+        c.baseHealth    = Math.max(1, (c.baseHealth   || 0) - 1);
+      });
+      G.log(`Mace Windu curses ${hand.length} card${hand.length === 1 ? '' : 's'} in the opponent's hand (-1/-1 each)!`);
+    },
+    onAllyKilled(G, self) {
+      if (self.currentHealth <= 0) return;
+      self.maxHealth     = (self.maxHealth     || 0) + 2;
+      self.currentHealth = (self.currentHealth || 0) + 2;
+      G.log(`Mace Windu grows stronger from an ally's fall (+0/+2)!`);
+    },
+    onEnemyKilled(G, self) {
+      if (self.currentHealth <= 0) return;
+      self.attack = (self.attack || 0) + 2;
+      G.log(`Mace Windu grows stronger from an enemy's defeat (+2/+0)!`);
+    },
   },
 
   // ==================== COST 8 ====================
