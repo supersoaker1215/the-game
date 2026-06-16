@@ -241,7 +241,46 @@ const Game = {
           this.state.winner = (actor === 'player') ? 'ai' : 'player';
           break;
         }
-        // promptResolve handled by individual prompts; not implemented in v1.
+        case 'promptResolve': {
+          // Guest resolved an ability prompt (card or lane choice). Apply on
+          // the authoritative host state so the result is canonical, then
+          // broadcast so both clients see the outcome.
+          if (msg.choiceType === 'card') {
+            const cc = this.state.pendingCardChoice;
+            if (!cc) break;
+            const idx = msg.idx;
+            if (idx == null || !cc.cards[idx]) break;
+            this._clearPromptTimeout();
+            this.state.pendingCardChoice = null;
+            if (cc.callback) cc.callback(cc.cards[idx]);
+            this.cleanupDead();
+            this.resumeCombatIfWaiting();
+          } else if (msg.choiceType === 'lane') {
+            const lc = this.state.pendingLaneChoice;
+            if (!lc) break;
+            if (msg.laneIdx == null) break;
+            this._clearPromptTimeout();
+            this.state.pendingLaneChoice = null;
+            if (lc.callback) lc.callback(msg.laneIdx);
+            this.cleanupDead();
+            this.resumeCombatIfWaiting();
+          } else if (msg.choiceType === 'jumpPlay') {
+            const offer = this.state.pendingJumpOffer;
+            if (!offer) break;
+            this.state.pendingJumpOffer = null;
+            const card = (this.state[actor].hand || []).find(c => c.id === offer.cardId);
+            if (card && card.jumpReady) this.playJumpCard(actor, card);
+            else this.resumeCombatIfWaiting();
+          } else if (msg.choiceType === 'jumpSkip') {
+            const offer = this.state.pendingJumpOffer;
+            if (!offer) break;
+            this.state.pendingJumpOffer = null;
+            const card = (this.state[actor].hand || []).find(c => c.id === offer.cardId);
+            if (card) { card.jumpReady = false; card.jumpLane = undefined; }
+            this.resumeCombatIfWaiting();
+          }
+          break;
+        }
       }
     } catch (e) {
       console.error('mp apply action failed', msg, e);

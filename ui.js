@@ -5572,8 +5572,10 @@ const UI = {
     const banner = document.createElement('div');
     banner.id = 'prompt-banner';
     banner.className = 'prompt-banner';
-    const title = cc ? cc.title : lc ? lc.title : '';
-    const desc = cc ? cc.desc : lc ? lc.desc : '';
+    const opponentOwns = Game.isMultiplayer() && ((cc && cc.owner === 'ai') || (lc && lc.owner === 'ai'));
+    const title = opponentOwns ? 'Waiting for opponent…'
+      : cc ? cc.title : lc ? lc.title : '';
+    const desc = opponentOwns ? '' : cc ? cc.desc : lc ? lc.desc : '';
     banner.innerHTML = `${title}${desc ? `<div class="prompt-desc">${desc}</div>` : ''}<div class="prompt-timer" id="prompt-timer"></div>`;
     const turnHud = document.querySelector('.turn-hud');
     if (turnHud) turnHud.parentNode.insertBefore(banner, turnHud.nextSibling);
@@ -5641,7 +5643,9 @@ const UI = {
     // Always clear health bar highlights before deciding whether to re-add them.
     document.querySelectorAll('.health-container.mc-target').forEach(el => el.classList.remove('mc-target'));
     const cc = s.pendingCardChoice;
-    if (!cc) return;
+    // Don't render interactive choices for the opponent's ability prompts in
+    // multiplayer — they resolve on the opponent's client, not ours.
+    if (!cc || (Game.isMultiplayer() && cc.owner === 'ai')) return;
 
     // Wire up the Mind Control "attack the health bar" option directly to the
     // HP bar UI — the HP bar glows and becomes clickable, instead of being
@@ -9994,7 +9998,12 @@ const UI = {
   renderJumpOfferChoice(s) {
     const offer = s.pendingJumpOffer;
     if (!offer) return;
-    const card = s.player.hand.find(c => c.id === offer.cardId);
+    // In multiplayer the host stores the card in the 'ai' hand (guest seat);
+    // only search the player hand on single-player or the guest's own view.
+    const card = s.player.hand.find(c => c.id === offer.cardId)
+      || (Game.isMultiplayer() && Game.mp && Game.mp.role === 'host'
+          ? (s.ai.hand || []).find(c => c.id === offer.cardId)
+          : null);
     if (!card) {
       // Card no longer in hand (somehow played already) — clear and resume
       s.pendingJumpOffer = null;
@@ -10003,21 +10012,17 @@ const UI = {
     }
     const stale = document.getElementById('jump-offer-modal');
     if (stale) stale.remove();
+    // In multiplayer the host waits while the guest decides — show a waiting
+    // indicator instead of interactive buttons the host shouldn't click.
+    const opponentJump = Game.isMultiplayer() && Game.mp && Game.mp.role === 'host'
+      && !(s.player.hand || []).find(c => c.id === offer.cardId);
     const modal = document.createElement('div');
     modal.id = 'jump-offer-modal';
     modal.className = 'floating-prompt jump-offer';
     modal.dataset.peekLabel = 'Show Jump Prompt';
-    modal.innerHTML = `
-      <div class="floating-prompt-backdrop"></div>
-      <div class="floating-prompt-panel">
-        <button class="peek-toggle" onclick="UI.peekModal('#jump-offer-modal','Show Jump Prompt')" title="Hide prompt to inspect the board (Esc)" aria-label="Hide jump prompt">
-          <span class="peek-toggle-glyph">×</span>
-        </button>
-        <div class="fp-header">
-          <span class="fp-label">${card.name} — Jump!</span>
-          <span class="fp-sub">Play this card FREE from your hand before combat continues.</span>
-        </div>
-        <div class="fp-body">
+    const bodyHtml = opponentJump
+      ? `<div class="fp-body"><div class="prompt-waiting">Waiting for opponent to decide…</div></div>`
+      : `<div class="fp-body">
           <div class="fp-choices">
             <button class="fp-btn fp-btn-primary" onclick="jumpOfferPlay()">
               <span class="fp-btn-title">Play FREE</span>
@@ -10028,7 +10033,18 @@ const UI = {
               <span class="fp-btn-sub">Let combat continue</span>
             </button>
           </div>
+        </div>`;
+    modal.innerHTML = `
+      <div class="floating-prompt-backdrop"></div>
+      <div class="floating-prompt-panel">
+        <button class="peek-toggle" onclick="UI.peekModal('#jump-offer-modal','Show Jump Prompt')" title="Hide prompt to inspect the board (Esc)" aria-label="Hide jump prompt">
+          <span class="peek-toggle-glyph">×</span>
+        </button>
+        <div class="fp-header">
+          <span class="fp-label">${card.name} — Jump!</span>
+          <span class="fp-sub">${opponentJump ? 'Opponent deciding whether to play free…' : 'Play this card FREE from your hand before combat continues.'}</span>
         </div>
+        ${bodyHtml}
       </div>`;
     document.body.appendChild(modal);
   },
@@ -10403,9 +10419,15 @@ const UI = {
     const canPlay = this.canPlayerPlayCards(s);
     const cc = s.pendingCardChoice;
     const lc = s.pendingLaneChoice;
+    // In multiplayer the guest's state is seat-flipped so their own choices
+    // always appear as owner='player'. On the host, the guest's choices appear
+    // as owner='ai'. Only render interactive pick targets for the local seat's
+    // own choices — the opponent must resolve their own prompts on their client.
+    const isMyCardChoice = !Game.isMultiplayer() || !cc || cc.owner === 'player';
+    const isMyLaneChoice = !Game.isMultiplayer() || !lc || lc.owner === 'player';
     const targetCardIds = new Set();
-    if (cc) cc.cards.forEach(c => { if (c.id !== undefined) targetCardIds.add(c.id); });
-    const lcTargetSide = lc ? (lc.targetSide || lc.owner) : null;
+    if (cc && isMyCardChoice) cc.cards.forEach(c => { if (c.id !== undefined) targetCardIds.add(c.id); });
+    const lcTargetSide = (lc && isMyLaneChoice) ? (lc.targetSide || lc.owner) : null;
     const forcedAi = s.ai && (s.ai.forcedLane != null) ? s.ai.forcedLane : null;
     const forcedPlayer = s.player && (s.player.forcedLane != null) ? s.player.forcedLane : null;
 
@@ -12450,8 +12472,9 @@ const UI = {
     const cc = s.pendingCardChoice;
     const lc = s.pendingLaneChoice;
     const hasPending = cc || lc;
+    const isMyHandChoice = !Game.isMultiplayer() || !cc || cc.owner === 'player';
     const targetHandIds = new Set();
-    if (cc) cc.cards.forEach(c => { if (c.id !== undefined) targetHandIds.add(c.id); });
+    if (cc && isMyHandChoice) cc.cards.forEach(c => { if (c.id !== undefined) targetHandIds.add(c.id); });
     // Track which hand card ids are newly-drawn since the last render — those
     // get the draw-in fly animation.
     this._lastHandIds = this._lastHandIds || new Set();
@@ -12582,7 +12605,7 @@ const UI = {
       // fire after the card's affordability state changed.
       el.onclick = null;
 
-      if (cc && targetHandIds.has(card.id)) {
+      if (cc && isMyHandChoice && targetHandIds.has(card.id)) {
         el.classList.add('target-highlight');
         const idx = cc.cards.findIndex(c => c.id === card.id);
         // Use onclick property assignment instead of addEventListener
@@ -18132,6 +18155,13 @@ function jumpOfferPlay() {
   const s = Game.state;
   const offer = s.pendingJumpOffer;
   if (!offer) return;
+  // Guest: let the host apply the jump so state stays authoritative.
+  if (Game.isMultiplayer() && Game.mp && Game.mp.role === 'guest') {
+    if (typeof Multiplayer !== 'undefined') Multiplayer.send({ t: 'promptResolve', choiceType: 'jumpPlay', cardId: offer.cardId });
+    s.pendingJumpOffer = null;
+    UI.render();
+    return;
+  }
   s.pendingJumpOffer = null;
   const card = s.player.hand.find(c => c.id === offer.cardId);
   if (card && card.jumpReady) {
@@ -18145,6 +18175,13 @@ function jumpOfferSkip() {
   const s = Game.state;
   const offer = s.pendingJumpOffer;
   if (!offer) return;
+  // Guest: let the host apply the skip so state stays authoritative.
+  if (Game.isMultiplayer() && Game.mp && Game.mp.role === 'guest') {
+    if (typeof Multiplayer !== 'undefined') Multiplayer.send({ t: 'promptResolve', choiceType: 'jumpSkip', cardId: offer.cardId });
+    s.pendingJumpOffer = null;
+    UI.render();
+    return;
+  }
   s.pendingJumpOffer = null;
   const card = s.player.hand.find(c => c.id === offer.cardId);
   if (card) {
@@ -18160,6 +18197,16 @@ function laneChoicePick(laneIdx) {
   const s = Game.state;
   const lc = s.pendingLaneChoice;
   if (!lc) return;
+  // In multiplayer the guest resolves their own choices via a message to the
+  // host (the host is authoritative). Running the callback locally on the
+  // guest would only mutate the guest's display copy and get overwritten by
+  // the next host broadcast. The host then applies the choice and re-broadcasts.
+  if (Game.isMultiplayer() && Game.mp && Game.mp.role === 'guest') {
+    if (typeof Multiplayer !== 'undefined') Multiplayer.send({ t: 'promptResolve', choiceType: 'lane', laneIdx });
+    return;
+  }
+  // Host in multiplayer: don't let the host resolve the opponent's (guest's) choices.
+  if (Game.isMultiplayer() && lc.owner === 'ai') return;
   Game._clearPromptTimeout();
   if (lc.owner === 'player' && Game.isPlayerTurn()) Game.snapshot();
   s.pendingLaneChoice = null;
@@ -18173,6 +18220,14 @@ function cardChoicePick(idx) {
   const s = Game.state;
   const cc = s.pendingCardChoice;
   if (!cc) return;
+  // In multiplayer the guest sends their choice to the host for authoritative
+  // resolution instead of running the callback in their local display copy.
+  if (Game.isMultiplayer() && Game.mp && Game.mp.role === 'guest') {
+    if (typeof Multiplayer !== 'undefined') Multiplayer.send({ t: 'promptResolve', choiceType: 'card', idx });
+    return;
+  }
+  // Host in multiplayer: don't let the host resolve the opponent's (guest's) choices.
+  if (Game.isMultiplayer() && cc.owner === 'ai') return;
   Game._clearPromptTimeout();
   if (cc.owner === 'player' && Game.isPlayerTurn()) Game.snapshot();
   s.pendingCardChoice = null;
