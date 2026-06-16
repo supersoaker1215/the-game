@@ -9682,7 +9682,7 @@ const UI = {
     const opp = persona ? `${persona.name} (${persona.tag})` : 'AI';
     const mvpLine = s.mvp ? `MVP: ${s.mvp.name} (${s.mvp.owner === 'player' ? 'yours' : "theirs"})` : '';
     const lines = [
-      `Card Lane Battle — ${verdict} vs ${opp}`,
+      `The Game — ${verdict} vs ${opp}`,
       `Rounds: ${s.rounds}  ·  HP: ${s.playerHp} / ${s.aiHp}`,
       mvpLine,
       '',
@@ -9691,7 +9691,7 @@ const UI = {
     const text = lines.join('\n');
     // Try Web Share API first (mobile native share sheet).
     if (navigator.share) {
-      navigator.share({ title: 'Card Lane Battle', text }).catch(() => {
+      navigator.share({ title: 'The Game', text }).catch(() => {
         this._copyToClipboard(text);
       });
       return;

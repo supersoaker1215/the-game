@@ -15,7 +15,7 @@ const Tutorial = {
   steps: [
     {
       id: 'welcome',
-      title: 'Welcome to Card Lane Battle!',
+      title: 'Welcome to The Game!',
       text: 'This short walkthrough teaches you the basics with a real game. Follow the prompts — you\'ll know how to play in just a few minutes.',
       target: null, full: true, type: 'next',
     },
