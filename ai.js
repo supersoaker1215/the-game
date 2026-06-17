@@ -417,6 +417,7 @@ const AI = {
   },
 
   playCards(owner = 'ai', onComplete) {
+    if (Game.isMultiplayer && Game.isMultiplayer()) { if (onComplete) onComplete(); return; }
     const s = Game.state;
     const opp = Game.opponent(owner);
     // BWL intercept: if the opponent has a live Batman Who Laughs and our
@@ -899,6 +900,7 @@ const AI = {
   },
 
   playTrickPhaseCards(owner = 'ai', onComplete) {
+    if (Game.isMultiplayer && Game.isMultiplayer()) { if (onComplete) onComplete(); return; }
     const s = Game.state;
     const tpCards = [...s[owner].hand].filter(c => c.trickPhasePlayable);
     const queue = tpCards.map(cardRef => () => {
@@ -1179,6 +1181,7 @@ const AI = {
   },
 
   playTricks(owner = 'ai', onComplete) {
+    if (Game.isMultiplayer && Game.isMultiplayer()) { if (onComplete) onComplete(); return; }
     // Pause-then-cast loop: thinking dots show first, then the AI
     // commits its best trick (re-evaluated per step against fresh
     // board state). Matches the _runAIQueue pattern — user sees the

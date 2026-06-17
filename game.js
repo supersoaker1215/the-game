@@ -5582,7 +5582,11 @@ const Game = {
       UI.render();
       this._startPromptTimeout(() => {
         if (!this.state.pendingCardChoice) return;
-        const pick = aiPicker ? aiPicker(this.state.pendingCardChoice.cards) : this.state.pendingCardChoice.cards[0];
+        // In multiplayer never use the AI picker for timeout auto-resolve —
+        // the guest makes their own choice; falling back to cards[0] is neutral.
+        const pick = (!this.isMultiplayer() && aiPicker)
+          ? aiPicker(this.state.pendingCardChoice.cards)
+          : this.state.pendingCardChoice.cards[0];
         this.state.pendingCardChoice = null;
         callback(pick);
         this.resumeCombatIfWaiting();
