@@ -5921,28 +5921,32 @@ const UI = {
       ? `Card Pick ${d.round} of 5 — ${picker.name}`
       : `Trick Pick ${d.round} of 2 — ${picker.name}`;
 
-    const choiceHtml = d.choices.map((item, idx) => {
+    const isOnline = !!tt.online;
+    const isMyPick = !isOnline || (tt.you === pickerKey);
+    const pickFn = isOnline ? 'twov2OnlineDraftPick' : 'twov2DraftPick';
+
+    const choiceHtml = isMyPick ? d.choices.map((item, idx) => {
       if (!item) return '';
       if (isCards) {
-        return `<button class="twov2-draft-choice" onclick="twov2DraftPick(${idx})">
+        return `<button class="twov2-draft-choice" onclick="${pickFn}(${idx})">
           <div class="twov2-dc-name">${item.name}</div>
           <div class="twov2-dc-stats">${item.attack} ATK · ${item.health} HP</div>
           <div class="twov2-dc-cost">Cost ${item.cost}</div>
           <div class="twov2-dc-desc">${item.desc || ''}</div>
         </button>`;
       } else {
-        return `<button class="twov2-draft-choice" onclick="twov2DraftPick(${idx})">
+        return `<button class="twov2-draft-choice" onclick="${pickFn}(${idx})">
           <div class="twov2-dc-name">${item.name}</div>
           <div class="twov2-dc-cost">Cost ${item.cost}</div>
           <div class="twov2-dc-desc">${item.desc || ''}</div>
         </button>`;
       }
-    }).join('');
+    }).join('') : `<div class="twov2-waiting-banner">⏳ Waiting for ${picker.name} to pick…</div>`;
 
     el.innerHTML = `
       <div class="twov2-pass-panel">
         <div class="twov2-draft-heading" style="color:${teamColor}">${roundLabel}</div>
-        <div class="twov2-draft-sub">Pick one ${isCards ? 'card' : 'trick'} for your hand:</div>
+        ${isMyPick ? `<div class="twov2-draft-sub">Pick one ${isCards ? 'card' : 'trick'} for your hand:</div>` : ''}
         <div class="twov2-draft-choices">${choiceHtml}</div>
         <div class="twov2-draft-progress">
           ${picker.name} has ${isCards ? picker.hand.length : picker.trickHand.length}
@@ -19133,6 +19137,7 @@ function twov2OnlinePlayCard(cardIdx, laneIdx) {
   const tt = Game.state.twoVTwo;
   if (!tt) return;
   const you = tt.you;
+  if (Game._2v2ActivePlayer() !== you) return;
   const isHost = you === 'p1';
   if (isHost) {
     Game._2v2OnlinePlayCard(you, cardIdx, laneIdx);
@@ -19148,6 +19153,7 @@ function twov2OnlineTrick(trickIdx) {
   const tt = Game.state.twoVTwo;
   if (!tt) return;
   const you = tt.you;
+  if (Game._2v2ActivePlayer() !== you) return;
   const isHost = you === 'p1';
   if (isHost) {
     Game._2v2OnlinePlayTrick(you, trickIdx);
@@ -19162,12 +19168,28 @@ function twov2OnlineDone() {
   const tt = Game.state.twoVTwo;
   if (!tt) return;
   const you = tt.you;
+  if (Game._2v2ActivePlayer() !== you) return;
   const isHost = you === 'p1';
   if (isHost) {
     Game.end2v2Phase();
     Game._2v2OnlineBroadcast();
   } else {
     Multiplayer4.send({ t: 'end2v2Phase', playerKey: you });
+  }
+}
+
+function twov2OnlineDraftPick(index) {
+  const tt = Game.state.twoVTwo;
+  if (!tt || !tt.draft) return;
+  const you = tt.you;
+  const d = tt.draft;
+  if (d.pickerOrder[d.pickerIdx] !== you) return;
+  const isHost = you === 'p1';
+  if (isHost) {
+    Game._2v2DraftPick(index);
+    // _2v2DraftPick calls _2v2OnlineBroadcast internally for online mode
+  } else {
+    Multiplayer4.send({ t: '2v2DraftPick', playerKey: you, index });
   }
 }
 

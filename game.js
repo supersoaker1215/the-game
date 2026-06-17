@@ -5582,9 +5582,9 @@ const Game = {
       UI.render();
       this._startPromptTimeout(() => {
         if (!this.state.pendingCardChoice) return;
-        // In multiplayer never use the AI picker for timeout auto-resolve —
-        // the guest makes their own choice; falling back to cards[0] is neutral.
-        const pick = (!this.isMultiplayer() && aiPicker)
+        // Never use the AI picker in any multiplayer/2v2 context — all seats
+        // are human; cards[0] is a neutral fallback when the timer expires.
+        const pick = (!this.isMultiplayer() && !this.is2v2() && aiPicker)
           ? aiPicker(this.state.pendingCardChoice.cards)
           : this.state.pendingCardChoice.cards[0];
         this.state.pendingCardChoice = null;
@@ -7843,9 +7843,14 @@ const Game = {
     });
 
     this._2v2PresentDraftChoices();
-    s.phase = '2v2-draft-pass';
-    s._2v2DraftNextPhase = '2v2-draft';
-    if (typeof UI !== 'undefined' && UI.render) UI.render();
+    if (tt.online) {
+      s.phase = '2v2-draft';
+      // Broadcast happens from twov2OnlineStart() right after this returns
+    } else {
+      s.phase = '2v2-draft-pass';
+      s._2v2DraftNextPhase = '2v2-draft';
+      if (typeof UI !== 'undefined' && UI.render) UI.render();
+    }
   },
 
   _2v2PresentDraftChoices() {
@@ -7901,9 +7906,14 @@ const Game = {
     }
 
     this._2v2PresentDraftChoices();
-    s.phase = '2v2-draft-pass';
-    s._2v2DraftNextPhase = '2v2-draft';
-    if (typeof UI !== 'undefined' && UI.render) UI.render();
+    if (tt.online) {
+      s.phase = '2v2-draft';
+      this._2v2OnlineBroadcast();
+    } else {
+      s.phase = '2v2-draft-pass';
+      s._2v2DraftNextPhase = '2v2-draft';
+      if (typeof UI !== 'undefined' && UI.render) UI.render();
+    }
   },
 
   confirm2v2DraftPass() {
@@ -7961,17 +7971,26 @@ const Game = {
   _apply2v2OnlineAction(msg) {
     const pk = msg.playerKey;
     if (!pk) return;
+    const activeKey = this._2v2ActivePlayer();
+    const draftActive = !!(this.state.twoVTwo && this.state.twoVTwo.draft);
     switch (msg.t) {
       case 'play2v2Card':
+        if (pk !== activeKey) break;
         this._2v2OnlinePlayCard(pk, msg.cardIdx, msg.laneIdx);
         break;
       case 'play2v2Trick':
+        if (pk !== activeKey) break;
         this._2v2OnlinePlayTrick(pk, msg.trickIdx);
         break;
       case 'end2v2Phase':
+        if (pk !== activeKey) break;
         this.end2v2Phase();
         break;
       case '2v2DraftPick':
+        if (draftActive) {
+          const d = this.state.twoVTwo.draft;
+          if (pk !== d.pickerOrder[d.pickerIdx]) break;
+        }
         this._2v2DraftPick(msg.index);
         break;
     }
