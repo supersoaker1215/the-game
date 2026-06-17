@@ -8264,14 +8264,17 @@ const UI = {
         </div>`;
     }
 
-    const nameRow = (st.status === 'idle') ? `
+    // Name field is always visible — set it before connecting so your opponent sees your real name.
+    const connected = st.status === 'paired' || st.status === 'waiting' || st.status === 'joining';
+    const nameRow = `
       <div class="mp-name-row">
         <label class="mp-name-label" for="mp-name-input">Your Name</label>
         <input type="text" id="mp-name-input" class="mp-name-input"
                maxlength="12" placeholder="Display name (12 chars)"
                value="${this._mpName().replace(/"/g, '&quot;')}"
-               oninput="UI._mpSaveName(this.value)" />
-      </div>` : '';
+               ${connected ? 'readonly style="opacity:0.55;cursor:default"' : 'oninput="UI._mpSaveName(this.value)"'} />
+        ${connected ? '' : ''}
+      </div>`;
     const tabsRow = (st.status === 'idle')
       ? `<div class="mp-tabs">${tabBtn('create', 'Create Room')}${tabBtn('join', 'Join Room')}</div>`
       : '';
