@@ -1888,15 +1888,23 @@ const Game = {
     // lock meaningless because they weren't going to play it anyway. The
     // intent is to deny their best playable card, so anchor the "highest"
     // to what they can currently pay for.
-    const currency = this.state[owner].currency || 0;
-    const affordable = hand.filter(c => this.getCardCost(owner, c) <= currency);
-    if (!affordable.length) return false;
-    // Block the single most expensive affordable card only (not all cards at that cost).
-    // Secondary sort by id for determinism when costs tie.
-    const sorted = affordable.slice().sort((a, b) =>
-      (b.baseCost || b.cost) - (a.baseCost || a.cost) || a.id - b.id
-    );
-    return sorted[0].id === card.id;
+    // Snapshot the blocked cost the first time this is called each round (before the
+    // player has spent any currency). Without caching, spending energy mid-turn lowers
+    // "highest affordable" so that cheaper cards get locked on subsequent play attempts.
+    // e.g. round 9, hand [10,5,5]: block correctly locks 10s. Player plays a 4-cost on
+    // round 9 and enters the Batman-lock round with 5 currency — without caching the
+    // check would recalculate and lock the 5s instead.
+    if (this.state[owner].batmanBlockedCostRound !== this.state.round) {
+      const currency = this.state[owner].currency || 0;
+      const affordable = hand.filter(c => this.getCardCost(owner, c) <= currency);
+      this.state[owner].batmanBlockedCost = affordable.length
+        ? Math.max(...affordable.map(c => c.baseCost || c.cost))
+        : null;
+      this.state[owner].batmanBlockedCostRound = this.state.round;
+    }
+    const blockedCost = this.state[owner].batmanBlockedCost;
+    if (blockedCost == null) return false;
+    return (card.baseCost || card.cost) === blockedCost;
   },
 
   // ===================== playCard helpers =====================
