@@ -8010,7 +8010,36 @@ const UI = {
       // so engine-level fields (ai object, current side, etc.) get set
       // correctly; UI just re-renders.
       if (typeof Game !== 'undefined' && Game.acceptMultiplayerState) {
+        // Snapshot lane occupancy before swap so we can detect new/dead cards for SFX.
+        const prevLanes = (Game.state && Game.state.lanes)
+          ? Game.state.lanes.map(l => ({
+              player: l.player ? { id: l.player.id, name: l.player.name } : null,
+              ai:     l.ai     ? { id: l.ai.id,     name: l.ai.name     } : null,
+            }))
+          : null;
         Game.acceptMultiplayerState(m.state);
+        // Play SFX for cards that newly appeared on the board or died this update.
+        if (prevLanes && this.sfx) {
+          const nextLanes = Game.state.lanes || [];
+          for (let _i = 0; _i < nextLanes.length; _i++) {
+            const prev = prevLanes[_i] || {};
+            const next = nextLanes[_i] || {};
+            // Newly placed card (id changed or appeared where none was)
+            if (next.player && (!prev.player || next.player.id !== prev.player.id)) {
+              try { this.sfx.playCardSfx(next.player.name, 'play', next.player); } catch(e) {}
+            }
+            if (next.ai && (!prev.ai || next.ai.id !== prev.ai.id)) {
+              try { this.sfx.playCardSfx(next.ai.name, 'play', next.ai); } catch(e) {}
+            }
+            // Card that was present is now gone (died or removed)
+            if (prev.player && (!next.player || next.player.id !== prev.player.id)) {
+              try { this.sfx.playCardSfx(prev.player.name, 'death', null); } catch(e) {}
+            }
+            if (prev.ai && (!next.ai || next.ai.id !== prev.ai.id)) {
+              try { this.sfx.playCardSfx(prev.ai.name, 'death', null); } catch(e) {}
+            }
+          }
+        }
       }
       this.render();
     });
@@ -10308,6 +10337,15 @@ const UI = {
 
   renderBlockTrickChoice(s) {
     const trick = s.pendingBlockTrick;
+    // In multiplayer, only the player whose block triggered it sees the modal.
+    // After _mpFlipPerspective, _btOwner === 'player' means this client's block.
+    if (Game.isMultiplayer && Game.isMultiplayer()) {
+      if (trick && trick._btOwner && trick._btOwner !== 'player') {
+        const stale = document.getElementById('block-trick-modal');
+        if (stale) stale.remove();
+        return;
+      }
+    }
     // Remove any stale modal so we don't stack duplicates
     const stale = document.getElementById('block-trick-modal');
     if (stale) stale.remove();
@@ -18530,10 +18568,18 @@ function blockTrickPlay() {
   const s = Game.state;
   const trick = s.pendingBlockTrick;
   if (!trick) return;
+  // Guest: send to host for authoritative resolution on the correct seat.
+  if (Game.isMultiplayer && Game.isMultiplayer() && Game.mp && Game.mp.role === 'guest') {
+    if (typeof Multiplayer !== 'undefined') Multiplayer.send({ t: 'promptResolve', choiceType: 'blockTrick', play: true });
+    s.pendingBlockTrick = null;
+    UI.render();
+    return;
+  }
+  const owner = trick._btOwner || 'player';
   s.pendingBlockTrick = null;
-  s.player.playedTrickPile.push({ name: trick.name, cost: trick.cost });
-  Game.log(`  [BLOCK TRICK] You play ${trick.name} for free!`);
-  if (trick.play) { try { trick.play(Game, 'player'); } catch (e) { console.error(e); } }
+  s[owner].playedTrickPile.push({ name: trick.name, cost: trick.cost });
+  Game.log(`  [BLOCK TRICK] ${owner === 'player' ? 'You' : owner} play ${trick.name} for free!`);
+  if (trick.play) { try { trick.play(Game, owner); } catch (e) { console.error(e); } }
   Game.cleanupDead();
   UI.draftEl.style.display = 'none';
   document.getElementById('game-area').style.display = '';
@@ -18545,9 +18591,17 @@ function blockTrickKeep() {
   const s = Game.state;
   const trick = s.pendingBlockTrick;
   if (!trick) return;
+  // Guest: send to host for authoritative resolution on the correct seat.
+  if (Game.isMultiplayer && Game.isMultiplayer() && Game.mp && Game.mp.role === 'guest') {
+    if (typeof Multiplayer !== 'undefined') Multiplayer.send({ t: 'promptResolve', choiceType: 'blockTrick', play: false });
+    s.pendingBlockTrick = null;
+    UI.render();
+    return;
+  }
+  const owner = trick._btOwner || 'player';
   s.pendingBlockTrick = null;
-  Game.addToTrickHand('player', trick);
-  Game.log(`  [BLOCK TRICK] You keep ${trick.name} in hand (costs ${trick.cost})`);
+  Game.addToTrickHand(owner, trick);
+  Game.log(`  [BLOCK TRICK] ${owner === 'player' ? 'You' : owner} keep ${trick.name} in hand (costs ${trick.cost})`);
   UI.draftEl.style.display = 'none';
   document.getElementById('game-area').style.display = '';
   Game.resumeCombatIfWaiting();

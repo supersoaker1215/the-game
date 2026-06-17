@@ -279,6 +279,21 @@ const Game = {
             const card = (this.state[actor].hand || []).find(c => c.id === offer.cardId);
             if (card) { card.jumpReady = false; card.jumpLane = undefined; }
             this.resumeCombatIfWaiting();
+          } else if (msg.choiceType === 'blockTrick') {
+            const bt = this.state.pendingBlockTrick;
+            if (!bt) break;
+            this._clearPromptTimeout();
+            this.state.pendingBlockTrick = null;
+            const owner = bt._btOwner || actor;
+            if (msg.play) {
+              this.state[owner].playedTrickPile.push({ name: bt.name, cost: bt.cost });
+              if (this.state._roundStats) this.state._roundStats.aiTricks.push(bt.name);
+              if (bt.play) { try { bt.play(this, owner); } catch(e) { console.error(e); } }
+              this.cleanupDead();
+            } else {
+              this.addToTrickHand(owner, bt);
+            }
+            this.resumeCombatIfWaiting();
           }
           break;
         }
@@ -406,6 +421,7 @@ const Game = {
     if (state.pendingBlockTrick) {
       const bt = state.pendingBlockTrick;
       if (bt.owner) bt.owner = flipSeat(bt.owner);
+      if (bt._btOwner) bt._btOwner = flipSeat(bt._btOwner);
     }
     // ---- Draft-state perspective swap (2026-05-19) ----
     // Without this, both players see the HOST's draft picks in
@@ -1875,8 +1891,12 @@ const Game = {
     const currency = this.state[owner].currency || 0;
     const affordable = hand.filter(c => this.getCardCost(owner, c) <= currency);
     if (!affordable.length) return false;
-    const maxCost = Math.max(...affordable.map(c => c.baseCost || c.cost));
-    return (card.baseCost || card.cost) === maxCost;
+    // Block the single most expensive affordable card only (not all cards at that cost).
+    // Secondary sort by id for determinism when costs tie.
+    const sorted = affordable.slice().sort((a, b) =>
+      (b.baseCost || b.cost) - (a.baseCost || a.cost) || a.id - b.id
+    );
+    return sorted[0].id === card.id;
   },
 
   // ===================== playCard helpers =====================
@@ -2588,6 +2608,8 @@ const Game = {
 
       this.state._activeLane = i;
       UI.render();
+      // Broadcast active-lane highlight to guest so they see which lane is fighting.
+      if (this.isMultiplayer && this.isMultiplayer() && this.mp.role === 'host') this._mpBroadcast();
 
       const lane = this.state.lanes[i];
       const p = lane.player;
@@ -2596,6 +2618,8 @@ const Game = {
         // If any prompt is pending (block trick, card/lane choice, etc.), pause combat
         this.whenPromptCleared(() => {
           UI.render();
+          // Broadcast resolved lane result to guest before moving on.
+          if (this.isMultiplayer && this.isMultiplayer() && this.mp.role === 'host') this._mpBroadcast();
           setTimeout(() => resolveLane(i + 1), this.COMBAT_LANE_DELAY);
         });
       };
@@ -3795,7 +3819,7 @@ const Game = {
             // Human: gets choice via UI modal — render immediately so the
             // modal appears, otherwise combat parks in whenPromptCleared
             // with no prompt visible to click (soft-lock).
-            this.state.pendingBlockTrick = trick;
+            this.state.pendingBlockTrick = { ...trick, _btOwner: owner };
             if (typeof UI !== 'undefined' && UI.render) UI.render();
           } else {
             // AI-controlled: auto-play free if it has cards on board, else keep
