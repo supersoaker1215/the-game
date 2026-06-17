@@ -3380,6 +3380,29 @@ body.hit-pause .ai-hand * {
   border-color: var(--theme-accent-bright, #4fc3f7);
   box-shadow: 0 0 14px var(--theme-glow-outer, rgba(79,195,247,0.45));
 }
+.mp-name-row {
+  display: flex; flex-direction: column; align-items: center; gap: 6px;
+  width: 100%; padding-bottom: 4px;
+}
+.mp-name-label {
+  font-size: 10px; font-weight: 700; letter-spacing: 2px; text-transform: uppercase;
+  color: color-mix(in srgb, var(--theme-accent, rgb(79,195,247)) 50%, #9ecfed);
+}
+.mp-name-input {
+  width: 220px; padding: 9px 14px;
+  background: rgba(0,0,0,0.7);
+  border: 1px solid var(--theme-accent-ring, rgba(79,195,247,0.45));
+  border-radius: 3px;
+  color: #f5fbff;
+  font-family: 'Rajdhani', sans-serif;
+  font-size: 16px; font-weight: 600; letter-spacing: 1px;
+  text-align: center; outline: none;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+.mp-name-input:focus {
+  border-color: var(--theme-accent-bright, #4fc3f7);
+  box-shadow: 0 0 10px var(--theme-glow-outer, rgba(79,195,247,0.35));
+}
 .mp-status-label {
   font-size: 13px; font-weight: 700;
   letter-spacing: 4px; text-transform: uppercase;

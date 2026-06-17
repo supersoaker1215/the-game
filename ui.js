@@ -7993,6 +7993,8 @@ const UI = {
       // joinRoom payload.
       if (typeof Game !== 'undefined' && Game.startMultiplayerHost) {
         Game.startMultiplayerHost();
+        // Override the AI personality name with the real opponent name.
+        this._mpApplyNames(Game.state);
       }
     });
     Multiplayer.on('opponentLeft', () => {
@@ -8018,6 +8020,8 @@ const UI = {
             }))
           : null;
         Game.acceptMultiplayerState(m.state);
+        // Apply real player names to the HUD name plates on every state update.
+        this._mpApplyNames(Game.state);
         // Play SFX for cards that newly appeared on the board or died this update.
         if (prevLanes && this.sfx) {
           const nextLanes = Game.state.lanes || [];
@@ -8113,6 +8117,25 @@ const UI = {
       localStorage.setItem('clb-mp-name', n);
     }
     return n;
+  },
+  _mpSaveName(val) {
+    const n = (val || '').trim().slice(0, 12);
+    if (n) localStorage.setItem('clb-mp-name', n);
+  },
+  // Override the in-game name plates with real player names from _mpNames.
+  // Called after opponentJoined (host) and after each state receive (guest).
+  _mpApplyNames(s) {
+    if (!s || !s._mpNames) return;
+    const myName = (s._mpNames.player || 'You').slice(0, 12);
+    const oppName = (s._mpNames.ai || 'Opponent').slice(0, 12);
+    const nmEl  = document.getElementById('player-name');
+    const aiNmEl = document.getElementById('ai-name');
+    const aiAvEl = document.getElementById('ai-avatar');
+    const aiCell = document.getElementById('ai-avatar-cell');
+    if (nmEl)   nmEl.textContent  = myName;
+    if (aiNmEl) aiNmEl.textContent = oppName;
+    if (aiAvEl) aiAvEl.textContent = '▲';
+    if (aiCell) aiCell.title = oppName;
   },
   // Toggle between WebRTC (internet) and LocalTab (same-browser dev).
   // Persisted in localStorage so the choice sticks across sessions.
@@ -8241,6 +8264,14 @@ const UI = {
         </div>`;
     }
 
+    const nameRow = (st.status === 'idle') ? `
+      <div class="mp-name-row">
+        <label class="mp-name-label" for="mp-name-input">Your Name</label>
+        <input type="text" id="mp-name-input" class="mp-name-input"
+               maxlength="12" placeholder="Display name (12 chars)"
+               value="${this._mpName().replace(/"/g, '&quot;')}"
+               oninput="UI._mpSaveName(this.value)" />
+      </div>` : '';
     const tabsRow = (st.status === 'idle')
       ? `<div class="mp-tabs">${tabBtn('create', 'Create Room')}${tabBtn('join', 'Join Room')}</div>`
       : '';
@@ -8256,6 +8287,7 @@ const UI = {
       <div class="mh-panel mp-panel">
         <button type="button" class="md-back" onclick="UI.closeMultiplayer()" title="Back to main menu">&larr; Menu</button>
         <h1 class="mh-title">Multiplayer</h1>
+        ${nameRow}
         ${tabsRow}
         ${body}
         ${twov2Row}

@@ -165,6 +165,14 @@ const Game = {
     this.startMatch({ players: '1v1', deck: 'classic' });
     if (this.state.player) this.state.player.isHuman = true;
     if (this.state.ai)     this.state.ai.isHuman = true;
+    // Embed both players' display names in state so they broadcast to the guest
+    // and remain accurate after any perspective flip.
+    if (typeof UI !== 'undefined') {
+      this.state._mpNames = {
+        player: UI._mpName ? UI._mpName() : 'Host',
+        ai: (UI._mpState && UI._mpState.opponent) || 'Opponent',
+      };
+    }
     this._mpBroadcast();
   },
 
@@ -422,6 +430,11 @@ const Game = {
       const bt = state.pendingBlockTrick;
       if (bt.owner) bt.owner = flipSeat(bt.owner);
       if (bt._btOwner) bt._btOwner = flipSeat(bt._btOwner);
+    }
+    if (state._mpNames) {
+      const t = state._mpNames.player;
+      state._mpNames.player = state._mpNames.ai;
+      state._mpNames.ai = t;
     }
     // ---- Draft-state perspective swap (2026-05-19) ----
     // Without this, both players see the HOST's draft picks in
