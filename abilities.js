@@ -1700,7 +1700,10 @@ const CARD_ABILITIES = {
         G.addToHand(self.owner, card, self);
         G.log(`Kang keeps ${card.name} (cost reduced to ${card.cost})`);
         if (card.cost <= 2) {
-          const open = G.getOpenLanes(self.owner);
+          // Environments can go in any non-destroyed lane; normal cards need an open slot.
+          const open = card.isEnvironment
+            ? G.state.lanes.map((l, i) => i).filter(i => !G.state.lanes[i].destroyed)
+            : G.getOpenLanes(self.owner);
           if (open.length && !card.isDiscardEffect) {
             G.playCardFree(self.owner, card, open[0]);
           }

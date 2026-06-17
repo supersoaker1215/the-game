@@ -18757,7 +18757,10 @@ function kangChoicePick(idx) {
   Game.log(`  [KANG] Kept ${card.name} (cost reduced to ${card.cost})`);
   Game.addToHand(kc.owner, card);
   if (card.cost <= 2) {
-    const open = Game.getOpenLanes(kc.owner);
+    // Environments can go in any non-destroyed lane; normal cards only go in open (empty) lanes.
+    const open = card.isEnvironment
+      ? Game.state.lanes.map((l, i) => i).filter(i => !Game.state.lanes[i].destroyed)
+      : Game.getOpenLanes(kc.owner);
     if (open.length && !card.isDiscardEffect) {
       Game.log(`  [KANG] ${card.name} costs ${card.cost} — bonus free play available!`);
       Game.promptLaneChoice(kc.owner, open, `Play ${card.name} FREE`,
