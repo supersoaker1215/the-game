@@ -8480,7 +8480,7 @@ body.turn-combat .board .lane.lane-active {
      User direction: "I would like you to be able to click on, like,
      'destroy', and it has a definition of what destroy is, with a
      little popout box… you can do it here [inside the inspect]." */
-  z-index: 1700 !important;
+  z-index: 10000 !important;
   max-width: 240px;
   padding: 8px 12px;
   background: rgba(8,14,22,0.96);
@@ -10569,7 +10569,7 @@ body.turn-combat .board .lane.lane-active {
   border-left: 1px solid rgba(79,195,247,0.45);
   box-shadow: -4px 0 18px rgba(0,0,0,0.6);
   transition: transform 0.25s ease-in-out;
-  z-index: 120 !important;
+  z-index: 230 !important;
   display: flex; flex-direction: column;
   padding: 10px 10px 10px;
 }
@@ -16223,6 +16223,16 @@ body.phase-menu .kb-hints { display: none; }
 .log-toggle-svg {
   /* Theme-driven stroke via currentColor */
   filter: drop-shadow(0 0 3px var(--theme-glow-outer));
+}
+/* On narrow screens the HUD pill doesn't extend to calc(50% + 300px),
+   so the log toggle would float off the right edge or crowd the settings
+   cog. Move it to the left side where there's clear space. */
+@media (max-width: 700px) {
+  .log-drawer-toggle {
+    left: 10px !important;
+    right: auto !important;
+    top: 8px !important;
+  }
 }
 .log-drawer {
   background:
@@ -27784,6 +27794,8 @@ body.combat-anticipate::after  { content: none !important; }
   background-size: cover;
   background-position: var(--portrait-pos, center center);
   background-repeat: no-repeat;
+  transform: translateZ(0);
+  will-change: transform;
 
   /* === TRON GEM CONTAINER — soft shading + double-line frame ===
      The portrait is now framed as a real "container for the gem"

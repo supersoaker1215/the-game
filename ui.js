@@ -1651,6 +1651,16 @@ const UI = {
         if (this._ctx && this._ctx.state === 'suspended') {
           try { this._ctx.resume(); } catch (e) {}
         }
+        // iOS blocks HTMLAudioElement.play() outside a user-gesture call stack.
+        // Playing a silent Audio here within the gesture unlocks the pool so
+        // async play() calls (combat SFX, card sounds) work on iPad/iPhone.
+        try {
+          const sil = new Audio();
+          sil.src = 'data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAAABkYXRhAgAAAAEA';
+          sil.volume = 0;
+          const p = sil.play();
+          if (p) p.then(() => { sil.pause(); sil.src = ''; }).catch(() => {});
+        } catch (_) {}
         if (this._musicWantPlay && this._music && this._music.paused) {
           try { this._music.play().catch(() => {}); } catch (e) {}
         }

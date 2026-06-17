@@ -3414,6 +3414,7 @@ const Game = {
   // if Armor fully absorbed the hit (caller bails out early). Credits
   // absorb stats and emits the block visualization.
   _applyArmorReduction(attacker, target, dmg) {
+    if (attacker && attacker.ignoresArmor) return dmg;
     if (target.armorValue <= 0) return dmg;
     if (dmg <= target.armorValue) {
       this.log(`  [ARMOR] ${target.name}'s Armor ${target.armorValue} absorbs ${attacker.name}'s ${dmg} damage`);
