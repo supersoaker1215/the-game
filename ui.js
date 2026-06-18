@@ -8270,16 +8270,16 @@ const UI = {
         </div>`;
     }
 
-    // Name field is always visible — set it before connecting so your opponent sees your real name.
-    const connected = st.status === 'paired' || st.status === 'waiting' || st.status === 'joining';
+    // Name field is always visible. Only lock it once both players are paired —
+    // while waiting/joining the name hasn't been captured yet so editing is fine.
+    const nameLocked = st.status === 'paired';
     const nameRow = `
       <div class="mp-name-row">
         <label class="mp-name-label" for="mp-name-input">Your Name</label>
         <input type="text" id="mp-name-input" class="mp-name-input"
                maxlength="12" placeholder="Display name (12 chars)"
                value="${this._mpName().replace(/"/g, '&quot;')}"
-               ${connected ? 'readonly style="opacity:0.55;cursor:default"' : 'oninput="UI._mpSaveName(this.value)"'} />
-        ${connected ? '' : ''}
+               ${nameLocked ? 'readonly style="opacity:0.55;cursor:default"' : 'oninput="UI._mpSaveName(this.value)"'} />
       </div>`;
     const tabsRow = (st.status === 'idle')
       ? `<div class="mp-tabs">${tabBtn('create', 'Create Room')}${tabBtn('join', 'Join Room')}</div>`
