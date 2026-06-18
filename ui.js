@@ -4300,13 +4300,15 @@ const UI = {
     if (!prev) return;
     if (s.phase.startsWith('draft')) return;
 
+    const _oppName = (Game.isMultiplayer && Game.isMultiplayer() && Game.state._mpNames && Game.state._mpNames.ai)
+      ? Game.state._mpNames.ai : 'Enemy';
     const bannerMap = {
       'player-cards': 'Your Turn — Cards',
       'player-tricks': 'Your Turn — Tricks',
       'player-cards-tricks': 'Your Turn — Cards & Tricks',
-      'ai-cards': 'Enemy Turn — Cards',
-      'ai-tricks': 'Enemy Turn — Tricks',
-      'ai-cards-tricks': 'Enemy Turn — Cards & Tricks',
+      'ai-cards': `${_oppName}'s Turn — Cards`,
+      'ai-tricks': `${_oppName}'s Turn — Tricks`,
+      'ai-cards-tricks': `${_oppName}'s Turn — Cards & Tricks`,
       'combat': 'Combat Phase',
       'draw': 'Draw Phase'
     };
@@ -4704,13 +4706,16 @@ const UI = {
     // to indicate whose turn it is, so the old "Your Turn —" / "AI Playing"
     // preamble is redundant. Keeping the strings tight so the pill doesn't
     // overflow when the deck/tricks counts are packed in alongside.
+    // In multiplayer use the opponent's real name instead of "AI" in phase labels.
+    const oppLabel = (Game.isMultiplayer && Game.isMultiplayer() && s._mpNames && s._mpNames.ai)
+      ? s._mpNames.ai : 'AI';
     const phaseLabels = {
       'player-cards': 'Cards',
       'player-tricks': 'Tricks',
       'player-cards-tricks': 'Cards & Tricks',
-      'ai-cards': 'AI · Cards',
-      'ai-tricks': 'AI · Tricks',
-      'ai-cards-tricks': 'AI · Cards & Tricks',
+      'ai-cards': `${oppLabel} · Cards`,
+      'ai-tricks': `${oppLabel} · Tricks`,
+      'ai-cards-tricks': `${oppLabel} · Cards & Tricks`,
       'combat': 'Combat'
     };
     const phaseText = s.gameOver
@@ -4721,7 +4726,7 @@ const UI = {
     // First player indicator
     const firstEl = document.getElementById('first-player-text');
     if (firstEl && s.firstPlayer) {
-      firstEl.textContent = s.firstPlayer === 'player' ? 'You go first' : 'AI goes first';
+      firstEl.textContent = s.firstPlayer === 'player' ? 'You go first' : `${oppLabel} goes first`;
     }
 
     // Prompt banner for inline card/lane choices
