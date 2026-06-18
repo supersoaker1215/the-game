@@ -8036,22 +8036,42 @@ const UI = {
         // Play SFX for cards that newly appeared on the board or died this update.
         if (prevLanes && this.sfx) {
           const nextLanes = Game.state.lanes || [];
+          // Build sets of card IDs present in prev and next states for cross-lane checks.
+          const prevIds = new Set(), nextIds = new Set();
+          for (const l of prevLanes) {
+            if (l.player) prevIds.add(l.player.id);
+            if (l.ai)     prevIds.add(l.ai.id);
+          }
+          for (const l of nextLanes) {
+            if (l.player) nextIds.add(l.player.id);
+            if (l.ai)     nextIds.add(l.ai.id);
+          }
           for (let _i = 0; _i < nextLanes.length; _i++) {
             const prev = prevLanes[_i] || {};
             const next = nextLanes[_i] || {};
-            // Newly placed card (id changed or appeared where none was)
+            // Newly placed card — only play SFX if it wasn't already on the board
+            // somewhere (i.e. it's a new card, not a card that moved from another lane).
             if (next.player && (!prev.player || next.player.id !== prev.player.id)) {
-              try { this.sfx.playCardSfx(next.player.name, 'play', next.player); } catch(e) {}
+              if (!prevIds.has(next.player.id)) {
+                try { this.sfx.playCardSfx(next.player.name, 'play', next.player); } catch(e) {}
+              }
             }
             if (next.ai && (!prev.ai || next.ai.id !== prev.ai.id)) {
-              try { this.sfx.playCardSfx(next.ai.name, 'play', next.ai); } catch(e) {}
+              if (!prevIds.has(next.ai.id)) {
+                try { this.sfx.playCardSfx(next.ai.name, 'play', next.ai); } catch(e) {}
+              }
             }
-            // Card that was present is now gone (died or removed)
+            // Card that was present is now gone — only play death SFX if it's truly
+            // gone from the board (not just relocated to another lane by a move ability).
             if (prev.player && (!next.player || next.player.id !== prev.player.id)) {
-              try { this.sfx.playCardSfx(prev.player.name, 'death', null); } catch(e) {}
+              if (!nextIds.has(prev.player.id)) {
+                try { this.sfx.playCardSfx(prev.player.name, 'death', null); } catch(e) {}
+              }
             }
             if (prev.ai && (!next.ai || next.ai.id !== prev.ai.id)) {
-              try { this.sfx.playCardSfx(prev.ai.name, 'death', null); } catch(e) {}
+              if (!nextIds.has(prev.ai.id)) {
+                try { this.sfx.playCardSfx(prev.ai.name, 'death', null); } catch(e) {}
+              }
             }
           }
         }
@@ -11420,11 +11440,22 @@ const UI = {
           if (preview) pSlot.appendChild(preview);
         }
       } else if (!lane.destroyed && canPlay && s.selectedCard && !s.selectedCard.isDiscardEffect && !cc && !lc && (!lane.player || s.selectedCard.isEnvironment)) {
-        pSlot.classList.add('playable');
-        pSlot.addEventListener('click', () => this.onLaneClick(i));
-        // Damage preview — show how this card would trade if placed here.
-        const preview = s.selectedCard.isEnvironment ? null : this.makeDamagePreview(s.selectedCard, lane.ai, i);
-        if (preview) pSlot.appendChild(preview);
+        // When a forced lane is active (Moder/Magneto), only that lane is clickable.
+        const fl = s.player && s.player.forcedLane != null ? s.player.forcedLane : null;
+        if (fl !== null && fl !== i && !s.selectedCard.isEnvironment) {
+          // Not the forced lane — show as locked, not playable.
+          const empty = document.createElement('div');
+          empty.className = 'empty-lane-glyph lane-glyph-locked';
+          empty.title = `Your next card is forced into lane ${fl + 1}`;
+          empty.innerHTML = '&#x1F512;';
+          pSlot.appendChild(empty);
+        } else {
+          pSlot.classList.add('playable');
+          pSlot.onclick = () => this.onLaneClick(i);
+          // Damage preview — show how this card would trade if placed here.
+          const preview = s.selectedCard.isEnvironment ? null : this.makeDamagePreview(s.selectedCard, lane.ai, i);
+          if (preview) pSlot.appendChild(preview);
+        }
       } else if (!lane.destroyed && !lane.player && !cc && !lc) {
         // Empty ally slot + nothing selected — show the drop glyph
         const empty = document.createElement('div');
