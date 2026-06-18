@@ -81,6 +81,11 @@ const Game = {
   whenPromptCleared(fn) {
     if (!this.hasPendingPrompt()) { fn(); return; }
     this.state._combatContinuation = fn;
+    // In multiplayer, broadcast so the guest sees the pending prompt (block trick,
+    // card/lane choice from onKill/onDamaged hooks, etc.) and can resolve it.
+    // Without this, any mid-combat prompt set inside resolveLaneCombat is never
+    // pushed to the guest, so the guest never sends promptResolve, and combat hangs.
+    if (this.isMultiplayer && this.isMultiplayer() && this.mp.role === 'host') this._mpBroadcast();
   },
   // Called by UI when any prompt is resolved — fires stored continuation
   resumeCombatIfWaiting() {
