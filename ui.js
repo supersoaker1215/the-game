@@ -3999,6 +3999,12 @@ const UI = {
         e.preventDefault();
         this.toggleCheatSheet();
       }
+      // Shift+M — emergency escape from phone/mobile preview mode.
+      // The viewport-toggle button is hidden during gameplay so this
+      // keyboard shortcut is the only way out if you get stuck.
+      if (e.key === 'M' && e.shiftKey && !e.ctrlKey && !e.metaKey) {
+        if (document.body.classList.contains('preview-mobile')) this.toggleViewportMode();
+      }
     });
   },
 
