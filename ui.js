@@ -906,6 +906,7 @@ const UI = {
       'Boiler Room':      { hover: { src: 'audio/cards/boiler-room-hover.mp3', maxDur: 25 } },
       'Sewers':           { hover: { src: 'audio/cards/sewers-hover.mp3', maxDur: 15 } },
       'Open Water':       { hover: { src: 'audio/cards/open-water-hover.mp3' } },
+      'Gargantua':        { hover: { src: 'audio/cards/gargantua-hover.mp3' } },
       'Ultron':           { hover: { src: 'audio/cards/ultron-hover.mp3', maxDur: 29 } },
     },
     // Default files for the per-card events — used when a card's

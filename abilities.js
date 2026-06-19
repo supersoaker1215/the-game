@@ -4478,6 +4478,82 @@ const CARD_ABILITIES = {
       if (lane && lane._env) lane._env[self.owner] = null;
     },
   },
+
+  "Gargantua": {
+    onTurnStart(G, self) {
+      const owner = self.owner;
+      const laneIdx = G.findCardLane(self);
+      if (laneIdx < 0) return;
+
+      // Charge 1 energy to sustain Gargantua; collapse if unable to pay.
+      if (G.state[owner].currency < 1) {
+        G.log(`[GARGANTUA] ${owner === 'player' ? 'You' : 'AI'} can't sustain Gargantua — it collapses!`);
+        self.currentHealth = 0;
+        G.handleDeath(self, laneIdx, null);
+        return;
+      }
+      G.state[owner].currency -= 1;
+      G.log(`[GARGANTUA] Gargantua consumes 1 Energy — gravitational pull active.`);
+
+      const opp = G.opponent(owner);
+
+      // Snapshot all enemy (non-environment) cards and their current lanes.
+      const targets = [];
+      for (let i = 0; i < G.LANE_COUNT; i++) {
+        const c = G.state.lanes[i][opp];
+        if (c && c.currentHealth > 0 && !c.isEnvironment) targets.push({ card: c, origLane: i });
+      }
+
+      // Pull closest enemies first to chain moves without cascading conflicts.
+      targets.sort((a, b) => {
+        const da = Math.abs(a.origLane - laneIdx);
+        const db = Math.abs(b.origLane - laneIdx);
+        return da !== db ? da - db : a.origLane - b.origLane;
+      });
+
+      for (const { card } of targets) {
+        if (card.currentHealth <= 0) continue;
+        const curLane = G.findCardLane(card);
+        if (curLane < 0 || curLane === laneIdx) continue;
+
+        const dir = laneIdx > curLane ? 1 : -1;
+        const targetLane = curLane + dir;
+        const occupant = G.state.lanes[targetLane][opp];
+
+        if (targetLane === laneIdx && occupant && occupant.currentHealth > 0) {
+          // Pulled card enters the Gargantua lane where an enemy already stands.
+          const existingAtk = occupant.attack || 0;
+          const pulledAtk   = card.attack || 0;
+          G.log(`[GARGANTUA] ${card.name} is pulled into lane ${laneIdx + 1} — COLLISION with ${occupant.name}!`);
+          G.dealDamage(occupant, pulledAtk, card);
+          G.dealDamage(card,     existingAtk, occupant);
+
+          if (occupant.currentHealth <= 0 && card.currentHealth > 0) {
+            // Occupant was destroyed; pulled card takes the lane.
+            G.state.lanes[curLane][opp]    = null;
+            G.state.lanes[laneIdx][opp]    = card;
+            G.log(`[GARGANTUA] ${card.name} takes lane ${laneIdx + 1}!`);
+            G.checkLaneTrap(card, laneIdx);
+            if (card.onMoved) card.onMoved(G, card, laneIdx);
+          } else if (card.currentHealth > 0) {
+            G.log(`[GARGANTUA] ${card.name} is repelled — both cards survive the collision.`);
+          }
+        } else if (!occupant || occupant.currentHealth <= 0) {
+          // Target lane is clear — pull the card one step toward Gargantua.
+          G.state.lanes[curLane][opp]     = null;
+          G.state.lanes[targetLane][opp]  = card;
+          G.log(`[GARGANTUA] ${card.name} pulled from lane ${curLane + 1} → lane ${targetLane + 1}.`);
+          G.checkLaneTrap(card, targetLane);
+          if (card.onMoved) card.onMoved(G, card, targetLane);
+        } else {
+          // Another enemy already occupies the intermediate lane — card is blocked.
+          G.log(`[GARGANTUA] ${card.name} is blocked — lane ${targetLane + 1} is occupied.`);
+        }
+      }
+
+      if (typeof UI !== 'undefined' && UI.render) UI.render();
+    },
+  },
 };
 
 // Merge abilities into CARD_DEFS (cards.js must load before this file)
