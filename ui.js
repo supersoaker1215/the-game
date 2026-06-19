@@ -829,7 +829,7 @@ const UI = {
       'Jason Voorhees':   { play: { src: 'audio/cards/jason-play.mp3', maxDur: 5.0 } },
       'Knull':            { play: { src: 'audio/cards/knull-play.mp3', maxDur: 5.0 } },
       'Galactus':         { hover: { src: 'audio/cards/galactus-hover.mp3' }, play: { src: 'audio/cards/galactus-play.mp3', maxDur: 5.0 } },
-      'Dormammu':         { play: { src: 'audio/cards/dormammu-play.mp3', maxDur: 5.0 } },
+      'Dormammu':         { hover: { src: 'audio/cards/dormammu-hover.mp3' }, play: { src: 'audio/cards/dormammu-play.mp3', maxDur: 5.0 } },
       // Michael Myers hover: 55s of John & Cody Carpenter's "The Shape
       // Returns" (start → 0:55) — the Halloween theme reborn. -20 LUFS
       // unified-baseline, 1s fade-in / 2s fade-out baked. maxDur 56 lets
