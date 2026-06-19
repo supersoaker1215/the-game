@@ -323,7 +323,7 @@ const CARD_DEFS = [
     desc: "When Played: Move an enemy to an empty lane. Fear 1 an enemy. Then start a 7-damage chain — pick direction each step; damage decreases by 1 per hit." },
   { name: "Emperor Palpatine", cost: 8, attack: 6, health: 8, type: "villain",
     abilities: ["Unresistible"],
-    desc: "When Played: Chain Freeze 1 consecutive enemies. While Active: Frozen enemies take double damage." },
+    desc: "When Played: Chain Freeze up to 3 adjacent enemies. The chain requires enemies to be next to each other to continue. While Active: Frozen enemies take double damage." },
   { name: "Luke Skywalker", cost: 8, attack: 5, health: 6, type: "hero",
     abilities: ["Unresistible"],
     desc: "When Played: Mind Control 1 an enemy. While Active: All allies get (+1/+1) and all enemies get (−1/−1)." },

@@ -798,7 +798,7 @@ const UI = {
       // (0:24 → 1:21) — the Autobot-leader theme reprise from the
       // Transformers OST. -20 LUFS unified-baseline, 1s fade-in / 2s
       // fade-out baked.
-      'Optimus Prime':    { hover: { src: 'audio/cards/optimus-prime-hover.mp3', maxDur: 58 } },
+      'Optimus Prime':    { hover: { src: 'audio/cards/optimus-prime-hover.mp3', maxDur: 58 }, play: { src: 'audio/cards/optimus-prime-play.mp3', maxDur: 5.0 } },
       // Iron Man hover: 81s of AC/DC's "Shoot to Thrill" (start → 1:21) —
       // Tony's signature entrance riff. -20 LUFS unified-baseline, 1s
       // fade-in / 2s fade-out baked.
@@ -903,7 +903,6 @@ const UI = {
       'Freddy Krueger':   { spawn: { src: 'audio/cards/freddy-krueger-spawn.m4a', maxDur: 5.5 }, play: { src: 'audio/cards/freddy-krueger-spawn.m4a', maxDur: 5.5 } },
       'Pennywise':        { spawn: { src: 'audio/cards/pennywise-spawn.mp3', maxDur: 8.5 }, play: { src: 'audio/cards/pennywise-spawn.mp3', maxDur: 8.5 } },
       'Jaws':             { spawn: { src: 'audio/cards/jaws-spawn.mp3?v=2', maxDur: 10 }, play: { src: 'audio/cards/jaws-spawn.mp3?v=2', maxDur: 10 } },
-      'Optimus Prime':    { play: { src: 'audio/cards/optimus-prime-play.mp3', maxDur: 5.0 } },
       'Boiler Room':      { hover: { src: 'audio/cards/boiler-room-hover.mp3', maxDur: 25 } },
       'Sewers':           { hover: { src: 'audio/cards/sewers-hover.mp3', maxDur: 15 } },
       'Open Water':       { hover: { src: 'audio/cards/open-water-hover.mp3' } },

@@ -3133,12 +3133,12 @@ const CARD_ABILITIES = {
   "Emperor Palpatine": {
     onPlay(G, self, lane) {
       G.runPlayerChain(self, (target) => G.freezeCardUnresistible(target, self),
-        "Palpatine — Chain Freeze", "freeze");
+        "Palpatine — Chain Freeze", "freeze", 3);
     },
     passive: "doubleFrozenDamage",
     onDeath(G, self, lane) {
       G.runPlayerChain(self, (target) => G.freezeCardUnresistible(target, self),
-        "Palpatine's Final Act — Chain Freeze", "freeze");
+        "Palpatine's Final Act — Chain Freeze", "freeze", 3);
     }
   },
   "Luke Skywalker": {

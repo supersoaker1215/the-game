@@ -5044,7 +5044,7 @@ const Game = {
   // Player picks a starting enemy (any enemy on board); then repeatedly picks a direction
   // (left/right/stop) — chain continues only into consecutive occupied enemy lanes.
   // AI uses getChainedEnemies (starting from source lane) for equivalent behavior.
-  runPlayerChain(source, applyFn, title, verb) {
+  runPlayerChain(source, applyFn, title, verb, maxTargets) {
     const owner = source.owner;
     const opp = this.opponent(owner);
     const enemies = this.getEnemiesOf(owner).filter(e => e.currentHealth > 0);
@@ -5052,7 +5052,8 @@ const Game = {
 
     // AI: use auto-spread from source lane (legacy behavior)
     if (owner !== 'player') {
-      const targets = this.getChainedEnemies(source);
+      let targets = this.getChainedEnemies(source);
+      if (maxTargets) targets = targets.slice(0, maxTargets);
       targets.forEach(t => { try { applyFn(t); } catch (e) { console.error(e); } });
       this.log(`${source.name} chains ${verb} to ${targets.length} enemies!`);
       return;
@@ -5094,6 +5095,7 @@ const Game = {
         return null;
       };
       const askNext = () => {
+        if (maxTargets && hit.size >= maxTargets) return; // cap reached
         const left  = (lockedDir === 'right') ? null : extendLeft();
         const right = (lockedDir === 'left')  ? null : extendRight();
         const options = [];
