@@ -3675,13 +3675,20 @@ const CARD_ABILITIES = {
   "Superman": {
     onPlay(G, self, lane) {
       const opp = G.opponent(self.owner);
-      const target = G.state.lanes[lane] ? G.state.lanes[lane][opp] : null;
-      if (target && target.currentHealth > 0) {
-        G.dealDamage(target, self.attack, self);
-        G.log(`Superman bonus attacks ${target.name} for ${self.attack}!`);
+      const isRoguelite = G.state.mode && G.state.mode._roguelite;
+      const lexes = G.getAllCardsOf(opp).filter(e => e.name === 'Lex Luthor');
+      const lexSuppressed = isRoguelite ? lexes.some(e => e._lexFullLock) : lexes.length > 0;
+      if (lexSuppressed) {
+        G.log(`  [LUTHOR] Superman's bonus attack is suppressed by Lex Luthor!`);
       } else {
-        G.damagePlayer(opp, self.attack, self.isBullseye);
-        G.log(`Superman bonus attacks health bar for ${self.attack}!`);
+        const target = G.state.lanes[lane] ? G.state.lanes[lane][opp] : null;
+        if (target && target.currentHealth > 0) {
+          G.dealDamage(target, self.attack, self);
+          G.log(`Superman bonus attacks ${target.name} for ${self.attack}!`);
+        } else {
+          G.damagePlayer(opp, self.attack, self.isBullseye);
+          G.log(`Superman bonus attacks health bar for ${self.attack}!`);
+        }
       }
       // Freeze 2 enemies chosen by the player. Chains two promptCardChoice
       // calls: the first pick filters out of the pool for the second so the
