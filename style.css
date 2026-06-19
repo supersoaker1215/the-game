@@ -29564,3 +29564,78 @@ body.round-tick .board::after {
   0%,100% { opacity: 1; }
   50% { opacity: 0.5; }
 }
+
+/* ===== 2v2 ONLINE BOARD MODE — lane-select strip ===== */
+/* Appears below the tricks row when the local player has selected a card
+   in the polished 1v1-style board view. Row of lane-number buttons + cancel. */
+.twov2-board-lane-select {
+  display: none;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
+  background: rgba(0,0,0,0.75);
+  border-top: 1px solid rgba(79,195,247,0.3);
+  flex-wrap: wrap;
+}
+.twov2-bls-label {
+  font-family: 'Rajdhani', sans-serif;
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: #a8dcff;
+  margin-right: 4px;
+  flex-shrink: 0;
+}
+.twov2-bls-btn {
+  width: 36px; height: 36px;
+  border: 1px solid rgba(79,195,247,0.6);
+  border-radius: 4px;
+  background: rgba(79,195,247,0.08);
+  color: #a8dcff;
+  font-family: 'Rajdhani', sans-serif;
+  font-size: 0.9rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+.twov2-bls-btn:hover:not(:disabled) {
+  background: rgba(79,195,247,0.25);
+  border-color: #4fc3f7;
+  color: #fff;
+}
+.twov2-bls-blocked {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+.twov2-bls-cancel {
+  margin-left: 4px;
+  padding: 0 10px; height: 36px;
+  border: 1px solid rgba(231,76,60,0.5);
+  border-radius: 4px;
+  background: transparent;
+  color: #ff8a7a;
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.twov2-bls-cancel:hover { background: rgba(231,76,60,0.18); }
+
+/* Waiting banner repositioned for board mode (sits inside #game-area) */
+#twov2-waiting-banner {
+  position: fixed;
+  bottom: 0; left: 0; right: 0;
+  padding: 10px;
+  background: rgba(0,0,0,0.85);
+  border-top: 1px solid rgba(255,215,0,0.3);
+  text-align: center;
+  color: #ffd700;
+  font-family: 'Rajdhani', sans-serif;
+  font-size: 0.9rem;
+  font-weight: 700;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  z-index: 60;
+  pointer-events: none;
+  animation: pulse 1.5s ease-in-out infinite;
+}

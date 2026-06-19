@@ -4491,6 +4491,14 @@ const UI = {
     const isDeckBuilder = s.phase === 'deckbuilder-build';
     const isDraft = s.phase === 'draft-cards' || s.phase === 'draft-tricks';
     const is2v2 = s.phase && s.phase.startsWith('2v2-');
+    const is2v2OnlineGame = is2v2 && (() => {
+      const tt = s.twoVTwo;
+      if (!tt || !tt.online) return false;
+      const p = s.phase;
+      return p !== '2v2-team-setup' && p !== '2v2-pass' &&
+             p !== '2v2-draft'      && p !== '2v2-draft-pass' &&
+             p !== '2v2-online-lobby';
+    })();
     // Hide the dev Web/Mobile preview toggle on every screen EXCEPT the
     // main menu and mode-select. It's a developer affordance, not part
     // of the player UI. User feedback: "the blue square on the top left
@@ -4520,7 +4528,7 @@ const UI = {
     this.draftEl.style.display = isDraft ? 'flex' : 'none';
     const isRoguelite = s.phase && s.phase.startsWith('roguelite');
     (this._gameAreaEl || document.getElementById('game-area')).style.display =
-      (isDraft || isMainMenu || isModeSelect || isMyDecks || isStats || isDeckBuilder || isRoguelite || is2v2) ? 'none' : '';
+      (isDraft || isMainMenu || isModeSelect || isMyDecks || isStats || isDeckBuilder || isRoguelite || (is2v2 && !is2v2OnlineGame)) ? 'none' : '';
 
     if (isMainMenu)    { this.renderMainMenu(s); return; }
     if (isModeSelect)  { this.renderModeSelect(s); return; }
@@ -4528,7 +4536,10 @@ const UI = {
     if (isStats)       { this.renderStats(s); return; }
     if (isDeckBuilder) { this.renderDeckBuilder(s); return; }
     if (isDraft)       { this.renderDraft(s); return; }
-    if (is2v2)         { this.render2v2(s); return; }
+    if (is2v2) {
+      if (is2v2OnlineGame) { this._render2v2OnlineBoard(s); return; }
+      this.render2v2(s); return;
+    }
     if (isRoguelite && typeof Roguelite !== 'undefined') {
       if (Roguelite.renderPhase(s)) return;
     } else if (typeof Roguelite !== 'undefined') {
@@ -5830,6 +5841,252 @@ const UI = {
     // FX list — but the CSS suppresses animations via [disabled] /
     // [aria-disabled] / .mode-option-disabled checks.
     if (this.applyTronFx) this.applyTronFx();
+  },
+
+  // ===================== 2v2 ONLINE BOARD RENDERING =====================
+  // Renders the 2v2 online game using the full polished 1v1-style board
+  // (card art, animations, health bars, energy orbs) with 8 lanes.
+  // Temporarily patches s.player/s.phase so all standard render sub-
+  // functions work correctly, then restores them after the render.
+  _render2v2OnlineBoard(s) {
+    const tt = s.twoVTwo;
+    if (!tt || !tt.you) return;
+    const myKey  = tt.you;
+    const ap     = tt.players[myKey];
+    if (!ap) return;
+
+    const myTeam    = ap.team;
+    const oppTeam   = myTeam === 'A' ? 'B' : 'A';
+    const mySide    = Game._2v2TeamSide[myTeam];
+    const activeKey = Game._2v2ActivePlayer();
+    const isMyTurn  = activeKey === myKey;
+    const subPhase  = Game._2v2SubPhase();
+    const canCards  = isMyTurn && Game._2v2CanPlayCards(subPhase);
+    const canTricks = isMyTurn && Game._2v2CanPlayTricks(subPhase);
+
+    // Hide the 2v2 full-screen overlay (used by lobby/setup/local phases)
+    const twov2El = document.getElementById('twoVTwo-overlay');
+    if (twov2El) twov2El.style.display = 'none';
+
+    // Patch s so every existing render sub-function works correctly.
+    const save = {
+      playerHand: s.player.hand, playerTricks: s.player.trickHand,
+      playerCurrency: s.player.currency, playerDeadPile: s.player.deadPile,
+      aiHand: s.ai.hand, aiTricks: s.ai.trickHand, aiDeadPile: s.ai.deadPile,
+      phase: s.phase, round: s.round,
+    };
+
+    s.player.hand      = ap.hand;
+    s.player.trickHand = ap.trickHand;
+    s.player.currency  = ap.energy - ap.usedEnergy;
+    s.player.deadPile  = tt.teams[myTeam].deadPile || [];
+    s.ai.deadPile      = tt.teams[oppTeam].deadPile || [];
+    s.round            = tt.round || 1;
+
+    // Feed opponent's representative hand to the ai-hand mini display
+    const oppPlayerKey = Object.keys(tt.players).find(k => tt.players[k].team === oppTeam);
+    const oppAp = oppPlayerKey ? tt.players[oppPlayerKey] : null;
+    if (oppAp) { s.ai.hand = oppAp.hand; s.ai.trickHand = oppAp.trickHand; }
+
+    // Map 2v2 sub-phase → 1v1 phase so canPlayerPlayCards/Tricks and hand
+    // highlights work without modifications to those functions.
+    if      (canCards && canTricks) s.phase = 'player-cards-tricks';
+    else if (canCards)              s.phase = 'player-cards';
+    else if (canTricks)             s.phase = 'player-tricks';
+    else                            s.phase = 'ai-cards';
+
+    // --- HUD: Health (read directly from team state, never stale) ---
+    const tA = tt.teams.A, tB = tt.teams.B;
+    document.getElementById('player-health').textContent = Math.max(0, tA.health);
+    document.getElementById('ai-health').textContent     = Math.max(0, tB.health);
+    document.getElementById('player-hp-fill').style.width =
+      `${Math.max(0, (tA.health / (tA.maxHealth || 30)) * 100)}%`;
+    document.getElementById('ai-hp-fill').style.width =
+      `${Math.max(0, (tB.health / (tB.maxHealth || 30)) * 100)}%`;
+
+    // --- HUD: Block circles ---
+    const blockMax = Game.BLOCK_MAX || 8;
+    ['player', 'ai'].forEach(side => {
+      const team = side === 'player' ? tA : tB;
+      const textEl = document.getElementById(`${side}-block-text`);
+      if (!textEl) return;
+      textEl.textContent = `${team.blockMeter}/${blockMax}`;
+      const circle = textEl.closest('.block-circle');
+      if (circle) {
+        circle.style.setProperty('--fill',
+          Math.max(0, Math.min(100, (team.blockMeter / blockMax) * 100)) + '%');
+        circle.classList.toggle('full', team.blockMeter >= blockMax);
+      }
+    });
+
+    // --- HUD: Energy orbs ---
+    const myEnergy = ap.energy - ap.usedEnergy;
+    this.renderEnergyOrbs('player-energy-display', myEnergy, Math.max(s.round, myEnergy));
+    const oppEnergy = oppAp ? Math.max(0, oppAp.energy - oppAp.usedEnergy) : 0;
+    this.renderEnergyOrbs('ai-energy-display', oppEnergy, Math.max(s.round, oppEnergy));
+
+    // --- HUD: Piles ---
+    document.getElementById('player-dead-count').textContent  = s.player.deadPile.length;
+    document.getElementById('ai-dead-count').textContent      = s.ai.deadPile.length;
+    document.getElementById('draw-pile-count').textContent    = (tt.drawPile || []).length;
+    document.getElementById('trick-pile-count').textContent   = (tt.trickDrawPile || []).length;
+
+    // --- HUD: Round + phase text ---
+    document.getElementById('round-num').textContent = s.round;
+    const activeAp = activeKey ? tt.players[activeKey] : null;
+    let phaseLabel;
+    if (save.phase === '2v2-combat') {
+      phaseLabel = 'Combat';
+    } else if (isMyTurn) {
+      if      (subPhase === 'cards')         phaseLabel = 'Cards';
+      else if (subPhase === 'tricks')        phaseLabel = 'Tricks';
+      else if (subPhase === 'cards-tricks')  phaseLabel = 'Cards & Tricks';
+      else                                   phaseLabel = 'Your Turn';
+    } else {
+      phaseLabel = activeAp ? `${activeAp.name}'s Turn` : 'Waiting…';
+    }
+    const phaseEl = document.getElementById('phase-text');
+    if (phaseEl) phaseEl.textContent = phaseLabel;
+
+    const firstEl = document.getElementById('first-player-text');
+    if (firstEl) firstEl.textContent =
+      `${tt.players.p1 ? tt.players.p1.name : 'Team A'} & ${tt.players.p2 ? tt.players.p2.name : 'P2'} vs ${tt.players.p3 ? tt.players.p3.name : 'Team B'} & ${tt.players.p4 ? tt.players.p4.name : 'P4'}`;
+
+    // --- Board, hand, tricks (standard polished render) ---
+    this.renderRoundTrack(s);
+    this._updateDominanceVars(s);
+    this._capturePositions();
+    this.renderBoard(s);
+    this.renderPlayerHand(s);
+    this.renderAIHand(s);
+    this.renderPlayerTricks(s);
+
+    // Re-wire hand/trick clicks to 2v2 play path (renderPlayerHand wires
+    // them to onCardClick which uses Game.playCard — wrong for 2v2).
+    this._apply2v2OnlineHandClicks(ap, canCards);
+    this._apply2v2OnlineTrickClicks(ap, canTricks);
+
+    // Lane-select strip shown when a card is selected
+    this._render2v2OnlineLaneSelect(s, ap, mySide, canCards);
+
+    // Done button
+    const btnA   = document.getElementById('btn-action');
+    const btnNew = document.getElementById('btn-new-game');
+    const btnU   = document.getElementById('btn-undo');
+    if (btnNew) btnNew.style.display = 'none';
+    if (btnU)   btnU.style.display   = 'none';
+    if (btnA) {
+      if (isMyTurn && save.phase !== '2v2-combat') {
+        btnA.textContent     = 'Done';
+        btnA.className       = 'btn btn-primary';
+        btnA.onclick         = () => twov2OnlineDone();
+        btnA.style.display   = 'inline-block';
+        btnA.disabled        = false;
+        btnA.style.opacity   = '';
+      } else {
+        btnA.style.display = 'none';
+      }
+    }
+
+    // Waiting banner overlay when it's not the local player's turn
+    this._update2v2WaitingBanner(isMyTurn, activeAp && activeAp.name);
+
+    this.applyTronFx();
+    this._applyMotionEffects();
+
+    // Restore patched state
+    s.player.hand      = save.playerHand;
+    s.player.trickHand = save.playerTricks;
+    s.player.currency  = save.playerCurrency;
+    s.player.deadPile  = save.playerDeadPile;
+    s.ai.hand          = save.aiHand;
+    s.ai.trickHand     = save.aiTricks;
+    s.ai.deadPile      = save.aiDeadPile;
+    s.phase            = save.phase;
+    s.round            = save.round;
+  },
+
+  // Re-wire hand card onclick handlers to 2v2 card-index selection.
+  // renderPlayerHand wires onclick → onCardClick → Game.playCard (1v1 path).
+  // We replace them here with the 2v2 index-based selection so that clicking
+  // a card sets UI._2v2SelectedCardIdx and shows the lane-select strip.
+  _apply2v2OnlineHandClicks(ap, canPlay) {
+    const handEl = document.getElementById('player-hand');
+    if (!handEl) return;
+    const energy = ap.energy - ap.usedEnergy;
+    const selectedId = (UI._2v2SelectedCardIdx != null && ap.hand[UI._2v2SelectedCardIdx])
+      ? ap.hand[UI._2v2SelectedCardIdx].id : null;
+    handEl.querySelectorAll('.hand-card-wrapper .card[data-card-id]').forEach(cardEl => {
+      const cardId = parseInt(cardEl.getAttribute('data-card-id'), 10);
+      const apIdx  = ap.hand.findIndex(c => c.id === cardId);
+      // Mirror the selected-card highlight so the card glows gold when chosen
+      cardEl.classList.toggle('selected', cardId === selectedId);
+      if (apIdx < 0 || !canPlay) { cardEl.onclick = null; return; }
+      const cost = ap.hand[apIdx].cost || 0;
+      if (energy < cost) { cardEl.onclick = null; return; }
+      cardEl.onclick = (e) => {
+        e.stopPropagation();
+        UI._2v2SelectedCardIdx = UI._2v2SelectedCardIdx === apIdx ? null : apIdx;
+        UI.render();
+      };
+    });
+  },
+
+  // Re-wire trick onclick handlers to twov2OnlineTrick(idx).
+  _apply2v2OnlineTrickClicks(ap, canPlay) {
+    const tricksEl = document.getElementById('player-tricks');
+    if (!tricksEl) return;
+    tricksEl.querySelectorAll('.trick-card').forEach((el, idx) => {
+      if (!canPlay) { el.onclick = null; return; }
+      el.onclick = (e) => { e.stopPropagation(); twov2OnlineTrick(idx); };
+    });
+  },
+
+  // Lane-select strip that appears when a 2v2 card is selected in board mode.
+  // Floats below the tricks area; each button places the selected card into
+  // the corresponding lane (if the local player's slot is empty).
+  _render2v2OnlineLaneSelect(s, ap, mySide, canPlay) {
+    let strip = document.getElementById('twov2-board-lane-select');
+    if (!strip) {
+      strip = document.createElement('div');
+      strip.id = 'twov2-board-lane-select';
+      strip.className = 'twov2-board-lane-select';
+      const ga = document.getElementById('game-area');
+      if (ga) ga.appendChild(strip);
+    }
+    if (UI._2v2SelectedCardIdx == null || !canPlay) {
+      strip.style.display = 'none';
+      return;
+    }
+    strip.style.display = 'flex';
+    strip.innerHTML = `
+      <span class="twov2-bls-label">Place card in lane:</span>
+      ${s.lanes.map((ln, i) => {
+        const blocked = !!(ln[mySide]);
+        return `<button class="twov2-bls-btn${blocked ? ' twov2-bls-blocked' : ''}"
+                  onclick="twov2OnlinePlaceCard(${i})" ${blocked ? 'disabled' : ''}>
+                  ${i + 1}
+                </button>`;
+      }).join('')}
+      <button class="twov2-bls-cancel"
+              onclick="UI._2v2SelectedCardIdx=null;UI.render()">✕</button>
+    `;
+  },
+
+  // Show a "Waiting for [name]…" banner overlaid at the bottom of game-area
+  // when it is not the local player's turn in 2v2 online.
+  _update2v2WaitingBanner(isMyTurn, activeName) {
+    const ga = document.getElementById('game-area');
+    if (!ga) return;
+    let banner = document.getElementById('twov2-waiting-banner');
+    if (isMyTurn) { if (banner) banner.remove(); return; }
+    if (!banner) {
+      banner = document.createElement('div');
+      banner.id = 'twov2-waiting-banner';
+      banner.className = 'twov2-waiting-banner';
+      ga.appendChild(banner);
+    }
+    banner.textContent = `⏳ Waiting for ${activeName || 'opponent'}…`;
   },
 
   // ===================== 2v2 MODE RENDERING =====================
