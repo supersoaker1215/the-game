@@ -1584,7 +1584,63 @@ const Game = {
     // Apply Magneto debuffs each round
     this.applyMagnetoDebuffs();
     this.state.lanes.forEach(l => l.protected = null);
-    this.startPhase1();
+    // Resolve any upkeep prompts (e.g. Gargantua) before starting the phase.
+    this._resolveUpkeepPrompts(() => this.startPhase1());
+  },
+
+  _resolveUpkeepPrompts(callback) {
+    const queue = this.state._pendingUpkeep || [];
+    this.state._pendingUpkeep = [];
+    const processNext = (idx) => {
+      if (idx >= queue.length) { callback(); return; }
+      const { card, owner, label, costLabel } = queue[idx];
+      const next = () => processNext(idx + 1);
+      if (card.currentHealth <= 0 || this.findCardLane(card) < 0) { next(); return; }
+      if (!this.isHuman(owner)) {
+        // AI always auto-pays if it can afford.
+        if (this.state[owner].currency >= 1) {
+          this.state[owner].currency -= 1;
+          if (queue[idx].onPay) queue[idx].onPay();
+        } else {
+          const l = this.findCardLane(card);
+          card.currentHealth = 0;
+          if (l >= 0) this.handleDeath(card, l, null);
+        }
+        next(); return;
+      }
+      if (this.state[owner].currency < 1) {
+        this.log(`[GARGANTUA] Not enough Energy — Gargantua collapses!`);
+        const l = this.findCardLane(card);
+        card.currentHealth = 0;
+        if (l >= 0) this.handleDeath(card, l, null);
+        if (typeof UI !== 'undefined' && UI.render) UI.render();
+        next(); return;
+      }
+      const payOpt = { _upkeepPay: true, name: 'Pay 1 Energy', cost: 1, attack: 0, health: 1,
+        type: 'environment', desc: 'Keep ' + (label || card.name) + ' active.', isEnvironment: true };
+      const skipOpt = { _upkeepSkip: true, name: 'Let it Collapse', cost: 0, attack: 0, health: 0,
+        type: 'environment', desc: (label || card.name) + ' disappears — no energy spent.', isEnvironment: true };
+      this.promptCardChoice(owner, [payOpt, skipOpt],
+        (label || card.name) + ' — Upkeep',
+        'Pay 1 Energy to keep it active, or let it collapse.',
+        (picked) => {
+          if (picked && picked._upkeepPay) {
+            this.state[owner].currency -= 1;
+            this.log(`[GARGANTUA] You pay 1 Energy — Gargantua remains.`);
+            if (queue[idx].onPay) queue[idx].onPay();
+          } else {
+            this.log(`[GARGANTUA] Gargantua collapses.`);
+            const l = this.findCardLane(card);
+            card.currentHealth = 0;
+            if (l >= 0) this.handleDeath(card, l, null);
+            if (typeof UI !== 'undefined' && UI.render) UI.render();
+          }
+          next();
+        },
+        (choices) => choices.find(c => c._upkeepPay) || choices[0]
+      );
+    };
+    processNext(0);
   },
 
   // "Foresee" pipeline: show top 2 of the draw pile, owner picks 1 to take,

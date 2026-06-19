@@ -4485,16 +4485,20 @@ const CARD_ABILITIES = {
       const laneIdx = G.findCardLane(self);
       if (laneIdx < 0) return;
 
-      // Charge 1 energy to sustain Gargantua; collapse if unable to pay.
-      if (G.state[owner].currency < 1) {
-        G.log(`[GARGANTUA] ${owner === 'player' ? 'You' : 'AI'} can't sustain Gargantua — it collapses!`);
-        self.currentHealth = 0;
-        G.handleDeath(self, laneIdx, null);
-        return;
-      }
-      G.state[owner].currency -= 1;
-      G.log(`[GARGANTUA] Gargantua consumes 1 Energy — gravitational pull active.`);
+      const AB = CARD_ABILITIES['Gargantua'];
+      // Queue an upkeep prompt. _resolveUpkeepPrompts fires it before the
+      // phase begins and calls onPay only if the player (or AI) pays.
+      if (!G.state._pendingUpkeep) G.state._pendingUpkeep = [];
+      G.state._pendingUpkeep.push({
+        card: self, owner, label: 'Gargantua',
+        onPay() { AB._doPull(G, self); },
+      });
+    },
 
+    _doPull(G, self) {
+      const owner = self.owner;
+      const laneIdx = G.findCardLane(self);
+      if (laneIdx < 0) return;
       const opp = G.opponent(owner);
 
       // Snapshot all enemy (non-environment) cards and their current lanes.
