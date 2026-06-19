@@ -899,9 +899,10 @@ const UI = {
       'Freddy Fazbear':   { hover: { src: 'audio/cards/freddy-fazbear-hover.mp3', maxDur: 31 }, play: { src: 'audio/cards/freddy-fazbear-when-played.mp3', maxDur: 12 } },
       'Freddy Krueger':   { spawn: { src: 'audio/cards/freddy-krueger-spawn.m4a', maxDur: 5.5 }, play: { src: 'audio/cards/freddy-krueger-spawn.m4a', maxDur: 5.5 } },
       'Pennywise':        { spawn: { src: 'audio/cards/pennywise-spawn.mp3', maxDur: 8.5 }, play: { src: 'audio/cards/pennywise-spawn.mp3', maxDur: 8.5 } },
-      'Jaws':             { spawn: { src: 'audio/cards/jaws-spawn.mp3', maxDur: 10 }, play: { src: 'audio/cards/jaws-spawn.mp3', maxDur: 10 } },
+      'Jaws':             { spawn: { src: 'audio/cards/open-water-hover.mp3', maxDur: 10 }, play: { src: 'audio/cards/open-water-hover.mp3', maxDur: 10 } },
       'Boiler Room':      { hover: { src: 'audio/cards/boiler-room-hover.mp3', maxDur: 25 } },
       'Sewers':           { hover: { src: 'audio/cards/sewers-hover.mp3', maxDur: 15 } },
+      'Open Water':       { hover: { src: 'audio/cards/open-water-hover.mp3' } },
       'Ultron':           { hover: { src: 'audio/cards/ultron-hover.mp3', maxDur: 29 } },
     },
     // Default files for the per-card events — used when a card's
