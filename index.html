@@ -501,12 +501,6 @@
     <!-- SETTINGS MODAL — moved OUTSIDE #game-area (below) so it still
          opens during the draft phase when #game-area is display:none. -->
 
-    <!-- KEYWORD TOOLTIP -->
-    <div id="kw-tooltip" class="kw-tooltip" style="display:none"></div>
-
-    <!-- HOVER MAGNIFY — shows a readable full-size card after ~400ms hover -->
-    <div id="hover-magnify" class="hover-magnify" style="display:none"></div>
-
     <!-- LOG (drawer — collapsible right-edge panel)
          Toggle button is rendered inline with the HUD pill now (below
          the round-track) so it sits with the rest of the HUD chrome
@@ -591,6 +585,11 @@
       </div>
     </div>
   </div>
+
+  <!-- KEYWORD TOOLTIP + HOVER MAGNIFY — live outside #game-area so they
+       work in the Codex and draft views where game-area is display:none. -->
+  <div id="kw-tooltip" class="kw-tooltip" style="display:none"></div>
+  <div id="hover-magnify" class="hover-magnify" style="display:none"></div>
 
   <!-- SETTINGS MODAL — lives outside #game-area so it can open from the
        draft screen (where game-area is display:none) as well as in-game. -->
@@ -725,7 +724,7 @@
   <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
   <script src="multiplayer.js?v=7"></script>
   <script src="card-art-manifest.js?v=30"></script>
-  <script src="ui.js?v=751"></script>
+  <script src="ui.js?v=752"></script>
   <script src="tutorial.js?v=7"></script>
   <script src="logger.js?v=5"></script>
   <!-- Always-on crash capture. Hooks window.onerror +
