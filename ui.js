@@ -798,7 +798,7 @@ const UI = {
       // (0:24 → 1:21) — the Autobot-leader theme reprise from the
       // Transformers OST. -20 LUFS unified-baseline, 1s fade-in / 2s
       // fade-out baked.
-      'Optimus Prime':    { hover: { src: 'audio/cards/optimus-prime-hover.mp3', maxDur: 58 }, play: { src: 'audio/cards/optimus-prime-play.mp3', maxDur: 5.0 } },
+      'Optimus Prime':    { hover: { src: 'audio/cards/optimus-prime-hover.mp3?v=2' }, play: { src: 'audio/cards/optimus-prime-play.mp3', maxDur: 5.0 } },
       // Iron Man hover: 81s of AC/DC's "Shoot to Thrill" (start → 1:21) —
       // Tony's signature entrance riff. -20 LUFS unified-baseline, 1s
       // fade-in / 2s fade-out baked.
