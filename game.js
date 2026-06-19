@@ -244,6 +244,11 @@ const Game = {
           if (this.draftPick) this.draftPick(msg.index, actor);
           break;
         }
+        case 'draftMulligan': {
+          // Guest requested a mulligan on their own choices (ai side on host).
+          if (this.draftMulligan) this.draftMulligan(actor);
+          break;
+        }
         case 'mulligan': {
           if (this.mulligan) this.mulligan(actor);
           break;
@@ -465,9 +470,10 @@ const Game = {
     const d = state.draft;
     if (d) {
       const swap = (a, b) => { const t = d[a]; d[a] = d[b]; d[b] = t; };
-      swap('playerChoices',      'aiChoices');
-      swap('playerDrafted',      'aiDrafted');
-      swap('playerTrickDrafted', 'aiTrickDrafted');
+      swap('playerChoices',       'aiChoices');
+      swap('playerDrafted',       'aiDrafted');
+      swap('playerTrickDrafted',  'aiTrickDrafted');
+      swap('playerMulliganUsed',  'aiMulliganUsed');
     }
     return state;
   },
@@ -1237,6 +1243,10 @@ const Game = {
     if (this.isMultiplayer() && this.mp && this.mp.role === 'guest') {
       if (typeof Multiplayer !== 'undefined') {
         Multiplayer.send({ t: 'draftPick', index });
+        // Clear local choices immediately so the guest can't double-pick
+        // while waiting for the host's state broadcast.
+        if (this.state && this.state.draft) this.state.draft.playerChoices = [];
+        if (typeof UI !== 'undefined') UI.render();
       }
       return;
     }
@@ -1349,6 +1359,10 @@ const Game = {
   // pile; history is cleared there so the undo stack never crosses that
   // boundary.
   draftUndo() {
+    // Undo is disabled in multiplayer — snapshots are host-perspective
+    // so restoring them on the guest would show wrong cards, and undoing
+    // an opponent's already-seen pick doesn't make sense.
+    if (this.isMultiplayer()) return false;
     const d = this.state.draft;
     if (!d || !d.history || !d.history.length) return false;
     const snap = d.history.pop();
@@ -1389,7 +1403,9 @@ const Game = {
     this.state.ai.hand = d.aiDrafted.map(def => this.createCardInstance(def, 'ai'));
     this.shuffle(pile);
     d.phase = 'tricks'; d.round = 1;
-    d.mulliganUsed = false; // fresh mulligan for the trick phase
+    d.mulliganUsed = false; // legacy single-player flag
+    d.playerMulliganUsed = false; // fresh mulligan for trick phase (per-side)
+    d.aiMulliganUsed = false;
     // Undo history doesn't cross the card→trick boundary (hands are
     // already instantiated, pile has been shuffled). Reset so the Back
     // button only walks backward through the current phase's picks.
@@ -1403,18 +1419,32 @@ const Game = {
   // the rejected pair to the bottom of the appropriate pile so they can
   // still resurface later, then pops 2 fresh picks. AI's choices stay put
   // — AI has already committed its pick for this round.
-  draftMulligan() {
+  draftMulligan(who) {
+    // Guest forwards to host instead of modifying local state directly.
+    if (this.isMultiplayer() && this.mp && this.mp.role === 'guest') {
+      if (typeof Multiplayer !== 'undefined') {
+        Multiplayer.send({ t: 'draftMulligan' });
+        if (this.state && this.state.draft) this.state.draft.playerChoices = [];
+        if (typeof UI !== 'undefined') UI.render();
+      }
+      return false;
+    }
+    who = who || 'player';
     const d = this.state.draft;
-    if (d.mulliganUsed) return false;
-    if (!d.playerChoices || d.playerChoices.length === 0) return false;
+    // Per-side mulligan flags so each player gets one per phase.
+    const mulliganKey = who === 'player' ? 'playerMulliganUsed' : 'aiMulliganUsed';
+    if (d[mulliganKey]) return false;
+    const choicesKey = who === 'player' ? 'playerChoices' : 'aiChoices';
+    if (!d[choicesKey] || d[choicesKey].length === 0) return false;
     const pile = d.phase === 'cards' ? this.getDrawPile('player') : this.getTrickPile('player');
     // Bottom of pile = index 0 (since presentDraftChoices uses pile.pop()).
-    d.playerChoices.forEach(c => pile.unshift(c));
+    d[choicesKey].forEach(c => pile.unshift(c));
     const fresh = [pile.pop(), pile.pop()].filter(Boolean);
-    d.playerChoices = fresh;
-    d.mulliganUsed = true;
+    d[choicesKey] = fresh;
+    d[mulliganKey] = true;
     this.log(`[DRAFT] Mulligan used — new ${d.phase === 'cards' ? 'cards' : 'tricks'} drawn.`);
-    UI.render();
+    this._mpBroadcast();
+    if (typeof UI !== 'undefined') UI.render();
     return true;
   },
 

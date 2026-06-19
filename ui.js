@@ -10238,16 +10238,18 @@ const UI = {
       pips.push(`<span class="draft-pip ${cls}"></span>`);
     }
 
-    const mulliganUsed = !!d.mulliganUsed;
+    // In multiplayer, check the per-side mulligan flag instead of the
+    // shared legacy flag. playerMulliganUsed tracks the local seat's usage.
+    const isMP = Game.isMultiplayer && Game.isMultiplayer();
+    const mulliganUsed = isMP ? !!d.playerMulliganUsed : !!d.mulliganUsed;
     const mulliganDisabled = mulliganUsed ? ' mulligan-used' : '';
     const mulliganAttr = mulliganUsed ? ' disabled' : '';
     const mulliganLabel = mulliganUsed ? 'Mulligan Used' : 'Mulligan';
 
-    // Back button — available whenever there's a snapshot on the undo
-    // stack. History is confined to the current phase (reset at the
-    // card→trick boundary) so this never lets the user rewind across
-    // phases, only within card picks or within trick picks.
-    const undoAvailable = !!(d.history && d.history.length);
+    // Back button — disabled in multiplayer (snapshots are host-perspective
+    // only; restoring them on the guest shows wrong cards, and undoing
+    // an already-broadcast pick doesn't make sense for either side).
+    const undoAvailable = !isMP && !!(d.history && d.history.length);
     const undoDisabled = undoAvailable ? '' : ' undo-disabled';
     const undoAttr = undoAvailable ? '' : ' disabled';
 
