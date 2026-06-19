@@ -5253,7 +5253,6 @@ const UI = {
     const cardEl  = laneEl && laneEl.querySelector(slotSel);
 
     if (this.sfx) this.sfx.playCardSfx('Jaws', 'spawn');
-    this._screenShake('heavy');
 
     if (cardEl) {
       cardEl.classList.add('jaws-spawn-flash');
