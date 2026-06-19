@@ -273,7 +273,7 @@ const CARD_DEFS = [
   { name: "Gargantua", cost: 5, attack: 0, health: 1, type: "environment",
     isEnvironment: true,
     abilities: [],
-    desc: "Pay 1 Energy each round or collapse. Can be played in any lane. Each round, all enemies are pulled one lane toward this lane. If a pulled enemy enters this lane while another enemy already occupies it, they collide — each deals damage equal to its ATK to the other. If the occupant falls, the pulled card takes the lane." },
+    desc: "Pay 1 Energy each round or collapse. Each round, all enemies are pulled one lane toward this lane. If a pulled enemy enters this lane while another enemy already occupies it, they collide - each deals damage equal to its ATK to the other. If the occupant dies, the pulled card stays in the lane." },
 
   // ==================== COST 6 ====================
   { name: "Hela", cost: 6, attack: 5, health: 6, type: "villain",
