@@ -183,7 +183,7 @@ const CARD_DEFS = [
   { name: "Jaws", cost: 3, attack: 4, health: 4, type: "villain",
     _spawnOnly: true,
     abilities: ["Overdrive"],
-    desc: "Horror. While Active: Ignores Armor and Evade on all attacks. On Kill: Permanently gains +1 Max HP, then heals to full. (Spawned by Open Water. Can be Phantom Zoned into the enemy's hand.)" },
+    desc: "PASSIVE: Ignores Armor and Evade on all attacks. ON KILL: Permanently gains +1 Max HP, then heals to full. (Spawned by Open Water.)" },
   { name: "Anti-Venom", cost: 4, attack: 3, health: 5, type: "hero",
     abilities: [],
     desc: "When Played: Heal yourself for 4. Move an ally to another empty lane." },

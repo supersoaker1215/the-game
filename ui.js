@@ -899,6 +899,7 @@ const UI = {
       'Freddy Fazbear':   { hover: { src: 'audio/cards/freddy-fazbear-hover.mp3', maxDur: 31 }, play: { src: 'audio/cards/freddy-fazbear-when-played.mp3', maxDur: 12 } },
       'Freddy Krueger':   { spawn: { src: 'audio/cards/freddy-krueger-spawn.m4a', maxDur: 5.5 }, play: { src: 'audio/cards/freddy-krueger-spawn.m4a', maxDur: 5.5 } },
       'Pennywise':        { spawn: { src: 'audio/cards/pennywise-spawn.mp3', maxDur: 8.5 }, play: { src: 'audio/cards/pennywise-spawn.mp3', maxDur: 8.5 } },
+      'Jaws':             { spawn: { src: 'audio/cards/jaws-spawn.mp3', maxDur: 10 }, play: { src: 'audio/cards/jaws-spawn.mp3', maxDur: 10 } },
       'Boiler Room':      { hover: { src: 'audio/cards/boiler-room-hover.mp3', maxDur: 25 } },
       'Sewers':           { hover: { src: 'audio/cards/sewers-hover.mp3', maxDur: 15 } },
       'Ultron':           { hover: { src: 'audio/cards/ultron-hover.mp3', maxDur: 29 } },
@@ -5243,6 +5244,21 @@ const UI = {
     area.classList.add(cls);
     const dur = intensity === 'heavy' ? 460 : intensity === 'light' ? 220 : 300;
     setTimeout(() => area.classList.remove(cls), dur);
+  },
+
+  _jawsJumpscare(laneIdx, owner) {
+    const lanes = document.querySelectorAll('.board > .lane');
+    const laneEl = lanes[laneIdx] || null;
+    const slotSel = owner === 'player' ? '.player-slot .card' : '.ai-slot .card';
+    const cardEl  = laneEl && laneEl.querySelector(slotSel);
+
+    if (this.sfx) this.sfx.playCardSfx('Jaws', 'spawn');
+    this._screenShake('heavy');
+
+    if (cardEl) {
+      cardEl.classList.add('jaws-spawn-flash');
+      setTimeout(() => cardEl.classList.remove('jaws-spawn-flash'), 600);
+    }
   },
 
   _freddyJumpscare(laneIdx, owner) {

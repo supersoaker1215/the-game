@@ -4300,8 +4300,8 @@ const CARD_ABILITIES = {
           jaws.maxHealth = hp;
         }
         G.log(`Jaws rises from the Open Water in lane ${laneIdx + 1}!`);
-        if (typeof UI !== 'undefined' && UI.sfx && UI.sfx.playCardSfx) {
-          setTimeout(() => UI.sfx.playCardSfx('Jaws', 'play'), 60);
+        if (typeof UI !== 'undefined' && UI._jawsJumpscare) {
+          setTimeout(() => UI._jawsJumpscare(laneIdx, owner), 60);
         }
       };
 
