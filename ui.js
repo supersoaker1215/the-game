@@ -904,6 +904,7 @@ const UI = {
       'Freddy Krueger':   { spawn: { src: 'audio/cards/freddy-krueger-spawn.m4a', maxDur: 5.5 }, play: { src: 'audio/cards/freddy-krueger-spawn.m4a', maxDur: 5.5 } },
       'Pennywise':        { spawn: { src: 'audio/cards/pennywise-spawn.mp3', maxDur: 8.5 }, play: { src: 'audio/cards/pennywise-spawn.mp3', maxDur: 8.5 } },
       'Jaws':             { spawn: { src: 'audio/cards/jaws-spawn.mp3?v=2', maxDur: 10 }, play: { src: 'audio/cards/jaws-spawn.mp3?v=2', maxDur: 10 } },
+      'Optimus Prime':    { play: { src: 'audio/cards/optimus-prime-play.mp3', maxDur: 5.0 } },
       'Boiler Room':      { hover: { src: 'audio/cards/boiler-room-hover.mp3', maxDur: 25 } },
       'Sewers':           { hover: { src: 'audio/cards/sewers-hover.mp3', maxDur: 15 } },
       'Open Water':       { hover: { src: 'audio/cards/open-water-hover.mp3' } },
