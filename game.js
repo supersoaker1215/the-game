@@ -7939,8 +7939,32 @@ const Game = {
   _2v2PresentDraftChoices() {
     const tt = this.state.twoVTwo;
     const d = tt.draft;
-    const pool = d.phase === 'cards' ? d.cardPool : d.trickPool;
-    d.choices = [pool.pop(), pool.pop()].filter(Boolean);
+    const isCards = d.phase === 'cards';
+    const pool = isCards ? d.cardPool : d.trickPool;
+
+    // Collect names already drafted by any player to prevent duplicates
+    const taken = new Set();
+    if (isCards) {
+      Object.values(tt.players).forEach(ap => {
+        ap.hand.forEach(c => { if (c.name) taken.add(c.name); });
+      });
+    }
+
+    const choices = [];
+    const skipped = [];
+    while (choices.length < 2 && pool.length) {
+      const card = pool.pop();
+      if (!card) break;
+      if (isCards && taken.has(card.name)) {
+        skipped.push(card);
+      } else {
+        choices.push(card);
+        if (isCards) taken.add(card.name);
+      }
+    }
+    // Return skipped cards to the bottom of the pool so they can resurface later
+    if (skipped.length) pool.unshift(...skipped);
+    d.choices = choices;
   },
 
   _2v2DraftPick(index) {

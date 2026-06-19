@@ -4499,6 +4499,11 @@ const UI = {
              p !== '2v2-draft'      && p !== '2v2-draft-pass' &&
              p !== '2v2-online-lobby';
     })();
+    const is2v2OnlineDraft = is2v2 && (() => {
+      const tt = s.twoVTwo;
+      if (!tt || !tt.online) return false;
+      return s.phase === '2v2-draft';
+    })();
     // Hide the dev Web/Mobile preview toggle on every screen EXCEPT the
     // main menu and mode-select. It's a developer affordance, not part
     // of the player UI. User feedback: "the blue square on the top left
@@ -4525,17 +4530,18 @@ const UI = {
     if (this._myDecksOverlay)     this._myDecksOverlay.style.display     = isMyDecks ? 'flex' : 'none';
     if (this._statsOverlay)       this._statsOverlay.style.display       = isStats ? 'flex' : 'none';
     if (this._deckbuilderOverlay) this._deckbuilderOverlay.style.display = isDeckBuilder ? 'flex' : 'none';
-    this.draftEl.style.display = isDraft ? 'flex' : 'none';
+    this.draftEl.style.display = (isDraft || is2v2OnlineDraft) ? 'flex' : 'none';
     const isRoguelite = s.phase && s.phase.startsWith('roguelite');
     (this._gameAreaEl || document.getElementById('game-area')).style.display =
-      (isDraft || isMainMenu || isModeSelect || isMyDecks || isStats || isDeckBuilder || isRoguelite || (is2v2 && !is2v2OnlineGame)) ? 'none' : '';
+      (isDraft || is2v2OnlineDraft || isMainMenu || isModeSelect || isMyDecks || isStats || isDeckBuilder || isRoguelite || (is2v2 && !is2v2OnlineGame && !is2v2OnlineDraft)) ? 'none' : '';
 
     if (isMainMenu)    { this.renderMainMenu(s); return; }
     if (isModeSelect)  { this.renderModeSelect(s); return; }
     if (isMyDecks)     { this.renderMyDecks(s); return; }
     if (isStats)       { this.renderStats(s); return; }
     if (isDeckBuilder) { this.renderDeckBuilder(s); return; }
-    if (isDraft)       { this.renderDraft(s); return; }
+    if (isDraft)          { this.renderDraft(s); return; }
+    if (is2v2OnlineDraft) { this._render2v2OnlineDraftPolished(s); return; }
     if (is2v2) {
       if (is2v2OnlineGame) { this._render2v2OnlineBoard(s); return; }
       this.render2v2(s); return;
@@ -5840,6 +5846,128 @@ const UI = {
     // onclick) are still selected by the .mode-option entry in the
     // FX list — but the CSS suppresses animations via [disabled] /
     // [aria-disabled] / .mode-option-disabled checks.
+    if (this.applyTronFx) this.applyTronFx();
+  },
+
+  // ===================== 2v2 ONLINE DRAFT RENDERING =====================
+  // Renders the 2v2 online draft using the same polished card-art UI as the
+  // 1v1 draft (portraits, stat orbs, rarity pips, progress pips). Non-active
+  // pickers see a waiting spinner. Reads from tt.draft instead of s.draft.
+  _render2v2OnlineDraftPolished(s) {
+    const tt = s.twoVTwo;
+    if (!tt || !tt.draft) return;
+
+    // Hide the text-based 2v2 overlay so only the polished draft element shows
+    const twov2El = document.getElementById('twoVTwo-overlay');
+    if (twov2El) twov2El.style.display = 'none';
+
+    const d = tt.draft;
+    const myKey = tt.you;
+    const pickerKey = d.pickerOrder[d.pickerIdx];
+    const picker = tt.players[pickerKey];
+    const isMyPick = myKey === pickerKey;
+    const ap = tt.players[myKey];
+    const isCards = d.phase === 'cards';
+    const round = d.round;
+    const total = isCards ? 5 : 2;
+    const teamColor = picker.team === 'A' ? '#4fc3f7' : '#f44336';
+
+    const pips = [];
+    for (let i = 1; i <= total; i++) {
+      const cls = i < round ? 'pip-done' : i === round ? 'pip-current' : 'pip-future';
+      pips.push(`<span class="draft-pip ${cls}"></span>`);
+    }
+
+    let html = `<div class="draft-panel ${isCards ? 'draft-cards' : 'draft-tricks'}">`;
+    html += `<div class="draft-hud">`;
+    html +=   `<div class="draft-hud-row">`;
+    html +=     `<span class="draft-hud-label" style="color:${teamColor}">${isMyPick ? 'Your Pick' : picker.name + "’s Pick"}</span>`;
+    html +=     `<span class="draft-hud-pips">${pips.join('')}</span>`;
+    html +=     `<span class="draft-hud-counter">Pick <em>${round}</em> / ${total}</span>`;
+    html +=   `</div>`;
+    html +=   `<div class="draft-hud-sub">${isMyPick ? `Choose one ${isCards ? 'card' : 'trick'} for your hand` : `Waiting for ${picker.name} to choose…`}</div>`;
+    html +=   `<div class="draft-hud-actions">`;
+    html +=     `<button type="button" class="draft-quit-btn" onclick="twov2OnlineLeave()" title="Leave game">`;
+    html +=       `<span class="mulligan-icon">&#8592;</span><span class="mulligan-label">Leave</span>`;
+    html +=     `</button>`;
+    html +=   `</div>`;
+    html += `</div>`;
+    html += `<div class="draft-choices">`;
+
+    if (!isMyPick) {
+      html += `<div class="draft-waiting">`;
+      html +=   `<div class="draft-waiting-spinner"></div>`;
+      html +=   `<div class="draft-waiting-title" style="color:${teamColor}">Waiting for ${picker.name}…</div>`;
+      html +=   `<div class="draft-waiting-sub">They're picking from their own offers.</div>`;
+      html += `</div>`;
+    } else {
+      d.choices.forEach((c, i) => {
+        if (!c) return;
+        if (isCards) {
+          const _abList = (c.abilities || []);
+          const _hasCrazy  = c.isCrazy  || _abList.includes('Crazy');
+          const _hasInsane = c.isInsane || _abList.includes('Insane');
+          const dHideAtk = !!(c.copiesOpposite || _hasCrazy || _hasInsane);
+          const dHideHp  = !!c.copiesOpposite;
+          const dAtkCell = dHideAtk ? '?' : c.attack;
+          const dHpCell  = dHideHp  ? '?' : c.health;
+          const statOrbs = c.isDiscardEffect ? '' : `
+            <span class="stat-circle stat-atk">${dAtkCell}</span>
+            <span class="stat-circle stat-hp">${dHpCell}</span>`;
+          const _dpCost = c.cost || 0;
+          const _dpPips = c.rarity || (_dpCost <= 3 ? 1 : _dpCost <= 6 ? 2 : _dpCost <= 8 ? 3 : 4);
+          const rarityPips = `<span class="rarity-strip">${'<span class="rpip"></span>'.repeat(_dpPips)}</span>`;
+          const portraitFile = UI.getCardArtPath(c.name);
+          const portraitPos = UI.PORTRAIT_POSITION[c.name] || '';
+          const portraitHtml = `<div class="card-portrait" style="--portrait-bg:url('${portraitFile}')${portraitPos ? `;--portrait-pos:${portraitPos}` : ''}"><div class="card-name-overlay">${c.name}</div></div>`;
+          html += `<div class="card draft-card ${this.getCostClass(c.cost)}${c.isDiscardEffect ? ' discard-effect' : ''}" data-card-name="${c.name}" onclick="twov2OnlineDraftPick(${i})">
+            <span class="card-cost">${c.cost}</span>
+            ${rarityPips}
+            ${portraitHtml}
+            <div class="card-abilities status-badges">${this.formatAbilityBadges(c.abilities)}</div>
+            <div class="card-desc">${this.formatDesc(c.desc)}</div>
+            ${statOrbs}
+          </div>`;
+        } else {
+          const trickBadges = c.abilities && c.abilities.length
+            ? `<div class="card-abilities status-badges">${this.formatAbilityBadges(c.abilities)}</div>` : '';
+          const trickRarity = this.getTrickRarityStrip(c.cost || 0);
+          const trickArtPath = this.getCardArtPath(c.name);
+          const safeTrickUrl = trickArtPath ? trickArtPath.replace(/'/g, '%27') : '';
+          const trickPortraitStyle = safeTrickUrl ? `style="background-image:url('${safeTrickUrl}')"` : '';
+          html += `<div class="draft-card trick-draft" data-trick-name="${c.name}" onclick="twov2OnlineDraftPick(${i})">
+            <span class="trick-cost">${c.cost}</span>
+            ${trickRarity}
+            <div class="trick-name">${c.name}</div>
+            <div class="trick-portrait" ${trickPortraitStyle}></div>
+            ${trickBadges}
+            <div class="trick-desc">${this.formatDesc(c.desc)||''}</div>
+          </div>`;
+        }
+      });
+    }
+
+    html += `</div>`; // draft-choices
+
+    if (ap) {
+      const renderDraftedRow = (list, isTrick) => {
+        if (!list.length) return '';
+        const baseTag = isTrick ? 'drafted-tag drafted-tag-trick' : 'drafted-tag';
+        const listCls = isTrick ? 'drafted-list drafted-list-trick' : 'drafted-list';
+        const label = isTrick ? 'Tricks:' : 'Cards:';
+        let row = `<div class="${listCls}"><strong>${label}</strong> `;
+        row += list.map(c => `<span class="${baseTag} cost-${c.cost}">${c.name} (${c.cost})</span>`).join(' ');
+        row += `</div>`;
+        return row;
+      };
+      html += renderDraftedRow(ap.hand.map(c => ({ name: c.name, cost: c.cost })), false);
+      if (!isCards) {
+        html += renderDraftedRow(ap.trickHand.map(t => ({ name: t.name, cost: t.cost })), true);
+      }
+    }
+
+    html += `</div>`; // draft-panel
+    this.draftEl.innerHTML = html;
     if (this.applyTronFx) this.applyTronFx();
   },
 
