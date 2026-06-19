@@ -827,9 +827,9 @@ const UI = {
       'Symbiote Spider-Man': { play: { src: 'audio/cards/symbiote-spider-man-play.mp3', maxDur: 5.0 } },
       'Jango Fett':       { attack: 'audio/cards/jango-fett-attack.mp3', death: 'audio/cards/jango-fett-death.mp3' },
       'Jason Voorhees':   { play: { src: 'audio/cards/jason-play.mp3', maxDur: 5.0 } },
-      'Knull':            { hover: { src: 'audio/cards/knull-hover.mp3' }, play: { src: 'audio/cards/knull-play.mp3', maxDur: 5.0, gain: 2.5 } },
+      'Knull':            { hover: { src: 'audio/cards/knull-hover.mp3' }, play: { src: 'audio/cards/knull-play.mp3', fullDuration: true, gain: 4.5 } },
       'Galactus':         { hover: { src: 'audio/cards/galactus-hover.mp3' }, play: { src: 'audio/cards/galactus-play.mp3', maxDur: 5.0 } },
-      'Dormammu':         { hover: { src: 'audio/cards/dormammu-hover.mp3' }, play: { src: 'audio/cards/dormammu-play.mp3', maxDur: 5.0 } },
+      'Dormammu':         { hover: { src: 'audio/cards/dormammu-hover.mp3' }, play: { src: 'audio/cards/dormammu-play.mp3', fullDuration: true } },
       // Michael Myers hover: 55s of John & Cody Carpenter's "The Shape
       // Returns" (start → 0:55) — the Halloween theme reborn. -20 LUFS
       // unified-baseline, 1s fade-in / 2s fade-out baked. maxDur 56 lets

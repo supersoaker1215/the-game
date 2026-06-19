@@ -1442,6 +1442,7 @@ const Game = {
     const fresh = [pile.pop(), pile.pop()].filter(Boolean);
     d[choicesKey] = fresh;
     d[mulliganKey] = true;
+    if (who === 'player') d.mulliganUsed = true; // keep legacy UI flag in sync so the button disables
     this.log(`[DRAFT] Mulligan used — new ${d.phase === 'cards' ? 'cards' : 'tricks'} drawn.`);
     this._mpBroadcast();
     if (typeof UI !== 'undefined') UI.render();
