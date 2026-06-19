@@ -2092,6 +2092,9 @@ const UI = {
       const isHover = !!(opts && opts.hover);
       let pick;
       if (isHover) {
+        // Block hover starts while any board SFX (play/death/kill/spawn/ability) is active.
+        // Once those sounds finish, _activeNonHover empties and hovers resume normally.
+        if (this._activeNonHover && this._activeNonHover.size > 0) return null;
         // Hover resume: if any clone was previously paused mid-play
         // (currentTime > 0 and < duration), re-use THAT clone and
         // continue from where we left off. Otherwise start fresh.
@@ -2110,39 +2113,10 @@ const UI = {
         // music at the same time, which is kinda cool... like, hover
         // music kind of blends with whatever the wind blade is. Just
         // would have to be a little bit softer."
+        // Stop any hover audio immediately — board SFX takes priority and
+        // hover is blocked from starting again until _activeNonHover empties.
         if (this._activeHover.size > 0) {
-          const duckMs = (opts && opts.fadeIn) || 200;
-          const restoreMs = (opts && opts.fadeOut) || 600;
-          // The play SFX's own scheduled-end is at `maxDur` (or natural
-          // duration). Restore hover after it ends so the duck duration
-          // matches the cue's actual lifespan.
-          const playLife = (opts && opts.maxDur)
-            ? opts.maxDur * 1000
-            : 1500;
-          this._activeHover.forEach(hov => {
-            if (hov === pick) return;
-            // Stash the original target volume so we can restore it.
-            // If a duck is already in flight, keep the EARLIER pre-duck
-            // value so back-to-back SFX don't compound the dip.
-            if (hov._preDuckVol == null) hov._preDuckVol = hov.volume;
-            this._clearFadeTimers(hov, '_duckInInterval');
-            this._clearFadeTimers(hov, '_duckOutInterval');
-            // Fade DOWN to 50% of pre-duck volume — user spec:
-            // "the hover music plays, but just like at, like, 50%
-            // of its actual decibels, and then the [play SFX] is on
-            // top of that." Sweet spot — quiet enough to give the
-            // play cue room, loud enough to feel like a continuous
-            // bed.
-            const targetDown = hov._preDuckVol * 0.50;
-            this._fadeVolume(hov, targetDown, duckMs, '_duckInInterval');
-            // Schedule restore once the play SFX is mostly done.
-            clearTimeout(hov._duckRestoreTimer);
-            hov._duckRestoreTimer = setTimeout(() => {
-              if (!this._activeHover.has(hov)) return; // hover already stopped — let _stopHover handle volume
-              this._fadeVolume(hov, hov._preDuckVol, restoreMs, '_duckOutInterval');
-              hov._preDuckVol = null;
-            }, Math.max(playLife - restoreMs / 2, duckMs + 50));
-          });
+          this._stopHover(true);
         }
       }
       this._clearFadeTimers(pick);
