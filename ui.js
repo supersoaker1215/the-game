@@ -5888,6 +5888,18 @@ const UI = {
     const oppAp = oppPlayerKey ? tt.players[oppPlayerKey] : null;
     if (oppAp) { s.ai.hand = oppAp.hand; s.ai.trickHand = oppAp.trickHand; }
 
+    // Team B players see their own team at the bottom and Team A at the top —
+    // same as Team A players do — so both teammates look "up" at the enemy.
+    // Swap the lane slots temporarily so renderBoard puts Team B cards on the
+    // player (bottom) row and Team A cards on the ai (top) row for those clients.
+    const needsFlip = mySide === 'ai';
+    if (needsFlip) {
+      for (const lane of s.lanes) {
+        [lane.player, lane.ai] = [lane.ai, lane.player];
+        if (lane._env) [lane._env.player, lane._env.ai] = [lane._env.ai, lane._env.player];
+      }
+    }
+
     // Map 2v2 sub-phase → 1v1 phase so canPlayerPlayCards/Tricks and hand
     // highlights work without modifications to those functions.
     if      (canCards && canTricks) s.phase = 'player-cards-tricks';
@@ -5895,19 +5907,19 @@ const UI = {
     else if (canTricks)             s.phase = 'player-tricks';
     else                            s.phase = 'ai-cards';
 
-    // --- HUD: Health (read directly from team state, never stale) ---
-    const tA = tt.teams.A, tB = tt.teams.B;
-    document.getElementById('player-health').textContent = Math.max(0, tA.health);
-    document.getElementById('ai-health').textContent     = Math.max(0, tB.health);
+    // --- HUD: Health (my team always on bottom / player bar) ---
+    const myTeamData  = tt.teams[myTeam];
+    const oppTeamData = tt.teams[oppTeam];
+    document.getElementById('player-health').textContent = Math.max(0, myTeamData.health);
+    document.getElementById('ai-health').textContent     = Math.max(0, oppTeamData.health);
     document.getElementById('player-hp-fill').style.width =
-      `${Math.max(0, (tA.health / (tA.maxHealth || 30)) * 100)}%`;
+      `${Math.max(0, (myTeamData.health / (myTeamData.maxHealth || 30)) * 100)}%`;
     document.getElementById('ai-hp-fill').style.width =
-      `${Math.max(0, (tB.health / (tB.maxHealth || 30)) * 100)}%`;
+      `${Math.max(0, (oppTeamData.health / (oppTeamData.maxHealth || 30)) * 100)}%`;
 
     // --- HUD: Block circles ---
     const blockMax = Game.BLOCK_MAX || 8;
-    ['player', 'ai'].forEach(side => {
-      const team = side === 'player' ? tA : tB;
+    [['player', myTeamData], ['ai', oppTeamData]].forEach(([side, team]) => {
       const textEl = document.getElementById(`${side}-block-text`);
       if (!textEl) return;
       textEl.textContent = `${team.blockMeter}/${blockMax}`;
@@ -5926,8 +5938,8 @@ const UI = {
     this.renderEnergyOrbs('ai-energy-display', oppEnergy, Math.max(s.round, oppEnergy));
 
     // --- HUD: Piles ---
-    document.getElementById('player-dead-count').textContent  = s.player.deadPile.length;
-    document.getElementById('ai-dead-count').textContent      = s.ai.deadPile.length;
+    document.getElementById('player-dead-count').textContent  = myTeamData.deadPile.length;
+    document.getElementById('ai-dead-count').textContent      = oppTeamData.deadPile.length;
     document.getElementById('draw-pile-count').textContent    = (tt.drawPile || []).length;
     document.getElementById('trick-pile-count').textContent   = (tt.trickDrawPile || []).length;
 
@@ -5957,6 +5969,15 @@ const UI = {
     this._updateDominanceVars(s);
     this._capturePositions();
     this.renderBoard(s);
+
+    // Restore flipped lanes so game logic isn't affected
+    if (needsFlip) {
+      for (const lane of s.lanes) {
+        [lane.player, lane.ai] = [lane.ai, lane.player];
+        if (lane._env) [lane._env.player, lane._env.ai] = [lane._env.ai, lane._env.player];
+      }
+    }
+
     this.renderPlayerHand(s);
     this.renderAIHand(s);
     this.renderPlayerTricks(s);
