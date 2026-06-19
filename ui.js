@@ -827,7 +827,7 @@ const UI = {
       'Symbiote Spider-Man': { play: { src: 'audio/cards/symbiote-spider-man-play.mp3', maxDur: 5.0 } },
       'Jango Fett':       { attack: 'audio/cards/jango-fett-attack.mp3', death: 'audio/cards/jango-fett-death.mp3' },
       'Jason Voorhees':   { play: { src: 'audio/cards/jason-play.mp3', maxDur: 5.0 } },
-      'Knull':            { play: { src: 'audio/cards/knull-play.mp3', maxDur: 5.0 } },
+      'Knull':            { hover: { src: 'audio/cards/knull-hover.mp3' }, play: { src: 'audio/cards/knull-play.mp3', maxDur: 5.0 } },
       'Galactus':         { hover: { src: 'audio/cards/galactus-hover.mp3' }, play: { src: 'audio/cards/galactus-play.mp3', maxDur: 5.0 } },
       'Dormammu':         { hover: { src: 'audio/cards/dormammu-hover.mp3' }, play: { src: 'audio/cards/dormammu-play.mp3', maxDur: 5.0 } },
       // Michael Myers hover: 55s of John & Cody Carpenter's "The Shape
