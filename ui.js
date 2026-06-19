@@ -11423,6 +11423,13 @@ const UI = {
         }
         // Anti-reattach guard — see ai-slot equivalent above.
         if (cardEl.parentNode !== pSlot) pSlot.appendChild(cardEl);
+        // Environment placement on an occupied lane — the else-if chain below
+        // never fires when plDisplayCard exists, so handle it here.
+        if (!lane.destroyed && canPlay && s.selectedCard && s.selectedCard.isEnvironment && !cc && !lc) {
+          pSlot.classList.add('playable');
+          pSlot.onclick = () => this.onLaneClick(i);
+          cardEl.onclick = () => this.onLaneClick(i);
+        }
       } else if (lc && lcTargetSide === 'player' && lc.lanes.includes(i)) {
         pSlot.classList.add('target-highlight');
         pSlot.onclick = () => laneChoicePick(i);

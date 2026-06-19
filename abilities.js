@@ -4291,6 +4291,8 @@ const CARD_ABILITIES = {
       const allyInLane = lane[owner];
 
       const finishSpawn = (atk, hp) => {
+        // The dying card may still occupy the slot when onDeath fires — clear it first.
+        if (lane[owner] && lane[owner].currentHealth <= 0) lane[owner] = null;
         G.summonCard(owner, laneIdx, 'Jaws', 3, atk, hp, ['Overdrive'], def);
         const jaws = G.state.lanes[laneIdx][owner];
         if (jaws) {

@@ -6649,12 +6649,13 @@ const Game = {
     return list;
   },
   // getAlliesOf excludes environment cards so buffs/heals only reach combat cards.
-  // Also excludes Untrickable allies during trick resolution so 10-cost cards
-  // can't be targeted by their own owner's tricks either.
+  // Untrickable allies are still targetable by their OWNER'S tricks (friendly buffs land).
+  // Only the 10-cost self-target block is kept here; enemy-side Untrickable filtering
+  // lives in getEnemiesOf so cross-side trick attacks can't land on immune cards.
   getAlliesOf(owner) {
     let list = this.getAllCardsOf(owner).filter(c => !c.isEnvironment);
     if (this.state && this.state._inTrick) {
-      list = list.filter(c => !c.isUntrickable && (c.baseCost || c.cost || 0) < 10);
+      list = list.filter(c => (c.baseCost || c.cost || 0) < 10);
     }
     return list;
   },
