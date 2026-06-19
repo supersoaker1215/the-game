@@ -2283,6 +2283,10 @@ const UI = {
     // when the next lane can start.
     playCardSfx(name, event, cardOrCost) {
       if (!name) return null;
+      // Suppress play/spawn sounds for cards summoned while _suppressSummonSfx
+      // is active (e.g. Knull filling the board) — direct onPlay calls inside
+      // abilities.js bypass the summonCard wrapper check, so we gate here too.
+      if ((event === 'play' || event === 'spawn') && typeof Game !== 'undefined' && Game._suppressSummonSfx) return null;
       // Card SFX events:
       //   • hover     — 8s clip, 1s fade-in, 2s fade-out
       //   • play      — 4s clip, 0.5s fade-in, 1s fade-out
