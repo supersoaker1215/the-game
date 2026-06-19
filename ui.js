@@ -830,7 +830,6 @@ const UI = {
       'Knull':            { hover: { src: 'audio/cards/knull-hover.mp3' }, play: { src: 'audio/cards/knull-play.mp3', maxDur: 5.0 } },
       'Galactus':         { hover: { src: 'audio/cards/galactus-hover.mp3' }, play: { src: 'audio/cards/galactus-play.mp3', maxDur: 5.0 } },
       'Dormammu':         { hover: { src: 'audio/cards/dormammu-hover.mp3' }, play: { src: 'audio/cards/dormammu-play.mp3', maxDur: 5.0 } },
-      'Trigon':           { hover: { src: 'audio/cards/trigon-hover.mp3' } },
       // Michael Myers hover: 55s of John & Cody Carpenter's "The Shape
       // Returns" (start → 0:55) — the Halloween theme reborn. -20 LUFS
       // unified-baseline, 1s fade-in / 2s fade-out baked. maxDur 56 lets
@@ -899,7 +898,7 @@ const UI = {
       'Green Goblin':     { hover: { src: 'audio/cards/green-goblin-hover.mp3', maxDur: 24 } },
       'Dr. Octopus':      { play: { src: 'audio/cards/dr-octopus-play.mp3?v=2', maxDur: 5 } },
       'Sandman':          { hover: { src: 'audio/cards/sandman-hover.mp3', maxDur: 194, gain: 1.5 }, death: { src: 'audio/cards/sandman-death.m4a', fullDuration: true, gain: 3.0 } },
-      'Trigon':           { play: { src: 'audio/cards/trigon-play.mp3', maxDur: 10, gain: 2.5 } },
+      'Trigon':           { hover: { src: 'audio/cards/trigon-hover.mp3' }, play: { src: 'audio/cards/trigon-play.mp3', maxDur: 10, gain: 2.5 } },
       'Freddy Fazbear':   { hover: { src: 'audio/cards/freddy-fazbear-hover.mp3', maxDur: 31 }, play: { src: 'audio/cards/freddy-fazbear-when-played.mp3', maxDur: 12 } },
       'Freddy Krueger':   { spawn: { src: 'audio/cards/freddy-krueger-spawn.m4a', maxDur: 5.5 }, play: { src: 'audio/cards/freddy-krueger-spawn.m4a', maxDur: 5.5 } },
       'Pennywise':        { spawn: { src: 'audio/cards/pennywise-spawn.mp3', maxDur: 8.5 }, play: { src: 'audio/cards/pennywise-spawn.mp3', maxDur: 8.5 } },
