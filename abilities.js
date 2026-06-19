@@ -4266,6 +4266,108 @@ const CARD_ABILITIES = {
       G.log(`Padme Amidala heals all allies for 1 HP.`);
     }
   },
+  "Open Water": {
+    _hookCard(self, G, card) {
+      if (!card || card.isEnvironment || card._owHooked) return;
+      card._owHooked = true;
+      const origDeath = card.onDeath || null;
+      card.onDeath = function(G2, dying, laneIdx) {
+        if (origDeath) origDeath.call(this, G2, dying, laneIdx);
+        if (!self._owSpawned) {
+          const owLane = G2.findCardLane(self);
+          if (owLane >= 0) {
+            self._owSpawned = true;
+            CARD_ABILITIES['Open Water']._spawnJaws(G2, self.owner, owLane);
+          }
+        }
+      };
+    },
+    _spawnJaws(G, owner, laneIdx) {
+      const lane = G.state.lanes[laneIdx];
+      if (lane._env) lane._env[owner] = null;
+
+      const def = (typeof CARD_DEFS !== 'undefined')
+        ? CARD_DEFS.find(d => d.name === 'Jaws') : null;
+      const allyInLane = lane[owner];
+
+      const finishSpawn = (atk, hp) => {
+        G.summonCard(owner, laneIdx, 'Jaws', 3, atk, hp, ['Overdrive'], def);
+        const jaws = G.state.lanes[laneIdx][owner];
+        if (jaws) {
+          jaws._envLane = laneIdx;
+          jaws.attack = atk;
+          jaws.currentHealth = hp;
+          jaws.maxHealth = hp;
+        }
+        G.log(`Jaws rises from the Open Water in lane ${laneIdx + 1}!`);
+        if (typeof UI !== 'undefined' && UI.sfx && UI.sfx.playCardSfx) {
+          setTimeout(() => UI.sfx.playCardSfx('Jaws', 'play'), 60);
+        }
+      };
+
+      if (allyInLane && allyInLane.currentHealth > 0) {
+        const openLanes = G.getOpenLanes(owner).filter(l => l !== laneIdx);
+        if (openLanes.length > 0) {
+          G.promptLaneChoice(owner, openLanes,
+            `Jaws — Move ${allyInLane.name}`,
+            `Jaws needs this lane. Move ${allyInLane.name} to another open lane.`,
+            (targetLane) => {
+              if (allyInLane.currentHealth <= 0) {
+                if (lane[owner] === allyInLane) lane[owner] = null;
+                finishSpawn(4, 4);
+                return;
+              }
+              lane[owner] = null;
+              G.state.lanes[targetLane][owner] = allyInLane;
+              G.log(`  [DISPLACED] ${allyInLane.name} moved to lane ${targetLane + 1} to make room for Jaws.`);
+              G.checkLaneTrap(allyInLane, targetLane);
+              if (allyInLane.onMoved) allyInLane.onMoved(G, allyInLane, targetLane);
+              finishSpawn(4, 4);
+            }
+          );
+        } else {
+          const extraAtk = allyInLane.attack;
+          const extraHp  = allyInLane.currentHealth;
+          G.log(`  [ABSORB] Jaws devours ${allyInLane.name} (+${extraAtk}/+${extraHp})!`);
+          G.handleDeath(allyInLane, laneIdx, null);
+          finishSpawn(4 + extraAtk, 4 + extraHp);
+        }
+      } else {
+        finishSpawn(4, 4);
+      }
+    },
+    onPlay(G, self, lane) {
+      const AB = CARD_ABILITIES['Open Water'];
+      const opp = G.opponent(self.owner);
+      AB._hookCard(self, G, G.state.lanes[lane][self.owner]);
+      AB._hookCard(self, G, G.state.lanes[lane][opp]);
+    },
+    onAnyCardPlayed(G, self) {
+      if (self._owSpawned) return;
+      const laneIdx = G.findCardLane(self);
+      if (laneIdx < 0) return;
+      const AB = CARD_ABILITIES['Open Water'];
+      const opp = G.opponent(self.owner);
+      AB._hookCard(self, G, G.state.lanes[laneIdx][self.owner]);
+      AB._hookCard(self, G, G.state.lanes[laneIdx][opp]);
+    },
+  },
+  "Jaws": {
+    onPlay(G, self) {
+      self.ignoresArmor = true;
+      self.ignoresEvade = true;
+    },
+    onKill(G, self) {
+      self.maxHealth += 1;
+      self.currentHealth = self.maxHealth;
+      G.log(`[JAWS] Jaws grows stronger — now ${self.attack}/${self.maxHealth}!`);
+    },
+    onDeath(G, self, laneIdx) {
+      const l = (self._envLane !== undefined) ? self._envLane : laneIdx;
+      const lane = G.state.lanes[l];
+      if (lane && lane._env) lane._env[self.owner] = null;
+    },
+  },
   "Sewers": {
     _spawnPennywise(G, owner, laneIdx) {
       const lane = G.state.lanes[laneIdx];

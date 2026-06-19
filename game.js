@@ -3508,7 +3508,7 @@ const Game = {
     // branch has a distinct log/credit signature and Stunned/Frozen
     // gate Evade specifically.
     const canDodge = !target.isStunned && !target.isFrozen;
-    if (target.evadeCharges > 0 && canDodge) {
+    if (target.evadeCharges > 0 && canDodge && !(attacker && attacker.ignoresEvade)) {
       target.evadeCharges--;
       this.log(`  [EVADE] ${target.name} dodges ${attacker.name}! (${target.evadeCharges} charges left)`);
       this.emitDmg(target.id, 0, 'evade');

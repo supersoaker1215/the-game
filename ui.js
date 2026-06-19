@@ -12438,7 +12438,7 @@ const UI = {
     'Anti-Venom':'symbiote', 'Knull':'symbiote',
     'Ghostface':'slasher', 'Jason Voorhees':'slasher',
     'Michael Myers':'slasher', 'Predator':'slasher', 'Freddy Krueger':'slasher',
-    'Pennywise':'slasher', 'Freddy Fazbear':'slasher',
+    'Pennywise':'slasher', 'Freddy Fazbear':'slasher', 'Jaws':'slasher',
     'Thanos':'titan', 'Hulk':'titan', 'Red Hulk':'titan',
     'Darkseid':'titan', 'Mahoraga':'titan', 'Solomon Grundy':'titan',
     'Juggernaut':'titan', 'The Thing':'titan', 'Trigon':'titan',
