@@ -344,8 +344,32 @@ const Game = {
       // to be 'player' so the existing UI's seat assumptions all work.
       this.mp = { role: 'guest', you: 'player', opp: 'ai' };
     }
+    // Preserve the guest's card/trick selection across host state pushes.
+    // Each broadcast replaces Game.state entirely; without this, a card the
+    // guest clicked (setting selectedCard) gets deselected the moment the
+    // host sends any update (e.g. the previous play completing), requiring
+    // a re-select and causing the subsequent lane click to silently no-op
+    // because selectedCard is null. User sees the card "placed itself" on
+    // the retry in whatever lane they accidentally hit second.
+    const prevSelected     = this.state && this.state.selectedCard;
+    const prevSelectedTrick = this.state && this.state.selectedTrick;
+
     if (this.mp.role === 'guest') state = this._mpFlipPerspective(state);
     this.state = state;
+
+    // Restore selection only if: card/trick is still in the player's hand
+    // AND the new state doesn't already have a selection (host never sets
+    // selectedCard for the guest's seat, so this is always null after flip).
+    if (prevSelected && !this.state.selectedCard) {
+      const stillInHand = (this.state.player && this.state.player.hand || [])
+        .find(c => c.id === prevSelected.id);
+      if (stillInHand) this.state.selectedCard = stillInHand;
+    }
+    if (prevSelectedTrick && !this.state.selectedTrick) {
+      const stillInTrick = (this.state.player && this.state.player.trickHand || [])
+        .find(t => t.id === prevSelectedTrick.id);
+      if (stillInTrick) this.state.selectedTrick = stillInTrick;
+    }
   },
 
   _mpFlipPerspective(state) {
