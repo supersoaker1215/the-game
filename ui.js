@@ -8431,54 +8431,95 @@ const UI = {
       // so engine-level fields (ai object, current side, etc.) get set
       // correctly; UI just re-renders.
       if (typeof Game !== 'undefined' && Game.acceptMultiplayerState) {
-        // Snapshot lane occupancy before swap so we can detect new/dead cards for SFX.
+        // Snapshot relevant state before the swap so we can diff for SFX.
         const prevLanes = (Game.state && Game.state.lanes)
           ? Game.state.lanes.map(l => ({
               player: l.player ? { id: l.player.id, name: l.player.name } : null,
               ai:     l.ai     ? { id: l.ai.id,     name: l.ai.name     } : null,
             }))
           : null;
+        // Snapshot HP and played-trick counts for damage/heal/trick-play SFX.
+        const prevHp = {
+          player: (Game.state && Game.state.player) ? Game.state.player.health : null,
+          ai:     (Game.state && Game.state.ai)     ? Game.state.ai.health     : null,
+        };
+        const prevTricks = {
+          player: (Game.state && Game.state.player) ? (Game.state.player.playedTrickPile || []).slice() : [],
+          ai:     (Game.state && Game.state.ai)     ? (Game.state.ai.playedTrickPile     || []).slice() : [],
+        };
         Game.acceptMultiplayerState(m.state);
         // Apply real player names to the HUD name plates on every state update.
         this._mpApplyNames(Game.state);
-        // Play SFX for cards that newly appeared on the board or died this update.
-        if (prevLanes && this.sfx) {
-          const nextLanes = Game.state.lanes || [];
-          // Build sets of card IDs present in prev and next states for cross-lane checks.
-          const prevIds = new Set(), nextIds = new Set();
-          for (const l of prevLanes) {
-            if (l.player) prevIds.add(l.player.id);
-            if (l.ai)     prevIds.add(l.ai.id);
+
+        if (this.sfx) {
+          // ── Card play / death SFX ──────────────────────────────────────
+          if (prevLanes) {
+            const nextLanes = Game.state.lanes || [];
+            const prevIds = new Set(), nextIds = new Set();
+            for (const l of prevLanes) {
+              if (l.player) prevIds.add(l.player.id);
+              if (l.ai)     prevIds.add(l.ai.id);
+            }
+            for (const l of nextLanes) {
+              if (l.player) nextIds.add(l.player.id);
+              if (l.ai)     nextIds.add(l.ai.id);
+            }
+            for (let _i = 0; _i < nextLanes.length; _i++) {
+              const prev = prevLanes[_i] || {};
+              const next = nextLanes[_i] || {};
+              // Newly placed card — only play SFX if it wasn't already on the board
+              // (i.e. a new card, not one that moved from another lane).
+              if (next.player && (!prev.player || next.player.id !== prev.player.id)) {
+                if (!prevIds.has(next.player.id)) {
+                  try { this.sfx.playCardSfx(next.player.name, 'play', next.player); } catch(e) {}
+                }
+              }
+              if (next.ai && (!prev.ai || next.ai.id !== prev.ai.id)) {
+                if (!prevIds.has(next.ai.id)) {
+                  try { this.sfx.playCardSfx(next.ai.name, 'play', next.ai); } catch(e) {}
+                }
+              }
+              // Card gone — only death SFX if truly removed from the board.
+              if (prev.player && (!next.player || next.player.id !== prev.player.id)) {
+                if (!nextIds.has(prev.player.id)) {
+                  try { this.sfx.playCardSfx(prev.player.name, 'death', null); } catch(e) {}
+                }
+              }
+              if (prev.ai && (!next.ai || next.ai.id !== prev.ai.id)) {
+                if (!nextIds.has(prev.ai.id)) {
+                  try { this.sfx.playCardSfx(prev.ai.name, 'death', null); } catch(e) {}
+                }
+              }
+            }
           }
-          for (const l of nextLanes) {
-            if (l.player) nextIds.add(l.player.id);
-            if (l.ai)     nextIds.add(l.ai.id);
+
+          // ── Trick play SFX ────────────────────────────────────────────
+          // The guest doesn't run the engine hook that fires trick sounds,
+          // so diff the played-trick pile to catch any new tricks since the
+          // last broadcast (covers both sides — guest's own tricks AND the
+          // host's tricks that the guest wasn't running locally).
+          for (const side of ['player', 'ai']) {
+            const prev = prevTricks[side];
+            const next = (Game.state[side] && Game.state[side].playedTrickPile) || [];
+            for (let ti = prev.length; ti < next.length; ti++) {
+              const t = next[ti];
+              if (t && t.name) {
+                try { this.sfx.playTrickSfx(t.name, 'play'); } catch(e) {}
+              }
+            }
           }
-          for (let _i = 0; _i < nextLanes.length; _i++) {
-            const prev = prevLanes[_i] || {};
-            const next = nextLanes[_i] || {};
-            // Newly placed card — only play SFX if it wasn't already on the board
-            // somewhere (i.e. it's a new card, not a card that moved from another lane).
-            if (next.player && (!prev.player || next.player.id !== prev.player.id)) {
-              if (!prevIds.has(next.player.id)) {
-                try { this.sfx.playCardSfx(next.player.name, 'play', next.player); } catch(e) {}
-              }
-            }
-            if (next.ai && (!prev.ai || next.ai.id !== prev.ai.id)) {
-              if (!prevIds.has(next.ai.id)) {
-                try { this.sfx.playCardSfx(next.ai.name, 'play', next.ai); } catch(e) {}
-              }
-            }
-            // Card that was present is now gone — only play death SFX if it's truly
-            // gone from the board (not just relocated to another lane by a move ability).
-            if (prev.player && (!next.player || next.player.id !== prev.player.id)) {
-              if (!nextIds.has(prev.player.id)) {
-                try { this.sfx.playCardSfx(prev.player.name, 'death', null); } catch(e) {}
-              }
-            }
-            if (prev.ai && (!next.ai || next.ai.id !== prev.ai.id)) {
-              if (!nextIds.has(prev.ai.id)) {
-                try { this.sfx.playCardSfx(prev.ai.name, 'death', null); } catch(e) {}
+
+          // ── HP damage / heal SFX ──────────────────────────────────────
+          // Engine's dealDamage / healPlayer hooks don't fire on the guest
+          // (no local engine run). Detect HP changes from the state diff.
+          for (const side of ['player', 'ai']) {
+            const before = prevHp[side];
+            const after = Game.state[side] ? Game.state[side].health : null;
+            if (before !== null && after !== null) {
+              if (after < before) {
+                try { this.sfx.play('hpHit'); } catch(e) {}
+              } else if (after > before) {
+                try { this.sfx.playEffect('heal'); } catch(e) {}
               }
             }
           }
@@ -11355,8 +11396,21 @@ const UI = {
     const targetCardIds = new Set();
     if (cc && isMyCardChoice) cc.cards.forEach(c => { if (c.id !== undefined) targetCardIds.add(c.id); });
     const lcTargetSide = (lc && isMyLaneChoice) ? (lc.targetSide || lc.owner) : null;
-    const forcedAi = s.ai && (s.ai.forcedLane != null) ? s.ai.forcedLane : null;
-    const forcedPlayer = s.player && (s.player.forcedLane != null) ? s.player.forcedLane : null;
+    // Effective forced lane for each seat: Moder's single forcedLane takes
+    // priority; fall back to the first valid entry in Magneto's queue.
+    const _effectiveForcedLane = (seat) => {
+      const p = s[seat]; if (!p) return null;
+      if (p.forcedLane != null) return p.forcedLane;
+      const mq = p.magnetoForcedLanes;
+      if (mq && mq.length > 0) {
+        const candidate = mq[0];
+        const cl = s.lanes[candidate];
+        if (cl && !cl.destroyed && !cl[seat]) return candidate;
+      }
+      return null;
+    };
+    const forcedAi = _effectiveForcedLane('ai');
+    const forcedPlayer = _effectiveForcedLane('player');
 
     // Round watermark — massive ghost round number behind the lanes.
     // Absolutely-positioned; sits on the board element (set to
@@ -11858,7 +11912,24 @@ const UI = {
         }
       } else if (!lane.destroyed && canPlay && s.selectedCard && !s.selectedCard.isDiscardEffect && !cc && !lc && (!lane.player || s.selectedCard.isEnvironment)) {
         // When a forced lane is active (Moder/Magneto), only that lane is clickable.
-        const fl = s.player && s.player.forcedLane != null ? s.player.forcedLane : null;
+        // Resolve the effective forced lane: Moder's single forcedLane takes priority;
+        // fall back to the first entry in Magneto's queue (magnetoForcedLanes[0]).
+        // Only lock the UI if the forced lane is actually valid (not destroyed, not
+        // already occupied) — mirrors the redirect logic in _redirectForForcedLane so
+        // what the guest sees matches what the host will actually do.
+        let fl = s.player && s.player.forcedLane != null ? s.player.forcedLane : null;
+        if (fl === null) {
+          const mq = s.player && s.player.magnetoForcedLanes;
+          if (mq && mq.length > 0) {
+            const candidate = mq[0];
+            const candidateLane = s.lanes[candidate];
+            // Only enforce if the forced lane is playable; otherwise the host will
+            // silently skip the redirect and the card goes wherever the guest chose.
+            if (candidateLane && !candidateLane.destroyed && !candidateLane.player) {
+              fl = candidate;
+            }
+          }
+        }
         if (fl !== null && fl !== i && !s.selectedCard.isEnvironment) {
           // Not the forced lane — show as locked, not playable.
           const empty = document.createElement('div');
