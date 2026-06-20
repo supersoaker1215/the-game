@@ -502,6 +502,45 @@ const CARD_ABILITIES = {
       G.log(`Mr. Freeze freezes ${list}${who} health bar (${hpHits} hits)!`);
     }
   },
+  "Juggernaut": {
+    onPlay(G, self, lane) {
+      const own = self.owner;
+      [lane - 1, lane + 1].forEach(l => {
+        if (l < 0 || l >= Game.LANE_COUNT) return;
+        const ally = G.state.lanes[l][own];
+        if (ally && ally.id !== self.id && !ally._juggImmunity) {
+          ally.immunityCharges = (ally.immunityCharges || 0) + 1;
+          ally._juggImmunity = true;
+        }
+      });
+      G.log(`Juggernaut shields adjacent allies with Immunity 1!`);
+    },
+    onAnyCardPlayed(G, self) {
+      const myLane = G.findCardLane(self);
+      if (myLane < 0) return;
+      const own = self.owner;
+      [myLane - 1, myLane + 1].forEach(l => {
+        if (l < 0 || l >= Game.LANE_COUNT) return;
+        const ally = G.state.lanes[l][own];
+        if (ally && ally.id !== self.id && !ally._juggImmunity) {
+          ally.immunityCharges = (ally.immunityCharges || 0) + 1;
+          ally._juggImmunity = true;
+        }
+      });
+    },
+    onDeath(G, self, lane) {
+      const own = self.owner;
+      [lane - 1, lane + 1].forEach(l => {
+        if (l < 0 || l >= Game.LANE_COUNT) return;
+        const ally = G.state.lanes[l][own];
+        if (ally && ally._juggImmunity) {
+          if ((ally.immunityCharges || 0) > 0) ally.immunityCharges--;
+          delete ally._juggImmunity;
+        }
+      });
+      G.log(`Juggernaut falls — adjacent immunity fades!`);
+    }
+  },
   "Sabertooth": {
     onDamagePlayer(G, self) {
       // Roguelite Text+ override — _sabertoothRageSize scales the buff.
