@@ -3762,6 +3762,10 @@ const UI = {
   // ===================== KEYWORD TOOLTIPS =====================
   installKeywordTooltips() {
     if (!this.tooltipEl) return;
+    // Hover tooltips are desktop-only — on touch a tap would strand the
+    // tooltip with no mouseout to clear it. Mobile shows keyword
+    // definitions inside the tap-to-inspect popout instead.
+    if (!this._hasFinePointer()) return;
     this._tooltipPinned = false;
     const render = (kw) => {
       const pinHint = this._tooltipPinned
@@ -12832,6 +12836,7 @@ const UI = {
   installDeadPilePeek() {
     const peek = document.getElementById('dead-peek');
     if (!peek) return;
+    if (!this._hasFinePointer()) return;  // hover popover; synthetic tap-enter would leave it stuck open
     const wire = (badge, owner) => {
       if (!badge) return;
       badge.addEventListener('mouseenter', (e) => {
@@ -15458,6 +15463,26 @@ const UI = {
     try { return window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches; }
     catch (e) { return false; }
   },
+  // True only when the PRIMARY pointer is a real mouse/trackpad (can hover,
+  // fine-grained). This gates every cursor-following desktop FX — the neon
+  // cursor ring, trail, board light, bg parallax, camera pivot, hand tilt,
+  // hover tooltips/peeks. On phones/tablets a TAP fires synthetic mouse
+  // events (mousemove/mouseenter) at the tap point with no paired leave, so
+  // those followers would freeze on screen ("the cursor that just stays").
+  // Gating their install on this kills the stuck-cursor bug at the source.
+  //   - `(hover: hover) and (pointer: fine)` tests the PRIMARY device, so a
+  //     touchscreen laptop or iPad-with-trackpad (real pointer present) keeps
+  //     the cursor, while a pure-touch phone never installs it.
+  //   - touch APIs are used ONLY as the fallback when matchMedia is missing,
+  //     never as the positive signal (they false-negative on hybrids).
+  _hasFinePointer() {
+    try {
+      if (typeof window.matchMedia === 'function') {
+        return window.matchMedia('(hover: hover) and (pointer: fine)').matches;
+      }
+    } catch (e) {}
+    return !('ontouchstart' in window || (navigator.maxTouchPoints || 0) > 0);
+  },
   // Draw a tracer beam from attacker → target for a combat hit. The
   // beam is an absolutely-positioned rotated div sized to span the
   // two card centers. Short-lived (~260ms) with a scale-out on the
@@ -15539,7 +15564,7 @@ const UI = {
     // when the cursor stops, and disappears entirely when the
     // cursor is idle.
     const reduceMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-    if (!reduceMotion) {
+    if (!reduceMotion && this._hasFinePointer()) {  // cursor trail is mouse-only; a tap would freeze the line at the tap point
       // Build the SVG layer once. Lives at body level so it overlays
       // the entire page (menus, board, panels — all surfaces).
       const SVGNS = 'http://www.w3.org/2000/svg';
@@ -15783,6 +15808,10 @@ const UI = {
     if (this._polishLayerInstalled) return;
     this._polishLayerInstalled = true;
     const reduceMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    // Cursor-coupled sub-blocks below (bg parallax, hand-hover spring, trail
+    // thickness) are gated on this so a touch tap can't strand them. The
+    // gameplay-driven FX in this layer (ribbons, echoes, bursts) stay on.
+    const finePointer = this._hasFinePointer();
 
     // ---- T1.1 ATTACK RIBBON --------------------------------------------
     // SVG beam from attacker → target. Hooks Game.applyCombatDamage so
@@ -16318,7 +16347,7 @@ const UI = {
     // Throttled mousemove on document — set body.style.--grid-px-x/y
     // based on cursor position normalized to viewport. Subtle ±6px
     // shift gives a mild parallax depth cue without being distracting.
-    if (!reduceMotion) {
+    if (!reduceMotion && finePointer) {  // mouse-only; a tap would leave the grid offset frozen
       let lastMove = 0;
       document.addEventListener('mousemove', (e) => {
         const now = performance.now();
@@ -16398,7 +16427,7 @@ const UI = {
     // overshoot, then settles. Not so springy that it feels gummy.
     if (!reduceMotion) {
       const handSection = document.querySelector('.player-hand-section');
-      if (handSection) {
+      if (handSection && finePointer) {  // hover-lift is mouse-only; a tap would leave a card stuck lifted
         // Per-card spring state stored on the element itself so multiple
         // cards can be in different lift positions without interference.
         const SPRING_STIFFNESS = 280;   // higher = faster pull to target
@@ -16565,7 +16594,7 @@ const UI = {
       // SVG layer. The CSS reads `--trail-velocity` to scale stroke.
       // This avoids re-architecting the existing tick.
       const svg = document.getElementById('tron-cursor-trail');
-      if (svg) {
+      if (svg && finePointer) {  // trail SVG only exists on fine-pointer; keep this in lockstep
         // Light shim — install a separate RAF loop that polls the
         // global mouse-position via captured events and writes the
         // velocity into a CSS var. Deliberately separate from the
@@ -17405,6 +17434,7 @@ const UI = {
   // #9 — Parallax main menu. Mouse position drives body-level CSS vars
   // that each UI surface (mm-panel, body::before) reads for tiny offsets.
   installParallaxMenu() {
+    if (!this._hasFinePointer()) return;  // mouse-driven menu parallax; a tap would leave the bg shifted
     let rafPending = false;
     document.addEventListener('mousemove', (e) => {
       if (rafPending) return;
@@ -17758,6 +17788,7 @@ const UI = {
     if (this._cameraParallaxInstalled) return;
     this._cameraParallaxInstalled = true;
     if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    if (!this._hasFinePointer()) return;  // mouse-driven camera pivot; touch would lock the tilt at the tap point
     const ga = document.getElementById('game-area');
     if (!ga) return;
     let rafScheduled = false;
@@ -17785,6 +17816,7 @@ const UI = {
   installHandTilt() {
     if (this._handTiltInstalled) return;
     this._handTiltInstalled = true;
+    if (!this._hasFinePointer()) return;  // hover-tilt is mouse-only; a tap would freeze a card mid-tilt
     // Both hand cards and tricks get the 3D tilt. Hand cards live
     // inside a .hand-card-wrapper (the CSS keys the transform off
     // that wrapper's hover + its child card). Tricks don't have a
@@ -18075,6 +18107,7 @@ const UI = {
   // coordinates and toggles a fade var. Idempotent install.
   installBoardCursorLight() {
     if (this._boardCursorLightInstalled) return;
+    if (!this._hasFinePointer()) return;  // cursor-anchored — touch would lock the light at the tap point
     const board = document.getElementById('board');
     if (!board) return;
     this._boardCursorLightInstalled = true;
@@ -18216,6 +18249,10 @@ const UI = {
       document.body.style.setProperty('--my', pendingMy.toFixed(1) + 'px');
     };
     window.addEventListener('mousemove', (e) => {
+      // Mouse-parallax only — a synthetic tap on touch would leave the bg
+      // permanently drifted. (The chromatic-hit / afterimage / glitch FX
+      // below are gameplay-driven and stay active on every device.)
+      if (!UI._hasFinePointer()) return;
       const cx = window.innerWidth / 2;
       const cy = window.innerHeight / 2;
       // Clamp to ±5px, multiply by -1 so background drifts AGAINST
@@ -18604,6 +18641,9 @@ const UI = {
   // while staying cheap (10 recycled trail DOMs + transform-only anim).
   installCustomCursor() {
     if (this._customCursorInstalled) return;
+    // Touch devices get NO custom cursor — a tap would otherwise strand the
+    // neon ring at the tap point with no mouseleave to clear it.
+    if (!this._hasFinePointer()) return;
     this._customCursorInstalled = true;
     const main = document.createElement('div');
     main.className = 'custom-cursor hidden';
@@ -18670,6 +18710,7 @@ const UI = {
   // (M) Deck-viewer chip hover — show a floating card preview panel.
   installDeckPreview() {
     if (this._deckPreviewInstalled) return;
+    if (!this._hasFinePointer()) return;  // hover-only preview; touch has its own tap views
     this._deckPreviewInstalled = true;
     const tip = document.createElement('div');
     tip.className = 'deck-viewer-preview';

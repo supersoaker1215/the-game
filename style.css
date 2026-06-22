@@ -14361,6 +14361,25 @@ body.kill-flash-ai::after {
 *, *::before, *::after { cursor: none !important; }
 input, textarea, select, [contenteditable="true"] { cursor: text !important; }
 
+/* ── TOUCH SAFETY NET ────────────────────────────────────────────────
+   On devices whose PRIMARY pointer is coarse / can't hover (phones,
+   tablets), forcibly hide the custom cursor follower elements and give
+   the native cursor back — overriding the global `cursor: none` above.
+   UI._hasFinePointer() already prevents the JS from installing these on
+   touch; this is the belt-and-suspenders if JS runs late or a stale
+   cached build slips through. Placed AFTER the global rule so the equal-
+   specificity `!important` override wins via source order. */
+@media (pointer: coarse), (hover: none) {
+  .custom-cursor,
+  .cursor-trail,
+  #tron-cursor-trail { display: none !important; }
+  html, body,
+  *, *::before, *::after { cursor: auto !important; }
+  a, button, [role="button"], summary, label[for], select { cursor: pointer !important; }
+  input:not([type="button"]):not([type="submit"]):not([type="reset"]),
+  textarea, [contenteditable="true"] { cursor: text !important; }
+}
+
 /* ============================================================
    JS CUSTOM CURSOR + TRAIL — installed by UI.installCustomCursor.
    A Tron-disc overlay follows the mouse; the disc is the same size
