@@ -4933,15 +4933,16 @@ const UI = {
       let faceDamage = 0;
       const hasBullseye = ai.hasBullseye || (ai.statusBadges && ai.statusBadges.includes('bullseye'));
       if (!player || player.currentHealth <= 0 || hasBullseye) {
-        // Unblocked OR bypassed by bullseye
+        // Unblocked OR bypassed by Bullseye → the full ATK reaches the face.
         faceDamage = aiAtk;
-      } else {
-        // Blocked path — overflow goes to face if AI's ATK exceeds
-        // blocker's HP (player blocker absorbs up to its current HP)
-        if (aiAtk > player.currentHealth) {
-          faceDamage = aiAtk - player.currentHealth;
-        }
       }
+      // else: a living, non-Bullseye blocker eats the ENTIRE hit. There is NO
+      // trample — the combat resolver (applyCombatDamage) only damages the
+      // blocker and wastes any excess; Bullseye / Overdrive are the dedicated
+      // ways to reach the face through a blocker. This branch previously
+      // counted (aiAtk − blockerHP) as overflow, which produced phantom
+      // "−N INCOMING" / false-lethal warnings on lanes that actually deal 0
+      // to the player. faceDamage stays 0 for a blocked lane.
       // Player armor reduces face damage by N flat (per-hit, not per-turn,
       // but UI uses it as a worst-case approximation)
       if (faceDamage > 0 && playerArmor > 0) {
