@@ -7128,14 +7128,34 @@ const UI = {
                    <circle cx="7"  cy="17" r="2" fill="#000"/>
                  </svg>`
     };
+    let mmIdx = 0;   // running index drives the one-shot entrance stagger
     const btn = (id, label, sub, icon, onClick) => `
-      <button type="button" class="mm-option" id="${id}" onclick="${onClick}">
+      <button type="button" class="mm-option" id="${id}" style="--mm-idx:${mmIdx++}" onclick="${onClick}">
         <div class="mm-option-icon">${icon}</div>
         <div class="mm-option-text">
           <div class="mm-option-label">${label}</div>
           <div class="mm-option-sub">${sub}</div>
         </div>
       </button>`;
+    // Profile chip — surfaces the name/avatar the player set in Settings plus
+    // their recent W/L, so the home screen reflects them instead of reading
+    // generic. Record is over the stored match history (last N). Escaped since
+    // the name is free user input.
+    const esc = (str) => String(str == null ? '' : str).replace(/[<>&]/g, c => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;' }[c]));
+    const _hist = (this._getMatchHistory && this._getMatchHistory()) || [];
+    const _wins = _hist.filter(m => m && m.winner === 'player').length;
+    const _losses = _hist.filter(m => m && m.winner === 'ai').length;
+    const _pName = esc((this.settings.playerName || 'YOU').slice(0, 12));
+    const _pAv = esc(this.settings.playerAvatar || '▲');
+    const _record = (_wins + _losses) > 0 ? `${_wins}W · ${_losses}L` : 'No matches yet';
+    const profileChip = `
+      <div class="mm-profile-chip" title="Edit your name & avatar in Settings">
+        <span class="mm-profile-av" aria-hidden="true">${_pAv}</span>
+        <span class="mm-profile-meta">
+          <span class="mm-profile-name">${_pName}</span>
+          <span class="mm-profile-record">${_record}</span>
+        </span>
+      </div>`;
     // Simple question-mark SVG for the tutorial option (no other icon
     // slot conveys "how to play"). Matches the other .mm-svg spec.
     const helpSVG = `<svg class="mm-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M9 9a3 3 0 1 1 4.5 2.6c-.9.5-1.5 1-1.5 2"/><line x1="12" y1="17" x2="12" y2="17.2"/></svg>`;
@@ -7162,6 +7182,7 @@ const UI = {
     el.innerHTML = `
       <div class="mm-panel">
         <div class="mm-header">
+          ${profileChip}
           <h1 class="mm-title">the game</h1>
           <div class="mm-divider" aria-hidden="true"></div>
         </div>

@@ -1568,6 +1568,45 @@ body.hit-pause .ai-hand * {
   margin-bottom: 10px;
   text-shadow: 0 0 6px rgba(var(--theme-rgb, 79,195,247), 0.45);
 }
+/* Profile chip — the player's name/avatar (set in Settings) + recent W/L,
+   above the title, so the home screen reflects them. */
+.mm-header { display: flex; flex-direction: column; align-items: center; }
+.mm-profile-chip {
+  display: inline-flex; align-items: center; gap: 9px;
+  padding: 6px 14px 6px 7px; margin: 0 auto 14px;
+  background: rgba(8,14,22,0.7);
+  border: 1px solid rgba(var(--theme-rgb, 79,195,247),0.40);
+  border-radius: 999px;
+  box-shadow: 0 0 12px rgba(var(--theme-rgb, 79,195,247),0.14);
+}
+.mm-profile-av {
+  width: 30px; height: 30px; border-radius: 50%; flex: 0 0 auto;
+  display: flex; align-items: center; justify-content: center; font-size: 15px;
+  background: rgba(var(--theme-rgb, 79,195,247),0.16);
+  border: 1px solid rgba(var(--theme-rgb, 79,195,247),0.5);
+  color: rgb(var(--theme-rgb, 79,195,247));
+}
+.mm-profile-meta { display: flex; flex-direction: column; line-height: 1.15; text-align: left; }
+.mm-profile-name {
+  font-family: 'Rajdhani', sans-serif; font-weight: 700; font-size: 13px;
+  letter-spacing: 0.5px; color: #eaf4ff; text-transform: uppercase;
+}
+.mm-profile-record { font-family: 'Inter', sans-serif; font-size: 10.5px; color: #8ea8be; letter-spacing: 0.3px; }
+/* One-shot entrance stagger on the menu option tiles (fade + rise in
+   sequence on each landing) — NOT an idle loop. `backwards` fill so the
+   animation never holds `transform` and block the hover-lift. */
+@keyframes mmOptionIn {
+  0%   { opacity: 0; transform: translateY(12px); }
+  100% { opacity: 1; transform: translateY(0); }
+}
+.mm-grid-section .mm-option {
+  animation: mmOptionIn 420ms var(--ease-out-soft, ease-out) backwards;
+  animation-delay: calc(var(--mm-idx, 0) * 52ms + 60ms);
+}
+@media (prefers-reduced-motion: reduce) {
+  .mm-grid-section .mm-option { animation: none; }
+}
+
 .mm-title {
   font-family: 'Rajdhani', sans-serif;
   font-size: 52px; font-weight: 700;
@@ -6306,6 +6345,15 @@ body.hit-pause .ai-hand * {
 .card.hand-card.cost-8    { --card-edge: rgba(240,245,250,0.85); }
 .card.hand-card.cost-9,
 .card.hand-card.cost-10   { --card-edge: rgba(255,215,0,0.90); }
+/* Premium legendary foil — cost 9-10 cards in hand get an always-on gold glow
+   on their (already-gold) corner brackets so the "money card" is identifiable
+   at a glance, at rest. Static (no idle pulse — idle animation was explicitly
+   unwanted) and on the ::before bracket layer, so it never fights the card's
+   box-shadow or the hover sheen. */
+.card.hand-card.cost-9::before,
+.card.hand-card.cost-10::before {
+  filter: drop-shadow(0 0 3px rgba(255,215,0,0.85)) drop-shadow(0 0 7px rgba(255,215,0,0.45));
+}
 
 .card::before {
   content: '';
