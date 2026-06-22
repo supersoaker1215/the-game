@@ -282,6 +282,36 @@ body {
   container-type: inline-size;
 }
 
+/* Rotate gate — portrait-first. Hidden except on short-landscape phone
+   viewports, where it covers the screen and blocks the cramped sideways
+   layout with a "rotate" prompt. Pure CSS (no JS) — the media query is the
+   trigger. Sized in vw/dvh so it fills the viewport regardless of body's
+   container-type containment. */
+.rotate-gate { display: none; }
+@media (orientation: landscape) and (max-height: 540px) and (pointer: coarse) {
+  .rotate-gate {
+    display: flex; position: fixed; top: 0; left: 0;
+    width: 100vw; height: 100dvh; z-index: 9000;
+    align-items: center; justify-content: center;
+    background: radial-gradient(120% 120% at 50% 40%, #0a141f 0%, #04070c 70%);
+  }
+  .rotate-gate-inner { text-align: center; padding: 20px; }
+  .rotate-gate-icon {
+    font-size: 46px; color: rgb(var(--theme-rgb, 79,195,247));
+    text-shadow: 0 0 16px rgba(var(--theme-rgb, 79,195,247),0.6);
+    animation: rotateGateSpin 2.4s ease-in-out infinite;
+  }
+  .rotate-gate-title {
+    font-family: 'Rajdhani', sans-serif; font-weight: 700; font-size: 22px;
+    letter-spacing: 1px; color: #eaf4ff; margin-top: 12px;
+  }
+  .rotate-gate-sub { font-family: 'Inter', sans-serif; font-size: 13px; color: #9fb0c0; margin-top: 6px; }
+}
+@keyframes rotateGateSpin {
+  0%, 100% { transform: rotate(-12deg); }
+  50%      { transform: rotate(78deg); }
+}
+
 /* Touch hygiene — kill the grey OS tap-flash on every interactive element,
    and mark the game surfaces as `manipulation` so taps don't carry the
    legacy ~300ms double-tap-zoom delay (and a rapid flurry of card taps

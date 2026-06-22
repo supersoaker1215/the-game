@@ -13,7 +13,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap">
-  <link rel="stylesheet" href="style.css?v=619">
+  <link rel="stylesheet" href="style.css?v=620">
   <script>
     // Lightweight error reporter (pre-Sentry) — capture runtime JS
     // errors + unhandled promise rejections to a localStorage ring
@@ -100,6 +100,18 @@
     <span class="update-banner-icon" aria-hidden="true">↻</span>
     <span class="update-banner-text">Update — Click to refresh</span>
   </button>
+
+  <!-- ROTATE GATE — portrait-first battler. On a phone held sideways the
+       6-lane board collapses into ~390px of height, so we cover the screen
+       with a rotate prompt (CSS-only, shown solely on short-landscape
+       viewports). Marvel Snap / Hearthstone do the same. -->
+  <div class="rotate-gate" aria-hidden="true">
+    <div class="rotate-gate-inner">
+      <div class="rotate-gate-icon">⟲</div>
+      <div class="rotate-gate-title">Rotate your device</div>
+      <div class="rotate-gate-sub">The Game is built for portrait.</div>
+    </div>
+  </div>
 
   <!-- WEB ↔ MOBILE PREVIEW TOGGLE — only useful on desktop. Lets a
        developer/user see the layout in phone shape without resizing
