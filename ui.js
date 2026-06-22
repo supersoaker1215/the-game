@@ -1619,12 +1619,18 @@ const UI = {
     // mix. Volume sits well below sfxVolume so cues still cut through.
     _music: null,
     _musicWantPlay: false,
-    // Menu music — Daft Punk's "End Of Line" (Tron: Legacy OST). Full
-    // 2:36 track, normalized to -16 LUFS (Spotify/YouTube reference
-    // loudness), no fades baked so the `loop = true` boundary is seamless.
-    // Previous F1-by-Zimmer track is banked at audio/.menu_music.f1.bak.mp3
-    // — restore by renaming if you want to swap back.
-    MUSIC_SRC: 'audio/menu_music.mp3?v=5',
+    // Menu music — "Organ Variation". Full ~4:52 track, loudness-matched
+    // to ≈-15 LUFS with NO baked fades so the `loop = true` boundary stays
+    // seamless. Loops indefinitely across the menu + draft screens.
+    // The PREVIOUS menu track (Daft Punk "End Of Line") was MOVED to
+    // audio/match_intro.mp3 and now plays as a 20s load-in cue when combat
+    // begins — see MATCH_INTRO_SRC / playMatchIntro().
+    MUSIC_SRC: 'audio/menu_music.mp3?v=6',
+    // Match load-in sting — the former menu track. Played ONCE for ~20s at
+    // the first combat round of a match, then faded out. Not looped; lives
+    // on its own <audio> element independent of the menu loop.
+    MATCH_INTRO_SRC: 'audio/match_intro.mp3?v=1',
+    MATCH_INTRO_MS: 20000,   // total on-screen time before it's fully faded
 
     _init() {
       if (this._ctx) return true;
@@ -1961,6 +1967,52 @@ const UI = {
     setMusicVolume() {
       if (!this._music) return;
       this._music.volume = Math.max(0, Math.min(1, (UI.settings.sfxVolume ?? 0.55) * 0.35));
+    },
+
+    // ---- Match load-in cue ------------------------------------------------
+    // Plays the former menu track for ~20s as combat begins (first round of
+    // a match), then fades out. One-shot, non-looping, on its own <audio>
+    // element so it's fully independent of the menu loop (which has just
+    // faded out via stopMusic). Sits at the menu-bed level (0.35×) so combat
+    // SFX still cut through. Respects the same toggles as the menu music.
+    _matchIntro: null,
+    _matchIntroTimer: null,
+    playMatchIntro() {
+      try {
+        if (!UI.settings || UI.settings.sfxVolume === 0) return;
+        if (UI.settings.menuMusic === false) return;
+        this.stopMatchIntro();   // never stack (e.g. fast rematch)
+        const a = new Audio(this.MATCH_INTRO_SRC);
+        a.loop = false;
+        a.preload = 'auto';
+        this._matchIntro = a;
+        const target = Math.max(0, Math.min(1, (UI.settings.sfxVolume ?? 0.55) * 0.35));
+        a.volume = 0;
+        try { a.currentTime = 0; } catch (e) {}
+        const p = a.play();
+        if (p && p.catch) p.catch(() => {});
+        // Fade in over 600ms to match the menu loop's entrance.
+        this._fadeVolume(a, target, 600, '_introFade');
+        const total = this.MATCH_INTRO_MS || 20000;
+        const fadeOutMs = 2500;
+        // Fade out so the cue ends cleanly right around the 20s mark.
+        this._matchIntroTimer = setTimeout(() => {
+          this._matchIntroTimer = null;
+          if (this._matchIntro !== a) return;
+          this._fadeVolume(a, 0, fadeOutMs, '_introFade', () => {
+            try { a.pause(); a.currentTime = 0; } catch (e) {}
+            if (this._matchIntro === a) this._matchIntro = null;
+          });
+        }, Math.max(0, total - fadeOutMs));
+      } catch (e) { /* ignore */ }
+    },
+    stopMatchIntro() {
+      if (this._matchIntroTimer) { clearTimeout(this._matchIntroTimer); this._matchIntroTimer = null; }
+      const a = this._matchIntro;
+      if (!a) return;
+      this._matchIntro = null;
+      try { if (a._introFade) cancelAnimationFrame(a._introFade); } catch (e) {}
+      try { a.pause(); a.currentTime = 0; } catch (e) {}
     },
 
     // Low-level HTMLAudioElement playback for a specific sound file. Clone
@@ -3500,6 +3552,12 @@ const UI = {
     if (typeof origStart === 'function') {
       Game.startMatch = (...args) => {
         this.sfx.playNav();
+        // Arm the 20s match load-in cue — it fires on the FIRST combat
+        // round of this match (see startRound below). Clear any intro
+        // still ringing out from a previous match so a fast rematch
+        // doesn't overlap two stings.
+        this._matchIntroArmed = true;
+        try { this.sfx.stopMatchIntro(); } catch (e) {}
         // Pick a fresh AI personality for this match (avatar + name
         // in the ai-bar). Round-robins via localStorage so repeats
         // feel less common.
@@ -3511,6 +3569,18 @@ const UI = {
     if (typeof origRound === 'function') {
       Game.startRound = (...args) => {
         this.sfx.stopMusic();
+        // 20s match load-in cue — the former menu track. Fires once, on the
+        // first combat round of a match (the "loading into the match" beat),
+        // right as the menu loop fades out. The armed flag (set in
+        // startMatch) guarantees it never re-triggers on later rounds.
+        if (this._matchIntroArmed) {
+          this._matchIntroArmed = false;
+          try {
+            if (!Game.state.gameOver && this.sfx && this.sfx.playMatchIntro) {
+              this.sfx.playMatchIntro();
+            }
+          } catch (e) {}
+        }
         // (AAA) Ambient arena hum — kicks in at the FIRST round of a
         // match (draft is over, gameplay starts). Idempotent:
         // arenaHumStart bails if already running. Hum fades in over
@@ -7165,9 +7235,16 @@ const UI = {
       {
         id: 'music', category: 'Music & Files', kind: 'file',
         name: 'Menu music (loop)',
-        desc: 'Looping background music that plays on the menu screens.',
+        desc: 'Looping menu/draft background music ("Organ Variation"). Full track on seamless loop.',
         src: (sfx.MUSIC_SRC || 'audio/menu_music.mp3').split('?')[0],
         play: () => { try { sfx.startMusic(); } catch (e) {} },
+      },
+      {
+        id: 'match-intro', category: 'Music & Files', kind: 'file',
+        name: 'Match load-in (20s)',
+        desc: 'The former menu track, played for ~20s as combat begins (first round of a match), then faded out. Non-looping.',
+        src: (sfx.MATCH_INTRO_SRC || 'audio/match_intro.mp3').split('?')[0],
+        play: () => { try { sfx.playMatchIntro(); } catch (e) {} },
       },
       {
         id: 'heal-hp', category: 'Music & Files', kind: 'file',
