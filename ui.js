@@ -12500,7 +12500,17 @@ const UI = {
     // once — crazy wins).
     if (!inHand && !this.isCardCrazy(card)) {
       const vibe = this.getCardVibe(card);
-      if (vibe) el.classList.add('vibe-' + vibe);
+      if (vibe) {
+        el.classList.add('vibe-' + vibe);
+        // Desync the idle throb — a DETERMINISTIC per-card phase
+        // offset derived from card.id (NOT Math.random, which would
+        // restart the loop every render). Negative delay so the
+        // animation is already mid-cycle on first paint. Cards that
+        // share an archetype now drift at different phases instead of
+        // pulsing in unison. Range 0..-2000ms.
+        const vibeDelay = -(((card.id | 0) * 137) % 2000);
+        el.style.setProperty('--vibe-delay', vibeDelay + 'ms');
+      }
     }
 
     const baseCost = card.baseCost || card.cost;
@@ -17255,6 +17265,14 @@ const UI = {
     if (!reduceMotion) {
       document.body.appendChild(el);
       setTimeout(() => el.remove(), 1500);
+      // Board reaction (2026-06 polish) — a multikill is a peak moment
+      // but the board itself didn't move; only a banner appeared.
+      // Punctuate it with a screen shake scaled to the tier so the
+      // hit lands physically: a board wipe rocks the whole viewport,
+      // a double kick is lighter. _screenShake already self-gates on
+      // reduced-motion, and we're inside the !reduceMotion branch.
+      const shakeTier = tier === 'wipe' ? 'heavy' : tier === 'triple' ? 'heavy' : 'medium';
+      if (this._screenShake) this._screenShake(shakeTier);
     }
     // Haptic kick on the local player's big moments (matches the
     // victory-screen vibrate pattern). Only fires for player-side

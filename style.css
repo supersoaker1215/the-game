@@ -4766,7 +4766,7 @@ body.hit-pause .ai-hand * {
 .card-cost::before {
   content: '';
   position: absolute; inset: 0;
-  background: rgba(0, 8, 14, 0.48);
+  background: rgba(0, 8, 14, 0.62);
   -webkit-mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100' preserveAspectRatio='none'><path fill='black' d='M16,0 L84,0 L100,16 L100,84 L84,100 L16,100 L0,84 L0,16 Z'/></svg>") center/100% 100% no-repeat;
           mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100' preserveAspectRatio='none'><path fill='black' d='M16,0 L84,0 L100,16 L100,84 L84,100 L16,100 L0,84 L0,16 Z'/></svg>") center/100% 100% no-repeat;
   filter: drop-shadow(0 0 3px rgba(var(--portrait-frame-rgb, 255,215,0), 0.45));
@@ -5130,7 +5130,7 @@ body.hit-pause .ai-hand * {
 .stat-atk::before {
   content: '';
   position: absolute; inset: 0;
-  background: rgba(0, 8, 14, 0.48);
+  background: rgba(0, 8, 14, 0.62);
   -webkit-mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100' preserveAspectRatio='none'><path fill='black' d='M16,0 L84,0 L100,16 L100,84 L84,100 L16,100 L0,84 L0,16 Z'/></svg>") center/100% 100% no-repeat;
           mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100' preserveAspectRatio='none'><path fill='black' d='M16,0 L84,0 L100,16 L100,84 L84,100 L16,100 L0,84 L0,16 Z'/></svg>") center/100% 100% no-repeat;
   filter: drop-shadow(0 0 3px rgba(46,204,113,0.45));
@@ -5158,7 +5158,7 @@ body.hit-pause .ai-hand * {
 .stat-hp::before {
   content: '';
   position: absolute; inset: 0;
-  background: rgba(0, 8, 14, 0.48);
+  background: rgba(0, 8, 14, 0.62);
   -webkit-mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100' preserveAspectRatio='none'><path fill='black' d='M16,0 L84,0 L100,16 L100,84 L84,100 L16,100 L0,84 L0,16 Z'/></svg>") center/100% 100% no-repeat;
           mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100' preserveAspectRatio='none'><path fill='black' d='M16,0 L84,0 L100,16 L100,84 L84,100 L16,100 L0,84 L0,16 Z'/></svg>") center/100% 100% no-repeat;
   filter: drop-shadow(0 0 3px rgba(231,76,60,0.45));
@@ -5746,6 +5746,28 @@ body.hit-pause .ai-hand * {
 .card.vibe-alien:not(.card-enter):not(.card-exit) {
   animation: vibeAlienTwitch 2.9s ease-in-out infinite;
   box-shadow: 0 0 14px rgba(40,80,40,0.55), 0 0 30px rgba(80,20,20,0.30) !important;
+}
+
+/* Per-card idle-vibe desync (2026-06 polish). Without this, every
+   card sharing an archetype (3 cosmic cards, a row of symbiotes)
+   throbs in PERFECT sync — the screen pulses as one mass, which
+   reads mechanical. --vibe-delay is set per card in ui.js from a
+   deterministic hash of card.id (stable across renders so it never
+   restarts the loop), shifting each card to a different phase of
+   its idle cycle. Matched specificity (0,4,0) + later source order
+   so this animation-delay longhand overrides the shorthand's
+   implicit 0 in the rules above. Scoped to the vibe selectors so
+   it never touches the card's other animations (hp tremor, tron
+   perimeter). */
+.card.vibe-cosmic:not(.card-enter):not(.card-exit),
+.card.vibe-symbiote:not(.card-enter):not(.card-exit),
+.card.vibe-slasher:not(.card-enter):not(.card-exit),
+.card.vibe-titan:not(.card-enter):not(.card-exit),
+.card.vibe-phase:not(.card-enter):not(.card-exit),
+.card.vibe-speed:not(.card-enter):not(.card-exit),
+.card.vibe-magnetic:not(.card-enter):not(.card-exit),
+.card.vibe-alien:not(.card-enter):not(.card-exit) {
+  animation-delay: var(--vibe-delay, 0s);
 }
 
 /* Hand cards + reduced-motion opt-out everything. */
@@ -7947,8 +7969,13 @@ body.turn-combat .board .lane.lane-active {
   .hud-round { font-size: 10.5px; letter-spacing: 1.5px; }
   .hud-count { font-size: 10.5px; letter-spacing: 1px; }
   /* Settings gear — pull tighter to the corner so it doesn't compete
-     with the HUD pill for horizontal real estate. */
-  .settings-cog { right: 8px !important; top: 8px !important; transform: scale(0.85); transform-origin: top right; }
+     with the HUD pill for horizontal real estate. The earlier
+     transform: scale(0.85) shrank the touch target to ~37px, BELOW
+     the 44px minimum — backwards for the device where touch
+     precision matters most. Dropped the scale; keep the corner pull.
+     The sync button rides alongside it at a matching offset. */
+  .settings-cog { right: 8px !important; top: 8px !important; }
+  .sync-btn { right: 62px !important; top: 8px !important; }
   .kb-hints { display: none; }
   /* Show opponent's hand + tricks as face-down mini cards on mobile,
      just like desktop. User feedback: "I meant their hand and tricks
@@ -8982,7 +9009,9 @@ body.turn-combat .board .lane.lane-active {
    player bar). Persistent top-right pip across every screen. */
 .settings-cog {
   position: fixed !important; top: 14px; right: 14px; z-index: 500 !important;
-  width: 42px; height: 42px; border-radius: 50%;
+  /* 44px = the WCAG / Apple HIG minimum touch target. Was 42px.
+     (2026-06 a11y polish.) */
+  width: 44px; height: 44px; border-radius: 50%;
   background: #000000;
   border: 1px solid rgba(var(--theme-rgb, 79,195,247),0.95);
   color: rgba(var(--theme-rgb, 79,195,247),0.95);
@@ -9006,8 +9035,9 @@ body.turn-combat .board .lane.lane-active {
    corner. Click clears the service-worker cache and hard-reloads
    so the user pulls the latest deploy. */
 .sync-btn {
-  position: fixed !important; top: 14px; right: 66px; z-index: 500 !important;
-  width: 42px; height: 42px; border-radius: 50%;
+  position: fixed !important; top: 14px; right: 68px; z-index: 500 !important;
+  /* 44px touch target; right:68 keeps a 10px gap from the 44px cog. */
+  width: 44px; height: 44px; border-radius: 50%;
   background: #000000;
   border: 1px solid rgba(var(--theme-rgb, 79,195,247),0.95);
   color: rgba(var(--theme-rgb, 79,195,247),0.95);
