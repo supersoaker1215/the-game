@@ -478,6 +478,9 @@ const UI = {
     this._applyPlayerIdentity();
     // Theme is saved continuously by applyTheme; nothing to read here.
     try { localStorage.setItem(this.SETTINGS_KEY, JSON.stringify(this.settings)); } catch (e) {}
+    // Commitment actions must confirm — otherwise the only way to know a
+    // save worked is to re-open the panel. The themed toast already exists.
+    if (this.showAITrickToast) this.showAITrickToast('Settings Saved', 'Your preferences are stored', 'trick');
     this.closeSettings();
   },
   // Sync the current page to the latest GitHub Pages deploy.
@@ -1640,7 +1643,15 @@ const UI = {
         this._ctx = new AC();
         this._master = this._ctx.createGain();
         this._master.gain.value = (UI.settings && UI.settings.sfxVolume) ?? 0.55;
-        this._master.connect(this._ctx.destination);
+        // Master-bus limiter — catches the "wall of sound" the cue code
+        // itself worries about (multi-death combat, Batman + Fear + two
+        // Strikes summing past 0dBFS) before it hard-clips on destination.
+        // Fast attack, musical release; transparent until things get loud.
+        const comp = this._ctx.createDynamicsCompressor();
+        comp.threshold.value = -10; comp.knee.value = 6; comp.ratio.value = 4;
+        comp.attack.value = 0.003; comp.release.value = 0.15;
+        this._master.connect(comp);
+        comp.connect(this._ctx.destination);
       } catch (e) { return false; }
       return true;
     },
@@ -2802,6 +2813,21 @@ const UI = {
   init() {
     this.loadSettings();
     this.initViewportMode();  // restore web/mobile preview from localStorage
+    // Tab-visibility gate — when the player tabs away (constant in PvP lobby
+    // waits and long sessions) the ~89 infinite CSS animations keep repainting
+    // and heating the GPU/battery for nothing. Pause them all via a body class
+    // while hidden; the browser already throttles our rAF loops. Restore on
+    // return. Idempotent — safe to bind once here.
+    if (!this._visBound) {
+      this._visBound = true;
+      document.addEventListener('visibilitychange', () => {
+        document.body.classList.toggle('tab-hidden', document.hidden);
+      });
+    }
+    // First-run nudge — once the menu is up, a brand-new player gets a
+    // one-time prompt pointing at the (already-built) tutorial. Self-gates on
+    // a localStorage flag + main-menu phase, so returning players never see it.
+    setTimeout(() => { try { this._maybeShowFirstRun(); } catch (e) {} }, 950);
     this._restoreStatsPrefs();  // restore stats panel filter / sort / view
     // Bind the audio module to UI so it can read settings.sfxVolume.
     if (this.audio && this.audio._bind) this.audio._bind(this);
@@ -3567,6 +3593,9 @@ const UI = {
         // doesn't overlap two stings.
         this._matchIntroArmed = true;
         try { this.sfx.stopMatchIntro(); } catch (e) {}
+        // Starting a match counts as onboarded — never nag with the first-run
+        // tutorial prompt after the player has already dived in.
+        try { localStorage.setItem('clb-onboarded', '1'); } catch (e) {}
         // Pick a fresh AI personality for this match (avatar + name
         // in the ai-bar). Round-robins via localStorage so repeats
         // feel less common.
@@ -6797,6 +6826,41 @@ const UI = {
       const lsEl = document.getElementById('twov2-lane-select');
       if (lsEl) lsEl.style.display = 'flex';
     }
+  },
+
+  // First-run onboarding nudge — a brand-new player is otherwise dropped
+  // into a 6-lane, 3-phase, keyword-dense game with no pointer to the
+  // (high-quality, already-wired) scripted Tutorial. Show a one-time
+  // dismissible prompt on the main menu; the flag is also set when any match
+  // starts (see installNavSounds) so a player who dives straight in isn't
+  // nagged later.
+  _maybeShowFirstRun() {
+    if (this._firstRunShown) return;
+    try { if (localStorage.getItem('clb-onboarded')) return; } catch (e) { return; }
+    if (!Game.state || Game.state.phase !== 'main-menu') return;   // menu only
+    if (typeof Tutorial === 'undefined' || !Tutorial.start) return;
+    this._firstRunShown = true;
+    const ov = document.createElement('div');
+    ov.className = 'first-run-overlay';
+    ov.innerHTML = `
+      <div class="first-run-panel" role="dialog" aria-modal="true" aria-label="Welcome">
+        <div class="first-run-title">New here?</div>
+        <div class="first-run-body">Take a 3-minute guided walkthrough — play a scripted round and learn the lanes, energy, and the Block Meter before you dive in.</div>
+        <div class="first-run-actions">
+          <button type="button" class="btn btn-primary" id="first-run-play">Take the walkthrough</button>
+          <button type="button" class="btn" id="first-run-skip">Skip for now</button>
+        </div>
+      </div>`;
+    // Append to <html>, NOT <body> — body has container-type: inline-size
+    // (implies contain: layout), which would make this position:fixed overlay
+    // resolve against body's tall scroll box and render the modal off-screen.
+    // documentElement has no containment, so fixed resolves to the viewport.
+    document.documentElement.appendChild(ov);
+    const done = () => { try { localStorage.setItem('clb-onboarded', '1'); } catch (e) {} ov.remove(); };
+    const play = ov.querySelector('#first-run-play');  // (queried before append; node already built)
+    const skip = ov.querySelector('#first-run-skip');
+    if (play) play.onclick = () => { done(); try { Tutorial.start(); } catch (e) {} };
+    if (skip) skip.onclick = done;
   },
 
   // ===================== MAIN MENU (phase 4a) =====================
@@ -13831,6 +13895,7 @@ const UI = {
         if (batBlocked) {
           el.classList.add('unplayable');
           el.title = 'Blocked by Batman — card is locked this turn.';
+          el.onclick = () => { if (UI.showAITrickToast) UI.showAITrickToast("Can't play that", 'Blocked by Batman — card is locked this turn.', 'error'); };
         } else if (card.jumpReady && hasOpen) {
           el.classList.add('jump-ready');
           el.onclick = () => Game.playJumpCard('player', card);
@@ -13864,7 +13929,13 @@ const UI = {
           }
           else if (!afford) reason = `Not enough energy — needs ${cost}, you have ${s.player.currency}.`;
           else if (!hasOpen) reason = 'No open lane available.';
-          if (reason) el.title = reason;
+          if (reason) {
+            el.title = reason;
+            // Touch has no hover, so the title never shows — a beginner taps a
+            // greyed card and gets nothing at the moment they're most confused.
+            // Surface the reason as a toast on tap (long-press still inspects).
+            el.onclick = () => { if (UI.showAITrickToast) UI.showAITrickToast("Can't play that", reason, 'error'); };
+          }
         }
       } else {
         el.classList.add('unplayable');
@@ -15317,7 +15388,12 @@ const UI = {
       this._ctx = new Ctx();
       this._master = this._ctx.createGain();
       this._master.gain.value = 1;
-      this._master.connect(this._ctx.destination);
+      // Master-bus limiter — same anti-clip guard as the sfx engine.
+      const comp = this._ctx.createDynamicsCompressor();
+      comp.threshold.value = -10; comp.knee.value = 6; comp.ratio.value = 4;
+      comp.attack.value = 0.003; comp.release.value = 0.15;
+      this._master.connect(comp);
+      comp.connect(this._ctx.destination);
       return this._ctx;
     },
     _vol() {
@@ -18140,21 +18216,27 @@ const UI = {
         if (!card || card.id == null) return;
         const prev = this._lastCardStats.get(card.id) || {};
         const atk = card.attack, hp = card.currentHealth;
-        if (prev.atk != null && prev.atk !== atk) this._flipStatOrb(card.id, 'atk');
-        if (prev.hp  != null && prev.hp  !== hp)  this._flipStatOrb(card.id, 'hp');
+        if (prev.atk != null && prev.atk !== atk) this._flipStatOrb(card.id, 'atk', atk - prev.atk);
+        if (prev.hp  != null && prev.hp  !== hp)  this._flipStatOrb(card.id, 'hp',  hp  - prev.hp);
         this._lastCardStats.set(card.id, { atk, hp });
       });
     });
   },
-  _flipStatOrb(cardId, which) {
+  _flipStatOrb(cardId, which, delta) {
     const cardEl = document.querySelector(`[data-card-id="${cardId}"]`);
     if (!cardEl) return;
     const orb = cardEl.querySelector('.stat-' + which);
     if (!orb) return;
-    orb.classList.remove('stat-changed');
+    // Valence — a buff (delta > 0) pops green/up, a hit or debuff (delta < 0)
+    // snaps red/shake. The CSS reads stat-up / stat-down layered on
+    // stat-changed; both clear together so a later change re-triggers cleanly.
+    orb.classList.remove('stat-changed', 'stat-up', 'stat-down');
     void orb.offsetWidth;
     orb.classList.add('stat-changed');
-    setTimeout(() => orb.classList.remove('stat-changed'), 380);
+    if (typeof delta === 'number' && delta !== 0) {
+      orb.classList.add(delta > 0 ? 'stat-up' : 'stat-down');
+    }
+    setTimeout(() => orb.classList.remove('stat-changed', 'stat-up', 'stat-down'), 600);
     // Tick-up the digit itself: count from prev → current over ~380ms.
     // Reads the previous integer from data-prev-stat (set by us last
     // tick) so re-renders don't lose history. Plays a smooth digit
@@ -19053,6 +19135,7 @@ function dbSave() {
   saved[name] = { cards: db.cards.slice(), tricks: db.tricks.slice() };
   UI._dbSetSavedDecks(saved);
   UI.render();
+  if (UI.showAITrickToast) UI.showAITrickToast('Deck Saved', `"${name}" — ${db.cards.length} cards + ${db.tricks.length} tricks`, 'trick');
 }
 function dbLoad() {
   const sel = document.getElementById('db-load-select');

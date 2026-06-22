@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
   <meta name="theme-color" content="#4fc3f7">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -13,7 +13,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap">
-  <link rel="stylesheet" href="style.css?v=616">
+  <link rel="stylesheet" href="style.css?v=617">
   <script>
     // Lightweight error reporter (pre-Sentry) — capture runtime JS
     // errors + unhandled promise rejections to a localStorage ring
@@ -513,6 +513,10 @@
         <circle cx="20" cy="13" r="1.2" fill="currentColor" stroke="none"/>
       </svg>
     </button>
+    <!-- IN-MATCH HELP — opens the Controls/Rules + keyword glossary. The
+         `?` key already does this on desktop; this makes it tap-reachable
+         (the panel was otherwise unreachable on touch). -->
+    <button class="cheat-help-toggle" onclick="UI.toggleCheatSheet()" title="Rules &amp; keywords" aria-label="Rules and keyword help">?</button>
     <div id="log-section" class="log-section log-drawer collapsed">
       <div class="section-label">Battle Log <button class="log-close" onclick="UI.toggleLogDrawer()" title="Close">&#10005;</button></div>
       <div id="game-log" class="game-log"></div>
@@ -724,7 +728,7 @@
   <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
   <script src="multiplayer.js?v=7"></script>
   <script src="card-art-manifest.js?v=30"></script>
-  <script src="ui.js?v=762"></script>
+  <script src="ui.js?v=763"></script>
   <script src="tutorial.js?v=7"></script>
   <script src="logger.js?v=5"></script>
   <!-- Always-on crash capture. Hooks window.onerror +
