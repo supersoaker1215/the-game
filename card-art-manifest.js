@@ -32,7 +32,7 @@ window.CARD_ART_VARIANTS = {
   'Emperor Palpatine':   ['Emperor Palpatine 2.png',  'Emperor Palpatine.png'],
   'Hulk':                ['Hulk 2.png',               'Hulk.png'],
   'Iron Man':            ['Iron Man 2.png',           'Iron Man.png',              'Iron Man 3.png'],
-  'Jason Voorhees':      ['Jason Voorhees 2.png',     'Jason Voorhees.png'],
+  'Jason Voorhees':      ['Jason Voorhees 3.png',     'Jason Voorhees 2.png',      'Jason Voorhees.png'],
   'Omni-Man':            ['Omni-Man 2.png',           'Omni-Man.png'],
   'Spider-Man':          ['Spider-Man 2.png',         'Spider-Man.png'],
   'Superman':            ['Superman 2.png',           'Superman.png'],
