@@ -319,6 +319,9 @@ const UI = {
     aiPacing: 'animated',
     // SFX master volume (0..1). 0 silences everything. Procedural, no files.
     sfxVolume: 0.55,
+    // Music bed level (0..1), independent of SFX — drives the menu loop +
+    // match intro. SFX slider at 0 still mutes everything (master kill).
+    musicVolume: 0.55,
     // Menu music on/off — plays on main menu, mode picker, deck builder,
     // and draft screens. Stops automatically when a round begins.
     menuMusic: true
@@ -424,6 +427,11 @@ const UI = {
           try { this.sfx._music.play().catch(() => {}); } catch (e) {}
         }
       }
+    }
+    const musicVolEl = g('setting-music-volume');
+    if (musicVolEl) {
+      this.settings.musicVolume = parseInt(musicVolEl.value, 10) / 100;
+      if (this.sfx) this.sfx.setMusicVolume();
     }
     const menuMusicEl = g('setting-menu-music');
     if (menuMusicEl) {
@@ -548,6 +556,21 @@ const UI = {
       if (!sfxVolEl._fillHookWired) {
         sfxVolEl._fillHookWired = true;
         sfxVolEl.addEventListener('input', syncFill);
+      }
+    }
+    const musicVolEl = g('setting-music-volume');
+    if (musicVolEl) {
+      musicVolEl.value = Math.round((this.settings.musicVolume ?? 0.55) * 100);
+      const syncMFill = () => { musicVolEl.style.setProperty('--sfx-pct', musicVolEl.value + '%'); };
+      syncMFill();
+      if (!musicVolEl._fillHookWired) {
+        musicVolEl._fillHookWired = true;
+        // Live-preview the music level as the slider drags (and persist).
+        musicVolEl.addEventListener('input', () => {
+          syncMFill();
+          this.settings.musicVolume = parseInt(musicVolEl.value, 10) / 100;
+          if (this.sfx) this.sfx.setMusicVolume();
+        });
       }
     }
     const menuMusicEl = g('setting-menu-music');
@@ -1940,7 +1963,7 @@ const UI = {
       // Music sits under nav cues (0.35×) so a sound effect at sfxVolume
       // always reads above the loop. Cancel any in-flight fade from a
       // prior stopMusic so we don't rubber-band.
-      const target = Math.max(0, Math.min(1, (UI.settings.sfxVolume ?? 0.55) * 0.35));
+      const target = this._musicTargetVol();
       if (this._musicFadeInterval) { clearInterval(this._musicFadeInterval); this._musicFadeInterval = null; }
       this._musicWantPlay = true;
       try {
@@ -1973,7 +1996,7 @@ const UI = {
       if (!this._music || this._music.paused) return;
       if (this._musicDucked) return;
       this._musicDucked = true;
-      const fullTarget = Math.max(0, Math.min(1, (UI.settings.sfxVolume ?? 0.55) * 0.35));
+      const fullTarget = this._musicTargetVol();
       this._musicDuckBase = fullTarget;
       const duckTarget = fullTarget * this._MUSIC_DUCK_FACTOR;
       if (this._musicFadeInterval) { clearInterval(this._musicFadeInterval); this._musicFadeInterval = null; }
@@ -1983,7 +2006,7 @@ const UI = {
       if (!this._music || this._music.paused) { this._musicDucked = false; return; }
       if (!this._musicDucked) return;
       this._musicDucked = false;
-      const fullTarget = this._musicDuckBase ?? Math.max(0, Math.min(1, (UI.settings.sfxVolume ?? 0.55) * 0.35));
+      const fullTarget = this._musicDuckBase ?? this._musicTargetVol();
       if (this._musicFadeInterval) { clearInterval(this._musicFadeInterval); this._musicFadeInterval = null; }
       this._fadeVolume(this._music, fullTarget, this._MUSIC_DUCK_FADE_MS, '_musicFadeInterval');
     },
@@ -1995,15 +2018,25 @@ const UI = {
       if (this._musicFadeInterval) { clearInterval(this._musicFadeInterval); this._musicFadeInterval = null; }
       // Fade the loop out over 400ms before pausing — keeps the menu-to-
       // round transition feeling cinematic instead of a silence drop.
-      const restoreVol = Math.max(0, Math.min(1, (UI.settings.sfxVolume ?? 0.55) * 0.35));
+      const restoreVol = this._musicTargetVol();
       this._fadeVolume(a, 0, 600, '_musicFadeInterval', () => {
         try { a.pause(); a.currentTime = 0; a.volume = restoreVol; } catch (e) {}
       });
     },
 
+    // Target playback level for the music bed (menu loop + match intro).
+    // Independent of the SFX slider: driven by the dedicated Music slider so
+    // a player can run loud music + quiet effects (or the reverse). The SFX
+    // slider at 0 still acts as the master kill-switch ("0 silences audio
+    // entirely"). 0.35 keeps music under nav/combat cues at full music vol.
+    _musicTargetVol() {
+      if (!UI.settings || UI.settings.sfxVolume === 0) return 0;   // master mute
+      const mv = (UI.settings.musicVolume != null) ? UI.settings.musicVolume : 0.55;
+      return Math.max(0, Math.min(1, mv * 0.35));
+    },
     setMusicVolume() {
       if (!this._music) return;
-      this._music.volume = Math.max(0, Math.min(1, (UI.settings.sfxVolume ?? 0.55) * 0.35));
+      this._music.volume = this._musicTargetVol();
     },
 
     // ---- Match load-in cue ------------------------------------------------
@@ -2023,7 +2056,7 @@ const UI = {
         a.loop = false;
         a.preload = 'auto';
         this._matchIntro = a;
-        const target = Math.max(0, Math.min(1, (UI.settings.sfxVolume ?? 0.55) * 0.35));
+        const target = this._musicTargetVol();
         a.volume = 0;
         try { a.currentTime = 0; } catch (e) {}
         const p = a.play();

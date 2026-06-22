@@ -13,7 +13,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap">
-  <link rel="stylesheet" href="style.css?v=618">
+  <link rel="stylesheet" href="style.css?v=619">
   <script>
     // Lightweight error reporter (pre-Sentry) — capture runtime JS
     // errors + unhandled promise rejections to a localStorage ring
@@ -652,8 +652,12 @@
       <div class="settings-group">
         <div class="settings-group-title">Audio</div>
         <div class="settings-row">
-          <label for="setting-sfx-volume" title="Master volume for procedural sound effects (card plays, hits, victory). 0 silences audio entirely.">SFX Volume</label>
+          <label for="setting-sfx-volume" title="Volume for procedural sound effects (card plays, hits, victory). 0 silences ALL audio (master mute).">SFX Volume</label>
           <input type="range" id="setting-sfx-volume" min="0" max="100" step="5" value="55">
+        </div>
+        <div class="settings-row">
+          <label for="setting-music-volume" title="Level of the music bed (menu loop + the 20s match load-in), independent of SFX. Loud music + quiet effects is fine.">Music Volume</label>
+          <input type="range" id="setting-music-volume" min="0" max="100" step="5" value="55">
         </div>
         <div class="settings-row">
           <label for="setting-menu-music" title="Looping music on the main menu, mode picker, deck builder, and draft screens. Stops automatically when a round begins.">Menu music</label>
@@ -728,7 +732,7 @@
   <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
   <script src="multiplayer.js?v=7"></script>
   <script src="card-art-manifest.js?v=30"></script>
-  <script src="ui.js?v=766"></script>
+  <script src="ui.js?v=767"></script>
   <script src="tutorial.js?v=7"></script>
   <script src="logger.js?v=5"></script>
   <!-- Always-on crash capture. Hooks window.onerror +

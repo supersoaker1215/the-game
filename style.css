@@ -9191,7 +9191,7 @@ body.turn-combat .board .lane.lane-active {
    dark track, bright neon wash up to the thumb, illuminated leading
    edge, double halo. Reuses --theme-rgb so it repaints with whatever
    neon theme is active. */
-#setting-sfx-volume {
+#setting-sfx-volume, #setting-music-volume {
   -webkit-appearance: none;
   appearance: none;
   width: 160px; height: 16px;
@@ -9200,7 +9200,8 @@ body.turn-combat .board .lane.lane-active {
   margin: 0;
   cursor: pointer;
 }
-#setting-sfx-volume::-webkit-slider-runnable-track {
+#setting-sfx-volume::-webkit-slider-runnable-track,
+#setting-music-volume::-webkit-slider-runnable-track {
   height: 16px;
   background:
     linear-gradient(90deg,
@@ -9212,7 +9213,8 @@ body.turn-combat .board .lane.lane-active {
     0 0 12px rgba(var(--theme-rgb, 79,195,247), 0.55),
     0 0 24px rgba(var(--theme-rgb, 79,195,247), 0.22);
 }
-#setting-sfx-volume::-webkit-slider-thumb {
+#setting-sfx-volume::-webkit-slider-thumb,
+#setting-music-volume::-webkit-slider-thumb {
   -webkit-appearance: none;
   appearance: none;
   width: 4px; height: 22px;
@@ -9226,18 +9228,21 @@ body.turn-combat .board .lane.lane-active {
     0 0 24px rgba(var(--theme-rgb, 79,195,247), 0.30);
   cursor: ew-resize;
 }
-#setting-sfx-volume::-moz-range-track {
+#setting-sfx-volume::-moz-range-track,
+#setting-music-volume::-moz-range-track {
   height: 14px;
   background: rgba(0,0,0,0.85);
   border-radius: 3px;
   border: 1px solid rgba(var(--theme-rgb, 79,195,247), 0.95);
 }
-#setting-sfx-volume::-moz-range-progress {
+#setting-sfx-volume::-moz-range-progress,
+#setting-music-volume::-moz-range-progress {
   height: 14px;
   background: rgba(var(--theme-rgb, 79,195,247), 0.24);
   border-radius: 2px 0 0 2px;
 }
-#setting-sfx-volume::-moz-range-thumb {
+#setting-sfx-volume::-moz-range-thumb,
+#setting-music-volume::-moz-range-thumb {
   width: 4px; height: 22px;
   background: rgba(var(--theme-rgb, 79,195,247), 1);
   border: none;
