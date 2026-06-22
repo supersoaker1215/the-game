@@ -5776,6 +5776,9 @@ const UI = {
         const card = document.querySelector(`[data-card-id="${ev.cardId}"]`);
         const side = card && card.classList.contains('ally-card') ? 'player' : 'ai';
         this.spawnBlockSpark(side);
+        // One-time teaching — the first time YOUR meter credits, explain the
+        // mechanic (a tutorial-skipper otherwise just sees a gold circle fill).
+        if (side === 'player') this._maybeTeachBlockMeter();
       }
       if (ev.type === 'blocked') {
         // BLOCKED! banner
@@ -7027,6 +7030,22 @@ const UI = {
       title: opts.title || 'Confirm', message,
       okText: opts.okText || 'Yes', cancelText: opts.cancelText || 'Cancel', danger: !!opts.danger,
     });
+  },
+
+  // One-time Block Meter teaching callout — the signature mechanic (fills on
+  // damage taken, at BLOCK_MAX it hard-blocks the next hit AND draws a free
+  // Trick) is only taught in the scripted tutorial. A player who skipped it
+  // sees a filling gold circle with no idea what it means. localStorage-gated
+  // so it fires exactly once per browser, the first time their meter credits.
+  _maybeTeachBlockMeter() {
+    if (this._blockTaught) return;
+    try { if (localStorage.getItem('clb-block-taught')) { this._blockTaught = true; return; } } catch (e) { return; }
+    this._blockTaught = true;
+    try { localStorage.setItem('clb-block-taught', '1'); } catch (e) {}
+    const max = (typeof Game !== 'undefined' && Game.BLOCK_MAX) || 8;
+    if (this.showAITrickToast) {
+      this.showAITrickToast('Block Meter', `Damage you take fills it. At ${max}/${max} it hard-blocks the next hit AND draws you a free Trick.`, 'trick');
+    }
   },
 
   // Prune per-match Maps that are keyed by unique card ids and otherwise
