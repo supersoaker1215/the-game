@@ -1859,6 +1859,56 @@ const UI = {
       this._arenaHum = null;
     },
 
+    // ===================== DANGER HEARTBEAT =====================
+    // A slow procedural "lub-dub" that fades in when the PLAYER's HP is
+    // critical (≤30%) so the tensest moment of a match is scored instead of
+    // silent. The game already computes the critical state for the red HP
+    // throb; this hooks the same beat to audio. Idempotent start/stop tied to
+    // the render loop (UI.render). Felt-but-subtle — sits under combat SFX.
+    _dangerHeartbeatStart() {
+      if (!this._init()) return;
+      if (this._dangerHeart) return;                       // already running
+      if (!UI.settings || UI.settings.sfxVolume === 0) return;
+      const ctx = this._ctx;
+      const bus = ctx.createGain();
+      bus.gain.setValueAtTime(0, ctx.currentTime);
+      bus.gain.linearRampToValueAtTime(1, ctx.currentTime + 1.2);  // fade in
+      bus.connect(this._master);
+      const thump = (at, f0, f1, gain, dur) => {
+        const o = ctx.createOscillator(); o.type = 'sine';
+        o.frequency.setValueAtTime(f0, at);
+        o.frequency.exponentialRampToValueAtTime(Math.max(1, f1), at + dur);
+        const g = ctx.createGain();
+        g.gain.setValueAtTime(0.0001, at);
+        g.gain.exponentialRampToValueAtTime(gain, at + 0.012);
+        g.gain.exponentialRampToValueAtTime(0.0001, at + dur);
+        o.connect(g); g.connect(bus);
+        o.start(at); o.stop(at + dur + 0.03);
+      };
+      const beat = () => {
+        if (!this._dangerHeart || !this._ctx) return;
+        const t = this._ctx.currentTime;
+        thump(t,        60, 38, 0.34, 0.17);   // lub
+        thump(t + 0.21, 50, 32, 0.22, 0.15);   // dub
+      };
+      beat();
+      this._dangerHeart = { bus, interval: setInterval(beat, 1050) };  // ~57 bpm
+    },
+    _dangerHeartbeatStop() {
+      const h = this._dangerHeart;
+      if (!h) return;
+      clearInterval(h.interval);
+      if (this._ctx) {
+        const now = this._ctx.currentTime;
+        try {
+          h.bus.gain.cancelScheduledValues(now);
+          h.bus.gain.setValueAtTime(h.bus.gain.value, now);
+          h.bus.gain.linearRampToValueAtTime(0.0001, now + 0.5);
+        } catch (e) {}
+      }
+      this._dangerHeart = null;
+    },
+
     // ===================== COMBAT ANTICIPATION THUMP =====================
     // Sub-bass thump fired alongside the .combat-anticipate body class.
     // 60 Hz exp-decay sine + a soft noise tail. Brief — ~280ms total —
@@ -4808,6 +4858,16 @@ const UI = {
         if (span) span.classList.toggle('hp-critical-text', critical);
       }
     });
+    // Danger heartbeat — fade a slow procedural pulse in when YOUR HP is
+    // critical during an active fight, so the tensest moment is scored instead
+    // of silent. Player-side only; stops the instant HP recovers, the match
+    // ends, or we leave to a menu/draft screen. Idempotent start/stop.
+    if (this.sfx && this.sfx._dangerHeartbeatStart) {
+      const pCrit = s.player.health > 0 && (s.player.health / (s.player.maxHealth || 30)) <= 0.30;
+      const inFight = !s.gameOver && /cards|tricks|combat|fight|round/.test(s.phase || '');
+      if (pCrit && inFight) this.sfx._dangerHeartbeatStart();
+      else this.sfx._dangerHeartbeatStop();
+    }
     // Frozen HP ring when Mr. Freeze shield is active
     const pHpCont = document.getElementById('player-hp-fill').closest('.health-container');
     const aHpCont = document.getElementById('ai-hp-fill').closest('.health-container');
@@ -17220,6 +17280,7 @@ const UI = {
         // tail so it doesn't disappear abruptly under the victory
         // sting.
         try { if (A && A.arenaHumStop) A.arenaHumStop(); } catch (e) {}
+        try { if (A && A._dangerHeartbeatStop) A._dangerHeartbeatStop(); } catch (e) {}
       } else if (s && !s.gameOver) {
         // Reset the latch when a new game starts.
         this._gameOverCued = false;
