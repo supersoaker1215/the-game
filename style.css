@@ -858,13 +858,7 @@ body.turn-combat::before { background: linear-gradient(to bottom, rgba(255,215,0
   --fill: 0%;
   width: 44px; height: 44px; border-radius: 50%;
   position: relative;
-  /* Partial-fill sweep — the gold pie fills clockwise from the top in
-     proportion to --fill (set per-render by ui.js from the block fraction),
-     so "one more hit = free Trick" reads at a glance instead of the ring
-     being a flat black disc until it snaps full at 8/8. */
-  background: conic-gradient(from -90deg,
-    rgba(255,215,0,0.88) 0 var(--fill),
-    rgba(8,8,10,0.92) var(--fill) 100%);
+  background: #000000;
   border: 1px solid rgba(255,215,0,0.95);
   box-shadow: 0 0 12px rgba(255,215,0,0.60), 0 0 24px rgba(255,215,0,0.25);
   transition: border-color 0.25s, box-shadow 0.25s, background 0.25s;
@@ -899,12 +893,18 @@ body.turn-combat::before { background: linear-gradient(to bottom, rgba(255,215,0
    red. Matches each side's banner hue so the block meter reads as part of the
    same energy spec as the HP bar and energy orb. */
 .player-bar .block-circle {
-  background: #000000;
+  /* Partial-fill sweep in the player's theme colour — the pie fills
+     clockwise from the top in proportion to --fill (set per-render by
+     ui.js from the block fraction), so "one more hit = free Trick" reads
+     at a glance instead of the ring being a flat disc until 8/8. */
+  background: conic-gradient(from -90deg,
+    rgba(var(--theme-rgb, 79,195,247), 0.85) 0 var(--fill),
+    rgba(6,10,16,0.92) var(--fill) 100%);
   border-color: rgba(var(--theme-rgb, 79,195,247), 0.95);
   box-shadow: 0 0 12px rgba(var(--theme-rgb, 79,195,247), 0.60), 0 0 24px rgba(var(--theme-rgb, 79,195,247), 0.25);
 }
 .player-bar .block-circle.full {
-  background: #000000;
+  background: conic-gradient(from -90deg, rgba(var(--theme-rgb, 79,195,247), 0.92) 0 100%, rgba(var(--theme-rgb, 79,195,247), 0.92) 100%);
   border-color: rgba(var(--theme-rgb, 79,195,247), 0.95);
   box-shadow: 0 0 14px rgba(var(--theme-rgb, 79,195,247), 0.95), 0 0 28px rgba(var(--theme-rgb, 79,195,247), 0.45);
 }
@@ -917,12 +917,15 @@ body.turn-combat::before { background: linear-gradient(to bottom, rgba(255,215,0
   text-shadow: 0 0 10px rgba(var(--theme-rgb, 79,195,247), 0.95);
 }
 .ai-bar .block-circle {
-  background: #000000;
+  /* Partial-fill sweep in enemy red — same clockwise fill off --fill. */
+  background: conic-gradient(from -90deg,
+    rgba(231,76,60,0.85) 0 var(--fill),
+    rgba(16,7,7,0.92) var(--fill) 100%);
   border-color: rgba(231,76,60,0.95);
   box-shadow: 0 0 12px rgba(231,76,60,0.60), 0 0 24px rgba(231,76,60,0.25);
 }
 .ai-bar .block-circle.full {
-  background: #000000;
+  background: conic-gradient(from -90deg, rgba(231,76,60,0.92) 0 100%, rgba(231,76,60,0.92) 100%);
   border-color: rgba(231,76,60,0.95);
   box-shadow: 0 0 14px rgba(231,76,60,0.95), 0 0 28px rgba(231,76,60,0.45);
 }
