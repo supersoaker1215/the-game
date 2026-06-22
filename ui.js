@@ -2534,7 +2534,7 @@ const UI = {
       });
     },
 
-    play(name) {
+    play(name, gainMul) {
       if (!UI.settings || UI.settings.sfxVolume === 0) return;
       if (!this._init()) return;
       if (this._ctx.state === 'suspended') { try { this._ctx.resume(); } catch (e) {} }
@@ -2576,14 +2576,23 @@ const UI = {
           this._tone({ type: 'sine', freq: 659, dur: 0.5, gain: 0.14, release: 0.55, delay: 0.04 });
           this._tone({ type: 'sine', freq: 784, dur: 0.55, gain: 0.12, release: 0.62, delay: 0.08 });
           break;
-        case 'hit':
+        case 'hit': {
           // Plasma / forcefield impact — sub thump body + mid pitch drop
-          // + high-passed digital snap. Replaces the old square+noise
-          // combo which sounded like an arcade punch.
-          this._tone({ type: 'sine',     freq: 70,  freqEnd: 35,  dur: 0.14, gain: 0.20, release: 0.18 });
-          this._tone({ type: 'triangle', freq: 380, freqEnd: 120, dur: 0.11, gain: 0.12, release: 0.14, delay: 0.005 });
-          this._noise({ dur: 0.045, gain: 0.06, highpass: 3200, lowpass: 7000, delay: 0.002 });
+          // + high-passed digital snap. gainMul (from _TIER_FX.sfxGain,
+          // ~0.78 light → 1.40 lethal) scales the whole impact so a chip
+          // tap and a lethal blow sound genuinely different — previously
+          // every hit fired bit-identical. Defaults to 1 for non-tiered callers.
+          const g = (typeof gainMul === 'number' && gainMul > 0) ? gainMul : 1;
+          this._tone({ type: 'sine',     freq: 70,  freqEnd: 35,  dur: 0.14, gain: 0.20 * g, release: 0.18 });
+          this._tone({ type: 'triangle', freq: 380, freqEnd: 120, dur: 0.11, gain: 0.12 * g, release: 0.14, delay: 0.005 });
+          this._noise({ dur: 0.045, gain: 0.06 * g, highpass: 3200, lowpass: 7000, delay: 0.002 });
+          // Lethal sub-thump — the heaviest hits drop a 45Hz body so a kill
+          // is felt as much as heard. Only the top tier earns it.
+          if (g >= 1.35) {
+            this._tone({ type: 'sine', freq: 46, freqEnd: 28, dur: 0.22, gain: 0.17 * g, release: 0.26, delay: 0.004 });
+          }
           break;
+        }
         case 'hpHit':
           this._tone({ type: 'sawtooth', freq: 130, freqEnd: 55, dur: 0.12, gain: 0.2, release: 0.18 });
           this._noise({ dur: 0.14, gain: 0.15, highpass: 120, lowpass: 1600 });
@@ -5578,6 +5587,13 @@ const UI = {
     setTimeout(() => cardEl.classList.remove('card-knockback'), 360);
   },
 
+  // Contested-lane combat hits land ~190ms into the 540ms lunge keyframe
+  // (the impact-hold frame, see markActiveLaneBeat). Their reactive FX +
+  // damage number are deferred to that beat so they land ON contact instead
+  // of ~190ms BEFORE the cards visually collide — which read as the defender
+  // flinching before it's struck. Splash / trick / ability hits carry no
+  // attackerId (no lunge) and stay immediate.
+  _COMBAT_IMPACT_MS: 175,
   showDamageFloats() {
     const events = Game.flushDmg();
     for (const ev of events) {
@@ -5649,6 +5665,16 @@ const UI = {
       // Card-targeted events — find card element on board
       const cardEl = document.querySelector(`[data-card-id="${ev.cardId}"]`);
       if (!cardEl) continue;
+      // Defer the visual FX + damage number of a contested-lane combat hit
+      // to the lunge impact frame (~190ms) so they land ON contact. Splash /
+      // trick / ability hits (no attackerId, no lunge) and reduced-motion
+      // run inline. The float block below uses the SAME defer so a hit's
+      // number rises exactly when its flash blooms.
+      const _combatHit = ev.type === 'hit' && ev.attackerId != null
+        && !(this._reducedMotion && this._reducedMotion());
+      const defer = _combatHit
+        ? (fn) => setTimeout(fn, this._COMBAT_IMPACT_MS || 175)
+        : (fn) => fn();
       // Hit flash + strike burst ring + card shake — ALL magnitude-
       // scaled. The tier classifier maps this hit's damage (and
       // lethality) to a feedback intensity; every channel below reads
@@ -5657,45 +5683,40 @@ const UI = {
       if (ev.type === 'hit') {
         const tier = this._damageTier(ev.amount, ev.lethal);
         const fx = this._TIER_FX[tier] || this._TIER_FX.medium;
-        ev._popScale = fx.pop;   // read later by the floating-number block
-        // Attack beam — laser line from attacker to target. Fires only
-        // when the attacker is known (direct combat hits). Skipped for
-        // splash/chain/trick damage where the attackerId is undefined.
-        if (ev.attackerId != null && ev.amount > 0) {
-          this._spawnAttackBeam(ev.attackerId, ev.cardId);
-        }
-        // Tiered flash — brightness peak + duration scale with tier.
-        // Light hits get a short dim flash; lethal gets the longest,
-        // brightest one (via the hit-flash-heavy/-lethal modifier
-        // classes that lift the keyframe peak).
-        cardEl.classList.add('hit-flash');
-        if (fx.flashCls) cardEl.classList.add(fx.flashCls);
-        cardEl.style.setProperty('--flash-ms', fx.flashMs + 'ms');
-        setTimeout(() => cardEl.classList.remove('hit-flash', 'hit-flash-heavy', 'hit-flash-lethal'), fx.flashMs);
-        // Chip-shedding particle burst — count scales with tier (2 for
-        // a tap, 8 for a kill). spawnHitChips reads the override.
-        this.spawnHitChips(cardEl, fx.chips);
-        // Card recoil — jolt away from the attacker, distance by tier.
-        this._cardKnockback(cardEl, fx.knockback);
-        // Screen shake — RESTRAINT at the low end: light hits do NOT
-        // shake at all (fx.shake === null), so the screen only moves
-        // for hits that earned it. medium/heavy/lethal escalate.
-        if (fx.shake) this._screenShake(fx.shake);
-        // Lethal hit-pause — brief board freeze-frame so a kill lands
-        // as a discrete beat. No-op for non-lethal tiers.
-        if (fx.hitPause) this._hitPauseFreeze(fx.hitPause);
-        this.sfx.play('hit');
-        // Haptic — fires for EVERY hit, not just player-side. The
-        // phone doesn't know which side is "yours", so a tick per
-        // hit is honest feedback and subtle enough not to be spammy.
-        if (ev.amount > 0) this._haptic('hit');
-        // Concussive ring burst — size scales with tier via --burst-scale.
-        const burst = document.createElement('div');
-        burst.className = 'strike-burst';
-        burst.style.setProperty('--burst-scale', String(fx.burst));
-        cardEl.style.position = 'relative';
-        cardEl.appendChild(burst);
-        setTimeout(() => burst.remove(), 600);
+        ev._popScale = fx.pop;   // read synchronously by the floating-number block
+        // The reactive bundle below is gated through defer() so a combat hit
+        // fires it at the impact frame, not the instant combat resolves.
+        defer(() => {
+          // Attack beam — laser line from attacker to target. Fires only
+          // when the attacker is known (direct combat hits). Skipped for
+          // splash/chain/trick damage where the attackerId is undefined.
+          if (ev.attackerId != null && ev.amount > 0) {
+            this._spawnAttackBeam(ev.attackerId, ev.cardId);
+          }
+          // Tiered flash — brightness peak + duration scale with tier.
+          cardEl.classList.add('hit-flash');
+          if (fx.flashCls) cardEl.classList.add(fx.flashCls);
+          cardEl.style.setProperty('--flash-ms', fx.flashMs + 'ms');
+          setTimeout(() => cardEl.classList.remove('hit-flash', 'hit-flash-heavy', 'hit-flash-lethal'), fx.flashMs);
+          // Chip-shedding particle burst — count scales with tier.
+          this.spawnHitChips(cardEl, fx.chips);
+          // Card recoil — jolt away from the attacker, distance by tier.
+          this._cardKnockback(cardEl, fx.knockback);
+          // Screen shake — light hits don't shake (fx.shake === null).
+          if (fx.shake) this._screenShake(fx.shake);
+          // Lethal hit-pause — brief board freeze-frame on a kill.
+          if (fx.hitPause) this._hitPauseFreeze(fx.hitPause);
+          this.sfx.play('hit', fx.sfxGain);
+          // Haptic — one honest tick per hit, either side.
+          if (ev.amount > 0) this._haptic('hit');
+          // Concussive ring burst — size scales with tier via --burst-scale.
+          const burst = document.createElement('div');
+          burst.className = 'strike-burst';
+          burst.style.setProperty('--burst-scale', String(fx.burst));
+          cardEl.style.position = 'relative';
+          cardEl.appendChild(burst);
+          setTimeout(() => burst.remove(), 600);
+        });
       }
       // Armor absorb — shield burst animation on the card + a metal
       // "ting" system SFX so the deflection is audibly distinct from
@@ -5717,47 +5738,41 @@ const UI = {
       if (ev.type === 'evade') {
         this.sfx.play('evade');
       }
-      // Floating number — spawn with a randomized horizontal offset
-      // so stacked hits (splash + main + chain) don't overlap into a
-      // single illegible blob.
-      const float = document.createElement('div');
-      float.className = `dmg-float dmg-${ev.type}`;
-      if (ev.type === 'hit') float.textContent = `-${ev.amount}`;
-      else if (ev.type === 'evade') float.textContent = 'EVADE';
-      else if (ev.type === 'block') float.textContent = 'BLOCKED';
-      else if (ev.type === 'armor') float.textContent = 'ARMOR';
-      else if (ev.type === 'heal') float.textContent = `+${ev.amount}`;
-      // Magnitude pop — the bigger the hit, the bigger the number
-      // punches in. _popScale was stamped on the event by the hit
-      // handler above (1.0 for a tap → 1.7 for a lethal). Heavy/lethal
-      // tiers also get a tier class for an additive glow. Non-hit
-      // events default to 1.0.
-      const popScale = ev._popScale || 1.0;
-      float.style.setProperty('--pop-scale', String(popScale));
-      if (popScale >= 1.6) float.classList.add('dmg-float-lethal');
-      else if (popScale >= 1.35) float.classList.add('dmg-float-heavy');
-      const dx = (Math.random() * 26 - 13) | 0;
-      float.style.setProperty('--dx', dx + 'px');
-      // Vertical stagger — track per-card float count in a 1.2s
-      // rolling window so multi-hit damage (splash + main + thorns +
-      // chain) stacks readably instead of overlapping. Each subsequent
-      // float on the same card rises higher than the last.
-      // Audit finding: "Numbers stack illegibly on multi-hit (splash
-      // + main + chain)."
-      if (!this._dmgFloatStack) this._dmgFloatStack = new Map();
-      const stack = this._dmgFloatStack;
-      const key = ev.cardId;
-      const now = performance.now();
-      const slot = stack.get(key);
-      let stackIdx = 0;
-      if (slot && now - slot.t < 1100) stackIdx = slot.n + 1;
-      stack.set(key, { n: stackIdx, t: now });
-      // Each stack step lifts the float ~16px and adds a tiny
-      // horizontal drift so the column doesn't read like a vertical bar.
-      float.style.setProperty('--stack-dy', (stackIdx * -14) + 'px');
-      cardEl.style.position = 'relative';
-      cardEl.appendChild(float);
-      setTimeout(() => float.remove(), 1200);
+      // Floating number — deferred to impact for combat hits (same defer as
+      // the FX bundle) so the "-N" rises as the flash blooms; immediate for
+      // everything else. Randomized horizontal offset + a per-card vertical
+      // stagger so stacked hits (splash + main + chain) stay legible.
+      defer(() => {
+        const float = document.createElement('div');
+        float.className = `dmg-float dmg-${ev.type}`;
+        if (ev.type === 'hit') float.textContent = `-${ev.amount}`;
+        else if (ev.type === 'evade') float.textContent = 'EVADE';
+        else if (ev.type === 'block') float.textContent = 'BLOCKED';
+        else if (ev.type === 'armor') float.textContent = 'ARMOR';
+        else if (ev.type === 'heal') float.textContent = `+${ev.amount}`;
+        // Magnitude pop — _popScale was stamped on the event by the hit
+        // handler above (1.0 tap → 1.7 lethal); non-hit events default 1.0.
+        const popScale = ev._popScale || 1.0;
+        float.style.setProperty('--pop-scale', String(popScale));
+        if (popScale >= 1.6) float.classList.add('dmg-float-lethal');
+        else if (popScale >= 1.35) float.classList.add('dmg-float-heavy');
+        const dx = (Math.random() * 26 - 13) | 0;
+        float.style.setProperty('--dx', dx + 'px');
+        // Vertical stagger — per-card float count in a 1.1s rolling window
+        // so multi-hit damage stacks readably instead of overlapping.
+        if (!this._dmgFloatStack) this._dmgFloatStack = new Map();
+        const stack = this._dmgFloatStack;
+        const key = ev.cardId;
+        const now = performance.now();
+        const slot = stack.get(key);
+        let stackIdx = 0;
+        if (slot && now - slot.t < 1100) stackIdx = slot.n + 1;
+        stack.set(key, { n: stackIdx, t: now });
+        float.style.setProperty('--stack-dy', (stackIdx * -14) + 'px');
+        cardEl.style.position = 'relative';
+        cardEl.appendChild(float);
+        setTimeout(() => float.remove(), 1200);
+      });
     }
   },
 

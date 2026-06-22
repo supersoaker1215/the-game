@@ -268,6 +268,12 @@ body {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   text-rendering: optimizeLegibility;
+  /* Rajdhani tops out at weight 700 on Google Fonts, but ~90 display
+     rules ask for 800/900 — the browser was faking those with synthetic
+     bold, which smears the large neon titles (hero, victory/defeat, phase
+     banners) at exactly the premium moments. Disabling weight synthesis
+     renders them crisp at the real 700 instead of a muddy faux-800. */
+  font-synthesis: none;
   /* Container context so the @container (max-width: ...) rules below
      fire either when body's actual width is phone-sized OR when the
      "Mobile preview" toggle constrains body to 390px on a desktop
@@ -852,7 +858,13 @@ body.turn-combat::before { background: linear-gradient(to bottom, rgba(255,215,0
   --fill: 0%;
   width: 44px; height: 44px; border-radius: 50%;
   position: relative;
-  background: #000000;
+  /* Partial-fill sweep — the gold pie fills clockwise from the top in
+     proportion to --fill (set per-render by ui.js from the block fraction),
+     so "one more hit = free Trick" reads at a glance instead of the ring
+     being a flat black disc until it snaps full at 8/8. */
+  background: conic-gradient(from -90deg,
+    rgba(255,215,0,0.88) 0 var(--fill),
+    rgba(8,8,10,0.92) var(--fill) 100%);
   border: 1px solid rgba(255,215,0,0.95);
   box-shadow: 0 0 12px rgba(255,215,0,0.60), 0 0 24px rgba(255,215,0,0.25);
   transition: border-color 0.25s, box-shadow 0.25s, background 0.25s;
