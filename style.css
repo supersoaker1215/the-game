@@ -4444,7 +4444,13 @@ body.hit-pause .ai-hand * {
      likewise for the player side. Horizontal padding kept for the outermost
      lanes' glow so they don't clip the board frame. */
   padding: 0 8px; overflow-x: auto;
-  background: #000000;
+  /* Static center-lift so the arena floor reads with a touch of depth in the
+     lane gaps + outer padding instead of pure black. Fully static (no
+     per-frame cost) so it can't reintroduce the perf regression that forced
+     the animated motes off. */
+  background:
+    radial-gradient(135% 100% at 50% 48%, rgba(40,72,108,0.10) 0%, rgba(8,14,24,0.05) 42%, #000 74%),
+    #000000;
   /* No top/bottom border — the banners already carry those edges. Duplicating
      them created a 2px dead stripe where the colors abut. */
   border-top: none;
@@ -10760,6 +10766,40 @@ body.turn-combat .board .lane.lane-active {
 }
 .first-run-actions { display: flex; flex-direction: column; gap: 10px; }
 .first-run-actions .btn { width: 100%; }
+
+/* Themed alert / confirm modal — replaces native browser dialogs. */
+.app-modal-overlay {
+  position: fixed; inset: 0; z-index: 500;
+  display: flex; align-items: center; justify-content: center;
+  background: rgba(0,6,12,0.74);
+  -webkit-backdrop-filter: blur(3px); backdrop-filter: blur(3px);
+  animation: gameOverFadeIn 0.22s ease-out; padding: 20px;
+}
+.app-modal-panel {
+  max-width: 400px; width: 100%;
+  background: linear-gradient(180deg, rgba(10,16,24,0.98), rgba(6,10,16,0.98));
+  border: 1px solid rgba(var(--theme-rgb, 79,195,247),0.5);
+  border-radius: 12px;
+  box-shadow: 0 0 24px rgba(var(--theme-rgb, 79,195,247),0.22), 0 8px 40px rgba(0,0,0,0.6);
+  padding: 22px 22px 18px;
+  animation: gameOverSlideUp 0.4s var(--ease-spring, cubic-bezier(0.34,1.56,0.64,1.0));
+}
+.app-modal-title {
+  font-family: 'Rajdhani', sans-serif; font-weight: 700; font-size: 19px;
+  letter-spacing: 0.6px; color: rgb(var(--theme-rgb, 79,195,247));
+  text-shadow: 0 0 9px rgba(var(--theme-rgb, 79,195,247),0.45); margin-bottom: 10px;
+}
+.app-modal-body {
+  font-family: 'Inter', sans-serif; font-size: 13.5px; line-height: 1.5;
+  color: #d2dde8; margin-bottom: 18px; white-space: pre-line;
+}
+.app-modal-actions { display: flex; gap: 10px; justify-content: flex-end; }
+.app-modal-actions .btn { min-width: 92px; }
+.app-modal-danger {
+  border-color: rgba(231,76,60,0.9) !important; color: #ff9c90 !important;
+  box-shadow: 0 0 12px rgba(231,76,60,0.4), 0 0 24px rgba(231,76,60,0.18) !important;
+}
+.app-modal-danger:hover { background: rgba(231,76,60,0.16) !important; color: #ffd0ca !important; }
 
 /* Dead-pile peek popover */
 .dead-peek {

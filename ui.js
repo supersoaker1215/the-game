@@ -604,9 +604,13 @@ const UI = {
     const phase = Game && Game.state ? Game.state.phase : null;
     const inMatch = phase && phase !== 'main-menu' && phase !== 'mode-select'
                  && phase !== 'my-decks' && phase !== 'stats';
-    if (inMatch && !confirm('Return to the main menu? Your current match will be lost.')) return;
-    this.closeSettings();
-    if (Game && Game.goToMainMenu) Game.goToMainMenu();
+    const doQuit = () => { this.closeSettings(); if (Game && Game.goToMainMenu) Game.goToMainMenu(); };
+    if (inMatch) {
+      this.confirmModal('Return to the main menu? Your current match will be lost.',
+        { title: 'Leave Match', okText: 'Leave', danger: true }).then(ok => { if (ok) doQuit(); });
+      return;
+    }
+    doQuit();
   },
 
   // Settings backup — copy the entire settings blob (theme, SFX volume,
@@ -623,7 +627,7 @@ const UI = {
       }, null, 2);
       const flash = (msg) => {
         if (this.showAITrickToast) this.showAITrickToast('Settings Copied', msg, 'trick');
-        else alert(msg);
+        else UI.alertModal(msg);
       };
       if (navigator.clipboard && navigator.clipboard.writeText) {
         navigator.clipboard.writeText(blob).then(
@@ -634,7 +638,7 @@ const UI = {
         window.prompt('Copy your settings backup:', blob);
       }
     } catch (e) {
-      alert('Could not export settings: ' + (e && e.message || e));
+      UI.alertModal('Could not export settings: ' + (e && e.message || e));
     }
   },
   importSettings() {
@@ -642,27 +646,30 @@ const UI = {
     if (!raw) return;
     let payload;
     try { payload = JSON.parse(raw); }
-    catch (e) { alert('Invalid settings JSON — could not parse.'); return; }
+    catch (e) { UI.alertModal('Invalid settings JSON — could not parse.'); return; }
     if (!payload || payload.v !== 1 || typeof payload.settings !== 'object') {
-      alert('Invalid settings — unrecognized format.');
+      UI.alertModal('Invalid settings — unrecognized format.');
       return;
     }
-    if (!confirm('Overwrite your current settings (and saved decks if included) with the imported backup?')) return;
-    // Merge into existing settings so unknown future keys aren't lost.
-    Object.assign(this.settings, payload.settings);
-    try { localStorage.setItem(this.SETTINGS_KEY, JSON.stringify(this.settings)); } catch (e) {}
-    if (payload.savedDecks && typeof payload.savedDecks === 'object') {
-      const { decks, dropped } = this._validateImportedDecks(payload.savedDecks);
-      this._dbSetSavedDecks(decks);
-      if (dropped.length) {
-        console.warn('[importSettings] dropped malformed decks:', dropped);
+    this.confirmModal('Overwrite your current settings (and saved decks if included) with the imported backup?',
+      { title: 'Import Settings', okText: 'Overwrite', danger: true }).then(ok => {
+      if (!ok) return;
+      // Merge into existing settings so unknown future keys aren't lost.
+      Object.assign(this.settings, payload.settings);
+      try { localStorage.setItem(this.SETTINGS_KEY, JSON.stringify(this.settings)); } catch (e) {}
+      if (payload.savedDecks && typeof payload.savedDecks === 'object') {
+        const { decks, dropped } = this._validateImportedDecks(payload.savedDecks);
+        this._dbSetSavedDecks(decks);
+        if (dropped.length) {
+          console.warn('[importSettings] dropped malformed decks:', dropped);
+        }
       }
-    }
-    // Re-apply visual settings immediately.
-    if (this.applyTheme) this.applyTheme(this.settings.theme || 'blue');
-    if (this.sfx && this.sfx.setVolume) this.sfx.setVolume(this.settings.sfxVolume ?? 0.55);
-    this.closeSettings();
-    alert('Settings imported successfully.');
+      // Re-apply visual settings immediately.
+      if (this.applyTheme) this.applyTheme(this.settings.theme || 'blue');
+      if (this.sfx && this.sfx.setVolume) this.sfx.setVolume(this.settings.sfxVolume ?? 0.55);
+      this.closeSettings();
+      UI.alertModal('Settings imported successfully.');
+    });
   },
 
   // AI scheduling — delay between AI card plays so player can follow along.
@@ -6859,6 +6866,55 @@ const UI = {
     }
   },
 
+  // Themed alert / confirm dialogs — replace the native browser dialogs that
+  // hard-break the Tron aesthetic (and block the JS thread). confirmModal
+  // returns a Promise<boolean>. Appended to <html> to escape body's
+  // container-type containment of fixed positioning. Message is set via
+  // textContent (never innerHTML) so user-supplied strings (deck names) are
+  // safe; CSS white-space: pre-line renders any \n in the message.
+  _modalDialog({ title, message, okText = 'OK', cancelText = null, danger = false }) {
+    return new Promise((resolve) => {
+      const ov = document.createElement('div');
+      ov.className = 'app-modal-overlay';
+      const okCls = danger ? 'app-modal-danger' : 'btn-primary';
+      ov.innerHTML = `
+        <div class="app-modal-panel" role="dialog" aria-modal="true" aria-label="${title || 'Dialog'}">
+          ${title ? `<div class="app-modal-title"></div>` : ''}
+          <div class="app-modal-body"></div>
+          <div class="app-modal-actions">
+            ${cancelText ? `<button type="button" class="btn" data-act="cancel"></button>` : ''}
+            <button type="button" class="btn ${okCls}" data-act="ok"></button>
+          </div>
+        </div>`;
+      if (title) ov.querySelector('.app-modal-title').textContent = title;
+      ov.querySelector('.app-modal-body').textContent = String(message == null ? '' : message);
+      const okB = ov.querySelector('[data-act="ok"]'); if (okB) okB.textContent = okText;
+      const caB = ov.querySelector('[data-act="cancel"]'); if (caB) caB.textContent = cancelText;
+      document.documentElement.appendChild(ov);
+      const close = (val) => { try { ov.remove(); } catch (e) {} document.removeEventListener('keydown', onKey); resolve(val); };
+      ov.addEventListener('click', (e) => {
+        const act = e.target && e.target.getAttribute && e.target.getAttribute('data-act');
+        if (act === 'ok') close(true);
+        else if (act === 'cancel') close(false);
+        else if (e.target === ov && cancelText) close(false);  // backdrop = cancel, only when cancelable
+      });
+      const onKey = (e) => {
+        if (e.key === 'Escape') { e.preventDefault(); close(cancelText ? false : true); }
+        else if (e.key === 'Enter') { e.preventDefault(); close(true); }
+      };
+      document.addEventListener('keydown', onKey);
+      try { (okB || ov.querySelector('.btn')).focus(); } catch (e) {}
+    });
+  },
+  alertModal(message, title) { return this._modalDialog({ title: title || 'Notice', message, okText: 'OK' }); },
+  confirmModal(message, opts) {
+    opts = opts || {};
+    return this._modalDialog({
+      title: opts.title || 'Confirm', message,
+      okText: opts.okText || 'Yes', cancelText: opts.cancelText || 'Cancel', danger: !!opts.danger,
+    });
+  },
+
   // Prune per-match Maps that are keyed by unique card ids and otherwise
   // grow set-only across a session (slow leak over long rematch / roguelite
   // chains). Called on every match start.
@@ -8308,7 +8364,7 @@ const UI = {
       get your first entry.
     </div>`;
     const body = list.length ? list.map(row).join('') : empty;
-    const clearBtn = list.length ? `<button type="button" class="mh-clear-btn" onclick="if(confirm('Clear all match history?')){UI._clearMatchHistory();UI.renderMatchHistory();}">Clear History</button>` : '';
+    const clearBtn = list.length ? `<button type="button" class="mh-clear-btn" onclick="UI.confirmModal('Clear all match history?',{title:'Clear History',okText:'Clear',danger:true}).then(function(ok){if(ok){UI._clearMatchHistory();UI.renderMatchHistory();}})">Clear History</button>` : '';
     // Per-archetype win-rate breakdown — bucket matches by aiArchetype
     // and compute W-L plus win rate. Only matches that recorded an
     // archetype contribute (older entries pre-archetype-field show as
@@ -8830,20 +8886,20 @@ const UI = {
     return new Multiplayer.WebRTCTransport();
   },
   _mpCreateRoom() {
-    if (typeof Multiplayer === 'undefined') { alert('Multiplayer module not loaded.'); return; }
+    if (typeof Multiplayer === 'undefined') { UI.alertModal('Multiplayer module not loaded.'); return; }
     const transport = this._mpPickTransport();
-    if (!transport) { alert('No multiplayer transport available.'); return; }
+    if (!transport) { UI.alertModal('No multiplayer transport available.'); return; }
     transport.open();
     Multiplayer.init(transport);
     Multiplayer.createRoom({ name: this._mpName() });
   },
   _mpJoinRoom() {
-    if (typeof Multiplayer === 'undefined') { alert('Multiplayer module not loaded.'); return; }
+    if (typeof Multiplayer === 'undefined') { UI.alertModal('Multiplayer module not loaded.'); return; }
     const input = document.getElementById('mp-join-code');
     const code = (input && input.value || '').trim().toUpperCase();
-    if (code.length !== 4) { alert('Enter the 4-letter room code your friend shared.'); return; }
+    if (code.length !== 4) { UI.alertModal('Enter the 4-letter room code your friend shared.'); return; }
     const transport = this._mpPickTransport();
-    if (!transport) { alert('No multiplayer transport available.'); return; }
+    if (!transport) { UI.alertModal('No multiplayer transport available.'); return; }
     transport.open();
     Multiplayer.init(transport);
     this._mpState.status = 'joining';
@@ -9099,7 +9155,7 @@ const UI = {
         ? `<span class="md-deck-badge md-badge-ready" title="Deck is complete and ready to play">✓ READY</span>`
         : `<span class="md-deck-badge md-badge-incomplete" title="Needs exactly 30 cards + 8 tricks">✗ INCOMPLETE</span>`;
       // Disable Play button when the deck isn't valid — clicking it
-      // through would just alert() inside mdPlay; gating here makes
+      // through would just UI.alertModal() inside mdPlay; gating here makes
       // the affordance clearer.
       const playBtn = isReady
         ? `<button type="button" class="md-action-btn md-action-play" onclick="mdPlay('${nameAttr}')">Play</button>`
@@ -10504,7 +10560,7 @@ const UI = {
   },
   openReplay() {
     const r = this._loadReplay();
-    if (!r) { alert('No replay saved yet. Finish a match first.'); return; }
+    if (!r) { UI.alertModal('No replay saved yet. Finish a match first.'); return; }
     this._renderReplayOverlay(r);
   },
   // Copy a compact text summary of the last match to clipboard — a
@@ -10515,7 +10571,7 @@ const UI = {
   // people can copy-paste your winning build.
   shareResultSummary() {
     const replay = this._loadReplay();
-    if (!replay || !replay.summary) { alert('No recent match to share.'); return; }
+    if (!replay || !replay.summary) { UI.alertModal('No recent match to share.'); return; }
     const s = replay.summary;
     const verdict = s.winner === 'player' ? 'WON' : s.winner === 'ai' ? 'LOST' : 'DREW';
     const persona = this._currentAiPersonality;
@@ -10541,7 +10597,7 @@ const UI = {
   _copyToClipboard(text) {
     const flash = (msg) => {
       if (this.showAITrickToast) this.showAITrickToast('Copied to clipboard', msg, 'trick');
-      else alert(msg);
+      else UI.alertModal(msg);
     };
     if (navigator.clipboard && navigator.clipboard.writeText) {
       navigator.clipboard.writeText(text).then(
@@ -19062,8 +19118,8 @@ function draftUndo() { if (Game && Game.draftUndo) Game.draftUndo(); }
 // Abort a draft and go back to the main menu. Confirms so a stray click
 // doesn't nuke picks the user already made.
 function draftQuitToMenu() {
-  if (!confirm('Quit this draft and return to the main menu? Your picks will be lost.')) return;
-  Game.goToMainMenu();
+  UI.confirmModal('Quit this draft and return to the main menu? Your picks will be lost.',
+    { title: 'Quit Draft', okText: 'Quit', danger: true }).then(ok => { if (ok) Game.goToMainMenu(); });
 }
 // Mode-select overlay button handler. Accepts any (players, deck) combo
 // so 2v2 can plug in later without a rename. Deckbuilder goes through
@@ -19168,7 +19224,7 @@ function dbSave() {
   const input = document.getElementById('db-save-name');
   if (!input) return;
   const name = (input.value || '').trim();
-  if (!name) { alert('Enter a deck name before saving.'); return; }
+  if (!name) { UI.alertModal('Enter a deck name before saving.'); return; }
   const db = Game.state.deckbuilder;
   if (!db) return;
   const saved = UI._dbGetSavedDecks();
@@ -19198,7 +19254,7 @@ function dbExportCode() {
   const db = Game.state.deckbuilder;
   if (!db) return;
   if (!db.cards.length && !db.tricks.length) {
-    alert('Deck is empty — add some cards first.');
+    UI.alertModal('Deck is empty — add some cards first.');
     return;
   }
   const payload = { v: 1, c: db.cards, t: db.tricks };
@@ -19221,7 +19277,7 @@ function dbExportCode() {
       if (typeof UI !== 'undefined' && UI.showAITrickToast) {
         UI.showAITrickToast('Deck Code Copied', blurb + ' — paste anywhere to share', 'trick');
       } else {
-        alert('Deck code copied to clipboard!\n(' + blurb + ')');
+        UI.alertModal('Deck code copied to clipboard!\n(' + blurb + ')');
       }
     } else {
       window.prompt('Copy this deck code:', code);
@@ -19239,11 +19295,11 @@ function dbImportCode() {
     const json = decodeURIComponent(escape(atob(code)));
     payload = JSON.parse(json);
   } catch (e) {
-    alert('Invalid deck code — could not decode.');
+    UI.alertModal('Invalid deck code — could not decode.');
     return;
   }
   if (!payload || payload.v !== 1 || !Array.isArray(payload.c) || !Array.isArray(payload.t)) {
-    alert('Invalid deck code — unrecognized format.');
+    UI.alertModal('Invalid deck code — unrecognized format.');
     return;
   }
   // Validate every card/trick exists in the current pool.
@@ -19254,7 +19310,7 @@ function dbImportCode() {
   const missingCards = payload.c.filter(n => !knownCards.has(n));
   const missingTricks = payload.t.filter(n => !knownTricks.has(n));
   if (missingCards.length || missingTricks.length) {
-    alert('Deck code references unknown cards:\n' +
+    UI.alertModal('Deck code references unknown cards:\n' +
       missingCards.concat(missingTricks).slice(0, 8).join(', '));
     return;
   }
@@ -19291,7 +19347,7 @@ function mdPlay(name) {
   const deck = saved[name];
   if (!deck) return;
   if ((deck.cards || []).length !== 30 || (deck.tricks || []).length !== 8) {
-    alert('This deck is invalid (needs exactly 30 cards + 8 tricks). Edit it first.');
+    UI.alertModal('This deck is invalid (needs exactly 30 cards + 8 tricks). Edit it first.');
     return;
   }
   // withDraft: true so the saved deck still goes through the full draft
@@ -19335,7 +19391,7 @@ function mdRename(name) {
   const trimmed = fresh.trim();
   if (!trimmed) return;
   const saved = UI._dbGetSavedDecks();
-  if (saved[trimmed]) { alert('A deck with that name already exists.'); return; }
+  if (saved[trimmed]) { UI.alertModal('A deck with that name already exists.'); return; }
   if (!saved[name]) return;
   saved[trimmed] = saved[name];
   delete saved[name];
@@ -19344,11 +19400,14 @@ function mdRename(name) {
 }
 
 function mdDelete(name) {
-  if (!confirm(`Delete "${name}"? This can't be undone.`)) return;
-  const saved = UI._dbGetSavedDecks();
-  delete saved[name];
-  UI._dbSetSavedDecks(saved);
-  UI.render();
+  UI.confirmModal(`Delete "${name}"? This can't be undone.`,
+    { title: 'Delete Deck', okText: 'Delete', danger: true }).then(ok => {
+    if (!ok) return;
+    const saved = UI._dbGetSavedDecks();
+    delete saved[name];
+    UI._dbSetSavedDecks(saved);
+    UI.render();
+  });
 }
 
 // ---- STATS HANDLERS (phase 4d/4e/4f) ----
@@ -19396,9 +19455,12 @@ function statsReloadSim() {
   UI.render();
 }
 function statsResetLocal() {
-  if (!confirm('Reset all locally-tracked card stats? Sim data is unaffected. This can\'t be undone.')) return;
-  UI._statsReset();
-  UI.render();
+  UI.confirmModal('Reset all locally-tracked card stats? Sim data is unaffected. This can\'t be undone.',
+    { title: 'Reset Stats', okText: 'Reset', danger: true }).then(ok => {
+    if (!ok) return;
+    UI._statsReset();
+    UI.render();
+  });
 }
 function statsExportCsv() {
   const rows = UI._buildStatsRows(UI._statsUi.source);
