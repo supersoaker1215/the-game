@@ -1692,7 +1692,7 @@ const UI = {
       window.addEventListener('keydown', resume);
     },
 
-    _tone({ type = 'sine', freq = 440, freqEnd = null, dur = 0.15, gain = 0.25, attack = 0.005, release = null, delay = 0 }) {
+    _tone({ type = 'sine', freq = 440, freqEnd = null, dur = 0.15, gain = 0.25, attack = 0.005, release = null, delay = 0, pan = 0 }) {
       if (!this._init()) return;
       const ctx = this._ctx;
       const t0 = ctx.currentTime + delay;
@@ -1702,14 +1702,30 @@ const UI = {
       osc.frequency.setValueAtTime(freq, t0);
       if (freqEnd != null) osc.frequency.exponentialRampToValueAtTime(Math.max(1, freqEnd), t0 + dur);
       const rel = release != null ? release : dur;
+      // Per-fire gain jitter (±8%) so repeated cues — several 'hit' tones in a
+      // <1s combat flurry — don't machine-gun bit-identical. Pitch stays exact
+      // so musical triads (cardPlay etc.) remain in tune.
+      const gj = gain * (0.92 + Math.random() * 0.16);
       g.gain.setValueAtTime(0, t0);
-      g.gain.linearRampToValueAtTime(gain, t0 + attack);
+      g.gain.linearRampToValueAtTime(gj, t0 + attack);
       g.gain.exponentialRampToValueAtTime(0.0001, t0 + rel);
-      osc.connect(g); g.connect(this._master);
+      osc.connect(g);
+      this._panConnect(g, pan);
       osc.start(t0); osc.stop(t0 + rel + 0.02);
     },
+    // Route a node to the master bus, optionally through a StereoPanner so
+    // lane-positioned combat SFX read left/right on headphones.
+    _panConnect(node, pan) {
+      if (pan && this._ctx.createStereoPanner) {
+        const p = this._ctx.createStereoPanner();
+        p.pan.value = Math.max(-1, Math.min(1, pan));
+        node.connect(p); p.connect(this._master);
+      } else {
+        node.connect(this._master);
+      }
+    },
 
-    _noise({ dur = 0.12, gain = 0.12, highpass = 400, lowpass = 6000, delay = 0 }) {
+    _noise({ dur = 0.12, gain = 0.12, highpass = 400, lowpass = 6000, delay = 0, pan = 0 }) {
       if (!this._init()) return;
       const ctx = this._ctx;
       const t0 = ctx.currentTime + delay;
@@ -1718,12 +1734,15 @@ const UI = {
       const data = buf.getChannelData(0);
       for (let i = 0; i < len; i++) data[i] = (Math.random() * 2 - 1) * (1 - i / len);
       const src = ctx.createBufferSource(); src.buffer = buf;
-      const hp = ctx.createBiquadFilter(); hp.type = 'highpass'; hp.frequency.value = highpass;
-      const lp = ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = lowpass;
+      // Per-fire jitter — gain ±12% and filter cutoffs ±6% so stacked combat
+      // noise bursts read as varied, not stamped from one sample.
+      const hp = ctx.createBiquadFilter(); hp.type = 'highpass'; hp.frequency.value = highpass * (0.94 + Math.random() * 0.12);
+      const lp = ctx.createBiquadFilter(); lp.type = 'lowpass';  lp.frequency.value = lowpass  * (0.94 + Math.random() * 0.12);
       const g = ctx.createGain();
-      g.gain.setValueAtTime(gain, t0);
+      g.gain.setValueAtTime(gain * (0.88 + Math.random() * 0.24), t0);
       g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
-      src.connect(hp); hp.connect(lp); lp.connect(g); g.connect(this._master);
+      src.connect(hp); hp.connect(lp); lp.connect(g);
+      this._panConnect(g, pan);
       src.start(t0); src.stop(t0 + dur);
     },
 
@@ -2545,7 +2564,7 @@ const UI = {
       });
     },
 
-    play(name, gainMul) {
+    play(name, gainMul, pan) {
       if (!UI.settings || UI.settings.sfxVolume === 0) return;
       if (!this._init()) return;
       if (this._ctx.state === 'suspended') { try { this._ctx.resume(); } catch (e) {} }
@@ -2594,11 +2613,13 @@ const UI = {
           // tap and a lethal blow sound genuinely different — previously
           // every hit fired bit-identical. Defaults to 1 for non-tiered callers.
           const g = (typeof gainMul === 'number' && gainMul > 0) ? gainMul : 1;
-          this._tone({ type: 'sine',     freq: 70,  freqEnd: 35,  dur: 0.14, gain: 0.20 * g, release: 0.18 });
-          this._tone({ type: 'triangle', freq: 380, freqEnd: 120, dur: 0.11, gain: 0.12 * g, release: 0.14, delay: 0.005 });
-          this._noise({ dur: 0.045, gain: 0.06 * g, highpass: 3200, lowpass: 7000, delay: 0.002 });
+          const pn = (typeof pan === 'number') ? pan : 0;   // lane-positioned stereo
+          this._tone({ type: 'sine',     freq: 70,  freqEnd: 35,  dur: 0.14, gain: 0.20 * g, release: 0.18, pan: pn });
+          this._tone({ type: 'triangle', freq: 380, freqEnd: 120, dur: 0.11, gain: 0.12 * g, release: 0.14, delay: 0.005, pan: pn });
+          this._noise({ dur: 0.045, gain: 0.06 * g, highpass: 3200, lowpass: 7000, delay: 0.002, pan: pn });
           // Lethal sub-thump — the heaviest hits drop a 45Hz body so a kill
-          // is felt as much as heard. Only the top tier earns it.
+          // is felt as much as heard. Only the top tier earns it. (Sub stays
+          // centered — low frequencies carry no useful stereo image.)
           if (g >= 1.35) {
             this._tone({ type: 'sine', freq: 46, freqEnd: 28, dur: 0.22, gain: 0.17 * g, release: 0.26, delay: 0.004 });
           }
@@ -3596,6 +3617,7 @@ const UI = {
         // Starting a match counts as onboarded — never nag with the first-run
         // tutorial prompt after the player has already dived in.
         try { localStorage.setItem('clb-onboarded', '1'); } catch (e) {}
+        this._pruneMatchState();
         // Pick a fresh AI personality for this match (avatar + name
         // in the ai-bar). Round-robins via localStorage so repeats
         // feel less common.
@@ -5736,7 +5758,15 @@ const UI = {
           if (fx.shake) this._screenShake(fx.shake);
           // Lethal hit-pause — brief board freeze-frame on a kill.
           if (fx.hitPause) this._hitPauseFreeze(fx.hitPause);
-          this.sfx.play('hit', fx.sfxGain);
+          // Stereo-pan the impact by the card's horizontal position so a
+          // left-lane and right-lane hit don't sound from the same spot.
+          let pan = 0;
+          const bd = this.board || document.getElementById('board');
+          if (bd && cardEl) {
+            const br = bd.getBoundingClientRect(), cr = cardEl.getBoundingClientRect();
+            if (br.width > 0) pan = Math.max(-0.5, Math.min(0.5, ((cr.left + cr.width / 2 - br.left) / br.width - 0.5)));
+          }
+          this.sfx.play('hit', fx.sfxGain, pan);
           // Haptic — one honest tick per hit, either side.
           if (ev.amount > 0) this._haptic('hit');
           // Concussive ring burst — size scales with tier via --burst-scale.
@@ -6827,6 +6857,15 @@ const UI = {
       const lsEl = document.getElementById('twov2-lane-select');
       if (lsEl) lsEl.style.display = 'flex';
     }
+  },
+
+  // Prune per-match Maps that are keyed by unique card ids and otherwise
+  // grow set-only across a session (slow leak over long rematch / roguelite
+  // chains). Called on every match start.
+  _pruneMatchState() {
+    [this._lastCardStats, this._dmgFloatStack, this._lastBoardCardIds].forEach(m => {
+      if (m && typeof m.clear === 'function') m.clear();
+    });
   },
 
   // First-run onboarding nudge — a brand-new player is otherwise dropped
@@ -19413,6 +19452,7 @@ function newGame() {
   const pill = document.getElementById('peek-restore');
   if (pill) pill.style.display = 'none';
   UI.stopVictoryConfetti();
+  UI._pruneMatchState();
   Game.init();
 }
 // Rematch — spin up a fresh match with the same mode + custom deck that
@@ -19427,6 +19467,7 @@ function rematch() {
   const pill = document.getElementById('peek-restore');
   if (pill) pill.style.display = 'none';
   UI.stopVictoryConfetti();
+  UI._pruneMatchState();
   Game.init();
   if (cfg && cfg.mode) {
     // Rebuild the startMatch args that were used. startMatch accepts
