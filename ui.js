@@ -7121,20 +7121,6 @@ const UI = {
               }
               return btn('mm-rogue', 'Roguelite', 'Climb a 6-fight ladder — build your deck as you go · beta', SVG.play, "Roguelite.enterRun()");
             })()}
-            ${(() => {
-              // Daily Run — same starter pools for everyone today.
-              // Subline reflects whether today's attempt is locked in.
-              const dailyStatus = (typeof Roguelite !== 'undefined' && Roguelite.dailyStatus) ? Roguelite.dailyStatus() : null;
-              if (dailyStatus && dailyStatus.attempted) {
-                const result = dailyStatus.result;
-                const sub = result === 'win'  ? `Today's run: WON · ${dailyStatus.date}`
-                          : result === 'loss' ? `Today's run: LOST · ${dailyStatus.date}`
-                          : `Today's attempt locked in · ${dailyStatus.date}`;
-                return btn('mm-daily', 'Daily Run', sub, SVG.stats, 'Roguelite.enterDailyRun()');
-              }
-              const sub = dailyStatus ? `Same starter pools for everyone today · ${dailyStatus.date}` : 'Same starter pools for everyone today';
-              return btn('mm-daily', 'Daily Run', sub, SVG.stats, 'Roguelite.enterDailyRun()');
-            })()}
             ${btn('mm-multi',   'Multiplayer',  'Match a friend over the internet · beta',                SVG.multi,    "UI.openMultiplayer()")}
             ${btn('mm-tutorial','Tutorial',     'Guided walkthrough — play a scripted round',              helpSVG,      "Tutorial.start()")}
           </div>
@@ -7142,8 +7128,7 @@ const UI = {
         <div class="mm-section">
           <div class="mm-section-label">Decks</div>
           <div class="mm-grid mm-grid-section">
-            ${btn('mm-builder', 'Deck Builder', 'Build a 30-card deck plus 8 tricks',                     SVG.builder,  "Game.enterDeckBuilder()")}
-            ${btn('mm-decks',   'My Decks',     'Your saved decks — edit, copy, or play',                 SVG.decks,    "Game.goToMyDecks()")}
+            ${btn('mm-decks',   'My Decks',     'Build, edit, copy, or play your decks',                  SVG.decks,    "Game.goToMyDecks()")}
           </div>
         </div>
         <div class="mm-section">

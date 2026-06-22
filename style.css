@@ -21903,6 +21903,13 @@ body.killing-blow-cinema::after {
   display: flex; flex-direction: column; gap: 10px;
   padding: 0 20px 16px;
 }
+/* Daily Run option on the Ascension screen — gold accent so it reads as a
+   distinct seeded mode, set apart from the difficulty choices. */
+.rl-asc-daily-divider { margin-top: 16px; opacity: 0.72; font-size: 12px; }
+.rl-event-choice.rl-asc-daily { border-color: rgba(255,215,0,0.55); }
+.rl-event-choice.rl-asc-daily:hover { border-color: rgba(255,215,0,0.9); box-shadow: 0 0 14px rgba(255,215,0,0.22); }
+.rl-event-choice.rl-asc-daily .rl-levelup-bucket { color: #ffd77a; }
+
 .rl-event-choice {
   padding: 14px 18px;
   background: rgba(15,18,25,0.85);

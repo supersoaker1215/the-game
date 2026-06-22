@@ -4255,9 +4255,30 @@ const Roguelite = {
         <span class="rl-levelup-desc">${a.desc}</span>
       </button>`;
     }).join('');
+    // Daily Run — moved here from the main menu. A separate seeded mode (same
+    // starter pools for everyone today, always Ascension-0 baseline); picking
+    // it bypasses the difficulty choice above.
+    const ds = this.dailyStatus ? this.dailyStatus() : null;
+    let dailySub = 'Same starter pools for everyone today';
+    if (ds) {
+      if (ds.attempted) {
+        dailySub = ds.result === 'win'  ? `Today: WON · ${ds.date}`
+                 : ds.result === 'loss' ? `Today: LOST · ${ds.date}`
+                 : `Today's attempt locked in · ${ds.date}`;
+      } else if (ds.date) {
+        dailySub = `Same starter pools for everyone today · ${ds.date}`;
+      }
+    }
+    const dailyBtn = `<button type="button" class="rl-event-choice rl-asc-daily" onclick="Roguelite._closeModal(); Roguelite.enterDailyRun();">
+      <span class="rl-levelup-bucket">Daily Run</span>
+      <span class="rl-levelup-name">Today's Seeded Challenge</span>
+      <span class="rl-levelup-desc">${dailySub}</span>
+    </button>`;
     const body = `
       <div class="rl-event-flavor">Pick your difficulty. Higher tiers stack: A2 includes A1, A3 includes A2, and so on.</div>
-      <div class="rl-event-choices">${buttons}</div>`;
+      <div class="rl-event-choices">${buttons}</div>
+      <div class="rl-event-flavor rl-asc-daily-divider">— or take today's seeded challenge —</div>
+      <div class="rl-event-choices">${dailyBtn}</div>`;
     this._modal('ASCENSION', body);
   },
 
