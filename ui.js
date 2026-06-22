@@ -4771,11 +4771,26 @@ const UI = {
     );
     document.body.classList.toggle('clb-toggle-hidden', !isLandingScreen || overlayOpen);
     // Pre-match overlays — only one is visible at a time. Refs cached at init.
-    if (this._mainMenuOverlay)    this._mainMenuOverlay.style.display    = isMainMenu ? 'flex' : 'none';
-    if (this._modeSelectOverlay)  this._modeSelectOverlay.style.display  = isModeSelect ? 'flex' : 'none';
-    if (this._myDecksOverlay)     this._myDecksOverlay.style.display     = isMyDecks ? 'flex' : 'none';
-    if (this._statsOverlay)       this._statsOverlay.style.display       = isStats ? 'flex' : 'none';
-    if (this._deckbuilderOverlay) this._deckbuilderOverlay.style.display = isDeckBuilder ? 'flex' : 'none';
+    // showOverlay adds a one-shot .shell-entering fade ONLY on a real
+    // hidden→shown transition (phase change to this screen), so the shell no
+    // longer hard-cuts between screens — but per-render re-renders (the deck
+    // builder rebuilds on every keystroke at a STABLE phase) don't re-trigger
+    // it, since the overlay was already shown.
+    const showOverlay = (el, show) => {
+      if (!el) return;
+      const wasHidden = el.style.display === 'none' || el.style.display === '';
+      el.style.display = show ? 'flex' : 'none';
+      if (show && wasHidden && !(this._reducedMotion && this._reducedMotion())) {
+        el.classList.remove('shell-entering');
+        void el.offsetWidth;
+        el.classList.add('shell-entering');
+      }
+    };
+    showOverlay(this._mainMenuOverlay,    isMainMenu);
+    showOverlay(this._modeSelectOverlay,  isModeSelect);
+    showOverlay(this._myDecksOverlay,     isMyDecks);
+    showOverlay(this._statsOverlay,       isStats);
+    showOverlay(this._deckbuilderOverlay, isDeckBuilder);
     this.draftEl.style.display = (isDraft || is2v2OnlineDraft) ? 'flex' : 'none';
     const isRoguelite = s.phase && s.phase.startsWith('roguelite');
     (this._gameAreaEl || document.getElementById('game-area')).style.display =

@@ -1607,6 +1607,19 @@ body.hit-pause .ai-hand * {
   .mm-grid-section .mm-option { animation: none; }
 }
 
+/* Shell screen entrance — soft fade when navigating between shell screens
+   (menu / mode-select / my-decks / stats / deck builder) instead of a hard
+   cut. Opacity-only (no transform) so the backdrop doesn't visibly shift.
+   One-shot; the class is added by render only on a real hidden→shown swap. */
+@keyframes shellEnter { 0% { opacity: 0; } 100% { opacity: 1; } }
+.main-menu-overlay.shell-entering,
+.mode-select-overlay.shell-entering,
+.my-decks-overlay.shell-entering,
+.stats-overlay.shell-entering,
+.deckbuilder-overlay.shell-entering {
+  animation: shellEnter 300ms var(--ease-out-soft, ease-out);
+}
+
 .mm-title {
   font-family: 'Rajdhani', sans-serif;
   font-size: 52px; font-weight: 700;
