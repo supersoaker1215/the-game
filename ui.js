@@ -2222,6 +2222,16 @@ const UI = {
         // Block hover starts while any board SFX (play/death/kill/spawn/ability) is active.
         // Once those sounds finish, _activeNonHover empties and hovers resume normally.
         if (this._activeNonHover && this._activeNonHover.size > 0) return null;
+        // Enforce ONE hover at a time at the audio layer: quick-fade any hover
+        // clone still PLAYING (from this or another card) before starting a new
+        // one. Belt-and-suspenders against a missed mouseout / orphaned clone
+        // stacking into overlapping hovers. Paused-for-resume clones aren't in
+        // _activeHover (removed on 'pause'), so the resume feature is untouched.
+        if (this._activeHover && this._activeHover.size) {
+          Array.from(this._activeHover).forEach(h => {
+            if (h && !h.paused) this._fadeToPauseAtPosition(h, 120);
+          });
+        }
         // Hover resume: if any clone was previously paused mid-play
         // (currentTime > 0 and < duration), re-use THAT clone and
         // continue from where we left off. Otherwise start fresh.
@@ -2585,6 +2595,17 @@ const UI = {
       // Was 1000 ms previously — the longer tail kept audio
       // audibly bleeding into the next hover's start.
       if (a && !a.paused) this._fadeToPauseAtPosition(a, 250);
+      // CRITICAL: stop EVERY other hover clone still ringing out, not just
+      // _currentHoverAudio. Fast cursor movement can start hover B and
+      // reassign _currentHoverAudio while card A's clone is still playing
+      // and orphaned in _activeHover — stopping only the current ref left
+      // that clone playing for its full length. THAT is the "Deadpool's
+      // hover plays when I'm not hovering / multiple hovers at once" bug.
+      if (this._activeHover && this._activeHover.size) {
+        Array.from(this._activeHover).forEach(h => {
+          if (h && h !== a && !h.paused) this._fadeToPauseAtPosition(h, 200);
+        });
+      }
       this._currentHoverAudio = null;
       this._currentHoverEl = null;
       this._currentHoverName = null;
