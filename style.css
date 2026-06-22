@@ -15942,10 +15942,12 @@ input:focus-visible,
    element flips + fades before the existing trick-burst fires. JS
    adds .trick-played briefly to the element. */
 @keyframes trickPlayedFlip {
-  0%   { opacity: 1; transform: rotateY(0deg)   scale(1);    filter: brightness(1); }
-  50%  { opacity: 0.85; transform: rotateY(90deg)  scale(1.2); filter: brightness(1.8); }
-  100% { opacity: 0; transform: rotateY(180deg) scale(0.5);  filter: brightness(0.6); }
+  0%   { opacity: 1;    transform: rotateY(0deg)   scale(1)    translateY(0);    filter: brightness(1); }
+  14%  { opacity: 1;    transform: rotateY(-7deg)  scale(0.92) translateY(3px);  filter: brightness(0.95); } /* anticipation wind-up */
+  52%  { opacity: 0.85; transform: rotateY(95deg)  scale(1.24) translateY(-7px); filter: brightness(1.95); } /* release + rise */
+  100% { opacity: 0;    transform: rotateY(180deg) scale(0.5)  translateY(-16px); filter: brightness(0.6); }  /* burn upward as it's spent */
 }
+.trick-card.trick-played { transform-origin: 50% 65%; }
 .trick-card.trick-played {
   animation: trickPlayedFlip 420ms var(--ease-out-soft) forwards;
   transform-style: preserve-3d;
