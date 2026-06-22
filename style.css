@@ -6096,6 +6096,21 @@ body.hit-pause .ai-hand * {
   100% { opacity: 0;   transform: scale(2.6); }
 }
 
+/* Card "thud" settle — fires the instant a flown card sets down in its
+   lane (the flight ghost already carried the reveal, so this is just the
+   weighty touchdown, not a full build-in). Uses the --ease-spring
+   overshoot token: the card lands a touch large and springs back through
+   1.0 with a micro-bounce so it reads as physical mass, not a fade-in.
+   transform-origin at the base sells the "set down onto the lane" read. */
+@keyframes cardLandSettle {
+  0%   { transform: scale(1.06); filter: brightness(1.18); }
+  100% { transform: scale(1);    filter: brightness(1);    }
+}
+.card.card-landing {
+  animation: cardLandSettle 360ms var(--ease-spring, cubic-bezier(0.34,1.56,0.64,1.0)) both;
+  transform-origin: 50% 100%;
+}
+
 /* AI-only reveal flip — lays on top of cardPlayIn so enemy cards arrive
    with a distinct "dealt face-up" feel (edge → front) while our own
    cards keep the drop-in motion. Perspective on the slot lets the Y

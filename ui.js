@@ -5055,21 +5055,103 @@ const UI = {
     }
   },
 
+  // Flight tuning — the hand→lane arc duration. Kept as a property so the
+  // landing-burst hook in installPolishLayer can fire on the same beat.
+  _FLY_DUR_MS: 460,
+
+  // Land FX for a PLAYER card touching down in its lane: the settle
+  // animation + lane dip + claim wave + dust kick + ring ripple. Called
+  // immediately for non-flight placements (summons, environments), and on
+  // the landing frame by _animateFly for cards that flew from the hand.
+  //   flown=true  → quick spring "thud" settle (the flight already revealed)
+  //   flown=false → the full 1s cardBuildIn scan-in
+  _spawnPlayerLandFx(cardEl, laneEl, slotEl, flown) {
+    if (!cardEl) return;
+    if (flown) {
+      cardEl.classList.remove('card-landing');
+      void cardEl.offsetWidth;            // restart the keyframe
+      cardEl.classList.add('card-landing');
+      setTimeout(() => cardEl.classList.remove('card-landing'), 400);
+    } else {
+      cardEl.classList.add('card-enter');
+      setTimeout(() => cardEl.classList.remove('card-enter'), 1100);
+    }
+    if (laneEl) {
+      laneEl.classList.add('lane-landed');
+      setTimeout(() => laneEl.classList.remove('lane-landed'), 400);
+      const wave = document.createElement('div');
+      wave.className = 'lane-claim-wave claim-player';
+      laneEl.appendChild(wave);
+      setTimeout(() => wave.remove(), 750);
+    }
+    if (slotEl) {
+      const dust = document.createElement('div');
+      dust.className = 'dust-kick';
+      slotEl.appendChild(dust);
+      setTimeout(() => dust.remove(), 500);
+      const ring = document.createElement('div');
+      ring.className = 'card-landing-ring ring-player';
+      slotEl.appendChild(ring);
+      setTimeout(() => ring.remove(), 900);
+    }
+  },
+
+  // Hand → board flight. The card you play physically travels from its hand
+  // slot to its lane along a parabolic arc (the authored cardFlightArc
+  // keyframe + .card-flight-ghost), then sets down with a spring "thud".
+  // This is the spatial through-line on the single most-repeated gesture in
+  // the game — without it the card teleports into the lane. The real card is
+  // hidden (.card-flying, added at placement) until the ghost lands, so we
+  // never show it sitting in the lane mid-flight. AI cards use reveal-flip
+  // and never fly; reduced-motion skips the arc entirely.
   _animateFly(realEl, fromRect) {
-    // User direction May-1: "Replace what we already have as an
-    // animation when you place a card with this build-in." The
-    // 840ms parabolic flight ghost was the actual visible play
-    // animation — it suppressed card-enter (line ~3656 used to
-    // strip card-enter from realEl) so the new cardBuildIn keyframe
-    // never had a chance to play. Now disabled: the real card stays
-    // visible immediately on placement and animates in via the
-    // cardBuildIn keyframe (.card.card-enter, style.css:5546).
-    //
-    // Kept the function as a stub (instead of removing the call
-    // site at line ~3626) so any future code path that still calls
-    // _animateFly is a no-op rather than a crash. If we ever want
-    // a flight back, restore the body and re-add a config flag.
-    return;
+    if (!realEl || !fromRect) return;
+    const slot = realEl.closest('.player-slot');
+    const lane = realEl.closest('.lane');
+    const bail = () => { realEl.classList.remove('card-flying'); };
+    if (this._reducedMotion && this._reducedMotion()) { bail(); return; }
+    if (!realEl.classList.contains('ally-card')) { bail(); return; }
+    const toRect = realEl.getBoundingClientRect();
+    if (!toRect || toRect.width < 1) { bail(); return; }
+    const dx = (toRect.left + toRect.width / 2) - (fromRect.left + fromRect.width / 2);
+    const dy = (toRect.top + toRect.height / 2) - (fromRect.top + fromRect.height / 2);
+    // Barely moved (re-render with no real travel) — just land in place.
+    if (Math.hypot(dx, dy) < 24) {
+      realEl.classList.remove('card-flying');
+      this._spawnPlayerLandFx(realEl, lane, slot, true);
+      return;
+    }
+    const ghost = realEl.cloneNode(true);
+    ghost.classList.add('card-flight-ghost');
+    ghost.classList.remove('card-enter', 'card-flying', 'card-landing', 'selected',
+      'card-selected', 'target-highlight', 'targetable', 'playable', 'unplayable');
+    ghost.removeAttribute('data-card-id');
+    ghost.onclick = null;
+    ghost.style.position = 'fixed';
+    ghost.style.margin = '0';
+    ghost.style.left = fromRect.left + 'px';
+    ghost.style.top = fromRect.top + 'px';
+    ghost.style.width = fromRect.width + 'px';
+    ghost.style.height = fromRect.height + 'px';
+    // Longer throws arc a little higher so distance reads as airtime.
+    const peak = Math.min(150, 56 + Math.abs(dx) * 0.10);
+    ghost.style.setProperty('--fly-dx', dx + 'px');
+    ghost.style.setProperty('--fly-dy', dy + 'px');
+    ghost.style.setProperty('--fly-peak-y', peak + 'px');
+    const DUR = this._FLY_DUR_MS || 460;
+    ghost.style.animation = `cardFlightArc ${DUR}ms cubic-bezier(0.33,0.85,0.31,1) forwards`;
+    document.body.appendChild(ghost);
+    realEl.classList.add('card-flying');     // belt-and-braces (placement already hid it)
+    realEl.classList.remove('card-enter');
+    let done = false;
+    const land = () => {
+      if (done) return; done = true;
+      try { ghost.remove(); } catch (e) {}
+      realEl.classList.remove('card-flying');
+      this._spawnPlayerLandFx(realEl, lane, slot, true);
+    };
+    ghost.addEventListener('animationend', land, { once: true });
+    setTimeout(land, DUR + 90);   // fallback so the card can never stay hidden
   },
 
   _spawnDeathGhost(rect, html) {
@@ -11931,25 +12013,20 @@ const UI = {
         if (lane.player && lane.player.isFaceDown) cardEl.classList.add('face-down');
         if (plDisplayCard.id !== undefined) currentBoardIds.add(plDisplayCard.id);
         if (!this._lastBoardCardIds.has(plDisplayCard.id)) {
-          // 1.0s "build from grid" animation; +100ms safety margin.
-          cardEl.classList.add('card-enter');
-          setTimeout(() => cardEl.classList.remove('card-enter'), 1100);
-          // (h) landing dip + (k) claim wave + dust kick + ring ripple —
-          // ring is the Snap-style concentric pulse under the card.
-          el.classList.add('lane-landed');
-          setTimeout(() => el.classList.remove('lane-landed'), 400);
-          const wave = document.createElement('div');
-          wave.className = 'lane-claim-wave claim-player';
-          el.appendChild(wave);
-          setTimeout(() => wave.remove(), 750);
-          const dust = document.createElement('div');
-          dust.className = 'dust-kick';
-          pSlot.appendChild(dust);
-          setTimeout(() => dust.remove(), 500);
-          const ring = document.createElement('div');
-          ring.className = 'card-landing-ring ring-player';
-          pSlot.appendChild(ring);
-          setTimeout(() => ring.remove(), 900);
+          // If this card just came from the hand it will FLY hand→lane
+          // (_animateFly, fired right after this render by
+          // _applyMotionEffects). Defer the build-in + landing FX to the
+          // moment the flight lands, and hide the card until then so we
+          // never show it sitting in the lane while the ghost is mid-air.
+          // Everything else (summons, environments, reduced-motion) lands
+          // in place immediately.
+          const pv = this._prevRects && this._prevRects.get(plDisplayCard.id);
+          const willFly = pv && pv.inHand && !(this._reducedMotion && this._reducedMotion());
+          if (willFly) {
+            cardEl.classList.add('card-flying');
+          } else {
+            this._spawnPlayerLandFx(cardEl, el, pSlot, false);
+          }
         }
         // Mirror of the AI-side default-onclick — tap your own board
         // card to open the inspect popup. cc / lc branches still
@@ -16647,13 +16724,12 @@ const UI = {
         // Lookup the lane element this card landed in
         const lane = realEl.closest('.lane');
         const ownerSide = realEl.classList.contains('ai-card') ? 'ai' : 'player';
-        // Burst fires at the IMPACT moment of the new two-stage flight
-        // (end of stage A = 660ms). That's when the card has reached
-        // the lane at its peak overshoot scale, just before it settles
-        // back to 1.0 in stage B. Firing the particles HERE — instead
-        // of near the old 870ms cleanup tail — pairs the visual thud
-        // with the actual landing instead of trailing it.
-        setTimeout(() => spawnLandingBurst(lane, ownerSide), 660);
+        // Burst fires when the flight lands (the parabolic arc's duration,
+        // UI._FLY_DUR_MS) so the particle thud pairs with the touchdown
+        // instead of trailing it. Player-side only — AI cards never fly.
+        if (ownerSide === 'player') {
+          setTimeout(() => spawnLandingBurst(lane, ownerSide), (UI._FLY_DUR_MS || 460));
+        }
         return r;
       };
     }
