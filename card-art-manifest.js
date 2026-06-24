@@ -49,6 +49,7 @@ window.CARD_ART_VARIANTS = {
   // ── Single-art entries (webp) ──
   'Pennywise':           ['Pennywise.png'],
   'Freddy Krueger':      ['Freddy Krueger 2.png',     'Freddy Krueger.png'],
+  'Black Panther':       ['Black Panther 2.png',      'Black Panther.png'],
   // ── Variant-1 default kept (user kept original) ──
   'Anakin Skywalker':    ['Anakin Skywalker.png',     'Anakin Skywalker 2.png'],
   'Batman':              ['Batman.png',               'Batman 2.png'],
