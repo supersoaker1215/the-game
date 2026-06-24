@@ -1611,6 +1611,24 @@ body.hit-pause .ai-hand * {
    (menu / mode-select / my-decks / stats / deck builder) instead of a hard
    cut. Opacity-only (no transform) so the backdrop doesn't visibly shift.
    One-shot; the class is added by render only on a real hidden→shown swap. */
+/* Attack telegraph — thin who-hits-whom lines drawn during planning. Gold
+   dashed = a Taunt redirect (the key readability win). pointer-events:none so
+   it never blocks card taps; sits above cards, below HUD/modals. */
+.attack-telegraph {
+  position: fixed; inset: 0; width: 100vw; height: 100vh;
+  pointer-events: none; z-index: 6; overflow: visible;
+}
+.attack-telegraph .tele-line { fill: none; stroke-width: 1.6; opacity: 0.5; }
+.attack-telegraph .tele-line.tele-ally  { stroke: rgba(var(--theme-rgb, 79,195,247), 0.85); }
+.attack-telegraph .tele-line.tele-enemy { stroke: rgba(231,76,60, 0.7); }
+.attack-telegraph .tele-line.tele-taunt {
+  stroke: rgba(255,215,0, 0.92); stroke-width: 2.1; opacity: 0.85; stroke-dasharray: 5 4;
+}
+.attack-telegraph .tele-dot { opacity: 0.75; }
+.attack-telegraph .tele-dot.tele-ally  { fill: rgba(var(--theme-rgb, 79,195,247), 0.9); }
+.attack-telegraph .tele-dot.tele-enemy { fill: rgba(231,76,60, 0.8); }
+.attack-telegraph .tele-dot.tele-taunt { fill: rgba(255,215,0, 0.95); }
+
 @keyframes shellEnter { 0% { opacity: 0; } 100% { opacity: 1; } }
 .main-menu-overlay.shell-entering,
 .mode-select-overlay.shell-entering,

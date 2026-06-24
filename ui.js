@@ -5027,6 +5027,7 @@ const UI = {
     // HP warning) based on the current board state. Decision support
     // — only fires during the player's actionable phases.
     this.refreshThreatSignals();
+    this._renderAttackTelegraph();
 
     // After new DOM is in place, FLIP-animate hand→board flights and
     // spawn death ghosts for any card that vanished from the board.
@@ -16004,6 +16005,65 @@ const UI = {
     beam.style.transform = `rotate(${angle}deg)`;
     document.body.appendChild(beam);
     setTimeout(() => beam.remove(), 420);
+  },
+
+  // ===================== ATTACK TELEGRAPH =====================
+  // During the player's planning phase, draw a thin line from each contested
+  // card to the card it will actually strike — so who-hits-whom (and Taunt
+  // REDIRECTS especially) is visible BEFORE combat instead of a surprise. The
+  // forecast strip already labels face hits, so we only draw card→card lines
+  // to keep it clean. Purely visual (pointer-events:none, no state mutation);
+  // cleared outside planning / on combat / game-over.
+  _renderAttackTelegraph() {
+    const s = (typeof Game !== 'undefined') && Game.state;
+    let svg = document.getElementById('attack-telegraph');
+    const planning = s && !s.gameOver
+      && /^(player-cards|player-cards-tricks|player-tricks)$/.test(s.phase || '')
+      && typeof Game.getAttackTarget === 'function';
+    if (!planning) { if (svg) svg.innerHTML = ''; return; }
+    const SVGNS = 'http://www.w3.org/2000/svg';
+    if (!svg) {
+      svg = document.createElementNS(SVGNS, 'svg');
+      svg.id = 'attack-telegraph';
+      svg.setAttribute('class', 'attack-telegraph');
+      document.body.appendChild(svg);
+    }
+    while (svg.firstChild) svg.removeChild(svg.firstChild);
+    const cardEl = (id) => document.querySelector(`[data-card-id="${id}"]`);
+    const center = (el) => { const r = el.getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2 }; };
+    const findLane = (card) => (Game.findCardLane ? Game.findCardLane(card) : -1);
+    const drawLine = (fromEl, toEl, kind) => {
+      if (!fromEl || !toEl) return;
+      const a = center(fromEl), b = center(toEl);
+      if (Math.hypot(b.x - a.x, b.y - a.y) < 8) return;
+      const mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2;
+      const path = document.createElementNS(SVGNS, 'path');
+      path.setAttribute('d', `M ${a.x.toFixed(1)} ${a.y.toFixed(1)} Q ${mx.toFixed(1)} ${(my - 16).toFixed(1)} ${b.x.toFixed(1)} ${b.y.toFixed(1)}`);
+      path.setAttribute('class', 'tele-line tele-' + kind);
+      svg.appendChild(path);
+      const dot = document.createElementNS(SVGNS, 'circle');
+      dot.setAttribute('cx', b.x.toFixed(1)); dot.setAttribute('cy', b.y.toFixed(1));
+      dot.setAttribute('r', kind === 'taunt' ? '4' : '2.6');
+      dot.setAttribute('class', 'tele-dot tele-' + kind);
+      svg.appendChild(dot);
+    };
+    const sideLines = (owner) => {
+      const lanes = s.lanes || [];
+      for (let i = 0; i < lanes.length; i++) {
+        const lane = lanes[i];
+        if (!lane || lane.destroyed) continue;
+        const atk = lane[owner];
+        if (!atk || atk.currentHealth <= 0 || (atk.attack || 0) <= 0 || atk.isStunned || atk.isFrozen) continue;
+        const target = Game.getAttackTarget(owner, i);
+        if (!target || target.id == null) continue;          // face hit — forecast strip covers it
+        const fromEl = cardEl(atk.id), toEl = cardEl(target.id);
+        if (!fromEl || !toEl) continue;
+        const redirected = findLane(target) !== i;            // pulled to another lane = Taunt
+        drawLine(fromEl, toEl, redirected ? 'taunt' : (owner === 'player' ? 'ally' : 'enemy'));
+      }
+    };
+    sideLines('player');
+    sideLines('ai');
   },
 
   // Brief "what happened" overlay that floats over a lane after its
