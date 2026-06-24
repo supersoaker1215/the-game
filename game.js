@@ -3616,31 +3616,49 @@ const Game = {
     return true;
   },
 
+  // Canonical pre-damage absorb ORDER, in ONE place so the live resolver
+  // (applyCombatDamage / dealDamage / dealChainDamage) and the combat predictor
+  // (predictCombatGlobal) can never disagree again — the four had each
+  // hand-rolled Invincible-vs-Evade ordering and drifted, which wasted evade
+  // charges and made the preview/AI diverge from real resolution. PURE: returns
+  // the absorb kind ('invincible' | 'immunity' | 'evade' | null) and mutates
+  // nothing, so the predictor can call it on cloned state too. The CALLER owns
+  // the side effects (consume the evade charge, emit events, fire onEvade, log)
+  // and decides evade-eligibility via `canEvade` (e.g. stunned/frozen target,
+  // ignoresEvade attacker, or bullseye all pass canEvade=false). Order is fixed
+  // here: Invincible → Damage Immunity → Evade, since the first two block for
+  // FREE and must never burn an evade charge.
+  _classifyAbsorb(target, canEvade) {
+    if (!target) return null;
+    if (target.invincibleTurns > 0) return 'invincible';
+    if (target.hasDamageImmunity) return 'immunity';
+    if (canEvade && (target.evadeCharges || 0) > 0) return 'evade';
+    return null;
+  },
+
   applyCombatDamage(attacker, target, opts) {
     if (!target || target.currentHealth <= 0) return false;
     this._coerceCombatStats(attacker, target);
 
-    // Pre-damage absorbs: Invincible → Damage Immunity → Evade. Order matters:
-    // Invincible/Immunity block the swing for FREE, so they MUST run before
-    // Evade — otherwise an invincible card holding an evade charge wastes the
-    // charge dodging a hit it never needed to. This canonical order matches
-    // dealDamage and the combat predictor (predictCombatGlobal.applyHit), so
-    // the preview/AI can't diverge from actual resolution. Stunned/Frozen
-    // still gate Evade specifically.
-    if (target.invincibleTurns > 0) {
+    // Pre-damage absorbs via the shared _classifyAbsorb (canonical order:
+    // Invincible → Damage Immunity → Evade). Stunned/Frozen target or an
+    // ignoresEvade attacker disable Evade up front. Each branch keeps its own
+    // log / emit / credit / onEvade side effects.
+    const canDodge = !target.isStunned && !target.isFrozen && !(attacker && attacker.ignoresEvade);
+    const absorb = this._classifyAbsorb(target, canDodge);
+    if (absorb === 'invincible') {
       this.log(`  [INVINCIBLE] ${target.name} takes no damage! (${target.invincibleTurns} turns left)`);
       this.emitDmg(target.id, 0, 'block');
       this._creditAbsorb(target, 'Invincible', attacker.attack || 0);
       return false;
     }
-    if (target.hasDamageImmunity) {
+    if (absorb === 'immunity') {
       this.log(`  [DMG IMMUNE] ${target.name} is damage-immune!`);
       this.emitDmg(target.id, 0, 'block');
       this._creditAbsorb(target, 'Invincible', attacker.attack || 0);
       return false;
     }
-    const canDodge = !target.isStunned && !target.isFrozen;
-    if (target.evadeCharges > 0 && canDodge && !(attacker && attacker.ignoresEvade)) {
+    if (absorb === 'evade') {
       target.evadeCharges--;
       this.log(`  [EVADE] ${target.name} dodges ${attacker.name}! (${target.evadeCharges} charges left)`);
       this.emitDmg(target.id, 0, 'evade');
@@ -4998,12 +5016,15 @@ const Game = {
     // sees defensive contribution beyond just armor. Previously this
     // function exited silently and these cards looked like they did
     // nothing defensively.
-    if (card.invincibleTurns > 0) {
+    // Invincible / Immunity first (free, before any amount reduction) via the
+    // shared classifier; canEvade=false so this only catches those two.
+    const preAbsorb = this._classifyAbsorb(card, false);
+    if (preAbsorb === 'invincible') {
       this.log(`  [INVINCIBLE] ${card.name} blocks ${amount} damage${source ? ` from ${source.name}` : ''}!`);
       this._creditAbsorb(card, 'Invincible', amount);
       return;
     }
-    if (card.hasDamageImmunity) {
+    if (preAbsorb === 'immunity') {
       this.log(`  [DMG IMMUNE] ${card.name} ignores ${amount} damage${source ? ` from ${source.name}` : ''}!`);
       this._creditAbsorb(card, 'Invincible', amount);
       return;
@@ -5014,7 +5035,9 @@ const Game = {
       amount = Math.ceil(amount / 2);
       if (amount <= 0) return;
     }
-    if (card.evadeCharges > 0 && !card.isStunned && !card.isFrozen) {
+    // Evade last (after Invincible/Immunity already returned above) — same
+    // shared classifier, evade-eligible only when not stunned/frozen.
+    if (this._classifyAbsorb(card, !card.isStunned && !card.isFrozen) === 'evade') {
       card.evadeCharges--;
       this.log(`  [EVADE] ${card.name} dodges ${amount} damage! (${card.evadeCharges} charges left)`);
       this._creditAbsorb(card, 'Evade', amount);
@@ -6088,19 +6111,18 @@ const Game = {
     if (!card || card.currentHealth <= 0) return false;
     const tag = label || 'CHAIN';
 
-    // Invincible / Immunity stop the chain for FREE, so check them before
-    // Evade — an invincible card shouldn't burn an evade charge on a chain it
-    // already blocks. Canonical absorb order, matching applyCombatDamage /
-    // dealDamage / predictCombatGlobal.
-    if (card.invincibleTurns > 0) {
+    // Shared absorb order (Invincible → Immunity → Evade). Chain evade ignores
+    // Stunned/Frozen (pre-existing behavior), so canEvade = has-charges.
+    const absorb = this._classifyAbsorb(card, true);
+    if (absorb === 'invincible') {
       this.log(`  [INVINCIBLE] ${card.name} is invincible — chain stops!`);
       return false;
     }
-    if (card.hasDamageImmunity) {
+    if (absorb === 'immunity') {
       this.log(`  [DMG IMMUNE] ${card.name} is damage-immune — chain stops!`);
       return false;
     }
-    if (card.evadeCharges > 0) {
+    if (absorb === 'evade') {
       card.evadeCharges--;
       this.log(`  [EVADE] ${card.name} dodges the chain! (${card.evadeCharges} charges left)`);
       return false;
@@ -7128,9 +7150,12 @@ const Game = {
     // target CANNOT consume an evade charge — they can't react.
     const applyHit = (tgt, raw, attackerBullseye) => {
       if (!tgt || tgt.currentHealth <= 0 || raw <= 0) return 0;
-      if (tgt.invincibleTurns > 0 || tgt.hasDamageImmunity) return 0;
-      const canDodge = !tgt.isStunned && !tgt.isFrozen;
-      if (canDodge && tgt.evadeCharges > 0 && !attackerBullseye) { tgt.evadeCharges--; return 0; }
+      // Same shared absorb policy as the live resolver — bullseye bypasses
+      // evade, so it folds into canEvade. Invincible/Immunity absorb for free
+      // (no charge spent); evade consumes a charge. Either way the hit is 0.
+      const canEvade = !tgt.isStunned && !tgt.isFrozen && !attackerBullseye;
+      const absorb = this._classifyAbsorb(tgt, canEvade);
+      if (absorb) { if (absorb === 'evade') tgt.evadeCharges--; return 0; }
       let dmg = raw;
       if (this.state._yodaShieldFor && this.state._yodaShieldFor[tgt.owner] > 0) dmg = Math.ceil(dmg / 2);
       const landed = Math.max(0, dmg - tgt.armorValue);
