@@ -329,7 +329,11 @@ const UI = {
   SETTINGS_KEY: 'clb.settings.v1',
 
   // Theme valid values — kept in one place so settings render + apply can share it.
-  THEME_VALUES: ['blue', 'red', 'gold', 'green', 'silver', 'purple'],
+  // 'red' was dropped as a selectable player theme — it collided with the
+  // danger / enemy / lethal red that combat VFX use, muddying threat
+  // readability. Existing red-theme players migrate to blue (applyTheme below
+  // coerces the now-invalid 'red' and strips the legacy class).
+  THEME_VALUES: ['blue', 'gold', 'green', 'silver', 'purple'],
 
   // Swap the body.theme-* class so CSS --theme-* vars pick up the new RGB triplet.
   applyTheme(theme) {
@@ -340,6 +344,10 @@ const UI = {
       body.classList.remove('theme-' + t);
       root.classList.remove('theme-' + t);
     });
+    // Strip the now-retired red theme class so a migrating player falls back
+    // to blue cleanly (it's no longer in THEME_VALUES, so the loop misses it).
+    body.classList.remove('theme-red');
+    root.classList.remove('theme-red');
     // 'blue' is the :root default — no class needed, keeps CSS specificity simple.
     // Class applied to BOTH body AND documentElement so theme custom
     // properties cascade to elements that live OUTSIDE body — e.g.
