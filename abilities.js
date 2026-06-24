@@ -1955,7 +1955,12 @@ const CARD_ABILITIES = {
       //   1. OPP picks which trick to give up (human → prompt; AI → lowest cost)
       //   2. Grinch OWNER picks keep-or-give-back (human → prompt; AI → threshold)
       const resolveGrinchChoice = (chosen) => {
-        const idx = th.findIndex(t => t.name === chosen.name);
+        // Remove the EXACT object that was chosen, not the first same-named
+        // one — decks can hold 2 copies of a trick (COPY_MAX=2), and a
+        // name-based findIndex would splice the wrong copy when they differ in
+        // mutated state. Matches the identity pattern used everywhere else
+        // (Deadpool indexOf(stolen), game.js trick removal indexOf(trick)).
+        const idx = th.indexOf(chosen);
         if (idx >= 0) th.splice(idx, 1);
         // Roguelite Text+ override — _grinchKeepCostBump scales the cost
         // penalty on kept tricks. Default 1 (classic); Text+ sets to 0

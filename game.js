@@ -277,7 +277,13 @@ const Game = {
           } else if (msg.choiceType === 'lane') {
             const lc = this.state.pendingLaneChoice;
             if (!lc) break;
-            if (msg.laneIdx == null) break;
+            // Validate the guest's lane index against the ALLOWED set before
+            // invoking the callback — mirrors the card branch's !cc.cards[idx]
+            // guard. The host is authoritative for guest choices, so a
+            // tampered/desynced guest sending an out-of-range laneIdx (e.g. 7
+            // with LANE_COUNT 6) would otherwise reach callbacks like Jigsaw's
+            // `lanes[lane][owner] = ...` and crash/hang the host engine.
+            if (msg.laneIdx == null || !lc.lanes || !lc.lanes.includes(msg.laneIdx)) break;
             this._clearPromptTimeout();
             this.state.pendingLaneChoice = null;
             if (lc.callback) lc.callback(msg.laneIdx);
@@ -3614,19 +3620,13 @@ const Game = {
     if (!target || target.currentHealth <= 0) return false;
     this._coerceCombatStats(attacker, target);
 
-    // Pre-damage absorbs: Evade → Invincible → Damage Immunity. Each
-    // bails out early without modifying HP. Kept inline because each
-    // branch has a distinct log/credit signature and Stunned/Frozen
-    // gate Evade specifically.
-    const canDodge = !target.isStunned && !target.isFrozen;
-    if (target.evadeCharges > 0 && canDodge && !(attacker && attacker.ignoresEvade)) {
-      target.evadeCharges--;
-      this.log(`  [EVADE] ${target.name} dodges ${attacker.name}! (${target.evadeCharges} charges left)`);
-      this.emitDmg(target.id, 0, 'evade');
-      this._creditAbsorb(target, 'Evade', attacker.attack || 0);
-      if (target.onEvade) target.onEvade(this, target);
-      return false;
-    }
+    // Pre-damage absorbs: Invincible → Damage Immunity → Evade. Order matters:
+    // Invincible/Immunity block the swing for FREE, so they MUST run before
+    // Evade — otherwise an invincible card holding an evade charge wastes the
+    // charge dodging a hit it never needed to. This canonical order matches
+    // dealDamage and the combat predictor (predictCombatGlobal.applyHit), so
+    // the preview/AI can't diverge from actual resolution. Stunned/Frozen
+    // still gate Evade specifically.
     if (target.invincibleTurns > 0) {
       this.log(`  [INVINCIBLE] ${target.name} takes no damage! (${target.invincibleTurns} turns left)`);
       this.emitDmg(target.id, 0, 'block');
@@ -3637,6 +3637,15 @@ const Game = {
       this.log(`  [DMG IMMUNE] ${target.name} is damage-immune!`);
       this.emitDmg(target.id, 0, 'block');
       this._creditAbsorb(target, 'Invincible', attacker.attack || 0);
+      return false;
+    }
+    const canDodge = !target.isStunned && !target.isFrozen;
+    if (target.evadeCharges > 0 && canDodge && !(attacker && attacker.ignoresEvade)) {
+      target.evadeCharges--;
+      this.log(`  [EVADE] ${target.name} dodges ${attacker.name}! (${target.evadeCharges} charges left)`);
+      this.emitDmg(target.id, 0, 'evade');
+      this._creditAbsorb(target, 'Evade', attacker.attack || 0);
+      if (target.onEvade) target.onEvade(this, target);
       return false;
     }
 
@@ -6079,17 +6088,21 @@ const Game = {
     if (!card || card.currentHealth <= 0) return false;
     const tag = label || 'CHAIN';
 
-    if (card.evadeCharges > 0) {
-      card.evadeCharges--;
-      this.log(`  [EVADE] ${card.name} dodges the chain! (${card.evadeCharges} charges left)`);
-      return false;
-    }
+    // Invincible / Immunity stop the chain for FREE, so check them before
+    // Evade — an invincible card shouldn't burn an evade charge on a chain it
+    // already blocks. Canonical absorb order, matching applyCombatDamage /
+    // dealDamage / predictCombatGlobal.
     if (card.invincibleTurns > 0) {
       this.log(`  [INVINCIBLE] ${card.name} is invincible — chain stops!`);
       return false;
     }
     if (card.hasDamageImmunity) {
       this.log(`  [DMG IMMUNE] ${card.name} is damage-immune — chain stops!`);
+      return false;
+    }
+    if (card.evadeCharges > 0) {
+      card.evadeCharges--;
+      this.log(`  [EVADE] ${card.name} dodges the chain! (${card.evadeCharges} charges left)`);
       return false;
     }
     if (card.armorValue > 0) {
