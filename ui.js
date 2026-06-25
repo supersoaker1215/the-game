@@ -19949,6 +19949,20 @@ function kangChoicePick(idx) {
   const s = Game.state;
   const kc = s.pendingKangChoice;
   if (!kc) return;
+  // In multiplayer, the guest forwards the choice to the host instead of
+  // applying it locally — the host is authoritative and will broadcast
+  // the result. Without this, the host's pendingKangChoice is never cleared
+  // and the game freezes.
+  if (Game.isMultiplayer && Game.isMultiplayer() && Game.mp.role === 'guest') {
+    if (typeof Multiplayer !== 'undefined') {
+      Multiplayer.send({ t: 'promptResolve', choiceType: 'kang', idx });
+    }
+    s.pendingKangChoice = null;
+    UI.draftEl.style.display = 'none';
+    document.getElementById('game-area').style.display = '';
+    UI.render();
+    return;
+  }
   s.pendingKangChoice = null;
   const picked = kc.cards[idx];
   const other = kc.cards[1 - idx];

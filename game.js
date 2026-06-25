@@ -207,6 +207,7 @@ const Game = {
       switch (msg.t) {
         case 'playCard': {
           const card = findCardById(msg.cardId);
+          console.log('[MP HOST] playCard from guest: cardId=', msg.cardId, 'name=', card && card.name, 'lane=', msg.lane, '(0-based), visual lane:', msg.lane + 1, 'found:', !!card);
           if (card) this.playCard(actor, card, msg.lane);
           break;
         }
@@ -317,6 +318,30 @@ const Game = {
             } else {
               this.addToTrickHand(owner, bt);
             }
+            this.resumeCombatIfWaiting();
+          } else if (msg.choiceType === 'kang') {
+            // Guest resolved Kang's "keep one card" choice. Apply on host.
+            const kc = this.state.pendingKangChoice;
+            if (!kc) break;
+            this._clearPromptTimeout();
+            this.state.pendingKangChoice = null;
+            const idx = msg.idx != null ? msg.idx : 0;
+            const picked = kc.cards[idx];
+            const other  = kc.cards[1 - idx];
+            if (picked && other) {
+              this.getDrawPile(kc.owner).push(other);
+              const card = this.createCardInstance(picked, kc.owner);
+              card.cost = Math.max(0, card.cost - 2);
+              this.log(`  [KANG] Kept ${card.name} (cost reduced to ${card.cost})`);
+              this.addToHand(kc.owner, card);
+              if (card.cost <= 2 && !card.isDiscardEffect) {
+                const open = card.isEnvironment
+                  ? this.state.lanes.map((l, i) => i).filter(i => !this.state.lanes[i].destroyed)
+                  : this.getOpenLanes(kc.owner);
+                if (open.length) this.playCardFree(kc.owner, card, open[0]);
+              }
+            }
+            this.cleanupDead();
             this.resumeCombatIfWaiting();
           }
           break;
@@ -471,6 +496,9 @@ const Game = {
       if (bt.owner) bt.owner = flipSeat(bt.owner);
       if (bt._btOwner) bt._btOwner = flipSeat(bt._btOwner);
     }
+    if (state.pendingKangChoice) {
+      state.pendingKangChoice.owner = flipSeat(state.pendingKangChoice.owner);
+    }
     if (state._mpNames) {
       const t = state._mpNames.player;
       state._mpNames.player = state._mpNames.ai;
@@ -505,6 +533,12 @@ const Game = {
       swap('playerTrickDrafted',  'aiTrickDrafted');
       swap('playerMulliganUsed',  'aiMulliganUsed');
     }
+    // Never expose the host's selected card to the guest — it leaks
+    // information about which card the opponent has highlighted. Clear
+    // both so acceptMultiplayerState always restores the guest's own
+    // selection from prevSelected rather than inheriting the host's.
+    state.selectedCard = null;
+    state.selectedTrick = null;
     return state;
   },
 
@@ -1467,8 +1501,10 @@ const Game = {
     const choicesKey = who === 'player' ? 'playerChoices' : 'aiChoices';
     if (!d[choicesKey] || d[choicesKey].length === 0) return false;
     const pile = d.phase === 'cards' ? this.getDrawPile('player') : this.getTrickPile('player');
-    // Bottom of pile = index 0 (since presentDraftChoices uses pile.pop()).
+    // Return rejected choices to the pile and shuffle so they don't
+    // immediately resurface as the next two pops.
     d[choicesKey].forEach(c => pile.unshift(c));
+    this.shuffle(pile);
     const fresh = [pile.pop(), pile.pop()].filter(Boolean);
     d[choicesKey] = fresh;
     d[mulliganKey] = true;
@@ -2049,6 +2085,7 @@ const Game = {
   // mechanics entirely. Idempotent — clears the forced-lane state once
   // the redirect either lands or fails (lane destroyed / occupied).
   _redirectForForcedLane(owner, card, laneIdx) {
+    const _origLane = laneIdx;
     if (card.isDiscardEffect) return laneIdx;
     // Moder forced lane — next non-discard card is pulled into forced lane.
     if (this.state[owner].forcedLane != null) {
@@ -2073,6 +2110,9 @@ const Game = {
         this.log(`[MAGNETO] ${card.name} is forced into lane ${fl + 1} by Magneto!`);
       }
       if (!queue.length) delete this.state[owner].magnetoForcedLanes;
+    }
+    if (this.isMultiplayer() && laneIdx !== _origLane) {
+      console.log('[MP HOST] _redirectForForcedLane:', card.name, 'owner:', owner, 'requested lane:', _origLane, '→ redirected to:', laneIdx);
     }
     return laneIdx;
   },
@@ -2150,6 +2190,7 @@ const Game = {
     // the visible board update lands when the host's state push arrives.
     if (this.isMultiplayer() && this.mp.role === 'guest' && owner === this.mp.you) {
       if (typeof Multiplayer !== 'undefined' && card && card.id != null) {
+        console.log('[MP GUEST] playCard:', card.name, 'lane:', laneIdx, '(0-based), visual lane:', laneIdx + 1);
         Multiplayer.send({ t: 'playCard', cardId: card.id, lane: laneIdx });
       }
       return true;

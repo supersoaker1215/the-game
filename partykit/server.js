@@ -96,7 +96,7 @@ export default {
     // own UI, the client doesn't send it through us at all (the
     // engine just runs locally). So in practice this branch is
     // guest-originated.
-    const ACTION_TYPES = new Set(['playCard', 'playCardFree', 'playTrick', 'doneTurn', 'mulligan', 'draftPick', 'promptResolve', 'forfeit']);
+    const ACTION_TYPES = new Set(['playCard', 'playCardFree', 'playTrick', 'doneTurn', 'mulligan', 'draftPick', 'draftMulligan', 'promptResolve', 'forfeit']);
     if (ACTION_TYPES.has(msg.t)) {
       if (room._mp && room._mp.hostId) {
         const hostConn = [...room.getConnections()].find(c => c.id === room._mp.hostId);

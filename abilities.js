@@ -4257,7 +4257,7 @@ const CARD_ABILITIES = {
       const opp = G.opponent(self.owner);
       const hand = (G.state[opp] && G.state[opp].hand) || [];
       const targets = hand.filter(c => (c.currentHealth !== undefined ? c.currentHealth : (c.health || 0)) > 0);
-      if (!targets.length) return;
+      if (!targets.length) { self._skipNormalAttack = true; return; }
       const t = targets[Math.floor(Math.random() * targets.length)];
       let dmg = self.attack || 1;
       if (G.state._yodaShieldFor && G.state._yodaShieldFor[opp] > 0) dmg = Math.ceil(dmg / 2);

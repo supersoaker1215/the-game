@@ -35,11 +35,11 @@ export default defineConfig({
     }
   },
   server: {
-    port: 8080,
+    port: parseInt(process.env.PORT || '8080'),
     host: true,       // bind to 0.0.0.0 for phone/tablet testing on LAN
     strictPort: false
   },
   preview: {
-    port: 8080
+    port: parseInt(process.env.PORT || '8080')
   }
 });
