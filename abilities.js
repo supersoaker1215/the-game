@@ -4294,11 +4294,12 @@ const CARD_ABILITIES = {
       if (!self._triggerNextRound) return;
       self._triggerNextRound = false;
       const opp = G.opponent(self.owner);
-      // Drain 1 energy from opponent
+      // Drain 1 energy from opponent and give it to self
       if (G.state[opp].currency > 0) {
         const before = G.state[opp].currency;
         G.state[opp].currency = Math.max(0, before - 1);
-        G.log(`[FREDDY FAZBEAR] Drains 1 Energy from ${opp}! (${before} → ${G.state[opp].currency} this round)`);
+        G.state[self.owner].currency += 1;
+        G.log(`[FREDDY FAZBEAR] Drains 1 Energy from ${opp}! (${before} → ${G.state[opp].currency}) → gives to ${self.owner}`);
         G._creditChain(self, 'statsEnergyGenerated', 1);
       }
       // Gain 1 HP permanently (grows beyond starting max)
