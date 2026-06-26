@@ -264,6 +264,13 @@ const Multiplayer = {
   // to id-based form.
   serializeState(state) {
     const clone = JSON.parse(JSON.stringify(state));
+    // selectedCard / selectedTrick are per-CLIENT UI state, not shared game
+    // state. Broadcasting the host's selection leaks it into the guest's state,
+    // where it's a card the guest doesn't hold — the guest's restore-selection
+    // guard then sees a non-null selection and skips restoring the guest's OWN
+    // pick, so the guest's card "places itself" in a stray lane. Strip them.
+    delete clone.selectedCard;
+    delete clone.selectedTrick;
     const fixRefs = (c) => {
       if (!c) return;
       // Functions already gone via JSON.stringify; just convert

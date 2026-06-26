@@ -388,15 +388,20 @@ const Game = {
     if (this.mp.role === 'guest') state = this._mpFlipPerspective(state);
     this.state = state;
 
-    // Restore selection only if: card/trick is still in the player's hand
-    // AND the new state doesn't already have a selection (host never sets
-    // selectedCard for the guest's seat, so this is always null after flip).
-    if (prevSelected && !this.state.selectedCard) {
+    // Any selection in the pushed state belongs to the HOST's UI, not the
+    // guest's — discard it unconditionally (it points at a card the guest
+    // doesn't hold). Then restore the guest's OWN pick if it's still in hand.
+    // Doing this regardless of the incoming value is what fixes the guest
+    // "card auto-places into a stray lane" bug: the old `!selectedCard` guard
+    // was bypassed whenever the host's selection leaked through.
+    this.state.selectedCard = null;
+    this.state.selectedTrick = null;
+    if (prevSelected) {
       const stillInHand = (this.state.player && this.state.player.hand || [])
         .find(c => c.id === prevSelected.id);
       if (stillInHand) this.state.selectedCard = stillInHand;
     }
-    if (prevSelectedTrick && !this.state.selectedTrick) {
+    if (prevSelectedTrick) {
       const stillInTrick = (this.state.player && this.state.player.trickHand || [])
         .find(t => t.id === prevSelectedTrick.id);
       if (stillInTrick) this.state.selectedTrick = stillInTrick;
