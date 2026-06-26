@@ -2377,6 +2377,7 @@ const Game = {
     this.applyMagnetoDebuffs();
     // Check jump conditions — enemy played a card (pass laneIdx so MM can lock its lane)
     this.checkJumpConditions('cardPlayed', { owner, cost: card.baseCost || card.cost, laneIdx });
+    this._scaleDoomsdayOnOwnerPlay(owner);
     if (owner === 'player' && typeof Tutorial !== 'undefined' && Tutorial.active) {
       Tutorial.notify('card-played', { laneIdx, card });
     }
@@ -2455,6 +2456,7 @@ const Game = {
     this._resolveMindControlOnPlay(card);
     this._resolveMarkOnPlay(card);
     this.cleanupDead();
+    this._scaleDoomsdayOnOwnerPlay(owner);
   },
 
   getTrickCost(owner, trick) {
@@ -4785,22 +4787,10 @@ const Game = {
   // Finds any Doomsday in either player's hand and reduces cost by 1,
   // adds +1/+1. Stops scaling once played (card is no longer in hand).
   _scaleDoomsdayInHands() {
-    // Cards in hand: stats +1/+1 AND cost -1 per death.
-    for (const side of ['player', 'ai']) {
-      const hand = this.state[side] && this.state[side].hand;
-      if (!hand) continue;
-      hand.forEach(c => {
-        if (c.passive !== 'doomsdayScaling') return;
-        c.cost = Math.max(0, (c.cost || 0) - 1);
-        c.attack = (c.attack || 0) + 1;
-        c.maxHealth = (c.maxHealth || 0) + 1;
-        c.currentHealth = (c.currentHealth || 0) + 1;
-        this.log(`[DOOMSDAY] Grows to ${c.attack}/${c.maxHealth} cost ${c.cost}`);
-      });
-    }
-    // Cards still in a draw pile: stats grow but cost stays locked.
-    // If drawn late (e.g. round 8), he arrives already massive — the
-    // cost reduction only starts once he's actually in the player's hand.
+    // Doomsday no longer scales from deaths while in hand — that mechanic
+    // moved to _scaleDoomsdayOnOwnerPlay (per card played by owner).
+    // Deaths still grow a Doomsday sitting undrawn in the draw pile so
+    // a late draw arrives with naturally accumulated stats at full cost.
     const pilesScaled = new Set();
     for (const side of ['player', 'ai']) {
       const pile = this.getDrawPile(side);
@@ -4814,6 +4804,21 @@ const Game = {
         this.log(`[DOOMSDAY] In draw pile — grows to ${c.attack}/${c.maxHealth} (cost stays ${c.cost} until drawn)`);
       });
     }
+  },
+
+  // Called after the owner plays any card. Doomsday grows +1/+1 for
+  // each card his owner deploys while he's waiting in hand. Cost
+  // reduction happens only via his own kills (onKill in abilities.js).
+  _scaleDoomsdayOnOwnerPlay(owner) {
+    const hand = this.state[owner] && this.state[owner].hand;
+    if (!hand) return;
+    hand.forEach(c => {
+      if (c.passive !== 'doomsdayScaling') return;
+      c.attack = (c.attack || 0) + 1;
+      c.maxHealth = (c.maxHealth || 0) + 1;
+      c.currentHealth = (c.currentHealth || 0) + 1;
+      this.log(`[DOOMSDAY] Owner played a card — grows to ${c.attack}/${c.maxHealth} (cost ${c.cost})`);
+    });
   },
 
   // Execute queued bonus attacks on one card (Ahsoka, Superman, etc.).
