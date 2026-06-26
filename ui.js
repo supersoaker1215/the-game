@@ -614,17 +614,6 @@ const UI = {
   // disk (won't see brother's edits without a git pull first; the
   // Desktop button handles that case).
   async syncFromServer() {
-    // On the main menu (and other non-match screens), the refresh button
-    // acts as a music skip — instantly swap to a new random hover track
-    // without the 2-3 second reload overhead. If we're mid-match, fall
-    // through to the full cache-clear + reload as before.
-    const phase = Game && Game.state && Game.state.phase;
-    const menuPhases = ['main-menu', 'mode-select', 'my-decks', 'stats',
-                        'deckbuilder-build', 'draft-cards', 'draft-tricks'];
-    if (phase && menuPhases.includes(phase)) {
-      this.sfx.skipMenuTrack();
-      return;
-    }
     const btn = document.querySelector('.sync-btn');
     if (btn) btn.classList.add('syncing');
     try {
