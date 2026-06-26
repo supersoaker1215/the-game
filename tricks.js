@@ -416,6 +416,20 @@ const TRICK_DEFS = [
       );
     }
   },
+  { name: "Pym Particles", cost: 3,
+    desc: "Shrink an enemy — permanently halve its ATK and HP (rounded down).",
+    canPlay(G, owner) { return G.getEnemiesOf(owner).length > 0; },
+    play(G, owner) {
+      const enemies = G.getEnemiesOf(owner);
+      if (!enemies.length) return;
+      G.promptCardChoice(owner, enemies, "Pym Particles — Shrink", "Choose an enemy to shrink", (t) => {
+        const atkDebuff = Math.ceil(t.attack / 2);
+        const hpDebuff  = Math.ceil(t.maxHealth / 2);
+        G.debuffCard(t, atkDebuff, hpDebuff);
+        G.log(`Pym Particles: ${t.name} shrunk to ${t.attack}/${t.currentHealth}!`);
+      }, cards => cards.sort((a, b) => (b.attack + b.maxHealth) - (a.attack + a.maxHealth))[0]);
+    }
+  },
   // Cost 4
   { name: "Phantom Zone", cost: 4,
     desc: "Return an enemy to their hand. (May exceed max hand size for 1 turn.)",
