@@ -1730,6 +1730,23 @@ const UI = {
       };
       window.addEventListener('pointerdown', resume, { passive: true });
       window.addEventListener('keydown', resume);
+      // iOS/iPadOS suspends AudioContext when the screen dims or the app is
+      // backgrounded. Resume it whenever the page becomes visible again so
+      // card SFX don't stay silent after the user returns to the game.
+      document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'visible') {
+          if (this._ctx && this._ctx.state === 'suspended') {
+            try { this._ctx.resume(); } catch (e) {}
+          }
+          // Re-prime the HTMLAudioElement pool so any pooled <audio> elements
+          // that iOS evicted get a fresh load kick before the next SFX fires.
+          if (this._samplePool) {
+            this._samplePool.forEach((clones) => {
+              clones.forEach(a => { if (a.networkState === 3 /* NETWORK_NO_SOURCE */) try { a.load(); } catch (_) {} });
+            });
+          }
+        }
+      }, { passive: true });
     },
 
     _tone({ type = 'sine', freq = 440, freqEnd = null, dur = 0.15, gain = 0.25, attack = 0.005, release = null, delay = 0, pan = 0 }) {
@@ -4706,6 +4723,18 @@ const UI = {
   _renderImpl() {
     const s = Game.state;
     if (!s) return;
+
+    // Prefetch art for the player's hand so iOS has images cached before the
+    // CSS background-image rule fires. Only pays the preload cost when the hand
+    // contents actually change (card ids/names differ from the last preload).
+    if (s.player && s.player.hand) {
+      const handKey = s.player.hand.map(c => c.name).join(',');
+      if (handKey !== this._lastPreloadedHandKey) {
+        this._lastPreloadedHandKey = handKey;
+        this._preloadArt(s.player.hand.map(c => c.name));
+      }
+    }
+
     // Reset and IMMEDIATELY repopulate the per-render combat-prediction
     // cache. The card-DOM diff cache (makeCardElCached → snap) reads
     // pred fields out of this cache; if it were lazy-populated by the
@@ -11177,12 +11206,32 @@ const UI = {
 
   // ===================== DRAFT =====================
 
+  // Kick off image loading for a list of card/trick names so the browser has
+  // them in cache before the CSS background-image rule renders them. Critical
+  // on iOS/iPad where background-image loads lazily and can flash blank on
+  // first render. Uses a Map so the same URL is only fetched once per session.
+  _preloadArt(names) {
+    if (!names || !names.length) return;
+    if (!this._artPreloadCache) this._artPreloadCache = new Set();
+    names.forEach(name => {
+      const path = this.getCardArtPath(name);
+      if (!path || this._artPreloadCache.has(path)) return;
+      this._artPreloadCache.add(path);
+      const img = new Image();
+      img.src = path;
+    });
+  },
+
   renderDraft(s) {
     const d = s.draft;
     const isCards = d.phase === 'cards';
     const choices = d.playerChoices;
     const round = d.round;
     const total = isCards ? 5 : 2;
+
+    // Kick off image prefetch for both draft choices so iOS has them cached
+    // before the CSS background-image rule renders — prevents blank-portrait flash.
+    if (isCards && choices) this._preloadArt(choices.map(c => c.name));
     const drafted = isCards ? d.playerDrafted : d.playerTrickDrafted;
 
     // Build the pick-progress pip row ("● ● ○ ○ ○") — HUD-style dots so the

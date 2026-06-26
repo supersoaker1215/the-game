@@ -7950,13 +7950,25 @@ body.hit-pause .ai-hand * {
   .card-slot { width: 124px; }
   .phase-banner-text { font-size: 30px; }
 }
-@media (max-width: 800px) {
-  .board { gap: 3px; }
-  .lane { width: 118px; min-width: 118px; }
-  .card { width: 96px; min-height: 85px; }
-  .card-slot { width: 112px; }
+/* iPad mini (744–820px) + landscape-phone / narrow-tablet bracket.
+   Board at 800px is 723px wide against a 744px viewport (5px spare) —
+   tight enough that any safe-area inset or scrollbar gutter would
+   clip lane 1 or 6. Shrink board-section padding (8px→4px) and lane
+   width (118px→110px) so the full board has ~30px of breathing room
+   on the narrowest supported tablet. Hand sections get overflow-x:auto
+   as a safety net for large hands on a narrow viewport. */
+@media (max-width: 820px) and (min-width: 521px) {
+  .board-section { padding: 0 4px; }
+  .board { gap: 2px; }
+  .lane { width: 110px; min-width: 110px; }
+  .card { width: 90px; min-height: 82px; }
+  .card-slot { width: 106px; }
   .card-name { font-size: 10px; }
   .phase-banner-text { font-size: 24px; }
+  .player-hand-section, .tricks-section { overflow-x: auto; }
+  .hand-cards { min-width: max-content; }
+}
+@media (max-width: 800px) {
   .info-bar { padding: 8px 12px; gap: 10px; grid-template-columns: 180px 52px 1fr 52px 88px; }
   .health-bar { width: 130px; height: 16px; }
   .block-circle { width: 40px; height: 40px; }
@@ -28147,11 +28159,15 @@ body.combat-anticipate::after  { content: none !important; }
 
   /* Just the painting — no scanlines, no RGB subpixel tint, no
      background-blend-mode chain. URL comes from --portrait-bg
-     (set inline by JS). Cover-crop fills the box at native aspect. */
-  background-image: var(--portrait-bg, none);
-  background-size: cover;
-  background-position: var(--portrait-pos, center center);
-  background-repeat: no-repeat;
+     (set inline by JS). Cover-crop fills the box at native aspect.
+     The dark fallback color + shimmer gradient are the loading state —
+     visible on iOS/iPad when the image hasn't cached yet so the portrait
+     area never flashes as a plain black void while the fetch is in flight. */
+  background-color: #111;
+  background-image: var(--portrait-bg, linear-gradient(110deg, #111 30%, #1a1a1a 50%, #111 70%));
+  background-size: cover, 200% 100%;
+  background-position: var(--portrait-pos, center center), 0% 0%;
+  background-repeat: no-repeat, no-repeat;
   transform: translateZ(0);
   will-change: transform;
 
