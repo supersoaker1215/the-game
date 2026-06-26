@@ -4672,7 +4672,7 @@ const Game = {
       livingAllies.forEach(a => { if (a.onAllyKilled) a.onAllyKilled(this, a); });
       const livingEnemiesT = this.getAllCardsOf(this.opponent(card.owner));
       livingEnemiesT.forEach(a => { if (a.onEnemyKilled) a.onEnemyKilled(this, a); });
-      this._scaleDoomsdayInHands();
+      this._scaleDoomsdayInHands(card.owner);
       livingAllies.forEach(a => this.drainBonusAttacks(a));
       this.checkJumpConditions('allyDied', { owner: card.owner, laneIdx });
       return;
@@ -4760,7 +4760,7 @@ const Game = {
     livingAllies.forEach(a => { if (a.onAllyKilled) a.onAllyKilled(this, a); });
     const livingEnemies = this.getAllCardsOf(this.opponent(card.owner));
     livingEnemies.forEach(a => { if (a.onEnemyKilled) a.onEnemyKilled(this, a); });
-    this._scaleDoomsdayInHands();
+    this._scaleDoomsdayInHands(card.owner);
     // Drain bonus attacks immediately on every death — combat or
     // trick-triggered. User spec: "Anakin and bonus attacks in general
     // shouldn't happen at the end of the round but instead immediately."
@@ -4784,13 +4784,22 @@ const Game = {
   },
 
   // Doomsday "while in hand" scaling — called after every card death.
-  // Finds any Doomsday in either player's hand and reduces cost by 1,
-  // adds +1/+1. Stops scaling once played (card is no longer in hand).
-  _scaleDoomsdayInHands() {
-    // Doomsday no longer scales from deaths while in hand — that mechanic
-    // moved to _scaleDoomsdayOnOwnerPlay (per card played by owner).
-    // Deaths still grow a Doomsday sitting undrawn in the draw pile so
-    // a late draw arrives with naturally accumulated stats at full cost.
+  // deadOwner = owner of the card that just died ('player' or 'ai').
+  // - In hand: cost drops only when an ally (same owner) is killed.
+  // - In draw pile: stats grow for every death, cost stays locked.
+  _scaleDoomsdayInHands(deadOwner) {
+    for (const side of ['player', 'ai']) {
+      const hand = this.state[side] && this.state[side].hand;
+      if (!hand) continue;
+      hand.forEach(c => {
+        if (c.passive !== 'doomsdayScaling') return;
+        if (c.owner === deadOwner) {
+          c.cost = Math.max(0, (c.cost || 0) - 1);
+          this.log(`[DOOMSDAY] Ally fell — cost drops to ${c.cost}`);
+        }
+      });
+    }
+    // Draw pile: stats accumulate for all deaths, cost stays locked until drawn.
     const pilesScaled = new Set();
     for (const side of ['player', 'ai']) {
       const pile = this.getDrawPile(side);
@@ -4807,8 +4816,7 @@ const Game = {
   },
 
   // Called after the owner plays any card. Doomsday grows +1/+1 for
-  // each card his owner deploys while he's waiting in hand. Cost
-  // reduction happens only via his own kills (onKill in abilities.js).
+  // each card his owner deploys while he's waiting in hand.
   _scaleDoomsdayOnOwnerPlay(owner) {
     const hand = this.state[owner] && this.state[owner].hand;
     if (!hand) return;

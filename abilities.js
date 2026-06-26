@@ -4320,11 +4320,6 @@ const CARD_ABILITIES = {
     // auto-Untrickable just because of his starting cost. The immunity
     // is earned via his revive, not by being a titan.
     skipAutoUntrickable: true,
-    onKill(G, self) {
-      // Cost drops only for kills Doomsday secures himself.
-      self.cost = Math.max(0, (self.cost || 0) - 1);
-      G.log(`[DOOMSDAY] Kill secured — cost drops to ${self.cost}`);
-    },
     onDeath(G, self, lane) {
       if (self._doomsdayRevived) return false; // already revived once — die permanently
       self._doomsdayRevived = true;
