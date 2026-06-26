@@ -5046,8 +5046,16 @@ const Game = {
   // interact with Untrickable targets normally.
   _trickBlocked(target) {
     if (!this.state._inTrick || !target) return false;
-    if (target.isUntrickable) { this.log(`  [UNTRICKABLE] ${target.name} cannot be affected by tricks!`); return true; }
+    // 10-cost titans are immune to ALL tricks, including friendly ones.
     if ((target.baseCost || target.cost || 0) >= 10) { this.log(`  [UNTRICKABLE] ${target.name} is a 10-cost card and cannot be affected by tricks!`); return true; }
+    // isUntrickable (keyword) only blocks ENEMY tricks — the card's own
+    // team can still affect it. Anti-Life destroying your own lane card,
+    // for example, should go through even if that card is Untrickable.
+    if (target.isUntrickable) {
+      if (this.state._trickOwner && this.state._trickOwner === target.owner) return false;
+      this.log(`  [UNTRICKABLE] ${target.name} cannot be affected by enemy tricks!`);
+      return true;
+    }
     return false;
   },
 

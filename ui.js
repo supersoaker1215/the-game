@@ -1076,6 +1076,7 @@ const UI = {
       'Open Water':       { hover: { src: 'audio/cards/open-water-hover.mp3' } },
       'Gargantua':        { hover: { src: 'audio/cards/gargantua-hover.mp3' } },
       'Ultron':           { hover: { src: 'audio/cards/ultron-hover.mp3', maxDur: 29 } },
+      'Loki':             { hover: { src: 'audio/cards/loki-hover.mp3' } },
     },
     // Default files for the per-card events — used when a card's
     // CARD_SFX entry doesn't have that event. If neither the card-
@@ -1820,6 +1821,7 @@ const UI = {
       'audio/cards/jigsaw-hover.mp3',
       'audio/cards/joker-hover.mp3',
       'audio/cards/knull-hover.mp3',
+      'audio/cards/loki-hover.mp3',
       'audio/cards/luke-hover.mp3',
       'audio/cards/michael-myers-hover.mp3',
       'audio/cards/mind-stone-hover.mp3',

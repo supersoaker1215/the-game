@@ -6026,6 +6026,14 @@ body.hit-pause .ai-hand * {
     -webkit-backdrop-filter: none !important;
     background-color: rgba(0,0,0,0.95) !important;
   }
+  /* Ability badges: bump font size and padding on touch screens so
+     they're large enough to tap reliably without mis-tapping adjacent
+     cards. iPad mini in particular has small card footprints. */
+  .status-badge {
+    font-size: 9px;
+    padding: 1px 6px;
+    line-height: 1.5;
+  }
 }
 
 /* ---- KEYWORD TRAIT BADGES — condensed terminal-tag spec ---------------
