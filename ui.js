@@ -17907,6 +17907,8 @@ const UI = {
     // Close any existing inspect first.
     const stale = document.getElementById('card-inspect-modal');
     if (stale) stale.remove();
+    const staleBd = document.getElementById('trick-inspect-backdrop');
+    if (staleBd) staleBd.remove();
     const name = cardEl.dataset.cardName || cardEl.dataset.trickName
               || cardEl.querySelector('.card-name, .db-grid-name, .trick-name')?.textContent;
     if (!name) return;
@@ -17914,60 +17916,72 @@ const UI = {
              || (typeof TRICK_DEFS !== 'undefined' ? TRICK_DEFS.find(t => t.name === name) : null);
     if (!def) return;
     const isTrick = !!(typeof TRICK_DEFS !== 'undefined' && TRICK_DEFS.find(t => t.name === name));
-    const stats = isTrick ? '' : `
-      <div class="ci-stats">
+
+    // Non-trick cards: fall through to the legacy ci-panel path (rarely hit
+    // now that board cards use openCardInspect, but keep as a safe fallback).
+    if (!isTrick) {
+      const stats = `<div class="ci-stats">
         <span class="ci-atk">${def.attack}</span>
         <span class="ci-slash">/</span>
         <span class="ci-hp">${def.health}</span>
       </div>`;
-    const badges = def.abilities && def.abilities.length
-      ? `<div class="ci-badges">${this.formatAbilityBadges(def.abilities)}</div>` : '';
-    const desc = def.desc ? `<div class="ci-desc">${this.formatDesc(def.desc)}</div>` : '';
-    const trickArtPath = isTrick ? this.getCardArtPath(name) : null;
-    const safeArtUrl = trickArtPath ? trickArtPath.replace(/'/g, '%27') : '';
-    const trickPortrait = isTrick && safeArtUrl
-      ? `<div class="ci-trick-portrait" style="background-image:url('${safeArtUrl}')"></div>` : '';
-    const modal = document.createElement('div');
-    modal.id = 'card-inspect-modal';
-    modal.className = 'card-inspect-modal';
-    modal.innerHTML = `
-      <div class="ci-backdrop"></div>
-      <div class="ci-panel ${this.getCostClass(def.cost || 0)}${isTrick ? ' ci-trick' : ''}">
-        <span class="card-cost">${def.cost || 0}</span>
-        ${trickPortrait}
-        <div class="ci-name">${def.name}</div>
-        ${badges}
-        ${stats}
+      const badges = def.abilities && def.abilities.length
+        ? `<div class="ci-badges">${this.formatAbilityBadges(def.abilities)}</div>` : '';
+      const desc = def.desc ? `<div class="ci-desc">${this.formatDesc(def.desc)}</div>` : '';
+      const modal = document.createElement('div');
+      modal.id = 'card-inspect-modal';
+      modal.className = 'card-inspect-modal';
+      modal.innerHTML = `
+        <div class="ci-backdrop"></div>
+        <div class="ci-panel ${this.getCostClass(def.cost || 0)}">
+          <span class="card-cost">${def.cost || 0}</span>
+          <div class="ci-name">${def.name}</div>
+          ${badges}${stats}${desc}
+          <button type="button" class="ci-close" aria-label="Close">×</button>
+        </div>`;
+      document.body.appendChild(modal);
+      const close = () => {
+        modal.remove();
+        if (this.sfx && typeof this.sfx._stopHover === 'function') this.sfx._stopHover();
+      };
+      modal.querySelector('.ci-backdrop').addEventListener('click', close);
+      modal.querySelector('.ci-close').addEventListener('click', close);
+      const onKey = (e) => { if (e.key === 'Escape') { close(); document.removeEventListener('keydown', onKey); } };
+      document.addEventListener('keydown', onKey);
+      return;
+    }
+
+    // Trick inspect — full-screen backdrop matching the card inspect style.
+    const artPath = this.getCardArtPath(name);
+    const safeUrl = artPath ? artPath.replace(/'/g, '%27') : '';
+    const portrait = safeUrl
+      ? `<div class="ti-portrait" style="background-image:url('${safeUrl}')"></div>` : '';
+    const desc = def.desc ? `<div class="ti-desc">${this.formatDesc(def.desc)}</div>` : '';
+    const backdrop = document.createElement('div');
+    backdrop.className = 'card-inspect-backdrop';
+    backdrop.id = 'trick-inspect-backdrop';
+    backdrop.innerHTML = `
+      <div class="trick-inspect-modal" role="dialog" aria-label="${def.name}">
+        ${portrait}
+        <div class="ti-cost ${this.getCostClass(def.cost || 0)}">${def.cost || 0}</div>
+        <div class="ti-name">${def.name}</div>
         ${desc}
-        <button type="button" class="ci-close" aria-label="Close">×</button>
       </div>`;
-    document.body.appendChild(modal);
-    // Mobile parity for hover audio: hover SFX is bound to mouseover on
-    // desktop, but mobile has no cursor — the long-press inspect modal
-    // IS the mobile equivalent of "dwelling on a card." So we trigger
-    // the same hover cue when the modal opens, and stop it when the
-    // modal closes. Honors the per-card SFX registry, so signature-
-    // theme cards (Superman, Anakin, etc.) play their full track on a
-    // mobile long-press too. User spec: "do the hovers work on mobile?"
+    document.body.appendChild(backdrop);
     if (this.sfx) {
       try {
-        const inspectAudio = isTrick
-          ? this.sfx.playTrickSfx(name, 'hover')
-          : this.sfx.playCardSfx(name, 'hover');
-        if (!inspectAudio) this.sfx.play('cardHover');
-        this.sfx._currentHoverAudio = inspectAudio;
-        this.sfx._currentHoverEl = modal;
+        const audio = this.sfx.playTrickSfx(name, 'hover');
+        if (!audio) this.sfx.play('cardHover');
+        this.sfx._currentHoverAudio = audio;
+        this.sfx._currentHoverEl = backdrop;
       } catch (e) { /* swallow */ }
     }
     const close = () => {
-      modal.remove();
-      // Stop hover audio + restore menu music level when the inspect
-      // modal closes. Mirror of the desktop mouseout handler.
+      backdrop.remove();
       if (this.sfx && typeof this.sfx._stopHover === 'function') this.sfx._stopHover();
     };
-    modal.querySelector('.ci-backdrop').addEventListener('click', close);
-    modal.querySelector('.ci-close').addEventListener('click', close);
-    // Auto-close on any navigation / Escape key.
+    backdrop.addEventListener('click', (e) => { if (e.target === backdrop) close(); });
+    backdrop.querySelector('.trick-inspect-modal').addEventListener('click', (e) => e.stopPropagation());
     const onKey = (e) => { if (e.key === 'Escape') { close(); document.removeEventListener('keydown', onKey); } };
     document.addEventListener('keydown', onKey);
   },

@@ -14701,6 +14701,53 @@ body.kill-flash-ai::after {
   margin-bottom: 12px;
   border: 1px solid var(--theme-accent-edge, rgba(79,195,247,0.20));
 }
+
+/* Trick full-screen inspect — uses the same .card-inspect-backdrop overlay */
+.trick-inspect-modal {
+  position: relative;
+  width: 300px;
+  max-width: 92vw;
+  background: #05090f;
+  border: 1px solid var(--theme-accent-bright, #4fc3f7);
+  border-radius: 8px;
+  overflow: hidden;
+  box-shadow:
+    0 0 40px var(--theme-glow-outer, rgba(79,195,247,0.50)),
+    0 0 80px var(--theme-glow-inner, rgba(79,195,247,0.20));
+  animation: ciPanelIn 280ms var(--ease-out-soft, cubic-bezier(.18,1.04,.45,1.18)) both;
+  font-family: 'Rajdhani', sans-serif;
+}
+.ti-portrait {
+  width: 100%; height: 340px;
+  background-size: cover; background-position: center top;
+}
+.ti-cost {
+  position: absolute;
+  top: 10px; left: 10px;
+  width: 32px; height: 32px;
+  border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 15px; font-weight: 700;
+  font-family: 'Rajdhani', sans-serif;
+  color: #fff;
+  background: var(--theme-accent-bright, #4fc3f7);
+  box-shadow: 0 0 10px var(--theme-glow-outer, rgba(79,195,247,0.70));
+}
+.ti-name {
+  font-size: 18px; font-weight: 700;
+  letter-spacing: 3px; text-transform: uppercase;
+  color: #f5fbff;
+  padding: 12px 16px 6px;
+  text-shadow:
+    0 0 8px var(--theme-accent-bright, rgba(79,195,247,0.85)),
+    0 0 18px var(--theme-glow-outer, rgba(79,195,247,0.40));
+}
+.ti-desc {
+  font-family: 'Inter', system-ui, sans-serif;
+  font-size: 13px; line-height: 1.55;
+  color: #cfe9fb;
+  padding: 8px 16px 18px;
+}
 .ci-close {
   position: absolute; top: 6px; right: 8px;
   width: 30px; height: 30px;
