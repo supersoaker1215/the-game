@@ -1026,7 +1026,7 @@ const Game = {
       deadPile: [],       // cards that died on board
       discardPile: [],    // cards discarded from hand
       playedTrickPile: [], // tricks that were played
-      blockMeter: 0, discount: 0, nextDrawDiscount: 0, nextDrawDiscountCount: 0,
+      blockMeter: 0, cardsPlayedCount: 0, discount: 0, nextDrawDiscount: 0, nextDrawDiscountCount: 0,
       nextTurnCurrency: 0, maxHandSize: 7, maxTrickHandSize: 3,
       nextCardStolen: false, stolenByBWL: null, bwlInterceptUsed: false,
       drStrangeReorder: false, faceDownAvailable: false,
@@ -4452,6 +4452,17 @@ const Game = {
       // means CA's discount tracks the LIVE board state: if CA
       // dies, the next getCardCost call returns full cost. User
       // spec: "his ability should go away when he dies.")
+      // Doomsday: set stats from the owner's card-play counter so his
+      // strength reflects every card played up to this draw, regardless
+      // of whether he was in the pile the whole time.
+      if (card.passive === 'doomsdayScaling') {
+        const count = (p.cardsPlayedCount || 0);
+        card.attack       = 1 + count;
+        card.health       = 1 + count;
+        card.maxHealth    = 1 + count;
+        card.currentHealth = 1 + count;
+        this.log(`[DOOMSDAY] Drawn — ${count} cards played, enters as ${card.attack}/${card.maxHealth}`);
+      }
       if (!this.addToHand(owner, card)) break;
       drawn.push(card.name);
     }
@@ -4816,7 +4827,13 @@ const Game = {
   // buffed. Cost never changes here; cost only drops on ally deaths while
   // Doomsday is already in hand (_scaleDoomsdayInHands above).
   _scaleDoomsdayOnOwnerPlay(owner) {
-    const hand = this.state[owner] && this.state[owner].hand;
+    // Track total cards played so that a Doomsday still in the draw pile
+    // gets the right stats the moment it's drawn (see drawCards).
+    const p = this.state[owner];
+    if (p) p.cardsPlayedCount = (p.cardsPlayedCount || 0) + 1;
+
+    // If Doomsday is already in hand, scale him live so the card updates visually.
+    const hand = p && p.hand;
     if (hand) {
       hand.forEach(c => {
         if (c.passive !== 'doomsdayScaling') return;
@@ -4826,20 +4843,8 @@ const Game = {
         this.log(`[DOOMSDAY] Owner played a card — grows to ${c.attack}/${c.maxHealth} (cost ${c.cost})`);
       });
     }
-    const pile = this.getDrawPile(owner);
-    if (pile) {
-      pile.forEach(c => {
-        if (c.passive !== 'doomsdayScaling') return;
-        c.attack = (c.attack || 0) + 1;
-        // Keep the raw `health` def property in sync so that if drawCards
-        // later calls createCardInstance(c) on a classic-mode shallow-copy
-        // def, it reads the scaled value rather than the original base (1).
-        c.health = (c.health || 0) + 1;
-        c.maxHealth = (c.maxHealth || 0) + 1;
-        c.currentHealth = (c.currentHealth || 0) + 1;
-        this.log(`[DOOMSDAY] In draw pile — grows to ${c.attack}/${c.maxHealth} (cost stays ${c.cost} until drawn)`);
-      });
-    }
+    // Draw-pile Doomsday is NOT mutated here. His stats are set from
+    // cardsPlayedCount the moment he is drawn (see drawCards).
   },
 
   // Execute queued bonus attacks on one card (Ahsoka, Superman, etc.).
