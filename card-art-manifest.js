@@ -66,4 +66,5 @@ window.CARD_ART_VARIANTS = {
   'Cyborg':              ['Cyborg.png'],
   'Rocket Raccoon':      ['Rocket Raccoon.png'],
   'Kang':                ['Kang.png'],
+  'Jack Sparrow':        ['Jack Sparrow.jpg'],
 };
