@@ -2089,16 +2089,22 @@ const Game = {
   _redirectForForcedLane(owner, card, laneIdx) {
     const _origLane = laneIdx;
     if (card.isDiscardEffect) return laneIdx;
+    // In multiplayer the guest's UI already visually locks them to the forced
+    // lane — they can only click the forced lane, so their msg.lane IS the
+    // forced lane. Trust their choice and only clear the state; don't override
+    // their pick, which would create a race-condition window between the UI
+    // lock appearing and the server processing the play.
+    const mpGuestPlay = this.isMultiplayer() && this.mp.role === 'host' && owner !== 'player';
     // Moder forced lane — next non-discard card is pulled into forced lane.
     if (this.state[owner].forcedLane != null) {
       const fl = this.state[owner].forcedLane;
-      const flLane = this.state.lanes[fl];
-      if (flLane && !flLane.destroyed && !flLane[owner]) {
-        laneIdx = fl;
-        this.state[owner].forcedLane = null;
-        this.log(`[MODER] ${card.name} is pulled into lane ${fl + 1} by Moder!`);
-      } else {
-        this.state[owner].forcedLane = null;
+      this.state[owner].forcedLane = null;
+      if (!mpGuestPlay) {
+        const flLane = this.state.lanes[fl];
+        if (flLane && !flLane.destroyed && !flLane[owner]) {
+          laneIdx = fl;
+          this.log(`[MODER] ${card.name} is pulled into lane ${fl + 1} by Moder!`);
+        }
       }
     }
     // Magneto forced lanes — opponent's next cards go to lanes chosen
@@ -2106,10 +2112,12 @@ const Game = {
     const queue = this.state[owner].magnetoForcedLanes;
     if (queue && queue.length > 0) {
       const fl = queue.shift();
-      const flLane = this.state.lanes[fl];
-      if (flLane && !flLane.destroyed && !flLane[owner]) {
-        laneIdx = fl;
-        this.log(`[MAGNETO] ${card.name} is forced into lane ${fl + 1} by Magneto!`);
+      if (!mpGuestPlay) {
+        const flLane = this.state.lanes[fl];
+        if (flLane && !flLane.destroyed && !flLane[owner]) {
+          laneIdx = fl;
+          this.log(`[MAGNETO] ${card.name} is forced into lane ${fl + 1} by Magneto!`);
+        }
       }
       if (!queue.length) delete this.state[owner].magnetoForcedLanes;
     }
