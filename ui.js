@@ -18381,9 +18381,22 @@ const UI = {
     this._mulliganInstalled = true;
     if (typeof Game === 'undefined' || !Game.draftMulligan) return;
     const orig = Game.draftMulligan.bind(Game);
-    Game.draftMulligan = () => {
-      document.querySelectorAll('.draft-card').forEach(c => c.classList.add('mulligan-shuffle'));
-      setTimeout(() => orig(), 320);
+    Game.draftMulligan = (who) => {
+      // Pass `who` through — the host applies the GUEST's mulligan via
+      // draftMulligan('ai'), and dropping the arg made it always re-roll
+      // 'player' (the host's own choices), so the guest's cards never changed.
+      // Only run the shuffle animation for the LOCAL player's own mulligan
+      // (where `who` is undefined / the local seat); skip it when the host is
+      // applying the remote guest's mulligan.
+      const local = (who === undefined)
+        || (Game.mp && who === Game.mp.you)
+        || (!Game.mp && who === 'player');
+      if (local) {
+        document.querySelectorAll('.draft-card').forEach(c => c.classList.add('mulligan-shuffle'));
+        setTimeout(() => orig(who), 320);
+      } else {
+        orig(who);
+      }
     };
   },
 
