@@ -14650,8 +14650,17 @@ const UI = {
         el.classList.add('playable');
         if (s.selectedTrick === trick) el.classList.add('selected');
         el.addEventListener('click', () => this.onTrickClick(trick));
+        // Portrait tap → inspect without interfering with the select/play flow.
+        const portrait = el.querySelector('.trick-portrait');
+        if (portrait) portrait.addEventListener('click', (e) => {
+          e.stopPropagation();
+          this.showCardInspect(el);
+        });
       } else {
         el.classList.add('unplayable');
+        // Unplayable tricks have no action — open inspect on click so the
+        // player can still read the full card without having to use the codex.
+        el.addEventListener('click', () => this.showCardInspect(el));
       }
       this.playerTricks.appendChild(el);
     });
@@ -17914,6 +17923,10 @@ const UI = {
     const badges = def.abilities && def.abilities.length
       ? `<div class="ci-badges">${this.formatAbilityBadges(def.abilities)}</div>` : '';
     const desc = def.desc ? `<div class="ci-desc">${this.formatDesc(def.desc)}</div>` : '';
+    const trickArtPath = isTrick ? this.getCardArtPath(name) : null;
+    const safeArtUrl = trickArtPath ? trickArtPath.replace(/'/g, '%27') : '';
+    const trickPortrait = isTrick && safeArtUrl
+      ? `<div class="ci-trick-portrait" style="background-image:url('${safeArtUrl}')"></div>` : '';
     const modal = document.createElement('div');
     modal.id = 'card-inspect-modal';
     modal.className = 'card-inspect-modal';
@@ -17921,6 +17934,7 @@ const UI = {
       <div class="ci-backdrop"></div>
       <div class="ci-panel ${this.getCostClass(def.cost || 0)}${isTrick ? ' ci-trick' : ''}">
         <span class="card-cost">${def.cost || 0}</span>
+        ${trickPortrait}
         <div class="ci-name">${def.name}</div>
         ${badges}
         ${stats}

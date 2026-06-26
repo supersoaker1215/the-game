@@ -14694,6 +14694,13 @@ body.kill-flash-ai::after {
   border: 1px solid var(--theme-accent-edge, rgba(79,195,247,0.25));
   border-radius: 4px;
 }
+.ci-trick-portrait {
+  width: 100%; height: 180px;
+  background-size: cover; background-position: center top;
+  border-radius: 4px;
+  margin-bottom: 12px;
+  border: 1px solid var(--theme-accent-edge, rgba(79,195,247,0.20));
+}
 .ci-close {
   position: absolute; top: 6px; right: 8px;
   width: 30px; height: 30px;
