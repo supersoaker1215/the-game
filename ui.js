@@ -940,7 +940,7 @@ const UI = {
       'Green Goblin':     { hover: { src: 'audio/cards/green-goblin-hover.mp3', maxDur: 24 } },
       'Dr. Octopus':      { play: { src: 'audio/cards/dr-octopus-play.mp3?v=2', maxDur: 5 } },
       'Sandman':          { hover: { src: 'audio/cards/sandman-hover.mp3', maxDur: 194, gain: 1.5 }, death: { src: 'audio/cards/sandman-death.m4a', fullDuration: true, gain: 3.0 } },
-      'Jack Sparrow':     { play: { src: 'audio/cards/jack-sparrow-when-played.mp3' } },
+      'Jack Sparrow':     { hover: { src: 'audio/cards/jack-sparrow-hover.mp3' }, play: { src: 'audio/cards/jack-sparrow-when-played.mp3' } },
       'Trigon':           { hover: { src: 'audio/cards/trigon-hover.mp3' }, play: { src: 'audio/cards/trigon-play.mp3', maxDur: 10, gain: 2.5 } },
       'Freddy Fazbear':   { hover: { src: 'audio/cards/freddy-fazbear-hover.mp3', maxDur: 31 }, play: { src: 'audio/cards/freddy-fazbear-when-played.mp3', maxDur: 12 } },
       'Freddy Krueger':   { spawn: { src: 'audio/cards/freddy-krueger-spawn.m4a', maxDur: 5.5 }, play: { src: 'audio/cards/freddy-krueger-spawn.m4a', maxDur: 5.5 } },
@@ -3145,11 +3145,22 @@ const UI = {
         this.sfx._hoverDelayEl = null;
       }
     };
+    // Track the last touchstart time so the mouseover handler below can
+    // ignore iOS synthetic mouseover events that fire immediately after a
+    // finger tap (those produce a spurious hover-SFX that cuts off mid-play
+    // and sounds wrong). Long-press hover audio is handled separately in
+    // installLongPressInspect instead.
+    document.addEventListener('touchstart', () => { this._lastTouchMs = Date.now(); }, { passive: true });
+
     document.addEventListener('mouseover', (e) => {
       const curr = getHoverTarget(e.target);
       if (!curr) return;
       const from = getHoverTarget(e.relatedTarget);
       if (from === curr) return; // still inside the same card; bubbled child
+      // Skip hover audio for synthetic mouseover events fired by iOS right
+      // after a finger tap. A real mouse hover arrives without any recent
+      // touchstart; a tap-triggered synthetic arrives within ~50 ms of one.
+      if (this._lastTouchMs && (Date.now() - this._lastTouchMs) < 500) return;
       // CANCEL any pending mouseout-to-empty stop — the user came
       // back onto a hover target before the 3 s delayed-stop fired,
       // so we want to keep the audio playing without interruption
@@ -17607,6 +17618,15 @@ const UI = {
         timer = null;
         stopRing();
         this.showCardInspect(cardEl);
+        // Play the card's hover audio so the long-press feels alive —
+        // on touch there's no cursor to trigger mouseover, so this is
+        // the only path that fires hover SFX.
+        const hoverName = cardEl.getAttribute('data-card-name') || cardEl.getAttribute('data-trick-name');
+        if (hoverName) {
+          const isTrick = !!cardEl.getAttribute('data-trick-name');
+          if (isTrick) this.sfx.playTrickSfx(hoverName, 'hover');
+          else         this.sfx.playCardSfx(hoverName, 'hover');
+        }
         // Fire a haptic kick so the user knows the long-press landed.
         if (navigator.vibrate) { try { navigator.vibrate(20); } catch (e) {} }
       }, HOLD_MS);

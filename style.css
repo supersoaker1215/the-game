@@ -7967,6 +7967,10 @@ body.hit-pause .ai-hand * {
   .phase-banner-text { font-size: 24px; }
   .player-hand-section, .tricks-section { overflow-x: auto; }
   .hand-cards { min-width: max-content; }
+  /* Settings cog (right:14, 44px) + sync-btn (right:68, 44px) occupy
+     ~126px on the right. Give the turn-hud right padding so the centered
+     pill never slides under those fixed buttons on iPad-sized viewports. */
+  .turn-hud { padding-right: 130px; }
 }
 @media (max-width: 800px) {
   .info-bar { padding: 8px 12px; gap: 10px; grid-template-columns: 180px 52px 1fr 52px 88px; }
@@ -14643,6 +14647,22 @@ input, textarea, select, [contenteditable="true"] { cursor: text !important; }
   a, button, [role="button"], summary, label[for], select { cursor: pointer !important; }
   input:not([type="button"]):not([type="submit"]):not([type="reset"]),
   textarea, [contenteditable="true"] { cursor: text !important; }
+  /* On touch, CSS :hover activates on tap and can linger until the next
+     tap elsewhere. Suppress the extra glow-brighten so tapping a card
+     doesn't leave it looking permanently highlighted. The base card
+     border/shadow (non-hover rules) are untouched — only the `:hover`
+     overrides are neutralised here. */
+  .card:hover { outline-color: transparent !important; }
+  .card.hand-card:hover,
+  .card.hand-card.playable:hover {
+    border-color: var(--card-edge) !important;
+    box-shadow:
+      0 0 10px color-mix(in srgb, var(--card-edge) 25%, transparent),
+      0 0 20px color-mix(in srgb, var(--card-edge) 10%, transparent) !important;
+  }
+  .card.ally-card:hover  { border-color: rgba(79,195,247,0.75) !important; box-shadow: 0 0 10px rgba(79,195,247,0.25) !important; }
+  .card.enemy-card:hover { border-color: rgba(231,76,60,0.75)  !important; box-shadow: 0 0 10px rgba(231,76,60,0.25)  !important; }
+  .draft-card:hover      { transform: none !important; }
 }
 
 /* ============================================================
