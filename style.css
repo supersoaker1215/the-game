@@ -5924,6 +5924,68 @@ body.hit-pause .ai-hand * {
   .card.vibe-magnetic, .card.vibe-alien { animation: none; }
 }
 
+/* ── TOUCH PERFORMANCE — GPU-composited vibe replacements ─────────────
+   On touch / coarse-pointer devices (iPad, iPhone), the filter-based
+   vibe keyframes (hue-rotate, brightness, saturate) run on the CPU and
+   trigger a full repaint every frame for each animated card. Replace
+   them with opacity / transform equivalents which are handled entirely
+   by the compositor — zero repaint cost regardless of board size.
+
+   vibeCosmicMobile   — opacity pulse instead of hue-rotate cycle
+   vibeTitanMobile    — scale only (no brightness pass)
+   vibePhaseMobile    — opacity only (no brightness pass)
+   vibeMagneticMobile — tiny translateY instead of hue-rotate
+
+   Slasher box-shadow animation is also disabled (box-shadow changes
+   force a repaint too); replaced with a static glow.
+   vibeSymbiote / vibeAlien / vibeSpeed already animate only transform
+   so they need no mobile substitutes.
+
+   vibeCosmicDrift (transform:rotate) is GPU-composited and kept as-is.
+   ──────────────────────────────────────────────────────────────────── */
+@keyframes vibeCosmicMobile  { 0%,100% { opacity: 0.88; } 50% { opacity: 1.00; } }
+@keyframes vibeTitanMobile   { 0%,100% { transform: scale(1.000); } 50% { transform: scale(1.018); } }
+@keyframes vibePhaseMobile   { 0%,100% { opacity: 1.00; } 50% { opacity: 0.80; } }
+@keyframes vibeMagneticMobile{ 0%,100% { transform: translateY(0px); } 50% { transform: translateY(-0.5px); } }
+
+@media (pointer: coarse) {
+  /* Cosmic: replace filter:hue-rotate with opacity pulse */
+  .card.vibe-cosmic:not(.card-enter):not(.card-exit) {
+    animation: vibeCosmicMobile 4.2s ease-in-out infinite,
+               vibeCosmicDrift  6.3s ease-in-out infinite;
+  }
+  /* Titan: remove filter:brightness from the scale animation */
+  .card.vibe-titan:not(.card-enter):not(.card-exit) {
+    animation: vibeTitanMobile 3.6s ease-in-out infinite;
+  }
+  /* Phase: remove filter:brightness, keep opacity pulse */
+  .card.vibe-phase:not(.card-enter):not(.card-exit) {
+    animation: vibePhaseMobile 2.8s ease-in-out infinite;
+  }
+  /* Magnetic: replace filter:hue-rotate with gentle translateY */
+  .card.vibe-magnetic:not(.card-enter):not(.card-exit) {
+    animation: vibeMagneticMobile 4.5s ease-in-out infinite;
+  }
+  /* Slasher: disable box-shadow animation, use static glow */
+  .card.vibe-slasher:not(.card-enter):not(.card-exit) {
+    animation: none !important;
+    box-shadow: 0 0 15px rgba(180,30,30,0.65), 0 0 28px rgba(180,30,30,0.30) !important;
+  }
+
+  /* HUD glass blur — .player-bar and .ai-bar always sit atop the board
+     during gameplay. backdrop-filter:blur creates a permanent compositor
+     layer + rasterizes everything behind it on every frame. On touch
+     devices this hits before a card is even played. Remove it and use
+     an opaque background instead. */
+  .hud-strip, .top-hud, .game-hud, .player-bar, .ai-bar,
+  #game-area > div[class*="hud"],
+  #game-area > div[class*="bar"] {
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+    background-color: rgba(0,0,0,0.95) !important;
+  }
+}
+
 /* ---- KEYWORD TRAIT BADGES — condensed terminal-tag spec ---------------
    Old badges were full uppercase words ("EVADE 1") in 8px Rajdhani —
    user feedback: they were "taking up a lot of space". New spec: 7px
@@ -7983,16 +8045,20 @@ body.hit-pause .ai-hand * {
 /* ============================================================
    COMBAT CLARITY — dim inactive lanes during combat so the
    resolving lane reads as the focus. Lane-active overlays
-   keep their gold pulse; everything else loses a bit of
-   brightness + saturation to give the eye a single target.
+   keep their gold pulse; everything else fades back.
+   PERF: Changed from filter:brightness/saturate to opacity.
+   filter on layout elements creates a new compositor layer and
+   forces a repaint for each of the 5 inactive lanes every frame.
+   opacity is handled entirely by the compositor — no repaint,
+   no new GPU layers, ~zero frame-budget cost.
    ============================================================ */
 body.turn-combat .board .lane:not(.lane-active) {
-  filter: brightness(0.72) saturate(0.85);
-  transition: filter 0.25s ease;
+  opacity: 0.45;
+  transition: opacity 0.25s ease;
 }
 body.turn-combat .board .lane.lane-active {
-  filter: none;
-  transition: filter 0.25s ease;
+  opacity: 1;
+  transition: opacity 0.25s ease;
 }
 
 /* Tablet / small-laptop — board + hand both scale down a notch. */
