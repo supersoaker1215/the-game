@@ -1518,8 +1518,93 @@ body.hit-pause .ai-hand * {
   z-index: 215;
   background: #000000;
 }
+/* Menu atmosphere — a soft organic energy field behind the menu panel,
+   recolored to the ACTIVE THEME: mix-blend-mode:color keeps the source image's
+   luminance but takes the theme's hue, so the green source becomes whatever
+   theme the player picked (blue/gold/green/silver/purple). Edge-vignetted so
+   it frames the panel rather than competing with it; STATIC (no idle loop);
+   intensity driven from Settings via --menu-flow-intensity. Pure CSS over one
+   optimized JPEG — effectively free at runtime. */
+.mm-flow {
+  position: absolute; inset: 0; z-index: 0;
+  pointer-events: none; overflow: hidden; isolation: isolate;
+  opacity: var(--menu-flow-intensity, 0.18);
+  -webkit-mask-image: radial-gradient(150% 115% at 50% 32%, transparent 0%, transparent 22%, #000 82%);
+          mask-image: radial-gradient(150% 115% at 50% 32%, transparent 0%, transparent 22%, #000 82%);
+}
+.mm-flow::before {
+  content: ''; position: absolute; inset: -4%;
+  background: url('flow-texture.jpg?v=1') center / cover no-repeat;
+}
+.mm-flow::after {
+  content: ''; position: absolute; inset: 0;
+  background: rgb(var(--theme-rgb, 79,195,247));
+  mix-blend-mode: color;
+}
+@media (prefers-reduced-motion: reduce) { .mm-flow { /* static already — no change */ } }
+
+/* Menu side-art — the currently-playing card's portrait bleeds in from the
+   left + right margins, MIRRORED (Injustice-2013 style). Synced to the menu
+   music: the loop shuffles per-card hover themes, and whichever card's theme
+   is playing shows that card's art here. Low opacity, slow ambient drift,
+   cross-fades when the track changes. Sits above the .mm-flow texture but
+   below the (opaque) menu panel, so it never touches text readability. */
+.mm-sideart {
+  position: absolute; inset: 0; z-index: 0;
+  pointer-events: none; overflow: hidden;
+}
+.mm-sideart-side {
+  position: absolute; top: 0; bottom: 0;
+  width: 38%; max-width: 520px;
+  overflow: hidden;
+  -webkit-mask-image: linear-gradient(to right, #000 0%, #000 32%, transparent 92%);
+          mask-image: linear-gradient(to right, #000 0%, #000 32%, transparent 92%);
+}
+.mm-sideart-left  { left: 0; }
+.mm-sideart-right { right: 0; transform: scaleX(-1); }   /* mirror the right side */
+.mm-sideart {
+  /* Duotone strength — how far the portraits are pushed into the theme color.
+     0 = untouched art, 1 = full neon silhouette. The JS lays a theme-colored
+     gradient over the portrait at this alpha; background-blend-mode:color then
+     keeps the art's LUMINANCE (shape/shading) but takes the theme's HUE, so
+     characters read as neon ghosts in the Tron palette — and follow theme
+     changes live via --theme-rgb. */
+  --mm-duo: 0.6;
+}
+.mm-sideart-img {
+  position: absolute; inset: 0;
+  background-size: cover; background-position: 50% 28%;
+  background-repeat: no-repeat;
+  background-blend-mode: color;   /* tint layer recolors the portrait to theme */
+  opacity: 0;
+  /* The 360px portraits are scaled ~2x to fill this tall panel, which on its
+     own reads as a low-res blur. A DELIBERATE soft-focus turns that into an
+     intentional depth-of-field backdrop (the AAA menu trick): the gaussian
+     blur hides the upscale fuzz, the saturate boost makes the duotone glow,
+     the darken keeps it behind the panel. scale(1.08) hides the blur's soft
+     edge bleeding past the mask. */
+  filter: blur(2.5px) saturate(1.2) brightness(0.86);
+  transition: opacity 0.9s ease;
+  animation: mmSideDrift 26s ease-in-out infinite alternate;
+  will-change: transform, opacity;
+}
+.mm-sideart-img.is-visible {
+  /* portraits read a touch stronger than the flow texture, capped so they
+     stay atmospheric. Driven by the same Settings intensity slider. */
+  opacity: clamp(0, calc(var(--menu-flow-intensity, 0.18) * 1.6), 0.5);
+}
+@keyframes mmSideDrift {
+  0%   { transform: translateY(-2.5%) scale(1.06); }
+  100% { transform: translateY(2.5%)  scale(1.12); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .mm-sideart-img { animation: none; transform: scale(1.06); }
+}
+@media (max-width: 560px) { .mm-sideart-side { width: 46%; } }
+
 .mm-panel {
   position: relative;
+  z-index: 1;   /* above the .mm-flow atmosphere */
   max-width: 580px; width: 92%;
   padding: 52px 48px 38px;
   background:

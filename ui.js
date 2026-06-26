@@ -325,7 +325,12 @@ const UI = {
     musicVolume: 0.55,
     // Menu music on/off — plays on main menu, mode picker, deck builder,
     // and draft screens. Stops automatically when a round begins.
-    menuMusic: true
+    menuMusic: true,
+    // Menu atmosphere — soft theme-tinted energy field behind the main-menu
+    // panel (the flowing-energy reference art, recolored to the active theme).
+    // Static, GPU-cheap (one optimized JPEG + a CSS blend). Intensity 0..1.
+    menuFlow: true,
+    menuFlowIntensity: 0.18
   },
   SETTINGS_KEY: 'clb.settings.v1',
 
@@ -413,6 +418,92 @@ const UI = {
     document.documentElement.style.fontSize = (16 * s) + 'px';
     document.body.dataset.uiScale = s.toFixed(2);
   },
+  // Live-sync the menu-atmosphere layer to current settings without a full
+  // menu re-render — lets the Settings toggle/slider preview in real time
+  // over the (still-mounted) menu behind the settings overlay.
+  _applyMenuFlow() {
+    const el = document.getElementById('main-menu-overlay');
+    if (!el) return;
+    const on = this.settings.menuFlow !== false;
+    const intensity = String(this.settings.menuFlowIntensity ?? 0.18);
+    let flow = el.querySelector(':scope > .mm-flow');
+    let side = el.querySelector(':scope > .mm-sideart');
+    if (!on) { if (flow) flow.remove(); if (side) side.remove(); return; }
+    if (!flow) {
+      flow = document.createElement('div');
+      flow.className = 'mm-flow';
+      flow.setAttribute('aria-hidden', 'true');
+      el.insertBefore(flow, el.firstChild);
+    }
+    flow.style.setProperty('--menu-flow-intensity', intensity);
+    if (!side) {
+      side = document.createElement('div');
+      side.className = 'mm-sideart';
+      side.setAttribute('aria-hidden', 'true');
+      side.innerHTML = '<div class="mm-sideart-side mm-sideart-left"><div class="mm-sideart-img"></div><div class="mm-sideart-img"></div></div>'
+                     + '<div class="mm-sideart-side mm-sideart-right"><div class="mm-sideart-img"></div><div class="mm-sideart-img"></div></div>';
+      el.insertBefore(side, flow.nextSibling);   // above the flow texture, below the panel
+    }
+    side.style.setProperty('--menu-flow-intensity', intensity);
+    try { this._updateMenuSideArt(this.sfx && this.sfx._music && this.sfx._music.currentSrc); } catch (e) {}
+  },
+
+  // Map a menu hover-music filename (e.g. "black-panther-hover.mp3") back to
+  // its card name by inverting the same kebab-case transform names use for
+  // their audio files. Built once from CARD_DEFS + TRICK_DEFS (stones live in
+  // TRICK_DEFS) so it auto-tracks the roster — no hand-maintained table.
+  _buildMenuStemMap() {
+    const map = {};
+    const kebab = (s) => s.toLowerCase().replace(/\./g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+    const add = (defs) => { for (const d of (defs || [])) { if (d && d.name) { const k = kebab(d.name); if (k) map[k] = d.name; } } };
+    if (typeof CARD_DEFS  !== 'undefined') add(CARD_DEFS);
+    if (typeof TRICK_DEFS !== 'undefined') add(TRICK_DEFS);
+    // Hover files that use a SHORT name instead of the full card name — the
+    // kebab of the full name won't match, so alias them explicitly.
+    Object.assign(map, { 'anakin': 'Anakin Skywalker', 'luke': 'Luke Skywalker' });
+    return map;
+  },
+  _menuHoverArtName(src) {
+    if (!src) return null;
+    let base = String(src).split('/').pop().split('?')[0].replace(/\.[a-z0-9]+$/i, '');
+    base = base.replace(/-hover$/i, '');
+    if (!this._menuStemToName) this._menuStemToName = this._buildMenuStemMap();
+    return this._menuStemToName[base] || null;
+  },
+  // Cross-fade the left + right side-art to the portrait of the card whose
+  // hover theme is currently playing. No-op off the menu; gracefully fades
+  // out for hover clips that map to a card with no portrait (stones, etc.).
+  _updateMenuSideArt(src) {
+    const wrap = document.querySelector('#main-menu-overlay > .mm-sideart');
+    if (!wrap) return;
+    const name = this._menuHoverArtName(src);
+    const art = name ? this.getCardArtPath(name) : null;
+    if (!art) {
+      wrap.querySelectorAll('.mm-sideart-img.is-visible').forEach(n => n.classList.remove('is-visible'));
+      return;
+    }
+    if (wrap._sideArtSrc === art) return;   // already showing this card
+    // Two background layers: a theme-colored wash (alpha = --mm-duo) OVER the
+    // portrait. With background-blend-mode:color (set in CSS) this duotones
+    // the art into the Tron palette. var() resolves live, so theme switches
+    // re-tint without re-running this.
+    const tint = 'linear-gradient(rgba(var(--theme-rgb,79,195,247), var(--mm-duo,0.6)), rgba(var(--theme-rgb,79,195,247), var(--mm-duo,0.6)))';
+    const pre = new Image();
+    pre.onload = () => {
+      wrap._sideArtSrc = art;
+      wrap.querySelectorAll('.mm-sideart-side').forEach(side => {
+        const bufs = side.querySelectorAll('.mm-sideart-img');
+        if (bufs.length < 2) return;
+        const active = side.querySelector('.mm-sideart-img.is-visible');
+        const next = (active === bufs[0]) ? bufs[1] : bufs[0];
+        next.style.backgroundImage = `${tint}, url("${art}")`;
+        if (active) active.classList.remove('is-visible');
+        next.classList.add('is-visible');
+      });
+    };
+    pre.onerror = () => {};   // keep whatever's showing if the art 404s
+    pre.src = art;
+  },
   saveSettings() {
     const g = (id) => document.getElementById(id);
     this.settings.difficulty  = g('setting-difficulty').value;
@@ -477,6 +568,12 @@ const UI = {
       this.settings.crt = crtEl.checked;
       document.body.classList.toggle('crt-on', !!this.settings.crt);
     }
+    // Menu atmosphere — theme-tinted energy field behind the menu panel.
+    const flowEl = g('setting-menu-flow');
+    if (flowEl) this.settings.menuFlow = flowEl.checked;
+    const flowIntEl = g('setting-menu-flow-intensity');
+    if (flowIntEl) this.settings.menuFlowIntensity = parseInt(flowIntEl.value, 10) / 100;
+    this._applyMenuFlow();
     // UI scale — scales the root font-size so em-based CSS scales in
     // turn, plus applies a CSS transform on the body for pixel
     // fidelity on the parts of the game that use fixed pixel sizes.
@@ -595,6 +692,34 @@ const UI = {
     }
     const menuMusicEl = g('setting-menu-music');
     if (menuMusicEl) menuMusicEl.checked = this.settings.menuMusic !== false;
+    // Menu atmosphere — toggle + intensity, both live-preview over the menu
+    // sitting behind the settings overlay.
+    const flowToggleEl = g('setting-menu-flow');
+    if (flowToggleEl) {
+      flowToggleEl.checked = this.settings.menuFlow !== false;
+      if (!flowToggleEl._flowHookWired) {
+        flowToggleEl._flowHookWired = true;
+        flowToggleEl.addEventListener('change', () => {
+          this.settings.menuFlow = flowToggleEl.checked;
+          this._applyMenuFlow();
+        });
+      }
+    }
+    const flowIntEl = g('setting-menu-flow-intensity');
+    if (flowIntEl) {
+      const max = parseInt(flowIntEl.max, 10) || 40;
+      flowIntEl.value = Math.round((this.settings.menuFlowIntensity ?? 0.18) * 100);
+      const syncFFill = () => { flowIntEl.style.setProperty('--sfx-pct', (flowIntEl.value / max * 100) + '%'); };
+      syncFFill();
+      if (!flowIntEl._fillHookWired) {
+        flowIntEl._fillHookWired = true;
+        flowIntEl.addEventListener('input', () => {
+          syncFFill();
+          this.settings.menuFlowIntensity = parseInt(flowIntEl.value, 10) / 100;
+          this._applyMenuFlow();
+        });
+      }
+    }
     const cbEl = g('setting-colorblind');
     if (cbEl) cbEl.checked = !!this.settings.colorblind;
     const hapEl = g('setting-haptics-off');
@@ -2114,6 +2239,12 @@ const UI = {
         a.volume = this._musicTargetVol();
         try { a.play().catch(() => {}); } catch (e) {}
       });
+      // Every time a (new) track actually begins, swap the menu side-art to
+      // that card's portrait. Fires after each src change + play(), so this
+      // single hook covers start, skip, and the ended→next chain.
+      a.addEventListener('playing', () => {
+        try { UI._updateMenuSideArt(a.currentSrc); } catch (e) {}
+      });
       this._music = a;
       return a;
     },
@@ -2198,6 +2329,8 @@ const UI = {
 
     stopMusic() {
       this._musicWantPlay = false;
+      // No theme playing → fade the menu side-art out (nothing to mirror).
+      try { UI._updateMenuSideArt(null); } catch (e) {}
       if (!this._music) return;
       const a = this._music;
       if (this._musicFadeInterval) { clearInterval(this._musicFadeInterval); this._musicFadeInterval = null; }
@@ -7330,25 +7463,8 @@ const UI = {
           <div class="mm-option-sub">${sub}</div>
         </div>
       </button>`;
-    // Profile chip — surfaces the name/avatar the player set in Settings plus
-    // their recent W/L, so the home screen reflects them instead of reading
-    // generic. Record is over the stored match history (last N). Escaped since
-    // the name is free user input.
-    const esc = (str) => String(str == null ? '' : str).replace(/[<>&]/g, c => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;' }[c]));
-    const _hist = (this._getMatchHistory && this._getMatchHistory()) || [];
-    const _wins = _hist.filter(m => m && m.winner === 'player').length;
-    const _losses = _hist.filter(m => m && m.winner === 'ai').length;
-    const _pName = esc((this.settings.playerName || 'YOU').slice(0, 12));
-    const _pAv = esc(this.settings.playerAvatar || '▲');
-    const _record = (_wins + _losses) > 0 ? `${_wins}W · ${_losses}L` : 'No matches yet';
-    const profileChip = `
-      <div class="mm-profile-chip" title="Edit your name & avatar in Settings">
-        <span class="mm-profile-av" aria-hidden="true">${_pAv}</span>
-        <span class="mm-profile-meta">
-          <span class="mm-profile-name">${_pName}</span>
-          <span class="mm-profile-record">${_record}</span>
-        </span>
-      </div>`;
+    // (Profile chip removed — the home screen leads with the title + the
+    // music-synced mirror art instead of a name/record badge.)
     // Simple question-mark SVG for the tutorial option (no other icon
     // slot conveys "how to play"). Matches the other .mm-svg spec.
     const helpSVG = `<svg class="mm-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M9 9a3 3 0 1 1 4.5 2.6c-.9.5-1.5 1-1.5 2"/><line x1="12" y1="17" x2="12" y2="17.2"/></svg>`;
@@ -7372,10 +7488,16 @@ const UI = {
     // "you can space out the diffrenet sections like 'play' 'decks'
     // and library more vertically give even space between the sections
     // and have even space on the top and bottom of the screen."
+    const _flowOn = this.settings.menuFlow !== false;
+    const _flowI  = this.settings.menuFlowIntensity ?? 0.18;
     el.innerHTML = `
+      ${_flowOn ? `<div class="mm-flow" aria-hidden="true" style="--menu-flow-intensity:${_flowI}"></div>
+      <div class="mm-sideart" aria-hidden="true" style="--menu-flow-intensity:${_flowI}">
+        <div class="mm-sideart-side mm-sideart-left"><div class="mm-sideart-img"></div><div class="mm-sideart-img"></div></div>
+        <div class="mm-sideart-side mm-sideart-right"><div class="mm-sideart-img"></div><div class="mm-sideart-img"></div></div>
+      </div>` : ''}
       <div class="mm-panel">
         <div class="mm-header">
-          ${profileChip}
           <h1 class="mm-title">the game</h1>
           <div class="mm-divider" aria-hidden="true"></div>
         </div>
@@ -7415,6 +7537,11 @@ const UI = {
           </div>
         </div>
       </div>`;
+    // Sync the side-art to whatever hover theme is already playing (the menu
+    // music may have started before this DOM existed).
+    if (_flowOn) {
+      try { this._updateMenuSideArt(this.sfx && this.sfx._music && this.sfx._music.currentSrc); } catch (e) {}
+    }
   },
   openTutorial() {
     const ov = document.getElementById('tutorial-overlay');
