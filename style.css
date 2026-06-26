@@ -14695,7 +14695,7 @@ body.kill-flash-ai::after {
   border-radius: 4px;
 }
 .ci-trick-portrait {
-  width: 100%; height: 180px;
+  width: 100%; height: 280px;
   background-size: cover; background-position: center top;
   border-radius: 4px;
   margin-bottom: 12px;
