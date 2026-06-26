@@ -5068,18 +5068,25 @@ const UI = {
     const isDeckBuilder = s.phase === 'deckbuilder-build';
     const isDraft = s.phase === 'draft-cards' || s.phase === 'draft-tricks';
     const is2v2 = s.phase && s.phase.startsWith('2v2-');
+    const _2v2SetupPhases = ['2v2-team-setup','2v2-pass','2v2-draft','2v2-draft-pass','2v2-online-lobby'];
     const is2v2OnlineGame = is2v2 && (() => {
       const tt = s.twoVTwo;
       if (!tt || !tt.online) return false;
-      const p = s.phase;
-      return p !== '2v2-team-setup' && p !== '2v2-pass' &&
-             p !== '2v2-draft'      && p !== '2v2-draft-pass' &&
-             p !== '2v2-online-lobby';
+      return !_2v2SetupPhases.includes(s.phase);
     })();
     const is2v2OnlineDraft = is2v2 && (() => {
       const tt = s.twoVTwo;
       if (!tt || !tt.online) return false;
       return s.phase === '2v2-draft';
+    })();
+    const is2v2LocalDraft = is2v2 && (() => {
+      const tt = s.twoVTwo;
+      return !!(tt && !tt.online && s.phase === '2v2-draft');
+    })();
+    const is2v2LocalGame = is2v2 && (() => {
+      const tt = s.twoVTwo;
+      if (!tt || tt.online) return false;
+      return !_2v2SetupPhases.includes(s.phase);
     })();
     // Hide the dev Web/Mobile preview toggle on every screen EXCEPT the
     // main menu and mode-select. It's a developer affordance, not part
@@ -5122,10 +5129,13 @@ const UI = {
     showOverlay(this._myDecksOverlay,     isMyDecks);
     showOverlay(this._statsOverlay,       isStats);
     showOverlay(this._deckbuilderOverlay, isDeckBuilder);
-    this.draftEl.style.display = (isDraft || is2v2OnlineDraft) ? 'flex' : 'none';
+    this.draftEl.style.display = (isDraft || is2v2OnlineDraft || is2v2LocalDraft) ? 'flex' : 'none';
     const isRoguelite = s.phase && s.phase.startsWith('roguelite');
+    // Hide game-area for all non-game screens, including local 2v2 setup/pass/lobby phases.
+    // Local 2v2 game and draft now use the standard game-area/draftEl just like 1v1.
+    const is2v2SetupOverlay = is2v2 && !is2v2OnlineGame && !is2v2OnlineDraft && !is2v2LocalGame && !is2v2LocalDraft;
     (this._gameAreaEl || document.getElementById('game-area')).style.display =
-      (isDraft || is2v2OnlineDraft || isMainMenu || isModeSelect || isMyDecks || isStats || isDeckBuilder || isRoguelite || (is2v2 && !is2v2OnlineGame && !is2v2OnlineDraft)) ? 'none' : '';
+      (isDraft || is2v2OnlineDraft || is2v2LocalDraft || isMainMenu || isModeSelect || isMyDecks || isStats || isDeckBuilder || isRoguelite || is2v2SetupOverlay) ? 'none' : '';
 
     if (isMainMenu)    { this.renderMainMenu(s); return; }
     if (isModeSelect)  { this.renderModeSelect(s); return; }
@@ -5134,8 +5144,10 @@ const UI = {
     if (isDeckBuilder) { this.renderDeckBuilder(s); return; }
     if (isDraft)          { this.renderDraft(s); return; }
     if (is2v2OnlineDraft) { this._render2v2OnlineDraftPolished(s); return; }
+    if (is2v2LocalDraft)  { this._render2v2LocalDraft(s); return; }
     if (is2v2) {
       if (is2v2OnlineGame) { this._render2v2OnlineBoard(s); return; }
+      if (is2v2LocalGame)  { this._render2v2LocalGame(s); return; }
       this.render2v2(s); return;
     }
     if (isRoguelite && typeof Roguelite !== 'undefined') {
@@ -6556,6 +6568,78 @@ const UI = {
   // Renders the 2v2 online draft using the same polished card-art UI as the
   // 1v1 draft (portraits, stat orbs, rarity pips, progress pips). Non-active
   // pickers see a waiting spinner. Reads from tt.draft instead of s.draft.
+  // ===================== 2v2 LOCAL — POLISHED BOARD =====================
+  // Wraps _render2v2OnlineBoard for local (same-device) 2v2. Temporarily
+  // sets tt.you = activeKey so the shared renderer knows who is acting,
+  // then re-wires Done / lane-select / trick clicks to local handlers.
+  _render2v2LocalGame(s) {
+    const tt = s.twoVTwo;
+    if (!tt) return;
+    const activeKey = Game._2v2ActivePlayer();
+    if (!activeKey) return;
+    const prevYou = tt.you;
+    tt.you = activeKey;
+    this._render2v2OnlineBoard(s);
+    tt.you = prevYou;
+
+    // Done button → local phase-end handler
+    const btnA = document.getElementById('btn-action');
+    if (btnA && btnA.style.display !== 'none') {
+      btnA.onclick = () => Game.end2v2Phase();
+    }
+
+    // Lane-select buttons → local place function (re-write onclick string)
+    const strip = document.getElementById('twov2-board-lane-select');
+    if (strip) {
+      strip.querySelectorAll('.twov2-bls-btn').forEach(btn => {
+        const old = btn.getAttribute('onclick');
+        if (old) btn.setAttribute('onclick', old.replace('twov2OnlinePlaceCard', 'twov2PlaceCard'));
+      });
+    }
+
+    // Trick clicks → local trick handler
+    const tricksEl = document.getElementById('player-tricks');
+    if (tricksEl) {
+      tricksEl.querySelectorAll('.trick-card').forEach((el, idx) => {
+        if (el.onclick) el.onclick = (e) => { e.stopPropagation(); twov2PlayTrick(idx); };
+      });
+    }
+  },
+
+  // ===================== 2v2 LOCAL — POLISHED DRAFT =====================
+  // Wraps _render2v2OnlineDraftPolished for local 2v2. Temporarily sets
+  // tt.you = pickerKey so the shared renderer shows the right player's
+  // hand, then re-wires pick clicks to the local twov2DraftPick handler.
+  _render2v2LocalDraft(s) {
+    const tt = s.twoVTwo;
+    if (!tt || !tt.draft) return;
+    const d = tt.draft;
+    const pickerKey = d.pickerOrder[d.pickerIdx];
+    const prevYou = tt.you;
+    tt.you = pickerKey;
+    // Hide local overlay so the polished draftEl shows instead
+    const overlay = document.getElementById('twoVTwo-overlay');
+    if (overlay) overlay.style.display = 'none';
+    this._render2v2OnlineDraftPolished(s);
+    tt.you = prevYou;
+
+    // Re-wire draft pick onclick to local function
+    const draftEl = this.draftEl;
+    if (draftEl) {
+      draftEl.querySelectorAll('[onclick*="twov2OnlineDraftPick"]').forEach(el => {
+        const old = el.getAttribute('onclick');
+        if (old) el.setAttribute('onclick', old.replace('twov2OnlineDraftPick', 'twov2DraftPick'));
+      });
+      // Swap Leave → Menu button
+      const leaveBtn = draftEl.querySelector('.draft-quit-btn');
+      if (leaveBtn) {
+        const lbl = leaveBtn.querySelector('.mulligan-label');
+        if (lbl) lbl.textContent = 'Menu';
+        leaveBtn.setAttribute('onclick', 'Game.quit ? Game.quit() : (Game.state.phase = "main-menu", UI.render())');
+      }
+    }
+  },
+
   _render2v2OnlineDraftPolished(s) {
     const tt = s.twoVTwo;
     if (!tt || !tt.draft) return;
