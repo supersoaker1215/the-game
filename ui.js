@@ -7047,46 +7047,40 @@ const UI = {
   },
 
   _render2v2TeamSetup(el, s, tt) {
-    const playerKeys = ['p1', 'p2', 'p3', 'p4'];
-    const teamColors = { A: '#4fc3f7', B: '#f44336' };
-
     el.innerHTML = `
-      <div class="twov2-panel">
-        <h2 class="twov2-title">2v2 Setup</h2>
-        <p class="twov2-subtitle">Enter player names, then assign teams.</p>
+      <div class="mode-panel setup2v2-panel">
+        <button type="button" class="mode-back" onclick="Game.goToModeSelect()">← Back</button>
 
-        <div class="twov2-names-grid">
-          ${playerKeys.map(pk => `
-            <div class="twov2-name-row">
-              <label class="twov2-name-label">Player ${pk[1]}</label>
-              <input class="twov2-name-input" id="2v2-name-${pk}" type="text"
+        <div class="setup2v2-title">2V2 Setup</div>
+        <div class="setup2v2-subtitle">4 players · 2 teams · 8 lanes</div>
+
+        <div class="setup2v2-inputs">
+          ${['p1','p2','p3','p4'].map(pk => `
+            <div class="setup2v2-name-group">
+              <label class="setup2v2-label">Player ${pk[1]}</label>
+              <input class="setup2v2-input" id="2v2-name-${pk}" type="text"
                      maxlength="18" placeholder="${tt.players[pk].name}"
-                     value="${tt.players[pk].name}" />
+                     value="${tt.players[pk].name}" autocomplete="off" />
             </div>
           `).join('')}
         </div>
 
-        <div class="twov2-team-assign">
-          <div class="twov2-team-box" id="2v2-teamA">
-            <div class="twov2-team-label" style="color:${teamColors.A}">Team A</div>
-            <div class="twov2-team-members">
-              ${['p1','p2'].map(pk => `<div class="twov2-member">${tt.players[pk].name}</div>`).join('')}
-            </div>
+        <div class="setup2v2-teams">
+          <div class="setup2v2-team setup2v2-team-a">
+            <div class="setup2v2-team-label">Team A</div>
+            ${['p1','p2'].map(pk => `<div class="setup2v2-member">${tt.players[pk].name}</div>`).join('')}
           </div>
-          <div class="twov2-team-vs">VS</div>
-          <div class="twov2-team-box" id="2v2-teamB">
-            <div class="twov2-team-label" style="color:${teamColors.B}">Team B</div>
-            <div class="twov2-team-members">
-              ${['p3','p4'].map(pk => `<div class="twov2-member">${tt.players[pk].name}</div>`).join('')}
-            </div>
+          <div class="setup2v2-vs">VS</div>
+          <div class="setup2v2-team setup2v2-team-b">
+            <div class="setup2v2-team-label">Team B</div>
+            ${['p3','p4'].map(pk => `<div class="setup2v2-member">${tt.players[pk].name}</div>`).join('')}
           </div>
         </div>
 
-        <div class="twov2-actions">
-          <button class="twov2-btn twov2-btn-sec" onclick="start2v2RandomTeams()">🎲 Random Teams</button>
-          <button class="twov2-btn twov2-btn-pri" onclick="start2v2Confirm()">Start Game →</button>
+        <div class="setup2v2-actions">
+          <button type="button" class="setup2v2-btn" onclick="start2v2RandomTeams()">🎲 Random Teams</button>
+          <button type="button" class="setup2v2-btn setup2v2-btn-pri" onclick="start2v2Confirm()">Start Game →</button>
         </div>
-        <button class="twov2-back-btn" onclick="Game.goToModeSelect()">← Back</button>
       </div>`;
   },
 

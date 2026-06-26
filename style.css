@@ -29868,6 +29868,101 @@ body.round-tick .board::after {
   overflow-y: auto;
 }
 
+/* ---- 2v2 Polished Setup Screen ---- */
+.setup2v2-panel { padding-top: 56px; max-width: 540px; }
+.setup2v2-title {
+  font-family: 'Rajdhani', sans-serif;
+  font-size: 28px; font-weight: 700;
+  letter-spacing: 8px; text-transform: uppercase;
+  text-align: center; color: #f5fbff; margin-bottom: 4px;
+  text-shadow: 0 0 8px rgba(79,195,247,0.80), 0 0 22px rgba(79,195,247,0.40);
+}
+.setup2v2-subtitle {
+  font-family: 'Rajdhani', sans-serif;
+  font-size: 11px; font-weight: 600;
+  letter-spacing: 4px; text-transform: uppercase;
+  text-align: center; color: #8fc8ee; margin-bottom: 28px;
+}
+.setup2v2-inputs {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 12px;
+  margin-bottom: 22px;
+}
+.setup2v2-name-group { display: flex; flex-direction: column; gap: 4px; }
+.setup2v2-label {
+  font-family: 'Rajdhani', sans-serif;
+  font-size: 10px; font-weight: 700;
+  letter-spacing: 3px; text-transform: uppercase;
+  color: rgba(79,195,247,0.75);
+}
+.setup2v2-input {
+  background: rgba(79,195,247,0.04);
+  border: 1px solid rgba(79,195,247,0.40);
+  border-radius: 3px; padding: 8px 10px;
+  color: #f5fbff;
+  font-family: 'Rajdhani', sans-serif; font-size: 15px; font-weight: 600;
+  outline: none; width: 100%; box-sizing: border-box;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+.setup2v2-input:focus {
+  border-color: rgba(79,195,247,0.90);
+  box-shadow: 0 0 10px rgba(79,195,247,0.28);
+}
+.setup2v2-teams {
+  display: flex; gap: 10px; align-items: stretch;
+  margin-bottom: 22px;
+}
+.setup2v2-team {
+  flex: 1; padding: 14px 16px; border-radius: 4px;
+  border: 1px solid;
+}
+.setup2v2-team-a {
+  border-color: rgba(79,195,247,0.50);
+  box-shadow: 0 0 12px rgba(79,195,247,0.12);
+}
+.setup2v2-team-b {
+  border-color: rgba(244,67,54,0.50);
+  box-shadow: 0 0 12px rgba(244,67,54,0.12);
+}
+.setup2v2-team-label {
+  font-family: 'Rajdhani', sans-serif;
+  font-size: 12px; font-weight: 700;
+  letter-spacing: 4px; text-transform: uppercase;
+  margin-bottom: 8px;
+}
+.setup2v2-team-a .setup2v2-team-label { color: #4fc3f7; }
+.setup2v2-team-b .setup2v2-team-label { color: #f44336; }
+.setup2v2-member {
+  font-family: 'Rajdhani', sans-serif;
+  font-size: 14px; font-weight: 500; color: #cfe9fb; padding: 2px 0;
+}
+.setup2v2-vs {
+  font-family: 'Rajdhani', sans-serif;
+  font-size: 16px; font-weight: 700; letter-spacing: 4px;
+  color: #566070; align-self: center; flex-shrink: 0;
+}
+.setup2v2-actions { display: flex; gap: 10px; }
+.setup2v2-btn {
+  flex: 1; padding: 12px 16px;
+  background: #000;
+  border: 1px solid rgba(79,195,247,0.55);
+  border-radius: 4px;
+  color: rgba(79,195,247,0.90);
+  font-family: 'Rajdhani', sans-serif;
+  font-size: 12px; font-weight: 700;
+  letter-spacing: 2px; text-transform: uppercase;
+  cursor: pointer;
+  transition: border-color 0.15s, box-shadow 0.15s, transform 0.1s;
+}
+.setup2v2-btn:hover {
+  border-color: rgba(79,195,247,1);
+  box-shadow: 0 0 14px rgba(79,195,247,0.40);
+  transform: translateY(-1px);
+}
+.setup2v2-btn-pri {
+  background: rgba(79,195,247,0.07); color: #f5fbff;
+  text-shadow: 0 0 6px rgba(79,195,247,0.60);
+}
+
 /* --- Team Setup Screen --- */
 .twov2-panel {
   background: #111720;
