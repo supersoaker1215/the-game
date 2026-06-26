@@ -4787,6 +4787,8 @@ const Game = {
   // deadOwner = owner of the card that just died ('player' or 'ai').
   // - In hand: cost drops only when an ally (same owner) is killed.
   // - In draw pile: stats grow for every death, cost stays locked.
+  // Ally death: cost drops by 1 for any Doomsday the same owner has in hand.
+  // Draw-pile Doomsday is unaffected by deaths — stats only grow on card plays.
   _scaleDoomsdayInHands(deadOwner) {
     for (const side of ['player', 'ai']) {
       const hand = this.state[side] && this.state[side].hand;
@@ -4799,12 +4801,25 @@ const Game = {
         }
       });
     }
-    // Draw pile: stats accumulate for all deaths, cost stays locked until drawn.
-    const pilesScaled = new Set();
-    for (const side of ['player', 'ai']) {
-      const pile = this.getDrawPile(side);
-      if (!pile || pilesScaled.has(pile)) continue;
-      pilesScaled.add(pile);
+  },
+
+  // Called after the owner plays any card. Grows +1/+1 whether Doomsday
+  // is in hand OR still in the draw pile — so a late draw still arrives
+  // buffed. Cost never changes here; cost only drops on ally deaths while
+  // Doomsday is already in hand (_scaleDoomsdayInHands above).
+  _scaleDoomsdayOnOwnerPlay(owner) {
+    const hand = this.state[owner] && this.state[owner].hand;
+    if (hand) {
+      hand.forEach(c => {
+        if (c.passive !== 'doomsdayScaling') return;
+        c.attack = (c.attack || 0) + 1;
+        c.maxHealth = (c.maxHealth || 0) + 1;
+        c.currentHealth = (c.currentHealth || 0) + 1;
+        this.log(`[DOOMSDAY] Owner played a card — grows to ${c.attack}/${c.maxHealth} (cost ${c.cost})`);
+      });
+    }
+    const pile = this.getDrawPile(owner);
+    if (pile) {
       pile.forEach(c => {
         if (c.passive !== 'doomsdayScaling') return;
         c.attack = (c.attack || 0) + 1;
@@ -4813,20 +4828,6 @@ const Game = {
         this.log(`[DOOMSDAY] In draw pile — grows to ${c.attack}/${c.maxHealth} (cost stays ${c.cost} until drawn)`);
       });
     }
-  },
-
-  // Called after the owner plays any card. Doomsday grows +1/+1 for
-  // each card his owner deploys while he's waiting in hand.
-  _scaleDoomsdayOnOwnerPlay(owner) {
-    const hand = this.state[owner] && this.state[owner].hand;
-    if (!hand) return;
-    hand.forEach(c => {
-      if (c.passive !== 'doomsdayScaling') return;
-      c.attack = (c.attack || 0) + 1;
-      c.maxHealth = (c.maxHealth || 0) + 1;
-      c.currentHealth = (c.currentHealth || 0) + 1;
-      this.log(`[DOOMSDAY] Owner played a card — grows to ${c.attack}/${c.maxHealth} (cost ${c.cost})`);
-    });
   },
 
   // Execute queued bonus attacks on one card (Ahsoka, Superman, etc.).
