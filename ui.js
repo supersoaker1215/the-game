@@ -1610,7 +1610,7 @@ const UI = {
         death:  function() { this._tone({ type:'sawtooth', freq:110, freqEnd:25, dur:1.1, gain:0.2, release:1.3 }); },
       },
       'Loki': {
-        hover:  function() { this._tone({ type:'sine', freq:523, freqEnd:588, dur:0.2, gain:0.06, attack:0.02, release:0.24 }); this._tone({ type:'sine', freq:588, freqEnd:523, dur:0.2, gain:0.05, attack:0.02, release:0.24, delay:0.18 }); },
+        hover:  { src: 'audio/cards/loki-hover.mp3' },
         play:   function() { this._tone({ type:'triangle', freq:440, freqEnd:660, dur:0.18, gain:0.10, release:0.22 }); this._tone({ type:'triangle', freq:660, freqEnd:440, dur:0.18, gain:0.08, release:0.22, delay:0.08 }); this._tone({ type:'sine', freq:880, dur:0.12, gain:0.05, release:0.16, delay:0.18 }); },
         attack: function() { this._tone({ type:'sawtooth', freq:660, freqEnd:330, dur:0.11, gain:0.11, release:0.14 }); },
         death:  function() { this._tone({ type:'sine', freq:880, freqEnd:220, dur:0.7, gain:0.12, release:0.85 }); },
