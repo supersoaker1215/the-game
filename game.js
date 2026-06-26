@@ -5852,6 +5852,15 @@ const Game = {
       //   preview. Or when you're using a chain ability and selecting
       //   an enemy, [show] damage preview as well, for Vader and stuff."
       this.state.pendingLaneChoice = { owner, lanes, title, desc, callback, targetSide: targetSide || owner, previewCard: previewCard || null, previewDamage: previewDamage || 0 };
+      // 2v2 online: if this choice belongs to a guest (non-host), annotate
+      // it so the guest's client knows to show the modal. The host skips
+      // rendering/timeout here — the broadcast in _apply2v2OnlineAction
+      // delivers the pending choice to the correct guest.
+      const _cap = this._2v2CurrentActingPlayer;
+      if (this.is2v2() && this.state.twoVTwo && this.state.twoVTwo.online && _cap && _cap !== 'p1') {
+        this.state.pendingLaneChoice._2v2ActingPlayer = _cap;
+        return;
+      }
       UI.render();
       this._startPromptTimeout(() => {
         if (!this.state.pendingLaneChoice) return;
@@ -5904,6 +5913,12 @@ const Game = {
     }
     if (this.isHuman(owner) && cards.length > 1) {
       this.state.pendingCardChoice = { owner, cards, title, desc, callback, faceDown: !!(options && options.faceDown), inlineTray: !!(options && options.inlineTray) };
+      // 2v2 online: route guest choices to the guest client (same as lane choice)
+      const _cap = this._2v2CurrentActingPlayer;
+      if (this.is2v2() && this.state.twoVTwo && this.state.twoVTwo.online && _cap && _cap !== 'p1') {
+        this.state.pendingCardChoice._2v2ActingPlayer = _cap;
+        return;
+      }
       UI.render();
       this._startPromptTimeout(() => {
         if (!this.state.pendingCardChoice) return;
@@ -8358,10 +8373,12 @@ const Game = {
     switch (msg.t) {
       case 'play2v2Card':
         if (pk !== activeKey) break;
+        this._2v2CurrentActingPlayer = pk; // track who triggered any ability prompts
         this._2v2OnlinePlayCard(pk, msg.cardIdx, msg.laneIdx);
         break;
       case 'play2v2Trick':
         if (pk !== activeKey) break;
+        this._2v2CurrentActingPlayer = pk;
         this._2v2OnlinePlayTrick(pk, msg.trickIdx);
         break;
       case 'end2v2Phase':
@@ -8382,6 +8399,36 @@ const Game = {
         }
         this._2v2DraftMulligan();
         break;
+      case '2v2LaneChoiceResult': {
+        const lc = this.state.pendingLaneChoice;
+        if (lc && lc._2v2ActingPlayer === pk) {
+          // Re-arm acting player for chained ability prompts that may fire inside callback
+          this._2v2CurrentActingPlayer = pk;
+          this.state.pendingLaneChoice = null;
+          this._clearPromptTimeout();
+          if (lc.callback) lc.callback(msg.laneIdx);
+          this.cleanupDead();
+          this.resumeCombatIfWaiting();
+        }
+        break;
+      }
+      case '2v2CardChoiceResult': {
+        const cc = this.state.pendingCardChoice;
+        if (cc && cc._2v2ActingPlayer === pk) {
+          this._2v2CurrentActingPlayer = pk;
+          this.state.pendingCardChoice = null;
+          this._clearPromptTimeout();
+          const pick = cc.cards[msg.idx] || cc.cards[0];
+          if (cc.callback) cc.callback(pick);
+          this.cleanupDead();
+          this.resumeCombatIfWaiting();
+        }
+        break;
+      }
+    }
+    // Clear acting-player flag now (any chained pending choice has been annotated)
+    if (!this.state.pendingLaneChoice && !this.state.pendingCardChoice) {
+      this._2v2CurrentActingPlayer = null;
     }
     this._2v2OnlineBroadcast();
   },

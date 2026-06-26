@@ -6328,8 +6328,16 @@ const UI = {
     const banner = document.createElement('div');
     banner.id = 'prompt-banner';
     banner.className = 'prompt-banner';
-    const opponentOwns = Game.isMultiplayer() && ((cc && cc.owner === 'ai') || (lc && lc.owner === 'ai'));
-    const title = opponentOwns ? 'Waiting for opponent…'
+    const _2v2Online = Game.is2v2() && !!(s.twoVTwo && s.twoVTwo.online);
+    const _myKey2 = _2v2Online ? s.twoVTwo.you : null;
+    const _2v2OtherOwns = _2v2Online && (
+      (cc && cc._2v2ActingPlayer && cc._2v2ActingPlayer !== _myKey2) ||
+      (lc && lc._2v2ActingPlayer && lc._2v2ActingPlayer !== _myKey2));
+    const opponentOwns = _2v2OtherOwns || (Game.isMultiplayer() && ((cc && cc.owner === 'ai') || (lc && lc.owner === 'ai')));
+    const _actorName = _2v2OtherOwns && s.twoVTwo
+      ? (s.twoVTwo.players[(cc || lc)._2v2ActingPlayer] || {}).name || 'teammate'
+      : 'opponent';
+    const title = opponentOwns ? `Waiting for ${_actorName}…`
       : cc ? cc.title : lc ? lc.title : '';
     const desc = opponentOwns ? '' : cc ? cc.desc : lc ? lc.desc : '';
     banner.innerHTML = `${title}${desc ? `<div class="prompt-desc">${desc}</div>` : ''}<div class="prompt-timer" id="prompt-timer"></div>`;
@@ -6402,6 +6410,8 @@ const UI = {
     // Don't render interactive choices for the opponent's ability prompts in
     // multiplayer — they resolve on the opponent's client, not ours.
     if (!cc || (Game.isMultiplayer() && cc.owner === 'ai')) return;
+    // 2v2 online: only render for the player whose choice this is
+    if (Game.is2v2() && s.twoVTwo && s.twoVTwo.online && cc._2v2ActingPlayer && cc._2v2ActingPlayer !== s.twoVTwo.you) return;
 
     // Wire up the Mind Control "attack the health bar" option directly to the
     // HP bar UI — the HP bar glows and becomes clickable, instead of being
@@ -12319,8 +12329,16 @@ const UI = {
     // always appear as owner='player'. On the host, the guest's choices appear
     // as owner='ai'. Only render interactive pick targets for the local seat's
     // own choices — the opponent must resolve their own prompts on their client.
-    const isMyCardChoice = !Game.isMultiplayer() || !cc || cc.owner === 'player';
-    const isMyLaneChoice = !Game.isMultiplayer() || !lc || lc.owner === 'player';
+    // In 2v2 online each choice is annotated with _2v2ActingPlayer (the playerKey
+    // who triggered the ability); only that player should see the interactive modal.
+    const _2v2Online = Game.is2v2() && !!(s.twoVTwo && s.twoVTwo.online);
+    const _myKey = _2v2Online ? s.twoVTwo.you : null;
+    const isMyCardChoice = _2v2Online
+      ? (!cc || !cc._2v2ActingPlayer || cc._2v2ActingPlayer === _myKey)
+      : (!Game.isMultiplayer() || !cc || cc.owner === 'player');
+    const isMyLaneChoice = _2v2Online
+      ? (!lc || !lc._2v2ActingPlayer || lc._2v2ActingPlayer === _myKey)
+      : (!Game.isMultiplayer() || !lc || lc.owner === 'player');
     const targetCardIds = new Set();
     if (cc && isMyCardChoice) cc.cards.forEach(c => { if (c.id !== undefined) targetCardIds.add(c.id); });
     const lcTargetSide = (lc && isMyLaneChoice) ? (lc.targetSide || lc.owner) : null;
@@ -20351,8 +20369,20 @@ function laneChoicePick(laneIdx) {
     if (typeof Multiplayer !== 'undefined') Multiplayer.send({ t: 'promptResolve', choiceType: 'lane', laneIdx });
     return;
   }
-  // Host in multiplayer: don't let the host resolve the opponent's (guest's) choices.
+  // Host in 1v1 multiplayer: don't let the host resolve the opponent's (guest's) choices.
   if (Game.isMultiplayer() && lc.owner === 'ai') return;
+  // 2v2 online: only the annotated acting player resolves; guests send to host.
+  if (Game.is2v2() && s.twoVTwo && s.twoVTwo.online) {
+    const actor = lc._2v2ActingPlayer;
+    const you = s.twoVTwo.you;
+    if (actor && actor !== you) return; // not my choice to make
+    if (actor && you !== 'p1') {
+      // I'm the correct guest — send result to host for authoritative resolution
+      if (typeof Multiplayer4 !== 'undefined') Multiplayer4.send({ t: '2v2LaneChoiceResult', playerKey: you, laneIdx });
+      return;
+    }
+    // actor === 'p1' and I am p1: fall through to local resolution below
+  }
   Game._clearPromptTimeout();
   if (lc.owner === 'player' && Game.isPlayerTurn()) Game.snapshot();
   s.pendingLaneChoice = null;
@@ -20372,8 +20402,18 @@ function cardChoicePick(idx) {
     if (typeof Multiplayer !== 'undefined') Multiplayer.send({ t: 'promptResolve', choiceType: 'card', idx });
     return;
   }
-  // Host in multiplayer: don't let the host resolve the opponent's (guest's) choices.
+  // Host in 1v1 multiplayer: don't let the host resolve the opponent's (guest's) choices.
   if (Game.isMultiplayer() && cc.owner === 'ai') return;
+  // 2v2 online: only the annotated acting player resolves; guests send to host.
+  if (Game.is2v2() && s.twoVTwo && s.twoVTwo.online) {
+    const actor = cc._2v2ActingPlayer;
+    const you = s.twoVTwo.you;
+    if (actor && actor !== you) return; // not my choice to make
+    if (actor && you !== 'p1') {
+      if (typeof Multiplayer4 !== 'undefined') Multiplayer4.send({ t: '2v2CardChoiceResult', playerKey: you, idx });
+      return;
+    }
+  }
   Game._clearPromptTimeout();
   if (cc.owner === 'player' && Game.isPlayerTurn()) Game.snapshot();
   s.pendingCardChoice = null;
@@ -20908,7 +20948,9 @@ function twov2OnlinePlayCard(cardIdx, laneIdx) {
   if (Game._2v2ActivePlayer() !== you) return;
   const isHost = you === 'p1';
   if (isHost) {
+    Game._2v2CurrentActingPlayer = 'p1'; // so promptLaneChoice/CardChoice knows it's the host
     Game._2v2OnlinePlayCard(you, cardIdx, laneIdx);
+    if (!Game.state.pendingLaneChoice && !Game.state.pendingCardChoice) Game._2v2CurrentActingPlayer = null;
     Game._2v2OnlineBroadcast();
   } else {
     Multiplayer4.send({ t: 'play2v2Card', playerKey: you, cardIdx, laneIdx });
@@ -20924,7 +20966,9 @@ function twov2OnlineTrick(trickIdx) {
   if (Game._2v2ActivePlayer() !== you) return;
   const isHost = you === 'p1';
   if (isHost) {
+    Game._2v2CurrentActingPlayer = 'p1';
     Game._2v2OnlinePlayTrick(you, trickIdx);
+    if (!Game.state.pendingLaneChoice && !Game.state.pendingCardChoice) Game._2v2CurrentActingPlayer = null;
     Game._2v2OnlineBroadcast();
   } else {
     Multiplayer4.send({ t: 'play2v2Trick', playerKey: you, trickIdx });
