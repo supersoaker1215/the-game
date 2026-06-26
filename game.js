@@ -8166,6 +8166,8 @@ const Game = {
       choices: [],
       cardPool: this.shuffle(allCards),
       trickPool: this.shuffle(allTricks),
+      mulliganUsed: {},      // { p1: bool, … } — cards phase, one per player
+      trickMulliganUsed: {}, // { p1: bool, … } — tricks phase, one per player
     };
 
     ['p1','p2','p3','p4'].forEach(pk => {
@@ -8273,6 +8275,29 @@ const Game = {
     }
   },
 
+  _2v2DraftMulligan() {
+    const tt = this.state.twoVTwo;
+    const d = tt && tt.draft;
+    if (!d || !d.choices || !d.choices.length) return false;
+    const pickerKey = d.pickerOrder[d.pickerIdx];
+    const mulliganKey = d.phase === 'cards' ? 'mulliganUsed' : 'trickMulliganUsed';
+    if (!d[mulliganKey]) d[mulliganKey] = {};
+    if (d[mulliganKey][pickerKey]) return false; // already used this phase
+    const pool = d.phase === 'cards' ? d.cardPool : d.trickPool;
+    // Return current choices to pool and shuffle so they don't immediately resurface
+    d.choices.forEach(c => { if (c) pool.unshift(c); });
+    this.shuffle(pool);
+    d.choices = [pool.pop(), pool.pop()].filter(Boolean);
+    d[mulliganKey][pickerKey] = true;
+    this.log(`[2v2 DRAFT] Mulligan used by ${pickerKey}`);
+    if (tt.online) {
+      this._2v2OnlineBroadcast();
+    } else {
+      if (typeof UI !== 'undefined' && UI.render) UI.render();
+    }
+    return true;
+  },
+
   confirm2v2DraftPass() {
     const s = this.state;
     if (s._2v2DraftNextPhase) {
@@ -8349,6 +8374,13 @@ const Game = {
           if (pk !== d.pickerOrder[d.pickerIdx]) break;
         }
         this._2v2DraftPick(msg.index);
+        break;
+      case '2v2DraftMulligan':
+        if (draftActive) {
+          const d = this.state.twoVTwo.draft;
+          if (pk !== d.pickerOrder[d.pickerIdx]) break;
+        }
+        this._2v2DraftMulligan();
         break;
     }
     this._2v2OnlineBroadcast();

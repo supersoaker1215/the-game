@@ -6623,12 +6623,15 @@ const UI = {
     this._render2v2OnlineDraftPolished(s);
     tt.you = prevYou;
 
-    // Re-wire draft pick onclick to local function
+    // Re-wire pick and mulligan onclicks to local functions
     const draftEl = this.draftEl;
     if (draftEl) {
       draftEl.querySelectorAll('[onclick*="twov2OnlineDraftPick"]').forEach(el => {
         const old = el.getAttribute('onclick');
         if (old) el.setAttribute('onclick', old.replace('twov2OnlineDraftPick', 'twov2DraftPick'));
+      });
+      draftEl.querySelectorAll('[onclick*="twov2OnlineDraftMulligan"]').forEach(el => {
+        el.setAttribute('onclick', 'twov2DraftMulligan()');
       });
       // Swap Leave → Menu button
       const leaveBtn = draftEl.querySelector('.draft-quit-btn');
@@ -6673,10 +6676,22 @@ const UI = {
     html +=     `<span class="draft-hud-counter">Pick <em>${round}</em> / ${total}</span>`;
     html +=   `</div>`;
     html +=   `<div class="draft-hud-sub">${isMyPick ? `Choose one ${isCards ? 'card' : 'trick'} for your hand` : `Waiting for ${picker.name} to choose…`}</div>`;
+    const mulliganKey = isCards ? 'mulliganUsed' : 'trickMulliganUsed';
+    const mulliganUsed = !!(d[mulliganKey] && d[mulliganKey][pickerKey]);
+    const mulliganDisabled = mulliganUsed ? ' mulligan-used' : '';
+    const mulliganAttr     = mulliganUsed ? ' disabled' : '';
+    const mulliganLabel    = mulliganUsed ? 'Mulligan Used' : 'Mulligan';
+
     html +=   `<div class="draft-hud-actions">`;
     html +=     `<button type="button" class="draft-quit-btn" onclick="twov2OnlineLeave()" title="Leave game">`;
     html +=       `<span class="mulligan-icon">&#8592;</span><span class="mulligan-label">Leave</span>`;
     html +=     `</button>`;
+    if (isMyPick) {
+      html += `<button type="button" class="draft-mulligan-btn${mulliganDisabled}" onclick="twov2OnlineDraftMulligan()"${mulliganAttr}>`;
+      html +=   `<span class="mulligan-icon">&#x21BB;</span>`;
+      html +=   `<span class="mulligan-label">${mulliganLabel}</span>`;
+      html += `</button>`;
+    }
     html +=   `</div>`;
     html += `</div>`;
     html += `<div class="draft-choices">`;
@@ -20702,6 +20717,24 @@ function twov2PlayTrick(idx) {
 // ----- 2v2 Draft helpers -----
 function twov2DraftPick(index) {
   Game._2v2DraftPick(index);
+}
+
+function twov2DraftMulligan() {
+  Game._2v2DraftMulligan();
+}
+
+function twov2OnlineDraftMulligan() {
+  const tt = Game.state.twoVTwo;
+  if (!tt || !tt.draft) return;
+  const you = tt.you;
+  const d = tt.draft;
+  if (d.pickerOrder[d.pickerIdx] !== you) return;
+  const isHost = you === 'p1';
+  if (isHost) {
+    Game._2v2DraftMulligan();
+  } else {
+    Multiplayer4.send({ t: '2v2DraftMulligan', playerKey: you });
+  }
 }
 
 // ----- 2v2 Online helpers -----
