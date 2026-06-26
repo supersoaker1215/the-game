@@ -1937,7 +1937,14 @@ body.hit-pause .ai-hand * {
 /* Hero — the currently-playing card. Bleeds LEFT into the menu panel (no hard
    seam) and off the right edge. */
 .mm-mw3 .mm-hero {
-  position: absolute; top: 0; right: 0; bottom: 0; left: var(--mm-bleed, 14%);
+  /* Anchored right; width is the SMALLER of the bleed-based width and a
+     portrait cap tied to viewport HEIGHT. On wide screens this keeps the hero a
+     portrait column (cover fits to height = full figure, sharper) instead of
+     stretching to fill a wide-short zone (over-upscaled + cropped top/bottom).
+     On narrow/tall screens the bleed width wins, so it still bleeds into the
+     panel like before. */
+  position: absolute; top: 0; right: 0; bottom: 0;
+  left: auto; width: min(calc(100% - var(--mm-bleed, 14%)), 86vh);
   z-index: 0;
   pointer-events: none; overflow: hidden; isolation: isolate;
   /* Two intersecting masks: a long soft LEFT fade so the art dissolves behind
