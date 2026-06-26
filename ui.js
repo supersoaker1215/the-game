@@ -20,6 +20,7 @@ const UI = {
   // off at the top or feet dominate instead of the face.
   PORTRAIT_POSITION: {
     'Joker': 'center 5%',
+    'Doomsday': 'center 20%',
   },
 
   // =====================================================================
