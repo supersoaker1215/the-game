@@ -4308,6 +4308,16 @@ const CARD_ABILITIES = {
       G.log(`[FREDDY FAZBEAR] Gains +1 HP! (${self.currentHealth}/${self.maxHealth})`);
     },
   },
+  "Doomsday": {
+    passive: 'doomsdayScaling',
+    onDeath(G, self, lane) {
+      if (self._doomsdayRevived) return false; // already revived once — die permanently
+      self._doomsdayRevived = true;
+      self.currentHealth = self.maxHealth;
+      G.log(`[DOOMSDAY] Cannot be stopped — Doomsday rises! Permanently immune to Stun and Freeze.`);
+      return true; // prevent death
+    }
+  },
   "Padme Amidala": {
     onEndOfTurn(G, self) {
       G.getAlliesOf(self.owner).forEach(c => {

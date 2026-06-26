@@ -370,6 +370,9 @@ const CARD_DEFS = [
     desc: "When Played: Summon a random card (cost 1-9) in each of your empty lanes." },
   { name: "Trigon", cost: 10, attack: 9, health: 8, type: "villain",
     abilities: ["Immunity", "Invincible 1", "Unresistible 3", "Draw 1"],
-    desc: "When Played: Steal the opponent's Block Meter. Start of Tricks (once): Freeze 1 all enemies. While Active: When Trigon destroys an enemy, destroy another random enemy." }
+    desc: "When Played: Steal the opponent's Block Meter. Start of Tricks (once): Freeze 1 all enemies. While Active: When Trigon destroys an enemy, destroy another random enemy." },
+  { name: "Doomsday", cost: 12, attack: 1, health: 1, type: "villain",
+    abilities: [],
+    desc: "While in Hand: Each time any card is destroyed, Doomsday costs 1 less and gains +1/+1 (min cost 0). Once Played: stops scaling. When First Destroyed: Revives at full HP and becomes permanently immune to Stun and Freeze. Can only be killed permanently after reviving once." }
 ];
 

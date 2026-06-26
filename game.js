@@ -4663,10 +4663,7 @@ const Game = {
       livingAllies.forEach(a => { if (a.onAllyKilled) a.onAllyKilled(this, a); });
       const livingEnemiesT = this.getAllCardsOf(this.opponent(card.owner));
       livingEnemiesT.forEach(a => { if (a.onEnemyKilled) a.onEnemyKilled(this, a); });
-      // User spec: "Anakin and bonus attacks in general shouldn't happen
-      // at the end of the round but instead immediately." Drain right
-      // here so the bonus swing lands in the same beat as the death
-      // that triggered it, not batched to postCombat.
+      this._scaleDoomsdayInHands();
       livingAllies.forEach(a => this.drainBonusAttacks(a));
       this.checkJumpConditions('allyDied', { owner: card.owner, laneIdx });
       return;
@@ -4754,6 +4751,7 @@ const Game = {
     livingAllies.forEach(a => { if (a.onAllyKilled) a.onAllyKilled(this, a); });
     const livingEnemies = this.getAllCardsOf(this.opponent(card.owner));
     livingEnemies.forEach(a => { if (a.onEnemyKilled) a.onEnemyKilled(this, a); });
+    this._scaleDoomsdayInHands();
     // Drain bonus attacks immediately on every death — combat or
     // trick-triggered. User spec: "Anakin and bonus attacks in general
     // shouldn't happen at the end of the round but instead immediately."
@@ -4773,6 +4771,24 @@ const Game = {
     // Revoke faceDownOption if the card granting it died
     if (card.passive === 'faceDownOption') {
       this.state[card.owner].faceDownAvailable = this.getAllCardsOf(card.owner).some(c => c.passive === 'faceDownOption');
+    }
+  },
+
+  // Doomsday "while in hand" scaling — called after every card death.
+  // Finds any Doomsday in either player's hand and reduces cost by 1,
+  // adds +1/+1. Stops scaling once played (card is no longer in hand).
+  _scaleDoomsdayInHands() {
+    for (const side of ['player', 'ai']) {
+      const hand = this.state[side] && this.state[side].hand;
+      if (!hand) continue;
+      hand.forEach(c => {
+        if (c.passive !== 'doomsdayScaling') return;
+        c.cost = Math.max(0, (c.cost || 0) - 1);
+        c.attack = (c.attack || 0) + 1;
+        c.maxHealth = (c.maxHealth || 0) + 1;
+        c.currentHealth = (c.currentHealth || 0) + 1;
+        this.log(`[DOOMSDAY] Grows to ${c.attack}/${c.maxHealth} cost ${c.cost}`);
+      });
     }
   },
 
@@ -5401,6 +5417,10 @@ const Game = {
     if (!target) return false;
     if (this._trickBlocked(target)) return false;
     if (this.is10CostImmune(source, target)) { this.log(`  [IMMUNE] ${target.name} is immune to ${source.name}'s ${debuffName}!`); return false; }
+    if (target._doomsdayRevived && (debuffName === 'Stun' || debuffName === 'Freeze')) {
+      this.log(`  [DOOMSDAY] ${target.name} is permanently immune to ${debuffName}!`);
+      return false;
+    }
     // Wrap applyFn so every landed debuff also stamps the late-round
     // persistence flag when:
     //   (a) combat has already wrapped up this round (`_combatFinishedThisRound`),
@@ -5449,6 +5469,7 @@ const Game = {
     if (this._trickBlocked(card)) return;
     const turns = Math.max(1, n || 1);
     if (this.is10CostImmune(source, card)) { this.log(`  [IMMUNE] ${card.name} is immune to ${source.name ? source.name + "'s " : ''}freeze!`); return; }
+    if (card._doomsdayRevived) { this.log(`  [DOOMSDAY] ${card.name} is permanently immune to Freeze!`); return; }
     if (card.immunityCharges > 0) {
       // If the source has Unresistible, it bypasses Immunity — only
       // Unresistible is spent; Immunity is NOT consumed because it never
