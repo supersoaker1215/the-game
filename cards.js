@@ -376,6 +376,6 @@ const CARD_DEFS = [
     desc: "When Played: Steal the opponent's Block Meter. Start of Tricks (once): Freeze 1 all enemies. While Active: When Trigon destroys an enemy, destroy another random enemy." },
   { name: "Doomsday", cost: 12, attack: 1, health: 1, type: "villain",
     abilities: [],
-    desc: "While in Hand: Each time any card is destroyed, Doomsday costs 1 less and gains +1/+1 (min cost 0). Once Played: stops scaling. When First Destroyed: Revives at full HP and becomes permanently immune to Stun and Freeze. Can only be killed permanently after reviving once." }
+    desc: "Gains +1/+1 each time you play a card (even undrawn). While in Hand: costs 1 less each time an ally is destroyed (min cost 0). When First Destroyed: Revives at full HP, permanently immune to Stun and Freeze." }
 ];
 
