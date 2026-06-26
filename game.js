@@ -6625,6 +6625,7 @@ const Game = {
       onAnyTrickPlayed: def.onAnyTrickPlayed || null,
       beforeTricksFired: false,
       passive: def.passive || null,
+      skipAutoUntrickable: !!def.skipAutoUntrickable,
       isDiscardEffect: def.isDiscardEffect || false, onDiscard: def.onDiscard || null,
       trickPhasePlayable: def.trickPhasePlayable || false,
       // Scarlet Witch: stats are unknown until she's placed. Her ATK/HP
@@ -6815,7 +6816,7 @@ const Game = {
     // a cheap 1-cost trick can't nuke a 10-cost card. Flag is permanent —
     // buff-clear sweeps that wipe temporary Untrickable (abilities.js ~266
     // and ~608) leave permanent=true cards alone.
-    if ((card.baseCost || card.cost || 0) >= 10) {
+    if (!card.skipAutoUntrickable && (card.baseCost || card.cost || 0) >= 10) {
       card.isUntrickable = true;
       card.permanentUntrickable = true;
     }

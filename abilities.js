@@ -4316,6 +4316,10 @@ const CARD_ABILITIES = {
   },
   "Doomsday": {
     passive: 'doomsdayScaling',
+    // Doomsday starts at cost 12 but scales DOWN — he shouldn't be
+    // auto-Untrickable just because of his starting cost. The immunity
+    // is earned via his revive, not by being a titan.
+    skipAutoUntrickable: true,
     onDeath(G, self, lane) {
       if (self._doomsdayRevived) return false; // already revived once — die permanently
       self._doomsdayRevived = true;
