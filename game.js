@@ -1651,6 +1651,8 @@ const Game = {
     // Apply Magneto debuffs each round
     this.applyMagnetoDebuffs();
     this.state.lanes.forEach(l => l.protected = null);
+    // Clear Parlay — one-round effect from Jack Sparrow
+    delete this.state._parlayActive;
     // Resolve any upkeep prompts (e.g. Gargantua) before starting the phase.
     this._resolveUpkeepPrompts(() => this.startPhase1());
   },
@@ -3825,6 +3827,11 @@ const Game = {
 
     if (card.attack <= 0) return;
     if (card.isStunned || card.isFrozen) return;
+    // Parlay — Jack Sparrow blocks uncontested attacks for one round
+    if (this.state._parlayActive === this.opponent(side)) {
+      this.log(`[LANE ${laneIdx + 1}] ${card.name} held by Parlay — cannot attack uncontested this round!`);
+      return;
+    }
 
     // Feared card attacks itself even when uncontested
     if (card.isFeared) {

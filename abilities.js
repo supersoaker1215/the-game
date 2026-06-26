@@ -3316,6 +3316,12 @@ const CARD_ABILITIES = {
         "Choose an ally to give Revive 1", grant);
     }
   },
+  "Jack Sparrow": {
+    onPlay(G, self, lane) {
+      G.state._parlayActive = self.owner;
+      G.log(`[JACK SPARROW] Parlay! Enemy uncontested lanes cannot attack this round.`);
+    }
+  },
   "Han Solo": {
     onBeforeCombat(G, self, lane) {
       if (self.isStunned || self.isFrozen) return;
