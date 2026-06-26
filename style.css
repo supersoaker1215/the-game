@@ -1908,6 +1908,312 @@ body.hit-pause .ai-hand * {
   margin-top: 2px;
 }
 
+/* ============================================================================
+   MW3-STYLE MAIN MENU  (.main-menu-overlay.mm-mw3)
+   Left-aligned text list, NO center box, a single music-synced hero portrait
+   bleeding off the right edge (duotoned into the theme), a dark readability
+   scrim under the list, and a thin bottom prompt bar with a "now playing"
+   credit. Portrait collapses to a full-bleed backdrop with the list centered.
+   Inspired by CoD: MW3 / Battlefront / MK menus; blended with the Tron palette.
+   ============================================================================ */
+.main-menu-overlay.mm-mw3 {
+  justify-content: flex-start;
+  align-items: center;
+  background: #04060a;
+  overflow: hidden;
+  /* Force full-viewport size with vh/vw — body's container-type makes it the
+     containing block for this fixed overlay, so top/bottom:0 alone shrinks it
+     to body height in landscape. Viewport units always size to the viewport. */
+  width: 100vw; height: 100dvh;
+}
+/* Subtle film grain over the whole menu — a cinematic AAA-menu finish. Tiled
+   fractal noise, very low opacity, overlay-blended so it adds texture without
+   dirtying the art or text. */
+.main-menu-overlay.mm-mw3::after {
+  content: ''; position: absolute; inset: 0; z-index: 6; pointer-events: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  opacity: 0.045; mix-blend-mode: overlay;
+}
+/* Hero — the currently-playing card. Bleeds LEFT into the menu panel (no hard
+   seam) and off the right edge. */
+.mm-mw3 .mm-hero {
+  position: absolute; top: 0; right: 0; bottom: 0; left: var(--mm-bleed, 14%);
+  z-index: 0;
+  pointer-events: none; overflow: hidden; isolation: isolate;
+  /* Two intersecting masks: a long soft LEFT fade so the art dissolves behind
+     the menu list (bleeds in, no hard edge), AND a top (~11%) / bottom (~14%)
+     letterbox crop that grounds the figure into the bottom bar. */
+  -webkit-mask-image:
+    linear-gradient(to right, transparent 0%, #000 24%, #000 100%),
+    linear-gradient(to bottom, transparent 0%, #000 11%, #000 86%, transparent 100%);
+  -webkit-mask-composite: source-in;
+          mask-image:
+    linear-gradient(to right, transparent 0%, #000 24%, #000 100%),
+    linear-gradient(to bottom, transparent 0%, #000 11%, #000 86%, transparent 100%);
+          mask-composite: intersect;
+  /* "rez-in" — the hero materializes on menu load (Tron-appropriate). One-shot. */
+  animation: mmHeroRezIn 760ms var(--ease-out-soft, cubic-bezier(.2,.7,.2,1)) backwards;
+}
+@keyframes mmHeroRezIn {
+  0%   { opacity: 0; transform: scale(1.05) translateX(4%); }
+  100% { opacity: 1; transform: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .mm-mw3 .mm-hero { animation: none; }
+}
+.mm-mw3 .mm-hero-img {
+  position: absolute; inset: 0;
+  /* cover hero anchored to the RIGHT so the character stays put while the box
+     bleeds left into the panel. The contrast/saturate bump crisps the upscaled
+     art (perceived sharpening) — an AAA trick to hide low-res blur. */
+  background-size: cover; background-position: 72% 26%;
+  background-repeat: no-repeat;
+  opacity: 0;
+  filter: contrast(1.1) saturate(1.14) brightness(0.9);
+  transition: opacity 0.9s ease, filter 0.3s ease;
+  animation: mmHeroDrift 34s ease-in-out infinite alternate;
+  will-change: transform, opacity;
+}
+.mm-mw3 .mm-hero-img.is-visible {
+  /* the cover star is prominent (it lives on the dark right, away from text);
+     the Settings intensity slider still scales it. */
+  opacity: clamp(0.32, calc(var(--menu-flow-intensity, 0.18) + 0.54), 0.95);
+}
+/* Fine CRT scanlines over the hero — high-frequency texture that masks upscale
+   blur and reads as Tron-monitor sci-fi. Subtle. */
+.mm-mw3 .mm-hero::after {
+  content: ''; position: absolute; inset: 0; z-index: 2; pointer-events: none;
+  background: repeating-linear-gradient(0deg, rgba(0,0,0,0.22) 0 1px, transparent 1px 3px);
+  opacity: 0.32; mix-blend-mode: multiply;
+}
+@keyframes mmHeroDrift {
+  0%   { transform: scale(1.05) translate(0, -1.5%); }
+  100% { transform: scale(1.11) translate(-1.8%, 1.5%); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .mm-mw3 .mm-hero-img { animation: none; transform: scale(1.05); }
+}
+/* ---- Fractured-mirror hero: 3 diagonal art bands + glowing neon seam-lines.
+   Each shard clips one diagonal band of the (shared) art and offsets it
+   horizontally, so the portrait reads as split/displaced across the seams.
+   The seam-lines are thin neon strips clipped to the band boundaries. ---- */
+.mm-mw3 .mm-shard {
+  position: absolute; inset: 0; z-index: 1;
+  overflow: hidden;
+  pointer-events: auto;   /* each band is hover-to-preview */
+  cursor: pointer;
+}
+/* Each shard is a horizontal 1/3 and the WHOLE card art is stretched to fill
+   it (background-size:100% 100% on .mm-hero-img) — the full character, not a
+   top/middle/bottom crop. Thin neon seam-lines divide the thirds. */
+.mm-mw3 .mm-shard-1 { top: 0;      height: 33.34%; bottom: auto; }
+.mm-mw3 .mm-shard-2 { top: 33.34%; height: 33.33%; bottom: auto; }
+.mm-mw3 .mm-shard-3 { top: 66.67%; height: 33.33%; bottom: auto; }
+/* hovered band brightens as a preview cue (its theme starts) */
+.mm-mw3 .mm-shard:hover .mm-hero-img.is-visible {
+  filter: saturate(1.2) brightness(1.14);
+  opacity: clamp(0.55, calc(var(--menu-flow-intensity, 0.18) + 0.8), 1);
+}
+/* THIN crisp neon seam-lines (~2px) along the 1/3 boundaries — slight diagonal
+   for the Tron look. */
+.mm-mw3 .mm-seamline {
+  position: absolute; inset: 0; z-index: 2; pointer-events: none;
+  background: rgb(var(--theme-rgb, 79,195,247));
+  filter:
+    drop-shadow(0 0 3px rgba(var(--theme-rgb, 79,195,247),0.9))
+    drop-shadow(0 0 8px rgba(var(--theme-rgb, 79,195,247),0.4));
+}
+.mm-mw3 .mm-seamline-1 {
+  -webkit-clip-path: polygon(0 33.34%, 100% 30.34%, 100% calc(30.34% + 2px), 0 calc(33.34% + 2px));
+          clip-path: polygon(0 33.34%, 100% 30.34%, 100% calc(30.34% + 2px), 0 calc(33.34% + 2px));
+}
+.mm-mw3 .mm-seamline-2 {
+  -webkit-clip-path: polygon(0 66.67%, 100% 63.67%, 100% calc(63.67% + 2px), 0 calc(66.67% + 2px));
+          clip-path: polygon(0 66.67%, 100% 63.67%, 100% calc(63.67% + 2px), 0 calc(66.67% + 2px));
+}
+/* (Black "shard" shapes removed — the no-picture areas instead read as the
+   same dark menu-black + faint Tron grid, matching the left side.) */
+/* ---- Mirror-dimension layers: grid (left) + neon seam + hero reflection ----
+   --mm-seam is the x-position of the vertical mirror line; the grid and the
+   reflection fill the zone left of it, the hero sits to its right. */
+.mm-mw3 { --mm-seam: 38%; --mm-bleed: 14%; }
+/* Tron grid spanning the WHOLE backdrop (both sides of the seam), behind the
+   list and the card bands. The no-picture areas on the right show this grid
+   over the menu-black, matching the left side. Faded at the outer edges. */
+.mm-mw3 .mm-tron-grid {
+  position: absolute; inset: 0;
+  z-index: 0; pointer-events: none; opacity: 0.5;
+  background-image:
+    linear-gradient(rgba(var(--theme-rgb,79,195,247),0.09) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(var(--theme-rgb,79,195,247),0.09) 1px, transparent 1px);
+  background-size: 44px 44px; background-position: center;
+  -webkit-mask-image: linear-gradient(90deg, transparent 0%, #000 8%, #000 94%, transparent 100%);
+          mask-image: linear-gradient(90deg, transparent 0%, #000 8%, #000 94%, transparent 100%);
+}
+/* The hero's mirrored REFLECTION — spills left off the seam onto the grid,
+   blurred + dimmed so it reads as a reflection, not a second portrait. The
+   container is flipped, so the mask (opaque→transparent L→R) ends up strongest
+   AT the seam and fading toward the menu list. */
+.mm-mw3 .mm-hero-reflect {
+  position: absolute; top: 0; bottom: 0; left: 0; width: var(--mm-seam);
+  z-index: 0; pointer-events: none; overflow: hidden; isolation: isolate;
+  transform: scaleX(-1);
+  -webkit-mask-image: linear-gradient(to right, #000 0%, rgba(0,0,0,0) 72%);
+          mask-image: linear-gradient(to right, #000 0%, rgba(0,0,0,0) 72%);
+}
+.mm-mw3 .mm-hero-reflect .mm-hero-img {
+  background-position: 50% 20%;
+  filter: blur(4px) saturate(1.05) brightness(0.55);
+  animation-duration: 38s;
+}
+.mm-mw3 .mm-hero-reflect .mm-hero-img.is-visible {
+  opacity: clamp(0.1, calc(var(--menu-flow-intensity, 0.18) + 0.16), 0.42);
+}
+/* Central neon SEAM — the Tron mirror line dividing grid from hero. */
+.mm-mw3 .mm-seam {
+  position: absolute; top: 0; bottom: 0; left: var(--mm-seam);
+  width: 1px; z-index: 2; pointer-events: none;
+  background: linear-gradient(180deg,
+    transparent 0%,
+    rgba(var(--theme-rgb,79,195,247),0.9) 13%,
+    rgba(var(--theme-rgb,79,195,247),0.9) 87%,
+    transparent 100%);
+  box-shadow:
+    0 0 8px rgba(var(--theme-rgb,79,195,247),0.7),
+    0 0 20px rgba(var(--theme-rgb,79,195,247),0.34);
+}
+.mm-mw3 .mm-seam::before {   /* soft glow column hugging the line */
+  content: ''; position: absolute; top: 0; bottom: 0; left: -16px; width: 32px;
+  background: linear-gradient(90deg, transparent, rgba(var(--theme-rgb,79,195,247),0.07), transparent);
+}
+/* Readability scrim — dark under the left list, clearing to the right so the
+   hero shows; plus a faint top/bottom vignette. */
+.mm-mw3 .mm-scrim {
+  position: absolute; inset: 0; z-index: 1; pointer-events: none;
+  /* darken the LEFT list zone (clears by the seam), a faint top/bottom vignette,
+     plus a radial vignette that darkens the hero's outer corners so the eye
+     lands on the character (premium focus). */
+  background:
+    linear-gradient(90deg, #04060a 14%, rgba(4,6,10,0.78) 33%, rgba(4,6,10,0) 45%),
+    radial-gradient(125% 92% at 72% 44%, transparent 46%, rgba(0,0,0,0.55) 100%),
+    linear-gradient(0deg, rgba(0,0,0,0.4) 0%, transparent 16%, transparent 86%, rgba(0,0,0,0.3) 100%);
+}
+/* Menu column — left, transparent, no box. */
+.mm-mw3 .mm-panel {
+  position: relative; z-index: 3;   /* above the seam (z2) + scrim (z1) */
+  max-width: none; width: min(460px, 78vw);
+  margin: 0 0 0 clamp(34px, 7vw, 120px); padding: 0;
+  /* !important to beat the Neon Theme block's themed panel box (it uses
+     !important on background/border/box-shadow). MW3 wants no box. */
+  background: none !important; border: none !important; border-radius: 0;
+  box-shadow: none !important;
+}
+.mm-mw3 .mm-panel::before, .mm-mw3 .mm-panel::after { display: none !important; }
+/* Wordmark — top-left, smaller than the centered banner. */
+.mm-mw3 .mm-header { align-items: center; margin-bottom: 24px; }
+.mm-mw3 .mm-title {
+  text-align: center; width: 100%; font-size: clamp(28px, 3vw, 38px);
+  letter-spacing: 8px; margin: 0; text-indent: 0;
+}
+.mm-mw3 .mm-section-label { margin-left: 0; }
+/* Tagline eyebrow under the title — a spaced caps descriptor flanked by hairline
+   neon rules, centered under THE GAME. Fills the space + reads intentional. */
+.mm-mw3 .mm-tagline {
+  display: flex; align-items: center; justify-content: center; gap: 12px;
+  margin: 11px 0 2px;
+  font-family: 'Rajdhani', sans-serif;
+  font-size: 11px; font-weight: 600; letter-spacing: 5px;
+  text-transform: uppercase; white-space: nowrap;
+  color: color-mix(in srgb, rgb(var(--theme-rgb, 79,195,247)) 62%, white);
+  text-shadow: 0 0 8px rgba(var(--theme-rgb, 79,195,247), 0.4);
+}
+.mm-mw3 .mm-tagline::before,
+.mm-mw3 .mm-tagline::after {
+  content: ''; height: 1px; width: clamp(20px, 4vw, 40px);
+  background: linear-gradient(90deg, transparent, rgba(var(--theme-rgb, 79,195,247), 0.7));
+}
+.mm-mw3 .mm-tagline::after { background: linear-gradient(90deg, rgba(var(--theme-rgb, 79,195,247), 0.7), transparent); }
+/* Options become flat TEXT ROWS — no tile box; the neon left-bar + a soft
+   left-wash on hover/focus is the only chrome (MW3 restraint). */
+.mm-mw3 .mm-grid.mm-grid-section { gap: 1px; margin-bottom: 16px; }
+.mm-mw3 .mm-option {
+  /* !important to strip the themed tile box (Neon Theme block uses it). */
+  background: none !important; border: none !important; border-radius: 0;
+  box-shadow: none !important;
+  padding: 9px 10px 9px 16px; gap: 13px;
+}
+.mm-mw3 .mm-option::before { top: 16%; bottom: 16%; width: 2px; opacity: 0; }
+/* Selection — a clean theme-accent fill + bright bar, NO heavy glowing ring or
+   OS outline (those read cheap). Covers hover + mouse-focus + keyboard-focus. */
+.mm-mw3 .mm-option:hover,
+.mm-mw3 .mm-option:focus,
+.mm-mw3 .mm-option:focus-visible {
+  transform: none; padding-left: 22px;
+  box-shadow: none !important; border: none !important; outline: none !important;
+  background: linear-gradient(90deg, rgba(var(--theme-rgb,79,195,247),0.22) 0%, rgba(var(--theme-rgb,79,195,247),0.05) 50%, transparent 85%) !important;
+}
+.mm-mw3 .mm-option:hover::before,
+.mm-mw3 .mm-option:focus::before,
+.mm-mw3 .mm-option:focus-visible::before { top: 0; bottom: 0; width: 3px; opacity: 1; }
+/* brighten the label on selection for a crisp, intentional highlight */
+.mm-mw3 .mm-option:hover .mm-option-label,
+.mm-mw3 .mm-option:focus .mm-option-label,
+.mm-mw3 .mm-option:focus-visible .mm-option-label {
+  color: color-mix(in srgb, rgb(var(--theme-rgb, 79,195,247)) 88%, white);
+  text-shadow: 0 0 10px rgba(var(--theme-rgb, 79,195,247), 0.65);
+}
+.mm-mw3 .mm-option-icon { width: 30px; height: 30px; }
+.mm-mw3 .mm-svg { width: 22px; height: 22px; }
+.mm-mw3 .mm-option-label { font-size: 17px; letter-spacing: 2.5px; }
+.mm-mw3 .mm-option-sub { display: none; }   /* labels only — cleaner, AAA */
+/* labels become the focal line now that subtext is gone */
+.mm-mw3 .mm-option { padding-top: 12px; padding-bottom: 12px; }
+.mm-mw3 .mm-option-label { font-size: 18px; }
+/* Bottom prompt bar — thin neon line + brand left, now-playing credit right. */
+.mm-mw3 .mm-botbar {
+  position: absolute; left: 0; right: 0; bottom: 0; z-index: 4; height: 42px;
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 0 22px; pointer-events: none;
+  border-top: 1px solid rgba(var(--theme-rgb,79,195,247),0.28);
+  background: linear-gradient(0deg, rgba(4,6,10,0.92), transparent);
+  font-family: 'Rajdhani', sans-serif; text-transform: uppercase;
+}
+.mm-mw3 .mm-botbar-brand {
+  font-size: 10px; font-weight: 600; letter-spacing: 4px;
+  color: rgba(159,207,237,0.45);
+}
+.mm-mw3 .mm-nowplaying {
+  font-size: 11px; font-weight: 700; letter-spacing: 2.5px;
+  color: color-mix(in srgb, rgb(var(--theme-rgb,79,195,247)) 72%, white);
+  text-shadow: 0 0 8px rgba(var(--theme-rgb,79,195,247),0.5);
+  transition: color 0.4s;
+}
+/* PORTRAIT — keep the same left-list / seam / right-hero structure as desktop
+   (matching the reference), just with the hero full-bleed behind and the seam
+   pushed right so the list clears it. */
+@media (max-aspect-ratio: 1/1) {
+  .mm-mw3 { --mm-seam: 42%; --mm-bleed: 20%; justify-content: flex-start; align-items: center; }
+  .mm-mw3 .mm-hero-img { background-position: 70% 26%; }
+  .mm-mw3 .mm-hero-img.is-visible { opacity: clamp(0.3, calc(var(--menu-flow-intensity, 0.18) + 0.42), 0.88); }
+  /* darken only the left list; clear by ~the seam so the (now wider) hero shows */
+  .mm-mw3 .mm-scrim {
+    background:
+      linear-gradient(90deg, #04060a 14%, rgba(4,6,10,0.8) 33%, rgba(4,6,10,0) 48%),
+      radial-gradient(135% 88% at 70% 42%, transparent 44%, rgba(0,0,0,0.5) 100%),
+      linear-gradient(0deg, rgba(0,0,0,0.5) 0%, transparent 22%, transparent 84%, rgba(0,0,0,0.38) 100%);
+  }
+  .mm-mw3 .mm-panel { margin: 0 0 0 clamp(20px, 5vw, 48px); width: min(40vw, 400px); padding: 0; }
+  .mm-mw3 .mm-header { align-items: center; }
+  .mm-mw3 .mm-title { text-align: center; width: 100%; font-size: clamp(26px, 6vw, 40px); }
+  /* very narrow phones: push the seam further right + widen the list so text
+     doesn't collide with the mirror line */
+}
+@media (max-aspect-ratio: 1/1) and (max-width: 560px) {
+  .mm-mw3 { --mm-seam: 60%; }
+  .mm-mw3 .mm-panel { width: min(54vw, 320px); }
+  .mm-mw3 .mm-option-sub { font-size: 10px; }
+}
+
 /* "Menu" back button shared by pre-match sub-screens (mode picker,
    stats, my decks, multiplayer, encyclopedia, match history, tutorial).
    Pinned to the VIEWPORT top-left via position:fixed so the corner
@@ -11447,8 +11753,8 @@ body.turn-combat .board .lane.lane-active {
 .log-drawer-toggle:focus-visible {
   outline: none;
   box-shadow:
-    0 0 0 2px rgba(79,195,247,0.95),
-    0 0 14px rgba(79,195,247,0.55);
+    0 0 0 2px rgba(var(--theme-rgb, 79,195,247), 0.9),
+    0 0 14px rgba(var(--theme-rgb, 79,195,247), 0.5);
 }
 
 /* Log drawer — matching top-highlight + subtle brackets so the right-edge

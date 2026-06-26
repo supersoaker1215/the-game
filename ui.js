@@ -72,6 +72,16 @@ const UI = {
     const file = this.getCardArtVariant(name);
     return `audio/cards/art/${encodeURIComponent(file)}?v=${this._CARD_ART_VERSION || 1}`;
   },
+  // The CURATED default art (manifest's first entry, or <Name>.png) — ignores
+  // the player's per-card alt-art pick. Used by the menu hero so it always
+  // shows the canonical portrait (e.g. Hulk = the green one, not whatever the
+  // player happened to select in-game).
+  getCardArtPathDefault(name) {
+    if (!name) return null;
+    const variants = this.getCardArtVariants(name);
+    const file = (variants && variants.length) ? variants[0] : (name + '.png');
+    return `audio/cards/art/${encodeURIComponent(file)}?v=${this._CARD_ART_VERSION || 1}`;
+  },
   // Wire up the global alt-art picker.
   //
   // Gesture: a click on the card's NAME STRIP (`.card-name-overlay`,
@@ -418,33 +428,34 @@ const UI = {
     document.documentElement.style.fontSize = (16 * s) + 'px';
     document.body.dataset.uiScale = s.toFixed(2);
   },
-  // Live-sync the menu-atmosphere layer to current settings without a full
-  // menu re-render — lets the Settings toggle/slider preview in real time
-  // over the (still-mounted) menu behind the settings overlay.
+  // The MW3-style "mirror dimension" backdrop: a Tron grid in the left zone, a
+  // single hero on the right, a vertical neon SEAM (mirror plane) between them,
+  // and a faint mirrored REFLECTION of the hero spilling left off the seam onto
+  // the grid. hero + reflect carry two cross-fade buffers each. Order matters:
+  // grid (back) → reflect → hero → seam (front line).
+  _menuSceneHTML() {
+    // Right zone = ONE full-bleed hero (the currently-playing card), with the
+    // grid behind and the neon seam at the left edge. Two cross-fade buffers.
+    return `
+      <div class="mm-tron-grid" aria-hidden="true"></div>
+      <div class="mm-hero" aria-hidden="true"><div class="mm-hero-img"></div><div class="mm-hero-img"></div></div>`;
+  },
+  // Live-sync the menu-atmosphere scene to current settings without a full menu
+  // re-render — lets the Settings toggle/slider preview in real time over the
+  // (still-mounted) menu behind the settings overlay.
   _applyMenuFlow() {
     const el = document.getElementById('main-menu-overlay');
     if (!el) return;
     const on = this.settings.menuFlow !== false;
-    const intensity = String(this.settings.menuFlowIntensity ?? 0.18);
-    let flow = el.querySelector(':scope > .mm-flow');
-    let side = el.querySelector(':scope > .mm-sideart');
-    if (!on) { if (flow) flow.remove(); if (side) side.remove(); return; }
-    if (!flow) {
-      flow = document.createElement('div');
-      flow.className = 'mm-flow';
-      flow.setAttribute('aria-hidden', 'true');
-      el.insertBefore(flow, el.firstChild);
+    el.style.setProperty('--menu-flow-intensity', String(this.settings.menuFlowIntensity ?? 0.18));
+    const sceneSel = ':scope > .mm-tron-grid, :scope > .mm-hero-reflect, :scope > .mm-hero, :scope > .mm-seam';
+    if (!on) { el.querySelectorAll(sceneSel).forEach(n => n.remove()); return; }
+    if (!el.querySelector(':scope > .mm-hero')) {
+      const tmp = document.createElement('div');
+      tmp.innerHTML = this._menuSceneHTML();
+      const ref = el.firstChild;   // insert the scene before scrim/panel
+      while (tmp.firstChild) el.insertBefore(tmp.firstChild, ref);
     }
-    flow.style.setProperty('--menu-flow-intensity', intensity);
-    if (!side) {
-      side = document.createElement('div');
-      side.className = 'mm-sideart';
-      side.setAttribute('aria-hidden', 'true');
-      side.innerHTML = '<div class="mm-sideart-side mm-sideart-left"><div class="mm-sideart-img"></div><div class="mm-sideart-img"></div></div>'
-                     + '<div class="mm-sideart-side mm-sideart-right"><div class="mm-sideart-img"></div><div class="mm-sideart-img"></div></div>';
-      el.insertBefore(side, flow.nextSibling);   // above the flow texture, below the panel
-    }
-    side.style.setProperty('--menu-flow-intensity', intensity);
     try { this._updateMenuSideArt(this.sfx && this.sfx._music && this.sfx._music.currentSrc); } catch (e) {}
   },
 
@@ -470,36 +481,54 @@ const UI = {
     if (!this._menuStemToName) this._menuStemToName = this._buildMenuStemMap();
     return this._menuStemToName[base] || null;
   },
-  // Cross-fade the left + right side-art to the portrait of the card whose
-  // hover theme is currently playing. No-op off the menu; gracefully fades
-  // out for hover clips that map to a card with no portrait (stones, etc.).
-  _updateMenuSideArt(src) {
-    const wrap = document.querySelector('#main-menu-overlay > .mm-sideart');
-    if (!wrap) return;
+  // Update the bottom "now playing" credit to whatever hover theme is live.
+  _updateNowPlaying(src) {
+    const np = document.querySelector('#main-menu-overlay .mm-nowplaying');
+    if (!np) return;
     const name = this._menuHoverArtName(src);
-    const art = name ? this.getCardArtPath(name) : null;
+    np.textContent = name ? ('♪ ' + name) : '';
+  },
+  // The menu-music rotation, filtered to CHARACTER cards only (heroes/villains)
+  // — drops tricks, Infinity Stones, and environments so the hero art is always
+  // an actual character. Built once.
+  _menuCharHoverSrcs() {
+    if (this._charSrcs) return this._charSrcs;
+    const out = [];
+    const srcs = (this.sfx && this.sfx.MENU_HOVER_SRCS) || [];
+    for (const src of srcs) {
+      const name = this._menuHoverArtName(src);
+      if (!name) continue;
+      const def = (typeof CARD_DEFS !== 'undefined') ? CARD_DEFS.find(d => d.name === name) : null;
+      if (!def || (def.type !== 'hero' && def.type !== 'villain')) continue;
+      out.push(src);
+    }
+    this._charSrcs = out.length ? out : srcs;
+    return this._charSrcs;
+  },
+  // Single full-bleed hero — cross-fade the right-side art to the portrait of
+  // the card whose hover theme is currently playing, and update the credit.
+  _updateMenuSideArt(src) {
+    this._updateNowPlaying(src);
+    const hero = document.querySelector('#main-menu-overlay .mm-hero');
+    if (!hero) return;
+    const name = this._menuHoverArtName(src);
+    const art = name ? this.getCardArtPathDefault(name) : null;
     if (!art) {
-      wrap.querySelectorAll('.mm-sideart-img.is-visible').forEach(n => n.classList.remove('is-visible'));
+      hero.querySelectorAll('.mm-hero-img.is-visible').forEach(n => n.classList.remove('is-visible'));
+      hero._artSrc = null;
       return;
     }
-    if (wrap._sideArtSrc === art) return;   // already showing this card
-    // Two background layers: a theme-colored wash (alpha = --mm-duo) OVER the
-    // portrait. With background-blend-mode:color (set in CSS) this duotones
-    // the art into the Tron palette. var() resolves live, so theme switches
-    // re-tint without re-running this.
-    const tint = 'linear-gradient(rgba(var(--theme-rgb,79,195,247), var(--mm-duo,0.6)), rgba(var(--theme-rgb,79,195,247), var(--mm-duo,0.6)))';
+    if (hero._artSrc === art) return;   // already showing this card
     const pre = new Image();
     pre.onload = () => {
-      wrap._sideArtSrc = art;
-      wrap.querySelectorAll('.mm-sideart-side').forEach(side => {
-        const bufs = side.querySelectorAll('.mm-sideart-img');
-        if (bufs.length < 2) return;
-        const active = side.querySelector('.mm-sideart-img.is-visible');
-        const next = (active === bufs[0]) ? bufs[1] : bufs[0];
-        next.style.backgroundImage = `${tint}, url("${art}")`;
-        if (active) active.classList.remove('is-visible');
-        next.classList.add('is-visible');
-      });
+      hero._artSrc = art;
+      const bufs = hero.querySelectorAll('.mm-hero-img');
+      if (bufs.length < 2) return;
+      const active = hero.querySelector('.mm-hero-img.is-visible');
+      const next = (active === bufs[0]) ? bufs[1] : bufs[0];
+      next.style.backgroundImage = `url("${art}")`;
+      if (active) active.classList.remove('is-visible');
+      next.classList.add('is-visible');
     };
     pre.onerror = () => {};   // keep whatever's showing if the art 404s
     pre.src = art;
@@ -1854,7 +1883,8 @@ const UI = {
       'audio/cards/yoda-hover.mp3',
     ],
     _pickMenuTrack() {
-      const srcs = this.MENU_HOVER_SRCS;
+      // Character cards only (heroes/villains) — no tricks/stones/environments.
+      const srcs = (UI._menuCharHoverSrcs && UI._menuCharHoverSrcs()) || this.MENU_HOVER_SRCS;
       if (!srcs.length) return this.MUSIC_SRC;
       let idx;
       do { idx = Math.floor(Math.random() * srcs.length); }
@@ -2223,16 +2253,15 @@ const UI = {
       const a = new Audio();
       a.loop = false;
       a.preload = 'none';
-      // Chain to a new random track whenever one finishes.
+      // Chain a new random hover track whenever one finishes.
       a.addEventListener('ended', () => {
         if (!this._musicWantPlay) return;
         a.src = this._pickMenuTrack();
         a.volume = this._musicTargetVol();
         try { a.play().catch(() => {}); } catch (e) {}
       });
-      // Every time a (new) track actually begins, swap the menu side-art to
-      // that card's portrait. Fires after each src change + play(), so this
-      // single hook covers start, skip, and the ended→next chain.
+      // Each time a track begins, swap the full-bleed hero to that card's art
+      // and update the now-playing credit. Covers start, skip, and the chain.
       a.addEventListener('playing', () => {
         try { UI._updateMenuSideArt(a.currentSrc); } catch (e) {}
       });
@@ -2318,10 +2347,30 @@ const UI = {
       });
     },
 
+    // Smoothly switch the menu loop to a specific hover track — used by the
+    // 3-card hover preview and the trio re-roll. No-op if already playing it.
+    crossfadeTo(src) {
+      if (!UI.settings || UI.settings.sfxVolume === 0) { this._musicWantPlay = true; return; }
+      if (UI.settings.menuMusic === false) { this._musicWantPlay = true; return; }
+      if (!src) return;
+      const a = this._ensureMusic();
+      const base = (u) => String(u || '').split('/').pop().split('?')[0];
+      if (base(a.currentSrc || a.src) === base(src) && !a.paused && a.volume > 0.02) return;
+      this._musicWantPlay = true;
+      const target = this._musicTargetVol();
+      if (this._musicFadeInterval) { clearInterval(this._musicFadeInterval); this._musicFadeInterval = null; }
+      const swap = () => {
+        a.src = src; a.volume = 0;
+        try { const p = a.play(); if (p && p.catch) p.catch(() => {}); } catch (e) {}
+        this._fadeVolume(a, target, 360, '_musicFadeInterval');
+      };
+      if (a.paused || a.volume < 0.04) swap();
+      else this._fadeVolume(a, 0, 200, '_musicFadeInterval', swap);
+    },
+
     stopMusic() {
       this._musicWantPlay = false;
-      // No theme playing → fade the menu side-art out (nothing to mirror).
-      try { UI._updateMenuSideArt(null); } catch (e) {}
+      try { UI._updateNowPlaying(null); } catch (e) {}
       if (!this._music) return;
       const a = this._music;
       if (this._musicFadeInterval) { clearInterval(this._musicFadeInterval); this._musicFadeInterval = null; }
@@ -7397,6 +7446,7 @@ const UI = {
   renderMainMenu(s) {
     const el = document.getElementById('main-menu-overlay');
     if (!el) return;
+    el.classList.add('mm-mw3');   // MW3-style layout: left list + single right hero
     // Inline Tron-style SVGs. `stroke: currentColor` + `fill: none` lets
     // the icon inherit the neon cyan hue from the button's text color,
     // and hover-state glows fall out for free via the parent's shadows.
@@ -7481,16 +7531,14 @@ const UI = {
     // and have even space on the top and bottom of the screen."
     const _flowOn = this.settings.menuFlow !== false;
     const _flowI  = this.settings.menuFlowIntensity ?? 0.18;
+    el.style.setProperty('--menu-flow-intensity', String(_flowI));
     el.innerHTML = `
-      ${_flowOn ? `<div class="mm-flow" aria-hidden="true" style="--menu-flow-intensity:${_flowI}"></div>
-      <div class="mm-sideart" aria-hidden="true" style="--menu-flow-intensity:${_flowI}">
-        <div class="mm-sideart-side mm-sideart-left"><div class="mm-sideart-img"></div><div class="mm-sideart-img"></div></div>
-        <div class="mm-sideart-side mm-sideart-right"><div class="mm-sideart-img"></div><div class="mm-sideart-img"></div></div>
-      </div>` : ''}
+      ${_flowOn ? this._menuSceneHTML() : ''}
+      <div class="mm-scrim" aria-hidden="true"></div>
       <div class="mm-panel">
         <div class="mm-header">
           <h1 class="mm-title">the game</h1>
-          <div class="mm-divider" aria-hidden="true"></div>
+          <div class="mm-tagline">Neon Lane Battler</div>
         </div>
         <div class="mm-section">
           <div class="mm-section-label">Play</div>
@@ -7513,23 +7561,21 @@ const UI = {
           </div>
         </div>
         <div class="mm-section">
-          <div class="mm-section-label">Decks</div>
-          <div class="mm-grid mm-grid-section">
-            ${btn('mm-decks',   'My Decks',     'Build, edit, copy, or play your decks',                  SVG.decks,    "Game.goToMyDecks()")}
-          </div>
-        </div>
-        <div class="mm-section">
           <div class="mm-section-label">Library</div>
           <div class="mm-grid mm-grid-section">
+            ${btn('mm-decks',   'My Decks',     'Build, edit, copy, or play your decks',                  SVG.decks,    "Game.goToMyDecks()")}
             ${btn('mm-encyc',   'Codex',        'Every card and trick in the game',                       SVG.decks,    "UI.openEncyclopedia()")}
             ${btn('mm-stats',   'Stats',        'Card win rates and balance trends',                      SVG.stats,    "Game.goToStats()")}
             ${btn('mm-audio',   'Audio Audit',  'Per-card audio coverage + inline splicer · dev',          SVG.settings, "UI.openAudioAudit()")}
             ${btn('mm-sandbox', 'Sandbox',      'Free-play with unlimited energy + spawn any card · dev', SVG.settings, "UI.startSandbox()")}
           </div>
         </div>
+      </div>
+      <div class="mm-botbar" aria-hidden="true">
+        <span class="mm-botbar-brand">the game · beta</span>
+        <span class="mm-nowplaying"></span>
       </div>`;
-    // Sync the side-art to whatever hover theme is already playing (the menu
-    // music may have started before this DOM existed).
+    // Sync the full-bleed hero to whatever hover theme is already playing.
     if (_flowOn) {
       try { this._updateMenuSideArt(this.sfx && this.sfx._music && this.sfx._music.currentSrc); } catch (e) {}
     }
