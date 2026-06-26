@@ -4785,6 +4785,7 @@ const Game = {
   // Finds any Doomsday in either player's hand and reduces cost by 1,
   // adds +1/+1. Stops scaling once played (card is no longer in hand).
   _scaleDoomsdayInHands() {
+    // Cards in hand: stats +1/+1 AND cost -1 per death.
     for (const side of ['player', 'ai']) {
       const hand = this.state[side] && this.state[side].hand;
       if (!hand) continue;
@@ -4795,6 +4796,22 @@ const Game = {
         c.maxHealth = (c.maxHealth || 0) + 1;
         c.currentHealth = (c.currentHealth || 0) + 1;
         this.log(`[DOOMSDAY] Grows to ${c.attack}/${c.maxHealth} cost ${c.cost}`);
+      });
+    }
+    // Cards still in a draw pile: stats grow but cost stays locked.
+    // If drawn late (e.g. round 8), he arrives already massive — the
+    // cost reduction only starts once he's actually in the player's hand.
+    const pilesScaled = new Set();
+    for (const side of ['player', 'ai']) {
+      const pile = this.getDrawPile(side);
+      if (!pile || pilesScaled.has(pile)) continue;
+      pilesScaled.add(pile);
+      pile.forEach(c => {
+        if (c.passive !== 'doomsdayScaling') return;
+        c.attack = (c.attack || 0) + 1;
+        c.maxHealth = (c.maxHealth || 0) + 1;
+        c.currentHealth = (c.currentHealth || 0) + 1;
+        this.log(`[DOOMSDAY] In draw pile — grows to ${c.attack}/${c.maxHealth} (cost stays ${c.cost} until drawn)`);
       });
     }
   },
