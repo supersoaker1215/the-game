@@ -29970,6 +29970,65 @@ body.round-tick .board::after {
   text-shadow: 0 0 6px rgba(79,195,247,0.60);
 }
 
+/* --- Online Lobby (Tron aesthetic, reuses setup2v2-* classes) --- */
+.setup2v2-error {
+  color: #f44336; font-size: .85rem; text-align: center;
+  background: rgba(244,67,54,.08); border: 1px solid rgba(244,67,54,.3);
+  border-radius: 6px; padding: 8px 12px; margin-bottom: 8px;
+}
+.setup2v2-online-form {
+  display: flex; flex-direction: column; gap: 6px; width: 100%;
+}
+.setup2v2-online-divider {
+  text-align: center; color: #4a6070; font-size: .8rem; margin: 10px 0;
+  letter-spacing: .06em;
+}
+.setup2v2-online-join-row {
+  display: flex; gap: 8px; align-items: center;
+}
+.setup2v2-input-code { flex: 1; font-size: 1.3rem; }
+/* Room code display */
+.setup2v2-room-code-wrap {
+  display: flex; flex-direction: column; align-items: center;
+  gap: 4px; margin: 8px 0 14px;
+}
+.setup2v2-room-code-label {
+  font-size: .72rem; letter-spacing: .12em; color: #4a6070; text-transform: uppercase;
+}
+.setup2v2-room-code {
+  font-size: 2.6rem; font-weight: 900; letter-spacing: .22em;
+  color: #4fc3f7; text-shadow: 0 0 14px rgba(79,195,247,.5);
+  font-family: 'Courier New', monospace;
+}
+.setup2v2-room-code-sub { font-size: .75rem; color: #4a6070; }
+/* Lobby player list */
+.setup2v2-lobby-players {
+  display: flex; flex-direction: column; gap: 6px; width: 100%; margin: 12px 0 0;
+}
+.setup2v2-lobby-player {
+  display: flex; align-items: center; gap: 10px;
+  background: rgba(255,255,255,.03); border: 1px solid rgba(255,255,255,.06);
+  border-radius: 8px; padding: 8px 12px;
+  transition: border-color .2s;
+}
+.setup2v2-lobby-player.setup2v2-lp-joined {
+  border-color: rgba(79,195,247,.3);
+  background: rgba(79,195,247,.05);
+}
+.setup2v2-lp-slot {
+  font-size: .8rem; font-weight: 700; letter-spacing: .06em;
+  border-radius: 4px; padding: 2px 7px; min-width: 28px; text-align: center;
+}
+.setup2v2-lp-a { background: rgba(79,195,247,.15); color: #4fc3f7; }
+.setup2v2-lp-b { background: rgba(244,67,54,.15); color: #f44336; }
+.setup2v2-lp-name { flex: 1; font-size: .95rem; color: #d0e8f5; }
+.setup2v2-lp-team { font-size: .72rem; color: #4a6070; letter-spacing: .06em; }
+.setup2v2-lp-check { color: #4fc3f7; font-size: 1rem; min-width: 16px; text-align: center; }
+.setup2v2-lobby-wait {
+  text-align: center; color: #4a6070; font-size: .85rem; margin-top: 14px;
+  letter-spacing: .04em;
+}
+
 /* --- Team Setup Screen --- */
 .twov2-panel {
   background: #111720;

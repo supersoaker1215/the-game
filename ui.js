@@ -6669,7 +6669,7 @@ const UI = {
     const ap = tt.players[myKey];
     const isCards = d.phase === 'cards';
     const round = d.round;
-    const total = isCards ? 5 : 2;
+    const total = isCards ? 4 : 2;
     const teamColor = picker.team === 'A' ? '#4fc3f7' : '#f44336';
 
     const pips = [];
@@ -7142,7 +7142,7 @@ const UI = {
     const teamColor = team === 'A' ? '#4fc3f7' : '#f44336';
     const isCards = d.phase === 'cards';
     const roundLabel = isCards
-      ? `Card Pick ${d.round} of 5 — ${picker.name}`
+      ? `Card Pick ${d.round} of 4 — ${picker.name}`
       : `Trick Pick ${d.round} of 2 — ${picker.name}`;
 
     const isOnline = !!tt.online;
@@ -7196,7 +7196,7 @@ const UI = {
           ${picker.name}'s Draft Turn
         </div>
         <div class="twov2-pass-sub">
-          ${picker.name} is picking ${isCards ? 'card ' + d.round + ' of 5' : 'trick ' + d.round + ' of 2'}.
+          ${picker.name} is picking ${isCards ? 'card ' + d.round + ' of 4' : 'trick ' + d.round + ' of 2'}.
           Don't show the screen until they're holding it.
         </div>
         <button class="twov2-btn twov2-btn-pri twov2-ready-btn"
@@ -7213,61 +7213,72 @@ const UI = {
     const joined = tt ? (tt.joinedPlayers || {}) : {};
     const joinedCount = Object.values(joined).filter(Boolean).length;
 
-    const playerList = ['p1','p2','p3','p4'].map(pk => {
-      const hasJoined = joined[pk];
-      const name = hasJoined ? players[pk].name : (pk === 'p1' ? '(Host)' : '...');
-      return `<div class="twov2-lobby-player ${hasJoined ? 'twov2-lobby-joined' : ''}">
-        <span class="twov2-lobby-slot">P${pk[1]}</span>
-        <span class="twov2-lobby-name">${name}</span>
-        ${hasJoined ? '<span class="twov2-lobby-check">✓</span>' : ''}
-      </div>`;
-    }).join('');
-
     const errorHtml = this._2v2OnlineError
-      ? `<div class="twov2-lobby-error">${this._2v2OnlineError}</div>` : '';
+      ? `<div class="setup2v2-error">${this._2v2OnlineError}</div>` : '';
 
     if (!tt || !tt.you) {
       // Pre-join screen — enter name and room code
       el.innerHTML = `
-        <div class="twov2-panel">
-          <h2 class="twov2-title">Online 2v2</h2>
-          <p class="twov2-subtitle">Play with friends over the internet. P1 creates, others join with the code.</p>
+        <div class="mode-panel setup2v2-panel">
+          <button type="button" class="mode-back" onclick="Game.goToModeSelect()">← Back</button>
+          <div class="setup2v2-title">Online 2v2</div>
+          <div class="setup2v2-subtitle">4 players · 2 teams · 8 lanes · internet play</div>
           ${errorHtml}
-          <div class="twov2-lobby-form">
-            <input class="twov2-name-input" id="2v2-online-name" type="text"
-                   maxlength="18" placeholder="Your name" value="" />
-            <button class="twov2-btn twov2-btn-pri" onclick="twov2OnlineCreate()">
-              Create Room (Host)
-            </button>
-            <div class="twov2-lobby-divider">— or —</div>
-            <input class="twov2-name-input" id="2v2-online-code" type="text"
-                   maxlength="4" placeholder="Room code" style="text-transform:uppercase" />
-            <button class="twov2-btn twov2-btn-sec" onclick="twov2OnlineJoin()">
-              Join Room
-            </button>
+          <div class="setup2v2-online-form">
+            <label class="setup2v2-label">Your Name</label>
+            <input class="setup2v2-input" id="2v2-online-name" type="text"
+                   maxlength="18" placeholder="Enter your name" autocomplete="off" />
+            <div class="setup2v2-actions" style="margin-top:12px">
+              <button type="button" class="setup2v2-btn setup2v2-btn-pri" onclick="twov2OnlineCreate()">
+                Create Room (Host)
+              </button>
+            </div>
+            <div class="setup2v2-online-divider">— or join a room —</div>
+            <label class="setup2v2-label">Room Code</label>
+            <div class="setup2v2-online-join-row">
+              <input class="setup2v2-input setup2v2-input-code" id="2v2-online-code" type="text"
+                     maxlength="4" placeholder="XXXX" style="text-transform:uppercase;letter-spacing:4px;text-align:center" autocomplete="off" />
+              <button type="button" class="setup2v2-btn" onclick="twov2OnlineJoin()">Join →</button>
+            </div>
           </div>
-          <button class="twov2-back-btn" onclick="Game.goToModeSelect()">← Back</button>
         </div>`;
       return;
     }
 
     // Waiting room — show room code and player list
+    const playerRows = ['p1','p2','p3','p4'].map(pk => {
+      const hasJoined = joined[pk];
+      const name = hasJoined ? players[pk].name : (pk === 'p1' ? '(Host)' : 'Waiting…');
+      const teamLabel = pk === 'p1' || pk === 'p2' ? 'Team A' : 'Team B';
+      const teamCls   = pk === 'p1' || pk === 'p2' ? 'setup2v2-lp-a' : 'setup2v2-lp-b';
+      return `<div class="setup2v2-lobby-player ${hasJoined ? 'setup2v2-lp-joined' : ''}">
+        <span class="setup2v2-lp-slot ${teamCls}">P${pk[1]}</span>
+        <span class="setup2v2-lp-name">${name}</span>
+        <span class="setup2v2-lp-team">${teamLabel}</span>
+        <span class="setup2v2-lp-check">${hasJoined ? '✓' : ''}</span>
+      </div>`;
+    }).join('');
+
     el.innerHTML = `
-      <div class="twov2-panel">
-        <h2 class="twov2-title">Online 2v2 Lobby</h2>
-        ${isHost ? `<div class="twov2-lobby-code-wrap">
-          <div class="twov2-lobby-code-label">Room Code</div>
-          <div class="twov2-lobby-code">${code}</div>
-          <div class="twov2-lobby-code-sub">Share this with your 3 friends</div>
-        </div>` : `<div class="twov2-lobby-code-sub">Waiting for host to start…</div>`}
+      <div class="mode-panel setup2v2-panel">
+        <button type="button" class="mode-back" onclick="twov2OnlineLeave()">← Leave</button>
+        <div class="setup2v2-title">Online 2v2 Lobby</div>
+        ${isHost
+          ? `<div class="setup2v2-room-code-wrap">
+               <div class="setup2v2-room-code-label">Room Code</div>
+               <div class="setup2v2-room-code">${code}</div>
+               <div class="setup2v2-room-code-sub">Share with your 3 teammates</div>
+             </div>`
+          : `<div class="setup2v2-subtitle">Waiting for host to start the match…</div>`}
         ${errorHtml}
-        <div class="twov2-lobby-players">${playerList}</div>
-        ${isHost && joinedCount === 4 ? `
-          <button class="twov2-btn twov2-btn-pri" onclick="twov2OnlineStart()">
-            Start Match →
-          </button>
-        ` : `<div class="twov2-lobby-waiting">${joinedCount}/4 players joined</div>`}
-        <button class="twov2-back-btn" onclick="twov2OnlineLeave()">← Leave</button>
+        <div class="setup2v2-lobby-players">${playerRows}</div>
+        ${isHost && joinedCount === 4
+          ? `<div class="setup2v2-actions" style="margin-top:16px">
+               <button type="button" class="setup2v2-btn setup2v2-btn-pri" onclick="twov2OnlineStart()">
+                 Start Match →
+               </button>
+             </div>`
+          : `<div class="setup2v2-lobby-wait">${joinedCount}/4 players joined</div>`}
       </div>`;
   },
 

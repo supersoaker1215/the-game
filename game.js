@@ -7874,8 +7874,11 @@ const Game = {
 
   start2v2Match(opts) {
     // opts: { names: { p1, p2, p3, p4 }, teamAssignment: 'random'|{ A: [p1,p2], B: [p3,p4] } }
-    this.LANE_COUNT = this.LANE_COUNT_2V2;  // expand to 8 lanes
-    this.init();  // resets state with 8 lanes
+    this.init();  // resets state (LANE_COUNT goes back to 6 inside init)
+    this.LANE_COUNT = this.LANE_COUNT_2V2;  // expand to 8 after init
+    this.state.lanes = Array.from({ length: this.LANE_COUNT }, () => ({
+      player: null, ai: null, _env: null, destroyed: false, destroyedTurns: 0, protected: null, trap: null,
+    }));
     const s = this.state;
     s.phase = '2v2-team-setup';
     s.mode = { players: '2v2', deck: 'classic' };
@@ -8263,7 +8266,7 @@ const Game = {
     if (d.pickerIdx >= d.pickerOrder.length) {
       d.pickerIdx = 0;
       d.round++;
-      const maxRounds = d.phase === 'cards' ? 5 : 2;
+      const maxRounds = d.phase === 'cards' ? 4 : 2;
       if (d.round > maxRounds) {
         if (d.phase === 'cards') {
           d.phase = 'tricks';
@@ -8325,8 +8328,11 @@ const Game = {
   // ===================== 2v2 ONLINE =====================
 
   goTo2v2OnlineLobby() {
-    this.LANE_COUNT = this.LANE_COUNT_2V2;
     this.init();
+    this.LANE_COUNT = this.LANE_COUNT_2V2;
+    this.state.lanes = Array.from({ length: this.LANE_COUNT }, () => ({
+      player: null, ai: null, _env: null, destroyed: false, destroyedTurns: 0, protected: null, trap: null,
+    }));
     const s = this.state;
     s.phase = '2v2-online-lobby';
     s.mode = { players: '2v2', deck: 'classic', online: true };
@@ -8496,7 +8502,7 @@ const Game = {
       teams.B.forEach((pk, i) => { tt.players[pk].team = 'B'; });
     }
 
-    // Start the draft phase (pick 5 cards + 2 tricks per player)
+    // Start the draft phase (pick 4 cards + 2 tricks per player)
     this._2v2StartDraft();
   },
 };
