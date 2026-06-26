@@ -1656,19 +1656,85 @@ const UI = {
     // its hover sound is playing from, so mouseleave can cut playback.
     _currentHoverEl: null,
     _currentHoverAudio: null,
-    // Looping menu-screen music. One HTMLAudioElement, loops forever while
-    // the player is on any menu (main, mode-select, my-decks, stats, deck
-    // builder) — stops when startMatch fires so gameplay audio owns the
-    // mix. Volume sits well below sfxVolume so cues still cut through.
+    // Menu music — random shuffle of card hover themes. One HTMLAudioElement
+    // chains tracks indefinitely: on 'ended', pick a new random hover clip
+    // (never the same one back-to-back) and play it. Stops when startMatch
+    // fires so gameplay audio owns the mix.
     _music: null,
     _musicWantPlay: false,
-    // Menu music — "Organ Variation". Full ~4:52 track, loudness-matched
-    // to ≈-15 LUFS with NO baked fades so the `loop = true` boundary stays
-    // seamless. Loops indefinitely across the menu + draft screens.
-    // The PREVIOUS menu track (Daft Punk "End Of Line") was MOVED to
-    // audio/match_intro.mp3 and now plays as a 20s load-in cue when combat
-    // begins — see MATCH_INTRO_SRC / playMatchIntro().
+    _menuHoverLastIdx: -1,
+    // MUSIC_SRC kept for the settings panel label / legacy path.
     MUSIC_SRC: 'audio/menu_music.mp3?v=6',
+    // All card hover audio files — cycled randomly as menu background music.
+    MENU_HOVER_SRCS: [
+      'audio/cards/ahsoka-hover.mp3',
+      'audio/cards/anakin-hover.mp3',
+      'audio/cards/bane-hover.mp3',
+      'audio/cards/batman-hover.mp3',
+      'audio/cards/black-panther-hover.mp3',
+      'audio/cards/boiler-room-hover.mp3',
+      'audio/cards/captain-america-hover.mp3',
+      'audio/cards/darth-maul-hover.mp3',
+      'audio/cards/darth-vader-hover.mp3',
+      'audio/cards/davy-jones-hover.mp3',
+      'audio/cards/deadpool-hover.mp3',
+      'audio/cards/dormammu-hover.mp3',
+      'audio/cards/dr-manhattan-hover.mp3',
+      'audio/cards/emperor-palpatine-hover.mp3',
+      'audio/cards/freddy-fazbear-hover.mp3',
+      'audio/cards/galactus-hover.mp3',
+      'audio/cards/gargantua-hover.mp3',
+      'audio/cards/general-grievous-hover.mp3',
+      'audio/cards/ghostface-hover.mp3',
+      'audio/cards/gojo-hover.mp3',
+      'audio/cards/green-goblin-hover.mp3',
+      'audio/cards/homelander-hover.mp3',
+      'audio/cards/hulk-hover.mp3',
+      'audio/cards/iron-man-hover.mp3',
+      'audio/cards/jack-sparrow-hover.mp3',
+      'audio/cards/jigsaw-hover.mp3',
+      'audio/cards/joker-hover.mp3',
+      'audio/cards/knull-hover.mp3',
+      'audio/cards/luke-hover.mp3',
+      'audio/cards/michael-myers-hover.mp3',
+      'audio/cards/mind-stone-hover.mp3',
+      'audio/cards/omni-man-hover.mp3',
+      'audio/cards/open-water-hover.mp3',
+      'audio/cards/optimus-prime-hover.mp3',
+      'audio/cards/padme-amidala-hover.mp3',
+      'audio/cards/power-stone-hover.mp3',
+      'audio/cards/predator-hover.mp3',
+      'audio/cards/reality-stone-hover.mp3',
+      'audio/cards/red-skull-hover.mp3',
+      'audio/cards/sandman-hover.mp3',
+      'audio/cards/sewers-hover.mp3',
+      'audio/cards/soul-stone-hover.mp3',
+      'audio/cards/space-stone-hover.mp3',
+      'audio/cards/spider-man-hover.mp3',
+      'audio/cards/star-lord-hover.mp3',
+      'audio/cards/superman-hover.mp3',
+      'audio/cards/thanos-hover.mp3',
+      'audio/cards/the-flash-hover.mp3',
+      'audio/cards/the-grinch-hover.mp3',
+      'audio/cards/thor-hover.mp3',
+      'audio/cards/time-stone-hover.mp3',
+      'audio/cards/trigon-hover.mp3',
+      'audio/cards/ultron-hover.mp3',
+      'audio/cards/winter-soldier-hover.mp3',
+      'audio/cards/wolverine-hover.mp3',
+      'audio/cards/wonder-woman-hover.mp3',
+      'audio/cards/xenomorph-hover.mp3',
+      'audio/cards/yoda-hover.mp3',
+    ],
+    _pickMenuTrack() {
+      const srcs = this.MENU_HOVER_SRCS;
+      if (!srcs.length) return this.MUSIC_SRC;
+      let idx;
+      do { idx = Math.floor(Math.random() * srcs.length); }
+      while (idx === this._menuHoverLastIdx && srcs.length > 1);
+      this._menuHoverLastIdx = idx;
+      return srcs[idx];
+    },
     // Match load-in sting — the former menu track. Played ONCE for ~20s at
     // the first combat round of a match, then faded out. Not looped; lives
     // on its own <audio> element independent of the menu loop.
@@ -1725,6 +1791,9 @@ const UI = {
           if (p) p.then(() => { sil.pause(); sil.src = ''; }).catch(() => {});
         } catch (_) {}
         if (this._musicWantPlay && this._music && this._music.paused) {
+          // If the track already ended while waiting for a gesture, pick a
+          // new one rather than replaying the same clip from the start.
+          if (this._music.ended) this._music.src = this._pickMenuTrack();
           try { this._music.play().catch(() => {}); } catch (e) {}
         }
       };
@@ -2024,9 +2093,16 @@ const UI = {
     // starts (or the first time we remember the user wants it running).
     _ensureMusic() {
       if (this._music) return this._music;
-      const a = new Audio(this.MUSIC_SRC);
-      a.loop = true;
-      a.preload = 'auto';
+      const a = new Audio();
+      a.loop = false;
+      a.preload = 'none';
+      // Chain to a new random track whenever one finishes.
+      a.addEventListener('ended', () => {
+        if (!this._musicWantPlay) return;
+        a.src = this._pickMenuTrack();
+        a.volume = this._musicTargetVol();
+        try { a.play().catch(() => {}); } catch (e) {}
+      });
       this._music = a;
       return a;
     },
@@ -2037,14 +2113,13 @@ const UI = {
       // mid-menu can auto-resume) but skip actual playback.
       if (UI.settings.menuMusic === false) { this._musicWantPlay = true; return; }
       const a = this._ensureMusic();
-      // Music sits under nav cues (0.35×) so a sound effect at sfxVolume
-      // always reads above the loop. Cancel any in-flight fade from a
-      // prior stopMusic so we don't rubber-band.
+      // Pick a fresh random hover track every time the menu is entered.
+      a.src = this._pickMenuTrack();
       const target = this._musicTargetVol();
       if (this._musicFadeInterval) { clearInterval(this._musicFadeInterval); this._musicFadeInterval = null; }
       this._musicWantPlay = true;
       try {
-        // Start silent, ramp up over 400ms.
+        // Start silent, ramp up over 600ms.
         a.volume = 0;
         const p = a.play();
         // Autoplay blocks trigger a rejected promise — swallow it and rely
