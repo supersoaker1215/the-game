@@ -4831,6 +4831,10 @@ const Game = {
       pile.forEach(c => {
         if (c.passive !== 'doomsdayScaling') return;
         c.attack = (c.attack || 0) + 1;
+        // Keep the raw `health` def property in sync so that if drawCards
+        // later calls createCardInstance(c) on a classic-mode shallow-copy
+        // def, it reads the scaled value rather than the original base (1).
+        c.health = (c.health || 0) + 1;
         c.maxHealth = (c.maxHealth || 0) + 1;
         c.currentHealth = (c.currentHealth || 0) + 1;
         this.log(`[DOOMSDAY] In draw pile — grows to ${c.attack}/${c.maxHealth} (cost stays ${c.cost} until drawn)`);
