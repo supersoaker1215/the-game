@@ -154,7 +154,7 @@ const CARD_DEFS = [
   { name: "Padme Amidala", cost: 3, attack: 2, health: 3, type: "hero",
     rarity: 3,
     abilities: [],
-    desc: "End of Round: Heal all allies for 1 HP (up to max)." },
+    desc: "End of Round: Gains +1 Max HP and heals for 1." },
   { name: "Red Skull", cost: 3, attack: 1, health: 4, type: "villain",
     abilities: [],
     desc: "When Played: Give an ally (+2/+2). While Active: Your cards can be played during the Trick Phase." },

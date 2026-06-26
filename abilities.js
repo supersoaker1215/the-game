@@ -4330,12 +4330,9 @@ const CARD_ABILITIES = {
   },
   "Padme Amidala": {
     onEndOfTurn(G, self) {
-      G.getAlliesOf(self.owner).forEach(c => {
-        if (c.currentHealth > 0) {
-          c.currentHealth = Math.min(c.currentHealth + 1, c.maxHealth);
-        }
-      });
-      G.log(`Padme Amidala heals all allies for 1 HP.`);
+      self.maxHealth = (self.maxHealth || 0) + 1;
+      self.currentHealth = (self.currentHealth || 0) + 1;
+      G.log(`[PADME] Grows to ${self.attack}/${self.currentHealth} (max ${self.maxHealth})`);
     }
   },
   "Open Water": {
