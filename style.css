@@ -2150,7 +2150,12 @@ body.hit-pause .ai-hand * {
 .mm-mw3 .mm-option:focus-visible {
   transform: none; padding-left: 22px;
   box-shadow: none !important; border: none !important; outline: none !important;
-  background: linear-gradient(90deg, rgba(var(--theme-rgb,79,195,247),0.22) 0%, rgba(var(--theme-rgb,79,195,247),0.05) 50%, transparent 85%) !important;
+  /* dark base UNDER the gold wash so the bleeding hero art can't tint the
+     selection (it was showing through translucent gold → looked blue on cool
+     cards). Right edge fades so it still blends into the hero. */
+  background:
+    linear-gradient(90deg, rgba(var(--theme-rgb,79,195,247),0.26) 0%, rgba(var(--theme-rgb,79,195,247),0.07) 52%, transparent 88%),
+    linear-gradient(90deg, rgba(6,9,14,0.88) 0%, rgba(6,9,14,0.5) 56%, transparent 90%) !important;
 }
 .mm-mw3 .mm-option:hover::before,
 .mm-mw3 .mm-option:focus::before,
