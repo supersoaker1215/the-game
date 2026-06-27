@@ -5055,7 +5055,19 @@ const Game = {
   // Used by every `self.owner === 'player'` check in abilities.js / tricks.js
   // — replacing those with `Game.isHuman(self.owner)` enables multiplayer
   // (both seats human) and makes the sim fully symmetric (both seats AI).
-  isHuman(owner) { return !!(this.state[owner] && this.state[owner].isHuman); },
+  isHuman(owner) {
+    // 1v1 ONLINE: both seats are real people (host=player, guest=ai). Treat
+    // EVERY seat as human at all times so ability/summon lane + target choices
+    // PROMPT the seat's owner (routed to the guest via promptLaneChoice/
+    // promptCardChoice MP handling) instead of falling through to the AI
+    // auto-resolve branch, which auto-picks lanes[0] (= lane 1). This is the
+    // robust form of the user's directive "treat the joining player as human,
+    // never AI" — it no longer depends on the per-seat isHuman flag actually
+    // being set at runtime. Single-player keeps the per-seat flag (so the AI
+    // seat stays non-human); 2v2 sets its own flags and does not use this.mp.
+    if (this.isMultiplayer && this.isMultiplayer()) return true;
+    return !!(this.state[owner] && this.state[owner].isHuman);
+  },
 
   // General stat buff: +atk ATK, +hp HP (increases maxHealth and currentHealth)
   buffCard(card, atk, hp) {
