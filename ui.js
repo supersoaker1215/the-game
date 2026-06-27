@@ -6475,7 +6475,7 @@ const UI = {
       const bar = document.querySelector(`.${owner}-bar .health-container`);
       if (bar) {
         bar.classList.add('mc-target');
-        bar.title = `Attack ${owner === 'player' ? 'your' : "AI's"} health bar`;
+        bar.title = `Attack ${owner === 'player' ? 'your' : UI.oppNamePoss()} health bar`;
         // One-shot click — capture the idx now; renderer re-runs will re-attach.
         const idx = cc.cards.indexOf(hbOption);
         const handler = (e) => {
@@ -12629,7 +12629,7 @@ const UI = {
       if (lane.trap) {
         const trapEl = document.createElement('div');
         trapEl.className = 'lane-trap ' + (lane.trap.placedBy === 'player' ? 'trap-player' : 'trap-ai');
-        trapEl.title = `Reverse Bear Trap (${lane.trap.placedBy === 'player' ? 'yours' : "AI's"})`;
+        trapEl.title = `Reverse Bear Trap (${lane.trap.placedBy === 'player' ? 'yours' : UI.oppNamePoss()})`;
         // Jaw-trap SVG + small label. Pure geometric shapes, no emoji.
         trapEl.innerHTML = `
           <svg class="lane-trap-icon" viewBox="0 0 20 20" aria-hidden="true">
@@ -13806,6 +13806,20 @@ const UI = {
   // effect card (Mr. Fantastic etc.), so the player doesn't have to watch
   // the combat log to know what happened. `kind` is 'trick' (default) or
   // 'discard' — changes the label and a body class that swaps color chrome.
+  // Opponent's display label for in-match UI. In multiplayer this is the real
+  // opponent's name (from the perspective-flipped _mpNames, so it's correct on
+  // both host and guest); in single-player it stays "AI". oppNamePoss() is the
+  // possessive form ("Ryan's" / "AI's").
+  oppName() {
+    const s = Game.state;
+    return (s && s._mpNames && s._mpNames.ai) ? s._mpNames.ai : 'AI';
+  },
+  oppNamePoss() {
+    const s = Game.state;
+    const n = (s && s._mpNames && s._mpNames.ai) ? s._mpNames.ai : null;
+    return n ? (n + "'s") : "AI's";
+  },
+
   showAITrickToast(name, desc, kind) {
     const toast = document.getElementById('ai-trick-toast');
     if (!toast) return;
@@ -13825,7 +13839,7 @@ const UI = {
       const { name, desc, kind } = this._aiTrickQueue.shift();
       nameEl.textContent = name;
       descEl.innerHTML = this.formatDesc(desc) || '';
-      if (labelEl) labelEl.textContent = kind === 'discard' ? 'AI played a Discard' : 'AI played a Trick';
+      if (labelEl) labelEl.textContent = kind === 'discard' ? (UI.oppName() + ' played a Discard') : (UI.oppName() + ' played a Trick');
       toast.classList.toggle('toast-kind-discard', kind === 'discard');
       toast.classList.toggle('toast-kind-trick', kind !== 'discard');
       toast.style.display = 'block';
@@ -19666,7 +19680,7 @@ const UI = {
             // player sees what just hit them. Existing toast helper
             // gets the right styling for trick-cast notifications.
             if (this.showAITrickToast) {
-              this.showAITrickToast(`AI played ${trick.name}`, trick.desc || '', 'trick');
+              this.showAITrickToast(`${UI.oppName()} played ${trick.name}`, trick.desc || '', 'trick');
             }
           }
           return r;
@@ -20664,7 +20678,7 @@ function toggleDeadPile(owner) {
   const title = document.getElementById('dead-pile-title');
   const container = document.getElementById('dead-pile-cards');
   const pile = Game.state[owner].deadPile;
-  title.textContent = (owner === 'player' ? 'Your' : "AI's") + ' Dead Pile';
+  title.textContent = (owner === 'player' ? 'Your' : UI.oppNamePoss()) + ' Dead Pile';
   // Ensure ranks are fresh — viewing the dead pile mid-match should
   // reflect the current MVP standings including cards in this pile.
   const ranks = UI.computeMvpRanks()[owner];
