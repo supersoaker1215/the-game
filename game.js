@@ -2231,7 +2231,13 @@ const Game = {
     // the visible board update lands when the host's state push arrives.
     if (this.isMultiplayer() && this.mp.role === 'guest' && owner === this.mp.you) {
       if (typeof Multiplayer !== 'undefined' && card && card.id != null) {
-        console.log('[MP GUEST] playCard:', card.name, 'lane:', laneIdx, '(0-based), visual lane:', laneIdx + 1);
+        // DIAGNOSTIC: caller stack reveals whether a real lane click drove this
+        // (onLaneClick) or an auto-play path (discard/jump/single-lane). Temp.
+        const _caller = ((new Error().stack || '').split('\n')[2] || '').trim();
+        console.log('[MP GUEST] playCard:', card.name, 'lane:', laneIdx, '(visual', laneIdx + 1 + ') via', _caller);
+        if (typeof UI !== 'undefined' && UI.showAITrickToast) {
+          UI.showAITrickToast('SENT: ' + card.name + ' → lane ' + (laneIdx + 1), _caller.replace(/^at\s*/, ''), 'info');
+        }
         Multiplayer.send({ t: 'playCard', cardId: card.id, lane: laneIdx });
       }
       return true;

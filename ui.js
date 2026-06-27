@@ -16133,6 +16133,13 @@ const UI = {
   onCardClick(card) {
     const s = Game.state;
     if (!this.canPlayerPlayCards(s)) return;
+    // TEMP DIAGNOSTIC for the MP-guest "card auto-plays in lane 1 on tap" report.
+    // Shows exactly what state a tap sees so we can pin the path. Remove once fixed.
+    if (Game.isMultiplayer && Game.isMultiplayer() && Game.mp && Game.mp.role === 'guest') {
+      const dbg = `jump=${!!card.jumpReady} disc=${!!card.isDiscardEffect} pCard=${!!s.pendingCardChoice} pLane=${!!s.pendingLaneChoice} open=${(Game.getOpenLanes && Game.getOpenLanes('player') || []).map(n => n + 1).join(',')}`;
+      try { console.log('[GUEST TAP]', card.name, dbg, 'selBefore=', s.selectedCard && s.selectedCard.name); } catch (e) {}
+      if (this.showAITrickToast) this.showAITrickToast('TAP: ' + card.name, dbg, 'info');
+    }
     // Stagger: block new card plays while a when-played SFX is still running
     if (this.sfx && this.sfx._playCardSfxEndsAt && Date.now() < this.sfx._playCardSfxEndsAt) return;
     // In trick phase, only allow trickPhasePlayable cards unless Red Skull passive is active
