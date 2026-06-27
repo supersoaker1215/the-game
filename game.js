@@ -216,7 +216,22 @@ const Game = {
         case 'playCard': {
           const card = findCardById(msg.cardId);
           console.log('[MP HOST] playCard from guest: cardId=', msg.cardId, 'name=', card && card.name, 'lane=', msg.lane, '(0-based), visual lane:', msg.lane + 1, 'found:', !!card);
-          if (card) this.playCard(actor, card, msg.lane);
+          if (card) {
+            const placed = this.playCard(actor, card, msg.lane);
+            // Surface SILENT host-side rejections so a guest's "card didn't
+            // land where I clicked" is diagnosable instead of vanishing.
+            if (placed === false) {
+              const lane = this.state.lanes[msg.lane] || {};
+              console.warn('[MP HOST] guest playCard REJECTED:', card && card.name,
+                '→ lane', (msg.lane + 1),
+                '| your-side slot occupied:', !!lane[actor],
+                '| lane destroyed:', !!lane.destroyed,
+                '| guest energy:', this.state[actor] && this.state[actor].currency,
+                '| card cost:', card && card.cost);
+            }
+          } else {
+            console.warn('[MP HOST] guest playCard: card id', msg.cardId, 'NOT FOUND in', actor, 'hand — nothing placed');
+          }
           break;
         }
         case 'playCardFree': {
@@ -5329,8 +5344,13 @@ const Game = {
     const enemies = this.getEnemiesOf(owner).filter(e => e.currentHealth > 0);
     if (!enemies.length) { this.log(`${source.name}: no enemies to chain.`); return; }
 
-    // AI: use auto-spread from source lane (legacy behavior)
-    if (owner !== 'player') {
+    // AI (single-player) ONLY: auto-spread from the source lane. In
+    // multiplayer the guest sits on the 'ai' seat but is a HUMAN — gate on
+    // isHuman, not the literal seat, so the guest gets the same interactive
+    // start-lane + direction picks the host does (the prompts route to the
+    // guest via promptCardChoice's MP handling). User directive: treat the
+    // joining player as human at all times, never as AI.
+    if (!this.isHuman(owner)) {
       let targets = this.getChainedEnemies(source);
       if (maxTargets) targets = targets.slice(0, maxTargets);
       targets.forEach(t => { try { applyFn(t); } catch (e) { console.error(e); } });

@@ -16497,9 +16497,28 @@ const UI = {
     }
   },
 
+  // After a successful local playCard: in single-player (and for the host's
+  // own plays) clear the selection immediately. For the MP GUEST, the play was
+  // only FORWARDED to the host — keep the card selected and lock further
+  // placement until the host's authoritative state arrives. If the host accepts,
+  // acceptMultiplayerState clears the selection (card left hand); if it REJECTS
+  // (lane occupied / not enough energy / card not found), the card stays in hand
+  // and selected, so the play is never silently lost and the guest can retry.
+  _clearOrLockSelection(s) {
+    if (Game.isMultiplayer && Game.isMultiplayer() && Game.mp && Game.mp.role === 'guest') {
+      s._mpPendingPlay = Date.now();
+    } else {
+      s.selectedCard = null;
+    }
+  },
+
   onLaneClick(i) {
     const s = Game.state;
     if (!this.canPlayerPlayCards(s) || !s.selectedCard) return;
+    // A forwarded guest play is in flight — wait for the host's state before
+    // allowing another placement (prevents a double-send racing into an
+    // already-occupied lane). 4s fallback in case a broadcast never arrives.
+    if (s._mpPendingPlay && (Date.now() - s._mpPendingPlay) < 4000) return;
     const card = s.selectedCard;
     // Invisible Woman face-down option
     if (s.player.faceDownAvailable && !card.isDiscardEffect) {
@@ -16512,12 +16531,12 @@ const UI = {
           if (choice.id === 'facedown_opt') {
             card._playFaceDown = true;
           }
-          if (Game.playCard('player', card, i)) s.selectedCard = null;
+          if (Game.playCard('player', card, i)) this._clearOrLockSelection(s);
           this.render();
         });
       return;
     }
-    if (Game.playCard('player', card, i)) s.selectedCard = null;
+    if (Game.playCard('player', card, i)) this._clearOrLockSelection(s);
     this.render();
   },
 
