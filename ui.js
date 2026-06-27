@@ -5130,6 +5130,8 @@ const UI = {
     showOverlay(this._statsOverlay,       isStats);
     showOverlay(this._deckbuilderOverlay, isDeckBuilder);
     this.draftEl.style.display = (isDraft || is2v2OnlineDraft || is2v2LocalDraft) ? 'flex' : 'none';
+    const _2v2Overlay = document.getElementById('twoVTwo-overlay');
+    if (_2v2Overlay) _2v2Overlay.style.display = is2v2 ? 'flex' : 'none';
     const isRoguelite = s.phase && s.phase.startsWith('roguelite');
     // Hide game-area for all non-game screens, including local 2v2 setup/pass/lobby phases.
     // Local 2v2 game and draft now use the standard game-area/draftEl just like 1v1.
@@ -6833,10 +6835,23 @@ const UI = {
     // Swap the lane slots temporarily so renderBoard puts Team B cards on the
     // player (bottom) row and Team A cards on the ai (top) row for those clients.
     const needsFlip = mySide === 'ai';
+    const _flipSeat = (v) => v === 'player' ? 'ai' : v === 'ai' ? 'player' : v;
     if (needsFlip) {
       for (const lane of s.lanes) {
         [lane.player, lane.ai] = [lane.ai, lane.player];
         if (lane._env) [lane._env.player, lane._env.ai] = [lane._env.ai, lane._env.player];
+      }
+      // Flip pending choice owner/targetSide so renderBoard highlights the
+      // correct slot row for Team B. Without this, a Team B summon ability
+      // (owner='ai', targetSide='ai') would highlight the opponent's top
+      // row instead of Team B's own bottom row after the lane flip.
+      if (s.pendingLaneChoice) {
+        s.pendingLaneChoice.owner      = _flipSeat(s.pendingLaneChoice.owner);
+        s.pendingLaneChoice.targetSide = _flipSeat(s.pendingLaneChoice.targetSide);
+      }
+      if (s.pendingCardChoice) {
+        s.pendingCardChoice.owner      = _flipSeat(s.pendingCardChoice.owner);
+        s.pendingCardChoice.targetSide = _flipSeat(s.pendingCardChoice.targetSide);
       }
     }
 
@@ -6910,11 +6925,19 @@ const UI = {
     this._capturePositions();
     this.renderBoard(s);
 
-    // Restore flipped lanes so game logic isn't affected
+    // Restore flipped lanes and pending-choice seats so game logic isn't affected
     if (needsFlip) {
       for (const lane of s.lanes) {
         [lane.player, lane.ai] = [lane.ai, lane.player];
         if (lane._env) [lane._env.player, lane._env.ai] = [lane._env.ai, lane._env.player];
+      }
+      if (s.pendingLaneChoice) {
+        s.pendingLaneChoice.owner      = _flipSeat(s.pendingLaneChoice.owner);
+        s.pendingLaneChoice.targetSide = _flipSeat(s.pendingLaneChoice.targetSide);
+      }
+      if (s.pendingCardChoice) {
+        s.pendingCardChoice.owner      = _flipSeat(s.pendingCardChoice.owner);
+        s.pendingCardChoice.targetSide = _flipSeat(s.pendingCardChoice.targetSide);
       }
     }
 
