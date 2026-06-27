@@ -7684,11 +7684,17 @@ const UI = {
                  </svg>`
     };
     let mmIdx = 0;   // running index drives the one-shot entrance stagger
+    // Wrap each label character in a .mm-letter span so the left list can
+    // do a per-letter flip when swapping between the main list and an
+    // in-place submenu (see .mm-flipping CSS). Spaces stay literal so word
+    // spacing is unaffected; at rest .mm-letter is plain inline text.
+    const _letters = (label) => String(label).split('').map((ch, i) =>
+      ch === ' ' ? ' ' : `<span class="mm-letter" style="--mm-li:${i}">${ch}</span>`).join('');
     const btn = (id, label, sub, icon, onClick) => `
       <button type="button" class="mm-option" id="${id}" style="--mm-idx:${mmIdx++}" onclick="${onClick}">
         <div class="mm-option-icon">${icon}</div>
         <div class="mm-option-text">
-          <div class="mm-option-label">${label}</div>
+          <div class="mm-option-label">${_letters(label)}</div>
           <div class="mm-option-sub">${sub}</div>
         </div>
       </button>`;
@@ -7697,46 +7703,49 @@ const UI = {
     // Simple question-mark SVG for the tutorial option (no other icon
     // slot conveys "how to play"). Matches the other .mm-svg spec.
     const helpSVG = `<svg class="mm-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M9 9a3 3 0 1 1 4.5 2.6c-.9.5-1.5 1-1.5 2"/><line x1="12" y1="17" x2="12" y2="17.2"/></svg>`;
-    // Grouped main menu — three logical sections so the 8 entries
-    // don't read as a flat wall of buttons. User feedback: "theres
-    // too many tabs on the main enu lets condense and combine."
-    //
-    //   PLAY    — anything that starts a match (solo, multiplayer,
-    //             tutorial primer)
-    //   DECKS   — deck-management: build new + manage saved
-    //   LIBRARY — reference & data: card codex, match history,
-    //             win-rate stats
-    //
-    // Same 8 actions as before, just grouped under section headers
-    // for clear visual hierarchy. No sub-page navigation — every
-    // button is still one click away from the main menu.
-    // Each (label + grid) wrapped in a .mm-section so the panel can
-    // distribute them with `justify-content: space-evenly` on mobile.
-    // Result: even vertical spacing between Play / Decks / Library +
-    // even top/bottom padding around the whole stack. User report:
-    // "you can space out the diffrenet sections like 'play' 'decks'
-    // and library more vertically give even space between the sections
-    // and have even space on the top and bottom of the screen."
-    const _flowOn = this.settings.menuFlow !== false;
-    const _flowI  = this.settings.menuFlowIntensity ?? 0.18;
-    el.style.setProperty('--menu-flow-intensity', String(_flowI));
-    el.innerHTML = `
-      ${_flowOn ? this._menuSceneHTML() : ''}
-      <div class="mm-scrim" aria-hidden="true"></div>
-      <div class="mm-panel">
+    // Panel inner content. buildPanel(sub) returns ONLY the .mm-panel
+    // markup so the SAME shell (hero on the right, scrim, bottom bar) can
+    // host an in-place SUBMENU without a screen change: clicking Solo Match
+    // swaps just this left list to the solo sub-options (with a per-letter
+    // flip) while the hero + music keep playing. Only a real commit (start
+    // a draft / run / match, open My Decks) actually leaves the menu.
+    //   sub === null  → main list (Play + Library)
+    //   sub === 'solo'→ Solo Match sub-options (Solo·vs AI + Two on Two)
+    const buildPanel = (sub) => {
+      mmIdx = 0;   // reset so the swapped list re-staggers from the top
+      if (sub === 'solo') {
+        return `
+        <div class="mm-header">
+          <h1 class="mm-title">the game</h1>
+        </div>
+        <button type="button" class="mm-subback" onclick="UI.mmBack()" aria-label="Back to main menu">&larr; Menu</button>
+        <div class="mm-section">
+          <div class="mm-section-label">Solo · vs AI</div>
+          <div class="mm-grid mm-grid-section">
+            ${btn('mm-sub-classic', 'Classic Draft', 'Shared deck of 95 cards. Draft 5 cards + 2 tricks.', SVG.play,  "selectMode('1v1','classic')")}
+            ${btn('mm-sub-deck',    'My Deck',       'Bring your own 30-card deck.',                        SVG.decks, "openDeckBuilder()")}
+          </div>
+        </div>
+        <div class="mm-section">
+          <div class="mm-section-label">Two on Two</div>
+          <div class="mm-grid mm-grid-section">
+            ${btn('mm-sub-2v2local',  '2v2 Local Play', '4 players, same device. Teams share health.', SVG.multi, "Game.goTo2v2Setup()")}
+            ${btn('mm-sub-2v2online', '2v2 Online',     'Each player on their own device.',             SVG.multi, "Game.goTo2v2OnlineLobby()")}
+          </div>
+        </div>`;
+      }
+      // Default: the main list (Play + Library).
+      return `
         <div class="mm-header">
           <h1 class="mm-title">the game</h1>
         </div>
         <div class="mm-section">
           <div class="mm-section-label">Play</div>
           <div class="mm-grid mm-grid-section">
-            ${btn('mm-play',    'Solo Match',   'Play against the AI',                                    SVG.play,     "Game.goToModeSelect()")}
+            ${btn('mm-play',    'Solo Match',   'Play against the AI',                                    SVG.play,     "UI.mmShowSub('solo')")}
             ${(() => {
-              // Consolidated Continue Run + Roguelite button. User
-              // direction: "Get rid of Continue Run completely, just
-              // implement that into the Roguelite button — when it
-              // says ascension zero, it'll just say continue last run."
-              // Trims the menu by one button when a save exists.
+              // Consolidated Continue Run + Roguelite button — when a save
+              // exists it reads "Continue last run" and resumes in place.
               const savedInfo = (typeof Roguelite !== 'undefined' && Roguelite.savedRunInfo) ? Roguelite.savedRunInfo() : null;
               if (savedInfo) {
                 return btn('mm-rogue', 'Roguelite', `${savedInfo.label} · ${savedInfo.fightsWon} fights won`, SVG.play, "Roguelite.resumeRun()");
@@ -7756,8 +7765,16 @@ const UI = {
             ${btn('mm-audio',   'Audio Audit',  'Per-card audio coverage + inline splicer · dev',          SVG.settings, "UI.openAudioAudit()")}
             ${btn('mm-sandbox', 'Sandbox',      'Free-play with unlimited energy + spawn any card · dev', SVG.settings, "UI.startSandbox()")}
           </div>
-        </div>
-      </div>
+        </div>`;
+    };
+    this._mmBuildPanel = buildPanel;   // reused by in-place submenu swaps (mmShowSub)
+    const _flowOn = this.settings.menuFlow !== false;
+    const _flowI  = this.settings.menuFlowIntensity ?? 0.18;
+    el.style.setProperty('--menu-flow-intensity', String(_flowI));
+    el.innerHTML = `
+      ${_flowOn ? this._menuSceneHTML() : ''}
+      <div class="mm-scrim" aria-hidden="true"></div>
+      <div class="mm-panel">${buildPanel(this._mmSub || null)}</div>
       <div class="mm-botbar">
         <span class="mm-botbar-brand" aria-hidden="true">the game · beta</span>
         <span class="mm-nowplaying" role="button" tabindex="0" title="Next track"
@@ -7769,6 +7786,32 @@ const UI = {
       try { this._updateMenuSideArt(this.sfx && this.sfx._music && this.sfx._music.currentSrc); } catch (e) {}
     }
   },
+
+  // In-place main-menu submenu swap. Re-renders ONLY the .mm-panel left list
+  // (not the hero scene), so the music-synced hero + bottom bar stay alive and
+  // continuous — the left letters just flip to the sub-options. `sub` is the
+  // submenu key buildPanel() understands ('solo'), or null for the main list.
+  mmShowSub(sub) {
+    this._mmSub = sub || null;
+    const el = document.getElementById('main-menu-overlay');
+    const panel = el && el.querySelector('.mm-panel');
+    // No shell built yet (shouldn't happen from a click) — fall back to full render.
+    if (!panel || typeof this._mmBuildPanel !== 'function') {
+      if (Game && Game.state) this.renderMainMenu(Game.state);
+      return;
+    }
+    panel.innerHTML = this._mmBuildPanel(this._mmSub);
+    // Retrigger the per-letter flip: remove → force reflow → add the class so
+    // the freshly-built letters animate in. Cleared after the cascade ends.
+    panel.classList.remove('mm-flipping');
+    void panel.offsetWidth;
+    panel.classList.add('mm-flipping');
+    if (this._mmFlipTimer) clearTimeout(this._mmFlipTimer);
+    this._mmFlipTimer = setTimeout(() => panel.classList.remove('mm-flipping'), 1100);
+    try { if (this.sfx && this.sfx.playNav) this.sfx.playNav(); } catch (e) {}
+  },
+  mmBack() { this.mmShowSub(null); },
+
   openTutorial() {
     const ov = document.getElementById('tutorial-overlay');
     if (!ov) return;

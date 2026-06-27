@@ -2184,6 +2184,57 @@ body.hit-pause .ai-hand * {
   display: inline-block; transform-origin: left center;
   transition: transform 0.18s ease, color 0.18s ease, text-shadow 0.18s ease;
 }
+
+/* ===== In-place submenu (Solo Match etc.) — left-list swap + letter flip =====
+   The left list re-renders into the SAME .mm-panel (hero + music untouched).
+   On a swap, .mm-flipping is set on the panel and each label letter flips in
+   like a split-flap board. At rest .mm-letter is plain inline text so the
+   main menu looks identical to before. */
+.mm-mw3 .mm-letter { display: inline; }
+@keyframes mmLetterFlip {
+  0%   { opacity: 0; transform: rotateX(-90deg); }
+  55%  { opacity: 1; transform: rotateX(12deg); }
+  100% { opacity: 1; transform: rotateX(0deg); }
+}
+@keyframes mmFadeUp {
+  0%   { opacity: 0; transform: translateY(6px); }
+  100% { opacity: 1; transform: translateY(0); }
+}
+.mm-mw3 .mm-panel.mm-flipping .mm-option-label .mm-letter {
+  display: inline-block; transform-origin: center bottom; backface-visibility: hidden;
+  animation: mmLetterFlip 380ms var(--ease-out-soft, ease-out) backwards;
+  animation-delay: calc(var(--mm-li, 0) * 24ms + var(--mm-idx, 0) * 55ms);
+}
+/* During a flip swap the per-letter flip IS the entrance — suppress the
+   row-rise so they don't compete. (Main-menu first load keeps mmOptionIn.) */
+.mm-mw3 .mm-panel.mm-flipping .mm-grid-section .mm-option { animation: none; }
+.mm-mw3 .mm-panel.mm-flipping .mm-section-label,
+.mm-mw3 .mm-panel.mm-flipping .mm-subback {
+  animation: mmFadeUp 300ms var(--ease-out-soft, ease-out) backwards;
+}
+@media (prefers-reduced-motion: reduce) {
+  .mm-mw3 .mm-panel.mm-flipping .mm-option-label .mm-letter,
+  .mm-mw3 .mm-panel.mm-flipping .mm-section-label,
+  .mm-mw3 .mm-panel.mm-flipping .mm-subback { animation: none; }
+}
+/* Back chip for the submenu — small Tron pill, sits at the top of the left
+   panel (the boxless .mm-mw3 panel has no border to pin an absolute chip to). */
+.mm-mw3 .mm-subback {
+  display: inline-flex; align-items: center; gap: 6px;
+  margin: 2px 0 16px 2px; padding: 6px 13px;
+  background: rgba(6,9,14,0.55);
+  border: 1px solid rgba(var(--theme-rgb,79,195,247),0.5); border-radius: 3px;
+  color: color-mix(in srgb, rgb(var(--theme-rgb,79,195,247)) 82%, white);
+  font-family: 'Rajdhani', sans-serif; font-size: 11px; font-weight: 700;
+  letter-spacing: 2.5px; text-transform: uppercase; cursor: pointer;
+  transition: border-color 0.18s, box-shadow 0.18s, color 0.18s, transform 0.12s;
+}
+.mm-mw3 .mm-subback:hover {
+  border-color: rgba(var(--theme-rgb,79,195,247),1); color: #fff;
+  box-shadow: 0 0 10px rgba(var(--theme-rgb,79,195,247),0.4);
+}
+.mm-mw3 .mm-subback:active { transform: scale(0.96); }
+
 /* Bottom prompt bar — thin neon line + brand left, now-playing credit right. */
 .mm-mw3 .mm-botbar {
   position: absolute; left: 0; right: 0; bottom: 0; z-index: 4; height: 42px;

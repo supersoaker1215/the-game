@@ -642,6 +642,9 @@ const Game = {
     this.state.phase = 'main-menu';
     this.state.mode = null;
     this.state.deckbuilder = null;
+    // Entering the menu fresh always lands on the main list, not a stale
+    // in-place submenu (e.g. Solo Match's sub-options) left over from before.
+    if (typeof UI !== 'undefined') UI._mmSub = null;
     UI.render();
   },
   goToModeSelect() {
