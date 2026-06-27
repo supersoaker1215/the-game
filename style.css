@@ -26703,6 +26703,28 @@ input[type="number"]::-webkit-outer-spin-button {
   backdrop-filter: blur(4px) !important;
   -webkit-backdrop-filter: blur(4px) !important;
 }
+/* Multiplayer lobby sits in the LEFT column with the menu hero kept CLEAR on
+   the right — matching the in-shell Solo Match submenu feel (the menu stays
+   mounted behind, so its music-synced hero shows through). The full-screen
+   blur becomes a left→right scrim: opaque enough on the left to seat the panel
+   and hide the menu list behind it, fully transparent on the right so the hero
+   is crisp. Desktop/landscape only; narrow screens keep the centered card. */
+@media (min-width: 760px) {
+  .multiplayer-overlay {
+    justify-content: flex-start !important;
+    align-items: center !important;
+    padding-left: clamp(34px, 7vw, 120px) !important;
+    padding-right: 24px !important;
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+    background: linear-gradient(90deg,
+      rgba(4,6,10,0.97) 0%,
+      rgba(4,6,10,0.93) 36%,
+      rgba(4,6,10,0.55) 60%,
+      rgba(4,6,10,0.00) 84%) !important;
+  }
+  .multiplayer-overlay .mp-panel { margin: 0 !important; }
+}
 
 /* Multiplayer tabs + form inputs — theme-aware borders. */
 .mp-tabs,
