@@ -1892,6 +1892,15 @@ const UI = {
       this._menuHoverLastIdx = idx;
       return srcs[idx];
     },
+    // SEQUENTIAL sibling of _pickMenuTrack — advances one step through the
+    // character-track list (wrapping). Used by the now-playing label click so
+    // the user steps through heroes in order rather than randomly.
+    _nextMenuTrack() {
+      const srcs = (UI._menuCharHoverSrcs && UI._menuCharHoverSrcs()) || this.MENU_HOVER_SRCS;
+      if (!srcs.length) return this.MUSIC_SRC;
+      this._menuHoverLastIdx = (this._menuHoverLastIdx + 1) % srcs.length;
+      return srcs[this._menuHoverLastIdx];
+    },
     // Match load-in sting — the former menu track. Played ONCE for ~20s at
     // the first combat round of a match, then faded out. Not looped; lives
     // on its own <audio> element independent of the menu loop.
@@ -2275,7 +2284,14 @@ const UI = {
       // mid-menu can auto-resume) but skip actual playback.
       if (UI.settings.menuMusic === false) { this._musicWantPlay = true; return; }
       const a = this._ensureMusic();
-      // Pick a fresh random hover track every time the menu is entered.
+      // Already playing a menu track? Keep it going. Navigating between menu
+      // screens (main-menu → mode-select / my-decks / stats, etc.) re-calls
+      // startMusic via wrapMenu — it must NOT re-roll or restart the loop, so
+      // the SAME hero's track keeps playing seamlessly across screen changes.
+      // Only (re)pick when nothing is playing: first entry, or returning to the
+      // menu after a match (startRound's stopMusic pauses the bed).
+      if (this._musicWantPlay && !a.paused && a.currentSrc) return;
+      // Pick a fresh random hover track when (re-)entering the menu cold.
       a.src = this._pickMenuTrack();
       const target = this._musicTargetVol();
       if (this._musicFadeInterval) { clearInterval(this._musicFadeInterval); this._musicFadeInterval = null; }
@@ -2344,6 +2360,38 @@ const UI = {
           if (p && p.catch) p.catch(() => {});
         } catch (e) {}
         this._fadeVolume(a, target, 400, '_musicFadeInterval');
+      });
+    },
+
+    // Clicking the now-playing credit advances to the NEXT character track
+    // (sequential). Crossfades when music is already playing; starts cold on
+    // the next track if it isn't. The audio element's 'playing' listener
+    // re-syncs the hero art + the '♪ Name' label automatically, so art, music,
+    // and label all move together.
+    nextMenuTrack() {
+      const target = this._musicTargetVol();
+      const a = this._music;
+      // Not currently playing (first interaction, or stopped) — start fresh on
+      // the next sequential track. Honor the menu-music toggle being off.
+      if (!a || a.paused || !this._musicWantPlay) {
+        if (UI.settings && (UI.settings.sfxVolume === 0 || UI.settings.menuMusic === false)) { this._musicWantPlay = true; return; }
+        const el = this._ensureMusic();
+        el.src = this._nextMenuTrack();
+        el.volume = 0;
+        this._musicWantPlay = true;
+        if (this._musicFadeInterval) { clearInterval(this._musicFadeInterval); this._musicFadeInterval = null; }
+        try { const p = el.play(); if (p && p.catch) p.catch(() => {}); } catch (e) {}
+        this._fadeVolume(el, target, 350, '_musicFadeInterval');
+        return;
+      }
+      // Playing — quick crossfade to the next track.
+      if (this._musicFadeInterval) { clearInterval(this._musicFadeInterval); this._musicFadeInterval = null; }
+      this._fadeVolume(a, 0, 200, '_musicFadeInterval', () => {
+        try { a.pause(); } catch (_) {}
+        a.src = this._nextMenuTrack();
+        a.volume = 0;
+        try { const p = a.play(); if (p && p.catch) p.catch(() => {}); } catch (e) {}
+        this._fadeVolume(a, target, 350, '_musicFadeInterval');
       });
     },
 
@@ -7678,7 +7726,6 @@ const UI = {
       <div class="mm-panel">
         <div class="mm-header">
           <h1 class="mm-title">the game</h1>
-          <div class="mm-tagline">Neon Lane Battler</div>
         </div>
         <div class="mm-section">
           <div class="mm-section-label">Play</div>
@@ -7711,9 +7758,11 @@ const UI = {
           </div>
         </div>
       </div>
-      <div class="mm-botbar" aria-hidden="true">
-        <span class="mm-botbar-brand">the game · beta</span>
-        <span class="mm-nowplaying"></span>
+      <div class="mm-botbar">
+        <span class="mm-botbar-brand" aria-hidden="true">the game · beta</span>
+        <span class="mm-nowplaying" role="button" tabindex="0" title="Next track"
+              onclick="UI.sfx.nextMenuTrack()"
+              onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();UI.sfx.nextMenuTrack();}"></span>
       </div>`;
     // Sync the full-bleed hero to whatever hover theme is already playing.
     if (_flowOn) {

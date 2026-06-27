@@ -2150,29 +2150,28 @@ body.hit-pause .ai-hand * {
   padding: 9px 10px 9px 16px; gap: 13px;
 }
 .mm-mw3 .mm-option::before { top: 16%; bottom: 16%; width: 2px; opacity: 0; }
-/* Selection — a clean theme-accent fill + bright bar, NO heavy glowing ring or
-   OS outline (those read cheap). Covers hover + mouse-focus + keyboard-focus. */
+/* Selection — NO box, wash, vertical bar, ring, or OS outline. Hovering or
+   focusing an option ONLY scales its letters up + brightens/glows them (see the
+   label rule below). background:none !important here neutralizes the generic
+   .mm-option hover washes; the ::before bar stays hidden in every state. */
 .mm-mw3 .mm-option:hover,
 .mm-mw3 .mm-option:focus,
 .mm-mw3 .mm-option:focus-visible {
-  transform: none; padding-left: 22px;
-  box-shadow: none !important; border: none !important; outline: none !important;
-  /* dark base UNDER the gold wash so the bleeding hero art can't tint the
-     selection (it was showing through translucent gold → looked blue on cool
-     cards). Right edge fades so it still blends into the hero. */
-  background:
-    linear-gradient(90deg, rgba(var(--theme-rgb,79,195,247),0.26) 0%, rgba(var(--theme-rgb,79,195,247),0.07) 52%, transparent 88%),
-    linear-gradient(90deg, rgba(6,9,14,0.88) 0%, rgba(6,9,14,0.5) 56%, transparent 90%) !important;
+  transform: none; padding-left: 16px;
+  background: none !important; box-shadow: none !important;
+  border: none !important; outline: none !important;
 }
 .mm-mw3 .mm-option:hover::before,
 .mm-mw3 .mm-option:focus::before,
-.mm-mw3 .mm-option:focus-visible::before { top: 0; bottom: 0; width: 3px; opacity: 1; }
-/* brighten the label on selection for a crisp, intentional highlight */
+.mm-mw3 .mm-option:focus-visible::before { opacity: 0; }
+.mm-mw3 .mm-option:focus-visible::after { content: none; }   /* no focus underline */
+/* hover = the letters grow + brighten + glow (the ONLY highlight chrome) */
 .mm-mw3 .mm-option:hover .mm-option-label,
 .mm-mw3 .mm-option:focus .mm-option-label,
 .mm-mw3 .mm-option:focus-visible .mm-option-label {
-  color: color-mix(in srgb, rgb(var(--theme-rgb, 79,195,247)) 88%, white);
-  text-shadow: 0 0 10px rgba(var(--theme-rgb, 79,195,247), 0.65);
+  transform: scale(1.12);
+  color: color-mix(in srgb, rgb(var(--theme-rgb, 79,195,247)) 92%, white);
+  text-shadow: 0 0 12px rgba(var(--theme-rgb, 79,195,247), 0.85), 0 0 22px rgba(var(--theme-rgb, 79,195,247), 0.4);
 }
 .mm-mw3 .mm-option-icon { width: 30px; height: 30px; }
 .mm-mw3 .mm-svg { width: 22px; height: 22px; }
@@ -2180,7 +2179,11 @@ body.hit-pause .ai-hand * {
 .mm-mw3 .mm-option-sub { display: none; }   /* labels only — cleaner, AAA */
 /* labels become the focal line now that subtext is gone */
 .mm-mw3 .mm-option { padding-top: 12px; padding-bottom: 12px; }
-.mm-mw3 .mm-option-label { font-size: 18px; }
+.mm-mw3 .mm-option-label {
+  font-size: 18px;
+  display: inline-block; transform-origin: left center;
+  transition: transform 0.18s ease, color 0.18s ease, text-shadow 0.18s ease;
+}
 /* Bottom prompt bar — thin neon line + brand left, now-playing credit right. */
 .mm-mw3 .mm-botbar {
   position: absolute; left: 0; right: 0; bottom: 0; z-index: 4; height: 42px;
@@ -2198,8 +2201,14 @@ body.hit-pause .ai-hand * {
   font-size: 11px; font-weight: 700; letter-spacing: 2.5px;
   color: color-mix(in srgb, rgb(var(--theme-rgb,79,195,247)) 72%, white);
   text-shadow: 0 0 8px rgba(var(--theme-rgb,79,195,247),0.5);
-  transition: color 0.4s;
+  transition: color 0.25s, text-shadow 0.25s, transform 0.12s;
+  pointer-events: auto; cursor: pointer;   /* click to advance to the next track */
 }
+.mm-mw3 .mm-nowplaying:hover {
+  color: #fff;
+  text-shadow: 0 0 12px rgba(var(--theme-rgb,79,195,247),0.95), 0 0 22px rgba(var(--theme-rgb,79,195,247),0.55);
+}
+.mm-mw3 .mm-nowplaying:active { transform: scale(0.95); }
 /* PORTRAIT — keep the same left-list / seam / right-hero structure as desktop
    (matching the reference), just with the hero full-bleed behind and the seam
    pushed right so the list clears it. */
