@@ -167,6 +167,14 @@ const Game = {
     // practice for LocalTabTransport that's fine because the
     // opponent IS the host's other tab. PartyKit phase will move
     // prompt routing to the actual seat owner.
+    // Set both seats human BEFORE startMatch so any prompt that could fire
+    // during match setup sees isHuman('ai')===true (startMatch reuses
+    // this.state in the classic path and never re-runs init()/makePlayer(),
+    // so these flags survive). Closes the only window where the makePlayer
+    // isHuman:false default could let a guest prompt auto-resolve to lanes[0]
+    // on the host. Re-asserted after startMatch too (idempotent).
+    if (this.state.player) this.state.player.isHuman = true;
+    if (this.state.ai)     this.state.ai.isHuman = true;
     this.startMatch({ players: '1v1', deck: 'classic' });
     if (this.state.player) this.state.player.isHuman = true;
     if (this.state.ai)     this.state.ai.isHuman = true;
@@ -5861,6 +5869,19 @@ const Game = {
         this.state.pendingLaneChoice._2v2ActingPlayer = _cap;
         return;
       }
+      // 1v1 online: a lane choice owned by the guest seat ('ai') must be
+      // resolved on the GUEST's client, not auto-picked here. Store it (the
+      // trailing _mpBroadcast in _mpApplyAction delivers it) and broadcast
+      // explicitly to cover prompts armed outside a wrapped action (e.g. a
+      // summon firing from the detached postCombat/drawPhase path). Skip the
+      // host's local render + 30s auto-pick — without this, the host's timeout
+      // silently picks lanes[0] (then 1, 2 for chained summons) before the
+      // guest ever sees a picker. The guest forwards a promptResolve
+      // choiceType:'lane' which the host applies authoritatively.
+      if (this.isMultiplayer() && this.mp.role === 'host' && owner === 'ai') {
+        this._mpBroadcast();
+        return;
+      }
       UI.render();
       this._startPromptTimeout(() => {
         if (!this.state.pendingLaneChoice) return;
@@ -5917,6 +5938,17 @@ const Game = {
       const _cap = this._2v2CurrentActingPlayer;
       if (this.is2v2() && this.state.twoVTwo && this.state.twoVTwo.online && _cap && _cap !== 'p1') {
         this.state.pendingCardChoice._2v2ActingPlayer = _cap;
+        return;
+      }
+      // 1v1 online: a card/target choice owned by the guest seat ('ai')
+      // resolves on the GUEST's client. Store + broadcast explicitly (covers
+      // prompts armed outside a wrapped action, e.g. Dr. Strange's Foresee
+      // raised from the detached postCombat/drawPhase path) and skip the host's
+      // local render + 30s auto-pick — that timeout was silently selecting the
+      // guest's ability target. Guest forwards promptResolve choiceType:'card';
+      // host applies it authoritatively.
+      if (this.isMultiplayer() && this.mp.role === 'host' && owner === 'ai') {
+        this._mpBroadcast();
         return;
       }
       UI.render();

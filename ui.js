@@ -5181,8 +5181,11 @@ const UI = {
     // Batman Who Laughs steal choice
     if (s.player.stolenByBWL) { this.renderBWLChoice(s); return; }
 
-    // Kang deck choice
-    if (s.pendingKangChoice) { this.renderKangChoice(s); return; }
+    // Kang deck choice — in 1v1 online the guest's Kang (owner==='ai') is
+    // resolved on the guest's client, so the host must NOT render the guest's
+    // hidden scried cards face-up. Only show the chooser for the local seat's
+    // own Kang (after _mpFlipPerspective the guest's own Kang is owner==='player').
+    if (s.pendingKangChoice && !(Game.isMultiplayer() && s.pendingKangChoice.owner === 'ai')) { this.renderKangChoice(s); return; }
 
     // Phase transition banners
     this.checkPhaseTransition(s);
@@ -20514,6 +20517,11 @@ function kangChoicePick(idx) {
     UI.render();
     return;
   }
+  // Host in 1v1 multiplayer: never resolve the guest's (owner==='ai') Kang
+  // locally — the host applies it authoritatively when the guest forwards a
+  // promptResolve choiceType:'kang' (game.js _mpApplyAction kang branch).
+  // Parity with cardChoicePick's host guard.
+  if (Game.isMultiplayer && Game.isMultiplayer() && kc.owner === 'ai') return;
   s.pendingKangChoice = null;
   const picked = kc.cards[idx];
   const other = kc.cards[1 - idx];

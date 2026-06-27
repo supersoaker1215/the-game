@@ -1723,6 +1723,15 @@ const CARD_ABILITIES = {
       const card2 = pile.pop();
       if (Game.isHuman(self.owner)) {
         G.state.pendingKangChoice = { owner: self.owner, cards: [card1, card2], kangCard: self };
+        // 1v1 online: the guest's Kang (owner==='ai') is resolved on the guest's
+        // client. Broadcast the pending choice (so the guest renders/forwards it)
+        // but skip the host's render + 30s auto-pick — that timeout was
+        // auto-keeping a card and free-playing it into open[0] for the guest.
+        // Host applies the result via _mpApplyAction promptResolve choiceType:'kang'.
+        if (G.isMultiplayer() && G.mp.role === 'host' && self.owner === 'ai') {
+          if (typeof G._mpBroadcast === 'function') G._mpBroadcast();
+          return;
+        }
         UI.render();
         G._startPromptTimeout(() => {
           const kc = G.state.pendingKangChoice;
