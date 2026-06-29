@@ -14586,6 +14586,15 @@ const UI = {
     const isMyHandChoice = !Game.isMultiplayer() || !cc || cc.owner === 'player';
     const targetHandIds = new Set();
     if (cc && isMyHandChoice) cc.cards.forEach(c => { if (c.id !== undefined) targetHandIds.add(c.id); });
+    // Guest debug: log when any hand card gets a non-standard onclick (cardChoicePick or jumpCard)
+    // Open browser console (F12) and filter for [GUEST HAND] to diagnose instant-placement bugs.
+    if (Game.isMultiplayer() && Game.mp && Game.mp.role === 'guest' && (cc || (s.player.hand||[]).some(c => c.jumpReady))) {
+      console.log('[GUEST HAND] phase:', s.phase, '| cc:', cc ? (cc.owner + ':' + (cc.cards||[]).map(c=>c.name||'?').join(',')) : 'none', '| lc:', lc ? (lc.owner + ' lanes:' + (lc.lanes||[]).join(',')) : 'none', '| cards:', (s.player.hand||[]).map(c => {
+        const incc = cc && isMyHandChoice && targetHandIds.has(c.id);
+        const jump = c.jumpReady;
+        return c.name + ':' + (incc ? 'CHOICE-PICK' : jump ? 'JUMP' : 'normal');
+      }).join(' | '));
+    }
     // Track which hand card ids are newly-drawn since the last render — those
     // get the draw-in fly animation.
     this._lastHandIds = this._lastHandIds || new Set();
