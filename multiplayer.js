@@ -118,7 +118,7 @@ const Multiplayer = {
   // single 'action' event so the host's Game engine can route them
   // through one handler instead of dozens of listeners.
   _GAME_ACTION_TYPES: new Set([
-    'playCard', 'playCardFree', 'playTrick', 'doneTurn', 'mulligan',
+    'playCard', 'playCardFree', 'playJump', 'playTrick', 'doneTurn', 'mulligan',
     'draftPick', 'draftMulligan', 'promptResolve', 'forfeit'
   ]),
   _handleServerMsg(msg) {

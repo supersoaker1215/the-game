@@ -239,6 +239,16 @@ const Game = {
           if (card) this.playCardFree(actor, card, msg.lane);
           break;
         }
+        case 'playJump': {
+          // Guest clicked a jump-ready card outside the combat modal.
+          // Run playJumpCard on the host so lane selection is authoritative:
+          // if multiple lanes are open, host sets pendingLaneChoice and
+          // broadcasts; guest picks via the normal promptResolve lane flow.
+          const jCard = (this.state[actor].hand || []).find(c => c.id === msg.cardId);
+          if (jCard && jCard.jumpReady) this.playJumpCard(actor, jCard);
+          else this.resumeCombatIfWaiting();
+          break;
+        }
         case 'playTrick': {
           const trick = findTrickById(msg.trickId);
           if (trick && this.playTrick) this.playTrick(actor, trick);
@@ -7169,6 +7179,17 @@ const Game = {
   // Play a jump card for free from hand. Does NOT consume energy and does NOT end the player's turn.
   playJumpCard(owner, card) {
     if (!card.jumpReady) return;
+    // Guest: forward to host so the host runs promptLaneChoice authoritatively.
+    // Running it locally creates a dangling 30-second timeout whose auto-pick
+    // callback fires and places the card at open[0] (lowest lane) regardless
+    // of which lane the guest clicked. The host's pendingLaneChoice → broadcast
+    // → guest picks → promptResolve flow handles this cleanly instead.
+    if (this.isMultiplayer() && this.mp && this.mp.role === 'guest' && owner === this.mp.you) {
+      if (typeof Multiplayer !== 'undefined' && card && card.id != null) {
+        Multiplayer.send({ t: 'playJump', cardId: card.id });
+      }
+      return;
+    }
     // If the modal-driven jump offer referenced THIS card, clear it and
     // resume combat so the lane timeline continues after Jason lands.
     if (this.isHuman(owner) && this.state.pendingJumpOffer && this.state.pendingJumpOffer.cardId === card.id) {
