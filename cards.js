@@ -151,7 +151,7 @@ const CARD_DEFS = [
   { name: "Moder", cost: 3, attack: 2, health: 2, type: "villain",
     abilities: [],
     desc: "When Played: The opponent's next card is forced into this lane. That card loses all abilities and keywords." },
-  { name: "Padme Amidala", cost: 3, attack: 2, health: 3, type: "hero",
+  { name: "Padme Amidala", cost: 2, attack: 2, health: 3, type: "hero",
     rarity: 3,
     abilities: [],
     desc: "End of Round: All allies gain +1 Max HP and heal 1." },
