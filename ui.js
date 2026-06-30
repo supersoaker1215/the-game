@@ -63,28 +63,32 @@ const UI = {
     }
     return this._deletedArtCache;
   },
-  // Gallery Audit — manual CROP: a per-variant background-position ("X% Y%")
-  // keyed by "name|file" in localStorage. Applied to the in-game card
-  // (--portrait-pos) and the menu hero. Falls back to PORTRAIT_POSITION, then
-  // the CSS default.
-  _artFocalMap() {
-    if (!this._artFocalCache) {
-      const m = this._persistGet('artFocal', {});
-      this._artFocalCache = (m && typeof m === 'object') ? m : {};
+  // Gallery Audit — manual CROP: a SEPARATE per-variant background-position
+  // ("X% Y%") for the in-game CARD and the MENU hero, keyed by "name|file" in
+  // localStorage (artFocal_card / artFocal_menu) so each context can be framed
+  // independently. Falls back to PORTRAIT_POSITION, then the CSS default.
+  // kind = 'card' | 'menu'.
+  _artFocalMap(kind) {
+    const k = (kind === 'menu') ? 'menu' : 'card';
+    if (!this._artFocalCache) this._artFocalCache = {};
+    if (!this._artFocalCache[k]) {
+      const m = this._persistGet('artFocal_' + k, {});
+      this._artFocalCache[k] = (m && typeof m === 'object') ? m : {};
     }
-    return this._artFocalCache;
+    return this._artFocalCache[k];
   },
-  _artFocalFor(name, file) {
-    return this._artFocalMap()[name + '|' + file] || this.PORTRAIT_POSITION[name] || '';
+  _artFocalFor(name, file, kind) {
+    return this._artFocalMap(kind)[name + '|' + file] || this.PORTRAIT_POSITION[name] || '';
   },
-  _artFocal(name) {   // focal for the card's currently-displayed variant
-    return this._artFocalFor(name, this.getCardArtVariant(name));
+  _artFocalCard(name) {   // CARD focal for the card's currently-displayed variant
+    return this._artFocalFor(name, this.getCardArtVariant(name), 'card');
   },
-  _setArtFocal(name, file, pos) {
-    const m = this._artFocalMap();
+  _setArtFocal(name, file, kind, pos) {
+    const k = (kind === 'menu') ? 'menu' : 'card';
+    const m = this._artFocalMap(k);
     if (pos && pos !== 'center center') m[name + '|' + file] = pos;
     else delete m[name + '|' + file];
-    this._persistSet('artFocal', m);
+    this._persistSet('artFocal_' + k, m);
   },
   // Gallery Audit — manual REORDER: a per-card ordered list of files in
   // localStorage. _moveArt swaps a variant up/down; getCardArtVariants applies
@@ -601,7 +605,7 @@ const UI = {
       // Manual crop (Gallery Audit) — focal background-position for this art.
       // Empty string falls back to the CSS default framing.
       const file = decodeURIComponent(String(art).split('/').pop().split('?')[0]);
-      next.style.backgroundPosition = this._artFocalFor(name, file) || '';
+      next.style.backgroundPosition = this._artFocalFor(name, file, 'menu') || '';
       if (active) active.classList.remove('is-visible');
       next.classList.add('is-visible');
     };
@@ -6856,7 +6860,7 @@ const UI = {
           const _dpPips = c.rarity || (_dpCost <= 3 ? 1 : _dpCost <= 6 ? 2 : _dpCost <= 8 ? 3 : 4);
           const rarityPips = `<span class="rarity-strip">${'<span class="rpip"></span>'.repeat(_dpPips)}</span>`;
           const portraitFile = UI.getCardArtPath(c.name);
-          const portraitPos = UI._artFocal(c.name);
+          const portraitPos = UI._artFocalCard(c.name);
           const portraitHtml = `<div class="card-portrait" style="--portrait-bg:url('${portraitFile}')${portraitPos ? `;--portrait-pos:${portraitPos}` : ''}"><div class="card-name-overlay">${c.name}</div></div>`;
           html += `<div class="card draft-card ${this.getCostClass(c.cost)}${c.isDiscardEffect ? ' discard-effect' : ''}" data-card-name="${c.name}" onclick="twov2OnlineDraftPick(${i})">
             <span class="card-cost">${c.cost}</span>
@@ -8061,8 +8065,8 @@ const UI = {
   // Manual-crop slider handler — live-updates the card-crop preview's
   // background-position and saves the focal (no full re-render so the slider
   // keeps focus while dragging). axis is 'x' or 'y'.
-  _galleryCrop(name, file, axis, val, pid) {
-    const cur = this._artFocalMap()[name + '|' + file] || this.PORTRAIT_POSITION[name] || '50% 50%';
+  _galleryCrop(name, file, kind, axis, val, pid) {
+    const cur = this._artFocalMap(kind)[name + '|' + file] || this.PORTRAIT_POSITION[name] || '50% 50%';
     const p = String(cur).replace(/center/gi, '50%').trim().split(/\s+/);
     let x = parseFloat(p[0]);
     let y = parseFloat(p[1] != null ? p[1] : p[0]);
@@ -8072,21 +8076,25 @@ const UI = {
     const pos = `${x}% ${y}%`;
     const prev = document.getElementById(pid);
     if (prev) prev.style.backgroundPosition = pos;
-    this._setArtFocal(name, file, pos);
+    this._setArtFocal(name, file, kind, pos);
   },
-  _galleryResetCrop(name, file) {
-    this._setArtFocal(name, file, '');   // clear override → back to default framing
+  _galleryResetCrop(name, file, kind) {
+    this._setArtFocal(name, file, kind, '');   // clear override → back to default framing
     this.renderGalleryAudit();
   },
   renderGalleryAudit() {
     const ov = document.getElementById('gallery-audit-overlay');
     if (!ov) return;
     const f = this._galleryAudit || (this._galleryAudit = { query: '' });
-    const map = (typeof window !== 'undefined' && window.CARD_ART_VARIANTS) || {};
     const del = this._deletedArtSet();
     const ver = this._CARD_ART_VERSION || 1;
     const q = (f.query || '').trim().toLowerCase();
-    const names = Object.keys(map).filter(n => !q || n.toLowerCase().includes(q)).sort();
+    // EVERY card (not just manifested ones). Cards with no manifest entry use
+    // their single default <Name>.png.
+    const defs = (typeof CARD_DEFS !== 'undefined' ? CARD_DEFS : []);
+    const names = defs.map(d => d.name)
+      .filter(n => !q || n.toLowerCase().includes(q))
+      .sort((a, b) => a.localeCompare(b));
     let shown = 0;
     const parseFocal = (pos) => {
       const p = String(pos || '').replace(/center/gi, '50%').trim().split(/\s+/);
@@ -8096,39 +8104,46 @@ const UI = {
     };
     const tiles = names.map((name, ni) => {
       const jsName = String(name).replace(/\\/g, '\\\\').replace(/'/g, "\\'");
-      const visible = this.getCardArtVariants(name) || [];   // deletion + reorder applied
-      shown += visible.length;
-      const thumbs = visible.map((file, idx) => {
+      // Manifest variants (deletion + reorder applied), or the single default file.
+      const variants = this.getCardArtVariants(name) || [this.getCardArtVariant(name)];
+      shown += variants.length;
+      const thumbs = variants.map((file, idx) => {
         const jsFile = String(file).replace(/\\/g, '\\\\').replace(/'/g, "\\'");
         const url = `audio/cards/art/${encodeURIComponent(file)}?v=${ver}`;
-        const last = visible.length <= 1;
-        const focal = this._artFocalFor(name, file);
-        const fp = parseFocal(focal);
-        const pid = `gcrop-${ni}-${idx}`;
+        const last = variants.length <= 1;
         const delBtn = last
           ? `<span class="gal-del gal-del-off" title="Only art — can't delete">×</span>`
           : `<button type="button" class="gal-del" title="Delete this art" onclick="UI._galleryDeleteArt('${jsName}','${jsFile}')">×</button>`;
         const up = `<button type="button" class="gal-move"${idx === 0 ? ' disabled' : ''} title="Move up / make primary" onclick="UI._moveArt('${jsName}','${jsFile}',-1)">▲</button>`;
-        const dn = `<button type="button" class="gal-move"${idx === visible.length - 1 ? ' disabled' : ''} title="Move down" onclick="UI._moveArt('${jsName}','${jsFile}',1)">▼</button>`;
+        const dn = `<button type="button" class="gal-move"${idx === variants.length - 1 ? ' disabled' : ''} title="Move down" onclick="UI._moveArt('${jsName}','${jsFile}',1)">▼</button>`;
+        // Two INDEPENDENT crop areas — card (3:4) and menu hero (tall) — each with
+        // its own focal + X/Y sliders so the image can be framed differently.
+        const cropArea = (kind, label) => {
+          const focal = this._artFocalFor(name, file, kind);
+          const fp = parseFocal(focal);
+          const pid = `gcrop-${kind}-${ni}-${idx}`;
+          return `<div class="gal-crop-area">
+            <div class="gal-crop gal-crop-${kind}" id="${pid}" style="background-image:url('${url}');background-position:${focal || '50% 50%'}"><span class="gal-tag">${label}</span></div>
+            <label class="gal-slider">X <input type="range" min="0" max="100" value="${fp.x}" oninput="UI._galleryCrop('${jsName}','${jsFile}','${kind}','x',this.value,'${pid}')"></label>
+            <label class="gal-slider">Y <input type="range" min="0" max="100" value="${fp.y}" oninput="UI._galleryCrop('${jsName}','${jsFile}','${kind}','y',this.value,'${pid}')"></label>
+            <button type="button" class="gal-reset" onclick="UI._galleryResetCrop('${jsName}','${jsFile}','${kind}')">Reset ${kind}</button>
+          </div>`;
+        };
         return `<figure class="gal-thumb">
-          <div class="gal-thumb-imgs">
-            <div class="gal-full-wrap"><img class="gal-full" src="${url}" alt="${file}" loading="lazy"><span class="gal-tag">full image</span></div>
-            <div class="gal-crop" id="${pid}" style="background-image:url('${url}');background-position:${focal || '50% 50%'}"><span class="gal-tag">card crop</span></div>
-          </div>
+          <div class="gal-full-wrap"><img class="gal-full" src="${url}" alt="${file}" loading="lazy"><span class="gal-tag">full image</span></div>
           <div class="gal-thumb-tools">
             <div class="gal-order">${up}${dn}${idx === 0 ? '<span class="gal-primary">PRIMARY</span>' : ''}</div>
             ${delBtn}
           </div>
-          <label class="gal-slider">X <input type="range" min="0" max="100" value="${fp.x}" oninput="UI._galleryCrop('${jsName}','${jsFile}','x',this.value,'${pid}')"></label>
-          <label class="gal-slider">Y <input type="range" min="0" max="100" value="${fp.y}" oninput="UI._galleryCrop('${jsName}','${jsFile}','y',this.value,'${pid}')"></label>
-          <div class="gal-thumb-foot">
-            <button type="button" class="gal-reset" onclick="UI._galleryResetCrop('${jsName}','${jsFile}')">Reset crop</button>
-            <span class="gal-fname" title="${file}">${file}</span>
+          <div class="gal-crops">
+            ${cropArea('card', 'Card · 3:4')}
+            ${cropArea('menu', 'Menu hero')}
           </div>
+          <span class="gal-fname" title="${file}">${file}</span>
         </figure>`;
       }).join('');
       return `<div class="gal-card">
-        <div class="gal-card-name">${name}<span class="gal-card-count">${visible.length}</span></div>
+        <div class="gal-card-name">${name}<span class="gal-card-count">${variants.length}</span></div>
         <div class="gal-thumbs">${thumbs}</div>
       </div>`;
     }).join('');
@@ -9169,7 +9184,7 @@ const UI = {
           // No separate name-banner row — name lives inside the portrait
           // as a translucent bottom strip.
           const portraitFile = UI.getCardArtPath(def.name);
-          const portraitPos = UI._artFocal(def.name);
+          const portraitPos = UI._artFocalCard(def.name);
           const portraitHtml = `<div class="card-portrait" style="--portrait-bg:url('${portraitFile}')${portraitPos ? `;--portrait-pos:${portraitPos}` : ''}"><div class="card-name-overlay">${def.name}</div></div>`;
           // [ CARD DATA ] divider was removed — user direction: "it's
           // distracting and it doesn't add anything." The painting →
@@ -12116,7 +12131,7 @@ const UI = {
         // intentionally — its `:hover { transform: none !important; }`
         // lock would suppress the draft picker's translateY(-8px) lift.
         const portraitFile = UI.getCardArtPath(c.name);
-        const portraitPos = UI._artFocal(c.name);
+        const portraitPos = UI._artFocalCard(c.name);
         const portraitHtml = `<div class="card-portrait" style="--portrait-bg:url('${portraitFile}')${portraitPos ? `;--portrait-pos:${portraitPos}` : ''}"><div class="card-name-overlay">${c.name}</div></div>`;
         html += `<div class="card draft-card ${this.getCostClass(c.cost)}${c.isDiscardEffect ? ' discard-effect' : ''}" data-card-name="${c.name}" onclick="draftPick(${i})">
           <span class="card-cost">${c.cost}</span>
@@ -14046,7 +14061,7 @@ const UI = {
     // Cards without art still render the box with the name overlay so
     // the layout stays consistent. Per-card name escape: text content
     // only, no HTML, so a card named with special chars renders safely.
-    const portraitPos = UI._artFocal(card.name);
+    const portraitPos = UI._artFocalCard(card.name);
     const portraitStyle = portraitFile ? `--portrait-bg:url('${portraitFile}')${portraitPos ? `;--portrait-pos:${portraitPos}` : ''}` : '';
     const portraitHtml = `<div class="card-portrait" style="${portraitStyle}"><div class="card-name-overlay">${card.name || ''}</div></div>`;
     // [ CARD DATA ] divider was removed per user feedback — read as
