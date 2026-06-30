@@ -1194,6 +1194,13 @@ const CARD_ABILITIES = {
         self._moderStripPending = (self._moderStripCount || 1);
         G.log(`Moder compels the next enemy card into lane ${lane + 1}!`);
       },
+      onDeath(G, self) {
+        const opp = G.opponent(self.owner);
+        if (G.state[opp] && G.state[opp].forcedLane != null) {
+          G.state[opp].forcedLane = null;
+          G.log(`Moder's forced-lane effect ends.`);
+        }
+      },
       onAnyCardPlayed(G, self) {
         // Strip the next N cards that land in Moder's lane, where N is
         // _moderStripPending (1 or 2). Each strip decrements the counter.

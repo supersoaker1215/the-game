@@ -12613,7 +12613,12 @@ const UI = {
     // priority; fall back to the first valid entry in Magneto's queue.
     const _effectiveForcedLane = (seat) => {
       const p = s[seat]; if (!p) return null;
-      if (p.forcedLane != null) return p.forcedLane;
+      if (p.forcedLane != null) {
+        // Only report the Moder lock if the forced lane is still open —
+        // if the seat already has a card there the lock can't fire anyway.
+        const fl = s.lanes[p.forcedLane];
+        if (fl && !fl.destroyed && !fl[seat]) return p.forcedLane;
+      }
       const mq = p.magnetoForcedLanes;
       if (mq && mq.length > 0) {
         const candidate = mq[0];
@@ -13126,6 +13131,13 @@ const UI = {
         // already occupied) — mirrors the redirect logic in _redirectForForcedLane so
         // what the guest sees matches what the host will actually do.
         let fl = s.player && s.player.forcedLane != null ? s.player.forcedLane : null;
+        // Only enforce Moder's lock if the forced lane is actually playable —
+        // if the player's card already occupies it (e.g. survived combat against
+        // Moder), there's nowhere to force and the lock should dissolve.
+        if (fl !== null) {
+          const flState = s.lanes[fl];
+          if (!flState || flState.destroyed || flState.player) fl = null;
+        }
         if (fl === null) {
           const mq = s.player && s.player.magnetoForcedLanes;
           if (mq && mq.length > 0) {
