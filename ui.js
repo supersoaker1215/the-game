@@ -9959,6 +9959,7 @@ const UI = {
         ${tabsRow}
         ${body}
         ${twov2Row}
+        ${transportLine}
       </div>`;
     // Re-apply the Tron interaction layer to the freshly-rendered
     // tabs / CTA / leave button so they pick up the hover sweep,
