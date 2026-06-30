@@ -67,4 +67,7 @@ window.CARD_ART_VARIANTS = {
   'Rocket Raccoon':      ['Rocket Raccoon.png'],
   'Kang':                ['Kang.png'],
   'Jack Sparrow':        ['Jack Sparrow.jpg'],
+  // Michael Myers — new fiery portrait as the primary (menu hero + in-game
+  // default); original kept as a gallery variant.
+  'Michael Myers':       ['Michael Myers 2.jpg',     'Michael Myers.png'],
 };

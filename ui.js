@@ -1873,7 +1873,6 @@ const UI = {
       'audio/cards/star-lord-hover.mp3',
       'audio/cards/superman-hover.mp3',
       'audio/cards/thanos-hover.mp3?v=4',
-      'audio/cards/the-flash-hover.mp3',
       'audio/cards/the-grinch-hover.mp3',
       'audio/cards/thor-hover.mp3',
       'audio/cards/time-stone-hover.mp3',
