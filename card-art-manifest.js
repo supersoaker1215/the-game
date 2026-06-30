@@ -72,3 +72,18 @@ window.CARD_ART_VARIANTS = {
   'Michael Myers':       ['Michael Myers 2.jpg',     'Michael Myers.png'],
   'Captain America':     ['Captain America 2.jpg',   'Captain America.png'],
 };
+
+// =============================================================================
+// PUBLISHED GALLERY EDITS  (Gallery Audit → "Export for repo")
+// =============================================================================
+// The WORLDWIDE defaults for manual crops + zoom, baked into the repo so they
+// apply for everyone. A player's local edits (localStorage) override these for
+// that browser. Keys are exactly "Card Name|file.png|jpg".
+// Reorder (primary) + deletions are baked into CARD_ART_VARIANTS above (array
+// order = priority; a removed entry = deleted), not here.
+window.CARD_ART_OVERRIDES = {
+  focalCard: {},   // "name|file" -> "X% Y%"   in-game card crop focal
+  focalMenu: {},   // "name|file" -> "X% Y%"   menu-hero crop focal
+  zoomCard:  {},   // "name|file" -> scale (1 = cover, e.g. 1.3)
+  zoomMenu:  {},   // "name|file" -> scale
+};

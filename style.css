@@ -25233,6 +25233,15 @@ button:disabled, button[disabled] {
   font-family: inherit; font-size: 12px; cursor: pointer;
 }
 .gal-restore:hover { background: rgba(74,170,255,0.25); }
+.gal-export {
+  margin-left: 8px; background: rgba(120,242,160,0.12); color: #8ef2ad;
+  border: 1px solid rgba(120,242,160,0.5); border-radius: 5px;
+  padding: 5px 14px; font-size: 12px; font-weight: 700; cursor: pointer;
+  transition: background 0.15s, box-shadow 0.15s;
+}
+.gal-export:hover { background: rgba(120,242,160,0.25); box-shadow: 0 0 12px rgba(120,242,160,0.4); }
+.gal-publish-note { font-size: 11px; color: #789; margin: 0 0 10px; line-height: 1.5; }
+.gal-publish-note b { color: #8ef2ad; }
 .gal-grid {
   max-height: 64vh; overflow: auto; padding-right: 4px;
   display: flex; flex-direction: column; gap: 14px;

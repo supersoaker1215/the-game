@@ -78,7 +78,14 @@ const UI = {
     return this._artFocalCache[k];
   },
   _artFocalFor(name, file, kind) {
-    return this._artFocalMap(kind)[name + '|' + file] || this.PORTRAIT_POSITION[name] || '';
+    const key = name + '|' + file;
+    // Local draft (localStorage) wins; then the published repo override; then
+    // the hardcoded PORTRAIT_POSITION; then the CSS default.
+    const local = this._artFocalMap(kind)[key];
+    if (local) return local;
+    const ov = (typeof window !== 'undefined' && window.CARD_ART_OVERRIDES
+      && window.CARD_ART_OVERRIDES[kind === 'menu' ? 'focalMenu' : 'focalCard']) || {};
+    return ov[key] || this.PORTRAIT_POSITION[name] || '';
   },
   _artFocalCard(name) {
     // The inline CSS fragment for the card's current variant: --portrait-pos
@@ -104,7 +111,12 @@ const UI = {
     return this._artZoomCache[k];
   },
   _artZoomFor(name, file, kind) {
-    const z = this._artZoomMap(kind)[name + '|' + file];
+    const key = name + '|' + file;
+    const local = this._artZoomMap(kind)[key];
+    if (typeof local === 'number' && local > 0) return local;
+    const ov = (typeof window !== 'undefined' && window.CARD_ART_OVERRIDES
+      && window.CARD_ART_OVERRIDES[kind === 'menu' ? 'zoomMenu' : 'zoomCard']) || {};
+    const z = ov[key];
     return (typeof z === 'number' && z > 0) ? z : 1;
   },
   _artSizeFor(name, file, kind) {   // background-size for a variant's zoom
@@ -8144,6 +8156,35 @@ const UI = {
     } catch (e) {}
     if (this.showAITrickToast) this.showAITrickToast('Crop saved', name, 'trick');
   },
+  // Export ALL gallery edits (crops, zooms, reorder/primary, deletions) as JSON
+  // and copy it to the clipboard so they can be PUBLISHED to the repo (paste to
+  // Claude) — making them the worldwide defaults instead of local-only.
+  _galleryExport() {
+    const data = {
+      focalCard: this._artFocalMap('card'),
+      focalMenu: this._artFocalMap('menu'),
+      zoomCard:  this._artZoomMap('card'),
+      zoomMenu:  this._artZoomMap('menu'),
+      order:     this._artOrderMap(),
+      deleted:   [...this._deletedArtSet()],
+    };
+    const counts = Object.keys(data.focalCard).length + Object.keys(data.focalMenu).length
+      + Object.keys(data.zoomCard).length + Object.keys(data.zoomMenu).length
+      + Object.keys(data.order).length + data.deleted.length;
+    const json = JSON.stringify(data, null, 2);
+    const done = (ok) => {
+      if (this.showAITrickToast) {
+        this.showAITrickToast(ok ? 'Copied! Paste to Claude to publish' : 'Copy failed — copy it from the console',
+          `${counts} edit(s) exported`, 'trick');
+      }
+      try { console.log('[GALLERY EXPORT — paste this to Claude to publish]\n' + json); } catch (e) {}
+    };
+    try {
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(json).then(() => done(true), () => done(false));
+      } else { done(false); }
+    } catch (e) { done(false); }
+  },
   renderGalleryAudit() {
     const ov = document.getElementById('gallery-audit-overlay');
     if (!ov) return;
@@ -8242,12 +8283,14 @@ const UI = {
           <span><b>${shown}</b> variants shown</span>
           <span><b>${del.size}</b> hidden</span>
           ${restoreBtn}
+          <button type="button" class="gal-export" onclick="UI._galleryExport()" title="Copy all your crops, zooms, primary order + deletions so Claude can publish them to the repo (worldwide)">⬆ Publish to repo</button>
         </div>
         <div class="aa-controls">
           <input class="aa-search" type="search" placeholder="Filter by card name…"
             value="${(f.query || '').replace(/"/g, '&quot;')}"
             oninput="UI._galleryAuditSetQuery(this.value)">
         </div>
+        <div class="gal-publish-note">Edits save on this device instantly. To make them permanent for everyone, tap <b>Publish to repo</b> and paste the copied text to me — I'll commit it.</div>
         <div class="gal-grid">${tiles || '<div class="aa-empty">No matches.</div>'}</div>
         <div class="gal-note">Delete hides the art from the menu + in-game card (the image file stays in the project). Saved on this device; use Restore to bring hidden art back.</div>
       </div>`;
