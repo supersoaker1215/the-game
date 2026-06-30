@@ -8164,6 +8164,17 @@ const UI = {
       const y = parseFloat(p[1] != null ? p[1] : p[0]);
       return { x: isFinite(x) ? Math.round(x) : 50, y: isFinite(y) ? Math.round(y) : 50 };
     };
+    // Size the previews to the REAL display proportions so the crop is accurate:
+    //  • card art is always 3:4
+    //  • the menu hero is width = min((1-bleed)*vw, 86vh), height = 100vh on THIS
+    //    device (see .mm-mw3 .mm-hero), so its aspect is device-dependent.
+    const iw = (typeof window !== 'undefined' && window.innerWidth)  || 800;
+    const ih = (typeof window !== 'undefined' && window.innerHeight) || 1200;
+    const bleed = (ih >= iw) ? 0.20 : 0.14;   // portrait uses a wider bleed
+    const heroW = Math.min((1 - bleed) * iw, 0.86 * ih);
+    const CROP_H = 150;
+    const cardW = Math.round(CROP_H * 3 / 4);                                  // 3:4
+    const menuW = Math.max(40, Math.min(CROP_H, Math.round(CROP_H * (heroW / ih))));
     const tiles = names.map((name, ni) => {
       const jsName = String(name).replace(/\\/g, '\\\\').replace(/'/g, "\\'");
       // Manifest variants (deletion + reorder applied), or the single default file.
@@ -8180,14 +8191,14 @@ const UI = {
         const dn = `<button type="button" class="gal-move"${idx === variants.length - 1 ? ' disabled' : ''} title="Move down" onclick="UI._moveArt('${jsName}','${jsFile}',1)">▼</button>`;
         // Two INDEPENDENT crop areas — card (3:4) and menu hero (tall) — each with
         // its own focal + X/Y sliders so the image can be framed differently.
-        const cropArea = (kind, label) => {
+        const cropArea = (kind, label, cw) => {
           const focal = this._artFocalFor(name, file, kind);
           const size = this._artSizeFor(name, file, kind);
           const z = this._artZoomFor(name, file, kind);
           const fp = parseFocal(focal);
           const pid = `gcrop-${kind}-${ni}-${idx}`;
           return `<div class="gal-crop-area">
-            <div class="gal-crop gal-crop-${kind}" id="${pid}" style="background-image:url('${url}');background-position:${focal || '50% 50%'};background-size:${size}"><span class="gal-tag">${label}</span></div>
+            <div class="gal-crop gal-crop-${kind}" id="${pid}" style="width:${cw}px;height:${CROP_H}px;background-image:url('${url}');background-position:${focal || '50% 50%'};background-size:${size}"><span class="gal-tag">${label}</span></div>
             <label class="gal-slider">X <input type="range" min="0" max="100" value="${fp.x}" oninput="UI._galleryCrop('${jsName}','${jsFile}','${kind}','x',this.value,'${pid}')"></label>
             <label class="gal-slider">Y <input type="range" min="0" max="100" value="${fp.y}" oninput="UI._galleryCrop('${jsName}','${jsFile}','${kind}','y',this.value,'${pid}')"></label>
             <div class="gal-zoom-row">
@@ -8205,8 +8216,8 @@ const UI = {
             ${delBtn}
           </div>
           <div class="gal-crops">
-            ${cropArea('card', 'Card · 3:4')}
-            ${cropArea('menu', 'Menu hero')}
+            ${cropArea('card', 'Card · 3:4', cardW)}
+            ${cropArea('menu', 'Menu hero', menuW)}
           </div>
           <div class="gal-thumb-foot">
             <button type="button" class="gal-save" onclick="UI._gallerySave('${jsName}','${jsFile}')">💾 Save crop</button>
