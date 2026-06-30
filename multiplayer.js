@@ -958,7 +958,8 @@ const Multiplayer4 = {
   },
 
   _GAME_ACTION_TYPES: new Set([
-    'play2v2Card', 'play2v2Trick', 'end2v2Phase', '2v2DraftPick', 'start2v2'
+    'play2v2Card', 'play2v2Trick', 'end2v2Phase', '2v2DraftPick', 'start2v2',
+    'req2v2LaneChoice', '2v2LaneChoiceResult', '2v2CardChoiceResult', '2v2DraftMulligan'
   ]),
   _handleMsg(msg) {
     if (!msg || typeof msg !== 'object') return;

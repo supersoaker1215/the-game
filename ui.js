@@ -7049,20 +7049,30 @@ const UI = {
     const handEl = document.getElementById('player-hand');
     if (!handEl) return;
     const energy = ap.energy - ap.usedEnergy;
-    const selectedId = (UI._2v2SelectedCardIdx != null && ap.hand[UI._2v2SelectedCardIdx])
+    const tt = Game.state.twoVTwo;
+    const you = tt ? tt.you : null;
+    const isHost = you === 'p1';
+    // Host uses the lane-strip (card select + numbered buttons); guests send
+    // req2v2LaneChoice and pick from the highlighted board lanes (same as 1v1).
+    const selectedId = (isHost && UI._2v2SelectedCardIdx != null && ap.hand[UI._2v2SelectedCardIdx])
       ? ap.hand[UI._2v2SelectedCardIdx].id : null;
     handEl.querySelectorAll('.hand-card-wrapper .card[data-card-id]').forEach(cardEl => {
       const cardId = parseInt(cardEl.getAttribute('data-card-id'), 10);
       const apIdx  = ap.hand.findIndex(c => c.id === cardId);
-      // Mirror the selected-card highlight so the card glows gold when chosen
       cardEl.classList.toggle('selected', cardId === selectedId);
       if (apIdx < 0 || !canPlay) { cardEl.onclick = null; return; }
       const cost = ap.hand[apIdx].cost || 0;
       if (energy < cost) { cardEl.onclick = null; return; }
       cardEl.onclick = (e) => {
         e.stopPropagation();
-        UI._2v2SelectedCardIdx = UI._2v2SelectedCardIdx === apIdx ? null : apIdx;
-        UI.render();
+        if (isHost) {
+          UI._2v2SelectedCardIdx = UI._2v2SelectedCardIdx === apIdx ? null : apIdx;
+          UI.render();
+        } else {
+          if (typeof Multiplayer4 !== 'undefined') {
+            Multiplayer4.send({ t: 'req2v2LaneChoice', playerKey: you, cardIdx: apIdx });
+          }
+        }
       };
     });
   },

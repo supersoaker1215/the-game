@@ -8525,6 +8525,36 @@ const Game = {
         this._2v2CurrentActingPlayer = pk; // track who triggered any ability prompts
         this._2v2OnlinePlayCard(pk, msg.cardIdx, msg.laneIdx);
         break;
+      case 'req2v2LaneChoice': {
+        // Guest clicked a card and wants to pick a lane — same as 1v1 reqLaneChoice.
+        // Host runs promptLaneChoice, broadcasts pendingLaneChoice; guest clicks a
+        // board lane and sends 2v2LaneChoiceResult to complete the placement.
+        if (pk !== activeKey) break;
+        if (this.state.pendingLaneChoice || this.state.pendingCardChoice) break;
+        const cardIdx = msg.cardIdx;
+        if (cardIdx == null) break;
+        const guestAp = this.state.twoVTwo.players[pk];
+        if (!guestAp) break;
+        const guestCard = guestAp.hand[cardIdx];
+        if (!guestCard) break;
+        const guestSide = this._2v2TeamSide[guestAp.team];
+        const guestEnergy = guestAp.energy - (guestAp.usedEnergy || 0);
+        if (guestEnergy < (guestCard.cost || 0)) break;
+        const openLanes = this.getOpenLanes(guestSide);
+        if (!openLanes.length) break;
+        this._2v2CurrentActingPlayer = pk;
+        if (openLanes.length === 1) {
+          this._2v2OnlinePlayCard(pk, cardIdx, openLanes[0]);
+        } else {
+          this.promptLaneChoice(
+            guestSide, openLanes,
+            `Place ${guestCard.name}`,
+            `Choose a lane for ${guestCard.name} (${guestCard.attack}/${guestCard.currentHealth || guestCard.health})`,
+            (lane) => this._2v2OnlinePlayCard(pk, cardIdx, lane)
+          );
+        }
+        break;
+      }
       case 'play2v2Trick':
         if (pk !== activeKey) break;
         this._2v2CurrentActingPlayer = pk;
