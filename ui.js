@@ -14966,9 +14966,8 @@ const UI = {
         el.addEventListener('click', () => this.onTrickClick(trick));
       } else {
         el.classList.add('unplayable');
-        // Unplayable tricks have no action — open inspect on click so the
-        // player can still read the full card without having to use the codex.
-        el.addEventListener('click', () => this.showCardInspect(el));
+        // No click action — hover-scale (CSS) already shows the full
+        // card at readable size, so the inspect popup is redundant.
       }
       this.playerTricks.appendChild(el);
     });
