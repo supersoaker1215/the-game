@@ -14725,6 +14725,11 @@ const UI = {
       // fire after the card's affordability state changed.
       el.onclick = null;
 
+      // reqLaneChoice flow: guest card is pending lane placement — lc.previewCard
+      // IS this card. Show it as selected so the user sees their pick registered,
+      // even though hasPending blocks the normal !hasPending branch below.
+      const isReqLcCard = lc && isMyLaneChoice && lc.previewCard && lc.previewCard.id === card.id;
+      if (isReqLcCard) el.classList.add('is-selected', 'selected');
       if (cc && isMyHandChoice && targetHandIds.has(card.id)) {
         el.classList.add('target-highlight');
         const idx = cc.cards.findIndex(c => c.id === card.id);
@@ -16176,7 +16181,17 @@ const UI = {
       if (this._haptic) this._haptic('cardPlay');
       this._playSelectCue();
     }
-    s.selectedCard = s.selectedCard === card ? null : card;
+    const wasSelected = s.selectedCard === card;
+    s.selectedCard = wasSelected ? null : card;
+    // Multiplayer guest: when SELECTING a card (not deselecting), request a lane
+    // picker from the host via the same promptLaneChoice path that summons use.
+    // This bypasses the broken onLaneClick → playCard guest flow and uses the
+    // proven pendingLaneChoice → laneChoicePick → promptResolve:lane path.
+    if (!wasSelected && card && !card.isDiscardEffect &&
+        Game.isMultiplayer && Game.isMultiplayer() && Game.mp && Game.mp.role === 'guest' &&
+        typeof Multiplayer !== 'undefined') {
+      Multiplayer.send({ t: 'reqLaneChoice', cardId: card.id });
+    }
     this.render();
   },
 

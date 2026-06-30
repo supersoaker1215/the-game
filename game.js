@@ -249,6 +249,52 @@ const Game = {
           else this.resumeCombatIfWaiting();
           break;
         }
+        case 'reqLaneChoice': {
+          // Guest selected a card from hand and wants to pick a lane.
+          // Uses the same promptLaneChoice path as summons (proven working) so the
+          // guest sees highlighted lane targets and sends promptResolve:lane back.
+          const card = findCardById(msg.cardId);
+          if (!card) break;
+          const phase = this.state.phase;
+          if (phase !== 'ai-cards' && phase !== 'ai-cards-tricks') break;
+          if (card.isDiscardEffect) { this.playCard(actor, card, 0); break; }
+          const cost = this.getCardCost(actor, card);
+          if (this.state[actor].currency < cost) break;
+          // Determine candidate lanes — respect Moder / Magneto forced-lane constraints
+          // so the host controls which lanes are available (same as the visual lock the
+          // UI applies in single-player via _redirectForForcedLane + board render).
+          let openLanes;
+          if (card.isEnvironment) {
+            openLanes = this.state.lanes.map((l, i) => i).filter(i => !this.state.lanes[i].destroyed);
+          } else {
+            openLanes = this.getOpenLanes(actor);
+            const fl = this.state[actor] && this.state[actor].forcedLane;
+            if (fl != null) {
+              const flLane = this.state.lanes[fl];
+              if (flLane && !flLane.destroyed && !flLane[actor]) openLanes = [fl];
+            }
+            const mq = this.state[actor] && this.state[actor].magnetoForcedLanes;
+            if (openLanes.length > 1 && mq && mq.length) {
+              const mfl = mq[0];
+              const mflLane = this.state.lanes[mfl];
+              if (mflLane && !mflLane.destroyed && !mflLane[actor]) openLanes = [mfl];
+            }
+          }
+          if (!openLanes.length) break;
+          if (openLanes.length === 1) {
+            // Only one option — skip the picker, play directly
+            this.playCard(actor, card, openLanes[0]);
+            break;
+          }
+          // Multiple lanes: promptLaneChoice broadcasts pendingLaneChoice to guest.
+          // Guest picks via laneChoicePick → promptResolve:lane → playCard fires here.
+          this.promptLaneChoice(actor, openLanes,
+            `Play ${card.name}`,
+            `Choose a lane for ${card.name}`,
+            (lane) => { this.playCard(actor, card, lane); },
+            actor, card);
+          break;
+        }
         case 'playTrick': {
           const trick = findTrickById(msg.trickId);
           if (trick && this.playTrick) this.playTrick(actor, trick);
