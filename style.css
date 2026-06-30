@@ -7529,8 +7529,11 @@ body.hit-pause .ai-hand * {
   box-shadow: 0 -1px 0 var(--tron-glow);
   position: relative;
   /* Must sit above .player-hand-section (z-index 220) so hover-scaled
-     trick cards paint over the hand row, not under it. */
-  z-index: 230;
+     trick cards paint over the hand row, not under it. !important
+     because #game-area > * (line 475) sets z-index: 1 with higher
+     specificity (id+universal beats single-class) — same reason
+     .player-hand-section needs !important on its own z-index. */
+  z-index: 230 !important;
   overflow: visible;
 }
 .trick-cards {

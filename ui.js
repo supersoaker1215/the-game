@@ -14964,12 +14964,6 @@ const UI = {
         el.classList.add('playable');
         if (s.selectedTrick === trick) el.classList.add('selected');
         el.addEventListener('click', () => this.onTrickClick(trick));
-        // Portrait tap → inspect without interfering with the select/play flow.
-        const portrait = el.querySelector('.trick-portrait');
-        if (portrait) portrait.addEventListener('click', (e) => {
-          e.stopPropagation();
-          this.showCardInspect(el);
-        });
       } else {
         el.classList.add('unplayable');
         // Unplayable tricks have no action — open inspect on click so the
