@@ -531,14 +531,38 @@ class WebSocketTransport {
 // hotspots, and corporate networks with symmetric NAT that block
 // raw UDP. TURNS (TLS on 443) is the last-resort fallback since
 // port 443 is open on every network that allows HTTPS.
+// ICE servers: two STUN + two independent TURN providers for
+// redundancy. openrelay.metered.ca and freestun.net are both
+// free, no-signup relays. Having two distinct providers means
+// if one is down or blocked the other takes over.
+// TURNS (TLS on 443) is the last resort — it looks like HTTPS to
+// hotel/corporate firewalls that block all other UDP/TCP.
 const _WEBRTC_ICE_SERVERS = [
+  // STUN — just address discovery, no relay
   { urls: 'stun:stun.l.google.com:19302' },
   { urls: 'stun:stun1.l.google.com:19302' },
+  // TURN provider 1: openrelay.metered.ca (free, community-run)
   { urls: 'turn:openrelay.metered.ca:80',               username: 'openrelayproject', credential: 'openrelayproject' },
   { urls: 'turn:openrelay.metered.ca:80?transport=tcp', username: 'openrelayproject', credential: 'openrelayproject' },
   { urls: 'turn:openrelay.metered.ca:443',              username: 'openrelayproject', credential: 'openrelayproject' },
   { urls: 'turns:openrelay.metered.ca:443',             username: 'openrelayproject', credential: 'openrelayproject' },
+  // TURN provider 2: freestun.net (free, independent provider)
+  { urls: 'stun:freestun.net:3479' },
+  { urls: 'turn:freestun.net:3478',  username: 'freestun', credential: 'freestun' },
+  { urls: 'turn:freestun.net:3479',  username: 'freestun', credential: 'freestun' },
+  { urls: 'turns:freestun.net:5350', username: 'freestun', credential: 'freestun' },
 ];
+
+// Build the ICE config, optionally forcing relay-only mode (for hotel
+// WiFi with AP isolation where direct paths never work).
+function _buildIceConfig() {
+  const forceRelay = typeof localStorage !== 'undefined' &&
+    localStorage.getItem('clb-force-relay') === '1';
+  return {
+    iceServers: _WEBRTC_ICE_SERVERS,
+    ...(forceRelay ? { iceTransportPolicy: 'relay' } : {}),
+  };
+}
 
 // ============================================================
 // WEBRTC TRANSPORT — peer-to-peer over the public internet
@@ -615,7 +639,7 @@ class WebRTCTransport {
       // PeerJS auto-uses Google STUN servers + the public 0.peerjs.com
       // signaling cloud by default. No config needed for typical home
       // networks. `debug: 1` keeps console output minimal (errors only).
-      this._peer = new Peer(peerId, { debug: 1, config: { iceServers: _WEBRTC_ICE_SERVERS } });
+      this._peer = new Peer(peerId, { debug: 1, config: _buildIceConfig() });
     } catch (e) {
       this._dispatchError('Could not initialize peer: ' + (e && e.message || e));
       return;
@@ -641,7 +665,7 @@ class WebRTCTransport {
   _openAsJoiner(msg) {
     this._roomCode = msg.code;
     try {
-      this._peer = new Peer({ debug: 1, config: { iceServers: _WEBRTC_ICE_SERVERS } });  // auto-generated ID for joiner
+      this._peer = new Peer({ debug: 1, config: _buildIceConfig() });  // auto-generated ID for joiner
     } catch (e) {
       this._dispatchError('Could not initialize peer: ' + (e && e.message || e));
       return;
@@ -798,7 +822,7 @@ class WebRTC4Transport {
     this._mySlot = 'p1';
     this._roomCode = msg.code;
     try {
-      this._peer = new Peer(this._peerIdFor(msg.code), { debug: 1, config: { iceServers: _WEBRTC_ICE_SERVERS } });
+      this._peer = new Peer(this._peerIdFor(msg.code), { debug: 1, config: _buildIceConfig() });
     } catch (e) {
       this._dispatchError('Peer init failed: ' + (e && e.message || e));
       return;
@@ -836,7 +860,7 @@ class WebRTC4Transport {
   _openAsJoiner(msg) {
     this._roomCode = msg.code;
     try {
-      this._peer = new Peer({ debug: 1, config: { iceServers: _WEBRTC_ICE_SERVERS } });
+      this._peer = new Peer({ debug: 1, config: _buildIceConfig() });
     } catch (e) {
       this._dispatchError('Peer init failed: ' + (e && e.message || e));
       return;

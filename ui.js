@@ -9799,6 +9799,15 @@ const UI = {
     else     localStorage.setItem('clb-mp-mode', 'local');
     this._mpRender();
   },
+  // Force-relay mode: skips direct P2P and routes everything through
+  // the TURN relay server. Required on hotel WiFi / networks with AP
+  // isolation where devices on the same network can't talk directly.
+  _mpToggleForceRelay() {
+    const cur = localStorage.getItem('clb-force-relay') === '1';
+    if (cur) localStorage.removeItem('clb-force-relay');
+    else     localStorage.setItem('clb-force-relay', '1');
+    this._mpRender();
+  },
   // Power-user knob: PartyKit deployment URL. Lives in localStorage so
   // a curious user can paste a URL once and have all matches go over
   // the production transport. Empty string = LocalTabTransport (dev).
@@ -9825,6 +9834,7 @@ const UI = {
               onclick="UI._mpSetTab('${id}')">${label}</button>`;
     const url = (localStorage.getItem('clb-mp-server') || '').trim();
     const localMode = localStorage.getItem('clb-mp-mode') === 'local';
+    const forceRelay = localStorage.getItem('clb-force-relay') === '1';
     const peerJsLoaded = typeof Peer !== 'undefined';
     let transportLine;
     if (url) {
@@ -9834,7 +9844,8 @@ const UI = {
     } else if (!peerJsLoaded) {
       transportLine = `<div class="mp-transport-line mp-transport-warn">⚠ PeerJS didn't load — falling back to local-tab. Check network or refresh.</div>`;
     } else {
-      transportLine = `<div class="mp-transport-line">Connecting peer-to-peer (WebRTC) · <a href="#" onclick="UI._mpToggleLocalMode();return false;">use local tabs instead</a></div>`;
+      const relayLabel = forceRelay ? '🔴 Relay-only ON' : 'Force relay (hotel WiFi)';
+      transportLine = `<div class="mp-transport-line">Peer-to-peer (WebRTC) · <a href="#" onclick="UI._mpToggleForceRelay();return false;" title="Force-relay routes ALL traffic through the TURN relay server. Use this on hotel WiFi or any network where direct connections fail.">${relayLabel}</a></div>`;
     }
 
     // Body switches based on connection status. Idle → tab content
