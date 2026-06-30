@@ -78,8 +78,12 @@ const UI = {
   // player happened to select in-game).
   getCardArtPathDefault(name) {
     if (!name) return null;
+    // Menu-only art overrides — the menu hero uses a specific portrait that can
+    // differ from the in-game card default (which stays variants[0]). Anakin
+    // shows the blue-saber portrait on the menu per user request.
+    const MENU_ART_OVERRIDE = { 'Anakin Skywalker': 'Anakin Skywalker 2.png' };
     const variants = this.getCardArtVariants(name);
-    const file = (variants && variants.length) ? variants[0] : (name + '.png');
+    const file = MENU_ART_OVERRIDE[name] || ((variants && variants.length) ? variants[0] : (name + '.png'));
     return `audio/cards/art/${encodeURIComponent(file)}?v=${this._CARD_ART_VERSION || 1}`;
   },
   // Wire up the global alt-art picker.
@@ -1861,7 +1865,6 @@ const UI = {
       'audio/cards/power-stone-hover.mp3',
       'audio/cards/predator-hover.mp3',
       'audio/cards/reality-stone-hover.mp3',
-      'audio/cards/red-skull-hover.mp3',
       'audio/cards/sandman-hover.mp3',
       'audio/cards/sewers-hover.mp3',
       'audio/cards/soul-stone-hover.mp3',
@@ -1869,7 +1872,6 @@ const UI = {
       'audio/cards/spider-man-hover.mp3',
       'audio/cards/star-lord-hover.mp3',
       'audio/cards/superman-hover.mp3',
-      'audio/cards/thanos-hover.mp3',
       'audio/cards/the-flash-hover.mp3',
       'audio/cards/the-grinch-hover.mp3',
       'audio/cards/thor-hover.mp3',
