@@ -25315,6 +25315,21 @@ button:disabled, button[disabled] {
   border-radius: 4px; padding: 3px 8px; font-size: 10px; cursor: pointer;
 }
 .gal-reset:hover { background: rgba(74,170,255,0.2); }
+.gal-zoom-row { display: flex; align-items: center; justify-content: center; gap: 8px; }
+.gal-zbtn {
+  width: 26px; height: 22px; border-radius: 4px;
+  background: rgba(74,170,255,0.1); color: #cfe6ff;
+  border: 1px solid rgba(74,170,255,0.35); cursor: pointer; font-size: 14px; line-height: 1;
+}
+.gal-zbtn:hover { background: rgba(74,170,255,0.25); }
+.gal-zoom-val { font-size: 10px; color: #9cf; min-width: 34px; text-align: center; }
+.gal-save {
+  background: rgba(120,242,160,0.12); color: #8ef2ad;
+  border: 1px solid rgba(120,242,160,0.45); border-radius: 5px;
+  padding: 5px 12px; font-size: 11px; font-weight: 600; cursor: pointer;
+  transition: background 0.15s, box-shadow 0.15s;
+}
+.gal-save:hover { background: rgba(120,242,160,0.25); box-shadow: 0 0 10px rgba(120,242,160,0.3); }
 .gal-fname {
   font-size: 10px; color: #8aa; white-space: nowrap; overflow: hidden;
   text-overflow: ellipsis; flex: 1; text-align: right;
@@ -25330,25 +25345,31 @@ button:disabled, button[disabled] {
 
 /* Neon "← Menu" back button for the Gallery / Audio audit panels — matches the
    main-menu chip (theme-tinted, glow on hover) instead of the tiny round ×. */
+/* Back button = the MAIN-MENU option treatment: plain text that scales up +
+   glows on hover, a tiny press dip, NO box/circle/rectangle. !important resets
+   defeat the base .encyc-close round-button styling. */
 .gallery-audit-panel .encyc-close,
 .audio-audit-panel .encyc-close {
-  width: auto; height: auto; border-radius: 4px;
-  padding: 7px 15px;
-  background: rgba(6,10,16,0.6);
-  border: 1px solid rgba(var(--theme-rgb, 79,195,247), 0.5);
-  color: color-mix(in srgb, rgb(var(--theme-rgb, 79,195,247)) 85%, white);
-  font-family: 'Rajdhani', sans-serif; font-size: 12px; font-weight: 700;
+  width: auto !important; height: auto !important;
+  border: none !important; background: none !important; border-radius: 0 !important;
+  box-shadow: none !important; padding: 4px 4px !important;
+  color: color-mix(in srgb, rgb(var(--theme-rgb, 79,195,247)) 82%, white);
+  font-family: 'Rajdhani', sans-serif; font-size: 17px; font-weight: 700;
   letter-spacing: 2.5px; text-transform: uppercase;
-  transition: color 0.18s, background 0.18s, border-color 0.18s, box-shadow 0.18s;
+  display: inline-flex; align-items: center;
+  transform-origin: left center;
+  transition: transform 0.18s ease, color 0.18s ease, text-shadow 0.18s ease;
 }
 .gallery-audit-panel .encyc-close:hover,
 .audio-audit-panel .encyc-close:hover {
-  color: #fff;
-  background: rgba(var(--theme-rgb, 79,195,247), 0.14);
-  border-color: rgba(var(--theme-rgb, 79,195,247), 1);
-  box-shadow: 0 0 12px rgba(var(--theme-rgb, 79,195,247), 0.55),
-              inset 0 0 8px rgba(var(--theme-rgb, 79,195,247), 0.15);
+  background: none !important; box-shadow: none !important;
+  transform: scale(1.12);
+  color: color-mix(in srgb, rgb(var(--theme-rgb, 79,195,247)) 94%, white);
+  text-shadow: 0 0 12px rgba(var(--theme-rgb, 79,195,247), 0.85),
+               0 0 22px rgba(var(--theme-rgb, 79,195,247), 0.4);
 }
+.gallery-audit-panel .encyc-close:active,
+.audio-audit-panel .encyc-close:active { transform: scale(1.04); }
 
 .audio-audit-panel .aa-table-wrap {
   max-height: 60vh; overflow: auto;
@@ -28906,7 +28927,7 @@ body.combat-anticipate::after  { content: none !important; }
      area never flashes as a plain black void while the fetch is in flight. */
   background-color: #111;
   background-image: var(--portrait-bg, linear-gradient(110deg, #111 30%, #1a1a1a 50%, #111 70%));
-  background-size: cover, 200% 100%;
+  background-size: var(--portrait-size, cover), 200% 100%;
   background-position: var(--portrait-pos, center center), 0% 0%;
   background-repeat: no-repeat, no-repeat;
   transform: translateZ(0);

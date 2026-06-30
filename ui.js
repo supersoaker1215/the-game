@@ -80,8 +80,45 @@ const UI = {
   _artFocalFor(name, file, kind) {
     return this._artFocalMap(kind)[name + '|' + file] || this.PORTRAIT_POSITION[name] || '';
   },
-  _artFocalCard(name) {   // CARD focal for the card's currently-displayed variant
-    return this._artFocalFor(name, this.getCardArtVariant(name), 'card');
+  _artFocalCard(name) {
+    // The inline CSS fragment for the card's current variant: --portrait-pos
+    // (manual crop focal) + --portrait-size (zoom). Empty when both are default.
+    const file = this.getCardArtVariant(name);
+    const pos = this._artFocalFor(name, file, 'card');
+    const size = this._artSizeFor(name, file, 'card');
+    let s = '';
+    if (pos) s += ';--portrait-pos:' + pos;
+    if (size && size !== 'cover') s += ';--portrait-size:' + size;
+    return s;
+  },
+  // Gallery Audit — manual ZOOM: a per-variant scale (1 = fit/cover) for the
+  // CARD and MENU contexts (artZoom_card / artZoom_menu in localStorage),
+  // applied via background-size.
+  _artZoomMap(kind) {
+    const k = (kind === 'menu') ? 'menu' : 'card';
+    if (!this._artZoomCache) this._artZoomCache = {};
+    if (!this._artZoomCache[k]) {
+      const m = this._persistGet('artZoom_' + k, {});
+      this._artZoomCache[k] = (m && typeof m === 'object') ? m : {};
+    }
+    return this._artZoomCache[k];
+  },
+  _artZoomFor(name, file, kind) {
+    const z = this._artZoomMap(kind)[name + '|' + file];
+    return (typeof z === 'number' && z > 0) ? z : 1;
+  },
+  _artSizeFor(name, file, kind) {   // background-size for a variant's zoom
+    const z = this._artZoomFor(name, file, kind);
+    return (Math.abs(z - 1) < 0.001) ? 'cover' : (Math.round(z * 100) + '%');
+  },
+  _setArtZoom(name, file, kind, zoom) {
+    const k = (kind === 'menu') ? 'menu' : 'card';
+    const m = this._artZoomMap(k);
+    const z = Math.max(0.5, Math.min(3, +zoom || 1));
+    if (Math.abs(z - 1) < 0.001) delete m[name + '|' + file];
+    else m[name + '|' + file] = Math.round(z * 100) / 100;
+    this._persistSet('artZoom_' + k, m);
+    return z;
   },
   _setArtFocal(name, file, kind, pos) {
     const k = (kind === 'menu') ? 'menu' : 'card';
@@ -606,6 +643,7 @@ const UI = {
       // Empty string falls back to the CSS default framing.
       const file = decodeURIComponent(String(art).split('/').pop().split('?')[0]);
       next.style.backgroundPosition = this._artFocalFor(name, file, 'menu') || '';
+      next.style.backgroundSize = this._artSizeFor(name, file, 'menu');
       if (active) active.classList.remove('is-visible');
       next.classList.add('is-visible');
     };
@@ -6861,7 +6899,7 @@ const UI = {
           const rarityPips = `<span class="rarity-strip">${'<span class="rpip"></span>'.repeat(_dpPips)}</span>`;
           const portraitFile = UI.getCardArtPath(c.name);
           const portraitPos = UI._artFocalCard(c.name);
-          const portraitHtml = `<div class="card-portrait" style="--portrait-bg:url('${portraitFile}')${portraitPos ? `;--portrait-pos:${portraitPos}` : ''}"><div class="card-name-overlay">${c.name}</div></div>`;
+          const portraitHtml = `<div class="card-portrait" style="--portrait-bg:url('${portraitFile}')${portraitPos}"><div class="card-name-overlay">${c.name}</div></div>`;
           html += `<div class="card draft-card ${this.getCostClass(c.cost)}${c.isDiscardEffect ? ' discard-effect' : ''}" data-card-name="${c.name}" onclick="twov2OnlineDraftPick(${i})">
             <span class="card-cost">${c.cost}</span>
             ${rarityPips}
@@ -8079,8 +8117,32 @@ const UI = {
     this._setArtFocal(name, file, kind, pos);
   },
   _galleryResetCrop(name, file, kind) {
-    this._setArtFocal(name, file, kind, '');   // clear override → back to default framing
+    this._setArtFocal(name, file, kind, '');   // clear focal → default framing
+    this._setArtZoom(name, file, kind, 1);     // clear zoom → cover
     this.renderGalleryAudit();
+  },
+  // Zoom a crop in/out (delta is a scale step, e.g. +0.1). Live-updates the
+  // preview's background-size + the readout and saves, no full re-render.
+  _galleryZoom(name, file, kind, delta, pid) {
+    const z = Math.max(0.5, Math.min(3, this._artZoomFor(name, file, kind) + delta));
+    this._setArtZoom(name, file, kind, z);
+    const size = (Math.abs(z - 1) < 0.001) ? 'cover' : (Math.round(z * 100) + '%');
+    const prev = document.getElementById(pid);
+    if (prev) prev.style.backgroundSize = size;
+    const zv = document.getElementById(pid + '-z');
+    if (zv) zv.textContent = Math.round(z * 100) + '%';
+  },
+  // Explicit Save — everything is already persisted live, so this re-commits
+  // every crop/zoom map and confirms with a toast (and re-renders any visible
+  // card so changes show immediately).
+  _gallerySave(name, file) {
+    try {
+      this._persistSet('artFocal_card', this._artFocalMap('card'));
+      this._persistSet('artFocal_menu', this._artFocalMap('menu'));
+      this._persistSet('artZoom_card', this._artZoomMap('card'));
+      this._persistSet('artZoom_menu', this._artZoomMap('menu'));
+    } catch (e) {}
+    if (this.showAITrickToast) this.showAITrickToast('Crop saved', name, 'trick');
   },
   renderGalleryAudit() {
     const ov = document.getElementById('gallery-audit-overlay');
@@ -8120,12 +8182,19 @@ const UI = {
         // its own focal + X/Y sliders so the image can be framed differently.
         const cropArea = (kind, label) => {
           const focal = this._artFocalFor(name, file, kind);
+          const size = this._artSizeFor(name, file, kind);
+          const z = this._artZoomFor(name, file, kind);
           const fp = parseFocal(focal);
           const pid = `gcrop-${kind}-${ni}-${idx}`;
           return `<div class="gal-crop-area">
-            <div class="gal-crop gal-crop-${kind}" id="${pid}" style="background-image:url('${url}');background-position:${focal || '50% 50%'}"><span class="gal-tag">${label}</span></div>
+            <div class="gal-crop gal-crop-${kind}" id="${pid}" style="background-image:url('${url}');background-position:${focal || '50% 50%'};background-size:${size}"><span class="gal-tag">${label}</span></div>
             <label class="gal-slider">X <input type="range" min="0" max="100" value="${fp.x}" oninput="UI._galleryCrop('${jsName}','${jsFile}','${kind}','x',this.value,'${pid}')"></label>
             <label class="gal-slider">Y <input type="range" min="0" max="100" value="${fp.y}" oninput="UI._galleryCrop('${jsName}','${jsFile}','${kind}','y',this.value,'${pid}')"></label>
+            <div class="gal-zoom-row">
+              <button type="button" class="gal-zbtn" title="Zoom out" onclick="UI._galleryZoom('${jsName}','${jsFile}','${kind}',-0.1,'${pid}')">−</button>
+              <span class="gal-zoom-val" id="${pid}-z">${Math.round(z * 100)}%</span>
+              <button type="button" class="gal-zbtn" title="Zoom in" onclick="UI._galleryZoom('${jsName}','${jsFile}','${kind}',0.1,'${pid}')">+</button>
+            </div>
             <button type="button" class="gal-reset" onclick="UI._galleryResetCrop('${jsName}','${jsFile}','${kind}')">Reset ${kind}</button>
           </div>`;
         };
@@ -8139,7 +8208,10 @@ const UI = {
             ${cropArea('card', 'Card · 3:4')}
             ${cropArea('menu', 'Menu hero')}
           </div>
-          <span class="gal-fname" title="${file}">${file}</span>
+          <div class="gal-thumb-foot">
+            <button type="button" class="gal-save" onclick="UI._gallerySave('${jsName}','${jsFile}')">💾 Save crop</button>
+            <span class="gal-fname" title="${file}">${file}</span>
+          </div>
         </figure>`;
       }).join('');
       return `<div class="gal-card">
@@ -9185,7 +9257,7 @@ const UI = {
           // as a translucent bottom strip.
           const portraitFile = UI.getCardArtPath(def.name);
           const portraitPos = UI._artFocalCard(def.name);
-          const portraitHtml = `<div class="card-portrait" style="--portrait-bg:url('${portraitFile}')${portraitPos ? `;--portrait-pos:${portraitPos}` : ''}"><div class="card-name-overlay">${def.name}</div></div>`;
+          const portraitHtml = `<div class="card-portrait" style="--portrait-bg:url('${portraitFile}')${portraitPos}"><div class="card-name-overlay">${def.name}</div></div>`;
           // [ CARD DATA ] divider was removed — user direction: "it's
           // distracting and it doesn't add anything." The painting →
           // status badges → desc → orbs hierarchy already reads clearly
@@ -12164,7 +12236,7 @@ const UI = {
         // lock would suppress the draft picker's translateY(-8px) lift.
         const portraitFile = UI.getCardArtPath(c.name);
         const portraitPos = UI._artFocalCard(c.name);
-        const portraitHtml = `<div class="card-portrait" style="--portrait-bg:url('${portraitFile}')${portraitPos ? `;--portrait-pos:${portraitPos}` : ''}"><div class="card-name-overlay">${c.name}</div></div>`;
+        const portraitHtml = `<div class="card-portrait" style="--portrait-bg:url('${portraitFile}')${portraitPos}"><div class="card-name-overlay">${c.name}</div></div>`;
         html += `<div class="card draft-card ${this.getCostClass(c.cost)}${c.isDiscardEffect ? ' discard-effect' : ''}" data-card-name="${c.name}" onclick="draftPick(${i})">
           <span class="card-cost">${c.cost}</span>
           ${rarityPips}
@@ -14094,7 +14166,7 @@ const UI = {
     // the layout stays consistent. Per-card name escape: text content
     // only, no HTML, so a card named with special chars renders safely.
     const portraitPos = UI._artFocalCard(card.name);
-    const portraitStyle = portraitFile ? `--portrait-bg:url('${portraitFile}')${portraitPos ? `;--portrait-pos:${portraitPos}` : ''}` : '';
+    const portraitStyle = portraitFile ? `--portrait-bg:url('${portraitFile}')${portraitPos}` : '';
     const portraitHtml = `<div class="card-portrait" style="${portraitStyle}"><div class="card-name-overlay">${card.name || ''}</div></div>`;
     // [ CARD DATA ] divider was removed per user feedback — read as
     // distracting, didn't add information beyond the visual gap that
