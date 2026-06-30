@@ -1759,7 +1759,8 @@ const Game = {
     this.state._pendingUpkeep = [];
     const processNext = (idx) => {
       if (idx >= queue.length) { callback(); return; }
-      const { card, owner, label, costLabel } = queue[idx];
+      const { card, owner, label } = queue[idx];
+      const optional = !!queue[idx].onDecline; // onDecline = skip is harmless (no collapse)
       const next = () => processNext(idx + 1);
       if (card.currentHealth <= 0 || this.findCardLane(card) < 0) { next(); return; }
       if (!this.isHuman(owner)) {
@@ -1767,6 +1768,8 @@ const Game = {
         if (this.state[owner].currency >= 1) {
           this.state[owner].currency -= 1;
           if (queue[idx].onPay) queue[idx].onPay();
+        } else if (optional) {
+          if (queue[idx].onDecline) queue[idx].onDecline();
         } else {
           const l = this.findCardLane(card);
           card.currentHealth = 0;
@@ -1774,28 +1777,43 @@ const Game = {
         }
         next(); return;
       }
+      // Can't afford — optional upkeep just skips; mandatory collapses.
       if (this.state[owner].currency < 1) {
-        this.log(`[GARGANTUA] Not enough Energy — Gargantua collapses!`);
+        if (optional) {
+          if (queue[idx].onDecline) queue[idx].onDecline();
+          next(); return;
+        }
+        this.log(`[UPKEEP] Not enough Energy — ${label || card.name} collapses!`);
         const l = this.findCardLane(card);
         card.currentHealth = 0;
         if (l >= 0) this.handleDeath(card, l, null);
         if (typeof UI !== 'undefined' && UI.render) UI.render();
         next(); return;
       }
-      const payOpt = { _upkeepPay: true, name: 'Pay 1 Energy', cost: 1, attack: 0, health: 1,
-        type: 'environment', desc: 'Keep ' + (label || card.name) + ' active.', isEnvironment: true };
-      const skipOpt = { _upkeepSkip: true, name: 'Let it Collapse', cost: 0, attack: 0, health: 0,
-        type: 'environment', desc: (label || card.name) + ' disappears — no energy spent.', isEnvironment: true };
+      const payOpt  = { _upkeepPay:  true, name: 'Pay 1 Energy', cost: 1, attack: 0, health: 1,
+        type: 'environment', desc: (optional ? 'Activate pull — ' : 'Keep ') + (label || card.name) + (optional ? ' pulls all enemies 1 lane closer.' : ' active.'), isEnvironment: true };
+      const skipName = optional ? 'Skip' : 'Let it Collapse';
+      const skipDesc = optional
+        ? 'No pull this round — ' + (label || card.name) + ' stays put.'
+        : (label || card.name) + ' disappears — no energy spent.';
+      const skipOpt = { _upkeepSkip: true, name: skipName, cost: 0, attack: 0, health: 0,
+        type: 'environment', desc: skipDesc, isEnvironment: true };
+      const promptDesc = optional
+        ? 'Pay 1 Energy to pull all enemies 1 lane closer, or skip.'
+        : 'Pay 1 Energy to keep it active, or let it collapse.';
       this.promptCardChoice(owner, [payOpt, skipOpt],
         (label || card.name) + ' — Upkeep',
-        'Pay 1 Energy to keep it active, or let it collapse.',
+        promptDesc,
         (picked) => {
           if (picked && picked._upkeepPay) {
             this.state[owner].currency -= 1;
-            this.log(`[GARGANTUA] You pay 1 Energy — Gargantua remains.`);
+            this.log(`[UPKEEP] You pay 1 Energy — ${label || card.name} activates.`);
             if (queue[idx].onPay) queue[idx].onPay();
+          } else if (optional) {
+            this.log(`[UPKEEP] You skip — ${label || card.name} stays, no pull.`);
+            if (queue[idx].onDecline) queue[idx].onDecline();
           } else {
-            this.log(`[GARGANTUA] Gargantua collapses.`);
+            this.log(`[UPKEEP] ${label || card.name} collapses.`);
             const l = this.findCardLane(card);
             card.currentHealth = 0;
             if (l >= 0) this.handleDeath(card, l, null);

@@ -4565,12 +4565,12 @@ const CARD_ABILITIES = {
       if (laneIdx < 0) return;
 
       const AB = CARD_ABILITIES['Gargantua'];
-      // Queue an upkeep prompt. _resolveUpkeepPrompts fires it before the
-      // phase begins and calls onPay only if the player (or AI) pays.
+      // Optional upkeep: pay 1 to pull, skip to do nothing (no collapse).
       if (!G.state._pendingUpkeep) G.state._pendingUpkeep = [];
       G.state._pendingUpkeep.push({
         card: self, owner, label: 'Gargantua',
-        onPay() { AB._doPull(G, self); },
+        onPay()    { AB._doPull(G, self); },
+        onDecline() { /* no pull this round — card stays */ },
       });
     },
 
