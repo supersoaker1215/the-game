@@ -9940,6 +9940,36 @@ const UI = {
     else     localStorage.setItem('clb-force-relay', '1');
     this._mpRender();
   },
+  // Custom TURN credentials from a reliable provider (e.g. Metered.ca).
+  // The built-in free TURN servers are unreliable on hotel WiFi.
+  // Metered.ca offers a free tier — sign up at metered.ca, go to
+  // dashboard > Tools > ICE Servers, click Copy, paste here.
+  _mpSetCustomTurn() {
+    const cur = localStorage.getItem('clb-custom-turn') || '';
+    const msg =
+      'Paste your TURN server JSON from Metered.ca (free account, no credit card):\n\n' +
+      '1. Go to: dashboard.metered.ca/tools/iceServers\n' +
+      '2. Click "Copy" button\n' +
+      '3. Paste here\n\n' +
+      'Format: [{"urls":"turn:...","username":"...","credential":"..."}, ...]\n\n' +
+      'Leave blank to clear and use built-in servers.';
+    const next = prompt(msg, cur);
+    if (next === null) return;
+    if (next.trim() === '') {
+      localStorage.removeItem('clb-custom-turn');
+      this._mpRender();
+      return;
+    }
+    try {
+      const parsed = JSON.parse(next.trim());
+      if (!Array.isArray(parsed)) throw new Error('not an array');
+      localStorage.setItem('clb-custom-turn', next.trim());
+    } catch (e) {
+      alert('Invalid format. Please paste the JSON array from Metered.ca exactly.');
+      return;
+    }
+    this._mpRender();
+  },
   // Power-user knob: PartyKit deployment URL. Lives in localStorage so
   // a curious user can paste a URL once and have all matches go over
   // the production transport. Empty string = LocalTabTransport (dev).
@@ -9967,6 +9997,7 @@ const UI = {
     const url = (localStorage.getItem('clb-mp-server') || '').trim();
     const localMode = localStorage.getItem('clb-mp-mode') === 'local';
     const forceRelay = localStorage.getItem('clb-force-relay') === '1';
+    const hasCustomTurn = !!localStorage.getItem('clb-custom-turn');
     const peerJsLoaded = typeof Peer !== 'undefined';
     let transportLine;
     if (url) {
@@ -9977,7 +10008,8 @@ const UI = {
       transportLine = `<div class="mp-transport-line mp-transport-warn">⚠ PeerJS didn't load — falling back to local-tab. Check network or refresh.</div>`;
     } else {
       const relayLabel = forceRelay ? '🔴 Relay-only ON' : 'Force relay (hotel WiFi)';
-      transportLine = `<div class="mp-transport-line">Peer-to-peer (WebRTC) · <a href="#" onclick="UI._mpToggleForceRelay();return false;" title="Force-relay routes ALL traffic through the TURN relay server. Use this on hotel WiFi or any network where direct connections fail.">${relayLabel}</a></div>`;
+      const turnLabel  = hasCustomTurn ? '✅ Custom TURN set' : 'Set TURN server';
+      transportLine = `<div class="mp-transport-line">Peer-to-peer (WebRTC) · <a href="#" onclick="UI._mpToggleForceRelay();return false;" title="Force-relay routes ALL traffic through the TURN relay server. Use this on hotel WiFi or any network where direct connections fail.">${relayLabel}</a> · <a href="#" onclick="UI._mpSetCustomTurn();return false;" title="Set reliable TURN credentials from Metered.ca for hotel WiFi play">${turnLabel}</a></div>`;
     }
 
     // Body switches based on connection status. Idle → tab content

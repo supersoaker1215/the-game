@@ -555,11 +555,27 @@ const _WEBRTC_ICE_SERVERS = [
 
 // Build the ICE config, optionally forcing relay-only mode (for hotel
 // WiFi with AP isolation where direct paths never work).
+// Custom TURN: if the user pasted credentials from a reliable provider
+// (e.g. Metered.ca) via the lobby "Set TURN server" option, they're
+// stored as a JSON ICE-server array in localStorage clb-custom-turn
+// and prepended here so they take priority over the built-in servers.
 function _buildIceConfig() {
   const forceRelay = typeof localStorage !== 'undefined' &&
     localStorage.getItem('clb-force-relay') === '1';
+  let iceServers = _WEBRTC_ICE_SERVERS;
+  if (typeof localStorage !== 'undefined') {
+    const customRaw = localStorage.getItem('clb-custom-turn');
+    if (customRaw) {
+      try {
+        const custom = JSON.parse(customRaw);
+        if (Array.isArray(custom) && custom.length > 0) {
+          iceServers = [...custom, ...iceServers];
+        }
+      } catch (e) {}
+    }
+  }
   return {
-    iceServers: _WEBRTC_ICE_SERVERS,
+    iceServers,
     ...(forceRelay ? { iceTransportPolicy: 'relay' } : {}),
   };
 }

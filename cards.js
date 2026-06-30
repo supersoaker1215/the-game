@@ -276,7 +276,7 @@ const CARD_DEFS = [
   { name: "Gargantua", cost: 4, attack: 0, health: 1, type: "environment",
     isEnvironment: true,
     abilities: [],
-    desc: "Each round, spend 1 Energy to pull all enemies one lane closer. Skip if you don't want to spend it — Gargantua stays either way. If a pulled enemy enters this lane while another already occupies it, they collide — each deals damage equal to its ATK to the other. If the occupant dies, the pulled card takes the lane." },
+    desc: "Each round: pay 1 Energy to pull all enemies one lane closer, or skip — Gargantua stays either way. When a pulled enemy reaches this lane while another enemy is already here, they collide — each deals its ATK to the other. If the occupant falls, the pulled card claims the lane." },
 
   // ==================== COST 6 ====================
   { name: "Hela", cost: 6, attack: 5, health: 6, type: "villain",
