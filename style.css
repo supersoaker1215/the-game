@@ -25209,6 +25209,76 @@ button:disabled, button[disabled] {
   outline: none; border-color: #4af;
   box-shadow: 0 0 0 2px rgba(74,170,255,0.25);
 }
+
+/* ===== Gallery Audit — card-art browser + delete ===== */
+.gallery-audit-panel { max-width: min(1280px, 96vw); width: 96vw; }
+.gallery-audit-panel .aa-summary {
+  display: flex; gap: 18px; flex-wrap: wrap; align-items: center;
+  padding: 8px 10px; margin: 6px 0 10px;
+  background: rgba(74,170,255,0.06); border: 1px solid rgba(74,170,255,0.2);
+  border-radius: 6px; font-size: 12px; color: #9cf;
+}
+.gallery-audit-panel .aa-summary b { color: #cfe6ff; }
+.gallery-audit-panel .aa-controls { margin-bottom: 10px; }
+.gallery-audit-panel .aa-search {
+  width: 240px; max-width: 100%; background: #0a0f15; color: #d8e8ff;
+  border: 1px solid rgba(74,170,255,0.35); border-radius: 5px; padding: 6px 10px;
+  font-family: inherit; font-size: 12px;
+}
+.gallery-audit-panel .aa-search:focus { outline: none; border-color: #4af; box-shadow: 0 0 0 2px rgba(74,170,255,0.25); }
+.gallery-audit-panel .aa-empty { color: #789; padding: 24px; text-align: center; }
+.gal-restore {
+  margin-left: auto; background: rgba(74,170,255,0.12); color: #cfe6ff;
+  border: 1px solid rgba(74,170,255,0.4); border-radius: 5px; padding: 5px 12px;
+  font-family: inherit; font-size: 12px; cursor: pointer;
+}
+.gal-restore:hover { background: rgba(74,170,255,0.25); }
+.gal-grid {
+  max-height: 64vh; overflow: auto; padding-right: 4px;
+  display: flex; flex-direction: column; gap: 14px;
+}
+.gal-card {
+  border: 1px solid rgba(74,170,255,0.18); border-radius: 8px;
+  background: rgba(10,16,24,0.5); padding: 10px 12px;
+}
+.gal-card-name {
+  font-family: 'Rajdhani', sans-serif; font-weight: 700; letter-spacing: 1px;
+  text-transform: uppercase; color: #d8e8ff; font-size: 14px;
+  margin-bottom: 8px; display: flex; align-items: center; gap: 8px;
+}
+.gal-card-count {
+  font-size: 11px; color: #9cf; background: rgba(74,170,255,0.12);
+  border-radius: 10px; padding: 1px 8px; font-weight: 600;
+}
+.gal-thumbs { display: flex; flex-wrap: wrap; gap: 12px; }
+.gal-thumb { position: relative; margin: 0; width: 116px; }
+.gal-thumb img {
+  width: 116px; height: 168px; object-fit: cover;
+  border-radius: 6px; border: 1px solid rgba(74,170,255,0.25);
+  background: #05080c; display: block;
+}
+.gal-thumb figcaption {
+  font-size: 10px; color: #8aa; margin-top: 4px;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.gal-del, .gal-del-off {
+  position: absolute; top: 5px; right: 5px;
+  width: 24px; height: 24px; border-radius: 50%;
+  font-size: 16px; line-height: 1;
+  display: flex; align-items: center; justify-content: center;
+}
+.gal-del {
+  background: rgba(180,30,40,0.92); color: #fff;
+  border: 1px solid rgba(255,120,120,0.7); cursor: pointer;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.5); transition: transform 0.12s, background 0.12s;
+}
+.gal-del:hover { background: rgba(220,40,50,1); transform: scale(1.08); }
+.gal-del-off {
+  background: rgba(60,70,80,0.7); color: #889;
+  border: 1px solid rgba(120,130,140,0.4); cursor: not-allowed;
+}
+.gal-note { margin-top: 10px; font-size: 11px; color: #789; line-height: 1.5; }
+
 .audio-audit-panel .aa-table-wrap {
   max-height: 60vh; overflow: auto;
   border: 1px solid rgba(74,170,255,0.2);

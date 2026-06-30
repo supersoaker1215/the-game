@@ -13,7 +13,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap">
-  <link rel="stylesheet" href="style.css?v=660">
+  <link rel="stylesheet" href="style.css?v=661">
   <script>
     // Lightweight error reporter (pre-Sentry) — capture runtime JS
     // errors + unhandled promise rejections to a localStorage ring
@@ -307,6 +307,10 @@
   <!-- AUDIO AUDIT — dev panel showing audio coverage per card/event,
        with an inline splicer for re-trimming registered files. -->
   <div id="audio-audit-overlay" class="encyclopedia-overlay audio-audit-overlay" style="display:none"></div>
+
+  <!-- GALLERY AUDIT (dev) — browse every card's art variants and delete the
+       ones you don't want (after a confirmation). -->
+  <div id="gallery-audit-overlay" class="encyclopedia-overlay gallery-audit-overlay" style="display:none"></div>
 
   <!-- MULTIPLAYER LOBBY — create or join a room with a 4-letter code.
        Reuses the same chrome as match-history / encyclopedia for visual
@@ -748,8 +752,8 @@
        Served locally so the game works on restricted networks that block CDNs. -->
   <script src="peerjs.min.js"></script>
   <script src="multiplayer.js?v=13"></script>
-  <script src="card-art-manifest.js?v=31"></script>
-  <script src="ui.js?v=823"></script>
+  <script src="card-art-manifest.js?v=32"></script>
+  <script src="ui.js?v=824"></script>
   <script src="tutorial.js?v=7"></script>
   <script src="logger.js?v=5"></script>
   <!-- Always-on crash capture. Hooks window.onerror +

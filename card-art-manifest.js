@@ -70,4 +70,5 @@ window.CARD_ART_VARIANTS = {
   // Michael Myers — new fiery portrait as the primary (menu hero + in-game
   // default); original kept as a gallery variant.
   'Michael Myers':       ['Michael Myers 2.jpg',     'Michael Myers.png'],
+  'Captain America':     ['Captain America 2.jpg',   'Captain America.png'],
 };

@@ -39,7 +39,25 @@ const UI = {
 
   getCardArtVariants(name) {
     const map = (typeof window !== 'undefined' && window.CARD_ART_VARIANTS) || {};
-    return map[name] || null;
+    const arr = map[name];
+    if (!arr || !arr.length) return null;
+    const del = this._deletedArtSet();
+    if (!del.size) return arr.slice();
+    const kept = arr.filter(f => !del.has(name + '|' + f));
+    // Never strip a card's LAST art — the Gallery Audit blocks deleting it,
+    // but guard here too so a card can never end up with no portrait.
+    return kept.length ? kept : arr.slice();
+  },
+  // Gallery Audit — art variants the user "deletes" are HIDDEN everywhere (menu
+  // hero, in-game card, the gallery itself) via this localStorage-backed set.
+  // The image files stay in the project; this only stops the game from using
+  // them, and it's reversible (Restore in the Gallery Audit).
+  _deletedArtSet() {
+    if (!this._deletedArtCache) {
+      const list = this._persistGet('deletedArt', []);
+      this._deletedArtCache = new Set(Array.isArray(list) ? list : []);
+    }
+    return this._deletedArtCache;
   },
   getCardArtVariant(name) {
     // Returns the FILE NAME (e.g. "Batman 2.png") for the player's
@@ -7775,6 +7793,7 @@ const UI = {
             ${btn('mm-encyc',   'Codex',        'Every card and trick in the game',                       SVG.decks,    "UI.openEncyclopedia()")}
             ${btn('mm-stats',   'Stats',        'Card win rates and balance trends',                      SVG.stats,    "Game.goToStats()")}
             ${btn('mm-audio',   'Audio Audit',  'Per-card audio coverage + inline splicer · dev',          SVG.settings, "UI.openAudioAudit()")}
+            ${btn('mm-gallery', 'Gallery Audit','Browse + delete card art · dev',                          SVG.decks,    "UI.openGalleryAudit()")}
             ${btn('mm-sandbox', 'Sandbox',      'Free-play with unlimited energy + spawn any card · dev', SVG.settings, "UI.startSandbox()")}
           </div>
         </div>`;
@@ -7944,6 +7963,102 @@ const UI = {
     const ov = document.getElementById('audio-audit-overlay');
     if (ov) ov.style.display = 'flex';
     document.body.classList.add('clb-toggle-hidden');
+  },
+
+  // ===================== GALLERY AUDIT (dev art manager) =====================
+  // Browse every card's art variants and DELETE the ones you don't want (after
+  // a confirmation). "Delete" hides the variant everywhere via _deletedArtSet
+  // (localStorage); the file stays in the project and it's reversible.
+  openGalleryAudit() {
+    if (!this._galleryAudit) this._galleryAudit = { query: '' };
+    this.renderGalleryAudit();
+    const ov = document.getElementById('gallery-audit-overlay');
+    if (ov) ov.style.display = 'flex';
+    document.body.classList.add('clb-toggle-hidden');
+  },
+  closeGalleryAudit() {
+    const ov = document.getElementById('gallery-audit-overlay');
+    if (ov) ov.style.display = 'none';
+    document.body.classList.remove('clb-toggle-hidden');
+  },
+  _galleryAuditSetQuery(q) {
+    if (!this._galleryAudit) this._galleryAudit = {};
+    this._galleryAudit.query = q || '';
+    this.renderGalleryAudit();
+  },
+  _galleryDeleteArt(name, file) {
+    this.confirmModal(`Delete this art variant?\n\n${file}`,
+      { title: 'Delete Art', okText: 'Delete', danger: true }).then((ok) => {
+        if (!ok) return;
+        const set = this._deletedArtSet();
+        set.add(name + '|' + file);
+        this._persistSet('deletedArt', [...set]);
+        this.renderGalleryAudit();
+      });
+  },
+  _restoreAllArt() {
+    this.confirmModal('Restore all hidden art variants?',
+      { title: 'Restore Art', okText: 'Restore' }).then((ok) => {
+        if (!ok) return;
+        this._deletedArtCache = new Set();
+        this._persistSet('deletedArt', []);
+        this.renderGalleryAudit();
+      });
+  },
+  renderGalleryAudit() {
+    const ov = document.getElementById('gallery-audit-overlay');
+    if (!ov) return;
+    const f = this._galleryAudit || (this._galleryAudit = { query: '' });
+    const map = (typeof window !== 'undefined' && window.CARD_ART_VARIANTS) || {};
+    const del = this._deletedArtSet();
+    const ver = this._CARD_ART_VERSION || 1;
+    const q = (f.query || '').trim().toLowerCase();
+    const names = Object.keys(map).filter(n => !q || n.toLowerCase().includes(q)).sort();
+    let shown = 0;
+    const tiles = names.map((name) => {
+      const all = map[name] || [];
+      const visible = all.filter(file => !del.has(name + '|' + file));
+      shown += visible.length;
+      const jsName = String(name).replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+      const thumbs = visible.map((file) => {
+        const jsFile = String(file).replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+        const url = `audio/cards/art/${encodeURIComponent(file)}?v=${ver}`;
+        const last = visible.length <= 1;
+        const delBtn = last
+          ? `<span class="gal-del gal-del-off" title="Only art — can't delete">×</span>`
+          : `<button type="button" class="gal-del" title="Delete this art" onclick="UI._galleryDeleteArt('${jsName}','${jsFile}')">×</button>`;
+        return `<figure class="gal-thumb">
+          <img src="${url}" alt="${file}" loading="lazy">
+          ${delBtn}
+          <figcaption title="${file}">${file}</figcaption>
+        </figure>`;
+      }).join('');
+      return `<div class="gal-card">
+        <div class="gal-card-name">${name}<span class="gal-card-count">${visible.length}</span></div>
+        <div class="gal-thumbs">${thumbs}</div>
+      </div>`;
+    }).join('');
+    const restoreBtn = del.size
+      ? `<button type="button" class="gal-restore" onclick="UI._restoreAllArt()">Restore ${del.size} hidden</button>`
+      : '';
+    ov.innerHTML = `
+      <div class="encyc-panel gallery-audit-panel">
+        <button type="button" class="encyc-close" onclick="UI.closeGalleryAudit()">← Menu</button>
+        <h1 class="encyc-title">Gallery Audit</h1>
+        <div class="aa-summary">
+          <span><b>${names.length}</b> cards with art</span>
+          <span><b>${shown}</b> variants shown</span>
+          <span><b>${del.size}</b> hidden</span>
+          ${restoreBtn}
+        </div>
+        <div class="aa-controls">
+          <input class="aa-search" type="search" placeholder="Filter by card name…"
+            value="${(f.query || '').replace(/"/g, '&quot;')}"
+            oninput="UI._galleryAuditSetQuery(this.value)">
+        </div>
+        <div class="gal-grid">${tiles || '<div class="aa-empty">No matches.</div>'}</div>
+        <div class="gal-note">Delete hides the art from the menu + in-game card (the image file stays in the project). Saved on this device; use Restore to bring hidden art back.</div>
+      </div>`;
   },
 
   // ===================== SANDBOX (dev free-play) =====================
