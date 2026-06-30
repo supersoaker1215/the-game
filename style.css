@@ -19008,7 +19008,7 @@ body.combat-anticipate .board {
 }
 .trick-card:hover,
 .draft-card.trick-draft:hover {
-  transform: translateY(-4px)
+  transform: scale(1.5) translateY(-6px)
              rotateX(calc(var(--tilt-y, 0) * -6deg))
              rotateY(calc(var(--tilt-x, 0) * 6deg));
   transition: transform 90ms ease-out;
@@ -19017,7 +19017,8 @@ body.combat-anticipate .board {
 @media (prefers-reduced-motion: reduce) {
   .trick-card:hover,
   .draft-card.trick-draft:hover {
-    transform: translateY(-4px) !important;
+    transform: scale(1.5) translateY(-6px) !important;
+    transition: none !important;
   }
 }
 
