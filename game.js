@@ -2538,9 +2538,24 @@ const Game = {
     }
     const idx = this.state[owner].hand.indexOf(card);
     if (idx > -1) this.state[owner].hand.splice(idx, 1);
-    this.state.lanes[laneIdx][owner] = card;
+    const freeLane = this.state.lanes[laneIdx];
+    if (card.isEnvironment) {
+      if (!freeLane._env) freeLane._env = {};
+      // Only one environment per lane — kill any existing from either side.
+      const envOpp = this.opponent(owner);
+      [owner, envOpp].forEach(side => {
+        const existing = freeLane._env[side];
+        if (existing && existing !== card) {
+          existing.currentHealth = 0;
+          this.handleDeath(existing, laneIdx, null);
+        }
+      });
+      freeLane._env[owner] = card;
+    } else {
+      freeLane[owner] = card;
+    }
     if (card.statsEnteredRound == null) card.statsEnteredRound = this.state.round || 1;
-    this.log(`[FREE PLAY] ${card.name} (${card.attack}/${card.currentHealth}) in lane ${laneIdx + 1}`);
+    this.log(`[FREE PLAY] ${card.name} in lane ${laneIdx + 1}`);
     this.checkLaneTrap(card, laneIdx);
 
     // Trigger "While Active" buffs from allies (e.g. Black Panther +1/+1)
