@@ -523,6 +523,24 @@ class WebSocketTransport {
 }
 
 // ============================================================
+// SHARED ICE SERVER CONFIG (STUN + TURN)
+// ============================================================
+// Used by both WebRTCTransport (1v1) and WebRTC4Transport (2v2).
+// The TURN entries relay traffic through metered.ca's public Open
+// Relay servers when direct P2P fails — covers hotel WiFi, mobile
+// hotspots, and corporate networks with symmetric NAT that block
+// raw UDP. TURNS (TLS on 443) is the last-resort fallback since
+// port 443 is open on every network that allows HTTPS.
+const _WEBRTC_ICE_SERVERS = [
+  { urls: 'stun:stun.l.google.com:19302' },
+  { urls: 'stun:stun1.l.google.com:19302' },
+  { urls: 'turn:openrelay.metered.ca:80',               username: 'openrelayproject', credential: 'openrelayproject' },
+  { urls: 'turn:openrelay.metered.ca:80?transport=tcp', username: 'openrelayproject', credential: 'openrelayproject' },
+  { urls: 'turn:openrelay.metered.ca:443',              username: 'openrelayproject', credential: 'openrelayproject' },
+  { urls: 'turns:openrelay.metered.ca:443',             username: 'openrelayproject', credential: 'openrelayproject' },
+];
+
+// ============================================================
 // WEBRTC TRANSPORT — peer-to-peer over the public internet
 // ============================================================
 // Uses PeerJS (https://peerjs.com) for WebRTC signaling. PeerJS
@@ -534,11 +552,8 @@ class WebSocketTransport {
 // Why this transport: the user wanted to play against a friend on
 // a different computer "on the web" without deploying any backend.
 // PeerJS public cloud + WebRTC achieves that with zero server cost
-// and no account setup. ~95% of home networks (consumer routers
-// behind NAT) connect cleanly; the few that need TURN relay
-// servers (some corporate / mobile carrier networks with symmetric
-// NAT) will fail and fall back to a connection error — that's a
-// known WebRTC limitation we accept.
+// and no account setup. TURN relay servers handle hotel WiFi,
+// mobile hotspots, and corporate networks with symmetric NAT.
 //
 // Room code mapping: the 4-letter room code becomes a peer ID with
 // a 'clb-game-' prefix so we don't collide with other apps using
@@ -600,7 +615,7 @@ class WebRTCTransport {
       // PeerJS auto-uses Google STUN servers + the public 0.peerjs.com
       // signaling cloud by default. No config needed for typical home
       // networks. `debug: 1` keeps console output minimal (errors only).
-      this._peer = new Peer(peerId, { debug: 1 });
+      this._peer = new Peer(peerId, { debug: 1, config: { iceServers: _WEBRTC_ICE_SERVERS } });
     } catch (e) {
       this._dispatchError('Could not initialize peer: ' + (e && e.message || e));
       return;
@@ -626,7 +641,7 @@ class WebRTCTransport {
   _openAsJoiner(msg) {
     this._roomCode = msg.code;
     try {
-      this._peer = new Peer({ debug: 1 });  // auto-generated ID for joiner
+      this._peer = new Peer({ debug: 1, config: { iceServers: _WEBRTC_ICE_SERVERS } });  // auto-generated ID for joiner
     } catch (e) {
       this._dispatchError('Could not initialize peer: ' + (e && e.message || e));
       return;
@@ -783,7 +798,7 @@ class WebRTC4Transport {
     this._mySlot = 'p1';
     this._roomCode = msg.code;
     try {
-      this._peer = new Peer(this._peerIdFor(msg.code), { debug: 1 });
+      this._peer = new Peer(this._peerIdFor(msg.code), { debug: 1, config: { iceServers: _WEBRTC_ICE_SERVERS } });
     } catch (e) {
       this._dispatchError('Peer init failed: ' + (e && e.message || e));
       return;
@@ -821,7 +836,7 @@ class WebRTC4Transport {
   _openAsJoiner(msg) {
     this._roomCode = msg.code;
     try {
-      this._peer = new Peer({ debug: 1 });
+      this._peer = new Peer({ debug: 1, config: { iceServers: _WEBRTC_ICE_SERVERS } });
     } catch (e) {
       this._dispatchError('Peer init failed: ' + (e && e.message || e));
       return;
