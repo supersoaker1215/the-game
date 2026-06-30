@@ -2689,7 +2689,7 @@ const Game = {
     // trigger Time Stone's counter prompt — spec: "whenever an enemy
     // plays a trick … that would negatively effect [your cards]".
     const HOSTILE_TRICKS = new Set([
-      'Batarang',        // direct damage
+      'Batarangs',       // direct damage
       'Kryptonite',      // -3 ATK from enemy
       'The Darkhold',    // destroy low-ATK enemies
       'Fear Toxin',      // fear
