@@ -1746,6 +1746,8 @@ const CARD_ABILITIES = {
         const card = G.createCardInstance(pick, self.owner);
         card.cost = Math.max(0, card.cost - 2);
         G.addToHand(self.owner, card, self);
+        // Kang's pick counts as this round's draw — skip the end-of-round draw.
+        G.state[self.owner]._kangSkipDraw = true;
         G.log(`Kang keeps ${card.name} (cost reduced to ${card.cost})`);
         if (card.cost <= 2) {
           // Environments can go in any non-destroyed lane; normal cards need an open slot.

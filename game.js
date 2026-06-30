@@ -413,6 +413,7 @@ const Game = {
               card.cost = Math.max(0, card.cost - 2);
               this.log(`  [KANG] Kept ${card.name} (cost reduced to ${card.cost})`);
               this.addToHand(kc.owner, card);
+              this.state[kc.owner]._kangSkipDraw = true;
               if (card.cost <= 2 && !card.isDiscardEffect) {
                 const open = card.isEnvironment
                   ? this.state.lanes.map((l, i) => i).filter(i => !this.state.lanes[i].destroyed)
@@ -4311,10 +4312,14 @@ const Game = {
     const relicDrawBonusAlt = (isOddRound && this.state.roguelite && this.state.roguelite._extraDrawAlt) || 0;
     const playerDraw = baseDraw + relicDrawBonus + relicDrawBonusAlt;
     this.handleDrStrangeReorder((peeked) => {
-      if (!peeked.has('player')) this.drawCards('player', playerDraw);
-      else this.log(`  [FORESEE] Peek counts as your draw this round.`);
-      if (!peeked.has('ai')) this.drawCards('ai', baseDraw);
-      else this.log(`  [FORESEE] Peek counts as AI's draw this round.`);
+      const playerKang = !!this.state.player._kangSkipDraw;
+      const aiKang     = !!this.state.ai._kangSkipDraw;
+      this.state.player._kangSkipDraw = false;
+      this.state.ai._kangSkipDraw     = false;
+      if (!peeked.has('player') && !playerKang) this.drawCards('player', playerDraw);
+      else this.log(`  [KANG/FORESEE] Pick counts as your draw this round.`);
+      if (!peeked.has('ai') && !aiKang) this.drawCards('ai', baseDraw);
+      else this.log(`  [KANG/FORESEE] Pick counts as AI's draw this round.`);
       if (onComplete) onComplete();
     });
   },

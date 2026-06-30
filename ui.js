@@ -20686,6 +20686,9 @@ function kangChoicePick(idx) {
   card.cost = Math.max(0, card.cost - 2);
   Game.log(`  [KANG] Kept ${card.name} (cost reduced to ${card.cost})`);
   Game.addToHand(kc.owner, card);
+  // Kang's pick counts as this round's draw — skip the end-of-round draw
+  // so the rejected card isn't immediately pulled back from the top of the pile.
+  Game.state[kc.owner]._kangSkipDraw = true;
   if (card.cost <= 2) {
     // Environments can go in any non-destroyed lane; normal cards only go in open (empty) lanes.
     const open = card.isEnvironment
