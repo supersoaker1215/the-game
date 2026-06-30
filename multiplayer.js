@@ -649,7 +649,7 @@ class WebRTCTransport {
     this._peer.on('open', () => {
       const targetId = this._peerIdFor(msg.code);
       const conn = this._peer.connect(targetId, {
-        reliable: true,           // ordered + reliable like TCP — matches the engine's expectations
+        serialization: 'json',    // JSON is more compatible than binary (BinaryPack) on iOS Safari
         metadata: { name: msg.name || 'Opponent' },
       });
       this._setupConn(conn);
@@ -843,7 +843,7 @@ class WebRTC4Transport {
     }
     this._peer.on('open', () => {
       const conn = this._peer.connect(this._peerIdFor(msg.code), {
-        reliable: true,
+        serialization: 'json',    // JSON is more compatible than binary on iOS Safari
         metadata: { name: msg.name || 'Player' },
       });
       this._hostConn = conn;
