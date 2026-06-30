@@ -7541,17 +7541,18 @@ body.hit-pause .ai-hand * {
   box-shadow:
     0 0 12px rgba(155,89,182,0.50),
     0 0 24px rgba(155,89,182,0.22);
-  transition: transform 0.2s, box-shadow 0.2s;
+  transform-origin: center bottom;
+  transition: transform 240ms var(--ease-out-soft, cubic-bezier(0.22,1,0.36,1)), box-shadow 0.2s;
 }
 .trick-card.playable { cursor: pointer; }
+.trick-card:hover {
+  transform: scale(1.5) translateY(-6px);
+  z-index: 100;
+  filter: blur(0);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: geometricPrecision;
+}
 .trick-card.playable:hover {
-  /* No transform on hover — the lift caused the cursor to "fall off"
-     the card mid-translate, firing mouseleave → revert → mouseenter
-     loop ("uncontrollable jitter" reported by user). Same fix the
-     hand-card.playable:hover got earlier. The visual affordance now
-     comes purely from a brighter halo + thicker border tint, no
-     motion. */
-  transform: none;
   border-color: rgba(187,143,206,0.95);
   box-shadow:
     0 0 16px rgba(155,89,182,0.95),
