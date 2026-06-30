@@ -1964,7 +1964,7 @@ const UI = {
       const resume = () => {
         this._init();
         if (this._ctx && this._ctx.state === 'suspended') {
-          try { this._ctx.resume(); } catch (e) {}
+          try { this._ctx.resume().catch(() => {}); } catch (e) {}
         }
         // iOS blocks HTMLAudioElement.play() outside a user-gesture call stack.
         // Playing a silent Audio here within the gesture unlocks the pool so
@@ -1991,7 +1991,7 @@ const UI = {
       document.addEventListener('visibilitychange', () => {
         if (document.visibilityState === 'visible') {
           if (this._ctx && this._ctx.state === 'suspended') {
-            try { this._ctx.resume(); } catch (e) {}
+            try { this._ctx.resume().catch(() => {}); } catch (e) {}
           }
           // Re-prime the HTMLAudioElement pool so any pooled <audio> elements
           // that iOS evicted get a fresh load kick before the next SFX fires.
@@ -3054,7 +3054,7 @@ const UI = {
     play(name, gainMul, pan) {
       if (!UI.settings || UI.settings.sfxVolume === 0) return;
       if (!this._init()) return;
-      if (this._ctx.state === 'suspended') { try { this._ctx.resume(); } catch (e) {} }
+      if (this._ctx.state === 'suspended') { try { this._ctx.resume().catch(() => {}); } catch (e) {} }
       switch (name) {
         case 'cardPlay':
           // Heroic ally arrival — staggered major triad (C5-E5-G5) in
