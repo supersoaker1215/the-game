@@ -919,7 +919,7 @@ const UI = {
       // all sit at -20). 1s fade-in / 2s fade-out baked in. maxDur 81
       // lets the full phrase play; ability slot kept for the legacy
       // Spider-Man swing cue.
-      'Spider-Man':       { hover: { src: 'audio/cards/spider-man-hover.mp3?v=3', maxDur: 81 }, ability: 'audio/cards/spider-man-ability.mp3' },
+      'Spider-Man':       { hover: { src: 'audio/cards/spider-man-hover.mp3?v=4', maxDur: 81 }, ability: 'audio/cards/spider-man-ability.mp3' },
       'Ant-Man':          { death: { src: 'audio/cards/ant-man-death.m4a', fullDuration: true } },
       // Ghostface hover: 58s of Nick Cave & The Bad Seeds' "Red Right
       // Hand" (start → 0:58 of the source — intro through the first
@@ -1869,7 +1869,7 @@ const UI = {
       'audio/cards/sewers-hover.mp3',
       'audio/cards/soul-stone-hover.mp3',
       'audio/cards/space-stone-hover.mp3',
-      'audio/cards/spider-man-hover.mp3',
+      'audio/cards/spider-man-hover.mp3?v=4',
       'audio/cards/star-lord-hover.mp3',
       'audio/cards/superman-hover.mp3',
       'audio/cards/the-flash-hover.mp3',
