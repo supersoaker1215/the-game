@@ -371,7 +371,16 @@ const Game = {
                 const open = card.isEnvironment
                   ? this.state.lanes.map((l, i) => i).filter(i => !this.state.lanes[i].destroyed)
                   : this.getOpenLanes(kc.owner);
-                if (open.length) this.playCardFree(kc.owner, card, open[0]);
+                // Use promptLaneChoice so the guest gets to pick the lane
+                // (matching the single-player kangChoicePick path). The MP guard
+                // inside promptLaneChoice broadcasts pendingLaneChoice to the guest;
+                // the guest sends promptResolve:lane and playCardFree fires there.
+                if (open.length) {
+                  this.promptLaneChoice(kc.owner, open,
+                    `Play ${card.name} FREE`,
+                    `Kang — place ${card.name} (cost ${card.cost}) in a lane`,
+                    (lane) => { this.playCardFree(kc.owner, card, lane); });
+                }
               }
             }
             this.cleanupDead();
