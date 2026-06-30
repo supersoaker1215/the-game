@@ -25250,34 +25250,73 @@ button:disabled, button[disabled] {
   font-size: 11px; color: #9cf; background: rgba(74,170,255,0.12);
   border-radius: 10px; padding: 1px 8px; font-weight: 600;
 }
-.gal-thumbs { display: flex; flex-wrap: wrap; gap: 12px; }
-.gal-thumb { position: relative; margin: 0; width: 116px; }
-.gal-thumb img {
-  width: 116px; height: 168px; object-fit: cover;
-  border-radius: 6px; border: 1px solid rgba(74,170,255,0.25);
-  background: #05080c; display: block;
+.gal-thumbs { display: flex; flex-wrap: wrap; gap: 14px; }
+.gal-thumb {
+  width: 300px; margin: 0;
+  background: rgba(6,10,16,0.6); border: 1px solid rgba(74,170,255,0.18);
+  border-radius: 8px; padding: 10px;
+  display: flex; flex-direction: column; gap: 8px;
 }
-.gal-thumb figcaption {
-  font-size: 10px; color: #8aa; margin-top: 4px;
-  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+.gal-thumb-imgs { display: flex; gap: 8px; }
+.gal-full-wrap, .gal-crop {
+  position: relative; flex: 1; height: 200px;
+  border-radius: 6px; border: 1px solid rgba(74,170,255,0.25);
+  background-color: #05080c; overflow: hidden;
+}
+.gal-full { width: 100%; height: 100%; object-fit: contain; display: block; }
+.gal-crop { background-size: cover; background-repeat: no-repeat; }
+.gal-tag {
+  position: absolute; left: 4px; bottom: 4px;
+  font-size: 9px; letter-spacing: 0.5px; text-transform: uppercase;
+  color: #cfe6ff; background: rgba(0,0,0,0.62); padding: 1px 5px; border-radius: 3px;
+}
+.gal-thumb-tools { display: flex; align-items: center; justify-content: space-between; }
+.gal-order { display: flex; align-items: center; gap: 5px; }
+.gal-move {
+  width: 26px; height: 24px; border-radius: 4px;
+  background: rgba(74,170,255,0.1); color: #cfe6ff;
+  border: 1px solid rgba(74,170,255,0.35); cursor: pointer; font-size: 11px;
+}
+.gal-move:hover:not(:disabled) { background: rgba(74,170,255,0.25); }
+.gal-move:disabled { opacity: 0.3; cursor: default; }
+.gal-primary {
+  font-size: 9px; font-weight: 700; letter-spacing: 1px; color: #8ef2ad;
+  border: 1px solid rgba(120,242,160,0.4); border-radius: 3px; padding: 1px 6px; margin-left: 4px;
 }
 .gal-del, .gal-del-off {
-  position: absolute; top: 5px; right: 5px;
-  width: 24px; height: 24px; border-radius: 50%;
-  font-size: 16px; line-height: 1;
-  display: flex; align-items: center; justify-content: center;
+  width: 26px; height: 26px; border-radius: 50%; font-size: 16px; line-height: 1;
+  display: flex; align-items: center; justify-content: center; flex: 0 0 auto;
 }
 .gal-del {
   background: rgba(180,30,40,0.92); color: #fff;
   border: 1px solid rgba(255,120,120,0.7); cursor: pointer;
-  box-shadow: 0 1px 4px rgba(0,0,0,0.5); transition: transform 0.12s, background 0.12s;
+  transition: transform 0.12s, background 0.12s;
 }
 .gal-del:hover { background: rgba(220,40,50,1); transform: scale(1.08); }
 .gal-del-off {
   background: rgba(60,70,80,0.7); color: #889;
   border: 1px solid rgba(120,130,140,0.4); cursor: not-allowed;
 }
+.gal-slider { display: flex; align-items: center; gap: 8px; font-size: 11px; color: #9cf; }
+.gal-slider input[type=range] { flex: 1; accent-color: #4af; }
+.gal-thumb-foot { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.gal-reset {
+  background: rgba(74,170,255,0.08); color: #9cf; border: 1px solid rgba(74,170,255,0.3);
+  border-radius: 4px; padding: 3px 8px; font-size: 10px; cursor: pointer;
+}
+.gal-reset:hover { background: rgba(74,170,255,0.2); }
+.gal-fname {
+  font-size: 10px; color: #8aa; white-space: nowrap; overflow: hidden;
+  text-overflow: ellipsis; flex: 1; text-align: right;
+}
 .gal-note { margin-top: 10px; font-size: 11px; color: #789; line-height: 1.5; }
+
+/* Audio splicer — Start / Finish sliders (touch-friendly manual trim) */
+.aa-splicer-ranges { display: flex; flex-direction: column; gap: 6px; margin: 8px 0; }
+.aa-rng-lbl { display: flex; align-items: center; gap: 10px; font-size: 11px; color: #9cf; }
+.aa-rng-lbl input[type=range] { flex: 1; height: 22px; }
+.aa-splicer-in-rng  { accent-color: #4af; }
+.aa-splicer-out-rng { accent-color: #fc6; }
 
 .audio-audit-panel .aa-table-wrap {
   max-height: 60vh; overflow: auto;

@@ -42,11 +42,15 @@ const UI = {
     const arr = map[name];
     if (!arr || !arr.length) return null;
     const del = this._deletedArtSet();
-    if (!del.size) return arr.slice();
-    const kept = arr.filter(f => !del.has(name + '|' + f));
-    // Never strip a card's LAST art — the Gallery Audit blocks deleting it,
-    // but guard here too so a card can never end up with no portrait.
-    return kept.length ? kept : arr.slice();
+    let kept = del.size ? arr.filter(f => !del.has(name + '|' + f)) : arr.slice();
+    if (!kept.length) kept = arr.slice();   // never strip a card's LAST art
+    // Apply a saved reorder (Gallery Audit) — files in the saved order first,
+    // any not-yet-ordered files appended in their manifest order.
+    const ord = this._artOrderMap()[name];
+    if (ord && ord.length) {
+      kept = ord.filter(f => kept.includes(f)).concat(kept.filter(f => !ord.includes(f)));
+    }
+    return kept;
   },
   // Gallery Audit — art variants the user "deletes" are HIDDEN everywhere (menu
   // hero, in-game card, the gallery itself) via this localStorage-backed set.
@@ -58,6 +62,51 @@ const UI = {
       this._deletedArtCache = new Set(Array.isArray(list) ? list : []);
     }
     return this._deletedArtCache;
+  },
+  // Gallery Audit — manual CROP: a per-variant background-position ("X% Y%")
+  // keyed by "name|file" in localStorage. Applied to the in-game card
+  // (--portrait-pos) and the menu hero. Falls back to PORTRAIT_POSITION, then
+  // the CSS default.
+  _artFocalMap() {
+    if (!this._artFocalCache) {
+      const m = this._persistGet('artFocal', {});
+      this._artFocalCache = (m && typeof m === 'object') ? m : {};
+    }
+    return this._artFocalCache;
+  },
+  _artFocalFor(name, file) {
+    return this._artFocalMap()[name + '|' + file] || this.PORTRAIT_POSITION[name] || '';
+  },
+  _artFocal(name) {   // focal for the card's currently-displayed variant
+    return this._artFocalFor(name, this.getCardArtVariant(name));
+  },
+  _setArtFocal(name, file, pos) {
+    const m = this._artFocalMap();
+    if (pos && pos !== 'center center') m[name + '|' + file] = pos;
+    else delete m[name + '|' + file];
+    this._persistSet('artFocal', m);
+  },
+  // Gallery Audit — manual REORDER: a per-card ordered list of files in
+  // localStorage. _moveArt swaps a variant up/down; getCardArtVariants applies
+  // it (so the first becomes the menu hero + in-game default).
+  _artOrderMap() {
+    if (!this._artOrderCache) {
+      const m = this._persistGet('artOrder', {});
+      this._artOrderCache = (m && typeof m === 'object') ? m : {};
+    }
+    return this._artOrderCache;
+  },
+  _moveArt(name, file, dir) {
+    const all = (typeof window !== 'undefined' && window.CARD_ART_VARIANTS && window.CARD_ART_VARIANTS[name]) || [];
+    const om = this._artOrderMap();
+    let order = (om[name] && om[name].length ? om[name] : all).slice().filter(f => all.includes(f));
+    all.forEach(f => { if (!order.includes(f)) order.push(f); });
+    const i = order.indexOf(file), j = i + dir;
+    if (i < 0 || j < 0 || j >= order.length) return;
+    const t = order[i]; order[i] = order[j]; order[j] = t;
+    om[name] = order;
+    this._persistSet('artOrder', om);
+    this.renderGalleryAudit();
   },
   getCardArtVariant(name) {
     // Returns the FILE NAME (e.g. "Batman 2.png") for the player's
@@ -549,6 +598,10 @@ const UI = {
       const active = hero.querySelector('.mm-hero-img.is-visible');
       const next = (active === bufs[0]) ? bufs[1] : bufs[0];
       next.style.backgroundImage = `url("${art}")`;
+      // Manual crop (Gallery Audit) — focal background-position for this art.
+      // Empty string falls back to the CSS default framing.
+      const file = decodeURIComponent(String(art).split('/').pop().split('?')[0]);
+      next.style.backgroundPosition = this._artFocalFor(name, file) || '';
       if (active) active.classList.remove('is-visible');
       next.classList.add('is-visible');
     };
@@ -6803,7 +6856,7 @@ const UI = {
           const _dpPips = c.rarity || (_dpCost <= 3 ? 1 : _dpCost <= 6 ? 2 : _dpCost <= 8 ? 3 : 4);
           const rarityPips = `<span class="rarity-strip">${'<span class="rpip"></span>'.repeat(_dpPips)}</span>`;
           const portraitFile = UI.getCardArtPath(c.name);
-          const portraitPos = UI.PORTRAIT_POSITION[c.name] || '';
+          const portraitPos = UI._artFocal(c.name);
           const portraitHtml = `<div class="card-portrait" style="--portrait-bg:url('${portraitFile}')${portraitPos ? `;--portrait-pos:${portraitPos}` : ''}"><div class="card-name-overlay">${c.name}</div></div>`;
           html += `<div class="card draft-card ${this.getCostClass(c.cost)}${c.isDiscardEffect ? ' discard-effect' : ''}" data-card-name="${c.name}" onclick="twov2OnlineDraftPick(${i})">
             <span class="card-cost">${c.cost}</span>
@@ -8005,6 +8058,26 @@ const UI = {
         this.renderGalleryAudit();
       });
   },
+  // Manual-crop slider handler — live-updates the card-crop preview's
+  // background-position and saves the focal (no full re-render so the slider
+  // keeps focus while dragging). axis is 'x' or 'y'.
+  _galleryCrop(name, file, axis, val, pid) {
+    const cur = this._artFocalMap()[name + '|' + file] || this.PORTRAIT_POSITION[name] || '50% 50%';
+    const p = String(cur).replace(/center/gi, '50%').trim().split(/\s+/);
+    let x = parseFloat(p[0]);
+    let y = parseFloat(p[1] != null ? p[1] : p[0]);
+    if (!isFinite(x)) x = 50;
+    if (!isFinite(y)) y = 50;
+    if (axis === 'x') x = +val; else y = +val;
+    const pos = `${x}% ${y}%`;
+    const prev = document.getElementById(pid);
+    if (prev) prev.style.backgroundPosition = pos;
+    this._setArtFocal(name, file, pos);
+  },
+  _galleryResetCrop(name, file) {
+    this._setArtFocal(name, file, '');   // clear override → back to default framing
+    this.renderGalleryAudit();
+  },
   renderGalleryAudit() {
     const ov = document.getElementById('gallery-audit-overlay');
     if (!ov) return;
@@ -8015,22 +8088,43 @@ const UI = {
     const q = (f.query || '').trim().toLowerCase();
     const names = Object.keys(map).filter(n => !q || n.toLowerCase().includes(q)).sort();
     let shown = 0;
-    const tiles = names.map((name) => {
-      const all = map[name] || [];
-      const visible = all.filter(file => !del.has(name + '|' + file));
-      shown += visible.length;
+    const parseFocal = (pos) => {
+      const p = String(pos || '').replace(/center/gi, '50%').trim().split(/\s+/);
+      const x = parseFloat(p[0]);
+      const y = parseFloat(p[1] != null ? p[1] : p[0]);
+      return { x: isFinite(x) ? Math.round(x) : 50, y: isFinite(y) ? Math.round(y) : 50 };
+    };
+    const tiles = names.map((name, ni) => {
       const jsName = String(name).replace(/\\/g, '\\\\').replace(/'/g, "\\'");
-      const thumbs = visible.map((file) => {
+      const visible = this.getCardArtVariants(name) || [];   // deletion + reorder applied
+      shown += visible.length;
+      const thumbs = visible.map((file, idx) => {
         const jsFile = String(file).replace(/\\/g, '\\\\').replace(/'/g, "\\'");
         const url = `audio/cards/art/${encodeURIComponent(file)}?v=${ver}`;
         const last = visible.length <= 1;
+        const focal = this._artFocalFor(name, file);
+        const fp = parseFocal(focal);
+        const pid = `gcrop-${ni}-${idx}`;
         const delBtn = last
           ? `<span class="gal-del gal-del-off" title="Only art — can't delete">×</span>`
           : `<button type="button" class="gal-del" title="Delete this art" onclick="UI._galleryDeleteArt('${jsName}','${jsFile}')">×</button>`;
+        const up = `<button type="button" class="gal-move"${idx === 0 ? ' disabled' : ''} title="Move up / make primary" onclick="UI._moveArt('${jsName}','${jsFile}',-1)">▲</button>`;
+        const dn = `<button type="button" class="gal-move"${idx === visible.length - 1 ? ' disabled' : ''} title="Move down" onclick="UI._moveArt('${jsName}','${jsFile}',1)">▼</button>`;
         return `<figure class="gal-thumb">
-          <img src="${url}" alt="${file}" loading="lazy">
-          ${delBtn}
-          <figcaption title="${file}">${file}</figcaption>
+          <div class="gal-thumb-imgs">
+            <div class="gal-full-wrap"><img class="gal-full" src="${url}" alt="${file}" loading="lazy"><span class="gal-tag">full image</span></div>
+            <div class="gal-crop" id="${pid}" style="background-image:url('${url}');background-position:${focal || '50% 50%'}"><span class="gal-tag">card crop</span></div>
+          </div>
+          <div class="gal-thumb-tools">
+            <div class="gal-order">${up}${dn}${idx === 0 ? '<span class="gal-primary">PRIMARY</span>' : ''}</div>
+            ${delBtn}
+          </div>
+          <label class="gal-slider">X <input type="range" min="0" max="100" value="${fp.x}" oninput="UI._galleryCrop('${jsName}','${jsFile}','x',this.value,'${pid}')"></label>
+          <label class="gal-slider">Y <input type="range" min="0" max="100" value="${fp.y}" oninput="UI._galleryCrop('${jsName}','${jsFile}','y',this.value,'${pid}')"></label>
+          <div class="gal-thumb-foot">
+            <button type="button" class="gal-reset" onclick="UI._galleryResetCrop('${jsName}','${jsFile}')">Reset crop</button>
+            <span class="gal-fname" title="${file}">${file}</span>
+          </div>
         </figure>`;
       }).join('');
       return `<div class="gal-card">
@@ -8543,6 +8637,10 @@ const UI = {
         </div>
         <div class="aa-splicer-src">${src}</div>
         <canvas class="aa-splicer-wave" width="1080" height="120"></canvas>
+        <div class="aa-splicer-ranges">
+          <label class="aa-rng-lbl">Start <input type="range" class="aa-splicer-in-rng"  min="0" max="100" step="0.01" value="0"></label>
+          <label class="aa-rng-lbl">Finish <input type="range" class="aa-splicer-out-rng" min="0" max="100" step="0.01" value="100"></label>
+        </div>
         <div class="aa-splicer-controls">
           <label>IN <input type="number" class="aa-splicer-in"  step="0.01" min="0" value="0"></label>
           <label>OUT <input type="number" class="aa-splicer-out" step="0.01" min="0" value="0"></label>
@@ -8568,6 +8666,10 @@ const UI = {
     const exportBtn  = splicerEl.querySelector('.aa-splicer-export');
     const copyBtn    = splicerEl.querySelector('.aa-splicer-copyffmpeg');
     const status     = splicerEl.querySelector('.aa-splicer-status');
+    const inRng  = splicerEl.querySelector('.aa-splicer-in-rng');
+    const outRng = splicerEl.querySelector('.aa-splicer-out-rng');
+    // Keep the Start/Finish range sliders in sync with the number inputs.
+    const syncRanges = () => { if (inRng) inRng.value = inEl.value; if (outRng) outRng.value = outEl.value; };
     // Per-card+event localStorage key for trim params. Lets the user
     // save IN/OUT/fade values across page reloads instead of having
     // to re-find their sweet-spot every time. Same key is checked on
@@ -8583,6 +8685,8 @@ const UI = {
       outEl.value = b.duration.toFixed(2);
       outEl.max = b.duration;
       inEl.max  = b.duration;
+      if (inRng)  inRng.max  = b.duration;
+      if (outRng) outRng.max = b.duration;
       // Restore previously saved trim params if the user has hit Save
       // for this card+event before. Skips if any field would be out
       // of range (e.g. file got re-encoded shorter since the save).
@@ -8685,33 +8789,46 @@ const UI = {
         c.beginPath(); c.moveTo(x, 0); c.lineTo(x, h); c.stroke();
       }
     };
-    // Drag IN/OUT markers on the canvas for tactile editing.
+    // Drag IN/OUT markers on the canvas (mouse OR touch — Pointer Events).
     let dragging = null;  // 'in' | 'out' | null
-    canvas.addEventListener('mousedown', (e) => {
+    canvas.style.touchAction = 'none';   // let us drag without the page scrolling
+    canvas.addEventListener('pointerdown', (e) => {
       if (!buf) return;
       const r = canvas.getBoundingClientRect();
       const x = (e.clientX - r.left) * (canvas.width / r.width);
       const dur = buf.duration;
       const inX  = (parseFloat(inEl.value)  / dur) * canvas.width;
       const outX = (parseFloat(outEl.value) / dur) * canvas.width;
-      // Pick whichever marker is closer (within 18px tolerance)
-      const dIn  = Math.abs(x - inX);
-      const dOut = Math.abs(x - outX);
-      if (dIn < 18 && dIn <= dOut) dragging = 'in';
-      else if (dOut < 18) dragging = 'out';
+      const dIn  = Math.abs(x - inX), dOut = Math.abs(x - outX);
+      if (dIn < 24 && dIn <= dOut) dragging = 'in';
+      else if (dOut < 24) dragging = 'out';
       else dragging = null;
+      if (dragging) { try { canvas.setPointerCapture(e.pointerId); } catch (_) {} }
     });
-    window.addEventListener('mousemove', (e) => {
+    canvas.addEventListener('pointermove', (e) => {
       if (!dragging || !buf) return;
       const r = canvas.getBoundingClientRect();
       const x = Math.max(0, Math.min(canvas.width, (e.clientX - r.left) * (canvas.width / r.width)));
       const t = (x / canvas.width) * buf.duration;
       if (dragging === 'in')  inEl.value  = Math.min(t, parseFloat(outEl.value) - 0.1).toFixed(2);
       if (dragging === 'out') outEl.value = Math.max(t, parseFloat(inEl.value)  + 0.1).toFixed(2);
-      drawWave();
+      previewPausedAt = null; syncRanges(); drawWave();
     });
-    window.addEventListener('mouseup', () => { dragging = null; });
-    [inEl, outEl, fiEl, foEl].forEach(el => el.addEventListener('input', () => drawWave()));
+    const endDrag = () => { dragging = null; };
+    canvas.addEventListener('pointerup', endDrag);
+    canvas.addEventListener('pointercancel', endDrag);
+    // Number inputs keep the ranges + waveform in sync.
+    [inEl, outEl, fiEl, foEl].forEach(el => el.addEventListener('input', () => { syncRanges(); drawWave(); }));
+    // Start / Finish range SLIDERS — touch-friendly manual trim.
+    const wireRange = (rng, numEl, isIn) => rng && rng.addEventListener('input', () => {
+      let t = parseFloat(rng.value);
+      if (isIn) t = Math.min(t, parseFloat(outEl.value) - 0.1);
+      else      t = Math.max(t, parseFloat(inEl.value)  + 0.1);
+      numEl.value = t.toFixed(2);
+      previewPausedAt = null; drawWave();
+    });
+    wireRange(inRng, inEl, true);
+    wireRange(outRng, outEl, false);
     // Preview the slice with WebAudio gain envelope (fade-in / fade-out)
     // + actual pause/resume semantics. Web Audio BufferSource is
     // one-shot (stop() can't be undone), so "pause" captures the
@@ -9052,7 +9169,7 @@ const UI = {
           // No separate name-banner row — name lives inside the portrait
           // as a translucent bottom strip.
           const portraitFile = UI.getCardArtPath(def.name);
-          const portraitPos = UI.PORTRAIT_POSITION[def.name] || '';
+          const portraitPos = UI._artFocal(def.name);
           const portraitHtml = `<div class="card-portrait" style="--portrait-bg:url('${portraitFile}')${portraitPos ? `;--portrait-pos:${portraitPos}` : ''}"><div class="card-name-overlay">${def.name}</div></div>`;
           // [ CARD DATA ] divider was removed — user direction: "it's
           // distracting and it doesn't add anything." The painting →
@@ -11999,7 +12116,7 @@ const UI = {
         // intentionally — its `:hover { transform: none !important; }`
         // lock would suppress the draft picker's translateY(-8px) lift.
         const portraitFile = UI.getCardArtPath(c.name);
-        const portraitPos = UI.PORTRAIT_POSITION[c.name] || '';
+        const portraitPos = UI._artFocal(c.name);
         const portraitHtml = `<div class="card-portrait" style="--portrait-bg:url('${portraitFile}')${portraitPos ? `;--portrait-pos:${portraitPos}` : ''}"><div class="card-name-overlay">${c.name}</div></div>`;
         html += `<div class="card draft-card ${this.getCostClass(c.cost)}${c.isDiscardEffect ? ' discard-effect' : ''}" data-card-name="${c.name}" onclick="draftPick(${i})">
           <span class="card-cost">${c.cost}</span>
@@ -13929,7 +14046,7 @@ const UI = {
     // Cards without art still render the box with the name overlay so
     // the layout stays consistent. Per-card name escape: text content
     // only, no HTML, so a card named with special chars renders safely.
-    const portraitPos = UI.PORTRAIT_POSITION[card.name] || '';
+    const portraitPos = UI._artFocal(card.name);
     const portraitStyle = portraitFile ? `--portrait-bg:url('${portraitFile}')${portraitPos ? `;--portrait-pos:${portraitPos}` : ''}` : '';
     const portraitHtml = `<div class="card-portrait" style="${portraitStyle}"><div class="card-name-overlay">${card.name || ''}</div></div>`;
     // [ CARD DATA ] divider was removed per user feedback — read as
