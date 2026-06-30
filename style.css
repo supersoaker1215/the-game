@@ -7527,6 +7527,11 @@ body.hit-pause .ai-hand * {
   padding: 10px 16px 6px;
   border-top: 1px solid var(--tron-dim);
   box-shadow: 0 -1px 0 var(--tron-glow);
+  position: relative;
+  /* Must sit above .player-hand-section (z-index 220) so hover-scaled
+     trick cards paint over the hand row, not under it. */
+  z-index: 230;
+  overflow: visible;
 }
 .trick-cards {
   display: flex; gap: 7px; flex-wrap: nowrap; justify-content: center;
