@@ -81,7 +81,7 @@ const CARD_DEFS = [
     desc: "When Played: Next draw phase, peek at the top 2 cards — keep one, the other goes to the opponent. While Active: Adjacent allies gain Untrickable." },
   { name: "Freddy Fazbear", cost: 3, attack: 3, health: 4, type: "villain",
     abilities: [],
-    desc: "Jump: When you end a turn with unspent energy, you may deploy Freddy for free. While Active: Each round you ended with unspent energy, Freddy drains 1 Energy from the opponent at round start and gains +1 HP." },
+    desc: "Jump: When you end a turn with unspent energy, you may deploy Freddy for free. While Active: Each round you ended with unspent energy, Freddy drains 1 Energy from the opponent at round start." },
   { name: "Freddy Krueger", cost: 2, attack: 1, health: 4, type: "villain",
     _spawnOnly: true,
     abilities: [],
