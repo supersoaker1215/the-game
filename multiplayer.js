@@ -119,7 +119,7 @@ const Multiplayer = {
   // through one handler instead of dozens of listeners.
   _GAME_ACTION_TYPES: new Set([
     'playCard', 'playCardFree', 'playJump', 'playTrick', 'doneTurn', 'mulligan',
-    'draftPick', 'draftMulligan', 'promptResolve', 'forfeit'
+    'draftPick', 'draftMulligan', 'promptResolve', 'forfeit', 'reqLaneChoice'
   ]),
   _handleServerMsg(msg) {
     if (!msg || typeof msg !== 'object') return;
