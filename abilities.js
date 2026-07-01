@@ -2805,7 +2805,8 @@ const CARD_ABILITIES = {
           summonDoombot();
         },
         // AI picker: highest-cost revive gets the most value out of -3
-        cards => cards.slice().sort((a, b) => (b.cost || 0) - (a.cost || 0))[0]
+        cards => cards.slice().sort((a, b) => (b.cost || 0) - (a.cost || 0))[0],
+        { forcePrompt: true }  // always show the tray even with 1 dead card
       );
     }
   },

@@ -6070,7 +6070,8 @@ const Game = {
       this.resumeCombatIfWaiting();
       return;
     }
-    if (this.isHuman(owner) && cards.length > 1) {
+    const forcePrompt = !!(options && options.forcePrompt);
+    if (this.isHuman(owner) && (cards.length > 1 || forcePrompt)) {
       this.state.pendingCardChoice = { owner, cards, title, desc, callback, faceDown: !!(options && options.faceDown), inlineTray: !!(options && options.inlineTray) };
       // 2v2 online: route guest choices to the guest client (same as lane choice)
       const _cap = this._2v2CurrentActingPlayer;
