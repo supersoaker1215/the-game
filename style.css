@@ -21748,7 +21748,16 @@ body.killing-blow-cinema::after {
   min-height: 160px;
   margin: 8px 0 4px;
   cursor: default;
+  /* Now carries the real painted portrait (card art) like the in-hand cards:
+     flush-mount it to the top, clip to the rounded frame, let the ability
+     badges flow below and the absolute cost/stat overlays sit on top. */
+  padding: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
 }
+.go-mvp-card .card-portrait { width: 100%; margin: 0; border-radius: 7px 7px 0 0; }
+.go-mvp-card .card-abilities { padding: 5px 6px 20px; margin: 0; justify-content: center; }
 /* Rarity-based borders + halo, mirroring .draft-card.cost-* so the
    MVP / runner-up cards advertise their tier. User feedback: "the MVP
    and runner up should be the color of their respective rarity." */

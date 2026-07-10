@@ -4807,100 +4807,28 @@ const UI = {
   },
   showRoundSummary(data) {
     if (!this.settings.roundRecap) return Promise.resolve();
-    // Defensive: clear any stale peek state from prior modals so the
-    // floating restore pill never lingers into a fresh recap.
+    // Recap modal removed per user request — replaced with a smooth centered
+    // banner announcing the round about to START (data.round is the round that
+    // just ended; the next round is data.round + 1), then auto-advance. No
+    // stat table, no Continue click — just the round-number flourish.
+    const nextRound = (data && typeof data.round === 'number') ? data.round + 1 : null;
+    // Defensive: clear any stale peek state + make sure the old modal (still in
+    // index.html, now unused) can never show.
     this._peekedModal = null;
+    this._summaryResolve = null;
     const _peekPill = document.getElementById('peek-restore');
     if (_peekPill) _peekPill.style.display = 'none';
-    // Skip recap when truly nothing happened (no damage, no kills, no tricks).
-    const nothingHappened = (data.playerDamageDealt || 0) === 0
-      && (data.playerDamageTaken || 0) === 0
-      && (!data.playerKills || !data.playerKills.length)
-      && (!data.aiKills || !data.aiKills.length)
-      && (!data.playerTricks || !data.playerTricks.length)
-      && (!data.aiTricks || !data.aiTricks.length);
-    if (nothingHappened) return Promise.resolve();
     const overlay = document.getElementById('round-summary-overlay');
-    if (!overlay) return Promise.resolve();
-    const body = document.getElementById('round-summary-body');
-    const title = document.getElementById('round-summary-title');
-    title.textContent = `Round ${data.round} Recap`;
-    const rows = [];
-    const mk = (label, val, cls) => `<div class="recap-row"><span class="recap-label">${label}</span><span class="recap-val ${cls||''}">${val}</span></div>`;
-    // HP rows unchanged — your HP blue, enemy HP red
-    rows.push(mk('Your HP',     `${data.playerHp} / ${data.playerMaxHp}`, 'recap-ally'));
-    rows.push(mk('Enemy HP',    `${data.aiHp} / ${data.aiMaxHp}`, 'recap-enemy'));
-    // Damage you dealt (your output) → blue ally color
-    // Damage you took (incoming) → red
-    rows.push(mk('Damage you dealt',  data.playerDamageDealt, 'recap-ally'));
-    rows.push(mk('Damage you took',   data.playerDamageTaken, 'recap-enemy'));
-    // Enemies destroyed = RED (they were the enemies)
-    // Allies lost = BLUE (they were yours)
-    if (data.playerKills && data.playerKills.length) {
-      rows.push(mk('Enemies you destroyed', data.playerKills.join(', '), 'recap-enemy'));
-    }
-    if (data.aiKills && data.aiKills.length) {
-      rows.push(mk('Allies you lost', data.aiKills.join(', '), 'recap-ally'));
-    }
-    // Tricks used — your tricks blue, AI's tricks red
-    if (data.playerTricks && data.playerTricks.length) {
-      rows.push(mk('Tricks you used', data.playerTricks.join(', '), 'recap-ally'));
-    }
-    if (data.aiTricks && data.aiTricks.length) {
-      rows.push(mk('Tricks AI used', data.aiTricks.join(', '), 'recap-enemy'));
-    }
-    // Build a visual timeline strip — a horizontal row of event pills
-    // showing the round's notable moments (plays, tricks, kills). Each
-    // pill is color-coded by source side + event type so the player
-    // reads the round's flow at a glance.
-    const timelineEvents = [];
-    (data.playerTricks || []).forEach(n => timelineEvents.push({ type: 'trick', side: 'player', name: n }));
-    (data.aiTricks     || []).forEach(n => timelineEvents.push({ type: 'trick', side: 'ai',     name: n }));
-    (data.playerKills  || []).forEach(n => timelineEvents.push({ type: 'kill',  side: 'player', name: n })); // player killed enemy
-    (data.aiKills      || []).forEach(n => timelineEvents.push({ type: 'kill',  side: 'ai',     name: n })); // AI killed ally
-    const iconFor = {
-      trick:  '✦',
-      kill:   '☠',
-      play:   '▲',
-      damage: '◈'
-    };
-    const sideCls = (s) => s === 'player' ? 'tl-player' : 'tl-ai';
-    // Look up each pill's cost so we can tag it with a `cost-N` class
-    // and have the recap timeline pick up the same rarity-tier neon
-    // styling the rest of the game uses (green common / cyan uncommon
-    // / silver rare / gold legendary). Falls back to 0 if the name
-    // can't be resolved (defensive — sim mode mocks may pass bare
-    // strings without a registry hit).
-    const lookupCost = (name, type) => {
-      try {
-        if (type === 'trick' && typeof TRICK_DEFS !== 'undefined') {
-          const t = TRICK_DEFS.find(d => d.name === name);
-          if (t) return t.cost || 0;
-        }
-        if (typeof CARD_DEFS !== 'undefined') {
-          const c = CARD_DEFS.find(d => d.name === name);
-          if (c) return c.cost || 0;
-        }
-      } catch (e) {}
-      return 0;
-    };
-    const pillHtml = timelineEvents.length
-      ? `<div class="recap-timeline"><div class="recap-timeline-label">Timeline</div><div class="recap-timeline-rail">${
-          timelineEvents.map(ev => {
-            const lbl = ev.type === 'kill'
-              ? (ev.side === 'player' ? `destroyed ${ev.name}` : `${ev.name} lost`)
-              : `${ev.name}`;
-            const cost = lookupCost(ev.name, ev.type);
-            const costCls = 'cost-' + Math.min(10, Math.max(0, cost));
-            return `<span class="recap-tl-pill recap-tl-${ev.type} ${sideCls(ev.side)} ${costCls}" title="${lbl}">`
-              + `<span class="recap-tl-icon">${iconFor[ev.type] || '•'}</span>`
-              + `<span class="recap-tl-text">${ev.name}</span></span>`;
-          }).join('')
-        }</div></div>`
-      : '';
-    body.innerHTML = pillHtml + rows.join('');
-    overlay.style.display = 'flex';
-    return new Promise(res => { this._summaryResolve = res; });
+    if (overlay) overlay.style.display = 'none';
+    if (nextRound == null) return Promise.resolve();
+    return new Promise(res => {
+      let done = false;
+      const finish = () => { if (done) return; done = true; res(); };
+      try { this.showPhaseBanner('Round ' + nextRound, { duration: 1400 }); } catch (e) {}
+      // Advance as the banner reads/fades (~1.4s) so the next round begins
+      // seamlessly. Guarded so it resolves exactly once.
+      setTimeout(finish, 1400);
+    });
   },
 
   // ===================== PHASE BANNER =====================
@@ -16334,6 +16262,15 @@ const UI = {
         ? `<div class="card-abilities status-badges">${this.formatAbilityBadges(def.abilities)}</div>` : '';
       const sideTag = entry.side === 'player' ? 'YOU' : 'OPP';
       const sideTagCls = entry.side === 'player' ? 'go-mvp-side-you' : 'go-mvp-side-opp';
+      // Real painted portrait — same art + focal-crop the in-hand card uses, so
+      // the MVP/runner-up cards read as the actual cards the player just fought
+      // with (not empty silhouettes). Name lives as the overlay strip on the
+      // bottom of the portrait, exactly like the board/hand cards.
+      const name = entry.name || (def && def.name) || '';
+      const portraitFile = name ? UI.getCardArtPath(name) : null;
+      const portraitPos = UI._artFocalCard(name);
+      const portraitStyle = portraitFile ? `--portrait-bg:url('${portraitFile}')${portraitPos}` : '';
+      const portraitHtml = `<div class="card-portrait" style="${portraitStyle}"><div class="card-name-overlay">${name}</div></div>`;
       return `
         <div class="go-mvp-slot go-mvp-${label.toLowerCase()}">
           <div class="go-mvp-header">
@@ -16342,7 +16279,7 @@ const UI = {
           </div>
           <div class="card go-mvp-card ${this.getCostClass(cost)}">
             <span class="card-cost">${cost}</span>
-            <div class="card-name-banner"><div class="card-name">${entry.name}</div></div>
+            ${portraitHtml}
             ${abilities}
             ${stats}
           </div>
@@ -17223,7 +17160,7 @@ const UI = {
       // Position buffer — {x, y, t} for each move sample. Older
       // entries get pruned each frame.
       const buf = [];
-      const TRAIL_LIFE = 320;     // ms — how long a position lasts in the trail
+      const TRAIL_LIFE = 160;     // ms — how long a position lasts in the trail (halved: shorter trail, less lag)
       // Disk-edge geometry: the trail represents the back edges of a
       // gliding disk. TRAIL_OFFSET is the disk's radius (so the two
       // lines sit on opposite sides of the disk, separated by the
