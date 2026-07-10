@@ -9835,7 +9835,7 @@ const UI = {
       // host pushes its first 'state' broadcast. No further action.
     });
     Multiplayer.on('opponentJoined', (m) => {
-      this._mpState.opponent = (m && m.name) || 'Opponent';
+      this._mpState.opponent = this._sanitizeName(m && m.name, 'Opponent');
       this._mpState.status = 'paired';
       this._mpRender();
       // Host: as soon as opponent joins, kick off a draft and broadcast
@@ -10034,12 +10034,40 @@ const UI = {
     const n = (val || '').trim().slice(0, 12);
     if (n) localStorage.setItem('clb-mp-name', n);
   },
+  // Display names arrive from the network (URL param / peer metadata)
+  // and are rendered via innerHTML in several lobby/board templates.
+  // Strip characters that carry HTML/attribute meaning so a name can
+  // never break out of its text or attribute context (XSS), and cap
+  // length. Returns `fallback` when nothing usable remains.
+  _sanitizeName(raw, fallback = 'Player') {
+    let s = String(raw == null ? '' : raw);
+    // Drop characters that carry HTML/attribute meaning, plus control
+    // characters (filtered by code point to avoid a control-char regex).
+    s = s.replace(/[<>&"'`]/g, '');
+    s = s.split('').filter(ch => ch.charCodeAt(0) >= 0x20 && ch.charCodeAt(0) !== 0x7F).join('').trim();
+    s = s.slice(0, 18);
+    return s || fallback;
+  },
+  // Scrub every player name inside a 2v2 state object in place. Used
+  // after adopting a full state broadcast from a (untrusted) host.
+  _scrub2v2Names(s) {
+    const tt = s && s.twoVTwo;
+    if (!tt || !tt.players) return;
+    ['p1', 'p2', 'p3', 'p4'].forEach(pk => {
+      const p = tt.players[pk];
+      if (p && p.name != null) p.name = this._sanitizeName(p.name, pk);
+    });
+  },
   // Override the in-game name plates with real player names from _mpNames.
   // Called after opponentJoined (host) and after each state receive (guest).
   _mpApplyNames(s) {
     if (!s || !s._mpNames) return;
-    const myName = (s._mpNames.player || 'You').slice(0, 12);
-    const oppName = (s._mpNames.ai || 'Opponent').slice(0, 12);
+    // Sanitize in place so every downstream reader (oppName(), toasts,
+    // nameplates) sees a safe value regardless of render path.
+    s._mpNames.player = this._sanitizeName(s._mpNames.player, 'You');
+    s._mpNames.ai = this._sanitizeName(s._mpNames.ai, 'Opponent');
+    const myName = s._mpNames.player.slice(0, 12);
+    const oppName = s._mpNames.ai.slice(0, 12);
     const nmEl  = document.getElementById('player-name');
     const aiNmEl = document.getElementById('ai-name');
     const aiAvEl = document.getElementById('ai-avatar');
@@ -21293,7 +21321,7 @@ function start2v2Confirm() {
   // Apply names and use default teams (A: p1+p2, B: p3+p4)
   const tt = Game.state.twoVTwo;
   if (tt) {
-    ['p1','p2','p3','p4'].forEach(pk => { tt.players[pk].name = names[pk]; });
+    ['p1','p2','p3','p4'].forEach(pk => { tt.players[pk].name = UI._sanitizeName(names[pk], 'Player ' + pk[1]); });
   }
   Game.confirm2v2Teams(names, null);
 }
@@ -21314,7 +21342,7 @@ function start2v2RandomTeams() {
   const tt = Game.state.twoVTwo;
   if (tt) {
     keys.forEach((pk, i) => {
-      tt.players[pk].name = names[pk];
+      tt.players[pk].name = UI._sanitizeName(names[pk], 'Player ' + pk[1]);
       tt.players[pk].team = i < 2 ? 'A' : 'B';
     });
   }
@@ -21438,7 +21466,7 @@ function twov2OnlineCreate() {
     const tt = Game.state.twoVTwo;
     if (tt) {
       tt.you = you;
-      tt.players.p1.name = name;
+      tt.players.p1.name = UI._sanitizeName(name, 'Player 1');
       tt.joinedPlayers = tt.joinedPlayers || {};
       tt.joinedPlayers.p1 = true;
     }
@@ -21449,7 +21477,7 @@ function twov2OnlineCreate() {
   Multiplayer4.on('playerJoined', ({ playerKey, name: pname }) => {
     const tt = Game.state.twoVTwo;
     if (tt && tt.players[playerKey]) {
-      tt.players[playerKey].name = pname || playerKey;
+      tt.players[playerKey].name = UI._sanitizeName(pname, playerKey);
       tt.joinedPlayers = tt.joinedPlayers || {};
       tt.joinedPlayers[playerKey] = true;
     }
@@ -21467,6 +21495,7 @@ function twov2OnlineCreate() {
   Multiplayer4.on('state', ({ state }) => {
     // Non-host: apply received state and re-render
     Game.state = state;
+    UI._scrub2v2Names(Game.state);
     UI.render();
   });
 
@@ -21496,7 +21525,7 @@ function twov2OnlineJoin() {
     const tt = Game.state.twoVTwo;
     if (tt) {
       tt.you = you;
-      tt.players[you].name = name;
+      tt.players[you].name = UI._sanitizeName(name, you);
       tt.joinedPlayers = tt.joinedPlayers || {};
       tt.joinedPlayers[you] = true;
     }
@@ -21512,6 +21541,7 @@ function twov2OnlineJoin() {
       // Preserve which slot we are
       if (mySlot) Game.state.twoVTwo.you = mySlot;
     }
+    UI._scrub2v2Names(Game.state);
     UI.render();
   });
 
