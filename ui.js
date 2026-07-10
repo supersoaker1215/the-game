@@ -5298,6 +5298,8 @@ const UI = {
     // hidden scried cards face-up. Only show the chooser for the local seat's
     // own Kang (after _mpFlipPerspective the guest's own Kang is owner==='player').
     if (s.pendingKangChoice && !(Game.isMultiplayer() && s.pendingKangChoice.owner === 'ai')) { this.renderKangChoice(s); return; }
+    // No pending BWL/Kang decision this render → clear any polished decision modal.
+    this._removeDecisionModal();
 
     // Phase transition banners
     this.checkPhaseTransition(s);
@@ -12458,54 +12460,76 @@ const UI = {
   // ===================== LANE CHOICE =====================
 
 
+  // ===================== CARD DECISION MODAL =====================
+  // Shared, polished modal for all in-match card "decisions" (Batman Who Laughs
+  // intercept, Kang pick, …). A compact neon panel over a DIMMED-but-visible
+  // board — no more full-screen band that hides the lanes. Reuses the choice-tray
+  // shell so it reads consistently with the Dr. Strange / Deadpool card pickers.
+  _removeDecisionModal() {
+    const m = document.getElementById('decision-modal');
+    if (m) m.remove();
+  },
+  // choices: [{ html, onClick, danger? }]
+  _showDecisionModal(title, desc, choices) {
+    this._removeDecisionModal();
+    const modal = document.createElement('div');
+    modal.id = 'decision-modal';
+    modal.className = 'choice-tray decision-modal';
+    const items = choices.map((ch, i) =>
+      `<div class="choice-card decision-choice${ch.danger ? ' decision-danger' : ''}" data-di="${i}">${ch.html}</div>`
+    ).join('');
+    modal.innerHTML = `
+      <div class="choice-tray-backdrop"></div>
+      <div class="choice-tray-panel decision-panel">
+        <div class="choice-tray-header">
+          <span class="choice-tray-title">${title}</span>
+          ${desc ? `<span class="choice-tray-desc">${desc}</span>` : ''}
+        </div>
+        <div class="choice-tray-cards decision-choices">${items}</div>
+      </div>`;
+    document.body.appendChild(modal);
+    modal.querySelectorAll('.decision-choice').forEach(el => {
+      const i = +el.getAttribute('data-di');
+      el.addEventListener('click', () => { try { choices[i].onClick(); } catch (e) {} });
+    });
+  },
+
   // ===================== BATMAN WHO LAUGHS CHOICE =====================
 
   renderBWLChoice(s) {
-    const data = s.player.stolenByBWL;
-    const card = data.card;
-    this.draftEl.style.display = 'flex';
-    document.getElementById('game-area').style.display = 'none';
-    this.draftEl.innerHTML = `
-      <div class="draft-panel">
-        <h2>Batman Who Laughs Intercepted!</h2>
-        <p class="draft-sub">You intercepted: <strong>${card.name}</strong> (${card.attack}/${card.currentHealth})</p>
-        <p class="draft-sub">${this.formatDesc(card.desc)}</p>
-        <div class="draft-choices">
-          <div class="draft-card ${this.getCostClass(card.baseCost || card.cost)} card-choice-card" onclick="bwlChoiceKeep()">
-            <div class="card-name">Keep in Hand</div>
-            <div class="card-desc">Add ${card.name} to your hand</div>
-          </div>
-          <div class="draft-card cost-4 card-choice-card" onclick="bwlChoiceDestroy()">
-            <div class="card-name">Destroy</div>
-            <div class="card-desc">Destroy ${card.name} — Batman Who Laughs gains +2/+2</div>
-          </div>
-        </div>
-      </div>`;
+    const card = s.player.stolenByBWL.card;
+    this._showDecisionModal(
+      'Batman Who Laughs — Intercepted',
+      `You intercepted <strong>${card.name}</strong> (${card.attack}/${card.currentHealth}) · ${this.formatDesc(card.desc)}`,
+      [
+        { html: `<div class="decision-choice-title">Keep in Hand</div>`
+               + `<div class="decision-choice-sub">Add ${card.name} to your hand</div>`,
+          onClick: () => bwlChoiceKeep() },
+        { html: `<div class="decision-choice-title">Destroy</div>`
+               + `<div class="decision-choice-sub">Destroy ${card.name} — Batman Who Laughs gains +2/+2</div>`,
+          danger: true, onClick: () => bwlChoiceDestroy() },
+      ]
+    );
   },
 
   // ===================== KANG CHOICE =====================
 
   renderKangChoice(s) {
     const kc = s.pendingKangChoice;
-    this.draftEl.style.display = 'flex';
-    document.getElementById('game-area').style.display = 'none';
-    let html = `<div class="draft-panel">`;
-    html += `<h2>Kang — Choose a Card</h2>`;
-    html += `<p class="draft-sub">Pick 1 card to keep (cost reduced by 2). The other returns to the deck.</p>`;
-    html += `<div class="draft-choices">`;
-    kc.cards.forEach((card, i) => {
+    const choices = kc.cards.map((card, i) => {
       const newCost = Math.max(0, card.cost - 2);
-      html += `<div class="draft-card card-choice-card ${this.getCostClass(card.cost)}" onclick="kangChoicePick(${i})">
-        <span class="card-cost">${card.cost}</span>
-        <div class="card-name">${card.name}</div>
-        <div class="card-stats"><span class="atk">${card.attack}</span> / <span class="hp">${card.health}</span></div>
-        <div class="card-abilities status-badges">${this.formatAbilityBadges(card.abilities)}</div>
-        <div class="card-desc">${this.formatDesc(card.desc)}</div>
-        <div style="color:#f39c12;font-weight:bold;margin-top:6px">New cost: ${newCost}</div>
-      </div>`;
+      return {
+        html: `<span class="card-cost">${card.cost}</span>`
+             + `<div class="decision-choice-title">${card.name}</div>`
+             + `<div class="decision-choice-stats"><span class="atk">${card.attack}</span> / <span class="hp">${card.health}</span></div>`
+             + (card.abilities && card.abilities.length ? `<div class="card-abilities status-badges">${this.formatAbilityBadges(card.abilities)}</div>` : '')
+             + `<div class="decision-choice-sub">${this.formatDesc(card.desc)}</div>`
+             + `<div class="decision-choice-cost">New cost: ${newCost}</div>`,
+        onClick: () => kangChoicePick(i)
+      };
     });
-    html += `</div></div>`;
-    this.draftEl.innerHTML = html;
+    this._showDecisionModal('Kang — Choose a Card',
+      'Pick 1 to keep (cost −2). The other returns to the deck.', choices);
   },
 
   // ===================== BOARD =====================
