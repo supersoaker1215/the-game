@@ -2206,6 +2206,17 @@ body.hit-pause .ai-hand * {
   box-shadow: none !important;
   opacity: 0 !important;
 }
+/* Pre-warm the panel + option compositing layers. On menu ENTRANCE the
+   shell-entering opacity fade + each option's mmOptionIn transform animation
+   would otherwise cold-start a fresh GPU layer, and on some GPUs the layer's
+   uninitialized backing paints gray for a frame — intermittent gray boxes
+   aligned with the rows. backface-visibility:hidden promotes the layers ahead
+   of time so they're warm (already painted) before any animation runs. */
+.mm-mw3 .mm-panel,
+.mm-mw3 .mm-grid-section .mm-option {
+  -webkit-backface-visibility: hidden;
+  backface-visibility: hidden;
+}
 
 /* ===== In-place submenu (Solo Match etc.) — left-list swap + letter flip =====
    The left list re-renders into the SAME .mm-panel (hero + music untouched).
