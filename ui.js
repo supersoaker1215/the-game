@@ -14967,6 +14967,10 @@ const UI = {
     const lc = s.pendingLaneChoice;
     const hasPending = cc || lc;
     const isMyHandChoice = !Game.isMultiplayer() || !cc || cc.owner === 'player';
+    // Lane-choice parallel of isMyHandChoice (consumed far below at isReqLcCard).
+    // Without it, `lc && isMyLaneChoice` threw a ReferenceError whenever a lane
+    // choice was pending (MP guest placement), crashing the whole hand render.
+    const isMyLaneChoice = !Game.isMultiplayer() || !lc || lc.owner === 'player';
     const targetHandIds = new Set();
     if (cc && isMyHandChoice) cc.cards.forEach(c => { if (c.id !== undefined) targetHandIds.add(c.id); });
     // Guest debug: log when any hand card gets a non-standard onclick (cardChoicePick or jumpCard)
