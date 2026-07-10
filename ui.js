@@ -7939,6 +7939,11 @@ const UI = {
       return;
     }
     panel.innerHTML = this._mmBuildPanel(this._mmSub);
+    // Mark the panel as swapped (persistent) so the row fade-up entrance stays
+    // suppressed — the letter flip is the only entrance on a swap. Without this,
+    // removing .mm-flipping below would restart mmOptionIn and the list would
+    // visibly re-fade-in ~1.1s after the click ("disappears and reloads").
+    panel.classList.add('mm-swapped');
     // Retrigger the per-letter flip: remove → force reflow → add the class so
     // the freshly-built letters animate in. Cleared after the cascade ends.
     panel.classList.remove('mm-flipping');

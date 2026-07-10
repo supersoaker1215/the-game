@@ -2205,9 +2205,13 @@ body.hit-pause .ai-hand * {
   animation: mmLetterFlip 380ms var(--ease-out-soft, ease-out) backwards;
   animation-delay: calc(var(--mm-li, 0) * 24ms + var(--mm-idx, 0) * 55ms);
 }
-/* During a flip swap the per-letter flip IS the entrance — suppress the
-   row-rise so they don't compete. (Main-menu first load keeps mmOptionIn.) */
-.mm-mw3 .mm-panel.mm-flipping .mm-grid-section .mm-option { animation: none; }
+/* Inside a swapped panel the per-letter flip IS the entrance — suppress the
+   row fade-up so they don't compete. Keyed on the PERSISTENT .mm-swapped (not
+   the temporary .mm-flipping): when the flip class is removed after the cascade,
+   lifting `animation: none` would otherwise restart mmOptionIn from 0% and the
+   whole list would visibly re-fade-in ("reload"). .mm-swapped stays, so it
+   never replays. (Main-menu first load has no .mm-swapped → keeps mmOptionIn.) */
+.mm-mw3 .mm-panel.mm-swapped .mm-grid-section .mm-option { animation: none; }
 .mm-mw3 .mm-panel.mm-flipping .mm-section-label,
 .mm-mw3 .mm-panel.mm-flipping .mm-subback {
   animation: mmFadeUp 300ms var(--ease-out-soft, ease-out) backwards;
