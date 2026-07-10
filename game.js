@@ -2060,41 +2060,47 @@ const Game = {
     // Freddy Fazbear jump / passive check for the second player (who just committed their phase)
     this._checkFreddyFazbear(this.opponent(this.state.firstPlayer));
     this.whenPromptCleared(() => {
-      // Reveal face-down cards before the final trick phase
+      // Reveal face-down cards before the final trick phase.
+      // revealFaceDownCards fires onPlay for revealed cards, which may open
+      // a prompt (e.g. Anakin's Fear picker). Gate everything that follows
+      // behind a second whenPromptCleared so the reveal prompt resolves
+      // before runBeforeTricks fires its own prompts (e.g. Anakin's move).
       this.revealFaceDownCards();
 
-      // Run "Before Tricks" effects for all cards on board
-      this.runBeforeTricks();
-      this.cleanupDead();
+      this.whenPromptCleared(() => {
+        // Run "Before Tricks" effects for all cards on board
+        this.runBeforeTricks();
+        this.cleanupDead();
 
-      const fp = this.state.firstPlayer;
-      this.state.activePlayer = fp;
-      this.state.selectedCard = null;
-      this.state.selectedTrick = null;
-      if (fp === 'player') {
-        this.state.phase = 'player-tricks';
-        this.clearHistory(); // new player turn — undo cannot cross this boundary
-        UI.render();
-        if (typeof Tutorial !== 'undefined' && Tutorial.active) Tutorial.notify('phase-tricks', {});
-      } else {
-        this.state.phase = 'ai-tricks';
-        UI.render();
-        // Multiplayer: don't run AI for the opponent.
-        if (this.isMultiplayer()) return;
-        setTimeout(() => {
-          const nextStep = () => {
-            AI.playTrickPhaseCards('ai', () => {
-              AI.playTricks('ai', () => this.endPhase3());
-            });
-          };
-          // Red Skull: AI may also deploy character cards during its trick phase.
-          if (this.getAllCardsOf('ai').some(c => c.passive === 'allowCardsInTricksPhase')) {
-            AI.playCards('ai', nextStep);
-          } else {
-            nextStep();
-          }
-        }, 1200);
-      }
+        const fp = this.state.firstPlayer;
+        this.state.activePlayer = fp;
+        this.state.selectedCard = null;
+        this.state.selectedTrick = null;
+        if (fp === 'player') {
+          this.state.phase = 'player-tricks';
+          this.clearHistory(); // new player turn — undo cannot cross this boundary
+          UI.render();
+          if (typeof Tutorial !== 'undefined' && Tutorial.active) Tutorial.notify('phase-tricks', {});
+        } else {
+          this.state.phase = 'ai-tricks';
+          UI.render();
+          // Multiplayer: don't run AI for the opponent.
+          if (this.isMultiplayer()) return;
+          setTimeout(() => {
+            const nextStep = () => {
+              AI.playTrickPhaseCards('ai', () => {
+                AI.playTricks('ai', () => this.endPhase3());
+              });
+            };
+            // Red Skull: AI may also deploy character cards during its trick phase.
+            if (this.getAllCardsOf('ai').some(c => c.passive === 'allowCardsInTricksPhase')) {
+              AI.playCards('ai', nextStep);
+            } else {
+              nextStep();
+            }
+          }, 1200);
+        }
+      });
     });
   },
 
@@ -2787,6 +2793,14 @@ const Game = {
           card.isFaceDown = false;
           this.log(`[REVEAL] ${card.name} is revealed in lane ${i + 1}!`);
           this._runHook(card, 'onPlay', this, card, i);
+          // Fire draw-on-play / cantrip that were suppressed while face-down.
+          if (card.drawOnPlay > 0) {
+            const n = card.drawOnPlay;
+            card.drawOnPlay = 0;
+            this.drawCards(card.owner, n);
+            this.log(`${card.name} draws ${n} card${n > 1 ? 's' : ''}.`);
+          }
+          this._resolveCantripOnPlay(card);
           this.applyMagnetoDebuffs();
         }
       });
