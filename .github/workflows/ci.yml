@@ -40,8 +40,9 @@ jobs:
             JSC_BIN=/usr/lib/x86_64-linux-gnu/webkit2gtk-4.0/jsc
           fi
           if [ ! -x "$JSC_BIN" ]; then
-            # Fallback: locate jsc anywhere under /usr/lib (path varies by
-            # webkitgtk minor version on some Ubuntu point releases).
+            JSC_BIN=$(command -v jsc || true)
+          fi
+          if [ ! -x "$JSC_BIN" ]; then
             JSC_BIN=$(find /usr/lib -name jsc -type f -executable 2>/dev/null | head -n1)
           fi
           if [ -z "$JSC_BIN" ] || [ ! -x "$JSC_BIN" ]; then
