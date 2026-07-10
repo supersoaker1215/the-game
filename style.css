@@ -471,6 +471,14 @@ body::after {
 #game-area {
   position: relative;
   background: #000000;
+  /* Round-transition crossfade — showRoundSummary dips the board while the
+     round state swaps (draw + startRound + render), then lifts the dip once
+     the new round has painted. Opacity-only, GPU-cheap. */
+  transition: opacity 340ms var(--ease-out-soft, ease);
+}
+#game-area.round-swap { opacity: 0.22; }
+@media (prefers-reduced-motion: reduce) {
+  #game-area { transition: none; }
 }
 #game-area > * { position: relative; z-index: 1; }
 
@@ -7612,12 +7620,14 @@ body.hit-pause .ai-hand * {
   background-repeat: no-repeat;
   border-radius: 3px;
 }
-.enc-trick .trick-portrait,
-.trick-draft .trick-portrait {
-  height: 110px;
-  background-size: contain;
-  background-position: center center;
-  background-color: #0a0a0a;
+/* Tricks now carry the SAME full-bleed .card-portrait as character cards
+   (cover art + bottom name overlay — the old square `contain` art with black
+   side bars is gone). Key the portrait gem frame + cost color PURPLE so the
+   card chrome reads all-trick. */
+.trick-card,
+.draft-card.trick-draft {
+  --portrait-frame-rgb: 155, 89, 182;
+  --rarity-rgb: 155, 89, 182;
 }
 .trick-cost {
   position: absolute; top: -7px; left: -7px;
@@ -8697,6 +8707,7 @@ body.turn-combat .board .lane.lane-active {
      The sync button rides alongside it at a matching offset. */
   .settings-cog { right: 8px !important; top: 8px !important; }
   .sync-btn { right: 62px !important; top: 8px !important; }
+  .cheat-help-toggle { right: 60px !important; top: 8px !important; }
   .kb-hints { display: none; }
   /* Show opponent's hand + tricks as face-down mini cards on mobile,
      just like desktop. User feedback: "I meant their hand and tricks
@@ -10564,7 +10575,9 @@ body.turn-combat .board .lane.lane-active {
 }
 .choice-tray-backdrop {
   position: absolute; inset: 0;
-  background: linear-gradient(180deg, rgba(0,0,0,0.05) 0%, rgba(0,0,0,0.5) 70%);
+  /* Transparent click-catcher — user: the board must NOT grey out while a
+     card choice is up. The panel's own glow separates it from the board. */
+  background: transparent;
   pointer-events: auto;
 }
 .choice-tray-panel {
@@ -10611,19 +10624,24 @@ body.turn-combat .board .lane.lane-active {
   display: flex; gap: 14px; justify-content: center; align-items: stretch;
   flex-wrap: wrap;
 }
-/* Tray cards reuse .card styling but with a stronger highlighted outline */
+/* Tray cards reuse .card styling but with a stronger highlighted outline.
+   They now carry the full-bleed portrait (art + name overlay) at the top,
+   flush-mounted like a real board card. */
 .choice-tray .choice-card {
   width: 150px; min-height: 190px;
   position: relative;
   background: rgba(8,14,22,0.9);
   border: 2px solid rgba(79,195,247,0.65);
   border-radius: 8px;
-  padding: 10px 8px 24px;
+  padding: 0 0 22px;
+  overflow: hidden;
   cursor: pointer;
   color: #e6eef5;
   box-shadow: 0 0 14px rgba(79,195,247,0.25);
   transition: transform 0.15s, border-color 0.15s, box-shadow 0.15s;
 }
+.choice-tray .choice-card .card-portrait { width: 100%; margin: 0 0 6px; border-radius: 6px 6px 0 0; }
+.choice-tray .choice-card .card-desc { padding: 0 8px; }
 .choice-tray .choice-card:hover {
   transform: translateY(-4px);
   border-color: rgba(79,195,247,1);
@@ -10662,10 +10680,11 @@ body.turn-combat .board .lane.lane-active {
    ============================================================ */
 .decision-modal { align-items: center; }        /* center vertically, not bottom */
 .decision-modal .choice-tray-backdrop {
-  /* dim the board but keep it readable behind the panel */
-  background: radial-gradient(130% 100% at 50% 45%, rgba(2,4,8,0.38) 0%, rgba(2,4,8,0.74) 100%);
-  -webkit-backdrop-filter: blur(2px);
-  backdrop-filter: blur(2px);
+  /* NO dim/blur — the board stays fully visible behind the panel (user
+     feedback: "the board shouldn't be greyed out"). Click-catcher only. */
+  background: transparent;
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
 }
 .decision-panel {
   margin-bottom: 0;
@@ -10729,14 +10748,20 @@ body.turn-combat .board .lane.lane-active {
 .decision-choice-stats .atk { color: #ff6b5a; }
 .decision-choice-stats .hp  { color: #5be39a; }
 .decision-choice-cost { font-size: 11px; font-weight: 700; letter-spacing: 1px; color: #ffd15a; margin-top: 2px; }
-.decision-modal .decision-choice .card-cost {
-  position: static; width: auto; height: auto; font-size: 13px; color: #cfe6f5; margin-bottom: 2px;
+/* has-art tiles = real mini-cards: portrait flush-mounts the tile top and the
+   cost gem overlays its corner exactly like a board/MVP card. (The cost span
+   keeps its default absolute top-left gem styling — do NOT make it static;
+   that re-anchors its octagon pseudos to the tile and they blow up tile-size.) */
+.decision-modal .decision-choice.has-art {
+  padding: 0 0 14px;
+  overflow: hidden;
+  width: 200px; min-width: 200px;
 }
-/* Kill the octagonal cost-gem pseudos — with .card-cost now static they re-anchor
-   to the tile and blow up to tile-size (the stray gold frame). Cost shows as a
-   plain inline number instead. */
-.decision-modal .decision-choice .card-cost::before,
-.decision-modal .decision-choice .card-cost::after { content: none !important; display: none !important; }
+.decision-modal .decision-choice.has-art .card-portrait {
+  width: 100%; margin: 0 0 6px; border-radius: 8px 8px 0 0;
+}
+.decision-modal .decision-choice.has-art .decision-choice-sub,
+.decision-modal .decision-choice.has-art .decision-choice-cost { padding: 0 10px; }
 .decision-modal .decision-choice .status-badges { justify-content: center; }
 /* Danger variant (Destroy) — red neon instead of cyan. */
 .decision-modal .decision-choice.decision-danger { border-color: rgba(231,76,60,0.45); box-shadow: 0 0 12px rgba(231,76,60,0.12); }
@@ -11496,18 +11521,31 @@ body.turn-combat .board .lane.lane-active {
 
 /* In-match help button — sits just below the battle-log toggle, same chrome.
    44px touch target (the rules/keyword panel was keyboard-only before). */
+/* Docked NEXT TO the settings cog (44px cog + 10px gap → right: 68px) with the
+   same Tron chrome, so the two read as one control cluster in the top-right —
+   was a dim floater at top:94px over the board. */
 .cheat-help-toggle {
-  position: fixed !important; top: 94px; right: 8px; z-index: 125 !important;
+  position: fixed !important; top: 14px; right: 68px; z-index: 500 !important;
   width: 44px; height: 44px; border-radius: 50%;
-  background: rgba(8,14,22,0.88);
-  border: 1px solid rgba(var(--theme-rgb, 79,195,247),0.45);
-  color: rgb(var(--theme-rgb, 79,195,247));
-  font-family: 'Rajdhani', sans-serif; font-size: 22px; font-weight: 700; line-height: 1;
+  /* In-match only — body.in-match is toggled in UI.render with game-area. */
+  display: none;
+  background: #000000;
+  border: 1px solid rgba(var(--theme-rgb, 79,195,247),0.95);
+  color: rgba(var(--theme-rgb, 79,195,247),0.95);
+  font-family: 'Rajdhani', sans-serif; font-size: 20px; font-weight: 700; line-height: 1;
   cursor: pointer;
-  display: flex; align-items: center; justify-content: center;
-  transition: background 0.15s, color 0.15s, transform 0.12s;
+  align-items: center; justify-content: center;
+  text-shadow:
+    0 0 6px rgba(var(--theme-rgb, 79,195,247),1),
+    0 0 12px rgba(var(--theme-rgb, 79,195,247),0.45);
+  box-shadow:
+    0 0 12px rgba(var(--theme-rgb, 79,195,247),0.65),
+    0 0 24px rgba(var(--theme-rgb, 79,195,247),0.30),
+    inset 0 0 0 1px rgba(var(--theme-rgb, 79,195,247),0.22);
+  transition: transform 0.2s, box-shadow 0.25s, color 0.2s, background 0.2s;
 }
-.cheat-help-toggle:hover { background: rgba(var(--theme-rgb, 79,195,247),0.18); color: #f0f6fb; }
+body.in-match .cheat-help-toggle { display: flex; }
+.cheat-help-toggle:hover { background: rgba(var(--theme-rgb, 79,195,247),0.18); color: #f0f6fb; transform: scale(1.06); }
 
 /* First-run onboarding prompt — one-time centered modal over the menu. */
 .first-run-overlay {

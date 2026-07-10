@@ -4820,21 +4820,31 @@ const UI = {
     const overlay = document.getElementById('round-summary-overlay');
     if (overlay) overlay.style.display = 'none';
     if (nextRound == null) return Promise.resolve();
+    // ONE round banner only: the big #round-banner already auto-fires from the
+    // round-tick detection when startRound bumps s.round — so this path must NOT
+    // fire its own "Round N" phase banner (that was the duplicate). Instead we
+    // choreograph a smooth crossfade: dip the board, swap the round state at the
+    // low point (draw + startRound + re-render happen while faded, and startRound
+    // triggers the single big ROUND banner on top), then fade the settled new
+    // round back in. Nothing visibly jumps.
     return new Promise(res => {
       let done = false;
-      const finish = () => { if (done) return; done = true; res(); };
-      // Suppress the new round's opening phase banner ("Your Turn — Cards" etc.).
-      // It shares the SAME .phase-banner element, so if it fires right after this
-      // it replaces "Round N" mid-fade and reads as a jump — the "Round N" banner
-      // IS the transition beat.
+      const ga = document.getElementById('game-area');
+      const finish = () => {
+        if (done) return; done = true;
+        res();   // draw + startRound + render run now, behind the dip
+        // Fade back in only after the new-round render has painted.
+        requestAnimationFrame(() => requestAnimationFrame(() => {
+          if (ga) ga.classList.remove('round-swap');
+        }));
+      };
+      // Suppress the opening phase banner ("Your Turn — Cards") during the
+      // transition so the ROUND banner is the single announcement beat.
       this._suppressPhaseBanner = true;
-      try { this.showPhaseBanner('Round ' + nextRound, { duration: 1600 }); } catch (e) {}
-      // Advance the round WHILE the banner is fully opaque (~650ms in) so the
-      // draw + board reset happen HIDDEN behind it; the banner then fades to
-      // reveal the already-settled new round — no visible board/hand jump.
-      setTimeout(finish, 650);
-      // Re-enable phase banners once the "Round N" banner has fully faded.
-      setTimeout(() => { this._suppressPhaseBanner = false; }, 1750);
+      if (ga) ga.classList.add('round-swap');
+      setTimeout(finish, 360);   // matches the CSS dip duration
+      // Phase banners resume once the ROUND banner has fully played (2.0s anim).
+      setTimeout(() => { this._suppressPhaseBanner = false; }, 2300);
     });
   },
 
@@ -5248,8 +5258,11 @@ const UI = {
     // Hide game-area for all non-game screens, including local 2v2 setup/pass/lobby phases.
     // Local 2v2 game and draft now use the standard game-area/draftEl just like 1v1.
     const is2v2SetupOverlay = is2v2 && !is2v2OnlineGame && !is2v2OnlineDraft && !is2v2LocalGame && !is2v2LocalDraft;
-    (this._gameAreaEl || document.getElementById('game-area')).style.display =
-      (isDraft || is2v2OnlineDraft || is2v2LocalDraft || isMainMenu || isModeSelect || isMyDecks || isStats || isDeckBuilder || isRoguelite || is2v2SetupOverlay) ? 'none' : '';
+    const _gameAreaShown = !(isDraft || is2v2OnlineDraft || is2v2LocalDraft || isMainMenu || isModeSelect || isMyDecks || isStats || isDeckBuilder || isRoguelite || is2v2SetupOverlay);
+    (this._gameAreaEl || document.getElementById('game-area')).style.display = _gameAreaShown ? '' : 'none';
+    // body.in-match mirrors game-area visibility — gates body-level in-match
+    // chrome (the ? help button docked beside the settings cog).
+    document.body.classList.toggle('in-match', _gameAreaShown);
 
     if (isMainMenu)    { this.renderMainMenu(s); return; }
     if (isModeSelect)  { this.renderModeSelect(s); return; }
@@ -6613,13 +6626,18 @@ const UI = {
       const stats = card.attack !== undefined
         ? `<span class="stat-circle stat-atk">${card.attack}</span><span class="stat-circle stat-hp">${card.currentHealth || card.health || 0}</span>`
         : '';
-      const nameHtml = `<div class="card-name-banner"><div class="card-name">${card.name || 'Unknown'}</div></div>`;
+      // Board-style face: full-bleed portrait art + bottom name overlay (same
+      // wiring as hand/board cards) so picking a card shows the actual card.
+      const trayArtPath = card.name ? this.getCardArtPath(card.name) : null;
+      const safeTrayUrl = trayArtPath ? trayArtPath.replace(/'/g, '%27') : '';
+      const trayPortraitStyle = safeTrayUrl ? `--portrait-bg:url('${safeTrayUrl}')${this._artFocalCard(card.name)}` : '';
+      const portraitHtml = `<div class="card-portrait" style="${trayPortraitStyle}"><div class="card-name-overlay">${card.name || 'Unknown'}</div></div>`;
       const costHtml = card.cost !== undefined ? `<span class="card-cost">${card.cost}</span>` : '';
       return `
         <div class="choice-card card ${costClass}" data-idx="${idx}">
           ${costHtml}
           ${typeSigil}
-          ${nameHtml}
+          ${portraitHtml}
           <div class="card-desc">${this.formatDesc(card.desc)}</div>
           ${stats}
         </div>`;
@@ -6865,12 +6883,11 @@ const UI = {
           const trickRarity = this.getTrickRarityStrip(c.cost || 0);
           const trickArtPath = this.getCardArtPath(c.name);
           const safeTrickUrl = trickArtPath ? trickArtPath.replace(/'/g, '%27') : '';
-          const trickPortraitStyle = safeTrickUrl ? `style="background-image:url('${safeTrickUrl}')"` : '';
+          const trickPortraitStyle = safeTrickUrl ? `--portrait-bg:url('${safeTrickUrl}')${UI._artFocalCard(c.name)}` : '';
           html += `<div class="draft-card trick-draft" data-trick-name="${c.name}" onclick="twov2OnlineDraftPick(${i})">
             <span class="trick-cost">${c.cost}</span>
             ${trickRarity}
-            <div class="trick-name">${c.name}</div>
-            <div class="trick-portrait" ${trickPortraitStyle}></div>
+            <div class="card-portrait" style="${trickPortraitStyle}"><div class="card-name-overlay">${c.name}</div></div>
             ${trickBadges}
             <div class="trick-desc">${this.formatDesc(c.desc)||''}</div>
           </div>`;
@@ -9281,12 +9298,11 @@ const UI = {
           const rarityStrip = this.getTrickRarityStrip ? this.getTrickRarityStrip(cost) : '';
           const trickArtPath = this.getCardArtPath(t.name);
           const safeEncUrl = trickArtPath ? trickArtPath.replace(/'/g, '%27') : '';
-          const trickPortraitStyle = safeEncUrl ? `style="background-image:url('${safeEncUrl}')"` : '';
+          const trickPortraitStyle = safeEncUrl ? `--portrait-bg:url('${safeEncUrl}')${UI._artFocalCard(t.name)}` : '';
           return `<div class="trick-card enc-trick" data-trick-name="${t.name}">
             <span class="trick-cost">${cost}</span>
             ${rarityStrip}
-            <div class="trick-name">${t.name}</div>
-            <div class="trick-portrait" ${trickPortraitStyle}></div>
+            <div class="card-portrait" style="${trickPortraitStyle}"><div class="card-name-overlay">${t.name}</div></div>
             ${abilitiesHtml}
             <div class="trick-desc">${this.formatDesc(t.desc || '')}</div>
           </div>`;
@@ -12248,14 +12264,15 @@ const UI = {
           ? `<div class="card-abilities status-badges">${this.formatAbilityBadges(c.abilities)}</div>`
           : '';
         const draftTrickRarity = this.getTrickRarityStrip(c.cost || 0);
+        // Same portrait wiring as the character draft cards — full-bleed cover
+        // art + bottom name overlay (was square `contain` art with black bars).
         const draftTrickArtPath = this.getCardArtPath(c.name);
         const safeDraftUrl = draftTrickArtPath ? draftTrickArtPath.replace(/'/g, '%27') : '';
-        const draftTrickPortraitStyle = safeDraftUrl ? `style="background-image:url('${safeDraftUrl}')"` : '';
+        const draftTrickPortraitStyle = safeDraftUrl ? `--portrait-bg:url('${safeDraftUrl}')${UI._artFocalCard(c.name)}` : '';
         html += `<div class="draft-card trick-draft" data-trick-name="${c.name}" onclick="draftPick(${i})">
           <span class="trick-cost">${c.cost}</span>
           ${draftTrickRarity}
-          <div class="trick-name">${c.name}</div>
-          <div class="trick-portrait" ${draftTrickPortraitStyle}></div>
+          <div class="card-portrait" style="${draftTrickPortraitStyle}"><div class="card-name-overlay">${c.name}</div></div>
           ${draftTrickBadges}
           <div class="trick-desc">${this.formatDesc(c.desc)||''}</div>
         </div>`;
@@ -12476,7 +12493,7 @@ const UI = {
     modal.id = 'decision-modal';
     modal.className = 'choice-tray decision-modal';
     const items = choices.map((ch, i) =>
-      `<div class="choice-card decision-choice${ch.danger ? ' decision-danger' : ''}" data-di="${i}">${ch.html}</div>`
+      `<div class="choice-card decision-choice${ch.danger ? ' decision-danger' : ''}${ch.art ? ' has-art' : ''}" data-di="${i}">${ch.html}</div>`
     ).join('');
     modal.innerHTML = `
       <div class="choice-tray-backdrop"></div>
@@ -12518,9 +12535,15 @@ const UI = {
     const kc = s.pendingKangChoice;
     const choices = kc.cards.map((card, i) => {
       const newCost = Math.max(0, card.cost - 2);
+      // Real mini-card: same portrait + cost-gem wiring as board/MVP cards, so
+      // the pick reads as the actual card (art + name overlay), not a text tile.
+      const artPath = card.name ? this.getCardArtPath(card.name) : null;
+      const safeUrl = artPath ? artPath.replace(/'/g, '%27') : '';
+      const portraitStyle = safeUrl ? `--portrait-bg:url('${safeUrl}')${this._artFocalCard(card.name)}` : '';
       return {
+        art: true,
         html: `<span class="card-cost">${card.cost}</span>`
-             + `<div class="decision-choice-title">${card.name}</div>`
+             + `<div class="card-portrait" style="${portraitStyle}"><div class="card-name-overlay">${card.name}</div></div>`
              + `<div class="decision-choice-stats"><span class="atk">${card.attack}</span> / <span class="hp">${card.health}</span></div>`
              + (card.abilities && card.abilities.length ? `<div class="card-abilities status-badges">${this.formatAbilityBadges(card.abilities)}</div>` : '')
              + `<div class="decision-choice-sub">${this.formatDesc(card.desc)}</div>`
@@ -15358,14 +15381,16 @@ const UI = {
         ? `<div class="card-abilities status-badges">${this.formatAbilityBadges(trick.abilities)}</div>`
         : '';
       const rarityStrip = this.getTrickRarityStrip(trick.cost || 0);
+      // Same portrait wiring as character cards — full-bleed cover art with the
+      // name overlaid on the bottom of the painting (no more square art with
+      // black side bars). Focal crop comes from the same _artFocalCard path.
       const trickArtPath = this.getCardArtPath(trick.name);
       const safeArtUrl = trickArtPath ? trickArtPath.replace(/'/g, '%27') : '';
-      const trickPortraitStyle = safeArtUrl ? `style="background-image:url('${safeArtUrl}')"` : '';
+      const trickPortraitStyle = safeArtUrl ? `--portrait-bg:url('${safeArtUrl}')${UI._artFocalCard(trick.name)}` : '';
       el.innerHTML = `
         <span class="trick-cost">${cost}</span>
         ${rarityStrip}
-        <div class="trick-name">${trick.name}</div>
-        <div class="trick-portrait" ${trickPortraitStyle}></div>
+        <div class="card-portrait" style="${trickPortraitStyle}"><div class="card-name-overlay">${trick.name}</div></div>
         ${trickBadges}
         <div class="trick-desc">${this.formatDesc(trick.desc)}</div>
       `;
