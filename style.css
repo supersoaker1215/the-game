@@ -2191,6 +2191,12 @@ body.hit-pause .ai-hand * {
    longer triggers the row — a direct hover over the icon/text is required. */
 .mm-mw3 .mm-option { width: fit-content; max-width: 100%; overflow: visible; }
 .mm-mw3 .mm-section-label { width: fit-content; }
+/* Kill the tron-sweep sheen bands inside mw3 menu options. They park one
+   button-width OFF-LEFT at z-index:-1; with the option box stripped
+   (background:none) + overflow:visible (needed for the letter-scale), the
+   parked bands became visible as gray tiles floating at the screen's left
+   edge — the intermittent "gray boxes" artifact. Boxless menu = no sweep. */
+.mm-mw3 .mm-option .tron-sweep { display: none !important; }
 /* Belt-and-suspenders box kill — authored LAST so it wins the cascade over the
    themed `.mm-option:hover` wash/box-shadow/border block (Neon Theme, later in
    the file but lower specificity). The ONLY hover chrome is the letter
@@ -4563,7 +4569,8 @@ body.hit-pause .ai-hand * {
   min-height: 320px;
   padding: 8px 8px 10px;
 }
-.card.draft-card .card-cost {
+.card.draft-card .card-cost,
+.draft-card.trick-draft .card-cost {
   width: 32px; height: 32px;
   font-size: 16px;
   top: 9px; left: 9px;
@@ -5697,15 +5704,17 @@ body.hit-pause .ai-hand * {
   pointer-events: none;
   z-index: 3;
 }
+/* Same SQUARE pips as character cards (was rotated 45° diamonds) — user:
+   "the rarity squares and the position should be the same as the cards".
+   Position already matches (.card .rarity-strip: top 6, right 7). Only the
+   purple/silver/gold trick palette below stays trick-specific. */
 .trick-card .rarity-strip .rpip {
   width: 5px; height: 5px;
-  border-radius: 0;
-  transform: rotate(45deg);
+  border-radius: 1px;
 }
 .draft-card.trick-draft .rarity-strip .rpip,
 .fp-trick-preview .rarity-strip .rpip {
-  border-radius: 0;
-  transform: rotate(45deg);
+  border-radius: 1px;
 }
 /* Override the cost-based card pip palette that would otherwise apply to
    draft tricks via `.cost-N` — the trick palette takes precedence. */
@@ -19211,18 +19220,32 @@ body.combat-anticipate .board {
   transform-style: preserve-3d;
   transition: transform 240ms var(--ease-out-soft);
 }
-.trick-card:hover,
-.draft-card.trick-draft:hover {
+/* In-match trick chips are small (132px) — the 1.5× magnify is what makes them
+   readable on hover. */
+.trick-card:hover {
   transform: scale(1.5) translateY(-6px)
              rotateX(calc(var(--tilt-y, 0) * -6deg))
              rotateY(calc(var(--tilt-x, 0) * 6deg));
   transition: transform 90ms ease-out;
   will-change: transform;
 }
+/* DRAFT trick cards are already picker-sized — no scale (was 1.5×, way too
+   much per user feedback). Same lift as the character draft cards (-8px),
+   keeping the 3D tilt. */
+.draft-card.trick-draft:hover {
+  transform: translateY(-8px)
+             rotateX(calc(var(--tilt-y, 0) * -6deg))
+             rotateY(calc(var(--tilt-x, 0) * 6deg));
+  transition: transform 90ms ease-out;
+  will-change: transform;
+}
 @media (prefers-reduced-motion: reduce) {
-  .trick-card:hover,
-  .draft-card.trick-draft:hover {
+  .trick-card:hover {
     transform: scale(1.5) translateY(-6px) !important;
+    transition: none !important;
+  }
+  .draft-card.trick-draft:hover {
+    transform: translateY(-8px) !important;
     transition: none !important;
   }
 }

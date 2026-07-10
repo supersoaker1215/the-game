@@ -4530,7 +4530,7 @@ const UI = {
           this.tooltipEl.innerHTML =
             `<div class="kw-tip-card-pop">` +
               `<div class="trick-card kw-tip-trick-render">` +
-                `<span class="trick-cost">${cost}</span>` +
+                `<span class="card-cost">${cost}</span>` +
                 rarity +
                 `<div class="trick-name">${def.name}</div>` +
                 ab +
@@ -6885,7 +6885,7 @@ const UI = {
           const safeTrickUrl = trickArtPath ? trickArtPath.replace(/'/g, '%27') : '';
           const trickPortraitStyle = safeTrickUrl ? `--portrait-bg:url('${safeTrickUrl}')${UI._artFocalCard(c.name)}` : '';
           html += `<div class="draft-card trick-draft" data-trick-name="${c.name}" onclick="twov2OnlineDraftPick(${i})">
-            <span class="trick-cost">${c.cost}</span>
+            <span class="card-cost">${c.cost}</span>
             ${trickRarity}
             <div class="card-portrait" style="${trickPortraitStyle}"><div class="card-name-overlay">${c.name}</div></div>
             ${trickBadges}
@@ -9300,7 +9300,7 @@ const UI = {
           const safeEncUrl = trickArtPath ? trickArtPath.replace(/'/g, '%27') : '';
           const trickPortraitStyle = safeEncUrl ? `--portrait-bg:url('${safeEncUrl}')${UI._artFocalCard(t.name)}` : '';
           return `<div class="trick-card enc-trick" data-trick-name="${t.name}">
-            <span class="trick-cost">${cost}</span>
+            <span class="card-cost">${cost}</span>
             ${rarityStrip}
             <div class="card-portrait" style="${trickPortraitStyle}"><div class="card-name-overlay">${t.name}</div></div>
             ${abilitiesHtml}
@@ -12270,7 +12270,7 @@ const UI = {
         const safeDraftUrl = draftTrickArtPath ? draftTrickArtPath.replace(/'/g, '%27') : '';
         const draftTrickPortraitStyle = safeDraftUrl ? `--portrait-bg:url('${safeDraftUrl}')${UI._artFocalCard(c.name)}` : '';
         html += `<div class="draft-card trick-draft" data-trick-name="${c.name}" onclick="draftPick(${i})">
-          <span class="trick-cost">${c.cost}</span>
+          <span class="card-cost">${c.cost}</span>
           ${draftTrickRarity}
           <div class="card-portrait" style="${draftTrickPortraitStyle}"><div class="card-name-overlay">${c.name}</div></div>
           ${draftTrickBadges}
@@ -12343,7 +12343,7 @@ const UI = {
         <div class="fp-body">
           <div class="fp-trick-preview">
             <div class="trick-card fp-tricky">
-              <span class="trick-cost">${trick.cost}</span>
+              <span class="card-cost">${trick.cost}</span>
               ${this.getTrickRarityStrip(trick.cost || 0)}
               <div class="trick-name">${trick.name}</div>
               ${trick.abilities && trick.abilities.length ? `<div class="card-abilities status-badges">${this.formatAbilityBadges(trick.abilities)}</div>` : ''}
@@ -12396,8 +12396,8 @@ const UI = {
         <div class="fp-body">
           <div class="fp-trick-preview">
             <div class="trick-card fp-tricky">
+              ${t.cost != null ? `<span class="card-cost">${t.cost}</span>` : ''}
               <div class="trick-name">${t.name}</div>
-              ${t.cost != null ? `<div class="trick-cost">${t.cost}</div>` : ''}
               <div class="trick-desc">${(t.desc || '').replace(/</g, '&lt;')}</div>
             </div>
           </div>
@@ -15371,7 +15371,7 @@ const UI = {
       const safeArtUrl = trickArtPath ? trickArtPath.replace(/'/g, '%27') : '';
       const trickPortraitStyle = safeArtUrl ? `--portrait-bg:url('${safeArtUrl}')${UI._artFocalCard(trick.name)}` : '';
       el.innerHTML = `
-        <span class="trick-cost">${cost}</span>
+        <span class="card-cost">${cost}</span>
         ${rarityStrip}
         <div class="card-portrait" style="${trickPortraitStyle}"><div class="card-name-overlay">${trick.name}</div></div>
         ${trickBadges}
@@ -21158,7 +21158,7 @@ function toggleTrickHistory(owner) {
       const ab = (def.abilities && def.abilities.length)
         ? `<div class="card-abilities status-badges">${UI.formatAbilityBadges(def.abilities)}</div>` : '';
       return `<div class="trick-card history-trick">
-        <span class="trick-cost">${def.cost != null ? def.cost : ''}</span>
+        <span class="card-cost">${def.cost != null ? def.cost : ''}</span>
         ${rarity}
         <div class="trick-name">${def.name}</div>
         ${ab}
