@@ -4823,10 +4823,18 @@ const UI = {
     return new Promise(res => {
       let done = false;
       const finish = () => { if (done) return; done = true; res(); };
-      try { this.showPhaseBanner('Round ' + nextRound, { duration: 1400 }); } catch (e) {}
-      // Advance as the banner reads/fades (~1.4s) so the next round begins
-      // seamlessly. Guarded so it resolves exactly once.
-      setTimeout(finish, 1400);
+      // Suppress the new round's opening phase banner ("Your Turn — Cards" etc.).
+      // It shares the SAME .phase-banner element, so if it fires right after this
+      // it replaces "Round N" mid-fade and reads as a jump — the "Round N" banner
+      // IS the transition beat.
+      this._suppressPhaseBanner = true;
+      try { this.showPhaseBanner('Round ' + nextRound, { duration: 1600 }); } catch (e) {}
+      // Advance the round WHILE the banner is fully opaque (~650ms in) so the
+      // draw + board reset happen HIDDEN behind it; the banner then fades to
+      // reveal the already-settled new round — no visible board/hand jump.
+      setTimeout(finish, 650);
+      // Re-enable phase banners once the "Round N" banner has fully faded.
+      setTimeout(() => { this._suppressPhaseBanner = false; }, 1750);
     });
   },
 
@@ -4964,7 +4972,9 @@ const UI = {
       'draw': 'Draw Phase'
     };
     const text = bannerMap[s.phase];
-    if (text) this.showPhaseBanner(text);
+    // During a round transition the "Round N" banner owns the screen; skip the
+    // opening phase banner so it doesn't stack/replace and read as a jump.
+    if (text && !this._suppressPhaseBanner) this.showPhaseBanner(text);
   },
 
   // ===================== ENERGY ORBS =====================
