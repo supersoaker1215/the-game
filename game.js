@@ -7140,7 +7140,7 @@ const Game = {
     //     matches the "the effect refuses to land" engine guard.
     let list = this.getAllCardsOf(this.opponent(owner)).filter(c => !c.isEnvironment);
     if (this.state && this.state._inTrick) {
-      list = list.filter(c => !c.isUntrickable && (c.baseCost || c.cost || 0) < 10);
+      list = list.filter(c => !c.isUntrickable && (c.skipAutoUntrickable || (c.baseCost || c.cost || 0) < 10));
     }
     if (options && options.source) {
       const srcCost = options.source.baseCost || options.source.cost || 0;
@@ -7157,7 +7157,7 @@ const Game = {
   getAlliesOf(owner) {
     let list = this.getAllCardsOf(owner).filter(c => !c.isEnvironment);
     if (this.state && this.state._inTrick) {
-      list = list.filter(c => (c.baseCost || c.cost || 0) < 10);
+      list = list.filter(c => c.skipAutoUntrickable || (c.baseCost || c.cost || 0) < 10);
     }
     return list;
   },
