@@ -13908,30 +13908,13 @@ const UI = {
       el.classList.add('card-hp-critical');
     }
 
-    // (AAA) PERSISTENT DAMAGE MARKS — cards that took damage but
-    // didn't die show physical scarring that stays until they're
-    // healed back to full. Three tiers based on damage proportion:
-    //   light  — any damage taken      (single hairline crack)
-    //   heavy  — ≥40% of max HP gone   (forking crack + dark smudge)
-    //   crit   — only 1 HP remaining   (full shatter pattern)
-    // Hand cards skipped (hand HP doesn't matter until played). Cards
-    // born at 1 HP can't be scarred. Re-rendering reuses the same
-    // overlay so the cracks aren't re-randomized every tick — the
-    // overlay's clip-path is keyed off card.id so each card gets a
-    // unique-but-stable shatter shape. Already-dead cards skipped.
+    // DAMAGED MARKER — cards that took damage but survived. The old crack/
+    // shatter overlays across the art are GONE (user: "get rid of the hurt X
+    // across the card art"); instead the HP number bottom-right pulses red
+    // while the card is below max health (see .card-damaged .stat-hp CSS).
+    // Hand cards skipped; already-dead cards skipped.
     if (!inHand && card.currentHealth > 0 && (card.maxHealth || 0) > 1) {
-      const dmgTaken = card.maxHealth - card.currentHealth;
-      if (dmgTaken > 0) {
-        const ratio = dmgTaken / card.maxHealth;
-        el.classList.add('card-scarred');
-        if (ratio >= 0.4) el.classList.add('card-scarred-heavy');
-        if (card.currentHealth === 1 && card.maxHealth >= 3) el.classList.add('card-scarred-crit');
-        // Stable per-card variant index 0..3 — picks one of four crack
-        // patterns so cards on the same board don't all share the
-        // identical shatter (would read as a tile, not a wound).
-        const variant = ((card.id | 0) * 2654435761 >>> 0) % 4;
-        el.style.setProperty('--scar-variant', variant);
-      }
+      if (card.maxHealth - card.currentHealth > 0) el.classList.add('card-damaged');
     }
 
     // (PRO) Animation phase persistence — every UI.render() that does

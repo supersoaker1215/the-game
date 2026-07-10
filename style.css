@@ -7883,6 +7883,7 @@ body.hit-pause .ai-hand * {
   display: block;
   width: max-content; max-width: 90%;
   margin: 10px auto;
+  position: relative;
   background: #000000;
   border: 1px solid rgba(255,215,0,0.95);
   border-radius: 8px;
@@ -7897,6 +7898,17 @@ body.hit-pause .ai-hand * {
     0 0 12px rgba(255,215,0,0.60),
     0 0 24px rgba(255,215,0,0.25);
   animation: promptPulse 1.4s ease-in-out infinite;
+  transition: opacity 0.22s ease;
+}
+/* Never buried: #game-area > * pins children to z-index 1 (ID specificity), so
+   the raise needs the ID too. Above board chrome + hover-scaled cards, below
+   the settings cluster (500). */
+#game-area > .prompt-banner, .prompt-banner { z-index: 460; }
+/* Peek-through — mouse over the banner fades it to a ghost so it never blocks
+   the view of the board behind it (user: "the box gets blocked and I can't
+   see"). Move the mouse off and it returns. Touch devices unaffected. */
+@media (hover: hover) {
+  .prompt-banner:hover { opacity: 0.15; }
 }
 /* Small "Action Required" strip above the title */
 .prompt-banner::before {
@@ -28678,133 +28690,34 @@ body > .grid-bg {
 }
 
 /* ============================================================
-   AAA PASS — PERSISTENT DAMAGE MARKS
-   Cards that took damage but survived show physical scarring.
-   Three tiers: card-scarred (light), card-scarred-heavy (≥40%
-   damage), card-scarred-crit (1 HP left). The overlay is a
-   pseudo-element on the card that paints SVG-like cracks via a
-   layered mask of repeating-conic gradients + a clip-path
-   variant. Composes UNDER stat circles (z:1) so badges still
-   read clearly. JS sets --scar-variant 0..3 to vary the shape.
+   DAMAGED-CARD INDICATOR — red pulsing HP number
+   The old persistent damage marks (crack/shatter overlays painted
+   ACROSS the card art) are gone per user feedback: "get rid of the
+   hurt X across the card art... instead have the number in the
+   bottom right health pulse red if it's damaged." While a board
+   card sits below max health, its HP stat number turns red and
+   breathes a soft red glow. No overlays touch the painting.
    ============================================================ */
-.card.card-scarred { position: relative; }
-.card.card-scarred::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  z-index: 1;
-  /* Variant base — four cracking patterns rotated/skewed by the
-     --scar-variant value (0..3). Each is a thin diagonal crack
-     painted via two overlaid linear-gradients with hard color
-     stops, plus a chip of dark soot. Using calc(var(...) * 90deg)
-     would over-rotate; we use individual rotations 18deg / 108deg
-     / 198deg / 288deg so each card gets a different "fall line"
-     for the crack. */
-  --scar-rot: calc(18deg + var(--scar-variant, 0) * 90deg);
-  background:
-    /* Primary crack — thin sharp dark line */
-    linear-gradient(
-      var(--scar-rot),
-      transparent 0%,
-      transparent 38%,
-      rgba(15, 4, 6, 0.55) 39%,
-      rgba(85, 20, 25, 0.30) 40%,
-      transparent 41%,
-      transparent 100%
-    ),
-    /* Secondary spider crack — perpendicular, fainter */
-    linear-gradient(
-      calc(var(--scar-rot) + 76deg),
-      transparent 0%,
-      transparent 49%,
-      rgba(15, 4, 6, 0.30) 50%,
-      transparent 51%,
-      transparent 100%
-    ),
-    /* Soot smudge — a faint dark blot near the crack origin */
-    radial-gradient(
-      ellipse 38% 32% at 30% 70%,
-      rgba(15, 4, 6, 0.18) 0%,
-      transparent 60%
-    );
-  background-blend-mode: multiply, multiply, multiply;
-  mix-blend-mode: multiply;
-  opacity: 0.55;
-  border-radius: inherit;
-  /* Mask the cracks to the card body so they don't bleed past
-     rounded corners. */
-  -webkit-mask: linear-gradient(#000, #000);
-          mask: linear-gradient(#000, #000);
+.card.card-damaged .stat-circle.stat-hp {
+  color: #ff6255;
+  animation: hpDamagedPulse 1.5s ease-in-out infinite;
 }
-
-/* Heavy damage — second crack layer + a chipped corner. The
-   ::after on a scarred card paints a forking secondary crack
-   that doesn't overlap the primary, giving "the surface is
-   really compromised" read at a glance. */
-.card.card-scarred-heavy::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  z-index: 1;
-  --scar-rot2: calc(var(--scar-variant, 0) * 90deg + 142deg);
-  background:
-    /* Forking crack — Y-junction painted with two overlapping
-       hard-edged linears. */
-    linear-gradient(
-      var(--scar-rot2),
-      transparent 0%,
-      transparent 28%,
-      rgba(8, 2, 3, 0.65) 29%,
-      rgba(120, 30, 40, 0.32) 30%,
-      transparent 31%,
-      transparent 65%,
-      rgba(8, 2, 3, 0.50) 66%,
-      transparent 67%,
-      transparent 100%
-    ),
-    /* Branch fork */
-    linear-gradient(
-      calc(var(--scar-rot2) - 32deg),
-      transparent 0%,
-      transparent 60%,
-      rgba(8, 2, 3, 0.45) 61%,
-      transparent 62%,
-      transparent 100%
-    );
-  background-blend-mode: multiply, multiply;
-  mix-blend-mode: multiply;
-  opacity: 0.78;
-  border-radius: inherit;
-  /* Add a faint red rim wash on heavy damage — telegraphs "this
-     card is in serious trouble" without competing with the
-     existing 1-HP red rim. */
-  box-shadow: inset 0 0 14px rgba(180, 35, 45, 0.18);
+@keyframes hpDamagedPulse {
+  0%, 100% {
+    text-shadow:
+      0 0 4px rgba(231,76,60,0.55),
+      0 1px 2px rgba(0,0,0,0.85);
+  }
+  50% {
+    color: #ff8a7a;
+    text-shadow:
+      0 0 10px rgba(231,76,60,0.95),
+      0 0 18px rgba(231,76,60,0.45),
+      0 1px 2px rgba(0,0,0,0.85);
+  }
 }
-
-/* Critical (1 HP, ≥3 max) — full shatter. Adds a dense crack
-   web by intensifying both layers and bumping opacity. Composes
-   on top of the .card-hp-critical red-rim glow rule above so
-   the card reads "scarred AND on the edge of death." */
-.card.card-scarred-crit::before {
-  opacity: 0.78;
-}
-.card.card-scarred-crit::after {
-  opacity: 0.92;
-  box-shadow:
-    inset 0 0 18px rgba(220, 50, 60, 0.30),
-    inset 0 0 4px rgba(15, 4, 6, 0.45);
-}
-
-/* Reduced motion — keep the marks (they're not motion) but
-   knock the heavy/crit layers down a notch since the visual
-   complexity can be overstimulating. */
 @media (prefers-reduced-motion: reduce) {
-  .card.card-scarred::before          { opacity: 0.42; }
-  .card.card-scarred-heavy::after     { opacity: 0.55; }
-  .card.card-scarred-crit::before     { opacity: 0.55; }
-  .card.card-scarred-crit::after      { opacity: 0.65; }
+  .card.card-damaged .stat-circle.stat-hp { animation: none; }
 }
 
 /* ============================================================
