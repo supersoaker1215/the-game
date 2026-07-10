@@ -87,7 +87,7 @@ const Roguelite = {
     if (!run) return null;
     this._ensureCurseDefsRegistered();
     const pool = this.CURSE_DEFS;
-    const pick = pool[Math.floor(Math.random() * pool.length)];
+    const pick = Util.pickRandom(pool);
     run.deck.push({
       defName: pick.name,
       rarity: 'common',
@@ -781,9 +781,9 @@ const Roguelite = {
       // Fallback: anything not owned
       const fallback = this.RELICS.filter(r => !owned.has(r.id));
       if (!fallback.length) return null;
-      return fallback[Math.floor(Math.random() * fallback.length)];
+      return Util.pickRandom(fallback);
     }
-    return pool[Math.floor(Math.random() * pool.length)];
+    return Util.pickRandom(pool);
   },
 
   // ----- Per-rarity description swaps -----
@@ -1126,7 +1126,7 @@ const Roguelite = {
           && !Roguelite.STARTER_DEFS.find(s => s.name === d.name)
         );
         if (!pool.length) return {};
-        const pick = pool[Math.floor(Math.random() * pool.length)];
+        const pick = Util.pickRandom(pool);
         return { hiredHelpCard: pick.name };
       },
     },
@@ -1529,7 +1529,7 @@ const Roguelite = {
     let attempts = 0;
     while (out.length < count && attempts < 50) {
       attempts++;
-      const def = pool[Math.floor(Math.random() * pool.length)];
+      const def = Util.pickRandom(pool);
       if (usedNames.has(def.name)) continue;
       usedNames.add(def.name);
       const rarity = this._rollRarity(opts.rarityFloor, act);
@@ -1639,7 +1639,7 @@ const Roguelite = {
     }
     const out = [];
     while (out.length < count && allowed.length > 0) {
-      const pick = allowed[Math.floor(Math.random() * allowed.length)];
+      const pick = Util.pickRandom(allowed);
       if (out.includes(pick)) continue;
       out.push(pick);
     }
@@ -1670,7 +1670,7 @@ const Roguelite = {
       // just actually visible across a typical run.
       const textChance = { rare: 0.12, special: 0.22, legendary: 0.40 }[rarity] || 0;
       if (Math.random() < textChance) {
-        const slot = Math.floor(Math.random() * out.length);
+        const slot = Util.randInt(out.length);
         out[slot] = textEtch.id;
       }
     }
@@ -1822,7 +1822,7 @@ const Roguelite = {
   // generation, encounter building, and preview rendering all agree on
   // the same picks for the duration of the run.
   _rollBossKeys() {
-    const pick = (arr) => arr[Math.floor(Math.random() * arr.length)];
+    const pick = (arr) => Util.pickRandom(arr);
     return {
       1: pick(this.BOSS_KEYS_BY_ACT[1]),
       2: pick(this.BOSS_KEYS_BY_ACT[2]),
@@ -2351,15 +2351,12 @@ const Roguelite = {
     // pool is exhausted (every name at cap). Fisher-Yates shuffle the
     // pool first so we don't bias the early cards.
     const pool = (cfg.pool || []).filter(n => !validCard || validCard.has(n));
-    for (let i = pool.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
-      [pool[i], pool[j]] = [pool[j], pool[i]];
-    }
+    Util.shuffleInPlace(pool);
     const cap = cfg.maxCopies || 2;
     let attempts = 0;
     while (deck.length < cfg.deckSize && pool.length > 0 && attempts < 500) {
       attempts++;
-      const name = pool[Math.floor(Math.random() * pool.length)];
+      const name = Util.pickRandom(pool);
       if ((counts[name] || 0) >= cap) {
         // every pool name capped? bail.
         if (pool.every(n => (counts[n] || 0) >= cap)) break;
@@ -2375,7 +2372,7 @@ const Roguelite = {
     });
     const trickPool = (trickCfg.pool || []).filter(n => (!validTrick || validTrick.has(n)) && !tricks.includes(n));
     while (tricks.length < (trickCfg.count || 5) && trickPool.length > 0) {
-      const idx = Math.floor(Math.random() * trickPool.length);
+      const idx = Util.randInt(trickPool.length);
       tricks.push(trickPool[idx]);
       trickPool.splice(idx, 1);
     }
@@ -2518,7 +2515,7 @@ const Roguelite = {
   // should always be a little bit different." randInRange(min, max) is
   // inclusive on both sides.
   _randInRange(min, max) {
-    return min + Math.floor(Math.random() * (max - min + 1));
+    return Util.randRange(min, max);
   },
 
   buildAiEncounter(node, run) {
@@ -2558,12 +2555,12 @@ const Roguelite = {
       // a high-HP roll caps out very nasty.
       const finalHpBoost = asc >= 9 ? 1.50 : 1.00;
       const hp = Math.floor(this._randInRange(70, 90) * ascHpMul * finalHpBoost);
-      if (asc >= 4 && tricks.length) tricks.push(tricks[Math.floor(Math.random() * tricks.length)]);
+      if (asc >= 4 && tricks.length) tricks.push(Util.pickRandom(tricks));
       // A8 (Cosmic II) doubles the bonus-trick gift to BOTH bosses
       // and final boss. A9 (Apex) layers another extra trick on top
       // of the final boss specifically.
-      if (asc >= 8 && tricks.length) tricks.push(tricks[Math.floor(Math.random() * tricks.length)]);
-      if (asc >= 9 && tricks.length) tricks.push(tricks[Math.floor(Math.random() * tricks.length)]);
+      if (asc >= 8 && tricks.length) tricks.push(Util.pickRandom(tricks));
+      if (asc >= 9 && tricks.length) tricks.push(Util.pickRandom(tricks));
       const cardInstances = this._buildAiCardInstances(deck, {
         bossKey: key,
         baseRarity: 'legendary',  // Galactus' deck = +2/+2 base on every card
@@ -2582,9 +2579,9 @@ const Roguelite = {
       const tricks = built ? built.tricks : this.BOSS_DECKS[key].tricks.slice();
       const baseHp = node.tier === 1 ? this._randInRange(28, 38) : this._randInRange(40, 55);
       const hp = Math.floor(baseHp * ascHpMul);
-      if (asc >= 4 && tricks.length) tricks.push(tricks[Math.floor(Math.random() * tricks.length)]);
+      if (asc >= 4 && tricks.length) tricks.push(Util.pickRandom(tricks));
       // A8 (Cosmic II) — second extra trick on regular bosses too.
-      if (asc >= 8 && tricks.length) tricks.push(tricks[Math.floor(Math.random() * tricks.length)]);
+      if (asc >= 8 && tricks.length) tricks.push(Util.pickRandom(tricks));
       const cardInstances = this._buildAiCardInstances(deck, {
         bossKey: key,
         baseRarity: node.tier === 1 ? 'rare' : 'special',
@@ -2633,7 +2630,7 @@ const Roguelite = {
     );
     const counts = {};
     const deck = [];
-    const pickFrom = (pool) => pool[Math.floor(Math.random() * pool.length)];
+    const pickFrom = (pool) => Util.pickRandom(pool);
     if (node.tier === 1) {
       // Tier 1: pick 3 unique real cards (cost 1-3), then fill the
       // remaining 27 slots from the vanilla pool. Cap each card at 2
@@ -2687,7 +2684,7 @@ const Roguelite = {
       : [];
     const tricks = [];
     while (tricks.length < trickCount && trickPool.length > 0) {
-      const pick = trickPool[Math.floor(Math.random() * trickPool.length)];
+      const pick = Util.pickRandom(trickPool);
       if (!tricks.includes(pick.name)) tricks.push(pick.name);
     }
     // Per-tier AI rarity scaling — gives a small chunk of the AI deck
@@ -3351,7 +3348,7 @@ const Roguelite = {
     // shipped with (matters for starters like Brute → already Taunt 1).
     const candidates = this.TRAIT_ETCH_IDS.filter(id => !owned.has(id));
     if (!candidates.length) return null;
-    const id = candidates[Math.floor(Math.random() * candidates.length)];
+    const id = Util.pickRandom(candidates);
     return this._findEtch(id);
   },
 
@@ -3383,7 +3380,7 @@ const Roguelite = {
     const textEtch = this._resolveTextEtchForCard(cardName);
     const pickFrom = (poolArr, label) => {
       if (!poolArr.length) return null;
-      const e = poolArr[Math.floor(Math.random() * poolArr.length)];
+      const e = Util.pickRandom(poolArr);
       return { id: e.id, name: e.name, bucket: label, desc: this.etchDesc(e.id), tier: this._etchTier(e.id) };
     };
     // DISCARD-ONLY cards: only Energy + Text picks (stat/trait etches
@@ -3429,17 +3426,14 @@ const Roguelite = {
       { name: 'Energy', pool: energy },
     ].filter(b => b.pool.length > 0);
     // Fisher-Yates shuffle
-    for (let i = buckets.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
-      [buckets[i], buckets[j]] = [buckets[j], buckets[i]];
-    }
+    Util.shuffleInPlace(buckets);
     const picks = buckets.slice(0, 2)
       .map(b => pickFrom(b.pool, b.name))
       .filter(Boolean);
     // Common→Rare Text+ jackpot bumped from 5% → 15% per user feedback
     // ("I've upgraded a lot of cards and haven't seen one text upgrade").
     if (textEtch && picks.length > 0 && Math.random() < 0.15) {
-      const slot = Math.floor(Math.random() * picks.length);
+      const slot = Util.randInt(picks.length);
       picks[slot] = { id: textEtch.id, name: textEtch.name, bucket: 'Text', desc: textEtch.desc || this.etchDesc(textEtch.id), tier: this._etchTier(textEtch.id) };
     }
     return picks;
@@ -3534,10 +3528,10 @@ const Roguelite = {
       if (!buckets[bucket].length) {
         const nonEmpty = Object.keys(buckets).filter(k => buckets[k].length);
         if (!nonEmpty.length) break;
-        bucket = nonEmpty[Math.floor(Math.random() * nonEmpty.length)];
+        bucket = Util.pickRandom(nonEmpty);
       }
       const pool = buckets[bucket];
-      const cand = pool[Math.floor(Math.random() * pool.length)];
+      const cand = Util.pickRandom(pool);
       if (usedIds.has(cand.id)) continue;
       usedIds.add(cand.id);
       // Card-specific Text+ entries carry their own `desc` field; for
@@ -4111,7 +4105,7 @@ const Roguelite = {
     if (typeof localStorage === 'undefined') return 0;
     const raw = parseInt(localStorage.getItem(this._ASCENSION_KEY) || '0', 10);
     if (isNaN(raw)) return 0;
-    return Math.max(0, Math.min(this.ASCENSION_LEVELS.length - 1, raw));
+    return Util.clamp(raw, 0, this.ASCENSION_LEVELS.length - 1);
   },
   setAscension(level) {
     if (typeof localStorage === 'undefined') return;
@@ -4520,7 +4514,7 @@ const Roguelite = {
     const sigCards = (preview.signature || []).map(name => {
       const def = (typeof CARD_DEFS !== 'undefined') ? CARD_DEFS.find(d => d.name === name) : null;
       const cost = def ? (def.cost || 0) : 0;
-      const costClass = 'cost-' + Math.min(10, Math.max(0, cost));
+      const costClass = Util.costClass(cost);
       return `<span class="rl-boss-sig-pill ${costClass}"><span class="rl-boss-sig-cost">${cost}</span><span class="rl-boss-sig-name">${name}</span></span>`;
     }).join('');
     // Final-boss banner copy reads as a higher-stakes flourish.
@@ -4800,9 +4794,9 @@ const Roguelite = {
     // Regular = 10–15g, Elite = 25–35g. Boss handled above (50g flat).
     let combatGold = 0;
     if (node.type === 'elite') {
-      combatGold = 25 + Math.floor(Math.random() * 11);
+      combatGold = Util.randRange(25, 35);
     } else if (node.type === 'combat') {
-      combatGold = 10 + Math.floor(Math.random() * 6);
+      combatGold = Util.randRange(10, 15);
     }
     if (combatGold > 0) {
       run.gold += combatGold;
@@ -4861,7 +4855,7 @@ const Roguelite = {
     (run.tricks || []).forEach(t => { counts[t.defName] = (counts[t.defName] || 0) + 1; });
     pool = pool.filter(t => (counts[t.name] || 0) < 3);
     if (!pool.length) return null;
-    const pick = pool[Math.floor(Math.random() * pool.length)];
+    const pick = Util.pickRandom(pool);
     return { defName: pick.name, rarity: 'common' };
   },
 
@@ -4923,7 +4917,7 @@ const Roguelite = {
           // Remove a random common card
           const commons = run.deck.map((d,i) => ({d,i})).filter(x => x.d.rarity === 'common');
           const pool = commons.length ? commons : run.deck.map((d,i) => ({d,i}));
-          const pick = pool[Math.floor(Math.random() * pool.length)];
+          const pick = Util.pickRandom(pool);
           const removed = run.deck[pick.i];
           run.deck.splice(pick.i, 1);
           return `+50g. Removed ${removed.defName} from deck.`;
@@ -4931,10 +4925,10 @@ const Roguelite = {
         { label: 'Try to repair (+1 etch on random card)', resolve(run) {
           // Pick a random card and apply a common etch
           if (!run.deck.length) return 'No deck cards.';
-          const idx = Math.floor(Math.random() * run.deck.length);
+          const idx = Util.randInt(run.deck.length);
           const card = run.deck[idx];
           const pool = Roguelite.ETCHES.common;
-          const etch = pool[Math.floor(Math.random() * pool.length)];
+          const etch = Util.pickRandom(pool);
           card.statuses = card.statuses || [];
           card.statuses.push(etch.id);
           return `${card.defName} gains etch: ${etch.name}`;
@@ -5101,7 +5095,7 @@ const Roguelite = {
     const run = Game.state.roguelite;
     if (!run) return;
     // Pick a random event from the pool
-    const evt = this.EVENTS[Math.floor(Math.random() * this.EVENTS.length)];
+    const evt = Util.pickRandom(this.EVENTS);
     run._activeEvent = evt;
     run.currentNodeId = node.id;
     run.currentRow = node.row;
@@ -5198,8 +5192,8 @@ const Roguelite = {
     // 2 random etches at price 40 / 80
     const tier1 = this.ETCHES.common;
     const tier2 = this.ETCHES.rare;
-    const etchA = tier1[Math.floor(Math.random() * tier1.length)];
-    const etchB = tier2[Math.floor(Math.random() * tier2.length)];
+    const etchA = Util.pickRandom(tier1);
+    const etchB = Util.pickRandom(tier2);
     const etchItems = [
       { kind: 'etch', payload: etchA, price: 40 },
       { kind: 'etch', payload: etchB, price: 80 },
@@ -6572,7 +6566,7 @@ const Roguelite = {
     // big purple cost diamond, name banner, description block. Mirrors
     // the codex/deck-builder presentation so trick + card modals feel
     // consistent.
-    const costClass = 'cost-' + Math.min(10, Math.max(0, def.cost || 0));
+    const costClass = Util.costClass(def.cost || 0);
     // UI.formatDesc may rely on `this` (calls this.stripTraitDesc),
     // so bind it before invoking.
     const formatDesc = (typeof UI !== 'undefined' && UI.formatDesc)
@@ -6754,7 +6748,7 @@ const Roguelite = {
     // surfaces explanation on hover. Rendered alongside any other
     // abilities the curse may carry (Regret has WHEN PLAYED logic).
     if (deckCard._isCurse && !abilities.includes('Curse')) abilities.push('Curse');
-    const costClass = 'cost-' + Math.min(10, Math.max(0, cost));
+    const costClass = Util.costClass(cost);
     // Pip count tracks RUN rarity, not intrinsic cost — common=1, rare=2,
     // special=3, legendary=4. So a Legendary Goon shows 4 gold pips.
     const pipsByRarity = { common: 1, rare: 2, special: 3, legendary: 4 };
