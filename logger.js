@@ -27,12 +27,26 @@
 
   // ----- storage -----
   const STORAGE_KEY = 'playLog';
+  function reportLoggerError(error, context) {
+    if (typeof window !== 'undefined' && window.ErrorReporter && window.ErrorReporter.capture) {
+      window.ErrorReporter.capture(error, { source: 'logger', context });
+    } else {
+      console.error(`[logger:${context}]`, error);
+    }
+  }
   function loadLog() {
     try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]'); }
-    catch (e) { return []; }
+    catch (e) {
+      reportLoggerError(e, 'storage-read');
+      return [];
+    }
   }
   function saveLog() {
-    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(log)); } catch (e) {}
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(log));
+    } catch (e) {
+      reportLoggerError(e, 'storage-write');
+    }
     updateCount();
   }
   let log = loadLog();

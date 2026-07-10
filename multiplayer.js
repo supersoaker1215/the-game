@@ -38,6 +38,27 @@
 // it with friends and we play multiplayer vs each other."
 // ============================================================
 
+function _multiplayerError(error, context, extra) {
+  const err = error instanceof Error ? error : new Error(String(error));
+  const details = { source: 'multiplayer', context, ...(extra || {}) };
+  if (typeof window !== 'undefined' && window.ErrorReporter && window.ErrorReporter.capture) {
+    window.ErrorReporter.capture(err, details);
+  } else {
+    console.error(`[multiplayer:${context}]`, err);
+  }
+  return err;
+}
+
+function _dispatchHandlers(handlers, payload, context) {
+  handlers.forEach(fn => {
+    try {
+      fn(payload);
+    } catch (e) {
+      _multiplayerError(e, context);
+    }
+  });
+}
+
 const Multiplayer = {
   _transport: null,
   _listeners: {},
@@ -56,22 +77,27 @@ const Multiplayer = {
 
   createRoom(opts) {
     const code = this._genCode();
-    this._send({ t: 'createRoom', code, deck: opts && opts.deck, name: opts && opts.name });
-    return code;
+    return this._send({ t: 'createRoom', code, deck: opts && opts.deck, name: opts && opts.name })
+      ? code
+      : null;
   },
 
   joinRoom(code, opts) {
-    this._send({ t: 'joinRoom', code: code.toUpperCase(), deck: opts && opts.deck, name: opts && opts.name });
+    return this._send({ t: 'joinRoom', code: code.toUpperCase(), deck: opts && opts.deck, name: opts && opts.name });
   },
 
   // Send a game action. The server validates and broadcasts new
   // state. Caller is responsible for serializing complex action
   // payloads (target card refs → IDs etc.).
-  send(action) { this._send(action); },
+  send(action) { return this._send(action); },
 
   leave() {
     if (this._transport) {
-      try { this._transport.close(); } catch (e) {}
+      try {
+        this._transport.close();
+      } catch (e) {
+        _multiplayerError(e, 'adapter-close');
+      }
     }
     this._transport = null;
     this._room = null;
@@ -92,14 +118,24 @@ const Multiplayer = {
   // ---- Internals ----
 
   _emit(name, payload) {
-    (this._listeners[name] || []).forEach(fn => {
-      try { fn(payload); } catch (e) { console.error('multiplayer listener error', e); }
-    });
+    _dispatchHandlers(this._listeners[name] || [], payload, `adapter-listener:${name}`);
   },
 
   _send(msg) {
-    if (!this._transport) return;
-    this._transport.send(msg);
+    if (!this._transport) {
+      const error = _multiplayerError(new Error('Multiplayer transport is not initialized.'), 'adapter-send', {
+        messageType: msg && msg.t,
+      });
+      this._emit('error', { message: error.message });
+      return false;
+    }
+    try {
+      return this._transport.send(msg) !== false;
+    } catch (e) {
+      const error = _multiplayerError(e, 'adapter-send', { messageType: msg && msg.t });
+      this._emit('error', { message: `Could not send multiplayer message: ${error.message}` });
+      return false;
+    }
   },
 
   // 4-char alphabet code, easy to read aloud / type. Avoids 0/O, 1/I
@@ -339,22 +375,23 @@ class LocalTabTransport {
       // Host doesn't broadcast createRoom — it just acts as server.
       // Reply locally with roomCreated.
       this._dispatch({ t: 'roomCreated', code: msg.code, you: 'player' });
-      return;
+      return true;
     }
     if (msg.t === 'joinRoom') {
       this._roomCode = msg.code;
       // Tell the host we're joining.
       this._channel.postMessage({ kind: 'joinReq', code: msg.code, name: msg.name });
-      return;
+      return true;
     }
     // Game actions — relay to opposite tab via channel. The host's
     // copy of Game runs the action and broadcasts the new state.
     this._channel.postMessage({ kind: 'action', code: this._roomCode, msg });
+    return true;
   }
 
   close() {
     if (this._channel) { this._channel.close(); this._channel = null; }
-    this._handlers.close.forEach(fn => { try { fn(); } catch (e) {} });
+    _dispatchHandlers(this._handlers.close, undefined, 'local-close-listener');
   }
 
   onMessage(fn) { this._handlers.message.push(fn); }
@@ -411,7 +448,7 @@ class LocalTabTransport {
   }
 
   _dispatch(msg) {
-    this._handlers.message.forEach(fn => { try { fn(msg); } catch (e) { console.error(e); } });
+    _dispatchHandlers(this._handlers.message, msg, 'local-message-listener');
   }
 }
 
@@ -463,19 +500,33 @@ class WebSocketTransport {
       // No queued messages need to be sent for the handshake — the
       // server replies automatically based on the URL params. Flush
       // any game actions queued during the connection window.
-      this._sendQueue.forEach(m => this._socket.send(JSON.stringify(m)));
+      const queued = this._sendQueue;
       this._sendQueue = [];
+      for (let i = 0; i < queued.length; i++) {
+        try {
+          this._socket.send(JSON.stringify(queued[i]));
+        } catch (e) {
+          this._sendQueue = queued.slice(i).concat(this._sendQueue);
+          this._dispatchError('Could not send queued multiplayer messages.', e, 'websocket-queue-flush');
+          break;
+        }
+      }
     };
     this._socket.onmessage = (ev) => {
       let parsed = null;
-      try { parsed = JSON.parse(ev.data); } catch (e) { return; }
-      this._handlers.message.forEach(fn => { try { fn(parsed); } catch (e) { console.error(e); } });
+      try {
+        parsed = JSON.parse(ev.data);
+      } catch (e) {
+        this._dispatchError('Received an invalid response from the multiplayer server.', e, 'websocket-parse');
+        return;
+      }
+      _dispatchHandlers(this._handlers.message, parsed, 'websocket-message-listener');
     };
     this._socket.onclose = () => {
-      this._handlers.close.forEach(fn => { try { fn(); } catch (e) {} });
+      _dispatchHandlers(this._handlers.close, undefined, 'websocket-close-listener');
     };
     this._socket.onerror = (e) => {
-      this._handlers.error.forEach(fn => { try { fn(e); } catch (e) {} });
+      this._dispatchError('WebSocket multiplayer connection failed.', e, 'websocket-connection');
     };
   }
 
@@ -484,18 +535,18 @@ class WebSocketTransport {
     // — use it to build the URL and open the socket.
     if (!this._socket && (msg.t === 'createRoom' || msg.t === 'joinRoom')) {
       this._openWithHandshake(msg);
-      return;  // server replies with roomCreated/roomJoined; nothing to send
+      return true;  // server replies with roomCreated/roomJoined; nothing to send
     }
     if (!this._socket) {
-      // Edge case: send before handshake. Drop with a console warning.
-      console.warn('WebSocketTransport.send before handshake', msg);
-      return;
+      this._dispatchError('Multiplayer connection has not completed its handshake.', null, 'websocket-send');
+      return false;
     }
     if (this._socket.readyState === WebSocket.OPEN) {
       this._socket.send(JSON.stringify(msg));
     } else {
       this._sendQueue.push(msg);
     }
+    return true;
   }
 
   // Host-only state broadcast — same as LocalTabTransport's API. For
@@ -513,13 +564,23 @@ class WebSocketTransport {
   }
 
   close() {
-    if (this._socket) { try { this._socket.close(); } catch (e) {} }
+    if (this._socket) {
+      try {
+        this._socket.close();
+      } catch (e) {
+        this._dispatchError('Could not close the multiplayer connection cleanly.', e, 'websocket-close');
+      }
+    }
     this._socket = null;
   }
 
   onMessage(fn) { this._handlers.message.push(fn); }
   onClose(fn)   { this._handlers.close.push(fn); }
   onError(fn)   { this._handlers.error.push(fn); }
+  _dispatchError(message, error, context) {
+    if (error) _multiplayerError(error, context || 'websocket');
+    _dispatchHandlers(this._handlers.error, message, 'websocket-error-listener');
+  }
 }
 
 // ============================================================
@@ -571,7 +632,9 @@ function _buildIceConfig() {
         if (Array.isArray(custom) && custom.length > 0) {
           iceServers = [...custom, ...iceServers];
         }
-      } catch (e) {}
+      } catch (e) {
+        _multiplayerError(e, 'turn-config-parse');
+      }
     }
   }
   return {
@@ -626,25 +689,33 @@ class WebRTCTransport {
 
   send(msg) {
     if (typeof Peer === 'undefined') {
-      this._dispatchError('PeerJS library not loaded — is the network blocking unpkg.com?');
-      return;
+      this._dispatchError(
+        'PeerJS library not loaded — is the network blocking unpkg.com?',
+        new Error('PeerJS global is unavailable.'),
+        'webrtc-peerjs-missing'
+      );
+      return false;
     }
     if (msg && msg.t === 'createRoom') {
-      this._openAsHost(msg);
-      return;
+      return this._openAsHost(msg);
     }
     if (msg && msg.t === 'joinRoom') {
-      this._openAsJoiner(msg);
-      return;
+      return this._openAsJoiner(msg);
     }
     // Game action — relay over the data connection. If the conn
     // isn't open yet (joiner sent something before handshake
     // completed), queue and flush on open.
     if (this._conn && this._conn.open) {
-      this._conn.send(msg);
+      try {
+        this._conn.send(msg);
+      } catch (e) {
+        this._dispatchError('Could not send the multiplayer action.', e, 'webrtc-send');
+        return false;
+      }
     } else {
       this._sendQueue.push(msg);
     }
+    return true;
   }
 
   _openAsHost(msg) {
@@ -657,8 +728,8 @@ class WebRTCTransport {
       // networks. `debug: 1` keeps console output minimal (errors only).
       this._peer = new Peer(peerId, { debug: 1, config: _buildIceConfig() });
     } catch (e) {
-      this._dispatchError('Could not initialize peer: ' + (e && e.message || e));
-      return;
+      this._dispatchError('Could not initialize peer: ' + (e && e.message || e), e, 'webrtc-peer-init');
+      return false;
     }
     this._peer.on('open', (id) => {
       // Peer registered with the signaling cloud — ready to accept
@@ -674,8 +745,13 @@ class WebRTCTransport {
     this._peer.on('disconnected', () => {
       // Lost connection to the signaling cloud — but existing peer
       // connections (if any) keep working. Try to reconnect quietly.
-      try { this._peer.reconnect(); } catch (e) {}
+      try {
+        this._peer.reconnect();
+      } catch (e) {
+        this._dispatchError('Could not reconnect to the signaling server.', e, 'webrtc-reconnect');
+      }
     });
+    return true;
   }
 
   _openAsJoiner(msg) {
@@ -683,8 +759,8 @@ class WebRTCTransport {
     try {
       this._peer = new Peer({ debug: 1, config: _buildIceConfig() });  // auto-generated ID for joiner
     } catch (e) {
-      this._dispatchError('Could not initialize peer: ' + (e && e.message || e));
-      return;
+      this._dispatchError('Could not initialize peer: ' + (e && e.message || e), e, 'webrtc-peer-init');
+      return false;
     }
     this._peer.on('open', () => {
       const targetId = this._peerIdFor(msg.code);
@@ -695,6 +771,7 @@ class WebRTCTransport {
       this._setupConn(conn);
     });
     this._peer.on('error', (err) => this._handlePeerError(err));
+    return true;
   }
 
   // Bind handlers on a freshly-created DataConnection. Open dispatches
@@ -703,8 +780,17 @@ class WebRTCTransport {
     this._conn = conn;
     conn.on('open', () => {
       // Flush anything queued before the channel opened
-      this._sendQueue.forEach(m => { try { conn.send(m); } catch (e) {} });
+      const queued = this._sendQueue;
       this._sendQueue = [];
+      for (let i = 0; i < queued.length; i++) {
+        try {
+          conn.send(queued[i]);
+        } catch (e) {
+          this._sendQueue = queued.slice(i).concat(this._sendQueue);
+          this._dispatchError('Could not send queued multiplayer actions.', e, 'webrtc-queue-flush');
+          break;
+        }
+      }
       if (this._isHost) {
         const name = (conn.metadata && conn.metadata.name) || 'Opponent';
         this._dispatch({ t: 'opponentJoined', name });
@@ -719,7 +805,11 @@ class WebRTCTransport {
       this._dispatch(data);
     });
     conn.on('close', () => this._dispatch({ t: 'opponentLeft' }));
-    conn.on('error', (err) => this._dispatchError('Connection error: ' + ((err && err.message) || err)));
+    conn.on('error', (err) => this._dispatchError(
+      'Connection error: ' + ((err && err.message) || err),
+      err,
+      'webrtc-connection'
+    ));
   }
 
   // Friendly error mapping for common PeerJS error types so the
@@ -742,7 +832,7 @@ class WebRTCTransport {
     } else if (type === 'webrtc') {
       friendly = 'WebRTC failed — your network may need a TURN relay (some corporate / mobile networks).';
     }
-    this._dispatchError(friendly);
+    this._dispatchError(friendly, err, 'webrtc-peer');
   }
 
   // Host-only state broadcast — same shape as LocalTabTransport's API.
@@ -751,18 +841,26 @@ class WebRTCTransport {
   broadcastState(stateClone) {
     const wrapped = { t: 'state', state: stateClone };
     if (this._conn && this._conn.open) {
-      try { this._conn.send(wrapped); } catch (e) {}
+      try {
+        this._conn.send(wrapped);
+      } catch (e) {
+        this._dispatchError('Could not broadcast the latest game state.', e, 'webrtc-broadcast');
+      }
     } else {
       this._sendQueue.push(wrapped);
     }
   }
 
   close() {
-    if (this._conn) { try { this._conn.close(); } catch (e) {} }
-    if (this._peer) { try { this._peer.destroy(); } catch (e) {} }
+    if (this._conn) {
+      try { this._conn.close(); } catch (e) { _multiplayerError(e, 'webrtc-connection-close'); }
+    }
+    if (this._peer) {
+      try { this._peer.destroy(); } catch (e) { _multiplayerError(e, 'webrtc-peer-close'); }
+    }
     this._conn = null;
     this._peer = null;
-    this._handlers.close.forEach(fn => { try { fn(); } catch (e) {} });
+    _dispatchHandlers(this._handlers.close, undefined, 'webrtc-close-listener');
   }
 
   onMessage(fn) { this._handlers.message.push(fn); }
@@ -770,10 +868,11 @@ class WebRTCTransport {
   onError(fn)   { this._handlers.error.push(fn); }
 
   _dispatch(msg) {
-    this._handlers.message.forEach(fn => { try { fn(msg); } catch (e) { console.error(e); } });
+    _dispatchHandlers(this._handlers.message, msg, 'webrtc-message-listener');
   }
-  _dispatchError(message) {
-    this._handlers.error.forEach(fn => { try { fn(message); } catch (e) {} });
+  _dispatchError(message, error, context) {
+    if (error) _multiplayerError(error, context || 'webrtc');
+    _dispatchHandlers(this._handlers.error, message, 'webrtc-error-listener');
   }
 }
 
@@ -818,19 +917,25 @@ class WebRTC4Transport {
 
   send(msg) {
     if (typeof Peer === 'undefined') {
-      this._dispatchError('PeerJS not loaded');
-      return;
+      this._dispatchError('PeerJS not loaded', new Error('PeerJS global is unavailable.'), 'webrtc4-peerjs-missing');
+      return false;
     }
-    if (msg && msg.t === 'createRoom') { this._openAsHost(msg); return; }
-    if (msg && msg.t === 'joinRoom')   { this._openAsJoiner(msg); return; }
+    if (msg && msg.t === 'createRoom') return this._openAsHost(msg);
+    if (msg && msg.t === 'joinRoom')   return this._openAsJoiner(msg);
     // Game action — joiner sends to host; host echoes to self via dispatch
     if (this._isHost) {
       this._dispatch(msg);
     } else if (this._hostConn && this._hostConn.open) {
-      this._hostConn.send(msg);
+      try {
+        this._hostConn.send(msg);
+      } catch (e) {
+        this._dispatchError('Could not send the multiplayer action.', e, 'webrtc4-send');
+        return false;
+      }
     } else {
       this._sendQueue.push(msg);
     }
+    return true;
   }
 
   _openAsHost(msg) {
@@ -840,8 +945,8 @@ class WebRTC4Transport {
     try {
       this._peer = new Peer(this._peerIdFor(msg.code), { debug: 1, config: _buildIceConfig() });
     } catch (e) {
-      this._dispatchError('Peer init failed: ' + (e && e.message || e));
-      return;
+      this._dispatchError('Peer init failed: ' + (e && e.message || e), e, 'webrtc4-peer-init');
+      return false;
     }
     this._peer.on('open', () => {
       this._dispatch({ t: 'roomCreated', code: msg.code, you: 'p1' });
@@ -867,10 +972,21 @@ class WebRTC4Transport {
         delete this._conns[slot];
         this._dispatch({ t: 'playerLeft', playerKey: slot });
       });
-      conn.on('error', (err) => this._dispatchError('Conn error: ' + ((err && err.message) || err)));
+      conn.on('error', (err) => this._dispatchError(
+        'Conn error: ' + ((err && err.message) || err),
+        err,
+        'webrtc4-connection'
+      ));
     });
     this._peer.on('error', (err) => this._handlePeerError(err));
-    this._peer.on('disconnected', () => { try { this._peer.reconnect(); } catch (e) {} });
+    this._peer.on('disconnected', () => {
+      try {
+        this._peer.reconnect();
+      } catch (e) {
+        this._dispatchError('Could not reconnect to the signaling server.', e, 'webrtc4-reconnect');
+      }
+    });
+    return true;
   }
 
   _openAsJoiner(msg) {
@@ -878,8 +994,8 @@ class WebRTC4Transport {
     try {
       this._peer = new Peer({ debug: 1, config: _buildIceConfig() });
     } catch (e) {
-      this._dispatchError('Peer init failed: ' + (e && e.message || e));
-      return;
+      this._dispatchError('Peer init failed: ' + (e && e.message || e), e, 'webrtc4-peer-init');
+      return false;
     }
     this._peer.on('open', () => {
       const conn = this._peer.connect(this._peerIdFor(msg.code), {
@@ -888,8 +1004,17 @@ class WebRTC4Transport {
       });
       this._hostConn = conn;
       conn.on('open', () => {
-        this._sendQueue.forEach(m => { try { conn.send(m); } catch (e) {} });
+        const queued = this._sendQueue;
         this._sendQueue = [];
+        for (let i = 0; i < queued.length; i++) {
+          try {
+            conn.send(queued[i]);
+          } catch (e) {
+            this._sendQueue = queued.slice(i).concat(this._sendQueue);
+            this._dispatchError('Could not send queued multiplayer actions.', e, 'webrtc4-queue-flush');
+            break;
+          }
+        }
       });
       conn.on('data', (data) => {
         if (!data || !data.t) return;
@@ -901,27 +1026,44 @@ class WebRTC4Transport {
         this._dispatch(data);
       });
       conn.on('close', () => this._dispatch({ t: 'playerLeft', playerKey: 'p1' }));
-      conn.on('error', (err) => this._dispatchError('Conn error: ' + ((err && err.message) || err)));
+      conn.on('error', (err) => this._dispatchError(
+        'Conn error: ' + ((err && err.message) || err),
+        err,
+        'webrtc4-connection'
+      ));
     });
     this._peer.on('error', (err) => this._handlePeerError(err));
+    return true;
   }
 
   // Host broadcasts state to all 3 joiners
   broadcastState(stateClone) {
     const msg = { t: 'state', state: stateClone };
     Object.values(this._conns).forEach(conn => {
-      if (conn && conn.open) try { conn.send(msg); } catch (e) {}
+      if (conn && conn.open) {
+        try {
+          conn.send(msg);
+        } catch (e) {
+          this._dispatchError('Could not broadcast the latest game state.', e, 'webrtc4-broadcast');
+        }
+      }
     });
   }
 
   close() {
-    Object.values(this._conns).forEach(c => { try { c.close(); } catch (e) {} });
-    if (this._hostConn) { try { this._hostConn.close(); } catch (e) {} }
-    if (this._peer) { try { this._peer.destroy(); } catch (e) {} }
+    Object.values(this._conns).forEach(c => {
+      try { c.close(); } catch (e) { _multiplayerError(e, 'webrtc4-connection-close'); }
+    });
+    if (this._hostConn) {
+      try { this._hostConn.close(); } catch (e) { _multiplayerError(e, 'webrtc4-host-close'); }
+    }
+    if (this._peer) {
+      try { this._peer.destroy(); } catch (e) { _multiplayerError(e, 'webrtc4-peer-close'); }
+    }
     this._conns = {};
     this._hostConn = null;
     this._peer = null;
-    this._handlers.close.forEach(fn => { try { fn(); } catch (e) {} });
+    _dispatchHandlers(this._handlers.close, undefined, 'webrtc4-close-listener');
   }
 
   onMessage(fn) { this._handlers.message.push(fn); }
@@ -929,10 +1071,11 @@ class WebRTC4Transport {
   onError(fn)   { this._handlers.error.push(fn); }
 
   _dispatch(msg) {
-    this._handlers.message.forEach(fn => { try { fn(msg); } catch (e) { console.error(e); } });
+    _dispatchHandlers(this._handlers.message, msg, 'webrtc4-message-listener');
   }
-  _dispatchError(message) {
-    this._handlers.error.forEach(fn => { try { fn(message); } catch (e) {} });
+  _dispatchError(message, error, context) {
+    if (error) _multiplayerError(error, context || 'webrtc4');
+    _dispatchHandlers(this._handlers.error, message, 'webrtc4-error-listener');
   }
   _handlePeerError(err) {
     const type = err && err.type;
@@ -940,7 +1083,7 @@ class WebRTC4Transport {
     if (type === 'unavailable-id') msg = 'Room code already in use.';
     else if (type === 'peer-unavailable') msg = "Couldn't find that room — check the code.";
     else if (type === 'network') msg = 'Network error reaching signaling server.';
-    this._dispatchError(msg);
+    this._dispatchError(msg, err, 'webrtc4-peer');
   }
 }
 
@@ -967,15 +1110,14 @@ const Multiplayer4 = {
 
   createRoom(opts) {
     const code = this._genCode();
-    this._send({ t: 'createRoom', code, name: opts && opts.name });
-    return code;
+    return this._send({ t: 'createRoom', code, name: opts && opts.name }) ? code : null;
   },
 
   joinRoom(code, opts) {
-    this._send({ t: 'joinRoom', code: code.toUpperCase(), name: opts && opts.name });
+    return this._send({ t: 'joinRoom', code: code.toUpperCase(), name: opts && opts.name });
   },
 
-  send(action) { this._send(action); },
+  send(action) { return this._send(action); },
 
   // Host broadcasts current game state to all joiners
   broadcastState(stateClone) {
@@ -985,7 +1127,13 @@ const Multiplayer4 = {
   },
 
   leave() {
-    if (this._transport) { try { this._transport.close(); } catch (e) {} }
+    if (this._transport) {
+      try {
+        this._transport.close();
+      } catch (e) {
+        _multiplayerError(e, 'adapter4-close');
+      }
+    }
     this._transport = null;
     this._you = null;
     this._room = null;
@@ -1000,11 +1148,24 @@ const Multiplayer4 = {
   },
 
   _emit(name, payload) {
-    (this._listeners[name] || []).forEach(fn => {
-      try { fn(payload); } catch (e) { console.error('M4 listener error', e); }
-    });
+    _dispatchHandlers(this._listeners[name] || [], payload, `adapter4-listener:${name}`);
   },
-  _send(msg) { if (this._transport) this._transport.send(msg); },
+  _send(msg) {
+    if (!this._transport) {
+      const error = _multiplayerError(new Error('Four-player transport is not initialized.'), 'adapter4-send', {
+        messageType: msg && msg.t,
+      });
+      this._emit('error', { message: error.message });
+      return false;
+    }
+    try {
+      return this._transport.send(msg) !== false;
+    } catch (e) {
+      const error = _multiplayerError(e, 'adapter4-send', { messageType: msg && msg.t });
+      this._emit('error', { message: `Could not send multiplayer message: ${error.message}` });
+      return false;
+    }
+  },
   _genCode() {
     const alpha = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
     let s = '';

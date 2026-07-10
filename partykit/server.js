@@ -86,7 +86,13 @@ export default {
   //   • Hello / handshake messages stay local.
   async onMessage(message, sender, room) {
     let msg;
-    try { msg = JSON.parse(message); } catch (e) { return; }
+    try {
+      msg = JSON.parse(message);
+    } catch (e) {
+      console.warn('[partykit] rejected malformed message', e);
+      sender.send(JSON.stringify({ t: 'error', message: 'Invalid multiplayer message.' }));
+      return;
+    }
 
     const a = sender.deserializeAttachment() || {};
     const role = a.role;

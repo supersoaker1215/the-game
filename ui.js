@@ -6,6 +6,15 @@
 const UI = {
   _lastPhase: null,
   _lastBoardCardIds: new Set(),
+  _reportError(error, context, extra) {
+    const err = error instanceof Error ? error : new Error(String(error));
+    if (typeof window !== 'undefined' && window.ErrorReporter && window.ErrorReporter.capture) {
+      window.ErrorReporter.capture(err, { source: 'ui', context, ...(extra || {}) });
+    } else {
+      console.error(`[ui:${context}]`, err);
+    }
+    return err;
+  },
 
   // Cache-bust suffix for card portrait PNGs (audio/cards/art/*.png).
   // Bumped whenever tools/extract_card_art.py is re-run so browsers
@@ -749,7 +758,13 @@ const UI = {
     if (pAvEl) this.settings.playerAvatar = pAvEl.value || '▲';
     this._applyPlayerIdentity();
     // Theme is saved continuously by applyTheme; nothing to read here.
-    try { localStorage.setItem(this.SETTINGS_KEY, JSON.stringify(this.settings)); } catch (e) {}
+    try {
+      localStorage.setItem(this.SETTINGS_KEY, JSON.stringify(this.settings));
+    } catch (e) {
+      this._reportError(e, 'settings-write');
+      UI.alertModal('Could not save settings. Browser storage may be unavailable or full.');
+      return;
+    }
     // Commitment actions must confirm — otherwise the only way to know a
     // save worked is to re-open the panel. The themed toast already exists.
     if (this.showAITrickToast) this.showAITrickToast('Settings Saved', 'Your preferences are stored', 'trick');
@@ -786,7 +801,9 @@ const UI = {
         const regs = await navigator.serviceWorker.getRegistrations();
         await Promise.all(regs.map(r => r.unregister()));
       }
-    } catch (e) { /* swallow — best-effort cache clear, reload below proceeds anyway */ }
+    } catch (e) {
+      this._reportError(e, 'cache-refresh');
+    }
     // Hard reload with cache-bust. The query-string change forces
     // the browser to skip its disk cache for the index document,
     // and the ?v=N versioning on every script/stylesheet inside
@@ -971,10 +988,19 @@ const UI = {
       if (!ok) return;
       // Merge into existing settings so unknown future keys aren't lost.
       Object.assign(this.settings, payload.settings);
-      try { localStorage.setItem(this.SETTINGS_KEY, JSON.stringify(this.settings)); } catch (e) {}
+      try {
+        localStorage.setItem(this.SETTINGS_KEY, JSON.stringify(this.settings));
+      } catch (e) {
+        this._reportError(e, 'settings-import-write');
+        UI.alertModal('Could not import settings. Browser storage may be unavailable or full.');
+        return;
+      }
       if (payload.savedDecks && typeof payload.savedDecks === 'object') {
         const { decks, dropped } = this._validateImportedDecks(payload.savedDecks);
-        this._dbSetSavedDecks(decks);
+        if (!this._dbSetSavedDecks(decks)) {
+          UI.alertModal('Settings were imported, but saved decks could not be stored.');
+          return;
+        }
         if (dropped.length) {
           console.warn('[importSettings] dropped malformed decks:', dropped);
         }
@@ -7988,7 +8014,10 @@ const UI = {
   _persistGet(path, fallback) {
     if (!this._persistedPrefs) {
       try { this._persistedPrefs = JSON.parse(localStorage.getItem(this._PERSIST_KEY) || '{}'); }
-      catch (e) { this._persistedPrefs = {}; }
+      catch (e) {
+        this._reportError(e, 'preferences-read', { path });
+        this._persistedPrefs = {};
+      }
     }
     // Path can be 'a.b.c' for nested access.
     const parts = path.split('.');
@@ -8002,7 +8031,10 @@ const UI = {
   _persistSet(path, value) {
     if (!this._persistedPrefs) {
       try { this._persistedPrefs = JSON.parse(localStorage.getItem(this._PERSIST_KEY) || '{}'); }
-      catch (e) { this._persistedPrefs = {}; }
+      catch (e) {
+        this._reportError(e, 'preferences-read', { path });
+        this._persistedPrefs = {};
+      }
     }
     const parts = path.split('.');
     let cur = this._persistedPrefs;
@@ -8012,8 +8044,13 @@ const UI = {
       cur = cur[k];
     }
     cur[parts[parts.length - 1]] = value;
-    try { localStorage.setItem(this._PERSIST_KEY, JSON.stringify(this._persistedPrefs)); }
-    catch (e) { /* quota or disabled — silent */ }
+    try {
+      localStorage.setItem(this._PERSIST_KEY, JSON.stringify(this._persistedPrefs));
+      return true;
+    } catch (e) {
+      this._reportError(e, 'preferences-write', { path });
+      return false;
+    }
   },
 
   // Codex filter state — restored from persistence on first access,
@@ -11596,11 +11633,19 @@ const UI = {
     try {
       const raw = localStorage.getItem(this._DB_STORAGE_KEY);
       return raw ? JSON.parse(raw) : {};
-    } catch (e) { return {}; }
+    } catch (e) {
+      this._reportError(e, 'saved-decks-read');
+      return {};
+    }
   },
   _dbSetSavedDecks(obj) {
-    try { localStorage.setItem(this._DB_STORAGE_KEY, JSON.stringify(obj)); }
-    catch (e) { /* quota or disabled — swallow silently */ }
+    try {
+      localStorage.setItem(this._DB_STORAGE_KEY, JSON.stringify(obj));
+      return true;
+    } catch (e) {
+      this._reportError(e, 'saved-decks-write');
+      return false;
+    }
   },
   // Sanitize an imported decks map. Tampered or out-of-date backup JSON
   // could otherwise crash the deckbuilder when it later calls .slice() on
@@ -11639,11 +11684,19 @@ const UI = {
       const raw = localStorage.getItem(this._MATCH_HISTORY_KEY);
       const list = raw ? JSON.parse(raw) : [];
       return Array.isArray(list) ? list : [];
-    } catch (e) { return []; }
+    } catch (e) {
+      this._reportError(e, 'match-history-read');
+      return [];
+    }
   },
   _setMatchHistory(list) {
-    try { localStorage.setItem(this._MATCH_HISTORY_KEY, JSON.stringify(list.slice(-this._MATCH_HISTORY_MAX))); }
-    catch (e) {}
+    try {
+      localStorage.setItem(this._MATCH_HISTORY_KEY, JSON.stringify(list.slice(-this._MATCH_HISTORY_MAX)));
+      return true;
+    } catch (e) {
+      this._reportError(e, 'match-history-write');
+      return false;
+    }
   },
   _recordMatchInHistory(winner) {
     const s = Game.state;
@@ -11688,13 +11741,18 @@ const UI = {
         hpHistory: (s._hpHistory || []).slice()
       };
       localStorage.setItem(this._REPLAY_KEY, JSON.stringify(payload));
-    } catch (e) { /* quota / disabled */ }
+    } catch (e) {
+      this._reportError(e, 'replay-write');
+    }
   },
   _loadReplay() {
     try {
       const raw = localStorage.getItem(this._REPLAY_KEY);
       return raw ? JSON.parse(raw) : null;
-    } catch (e) { return null; }
+    } catch (e) {
+      this._reportError(e, 'replay-read');
+      return null;
+    }
   },
   openReplay() {
     const r = this._loadReplay();
@@ -20558,6 +20616,12 @@ function dbBack() {
   UI.render();
 }
 
+function dbPersist(saved, action) {
+  if (UI._dbSetSavedDecks(saved)) return true;
+  UI.alertModal(`Could not ${action}. Browser storage may be unavailable or full.`);
+  return false;
+}
+
 function dbSave() {
   const input = document.getElementById('db-save-name');
   if (!input) return;
@@ -20567,7 +20631,7 @@ function dbSave() {
   if (!db) return;
   const saved = UI._dbGetSavedDecks();
   saved[name] = { cards: db.cards.slice(), tricks: db.tricks.slice() };
-  UI._dbSetSavedDecks(saved);
+  if (!dbPersist(saved, 'save the deck')) return;
   UI.render();
   if (UI.showAITrickToast) UI.showAITrickToast('Deck Saved', `"${name}" — ${db.cards.length} cards + ${db.tricks.length} tricks`, 'trick');
 }
@@ -20665,7 +20729,7 @@ function dbDelete() {
   if (!sel || !sel.value) return;
   const saved = UI._dbGetSavedDecks();
   delete saved[sel.value];
-  UI._dbSetSavedDecks(saved);
+  if (!dbPersist(saved, 'delete the deck')) return;
   UI.render();
 }
 
@@ -20719,7 +20783,7 @@ function mdCopy(name) {
   let n = 2;
   while (saved[newName]) { newName = name + ' (copy ' + (n++) + ')'; }
   saved[newName] = { cards: (deck.cards || []).slice(), tricks: (deck.tricks || []).slice() };
-  UI._dbSetSavedDecks(saved);
+  if (!dbPersist(saved, 'copy the deck')) return;
   UI.render();
 }
 
@@ -20733,7 +20797,7 @@ function mdRename(name) {
   if (!saved[name]) return;
   saved[trimmed] = saved[name];
   delete saved[name];
-  UI._dbSetSavedDecks(saved);
+  if (!dbPersist(saved, 'rename the deck')) return;
   UI.render();
 }
 
@@ -20743,7 +20807,7 @@ function mdDelete(name) {
     if (!ok) return;
     const saved = UI._dbGetSavedDecks();
     delete saved[name];
-    UI._dbSetSavedDecks(saved);
+    if (!dbPersist(saved, 'delete the deck')) return;
     UI.render();
   });
 }
