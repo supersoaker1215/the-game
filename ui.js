@@ -2030,7 +2030,7 @@ const UI = {
     // Match load-in sting — the former menu track. Played ONCE for ~20s at
     // the first combat round of a match, then faded out. Not looped; lives
     // on its own <audio> element independent of the menu loop.
-    MATCH_INTRO_SRC: 'audio/match_intro.mp3?v=1',
+    MATCH_INTRO_SRC: 'audio/match_intro.mp3?v=2',
     MATCH_INTRO_MS: 20000,   // total on-screen time before it's fully faded
 
     _init() {
@@ -17231,7 +17231,7 @@ const UI = {
       // Position buffer — {x, y, t} for each move sample. Older
       // entries get pruned each frame.
       const buf = [];
-      const TRAIL_LIFE = 160;     // ms — how long a position lasts in the trail (halved: shorter trail, less lag)
+      const TRAIL_LIFE = 80;      // ms — trail length (halved twice per user: short wake, no lag)
       // Disk-edge geometry: the trail represents the back edges of a
       // gliding disk. TRAIL_OFFSET is the disk's radius (so the two
       // lines sit on opposite sides of the disk, separated by the

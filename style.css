@@ -4582,6 +4582,11 @@ body.hit-pause .ai-hand * {
   font-size: 16px;
   top: 9px; left: 9px;
 }
+/* Trick-draft padding is 14px (vs 8px on character draft cards), which left
+   the cost gem + rarity pips floating in the padding gutter ABOVE the art.
+   Nudge both INTO the painting like the character cards. */
+.draft-card.trick-draft .card-cost { top: 20px; left: 20px; }
+.draft-card.trick-draft .rarity-strip { top: 20px; right: 21px; }
 .card.draft-card .stat-circle {
   width: 32px; height: 32px;
   font-size: 15px;

@@ -82,8 +82,16 @@ window.CARD_ART_VARIANTS = {
 // Reorder (primary) + deletions are baked into CARD_ART_VARIANTS above (array
 // order = priority; a removed entry = deleted), not here.
 window.CARD_ART_OVERRIDES = {
-  focalCard: {},   // "name|file" -> "X% Y%"   in-game card crop focal
-  focalMenu: {},   // "name|file" -> "X% Y%"   menu-hero crop focal
+  focalCard: {   // "name|file" -> "X% Y%"   in-game card crop focal
+    // Both are very tall portraits (736x1594 / 736x1308) — a centered cover
+    // crop lands on the torso and cuts the head off. Bias toward the top.
+    'Captain America|Captain America 2.jpg': '50% 12%',
+    'Michael Myers|Michael Myers 2.jpg': '50% 12%',
+  },
+  focalMenu: {   // "name|file" -> "X% Y%"   menu-hero crop focal
+    'Captain America|Captain America 2.jpg': '50% 10%',
+    'Michael Myers|Michael Myers 2.jpg': '50% 10%',
+  },
   zoomCard:  {},   // "name|file" -> scale (1 = cover, e.g. 1.3)
   zoomMenu:  {},   // "name|file" -> scale
 };
