@@ -2419,7 +2419,7 @@ const Game = {
       this.state[owner].discount = 0;
       this.log(`[PLAY] ${who} place ${card.name} in lane ${laneIdx + 1} for ${cost} energy`);
       this._runHook(card, 'onPlay', this, card, laneIdx);
-      this.getAllCardsOnBoard().forEach(c => { if (c.onAnyCardPlayed && c.id !== card.id) c.onAnyCardPlayed(this, c); });
+      this.getAllCardsOnBoard().forEach(c => { if (c.onAnyCardPlayed && c.id !== card.id) c.onAnyCardPlayed(this, c, card); });
       this.checkJumpConditions('cardPlayed', { owner, cost: card.baseCost || card.cost, laneIdx, isEnvironment: true });
       this.applyMagnetoDebuffs();
       if (typeof UI !== 'undefined' && UI.render) UI.render();
@@ -2470,7 +2470,7 @@ const Game = {
     // Activate "While Active" passives immediately
     if (card.passive === 'faceDownOption') this.state[owner].faceDownAvailable = true;
 
-    this.getAllCardsOnBoard().forEach(c => { if (c.onAnyCardPlayed && c.id !== card.id) c.onAnyCardPlayed(this, c); });
+    this.getAllCardsOnBoard().forEach(c => { if (c.onAnyCardPlayed && c.id !== card.id) c.onAnyCardPlayed(this, c, card); });
     this.getAllCardsOf(owner).forEach(c => {
       if (c.passive === 'cardPlayedBuff' && c.id !== card.id) { const n = c._bpAuraSize || 1; this.buffCard(card, n, n); }
     });
@@ -2583,7 +2583,7 @@ const Game = {
     this.checkLaneTrap(card, laneIdx);
 
     // Trigger "While Active" buffs from allies (e.g. Black Panther +1/+1)
-    this.getAllCardsOnBoard().forEach(c => { if (c.onAnyCardPlayed && c.id !== card.id) c.onAnyCardPlayed(this, c); });
+    this.getAllCardsOnBoard().forEach(c => { if (c.onAnyCardPlayed && c.id !== card.id) c.onAnyCardPlayed(this, c, card); });
     this.getAllCardsOf(owner).forEach(c => {
       if (c.passive === 'cardPlayedBuff' && c.id !== card.id) {
         const n = c._bpAuraSize || 1;
@@ -6320,7 +6320,7 @@ const Game = {
       }
       // Aura ping — fires for tokens too so existing while-active auras
       // (Luke's debuff, Captain America's squad buff, etc.) hit them.
-      this.getAllCardsOnBoard().forEach(c => { if (c.onAnyCardPlayed && c.id !== card.id) c.onAnyCardPlayed(this, c); });
+      this.getAllCardsOnBoard().forEach(c => { if (c.onAnyCardPlayed && c.id !== card.id) c.onAnyCardPlayed(this, c, card); });
       this.getAllCardsOf(owner).forEach(c => {
         if (c.passive === 'cardPlayedBuff' && c.id !== card.id) { const n = c._bpAuraSize || 1; this.buffCard(card, n, n); }
       });

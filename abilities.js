@@ -1201,15 +1201,17 @@ const CARD_ABILITIES = {
           G.log(`Moder's forced-lane effect ends.`);
         }
       },
-      onAnyCardPlayed(G, self) {
-        // Strip the next N cards that land in Moder's lane, where N is
-        // _moderStripPending (1 or 2). Each strip decrements the counter.
+      onAnyCardPlayed(G, self, playedCard) {
+        // Strip only the card that was just played directly into Moder's lane.
+        // Cards that hunted or moved here (onBeforeTricks, _resolveHuntChase)
+        // don't count — the strip pending stays until a card is genuinely
+        // played into the lane.
         if (!self._moderStripPending || self._moderStripPending <= 0) return;
         const myLane = G.findCardLane(self);
         if (myLane < 0) return;
         const opp = G.opponent(self.owner);
         const enemy = G.state.lanes[myLane][opp];
-        if (enemy && !enemy._moderStripped) {
+        if (enemy && !enemy._moderStripped && playedCard && enemy.id === playedCard.id) {
           strip(enemy, G);
           self._moderStripPending -= 1;
         }
