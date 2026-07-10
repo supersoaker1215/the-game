@@ -2181,7 +2181,7 @@ body.hit-pause .ai-hand * {
 /* Hover HOTSPOT = the text only. The options + section labels shrink to their
    content width so hovering the empty space to the right (over the hero) no
    longer triggers the row — a direct hover over the icon/text is required. */
-.mm-mw3 .mm-option { width: fit-content; max-width: 100%; }
+.mm-mw3 .mm-option { width: fit-content; max-width: 100%; overflow: visible; }
 .mm-mw3 .mm-section-label { width: fit-content; }
 /* Belt-and-suspenders box kill — authored LAST so it wins the cascade over the
    themed `.mm-option:hover` wash/box-shadow/border block (Neon Theme, later in

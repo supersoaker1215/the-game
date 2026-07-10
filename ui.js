@@ -1988,7 +1988,6 @@ const UI = {
       'audio/cards/optimus-prime-hover.mp3',
       'audio/cards/padme-amidala-hover.mp3',
       'audio/cards/power-stone-hover.mp3',
-      'audio/cards/predator-hover.mp3',
       'audio/cards/reality-stone-hover.mp3',
       'audio/cards/sandman-hover.mp3',
       'audio/cards/sewers-hover.mp3',
