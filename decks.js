@@ -36,7 +36,7 @@ const STARTER_DECKS = {
     // 8 tricks — 4 unique × 2 copies.
     tricks: [
       'Bat Signal', 'Bat Signal',
-      'Batarang', 'Batarang',
+      'Batarangs', 'Batarangs',
       'Fear Toxin', 'Fear Toxin',
       'Mother Box', 'Mother Box',
     ],
@@ -63,7 +63,7 @@ const STARTER_DECKS = {
       'Symbiote Spider-Man', 'Symbiote Spider-Man',
     ],
     tricks: [
-      'Batarang', 'Batarang',
+      'Batarangs', 'Batarangs',
       'Bat Signal', 'Bat Signal',
       'Bifrost', 'Bifrost',
       'Power Stone', 'Power Stone',
@@ -238,7 +238,7 @@ const STARTER_DECKS = {
       'Gorr', 'Gorr',                      // god-killer
     ],
     tricks: [
-      'Batarang', 'Batarang',               // direct damage
+      'Batarangs', 'Batarangs',              // direct damage
       'Nth Metal', 'Nth Metal',
       'Kryptonite', 'Kryptonite',           // ATK strip on a problem
       'Fear Toxin', 'Fear Toxin',           // damage / disable
