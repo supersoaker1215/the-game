@@ -17236,13 +17236,24 @@ const UI = {
       // start from the edge."
       const TRAIL_OFFSET = 10;       // px — half the gap = disk radius
       const HEAD_SETBACK_PX = 10;    // px — gap between live cursor and trail head (= disk radius)
-      const SAMPLE_MS = 12;          // throttle on mousemove (~80 Hz)
+      const SAMPLE_MS = 12;          // min gap between committed samples (~80 Hz)
+      const MAX_BUF = 160;           // hard cap so a 1000 Hz mouse can't bloat the buffer
       let lastSample = 0;
       document.addEventListener('mousemove', (e) => {
         const now = performance.now();
         if (now - lastSample < SAMPLE_MS) return;
         lastSample = now;
-        buf.push({ x: e.clientX, y: e.clientY, t: now });
+        // At speed the browser coalesces many px of travel into ONE mousemove.
+        // Pull the hidden intermediate points so the trail is drawn through the
+        // REAL path (dense + smooth) instead of a few far-apart samples that
+        // make the line look chunky or broken. Falls back to the event itself.
+        const pts = (e.getCoalescedEvents && e.getCoalescedEvents()) || null;
+        if (pts && pts.length) {
+          for (const ce of pts) buf.push({ x: ce.clientX, y: ce.clientY, t: now });
+        } else {
+          buf.push({ x: e.clientX, y: e.clientY, t: now });
+        }
+        if (buf.length > MAX_BUF) buf.splice(0, buf.length - MAX_BUF);
       }, { passive: true });
 
       // Frame loop — drop expired points, recompute the two parallel
@@ -20337,53 +20348,33 @@ const UI = {
     const main = document.createElement('div');
     main.className = 'custom-cursor hidden';
     document.body.appendChild(main);
-    const TRAIL = 10;
-    const trails = [];
-    for (let i = 0; i < TRAIL; i++) {
-      const t = document.createElement('div');
-      t.className = 'cursor-trail';
-      document.body.appendChild(t);
-      trails.push(t);
-    }
-    let trailIdx = 0;
-    let lastTrailT = 0;
-    let lastX = -1, lastY = -1;
+
+    // --- Disc motion, decoupled from the raw mousemove rate ---
+    // The disc IS the cursor (the native one is `cursor: none`), so it must
+    // sit exactly under the pointer. mousemove only records the latest target;
+    // ONE rAF writes the GPU-composited --cx/--cy vars at most once per frame.
+    // This fixes the "cursor stops / can't keep up at speed" jank two ways:
+    //   1) position is a compositor `translate` (CSS), not left/top layout, so
+    //      updating it never blocks on the busy main thread; and
+    //   2) bursts of mousemove events (fast motion fires many per frame)
+    //      collapse into a single write per frame instead of N layout thrashes.
+    let tgtX = -100, tgtY = -100;   // latest pointer position
+    let raf = 0;
+    const draw = () => {
+      raf = 0;
+      main.style.setProperty('--cx', tgtX + 'px');
+      main.style.setProperty('--cy', tgtY + 'px');
+    };
+    const schedule = () => { if (!raf) raf = requestAnimationFrame(draw); };
 
     const move = (e) => {
-      const x = e.clientX, y = e.clientY;
-      main.classList.remove('hidden');
-      main.style.left = x + 'px';
-      main.style.top  = y + 'px';
-      // One cursor style everywhere — no context-specific swell. Users
-      // found the board's spinning disc + the interactive "hand" swell
-      // distracting; cleaner to keep the disc visually consistent and
-      // let the trail do the talking.
+      tgtX = e.clientX; tgtY = e.clientY;
+      if (main.classList.contains('hidden')) main.classList.remove('hidden');
+      // One cursor style everywhere — no context-specific swell. Users found
+      // the board's spinning disc + the interactive "hand" swell distracting;
+      // cleaner to keep the disc consistent and let the Tron line trail talk.
       main.classList.remove('on-disc', 'on-interactive');
-
-      // Throttled trail emission + skip tiny moves. Trail dots are
-      // placed at the TRAILING EDGE of the disc (opposite to motion
-      // direction) so they stream behind the cursor like a wake,
-      // never stacking in the middle of the disc.
-      const now = performance.now();
-      const dx = (lastX < 0) ? 0 : (x - lastX);
-      const dy = (lastY < 0) ? 0 : (y - lastY);
-      const dist = (lastX < 0) ? Infinity : Math.hypot(dx, dy);
-      if (now - lastTrailT > 32 && dist > 4) {
-        const DISC_RADIUS = 13;  // half of 26px cursor
-        const len = dist || 1;
-        // Offset opposite to motion — trail sits at the back of the disc.
-        const tx = x - (dx / len) * DISC_RADIUS;
-        const ty = y - (dy / len) * DISC_RADIUS;
-        const d = trails[trailIdx];
-        trailIdx = (trailIdx + 1) % TRAIL;
-        d.style.left = tx + 'px';
-        d.style.top  = ty + 'px';
-        d.classList.remove('active');
-        void d.offsetWidth;
-        d.classList.add('active');
-        lastTrailT = now;
-        lastX = x; lastY = y;
-      }
+      schedule();
     };
     const leave = () => { main.classList.add('hidden'); };
     document.addEventListener('mousemove', move, { passive: true });

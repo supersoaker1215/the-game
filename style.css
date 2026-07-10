@@ -15238,7 +15238,13 @@ input, textarea, select, [contenteditable="true"] { cursor: text !important; }
   top: 0; left: 0;
   width: 26px; height: 26px;
   border-radius: 50%;
-  transform: translate(-50%, -50%);
+  /* GPU-composited position: the standalone `translate` property is a
+     compositor transform (no layout/paint), driven by --cx/--cy px vars that a
+     single rAF writes once per frame. Previously positioned via left/top, which
+     forced layout on every raw mousemove and made the disc stutter/freeze at
+     speed when the main thread was busy with menu/board animations. The -50%
+     centers the 26px disc on the pointer. */
+  translate: calc(var(--cx, -100px) - 50%) calc(var(--cy, -100px) - 50%);
   pointer-events: none;
   z-index: 10000;
   border: 2px solid var(--theme-accent-bright);
@@ -15250,7 +15256,7 @@ input, textarea, select, [contenteditable="true"] { cursor: text !important; }
     0 0 10px var(--theme-accent-bright),
     0 0 22px var(--theme-glow-outer),
     inset 0 0 8px var(--theme-glow-outer);
-  will-change: left, top;
+  will-change: translate, scale;
 }
 .custom-cursor.hidden { opacity: 0; }
 /* Click press — disc scales up briefly, punchier than a brightness
@@ -15264,13 +15270,15 @@ input, textarea, select, [contenteditable="true"] { cursor: text !important; }
     inset 0 0 10px var(--theme-accent-bright);
   animation: cursorPress 220ms var(--ease-out-soft);
 }
-/* Perf: previously animated `width/height: 26 → 40 → 26px`, which
-   forced layout each frame. Now scales the existing translate(-50%)
-   center transform, GPU-only. 40/26 = 1.538 scale at peak. */
+/* Perf: previously animated `width/height: 26 → 40 → 26px`, which forced layout
+   each frame. Now uses the standalone `scale` property — a compositor transform
+   that composes with the position `translate` above without clobbering it (a
+   `transform: ... scale()` here would wipe the disc's translate and snap it to
+   0,0 mid-press). 40/26 = 1.538 scale at peak. */
 @keyframes cursorPress {
-  0%   { transform: translate(-50%, -50%) scale(1);     }
-  50%  { transform: translate(-50%, -50%) scale(1.538); }
-  100% { transform: translate(-50%, -50%) scale(1);     }
+  0%   { scale: 1;     }
+  50%  { scale: 1.538; }
+  100% { scale: 1;     }
 }
 
 /* Trail dots — disabled per user feedback: "get rid of the little tail
