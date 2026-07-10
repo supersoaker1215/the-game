@@ -13,25 +13,40 @@
 (function () {
   if (typeof window === 'undefined') return;
 
-  var STORAGE_KEY  = 'errorReports';
-  var MAX_REPORTS  = 5;       // ring buffer in localStorage
-  var MAX_LOG_LINE = 30;      // recent game log lines per report
-  var BTN_ID       = 'err-report-btn';
+  const STORAGE_KEY  = 'errorReports';
+  const MAX_REPORTS  = 5;       // ring buffer in localStorage
+  const MAX_LOG_LINE = 30;      // recent game log lines per report
+  const BTN_ID       = 'err-report-btn';
+  let memoryReports = [];
 
   function load() {
-    try { return JSON.parse(localStorage.getItem(STORAGE_KEY)) || []; }
-    catch (e) { return []; }
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if (raw != null) {
+        const stored = JSON.parse(raw) || [];
+        if (Array.isArray(stored)) memoryReports = stored.slice(-MAX_REPORTS);
+      }
+    } catch (e) {
+      try { console.warn('[error-reporter] could not read saved reports', e); } catch (_) {}
+    }
+    return memoryReports.slice();
   }
   function save(list) {
-    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(list.slice(-MAX_REPORTS))); }
-    catch (e) {}
+    memoryReports = list.slice(-MAX_REPORTS);
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(memoryReports));
+      return true;
+    } catch (e) {
+      try { console.warn('[error-reporter] could not persist report', e); } catch (_) {}
+      return false;
+    }
   }
 
   // Pull the last MAX_LOG_LINE entries from Game.state.log if present.
   // Game.state.log is the in-game text log fed by Game.log(); already
   // user-readable, no PII concerns. Falls back to empty array.
   function recentLog() {
-    var log;
+    let log;
     try {
       if (typeof Game === 'undefined' || !Game.state || !Game.state.log) return [];
       log = Game.state.log;
@@ -84,7 +99,8 @@
   }
 
   function record(kind, err, extra) {
-    var report = {
+    if (!(err instanceof Error)) err = new Error(String(err));
+    const report = {
       kind: kind,
       time: new Date().toISOString(),
       ua:   navigator.userAgent,
@@ -98,11 +114,12 @@
     if (extra) {
       Object.keys(extra).forEach(function (k) { report[k] = extra[k]; });
     }
-    var all = load();
+    const all = load();
     all.push(report);
     save(all);
     showButton(all.length);
     try { console.warn('[error-reporter]', kind, report.msg); } catch (e) {}
+    return report;
   }
 
   // Floating button — appears bottom-right when there's at least one
@@ -110,64 +127,85 @@
   // to the clipboard for pasting into a bug ticket / chat thread.
   function showButton(count) {
     if (typeof document === 'undefined') return;
-    var wrap = document.getElementById(BTN_ID + '-wrap');
+    let wrap = document.getElementById(BTN_ID + '-wrap');
     if (!wrap) {
       wrap = document.createElement('div');
       wrap.id = BTN_ID + '-wrap';
       wrap.style.cssText = 'position:fixed;bottom:12px;right:12px;z-index:99999;display:flex;gap:4px;align-items:center';
-      var btn = document.createElement('button');
+      const btn = document.createElement('button');
       btn.id = BTN_ID;
       btn.type = 'button';
       btn.style.cssText = 'background:#c0392b;color:#fff;border:none;padding:8px 12px;border-radius:6px;font:13px system-ui;cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,0.3)';
       btn.addEventListener('click', onClick);
-      var clrBtn = document.createElement('button');
+      const clrBtn = document.createElement('button');
       clrBtn.type = 'button';
       clrBtn.title = 'Dismiss';
       clrBtn.style.cssText = 'background:#555;color:#fff;border:none;padding:8px 10px;border-radius:6px;font:13px system-ui;cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,0.3)';
       clrBtn.textContent = '✕';
       clrBtn.addEventListener('click', function () {
-        try { localStorage.removeItem(STORAGE_KEY); } catch(e) {}
+        memoryReports = [];
+        try { localStorage.removeItem(STORAGE_KEY); } catch(e) {
+          try { console.warn('[error-reporter] could not clear reports', e); } catch (_) {}
+        }
         if (wrap.parentNode) wrap.parentNode.removeChild(wrap);
       });
       wrap.appendChild(btn);
       wrap.appendChild(clrBtn);
       document.body.appendChild(wrap);
     }
-    var btn = document.getElementById(BTN_ID);
+    const btn = document.getElementById(BTN_ID);
     if (btn) btn.textContent = '⚠ Copy bug report (' + count + ')';
   }
 
   function onClick() {
-    var all = load();
+    const all = load();
     if (!all.length) return;
-    var latest = all[all.length - 1];
-    var text = JSON.stringify(latest, null, 2);
-    var ok = false;
-    var ta;
-    try {
-      if (navigator.clipboard && navigator.clipboard.writeText) {
-        navigator.clipboard.writeText(text).then(function () { ok = true; });
-      } else {
-        ta = document.createElement('textarea');
-        ta.value = text;
-        document.body.appendChild(ta); ta.select();
-        document.execCommand('copy');
-        document.body.removeChild(ta);
-        ok = true;
+    const latest = all[all.length - 1];
+    const text = JSON.stringify(latest, null, 2);
+    function finish(ok, error) {
+      const btn = document.getElementById(BTN_ID);
+      if (btn) {
+        btn.textContent = ok ? '✓ Copied to clipboard' : '✗ Copy failed (see console)';
+        if (!ok) {
+          try { console.warn('[error-reporter] clipboard copy failed', error); } catch (_) {}
+          console.log('[error-reporter] report:', text);
+        }
+        setTimeout(function () { showButton(load().length); }, 2000);
       }
-    } catch (e) {}
-    var btn = document.getElementById(BTN_ID);
-    if (btn) {
-      btn.textContent = ok ? '✓ Copied to clipboard' : '✗ Copy failed (see console)';
-      if (!ok) console.log('[error-reporter] report:', text);
-      setTimeout(function () { showButton(load().length); }, 2000);
+    }
+    function fallbackCopy() {
+      const ta = document.createElement('textarea');
+      try {
+        ta.value = text;
+        document.body.appendChild(ta);
+        ta.select();
+        const copied = document.execCommand('copy');
+        finish(copied, copied ? null : new Error('execCommand returned false'));
+      } catch (e) {
+        finish(false, e);
+      } finally {
+        if (ta.parentNode) ta.parentNode.removeChild(ta);
+      }
+    }
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      try {
+        navigator.clipboard.writeText(text).then(function () {
+          finish(true);
+        }, function (e) {
+          fallbackCopy(e);
+        });
+      } catch (e) {
+        fallbackCopy(e);
+      }
+    } else {
+      fallbackCopy();
     }
   }
 
   // Listen for synchronous JS errors AND unhandled promise rejections.
   // Both forward to record() with a normalized Error object.
   window.addEventListener('error', function (ev) {
-    var err = ev.error || new Error(ev.message || 'unknown error');
+    const err = ev.error || new Error(ev.message || 'unknown error');
     record('error', err, {
       file:   ev.filename,
       line:   ev.lineno,
@@ -175,20 +213,28 @@
     });
   });
   window.addEventListener('unhandledrejection', function (ev) {
-    var reason = ev.reason || new Error('unhandled promise rejection');
-    var err = (reason instanceof Error) ? reason : new Error(String(reason));
+    const reason = ev.reason || new Error('unhandled promise rejection');
+    const err = (reason instanceof Error) ? reason : new Error(String(reason));
     record('unhandledrejection', err);
   });
 
-  // Surface any reports captured before this script loaded (e.g. an
-  // error during initial game.js parse). Show the button on init.
+  // Surface any reports captured in an earlier page load.
   if (load().length) showButton(load().length);
 
   // Devtools entry point: ErrorReporter.list() → recent reports;
+  // ErrorReporter.capture(error, extra) → record a caught error;
   // ErrorReporter.clear() → wipe localStorage.
   window.ErrorReporter = {
     list:  load,
-    clear: function () { try { localStorage.removeItem(STORAGE_KEY); } catch (e) {} var b = document.getElementById(BTN_ID); if (b) b.remove(); },
+    capture: function (error, extra) { return record('handled-error', error, extra); },
+    clear: function () {
+      memoryReports = [];
+      try { localStorage.removeItem(STORAGE_KEY); } catch (e) {
+        try { console.warn('[error-reporter] could not clear reports', e); } catch (_) {}
+      }
+      const wrap = document.getElementById(BTN_ID + '-wrap');
+      if (wrap) wrap.remove();
+    },
     test:  function () { record('test', new Error('synthetic test error')); },
   };
 })();

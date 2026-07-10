@@ -31,6 +31,15 @@
 // ============================================================
 
 const Roguelite = {
+  _reportError(error, context) {
+    const err = error instanceof Error ? error : new Error(String(error));
+    if (typeof window !== 'undefined' && window.ErrorReporter && window.ErrorReporter.capture) {
+      window.ErrorReporter.capture(err, { source: 'roguelite', context });
+    } else {
+      console.error(`[roguelite:${context}]`, err);
+    }
+    return err;
+  },
   // ----- Data: starter cards (Tier 0 vanilla bodies) -----
   // Plain stat-line goons. Designed so Act 1 feels like climbing OUT of
   // weakness rather than starting strong. These don't exist in CARD_DEFS;
@@ -3813,7 +3822,9 @@ const Roguelite = {
         activeNodeId: run.activeNode ? run.activeNode.id : null,
       };
       localStorage.setItem(this.SAVE_KEY, JSON.stringify(snapshot));
-    } catch (e) { console.warn('[ROGUELITE] save failed', e); }
+    } catch (e) {
+      this._reportError(e, 'run-save');
+    }
   },
 
   hasSavedRun() {
@@ -3860,12 +3871,19 @@ const Roguelite = {
         data.activeNode = data.map.nodes.find(n => n.id === data.activeNodeId) || null;
       }
       return data;
-    } catch (e) { console.warn('[ROGUELITE] load failed', e); return null; }
+    } catch (e) {
+      this._reportError(e, 'run-load');
+      return null;
+    }
   },
 
   _clearSavedRun() {
     if (typeof localStorage === 'undefined') return;
-    try { localStorage.removeItem(this.SAVE_KEY); } catch (e) {}
+    try {
+      localStorage.removeItem(this.SAVE_KEY);
+    } catch (e) {
+      this._reportError(e, 'run-clear');
+    }
   },
 
   // Resume from a saved run — restore Game.state.roguelite, ensure
@@ -3954,7 +3972,11 @@ const Roguelite = {
   },
   _saveLifetimeCardStats(stats) {
     if (typeof localStorage === 'undefined') return;
-    try { localStorage.setItem(this._CARD_LIFETIME_KEY, JSON.stringify(stats)); } catch (e) {}
+    try {
+      localStorage.setItem(this._CARD_LIFETIME_KEY, JSON.stringify(stats));
+    } catch (e) {
+      this._reportError(e, 'lifetime-stats-save');
+    }
   },
   // Bumps lifetime totals for every non-starter, non-curse card in
   // the run's deck at run end. Tracks { xp, plays, runs } per name.
@@ -4063,7 +4085,9 @@ const Roguelite = {
       // Keep only the most recent N.
       if (list.length > this._RUN_HISTORY_MAX) list.length = this._RUN_HISTORY_MAX;
       localStorage.setItem(this._RUN_HISTORY_KEY, JSON.stringify(list));
-    } catch (e) { console.warn('[RUN HISTORY] save failed', e); }
+    } catch (e) {
+      this._reportError(e, 'run-history-save');
+    }
   },
   _loadRunHistory() {
     if (typeof localStorage === 'undefined') return [];
@@ -4169,8 +4193,11 @@ const Roguelite = {
   _markDailyAttempted() {
     const today = this._todayKey();
     if (!today) return;
-    try { localStorage.setItem(this._DAILY_KEY, JSON.stringify({ date: today, result: null })); }
-    catch (e) {}
+    try {
+      localStorage.setItem(this._DAILY_KEY, JSON.stringify({ date: today, result: null }));
+    } catch (e) {
+      this._reportError(e, 'daily-attempt-save');
+    }
   },
   // Hook for run end — called from finalizeRun (win) / endRun (loss).
   _markDailyResult(result) {
@@ -4182,7 +4209,9 @@ const Roguelite = {
         cur.result = result;
         localStorage.setItem(this._DAILY_KEY, JSON.stringify(cur));
       }
-    } catch (e) {}
+    } catch (e) {
+      this._reportError(e, 'daily-result-save');
+    }
   },
   enterDailyRun() {
     const status = this.dailyStatus();
