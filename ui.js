@@ -1200,7 +1200,7 @@ const UI = {
       'Yoda':             { hover: { src: 'audio/cards/yoda-hover.mp3', maxDur: 52 }, death: 'audio/cards/yoda-death.mp3' },
       'Darth Maul':       { hover: { src: 'audio/cards/darth-maul-hover.mp3', maxDur: 255 } },
       'Padme Amidala':    { hover: { src: 'audio/cards/padme-amidala-hover.mp3', maxDur: 106 } },
-      'General Grievous': { hover: { src: 'audio/cards/general-grievous-hover.mp3', maxDur: 169 }, kill: { src: 'audio/cards/general-grievous-kill.mp3', maxDur: 3 } },
+      'General Grievous': { hover: { src: 'audio/cards/general-grievous-hover.mp3?v=2', maxDur: 50 }, kill: { src: 'audio/cards/general-grievous-kill.mp3', maxDur: 3 } },
       'Obi-Wan':          { hover: { src: 'audio/cards/obi-wan-hover.mp3', maxDur: 137 }, death: 'audio/cards/obi-wan-death.mp3' },
       'Ahsoka':           { hover: { src: 'audio/cards/ahsoka-hover.mp3?v=1', maxDur: 64 } },
       // Anakin Skywalker hover: 109s of John Williams' "Anakin's Dark Deeds"
@@ -1968,7 +1968,7 @@ const UI = {
       'audio/cards/freddy-fazbear-hover.mp3',
       'audio/cards/galactus-hover.mp3',
       'audio/cards/gargantua-hover.mp3',
-      'audio/cards/general-grievous-hover.mp3',
+      'audio/cards/general-grievous-hover.mp3?v=2',
       'audio/cards/ghostface-hover.mp3',
       'audio/cards/gojo-hover.mp3',
       'audio/cards/green-goblin-hover.mp3',
