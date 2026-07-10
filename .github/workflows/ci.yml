@@ -32,17 +32,28 @@ jobs:
         run: |
           set -euxo pipefail
           sudo apt-get update
-          if apt-cache show libjavascriptcoregtk-4.1-bin >/dev/null 2>&1; then
-            sudo apt-get install -y libjavascriptcoregtk-4.1-bin
-            JSC_BIN=/usr/lib/x86_64-linux-gnu/webkit2gtk-4.1/jsc
-          else
-            sudo apt-get install -y libjavascriptcoregtk-4.0-bin
-            JSC_BIN=/usr/lib/x86_64-linux-gnu/webkit2gtk-4.0/jsc
+          # The `jsc` CLI ships in different packages across Ubuntu releases:
+          # 24.04 (noble) moved it to the unversioned `libjavascriptcoregtk-bin`
+          # at /usr/bin/jsc; 22.04 ships it in `libjavascriptcoregtk-4.1-bin`
+          # under the webkit2gtk-4.1 libdir; 20.04 in the older 4.0 variant.
+          # Install whichever packages exist (ignore ones that don't).
+          for pkg in libjavascriptcoregtk-bin libjavascriptcoregtk-4.1-bin libjavascriptcoregtk-4.0-bin; do
+            if apt-cache show "$pkg" >/dev/null 2>&1; then
+              sudo apt-get install -y "$pkg" || true
+            fi
+          done
+          # Locate the binary: prefer PATH (/usr/bin on 24.04), then the
+          # versioned webkit2gtk libdirs, then a broad search under /usr.
+          JSC_BIN=$(command -v jsc || true)
+          if [ -z "$JSC_BIN" ]; then
+            for cand in \
+              /usr/lib/x86_64-linux-gnu/webkit2gtk-4.1/jsc \
+              /usr/lib/x86_64-linux-gnu/webkit2gtk-4.0/jsc; do
+              if [ -x "$cand" ]; then JSC_BIN="$cand"; break; fi
+            done
           fi
-          if [ ! -x "$JSC_BIN" ]; then
-            # Fallback: locate jsc anywhere under /usr/lib (path varies by
-            # webkitgtk minor version on some Ubuntu point releases).
-            JSC_BIN=$(find /usr/lib -name jsc -type f -executable 2>/dev/null | head -n1)
+          if [ -z "$JSC_BIN" ]; then
+            JSC_BIN=$(find /usr -name jsc -type f -executable 2>/dev/null | head -n1)
           fi
           if [ -z "$JSC_BIN" ] || [ ! -x "$JSC_BIN" ]; then
             echo "::error::Could not locate jsc binary after install"

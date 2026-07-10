@@ -1363,6 +1363,263 @@ test('Block-trick: tryApplyDebuff stamps _debuffDelayedClear on a swung target',
 });
 
 // ============================================================
+// ---- COMBAT ENGINE UNIT TESTS ------------------------------
+// engine/combat.js (CombatEngine) is a pure, side-effect-free
+// module — snapCard / canSwingForward / applyArmor / assertSnap
+// Complete / dualRunDiff. The combat-lab tests above exercise it
+// only indirectly through Game.applyCombatDamage; these hit the
+// engine's public surface directly so its math is pinned even if
+// the resolver stops routing through it.
+// ============================================================
+
+test('CombatEngine is loaded on the global scope', function () {
+  assert(typeof CombatEngine === 'object' && CombatEngine, 'CombatEngine global should exist');
+  assertEq(typeof CombatEngine.applyArmor, 'function', 'applyArmor should be a function');
+  assertEq(typeof CombatEngine.canSwingForward, 'function', 'canSwingForward should be a function');
+  assertEq(typeof CombatEngine.snapCard, 'function', 'snapCard should be a function');
+});
+
+// ---- applyArmor: pure armor-reduction math ----
+test('CombatEngine.applyArmor: zero/negative armor passes damage through untouched', function () {
+  var r0 = CombatEngine.applyArmor(5, 0);
+  assertEq(r0.absorbed, false, 'no armor never absorbs');
+  assertEq(r0.remaining, 5, 'all damage lands with 0 armor');
+  var rNeg = CombatEngine.applyArmor(5, -3);
+  assertEq(rNeg.absorbed, false, 'negative armor treated as none');
+  assertEq(rNeg.remaining, 5, 'all damage lands with negative armor');
+});
+
+test('CombatEngine.applyArmor: armor >= damage fully absorbs the hit', function () {
+  var less = CombatEngine.applyArmor(2, 5);
+  assertEq(less.absorbed, true, 'armor greater than raw absorbs');
+  assertEq(less.remaining, 0, 'nothing lands when fully absorbed');
+  var eq = CombatEngine.applyArmor(4, 4);
+  assertEq(eq.absorbed, true, 'armor exactly equal to raw absorbs (boundary)');
+  assertEq(eq.remaining, 0, 'boundary case leaks no damage');
+});
+
+test('CombatEngine.applyArmor: partial armor subtracts and lands the remainder', function () {
+  var r = CombatEngine.applyArmor(7, 2);
+  assertEq(r.absorbed, false, 'armor below raw does not fully absorb');
+  assertEq(r.remaining, 5, 'remaining = raw - armor');
+});
+
+test('CombatEngine.applyArmor: coerces fractional inputs via | 0 (truncation)', function () {
+  var r = CombatEngine.applyArmor(5.9, 2.9);
+  // 5.9|0 = 5, 2.9|0 = 2 → 5 - 2 = 3
+  assertEq(r.remaining, 3, 'floats are truncated toward zero before subtraction');
+  assertEq(r.absorbed, false, 'truncated raw (5) still exceeds truncated armor (2)');
+});
+
+// ---- canSwingForward: swing gate ----
+test('CombatEngine.canSwingForward: null/undefined cannot swing', function () {
+  assertEq(CombatEngine.canSwingForward(null), false, 'null cannot swing');
+  assertEq(CombatEngine.canSwingForward(undefined), false, 'undefined cannot swing');
+});
+
+test('CombatEngine.canSwingForward: a clean card swings; bullseye does not gate it', function () {
+  assertEq(CombatEngine.canSwingForward({}), true, 'a card with no status flags swings');
+  assertEq(CombatEngine.canSwingForward({ isBullseye: true }), true, 'bullseye is not a swing-blocking status');
+});
+
+test('CombatEngine.canSwingForward: stun/freeze/fear/mind-control each block the swing', function () {
+  assertEq(CombatEngine.canSwingForward({ isStunned: true }), false, 'stunned cannot swing forward');
+  assertEq(CombatEngine.canSwingForward({ isFrozen: true }), false, 'frozen cannot swing forward');
+  assertEq(CombatEngine.canSwingForward({ isFeared: true }), false, 'feared swings at allies, not forward');
+  assertEq(CombatEngine.canSwingForward({ isMindControlled: true }), false, 'mind-controlled swings for the enemy');
+});
+
+// ---- snapCard: frozen-shape snapshot ----
+test('CombatEngine.snapCard: null in, null out', function () {
+  assertEq(CombatEngine.snapCard(null), null, 'null card snaps to null');
+  assertEq(CombatEngine.snapCard(undefined), null, 'undefined card snaps to null');
+});
+
+test('CombatEngine.snapCard: copies stats and coerces missing fields to defaults', function () {
+  var snap = CombatEngine.snapCard({ name: 'Test', owner: 'player' });
+  assertEq(snap.name, 'Test', 'name copied through');
+  assertEq(snap.owner, 'player', 'owner copied through');
+  // Missing numeric fields default to 0 via | 0.
+  assertEq(snap.currentHealth, 0, 'missing currentHealth defaults to 0');
+  assertEq(snap.attack, 0, 'missing attack defaults to 0');
+  assertEq(snap.splashRange, 0, 'missing splashRange defaults to 0');
+  assertEq(snap.armorValue, 0, 'missing armorValue defaults to 0');
+  assertEq(snap.evadeCharges, 0, 'missing evadeCharges defaults to 0');
+  assertEq(snap.invincibleTurns, 0, 'missing invincibleTurns defaults to 0');
+  // Missing boolean flags default to false via !!.
+  assertEq(snap.hasDamageImmunity, false, 'missing hasDamageImmunity defaults to false');
+  assertEq(snap.isStunned, false, 'missing isStunned defaults to false');
+  assertEq(snap.isFrozen, false, 'missing isFrozen defaults to false');
+  assertEq(snap.isFeared, false, 'missing isFeared defaults to false');
+  assertEq(snap.isMindControlled, false, 'missing isMindControlled defaults to false');
+  assertEq(snap.isBullseye, false, 'missing isBullseye defaults to false');
+});
+
+test('CombatEngine.snapCard: truncates fractional numbers and normalizes truthy flags', function () {
+  var snap = CombatEngine.snapCard({
+    name: 'Frac', owner: 'ai',
+    currentHealth: 4.9, attack: 3.7, splashRange: 1.2,
+    armorValue: 2.8, evadeCharges: 1.9, invincibleTurns: 2.5,
+    hasDamageImmunity: 1, isStunned: 'yes', isFrozen: 0,
+  });
+  assertEq(snap.currentHealth, 4, 'currentHealth truncated');
+  assertEq(snap.attack, 3, 'attack truncated');
+  assertEq(snap.splashRange, 1, 'splashRange truncated');
+  assertEq(snap.armorValue, 2, 'armorValue truncated');
+  assertEq(snap.evadeCharges, 1, 'evadeCharges truncated');
+  assertEq(snap.invincibleTurns, 2, 'invincibleTurns truncated');
+  assertEq(snap.hasDamageImmunity, true, 'truthy immunity normalized to true');
+  assertEq(snap.isStunned, true, 'truthy string normalized to true');
+  assertEq(snap.isFrozen, false, 'falsy 0 normalized to false');
+});
+
+test('CombatEngine.snapCard output satisfies assertSnapComplete', function () {
+  // A snapshot of a real card instance must have every required field.
+  var G = freshGame();
+  var inst = G.createCardInstance(cardByName('Ant-Man'), 'player');
+  var snap = CombatEngine.snapCard(inst);
+  // assertSnapComplete throws on any undefined required field.
+  CombatEngine.assertSnapComplete(snap);
+  assert(true, 'assertSnapComplete accepted a real snapCard result');
+});
+
+// ---- assertSnapComplete: debug field-presence guard ----
+test('CombatEngine.assertSnapComplete: null is a no-op', function () {
+  CombatEngine.assertSnapComplete(null);
+  CombatEngine.assertSnapComplete(undefined);
+  assert(true, 'null/undefined snaps do not throw');
+});
+
+test('CombatEngine.assertSnapComplete: throws naming the first missing field', function () {
+  var incomplete = {
+    name: 'X', currentHealth: 1, attack: 1, splashRange: 0,
+    armorValue: 0, evadeCharges: 0, invincibleTurns: 0,
+    hasDamageImmunity: false, isStunned: false, isFrozen: false,
+    isFeared: false, isMindControlled: false, isBullseye: false,
+    // owner intentionally omitted
+  };
+  var threw = false, msg = '';
+  try { CombatEngine.assertSnapComplete(incomplete); }
+  catch (e) { threw = true; msg = e.message || String(e); }
+  assert(threw, 'a snap missing a required field must throw');
+  assert(msg.indexOf('owner') !== -1, 'error message should name the missing field (owner): ' + msg);
+});
+
+// ---- dualRunDiff: forecast-vs-actual divergence detector ----
+test('CombatEngine.dualRunDiff: null forecast yields no divergences', function () {
+  var out = CombatEngine.dualRunDiff(null, [], []);
+  assertEq(out.length, 0, 'null forecast returns empty array');
+});
+
+test('CombatEngine.dualRunDiff: matching forecast reports zero divergence (plain-object map)', function () {
+  var p = { id: 1, name: 'P', currentHealth: 3 };
+  var a = { id: 2, name: 'A', currentHealth: 0 };
+  var forecast = {
+    1: { hpAfter: 3, dies: false },
+    2: { hpAfter: 0, dies: true },
+  };
+  var out = CombatEngine.dualRunDiff(forecast, [p], [a]);
+  assertEq(out.length, 0, 'accurate forecast produces no divergence entries');
+});
+
+test('CombatEngine.dualRunDiff: flags HP mismatch and death mismatch (Map forecast)', function () {
+  var p = { id: 10, name: 'HpDiff', currentHealth: 2 };   // predicted 5
+  var a = { id: 11, name: 'DeathDiff', currentHealth: 0 }; // predicted alive
+  var forecast = new Map();
+  forecast.set(10, { hpAfter: 5, dies: false });
+  forecast.set(11, { hpAfter: 4, dies: false });
+  var out = CombatEngine.dualRunDiff(forecast, [p], [a]);
+  assertEq(out.length, 2, 'both cards diverge from forecast');
+  var byId = {};
+  out.forEach(function (d) { byId[d.id] = d; });
+  assertEq(byId[10].predHpAfter, 5, 'records predicted HP');
+  assertEq(byId[10].actualHp, 2, 'records actual HP');
+  assertEq(byId[11].predDies, false, 'records predicted survival');
+  assertEq(byId[11].actuallyDied, true, 'records actual death (hp <= 0)');
+});
+
+test('CombatEngine.dualRunDiff: cards absent from the forecast are skipped', function () {
+  var p = { id: 20, name: 'Unforecast', currentHealth: 1 };
+  var out = CombatEngine.dualRunDiff(new Map(), [p], [null]);
+  assertEq(out.length, 0, 'a card with no forecast entry is ignored, null lanes skipped');
+});
+
+// ============================================================
+// ---- STARTER DECK DATA-INTEGRITY TESTS ---------------------
+// decks.js (STARTER_DECKS) is pure data consumed by Deckbuilder
+// mode. A typo in a card/trick name silently produces an
+// unbuildable deck at runtime, so validate every deck's shape
+// and that every referenced name resolves against CARD_DEFS /
+// TRICK_DEFS with the documented 30-card / 8-trick / 2-copy rules.
+// ============================================================
+
+test('STARTER_DECKS is loaded and non-empty', function () {
+  assert(typeof STARTER_DECKS === 'object' && STARTER_DECKS, 'STARTER_DECKS global should exist');
+  assert(Object.keys(STARTER_DECKS).length > 0, 'at least one starter deck should be defined');
+});
+
+test('STARTER_DECKS: every deck has name, description, 30 cards and 8 tricks', function () {
+  var bad = [];
+  Object.keys(STARTER_DECKS).forEach(function (key) {
+    var d = STARTER_DECKS[key];
+    if (!d || typeof d.name !== 'string' || !d.name) bad.push(key + ': missing name');
+    if (!d || typeof d.description !== 'string' || !d.description) bad.push(key + ': missing description');
+    if (!d || !Array.isArray(d.cards) || d.cards.length !== 30) {
+      bad.push(key + ': cards length ' + (d && d.cards ? d.cards.length : 'n/a') + ' (want 30)');
+    }
+    if (!d || !Array.isArray(d.tricks) || d.tricks.length !== 8) {
+      bad.push(key + ': tricks length ' + (d && d.tricks ? d.tricks.length : 'n/a') + ' (want 8)');
+    }
+  });
+  if (bad.length) throw new Error('deck shape violations: ' + bad.join(' | '));
+});
+
+test('STARTER_DECKS: every card name resolves in CARD_DEFS', function () {
+  var known = {};
+  CARD_DEFS.forEach(function (c) { known[c.name] = true; });
+  var missing = [];
+  Object.keys(STARTER_DECKS).forEach(function (key) {
+    STARTER_DECKS[key].cards.forEach(function (name) {
+      if (!known[name]) missing.push(key + ' → "' + name + '"');
+    });
+  });
+  if (missing.length) throw new Error('unknown card names: ' + missing.join(', '));
+});
+
+test('STARTER_DECKS: every trick name resolves in TRICK_DEFS', function () {
+  var known = {};
+  TRICK_DEFS.forEach(function (t) { known[t.name] = true; });
+  var missing = [];
+  Object.keys(STARTER_DECKS).forEach(function (key) {
+    STARTER_DECKS[key].tricks.forEach(function (name) {
+      if (!known[name]) missing.push(key + ' → "' + name + '"');
+    });
+  });
+  if (missing.length) throw new Error('unknown trick names: ' + missing.join(', '));
+});
+
+test('STARTER_DECKS: respects the flat 2-copy limit for cards and tricks', function () {
+  var over = [];
+  function tally(list) {
+    var counts = {};
+    list.forEach(function (n) { counts[n] = (counts[n] || 0) + 1; });
+    return counts;
+  }
+  Object.keys(STARTER_DECKS).forEach(function (key) {
+    var deck = STARTER_DECKS[key];
+    var cardCounts = tally(deck.cards);
+    Object.keys(cardCounts).forEach(function (n) {
+      if (cardCounts[n] > 2) over.push(key + ' card "' + n + '" ×' + cardCounts[n]);
+    });
+    var trickCounts = tally(deck.tricks);
+    Object.keys(trickCounts).forEach(function (n) {
+      if (trickCounts[n] > 2) over.push(key + ' trick "' + n + '" ×' + trickCounts[n]);
+    });
+  });
+  if (over.length) throw new Error('2-copy limit exceeded: ' + over.join(', '));
+});
+
+// ============================================================
 // ---- RUNNER ------------------------------------------------
 // ============================================================
 
