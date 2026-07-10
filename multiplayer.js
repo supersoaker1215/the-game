@@ -109,7 +109,7 @@ const Multiplayer = {
   _genCode() {
     const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
     let s = '';
-    for (let i = 0; i < 4; i++) s += alphabet[Math.floor(Math.random() * alphabet.length)];
+    for (let i = 0; i < 4; i++) s += Util.pickRandom(alphabet);
     return s;
   },
 
@@ -1008,7 +1008,7 @@ const Multiplayer4 = {
   _genCode() {
     const alpha = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
     let s = '';
-    for (let i = 0; i < 4; i++) s += alpha[Math.floor(Math.random() * alpha.length)];
+    for (let i = 0; i < 4; i++) s += Util.pickRandom(alpha);
     return s;
   },
 

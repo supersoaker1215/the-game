@@ -126,7 +126,7 @@ const UI = {
   _setArtZoom(name, file, kind, zoom) {
     const k = (kind === 'menu') ? 'menu' : 'card';
     const m = this._artZoomMap(k);
-    const z = Math.max(0.5, Math.min(3, +zoom || 1));
+    const z = Util.clamp(+zoom || 1, 0.5, 3);
     if (Math.abs(z - 1) < 0.001) delete m[name + '|' + file];
     else m[name + '|' + file] = Math.round(z * 100) / 100;
     this._persistSet('artZoom_' + k, m);
@@ -2014,7 +2014,7 @@ const UI = {
       const srcs = (UI._menuCharHoverSrcs && UI._menuCharHoverSrcs()) || this.MENU_HOVER_SRCS;
       if (!srcs.length) return this.MUSIC_SRC;
       let idx;
-      do { idx = Math.floor(Math.random() * srcs.length); }
+      do { idx = Util.randInt(srcs.length); }
       while (idx === this._menuHoverLastIdx && srcs.length > 1);
       this._menuHoverLastIdx = idx;
       return srcs[idx];
@@ -2057,7 +2057,7 @@ const UI = {
 
     setVolume(v) {
       if (!this._init()) return;
-      this._master.gain.value = Math.max(0, Math.min(1, v));
+      this._master.gain.value = Util.clamp(v, 0, 1);
     },
 
     // Autoplay policies suspend the AudioContext until a user gesture — arm it
@@ -2137,7 +2137,7 @@ const UI = {
     _panConnect(node, pan) {
       if (pan && this._ctx.createStereoPanner) {
         const p = this._ctx.createStereoPanner();
-        p.pan.value = Math.max(-1, Math.min(1, pan));
+        p.pan.value = Util.clamp(pan, -1, 1);
         node.connect(p); p.connect(this._master);
       } else {
         node.connect(this._master);
@@ -2345,7 +2345,7 @@ const UI = {
       this._tone({ type: 'sine', freq: 880,  freqEnd: 1760, dur: 0.14, gain: 0.10, attack: 0.005, release: 0.14, delay: 0.62 });
       // Per-card ticks — terminal "blip" as each hand card lands.
       // Same 110ms stagger and 1100ms base delay as bootCardEnter.
-      const n = Math.max(0, Math.min(8, cardCount | 0));
+      const n = Util.clamp(cardCount | 0, 0, 8);
       for (let i = 0; i < n; i++) {
         const t = 1.10 + i * 0.110;
         this._tone({ type: 'square',   freq: 1800, freqEnd: 1200, dur: 0.05, gain: 0.10, attack: 0.002, release: 0.05, delay: t });
@@ -2565,7 +2565,7 @@ const UI = {
     _musicTargetVol() {
       if (!UI.settings || UI.settings.sfxVolume === 0) return 0;   // master mute
       const mv = (UI.settings.musicVolume != null) ? UI.settings.musicVolume : 0.55;
-      return Math.max(0, Math.min(1, mv * 0.35));
+      return Util.clamp(mv * 0.35, 0, 1);
     },
     setMusicVolume() {
       if (!this._music) return;
@@ -4114,7 +4114,7 @@ const UI = {
               // Highest cost wins; random tie-break for equals.
               const maxCost = Math.max(...candidates.map(c => c.cost));
               const top = candidates.filter(c => c.cost === maxCost);
-              this.sfx._voiceLineDelegate = top[Math.floor(Math.random() * top.length)];
+              this.sfx._voiceLineDelegate = Util.pickRandom(top);
             }
           }
         } catch (e) { /* non-fatal — voice line just won't fire this round */ }
@@ -4315,10 +4315,10 @@ const UI = {
       const H = window.innerHeight;
       // Vertical-centered candidates
       const cy = src.top + src.height / 2 - r.height / 2;
-      const cyClamped = Math.max(margin, Math.min(H - r.height - margin, cy));
+      const cyClamped = Util.clamp(cy, margin, H - r.height - margin);
       // Horizontal-centered candidates
       const cx = src.left + src.width / 2 - r.width / 2;
-      const cxClamped = Math.max(margin, Math.min(W - r.width - margin, cx));
+      const cxClamped = Util.clamp(cx, margin, W - r.width - margin);
       const candidates = [
         // Right of card, vertically centered
         { x: src.right + ANCHOR_GAP, y: cyClamped, fits: src.right + ANCHOR_GAP + r.width <= W - margin },
@@ -4649,7 +4649,7 @@ const UI = {
       // Vertical anchor — center on the click point so the tip
       // reads as connected to the clicked keyword, then clamp.
       placedY = e.clientY - th / 2;
-      placedY = Math.max(pad, Math.min(window.innerHeight - th - pad, placedY));
+      placedY = Util.clamp(placedY, pad, window.innerHeight - th - pad);
       // Horizontal — left of modal first.
       placedX = modalRect.left - tw - pad;
       if (placedX < pad) {
@@ -4891,7 +4891,7 @@ const UI = {
               ? (ev.side === 'player' ? `destroyed ${ev.name}` : `${ev.name} lost`)
               : `${ev.name}`;
             const cost = lookupCost(ev.name, ev.type);
-            const costCls = 'cost-' + Math.min(10, Math.max(0, cost));
+            const costCls = Util.costClass(cost);
             return `<span class="recap-tl-pill recap-tl-${ev.type} ${sideCls(ev.side)} ${costCls}" title="${lbl}">`
               + `<span class="recap-tl-icon">${iconFor[ev.type] || '•'}</span>`
               + `<span class="recap-tl-text">${ev.name}</span></span>`;
@@ -6557,7 +6557,7 @@ const UI = {
       const liveFill = liveTimer.querySelector('.prompt-timer-fill');
       const liveText = liveTimer.querySelector('.prompt-timer-text');
       const remaining = Math.max(0, deadline - Date.now());
-      const pct = Math.max(0, Math.min(1, remaining / total));
+      const pct = Util.clamp(remaining / total, 0, 1);
       if (liveFill) liveFill.style.transform = `scaleX(${pct})`;
       const seconds = Math.ceil(remaining / 1000);
       if (seconds !== lastSeconds) {
@@ -8897,8 +8897,8 @@ const UI = {
           if (v < mn) mn = v;
           if (v > mx) mx = v;
         }
-        const mxN = Math.max(-1, Math.min(1, mx * scale));
-        const mnN = Math.max(-1, Math.min(1, mn * scale));
+        const mxN = Util.clamp(mx * scale, -1, 1);
+        const mnN = Util.clamp(mn * scale, -1, 1);
         c.moveTo(x + 0.5, ((1 - mxN) / 2) * h);
         c.lineTo(x + 0.5, ((1 - mnN) / 2) * h);
       }
@@ -9109,7 +9109,7 @@ const UI = {
       const elapsed = (typeof startCtxT === 'number')
         ? (ctx.currentTime - startCtxT) + resumeFrom
         : resumeFrom;
-      previewPausedAt = Math.max(0, Math.min(sliceLen - 0.01, elapsed));
+      previewPausedAt = Util.clamp(elapsed, 0, sliceLen - 0.01);
       try { previewSrc.stop(); } catch (e) {}
       previewSrc = null;
       if (previewRaf) { cancelAnimationFrame(previewRaf); previewRaf = null; }
@@ -9226,7 +9226,7 @@ const UI = {
     for (let c = 0; c < numCh; c++) channels.push(buffer.getChannelData(c));
     for (let i = 0; i < buffer.length; i++) {
       for (let c = 0; c < numCh; c++) {
-        let s = Math.max(-1, Math.min(1, channels[c][i]));
+        let s = Util.clamp(channels[c][i], -1, 1);
         s = s < 0 ? s * 0x8000 : s * 0x7fff;
         view.setInt16(off, s | 0, true);
         off += 2;
@@ -9294,7 +9294,7 @@ const UI = {
         const rlOn = !!f.rl;
         const upgrades = (typeof Roguelite !== 'undefined' && Roguelite.CARD_TEXT_UPGRADES) || {};
         body = filtered.map(def => {
-          const costClass = 'cost-' + Math.min(10, Math.max(0, def.cost || 0));
+          const costClass = Util.costClass(def.cost || 0);
           const abilitiesHtml = (def.abilities && def.abilities.length)
             ? `<div class="card-abilities status-badges">${this.formatAbilityBadges(def.abilities)}</div>` : '';
           const cost = def.cost || 0;
@@ -10025,7 +10025,7 @@ const UI = {
     // see "undefined" before the user sets one.
     let n = localStorage.getItem('clb-mp-name') || '';
     if (!n) {
-      n = 'Player' + Math.floor(Math.random() * 900 + 100);
+      n = 'Player' + Util.randRange(100, 999);
       localStorage.setItem('clb-mp-name', n);
     }
     return n;
@@ -11968,7 +11968,7 @@ const UI = {
         ctx.beginPath();
         history.forEach((h, i) => {
           const x = chartLeft + (i / (history.length - 1)) * chartW;
-          const v = Math.max(0, Math.min(maxHp, h[key] || 0));
+          const v = Util.clamp(h[key] || 0, 0, maxHp);
           const y = chartBot - (v / maxHp) * chartH;
           if (i === 0) ctx.moveTo(x, y);
           else ctx.lineTo(x, y);
@@ -17029,7 +17029,7 @@ const UI = {
   },
 
   getCostClass(cost) {
-    return `cost-${Math.min(10, Math.max(0, cost))}`;
+    return `cost-${Util.clamp(cost, 0, 10)}`;
   },
 
   // ===================== POLISH FX (items #1-#11) =====================
@@ -18791,7 +18791,7 @@ const UI = {
     // is passed (e.g. legacy callers).
     const N = (countOverride != null)
       ? countOverride
-      : 4 + Math.floor(Math.random() * 2);
+      : Util.randRange(4, 5);
     for (let i = 0; i < N; i++) {
       const chip = document.createElement('div');
       chip.className = 'hit-chip';
@@ -18898,7 +18898,7 @@ const UI = {
     const host = document.createElement('div');
     host.className = 'destroy-shards';
     cardEl.appendChild(host);
-    const N = 5 + Math.floor(Math.random() * 3); // 5-7 shards
+    const N = Util.randRange(5, 7); // 5-7 shards
     for (let i = 0; i < N; i++) {
       const shard = document.createElement('div');
       shard.className = 'destroy-shard';
@@ -19410,7 +19410,7 @@ const UI = {
     try {
       idx = (parseInt(localStorage.getItem('clb_ai_personality_idx') || '0', 10) + 1) % list.length;
       localStorage.setItem('clb_ai_personality_idx', String(idx));
-    } catch (e) { idx = Math.floor(Math.random() * list.length); }
+    } catch (e) { idx = Util.randInt(list.length); }
     this._currentAiPersonality = list[idx];
     const avEl = document.getElementById('ai-avatar');
     const nmEl = document.getElementById('ai-name');
@@ -19482,8 +19482,8 @@ const UI = {
       const cy = (e.clientY / window.innerHeight) * 2 - 1;
       // Soft attenuation — the eye shouldn't see jitter, only
       // smooth drift as the cursor crosses the screen.
-      nextX = Math.max(-1, Math.min(1, cx));
-      nextY = Math.max(-1, Math.min(1, cy));
+      nextX = Util.clamp(cx, -1, 1);
+      nextY = Util.clamp(cy, -1, 1);
       if (!rafScheduled) {
         rafScheduled = true;
         requestAnimationFrame(flush);
@@ -19719,7 +19719,7 @@ const UI = {
   // gameplay doesn't drag. Re-entry-safe: nested calls extend the
   // pause window rather than stacking timers.
   hitPause(ms) {
-    const dur = Math.max(40, Math.min(180, ms || 90));
+    const dur = Util.clamp(ms || 90, 40, 180);
     if (this._hitPauseTimer) clearTimeout(this._hitPauseTimer);
     document.body.classList.add('hit-pause');
     this._hitPauseTimer = setTimeout(() => {
@@ -21305,11 +21305,7 @@ function start2v2RandomTeams() {
     names[pk] = (el && el.value.trim()) || ('Player ' + pk[1]);
   });
   // Shuffle the 4 players and assign first 2 to A, last 2 to B
-  const keys = ['p1','p2','p3','p4'];
-  for (let i = keys.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [keys[i], keys[j]] = [keys[j], keys[i]];
-  }
+  const keys = Util.shuffleInPlace(['p1','p2','p3','p4']);
   // Update team field in twoVTwo.players
   const tt = Game.state.twoVTwo;
   if (tt) {

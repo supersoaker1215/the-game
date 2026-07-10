@@ -5,6 +5,7 @@
       "tricks.js",
       "abilities.js",
       "decks.js",
+      "engine/util.js",
       "engine/combat.js",
       "error-reporter.js",
       "game.js",

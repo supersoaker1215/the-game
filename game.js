@@ -1180,7 +1180,7 @@ const Game = {
         const pFingerprint = normalize(playerDeck.cards);
         const nonMirrorKeys = keys.filter(k => normalize(STARTER_DECKS[k].cards) !== pFingerprint);
         const poolKeys = nonMirrorKeys.length > 0 ? nonMirrorKeys : keys;
-        const pickKey = poolKeys[Math.floor(Math.random() * poolKeys.length)];
+        const pickKey = Util.pickRandom(poolKeys);
         aiDeck = STARTER_DECKS[pickKey];
         aiDeckKey = pickKey;
         this.log(`[AI DECK] Opponent drew "${aiDeck.name || pickKey}" — prepare to counter.`);
@@ -1294,7 +1294,7 @@ const Game = {
     }
     const pool = this.state.summonDeck.filter(predicate);
     if (!pool.length) return null;
-    const pick = pool[Math.floor(Math.random() * pool.length)];
+    const pick = Util.pickRandom(pool);
     // Spread into a fresh object so subsequent calls that mutate the
     // result (summonCard adds owner/id/etc.) don't bleed into the
     // shared deck entry.
@@ -1336,11 +1336,7 @@ const Game = {
   },
 
   shuffle(a) {
-    for (let i = a.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
-      [a[i], a[j]] = [a[j], a[i]];
-    }
-    return a;
+    return Util.shuffleInPlace(a);
   },
 
   // ===================== DRAFT =====================
@@ -4133,7 +4129,7 @@ const Game = {
     const grievousGate = this.state._grievousActiveFor
       && (this.state._grievousActiveFor[owner] || 0) > 0;
     if (!isBullseye && !grievousGate) {
-      const roll = 1 + Math.floor(Math.random() * 3);
+      const roll = Util.randRange(1, 3);
       p.blockMeter += roll;
       this.log(`  [BLOCK METER] ${who} roll d3=${roll} → meter ${p.blockMeter}/${this.BLOCK_MAX}`);
       if (p.blockMeter >= this.BLOCK_MAX) {
@@ -4229,13 +4225,13 @@ const Game = {
           c => c.currentHealth > 0 && c.name !== 'Yoda'
         );
         if (pool.length) {
-          const tgt = pool[Math.floor(Math.random() * pool.length)];
+          const tgt = Util.pickRandom(pool);
           const available = [];
           if (!(tgt.armorValue >= 1))   available.push('armor');
           if (!(tgt.evadeCharges >= 1)) available.push('evade');
           if (!tgt.isBullseye)          available.push('bullseye');
           if (available.length) {
-            const choice = available[Math.floor(Math.random() * available.length)];
+            const choice = Util.pickRandom(available);
             if (choice === 'armor') {
               tgt.armorValue = 1;
               this.log(`  [YODA AURA] ${tgt.name} gains Armor 1!`);
@@ -4454,10 +4450,7 @@ const Game = {
         if (isRoguelite && dead && dead.length) {
           const recycled = dead.splice(0, dead.length);
           // Fisher-Yates shuffle in-place before merging back
-          for (let j = recycled.length - 1; j > 0; j--) {
-            const k = Math.floor(Math.random() * (j + 1));
-            [recycled[j], recycled[k]] = [recycled[k], recycled[j]];
-          }
+          Util.shuffleInPlace(recycled);
           drawPile.push(...recycled);
           this.log(`[RESHUFFLE] ${owner}'s draw pile empty — ${recycled.length} dead-pile cards shuffled back in.`);
         } else {
@@ -6898,7 +6891,7 @@ const Game = {
     // INSANE always fires — Joker's intrinsic chaos isn't stoppable by
     // Fear. He keeps rolling 2-7 even when terrified.
     if (card.isInsane) {
-      let r; do { r = 2 + Math.floor(Math.random() * 6); } while (r === card._lastInsaneRoll);
+      let r; do { r = Util.randRange(2, 7); } while (r === card._lastInsaneRoll);
       card._lastInsaneRoll = r; card.attack = r;
       this.log(`  [INSANE] ${card.name} rolls ATK ${before} → ${r}`);
       return;
@@ -6919,7 +6912,7 @@ const Game = {
         this.log(`  [STEADY] ${card.name} negates Crazy reroll (${left} charge${left === 1 ? '' : 's'} left)`);
         return;
       }
-      let r; do { r = 1 + Math.floor(Math.random() * 4); } while (r === card._lastCrazyRoll);
+      let r; do { r = Util.randRange(1, 4); } while (r === card._lastCrazyRoll);
       card._lastCrazyRoll = r; card.attack = r;
       this.log(`  [CRAZY] ${card.name} rolls ATK ${before} → ${r}`);
     }
@@ -8104,13 +8097,7 @@ const Game = {
     const allTricks = (typeof TRICK_DEFS !== 'undefined' ? TRICK_DEFS : []).slice();
 
     // Shuffle helpers
-    const shuffle = (arr) => {
-      for (let i = arr.length - 1; i > 0; i--) {
-        const j = Math.floor(Math.random() * (i + 1));
-        [arr[i], arr[j]] = [arr[j], arr[i]];
-      }
-      return arr;
-    };
+    const shuffle = (arr) => Util.shuffleInPlace(arr);
 
     // Each player gets their own draw pile (equal share of shuffled pool)
     const tt = s.twoVTwo;
