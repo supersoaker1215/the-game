@@ -4830,21 +4830,47 @@ const UI = {
     return new Promise(res => {
       let done = false;
       const ga = document.getElementById('game-area');
+      // TRUE seamless crossfade (no dip to black): freeze a visual snapshot of
+      // the current board ON TOP (a deep clone of #game-area, fixed-positioned
+      // over it), swap the real board to the new round underneath, then
+      // dissolve the snapshot over the already-settled new round. The old
+      // opacity-dip approach faded the board toward its black background for
+      // ~half a second — user: "it goes black screen... make it seamless".
+      let ghost = null;
+      try {
+        if (ga && !(this._reducedMotion && this._reducedMotion())) {
+          const r = ga.getBoundingClientRect();
+          ghost = ga.cloneNode(true);
+          ghost.removeAttribute('id');   // no duplicate #game-area; descendants
+          // keep their ids but the REAL board precedes the ghost in tree order,
+          // so getElementById/querySelector still resolve to the live elements.
+          ghost.className = 'round-swap-ghost';
+          ghost.style.left = r.left + 'px';
+          ghost.style.top = r.top + 'px';
+          ghost.style.width = r.width + 'px';
+          ghost.style.height = r.height + 'px';
+          document.body.appendChild(ghost);
+        }
+      } catch (e) { if (ghost && ghost.parentNode) ghost.remove(); ghost = null; }
       const finish = () => {
         if (done) return; done = true;
-        res();   // draw + startRound + render run now, behind the dip
-        // Fade back in only after the new-round render has painted.
+        res();   // draw + startRound + render run now, hidden under the ghost
+        // Dissolve the frozen frame only after the new round has painted.
         requestAnimationFrame(() => requestAnimationFrame(() => {
-          if (ga) ga.classList.remove('round-swap');
+          if (ghost) {
+            ghost.classList.add('round-swap-ghost-out');
+            setTimeout(() => ghost.remove(), 700);
+          }
         }));
       };
       // Suppress the opening phase banner ("Your Turn — Cards") during the
       // transition so the ROUND banner is the single announcement beat.
       this._suppressPhaseBanner = true;
-      if (ga) ga.classList.add('round-swap');
-      setTimeout(finish, 360);   // matches the CSS dip duration
+      setTimeout(finish, 80);   // one beat so the ghost paints before the swap
       // Phase banners resume once the ROUND banner has fully played (2.0s anim).
       setTimeout(() => { this._suppressPhaseBanner = false; }, 2300);
+      // Belt-and-suspenders: never strand a stuck ghost over the live board.
+      setTimeout(() => { if (ghost && ghost.parentNode) ghost.remove(); }, 4000);
     });
   },
 
@@ -14621,7 +14647,7 @@ const UI = {
     'Steady':      { color: '#16a085', svg: '<svg viewBox="0 0 12 12"><circle cx="6" cy="6" r="2.5" stroke="currentColor" stroke-width="1.2" fill="none"/><path d="M3 6 H9 M6 3 V9" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>', tip: 'Cancels one Crazy reroll per charge — ATK stays at base for that turn.' },
     'Curse':       { color: '#9b3c7f', svg: '<svg viewBox="0 0 12 12"><path d="M3 3 L9 9 M9 3 L3 9" stroke="currentColor" stroke-width="1.4" fill="none" stroke-linecap="round"/><circle cx="6" cy="6" r="4.5" stroke="currentColor" stroke-width="0.8" fill="none" stroke-dasharray="1.5 1"/></svg>', tip: 'Permanent deck liability — clogs your hand, may trigger a downside when played. Cannot be drafted away. Removable at Rest Sites or specific events.' },
     'Drain':       { color: '#8e44ad', svg: '<svg viewBox="0 0 12 12"><path d="M6 2 L8 6 C8 8 7 9 6 9 C5 9 4 8 4 6 Z" fill="currentColor"/></svg>', tip: 'Steals ATK/HP from an enemy.' },
-    'Revive':      { color: '#27ae60', svg: '<svg viewBox="0 0 12 12"><path d="M6 10 V4 M6 4 L3 7 M6 4 L9 7" stroke="currentColor" stroke-width="1.4" fill="none" stroke-linecap="round" stroke-linejoin="round"/><path d="M3 2 H9" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>', tip: 'When destroyed, revive N times with modified stats.' },
+    'Revive':      { color: '#27ae60', svg: '<svg viewBox="0 0 12 12"><path d="M6 10 V4 M6 4 L3 7 M6 4 L9 7" stroke="currentColor" stroke-width="1.4" fill="none" stroke-linecap="round" stroke-linejoin="round"/><path d="M3 2 H9" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>', tip: 'When destroyed, revive N times — the card is played anew: its abilities reset and its On Play re-triggers.' },
     'Draw':        { color: '#5dade2', svg: '<svg viewBox="0 0 12 12"><path d="M3 2 V8 M6 2 V9 M9 2 V10" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>', tip: 'Draw N extra cards from your deck.' },
     'Charm':       { color: '#bb8fce', svg: '<svg viewBox="0 0 12 12"><path d="M6 10 C2 7 2 4 4 3 C5 2.5 6 3 6 4 C6 3 7 2.5 8 3 C10 4 10 7 6 10 Z" fill="currentColor"/></svg>', tip: 'Charmed cards still attack in their own lane but their swing is "loaned" to the charmer for the round.' },
     'Block Meter': { color: '#f1c40f', svg: '<svg viewBox="0 0 12 12"><rect x="2" y="3" width="8" height="6" stroke="currentColor" stroke-width="1.2" fill="none" rx="1"/><rect x="3" y="4" width="4" height="4" fill="currentColor"/></svg>', tip: 'Each side has a Block Meter. When full, the next incoming damage is fully blocked AND draws a free trick.' },

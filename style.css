@@ -471,16 +471,23 @@ body::after {
 #game-area {
   position: relative;
   background: #000000;
-  /* Round-transition crossfade — showRoundSummary dips the board while the
-     round state swaps (draw + startRound + render), then lifts the dip once
-     the new round has painted. Opacity-only, GPU-cheap. */
-  transition: opacity 340ms var(--ease-out-soft, ease);
-}
-#game-area.round-swap { opacity: 0.22; }
-@media (prefers-reduced-motion: reduce) {
-  #game-area { transition: none; }
 }
 #game-area > * { position: relative; z-index: 1; }
+/* Round-transition FROZEN FRAME — a deep clone of #game-area pinned over the
+   real board while the round state swaps underneath (showRoundSummary), then
+   dissolved to reveal the settled new round. A true crossfade: the screen
+   never dips toward black (the old approach faded the board to ~0.22 opacity
+   over its black background — read as a half-second black flash). */
+.round-swap-ghost {
+  position: fixed;
+  z-index: 450;            /* over the board chrome; under banners (500+) */
+  pointer-events: none;
+  background: #000;
+  overflow: hidden;
+  opacity: 1;
+  transition: opacity 560ms var(--ease-out-soft, ease);
+}
+.round-swap-ghost-out { opacity: 0; }
 
 /* ---- PHASE TRANSITION BANNER ---- */
 .phase-banner {

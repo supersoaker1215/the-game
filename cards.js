@@ -322,7 +322,7 @@ const CARD_DEFS = [
     desc: "ON PLAY: All cards in the opponent's hand permanently lose -1/-1. WHILE ACTIVE: When an ally is destroyed, gain +0/+2. When an enemy is destroyed (by any means), gain +2/+0." },
   { name: "Revan", cost: 6, attack: 6, health: 8, type: "villain",
     abilities: [],
-    desc: "When Played: Give another ally Revive 1." },
+    desc: "When Played: Give another ally Revive 1 — it revives as if played anew (abilities reset, On Play re-triggers)." },
 
   // ==================== COST 8 ====================
   { name: "Darth Vader", cost: 8, attack: 6, health: 7, type: "villain",

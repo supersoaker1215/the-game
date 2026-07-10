@@ -4778,13 +4778,38 @@ const Game = {
     // (e.g. Revan). Cards with custom revive logic (Jason, Grundy, Drax)
     // consume their charges inside onDeath and return true, so they never
     // reach here.
+    // REVIVE = PLAYED ANEW (user spec): the card re-enters the board as if it
+    // were just played for the first time — not just stats dropped back on:
+    //   1) base keyword abilities re-initialize (Evade / Armor / Immunity /
+    //      Taunt / … charges come back fresh),
+    //   2) its On Play re-triggers (Loki refills the Block Meter, etc.),
+    //   3) Draw-on-play resolves again (Dormammu draws).
+    // The decremented revive count is preserved across the ability re-parse so
+    // a base "Revive N" ability can't re-grant itself an infinite loop.
     if (card.reviveCharges > 0) {
       card.reviveCharges--;
       card.currentHealth = card.maxHealth;
       card._deathHandled = false;
-      this.log(`  [REVIVE] ${card.name} revives! (${card.reviveCharges} charges left)`);
+      const chargesLeft = card.reviveCharges;
+      try { this.applyAbilities(card); } catch (e) {}
+      card.reviveCharges = chargesLeft;
+      this.log(`  [REVIVE] ${card.name} revives — and is played anew! (${chargesLeft} charge${chargesLeft === 1 ? '' : 's'} left)`);
       if (typeof UI !== 'undefined' && UI.sfx && UI.sfx.playEffectSfx) {
         try { UI.sfx.playEffectSfx('Revive', card); } catch (e) {}
+      }
+      const reviveLane = this.findCardLane(card);
+      if (reviveLane >= 0) {
+        try { this._runHook(card, 'onPlay', this, card, reviveLane); } catch (e) {}
+        // Draw-on-play trait — same consumption as the playCard path.
+        if (card.drawOnPlay > 0) {
+          const n = card.drawOnPlay;
+          card.drawOnPlay = 0;
+          const before = this.state[card.owner].hand.length;
+          this.drawCards(card.owner, n);
+          const actuallyDrawn = this.state[card.owner].hand.length - before;
+          if (actuallyDrawn > 0) this._creditChain(card, 'statsCardAdvantage', actuallyDrawn);
+          this.log(`${card.name} draws ${n} card${n > 1 ? 's' : ''}.`);
+        }
       }
       return;
     }
