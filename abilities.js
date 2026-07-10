@@ -4042,11 +4042,11 @@ const CARD_ABILITIES = {
       devourChain(devourCount, []);
     },
     onEndOfTurn(G, self, lane) {
-      // Devour weak enemies (≤4 ATK) each turn — Galactus consumes lesser
-      // threats and leaves stronger ones to face directly.
-      G.getEnemiesOf(self.owner).filter(e => e.attack <= 4).forEach(e => {
-        G.devourCard(e);
-      });
+      // Devour 1 random weak enemy (≤4 ATK) each turn.
+      const weak = G.getEnemiesOf(self.owner).filter(e => e.attack <= 4);
+      if (!weak.length) return;
+      const target = weak[Math.floor(Math.random() * weak.length)];
+      G.devourCard(target, self);
     }
   },
   "Knull": {
