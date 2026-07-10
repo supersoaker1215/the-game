@@ -2047,16 +2047,9 @@ body.hit-pause .ai-hand * {
 /* Tron grid spanning the WHOLE backdrop (both sides of the seam), behind the
    list and the card bands. The no-picture areas on the right show this grid
    over the menu-black, matching the left side. Faded at the outer edges. */
-.mm-mw3 .mm-tron-grid {
-  position: absolute; inset: 0;
-  z-index: 0; pointer-events: none; opacity: 0.5;
-  background-image:
-    linear-gradient(rgba(var(--theme-rgb,79,195,247),0.09) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(var(--theme-rgb,79,195,247),0.09) 1px, transparent 1px);
-  background-size: 44px 44px; background-position: center;
-  -webkit-mask-image: linear-gradient(90deg, transparent 0%, #000 8%, #000 94%, transparent 100%);
-          mask-image: linear-gradient(90deg, transparent 0%, #000 8%, #000 94%, transparent 100%);
-}
+/* Grid overlay removed per user request — the hero + neon seam carry the
+   right zone; the ruled grid read as busy/distracting. */
+.mm-mw3 .mm-tron-grid { display: none !important; }
 /* The hero's mirrored REFLECTION — spills left off the seam onto the grid,
    blurred + dimmed so it reads as a reflection, not a second portrait. The
    container is flipped, so the mask (opaque→transparent L→R) ends up strongest
@@ -2183,6 +2176,35 @@ body.hit-pause .ai-hand * {
   font-size: 18px;
   display: inline-block; transform-origin: left center;
   transition: transform 0.18s ease, color 0.18s ease, text-shadow 0.18s ease;
+}
+
+/* Hover HOTSPOT = the text only. The options + section labels shrink to their
+   content width so hovering the empty space to the right (over the hero) no
+   longer triggers the row — a direct hover over the icon/text is required. */
+.mm-mw3 .mm-option { width: fit-content; max-width: 100%; }
+.mm-mw3 .mm-section-label { width: fit-content; }
+/* Belt-and-suspenders box kill — authored LAST so it wins the cascade over the
+   themed `.mm-option:hover` wash/box-shadow/border block (Neon Theme, later in
+   the file but lower specificity). The ONLY hover chrome is the letter
+   grow+glow above. No wash, bar, ring, inset shadow, or OS outline, ever. */
+.mm-mw3 .mm-option:hover,
+.mm-mw3 .mm-option:focus,
+.mm-mw3 .mm-option:focus-visible,
+.mm-mw3 .mm-option:active {
+  background: none !important;
+  background-image: none !important;
+  box-shadow: none !important;
+  border-color: transparent !important;
+  outline: none !important;
+}
+.mm-mw3 .mm-option::before,
+.mm-mw3 .mm-option::after,
+.mm-mw3 .mm-option:hover::before,
+.mm-mw3 .mm-option:hover::after {
+  content: none !important;
+  background: none !important;
+  box-shadow: none !important;
+  opacity: 0 !important;
 }
 
 /* ===== In-place submenu (Solo Match etc.) — left-list swap + letter flip =====

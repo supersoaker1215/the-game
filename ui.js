@@ -17236,24 +17236,16 @@ const UI = {
       // start from the edge."
       const TRAIL_OFFSET = 10;       // px — half the gap = disk radius
       const HEAD_SETBACK_PX = 10;    // px — gap between live cursor and trail head (= disk radius)
-      const SAMPLE_MS = 12;          // min gap between committed samples (~80 Hz)
-      const MAX_BUF = 160;           // hard cap so a 1000 Hz mouse can't bloat the buffer
+      const SAMPLE_MS = 12;          // throttle on mousemove (~80 Hz) — keeps the buffer small + cheap
       let lastSample = 0;
+      let rafId = 0;                 // trail loop handle; 0 = suspended (idle)
       document.addEventListener('mousemove', (e) => {
         const now = performance.now();
         if (now - lastSample < SAMPLE_MS) return;
         lastSample = now;
-        // At speed the browser coalesces many px of travel into ONE mousemove.
-        // Pull the hidden intermediate points so the trail is drawn through the
-        // REAL path (dense + smooth) instead of a few far-apart samples that
-        // make the line look chunky or broken. Falls back to the event itself.
-        const pts = (e.getCoalescedEvents && e.getCoalescedEvents()) || null;
-        if (pts && pts.length) {
-          for (const ce of pts) buf.push({ x: ce.clientX, y: ce.clientY, t: now });
-        } else {
-          buf.push({ x: e.clientX, y: e.clientY, t: now });
-        }
-        if (buf.length > MAX_BUF) buf.splice(0, buf.length - MAX_BUF);
+        buf.push({ x: e.clientX, y: e.clientY, t: now });
+        // Wake the trail loop if it suspended while the cursor was idle.
+        if (!rafId) rafId = requestAnimationFrame(tick);
       }, { passive: true });
 
       // Frame loop — drop expired points, recompute the two parallel
@@ -17360,9 +17352,14 @@ const UI = {
           pathL.setAttribute('d', buildSmooth(Lpts));
           pathR.setAttribute('d', buildSmooth(Rpts));
         }
-        requestAnimationFrame(tick);
+        // Keep looping only while there's a trail to draw. When the buffer
+        // empties (cursor idle > TRAIL_LIFE) suspend the loop so we're not
+        // rebuilding an empty Bezier path every frame forever — that constant
+        // idle work was stealing main-thread headroom and making the disc
+        // stutter under load. A new mousemove re-kicks the loop.
+        rafId = (buf.length > 0) ? requestAnimationFrame(tick) : 0;
       };
-      requestAnimationFrame(tick);
+      // The mousemove sampler kicks the loop; no need to start it idle here.
     }
 
     // -------- (b) Card placement — perimeter shockring --------
@@ -20349,32 +20346,22 @@ const UI = {
     main.className = 'custom-cursor hidden';
     document.body.appendChild(main);
 
-    // --- Disc motion, decoupled from the raw mousemove rate ---
+    // --- Disc motion ---
     // The disc IS the cursor (the native one is `cursor: none`), so it must
-    // sit exactly under the pointer. mousemove only records the latest target;
-    // ONE rAF writes the GPU-composited --cx/--cy vars at most once per frame.
-    // This fixes the "cursor stops / can't keep up at speed" jank two ways:
-    //   1) position is a compositor `translate` (CSS), not left/top layout, so
-    //      updating it never blocks on the busy main thread; and
-    //   2) bursts of mousemove events (fast motion fires many per frame)
-    //      collapse into a single write per frame instead of N layout thrashes.
-    let tgtX = -100, tgtY = -100;   // latest pointer position
-    let raf = 0;
-    const draw = () => {
-      raf = 0;
-      main.style.setProperty('--cx', tgtX + 'px');
-      main.style.setProperty('--cy', tgtY + 'px');
-    };
-    const schedule = () => { if (!raf) raf = requestAnimationFrame(draw); };
-
+    // sit exactly under the pointer with zero lag. We write the GPU-composited
+    // --cx/--cy vars DIRECTLY in the mousemove handler (not via rAF): position
+    // is a compositor `translate` (CSS), so the write is cheap and — crucially —
+    // it does NOT depend on a requestAnimationFrame callback that other busy
+    // animation loops (menu flow, trail) could starve, which is what made the
+    // disc freeze mid-sweep. As cheap as it gets, always current.
     const move = (e) => {
-      tgtX = e.clientX; tgtY = e.clientY;
+      main.style.setProperty('--cx', e.clientX + 'px');
+      main.style.setProperty('--cy', e.clientY + 'px');
       if (main.classList.contains('hidden')) main.classList.remove('hidden');
       // One cursor style everywhere — no context-specific swell. Users found
       // the board's spinning disc + the interactive "hand" swell distracting;
       // cleaner to keep the disc consistent and let the Tron line trail talk.
       main.classList.remove('on-disc', 'on-interactive');
-      schedule();
     };
     const leave = () => { main.classList.add('hidden'); };
     document.addEventListener('mousemove', move, { passive: true });
