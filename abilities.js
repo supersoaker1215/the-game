@@ -2007,12 +2007,18 @@ const CARD_ABILITIES = {
           G.state.pendingCardChoice = {
             owner: self.owner,
             cards: [
-              { name: `Keep ${chosen.name}`, desc: keepBump > 0
+              // _artName paints the stolen trick's real card face on the tile
+              // (purple trick chrome via the tray's TRICK_DEFS check); cost gem
+              // shows what it will actually cost after the keep bump.
+              { name: `Keep ${chosen.name}`, _artName: chosen.name, _isTrick: true,
+                cost: Math.max(0, chosen.cost + keepBump),
+                desc: keepBump > 0
                 ? `Add to your tricks (cost +${keepBump}, becomes ${chosen.cost + keepBump})`
                 : keepBump < 0
                   ? `Add to your tricks at reduced cost (${Math.max(0, chosen.cost + keepBump)})`
                   : `Add to your tricks at the same cost (${chosen.cost}) — free!`, _action: 'keep' },
-              { name: "Give it back", desc: "Return the trick — Grinch's stats triple!", _action: 'giveback' }
+              { name: "Give it back", _artName: 'The Grinch',
+                desc: "Return the trick — Grinch's stats triple!", _action: 'giveback' }
             ],
             title: "The Grinch — Keep or Discard?",
             description: `Stole ${chosen.name}. Keep or discard?`,

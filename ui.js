@@ -6654,13 +6654,19 @@ const UI = {
         : '';
       // Board-style face: full-bleed portrait art + bottom name overlay (same
       // wiring as hand/board cards) so picking a card shows the actual card.
-      const trayArtPath = card.name ? this.getCardArtPath(card.name) : null;
+      // Synthetic option tiles (Grinch keep-or-discard etc.) can point at a
+      // real card/trick's art via `_artName` while keeping their action label
+      // as the overlay text. Tricks get purple chrome via .choice-trick.
+      const artName = card._artName || card.name;
+      const trayArtPath = artName ? this.getCardArtPath(artName) : null;
       const safeTrayUrl = trayArtPath ? trayArtPath.replace(/'/g, '%27') : '';
-      const trayPortraitStyle = safeTrayUrl ? `--portrait-bg:url('${safeTrayUrl}')${this._artFocalCard(card.name)}` : '';
+      const trayPortraitStyle = safeTrayUrl ? `--portrait-bg:url('${safeTrayUrl}')${this._artFocalCard(artName)}` : '';
       const portraitHtml = `<div class="card-portrait" style="${trayPortraitStyle}"><div class="card-name-overlay">${card.name || 'Unknown'}</div></div>`;
       const costHtml = card.cost !== undefined ? `<span class="card-cost">${card.cost}</span>` : '';
+      const isTrickFace = !!card._isTrick ||
+        (typeof TRICK_DEFS !== 'undefined' && artName && TRICK_DEFS.some(td => td.name === artName));
       return `
-        <div class="choice-card card ${costClass}" data-idx="${idx}">
+        <div class="choice-card card ${costClass}${isTrickFace ? ' choice-trick' : ''}" data-idx="${idx}">
           ${costHtml}
           ${typeSigil}
           ${portraitHtml}
