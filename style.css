@@ -31044,3 +31044,115 @@ body.round-tick .board::after {
   pointer-events: none;
   animation: pulse 1.5s ease-in-out infinite;
 }
+
+/* ============================================================
+   GLOW-TEXT BUTTON LANGUAGE — STYLE CONTINUITY PASS (2026-07-11)
+   User: "I love the main menu style of simple glow buttons when
+   hovering — I want those everywhere." One shared treatment,
+   mirroring .mm-mw3 .mm-option exactly: NO box/border/pill —
+   plain spaced-caps Rajdhani text that scales 1.12 and glows
+   neon on hover. Authored at the END of the file so it wins the
+   cascade over every older boxed/pill button block. Families:
+     • .md-back / .mode-back / .stats-back  (back chips, all screens)
+     • .draft-quit-btn / .draft-undo-btn / .draft-mulligan-btn /
+       .draft-settings-btn                  (draft control row)
+     • .game-over-btn                       (Rematch / Main Menu)
+   Deliberately NOT converted: settings cog + ? (icon circles),
+   in-match DONE (primary action needs a strong tap target), and
+   card-shaped tiles (they're cards, not buttons).
+   ============================================================ */
+.md-back, .mode-back, .stats-back,
+.draft-quit-btn, .draft-undo-btn, .draft-mulligan-btn, .draft-settings-btn,
+.game-over-btn {
+  background: none !important;
+  border: none !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  outline: none !important;
+  padding: 10px 14px;
+  font-family: 'Rajdhani', sans-serif !important;
+  font-size: 13px; font-weight: 700 !important;
+  letter-spacing: 2.5px; text-transform: uppercase;
+  color: color-mix(in srgb, rgb(var(--theme-rgb, 79,195,247)) 78%, white);
+  text-shadow: none;
+  cursor: pointer;
+  transition: color 0.18s, text-shadow 0.18s, transform 0.14s var(--ease-spring, ease), opacity 0.18s;
+}
+/* Back chips read left-to-right → grow from the left edge like ← MENU;
+   centered rows (draft controls, game-over actions) grow from center. */
+.md-back, .mode-back, .stats-back { transform-origin: left center; }
+.draft-quit-btn, .draft-undo-btn, .draft-mulligan-btn, .draft-settings-btn,
+.game-over-btn { transform-origin: center center; }
+.md-back:hover, .mode-back:hover, .stats-back:hover,
+.draft-undo-btn:hover, .draft-mulligan-btn:hover, .draft-settings-btn:hover,
+.game-over-btn:hover {
+  background: none !important; border: none !important; box-shadow: none !important;
+  color: #fff;
+  transform: scale(1.12);
+  text-shadow:
+    0 0 12px rgba(var(--theme-rgb, 79,195,247), 0.85),
+    0 0 22px rgba(var(--theme-rgb, 79,195,247), 0.40);
+}
+.md-back:active, .mode-back:active, .stats-back:active,
+.draft-quit-btn:active, .draft-undo-btn:active, .draft-mulligan-btn:active,
+.draft-settings-btn:active, .game-over-btn:active { transform: scale(1.02); }
+/* Quit keeps its danger identity — red text + red glow, same motion. */
+.draft-quit-btn {
+  color: color-mix(in srgb, rgb(231,76,60) 72%, white);
+}
+.draft-quit-btn:hover {
+  background: none !important; border: none !important; box-shadow: none !important;
+  color: #fff;
+  transform: scale(1.12);
+  text-shadow: 0 0 12px rgba(231,76,60,0.85), 0 0 22px rgba(231,76,60,0.40);
+}
+/* Primary action on the result screen (Rematch) — brighter at rest so it
+   still reads as THE next step without a filled pill. */
+.game-over-btn.game-over-rematch {
+  color: color-mix(in srgb, rgb(var(--theme-rgb, 79,195,247)) 40%, white);
+  text-shadow: 0 0 10px rgba(var(--theme-rgb, 79,195,247), 0.45);
+}
+/* Disabled states stay dim and motionless (mulligan spent, undo empty). */
+.draft-mulligan-btn.mulligan-used, .draft-mulligan-btn[disabled],
+.draft-undo-btn.undo-disabled, .draft-undo-btn[disabled] {
+  opacity: 0.35 !important;
+  color: color-mix(in srgb, rgb(var(--theme-rgb, 79,195,247)) 45%, #8a97a5) !important;
+  text-shadow: none !important;
+  transform: none !important;
+  cursor: default !important;
+}
+.draft-mulligan-btn.mulligan-used:hover, .draft-mulligan-btn[disabled]:hover,
+.draft-undo-btn.undo-disabled:hover, .draft-undo-btn[disabled]:hover {
+  transform: none !important; color: color-mix(in srgb, rgb(var(--theme-rgb, 79,195,247)) 45%, #8a97a5) !important;
+  text-shadow: none !important;
+}
+/* The tron-fx JS chrome adds .tron-fx-breathe (keyframes that ANIMATE
+   box-shadow) to these buttons — that's a box glow, so it's off here too.
+   Text glow on hover is the only chrome, exactly like the menu. */
+.md-back, .mode-back, .stats-back,
+.draft-quit-btn, .draft-undo-btn, .draft-mulligan-btn, .draft-settings-btn,
+.game-over-btn { animation: none !important; }
+/* The themed draft-chrome rules use compound selectors
+   (.draft-panel:not(.draft-tricks) .draft-mulligan-btn — specificity 0,3,0)
+   which outrank the single-class strip above. Match them here (same
+   specificity, later source order) so the box glow dies on the draft screen
+   in BOTH card and trick drafts. The theme-tinted TEXT glow they set is kept —
+   that IS the menu language. */
+.draft-panel:not(.draft-tricks) .draft-mulligan-btn,
+.draft-panel:not(.draft-tricks) .draft-settings-btn,
+.draft-panel:not(.draft-tricks) .draft-undo-btn:not(.undo-disabled),
+.draft-panel.draft-tricks .draft-mulligan-btn,
+.draft-panel.draft-tricks .draft-settings-btn,
+.draft-panel.draft-tricks .draft-undo-btn:not(.undo-disabled),
+.draft-panel .draft-quit-btn,
+.draft-panel:not(.draft-tricks) .draft-mulligan-btn:hover,
+.draft-panel:not(.draft-tricks) .draft-settings-btn:hover,
+.draft-panel:not(.draft-tricks) .draft-undo-btn:not(.undo-disabled):hover,
+.draft-panel.draft-tricks .draft-mulligan-btn:hover,
+.draft-panel.draft-tricks .draft-settings-btn:hover,
+.draft-panel.draft-tricks .draft-undo-btn:not(.undo-disabled):hover,
+.draft-panel .draft-quit-btn:hover {
+  background: none !important;
+  box-shadow: none !important;
+  border: none !important;
+}
