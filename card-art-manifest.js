@@ -35,7 +35,7 @@ window.CARD_ART_VARIANTS = {
   'Jason Voorhees':      ['Jason Voorhees 3.png',     'Jason Voorhees 2.png',      'Jason Voorhees.png'],
   'Omni-Man':            ['Omni-Man 2.png',           'Omni-Man.png'],
   'Spider-Man':          ['Spider-Man 2.png',         'Spider-Man.png'],
-  'Superman':            ['Superman 2.png',           'Superman.png'],
+  'Superman':            ['Superman 3.jpg',           'Superman 2.png',        'Superman.png'],
   'Symbiote Spider-Man': ['Symbiote Spider-Man 2.png','Symbiote Spider-Man.png'],
   'The Flash':           ['The Flash 2.png',          'The Flash.png'],
   // ── Variant-2 promoted in second pass (2026-05-18 follow-up) ──
@@ -47,7 +47,7 @@ window.CARD_ART_VARIANTS = {
   'Scarlet Witch':       ['Scarlet Witch 2.png',      'Scarlet Witch.png'],
   'Deathstroke':         ['Deathstroke 2.png',        'Deathstroke.png'],
   // ── Single-art entries (webp) ──
-  'Pennywise':           ['Pennywise.png'],
+  'Pennywise':           ['Pennywise 2.jpg',          'Pennywise.png'],
   'Freddy Krueger':      ['Freddy Krueger 2.png',     'Freddy Krueger.png'],
   'Black Panther':       ['Black Panther 2.png',      'Black Panther.png'],
   // ── Variant-1 default kept (user kept original) ──
@@ -87,10 +87,14 @@ window.CARD_ART_OVERRIDES = {
     // crop lands on the torso and cuts the head off. Bias toward the top.
     'Captain America|Captain America 2.jpg': '50% 12%',
     'Michael Myers|Michael Myers 2.jpg': '50% 12%',
+    'Superman|Superman 3.jpg': '50% 20%',
+    'Pennywise|Pennywise 2.jpg': '50% 20%',
   },
   focalMenu: {   // "name|file" -> "X% Y%"   menu-hero crop focal
     'Captain America|Captain America 2.jpg': '50% 10%',
     'Michael Myers|Michael Myers 2.jpg': '50% 10%',
+    'Superman|Superman 3.jpg': '50% 15%',
+    'Pennywise|Pennywise 2.jpg': '50% 15%',
   },
   zoomCard:  {},   // "name|file" -> scale (1 = cover, e.g. 1.3)
   zoomMenu:  {},   // "name|file" -> scale
