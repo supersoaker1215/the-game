@@ -25470,20 +25470,22 @@ button:disabled, button[disabled] {
 
 /* ===== Gallery Audit — card-art browser + delete ===== */
 .gallery-audit-panel { max-width: min(1280px, 96vw); width: 96vw; }
+/* Summary row = plain dim text, no boxed bar (black-bg + boxless motto). */
 .gallery-audit-panel .aa-summary {
   display: flex; gap: 18px; flex-wrap: wrap; align-items: center;
-  padding: 8px 10px; margin: 6px 0 10px;
-  background: rgba(74,170,255,0.06); border: 1px solid rgba(74,170,255,0.2);
-  border-radius: 6px; font-size: 12px; color: #9cf;
+  padding: 4px 0; margin: 6px 0 10px;
+  background: none; border: none; border-radius: 0;
+  font-size: 12px; color: #7d90a2;
 }
 .gallery-audit-panel .aa-summary b { color: #cfe6ff; }
 .gallery-audit-panel .aa-controls { margin-bottom: 10px; }
+/* Search = black field with a hairline (inputs keep a minimal affordance). */
 .gallery-audit-panel .aa-search {
-  width: 240px; max-width: 100%; background: #0a0f15; color: #d8e8ff;
-  border: 1px solid rgba(74,170,255,0.35); border-radius: 5px; padding: 6px 10px;
+  width: 240px; max-width: 100%; background: #000; color: #d8e8ff;
+  border: 1px solid rgba(var(--theme-rgb,79,195,247),0.30); border-radius: 5px; padding: 6px 10px;
   font-family: inherit; font-size: 12px;
 }
-.gallery-audit-panel .aa-search:focus { outline: none; border-color: #4af; box-shadow: 0 0 0 2px rgba(74,170,255,0.25); }
+.gallery-audit-panel .aa-search:focus { outline: none; border-color: rgba(var(--theme-rgb,79,195,247),0.9); box-shadow: 0 0 8px rgba(var(--theme-rgb,79,195,247),0.35); }
 .gallery-audit-panel .aa-empty { color: #789; padding: 24px; text-align: center; }
 /* ===== GALLERY DE-CLUTTER (2026-07-11) — the main-menu language everywhere:
    NO boxes, borders, pills, or chips. Text + art only; buttons are bare
@@ -25967,15 +25969,14 @@ body > .scanline-overlay {
 .mode-panel,
 .md-panel,
 .rl-panel {
-  background:
-    linear-gradient(180deg, var(--theme-wash-05, rgba(79,195,247,0.05)) 0%, rgba(0,0,0,0) 40%),
-    #000 !important;
+  /* Solid black interior — no tint wash (user: backgrounds are ALWAYS black;
+     the neon border ring + text supply the color/contrast). */
+  background: #000 !important;
   border: 1px solid var(--theme-accent-edge, rgba(79,195,247,0.55)) !important;
   border-radius: 4px !important;
   box-shadow:
     0 0 32px var(--theme-glow-inner, rgba(79,195,247,0.30)),
     0 0 72px var(--theme-glow-outer, rgba(79,195,247,0.14)),
-    inset 0 0 0 1px var(--theme-wash-08, rgba(79,195,247,0.08)),
     inset 0 1px 0 var(--theme-accent-edge, rgba(79,195,247,0.35)) !important;
   position: relative;
 }
@@ -26763,20 +26764,14 @@ input[type="number"]::-webkit-outer-spin-button {
 /* Theme-ize the existing wave-1 polish texture so the gradient +
    scanline tint follow the user's chosen color. (Was hardcoded blue
    in the original audit pass.) */
-.settings-panel {
-  background:
-    linear-gradient(180deg, rgba(var(--theme-rgb, 79,195,247),0.05) 0%, transparent 45%),
-    repeating-linear-gradient(0deg, transparent 0 2px, rgba(var(--theme-rgb, 79,195,247),0.025) 2px 3px),
-    #060a12 !important;
-}
-.tutorial-panel {
-  background:
-    repeating-linear-gradient(0deg, rgba(var(--theme-rgb, 79,195,247),0.022) 0 2px, transparent 2px 4px),
-    linear-gradient(180deg, rgba(var(--theme-rgb, 79,195,247),0.06) 0%, rgba(0,0,0,0) 38%),
-    #000 !important;
-}
-
-/* Apply the same gradient + scanline texture to every major panel. */
+/* PURE BLACK PANELS (2026-07-11) — user: "the background should ALWAYS be
+   black to create contrast, not just the color — that's why the draft screen
+   looks pristine and others don't." The old 'premium' stack painted every
+   panel deep navy (#060a12) + a theme wash + scanline texture; on big flat
+   panels that read as a blue-tinted box and killed the neon contrast. Now:
+   solid #000 interiors everywhere — the neon borders/text supply ALL color. */
+.settings-panel,
+.tutorial-panel,
 .round-summary-panel,
 .match-history-panel,
 .stats-panel,
@@ -26785,10 +26780,7 @@ input[type="number"]::-webkit-outer-spin-button {
 .draft-panel,
 .mode-panel,
 .game-over-content {
-  background:
-    linear-gradient(180deg, rgba(var(--theme-rgb, 79,195,247),0.05) 0%, transparent 45%),
-    repeating-linear-gradient(0deg, transparent 0 2px, rgba(var(--theme-rgb, 79,195,247),0.025) 2px 3px),
-    #060a12 !important;
+  background: #000 !important;
 }
 
 /* Unify the glow-stack across panels — settings reference is:
