@@ -34,9 +34,10 @@ window.CARD_ART_VARIANTS = {
   'Iron Man':            ['Iron Man 2.png',           'Iron Man.png',              'Iron Man 3.png'],
   'Jason Voorhees':      ['Jason Voorhees 3.png',     'Jason Voorhees 2.png',      'Jason Voorhees.png'],
   'Omni-Man':            ['Omni-Man 2.png',           'Omni-Man.png'],
-  'Spider-Man':          ['Spider-Man 2.png',         'Spider-Man.png'],
+  'Bane':                ['Bane 2.jpg',               'Bane.png'],
+  'Spider-Man':          ['Spider-Man 3.jpg',         'Spider-Man 2.png',      'Spider-Man.png'],
   'Superman':            ['Superman 3.jpg',           'Superman 2.png',        'Superman.png'],
-  'Symbiote Spider-Man': ['Symbiote Spider-Man 2.png','Symbiote Spider-Man.png'],
+  'Symbiote Spider-Man': ['Symbiote Spider-Man 3.jpg','Symbiote Spider-Man 2.png','Symbiote Spider-Man.png'],
   'The Flash':           ['The Flash 2.png',          'The Flash.png'],
   // ── Variant-2 promoted in second pass (2026-05-18 follow-up) ──
   'Ahsoka':              ['Ahsoka 2.png',             'Ahsoka.png'],
@@ -89,12 +90,18 @@ window.CARD_ART_OVERRIDES = {
     'Michael Myers|Michael Myers 2.jpg': '50% 12%',
     'Superman|Superman 3.jpg': '50% 20%',
     'Pennywise|Pennywise 2.jpg': '50% 20%',
+    'Bane|Bane 2.jpg': '50% 15%',
+    'Spider-Man|Spider-Man 3.jpg': '50% 15%',
+    'Symbiote Spider-Man|Symbiote Spider-Man 3.jpg': '50% 35%',
   },
   focalMenu: {   // "name|file" -> "X% Y%"   menu-hero crop focal
     'Captain America|Captain America 2.jpg': '50% 10%',
     'Michael Myers|Michael Myers 2.jpg': '50% 10%',
     'Superman|Superman 3.jpg': '50% 15%',
     'Pennywise|Pennywise 2.jpg': '50% 15%',
+    'Bane|Bane 2.jpg': '50% 12%',
+    'Spider-Man|Spider-Man 3.jpg': '50% 12%',
+    'Symbiote Spider-Man|Symbiote Spider-Man 3.jpg': '50% 30%',
   },
   zoomCard:  {},   // "name|file" -> scale (1 = cover, e.g. 1.3)
   zoomMenu:  {},   // "name|file" -> scale
