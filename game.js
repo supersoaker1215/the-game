@@ -1273,6 +1273,9 @@ const Game = {
       .filter(d => !d.isDiscardEffect) // discard-effect cards are 0/0 — never sensible to summon
       .filter(d => !isRL(d.name))
       .filter(d => !d._spawnOnly)      // spawn-only cards enter only via their trigger (e.g. Freddy)
+      .filter(d => !d.isEnvironment)   // environments deploy via their own play flow — summoning
+                                       // one drops it as a plain 0/1 card (user report: Mother Box
+                                       // pulled Boiler Room onto the board as a creature)
       .map(d => ({ ...d }));
     this.state.summonDeck = this.shuffle(summonDeck);
   },
