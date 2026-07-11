@@ -8165,12 +8165,24 @@ const UI = {
       + Object.keys(data.zoomCard).length + Object.keys(data.zoomMenu).length
       + Object.keys(data.order).length + data.deleted.length;
     const json = JSON.stringify(data, null, 2);
+    // Real confirmation instead of push-and-pray: an explicit modal states
+    // exactly what happened (copied ✓ / failed ✗) and what the next step is.
+    // Nothing is uploaded automatically — publish = paste the JSON to Claude,
+    // who commits it to the repo as the worldwide defaults.
     const done = (ok) => {
-      if (this.showAITrickToast) {
-        this.showAITrickToast(ok ? 'Copied! Paste to Claude to publish' : 'Copy failed — copy it from the console',
-          `${counts} edit(s) exported`, 'trick');
-      }
       try { console.log('[GALLERY EXPORT — paste this to Claude to publish]\n' + json); } catch (e) {}
+      if (counts === 0) {
+        this._modalDialog({ title: 'Nothing to export', okText: 'Got it',
+          message: 'You have no local gallery edits yet — nothing to publish.\n\nCrop, zoom, reorder, or delete some art first.' });
+        return;
+      }
+      if (ok) {
+        this._modalDialog({ title: 'Export copied ✓', okText: 'Got it',
+          message: `${counts} edit(s) copied to your clipboard.\n\nPaste them to Claude in the chat — he commits them to the repo so your crops become the default for everyone.\n\nNothing gets uploaded automatically.` });
+      } else {
+        this._modalDialog({ title: 'Copy failed', okText: 'Got it', danger: true,
+          message: 'Clipboard copy FAILED on this browser.\n\nThe export was printed to the console instead — open it (F12 → Console), copy the [GALLERY EXPORT] block, and paste it to Claude.' });
+      }
     };
     try {
       if (navigator.clipboard && navigator.clipboard.writeText) {
@@ -8181,6 +8193,11 @@ const UI = {
   renderGalleryAudit() {
     const ov = document.getElementById('gallery-audit-overlay');
     if (!ov) return;
+    // Keep the user's place: deleting art / resetting a crop re-renders the
+    // whole panel, which used to snap the list back to the top. Capture the
+    // grid's scroll position and restore it after the rebuild.
+    const oldGrid = ov.querySelector('.gal-grid');
+    const keepScroll = oldGrid ? oldGrid.scrollTop : 0;
     const f = this._galleryAudit || (this._galleryAudit = { query: '' });
     const del = this._deletedArtSet();
     const ver = this._CARD_ART_VERSION || 1;
@@ -8254,7 +8271,7 @@ const UI = {
             ${cropArea('menu', 'Menu hero', menuW)}
           </div>
           <div class="gal-thumb-foot">
-            <button type="button" class="gal-save" onclick="UI._gallerySave('${jsName}','${jsFile}')">💾 Save crop</button>
+            <button type="button" class="gal-save" onclick="UI._gallerySave('${jsName}','${jsFile}')">Save</button>
             <span class="gal-fname" title="${file}">${file}</span>
           </div>
         </figure>`;
@@ -8283,10 +8300,12 @@ const UI = {
             value="${(f.query || '').replace(/"/g, '&quot;')}"
             oninput="UI._galleryAuditSetQuery(this.value)">
         </div>
-        <div class="gal-publish-note">Edits save on this device instantly. To make them permanent for everyone, tap <b>Publish to repo</b> and paste the copied text to me — I'll commit it.</div>
+        <div class="gal-note">Edits save on this device instantly · <b>Publish to repo</b> copies them for me to commit worldwide · Delete only hides art (Restore brings it back).</div>
         <div class="gal-grid">${tiles || '<div class="aa-empty">No matches.</div>'}</div>
-        <div class="gal-note">Delete hides the art from the menu + in-game card (the image file stays in the project). Saved on this device; use Restore to bring hidden art back.</div>
       </div>`;
+    // Restore the pre-render scroll position (delete / reset / reorder keep your place).
+    const newGrid = ov.querySelector('.gal-grid');
+    if (newGrid && keepScroll) newGrid.scrollTop = keepScroll;
   },
 
   // ===================== SANDBOX (dev free-play) =====================
