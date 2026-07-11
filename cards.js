@@ -301,7 +301,7 @@ const CARD_DEFS = [
   // ==================== COST 7 ====================
   { name: "Apocalypse", cost: 7, attack: 5, health: 6, type: "villain",
     abilities: [],
-    desc: "When Played: Every card in your hand permanently gains a random keyword — Armor 1, Evade 1, Bullseye, or Overdrive. While Active: At the start of each round, a random enemy on the field permanently loses 1 ATK." },
+    desc: "When Played: Every card in your hand (cost ≤ 9) permanently gains a random keyword — Armor 1, Evade 1, Bullseye, or Overdrive. While Active: At the start of each round, a random enemy on the field permanently loses 1 ATK." },
   { name: "Dr. Doom", cost: 7, attack: 5, health: 5, type: "villain",
     abilities: [],
     desc: "When Played: Return a card from your Dead Pile (cost ≤ 9) to your hand with its cost permanently reduced by 3. Summon a (5/5) Doombot." },

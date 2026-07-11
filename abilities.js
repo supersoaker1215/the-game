@@ -2774,7 +2774,12 @@ const CARD_ABILITIES = {
   "Apocalypse": {
     onPlay(G, self, lane) {
       const KEYWORDS = ["Armor 1", "Evade 1", "Bullseye", "Overdrive"];
-      G.state[self.owner].hand.forEach(card => {
+      // 10-cost titans don't get handouts — same exemption logic as
+      // auto-Untrickable, so Doomsday (skipAutoUntrickable) still
+      // qualifies despite his 12 starting cost.
+      G.state[self.owner].hand.filter(card =>
+        card.skipAutoUntrickable || (card.baseCost || card.cost || 0) < 10
+      ).forEach(card => {
         const kw = KEYWORDS[Math.floor(Math.random() * KEYWORDS.length)];
         if (!card.abilities.includes(kw)) card.abilities.push(kw);
         G.applyAbilities(card);
