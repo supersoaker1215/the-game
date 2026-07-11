@@ -14504,8 +14504,7 @@ const UI = {
     // Helper: build a status badge with the keyword tooltip wired in.
     // Stamps `data-kw="<canonical>"` so the same hover/click-to-pin
     // tooltip system the body-text spans use also fires here. Skips
-    // the data-kw attribute when the keyword has no KEYWORD_DATA entry
-    // (Crazy/Insane don't, so they remain plain).
+    // the data-kw attribute when the keyword has no KEYWORD_DATA entry.
     const badge = (cls, label, kw) => {
       const hasTip = kw && this.KEYWORD_DATA[kw];
       const dataAttr = hasTip ? ` data-kw="${kw}"` : '';
@@ -14591,10 +14590,8 @@ const UI = {
     if (c.hasMark > 0) b.push(badge('badge-mark', 'Mark', 'Mark'));
     if (c.hasSteady > 0) b.push(badge('badge-steady', `Steady ${c.hasSteady}`, 'Steady'));
     if (c._discountTotal > 0) b.push(badge('badge-discount', `Discount ${c._discountTotal}`, 'Discount'));
-    // "Crazy" / "Insane" — no KEYWORD_DATA entry yet, so badge() omits
-    // data-kw and they stay non-interactive.
-    if (c.isInsane) b.push(badge('badge-insane', 'Insane'));
-    else if (c.isCrazy) b.push(badge('badge-crazy', 'Crazy'));
+    if (c.isInsane) b.push(badge('badge-insane', 'Insane', 'Insane'));
+    else if (c.isCrazy) b.push(badge('badge-crazy', 'Crazy', 'Crazy'));
     // Poison Ivy charmed ally indicator. Three layers, in order:
     //   1. Direct flag set on the ally (`_charmedByIvy = ivyId`).
     //   2. Legacy `_ivyAlly` object-ref match.
@@ -14674,6 +14671,11 @@ const UI = {
     'Soul Stone':  { color: '#e67e22', svg: '<svg viewBox="0 0 12 12"><circle cx="6" cy="6" r="3.5" fill="currentColor"/><path d="M6 1 V3 M6 9 V11 M1 6 H3 M9 6 H11" stroke="currentColor" stroke-width="1"/></svg>', tip: 'Infinity Stone — drains a card\'s soul (HP/ATK transfer).' },
     'Mind Stone':  { color: '#f1c40f', svg: '<svg viewBox="0 0 12 12"><circle cx="6" cy="6" r="4" stroke="currentColor" stroke-width="1.2" fill="none"/><path d="M6 3 Q4 5 6 6 Q8 7 6 9" stroke="currentColor" stroke-width="1.2" fill="none"/></svg>', tip: 'Infinity Stone — Mind Control 1 (Unresistible) on an enemy this turn.' },
     'Reality Stone':{ color: '#e74c3c', svg: '<svg viewBox="0 0 12 12"><path d="M3 3 L9 9 M9 3 L3 9 M6 1 V11 M1 6 H11" stroke="currentColor" stroke-width="1" fill="none"/></svg>', tip: 'Infinity Stone — permanently swap an ally\'s ATK/HP with an enemy\'s.' },
+
+    // Chaos ATK-reroll traits (Joker / Harley). Colors match the
+    // .badge-crazy / .badge-insane chrome in style.css.
+    'Crazy':      { color: '#ff4fb0', svg: '<svg viewBox="0 0 12 12"><path d="M2 6 Q3 2 6 4 Q9 6 10 2 M2 10 Q4 7 6 9 Q8 11 10 8" stroke="currentColor" stroke-width="1.2" fill="none" stroke-linecap="round"/></svg>', tip: 'ATK re-rolls randomly between <b>1–4</b> at the start of every round (never the same roll twice in a row). Suppressed while Feared.' },
+    'Insane':     { color: '#c77dff', svg: '<svg viewBox="0 0 12 12"><path d="M1 6 Q2 1 4 4 Q6 7 8 2 Q10 -1 11 5 M1 10 Q3 6 5 9 Q7 12 9 7 Q10 5 11 9" stroke="currentColor" stroke-width="1.2" fill="none" stroke-linecap="round"/></svg>', tip: 'ATK re-rolls randomly between <b>2–7</b> at the start of every round (never the same roll twice in a row). Not even Fear can stop it.' },
 
     // ===== Roguelite etch-driven keywords =====
     // Earned via the etch system; described here so the tooltip
@@ -14765,7 +14767,7 @@ const UI = {
         if (m) {
           const num = m[2] ? m[2].trim() : '';
           // Only attach data-kw if KEYWORD_DATA actually has an entry
-          // for this kw (Crazy / Insane don't, so they remain plain).
+          // for this kw — keywords without one remain plain text.
           const hasTip = !!this.KEYWORD_DATA[kw];
           const dataAttr = hasTip ? ` data-kw="${kw}"` : '';
           // Swap visible text via LABEL_OVERRIDE so the badge reads
@@ -21222,9 +21224,10 @@ window.Sandbox = {
     }
     const trickDef = (typeof TRICK_DEFS !== 'undefined') ? TRICK_DEFS.find(t => t.name === name) : null;
     if (trickDef) {
-      const inst = Game.createCardInstance ? Game.createCardInstance(trickDef, 'player') : Object.assign({}, trickDef);
-      inst.id = 'sb_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6);
-      Game.state.player.tricks.push(inst);
+      // Same shape the engine uses for trick draws (game.js drawPhase):
+      // a plain def copy with an id — keeps the play() callback intact.
+      const inst = { ...trickDef, id: nextCardId++ };
+      Game.state.player.trickHand.push(inst);
       UI.render();
       return inst;
     }
