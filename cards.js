@@ -299,9 +299,6 @@ const CARD_DEFS = [
     desc: "When Destroyed: Summon 2 (5/3) Ultron copies in the lowest and highest empty lanes. Copies don't trigger this effect." },
 
   // ==================== COST 7 ====================
-  { name: "Apocalypse", cost: 7, attack: 5, health: 6, type: "villain",
-    abilities: [],
-    desc: "When Played: Every card in your hand (cost ≤ 9) permanently gains a random keyword — Armor 1, Evade 1, Bullseye, or Overdrive. While Active: At the start of each round, 2 random enemies on the field each permanently lose 1 ATK." },
   { name: "Dr. Doom", cost: 7, attack: 5, health: 5, type: "villain",
     abilities: [],
     desc: "When Played: Return a card from your Dead Pile (cost ≤ 9) to your hand with its cost permanently reduced by 3. Summon a (5/5) Doombot." },
@@ -328,6 +325,9 @@ const CARD_DEFS = [
     desc: "When Played: Give another ally Revive 1 — it revives as if played anew (abilities reset, On Play re-triggers)." },
 
   // ==================== COST 8 ====================
+  { name: "Apocalypse", cost: 8, attack: 5, health: 6, type: "villain",
+    abilities: [],
+    desc: "When Played: Every card in your hand (cost ≤ 9) permanently gains a random keyword — Armor 1, Evade 1, Bullseye, or Overdrive. While Active: At the start of each round, 2 random enemies on the field each permanently lose 1 ATK." },
   { name: "Darth Vader", cost: 8, attack: 6, health: 7, type: "villain",
     abilities: ["Armor 1", "Unresistible 1"],
     desc: "When Played: Move an enemy to an empty lane. Fear 1 an enemy. Then start a 7-damage chain — pick direction each step; damage decreases by 1 per hit." },

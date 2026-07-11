@@ -2771,38 +2771,6 @@ const CARD_ABILITIES = {
   },
 
   // ==================== COST 7 ====================
-  "Apocalypse": {
-    onPlay(G, self, lane) {
-      const KEYWORDS = ["Armor 1", "Evade 1", "Bullseye", "Overdrive"];
-      // 10-cost titans don't get handouts — same exemption logic as
-      // auto-Untrickable, so Doomsday (skipAutoUntrickable) still
-      // qualifies despite his 12 starting cost.
-      G.state[self.owner].hand.filter(card =>
-        card.skipAutoUntrickable || (card.baseCost || card.cost || 0) < 10
-      ).forEach(card => {
-        const kw = KEYWORDS[Math.floor(Math.random() * KEYWORDS.length)];
-        if (!card.abilities.includes(kw)) card.abilities.push(kw);
-        G.applyAbilities(card);
-        G.log(`[APOCALYPSE] ${card.name} permanently gains ${kw}.`);
-      });
-    },
-    onTurnStart(G, self) {
-      if (self.currentHealth <= 0) return;
-      const enemies = G.getEnemiesOf(self.owner).filter(c => c.currentHealth > 0);
-      if (!enemies.length) return;
-      // 2 DISTINCT random enemies each lose 1 ATK — a lone enemy only
-      // ever loses 1 (never double-dipped).
-      const shuffled = enemies.slice();
-      for (let i = shuffled.length - 1; i > 0; i--) {
-        const j = Math.floor(Math.random() * (i + 1));
-        [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
-      }
-      shuffled.slice(0, 2).forEach(target => {
-        target.attack = Math.max(0, (target.attack || 0) - 1);
-        G.log(`[APOCALYPSE] ${target.name} permanently loses 1 ATK.`);
-      });
-    }
-  },
   "Dr. Doom": {
     onPlay(G, self, lane) {
       const owner = self.owner;
@@ -3150,6 +3118,38 @@ const CARD_ABILITIES = {
   },
 
   // ==================== COST 8 ====================
+  "Apocalypse": {
+    onPlay(G, self, lane) {
+      const KEYWORDS = ["Armor 1", "Evade 1", "Bullseye", "Overdrive"];
+      // 10-cost titans don't get handouts — same exemption logic as
+      // auto-Untrickable, so Doomsday (skipAutoUntrickable) still
+      // qualifies despite his 12 starting cost.
+      G.state[self.owner].hand.filter(card =>
+        card.skipAutoUntrickable || (card.baseCost || card.cost || 0) < 10
+      ).forEach(card => {
+        const kw = KEYWORDS[Math.floor(Math.random() * KEYWORDS.length)];
+        if (!card.abilities.includes(kw)) card.abilities.push(kw);
+        G.applyAbilities(card);
+        G.log(`[APOCALYPSE] ${card.name} permanently gains ${kw}.`);
+      });
+    },
+    onTurnStart(G, self) {
+      if (self.currentHealth <= 0) return;
+      const enemies = G.getEnemiesOf(self.owner).filter(c => c.currentHealth > 0);
+      if (!enemies.length) return;
+      // 2 DISTINCT random enemies each lose 1 ATK — a lone enemy only
+      // ever loses 1 (never double-dipped).
+      const shuffled = enemies.slice();
+      for (let i = shuffled.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+      }
+      shuffled.slice(0, 2).forEach(target => {
+        target.attack = Math.max(0, (target.attack || 0) - 1);
+        G.log(`[APOCALYPSE] ${target.name} permanently loses 1 ATK.`);
+      });
+    }
+  },
   "Darth Vader": {
     onPlay(G, self, lane) {
       const opp = G.opponent(self.owner);
