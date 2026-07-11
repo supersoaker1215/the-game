@@ -2771,6 +2771,25 @@ const CARD_ABILITIES = {
   },
 
   // ==================== COST 7 ====================
+  "Apocalypse": {
+    onPlay(G, self, lane) {
+      const KEYWORDS = ["Armor 1", "Evade 1", "Bullseye", "Overdrive"];
+      G.state[self.owner].hand.forEach(card => {
+        const kw = KEYWORDS[Math.floor(Math.random() * KEYWORDS.length)];
+        if (!card.abilities.includes(kw)) card.abilities.push(kw);
+        G.applyAbilities(card);
+        G.log(`[APOCALYPSE] ${card.name} permanently gains ${kw}.`);
+      });
+    },
+    onTurnStart(G, self) {
+      if (self.currentHealth <= 0) return;
+      const enemies = G.getEnemiesOf(self.owner).filter(c => c.currentHealth > 0);
+      if (!enemies.length) return;
+      const target = enemies[Math.floor(Math.random() * enemies.length)];
+      target.attack = Math.max(0, (target.attack || 0) - 1);
+      G.log(`[APOCALYPSE] ${target.name} permanently loses 1 ATK.`);
+    }
+  },
   "Dr. Doom": {
     onPlay(G, self, lane) {
       const owner = self.owner;
