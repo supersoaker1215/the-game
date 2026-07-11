@@ -2790,9 +2790,17 @@ const CARD_ABILITIES = {
       if (self.currentHealth <= 0) return;
       const enemies = G.getEnemiesOf(self.owner).filter(c => c.currentHealth > 0);
       if (!enemies.length) return;
-      const target = enemies[Math.floor(Math.random() * enemies.length)];
-      target.attack = Math.max(0, (target.attack || 0) - 1);
-      G.log(`[APOCALYPSE] ${target.name} permanently loses 1 ATK.`);
+      // 2 DISTINCT random enemies each lose 1 ATK — a lone enemy only
+      // ever loses 1 (never double-dipped).
+      const shuffled = enemies.slice();
+      for (let i = shuffled.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+      }
+      shuffled.slice(0, 2).forEach(target => {
+        target.attack = Math.max(0, (target.attack || 0) - 1);
+        G.log(`[APOCALYPSE] ${target.name} permanently loses 1 ATK.`);
+      });
     }
   },
   "Dr. Doom": {
