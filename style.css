@@ -28501,43 +28501,12 @@ body > .grid-bg {
    between them — no blending, no overlay, no muddy middle.
    Capped at 60% conversion so the loser's HUD always retains
    identity color on the right edge. */
-.info-bar.ai-bar {
-  /* The dominance position determines where the hard color cut
-     happens. At dominance 0.6 → cut at 60% (LEFT 60% green,
-     RIGHT 40% red). */
-  --inv-stop: calc(var(--player-dominance, 0) * 60%);
-  border-image-source: linear-gradient(90deg,
-    rgba(var(--player-r, 79), var(--player-g, 195), var(--player-b, 247), 0.95) 0%,
-    rgba(var(--player-r, 79), var(--player-g, 195), var(--player-b, 247), 0.95) var(--inv-stop),
-    rgba(var(--enemy-r, 231), var(--enemy-g, 76), var(--enemy-b, 60), 0.95) var(--inv-stop),
-    rgba(var(--enemy-r, 231), var(--enemy-g, 76), var(--enemy-b, 60), 0.95) 100%) !important;
-  border-image-slice: 1 !important;
-  /* Halo: weakens proportionally as dominance grows so the
-     invaded HUD literally dims as its lines convert. No green
-     glow added — the line conversion IS the signal. */
-  box-shadow:
-    0 0 6px rgba(var(--enemy-r, 231), var(--enemy-g, 76), var(--enemy-b, 60),
-      calc(0.45 * (1 - var(--player-dominance, 0) * 0.6))),
-    0 0 12px rgba(var(--enemy-r, 231), var(--enemy-g, 76), var(--enemy-b, 60),
-      calc(0.22 * (1 - var(--player-dominance, 0) * 0.6))) !important;
-  transition: border-image-source 800ms ease-out, box-shadow 800ms ease-out;
-}
-
-.info-bar.player-bar {
-  --inv-stop: calc(var(--enemy-dominance, 0) * 60%);
-  border-image-source: linear-gradient(90deg,
-    rgba(var(--enemy-r, 231), var(--enemy-g, 76), var(--enemy-b, 60), 0.95) 0%,
-    rgba(var(--enemy-r, 231), var(--enemy-g, 76), var(--enemy-b, 60), 0.95) var(--inv-stop),
-    rgba(var(--player-r, 79), var(--player-g, 195), var(--player-b, 247), 0.95) var(--inv-stop),
-    rgba(var(--player-r, 79), var(--player-g, 195), var(--player-b, 247), 0.95) 100%) !important;
-  border-image-slice: 1 !important;
-  box-shadow:
-    0 0 6px rgba(var(--player-r, 79), var(--player-g, 195), var(--player-b, 247),
-      calc(0.30 * (1 - var(--enemy-dominance, 0) * 0.6))),
-    0 0 12px rgba(var(--player-r, 79), var(--player-g, 195), var(--player-b, 247),
-      calc(0.18 * (1 - var(--enemy-dominance, 0) * 0.6))) !important;
-  transition: border-image-source 800ms ease-out, box-shadow 800ms ease-out;
-}
+/* BANNER LINE CONVERSION REMOVED (2026-07-10) — the leading side's color used
+   to convert the left N% of the OPPONENT's banner border via a hard-stop
+   border-image gradient. User feedback: "get rid of the opponent color bleed
+   into the banners for both players." Each banner now keeps its own solid
+   color borders + glow (base .info-bar.ai-bar / .player-bar rules) at all
+   times. The board-level invasion cues (empty-lane color bias below) stay. */
 
 /* HUD content: only .bar-cell children need z-index promotion
    (NOT the SVG .ai-thinking-ring — see grid-row phantom-row bug
