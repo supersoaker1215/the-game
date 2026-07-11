@@ -31156,3 +31156,12 @@ body.round-tick .board::after {
   box-shadow: none !important;
   border: none !important;
 }
+/* NO SWEEP BAND, EVER, on glow-text buttons — the tron-fx system injects a
+   .tron-sweep gradient that slides across on hover. Inside the old boxed
+   buttons it read as a fill; on boxless glow-text it's a naked blue rectangle
+   over the label (user: "I NEVER want to see the blue box"). Same kill the
+   mw3 menu options got. */
+.md-back > .tron-sweep, .mode-back > .tron-sweep, .stats-back > .tron-sweep,
+.draft-quit-btn > .tron-sweep, .draft-undo-btn > .tron-sweep,
+.draft-mulligan-btn > .tron-sweep, .draft-settings-btn > .tron-sweep,
+.game-over-btn > .tron-sweep { display: none !important; }
