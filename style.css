@@ -5343,7 +5343,11 @@ body.hit-pause .ai-hand * {
      Width 154px = 140px card + lane padding. */
   width: 154px;
   flex: 1 1 auto;
-  min-height: 310px;
+  /* 240px = the tallest possible board card (232px — portrait + 5-badge wrap,
+     measured: Galactus/Dr. Manhattan) + 8px breathing. Keeps every lane's half
+     identical (stable centerline) while cutting the dead space above cards
+     (user: "the lanes are too long — just a little space"). */
+  min-height: 240px;
   display: flex; justify-content: center; border-radius: 8px;
 }
 /* Card alignment within each slot: anchor each card TO THE SEP (AI bottom,
