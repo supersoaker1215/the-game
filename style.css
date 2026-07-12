@@ -2307,10 +2307,10 @@ body.hit-pause .ai-hand * {
   position: static; z-index: 4; height: 42px; margin-top: 36px;
   display: flex; align-items: center; justify-content: flex-start;
   padding: 0; pointer-events: none;
-  /* Line hugs the menu-list column only — capped so it never bleeds right
-     into the hero art (was full panel width). The now-playing credit sits
-     in the old brand slot at the far left. */
-  max-width: 320px;
+  /* Line hugs the menu-list column only — capped to the widest option
+     (~212px) so it ends right at the list edge and never runs into the hero
+     art. The now-playing credit sits in the old brand slot at the far left. */
+  max-width: 220px;
   border-top: 1px solid rgba(var(--theme-rgb,79,195,247),0.28);
   font-family: 'Rajdhani', sans-serif; text-transform: uppercase;
 }
