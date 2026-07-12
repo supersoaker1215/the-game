@@ -6601,6 +6601,15 @@ const UI = {
     // Wire up the Mind Control "attack the health bar" option directly to the
     // HP bar UI — the HP bar glows and becomes clickable, instead of being
     // rendered as a fake card in an inline row.
+    // Always tear down any MC health-bar handler left over from a previous
+    // render or a prompt that resolved some other way — the .health-container
+    // is a STATIC element, so re-adding without removing stacks listeners and
+    // a stale one-shot could later resolve a DIFFERENT prompt with a wrong idx.
+    if (this._mcBar && this._mcBarHandler) {
+      this._mcBar.removeEventListener('click', this._mcBarHandler);
+      this._mcBar.classList.remove('mc-target');
+      this._mcBarHandler = null; this._mcBar = null;
+    }
     const hbOption = cc.cards.find(c => c.id === '_healthbar_mc');
     if (hbOption) {
       const owner = hbOption._mcOwner;
@@ -6608,14 +6617,18 @@ const UI = {
       if (bar) {
         bar.classList.add('mc-target');
         bar.title = `Attack ${owner === 'player' ? 'your' : UI.oppNamePoss()} health bar`;
-        // One-shot click — capture the idx now; renderer re-runs will re-attach.
         const idx = cc.cards.indexOf(hbOption);
+        const thisCC = cc;   // capture prompt identity
         const handler = (e) => {
           e.stopPropagation();
           bar.classList.remove('mc-target');
           bar.removeEventListener('click', handler);
+          this._mcBarHandler = null; this._mcBar = null;
+          // Guard: only resolve if THIS exact prompt is still pending.
+          if (Game.state.pendingCardChoice !== thisCC) return;
           cardChoicePick(idx);
         };
+        this._mcBarHandler = handler; this._mcBar = bar;
         bar.addEventListener('click', handler);
       }
     }
@@ -13514,7 +13527,8 @@ const UI = {
         // Environment placement on an occupied lane — the else-if chain below
         // never fires when plDisplayCard exists, so handle it here.
         if (!lane.destroyed && canPlay && s.selectedCard && s.selectedCard.isEnvironment && !cc && !lc) {
-          pSlot.classList.add('playable');
+          const _envCost = (typeof Game.getCardCost === 'function') ? Game.getCardCost('player', s.selectedCard) : (s.selectedCard.cost || 0);
+          if (_envCost <= s.player.currency) pSlot.classList.add('playable');
           pSlot.onclick = () => this.onLaneClick(i);
           cardEl.onclick = () => this.onLaneClick(i);
         }
@@ -13566,11 +13580,18 @@ const UI = {
           empty.innerHTML = '&#x1F512;';
           pSlot.appendChild(empty);
         } else {
-          pSlot.classList.add('playable');
+          // Only glow the lane as playable when the card is actually affordable
+          // — otherwise the lit lane + preview invite a click that silently
+          // fails. The click stays wired so a tap still shakes + explains.
+          const _cost = (typeof Game.getCardCost === 'function') ? Game.getCardCost('player', s.selectedCard) : (s.selectedCard.cost || 0);
+          const _afford = _cost <= s.player.currency;
+          if (_afford) {
+            pSlot.classList.add('playable');
+            // Damage preview — show how this card would trade if placed here.
+            const preview = s.selectedCard.isEnvironment ? null : this.makeDamagePreview(s.selectedCard, lane.ai, i);
+            if (preview) pSlot.appendChild(preview);
+          }
           pSlot.onclick = () => this.onLaneClick(i);
-          // Damage preview — show how this card would trade if placed here.
-          const preview = s.selectedCard.isEnvironment ? null : this.makeDamagePreview(s.selectedCard, lane.ai, i);
-          if (preview) pSlot.appendChild(preview);
         }
       } else if (!lane.destroyed && !lane.player && !cc && !lc) {
         // Empty ally slot + nothing selected — show the drop glyph
@@ -15515,8 +15536,21 @@ const UI = {
         el.addEventListener('click', () => this.onTrickClick(trick));
       } else {
         el.classList.add('unplayable');
-        // No click action — hover-scale (CSS) already shows the full
-        // card at readable size, so the inspect popup is redundant.
+        // Dead-tap feedback — explain why on hover, and shake + toast on tap
+        // (mirrors the hand-card "can't afford" grammar) so an unplayable
+        // trick never eats the click silently.
+        const reason = !afford
+          ? `Not enough energy — need ${trick.cost || 0}, have ${s.player.currency}`
+          : `Tricks can only be played in the tricks phase`;
+        el.title = reason;
+        el.addEventListener('click', () => {
+          el.classList.remove('trick-shake-rejected');
+          void el.offsetWidth;
+          el.classList.add('trick-shake-rejected');
+          setTimeout(() => el && el.classList.remove('trick-shake-rejected'), 480);
+          if (this._haptic) this._haptic('block');
+          if (this.showAITrickToast) this.showAITrickToast(!afford ? 'Not enough energy' : 'Not the trick phase', reason, 'error');
+        });
       }
       this.playerTricks.appendChild(el);
     });
@@ -17161,8 +17195,30 @@ const UI = {
         });
       return;
     }
-    if (Game.playCard('player', card, i)) this._clearOrLockSelection(s);
+    if (Game.playCard('player', card, i)) {
+      this._clearOrLockSelection(s);
+    } else {
+      // Rejected placement — never leave the tap silent. Shake the card and
+      // say why (unaffordable vs an occupied / destroyed lane).
+      this._flashRejectedLaneClick(card, s);
+    }
     this.render();
+  },
+
+  // Feedback for a lane tap that didn't place a card. Mirrors the hand-card
+  // "can't afford" grammar so a dead tap always explains itself.
+  _flashRejectedLaneClick(card, s) {
+    const cost = (typeof Game.getCardCost === 'function') ? Game.getCardCost('player', card) : (card.cost || 0);
+    const cardEl = document.querySelector(`.player-hand-section .card[data-card-id="${card.id}"]`);
+    if (cost > s.player.currency) { this.flashUnaffordable(cost, cardEl); return; }
+    if (cardEl) {
+      cardEl.classList.remove('card-shake-rejected');
+      void cardEl.offsetWidth;
+      cardEl.classList.add('card-shake-rejected');
+      setTimeout(() => cardEl && cardEl.classList.remove('card-shake-rejected'), 480);
+    }
+    if (this._haptic) this._haptic('block');
+    if (this.showAITrickToast) this.showAITrickToast("Can't place there", 'That lane is occupied or destroyed.', 'error');
   },
 
   onTrickClick(trick) {

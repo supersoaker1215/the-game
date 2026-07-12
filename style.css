@@ -21569,6 +21569,11 @@ html {
 @media (prefers-reduced-motion: reduce) {
   .player-hand-section .card.card-shake-rejected { animation: none; filter: brightness(0.85); }
 }
+/* Same reject shake for an unplayable trick tapped in hand (dead-tap feedback). */
+.trick-shake-rejected { animation: cardShakeReject 460ms cubic-bezier(0.36, 0, 0.24, 1); }
+@media (prefers-reduced-motion: reduce) {
+  .trick-shake-rejected { animation: none; filter: brightness(0.85); }
+}
 
 /* ============================================================
    CARD-PLACE PERIMETER SHOCKRING — "the card displaced the medium"
