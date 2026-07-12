@@ -2298,9 +2298,15 @@ body.hit-pause .ai-hand * {
 }
 .mm-mw3 .mm-subback:active { transform: scale(1.02); }
 
-/* Bottom prompt bar — thin neon line + brand left, now-playing credit right. */
+/* Bottom prompt bar — thin neon line + brand left, now-playing credit right.
+   FIXED, not absolute: the menu overlay scrolls (overflow-y:auto) when the
+   list outgrows a short window, and an absolute bottom:0 bar scrolls WITH
+   the content — it floated mid-list and cut through the menu rows (user
+   report). body's container-type makes body (exactly 100dvh under the fixed
+   overlay) the containing block, so fixed pins the bar to the visual bottom
+   of the screen at any scroll offset. */
 .mm-mw3 .mm-botbar {
-  position: absolute; left: 0; right: 0; bottom: 0; z-index: 4; height: 42px;
+  position: fixed; left: 0; right: 0; bottom: 0; z-index: 4; height: 42px;
   display: flex; align-items: center; justify-content: space-between;
   padding: 0 22px; pointer-events: none;
   border-top: 1px solid rgba(var(--theme-rgb,79,195,247),0.28);
@@ -27443,7 +27449,9 @@ input[type="number"]::-webkit-outer-spin-button {
   overflow-y: auto !important;
 }
 @media (max-height: 720px) {
-  .main-menu-overlay { padding-top: 20px !important; padding-bottom: 40px !important; }
+  /* padding-bottom stays >= the 42px fixed botbar so the last menu item
+     clears the bar when the list is scrolled all the way down. */
+  .main-menu-overlay { padding-top: 20px !important; padding-bottom: 64px !important; }
   .mm-panel { padding-top: 32px !important; }
 }
 
