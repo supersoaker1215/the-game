@@ -5333,16 +5333,17 @@ body.hit-pause .ai-hand * {
   text-shadow: 0 0 4px rgba(231,76,60,0.55);
 }
 .card-slot {
-  /* EQUAL HALVES — flex-basis 0 (not auto!) so the AI and player slots always
-     split the lane 50/50 and the centerline sits at the SAME y in every lane.
-     With basis:auto the slots were content-sized: a tall card (extra badges /
-     long desc) or an empty opposite slot shifted that lane's divider, so cards
-     floated at different heights across lanes ("the board moved"). The lane
-     still grows with its tallest card — both halves just grow together.
+  /* STABLE CENTERLINE — the slot min-height fits a FULL board card (portrait +
+     4 badge rows), so both halves render at the same fixed size in practice:
+     the divider sits at the same y in every lane and cards never float when
+     the opposite slot is empty ("the board moved"). flex-basis stays AUTO so
+     an unusually tall card still grows its slot instead of overflowing under
+     the banners (basis:0 clipped cards into the HP bars). The old 175px min
+     was half a card tall — every occupied lane shifted its own divider.
      Width 154px = 140px card + lane padding. */
   width: 154px;
-  flex: 1 1 0;
-  min-height: 175px;
+  flex: 1 1 auto;
+  min-height: 310px;
   display: flex; justify-content: center; border-radius: 8px;
 }
 /* Card alignment within each slot: anchor each card TO THE SEP (AI bottom,
