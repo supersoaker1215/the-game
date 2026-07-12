@@ -6,3 +6,6 @@ dist/
 # Local Claude Code agent data — conversation history, cache, etc.
 # Should never be committed to a public repo.
 .claude/
+
+# Local backup of full-res card art before the smart resize (kept out of deploy)
+art-originals/
