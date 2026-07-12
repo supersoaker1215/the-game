@@ -12239,13 +12239,8 @@ const UI = {
     html +=       `<span class="mulligan-icon">&#x21BB;</span>`;
     html +=       `<span class="mulligan-label">${mulliganLabel}</span>`;
     html +=     `</button>`;
-    // Settings button — visible during draft so users can pick difficulty
-    // and combat speed BEFORE the match begins. Same handler as the cog in
-    // the top-right corner; this just makes it obvious.
-    html +=     `<button type="button" class="draft-settings-btn" onclick="UI.openSettings()" title="Settings">`;
-    html +=       `<span class="mulligan-icon">&#9881;</span>`;
-    html +=       `<span class="mulligan-label">Settings</span>`;
-    html +=     `</button>`;
+    // (Settings button removed from the draft row per user — the settings cog
+    // in the top-right corner is always available; the row stays lean.)
     html +=   `</div>`;
     html += `</div>`;
     html += `<div class="draft-choices">`;

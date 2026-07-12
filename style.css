@@ -31154,3 +31154,43 @@ body.round-tick .board::after {
 .draft-quit-btn > .tron-sweep, .draft-undo-btn > .tron-sweep,
 .draft-mulligan-btn > .tron-sweep, .draft-settings-btn > .tron-sweep,
 .game-over-btn > .tron-sweep { display: none !important; }
+
+/* ============================================================
+   LIVING INK (2026-07-11) — user: "grey texts shouldn't happen in
+   the menu, they should have color with life — everywhere, just
+   don't touch the card text." Every steel-grey secondary text in
+   menus/panels re-tints with the active theme so even dim copy
+   glows faintly instead of reading dead. Card faces (desc / name /
+   stats on actual cards) are deliberately untouched.
+   ============================================================ */
+.gal-note, .gal-slider, .gal-zoom-val, .gal-reset,
+.gal-card-count, .gal-fname,
+.gallery-audit-panel .aa-summary, .audio-audit-panel .aa-summary,
+.gallery-audit-panel .aa-empty, .audio-audit-panel .aa-empty,
+.stats-slash, .db-grid-slash, .db-deck-slash, .mh-hp-sep {
+  color: color-mix(in srgb, rgb(var(--theme-rgb,79,195,247)) 48%, #dcebf8) !important;
+}
+.gal-note b { color: #8ef2ad !important; }
+/* Crop captions on the art — theme-bright with a soft glow, not washed white. */
+.gal-tag {
+  color: color-mix(in srgb, rgb(var(--theme-rgb,79,195,247)) 55%, white);
+  text-shadow: 0 1px 3px rgba(0,0,0,0.95), 0 0 8px rgba(var(--theme-rgb,79,195,247),0.5);
+}
+/* Delete × reads clearly RED (it's destructive), not washed pink. */
+.gal-del { color: color-mix(in srgb, rgb(231,76,60) 82%, white); text-shadow: 0 0 6px rgba(231,76,60,0.4); }
+/* Disabled states stay dim but TINTED — never steel grey. */
+.gal-del-off { color: color-mix(in srgb, rgb(var(--theme-rgb,79,195,247)) 45%, #3a4654); }
+.gal-move:disabled { opacity: 0.4; color: color-mix(in srgb, rgb(var(--theme-rgb,79,195,247)) 50%, #4a5866); }
+.draft-mulligan-btn.mulligan-used, .draft-mulligan-btn[disabled],
+.draft-undo-btn.undo-disabled, .draft-undo-btn[disabled] {
+  color: color-mix(in srgb, rgb(var(--theme-rgb,79,195,247)) 50%, #9fb6c9) !important;
+}
+/* Empty states — italic notices tint with the theme too. */
+.md-empty, .stats-empty {
+  color: color-mix(in srgb, rgb(var(--theme-rgb,79,195,247)) 42%, #c7d9e8) !important;
+}
+/* Search placeholders glow faintly instead of defaulting to browser grey. */
+.gallery-audit-panel .aa-search::placeholder,
+.audio-audit-panel .aa-search::placeholder {
+  color: color-mix(in srgb, rgb(var(--theme-rgb,79,195,247)) 45%, #8fb4cc);
+}
