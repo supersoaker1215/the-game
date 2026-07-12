@@ -6205,13 +6205,28 @@ const Game = {
       // guest ever sees a picker. The guest forwards a promptResolve
       // choiceType:'lane' which the host applies authoritatively.
       if (this.isMultiplayer() && this.mp.role === 'host' && owner === 'ai') {
+        // Kill any stale auto-pick timer from an earlier prompt — a live
+        // timer's closure would otherwise fire against THIS guest-owned
+        // prompt and silently place the guest's card in lanes[0] (root
+        // cause of the recurring "guest card always plays into the
+        // lowest open lane with no picker" report).
+        this._clearPromptTimeout();
         this._mpBroadcast();
         return;
       }
       UI.render();
+      const armedLc = this.state.pendingLaneChoice;
       this._startPromptTimeout(() => {
-        if (!this.state.pendingLaneChoice) return;
-        const pick = this.state.pendingLaneChoice.lanes[0];
+        const cur = this.state.pendingLaneChoice;
+        if (!cur) return;
+        // Identity check — only resolve the EXACT prompt this timer was
+        // armed for. A stale timer surviving into a newer prompt (the
+        // other root cause of the lowest-lane bug) must never pick for it.
+        if (cur !== armedLc) return;
+        // Ownership check — never auto-resolve a prompt owned by the
+        // other human in multiplayer; their client resolves it.
+        if (this.isMultiplayer() && cur.owner !== this.mp.you) return;
+        const pick = cur.lanes[0];
         this.state.pendingLaneChoice = null;
         callback(pick);
         this.resumeCombatIfWaiting();
@@ -6275,17 +6290,26 @@ const Game = {
       // guest's ability target. Guest forwards promptResolve choiceType:'card';
       // host applies it authoritatively.
       if (this.isMultiplayer() && this.mp.role === 'host' && owner === 'ai') {
+        // Same stale-timer kill as promptLaneChoice — see comment there.
+        this._clearPromptTimeout();
         this._mpBroadcast();
         return;
       }
       UI.render();
+      const armedCc = this.state.pendingCardChoice;
       this._startPromptTimeout(() => {
-        if (!this.state.pendingCardChoice) return;
+        const cur = this.state.pendingCardChoice;
+        if (!cur) return;
+        // Identity + ownership checks — mirror promptLaneChoice: a stale
+        // timer must never resolve a newer prompt, and the host must never
+        // auto-resolve the guest's choice (their client owns it).
+        if (cur !== armedCc) return;
+        if (this.isMultiplayer() && cur.owner !== this.mp.you) return;
         // Never use the AI picker in any multiplayer/2v2 context — all seats
         // are human; cards[0] is a neutral fallback when the timer expires.
         const pick = (!this.isMultiplayer() && !this.is2v2() && aiPicker)
-          ? aiPicker(this.state.pendingCardChoice.cards)
-          : this.state.pendingCardChoice.cards[0];
+          ? aiPicker(cur.cards)
+          : cur.cards[0];
         this.state.pendingCardChoice = null;
         callback(pick);
         this.resumeCombatIfWaiting();
