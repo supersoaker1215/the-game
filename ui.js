@@ -6938,7 +6938,7 @@ const UI = {
           html += `<div class="draft-card trick-draft" data-trick-name="${c.name}" onclick="twov2OnlineDraftPick(${i})">
             <span class="card-cost">${c.cost}</span>
             ${trickRarity}
-            <div class="card-portrait" style="${trickPortraitStyle}"><div class="card-name-overlay">${c.name}</div></div>
+            <div class="card-portrait" style="${trickPortraitStyle}"><div class="card-name-overlay">${c.name}</div><i class="pt-shine" aria-hidden="true"></i></div>
             ${trickBadges}
             <div class="trick-desc">${this.formatDesc(c.desc)||''}</div>
           </div>`;
@@ -9372,7 +9372,7 @@ const UI = {
           return `<div class="trick-card enc-trick" data-trick-name="${t.name}">
             <span class="card-cost">${cost}</span>
             ${rarityStrip}
-            <div class="card-portrait" style="${trickPortraitStyle}"><div class="card-name-overlay">${t.name}</div></div>
+            <div class="card-portrait" style="${trickPortraitStyle}"><div class="card-name-overlay">${t.name}</div><i class="pt-shine" aria-hidden="true"></i></div>
             ${abilitiesHtml}
             <div class="trick-desc">${this.formatDesc(t.desc || '')}</div>
           </div>`;
@@ -12337,7 +12337,7 @@ const UI = {
         html += `<div class="draft-card trick-draft" data-trick-name="${c.name}" onclick="draftPick(${i})">
           <span class="card-cost">${c.cost}</span>
           ${draftTrickRarity}
-          <div class="card-portrait" style="${draftTrickPortraitStyle}"><div class="card-name-overlay">${c.name}</div></div>
+          <div class="card-portrait" style="${draftTrickPortraitStyle}"><div class="card-name-overlay">${c.name}</div><i class="pt-shine" aria-hidden="true"></i></div>
           ${draftTrickBadges}
           <div class="trick-desc">${this.formatDesc(c.desc)||''}</div>
         </div>`;
@@ -15440,7 +15440,7 @@ const UI = {
       el.innerHTML = `
         <span class="card-cost">${cost}</span>
         ${rarityStrip}
-        <div class="card-portrait" style="${trickPortraitStyle}"><div class="card-name-overlay">${trick.name}</div></div>
+        <div class="card-portrait" style="${trickPortraitStyle}"><div class="card-name-overlay">${trick.name}</div><i class="pt-shine" aria-hidden="true"></i></div>
         ${trickBadges}
         <div class="trick-desc">${this.formatDesc(trick.desc)}</div>
       `;

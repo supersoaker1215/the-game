@@ -6312,49 +6312,63 @@ const Game = {
     // `sourceDef` so tokens don't re-fire their own play hooks (and
     // there's no infinite-recursion risk via the chain guard).
     if (!this._summonChain) {
+      // EXCEPTION-SAFE: this block previously had no try/finally, so ONE
+      // throwing aura callback anywhere in a match left _summonChain stuck
+      // true forever — silently disabling onPlay/auras for EVERY later summon
+      // (user report: Knull's volley summoned Thor/Dr. Doom and neither On
+      // Play fired). The finally guarantees the guard always resets.
       this._summonChain = true;
-      // Lone wolf is a real-summon flavor only — skip for tokens.
-      if (sourceDef) {
-        const otherAllies = this.getAllCardsOf(owner).filter(c => c.id !== card.id && c.currentHealth > 0 && !c.isEnvironment);
-        if (otherAllies.length === 0) {
-          this.buffCard(card, 1, 1);
-          this.log(`  [LONE WOLF] ${card.name} enters alone — +1/+1!`);
+      try {
+        // Lone wolf is a real-summon flavor only — skip for tokens.
+        if (sourceDef) {
+          const otherAllies = this.getAllCardsOf(owner).filter(c => c.id !== card.id && c.currentHealth > 0 && !c.isEnvironment);
+          if (otherAllies.length === 0) {
+            this.buffCard(card, 1, 1);
+            this.log(`  [LONE WOLF] ${card.name} enters alone — +1/+1!`);
+          }
         }
-      }
-      // Aura ping — fires for tokens too so existing while-active auras
-      // (Luke's debuff, Captain America's squad buff, etc.) hit them.
-      this.getAllCardsOnBoard().forEach(c => { if (c.onAnyCardPlayed && c.id !== card.id) c.onAnyCardPlayed(this, c, card); });
-      this.getAllCardsOf(owner).forEach(c => {
-        if (c.passive === 'cardPlayedBuff' && c.id !== card.id) { const n = c._bpAuraSize || 1; this.buffCard(card, n, n); }
-      });
-      // onPlay still only fires for real-card summons.
-      if (sourceDef) {
-        this._runHook(card, 'onPlay', this, card, laneIdx);
-        // Draw-on-play keyword resolution — mirrors the path in
-        // playCard so cards entering via SUMMON (Super Soldier Serum
-        // transform, Bat Signal pull, Hela revive, etc.) still honor
-        // their `Draw N` keyword. User report: "Used SSS on Rocket
-        // and got Groot, but his Draw 1 status badge didn't fire."
-        if (card.drawOnPlay > 0) {
-          const n = card.drawOnPlay;
-          card.drawOnPlay = 0;
-          const before = this.state[owner].hand.length;
-          this.drawCards(owner, n);
-          const actuallyDrawn = this.state[owner].hand.length - before;
-          if (actuallyDrawn > 0) this._creditChain(card, 'statsCardAdvantage', actuallyDrawn);
-          this.log(`${card.name} draws ${n} card${n > 1 ? 's' : ''}.`);
+        // Aura ping — fires for tokens too so existing while-active auras
+        // (Luke's debuff, Captain America's squad buff, etc.) hit them.
+        // Each ping individually guarded: one broken aura must not kill the
+        // rest of the arrival sequence.
+        this.getAllCardsOnBoard().forEach(c => {
+          if (c.onAnyCardPlayed && c.id !== card.id) {
+            try { c.onAnyCardPlayed(this, c, card); } catch (e) { console.error('[summon aura]', e); }
+          }
+        });
+        this.getAllCardsOf(owner).forEach(c => {
+          if (c.passive === 'cardPlayedBuff' && c.id !== card.id) { const n = c._bpAuraSize || 1; this.buffCard(card, n, n); }
+        });
+        // onPlay still only fires for real-card summons.
+        if (sourceDef) {
+          this._runHook(card, 'onPlay', this, card, laneIdx);
+          // Draw-on-play keyword resolution — mirrors the path in
+          // playCard so cards entering via SUMMON (Super Soldier Serum
+          // transform, Bat Signal pull, Hela revive, etc.) still honor
+          // their `Draw N` keyword. User report: "Used SSS on Rocket
+          // and got Groot, but his Draw 1 status badge didn't fire."
+          if (card.drawOnPlay > 0) {
+            const n = card.drawOnPlay;
+            card.drawOnPlay = 0;
+            const before = this.state[owner].hand.length;
+            this.drawCards(owner, n);
+            const actuallyDrawn = this.state[owner].hand.length - before;
+            if (actuallyDrawn > 0) this._creditChain(card, 'statsCardAdvantage', actuallyDrawn);
+            this.log(`${card.name} draws ${n} card${n > 1 ? 's' : ''}.`);
+          }
+          // Cantrip etch — fire on summon-spawned real cards too.
+          this._resolveCantripOnPlay(card);
+          // Fear / Freeze / MC / Mark etches — same on-play firing.
+          this._resolveFearOnPlay(card);
+          this._resolveFreezeOnPlay(card);
+          this._resolveMindControlOnPlay(card);
+          this._resolveMarkOnPlay(card);
         }
-        // Cantrip etch — fire on summon-spawned real cards too.
-        this._resolveCantripOnPlay(card);
-        // Fear / Freeze / MC / Mark etches — same on-play firing.
-        this._resolveFearOnPlay(card);
-        this._resolveFreezeOnPlay(card);
-        this._resolveMindControlOnPlay(card);
-        this._resolveMarkOnPlay(card);
+        this.cleanupDead();
+        this.applyMagnetoDebuffs();
+      } finally {
+        this._summonChain = false;
       }
-      this.cleanupDead();
-      this.applyMagnetoDebuffs();
-      this._summonChain = false;
     }
   },
 

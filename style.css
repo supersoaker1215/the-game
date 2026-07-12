@@ -5333,14 +5333,15 @@ body.hit-pause .ai-hand * {
   text-shadow: 0 0 4px rgba(231,76,60,0.55);
 }
 .card-slot {
-  /* Slot sizes to max(min-height floor, its card's actual height). flex basis
-     auto = content-size. Width was 134px (sized for 120px card + 14px lane
-     padding); bumped to 154px to match the new 140px card width + 14px lane
-     padding (lane 160px - 6px outer margin). Without this bump the card
-     overflowed the 134px slot, which clipped/offset it within the 160px
-     lane and made the card visibly left-aligned rather than centered. */
+  /* EQUAL HALVES — flex-basis 0 (not auto!) so the AI and player slots always
+     split the lane 50/50 and the centerline sits at the SAME y in every lane.
+     With basis:auto the slots were content-sized: a tall card (extra badges /
+     long desc) or an empty opposite slot shifted that lane's divider, so cards
+     floated at different heights across lanes ("the board moved"). The lane
+     still grows with its tallest card — both halves just grow together.
+     Width 154px = 140px card + lane padding. */
   width: 154px;
-  flex: 1 1 auto;
+  flex: 1 1 0;
   min-height: 175px;
   display: flex; justify-content: center; border-radius: 8px;
 }
@@ -31203,3 +31204,32 @@ body.round-tick .board::after {
 .choice-tray .choice-real { cursor: pointer; transition: transform 0.15s; }
 .choice-tray .choice-real:hover { transform: translateY(-4px) scale(1.03); }
 .go-mvp-slot .card.go-mvp-real { margin: 8px auto 4px; cursor: default; }
+
+/* TRICK PORTRAIT SHINE (2026-07-11) — the old trick sheens painted on the
+   card BACKGROUND (draft) or a card-level ::after (in-match), both of which
+   ended up hidden behind/under the new opaque full-bleed portrait art (user:
+   "the tricks don't have the shimmer over the card art when hovering").
+   A dedicated .pt-shine layer INSIDE the portrait sweeps a purple-white band
+   directly OVER the painting on hover — same feel as the hand-card sheen. */
+.card-portrait .pt-shine {
+  position: absolute; inset: 0;
+  pointer-events: none;
+  opacity: 0;
+  z-index: 2;   /* over the art + gem frame, under the name overlay (z 3) */
+  background: linear-gradient(
+    125deg,
+    transparent 30%,
+    rgba(255, 255, 255, 0.14) 45%,
+    rgba(233, 213, 255, 0.36) 50%,
+    rgba(255, 255, 255, 0.14) 55%,
+    transparent 70%
+  );
+  background-size: 200% 200%;
+  background-position: 100% 100%;
+  transition: opacity 0.35s ease, background-position 0.9s var(--ease-out-soft);
+}
+.trick-card:hover .card-portrait .pt-shine,
+.draft-card.trick-draft:hover .card-portrait .pt-shine {
+  opacity: 1;
+  background-position: 0% 0%;
+}
