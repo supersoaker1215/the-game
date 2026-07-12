@@ -30548,6 +30548,18 @@ body.round-tick .board::after {
   width: 90%;
   padding: 48px 32px;
 }
+/* 1v1 local (hotseat) pass gate — fixed OPAQUE cover reusing the 2v2
+   pass-panel chrome. Fully opaque on purpose: it hides the outgoing
+   player's hand until the incoming player confirms. z-index above the
+   board, modals, and phase banners; below the kw-tooltip (10000). */
+.hotseat-pass-overlay {
+  position: fixed; inset: 0; z-index: 3000;
+  background: #04060a;
+  display: flex; align-items: center; justify-content: center;
+}
+.hotseat-pass-overlay .twov2-pass-name {
+  color: rgb(var(--theme-rgb, 79, 195, 247));
+}
 .twov2-pass-icon { font-size: 3rem; margin-bottom: 14px; }
 .twov2-pass-heading {
   color: #88a0b8;

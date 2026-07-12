@@ -5164,6 +5164,14 @@ const UI = {
     const s = Game.state;
     if (!s) return;
 
+    // 1v1 local pass gate — an opaque full-screen cover between seat
+    // handoffs so neither player sees the other's hand. Renders ONLY the
+    // gate (early return): the board/hand behind it is never rebuilt for
+    // the outgoing player's view. Game.confirmHotseatPass flips the state
+    // and re-renders as the incoming player.
+    if (s.pendingHotseatPass) { this._renderHotseatPass(s); return; }
+    this._removeHotseatPass();
+
     // Prefetch art for the player's hand so iOS has images cached before the
     // CSS background-image rule fires. Only pays the preload cost when the hand
     // contents actually change (card ids/names differ from the last preload).
@@ -5481,8 +5489,11 @@ const UI = {
     // overflow when the deck/tricks counts are packed in alongside.
     // In multiplayer use both players' real names in phase labels.
     const isMP = Game.isMultiplayer && Game.isMultiplayer();
-    const oppLabel  = (isMP && s._mpNames && s._mpNames.ai)     ? s._mpNames.ai     : 'AI';
-    const youLabel  = (isMP && s._mpNames && s._mpNames.player) ? s._mpNames.player : null;
+    // Hotseat shares the named-seat labels: "Player 2 · Cards" instead
+    // of "AI · Cards" — there is no AI in the match.
+    const namedSeats = isMP || (Game.isHotseat && Game.isHotseat());
+    const oppLabel  = (namedSeats && s._mpNames && s._mpNames.ai)     ? s._mpNames.ai     : 'AI';
+    const youLabel  = (namedSeats && s._mpNames && s._mpNames.player) ? s._mpNames.player : null;
     const phaseLabels = {
       'player-cards':       youLabel ? `${youLabel} · Cards`            : 'Cards',
       'player-tricks':      youLabel ? `${youLabel} · Tricks`           : 'Tricks',
@@ -5493,7 +5504,9 @@ const UI = {
       'combat': 'Combat'
     };
     const phaseText = s.gameOver
-      ? (s.winner === 'player' ? 'YOU WIN!' : 'YOU LOSE!')
+      ? (namedSeats && s._mpNames && s._mpNames[s.winner]
+          ? `${s._mpNames[s.winner].toUpperCase()} WINS!`
+          : (s.winner === 'player' ? 'YOU WIN!' : 'YOU LOSE!'))
       : (phaseLabels[s.phase] || s.phase);
     document.getElementById('phase-text').textContent = phaseText;
 
@@ -7351,6 +7364,38 @@ const UI = {
       </div>`;
   },
 
+  // ---- 1v1 local pass gate (hotseat) ----
+  // Reuses the 2v2 pass-screen chrome inside a fixed opaque overlay so it
+  // covers whatever screen is behind it (draft or board) without touching
+  // that screen's DOM.
+  _renderHotseatPass(s) {
+    let ov = document.getElementById('hotseat-pass-overlay');
+    if (!ov) {
+      ov = document.createElement('div');
+      ov.id = 'hotseat-pass-overlay';
+      ov.className = 'hotseat-pass-overlay';
+      document.body.appendChild(ov);
+    }
+    const name = (s.pendingHotseatPass && s.pendingHotseatPass.name) || 'Next Player';
+    ov.innerHTML = `
+      <div class="twov2-pass-panel">
+        <div class="twov2-pass-icon">🔒</div>
+        <div class="twov2-pass-heading">Hand off the device</div>
+        <div class="twov2-pass-name">${name}'s Turn</div>
+        <div class="twov2-pass-sub">
+          Don't show the screen until ${name} is holding it.
+        </div>
+        <button class="twov2-btn twov2-btn-pri twov2-ready-btn"
+                onclick="Game.confirmHotseatPass()">
+          I'm Ready — Show My Cards
+        </button>
+      </div>`;
+  },
+  _removeHotseatPass() {
+    const ov = document.getElementById('hotseat-pass-overlay');
+    if (ov) ov.remove();
+  },
+
   _render2v2Draft(el, s, tt) {
     const d = tt && tt.draft;
     if (!d) return;
@@ -7868,6 +7913,12 @@ const UI = {
           <div class="mm-grid mm-grid-section">
             ${btn('mm-sub-classic', 'Classic Draft', 'Shared deck of 95 cards. Draft 5 cards + 2 tricks.', SVG.play,  "selectMode('1v1','classic')")}
             ${btn('mm-sub-deck',    'My Deck',       'Bring your own 30-card deck.',                        SVG.decks, "openDeckBuilder()")}
+          </div>
+        </div>
+        <div class="mm-section">
+          <div class="mm-section-label">Head to Head</div>
+          <div class="mm-grid mm-grid-section">
+            ${btn('mm-sub-1v1local', '1v1 Local Play', 'Same draft + board as solo — pass one device.', SVG.multi, "Game.startLocal1v1()")}
           </div>
         </div>
         <div class="mm-section">
@@ -12216,10 +12267,13 @@ const UI = {
       pips.push(`<span class="draft-pip ${cls}"></span>`);
     }
 
-    // In multiplayer, check the per-side mulligan flag instead of the
-    // shared legacy flag. playerMulliganUsed tracks the local seat's usage.
+    // In multiplayer AND hotseat, check the per-side mulligan flag instead
+    // of the shared legacy flag — each human gets their own mulligan.
+    // (In hotseat the flip swaps playerMulliganUsed with the seat, so
+    // 'player' is always the human currently holding the device.)
     const isMP = Game.isMultiplayer && Game.isMultiplayer();
-    const mulliganUsed = isMP ? !!d.playerMulliganUsed : !!d.mulliganUsed;
+    const isHot = Game.isHotseat && Game.isHotseat();
+    const mulliganUsed = (isMP || isHot) ? !!d.playerMulliganUsed : !!d.mulliganUsed;
     const mulliganDisabled = mulliganUsed ? ' mulligan-used' : '';
     const mulliganAttr = mulliganUsed ? ' disabled' : '';
     const mulliganLabel = mulliganUsed ? 'Mulligan Used' : 'Mulligan';
@@ -12227,14 +12281,20 @@ const UI = {
     // Back button — disabled in multiplayer (snapshots are host-perspective
     // only; restoring them on the guest shows wrong cards, and undoing
     // an already-broadcast pick doesn't make sense for either side).
-    const undoAvailable = !isMP && !!(d.history && d.history.length);
+    // Hotseat too: undo would rewind across the pass-the-device flip and
+    // reveal the other player's picks.
+    const undoAvailable = !isMP && !isHot && !!(d.history && d.history.length);
     const undoDisabled = undoAvailable ? '' : ' undo-disabled';
     const undoAttr = undoAvailable ? '' : ' disabled';
+
+    // Hotseat: name whose draft this is — the two players alternate on
+    // one device, so the header must say who is picking right now.
+    const hotName = (isHot && s._mpNames && s._mpNames.player) ? ` — ${s._mpNames.player}` : '';
 
     let html = `<div class="draft-panel ${isCards ? 'draft-cards' : 'draft-tricks'}">`;
     html += `<div class="draft-hud">`;
     html +=   `<div class="draft-hud-row">`;
-    html +=     `<span class="draft-hud-label">${isCards ? 'Card' : 'Trick'} Draft</span>`;
+    html +=     `<span class="draft-hud-label">${isCards ? 'Card' : 'Trick'} Draft${hotName}</span>`;
     html +=     `<span class="draft-hud-pips">${pips.join('')}</span>`;
     html +=     `<span class="draft-hud-counter">Pick <em>${round}</em> / ${total}</span>`;
     html +=   `</div>`;
@@ -15939,6 +15999,7 @@ const UI = {
       this._lastMatchConfig = {
         mode: Game.state.mode.deck,
         players: Game.state.mode.players,
+        hotseat: !!Game.state.mode.hotseat,
         customDeck: Game.state.mode.customDeck ? {
           cards: (Game.state.mode.customDeck.cards || []).slice(),
           tricks: (Game.state.mode.customDeck.tricks || []).slice()
@@ -15954,7 +16015,12 @@ const UI = {
     // until the reveal beat so the board camera push-in plays solo
     // first.
     overlay.className = 'game-over-overlay ' + (isVictory ? 'victory' : 'defeat');
-    document.getElementById('game-over-title').textContent = isVictory ? 'VICTORY' : 'DEFEAT';
+    // Hotseat: both players share the screen, so "VICTORY"/"DEFEAT" is
+    // ambiguous — name the winner instead.
+    const goNames = (Game.isHotseat && Game.isHotseat() && Game.state && Game.state._mpNames) || null;
+    document.getElementById('game-over-title').textContent = goNames && goNames[winner]
+      ? `${goNames[winner].toUpperCase()} WINS`
+      : (isVictory ? 'VICTORY' : 'DEFEAT');
     this.renderGameOverStats();
     overlay.style.display = 'flex';
     if (!reduced) overlay.classList.add('go-cinema-hold');
@@ -20903,6 +20969,7 @@ function rematch() {
     // either a string (classic/deckbuilder) or a {deck, customDeck} object.
     const args = { players: cfg.players || '1v1', deck: cfg.mode };
     if (cfg.customDeck) args.customDeck = cfg.customDeck;
+    if (cfg.hotseat) args.hotseat = true;
     Game.startMatch(args);
   } else {
     // Fallback: no captured config — send to mode picker.

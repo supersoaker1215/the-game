@@ -118,6 +118,42 @@ const Game = {
   mp: { role: null, you: null, opp: null },
   isMultiplayer() { return !!(this.mp && this.mp.role); },
 
+  // ===================== 1v1 LOCAL (pass-and-play hotseat) =====================
+  // Two humans, one device, the SAME classic draft/board pipeline as solo.
+  // Rides the multiplayer machinery: both seats isHuman (prompts raise modals
+  // instead of AI auto-picks), and at every seat handoff we show an opaque
+  // "pass the device" gate, then _mpFlipPerspective the LIVE state in place so
+  // the active person is always 'player' — every existing UI assumption
+  // (hand at the bottom, phase gating, Done buttons) holds unchanged.
+  isHotseat() { return !!(this.state && this.state.hotseat); },
+
+  startLocal1v1() {
+    this.init();
+    // mode.hotseat makes startMatch mark the state + both seats human, and
+    // rematch()'s captured config rebuilds the same setup automatically.
+    this.startMatch({ players: '1v1', deck: 'classic', hotseat: true });
+  },
+
+  // Queue the pass gate. The seat about to act is always 'ai' pre-flip
+  // (every call site sits where solo would have invoked the AI), so the
+  // gate names that seat's owner. UI renders an opaque full-screen cover —
+  // the next player confirms before any of their cards hit the screen.
+  _hotseatHandoff() {
+    const names = this.state._mpNames || { player: 'Player 1', ai: 'Player 2' };
+    this.state.pendingHotseatPass = { name: names.ai };
+    if (typeof UI !== 'undefined') UI.render();
+  },
+
+  confirmHotseatPass() {
+    if (!this.state || !this.state.pendingHotseatPass) return;
+    delete this.state.pendingHotseatPass;
+    this._mpFlipPerspective(this.state);
+    // Undo snapshots must never cross a handoff — restoring the other
+    // player's pre-flip turn would leak their hand and corrupt seat labels.
+    this.clearHistory();
+    if (typeof UI !== 'undefined') UI.render();
+  },
+
   // Called by UI._mpInit() opponentJoined handler. Host kicks off a
   // standard classic match — the opponent will pick up the state via
   // the host's first broadcastState call below.
@@ -1050,6 +1086,15 @@ const Game = {
     if (typeof mode === 'string') mode = { players: '1v1', deck: mode };
     if (!mode) mode = { players: '1v1', deck: 'classic' };
     this.state.mode = mode;
+    // 1v1 local pass-and-play — both seats are humans on one device.
+    // Set here (not just in startLocal1v1) so rematch() reconstitutes
+    // the mode from its captured config without extra wiring.
+    if (mode.hotseat) {
+      this.state.hotseat = true;
+      if (this.state.player) this.state.player.isHuman = true;
+      if (this.state.ai) this.state.ai.isHuman = true;
+      this.state._mpNames = { player: 'Player 1', ai: 'Player 2' };
+    }
     // Two flavors of deckbuilder mode:
     //   • mode.withDraft === true  → run the full draft phase, but draw
     //     from the player's customDeck instead of the global pool.
@@ -1364,27 +1409,31 @@ const Game = {
       // Skip the auto-pick path so the round only advances when both
       // humans have actually chosen. User report: "the draft shared
       // and you continue when the other person is ready."
-      if (!this.isMultiplayer() && d.aiChoices.length >= 2) {
+      // Hotseat: same — the 'ai' seat is the other human, who picks
+      // after the pass-the-device flip.
+      const bothHumans = this.isMultiplayer() || this.isHotseat();
+      if (!bothHumans && d.aiChoices.length >= 2) {
         const picked = (typeof AI !== 'undefined' && AI.pickDraftCard)
           ? AI.pickDraftCard(d.aiChoices, d.aiDrafted)
           : d.aiChoices[0];
         const pickIdx = d.aiChoices.indexOf(picked);
         d.aiDrafted.push(d.aiChoices[pickIdx]);
         d.cardHolding.push(d.aiChoices[1 - pickIdx]);
-      } else if (!this.isMultiplayer() && d.aiChoices.length === 1) {
+      } else if (!bothHumans && d.aiChoices.length === 1) {
         d.aiDrafted.push(d.aiChoices[0]);
       }
     } else {
       d.playerChoices = [pile.pop(), pile.pop()].filter(Boolean);
       d.aiChoices = [pile.pop(), pile.pop()].filter(Boolean);
-      if (!this.isMultiplayer() && d.aiChoices.length >= 2) {
+      const bothHumans = this.isMultiplayer() || this.isHotseat();
+      if (!bothHumans && d.aiChoices.length >= 2) {
         const picked = (typeof AI !== 'undefined' && AI.pickDraftTrick)
           ? AI.pickDraftTrick(d.aiChoices, d.aiTrickDrafted)
           : d.aiChoices[0];
         const pickIdx = d.aiChoices.indexOf(picked);
         d.aiTrickDrafted.push(d.aiChoices[pickIdx]);
         d.trickHolding.push(d.aiChoices[1 - pickIdx]);
-      } else if (!this.isMultiplayer() && d.aiChoices.length === 1) {
+      } else if (!bothHumans && d.aiChoices.length === 1) {
         d.aiTrickDrafted.push(d.aiChoices[0]);
       }
     }
@@ -1454,6 +1503,9 @@ const Game = {
     if (d.phase === 'cards') {
       const bothPicked = d.playerDrafted.length === d.aiDrafted.length;
       if (!bothPicked) {
+        // Hotseat: the other human picks next — gate with the pass
+        // screen; confirming flips so their offers become playerChoices.
+        if (this.isHotseat()) { this._hotseatHandoff(); return; }
         if (this.isMultiplayer()) {
           if (who === 'player') d.playerChoices = [];
           else if (who === 'ai') d.aiChoices = [];
@@ -1467,6 +1519,7 @@ const Game = {
     } else {
       const bothPicked = d.playerTrickDrafted.length === d.aiTrickDrafted.length;
       if (!bothPicked) {
+        if (this.isHotseat()) { this._hotseatHandoff(); return; }
         if (this.isMultiplayer()) {
           if (who === 'player') d.playerChoices = [];
           else if (who === 'ai') d.aiChoices = [];
@@ -1526,7 +1579,9 @@ const Game = {
     // Undo is disabled in multiplayer — snapshots are host-perspective
     // so restoring them on the guest would show wrong cards, and undoing
     // an opponent's already-seen pick doesn't make sense.
-    if (this.isMultiplayer()) return false;
+    // Hotseat too: snapshots cross the pass-the-device flips, so undoing
+    // would restore (and reveal) the other player's pre-flip picks.
+    if (this.isMultiplayer() || this.isHotseat()) return false;
     const d = this.state.draft;
     if (!d || !d.history || !d.history.length) return false;
     const snap = d.history.pop();
@@ -1972,6 +2027,9 @@ const Game = {
       // broadcast updated state (guest). User report: "the ai plays
       // for the person im playing there should be no ai opponet PvP"
       if (this.isMultiplayer()) return;
+      // Hotseat: the "ai" seat is the other human on THIS device —
+      // gate with a pass screen, then flip so they play as 'player'.
+      if (this.isHotseat()) { this._hotseatHandoff(); return; }
       // Defer the AI's first move until the boot-sequence curtain is
       // off-screen. The boot animation runs ~2200ms; without this gate
       // the AI used to start playing while the scan was still closing,
@@ -2036,6 +2094,8 @@ const Game = {
         // Multiplayer: don't run AI for the opponent (they're a real
         // human on the other side). Wait for their actions.
         if (this.isMultiplayer()) return;
+        // Hotseat: pass the device instead of running AI.
+        if (this.isHotseat()) { this._hotseatHandoff(); return; }
         // Phase 2 = AI going second: it's the AI's full turn (cards + tricks).
         // Call playTrickPhaseCards BETWEEN playCards and playTricks so Thanos /
         // Iron Man still fire — playCards() now defers them waiting for a
@@ -2089,6 +2149,8 @@ const Game = {
           UI.render();
           // Multiplayer: don't run AI for the opponent.
           if (this.isMultiplayer()) return;
+          // Hotseat: pass the device instead of running AI.
+          if (this.isHotseat()) { this._hotseatHandoff(); return; }
           setTimeout(() => {
             const nextStep = () => {
               AI.playTrickPhaseCards('ai', () => {
