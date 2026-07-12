@@ -31194,3 +31194,12 @@ body.round-tick .board::after {
 .audio-audit-panel .aa-search::placeholder {
   color: color-mix(in srgb, rgb(var(--theme-rgb,79,195,247)) 45%, #8fb4cc);
 }
+
+/* REAL CARD FACES in pickers + victory screen (2026-07-11) — chooser options
+   and MVP/runner-up render through makeCardEl with the HAND face (rarity
+   border + glow), so they're pixel-identical to a real card. They carry NO
+   .choice-card class — the card's own cascade paints everything; the picker
+   only adds a lift on hover. */
+.choice-tray .choice-real { cursor: pointer; transition: transform 0.15s; }
+.choice-tray .choice-real:hover { transform: translateY(-4px) scale(1.03); }
+.go-mvp-slot .card.go-mvp-real { margin: 8px auto 4px; cursor: default; }

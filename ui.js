@@ -6652,8 +6652,27 @@ const UI = {
       const stats = card.attack !== undefined
         ? `<span class="stat-circle stat-atk">${card.attack}</span><span class="stat-circle stat-hp">${card.currentHealth || card.health || 0}</span>`
         : '';
-      // Board-style face: full-bleed portrait art + bottom name overlay (same
-      // wiring as hand/board cards) so picking a card shows the actual card.
+      // REAL CARD FACE — if the option is an actual card (Dr. Strange foresee,
+      // Deadpool, Mobius picks…), render it through makeCardEl so the chooser
+      // shows the EXACT board card: same rarity border, portrait crop, badges,
+      // stat orbs, desc. (User: "it should just be the card there like seen on
+      // board, the same exact one.") Synthetic action tiles fall through to
+      // the labeled-tile markup below.
+      const isRealCard = card.attack !== undefined ||
+        (typeof CARD_DEFS !== 'undefined' && card.name && CARD_DEFS.some(d => d.name === card.name));
+      if (isRealCard) {
+        try {
+          // inHand=true → the HAND face (rarity-colored border + glow), exactly
+          // as the card appears in your hand. NO .choice-card class — the tray
+          // tile chrome must never override the card's own cascade.
+          const el = this.makeCardEl(card, true, 'player');
+          el.classList.add('choice-real');
+          el.setAttribute('data-idx', idx);
+          // Strip live-board-only states — this is a picker, not the lane.
+          el.classList.remove('card-enter', 'lane-landed', 'card-hp-critical', 'target-highlight', 'card-damaged');
+          return el.outerHTML;
+        } catch (e) { /* fall through to the labeled tile */ }
+      }
       // Synthetic option tiles (Grinch keep-or-discard etc.) can point at a
       // real card/trick's art via `_artName` while keeping their action label
       // as the overlay text. Tricks get purple chrome via .choice-trick.
@@ -6684,8 +6703,8 @@ const UI = {
         <div class="choice-tray-cards">${cardsHtml}</div>
       </div>`;
     document.body.appendChild(tray);
-    // Wire clicks after insertion
-    tray.querySelectorAll('.choice-card').forEach(el => {
+    // Wire clicks after insertion (.choice-real = real card faces via makeCardEl)
+    tray.querySelectorAll('.choice-card, .choice-real').forEach(el => {
       const idx = +el.getAttribute('data-idx');
       el.addEventListener('click', () => cardChoicePick(idx));
     });
@@ -16347,35 +16366,32 @@ const UI = {
     const renderCard = (entry, label) => {
       if (!entry) return '<div class="go-mvp-slot go-mvp-empty"></div>';
       const def = entry.def;
-      const cost = def && def.cost != null ? def.cost : entry.cost || 0;
-      const stats = (def && def.attack != null && def.health != null)
-        ? `<span class="stat-circle stat-atk">${def.attack}</span><span class="stat-circle stat-hp">${def.health}</span>`
-        : '';
-      const abilities = (def && def.abilities && def.abilities.length)
-        ? `<div class="card-abilities status-badges">${this.formatAbilityBadges(def.abilities)}</div>` : '';
       const sideTag = entry.side === 'player' ? 'YOU' : 'OPP';
       const sideTagCls = entry.side === 'player' ? 'go-mvp-side-you' : 'go-mvp-side-opp';
-      // Real painted portrait — same art + focal-crop the in-hand card uses, so
-      // the MVP/runner-up cards read as the actual cards the player just fought
-      // with (not empty silhouettes). Name lives as the overlay strip on the
-      // bottom of the portrait, exactly like the board/hand cards.
-      const name = entry.name || (def && def.name) || '';
-      const portraitFile = name ? UI.getCardArtPath(name) : null;
-      const portraitPos = UI._artFocalCard(name);
-      const portraitStyle = portraitFile ? `--portrait-bg:url('${portraitFile}')${portraitPos}` : '';
-      const portraitHtml = `<div class="card-portrait" style="${portraitStyle}"><div class="card-name-overlay">${name}</div></div>`;
+      // THE REAL CARD — rendered through makeCardEl so the MVP/runner-up is the
+      // exact board card (rarity chrome, portrait crop, badges, orbs, desc) with
+      // nothing clipped. The old hand-rolled 140x160 tile cut the portrait's
+      // bottom off (user: "the green is getting cut off").
+      let cardHtml = '';
+      try {
+        const base = def || { name: entry.name, cost: entry.cost || 0, attack: 0, health: 1, abilities: [], desc: '' };
+        const face = Object.assign({}, base, {
+          id: 'mvp-' + (label || '').toLowerCase(),
+          baseCost: base.cost, baseAttack: base.attack, baseHealth: base.health,
+          currentHealth: base.health, maxHealth: base.health,
+        });
+        const el = this.makeCardEl(face, true, entry.side === 'player' ? 'player' : 'ai');
+        el.classList.add('go-mvp-real');
+        el.classList.remove('card-enter', 'lane-landed', 'card-hp-critical', 'target-highlight', 'card-damaged');
+        cardHtml = el.outerHTML;
+      } catch (e) { cardHtml = ''; }
       return `
         <div class="go-mvp-slot go-mvp-${label.toLowerCase()}">
           <div class="go-mvp-header">
             <span class="go-mvp-rank">${label}</span>
             <span class="go-mvp-side-tag ${sideTagCls}">${sideTag}</span>
           </div>
-          <div class="card go-mvp-card ${this.getCostClass(cost)}">
-            <span class="card-cost">${cost}</span>
-            ${portraitHtml}
-            ${abilities}
-            ${stats}
-          </div>
+          ${cardHtml}
           <div class="go-mvp-stats">
             <div class="go-mvp-stat-row"><span class="go-mvp-stat-k">Impact</span><b>${Math.round(entry.impactScore)}</b></div>
             <div class="go-mvp-stat-row"><span class="go-mvp-stat-k">Damage</span><b>${entry.damageDone}</b></div>
