@@ -4121,10 +4121,17 @@ const CARD_ABILITIES = {
       devourChain(devourCount, []);
     },
     onEndOfTurn(G, self, lane) {
-      // Devour 1 random weak enemy (≤4 ATK) each turn.
-      const weak = G.getEnemiesOf(self.owner).filter(e => e.attack <= 4);
+      // Devour 1 weak enemy (≤4 ATK) each turn. Pass {source:self} so 10-cost
+      // titans (devour-immune) are stripped from the pool — a random roll
+      // could otherwise land on an immune titan and silently whiff the turn.
+      // This hook runs in a plain end-of-turn forEach (not a prompt-gated
+      // phase), so it can't safely raise a picker; take the highest-threat
+      // weak enemy deterministically instead of a random one.
+      const weak = G.getEnemiesOf(self.owner, { source: self }).filter(e => e.attack <= 4);
       if (!weak.length) return;
-      const target = weak[Math.floor(Math.random() * weak.length)];
+      const target = weak.slice().sort((a, b) =>
+        (AI && AI.threatScore ? (AI.threatScore(b) - AI.threatScore(a))
+                              : (b.cost || 0) - (a.cost || 0)))[0];
       G.devourCard(target, self);
     }
   },

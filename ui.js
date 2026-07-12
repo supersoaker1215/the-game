@@ -12615,7 +12615,18 @@ const UI = {
     document.body.appendChild(modal);
     modal.querySelectorAll('.decision-choice').forEach(el => {
       const i = +el.getAttribute('data-di');
-      el.addEventListener('click', () => { try { choices[i].onClick(); } catch (e) {} });
+      el.addEventListener('click', () => {
+        try { choices[i].onClick(); }
+        catch (err) {
+          // A throw in a BWL/Kang handler used to vanish into an empty catch
+          // and soft-lock the match. Surface it and try to unstick combat so
+          // a handler bug degrades to a logged error + a live board, not a freeze.
+          console.error('[decision-modal] choice handler threw:', err);
+          this._removeDecisionModal();
+          try { Game.resumeCombatIfWaiting(); } catch (e2) {}
+          try { UI.render(); } catch (e3) {}
+        }
+      });
     });
   },
 
@@ -15943,6 +15954,12 @@ const UI = {
       overlay.style.display = 'none';
       return;
     }
+    // Rematch is single-player only for now: it spins up a fresh LOCAL
+    // vs-AI draft, which would desync a networked opponent. Hide the button
+    // in multiplayer (the roguelite path suppresses it above the same way);
+    // Main Menu remains the clean exit.
+    const rematchBtn = document.getElementById('game-over-rematch-btn');
+    if (rematchBtn) rematchBtn.style.display = (Game.isMultiplayer && Game.isMultiplayer()) ? 'none' : '';
     // Make sure the floating restore pill is hidden whenever the
     // overlay opens (handles re-entry after the user toggled away).
     const peekPill = document.getElementById('peek-restore');
@@ -20974,6 +20991,9 @@ function newGame() {
 // the main menu and mode picker. Captured at showGameOverScreen time
 // because Game.init() nukes state.mode.
 function rematch() {
+  // Guard: multiplayer has no local rematch — a fresh vs-AI draft would
+  // desync the peer. Bounce to the menu instead (button is hidden in MP too).
+  if (Game.isMultiplayer && Game.isMultiplayer()) { Game.goToMainMenu(); return; }
   const cfg = UI._lastMatchConfig;
   const overlay = document.getElementById('game-over-overlay');
   if (overlay) { overlay.style.display = 'none'; overlay.className = 'game-over-overlay'; }

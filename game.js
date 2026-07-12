@@ -117,6 +117,17 @@ const Game = {
   // also applies its own inputs locally (no round-trip needed).
   mp: { role: null, you: null, opp: null },
   isMultiplayer() { return !!(this.mp && this.mp.role); },
+  // Monotonic match id — bumped on every startMatch and on quit-to-menu.
+  // Combat/AI/game-over timers capture it and bail if it changed, so an
+  // abandoned match's setTimeouts can't resume over the menu (or double-run
+  // against a freshly started match that reuses this.state in place).
+  _matchGen: 0,
+  // Schedule a match-scoped timeout: fires only if we're still in the same
+  // match. Use for any deferred step that advances match flow.
+  _matchTimeout(fn, ms) {
+    const gen = this._matchGen;
+    return setTimeout(() => { if (this._matchGen !== gen) return; fn(); }, ms);
+  },
 
   // ===================== 1v1 LOCAL (pass-and-play hotseat) =====================
   // Two humans, one device, the SAME classic draft/board pipeline as solo.
@@ -777,6 +788,11 @@ const Game = {
   },
   goToMainMenu() {
     this.resetMultiplayer();
+    // Abandon any in-flight match: bump the generation so queued combat/AI/
+    // game-over timers bail instead of resuming over the menu, and cancel the
+    // ability-prompt auto-pick timeout that would otherwise fire into a dead board.
+    this._matchGen++;
+    if (this._promptTimeout) { clearTimeout(this._promptTimeout); this._promptTimeout = null; }
     this.state.phase = 'main-menu';
     this.state.mode = null;
     this.state.deckbuilder = null;
@@ -1106,6 +1122,10 @@ const Game = {
   startMatch(mode) {
     if (typeof mode === 'string') mode = { players: '1v1', deck: mode };
     if (!mode) mode = { players: '1v1', deck: 'classic' };
+    // New match — invalidate any timers still queued from a previous one
+    // (startMatch reuses this.state in place, so stale combat/AI callbacks
+    // would otherwise run against the new board).
+    this._matchGen++;
     this.state.mode = mode;
     // 1v1 local pass-and-play — both seats are humans on one device.
     // Set here (not just in startLocal1v1) so rematch() reconstitutes
@@ -2063,7 +2083,7 @@ const Game = {
       const bootRemain = Math.max(0, bootEnd - now);
       const aiDelay = Math.max(1200, bootRemain + 200);
       if (bootRemain > 0) delete this.state._bootSequenceEndsAt; // one-shot
-      setTimeout(() => { AI.playCards('ai', () => this.endPhase1()); }, aiDelay);
+      this._matchTimeout(() => { AI.playCards('ai', () => this.endPhase1()); }, aiDelay);
     }
   },
 
@@ -2124,7 +2144,7 @@ const Game = {
         // playTrickPhaseCards here gives them their "post-opponent-commit"
         // timing: Phase 1 (opponent plays) → Phase 2 (AI plays cards, then
         // trick-phase cards against the committed board, then tricks).
-        setTimeout(() => {
+        this._matchTimeout(() => {
           AI.playCards('ai', () => {
             AI.playTrickPhaseCards('ai', () => {
               AI.playTricks('ai', () => this.endPhase2());
@@ -2172,7 +2192,7 @@ const Game = {
           if (this.isMultiplayer()) return;
           // Hotseat: pass the device instead of running AI.
           if (this.isHotseat()) { this._hotseatHandoff(); return; }
-          setTimeout(() => {
+          this._matchTimeout(() => {
             const nextStep = () => {
               AI.playTrickPhaseCards('ai', () => {
                 AI.playTricks('ai', () => this.endPhase3());
@@ -2226,7 +2246,7 @@ const Game = {
     this.state.phase = 'combat';
     this.state.activePlayer = null;
     UI.render();
-    setTimeout(() => this.resolveCombat(), 1000);
+    this._matchTimeout(() => this.resolveCombat(), 1000);
   },
 
   // ===================== PLAY CARDS / TRICKS =====================
@@ -3036,7 +3056,7 @@ const Game = {
         // All lanes done — clear active lane highlight and proceed to post-combat
         delete this.state._activeLane;
         UI.render();
-        setTimeout(() => this.postCombat(), this.COMBAT_POST_DELAY);
+        this._matchTimeout(() => this.postCombat(), this.COMBAT_POST_DELAY);
         return;
       }
 
@@ -3054,7 +3074,7 @@ const Game = {
           UI.render();
           // Broadcast resolved lane result to guest before moving on.
           if (this.isMultiplayer && this.isMultiplayer() && this.mp.role === 'host') this._mpBroadcast();
-          setTimeout(() => resolveLane(i + 1), this.COMBAT_LANE_DELAY);
+          this._matchTimeout(() => resolveLane(i + 1), this.COMBAT_LANE_DELAY);
         });
       };
       if (p && a) {
@@ -4139,8 +4159,10 @@ const Game = {
     // combat again." Pre-fix the contested path covered this (line
     // 2773), the uncontested path did not.
     card._combatSwungThisRound = true;
-    this.damagePlayer(targetOwner, uncontestedDmg, card.isBullseye, card);
-    if (card.onDamagePlayer) card.onDamagePlayer(this, card);
+    const _hpLanded = this.damagePlayer(targetOwner, uncontestedDmg, card.isBullseye, card);
+    // Only fire the on-face-damage hook (Sabertooth's grow) when HP actually
+    // dropped — a fully blocked / frozen / absorbed hit must not count.
+    if (_hpLanded > 0 && card.onDamagePlayer) card.onDamagePlayer(this, card);
     if (card.splashRange > 0) this.applySplash(card, laneIdx);
     // Uncontested survivor fires onLaneResolved same as a contested winner.
     if (card.currentHealth > 0 && card.onLaneResolved) {
@@ -4402,9 +4424,14 @@ const Game = {
       if (typeof UI !== 'undefined' && UI.showGameOverScreen) {
         // Defer one tick so the killing-blow render has a chance to
         // paint the final HP before the overlay slides in.
-        setTimeout(() => UI.showGameOverScreen(this.state.winner), 60);
+        this._matchTimeout(() => UI.showGameOverScreen(this.state.winner), 60);
       }
     }
+    // Return the HP damage that actually landed. Every negation path above
+    // (frozen HP, Mahoraga absorb, Block Meter, Yoda-to-zero) returns early
+    // with undefined, so callers can gate on-hit hooks (e.g. Sabertooth's
+    // grow-on-face-damage) on a truthy return instead of firing on blocked hits.
+    return amount;
   },
 
   // Append a final-state datapoint to _hpHistory at the moment the
