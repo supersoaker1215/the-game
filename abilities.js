@@ -1492,8 +1492,18 @@ const CARD_ABILITIES = {
           }
         };
         if (Game.isHuman(self.owner)) {
-          G.promptCardChoice(self.owner, freeCards, "Black Panther — Free Play", "Choose a card with base cost 3 or less to play free", playFree,
-            cards => cards.slice().sort((a, b) => (b.baseCost || b.cost) - (a.baseCost || a.cost))[0]);
+          // Skip option — the free play is a GIFT, not a demand. The player
+          // may be saving a cheap card (combo piece, jump body) for later.
+          // User direction: "i want the player to have the option in case
+          // you were saving that character."
+          const skip = { name: 'Skip — Save Your Cards', _artName: 'Black Panther',
+            desc: 'Play nothing for free this time. Your hand stays as it is.', _bpSkip: true };
+          G.promptCardChoice(self.owner, [...freeCards, skip], "Black Panther — Free Play",
+            "Choose a card with base cost 3 or less to play free — or skip", (picked) => {
+              if (picked && picked._bpSkip) { G.log('Black Panther holds back — no free play.'); return; }
+              playFree(picked);
+            },
+            cards => cards.filter(c => !c._bpSkip).slice().sort((a, b) => (b.baseCost || b.cost) - (a.baseCost || a.cost))[0]);
         } else {
           const best = freeCards.slice().sort((a, b) => (b.baseCost || b.cost) - (a.baseCost || a.cost))[0];
           playFree(best);
@@ -1692,6 +1702,17 @@ const CARD_ABILITIES = {
         return; // already used this game
       }
       if (self.reviveCharges > 0) {
+        // A destroyed (voided) lane has no lane to rise in for 3 rounds —
+        // relocate the revive to an open lane instead. With nowhere to
+        // stand, the revive simply doesn't fire: charge and once-per-game
+        // flag stay unspent, and Jason dies normally. User report: "you
+        // cant have jason jump into the void because there is no lane."
+        let riseLane = lane;
+        if (G.state.lanes[lane] && G.state.lanes[lane].destroyed) {
+          const open = G.getOpenLanes(self.owner);
+          if (!open.length) return;
+          riseLane = open[0];
+        }
         self.reviveCharges--;
         if (!self._jasonNoOnceLimit) {
           G.state[self.owner].jasonReviveUsed = true;
@@ -1708,7 +1729,14 @@ const CARD_ABILITIES = {
           self.maxHealth += 2;
         }
         self.currentHealth = self.maxHealth;
-        G.placeInLane(self.owner, self, lane);
+        if (riseLane !== lane) {
+          // Clear the dying card's old slot before placing elsewhere —
+          // onDeath fires while the card still occupies its lane, and a
+          // prevented death would otherwise leave two live references.
+          if (G.state.lanes[lane][self.owner] === self) G.state.lanes[lane][self.owner] = null;
+          G.log(`  [VOID] The void cannot hold him — Jason rises in lane ${riseLane + 1}!`);
+        }
+        G.placeInLane(self.owner, self, riseLane);
         // Revive bypasses Game.playCard, so the registry-based play cue
         // wouldn't auto-fire here — call it explicitly so the ki-ki-ki /
         // ma-ma-ma sting lands on resurrection too.

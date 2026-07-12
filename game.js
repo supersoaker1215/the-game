@@ -4852,6 +4852,23 @@ const Game = {
     // The decremented revive count is preserved across the ability re-parse so
     // a base "Revive N" ability can't re-grant itself an infinite loop.
     if (card.reviveCharges > 0) {
+      // Voided lane — a revive can't rise where no lane exists. Relocate
+      // to an open lane on the card's side; with nowhere to stand, the
+      // revive doesn't fire (charge preserved) and death proceeds.
+      const deathLane = this.findCardLane(card);
+      let reviveBlocked = false;
+      if (deathLane >= 0 && this.state.lanes[deathLane].destroyed) {
+        const open = this.getOpenLanes(card.owner);
+        if (open.length) {
+          this.state.lanes[deathLane][card.owner] = null;
+          this.placeInLane(card.owner, card, open[0]);
+          this.log(`  [VOID] ${card.name} is thrown clear of the void into lane ${open[0] + 1}!`);
+        } else {
+          reviveBlocked = true;
+          this.log(`  [VOID] No lane for ${card.name} to rise in — the void claims them.`);
+        }
+      }
+      if (!reviveBlocked) {
       card.reviveCharges--;
       card.currentHealth = card.maxHealth;
       card._deathHandled = false;
@@ -4877,6 +4894,7 @@ const Game = {
         }
       }
       return;
+      } // !reviveBlocked — blocked revives fall through to normal death
     }
     const who = card.owner === 'player' ? 'Your' : "AI's";
     this.log(`[DEAD] ${who} ${card.name} destroyed in lane ${laneIdx + 1} → dead pile`);

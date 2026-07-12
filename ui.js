@@ -7900,6 +7900,18 @@ const UI = {
     // a draft / run / match, open My Decks) actually leaves the menu.
     //   sub === null  → main list (Play + Library)
     //   sub === 'solo'→ Solo Match sub-options (Solo·vs AI + Two on Two)
+    // Brand bar — sits IN FLOW at the very end of the panel list (below
+    // Sandbox on the main list) so it's only visible once you scroll to
+    // the bottom. User direction: "just below the sandbox mode regardless
+    // and not seen at all until you scroll all the way down." Emitted by
+    // buildPanel (not the shell) so submenu swaps keep it.
+    const botbarHTML = `
+      <div class="mm-botbar">
+        <span class="mm-botbar-brand" aria-hidden="true">the game · beta</span>
+        <span class="mm-nowplaying" role="button" tabindex="0" title="Next track"
+              onclick="UI.sfx.nextMenuTrack()"
+              onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();UI.sfx.nextMenuTrack();}"></span>
+      </div>`;
     const buildPanel = (sub) => {
       mmIdx = 0;   // reset so the swapped list re-staggers from the top
       if (sub === 'solo') {
@@ -7927,7 +7939,7 @@ const UI = {
             ${btn('mm-sub-2v2local',  '2v2 Local Play', '4 players, same device. Teams share health.', SVG.multi, "Game.goTo2v2Setup()")}
             ${btn('mm-sub-2v2online', '2v2 Online',     'Each player on their own device.',             SVG.multi, "Game.goTo2v2OnlineLobby()")}
           </div>
-        </div>`;
+        </div>${botbarHTML}`;
       }
       // Default: the main list (Play + Library).
       return `
@@ -7961,7 +7973,7 @@ const UI = {
             ${btn('mm-gallery', 'Gallery Audit','Browse + delete card art · dev',                          SVG.decks,    "UI.openGalleryAudit()")}
             ${btn('mm-sandbox', 'Sandbox',      'Free-play with unlimited energy + spawn any card · dev', SVG.settings, "UI.startSandbox()")}
           </div>
-        </div>`;
+        </div>${botbarHTML}`;
     };
     this._mmBuildPanel = buildPanel;   // reused by in-place submenu swaps (mmShowSub)
     const _flowOn = this.settings.menuFlow !== false;
@@ -7970,13 +7982,7 @@ const UI = {
     el.innerHTML = `
       ${_flowOn ? this._menuSceneHTML() : ''}
       <div class="mm-scrim" aria-hidden="true"></div>
-      <div class="mm-panel">${buildPanel(this._mmSub || null)}</div>
-      <div class="mm-botbar">
-        <span class="mm-botbar-brand" aria-hidden="true">the game · beta</span>
-        <span class="mm-nowplaying" role="button" tabindex="0" title="Next track"
-              onclick="UI.sfx.nextMenuTrack()"
-              onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();UI.sfx.nextMenuTrack();}"></span>
-      </div>`;
+      <div class="mm-panel">${buildPanel(this._mmSub || null)}</div>`;
     // Sync the full-bleed hero to whatever hover theme is already playing.
     if (_flowOn) {
       try { this._updateMenuSideArt(this.sfx && this.sfx._music && this.sfx._music.currentSrc); } catch (e) {}

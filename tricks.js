@@ -483,35 +483,54 @@ const TRICK_DEFS = [
   },
   // Cost 5
   { name: "Anti-Life Equation", cost: 5,
-    desc: "Destroy both cards in a contested lane and collapse it into the void for 3 rounds.",
+    desc: "Destroy both cards in a contested lane and collapse it into the void for 3 rounds. Can't target lanes holding an Invincible, Untrickable, or 10-cost card.",
     play(G, owner) {
+      const opp = G.opponent(owner);
       const contested = [];
       for (let i = 0; i < Game.LANE_COUNT; i++) {
-        const opp = G.opponent(owner);
         const mine = G.state.lanes[i][owner];
         const theirs = G.state.lanes[i][opp];
         if (mine && theirs && !G.state.lanes[i].destroyed) {
-          // Skip lanes containing any 10-cost card — tricks can't touch them.
-          const has10 = (mine.baseCost || mine.cost || 0) >= 10 || (theirs.baseCost || theirs.cost || 0) >= 10;
-          if (!has10) contested.push(i);
+          // Only offer lanes where BOTH cards will actually die — any
+          // survivor would be left standing inside the void for 3 rounds
+          // (user report: Invincible Spider-Man stranded in a voided lane).
+          //   • 10-cost titans: immune to all tricks.
+          //   • Invincible: killCard refuses ("that character can't die").
+          //   • ENEMY Untrickable: blocks the kill (own-side Untrickable
+          //     dies fine — friendly tricks are exempt).
+          const survives =
+            (mine.baseCost || mine.cost || 0) >= 10 || (theirs.baseCost || theirs.cost || 0) >= 10 ||
+            (mine.invincibleTurns > 0) || (theirs.invincibleTurns > 0) ||
+            theirs.isUntrickable;
+          if (!survives) contested.push(i);
         }
       }
-      if (Game.isHuman(owner) && contested.length) {
-        G.promptLaneChoice(owner, contested, "Anti-Life — Destroy Lane", "Choose contested lane to destroy", (i) => {
-          const opp = G.opponent(owner);
-          // Collapse first so Jason's allyDied trigger sees lane.destroyed = true
-          G.destroyLane(i, 3);
-          G.killCard(G.state.lanes[i][owner]);
-          G.killCard(G.state.lanes[i][opp]);
-          G.log(`Anti-Life destroys lane ${i + 1}!`);
-        });
-      } else if (contested.length) {
-        const i = contested[0];
-        const opp = G.opponent(owner);
+      const collapse = (i) => {
+        // Collapse first so Jason's allyDied trigger sees lane.destroyed = true
         G.destroyLane(i, 3);
         G.killCard(G.state.lanes[i][owner]);
         G.killCard(G.state.lanes[i][opp]);
+        // One-shot death saves (Yoda shield, Phoenix etch, revives) can
+        // still leave a card alive inside the collapsed lane — the void
+        // has no lane for 3 rounds, so throw survivors clear into an
+        // open lane on their own side.
+        [owner, opp].forEach(side => {
+          const c = G.state.lanes[i][side];
+          if (c && c.currentHealth > 0) {
+            const open = G.getOpenLanes(side);
+            if (open.length) {
+              G.state.lanes[i][side] = null;
+              G.placeInLane(side, c, open[0]);
+              G.log(`  [VOID] ${c.name} is thrown clear of the collapsing lane into lane ${open[0] + 1}!`);
+            }
+          }
+        });
         G.log(`Anti-Life destroys lane ${i + 1}!`);
+      };
+      if (Game.isHuman(owner) && contested.length) {
+        G.promptLaneChoice(owner, contested, "Anti-Life — Destroy Lane", "Choose contested lane to destroy", collapse);
+      } else if (contested.length) {
+        collapse(contested[0]);
       }
     }
   },

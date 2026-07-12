@@ -189,7 +189,7 @@ const CARD_DEFS = [
     desc: "When Played: Heal yourself for 4. Move an ally to another empty lane." },
   { name: "Black Panther", cost: 4, attack: 2, health: 3, type: "hero",
     abilities: ["Armor 1"],
-    desc: "When Played: Play a card from your hand with cost ≤ 3 for free. While Active: Add (+1/+1) to each card you play." },
+    desc: "When Played: You may play a card from your hand with cost ≤ 3 for free (or skip). While Active: Add (+1/+1) to each card you play." },
   { name: "Cyborg", cost: 5, attack: 3, health: 3, type: "hero",
     abilities: [],
     desc: "When Destroyed: Summon a random card from your hand in Cyborg's lane." },
