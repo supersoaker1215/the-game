@@ -29,7 +29,7 @@ window.CARD_ART_VARIANTS = {
   'Darth Vader':         ['Darth Vader 2.png',        'Darth Vader.png'],
   'Dr. Doom':            ['Dr. Doom 2.png',           'Dr. Doom.png'],
   'Dr. Strange':         ['Dr. Strange 2.png',        'Dr. Strange.png'],
-  'Emperor Palpatine':   ['Emperor Palpatine 2.png',  'Emperor Palpatine.png'],
+  'Emperor Palpatine':   ['Emperor Palpatine 2.png'],
   'Hulk':                ['Hulk 2.png',               'Hulk.png'],
   'Iron Man':            ['Iron Man 2.png',           'Iron Man.png',              'Iron Man 3.png'],
   'Jason Voorhees':      ['Jason Voorhees 3.png',     'Jason Voorhees 2.png',      'Jason Voorhees.png'],
@@ -40,22 +40,22 @@ window.CARD_ART_VARIANTS = {
   'Symbiote Spider-Man': ['Symbiote Spider-Man 3.jpg','Symbiote Spider-Man 2.png','Symbiote Spider-Man.png'],
   'The Flash':           ['The Flash 2.png',          'The Flash.png'],
   // ── Variant-2 promoted in second pass (2026-05-18 follow-up) ──
-  'Ahsoka':              ['Ahsoka 2.png',             'Ahsoka.png'],
+  'Ahsoka':              ['Ahsoka 2.png'],
   'Xenomorph':           ['Xenomorph 2.png',          'Xenomorph.png'],
   // ── Silver Surfer chrome / cosmic portrait additions (2026-05-26) ──
-  'Silver Surfer':       ['Silver Surfer 2.png',      'Silver Surfer 3.png',     'Silver Surfer.png'],
+  'Silver Surfer':       ['Silver Surfer 3.png',      'Silver Surfer 2.png',     'Silver Surfer.png'],
   'Galactus':            ['Galactus 2.png',           'Galactus.png'],
   'Scarlet Witch':       ['Scarlet Witch 2.png',      'Scarlet Witch.png'],
   'Deathstroke':         ['Deathstroke 2.png',        'Deathstroke.png'],
   // ── Single-art entries (webp) ──
   'Pennywise':           ['Pennywise 2.jpg',          'Pennywise.png'],
-  'Freddy Krueger':      ['Freddy Krueger 2.png',     'Freddy Krueger.png'],
+  'Freddy Krueger':      ['Freddy Krueger 2.png'],
   'Black Panther':       ['Black Panther 2.png',      'Black Panther.png'],
   // ── Variant-1 default kept (user kept original) ──
-  'Anakin Skywalker':    ['Anakin Skywalker.png',     'Anakin Skywalker 2.png'],
+  'Anakin Skywalker':    ['Anakin Skywalker 2.png',   'Anakin Skywalker.png'],
   'Batman':              ['Batman.png',               'Batman 2.png'],
   'Venom':               ['Venom.png',                'Venom 2.png'],
-  'Wolverine':           ['Wolverine.png',            'Wolverine 2.png'],
+  'Wolverine':           ['Wolverine.png'],
   // ── New art additions ──
   'Han Solo':            ['Han Solo.jpg'],
   'Darth Maul':          ['Darth Maul.jpg'],
@@ -83,26 +83,69 @@ window.CARD_ART_VARIANTS = {
 // Reorder (primary) + deletions are baked into CARD_ART_VARIANTS above (array
 // order = priority; a removed entry = deleted), not here.
 window.CARD_ART_OVERRIDES = {
+  // Gallery Audit → "Publish to repo" (2026-07-12). Drafts merged over the
+  // earlier repo crops; Captain America / Pennywise / Bane kept (not re-edited
+  // in this publish, so absent from the export).
   focalCard: {   // "name|file" -> "X% Y%"   in-game card crop focal
-    // Both are very tall portraits (736x1594 / 736x1308) — a centered cover
-    // crop lands on the torso and cuts the head off. Bias toward the top.
+    'Anakin Skywalker|Anakin Skywalker 2.png': '50% 49%',
+    'Batman|Batman.png': '37% 47%',
+    'Cyborg|Cyborg.png': '50% 42%',
+    'Darth Maul|Darth Maul.jpg': '53% 50%',
+    'Darth Vader|Darth Vader 2.png': '50% 48%',
+    'Dr. Strange|Dr. Strange 2.png': '96% 50%',
+    'Emperor Palpatine|Emperor Palpatine 2.png': '50% 51%',
+    'Freddy Fazbear|Freddy Fazbear.png': '50% 51%',
+    'Freddy Krueger|Freddy Krueger 2.png': '50% 51%',
+    'Jack Sparrow|Jack Sparrow.jpg': '50% 53%',
+    'Joker|Joker.png': '50% 0%',
+    'Luke Skywalker|Luke Skywalker 2.jpg': '50% 54%',
+    'Martian Manhunter|Martian Manhunter.png': '50% 7%',
+    'Michael Myers|Michael Myers 2.jpg': '50% 0%',
+    'Mr. Fantastic|Mr. Fantastic.png': '50% 4%',
+    'Padme Amidala|Padme Amidala.png': '50% 49%',
+    'Raven|Raven.png': '50% 48%',
+    'Red Hulk|Red Hulk.png': '90% 50%',
+    'Revan|Revan.png': '100% 50%',
+    'Sandman|Sandman.png': '50% 0%',
+    'Scarlet Witch|Scarlet Witch 2.png': '50% 49%',
+    'Solomon Grundy|Solomon Grundy.png': '50% 17%',
+    'Spider-Man|Spider-Man 3.jpg': '50% 0%',
+    'Superman|Superman 3.jpg': '50% 22%',
+    'Symbiote Spider-Man|Symbiote Spider-Man 3.jpg': '50% 100%',
+    'The Grinch|The Grinch.png': '48% 50%',
     'Captain America|Captain America 2.jpg': '50% 12%',
-    'Michael Myers|Michael Myers 2.jpg': '50% 12%',
-    'Superman|Superman 3.jpg': '50% 20%',
     'Pennywise|Pennywise 2.jpg': '50% 20%',
     'Bane|Bane 2.jpg': '50% 15%',
-    'Spider-Man|Spider-Man 3.jpg': '50% 15%',
-    'Symbiote Spider-Man|Symbiote Spider-Man 3.jpg': '50% 35%',
   },
   focalMenu: {   // "name|file" -> "X% Y%"   menu-hero crop focal
+    'Darth Maul|Darth Maul.jpg': '50% 50%',
+    'Dormammu|Dormammu.png': '71% 50%',
+    'Dr. Strange|Dr. Strange 2.png': '91% 50%',
+    'Freddy Krueger|Freddy Krueger 2.png': '50% 49%',
+    'Joker|Joker.png': '50% 0%',
+    'Martian Manhunter|Martian Manhunter.png': '50% 14%',
+    'Michael Myers|Michael Myers 2.jpg': '45% 0%',
+    'Mr. Fantastic|Mr. Fantastic.png': '50% 1%',
+    'Red Hulk|Red Hulk.png': '63% 50%',
+    'Revan|Revan.png': '95% 50%',
+    'Sandman|Sandman.png': '50% 28%',
+    'Solomon Grundy|Solomon Grundy.png': '50% 23%',
+    'Spider-Man|Spider-Man 3.jpg': '50% 0%',
+    'Superman|Superman 3.jpg': '50% 14%',
+    'Symbiote Spider-Man|Symbiote Spider-Man 3.jpg': '50% 100%',
     'Captain America|Captain America 2.jpg': '50% 10%',
-    'Michael Myers|Michael Myers 2.jpg': '50% 10%',
-    'Superman|Superman 3.jpg': '50% 15%',
     'Pennywise|Pennywise 2.jpg': '50% 15%',
     'Bane|Bane 2.jpg': '50% 12%',
-    'Spider-Man|Spider-Man 3.jpg': '50% 12%',
-    'Symbiote Spider-Man|Symbiote Spider-Man 3.jpg': '50% 30%',
   },
-  zoomCard:  {},   // "name|file" -> scale (1 = cover, e.g. 1.3)
-  zoomMenu:  {},   // "name|file" -> scale
+  zoomCard:  {   // "name|file" -> scale (1 = cover, e.g. 1.3)
+    'Darth Maul|Darth Maul.jpg': 1.6,
+    'Jack Sparrow|Jack Sparrow.jpg': 2.2,
+    'The Grinch|The Grinch.png': 1.8,
+    'Batman|Batman.png': 1.1,
+  },
+  zoomMenu:  {   // "name|file" -> scale
+    'Darth Maul|Darth Maul.jpg': 1.6,
+    'The Grinch|The Grinch.png': 1.9,
+    'Batman|Batman.png': 1.1,
+  },
 };
