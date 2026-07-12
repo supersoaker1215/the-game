@@ -2296,6 +2296,10 @@ const Game = {
   _redirectForForcedLane(owner, card, laneIdx) {
     const _origLane = laneIdx;
     if (card.isDiscardEffect) return laneIdx;
+    // Environments are a separate category — Moder/Magneto force COMBAT cards
+    // into a lane, not the terrain. Return untouched so the forced-lane state
+    // stays armed for the next real card played.
+    if (card.isEnvironment) return laneIdx;
     // In multiplayer the guest's UI already visually locks them to the forced
     // lane — they can only click the forced lane, so their msg.lane IS the
     // forced lane. Trust their choice and only clear the state; don't override
@@ -2340,6 +2344,10 @@ const Game = {
   // decides by cost. Returns true if the intercept fired (caller bails).
   _resolveBwlIntercept(owner, card, cost) {
     if (!this.state[owner].nextCardStolen) return false;
+    // Environments are a separate category — Batman Who Laughs intercepts the
+    // next enemy CARD, not the terrain. Don't consume the steal here so it
+    // still lands on the next real card the opponent plays.
+    if (card.isEnvironment) return false;
     this.state[owner].nextCardStolen = false;
     const opp = this.opponent(owner);
     // Mark BWL's owner as having consumed their 1-per-game intercept so

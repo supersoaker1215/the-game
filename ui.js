@@ -7921,7 +7921,6 @@ const UI = {
     // buildPanel (not the shell) so submenu swaps keep it.
     const botbarHTML = `
       <div class="mm-botbar">
-        <span class="mm-botbar-brand" aria-hidden="true">the game · beta</span>
         <span class="mm-nowplaying" role="button" tabindex="0" title="Next track"
               onclick="UI.sfx.nextMenuTrack()"
               onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();UI.sfx.nextMenuTrack();}"></span>
@@ -7951,9 +7950,13 @@ const UI = {
           <div class="mm-section-label">Two on Two</div>
           <div class="mm-grid mm-grid-section">
             ${btn('mm-sub-2v2local',  '2v2 Local Play', '4 players, same device. Teams share health.', SVG.multi, "Game.goTo2v2Setup()")}
-            ${btn('mm-sub-2v2online', '2v2 Online',     'Each player on their own device.',             SVG.multi, "Game.goTo2v2OnlineLobby()")}
           </div>
         </div>${botbarHTML}`;
+      }
+      // Multiplayer — networked play, rendered in-shell (all online modes,
+      // incl. 2v2 Online, live here so Solo Match stays same-device only).
+      if (sub === 'mp') {
+        return this._mpSubmenuHTML() + botbarHTML;
       }
       // Default: the main list (Play + Library).
       return `
@@ -9902,20 +9905,33 @@ const UI = {
   // exists, the URL will default to that and end-users won't need to
   // touch this — it's a power-user knob.
   _mpState: { tab: 'create', code: null, status: 'idle', you: null, opponent: null },
+  // Multiplayer is now an IN-SHELL main-menu submenu (no popup). Opens the
+  // 'mp' sub the same way Solo Match swaps its list, so the hero + music stay
+  // alive behind it. Connection-state updates re-render the panel in place
+  // via _mpRender().
   openMultiplayer() {
     this._mpInit();
-    this._mpRender();
-    const ov = document.getElementById('multiplayer-overlay');
-    if (ov) { ov.style.display = 'flex'; }
-    document.body.classList.add('clb-toggle-hidden');
+    this.mmShowSub('mp');
   },
+  // Legacy no-op kept so any stray caller can't throw; the old #multiplayer-
+  // overlay popup is retired. Leaving/entering is handled by _mpBack (back to
+  // menu) and the automatic phase transition into the draft on pairing.
   closeMultiplayer() {
     const ov = document.getElementById('multiplayer-overlay');
-    if (ov) { ov.style.display = 'none'; }
+    if (ov) ov.style.display = 'none';
     document.body.classList.remove('clb-toggle-hidden');
-    // Don't tear down the multiplayer connection on close — the user
-    // might just be glancing back at the menu mid-match. We only call
-    // Multiplayer.leave() on explicit Leave Room or Forfeit.
+  },
+  // Back out of the multiplayer submenu — drop any half-open room first so a
+  // dangling PeerJS connection / host seat doesn't leak, then return to the
+  // main list (reset to a clean idle state for next time).
+  _mpBack() {
+    const st = this._mpState;
+    if (st && st.status !== 'idle') {
+      if (typeof Multiplayer !== 'undefined') Multiplayer.leave();
+      if (typeof Game !== 'undefined' && Game.resetMultiplayer) Game.resetMultiplayer();
+    }
+    this._mpState = { tab: 'create', code: null, status: 'idle', you: null, opponent: null };
+    this.mmBack();
   },
   _mpInit() {
     if (typeof Multiplayer === 'undefined') return;
@@ -10213,15 +10229,29 @@ const UI = {
     else                    localStorage.setItem('clb-mp-server', next.trim());
     this._mpRender();
   },
+  // Re-render the in-shell multiplayer submenu in place on every connection
+  // event (roomCreated / joined / paired / error). No letter-flip on these
+  // state ticks — just refresh the panel content so it updates smoothly.
   _mpRender() {
-    const ov = document.getElementById('multiplayer-overlay');
-    if (!ov) return;
-    const st = this._mpState;
+    if (this._mmSub !== 'mp') return;
+    const el = document.getElementById('main-menu-overlay');
+    const panel = el && el.querySelector('.mm-panel');
+    if (!panel || typeof this._mmBuildPanel !== 'function') return;
+    panel.innerHTML = this._mmBuildPanel('mp');
+    panel.classList.add('mm-swapped');
+    if (this.applyTronFx) this.applyTronFx();
+  },
+  // The multiplayer submenu content (rendered inside .mm-panel by
+  // buildPanel('mp')). Simplified from the old popup: name, Create/Join,
+  // 2v2 Online, and a compact transport line — ALL networked play lives here
+  // (same-device modes stay under Solo Match, so there's one path each).
+  _mpSubmenuHTML() {
+    const st = this._mpState || (this._mpState = { tab: 'create', code: null, status: 'idle', you: null, opponent: null });
     const isCreate = st.tab === 'create';
-    const tabBtn = (id, label) => `
-      <button type="button"
-              class="mp-tab ${st.tab === id ? 'mp-tab-active' : ''}"
-              onclick="UI._mpSetTab('${id}')">${label}</button>`;
+    const tabBtn = (id, label) => `<button type="button" class="mp-tab ${st.tab === id ? 'mp-tab-active' : ''}" onclick="UI._mpSetTab('${id}')">${label}</button>`;
+
+    // Transport config — one compact line (peer-to-peer default; relay + TURN
+    // links for restrictive networks like hotel WiFi).
     const url = (localStorage.getItem('clb-mp-server') || '').trim();
     const localMode = localStorage.getItem('clb-mp-mode') === 'local';
     const forceRelay = localStorage.getItem('clb-force-relay') === '1';
@@ -10233,130 +10263,62 @@ const UI = {
     } else if (localMode) {
       transportLine = `<div class="mp-transport-line">Local-tab dev mode · <a href="#" onclick="UI._mpToggleLocalMode();return false;">switch to internet</a></div>`;
     } else if (!peerJsLoaded) {
-      transportLine = `<div class="mp-transport-line mp-transport-warn">⚠ PeerJS didn't load — falling back to local-tab. Check network or refresh.</div>`;
+      transportLine = `<div class="mp-transport-line mp-transport-warn">⚠ PeerJS didn't load — check network or refresh.</div>`;
     } else {
       const relayLabel = forceRelay ? '🔴 Relay-only ON' : 'Force relay (hotel WiFi)';
-      const turnLabel  = hasCustomTurn ? '✅ Custom TURN set' : 'Set TURN server';
-      transportLine = `<div class="mp-transport-line">Peer-to-peer (WebRTC) · <a href="#" onclick="UI._mpToggleForceRelay();return false;" title="Force-relay routes ALL traffic through the TURN relay server. Use this on hotel WiFi or any network where direct connections fail.">${relayLabel}</a> · <a href="#" onclick="UI._mpSetCustomTurn();return false;" title="Set reliable TURN credentials from Metered.ca for hotel WiFi play">${turnLabel}</a></div>`;
+      const turnLabel = hasCustomTurn ? '✅ Custom TURN set' : 'Set TURN server';
+      transportLine = `<div class="mp-transport-line">Peer-to-peer · <a href="#" onclick="UI._mpToggleForceRelay();return false;">${relayLabel}</a> · <a href="#" onclick="UI._mpSetCustomTurn();return false;">${turnLabel}</a></div>`;
     }
 
-    // Body switches based on connection status. Idle → tab content
-    // (create or join). Otherwise → connection-status card.
+    // Status-dependent body.
     let body = '';
     if (st.status === 'idle') {
-      if (isCreate) {
-        body = `
-          <div class="mp-pane">
-            <div class="mp-explainer">
-              Click <b>Generate Code</b> below. We'll give you a 4-letter
-              room code — text it to a friend and they enter it on their
-              own device to join.
-            </div>
-            <button type="button" class="btn btn-primary mp-cta" onclick="UI._mpCreateRoom()">
-              Generate Code
-            </button>
-          </div>`;
-      } else {
-        body = `
-          <div class="mp-pane">
-            <div class="mp-explainer">
-              Got a 4-letter code from a friend? Type it in — connects
-              directly to their browser, no account needed.
-            </div>
-            <input id="mp-join-code"
-                   class="mp-code-input"
-                   maxlength="4"
-                   placeholder="CODE"
-                   autocapitalize="characters"
-                   autocomplete="off"
-                   spellcheck="false"
-                   oninput="this.value=this.value.toUpperCase()" />
-            <button type="button" class="btn btn-primary mp-cta" onclick="UI._mpJoinRoom()">
-              Join Room
-            </button>
-          </div>`;
-      }
+      body = isCreate
+        ? `<button type="button" class="btn btn-primary mp-cta" onclick="UI._mpCreateRoom()">Generate Code</button>
+           <div class="mp-mini-hint">We'll give you a 4-letter code — text it to a friend to join.</div>`
+        : `<input id="mp-join-code" class="mp-code-input" maxlength="4" placeholder="CODE" autocapitalize="characters" autocomplete="off" spellcheck="false" oninput="this.value=this.value.toUpperCase()" />
+           <button type="button" class="btn btn-primary mp-cta" onclick="UI._mpJoinRoom()">Join Room</button>`;
     } else if (st.status === 'waiting') {
-      body = `
-        <div class="mp-pane mp-pane-status">
-          <div class="mp-status-label">Waiting for opponent</div>
-          <div id="mp-code-display" class="mp-code-display" onclick="UI._mpCopyCode()" title="Tap to copy">${st.code || '----'}</div>
-          <div class="mp-hint">Share this code with a friend. Tap the code to copy.</div>
-          <div class="mp-loader" aria-hidden="true">
-            <span></span><span></span><span></span>
-          </div>
-          <button type="button" class="btn btn-secondary mp-leave" onclick="UI._mpLeaveRoom()">Leave Room</button>
-        </div>`;
+      body = `<div class="mp-status-label">Waiting for opponent</div>
+        <div id="mp-code-display" class="mp-code-display" onclick="UI._mpCopyCode()" title="Tap to copy">${st.code || '----'}</div>
+        <div class="mp-hint">Share this code with a friend. Tap to copy.</div>
+        <div class="mp-loader" aria-hidden="true"><span></span><span></span><span></span></div>
+        <button type="button" class="btn btn-secondary mp-leave" onclick="UI._mpLeaveRoom()">Leave Room</button>`;
     } else if (st.status === 'joining') {
-      body = `
-        <div class="mp-pane mp-pane-status">
-          <div class="mp-status-label">Joining ${st.code}…</div>
-          <div class="mp-loader" aria-hidden="true">
-            <span></span><span></span><span></span>
-          </div>
-          <button type="button" class="btn btn-secondary mp-leave" onclick="UI._mpLeaveRoom()">Cancel join</button>
-        </div>`;
+      body = `<div class="mp-status-label">Joining ${st.code}…</div>
+        <div class="mp-loader" aria-hidden="true"><span></span><span></span><span></span></div>
+        <button type="button" class="btn btn-secondary mp-leave" onclick="UI._mpLeaveRoom()">Cancel join</button>`;
     } else if (st.status === 'paired') {
-      body = `
-        <div class="mp-pane mp-pane-status">
-          <div class="mp-status-label mp-status-go">Connected!</div>
-          <div class="mp-pairing-line">${(st.you === 'player' ? 'You' : 'Opponent')} (host) ⟷ ${st.opponent || 'Opponent'}</div>
-          <div class="mp-hint">Closing this lobby drops you into the match.</div>
-          <button type="button" class="btn btn-primary mp-cta" onclick="UI.closeMultiplayer()">Enter Match</button>
-          <button type="button" class="btn btn-secondary mp-leave" onclick="UI._mpLeaveRoom()">Leave Room</button>
-        </div>`;
+      body = `<div class="mp-status-label mp-status-go">Connected!</div>
+        <div class="mp-pairing-line">${(st.you === 'player' ? 'You' : 'Opponent')} ⟷ ${st.opponent || 'Opponent'}</div>
+        <div class="mp-hint">Dropping into the match…</div>`;
     } else if (st.status === 'opponentLeft') {
-      body = `
-        <div class="mp-pane mp-pane-status">
-          <div class="mp-status-label mp-status-warn">Opponent disconnected</div>
-          <div class="mp-hint">They might come back — or you can leave the room.</div>
-          <button type="button" class="btn btn-secondary mp-leave" onclick="UI._mpLeaveRoom()">Leave Room</button>
-        </div>`;
+      body = `<div class="mp-status-label mp-status-warn">Opponent disconnected</div>
+        <div class="mp-hint">They might come back — or leave the room.</div>
+        <button type="button" class="btn btn-secondary mp-leave" onclick="UI._mpLeaveRoom()">Leave Room</button>`;
     } else if (st.status === 'error') {
-      body = `
-        <div class="mp-pane mp-pane-status">
-          <div class="mp-status-label mp-status-warn">Connection error</div>
-          <div class="mp-hint">${st.error || 'Something went wrong'}</div>
-          <button type="button" class="btn btn-secondary mp-leave" onclick="UI._mpLeaveRoom()">Try Again</button>
-        </div>`;
+      body = `<div class="mp-status-label mp-status-warn">Connection error</div>
+        <div class="mp-hint">${st.error || 'Something went wrong'}</div>
+        <button type="button" class="btn btn-secondary mp-leave" onclick="UI._mpLeaveRoom()">Try Again</button>`;
     }
 
-    // Name field is always visible. Only lock it once both players are paired —
-    // while waiting/joining the name hasn't been captured yet so editing is fine.
     const nameLocked = st.status === 'paired';
-    const nameRow = `
-      <div class="mp-name-row">
+    const nameRow = `<div class="mp-name-row">
         <label class="mp-name-label" for="mp-name-input">Your Name</label>
-        <input type="text" id="mp-name-input" class="mp-name-input"
-               maxlength="12" placeholder="Display name (12 chars)"
-               value="${this._mpName().replace(/"/g, '&quot;')}"
-               ${nameLocked ? 'readonly style="opacity:0.55;cursor:default"' : 'oninput="UI._mpSaveName(this.value)"'} />
-      </div>`;
-    const tabsRow = (st.status === 'idle')
-      ? `<div class="mp-tabs">${tabBtn('create', 'Create Room')}${tabBtn('join', 'Join Room')}</div>`
-      : '';
+        <input type="text" id="mp-name-input" class="mp-name-input" maxlength="12" placeholder="Display name (12 chars)" value="${this._mpName().replace(/"/g, '&quot;')}" ${nameLocked ? 'readonly style="opacity:0.55;cursor:default"' : 'oninput="UI._mpSaveName(this.value)"'} /></div>`;
+    const tabsRow = (st.status === 'idle') ? `<div class="mp-tabs">${tabBtn('create', 'Create Room')}${tabBtn('join', 'Join Room')}</div>` : '';
     const twov2Row = (st.status === 'idle') ? `
-      <div class="mp-mode-divider">— or —</div>
-      <button type="button" class="btn btn-secondary mp-2v2-btn"
-              onclick="UI.closeMultiplayer(); Game.goTo2v2OnlineLobby()">
-        2v2 Online →
-      </button>
-      <div class="mp-mode-sub">4 players · each on their own device</div>
-    ` : '';
-    ov.innerHTML = `
-      <div class="mh-panel mp-panel">
-        <button type="button" class="md-back" onclick="UI.closeMultiplayer()" title="Back to main menu">&larr; Menu</button>
-        <h1 class="mh-title">Multiplayer</h1>
-        ${nameRow}
-        ${tabsRow}
-        ${body}
-        ${twov2Row}
-        ${transportLine}
+        <div class="mp-mode-divider">— or —</div>
+        <button type="button" class="btn btn-secondary mp-2v2-btn" onclick="Game.goTo2v2OnlineLobby()">2v2 Online →</button>
+        <div class="mp-mode-sub">4 players · each on their own device</div>` : '';
+
+    return `
+      <div class="mm-header"><h1 class="mm-title">the game</h1></div>
+      <button type="button" class="mm-subback" onclick="UI._mpBack()" aria-label="Back to main menu">&larr; Menu</button>
+      <div class="mm-section">
+        <div class="mm-section-label">Multiplayer</div>
+        <div class="mp-shell">${nameRow}${tabsRow}${body}${twov2Row}${transportLine}</div>
       </div>`;
-    // Re-apply the Tron interaction layer to the freshly-rendered
-    // tabs / CTA / leave button so they pick up the hover sweep,
-    // active-state pulse on the selected tab, and border breathing.
-    if (this.applyTronFx) this.applyTronFx();
   },
 
   // ===================== MY DECKS (phase 4b) =====================
@@ -13434,6 +13396,15 @@ const UI = {
       } else if (lc && lcTargetSide === 'ai' && lc.lanes.includes(i)) {
         aiSlot.classList.add('target-highlight');
         aiSlot.onclick = () => laneChoicePick(i);
+        // An uncontested lane offered as a target = a direct hero strike
+        // (Han Solo "stay"). Label it so it never reads as targeting an empty lane.
+        if (lc.heroStrikeLane === i) {
+          aiSlot.classList.add('target-hero-strike');
+          const hs = document.createElement('div');
+          hs.className = 'hero-strike-glyph';
+          hs.textContent = 'STRIKE HERO';
+          aiSlot.appendChild(hs);
+        }
       } else if (!lane.destroyed) {
         // Empty-lane drop glyph — faint "+" hinting at placement
         const empty = document.createElement('div');

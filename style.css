@@ -2305,14 +2305,14 @@ body.hit-pause .ai-hand * {
    regardless and not seen at all until you scroll all the way down." */
 .mm-mw3 .mm-botbar {
   position: static; z-index: 4; height: 42px; margin-top: 36px;
-  display: flex; align-items: center; justify-content: space-between;
-  padding: 0 22px 0 0; pointer-events: none;
+  display: flex; align-items: center; justify-content: flex-start;
+  padding: 0; pointer-events: none;
+  /* Line hugs the menu-list column only — capped so it never bleeds right
+     into the hero art (was full panel width). The now-playing credit sits
+     in the old brand slot at the far left. */
+  max-width: 320px;
   border-top: 1px solid rgba(var(--theme-rgb,79,195,247),0.28);
   font-family: 'Rajdhani', sans-serif; text-transform: uppercase;
-}
-.mm-mw3 .mm-botbar-brand {
-  font-size: 10px; font-weight: 600; letter-spacing: 4px;
-  color: rgba(159,207,237,0.45);
 }
 .mm-mw3 .mm-nowplaying {
   font-size: 11px; font-weight: 700; letter-spacing: 2.5px;
@@ -2326,6 +2326,17 @@ body.hit-pause .ai-hand * {
   text-shadow: 0 0 12px rgba(var(--theme-rgb,79,195,247),0.95), 0 0 22px rgba(var(--theme-rgb,79,195,247),0.55);
 }
 .mm-mw3 .mm-nowplaying:active { transform: scale(0.95); }
+/* In-shell multiplayer submenu — the panel content lives in the menu column
+   now (no popup). Constrain to the list width so it lines up with the options. */
+.mm-mw3 .mp-shell {
+  display: flex; flex-direction: column; gap: 12px;
+  max-width: 360px; margin-top: 4px;
+}
+.mm-mw3 .mp-shell .mp-name-row { margin: 0; }
+.mm-mw3 .mp-mini-hint {
+  font-size: 11px; letter-spacing: 0.03em; line-height: 1.4;
+  color: color-mix(in srgb, rgb(var(--theme-rgb,79,195,247)) 40%, #dcebf8);
+}
 /* PORTRAIT — keep the same left-list / seam / right-hero structure as desktop
    (matching the reference), just with the hero full-bleed behind and the seam
    pushed right so the list clears it. */
@@ -7836,6 +7847,20 @@ body.hit-pause .ai-hand * {
    cards under the prompt were also clickable). Now: bright gold
    outline + box-shadow halo + a layered ::before "TARGET" pulse
    ring. Impossible to miss without disabling vision. */
+/* Hero-strike label — shown on an uncontested lane offered as a target
+   (Han Solo "stay" hits the enemy hero). Reads as a deliberate action, not
+   an empty target. Gold to match the target-highlight "pick me" language. */
+.card-slot.ai-slot.target-hero-strike { display: flex; align-items: center; justify-content: center; }
+.hero-strike-glyph {
+  font-family: 'Rajdhani', sans-serif;
+  font-weight: 700;
+  font-size: 13px;
+  letter-spacing: 0.14em;
+  color: rgba(255, 215, 0, 0.95);
+  text-shadow: 0 0 8px rgba(255, 215, 0, 0.6), 0 0 18px rgba(255, 215, 0, 0.3);
+  pointer-events: none;
+  animation: tronTargetPulseBig 1.2s var(--ease-pulse-organic, ease-in-out) infinite;
+}
 .target-highlight {
   /* Bright gold (255, 215, 0) outline at full alpha — gold reads
      as "actionable / pick me" everywhere in this UI's color

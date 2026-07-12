@@ -3422,10 +3422,18 @@ const CARD_ABILITIES = {
       if (!redirectLanes.length) return;
 
       const choices = [lane, ...redirectLanes];
+      // When Han's own lane is uncontested, "staying" strikes the enemy hero
+      // directly — there's no card opposite. Flag that lane so the board labels
+      // it "STRIKE HERO" instead of drawing a reticle on an empty lane (which
+      // read as "targeting nothing").
+      const ownEnemy = G.state.lanes[lane][opp];
+      const ownUncontested = !(ownEnemy && ownEnemy.currentHealth > 0);
       if (Game.isHuman(self.owner)) {
+        const msg = ownUncontested
+          ? `Choose an enemy card to strike this combat, or your own lane to strike the hero.`
+          : `Choose a lane to attack this combat. Lane ${lane + 1} = stay and fight normally.`;
         G.promptLaneChoice(self.owner, choices,
-          'Han Solo — Take the Shot',
-          `Choose a lane to attack this combat. Lane ${lane + 1} = stay and fight normally.`,
+          'Han Solo — Take the Shot', msg,
           (chosen) => {
             if (chosen !== lane) {
               self._hanRedirectLane = chosen;
@@ -3435,6 +3443,9 @@ const CARD_ABILITIES = {
             }
           },
           opp, null, self.attack);
+        if (ownUncontested && G.state.pendingLaneChoice) {
+          G.state.pendingLaneChoice.heroStrikeLane = lane;
+        }
       } else {
         redirectLanes.sort((a, b) => {
           const ea = G.state.lanes[a][opp], eb = G.state.lanes[b][opp];
