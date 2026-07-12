@@ -8217,9 +8217,11 @@ body.hit-pause .ai-hand * {
 .game-over-stats {
   margin-bottom: 22px;
   padding: 14px 18px;
-  border: 1px solid var(--tron-dim);
-  border-radius: 6px;
-  background: rgba(6,10,18,0.5);
+  /* Pure black shell — no navy fill/box. The per-row hairlines
+     (.go-stat-row border-bottom) already carry the table structure,
+     so the surrounding box is dead weight against the #000 backdrop. */
+  border: none;
+  background: transparent;
   min-width: 440px;
   text-align: left;
   font-family: 'Rajdhani', sans-serif;
@@ -13412,7 +13414,9 @@ body {
    ============================================================ */
 .md-deck-card {
   border-color: var(--theme-accent-edge) !important;
-  background: linear-gradient(180deg, var(--theme-wash-05) 0%, rgba(0,0,0,0) 45%), #060a12 !important;
+  /* Pure #000 — the neon border + glow carry the color, per the panel law.
+     Was a #060a12 navy + 5% theme-wash, the last navy fill in the shell. */
+  background: #000 !important;
   box-shadow: 0 0 10px var(--theme-glow-inner), inset 0 0 0 1px var(--theme-wash-08) !important;
 }
 .md-deck-card:hover {
@@ -17057,8 +17061,10 @@ body.phase-menu .kb-hints { display: none; }
   color: color-mix(in srgb, var(--theme-accent) 20%, #9db5c9) !important;
 }
 .game-over-stats {
-  border-color: var(--theme-accent-dim) !important;
-  background: linear-gradient(180deg, var(--theme-wash-05) 0%, rgba(0,0,0,0) 40%), rgba(6,10,18,0.5) !important;
+  /* Pure black — the surrounding game-over-content is already #000 and the
+     per-row hairlines carry the table structure, so this stats box needs no
+     navy fill/wash of its own (was rgba(6,10,18,0.5) + a theme wash). */
+  background: transparent !important;
 }
 
 /* ============================================================
@@ -25970,16 +25976,19 @@ body > .scanline-overlay {
 .encyc-panel,
 .settings-panel,
 .stats-panel,
-.match-history-panel,
-.my-decks-panel,
-.deckbuilder-panel,
-.multiplayer-panel,
+.mh-panel,
+.mp-panel,
+.db-panel,
 .tutorial-panel,
 .mode-panel,
 .md-panel,
 .rl-panel {
   /* Solid black interior — no tint wash (user: backgrounds are ALWAYS black;
-     the neon border ring + text supply the color/contrast). */
+     the neon border ring + text supply the color/contrast). The live panel
+     classes are .mh-panel/.mp-panel/.db-panel/.md-panel — the old
+     .match-history-panel/.my-decks-panel/.deckbuilder-panel/.multiplayer-panel
+     names carried this !important black but no element ever had them, so the
+     real panels fell through to a 5% theme-wash. */
   background: #000 !important;
   border: 1px solid var(--theme-accent-edge, rgba(79,195,247,0.55)) !important;
   border-radius: 4px !important;
@@ -27721,39 +27730,16 @@ body.turn-player .hud-phase {
    Each block is gated to play nice with `prefers-reduced-motion`.
    ============================================================ */
 
-/* ---- #10 CRT scanline overlay (always-on, faint) ----
-   2px repeating-gradient drawn on html::before so it sits above
-   every layer including modals. mix-blend-mode: overlay so it
-   composites with content rather than dimming it. Opacity ~5%
-   at idle, intensifies via .crt-burst class for one-shot beats
-   (card death, big damage, phase wipes). pointer-events: none. */
-html::before {
-  content: "";
-  position: fixed;
-  inset: 0;
-  z-index: 99996;
-  pointer-events: none;
-  background:
-    repeating-linear-gradient(
-      0deg,
-      rgba(255,255,255,0.045) 0 1px,
-      transparent 1px 3px);
-  mix-blend-mode: overlay;
-  opacity: 1;
-  transition: opacity 0.4s ease;
-}
-@media (prefers-reduced-motion: reduce) {
-  html::before { display: none; }
-}
-/* Card-death burst — bumps scanline opacity briefly. The
-   burst class is added to body by ui.js _onCardDeath hook
-   when wired; pure CSS for now — animates from 1 to ~3 to 1. */
-@keyframes crtBurst {
-  0%, 100% { opacity: 1; }
-  20%      { opacity: 3; }
-  60%      { opacity: 1.6; }
-}
-body.crt-burst::before { animation: crtBurst 380ms ease-out; }
+/* ---- #10 CRT scanline overlay — REMOVED (was an always-on law break) ----
+   This used to draw a 2px scanline on html::before at z-index 99996 —
+   ABOVE every modal and every "pure #000" panel — with opacity:1 at all
+   times, so the Settings → CRT toggle was a lie (it only ever controlled
+   the separate `body.crt-on::before` layer below). Per the pure-black law,
+   scanlines are OFF by default; the sole scanline layer is now the opt-in
+   `body.crt-on::before` (z 9997, below modals) up above. The old `.crt-burst`
+   beat was also dead: nothing in JS ever added the class, it targeted the
+   wrong pseudo-element (body::before, not html::before), and its 1→3→1
+   opacity keyframes clamped to a no-op. All removed as dead weight. */
 
 /* ---- #5 HUD pill broadcast scanline — REMOVED ----
    Earlier draft added a sweeping 1px line on .hud-pill-main /

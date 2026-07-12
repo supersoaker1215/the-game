@@ -394,9 +394,11 @@ const AI = {
         const fn = actions[i++];
         try { fn(); } catch (e) { console.error(e); }
         if (typeof UI !== 'undefined' && UI.render) UI.render();
-        // Phase B — post-play hold for animations to settle.
-        // Wait for any when-played SFX to finish before the next card.
-        const sfxEndsAt = (typeof UI !== 'undefined' && UI.sfx && UI.sfx._playCardSfxEndsAt) || 0;
+        // Phase B — post-play hold for animations to settle. Space the next
+        // card off the SHORT play-to-play stagger (≤1.4s), not the full SFX
+        // length — the cue keeps playing under the next play, so a long unique
+        // bite no longer forces a ~5s wait between AI cards even on 'fast'.
+        const sfxEndsAt = (typeof UI !== 'undefined' && UI.sfx && UI.sfx._playStaggerUntil) || 0;
         const sfxRemaining = Math.max(0, sfxEndsAt - Date.now());
         const stepDelay = Math.max(postDelay, sfxRemaining + 80);
         if (stepDelay > 0) {

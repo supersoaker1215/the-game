@@ -3033,7 +3033,12 @@ const UI = {
         opts.maxDur = opts.maxDur ?? 1.5;          // death — keep tight for chains
         opts.category = 'death';
       }
-      return this._playSample(resolved.src, opts);
+      const _sampleEl = this._playSample(resolved.src, opts);
+      // Stash the registry-capped length on the element so callers can
+      // size stagger windows off the REAL clip cap instead of the raw
+      // element.duration (which is NaN until metadata loads on first play).
+      if (_sampleEl && opts.maxDur != null) _sampleEl._sfxMaxDur = opts.maxDur;
+      return _sampleEl;
     },
     // Extract a numeric cost from a possible card instance or number
     // passed to playCardSfx as the 3rd arg. Used by ability priority.
@@ -3802,11 +3807,20 @@ const UI = {
           // Track when the play SFX ends so the AI queue and player click
           // handler can stagger the next card play until the audio finishes.
           if (_playSfxEl) {
-            const _sfxMaxDur = 5.0;
+            // FULL-SFX end — read ONLY by the hover lockout below so a hover
+            // theme can't resume on top of a still-playing play cue. Size it
+            // off the registry's capped length (not a flat 5s when .duration
+            // is still NaN on the clip's first play).
+            const _sfxCap = _playSfxEl._sfxMaxDur || 5.0;
             const _sfxDur = (!isNaN(_playSfxEl.duration) && _playSfxEl.duration > 0)
-              ? Math.min(_playSfxEl.duration, _sfxMaxDur)
-              : _sfxMaxDur;
+              ? Math.min(_playSfxEl.duration, _sfxCap)
+              : _sfxCap;
             this.sfx._playCardSfxEndsAt = Date.now() + _sfxDur * 1000;
+            // PLAY-TO-PLAY stagger — a SHORT gate (read by the player's play
+            // action + the AI queue) that stops two card cues firing on the
+            // same beat WITHOUT freezing the hand for the full clip. The audio
+            // keeps playing underneath (ducked); only the next PLAY waits.
+            this.sfx._playStaggerUntil = Date.now() + Math.min(_sfxDur, 1.4) * 1000;
           }
           // POST-PLAY HOVER LOCKOUT — when the user clicks a lane to
           // place a card, the cursor naturally lands on the freshly-
@@ -10090,6 +10104,7 @@ const UI = {
   },
   _mpLeaveRoom() {
     if (typeof Multiplayer !== 'undefined') Multiplayer.leave();
+    if (typeof Game !== 'undefined' && Game.resetMultiplayer) Game.resetMultiplayer();
     this._mpState = { tab: 'create', code: null, status: 'idle', you: null, opponent: null };
     this._mpRender();
   },
@@ -16701,17 +16716,40 @@ const UI = {
     return s.phase === 'player-tricks' || s.phase === 'player-cards-tricks';
   },
 
+  // True when a card cue is still mid-beat and a NEW play should wait a
+  // moment. When it blocks, it shakes the card so the tap is acknowledged
+  // instead of vanishing (the old blanket guard just bare-returned). The
+  // window is short (≤1.4s) so the hand never feels frozen.
+  _playStaggerBlocked(card) {
+    if (!this.sfx || !this.sfx._playStaggerUntil || Date.now() >= this.sfx._playStaggerUntil) return false;
+    const cardEl = card && document.querySelector(`.player-hand-section .card[data-card-id="${card.id}"]`);
+    if (cardEl) {
+      cardEl.classList.remove('card-shake-rejected');
+      void cardEl.offsetWidth;
+      cardEl.classList.add('card-shake-rejected');
+      setTimeout(() => cardEl && cardEl.classList.remove('card-shake-rejected'), 480);
+    }
+    if (this._haptic) this._haptic('block');
+    return true;
+  },
   onCardClick(card) {
     const s = Game.state;
     if (!this.canPlayerPlayCards(s)) return;
-    // Stagger: block new card plays while a when-played SFX is still running
-    if (this.sfx && this.sfx._playCardSfxEndsAt && Date.now() < this.sfx._playCardSfxEndsAt) return;
+    // NOTE: selection / inspection is ALWAYS allowed — the play-SFX stagger
+    // only gates the actual PLAY action (discard-effect below + onLaneClick),
+    // never picking a card up to read it. A too-broad guard here made the
+    // whole hand go dead to taps for seconds after any card with a play cue.
     // In trick phase, only allow trickPhasePlayable cards unless Red Skull passive is active
     if (s.phase === 'player-tricks' && !card.trickPhasePlayable &&
         !Game.getAllCardsOf('player').some(c => c.passive === 'allowCardsInTricksPhase')) {
       return;
     }
-    if (card.isDiscardEffect) { Game.playCard('player', card, 0); this.render(); return; }
+    if (card.isDiscardEffect) {
+      // Discard-effect cards play the instant they're clicked — gate this
+      // real play on the short stagger, and shake (never silently swallow).
+      if (this._playStaggerBlocked(card)) return;
+      Game.playCard('player', card, 0); this.render(); return;
+    }
     // Can't-afford feedback — shake the energy orb + pop a toast when
     // the player tries to select a card they don't have energy for.
     // Still allows selection (so they can see details) but signals it
@@ -17110,6 +17148,10 @@ const UI = {
   onLaneClick(i) {
     const s = Game.state;
     if (!this.canPlayerPlayCards(s) || !s.selectedCard) return;
+    // Short play-to-play stagger — if a card cue is mid-beat, don't stack a
+    // second play on top of it. Shake the selected card so the tap is never
+    // silently eaten (the card stays selected so a re-tap lands moments later).
+    if (this._playStaggerBlocked(s.selectedCard)) return;
     // A forwarded guest play is in flight — wait for the host's state before
     // allowing another placement (prevents a double-send racing into an
     // already-occupied lane). 4s fallback in case a broadcast never arrives.

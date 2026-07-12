@@ -343,6 +343,14 @@ const Game = {
           // (We don't trust the guest to tell us what phase is
           // active — host is authoritative on state.)
           const ph = this.state && this.state.phase;
+          // Only honor a Done from the seat whose phase is actually active.
+          // The guest's Done button stays clickable for a full round-trip, so
+          // a double-tap would otherwise land in the NEXT phase (the host's own
+          // turn) and end it — silently skipping the host's cards/tricks turn.
+          const _seatPhases = actor === 'ai'
+            ? ['ai-cards', 'ai-cards-tricks', 'ai-tricks']
+            : ['player-cards', 'player-cards-tricks', 'player-tricks'];
+          if (!_seatPhases.includes(ph)) break;
           if (ph === 'player-cards' || ph === 'ai-cards') {
             if (this.endPhase1) this.endPhase1();
           } else if (ph === 'player-cards-tricks' || ph === 'ai-cards-tricks') {
@@ -383,6 +391,10 @@ const Game = {
           if (msg.choiceType === 'card') {
             const cc = this.state.pendingCardChoice;
             if (!cc) break;
+            // The prompt must belong to the actor's seat. A stale guest resolve
+            // (prompt already closed, or a host-owned prompt now pending) must
+            // not consume a prompt it doesn't own with a wrong index.
+            if (cc.owner !== actor) break;
             const idx = msg.idx;
             if (idx == null || !cc.cards[idx]) break;
             this._clearPromptTimeout();
@@ -393,6 +405,7 @@ const Game = {
           } else if (msg.choiceType === 'lane') {
             const lc = this.state.pendingLaneChoice;
             if (!lc) break;
+            if (lc.owner !== actor) break;
             // Validate the guest's lane index against the ALLOWED set before
             // invoking the callback — mirrors the card branch's !cc.cards[idx]
             // guard. The host is authoritative for guest choices, so a
@@ -755,7 +768,15 @@ const Game = {
   // Light helpers that just flip phase + clear transient state, so the
   // render router can route to the right overlay. Everything else
   // (styling, content) lives in UI.render* methods.
+  // Clear multiplayer seat state on any return to a non-MP context. Without
+  // this, mp.role stays 'host'/'guest' after a match, so every later SOLO
+  // playCard/endPhase hits the host/guest guards and posts actions into a
+  // dead transport — cards never land and the AI never moves until reload.
+  resetMultiplayer() {
+    this.mp = { role: null, you: null, opp: null };
+  },
   goToMainMenu() {
+    this.resetMultiplayer();
     this.state.phase = 'main-menu';
     this.state.mode = null;
     this.state.deckbuilder = null;
@@ -5436,7 +5457,17 @@ const Game = {
     // "amount that would have hit the original target." We credit the
     // taunter via _creditAbsorb('Redirect', ...) so the dashboard can
     // distinguish redirect from direct armor blocks.
-    const taunter = this.getAllCardsOf(card.owner).find(c => c.tauntTurns > 0 && c.currentHealth > 0 && c.id !== card.id);
+    // Only ENEMY-originated damage gets redirected to a friendly taunter.
+    // Self-inflicted burn (dealDamage(self, 1, null)), friendly abilities,
+    // and friendly tricks must bypass taunt so they can still affect/kill
+    // your own cards — otherwise a permanent taunter (e.g. Obi-Wan) makes
+    // burning cards literally unkillable and Boiler Room's onDeath never fires.
+    const _dmgFromEnemy = source
+      ? (source.owner !== card.owner)
+      : (this.state._trickOwner != null && this.state._trickOwner !== card.owner);
+    const taunter = _dmgFromEnemy
+      ? this.getAllCardsOf(card.owner).find(c => c.tauntTurns > 0 && c.currentHealth > 0 && c.id !== card.id)
+      : null;
     if (taunter) {
       this.log(`  [TAUNT] ${taunter.name} intercepts damage meant for ${card.name}!`);
       card = taunter;
