@@ -2334,6 +2334,9 @@ body.hit-pause .ai-hand * {
 .mm-mw3 .mp-name-min-row {
   display: flex; align-items: baseline; gap: 10px;
   margin: 2px 0 16px; padding-left: 2px;
+  /* Cap the underline to the menu-column width so it never bleeds right
+     into the hero art (matches the seam line). */
+  max-width: 230px;
 }
 .mm-mw3 .mp-name-min-label {
   font-family: 'Rajdhani', sans-serif; text-transform: uppercase;
@@ -2391,6 +2394,87 @@ body.hit-pause .ai-hand * {
 .mm-mw3 .mp-transport-min a { color: color-mix(in srgb, rgb(var(--theme-rgb,79,195,247)) 55%, #dcebf8); text-decoration: none; border-bottom: 1px dotted rgba(var(--theme-rgb,79,195,247),0.4); cursor: pointer; }
 .mm-mw3 .mp-transport-min a:hover { color: #fff; }
 .mm-mw3 .mp-transport-min.mp-transport-warn { color: #ffb86b; border: none; }
+
+/* ---- Online 2v2 lobby — restyled to the main-menu language (boxless
+        glow-text, left-aligned, pure #000) instead of a centered boxed panel. */
+.twov2-mm {
+  position: absolute; inset: 0; overflow-y: auto;
+  padding: 52px 56px; box-sizing: border-box;
+  background: #000; text-align: left; font-family: 'Rajdhani', sans-serif;
+}
+.twov2-mm-back {
+  display: block; background: none; border: none; cursor: pointer;
+  padding: 0; margin: 0 0 24px;
+  font-family: 'Rajdhani', sans-serif; text-transform: uppercase;
+  font-size: 12px; font-weight: 700; letter-spacing: 3px;
+  color: color-mix(in srgb, rgb(var(--theme-rgb,79,195,247)) 70%, #dcebf8);
+  transition: color 0.2s, transform 0.14s;
+}
+.twov2-mm-back:hover { color: #fff; transform: translateX(-3px); text-shadow: 0 0 10px rgba(var(--theme-rgb,79,195,247),0.8); }
+.twov2-mm-title {
+  font-family: 'Orbitron','Rajdhani',sans-serif; font-weight: 800; margin: 0 0 20px;
+  font-size: clamp(28px, 4vw, 54px); letter-spacing: 0.14em; text-transform: uppercase;
+  color: #eaf4fb; text-shadow: 0 0 18px rgba(var(--theme-rgb,79,195,247),0.6);
+}
+.twov2-mm-label {
+  font-size: 12px; font-weight: 700; letter-spacing: 4px; text-transform: uppercase;
+  color: rgb(var(--theme-rgb,79,195,247));
+  border-left: 3px solid rgb(var(--theme-rgb,79,195,247)); padding-left: 10px; margin-bottom: 4px;
+}
+.twov2-mm-sub {
+  font-size: 12px; letter-spacing: 1.5px; text-transform: uppercase;
+  color: color-mix(in srgb, rgb(var(--theme-rgb,79,195,247)) 45%, #dcebf8); margin: 6px 0 18px;
+}
+.twov2-mm-namerow { display: flex; align-items: baseline; gap: 10px; max-width: 320px; margin: 4px 0 20px; }
+.twov2-mm-namelabel { font-size: 10px; font-weight: 700; letter-spacing: 3px; text-transform: uppercase; color: color-mix(in srgb, rgb(var(--theme-rgb,79,195,247)) 55%, #dcebf8); }
+.twov2-mm .twov2-mm-nameinput {
+  flex: 1; min-width: 0; background: transparent; border: none;
+  border-bottom: 1px solid rgba(var(--theme-rgb,79,195,247),0.35);
+  color: #eaf4fb; font-family: 'Rajdhani', sans-serif; font-size: 16px; font-weight: 600;
+  padding: 3px 2px; outline: none; transition: border-color 0.2s;
+}
+.twov2-mm .twov2-mm-nameinput:focus { border-bottom-color: rgb(var(--theme-rgb,79,195,247)); }
+.twov2-mm .twov2-mm-nameinput::placeholder { color: rgba(159,207,237,0.35); }
+.twov2-mm-opt {
+  display: flex; align-items: center; gap: 14px; background: none; border: none; cursor: pointer;
+  padding: 9px 2px; margin: 6px 0; font-family: 'Rajdhani', sans-serif; text-transform: uppercase;
+  font-size: 20px; font-weight: 700; letter-spacing: 3px;
+  color: color-mix(in srgb, rgb(var(--theme-rgb,79,195,247)) 72%, #dcebf8);
+  text-shadow: 0 0 8px rgba(var(--theme-rgb,79,195,247),0.35);
+  transition: transform 0.14s, color 0.2s, text-shadow 0.2s;
+}
+.twov2-mm-opt:hover { color: #fff; transform: scale(1.06); transform-origin: left center; text-shadow: 0 0 14px rgba(var(--theme-rgb,79,195,247),0.9), 0 0 26px rgba(var(--theme-rgb,79,195,247),0.5); }
+.twov2-mm-ic { font-size: 15px; opacity: 0.85; }
+.twov2-mm-optsub { font-size: 12px; letter-spacing: 2px; opacity: 0.5; }
+.twov2-mm-joinrow { display: flex; align-items: center; gap: 18px; margin: 8px 0; padding-left: 32px; }
+.twov2-mm .twov2-mm-code {
+  width: 120px; background: transparent; border: none;
+  border-bottom: 1px solid rgba(var(--theme-rgb,79,195,247),0.45);
+  color: #eaf4fb; font-family: 'Rajdhani', sans-serif; font-size: 24px; font-weight: 700;
+  letter-spacing: 6px; text-align: center; text-transform: uppercase; padding: 2px 0; outline: none;
+}
+.twov2-mm .twov2-mm-code:focus { border-bottom-color: rgb(var(--theme-rgb,79,195,247)); }
+.twov2-mm .twov2-mm-code::placeholder { color: rgba(159,207,237,0.3); }
+.twov2-mm-go {
+  background: none; border: none; cursor: pointer; font-family: 'Rajdhani', sans-serif;
+  text-transform: uppercase; font-size: 15px; font-weight: 700; letter-spacing: 3px;
+  color: color-mix(in srgb, rgb(var(--theme-rgb,79,195,247)) 72%, #dcebf8);
+  text-shadow: 0 0 6px rgba(var(--theme-rgb,79,195,247),0.35);
+  transition: transform 0.14s, color 0.2s, text-shadow 0.2s;
+}
+.twov2-mm-go:hover { color: #fff; transform: scale(1.08); text-shadow: 0 0 12px rgba(var(--theme-rgb,79,195,247),0.9); }
+.twov2-mm-codebig {
+  font-family: 'Rajdhani', sans-serif; font-size: 42px; font-weight: 800; letter-spacing: 12px;
+  color: rgb(var(--theme-rgb,79,195,247)); text-shadow: 0 0 18px rgba(var(--theme-rgb,79,195,247),0.7);
+  margin: 10px 0 2px; cursor: pointer;
+}
+.twov2-mm-players { margin: 16px 0 20px; max-width: 440px; display: flex; flex-direction: column; gap: 6px; }
+.twov2-mm-prow { display: flex; align-items: center; gap: 14px; padding: 9px 2px; border-bottom: 1px solid rgba(var(--theme-rgb,79,195,247),0.12); opacity: 0.45; transition: opacity 0.25s; }
+.twov2-mm-prow.is-joined { opacity: 1; }
+.twov2-mm-pslot { font-weight: 800; letter-spacing: 2px; color: rgb(var(--theme-rgb,79,195,247)); min-width: 30px; }
+.twov2-mm-pname { flex: 1; color: #eaf4fb; font-size: 16px; font-weight: 600; }
+.twov2-mm-pteam { font-size: 11px; letter-spacing: 2px; text-transform: uppercase; color: rgba(159,207,237,0.5); }
+.twov2-mm-pcheck { color: #6ee7a8; font-weight: 700; }
 /* PORTRAIT — keep the same left-list / seam / right-hero structure as desktop
    (matching the reference), just with the hero full-bleed behind and the seam
    pushed right so the list clears it. */

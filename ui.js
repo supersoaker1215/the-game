@@ -7507,68 +7507,56 @@ const UI = {
       ? `<div class="setup2v2-error">${this._2v2OnlineError}</div>` : '';
 
     if (!tt || !tt.you) {
-      // Pre-join screen — enter name and room code
+      // Pre-join — enter name + create/join, in the main-menu style
+      // (boxless glow-text, left-aligned, pure black). Same input IDs +
+      // handlers as before so twov2OnlineCreate/Join keep working.
       el.innerHTML = `
-        <div class="mode-panel setup2v2-panel">
-          <button type="button" class="mode-back" onclick="Game.goToModeSelect()">← Back</button>
-          <div class="setup2v2-title">Online 2v2</div>
-          <div class="setup2v2-subtitle">4 players · 2 teams · 8 lanes · internet play</div>
+        <div class="twov2-mm">
+          <button type="button" class="twov2-mm-back" onclick="Game.goToModeSelect()">&larr; Menu</button>
+          <h1 class="twov2-mm-title">the game</h1>
+          <div class="twov2-mm-label">Online 2v2</div>
+          <div class="twov2-mm-sub">4 players · 2 teams · 8 lanes</div>
           ${errorHtml}
-          <div class="setup2v2-online-form">
-            <label class="setup2v2-label">Your Name</label>
-            <input class="setup2v2-input" id="2v2-online-name" type="text"
-                   maxlength="18" placeholder="Enter your name" autocomplete="off" />
-            <div class="setup2v2-actions" style="margin-top:12px">
-              <button type="button" class="setup2v2-btn setup2v2-btn-pri" onclick="twov2OnlineCreate()">
-                Create Room (Host)
-              </button>
-            </div>
-            <div class="setup2v2-online-divider">— or join a room —</div>
-            <label class="setup2v2-label">Room Code</label>
-            <div class="setup2v2-online-join-row">
-              <input class="setup2v2-input setup2v2-input-code" id="2v2-online-code" type="text"
-                     maxlength="4" placeholder="XXXX" style="text-transform:uppercase;letter-spacing:4px;text-align:center" autocomplete="off" />
-              <button type="button" class="setup2v2-btn" onclick="twov2OnlineJoin()">Join →</button>
-            </div>
+          <div class="twov2-mm-namerow">
+            <label class="twov2-mm-namelabel" for="2v2-online-name">Name</label>
+            <input class="twov2-mm-nameinput" id="2v2-online-name" type="text" maxlength="18" placeholder="Your name" autocomplete="off" />
+          </div>
+          <button type="button" class="twov2-mm-opt" onclick="twov2OnlineCreate()"><span class="twov2-mm-ic">&#9655;</span>Create Room <span class="twov2-mm-optsub">host</span></button>
+          <div class="twov2-mm-joinrow">
+            <input class="twov2-mm-code" id="2v2-online-code" type="text" maxlength="4" placeholder="XXXX" autocomplete="off" oninput="this.value=this.value.toUpperCase()" />
+            <button type="button" class="twov2-mm-go" onclick="twov2OnlineJoin()">Join &rarr;</button>
           </div>
         </div>`;
       return;
     }
 
-    // Waiting room — show room code and player list
+    // Waiting room — room code + player list, in the main-menu style.
     const playerRows = ['p1','p2','p3','p4'].map(pk => {
       const hasJoined = joined[pk];
       const name = hasJoined ? players[pk].name : (pk === 'p1' ? '(Host)' : 'Waiting…');
-      const teamLabel = pk === 'p1' || pk === 'p2' ? 'Team A' : 'Team B';
-      const teamCls   = pk === 'p1' || pk === 'p2' ? 'setup2v2-lp-a' : 'setup2v2-lp-b';
-      return `<div class="setup2v2-lobby-player ${hasJoined ? 'setup2v2-lp-joined' : ''}">
-        <span class="setup2v2-lp-slot ${teamCls}">P${pk[1]}</span>
-        <span class="setup2v2-lp-name">${name}</span>
-        <span class="setup2v2-lp-team">${teamLabel}</span>
-        <span class="setup2v2-lp-check">${hasJoined ? '✓' : ''}</span>
+      const teamLabel = pk === 'p1' || pk === 'p2' ? 'A' : 'B';
+      return `<div class="twov2-mm-prow ${hasJoined ? 'is-joined' : ''}">
+        <span class="twov2-mm-pslot">P${pk[1]}</span>
+        <span class="twov2-mm-pname">${name}</span>
+        <span class="twov2-mm-pteam">Team ${teamLabel}</span>
+        <span class="twov2-mm-pcheck">${hasJoined ? '✓' : ''}</span>
       </div>`;
     }).join('');
 
     el.innerHTML = `
-      <div class="mode-panel setup2v2-panel">
-        <button type="button" class="mode-back" onclick="twov2OnlineLeave()">← Leave</button>
-        <div class="setup2v2-title">Online 2v2 Lobby</div>
+      <div class="twov2-mm">
+        <button type="button" class="twov2-mm-back" onclick="twov2OnlineLeave()">&larr; Leave</button>
+        <h1 class="twov2-mm-title">the game</h1>
+        <div class="twov2-mm-label">Online 2v2 · Lobby</div>
         ${isHost
-          ? `<div class="setup2v2-room-code-wrap">
-               <div class="setup2v2-room-code-label">Room Code</div>
-               <div class="setup2v2-room-code">${code}</div>
-               <div class="setup2v2-room-code-sub">Share with your 3 teammates</div>
-             </div>`
-          : `<div class="setup2v2-subtitle">Waiting for host to start the match…</div>`}
+          ? `<div class="twov2-mm-codebig" onclick="UI._2v2CopyCode && UI._2v2CopyCode()" title="Room code">${code}</div>
+             <div class="twov2-mm-sub">Share this code with your 3 teammates</div>`
+          : `<div class="twov2-mm-sub">Waiting for host to start…</div>`}
         ${errorHtml}
-        <div class="setup2v2-lobby-players">${playerRows}</div>
+        <div class="twov2-mm-players">${playerRows}</div>
         ${isHost && joinedCount === 4
-          ? `<div class="setup2v2-actions" style="margin-top:16px">
-               <button type="button" class="setup2v2-btn setup2v2-btn-pri" onclick="twov2OnlineStart()">
-                 Start Match →
-               </button>
-             </div>`
-          : `<div class="setup2v2-lobby-wait">${joinedCount}/4 players joined</div>`}
+          ? `<button type="button" class="twov2-mm-opt" onclick="twov2OnlineStart()"><span class="twov2-mm-ic">&#9655;</span>Start Match</button>`
+          : `<div class="twov2-mm-sub">${joinedCount}/4 players joined</div>`}
       </div>`;
   },
 
