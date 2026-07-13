@@ -2307,33 +2307,21 @@ body.hit-pause .ai-hand * {
    over the menu rows. User direction: "just below the sandbox mode
    regardless and not seen at all until you scroll all the way down." */
 .mm-mw3 .mm-botbar {
-  position: static; z-index: 4; height: 42px; margin-top: 36px;
-  display: flex; align-items: center; justify-content: flex-start;
-  padding: 0; pointer-events: none;
-  /* Line hugs the menu-list column only — capped to the widest option
+  position: static; z-index: 4; margin-top: 36px;
+  padding: 8px 0 0; pointer-events: none;
+  /* Seam line hugs the menu-list column only — capped to the widest option
      (~212px) so it ends right at the list edge and never runs into the hero
-     art. The now-playing credit sits in the old brand slot at the far left. */
+     art. The hero picker sits directly below it (where the now-playing
+     credit used to). */
   max-width: 220px;
   border-top: 1px solid rgba(var(--theme-rgb,79,195,247),0.28);
   font-family: 'Rajdhani', sans-serif; text-transform: uppercase;
 }
-.mm-mw3 .mm-nowplaying {
-  font-size: 11px; font-weight: 700; letter-spacing: 2.5px;
-  color: color-mix(in srgb, rgb(var(--theme-rgb,79,195,247)) 72%, white);
-  text-shadow: 0 0 8px rgba(var(--theme-rgb,79,195,247),0.5);
-  transition: color 0.25s, text-shadow 0.25s, transform 0.12s;
-  pointer-events: auto; cursor: pointer;   /* click to advance to the next track */
-}
-.mm-mw3 .mm-nowplaying:hover {
-  color: #fff;
-  text-shadow: 0 0 12px rgba(var(--theme-rgb,79,195,247),0.95), 0 0 22px rgba(var(--theme-rgb,79,195,247),0.55);
-}
-.mm-mw3 .mm-nowplaying:active { transform: scale(0.95); }
 /* Menu-hero picker — a compact scrollable name list under the now-playing
    credit. ~3 rows visible; the rest scroll. Selecting a name sets it as your
    default menu hero (art + hover) and switches to it immediately. */
 .mm-mw3 .mm-heropick {
-  margin-top: 8px; max-width: 220px;
+  position: relative; margin-top: 0; max-width: 220px;
   max-height: 58px;                 /* ~3 rows tall */
   overflow-y: auto; pointer-events: auto;
   scrollbar-width: thin;

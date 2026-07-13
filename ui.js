@@ -625,20 +625,22 @@ const UI = {
     const names = srcs.map(s => this._menuHoverArtName(s)).filter(Boolean);
     return [...new Set(names)].sort((a, b) => a.localeCompare(b));
   },
-  // Rows for the picker: "Random" + alphabetical heroes. The current default
+  // Rows for the picker: alphabetical heroes only. The current default
   // (settings.defaultMenuHero) is marked .is-active.
   _menuHeroPickerRowsHTML() {
     const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
     const cur = this.settings.defaultMenuHero || '';
-    const row = (val, label) =>
-      `<button type="button" class="mm-heropick-row${cur === val ? ' is-active' : ''}" data-hero="${esc(val)}" role="option" aria-selected="${cur === val}" onclick="UI.selectMenuHero(this.dataset.hero)">${esc(label)}</button>`;
-    return [row('', 'Random')].concat(this._menuHeroNames().map(n => row(n, n))).join('');
+    return this._menuHeroNames().map(n =>
+      `<button type="button" class="mm-heropick-row${cur === n ? ' is-active' : ''}" data-hero="${esc(n)}" role="option" aria-selected="${cur === n}" onclick="UI.selectMenuHero(this.dataset.hero)">${esc(n)}</button>`
+    ).join('');
   },
   // Pick a menu hero: set it as the default (leads on cold entry, then the
   // rotation goes random), persist, and immediately switch the live menu art +
-  // hover track to that hero. '' = Random (clears the default).
+  // hover track to that hero. Re-selecting the current default clears it (back
+  // to fully random) — there's no separate Random row.
   selectMenuHero(name) {
     name = name || null;
+    if (name && this.settings.defaultMenuHero === name) name = null;   // toggle off → random
     this.settings.defaultMenuHero = name;
     try { localStorage.setItem(this.SETTINGS_KEY, JSON.stringify(this.settings)); } catch (e) {}
     UI._menuDefaultLed = true;   // showing it now; stopMusic re-arms for next entry
@@ -646,15 +648,17 @@ const UI = {
     if (name) {
       const src = this.sfx._srcForHeroName(name);
       if (src) {
-        if (audioOn) this.sfx.crossfadeTo(src);   // audio on → swap track (art + credit follow)
+        if (audioOn) this.sfx.crossfadeTo(src);   // audio on → swap track (art follows)
         else this._updateMenuSideArt(src);        // audio off → set the art directly
       }
     } else if (audioOn) {
-      this.sfx.skipMenuTrack();                   // Random → jump to a fresh random hero now
+      this.sfx.skipMenuTrack();                   // unpinned → jump to a fresh random hero
     }
     this._refreshHeroPicker(true);
   },
-  // Re-highlight the picker's active row after a selection (scroll it in view).
+  // Re-highlight the picker's active row after a selection and, when asked,
+  // center it in the picker's own scroll window (scrollTop math only — never
+  // scrollIntoView, which would yank the whole menu panel).
   _refreshHeroPicker(scrollToActive) {
     const picker = document.querySelector('#main-menu-overlay .mm-heropick');
     if (!picker) return;
@@ -666,7 +670,9 @@ const UI = {
       r.setAttribute('aria-selected', on ? 'true' : 'false');
       if (on) active = r;
     });
-    if (scrollToActive && active) active.scrollIntoView({ block: 'nearest' });
+    if (scrollToActive && active) {
+      picker.scrollTop = Math.max(0, active.offsetTop - (picker.clientHeight - active.offsetHeight) / 2);
+    }
   },
   // The menu-music rotation, filtered to CHARACTER cards only (heroes/villains)
   // — drops tricks, Infinity Stones, and environments so the hero art is always
@@ -8038,12 +8044,9 @@ const UI = {
     // buildPanel (not the shell) so submenu swaps keep it.
     const botbarHTML = `
       <div class="mm-botbar">
-        <span class="mm-nowplaying" role="button" tabindex="0" title="Next track"
-              onclick="UI.sfx.nextMenuTrack()"
-              onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();UI.sfx.nextMenuTrack();}"></span>
-      </div>
-      <div class="mm-heropick" role="listbox" aria-label="Choose your menu hero">
-        ${this._menuHeroPickerRowsHTML()}
+        <div class="mm-heropick" role="listbox" aria-label="Choose your menu hero">
+          ${this._menuHeroPickerRowsHTML()}
+        </div>
       </div>`;
     const buildPanel = (sub) => {
       mmIdx = 0;   // reset so the swapped list re-staggers from the top
@@ -8126,6 +8129,8 @@ const UI = {
     if (_flowOn) {
       try { this._updateMenuSideArt(this.sfx && this.sfx._music && this.sfx._music.currentSrc); } catch (e) {}
     }
+    // Scroll the picker so the pinned hero (if any) is visible on load.
+    try { requestAnimationFrame(() => this._refreshHeroPicker(true)); } catch (e) {}
   },
 
   // In-place main-menu submenu swap. Re-renders ONLY the .mm-panel left list
