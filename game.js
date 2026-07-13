@@ -7715,17 +7715,26 @@ const Game = {
     // amount that actually landed after Armor / Evade / Invincible.
     // Mirrors live-combat dodge rule (game.js:~2596): a stunned/frozen
     // target CANNOT consume an evade charge — they can't react.
-    const applyHit = (tgt, raw, attackerBullseye) => {
+    const applyHit = (tgt, raw, attacker) => {
       if (!tgt || tgt.currentHealth <= 0 || raw <= 0) return 0;
-      // Same shared absorb policy as the live resolver — bullseye bypasses
-      // evade, so it folds into canEvade. Invincible/Immunity absorb for free
-      // (no charge spent); evade consumes a charge. Either way the hit is 0.
-      const canEvade = !tgt.isStunned && !tgt.isFrozen && !attackerBullseye;
+      // Mirror the live resolver's absorb policy (applyCombatDamage):
+      // Invincible/Immunity absorb for free; Evade consumes a charge. A
+      // stunned/frozen target can't dodge, and only an ignoresEvade attacker
+      // (Jaws) pierces Evade — Bullseye does NOT (it only bypasses the block
+      // meter on face hits).
+      const canEvade = !tgt.isStunned && !tgt.isFrozen && !(attacker && attacker.ignoresEvade);
       const absorb = this._classifyAbsorb(tgt, canEvade);
       if (absorb) { if (absorb === 'evade') tgt.evadeCharges--; return 0; }
       let dmg = raw;
+      // Yoda shield — target's side takes half combat damage (rounded up).
       if (this.state._yodaShieldFor && this.state._yodaShieldFor[tgt.owner] > 0) dmg = Math.ceil(dmg / 2);
-      const landed = Math.max(0, dmg - tgt.armorValue);
+      // Palpatine passive — a frozen target takes DOUBLE damage when the
+      // attacker's side fields an active doubleFrozenDamage card.
+      if (tgt.isFrozen && attacker && this.getAllCardsOf(attacker.owner).some(
+            c => c.passive === 'doubleFrozenDamage' && c.currentHealth > 0)) {
+        dmg *= 2;
+      }
+      const landed = (attacker && attacker.ignoresArmor) ? Math.max(0, dmg) : Math.max(0, dmg - tgt.armorValue);
       tgt.currentHealth -= landed;
       return landed;
     };
@@ -7744,8 +7753,6 @@ const Game = {
     const aAtk = aCanSwing ? a.attack : 0;
     const pSplash = pCanSwing ? p.splashRange : 0;
     const aSplash = aCanSwing ? a.splashRange : 0;
-    const pBullseye = !!(p && p.isBullseye);
-    const aBullseye = !!(a && a.isBullseye);
 
     // Step 0 (PRE-SPLASH from LEFT adjacent): real combat resolves
     // lanes left-to-right, so the splash from idx-1's stepFinish lands
@@ -7765,14 +7772,14 @@ const Game = {
         const e = leftAdj.ai;
         if (e && e.currentHealth > 0 && (e.splashRange | 0) > 0
             && !e.isStunned && !e.isFrozen && !e.isFeared && !e.isMindControlled) {
-          pDmgIn += applyHit(p, e.splashRange | 0, !!e.isBullseye);
+          pDmgIn += applyHit(p, e.splashRange | 0, e);
         }
       }
       if (a) {
         const e = leftAdj.player;
         if (e && e.currentHealth > 0 && (e.splashRange | 0) > 0
             && !e.isStunned && !e.isFrozen && !e.isFeared && !e.isMindControlled) {
-          aDmgIn += applyHit(a, e.splashRange | 0, !!e.isBullseye);
+          aDmgIn += applyHit(a, e.splashRange | 0, e);
         }
       }
     }
@@ -7786,8 +7793,8 @@ const Game = {
     // — real combat skips contested-lane resolution when one side is
     // already dead before the lane starts.
     if (p && a && p.currentHealth > 0 && a.currentHealth > 0) {
-      pDmgIn += applyHit(p, aAtk, aBullseye);   // AI's swing damages player
-      aDmgIn += applyHit(a, pAtk, pBullseye);   // Player's swing damages AI
+      pDmgIn += applyHit(p, aAtk, a);   // AI's swing damages player
+      aDmgIn += applyHit(a, pAtk, p);   // Player's swing damages AI
     }
 
     // Step 2: own-lane splash from each side (splash also lands on the
@@ -7796,8 +7803,8 @@ const Game = {
     // no splash). The pre-step pre-emptively zeroes pSplash/aSplash
     // for status-locked cards already, but not for "killed by left-adj
     // splash" — hence the explicit alive-gate via the swing condition.
-    if (p && p.currentHealth > 0 && pSplash > 0 && a) { aDmgIn += applyHit(a, pSplash, pBullseye); }
-    if (a && a.currentHealth > 0 && aSplash > 0 && p) { pDmgIn += applyHit(p, aSplash, aBullseye); }
+    if (p && p.currentHealth > 0 && pSplash > 0 && a) { aDmgIn += applyHit(a, pSplash, p); }
+    if (a && a.currentHealth > 0 && aSplash > 0 && p) { pDmgIn += applyHit(p, aSplash, a); }
 
     // Step 3 (POST-SPLASH from RIGHT adjacent): idx+1's lane resolves
     // AFTER this lane, so its splash lands AFTER this lane's outcome
@@ -7809,14 +7816,14 @@ const Game = {
         const e = rightAdj.ai;
         if (e && e.currentHealth > 0 && (e.splashRange | 0) > 0
             && !e.isStunned && !e.isFrozen && !e.isFeared && !e.isMindControlled) {
-          pDmgIn += applyHit(p, e.splashRange | 0, !!e.isBullseye);
+          pDmgIn += applyHit(p, e.splashRange | 0, e);
         }
       }
       if (a) {
         const e = rightAdj.player;
         if (e && e.currentHealth > 0 && (e.splashRange | 0) > 0
             && !e.isStunned && !e.isFrozen && !e.isFeared && !e.isMindControlled) {
-          aDmgIn += applyHit(a, e.splashRange | 0, !!e.isBullseye);
+          aDmgIn += applyHit(a, e.splashRange | 0, e);
         }
       }
     }

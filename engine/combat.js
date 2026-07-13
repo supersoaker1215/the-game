@@ -115,6 +115,11 @@ const CombatEngine = {
       isFeared:  !!c.isFeared,
       isMindControlled: !!c.isMindControlled,
       isBullseye: !!c.isBullseye,
+      // Jaws-style pierce flags — the predictor needs these to mirror the
+      // live evade/armor gates (Bullseye does NOT pierce card Evade; only
+      // ignoresEvade does. ignoresArmor skips armor reduction).
+      ignoresEvade: !!c.ignoresEvade,
+      ignoresArmor: !!c.ignoresArmor,
       owner: c.owner,
     } : null;
   },

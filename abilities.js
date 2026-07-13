@@ -2162,6 +2162,12 @@ const CARD_ABILITIES = {
       const opp = G.opponent(self.owner);
       const target = G.state.lanes[myLane][opp];
       if (!target || target.currentHealth <= 0) return;
+      // ...and only if that swing actually CONNECTS. If the front target
+      // Evades / is Invincible / Damage-Immune, Wonder Woman's whole strike
+      // (lasso included) whiffs. (User: "WW attacks Spider-Man, he evades,
+      // she can't chain.") Armor doesn't block the chain — the hit still lands.
+      const canDodge = !target.isStunned && !target.isFrozen && !self.ignoresEvade;
+      if (G._classifyAbsorb(target, canDodge)) return;
       // Roguelite Text+ ("Lasso of Truth") — _wwChainAllAdj fires the
       // chain at BOTH adjacent enemies simultaneously (no direction
       // prompt). Classic path keeps the single-direction chain so the
