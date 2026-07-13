@@ -2818,10 +2818,11 @@ const Game = {
   },
 
   // ---- Time Stone helpers ----
+  // Time Stone was reworked into a proactive "draw a card" trick — the
+  // reactive counter is retired. Returning false disables the intercept path
+  // (pendingTimeStoneIntercept / timeStoneCounter) so it never fires.
   _playerHasTimeStone() {
-    return !!(this.state.player && this.state.player.trickHand
-      && this.state.player.trickHand.find(t => t && t.name === 'Time Stone'
-          && t._timeStonedAtRound !== this.state.round));
+    return false;
   },
   // Predicate: does this trick negatively affect the opponent of its
   // caster? Uses an explicit `hostile` flag when set on the trick def,
@@ -5384,7 +5385,7 @@ const Game = {
     // isUntrickable (keyword) only blocks ENEMY tricks — the card's own
     // team can still affect it. Anti-Life destroying your own lane card,
     // for example, should go through even if that card is Untrickable.
-    if (target.isUntrickable) {
+    if (target.isUntrickable && !this.state._untrickableBypass) {
       if (this.state._trickOwner && this.state._trickOwner === target.owner) return false;
       this.log(`  [UNTRICKABLE] ${target.name} cannot be affected by enemy tricks!`);
       return true;

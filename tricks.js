@@ -26,49 +26,43 @@ const TRICK_DEFS = [
     }
   },
   { name: "Time Stone", cost: 0,
-    anytime: true,
-    unique: true, // Only 1 copy in the entire trick deck (honored by deck builder in game.js)
-    reactive: true, // Not played from the trick phase — only via counter-intercept
-    hostile: false, // Never triggers itself (defensive)
-    desc: "Reaction: When the enemy plays a hostile trick against your cards, negate it. The enemy's trick returns to their hand and is blocked this round. Time Stone is consumed.",
-    // `canPlay` returns false so the player can't manually click Time Stone
-    // from the tricks panel — it only ever fires via the Counter prompt
-    // (Game._playerHasTimeStone + Game.timeStoneCounter). Keeps the card in
-    // the trick hand, visible as an available reaction but not a proactive
-    // play.
-    canPlay(G, owner) { return false; },
+    desc: "Draw a card.",
+    // Reworked from the reactive counter into a simple 0-cost cantrip. The old
+    // counter machinery (pendingTimeStoneIntercept / timeStoneCounter) is left
+    // in game.js but disabled — _playerHasTimeStone() now returns false so it
+    // never triggers.
     play(G, owner) {
-      // Called if somehow invoked proactively — no-op. The real effect
-      // (consuming Time Stone + blocking enemy trick) is handled by
-      // Game.timeStoneCounter via the pendingTimeStoneIntercept prompt.
-      G.log("Time Stone waits — it only activates to counter an enemy trick.");
+      G.drawCards(owner, 1);
+      G.log("Time Stone: draw a card!");
     }
   },
   // Cost 1
   { name: "Batarangs", cost: 1,
-    desc: "Deal 2 damage 2 separate times to enemies. Untrickable enemies cannot be targeted.",
-    // Block the play if there's no trickable enemy at all — refunds the
-    // 1 energy instead of letting the player dump it for nothing. User
-    // spec: "if I play Batarang on either of these cards nothing should
-    // happen because they're untrickable — they shouldn't even be
-    // targetable." Filtering here AND in each strike's prompt makes the
-    // immunity visible at every interaction surface.
+    desc: "Deal 2 damage 2 separate times to enemies.",
+    // The Untrickable restriction was removed — Batarangs can now hit any
+    // enemy (Untrickable included). 10-cost titans stay immune (via the
+    // _trickBlocked 10-cost gate). Pool = living enemy cards under cost 10.
     canPlay(G, owner) {
-      return G.getEnemiesOf(owner).some(e => !e.isUntrickable);
+      return G.getAllCardsOf(G.opponent(owner)).some(e =>
+        e.currentHealth > 0 && !e.isEnvironment && (e.baseCost || e.cost || 0) < 10);
     },
     play(G, owner) {
-      const trickable = () => G.getEnemiesOf(owner).filter(e => !e.isUntrickable && e.currentHealth > 0);
+      const opp = G.opponent(owner);
+      const trickable = () => G.getAllCardsOf(opp).filter(e =>
+        e.currentHealth > 0 && !e.isEnvironment && (e.baseCost || e.cost || 0) < 10);
       const pickLow = cards => cards.slice().sort((a, b) => a.currentHealth - b.currentHealth)[0];
-      // Two SEPARATE 2-damage hits. Each strike is its own prompt so
-      // the player can split between two enemies (chip down two cards)
-      // OR double-tap one (force two evade-charge consumptions on a
-      // 2-evade target). Each prompt filters untrickable so the
-      // immunity is honoured at every step.
+      // Momentarily bypass the Untrickable trick-guard for THIS damage so
+      // Batarangs lands on Untrickable enemies (10-cost gate still applies).
+      const hit = (t) => {
+        G.state._untrickableBypass = true;
+        try { G.dealDamage(t, 2); } finally { G.state._untrickableBypass = false; }
+      };
+      // Two SEPARATE 2-damage hits — split between two enemies or double-tap one.
       const strike2 = () => {
         const pool = trickable();
         if (!pool.length) return;
         G.promptCardChoice(owner, pool, "Batarangs — Strike 2", "Deal 2 damage to which enemy?", (t) => {
-          G.dealDamage(t, 2);
+          hit(t);
           G.log(`Batarang strike 2: hits ${t.name} for 2!`);
         }, pickLow);
       };
@@ -76,7 +70,7 @@ const TRICK_DEFS = [
         const pool = trickable();
         if (!pool.length) return;
         G.promptCardChoice(owner, pool, "Batarangs — Strike 1", "Deal 2 damage to which enemy?", (t) => {
-          G.dealDamage(t, 2);
+          hit(t);
           G.log(`Batarang strike 1: hits ${t.name} for 2!`);
           strike2();
         }, pickLow);
@@ -295,17 +289,17 @@ const TRICK_DEFS = [
       }, cards => cards.sort((a, b) => (b.baseCost || b.cost) - (a.baseCost || a.cost))[0]);
     }
   },
-  { name: "Power Stone", cost: 2,
-    desc: "Add (+3/+0) to an ally.",
+  { name: "Power Stone", cost: 1,
+    desc: "Add (+2/+0) to an ally.",
     play(G, owner) {
       const a = G.getAlliesOf(owner);
       if (Game.isHuman(owner) && a.length) {
-        G.promptCardChoice(owner, a, "Power Stone — Empower", "Choose ally to give +3 ATK", (t) => {
-          G.buffCard(t, 3, 0); G.log(`Power Stone: ${t.name} +3 ATK!`);
+        G.promptCardChoice(owner, a, "Power Stone — Empower", "Choose ally to give +2 ATK", (t) => {
+          G.buffCard(t, 2, 0); G.log(`Power Stone: ${t.name} +2 ATK!`);
         });
       } else if (a.length) {
         const t = a.sort((x, y) => y.cost - x.cost)[0];
-        G.buffCard(t, 3, 0); G.log(`Power Stone: ${t.name} +3 ATK!`);
+        G.buffCard(t, 2, 0); G.log(`Power Stone: ${t.name} +2 ATK!`);
       }
     }
   },
@@ -333,7 +327,7 @@ const TRICK_DEFS = [
     }
   },
   // Cost 3
-  { name: "Fear Toxin", cost: 3,
+  { name: "Fear Toxin", cost: 2,
     abilities: ["Unresistible 1"],
     desc: "Fear 1 an enemy.",
     canPlay(G, owner) { return G.getEnemiesOf(owner).length > 0; },
@@ -348,7 +342,7 @@ const TRICK_DEFS = [
       }
     }
   },
-  { name: "Nth Metal", cost: 3,
+  { name: "Nth Metal", cost: 2,
     desc: "Give an ally Invincible 1.",
     play(G, owner) {
       const a = G.getAlliesOf(owner);
@@ -416,22 +410,20 @@ const TRICK_DEFS = [
       );
     }
   },
-  { name: "Pym Particles", cost: 3,
-    desc: "Shrink an enemy — permanently halve its ATK and HP (rounded down).",
+  { name: "Pym Particles", cost: 2,
+    desc: "Shrink an enemy — (-3/-3).",
     canPlay(G, owner) { return G.getEnemiesOf(owner).length > 0; },
     play(G, owner) {
       const enemies = G.getEnemiesOf(owner);
       if (!enemies.length) return;
       G.promptCardChoice(owner, enemies, "Pym Particles — Shrink", "Choose an enemy to shrink", (t) => {
-        const atkDebuff = Math.ceil(t.attack / 2);
-        const hpDebuff  = Math.ceil(t.maxHealth / 2);
-        G.debuffCard(t, atkDebuff, hpDebuff);
+        G.debuffCard(t, 3, 3);
         G.log(`Pym Particles: ${t.name} shrunk to ${t.attack}/${t.currentHealth}!`);
       }, cards => cards.sort((a, b) => (b.attack + b.maxHealth) - (a.attack + a.maxHealth))[0]);
     }
   },
   // Cost 4
-  { name: "Phantom Zone", cost: 4,
+  { name: "Phantom Zone", cost: 3,
     desc: "Return an enemy to their hand. (May exceed max hand size for 1 turn.)",
     play(G, owner) {
       const enemies = G.getEnemiesOf(owner);
@@ -458,16 +450,16 @@ const TRICK_DEFS = [
     desc: "Add 2 Energy for next turn.",
     play(G, owner) { G.addNextTurnCurrency(owner, 2); G.log("Power Battery: +2 next turn!"); }
   },
-  { name: "Soul Stone", cost: 4,
-    desc: "Destroy one of your cards and an enemy within 2 base cost of it.",
+  { name: "Soul Stone", cost: 3,
+    desc: "Destroy one of your cards and an enemy within 4 base cost of it.",
     play(G, owner) {
       const allies = G.getAlliesOf(owner);
       if (allies.length) {
         const doSoulStone = (al) => {
           const baseCostAl = al.baseCost || al.cost;
-          const enemies = G.getEnemiesOf(owner).filter(e => Math.abs((e.baseCost || e.cost) - baseCostAl) <= 2);
+          const enemies = G.getEnemiesOf(owner).filter(e => Math.abs((e.baseCost || e.cost) - baseCostAl) <= 4);
           if (enemies.length) {
-            G.promptCardChoice(owner, enemies, "Soul Stone — Destroy Enemy", `Choose enemy within 2 base cost of ${al.name} (cost ${baseCostAl})`, (en) => {
+            G.promptCardChoice(owner, enemies, "Soul Stone — Destroy Enemy", `Choose enemy within 4 base cost of ${al.name} (cost ${baseCostAl})`, (en) => {
               G.log(`Soul Stone: ${al.name} + ${en.name}!`);
               G.killCard(al); G.killCard(en);
             }, cards => cards.sort((x, y) => y.cost - x.cost)[0]);
@@ -482,7 +474,7 @@ const TRICK_DEFS = [
     }
   },
   // Cost 5
-  { name: "Anti-Life Equation", cost: 5,
+  { name: "Anti-Life Equation", cost: 4,
     desc: "Destroy both cards in a contested lane and collapse it into the void for 3 rounds. Can't target lanes holding an Invincible, Untrickable, or 10-cost card.",
     play(G, owner) {
       const opp = G.opponent(owner);
@@ -553,7 +545,7 @@ const TRICK_DEFS = [
       }
     }
   },
-  { name: "Reality Stone", cost: 5,
+  { name: "Reality Stone", cost: 4,
     desc: "Permanently swap an ally's ATK/HP with an enemy's ATK/HP.",
     play(G, owner) {
       const allies = G.getAlliesOf(owner);
@@ -595,7 +587,7 @@ const TRICK_DEFS = [
     }
   },
   // Cost 5
-  { name: "Joker's Playing Card", cost: 5,
+  { name: "Joker's Playing Card", cost: 4,
     desc: "Protect either odd or even lanes from damage this round.",
     play(G, owner) {
       if (Game.isHuman(owner)) {
