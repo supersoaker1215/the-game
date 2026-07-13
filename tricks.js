@@ -30,6 +30,9 @@ const TRICK_DEFS = [
     unique: true, // Only 1 copy in the entire trick deck (honored by deck builder in game.js)
     reactive: true, // Not played from the trick phase — only via counter-intercept
     hostile: false, // Never triggers itself (defensive)
+    // Badge only — the actual draw is fired by Game.timeStoneCounter. Tricks
+    // don't run applyAbilities on their play path, so this won't double-draw.
+    abilities: ["Draw 1"],
     desc: "Reaction: When the enemy plays a hostile trick against your cards, negate it. The enemy's trick returns to their hand and is blocked this round, and you draw a card. Time Stone is consumed.",
     // `canPlay` returns false so the player can't manually click Time Stone
     // from the tricks panel — it only ever fires via the Counter prompt
