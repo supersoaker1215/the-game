@@ -115,7 +115,7 @@ const STARTER_DECKS = {
       // Mid-cost death-trigger payoffs
       'Solomon Grundy', 'Solomon Grundy',
       'Carnage', 'Carnage',
-      'Cyborg', 'Cyborg',
+      'Ghost Rider', 'Ghost Rider',
       'Anti-Venom', 'Anti-Venom',
       'Jason Voorhees', 'Jason Voorhees',
       'Michael Myers', 'Michael Myers',

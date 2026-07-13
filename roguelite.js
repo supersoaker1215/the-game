@@ -1862,7 +1862,7 @@ const Roguelite = {
         'Hela', 'Hela',
         'Knull',
         'Davy Jones', 'Davy Jones',
-        'Cyborg', 'Cyborg',
+        'Ghost Rider', 'Ghost Rider',
         'Hulk', 'Hulk',
         'Ultron', 'Ultron',
         'Magneto',
@@ -1972,7 +1972,7 @@ const Roguelite = {
         'Ahsoka',
         'Carnage',
         'Knull',
-        'Cyborg', 'Cyborg',
+        'Ghost Rider', 'Ghost Rider',
         'Loki',
         'Hulk',
         'The Grinch',
@@ -1990,7 +1990,7 @@ const Roguelite = {
         'Magneto', 'Magneto',
         'Iron Man', 'Iron Man',
         'Ultron', 'Ultron',
-        'Cyborg', 'Cyborg',
+        'Ghost Rider', 'Ghost Rider',
         'Knull',
         'Optimus Prime', 'Optimus Prime',
         'Hawkeye',
@@ -2117,7 +2117,7 @@ const Roguelite = {
         // Cost 3-4 setup
         'Carnage', 'Deathstroke', 'Green Goblin', 'Loki', 'Moder',
         'Red Skull', 'Star-Lord', 'Symbiote Spider-Man', 'Winter Soldier',
-        'Anti-Venom', 'Black Panther', 'Cyborg', 'Jason Voorhees', 'Paul Atreides',
+        'Anti-Venom', 'Black Panther', 'Ghost Rider', 'Jason Voorhees', 'Paul Atreides',
         'Martian Manhunter', 'Optimus Prime', 'Predator', 'Raven',
         'The Grinch', 'Venom', 'Wolverine', 'Wonder Woman',
         // Cost 5-6 finishers
@@ -2158,7 +2158,7 @@ const Roguelite = {
         // Cost 4-5 utility (a little)
         'Iron Man', 'The Batman Who Laughs', 'Spider-Man', 'Predator',
         'Anti-Venom', 'Black Panther', 'Wolverine', 'Optimus Prime',
-        'Cyborg', 'Davy Jones', 'Lex Luthor', 'Captain America',
+        'Ghost Rider', 'Davy Jones', 'Lex Luthor', 'Captain America',
       ],
       deckSize: 30,
       maxCopies: 2,
@@ -2226,7 +2226,7 @@ const Roguelite = {
       // Necromancy — heavy on revives and dead-pile interactions.
       anchors: ['Hela', 'Hela', 'Solomon Grundy', 'Jason Voorhees'],
       pool: [
-        'Anti-Venom', 'Black Panther', 'Cyborg', 'Wolverine',
+        'Anti-Venom', 'Black Panther', 'Ghost Rider', 'Wolverine',
         'Martian Manhunter', 'Carnage', 'Loki', 'The Grinch',
         'Predator', 'Spider-Man', 'Optimus Prime', 'Wonder Woman',
         'Captain America', 'Davy Jones', 'Iron Man', 'Lex Luthor',
@@ -2249,7 +2249,7 @@ const Roguelite = {
       // weighted toward heavy hitters and tempo cards.
       anchors: ['Magneto', 'Magneto', 'Iron Man', 'Ultron'],
       pool: [
-        'Cyborg', 'Knull', 'Optimus Prime', 'Hawkeye', 'Hulk',
+        'Ghost Rider', 'Knull', 'Optimus Prime', 'Hawkeye', 'Hulk',
         'Spider-Man', 'Black Panther', 'Davy Jones', 'Carnage',
         'Wonder Woman', 'Lex Luthor', 'Predator', 'Wolverine',
         'Captain America', 'The Batman Who Laughs', 'Mr. Freeze',
@@ -2449,7 +2449,7 @@ const Roguelite = {
       'Magneto':       ['plus2-atk-hp'],
       'Iron Man':      ['plus1-atk-hp', 'echo'],    // double trick-phase kill
       'Ultron':        ['plus1-atk-hp'],
-      'Cyborg':        ['plus1-atk-hp'],
+      'Ghost Rider':        ['plus1-atk-hp'],
       'Knull':         ['plus1-atk-hp'],
       'Hulk':          ['plus1-hp'],
     },
@@ -2829,10 +2829,10 @@ const Roguelite = {
       descOverride: 'When Destroyed: Revive once with (+5/+5).',
       apply: c => { c.reviveCharges = (c.reviveCharges || 0) + 1; c._draxReviveBuff = 5; },
     },
-    'Cyborg': {
+    'Ghost Rider': {
       id: 'cyborg-text', name: 'Replication',
       desc: 'Choose which card to summon from your hand on death (was random).',
-      descOverride: 'When Destroyed: Choose a card from your hand to summon in Cyborg\'s lane.',
+      descOverride: 'When Destroyed: Choose a card from your hand to summon in Ghost Rider\'s lane.',
       apply: c => { c._cyborgChooseFromHand = true; },
     },
     'Jason Voorhees': {

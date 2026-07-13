@@ -64,7 +64,7 @@ window.CARD_ART_VARIANTS = {
   // ── New portraits (2026-06-15) ──
   'Joker':               ['Joker.png'],
   'Carnage':             ['Carnage.png'],
-  'Cyborg':              ['Cyborg.png'],
+  'Ghost Rider':         ['Ghost Rider.jpg'],
   'Rocket Raccoon':      ['Rocket Raccoon.png'],
   'Paul Atreides':       ['Paul Atreides.jpg'],
   'Jack Sparrow':        ['Jack Sparrow.jpg'],
@@ -92,7 +92,7 @@ window.CARD_ART_OVERRIDES = {
   focalCard: {   // "name|file" -> "X% Y%"   in-game card crop focal
     'Anakin Skywalker|Anakin Skywalker 2.png': '50% 49%',
     'Batman|Batman.png': '37% 47%',
-    'Cyborg|Cyborg.png': '50% 42%',
+    'Ghost Rider|Ghost Rider.jpg': '50% 35%',
     'Darth Maul|Darth Maul.jpg': '53% 50%',
     'Darth Vader|Darth Vader 2.png': '50% 48%',
     'Dr. Strange|Dr. Strange 2.png': '96% 50%',

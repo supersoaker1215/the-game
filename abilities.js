@@ -1512,7 +1512,7 @@ const CARD_ABILITIES = {
     },
     passive: "cardPlayedBuff"
   },
-  "Cyborg": {
+  "Ghost Rider": {
     onDeath(G, self, lane) {
       // Skip the summon if the lane itself was destroyed (Anti-Life Equation / Darkseid Collapse).
       if (G.state.lanes[lane] && G.state.lanes[lane].destroyed) return;
@@ -1540,7 +1540,7 @@ const CARD_ABILITIES = {
         const handIdx = hand.indexOf(card);
         if (handIdx >= 0) hand.splice(handIdx, 1);
         const def = (typeof CARD_DEFS !== 'undefined' && CARD_DEFS.find(d => d.name === card.name)) || card;
-        G.log(`Cyborg's last act: summoning ${card.name} from your hand!`);
+        G.log(`Ghost Rider's last act: summoning ${card.name} from your hand!`);
         G.summonCard(
           self.owner, targetLane, card.name,
           card.baseCost || card.cost,
@@ -1552,8 +1552,8 @@ const CARD_ABILITIES = {
       };
       if (self._cyborgChooseFromHand && Game.isHuman(self.owner)) {
         G.promptCardChoice(self.owner, eligible,
-          'Cyborg — Replication',
-          'Choose a card from your hand to summon in Cyborg\'s lane',
+          'Ghost Rider — Replication',
+          'Choose a card from your hand to summon in Ghost Rider\'s lane',
           summonChoice,
           cards => cards.slice().sort((a, b) => (b.baseCost || b.cost) - (a.baseCost || a.cost))[0]);
       } else {
