@@ -2329,22 +2329,37 @@ body.hit-pause .ai-hand * {
   text-shadow: 0 0 12px rgba(var(--theme-rgb,79,195,247),0.95), 0 0 22px rgba(var(--theme-rgb,79,195,247),0.55);
 }
 .mm-mw3 .mm-nowplaying:active { transform: scale(0.95); }
-/* Pin-hero star — sits just right of the now-playing credit. Outline (☆) =
-   not your default; filled (★) + glow = pinned. Tap toggles it. */
-.mm-mw3 .mm-pin-hero {
-  margin-left: 9px; font-size: 13px; line-height: 1;
+/* Menu-hero picker — a compact scrollable name list under the now-playing
+   credit. ~3 rows visible; the rest scroll. Selecting a name sets it as your
+   default menu hero (art + hover) and switches to it immediately. */
+.mm-mw3 .mm-heropick {
+  margin-top: 8px; max-width: 220px;
+  max-height: 58px;                 /* ~3 rows tall */
+  overflow-y: auto; pointer-events: auto;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(var(--theme-rgb,79,195,247),0.35) transparent;
+  overscroll-behavior: contain;
+}
+.mm-mw3 .mm-heropick::-webkit-scrollbar { width: 4px; }
+.mm-mw3 .mm-heropick::-webkit-scrollbar-track { background: transparent; }
+.mm-mw3 .mm-heropick::-webkit-scrollbar-thumb { background: rgba(var(--theme-rgb,79,195,247),0.35); border-radius: 2px; }
+.mm-mw3 .mm-heropick-row {
+  display: block; width: 100%; text-align: left;
+  background: none; border: 0; padding: 2px 0; cursor: pointer;
+  font-family: 'Rajdhani', sans-serif; text-transform: uppercase;
+  font-size: 11px; font-weight: 600; letter-spacing: 1.8px; line-height: 1.4;
   color: color-mix(in srgb, rgb(var(--theme-rgb,79,195,247)) 55%, white);
-  opacity: 0.6;
-  transition: color 0.2s, opacity 0.2s, text-shadow 0.2s, transform 0.12s;
-  pointer-events: auto; cursor: pointer;
+  opacity: 0.5; transition: opacity 0.16s, color 0.16s, text-shadow 0.16s, transform 0.1s;
 }
-.mm-mw3 .mm-pin-hero:hover { opacity: 1; color: #fff; text-shadow: 0 0 10px rgba(var(--theme-rgb,79,195,247),0.85); }
-.mm-mw3 .mm-pin-hero:active { transform: scale(0.9); }
-.mm-mw3 .mm-pin-hero.is-pinned {
-  opacity: 1;
-  color: color-mix(in srgb, rgb(var(--theme-rgb,79,195,247)) 85%, white);
-  text-shadow: 0 0 10px rgba(var(--theme-rgb,79,195,247),0.9), 0 0 18px rgba(var(--theme-rgb,79,195,247),0.5);
+.mm-mw3 .mm-heropick-row:hover {
+  opacity: 1; color: #fff; transform: translateX(2px);
+  text-shadow: 0 0 8px rgba(var(--theme-rgb,79,195,247),0.7);
 }
+.mm-mw3 .mm-heropick-row.is-active {
+  opacity: 1; color: color-mix(in srgb, rgb(var(--theme-rgb,79,195,247)) 88%, white);
+  text-shadow: 0 0 9px rgba(var(--theme-rgb,79,195,247),0.85);
+}
+.mm-mw3 .mm-heropick-row.is-active::before { content: '\25B8\00A0'; }  /* ▸ */
 /* In-shell multiplayer submenu — matches the main menu: left-aligned, boxless
    glow-text options + minimal underline fields (no popup, no segmented boxes). */
 .mm-mw3 .mp-section { max-width: 320px; }
