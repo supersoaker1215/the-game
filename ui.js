@@ -1232,7 +1232,7 @@ const UI = {
       // Replaced an earlier shorter cue per user direction "get rid
       // of the other." Play / attack / death stay on the original
       // 1.5-3 s SFX clips with their own duration caps baked in.
-      'Xenomorph':        { hover: { src: 'audio/cards/xenomorph-hover.mp3', maxDur: 62 }, play: 'audio/cards/xenomorph-play.mp3', attack: 'audio/cards/xenomorph-attack.mp3', death: 'audio/cards/xenomorph-death.mp3' },
+      'Xenomorph':        { hover: { src: 'audio/cards/xenomorph-hover.mp3?v=2', maxDur: 62 }, play: 'audio/cards/xenomorph-play.mp3', attack: 'audio/cards/xenomorph-attack.mp3', death: 'audio/cards/xenomorph-death.mp3' },
       'Predator':         { hover: 'audio/cards/predator-hover.mp3', ability: { src: 'audio/cards/predator-ability.mp3', maxDur: 3.0 } },
       'Thor':             { hover: 'audio/cards/thor-hover.mp3', attack: { src: 'audio/cards/thor-attack.mp3', maxDur: 1.5 } },
       // Lightsaber hum — Jedi only (Yoda, Obi-Wan, Ahsoka, Anakin).
@@ -2064,7 +2064,7 @@ const UI = {
       'audio/cards/winter-soldier-hover.mp3',
       'audio/cards/wolverine-hover.mp3',
       'audio/cards/wonder-woman-hover.mp3',
-      'audio/cards/xenomorph-hover.mp3',
+      'audio/cards/xenomorph-hover.mp3?v=2',
       'audio/cards/yoda-hover.mp3',
     ],
     _pickMenuTrack() {

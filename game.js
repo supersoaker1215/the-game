@@ -3300,7 +3300,10 @@ const Game = {
   // healthBarOwner = card.owner (the MC'd card hits its own side's health bar).
   // callback(target) where target is a card or null (null = hit health bar).
   getMindControlTarget(card, controller, callback) {
-    const allies = this.getAllCardsOf(card.owner).filter(c => c.id !== card.id && c.currentHealth > 0);
+    // Environments (Sewers, Open Water, Boiler Room, Gargantua pull-tiles) are
+    // a SEPARATE category and are never attackable — exclude them so a mind-
+    // controlled card can't be turned on its own side's environment.
+    const allies = this.getAllCardsOf(card.owner).filter(c => c.id !== card.id && c.currentHealth > 0 && !c.isEnvironment);
     // Check for stored target (Gorilla Grodd pre-picked — legacy path,
     // still honored in case some upstream flow sets it).
     const stored = card.mindControlTarget;
@@ -3530,8 +3533,14 @@ const Game = {
 
         this.cleanupDead();
 
-        if (pCard.isOverdrive && pCard.currentHealth > 0 && pKilled && !pCard.justResurrected) this.handleOverdrive(pCard, laneIdx);
-        if (aCard.isOverdrive && aCard.currentHealth > 0 && aKilled && !aCard.justResurrected) this.handleOverdrive(aCard, laneIdx);
+        // Overdrive's bonus attack re-targets the NORMAL lane opponent
+        // (handleOverdrive → getAttackTarget). A mind-controlled or feared
+        // card's swing is redirected to its own side, so it must NOT earn a
+        // second, clean hit on the enemy — same rationale as the splash
+        // suppression above. (Bug: MC'd Spawn killed an env, then overdrove
+        // into the enemy hero opposite and killed it.)
+        if (pCard.isOverdrive && pCard.currentHealth > 0 && pKilled && !pCard.justResurrected && !pCard.isMindControlled && !pCard.isFeared) this.handleOverdrive(pCard, laneIdx);
+        if (aCard.isOverdrive && aCard.currentHealth > 0 && aKilled && !aCard.justResurrected && !aCard.isMindControlled && !aCard.isFeared) this.handleOverdrive(aCard, laneIdx);
         if (pCard.justResurrected) pCard.justResurrected = false;
         if (aCard.justResurrected) aCard.justResurrected = false;
 

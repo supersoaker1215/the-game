@@ -3398,7 +3398,9 @@ const CARD_ABILITIES = {
     // sacrifices nothing immediately but lets a chosen ally
     // come back swinging once if it dies.
     onPlay(G, self, lane) {
-      const allies = G.getAlliesOf(self.owner).filter(a => a.id !== self.id && a.currentHealth > 0);
+      // Revive grant is capped to allies of cost <= 9 — 10-cost titans can't
+      // be handed a revive (user cap 2026-07-13).
+      const allies = G.getAlliesOf(self.owner).filter(a => a.id !== self.id && a.currentHealth > 0 && (a.baseCost || a.cost || 0) <= 9);
       const grant = (a) => {
         // Stack with any existing Revive charges. Cards born with
         // Revive (Jason, Mahoraga, Wolverine) already have
