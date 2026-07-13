@@ -7284,6 +7284,7 @@ const Game = {
         case 'Untrickable': card.isUntrickable = true; card.permanentUntrickable = true; break;
         case 'Damage': if (parts[1] === 'Immunity') card.hasDamageImmunity = true; break;
         case 'Draw': card.drawOnPlay = Math.max(card.drawOnPlay || 0, n || 1); break;
+        case 'Fear': card.hasFear = Math.max(card.hasFear || 0, n || 1); break; // When Played: Fear N the highest-ATK enemy
         case 'Crazy':  card.isCrazy  = true; break; // ATK re-rolls 1-4 each turn + onPlay
         case 'Insane': card.isInsane = true; break; // ATK re-rolls 2-7 each turn + onPlay
       }
