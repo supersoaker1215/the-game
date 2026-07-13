@@ -1747,13 +1747,14 @@ const CARD_ABILITIES = {
       }
     }
   },
-  "Kang": {
+  "Paul Atreides": {
     onPlay(G, self, lane) {
-      // Kang peeks the OWNER's pile (Classic = shared, Deckbuilder = personal).
+      // Peeks the OWNER's pile (Classic = shared, Deckbuilder = personal).
+      // (Internally still uses the "kang" prompt keys — the mechanic didn't change.)
       const pile = G.getDrawPile(self.owner);
       if (pile.length < 2) {
         G.drawCards(self.owner, Math.min(2, pile.length));
-        G.log("Kang manipulates time! Not enough cards for full effect.");
+        G.log("Paul Atreides glimpses the future! Not enough cards for full effect.");
         return;
       }
       const card1 = pile.pop();
@@ -1785,7 +1786,7 @@ const CARD_ABILITIES = {
         G.addToHand(self.owner, card, self);
         // Kang's pick counts as this round's draw — skip the end-of-round draw.
         G.state[self.owner]._kangSkipDraw = true;
-        G.log(`Kang keeps ${card.name} (cost reduced to ${card.cost})`);
+        G.log(`Paul Atreides keeps ${card.name} (cost reduced to ${card.cost})`);
         if (card.cost <= 2) {
           // Environments can go in any non-destroyed lane; normal cards need an open slot.
           const open = card.isEnvironment

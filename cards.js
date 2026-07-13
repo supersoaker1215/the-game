@@ -202,7 +202,7 @@ const CARD_DEFS = [
   { name: "Jason Voorhees", cost: 4, attack: 2, health: 2, type: "villain",
     abilities: ["Hunt", "Overdrive", "Revive 1"],
     desc: "Jump: When any ally dies, Jason glows — play for free. When Destroyed: Revive as (3/4)." },
-  { name: "Kang", cost: 4, attack: 2, health: 1, type: "villain",
+  { name: "Paul Atreides", cost: 4, attack: 2, health: 1, type: "villain",
     abilities: [],
     desc: "When Played: Peek at the top 2 draw pile cards. Keep one — its cost is permanently reduced by 2. If the new cost is ≤ 2, play it for free." },
   { name: "Martian Manhunter", cost: 4, attack: 4, health: 4, type: "hero",

@@ -485,7 +485,7 @@ const Game = {
                 if (open.length) {
                   this.promptLaneChoice(kc.owner, open,
                     `Play ${card.name} FREE`,
-                    `Kang — place ${card.name} (cost ${card.cost}) in a lane`,
+                    `Paul Atreides — place ${card.name} (cost ${card.cost}) in a lane`,
                     (lane) => { this.playCardFree(kc.owner, card, lane); });
                 }
               }

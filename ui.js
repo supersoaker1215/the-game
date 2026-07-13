@@ -1147,6 +1147,9 @@ const UI = {
       // 1s fade-in / 2s fade-out baked. maxDur 66 lets the full phrase
       // play.
       'Star-Lord':        { hover: { src: 'audio/cards/star-lord-hover.mp3?v=1', maxDur: 66 } },
+      // Paul Atreides hover: 1:54 of "Kiss the Ring" (1:05 → 2:59 of the
+      // source). 1s fade-in / 2s fade-out + loudnorm -20 LUFS baked. Full clip.
+      'Paul Atreides':    { hover: { src: 'audio/cards/paul-atreides-hover.mp3', maxDur: 114 } },
       // Hulk hover: 42s of Danny Elfman's "End Credits — From Hulk"
       // (0:27 → 1:09 of the source). -20 LUFS unified-baseline, 1s
       // fade-in / 2s fade-out baked. maxDur 43 lets the full phrase play.
@@ -1748,8 +1751,7 @@ const UI = {
         attack: function() { this._noise({ dur:0.12, gain:0.12, highpass:300, lowpass:3000 }); this._tone({ type:'sawtooth', freq:440, freqEnd:110, dur:0.13, gain:0.12, release:0.17 }); },
         death:  function() { this._tone({ type:'sawtooth', freq:220, freqEnd:55, dur:0.85, gain:0.15, release:1.05 }); },
       },
-      'Kang': {
-        hover:  function() { this._tone({ type:'sine', freq:660, dur:0.25, gain:0.05, attack:0.02, release:0.3 }); this._tone({ type:'sine', freq:990, dur:0.25, gain:0.04, attack:0.02, release:0.3, delay:0.05 }); },
+      'Paul Atreides': {
         play:   function() { this._tone({ type:'sine', freq:110, freqEnd:1760, dur:0.35, gain:0.10, release:0.42 }); this._tone({ type:'sine', freq:1760, freqEnd:110, dur:0.35, gain:0.08, release:0.42, delay:0.06 }); },
         attack: function() { this._tone({ type:'sine', freq:660, freqEnd:2200, dur:0.1, gain:0.10, release:0.14 }); },
         death:  function() { this._tone({ type:'sine', freq:880, freqEnd:55, dur:0.9, gain:0.12, release:1.1 }); },
@@ -1990,6 +1992,7 @@ const UI = {
       'audio/cards/open-water-hover.mp3',
       'audio/cards/optimus-prime-hover.mp3',
       'audio/cards/padme-amidala-hover.mp3',
+      'audio/cards/paul-atreides-hover.mp3',
       'audio/cards/power-stone-hover.mp3',
       'audio/cards/reality-stone-hover.mp3',
       'audio/cards/sandman-hover.mp3',
@@ -12704,7 +12707,7 @@ const UI = {
         onClick: () => kangChoicePick(i)
       };
     });
-    this._showDecisionModal('Kang — Choose a Card',
+    this._showDecisionModal('Paul Atreides — Choose a Card',
       'Pick 1 to keep (cost −2). The other returns to the deck.', choices);
   },
 
@@ -14599,7 +14602,7 @@ const UI = {
   _CARD_VIBES: {
     'Gojo':'cosmic', 'Dr. Strange':'cosmic', 'Dr. Manhattan':'cosmic',
     'Galactus':'cosmic', 'Silver Surfer':'cosmic', 'Scarlet Witch':'cosmic',
-    'Raven':'cosmic', 'Kang':'cosmic', 'Dormammu':'cosmic',
+    'Raven':'cosmic', 'Paul Atreides':'cosmic', 'Dormammu':'cosmic',
     'Venom':'symbiote', 'Carnage':'symbiote', 'Symbiote Spider-Man':'symbiote',
     'Anti-Venom':'symbiote', 'Knull':'symbiote',
     'Ghostface':'slasher', 'Jason Voorhees':'slasher',
@@ -21346,7 +21349,7 @@ function kangChoicePick(idx) {
     if (open.length && !card.isDiscardEffect) {
       Game.log(`  [KANG] ${card.name} costs ${card.cost} — bonus free play available!`);
       Game.promptLaneChoice(kc.owner, open, `Play ${card.name} FREE`,
-        `Kang allows free play of ${card.name} (cost ${card.cost}). Choose lane or close to keep in hand.`,
+        `Paul Atreides allows free play of ${card.name} (cost ${card.cost}). Choose lane or close to keep in hand.`,
         (lane) => { Game.playCardFree(kc.owner, card, lane); });
     }
   }

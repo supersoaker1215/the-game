@@ -66,7 +66,7 @@ window.CARD_ART_VARIANTS = {
   'Carnage':             ['Carnage.png'],
   'Cyborg':              ['Cyborg.png'],
   'Rocket Raccoon':      ['Rocket Raccoon.png'],
-  'Kang':                ['Kang.png'],
+  'Paul Atreides':       ['Paul Atreides.jpg'],
   'Jack Sparrow':        ['Jack Sparrow.jpg'],
   // Michael Myers — new fiery portrait as the primary (menu hero + in-game
   // default); original kept as a gallery variant.
@@ -116,6 +116,7 @@ window.CARD_ART_OVERRIDES = {
     'Captain America|Captain America 2.jpg': '50% 12%',
     'Pennywise|Pennywise 2.jpg': '50% 20%',
     'Bane|Bane 2.jpg': '50% 15%',
+    'Paul Atreides|Paul Atreides.jpg': '50% 55%',
   },
   focalMenu: {   // "name|file" -> "X% Y%"   menu-hero crop focal
     'Darth Maul|Darth Maul.jpg': '50% 50%',
@@ -136,6 +137,7 @@ window.CARD_ART_OVERRIDES = {
     'Captain America|Captain America 2.jpg': '50% 10%',
     'Pennywise|Pennywise 2.jpg': '50% 15%',
     'Bane|Bane 2.jpg': '50% 12%',
+    'Paul Atreides|Paul Atreides.jpg': '50% 50%',
   },
   zoomCard:  {   // "name|file" -> scale (1 = cover, e.g. 1.3)
     'Darth Maul|Darth Maul.jpg': 1.6,

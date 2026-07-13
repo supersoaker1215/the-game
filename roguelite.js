@@ -2117,7 +2117,7 @@ const Roguelite = {
         // Cost 3-4 setup
         'Carnage', 'Deathstroke', 'Green Goblin', 'Loki', 'Moder',
         'Red Skull', 'Star-Lord', 'Symbiote Spider-Man', 'Winter Soldier',
-        'Anti-Venom', 'Black Panther', 'Cyborg', 'Jason Voorhees', 'Kang',
+        'Anti-Venom', 'Black Panther', 'Cyborg', 'Jason Voorhees', 'Paul Atreides',
         'Martian Manhunter', 'Optimus Prime', 'Predator', 'Raven',
         'The Grinch', 'Venom', 'Wolverine', 'Wonder Woman',
         // Cost 5-6 finishers
