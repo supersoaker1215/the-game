@@ -192,7 +192,7 @@ const CARD_DEFS = [
     desc: "When Played: You may play a card from your hand with cost ≤ 3 for free (or skip). While Active: Add (+1/+1) to each card you play." },
   { name: "Ghost Rider", cost: 6, attack: 4, health: 4, type: "hero",
     abilities: ["Fear 1"],
-    desc: "Fear 1. When Destroyed: Summon a random card from your hand in Ghost Rider's lane." },
+    desc: "When Destroyed: Summon a random card from your hand in Ghost Rider's lane." },
   { name: "Deadpool", cost: 4, attack: 3, health: 4, type: "hero",
     abilities: [],
     desc: "When Destroyed: Swap a face-down card from the enemy's hand with one from yours." },
