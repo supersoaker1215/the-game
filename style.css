@@ -6765,6 +6765,9 @@ body.hit-pause .ai-hand * {
 .badge-echo       { color: #bb8fce; }
 .badge-phoenix    { color: #e67e22; }
 .badge-fear       { color: #5a5a5a; }
+/* Pennywise fear-aura meter — blood-red with the glitch pulse so the
+   countdown reads as an ACTIVE menace, not a passive keyword. */
+.badge-fear-aura  { color: #ff5252; animation: cardCrazyGlitch 1.6s steps(3, end) infinite; }
 .badge-freeze     { color: #85c1e9; }
 .badge-mark       { color: #ffce5c; }
 .badge-steady     { color: #16a085; }

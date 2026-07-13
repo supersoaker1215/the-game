@@ -14701,6 +14701,11 @@ const UI = {
     if (c.hasZealot > 0) b.push(badge('badge-zealot', 'Zealot', 'Zealot'));
     if (c.hasThorns > 0) b.push(badge('badge-thorns', c.hasThorns > 1 ? `Thorns ${c.hasThorns}` : 'Thorns', 'Thorns'));
     if (c.hasFear > 0) b.push(badge('badge-fear', `Fear ${c.hasFear}`, 'Fear'));
+    // Pennywise fear meter — rounds left on his block-meter-bypass aura.
+    // Without this the aura was invisible (user report: "his fear meter
+    // on his card isn't working") — the engine effect fired but nothing
+    // on the card showed it.
+    if (c._bullseyeRoundsLeft > 0) b.push(badge('badge-fear-aura', `Fear ${c._bullseyeRoundsLeft}`, 'Fear Aura'));
     if (c.hasFreeze > 0) b.push(badge('badge-freeze', `Freeze ${c.hasFreeze}`, 'Freeze'));
     // MC N — offensive-side mind control etch (mc-1 / mc-2). Reuses
     // the badge-mind-ctrl color so the visual lineage is "this card
@@ -14792,6 +14797,10 @@ const UI = {
     'Soul Stone':  { color: '#e67e22', svg: '<svg viewBox="0 0 12 12"><circle cx="6" cy="6" r="3.5" fill="currentColor"/><path d="M6 1 V3 M6 9 V11 M1 6 H3 M9 6 H11" stroke="currentColor" stroke-width="1"/></svg>', tip: 'Infinity Stone — drains a card\'s soul (HP/ATK transfer).' },
     'Mind Stone':  { color: '#f1c40f', svg: '<svg viewBox="0 0 12 12"><circle cx="6" cy="6" r="4" stroke="currentColor" stroke-width="1.2" fill="none"/><path d="M6 3 Q4 5 6 6 Q8 7 6 9" stroke="currentColor" stroke-width="1.2" fill="none"/></svg>', tip: 'Infinity Stone — Mind Control 1 (Unresistible) on an enemy this turn.' },
     'Reality Stone':{ color: '#e74c3c', svg: '<svg viewBox="0 0 12 12"><path d="M3 3 L9 9 M9 3 L3 9 M6 1 V11 M1 6 H11" stroke="currentColor" stroke-width="1" fill="none"/></svg>', tip: 'Infinity Stone — permanently swap an ally\'s ATK/HP with an enemy\'s.' },
+
+    // Pennywise's block-meter-bypass aura — badge + tooltip so the
+    // "fear meter" countdown on his card is readable.
+    'Fear Aura':  { color: '#ff5252', svg: '<svg viewBox="0 0 12 12"><circle cx="6" cy="5" r="3.2" fill="currentColor"/><path d="M6 8.2 L6 11 M6 9.6 L4.8 10.4" stroke="currentColor" stroke-width="0.9" fill="none" stroke-linecap="round"/></svg>', tip: 'Pennywise\'s terror grips the enemy — while this counter is up, ALL ally damage to the enemy player bypasses their Block Meter (counts as Bullseye). Ticks down at the end of each round.' },
 
     // Chaos ATK-reroll traits (Joker / Harley). Colors match the
     // .badge-crazy / .badge-insane chrome in style.css.
