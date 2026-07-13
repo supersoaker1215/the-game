@@ -658,6 +658,9 @@ const UI = {
       next.style.backgroundSize = this._artSizeFor(name, file, 'menu');
       if (active) active.classList.remove('is-visible');
       next.classList.add('is-visible');
+      // Remember the live hero so other menu-style screens (e.g. the in-shell
+      // 2v2 online lobby, which sits on its own overlay) can show the same art.
+      this._menuHeroInfo = { art, focal: next.style.backgroundPosition || 'center', size: next.style.backgroundSize || 'cover' };
     };
     pre.onerror = () => {};   // keep whatever's showing if the art 404s
     pre.src = art;
@@ -7506,25 +7509,35 @@ const UI = {
     const errorHtml = this._2v2OnlineError
       ? `<div class="setup2v2-error">${this._2v2OnlineError}</div>` : '';
 
+    // Reuse the live main-menu hero so this screen has the same art on the
+    // right (it lives on its own overlay, so the menu's .mm-hero isn't visible).
+    const hero = this._menuHeroInfo;
+    const heroHtml = (hero && hero.art)
+      ? `<div class="twov2-mm-hero" style="background-image:url('${String(hero.art).replace(/'/g, '%27')}');background-position:${hero.focal || 'center'};background-size:${hero.size || 'cover'};"></div>`
+      : '';
+
     if (!tt || !tt.you) {
       // Pre-join — enter name + create/join, in the main-menu style
       // (boxless glow-text, left-aligned, pure black). Same input IDs +
       // handlers as before so twov2OnlineCreate/Join keep working.
       el.innerHTML = `
         <div class="twov2-mm">
-          <button type="button" class="twov2-mm-back" onclick="Game.goToModeSelect()">&larr; Menu</button>
-          <h1 class="twov2-mm-title">the game</h1>
-          <div class="twov2-mm-label">Online 2v2</div>
-          <div class="twov2-mm-sub">4 players · 2 teams · 8 lanes</div>
-          ${errorHtml}
-          <div class="twov2-mm-namerow">
-            <label class="twov2-mm-namelabel" for="2v2-online-name">Name</label>
-            <input class="twov2-mm-nameinput" id="2v2-online-name" type="text" maxlength="18" placeholder="Your name" autocomplete="off" />
-          </div>
-          <button type="button" class="twov2-mm-opt" onclick="twov2OnlineCreate()"><span class="twov2-mm-ic">&#9655;</span>Create Room <span class="twov2-mm-optsub">host</span></button>
-          <div class="twov2-mm-joinrow">
-            <input class="twov2-mm-code" id="2v2-online-code" type="text" maxlength="4" placeholder="XXXX" autocomplete="off" oninput="this.value=this.value.toUpperCase()" />
-            <button type="button" class="twov2-mm-go" onclick="twov2OnlineJoin()">Join &rarr;</button>
+          ${heroHtml}
+          <div class="twov2-mm-content">
+            <button type="button" class="twov2-mm-back" onclick="Game.goToMainMenu()">&larr; Menu</button>
+            <h1 class="twov2-mm-title">the game</h1>
+            <div class="twov2-mm-label">Online 2v2</div>
+            <div class="twov2-mm-sub">4 players · 2 teams · 8 lanes</div>
+            ${errorHtml}
+            <div class="twov2-mm-namerow">
+              <label class="twov2-mm-namelabel" for="2v2-online-name">Name</label>
+              <input class="twov2-mm-nameinput" id="2v2-online-name" type="text" maxlength="18" placeholder="Your name" autocomplete="off" />
+            </div>
+            <button type="button" class="twov2-mm-opt" onclick="twov2OnlineCreate()"><span class="twov2-mm-ic">&#9655;</span>Create Room <span class="twov2-mm-optsub">host</span></button>
+            <div class="twov2-mm-joinrow">
+              <input class="twov2-mm-code" id="2v2-online-code" type="text" maxlength="4" placeholder="XXXX" autocomplete="off" oninput="this.value=this.value.toUpperCase()" />
+              <button type="button" class="twov2-mm-go" onclick="twov2OnlineJoin()">Join &rarr;</button>
+            </div>
           </div>
         </div>`;
       return;
@@ -7545,18 +7558,21 @@ const UI = {
 
     el.innerHTML = `
       <div class="twov2-mm">
-        <button type="button" class="twov2-mm-back" onclick="twov2OnlineLeave()">&larr; Leave</button>
-        <h1 class="twov2-mm-title">the game</h1>
-        <div class="twov2-mm-label">Online 2v2 · Lobby</div>
-        ${isHost
-          ? `<div class="twov2-mm-codebig" onclick="UI._2v2CopyCode && UI._2v2CopyCode()" title="Room code">${code}</div>
-             <div class="twov2-mm-sub">Share this code with your 3 teammates</div>`
-          : `<div class="twov2-mm-sub">Waiting for host to start…</div>`}
-        ${errorHtml}
-        <div class="twov2-mm-players">${playerRows}</div>
-        ${isHost && joinedCount === 4
-          ? `<button type="button" class="twov2-mm-opt" onclick="twov2OnlineStart()"><span class="twov2-mm-ic">&#9655;</span>Start Match</button>`
-          : `<div class="twov2-mm-sub">${joinedCount}/4 players joined</div>`}
+        ${heroHtml}
+        <div class="twov2-mm-content">
+          <button type="button" class="twov2-mm-back" onclick="twov2OnlineLeave()">&larr; Leave</button>
+          <h1 class="twov2-mm-title">the game</h1>
+          <div class="twov2-mm-label">Online 2v2 · Lobby</div>
+          ${isHost
+            ? `<div class="twov2-mm-codebig" onclick="UI._2v2CopyCode && UI._2v2CopyCode()" title="Room code">${code}</div>
+               <div class="twov2-mm-sub">Share this code with your 3 teammates</div>`
+            : `<div class="twov2-mm-sub">Waiting for host to start…</div>`}
+          ${errorHtml}
+          <div class="twov2-mm-players">${playerRows}</div>
+          ${isHost && joinedCount === 4
+            ? `<button type="button" class="twov2-mm-opt" onclick="twov2OnlineStart()"><span class="twov2-mm-ic">&#9655;</span>Start Match</button>`
+            : `<div class="twov2-mm-sub">${joinedCount}/4 players joined</div>`}
+        </div>
       </div>`;
   },
 
@@ -10294,12 +10310,12 @@ const UI = {
           ${_mmOpt('mp-opt-2v2', '2v2 Online', '4 players · own devices', IC.multi, 'Game.goTo2v2OnlineLobby()')}
         </div>`;
     } else if (st.status === 'waiting') {
+      // Dots sit inline next to the label; the code is boxless glow-text (tap
+      // to copy). No "Leave Room" — the "← Menu" back already drops the room.
       body = `<div class="mp-status">
-        <div class="mp-status-label">Waiting for opponent</div>
-        <div id="mp-code-display" class="mp-code-display" onclick="UI._mpCopyCode()" title="Tap to copy">${st.code || '----'}</div>
-        <div class="mp-hint">Share this code — tap to copy.</div>
-        <div class="mp-loader" aria-hidden="true"><span></span><span></span><span></span></div>
-        <button type="button" class="mp-glow-go" onclick="UI._mpLeaveRoom()">Leave Room</button></div>`;
+        <div class="mp-status-label mp-status-waiting">Waiting for opponent<span class="mp-loader mp-loader-inline" aria-hidden="true"><span></span><span></span><span></span></span></div>
+        <div id="mp-code-display" class="mp-code-display mp-code-boxless" onclick="UI._mpCopyCode()" title="Tap to copy">${st.code || '----'}</div>
+      </div>`;
     } else if (st.status === 'joining') {
       body = `<div class="mp-status">
         <div class="mp-status-label">Joining ${st.code}…</div>
