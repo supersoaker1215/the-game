@@ -2317,9 +2317,39 @@ body.hit-pause .ai-hand * {
   border-top: 1px solid rgba(var(--theme-rgb,79,195,247),0.28);
   font-family: 'Rajdhani', sans-serif; text-transform: uppercase;
 }
+/* Now-playing line: the current hero's NAME (click = shuffle to a random
+   hero) + a star to pin it as your default. Sits above the picker. */
+.mm-mw3 .mm-npline {
+  display: flex; align-items: center; gap: 8px;
+  min-height: 18px; margin-bottom: 5px; pointer-events: none;
+}
+.mm-mw3 .mm-nowplaying {
+  font-size: 11px; font-weight: 700; letter-spacing: 2.5px;
+  color: color-mix(in srgb, rgb(var(--theme-rgb,79,195,247)) 72%, white);
+  text-shadow: 0 0 8px rgba(var(--theme-rgb,79,195,247),0.5);
+  transition: color 0.25s, text-shadow 0.25s, transform 0.12s;
+  pointer-events: auto; cursor: pointer;   /* click → random hero */
+}
+.mm-mw3 .mm-nowplaying:hover {
+  color: #fff;
+  text-shadow: 0 0 12px rgba(var(--theme-rgb,79,195,247),0.95), 0 0 22px rgba(var(--theme-rgb,79,195,247),0.55);
+}
+.mm-mw3 .mm-nowplaying:active { transform: scale(0.95); }
+.mm-mw3 .mm-pin-hero {
+  font-size: 13px; line-height: 1;
+  color: color-mix(in srgb, rgb(var(--theme-rgb,79,195,247)) 55%, white);
+  opacity: 0.6; transition: color 0.2s, opacity 0.2s, text-shadow 0.2s, transform 0.12s;
+  pointer-events: auto; cursor: pointer;
+}
+.mm-mw3 .mm-pin-hero:hover { opacity: 1; color: #fff; text-shadow: 0 0 10px rgba(var(--theme-rgb,79,195,247),0.85); }
+.mm-mw3 .mm-pin-hero:active { transform: scale(0.9); }
+.mm-mw3 .mm-pin-hero.is-pinned {
+  opacity: 1; color: color-mix(in srgb, rgb(var(--theme-rgb,79,195,247)) 85%, white);
+  text-shadow: 0 0 10px rgba(var(--theme-rgb,79,195,247),0.9), 0 0 18px rgba(var(--theme-rgb,79,195,247),0.5);
+}
 /* Menu-hero picker — a compact scrollable name list under the now-playing
-   credit. ~3 rows visible; the rest scroll. Selecting a name sets it as your
-   default menu hero (art + hover) and switches to it immediately. */
+   line. ~3 rows visible; the rest scroll. Click a name to play/preview it;
+   star the top line to make the current hero your default. */
 .mm-mw3 .mm-heropick {
   position: relative; margin-top: 0; max-width: 220px;
   max-height: 58px;                 /* ~3 rows tall */
@@ -2343,11 +2373,14 @@ body.hit-pause .ai-hand * {
   opacity: 1; color: #fff; transform: translateX(2px);
   text-shadow: 0 0 8px rgba(var(--theme-rgb,79,195,247),0.7);
 }
-.mm-mw3 .mm-heropick-row.is-active {
+.mm-mw3 .mm-heropick-row.is-active {          /* currently playing */
   opacity: 1; color: color-mix(in srgb, rgb(var(--theme-rgb,79,195,247)) 88%, white);
   text-shadow: 0 0 9px rgba(var(--theme-rgb,79,195,247),0.85);
 }
-.mm-mw3 .mm-heropick-row.is-active::before { content: '\25B8\00A0'; }  /* ▸ */
+.mm-mw3 .mm-heropick-row.is-default {         /* your starred default */
+  opacity: 0.9; color: color-mix(in srgb, rgb(var(--theme-rgb,79,195,247)) 82%, white);
+}
+.mm-mw3 .mm-heropick-row.is-default::before { content: '\2605\00A0'; font-size: 9px; }  /* ★ */
 /* In-shell multiplayer submenu — matches the main menu: left-aligned, boxless
    glow-text options + minimal underline fields (no popup, no segmented boxes). */
 .mm-mw3 .mp-section { max-width: 320px; }

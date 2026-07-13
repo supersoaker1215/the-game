@@ -605,12 +605,25 @@ const UI = {
     if (!this._menuStemToName) this._menuStemToName = this._buildMenuStemMap();
     return this._menuStemToName[base] || null;
   },
-  // Update the bottom "now playing" credit to whatever hover theme is live.
+  // Update the top now-playing credit (the hero NAME), its star, and the
+  // highlight on the currently-playing row in the picker below.
   _updateNowPlaying(src) {
-    const np = document.querySelector('#main-menu-overlay .mm-nowplaying');
-    if (!np) return;
     const name = this._menuHoverArtName(src);
-    np.textContent = name ? ('♪ ' + name) : '';
+    const np = document.querySelector('#main-menu-overlay .mm-nowplaying');
+    if (np) np.textContent = name ? ('♪ ' + name) : '';
+    // Star: filled (★) when the CURRENT hero is your saved default.
+    const pin = document.querySelector('#main-menu-overlay .mm-pin-hero');
+    if (pin) {
+      const isDefault = !!(name && this.settings.defaultMenuHero === name);
+      pin.textContent = isDefault ? '★' : '☆';
+      pin.classList.toggle('is-pinned', isDefault);
+      pin.title = isDefault ? 'Unstar — no default (random)' : 'Star this hero as your default';
+      pin.style.display = name ? '' : 'none';
+    }
+    // Highlight the playing hero's row in the picker.
+    const picker = document.querySelector('#main-menu-overlay .mm-heropick');
+    if (picker) picker.querySelectorAll('.mm-heropick-row').forEach(r =>
+      r.classList.toggle('is-active', (r.dataset.hero || '') === (name || '')));
   },
   // Is `name` a valid menu-hero character (has a hover track)?
   _isMenuHeroName(name) {
@@ -625,54 +638,56 @@ const UI = {
     const names = srcs.map(s => this._menuHoverArtName(s)).filter(Boolean);
     return [...new Set(names)].sort((a, b) => a.localeCompare(b));
   },
-  // Rows for the picker: alphabetical heroes only. The current default
-  // (settings.defaultMenuHero) is marked .is-active.
+  // Rows for the picker: alphabetical heroes. The saved default gets a ★ prefix
+  // (.is-default); the currently-playing hero is highlighted (.is-active, set
+  // by _updateNowPlaying). Clicking a row plays that hero.
   _menuHeroPickerRowsHTML() {
     const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
     const cur = this.settings.defaultMenuHero || '';
     return this._menuHeroNames().map(n =>
-      `<button type="button" class="mm-heropick-row${cur === n ? ' is-active' : ''}" data-hero="${esc(n)}" role="option" aria-selected="${cur === n}" onclick="UI.selectMenuHero(this.dataset.hero)">${esc(n)}</button>`
+      `<button type="button" class="mm-heropick-row${cur === n ? ' is-default' : ''}" data-hero="${esc(n)}" role="option" onclick="UI.playMenuHero(this.dataset.hero)">${esc(n)}</button>`
     ).join('');
   },
-  // Pick a menu hero: set it as the default (leads on cold entry, then the
-  // rotation goes random), persist, and immediately switch the live menu art +
-  // hover track to that hero. Re-selecting the current default clears it (back
-  // to fully random) — there's no separate Random row.
-  selectMenuHero(name) {
-    name = name || null;
-    if (name && this.settings.defaultMenuHero === name) name = null;   // toggle off → random
-    this.settings.defaultMenuHero = name;
-    try { localStorage.setItem(this.SETTINGS_KEY, JSON.stringify(this.settings)); } catch (e) {}
-    UI._menuDefaultLed = true;   // showing it now; stopMusic re-arms for next entry
+  // Click a picker row → play/preview that hero (switch the live art + hover).
+  // Does NOT change your default — star the hero (top line) to make it default.
+  playMenuHero(name) {
+    if (!name) return;
+    const src = this.sfx._srcForHeroName(name);
+    if (!src) return;
     const audioOn = this.settings.menuMusic !== false && this.settings.sfxVolume !== 0;
-    if (name) {
-      const src = this.sfx._srcForHeroName(name);
-      if (src) {
-        if (audioOn) this.sfx.crossfadeTo(src);   // audio on → swap track (art follows)
-        else this._updateMenuSideArt(src);        // audio off → set the art directly
-      }
-    } else if (audioOn) {
-      this.sfx.skipMenuTrack();                   // unpinned → jump to a fresh random hero
-    }
-    this._refreshHeroPicker(true);
+    if (audioOn) this.sfx.crossfadeTo(src);   // art + credit + highlight follow the 'playing' event
+    else this._updateMenuSideArt(src);        // audio off → set art (+ credit) directly
   },
-  // Re-highlight the picker's active row after a selection and, when asked,
-  // center it in the picker's own scroll window (scrollTop math only — never
-  // scrollIntoView, which would yank the whole menu panel).
-  _refreshHeroPicker(scrollToActive) {
+  // Star / unstar the CURRENT hero as your default. When set, that hero leads
+  // the menu on cold entry, then the rotation goes random. Per-browser.
+  togglePinnedHero() {
+    const name = this._menuHoverArtName(this.sfx && this.sfx._music && this.sfx._music.currentSrc);
+    if (!name) return;   // no hero showing — nothing to star
+    const wasDefault = this.settings.defaultMenuHero === name;
+    this.settings.defaultMenuHero = wasDefault ? null : name;
+    try { localStorage.setItem(this.SETTINGS_KEY, JSON.stringify(this.settings)); } catch (e) {}
+    UI._menuDefaultLed = true;
+    this._markDefaultRow();
+    this._updateNowPlaying(this.sfx && this.sfx._music && this.sfx._music.currentSrc);
+    if (this.showAITrickToast) {
+      this.showAITrickToast(wasDefault ? 'Default Cleared' : 'Default Set',
+        wasDefault ? 'Your menu hero is random again.'
+                   : name + ' greets you first, then it\'s random.', 'trick');
+    }
+  },
+  // Apply the ★ default marker to the matching picker row and scroll it into
+  // the picker's own window (scrollTop math only — never yanks the menu panel).
+  _markDefaultRow() {
     const picker = document.querySelector('#main-menu-overlay .mm-heropick');
     if (!picker) return;
     const cur = this.settings.defaultMenuHero || '';
-    let active = null;
+    let def = null;
     picker.querySelectorAll('.mm-heropick-row').forEach(r => {
-      const on = (r.dataset.hero || '') === cur;
-      r.classList.toggle('is-active', on);
-      r.setAttribute('aria-selected', on ? 'true' : 'false');
-      if (on) active = r;
+      const on = (r.dataset.hero || '') === cur && cur !== '';
+      r.classList.toggle('is-default', on);
+      if (on) def = r;
     });
-    if (scrollToActive && active) {
-      picker.scrollTop = Math.max(0, active.offsetTop - (picker.clientHeight - active.offsetHeight) / 2);
-    }
+    if (def) picker.scrollTop = Math.max(0, def.offsetTop - (picker.clientHeight - def.offsetHeight) / 2);
   },
   // The menu-music rotation, filtered to CHARACTER cards only (heroes/villains)
   // — drops tricks, Infinity Stones, and environments so the hero art is always
@@ -8044,6 +8059,14 @@ const UI = {
     // buildPanel (not the shell) so submenu swaps keep it.
     const botbarHTML = `
       <div class="mm-botbar">
+        <div class="mm-npline">
+          <span class="mm-nowplaying" role="button" tabindex="0" title="Shuffle to a random hero"
+                onclick="UI.sfx.nextMenuTrack()"
+                onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();UI.sfx.nextMenuTrack();}"></span>
+          <span class="mm-pin-hero" role="button" tabindex="0" aria-label="Star this hero as your default" style="display:none"
+                onclick="UI.togglePinnedHero()"
+                onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();UI.togglePinnedHero();}"></span>
+        </div>
         <div class="mm-heropick" role="listbox" aria-label="Choose your menu hero">
           ${this._menuHeroPickerRowsHTML()}
         </div>
@@ -8129,8 +8152,8 @@ const UI = {
     if (_flowOn) {
       try { this._updateMenuSideArt(this.sfx && this.sfx._music && this.sfx._music.currentSrc); } catch (e) {}
     }
-    // Scroll the picker so the pinned hero (if any) is visible on load.
-    try { requestAnimationFrame(() => this._refreshHeroPicker(true)); } catch (e) {}
+    // Scroll the picker so the starred default (if any) is visible on load.
+    try { requestAnimationFrame(() => this._markDefaultRow()); } catch (e) {}
   },
 
   // In-place main-menu submenu swap. Re-renders ONLY the .mm-panel left list
