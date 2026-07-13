@@ -33,7 +33,7 @@ const TRICK_DEFS = [
     // Badge only — the actual draw is fired by Game.timeStoneCounter. Tricks
     // don't run applyAbilities on their play path, so this won't double-draw.
     abilities: ["Draw 1"],
-    desc: "Reaction: When the enemy plays a hostile trick against your cards, negate it. The enemy's trick returns to their hand and is blocked this round, and you draw a card. Time Stone is consumed.",
+    desc: "Reaction: When the enemy plays a hostile trick against your cards, negate it. The enemy's trick returns to their hand and is blocked this round. Time Stone is consumed.",
     // `canPlay` returns false so the player can't manually click Time Stone
     // from the tricks panel — it only ever fires via the Counter prompt
     // (Game._playerHasTimeStone + Game.timeStoneCounter). Keeps the card in
@@ -412,7 +412,7 @@ const TRICK_DEFS = [
     }
   },
   { name: "Pym Particles", cost: 2,
-    desc: "Shrink an enemy — (-3/-3).",
+    desc: "Shrink an enemy — (−3/−3).",
     canPlay(G, owner) { return G.getEnemiesOf(owner).length > 0; },
     play(G, owner) {
       const enemies = G.getEnemiesOf(owner);

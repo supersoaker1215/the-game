@@ -2040,14 +2040,12 @@ const UI = {
       this._menuHoverLastIdx = idx;
       return srcs[idx];
     },
-    // SEQUENTIAL sibling of _pickMenuTrack — advances one step through the
-    // character-track list (wrapping). Used by the now-playing label click so
-    // the user steps through heroes in order rather than randomly.
+    // Now-playing label click → jump to a fresh RANDOM hero (was a sequential
+    // step through the alphabetical list). User direction: "the menu hero
+    // art/music should be random instead of alphabetical." Delegates to the
+    // random picker so skip and auto-advance behave identically.
     _nextMenuTrack() {
-      const srcs = (UI._menuCharHoverSrcs && UI._menuCharHoverSrcs()) || this.MENU_HOVER_SRCS;
-      if (!srcs.length) return this.MUSIC_SRC;
-      this._menuHoverLastIdx = (this._menuHoverLastIdx + 1) % srcs.length;
-      return srcs[this._menuHoverLastIdx];
+      return this._pickMenuTrack();
     },
     // Match load-in sting — the former menu track. Played ONCE for ~20s at
     // the first combat round of a match, then faded out. Not looped; lives
