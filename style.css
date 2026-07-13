@@ -2552,25 +2552,29 @@ body.hit-pause .ai-hand * {
    (matching the reference), just with the hero full-bleed behind and the seam
    pushed right so the list clears it. */
 @media (max-aspect-ratio: 1/1) {
-  .mm-mw3 { --mm-seam: 42%; --mm-bleed: 20%; justify-content: flex-start; align-items: center; }
-  .mm-mw3 .mm-hero-img { background-position: 70% 26%; }
+  /* PORTRAIT / mobile — center the whole menu block in the viewport (user:
+     "everything is shifted right, make it centered"). The hero art bleeds
+     full-screen behind; a centered vignette keeps the centered text readable
+     instead of the old left-column darken. */
+  .mm-mw3 { --mm-seam: 50%; --mm-bleed: 20%; justify-content: center; align-items: center; }
+  .mm-mw3 .mm-hero-img { background-position: 50% 26%; }
   .mm-mw3 .mm-hero-img.is-visible { opacity: clamp(0.3, calc(var(--menu-flow-intensity, 0.18) + 0.42), 0.88); }
-  /* darken only the left list; clear by ~the seam so the (now wider) hero shows */
   .mm-mw3 .mm-scrim {
     background:
-      linear-gradient(90deg, #04060a 14%, rgba(4,6,10,0.8) 33%, rgba(4,6,10,0) 48%),
-      radial-gradient(135% 88% at 70% 42%, transparent 44%, rgba(0,0,0,0.5) 100%),
-      linear-gradient(0deg, rgba(0,0,0,0.5) 0%, transparent 22%, transparent 84%, rgba(0,0,0,0.38) 100%);
+      radial-gradient(120% 80% at 50% 42%, transparent 30%, rgba(0,0,0,0.55) 100%),
+      linear-gradient(0deg, rgba(0,0,0,0.5) 0%, transparent 22%, transparent 82%, rgba(0,0,0,0.4) 100%);
   }
-  .mm-mw3 .mm-panel { margin: 0 0 0 clamp(20px, 5vw, 48px); width: min(40vw, 400px); padding: 0; }
-  .mm-mw3 .mm-header { align-items: flex-start; }
-  .mm-mw3 .mm-title { text-align: left; width: 100%; font-size: clamp(26px, 6vw, 40px); }
-  /* very narrow phones: push the seam further right + widen the list so text
-     doesn't collide with the mirror line */
+  /* fit-content block, auto side-margins → the menu column is centered as a
+     unit; content stays left-aligned inside so the icon column lines up. */
+  .mm-mw3 .mm-panel { margin: 0 auto; width: fit-content; max-width: 90vw; padding: 0; }
+  .mm-mw3 .mm-header { align-items: center; }
+  .mm-mw3 .mm-title { text-align: center; width: 100%; font-size: clamp(26px, 6vw, 40px); }
+  /* Center the bottom-bar (now-playing + hero picker) block too. */
+  .mm-mw3 .mm-botbar { margin-left: auto; margin-right: auto; }
 }
 @media (max-aspect-ratio: 1/1) and (max-width: 560px) {
-  .mm-mw3 { --mm-seam: 60%; }
-  .mm-mw3 .mm-panel { width: min(54vw, 320px); }
+  .mm-mw3 { --mm-seam: 50%; }
+  .mm-mw3 .mm-panel { width: fit-content; max-width: 92vw; }
   .mm-mw3 .mm-option-sub { font-size: 10px; }
 }
 
