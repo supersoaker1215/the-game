@@ -1513,6 +1513,17 @@ const CARD_ABILITIES = {
     passive: "cardPlayedBuff"
   },
   "Ghost Rider": {
+    onPlay(G, self, lane) {
+      // When Played: Fear 1 a chosen enemy. AI auto-picks the highest-
+      // ATK threat. The Fear ("Feared 1") badge lands on the VICTIM —
+      // Ghost Rider himself carries no persistent Fear badge.
+      const enemies = G.getEnemiesOf(self.owner).filter(e => e.currentHealth > 0 && !e.isFeared);
+      if (!enemies.length) return;
+      G.promptCardChoice(self.owner, enemies, "Ghost Rider — Penance Stare",
+        "Choose an enemy to Fear 1",
+        (t) => { G.fearCard(t, self); G.log(`Ghost Rider's Penance Stare terrifies ${t.name}!`); },
+        cards => cards.slice().sort((a, b) => (b.attack || 0) - (a.attack || 0))[0]);
+    },
     onDeath(G, self, lane) {
       // Skip the summon if the lane itself was destroyed (Anti-Life Equation / Darkseid Collapse).
       if (G.state.lanes[lane] && G.state.lanes[lane].destroyed) return;
@@ -3954,7 +3965,20 @@ const CARD_ABILITIES = {
       const moveChain = (remaining) => {
         if (remaining <= 0) { self.anakinMoved = true; return; }
         const eligible = eligibleNow();
-        if (!eligible.length) { self.anakinMoved = true; return; }
+        if (!eligible.length) {
+          // No open lane to move to — the bonus attack STILL fires, in
+          // Anakin's current lane. User direction: "if Anakin can't move
+          // during the 1st trick phase his bonus attack should still
+          // happen." Decouples the strike from the move.
+          self.bonusAttack = (typeof self.bonusAttack === 'number' ? self.bonusAttack : 0) + 1;
+          const cur = G.findCardLane(self);
+          const e = cur >= 0 ? G.state.lanes[cur][opp] : null;
+          const targetNote = e && e.currentHealth > 0 ? ` — locked on ${e.name}` : '';
+          G.log(`Anakin can't move — strikes from lane ${cur + 1}${targetNote}!`);
+          G.drainBonusAttacks(self);
+          self.anakinMoved = true;
+          return;
+        }
         if (Game.isHuman(self.owner)) {
           const laneChoices = eligible.map(i => {
             const e = G.state.lanes[i][opp];
