@@ -26,43 +26,41 @@ const TRICK_DEFS = [
     }
   },
   { name: "Time Stone", cost: 0,
-    desc: "Draw a card.",
-    // Reworked from the reactive counter into a simple 0-cost cantrip. The old
-    // counter machinery (pendingTimeStoneIntercept / timeStoneCounter) is left
-    // in game.js but disabled — _playerHasTimeStone() now returns false so it
-    // never triggers.
+    anytime: true,
+    unique: true, // Only 1 copy in the entire trick deck (honored by deck builder in game.js)
+    reactive: true, // Not played from the trick phase — only via counter-intercept
+    hostile: false, // Never triggers itself (defensive)
+    desc: "Reaction: When the enemy plays a hostile trick against your cards, negate it. The enemy's trick returns to their hand and is blocked this round, and you draw a card. Time Stone is consumed.",
+    // `canPlay` returns false so the player can't manually click Time Stone
+    // from the tricks panel — it only ever fires via the Counter prompt
+    // (Game._playerHasTimeStone + Game.timeStoneCounter). Keeps the card in
+    // the trick hand, visible as an available reaction but not a proactive play.
+    canPlay(G, owner) { return false; },
     play(G, owner) {
-      G.drawCards(owner, 1);
-      G.log("Time Stone: draw a card!");
+      // Real effect (consume Time Stone + block enemy trick + draw) is handled
+      // by Game.timeStoneCounter via the pendingTimeStoneIntercept prompt.
+      G.log("Time Stone waits — it only activates to counter an enemy trick.");
     }
   },
   // Cost 1
   { name: "Batarangs", cost: 1,
+    // Text-only change: dropped the "Untrickable enemies cannot be targeted"
+    // line since that's a GENERAL trick rule (all tricks are blocked by
+    // Untrickable), not Batarangs-specific. Behavior is unchanged — Untrickable
+    // enemies are still filtered out.
     desc: "Deal 2 damage 2 separate times to enemies.",
-    // The Untrickable restriction was removed — Batarangs can now hit any
-    // enemy (Untrickable included). 10-cost titans stay immune (via the
-    // _trickBlocked 10-cost gate). Pool = living enemy cards under cost 10.
     canPlay(G, owner) {
-      return G.getAllCardsOf(G.opponent(owner)).some(e =>
-        e.currentHealth > 0 && !e.isEnvironment && (e.baseCost || e.cost || 0) < 10);
+      return G.getEnemiesOf(owner).some(e => !e.isUntrickable);
     },
     play(G, owner) {
-      const opp = G.opponent(owner);
-      const trickable = () => G.getAllCardsOf(opp).filter(e =>
-        e.currentHealth > 0 && !e.isEnvironment && (e.baseCost || e.cost || 0) < 10);
+      const trickable = () => G.getEnemiesOf(owner).filter(e => !e.isUntrickable && e.currentHealth > 0);
       const pickLow = cards => cards.slice().sort((a, b) => a.currentHealth - b.currentHealth)[0];
-      // Momentarily bypass the Untrickable trick-guard for THIS damage so
-      // Batarangs lands on Untrickable enemies (10-cost gate still applies).
-      const hit = (t) => {
-        G.state._untrickableBypass = true;
-        try { G.dealDamage(t, 2); } finally { G.state._untrickableBypass = false; }
-      };
       // Two SEPARATE 2-damage hits — split between two enemies or double-tap one.
       const strike2 = () => {
         const pool = trickable();
         if (!pool.length) return;
         G.promptCardChoice(owner, pool, "Batarangs — Strike 2", "Deal 2 damage to which enemy?", (t) => {
-          hit(t);
+          G.dealDamage(t, 2);
           G.log(`Batarang strike 2: hits ${t.name} for 2!`);
         }, pickLow);
       };
@@ -70,7 +68,7 @@ const TRICK_DEFS = [
         const pool = trickable();
         if (!pool.length) return;
         G.promptCardChoice(owner, pool, "Batarangs — Strike 1", "Deal 2 damage to which enemy?", (t) => {
-          hit(t);
+          G.dealDamage(t, 2);
           G.log(`Batarang strike 1: hits ${t.name} for 2!`);
           strike2();
         }, pickLow);

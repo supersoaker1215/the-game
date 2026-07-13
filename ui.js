@@ -629,13 +629,28 @@ const UI = {
     this._charSrcs = out.length ? out : srcs;
     return this._charSrcs;
   },
+  // Pick a random menu-hero character (used as the fallback hero when menu
+  // music is off, so the menu art is never blank).
+  _pickRandomMenuHeroName() {
+    const srcs = (this._menuCharHoverSrcs && this._menuCharHoverSrcs()) || [];
+    if (!srcs.length) return null;
+    const src = srcs[Math.floor(Math.random() * srcs.length)];
+    return this._menuHoverArtName(src);
+  },
   // Single full-bleed hero — cross-fade the right-side art to the portrait of
   // the card whose hover theme is currently playing, and update the credit.
   _updateMenuSideArt(src) {
     this._updateNowPlaying(src);
     const hero = document.querySelector('#main-menu-overlay .mm-hero');
     if (!hero) return;
-    const name = this._menuHoverArtName(src);
+    let name = this._menuHoverArtName(src);
+    // Music off / between tracks (no src) → still show a hero so the menu is
+    // never blank. Keep whatever's already up; if nothing is, pick a random
+    // menu-hero character to display (art only, no now-playing credit).
+    if (!name) {
+      if (hero._artSrc) return;
+      name = this._pickRandomMenuHeroName();
+    }
     const art = name ? this.getCardArtPathDefault(name) : null;
     if (!art) {
       hero.querySelectorAll('.mm-hero-img.is-visible').forEach(n => n.classList.remove('is-visible'));

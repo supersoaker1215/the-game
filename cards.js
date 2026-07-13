@@ -208,7 +208,7 @@ const CARD_DEFS = [
   { name: "Martian Manhunter", cost: 4, attack: 4, health: 4, type: "hero",
     abilities: ["Evade 1"],
     desc: "When Played: Copy all abilities from a random Dead Pile card, then trigger its When Played effect." },
-  { name: "Optimus Prime", cost: 4, attack: 4, health: 4, type: "hero",
+  { name: "Optimus Prime", cost: 3, attack: 4, health: 4, type: "hero",
     abilities: ["Armor 1"],
     desc: "When Played: An adjacent ally immediately attacks an enemy opposite or adjacent to Optimus Prime." },
   { name: "Predator", cost: 4, attack: 3, health: 4, type: "villain",
@@ -320,7 +320,7 @@ const CARD_DEFS = [
   { name: "Mace Windu", cost: 7, attack: 4, health: 5, type: "hero",
     abilities: [],
     desc: "ON PLAY: All cards in the opponent's hand permanently lose -1/-1. WHILE ACTIVE: When an ally is destroyed, gain +0/+2. When an enemy is destroyed (by any means), gain +2/+0." },
-  { name: "Revan", cost: 6, attack: 6, health: 8, type: "villain",
+  { name: "Revan", cost: 5, attack: 6, health: 8, type: "villain",
     abilities: [],
     desc: "When Played: Give another ally Revive 1 — it revives as if played anew (abilities reset, On Play re-triggers)." },
 

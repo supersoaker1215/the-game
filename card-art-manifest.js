@@ -72,6 +72,9 @@ window.CARD_ART_VARIANTS = {
   // default); original kept as a gallery variant.
   'Michael Myers':       ['Michael Myers 2.jpg',     'Michael Myers.png'],
   'Captain America':     ['Captain America 2.jpg',   'Captain America.png'],
+  // New horror portraits (2026-07-13) — new art as the primary, originals kept.
+  'Ghostface':           ['Ghostface 2.jpg',         'Ghostface.png'],
+  'Jigsaw':              ['Jigsaw 2.jpg',            'Jigsaw 3.jpg',            'Jigsaw.png'],
 };
 
 // =============================================================================
@@ -117,6 +120,9 @@ window.CARD_ART_OVERRIDES = {
     'Pennywise|Pennywise 2.jpg': '50% 20%',
     'Bane|Bane 2.jpg': '50% 15%',
     'Paul Atreides|Paul Atreides.jpg': '50% 55%',
+    'Ghostface|Ghostface 2.jpg': '50% 52%',
+    'Jigsaw|Jigsaw 2.jpg': '50% 26%',
+    'Jigsaw|Jigsaw 3.jpg': '50% 28%',
   },
   focalMenu: {   // "name|file" -> "X% Y%"   menu-hero crop focal
     'Darth Maul|Darth Maul.jpg': '50% 50%',
@@ -138,6 +144,9 @@ window.CARD_ART_OVERRIDES = {
     'Pennywise|Pennywise 2.jpg': '50% 15%',
     'Bane|Bane 2.jpg': '50% 12%',
     'Paul Atreides|Paul Atreides.jpg': '50% 50%',
+    'Ghostface|Ghostface 2.jpg': '50% 48%',
+    'Jigsaw|Jigsaw 2.jpg': '50% 22%',
+    'Jigsaw|Jigsaw 3.jpg': '50% 26%',
   },
   zoomCard:  {   // "name|file" -> scale (1 = cover, e.g. 1.3)
     'Darth Maul|Darth Maul.jpg': 1.6,
