@@ -361,7 +361,7 @@ const CARD_DEFS = [
   // ==================== COST 10 ====================
   { name: "Anakin Skywalker", cost: 10, attack: 7, health: 9, type: "hero",
     abilities: ["Immunity", "Invincible 1", "Unresistible 1", "Draw 1"],
-    desc: "When Played: Draw 1. Fear 1 an enemy. Start of Tricks (once): Move to an open lane and do a bonus attack. While Active: When an ally is destroyed, Anakin does a bonus attack." },
+    desc: "When Played: Deal 10 damage to an enemy. Start of Tricks (once): Move to an open lane and do a bonus attack. While Active: When an ally is destroyed, Anakin does a bonus attack." },
   { name: "Dormammu", cost: 10, attack: 3, health: 3, type: "villain",
     abilities: ["Immunity", "Invincible 1", "Unresistible 3", "Draw 1"],
     desc: "When Played: Gain foresight for 2 draw phases — peek at the top 2 cards and keep one (the other goes to the opponent). Start of Tricks (once): Drain 3 enemies, leaving them as (0/1)." },

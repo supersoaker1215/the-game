@@ -3911,28 +3911,16 @@ const CARD_ABILITIES = {
   // ==================== COST 10 ====================
   "Anakin Skywalker": {
     onPlay(G, self, lane) {
-      // Number of enemies feared scales with tier. Common: 1, Rare: 1
-      // (listed), Special: 2, Legendary: 3. The Unresistible charge
-      // is on the abilities array (Unresistible 1) — same baseline.
-      const fearCount = G.rarityValue(self, { common: 1, rare: 1, special: 2, legendary: 3 });
-      const enemies = G.getEnemiesOf(self.owner);
+      // When Played: deal 10 damage to a chosen enemy. Anakin is a
+      // 10-cost, so pass {source:self} — the engine's "tens can't
+      // target tens" rule drops other 10-cost titans from the picker.
+      // (Draw 1 fires separately via the `Draw 1` keyword → drawOnPlay.)
+      const enemies = G.getEnemiesOf(self.owner, { source: self });
       if (!enemies.length) return;
-      const feared = new Set();
-      const pickNext = () => {
-        if (feared.size >= fearCount) return;
-        const remaining = enemies.filter(e => !feared.has(e.id) && !e.isFeared && e.currentHealth > 0);
-        if (!remaining.length) return;
-        G.promptCardChoice(self.owner, remaining, "Anakin — Fear",
-          `Choose an enemy to fear (${feared.size + 1}/${fearCount})`,
-          (t) => {
-            G.fearCard(t, self);
-            feared.add(t.id);
-            G.log(`Anakin terrifies ${t.name}!`);
-            if (feared.size < fearCount) pickNext();
-          },
-          cards => cards.slice().sort((a, b) => (b.attack || 0) - (a.attack || 0))[0]);
-      };
-      pickNext();
+      G.promptCardChoice(self.owner, enemies, "Anakin — Strike",
+        "Choose an enemy to deal 10 damage",
+        (t) => { G.dealDamage(t, 10, self); G.log(`Anakin unleashes the dark side on ${t.name} for 10!`); },
+        cards => _aiKillPicker(cards, 10));
     },
     onBeforeTricks(G, self, lane) {
       if (self.anakinMoved) return;           // fires exactly once per instance
