@@ -9481,8 +9481,7 @@ const UI = {
         <button type="button" class="md-back" onclick="UI.closeEncyclopedia()" title="Back to main menu">&larr; Menu</button>
         <div class="encyc-head">
           <div>
-            <div class="encyc-tag">Codex</div>
-            <h1 class="encyc-title">Card Encyclopedia</h1>
+            <h1 class="encyc-title">Codex</h1>
             <div class="encyc-sub">${filtered.length} of ${pool.length} ${isCards ? 'cards' : 'tricks'}</div>
           </div>
           <div class="encyc-tabs">
