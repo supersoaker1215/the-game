@@ -8034,7 +8034,9 @@ const UI = {
     void panel.offsetWidth;
     panel.classList.add('mm-flipping');
     if (this._mmFlipTimer) clearTimeout(this._mmFlipTimer);
-    this._mmFlipTimer = setTimeout(() => panel.classList.remove('mm-flipping'), 1100);
+    // Cascade now settles in ~0.6s (capped per-option stagger), so clear the
+    // flip class shortly after rather than lingering to 1.1s.
+    this._mmFlipTimer = setTimeout(() => panel.classList.remove('mm-flipping'), 700);
     try { if (this.sfx && this.sfx.playNav) this.sfx.playNav(); } catch (e) {}
   },
   mmBack() { this.mmShowSub(null); },

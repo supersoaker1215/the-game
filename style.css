@@ -2261,8 +2261,11 @@ body.hit-pause .ai-hand * {
 }
 .mm-mw3 .mm-panel.mm-flipping .mm-option-label .mm-letter {
   display: inline-block; transform-origin: center bottom; backface-visibility: hidden;
-  animation: mmLetterFlip 380ms var(--ease-out-soft, ease-out) backwards;
-  animation-delay: calc(var(--mm-li, 0) * 24ms + var(--mm-idx, 0) * 55ms);
+  animation: mmLetterFlip 300ms var(--ease-out-soft, ease-out) backwards;
+  /* Snappier cascade — the per-OPTION term is capped (min ,5) so a long list
+     (10 items) finishes about as fast as a short one instead of taking ~1s to
+     reassemble. Going back to the main menu now settles in ~0.5s, not ~1s. */
+  animation-delay: calc(min(var(--mm-idx, 0), 5) * 26ms + var(--mm-li, 0) * 13ms);
 }
 /* Inside a swapped panel the per-letter flip IS the entrance — suppress the
    row fade-up so they don't compete. Keyed on the PERSISTENT .mm-swapped (not
