@@ -2329,6 +2329,22 @@ body.hit-pause .ai-hand * {
   text-shadow: 0 0 12px rgba(var(--theme-rgb,79,195,247),0.95), 0 0 22px rgba(var(--theme-rgb,79,195,247),0.55);
 }
 .mm-mw3 .mm-nowplaying:active { transform: scale(0.95); }
+/* Pin-hero star — sits just right of the now-playing credit. Outline (☆) =
+   not your default; filled (★) + glow = pinned. Tap toggles it. */
+.mm-mw3 .mm-pin-hero {
+  margin-left: 9px; font-size: 13px; line-height: 1;
+  color: color-mix(in srgb, rgb(var(--theme-rgb,79,195,247)) 55%, white);
+  opacity: 0.6;
+  transition: color 0.2s, opacity 0.2s, text-shadow 0.2s, transform 0.12s;
+  pointer-events: auto; cursor: pointer;
+}
+.mm-mw3 .mm-pin-hero:hover { opacity: 1; color: #fff; text-shadow: 0 0 10px rgba(var(--theme-rgb,79,195,247),0.85); }
+.mm-mw3 .mm-pin-hero:active { transform: scale(0.9); }
+.mm-mw3 .mm-pin-hero.is-pinned {
+  opacity: 1;
+  color: color-mix(in srgb, rgb(var(--theme-rgb,79,195,247)) 85%, white);
+  text-shadow: 0 0 10px rgba(var(--theme-rgb,79,195,247),0.9), 0 0 18px rgba(var(--theme-rgb,79,195,247),0.5);
+}
 /* In-shell multiplayer submenu — matches the main menu: left-aligned, boxless
    glow-text options + minimal underline fields (no popup, no segmented boxes). */
 .mm-mw3 .mp-section { max-width: 320px; }

@@ -605,12 +605,47 @@ const UI = {
     if (!this._menuStemToName) this._menuStemToName = this._buildMenuStemMap();
     return this._menuStemToName[base] || null;
   },
-  // Update the bottom "now playing" credit to whatever hover theme is live.
+  // Update the bottom "now playing" credit to whatever hover theme is live,
+  // plus the pin-hero star that sits beside it.
   _updateNowPlaying(src) {
-    const np = document.querySelector('#main-menu-overlay .mm-nowplaying');
-    if (!np) return;
     const name = this._menuHoverArtName(src);
-    np.textContent = name ? ('♪ ' + name) : '';
+    const np = document.querySelector('#main-menu-overlay .mm-nowplaying');
+    if (np) np.textContent = name ? ('♪ ' + name) : '';
+    // Pin star: filled (★) when THIS hero is the pinned default, outline (☆)
+    // otherwise. Hidden when no hero credit is showing (e.g. music off).
+    const pin = document.querySelector('#main-menu-overlay .mm-pin-hero');
+    if (pin) {
+      const isPinned = !!(name && this.settings.defaultMenuHero === name);
+      pin.textContent = isPinned ? '★' : '☆';
+      pin.classList.toggle('is-pinned', isPinned);
+      pin.title = isPinned ? 'Unpin — menu hero goes fully random'
+                           : 'Pin this hero as your menu default';
+      pin.style.display = name ? '' : 'none';
+    }
+  },
+  // Is `name` a valid menu-hero character (has a hover track)?
+  _isMenuHeroName(name) {
+    if (!name) return false;
+    const srcs = (this._menuCharHoverSrcs && this._menuCharHoverSrcs()) || [];
+    return srcs.some(s => this._menuHoverArtName(s) === name);
+  },
+  // Pin / unpin the hero currently playing on the menu as the player's
+  // personal default. When set, that hero leads the menu on cold entry (art +
+  // track), then the rotation goes random. Tapping the star again clears it
+  // (fully random). Stored per-browser in settings.defaultMenuHero.
+  togglePinnedHero() {
+    const name = this._menuHoverArtName(this.sfx && this.sfx._music && this.sfx._music.currentSrc);
+    if (!name) return;   // no hero credit showing — nothing to pin
+    const wasPinned = this.settings.defaultMenuHero === name;
+    this.settings.defaultMenuHero = wasPinned ? null : name;
+    try { localStorage.setItem(this.SETTINGS_KEY, JSON.stringify(this.settings)); } catch (e) {}
+    this._updateNowPlaying(this.sfx && this.sfx._music && this.sfx._music.currentSrc);
+    if (this.showAITrickToast) {
+      this.showAITrickToast(
+        wasPinned ? 'Menu Hero Unpinned' : 'Menu Hero Pinned',
+        wasPinned ? 'Your menu hero is fully random again.'
+                  : name + ' greets you first, then it\'s random.', 'trick');
+    }
   },
   // The menu-music rotation, filtered to CHARACTER cards only (heroes/villains)
   // — drops tricks, Infinity Stones, and environments so the hero art is always
@@ -645,11 +680,13 @@ const UI = {
     if (!hero) return;
     let name = this._menuHoverArtName(src);
     // Music off / between tracks (no src) → still show a hero so the menu is
-    // never blank. Keep whatever's already up; if nothing is, pick a random
-    // menu-hero character to display (art only, no now-playing credit).
+    // never blank. Keep whatever's already up; else lead with the pinned
+    // default hero once, then fall back to a random menu-hero character.
     if (!name) {
       if (hero._artSrc) return;
-      name = this._pickRandomMenuHeroName();
+      const def = this.settings.defaultMenuHero;
+      if (def && !UI._menuDefaultLed && this._isMenuHeroName(def)) { name = def; UI._menuDefaultLed = true; }
+      else name = this._pickRandomMenuHeroName();
     }
     const art = name ? this.getCardArtPathDefault(name) : null;
     if (!art) {
@@ -2047,6 +2084,27 @@ const UI = {
     _nextMenuTrack() {
       return this._pickMenuTrack();
     },
+    // Cold-entry picker: lead with the player's pinned default hero once, then
+    // hand off to the random picker ("then it becomes random after that").
+    _pickMenuTrackForEntry() {
+      const def = UI.settings && UI.settings.defaultMenuHero;
+      if (def && !UI._menuDefaultLed) {
+        const src = this._srcForHeroName(def);
+        if (src) {
+          UI._menuDefaultLed = true;
+          const srcs = (UI._menuCharHoverSrcs && UI._menuCharHoverSrcs()) || this.MENU_HOVER_SRCS;
+          this._menuHoverLastIdx = srcs.indexOf(src);   // next random avoids an immediate repeat
+          return src;
+        }
+      }
+      return this._pickMenuTrack();
+    },
+    // Resolve a hero name back to its hover-track src (reverse of _menuHoverArtName).
+    _srcForHeroName(name) {
+      const srcs = (UI._menuCharHoverSrcs && UI._menuCharHoverSrcs()) || this.MENU_HOVER_SRCS;
+      for (const s of srcs) if (UI._menuHoverArtName(s) === name) return s;
+      return null;
+    },
     // Match load-in sting — the former menu track. Played ONCE for ~20s at
     // the first combat round of a match, then faded out. Not looped; lives
     // on its own <audio> element independent of the menu loop.
@@ -2437,8 +2495,9 @@ const UI = {
       // Only (re)pick when nothing is playing: first entry, or returning to the
       // menu after a match (startRound's stopMusic pauses the bed).
       if (this._musicWantPlay && !a.paused && a.currentSrc) return;
-      // Pick a fresh random hover track when (re-)entering the menu cold.
-      a.src = this._pickMenuTrack();
+      // (Re-)entering the menu cold: lead with the pinned default hero if set,
+      // otherwise a fresh random hover track.
+      a.src = this._pickMenuTrackForEntry();
       const target = this._musicTargetVol();
       if (this._musicFadeInterval) { clearInterval(this._musicFadeInterval); this._musicFadeInterval = null; }
       this._musicWantPlay = true;
@@ -2564,6 +2623,9 @@ const UI = {
 
     stopMusic() {
       this._musicWantPlay = false;
+      // Leaving the menu (→ match). Re-arm the default-hero lead so the next
+      // cold menu entry greets the player with their pinned hero again.
+      UI._menuDefaultLed = false;
       try { UI._updateNowPlaying(null); } catch (e) {}
       if (!this._music) return;
       const a = this._music;
@@ -7958,6 +8020,9 @@ const UI = {
         <span class="mm-nowplaying" role="button" tabindex="0" title="Next track"
               onclick="UI.sfx.nextMenuTrack()"
               onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();UI.sfx.nextMenuTrack();}"></span>
+        <span class="mm-pin-hero" role="button" tabindex="0" aria-label="Pin this hero as your menu default" style="display:none"
+              onclick="UI.togglePinnedHero()"
+              onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();UI.togglePinnedHero();}"></span>
       </div>`;
     const buildPanel = (sub) => {
       mmIdx = 0;   // reset so the swapped list re-staggers from the top
