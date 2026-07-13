@@ -50,7 +50,7 @@ window.CARD_ART_VARIANTS = {
   // ── Single-art entries (webp) ──
   'Pennywise':           ['Pennywise 2.jpg',          'Pennywise.png'],
   'Freddy Krueger':      ['Freddy Krueger 2.png'],
-  'Black Panther':       ['Black Panther 2.png',      'Black Panther.png'],
+  'Black Panther':       ['Black Panther.png',        'Black Panther 2.png'],
   // ── Variant-1 default kept (user kept original) ──
   'Anakin Skywalker':    ['Anakin Skywalker 2.png',   'Anakin Skywalker.png'],
   'Batman':              ['Batman.png',               'Batman 2.png'],
@@ -74,7 +74,7 @@ window.CARD_ART_VARIANTS = {
   'Captain America':     ['Captain America 2.jpg',   'Captain America.png'],
   // New horror portraits (2026-07-13) — new art as the primary, originals kept.
   'Ghostface':           ['Ghostface 2.jpg',         'Ghostface.png'],
-  'Jigsaw':              ['Jigsaw 2.jpg',            'Jigsaw 3.jpg',            'Jigsaw.png'],
+  'Jigsaw':              ['Jigsaw 3.jpg',            'Jigsaw 2.jpg',            'Jigsaw.png'],
 };
 
 // =============================================================================
@@ -86,15 +86,17 @@ window.CARD_ART_VARIANTS = {
 // Reorder (primary) + deletions are baked into CARD_ART_VARIANTS above (array
 // order = priority; a removed entry = deleted), not here.
 window.CARD_ART_OVERRIDES = {
-  // Gallery Audit → "Publish to repo" (2026-07-12). Drafts merged over the
-  // earlier repo crops; Captain America / Pennywise / Bane kept (not re-edited
-  // in this publish, so absent from the export).
+  // Gallery Audit → "Publish to repo" (2026-07-12, refreshed 2026-07-13). The
+  // 2026-07-13 publish updated Darth Vader / Padme / Ghostface / Jigsaw crops
+  // and added Black Panther, Deadpool, Green Lantern, Groot, Hela, Iron Man,
+  // Harley Quinn, Hawkeye, Mr. Freeze. Reorders (Black Panther, Jigsaw) baked
+  // into CARD_ART_VARIANTS above.
   focalCard: {   // "name|file" -> "X% Y%"   in-game card crop focal
     'Anakin Skywalker|Anakin Skywalker 2.png': '50% 49%',
     'Batman|Batman.png': '37% 47%',
     'Ghost Rider|Ghost Rider.jpg': '50% 35%',
     'Darth Maul|Darth Maul.jpg': '53% 50%',
-    'Darth Vader|Darth Vader 2.png': '50% 48%',
+    'Darth Vader|Darth Vader 2.png': '50% 61%',
     'Dr. Strange|Dr. Strange 2.png': '96% 50%',
     'Emperor Palpatine|Emperor Palpatine 2.png': '50% 51%',
     'Freddy Fazbear|Freddy Fazbear.png': '50% 51%',
@@ -106,7 +108,7 @@ window.CARD_ART_OVERRIDES = {
     'Martian Manhunter|Martian Manhunter.png': '50% 7%',
     'Michael Myers|Michael Myers 2.jpg': '50% 0%',
     'Mr. Fantastic|Mr. Fantastic.png': '50% 4%',
-    'Padme Amidala|Padme Amidala.png': '50% 49%',
+    'Padme Amidala|Padme Amidala.png': '50% 0%',
     'Raven|Raven.png': '50% 48%',
     'Red Hulk|Red Hulk.png': '90% 50%',
     'Revan|Revan.png': '100% 50%',
@@ -121,9 +123,15 @@ window.CARD_ART_OVERRIDES = {
     'Pennywise|Pennywise 2.jpg': '50% 20%',
     'Bane|Bane 2.jpg': '50% 15%',
     'Paul Atreides|Paul Atreides.jpg': '50% 55%',
-    'Ghostface|Ghostface 2.jpg': '50% 52%',
-    'Jigsaw|Jigsaw 2.jpg': '50% 26%',
-    'Jigsaw|Jigsaw 3.jpg': '50% 28%',
+    'Ghostface|Ghostface 2.jpg': '82% 73%',
+    'Jigsaw|Jigsaw 2.jpg': '81% 50%',
+    'Jigsaw|Jigsaw 3.jpg': '50% 3%',
+    'Black Panther|Black Panther.png': '74% 100%',
+    'Deadpool|Deadpool.png': '50% 73%',
+    'Green Lantern|Green Lantern.png': '50% 82%',
+    'Groot|Groot.png': '50% 65%',
+    'Hela|Hela.png': '50% 46%',
+    'Iron Man|Iron Man 2.png': '50% 41%',
   },
   focalMenu: {   // "name|file" -> "X% Y%"   menu-hero crop focal
     'Darth Maul|Darth Maul.jpg': '50% 50%',
@@ -146,19 +154,34 @@ window.CARD_ART_OVERRIDES = {
     'Pennywise|Pennywise 2.jpg': '50% 15%',
     'Bane|Bane 2.jpg': '50% 12%',
     'Paul Atreides|Paul Atreides.jpg': '50% 50%',
-    'Ghostface|Ghostface 2.jpg': '50% 48%',
+    'Ghostface|Ghostface 2.jpg': '82% 64%',
     'Jigsaw|Jigsaw 2.jpg': '50% 22%',
-    'Jigsaw|Jigsaw 3.jpg': '50% 26%',
+    'Jigsaw|Jigsaw 3.jpg': '45% 0%',
+    'Black Panther|Black Panther.png': '50% 100%',
+    'Green Lantern|Green Lantern.png': '50% 80%',
+    'Harley Quinn|Harley Quinn.png': '50% 0%',
+    'Hawkeye|Hawkeye.png': '50% 42%',
+    'Hela|Hela.png': '50% 0%',
+    'Iron Man|Iron Man 2.png': '50% 0%',
+    'Iron Man|Iron Man 3.png': '50% 31%',
+    'Mr. Freeze|Mr. Freeze.png': '50% 0%',
+    'Padme Amidala|Padme Amidala.png': '50% 0%',
   },
   zoomCard:  {   // "name|file" -> scale (1 = cover, e.g. 1.3)
     'Darth Maul|Darth Maul.jpg': 1.6,
     'Jack Sparrow|Jack Sparrow.jpg': 2.2,
     'The Grinch|The Grinch.png': 1.8,
     'Batman|Batman.png': 1.1,
+    'Black Panther|Black Panther.png': 1.1,
+    'Ghostface|Ghostface 2.jpg': 1.3,
+    'Green Lantern|Green Lantern.png': 1.1,
+    'Padme Amidala|Padme Amidala.png': 1.1,
   },
   zoomMenu:  {   // "name|file" -> scale
     'Darth Maul|Darth Maul.jpg': 1.6,
     'The Grinch|The Grinch.png': 1.9,
     'Batman|Batman.png': 1.1,
+    'Ghostface|Ghostface 2.jpg': 1.3,
+    'Padme Amidala|Padme Amidala.png': 1.1,
   },
 };
