@@ -8889,16 +8889,16 @@ body.turn-combat .board .lane.lane-active {
      card corners. The mobile orbs are 16-18px tall sitting at
      `bottom: 2px`, so 24px of clear space accommodates them with
      room to breathe. */
-  .board .card { width: 100%; min-height: 64px; font-size: 8px; padding: 4px 2px 24px; }
+  .board .card { width: 100%; min-height: 64px; font-size: 8px; padding: 3px 2px 18px; }
   /* Slot min-height was a DESKTOP value (240px = tallest desktop card). Mobile
      board cards are ~150-170px, so each slot had ~70px dead space above/below
      the card — half a lane of emptiness × 2 slots, pushing the hand off-screen.
      Drop it to hug the smaller mobile card so lanes are compact and the hand +
      tricks fit with far less scrolling. (User: "empty space below the card can
      be reduced to make room for the cards in hand.") */
-  .card-slot { width: 100%; min-width: 0; min-height: 150px; }
-  .card-slot.ai-slot { padding: 3px 0 2px; }
-  .card-slot.player-slot { padding: 2px 0 3px; }
+  .card-slot { width: 100%; min-width: 0; min-height: 132px; }
+  .card-slot.ai-slot { padding: 2px 0 1px; }
+  .card-slot.player-slot { padding: 1px 0 2px; }
   .board .card .card-name { font-size: 8px; letter-spacing: 0.2px; }
   /* Description hidden — at 50px-wide cards it's unreadable. Tap-and-
      hold any board card to open the full inspect modal
@@ -8947,14 +8947,14 @@ body.turn-combat .board .lane.lane-active {
   /* HP number is OVERLAID inside the bar (absolute) so it can never
      overlap the 0/8 block circle. User feedback: "the number of the
      health bar in the block circle are overlapping... change this." */
-  .info-bar { padding: 4px 6px; gap: 4px; grid-template-columns: 64px 36px 1fr 36px 56px; height: 52px; }
+  .info-bar { padding: 4px 6px; gap: 4px; grid-template-columns: 96px 34px 1fr 34px 54px; height: 52px; }
   .info-bar.ai-bar,
   .info-bar.player-bar {
     background: transparent !important;
   }
   .bar-cell { gap: 4px; }
-  .health-container { gap: 0; position: relative; width: 64px; }
-  .health-bar { width: 64px; height: 14px; position: relative; }
+  .health-container { gap: 0; position: relative; width: 92px; }
+  .health-bar { width: 92px; height: 15px; position: relative; }
   .health-text {
     position: absolute !important;
     top: 50% !important; left: 0 !important; right: 0 !important;
@@ -8994,7 +8994,7 @@ body.turn-combat .board .lane.lane-active {
   .pile-mini-label { font-size: 7.5px; letter-spacing: 0.5px; opacity: 0.65; font-weight: 700; }
   .ai-deck-badge   .pile-mini-label { color: rgba(125,210,255,0.95); }
   .ai-tricks-badge .pile-mini-label { color: rgba(180,120,255,0.95); }
-  .actions-section .btn { min-height: 44px; padding: 6px 8px; font-size: 10px; letter-spacing: 0.6px; }
+  .actions-section .btn { min-height: 34px; height: 34px; padding: 3px 10px; font-size: 9.5px; letter-spacing: 0.6px; }
   button, .btn { min-height: 40px; } /* 40px tap target baseline */
   .phase-banner-text { font-size: 20px; }
   /* HUD pill: drop the phase text + tighten counters so the whole pill
@@ -9055,8 +9055,13 @@ body.turn-combat .board .lane.lane-active {
   /* Hand + tricks rows — tighten so 5-7 cards fit without absurd
      horizontal scroll. Card slots already shrink via .card width
      above, this just kills extra padding. */
-  .player-hand-section { padding: 4px 6px; }
+  .player-hand-section { padding: 4px 6px; position: relative; z-index: 300; overflow: visible; }
   .tricks-section { padding: 4px 6px; }
+  /* A hovered / lifted / magnifying hand card paints ABOVE the bottom player
+     banner (UNDO/DONE + HP), not behind it. */
+  .player-hand-section .hand-cards .card:hover,
+  .hand-card-wrapper:hover,
+  .hand-card-wrapper.magnifying { position: relative; z-index: 500 !important; }
   /* Mobile hand: 92px-wide cards fit FOUR comfortably in a 380px
      viewport (4×92 + 3×4 = 380), with description text legible. Hand
      auto-scrolls horizontally for hands of 5+ cards. User feedback:
@@ -9085,7 +9090,7 @@ body.turn-combat .board .lane.lane-active {
   }
   .player-hand-section .hand-cards .card .card-name { font-size: 9.5px; letter-spacing: 0.3px; }
   .player-hand-section .hand-cards .card .card-desc { display: block; font-size: 7.5px; line-height: 1.15; }
-  .player-hand-section .hand-cards .card .card-cost { width: 20px; height: 20px; font-size: 12px; top: -8px; left: -8px; }
+  .player-hand-section .hand-cards .card .card-cost { width: 22px; height: 22px; font-size: 12px; top: 4px; left: 4px; }
   .player-hand-section .hand-cards .card .stat-circle { width: 18px; height: 18px; font-size: 11px; }
   .player-hand-section .hand-cards .card .stat-circle.stat-atk { bottom: -8px; left: -7px; }
   .player-hand-section .hand-cards .card .stat-circle.stat-hp  { bottom: -8px; right: -7px; }
