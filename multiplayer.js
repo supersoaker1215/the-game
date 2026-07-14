@@ -554,31 +554,18 @@ const _WEBRTC_ICE_SERVERS = [
   { urls: 'turns:freestun.net:5350', username: 'freestun', credential: 'freestun' },
 ];
 
-// Build the ICE config, optionally forcing relay-only mode (for hotel
-// WiFi with AP isolation where direct paths never work).
-// Custom TURN: if the user pasted credentials from a reliable provider
-// (e.g. Metered.ca) via the lobby "Set TURN server" option, they're
-// stored as a JSON ICE-server array in localStorage clb-custom-turn
-// and prepended here so they take priority over the built-in servers.
+// Build the ICE config from the built-in STUN/TURN list. WebRTC's own
+// ICE negotiation tries a direct path first and automatically falls back
+// to the TURN relays below when direct fails (hotel/corporate Wi-Fi) —
+// so relay coverage is built in without any per-user override.
+//
+// The old force-relay + custom-TURN localStorage overrides were removed:
+// a stale/dead value in either silently broke EVERY later connection
+// (force-relay with an unreachable TURN = no direct fallback = never
+// connects). User report: "I can't connect in multiplayer — get rid of
+// the hotel Wi-Fi thing I added."
 function _buildIceConfig() {
-  const forceRelay = typeof localStorage !== 'undefined' &&
-    localStorage.getItem('clb-force-relay') === '1';
-  let iceServers = _WEBRTC_ICE_SERVERS;
-  if (typeof localStorage !== 'undefined') {
-    const customRaw = localStorage.getItem('clb-custom-turn');
-    if (customRaw) {
-      try {
-        const custom = JSON.parse(customRaw);
-        if (Array.isArray(custom) && custom.length > 0) {
-          iceServers = [...custom, ...iceServers];
-        }
-      } catch (e) {}
-    }
-  }
-  return {
-    iceServers,
-    ...(forceRelay ? { iceTransportPolicy: 'relay' } : {}),
-  };
+  return { iceServers: _WEBRTC_ICE_SERVERS };
 }
 
 // ============================================================

@@ -3555,6 +3555,11 @@ const UI = {
 
   init() {
     this.loadSettings();
+    // Auto-heal legacy multiplayer connection overrides — a custom server URL,
+    // force-relay flag, custom TURN config, or local-tab mode saved on one
+    // network (e.g. hotel Wi-Fi) would otherwise persist and silently break
+    // every later match. Cleared once per load so real peer-to-peer always runs.
+    try { this._mpClearLegacyOverrides(); } catch (e) {}
     this.initViewportMode();  // restore web/mobile preview from localStorage
     // Tab-visibility gate — when the player tabs away (constant in PvP lobby
     // waits and long sessions) the ~89 infinite CSS animations keep repainting
@@ -10266,9 +10271,13 @@ const UI = {
   // a friend on a different computer and the game just works peer-to-peer.
   _mpPickTransport() {
     if (typeof Multiplayer === 'undefined') return null;
-    const url = (localStorage.getItem('clb-mp-server') || '').trim();
-    if (url) return new Multiplayer.WebSocketTransport(url);
-    if (localStorage.getItem('clb-mp-mode') === 'local') return new Multiplayer.LocalTabTransport();
+    // Always real-internet WebRTC. The old custom-server (clb-mp-server)
+    // and force-local (clb-mp-mode) overrides were removed: a stale value
+    // in either forced a dead WebSocket or same-browser-only mode, so two
+    // devices could never connect. (window.__mpLocal is a NON-persisted
+    // dev escape hatch for same-machine two-tab testing — it can't be
+    // saved, so it can never sabotage a real player's match.)
+    if (window.__mpLocal === true) return new Multiplayer.LocalTabTransport();
     if (typeof Peer === 'undefined') {
       // PeerJS didn't load — fall back to LocalTab so the user at least
       // has SOME way to test. The lobby explainer flags the issue.
@@ -10348,52 +10357,15 @@ const UI = {
     if (aiAvEl) aiAvEl.textContent = '▲';
     if (aiCell) aiCell.title = oppName;
   },
-  // Toggle between WebRTC (internet) and LocalTab (same-browser dev).
-  // Persisted in localStorage so the choice sticks across sessions.
-  _mpToggleLocalMode() {
-    const cur = localStorage.getItem('clb-mp-mode') === 'local';
-    if (cur) localStorage.removeItem('clb-mp-mode');
-    else     localStorage.setItem('clb-mp-mode', 'local');
-    this._mpRender();
-  },
-  // Force-relay mode: skips direct P2P and routes everything through
-  // the TURN relay server. Required on hotel WiFi / networks with AP
-  // isolation where devices on the same network can't talk directly.
-  _mpToggleForceRelay() {
-    const cur = localStorage.getItem('clb-force-relay') === '1';
-    if (cur) localStorage.removeItem('clb-force-relay');
-    else     localStorage.setItem('clb-force-relay', '1');
-    this._mpRender();
-  },
-  // Custom TURN credentials from a reliable provider (e.g. Metered.ca).
-  // The built-in free TURN servers are unreliable on hotel WiFi.
-  // Metered.ca offers a free tier — sign up at metered.ca, go to
-  // dashboard > Tools > ICE Servers, click Copy, paste here.
-  _mpSetCustomTurn() {
-    const cur = localStorage.getItem('clb-custom-turn') || '';
-    const msg =
-      'Paste your TURN server JSON from Metered.ca (free account, no credit card):\n\n' +
-      '1. Go to: dashboard.metered.ca/tools/iceServers\n' +
-      '2. Click "Copy" button\n' +
-      '3. Paste here\n\n' +
-      'Format: [{"urls":"turn:...","username":"...","credential":"..."}, ...]\n\n' +
-      'Leave blank to clear and use built-in servers.';
-    const next = prompt(msg, cur);
-    if (next === null) return;
-    if (next.trim() === '') {
-      localStorage.removeItem('clb-custom-turn');
-      this._mpRender();
-      return;
-    }
-    try {
-      const parsed = JSON.parse(next.trim());
-      if (!Array.isArray(parsed)) throw new Error('not an array');
-      localStorage.setItem('clb-custom-turn', next.trim());
-    } catch (e) {
-      alert('Invalid format. Please paste the JSON array from Metered.ca exactly.');
-      return;
-    }
-    this._mpRender();
+  // Wipe every legacy connection override that used to live in localStorage
+  // (custom server URL, force-relay, custom TURN JSON, local-tab mode).
+  // Called once at startup so any value a user saved while trying to get
+  // through a hotel/corporate network can't keep silently breaking matches
+  // on every OTHER network afterward. Safe no-op when the keys are absent.
+  _mpClearLegacyOverrides() {
+    ['clb-mp-server', 'clb-custom-turn', 'clb-force-relay', 'clb-mp-mode'].forEach(k => {
+      try { if (localStorage.getItem(k) != null) localStorage.removeItem(k); } catch (e) {}
+    });
   },
   // One-tap rescue for a silently-broken connection: wipe every saved
   // transport override (custom server URL, custom TURN config, relay
@@ -10408,21 +10380,6 @@ const UI = {
     });
     try { if (typeof Multiplayer !== 'undefined') Multiplayer.leave(); } catch (e) {}
     window.location.reload();
-  },
-  // Power-user knob: PartyKit deployment URL. Lives in localStorage so
-  // a curious user can paste a URL once and have all matches go over
-  // the production transport. Empty string = LocalTabTransport (dev).
-  _mpEditServerUrl() {
-    const cur = localStorage.getItem('clb-mp-server') || '';
-    const next = prompt(
-      'PartyKit server URL (leave blank for local-tab dev mode):\n\n' +
-      'Example: wss://card-lane-battle.example.partykit.dev',
-      cur
-    );
-    if (next === null) return;  // user cancelled
-    if (next.trim() === '') localStorage.removeItem('clb-mp-server');
-    else                    localStorage.setItem('clb-mp-server', next.trim());
-    this._mpRender();
   },
   // Re-render the in-shell multiplayer submenu in place on every connection
   // event (roomCreated / joined / paired / error). No letter-flip on these
@@ -10449,23 +10406,14 @@ const UI = {
 
     // Condensed transport footer — just the actionable links (no "Peer-to-peer"
     // prefix), tiny, at the very bottom.
-    const url = (localStorage.getItem('clb-mp-server') || '').trim();
-    const localMode = localStorage.getItem('clb-mp-mode') === 'local';
-    const forceRelay = localStorage.getItem('clb-force-relay') === '1';
-    const hasCustomTurn = !!localStorage.getItem('clb-custom-turn');
+    // Transport status — peer-to-peer over the internet, no user knobs.
+    // (The custom-server / force-relay / TURN override buttons were removed:
+    // they persisted in localStorage and a stale value silently broke every
+    // connection.) Only surfaced signal is the PeerJS-failed-to-load warning.
     const peerJsLoaded = typeof Peer !== 'undefined';
-    let transportLine;
-    if (url) {
-      transportLine = `<div class="mp-transport-min">Custom server · <a href="#" onclick="UI._mpEditServerUrl();return false;">change</a></div>`;
-    } else if (localMode) {
-      transportLine = `<div class="mp-transport-min">Local-tab dev · <a href="#" onclick="UI._mpToggleLocalMode();return false;">go internet</a></div>`;
-    } else if (!peerJsLoaded) {
-      transportLine = `<div class="mp-transport-min mp-transport-warn">⚠ PeerJS didn't load — refresh.</div>`;
-    } else {
-      const relayLabel = forceRelay ? 'Relay ON' : 'Force relay';
-      const turnLabel = hasCustomTurn ? 'TURN set ✓' : 'Set TURN';
-      transportLine = `<div class="mp-transport-min"><a href="#" onclick="UI._mpToggleForceRelay();return false;">${relayLabel}</a> · <a href="#" onclick="UI._mpSetCustomTurn();return false;">${turnLabel}</a></div>`;
-    }
+    const transportLine = peerJsLoaded
+      ? `<div class="mp-transport-min">Peer-to-peer · over the internet</div>`
+      : `<div class="mp-transport-min mp-transport-warn">⚠ PeerJS didn't load — refresh.</div>`;
 
     // Body by connection status. Idle = the three menu-style options; the rest
     // are left-aligned status rows with a glow-text action (no boxes).
