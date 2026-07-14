@@ -8861,6 +8861,14 @@ body.turn-combat .board .lane.lane-active {
   transition: opacity 0.25s ease;
 }
 
+/* Mobile: hide the page scrollbar (the thin sidebar was ugly clutter, and on
+   touch you scroll by dragging anyway). Lives OUTSIDE the @container block
+   because it targets the scrolling root (html/body), not a body descendant. */
+@media (max-width: 640px) {
+  html, body { scrollbar-width: none; -ms-overflow-style: none; }
+  html::-webkit-scrollbar, body::-webkit-scrollbar { width: 0 !important; height: 0 !important; display: none !important; }
+}
+
 /* Tablet / small-laptop — board + hand both scale down a notch. */
 @media (max-width: 700px) {
   .board { gap: 2px; }
@@ -9085,6 +9093,22 @@ body.turn-combat .board .lane.lane-active {
   .player-hand-section .hand-cards .card:hover,
   .hand-card-wrapper:hover,
   .hand-card-wrapper.magnifying { position: relative; z-index: 500 !important; }
+  /* Compact hand cards — hide the long ON PLAY / PASSIVE description (tap-and-
+     hold a card to read the full text in the inspect modal). Cuts hand-card
+     height ~276px -> ~140px so the tricks row sits right under the hand
+     instead of below the fold — kills the dead space + extra scrolling. */
+  .player-hand-section .hand-cards .card .card-desc { display: none !important; }
+  /* Touch on a hand card = drag-to-play (vertical) or scroll-the-hand
+     (horizontal) — never a page scroll, so dragging a card no longer scrolls
+     the board out from under the finger. */
+  .player-hand-section .hand-cards .card { touch-action: pan-x; }
+  /* SIM combat previews shrink to fit ONE narrow lane so they stop
+     overlapping neighbours. Keep the one-word verdict + key number; drop the
+     "SIM" tag and the verbose "N ATK + M Splash =" breakdown. */
+  .dmg-preview { min-width: 0 !important; max-width: 62px; padding: 2px 3px; font-size: 8px; bottom: 2px; border-radius: 3px; line-height: 1.15; }
+  .dmg-preview .dp-sim-tag, .dmg-preview .dp-sub { display: none !important; }
+  .dmg-preview .dp-verdict { font-size: 7.5px; letter-spacing: 0.2px; margin-bottom: 1px; }
+  .dmg-preview .dp-row { gap: 3px; }
   /* Mobile hand: 92px-wide cards fit FOUR comfortably in a 380px
      viewport (4×92 + 3×4 = 380), with description text legible. Hand
      auto-scrolls horizontally for hands of 5+ cards. User feedback:
