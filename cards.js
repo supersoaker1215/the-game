@@ -239,7 +239,7 @@ const CARD_DEFS = [
     desc: "When Played: Summon The Kraken (5/3) in any lane." },
   { name: "Jack Sparrow", cost: 5, attack: 3, health: 5, type: "hero",
     abilities: [],
-    desc: "When Played: Parlay — This round, all enemy cards in uncontested lanes (lanes where you have no card) cannot attack." },
+    desc: "PASSIVE: Right before combat, choose 1 enemy in an uncontested lane (no ally opposite) — Parlay! That enemy cannot attack this turn." },
   { name: "Han Solo", cost: 5, attack: 3, health: 4, type: "hero",
     abilities: [],
     desc: "While Active: Before each tricks phase, choose any enemy lane to attack instead of your own (may choose own lane to stay). At the start of each round, allies have a 50% chance to gain Critical (deals double damage)." },

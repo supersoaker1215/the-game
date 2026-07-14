@@ -3431,9 +3431,42 @@ const CARD_ABILITIES = {
     }
   },
   "Jack Sparrow": {
-    onPlay(G, self, lane) {
-      G.state._parlayActive = self.owner;
-      G.log(`[JACK SPARROW] Parlay! Enemy uncontested lanes cannot attack this round.`);
+    // Parlay, renegotiated (user direction): instead of a one-shot
+    // "all uncontested enemies can't attack this round" on play, Jack
+    // picks ONE uncontested enemy lane right before every combat while
+    // he's active — that enemy sits the round out.
+    onBeforeCombat(G, self, lane) {
+      if (self.isStunned || self.isFrozen || self.currentHealth <= 0) return;
+      const opp = G.opponent(self.owner);
+      const lanes = [];
+      for (let i = 0; i < G.LANE_COUNT; i++) {
+        const e = G.state.lanes[i][opp];
+        // Uncontested = enemy present, no ally of Jack's side opposite.
+        if (e && e.currentHealth > 0 && !G.state.lanes[i][self.owner] && !G.state.lanes[i].destroyed) {
+          lanes.push(i);
+        }
+      }
+      if (!lanes.length) return;
+      const parley = (i) => {
+        const target = G.state.lanes[i][opp];
+        if (!target) return;
+        target._parlayedThisRound = true;
+        G.log(`[JACK SPARROW] Parlay! ${target.name} in lane ${i + 1} cannot attack this round.`);
+      };
+      if (Game.isHuman(self.owner)) {
+        G.promptLaneChoice(self.owner, lanes,
+          'Jack Sparrow — Parlay',
+          'Choose an enemy in an uncontested lane — they cannot attack this combat.',
+          parley, opp);
+      } else {
+        // AI: silence the biggest uncontested threat.
+        lanes.sort((a, b) => {
+          const ea = G.state.lanes[a][opp], eb = G.state.lanes[b][opp];
+          const score = (c) => (typeof AI !== 'undefined' && AI.threatScore) ? AI.threatScore(c) : (c.attack * c.currentHealth);
+          return score(eb) - score(ea);
+        });
+        parley(lanes[0]);
+      }
     }
   },
   "Han Solo": {
@@ -4036,7 +4069,9 @@ const CARD_ABILITIES = {
     },
     onBeforeTricks(G, self, lane) {
       if (self.dormammuDrained) return;    // fires exactly once per instance
-      const enemies = G.getEnemiesOf(self.owner);
+      // {source: self} strips 10-cost enemies from the drain picker —
+      // tens can't drain tens, so they must not even be offered.
+      const enemies = G.getEnemiesOf(self.owner, { source: self });
       if (!enemies.length) return;
       self.dormammuDrained = true;
       // Roguelite Text+ override — _dormammuDrainMax raises the drain
@@ -4218,7 +4253,10 @@ const CARD_ABILITIES = {
     },
     _massFreezeOnce(G, self) {
       if (self.trigonFrozen) return;
-      const targets = G.getEnemiesOf(self.owner).filter(e => e.currentHealth > 0);
+      // {source: self} strips 10-cost enemies — Trigon's freeze can't
+      // touch fellow titans (mutual 10-cost immunity), so they don't
+      // belong in the target list or the "freezes N enemies" count.
+      const targets = G.getEnemiesOf(self.owner, { source: self }).filter(e => e.currentHealth > 0);
       if (!targets.length) {
         // Mark the freeze as fired anyway so a re-summoned Trigon
         // doesn't snap-freeze the field after a Lazarus / reanimation

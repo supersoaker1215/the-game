@@ -347,6 +347,15 @@ const Game = {
           if (trick && this.playTrick) this.playTrick(actor, trick);
           break;
         }
+        case 'reqState': {
+          // Guest asking for a (re)send of the authoritative state —
+          // fired on a join that never received the first broadcast
+          // (flaky data channel, dropped message). No mutation here;
+          // the unconditional _mpBroadcast at the end of this function
+          // is the answer. User report: guest paired but stuck on
+          // "Dropping into the match…" while the host was in the draft.
+          break;
+        }
         case 'doneTurn': {
           // The guest hit Done — dispatch to the right phase-end based
           // on the current phase. Guest sends 'doneTurn' with no extra
@@ -1135,7 +1144,32 @@ const Game = {
       if (this.state.player) this.state.player.isHuman = true;
       if (this.state.ai) this.state.ai.isHuman = true;
       this.state._mpNames = { player: 'Player 1', ai: 'Player 2' };
+    } else {
+      // Seat hygiene for every NON-hotseat match. startMatch reuses
+      // this.state without re-running init(), so a prior hotseat or
+      // multiplayer match leaves ai.isHuman=true (and state.hotseat)
+      // behind — the AI then plays its own cards but its ABILITY
+      // prompts route to the human. User report: "the AI played Venom
+      // and my buddy got to choose who to freeze... then the AI
+      // blocked and my buddy got to choose how to play the trick."
+      this.state.hotseat = false;
+      if (!this.isMultiplayer()) {
+        if (this.state.player) this.state.player.isHuman = true;
+        if (this.state.ai) this.state.ai.isHuman = false;
+        this.state._mpNames = null;
+      }
     }
+    // Every startMatch mode is a 1v1 six-lane match (2v2 has its own
+    // entry points that never come through here). A finished 2v2 leaves
+    // LANE_COUNT=8 and an 8-slot lanes array behind — without this reset
+    // the next solo/MP match plays on a phantom 8-lane board.
+    if (this.LANE_COUNT !== 6 || (this.state.lanes || []).length !== 6) {
+      this.LANE_COUNT = 6;
+      this.state.lanes = Array.from({ length: 6 }, () => ({
+        player: null, ai: null, _env: null, destroyed: false, destroyedTurns: 0, protected: null, trap: null,
+      }));
+    }
+    this.state.twoVTwo = null;
     // Two flavors of deckbuilder mode:
     //   • mode.withDraft === true  → run the full draft phase, but draw
     //     from the player's customDeck instead of the global pool.
@@ -1847,7 +1881,9 @@ const Game = {
     // Apply Magneto debuffs each round
     this.applyMagnetoDebuffs();
     this.state.lanes.forEach(l => l.protected = null);
-    // Clear Parlay — one-round effect from Jack Sparrow
+    // Clear Parlay — one-round effect from Jack Sparrow (per-card flag;
+    // legacy side-wide key deleted too for old saves)
+    this.getAllCardsOnBoard().forEach(c => { delete c._parlayedThisRound; });
     delete this.state._parlayActive;
     // Resolve any upkeep prompts (e.g. Gargantua) before starting the phase.
     this._resolveUpkeepPrompts(() => this.startPhase1());
@@ -3290,9 +3326,14 @@ const Game = {
       attackerIsLowestCache = !!(cur && cur.attack === minAtk);
       return attackerIsLowestCache;
     };
+    const attackerCard = this.state.lanes[attackerLane][attackerOwner];
     for (let i = 0; i < this.LANE_COUNT; i++) {
       const c = this.state.lanes[i][defOwner];
       if (!c || c.tauntTurns <= 0 || c.currentHealth <= 0) continue;
+      // 10-cost titans don't answer each other's taunts — Manhattan's
+      // taunt can't drag Galactus out of his lane. Same mutual-immunity
+      // rule as drain / devour / freeze / debuffs (is10CostImmune).
+      if (this.is10CostImmune(attackerCard, c)) continue;
       if (c.tauntOnlyLowestAttack) {
         // Selective taunt: only pull attackers tied for the lowest attack value.
         if (attackerIsLowest()) return c;
@@ -4115,9 +4156,9 @@ const Game = {
 
     if (card.attack <= 0) return;
     if (card.isStunned || card.isFrozen) return;
-    // Parlay — Jack Sparrow blocks uncontested attacks for one round
-    if (this.state._parlayActive === this.opponent(side)) {
-      this.log(`[LANE ${laneIdx + 1}] ${card.name} held by Parlay — cannot attack uncontested this round!`);
+    // Parlay — Jack Sparrow singled this card out before combat
+    if (card._parlayedThisRound) {
+      this.log(`[LANE ${laneIdx + 1}] ${card.name} held by Parlay — cannot attack this round!`);
       return;
     }
 
@@ -7454,19 +7495,20 @@ const Game = {
           if (this.isHuman(owner)) playerJumpNowReady = card;
         }
       });
-      // If a player-side jump became ready AND we're in the middle of combat
-      // (_inCombat set by resolveCombat), pause the lane-resolve timeline
-      // by setting a pending prompt. The UI renders a "play free / skip"
-      // modal; either choice clears the prompt and combat resumes via
-      // resumeCombatIfWaiting. Outside combat (normal turn), the glowing
-      // card in hand is enough — the player can click it any time.
-      if (playerJumpNowReady && this.state._inCombat && !this.state.pendingJumpOffer) {
+      // A human-owned jump became ready — surface the "play free / skip"
+      // modal IMMEDIATELY, in or out of combat. The old behavior only
+      // prompted mid-combat and left out-of-combat jumps as a subtle glow
+      // in hand, which players missed. User direction: "for all the jump
+      // cards, make sure the prompts pop up — play the jump card or skip."
+      // pendingJumpOffer counts as a pending prompt, so phase flow and the
+      // combat timeline both wait for the choice before advancing.
+      if (playerJumpNowReady && !this.state.pendingJumpOffer) {
         // Shim sets __HEADLESS_SIM; browser leaves it undefined.
         const inBrowser = typeof __HEADLESS_SIM === 'undefined';
         if (inBrowser) {
           this.state.pendingJumpOffer = { cardId: playerJumpNowReady.id };
           if (typeof UI !== 'undefined' && UI.render) UI.render();
-        } else {
+        } else if (this.state._inCombat) {
           // Headless sim: no UI to resolve the modal → combat would stall
           // forever in whenPromptCleared. Auto-play the jump into the first
           // open lane (or clear the flag if no valid target).

@@ -10098,9 +10098,27 @@ const UI = {
       this._mpState.code = m.code;
       this._mpState.you = m.you;
       this._mpState.status = 'paired';
+      this._mpState.gotState = false;
+      this._mpState.pairedAt = Date.now();
       this._mpRender();
-      // Joiner automatically lands in the host's match state when the
-      // host pushes its first 'state' broadcast. No further action.
+      // Joiner lands in the host's match when the first 'state' broadcast
+      // arrives — but that first push can be lost (data channel still
+      // settling, flaky hotel-grade Wi-Fi, dropped message). Poll the host
+      // with reqState until a state lands so the guest can't strand on
+      // "Dropping into the match…" forever. Host answers each reqState
+      // with a full rebroadcast (free — _mpApplyAction's trailing push).
+      if (this._mpStateRetry) clearInterval(this._mpStateRetry);
+      let tries = 0;
+      this._mpStateRetry = setInterval(() => {
+        if (this._mpState.gotState || this._mpState.status !== 'paired' || tries++ > 20) {
+          clearInterval(this._mpStateRetry); this._mpStateRetry = null;
+          this._mpRender();  // stuck past the cap → paired body shows the reset rescue
+          return;
+        }
+        try { Multiplayer.send({ t: 'reqState' }); } catch (e) {}
+        // Re-render occasionally so the "taking too long" rescue appears.
+        if (tries === 4) this._mpRender();
+      }, 2500);
     });
     Multiplayer.on('opponentJoined', (m) => {
       this._mpState.opponent = (m && m.name) || 'Opponent';
@@ -10126,6 +10144,9 @@ const UI = {
       this._mpRender();
     });
     Multiplayer.on('state', (m) => {
+      // First state landed — stop the reqState poll (see roomJoined).
+      this._mpState.gotState = true;
+      if (this._mpStateRetry) { clearInterval(this._mpStateRetry); this._mpStateRetry = null; }
       // Server pushed authoritative state. Replace local state with
       // the rehydrated copy and re-render. Wired by Game.acceptMultiplayerState
       // so engine-level fields (ai object, current side, etc.) get set
@@ -10270,6 +10291,7 @@ const UI = {
     Multiplayer.joinRoom(code, { name: this._mpName() });
   },
   _mpLeaveRoom() {
+    if (this._mpStateRetry) { clearInterval(this._mpStateRetry); this._mpStateRetry = null; }
     if (typeof Multiplayer !== 'undefined') Multiplayer.leave();
     if (typeof Game !== 'undefined' && Game.resetMultiplayer) Game.resetMultiplayer();
     this._mpState = { tab: 'create', code: null, status: 'idle', you: null, opponent: null };
@@ -10365,6 +10387,20 @@ const UI = {
     }
     this._mpRender();
   },
+  // One-tap rescue for a silently-broken connection: wipe every saved
+  // transport override (custom server URL, custom TURN config, relay
+  // force, local-tab mode) back to clean defaults and reload. These
+  // overrides persist in localStorage, so a config added to get through
+  // one network (e.g. hotel Wi-Fi) keeps sabotaging matches everywhere
+  // else. User report: guest pairs but stays stuck on "Dropping into
+  // the match…" forever.
+  _mpResetTransportSettings() {
+    ['clb-mp-server', 'clb-custom-turn', 'clb-force-relay', 'clb-mp-mode'].forEach(k => {
+      try { localStorage.removeItem(k); } catch (e) {}
+    });
+    try { if (typeof Multiplayer !== 'undefined') Multiplayer.leave(); } catch (e) {}
+    window.location.reload();
+  },
   // Power-user knob: PartyKit deployment URL. Lives in localStorage so
   // a curious user can paste a URL once and have all matches go over
   // the production transport. Empty string = LocalTabTransport (dev).
@@ -10452,10 +10488,18 @@ const UI = {
         <div class="mp-loader" aria-hidden="true"><span></span><span></span><span></span></div>
         <button type="button" class="mp-glow-go" onclick="UI._mpLeaveRoom()">Cancel</button></div>`;
     } else if (st.status === 'paired') {
+      // Stuck rescue — paired but no state after ~10s means the data
+      // channel is silently broken (commonly a stale custom server /
+      // TURN override saved in localStorage from an earlier network,
+      // e.g. hotel Wi-Fi). Offer a one-tap reset back to defaults.
+      const stuck = !st.gotState && st.pairedAt && (Date.now() - st.pairedAt) > 10000;
+      const rescue = stuck ? `
+        <div class="mp-hint mp-transport-warn">Taking too long? A saved network override may be blocking the connection.</div>
+        <button type="button" class="mp-glow-go" onclick="UI._mpResetTransportSettings()">Reset connection settings</button>` : '';
       body = `<div class="mp-status">
         <div class="mp-status-label mp-status-go">Connected!</div>
         <div class="mp-pairing-line">${(st.you === 'player' ? 'You' : 'Opponent')} ⟷ ${st.opponent || 'Opponent'}</div>
-        <div class="mp-hint">Dropping into the match…</div></div>`;
+        <div class="mp-hint">Dropping into the match…</div>${rescue}</div>`;
     } else if (st.status === 'opponentLeft') {
       body = `<div class="mp-status">
         <div class="mp-status-label mp-status-warn">Opponent disconnected</div>
