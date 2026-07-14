@@ -17028,7 +17028,15 @@ const UI = {
         try { if (this._haptic) this._haptic('cardPlay'); } catch (_) {}
       }
       e.preventDefault();
-      if (d.ghost) d.ghost.style.transform = `translate(${t.clientX}px, ${t.clientY}px) translate(-50%, -62%) scale(1.06)`;
+      if (d.ghost) {
+        // Velocity tilt — the card angles toward the direction you're moving
+        // and settles back to level when you pause, like holding a card in
+        // hand on the PC build.
+        const dxi = t.clientX - (d.lastX != null ? d.lastX : t.clientX);
+        d.lastX = t.clientX;
+        d.tilt = Math.max(-16, Math.min(16, (d.tilt || 0) * 0.62 + dxi * 0.9));
+        d.ghost.style.transform = `translate(${t.clientX}px, ${t.clientY}px) translate(-50%, -62%) rotate(${d.tilt.toFixed(1)}deg) scale(1.06)`;
+      }
       clearHi();
       const i = laneIdxUnder(t.clientX, t.clientY);
       if (i != null) { const l = laneEls()[i]; if (l) l.classList.add('drag-over'); }
@@ -17739,6 +17747,15 @@ const UI = {
       svg.appendChild(pathL);
       svg.appendChild(pathR);
       document.body.appendChild(svg);
+
+      // On touch (incl. hybrid touch+trackpad devices where fine-pointer is
+      // reported), a tap seeds the pointer buffer and flashes a trail segment
+      // at the touch point. Hide the trail the instant a touch begins; restore
+      // it only when a REAL mouse moves. Kills the "cursor flashes when I tap a
+      // card" artifact on mobile without disabling the mouse trail on desktop.
+      window.addEventListener('touchstart', () => { svg.style.display = 'none'; }, { passive: true, capture: true });
+      window.addEventListener('pointerdown', (e) => { if (e.pointerType && e.pointerType !== 'mouse') svg.style.display = 'none'; }, { passive: true, capture: true });
+      window.addEventListener('mousemove', () => { if (svg.style.display === 'none') svg.style.display = ''; }, { passive: true });
 
       // Position buffer — {x, y, t} for each move sample. Older
       // entries get pruned each frame.

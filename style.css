@@ -7519,6 +7519,9 @@ body.hit-pause .ai-hand * {
 }
 /* Lock the page from scrolling/selecting while a card is in-flight. */
 body.mobile-card-dragging { touch-action: none; user-select: none; -webkit-user-select: none; }
+/* No mouse cursor trail while dragging a card by finger. */
+body.mobile-card-dragging #tron-cursor-trail,
+body.mobile-card-dragging .cursor-trail { display: none !important; }
 
 /* When the magnify is open on a hand card, freeze the WRAPPER's
    :hover transform AND the inner card's :hover transform. The
@@ -9086,7 +9089,18 @@ body.turn-combat .board .lane.lane-active {
   /* Hand + tricks rows — tighten so 5-7 cards fit without absurd
      horizontal scroll. Card slots already shrink via .card width
      above, this just kills extra padding. */
-  .player-hand-section { padding: 4px 6px; position: relative; z-index: 300; overflow: visible; }
+  /* Hand scrolls horizontally when you have more cards than fit (~4), with NO
+     visual scrollbar. overflow-x:auto is the scroller; overflow-y:hidden keeps
+     it from also showing a vertical bar (the two can't be auto/visible split). */
+  .player-hand-section {
+    padding: 4px 6px; position: relative; z-index: 300;
+    overflow-x: auto; overflow-y: hidden;
+    scrollbar-width: none; -webkit-overflow-scrolling: touch; overscroll-behavior-x: contain;
+  }
+  .player-hand-section::-webkit-scrollbar { display: none; width: 0; height: 0; }
+  /* safe center: cards center when few, but align to the START (scrollable)
+     when they overflow — plain `center` clips the first cards unreachably. */
+  .player-hand-section .hand-cards { justify-content: safe center; }
   .tricks-section { padding: 4px 6px; }
   /* A hovered / lifted / magnifying hand card paints ABOVE the bottom player
      banner (UNDO/DONE + HP), not behind it. */
@@ -9509,7 +9523,7 @@ body.turn-combat .board .lane.lane-active {
      Grow to 30×30 (font 15px) so the cost reads at the same weight as
      the stat orbs. User feedback: "the energy diamond is too small
      compared to the health/damage orbs". */
-  .draft-card .card-cost { width: 30px !important; height: 30px !important; font-size: 15px !important; top: -12px !important; left: -12px !important; }
+  .draft-card .card-cost { width: 28px !important; height: 28px !important; font-size: 14px !important; top: 5px !important; left: 5px !important; }
 }
 
 /* On pointer:coarse (touch-primary), expand tap targets for all
