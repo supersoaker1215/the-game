@@ -75,6 +75,12 @@ window.CARD_ART_VARIANTS = {
   // New horror portraits (2026-07-13) — new art as the primary, originals kept.
   'Ghostface':           ['Ghostface 2.jpg',         'Ghostface.png'],
   'Jigsaw':              ['Jigsaw 3.jpg',            'Jigsaw 2.jpg',            'Jigsaw.png'],
+  // New character portraits (2026-07-14) — new art as the primary, originals kept.
+  'Red Skull':           ['Red Skull 2.jpg',         'Red Skull.png'],
+  'Martian Manhunter':   ['Martian Manhunter 2.jpg', 'Martian Manhunter.png'],
+  'Loki':                ['Loki 2.jpg',              'Loki.png'],
+  'Predator':            ['Predator 2.jpg',          'Predator.png'],
+  'Hela':                ['Hela 2.jpg',              'Hela.png'],
 };
 
 // =============================================================================
@@ -132,6 +138,12 @@ window.CARD_ART_OVERRIDES = {
     'Groot|Groot.png': '50% 65%',
     'Hela|Hela.png': '50% 46%',
     'Iron Man|Iron Man 2.png': '50% 41%',
+    // New character portraits (2026-07-14)
+    'Red Skull|Red Skull 2.jpg': '50% 8%',
+    'Martian Manhunter|Martian Manhunter 2.jpg': '50% 8%',
+    'Loki|Loki 2.jpg': '50% 40%',
+    'Predator|Predator 2.jpg': '50% 14%',
+    'Hela|Hela 2.jpg': '50% 8%',
   },
   focalMenu: {   // "name|file" -> "X% Y%"   menu-hero crop focal
     'Darth Maul|Darth Maul.jpg': '50% 50%',
@@ -166,6 +178,12 @@ window.CARD_ART_OVERRIDES = {
     'Iron Man|Iron Man 3.png': '50% 31%',
     'Mr. Freeze|Mr. Freeze.png': '50% 0%',
     'Padme Amidala|Padme Amidala.png': '50% 0%',
+    // New character portraits (2026-07-14)
+    'Red Skull|Red Skull 2.jpg': '50% 6%',
+    'Martian Manhunter|Martian Manhunter 2.jpg': '50% 10%',
+    'Loki|Loki 2.jpg': '50% 32%',
+    'Predator|Predator 2.jpg': '50% 12%',
+    'Hela|Hela 2.jpg': '50% 4%',
   },
   zoomCard:  {   // "name|file" -> scale (1 = cover, e.g. 1.3)
     'Darth Maul|Darth Maul.jpg': 1.6,
