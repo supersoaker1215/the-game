@@ -11193,6 +11193,13 @@ body.turn-combat .board .lane.lane-active {
   margin: 3px 0;
   display: flex; align-items: center; justify-content: center;
   position: relative;
+  /* Sit ABOVE both card-slots (z-index 1) so the centerline + lane-number
+     pip are never buried by the player card, which is later in the DOM.
+     Without this the number pip and neon seam show only in the AI half of
+     a contested lane. A hovered card's own slot is lifted higher (z-index
+     20, see the board-hover rules) so inspecting a card still paints over
+     the pip. */
+  z-index: 4;
 }
 /* Neon centerline — same 0.9-alpha white + 12/24px double glow spec as the lane
    edges so the horizontal and vertical Tron lines read as one continuous circuit. */
@@ -11289,18 +11296,19 @@ body.turn-combat .board .lane.lane-active {
     0 0 12px rgba(79,195,247,0.55),
     0 0 24px rgba(79,195,247,0.22);
 }
-/* Hide the lane-number pip whenever the lane has a card in it. The
-   number is a navigation hint for empty lanes — once a card lands,
-   the card itself is the visual marker and the floating digit below
-   the portrait clutters the readout. Empty lanes still show the
-   number so the player can scan deployable slots at a glance.
-   User feedback: "lane number is still present over the text" — the
-   card body was visually overlapping the number pip in the seam. */
+/* Lane-number pip stays visible even when the lane is occupied. It was
+   previously hidden once a card landed, but the player wants a constant
+   lane marker at every centerline — contested lanes especially (user:
+   "the lane number circles in the middle disappear when it's contested,
+   they should always be there"). The pip lives in the lane-sep, which is
+   lifted above the card-slots (z-index 4 above) so the player card no
+   longer buries it. In single-occupancy lanes it sits in the empty half;
+   in contested lanes it rides the neon seam between the two cards. */
 .lane.occ-ai .lane-number,
 .lane.occ-player .lane-number,
 .lane.occ-both .lane-number {
-  opacity: 0;
-  visibility: hidden;
+  opacity: 1;
+  visibility: visible;
 }
 /* Contested lane mid-divider — neon purple bar with a stronger halo
    so the contested seam reads as the brightest line on the board.
@@ -16530,6 +16538,19 @@ body.theme-purple .board-section {
 .board .lane:has(.card.ally-card:hover),
 .board .lane:has(.card.enemy-card:hover) {
   z-index: 50 !important;
+}
+/* CRITICAL (within-lane) — the lane bump above only fixes CROSS-lane
+   overlap. Inside a contested lane the enemy card lives in the ai-slot
+   (earlier in the DOM) and the player card in the player-slot (later),
+   both position:relative z-index:1. The enemy card's own z-index:100 is
+   trapped in the ai-slot's stacking context, so an enlarged ENEMY paints
+   UNDER the player card. User report: "when you hover the enemy it goes
+   underneath your card." Lift the SLOT that holds the hovered card above
+   its sibling slot (and above the lane-sep at z:4) so the enlarged card
+   is the top layer regardless of which half it's in. */
+.board .lane .card-slot:has(.card.enemy-card:hover),
+.board .lane .card-slot:has(.card.ally-card:hover) {
+  z-index: 20;
 }
 @media (prefers-reduced-motion: reduce) {
   .card.ally-card:hover,
