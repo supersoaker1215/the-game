@@ -3607,6 +3607,7 @@ const UI = {
     this._gameAreaEl           = document.getElementById('game-area');
     this.installKeywordTooltips();
     this.installKeyboardShortcuts();
+    this.installMobileCardDrag();
     this.wireUndoButton();
     this.wireRoundSummary();
     this.installParallaxMenu();
@@ -16969,6 +16970,106 @@ const UI = {
     if (this._haptic) this._haptic('block');
     return true;
   },
+  // ── Mobile drag-and-drop: drag a hand card up onto a lane to play it ──
+  // Reuses the exact tap flow under the hood (selectedCard + onLaneClick), so
+  // all validation/feedback (affordability, occupied lane, face-down prompt)
+  // is unchanged. A plain tap still selects (the drag only engages on an
+  // UPWARD gesture, so horizontal hand-scrolling and taps are untouched).
+  installMobileCardDrag() {
+    if (this._cardDragInstalled) return;
+    this._cardDragInstalled = true;
+    let d = null;
+
+    const cardFromEl = (el) => {
+      const cardEl = el && el.closest && el.closest('.player-hand-section .card[data-card-id]');
+      if (!cardEl) return null;
+      const id = parseInt(cardEl.getAttribute('data-card-id'), 10);
+      const s = Game.state;
+      const card = s && s.player && s.player.hand && s.player.hand.find(c => c.id === id);
+      return card ? { card, cardEl } : null;
+    };
+    const laneEls = () => [...document.querySelectorAll('.board > .lane')];
+    const laneIdxUnder = (x, y) => {
+      const el = document.elementFromPoint(x, y);
+      const lane = el && el.closest && el.closest('.board .lane');
+      if (!lane) return null;
+      const i = laneEls().indexOf(lane);
+      return i >= 0 ? i : null;
+    };
+    const clearHi = () => document.querySelectorAll('.lane.drag-over').forEach(l => l.classList.remove('drag-over'));
+
+    document.addEventListener('touchstart', (e) => {
+      if (d || e.touches.length !== 1) return;
+      const s = Game.state;
+      if (!s || !this.canPlayerPlayCards || !this.canPlayerPlayCards(s)) return;
+      // MP guests place via their own host-driven lane picker — don't hijack.
+      if (Game.isMultiplayer && Game.isMultiplayer() && Game.mp && Game.mp.role === 'guest') return;
+      const hit = cardFromEl(e.target);
+      if (!hit || hit.card.isDiscardEffect) return;   // discard cards play on tap, no lane
+      const t = e.touches[0];
+      d = { card: hit.card, cardEl: hit.cardEl, x0: t.clientX, y0: t.clientY, moved: false, ghost: null };
+    }, { passive: true });
+
+    document.addEventListener('touchmove', (e) => {
+      if (!d) return;
+      const t = e.touches[0];
+      const dx = t.clientX - d.x0, dy = t.clientY - d.y0;
+      if (!d.moved) {
+        // Engage a play-drag only on an UPWARD, mostly-vertical gesture. A
+        // horizontal move = hand scroll → abandon so native scroll works.
+        if (!(dy < -10 && Math.abs(dy) > Math.abs(dx))) {
+          if (Math.abs(dx) > 12) d = null;
+          return;
+        }
+        d.moved = true;
+        Game.state.selectedCard = d.card;
+        d.ghost = this._makeCardDragGhost(d.cardEl);
+        document.body.classList.add('mobile-card-dragging');
+        try { if (this._haptic) this._haptic('cardPlay'); } catch (_) {}
+      }
+      e.preventDefault();
+      if (d.ghost) d.ghost.style.transform = `translate(${t.clientX}px, ${t.clientY}px) translate(-50%, -62%) scale(1.06)`;
+      clearHi();
+      const i = laneIdxUnder(t.clientX, t.clientY);
+      if (i != null) { const l = laneEls()[i]; if (l) l.classList.add('drag-over'); }
+    }, { passive: false });
+
+    const end = (e) => {
+      if (!d) return;
+      const wasDrag = d.moved, card = d.card, ghost = d.ghost;
+      const t = e.changedTouches && e.changedTouches[0];
+      if (ghost) ghost.remove();
+      clearHi();
+      document.body.classList.remove('mobile-card-dragging');
+      d = null;
+      if (!wasDrag) return;   // it was a tap → let the card's own onclick select
+      const i = t ? laneIdxUnder(t.clientX, t.clientY) : null;
+      if (i != null && Game.state.selectedCard === card) {
+        this.onLaneClick(i);
+      } else if (Game.state.selectedCard === card) {
+        Game.state.selectedCard = null; this.render();   // dropped off-board → cancel
+      }
+    };
+    document.addEventListener('touchend', end, { passive: true });
+    document.addEventListener('touchcancel', (e) => {
+      if (!d) return;
+      if (d.ghost) d.ghost.remove();
+      clearHi();
+      document.body.classList.remove('mobile-card-dragging');
+      d = null;
+    }, { passive: true });
+  },
+  // Floating clone of the dragged card that tracks the finger.
+  _makeCardDragGhost(cardEl) {
+    const g = cardEl.cloneNode(true);
+    g.removeAttribute('data-card-id');
+    g.classList.add('card-drag-ghost');
+    g.style.cssText = `position:fixed; left:0; top:0; z-index:3000; pointer-events:none;
+      width:${cardEl.offsetWidth}px; margin:0; opacity:0.92;`;
+    document.body.appendChild(g);
+    return g;
+  },
+
   onCardClick(card) {
     const s = Game.state;
     if (!this.canPlayerPlayCards(s)) return;

@@ -7503,6 +7503,23 @@ body.hit-pause .ai-hand * {
   pointer-events: none !important;
 }
 
+/* ── Mobile drag-and-drop (installMobileCardDrag) ── */
+/* Floating clone that tracks the finger while dragging a hand card. */
+.card-drag-ghost {
+  transition: none !important; animation: none !important;
+  filter: drop-shadow(0 8px 18px rgba(0,0,0,0.65));
+  transform-origin: 0 0;
+}
+.card-drag-ghost * { animation: none !important; transition: none !important; }
+/* Lane currently under the dragged card — clear drop target cue. */
+.lane.drag-over {
+  background: rgba(var(--theme-rgb,79,195,247), 0.10) !important;
+  box-shadow: inset 0 0 0 2px rgba(var(--theme-rgb,79,195,247), 0.75),
+              inset 0 0 26px rgba(var(--theme-rgb,79,195,247), 0.30) !important;
+}
+/* Lock the page from scrolling/selecting while a card is in-flight. */
+body.mobile-card-dragging { touch-action: none; user-select: none; -webkit-user-select: none; }
+
 /* When the magnify is open on a hand card, freeze the WRAPPER's
    :hover transform AND the inner card's :hover transform. The
    pulsing the user flagged in the middle of a card was the INNER
