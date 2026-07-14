@@ -7349,10 +7349,17 @@ const UI = {
     const energy = ap.energy - ap.usedEnergy;
     const tt = Game.state.twoVTwo;
     const you = tt ? tt.you : null;
-    const isHost = you === 'p1';
-    // Host uses the lane-strip (card select + numbered buttons); guests send
-    // req2v2LaneChoice and pick from the highlighted board lanes (same as 1v1).
-    const selectedId = (isHost && UI._2v2SelectedCardIdx != null && ap.hand[UI._2v2SelectedCardIdx])
+    // LOCAL pass-and-play: every seat acts on this device, so everyone
+    // uses the select-then-lane-strip flow. The p1-only check routed
+    // players 2-4 into the ONLINE guest branch, whose Multiplayer4.send
+    // no-ops without a connection — their hand clicks silently did
+    // nothing. User report: "tried the 2v2 local and couldn't seem to
+    // play any cards when clicking on them."
+    const isLocalSelect = (tt && !tt.online) || you === 'p1';
+    // Online host uses the lane-strip (card select + numbered buttons);
+    // online guests send req2v2LaneChoice and pick from the highlighted
+    // board lanes (same as 1v1).
+    const selectedId = (isLocalSelect && UI._2v2SelectedCardIdx != null && ap.hand[UI._2v2SelectedCardIdx])
       ? ap.hand[UI._2v2SelectedCardIdx].id : null;
     handEl.querySelectorAll('.hand-card-wrapper .card[data-card-id]').forEach(cardEl => {
       const cardId = parseInt(cardEl.getAttribute('data-card-id'), 10);
@@ -7363,7 +7370,7 @@ const UI = {
       if (energy < cost) { cardEl.onclick = null; return; }
       cardEl.onclick = (e) => {
         e.stopPropagation();
-        if (isHost) {
+        if (isLocalSelect) {
           UI._2v2SelectedCardIdx = UI._2v2SelectedCardIdx === apIdx ? null : apIdx;
           UI.render();
         } else {

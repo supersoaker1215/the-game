@@ -4245,7 +4245,9 @@ const CARD_ABILITIES = {
         G.log(`Trigon's hatred crests — Block Meter maxed.`);
       }
       if (drainAll) {
-        G.getEnemiesOf(self.owner).forEach(e => {
+        // {source: self} — this HP-drain is a Trigon ability, so it
+        // skips fellow 10-cost titans (mutual immunity), not just his freeze.
+        G.getEnemiesOf(self.owner, { source: self }).forEach(e => {
           if (e.currentHealth > 1) G.dealDamage(e, 2, self);
         });
         G.log(`Trigon drains 2 HP from every enemy.`);
