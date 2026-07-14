@@ -1498,12 +1498,19 @@ const CARD_ABILITIES = {
           // you were saving that character."
           const skip = { name: 'Skip — Save Your Cards', _artName: 'Black Panther',
             desc: 'Play nothing for free this time. Your hand stays as it is.', _bpSkip: true };
+          // inlineTray — force ALL options into the choice tray. Without it
+          // the real cards are filtered out of the tray ("already visible on
+          // screen" — they glow in the hand instead) and the tray shows ONLY
+          // the Skip tile; players read that as the whole choice and think
+          // the free play is broken. User report: "he couldn't choose which
+          // 3-cost or lower card he wanted to play and could only skip."
           G.promptCardChoice(self.owner, [...freeCards, skip], "Black Panther — Free Play",
             "Choose a card with base cost 3 or less to play free — or skip", (picked) => {
               if (picked && picked._bpSkip) { G.log('Black Panther holds back — no free play.'); return; }
               playFree(picked);
             },
-            cards => cards.filter(c => !c._bpSkip).slice().sort((a, b) => (b.baseCost || b.cost) - (a.baseCost || a.cost))[0]);
+            cards => cards.filter(c => !c._bpSkip).slice().sort((a, b) => (b.baseCost || b.cost) - (a.baseCost || a.cost))[0],
+            { inlineTray: true });
         } else {
           const best = freeCards.slice().sort((a, b) => (b.baseCost || b.cost) - (a.baseCost || a.cost))[0];
           playFree(best);
