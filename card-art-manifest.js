@@ -81,6 +81,7 @@ window.CARD_ART_VARIANTS = {
   'Loki':                ['Loki 2.jpg',              'Loki.png'],
   'Predator':            ['Predator 2.jpg',          'Predator.png'],
   'Hela':                ['Hela 2.jpg',              'Hela.png'],
+  'Optimus Prime':       ['Optimus Prime 2.jpg',     'Optimus Prime.png'],
 };
 
 // =============================================================================
@@ -144,6 +145,7 @@ window.CARD_ART_OVERRIDES = {
     'Loki|Loki 2.jpg': '50% 40%',
     'Predator|Predator 2.jpg': '50% 14%',
     'Hela|Hela 2.jpg': '50% 8%',
+    'Optimus Prime|Optimus Prime 2.jpg': '50% 12%',
   },
   focalMenu: {   // "name|file" -> "X% Y%"   menu-hero crop focal
     'Darth Maul|Darth Maul.jpg': '50% 50%',
@@ -184,6 +186,7 @@ window.CARD_ART_OVERRIDES = {
     'Loki|Loki 2.jpg': '50% 32%',
     'Predator|Predator 2.jpg': '50% 12%',
     'Hela|Hela 2.jpg': '50% 4%',
+    'Optimus Prime|Optimus Prime 2.jpg': '50% 15%',
   },
   zoomCard:  {   // "name|file" -> scale (1 = cover, e.g. 1.3)
     'Darth Maul|Darth Maul.jpg': 1.6,
