@@ -8923,8 +8923,8 @@ body.turn-combat .board .lane.lane-active {
      at normal width with desc visible. */
   .board .card .card-desc { display: none; }
   /* Status badges shrink so multiple fit at this size. */
-  .board .card .card-abilities.status-badges { font-size: 6.5px; gap: 1px; flex-wrap: wrap; }
-  .board .card .status-badge { padding: 1px 3px; font-size: 6.5px; letter-spacing: 0.4px; }
+  .board .card .card-abilities.status-badges { font-size: 5.8px; gap: 1px; flex-wrap: wrap; max-width: 100%; }
+  .board .card .status-badge { padding: 1px 2px; font-size: 5.8px; letter-spacing: 0.1px; max-width: 100%; }
   /* Cost orb + stat orbs scale down to fit the compact card.
      User direction (2026-05-18): "the damage and the health
      squares and the energy squares are not positioned correctly
@@ -8938,7 +8938,11 @@ body.turn-combat .board .lane.lane-active {
   .board .card .stat-circle { width: 16px; height: 16px; font-size: 10px; }
   .board .card .stat-circle.stat-atk { bottom: 2px; left: 2px; }
   .board .card .stat-circle.stat-hp  { bottom: 2px; right: 2px; }
-  .board .card .rarity-strip { top: -2px; right: -2px; transform: scale(0.65); transform-origin: top right; }
+  .board .card .rarity-strip { top: 3px; right: 3px; transform: scale(0.6); transform-origin: top right; }
+  /* Predicted-death skull sits between the tiny ATK/HP orbs — shrink it so it
+     fits inside the compact board tile instead of overlapping the stats. */
+  .board .card .incoming-damage.lethal { transform: scale(0.72); }
+  .board .card .incoming-damage.lethal .incoming-skull { width: 10px; height: 10px; }
   /* PvZ-style board piece — hide the NAME on the tile (you read a piece by its
      art, like PvZ; the full name is one tap-inspect away). Leaves a clean
      art + cost + stats + keyword-badge tile with more room to breathe. */
@@ -9033,9 +9037,11 @@ body.turn-combat .board .lane.lane-active {
      the 44px minimum — backwards for the device where touch
      precision matters most. Dropped the scale; keep the corner pull.
      The sync button rides alongside it at a matching offset. */
-  .settings-cog { right: 8px !important; top: 8px !important; }
+  .settings-cog { right: 8px !important; top: 8px !important; width: 38px !important; height: 38px !important; font-size: 17px !important; }
   .sync-btn { right: 62px !important; top: 8px !important; }
-  .cheat-help-toggle { right: 60px !important; top: 8px !important; }
+  /* Mobile: the ? button is removed from the HUD to declutter the top bar —
+     Rules & keywords now live in Settings → Help. */
+  .cheat-help-toggle { display: none !important; }
   .kb-hints { display: none; }
   /* Show opponent's hand + tricks as face-down mini cards on mobile,
      just like desktop. User feedback: "I meant their hand and tricks
@@ -9109,8 +9115,8 @@ body.turn-combat .board .lane.lane-active {
   .player-hand-section .hand-cards .card .card-desc { display: block; font-size: 7.5px; line-height: 1.15; }
   .player-hand-section .hand-cards .card .card-cost { width: 22px; height: 22px; font-size: 12px; top: 4px; left: 4px; }
   .player-hand-section .hand-cards .card .stat-circle { width: 18px; height: 18px; font-size: 11px; }
-  .player-hand-section .hand-cards .card .stat-circle.stat-atk { bottom: -8px; left: -7px; }
-  .player-hand-section .hand-cards .card .stat-circle.stat-hp  { bottom: -8px; right: -7px; }
+  .player-hand-section .hand-cards .card .stat-circle.stat-atk { bottom: 4px; left: 4px; }
+  .player-hand-section .hand-cards .card .stat-circle.stat-hp  { bottom: 4px; right: 4px; }
   .trick-cards { gap: 4px; }
   .trick-card { width: 110px; }
 

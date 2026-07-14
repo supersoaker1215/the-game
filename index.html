@@ -13,7 +13,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap">
-  <link rel="stylesheet" href="style.css?v=723">
+  <link rel="stylesheet" href="style.css?v=724">
   <script>
     // Lightweight error reporter (pre-Sentry) — capture runtime JS
     // errors + unhandled promise rejections to a localStorage ring
@@ -718,6 +718,14 @@
         <div class="settings-row">
           <label for="setting-track-stats" title="Tracks per-card win rate / play rate / impact locally (never leaves this browser). Powers the Stats screen.">Track card stats</label>
           <input type="checkbox" id="setting-track-stats" checked>
+        </div>
+      </div>
+
+      <div class="settings-group">
+        <div class="settings-group-title">Help</div>
+        <div class="settings-row">
+          <label title="Full rules reference + every keyword explained.">Rules &amp; keywords</label>
+          <button type="button" class="btn btn-secondary settings-help-btn" onclick="UI.closeSettings(); UI.toggleCheatSheet();">Open</button>
         </div>
       </div>
 
