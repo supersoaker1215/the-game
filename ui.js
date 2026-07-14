@@ -21823,6 +21823,8 @@ function twov2OnlineCreate() {
   Multiplayer4.on('state', ({ state }) => {
     // Non-host: apply received state and re-render
     Game.state = state;
+    // Same lane-count lockstep as the joiner handler below.
+    if (state.lanes && state.lanes.length) Game.LANE_COUNT = state.lanes.length;
     UI.render();
   });
 
@@ -21864,6 +21866,10 @@ function twov2OnlineJoin() {
     // Joiner: full state replacement from host
     const mySlot = Game.state.twoVTwo && Game.state.twoVTwo.you;
     Game.state = state;
+    // Keep the engine's lane count in lockstep with the received board —
+    // 2v2 runs 8 lanes and any joiner whose local LANE_COUNT still says 6
+    // would misrender / mis-validate lanes 7-8.
+    if (state.lanes && state.lanes.length) Game.LANE_COUNT = state.lanes.length;
     if (Game.state.twoVTwo) {
       // Preserve which slot we are
       if (mySlot) Game.state.twoVTwo.you = mySlot;

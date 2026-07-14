@@ -716,7 +716,7 @@ const Game = {
     // PLAY sub-screen. Headless sim harnesses call startMatch('classic')
     // directly without going through the UI, so init() doesn't build
     // decks here.
-    this.LANE_COUNT = 6;  // reset to 1v1 default; 2v2 overrides to 8 before calling init()
+    this.LANE_COUNT = 6;  // reset to 1v1 default; 2v2 entry points override to 8 AFTER init() (never before — this line clobbers it)
     nextCardId = 1;
     this.state = {
       phase: 'main-menu',
@@ -3246,6 +3246,14 @@ const Game = {
     if (this.state.gameOver) this.finalizeStats();
 
     if (!this.state.gameOver) {
+      // 2v2 owns its own post-combat sequence: read team health back from
+      // the player/ai combat proxies, broadcast (online), then the 2v2 draw
+      // phase and next 2v2 round. Falling through to the 1v1
+      // drawPhase/startRound below is what derailed 2v2 matches into the
+      // 1v1 engine after round 1's combat — phase flipped to 'player-cards',
+      // "--- Round 1 --- You go first" re-logged, and the endPhase chain
+      // handed Team B's turns to the AI.
+      if (this.is2v2()) { this._2v2PostCombat(); return; }
       // Show round recap before draw phase, if the player has it enabled.
       const rs = this.state._roundStats;
       const showRecap = typeof UI !== 'undefined' && UI.showRoundSummary;
@@ -8520,23 +8528,28 @@ const Game = {
     s.phase = '2v2-combat';
     if (typeof UI !== 'undefined' && UI.render) UI.render();
 
-    // Run standard combat
-    setTimeout(() => {
-      this.resolveCombat();
+    // Run standard combat. Its lanes resolve on ASYNC timers, so the
+    // read-back + next-round handoff can NOT happen here — it lives in
+    // _2v2PostCombat, invoked by postCombat() when combat truly finishes.
+    // (The old +300ms read-back here captured pre-damage health AND let
+    // postCombat's 1v1 drawPhase/startRound chain stomp the 2v2 flow.)
+    setTimeout(() => { this.resolveCombat(); }, 300);
+  },
 
-      // Read back team health after combat
-      tt.teams.A.health    = s.player.health;
-      tt.teams.A.blockMeter = s.player.blockMeter;
-      tt.teams.A.deadPile  = s.player.deadPile;
-      tt.teams.B.health    = s.ai.health;
-      tt.teams.B.blockMeter = s.ai.blockMeter;
-      tt.teams.B.deadPile  = s.ai.deadPile;
-
-      if (!s.gameOver) {
-        if (tt.online) this._2v2OnlineBroadcast();
-        this._2v2DrawPhase();
-      }
-    }, 300);
+  // Combat finished (called from postCombat) — read team results back from
+  // the player/ai combat proxies and advance the 2v2 round loop.
+  _2v2PostCombat() {
+    const s = this.state;
+    const tt = s.twoVTwo;
+    if (!tt) return;
+    tt.teams.A.health     = s.player.health;
+    tt.teams.A.blockMeter = s.player.blockMeter;
+    tt.teams.A.deadPile   = s.player.deadPile;
+    tt.teams.B.health     = s.ai.health;
+    tt.teams.B.blockMeter = s.ai.blockMeter;
+    tt.teams.B.deadPile   = s.ai.deadPile;
+    if (tt.online) this._2v2OnlineBroadcast();
+    this._2v2DrawPhase();
   },
 
   _2v2DrawPhase() {
@@ -8568,8 +8581,16 @@ const Game = {
 
   // Enter 2v2 mode setup from main menu
   goTo2v2Setup() {
-    this.LANE_COUNT = this.LANE_COUNT_2V2;
+    // ORDER MATTERS: init() resets LANE_COUNT to 6 and builds 6 lanes, so
+    // the 2v2 expansion must come AFTER it (same as goTo2v2OnlineLobby and
+    // start2v2Match). Setting it first got silently clobbered — the whole
+    // local 2v2 match played on a 6-lane board. User report (x4): "there
+    // needs to be 8 lanes on the board and every time I look it's only 6."
     this.init();
+    this.LANE_COUNT = this.LANE_COUNT_2V2;
+    this.state.lanes = Array.from({ length: this.LANE_COUNT }, () => ({
+      player: null, ai: null, _env: null, destroyed: false, destroyedTurns: 0, protected: null, trap: null,
+    }));
     this.state.phase = '2v2-team-setup';
     this.state.mode = { players: '2v2', deck: 'classic' };
     this.state.twoVTwo = {
