@@ -5579,11 +5579,12 @@ body.hit-pause .ai-hand * {
      Width 154px = 140px card + lane padding. */
   width: 154px;
   flex: 1 1 auto;
-  /* 240px = the tallest possible board card (232px — portrait + 5-badge wrap,
-     measured: Galactus/Dr. Manhattan) + 8px breathing. Keeps every lane's half
-     identical (stable centerline) while cutting the dead space above cards
-     (user: "the lanes are too long — just a little space"). */
-  min-height: 240px;
+  /* Board cards hide their description now, so a typical tile is ~167-192px —
+     the old 240px min-height left ~50-73px of dead space above the top card
+     and below the bottom card (user crossed it out: "you can remove the space").
+     Hug the card at 175px; a heavily-badged card (Galactus etc.) still grows
+     its own slot via flex-basis auto, so nothing clips. */
+  min-height: 175px;
   display: flex; justify-content: center; border-radius: 8px;
 }
 /* Card alignment within each slot: anchor each card TO THE SEP (AI bottom,
