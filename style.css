@@ -2557,12 +2557,19 @@ body.hit-pause .ai-hand * {
      full-screen behind; a centered vignette keeps the centered text readable
      instead of the old left-column darken. */
   .mm-mw3 { --mm-seam: 50%; --mm-bleed: 20%; justify-content: center; align-items: center; }
-  .mm-mw3 .mm-hero-img { background-position: 50% 26%; }
-  .mm-mw3 .mm-hero-img.is-visible { opacity: clamp(0.3, calc(var(--menu-flow-intensity, 0.18) + 0.42), 0.88); }
+  /* FULL-BLEED hero — fills the whole portrait screen (no black gutter on the
+     left). The desktop rule caps width to 86vh anchored right; portrait wants
+     the art edge-to-edge behind the centered menu. */
+  .mm-mw3 .mm-hero { left: 0; right: 0; width: 100%; }
+  .mm-mw3 .mm-hero-img { background-position: 50% 22%; background-size: cover; }
+  .mm-mw3 .mm-hero-img.is-visible { opacity: clamp(0.3, calc(var(--menu-flow-intensity, 0.18) + 0.42), 0.85); }
+  /* Readability veil over the full-bleed art — darker top/bottom, a touch of
+     dark in the middle so the centered glow-text stays legible, plus an edge
+     vignette. */
   .mm-mw3 .mm-scrim {
     background:
-      radial-gradient(120% 80% at 50% 42%, transparent 30%, rgba(0,0,0,0.55) 100%),
-      linear-gradient(0deg, rgba(0,0,0,0.5) 0%, transparent 22%, transparent 82%, rgba(0,0,0,0.4) 100%);
+      linear-gradient(180deg, rgba(4,6,10,0.66) 0%, rgba(4,6,10,0.42) 32%, rgba(4,6,10,0.42) 66%, rgba(4,6,10,0.70) 100%),
+      radial-gradient(150% 74% at 50% 42%, rgba(0,0,0,0) 44%, rgba(0,0,0,0.5) 100%);
   }
   /* fit-content block, auto side-margins → the menu column is centered as a
      unit; content stays left-aligned inside so the icon column lines up. */
@@ -9411,20 +9418,29 @@ body.turn-combat .board .lane.lane-active {
      orbs (bottom: -12px) each hang 12px past the card edge — at gap 14px
      the diamond visually overlapped the orb of the card above. 36px clears
      both badges with breathing room. */
+  /* PvZ-Heroes-style compact grid — small portrait cards, 2 across, all
+     visible at once with breathing room; scrolls if a pool is larger than the
+     screen (fixes "cards too big + doesn't scroll"). */
   .draft-choices {
-    flex-direction: column !important;
-    gap: 36px !important;
-    padding: 0 8px !important;
-    align-items: center !important;
+    flex-direction: row !important;
+    flex-wrap: wrap !important;
+    gap: 14px 12px !important;
+    padding: 14px 8px 24px !important;
+    align-items: flex-start !important;
+    justify-content: center !important;
+    max-height: calc(100dvh - 132px) !important;
+    overflow-y: auto !important;
+    -webkit-overflow-scrolling: touch;
   }
-  .draft-card {
-    flex: 0 0 auto !important;
-    width: 220px !important;
-    max-width: 220px !important;
-    min-height: 240px !important;
+  .card.draft-card {
+    flex: 0 0 calc(50% - 8px) !important;   /* exactly 2 per row */
+    width: calc(50% - 8px) !important;
+    max-width: calc(50% - 8px) !important;
+    min-width: 0 !important;
+    min-height: 0 !important;
   }
-  .draft-card .card-name { font-size: 13px; letter-spacing: 0.8px; }
-  .draft-card .card-desc { font-size: 11px; line-height: 1.35; }
+  .draft-card .card-name { font-size: 12px; letter-spacing: 0.6px; }
+  .draft-card .card-desc { font-size: 9.5px; line-height: 1.3; }
   /* Cost diamond was 18×18 — too small next to the 38×38 ATK/HP orbs.
      Grow to 30×30 (font 15px) so the cost reads at the same weight as
      the stat orbs. User feedback: "the energy diamond is too small
