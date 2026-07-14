@@ -21911,10 +21911,22 @@ function twov2OnlineJoin() {
     }
     UI._2v2OnlineRoomCode = c;
     UI.render();
+    // Recover a lost first state push — poll the host with req2v2State
+    // until the match state arrives (same rescue as 1v1). Without it a
+    // joiner whose initial broadcast dropped sits on the lobby forever.
+    UI._2v2GotState = false;
+    if (UI._2v2StateRetry) clearInterval(UI._2v2StateRetry);
+    let tries = 0;
+    UI._2v2StateRetry = setInterval(() => {
+      if (UI._2v2GotState || tries++ > 20) { clearInterval(UI._2v2StateRetry); UI._2v2StateRetry = null; return; }
+      try { Multiplayer4.send({ t: 'req2v2State', playerKey: you }); } catch (e) {}
+    }, 2500);
   });
 
   Multiplayer4.on('state', ({ state }) => {
     // Joiner: full state replacement from host
+    UI._2v2GotState = true;
+    if (UI._2v2StateRetry) { clearInterval(UI._2v2StateRetry); UI._2v2StateRetry = null; }
     const mySlot = Game.state.twoVTwo && Game.state.twoVTwo.you;
     Game.state = state;
     // Keep the engine's lane count in lockstep with the received board —

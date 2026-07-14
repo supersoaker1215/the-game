@@ -8912,6 +8912,11 @@ const Game = {
         if (pk !== activeKey) break;
         this.end2v2Phase();
         break;
+      case 'req2v2State':
+        // A joiner asking the host to (re)send state — its first push may
+        // have been lost (data channel settling / flaky Wi-Fi). No-op here;
+        // the trailing _2v2OnlineBroadcast answers. Mirrors 1v1's reqState.
+        break;
       case '2v2DraftPick':
         if (draftActive) {
           const d = this.state.twoVTwo.draft;
