@@ -53,6 +53,7 @@
   --kw-charm:          #d7b3e6;   /* purple */
   --kw-energy:         #ffe066;   /* gold */
   /* New mechanic verbs */
+  --kw-swarm:          #7ee8a5;   /* green — Gremlin brood */
   --kw-summon:         #7ee8a5;   /* green */
   --kw-block:          #7fd0ff;   /* blue */
   --kw-jump:           #ff8a7a;   /* red */
@@ -201,6 +202,7 @@
 .kw-fear         { color: var(--kw-fear); text-shadow: 0 0 6px rgba(255,255,255,0.55), 0 1px 2px rgba(0,0,0,0.85); }
 .kw-charm        { color: var(--kw-charm); }
 .kw-energy       { color: var(--kw-energy); }
+.kw-swarm        { color: var(--kw-swarm); }
 .kw-summon       { color: var(--kw-summon); }
 .kw-block        { color: var(--kw-block); }
 .kw-jump         { color: var(--kw-jump); }
