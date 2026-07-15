@@ -4756,6 +4756,13 @@ const CARD_ABILITIES = {
 
         const dir = laneIdx > curLane ? 1 : -1;
         const targetLane = curLane + dir;
+        // A destroyed (voided) lane blocks the pull — there is no lane to
+        // stand in for its remaining rounds, so the card holds position.
+        // User report: Gargantua dragged a Doombot into an Anti-Life void.
+        if (G.state.lanes[targetLane] && G.state.lanes[targetLane].destroyed) {
+          G.log(`[GARGANTUA] ${card.name} braces against the void in lane ${targetLane + 1} — the pull fails.`);
+          continue;
+        }
         const occupant = G.state.lanes[targetLane][opp];
 
         if (targetLane === laneIdx && occupant && occupant.currentHealth > 0) {

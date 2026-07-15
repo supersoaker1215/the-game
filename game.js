@@ -6641,6 +6641,13 @@ const Game = {
 
   moveCard(card, from, to) {
     if (from < 0 || to < 0 || to >= this.LANE_COUNT || this.state.lanes[to][card.owner]) return;
+    // No moving into a destroyed (voided) lane — the lane doesn't exist for
+    // its remaining rounds. Callers usually filter via getOpenLanes, but
+    // direct movers (swaps, displacement effects) hit this guard instead.
+    if (this.state.lanes[to].destroyed) {
+      this.log(`  [MOVE BLOCKED] Lane ${to + 1} is a void — ${card.name} can't enter.`);
+      return;
+    }
     if (this._trickBlocked(card)) return;
     // Frozen / stunned cards can't move — they're locked in their lane
     // until the status clears. Previously tricks and abilities that moved
