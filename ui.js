@@ -1128,7 +1128,7 @@ const UI = {
       // lets the full phrase play.
       'Batman':           {
         hover: { src: 'audio/cards/batman-hover.mp3?v=2', maxDur: 106 },
-        play:  { src: 'audio/cards/batman-play.mp3', maxDur: 10 },
+        play:  { src: 'audio/cards/batman-play.mp3', maxDur: 5 },
         death: 'audio/cards/batman-death.mp3',
         // When Batman deals damage (his "Strike 1" / "Strike 2"
         // batarang throws after the Fear pick), fire the Batarangs
@@ -1190,7 +1190,7 @@ const UI = {
       // build that defines Sidious's throne-room menace. -20 LUFS,
       // 1s fade-in / 2s fade-out baked. maxDur 65 lets the full
       // sustained-choir phrase play across re-hovers.
-      'Emperor Palpatine': { hover: { src: 'audio/cards/emperor-palpatine-hover.mp3', maxDur: 165 }, play: { src: 'audio/cards/emperor-palpatine-play.mp3', maxDur: 8 } },
+      'Emperor Palpatine': { hover: { src: 'audio/cards/emperor-palpatine-hover.mp3', maxDur: 165 }, play: { src: 'audio/cards/emperor-palpatine-play.mp3', maxDur: 5 } },
       // Wonder Woman hover: 115 s of Hans Zimmer + Junkie XL's "Is
       // She With You" — Diana's electric-cello entrance theme from
       // BvS / Wonder Woman. Clipped 0:00 → 1:55 to ride the full
@@ -1254,7 +1254,7 @@ const UI = {
       // (0:27 → 1:09 of the source). -20 LUFS unified-baseline, 1s
       // fade-in / 2s fade-out baked. maxDur 43 lets the full phrase play.
       'Hulk':             { hover: { src: 'audio/cards/hulk-hover.mp3?v=1', maxDur: 43 }, play: 'audio/cards/hulk-play.mp3' },
-      'Groot':            { play: { src: 'audio/cards/groot-play.mp3', maxDur: 5.5 } },
+      'Groot':            { play: { src: 'audio/cards/groot-play.mp3', maxDur: 5 } },
       'Symbiote Spider-Man': { play: { src: 'audio/cards/symbiote-spider-man-play.mp3', maxDur: 5.0 } },
       'Jango Fett':       { attack: 'audio/cards/jango-fett-attack.mp3', death: 'audio/cards/jango-fett-death.mp3' },
       'Jason Voorhees':   { play: { src: 'audio/cards/jason-play.mp3', maxDur: 5.0 } },
@@ -1318,7 +1318,7 @@ const UI = {
       // signature-hover baseline), 1s fade-in / 2s fade-out baked in.
       // maxDur 110 lets the full phrase play across re-hovers.
       'Anakin Skywalker': { hover: { src: 'audio/cards/anakin-hover.mp3?v=4', maxDur: 110 }, play: 'audio/cards/anakin-skywalker-play.mp3', death: 'audio/cards/anakin-death.mp3' },
-      'Dr. Manhattan':    { hover: { src: 'audio/cards/dr-manhattan-hover.mp3', maxDur: 101, gain: 1.5 }, play: { src: 'audio/cards/dr-manhattan-play.mp3', maxDur: 10 } },
+      'Dr. Manhattan':    { hover: { src: 'audio/cards/dr-manhattan-hover.mp3', maxDur: 101, gain: 1.5 }, play: { src: 'audio/cards/dr-manhattan-play.mp3', maxDur: 5 } },
       'Red Skull':        { play: 'audio/cards/red-skull-play.mp3' },
       'Winter Soldier':   { hover: { src: 'audio/cards/winter-soldier-hover.mp3', maxDur: 338 } },
       // Superman hover: first 1:14 of Hans Zimmer's "Krypton's Last" — the
@@ -1329,15 +1329,15 @@ const UI = {
       // Superman play: 5s of John Williams' "Theme from Superman" (0:00 → 0:05)
       // — the fanfare hits on entrance. 0.03s fade-in / 0.6s fade-out baked.
       // ?v=3 busts the old cached play file.
-      'Superman':         { hover: { src: 'audio/cards/superman-hover.mp3?v=7', maxDur: 75 }, play: { src: 'audio/cards/superman-play.mp3?v=3', maxDur: 5.2 } },
+      'Superman':         { hover: { src: 'audio/cards/superman-hover.mp3?v=7', maxDur: 75 }, play: { src: 'audio/cards/superman-play.mp3?v=3', maxDur: 5 } },
       // The Grinch hover: 43s clip. maxDur 44 lets the full phrase play.
       'The Grinch':       { hover: { src: 'audio/cards/the-grinch-hover.mp3', maxDur: 44, gain: 1.5 } },
       'Green Goblin':     { hover: { src: 'audio/cards/green-goblin-hover.mp3', maxDur: 24 } },
       'Dr. Octopus':      { play: { src: 'audio/cards/dr-octopus-play.mp3?v=2', maxDur: 5 } },
       'Sandman':          { hover: { src: 'audio/cards/sandman-hover.mp3', maxDur: 194, gain: 1.5 }, death: { src: 'audio/cards/sandman-death.m4a', fullDuration: true, gain: 3.0 } },
       'Jack Sparrow':     { hover: { src: 'audio/cards/jack-sparrow-hover.mp3' }, play: { src: 'audio/cards/jack-sparrow-when-played.mp3' } },
-      'Trigon':           { hover: { src: 'audio/cards/trigon-hover.mp3' }, play: { src: 'audio/cards/trigon-play.mp3', maxDur: 10, gain: 2.5 } },
-      'Freddy Fazbear':   { hover: { src: 'audio/cards/freddy-fazbear-hover.mp3', maxDur: 31 }, play: { src: 'audio/cards/freddy-fazbear-when-played.mp3', maxDur: 12 } },
+      'Trigon':           { hover: { src: 'audio/cards/trigon-hover.mp3' }, play: { src: 'audio/cards/trigon-play.mp3', maxDur: 5, gain: 2.5 } },
+      'Freddy Fazbear':   { hover: { src: 'audio/cards/freddy-fazbear-hover.mp3', maxDur: 31 }, play: { src: 'audio/cards/freddy-fazbear-when-played.mp3', maxDur: 5 } },
       'Freddy Krueger':   { spawn: { src: 'audio/cards/freddy-krueger-spawn.m4a', maxDur: 5.5 }, play: { src: 'audio/cards/freddy-krueger-spawn.m4a', maxDur: 5.5 } },
       'Pennywise':        { hover: { src: 'audio/cards/pennywise-hover.mp3', maxDur: 100 }, spawn: { src: 'audio/cards/pennywise-spawn.mp3', maxDur: 8.5 }, play: { src: 'audio/cards/pennywise-spawn.mp3', maxDur: 8.5 } },
       'Jaws':             { spawn: { src: 'audio/cards/jaws-spawn.mp3?v=2', maxDur: 10 }, play: { src: 'audio/cards/jaws-spawn.mp3?v=2', maxDur: 10 } },
@@ -3151,12 +3151,15 @@ const UI = {
         // when the cursor leaves the card.
         this.duckMusic();
       } else if (event === 'play' || event === 'ability' || event === 'spawn') {
-        // 5s cap per user spec — "force ghostface his whole sound bite
-        // should play. So whenever a unique sound I put in for when
-        // played for cards, increase the duration to just five
-        // seconds." Cards with shorter unique audio just play in full
-        // and silence; the cap only kicks in for clips longer than 5s.
-        opts.maxDur  = opts.maxDur  ?? 5.0;
+        // On Play ('play') is HARD-capped at 5s per user spec — "max duration
+        // should be 5 seconds for when played." Clamp any per-card value DOWN to
+        // 5 (Math.min, not ??), so no When-Played cue ever exceeds it; shorter
+        // clips still play in full. 'ability'/'spawn' are code-triggered dramatic
+        // entrances (Jaws rising, Pennywise from the Sewers) whose longer lengths
+        // are set on purpose, so they only DEFAULT to 5 and honor an override.
+        opts.maxDur  = (event === 'play')
+          ? Math.min(opts.maxDur ?? 5.0, 5.0)
+          : (opts.maxDur ?? 5.0);
         opts.fadeIn  = opts.fadeIn  ?? 500;
         opts.fadeOut = opts.fadeOut ?? 1000;
         opts.category = (event === 'spawn') ? 'play' : event;  // spawn gets full marquee gain
