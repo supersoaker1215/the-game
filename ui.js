@@ -10151,6 +10151,24 @@ const UI = {
       this._mpState.status = 'opponentLeft';
       this._mpRender();
     });
+    Multiplayer.on('versionMismatch', () => {
+      // One side is running a stale cached build — every already-fixed
+      // bug (guest lane picks, prompt auto-placement, dropped state)
+      // comes back when the stale side hosts. Tell BOTH players plainly.
+      const warn = () => {
+        try {
+          this.alertModal(
+            'You and your opponent are on DIFFERENT versions of the game.\n\n' +
+            'This causes cards to misplace, dead lane pickers, and desyncs.\n\n' +
+            'Fix: BOTH players fully refresh the page (or tap the "Update" ' +
+            'banner if shown), then create a new room.'
+          );
+        } catch (e) {
+          try { this.showAITrickToast('Version mismatch', 'Both players should refresh the page', 'error'); } catch (e2) {}
+        }
+      };
+      warn();
+    });
     Multiplayer.on('error', (e) => {
       this._mpState.status = 'error';
       this._mpState.error = (e && e.message) || 'Connection error';

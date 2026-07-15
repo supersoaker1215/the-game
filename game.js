@@ -264,6 +264,16 @@ const Game = {
           const card = findCardById(msg.cardId);
           console.log('[MP HOST] playCard from guest: cardId=', msg.cardId, 'name=', card && card.name, 'lane=', msg.lane, '(0-based), visual lane:', msg.lane + 1, 'found:', !!card);
           if (card) {
+            // If a lane-choice prompt is still armed for THIS card (the
+            // guest's reqLaneChoice raced a direct playCard — e.g. one
+            // client on stale code, or a double-send), clear it now so
+            // the guest's "Choose a lane" banner dies with this broadcast
+            // instead of dangling over an already-played card.
+            const lc = this.state.pendingLaneChoice;
+            if (lc && lc.previewCard && lc.previewCard.id === card.id) {
+              this._clearPromptTimeout();
+              this.state.pendingLaneChoice = null;
+            }
             const placed = this.playCard(actor, card, msg.lane);
             // Surface SILENT host-side rejections so a guest's "card didn't
             // land where I clicked" is diagnosable instead of vanishing.
@@ -338,7 +348,18 @@ const Game = {
           this.promptLaneChoice(actor, openLanes,
             `Play ${card.name}`,
             `Choose a lane for ${card.name}`,
-            (lane) => { this.playCard(actor, card, lane); },
+            (lane) => {
+              // Validate at RESOLVE time, not just arm time — if this card
+              // already left the hand (played by a racing playCard message,
+              // a stale client, or any other path), replaying it here would
+              // duplicate it on the board. Drop the stale pick and let the
+              // trailing broadcast resync the guest instead.
+              if (!this.state[actor].hand.some(c => c.id === card.id)) {
+                console.warn('[MP HOST] stale lane pick for', card.name, '— card no longer in hand, ignoring');
+                return;
+              }
+              this.playCard(actor, card, lane);
+            },
             actor, card);
           break;
         }

@@ -145,6 +145,11 @@ const Multiplayer = {
       case 'opponentJoined':
         this._emit('opponentJoined', msg);
         break;
+      case 'versionMismatch':
+        // Host/guest builds differ (stale PWA cache on one side) —
+        // surface so the UI can tell both players to refresh.
+        this._emit('versionMismatch', msg);
+        break;
       case 'opponentLeft':
         this._emit('opponentLeft', msg);
         break;
@@ -593,6 +598,21 @@ function _buildIceConfig() {
 //   • Host calls broadcastState() to push authoritative state
 //   • Both sides see opponentJoined / opponentLeft / state events
 
+// Build stamp for the version handshake — derived from the ?v= params the
+// page actually loaded game.js/ui.js/multiplayer.js with, so it updates on
+// every deploy with zero maintenance. Two clients on the same deploy always
+// agree; a stale-cached client disagrees and both get warned.
+function _clbBuildStamp() {
+  try {
+    const parts = [];
+    document.querySelectorAll('script[src]').forEach(s => {
+      const m = s.getAttribute('src').match(/(game|ui|multiplayer)\.js\?v=(\d+)/);
+      if (m) parts.push(m[1][0] + m[2]);
+    });
+    return parts.sort().join('-') || null;
+  } catch (e) { return null; }
+}
+
 class WebRTCTransport {
   constructor() {
     this._peer = null;        // PeerJS instance (signaling client)
@@ -678,7 +698,9 @@ class WebRTCTransport {
       const targetId = this._peerIdFor(msg.code);
       const conn = this._peer.connect(targetId, {
         serialization: 'json',    // JSON is more compatible than binary (BinaryPack) on iOS Safari
-        metadata: { name: msg.name || 'Opponent' },
+        // v: build stamp for the version handshake — the host compares it
+        // to its own and warns BOTH players on mismatch (see _setupConn).
+        metadata: { name: msg.name || 'Opponent', v: _clbBuildStamp() },
       });
       this._setupConn(conn);
     });
@@ -695,6 +717,17 @@ class WebRTCTransport {
       queued.forEach(m => this._sendChunked(m));
       if (this._isHost) {
         const name = (conn.metadata && conn.metadata.name) || 'Opponent';
+        // Version handshake — the game is a PWA, so one side can easily be
+        // running a weeks-old cached build (every "fixed" bug comes back
+        // when the stale side hosts). Compare the joiner's build stamp to
+        // ours; on mismatch, surface a warning on BOTH clients so the two
+        // players know to refresh. Non-fatal: the match still starts.
+        const mine = _clbBuildStamp();
+        const theirs = (conn.metadata && conn.metadata.v) || null;
+        if (mine && theirs && mine !== theirs) {
+          this._dispatch({ t: 'versionMismatch', mine, theirs });
+          try { conn.send({ t: 'versionMismatch', mine: theirs, theirs: mine }); } catch (e) {}
+        }
         this._dispatch({ t: 'opponentJoined', name });
       } else {
         this._dispatch({ t: 'roomJoined', code: this._roomCode, you: 'ai' });
