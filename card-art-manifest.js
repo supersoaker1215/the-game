@@ -88,6 +88,7 @@ window.CARD_ART_VARIANTS = {
   'Doomsday':            ['Doomsday 2.jpg',          'Doomsday.png'],
   'Sabertooth':          ['Sabertooth 2.jpg',        'Sabertooth.png'],
   'The Batman Who Laughs': ['The Batman Who Laughs 2.jpg', 'The Batman Who Laughs.png'],
+  'Obi-Wan':             ['Obi-Wan 2.jpg',           'Obi-Wan.png'],
 };
 
 // =============================================================================
@@ -155,6 +156,7 @@ window.CARD_ART_OVERRIDES = {
     'Doomsday|Doomsday 2.jpg': '50% 12%',
     'Sabertooth|Sabertooth 2.jpg': '52% 12%',
     'The Batman Who Laughs|The Batman Who Laughs 2.jpg': '50% 45%',
+    'Obi-Wan|Obi-Wan 2.jpg': '57% 50%',
   },
   focalMenu: {   // "name|file" -> "X% Y%"   menu-hero crop focal
     'Darth Maul|Darth Maul.jpg': '50% 50%',
@@ -199,6 +201,7 @@ window.CARD_ART_OVERRIDES = {
     'Doomsday|Doomsday 2.jpg': '50% 10%',
     'Sabertooth|Sabertooth 2.jpg': '52% 14%',
     'The Batman Who Laughs|The Batman Who Laughs 2.jpg': '50% 45%',
+    'Obi-Wan|Obi-Wan 2.jpg': '55% 40%',
   },
   zoomCard:  {   // "name|file" -> scale (1 = cover, e.g. 1.3)
     'Darth Maul|Darth Maul.jpg': 1.6,
@@ -209,6 +212,9 @@ window.CARD_ART_OVERRIDES = {
     'Ghostface|Ghostface 2.jpg': 1.3,
     'Green Lantern|Green Lantern.png': 1.1,
     'Padme Amidala|Padme Amidala.png': 1.1,
+    // Landscape-ish Mustafar shot — Obi-Wan is off-centre (right of the saber),
+    // so zoom in on his face rather than showing the whole scene tiny.
+    'Obi-Wan|Obi-Wan 2.jpg': 1.55,
   },
   zoomMenu:  {   // "name|file" -> scale
     'Darth Maul|Darth Maul.jpg': 1.6,
