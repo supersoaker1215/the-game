@@ -1121,7 +1121,10 @@ const UI = {
       // cartoon yelp.
       // Darth Vader play: 4s of "The Imperial March" (1:47 → 1:51) — the
       // brass sting stabs on entrance. 0.05s fade-in / 0.4s fade-out baked.
-      'Darth Vader':      { hover: 'audio/cards/darth-vader-hover.mp3', play: { src: 'audio/cards/darth-vader-play.mp3', maxDur: 4.2 }, death: { src: 'audio/cards/darth-vader-death.mp3', maxDur: 3.5 } },
+      // Vader hover: 68s of John Williams' "Anakin's Betrayal" (0:00 → 1:08) —
+      // the Order 66 elegy. 0.6s fade-in / 2s fade-out baked; ?v=2 busts the old
+      // cached file.
+      'Darth Vader':      { hover: { src: 'audio/cards/darth-vader-hover.mp3?v=2', maxDur: 68 }, play: { src: 'audio/cards/darth-vader-play.mp3', maxDur: 4.2 }, death: { src: 'audio/cards/darth-vader-death.mp3', maxDur: 3.5 } },
       // Batman hover: 1:45 of Hans Zimmer & James Newton Howard's "A
       // Watchful Guardian" (Dark Knight OST), 2:15 → 4:00 of source.
       // -20 LUFS unified-baseline, 1s fade-in / 2s fade-out. maxDur 106
