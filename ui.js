@@ -13,7 +13,7 @@ const UI = {
   // cached PNGs (which don't have built-in cache busters since they're
   // referenced via background-image url() and not the index.html
   // version-suffix system). Bump this every time you regen art.
-  _CARD_ART_VERSION: 73,
+  _CARD_ART_VERSION: 74,
 
   // Per-card background-position overrides. Default is "center center".
   // Use when an image crops poorly at the default — e.g. a head gets cut
@@ -1314,7 +1314,7 @@ const UI = {
       // maxDur 110 lets the full phrase play across re-hovers.
       'Anakin Skywalker': { hover: { src: 'audio/cards/anakin-hover.mp3?v=4', maxDur: 110 }, play: 'audio/cards/anakin-skywalker-play.mp3', death: 'audio/cards/anakin-death.mp3' },
       'Dr. Manhattan':    { hover: { src: 'audio/cards/dr-manhattan-hover.mp3', maxDur: 101, gain: 1.5 }, play: { src: 'audio/cards/dr-manhattan-play.mp3', maxDur: 10 } },
-      'Red Skull':        { hover: 'audio/cards/red-skull-hover.mp3', play: 'audio/cards/red-skull-play.mp3' },
+      'Red Skull':        { play: 'audio/cards/red-skull-play.mp3' },
       'Winter Soldier':   { hover: { src: 'audio/cards/winter-soldier-hover.mp3', maxDur: 338 } },
       // Superman hover: first 1:14 of Hans Zimmer's "Krypton's Last" — the
        // opening swell through the first cadence. Normalized to -20 LUFS
