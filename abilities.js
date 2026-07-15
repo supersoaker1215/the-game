@@ -2731,45 +2731,73 @@ const CARD_ABILITIES = {
   },
   "Magneto": {
     onPlay(G, self, lane) {
-      // Forced placements scale with tier: 1 / 2 (listed) / 3 / 4.
-      const forceCount = G.rarityValue(self, { common: 1, rare: 2, special: 3, legendary: 4 });
-      G.log("Magneto controls the battlefield! Even-lane enemies get -1/-2.");
-      G.applyMagnetoDebuffs();
+      // Magneto's magnetism REPOSITIONS the board. On entry he hurls 2 cards
+      // (ally OR enemy) into new lanes; his While-Active aura (see
+      // Game.applyMagnetoDebuffs) then punishes enemies in EVEN lanes (-1/-1)
+      // and empowers allies in ODD lanes (+1/+1). Moving is the setup — shove
+      // an enemy into an even lane, or pull an ally into an odd one — so the
+      // two halves of the kit combo.
+      const MOVE_COUNT = 2;
+      G.log("Magneto seizes the battlefield — repositioning cards with magnetic force!");
       const opp = G.opponent(self.owner);
-      const openOpp = [];
-      for (let i = 0; i < Game.LANE_COUNT; i++) {
-        if (!G.state.lanes[i][opp] && !G.state.lanes[i].destroyed) openOpp.push(i);
-      }
-      if (openOpp.length < forceCount) {
-        G.log(`Magneto can't fully control placement — only ${openOpp.length} open lane(s).`);
-        if (openOpp.length === 0) return;
-      }
-      const pickLanes = (lanesChosen) => {
-        G.state[opp].magnetoForcedLanes = lanesChosen;
-        G.log(`Magneto forces the opponent's next ${lanesChosen.length} cards into lanes ${lanesChosen.map(l => l + 1).join(', ')}!`);
+      const moved = [];
+      const openLanesFor = (c) => {
+        const from = G.findCardLane(c);
+        const lanes = [];
+        for (let i = 0; i < Game.LANE_COUNT; i++) {
+          if (i !== from && !G.state.lanes[i][c.owner] && !G.state.lanes[i].destroyed) lanes.push(i);
+        }
+        return lanes;
       };
-      // Generic chain: keep prompting up to forceCount lanes. Each pick
-      // narrows the remaining pool. AI auto-picks N random lanes.
-      if (Game.isHuman(self.owner)) {
-        const chosen = [];
-        const promptNext = () => {
-          const remaining = openOpp.filter(l => !chosen.includes(l));
-          if (chosen.length >= forceCount || !remaining.length) {
-            pickLanes(chosen);
-            return;
-          }
-          const slot = chosen.length + 1;
-          G.promptLaneChoice(self.owner, remaining, `Magneto — Force Lane ${slot}`,
-            `Choose lane for opponent's ${slot === 1 ? 'NEXT' : `${slot}${slot===2?'ND':slot===3?'RD':'TH'}`} card placement`, (l) => {
-              chosen.push(l);
-              promptNext();
-            }, opp);
-        };
-        promptNext();
-      } else {
-        const shuffled = openOpp.slice().sort(() => Math.random() - 0.5);
-        pickLanes(shuffled.slice(0, forceCount));
-      }
+      // Any living combat card except Magneto himself that can actually move
+      // (not frozen/stunned) and has an open lane on its own side to slide into.
+      const candidates = () => [...G.getAlliesOf(self.owner), ...G.getEnemiesOf(self.owner)]
+        .filter(c => c && c !== self && c.currentHealth > 0 && !c.isFrozen && !c.isStunned
+                     && !moved.includes(c) && openLanesFor(c).length > 0);
+      // AI: shove an enemy into an even lane (-1/-1) or pull an ally into an odd
+      // lane (+1/+1); prefer acting on the beefiest card available.
+      const aiPick = (pool) => {
+        let best = null;
+        pool.forEach(c => {
+          const isEnemy = c.owner === opp;
+          const power = (c.attack || 0) + (c.currentHealth || 0);
+          openLanesFor(c).forEach(l => {
+            let s = 0;
+            const even = (l + 1) % 2 === 0;
+            if (isEnemy && even) s += 4;
+            if (!isEnemy && !even) s += 4;
+            s += isEnemy ? power * 0.15 : power * 0.05;
+            if (!best || s > best.score) best = { card: c, lane: l, score: s };
+          });
+        });
+        return best;
+      };
+      const finishMove = (target, to) => {
+        G.moveCard(target, G.findCardLane(target), to);
+        G.log(`Magneto hurls ${target.name} into lane ${to + 1}!`);
+        moved.push(target);
+        step();
+      };
+      const step = () => {
+        if (moved.length >= MOVE_COUNT) { G.applyMagnetoDebuffs(); return; }
+        const pool = candidates();
+        if (!pool.length) { G.applyMagnetoDebuffs(); return; }
+        if (Game.isHuman(self.owner)) {
+          G.promptCardChoice(self.owner, pool, "Magneto — Move a Card",
+            `Choose any card to relocate (${moved.length + 1} of ${MOVE_COUNT})`,
+            (target) => {
+              const lanes = openLanesFor(target);
+              if (!lanes.length) { step(); return; }
+              G.promptLaneChoice(self.owner, lanes, `Magneto — Move ${target.name}`,
+                `Choose a new lane for ${target.name}`, (to) => finishMove(target, to), target.owner);
+            },
+            cards => { const p = aiPick(cards); return p ? p.card : cards[0]; });
+        } else {
+          const pick = aiPick(pool) || { card: pool[0], lane: openLanesFor(pool[0])[0] };
+          finishMove(pick.card, pick.lane);
+        }
+      };
+      step();
     }
   },
   "Obi-Wan": {

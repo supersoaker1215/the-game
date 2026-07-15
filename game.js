@@ -7651,19 +7651,45 @@ const Game = {
   // ===================== MAGNETO WHILE ACTIVE =====================
 
   applyMagnetoDebuffs() {
+    // Magneto's While-Active aura, recomputed. He punishes ENEMIES in
+    // even-numbered lanes (-1/-1) and empowers his OWN allies in odd-numbered
+    // lanes (+1/+1). This is a full reconcile — not apply-once — so the aura
+    // tracks cards as they move between lanes (Magneto's own On Play hurls
+    // cards across the board, so a card that changes lane parity must gain or
+    // lose the effect accordingly). Flags are set BEFORE the stat change so a
+    // debuff that kills the card still leaves the marker on the instance.
     ['player', 'ai'].forEach(owner => {
       const magneto = this.getAllCardsOf(owner).find(c => c.name === 'Magneto');
-      if (!magneto) return;
+      const hasMagneto = !!magneto;
       const opp = this.opponent(owner);
       for (let i = 0; i < this.LANE_COUNT; i++) {
-        if ((i + 1) % 2 === 0) { // even-numbered lanes
-          const e = this.state.lanes[i][opp];
-          if (e && !e._magnetoDebuffed) {
-            // Flag BEFORE debuffing: if the hit kills the card, killCard clears
-            // the lane slot, so we need the marker on the instance first.
+        const even = (i + 1) % 2 === 0;
+        // Even lane → debuff the enemy card sitting there.
+        const e = this.state.lanes[i][opp];
+        if (e && e.currentHealth > 0) {
+          const shouldDebuff = hasMagneto && even;
+          if (shouldDebuff && !e._magnetoDebuffed) {
             e._magnetoDebuffed = true;
-            this.debuffCard(e, 1, 2, true, magneto);
-            this.log(`  [MAGNETO] ${e.name} in lane ${i+1} gets -1/-2`);
+            this.debuffCard(e, 1, 1, true, magneto);
+            this.log(`  [MAGNETO] ${e.name} in lane ${i + 1} gets -1/-1`);
+          } else if (!shouldDebuff && e._magnetoDebuffed) {
+            e._magnetoDebuffed = false;
+            this.buffCard(e, 1, 1);
+            this.log(`  [MAGNETO] ${e.name} sheds the even-lane debuff`);
+          }
+        }
+        // Odd lane → buff Magneto's own ally sitting there.
+        const a = this.state.lanes[i][owner];
+        if (a && a.currentHealth > 0) {
+          const shouldBuff = hasMagneto && !even;
+          if (shouldBuff && !a._magnetoBuffed) {
+            a._magnetoBuffed = true;
+            this.buffCard(a, 1, 1);
+            this.log(`  [MAGNETO] ${a.name} in lane ${i + 1} gets +1/+1`);
+          } else if (!shouldBuff && a._magnetoBuffed) {
+            a._magnetoBuffed = false;
+            this.debuffCard(a, 1, 1, false);
+            this.log(`  [MAGNETO] ${a.name} loses the odd-lane buff`);
           }
         }
       }
@@ -7671,15 +7697,22 @@ const Game = {
   },
 
   removeMagnetoDebuffs(magnetoOwner) {
+    // Magneto left the board — drop every aura it applied: the enemy even-lane
+    // debuffs (+1/+1 back) and its own odd-lane ally buffs (-1/-1 back). Keyed
+    // off the flags, not the lane, so a card that drifted parity still clears.
     const opp = this.opponent(magnetoOwner);
     for (let i = 0; i < this.LANE_COUNT; i++) {
-      if ((i + 1) % 2 === 0) {
-        const e = this.state.lanes[i][opp];
-        if (e && e._magnetoDebuffed) {
-          this.buffCard(e, 1, 2);
-          e._magnetoDebuffed = false;
-          this.log(`  [MAGNETO] Debuff removed from ${e.name}`);
-        }
+      const e = this.state.lanes[i][opp];
+      if (e && e._magnetoDebuffed) {
+        e._magnetoDebuffed = false;
+        this.buffCard(e, 1, 1);
+        this.log(`  [MAGNETO] Debuff removed from ${e.name}`);
+      }
+      const a = this.state.lanes[i][magnetoOwner];
+      if (a && a._magnetoBuffed) {
+        a._magnetoBuffed = false;
+        this.debuffCard(a, 1, 1, false);
+        this.log(`  [MAGNETO] Buff removed from ${a.name}`);
       }
     }
   },

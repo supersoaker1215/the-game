@@ -290,7 +290,7 @@ const CARD_DEFS = [
     desc: "When Played: Deal 2 damage to all enemies. While Active: Splash equals Hulk's ATK. Add (+1/+1) when damaged." },
   { name: "Magneto", cost: 6, attack: 4, health: 6, type: "villain",
     abilities: [],
-    desc: "When Played: Choose lanes for the opponent's next 2 card placements. While Active: Enemy cards in even lanes take (−1/−2)." },
+    desc: "When Played: Move 2 cards to new lanes — ally or enemy. While Active: Enemies in even lanes get (−1/−1); allies in odd lanes get (+1/+1)." },
   { name: "Obi-Wan", cost: 6, attack: 4, health: 8, type: "hero",
     abilities: ["Taunt 99"],
     desc: "While Active: Damage from enemies in other lanes reflects back. The enemy directly opposite is exempt. When Destroyed: The enemy opposite loses all ATK this combat." },
