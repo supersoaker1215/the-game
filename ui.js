@@ -13,7 +13,7 @@ const UI = {
   // cached PNGs (which don't have built-in cache busters since they're
   // referenced via background-image url() and not the index.html
   // version-suffix system). Bump this every time you regen art.
-  _CARD_ART_VERSION: 72,
+  _CARD_ART_VERSION: 73,
 
   // Per-card background-position overrides. Default is "center center".
   // Use when an image crops poorly at the default — e.g. a head gets cut
@@ -1221,6 +1221,10 @@ const UI = {
       // Transformers OST. -20 LUFS unified-baseline, 1s fade-in / 2s
       // fade-out baked.
       'Optimus Prime':    { hover: { src: 'audio/cards/optimus-prime-hover.mp3?v=2' }, play: { src: 'audio/cards/optimus-prime-play.mp3', maxDur: 5.0 } },
+      // Sabertooth hover: 62s of "Logan Through Time" (0:54 → 1:56 of the
+      // source). 0.4s fade-in / 1.7s fade-out baked into the file; maxDur 62
+      // = full clip.
+      'Sabertooth':       { hover: { src: 'audio/cards/sabertooth-hover.mp3', maxDur: 62 } },
       // Iron Man hover: 81s of AC/DC's "Shoot to Thrill" (start → 1:21) —
       // Tony's signature entrance riff. -20 LUFS unified-baseline, 1s
       // fade-in / 2s fade-out baked.

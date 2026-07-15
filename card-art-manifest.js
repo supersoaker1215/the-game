@@ -86,6 +86,7 @@ window.CARD_ART_VARIANTS = {
   // Doomsday — new portrait as primary; artist signature cropped off the
   // bottom strip (card frames the head/torso, so nothing important is lost).
   'Doomsday':            ['Doomsday 2.jpg',          'Doomsday.png'],
+  'Sabertooth':          ['Sabertooth 2.jpg',        'Sabertooth.png'],
 };
 
 // =============================================================================
@@ -151,6 +152,7 @@ window.CARD_ART_OVERRIDES = {
     'Hela|Hela 2.jpg': '50% 8%',
     'Optimus Prime|Optimus Prime 2.jpg': '50% 12%',
     'Doomsday|Doomsday 2.jpg': '50% 12%',
+    'Sabertooth|Sabertooth 2.jpg': '52% 12%',
   },
   focalMenu: {   // "name|file" -> "X% Y%"   menu-hero crop focal
     'Darth Maul|Darth Maul.jpg': '50% 50%',
@@ -193,6 +195,7 @@ window.CARD_ART_OVERRIDES = {
     'Hela|Hela 2.jpg': '50% 4%',
     'Optimus Prime|Optimus Prime 2.jpg': '50% 15%',
     'Doomsday|Doomsday 2.jpg': '50% 10%',
+    'Sabertooth|Sabertooth 2.jpg': '52% 14%',
   },
   zoomCard:  {   // "name|file" -> scale (1 = cover, e.g. 1.3)
     'Darth Maul|Darth Maul.jpg': 1.6,
