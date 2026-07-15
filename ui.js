@@ -9543,14 +9543,33 @@ const UI = {
     const ov = document.getElementById('encyclopedia-overlay');
     if (!ov) return;
     const f = this._encyc;
-    const isCards = f.section === 'cards';
+    const section = f.section || 'cards';
+    const isTricks = section === 'tricks';
+    const isCards = !isTricks;   // 'cards' / 'summons' / 'environments' all use the card layout
+    const sectionNoun = isTricks ? 'tricks'
+      : section === 'summons' ? 'summons'
+      : section === 'environments' ? 'environments' : 'cards';
     // Filter out roguelite-only cards (Goon/Thug/Brute, Soldier/Mercenary/
     // Operator, Wound/Doubt/Regret) from the classic-mode codex. They're
     // in CARD_DEFS so the engine can name-resolve them during a run but
     // shouldn't show up in the Classic encyclopedia.
     const isRL = (typeof Roguelite !== 'undefined' && Roguelite.isRogueliteOnlyName)
       ? (n) => Roguelite.isRogueliteOnlyName(n) : () => false;
-    const rawPool = isCards ? CARD_DEFS : (typeof TRICK_DEFS !== 'undefined' ? TRICK_DEFS : []);
+    // Summoned tokens (Ant, Kraken, Undead Warrior, Parademon) are built on the
+    // fly by abilities, not stored in CARD_DEFS — synthesize display-only rows so
+    // the Summons tab lists them alongside the _spawnOnly cards. Stats mirror the
+    // summonCard() calls in abilities.js; all four have art under audio/cards/art.
+    const SUMMON_TOKENS = [
+      { name: 'Ant',            cost: 1, attack: 1, health: 1, abilities: ['Bullseye'], desc: 'Token — summoned by Ant-Man.' },
+      { name: 'The Kraken',     cost: 4, attack: 5, health: 3, abilities: [],           desc: 'Token — summoned by Davy Jones.' },
+      { name: 'Undead Warrior', cost: 1, attack: 3, health: 1, abilities: [],           desc: 'Token — summoned by Hela.' },
+      { name: 'Parademon',      cost: 2, attack: 2, health: 1, abilities: [],           desc: 'Token — summoned by Darkseid.' },
+    ];
+    let rawPool;
+    if (isTricks)                        rawPool = (typeof TRICK_DEFS !== 'undefined' ? TRICK_DEFS : []);
+    else if (section === 'environments') rawPool = CARD_DEFS.filter(c => c.isEnvironment);
+    else if (section === 'summons')      rawPool = CARD_DEFS.filter(c => c._spawnOnly).concat(SUMMON_TOKENS);
+    else                                 rawPool = CARD_DEFS.filter(c => !c.isEnvironment && !c._spawnOnly);
     const pool = rawPool.filter(c => !isRL(c.name));
     const costBuckets = isCards
       ? [ ['all','All'], ['0-3','0-3'], ['4-6','4-6'], ['7-8','7-8'], ['9-10','9-10'] ]
@@ -9577,7 +9596,7 @@ const UI = {
     // dimensions, rarity-tiered borders, stat orbs, ability badges, and
     // the cost diamond in the corner. Tricks keep a compact card-ish look
     // but tinted purple per the trick palette.
-    const emptyBody = `<div class="db-grid-empty">No ${isCards ? 'cards' : 'tricks'} match this filter.</div>`;
+    const emptyBody = `<div class="db-grid-empty">No ${sectionNoun} match this filter.</div>`;
     let body;
     if (filtered.length) {
       if (isCards) {
@@ -9657,11 +9676,13 @@ const UI = {
         <div class="encyc-head">
           <div>
             <h1 class="encyc-title">Codex</h1>
-            <div class="encyc-sub">${filtered.length} of ${pool.length} ${isCards ? 'cards' : 'tricks'}</div>
+            <div class="encyc-sub">${filtered.length} of ${pool.length} ${sectionNoun}</div>
           </div>
           <div class="encyc-tabs">
-            <button type="button" class="db-tab ${f.section==='cards'?'db-filter-active':''}" onclick="UI._encycSetSection('cards')">Cards</button>
-            <button type="button" class="db-tab ${f.section==='tricks'?'db-filter-active':''}" onclick="UI._encycSetSection('tricks')">Tricks</button>
+            <button type="button" class="db-tab ${section==='cards'?'db-filter-active':''}" onclick="UI._encycSetSection('cards')">Cards</button>
+            <button type="button" class="db-tab ${section==='summons'?'db-filter-active':''}" onclick="UI._encycSetSection('summons')">Summons</button>
+            <button type="button" class="db-tab ${section==='environments'?'db-filter-active':''}" onclick="UI._encycSetSection('environments')">Environments</button>
+            <button type="button" class="db-tab ${section==='tricks'?'db-filter-active':''}" onclick="UI._encycSetSection('tricks')">Tricks</button>
           </div>
         </div>
         <div class="encyc-toolbar">
