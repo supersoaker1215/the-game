@@ -288,7 +288,7 @@ const CARD_DEFS = [
   { name: "Hulk", cost: 6, attack: 4, health: 6, type: "hero",
     abilities: [],
     desc: "When Played: Deal 2 damage to all enemies. While Active: Splash equals Hulk's ATK. Add (+1/+1) when damaged." },
-  { name: "Magneto", cost: 6, attack: 4, health: 6, type: "villain",
+  { name: "Magneto", cost: 6, attack: 3, health: 5, type: "villain",
     abilities: [],
     desc: "When Played: Move 2 cards to new lanes — ally or enemy. While Active: Enemies in even lanes get (−1/−1); allies in odd lanes get (+1/+1)." },
   { name: "Obi-Wan", cost: 6, attack: 4, health: 8, type: "hero",
