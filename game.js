@@ -2577,12 +2577,18 @@ const Game = {
       if (!lane._env) lane._env = {};
       // Only one environment may be active per lane — kill any existing env from
       // either side before placing the new one so its effects are cleaned up.
+      // CRITICAL: also null the slot. handleDeath doesn't know about _env
+      // sub-slots, so a replaced OPPONENT env would otherwise stay referenced
+      // as a dead zombie — still receiving onAnyCardPlayed / onTurnStart
+      // broadcasts. User report: replaced enemy Boiler Room kept burning
+      // newly arrived cards (Jaws spawned in already on fire).
       const envOpp = this.opponent(owner);
       [owner, envOpp].forEach(side => {
         const existing = lane._env[side];
         if (existing && existing !== card) {
           existing.currentHealth = 0;
           this.handleDeath(existing, laneIdx, null);
+          lane._env[side] = null;
         }
       });
       lane._env[owner] = card;
@@ -2737,12 +2743,14 @@ const Game = {
     if (card.isEnvironment) {
       if (!freeLane._env) freeLane._env = {};
       // Only one environment per lane — kill any existing from either side.
+      // Null the slot too (same zombie-env fix as the playCard branch).
       const envOpp = this.opponent(owner);
       [owner, envOpp].forEach(side => {
         const existing = freeLane._env[side];
         if (existing && existing !== card) {
           existing.currentHealth = 0;
           this.handleDeath(existing, laneIdx, null);
+          freeLane._env[side] = null;
         }
       });
       freeLane._env[owner] = card;
@@ -7449,9 +7457,12 @@ const Game = {
       const l = this.state.lanes[i];
       if (l.player && l.player.currentHealth > 0) out.push(l.player);
       if (l.ai    && l.ai.currentHealth    > 0) out.push(l.ai);
+      // Env slots get the same alive-filter as combat slots — a killed env
+      // whose slot wasn't cleared must never keep receiving onTurnStart /
+      // onAnyCardPlayed broadcasts (zombie Boiler Room kept burning cards).
       if (l._env) {
-        if (l._env.player) out.push(l._env.player);
-        if (l._env.ai)     out.push(l._env.ai);
+        if (l._env.player && l._env.player.currentHealth > 0) out.push(l._env.player);
+        if (l._env.ai     && l._env.ai.currentHealth     > 0) out.push(l._env.ai);
       }
     }
     return out;
