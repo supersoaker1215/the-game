@@ -17116,16 +17116,34 @@ const UI = {
       if (this._haptic) this._haptic('cardPlay');
       this._playSelectCue();
     }
-    const wasSelected = s.selectedCard === card;
+    // Selected-state check is BY ID, not identity: on a MP guest every host
+    // broadcast replaces Game.state with fresh instances (selection is
+    // restored by id in acceptMultiplayerState), so an identity compare
+    // against a pre-broadcast reference mis-reads a deselect as a fresh
+    // select. By-id === identity in single-player (instance ids are unique).
+    const wasSelected = s.selectedCard === card ||
+      !!(s.selectedCard && card && s.selectedCard.id != null && s.selectedCard.id === card.id);
     s.selectedCard = wasSelected ? null : card;
     // Multiplayer guest: when SELECTING a card (not deselecting), request a lane
     // picker from the host via the same promptLaneChoice path that summons use.
-    // This bypasses the broken onLaneClick → playCard guest flow and uses the
-    // proven pendingLaneChoice → laneChoicePick → promptResolve:lane path.
-    if (!wasSelected && card && !card.isDiscardEffect &&
+    // This is the ONLY placement path for guests (onLaneClick forwards picks
+    // into it and never direct-plays) — pendingLaneChoice → laneChoicePick →
+    // promptResolve:lane, host-validated against the armed lane set.
+    if (card && !card.isDiscardEffect &&
         Game.isMultiplayer && Game.isMultiplayer() && Game.mp && Game.mp.role === 'guest' &&
         typeof Multiplayer !== 'undefined') {
-      Multiplayer.send({ t: 'reqLaneChoice', cardId: card.id });
+      if (!wasSelected) {
+        Multiplayer.send({ t: 'reqLaneChoice', cardId: card.id });
+      } else {
+        // Deselect — tell the host to close the armed picker so it can't
+        // dangle over (and later place) a card the guest walked away from.
+        // Sent UNCONDITIONALLY (not gated on the picker having arrived):
+        // a fast select→deselect can outrun the host's broadcast, and the
+        // transport is ordered, so the cancel lands right after the
+        // reqLaneChoice it voids. The host validates: it only cancels a
+        // prompt armed for THIS card while it's still in the guest's hand.
+        Multiplayer.send({ t: 'promptResolve', choiceType: 'laneCancel', cardId: card.id });
+      }
     }
     this.render();
   },
@@ -17504,6 +17522,25 @@ const UI = {
     // already-occupied lane). 4s fallback in case a broadcast never arrives.
     if (s._mpPendingPlay && (Date.now() - s._mpPendingPlay) < 4000) return;
     const card = s.selectedCard;
+    // MP GUEST: placement goes ONLY through the host-armed lane picker —
+    // the exact same promptLaneChoice → laneChoicePick → promptResolve:lane
+    // flow summons use (user: "the summoning system works... apply that
+    // same system"). The old fallback here called Game.playCard, which
+    // forwarded a raw {t:'playCard', lane} that raced the picker on the
+    // host and auto-placed the card (the "instantly jumped into lane 1"
+    // bug). If the picker for THIS card is armed, forward the pick; if
+    // the broadcast hasn't landed yet, ignore the click — the next click
+    // on the highlighted lane resolves it. Never direct-play.
+    if (Game.isMultiplayer() && Game.mp && Game.mp.role === 'guest') {
+      const lc = s.pendingLaneChoice;
+      if (lc && lc.previewCard && lc.previewCard.id === card.id &&
+          Array.isArray(lc.lanes) && lc.lanes.includes(i) &&
+          typeof laneChoicePick === 'function') {
+        s.selectedCard = null;
+        laneChoicePick(i);
+      }
+      return;
+    }
     // Invisible Woman face-down option
     if (s.player.faceDownAvailable && !card.isDiscardEffect) {
       const faceUp = { name: 'Play Face Up', desc: 'Play normally — all abilities activate', id: 'faceup_opt' };

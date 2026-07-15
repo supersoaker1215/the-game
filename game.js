@@ -469,6 +469,21 @@ const Game = {
             if (lc.callback) lc.callback(msg.laneIdx);
             this.cleanupDead();
             this.resumeCombatIfWaiting();
+          } else if (msg.choiceType === 'laneCancel') {
+            // Guest deselected the hand card whose picker was armed — close
+            // the prompt WITHOUT resolving. Only hand-play placements
+            // (reqLaneChoice) are cancellable: the card must still be in the
+            // actor's hand, so dropping the callback loses nothing. Summon
+            // placements also carry a previewCard, but cancelling one would
+            // strand the summoned card — the in-hand check excludes them.
+            const lc = this.state.pendingLaneChoice;
+            if (!lc) break;
+            if (lc.owner !== actor) break;
+            if (!lc.previewCard || lc.previewCard.id !== msg.cardId) break;
+            if (!(this.state[actor].hand || []).some(c => c.id === msg.cardId)) break;
+            this._clearPromptTimeout();
+            this.state.pendingLaneChoice = null;
+            this.resumeCombatIfWaiting();
           } else if (msg.choiceType === 'jumpPlay') {
             const offer = this.state.pendingJumpOffer;
             if (!offer) break;
