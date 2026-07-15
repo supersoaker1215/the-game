@@ -983,7 +983,18 @@ const CARD_ABILITIES = {
     // from damagePlayer when face damage actually lands.
     onKill(G, self) {
       if (self.currentHealth <= 0) return;
-      G.log(`[STRIPE] Stripe tears one down — another Gremlin crawls out!`);
+      G.log(`[STRIPE] Stripe tears one down — the swarm feeds!`);
+      // Kill feed: PERMANENT +1/+1 to every living friendly Gremlin AND
+      // Stripe himself ("add 1/1 to all Gremlins, including Stripe").
+      // Deliberate exception to the 1-turn cross-card buff default —
+      // this is the swarm's growth engine, same permanence as an onKill
+      // self-buff. Buff lands BEFORE the spawn so the newcomer arrives
+      // at base stats (it wasn't on the field for the kill).
+      const brood = G.getAlliesOf(self.owner).filter(c =>
+        c.name === 'Gremlin' && c.currentHealth > 0);
+      brood.forEach(g => { g.attack += 1; g.maxHealth += 1; g.currentHealth += 1; });
+      self.attack += 1; self.maxHealth += 1; self.currentHealth += 1;
+      G.log(`  [STRIPE] Stripe${brood.length ? ` and ${brood.length} Gremlin${brood.length > 1 ? 's' : ''}` : ''} feed on the kill — +1/+1.`);
       const gremDef = (typeof CARD_DEFS !== 'undefined') ? CARD_DEFS.find(d => d.name === 'Gremlin') : null;
       G.summonCardChoice(self.owner, 'Gremlin', 2, 2, 3, [], null, null, gremDef);
     },
