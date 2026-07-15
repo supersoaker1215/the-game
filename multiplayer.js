@@ -621,6 +621,7 @@ class WebRTCTransport {
     this._roomCode = null;
     this._handlers = { message: [], close: [], error: [] };
     this._sendQueue = [];     // queued msgs sent before conn opens
+    this._versionTimer = null; // joiner-side wait for the host's versionInfo reply
   }
 
   // Convert the 4-letter room code into a globally-unique peer ID.
@@ -724,16 +725,48 @@ class WebRTCTransport {
         // players know to refresh. Non-fatal: the match still starts.
         const mine = _clbBuildStamp();
         const theirs = (conn.metadata && conn.metadata.v) || null;
+        // Always reply with OUR stamp. The metadata handshake only lets
+        // the host compare — without this reply, a fresh guest joining a
+        // STALE host (the dangerous direction: the host runs the
+        // authoritative engine, so its old bugs decide the match) gets no
+        // version signal at all. The joiner arms a timer below and treats
+        // "no versionInfo" as "host predates the handshake".
+        try { conn.send({ t: 'versionInfo', v: mine }); } catch (e) {}
         if (mine && theirs && mine !== theirs) {
           this._dispatch({ t: 'versionMismatch', mine, theirs });
           try { conn.send({ t: 'versionMismatch', mine: theirs, theirs: mine }); } catch (e) {}
+        } else if (mine && !theirs) {
+          // Joiner sent no stamp — they're on a build older than the
+          // handshake itself. Same warning, same fix (refresh).
+          this._dispatch({ t: 'versionMismatch', mine, theirs: 'old build (no stamp)' });
         }
         this._dispatch({ t: 'opponentJoined', name });
       } else {
+        // Expect the host's versionInfo reply shortly after connecting. A
+        // host on a pre-handshake build never sends one — which is exactly
+        // the stale-cached-host case the handshake exists to catch (host-
+        // side compare can't run when the host is the stale side).
+        const mine = _clbBuildStamp();
+        if (mine) {
+          this._versionTimer = setTimeout(() => {
+            this._versionTimer = null;
+            this._dispatch({ t: 'versionMismatch', mine, theirs: 'old build (no reply)' });
+          }, 6000);
+        }
         this._dispatch({ t: 'roomJoined', code: this._roomCode, you: 'ai' });
       }
     });
     conn.on('data', (data) => {
+      // Host's build-stamp reply (joiner side) — compare at the transport
+      // level; see the versionInfo send in the host branch above.
+      if (data && data.t === 'versionInfo') {
+        if (this._versionTimer) { clearTimeout(this._versionTimer); this._versionTimer = null; }
+        const mine = _clbBuildStamp();
+        if (mine && data.v && mine !== data.v) {
+          this._dispatch({ t: 'versionMismatch', mine, theirs: data.v });
+        }
+        return;
+      }
       // Reassemble chunked large messages (state broadcasts) before
       // dispatching. Small messages pass straight through.
       if (data && data.t === '__chunk') {
@@ -746,7 +779,10 @@ class WebRTCTransport {
       // _handleServerMsg routes by msg.t.
       this._dispatch(data);
     });
-    conn.on('close', () => this._dispatch({ t: 'opponentLeft' }));
+    conn.on('close', () => {
+      if (this._versionTimer) { clearTimeout(this._versionTimer); this._versionTimer = null; }
+      this._dispatch({ t: 'opponentLeft' });
+    });
     conn.on('error', (err) => this._dispatchError('Connection error: ' + ((err && err.message) || err)));
   }
 
