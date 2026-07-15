@@ -13243,8 +13243,9 @@ const UI = {
     const targetCardIds = new Set();
     if (cc && isMyCardChoice) cc.cards.forEach(c => { if (c.id !== undefined) targetCardIds.add(c.id); });
     const lcTargetSide = (lc && isMyLaneChoice) ? (lc.targetSide || lc.owner) : null;
-    // Effective forced lane for each seat: Moder's single forcedLane takes
-    // priority; fall back to the first valid entry in Magneto's queue.
+    // Effective forced lane for each seat — Moder's single forcedLane only.
+    // (The Magneto-queue fallback was removed with the Magneto redesign: no
+    // setter exists, so it could only paint phantom lock glyphs from stale state.)
     const _effectiveForcedLane = (seat) => {
       const p = s[seat]; if (!p) return null;
       if (p.forcedLane != null) {
@@ -13252,12 +13253,6 @@ const UI = {
         // if the seat already has a card there the lock can't fire anyway.
         const fl = s.lanes[p.forcedLane];
         if (fl && !fl.destroyed && !fl[seat]) return p.forcedLane;
-      }
-      const mq = p.magnetoForcedLanes;
-      if (mq && mq.length > 0) {
-        const candidate = mq[0];
-        const cl = s.lanes[candidate];
-        if (cl && !cl.destroyed && !cl[seat]) return candidate;
       }
       return null;
     };
@@ -13768,12 +13763,10 @@ const UI = {
           if (preview) pSlot.appendChild(preview);
         }
       } else if (!lane.destroyed && canPlay && s.selectedCard && !s.selectedCard.isDiscardEffect && !cc && !lc && (!lane.player || s.selectedCard.isEnvironment)) {
-        // When a forced lane is active (Moder/Magneto), only that lane is clickable.
-        // Resolve the effective forced lane: Moder's single forcedLane takes priority;
-        // fall back to the first entry in Magneto's queue (magnetoForcedLanes[0]).
-        // Only lock the UI if the forced lane is actually valid (not destroyed, not
-        // already occupied) — mirrors the redirect logic in _redirectForForcedLane so
-        // what the guest sees matches what the host will actually do.
+        // When a forced lane is active (Moder — roguelite solo boss), only that
+        // lane is clickable. The old Magneto-queue fallback (magnetoForcedLanes[0])
+        // was removed with the Magneto redesign — no setter exists anymore, so a
+        // stale queue could only wrongly padlock the whole hand to one lane.
         let fl = s.player && s.player.forcedLane != null ? s.player.forcedLane : null;
         // Only enforce Moder's lock if the forced lane is actually playable —
         // if the player's card already occupies it (e.g. survived combat against
@@ -13781,18 +13774,6 @@ const UI = {
         if (fl !== null) {
           const flState = s.lanes[fl];
           if (!flState || flState.destroyed || flState.player) fl = null;
-        }
-        if (fl === null) {
-          const mq = s.player && s.player.magnetoForcedLanes;
-          if (mq && mq.length > 0) {
-            const candidate = mq[0];
-            const candidateLane = s.lanes[candidate];
-            // Only enforce if the forced lane is playable; otherwise the host will
-            // silently skip the redirect and the card goes wherever the guest chose.
-            if (candidateLane && !candidateLane.destroyed && !candidateLane.player) {
-              fl = candidate;
-            }
-          }
         }
         if (fl !== null && fl !== i && !s.selectedCard.isEnvironment) {
           // Not the forced lane — show as locked, not playable.

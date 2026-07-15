@@ -225,6 +225,19 @@ const Game = {
     this.startMatch({ players: '1v1', deck: 'classic' });
     if (this.state.player) this.state.player.isHuman = true;
     if (this.state.ai)     this.state.ai.isHuman = true;
+    // SEAT HYGIENE — startMatch reuses this.state without re-running init(),
+    // so forced-lane residue from an abandoned SOLO match (Moder's forcedLane,
+    // the old Magneto's magnetoForcedLanes queue) survives into this MP match.
+    // On the host that residue made reqLaneChoice collapse the guest's open
+    // lanes to ONE entry and auto-play with no picker — cards marched into
+    // lane 1, 2, 3… ascending. Root cause of the long-standing "guest can't
+    // choose their lane" bug: the MP wiring was correct; the state was poisoned.
+    ['player', 'ai'].forEach(s => {
+      const seat = this.state[s];
+      if (!seat) return;
+      seat.forcedLane = null;
+      delete seat.magnetoForcedLanes;
+    });
     // Embed both players' display names in state so they broadcast to the guest
     // and remain accurate after any perspective flip.
     if (typeof UI !== 'undefined') {
@@ -317,29 +330,26 @@ const Game = {
           if (card.isDiscardEffect) { this.playCard(actor, card, 0); break; }
           const cost = this.getCardCost(actor, card);
           if (this.state[actor].currency < cost) break;
-          // Determine candidate lanes — respect Moder / Magneto forced-lane constraints
-          // so the host controls which lanes are available (same as the visual lock the
-          // UI applies in single-player via _redirectForForcedLane + board render).
+          // Candidate lanes — every open lane on the guest's side. The old
+          // Moder/Magneto forced-lane narrowing was REMOVED here: Moder is a
+          // roguelite-only (solo) boss and Magneto's redesign no longer forces
+          // placements, so nothing in a 1v1 online match legitimately sets
+          // forcedLane/magnetoForcedLanes. The narrowing could only ever fire
+          // from STALE residue carried over from an abandoned solo match —
+          // which collapsed openLanes to one entry and auto-played the guest's
+          // card with no picker (the "guest can't choose their lane" bug).
           let openLanes;
           if (card.isEnvironment) {
             openLanes = this.state.lanes.map((l, i) => i).filter(i => !this.state.lanes[i].destroyed);
           } else {
             openLanes = this.getOpenLanes(actor);
-            const fl = this.state[actor] && this.state[actor].forcedLane;
-            if (fl != null) {
-              const flLane = this.state.lanes[fl];
-              if (flLane && !flLane.destroyed && !flLane[actor]) openLanes = [fl];
-            }
-            const mq = this.state[actor] && this.state[actor].magnetoForcedLanes;
-            if (openLanes.length > 1 && mq && mq.length) {
-              const mfl = mq[0];
-              const mflLane = this.state.lanes[mfl];
-              if (mflLane && !mflLane.destroyed && !mflLane[actor]) openLanes = [mfl];
-            }
           }
           if (!openLanes.length) break;
           if (openLanes.length === 1) {
-            // Only one option — skip the picker, play directly
+            // Only one option — skip the picker, play directly. Log it so a
+            // "my card auto-placed" report is diagnosable from the host console.
+            console.log('[MP HOST] reqLaneChoice: single open lane', openLanes[0] + 1,
+              'for', card.name, '— playing directly (no picker needed)');
             this.playCard(actor, card, openLanes[0]);
             break;
           }
@@ -2395,20 +2405,13 @@ const Game = {
         }
       }
     }
-    // Magneto forced lanes — opponent's next cards go to lanes chosen
-    // by Magneto's owner. Stack consumed one-per-play.
-    const queue = this.state[owner].magnetoForcedLanes;
-    if (queue && queue.length > 0) {
-      const fl = queue.shift();
-      if (!mpGuestPlay) {
-        const flLane = this.state.lanes[fl];
-        if (flLane && !flLane.destroyed && !flLane[owner]) {
-          laneIdx = fl;
-          this.log(`[MAGNETO] ${card.name} is forced into lane ${fl + 1} by Magneto!`);
-        }
-      }
-      if (!queue.length) delete this.state[owner].magnetoForcedLanes;
-    }
+    // Old-Magneto forced-lane queue: the reader lived here until 2026-07-15.
+    // Magneto's redesign (move 2 cards + parity aura) removed the only setter
+    // of magnetoForcedLanes, so the queue-consumption block was deleted — a
+    // stale queue in a reused/saved state could only misroute cards (it
+    // auto-placed multiplayer guests into ascending lanes with no picker).
+    // Defensive sweep: drop any residue so nothing downstream ever sees it.
+    if (this.state[owner].magnetoForcedLanes) delete this.state[owner].magnetoForcedLanes;
     if (this.isMultiplayer() && laneIdx !== _origLane) {
       console.log('[MP HOST] _redirectForForcedLane:', card.name, 'owner:', owner, 'requested lane:', _origLane, '→ redirected to:', laneIdx);
     }
