@@ -89,6 +89,7 @@ window.CARD_ART_VARIANTS = {
   'Sabertooth':          ['Sabertooth 2.jpg',        'Sabertooth.png'],
   'The Batman Who Laughs': ['The Batman Who Laughs 2.jpg', 'The Batman Who Laughs.png'],
   'Obi-Wan':             ['Obi-Wan 2.jpg',           'Obi-Wan.png'],
+  'The Grinch':          ['The Grinch 2.jpg',        'The Grinch.png'],
   // Gremlins set (2026-07-15) — Stripe's art is a jpg, so it needs a manifest
   // entry (default lookup assumes <Name>.png). Gizmo/Gremlin resolve as pngs.
   'Stripe':              ['Stripe.jpg'],
@@ -160,6 +161,7 @@ window.CARD_ART_OVERRIDES = {
     'The Batman Who Laughs|The Batman Who Laughs 2.jpg': '50% 45%',
     'Obi-Wan|Obi-Wan 2.jpg': '100% 84%',
     'Obi-Wan|Obi-Wan.png': '60% 50%',
+    'The Grinch|The Grinch 2.jpg': '50% 24%',
   },
   focalMenu: {   // "name|file" -> "X% Y%"   menu-hero crop focal
     'Darth Maul|Darth Maul.jpg': '50% 50%',
@@ -204,6 +206,7 @@ window.CARD_ART_OVERRIDES = {
     'Sabertooth|Sabertooth 2.jpg': '52% 14%',
     'The Batman Who Laughs|The Batman Who Laughs 2.jpg': '50% 45%',
     'Obi-Wan|Obi-Wan 2.jpg': '100% 74%',
+    'The Grinch|The Grinch 2.jpg': '50% 26%',
   },
   zoomCard:  {   // "name|file" -> scale (1 = cover, e.g. 1.3)
     'Darth Maul|Darth Maul.jpg': 1.6,
@@ -216,6 +219,7 @@ window.CARD_ART_OVERRIDES = {
     'Padme Amidala|Padme Amidala.png': 1.1,
     'Obi-Wan|Obi-Wan 2.jpg': 1.15,
     'Optimus Prime|Optimus Prime 2.jpg': 1.1,
+    'The Grinch|The Grinch 2.jpg': 1.25,
   },
   zoomMenu:  {   // "name|file" -> scale
     'Darth Maul|Darth Maul.jpg': 1.6,
@@ -225,5 +229,6 @@ window.CARD_ART_OVERRIDES = {
     'Padme Amidala|Padme Amidala.png': 1.1,
     'Obi-Wan|Obi-Wan 2.jpg': 1.1,
     'Optimus Prime|Optimus Prime 2.jpg': 1.1,
+    'The Grinch|The Grinch 2.jpg': 1.15,
   },
 };
