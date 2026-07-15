@@ -4440,6 +4440,10 @@ const Game = {
     // sweep in sim/test.js.
     p.health = Math.max(0, p.health - amount);
     this.emitDmg(null, amount, 'hpHit', owner);
+    // Stripe's jump trigger — face damage landed on EITHER hero. Fired
+    // here (post-floor, damage actually applied) so blocked/absorbed
+    // hits never arm the jump.
+    this.checkJumpConditions('heroDamaged', { owner });
     // Yoda passive — when an ally deals direct hero damage, a random ally
     // (never Yoda himself) gains a buff it doesn't already have at cap.
     if (source && source.id != null) {
@@ -7521,6 +7525,13 @@ const Game = {
           // Lock MM to the lane directly in front of the enemy card that triggered the jump
           card.jumpLane = data.laneIdx;
           this.log(`  [JUMP] Michael Myers senses weakness in lane ${data.laneIdx + 1}! Free play available.`);
+          if (this.isHuman(owner)) playerJumpNowReady = card;
+        }
+        if (card.name === 'Stripe' && trigger === 'heroDamaged') {
+          // "Either player's hero takes damage" — deliberately no owner
+          // filter: your face or theirs, Stripe smells blood either way.
+          card.jumpReady = true;
+          this.log(`  [JUMP] Stripe smells blood! Free play available.`);
           if (this.isHuman(owner)) playerJumpNowReady = card;
         }
         if (card.name === 'Jason Voorhees' && trigger === 'allyDied' && data.owner === owner) {

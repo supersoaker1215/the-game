@@ -1359,6 +1359,8 @@ const UI = {
       'Gargantua':        { hover: { src: 'audio/cards/gargantua-hover.mp3' } },
       'Ultron':           { hover: { src: 'audio/cards/ultron-hover.mp3', maxDur: 29 } },
       'Loki':             { hover: { src: 'audio/cards/loki-hover.mp3' } },
+      'Gizmo':            { hover: { src: 'audio/cards/gizmo-hover.mp3', maxDur: 62 } },
+      'Stripe':           { hover: { src: 'audio/cards/stripe-hover.mp3', maxDur: 47 }, play: { src: 'audio/cards/stripe-when-played.mp3', maxDur: 4 } },
     },
     // Default files for the per-card events — used when a card's
     // CARD_SFX entry doesn't have that event. If neither the card-

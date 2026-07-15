@@ -89,6 +89,9 @@ window.CARD_ART_VARIANTS = {
   'Sabertooth':          ['Sabertooth 2.jpg',        'Sabertooth.png'],
   'The Batman Who Laughs': ['The Batman Who Laughs 2.jpg', 'The Batman Who Laughs.png'],
   'Obi-Wan':             ['Obi-Wan 2.jpg',           'Obi-Wan.png'],
+  // Gremlins set (2026-07-15) — Stripe's art is a jpg, so it needs a manifest
+  // entry (default lookup assumes <Name>.png). Gizmo/Gremlin resolve as pngs.
+  'Stripe':              ['Stripe.jpg'],
 };
 
 // =============================================================================
