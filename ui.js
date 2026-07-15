@@ -1317,7 +1317,7 @@ const UI = {
        // (unified signature-hover baseline), 1s fade-in / 2s fade-out baked.
        // maxDur 75 lets the full phrase play; resume-on-rehover keeps the
        // position across visits.
-      'Superman':         { hover: { src: 'audio/cards/superman-hover.mp3?v=7', maxDur: 75 } },
+      'Superman':         { hover: { src: 'audio/cards/superman-hover.mp3?v=7', maxDur: 75 }, play: { src: 'audio/cards/superman-play.mp3', maxDur: 13 } },
       // The Grinch hover: 43s clip. maxDur 44 lets the full phrase play.
       'The Grinch':       { hover: { src: 'audio/cards/the-grinch-hover.mp3', maxDur: 44, gain: 1.5 } },
       'Green Goblin':     { hover: { src: 'audio/cards/green-goblin-hover.mp3', maxDur: 24 } },
