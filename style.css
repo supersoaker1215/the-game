@@ -5571,22 +5571,28 @@ body.hit-pause .ai-hand * {
   text-shadow: 0 0 4px rgba(231,76,60,0.55);
 }
 .card-slot {
-  /* STABLE CENTERLINE — the slot min-height fits a FULL board card (portrait +
-     4 badge rows), so both halves render at the same fixed size in practice:
-     the divider sits at the same y in every lane and cards never float when
-     the opposite slot is empty ("the board moved"). flex-basis stays AUTO so
-     an unusually tall card still grows its slot instead of overflowing under
-     the banners (basis:0 clipped cards into the HP bars). The old 175px min
-     was half a card tall — every occupied lane shifted its own divider.
+  /* STABLE CENTERLINE — both halves must render at the SAME fixed height so the
+     divider lands at the same y in every lane and a lone card in a one-sided
+     lane lines up with the cards in a contested lane (user: "why is lane 3 not
+     the same as lanes 1 & 2"). Two levers make that hold:
+       • flex: 1 1 0  — basis 0 makes the AI and player slots split the lane
+         50/50 by grow alone, so an EMPTY slot is the same height as its
+         occupied sibling (with basis AUTO the empty slot collapsed to its
+         min and the occupied slot absorbed the rest, dragging the divider
+         toward the empty side — that was the misalignment).
+       • min-height 240 — a full board card is ~209px (0 badges) to ~278px
+         (5 badges). 240 fits the common 0-2 badge tile, so cards ≤240 never
+         overflow and every slot renders at 240 → dividers aligned. A rare
+         heavily-badged card (Trigon/Galactus) still grows its own lane a
+         little rather than clip. The old 175 min sat BELOW the card height,
+         so every occupied slot grew past it while empty slots stayed at 175
+         — that is what shifted single-card lanes. (When 240 last caused
+         "dead space" the cards were ~167-192px; at today's ~209+ heights the
+         gap above/below a short card is only ~0-31px.)
      Width 154px = 140px card + lane padding. */
   width: 154px;
-  flex: 1 1 auto;
-  /* Board cards hide their description now, so a typical tile is ~167-192px —
-     the old 240px min-height left ~50-73px of dead space above the top card
-     and below the bottom card (user crossed it out: "you can remove the space").
-     Hug the card at 175px; a heavily-badged card (Galactus etc.) still grows
-     its own slot via flex-basis auto, so nothing clips. */
-  min-height: 175px;
+  flex: 1 1 0;
+  min-height: 240px;
   display: flex; justify-content: center; border-radius: 8px;
 }
 /* Card alignment within each slot: anchor each card TO THE SEP (AI bottom,
