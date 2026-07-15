@@ -8016,7 +8016,7 @@ const Game = {
     // applyHit handles taunt redirect → evade → armor → HP. The first
     // taunter on the target's side that ISN'T the target absorbs the
     // hit, mirroring live combat's `getAllCardsOf().find()` lookup.
-    const applyHit = (targetCard, raw, attackerBullseye) => {
+    const applyHit = (targetCard, raw, attackerIgnoresEvade) => {
       if (!targetCard || raw <= 0) return 0;
       let final = snap.get(targetCard.id);
       if (!final || final.hp <= 0) return 0;
@@ -8038,7 +8038,11 @@ const Game = {
       // After possible redirect, re-check for kill-block defenses.
       if (final.ref.invincibleTurns > 0 || final.ref.hasDamageImmunity) return 0;
       const canDodge = !final.ref.isStunned && !final.ref.isFrozen;
-      if (canDodge && final.evade > 0 && !attackerBullseye) { final.evade--; return 0; }
+      // Evade is only pierced by an ignoresEvade attacker — NOT by Bullseye.
+      // (Real combat gates on attacker.ignoresEvade at ~line 4048; this used to
+      // pass isBullseye, so a Bullseye attacker like Spawn wrongly cancelled an
+      // Evade defender's dodge and the lane read TRADE instead of WIN.)
+      if (canDodge && final.evade > 0 && !attackerIgnoresEvade) { final.evade--; return 0; }
       const landed = Math.max(0, raw - (final.ref.armorValue | 0));
       final.hp -= landed;
       final.dmgIn += landed;
@@ -8059,10 +8063,10 @@ const Game = {
         const left = this.state.lanes[i - 1];
         if (left && !left.destroyed) {
           if (left.ai && (left.ai.splashRange | 0) > 0 && canHitEnemy(left.ai) && p) {
-            applyHit(p, left.ai.splashRange | 0, !!left.ai.isBullseye);
+            applyHit(p, left.ai.splashRange | 0, !!left.ai.ignoresEvade);
           }
           if (left.player && (left.player.splashRange | 0) > 0 && canHitEnemy(left.player) && a) {
-            applyHit(a, left.player.splashRange | 0, !!left.player.isBullseye);
+            applyHit(a, left.player.splashRange | 0, !!left.player.ignoresEvade);
           }
         }
       }
@@ -8073,16 +8077,16 @@ const Game = {
       if (pSnap && aSnap && pSnap.hp > 0 && aSnap.hp > 0) {
         const pAtk = canHitEnemy(p) ? (p.attack | 0) : 0;
         const aAtk = canHitEnemy(a) ? (a.attack | 0) : 0;
-        applyHit(p, aAtk, !!a.isBullseye);
-        applyHit(a, pAtk, !!p.isBullseye);
+        applyHit(p, aAtk, !!a.ignoresEvade);
+        applyHit(a, pAtk, !!p.ignoresEvade);
       }
 
       // Step 2: own-lane splash.
       if (pSnap && pSnap.hp > 0 && (p.splashRange | 0) > 0 && a) {
-        applyHit(a, p.splashRange | 0, !!p.isBullseye);
+        applyHit(a, p.splashRange | 0, !!p.ignoresEvade);
       }
       if (aSnap && aSnap.hp > 0 && (a.splashRange | 0) > 0 && p) {
-        applyHit(p, a.splashRange | 0, !!a.isBullseye);
+        applyHit(p, a.splashRange | 0, !!a.ignoresEvade);
       }
     }
 
