@@ -1119,7 +1119,9 @@ const UI = {
       // LEGO style, intentional — Vader's death is a cinematic moment
       // and the iconic film sting carries the weight better than a
       // cartoon yelp.
-      'Darth Vader':      { hover: 'audio/cards/darth-vader-hover.mp3', death: { src: 'audio/cards/darth-vader-death.mp3', maxDur: 3.5 } },
+      // Darth Vader play: 4s of "The Imperial March" (1:47 → 1:51) — the
+      // brass sting stabs on entrance. 0.05s fade-in / 0.4s fade-out baked.
+      'Darth Vader':      { hover: 'audio/cards/darth-vader-hover.mp3', play: { src: 'audio/cards/darth-vader-play.mp3', maxDur: 4.2 }, death: { src: 'audio/cards/darth-vader-death.mp3', maxDur: 3.5 } },
       // Batman hover: 1:45 of Hans Zimmer & James Newton Howard's "A
       // Watchful Guardian" (Dark Knight OST), 2:15 → 4:00 of source.
       // -20 LUFS unified-baseline, 1s fade-in / 2s fade-out. maxDur 106
@@ -1308,7 +1310,7 @@ const UI = {
       // Obi-Wan hover: 86s of John Williams' "The Immolation Scene" (0:00 →
       // 1:26 of the source) — the Mustafar-duel elegy. 0.6s fade-in / 2s
       // fade-out baked; maxDur 86 = full clip. ?v=2 busts the old cached file.
-      'Obi-Wan':          { hover: { src: 'audio/cards/obi-wan-hover.mp3?v=2', maxDur: 86 }, death: 'audio/cards/obi-wan-death.mp3' },
+      'Obi-Wan':          { hover: { src: 'audio/cards/obi-wan-hover.mp3?v=2', maxDur: 86 }, play: 'audio/cards/obi-wan-play.mp3', death: 'audio/cards/obi-wan-death.mp3' },
       'Ahsoka':           { hover: { src: 'audio/cards/ahsoka-hover.mp3?v=1', maxDur: 64 } },
       // Anakin Skywalker hover: 109s of John Williams' "Anakin's Dark Deeds"
       // (LSO recording) — trimmed from 2:15 to the end of the source so the
