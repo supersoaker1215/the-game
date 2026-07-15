@@ -87,6 +87,7 @@ window.CARD_ART_VARIANTS = {
   // bottom strip (card frames the head/torso, so nothing important is lost).
   'Doomsday':            ['Doomsday 2.jpg',          'Doomsday.png'],
   'Sabertooth':          ['Sabertooth 2.jpg',        'Sabertooth.png'],
+  'The Batman Who Laughs': ['The Batman Who Laughs 2.jpg', 'The Batman Who Laughs.png'],
 };
 
 // =============================================================================
@@ -153,6 +154,7 @@ window.CARD_ART_OVERRIDES = {
     'Optimus Prime|Optimus Prime 2.jpg': '50% 12%',
     'Doomsday|Doomsday 2.jpg': '50% 12%',
     'Sabertooth|Sabertooth 2.jpg': '52% 12%',
+    'The Batman Who Laughs|The Batman Who Laughs 2.jpg': '50% 45%',
   },
   focalMenu: {   // "name|file" -> "X% Y%"   menu-hero crop focal
     'Darth Maul|Darth Maul.jpg': '50% 50%',
@@ -196,6 +198,7 @@ window.CARD_ART_OVERRIDES = {
     'Optimus Prime|Optimus Prime 2.jpg': '50% 15%',
     'Doomsday|Doomsday 2.jpg': '50% 10%',
     'Sabertooth|Sabertooth 2.jpg': '52% 14%',
+    'The Batman Who Laughs|The Batman Who Laughs 2.jpg': '50% 45%',
   },
   zoomCard:  {   // "name|file" -> scale (1 = cover, e.g. 1.3)
     'Darth Maul|Darth Maul.jpg': 1.6,
