@@ -41,6 +41,7 @@ window.CARD_ART_VARIANTS = {
   'The Flash':           ['The Flash 2.png',          'The Flash.png'],
   // ── Variant-2 promoted in second pass (2026-05-18 follow-up) ──
   'Ahsoka':              ['Ahsoka 2.png'],
+  'Homelander':          ['Homelander.png',           'Homelander 2.jpg'],
   'Xenomorph':           ['Xenomorph 2.png',          'Xenomorph.png'],
   // ── Silver Surfer chrome / cosmic portrait additions (2026-05-26) ──
   'Silver Surfer':       ['Silver Surfer 3.png',      'Silver Surfer 2.png',     'Silver Surfer.png'],
