@@ -954,19 +954,22 @@ const CARD_ABILITIES = {
   },
   "Gremlin": {
     // Swarm — +1 ATK per other living Gremlin ON THE FIELD (both sides,
-    // per card text). Event-driven additive bookkeeping instead of a
+    // per card text). STRIPE COUNTS AS A GREMLIN for the swarm count
+    // (user rule) — he raises every Gremlin's count but doesn't carry
+    // Swarm himself (his arrival/death bookkeeping lives in his own
+    // onPlay/onDeath). Event-driven additive bookkeeping instead of a
     // per-tick recalc so buffs from other sources (Padme, Power Stone)
     // are never clobbered: each arrival buffs itself by the existing
     // count and every existing Gremlin by +1; each death walks it back.
     // onPlay fires for spawns too — summonCard runs the summoned card's
     // own onPlay whenever a full sourceDef is passed (Gizmo/Stripe do).
     onPlay(G, self, lane) {
-      const others = G.getAllCardsOnBoard().filter(c =>
-        c.id !== self.id && c.name === 'Gremlin' && c.currentHealth > 0);
-      if (others.length) {
-        self.attack += others.length;
-        others.forEach(g => { g.attack += 1; });
-        G.log(`[SWARM] ${others.length + 1} Gremlins on the field — the swarm grows stronger!`);
+      const kin = G.getAllCardsOnBoard().filter(c =>
+        c.id !== self.id && (c.name === 'Gremlin' || c.name === 'Stripe') && c.currentHealth > 0);
+      if (kin.length) {
+        self.attack += kin.length;
+        kin.forEach(g => { if (g.name === 'Gremlin') g.attack += 1; });
+        G.log(`[SWARM] ${kin.length + 1} in the swarm — it grows stronger!`);
       }
     },
     onDeath(G, self, lane) {
@@ -981,6 +984,26 @@ const CARD_ABILITIES = {
     // Jump condition ("either player takes hero damage") lives in
     // Game.checkJumpConditions under the 'heroDamaged' trigger — fired
     // from damagePlayer when face damage actually lands.
+    // Swarm kinship: Stripe COUNTS AS a Gremlin for the swarm count, so
+    // his arrival gives every living Gremlin +1 ATK and his death takes
+    // it back. He doesn't carry Swarm himself — no self-buff here; the
+    // new-Gremlin side of the count lives in Gremlin's onPlay (kin
+    // filter includes Stripe).
+    onPlay(G, self, lane) {
+      const brood = G.getAllCardsOnBoard().filter(c =>
+        c.id !== self.id && c.name === 'Gremlin' && c.currentHealth > 0);
+      if (brood.length) {
+        brood.forEach(g => { g.attack += 1; });
+        G.log(`[SWARM] Stripe joins the swarm — ${brood.length} Gremlin${brood.length > 1 ? 's' : ''} grow${brood.length > 1 ? '' : 's'} stronger!`);
+      }
+    },
+    onDeath(G, self, lane) {
+      G.getAllCardsOnBoard().forEach(c => {
+        if (c.id !== self.id && c.name === 'Gremlin' && c.currentHealth > 0) {
+          c.attack = Math.max(0, c.attack - 1);
+        }
+      });
+    },
     onKill(G, self) {
       if (self.currentHealth <= 0) return;
       G.log(`[STRIPE] Stripe tears one down — the swarm feeds!`);
