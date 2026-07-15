@@ -84,6 +84,7 @@ const CARD_DEFS = [
     abilities: [],
     desc: "Swarm: +1 ATK for each other Gremlin on the field. (Spawned by Gizmo and Stripe.)" },
   { name: "Stripe", cost: 3, attack: 3, health: 3, type: "villain",
+    _spawnOnly: true,
     abilities: [],
     desc: "Jump: When either player takes hero damage, play for free into any open lane. While Active: When Stripe kills an enemy, spawn a Gremlin and add 1/1 to all Gremlins, including Stripe." },
   { name: "Dr. Strange", cost: 2, attack: 2, health: 1, type: "hero",
