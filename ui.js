@@ -695,13 +695,22 @@ const UI = {
   _menuCharHoverSrcs() {
     if (this._charSrcs) return this._charSrcs;
     const out = [];
+    const reg = (this.sfx && this.sfx.CARD_SFX) || {};
     const srcs = (this.sfx && this.sfx.MENU_HOVER_SRCS) || [];
     for (const src of srcs) {
       const name = this._menuHoverArtName(src);
       if (!name) continue;
       const def = (typeof CARD_DEFS !== 'undefined') ? CARD_DEFS.find(d => d.name === name) : null;
       if (!def || (def.type !== 'hero' && def.type !== 'villain')) continue;
-      out.push(src);
+      // Play the card's CURRENT hover src (with its cache-bust ?v=) so the menu
+      // track is byte-identical to the in-game card hover — MENU_HOVER_SRCS is
+      // just the curated roster; the actual file comes from CARD_SFX so the two
+      // can't drift. (Vader's hover swapped to ?v=2 — without this the menu kept
+      // playing the stale cached clip while the card played the new one.) Falls
+      // back to the roster src if a card has no CARD_SFX hover entry.
+      const hv = reg[name] && reg[name].hover;
+      const cardSrc = hv && (typeof hv === 'string' ? hv : hv.src);
+      out.push(cardSrc || src);
     }
     this._charSrcs = out.length ? out : srcs;
     return this._charSrcs;
@@ -2097,6 +2106,7 @@ const UI = {
       'audio/cards/luke-hover.mp3',
       'audio/cards/michael-myers-hover.mp3',
       'audio/cards/mind-stone-hover.mp3',
+      'audio/cards/obi-wan-hover.mp3',
       'audio/cards/omni-man-hover.mp3',
       'audio/cards/open-water-hover.mp3',
       'audio/cards/optimus-prime-hover.mp3',
@@ -2105,6 +2115,7 @@ const UI = {
       'audio/cards/pennywise-hover.mp3',
       'audio/cards/power-stone-hover.mp3',
       'audio/cards/reality-stone-hover.mp3',
+      'audio/cards/sabertooth-hover.mp3',
       'audio/cards/sandman-hover.mp3',
       'audio/cards/sewers-hover.mp3',
       'audio/cards/soul-stone-hover.mp3',
