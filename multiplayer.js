@@ -625,11 +625,11 @@ class WebRTCTransport {
       this._openAsJoiner(msg);
       return;
     }
-    // Game action — relay over the data connection. If the conn
-    // isn't open yet (joiner sent something before handshake
+    // Game action — relay over the data connection (chunked if large).
+    // If the conn isn't open yet (joiner sent something before handshake
     // completed), queue and flush on open.
     if (this._conn && this._conn.open) {
-      this._conn.send(msg);
+      this._sendChunked(msg);
     } else {
       this._sendQueue.push(msg);
     }
@@ -690,9 +690,9 @@ class WebRTCTransport {
   _setupConn(conn) {
     this._conn = conn;
     conn.on('open', () => {
-      // Flush anything queued before the channel opened
-      this._sendQueue.forEach(m => { try { conn.send(m); } catch (e) {} });
-      this._sendQueue = [];
+      // Flush anything queued before the channel opened (chunked if large)
+      const queued = this._sendQueue; this._sendQueue = [];
+      queued.forEach(m => this._sendChunked(m));
       if (this._isHost) {
         const name = (conn.metadata && conn.metadata.name) || 'Opponent';
         this._dispatch({ t: 'opponentJoined', name });
@@ -701,6 +701,13 @@ class WebRTCTransport {
       }
     });
     conn.on('data', (data) => {
+      // Reassemble chunked large messages (state broadcasts) before
+      // dispatching. Small messages pass straight through.
+      if (data && data.t === '__chunk') {
+        const full = this._recvChunk(data);
+        if (full) this._dispatch(full);
+        return;
+      }
       // Game actions, state updates, pseudo-server messages — all
       // pass through the same dispatch path. The Multiplayer adapter's
       // _handleServerMsg routes by msg.t.
@@ -739,10 +746,52 @@ class WebRTCTransport {
   broadcastState(stateClone) {
     const wrapped = { t: 'state', state: stateClone };
     if (this._conn && this._conn.open) {
-      try { this._conn.send(wrapped); } catch (e) {}
+      this._sendChunked(wrapped);
     } else {
       this._sendQueue.push(wrapped);
     }
+  }
+
+  // Split any message over the safe single-message size into ordered
+  // chunks and reassemble on the far side. WebRTC/SCTP caps a single
+  // send at the SMALLER of the two peers' limits — Safari negotiates a
+  // much lower cap than Chrome, so a full ~50KB draft-state broadcast
+  // silently vanished on a Chrome↔Safari match (guest paired but stuck
+  // on "Dropping into the match…"). 8KB chunks are safe on every
+  // browser. PeerJS data channels are ordered+reliable, so the pieces
+  // arrive in sequence; the index guards against any reordering anyway.
+  _sendChunked(msg) {
+    if (!(this._conn && this._conn.open)) { this._sendQueue.push(msg); return; }
+    let json;
+    try { json = JSON.stringify(msg); } catch (e) { return; }
+    // Slice size 3500: when a part is re-serialized inside the chunk
+    // wrapper, every " and \ in it escapes to two chars (worst case
+    // doubling), so a 3500-char part stays well under ~8KB on the wire —
+    // safe on every browser's negotiated SCTP message limit, Safari
+    // included. A message at/under this size sends whole (no wrapper).
+    const LIMIT = 3500;
+    if (json.length <= LIMIT) {
+      try { this._conn.send(msg); } catch (e) {}
+      return;
+    }
+    const id = (this._chunkSeq = (this._chunkSeq || 0) + 1);
+    const total = Math.ceil(json.length / LIMIT);
+    for (let i = 0; i < total; i++) {
+      const part = json.slice(i * LIMIT, (i + 1) * LIMIT);
+      try { this._conn.send({ t: '__chunk', id, i, total, part }); } catch (e) {}
+    }
+  }
+
+  // Reassemble an inbound chunk. Returns the complete decoded message
+  // once the final piece lands, else null while still collecting.
+  _recvChunk(c) {
+    if (!this._chunkBuf) this._chunkBuf = {};
+    let buf = this._chunkBuf[c.id];
+    if (!buf) buf = this._chunkBuf[c.id] = { total: c.total, parts: [], count: 0 };
+    if (buf.parts[c.i] === undefined) { buf.parts[c.i] = c.part; buf.count++; }
+    if (buf.count < buf.total) return null;
+    delete this._chunkBuf[c.id];
+    try { return JSON.parse(buf.parts.join('')); } catch (e) { return null; }
   }
 
   close() {
