@@ -2658,6 +2658,19 @@ const Game = {
     if (card.isDiscardEffect) {
       const cost = this.getCardCost(owner, card);
       if (this.state[owner].currency < cost) return false;
+      // Pre-consume gate — a discard effect with no valid use must refuse
+      // BEFORE the card and energy are spent. Prof X with a full board (or
+      // no convertible enemy) used to consume the card and then strand the
+      // conversion (user MP report: "Prof X can't be played because there
+      // is no space to place the converted card").
+      if (card.canDiscard && !card.canDiscard(this, owner, card)) {
+        const reason = card._discardBlockReason || 'No valid use right now';
+        this.log(`[DISCARD] ${card.name} can't be used — ${reason}`);
+        if (typeof UI !== 'undefined' && UI.showAITrickToast) {
+          UI.showAITrickToast(card.name, reason, 'error');
+        }
+        return false;
+      }
       this.state[owner].currency -= cost;
       if (this.state._stats && this.state._stats[owner]) this.state._stats[owner].energySpent += cost;
       const idx = this.state[owner].hand.indexOf(card);
@@ -6867,13 +6880,21 @@ const Game = {
     // `onPlay` hook for the SUMMONED card itself stays gated on
     // `sourceDef` so tokens don't re-fire their own play hooks (and
     // there's no infinite-recursion risk via the chain guard).
-    if (!this._summonChain) {
-      // EXCEPTION-SAFE: this block previously had no try/finally, so ONE
-      // throwing aura callback anywhere in a match left _summonChain stuck
-      // true forever — silently disabling onPlay/auras for EVERY later summon
-      // (user report: Knull's volley summoned Thor/Dr. Doom and neither On
-      // Play fired). The finally guarantees the guard always resets.
-      this._summonChain = true;
+    // NESTED-SUMMON DEPTH GUARD — this was a boolean (_summonChain) that
+    // skipped the entire aura/onPlay block whenever a summon happened inside
+    // another summon's arrival. That killed legitimate chains: Ghost Rider's
+    // death summons Knull from hand (depth 1, his onPlay fires) → Knull's
+    // volley summons Batman / Paul Atreides (depth 2) → their onPlay + auras
+    // were SILENTLY SKIPPED (user report: "Knull was summoned and Batman's /
+    // Paul Atreides' abilities didn't happen — they should happen just as if
+    // played from hand"). A depth counter lets chains resolve level by level
+    // — in the summoner's lane order, so Knull's volley fires left-to-right —
+    // while the cap still makes runaway summon→onPlay→summon recursion
+    // impossible. try/finally keeps the counter exception-safe (one throwing
+    // aura must never permanently disable later summons' hooks).
+    const _sd = this._summonDepth || 0;
+    if (_sd < 4) {
+      this._summonDepth = _sd + 1;
       try {
         // Lone wolf is a real-summon flavor only — skip for tokens.
         if (sourceDef) {
@@ -6923,7 +6944,7 @@ const Game = {
         this.cleanupDead();
         this.applyMagnetoDebuffs();
       } finally {
-        this._summonChain = false;
+        this._summonDepth = _sd;
       }
     }
   },
@@ -7498,6 +7519,7 @@ const Game = {
       passive: def.passive || null,
       skipAutoUntrickable: !!def.skipAutoUntrickable,
       isDiscardEffect: def.isDiscardEffect || false, onDiscard: def.onDiscard || null,
+      canDiscard: def.canDiscard || null,
       _neverPlayable: !!def._neverPlayable, // Iron Giant — hand-guard only, never placeable
       trickPhasePlayable: def.trickPhasePlayable || false,
       // Scarlet Witch: stats are unknown until she's placed. Her ATK/HP

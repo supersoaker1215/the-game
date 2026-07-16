@@ -2446,6 +2446,24 @@ const CARD_ABILITIES = {
   },
   "Professor X": {
     isDiscardEffect: true,
+    // Pre-play gate — read by playCard's discard branch BEFORE the card and
+    // energy are consumed. Prof X needs BOTH a convertible enemy AND an open
+    // lane on the caster's side to place the convert. With a full board the
+    // old flow consumed the card, lifted the target off its lane, found no
+    // space, and stranded it in limbo (user MP report: "played Prof X on
+    // Grinch but his board was full — the Grinch just [vanished]; Prof X
+    // can't be played when there's no space").
+    canDiscard(G, owner, self) {
+      const maxCost = (self && self._profXConvertCost) || 4;
+      const hasTarget = G.getEnemiesOf(owner).some(e => (e.baseCost != null ? e.baseCost : e.cost) <= maxCost);
+      const hasSpace = G.getOpenLanes(owner).length > 0;
+      if (self) {
+        self._discardBlockReason = !hasTarget
+          ? `No convertible enemy (base cost ≤ ${maxCost})`
+          : 'No open lane on your side to place the convert';
+      }
+      return hasTarget && hasSpace;
+    },
     onDiscard(G, owner, self) {
       const opp = G.opponent(owner);
       // Roguelite Text+ override — _profXConvertCost raises the cost
@@ -2455,6 +2473,14 @@ const CARD_ABILITIES = {
       const enemies = G.getEnemiesOf(owner).filter(e => (e.baseCost != null ? e.baseCost : e.cost) <= maxCost);
       if (!enemies.length) return;
       G.promptCardChoice(owner, enemies, "Professor X — Convert", `Choose enemy with base cost ${maxCost} or less to permanently join your team`, (t) => {
+        // Re-check space at RESOLVE time (a lane can fill while the prompt is
+        // open) and BEFORE the target is lifted off its lane. The old order
+        // removed it, flipped its owner, then discovered no open lane and
+        // returned — leaving the card in limbo: off-board, in no hand, no pile.
+        if (!G.getOpenLanes(owner).length) {
+          G.log(`[PROF X] No open lane to place ${t.name} — the conversion fizzles; ${t.name} stays put.`);
+          return;
+        }
         const oldLane = G.findCardLane(t);
         if (oldLane >= 0) G.state.lanes[oldLane][opp] = null;
         t.owner = owner;
