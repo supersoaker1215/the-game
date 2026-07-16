@@ -12797,30 +12797,19 @@ const UI = {
     if (!ti) return;
     const t = ti.incomingTrick;
     if (!t) { s.pendingTimeStoneIntercept = null; return; }
+    // Whose choice is this? The DEFENDER decides. Post-perspective-flip each
+    // client's own seat reads 'player', so this works identically on host and
+    // guest — the caster's client gets a passive "opponent may react" banner
+    // instead of the buttons. (Old code rendered live buttons on BOTH clients
+    // in MP — user: "we both had the option to play Time Stone.")
+    const myChoice = (ti.defender || 'player') === 'player';
     const stale = document.getElementById('time-stone-modal');
     if (stale) stale.remove();
     const modal = document.createElement('div');
     modal.id = 'time-stone-modal';
     modal.className = 'floating-prompt time-stone-intercept';
     modal.dataset.peekLabel = 'Show Time Stone Prompt';
-    modal.innerHTML = `
-      <div class="floating-prompt-backdrop"></div>
-      <div class="floating-prompt-panel">
-        <button class="peek-toggle" onclick="UI.peekModal('#time-stone-modal','Show Time Stone Prompt')" title="Hide prompt to inspect the board (Esc)" aria-label="Hide time-stone prompt">
-          <span class="peek-toggle-glyph">×</span>
-        </button>
-        <div class="fp-header">
-          <span class="fp-label">Time Stone — React</span>
-          <span class="fp-sub">Enemy is about to play <strong>${t.name}</strong>. Freeze time to undo it?</span>
-        </div>
-        <div class="fp-body">
-          <div class="fp-trick-preview">
-            <div class="trick-card fp-tricky">
-              ${t.cost != null ? `<span class="card-cost">${t.cost}</span>` : ''}
-              <div class="trick-name">${t.name}</div>
-              <div class="trick-desc">${(t.desc || '').replace(/</g, '&lt;')}</div>
-            </div>
-          </div>
+    const choicesHtml = myChoice ? `
           <div class="fp-choices">
             <button class="fp-btn fp-btn-primary" onclick="timeStoneCounter()">
               <span class="fp-btn-title">Counter (spend Time Stone)</span>
@@ -12830,7 +12819,34 @@ const UI = {
               <span class="fp-btn-title">Let it resolve</span>
               <span class="fp-btn-sub">Trick fires; Time Stone stays in hand</span>
             </button>
+          </div>` : `
+          <div class="fp-choices">
+            <div class="fp-btn fp-btn-secondary fp-btn-waiting">
+              <span class="fp-btn-title">Opponent may react…</span>
+              <span class="fp-btn-sub">They hold Time Stone — waiting for their decision</span>
+            </div>
+          </div>`;
+    modal.innerHTML = `
+      <div class="floating-prompt-backdrop"></div>
+      <div class="floating-prompt-panel">
+        <button class="peek-toggle" onclick="UI.peekModal('#time-stone-modal','Show Time Stone Prompt')" title="Hide prompt to inspect the board (Esc)" aria-label="Hide time-stone prompt">
+          <span class="peek-toggle-glyph">×</span>
+        </button>
+        <div class="fp-header">
+          <span class="fp-label">Time Stone — React</span>
+          <span class="fp-sub">${myChoice
+            ? `Enemy is about to play <strong>${t.name}</strong>. Freeze time to undo it?`
+            : `You played <strong>${t.name}</strong> — the enemy may freeze time to undo it.`}</span>
+        </div>
+        <div class="fp-body">
+          <div class="fp-trick-preview">
+            <div class="trick-card fp-tricky">
+              ${t.cost != null ? `<span class="card-cost">${t.cost}</span>` : ''}
+              <div class="trick-name">${t.name}</div>
+              <div class="trick-desc">${(t.desc || '').replace(/</g, '&lt;')}</div>
+            </div>
           </div>
+          ${choicesHtml}
         </div>
       </div>`;
     document.body.appendChild(modal);
@@ -15827,7 +15843,11 @@ const UI = {
       `;
 
       const isAnytime = !!trick.anytime;
-      if (((isAnytime && playerActive) || canTrick) && afford) {
+      // A trick countered by Time Stone this round is frozen — visibly
+      // unplayable until next round (the engine gate in playTrick refuses
+      // it too; this is the readable half of that rule).
+      const frozen = trick._timeStonedAtRound === s.round;
+      if (((isAnytime && playerActive) || canTrick) && afford && !frozen) {
         el.classList.add('playable');
         if (s.selectedTrick === trick) el.classList.add('selected');
         el.addEventListener('click', () => this.onTrickClick(trick));
@@ -15836,7 +15856,9 @@ const UI = {
         // Dead-tap feedback — explain why on hover, and shake + toast on tap
         // (mirrors the hand-card "can't afford" grammar) so an unplayable
         // trick never eats the click silently.
-        const reason = !afford
+        const reason = frozen
+          ? 'Frozen by Time Stone — blocked until next round'
+          : !afford
           ? `Not enough energy — need ${trick.cost || 0}, have ${s.player.currency}`
           : `Tricks can only be played in the tricks phase`;
         el.title = reason;
@@ -21666,9 +21688,27 @@ function blockTrickKeep() {
 // Time Stone intercept handlers — the modal's two buttons route here.
 // Counter spends Time Stone and blocks the enemy's trick. Allow lets
 // it resolve normally. Both clear pendingTimeStoneIntercept and
-// resume the AI's turn via Game.resumeCombatIfWaiting.
-function timeStoneCounter() { if (Game && Game.timeStoneCounter) Game.timeStoneCounter(); }
-function timeStoneAllow()   { if (Game && Game.timeStoneAllow)   Game.timeStoneAllow();   }
+// resume via Game.resumeCombatIfWaiting. A GUEST defender forwards the
+// decision to the host (same promptResolve channel the jump offer uses);
+// the host applies it authoritatively and the broadcast clears the modal.
+function timeStoneCounter() {
+  if (Game.isMultiplayer && Game.isMultiplayer() && Game.mp && Game.mp.role === 'guest') {
+    if (typeof Multiplayer !== 'undefined') Multiplayer.send({ t: 'promptResolve', choiceType: 'tsCounter' });
+    if (Game.state) Game.state.pendingTimeStoneIntercept = null;
+    UI.render();
+    return;
+  }
+  if (Game && Game.timeStoneCounter) Game.timeStoneCounter();
+}
+function timeStoneAllow() {
+  if (Game.isMultiplayer && Game.isMultiplayer() && Game.mp && Game.mp.role === 'guest') {
+    if (typeof Multiplayer !== 'undefined') Multiplayer.send({ t: 'promptResolve', choiceType: 'tsAllow' });
+    if (Game.state) Game.state.pendingTimeStoneIntercept = null;
+    UI.render();
+    return;
+  }
+  if (Game && Game.timeStoneAllow) Game.timeStoneAllow();
+}
 
 // Jump-offer modal handlers — mirror blockTrickPlay/Keep. Either choice
 // clears pendingJumpOffer and resumes whatever combat continuation was

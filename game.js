@@ -485,6 +485,15 @@ const Game = {
             this._clearPromptTimeout();
             this.state.pendingLaneChoice = null;
             this.resumeCombatIfWaiting();
+          } else if (msg.choiceType === 'tsCounter' || msg.choiceType === 'tsAllow') {
+            // Guest resolved a Time Stone reaction. Only the DEFENDING seat's
+            // owner may decide — a stale/mischievous message from the caster
+            // must not consume (or waive) the defender's counter.
+            const ti = this.state.pendingTimeStoneIntercept;
+            if (!ti) break;
+            if ((ti.defender || 'player') !== actor) break;
+            if (msg.choiceType === 'tsCounter') this.timeStoneCounter();
+            else this.timeStoneAllow();
           } else if (msg.choiceType === 'jumpPlay') {
             const offer = this.state.pendingJumpOffer;
             if (!offer) break;
@@ -705,6 +714,11 @@ const Game = {
       const bt = state.pendingBlockTrick;
       if (bt.owner) bt.owner = flipSeat(bt.owner);
       if (bt._btOwner) bt._btOwner = flipSeat(bt._btOwner);
+    }
+    if (state.pendingTimeStoneIntercept) {
+      const ts = state.pendingTimeStoneIntercept;
+      ts.incomingOwner = flipSeat(ts.incomingOwner);
+      ts.defender = flipSeat(ts.defender || 'player');
     }
     if (state.pendingKangChoice) {
       state.pendingKangChoice.owner = flipSeat(state.pendingKangChoice.owner);
@@ -2864,6 +2878,18 @@ const Game = {
     }
     const cost = this.getTrickCost(owner, trick);
     if (this.state[owner].currency < cost) return false;
+    // Time Stone freeze — a countered trick is locked out for the rest of
+    // the round no matter WHO tries to replay it. The block used to live
+    // only in AI.playTricks' filter, so a human whose trick was countered
+    // could replay it immediately (MP report: "I got the stone back... but
+    // then I was able to play it again"). Enforce at the engine gate.
+    if (trick._timeStonedAtRound === this.state.round) {
+      this.log(`[TIME STONE] ${trick.name} is frozen this round — it cannot be replayed.`);
+      if (typeof UI !== 'undefined' && UI.showAITrickToast) {
+        UI.showAITrickToast('Frozen by Time Stone', `${trick.name} is blocked until next round`, 'error');
+      }
+      return false;
+    }
     // Check if the trick has valid targets before consuming it
     if (trick.canPlay && !trick.canPlay(this, owner)) {
       this.log(`[TRICK] ${trick.name} cannot be played — no valid targets!`);
@@ -2871,26 +2897,29 @@ const Game = {
       return false;
     }
     // ---- Time Stone counter-intercept ----
-    // When the AI plays a hostile trick AND the human player has Time
-    // Stone in their trick hand, pause and offer a counter. Spec:
-    //   • Pops a modal like Michael Myers's jump offer.
-    //   • If the player counters, Time Stone moves to their played
-    //     pile, the AI's trick is NOT resolved, and the AI's trick
-    //     is marked blocked for this round so AI can't replay it.
-    //   • If the player declines, the trick re-enters playTrick with
-    //     the _timeStoneChecked flag so we don't re-intercept.
-    // Blocked-this-round tricks are filtered out of AI.playTricks
-    // via the _timeStonedAtRound flag check.
-    if (!trick._timeStoneChecked && owner === 'ai' && this.isHuman('player')
+    // SEAT-AGNOSTIC: whenever any owner plays a hostile trick and the
+    // DEFENDING seat (the caster's opponent) is a human holding Time Stone,
+    // pause and offer the counter to that defender. Covers solo (AI plays →
+    // you counter, as always — the AI seat is never human in solo so your
+    // plays don't intercept) and BOTH directions of 1v1 online. The old
+    // wiring hardcoded owner==='ai' countered by the host's 'player' seat,
+    // so in multiplayer the modal broadcast ungated to BOTH clients and the
+    // guest's own Time Stone could never react at all.
+    const tsDefender = this.opponent(owner);
+    if (!trick._timeStoneChecked && this.isHuman(tsDefender)
         && !this.state.pendingTimeStoneIntercept
-        && this._playerHasTimeStone() && this._isHostileTrick(trick)
+        && this._seatHasTimeStone(tsDefender) && this._isHostileTrick(trick)
         && trick.name !== 'Time Stone') {
       this.state.pendingTimeStoneIntercept = {
         incomingTrick: trick,
-        incomingOwner: owner
+        incomingOwner: owner,
+        defender: tsDefender
       };
       if (typeof UI !== 'undefined' && UI.render) UI.render();
-      return false; // AI loop pauses via whenPromptCleared / hasPendingPrompt
+      // Host: push the armed intercept to the guest immediately — the guest
+      // may be the defender and needs the modal now, not on the next action.
+      if (this.isMultiplayer() && this.mp.role === 'host') this._mpBroadcast();
+      return false; // caller's loop pauses via whenPromptCleared / hasPendingPrompt
     }
     // Snapshot before any player-initiated trick play so the action can be undone.
     if (owner === 'player' && this.isPlayerTurn()) this.snapshot();
@@ -2939,9 +2968,12 @@ const Game = {
   },
 
   // ---- Time Stone helpers ----
-  _playerHasTimeStone() {
-    return !!(this.state.player && this.state.player.trickHand
-      && this.state.player.trickHand.find(t => t && t.name === 'Time Stone'
+  // Seat-agnostic: does this seat hold a usable Time Stone? (One that was
+  // itself frozen this round doesn't count.)
+  _seatHasTimeStone(seat) {
+    const p = this.state[seat];
+    return !!(p && p.trickHand
+      && p.trickHand.find(t => t && t.name === 'Time Stone'
           && t._timeStonedAtRound !== this.state.round));
   },
   // Predicate: does this trick negatively affect the opponent of its
@@ -2971,44 +3003,55 @@ const Game = {
     if (HOSTILE_TRICKS.has(trick.name)) return true;
     return false;
   },
-  // Player chose to counter. Consume Time Stone, block the AI's trick
-  // for this round, resume the AI's turn (which re-enters playTrick loop).
+  // Defender chose to counter. Consume THEIR Time Stone, freeze the
+  // incoming trick for this round (it stays in the caster's hand), draw
+  // the defender a card, resume whatever loop was paused. Seat-agnostic:
+  // intercept.defender is 'player' in solo and either seat in 1v1 online.
   timeStoneCounter() {
     const intercept = this.state.pendingTimeStoneIntercept;
     if (!intercept) return;
     const trick = intercept.incomingTrick;
+    const defender = intercept.defender || 'player';
     this.state.pendingTimeStoneIntercept = null;
-    const hand = this.state.player.trickHand;
+    const hand = this.state[defender].trickHand;
     const idx = hand.findIndex(t => t && t.name === 'Time Stone');
     if (idx < 0) {
       this.log('[TIME STONE] Not in hand — trick resolves normally.');
-      this.timeStoneAllow();
+      // Pass the intercept through — it was already cleared above, so the
+      // old re-read-from-state fallback silently dropped the trick here.
+      this.timeStoneAllow(intercept);
       return;
     }
     hand.splice(idx, 1);
-    this.state.player.playedTrickPile.push({ name: 'Time Stone', cost: 0 });
-    if (this.state._roundStats) this.state._roundStats.playerTricks.push('Time Stone');
-    // Block the AI's incoming trick for the rest of this round —
-    // AI.playTricks filters on this flag to avoid re-queueing the same
-    // trick until next round's startRound clears it.
+    this.state[defender].playedTrickPile.push({ name: 'Time Stone', cost: 0 });
+    if (this.state._roundStats) {
+      const rs = this.state._roundStats;
+      (defender === 'player' ? rs.playerTricks : rs.aiTricks).push('Time Stone');
+    }
+    // Freeze the incoming trick for the rest of this round. Enforced at the
+    // playTrick gate for EVERY caller (human replay included) + the solo
+    // AI.playTricks filter; startRound clears the flag next round.
     trick._timeStonedAtRound = this.state.round;
-    this.log(`[TIME STONE] You freeze time! ${trick.name} is undone and returned to enemy hand.`);
+    this.log(`[TIME STONE] ${defender === 'player' ? 'You' : 'Opponent'} freeze${defender === 'player' ? '' : 's'} time! ${trick.name} is undone and returned to the caster's hand.`);
     // Reward for countering — draw a card.
-    this.drawCards('player', 1);
-    this.log('[TIME STONE] You draw a card.');
+    this.drawCards(defender, 1);
+    this.log(`[TIME STONE] ${defender === 'player' ? 'You draw' : 'Opponent draws'} a card.`);
     if (typeof UI !== 'undefined' && UI.render) UI.render();
+    if (this.isMultiplayer() && this.mp.role === 'host') this._mpBroadcast();
     this.resumeCombatIfWaiting();
   },
-  // Player declined. Flag the trick so the intercept doesn't re-fire,
-  // then re-enter playTrick normally.
-  timeStoneAllow() {
-    const intercept = this.state.pendingTimeStoneIntercept;
+  // Defender declined. Flag the trick so the intercept doesn't re-fire,
+  // then re-enter playTrick as the ORIGINAL caster (not hardcoded 'ai').
+  // Accepts an intercept override for the counter's not-in-hand fallback.
+  timeStoneAllow(_intercept) {
+    const intercept = _intercept || this.state.pendingTimeStoneIntercept;
     if (!intercept) return;
     const trick = intercept.incomingTrick;
     this.state.pendingTimeStoneIntercept = null;
     trick._timeStoneChecked = true;
-    this.playTrick('ai', trick);
+    this.playTrick(intercept.incomingOwner || 'ai', trick);
     if (typeof UI !== 'undefined' && UI.render) UI.render();
+    if (this.isMultiplayer() && this.mp.role === 'host') this._mpBroadcast();
     this.resumeCombatIfWaiting();
   },
 
