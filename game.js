@@ -2518,7 +2518,15 @@ const Game = {
     // Host applies the action and broadcasts the new state. We return
     // true so the UI's selectedCard state still advances optimistically;
     // the visible board update lands when the host's state push arrives.
-    if (this.isMultiplayer() && this.mp.role === 'guest' && owner === this.mp.you) {
+    // _silentSim guard: previewPlacement() clones the state, stamps it
+    // _silentSim, and calls playCard on the clone to compute the damage
+    // preview. Without this guard the guest FORWARDS a real network play
+    // for that dry-run — and since the board renders a preview for EVERY
+    // open lane, selecting a card fired 6 phantom plays and the host
+    // placed the card into lane 0 (the "jumps to lane 1 on click" bug).
+    // In a sim we fall through to the local placement so the prediction
+    // is real and nothing is sent.
+    if (this.isMultiplayer() && this.mp.role === 'guest' && owner === this.mp.you && !(this.state && this.state._silentSim)) {
       if (typeof Multiplayer !== 'undefined' && card && card.id != null) {
         console.log('[MP GUEST] playCard:', card.name, 'lane:', laneIdx, '(0-based), visual lane:', laneIdx + 1);
         Multiplayer.send({ t: 'playCard', cardId: card.id, lane: laneIdx });
@@ -2720,7 +2728,9 @@ const Game = {
 
   playCardFree(owner, card, laneIdx) {
     // Multiplayer guest: forward the free-play action and let the host run it.
-    if (this.isMultiplayer() && this.mp.role === 'guest' && owner === this.mp.you) {
+    // _silentSim guard — see playCard: a preview sim must place locally on
+    // the clone, never forward a network play.
+    if (this.isMultiplayer() && this.mp.role === 'guest' && owner === this.mp.you && !(this.state && this.state._silentSim)) {
       if (typeof Multiplayer !== 'undefined' && card && card.id != null) {
         Multiplayer.send({ t: 'playCardFree', cardId: card.id, lane: laneIdx });
       }
@@ -2827,8 +2837,9 @@ const Game = {
 
   playTrick(owner, trick) {
     if (this.state.gameOver) return false;
-    // Multiplayer guest: forward and bail.
-    if (this.isMultiplayer() && this.mp.role === 'guest' && owner === this.mp.you) {
+    // Multiplayer guest: forward and bail. _silentSim guard — see playCard:
+    // a preview/prediction sim must run locally on the clone, never forward.
+    if (this.isMultiplayer() && this.mp.role === 'guest' && owner === this.mp.you && !(this.state && this.state._silentSim)) {
       if (typeof Multiplayer !== 'undefined' && trick && trick.id != null) {
         Multiplayer.send({ t: 'playTrick', trickId: trick.id });
       }
@@ -7757,7 +7768,8 @@ const Game = {
     // callback fires and places the card at open[0] (lowest lane) regardless
     // of which lane the guest clicked. The host's pendingLaneChoice → broadcast
     // → guest picks → promptResolve flow handles this cleanly instead.
-    if (this.isMultiplayer() && this.mp && this.mp.role === 'guest' && owner === this.mp.you) {
+    // _silentSim guard — see playCard: never forward from a preview clone.
+    if (this.isMultiplayer() && this.mp && this.mp.role === 'guest' && owner === this.mp.you && !(this.state && this.state._silentSim)) {
       if (typeof Multiplayer !== 'undefined' && card && card.id != null) {
         Multiplayer.send({ t: 'playJump', cardId: card.id });
       }
