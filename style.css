@@ -31634,3 +31634,64 @@ body.round-tick .board::after {
   .trick-card:hover .card-portrait .pt-shine,
   .draft-card.trick-draft:hover .card-portrait .pt-shine { opacity: 0; }
 }
+
+/* ============================================================
+   MOBILE LOW-POWER MODE — the phone "gets hot and eats battery"
+   because of always-running ORNAMENTAL effects: full-screen
+   animated turn-tint pseudo-elements, board sheens and motes,
+   per-card idle vibe loops + perimeter shimmers, HUD breathing,
+   and (worst of all) always-on backdrop-filter blur across the
+   whole HUD. None of these convey game state — kill them on
+   touch devices. Everything FUNCTIONAL stays: lane-active combat
+   pulse, target highlights, playable-slot cue, hp-critical,
+   lethal skull, status badges, spinners, thinking dots.
+   ============================================================ */
+@media (pointer: coarse), (hover: none), (max-width: 640px) {
+  /* Full-screen ambient washes — biggest repaint areas on the page. */
+  body::before,
+  body.turn-ai::before,
+  body.turn-player::after,
+  body.turn-combat::before,
+  body.turn-combat::after,
+  /* Board-wide sheens + floating motes. */
+  .board::before,
+  .board-section::before,
+  .board-mote,
+  /* Per-card idle loops — every board card was animating forever. */
+  .card.vibe-alien:not(.card-enter):not(.card-exit),
+  .card.vibe-cosmic:not(.card-enter):not(.card-exit),
+  .card.vibe-magnetic:not(.card-enter):not(.card-exit),
+  .card.vibe-phase:not(.card-enter):not(.card-exit),
+  .card.vibe-slasher:not(.card-enter):not(.card-exit),
+  .card.vibe-speed:not(.card-enter):not(.card-exit),
+  .card.vibe-symbiote:not(.card-enter):not(.card-exit),
+  .card.vibe-titan:not(.card-enter):not(.card-exit),
+  .tron-perimeter::after,
+  .tron-shimmer,
+  /* HUD / chrome breathing. */
+  .hud-pill-main,
+  .hud-round #round-num,
+  .hud-count b,
+  .tron-fx-breathe,
+  .lane-number,
+  .empty-hand::before,
+  /* Menu idle loops (particles + slow hero zoom). */
+  .mm-particle,
+  .mm-mw3 .mm-hero-img,
+  .mm-sideart-img {
+    animation: none !important;
+  }
+  .mm-particle, .board-mote { display: none !important; }
+  /* Always-on backdrop blur = constant GPU compositing over the whole
+     viewport. The surfaces keep their dark rgba backgrounds, so nothing
+     goes transparent — they just stop live-blurring what's behind them. */
+  .hud-strip, .top-hud, .game-hud, .player-bar, .ai-bar,
+  #game-area > div[class*="hud"], #game-area > div[class*="bar"],
+  .card-inspect-backdrop, .ci-backdrop, .rl-modal-backdrop,
+  .app-modal-overlay, .multiplayer-overlay, .first-run-overlay,
+  .share-card-modal, .lane-recap,
+  .decision-modal .choice-tray-backdrop {
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+  }
+}

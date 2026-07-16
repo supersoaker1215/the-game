@@ -185,26 +185,39 @@ const UI = {
     if (variants && variants.length) return variants[0];
     return name + '.png';
   },
-  getCardArtPath(name) {
+  getCardArtPath(name, opts) {
     // Full URL with cache buster — drop-in for every old call site
     // that used to build `audio/cards/art/${name}.png?v=...` inline.
     if (!name) return null;
+    // MOBILE = the 256px art-sm set. A phone was decoding 768-1280px art for
+    // 55px board tiles — ~3MB of RAM per decoded image; a full board + hand
+    // blows past iOS Safari's image-memory cap, which is when it silently
+    // evicts decodes and portraits go BLANK (user: "the art still isn't
+    // rendering, I can't see who was played"), and the decode/network churn
+    // cooks the battery. art-sm mirrors art/ filename-for-filename at 256px
+    // (~9x less decode memory). Pass {full:true} for the few surfaces that
+    // want full resolution (inspect modal; the menu hero has its own path).
+    const wantFull = !!(opts && opts.full);
+    const mobile = !wantFull && typeof window !== 'undefined' && window.matchMedia
+      && window.matchMedia('(max-width: 640px)').matches;
+    const dir = mobile ? 'audio/cards/art-sm' : 'audio/cards/art';
     // Resilient art: if this card's versioned URL failed to load earlier
     // (flaky mobile network + a fresh ?v means the SW has nothing cached
     // under the new key, so one dropped fetch = a blank portrait until the
     // next full reload — user: "the art doesn't always render"), serve the
     // memoized fallback instead.
-    if (this._artFallback && this._artFallback[name]) return this._artFallback[name];
+    const fbKey = dir + '|' + name;
+    if (this._artFallback && this._artFallback[fbKey]) return this._artFallback[fbKey];
     const file = this.getCardArtVariant(name);
-    const url = `audio/cards/art/${encodeURIComponent(file)}?v=${this._CARD_ART_VERSION || 1}`;
-    this._probeArt(url, name, file);
+    const url = `${dir}/${encodeURIComponent(file)}?v=${this._CARD_ART_VERSION || 1}`;
+    this._probeArt(url, fbKey, file, dir);
     return url;
   },
   // Probe an art URL once (browser dedupes with the CSS background fetch).
   // On failure: one retry after a beat (transient network blip), then fall
-  // back to the UN-versioned file (served from the SW/HTTP cache under its
+  // back to the un-versioned file (served from the SW/HTTP cache under its
   // stable key) and repaint so every blank portrait heals in place.
-  _probeArt(url, name, file) {
+  _probeArt(url, fbKey, file, dir) {
     this._artProbe = this._artProbe || {};
     if (this._artProbe[url]) return;   // ok / pending / failed — probe once per URL
     this._artProbe[url] = 'pending';
@@ -215,7 +228,7 @@ const UI = {
         if (retriesLeft > 0) { setTimeout(() => attempt(retriesLeft - 1), 900); return; }
         this._artProbe[url] = 'failed';
         this._artFallback = this._artFallback || {};
-        this._artFallback[name] = `audio/cards/art/${encodeURIComponent(file)}`;
+        this._artFallback[fbKey] = `${dir}/${encodeURIComponent(file)}`;
         clearTimeout(this._artRepaintT);
         this._artRepaintT = setTimeout(() => { try { this.render(); } catch (e) {} }, 80);
       };
@@ -359,6 +372,15 @@ const UI = {
     const side = card.owner === 'ai' ? 'enemy' : 'ally';
     const cardEl = this.makeCardEl(card, false, side);
     cardEl.classList.add('inspect-card');
+    // The inspect view is the ONE surface on mobile that deserves full-res
+    // art — makeCardEl serves the 256px art-sm set there (memory/battery),
+    // which would look soft blown up to modal size. Swap the portrait to the
+    // full-resolution file for this modal only.
+    {
+      const p = cardEl.querySelector('.card-portrait');
+      const fullUrl = card.name ? this.getCardArtPath(card.name, { full: true }) : null;
+      if (p && fullUrl) p.style.setProperty('--portrait-bg', `url('${fullUrl.replace(/'/g, '%27')}')`);
+    }
     // Strip status / animation classes that would only make sense on
     // the live board — the inspect view should feel like a frozen
     // reference card, not a re-render of the live tile.
