@@ -101,6 +101,23 @@
     <span class="update-banner-text">Update — Click to refresh</span>
   </button>
 
+  <!-- BUILD BADGE — always-visible stamp of the ACTUAL loaded script
+       versions (ui/game/multiplayer ?v=). The #1 cause of "already-fixed
+       multiplayer bugs come back" is one side silently running stale
+       cached code. Now both players can read their build off the screen
+       and confirm they match before blaming the game. Populated by the
+       inline script at the end of <body>; inline-styled so it shows even
+       when style.css itself is stale. Tap to force a hard reload. -->
+  <div id="clb-build-badge"
+       onclick="try{if('serviceWorker'in navigator){navigator.serviceWorker.getRegistrations().then(function(rs){rs.forEach(function(r){r.unregister();});}).finally(function(){location.reload(true);});}else{location.reload(true);}}catch(e){location.reload(true);}"
+       title="Build version of the code you're running. Tap to clear cache and hard-reload."
+       style="position:fixed; left:6px; bottom:6px; z-index:99999;
+              font:600 10px/1.3 ui-monospace,Menlo,Consolas,monospace;
+              color:#8ea9c9; background:rgba(6,12,22,0.72);
+              border:1px solid rgba(120,160,210,0.35); border-radius:5px;
+              padding:2px 6px; letter-spacing:0.3px; cursor:pointer;
+              user-select:none;">build …</div>
+
   <!-- ROTATE GATE — portrait-first battler. On a phone held sideways the
        6-lane board collapses into ~390px of height, so we cover the screen
        with a rotate prompt (CSS-only, shown solely on short-landscape
@@ -772,5 +789,22 @@
   <!-- Devtools-gated FPS / frame-time / long-task HUD.
        Enable with ?perf=1 or localStorage.perfOverlay='1'. -->
   <script src="perf-overlay.js?v=1"></script>
+  <script>
+    // Fill the build badge from the ACTUAL loaded script ?v= params, so
+    // what you see IS what's running (same parse as _clbBuildStamp() in
+    // multiplayer.js). If you and your opponent see different numbers, one
+    // side is on a stale cached build — hard-refresh both, then rematch.
+    (function () {
+      try {
+        var out = {};
+        document.querySelectorAll('script[src]').forEach(function (s) {
+          var m = s.getAttribute('src').match(/(ui|game|multiplayer)\.js\?v=(\d+)/);
+          if (m) out[m[1]] = m[2];
+        });
+        var el = document.getElementById('clb-build-badge');
+        if (el) el.textContent = 'build ui' + (out.ui || '?') + ' · g' + (out.game || '?') + ' · mp' + (out.multiplayer || '?');
+      } catch (e) {}
+    })();
+  </script>
 </body>
 </html>
