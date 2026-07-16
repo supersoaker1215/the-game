@@ -291,34 +291,40 @@ const CARD_ABILITIES = {
   },
   "Man-Bat": {
     _recurringBT: true,
+    // Arrival sting — fires WHEREVER Man-Bat lands, by ANY move mechanism:
+    // his own Start-of-Tricks flight, Magneto's magnetic throw, Gojo's
+    // displacement, Bifrost, hunt chases... moveCard (and every direct-
+    // assignment mover) fires onMoved post-relocation, so the sting always
+    // tracks the LANDING lane. User report: "Magneto moved Man-Bat and his
+    // passive didn't trigger" — the debuff used to live only inside his own
+    // move callback. Bonus fix: the old AI branch applied the debuff even
+    // when moveCard silently REFUSED the move (destination occupied) —
+    // hooking the sting to the actual move kills that too.
+    onMoved(G, self, to) {
+      const enemy = G.state.lanes[to] && G.state.lanes[to][G.opponent(self.owner)];
+      if (!enemy || enemy.currentHealth <= 0 || enemy.isEnvironment) return;
+      // allowKill=true so a -1/-1 can finish a 1-HP enemy. Roguelite Text+
+      // override — _manBatDebuffSize scales the sting (default 1).
+      const debuffSize = self._manBatDebuffSize || 1;
+      G.debuffCard(enemy, debuffSize, debuffSize, true, self);
+      enemy._debuffStacks = (enemy._debuffStacks || 0) + 1;
+      G.log(`[DEBUFF] Man-Bat weakens ${enemy.name} by -${debuffSize}/-${debuffSize}`);
+      G.cleanupDead();
+    },
     onBeforeTricks(G, self, lane) {
-      // Stun / freeze gates the whole ability, not just the move. Previously
-      // moveCard silently refused the relocation but the -1/-1 debuff still
-      // fired on the target opposite Man-Bat's *original* lane (and the
-      // lane prompt popped anyway). Skip the full ability when locked.
+      // Stun / freeze gates the whole ability. The arrival debuff now lives
+      // in onMoved (fired by moveCard), so this callback only handles the
+      // flight itself — no explicit debuff here or it would double-sting.
       if (self.isStunned || self.isFrozen) {
         G.log(`  [SKIP] ${self.name} is ${self.isStunned ? 'STUNNED' : 'FROZEN'} — stays put.`);
         return;
       }
       const open = G.getOpenLanes(self.owner).filter(l => l !== lane);
       if (!open.length) return;
-      // Pass allowKill=true so a -1/-1 debuff can actually finish off a
-      // 1-HP enemy instead of flooring at 1 HP — Man-Bat moving in front
-      // of a 1-HP Undead Warrior now immediately destroys it, matching
-      // the intuitive read of "weakens adjacent enemy by -1/-1".
-      // Roguelite Text+ override — _manBatDebuffSize scales the on-arrival
-      // weaken. Default 1 (classic -1/-1); Text+ raises to 2 (-2/-2).
-      const debuffSize = self._manBatDebuffSize || 1;
-      const applyDebuff = (enemy) => {
-        if (!enemy) return;
-        G.debuffCard(enemy, debuffSize, debuffSize, true, self);
-        enemy._debuffStacks = (enemy._debuffStacks || 0) + 1;
-        G.log(`[DEBUFF] Man-Bat weakens ${enemy.name} by -${debuffSize}/-${debuffSize}`);
-      };
       // Include the current lane as a "stay" option. User direction:
       // "for moving like man bat and omni man have the choice not to
-      // move." Player can click Man-Bat's own lane to stay put — the
-      // -1/-1 debuff and move both skip when stay is picked.
+      // move." Player can click Man-Bat's own lane to stay put — no move,
+      // no sting.
       if (Game.isHuman(self.owner)) {
         const choices = [lane, ...open];
         G.promptLaneChoice(self.owner, choices, "Man-Bat — Move", "Choose a lane to move to (current = stay)", (to) => {
@@ -327,12 +333,10 @@ const CARD_ABILITIES = {
             return;
           }
           G.moveCard(self, lane, to);
-          applyDebuff(G.state.lanes[to][G.opponent(self.owner)]);
         });
       } else {
         const to = open[Math.floor(Math.random() * open.length)];
         G.moveCard(self, lane, to);
-        applyDebuff(G.state.lanes[to][G.opponent(self.owner)]);
       }
     }
   },
@@ -2463,6 +2467,7 @@ const CARD_ABILITIES = {
           if (abilityDef.onDamaged) t.onDamaged = abilityDef.onDamaged;
           if (abilityDef.onKill) t.onKill = abilityDef.onKill;
           if (abilityDef.onBeforeTricks) t.onBeforeTricks = abilityDef.onBeforeTricks;
+          if (abilityDef.onMoved) t.onMoved = abilityDef.onMoved;
           if (abilityDef.onBeforeAttack) t.onBeforeAttack = abilityDef.onBeforeAttack;
           if (abilityDef.onEndOfTurn) t.onEndOfTurn = abilityDef.onEndOfTurn;
           if (abilityDef.onAnyCardPlayed) t.onAnyCardPlayed = abilityDef.onAnyCardPlayed;
@@ -2485,6 +2490,15 @@ const CARD_ABILITIES = {
         G.promptLaneChoice(owner, open, `Place ${t.name}`, `Choose a lane for ${t.name}`, (l) => {
           G.state.lanes[l][owner] = t;
           G.log(`${t.name} joins your side in lane ${l + 1}!`);
+          // Entering a lane by ANY mechanism must spring a waiting Bear Trap —
+          // this direct assignment bypassed checkLaneTrap, so a converted card
+          // placed onto an enemy Jigsaw trap sailed in unharmed. User report:
+          // "played Prof X on Man-Bat, then placed Man-Bat in a Jigsaw trap
+          // and it didn't trigger." Also reconcile Magneto's parity aura for
+          // the lane he landed in.
+          G.checkLaneTrap(t, l);
+          G.applyMagnetoDebuffs();
+          if (t.currentHealth <= 0) { G.cleanupDead(); return; }  // trap killed the arrival
           // "Its abilities reactivate" — re-fire When Played first,
           // THEN sweep sibling reactions (onAnyCardPlayed) and the
           // cardPlayedBuff passive. Order matters: cards like Scarlet

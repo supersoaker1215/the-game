@@ -6829,6 +6829,11 @@ const Game = {
     this.log(`  [MOVE] ${card.name} moves from lane ${from + 1} to lane ${to + 1}`);
     this.checkLaneTrap(card, to);
     if (card.onMoved) card.onMoved(this, card, to);
+    // Magneto's parity aura is positional — reconcile after EVERY move, not
+    // just the ones Magneto's own On Play makes. Without this, a card that
+    // changed lane parity via Man-Bat's flight / Gojo / Bifrost / a hunt
+    // carried a stale buff (or missed a due one) until the next round tick.
+    this.applyMagnetoDebuffs();
   },
 
   removeFromLane(card, l) {

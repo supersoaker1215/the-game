@@ -36,7 +36,7 @@ const CARD_DEFS = [
     desc: "When Played: Freeze 1 an adjacent enemy." },
   { name: "Man-Bat", cost: 1, attack: 1, health: 3, type: "villain",
     abilities: ["Bullseye"],
-    desc: "Start of Tricks: Move to an empty lane. The enemy opposite takes (−1/−1)." },
+    desc: "Start of Tricks: Move to an empty lane. Whenever Man-Bat moves, the enemy opposite takes (−1/−1)." },
   { name: "Harley Quinn", cost: 1, attack: 0, health: 1, type: "villain",
     abilities: ["Crazy", "Splash 1"],
     desc: "When Played: Both players draw a card. While Active: Deals 1 damage to your HP before attacking." },
