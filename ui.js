@@ -17833,7 +17833,14 @@ const UI = {
       // card" artifact on mobile without disabling the mouse trail on desktop.
       window.addEventListener('touchstart', () => { svg.style.display = 'none'; }, { passive: true, capture: true });
       window.addEventListener('pointerdown', (e) => { if (e.pointerType && e.pointerType !== 'mouse') svg.style.display = 'none'; }, { passive: true, capture: true });
-      window.addEventListener('mousemove', () => { if (svg.style.display === 'none') svg.style.display = ''; }, { passive: true });
+      // Restore on REAL mouse movement only. The old plain-mousemove restore
+      // was defeated by the synthesized mousemove browsers fire right after a
+      // tap — hide-then-instant-restore = the ring/trail flashing back at the
+      // tap point. pointermove carries the true source; touch never restores.
+      window.addEventListener('pointermove', (e) => {
+        if (e.pointerType !== 'mouse') return;
+        if (svg.style.display === 'none') svg.style.display = '';
+      }, { passive: true });
 
       // Position buffer — {x, y, t} for each move sample. Older
       // entries get pruned each frame.
@@ -20981,6 +20988,13 @@ const UI = {
     // animation loops (menu flow, trail) could starve, which is what made the
     // disc freeze mid-sweep. As cheap as it gets, always current.
     const move = (e) => {
+      // REAL-MOUSE ONLY. Taps fire synthesized mouse events (and some mobile
+      // browsers mis-report hover/pointer media, defeating the install gate),
+      // which un-hid the ring AT THE TAP POINT with no mouseleave to ever
+      // clear it — the "blue ring on tap/drag" the user kept seeing. Pointer
+      // events carry the true source: anything that isn't a physical mouse
+      // never shows or moves the ring.
+      if (e.pointerType !== 'mouse') { main.classList.add('hidden'); return; }
       main.style.setProperty('--cx', e.clientX + 'px');
       main.style.setProperty('--cy', e.clientY + 'px');
       if (main.classList.contains('hidden')) main.classList.remove('hidden');
@@ -20990,14 +21004,19 @@ const UI = {
       main.classList.remove('on-disc', 'on-interactive');
     };
     const leave = () => { main.classList.add('hidden'); };
-    document.addEventListener('mousemove', move, { passive: true });
+    document.addEventListener('pointermove', move, { passive: true });
     document.addEventListener('mouseleave', leave);
-    document.addEventListener('mouseenter', () => main.classList.remove('hidden'));
-    // Press feedback — toggle a class on click to shrink the disc
-    // briefly. Done via class so it composes with the CSS rotate
-    // animation on .on-disc instead of stomping the transform.
-    document.addEventListener('mousedown', () => main.classList.add('pressed'));
-    document.addEventListener('mouseup',   () => main.classList.remove('pressed'));
+    // (no mouseenter restore — pointermove from a real mouse re-shows the
+    // ring on the very next move; a synthesized mouseenter after a tap
+    // must never un-hide it.)
+    // Press feedback — real mouse only; a touch press force-hides instead.
+    document.addEventListener('pointerdown', (e) => {
+      if (e.pointerType !== 'mouse') { main.classList.add('hidden'); return; }
+      main.classList.add('pressed');
+    });
+    document.addEventListener('pointerup', (e) => {
+      if (e.pointerType === 'mouse') main.classList.remove('pressed');
+    });
   },
 
   // (M) Deck-viewer chip hover — show a floating card preview panel.

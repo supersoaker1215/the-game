@@ -15806,8 +15806,13 @@ input, textarea, select, [contenteditable="true"] { cursor: text !important; }
    UI._hasFinePointer() already prevents the JS from installing these on
    touch; this is the belt-and-suspenders if JS runs late or a stale
    cached build slips through. Placed AFTER the global rule so the equal-
-   specificity `!important` override wins via source order. */
-@media (pointer: coarse), (hover: none) {
+   specificity `!important` override wins via source order.
+   The (max-width: 640px) arm covers phones whose browsers MIS-REPORT
+   hover/pointer media (some Android WebViews claim a fine hovering
+   pointer) — at phone width the neon cursor is banned no matter what
+   the device claims; a narrow desktop window just gets the native
+   cursor instead. Third layer on top of the JS pointerType gate. */
+@media (pointer: coarse), (hover: none), (max-width: 640px) {
   .custom-cursor,
   .cursor-trail,
   #tron-cursor-trail { display: none !important; }
