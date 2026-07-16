@@ -2297,8 +2297,16 @@ const Game = {
   runBeforeTricks() {
     this.getAllCardsOnBoard().forEach(c => {
       if (c.onBeforeTricks && !c.beforeTricksFired) {
+        // Re-verify liveness at FIRE time, not just snapshot time — an earlier
+        // hook in this same pass can remove this card from the board (Galactus's
+        // devour voided Man-Bat, yet his move prompt still popped and the -1/-1
+        // landed). Devour is removal, not damage — currentHealth stays intact —
+        // so board presence (findCardLane) is the check that catches it; the
+        // health check also skips kill-pending cards awaiting cleanupDead.
+        const laneNow = this.findCardLane(c);
+        if (laneNow < 0 || c.currentHealth <= 0) return;
         c.beforeTricksFired = true;
-        try { c.onBeforeTricks(this, c, this.findCardLane(c)); } catch (e) { console.error(e); }
+        try { c.onBeforeTricks(this, c, laneNow); } catch (e) { console.error(e); }
       }
     });
     // Drain bonus attacks queued during this onBeforeTricks pass.
