@@ -189,8 +189,39 @@ const UI = {
     // Full URL with cache buster — drop-in for every old call site
     // that used to build `audio/cards/art/${name}.png?v=...` inline.
     if (!name) return null;
+    // Resilient art: if this card's versioned URL failed to load earlier
+    // (flaky mobile network + a fresh ?v means the SW has nothing cached
+    // under the new key, so one dropped fetch = a blank portrait until the
+    // next full reload — user: "the art doesn't always render"), serve the
+    // memoized fallback instead.
+    if (this._artFallback && this._artFallback[name]) return this._artFallback[name];
     const file = this.getCardArtVariant(name);
-    return `audio/cards/art/${encodeURIComponent(file)}?v=${this._CARD_ART_VERSION || 1}`;
+    const url = `audio/cards/art/${encodeURIComponent(file)}?v=${this._CARD_ART_VERSION || 1}`;
+    this._probeArt(url, name, file);
+    return url;
+  },
+  // Probe an art URL once (browser dedupes with the CSS background fetch).
+  // On failure: one retry after a beat (transient network blip), then fall
+  // back to the UN-versioned file (served from the SW/HTTP cache under its
+  // stable key) and repaint so every blank portrait heals in place.
+  _probeArt(url, name, file) {
+    this._artProbe = this._artProbe || {};
+    if (this._artProbe[url]) return;   // ok / pending / failed — probe once per URL
+    this._artProbe[url] = 'pending';
+    const attempt = (retriesLeft) => {
+      const img = new Image();
+      img.onload = () => { this._artProbe[url] = 'ok'; };
+      img.onerror = () => {
+        if (retriesLeft > 0) { setTimeout(() => attempt(retriesLeft - 1), 900); return; }
+        this._artProbe[url] = 'failed';
+        this._artFallback = this._artFallback || {};
+        this._artFallback[name] = `audio/cards/art/${encodeURIComponent(file)}`;
+        clearTimeout(this._artRepaintT);
+        this._artRepaintT = setTimeout(() => { try { this.render(); } catch (e) {} }, 80);
+      };
+      img.src = url;
+    };
+    attempt(1);
   },
   // The CURATED default art (manifest's first entry, or <Name>.png) — ignores
   // the player's per-card alt-art pick. Used by the menu hero so it always
@@ -15749,6 +15780,9 @@ const UI = {
       const el = document.createElement('div');
       el.className = 'trick-card';
       if (trick.name) el.setAttribute('data-trick-name', trick.name);
+      // Instance id — lets the mobile drag handler (installMobileCardDrag)
+      // resolve the element back to THIS trick object, same as hand cards.
+      if (trick.id != null) el.setAttribute('data-trick-id', trick.id);
       const cost = Game.getTrickCost('player', trick);
       const afford = s.player.currency >= cost;
 
@@ -15785,6 +15819,13 @@ const UI = {
           : `Tricks can only be played in the tricks phase`;
         el.title = reason;
         el.addEventListener('click', () => {
+          // Pure-touch: a tap on ANY trick — playable or not — reads it
+          // (inspect), matching cards. The shake/toast is the DRAG-to-play
+          // rejection feedback there; on desktop the click keeps the shake.
+          if (window.matchMedia && window.matchMedia('(hover: none)').matches) {
+            if (this.showCardInspect) this.showCardInspect(el);
+            return;
+          }
           el.classList.remove('trick-shake-rejected');
           void el.offsetWidth;
           el.classList.add('trick-shake-rejected');
@@ -17023,18 +17064,43 @@ const UI = {
     };
     const clearHi = () => document.querySelectorAll('.lane.drag-over').forEach(l => l.classList.remove('drag-over'));
 
+    // Trick-tray version of cardFromEl — resolves a .trick-card element back
+    // to its live trick object via data-trick-id (set in renderPlayerTricks).
+    const trickFromEl = (el) => {
+      const tEl = el && el.closest && el.closest('.trick-card[data-trick-id]');
+      if (!tEl) return null;
+      const id = parseInt(tEl.getAttribute('data-trick-id'), 10);
+      const s = Game.state;
+      const trick = s && s.player && (s.player.trickHand || []).find(tk => tk.id === id);
+      return trick ? { trick, cardEl: tEl } : null;
+    };
+
     document.addEventListener('touchstart', (e) => {
       if (d || e.touches.length !== 1) return;
       const s = Game.state;
-      if (!s || !this.canPlayerPlayCards || !this.canPlayerPlayCards(s)) return;
+      if (!s) return;
       // MP guests drag exactly like the host — selection is purely local and
       // onLaneClick → playCard forwards {t:'playCard', cardId, lane} to the
       // host. (The old early-return here predates the guest local-pick
       // redesign; with it, mobile guests had NO way to play by touch.)
-      const hit = cardFromEl(e.target);
-      if (!hit || hit.card.isDiscardEffect) return;   // discard cards play on tap, no lane
+      // Character card — needs the card phase.
+      let hit = null, trickHit = null;
+      if (this.canPlayerPlayCards && this.canPlayerPlayCards(s)) {
+        hit = cardFromEl(e.target);
+        if (hit && hit.card.isDiscardEffect) hit = null;   // discard cards play on tap, no lane
+      }
+      // Trick — tricks drag-to-play exactly like cards (user spec). Allowed
+      // during the tricks phase, or any player phase for `anytime` tricks —
+      // same gate onTrickClick's desktop path uses.
+      if (!hit) {
+        const playerActive = s.phase && s.phase.startsWith('player-') && !s.gameOver;
+        const th = trickFromEl(e.target);
+        if (th && (this.canPlayerPlayTricks(s) || (th.trick.anytime && playerActive))) trickHit = th;
+      }
+      if (!hit && !trickHit) return;
       const t = e.touches[0];
-      d = { card: hit.card, cardEl: hit.cardEl, x0: t.clientX, y0: t.clientY, moved: false, ghost: null };
+      d = { card: hit ? hit.card : null, trick: trickHit ? trickHit.trick : null,
+            cardEl: (hit || trickHit).cardEl, x0: t.clientX, y0: t.clientY, moved: false, ghost: null };
     }, { passive: true });
 
     document.addEventListener('touchmove', (e) => {
@@ -17049,7 +17115,7 @@ const UI = {
           return;
         }
         d.moved = true;
-        Game.state.selectedCard = d.card;
+        if (d.card) Game.state.selectedCard = d.card;
         d.ghost = this._makeCardDragGhost(d.cardEl);
         document.body.classList.add('mobile-card-dragging');
         try { if (this._haptic) this._haptic('cardPlay'); } catch (_) {}
@@ -17065,24 +17131,46 @@ const UI = {
         d.ghost.style.transform = `translate(${t.clientX}px, ${t.clientY}px) translate(-50%, -62%) rotate(${d.tilt.toFixed(1)}deg) scale(1.06)`;
       }
       clearHi();
-      const i = laneIdxUnder(t.clientX, t.clientY);
-      if (i != null) { const l = laneEls()[i]; if (l) l.classList.add('drag-over'); }
+      // Lane drop-highlight is a CARD thing — tricks are lane-less, they
+      // play the moment they're dropped clear of the tray.
+      if (d.card) {
+        const i = laneIdxUnder(t.clientX, t.clientY);
+        if (i != null) { const l = laneEls()[i]; if (l) l.classList.add('drag-over'); }
+      }
     }, { passive: false });
 
     const end = (e) => {
       if (!d) return;
-      const wasDrag = d.moved, card = d.card, ghost = d.ghost;
+      const wasDrag = d.moved, card = d.card, trick = d.trick, ghost = d.ghost;
       const t = e.changedTouches && e.changedTouches[0];
       if (ghost) ghost.remove();
       clearHi();
       document.body.classList.remove('mobile-card-dragging');
       d = null;
-      if (!wasDrag) return;   // it was a tap → let the card's own onclick select
-      const i = t ? laneIdxUnder(t.clientX, t.clientY) : null;
-      if (i != null && Game.state.selectedCard === card) {
-        this.onLaneClick(i);
-      } else if (Game.state.selectedCard === card) {
-        Game.state.selectedCard = null; this.render();   // dropped off-board → cancel
+      if (!wasDrag) return;   // it was a tap → the element's own onclick inspects
+      if (card) {
+        const i = t ? laneIdxUnder(t.clientX, t.clientY) : null;
+        if (i != null && Game.state.selectedCard === card) {
+          this.onLaneClick(i);
+        } else if (Game.state.selectedCard === card) {
+          Game.state.selectedCard = null; this.render();   // dropped off-board → cancel
+        }
+      } else if (trick) {
+        // Tricks are lane-less: dropping anywhere CLEAR of the trick tray
+        // plays it; dropping back on the tray cancels (change of heart).
+        const tray = this.playerTricks;
+        const trayR = tray && tray.getBoundingClientRect ? tray.getBoundingClientRect() : null;
+        const onTray = t && trayR && t.clientY >= trayR.top - 8;
+        if (t && !onTray) {
+          const cost = Game.getTrickCost('player', trick);
+          if (Game.state.player.currency >= cost) {
+            Game.state.selectedTrick = null;
+            Game.playTrick('player', trick);
+          } else {
+            this.flashUnaffordable(cost, null);
+          }
+        }
+        this.render();
       }
     };
     document.addEventListener('touchend', end, { passive: true });
@@ -17114,6 +17202,20 @@ const UI = {
 
   onCardClick(card) {
     const s = Game.state;
+    // PURE-TOUCH HAND (no hover-capable pointer): a tap must never toggle a
+    // mouse-style selection — there is no cursor on a phone. Like every
+    // mobile TCG: TAP reads the card (inspect modal, full text + hover
+    // theme), DRAG plays it (installMobileCardDrag). This branch sits ABOVE
+    // the turn/phase gates so a hand card inspects ANY time — exactly like
+    // tapping a card on the board (user: "if I tap on a card in hand it
+    // should go to this screen just like if I tap the card on board").
+    // Exception: a PLAYABLE discard-effect card still tap-plays below.
+    if (window.matchMedia && window.matchMedia('(hover: none)').matches &&
+        !(card.isDiscardEffect && this.canPlayerPlayCards(s))) {
+      if (s.selectedCard) { s.selectedCard = null; this.render(); }
+      this.openCardInspect(card);
+      return;
+    }
     if (!this.canPlayerPlayCards(s)) return;
     // NOTE: selection / inspection is ALWAYS allowed — the play-SFX stagger
     // only gates the actual PLAY action (discard-effect below + onLaneClick),
@@ -17129,16 +17231,6 @@ const UI = {
       // real play on the short stagger, and shake (never silently swallow).
       if (this._playStaggerBlocked(card)) return;
       Game.playCard('player', card, 0); this.render(); return;
-    }
-    // PURE-TOUCH HAND (no hover-capable pointer): a tap must never toggle a
-    // mouse-style selection — there is no cursor on a phone. Like every
-    // mobile TCG: TAP reads the card (inspect modal, full text + hover
-    // theme), DRAG plays it (installMobileCardDrag). Discard-effect cards
-    // above still tap-to-play (they're excluded from drag on purpose).
-    if (window.matchMedia && window.matchMedia('(hover: none)').matches) {
-      if (s.selectedCard) { s.selectedCard = null; this.render(); }
-      this.openCardInspect(card);
-      return;
     }
     // Can't-afford feedback — shake the energy orb + pop a toast when
     // the player tries to select a card they don't have energy for.
@@ -17625,6 +17717,14 @@ const UI = {
 
   onTrickClick(trick) {
     const s = Game.state;
+    // PURE-TOUCH: tap READS the trick (same inspect as cards — any phase),
+    // DRAG plays it (installMobileCardDrag). No two-tap toggle on a phone.
+    if (window.matchMedia && window.matchMedia('(hover: none)').matches) {
+      if (s.selectedTrick) { s.selectedTrick = null; this.render(); }
+      const el = document.querySelector(`.trick-card[data-trick-id="${trick.id}"]`);
+      if (el && this.showCardInspect) this.showCardInspect(el);
+      return;
+    }
     const playerActive = s.phase && s.phase.startsWith('player-') && !s.gameOver;
     const allowed = this.canPlayerPlayTricks(s) || (trick.anytime && playerActive);
     if (!allowed) return;

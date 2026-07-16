@@ -8979,6 +8979,7 @@ body.turn-combat .board .lane.lane-active {
   .card-drag-ghost .card-name-banner,
   .card-drag-ghost .card-name,
   .card-drag-ghost .card-desc,
+  .card-drag-ghost .trick-desc,
   .card-drag-ghost .card-active-text { display: none !important; }
   .card-drag-ghost .card-abilities.status-badges { font-size: 5.8px; gap: 1px; flex-wrap: wrap; max-width: 100%; }
   .card-drag-ghost .status-badge { padding: 1px 2px; font-size: 5.8px; letter-spacing: 0.1px; max-width: 100%; }
