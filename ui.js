@@ -19244,16 +19244,12 @@ const UI = {
       if (timer) { clearTimeout(timer); timer = null; }
       currentEl = null;
     };
-    // Active long-press ring — visible feedback while the user is
-    // holding. Without this the 450ms hold felt unresponsive ("did
-    // my press register?"). The ring grows with the progress and
-    // pops away cleanly on release / movement / fire.
-    let activeRing = null;
-    const stopRing = () => {
-      if (activeRing && activeRing.parentNode) activeRing.parentNode.removeChild(activeRing);
-      activeRing = null;
-    };
-    const cancelWithRing = () => { stopRing(); cancel(); };
+    // NO progress-ring visual. The old .long-press-ring spawned a blue
+    // circle at the touch point on EVERY card touchstart — every tap and
+    // drag-start flashed it, and the user read it as a cursor: "GET RID OF
+    // THE CURSOR ON MOBILE... the blue ring." Pure touch = zero pointer
+    // chrome; the hold's feedback is the inspect modal itself + haptic.
+    const cancelWithRing = () => { cancel(); };
     const onStart = (ev) => {
       const t = ev.touches ? ev.touches[0] : ev;
       if (!t) return;
@@ -19261,20 +19257,8 @@ const UI = {
       if (!cardEl) return;
       startX = t.clientX; startY = t.clientY;
       currentEl = cardEl;
-      // Spawn a progress ring centered on the touch point. Pure CSS
-      // animation tied to HOLD_MS — ring scales 0→1 and fades in over
-      // the hold window. Removed on cancel/fire so the inspect modal
-      // doesn't see a stale ring on the page.
-      stopRing();
-      activeRing = document.createElement('div');
-      activeRing.className = 'long-press-ring';
-      activeRing.style.left = t.clientX + 'px';
-      activeRing.style.top  = t.clientY + 'px';
-      activeRing.style.animationDuration = HOLD_MS + 'ms';
-      document.body.appendChild(activeRing);
       timer = setTimeout(() => {
         timer = null;
-        stopRing();
         this.showCardInspect(cardEl);
         // Play the card's hover audio so the long-press feels alive —
         // on touch there's no cursor to trigger mouseover, so this is

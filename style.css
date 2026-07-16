@@ -11723,36 +11723,11 @@ body.turn-combat .board .lane.lane-active {
   100% { transform: translateX(-110%); opacity: 0; }
 }
 
-/* ============================================================
-   LONG-PRESS PROGRESS RING (mobile)
-   ============================================================
-   Touch users can long-press a card to open the inspect modal
-   (450ms hold). Without visual feedback during the hold, the
-   press feels unresponsive — "did my press register?". This ring
-   spawns at the touch point on touchstart and grows over the hold
-   window. CSS only — animation duration matches HOLD_MS via
-   inline style. Cancelled on touchend/touchmove/fire. */
-.long-press-ring {
-  position: fixed;
-  width: 64px;
-  height: 64px;
-  margin-left: -32px;
-  margin-top:  -32px;
-  border-radius: 50%;
-  border: 3px solid rgba(79, 195, 247, 0.85);
-  background: rgba(79, 195, 247, 0.08);
-  pointer-events: none;
-  z-index: 1500;
-  transform: scale(0);
-  opacity: 0;
-  animation: longPressGrow 450ms var(--ease-out-soft) forwards;
-  box-shadow: 0 0 18px rgba(79, 195, 247, 0.55);
-}
-@keyframes longPressGrow {
-  0%   { transform: scale(0);    opacity: 0; }
-  20%  { opacity: 0.95; }
-  100% { transform: scale(1.15); opacity: 1; }
-}
+/* (LONG-PRESS PROGRESS RING removed 2026-07-16 — the blue circle that grew
+   at the touch point on every card touchstart. Every tap/drag-start flashed
+   it and the user read it as a phantom cursor: "GET RID OF THE CURSOR ON
+   MOBILE... the blue ring." The long-press-to-inspect GESTURE survives in
+   installLongPressInspect; its feedback is the modal itself + haptic. */
 /* Simulation-source tag — the simulation-based preview adds this so
    you can tell at a glance whether you're seeing arithmetic-derived
    numbers (no tag) or simulator-derived numbers (with the cyan tag).
