@@ -6912,7 +6912,9 @@ body.hit-pause .ai-hand * {
    communicate the disabled state via a strong desaturation +
    brightness drop — same "muted" read, but the card body stays
    solid so the body text and stat circles remain legible. */
-.card.unplayable { filter: grayscale(0.6) brightness(0.65); }
+/* Same near-total desaturation as .unafford (see that rule's comment) —
+   the old 0.6 grayscale left warm art reading as vivid/playable. */
+.card.unplayable { filter: grayscale(0.95) brightness(0.6) !important; }
 .trick-card.unplayable { filter: grayscale(0.6) brightness(0.65); }
 
 /* ---- CARD ANIMATIONS ----
@@ -9659,12 +9661,16 @@ body.turn-combat .board .lane.lane-active {
    on cards in hand" — keeping the sheen live matters more than this
    tiny affordability pip. */
 .hand-card-wrapper .card.unafford {
-  /* Stronger desaturation + brightness drop than before so the
-     "can't afford" state reads at a glance without needing
-     opacity. Stays opaque — text + stat circles remain legible
-     against the lane chrome. Matches the .unplayable filter
-     above so all "disabled card" surfaces feel consistent. */
-  filter: grayscale(0.6) brightness(0.65);
+  /* NEAR-TOTAL desaturation — grayscale(0.6) kept 40% of the color, so
+     warm bright art (Deathstroke's fire, Omni-Man's red) still read as
+     vivid/playable while naturally-dark art (Knull, Trigon) went black.
+     User report: "I have no energy and some cards are greyed out while
+     others aren't — they should ALL be." At 0.95 every painting reads
+     unmistakably monochrome-dead regardless of its palette; brightness
+     keeps text/stat orbs legible. !important so the hover crisp-render
+     path (filter: blur(0)) and any keyframe animation can never strip
+     the disabled look off a card mid-hover/mid-animation. */
+  filter: grayscale(0.95) brightness(0.6) !important;
 }
 
 /* Keyword tooltip — fixed, lightweight. Shown via JS on hover. */

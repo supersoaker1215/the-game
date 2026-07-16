@@ -15677,7 +15677,13 @@ const UI = {
           }
         }
       } else {
+        // A prompt is pending — cards can't be clicked, but the
+        // affordability indicator must STAY live so the hand keeps
+        // reading truthfully (the "always-on" contract above).
         el.classList.add('unplayable');
+        const pCost = Game.getCardCost('player', card);
+        if (s.player.currency >= pCost) el.classList.add('afford');
+        else el.classList.add('unafford');
       }
       // Anti-reattach guards: only call appendChild if the child
       // isn't already in the right parent. Re-appending an
