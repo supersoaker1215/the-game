@@ -8969,6 +8969,24 @@ body.turn-combat .board .lane.lane-active {
   .board .card .card-name-overlay,
   .board .card .card-name-banner,
   .board .card .card-name { display: none !important; }
+  /* Drag ghost = the board tile it will become. The ghost is a hand-card
+     clone appended to <body>, so the .player-hand-section-scoped hide rules
+     stop applying — without these mirrors the full "long card" (name, desc)
+     reappeared under the finger. Same values as the .board .card compaction
+     above. User: "the drag works but its the whole long card not the
+     condensed board version." */
+  .card-drag-ghost .card-name-overlay,
+  .card-drag-ghost .card-name-banner,
+  .card-drag-ghost .card-name,
+  .card-drag-ghost .card-desc,
+  .card-drag-ghost .card-active-text { display: none !important; }
+  .card-drag-ghost .card-abilities.status-badges { font-size: 5.8px; gap: 1px; flex-wrap: wrap; max-width: 100%; }
+  .card-drag-ghost .status-badge { padding: 1px 2px; font-size: 5.8px; letter-spacing: 0.1px; max-width: 100%; }
+  .card-drag-ghost .card-cost { width: 18px; height: 18px; font-size: 11px; top: 2px; left: 2px; }
+  .card-drag-ghost .stat-circle { width: 16px; height: 16px; font-size: 10px; }
+  .card-drag-ghost .stat-circle.stat-atk { bottom: 2px; left: 2px; }
+  .card-drag-ghost .stat-circle.stat-hp  { bottom: 2px; right: 2px; }
+  .card-drag-ghost .rarity-strip { top: 3px; right: 3px; transform: scale(0.6); transform-origin: top right; }
   /* Info-bar — tighter grid so HP / block / center / energy / dead-
      pile columns each get just enough room without overflowing on a
      ~380px viewport. Old: 120+38+1fr+38+64+padding+gaps = 300+px
@@ -31610,4 +31628,28 @@ body.round-tick .board::after {
 .draft-card.trick-draft:hover .card-portrait .pt-shine {
   opacity: 1;
   background-position: 0% 0%;
+}
+
+/* ============================================================
+   PURE-TOUCH DEVICES — kill every mouse-ism. On phones/tablets a
+   tap synthesizes a :hover that STICKS until the next tap, so the
+   hand-card enlarge, board-card enlarge, hover outlines, and shine
+   all fired on tap and read as "the mouse is present" (user: "no
+   cursor, no toggle, pure touch based" like any mobile TCG).
+   Placed at the END of the file so equal-specificity overrides win
+   by source order; transform needs !important to beat the hover
+   rule's own !important. Tap now does NOTHING visual — the tap
+   action itself is handled in JS (inspect), drag plays the card.
+   ============================================================ */
+@media (hover: none) {
+  .hand-card-wrapper:hover .card.hand-card { transform: none !important; }
+  .hand-card-wrapper:hover { z-index: auto !important; }
+  .card.enemy-card:hover,
+  .card.ally-card:hover { transform: none !important; z-index: auto; }
+  .lane .card:hover,
+  .lane .card.ai-card:hover { outline-color: transparent; }
+  .card:hover { outline-color: color-mix(in srgb, var(--card-edge) 12%, transparent); }
+  .player-hand-section .hand-cards .card:hover { transform: none !important; box-shadow: none; }
+  .trick-card:hover .card-portrait .pt-shine,
+  .draft-card.trick-draft:hover .card-portrait .pt-shine { opacity: 0; }
 }

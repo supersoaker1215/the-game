@@ -17027,8 +17027,10 @@ const UI = {
       if (d || e.touches.length !== 1) return;
       const s = Game.state;
       if (!s || !this.canPlayerPlayCards || !this.canPlayerPlayCards(s)) return;
-      // MP guests place via their own host-driven lane picker — don't hijack.
-      if (Game.isMultiplayer && Game.isMultiplayer() && Game.mp && Game.mp.role === 'guest') return;
+      // MP guests drag exactly like the host — selection is purely local and
+      // onLaneClick → playCard forwards {t:'playCard', cardId, lane} to the
+      // host. (The old early-return here predates the guest local-pick
+      // redesign; with it, mobile guests had NO way to play by touch.)
       const hit = cardFromEl(e.target);
       if (!hit || hit.card.isDiscardEffect) return;   // discard cards play on tap, no lane
       const t = e.touches[0];
@@ -17097,8 +17099,15 @@ const UI = {
     const g = cardEl.cloneNode(true);
     g.removeAttribute('data-card-id');
     g.classList.add('card-drag-ghost');
+    // Size the ghost to the BOARD TILE it will become — not the tall hand
+    // card. The clone leaves .player-hand-section, so the hand-scoped mobile
+    // hide-rules stop applying and the full desc/name reappeared ("the whole
+    // long card"). Width comes from a live card-slot; the .card-drag-ghost
+    // CSS mirrors the mobile board compaction (name/desc hidden, small orbs).
+    const slot = document.querySelector('.board .card-slot');
+    const w = slot ? Math.max(48, slot.offsetWidth - 6) : cardEl.offsetWidth;
     g.style.cssText = `position:fixed; left:0; top:0; z-index:3000; pointer-events:none;
-      width:${cardEl.offsetWidth}px; margin:0; opacity:0.92;`;
+      width:${w}px; margin:0; opacity:0.92;`;
     document.body.appendChild(g);
     return g;
   },
@@ -17120,6 +17129,16 @@ const UI = {
       // real play on the short stagger, and shake (never silently swallow).
       if (this._playStaggerBlocked(card)) return;
       Game.playCard('player', card, 0); this.render(); return;
+    }
+    // PURE-TOUCH HAND (no hover-capable pointer): a tap must never toggle a
+    // mouse-style selection — there is no cursor on a phone. Like every
+    // mobile TCG: TAP reads the card (inspect modal, full text + hover
+    // theme), DRAG plays it (installMobileCardDrag). Discard-effect cards
+    // above still tap-to-play (they're excluded from drag on purpose).
+    if (window.matchMedia && window.matchMedia('(hover: none)').matches) {
+      if (s.selectedCard) { s.selectedCard = null; this.render(); }
+      this.openCardInspect(card);
+      return;
     }
     // Can't-afford feedback — shake the energy orb + pop a toast when
     // the player tries to select a card they don't have energy for.
