@@ -94,8 +94,12 @@ const Game = {
     if (this.hasPendingPrompt()) return;
     const cont = this.state._combatContinuation;
     if (cont) {
+      this._bumpCombatProgress(); // watchdog: a park just resolved
       delete this.state._combatContinuation;
-      cont();
+      // Guard the continuation: a throw here used to halt the combat
+      // timeline outright (no scheduler above it), freezing the board with
+      // no recovery. Log and let the watchdog force-end if it can't proceed.
+      try { cont(); } catch (e) { console.error('[resumeCombatIfWaiting] continuation threw:', e); }
     }
   },
 
@@ -127,6 +131,73 @@ const Game = {
   _matchTimeout(fn, ms) {
     const gen = this._matchGen;
     return setTimeout(() => { if (this._matchGen !== gen) return; fn(); }, ms);
+  },
+
+  // ===================== COMBAT WATCHDOG =====================
+  // A combat freeze — a continuation that threw, an orphaned prompt park
+  // (e.g. an MP guest prompt the guest never answered), a dropped pacing
+  // timer — leaves the board stuck mid-combat with NO way to recover. It's
+  // the #1 "the game froze and we can't keep playing" report, and it never
+  // shows in the headless sim (that stubs UI + fires timers synchronously).
+  // This watchdog force-ends combat once it has been idle longer than any
+  // legitimate pause could last: the prompt auto-pick timeout is 30s, so a
+  // real prompt always resolves (and bumps progress) well before the 45s
+  // limit — only a TRUE stall reaches it. On trip we drop every pending
+  // flag + parked continuation and run postCombat(), so the round advances
+  // instead of hanging forever.
+  _COMBAT_WATCHDOG_MS: 45000,
+  _combatWatchdogTimer: null,
+  _combatProgressAt: 0,
+  _bumpCombatProgress() { this._combatProgressAt = Date.now(); },
+  _armCombatWatchdog() {
+    // Headless sim resolves combat synchronously and has no setInterval —
+    // it can't stall, so skip. Browser only.
+    if (typeof __HEADLESS_SIM !== 'undefined') return;
+    if (typeof setInterval === 'undefined') return;
+    this._clearCombatWatchdog();
+    this._bumpCombatProgress();
+    const gen = this._matchGen;
+    this._combatWatchdogTimer = setInterval(() => {
+      if (this._matchGen !== gen || !this.state || !this.state._inCombat) {
+        this._clearCombatWatchdog();
+        return;
+      }
+      if (Date.now() - (this._combatProgressAt || 0) < this._COMBAT_WATCHDOG_MS) return;
+      // Stalled longer than any real prompt could last — recover.
+      const s = this.state;
+      try {
+        console.error('[COMBAT WATCHDOG] combat stalled — force-ending. state:', JSON.stringify({
+          activeLane: s._activeLane, parked: !!s._combatContinuation,
+          cardChoice: !!s.pendingCardChoice, laneChoice: !!s.pendingLaneChoice,
+          blockTrick: !!s.pendingBlockTrick, kang: !!s.pendingKangChoice,
+          jumpOffer: !!s.pendingJumpOffer, aiActions: s._pendingAIActions || 0,
+        }));
+      } catch (e) {}
+      this._clearCombatWatchdog();
+      this._forceEndStalledCombat();
+    }, 3000);
+  },
+  _clearCombatWatchdog() {
+    if (this._combatWatchdogTimer) { clearInterval(this._combatWatchdogTimer); this._combatWatchdogTimer = null; }
+  },
+  _forceEndStalledCombat() {
+    const s = this.state;
+    if (!s || !s._inCombat) return;
+    // Drop every blocker so hasPendingPrompt() can't re-park combat, then
+    // run the normal end-of-combat path. Imperfect (a lane or two may be
+    // left unresolved) but the game continues instead of freezing.
+    s.pendingCardChoice = null; s.pendingLaneChoice = null;
+    s.pendingBlockTrick = null; s.pendingKangChoice = null;
+    s.pendingJumpOffer = null; s.pendingTimeStoneIntercept = null;
+    s._pendingAIActions = 0;
+    if (s.player) s.player.stolenByBWL = null;
+    if (s.ai) s.ai.stolenByBWL = null;
+    delete s._combatContinuation;
+    this._clearPromptTimeout();
+    this.log('[COMBAT WATCHDOG] Combat was stuck — force-resolving to end of combat.');
+    try { this.postCombat(); } catch (e) { console.error('[COMBAT WATCHDOG] postCombat threw:', e); }
+    if (typeof UI !== 'undefined' && UI.render) UI.render();
+    if (this.isMultiplayer && this.isMultiplayer() && this.mp.role === 'host') this._mpBroadcast();
   },
 
   // ===================== 1v1 LOCAL (pass-and-play hotseat) =====================
@@ -872,6 +943,7 @@ const Game = {
     // ability-prompt auto-pick timeout that would otherwise fire into a dead board.
     this._matchGen++;
     if (this._promptTimeout) { clearTimeout(this._promptTimeout); this._promptTimeout = null; }
+    this._clearCombatWatchdog();
     this.state.phase = 'main-menu';
     this.state.mode = null;
     this.state.deckbuilder = null;
@@ -3192,6 +3264,8 @@ const Game = {
     // Combat batches queued bonus attacks to postCombat; flag so handleDeath
     // doesn't also drain them mid-lane and cause double-fires.
     this.state._inCombat = true;
+    // Arm the anti-freeze watchdog for the duration of combat.
+    this._armCombatWatchdog();
     // Board-wide circuit reveal — one-shot opacity pulse on a pre-drawn grid overlay
     if (typeof UI !== 'undefined' && UI.flashCombatReveal) UI.flashCombatReveal();
 
@@ -3204,6 +3278,7 @@ const Game = {
 
     // Resolve lanes one-by-one with a delay between each so the player can see results.
     const resolveLane = (i) => {
+      this._bumpCombatProgress(); // watchdog: combat is advancing
       // Game-over short-circuit — if a previous lane's face damage took
       // either HP to 0, stop resolving combat. damagePlayer already
       // triggered the game-over screen; we just need to bail before
@@ -3299,6 +3374,7 @@ const Game = {
     this.cleanupDead();
     // Combat phase is done — trick-triggered deaths from here on drain immediately.
     delete this.state._inCombat;
+    this._clearCombatWatchdog(); // combat resolved cleanly — disarm the watchdog
 
     // End-of-turn effects
     this.getAllCardsOnBoard().forEach(c => {
