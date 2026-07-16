@@ -17148,27 +17148,13 @@ const UI = {
     const wasSelected = s.selectedCard === card ||
       !!(s.selectedCard && card && s.selectedCard.id != null && s.selectedCard.id === card.id);
     s.selectedCard = wasSelected ? null : card;
-    // Multiplayer guest: when SELECTING a card (not deselecting), request a lane
-    // picker from the host via the same promptLaneChoice path that summons use.
-    // This is the ONLY placement path for guests (onLaneClick forwards picks
-    // into it and never direct-plays) — pendingLaneChoice → laneChoicePick →
-    // promptResolve:lane, host-validated against the armed lane set.
-    if (card && !card.isDiscardEffect && !card._neverPlayable &&
-        Game.isMultiplayer && Game.isMultiplayer() && Game.mp && Game.mp.role === 'guest' &&
-        typeof Multiplayer !== 'undefined') {
-      if (!wasSelected) {
-        Multiplayer.send({ t: 'reqLaneChoice', cardId: card.id });
-      } else {
-        // Deselect — tell the host to close the armed picker so it can't
-        // dangle over (and later place) a card the guest walked away from.
-        // Sent UNCONDITIONALLY (not gated on the picker having arrived):
-        // a fast select→deselect can outrun the host's broadcast, and the
-        // transport is ordered, so the cancel lands right after the
-        // reqLaneChoice it voids. The host validates: it only cancels a
-        // prompt armed for THIS card while it's still in the guest's hand.
-        Multiplayer.send({ t: 'promptResolve', choiceType: 'laneCancel', cardId: card.id });
-      }
-    }
+    // MP GUEST now plays EXACTLY like the host: selection is purely LOCAL.
+    // There is no reqLaneChoice round-trip anymore — selecting a card simply
+    // lights up the guest's own open lanes (rendered with onLaneClick, the
+    // same wiring single-player uses), and clicking one forwards a single
+    // authoritative {t:'playCard', cardId, lane} that the host validates and
+    // places. Removing the host-armed picker removes the broadcast/timeout
+    // window that used to auto-drop the guest's card into lane 1.
     // Hand-guardians (Iron Giant): selectable to read, never placeable.
     // Say so on select — otherwise the dead lane clicks look broken.
     if (!wasSelected && card && card._neverPlayable && this.showAITrickToast) {
@@ -17551,23 +17537,25 @@ const UI = {
     // already-occupied lane). 4s fallback in case a broadcast never arrives.
     if (s._mpPendingPlay && (Date.now() - s._mpPendingPlay) < 4000) return;
     const card = s.selectedCard;
-    // MP GUEST: placement goes ONLY through the host-armed lane picker —
-    // the exact same promptLaneChoice → laneChoicePick → promptResolve:lane
-    // flow summons use (user: "the summoning system works... apply that
-    // same system"). The old fallback here called Game.playCard, which
-    // forwarded a raw {t:'playCard', lane} that raced the picker on the
-    // host and auto-placed the card (the "instantly jumped into lane 1"
-    // bug). If the picker for THIS card is armed, forward the pick; if
-    // the broadcast hasn't landed yet, ignore the click — the next click
-    // on the highlighted lane resolves it. Never direct-play.
+    // MP GUEST plays EXACTLY like the host: forward ONE authoritative
+    // {t:'playCard', cardId, lane} for the lane the guest actually clicked.
+    // Game.playCard's guest branch sends it; the host validates (open lane,
+    // affordable, not a hand-guard) and places it in THAT lane, then
+    // broadcasts. There's no host-armed picker and no timeout, so nothing
+    // can auto-place into lane 1 — the guest's clicked lane is the only lane
+    // that ever gets sent. _clearOrLockSelection keeps the card selected and
+    // locked (via _mpPendingPlay) until the host's state lands, so a reject
+    // (occupied/too-costly) leaves the card in hand to retry, and a rapid
+    // double-click can't fire a second play. _neverPlayable (Iron Giant) is
+    // rejected inside Game.playCard before the forward, so it flashes the
+    // "guards from your hand" hint instead of being sent.
     if (Game.isMultiplayer() && Game.mp && Game.mp.role === 'guest') {
-      const lc = s.pendingLaneChoice;
-      if (lc && lc.previewCard && lc.previewCard.id === card.id &&
-          Array.isArray(lc.lanes) && lc.lanes.includes(i) &&
-          typeof laneChoicePick === 'function') {
-        s.selectedCard = null;
-        laneChoicePick(i);
+      if (Game.playCard('player', card, i)) {
+        this._clearOrLockSelection(s);
+      } else {
+        this._flashRejectedLaneClick(card, s);
       }
+      this.render();
       return;
     }
     // Invisible Woman face-down option
