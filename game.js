@@ -759,6 +759,15 @@ const Game = {
   // bookkeeping at call sites.
   _mpBroadcast() {
     if (!this.isMultiplayer() || this.mp.role !== 'host') return;
+    // _silentSim guard: previewPlacement()/previewPlay() swap this.state to a
+    // deep clone (stamped _silentSim) and call playCard/resolveLanes on it to
+    // compute the damage preview. Those methods are wrapBroadcast-wrapped, so
+    // without this guard every preview the host renders would broadcast the
+    // HYPOTHETICAL placement to the guest — the opponent saw whatever card the
+    // host was hovering appear in a lane before it was ever committed. A dry
+    // run must never touch the wire; the real broadcast fires when the host
+    // actually plays (this.state is the live state, _silentSim unset).
+    if (this.state && this.state._silentSim) return;
     if (typeof Multiplayer === 'undefined') return;
     const t = Multiplayer._transport;
     if (!t || typeof t.broadcastState !== 'function') return;
