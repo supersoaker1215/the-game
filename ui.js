@@ -4187,6 +4187,15 @@ const UI = {
       Game.killCard = (card, source, ...rest) => {
         const isCreature = card && card.name && card.currentHealth !== undefined && typeof card.play !== 'function';
         if (!isCreature) return origK(card, source, ...rest);
+        // Iron Giant will intercept this kill (save the ally, or offer the
+        // sacrifice) — don't fire the dying card's death cue or seize the
+        // combat lane-audio slot. A saved ally makes no death sound, and
+        // the sacrifice sting (fired inside the intercept) gets a clean
+        // slot. On decline, doDecline re-enters with _igOffered set → the
+        // predicate returns false → the real death gets its normal cue.
+        if (Game._willIronGiantIntercept && Game._willIronGiantIntercept(card)) {
+          return origK(card, source, ...rest);
+        }
 
         const hasNamedKiller = source && source.name && source.currentHealth !== undefined
                              && source.owner && source.owner !== card.owner;
@@ -10254,11 +10263,23 @@ const UI = {
           player: (Game.state && Game.state.player) ? (Game.state.player.playedTrickPile || []).slice() : [],
           ai:     (Game.state && Game.state.ai)     ? (Game.state.ai.playedTrickPile     || []).slice() : [],
         };
+        // Iron Giant sacrifice sting — the save resolves on the HOST, so
+        // the guest never runs game.js's playCardSfx call. Detect it in
+        // the state diff instead: the Giant landing in EITHER discard
+        // pile means a sacrifice just resolved. Count across both sides
+        // so the perspective flip can't hide it.
+        const _igDiscards = (st) => ['player', 'ai'].reduce((n, side) =>
+          n + (((st && st[side] && st[side].discardPile) || []).filter(c => c && c.name === 'Iron Giant').length), 0);
+        const prevIgDiscards = _igDiscards(Game.state);
         Game.acceptMultiplayerState(m.state);
         // Apply real player names to the HUD name plates on every state update.
         this._mpApplyNames(Game.state);
 
         if (this.sfx) {
+          // ── Iron Giant sacrifice sting (see snapshot above) ────────────
+          if (_igDiscards(Game.state) > prevIgDiscards) {
+            try { this.sfx.playCardSfx('Iron Giant', 'ability'); } catch (e) {}
+          }
           // ── Card play / death SFX ──────────────────────────────────────
           if (prevLanes) {
             const nextLanes = Game.state.lanes || [];
@@ -18302,6 +18323,17 @@ const UI = {
     if (Game.handleDeath) {
       const origDeath = Game.handleDeath.bind(Game);
       Game.handleDeath = (card, laneIdx, killer) => {
+        // Iron Giant is about to intercept this death — save the ally, or
+        // pop the sacrifice prompt. Skip the derez visual AND the death
+        // cue: a SAVED ally must not dissolve or play a death sound, and
+        // suppressing that cue leaves the sacrifice sting a clean audio
+        // slot (the death cue otherwise seizes the combat lane-audio slot
+        // and cuts the sting off). If the player later DECLINES, doDecline
+        // re-enters handleDeath with _igOffered set, the predicate returns
+        // false, and the real death gets its normal visual + sound then.
+        if (Game._willIronGiantIntercept && Game._willIronGiantIntercept(card)) {
+          return origDeath(card, laneIdx, killer);
+        }
         spawnDerez(card);  // capture rect BEFORE engine teardown
         // Play death audio for combat kills — the killCard wrapper only
         // fires for trick/ability kills. Combat deaths (cleanupDead path)

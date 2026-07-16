@@ -5737,6 +5737,24 @@ const Game = {
   },
 
   // ===================== IRON GIANT DEATH-GUARD =====================
+  // Cheap, side-effect-free lookahead used by the UI's handleDeath wrapper
+  // to suppress the death sound + derez visual for a card that's about to
+  // be saved (or offered a save) by Iron Giant. Mirrors the ENTRY gate of
+  // _ironGiantIntercept but must NOT consume the _igOffered decline flag —
+  // when a decline is in progress this returns false so the real death
+  // gets its normal cue. Without this, a SAVED ally still derezzes and
+  // plays a death sound, and that death cue grabs the combat lane-audio
+  // slot and steps on the sacrifice sting fired a moment later.
+  _willIronGiantIntercept(card) {
+    try {
+      if (!card || card.isEnvironment || !card.owner) return false;
+      if (this.state.gameOver) return false;
+      if (card._igOffered) return false; // decline re-entry — real death proceeds
+      const hand = (this.state[card.owner] && this.state[card.owner].hand) || [];
+      return hand.some(c => c.name === 'Iron Giant');
+    } catch (e) { return false; }
+  },
+
   // "While in Hand: when an ally would die, you may sacrifice Iron Giant
   // to save it." Called from handleDeath after the Phoenix check.
   // Returns true if the death is deferred (human prompt pending) or
@@ -5785,7 +5803,7 @@ const Game = {
       };
       if (!this.isHuman(owner)) {
         // AI heuristic: spend the Giant on a valuable ally, or whenever
-        // the 4-damage triple blast has a rich board to hit.
+        // the board-wide 1-damage blast has a rich enemy line to sweep.
         const enemies = this.getEnemiesOf(owner).filter(e => e.currentHealth > 0 && !e.isEnvironment);
         const worth = ((card.baseCost || card.cost || 0) >= 4) || enemies.length >= 3;
         if (!worth) return false; // death proceeds inline
@@ -5793,7 +5811,7 @@ const Game = {
         return true;
       }
       this.promptCardChoice(owner, [
-        { name: 'Sacrifice Iron Giant', desc: `Iron Giant gives himself — ${card.name} survives at ${restoreHp} HP, and up to 3 enemies take 4 damage.`, id: 'ig_save' },
+        { name: 'Sacrifice Iron Giant', desc: `Iron Giant gives himself — ${card.name} survives at ${restoreHp} HP, and all enemies take 1 damage.`, id: 'ig_save' },
         { name: `Let ${card.name} Die`, desc: 'Keep Iron Giant in your hand.', id: 'ig_decline' },
       ], 'Iron Giant — Sacrifice?',
         `${card.name} is about to be destroyed. Sacrifice Iron Giant from your hand to save it?`,
@@ -5805,39 +5823,17 @@ const Game = {
     } catch (e) { console.error('[IRON GIANT] intercept error:', e); return false; }
   },
 
-  // "When Sacrificed: choose up to 3 enemy cards; each takes 4 damage."
-  // 3 or fewer enemies on the field → all of them are hit, no prompt.
-  // 4+ → sequential picks (one prompt per target, 3 total). Only one
-  // Iron Giant exists in the classic shared deck, so a nested guard
-  // prompt from the OTHER player during blast deaths can't occur there.
+  // "When Sacrificed: deal 1 damage to ALL enemy cards on the field."
+  // Board-wide, no targeting prompt — the blast washes over every enemy.
   _ironGiantBlast(owner, ig) {
-    const alive = () => this.getEnemiesOf(owner).filter(e => e.currentHealth > 0 && !e.isEnvironment);
-    const enemies = alive();
+    const enemies = this.getEnemiesOf(owner).filter(e => e.currentHealth > 0 && !e.isEnvironment);
     if (!enemies.length) {
       this.log(`  [IRON GIANT] No enemies on the field — the blast fades into the night sky.`);
       return;
     }
-    const hitIds = [];
-    const applyHit = (t) => {
-      hitIds.push(t.id);
-      this.log(`  [IRON GIANT] The blast hits ${t.name} for 4!`);
-      this.dealDamage(t, 4, ig);
-    };
-    if (enemies.length <= 3) {
-      enemies.forEach(applyHit);
-      this.cleanupDead();
-      return;
-    }
-    const pickNext = () => {
-      const remaining = alive().filter(e => !hitIds.includes(e.id));
-      if (hitIds.length >= 3 || !remaining.length) { this.cleanupDead(); return; }
-      this.promptCardChoice(owner, remaining,
-        `Iron Giant — Target ${hitIds.length + 1} of 3`,
-        `Choose an enemy card to take 4 damage.`,
-        (t) => { applyHit(t); pickNext(); },
-        (cards) => cards.slice().sort((a, b) => (b.attack || 0) - (a.attack || 0))[0]);
-    };
-    pickNext();
+    this.log(`  [IRON GIANT] The blast washes over the enemy line — 1 damage to all!`);
+    enemies.forEach(t => this.dealDamage(t, 1, ig));
+    this.cleanupDead();
   },
 
   killCard(card, source) {

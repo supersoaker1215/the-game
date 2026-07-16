@@ -20,7 +20,7 @@ const CARD_DEFS = [
   { name: "Iron Giant", cost: 0, attack: 0, health: 0, type: "scifi",
     _neverPlayable: true,
     abilities: [],
-    desc: "Cannot be played — Iron Giant guards from your hand. While in Hand: When an ally would die, you may sacrifice Iron Giant to save it — it survives with its remaining HP (minimum 1). When Sacrificed: Choose up to 3 enemy cards; each takes 4 damage." },
+    desc: "Cannot be played — Iron Giant guards from your hand. While in Hand: When an ally would die, you may sacrifice Iron Giant to save it — it survives with its remaining HP (minimum 1). When Sacrificed: Deal 1 damage to all enemy cards." },
   // ==================== COST 1 ====================
   { name: "Ant-Man", cost: 1, attack: 2, health: 1, type: "hero",
     abilities: [],
