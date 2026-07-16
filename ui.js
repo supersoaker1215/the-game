@@ -1361,6 +1361,9 @@ const UI = {
       'Loki':             { hover: { src: 'audio/cards/loki-hover.mp3' } },
       'Gizmo':            { hover: { src: 'audio/cards/gizmo-hover.mp3', maxDur: 62 } },
       'Stripe':           { hover: { src: 'audio/cards/stripe-hover.mp3', maxDur: 47 }, play: { src: 'audio/cards/stripe-when-played.mp3', maxDur: 4 } },
+      // Iron Giant never gets a 'play' event (he's never placed) — the
+      // sacrifice sting fires as 'ability' from _ironGiantIntercept's save.
+      'Iron Giant':       { hover: { src: 'audio/cards/iron-giant-hover.mp3', maxDur: 45 }, ability: { src: 'audio/cards/iron-giant-sacrifice.mp3', maxDur: 3.5 } },
     },
     // Default files for the per-card events — used when a card's
     // CARD_SFX entry doesn't have that event. If neither the card-

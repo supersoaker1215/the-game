@@ -93,6 +93,8 @@ window.CARD_ART_VARIANTS = {
   // Gremlins set (2026-07-15) — Stripe's art is a jpg, so it needs a manifest
   // entry (default lookup assumes <Name>.png). Gizmo/Gremlin resolve as pngs.
   'Stripe':              ['Stripe.jpg'],
+  // Iron Giant (2026-07-15) — jpg art, same manifest-entry reason as Stripe.
+  'Iron Giant':          ['Iron Giant.jpg'],
 };
 
 // =============================================================================

@@ -5772,6 +5772,9 @@ const Game = {
         card.currentHealth = restoreHp;
         card._deathHandled = false;
         this.log(`[IRON GIANT] Iron Giant gives himself — ${card.name} survives at ${restoreHp} HP!`);
+        if (typeof UI !== 'undefined' && UI.sfx && UI.sfx.playCardSfx) {
+          try { UI.sfx.playCardSfx('Iron Giant', 'ability'); } catch (e) {}
+        }
         this._ironGiantBlast(owner, ig);
       };
       const doDecline = () => {
