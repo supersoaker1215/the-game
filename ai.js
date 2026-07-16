@@ -427,6 +427,7 @@ const AI = {
     // cheapest affordable card first as a sacrifice.
     if (s[owner].nextCardStolen) {
       const candidates = s[owner].hand.filter(c => {
+        if (c._neverPlayable) return false; // Iron Giant — can't be bait, can't be played
         const cost = Game.getCardCost(owner, c);
         if (cost > s[owner].currency) return false;
         if (c.isDiscardEffect) return true;
@@ -467,7 +468,7 @@ const AI = {
     // Step 1: commit our best blockers to the biggest threats first.
     const committedIds = new Set();
     if (diff !== 'easy') {
-      const blockPlan = this.planDefensiveBlocks([...s[owner].hand], s[owner].currency, owner);
+      const blockPlan = this.planDefensiveBlocks(s[owner].hand.filter(c => !c._neverPlayable), s[owner].currency, owner);
       blockPlan.forEach(p => committedIds.add(p.cardId));
       for (const plan of blockPlan) {
         queue.push(() => {
@@ -482,6 +483,7 @@ const AI = {
 
     // Step 2: play remaining cards using the priority heuristic.
     const remaining = [...s[owner].hand].filter(c => {
+      if (c._neverPlayable) return false; // Iron Giant guards from hand — never a play candidate
       if (committedIds.has(c.id)) return false;
       // Iron Man and Thanos are tagged trickPhasePlayable — both are
       // strictly stronger when held for the trick phase (Iron Man finishes

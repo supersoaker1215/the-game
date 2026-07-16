@@ -17129,7 +17129,7 @@ const UI = {
     // This is the ONLY placement path for guests (onLaneClick forwards picks
     // into it and never direct-plays) — pendingLaneChoice → laneChoicePick →
     // promptResolve:lane, host-validated against the armed lane set.
-    if (card && !card.isDiscardEffect &&
+    if (card && !card.isDiscardEffect && !card._neverPlayable &&
         Game.isMultiplayer && Game.isMultiplayer() && Game.mp && Game.mp.role === 'guest' &&
         typeof Multiplayer !== 'undefined') {
       if (!wasSelected) {
@@ -17144,6 +17144,11 @@ const UI = {
         // prompt armed for THIS card while it's still in the guest's hand.
         Multiplayer.send({ t: 'promptResolve', choiceType: 'laneCancel', cardId: card.id });
       }
+    }
+    // Hand-guardians (Iron Giant): selectable to read, never placeable.
+    // Say so on select — otherwise the dead lane clicks look broken.
+    if (!wasSelected && card && card._neverPlayable && this.showAITrickToast) {
+      this.showAITrickToast(card.name, 'Guards from your hand — cannot be played to the field', 'info');
     }
     this.render();
   },
@@ -17572,6 +17577,10 @@ const UI = {
   _flashRejectedLaneClick(card, s) {
     const cost = (typeof Game.getCardCost === 'function') ? Game.getCardCost('player', card) : (card.cost || 0);
     const cardEl = document.querySelector(`.player-hand-section .card[data-card-id="${card.id}"]`);
+    if (card._neverPlayable) {
+      if (this.showAITrickToast) this.showAITrickToast(card.name, 'Guards from your hand — cannot be played to the field', 'info');
+      return;
+    }
     if (cost > s.player.currency) { this.flashUnaffordable(cost, cardEl); return; }
     if (cardEl) {
       cardEl.classList.remove('card-shake-rejected');

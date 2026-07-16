@@ -325,6 +325,7 @@ const Game = {
           // guest sees highlighted lane targets and sends promptResolve:lane back.
           const card = findCardById(msg.cardId);
           if (!card) break;
+          if (card._neverPlayable) break; // Iron Giant — no picker, ever
           const phase = this.state.phase;
           if (phase !== 'ai-cards' && phase !== 'ai-cards-tricks') break;
           if (card.isDiscardEffect) { this.playCard(actor, card, 0); break; }
@@ -1439,6 +1440,7 @@ const Game = {
       .filter(d => !d.isDiscardEffect) // discard-effect cards are 0/0 — never sensible to summon
       .filter(d => !isRL(d.name))
       .filter(d => !d._spawnOnly)      // spawn-only cards enter only via their trigger (e.g. Freddy)
+      .filter(d => !d._neverPlayable)  // Iron Giant can never stand on the field — hand-guard only
       .filter(d => !d.isEnvironment)   // environments deploy via their own play flow — summoning
                                        // one drops it as a plain 0/1 card (user report: Mother Box
                                        // pulled Boiler Room onto the board as a creature)
@@ -2504,6 +2506,14 @@ const Game = {
 
   playCard(owner, card, laneIdx) {
     if (this.state.gameOver) return false;
+    // Iron Giant (and any future hand-guardian) can NEVER be placed on the
+    // field — his whole card is the in-hand death-guard sacrifice, handled
+    // by _ironGiantIntercept in handleDeath. Rejecting here covers every
+    // entry point at once: UI lane clicks, AI plan queues, MP forwards.
+    if (card && card._neverPlayable) {
+      this.log(`[GUARD] ${card.name} can't be played onto the field — he guards from your hand.`);
+      return false;
+    }
     // Multiplayer guest: forward to host instead of executing locally.
     // Host applies the action and broadcasts the new state. We return
     // true so the UI's selectedCard state still advances optimistically;
@@ -4961,6 +4971,17 @@ const Game = {
       // correct: card is back at full HP and on the board.
       return;
     }
+    // IRON GIANT death-guard — if the dying card's owner holds Iron Giant
+    // in hand, the death PAUSES on a sacrifice offer (prompt for humans,
+    // heuristic for AI). Runs AFTER Phoenix (a free full-HP revive should
+    // never burn the Giant) and BEFORE kill-stats/onDeath (a saved card
+    // was never killed). While the offer is pending the card sits in its
+    // lane at ≤0 HP with _deathHandled=true, so cleanupDead re-entries
+    // no-op at the guard above. Returns true when the death is deferred
+    // (pending prompt) or cancelled (save applied) — we bail out here and
+    // the resolve callback either restores the card or re-enters
+    // handleDeath to finish the death for real.
+    if (this._ironGiantIntercept(card, laneIdx, killer)) return;
     // Track the kill for the round recap. Card dying on AI side = player's kill.
     if (this.state._roundStats) {
       const rs = this.state._roundStats;
@@ -5715,6 +5736,107 @@ const Game = {
     }
   },
 
+  // ===================== IRON GIANT DEATH-GUARD =====================
+  // "While in Hand: when an ally would die, you may sacrifice Iron Giant
+  // to save it." Called from handleDeath after the Phoenix check.
+  // Returns true if the death is deferred (human prompt pending) or
+  // cancelled (save applied); false lets handleDeath proceed normally.
+  _ironGiantIntercept(card, laneIdx, killer) {
+    try {
+      if (!card || card.isEnvironment || !card.owner) return false;
+      if (this.state.gameOver) return false;
+      // Consume-on-read decline guard: doDecline re-enters handleDeath
+      // with this flag set so the offer isn't repeated for the same
+      // death. Deleting it immediately means a card that later survives
+      // by other means (onDeath revive, reviveCharges) gets a fresh
+      // offer on its NEXT death.
+      if (card._igOffered) { delete card._igOffered; return false; }
+      const owner = card.owner;
+      const hand = (this.state[owner] && this.state[owner].hand) || [];
+      const ig = hand.find(c => c.name === 'Iron Giant');
+      if (!ig) return false;
+      // Capture the restore HP now (consume-on-read so a stale snapshot
+      // from an earlier survived kill can never leak into a later save):
+      // direct destroys keep their pre-zeroing HP, damage deaths clamp to 1.
+      const hpSnapshot = (card._hpBeforeKill != null) ? card._hpBeforeKill : card.currentHealth;
+      delete card._hpBeforeKill;
+      const restoreHp = Math.max(1, hpSnapshot);
+      const doSave = () => {
+        // Consume the Giant from hand → DISCARD pile, not the dead pile:
+        // he can never stand on the field, so revival pools (Lazarus Pit,
+        // Hela) must never see him — and this is a SACRIFICE, so nothing
+        // that reacts to discards fires either.
+        const idx = this.state[owner].hand.indexOf(ig);
+        if (idx > -1) this.state[owner].hand.splice(idx, 1);
+        this.state[owner].discardPile.push(ig);
+        card.currentHealth = restoreHp;
+        card._deathHandled = false;
+        this.log(`[IRON GIANT] Iron Giant gives himself — ${card.name} survives at ${restoreHp} HP!`);
+        this._ironGiantBlast(owner, ig);
+      };
+      const doDecline = () => {
+        card._igOffered = true;
+        card._deathHandled = false;
+        const lane = this.findCardLane(card);
+        this.handleDeath(card, lane >= 0 ? lane : laneIdx, killer);
+      };
+      if (!this.isHuman(owner)) {
+        // AI heuristic: spend the Giant on a valuable ally, or whenever
+        // the 4-damage triple blast has a rich board to hit.
+        const enemies = this.getEnemiesOf(owner).filter(e => e.currentHealth > 0 && !e.isEnvironment);
+        const worth = ((card.baseCost || card.cost || 0) >= 4) || enemies.length >= 3;
+        if (!worth) return false; // death proceeds inline
+        doSave();
+        return true;
+      }
+      this.promptCardChoice(owner, [
+        { name: 'Sacrifice Iron Giant', desc: `Iron Giant gives himself — ${card.name} survives at ${restoreHp} HP, and up to 3 enemies take 4 damage.`, id: 'ig_save' },
+        { name: `Let ${card.name} Die`, desc: 'Keep Iron Giant in your hand.', id: 'ig_decline' },
+      ], 'Iron Giant — Sacrifice?',
+        `${card.name} is about to be destroyed. Sacrifice Iron Giant from your hand to save it?`,
+        (pick) => {
+          if (pick && pick.id === 'ig_save') doSave();
+          else doDecline();
+        });
+      return true;
+    } catch (e) { console.error('[IRON GIANT] intercept error:', e); return false; }
+  },
+
+  // "When Sacrificed: choose up to 3 enemy cards; each takes 4 damage."
+  // 3 or fewer enemies on the field → all of them are hit, no prompt.
+  // 4+ → sequential picks (one prompt per target, 3 total). Only one
+  // Iron Giant exists in the classic shared deck, so a nested guard
+  // prompt from the OTHER player during blast deaths can't occur there.
+  _ironGiantBlast(owner, ig) {
+    const alive = () => this.getEnemiesOf(owner).filter(e => e.currentHealth > 0 && !e.isEnvironment);
+    const enemies = alive();
+    if (!enemies.length) {
+      this.log(`  [IRON GIANT] No enemies on the field — the blast fades into the night sky.`);
+      return;
+    }
+    const hitIds = [];
+    const applyHit = (t) => {
+      hitIds.push(t.id);
+      this.log(`  [IRON GIANT] The blast hits ${t.name} for 4!`);
+      this.dealDamage(t, 4, ig);
+    };
+    if (enemies.length <= 3) {
+      enemies.forEach(applyHit);
+      this.cleanupDead();
+      return;
+    }
+    const pickNext = () => {
+      const remaining = alive().filter(e => !hitIds.includes(e.id));
+      if (hitIds.length >= 3 || !remaining.length) { this.cleanupDead(); return; }
+      this.promptCardChoice(owner, remaining,
+        `Iron Giant — Target ${hitIds.length + 1} of 3`,
+        `Choose an enemy card to take 4 damage.`,
+        (t) => { applyHit(t); pickNext(); },
+        (cards) => cards.slice().sort((a, b) => (b.attack || 0) - (a.attack || 0))[0]);
+    };
+    pickNext();
+  },
+
   killCard(card, source) {
     if (!card) return;
     if (card.isEnvironment) return;
@@ -5742,6 +5864,12 @@ const Game = {
         this._creditChain(source, 'statsEnemyDamage', card.currentHealth);
         this._creditChain(source, 'statsKills', 1);
       }
+      // Stash pre-destroy HP for Iron Giant's death-guard: "the ally
+      // survives with whatever HP it had remaining". Damage deaths arrive
+      // here at ≤0 HP (min-1 clamp applies); direct destroys would lose
+      // the real remaining HP to the zeroing below without this snapshot.
+      // Consumed (and deleted) by _ironGiantIntercept.
+      card._hpBeforeKill = card.currentHealth;
       card.currentHealth = 0;
       this.handleDeath(card, l, source || null);
     }
@@ -7219,6 +7347,7 @@ const Game = {
       passive: def.passive || null,
       skipAutoUntrickable: !!def.skipAutoUntrickable,
       isDiscardEffect: def.isDiscardEffect || false, onDiscard: def.onDiscard || null,
+      _neverPlayable: !!def._neverPlayable, // Iron Giant — hand-guard only, never placeable
       trickPhasePlayable: def.trickPhasePlayable || false,
       // Scarlet Witch: stats are unknown until she's placed. Her ATK/HP
       // copy the enemy directly opposite at play-time. While in hand
