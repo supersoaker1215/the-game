@@ -83,7 +83,7 @@ const CARD_DEFS = [
     desc: "" },
   { name: "Gizmo", cost: 2, attack: 1, health: 3, type: "villain",
     abilities: [],
-    desc: "When Damaged (first time only): Spawn a Gremlin in any open lane and add Stripe to your hand. Gizmo stays on the field." },
+    desc: "When Damaged (first time only): Spawn a Gremlin in any open lane and add Stripe to your hand — even if the hit destroys Gizmo." },
   { name: "Gremlin", cost: 2, attack: 2, health: 3, type: "villain",
     _spawnOnly: true,
     abilities: [],

@@ -937,12 +937,13 @@ const CARD_ABILITIES = {
   },
   "Gizmo": {
     // When Damaged (once): spawn a Gremlin into any open lane + add Stripe
-    // to hand. Gizmo survives the trigger (he's the source of the horde,
-    // not a sacrifice) — the once-guard lives on the instance so a revived
-    // Gizmo comes back re-armed, matching "played anew" revive semantics.
+    // to hand. Fires on the FIRST hit whether or not it's lethal — a killing
+    // blow still triggers the horde (onDamaged runs before handleDeath in both
+    // the combat and dealDamage paths), so Gizmo dying to the hit still leaves
+    // a Gremlin + Stripe behind. The once-guard lives on the instance so a
+    // revived Gizmo comes back re-armed, matching "played anew" revive semantics.
     onDamaged(G, self) {
       if (self._gizmoTriggered) return;
-      if (self.currentHealth <= 0) return; // killed outright — no spawn
       self._gizmoTriggered = true;
       G.log(`[GIZMO] Bright light! Something's multiplying — a Gremlin appears, and Stripe is coming!`);
       const gremDef = (typeof CARD_DEFS !== 'undefined') ? CARD_DEFS.find(d => d.name === 'Gremlin') : null;
