@@ -103,6 +103,8 @@ const TRICK_DEFS = [
   { name: "Bifrost", cost: 1,
     abilities: ["Draw 1"],
     desc: "Move an ally to another empty lane.",
+    // Needs a live target — greys out in the tray + refused by playTrick otherwise.
+    canPlay(G, owner) { return G.getAlliesOf(owner).length > 0 && G.getOpenLanes(owner).length > 0; },
     play(G, owner) {
       G.drawCards(owner, 1);
       const a = G.getAlliesOf(owner);
@@ -129,6 +131,8 @@ const TRICK_DEFS = [
   },
   { name: "Kryptonite", cost: 1,
     desc: "Remove 3 ATK from an enemy. If the enemy is Superman, remove all his ATK.",
+    // Needs a live target — greys out in the tray + refused by playTrick otherwise.
+    canPlay(G, owner) { return G.getEnemiesOf(owner).length > 0; },
     play(G, owner) {
       const enemies = G.getEnemiesOf(owner);
       if (enemies.length) {
@@ -230,6 +234,8 @@ const TRICK_DEFS = [
   },
   { name: "Smoke Pellet", cost: 1,
     desc: "Give an ally Evade 1 and (+1/+1).",
+    // Needs a live target — greys out in the tray + refused by playTrick otherwise.
+    canPlay(G, owner) { return G.getAlliesOf(owner).length > 0; },
     play(G, owner) {
       const a = G.getAlliesOf(owner);
       if (Game.isHuman(owner) && a.length) {
@@ -247,6 +253,8 @@ const TRICK_DEFS = [
   // Cost 2
   { name: "Adamantium", cost: 2,
     desc: "Add (+2/+2) to an ally.",
+    // Needs a live target — greys out in the tray + refused by playTrick otherwise.
+    canPlay(G, owner) { return G.getAlliesOf(owner).length > 0; },
     play(G, owner) {
       const a = G.getAlliesOf(owner);
       if (Game.isHuman(owner) && a.length) {
@@ -292,6 +300,8 @@ const TRICK_DEFS = [
   },
   { name: "Power Stone", cost: 1,
     desc: "Add (+2/+0) to an ally.",
+    // Needs a live target — greys out in the tray + refused by playTrick otherwise.
+    canPlay(G, owner) { return G.getAlliesOf(owner).length > 0; },
     play(G, owner) {
       const a = G.getAlliesOf(owner);
       if (Game.isHuman(owner) && a.length) {
@@ -306,6 +316,8 @@ const TRICK_DEFS = [
   },
   { name: "The Darkhold", cost: 2,
     desc: "Destroy all enemies with ≤ 2 ATK.",
+    // Needs a live target — greys out in the tray + refused by playTrick otherwise.
+    canPlay(G, owner) { return G.getEnemiesOf(owner).some(e => (e.attack || 0) <= 2); },
     play(G, owner) {
       G.getEnemiesOf(owner).filter(e => e.attack <= 2).forEach(t => {
         G.log(`Darkhold destroys ${t.name}!`); G.killCard(t);
@@ -322,6 +334,8 @@ const TRICK_DEFS = [
   },
   { name: "Vibranium", cost: 2,
     desc: "Add (+1/+1) to all allies.",
+    // Needs a live target — greys out in the tray + refused by playTrick otherwise.
+    canPlay(G, owner) { return G.getAlliesOf(owner).length > 0; },
     play(G, owner) {
       G.getAlliesOf(owner).forEach(a => { G.buffCard(a, 1, 1); });
       G.log("Vibranium +1/+1 all allies!");
@@ -345,6 +359,8 @@ const TRICK_DEFS = [
   },
   { name: "Nth Metal", cost: 2,
     desc: "Give an ally Invincible 1.",
+    // Needs a live target — greys out in the tray + refused by playTrick otherwise.
+    canPlay(G, owner) { return G.getAlliesOf(owner).length > 0; },
     play(G, owner) {
       const a = G.getAlliesOf(owner);
       if (Game.isHuman(owner) && a.length) {
@@ -426,6 +442,8 @@ const TRICK_DEFS = [
   // Cost 4
   { name: "Phantom Zone", cost: 3,
     desc: "Return an enemy to their hand. (May exceed max hand size for 1 turn.)",
+    // Needs a live target — greys out in the tray + refused by playTrick otherwise.
+    canPlay(G, owner) { return G.getEnemiesOf(owner).length > 0; },
     play(G, owner) {
       const enemies = G.getEnemiesOf(owner);
       if (enemies.length) {
@@ -453,6 +471,8 @@ const TRICK_DEFS = [
   },
   { name: "Soul Stone", cost: 3,
     desc: "Destroy one of your cards and an enemy within 4 base cost of it.",
+    // Needs a live target — greys out in the tray + refused by playTrick otherwise.
+    canPlay(G, owner) { const allies = G.getAlliesOf(owner), enemies = G.getEnemiesOf(owner); return allies.some(a => enemies.some(e => Math.abs((a.baseCost || a.cost || 0) - (e.baseCost || e.cost || 0)) <= 4)); },
     play(G, owner) {
       const allies = G.getAlliesOf(owner);
       if (allies.length) {
@@ -548,6 +568,8 @@ const TRICK_DEFS = [
   },
   { name: "Reality Stone", cost: 4,
     desc: "Permanently swap an ally's ATK/HP with an enemy's ATK/HP.",
+    // Needs a live target — greys out in the tray + refused by playTrick otherwise.
+    canPlay(G, owner) { return G.getAlliesOf(owner).length > 0 && G.getEnemiesOf(owner).length > 0; },
     play(G, owner) {
       const allies = G.getAlliesOf(owner);
       if (allies.length) {
