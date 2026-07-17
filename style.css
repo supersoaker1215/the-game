@@ -9706,7 +9706,11 @@ body.turn-combat .board .lane.lane-active {
      keeps text/stat orbs legible. !important so the hover crisp-render
      path (filter: blur(0)) and any keyframe animation can never strip
      the disabled look off a card mid-hover/mid-animation. */
-  filter: grayscale(0.95) brightness(0.6) !important;
+  /* Softened from grayscale(0.95) brightness(0.6) — still unmistakably
+     monochrome-dead on every palette, but less crushed ("the grey is a
+     little too harsh"). Hover restores FULL color below so you can read
+     the art while it's magnified; the grey snaps back on mouse-leave. */
+  filter: grayscale(0.85) brightness(0.74) !important;
 }
 
 /* Keyword tooltip — fixed, lightweight. Shown via JS on hover. */
@@ -32137,19 +32141,21 @@ body.round-tick .board::after {
                          0 0 30px rgba(var(--theme-rgb, 79, 195, 247), 0.40); }
 }
 
-/* ---- Rarity frame finishes (hand / draft / codex only —
-        board cards keep their ally/enemy side colors) ------- */
-.player-hand-section .card.cost-7, .player-hand-section .card.cost-8,
-.draft-card.cost-7, .draft-card.cost-8,
-.enc-card.cost-7, .enc-card.cost-8 {
+/* ---- Rarity frame finishes — EVERYWHERE a card face renders except the
+        board (ally/enemy side colors own that surface): hand, draft,
+        codex, Paul Atreides / Dr. Strange / Mobius pick trays, block-trick
+        modal, inspect. User: "rarity finishes in all these different
+        areas? draft" — the :not() form covers present and future pick
+        surfaces automatically instead of enumerating containers. -------- */
+.card.cost-7:not(.ally-card):not(.enemy-card),
+.card.cost-8:not(.ally-card):not(.enemy-card) {
   border-color: rgba(205, 215, 230, 0.92);
   box-shadow:
     0 0 10px rgba(205, 215, 230, 0.35),
     0 0 22px rgba(205, 215, 230, 0.14);
 }
-.player-hand-section .card.cost-9, .player-hand-section .card.cost-10,
-.draft-card.cost-9, .draft-card.cost-10,
-.enc-card.cost-9, .enc-card.cost-10 {
+.card.cost-9:not(.ally-card):not(.enemy-card),
+.card.cost-10:not(.ally-card):not(.enemy-card) {
   border-color: rgba(241, 196, 15, 0.95);
   box-shadow:
     0 0 12px rgba(241, 196, 15, 0.45),
@@ -32179,6 +32185,17 @@ body.round-tick .board::after {
   .hand-card-wrapper:hover .card.hand-card .card-portrait,
   .card.ally-card:hover .card-portrait,
   .card.enemy-card:hover .card-portrait {
-    transform: translate(calc(var(--tilt-x, 0) * -4px), calc(var(--tilt-y, 0) * -4px)) scale(1.09);
+    /* scale 1.12 / translate 3px — the previous 1.09/4px combo left the
+       art's counter-moved edge visible at full tilt ("you can see it
+       clipping"). Bigger overscan + smaller travel keeps the frame full
+       at every tilt angle; overflow:hidden stops the art ever leaking
+       past the portrait onto the badge row. */
+    transform: translate(calc(var(--tilt-x, 0) * -3px), calc(var(--tilt-y, 0) * -3px)) scale(1.12);
+    overflow: hidden;
+  }
+  /* Magnified hover restores FULL color on an unaffordable card — you're
+     reading it, not playing it; the softened grey snaps back on leave. */
+  .hand-card-wrapper:hover .card.hand-card.unafford {
+    filter: grayscale(0) brightness(1) !important;
   }
 }
