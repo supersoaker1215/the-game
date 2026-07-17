@@ -32015,3 +32015,197 @@ body.round-tick .board::after {
   20%  { filter: brightness(1.7); }
   100% { filter: brightness(1); }
 }
+
+/* ============================================================
+   SNAP/PvZ IDENTITY BATCH — hero avatars, emotes, environment
+   reveal, done-nudge, rarity finishes, hover parallax.
+   ============================================================ */
+
+/* ---- Hero avatar chips ---------------------------------- */
+.bar-cell.bar-hp {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  position: relative;
+}
+.bar-cell.bar-hp .health-container { flex: 1; min-width: 0; }
+.hero-avatar {
+  width: 38px; height: 38px;
+  flex: 0 0 38px;
+  border-radius: 50%;
+  background-color: #000;
+  background-size: cover;
+  background-position: center 18%;
+  display: flex; align-items: center; justify-content: center;
+  font-family: 'Rajdhani', sans-serif; font-weight: 700; font-size: 16px;
+  color: #cfe8f7;
+  position: relative;
+}
+.hero-avatar.avatar-player {
+  border: 2px solid rgba(var(--player-r, 79), var(--player-g, 195), var(--player-b, 247), 0.95);
+  box-shadow:
+    0 0 10px rgba(var(--player-r, 79), var(--player-g, 195), var(--player-b, 247), 0.55),
+    0 0 20px rgba(var(--player-r, 79), var(--player-g, 195), var(--player-b, 247), 0.22);
+}
+.hero-avatar.avatar-ai {
+  border: 2px solid rgba(var(--enemy-r, 231), var(--enemy-g, 76), var(--enemy-b, 60), 0.95);
+  box-shadow:
+    0 0 10px rgba(var(--enemy-r, 231), var(--enemy-g, 76), var(--enemy-b, 60), 0.55),
+    0 0 20px rgba(var(--enemy-r, 231), var(--enemy-g, 76), var(--enemy-b, 60), 0.22);
+}
+@container (max-width: 520px) {
+  .hero-avatar { width: 26px; height: 26px; flex-basis: 26px; font-size: 12px; }
+  .bar-cell.bar-hp { gap: 4px; }
+}
+
+/* ---- Emotes --------------------------------------------- */
+.emote-btn {
+  width: 22px; height: 22px;
+  flex: 0 0 22px;
+  border: none; background: none; padding: 0;
+  color: rgba(207, 232, 247, 0.55);
+  font-size: 15px; line-height: 1;
+  cursor: pointer;
+  transition: transform 140ms var(--ease-out-soft), color 140ms ease, text-shadow 140ms ease;
+}
+.emote-btn:hover {
+  color: #fff;
+  transform: scale(1.25);
+  text-shadow: 0 0 10px rgba(var(--theme-rgb, 79, 195, 247), 0.9);
+}
+.emote-picker {
+  position: absolute;
+  left: 0; bottom: calc(100% + 8px);
+  display: flex; gap: 6px;
+  padding: 6px 8px;
+  background: #000;
+  border: 1px solid rgba(var(--theme-rgb, 79, 195, 247), 0.65);
+  border-radius: 8px;
+  box-shadow: 0 0 14px rgba(var(--theme-rgb, 79, 195, 247), 0.35);
+  z-index: 900;
+}
+.emote-opt {
+  border: none; background: none; padding: 2px 4px;
+  font-family: 'Rajdhani', sans-serif; font-weight: 700; font-size: 19px;
+  color: #e8f4fb;
+  cursor: pointer;
+  transition: transform 130ms var(--ease-out-soft), text-shadow 130ms ease;
+}
+.emote-opt:hover {
+  transform: scale(1.35);
+  text-shadow: 0 0 12px rgba(var(--theme-rgb, 79, 195, 247), 0.95);
+}
+.emote-bubble {
+  position: absolute;
+  left: 50%; bottom: calc(100% + 6px);
+  transform: translateX(-50%);
+  padding: 4px 9px;
+  background: #000;
+  border: 1px solid rgba(var(--theme-rgb, 79, 195, 247), 0.85);
+  border-radius: 10px;
+  font-family: 'Rajdhani', sans-serif; font-weight: 700; font-size: 18px;
+  color: #fff;
+  white-space: nowrap;
+  box-shadow: 0 0 12px rgba(var(--theme-rgb, 79, 195, 247), 0.5);
+  animation: emotePop 2.4s var(--ease-out-soft) forwards;
+  z-index: 950;
+  pointer-events: none;
+}
+@keyframes emotePop {
+  0%   { opacity: 0; transform: translateX(-50%) scale(0.4); }
+  8%   { opacity: 1; transform: translateX(-50%) scale(1.12); }
+  14%  { transform: translateX(-50%) scale(1); }
+  82%  { opacity: 1; }
+  100% { opacity: 0; transform: translateX(-50%) scale(0.92); }
+}
+
+/* ---- Environment reveal (Snap location moment) ----------- */
+.env-reveal {
+  position: absolute; inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+  z-index: 12;
+  border-radius: inherit;
+}
+.env-reveal-sweep {
+  position: absolute; inset: 0;
+  background: linear-gradient(180deg,
+    transparent 30%, rgba(46, 204, 113, 0.28) 50%, transparent 70%);
+  transform: translateY(-100%);
+  animation: envSweep 900ms ease-out forwards;
+}
+@keyframes envSweep { to { transform: translateY(100%); } }
+.env-reveal-name {
+  position: absolute; left: 50%; top: 46%;
+  transform: translate(-50%, -50%) scale(0.8);
+  font-family: 'Rajdhani', sans-serif; font-weight: 700;
+  font-size: 15px; letter-spacing: 3px; text-transform: uppercase;
+  color: #d9ffe5;
+  text-shadow: 0 0 12px rgba(46, 204, 113, 0.95), 0 0 26px rgba(46, 204, 113, 0.5);
+  white-space: nowrap;
+  opacity: 0;
+  animation: envName 1.45s ease-out forwards;
+}
+@keyframes envName {
+  0%   { opacity: 0; transform: translate(-50%, -50%) scale(0.8); }
+  16%  { opacity: 1; transform: translate(-50%, -50%) scale(1.05); }
+  24%  { transform: translate(-50%, -50%) scale(1); }
+  78%  { opacity: 1; }
+  100% { opacity: 0; transform: translate(-50%, -50%) scale(0.96); }
+}
+
+/* ---- Done-button "nothing left to play" nudge ------------ */
+.btn.btn-nudge {
+  animation: doneNudge 1.7s ease-in-out infinite;
+}
+@keyframes doneNudge {
+  0%, 100% { box-shadow: 0 0 5px rgba(var(--theme-rgb, 79, 195, 247), 0.30); }
+  50%      { box-shadow: 0 0 16px rgba(var(--theme-rgb, 79, 195, 247), 0.95),
+                         0 0 30px rgba(var(--theme-rgb, 79, 195, 247), 0.40); }
+}
+
+/* ---- Rarity frame finishes (hand / draft / codex only —
+        board cards keep their ally/enemy side colors) ------- */
+.player-hand-section .card.cost-7, .player-hand-section .card.cost-8,
+.draft-card.cost-7, .draft-card.cost-8,
+.enc-card.cost-7, .enc-card.cost-8 {
+  border-color: rgba(205, 215, 230, 0.92);
+  box-shadow:
+    0 0 10px rgba(205, 215, 230, 0.35),
+    0 0 22px rgba(205, 215, 230, 0.14);
+}
+.player-hand-section .card.cost-9, .player-hand-section .card.cost-10,
+.draft-card.cost-9, .draft-card.cost-10,
+.enc-card.cost-9, .enc-card.cost-10 {
+  border-color: rgba(241, 196, 15, 0.95);
+  box-shadow:
+    0 0 12px rgba(241, 196, 15, 0.45),
+    0 0 26px rgba(241, 196, 15, 0.18),
+    inset 0 0 10px rgba(241, 196, 15, 0.10);
+}
+/* Gold-tier idle sheen — a slow light pass over the art, desktop-only
+   (hover-capable devices; phones skip the infinite loop entirely). */
+@media (hover: hover) and (pointer: fine) {
+  .player-hand-section .card.cost-9 .card-portrait .pt-shine,
+  .player-hand-section .card.cost-10 .card-portrait .pt-shine {
+    opacity: 1;
+    animation: goldSheen 7s linear infinite;
+  }
+}
+@keyframes goldSheen {
+  0%, 72% { transform: translateX(-130%) skewX(-18deg); }
+  92%, 100% { transform: translateX(130%) skewX(-18deg); }
+}
+
+/* ---- Hover parallax (Snap depth cheat) -------------------
+   The tilt rAF already writes --tilt-x/--tilt-y; sliding the
+   portrait a few px AGAINST the tilt makes the art float
+   behind the frame. scale hides the revealed edges. Hover-
+   driven, so it costs nothing on touch devices. */
+@media (hover: hover) and (pointer: fine) {
+  .hand-card-wrapper:hover .card.hand-card .card-portrait,
+  .card.ally-card:hover .card-portrait,
+  .card.enemy-card:hover .card-portrait {
+    transform: translate(calc(var(--tilt-x, 0) * -4px), calc(var(--tilt-y, 0) * -4px)) scale(1.09);
+  }
+}

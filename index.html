@@ -13,7 +13,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap">
-  <link rel="stylesheet" href="style.css?v=740">
+  <link rel="stylesheet" href="style.css?v=741">
   <script>
     // Lightweight error reporter (pre-Sentry) — capture runtime JS
     // errors + unhandled promise rejections to a localStorage ring
@@ -379,6 +379,10 @@
            sticks for the duration. Adds character to the match
            and gives AI-played tricks a "voice" attribution. -->
       <div class="bar-cell bar-hp">
+        <!-- Hero avatar chip (Snap/PvZ-style duel identity) — filled by
+             UI._applyHeroAvatars with the side's hero art. Emote bubbles
+             anchor to it in multiplayer. -->
+        <div class="hero-avatar avatar-ai" id="ai-avatar" aria-hidden="true"></div>
         <div class="health-container">
           <div class="health-bar"><div class="health-fill ai-hp" id="ai-hp-fill" style="width:100%"></div></div>
           <div class="health-text ai-color"><span id="ai-health">30</span></div>
@@ -430,6 +434,12 @@
            on the ai-bar. Filled from UI.settings.playerName /
            playerAvatar; defaults to glyph ▲ + name "YOU". -->
       <div class="bar-cell bar-hp">
+        <!-- Player hero avatar + multiplayer emote trigger. The button only
+             renders visible in MP (UI._applyHeroAvatars toggles it). -->
+        <div class="hero-avatar avatar-player" id="player-avatar" aria-hidden="true"></div>
+        <button type="button" id="emote-btn" class="emote-btn" style="display:none"
+                onclick="UI.toggleEmotePicker()" title="Send an emote" aria-label="Send an emote">☺</button>
+        <div id="emote-picker" class="emote-picker" style="display:none"></div>
         <div class="health-container">
           <div class="health-bar"><div class="health-fill player-hp" id="player-hp-fill" style="width:100%"></div></div>
           <div class="health-text player-color"><span id="player-health">30</span></div>
@@ -770,16 +780,16 @@
   <script src="engine/combat.js?v=2"></script>
   <!-- (game.js / ui.js / roguelite.js cache bumps follow) -->
   <script src="decks.js?v=5"></script>
-  <script src="game.js?v=379"></script>
+  <script src="game.js?v=380"></script>
   <script src="ai.js?v=51"></script>
   <script src="roguelite.js?v=121"></script>
   <!-- PeerJS for WebRTC peer-to-peer multiplayer. Uses the public
        0.peerjs.com signaling cloud — no server needed on our side.
        Served locally so the game works on restricted networks that block CDNs. -->
   <script src="peerjs.min.js"></script>
-  <script src="multiplayer.js?v=21"></script>
+  <script src="multiplayer.js?v=22"></script>
   <script src="card-art-manifest.js?v=53"></script>
-  <script src="ui.js?v=931"></script>
+  <script src="ui.js?v=932"></script>
   <script src="tutorial.js?v=7"></script>
   <script src="logger.js?v=5"></script>
   <!-- Always-on crash capture. Hooks window.onerror +

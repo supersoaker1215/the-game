@@ -5829,6 +5829,9 @@ const UI = {
     // client (solo, MP host, MP guest) with zero engine hooks.
     this._titanWatch();
     this._faceDamageWatch(s);
+    this._envWatch();
+    this._applyHeroAvatars(s);
+    this._applyDoneNudge(s);
   },
 
   // ===================== RISK / REWARD SIGNALING =====================
@@ -14855,6 +14858,155 @@ const UI = {
       ring.remove();
       cont.classList.remove('block-absorb-pulse');
     }, 640);
+  },
+
+  // ===================== HERO AVATARS (Snap/PvZ duel identity) ==========
+  // Each HP bar wears a hero portrait chip. Yours = your starred menu hero
+  // (fallback: your highest-cost drafted card); the opponent's = their
+  // highest-cost card. Chosen once on the host/solo client and stored in
+  // state._avatars so the broadcast + perspective flip carry it to the
+  // guest. Painted every render (cheap — background swap only on change).
+  _applyHeroAvatars(s) {
+    const pEl = document.getElementById('player-avatar');
+    const aEl = document.getElementById('ai-avatar');
+    if (!pEl || !aEl || !s || !s.player || !s.ai) return;
+    const inDraft = s.phase && String(s.phase).startsWith('draft');
+    const isGuest = Game.isMultiplayer && Game.isMultiplayer() && Game.mp && Game.mp.role === 'guest';
+    if (!s._avatars && !inDraft && !isGuest) {
+      const topCard = (side) => {
+        const pool = [ ...(s[side].hand || []), ...(s[side].drawPile || []) ]
+          .filter(c => c && c.name && !c.isEnvironment && !c.isDiscardEffect);
+        if (!pool.length) return null;
+        return pool.slice().sort((a, b) => (b.baseCost || b.cost || 0) - (a.baseCost || a.cost || 0))[0].name;
+      };
+      const mine = (this.settings && this.settings.defaultMenuHero) || topCard('player');
+      const theirs = topCard('ai');
+      if (mine || theirs) s._avatars = { player: mine, ai: theirs };
+    }
+    const paint = (el, name) => {
+      const key = name || '';
+      if (el._avatarKey === key) return;
+      el._avatarKey = key;
+      if (!name) { el.style.backgroundImage = ''; el.textContent = ''; return; }
+      const art = this.getCardArtPath(name);
+      el.title = name;
+      if (art) {
+        el.style.backgroundImage = `url('${String(art).replace(/'/g, '%27')}')`;
+        el.textContent = '';
+      } else {
+        el.style.backgroundImage = '';
+        el.textContent = name.charAt(0);
+      }
+    };
+    paint(pEl, s._avatars && s._avatars.player);
+    paint(aEl, s._avatars && s._avatars.ai);
+    // Emote trigger — multiplayer matches only.
+    const eb = document.getElementById('emote-btn');
+    if (eb) {
+      const show = Game.isMultiplayer && Game.isMultiplayer() && !s.gameOver && !inDraft;
+      eb.style.display = show ? '' : 'none';
+      if (show) this.installEmotes();
+    }
+  },
+
+  // ===================== MP EMOTES =====================
+  // Snap-style quick reactions between the two players. Symmetric channel:
+  // either side sends {t:'emote', id}; the receiver pops the bubble on the
+  // OPPONENT's avatar chip, the sender sees it on their own. 2.5s cooldown.
+  EMOTES: ['😄', '😡', '🤯', 'GG'],
+  installEmotes() {
+    if (this._emotesBound || typeof Multiplayer === 'undefined') return;
+    this._emotesBound = true;
+    Multiplayer.on('emote', (m) => {
+      this.showEmoteBubble('ai', m && m.id);
+      if (this._haptic) this._haptic('cardPlay');
+    });
+  },
+  toggleEmotePicker() {
+    const pick = document.getElementById('emote-picker');
+    if (!pick) return;
+    if (pick.style.display !== 'none') { pick.style.display = 'none'; return; }
+    pick.innerHTML = this.EMOTES.map((e, i) =>
+      `<button type="button" class="emote-opt" onclick="UI.sendEmote(${i})">${e}</button>`).join('');
+    pick.style.display = 'flex';
+  },
+  sendEmote(i) {
+    const pick = document.getElementById('emote-picker');
+    if (pick) pick.style.display = 'none';
+    if (this._emoteCooldownUntil && Date.now() < this._emoteCooldownUntil) return;
+    this._emoteCooldownUntil = Date.now() + 2500;
+    try { if (typeof Multiplayer !== 'undefined') Multiplayer.send({ t: 'emote', id: i }); } catch (e) {}
+    this.showEmoteBubble('player', i);
+  },
+  showEmoteBubble(side, i) {
+    const host = document.getElementById(side === 'player' ? 'player-avatar' : 'ai-avatar');
+    if (!host) return;
+    const old = host.querySelector('.emote-bubble');
+    if (old) old.remove();
+    const b = document.createElement('div');
+    b.className = 'emote-bubble';
+    b.textContent = this.EMOTES[i] || this.EMOTES[0];
+    host.appendChild(b);
+    setTimeout(() => b.remove(), 2400);
+  },
+
+  // ===================== ENVIRONMENT REVEAL =====================
+  // Snap-location moment: when an environment lands in a lane, sweep the
+  // lane and stamp its name for a beat. Render-diff watcher (same pattern
+  // as titans) so it fires on every client.
+  _envWatch() {
+    const s = Game.state;
+    if (!s || !s.lanes || !this.board) { this._envSeen = null; return; }
+    const cur = new Set();
+    s.lanes.forEach((l, i) => ['player', 'ai'].forEach(side => {
+      const e = l._env && l._env[side];
+      if (e && e.name) cur.add(i + '|' + side + '|' + e.name);
+    }));
+    if (!this._envSeen) { this._envSeen = cur; return; }
+    cur.forEach(key => {
+      if (this._envSeen.has(key)) return;
+      const parts = key.split('|');
+      this.fxEnvReveal(parseInt(parts[0], 10), parts[2]);
+    });
+    this._envSeen = cur;
+  },
+  fxEnvReveal(laneIdx, name) {
+    if (this._reducedMotion && this._reducedMotion()) return;
+    const laneEl = this.board.querySelectorAll(':scope > .lane')[laneIdx];
+    if (!laneEl) return;
+    const old = laneEl.querySelector('.env-reveal');
+    if (old) old.remove();
+    const fx = document.createElement('div');
+    fx.className = 'env-reveal';
+    fx.innerHTML = `<i class="env-reveal-sweep" aria-hidden="true"></i><span class="env-reveal-name">${String(name).replace(/</g, '&lt;')}</span>`;
+    laneEl.appendChild(fx);
+    setTimeout(() => fx.remove(), 1500);
+  },
+
+  // ===================== DONE-BUTTON NUDGE =====================
+  // PvZ-style: when you literally have nothing left to play this phase,
+  // the Done button breathes. Runs at render tail (after renderButtons
+  // rewrites className, which would wipe the class if set earlier).
+  _applyDoneNudge(s) {
+    const btnA = document.getElementById('btn-action');
+    if (!btnA || btnA.style.display === 'none') return;
+    let nudge = false;
+    if (s && !s.gameOver && s.phase && s.phase.startsWith('player-') && s.player) {
+      const openLane = (s.lanes || []).some(l => l && !l.destroyed && !l.player);
+      const inCardPhase = s.phase === 'player-cards' || s.phase === 'player-cards-tricks';
+      const cardPlayable = inCardPhase && (s.player.hand || []).some(c =>
+        Game.getCardCost('player', c) <= s.player.currency
+        && (openLane || c.isEnvironment || c.isDiscardEffect));
+      const inTrickPhase = s.phase !== 'player-cards';
+      const trickPlayable = (s.player.trickHand || []).some(t => {
+        if (!t || t._timeStonedAtRound === s.round) return false;
+        if (s.player.currency < Game.getTrickCost('player', t)) return false;
+        if (t.canPlay) { try { if (!t.canPlay(Game, 'player')) return false; } catch (e) { } }
+        return t.anytime ? true : inTrickPhase;
+      });
+      nudge = !cardPlayable && !trickPlayable;
+    }
+    btnA.classList.toggle('btn-nudge', nudge);
   },
   fxFaceDamage(side) {
     if (this._reducedMotion && this._reducedMotion()) return;

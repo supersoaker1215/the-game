@@ -793,6 +793,12 @@ const Game = {
       state._stats.player = state._stats.ai;
       state._stats.ai = _tStat;
     }
+    // Hero avatar chips follow their seats through the flip.
+    if (state._avatars) {
+      const _tAv = state._avatars.player;
+      state._avatars.player = state._avatars.ai;
+      state._avatars.ai = _tAv;
+    }
     // Pending-choice owner/targetSide labels — when the host
     // emits a prompt, the OWNER (who needs to pick) is encoded as
     // 'player' or 'ai' from the host's perspective. Flip to the
