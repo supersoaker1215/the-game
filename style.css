@@ -29624,6 +29624,14 @@ body.combat-anticipate::after  { content: none !important; }
   pointer-events: none;
   display: block;
   background:
+    /* Inner vignette — subtle edge darkening that pulls the wildly
+       varied art sources (AI renders, film stills, comic panels) into
+       one shared "lit from center" look. Centered slightly high so
+       faces stay bright while corners recede. */
+    radial-gradient(
+      ellipse at 50% 42%,
+      transparent 52%,
+      rgba(0, 0, 0, 0.30) 100%),
     /* Horizontal scanlines — 1px dark every 3px stride at 4% alpha.
        Reads as "this image is a CRT signal" (Mass Effect codex). */
     repeating-linear-gradient(
@@ -31869,4 +31877,32 @@ body.round-tick .board::after {
   0%   { opacity: 0; }
   22%  { opacity: 1; }
   100% { opacity: 0; }
+}
+
+/* ============================================================
+   VISUAL POLISH BATCH B — status tints on the ART itself.
+   The outer status glow (6533-6536) marks the card frame; these
+   tint the portrait so the whole board's state reads at a
+   glance, PvZ/Snap-style. Static filters + inset washes only —
+   no animations, so mobile battery is untouched. The name
+   overlay lives inside the portrait and inherits the filter,
+   which reinforces the state without hurting legibility.
+   ============================================================ */
+.card.status-frozen .card-portrait {
+  filter: saturate(0.45) brightness(1.05);
+  box-shadow:
+    inset 0 0 26px rgba(140, 205, 255, 0.55),
+    inset 0 0 8px rgba(205, 235, 255, 0.35);
+}
+.card.status-stunned .card-portrait {
+  filter: grayscale(0.65) brightness(0.85);
+  box-shadow: inset 0 0 22px rgba(241, 196, 15, 0.30);
+}
+.card.status-feared .card-portrait {
+  filter: saturate(0.75) brightness(0.82) contrast(1.06);
+  box-shadow: inset 0 0 26px rgba(200, 40, 60, 0.55);
+}
+.card.status-mind-ctrl .card-portrait {
+  filter: saturate(0.9);
+  box-shadow: inset 0 0 24px rgba(155, 89, 182, 0.50);
 }
