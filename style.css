@@ -7417,16 +7417,52 @@ body.hit-pause .ai-hand * {
 .card-death-ghost.enemy-card::after {
   --derezz-color: rgba(var(--enemy-r, 231), var(--enemy-g, 76), var(--enemy-b, 60), 1);
 }
+/* De-rez v2 — the death reads as a SIGNAL failing, not a card shrinking:
+   white-hot flash on the kill frame, two horizontal glitch jolts, then the
+   vertical collapse chased by the scanline. One-shot 750ms on rare deaths,
+   so the filter animation's paint cost is irrelevant. */
 @keyframes derezz {
-  0%   { opacity: 1; transform: scaleY(1); }
-  10%  { opacity: 1; transform: scaleY(1); }
-  100% { opacity: 0; transform: scaleY(0); }
+  0%   { opacity: 1; transform: scaleY(1) translateX(0);    filter: brightness(1); }
+  8%   { opacity: 1; transform: scaleY(1) translateX(0);    filter: brightness(2.2) saturate(1.4); }
+  16%  { opacity: 1; transform: scaleY(0.99) translateX(-4px); filter: brightness(1.15); }
+  24%  { opacity: 1; transform: scaleY(0.98) translateX(3px);  filter: brightness(1.6); }
+  32%  { opacity: 1; transform: scaleY(0.96) translateX(-2px); filter: brightness(1.1); }
+  100% { opacity: 0; transform: scaleY(0) translateX(0);    filter: brightness(2.6) saturate(0.4); }
 }
 @keyframes derezzLine {
   0%   { transform: translateY(0);     opacity: 0; }
   8%   { transform: translateY(0);     opacity: 1; }
   90%  { transform: translateY(-100%); opacity: 1; }
   100% { transform: translateY(-100%); opacity: 0; }
+}
+/* Interference stripes — the ::before overlay (free on the ghost; ::after is
+   the scanline) fills with theme-colored signal bands that jitter sideways
+   while the card collapses, selling "the transmission is breaking up". */
+.card-death-ghost::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  --derezz-color: rgba(var(--enemy-r, 231), var(--enemy-g, 76), var(--enemy-b, 60), 0.16);
+  background: repeating-linear-gradient(
+    0deg,
+    transparent 0 5px,
+    var(--derezz-color) 5px 7px,
+    transparent 7px 13px);
+  mix-blend-mode: screen;
+  animation: derezzStatic 0.75s steps(6) forwards;
+  z-index: 2;
+}
+.card-death-ghost.ally-card::before {
+  --derezz-color: rgba(var(--player-r, 79), var(--player-g, 195), var(--player-b, 247), 0.16);
+}
+@keyframes derezzStatic {
+  0%   { opacity: 0;   transform: translateX(0); }
+  10%  { opacity: 1;   transform: translateX(-6px); }
+  30%  { opacity: 0.7; transform: translateX(5px); }
+  50%  { opacity: 1;   transform: translateX(-3px); }
+  70%  { opacity: 0.8; transform: translateX(4px); }
+  100% { opacity: 0;   transform: translateX(0); }
 }
 
 /* Combat reveal — faint circuit grid sweeps across the board once when combat
@@ -31942,4 +31978,38 @@ body.round-tick .board::after {
   38%  { opacity: 0.4; }
   48%  { opacity: 0.75; }
   100% { opacity: 0.35; filter: saturate(0.35) brightness(0.6); }
+}
+
+/* ---- Block-absorb shield flash --------------------------------
+   The HP bar visibly SHIELDS when block meter is spent: an expanding
+   cyan ring + a brief brightness pulse on the bar container. One-shot
+   ~600ms, spawned by UI.fxBlockAbsorb via the render diff watcher. */
+.health-container { position: relative; }
+.block-absorb-ring {
+  position: absolute;
+  inset: -6px -10px;
+  border-radius: 12px;
+  pointer-events: none;
+  border: 2px solid rgba(79, 195, 247, 0.95);
+  box-shadow:
+    0 0 14px rgba(79, 195, 247, 0.85),
+    0 0 30px rgba(79, 195, 247, 0.40),
+    inset 0 0 12px rgba(79, 195, 247, 0.35);
+  opacity: 0;
+  animation: blockAbsorbRing 600ms ease-out forwards;
+  z-index: 5;
+}
+@keyframes blockAbsorbRing {
+  0%   { opacity: 0;   transform: scale(0.86); }
+  18%  { opacity: 1;   transform: scale(1); }
+  70%  { opacity: 0.8; transform: scale(1.06); }
+  100% { opacity: 0;   transform: scale(1.14); }
+}
+.health-container.block-absorb-pulse {
+  animation: blockAbsorbPulse 600ms ease-out;
+}
+@keyframes blockAbsorbPulse {
+  0%   { filter: brightness(1); }
+  20%  { filter: brightness(1.7); }
+  100% { filter: brightness(1); }
 }

@@ -14810,13 +14810,41 @@ const UI = {
   // entrance, so it fires on every client with zero engine hooks.
   _faceDamageWatch(s) {
     if (!s || !s.player || !s.ai) { this._faceHpSeen = null; return; }
-    const cur = { player: s.player.health, ai: s.ai.health };
+    const cur = {
+      player: s.player.health, ai: s.ai.health,
+      playerBlock: s.player.blockMeter | 0, aiBlock: s.ai.blockMeter | 0,
+    };
     const prev = this._faceHpSeen;
     this._faceHpSeen = cur;
     if (!prev || s.gameOver) return;
     ['player', 'ai'].forEach(side => {
       if (cur[side] < prev[side]) this.fxFaceDamage(side);
+      // Block meter spent → shield flash on that side's HP bar. Any drain
+      // counts (absorbing a hit, Trigon's steal) — either way the shield
+      // visibly reacts instead of the number just shrinking.
+      if (cur[side + 'Block'] < prev[side + 'Block']) this.fxBlockAbsorb(side);
     });
+  },
+  // One-shot shield ring + glow pulse over a side's HP bar when its block
+  // meter is spent. Same render-diff pattern as the vignette, so it fires
+  // on every client (solo, MP host, MP guest).
+  fxBlockAbsorb(side) {
+    if (this._reducedMotion && this._reducedMotion()) return;
+    const fill = document.getElementById(side + '-hp-fill');
+    const cont = fill && fill.closest('.health-container');
+    if (!cont) return;
+    const old = cont.querySelector('.block-absorb-ring');
+    if (old) old.remove();
+    const ring = document.createElement('span');
+    ring.className = 'block-absorb-ring';
+    cont.appendChild(ring);
+    cont.classList.remove('block-absorb-pulse');
+    void cont.offsetWidth;
+    cont.classList.add('block-absorb-pulse');
+    setTimeout(() => {
+      ring.remove();
+      cont.classList.remove('block-absorb-pulse');
+    }, 640);
   },
   fxFaceDamage(side) {
     if (this._reducedMotion && this._reducedMotion()) return;
