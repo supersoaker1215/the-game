@@ -8111,14 +8111,23 @@ const Game = {
 
   // Capture the current state and push it onto the undo history.
   // No-op if there's no state yet or if the game is over.
+  // DISABLED IN MULTIPLAYER — undo is a purely local state restore: the
+  // host rolling back never re-broadcast, and a guest rollback is clobbered
+  // by the next host push, so one side rewound while the other didn't
+  // (user report: "the opponent clicked undo and the entire turn reset for
+  // him, but for me it stayed the same and glitched the game out"). Online
+  // 1v1 has no undo, same as every competitive TCG — skipping snapshots
+  // also saves a deep state clone on every play.
   snapshot() {
     if (!this.state || this.state.gameOver) return;
+    if (this.isMultiplayer()) return;
     if (this.history.length >= this.HISTORY_LIMIT) this.history.shift();
     this.history.push(this.cloneStateDeep(this.state));
   },
 
   // Restore the most recent snapshot. Returns true if anything was restored.
   undo() {
+    if (this.isMultiplayer()) return false; // no undo in online play — see snapshot()
     if (!this.history.length) return false;
     if (!this.isPlayerTurn()) return false; // safety: undo is a player-turn action
     // Abuse prevention — cancel any live prompt timer + deadline before the

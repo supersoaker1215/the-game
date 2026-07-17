@@ -15908,7 +15908,13 @@ const UI = {
 
     const abilityPending = s.pendingCardChoice || s.pendingLaneChoice || s.pendingBlockTrick || s.pendingKangChoice || s.player.stolenByBWL;
 
-    if (btnU && Game.isPlayerTurn() && Game.history.length > 0 && !abilityPending) {
+    // No Undo in online 1v1 — undo is a local-only state restore, so one
+    // side rewinding desyncs the two clients (Game.snapshot/undo are also
+    // MP-gated; hiding the button keeps the bar honest). Stale history from
+    // a pre-match solo game can linger, hence the explicit gate here.
+    const undoAllowed = !(Game.isMultiplayer && Game.isMultiplayer());
+
+    if (btnU && undoAllowed && Game.isPlayerTurn() && Game.history.length > 0 && !abilityPending) {
       btnU.textContent = `Undo (${Game.history.length})`;
       btnU.className = 'btn btn-secondary';
       btnU.onclick = () => Game.undo();
