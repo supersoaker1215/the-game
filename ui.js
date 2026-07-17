@@ -16011,7 +16011,16 @@ const UI = {
       // unplayable until next round (the engine gate in playTrick refuses
       // it too; this is the readable half of that rule).
       const frozen = trick._timeStonedAtRound === s.round;
-      if (((isAnytime && playerActive) || canTrick) && afford && !frozen) {
+      // No valid targets — the engine's playTrick already refuses via
+      // trick.canPlay, but the tray highlighted the card anyway (user:
+      // "there's no enemies on board and it's highlighted as if I can
+      // play it"). Mirror the gate here so the highlight is honest.
+      // Reaction-only tricks (Time Stone) always fail canPlay by design.
+      let noTargets = false;
+      if (trick.canPlay) {
+        try { noTargets = !trick.canPlay(Game, 'player'); } catch (e) {}
+      }
+      if (((isAnytime && playerActive) || canTrick) && afford && !frozen && !noTargets) {
         el.classList.add('playable');
         if (s.selectedTrick === trick) el.classList.add('selected');
         el.addEventListener('click', () => this.onTrickClick(trick));
@@ -16022,6 +16031,10 @@ const UI = {
         // trick never eats the click silently.
         const reason = frozen
           ? 'Frozen by Time Stone — blocked until next round'
+          : trick.reactive
+          ? 'Reaction — fires on its own to counter an enemy trick'
+          : noTargets
+          ? 'No valid targets right now'
           : !afford
           ? `Not enough energy — need ${trick.cost || 0}, have ${s.player.currency}`
           : `Tricks can only be played in the tricks phase`;
@@ -16039,7 +16052,14 @@ const UI = {
           el.classList.add('trick-shake-rejected');
           setTimeout(() => el && el.classList.remove('trick-shake-rejected'), 480);
           if (this._haptic) this._haptic('block');
-          if (this.showAITrickToast) this.showAITrickToast(!afford ? 'Not enough energy' : 'Not the trick phase', reason, 'error');
+          if (this.showAITrickToast) {
+            const headline = frozen ? 'Frozen by Time Stone'
+              : trick.reactive ? 'Reaction trick'
+              : noTargets ? 'No valid targets'
+              : !afford ? 'Not enough energy'
+              : 'Not the trick phase';
+            this.showAITrickToast(headline, reason, 'error');
+          }
         });
       }
       this.playerTricks.appendChild(el);
