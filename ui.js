@@ -5287,7 +5287,32 @@ const UI = {
       span.className = 'energy-text';
       el.appendChild(span);
     }
-    if (span.textContent !== String(current)) {
+    // Round-refill count-up — when energy jumps by 3+ (the round-start
+    // refill), tick the number up through the intermediate values instead
+    // of teleporting, so the new turn feels like powering up. Small gains
+    // (+1 steals, discounts) still snap instantly. The pip row was removed
+    // by design ("the integer alone is the cleaner read") — this is the
+    // cascade's numeric analog. Any in-flight tween is cancelled first so
+    // overlapping renders can't fight over the node.
+    this._energyTweens = this._energyTweens || {};
+    if (this._energyTweens[containerId]) {
+      clearInterval(this._energyTweens[containerId]);
+      this._energyTweens[containerId] = null;
+    }
+    const bigRefill = gained && (current - prev) >= 3
+      && !(this._reducedMotion && this._reducedMotion());
+    if (bigRefill) {
+      let shown = prev;
+      span.textContent = String(shown);
+      this._energyTweens[containerId] = setInterval(() => {
+        shown++;
+        span.textContent = String(Math.min(shown, current));
+        if (shown >= current) {
+          clearInterval(this._energyTweens[containerId]);
+          this._energyTweens[containerId] = null;
+        }
+      }, 55);
+    } else if (span.textContent !== String(current)) {
       span.textContent = String(current);
     }
     if (gained) {
