@@ -3881,59 +3881,63 @@ const CARD_ABILITIES = {
         G.killCard(G.state.lanes[i][opp], self);
         G.log(`Darkseid destroys lane ${i + 1}!`);
       };
-      // Roguelite Text+ ("Apokoliptan Legion") — _darkseidAnyContested
-      // drops the odd/even gate and accepts any contested lane.
-      const anyContested = !!self._darkseidAnyContested;
-      const pickLanes = (isOdd) => {
+      // Purge redesign (2026-07-16, user direction): "destroy up to 3
+      // contested lanes, not odd/even based." The parity gate is gone —
+      // ANY contested lane except Darkseid's own is eligible, capped at
+      // 3 destructions. Roguelite Text+ ("Apokoliptan Legion") keeps an
+      // upgrade meaning: it lifts the 3-lane cap entirely.
+      const purgeCap = self._darkseidAnyContested ? Infinity : 3;
+      let purgedCount = 0;
+      const pickLanes = () => {
         const eligible = [];
         for (let i = 0; i < Game.LANE_COUNT; i++) {
           if (i === lane) continue;
-          const laneIsOdd = (i + 1) % 2 === 1;
-          const passesParity = anyContested ? true : (laneIsOdd === isOdd);
-          if (passesParity && G.state.lanes[i][self.owner] && G.state.lanes[i][opp]) {
+          if (G.state.lanes[i][self.owner] && G.state.lanes[i][opp]) {
             eligible.push(i);
           }
         }
-        if (!eligible.length) { G.log(`Darkseid finds no ${isOdd ? 'odd' : 'even'} contested lanes to purge.`); return; }
+        if (!eligible.length) { G.log(`Darkseid finds no contested lanes to purge.`); return; }
         if (!Game.isHuman(self.owner)) {
           // Only destroy lanes where the trade is favorable — the AI loses
           // its own card too, so collapsing a Hulk-vs-1/1 trades Hulk for
           // nothing. Trade is "good" when enemy threat ≥ our card's threat
           // plus a small margin. Parademon (just summoned, threat ~2) is
           // expendable so its lane is almost always worth purging.
-          const purged = [];
+          // Score every eligible lane, then destroy the BEST trades first,
+          // stopping at the purge cap. Destroy when the trade is even or
+          // favorable, the enemy is otherwise unkillable, our body is a
+          // Parademon/low-value token, or the enemy out-costs us by 2+.
+          const scored = [];
           eligible.forEach(i => {
             const myCard = G.state.lanes[i][self.owner];
             const enemy = G.state.lanes[i][opp];
             if (!myCard || !enemy) return;
             const mine = AI.threatScore(myCard);
             const theirs = AI.threatScore(enemy);
-            // Destroy if the trade is even or favorable, the enemy is
-            // otherwise unkillable (invincible/immune), or the victim on
-            // our side is a Parademon / low-value token. The old +1.5
-            // threshold was too conservative — flat-energy trades against
-            // mid-cost enemies still net us tempo since we replaced
-            // Darkseid's own play turn with the lane purge.
             const unkillableEnemy = enemy.invincibleTurns > 0 || enemy.hasDamageImmunity;
             const sacrificeBody = myCard.name === 'Parademon' || mine <= 2;
-            // Also purge when the enemy COSTS more than our card by 2+ —
-            // even a "lateral threat" trade is good when we paid much less
-            // for our body. Fixes the AI sitting on Darkseid while a 9-cost
-            // enemy gummed up a contested lane.
             const costDelta = (enemy.baseCost || enemy.cost || 0) - (myCard.baseCost || myCard.cost || 0);
             if (theirs - mine >= 0.5 || unkillableEnemy || sacrificeBody || costDelta >= 2) {
-              destroyLane(i);
-              purged.push(i + 1);
+              let value = (theirs - mine) + Math.max(0, costDelta) * 0.5;
+              if (unkillableEnemy) value += 3;
+              scored.push({ i, value });
             }
           });
+          scored.sort((a, b) => b.value - a.value);
+          const purged = [];
+          scored.slice(0, purgeCap === Infinity ? scored.length : purgeCap).forEach(({ i }) => {
+            destroyLane(i);
+            purged.push(i + 1);
+          });
           if (purged.length) {
-            G.log(`Darkseid purges ${isOdd ? 'odd' : 'even'} lanes: ${purged.join(', ')}`);
+            G.log(`Darkseid purges lanes: ${purged.join(', ')}`);
           } else {
-            G.log(`Darkseid surveys the ${isOdd ? 'odd' : 'even'} lanes — no favorable trades, holds the purge.`);
+            G.log(`Darkseid surveys the field — no favorable trades, holds the purge.`);
           }
           return;
         }
         const pickNext = () => {
+          if (purgedCount >= purgeCap) return;
           const remaining = eligible.filter(i => !G.state.lanes[i].destroyed);
           if (!remaining.length) return;
           const choices = remaining.map(i => {
@@ -3942,59 +3946,21 @@ const CARD_ABILITIES = {
             return { name: `Lane ${i + 1}`, desc: `${p.name} vs ${a.name}`, _lane: i };
           });
           choices.push({ name: "Done", desc: "Stop destroying lanes" });
+          const left = purgeCap === Infinity ? '' : ` (${purgeCap - purgedCount} left)`;
           G.promptCardChoice(self.owner, choices,
-            "Darkseid — Purge", `Pick a ${isOdd ? 'odd' : 'even'} lane to destroy (or Done)`,
+            "Darkseid — Purge", `Pick a contested lane to destroy${left}, or Done`,
             (choice) => {
               if (choice.name === "Done") return;
               destroyLane(choice._lane);
+              purgedCount++;
               pickNext();
             }, c => c[c.length - 1]);
         };
         pickNext();
       };
       // Purge step is wrapped in a function so it fires AFTER the Parademon
-      // summon resolves.
-      const startPurge = () => {
-        // Text+ ("Apokoliptan Legion") skips the odd/even prompt entirely
-        // and lets the player pick from ALL contested lanes at once.
-        if (anyContested) {
-          pickLanes(true /* unused — anyContested overrides */);
-          return;
-        }
-        const oddChoice = { name: "Odd Lanes (1, 3, 5)", desc: "Pick which contested odd lanes to destroy" };
-        const evenChoice = { name: "Even Lanes (2, 4, 6)", desc: "Pick which contested even lanes to destroy" };
-        G.promptCardChoice(self.owner, [oddChoice, evenChoice],
-          "Darkseid — Purge", "Choose odd or even, then pick lanes to destroy",
-          (choice) => pickLanes(choice === oddChoice),
-          (choices) => {
-            // Score odd vs even by net trade value (enemy threat minus our
-            // threat in each contested lane), not by raw lane count. An
-            // odd side with one great trade beats an even side with two bad
-            // trades.
-            let oddScore = 0, evenScore = 0;
-            for (let i = 0; i < Game.LANE_COUNT; i++) {
-              if (i === lane) continue;
-              const myCard = G.state.lanes[i][self.owner];
-              const enemy = G.state.lanes[i][opp];
-              if (!myCard || !enemy) continue;
-              const mine = AI.threatScore(myCard);
-              const theirs = AI.threatScore(enemy);
-              const unkillable = enemy.invincibleTurns > 0 || enemy.hasDamageImmunity;
-              const sacrificeBody = myCard.name === 'Parademon' || mine <= 2;
-              // Only count lanes we'd actually destroy (favorable trade or
-              // special case). A negative trade we wouldn't purge contributes 0.
-              let delta = 0;
-              const costDelta = (enemy.baseCost || enemy.cost || 0) - (myCard.baseCost || myCard.cost || 0);
-              if (theirs - mine >= 0.5 || unkillable || sacrificeBody || costDelta >= 2) {
-                delta = (theirs - mine) + Math.max(0, costDelta) * 0.5;
-                if (unkillable) delta += 3; // bonus for removing an otherwise-unkillable threat
-              }
-              if ((i + 1) % 2 === 1) oddScore += delta; else evenScore += delta;
-            }
-            return oddScore >= evenScore ? choices[0] : choices[1];
-          }
-        );
-      };
+      // summon resolves. No odd/even prompt anymore — straight to lane picks.
+      const startPurge = () => pickLanes();
 
       // Step 1: Summon Parademon(s). Roguelite Text+ ("Apokoliptan
       // Legion") spawns 2 of them at (4/4); classic spawns 1 at (2/1).

@@ -20575,12 +20575,10 @@ const UI = {
       localStorage.setItem('clb_ai_personality_idx', String(idx));
     } catch (e) { idx = Math.floor(Math.random() * list.length); }
     this._currentAiPersonality = list[idx];
-    const avEl = document.getElementById('ai-avatar');
-    const nmEl = document.getElementById('ai-name');
-    const cellEl = document.getElementById('ai-avatar-cell');
-    if (avEl) avEl.textContent = list[idx].glyph;
-    if (nmEl) nmEl.textContent = list[idx].name;
-    if (cellEl) cellEl.title = `${list[idx].name} — ${list[idx].tag}`;
+    // DOM writes removed — #ai-avatar is now the hero-art portrait chip
+    // (stuffing the persona glyph into it stomped the art), and the old
+    // #ai-name / #ai-avatar-cell elements no longer exist. The persona
+    // still flavors share cards + recap text via _currentAiPersonality.
   },
 
   // ===================== COLOR INVASION =====================

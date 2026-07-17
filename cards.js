@@ -366,7 +366,7 @@ const CARD_DEFS = [
     desc: "When Played: Lock the highest-cost card the opponent can play next turn. Fear 1 any enemy, then throw Batarangs." },
   { name: "Darkseid", cost: 9, attack: 6, health: 9, type: "villain",
     abilities: ["Immunity"],
-    desc: "When Played: Summon a (2/1) Parademon. Collapse any number of contested odd or even lanes for 3 rounds (not Darkseid's lane). While Active: Divide Darkseid's ATK among all enemies." },
+    desc: "When Played: Summon a (2/1) Parademon. Destroy up to 3 contested lanes for 3 rounds (not Darkseid's lane). While Active: Divide Darkseid's ATK among all enemies — Darkseid never attacks the enemy's HP." },
   { name: "Superman", cost: 9, attack: 8, health: 8, type: "hero",
     abilities: ["Immunity", "Unresistible"],
     desc: "When Played: Strike the enemy opposite immediately (or the opponent's HP if the lane is empty). Choose two enemies to Freeze 1. Deal 5 damage to an enemy." },

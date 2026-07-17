@@ -17220,39 +17220,12 @@ input:focus-visible,
   pointer-events: none;
 }
 
-/* K — Player-portrait silhouette on the info-bars' HP cell. A small
-   SVG masked to theme color, tucked left of the HP bar. */
+/* K — (removed 2026-07-16) The masked person/robot silhouettes that sat
+   left of each HP bar are gone — the hero-avatar portrait chips replaced
+   them, and the silhouettes read as clutter beside real art ("since we
+   have the new avatar system the old placeholder avatars can be removed
+   for space"). */
 .bar-hp { position: relative; }
-.bar-hp::before {
-  content: "";
-  position: absolute;
-  left: -24px; top: 50%;
-  width: 22px; height: 22px;
-  transform: translateY(-50%);
-  -webkit-mask-size: contain;
-  mask-size: contain;
-  -webkit-mask-repeat: no-repeat;
-  mask-repeat: no-repeat;
-  -webkit-mask-position: center;
-  mask-position: center;
-  pointer-events: none;
-  opacity: 0.75;
-  filter: drop-shadow(0 0 4px currentColor);
-}
-.player-bar .bar-hp::before {
-  background-color: var(--player-accent-bright);
-  color: var(--player-accent-bright);
-  /* Human silhouette (head + shoulders) */
-  -webkit-mask-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><circle cx='12' cy='8' r='4'/><path d='M4 22 C 4 16, 8 14, 12 14 S 20 16, 20 22 Z'/></svg>");
-  mask-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><circle cx='12' cy='8' r='4'/><path d='M4 22 C 4 16, 8 14, 12 14 S 20 16, 20 22 Z'/></svg>");
-}
-.ai-bar .bar-hp::before {
-  background-color: var(--enemy-accent-bright);
-  color: var(--enemy-accent-bright);
-  /* Robotic / angular silhouette */
-  -webkit-mask-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><rect x='6' y='3' width='12' height='10' rx='1'/><rect x='4' y='15' width='16' height='6' rx='0.5'/><circle cx='9' cy='8' r='1.2'/><circle cx='15' cy='8' r='1.2'/></svg>");
-  mask-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><rect x='6' y='3' width='12' height='10' rx='1'/><rect x='4' y='15' width='16' height='6' rx='0.5'/><circle cx='9' cy='8' r='1.2'/><circle cx='15' cy='8' r='1.2'/></svg>");
-}
 
 /* L — Main menu ambient particles. Small dots drift diagonally across
    the background while the main menu is visible. Container injected
