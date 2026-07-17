@@ -10429,13 +10429,15 @@ const UI = {
               const t = next[ti];
               if (t && t.name) {
                 try { this.sfx.playTrickSfx(t.name, 'play'); } catch(e) {}
-                // Opponent trick → center-screen reveal theater. Post-flip,
-                // 'ai' is the opponent on this client. Time Stone is consumed
-                // as a reaction, not "played at" the guest — skip its reveal.
-                if (side === 'ai' && t.name !== 'Time Stone' && this.showTrickReveal) {
+                // Center-screen reveal theater for BOTH sides — post-flip,
+                // 'ai' is the opponent and 'player' is this client's own
+                // play (the guest never runs the engine path locally, so
+                // this diff is their only reveal trigger). Time Stone is
+                // consumed as a reaction, not "played" — skip its reveal.
+                if (t.name !== 'Time Stone' && this.showTrickReveal) {
                   try {
                     const def = (typeof TRICK_DEFS !== 'undefined') ? TRICK_DEFS.find(d => d.name === t.name) : null;
-                    this.showTrickReveal(t.name, (def && def.desc) || '', t.cost);
+                    this.showTrickReveal(t.name, (def && def.desc) || '', t.cost, side === 'player');
                   } catch(e) {}
                 }
               }
@@ -14719,12 +14721,18 @@ const UI = {
   // pure theater, never blocks input.
   _trickRevealQueue: [],
   _trickRevealActive: false,
-  showTrickReveal(name, desc, cost) {
+  // `mine` — true when the LOCAL player cast it ("You play a Trick");
+  // false/omitted for the opponent's plays. User direction: the reveal
+  // fires for BOTH sides ("I played Eye of Agamotto and the new trick
+  // screen didn't pop up").
+  showTrickReveal(name, desc, cost, mine) {
     if (this._reducedMotion && this._reducedMotion()) {
-      this.showAITrickToast(name, desc || '');
+      // Reduced-motion fallback: opponent plays keep the corner toast
+      // (its grammar is opponent-specific); your own plays just skip.
+      if (!mine) this.showAITrickToast(name, desc || '');
       return;
     }
-    this._trickRevealQueue.push({ name, desc: desc || '', cost });
+    this._trickRevealQueue.push({ name, desc: desc || '', cost, mine: !!mine });
     if (!this._trickRevealActive) this._nextTrickReveal();
   },
   _nextTrickReveal() {
@@ -14745,7 +14753,7 @@ const UI = {
         ${item.desc ? `<div class="tr-desc">${this.formatDesc ? this.formatDesc(item.desc) : String(item.desc).replace(/</g, '&lt;')}</div>` : ''}
         <i class="tr-sweep" aria-hidden="true"></i>
       </div>
-      <div class="tr-label">${this.oppName()} plays a Trick</div>`;
+      <div class="tr-label">${item.mine ? 'You play a Trick' : this.oppName() + ' plays a Trick'}</div>`;
     document.body.appendChild(wrap);
     // Hold, then exit + advance the queue.
     setTimeout(() => {

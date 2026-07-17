@@ -3050,14 +3050,16 @@ const Game = {
     }
     const who = owner === 'player' ? 'You' : 'AI';
     this.log(`[TRICK] ${who} play ${trick.name} for ${cost} energy`);
-    // Surface opponent tricks as the center-screen reveal (showTrickReveal
-    // queues sequential plays and falls back to the toast under reduced
-    // motion). Covers solo AI plays and, on the MP host, the guest's plays;
-    // the MP guest sees the host's tricks via the playedTrickPile diff in
-    // the state-accept handler.
-    if (owner === 'ai' && typeof UI !== 'undefined') {
-      if (UI.showTrickReveal) UI.showTrickReveal(trick.name, trick.desc || '', trick.cost);
-      else if (UI.showAITrickToast) UI.showAITrickToast(trick.name, trick.desc || '');
+    // Surface EVERY trick as the center-screen reveal — yours labelled
+    // "You play a Trick", the opponent's with their name (user: "I played
+    // Eye of Agamotto and the new trick screen didn't pop up").
+    // showTrickReveal queues sequential plays and falls back under reduced
+    // motion. Covers solo both ways and, on the MP host, both seats; the
+    // MP guest sees ALL plays via the playedTrickPile diff in the
+    // state-accept handler (never runs this engine path locally).
+    if (typeof UI !== 'undefined') {
+      if (UI.showTrickReveal) UI.showTrickReveal(trick.name, trick.desc || '', trick.cost, owner === 'player');
+      else if (owner === 'ai' && UI.showAITrickToast) UI.showAITrickToast(trick.name, trick.desc || '');
     }
     if (trick.play) {
       // Flag the trick-execution window so _trickBlocked can gate effects
