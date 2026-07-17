@@ -10950,7 +10950,9 @@ body.turn-combat .board .lane.lane-active {
 .fp-trick-preview .trick-card.fp-tricky {
   width: 150px;
   min-height: 180px;
-  padding: 12px 10px;
+  /* Tight padding matches the tray's trick cards — the preview is the
+     full-art card now (portrait + name overlay), not the old text list. */
+  padding: 6px 7px;
   display: flex; flex-direction: column;
   /* Disable hover lift inside the modal — the modal itself handles
      hover-to-solid; we don't want the trick card jumping around. */

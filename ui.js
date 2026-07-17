@@ -12816,13 +12816,7 @@ const UI = {
         </div>
         <div class="fp-body">
           <div class="fp-trick-preview">
-            <div class="trick-card fp-tricky">
-              <span class="card-cost">${trick.cost}</span>
-              ${this.getTrickRarityStrip(trick.cost || 0)}
-              <div class="trick-name">${trick.name}</div>
-              ${trick.abilities && trick.abilities.length ? `<div class="card-abilities status-badges">${this.formatAbilityBadges(trick.abilities)}</div>` : ''}
-              <div class="trick-desc">${this.formatDesc(trick.desc) || ''}</div>
-            </div>
+            ${this._fpTrickCardHTML(trick)}
           </div>
           <div class="fp-choices">
             <button class="fp-btn fp-btn-primary" onclick="blockTrickPlay()">
@@ -12837,6 +12831,26 @@ const UI = {
         </div>
       </div>`;
     document.body.appendChild(modal);
+  },
+
+  // Shared full-art trick card for floating prompts (block-trick choice,
+  // Time Stone intercept) — the same portrait + name-overlay markup the
+  // tray/draft/reveal use, so a trick looks identical everywhere it appears.
+  // Replaces the old text-only fp-tricky body (user: "this popup needs to
+  // look more polished with the trick art").
+  _fpTrickCardHTML(trick) {
+    const artPath = this.getCardArtPath(trick.name);
+    const safeUrl = artPath ? artPath.replace(/'/g, '%27') : '';
+    const portraitStyle = safeUrl ? `--portrait-bg:url('${safeUrl}')${UI._artFocalCard(trick.name)}` : '';
+    const badges = trick.abilities && trick.abilities.length
+      ? `<div class="card-abilities status-badges">${this.formatAbilityBadges(trick.abilities)}</div>` : '';
+    return `<div class="trick-card fp-tricky" data-trick-name="${trick.name}">
+      <span class="card-cost">${trick.cost}</span>
+      ${this.getTrickRarityStrip(trick.cost || 0)}
+      <div class="card-portrait" style="${portraitStyle}"><div class="card-name-overlay">${trick.name}</div><i class="pt-shine" aria-hidden="true"></i></div>
+      ${badges}
+      <div class="trick-desc">${this.formatDesc(trick.desc) || ''}</div>
+    </div>`;
   },
 
   // ===================== JUMP OFFER =====================
@@ -12894,11 +12908,7 @@ const UI = {
         </div>
         <div class="fp-body">
           <div class="fp-trick-preview">
-            <div class="trick-card fp-tricky">
-              ${t.cost != null ? `<span class="card-cost">${t.cost}</span>` : ''}
-              <div class="trick-name">${t.name}</div>
-              <div class="trick-desc">${(t.desc || '').replace(/</g, '&lt;')}</div>
-            </div>
+            ${this._fpTrickCardHTML(t)}
           </div>
           ${choicesHtml}
         </div>
