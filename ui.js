@@ -1394,7 +1394,7 @@ const UI = {
       // Superman play: 5s of John Williams' "Theme from Superman" (0:00 → 0:05)
       // — the fanfare hits on entrance. 0.03s fade-in / 0.6s fade-out baked.
       // ?v=3 busts the old cached play file.
-      'Superman':         { hover: { src: 'audio/cards/superman-hover.mp3?v=7', maxDur: 75 }, play: { src: 'audio/cards/superman-play.mp3?v=5', fullDuration: true } },
+      'Superman':         { hover: { src: 'audio/cards/superman-hover.mp3?v=7', maxDur: 75 }, play: { src: 'audio/cards/superman-play.mp3?v=6', fullDuration: true } },
       // The Grinch hover: 43s clip. maxDur 44 lets the full phrase play.
       'The Grinch':       { hover: { src: 'audio/cards/the-grinch-hover.mp3', maxDur: 44, gain: 1.5 } },
       'Green Goblin':     { hover: { src: 'audio/cards/green-goblin-hover.mp3', maxDur: 24 } },
