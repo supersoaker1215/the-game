@@ -434,8 +434,12 @@ const TRICK_DEFS = [
       const enemies = G.getEnemiesOf(owner);
       if (!enemies.length) return;
       G.promptCardChoice(owner, enemies, "Pym Particles — Shrink", "Choose an enemy to shrink", (t) => {
-        G.debuffCard(t, 3, 3);
-        G.log(`Pym Particles: ${t.name} shrunk to ${t.attack}/${t.currentHealth}!`);
+        // allowKill=true — shrinking a ≤3-HP enemy destroys it outright.
+        // Without the flag, debuffCard floors HP at 1 (user: "Pym Particles
+        // can kill an enemy; right now it leaves it at 1 health").
+        G.debuffCard(t, 3, 3, true, { name: 'Pym Particles' });
+        if (t.currentHealth <= 0) G.log(`Pym Particles: ${t.name} shrinks into nothing — destroyed!`);
+        else G.log(`Pym Particles: ${t.name} shrunk to ${t.attack}/${t.currentHealth}!`);
       }, cards => cards.sort((a, b) => (b.attack + b.maxHealth) - (a.attack + a.maxHealth))[0]);
     }
   },
