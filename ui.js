@@ -14755,11 +14755,12 @@ const UI = {
       </div>
       <div class="tr-label">${item.mine ? 'You play a Trick' : this.oppName() + ' plays a Trick'}</div>`;
     document.body.appendChild(wrap);
-    // Hold, then exit + advance the queue.
+    // Hold, then exit + advance the queue. Hold doubled from 1050ms per
+    // user feedback ("the new trick screen is too fast — double it").
     setTimeout(() => {
       wrap.classList.add('tr-exit');
       setTimeout(() => { wrap.remove(); this._nextTrickReveal(); }, 240);
-    }, 1050);
+    }, 2100);
   },
 
   // ===================== TITAN ENTRANCE (cost 9-10) =====================

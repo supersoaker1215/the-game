@@ -6760,23 +6760,13 @@ const Game = {
         UI.render();
       });
     } else if (this.isHuman(owner) && cards.length === 1) {
-      // Auto-resolve when there's only one valid target. Previously
-      // this fired silently, leaving the player wondering why a
-      // multi-target ability "only let them target Poison Ivy." Now
-      // we emit a visible toast before the effect resolves so the
-      // player can see WHAT was auto-targeted. isHuman() so the
-      // toast also fires for the joiner in multiplayer (was literal
-      // 'player' before, which suppressed it for the AI-side seat).
+      // Auto-resolve when there's only one valid target. The 'Auto-targeted
+      // X' toast that used to fire here was removed (user circled it: "this
+      // is still here") — its header masqueraded as the old 'AI played a
+      // Trick' banner, and the trick reveal + the visible on-board effect
+      // already tell the story. The log line below keeps it diagnosable.
       const target = cards[0];
-      try {
-        if (typeof UI !== 'undefined' && UI.showAITrickToast) {
-          UI.showAITrickToast(
-            `Auto-targeted ${target.name}`,
-            `${title.replace(/.*—\s*/, '')} — only valid target`,
-            'info'
-          );
-        }
-      } catch (e) { /* swallow */ }
+      this.log(`  [AUTO-TARGET] ${title.replace(/\s*—.*$/, '')} → ${target.name} (only valid target)`);
       callback(target);
     } else {
       // AI auto-resolve. Show a toast naming the chosen target +
