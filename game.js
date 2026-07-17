@@ -3050,9 +3050,14 @@ const Game = {
     }
     const who = owner === 'player' ? 'You' : 'AI';
     this.log(`[TRICK] ${who} play ${trick.name} for ${cost} energy`);
-    // Surface AI tricks as a visible toast so the player doesn't have to watch the log.
-    if (owner === 'ai' && typeof UI !== 'undefined' && UI.showAITrickToast) {
-      UI.showAITrickToast(trick.name, trick.desc || '');
+    // Surface opponent tricks as the center-screen reveal (showTrickReveal
+    // queues sequential plays and falls back to the toast under reduced
+    // motion). Covers solo AI plays and, on the MP host, the guest's plays;
+    // the MP guest sees the host's tricks via the playedTrickPile diff in
+    // the state-accept handler.
+    if (owner === 'ai' && typeof UI !== 'undefined') {
+      if (UI.showTrickReveal) UI.showTrickReveal(trick.name, trick.desc || '', trick.cost);
+      else if (UI.showAITrickToast) UI.showAITrickToast(trick.name, trick.desc || '');
     }
     if (trick.play) {
       // Flag the trick-execution window so _trickBlocked can gate effects

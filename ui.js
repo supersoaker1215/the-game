@@ -5798,6 +5798,12 @@ const UI = {
     // After new DOM is in place, FLIP-animate hand→board flights and
     // spawn death ghosts for any card that vanished from the board.
     this._applyMotionEffects();
+
+    // Render-side FX watchers — diff board ids / HP against the previous
+    // render, so titan entrances and face-damage vignettes fire on every
+    // client (solo, MP host, MP guest) with zero engine hooks.
+    this._titanWatch();
+    this._faceDamageWatch(s);
   },
 
   // ===================== RISK / REWARD SIGNALING =====================
@@ -10398,6 +10404,15 @@ const UI = {
               const t = next[ti];
               if (t && t.name) {
                 try { this.sfx.playTrickSfx(t.name, 'play'); } catch(e) {}
+                // Opponent trick → center-screen reveal theater. Post-flip,
+                // 'ai' is the opponent on this client. Time Stone is consumed
+                // as a reaction, not "played at" the guest — skip its reveal.
+                if (side === 'ai' && t.name !== 'Time Stone' && this.showTrickReveal) {
+                  try {
+                    const def = (typeof TRICK_DEFS !== 'undefined') ? TRICK_DEFS.find(d => d.name === t.name) : null;
+                    this.showTrickReveal(t.name, (def && def.desc) || '', t.cost);
+                  } catch(e) {}
+                }
               }
             }
           }
@@ -14669,6 +14684,112 @@ const UI = {
       ${incomingBadge}
     `;
     return el;
+  },
+
+  // ===================== TRICK REVEAL THEATER =====================
+  // Opponent trick materializes center-screen at full size for ~900ms with
+  // a purple sweep, then collapses — the trick is an EVENT, not a corner
+  // toast. Reveals queue so back-to-back tricks play sequentially. Falls
+  // back to the classic toast under reduced motion. Pointer-events none —
+  // pure theater, never blocks input.
+  _trickRevealQueue: [],
+  _trickRevealActive: false,
+  showTrickReveal(name, desc, cost) {
+    if (this._reducedMotion && this._reducedMotion()) {
+      this.showAITrickToast(name, desc || '');
+      return;
+    }
+    this._trickRevealQueue.push({ name, desc: desc || '', cost });
+    if (!this._trickRevealActive) this._nextTrickReveal();
+  },
+  _nextTrickReveal() {
+    const item = this._trickRevealQueue.shift();
+    if (!item) { this._trickRevealActive = false; return; }
+    this._trickRevealActive = true;
+    const stale = document.getElementById('trick-reveal');
+    if (stale) stale.remove();
+    const artPath = this.getCardArtPath(item.name);
+    const artStyle = artPath ? `--portrait-bg:url('${String(artPath).replace(/'/g, '%27')}')` : '';
+    const wrap = document.createElement('div');
+    wrap.id = 'trick-reveal';
+    wrap.className = 'trick-reveal';
+    wrap.innerHTML = `
+      <div class="trick-reveal-card" style="${artStyle}">
+        ${item.cost != null ? `<span class="tr-cost">${item.cost}</span>` : ''}
+        <div class="tr-name">${String(item.name).replace(/</g, '&lt;')}</div>
+        ${item.desc ? `<div class="tr-desc">${this.formatDesc ? this.formatDesc(item.desc) : String(item.desc).replace(/</g, '&lt;')}</div>` : ''}
+        <i class="tr-sweep" aria-hidden="true"></i>
+      </div>
+      <div class="tr-label">${this.oppName()} plays a Trick</div>`;
+    document.body.appendChild(wrap);
+    // Hold, then exit + advance the queue.
+    setTimeout(() => {
+      wrap.classList.add('tr-exit');
+      setTimeout(() => { wrap.remove(); this._nextTrickReveal(); }, 240);
+    }, 1050);
+  },
+
+  // ===================== TITAN ENTRANCE (cost 9-10) =====================
+  // Render-side watcher — new board card ids are diffed each render, so the
+  // entrance fires identically in solo, on the MP host, AND on the MP guest
+  // (whose board changes arrive via state broadcast, never a local play
+  // call). First render after load seeds silently.
+  _titanWatch() {
+    const s = Game.state;
+    if (!s || s.gameOver || !this.board) { this._titanSeen = null; return; }
+    const els = this.board.querySelectorAll('.card-slot .card[data-card-id]');
+    const cur = new Set();
+    els.forEach(el => cur.add(el.getAttribute('data-card-id')));
+    if (!this._titanSeen) { this._titanSeen = cur; return; }
+    els.forEach(el => {
+      const id = el.getAttribute('data-card-id');
+      if (this._titanSeen.has(id)) return;
+      // Resolve the live card for its cost (dataset doesn't carry it).
+      let card = null;
+      for (const lane of (s.lanes || [])) {
+        if (lane.player && String(lane.player.id) === id) { card = lane.player; break; }
+        if (lane.ai && String(lane.ai.id) === id) { card = lane.ai; break; }
+      }
+      if (!card || ((card.baseCost || card.cost || 0) < 9)) return;
+      this.fxTitanEntrance(el);
+    });
+    this._titanSeen = cur;
+  },
+  fxTitanEntrance(cardEl) {
+    if (this._reducedMotion && this._reducedMotion()) return;
+    cardEl.classList.remove('titan-arrival');
+    void cardEl.offsetWidth;
+    cardEl.classList.add('titan-arrival');
+    setTimeout(() => cardEl.classList.remove('titan-arrival'), 1000);
+    const ga = document.getElementById('game-area');
+    if (ga) {
+      ga.classList.remove('titan-shake');
+      void ga.offsetWidth;
+      ga.classList.add('titan-shake');
+      setTimeout(() => ga.classList.remove('titan-shake'), 340);
+    }
+  },
+
+  // ===================== FACE-DAMAGE VIGNETTE =====================
+  // Render-side HP diff — a red pulse rises from the screen edge nearest
+  // whichever HP bar just dropped. Same watcher pattern as the titan
+  // entrance, so it fires on every client with zero engine hooks.
+  _faceDamageWatch(s) {
+    if (!s || !s.player || !s.ai) { this._faceHpSeen = null; return; }
+    const cur = { player: s.player.health, ai: s.ai.health };
+    const prev = this._faceHpSeen;
+    this._faceHpSeen = cur;
+    if (!prev || s.gameOver) return;
+    ['player', 'ai'].forEach(side => {
+      if (cur[side] < prev[side]) this.fxFaceDamage(side);
+    });
+  },
+  fxFaceDamage(side) {
+    if (this._reducedMotion && this._reducedMotion()) return;
+    const v = document.createElement('div');
+    v.className = `face-dmg-vignette face-dmg-${side === 'player' ? 'player' : 'ai'}`;
+    document.body.appendChild(v);
+    setTimeout(() => v.remove(), 560);
   },
 
   // ===================== AI ACTION TOAST =====================

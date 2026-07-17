@@ -31701,3 +31701,172 @@ body.round-tick .board::after {
     -webkit-backdrop-filter: none !important;
   }
 }
+
+/* ============================================================
+   VISUAL POLISH BATCH A — trick reveal theater, titan entrance,
+   face-damage vignette. All one-shot animations (no infinite
+   loops — mobile battery stays safe); reduced-motion falls back
+   in JS before any of these classes are applied.
+   ============================================================ */
+
+/* ---- Trick reveal theater ----------------------------------
+   Opponent trick materializes center-screen at full size for a
+   beat, then collapses into its effect. Replaces the corner
+   toast as the "enemy trick" cue (toast remains the reduced-
+   motion fallback). Pointer-events none — pure theater, never
+   blocks input. No grey backdrop per the style language; the
+   purple glow + scale does the separating. */
+.trick-reveal {
+  position: fixed; inset: 0;
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  gap: 14px;
+  z-index: 8600;
+  pointer-events: none;
+}
+.trick-reveal-card {
+  width: min(200px, 52vw);
+  aspect-ratio: 5 / 7;
+  border-radius: 10px;
+  position: relative;
+  overflow: hidden;
+  background:
+    linear-gradient(rgba(10,2,16,0.20), rgba(10,2,16,0.20)),
+    var(--portrait-bg, linear-gradient(160deg, #170b21 0%, #0a0410 100%));
+  background-size: cover;
+  background-position: center 20%;
+  border: 1px solid rgba(155, 89, 182, 0.95);
+  box-shadow:
+    0 0 18px rgba(155, 89, 182, 0.55),
+    0 0 46px rgba(155, 89, 182, 0.25),
+    inset 0 0 14px rgba(155, 89, 182, 0.20);
+  transform: scale(0.55) translateY(14px);
+  opacity: 0;
+  animation: trickRevealIn 200ms var(--ease-out-soft) forwards;
+}
+.trick-reveal.tr-exit .trick-reveal-card {
+  animation: trickRevealOut 220ms ease-in forwards;
+}
+@keyframes trickRevealIn {
+  to { transform: scale(1) translateY(0); opacity: 1; }
+}
+@keyframes trickRevealOut {
+  from { transform: scale(1); opacity: 1; }
+  to   { transform: scale(0.90); opacity: 0; }
+}
+.trick-reveal-card .tr-cost {
+  position: absolute; top: 6px; left: 6px;
+  min-width: 26px; height: 26px; padding: 0 4px;
+  display: flex; align-items: center; justify-content: center;
+  font-family: 'Rajdhani', sans-serif; font-weight: 700; font-size: 15px;
+  color: #e6d5f0;
+  background: rgba(10, 2, 16, 0.85);
+  border: 1px solid rgba(155, 89, 182, 0.9);
+  border-radius: 6px;
+  z-index: 3;
+}
+.trick-reveal-card .tr-name {
+  position: absolute; left: 0; right: 0; bottom: 34%;
+  padding: 4px 8px;
+  text-align: center;
+  font-family: 'Rajdhani', sans-serif; font-weight: 700;
+  font-size: 15px; letter-spacing: 1.5px; text-transform: uppercase;
+  color: #f2e8fa;
+  background: linear-gradient(rgba(10,2,16,0), rgba(10,2,16,0.82) 30%, rgba(10,2,16,0.82) 70%, rgba(10,2,16,0));
+  text-shadow: 0 0 10px rgba(155, 89, 182, 0.9);
+  z-index: 2;
+}
+.trick-reveal-card .tr-desc {
+  position: absolute; left: 0; right: 0; bottom: 0;
+  max-height: 32%;
+  overflow: hidden;
+  padding: 6px 9px 8px;
+  font-size: 10.5px; line-height: 1.35; text-align: center;
+  color: #cdbbd9;
+  background: rgba(10, 2, 16, 0.88);
+  border-top: 1px solid rgba(155, 89, 182, 0.35);
+  z-index: 2;
+}
+/* Diagonal light sweep across the art — one pass, then done. */
+.trick-reveal-card .tr-sweep {
+  position: absolute; inset: -30%;
+  background: linear-gradient(115deg,
+    transparent 42%, rgba(216, 180, 240, 0.35) 50%, transparent 58%);
+  transform: translateX(-70%);
+  animation: trickSweep 620ms ease-out 140ms forwards;
+  z-index: 2;
+  pointer-events: none;
+}
+@keyframes trickSweep { to { transform: translateX(70%); } }
+.trick-reveal .tr-label {
+  font-family: 'Rajdhani', sans-serif; font-weight: 700;
+  font-size: 12px; letter-spacing: 3px; text-transform: uppercase;
+  color: #b98fd1;
+  text-shadow: 0 0 12px rgba(155, 89, 182, 0.8);
+  opacity: 0;
+  animation: trickLabelIn 240ms ease-out 90ms forwards;
+}
+.trick-reveal.tr-exit .tr-label { animation: trickRevealOut 200ms ease-in forwards; }
+@keyframes trickLabelIn { to { opacity: 1; } }
+
+/* ---- Titan entrance (cost 9-10 arrivals) -------------------
+   Gold edge flare + one-pass light sweep on the landing card,
+   plus a 2px screen shake (JS-gated behind reduced-motion).
+   Rarity pips are already gold at this tier — the entrance
+   makes the tier legible the moment the card hits the board. */
+.card.titan-arrival {
+  animation: titanFlare 950ms ease-out;
+}
+@keyframes titanFlare {
+  0%   { box-shadow: 0 0 0 rgba(241, 196, 15, 0); }
+  25%  { box-shadow: 0 0 26px rgba(241, 196, 15, 0.85), 0 0 60px rgba(241, 196, 15, 0.40), inset 0 0 18px rgba(241, 196, 15, 0.30); }
+  100% { box-shadow: 0 0 0 rgba(241, 196, 15, 0); }
+}
+.card.titan-arrival::after {
+  content: '';
+  position: absolute; inset: 0;
+  border-radius: inherit;
+  overflow: hidden;
+  background: linear-gradient(115deg,
+    transparent 40%, rgba(255, 232, 160, 0.38) 50%, transparent 60%);
+  background-size: 250% 100%;
+  background-position: 120% 0;
+  animation: titanSweep 700ms ease-out 120ms forwards;
+  pointer-events: none;
+  z-index: 5;
+}
+@keyframes titanSweep { to { background-position: -120% 0; } }
+#game-area.titan-shake {
+  animation: titanShake 300ms ease-out;
+}
+@keyframes titanShake {
+  0%   { transform: translate(0, 0); }
+  20%  { transform: translate(-2px, 1px); }
+  40%  { transform: translate(2px, -1px); }
+  60%  { transform: translate(-1px, -1px); }
+  80%  { transform: translate(1px, 1px); }
+  100% { transform: translate(0, 0); }
+}
+
+/* ---- Face-damage vignette ----------------------------------
+   Screen-edge pulse toward whichever HP bar just took damage:
+   red rising from the bottom for the player, falling from the
+   top for the opponent. One-shot 500ms, pointer-events none. */
+.face-dmg-vignette {
+  position: fixed; inset: 0;
+  z-index: 8400;
+  pointer-events: none;
+  opacity: 0;
+  animation: faceDmgPulse 500ms ease-out forwards;
+}
+.face-dmg-vignette.face-dmg-player {
+  background: linear-gradient(to top, rgba(231, 76, 60, 0.38), rgba(231, 76, 60, 0.10) 18%, transparent 34%);
+}
+.face-dmg-vignette.face-dmg-ai {
+  background: linear-gradient(to bottom, rgba(231, 76, 60, 0.38), rgba(231, 76, 60, 0.10) 18%, transparent 34%);
+}
+@keyframes faceDmgPulse {
+  0%   { opacity: 0; }
+  22%  { opacity: 1; }
+  100% { opacity: 0; }
+}
