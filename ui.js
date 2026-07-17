@@ -1394,7 +1394,7 @@ const UI = {
       // Superman play: 5s of John Williams' "Theme from Superman" (0:00 → 0:05)
       // — the fanfare hits on entrance. 0.03s fade-in / 0.6s fade-out baked.
       // ?v=3 busts the old cached play file.
-      'Superman':         { hover: { src: 'audio/cards/superman-hover.mp3?v=7', maxDur: 75 }, play: { src: 'audio/cards/superman-play.mp3?v=4', maxDur: 5 } },
+      'Superman':         { hover: { src: 'audio/cards/superman-hover.mp3?v=7', maxDur: 75 }, play: { src: 'audio/cards/superman-play.mp3?v=5', fullDuration: true } },
       // The Grinch hover: 43s clip. maxDur 44 lets the full phrase play.
       'The Grinch':       { hover: { src: 'audio/cards/the-grinch-hover.mp3', maxDur: 44, gain: 1.5 } },
       'Green Goblin':     { hover: { src: 'audio/cards/green-goblin-hover.mp3', maxDur: 24 } },
@@ -3223,15 +3223,27 @@ const UI = {
         // when the cursor leaves the card.
         this.duckMusic();
       } else if (event === 'play' || event === 'ability' || event === 'spawn') {
-        // On Play ('play') is HARD-capped at 5s per user spec — "max duration
-        // should be 5 seconds for when played." Clamp any per-card value DOWN to
-        // 5 (Math.min, not ??), so no When-Played cue ever exceeds it; shorter
-        // clips still play in full. 'ability'/'spawn' are code-triggered dramatic
-        // entrances (Jaws rising, Pennywise from the Sewers) whose longer lengths
-        // are set on purpose, so they only DEFAULT to 5 and honor an override.
-        opts.maxDur  = (event === 'play')
-          ? Math.min(opts.maxDur ?? 5.0, 5.0)
-          : (opts.maxDur ?? 5.0);
+        // On Play ('play') is normally capped at 5s. Two exceptions play the
+        // clip in FULL (user request — the biggest entrances get their whole
+        // cue): an entry flagged `fullDuration`, OR any 10-cost card. The card
+        // instance is passed as the 3rd arg, so we read its PRINTED cost
+        // (baseCost, so a discount can't drop it under 10). Uncapped clips
+        // skip the programmatic cap-fade in _playSample (opts.fullDuration),
+        // so they should have their own baked tail to avoid a hard cut.
+        // 'ability'/'spawn' are code-triggered dramatic entrances (Jaws
+        // rising, Pennywise from the Sewers) that DEFAULT to 5 but honor an
+        // override.
+        if (event === 'play') {
+          const _printedCost = this._costFromArg(cardOrCost);
+          if (opts.fullDuration || _printedCost >= 10) {
+            opts.fullDuration = true;   // _playSample skips its 5s cap-fade
+            delete opts.maxDur;
+          } else {
+            opts.maxDur = Math.min(opts.maxDur ?? 5.0, 5.0);
+          }
+        } else {
+          opts.maxDur = opts.maxDur ?? 5.0;
+        }
         opts.fadeIn  = opts.fadeIn  ?? 500;
         opts.fadeOut = opts.fadeOut ?? 1000;
         opts.category = (event === 'spawn') ? 'play' : event;  // spawn gets full marquee gain
