@@ -154,11 +154,22 @@ const Game = {
     // it can't stall, so skip. Browser only.
     if (typeof __HEADLESS_SIM !== 'undefined') return;
     if (typeof setInterval === 'undefined') return;
+    // Never arm during a silent preview sim (previewPlay clones the state and
+    // runs resolveCombat on it to forecast outcomes). Its combat runs against
+    // a throwaway clone; a real setInterval armed there would outlive the sim
+    // and tick against the restored live state.
+    if (this.state && this.state._silentSim) return;
     this._clearCombatWatchdog();
     this._bumpCombatProgress();
     const gen = this._matchGen;
     this._combatWatchdogTimer = setInterval(() => {
-      if (this._matchGen !== gen || !this.state || !this.state._inCombat) {
+      // Liveness: watch the WHOLE combat phase, not just while _inCombat is
+      // set. resolveCombat() can park on a pre-combat prompt (onBeforeCombat /
+      // before-tricks hooks) and return BEFORE _inCombat is set — an orphaned
+      // MP prompt there used to hang with no watchdog at all. state.phase is
+      // 'combat' from the moment we enter until postCombat advances the round.
+      if (this._matchGen !== gen || !this.state ||
+          (this.state.phase !== 'combat' && !this.state._inCombat)) {
         this._clearCombatWatchdog();
         return;
       }
@@ -167,10 +178,12 @@ const Game = {
       const s = this.state;
       try {
         console.error('[COMBAT WATCHDOG] combat stalled — force-ending. state:', JSON.stringify({
+          phase: s.phase, inCombat: !!s._inCombat,
           activeLane: s._activeLane, parked: !!s._combatContinuation,
           cardChoice: !!s.pendingCardChoice, laneChoice: !!s.pendingLaneChoice,
           blockTrick: !!s.pendingBlockTrick, kang: !!s.pendingKangChoice,
-          jumpOffer: !!s.pendingJumpOffer, aiActions: s._pendingAIActions || 0,
+          jumpOffer: !!s.pendingJumpOffer, timeStone: !!s.pendingTimeStoneIntercept,
+          aiActions: s._pendingAIActions || 0,
         }));
       } catch (e) {}
       this._clearCombatWatchdog();
@@ -182,10 +195,8 @@ const Game = {
   },
   _forceEndStalledCombat() {
     const s = this.state;
-    if (!s || !s._inCombat) return;
-    // Drop every blocker so hasPendingPrompt() can't re-park combat, then
-    // run the normal end-of-combat path. Imperfect (a lane or two may be
-    // left unresolved) but the game continues instead of freezing.
+    if (!s || (s.phase !== 'combat' && !s._inCombat)) return;
+    // Drop every blocker so hasPendingPrompt() can't re-park combat.
     s.pendingCardChoice = null; s.pendingLaneChoice = null;
     s.pendingBlockTrick = null; s.pendingKangChoice = null;
     s.pendingJumpOffer = null; s.pendingTimeStoneIntercept = null;
@@ -194,8 +205,26 @@ const Game = {
     if (s.ai) s.ai.stolenByBWL = null;
     delete s._combatContinuation;
     this._clearPromptTimeout();
-    this.log('[COMBAT WATCHDOG] Combat was stuck — force-resolving to end of combat.');
-    try { this.postCombat(); } catch (e) { console.error('[COMBAT WATCHDOG] postCombat threw:', e); }
+    if (s._inCombat) {
+      // Mid-combat stall — force to the normal end-of-combat path. Imperfect
+      // (a lane or two may be left unresolved) but the game continues.
+      this.log('[COMBAT WATCHDOG] Combat was stuck — force-resolving to end of combat.');
+      try { this.postCombat(); } catch (e) { console.error('[COMBAT WATCHDOG] postCombat threw:', e); }
+    } else {
+      // Pre-combat stall: an onBeforeCombat / before-tricks prompt was
+      // orphaned before _inCombat was set (e.g. an MP guest prompt never
+      // answered). Prompts are cleared now, so re-enter resolveCombat — it
+      // passes the pending-prompt guards and actually RUNS combat instead of
+      // skipping it. Force _beforeCombatFired so the onBeforeCombat hooks that
+      // raised the stuck prompt don't re-fire and re-raise it.
+      s._beforeCombatFired = true;
+      this.log('[COMBAT WATCHDOG] Pre-combat prompt was stuck — resuming combat.');
+      try { this.resolveCombat(); }
+      catch (e) {
+        console.error('[COMBAT WATCHDOG] resolveCombat threw:', e);
+        try { this.postCombat(); } catch (e2) { console.error('[COMBAT WATCHDOG] postCombat threw:', e2); }
+      }
+    }
     if (typeof UI !== 'undefined' && UI.render) UI.render();
     if (this.isMultiplayer && this.isMultiplayer() && this.mp.role === 'host') this._mpBroadcast();
   },
@@ -3236,6 +3265,13 @@ const Game = {
   },
 
   resolveCombat() {
+    // Arm the anti-freeze watchdog at the TOP — before the pre-combat prompt
+    // guards below can park and return. Those parks (onBeforeCombat /
+    // before-tricks hooks raising a prompt) happen BEFORE _inCombat is set, so
+    // an orphaned MP prompt there would otherwise hang with no watchdog armed.
+    // The watchdog's liveness now keys on phase==='combat', so it covers this
+    // whole window. Idempotent + skipped in sims/headless (see _armCombatWatchdog).
+    this._armCombatWatchdog();
     // Pre-combat choices (e.g. Han Solo lane redirect) — fire onBeforeCombat
     // hooks once per combat, then re-enter. Prompt-setting hooks will be
     // picked up by the hasPendingPrompt guard below on the next call.
@@ -3277,7 +3313,9 @@ const Game = {
     // Combat batches queued bonus attacks to postCombat; flag so handleDeath
     // doesn't also drain them mid-lane and cause double-fires.
     this.state._inCombat = true;
-    // Arm the anti-freeze watchdog for the duration of combat.
+    // Re-arm as real combat begins — this resets the watchdog's progress clock
+    // so any time spent waiting on a pre-combat prompt above doesn't eat into
+    // the mid-combat idle budget. (Already armed at the top of resolveCombat.)
     this._armCombatWatchdog();
     // Board-wide circuit reveal — one-shot opacity pulse on a pre-drawn grid overlay
     if (typeof UI !== 'undefined' && UI.flashCombatReveal) UI.flashCombatReveal();
