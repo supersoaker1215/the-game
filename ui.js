@@ -14861,11 +14861,14 @@ const UI = {
   },
 
   // ===================== HERO AVATARS (Snap/PvZ duel identity) ==========
-  // Each HP bar wears a hero portrait chip. Yours = your starred menu hero
-  // (fallback: your highest-cost drafted card); the opponent's = their
-  // highest-cost card. Chosen once on the host/solo client and stored in
-  // state._avatars so the broadcast + perspective flip carry it to the
-  // guest. Painted every render (cheap — background swap only on change).
+  // Each HP bar wears an identity chip. A card-art PORTRAIT only shows when
+  // the player has DELIBERATELY starred a menu hero — it's opt-in. The old
+  // behavior auto-used each side's highest-cost drafted card as the face,
+  // which looked wrong (user report: "right now it's the highest card").
+  // With no chosen hero, the chip shows a glyph identity instead: yours =
+  // your chosen glyph; the opponent's = its AI-personality glyph in solo,
+  // or '▲' online. Stored in state._avatars so the broadcast + perspective
+  // flip carry a chosen portrait to the other client.
   _applyHeroAvatars(s) {
     const pEl = document.getElementById('player-avatar');
     const aEl = document.getElementById('ai-avatar');
@@ -14873,33 +14876,34 @@ const UI = {
     const inDraft = s.phase && String(s.phase).startsWith('draft');
     const isGuest = Game.isMultiplayer && Game.isMultiplayer() && Game.mp && Game.mp.role === 'guest';
     if (!s._avatars && !inDraft && !isGuest) {
-      const topCard = (side) => {
-        const pool = [ ...(s[side].hand || []), ...(s[side].drawPile || []) ]
-          .filter(c => c && c.name && !c.isEnvironment && !c.isDiscardEffect);
-        if (!pool.length) return null;
-        return pool.slice().sort((a, b) => (b.baseCost || b.cost || 0) - (a.baseCost || a.cost || 0))[0].name;
-      };
-      const mine = (this.settings && this.settings.defaultMenuHero) || topCard('player');
-      const theirs = topCard('ai');
-      if (mine || theirs) s._avatars = { player: mine, ai: theirs };
+      // Player portrait = a starred menu hero ONLY (no highest-cost fallback).
+      // The opponent has no portrait chooser yet, so it stays glyph-only.
+      const mine = (this.settings && this.settings.defaultMenuHero) || null;
+      s._avatars = { player: mine, ai: null };
     }
-    const paint = (el, name) => {
-      const key = name || '';
+    const glyphFor = (side) => {
+      if (side === 'player') return (this.settings && this.settings.playerAvatar) || '▲';
+      if (Game.isMultiplayer && Game.isMultiplayer()) return '▲';
+      return (this._currentAiPersonality && this._currentAiPersonality.glyph) || '▲';
+    };
+    const paint = (el, name, side) => {
+      const art = name ? this.getCardArtPath(name) : null;
+      const glyph = glyphFor(side);
+      const key = art ? ('art:' + name) : ('glyph:' + glyph);
       if (el._avatarKey === key) return;
       el._avatarKey = key;
-      if (!name) { el.style.backgroundImage = ''; el.textContent = ''; return; }
-      const art = this.getCardArtPath(name);
-      el.title = name;
       if (art) {
         el.style.backgroundImage = `url('${String(art).replace(/'/g, '%27')}')`;
         el.textContent = '';
+        el.title = name;
       } else {
+        // No chosen portrait — clear any card art and show the glyph identity.
         el.style.backgroundImage = '';
-        el.textContent = name.charAt(0);
+        el.textContent = glyph;
       }
     };
-    paint(pEl, s._avatars && s._avatars.player);
-    paint(aEl, s._avatars && s._avatars.ai);
+    paint(pEl, s._avatars && s._avatars.player, 'player');
+    paint(aEl, s._avatars && s._avatars.ai, 'ai');
     // Emote trigger — multiplayer matches only.
     const eb = document.getElementById('emote-btn');
     if (eb) {
