@@ -34,7 +34,20 @@ const Game = {
   BLOCK_MAX: 8,
   state: null,
   _dmgEvents: [], // { cardId, amount, type: 'hit'|'heal'|'block'|'evade'|'hpHit', owner }
-  emitDmg(cardId, amount, type, owner, attackerId, lethal) { this._dmgEvents.push({ cardId, amount, type, owner, attackerId, lethal: !!lethal }); },
+  emitDmg(cardId, amount, type, owner, attackerId, lethal) {
+    // Silent preview sims (previewPlacement / previewPlay swap this.state for a
+    // _silentSim clone and run a card's onPlay to forecast the outcome). Those
+    // must NOT push UI events: _dmgEvents lives on the Game singleton, not on
+    // the cloned state, so anything emitted here leaks out of the sim and the
+    // next real render paints it. Concretely — selecting a card whose onPlay
+    // strikes the face (Superman, etc.) rolled the opponent's block meter and
+    // popped a real "BLOCKED!" banner + hit floats before you'd even played it,
+    // telling you in advance whether the hit would land (user report). The
+    // preview's numbers come from predictLaneOutcome's RETURN value, not these
+    // events, so suppressing them changes nothing the player should see.
+    if (this.state && this.state._silentSim) return;
+    this._dmgEvents.push({ cardId, amount, type, owner, attackerId, lethal: !!lethal });
+  },
   flushDmg() { const e = this._dmgEvents.splice(0); return e; },
 
   // ----- Deterministic RNG seam (Phase 1) -----
