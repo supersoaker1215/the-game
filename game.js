@@ -5252,21 +5252,17 @@ const Game = {
     // The decremented revive count is preserved across the ability re-parse so
     // a base "Revive N" ability can't re-grant itself an infinite loop.
     if (card.reviveCharges > 0) {
-      // Voided lane — a revive can't rise where no lane exists. Relocate
-      // to an open lane on the card's side; with nowhere to stand, the
-      // revive doesn't fire (charge preserved) and death proceeds.
+      // Voided lane — a revive can NEVER fire from a destroyed lane. No
+      // card can stand in a destroyed lane, so there is nowhere to rise
+      // (user: "the revive wouldn't happen for Wolverine — no card can be
+      // in a destroyed lane"). The old behavior relocated the reviver to
+      // an open lane ("thrown clear of the void"), which made Darkseid's
+      // purge soft against Revive bodies; now the void simply claims them.
       const deathLane = this.findCardLane(card);
       let reviveBlocked = false;
       if (deathLane >= 0 && this.state.lanes[deathLane].destroyed) {
-        const open = this.getOpenLanes(card.owner);
-        if (open.length) {
-          this.state.lanes[deathLane][card.owner] = null;
-          this.placeInLane(card.owner, card, open[0]);
-          this.log(`  [VOID] ${card.name} is thrown clear of the void into lane ${open[0] + 1}!`);
-        } else {
-          reviveBlocked = true;
-          this.log(`  [VOID] No lane for ${card.name} to rise in — the void claims them.`);
-        }
+        reviveBlocked = true;
+        this.log(`  [VOID] ${card.name} cannot revive — the lane is destroyed. The void claims them.`);
       }
       if (!reviveBlocked) {
       card.reviveCharges--;
@@ -6087,6 +6083,22 @@ const Game = {
 
   killCardSilent(card) { const l = this.findCardLane(card); if (l >= 0) this.removeFromLane(card, l); },
 
+  // True when a revive/resurrection cannot fire because the death lane is
+  // destroyed — no card can occupy a destroyed lane, so there is nowhere
+  // to rise (user: "the revive wouldn't happen for Wolverine — no card can
+  // be in a destroyed lane"). Shared by the generic Revive-N path and every
+  // CUSTOM revive (Wolverine / Jason / Grundy Text+ / Mahoraga / Doomsday),
+  // which previously bypassed the generic gate entirely — Wolverine's
+  // "revives as 6/5" fired in a voided lane and left him in limbo.
+  reviveVoided(card, laneIdx) {
+    const l = (typeof laneIdx === 'number' && laneIdx >= 0) ? laneIdx : this.findCardLane(card);
+    if (l >= 0 && this.state.lanes[l] && this.state.lanes[l].destroyed) {
+      this.log(`  [VOID] ${card.name} cannot revive — the lane is destroyed. The void claims them.`);
+      return true;
+    }
+    return false;
+  },
+
   // Player-driven chain effect.
   // Player picks a starting enemy (any enemy on board); then repeatedly picks a direction
   // (left/right/stop) — chain continues only into consecutive occupied enemy lanes.
@@ -6455,19 +6467,28 @@ const Game = {
     this.tryApplyDebuff(source, card, 'Fear', () => {
       card.fearedTurns = (card.fearedTurns || 0) + turns;
       card.isFeared = true;
-      // Crazy is SUPPRESSED (not stripped) while feared. User
-      // direction: "If they are feared, they cannot have Crazy.
-      // Joker can still have Insane, Harley can't have Crazy."
-      // Crazy is the rerolling-ATK trait — gets paused while fear
-      // hijacks the combat target, ATK reverts to base. When fear
-      // wears off, the next rerollCrazyInsane sweep resumes Crazy
-      // normally. The flag persists so an intrinsic Crazy holder
-      // (Harley) doesn't permanently lose her identity to a single
-      // Fear application. Insane (Joker's intrinsic) is left alone
-      // — it fires through fear and rolls 2-7 every round.
+      // Fear vs Crazy — two flavors (user: "when Joker fears a card, that
+      // card cannot have a Crazy debuff on it"):
+      //   • JOKER-STAMPED Crazy (_crazyAppliedBy) is STRIPPED entirely —
+      //     badge gone, ATK restored to the pre-Crazy snapshot. The next
+      //     start-of-tricks re-check stamps a different enemy instead.
+      //   • INTRINSIC Crazy (Harley's identity) is only suppressed: ATK
+      //     reverts to base while feared, the flag persists, and the
+      //     next rerollCrazyInsane sweep resumes it once fear ends.
+      // Insane (Joker's own) is untouched — it rolls through fear.
       if (card.isCrazy) {
-        card.attack = card.baseAttack || 0;
-        card._lastCrazyRoll = null;
+        if (card._crazyAppliedBy) {
+          card.isCrazy = false;
+          delete card._crazyAppliedBy;
+          const restoreTo = (card._preCrazyAttack != null) ? card._preCrazyAttack : (card.baseAttack || 0);
+          if (typeof restoreTo === 'number') card.attack = restoreTo;
+          delete card._preCrazyAttack;
+          card._lastCrazyRoll = null;
+          this.log(`  [CRAZY] Fear shatters the Crazy stamp on ${card.name}.`);
+        } else {
+          card.attack = card.baseAttack || 0;
+          card._lastCrazyRoll = null;
+        }
       }
       const total = card.fearedTurns;
       this.log(`  [FEAR] ${card.name} is feared (${total})!`);

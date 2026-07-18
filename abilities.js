@@ -1387,6 +1387,7 @@ const CARD_ABILITIES = {
       // he can come back. When the upgrade is active we revive him in
       // place and skip the classic draw entirely.
       if (self._grundyReviveBuff && self.reviveCharges > 0) {
+        if (G.reviveVoided(self, lane)) return;
         self.reviveCharges--;
         const buff = self._grundyReviveBuff;
         self.attack += buff;
@@ -1816,17 +1817,10 @@ const CARD_ABILITIES = {
         return; // already used this game
       }
       if (self.reviveCharges > 0) {
-        // A destroyed (voided) lane has no lane to rise in for 3 rounds —
-        // relocate the revive to an open lane instead. With nowhere to
-        // stand, the revive simply doesn't fire: charge and once-per-game
-        // flag stay unspent, and Jason dies normally. User report: "you
-        // cant have jason jump into the void because there is no lane."
-        let riseLane = lane;
-        if (G.state.lanes[lane] && G.state.lanes[lane].destroyed) {
-          const open = G.getOpenLanes(self.owner);
-          if (!open.length) return;
-          riseLane = open[0];
-        }
+        // A destroyed lane blocks the revive outright — no relocation
+        // (updated rule: "no card can be in a destroyed lane"). Charge and
+        // once-per-game flag stay unspent; Jason dies normally.
+        if (G.reviveVoided(self, lane)) return;
         self.reviveCharges--;
         if (!self._jasonNoOnceLimit) {
           G.state[self.owner].jasonReviveUsed = true;
@@ -1843,14 +1837,7 @@ const CARD_ABILITIES = {
           self.maxHealth += 2;
         }
         self.currentHealth = self.maxHealth;
-        if (riseLane !== lane) {
-          // Clear the dying card's old slot before placing elsewhere —
-          // onDeath fires while the card still occupies its lane, and a
-          // prevented death would otherwise leave two live references.
-          if (G.state.lanes[lane][self.owner] === self) G.state.lanes[lane][self.owner] = null;
-          G.log(`  [VOID] The void cannot hold him — Jason rises in lane ${riseLane + 1}!`);
-        }
-        G.placeInLane(self.owner, self, riseLane);
+        G.placeInLane(self.owner, self, lane);
         // Revive bypasses Game.playCard, so the registry-based play cue
         // wouldn't auto-fire here — call it explicitly so the ki-ki-ki /
         // ma-ma-ma sting lands on resurrection too.
@@ -2224,6 +2211,7 @@ const CARD_ABILITIES = {
     },
     onDeath(G, self, lane) {
       if (self.reviveCharges > 0) {
+        if (G.reviveVoided(self, lane)) return;
         self.reviveCharges--;
         self.attack = 6; self.currentHealth = 5; self.maxHealth = 5;
         self.isOverdrive = true;
@@ -2433,11 +2421,33 @@ const CARD_ABILITIES = {
       });
     },
     _stampTopEnemyCrazy(G, self) {
-      const enemies = G.getAllCardsOf(G.opponent(self.owner)).filter(e => e.currentHealth > 0);
+      // Feared enemies can never hold Crazy (user spec) — they're skipped
+      // outright so the stamp falls to the next-highest eligible enemy
+      // instead of silently whiffing inside applyCrazyToCard.
+      const enemies = G.getAllCardsOf(G.opponent(self.owner))
+        .filter(e => e.currentHealth > 0 && !e.isEnvironment
+          && !e.isFeared && !((e.fearedTurns || 0) > 0));
       if (!enemies.length) return;
       const top = enemies.slice().sort((a, b) => (b.attack || 0) - (a.attack || 0))[0];
       if (!top) return;
-      if (top.isCrazy) return; // already Crazy — the sweep will reroll
+      if (top.isCrazy) return; // already the stamped target — sweep rerolls it
+      // EXCLUSIVE stamp — exactly ONE enemy carries Joker's Crazy. The old
+      // code never un-stamped the previous target, so every past top-ATK
+      // enemy kept its badge and the debuff accumulated across the board
+      // (user: "I'm not sure the crazy status badge is being applied
+      // correctly"). Strip + restore the old target before re-stamping;
+      // the stamp then rolls over round-to-round until this re-check moves it.
+      G.getAllCardsOnBoard().forEach(c => {
+        if (c._crazyAppliedBy && c.id !== top.id) {
+          c.isCrazy = false;
+          delete c._crazyAppliedBy;
+          const restoreTo = (c._preCrazyAttack != null) ? c._preCrazyAttack : (c.baseAttack || c.attack);
+          if (typeof restoreTo === 'number' && restoreTo !== c.attack) c.attack = restoreTo;
+          delete c._preCrazyAttack;
+          delete c._lastCrazyRoll;
+          G.log(`  [CRAZY] The stamp moves on — ${c.name} recovers.`);
+        }
+      });
       G.applyCrazyToCard(top);
       G.log(`Joker's chaos stamps Crazy on ${top.name}!`);
     }
@@ -3191,6 +3201,7 @@ const CARD_ABILITIES = {
     passive: "absorbPlayerDamage",
     onDeath(G, self, lane) {
       if (self.reviveCharges > 0) {
+        if (G.reviveVoided(self, lane)) return;
         self.reviveCharges--;
         // Roguelite Text+ ("Adaptive Wheel") — _mahoragaReviveBuff
         // adds +N/+N on top of base stats at revive. Falls back to
@@ -3892,11 +3903,20 @@ const CARD_ABILITIES = {
         const eligible = [];
         for (let i = 0; i < Game.LANE_COUNT; i++) {
           if (i === lane) continue;
-          if (G.state.lanes[i][self.owner] && G.state.lanes[i][opp]) {
-            eligible.push(i);
-          }
+          const mineC = G.state.lanes[i][self.owner];
+          const theirsC = G.state.lanes[i][opp];
+          if (!mineC || !theirsC) continue;
+          // An Invincible / Damage-Immune occupant PROTECTS its whole lane
+          // from the purge — the option must not even exist (user: "if it's
+          // invincibility the lane cannot be destroyed, the option shouldn't
+          // exist"). Matches the devour precedent: destruction-class effects
+          // respect Invincibility outright.
+          const laneProtected = [mineC, theirsC].some(c =>
+            c && ((c.invincibleTurns || 0) > 0 || c.hasDamageImmunity));
+          if (laneProtected) continue;
+          eligible.push(i);
         }
-        if (!eligible.length) { G.log(`Darkseid finds no contested lanes to purge.`); return; }
+        if (!eligible.length) { G.log(`Darkseid finds no purgeable contested lanes (Invincible cards protect their lanes).`); return; }
         if (!Game.isHuman(self.owner)) {
           // Only destroy lanes where the trade is favorable — the AI loses
           // its own card too, so collapsing a Hulk-vs-1/1 trades Hulk for
@@ -3914,12 +3934,12 @@ const CARD_ABILITIES = {
             if (!myCard || !enemy) return;
             const mine = AI.threatScore(myCard);
             const theirs = AI.threatScore(enemy);
-            const unkillableEnemy = enemy.invincibleTurns > 0 || enemy.hasDamageImmunity;
+            // (Invincible/immune lanes never reach here — excluded from
+            // `eligible` above, so the old unkillable-enemy bonus is gone.)
             const sacrificeBody = myCard.name === 'Parademon' || mine <= 2;
             const costDelta = (enemy.baseCost || enemy.cost || 0) - (myCard.baseCost || myCard.cost || 0);
-            if (theirs - mine >= 0.5 || unkillableEnemy || sacrificeBody || costDelta >= 2) {
-              let value = (theirs - mine) + Math.max(0, costDelta) * 0.5;
-              if (unkillableEnemy) value += 3;
+            if (theirs - mine >= 0.5 || sacrificeBody || costDelta >= 2) {
+              const value = (theirs - mine) + Math.max(0, costDelta) * 0.5;
               scored.push({ i, value });
             }
           });
@@ -4616,6 +4636,7 @@ const CARD_ABILITIES = {
     // is earned via his revive, not by being a titan.
     skipAutoUntrickable: true,
     onDeath(G, self, lane) {
+      if (G.reviveVoided(self, lane)) return false; // destroyed lane — even Doomsday stays down
       if (self._doomsdayRevived) return false; // already revived once — die permanently
       self._doomsdayRevived = true;
       self.currentHealth = self.maxHealth;
