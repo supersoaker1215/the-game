@@ -938,10 +938,52 @@ class WebRTC4Transport {
     if (this._isHost) {
       this._dispatch(msg);
     } else if (this._hostConn && this._hostConn.open) {
-      this._hostConn.send(msg);
+      this._sendChunked(this._hostConn, msg);
     } else {
       this._sendQueue.push(msg);
     }
+  }
+
+  // Split any message over the safe single-message size into ordered
+  // chunks and reassemble on the far side — the same guard the 1v1
+  // transport already carries. A single PeerJS `json` send is NOT
+  // chunked by the library, and anything past ~16KB is dropped on the
+  // floor with no error: `conn.send()` returns normally and the far
+  // side's `data` handler simply never fires. The 2v2 draft-start
+  // broadcast is ~30KB (the full card/trick pools ride along inside
+  // twoVTwo), so every joiner sat on the lobby forever while the host
+  // walked into the draft alone. 3500-char parts stay under ~8KB on the
+  // wire even after JSON escaping doubles them, which is safe on every
+  // browser's negotiated SCTP limit, Safari included.
+  _sendChunked(conn, msg) {
+    if (!(conn && conn.open)) return;
+    let json;
+    try { json = JSON.stringify(msg); } catch (e) { return; }
+    const LIMIT = 3500;
+    if (json.length <= LIMIT) {
+      try { conn.send(msg); } catch (e) {}
+      return;
+    }
+    const id = (this._chunkSeq = (this._chunkSeq || 0) + 1);
+    const total = Math.ceil(json.length / LIMIT);
+    for (let i = 0; i < total; i++) {
+      const part = json.slice(i * LIMIT, (i + 1) * LIMIT);
+      try { conn.send({ t: '__chunk', id, i, total, part }); } catch (e) {}
+    }
+  }
+
+  // Reassemble an inbound chunk. Returns the complete decoded message
+  // once the final piece lands, else null while still collecting. The
+  // buffer hangs off the connection itself so the host's three joiner
+  // streams can't collide on a shared chunk id.
+  _recvChunk(conn, c) {
+    if (!conn._chunkBuf) conn._chunkBuf = {};
+    let buf = conn._chunkBuf[c.id];
+    if (!buf) buf = conn._chunkBuf[c.id] = { total: c.total, parts: [], count: 0 };
+    if (buf.parts[c.i] === undefined) { buf.parts[c.i] = c.part; buf.count++; }
+    if (buf.count < buf.total) return null;
+    delete conn._chunkBuf[c.id];
+    try { return JSON.parse(buf.parts.join('')); } catch (e) { return null; }
   }
 
   _openAsHost(msg) {
@@ -972,6 +1014,11 @@ class WebRTC4Transport {
         }
       });
       conn.on('data', (data) => {
+        if (data && data.t === '__chunk') {
+          const full = this._recvChunk(conn, data);
+          if (full && full.t) this._dispatch({ ...full, _from: slot });
+          return;
+        }
         if (data && data.t) this._dispatch({ ...data, _from: slot });
       });
       conn.on('close', () => {
@@ -999,11 +1046,16 @@ class WebRTC4Transport {
       });
       this._hostConn = conn;
       conn.on('open', () => {
-        this._sendQueue.forEach(m => { try { conn.send(m); } catch (e) {} });
+        this._sendQueue.forEach(m => this._sendChunked(conn, m));
         this._sendQueue = [];
       });
       conn.on('data', (data) => {
         if (!data || !data.t) return;
+        if (data.t === '__chunk') {
+          const full = this._recvChunk(conn, data);
+          if (full) this._dispatch(full);
+          return;
+        }
         if (data.t === '_slotAssigned') {
           this._mySlot = data.slot;
           this._dispatch({ t: 'roomJoined', code: this._roomCode, you: data.slot });
@@ -1020,9 +1072,7 @@ class WebRTC4Transport {
   // Host broadcasts state to all 3 joiners
   broadcastState(stateClone) {
     const msg = { t: 'state', state: stateClone };
-    Object.values(this._conns).forEach(conn => {
-      if (conn && conn.open) try { conn.send(msg); } catch (e) {}
-    });
+    Object.values(this._conns).forEach(conn => this._sendChunked(conn, msg));
   }
 
   close() {
