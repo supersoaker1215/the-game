@@ -22114,8 +22114,14 @@ function laneChoicePick(laneIdx) {
     // actor === 'p1' and I am p1: fall through to local resolution below
   }
   Game._clearPromptTimeout();
-  if (lc.owner === 'player' && Game.isPlayerTurn()) Game.snapshot();
+  // Null the slot BEFORE snapshotting — a snapshot must never capture an
+  // armed prompt: its callback is a live closure that cloneStateDeep passes
+  // through untouched, so undoing to that snapshot re-shows the modal and
+  // resolving THAT replays the ORIGINAL timeline's card objects into the
+  // restored state (user repro: undo after a jump play → two Ahsokas, one
+  // on board one in hand, +1/+1 stacking on every undo/replay cycle).
   s.pendingLaneChoice = null;
+  if (lc.owner === 'player' && Game.isPlayerTurn()) Game.snapshot();
   if (lc.callback) lc.callback(laneIdx);
   Game.cleanupDead();
   Game.resumeCombatIfWaiting();
@@ -22145,8 +22151,10 @@ function cardChoicePick(idx) {
     }
   }
   Game._clearPromptTimeout();
-  if (cc.owner === 'player' && Game.isPlayerTurn()) Game.snapshot();
+  // Slot nulled before the snapshot — same stale-closure rule as
+  // laneChoicePick above.
   s.pendingCardChoice = null;
+  if (cc.owner === 'player' && Game.isPlayerTurn()) Game.snapshot();
   if (cc.callback) cc.callback(cc.cards[idx]);
   Game.cleanupDead();
   Game.resumeCombatIfWaiting();

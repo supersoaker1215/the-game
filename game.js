@@ -3262,6 +3262,17 @@ const Game = {
     });
 
     this._runHook(card, 'onPlay', this, card, laneIdx);
+    // Draw-on-play — free/jump plays honor Draw N exactly like playCard
+    // (user report: jumped Ahsoka's Draw 1 never fired).
+    if (card.drawOnPlay > 0) {
+      const n = card.drawOnPlay;
+      card.drawOnPlay = 0;
+      const before = this.state[owner].hand.length;
+      this.drawCards(owner, n);
+      const actuallyDrawn = this.state[owner].hand.length - before;
+      if (actuallyDrawn > 0) this._creditChain(card, 'statsCardAdvantage', actuallyDrawn);
+      this.log(`${card.name} draws ${n} card${n > 1 ? 's' : ''}.`);
+    }
     // Cantrip etch — draw 1 on play (jump / free-play path).
     this._resolveCantripOnPlay(card);
     this._resolveFearOnPlay(card);
@@ -8434,6 +8445,11 @@ const Game = {
       }
       return;
     }
+    // Jump clicks are undoable player decisions — snapshot BEFORE jumpReady
+    // is consumed so an undo restores a still-jumpable card. Previously the
+    // only boundary was the lane-choice resolve, which fired after the flag
+    // was cleared: undo gave the card back but silently ate the jump.
+    if (owner === 'player' && this.isPlayerTurn()) this.snapshot();
     // If the modal-driven jump offer referenced THIS card, clear it and
     // resume combat so the lane timeline continues after Jason lands.
     if (this.isHuman(owner) && this.state.pendingJumpOffer && this.state.pendingJumpOffer.cardId === card.id) {
@@ -8651,6 +8667,18 @@ const Game = {
     this.state = snap;
     // Also wipe any deadline that may have been in the snapshot itself.
     this.state._promptDeadline = null;
+    // Stale-closure purge — a prompt or parked continuation inside a
+    // snapshot closes over the ORIGINAL timeline's live objects
+    // (cloneStateDeep passes functions through untouched). Resolving one
+    // after a restore replays foreign card objects into this state — the
+    // duplicate-Ahsoka class. No prompt survives an undo, period.
+    this.state.pendingLaneChoice = null;
+    this.state.pendingCardChoice = null;
+    this.state.pendingBlockTrick = null;
+    this.state.pendingKangChoice = null;
+    this.state.pendingJumpOffer = null;
+    this.state.pendingTimeStoneIntercept = null;
+    delete this.state._combatContinuation;
     this.log('[UNDO] Reverted to previous action');
     UI.render();
     return true;
