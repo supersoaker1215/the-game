@@ -14459,7 +14459,7 @@ const UI = {
     // the visual stays in sync — flag, then legacy ref, then ATK-delta
     // self-heal.
     const ivyOnSide = Game.getAllCardsOnBoard().filter(x =>
-      x.name === 'Poison Ivy' && x.owner === card.owner && x.currentHealth > 0
+      Game.isCardKind(x, 'Poison Ivy') && x.owner === card.owner && x.currentHealth > 0
     );
     let glowMatch = false;
     for (const ivy of ivyOnSide) {
@@ -15327,7 +15327,7 @@ const UI = {
     //      "still no charm how hard is it?" — at least make the badge
     //      visible whenever Ivy IS charming.
     const sideIvys = Game.getAllCardsOnBoard().filter(x =>
-      x.name === 'Poison Ivy' && x.owner === c.owner && x.currentHealth > 0
+      Game.isCardKind(x, 'Poison Ivy') && x.owner === c.owner && x.currentHealth > 0
     );
     let charmed = false;
     for (const ivy of sideIvys) {

@@ -242,12 +242,35 @@ const Game = {
     }
   },
 
+  // Kind check that survives ability-copying (Martian Manhunter). Copiers
+  // stamp _copiedFrom with the source card's name; every engine system that
+  // keys behavior off a card NAME (Magneto/Luke auras, Ivy's charm unbuff,
+  // Stripe's jump trigger, the ui.js charm badge scan) must match through
+  // this instead of a bare name comparison, or copies silently lose the
+  // machinery half of the ability.
+  isCardKind(card, name) {
+    return !!card && (card.name === name || card._copiedFrom === name);
+  },
+
   // Public drain entry — safe to call anywhere; no-ops while a drain owns
   // the loop or when the queue is empty.
   resolveStack() {
     if (this._stackResolving || !this._stack.length) return;
     this._stackResolving = true;
     try { this._stackDrain(); } finally { this._stackResolving = false; }
+  },
+
+  // Run one resolution unit through the stack: fired at top level it runs
+  // NOW and drains whatever it caused (synchronous, old behavior); fired
+  // while another event is resolving it queues behind the current batch.
+  _stackRun(label, fn) {
+    if (this._stackResolving) {
+      this._stack.push({ type: 'call', label, fn });
+      this._stackHighWater = Math.max(this._stackHighWater, this._stack.length);
+      return;
+    }
+    this._stackResolving = true;
+    try { fn(); this._stackDrain(); } finally { this._stackResolving = false; }
   },
 
   // STAGE 2 — reactive broadcasts as stack events. Snapshots the listener
@@ -5457,7 +5480,7 @@ const Game = {
     try {
       const deadId = card.id;
       this.getAllCardsOnBoard().forEach(c => {
-        if (c.name !== 'Poison Ivy' || c._ivyCharmedId !== deadId) return;
+        if (!this.isCardKind(c, 'Poison Ivy') || c._ivyCharmedId !== deadId) return;
         if (!c._grantedBuffs || !c._grantedBuffs.length) return;
         const idx = c._grantedBuffs.findIndex(b => b._ivyCharm);
         if (idx < 0) return;
@@ -5696,7 +5719,7 @@ const Game = {
     // jump fell through to the "pick any open lane" generic branch.
     this.checkJumpConditions('allyDied', { owner: card.owner, laneIdx });
     // Remove Magneto debuffs if Magneto died
-    if (card.name === 'Magneto') this.removeMagnetoDebuffs(card.owner);
+    if (this.isCardKind(card, 'Magneto')) this.removeMagnetoDebuffs(card.owner);
     // Revoke faceDownOption if the card granting it died
     if (card.passive === 'faceDownOption') {
       this.state[card.owner].faceDownAvailable = this.getAllCardsOf(card.owner).some(c => c.passive === 'faceDownOption');
@@ -7299,69 +7322,60 @@ const Game = {
     // `onPlay` hook for the SUMMONED card itself stays gated on
     // `sourceDef` so tokens don't re-fire their own play hooks (and
     // there's no infinite-recursion risk via the chain guard).
-    // NESTED-SUMMON DEPTH GUARD — this was a boolean (_summonChain) that
-    // skipped the entire aura/onPlay block whenever a summon happened inside
-    // another summon's arrival. That killed legitimate chains: Ghost Rider's
-    // death summons Knull from hand (depth 1, his onPlay fires) → Knull's
-    // volley summons Batman / Paul Atreides (depth 2) → their onPlay + auras
-    // were SILENTLY SKIPPED (user report: "Knull was summoned and Batman's /
-    // Paul Atreides' abilities didn't happen — they should happen just as if
-    // played from hand"). A depth counter lets chains resolve level by level
-    // — in the summoner's lane order, so Knull's volley fires left-to-right —
-    // while the cap still makes runaway summon→onPlay→summon recursion
-    // impossible. try/finally keeps the counter exception-safe (one throwing
-    // aura must never permanently disable later summons' hooks).
-    const _sd = this._summonDepth || 0;
-    if (_sd < 4) {
-      this._summonDepth = _sd + 1;
-      try {
-        // Lone wolf is a real-summon flavor only — skip for tokens.
-        if (sourceDef) {
-          const otherAllies = this.getAllCardsOf(owner).filter(c => c.id !== card.id && c.currentHealth > 0 && !c.isEnvironment);
-          if (otherAllies.length === 0) {
-            this.buffCard(card, 1, 1);
-            this.log(`  [LONE WOLF] ${card.name} enters alone — +1/+1!`);
-          }
+    // THE STACK stage 3 — the ARRIVAL SEQUENCE rides the resolution queue.
+    // Placement (slot + entrance FX + lane trap, above) is already done
+    // synchronously — the summoner sees the card on board immediately. The
+    // hooks resolve as one stack event: a top-level summon runs them right
+    // here (old behavior); a summon fired inside another event's resolution
+    // (Ghost Rider's death → Knull → volley) queues each arrival and they
+    // resolve breadth-first in summon order — Knull's volley stays
+    // left-to-right, every card's onPlay and aura ping fires. This retires
+    // the depth-4 counter that SILENTLY dropped the whole block on deep
+    // chains (the old Knull-volley bug one level deeper); the drain's
+    // 500-step fuse is the runaway guard now.
+    this._stackRun(`arrival:${card.name}`, () => {
+      // Lone wolf is a real-summon flavor only — skip for tokens.
+      if (sourceDef) {
+        const otherAllies = this.getAllCardsOf(owner).filter(c => c.id !== card.id && c.currentHealth > 0 && !c.isEnvironment);
+        if (otherAllies.length === 0) {
+          this.buffCard(card, 1, 1);
+          this.log(`  [LONE WOLF] ${card.name} enters alone — +1/+1!`);
         }
-        // Aura ping — fires for tokens too so existing while-active auras
-        // (Luke's debuff, Captain America's squad buff, etc.) hit them.
-        // Each ping individually guarded: one broken aura must not kill the
-        // rest of the arrival sequence.
-        this.broadcastHook('onAnyCardPlayed', card, [card]);
-        this.getAllCardsOf(owner).forEach(c => {
-          if (c.passive === 'cardPlayedBuff' && c.id !== card.id) { const n = c._bpAuraSize || 1; this.buffCard(card, n, n); }
-        });
-        // onPlay still only fires for real-card summons.
-        if (sourceDef) {
-          this._runHook(card, 'onPlay', this, card, laneIdx);
-          // Draw-on-play keyword resolution — mirrors the path in
-          // playCard so cards entering via SUMMON (Super Soldier Serum
-          // transform, Bat Signal pull, Hela revive, etc.) still honor
-          // their `Draw N` keyword. User report: "Used SSS on Rocket
-          // and got Groot, but his Draw 1 status badge didn't fire."
-          if (card.drawOnPlay > 0) {
-            const n = card.drawOnPlay;
-            card.drawOnPlay = 0;
-            const before = this.state[owner].hand.length;
-            this.drawCards(owner, n);
-            const actuallyDrawn = this.state[owner].hand.length - before;
-            if (actuallyDrawn > 0) this._creditChain(card, 'statsCardAdvantage', actuallyDrawn);
-            this.log(`${card.name} draws ${n} card${n > 1 ? 's' : ''}.`);
-          }
-          // Cantrip etch — fire on summon-spawned real cards too.
-          this._resolveCantripOnPlay(card);
-          // Fear / Freeze / MC / Mark etches — same on-play firing.
-          this._resolveFearOnPlay(card);
-          this._resolveFreezeOnPlay(card);
-          this._resolveMindControlOnPlay(card);
-          this._resolveMarkOnPlay(card);
-        }
-        this.cleanupDead();
-        this.applyMagnetoDebuffs();
-      } finally {
-        this._summonDepth = _sd;
       }
-    }
+      // Aura ping — fires for tokens too so existing while-active auras
+      // (Luke's debuff, Captain America's squad buff, etc.) hit them.
+      this.broadcastHook('onAnyCardPlayed', card, [card]);
+      this.getAllCardsOf(owner).forEach(c => {
+        if (c.passive === 'cardPlayedBuff' && c.id !== card.id) { const n = c._bpAuraSize || 1; this.buffCard(card, n, n); }
+      });
+      // onPlay still only fires for real-card summons.
+      if (sourceDef) {
+        this._runHook(card, 'onPlay', this, card, laneIdx);
+        // Draw-on-play keyword resolution — mirrors the path in
+        // playCard so cards entering via SUMMON (Super Soldier Serum
+        // transform, Bat Signal pull, Hela revive, etc.) still honor
+        // their `Draw N` keyword. User report: "Used SSS on Rocket
+        // and got Groot, but his Draw 1 status badge didn't fire."
+        if (card.drawOnPlay > 0) {
+          const n = card.drawOnPlay;
+          card.drawOnPlay = 0;
+          const before = this.state[owner].hand.length;
+          this.drawCards(owner, n);
+          const actuallyDrawn = this.state[owner].hand.length - before;
+          if (actuallyDrawn > 0) this._creditChain(card, 'statsCardAdvantage', actuallyDrawn);
+          this.log(`${card.name} draws ${n} card${n > 1 ? 's' : ''}.`);
+        }
+        // Cantrip etch — fire on summon-spawned real cards too.
+        this._resolveCantripOnPlay(card);
+        // Fear / Freeze / MC / Mark etches — same on-play firing.
+        this._resolveFearOnPlay(card);
+        this._resolveFreezeOnPlay(card);
+        this._resolveMindControlOnPlay(card);
+        this._resolveMarkOnPlay(card);
+      }
+      this.cleanupDead();
+      this.applyMagnetoDebuffs();
+    });
   },
 
   // A 9+/10-cost card ENTERING the board (played, summoned, revived — not
@@ -8272,7 +8286,7 @@ const Game = {
           this.log(`  [JUMP] Michael Myers senses weakness in lane ${data.laneIdx + 1}! Free play available.`);
           if (this.isHuman(owner)) playerJumpNowReady = card;
         }
-        if (card.name === 'Stripe' && trigger === 'heroDamaged') {
+        if (this.isCardKind(card, 'Stripe') && trigger === 'heroDamaged') {
           // "Either player's hero takes damage" — deliberately no owner
           // filter: your face or theirs, Stripe smells blood either way.
           card.jumpReady = true;
@@ -8482,7 +8496,7 @@ const Game = {
       // — Magneto's parity aura: enemies in even lanes -1/-1, own allies in
       //   odd lanes +1/+1 (himself included). One per side, matching the
       //   original find() semantics.
-      const magneto = live.find(e => e.side === owner && e.card.name === 'Magneto');
+      const magneto = live.find(e => e.side === owner && this.isCardKind(e.card, 'Magneto'));
       if (magneto) {
         live.forEach(({ card: c, lane, side }) => {
           const even = (lane + 1) % 2 === 0;
@@ -8492,7 +8506,7 @@ const Game = {
       }
       // — Luke's aura: allies +N/+N, enemies -N/-N. Stacks per living Luke
       //   (the old stamp flags collided when two Lukes shared a board).
-      live.filter(e => e.side === owner && e.card.name === 'Luke Skywalker').forEach(({ card: luke }) => {
+      live.filter(e => e.side === owner && this.isCardKind(e.card, 'Luke Skywalker')).forEach(({ card: luke }) => {
         const size = luke._lukeAuraSize || 1;
         live.forEach(({ card: c, side }) => {
           if (c === luke) return;

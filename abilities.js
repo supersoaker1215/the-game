@@ -1915,18 +1915,26 @@ const CARD_ABILITIES = {
       // Copy all callbacks and passive from CARD_ABILITIES (authoritative source)
       const abilityDef = CARD_ABILITIES[dead.name];
       if (abilityDef) {
-        if (abilityDef.onDeath) self.onDeath = abilityDef.onDeath;
-        if (abilityDef.onDamaged) self.onDamaged = abilityDef.onDamaged;
-        if (abilityDef.onKill) self.onKill = abilityDef.onKill;
-        if (abilityDef.onBeforeTricks) self.onBeforeTricks = abilityDef.onBeforeTricks;
-        if (abilityDef.onBeforeAttack) self.onBeforeAttack = abilityDef.onBeforeAttack;
-        if (abilityDef.onEndOfTurn) self.onEndOfTurn = abilityDef.onEndOfTurn;
-        if (abilityDef.onAnyCardPlayed) self.onAnyCardPlayed = abilityDef.onAnyCardPlayed;
-        if (abilityDef.onAllyKilled) self.onAllyKilled = abilityDef.onAllyKilled;
-        if (abilityDef.onEnemyKilled) self.onEnemyKilled = abilityDef.onEnemyKilled;
-        if (abilityDef.onEvade) self.onEvade = abilityDef.onEvade;
-        if (abilityDef.onDamagePlayer) self.onDamagePlayer = abilityDef.onDamagePlayer;
-        if (abilityDef.onTurnStart) self.onTurnStart = abilityDef.onTurnStart;
+        // Full canonical hook list — every hook name any def uses. A hook
+        // missing here is a copy that silently loses part of the ability
+        // (user report: Manhunter-as-Ivy charmed once then never again —
+        // the once-per-round machinery wasn't copied).
+        ['onPlay_SKIP', 'onDeath', 'onDamaged', 'onKill', 'onBeforeTricks',
+         'onBeforeAttack', 'onBeforeCombat', 'onEndOfTurn', 'onAnyCardPlayed',
+         'onAnyTrickPlayed', 'onAllyKilled', 'onEnemyKilled', 'onEvade',
+         'onDamagePlayer', 'onTurnStart', 'onMoved', 'onDiscard',
+         'onLaneResolved'].forEach(k => {
+          if (k !== 'onPlay_SKIP' && abilityDef[k]) self[k] = abilityDef[k];
+        });
+        // Def-level flags the engine reads off the INSTANCE, not the def.
+        // _recurringBT: onBeforeTricks re-fires every round (Ivy's re-charm,
+        // Man-Bat's flight) — createCardInstance stamps it from the card's
+        // own def, so the copy must re-stamp it from the copied def.
+        if (abilityDef._recurringBT) self._recurringBT = true;
+        // Mark the copy so name-keyed engine machinery (Magneto/Luke auras,
+        // Ivy's death-unbuff, Stripe's jump, the charm badge) matches via
+        // Game.isCardKind(card, name).
+        self._copiedFrom = dead.name;
         if (abilityDef.passive) {
           self.passive = abilityDef.passive;
           // Activate "While Active" passives immediately
