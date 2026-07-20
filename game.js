@@ -9731,9 +9731,19 @@ const Game = {
     tt.draft = {
       phase: 'cards',
       round: 1,
+      // Sequential fields — used by LOCAL pass-and-play only (one device, so
+      // players must take turns behind a pass screen).
       pickerOrder: ['p1', 'p2', 'p3', 'p4'],
       pickerIdx: 0,
       choices: [],
+      // SIMULTANEOUS draft (online): all four players see their OWN offers and
+      // pick at the same time, like 1v1 online. choicesByPlayer holds each
+      // player's two offers; picked tracks who has locked in this round; the
+      // round advances once all four have picked. User: "during the draft we
+      // had to draft 1 by 1 … I would like it all at the same time."
+      simultaneous: !!tt.online,
+      choicesByPlayer: {},
+      picked: {},
       cardPool: this.shuffle(allCards),
       trickPool: this.shuffle(allTricks),
       // Holding areas — every card/trick a player has SEEN but not taken
@@ -9766,59 +9776,113 @@ const Game = {
     }
   },
 
-  _2v2PresentDraftChoices() {
+  // Names already spoken for — every card/trick sitting in a hand, plus (for
+  // the simultaneous online draft) every OTHER player's currently-visible
+  // offers, so no two players are ever shown the same option at once.
+  _2v2TakenSet(isCards, excludePk) {
     const tt = this.state.twoVTwo;
     const d = tt.draft;
-    const isCards = d.phase === 'cards';
-    const pool = isCards ? d.cardPool : d.trickPool;
-
-    // Collect names already drafted by ANY player so nobody is offered a
-    // card/trick a teammate or opponent already holds. This used to run for
-    // the cards phase only — tricks were left undeduped, so two players could
-    // draft the same trick. Both phases are checked now.
     const taken = new Set();
     Object.values(tt.players).forEach(ap => {
       const held = isCards ? ap.hand : ap.trickHand;
       (held || []).forEach(c => { if (c && c.name) taken.add(c.name); });
     });
+    if (d.simultaneous && d.choicesByPlayer) {
+      Object.keys(d.choicesByPlayer).forEach(pk => {
+        if (pk === excludePk) return;
+        (d.choicesByPlayer[pk] || []).forEach(c => { if (c && c.name) taken.add(c.name); });
+      });
+    }
+    return taken;
+  },
 
+  // Draw two distinct, not-already-taken options from the pool, adding each to
+  // `taken` as it's dealt. Recycles the holding pile as a last resort so the
+  // draft can't stall on an empty offer (tightest case: the 2v2 trick draft).
+  _2v2DealTwo(isCards, taken) {
+    const d = this.state.twoVTwo.draft;
+    const pool = isCards ? d.cardPool : d.trickPool;
     const holding = isCards ? d.cardHolding : d.trickHolding;
-    const choices = [];
+    const out = [];
     const skipped = [];
-    while (choices.length < 2) {
+    while (out.length < 2) {
       if (!pool.length) {
-        // Pool exhausted. Everything a player passed on or mulliganed is
-        // sitting in holding and is deliberately withheld — but an empty
-        // hand of choices would hard-stall the draft, so recycle holding
-        // as a last resort rather than presenting fewer than 2 options.
-        // Tightest real case is the 2v2 trick draft: 28 TRICK_DEFS against
-        // a 24-trick worst case (8 picks x 2 shown + 4 mulligans x 2), so
-        // this is a safety valve, not the normal path.
         if (!holding.length) break;
         pool.push(...this.shuffle(holding.splice(0, holding.length)));
         continue;
       }
       const card = pool.pop();
       if (!card) break;
-      if (taken.has(card.name)) {
-        skipped.push(card);
-      } else {
-        choices.push(card);
-        taken.add(card.name);
-      }
+      if (taken.has(card.name)) skipped.push(card);
+      else { out.push(card); taken.add(card.name); }
     }
     // Already-owned names go to the bottom of the pool, not to holding —
-    // holding is for things a player CHOSE to pass on. These were never
-    // shown to anyone.
+    // holding is only for things a player CHOSE to pass on.
     if (skipped.length) pool.unshift(...skipped);
-    d.choices = choices;
+    return out;
   },
 
-  _2v2DraftPick(index) {
+  _2v2PresentDraftChoices() {
+    const tt = this.state.twoVTwo;
+    const d = tt.draft;
+    const isCards = d.phase === 'cards';
+
+    if (d.simultaneous) {
+      // Deal all four players their own two offers at once, from one shared
+      // `taken` so nobody's offers collide, and clear the per-round picked map.
+      const taken = this._2v2TakenSet(isCards, null);
+      d.choicesByPlayer = {};
+      ['p1', 'p2', 'p3', 'p4'].forEach(pk => { d.choicesByPlayer[pk] = this._2v2DealTwo(isCards, taken); });
+      d.picked = { p1: false, p2: false, p3: false, p4: false };
+      return;
+    }
+
+    // Sequential (local pass-and-play): one shared offer for the current picker.
+    d.choices = this._2v2DealTwo(isCards, this._2v2TakenSet(isCards, null));
+  },
+
+  _2v2DraftPick(index, playerKey) {
     const s = this.state;
     const tt = s.twoVTwo;
     const d = tt.draft;
     if (!d) return;
+
+    // SIMULTANEOUS (online): each player picks from their own offers whenever
+    // they're ready; the round advances only once all four have locked in.
+    if (d.simultaneous) {
+      const pk = playerKey;
+      if (!pk || d.picked[pk]) return;                 // no double-picks
+      const mine = d.choicesByPlayer[pk] || [];
+      const chosen = mine[index];
+      const rejected = mine[1 - index];
+      if (!chosen) return;
+      const side = this._2v2TeamSide[tt.players[pk].team];
+      if (d.phase === 'cards') tt.players[pk].hand.push(this.createCardInstance(chosen, side));
+      else                     tt.players[pk].trickHand.push({ ...chosen, id: nextCardId++ });
+      if (rejected) (d.phase === 'cards' ? d.cardHolding : d.trickHolding).push(rejected);
+      d.choicesByPlayer[pk] = [];
+      d.picked[pk] = true;
+
+      // Everyone in? Advance the round (or the phase, or finish the draft).
+      if (['p1', 'p2', 'p3', 'p4'].every(k => d.picked[k])) {
+        d.round++;
+        const maxRounds = d.phase === 'cards' ? 4 : 2;
+        if (d.round > maxRounds) {
+          if (d.phase === 'cards') { d.phase = 'tricks'; d.round = 1; }
+          else {
+            tt.drawPile      = this.shuffle(d.cardPool.concat(d.cardHolding || []));
+            tt.trickDrawPile = this.shuffle(d.trickPool.concat(d.trickHolding || []));
+            delete tt.draft;
+            this.start2v2Round();
+            return;
+          }
+        }
+        this._2v2PresentDraftChoices();  // deal the next round to all four, reset picked
+      }
+      s.phase = '2v2-draft';
+      this._2v2OnlineBroadcast();
+      return;
+    }
 
     const chosen = d.choices[index];
     const rejected = d.choices[1 - index];
@@ -9877,10 +9941,30 @@ const Game = {
     }
   },
 
-  _2v2DraftMulligan() {
+  _2v2DraftMulligan(playerKey) {
     const tt = this.state.twoVTwo;
     const d = tt && tt.draft;
-    if (!d || !d.choices || !d.choices.length) return false;
+    if (!d) return false;
+
+    // SIMULTANEOUS (online): a player redraws only their OWN offers, once per
+    // phase, and only before they've locked in this round.
+    if (d.simultaneous) {
+      const pk = playerKey;
+      if (!pk || d.picked[pk]) return false;
+      const isCards = d.phase === 'cards';
+      const mulliganKey = isCards ? 'mulliganUsed' : 'trickMulliganUsed';
+      if (!d[mulliganKey]) d[mulliganKey] = {};
+      if (d[mulliganKey][pk]) return false;
+      const holding = isCards ? d.cardHolding : d.trickHolding;
+      (d.choicesByPlayer[pk] || []).forEach(c => { if (c) holding.push(c); });
+      d.choicesByPlayer[pk] = this._2v2DealTwo(isCards, this._2v2TakenSet(isCards, pk));
+      d[mulliganKey][pk] = true;
+      this.log(`[2v2 DRAFT] Mulligan used by ${pk}`);
+      this._2v2OnlineBroadcast();
+      return true;
+    }
+
+    if (!d.choices || !d.choices.length) return false;
     const pickerKey = d.pickerOrder[d.pickerIdx];
     const mulliganKey = d.phase === 'cards' ? 'mulliganUsed' : 'trickMulliganUsed';
     if (!d[mulliganKey]) d[mulliganKey] = {};
@@ -10015,18 +10099,13 @@ const Game = {
         // the trailing _2v2OnlineBroadcast answers. Mirrors 1v1's reqState.
         break;
       case '2v2DraftPick':
-        if (draftActive) {
-          const d = this.state.twoVTwo.draft;
-          if (pk !== d.pickerOrder[d.pickerIdx]) break;
-        }
-        this._2v2DraftPick(msg.index);
+        // Simultaneous online draft: each player picks from their own offers,
+        // so route the pick to whoever sent it. _2v2DraftPick guards against
+        // double-picks and out-of-turn picks itself.
+        this._2v2DraftPick(msg.index, pk);
         break;
       case '2v2DraftMulligan':
-        if (draftActive) {
-          const d = this.state.twoVTwo.draft;
-          if (pk !== d.pickerOrder[d.pickerIdx]) break;
-        }
-        this._2v2DraftMulligan();
+        this._2v2DraftMulligan(pk);
         break;
       case '2v2LaneChoiceResult': {
         const lc = this.state.pendingLaneChoice;

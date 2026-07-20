@@ -1353,7 +1353,7 @@ const UI = {
       // Returns" (start → 0:55) — the Halloween theme reborn. -20 LUFS
       // unified-baseline, 1s fade-in / 2s fade-out baked. maxDur 56 lets
       // the full phrase play; play slot keeps the existing stinger.
-      'Michael Myers':    { hover: { src: 'audio/cards/michael-myers-hover.mp3?v=1', maxDur: 56 }, play: { src: 'audio/cards/michael-myers-play.mp3', maxDur: 5.0 } },
+      'Michael Myers':    { hover: { src: 'audio/cards/michael-myers-hover.mp3?v=1', maxDur: 56 }, play: { src: 'audio/cards/michael-myers-play.mp3?v=2', maxDur: 8.1 } },
       'Thanos':           { hover: 'audio/cards/thanos-hover.mp3?v=4', ability: { src: 'audio/cards/thanos-ability.mp3?v=4', maxDur: 5 }, voiceLine: 'audio/cards/thanos-kill.mp3' },
       // Gojo hover: 59s of Lady Gaga's "Judas" (3:11 → end of source) — the
       // outro/refrain section. -20 LUFS unified-baseline, 1s fade-in / 2s
@@ -7144,15 +7144,24 @@ const UI = {
     if (twov2El) twov2El.style.display = 'none';
 
     const d = tt.draft;
+    const sim = !!d.simultaneous;   // online = everyone picks at once
     const myKey = tt.you;
-    const pickerKey = d.pickerOrder[d.pickerIdx];
-    const picker = tt.players[pickerKey];
-    const isMyPick = myKey === pickerKey;
     const ap = tt.players[myKey];
     const isCards = d.phase === 'cards';
     const round = d.round;
     const total = isCards ? 4 : 2;
-    const teamColor = picker.team === 'A' ? '#4fc3f7' : '#f44336';
+
+    // In simultaneous mode "the picker" is simply me — I'm active until I lock
+    // in this round, then I wait for the others. In sequential (local) mode the
+    // active picker walks the pickerOrder as before.
+    const iPicked   = sim ? !!(d.picked && d.picked[myKey]) : false;
+    const pickerKey = sim ? myKey : d.pickerOrder[d.pickerIdx];
+    const picker    = tt.players[pickerKey];
+    const isMyPick  = sim ? !iPicked : (myKey === pickerKey);
+    const myChoices = sim ? (d.choicesByPlayer && d.choicesByPlayer[myKey]) || [] : d.choices;
+    const teamColor = (sim ? ap.team : picker.team) === 'A' ? '#4fc3f7' : '#f44336';
+    // Who else hasn't locked in yet (simultaneous waiting view).
+    const stillOut = sim ? ['p1','p2','p3','p4'].filter(k => !(d.picked && d.picked[k])).map(k => tt.players[k].name) : [];
 
     const pips = [];
     for (let i = 1; i <= total; i++) {
@@ -7163,11 +7172,14 @@ const UI = {
     let html = `<div class="draft-panel ${isCards ? 'draft-cards' : 'draft-tricks'}">`;
     html += `<div class="draft-hud">`;
     html +=   `<div class="draft-hud-row">`;
-    html +=     `<span class="draft-hud-label" style="color:${teamColor}">${isMyPick ? 'Your Pick' : picker.name + "’s Pick"}</span>`;
+    html +=     `<span class="draft-hud-label" style="color:${teamColor}">${isMyPick ? 'Your Pick' : (sim ? 'Locked In' : picker.name + "’s Pick")}</span>`;
     html +=     `<span class="draft-hud-pips">${pips.join('')}</span>`;
     html +=     `<span class="draft-hud-counter">Pick <em>${round}</em> / ${total}</span>`;
     html +=   `</div>`;
-    html +=   `<div class="draft-hud-sub">${isMyPick ? `Choose one ${isCards ? 'card' : 'trick'} for your hand` : `Waiting for ${picker.name} to choose…`}</div>`;
+    const subText = isMyPick
+      ? `Choose one ${isCards ? 'card' : 'trick'} for your hand`
+      : (sim ? `Waiting for ${stillOut.join(', ')}…` : `Waiting for ${picker.name} to choose…`);
+    html +=   `<div class="draft-hud-sub">${subText}</div>`;
     const mulliganKey = isCards ? 'mulliganUsed' : 'trickMulliganUsed';
     const mulliganUsed = !!(d[mulliganKey] && d[mulliganKey][pickerKey]);
     const mulliganDisabled = mulliganUsed ? ' mulligan-used' : '';
@@ -7189,13 +7201,17 @@ const UI = {
     html += `<div class="draft-choices">`;
 
     if (!isMyPick) {
+      const waitTitle = sim ? 'Locked in — waiting for your rivals' : `Waiting for ${picker.name}…`;
+      const waitSub   = sim
+        ? (stillOut.length ? `Still choosing: ${stillOut.join(', ')}` : 'Everyone in — next round loading…')
+        : "They're picking from their own offers.";
       html += `<div class="draft-waiting">`;
       html +=   `<div class="draft-waiting-spinner"></div>`;
-      html +=   `<div class="draft-waiting-title" style="color:${teamColor}">Waiting for ${picker.name}…</div>`;
-      html +=   `<div class="draft-waiting-sub">They're picking from their own offers.</div>`;
+      html +=   `<div class="draft-waiting-title" style="color:${teamColor}">${waitTitle}</div>`;
+      html +=   `<div class="draft-waiting-sub">${waitSub}</div>`;
       html += `</div>`;
     } else {
-      d.choices.forEach((c, i) => {
+      myChoices.forEach((c, i) => {
         if (!c) return;
         if (isCards) {
           const _abList = (c.abilities || []);
@@ -7380,16 +7396,21 @@ const UI = {
     // --- HUD: Round + phase text ---
     document.getElementById('round-num').textContent = s.round;
     const activeAp = activeKey ? tt.players[activeKey] : null;
+    // Always show WHO is acting AND WHAT sub-phase they're in — e.g.
+    // "Ryan — Cards only" / "Max — Tricks only" — so at a glance everyone
+    // knows whose turn it is and whether they're playing cards or tricks.
+    // (User: on my card turn make it say something like "Ryan card only".)
     let phaseLabel;
     if (save.phase === '2v2-combat') {
       phaseLabel = 'Combat';
-    } else if (isMyTurn) {
-      if      (subPhase === 'cards')         phaseLabel = 'Cards';
-      else if (subPhase === 'tricks')        phaseLabel = 'Tricks';
-      else if (subPhase === 'cards-tricks')  phaseLabel = 'Cards & Tricks';
-      else                                   phaseLabel = 'Your Turn';
     } else {
-      phaseLabel = activeAp ? `${activeAp.name}'s Turn` : 'Waiting…';
+      let sub;
+      if      (subPhase === 'cards')         sub = 'Cards only';
+      else if (subPhase === 'tricks')        sub = 'Tricks only';
+      else if (subPhase === 'cards-tricks')  sub = 'Cards & Tricks';
+      else                                   sub = 'Turn';
+      const who = activeAp ? activeAp.name : '';
+      phaseLabel = who ? `${who} — ${sub}` : sub;
     }
     const phaseEl = document.getElementById('phase-text');
     if (phaseEl) phaseEl.textContent = phaseLabel;
@@ -22539,10 +22560,16 @@ function twov2OnlineDraftMulligan() {
   if (!tt || !tt.draft) return;
   const you = tt.you;
   const d = tt.draft;
-  if (d.pickerOrder[d.pickerIdx] !== you) return;
+  // Simultaneous draft: I may mulligan my own offers until I've locked in.
+  // Sequential (legacy): only the active picker may act.
+  if (d.simultaneous) {
+    if (d.picked && d.picked[you]) return;
+  } else if (d.pickerOrder[d.pickerIdx] !== you) {
+    return;
+  }
   const isHost = you === 'p1';
   if (isHost) {
-    Game._2v2DraftMulligan();
+    Game._2v2DraftMulligan(you);
   } else {
     Multiplayer4.send({ t: '2v2DraftMulligan', playerKey: you });
   }
@@ -22771,10 +22798,16 @@ function twov2OnlineDraftPick(index) {
   if (!tt || !tt.draft) return;
   const you = tt.you;
   const d = tt.draft;
-  if (d.pickerOrder[d.pickerIdx] !== you) return;
+  // Simultaneous draft: I pick from my own offers until I've locked in.
+  // Sequential (legacy): only the active picker may act.
+  if (d.simultaneous) {
+    if (d.picked && d.picked[you]) return;
+  } else if (d.pickerOrder[d.pickerIdx] !== you) {
+    return;
+  }
   const isHost = you === 'p1';
   if (isHost) {
-    Game._2v2DraftPick(index);
+    Game._2v2DraftPick(index, you);
     // _2v2DraftPick calls _2v2OnlineBroadcast internally for online mode
   } else {
     Multiplayer4.send({ t: '2v2DraftPick', playerKey: you, index });
