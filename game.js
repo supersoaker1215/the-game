@@ -173,6 +173,12 @@ const Game = {
       } finally { this._drainingPromptQueue = false; }
       if (this.hasPendingPrompt()) return;
     }
+    // Drain queued stack events (deaths, later: broadcasts/summons) before
+    // the combat continuation — they belong to the beat that just resolved.
+    // A prompt raised mid-drain pauses the drain again; that prompt's own
+    // resolve re-enters here and continues it.
+    this.resolveStack();
+    if (this.hasPendingPrompt()) return;
     const cont = this.state._combatContinuation;
     if (cont) {
       this._bumpCombatProgress(); // watchdog: a park just resolved
@@ -182,6 +188,77 @@ const Game = {
       // no recovery. Log and let the watchdog force-end if it can't proceed.
       try { cont(); } catch (e) { console.error('[resumeCombatIfWaiting] continuation threw:', e); }
     }
+  },
+
+  // ===================== EVENT RESOLUTION QUEUE ("THE STACK") =====================
+  // Studio-style central resolution: a game event that fires WHILE another
+  // event is resolving — a bonus attack killing mid-death-aftermath, an
+  // onDeath summon whose On Play kills, a broadcast handler destroying a
+  // card — queues and resolves AFTER the current event fully completes, in
+  // the order caused, instead of nesting on the call stack. Top-level fires
+  // stay synchronous and byte-identical to the old behavior; only nested
+  // fires linearize. Stage 1 routes DEATHS through it via handleDeath's
+  // entrance gate; reactive broadcasts, summon arrivals, and bonus attacks
+  // convert in later stages. Prompts pause the drain (same contract as the
+  // prompt queue above); resumeCombatIfWaiting re-enters it. Lives on Game,
+  // not state — never serialized, never crosses the MP wire.
+  _stack: [],
+  _stackResolving: false,
+  _stackHighWater: 0,        // telemetry: deepest cascade seen this match
+  STACK_STEP_BOUND: 500,     // runaway-cascade fuse, not a gameplay limit
+
+  _stackDrain() {
+    let steps = 0;
+    while (this._stack.length) {
+      if (this._promptBusy()) return;  // prompt owns the turn; resume re-enters
+      if (++steps > this.STACK_STEP_BOUND) {
+        const msg = `[STACK] runaway cascade — ${this._stack.length} events dropped`;
+        console.error(msg);
+        try {
+          if (typeof window !== 'undefined' && window.__clbErrors) window.__clbErrors.report('stack', new Error(msg));
+        } catch (e) { /* reporter must never break the game */ }
+        this._stack.length = 0;
+        return;
+      }
+      const ev = this._stack.shift();
+      try {
+        if (ev.type === 'death') {
+          const c = ev.card;
+          c._deathQueued = false;
+          const l = this.findCardLane(c);
+          if (l < 0) {
+            // Left the board while queued (silent removal / slot replaced).
+            if (c.currentHealth <= 0 && !c._deathHandled) console.warn(`[STACK] queued death skipped — ${c.name || '?'} left the board unresolved`);
+            continue;
+          }
+          if (c.currentHealth > 0 || c._deathHandled) continue; // saved, or already processed
+          // The ui.js death wrapper (derez visual + death cue) already ran
+          // when this death was CAUSED — resolve the engine side only.
+          this._handleDeathNow(c, l, ev.killer);
+        } else if (ev.type === 'call') {
+          ev.fn();
+        }
+      } catch (e) { console.error('[STACK] event threw:', ev.label || ev.type, e); }
+    }
+  },
+
+  // Public drain entry — safe to call anywhere; no-ops while a drain owns
+  // the loop or when the queue is empty.
+  resolveStack() {
+    if (this._stackResolving || !this._stack.length) return;
+    this._stackResolving = true;
+    try { this._stackDrain(); } finally { this._stackResolving = false; }
+  },
+
+  // Lifecycle reset — queued events must never survive a boot, a new match,
+  // a new round, or an undo (they closure over pre-restore card objects).
+  _stackClear(where) {
+    if (this._stack.length) {
+      if (where === 'startRound') console.warn(`[STACK] ${this._stack.length} unresolved events crossed into a new round — a drain path was skipped`);
+      this._stack.forEach(ev => { if (ev.card) ev.card._deathQueued = false; });
+      this._stack.length = 0;
+    }
+    this._stackResolving = false;
   },
 
   // ===================== UNDO HISTORY =====================
@@ -992,6 +1069,8 @@ const Game = {
     // decks here.
     this._promptQueue = [];            // deferred prompt arms never cross a boot
     this._drainingPromptQueue = false;
+    this._stackClear('init');          // stack events never cross a boot either
+    this._stackHighWater = 0;
     this.LANE_COUNT = 6;  // reset to 1v1 default; 2v2 entry points override to 8 AFTER init() (never before — this line clobbers it)
     nextCardId = 1;
     this.state = {
@@ -1407,6 +1486,8 @@ const Game = {
     // into this one (startMatch reuses this.state without init()).
     this._promptQueue = [];
     this._drainingPromptQueue = false;
+    this._stackClear('startMatch');
+    this._stackHighWater = 0;
     // New match — invalidate any timers still queued from a previous one
     // (startMatch reuses this.state in place, so stale combat/AI callbacks
     // would otherwise run against the new board).
@@ -2044,6 +2125,7 @@ const Game = {
       console.warn('[promptQueue]', this._promptQueue.length, 'stale queued prompt(s) discarded at round start');
       this._promptQueue = [];
     }
+    this._stackClear('startRound');
     // Invariant-report dedup is per-round — fresh round, fresh eyes.
     this._invariantSeen = null;
     this.state.round++;
@@ -5285,6 +5367,28 @@ const Game = {
   // ===================== DEATH =====================
 
   handleDeath(card, laneIdx, killer) {
+    // THE STACK entrance gate — a death fired while another death is
+    // resolving (bonus-attack chains, deathrattle summons that kill,
+    // on-kill broadcast handlers) queues and resolves after the current
+    // one fully completes, in the order caused. Top-level deaths run
+    // inline exactly as before. The ui.js wrapper (derez + death cue)
+    // has already run by the time we get here, so a queued death keeps
+    // its instant visual while the engine bookkeeping linearizes.
+    if (this._stackResolving) {
+      if (card._deathQueued || card._deathHandled) return;
+      card._deathQueued = true;
+      this._stack.push({ type: 'death', card, killer, label: `death:${card.name || '?'}` });
+      this._stackHighWater = Math.max(this._stackHighWater, this._stack.length);
+      return;
+    }
+    this._stackResolving = true;
+    try {
+      this._handleDeathNow(card, laneIdx, killer);
+      this._stackDrain();
+    } finally { this._stackResolving = false; }
+  },
+
+  _handleDeathNow(card, laneIdx, killer) {
     if (card._deathHandled) return;
     card._deathHandled = true;
     // Phoenix etch — once-per-life revive at full HP. Cancels the
@@ -8452,6 +8556,7 @@ const Game = {
     // restore so a stale timer from the snapshot can't linger.
     this._clearPromptTimeout();
     this._promptQueue = [];   // queued arms closure over pre-undo card objects
+    this._stackClear('undo'); // queued deaths closure over pre-undo card objects
     const snap = this.history.pop();
     this.state = snap;
     // Also wipe any deadline that may have been in the snapshot itself.
