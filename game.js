@@ -2438,29 +2438,39 @@ const Game = {
   },
 
   runBeforeTricks() {
-    this.getAllCardsOnBoard().forEach(c => {
-      if (c.onBeforeTricks && !c.beforeTricksFired) {
-        // Re-verify liveness at FIRE time, not just snapshot time — an earlier
-        // hook in this same pass can remove this card from the board (Galactus's
-        // devour voided Man-Bat, yet his move prompt still popped and the -1/-1
-        // landed). Devour is removal, not damage — currentHealth stays intact —
-        // so board presence (findCardLane) is the check that catches it; the
-        // health check also skips kill-pending cards awaiting cleanupDead.
-        const laneNow = this.findCardLane(c);
-        if (laneNow < 0 || c.currentHealth <= 0) return;
-        c.beforeTricksFired = true;
-        try { c.onBeforeTricks(this, c, laneNow); } catch (e) { console.error(e); }
-      }
-    });
-    // Drain bonus attacks queued during this onBeforeTricks pass.
-    // Anakin's onBeforeTricks queues `self.bonusAttack += 1` after the
-    // move; without an inline drain here, that attack waited until
-    // postCombat (end of round). User spec: "Anakin's bonus attack
-    // is still firing at the end of the turn — bonus attacks should
-    // all act like Superman's strike" (i.e., fire NOW). drainBonusAttacks
-    // is idempotent, so cards with no queued attack are no-ops.
-    this.getAllCardsOnBoard().forEach(c => this.drainBonusAttacks(c));
-    this.cleanupDead();
+    // SEQUENTIAL pass — hooks that raise prompts (Man-Bat's move, Anakin's
+    // pick) fire ONE AT A TIME: each next hook waits for the previous
+    // prompt to resolve via whenPromptCleared. The old forEach fired every
+    // hook synchronously, so two Man-Bats armed two lane prompts into the
+    // single pendingLaneChoice slot — the second overwrote the first and
+    // only one bat ever moved (user: "when there are 2 Man-Bats on the
+    // field I could only move 1"). Order stays lane 1→6, so the
+    // lower-lane bat prompts first — deterministic and readable.
+    const queue = this.getAllCardsOnBoard().filter(c => c.onBeforeTricks && !c.beforeTricksFired);
+    const finish = () => {
+      // Drain bonus attacks queued during this pass (Anakin's fires NOW,
+      // not at end of round — drainBonusAttacks is idempotent) and sweep
+      // deaths. Runs once after ALL hooks + their prompts resolved.
+      this.getAllCardsOnBoard().forEach(c => this.drainBonusAttacks(c));
+      this.cleanupDead();
+    };
+    const step = () => {
+      const c = queue.shift();
+      if (!c) { finish(); return; }
+      // Re-verify liveness at FIRE time, not just snapshot time — an earlier
+      // hook in this same pass can remove this card from the board (Galactus's
+      // devour voided Man-Bat, yet his move prompt still popped and the -1/-1
+      // landed). Devour is removal, not damage — currentHealth stays intact —
+      // so board presence (findCardLane) is the check that catches it; the
+      // health check also skips kill-pending cards awaiting cleanupDead.
+      const laneNow = this.findCardLane(c);
+      if (laneNow < 0 || c.currentHealth <= 0 || c.beforeTricksFired) { step(); return; }
+      c.beforeTricksFired = true;
+      try { c.onBeforeTricks(this, c, laneNow); } catch (e) { console.error(e); }
+      if (this.hasPendingPrompt()) this.whenPromptCleared(step);
+      else step();
+    };
+    step();
   },
 
   endPhase3() {
