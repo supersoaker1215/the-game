@@ -13151,6 +13151,7 @@ const UI = {
       ur: card.unresistibleCharges | 0, dr: card.drawOnPlay | 0,
       bs: !!card.isBullseye, od: !!card.isOverdrive,
       hu: !!card.hasHunt, rev: card.reviveCharges | 0,
+      dsr: !!card._doomsdayRevived,
       cr: !!card.isCrazy, ins: !!card.isInsane,
       fd: !!card.isFaceDown, jr: !!card.jumpReady,
       ut: !!card.isUntrickable,
@@ -15258,6 +15259,11 @@ const UI = {
     if (c.tauntTurns > 0) b.push(badge('badge-taunt', `Taunt ${c.tauntTurns}`, 'Taunt'));
     if (c.hasHunt) b.push(badge('badge-hunt', 'Hunt', 'Hunt'));
     if (c.reviveCharges > 0) b.push(badge('badge-revive', `Revive ${c.reviveCharges}`, 'Revive'));
+    // Doomsday's "When First Destroyed" revive is custom onDeath code with a
+    // private flag — it never touches reviveCharges, so the generic line
+    // above can't see it. Show his pending revive until it's consumed.
+    // isCardKind so a Manhunter-as-Doomsday copy reads honestly too.
+    else if (Game.isCardKind(c, 'Doomsday') && !c._doomsdayRevived) b.push(badge('badge-revive', 'Revive 1', 'Revive'));
     if (c.hasDamageImmunity) b.push(badge('badge-dmg-immune', 'DmgImmune', 'Damage Immunity'));
     if (c.isUntrickable) b.push(badge('badge-untrickable', 'Untrickable', 'Untrickable'));
     // Stack-aware status badges — counters drive these.
