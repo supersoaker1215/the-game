@@ -369,6 +369,7 @@ const Game = {
     if (this.state && this.state._silentSim) return;
     this._clearCombatWatchdog();
     this._bumpCombatProgress();
+    this._watchdogTrips = 0; // fresh combat — reset the recovery-retry cap
     const gen = this._matchGen;
     this._combatWatchdogTimer = setInterval(() => {
       // Liveness: watch the WHOLE combat phase, not just while _inCombat is
@@ -394,8 +395,22 @@ const Game = {
           aiActions: s._pendingAIActions || 0,
         }));
       } catch (e) {}
-      this._clearCombatWatchdog();
-      this._forceEndStalledCombat();
+      // Do NOT disarm before recovering. If _forceEndStalledCombat throws or
+      // its recovery doesn't actually unstick the phase, a one-shot watchdog
+      // would leave the match bricked with nothing left to save it. Instead
+      // reset the progress clock and let the interval keep running: a healthy
+      // recovery flips the phase off 'combat' and the liveness check at the top
+      // disarms us on the next tick; a failed one gets retried after another
+      // full window. Cap the retries so a permanently-throwing recovery doesn't
+      // log-spam forever.
+      this._bumpCombatProgress();
+      this._watchdogTrips = (this._watchdogTrips || 0) + 1;
+      try { this._forceEndStalledCombat(); }
+      catch (e) { console.error('[COMBAT WATCHDOG] recovery threw:', e); }
+      if (this._watchdogTrips >= 4) {
+        console.error('[COMBAT WATCHDOG] recovery failed repeatedly — giving up.');
+        this._clearCombatWatchdog();
+      }
     }, 3000);
   },
   _clearCombatWatchdog() {
@@ -415,9 +430,27 @@ const Game = {
     this._clearPromptTimeout();
     if (s._inCombat) {
       // Mid-combat stall — force to the normal end-of-combat path. Imperfect
-      // (a lane or two may be left unresolved) but the game continues.
+      // (a lane or two may be left unresolved) but the game continues. If
+      // postCombat itself throws, fall through to a hard round advance so the
+      // match can't brick on a broken end-of-combat hook.
       this.log('[COMBAT WATCHDOG] Combat was stuck — force-resolving to end of combat.');
-      try { this.postCombat(); } catch (e) { console.error('[COMBAT WATCHDOG] postCombat threw:', e); }
+      try { this.postCombat(); }
+      catch (e) {
+        console.error('[COMBAT WATCHDOG] postCombat threw:', e);
+        try { this.drawPhase(() => this.startRound()); }
+        catch (e2) { console.error('[COMBAT WATCHDOG] forced drawPhase threw:', e2); try { this.startRound(); } catch (e3) {} }
+      }
+    } else if (s._combatFinishedThisRound) {
+      // POST-combat stall — combat already resolved this round (that flag is
+      // set at the end of postCombat), but the round never advanced: the
+      // round-summary crossfade promise hung, or the drawPhase/startRound
+      // pacing timer was dropped. Re-running combat here would double-resolve
+      // the board, so instead force the round forward exactly the way a clean
+      // postCombat would. This is the branch the "combat finished but frozen"
+      // freeze lands in now that the watchdog stays armed through postCombat.
+      this.log('[COMBAT WATCHDOG] Post-combat stall — forcing next round.');
+      try { this.drawPhase(() => this.startRound()); }
+      catch (e) { console.error('[COMBAT WATCHDOG] forced drawPhase threw:', e); try { this.startRound(); } catch (e2) {} }
     } else {
       // Pre-combat stall: an onBeforeCombat / before-tricks prompt was
       // orphaned before _inCombat was set (e.g. an MP guest prompt never
@@ -3702,7 +3735,17 @@ const Game = {
     this.cleanupDead();
     // Combat phase is done — trick-triggered deaths from here on drain immediately.
     delete this.state._inCombat;
-    this._clearCombatWatchdog(); // combat resolved cleanly — disarm the watchdog
+    // NOTE: the watchdog is deliberately NOT cleared here. postCombat still has
+    // a long tail — end-of-turn hooks, status ticking, the round-summary
+    // crossfade promise, drawPhase, then startRound — and the phase stays
+    // 'combat' through ALL of it. A hang anywhere in that tail (a round-summary
+    // promise that never resolves, a dropped drawPhase timer) used to leave the
+    // board frozen on the COMBAT header with no watchdog, since we'd disarmed it
+    // right here. This was the actual "stalled again in 1v1" freeze: combat
+    // visually finished, yet the round never advanced. The watchdog now stays
+    // armed and self-clears via its liveness check the instant startRound flips
+    // the phase off 'combat' (~80ms later in the normal path, so it never trips
+    // on a healthy round).
 
     // End-of-turn effects
     this.getAllCardsOnBoard().forEach(c => {
