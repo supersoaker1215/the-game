@@ -13151,7 +13151,7 @@ const UI = {
       ur: card.unresistibleCharges | 0, dr: card.drawOnPlay | 0,
       bs: !!card.isBullseye, od: !!card.isOverdrive,
       hu: !!card.hasHunt, rev: card.reviveCharges | 0,
-      dsr: !!card._doomsdayRevived,
+      dsr: !!card._doomsdayRevived, pl: !!card._parlayedThisRound,
       cr: !!card.isCrazy, ins: !!card.isInsane,
       fd: !!card.isFaceDown, jr: !!card.jumpReady,
       ut: !!card.isUntrickable,
@@ -15281,6 +15281,10 @@ const UI = {
       const n = c.fearedTurns > 0 ? c.fearedTurns : 1;
       b.push(badge('badge-feared', `Feared ${n}`, 'Fear'));
     }
+    // Jack Sparrow singled this card out before combat — it sits the
+    // round out. Flag set in his onBeforeCombat, consumed at attack
+    // time, cleared at round start.
+    if (c._parlayedThisRound) b.push(badge('badge-parlay', 'Parlay', 'Parlay'));
     if (c.isMindControlled) {
       const tgt = c.mindControlTarget;
       const tgtName = tgt && tgt.currentHealth > 0 ? tgt.name : null;
@@ -15376,6 +15380,7 @@ const UI = {
     'Stun':        { color: '#3498db', svg: '<svg viewBox="0 0 12 12"><path d="M3 2 L6 5 L4 5 L8 10 L6 7 L8 7 Z" fill="currentColor"/></svg>', tip: 'Cannot attack or dodge this turn.' },
     'Freeze':      { color: '#85c1e9', svg: '<svg viewBox="0 0 12 12"><path d="M6 1 V11 M1.5 3.5 L10.5 8.5 M10.5 3.5 L1.5 8.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>', tip: 'Can\'t attack or move while frozen.' },
     'Fear':        { color: '#5a5a5a', svg: '<svg viewBox="0 0 12 12"><circle cx="4" cy="5" r="1" fill="currentColor"/><circle cx="8" cy="5" r="1" fill="currentColor"/><path d="M3 9 Q6 7 9 9" stroke="currentColor" stroke-width="1.2" fill="none"/></svg>', tip: 'Attacks itself instead of the enemy.' },
+    'Parlay':      { color: '#d4ac6e', svg: '<svg viewBox="0 0 12 12"><path d="M3.5 1.5 V10.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/><path d="M3.5 2 H9.5 L8 4 L9.5 6 H3.5 Z" fill="currentColor"/></svg>', tip: 'Singled out by Jack Sparrow — this card cannot attack this round.' },
     'Steady':      { color: '#16a085', svg: '<svg viewBox="0 0 12 12"><circle cx="6" cy="6" r="2.5" stroke="currentColor" stroke-width="1.2" fill="none"/><path d="M3 6 H9 M6 3 V9" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>', tip: 'Cancels one Crazy reroll per charge — ATK stays at base for that turn.' },
     'Curse':       { color: '#9b3c7f', svg: '<svg viewBox="0 0 12 12"><path d="M3 3 L9 9 M9 3 L3 9" stroke="currentColor" stroke-width="1.4" fill="none" stroke-linecap="round"/><circle cx="6" cy="6" r="4.5" stroke="currentColor" stroke-width="0.8" fill="none" stroke-dasharray="1.5 1"/></svg>', tip: 'Permanent deck liability — clogs your hand, may trigger a downside when played. Cannot be drafted away. Removable at Rest Sites or specific events.' },
     'Drain':       { color: '#8e44ad', svg: '<svg viewBox="0 0 12 12"><path d="M6 2 L8 6 C8 8 7 9 6 9 C5 9 4 8 4 6 Z" fill="currentColor"/></svg>', tip: 'Steals ATK/HP from an enemy.' },
@@ -15464,6 +15469,7 @@ const UI = {
     'Damage Immunity': 'badge-dmg-immune',
     'Untrickable': 'badge-untrickable',
     'Mind Control': 'badge-mind-ctrl',
+    'Parlay': 'badge-parlay',
     'Drain': 'badge-debuff',
     'Draw': 'badge-draw',
     'Crazy':  'badge-crazy',

@@ -6782,6 +6782,7 @@ body.hit-pause .ai-hand * {
 .badge-armor      { color: var(--kw-armor); }
 .badge-evade      { color: var(--kw-evade); }
 .badge-feared     { color: var(--kw-fear); }
+.badge-parlay     { color: #d4ac6e; }
 .badge-mind-ctrl  { color: var(--kw-mind-ctrl); }
 .badge-bullseye   { color: var(--kw-bullseye); }
 .badge-overdrive  { color: var(--kw-overdrive); }
