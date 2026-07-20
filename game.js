@@ -10230,11 +10230,21 @@ const Game = {
 
   // Host broadcasts current state to all joiners via Multiplayer4
   _2v2OnlineBroadcast() {
+    // Never let a serialize/send failure abort the host's own turn. A throw
+    // here used to leave the host playing on while every guest froze on a
+    // stale state (the broadcast never reached them). serializeState is now
+    // cycle-safe, but the try/catch is belt-and-suspenders: if a broadcast
+    // ever fails again it gets logged instead of silently stranding guests.
     if (typeof Multiplayer4 !== 'undefined' && Multiplayer4.broadcastState) {
-      const clone = (typeof Multiplayer !== 'undefined' && Multiplayer.serializeState)
-        ? Multiplayer.serializeState(this.state)
-        : JSON.parse(JSON.stringify(this.state));
-      Multiplayer4.broadcastState(clone);
+      try {
+        const clone = (typeof Multiplayer !== 'undefined' && Multiplayer.serializeState)
+          ? Multiplayer.serializeState(this.state)
+          : JSON.parse(JSON.stringify(this.state));
+        Multiplayer4.broadcastState(clone);
+      } catch (e) {
+        console.error('[2v2] state broadcast failed — guests will not see this update:', e);
+        if (typeof window !== 'undefined' && window.__clbErrors) window.__clbErrors.report('2v2-broadcast', e);
+      }
     }
     if (typeof UI !== 'undefined' && UI.render) UI.render();
   },

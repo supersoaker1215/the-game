@@ -274,7 +274,29 @@ const Multiplayer = {
   // function refs for free) and then patch _summonedBy / _drawnBy
   // to id-based form.
   serializeState(state) {
-    const clone = JSON.parse(JSON.stringify(state));
+    // Cycle-safe deep clone. The old JSON.parse(JSON.stringify(state)) threw
+    // "Converting circular structure to JSON" the instant two cards referenced
+    // each other — e.g. a mutual mindControlTarget, or _copiedFrom, or any
+    // card back-ref that forms a loop. fixRefs (below) only rewrites
+    // _summonedBy / _drawnBy, and it runs AFTER the stringify, so it could
+    // never prevent the throw. On the host that throw aborted the broadcast:
+    // the host kept playing locally while every guest froze on a stale state,
+    // waiting for an update that never came (the "host advances, guest stuck"
+    // 2v2 freeze). This replacer walks an ancestor stack and drops any value
+    // that is its own ancestor — breaking true cycles only, while leaving
+    // shared (non-cyclic) references intact. Functions are dropped too;
+    // rehydrate re-attaches them from the card defs.
+    const ancestors = [];
+    const json = JSON.stringify(state, function (key, value) {
+      if (typeof value === 'function') return undefined;
+      if (value && typeof value === 'object') {
+        while (ancestors.length && ancestors[ancestors.length - 1] !== this) ancestors.pop();
+        if (ancestors.indexOf(value) !== -1) return undefined; // cycle — drop this back-ref
+        ancestors.push(value);
+      }
+      return value;
+    });
+    const clone = JSON.parse(json);
     // selectedCard / selectedTrick are per-CLIENT UI state, not shared game
     // state. Broadcasting the host's selection leaks it into the guest's state,
     // where it's a card the guest doesn't hold — the guest's restore-selection
