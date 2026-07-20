@@ -33,22 +33,50 @@ const Game = {
   LANE_COUNT_2V2: 8,
   BLOCK_MAX: 8,
   state: null,
-  _dmgEvents: [], // { cardId, amount, type: 'hit'|'heal'|'block'|'evade'|'hpHit', owner }
-  emitDmg(cardId, amount, type, owner, attackerId, lethal) {
-    // Silent preview sims (previewPlacement / previewPlay swap this.state for a
-    // _silentSim clone and run a card's onPlay to forecast the outcome). Those
-    // must NOT push UI events: _dmgEvents lives on the Game singleton, not on
-    // the cloned state, so anything emitted here leaks out of the sim and the
-    // next real render paints it. Concretely — selecting a card whose onPlay
-    // strikes the face (Superman, etc.) rolled the opponent's block meter and
-    // popped a real "BLOCKED!" banner + hit floats before you'd even played it,
-    // telling you in advance whether the hit would land (user report). The
-    // preview's numbers come from predictLaneOutcome's RETURN value, not these
-    // events, so suppressing them changes nothing the player should see.
-    if (this.state && this.state._silentSim) return;
-    this._dmgEvents.push({ cardId, amount, type, owner, attackerId, lethal: !!lethal });
+  // ===================== FX EVENT STREAM (System 3/3) =====================
+  // Engine → UI events live ON GAME STATE (state._fx), not the singleton, so
+  // they ride multiplayer state broadcasts: the guest replays the exact events
+  // the host's engine resolved (hit floats, BLOCKED banners, titan entrances,
+  // env reveals) instead of diffing renders to guess what changed. The ring is
+  // seq-numbered; each client keeps a consume cursor (_fxCursor) plus the
+  // stream's identity stamp (_fxMid) so a fresh match or a mid-match join
+  // fast-forwards past the backlog without animating it, and an undo (which
+  // restores an older ring) clamps the cursor instead of ghost-firing.
+  emitFX(type, payload) {
+    // Silent preview sims (previewPlacement / previewPlay swap this.state for
+    // a _silentSim clone and run a card's onPlay to forecast the outcome)
+    // must NOT emit: selecting a card whose onPlay strikes the face
+    // (Superman, etc.) would roll the block meter and pop a real "BLOCKED!"
+    // banner before you'd even played it (user report). Sim clones carry the
+    // stamp, so the guard also keeps their rings from leaking anywhere.
+    const s = this.state;
+    if (!s || s._silentSim) return;
+    if (!s._fx) s._fx = { seq: 0, events: [], mid: Date.now() + ':' + Math.floor(Math.random() * 1e6) };
+    s._fx.events.push(Object.assign({ seq: ++s._fx.seq, type }, payload || {}));
+    if (s._fx.events.length > 60) s._fx.events.splice(0, s._fx.events.length - 60);
   },
-  flushDmg() { const e = this._dmgEvents.splice(0); return e; },
+  emitDmg(cardId, amount, type, owner, attackerId, lethal) {
+    // Damage-flavored emit — types 'hit'|'heal'|'block'|'blocked'|'evade'|
+    // 'armor'|'hpHit', consumed by UI.showDamageFloats.
+    this.emitFX(type, { cardId, amount, owner, attackerId, lethal: !!lethal });
+  },
+  _fxCursor: null,
+  _fxMid: null,
+  flushDmg() {
+    const fx = this.state && this.state._fx;
+    if (!fx) { this._fxCursor = null; this._fxMid = null; return []; }
+    if (this._fxMid !== fx.mid || this._fxCursor == null || this._fxCursor > fx.seq) {
+      // New stream (fresh match / joined mid-match) or an undo rolled the
+      // ring back — sync to the head without replaying the backlog.
+      this._fxMid = fx.mid;
+      this._fxCursor = fx.seq;
+      return [];
+    }
+    if (this._fxCursor === fx.seq) return [];
+    const cur = this._fxCursor;
+    this._fxCursor = fx.seq;
+    return fx.events.filter(e => e.seq > cur);
+  },
 
   // ----- Deterministic RNG seam (Phase 1) -----
   // Reads state._rng if a seed was set, else falls back to Math.random.
@@ -802,6 +830,14 @@ const Game = {
       (p.discardPile || []).forEach(flip);
     });
     (state.drawPile || []).forEach(flip);
+    // FX stream events carry seat labels in the host's frame — flip them so
+    // the guest's consumer (UI.showDamageFloats) reads its own perspective.
+    if (state._fx && state._fx.events) {
+      state._fx.events.forEach(ev => {
+        if (ev.owner === 'player') ev.owner = 'ai';
+        else if (ev.owner === 'ai') ev.owner = 'player';
+      });
+    }
     // Top-level turn/winner labels follow the swap.
     if (state.currentTurn === 'player') state.currentTurn = 'ai';
     else if (state.currentTurn === 'ai') state.currentTurn = 'player';
@@ -978,6 +1014,10 @@ const Game = {
       lanes: Array.from({ length: this.LANE_COUNT }, () => ({ player: null, ai: null, _env: null, destroyed: false, destroyedTurns: 0, protected: null, trap: null })),
       selectedCard: null, selectedTrick: null,
       log: [], gameOver: false, winner: null,
+      // FX event stream (see emitFX) — created eagerly so the UI cursor syncs
+      // to seq 0 before the first emit; a lazy-created ring would swallow the
+      // match's first event during the mid-stamp resync.
+      _fx: { seq: 0, events: [], mid: Date.now() + ':' + Math.floor(Math.random() * 1e6) },
       _stats: {
         player: { blockTriggers: 0, peakRoundDamage: 0, cardsKilled: 0, energySpent: 0 },
         ai:     { blockTriggers: 0, peakRoundDamage: 0, cardsKilled: 0, energySpent: 0 },
@@ -2857,6 +2897,7 @@ const Game = {
         }
       });
       lane._env[owner] = card;
+      this.emitFX('envReveal', { lane: laneIdx, owner, name: card.name });
       if (card.statsEnteredRound == null) card.statsEnteredRound = this.state.round || 1;
       this.state[owner].discount = 0;
       this.log(`[PLAY] ${who} place ${card.name} in lane ${laneIdx + 1} for ${cost} energy`);
@@ -2869,6 +2910,7 @@ const Game = {
     }
 
     lane[owner] = card;
+    this._emitEntranceFX(card);
     if (card.statsEnteredRound == null) card.statsEnteredRound = this.state.round || 1;
     this.state[owner].discount = 0;
 
@@ -3021,8 +3063,10 @@ const Game = {
         }
       });
       freeLane._env[owner] = card;
+      this.emitFX('envReveal', { lane: laneIdx, owner, name: card.name });
     } else {
       freeLane[owner] = card;
+      this._emitEntranceFX(card);
     }
     if (card.statsEnteredRound == null) card.statsEnteredRound = this.state.round || 1;
     this.log(`[FREE PLAY] ${card.name} in lane ${laneIdx + 1}`);
@@ -7112,6 +7156,7 @@ const Game = {
       this._creditChain(summoner, 'statsEnergyGenerated', card.baseCost || card.cost || 0);
     }
     this.state.lanes[laneIdx][owner] = card;
+    this._emitEntranceFX(card);
     card.statsEnteredRound = this.state.round || 1;
     this.log(`  [SUMMON] ${name} (${card.attack}/${card.currentHealth}) in lane ${laneIdx + 1}`);
     this.checkLaneTrap(card, laneIdx);
@@ -7196,10 +7241,20 @@ const Game = {
     }
   },
 
+  // A 9+/10-cost card ENTERING the board (played, summoned, revived — not
+  // moved) gets the titan-entrance FX. Event-driven so it fires once, on
+  // every client, and never on undo-restores.
+  _emitEntranceFX(card) {
+    if (card && !card.isEnvironment && (card.baseCost || card.cost || 0) >= 9) {
+      this.emitFX('titan', { cardId: card.id, owner: card.owner });
+    }
+  },
+
   placeInLane(owner, card, laneIdx) {
     if (this.state.lanes[laneIdx][owner] || this.state.lanes[laneIdx].destroyed) return;
     card.owner = owner;
     this.state.lanes[laneIdx][owner] = card;
+    this._emitEntranceFX(card);
     this.checkLaneTrap(card, laneIdx);
   },
 

@@ -5789,12 +5789,10 @@ const UI = {
     // spawn death ghosts for any card that vanished from the board.
     this._applyMotionEffects();
 
-    // Render-side FX watchers — diff board ids / HP against the previous
-    // render, so titan entrances and face-damage vignettes fire on every
-    // client (solo, MP host, MP guest) with zero engine hooks.
-    this._titanWatch();
-    this._faceDamageWatch(s);
-    this._envWatch();
+    // Titan entrances, face-damage vignettes, and env reveals now fire from
+    // the FX event stream (showDamageFloats consumes state._fx above) — the
+    // render-diff watchers they replaced could ghost-fire on undo and missed
+    // events on the MP guest entirely.
     this._applyHeroAvatars(s);
     this._applyDoneNudge(s);
   },
@@ -6551,6 +6549,21 @@ const UI = {
   showDamageFloats() {
     const events = Game.flushDmg();
     for (const ev of events) {
+      // ---- FX-stream board events (System 3/3) — engine-emitted, replayed
+      // on every client including the MP guest (they ride state broadcasts).
+      if (ev.type === 'titan') {
+        const tEl = this.board && this.board.querySelector(`.card-slot .card[data-card-id="${ev.cardId}"]`);
+        if (tEl) this.fxTitanEntrance(tEl);
+        continue;
+      }
+      if (ev.type === 'envReveal') {
+        this.fxEnvReveal(ev.lane, ev.name);
+        continue;
+      }
+      if (ev.type === 'blockDrain') {
+        this.fxBlockAbsorb(ev.owner);
+        continue;
+      }
       // (b) Block-fill spark — fire when a 'block' event credits the
       // block meter (damage absorbed by the meter).
       if (ev.type === 'block' && ev.cardId) {
@@ -6575,10 +6588,14 @@ const UI = {
         // Haptic for the block trigger — distinctive punch so the
         // player feels the moment their meter saved them.
         this._haptic('block');
+        // Shield ring on the HP bar — the meter was spent absorbing this.
+        this.fxBlockAbsorb(ev.owner);
         continue;
       }
       if (ev.type === 'hpHit') {
         if (ev.amount > 0) this.sfx.play('hpHit');
+        // Face-damage vignette — red pulse from the hurt side's edge.
+        if (ev.amount > 0) this.fxFaceDamage(ev.owner);
         // Flash the HP bar
         const fill = document.getElementById(ev.owner === 'player' ? 'player-hp-fill' : 'ai-hp-fill');
         if (fill) { fill.classList.add('hp-flash'); setTimeout(() => fill.classList.remove('hp-flash'), 500); }
@@ -14754,31 +14771,10 @@ const UI = {
   },
 
   // ===================== TITAN ENTRANCE (cost 9-10) =====================
-  // Render-side watcher — new board card ids are diffed each render, so the
-  // entrance fires identically in solo, on the MP host, AND on the MP guest
-  // (whose board changes arrive via state broadcast, never a local play
-  // call). First render after load seeds silently.
-  _titanWatch() {
-    const s = Game.state;
-    if (!s || s.gameOver || !this.board) { this._titanSeen = null; return; }
-    const els = this.board.querySelectorAll('.card-slot .card[data-card-id]');
-    const cur = new Set();
-    els.forEach(el => cur.add(el.getAttribute('data-card-id')));
-    if (!this._titanSeen) { this._titanSeen = cur; return; }
-    els.forEach(el => {
-      const id = el.getAttribute('data-card-id');
-      if (this._titanSeen.has(id)) return;
-      // Resolve the live card for its cost (dataset doesn't carry it).
-      let card = null;
-      for (const lane of (s.lanes || [])) {
-        if (lane.player && String(lane.player.id) === id) { card = lane.player; break; }
-        if (lane.ai && String(lane.ai.id) === id) { card = lane.ai; break; }
-      }
-      if (!card || ((card.baseCost || card.cost || 0) < 9)) return;
-      this.fxTitanEntrance(el);
-    });
-    this._titanSeen = cur;
-  },
+  // Fired from the FX event stream ('titan' events in showDamageFloats) —
+  // the engine emits at every board-entrance choke point, and the events
+  // ride MP state broadcasts, so the entrance plays identically in solo,
+  // on the MP host, AND on the MP guest.
   fxTitanEntrance(cardEl) {
     if (this._reducedMotion && this._reducedMotion()) return;
     cardEl.classList.remove('titan-arrival');
@@ -14795,26 +14791,10 @@ const UI = {
   },
 
   // ===================== FACE-DAMAGE VIGNETTE =====================
-  // Render-side HP diff — a red pulse rises from the screen edge nearest
-  // whichever HP bar just dropped. Same watcher pattern as the titan
-  // entrance, so it fires on every client with zero engine hooks.
-  _faceDamageWatch(s) {
-    if (!s || !s.player || !s.ai) { this._faceHpSeen = null; return; }
-    const cur = {
-      player: s.player.health, ai: s.ai.health,
-      playerBlock: s.player.blockMeter | 0, aiBlock: s.ai.blockMeter | 0,
-    };
-    const prev = this._faceHpSeen;
-    this._faceHpSeen = cur;
-    if (!prev || s.gameOver) return;
-    ['player', 'ai'].forEach(side => {
-      if (cur[side] < prev[side]) this.fxFaceDamage(side);
-      // Block meter spent → shield flash on that side's HP bar. Any drain
-      // counts (absorbing a hit, Trigon's steal) — either way the shield
-      // visibly reacts instead of the number just shrinking.
-      if (cur[side + 'Block'] < prev[side + 'Block']) this.fxBlockAbsorb(side);
-    });
-  },
+  // A red pulse rises from the screen edge nearest whichever HP bar just
+  // dropped. Fired from the FX event stream ('hpHit' events); the block
+  // shield ring fires on 'blocked' (meter spends) and 'blockDrain'
+  // (Raven's empty). Events ride MP broadcasts → all clients see them.
   // One-shot shield ring + glow pulse over a side's HP bar when its block
   // meter is spent. Same render-diff pattern as the vignette, so it fires
   // on every client (solo, MP host, MP guest).
@@ -14933,24 +14913,8 @@ const UI = {
 
   // ===================== ENVIRONMENT REVEAL =====================
   // Snap-location moment: when an environment lands in a lane, sweep the
-  // lane and stamp its name for a beat. Render-diff watcher (same pattern
-  // as titans) so it fires on every client.
-  _envWatch() {
-    const s = Game.state;
-    if (!s || !s.lanes || !this.board) { this._envSeen = null; return; }
-    const cur = new Set();
-    s.lanes.forEach((l, i) => ['player', 'ai'].forEach(side => {
-      const e = l._env && l._env[side];
-      if (e && e.name) cur.add(i + '|' + side + '|' + e.name);
-    }));
-    if (!this._envSeen) { this._envSeen = cur; return; }
-    cur.forEach(key => {
-      if (this._envSeen.has(key)) return;
-      const parts = key.split('|');
-      this.fxEnvReveal(parseInt(parts[0], 10), parts[2]);
-    });
-    this._envSeen = cur;
-  },
+  // lane and stamp its name for a beat. Fired from the FX event stream
+  // ('envReveal' events) so it plays on every client.
   fxEnvReveal(laneIdx, name) {
     if (this._reducedMotion && this._reducedMotion()) return;
     const laneEl = this.board.querySelectorAll(':scope > .lane')[laneIdx];

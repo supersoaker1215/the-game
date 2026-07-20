@@ -2074,6 +2074,7 @@ const CARD_ABILITIES = {
       // the steal mode; default is just-drain.
       const drainedAmount = G.state[opp].blockMeter || 0;
       G.state[opp].blockMeter = 0;
+      if (drainedAmount > 0) G.emitFX('blockDrain', { owner: opp, amount: drainedAmount });
       G.log(`Raven empties the opponent's Block Meter!`);
       G.getAlliesOf(self.owner).forEach(a => {
         // Clear counters AND booleans together — debuff stacking
