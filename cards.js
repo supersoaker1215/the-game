@@ -394,7 +394,13 @@ const CARD_DEFS = [
     abilities: ["Immunity", "Invincible 1", "Unresistible 3", "Draw 1"],
     desc: "When Played: Steal the opponent's Block Meter. Start of Tricks (once): Freeze 1 all enemies (not other 10-cost cards). While Active: When Trigon destroys an enemy, destroy another random enemy." },
   { name: "Doomsday", cost: 12, attack: 1, health: 1, type: "villain",
-    abilities: [],
+    // Revive 1 as a real keyword so EVERY surface (board, codex, hand
+    // chips, draft, gallery) badges it from the one canonical source.
+    // His onDeath consumes the charge when the custom revive fires —
+    // same contract as Jason/Grundy/Drax; the desc text stays because
+    // his revive differs from generic Revive (full HP + permanent
+    // Stun/Freeze immunity, NOT played-anew).
+    abilities: ["Revive 1"],
     desc: "Gains +1/+1 each time you play a card (even undrawn). While in Hand: costs 1 less each time an ally is destroyed (min cost 0). When First Destroyed: Revives at full HP, permanently immune to Stun and Freeze." }
 ];
 

@@ -4625,6 +4625,11 @@ const CARD_ABILITIES = {
       if (G.reviveVoided(self, lane)) return false; // destroyed lane — even Doomsday stays down
       if (self._doomsdayRevived) return false; // already revived once — die permanently
       self._doomsdayRevived = true;
+      // Consume the Revive 1 keyword charge (cards.js) — the badge is
+      // driven by reviveCharges on every surface, and zeroing it here
+      // keeps the generic revive path in handleDeath from ever firing
+      // a SECOND revive on top of this custom one.
+      self.reviveCharges = 0;
       self.currentHealth = self.maxHealth;
       G.log(`[DOOMSDAY] Cannot be stopped — Doomsday rises! Permanently immune to Stun and Freeze.`);
       return true; // prevent death
