@@ -2549,9 +2549,7 @@ const CARD_ABILITIES = {
           // Luke Skywalker on the board. It should copy the stats
           // of Dormammu, not die."
           G._runHook(t, 'onPlay', G, t, l);
-          G.getAllCardsOnBoard().forEach(c => {
-            if (c.onAnyCardPlayed && c.id !== t.id) c.onAnyCardPlayed(G, c);
-          });
+          G.broadcastHook('onAnyCardPlayed', t, []);
           G.getAllCardsOf(owner).forEach(c => {
             if (c.passive === 'cardPlayedBuff' && c.id !== t.id) { const n = c._bpAuraSize || 1; G.buffCard(t, n, n); }
           });

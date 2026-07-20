@@ -250,6 +250,33 @@ const Game = {
     try { this._stackDrain(); } finally { this._stackResolving = false; }
   },
 
+  // STAGE 2 — reactive broadcasts as stack events. Snapshots the listener
+  // list at broadcast time (board order: lanes ascending, player before ai),
+  // fires each listener as its own event with liveness re-validated at fire
+  // time — so a handler that kills or summons mutates the BOARD, never the
+  // iteration it rides in, and a nested broadcast (a summon inside a
+  // handler) appends behind the current batch instead of recursing. At top
+  // level this drains immediately — synchronous, same beat as the old
+  // forEach; during a drain it appends and the outer loop reaches the
+  // events in order.
+  broadcastHook(hook, source, args) {
+    const extra = args || [];
+    const listeners = this.getAllCardsOnBoard().filter(c => c[hook] && (!source || c.id !== source.id));
+    if (!listeners.length) return;
+    listeners.forEach(c => {
+      this._stack.push({
+        type: 'call', label: `${hook}:${c.name}`,
+        fn: () => {
+          if (c.currentHealth <= 0) return;                    // died before firing
+          if (!this.getAllCardsOnBoard().includes(c)) return;  // left the board (combat or env slot)
+          c[hook](this, c, ...extra);
+        },
+      });
+    });
+    this._stackHighWater = Math.max(this._stackHighWater, this._stack.length);
+    this.resolveStack();
+  },
+
   // Lifecycle reset — queued events must never survive a boot, a new match,
   // a new round, or an undo (they closure over pre-restore card objects).
   _stackClear(where) {
@@ -2984,7 +3011,7 @@ const Game = {
       this.state[owner].discount = 0;
       this.log(`[PLAY] ${who} place ${card.name} in lane ${laneIdx + 1} for ${cost} energy`);
       this._runHook(card, 'onPlay', this, card, laneIdx);
-      this.getAllCardsOnBoard().forEach(c => { if (c.onAnyCardPlayed && c.id !== card.id) c.onAnyCardPlayed(this, c, card); });
+      this.broadcastHook('onAnyCardPlayed', card, [card]);
       this.checkJumpConditions('cardPlayed', { owner, cost: card.baseCost || card.cost, laneIdx, isEnvironment: true });
       this.applyMagnetoDebuffs();
       if (typeof UI !== 'undefined' && UI.render) UI.render();
@@ -3036,7 +3063,7 @@ const Game = {
     // Activate "While Active" passives immediately
     if (card.passive === 'faceDownOption') this.state[owner].faceDownAvailable = true;
 
-    this.getAllCardsOnBoard().forEach(c => { if (c.onAnyCardPlayed && c.id !== card.id) c.onAnyCardPlayed(this, c, card); });
+    this.broadcastHook('onAnyCardPlayed', card, [card]);
     this.getAllCardsOf(owner).forEach(c => {
       if (c.passive === 'cardPlayedBuff' && c.id !== card.id) { const n = c._bpAuraSize || 1; this.buffCard(card, n, n); }
     });
@@ -3155,7 +3182,7 @@ const Game = {
     this.checkLaneTrap(card, laneIdx);
 
     // Trigger "While Active" buffs from allies (e.g. Black Panther +1/+1)
-    this.getAllCardsOnBoard().forEach(c => { if (c.onAnyCardPlayed && c.id !== card.id) c.onAnyCardPlayed(this, c, card); });
+    this.broadcastHook('onAnyCardPlayed', card, [card]);
     this.getAllCardsOf(owner).forEach(c => {
       if (c.passive === 'cardPlayedBuff' && c.id !== card.id) {
         const n = c._bpAuraSize || 1;
@@ -3290,11 +3317,7 @@ const Game = {
     // by either player) and any future "react to tricks" passive.
     // Fired AFTER cleanupDead so we only buff survivors, and after
     // checkJumpConditions so jumps stay event-ordered consistently.
-    this.getAllCardsOnBoard().forEach(c => {
-      if (c.currentHealth > 0 && c.onAnyTrickPlayed) {
-        try { c.onAnyTrickPlayed(this, c, owner, trick); } catch (e) { console.error(e); }
-      }
-    });
+    this.broadcastHook('onAnyTrickPlayed', null, [owner, trick]);
     return true;
   },
 
@@ -7304,11 +7327,7 @@ const Game = {
         // (Luke's debuff, Captain America's squad buff, etc.) hit them.
         // Each ping individually guarded: one broken aura must not kill the
         // rest of the arrival sequence.
-        this.getAllCardsOnBoard().forEach(c => {
-          if (c.onAnyCardPlayed && c.id !== card.id) {
-            try { c.onAnyCardPlayed(this, c, card); } catch (e) { console.error('[summon aura]', e); }
-          }
-        });
+        this.broadcastHook('onAnyCardPlayed', card, [card]);
         this.getAllCardsOf(owner).forEach(c => {
           if (c.passive === 'cardPlayedBuff' && c.id !== card.id) { const n = c._bpAuraSize || 1; this.buffCard(card, n, n); }
         });
