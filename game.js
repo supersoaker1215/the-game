@@ -5645,6 +5645,23 @@ const Game = {
         if (c && c.currentHealth <= 0) this.handleDeath(c, i, null);
       });
     }
+    // Aura reconcile rides every death sweep — a source that just died has
+    // its aura lifted here. Hostile aura kills reap themselves (debuffCard's
+    // allowKill path calls killCard), but if a reconcile strands a card at
+    // 0 HP through any other path, one bounded re-sweep collects it.
+    this.recomputeAuras();
+    if (!this._auraReaping) {
+      let stranded = false;
+      for (let i = 0; i < this.LANE_COUNT && !stranded; i++) {
+        const l = this.state.lanes[i];
+        stranded = !!((l.player && l.player.currentHealth <= 0) || (l.ai && l.ai.currentHealth <= 0));
+      }
+      if (stranded) {
+        this._auraReaping = true;
+        try { this.cleanupDead(); } finally { this._auraReaping = false; }
+        return;
+      }
+    }
     this.checkInvariants('cleanup');
   },
 
@@ -8213,70 +8230,124 @@ const Game = {
   // ===================== MAGNETO WHILE ACTIVE =====================
 
   applyMagnetoDebuffs() {
-    // Magneto's While-Active aura, recomputed. He punishes ENEMIES in
-    // even-numbered lanes (-1/-1) and empowers his OWN allies in odd-numbered
-    // lanes (+1/+1). This is a full reconcile — not apply-once — so the aura
-    // tracks cards as they move between lanes (Magneto's own On Play hurls
-    // cards across the board, so a card that changes lane parity must gain or
-    // lose the effect accordingly). Flags are set BEFORE the stat change so a
-    // debuff that kills the card still leaves the marker on the instance.
-    ['player', 'ai'].forEach(owner => {
-      const magneto = this.getAllCardsOf(owner).find(c => c.name === 'Magneto');
-      const hasMagneto = !!magneto;
-      const opp = this.opponent(owner);
-      for (let i = 0; i < this.LANE_COUNT; i++) {
-        const even = (i + 1) % 2 === 0;
-        // Even lane → debuff the enemy card sitting there.
-        const e = this.state.lanes[i][opp];
-        if (e && e.currentHealth > 0) {
-          const shouldDebuff = hasMagneto && even;
-          if (shouldDebuff && !e._magnetoDebuffed) {
-            e._magnetoDebuffed = true;
-            this.debuffCard(e, 1, 1, true, magneto);
-            this.log(`  [MAGNETO] ${e.name} in lane ${i + 1} gets -1/-1`);
-          } else if (!shouldDebuff && e._magnetoDebuffed) {
-            e._magnetoDebuffed = false;
-            this.buffCard(e, 1, 1);
-            this.log(`  [MAGNETO] ${e.name} sheds the even-lane debuff`);
-          }
-        }
-        // Odd lane → buff Magneto's own ally sitting there.
-        const a = this.state.lanes[i][owner];
-        if (a && a.currentHealth > 0) {
-          const shouldBuff = hasMagneto && !even;
-          if (shouldBuff && !a._magnetoBuffed) {
-            a._magnetoBuffed = true;
-            this.buffCard(a, 1, 1);
-            this.log(`  [MAGNETO] ${a.name} in lane ${i + 1} gets +1/+1`);
-          } else if (!shouldBuff && a._magnetoBuffed) {
-            a._magnetoBuffed = false;
-            this.debuffCard(a, 1, 1, false);
-            this.log(`  [MAGNETO] ${a.name} loses the odd-lane buff`);
-          }
-        }
-      }
-    });
+    // Legacy name — every historical call site (moveCard, summonCard,
+    // startRound, Magneto's own On Play) routes into the generic aura
+    // reconcile, which also owns Luke's aura.
+    this.recomputeAuras();
   },
 
   removeMagnetoDebuffs(magnetoOwner) {
-    // Magneto left the board — drop every aura it applied: the enemy even-lane
-    // debuffs (+1/+1 back) and its own odd-lane ally buffs (-1/-1 back). Keyed
-    // off the flags, not the lane, so a card that drifted parity still clears.
-    const opp = this.opponent(magnetoOwner);
-    for (let i = 0; i < this.LANE_COUNT; i++) {
-      const e = this.state.lanes[i][opp];
-      if (e && e._magnetoDebuffed) {
-        e._magnetoDebuffed = false;
-        this.buffCard(e, 1, 1);
-        this.log(`  [MAGNETO] Debuff removed from ${e.name}`);
-      }
-      const a = this.state.lanes[i][magnetoOwner];
-      if (a && a._magnetoBuffed) {
-        a._magnetoBuffed = false;
-        this.debuffCard(a, 1, 1, false);
-        this.log(`  [MAGNETO] Buff removed from ${a.name}`);
-      }
+    // Legacy name — killCard zeroes health before calling this, so the
+    // reconcile already sees the dead Magneto and lifts his aura.
+    this.recomputeAuras();
+  },
+
+  // ===================== AURA RECOMPUTE =====================
+  // Studio-style stat reconciliation. Instead of each aura stamping flags on
+  // its targets and trying to unwind them on every move/death (the bug family
+  // behind stuck +1/+1s and phantom sheds), the board's TOTAL aura
+  // contribution per card is recomputed from live sources and diffed against
+  // what's recorded on the card (_auraAtk/_auraHp). Only the difference is
+  // applied — and the record tracks what MEASURABLY landed, so a card that
+  // shrugs a debuff (Invincible, trick-block, 0-ATK floor) never later
+  // "sheds" a stat it never lost; the aura simply retries while the shield
+  // holds and lands when it drops. Sources today: Magneto's parity aura and
+  // Luke's ±aura (stacks per living Luke, Text+ sized via _lukeAuraSize).
+  // The Gremlin swarm keeps its own additive bookkeeping by design — its
+  // buff is permanent-per-arrival, not a While Active aura.
+  recomputeAuras() {
+    const s = this.state;
+    if (!s || !s.lanes) return;
+    // Re-entrancy: an aura kill mid-pass can fire onDeath → summon →
+    // applyMagnetoDebuffs. Queue a follow-up pass instead of nesting so two
+    // passes never interleave their measurements.
+    if (this._recomputingAuras) { this._auraRecomputeQueued = true; return; }
+    this._recomputingAuras = true;
+    try {
+      do {
+        this._auraRecomputeQueued = false;
+        this._recomputeAurasPass();
+      } while (this._auraRecomputeQueued);
+    } finally {
+      this._recomputingAuras = false;
     }
+  },
+
+  _recomputeAurasPass() {
+    const s = this.state;
+    const live = [];
+    for (let i = 0; i < this.LANE_COUNT; i++) {
+      const l = s.lanes[i];
+      ['player', 'ai'].forEach(side => {
+        const c = l && l[side];
+        if (c && c.currentHealth > 0 && !c.isEnvironment) live.push({ card: c, lane: i, side });
+      });
+    }
+    // One-time migration of pre-recompute stamp flags (mid-match update or a
+    // resumed save): fold each legacy flag into the recorded aura state so
+    // the diff below doesn't double-apply on first contact.
+    live.forEach(({ card: c }) => {
+      if (c._magnetoDebuffed) { c._auraAtk = (c._auraAtk || 0) - 1; c._auraHp = (c._auraHp || 0) - 1; delete c._magnetoDebuffed; }
+      if (c._magnetoBuffed)   { c._auraAtk = (c._auraAtk || 0) + 1; c._auraHp = (c._auraHp || 0) + 1; delete c._magnetoBuffed; }
+      if (c._lukeBuff)        { c._auraAtk = (c._auraAtk || 0) + 1; c._auraHp = (c._auraHp || 0) + 1; delete c._lukeBuff; }
+      if (c._lukeDebuff)      { c._auraAtk = (c._auraAtk || 0) - 1; c._auraHp = (c._auraHp || 0) - 1; delete c._lukeDebuff; }
+    });
+    // Desired NET aura per card from every living source.
+    const want = new Map(); // card -> {atk, hp, hostile, src}
+    const add = (card, atk, hp, hostile, src) => {
+      const w = want.get(card) || { atk: 0, hp: 0, hostile: false, src: null };
+      w.atk += atk; w.hp += hp;
+      if (hostile) { w.hostile = true; w.src = w.src || src; }
+      want.set(card, w);
+    };
+    ['player', 'ai'].forEach(owner => {
+      // — Magneto's parity aura: enemies in even lanes -1/-1, own allies in
+      //   odd lanes +1/+1 (himself included). One per side, matching the
+      //   original find() semantics.
+      const magneto = live.find(e => e.side === owner && e.card.name === 'Magneto');
+      if (magneto) {
+        live.forEach(({ card: c, lane, side }) => {
+          const even = (lane + 1) % 2 === 0;
+          if (side !== owner && even) add(c, -1, -1, true, magneto.card);
+          if (side === owner && !even) add(c, 1, 1, false, magneto.card);
+        });
+      }
+      // — Luke's aura: allies +N/+N, enemies -N/-N. Stacks per living Luke
+      //   (the old stamp flags collided when two Lukes shared a board).
+      live.filter(e => e.side === owner && e.card.name === 'Luke Skywalker').forEach(({ card: luke }) => {
+        const size = luke._lukeAuraSize || 1;
+        live.forEach(({ card: c, side }) => {
+          if (c === luke) return;
+          if (side === owner) add(c, size, size, false, luke);
+          else add(c, -size, -size, true, luke);
+        });
+      });
+    });
+    // Reconcile: apply only the measured difference.
+    live.forEach(({ card: c }) => {
+      const w = want.get(c) || { atk: 0, hp: 0, hostile: false, src: null };
+      let dAtk = w.atk - (c._auraAtk || 0);
+      const dHp = w.hp - (c._auraHp || 0);
+      // Crazy owns the ATK stat (re-rolled each round, restored from
+      // _preCrazyAttack — which froze WITH the recorded aura inside it).
+      // Leave both the stat and the record alone until the stamp lifts;
+      // the diff trues it up automatically on the next pass after restore.
+      if (c.isCrazy) dAtk = 0;
+      if (!dAtk && !dHp) return;
+      const beforeAtk = c.attack, beforeMax = c.maxHealth;
+      if (dAtk > 0 || dHp > 0) this.buffCard(c, Math.max(0, dAtk), Math.max(0, dHp));
+      if ((dAtk < 0 || dHp < 0) && c.currentHealth > 0) {
+        this.debuffCard(c, Math.max(0, -dAtk), Math.max(0, -dHp), w.hostile, w.src || { name: 'an aura' });
+      }
+      const landedAtk = c.attack - beforeAtk;
+      const landedHp = c.maxHealth - beforeMax;
+      if (!c.isCrazy) c._auraAtk = (c._auraAtk || 0) + landedAtk;
+      c._auraHp = (c._auraHp || 0) + landedHp;
+      if (landedAtk || landedHp) {
+        const fmt = n => (n > 0 ? `+${n}` : `${n}`);
+        this.log(`  [AURA] ${c.name} ${fmt(landedAtk)}/${fmt(landedHp)}`);
+      }
+    });
   },
 
   // ===================== UNDO / SNAPSHOT API =====================

@@ -3481,15 +3481,11 @@ const CARD_ABILITIES = {
       // magnitude. Default 1 (classic +1/+1 / -1/-1); Text+ raises to
       // 2 so a 2-ally board jumps +4/+4 in one play and 1-HP enemies
       // get cleared by the aura alone.
+      // Presence-based since the aura recompute pass: Game.recomputeAuras
+      // reads living Lukes off the board and reconciles every card's
+      // recorded aura to match — no per-card stamp flags to unwind.
       const auraSize = self._lukeAuraSize || 1;
-      G.getAlliesOf(self.owner).filter(a => a.id !== self.id).forEach(a => {
-        G.buffCard(a, auraSize, auraSize);
-        a._lukeBuff = true;
-      });
-      G.getEnemiesOf(self.owner).forEach(e => {
-        G.debuffCard(e, auraSize, auraSize, true, self);
-        e._lukeDebuff = true;
-      });
+      G.recomputeAuras();
       G.log(`Luke Skywalker inspires allies (+${auraSize}/+${auraSize}) and weakens enemies (-${auraSize}/-${auraSize})!`);
       // Now snapshot the remaining LIVE enemies and prompt for MC.
       // getEnemiesOf already filters by `currentHealth > 0`, so dead
@@ -3502,34 +3498,17 @@ const CARD_ABILITIES = {
       }
     },
     onAnyCardPlayed(G, self) {
-      // Apply aura to any new card that enters the board. Text+ scaling
-      // shared with the onPlay call (same _lukeAuraSize flag).
-      const auraSize = self._lukeAuraSize || 1;
-      G.getAlliesOf(self.owner).filter(a => a.id !== self.id && !a._lukeBuff).forEach(a => {
-        G.buffCard(a, auraSize, auraSize);
-        a._lukeBuff = true;
-      });
-      G.getEnemiesOf(self.owner).filter(e => !e._lukeDebuff).forEach(e => {
-        // allowKill=true mirrors the onPlay call — a freshly-played
-        // 1/1 token should die to Luke's aura the moment it lands.
-        G.debuffCard(e, auraSize, auraSize, true, self);
-        e._lukeDebuff = true;
-      });
+      // A new arrival gets the aura via the reconcile pass. Most play
+      // paths already recompute (placement, summon, move), but this hook
+      // stays as a cheap idempotent safety net for any that don't.
+      G.recomputeAuras();
     },
     onDeath(G, self, lane) {
-      // Remove aura when Luke dies. Use the same _lukeAuraSize so a
-      // Text+ Luke pulls back the right amount when he falls.
-      const auraSize = self._lukeAuraSize || 1;
-      G.getAllCardsOnBoard().forEach(c => {
-        if (c._lukeBuff) {
-          G.debuffCard(c, auraSize, auraSize);
-          delete c._lukeBuff;
-        }
-        if (c._lukeDebuff) {
-          G.buffCard(c, auraSize, auraSize);
-          delete c._lukeDebuff;
-        }
-      });
+      // Luke reads as dead (health 0) the moment this fires, so the
+      // reconcile lifts his aura — including from cards that were
+      // Invincible when it tried to land (nothing was recorded, so
+      // nothing phantom is returned).
+      G.recomputeAuras();
       G.log("Luke Skywalker falls — aura fades!");
     }
   },
