@@ -101,10 +101,50 @@ const Game = {
     if (this.isMultiplayer && this.isMultiplayer() && this.mp.role === 'host') this._mpBroadcast();
   },
   // Called by UI when any prompt is resolved — fires stored continuation
+  // ===================== PROMPT QUEUE =====================
+  // The engine has ONE slot per prompt kind (pendingCardChoice /
+  // pendingLaneChoice). Any code that arms two prompts in one synchronous
+  // pass used to CLOBBER the first — two Man-Bats, a Knull volley summoning
+  // two prompt-heavy cards, two deaths wanting placement picks. Now: arming
+  // while any prompt slot is occupied queues the arm as a THUNK that
+  // re-enters the full arm function when the current prompt resolves — so
+  // target lists are re-validated against the board as it is AT FIRE TIME,
+  // not as it was when the collision happened.
+  _promptQueue: [],
+  // "Busy" = a real occupied slot whose resolution runs through
+  // resumeCombatIfWaiting (our drain point). Deliberately NOT
+  // hasPendingPrompt(): that also counts in-flight AI action delays, which
+  // decrement without a resolve path — gating on them could strand the queue.
+  _promptBusy() {
+    const s = this.state;
+    return !!(s && (s.pendingCardChoice || s.pendingLaneChoice
+      || s.pendingBlockTrick || s.pendingKangChoice
+      || s.pendingJumpOffer || s.pendingTimeStoneIntercept));
+  },
+
   resumeCombatIfWaiting() {
     // If the callback chained a new prompt (e.g. Omega Beam target→amount),
     // keep the continuation parked and let the next resolve fire it.
     if (this.hasPendingPrompt()) return;
+    // Drain deferred prompt arms BEFORE the combat continuation — queued
+    // prompts belong to the current beat. Each thunk re-enters its arm
+    // function: if it raises a visible prompt we stop and wait (that
+    // prompt's own resolve re-enters here and continues the drain); if it
+    // auto-resolves or finds its targets gone, the loop keeps draining.
+    // The re-entrancy flag makes nested resumeCombat calls (from an
+    // auto-resolving thunk's callback) no-op while the outer loop owns
+    // the queue.
+    if (this._drainingPromptQueue) return;
+    if (this._promptQueue && this._promptQueue.length) {
+      this._drainingPromptQueue = true;
+      try {
+        while (this._promptQueue.length && !this.hasPendingPrompt()) {
+          const arm = this._promptQueue.shift();
+          try { arm(); } catch (e) { console.error('[promptQueue] queued arm threw:', e); }
+        }
+      } finally { this._drainingPromptQueue = false; }
+      if (this.hasPendingPrompt()) return;
+    }
     const cont = this.state._combatContinuation;
     if (cont) {
       this._bumpCombatProgress(); // watchdog: a park just resolved
@@ -914,6 +954,8 @@ const Game = {
     // PLAY sub-screen. Headless sim harnesses call startMatch('classic')
     // directly without going through the UI, so init() doesn't build
     // decks here.
+    this._promptQueue = [];            // deferred prompt arms never cross a boot
+    this._drainingPromptQueue = false;
     this.LANE_COUNT = 6;  // reset to 1v1 default; 2v2 entry points override to 8 AFTER init() (never before — this line clobbers it)
     nextCardId = 1;
     this.state = {
@@ -1321,6 +1363,10 @@ const Game = {
   startMatch(mode) {
     if (typeof mode === 'string') mode = { players: '1v1', deck: mode };
     if (!mode) mode = { players: '1v1', deck: 'classic' };
+    // New match — queued prompt arms from the previous match must not fire
+    // into this one (startMatch reuses this.state without init()).
+    this._promptQueue = [];
+    this._drainingPromptQueue = false;
     // New match — invalidate any timers still queued from a previous one
     // (startMatch reuses this.state in place, so stale combat/AI callbacks
     // would otherwise run against the new board).
@@ -1951,6 +1997,13 @@ const Game = {
   // ===================== ROUNDS =====================
 
   startRound() {
+    // Defensive: a queued prompt arm surviving into a new round means its
+    // resolve path was dropped — firing it now against a changed board
+    // would be wrong. Log + discard.
+    if (this._promptQueue && this._promptQueue.length) {
+      console.warn('[promptQueue]', this._promptQueue.length, 'stale queued prompt(s) discarded at round start');
+      this._promptQueue = [];
+    }
     this.state.round++;
     const r = this.state.round;
     // Sanitize all living cards — heal any currentHealth/maxHealth/attack
@@ -6659,6 +6712,17 @@ const Game = {
   },
 
   promptLaneChoice(owner, lanes, title, desc, callback, targetSide, previewCard, previewDamage) {
+    // PROMPT QUEUE — a prompt is already open, so defer this arm instead of
+    // clobbering the slot. The thunk re-enters this function on drain with
+    // destroyed lanes filtered out; callbacks with stricter needs (summon
+    // placement into a lane that filled meanwhile) already validate on
+    // resolve, same as the timeout auto-pick path.
+    if (this._promptBusy()) {
+      this._promptQueue.push(() => this.promptLaneChoice(owner,
+        (lanes || []).filter(i => this.state.lanes[i] && !this.state.lanes[i].destroyed),
+        title, desc, callback, targetSide, previewCard, previewDamage));
+      return;
+    }
     if (!lanes || !lanes.length) {
       // No valid lanes — caller's effect can't resolve. Unstick combat so
       // the engine doesn't hang waiting on a callback that will never fire.
@@ -6759,6 +6823,15 @@ const Game = {
   },
 
   promptCardChoice(owner, cards, title, desc, callback, aiPicker, options) {
+    // PROMPT QUEUE — see promptLaneChoice. The thunk drops board cards that
+    // died while waiting (entries WITHOUT currentHealth — synthetic choices
+    // like Darkseid's lane list or Kang's defs — pass through untouched).
+    if (this._promptBusy()) {
+      this._promptQueue.push(() => this.promptCardChoice(owner,
+        (cards || []).filter(c => !c || c.currentHealth == null || c.currentHealth > 0),
+        title, desc, callback, aiPicker, options));
+      return;
+    }
     if (!cards || !cards.length) {
       // No valid targets — log and unstick combat so an empty filter
       // upstream (e.g. chain ability with no enemies) doesn't strand
@@ -8180,6 +8253,7 @@ const Game = {
     // Abuse prevention — cancel any live prompt timer + deadline before the
     // restore so a stale timer from the snapshot can't linger.
     this._clearPromptTimeout();
+    this._promptQueue = [];   // queued arms closure over pre-undo card objects
     const snap = this.history.pop();
     this.state = snap;
     // Also wipe any deadline that may have been in the snapshot itself.
