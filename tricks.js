@@ -53,10 +53,10 @@ const TRICK_DEFS = [
     // enemies are still filtered out.
     desc: "Deal 2 damage 2 separate times to enemies.",
     canPlay(G, owner) {
-      return G.getEnemiesOf(owner).some(e => !e.isUntrickable);
+      return G.getEnemiesOf(owner).some(e => G.canTrickLand(e, 'damage', owner));
     },
     play(G, owner) {
-      const trickable = () => G.getEnemiesOf(owner).filter(e => !e.isUntrickable && e.currentHealth > 0);
+      const trickable = () => G.getEnemiesOf(owner).filter(e => G.canTrickLand(e, 'damage', owner));
       const pickLow = cards => cards.slice().sort((a, b) => a.currentHealth - b.currentHealth)[0];
       // Two SEPARATE 2-damage hits — split between two enemies or double-tap one.
       const strike2 = () => {
@@ -104,10 +104,10 @@ const TRICK_DEFS = [
     abilities: ["Draw 1"],
     desc: "Move an ally to another empty lane.",
     // Needs a live target — greys out in the tray + refused by playTrick otherwise.
-    canPlay(G, owner) { return G.getAlliesOf(owner).length > 0 && G.getOpenLanes(owner).length > 0; },
+    canPlay(G, owner) { return G.getAlliesOf(owner).some(x => G.canTrickLand(x, 'trick', owner) && !x.isFrozen && !x.isStunned) && G.getOpenLanes(owner).length > 0; },
     play(G, owner) {
       G.drawCards(owner, 1);
-      const a = G.getAlliesOf(owner);
+      const a = G.getAlliesOf(owner).filter(x => G.canTrickLand(x, 'trick', owner) && !x.isFrozen && !x.isStunned);
       const o = G.getOpenLanes(owner);
       if (a.length && o.length) {
         const doMove = (ally) => {
@@ -132,9 +132,9 @@ const TRICK_DEFS = [
   { name: "Kryptonite", cost: 1,
     desc: "Remove 3 ATK from an enemy. If the enemy is Superman, remove all his ATK.",
     // Needs a live target — greys out in the tray + refused by playTrick otherwise.
-    canPlay(G, owner) { return G.getEnemiesOf(owner).length > 0; },
+    canPlay(G, owner) { return G.getEnemiesOf(owner).some(e => G.canTrickLand(e, 'debuff', owner)); },
     play(G, owner) {
-      const enemies = G.getEnemiesOf(owner);
+      const enemies = G.getEnemiesOf(owner).filter(e => G.canTrickLand(e, 'debuff', owner));
       if (enemies.length) {
         G.promptCardChoice(owner, enemies, "Kryptonite — Weaken", "Choose enemy to weaken", (t) => {
           const r = t.name === "Superman" ? t.attack : 3;
@@ -235,9 +235,9 @@ const TRICK_DEFS = [
   { name: "Smoke Pellet", cost: 1,
     desc: "Give an ally Evade 1 and (+1/+1).",
     // Needs a live target — greys out in the tray + refused by playTrick otherwise.
-    canPlay(G, owner) { return G.getAlliesOf(owner).length > 0; },
+    canPlay(G, owner) { return G.getAlliesOf(owner).some(x => G.canTrickLand(x, 'trick', owner)); },
     play(G, owner) {
-      const a = G.getAlliesOf(owner);
+      const a = G.getAlliesOf(owner).filter(x => G.canTrickLand(x, 'trick', owner));
       if (Game.isHuman(owner) && a.length) {
         G.promptCardChoice(owner, a, "Smoke Pellet — Buff", "Choose ally to give Evade +1/+1", (t) => {
           t.evadeCharges += 1; G.buffCard(t, 1, 1);
@@ -254,9 +254,9 @@ const TRICK_DEFS = [
   { name: "Adamantium", cost: 2,
     desc: "Add (+2/+2) to an ally.",
     // Needs a live target — greys out in the tray + refused by playTrick otherwise.
-    canPlay(G, owner) { return G.getAlliesOf(owner).length > 0; },
+    canPlay(G, owner) { return G.getAlliesOf(owner).some(x => G.canTrickLand(x, 'trick', owner)); },
     play(G, owner) {
-      const a = G.getAlliesOf(owner);
+      const a = G.getAlliesOf(owner).filter(x => G.canTrickLand(x, 'trick', owner));
       if (Game.isHuman(owner) && a.length) {
         G.promptCardChoice(owner, a, "Adamantium — Buff", "Choose ally to give +2/+2", (t) => {
           G.buffCard(t, 2, 2); G.log(`Adamantium buffs ${t.name}!`);
@@ -301,9 +301,9 @@ const TRICK_DEFS = [
   { name: "Power Stone", cost: 1,
     desc: "Add (+2/+0) to an ally.",
     // Needs a live target — greys out in the tray + refused by playTrick otherwise.
-    canPlay(G, owner) { return G.getAlliesOf(owner).length > 0; },
+    canPlay(G, owner) { return G.getAlliesOf(owner).some(x => G.canTrickLand(x, 'trick', owner)); },
     play(G, owner) {
-      const a = G.getAlliesOf(owner);
+      const a = G.getAlliesOf(owner).filter(x => G.canTrickLand(x, 'trick', owner));
       if (Game.isHuman(owner) && a.length) {
         G.promptCardChoice(owner, a, "Power Stone — Empower", "Choose ally to give +2 ATK", (t) => {
           G.buffCard(t, 2, 0); G.log(`Power Stone: ${t.name} +2 ATK!`);
@@ -317,9 +317,9 @@ const TRICK_DEFS = [
   { name: "The Darkhold", cost: 2,
     desc: "Destroy all enemies with ≤ 2 ATK.",
     // Needs a live target — greys out in the tray + refused by playTrick otherwise.
-    canPlay(G, owner) { return G.getEnemiesOf(owner).some(e => (e.attack || 0) <= 2); },
+    canPlay(G, owner) { return G.getEnemiesOf(owner).some(e => (e.attack || 0) <= 2 && G.canTrickLand(e, 'destroy', owner)); },
     play(G, owner) {
-      G.getEnemiesOf(owner).filter(e => e.attack <= 2).forEach(t => {
+      G.getEnemiesOf(owner).filter(e => e.attack <= 2 && G.canTrickLand(e, 'destroy', owner)).forEach(t => {
         G.log(`Darkhold destroys ${t.name}!`); G.killCard(t);
       });
     }
@@ -335,9 +335,9 @@ const TRICK_DEFS = [
   { name: "Vibranium", cost: 2,
     desc: "Add (+1/+1) to all allies.",
     // Needs a live target — greys out in the tray + refused by playTrick otherwise.
-    canPlay(G, owner) { return G.getAlliesOf(owner).length > 0; },
+    canPlay(G, owner) { return G.getAlliesOf(owner).some(x => G.canTrickLand(x, 'trick', owner)); },
     play(G, owner) {
-      G.getAlliesOf(owner).forEach(a => { G.buffCard(a, 1, 1); });
+      G.getAlliesOf(owner).filter(x => G.canTrickLand(x, 'trick', owner)).forEach(a => { G.buffCard(a, 1, 1); });
       G.log("Vibranium +1/+1 all allies!");
     }
   },
@@ -345,9 +345,11 @@ const TRICK_DEFS = [
   { name: "Fear Toxin", cost: 2,
     abilities: ["Unresistible 1"],
     desc: "Fear 1 an enemy.",
-    canPlay(G, owner) { return G.getEnemiesOf(owner).length > 0; },
+    canPlay(G, owner) { return G.getEnemiesOf(owner).some(e => G.canTrickLand(e, 'trick', owner)); },
     play(G, owner) {
-      const enemies = G.getEnemiesOf(owner);
+      // Kind 'trick' ONLY — Fear Toxin's Unresistible source pierces Immunity
+      // and fear ignores Invincible, so 'debuff' would hide legal targets.
+      const enemies = G.getEnemiesOf(owner).filter(e => G.canTrickLand(e, 'trick', owner));
       if (enemies.length) {
         // Synthetic Unresistible source — bypasses Immunity once via the central debuff handler.
         const source = { name: 'Fear Toxin', unresistibleCharges: 1 };
@@ -360,9 +362,9 @@ const TRICK_DEFS = [
   { name: "Nth Metal", cost: 2,
     desc: "Give an ally Invincible 1.",
     // Needs a live target — greys out in the tray + refused by playTrick otherwise.
-    canPlay(G, owner) { return G.getAlliesOf(owner).length > 0; },
+    canPlay(G, owner) { return G.getAlliesOf(owner).some(x => G.canTrickLand(x, 'trick', owner)); },
     play(G, owner) {
-      const a = G.getAlliesOf(owner);
+      const a = G.getAlliesOf(owner).filter(x => G.canTrickLand(x, 'trick', owner));
       if (Game.isHuman(owner) && a.length) {
         G.promptCardChoice(owner, a, "Nth Metal — Invincible", "Choose ally to make invincible", (t) => {
           t.invincibleTurns += 1; G.log(`Nth Metal: ${t.name} invincible!`);
@@ -392,11 +394,11 @@ const TRICK_DEFS = [
     //     game the math (e.g. a Captain America–discounted card still
     //     leaps from its true base cost).
     canPlay(G, owner) {
-      const allAllies = G.getAlliesOf(owner).filter(a => (a.baseCost || a.cost || 0) <= 9);
+      const allAllies = G.getAlliesOf(owner).filter(a => (a.baseCost || a.cost || 0) <= 9 && G.canTrickLand(a, 'trick', owner));
       return allAllies.length > 0;
     },
     play(G, owner) {
-      const allAllies = G.getAlliesOf(owner).filter(a => (a.baseCost || a.cost || 0) <= 9);
+      const allAllies = G.getAlliesOf(owner).filter(a => (a.baseCost || a.cost || 0) <= 9 && G.canTrickLand(a, 'trick', owner));
       if (!allAllies.length) return;
       // Player picks the ally FIRST so the leap target's tier is known
       // before we sample. The prompt then narrates "Spider-Man (4) →
@@ -429,9 +431,9 @@ const TRICK_DEFS = [
   },
   { name: "Pym Particles", cost: 2,
     desc: "Shrink an enemy — (−3/−3).",
-    canPlay(G, owner) { return G.getEnemiesOf(owner).length > 0; },
+    canPlay(G, owner) { return G.getEnemiesOf(owner).some(e => G.canTrickLand(e, 'debuff', owner)); },
     play(G, owner) {
-      const enemies = G.getEnemiesOf(owner);
+      const enemies = G.getEnemiesOf(owner).filter(e => G.canTrickLand(e, 'debuff', owner));
       if (!enemies.length) return;
       G.promptCardChoice(owner, enemies, "Pym Particles — Shrink", "Choose an enemy to shrink", (t) => {
         // allowKill=true — shrinking a ≤3-HP enemy destroys it outright.
@@ -447,9 +449,9 @@ const TRICK_DEFS = [
   { name: "Phantom Zone", cost: 3,
     desc: "Return an enemy to their hand. (May exceed max hand size for 1 turn.)",
     // Needs a live target — greys out in the tray + refused by playTrick otherwise.
-    canPlay(G, owner) { return G.getEnemiesOf(owner).length > 0; },
+    canPlay(G, owner) { return G.getEnemiesOf(owner).some(e => G.canTrickLand(e, 'trick', owner)); },
     play(G, owner) {
-      const enemies = G.getEnemiesOf(owner);
+      const enemies = G.getEnemiesOf(owner).filter(e => G.canTrickLand(e, 'trick', owner));
       if (enemies.length) {
         G.promptCardChoice(owner, enemies, "Phantom Zone — Bounce", "Choose enemy to bounce back to hand", (t) => {
           const l = G.findCardLane(t);
@@ -476,13 +478,13 @@ const TRICK_DEFS = [
   { name: "Soul Stone", cost: 3,
     desc: "Destroy one of your cards and an enemy within 4 base cost of it.",
     // Needs a live target — greys out in the tray + refused by playTrick otherwise.
-    canPlay(G, owner) { const allies = G.getAlliesOf(owner), enemies = G.getEnemiesOf(owner); return allies.some(a => enemies.some(e => Math.abs((a.baseCost || a.cost || 0) - (e.baseCost || e.cost || 0)) <= 4)); },
+    canPlay(G, owner) { const allies = G.getAlliesOf(owner).filter(a => G.canTrickLand(a, 'destroy', owner)), enemies = G.getEnemiesOf(owner).filter(e => G.canTrickLand(e, 'destroy', owner)); return allies.some(a => enemies.some(e => Math.abs((a.baseCost || a.cost || 0) - (e.baseCost || e.cost || 0)) <= 4)); },
     play(G, owner) {
-      const allies = G.getAlliesOf(owner);
+      const allies = G.getAlliesOf(owner).filter(a => G.canTrickLand(a, 'destroy', owner) && G.getEnemiesOf(owner).some(e => G.canTrickLand(e, 'destroy', owner) && Math.abs((e.baseCost || e.cost || 0) - (a.baseCost || a.cost || 0)) <= 4));
       if (allies.length) {
         const doSoulStone = (al) => {
           const baseCostAl = al.baseCost || al.cost;
-          const enemies = G.getEnemiesOf(owner).filter(e => Math.abs((e.baseCost || e.cost) - baseCostAl) <= 4);
+          const enemies = G.getEnemiesOf(owner).filter(e => G.canTrickLand(e, 'destroy', owner) && Math.abs((e.baseCost || e.cost) - baseCostAl) <= 4);
           if (enemies.length) {
             G.promptCardChoice(owner, enemies, "Soul Stone — Destroy Enemy", `Choose enemy within 4 base cost of ${al.name} (cost ${baseCostAl})`, (en) => {
               G.log(`Soul Stone: ${al.name} + ${en.name}!`);
@@ -515,10 +517,7 @@ const TRICK_DEFS = [
           //   • Invincible: killCard refuses ("that character can't die").
           //   • ENEMY Untrickable: blocks the kill (own-side Untrickable
           //     dies fine — friendly tricks are exempt).
-          const survives =
-            (mine.baseCost || mine.cost || 0) >= 10 || (theirs.baseCost || theirs.cost || 0) >= 10 ||
-            (mine.invincibleTurns > 0) || (theirs.invincibleTurns > 0) ||
-            theirs.isUntrickable;
+          const survives = !G.canTrickLand(mine, 'destroy', owner) || !G.canTrickLand(theirs, 'destroy', owner);
           if (!survives) contested.push(i);
         }
       }
@@ -554,9 +553,11 @@ const TRICK_DEFS = [
   { name: "Mind Stone", cost: 4,
     abilities: ["Unresistible 1"],
     desc: "Mind Control 1 an enemy this turn.",
-    canPlay(G, owner) { return G.getEnemiesOf(owner).length > 0; },
+    canPlay(G, owner) { return G.getEnemiesOf(owner).some(e => G.canTrickLand(e, 'trick', owner)); },
     play(G, owner) {
-      const enemies = G.getEnemiesOf(owner);
+      // Kind 'trick' ONLY — Mind Stone's Unresistible source pierces Immunity,
+      // so 'debuff' would hide targets it can actually control.
+      const enemies = G.getEnemiesOf(owner).filter(e => G.canTrickLand(e, 'trick', owner));
       if (enemies.length) {
         // Synthetic Unresistible source — routes through tryApplyDebuff so Immunity is
         // bypassed (consuming one charge on each side) rather than blocking the effect.
@@ -573,12 +574,12 @@ const TRICK_DEFS = [
   { name: "Reality Stone", cost: 4,
     desc: "Permanently swap an ally's ATK/HP with an enemy's ATK/HP.",
     // Needs a live target — greys out in the tray + refused by playTrick otherwise.
-    canPlay(G, owner) { return G.getAlliesOf(owner).length > 0 && G.getEnemiesOf(owner).length > 0; },
+    canPlay(G, owner) { return G.getAlliesOf(owner).some(a => G.canTrickLand(a, 'trick', owner)) && G.getEnemiesOf(owner).some(e => G.canTrickLand(e, 'debuff', owner)); },
     play(G, owner) {
-      const allies = G.getAlliesOf(owner);
+      const allies = G.getAlliesOf(owner).filter(a => G.canTrickLand(a, 'trick', owner));
       if (allies.length) {
         const doSwap = (al) => {
-          const enemies = G.getEnemiesOf(owner);
+          const enemies = G.getEnemiesOf(owner).filter(e => G.canTrickLand(e, 'debuff', owner));
           if (enemies.length) {
             G.promptCardChoice(owner, enemies, "Reality Stone — Swap With", "Choose enemy to swap stats with", (en) => {
               const ta = al.attack, th = al.currentHealth;

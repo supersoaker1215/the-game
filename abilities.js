@@ -77,7 +77,7 @@ const CARD_ABILITIES = {
       // Deal 1 damage to a chosen enemy. Prompt the player; AI picks
       // a kill target via _aiKillPicker(cards, 1) so a 1/1 sniped is
       // a kill. If no enemies, no-op.
-      const enemies = G.getEnemiesOf(self.owner);
+      const enemies = G.getEnemiesOf(self.owner).filter(t => G.canEffectLand(t, 'damage', { owner: self.owner, source: self }));
       if (!enemies.length) return;
       G.promptCardChoice(
         self.owner, enemies, 'Thug — Strike', 'Choose an enemy to deal 1 damage',
@@ -100,7 +100,7 @@ const CARD_ABILITIES = {
         // pick window. Default 1 (classic ≤1 ATK or ≤1 HP); Text+
         // bumps to 2 so 2/2 bodies are also valid targets.
         const t = self._antManKillThreshold || 1;
-        const targets = G.getEnemiesOf(self.owner).filter(c => c.attack <= t || c.currentHealth <= t);
+        const targets = G.getEnemiesOf(self.owner).filter(c => (c.attack <= t || c.currentHealth <= t) && G.canEffectLand(c, 'destroy', { owner: self.owner, source: self }));
         if (targets.length) {
           G.promptCardChoice(self.owner, targets, "Ant-Man — Destroy", `Choose an enemy to destroy (${t} ATK or ${t} HP)`, (target) => {
             G.log(`[KILL] ${self.name} destroys ${target.name}!`); G.killCard(target, self);
@@ -595,7 +595,7 @@ const CARD_ABILITIES = {
   },
   "Bane": {
     onPlay(G, self, lane) {
-      const enemies = G.getEnemiesOf(self.owner);
+      const enemies = G.getEnemiesOf(self.owner).filter(t => G.canEffectLand(t, 'debuff', { owner: self.owner, source: self }) || (t.evadeCharges || 0) > 0);
       if (enemies.length) {
         G.promptCardChoice(self.owner, enemies, "Bane — Weaken", "Choose enemy to remove -1/-1 & all evades", (e) => {
           // allowKill=true so a 1-HP enemy (e.g. Nightwing) actually dies
@@ -689,7 +689,7 @@ const CARD_ABILITIES = {
       // execute ceiling. Default 2 (classic); Text+ bumps to 4 so mid-
       // tier targets are also one-shot eligible.
       const threshold = self._gamoraExecuteThreshold || 2;
-      const targets = G.getEnemiesOf(self.owner).filter(c => c.currentHealth <= threshold);
+      const targets = G.getEnemiesOf(self.owner).filter(c => c.currentHealth <= threshold && G.canEffectLand(c, 'destroy', { owner: self.owner, source: self }));
       if (targets.length) {
         G.promptCardChoice(self.owner, targets, "Gamora — Execute", `Choose enemy with ${threshold} or less HP to destroy`, (t) => {
           G.log(`Gamora executes ${t.name}!`); G.killCard(t, self);
@@ -739,7 +739,7 @@ const CARD_ABILITIES = {
       const arrival = self._humanTorchArrivalSplash || 1;
       G.splashDamage(lane, self.owner, arrival);
       G.log(`Human Torch ignites on arrival — Splash ${arrival}!`);
-      const enemies = G.getEnemiesOf(self.owner);
+      const enemies = G.getEnemiesOf(self.owner).filter(t => G.canEffectLand(t, 'damage', { owner: self.owner, source: self }));
       if (enemies.length) {
         G.promptCardChoice(self.owner, enemies, "Human Torch — Blast", `Choose enemy to deal ${blast} damage`, (t) => {
           G.dealDamage(t, blast); G.log(`Human Torch blasts ${t.name} for ${blast}!`);
@@ -789,7 +789,7 @@ const CARD_ABILITIES = {
       // Default 2 (classic); Text+ raises to 3 so big bodies (Hulk, Doom)
       // get reduced to swingable numbers in one play.
       const debuff = self._nightwingDebuff || 2;
-      const enemies = G.getEnemiesOf(self.owner);
+      const enemies = G.getEnemiesOf(self.owner).filter(t => (t.attack || 0) > 0 && G.canEffectLand(t, 'debuff', { owner: self.owner, source: self }));
       if (enemies.length) {
         G.promptCardChoice(self.owner, enemies, "Nightwing — Weaken", `Choose enemy to remove ${debuff} Attack from`, (t) => {
           G.debuffCard(t, debuff, 0, false, self); G.log(`Nightwing weakens ${t.name} by ${debuff} ATK!`);
@@ -803,7 +803,7 @@ const CARD_ABILITIES = {
       // ATK ceiling for the eliminate. Default 2 (classic); Text+ to 4
       // so mid-range threats (Spawn, Wonder Woman) are valid targets.
       const threshold = self._peacemakerKillThreshold || 2;
-      const targets = G.getEnemiesOf(self.owner).filter(c => c.attack <= threshold);
+      const targets = G.getEnemiesOf(self.owner).filter(c => c.attack <= threshold && G.canEffectLand(c, 'destroy', { owner: self.owner, source: self }));
       if (targets.length) {
         G.promptCardChoice(self.owner, targets, "Peacemaker — Eliminate", `Choose enemy with ${threshold} or less ATK to destroy`, (t) => {
           G.log(`Peacemaker eliminates ${t.name}!`); G.killCard(t, self);
@@ -819,7 +819,7 @@ const CARD_ABILITIES = {
     onPlay(G, self, lane) {
       // Damage scales with tier: 2 / 4 / 5 / 7.
       const dmg = G.rarityValue(self, { common: 2, rare: 4, special: 5, legendary: 7 });
-      const enemies = G.getEnemiesOf(self.owner);
+      const enemies = G.getEnemiesOf(self.owner).filter(t => G.canEffectLand(t, 'damage', { owner: self.owner, source: self }));
       if (enemies.length) {
         G.promptCardChoice(self.owner, enemies, "Rocket Raccoon — Blast", `Choose enemy to deal ${dmg} damage`, (t) => {
           G.dealDamage(t, dmg, self); G.log(`Rocket Raccoon blasts ${t.name} for ${dmg}!`);
@@ -917,7 +917,7 @@ const CARD_ABILITIES = {
       // assassinate ceiling. Default 3 (classic); Text+ sets to 5 so
       // mid-tier targets are also one-shot-able.
       const threshold = self._deathstrokeKillThreshold || 3;
-      const targets = G.getEnemiesOf(self.owner).filter(c => c.currentHealth <= threshold);
+      const targets = G.getEnemiesOf(self.owner).filter(c => c.currentHealth <= threshold && G.canEffectLand(c, 'destroy', { owner: self.owner, source: self }));
       if (targets.length) {
         G.promptCardChoice(self.owner, targets, "Deathstroke — Assassinate", `Choose enemy with ${threshold} or less HP to destroy`, (t) => {
           G.log(`Deathstroke assassinates ${t.name}!`); G.killCard(t, self);
@@ -1510,7 +1510,7 @@ const CARD_ABILITIES = {
       // to whatever's in self._wsCostThreshold. Defaults to 3 so classic
       // mode is unchanged.
       const threshold = self._wsCostThreshold || 3;
-      const targets = G.getEnemiesOf(self.owner).filter(c => c.attack <= threshold);
+      const targets = G.getEnemiesOf(self.owner).filter(c => c.attack <= threshold && G.canEffectLand(c, 'destroy', { owner: self.owner, source: self }));
       if (targets.length) {
         G.promptCardChoice(self.owner, targets, "Winter Soldier — Eliminate", `Choose enemy with ${threshold} or less ATK to destroy`, (t) => {
           G.log(`Winter Soldier eliminates ${t.name}!`); G.killCard(t, self);
@@ -2001,6 +2001,7 @@ const CARD_ABILITIES = {
           const oppLane = G.state.lanes[lane][opp];
           if (oppLane && oppLane.currentHealth > 0) targets.push(oppLane);
           G.getAdjacentEnemiesInContext(lane, self.owner).forEach(e => { if (e.currentHealth > 0 && !targets.includes(e)) targets.push(e); });
+          targets = targets.filter(t => G.canEffectLand(t, 'damage', { owner: self.owner, source: ally }));
           if (Game.isHuman(self.owner) && targets.length) {
             G.promptCardChoice(self.owner, targets, "Optimus — Target", `Choose enemy for ${ally.name} to attack`, (target) => {
               chainAttack(ally, target);
@@ -2043,7 +2044,7 @@ const CARD_ABILITIES = {
       // initial strike. Default 3 (classic); Text+ raises to 5 so
       // bigger targets eat the opener.
       const dmg = self._predatorStrikeDamage || 3;
-      const enemies = G.getEnemiesOf(self.owner);
+      const enemies = G.getEnemiesOf(self.owner).filter(t => G.canEffectLand(t, 'damage', { owner: self.owner, source: self }));
       if (enemies.length) {
         G.promptCardChoice(self.owner, enemies, "Predator — Strike", `Choose enemy to deal ${dmg} damage`, (t) => {
           if (typeof UI !== 'undefined' && UI.sfx) UI.sfx.playCardSfx('Predator', 'ability', self);
@@ -3305,7 +3306,7 @@ const CARD_ABILITIES = {
       const debuffed = new Set();
       const pickNext = () => {
         if (debuffed.size >= targets) return;
-        const remaining = G.getEnemiesOf(self.owner).filter(e => !debuffed.has(e.id) && e.currentHealth > 0);
+        const remaining = G.getEnemiesOf(self.owner).filter(e => !debuffed.has(e.id) && e.currentHealth > 0 && G.canEffectLand(e, 'debuff', { owner: self.owner, source: self }));
         if (!remaining.length) return;
         G.promptCardChoice(self.owner, remaining, "Silver Surfer — Weaken",
           `Choose enemy to remove ${debuff} ATK from (${debuffed.size + 1}/${targets})`,
@@ -3835,7 +3836,7 @@ const CARD_ABILITIES = {
 
       // Step 3: second strike — any live enemy.
       const strike2 = () => {
-        const pool = G.getEnemiesOf(self.owner).filter(e => e.currentHealth > 0);
+        const pool = G.getEnemiesOf(self.owner).filter(e => e.currentHealth > 0 && G.canEffectLand(e, 'damage', { owner: self.owner, source: self }));
         if (!pool.length) return;
         G.promptCardChoice(self.owner, pool, "Batman — Strike 2", `Deal ${strikeDmg} damage to any enemy`, (t) => {
           G.dealDamage(t, strikeDmg, self);
@@ -3844,7 +3845,7 @@ const CARD_ABILITIES = {
       };
       // Step 2: first strike — any live enemy (may be the feared one).
       const strike1 = () => {
-        const pool = G.getEnemiesOf(self.owner).filter(e => e.currentHealth > 0);
+        const pool = G.getEnemiesOf(self.owner).filter(e => e.currentHealth > 0 && G.canEffectLand(e, 'damage', { owner: self.owner, source: self }));
         if (!pool.length) return;
         G.promptCardChoice(self.owner, pool, "Batman — Strike 1", `Deal ${strikeDmg} damage to any enemy`, (t) => {
           G.dealDamage(t, strikeDmg, self);
@@ -4041,7 +4042,7 @@ const CARD_ABILITIES = {
       // pick. Default 1 (classic); Text+ sets 2.
       const freezeN = self._supermanFreezeSize || 1;
       const doBlast = () => {
-        const enemies = G.getEnemiesOf(self.owner);
+        const enemies = G.getEnemiesOf(self.owner).filter(t => G.canEffectLand(t, 'damage', { owner: self.owner, source: self }));
         if (enemies.length) {
           G.promptCardChoice(self.owner, enemies, "Superman — Blast", `Choose enemy to deal ${blastDmg} damage`, (t) => {
             G.dealDamage(t, blastDmg); G.log(`Superman blasts ${t.name} for ${blastDmg}!`);
@@ -4106,7 +4107,7 @@ const CARD_ABILITIES = {
       // 10-cost, so pass {source:self} — the engine's "tens can't
       // target tens" rule drops other 10-cost titans from the picker.
       // (Draw 1 fires separately via the `Draw 1` keyword → drawOnPlay.)
-      const enemies = G.getEnemiesOf(self.owner, { source: self });
+      const enemies = G.getEnemiesOf(self.owner, { source: self }).filter(t => G.canEffectLand(t, 'damage', { owner: self.owner, source: self }));
       if (!enemies.length) return;
       G.promptCardChoice(self.owner, enemies, "Anakin — Strike",
         "Choose an enemy to deal 10 damage",
@@ -4284,7 +4285,7 @@ const CARD_ABILITIES = {
       const devourCount = Math.min(baseDevour, enemies.length);
       const devourChain = (remaining, picked) => {
         if (remaining <= 0) return;
-        const available = enemies.filter(e => e.currentHealth > 0 && !picked.includes(e.id) && G.findCardLane(e) >= 0);
+        const available = enemies.filter(e => e.currentHealth > 0 && !picked.includes(e.id) && G.findCardLane(e) >= 0 && G.canEffectLand(e, 'damage', { owner: self.owner, source: self }));
         if (!available.length) return;
         // ALWAYS prompt the human player — even when only 1 target remains.
         // User spec: "the user always chooses". The redundant-looking prompt
@@ -4322,7 +4323,7 @@ const CARD_ABILITIES = {
       // This hook runs in a plain end-of-turn forEach (not a prompt-gated
       // phase), so it can't safely raise a picker; take the highest-threat
       // weak enemy deterministically instead of a random one.
-      const weak = G.getEnemiesOf(self.owner, { source: self }).filter(e => e.attack <= 4);
+      const weak = G.getEnemiesOf(self.owner, { source: self }).filter(e => e.attack <= 4 && G.canEffectLand(e, 'damage', { owner: self.owner, source: self }));
       if (!weak.length) return;
       const target = weak.slice().sort((a, b) =>
         (AI && AI.threatScore ? (AI.threatScore(b) - AI.threatScore(a))
@@ -4416,6 +4417,7 @@ const CARD_ABILITIES = {
       if (self._trigonChaining) return;
       const targets = G.getEnemiesOf(self.owner).filter(
         e => e.currentHealth > 0 && (e.baseCost || e.cost) < 10
+          && G.canEffectLand(e, 'destroy', { owner: self.owner, source: self })
       );
       if (!targets.length) return;
       const t = targets[Math.floor(Math.random() * targets.length)];

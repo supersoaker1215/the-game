@@ -6144,6 +6144,59 @@ const Game = {
   // to short-circuit any trick effect that tries to touch an Untrickable
   // card. Card-ability paths don't set _inTrick, so cards can still
   // interact with Untrickable targets normally.
+  // ===================== EFFECT-VALIDITY GATE =====================
+  // "Will this even land?" — one predicate the UI and target-list builders
+  // consult BEFORE offering a target, mirroring the engine's own runtime
+  // shields (_trickBlocked, invincible/damage-immune, 10-cost immunity).
+  // The runtime guards stay authoritative; this gate stops the player from
+  // paying for a guaranteed no-op (user spec: Pym Particles must not be
+  // playable onto an Untrickable Dr. Strange; Winter Soldier must not
+  // offer an Invincible enemy — "the same mechanism").
+  // kinds: 'trick' (any trick touching the card), 'destroy', 'damage',
+  // 'debuff'. ctx: { owner, source } — owner = seat playing the effect,
+  // source = the acting card for ability effects.
+  canEffectLand(target, kind, ctx) {
+    if (!target || target.isEnvironment) return false;
+    if (target.currentHealth != null && target.currentHealth <= 0) return false;
+    const owner = ctx && ctx.owner;
+    const source = ctx && ctx.source;
+    if (source && source.id != null && this.is10CostImmune(source, target)) return false;
+    switch (kind) {
+      case 'trick':
+        // Mirror _trickBlocked without needing state._inTrick: 10-costs
+        // are immune to ALL tricks (friendly included); Untrickable
+        // blocks enemy tricks only.
+        if ((target.baseCost || target.cost || 0) >= 10) return false;
+        if (target.isUntrickable && owner && target.owner !== owner) return false;
+        return true;
+      case 'destroy':
+        return !(target.invincibleTurns > 0);
+      case 'damage':
+      case 'debuff':
+        return !(target.invincibleTurns > 0 || target.hasDamageImmunity);
+      default:
+        return true;
+    }
+  },
+
+  // Composite for tricks that hurt: must pass the trick gate AND the
+  // effect-kind gate (a Pym debuff needs a trickable AND debuffable body).
+  canTrickLand(target, kind, owner) {
+    if (!this.canEffectLand(target, 'trick', { owner })) return false;
+    if (kind && kind !== 'trick') return this.canEffectLand(target, kind, { owner });
+    return true;
+  },
+
+  // Gate-filtered target lists — card-targeting tricks build BOTH their
+  // canPlay predicate and their play() prompt list through these, so the
+  // tray grey-out and the offered targets can never disagree.
+  trickableEnemies(owner, kind) {
+    return this.getEnemiesOf(owner).filter(t => this.canTrickLand(t, kind, owner));
+  },
+  trickableAllies(owner, kind) {
+    return this.getAlliesOf(owner).filter(t => this.canTrickLand(t, kind, owner));
+  },
+
   _trickBlocked(target) {
     if (!this.state._inTrick || !target) return false;
     // 10-cost titans are immune to ALL tricks, including friendly ones.
