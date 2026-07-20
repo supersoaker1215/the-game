@@ -7442,6 +7442,18 @@ const UI = {
     this.renderAIHand(s);
     this.renderPlayerTricks(s);
 
+    // Prompt banner ("Place Man-Bat" / "Choose a lane…"). _renderImpl calls
+    // this on the 1v1 path only — the 2v2 board returns before reaching it,
+    // so every 2v2 seat (online AND local, which wraps this same function)
+    // got glowing target lanes with zero instruction text. Worse for the
+    // three players who AREN'T picking: without the banner's "Waiting for
+    // <name>…" line they stare at a frozen board with no idea whose prompt
+    // is blocking the turn. Safe to call here — Game.isMultiplayer() is
+    // false in 2v2 (that's the 1v1 Game.mp path; 2v2 rides Multiplayer4),
+    // so the banner falls through to the _2v2ActingPlayer annotation, which
+    // is exactly who owns the choice.
+    this.renderPromptBanner(s);
+
     // Re-wire hand/trick clicks to 2v2 play path (renderPlayerHand wires
     // them to onCardClick which uses Game.playCard — wrong for 2v2).
     this._apply2v2OnlineHandClicks(ap, canCards);
