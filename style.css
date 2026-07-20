@@ -32182,15 +32182,25 @@ body.round-tick .board::after {
    behind the frame. scale hides the revealed edges. Hover-
    driven, so it costs nothing on touch devices. */
 @media (hover: hover) and (pointer: fine) {
+  /* Clip at the CARD level — transform:scale grows the portrait's whole
+     BOX, and overflow:hidden on the portrait only clips its background,
+     not its own scaled box. The card is overflow:visible by default, so
+     the enlarged art painted past the frame line (user: "the 3d effect
+     is still clipping"). Hidden only WHILE hovered, so nothing else ever
+     loses its overflow behavior. */
+  .hand-card-wrapper:hover .card.hand-card,
+  .card.ally-card:hover,
+  .card.enemy-card:hover {
+    overflow: hidden;
+  }
   .hand-card-wrapper:hover .card.hand-card .card-portrait,
   .card.ally-card:hover .card-portrait,
   .card.enemy-card:hover .card-portrait {
-    /* scale 1.12 / translate 3px — the previous 1.09/4px combo left the
-       art's counter-moved edge visible at full tilt ("you can see it
-       clipping"). Bigger overscan + smaller travel keeps the frame full
-       at every tilt angle; overflow:hidden stops the art ever leaking
-       past the portrait onto the badge row. */
+    /* Origin pinned to the bottom (the name strip): the overscan grows
+       upward + sideways into the card-clipped frame and NEVER creeps
+       down over the badge row. */
     transform: translate(calc(var(--tilt-x, 0) * -3px), calc(var(--tilt-y, 0) * -3px)) scale(1.12);
+    transform-origin: 50% 100%;
     overflow: hidden;
   }
   /* Magnified hover restores FULL color on an unaffordable card — you're
