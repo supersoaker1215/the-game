@@ -2004,6 +2004,8 @@ const Game = {
       console.warn('[promptQueue]', this._promptQueue.length, 'stale queued prompt(s) discarded at round start');
       this._promptQueue = [];
     }
+    // Invariant-report dedup is per-round — fresh round, fresh eyes.
+    this._invariantSeen = null;
     this.state.round++;
     const r = this.state.round;
     // Sanitize all living cards — heal any currentHealth/maxHealth/attack
@@ -5643,6 +5645,76 @@ const Game = {
         if (c && c.currentHealth <= 0) this.handleDeath(c, i, null);
       });
     }
+    this.checkInvariants('cleanup');
+  },
+
+  // ===================== INVARIANT SWEEP =====================
+  // Studio-style board-state assertions, run after every death sweep (which
+  // follows nearly every action). Each check encodes a bug CLASS this game
+  // has actually shipped: limbo cards in destroyed lanes (Wolverine's void
+  // revive, Prof X full-board), duplicate slot references (Jason's old
+  // relocation), owner/side mismatches (perspective-flip class), multiple
+  // Joker Crazy stamps, Crazy+Feared coexistence, NaN stats, environments
+  // in combat slots. Violations log ONCE per round per key (no spam) and
+  // feed the __clbErrors ring buffer so they survive reload and show up in
+  // "Copy bug report" — a violation seen in telemetry = a bug caught before
+  // anyone had to notice it on the board.
+  _invariantSeen: null,
+  checkInvariants(tag) {
+    const s = this.state;
+    if (!s || !s.lanes || s.gameOver) return;
+    const report = (key, msg) => {
+      this._invariantSeen = this._invariantSeen || new Set();
+      const k = key + '|' + (s.round || 0);
+      if (this._invariantSeen.has(k)) return;
+      this._invariantSeen.add(k);
+      const line = `[INVARIANT${tag ? ' @' + tag : ''}] ${msg}`;
+      console.error(line);
+      try {
+        if (typeof window !== 'undefined' && window.__clbErrors) {
+          window.__clbErrors.report('invariant', new Error(line));
+        }
+      } catch (e) { /* reporter must never break the game */ }
+    };
+    const seenInstances = new Map();
+    let crazyStamps = 0;
+    for (let i = 0; i < this.LANE_COUNT; i++) {
+      const lane = s.lanes[i];
+      if (!lane) continue;
+      ['player', 'ai'].forEach(side => {
+        const c = lane[side];
+        if (c) {
+          if (lane.destroyed) report('destLane:' + c.name, `${c.name} occupies DESTROYED lane ${i + 1} (limbo class)`);
+          if (seenInstances.has(c)) report('dupRef:' + c.name, `${c.name} referenced by two slots (lanes ${seenInstances.get(c)} and ${i + 1})`);
+          seenInstances.set(c, i + 1);
+          if (c.owner !== side) report('owner:' + c.name, `${c.name} sits on '${side}' side but owner='${c.owner}' (flip/placement class)`);
+          if (c.isEnvironment) report('envSlot:' + c.name, `${c.name} is an ENVIRONMENT in a combat slot (lane ${i + 1})`);
+          if (!Number.isFinite(c.attack) || !Number.isFinite(c.currentHealth) || !Number.isFinite(c.maxHealth)) {
+            report('nan:' + c.name, `${c.name} has non-finite stats (${c.attack}/${c.currentHealth}/${c.maxHealth})`);
+          }
+          if (c._crazyAppliedBy) crazyStamps++;
+          if (c.isCrazy && (c.isFeared || (c.fearedTurns | 0) > 0)) {
+            report('crazyFear:' + c.name, `${c.name} is Crazy AND Feared — exclusion rule violated`);
+          }
+        }
+        const env = lane._env && lane._env[side];
+        if (env && !env.isEnvironment) {
+          report('combatEnv:' + env.name, `${env.name} (combat card) is in the ENV slot of lane ${i + 1}`);
+        }
+      });
+      if (lane.destroyed && !(lane.destroyedTurns > 0)) {
+        report('destTurns:' + i, `lane ${i + 1} destroyed with no countdown (destroyedTurns=${lane.destroyedTurns})`);
+      }
+    }
+    if (crazyStamps > 1) report('multiCrazy', `${crazyStamps} Joker Crazy stamps on board — must be at most 1`);
+    ['player', 'ai'].forEach(side => {
+      const p = s[side];
+      if (!p) return;
+      if (!Number.isFinite(p.currency) || p.currency < 0) report('energy:' + side, `${side} energy invalid: ${p.currency}`);
+      if (!Number.isFinite(p.health)) report('hp:' + side, `${side} hero HP non-finite: ${p.health}`);
+      const bm = p.blockMeter | 0;
+      if (bm < 0 || bm > (this.BLOCK_MAX || 8)) report('block:' + side, `${side} block meter out of range: ${p.blockMeter}`);
+    });
   },
 
   // ===================== GAME API (for card effects) =====================
