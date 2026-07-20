@@ -21995,6 +21995,10 @@ function blockTrickPlay() {
   s.pendingBlockTrick = null;
   s[owner].playedTrickPile.push({ name: trick.name, cost: trick.cost });
   Game.log(`  [BLOCK TRICK] ${owner === 'player' ? 'You' : owner} play ${trick.name} for free!`);
+  // Trick reveal theater — the block-earned free play bypasses playTrick
+  // (which owns the normal reveal), so fire it here. User report: "when I
+  // block and play a trick the trick image doesn't show up."
+  if (UI.showTrickReveal) UI.showTrickReveal(trick.name, trick.desc || '', trick.cost, owner === 'player');
   if (trick.play) { try { trick.play(Game, owner); } catch (e) { console.error(e); } }
   Game.cleanupDead();
   UI.draftEl.style.display = 'none';

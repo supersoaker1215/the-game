@@ -4607,13 +4607,12 @@ const CARD_ABILITIES = {
       if (!self._triggerNextRound) return;
       self._triggerNextRound = false;
       const opp = G.opponent(self.owner);
-      // Drain 1 energy from opponent and give it to self
+      // Drain only — the opponent loses 1, Freddy's side gains NOTHING
+      // (user direction: "no gain, like Catwoman").
       if (G.state[opp].currency > 0) {
         const before = G.state[opp].currency;
         G.state[opp].currency = Math.max(0, before - 1);
-        G.state[self.owner].currency += 1;
-        G.log(`[FREDDY FAZBEAR] Drains 1 Energy from ${opp}! (${before} → ${G.state[opp].currency}) → gives to ${self.owner}`);
-        G._creditChain(self, 'statsEnergyGenerated', 1);
+        G.log(`[FREDDY FAZBEAR] Drains 1 Energy from the opponent! (${before} → ${G.state[opp].currency})`);
       }
     },
   },

@@ -858,6 +858,9 @@ const Game = {
             if (msg.play) {
               this.state[owner].playedTrickPile.push({ name: bt.name, cost: bt.cost });
               if (this.state._roundStats) this.state._roundStats.aiTricks.push(bt.name);
+              // Host sees the guest's block-earned trick via the same reveal
+              // theater (the guest's own screen gets it from the pile diff).
+              if (typeof UI !== 'undefined' && UI.showTrickReveal) UI.showTrickReveal(bt.name, bt.desc || '', bt.cost, owner === 'player');
               if (bt.play) { try { bt.play(this, owner); } catch(e) { console.error(e); } }
               this.cleanupDead();
             } else {
@@ -2589,14 +2592,19 @@ const Game = {
   },
 
   // Freddy Fazbear — jump offer + passive flag check at end of a player's card phase.
-  // Called from endPhase1 (first player) and endPhase2 (second player).
-  _checkFreddyFazbear(owner) {
-    if (!this.state[owner] || this.state[owner].currency <= 0) return;
-    // Jump: Freddy in hand → offer free play
+  // Called from endPhase1 (first player) and endPhase2 (second player) with the
+  // player whose phase just ended. REWORKED (user direction): Freddy feeds on the
+  // OPPONENT's waste — when the phase-ender banks unspent energy, it's the OTHER
+  // side's Freddy that wakes: the hand copy offers its free deploy, the board copy
+  // arms the round-start drain. (Previously both keyed on his own owner's energy.)
+  _checkFreddyFazbear(ender) {
+    if (!this.state[ender] || this.state[ender].currency <= 0) return;
+    const owner = this.opponent(ender);
+    // Jump: Freddy in the OPPONENT's hand → offer free play
     const inHand = this.state[owner].hand.find(c => c.name === 'Freddy Fazbear');
     if (inHand && !inHand.jumpReady) {
       inHand.jumpReady = true;
-      this.log(`  [JUMP] Freddy Fazbear senses ${this.state[owner].currency} unspent energy — free play available!`);
+      this.log(`  [JUMP] Freddy Fazbear senses the opponent's ${this.state[ender].currency} unspent energy — free play available!`);
       if (this.isHuman(owner) && !this.state.pendingJumpOffer) {
         this.state.pendingJumpOffer = { cardId: inHand.id };
         if (typeof UI !== 'undefined') UI.render();
@@ -2606,9 +2614,12 @@ const Game = {
         if (open.length) this.playCardFree(owner, inHand, open[0]);
       }
     }
-    // Passive: Freddy on the board → flag to drain energy next round start
-    const onBoard = this.getAlliesOf(owner).find(c => c.name === 'Freddy Fazbear' && c.currentHealth > 0);
-    if (onBoard) onBoard._triggerNextRound = true;
+    // Passive: Freddy on the OPPONENT's board → arm the round-start drain.
+    // isCardKind + forEach: a Manhunter copy drains too, and two Freddys
+    // both arm (audit fix — the old name-keyed find() missed copies).
+    this.getAlliesOf(owner)
+      .filter(c => this.isCardKind(c, 'Freddy Fazbear') && c.currentHealth > 0)
+      .forEach(c => { c._triggerNextRound = true; });
   },
 
   endPhase1() {
