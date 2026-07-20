@@ -742,31 +742,54 @@ const UI = {
     });
     if (def) picker.scrollTop = Math.max(0, def.offsetTop - (picker.clientHeight - def.offsetHeight) / 2);
   },
-  // The menu-music rotation, filtered to CHARACTER cards only (heroes/villains)
-  // — drops tricks, Infinity Stones, and environments so the hero art is always
-  // an actual character. Built once.
+  // The menu-music rotation — DERIVED from CARD_SFX, which is the single
+  // source of truth for hover audio. Any card with a `hover` entry joins the
+  // menu rotation (and the hero picker) automatically; there is no roster to
+  // keep in sync. This used to walk a hand-maintained MENU_HOVER_SRCS array,
+  // which had silently drifted five cards behind the registry — Gizmo,
+  // Predator, Stripe, The Flash and Iron Giant all shipped with hover tracks
+  // that could never play on the menu because nobody added the matching line.
+  //
+  // Exclusion is a DENYLIST, not an allowlist of types. The old filter kept
+  // only type 'hero'/'villain', which is why Iron Giant (type 'scifi') was
+  // dropped despite being a perfectly good character — and why the next new
+  // type would be dropped too. Now a card is excluded only if it:
+  //   • isn't in CARD_DEFS at all (tricks and Infinity Stones live in
+  //     TRICK_DEFS — those have hover audio but no character to show), or
+  //   • is an 'environment' (Boiler Room, Sewers, Open Water, Gargantua —
+  //     these are places, so the hero panel would show scenery), or
+  //   • resolves to no art path at all.
+  // Everything else — any existing or future type — is in by default.
+  //
+  // The art check is a cheap guard, NOT a guarantee the file exists:
+  // getCardArtPathDefault() synthesizes "art/<Name>.png" from the name and
+  // only returns null if the resolver yields nothing. A card whose art is
+  // genuinely missing still gets in and 404s — which is fine, because the
+  // preloader in _updateMenuSideArt has an onerror that keeps the previous
+  // hero on screen rather than blanking the panel.
+  //
+  // The src comes from CARD_SFX rather than a copied literal so the menu track
+  // stays byte-identical to the in-game card hover, cache-bust ?v= included.
+  // (Vader's hover swapped to ?v=2; a copied roster kept playing the stale
+  // cached clip while the card itself played the new one.)
   _menuCharHoverSrcs() {
     if (this._charSrcs) return this._charSrcs;
     const out = [];
     const reg = (this.sfx && this.sfx.CARD_SFX) || {};
-    const srcs = (this.sfx && this.sfx.MENU_HOVER_SRCS) || [];
-    for (const src of srcs) {
-      const name = this._menuHoverArtName(src);
-      if (!name) continue;
-      const def = (typeof CARD_DEFS !== 'undefined') ? CARD_DEFS.find(d => d.name === name) : null;
-      if (!def || (def.type !== 'hero' && def.type !== 'villain')) continue;
-      // Play the card's CURRENT hover src (with its cache-bust ?v=) so the menu
-      // track is byte-identical to the in-game card hover — MENU_HOVER_SRCS is
-      // just the curated roster; the actual file comes from CARD_SFX so the two
-      // can't drift. (Vader's hover swapped to ?v=2 — without this the menu kept
-      // playing the stale cached clip while the card played the new one.) Falls
-      // back to the roster src if a card has no CARD_SFX hover entry.
+    for (const name of Object.keys(reg)) {
       const hv = reg[name] && reg[name].hover;
-      const cardSrc = hv && (typeof hv === 'string' ? hv : hv.src);
-      out.push(cardSrc || src);
+      if (!hv) continue;
+      const src = (typeof hv === 'string') ? hv : hv.src;
+      if (!src) continue;
+      const def = (typeof CARD_DEFS !== 'undefined') ? CARD_DEFS.find(d => d.name === name) : null;
+      if (!def || def.type === 'environment') continue;
+      if (!this.getCardArtPathDefault(name)) continue;
+      out.push(src);
     }
-    this._charSrcs = out.length ? out : srcs;
-    return this._charSrcs;
+    // Only cache once CARD_SFX has actually populated — caching an empty list
+    // during a cold load would pin the menu to silence for the whole session.
+    if (out.length) this._charSrcs = out;
+    return out;
   },
   // Pick a random menu-hero character (used as the fallback hero when menu
   // music is off, so the menu art is never blank).
@@ -2130,72 +2153,14 @@ const UI = {
     _menuHoverLastIdx: -1,
     // MUSIC_SRC kept for the settings panel label / legacy path.
     MUSIC_SRC: 'audio/menu_music.mp3?v=6',
-    // All card hover audio files — cycled randomly as menu background music.
-    MENU_HOVER_SRCS: [
-      'audio/cards/ahsoka-hover.mp3',
-      'audio/cards/anakin-hover.mp3',
-      'audio/cards/bane-hover.mp3',
-      'audio/cards/batman-hover.mp3',
-      'audio/cards/black-panther-hover.mp3',
-      'audio/cards/boiler-room-hover.mp3',
-      'audio/cards/captain-america-hover.mp3',
-      'audio/cards/darth-maul-hover.mp3?v=2',
-      'audio/cards/darth-vader-hover.mp3',
-      'audio/cards/davy-jones-hover.mp3',
-      'audio/cards/deadpool-hover.mp3',
-      'audio/cards/dormammu-hover.mp3',
-      'audio/cards/dr-manhattan-hover.mp3',
-      'audio/cards/emperor-palpatine-hover.mp3',
-      'audio/cards/freddy-fazbear-hover.mp3',
-      'audio/cards/galactus-hover.mp3',
-      'audio/cards/gargantua-hover.mp3',
-      'audio/cards/general-grievous-hover.mp3?v=3',
-      'audio/cards/ghostface-hover.mp3',
-      'audio/cards/gojo-hover.mp3',
-      'audio/cards/green-goblin-hover.mp3',
-      'audio/cards/homelander-hover.mp3',
-      'audio/cards/hulk-hover.mp3',
-      'audio/cards/iron-man-hover.mp3',
-      'audio/cards/jack-sparrow-hover.mp3',
-      'audio/cards/jigsaw-hover.mp3',
-      'audio/cards/joker-hover.mp3',
-      'audio/cards/knull-hover.mp3',
-      'audio/cards/loki-hover.mp3',
-      'audio/cards/luke-hover.mp3',
-      'audio/cards/michael-myers-hover.mp3',
-      'audio/cards/mind-stone-hover.mp3',
-      'audio/cards/obi-wan-hover.mp3',
-      'audio/cards/omni-man-hover.mp3',
-      'audio/cards/open-water-hover.mp3',
-      'audio/cards/optimus-prime-hover.mp3',
-      'audio/cards/padme-amidala-hover.mp3',
-      'audio/cards/paul-atreides-hover.mp3',
-      'audio/cards/pennywise-hover.mp3',
-      'audio/cards/power-stone-hover.mp3',
-      'audio/cards/reality-stone-hover.mp3',
-      'audio/cards/sabertooth-hover.mp3',
-      'audio/cards/sandman-hover.mp3',
-      'audio/cards/sewers-hover.mp3',
-      'audio/cards/soul-stone-hover.mp3',
-      'audio/cards/space-stone-hover.mp3',
-      'audio/cards/spider-man-hover.mp3?v=4',
-      'audio/cards/star-lord-hover.mp3',
-      'audio/cards/superman-hover.mp3',
-      'audio/cards/thanos-hover.mp3?v=4',
-      'audio/cards/the-grinch-hover.mp3',
-      'audio/cards/thor-hover.mp3',
-      'audio/cards/time-stone-hover.mp3',
-      'audio/cards/trigon-hover.mp3',
-      'audio/cards/ultron-hover.mp3',
-      'audio/cards/winter-soldier-hover.mp3',
-      'audio/cards/wolverine-hover.mp3',
-      'audio/cards/wonder-woman-hover.mp3',
-      'audio/cards/xenomorph-hover.mp3?v=2',
-      'audio/cards/yoda-hover.mp3',
-    ],
+    // NOTE: the old MENU_HOVER_SRCS array lived here — a hand-maintained list
+    // of every hover file, duplicated from CARD_SFX. It drifted five cards
+    // behind the registry before anyone noticed. The rotation is now derived
+    // from CARD_SFX in UI._menuCharHoverSrcs(), so adding a card with a hover
+    // track is all it takes to put it on the menu. Nothing to update here.
     _pickMenuTrack() {
-      // Character cards only (heroes/villains) — no tricks/stones/environments.
-      const srcs = (UI._menuCharHoverSrcs && UI._menuCharHoverSrcs()) || this.MENU_HOVER_SRCS;
+      // Character cards only — no tricks, Infinity Stones, or environments.
+      const srcs = (UI._menuCharHoverSrcs && UI._menuCharHoverSrcs()) || [];
       if (!srcs.length) return this.MUSIC_SRC;
       let idx;
       do { idx = Math.floor(Math.random() * srcs.length); }
@@ -2218,7 +2183,7 @@ const UI = {
         const src = this._srcForHeroName(def);
         if (src) {
           UI._menuDefaultLed = true;
-          const srcs = (UI._menuCharHoverSrcs && UI._menuCharHoverSrcs()) || this.MENU_HOVER_SRCS;
+          const srcs = (UI._menuCharHoverSrcs && UI._menuCharHoverSrcs()) || [];
           this._menuHoverLastIdx = srcs.indexOf(src);   // next random avoids an immediate repeat
           return src;
         }
@@ -2227,7 +2192,7 @@ const UI = {
     },
     // Resolve a hero name back to its hover-track src (reverse of _menuHoverArtName).
     _srcForHeroName(name) {
-      const srcs = (UI._menuCharHoverSrcs && UI._menuCharHoverSrcs()) || this.MENU_HOVER_SRCS;
+      const srcs = (UI._menuCharHoverSrcs && UI._menuCharHoverSrcs()) || [];
       for (const s of srcs) if (UI._menuHoverArtName(s) === name) return s;
       return null;
     },
