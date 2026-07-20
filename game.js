@@ -9595,17 +9595,17 @@ const Game = {
     const s = this.state;
     const tt = s.twoVTwo;
 
-    // Each player draws 2 cards
+    // Each player draws exactly ONE card per round — matching 1v1's draw
+    // phase (baseDraw = 1, no per-round trick). This used to hand out 2 cards
+    // AND a trick every round, which flooded hands and handed out free tricks
+    // no other mode grants (tricks come from the draft + the block meter).
+    // User report: "we drew a trick and a card when it should only be a card."
     ['p1', 'p2', 'p3', 'p4'].forEach(pk => {
       const p = tt.players[pk];
       const side = this._2v2TeamSide[p.team];
-      for (let i = 0; i < 2 && tt.drawPile.length > 0; i++) {
+      if (tt.drawPile.length > 0) {
         const def = tt.drawPile.pop();
         if (def) p.hand.push(this.createCardInstance(def, side));
-      }
-      // Draw 1 trick
-      if (tt.trickDrawPile.length > 0) {
-        p.trickHand.push(Object.assign({}, tt.trickDrawPile.pop()));
       }
     });
 
@@ -10009,11 +10009,40 @@ const Game = {
     const side = this._2v2TeamSide[ap.team];
     const energy = ap.energy - ap.usedEnergy;
     if (energy < (card.cost || 0)) return;
+
+    // DISCARD-EFFECT cards (Mr. Fantastic, Catwoman, Jigsaw, Prof X, …) are
+    // 0/0 "play for the effect" cards — they must NEVER be placed on the
+    // board. The bespoke 2v2 online path dropped them into the lane like any
+    // creature, so a 0/0 Mr. Fantastic sat on the board (user report). Route
+    // them through their onDiscard hook instead. Card callbacks read/write the
+    // side proxy (state[side]) and state.drawPile — the 1v1 model — so bridge
+    // the 2v2 acting player's hand + shared pile in for the effect's duration
+    // so "Draw 1" and the like reach the right player and the right deck.
+    if (card.isDiscardEffect) {
+      ap.hand.splice(cardIdx, 1);
+      ap.usedEnergy = (ap.usedEnergy || 0) + (card.cost || 0);
+      this._2v2SyncActivePlayer();       // state[side].hand === ap.hand (same ref)
+      const savedDrawPile = s.drawPile;
+      s.drawPile = tt.drawPile;          // so drawCards() pulls from the 2v2 deck
+      try { if (card.onDiscard) card.onDiscard(this, side, card); }
+      catch (e) { console.error(e); }
+      s.drawPile = savedDrawPile;
+      this._2v2ReadBackActivePlayer();
+      this._2v2StampPendingActor();
+      return;
+    }
+
     if (!s.lanes[laneIdx] || s.lanes[laneIdx][side]) return;
     s.lanes[laneIdx][side] = card;
     ap.hand.splice(cardIdx, 1);
     ap.usedEnergy = (ap.usedEnergy || 0) + (card.cost || 0);
+    this._2v2SyncActivePlayer();
     if (card.onPlay) try { card.onPlay(this, card, laneIdx); } catch (e) { console.error(e); }
+    this._2v2ReadBackActivePlayer();
+    // Stamp any prompt the onPlay raised with the acting player so the right
+    // client can resolve it (and the others can't). Covers effects that set
+    // pendingCardChoice/pendingLaneChoice directly, bypassing promptCardChoice.
+    this._2v2StampPendingActor();
   },
 
   _2v2OnlinePlayTrick(playerKey, trickIdx) {
@@ -10029,7 +10058,31 @@ const Game = {
     if (energy < (trick.cost || 0)) return;
     ap.trickHand.splice(trickIdx, 1);
     ap.usedEnergy = (ap.usedEnergy || 0) + (trick.cost || 0);
-    if (trick.play) try { trick.play(this, side); } catch (e) { console.error(e); }
+    this._2v2SyncActivePlayer();
+    const savedDrawPile = s.drawPile, savedTrickPile = s.trickDrawPile;
+    s.drawPile = tt.drawPile;            // Draw-N tricks pull from the 2v2 deck
+    s.trickDrawPile = tt.trickDrawPile;
+    try { if (trick.play) trick.play(this, side); } catch (e) { console.error(e); }
+    s.drawPile = savedDrawPile;
+    s.trickDrawPile = savedTrickPile;
+    this._2v2ReadBackActivePlayer();
+    // A trick may raise an acknowledge/target prompt (e.g. Lasso of Truth's
+    // reveal, which sets pendingCardChoice directly). Stamp it so the player
+    // who played the trick can dismiss it — without this the guest could never
+    // acknowledge and the host kept re-broadcasting the stuck prompt.
+    this._2v2StampPendingActor();
+  },
+
+  // Stamp whichever prompt was just raised with the current 2v2 acting player,
+  // so only that client renders it interactively and its resolution routes
+  // back to the host. No-op if there's no acting player or no fresh prompt.
+  _2v2StampPendingActor() {
+    const cap = this._2v2CurrentActingPlayer;
+    if (!cap) return;
+    const cc = this.state.pendingCardChoice;
+    const lc = this.state.pendingLaneChoice;
+    if (cc && !cc._2v2ActingPlayer) cc._2v2ActingPlayer = cap;
+    if (lc && !lc._2v2ActingPlayer) lc._2v2ActingPlayer = cap;
   },
 
   // Host broadcasts current state to all joiners via Multiplayer4
