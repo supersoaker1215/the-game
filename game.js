@@ -2139,11 +2139,25 @@ const Game = {
     const choicesKey = who === 'player' ? 'playerChoices' : 'aiChoices';
     if (!d[choicesKey] || d[choicesKey].length === 0) return false;
     const pile = d.phase === 'cards' ? this.getDrawPile('player') : this.getTrickPile('player');
-    // Return rejected choices to the pile and shuffle so they don't
-    // immediately resurface as the next two pops.
-    d[choicesKey].forEach(c => pile.unshift(c));
-    this.shuffle(pile);
-    const fresh = [pile.pop(), pile.pop()].filter(Boolean);
+    // Mulliganed choices go to HOLDING, not back into the pile. They used to
+    // be unshifted back and reshuffled, which put them right back in
+    // circulation — the OPPONENT could be dealt the two cards you just
+    // mulliganed away, since both sides draw from this same shared pile.
+    // Holding is already the draft's "seen but not taken" area (the rejected
+    // half of every pick lands there) and is flushed back into the pile by
+    // finishCardDraft / finishTrickDraft when the draft ends.
+    const holdingKey = d.phase === 'cards' ? 'cardHolding' : 'trickHolding';
+    if (!d[holdingKey]) d[holdingKey] = [];
+    d[choicesKey].forEach(c => { if (c) d[holdingKey].push(c); });
+    // Refill from the pile; if it's dry, recycle holding as a last resort so
+    // the draft can't stall on an empty offer.
+    const draw = () => {
+      if (!pile.length && d[holdingKey].length) {
+        pile.push(...this.shuffle(d[holdingKey].splice(0, d[holdingKey].length)));
+      }
+      return pile.pop();
+    };
+    const fresh = [draw(), draw()].filter(Boolean);
     d[choicesKey] = fresh;
     d[mulliganKey] = true;
     if (who === 'player') d.mulliganUsed = true; // keep legacy UI flag in sync so the button disables
@@ -9587,6 +9601,14 @@ const Game = {
       choices: [],
       cardPool: this.shuffle(allCards),
       trickPool: this.shuffle(allTricks),
+      // Holding areas — every card/trick a player has SEEN but not taken
+      // (the rejected half of a pick, plus anything mulliganed away) lands
+      // here instead of going back in the pool. Nothing in holding can be
+      // offered again, so no two players are ever shown the same option.
+      // Both are shuffled back into the draw piles when the draft ends.
+      // Mirrors 1v1's d.cardHolding / d.trickHolding.
+      cardHolding: [],
+      trickHolding: [],
       mulliganUsed: {},      // { p1: bool, … } — cards phase, one per player
       trickMulliganUsed: {}, // { p1: bool, … } — tricks phase, one per player
     };
@@ -9615,27 +9637,44 @@ const Game = {
     const isCards = d.phase === 'cards';
     const pool = isCards ? d.cardPool : d.trickPool;
 
-    // Collect names already drafted by any player to prevent duplicates
+    // Collect names already drafted by ANY player so nobody is offered a
+    // card/trick a teammate or opponent already holds. This used to run for
+    // the cards phase only — tricks were left undeduped, so two players could
+    // draft the same trick. Both phases are checked now.
     const taken = new Set();
-    if (isCards) {
-      Object.values(tt.players).forEach(ap => {
-        ap.hand.forEach(c => { if (c.name) taken.add(c.name); });
-      });
-    }
+    Object.values(tt.players).forEach(ap => {
+      const held = isCards ? ap.hand : ap.trickHand;
+      (held || []).forEach(c => { if (c && c.name) taken.add(c.name); });
+    });
 
+    const holding = isCards ? d.cardHolding : d.trickHolding;
     const choices = [];
     const skipped = [];
-    while (choices.length < 2 && pool.length) {
+    while (choices.length < 2) {
+      if (!pool.length) {
+        // Pool exhausted. Everything a player passed on or mulliganed is
+        // sitting in holding and is deliberately withheld — but an empty
+        // hand of choices would hard-stall the draft, so recycle holding
+        // as a last resort rather than presenting fewer than 2 options.
+        // Tightest real case is the 2v2 trick draft: 28 TRICK_DEFS against
+        // a 24-trick worst case (8 picks x 2 shown + 4 mulligans x 2), so
+        // this is a safety valve, not the normal path.
+        if (!holding.length) break;
+        pool.push(...this.shuffle(holding.splice(0, holding.length)));
+        continue;
+      }
       const card = pool.pop();
       if (!card) break;
-      if (isCards && taken.has(card.name)) {
+      if (taken.has(card.name)) {
         skipped.push(card);
       } else {
         choices.push(card);
-        if (isCards) taken.add(card.name);
+        taken.add(card.name);
       }
     }
-    // Return skipped cards to the bottom of the pool so they can resurface later
+    // Already-owned names go to the bottom of the pool, not to holding —
+    // holding is for things a player CHOSE to pass on. These were never
+    // shown to anyone.
     if (skipped.length) pool.unshift(...skipped);
     d.choices = choices;
   },
@@ -9659,10 +9698,15 @@ const Game = {
       tt.players[pickerKey].trickHand.push({ ...chosen, id: nextCardId++ });
     }
 
-    // Return rejected to bottom of pool so it can resurface
+    // The half the picker passed on goes to HOLDING, not back to the pool.
+    // Previously it was unshifted back so it could "resurface" — which meant
+    // the very next player could be offered the card the previous player had
+    // just turned down. Holding keeps it out of circulation for the rest of
+    // the draft; it returns to the deck when the draft ends. Matches 1v1,
+    // where the rejected half already went to d.cardHolding.
     if (rejected) {
-      const pool = d.phase === 'cards' ? d.cardPool : d.trickPool;
-      pool.unshift(rejected);
+      const holding = d.phase === 'cards' ? d.cardHolding : d.trickHolding;
+      holding.push(rejected);
     }
 
     d.pickerIdx++;
@@ -9675,9 +9719,11 @@ const Game = {
           d.phase = 'tricks';
           d.round = 1;
         } else {
-          // Draft complete — build shared piles and start
-          tt.drawPile   = this.shuffle(d.cardPool);
-          tt.trickDrawPile = this.shuffle(d.trickPool);
+          // Draft complete — everything held back during the draft (passed-on
+          // halves + mulliganed options, cards and tricks alike) returns to
+          // the deck here, shuffled in with whatever's left of the pools.
+          tt.drawPile      = this.shuffle(d.cardPool.concat(d.cardHolding || []));
+          tt.trickDrawPile = this.shuffle(d.trickPool.concat(d.trickHolding || []));
           delete tt.draft;
           this.start2v2Round();
           return;
@@ -9704,11 +9750,15 @@ const Game = {
     const mulliganKey = d.phase === 'cards' ? 'mulliganUsed' : 'trickMulliganUsed';
     if (!d[mulliganKey]) d[mulliganKey] = {};
     if (d[mulliganKey][pickerKey]) return false; // already used this phase
-    const pool = d.phase === 'cards' ? d.cardPool : d.trickPool;
-    // Return current choices to pool and shuffle so they don't immediately resurface
-    d.choices.forEach(c => { if (c) pool.unshift(c); });
-    this.shuffle(pool);
-    d.choices = [pool.pop(), pool.pop()].filter(Boolean);
+    // Mulliganed options go to HOLDING, never back to the pool. They used to
+    // be unshifted back and reshuffled, which meant the cards you rejected
+    // could be dealt straight to the next player — the thing a mulligan is
+    // supposed to prevent. Holding withholds them for the rest of the draft
+    // and returns them to the deck once it's over.
+    const holding = d.phase === 'cards' ? d.cardHolding : d.trickHolding;
+    d.choices.forEach(c => { if (c) holding.push(c); });
+    d.choices = [];
+    this._2v2PresentDraftChoices();
     d[mulliganKey][pickerKey] = true;
     this.log(`[2v2 DRAFT] Mulligan used by ${pickerKey}`);
     if (tt.online) {
