@@ -719,6 +719,46 @@ const Game = {
     return this._promptOwnerSeat(prompt, kind) === 'player';
   },
 
+  // Resolve the pending card/lane prompt LOCALLY — the client resolving its
+  // OWN prompt (solo, 1v1 host-own, 2v2 acting player). The guest-forward and
+  // 2v2-teammate-forward stay in the UI handler ABOVE this call; this is the
+  // shared local tail both handlers funnel through, so the resolve path reads
+  // the SAME ownership authority (promptIsMine) the render gates do — they can
+  // no longer diverge. Payload is validated the way the host validates a
+  // guest's wire resolve (bad idx / out-of-set lane rejected), and the
+  // null-before-snapshot → callback → cleanupDead → resume ordering (the undo
+  // stale-closure rule) is preserved exactly. Returns true if it resolved.
+  // NOT for the host applying a GUEST's resolve — that path (in _mpApplyAction)
+  // is actor-relative and keeps its own owner!==actor gate; promptIsMine here
+  // is seat-relative to THIS client and would reject an 'ai'-owned prompt.
+  resolveActivePrompt(kind, payload) {
+    const slotKey = kind === 'lane' ? 'pendingLaneChoice' : 'pendingCardChoice';
+    const prompt = this.state[slotKey];
+    if (!prompt) return false;
+    if (!this.promptIsMine(prompt, kind)) return false;
+    let arg;
+    if (kind === 'lane') {
+      const laneIdx = (payload && payload.laneIdx);
+      if (laneIdx == null) return false;
+      if (prompt.lanes && !prompt.lanes.includes(laneIdx)) return false; // out-of-set guard
+      arg = laneIdx;
+    } else {
+      const idx = (payload && payload.idx);
+      if (idx == null || !prompt.cards || !prompt.cards[idx]) return false;
+      arg = prompt.cards[idx];
+    }
+    this._clearPromptTimeout();
+    // Null the slot BEFORE snapshotting — a snapshot must never capture an
+    // armed prompt (its callback is a live closure; undoing to it replays the
+    // original timeline's objects → the duplicate-Ahsoka class).
+    this.state[slotKey] = null;
+    if (prompt.owner === 'player' && this.isPlayerTurn()) this.snapshot();
+    if (prompt.callback) prompt.callback(arg);
+    this.cleanupDead();
+    this.resumeCombatIfWaiting();
+    return true;
+  },
+
   // Apply an action message arriving from the wire. `actor` is the
   // owner side ('player' or 'ai') the action originated from — for
   // host receiving guest msgs, actor is always 'ai' (the guest sits
