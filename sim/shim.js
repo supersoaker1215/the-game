@@ -219,6 +219,11 @@ this.runSimGame = function (weightsP, weightsA, collect) {
   function withA(fn) { AI.WEIGHTS = wA; try { fn(); } finally { AI.WEIGHTS = savedW; } }
 
   Game.init();
+  // First-class logic/presentation separation: the engine resolves every
+  // combat/AI beat SYNCHRONOUSLY through Game._schedule instead of relying on
+  // this shim's global setTimeout stub. (The stub stays as a belt for any
+  // legacy raw-setTimeout path like _aiActionDelay.)
+  Game._syncMode = true;
   // Force both seats to AI-controlled in sim. Game.init() defaults player
   // to isHuman=true (for browser single-player); headless sim wants both
   // seats running the AI branch of every ability so the two sides are

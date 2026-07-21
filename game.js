@@ -362,6 +362,27 @@ const Game = {
     return setTimeout(() => { if (this._matchGen !== gen) return; fn(); }, ms);
   },
 
+  // ===================== LOGIC / PRESENTATION SEAM =====================
+  // The ONE explicit boundary where the engine's LOGIC hands off to
+  // PRESENTATION pacing. Combat lane cadence, the post-combat beat, AI move
+  // delays, and the round-open delay are pure PRESENTATION — how fast the
+  // player watches the already-decided result unfold. Routing them through this
+  // single seam means:
+  //   • LIVE play (default): _matchTimeout — the timed, watchable cadence,
+  //     generation-guarded, byte-for-byte the same as before.
+  //   • SYNC mode (_syncMode = true): the engine resolves the whole beat
+  //     SYNCHRONOUSLY with no timers — a first-class headless/fuzz/replay
+  //     mode instead of monkey-patching global setTimeout. The FX event stream
+  //     (state._fx) already carries what happened, so a UI can replay it at its
+  //     own pace; the engine never blocks on presentation.
+  // The fuzz's 3000-game clean run (timers collapsed) is the proof the engine
+  // LOGIC is fully timing-independent — this seam just makes that swappable.
+  _syncMode: false,
+  _schedule(fn, ms) {
+    if (this._syncMode) { try { fn(); } catch (e) { console.error('[schedule:sync] threw:', e); } return 0; }
+    return this._matchTimeout(fn, ms);
+  },
+
   // ===================== COMBAT WATCHDOG =====================
   // A combat freeze — a continuation that threw, an orphaned prompt park
   // (e.g. an MP guest prompt the guest never answered), a dropped pacing
@@ -2904,7 +2925,7 @@ const Game = {
       const bootRemain = Math.max(0, bootEnd - now);
       const aiDelay = Math.max(1200, bootRemain + 200);
       if (bootRemain > 0) delete this.state._bootSequenceEndsAt; // one-shot
-      this._matchTimeout(() => { AI.playCards('ai', () => this.endPhase1()); }, aiDelay);
+      this._schedule(() => { AI.playCards('ai', () => this.endPhase1()); }, aiDelay);
     }
   },
 
@@ -2973,7 +2994,7 @@ const Game = {
         // playTrickPhaseCards here gives them their "post-opponent-commit"
         // timing: Phase 1 (opponent plays) → Phase 2 (AI plays cards, then
         // trick-phase cards against the committed board, then tricks).
-        this._matchTimeout(() => {
+        this._schedule(() => {
           AI.playCards('ai', () => {
             AI.playTrickPhaseCards('ai', () => {
               AI.playTricks('ai', () => this.endPhase2());
@@ -3021,7 +3042,7 @@ const Game = {
           if (this.isMultiplayer()) return;
           // Hotseat: pass the device instead of running AI.
           if (this.isHotseat()) { this._hotseatHandoff(); return; }
-          this._matchTimeout(() => {
+          this._schedule(() => {
             const nextStep = () => {
               AI.playTrickPhaseCards('ai', () => {
                 AI.playTricks('ai', () => this.endPhase3());
@@ -3093,7 +3114,7 @@ const Game = {
     this.state.phase = 'combat';
     this.state.activePlayer = null;
     UI.render();
-    this._matchTimeout(() => this.resolveCombat(), 1000);
+    this._schedule(() => this.resolveCombat(), 1000);
   },
 
   // ===================== PLAY CARDS / TRICKS =====================
@@ -4033,7 +4054,7 @@ const Game = {
         // All lanes done — clear active lane highlight and proceed to post-combat
         delete this.state._activeLane;
         UI.render();
-        this._matchTimeout(() => this.postCombat(), this.COMBAT_POST_DELAY);
+        this._schedule(() => this.postCombat(), this.COMBAT_POST_DELAY);
         return;
       }
 
@@ -4051,7 +4072,7 @@ const Game = {
           UI.render();
           // Broadcast resolved lane result to guest before moving on.
           if (this.isMultiplayer && this.isMultiplayer() && this.mp.role === 'host') this._mpBroadcast();
-          this._matchTimeout(() => resolveLane(i + 1), this.COMBAT_LANE_DELAY);
+          this._schedule(() => resolveLane(i + 1), this.COMBAT_LANE_DELAY);
         });
       };
       if (p && a) {
