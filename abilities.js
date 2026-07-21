@@ -4294,7 +4294,12 @@ const CARD_ABILITIES = {
       const devourCount = Math.min(baseDevour, enemies.length);
       const devourChain = (remaining, picked) => {
         if (remaining <= 0) return;
-        const available = enemies.filter(e => e.currentHealth > 0 && !picked.includes(e.id) && G.findCardLane(e) >= 0 && G.canEffectLand(e, 'damage', { owner: self.owner, source: self }));
+        // 'destroy', not 'damage'. Devour consumes the card into the void pile
+        // — it deals no damage — so the gate that matters is the anti-
+        // DESTRUCTION one (Invincible). The 'damage' kind also excludes
+        // hasDamageImmunity, which quietly filtered damage-immune enemies out
+        // of the devour menu, so Galactus couldn't even pick them.
+        const available = enemies.filter(e => e.currentHealth > 0 && !picked.includes(e.id) && G.findCardLane(e) >= 0 && G.canEffectLand(e, 'destroy', { owner: self.owner, source: self }));
         if (!available.length) return;
         // ALWAYS prompt the human player — even when only 1 target remains.
         // User spec: "the user always chooses". The redundant-looking prompt

@@ -6837,25 +6837,21 @@ const Game = {
     if (!card) return;
     if (this._trickBlocked(card)) return;
     if (this.is10CostImmune(source, card)) { this.log(`  [IMMUNE] ${card.name} is immune to ${source.name}'s devour!`); return; }
-    // Invincible / Damage Immunity blocks Devour. User bug report
-    // 2026-05-19: "Galactus devour eats through invincible. That
-    // shouldn't be the case. Devour doesn't let the card revive."
-    // Devour is a destruction-class effect (the card hits the void
-    // pile, can never come back), so a card under Invincible /
-    // Damage Immunity should refuse the consumption entirely — same
-    // way killCard() and dealDamage() already do. Without these
-    // guards, Galactus's onBeforeTricks chain would void an
-    // Invincible target straight to the void pile, bypassing the
-    // shield it was supposed to honor. _creditAbsorb attributes
-    // the defensive value to the target's Invincible / Damage
-    // Immunity stat so the dashboard reflects the save.
+    // INVINCIBLE blocks Devour; DAMAGE IMMUNITY does not.
+    //
+    // Invincible is an anti-DESTRUCTION shield — it's what killCard() honors —
+    // and devour is destruction-class (the card hits the void pile and can
+    // never come back), so it has to refuse the consumption entirely. That was
+    // the 2026-05-19 report: "Galactus devour eats through invincible. That
+    // shouldn't be the case."
+    //
+    // Damage Immunity is a different promise: "takes no DAMAGE" (granted as a
+    // 1-turn buff to adjacent allies). Devour deals no damage — it consumes —
+    // so the shield was never the right thing to stop it. That fix blocked
+    // both flags together and over-applied to this one. User: "galactus should
+    // be able to devour through damage immunity, right now he cant."
     if (card.invincibleTurns > 0) {
       this.log(`  [INVINCIBLE] ${card.name} resists ${source ? source.name : 'devour'}!`);
-      this._creditAbsorb(card, 'Invincible', (card.maxHealth || 0) + (card.attack || 0));
-      return;
-    }
-    if (card.hasDamageImmunity) {
-      this.log(`  [DMG IMMUNE] ${card.name} ignores ${source ? source.name : 'devour'}!`);
       this._creditAbsorb(card, 'Invincible', (card.maxHealth || 0) + (card.attack || 0));
       return;
     }
