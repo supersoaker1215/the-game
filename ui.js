@@ -7493,13 +7493,10 @@ const UI = {
         if (isLocalSelect) {
           UI._2v2SelectedCardIdx = UI._2v2SelectedCardIdx === apIdx ? null : apIdx;
           UI.render();
-        } else if (you === 'p1') {
-          // Host is authoritative — run the shared request directly, then push
-          // the resulting pendingLaneChoice out so the table sees the prompt.
-          Game._2v2RequestLaneChoice(you, apIdx);
-          Game._2v2OnlineBroadcast();
-        } else if (typeof Multiplayer4 !== 'undefined') {
-          Multiplayer4.send({ t: 'req2v2LaneChoice', playerKey: you, cardIdx: apIdx });
+        } else {
+          // Online 2v2 card play flows through the SAME door a 1v1 player uses;
+          // submitCommand's 2v2 arm does the host-vs-guest fork.
+          Game.submitCommand({ type: 'playCard', payload: { card: ap.hand[apIdx] } });
         }
       };
     });
@@ -22762,16 +22759,10 @@ function twov2OnlineTrick(trickIdx) {
   const tt = Game.state.twoVTwo;
   if (!tt) return;
   const you = tt.you;
-  if (Game._2v2ActivePlayer() !== you) return;
-  const isHost = you === 'p1';
-  if (isHost) {
-    Game._2v2CurrentActingPlayer = 'p1';
-    Game._2v2OnlinePlayTrick(you, trickIdx);
-    if (!Game.state.pendingLaneChoice && !Game.state.pendingCardChoice) Game._2v2CurrentActingPlayer = null;
-    Game._2v2OnlineBroadcast();
-  } else {
-    Multiplayer4.send({ t: 'play2v2Trick', playerKey: you, trickIdx });
-  }
+  // Route through the SAME door a 1v1 player uses; submitCommand's 2v2 arm
+  // does the host-vs-guest fork (identical to the old inline logic).
+  const trick = (tt.players[you] && tt.players[you].trickHand || [])[trickIdx];
+  if (trick) Game.submitCommand({ type: 'playTrick', payload: { trick } });
   UI.render();
 }
 

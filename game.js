@@ -615,9 +615,57 @@ const Game = {
   // 2v2 and prompt resolutions are not routed here yet.
 
   // Which seat THIS client's human controls. Solo and 1v1 (host OR guest) all
-  // render the local human as 'player' — the guest's state is seat-flipped —
-  // so the local seat is uniformly 'player'.
-  _localSeat() { return 'player'; },
+  // render the local human as 'player' (the guest's state is seat-flipped). In
+  // 2v2 the local player maps to their TEAM SIDE — during your own sub-turn
+  // _2v2SyncActivePlayer has put your hand into state[side] (same ref), so
+  // _cmdCard(side,…) resolves your card + index identically to the wire.
+  _localSeat() {
+    if (this.is2v2 && this.is2v2() && this.state.twoVTwo) {
+      const me = this.state.twoVTwo.players[this.state.twoVTwo.you];
+      if (me && this._2v2TeamSide) return this._2v2TeamSide[me.team] || 'player';
+    }
+    return 'player';
+  },
+
+  // The 2v2 arm of the door — 2v2 online uses a different transport
+  // (Multiplayer4, playerKey envelope) and authority test (you==='p1', not
+  // mp.role==='host'), so submitCommand branches here. Replicates the existing
+  // 2v2 hand/trick onclick logic EXACTLY so routing through the door is
+  // behavior-identical. Returns true if dispatched.
+  _submitCommand2v2(type, p) {
+    const tt = this.state.twoVTwo;
+    if (!tt) return false;
+    const you = tt.you;
+    if (this._2v2ActivePlayer && this._2v2ActivePlayer() !== you) return false; // not your sub-turn
+    const isHost = (you === 'p1');
+    const ap = tt.players[you];
+    if (!ap) return false;
+    if (type === 'playCard') {
+      const wantId = p.card ? p.card.id : p.cardId;
+      const idx = (ap.hand || []).findIndex(c => c.id === wantId);
+      if (idx < 0) return false;
+      // 2v2 playCard = the lane-REQUEST path (lane is chosen by the ensuing
+      // lane prompt), so payload.lane is intentionally ignored here.
+      if (isHost) { this._2v2RequestLaneChoice(you, idx); this._2v2OnlineBroadcast(); }
+      else if (typeof Multiplayer4 !== 'undefined') { Multiplayer4.send({ t: 'req2v2LaneChoice', playerKey: you, cardIdx: idx }); }
+      return true;
+    }
+    if (type === 'playTrick') {
+      const wantId = p.trick ? p.trick.id : p.trickId;
+      const idx = (ap.trickHand || []).findIndex(t => t.id === wantId);
+      if (idx < 0) return false;
+      if (isHost) {
+        this._2v2CurrentActingPlayer = 'p1';
+        this._2v2OnlinePlayTrick(you, idx);
+        if (!this.state.pendingLaneChoice && !this.state.pendingCardChoice) this._2v2CurrentActingPlayer = null;
+        this._2v2OnlineBroadcast();
+      } else if (typeof Multiplayer4 !== 'undefined') {
+        Multiplayer4.send({ t: 'play2v2Trick', playerKey: you, trickIdx: idx });
+      }
+      return true;
+    }
+    return false; // playJump / playCardFree not routed for 2v2 yet
+  },
 
   // Resolve the card/trick instance a command refers to, from the actor's own
   // hand. Accepts a pre-resolved object (local UI has it) or an id (the wire).
@@ -662,6 +710,12 @@ const Game = {
     if (p.card && p.cardId == null) p.cardId = p.card.id;
     if (p.trick && p.trickId == null) p.trickId = p.trick.id;
     const actor = cmd.actor || this._localSeat();
+    // 2v2 online diverges: different transport (Multiplayer4, playerKey) and
+    // authority (you==='p1'), so it has its own arm. Branch BEFORE resolve/apply
+    // — the 1v1/solo path below is untouched.
+    if (this.is2v2 && this.is2v2() && this.state.twoVTwo && this.state.twoVTwo.online) {
+      return this._submitCommand2v2(cmd.type, p);
+    }
     // Ownership, decided ONCE at the door: the target must belong to the
     // actor's own hand. Previously this was implicit / trusted from the caller.
     const target = def.resolve ? def.resolve(this, actor, p) : null;
