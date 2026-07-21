@@ -746,7 +746,52 @@ const Game = {
     }
     // Dispatch to the existing engine entry point. It keeps its own
     // guest-forward / _silentSim / SFX behavior, so nothing else changes yet.
-    return def.apply(this, actor, p, target);
+    const result = def.apply(this, actor, p, target);
+    // Replay recording — capture the command on the authoritative side (this
+    // apply path is host/solo; a guest forwards and the host records). Only
+    // ids are stored so the log is serializable and re-appliable.
+    if (result !== false) {
+      this._recordCmd({ k: 'cmd', type: cmd.type, actor, cardId: p.cardId, trickId: p.trickId, lane: p.lane });
+    }
+    return result;
+  },
+
+  // ===================== REPLAY (record + reproduce) =====================
+  // A match is fully reproducible from its SEED + the log of player COMMANDS:
+  // the AI is seeded-deterministic (Game.rng re-derives its moves), so only
+  // human inputs need recording. Recording captures the seed at start and every
+  // command that flows through the door (plays + prompt resolutions). Replaying
+  // re-seeds and re-issues the log through the SAME door → the exact same match.
+  // Foundation for a replay viewer, shareable "send me your replay" bug reports,
+  // and (with the command pipeline) command-log MP.
+  _replayLog: null,   // null = not recording; array while recording
+  _replaySeed: null,
+  _replayMode: null,
+  startReplayRecording() {
+    this._replayLog = [];
+    this._replaySeed = this.state ? this.state._seed : null;
+    this._replayMode = this.state ? (this.state.mode || 'classic') : 'classic';
+  },
+  stopReplayRecording() { const r = this.exportReplay(); this._replayLog = null; return r; },
+  _recordCmd(entry) {
+    // Never record preview/silent-sim actions, and only while recording.
+    if (this._replayLog && !(this.state && this.state._silentSim)) this._replayLog.push(entry);
+  },
+  exportReplay() {
+    return { v: 1, seed: this._replaySeed, mode: this._replayMode, log: (this._replayLog || []).slice() };
+  },
+  // Re-issue one recorded log entry against the current (re-seeded) state.
+  // Returns whatever the underlying door returned.
+  applyReplayEntry(entry) {
+    if (!entry) return false;
+    if (entry.k === 'cmd') {
+      const payload = { cardId: entry.cardId, trickId: entry.trickId, lane: entry.lane };
+      return this.submitCommand({ type: entry.type, actor: entry.actor, payload });
+    }
+    if (entry.k === 'resolve') {
+      return this.resolveActivePrompt(entry.kind, entry.payload || {});
+    }
+    return false;
   },
 
   // ===================== PROMPT OWNERSHIP AUTHORITY =====================
@@ -828,6 +873,9 @@ const Game = {
     // original timeline's objects → the duplicate-Ahsoka class).
     this.state[slotKey] = null;
     if (prompt.owner === 'player' && this.isPlayerTurn()) this.snapshot();
+    // Replay recording — capture the prompt resolution (kind + validated
+    // payload) before the callback runs, so a replay resolves it identically.
+    this._recordCmd({ k: 'resolve', kind, payload: (kind === 'lane') ? { laneIdx: arg } : { idx: payload.idx } });
     if (prompt.callback) prompt.callback(arg);
     this.cleanupDead();
     this.resumeCombatIfWaiting();
@@ -1843,6 +1891,9 @@ const Game = {
     // this seed opens the same way. Guest inherits it via the broadcast.
     if (!(this.isMultiplayer && this.isMultiplayer() && this.mp.role === 'guest') && this.state._rngState != null) {
       this.state.oddPlayer = this.rng() < 0.5 ? 'player' : 'ai';
+      // Auto-record the match (host/solo) so every game is replayable — the
+      // seed + command log is exportable at any time via Game.exportReplay().
+      this.startReplayRecording();
     }
     this.state.mode = mode;
     // 1v1 local pass-and-play — both seats are humans on one device.
