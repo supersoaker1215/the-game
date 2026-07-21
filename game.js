@@ -6305,8 +6305,14 @@ const Game = {
             report('nan:' + c.name, `${c.name} has non-finite stats (${c.attack}/${c.currentHealth}/${c.maxHealth})`);
           }
           if (c._crazyAppliedBy) crazyStamps++;
-          if (c.isCrazy && (c.isFeared || (c.fearedTurns | 0) > 0)) {
-            report('crazyFear:' + c.name, `${c.name} is Crazy AND Feared — exclusion rule violated`);
+          // Only a JOKER-STAMPED Crazy (_crazyAppliedBy) must never coexist
+          // with Fear — fearCard strips the stamp. INTRINSIC Crazy (Harley's
+          // identity) legitimately persists while feared, only suppressed
+          // (ATK reverts to base), resuming when fear ends. The old check
+          // flagged intrinsic-crazy-while-feared as a false positive (caught
+          // by the fuzz on Harley Quinn).
+          if (c._crazyAppliedBy && (c.isFeared || (c.fearedTurns | 0) > 0)) {
+            report('crazyFear:' + c.name, `${c.name} holds a Joker Crazy stamp AND is Feared — the stamp should have been shattered`);
           }
         }
         const env = lane._env && lane._env[side];
