@@ -13039,21 +13039,13 @@ const UI = {
     const kc = s.pendingKangChoice;
     const choices = kc.cards.map((card, i) => {
       const newCost = Math.max(0, card.cost - 2);
-      // Real mini-card: same portrait + cost-gem wiring as board/MVP cards, so
-      // the pick reads as the actual card (art + name overlay), not a text tile.
-      const artPath = card.name ? this.getCardArtPath(card.name) : null;
-      const safeUrl = artPath ? artPath.replace(/'/g, '%27') : '';
-      const portraitStyle = safeUrl ? `--portrait-bg:url('${safeUrl}')${this._artFocalCard(card.name)}` : '';
-      return {
-        art: true,
-        html: `<span class="card-cost">${card.cost}</span>`
-             + `<div class="card-portrait" style="${portraitStyle}"><div class="card-name-overlay">${card.name}</div></div>`
-             + `<div class="decision-choice-stats"><span class="atk">${card.attack}</span> / <span class="hp">${card.health}</span></div>`
-             + (card.abilities && card.abilities.length ? `<div class="card-abilities status-badges">${this.formatAbilityBadges(card.abilities)}</div>` : '')
-             + `<div class="decision-choice-sub">${this.formatDesc(card.desc)}</div>`
-             + `<div class="decision-choice-cost">New cost: ${newCost}</div>`,
-        onClick: () => kangChoicePick(i)
-      };
+      // ONE renderer — the ability-decision card is a full canonical face
+      // (portrait, badges, stat ORBS not text) via makeCardEl, with the
+      // "New cost" affordance appended. Same look as hand/board/codex.
+      const face = this._synthFace(card, {});
+      const el = this.makeCardEl(face, true, 'player', { static: true });
+      el.insertAdjacentHTML('beforeend', `<div class="decision-choice-cost">New cost: ${newCost}</div>`);
+      return { art: true, html: el.outerHTML, onClick: () => kangChoicePick(i) };
     });
     this._showDecisionModal('Paul Atreides — Choose a Card',
       'Pick 1 to keep (cost −2). The other returns to the deck.', choices);
