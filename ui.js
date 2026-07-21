@@ -22070,6 +22070,9 @@ function blockTrickPlay() {
     UI.render();
     return;
   }
+  // Ownership authority — never resolve a block trick this client doesn't own
+  // (the render gate hides the modal, but the handler must be self-safe too).
+  if (!Game.promptIsMine(trick, 'blockTrick')) return;
   const owner = trick._btOwner || 'player';
   s.pendingBlockTrick = null;
   s[owner].playedTrickPile.push({ name: trick.name, cost: trick.cost });
@@ -22097,6 +22100,7 @@ function blockTrickKeep() {
     UI.render();
     return;
   }
+  if (!Game.promptIsMine(trick, 'blockTrick')) return;
   const owner = trick._btOwner || 'player';
   s.pendingBlockTrick = null;
   Game.addToTrickHand(owner, trick);
@@ -22120,6 +22124,7 @@ function timeStoneCounter() {
     UI.render();
     return;
   }
+  if (!Game.promptIsMine(Game.state && Game.state.pendingTimeStoneIntercept, 'timeStone')) return;
   if (Game && Game.timeStoneCounter) Game.timeStoneCounter();
 }
 function timeStoneAllow() {
@@ -22129,6 +22134,7 @@ function timeStoneAllow() {
     UI.render();
     return;
   }
+  if (!Game.promptIsMine(Game.state && Game.state.pendingTimeStoneIntercept, 'timeStone')) return;
   if (Game && Game.timeStoneAllow) Game.timeStoneAllow();
 }
 
