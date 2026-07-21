@@ -7906,6 +7906,21 @@ const Game = {
       this.log(`  [SUMMON] ${name} not summoned — discard-effect cards can't be placed on the board.`);
       return;
     }
+    // DEFENSE-IN-DEPTH: environments must NEVER be summoned into a COMBAT slot
+    // — they deploy via their own env-slot flow (playCard's isEnvironment
+    // branch). summonCard writes lanes[i][owner] (a combat slot), so a summon
+    // pool that includes an environment (Knull's random 1-9, a dead-pile
+    // reanimate, etc.) would drop it there and strand it. Caught by the fuzz
+    // invariant sweep: "Gargantua is an ENVIRONMENT in a combat slot".
+    let flaggedEnv = !!(sourceDef && (sourceDef.isEnvironment || sourceDef.type === 'environment'));
+    if (!flaggedEnv && typeof CARD_DEFS !== 'undefined' && name) {
+      const envDef = CARD_DEFS.find(d => d.name === name);
+      if (envDef && (envDef.isEnvironment || envDef.type === 'environment')) flaggedEnv = true;
+    }
+    if (flaggedEnv) {
+      this.log(`  [SUMMON] ${name} not summoned — environments can't be placed in a combat slot.`);
+      return;
+    }
 
     // Build definition: use full source def for draw-pile summons, minimal for tokens
     let def;
