@@ -7458,6 +7458,18 @@ const Game = {
     const enemies = this.getEnemiesOf(owner).filter(e => e.currentHealth > 0);
     if (!enemies.length) { this.log(`${source.name}: no enemies to chain.`); return; }
 
+    // Signature FX — one electric arc per chain link, staggered so the
+    // chain reads as a travelling bolt (Palpatine's Force lightning). The
+    // first arc leaps from the caster; each later arc from the prior link.
+    // Cosmetic + guarded: headless sim (UI undefined) and reduced-motion
+    // both no-op, and it never consumes the seeded RNG.
+    let _fxPrevLink = source, _fxArcSeq = 0;
+    const fireChainArc = (toCard) => {
+      if (typeof UI === 'undefined' || !UI._fxChainArc || !toCard) return;
+      try { UI._fxChainArc(_fxPrevLink ? _fxPrevLink.id : null, toCard.id, _fxArcSeq++); } catch (e) {}
+      _fxPrevLink = toCard;
+    };
+
     // AI (single-player) ONLY: auto-spread from the source lane. In
     // multiplayer the guest sits on the 'ai' seat but is a HUMAN — gate on
     // isHuman, not the literal seat, so the guest gets the same interactive
@@ -7467,7 +7479,7 @@ const Game = {
     if (!this.isHuman(owner)) {
       let targets = this.getChainedEnemies(source);
       if (maxTargets) targets = targets.slice(0, maxTargets);
-      targets.forEach(t => { try { applyFn(t); } catch (e) { console.error(e); } });
+      targets.forEach(t => { try { applyFn(t); } catch (e) { console.error(e); } fireChainArc(t); });
       this.log(`${source.name} chains ${verb} to ${targets.length} enemies!`);
       return;
     }
@@ -7477,6 +7489,7 @@ const Game = {
       if (!t || hit.has(t.id)) return false;
       hit.add(t.id);
       try { applyFn(t); } catch (e) { console.error(e); }
+      fireChainArc(t);
       return true;
     };
     // Step 2+: prompt for direction once a starting lane is set. Direction
@@ -7614,6 +7627,7 @@ const Game = {
         const killValue = (card.attack || 0) + (card.maxHealth || 0) + (card.baseCost || card.cost || 0);
         this._creditChain(source, 'statsKillValue', killValue);
       }
+      if (typeof UI !== 'undefined' && UI._fxDevour) { try { UI._fxDevour(card); } catch (e) {} }
       this.removeFromLane(card, l);
       this.state.voidPile.push({ name: card.name, cost: card.cost });
       this.log(`  [DEVOUR] ${card.name} is devoured to the void!`);
@@ -8667,6 +8681,7 @@ const Game = {
         targeted.add(target.id);
         const fire = (dmg) => {
           this.log(`  [OMEGA BEAM] Fires ${dmg} at ${target.name}!`);
+          if (typeof UI !== 'undefined' && UI._fxOmegaBeam) { try { UI._fxOmegaBeam(card, target); } catch (e) {} }
           this.dealDamage(target, dmg, card);
           remaining -= dmg;
           this.cleanupDead();

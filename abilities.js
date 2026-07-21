@@ -4074,6 +4074,7 @@ const CARD_ABILITIES = {
         const enemies = G.getEnemiesOf(self.owner).filter(t => G.canEffectLand(t, 'damage', { owner: self.owner, source: self }));
         if (enemies.length) {
           G.promptCardChoice(self.owner, enemies, "Superman — Blast", `Choose enemy to deal ${blastDmg} damage`, (t) => {
+            if (typeof UI !== 'undefined' && UI._fxHeatVision) { try { UI._fxHeatVision(self, t); } catch (e) {} }
             G.dealDamage(t, blastDmg); G.log(`Superman blasts ${t.name} for ${blastDmg}!`);
           }, cards => {
             const killable = cards.filter(c => c.currentHealth <= blastDmg);

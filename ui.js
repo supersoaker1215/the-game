@@ -6480,6 +6480,178 @@ const UI = {
     }, 820);
   },
 
+  // ===================== SIGNATURE FX TOOLKIT =====================
+  // Reusable one-shot cinematics for marquee comic-book casts — the
+  // super-hero answer to the Freddy/Pennywise/Jaws horror jumpscares
+  // above. THREE primitives any card can fire: an electric BOLT, an
+  // energy BEAM, and a void IMPLODE. Signature moments become a shared
+  // vocabulary, not per-card hacks (fix-the-source: a new card just
+  // calls a primitive). Every one is: reduced-motion-gated, battery-safe
+  // (one setTimeout cleanup each — no infinite loops, per the mobile
+  // battery diet), and tab-hidden-paused (they live under <body>, which
+  // `body.tab-hidden *{animation-play-state:paused}` already freezes).
+  // Fired from engine/ability code via the guarded
+  //   if (typeof UI !== 'undefined' && UI._fxXxx) ...
+  // pattern, exactly like the jumpscares. In headless sim UI is
+  // undefined, so the calls no-op.
+
+  _fxLayer() {
+    let layer = document.getElementById('signature-fx-layer');
+    if (!layer) {
+      layer = document.createElement('div');
+      layer.id = 'signature-fx-layer';
+      document.body.appendChild(layer);
+    }
+    return layer;
+  },
+  _fxCardElById(id) {
+    if (id == null) return null;
+    return document.querySelector('.board .card[data-card-id="' + id + '"]');
+  },
+  _fxCenter(el) {
+    if (!el) return null;
+    const r = el.getBoundingClientRect();
+    if (!r || (r.width === 0 && r.height === 0)) return null;
+    return { x: r.left + r.width / 2, y: r.top + r.height / 2 };
+  },
+
+  // Jagged electric arc between two viewport points. `from` null → the
+  // bolt strikes down from the sky above `to`. Cosmetic jitter uses
+  // Math.random (NOT Game.rng — the FX must never consume the seeded
+  // gameplay stream).
+  _fxDrawBolt(from, to, opts) {
+    if (!to || this._reducedMotion()) return;
+    opts = opts || {};
+    const src = from || { x: to.x, y: Math.max(-40, to.y - 280) };
+    const color = opts.color || '#9be0ff';
+    const glow  = opts.glow  || '#4aa3ff';
+    const layer = this._fxLayer();
+    const dx = to.x - src.x, dy = to.y - src.y;
+    const len = Math.hypot(dx, dy) || 1;
+    const px = -dy / len, py = dx / len;   // perpendicular unit vector
+    const segs = Math.max(4, Math.min(11, Math.round(len / 40)));
+    let d = 'M ' + src.x.toFixed(1) + ' ' + src.y.toFixed(1);
+    for (let i = 1; i < segs; i++) {
+      const t = i / segs;
+      const jitter = (Math.random() - 0.5) * Math.min(48, len * 0.24);
+      const x = src.x + dx * t + px * jitter;
+      const y = src.y + dy * t + py * jitter;
+      d += ' L ' + x.toFixed(1) + ' ' + y.toFixed(1);
+    }
+    d += ' L ' + to.x.toFixed(1) + ' ' + to.y.toFixed(1);
+    const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    svg.setAttribute('class', 'sig-bolt');
+    svg.style.filter = 'drop-shadow(0 0 6px ' + glow + ')';
+    svg.innerHTML =
+      '<path d="' + d + '" fill="none" stroke="' + glow + '" stroke-width="6.5" stroke-linecap="round" stroke-linejoin="round" opacity="0.5"></path>' +
+      '<path d="' + d + '" fill="none" stroke="' + color + '" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"></path>' +
+      '<path d="' + d + '" fill="none" stroke="#ffffff" stroke-width="1" stroke-linecap="round" stroke-linejoin="round" opacity="0.9"></path>';
+    layer.appendChild(svg);
+    setTimeout(() => svg.remove(), 440);
+  },
+
+  // Straight energy beam from `from` to `to` with a bright core, plus an
+  // impact burst at the target. Color-parameterized (Darkseid red,
+  // Superman red/white). The angle rides a CSS var so the fire keyframe
+  // can animate scaleX without clobbering the rotation.
+  _fxDrawBeam(from, to, opts) {
+    if (!from || !to || this._reducedMotion()) return;
+    opts = opts || {};
+    const core = opts.core || '#ffffff';
+    const color = opts.color || '#ff2d2d';
+    const thickness = opts.thickness || 8;
+    const layer = this._fxLayer();
+    const dx = to.x - from.x, dy = to.y - from.y;
+    const len = Math.hypot(dx, dy);
+    const ang = Math.atan2(dy, dx) * 180 / Math.PI;
+    const beam = document.createElement('div');
+    beam.className = 'sig-beam';
+    beam.style.cssText =
+      'left:' + from.x + 'px;top:' + from.y + 'px;width:' + len + 'px;height:' + thickness + 'px;' +
+      '--sig-ang:' + ang + 'deg;' +
+      'background:linear-gradient(90deg,' + color + '00 0%,' + color + ' 12%,' + core + ' 50%,' + color + ' 88%,' + color + '00 100%);' +
+      'box-shadow:0 0 14px 3px ' + color + ';';
+    layer.appendChild(beam);
+    const burst = document.createElement('div');
+    burst.className = 'sig-beam-impact';
+    burst.style.cssText = 'left:' + to.x + 'px;top:' + to.y + 'px;--sig-c:' + color + ';';
+    layer.appendChild(burst);
+    setTimeout(() => { beam.remove(); burst.remove(); }, 540);
+  },
+
+  // Void singularity that swallows a card (Galactus devour). Clones the
+  // card into a DETACHED ghost so the engine's card removal (which
+  // happens on the very next render) can't cut the spiral short — same
+  // trick _spawnDeathGhost uses.
+  _fxImplode(el, opts) {
+    if (!el || this._reducedMotion()) return;
+    opts = opts || {};
+    const color = opts.color || '#b06bff';
+    const r = el.getBoundingClientRect();
+    if (!r || r.width === 0) return;
+    const layer = this._fxLayer();
+    const ghost = el.cloneNode(true);
+    ghost.removeAttribute('data-card-id');
+    ghost.classList.add('sig-devour-ghost');
+    ghost.style.cssText =
+      'position:fixed;left:' + r.left + 'px;top:' + r.top + 'px;width:' + r.width + 'px;height:' + r.height + 'px;--sig-c:' + color + ';';
+    layer.appendChild(ghost);
+    const ring = document.createElement('div');
+    ring.className = 'sig-void-ring';
+    ring.style.cssText = 'left:' + (r.left + r.width / 2) + 'px;top:' + (r.top + r.height / 2) + 'px;--sig-c:' + color + ';';
+    layer.appendChild(ring);
+    setTimeout(() => { ghost.remove(); ring.remove(); }, 660);
+  },
+
+  // ---- Named per-card entry points (thin wrappers over the primitives) ----
+
+  // Palpatine (and ANY chain ability via runPlayerChain): one electric
+  // arc per link, staggered so the chain reads as a travelling bolt.
+  // fromId null → sky strike; seq drives the stagger.
+  _fxChainArc(fromId, toId, seq) {
+    if (this._reducedMotion()) return;
+    const delay = (seq | 0) * 120;
+    setTimeout(() => {
+      const to = this._fxCenter(this._fxCardElById(toId));
+      if (!to) return;
+      const from = fromId != null ? this._fxCenter(this._fxCardElById(fromId)) : null;
+      this._fxDrawBolt(from, to, { color: '#9be0ff', glow: '#4aa3ff' });
+      if ((seq | 0) === 0) this._screenShake('light');
+    }, delay);
+  },
+
+  // Darkseid Omega Beam: red beam from Darkseid to each target as it's hit.
+  _fxOmegaBeam(sourceCard, targetCard) {
+    if (this._reducedMotion() || !sourceCard || !targetCard) return;
+    const srcEl = this._fxCardElById(sourceCard.id);
+    const from = this._fxCenter(srcEl);
+    const to = this._fxCenter(this._fxCardElById(targetCard.id));
+    if (!from || !to) return;
+    this._fxDrawBeam(from, to, { color: '#ff2d2d', core: '#ffd0d0', thickness: 9 });
+    this._screenShake('light');
+    if (srcEl) { srcEl.classList.add('fx-eye-glow'); setTimeout(() => srcEl.classList.remove('fx-eye-glow'), 500); }
+  },
+
+  // Superman heat vision: twin red/white beams to the blast target.
+  _fxHeatVision(sourceCard, targetCard) {
+    if (this._reducedMotion() || !sourceCard || !targetCard) return;
+    const from = this._fxCenter(this._fxCardElById(sourceCard.id));
+    const to = this._fxCenter(this._fxCardElById(targetCard.id));
+    if (!from || !to) return;
+    this._fxDrawBeam({ x: from.x - 11, y: from.y }, to, { color: '#ff3b30', core: '#ffffff', thickness: 5 });
+    this._fxDrawBeam({ x: from.x + 11, y: from.y }, to, { color: '#ff3b30', core: '#ffffff', thickness: 5 });
+    this._screenShake('light');
+  },
+
+  // Galactus devour: void singularity on the devoured card.
+  _fxDevour(card) {
+    if (this._reducedMotion() || !card) return;
+    const el = this._fxCardElById(card.id);
+    if (!el) return;
+    this._fxImplode(el, { color: '#b06bff' });
+    this._screenShake('medium');
+  },
+
   // ===================== DAMAGE MAGNITUDE TIER =====================
   // One shared classifier that maps a hit's magnitude to a feedback
   // intensity tier, and one parameter table that every feedback
