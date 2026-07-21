@@ -4632,6 +4632,15 @@ const CARD_ABILITIES = {
       // a SECOND revive on top of this custom one.
       self.reviveCharges = 0;
       self.currentHealth = self.maxHealth;
+      // Rising immune has to CLEAR what's already on him, not just block what
+      // comes next. The _doomsdayRevived guard in tryApplyDebuff /
+      // freezeCardUnresistible only refuses NEW Stun/Freeze, so a Doomsday who
+      // was stunned or frozen when he died came back still stunned and frozen
+      // — the counters rode straight through the revive. User report: "when
+      // doomsday revived he was still getting stunned and frozen which he
+      // should be immune to."
+      self.stunnedTurns = 0; self.isStunned = false;
+      self.frozenTurns  = 0; self.isFrozen  = false;
       G.log(`[DOOMSDAY] Cannot be stopped — Doomsday rises! Permanently immune to Stun and Freeze.`);
       return true; // prevent death
     }

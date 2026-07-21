@@ -6146,6 +6146,15 @@ const Game = {
   // 10-cost cards cannot affect enemy 10-cost cards with abilities.
   is10CostImmune(source, target) {
     if (!source || !target) return false;
+    // skipAutoUntrickable marks a card as NOT a titan for the "tens can't
+    // touch tens" rule, whichever side of the interaction it's on. Doomsday
+    // prints at cost 12 but is a 1/1 that scales down; his Stun/Freeze
+    // immunity is earned by reviving, not granted by the printed cost. This
+    // is the authoritative engine guard behind drain / devour / destroy /
+    // debuff / freeze — getEnemiesOf only hides invalid targets, so without
+    // the same exemption here Dormammu's drain still refused to land even
+    // once Doomsday was offered.
+    if (source.skipAutoUntrickable || target.skipAutoUntrickable) return false;
     return (source.baseCost || source.cost) >= 10 && (target.baseCost || target.cost) >= 10
       && source.owner !== target.owner;
   },
@@ -8325,7 +8334,12 @@ const Game = {
     if (options && options.source) {
       const srcCost = options.source.baseCost || options.source.cost || 0;
       if (srcCost >= 10) {
-        list = list.filter(c => (c.baseCost || c.cost || 0) < 10);
+        // skipAutoUntrickable opts a card OUT of the titan class, so it stays
+        // targetable by 10-costs. Doomsday prints at 12 but is a 1/1 that
+        // scales DOWN — his protection is earned by his revive, not handed to
+        // him by a printed cost. Without this the list dropped him and
+        // Dormammu couldn't even offer to drain him.
+        list = list.filter(c => c.skipAutoUntrickable || (c.baseCost || c.cost || 0) < 10);
       }
     }
     return list;
@@ -9471,7 +9485,9 @@ const Game = {
 
     // Each player gets their own draw pile (equal share of shuffled pool)
     const tt = s.twoVTwo;
-    const cardPool = shuffle(allCards.filter(c => !c.isEnvironment));
+    // Same summon-token exclusion as the draft — _spawnOnly cards must never
+    // be dealt or drawn, only spawned by their trigger.
+    const cardPool = shuffle(allCards.filter(c => !c.isEnvironment && !c._spawnOnly));
     const trickPool = shuffle(allTricks.slice());
 
     // Deal: 5 cards + 2 tricks to each player
@@ -9724,8 +9740,14 @@ const Game = {
   _2v2StartDraft() {
     const s = this.state;
     const tt = s.twoVTwo;
+    // _spawnOnly cards (Gremlin, Freddy Krueger, Jaws, …) are summon tokens —
+    // they enter play ONLY through the trigger that spawns them, never by
+    // being drafted or drawn. 1v1 already filtered them out of its deck build
+    // (see buildDecks); the 2v2 draft didn't, so Freddy Krueger and friends
+    // showed up as draftable picks. User report: "in the 2v2 draft the summons
+    // like freddy krueger was able to be picked."
     const allCards = (typeof CARD_DEFS !== 'undefined' ? CARD_DEFS : [])
-      .filter(c => !c.isEnvironment).slice();
+      .filter(c => !c.isEnvironment && !c._spawnOnly).slice();
     const allTricks = (typeof TRICK_DEFS !== 'undefined' ? TRICK_DEFS : []).slice();
 
     tt.draft = {
