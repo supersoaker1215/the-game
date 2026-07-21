@@ -854,7 +854,7 @@ const CARD_ABILITIES = {
       };
       const setFirst = (who) => {
         G.state._nextFirstPlayer = who;
-        G.log(`[FLASH] ${who === self.owner ? (Game.isHuman(self.owner) ? 'You' : 'AI') + ' go' : (Game.isHuman(self.owner) ? 'AI goes' : 'You go')} first next turn.`);
+        G.log(`[FLASH] ${G.seatVerb(who, 'go', 'goes')} first next turn.`);
       };
       const chooseFirst = () => {
         if (Game.isHuman(self.owner)) {
@@ -3184,7 +3184,7 @@ const CARD_ABILITIES = {
         const [devoured] = hand.splice(idx, 1);
         killed[p] = devoured;
         G.state.voidPile.push({ name: devoured.name, cost: devoured.cost });
-        G.log(`Gorr devours ${devoured.name} (cost ${devoured.cost}) from ${p === 'player' ? 'your' : "AI's"} hand!`);
+        G.log(`Gorr devours ${devoured.name} (cost ${devoured.cost}) from ${G.seatPossessive(p)} hand!`);
         // Credit Gorr with card advantage for removing an opponent's card
         // (losing your own is negative, but we credit only the removal
         // side since each removal is symmetric and cancels out on self).
@@ -3799,14 +3799,14 @@ const CARD_ABILITIES = {
       const opp = G.opponent(self.owner);
       if (!G.state._grievousActiveFor) G.state._grievousActiveFor = {};
       G.state._grievousActiveFor[opp] = (G.state._grievousActiveFor[opp] || 0) + 1;
-      G.log(`General Grievous strangles ${opp === 'ai' ? "the AI's" : "your"} Block Meter — no more block charges while he stands!`);
+      G.log(`General Grievous strangles ${G.seatPossessive(opp)} Block Meter — no more block charges while he stands!`);
     },
     onDeath(G, self) {
       const opp = G.opponent(self.owner);
       if (G.state._grievousActiveFor && G.state._grievousActiveFor[opp] > 0) {
         G.state._grievousActiveFor[opp]--;
         if (G.state._grievousActiveFor[opp] === 0) {
-          G.log(`Grievous falls — ${opp === 'ai' ? "AI's" : "your"} Block Meter recharges normally.`);
+          G.log(`Grievous falls — ${G.seatPossessive(opp)} Block Meter recharges normally.`);
         }
       }
     }

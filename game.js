@@ -2277,7 +2277,7 @@ const Game = {
       playerKills: [], aiKills: [],
       playerTricks: [], aiTricks: []
     };
-    this.log(`--- Round ${r} --- ${this.state.firstPlayer === 'player' ? 'You go' : 'AI goes'} first`);
+    this.log(`--- Round ${r} --- ${this.seatVerb(this.state.firstPlayer, 'go', 'goes')} first`);
 
     // Roguelite faster-pacing: energy = round × 2 (round 1 → 2 energy,
     // round 2 → 4, ... round 5 → 10) instead of += 1 per round. Snappier
@@ -2480,7 +2480,7 @@ const Game = {
       if (pile.length === 1) {
         const def = pile.pop();
         this.addToHand(owner, this.createCardInstance(def, owner));
-        this.log(`  [${tag}] Only one card remains — ${owner === 'player' ? 'you take' : 'AI takes'} ${def.name}.`);
+        this.log(`  [${tag}] Only one card remains — ${this.seatVerb(owner, 'take', 'takes')} ${def.name}.`);
         peeked.add(owner);
         processNext(i + 1);
         return;
@@ -2925,10 +2925,10 @@ const Game = {
       // AI auto-keeps high cost, destroys low cost.
       if (card.baseCost <= 3 && bwl) {
         this.buffCard(bwl, 2, 2);
-        this.log(`  [BWL] AI destroys ${card.name} — Batman Who Laughs gains +2/+2!`);
+        this.log(`  [BWL] ${this.seatLabel(opp)} destroys ${card.name} — Batman Who Laughs gains +2/+2!`);
       } else {
         this.addToHand(opp, card, bwl);
-        this.log(`  [BWL] AI keeps ${card.name} in hand!`);
+        this.log(`  [BWL] ${this.seatLabel(opp)} keeps ${card.name} in hand!`);
       }
     }
     return true;
@@ -3261,10 +3261,10 @@ const Game = {
       } else {
         if (card.baseCost <= 3 && bwl) {
           this.buffCard(bwl, 2, 2);
-          this.log(`  [BWL] AI destroys ${card.name} — Batman Who Laughs gains +2/+2!`);
+          this.log(`  [BWL] ${this.seatLabel(opp)} destroys ${card.name} — Batman Who Laughs gains +2/+2!`);
         } else {
           this.addToHand(opp, card, bwl);
-          this.log(`  [BWL] AI keeps ${card.name} in hand`);
+          this.log(`  [BWL] ${this.seatLabel(opp)} keeps ${card.name} in hand`);
         }
       }
       return;
@@ -3904,7 +3904,7 @@ const Game = {
     UI.render();
     if (typeof Tutorial !== 'undefined' && Tutorial.active) Tutorial.notify('post-combat', {});
 
-    if (this.state.player.health <= 0) { this.state.gameOver = true; this.state.winner = 'ai'; this.log('=== GAME OVER — AI Wins! ==='); }
+    if (this.state.player.health <= 0) { this.state.gameOver = true; this.state.winner = 'ai'; this.log(`=== GAME OVER — ${this.seatLabel('ai')} Wins! ===`); }
     if (this.state.ai.health <= 0) { this.state.gameOver = true; this.state.winner = 'player'; this.log('=== GAME OVER — You Win! ==='); }
     // Pin the final HP state at the tail of the history curve so the
     // game-over chart shows the killing blow, not just the last round-
@@ -4025,7 +4025,7 @@ const Game = {
           ? (AI.threatScore(b) - AI.threatScore(a))
           : (b.currentHealth || 0) - (a.currentHealth || 0)))[0];
       this.promptCardChoice(controller, allies, `Mind Control — ${card.name}`,
-        `Choose which of ${card.owner === 'player' ? 'your' : "AI's"} cards ${card.name} (${card.attack} ATK) attacks`,
+        `Choose which of ${this.seatPossessive(card.owner)} cards ${card.name} (${card.attack} ATK) attacks`,
         (pick) => { callback(pick); },
         threatPicker);
     } else {
@@ -4350,7 +4350,7 @@ const Game = {
     if (!attacker || !attacker.hasLifesteal) return;
     if (actual <= 0) return;
     const heal = attacker.hasLifesteal;
-    this.log(`  [LIFESTEAL] ${attacker.name} drains ${heal} HP for ${attacker.owner === 'player' ? 'you' : 'AI'}`);
+    this.log(`  [LIFESTEAL] ${attacker.name} drains ${heal} HP for ${this.seatLabel(attacker.owner)}`);
     this.healPlayer(attacker.owner, heal, attacker);
   },
 
@@ -5014,7 +5014,7 @@ const Game = {
           } else {
             // AI-controlled: auto-play free if it has cards on board, else keep
             if (this.getAllCardsOf(owner).length > 0 && trick.play) {
-              this.log(`  [BLOCK TRICK] ${owner === 'ai' ? 'AI' : owner} plays ${trick.name} for free!`);
+              this.log(`  [BLOCK TRICK] ${this.seatLabel(owner)} plays ${trick.name} for free!`);
               this.state[owner].playedTrickPile.push({ name: trick.name, cost: trick.cost });
               if (this.state._roundStats) this.state._roundStats.aiTricks.push(trick.name);
               // Surface to the player. This path BYPASSES Game.playTrick
@@ -5027,7 +5027,7 @@ const Game = {
               // also sees that it came from a block-meter trigger, not a
               // normal play.
               if (owner === 'ai' && typeof UI !== 'undefined' && UI.showAITrickToast) {
-                UI.showAITrickToast(`AI BLOCKED → ${trick.name}`, trick.desc || '', 'trick');
+                UI.showAITrickToast(`${this.seatLabel(owner).toUpperCase()} BLOCKED → ${trick.name}`, trick.desc || '', 'trick');
               }
               this.state._inTrick = true;
               this.state._trickOwner = owner;
@@ -5036,11 +5036,11 @@ const Game = {
               this.state._trickOwner = null;
             } else {
               this.addToTrickHand(owner, trick);
-              this.log(`  [BLOCK TRICK] ${owner === 'ai' ? 'AI' : owner} keeps ${trick.name} in hand`);
+              this.log(`  [BLOCK TRICK] ${this.seatLabel(owner)} keeps ${trick.name} in hand`);
               // Toast for the "kept it in hand" case too so the player
               // knows the AI now has a block-trick stashed for later.
               if (owner === 'ai' && typeof UI !== 'undefined' && UI.showAITrickToast) {
-                UI.showAITrickToast(`AI BLOCKED → kept ${trick.name}`, 'Held in hand for a future trick phase.', 'info');
+                UI.showAITrickToast(`${this.seatLabel(owner).toUpperCase()} BLOCKED → kept ${trick.name}`, 'Held in hand for a future trick phase.', 'info');
               }
             }
           }
@@ -5124,7 +5124,7 @@ const Game = {
     if (p.health <= 0 && !this.state.gameOver) {
       this.state.gameOver = true;
       this.state.winner = (owner === 'player') ? 'ai' : 'player';
-      this.log(`=== GAME OVER — ${this.state.winner === 'player' ? 'You Win!' : 'AI Wins!'} ===`);
+      this.log(`=== GAME OVER — ${this.state.winner === 'player' ? 'You Win!' : this.seatLabel('ai') + ' Wins!'} ===`);
       // Pin the killing blow into the HP history BEFORE finalizeStats
       // / showGameOverScreen consume it. Without this push the chart
       // would stop at round-start of the final round (the engine's
@@ -5199,7 +5199,7 @@ const Game = {
       if (!peeked.has('player') && !playerKang) this.drawCards('player', playerDraw);
       else this.log(`  [KANG/FORESEE] Pick counts as your draw this round.`);
       if (!peeked.has('ai') && !aiKang) this.drawCards('ai', baseDraw);
-      else this.log(`  [KANG/FORESEE] Pick counts as AI's draw this round.`);
+      else this.log(`  [KANG/FORESEE] Pick counts as ${this.seatPossessive('ai')} draw this round.`);
       if (onComplete) onComplete();
     });
   },
@@ -5462,7 +5462,7 @@ const Game = {
   addToHand(owner, card, source) {
     const p = this.state[owner];
     if (p.hand.length >= p.maxHandSize) {
-      this.log(`  [HAND FULL] ${owner === 'player' ? 'Your' : "AI's"} hand is full (${p.maxHandSize}) — ${card && card.name ? card.name : 'card'} discarded.`);
+      this.log(`  [HAND FULL] ${this.seatPossessive(owner)} hand is full (${p.maxHandSize}) — ${card && card.name ? card.name : 'card'} discarded.`);
       return false;
     }
     // Bug fix: Moder-stripped cards that bounce back to hand (Phantom
@@ -5532,7 +5532,7 @@ const Game = {
   addToTrickHand(owner, trick) {
     const p = this.state[owner];
     if (p.trickHand.length >= p.maxTrickHandSize) {
-      this.log(`  [TRICKS FULL] ${owner === 'player' ? 'Your' : "AI's"} trick hand is full (${p.maxTrickHandSize}) — ${trick && trick.name ? trick.name : 'trick'} discarded.`);
+      this.log(`  [TRICKS FULL] ${this.seatPossessive(owner)} trick hand is full (${p.maxTrickHandSize}) — ${trick && trick.name ? trick.name : 'trick'} discarded.`);
       return false;
     }
     p.trickHand.push(trick);
@@ -6164,6 +6164,60 @@ const Game = {
   // Used by every `self.owner === 'player'` check in abilities.js / tricks.js
   // — replacing those with `Game.isHuman(self.owner)` enables multiplayer
   // (both seats human) and makes the sim fully symmetric (both seats AI).
+  // ===================== SEAT DISPLAY NAMES =====================
+  // Every log line used to hardcode "AI" for the opposing seat, so a human
+  // opponent read as a robot: "Gorr devours Thor from AI's hand", "AI Wins!".
+  // These resolve a seat to what the local client should actually call it:
+  //   • "You" for the seat this client controls
+  //   • the real person's name in 1v1 online / hotseat (state._mpNames) and
+  //     in 2v2 (twoVTwo.players[].name)
+  //   • "AI" only when the opponent genuinely is the computer
+  seatLabel(owner) {
+    const s = this.state;
+    if (!s) return owner === 'player' ? 'You' : 'AI';
+
+    // 2v2 — a SIDE is a whole team, but during a bridged action the side maps
+    // to the one player currently acting, so prefer that name; otherwise name
+    // both teammates.
+    if (this.is2v2 && this.is2v2() && s.twoVTwo) {
+      const tt = s.twoVTwo;
+      const team = (owner === this._2v2TeamSide.A) ? 'A' : 'B';
+      const active = this._2v2ActivePlayer && this._2v2ActivePlayer();
+      if (active && tt.players[active] && tt.players[active].team === team) {
+        if (tt.you && active === tt.you) return 'You';
+        return tt.players[active].name || `Player ${active[1]}`;
+      }
+      const mates = ['p1', 'p2', 'p3', 'p4']
+        .filter(k => tt.players[k] && tt.players[k].team === team)
+        .map(k => tt.players[k].name || `P${k[1]}`);
+      return mates.length ? mates.join(' & ') : (owner === 'player' ? 'You' : 'AI');
+    }
+
+    // 1v1: the local client is always the 'player' seat (guest state is
+    // perspective-flipped), so 'player' is "You" and the far seat gets its
+    // real name when one exists.
+    if (owner === 'player') return 'You';
+    const names = s._mpNames;
+    if (names && names.ai) return names.ai;
+    return 'AI';
+  },
+
+  // "your" / "Max's" / "AI's"
+  seatPossessive(owner) {
+    const l = this.seatLabel(owner);
+    if (l === 'You') return 'your';
+    return /s$/i.test(l) ? `${l}'` : `${l}'s`;
+  },
+
+  // Subject + correctly-agreeing verb: "You take" / "Max takes" / "Max & Sam
+  // take". A 2v2 side can resolve to BOTH teammates, which is grammatically
+  // plural and needs the same form as "You".
+  seatVerb(owner, singular, thirdPerson) {
+    const l = this.seatLabel(owner);
+    const isPlural = (l === 'You') || l.includes(' & ');
+    return `${l} ${isPlural ? singular : thirdPerson}`;
+  },
+
   isHuman(owner) {
     // 1v1 ONLINE: both seats are real people (host=player, guest=ai). Treat
     // EVERY seat as human at all times so ability/summon lane + target choices
@@ -7201,7 +7255,7 @@ const Game = {
     this.state[owner].health = Math.min(maxHP, this.state[owner].health + amount);
     const healed = this.state[owner].health - before;
     if (healed > 0) {
-      this.log(`  [HEAL] ${owner === 'player' ? 'You' : 'AI'} heal ${healed} → ${this.state[owner].health}/${maxHP} HP`);
+      this.log(`  [HEAL] ${this.seatVerb(owner, 'heal', 'heals')} ${healed} → ${this.state[owner].health}/${maxHP} HP`);
       if (source) {
         // Raw heal — kept for back-compat dashboards.
         this._creditChain(source, 'statsHealingDone', healed);
