@@ -15253,9 +15253,9 @@ const UI = {
     // status debuffs (Freeze, Stun, Fear, etc.). Renamed display label
     // to "Status Immunity N" so the badge is unambiguous. Internal
     // keyword stays 'Immunity' for tooltip + class lookup.
-    if (c.immunityCharges > 0) b.push(badge('badge-immune', `Status Immunity ${c.immunityCharges}`, 'Immunity'));
+    if (c.immunityCharges > 0) b.push(badge('badge-immune', c.immunityCharges > 1 ? `Immunity ${c.immunityCharges}` : 'Immunity', 'Immunity'));
     if (c.invincibleTurns > 0) b.push(badge('badge-invincible', `Invincible ${c.invincibleTurns}`, 'Invincible'));
-    if (c.unresistibleCharges > 0) b.push(badge('badge-unresistible', `Unresistible ${c.unresistibleCharges}`, 'Unresistible'));
+    if (c.unresistibleCharges > 0) b.push(badge('badge-unresistible', c.unresistibleCharges > 1 ? `Unresistible ${c.unresistibleCharges}` : 'Unresistible', 'Unresistible'));
     if (c.tauntTurns > 0) b.push(badge('badge-taunt', `Taunt ${c.tauntTurns}`, 'Taunt'));
     if (c.hasHunt) b.push(badge('badge-hunt', 'Hunt', 'Hunt'));
     if (c.reviveCharges > 0) b.push(badge('badge-revive', `Revive ${c.reviveCharges}`, 'Revive'));
@@ -15487,12 +15487,11 @@ const UI = {
     const cls = this.TRAIT_BADGE_CLASSES;
     const defaults1 = ['Immunity', 'Unresistible'];
     const kws = Object.keys(cls).sort((b, c) => c.length - b.length);
-    // Display-label override map. Keyword used for tooltip + class
-    // lookup stays the same; only the visible text in the badge gets
-    // overridden. User feedback: "IMMUNITY 1" misreads as damage
-    // immunity, but the keyword actually only blocks status debuffs.
-    // Renamed display to "Status Immunity N" so it's unambiguous.
-    const LABEL_OVERRIDE = { 'Immunity': 'Status Immunity' };
+    // Immunity + Unresistible are almost always 1 — drop the "1" so the badge
+    // reads just "Immunity" / "Unresistible" (user request); the number only
+    // shows when it's >1 (e.g. Trigon's Unresistible 3). data-kw stays the
+    // bare keyword for tooltip + class lookup.
+    const HIDE_ONE = { 'Immunity': true, 'Unresistible': true };
     return abilities.map(a => {
       let text = a;
       defaults1.forEach(d => { if (text === d) text = d + ' 1'; });
@@ -15500,15 +15499,13 @@ const UI = {
         const re = new RegExp('^(' + kw.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + ')(\\s+\\d+)?$');
         const m = text.match(re);
         if (m) {
-          const num = m[2] ? m[2].trim() : '';
+          let num = m[2] ? m[2].trim() : '';
+          if (HIDE_ONE[m[1]] && num === '1') num = '';
           // Only attach data-kw if KEYWORD_DATA actually has an entry
           // for this kw — keywords without one remain plain text.
           const hasTip = !!this.KEYWORD_DATA[kw];
           const dataAttr = hasTip ? ` data-kw="${kw}"` : '';
-          // Swap visible text via LABEL_OVERRIDE so the badge reads
-          // "Status Immunity 1" while the data-kw stays "Immunity".
-          const visibleText = LABEL_OVERRIDE[m[1]] || m[1];
-          return `<span class="status-badge ${cls[kw]}"${dataAttr}>${visibleText}${num ? ' ' + num : ''}</span>`;
+          return `<span class="status-badge ${cls[kw]}"${dataAttr}>${m[1]}${num ? ' ' + num : ''}</span>`;
         }
       }
       return `<span class="status-badge">${text}</span>`;

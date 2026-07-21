@@ -7288,8 +7288,15 @@ const Game = {
         source.unresistibleCharges--;
         this.log(`  [UNRESISTIBLE] ${source.name} bypasses ${card.name}'s Immunity! (Immunity ${card.immunityCharges} untouched, Unresistible ${source.unresistibleCharges} remaining)`);
       } else {
+        // No Unresistible to pierce → Immunity BLOCKS the freeze. Consume the
+        // charge and STOP — the freeze does NOT land. (Was a bug: this path
+        // consumed Immunity but then froze the card anyway, so a source that
+        // ran out of Unresistible could still lock down every immune target —
+        // e.g. Palpatine (Unresistible 1) freezing two immune enemies back to
+        // back. Now matches tryApplyDebuff: block == no effect.)
         card.immunityCharges--;
-        this.log(`  [IMMUNITY] ${card.name}'s Immunity consumed by forced freeze! (${card.immunityCharges} remaining)`);
+        this.log(`  [IMMUNITY] ${card.name}'s Immunity blocks the freeze! (${card.immunityCharges} remaining)`);
+        return;
       }
     }
     // Stack-aware: increment counter + sync flag. Default 1 turn;
