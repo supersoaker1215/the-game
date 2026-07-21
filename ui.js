@@ -5383,6 +5383,29 @@ const UI = {
       window.PerfOverlay.tickRender();
     }
   },
+  // Render-performance instrument (dev-only; not called in the normal
+  // flow). Times a full renderSync plus the heaviest sub-renderers over
+  // `n` iterations against the CURRENT board and returns a millisecond
+  // breakdown — a regression guard so a future change that makes the
+  // render janky shows up as a number, not a "feels laggy" report. Run
+  // from the console: UI.profileRender(300). Budget: a full render should
+  // stay well under one 60fps frame (16.7 ms).
+  profileRender(n) {
+    if (typeof performance === 'undefined') return null;
+    const N = n || 200;
+    const time = (fn) => { for (let i = 0; i < 3; i++) fn(); const t0 = performance.now(); for (let i = 0; i < N; i++) fn(); return +((performance.now() - t0) / N).toFixed(3); };
+    const s = Game && Game.state;
+    const out = { iterations: N, fullRenderMs: time(() => this.renderSync()) };
+    if (s) {
+      if (typeof this.renderBoard === 'function')       out.boardMs = time(() => this.renderBoard(s));
+      if (typeof this.renderPlayerHand === 'function')  out.handMs = time(() => this.renderPlayerHand(s));
+      if (typeof this.applyTronFx === 'function')       out.tronFxMs = time(() => this.applyTronFx());
+      if (typeof this._renderAttackTelegraph === 'function') out.attackTelegraphMs = time(() => this._renderAttackTelegraph());
+    }
+    out.budget60fpsMs = 16.7;
+    out.withinBudget = out.fullRenderMs < 16.7;
+    return out;
+  },
   _renderImpl() {
     const s = Game.state;
     if (!s) return;
