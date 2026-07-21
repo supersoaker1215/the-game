@@ -9756,39 +9756,29 @@ const UI = {
         // changed.
         const rlOn = !!f.rl;
         const upgrades = (typeof Roguelite !== 'undefined' && Roguelite.CARD_TEXT_UPGRADES) || {};
+        // ONE renderer: synthesize a live-shaped face from each def and run it
+        // through makeCardEl (static catalog mode) so a codex card is visually
+        // identical to the same card in hand/board — same portrait crop, rarity
+        // strip, keyword badges, stat orbs, cost pill. The self-admitted
+        // hand-rolled duplicate this replaces had drifted (static keyword
+        // badges, no '?'-hiding for Scarlet Witch/Joker/Harley).
         body = filtered.map(def => {
-          const costClass = 'cost-' + Math.min(10, Math.max(0, def.cost || 0));
-          const abilitiesHtml = (def.abilities && def.abilities.length)
-            ? `<div class="card-abilities status-badges">${this.formatAbilityBadges(def.abilities)}</div>` : '';
-          const cost = def.cost || 0;
-          const _dpPips = def.rarity || (cost <= 3 ? 1 : cost <= 6 ? 2 : cost <= 8 ? 3 : 4);
-          const rarityPips = `<span class="rarity-strip" aria-hidden="true">${'<span class="rpip"></span>'.repeat(_dpPips)}</span>`;
           const upgrade = rlOn ? upgrades[def.name] : null;
           const desc = upgrade && upgrade.descOverride ? upgrade.descOverride : (def.desc || '');
-          const descAttr = desc.replace(/"/g, '&quot;');
-          const upgradedClass = upgrade ? ' enc-card-upgraded' : '';
-          const upgradeBadge = upgrade
-            ? `<span class="enc-rl-badge" title="${(upgrade.name || 'Roguelite Text+').replace(/"/g, '&quot;')}">+</span>` : '';
-          // REDESIGN: art-at-top with name overlay (same as makeCardEl).
-          // No separate name-banner row — name lives inside the portrait
-          // as a translucent bottom strip.
-          const portraitFile = UI.getCardArtPath(def.name);
-          const portraitPos = UI._artFocalCard(def.name);
-          const portraitHtml = `<div class="card-portrait" style="--portrait-bg:url('${portraitFile}')${portraitPos}"><div class="card-name-overlay">${def.name}</div></div>`;
-          // [ CARD DATA ] divider was removed — user direction: "it's
-          // distracting and it doesn't add anything." The painting →
-          // status badges → desc → orbs hierarchy already reads clearly
-          // without an explicit seam between the art and the data.
-          return `<div class="card hand-card ${costClass} enc-card${upgradedClass}" data-card-name="${def.name}" title="${descAttr}">
-            <span class="card-cost">${cost}</span>
-            ${rarityPips}
-            ${upgradeBadge}
-            ${portraitHtml}
-            ${abilitiesHtml}
-            <div class="card-desc">${this.formatDesc(desc)}</div>
-            <span class="stat-circle stat-atk">${def.attack}</span>
-            <span class="stat-circle stat-hp">${def.health}</span>
-          </div>`;
+          const face = this._synthFace(def, { descOverride: desc, rarity: def._runRarity });
+          const el = this.makeCardEl(face, true, 'player', {
+            static: true,
+            extraClass: 'enc-card' + (upgrade ? ' enc-card-upgraded' : ''),
+          });
+          el.setAttribute('title', desc.replace(/"/g, '&quot;'));
+          if (upgrade) {
+            const b = document.createElement('span');
+            b.className = 'enc-rl-badge';
+            b.title = upgrade.name || 'Roguelite Text+';
+            b.textContent = '+';
+            el.appendChild(b);
+          }
+          return el.outerHTML;
         }).join('');
       } else {
         // Tricks — render as purple-tinted compact trick cards (mirrors
@@ -14423,9 +14413,52 @@ const UI = {
 
   // ===================== CARD ELEMENT =====================
 
-  makeCardEl(card, inHand, side) {
+  // Build a live-card-shaped face from a STATIC def (CARD_DEFS/TRICK_DEFS entry)
+  // so every catalog surface (codex, draft, roguelite shop, keyword tooltip)
+  // can call the ONE renderer instead of hand-rolling its own card HTML. The
+  // keyword badges are stamped from def.abilities via applyAbilities, so a
+  // catalog card shows the same printed keywords a fresh instance would. opts:
+  // {cost, attack, health, descOverride, rarity, deckCardRef} override the
+  // def's values (roguelite tier-scaling / Text+ swaps) without mutating it.
+  _synthFace(def, opts) {
+    opts = opts || {};
+    // Build a REAL instance via the canonical factory — it stamps every
+    // keyword field (reviveCharges, evadeCharges, drawOnPlay, isInsane…) and
+    // carries def-level flags (copiesOpposite) so the catalog card is byte-for-
+    // byte what a freshly-drafted instance looks like. Fallback keeps a plain
+    // face if the factory is unavailable.
+    let face;
+    try {
+      face = Game.createCardInstance(def, 'player');
+    } catch (e) {
+      const h = def.health, c = def.cost;
+      face = Object.assign({}, def, { baseCost: c, baseAttack: def.attack, baseHealth: h, currentHealth: h, maxHealth: h });
+    }
+    // Catalog card belongs to no side — keeps the cost pill static (no board
+    // getCardCost), no MVP star, no live board reads.
+    face.owner = null;
+    if (opts.cost != null) { face.cost = opts.cost; face.baseCost = opts.cost; }
+    if (opts.attack != null) face.attack = opts.attack;
+    if (opts.health != null) { face.currentHealth = opts.health; face.maxHealth = opts.health; face.health = opts.health; }
+    if (opts.descOverride != null) face.desc = opts.descOverride;
+    if (opts.rarity) face._runRarity = opts.rarity;
+    if (opts.deckCardRef) face._runDeckCardRef = opts.deckCardRef;
+    face._synthetic = true;
+    return face;
+  },
+
+  // opts (all optional, back-compatible — absent opts = original behavior):
+  //   extraClass   extra class(es) on the card element (e.g. 'enc-card', 'draft-card')
+  //   noHandClass  don't add .hand-card even when inHand (draft lift needs this)
+  //   disabled     greyed/at-max/dead-pile look (.card-disabled)
+  //   static       CATALOG render — skip every live-board read (Ivy glow, etc.)
+  //                so it's safe on a menu state with no board.
+  makeCardEl(card, inHand, side, opts) {
+    opts = opts || {};
     const el = document.createElement('div');
     el.className = `card ${this.getCostClass(card.baseCost || card.cost)}`;
+    if (opts.extraClass) el.className += ' ' + opts.extraClass;
+    if (opts.disabled) el.classList.add('card-disabled');
     // Roguelite rarity tinting — when a card carries `_runRarity`
     // (set by Roguelite.buildRunCard), add `rl-tier-<rarity>` so the
     // rarity-themed CSS overrides the cost-class colors. Non-roguelite
@@ -14443,7 +14476,7 @@ const UI = {
     // Board coloring: ally = blue, enemy = red
     if (!inHand && side === 'ally') el.classList.add('ally-card');
     if (!inHand && side === 'enemy') el.classList.add('enemy-card');
-    if (inHand) el.classList.add('hand-card');
+    if (inHand && !opts.noHandClass) el.classList.add('hand-card');
     if (inHand && card._freddySlashing) el.classList.add('freddy-hand-slash');
     if (card.isEnvironment) el.classList.add('env-card');
 
@@ -14512,10 +14545,13 @@ const UI = {
     // Mirror the three-layer match used by the badge filter above so
     // the visual stays in sync — flag, then legacy ref, then ATK-delta
     // self-heal.
-    const ivyOnSide = Game.getAllCardsOnBoard().filter(x =>
-      Game.isCardKind(x, 'Poison Ivy') && x.owner === card.owner && x.currentHealth > 0
-    );
     let glowMatch = false;
+    // Catalog renders (opts.static) skip every live-board read — a menu-state
+    // codex/draft card has no board and getAllCardsOnBoard would throw.
+    const ivyOnSide = (!opts.static && Game.state && Game.state.lanes)
+      ? Game.getAllCardsOnBoard().filter(x =>
+          Game.isCardKind(x, 'Poison Ivy') && x.owner === card.owner && x.currentHealth > 0)
+      : [];
     for (const ivy of ivyOnSide) {
       if (card._charmedByIvy != null && card._charmedByIvy === ivy.id) { glowMatch = true; break; }
       if (ivy._ivyAlly && ivy._ivyAlly.id === card.id) { glowMatch = true; break; }
