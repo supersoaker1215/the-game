@@ -264,6 +264,42 @@ const Multiplayer = {
     });
     (state.drawPile || []).forEach(rehydrateCard);
     (state.trickDrawPile || []).forEach(rehydrateTrick);
+
+    // 2v2 lives in its OWN sub-tree, which this walk used to skip entirely.
+    // JSON.stringify drops every function on the way out, so each guest's
+    // cards and tricks came back inert: no onPlay, no onDeath, no trick
+    // play(). The host is authoritative for resolution so matches still
+    // "worked", but anything the guest evaluates locally — damage previews
+    // (they run a silent sim on the guest's own copy), canPlay gating, hook
+    // presence checks — was reading hookless cards. Walk it like any other
+    // zone. Found by sim/fuzzonline.js round-trip fidelity checks.
+    const tt = state.twoVTwo;
+    if (tt) {
+      ['p1', 'p2', 'p3', 'p4'].forEach(k => {
+        const ap = tt.players && tt.players[k];
+        if (!ap) return;
+        (ap.hand || []).forEach(rehydrateCard);
+        (ap.trickHand || []).forEach(rehydrateTrick);
+      });
+      ['A', 'B'].forEach(t => {
+        const team = tt.teams && tt.teams[t];
+        if (team) (team.deadPile || []).forEach(rehydrateCard);
+      });
+      (tt.drawPile || []).forEach(rehydrateCard);
+      (tt.trickDrawPile || []).forEach(rehydrateTrick);
+      // Draft offers are live cards the guest renders and clicks.
+      const d = tt.draft;
+      if (d) {
+        const isCards = d.phase === 'cards';
+        const fix = isCards ? rehydrateCard : rehydrateTrick;
+        (d.choices || []).forEach(fix);
+        Object.keys(d.choicesByPlayer || {}).forEach(k => (d.choicesByPlayer[k] || []).forEach(fix));
+        (d.cardPool || []).forEach(rehydrateCard);
+        (d.trickPool || []).forEach(rehydrateTrick);
+        (d.cardHolding || []).forEach(rehydrateCard);
+        (d.trickHolding || []).forEach(rehydrateTrick);
+      }
+    }
     return state;
   },
 
