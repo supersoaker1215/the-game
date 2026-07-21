@@ -4090,6 +4090,11 @@ const Game = {
       delete this._dualRunForecast;
     }
     this.cleanupDead();
+    // Primary stack drain point — resolve any events combat queued (bonus-
+    // attack chains, deathrattle summons, collapse kills) so nothing lingers
+    // into the round transition. cleanupDead only drains when it finds a fresh
+    // death; this guarantees a drain even when it doesn't.
+    this.resolveStack();
 
     // Poison Ivy's charm mechanic was simplified: the charmed ally's
     // ATK is now added to Ivy's own ATK as a temp buff in _charm. No
@@ -6302,6 +6307,11 @@ const Game = {
         return;
       }
     }
+    // Centralized void enforcement — evict any LIVING card left in a destroyed
+    // lane (a collapse survivor, a pull-in, a move race), regardless of the
+    // path that stranded it. Fixes the fuzz-found "X occupies DESTROYED lane"
+    // limbo class at the source.
+    this._evictAllVoidSurvivors();
     this.checkInvariants('cleanup');
   },
 
@@ -6979,11 +6989,34 @@ const Game = {
       const c = lane[side];
       if (!c || !(c.currentHealth > 0)) return;
       const open = this.getOpenLanes(side);
-      if (!open.length) return;   // nowhere to go — leave it rather than delete a live card
-      lane[side] = null;
-      this.placeInLane(side, c, open[0]);
-      this.log(`  [VOID] ${c.name} is thrown clear of the collapsing lane into lane ${open[0] + 1}!`);
+      if (open.length) {
+        lane[side] = null;
+        this.placeInLane(side, c, open[0]);
+        this.log(`  [VOID] ${c.name} is thrown clear of the collapsing lane into lane ${open[0] + 1}!`);
+      } else {
+        // Nowhere to go — a void has no lane for its remaining rounds, so a
+        // survivor with no open lane is CLAIMED by the void (it cannot keep
+        // standing in a lane that does not exist). Removing it upholds the
+        // no-card-in-a-destroyed-lane invariant. Rare (needs a full board +
+        // a collapse / a pull-in). Silent removal — the collapse already
+        // narrated the lane's destruction.
+        lane[side] = null;
+        this.log(`  [VOID] ${c.name} is claimed by the void — no lane to be thrown to.`);
+      }
     });
+  },
+
+  // Sweep EVERY destroyed lane for living occupants and evict them. Centralized
+  // enforcement of the no-card-in-a-void invariant: any path that leaves a
+  // living card in a collapsed lane (a survivor of the kill, a pull-in, a move
+  // race) is caught here at the cleanupDead choke point, not just at the
+  // collapse site. Runs after the death sweep, so to-be-killed cards (health
+  // <= 0, awaiting the queued death) are correctly skipped.
+  _evictAllVoidSurvivors() {
+    for (let i = 0; i < this.LANE_COUNT; i++) {
+      const lane = this.state.lanes[i];
+      if (lane && lane.destroyed) this.evictVoidSurvivors(i);
+    }
   },
 
   // ===================== IRON GIANT DEATH-GUARD =====================
