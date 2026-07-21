@@ -1,326 +1,338 @@
 [
   {
-    "name": "Bat Signal",
-    "drafts": 97,
-    "draftsInWin": 59,
-    "winRate": 0.6082474226804123,
-    "ci95": [
-      0.5087587667538368,
-      0.6994886232122088
-    ],
-    "casts": 140,
-    "castRate": 1.443298969072165
-  },
-  {
-    "name": "Batarangs",
-    "drafts": 125,
-    "draftsInWin": 75,
-    "winRate": 0.6,
-    "ci95": [
-      0.5123729773518759,
-      0.6816637312888115
-    ],
-    "casts": 172,
-    "castRate": 1.376
-  },
-  {
-    "name": "Mind Stone",
-    "drafts": 58,
-    "draftsInWin": 34,
-    "winRate": 0.5862068965517241,
-    "ci95": [
-      0.4579817755925391,
-      0.7037216732186171
-    ],
-    "casts": 104,
-    "castRate": 1.793103448275862
-  },
-  {
     "name": "Mother Box",
-    "drafts": 104,
-    "draftsInWin": 60,
-    "winRate": 0.5769230769230769,
+    "drafts": 489,
+    "draftsInWin": 288,
+    "winRate": 0.588957055214724,
     "ci95": [
-      0.4808963374391583,
-      0.6674694138108231
+      0.5448183204156615,
+      0.6317089857208336
     ],
-    "casts": 161,
-    "castRate": 1.5480769230769231
+    "casts": 842,
+    "castRate": 1.721881390593047
   },
   {
-    "name": "Nth Metal",
-    "drafts": 23,
-    "draftsInWin": 13,
-    "winRate": 0.5652173913043478,
+    "name": "Bat Signal",
+    "drafts": 475,
+    "draftsInWin": 272,
+    "winRate": 0.5726315789473684,
     "ci95": [
-      0.36811049305016963,
-      0.7436563166780135
+      0.5277353276598304,
+      0.616362428257784
     ],
-    "casts": 84,
-    "castRate": 3.652173913043478
-  },
-  {
-    "name": "Kryptonite",
-    "drafts": 98,
-    "draftsInWin": 55,
-    "winRate": 0.5612244897959183,
-    "ci95": [
-      0.46250823376575,
-      0.6553218081817448
-    ],
-    "casts": 164,
-    "castRate": 1.6734693877551021
-  },
-  {
-    "name": "Joker's Playing Card",
-    "drafts": 18,
-    "draftsInWin": 10,
-    "winRate": 0.5555555555555556,
-    "ci95": [
-      0.33716069428251627,
-      0.7544076889861088
-    ],
-    "casts": 65,
-    "castRate": 3.611111111111111
-  },
-  {
-    "name": "The Darkhold",
-    "drafts": 137,
-    "draftsInWin": 74,
-    "winRate": 0.5401459854014599,
-    "ci95": [
-      0.4567330035960643,
-      0.6213689208353537
-    ],
-    "casts": 175,
-    "castRate": 1.2773722627737227
-  },
-  {
-    "name": "Bifrost",
-    "drafts": 97,
-    "draftsInWin": 50,
-    "winRate": 0.5154639175257731,
-    "ci95": [
-      0.41732951901522114,
-      0.6124201081227852
-    ],
-    "casts": 139,
-    "castRate": 1.4329896907216495
-  },
-  {
-    "name": "Mobius Chair",
-    "drafts": 143,
-    "draftsInWin": 73,
-    "winRate": 0.5104895104895105,
-    "ci95": [
-      0.42935980036114746,
-      0.5910703774631204
-    ],
-    "casts": 199,
-    "castRate": 1.3916083916083917
-  },
-  {
-    "name": "Vibranium",
-    "drafts": 42,
-    "draftsInWin": 21,
-    "winRate": 0.5,
-    "ci95": [
-      0.3552574591652803,
-      0.6447425408347197
-    ],
-    "casts": 103,
-    "castRate": 2.4523809523809526
-  },
-  {
-    "name": "Super Soldier Serum",
-    "drafts": 20,
-    "draftsInWin": 10,
-    "winRate": 0.5,
-    "ci95": [
-      0.2992949144298199,
-      0.70070508557018
-    ],
-    "casts": 88,
-    "castRate": 4.4
-  },
-  {
-    "name": "Power Stone",
-    "drafts": 46,
-    "draftsInWin": 23,
-    "winRate": 0.5,
-    "ci95": [
-      0.3611870167007237,
-      0.6388129832992764
-    ],
-    "casts": 114,
-    "castRate": 2.4782608695652173
-  },
-  {
-    "name": "Phantom Zone",
-    "drafts": 8,
-    "draftsInWin": 4,
-    "winRate": 0.5,
-    "ci95": [
-      0.2152125268244419,
-      0.7847874731755581
-    ],
-    "casts": 75,
-    "castRate": 9.375
-  },
-  {
-    "name": "Time Stone",
-    "drafts": 119,
-    "draftsInWin": 57,
-    "winRate": 0.4789915966386555,
-    "ci95": [
-      0.39130365224400837,
-      0.5679935239568877
-    ],
-    "casts": 52,
-    "castRate": 0.4369747899159664
-  },
-  {
-    "name": "Space Stone",
-    "drafts": 116,
-    "draftsInWin": 55,
-    "winRate": 0.47413793103448276,
-    "ci95": [
-      0.3855624896647156,
-      0.564371423100134
-    ],
-    "casts": 45,
-    "castRate": 0.3879310344827586
-  },
-  {
-    "name": "Eye of Agamotto",
-    "drafts": 151,
-    "draftsInWin": 71,
-    "winRate": 0.47019867549668876,
-    "ci95": [
-      0.39231883299372894,
-      0.549557251986018
-    ],
-    "casts": 199,
-    "castRate": 1.3178807947019868
-  },
-  {
-    "name": "Fear Toxin",
-    "drafts": 100,
-    "draftsInWin": 47,
-    "winRate": 0.47,
-    "ci95": [
-      0.3751065198210374,
-      0.5671131686275227
-    ],
-    "casts": 133,
-    "castRate": 1.33
+    "casts": 788,
+    "castRate": 1.6589473684210527
   },
   {
     "name": "Smoke Pellet",
-    "drafts": 98,
-    "draftsInWin": 46,
-    "winRate": 0.46938775510204084,
+    "drafts": 499,
+    "draftsInWin": 274,
+    "winRate": 0.5490981963927856,
     "ci95": [
-      0.37360789598305366,
-      0.567477083043199
+      0.5052297710954186,
+      0.5922164226960258
     ],
-    "casts": 152,
-    "castRate": 1.5510204081632653
-  },
-  {
-    "name": "Soul Stone",
-    "drafts": 86,
-    "draftsInWin": 38,
-    "winRate": 0.4418604651162791,
-    "ci95": [
-      0.3416256631747516,
-      0.547067325373983
-    ],
-    "casts": 96,
-    "castRate": 1.1162790697674418
-  },
-  {
-    "name": "Lasso of Truth",
-    "drafts": 82,
-    "draftsInWin": 36,
-    "winRate": 0.43902439024390244,
-    "ci95": [
-      0.3367336357846038,
-      0.546772729427601
-    ],
-    "casts": 136,
-    "castRate": 1.6585365853658536
-  },
-  {
-    "name": "Adamantium",
-    "drafts": 51,
-    "draftsInWin": 21,
-    "winRate": 0.4117647058823529,
-    "ci95": [
-      0.28754192992486893,
-      0.5483490725258254
-    ],
-    "casts": 117,
-    "castRate": 2.2941176470588234
-  },
-  {
-    "name": "Lazarus Pit",
-    "drafts": 89,
-    "draftsInWin": 36,
-    "winRate": 0.4044943820224719,
-    "ci95": [
-      0.30853277331729134,
-      0.508359654215194
-    ],
-    "casts": 149,
-    "castRate": 1.6741573033707866
-  },
-  {
-    "name": "Two-Face Coin",
-    "drafts": 40,
-    "draftsInWin": 15,
-    "winRate": 0.375,
-    "ci95": [
-      0.24222773535791722,
-      0.529678399454681
-    ],
-    "casts": 85,
-    "castRate": 2.125
-  },
-  {
-    "name": "Anti-Life Equation",
-    "drafts": 46,
-    "draftsInWin": 16,
-    "winRate": 0.34782608695652173,
-    "ci95": [
-      0.22680806269918058,
-      0.49230207822727434
-    ],
-    "casts": 70,
-    "castRate": 1.5217391304347827
-  },
-  {
-    "name": "Power Battery",
-    "drafts": 6,
-    "draftsInWin": 1,
-    "winRate": 0.16666666666666666,
-    "ci95": [
-      0.030052585871730285,
-      0.563509436563646
-    ],
-    "casts": 82,
-    "castRate": 13.666666666666666
+    "casts": 863,
+    "castRate": 1.7294589178356714
   },
   {
     "name": "Reality Stone",
-    "drafts": 0,
-    "draftsInWin": 0,
-    "winRate": 0,
+    "drafts": 13,
+    "draftsInWin": 7,
+    "winRate": 0.5384615384615384,
     "ci95": [
-      0,
-      0
+      0.29143432431832045,
+      0.7679424569851186
     ],
-    "casts": 62,
-    "castRate": 0
+    "casts": 379,
+    "castRate": 29.153846153846153
+  },
+  {
+    "name": "Kryptonite",
+    "drafts": 495,
+    "draftsInWin": 265,
+    "winRate": 0.5353535353535354,
+    "ci95": [
+      0.491312460366007,
+      0.578850092235861
+    ],
+    "casts": 821,
+    "castRate": 1.6585858585858586
+  },
+  {
+    "name": "Mobius Chair",
+    "drafts": 709,
+    "draftsInWin": 375,
+    "winRate": 0.5289139633286318,
+    "ci95": [
+      0.4921138689135783,
+      0.5654024152090094
+    ],
+    "casts": 959,
+    "castRate": 1.3526093088857545
+  },
+  {
+    "name": "Pym Particles",
+    "drafts": 273,
+    "draftsInWin": 142,
+    "winRate": 0.5201465201465202,
+    "ci95": [
+      0.4610147880039174,
+      0.5787191248184331
+    ],
+    "casts": 627,
+    "castRate": 2.2967032967032965
+  },
+  {
+    "name": "Batarangs",
+    "drafts": 746,
+    "draftsInWin": 388,
+    "winRate": 0.5201072386058981,
+    "ci95": [
+      0.4842447068640815,
+      0.5557637429205131
+    ],
+    "casts": 1047,
+    "castRate": 1.403485254691689
+  },
+  {
+    "name": "Adamantium",
+    "drafts": 214,
+    "draftsInWin": 111,
+    "winRate": 0.5186915887850467,
+    "ci95": [
+      0.45200945674864784,
+      0.5847144747685646
+    ],
+    "casts": 556,
+    "castRate": 2.5981308411214954
+  },
+  {
+    "name": "Two-Face Coin",
+    "drafts": 242,
+    "draftsInWin": 125,
+    "winRate": 0.5165289256198347,
+    "ci95": [
+      0.45380162287453035,
+      0.5787396557373887
+    ],
+    "casts": 543,
+    "castRate": 2.243801652892562
+  },
+  {
+    "name": "Fear Toxin",
+    "drafts": 708,
+    "draftsInWin": 362,
+    "winRate": 0.5112994350282486,
+    "ci95": [
+      0.47451664651244496,
+      0.5479602640811477
+    ],
+    "casts": 926,
+    "castRate": 1.307909604519774
+  },
+  {
+    "name": "Bifrost",
+    "drafts": 448,
+    "draftsInWin": 228,
+    "winRate": 0.5089285714285714,
+    "ci95": [
+      0.4627565470663406,
+      0.5549487726740285
+    ],
+    "casts": 773,
+    "castRate": 1.7254464285714286
+  },
+  {
+    "name": "Power Stone",
+    "drafts": 488,
+    "draftsInWin": 247,
+    "winRate": 0.5061475409836066,
+    "ci95": [
+      0.46191391274989313,
+      0.5502851367001738
+    ],
+    "casts": 845,
+    "castRate": 1.7315573770491803
+  },
+  {
+    "name": "Phantom Zone",
+    "drafts": 57,
+    "draftsInWin": 28,
+    "winRate": 0.49122807017543857,
+    "ci95": [
+      0.3661606806374018,
+      0.6174031967096764
+    ],
+    "casts": 401,
+    "castRate": 7.035087719298246
+  },
+  {
+    "name": "Vibranium",
+    "drafts": 241,
+    "draftsInWin": 118,
+    "winRate": 0.4896265560165975,
+    "ci95": [
+      0.42717243301997493,
+      0.5524062006762595
+    ],
+    "casts": 594,
+    "castRate": 2.4647302904564317
+  },
+  {
+    "name": "Lazarus Pit",
+    "drafts": 450,
+    "draftsInWin": 220,
+    "winRate": 0.4888888888888889,
+    "ci95": [
+      0.4429924993784164,
+      0.5349733812283857
+    ],
+    "casts": 786,
+    "castRate": 1.7466666666666666
+  },
+  {
+    "name": "The Darkhold",
+    "drafts": 826,
+    "draftsInWin": 403,
+    "winRate": 0.48789346246973364,
+    "ci95": [
+      0.4539398921777828,
+      0.5219591227667559
+    ],
+    "casts": 911,
+    "castRate": 1.102905569007264
+  },
+  {
+    "name": "Mind Stone",
+    "drafts": 246,
+    "draftsInWin": 118,
+    "winRate": 0.4796747967479675,
+    "ci95": [
+      0.4180374922520475,
+      0.5419371476798134
+    ],
+    "casts": 484,
+    "castRate": 1.967479674796748
+  },
+  {
+    "name": "Anti-Life Equation",
+    "drafts": 507,
+    "draftsInWin": 242,
+    "winRate": 0.47731755424063116,
+    "ci95": [
+      0.4341730643108789,
+      0.5208031944746233
+    ],
+    "casts": 584,
+    "castRate": 1.1518737672583828
+  },
+  {
+    "name": "Soul Stone",
+    "drafts": 725,
+    "draftsInWin": 346,
+    "winRate": 0.4772413793103448,
+    "ci95": [
+      0.4410985207429417,
+      0.5136241515084775
+    ],
+    "casts": 734,
+    "castRate": 1.0124137931034483
+  },
+  {
+    "name": "Lasso of Truth",
+    "drafts": 470,
+    "draftsInWin": 224,
+    "winRate": 0.4765957446808511,
+    "ci95": [
+      0.4318140248024427,
+      0.5217569575680373
+    ],
+    "casts": 795,
+    "castRate": 1.6914893617021276
+  },
+  {
+    "name": "Space Stone",
+    "drafts": 696,
+    "draftsInWin": 322,
+    "winRate": 0.46264367816091956,
+    "ci95": [
+      0.4259069930788218,
+      0.49979047903486795
+    ],
+    "casts": 245,
+    "castRate": 0.35201149425287354
+  },
+  {
+    "name": "Time Stone",
+    "drafts": 697,
+    "draftsInWin": 321,
+    "winRate": 0.460545193687231,
+    "ci95": [
+      0.42385798747395387,
+      0.4976649358228369
+    ],
+    "casts": 242,
+    "castRate": 0.3472022955523673
+  },
+  {
+    "name": "Power Battery",
+    "drafts": 22,
+    "draftsInWin": 10,
+    "winRate": 0.45454545454545453,
+    "ci95": [
+      0.26920014432004846,
+      0.6534052671095845
+    ],
+    "casts": 413,
+    "castRate": 18.772727272727273
+  },
+  {
+    "name": "Eye of Agamotto",
+    "drafts": 815,
+    "draftsInWin": 367,
+    "winRate": 0.4503067484662577,
+    "ci95": [
+      0.4164613654089313,
+      0.48461840386512617
+    ],
+    "casts": 1077,
+    "castRate": 1.3214723926380367
+  },
+  {
+    "name": "Joker's Playing Card",
+    "drafts": 129,
+    "draftsInWin": 58,
+    "winRate": 0.4496124031007752,
+    "ci95": [
+      0.3664624265425491,
+      0.5356766624175358
+    ],
+    "casts": 428,
+    "castRate": 3.317829457364341
+  },
+  {
+    "name": "Super Soldier Serum",
+    "drafts": 92,
+    "draftsInWin": 40,
+    "winRate": 0.43478260869565216,
+    "ci95": [
+      0.3381140282933585,
+      0.5366793808316977
+    ],
+    "casts": 490,
+    "castRate": 5.326086956521739
+  },
+  {
+    "name": "Nth Metal",
+    "drafts": 228,
+    "draftsInWin": 99,
+    "winRate": 0.4342105263157895,
+    "ci95": [
+      0.37148879752629477,
+      0.4991125095730352
+    ],
+    "casts": 583,
+    "castRate": 2.557017543859649
   }
 ]

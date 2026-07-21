@@ -224,14 +224,20 @@ this.runSimGame = function (weightsP, weightsA, collect) {
   // this shim's global setTimeout stub. (The stub stays as a belt for any
   // legacy raw-setTimeout path like _aiActionDelay.)
   Game._syncMode = true;
+  var simMode = (typeof this !== 'undefined' && this.SIM_MODE) || 'classic';
+  Game.startMatch(simMode);
   // Force both seats to AI-controlled in sim. Game.init() defaults player
   // to isHuman=true (for browser single-player); headless sim wants both
   // seats running the AI branch of every ability so the two sides are
-  // symmetric for balance measurement.
+  // symmetric for balance measurement. CRITICAL: this MUST run AFTER
+  // startMatch — startMatch re-defaults BOTH seats to isHuman=true, so an
+  // isHuman=false set before it was silently clobbered. With the human
+  // path active, reactive prompts (Freddy's jump offer, Time Stone
+  // intercept) were CREATED but never resolved by the phase-driver, so
+  // they leaked to the round boundary and got dropped (with their queued
+  // reactions) — under-sampling those cards in the balance stats.
   Game.state.player.isHuman = false;
   Game.state.ai.isHuman = false;
-  var simMode = (typeof this !== 'undefined' && this.SIM_MODE) || 'classic';
-  Game.startMatch(simMode);
   if (collect) collect.onGameStart(Game.state);
 
   // Drive draft — each seat uses its own weights during its pick.

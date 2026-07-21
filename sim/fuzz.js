@@ -237,9 +237,13 @@ function runFuzzedGame(seed, opts, report) {
 
   try {
     Game.init();
+    Game.startMatch('classic');
+    // MUST run AFTER startMatch — it re-defaults both seats to isHuman=true,
+    // clobbering an earlier isHuman=false. With the human path active,
+    // reactive prompts (Freddy jump, Time Stone intercept) leaked. See the
+    // matching note in sim/shim.js.
     Game.state.player.isHuman = false;
     Game.state.ai.isHuman = false;
-    Game.startMatch('classic');
 
     // Drive the draft using AI picker (random-pick of cards for fuzzing
     // would just slow things down without exercising new code — the
