@@ -674,6 +674,51 @@ const Game = {
     return def.apply(this, actor, p, target);
   },
 
+  // ===================== PROMPT OWNERSHIP AUTHORITY =====================
+  // ONE source of truth for "who owns a pending prompt" — read by BOTH the
+  // render gates (who sees the interactive picker) and the resolution path
+  // (who may resolve it). Before this, that predicate was re-derived in ~7
+  // renderers and every resolve handler, with real gaps (the hand-target
+  // gate ignored 2v2; the blockTrick/kang/jump host branches skipped the
+  // ownership check). Divergence between "who sees it" and "who can resolve
+  // it" is exactly the wrong-player prompt bug class (Mobius Chair et al.).
+  //
+  // Each prompt kind stashes its owning SIDE ('player' | 'ai') in a different
+  // field — this map is the single place that knowledge lives.
+  _promptOwnerSeat(prompt, kind) {
+    if (!prompt) return null;
+    switch (kind) {
+      case 'card':
+      case 'lane':
+      case 'kang':      return prompt.owner || 'player';
+      case 'blockTrick':return prompt._btOwner || 'player';
+      case 'timeStone': return prompt.defender || 'player';
+      case 'jump': {
+        // Jump has no owner field — the owner is whichever side's hand holds
+        // the offered card. Matches the render gate's hand-membership infer.
+        const id = prompt.cardId;
+        if ((this.state.player && this.state.player.hand || []).some(c => c.id === id)) return 'player';
+        if ((this.state.ai && this.state.ai.hand || []).some(c => c.id === id)) return 'ai';
+        return 'player';
+      }
+      default: return prompt.owner || 'player';
+    }
+  },
+
+  // Is the currently-pending prompt of this kind owned by THIS client's seat?
+  // Solo: always true (the AI's prompts auto-resolve and never reach a gate).
+  // 1v1 online: the local human is always rendered as 'player' (state is
+  //   seat-flipped on the guest), so a prompt is mine iff its owner is
+  //   'player'. 2v2 online: ownership is the playerKey token _2v2ActingPlayer.
+  promptIsMine(prompt, kind) {
+    if (!prompt) return true; // nothing to gate
+    if (this.is2v2 && this.is2v2() && this.state.twoVTwo && this.state.twoVTwo.online) {
+      return !prompt._2v2ActingPlayer || prompt._2v2ActingPlayer === this.state.twoVTwo.you;
+    }
+    if (!this.isMultiplayer()) return true; // solo — AI prompts resolve elsewhere
+    return this._promptOwnerSeat(prompt, kind) === 'player';
+  },
+
   // Apply an action message arriving from the wire. `actor` is the
   // owner side ('player' or 'ai') the action originated from — for
   // host receiving guest msgs, actor is always 'ai' (the guest sits

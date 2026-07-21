@@ -5591,7 +5591,7 @@ const UI = {
     // resolved on the guest's client, so the host must NOT render the guest's
     // hidden scried cards face-up. Only show the chooser for the local seat's
     // own Kang (after _mpFlipPerspective the guest's own Kang is owner==='player').
-    if (s.pendingKangChoice && !(Game.isMultiplayer() && s.pendingKangChoice.owner === 'ai')) { this.renderKangChoice(s); return; }
+    if (s.pendingKangChoice && Game.promptIsMine(s.pendingKangChoice, 'kang')) { this.renderKangChoice(s); return; }
     // No pending BWL/Kang decision this render → clear any polished decision modal.
     this._removeDecisionModal();
 
@@ -6777,7 +6777,7 @@ const UI = {
     const _2v2OtherOwns = _2v2Online && (
       (cc && cc._2v2ActingPlayer && cc._2v2ActingPlayer !== _myKey2) ||
       (lc && lc._2v2ActingPlayer && lc._2v2ActingPlayer !== _myKey2));
-    const opponentOwns = _2v2OtherOwns || (Game.isMultiplayer() && ((cc && cc.owner === 'ai') || (lc && lc.owner === 'ai')));
+    const opponentOwns = (cc && !Game.promptIsMine(cc, 'card')) || (lc && !Game.promptIsMine(lc, 'lane'));
     const _actorName = _2v2OtherOwns && s.twoVTwo
       ? (s.twoVTwo.players[(cc || lc)._2v2ActingPlayer] || {}).name || 'teammate'
       : 'opponent';
@@ -6851,11 +6851,10 @@ const UI = {
     // Always clear health bar highlights before deciding whether to re-add them.
     document.querySelectorAll('.health-container.mc-target').forEach(el => el.classList.remove('mc-target'));
     const cc = s.pendingCardChoice;
-    // Don't render interactive choices for the opponent's ability prompts in
-    // multiplayer — they resolve on the opponent's client, not ours.
-    if (!cc || (Game.isMultiplayer() && cc.owner === 'ai')) return;
-    // 2v2 online: only render for the player whose choice this is
-    if (Game.is2v2() && s.twoVTwo && s.twoVTwo.online && cc._2v2ActingPlayer && cc._2v2ActingPlayer !== s.twoVTwo.you) return;
+    // Don't render interactive choices for a prompt this client doesn't own —
+    // it resolves on the owner's screen. One authority (promptIsMine) covers
+    // solo, 1v1 seat-flip, AND 2v2 playerKey — no per-gate re-derivation.
+    if (!cc || !Game.promptIsMine(cc, 'card')) return;
 
     // Wire up the Mind Control "attack the health bar" option directly to the
     // HP bar UI — the HP bar glows and becomes clickable, instead of being
@@ -12824,7 +12823,7 @@ const UI = {
     // In multiplayer, only the player whose block triggered it sees the modal.
     // After _mpFlipPerspective, _btOwner === 'player' means this client's block.
     if (Game.isMultiplayer && Game.isMultiplayer()) {
-      if (trick && trick._btOwner && trick._btOwner !== 'player') {
+      if (trick && !Game.promptIsMine(trick, 'blockTrick')) {
         const stale = document.getElementById('block-trick-modal');
         if (stale) stale.remove();
         return;
@@ -12906,7 +12905,7 @@ const UI = {
     // guest — the caster's client gets a passive "opponent may react" banner
     // instead of the buttons. (Old code rendered live buttons on BOTH clients
     // in MP — user: "we both had the option to play Time Stone.")
-    const myChoice = (ti.defender || 'player') === 'player';
+    const myChoice = Game.promptIsMine(ti, 'timeStone');
     const stale = document.getElementById('time-stone-modal');
     if (stale) stale.remove();
     const modal = document.createElement('div');
@@ -12975,8 +12974,7 @@ const UI = {
     if (stale) stale.remove();
     // In multiplayer the host waits while the guest decides — show a waiting
     // indicator instead of interactive buttons the host shouldn't click.
-    const opponentJump = Game.isMultiplayer() && Game.mp && Game.mp.role === 'host'
-      && !(s.player.hand || []).find(c => c.id === offer.cardId);
+    const opponentJump = !Game.promptIsMine(offer, 'jump');
     const modal = document.createElement('div');
     modal.id = 'jump-offer-modal';
     modal.className = 'floating-prompt jump-offer';
@@ -13447,14 +13445,9 @@ const UI = {
     // own choices — the opponent must resolve their own prompts on their client.
     // In 2v2 online each choice is annotated with _2v2ActingPlayer (the playerKey
     // who triggered the ability); only that player should see the interactive modal.
-    const _2v2Online = Game.is2v2() && !!(s.twoVTwo && s.twoVTwo.online);
-    const _myKey = _2v2Online ? s.twoVTwo.you : null;
-    const isMyCardChoice = _2v2Online
-      ? (!cc || !cc._2v2ActingPlayer || cc._2v2ActingPlayer === _myKey)
-      : (!Game.isMultiplayer() || !cc || cc.owner === 'player');
-    const isMyLaneChoice = _2v2Online
-      ? (!lc || !lc._2v2ActingPlayer || lc._2v2ActingPlayer === _myKey)
-      : (!Game.isMultiplayer() || !lc || lc.owner === 'player');
+    // One authority — promptIsMine unifies solo / 1v1 seat-flip / 2v2 playerKey.
+    const isMyCardChoice = Game.promptIsMine(cc, 'card');
+    const isMyLaneChoice = Game.promptIsMine(lc, 'lane');
     const targetCardIds = new Set();
     if (cc && isMyCardChoice) cc.cards.forEach(c => { if (c.id !== undefined) targetCardIds.add(c.id); });
     const lcTargetSide = (lc && isMyLaneChoice) ? (lc.targetSide || lc.owner) : null;
@@ -15826,11 +15819,13 @@ const UI = {
     const cc = s.pendingCardChoice;
     const lc = s.pendingLaneChoice;
     const hasPending = cc || lc;
-    const isMyHandChoice = !Game.isMultiplayer() || !cc || cc.owner === 'player';
+    // One authority — also closes the 2v2 gap this gate previously had (it
+    // only checked cc.owner and ignored _2v2ActingPlayer).
+    const isMyHandChoice = Game.promptIsMine(cc, 'card');
     // Lane-choice parallel of isMyHandChoice (consumed far below at isReqLcCard).
     // Without it, `lc && isMyLaneChoice` threw a ReferenceError whenever a lane
     // choice was pending (MP guest placement), crashing the whole hand render.
-    const isMyLaneChoice = !Game.isMultiplayer() || !lc || lc.owner === 'player';
+    const isMyLaneChoice = Game.promptIsMine(lc, 'lane');
     const targetHandIds = new Set();
     if (cc && isMyHandChoice) cc.cards.forEach(c => { if (c.id !== undefined) targetHandIds.add(c.id); });
     // Guest debug: log when any hand card gets a non-standard onclick (cardChoicePick or jumpCard)
