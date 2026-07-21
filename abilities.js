@@ -1485,7 +1485,7 @@ const CARD_ABILITIES = {
               G.log("Symbiote Spider-Man: You shuffle 2 cards back and draw 2!");
               if (onDone) onDone();
             });
-          }, undefined, { forced: hand.length <= 2 });
+          });
         }
       };
       // Process owner first, then opponent, then heal

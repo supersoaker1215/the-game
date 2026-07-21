@@ -8605,17 +8605,17 @@ const Game = {
         this.cleanupDead();
         return;
       }
-      // ALWAYS prompt the human controller — even when only 1 target
-      // remains. User report: "i am splitting darkseids beams and it
-      // wont let me finish the rest of his damage, i did 4 to predator
-      // and have 2 left but it seems to have froze." Root cause was
-      // the `available.length === 1` auto-assign block: with only one
-      // enemy left, the beam dumped the remaining damage silently and
-      // returned. From the player's POV it felt stuck — they were
-      // expecting a target prompt for the remaining 2 damage. The AI
-      // path (below) still auto-resolves; only the human gets the
-      // explicit confirm beat. Same spec as Galactus / Dormammu /
-      // Mind Control: "the user always chooses".
+      // Target selection. A single remaining enemy auto-resolves (the engine's
+      // one-candidate arm handles the target, and the sole-target amount is
+      // dumped below) — so with one enemy the whole beam fires with no clicks
+      // (user: auto-resolve forced choices, "darkseids beams as well"). Genuine
+      // splitting across MULTIPLE enemies still prompts target + amount.
+      //
+      // The prior "beam froze" report — "i did 4 to predator, have 2 left, it
+      // seems to have froze" — was NOT fixed by always-prompting: the real fix
+      // is fire() -> doNext() below (the old auto-assign did dump-and-RETURN,
+      // which stranded the continuation). fire() continues the loop, so the
+      // remaining damage always resolves.
       const promptTarget = (cb) => {
         if (Game.isHuman(card.owner)) {
           // Smart picker: prefer high-threat enemies we can KILL with
