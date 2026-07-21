@@ -14461,7 +14461,7 @@ const UI = {
     // are excluded — the tremor is for cards that have BEEN damaged
     // down to 1, not cards that started at 1. Never apply to
     // already-dead cards.
-    if (!inHand && card.currentHealth === 1 && (card.maxHealth || 0) > 1) {
+    if (!inHand && !opts.static && card.currentHealth === 1 && (card.maxHealth || 0) > 1) {
       el.classList.add('card-hp-critical');
     }
 
@@ -14470,7 +14470,7 @@ const UI = {
     // across the card art"); instead the HP number bottom-right pulses red
     // while the card is below max health (see .card-damaged .stat-hp CSS).
     // Hand cards skipped; already-dead cards skipped.
-    if (!inHand && card.currentHealth > 0 && (card.maxHealth || 0) > 1) {
+    if (!inHand && !opts.static && card.currentHealth > 0 && (card.maxHealth || 0) > 1) {
       if (card.maxHealth - card.currentHealth > 0) el.classList.add('card-damaged');
     }
 
@@ -14535,13 +14535,13 @@ const UI = {
     // the highest-ATK enemy on a side gets the mark too when a Joker
     // is alive on the opposite side (since Joker's chaos warps them).
     // Skipped for cards in hand — the effect is a board mechanic.
-    if (!inHand && this.isCardCrazy(card)) el.classList.add('status-crazy');
+    if (!inHand && !opts.static && this.isCardCrazy(card)) el.classList.add('status-crazy');
     // Character-flavored vibe — per-archetype subtle animation that
     // gives iconic cards a distinct idle feel. Same board-only rule:
     // hand cards stay static, and vibes defer to the crazy flag when
     // both would apply (Joker/Harley can't be "cosmic" + "crazy" at
     // once — crazy wins).
-    if (!inHand && !this.isCardCrazy(card)) {
+    if (!inHand && !opts.static && !this.isCardCrazy(card)) {
       const vibe = this.getCardVibe(card);
       if (vibe) {
         el.classList.add('vibe-' + vibe);
@@ -14678,7 +14678,7 @@ const UI = {
     // they should always be showing the damage numbers of the cards
     // and of cards that could die."
     let incomingBadge = '';
-    if (!inHand && Game.state && !card.isFaceDown && card.currentHealth > 0
+    if (!inHand && !opts.static && Game.state && !card.isFaceDown && card.currentHealth > 0
         && !Game.state.gameOver
         && typeof Game.predictCombatGlobal === 'function') {
       // Cache one global combat prediction per render so each card
@@ -22345,24 +22345,23 @@ function toggleDeadPile(owner) {
   title.textContent = (owner === 'player' ? 'Your' : UI.oppNamePoss()) + ' Dead Pile';
   // Ensure ranks are fresh — viewing the dead pile mid-match should
   // reflect the current MVP standings including cards in this pile.
-  const ranks = UI.computeMvpRanks()[owner];
-  const mvpStar = (c) => {
-    if (!c || c.id == null) return '';
-    const score = UI.mvpScoreOf(c);
-    if (score <= 0) return '';
-    let cls = '';
-    if (c.id === ranks.firstId)       cls = 'mvp-gold';
-    else if (c.id === ranks.secondId) cls = 'mvp-silver';
-    if (!cls) return '';
-    return `<span class="card-mvp-star ${cls}" title="MVP: ${score}"><svg viewBox="0 0 10 10" aria-hidden="true"><polygon points="5,0.3 6.3,3.7 10,3.9 7,6.1 8.1,9.7 5,7.6 1.9,9.7 3,6.1 0,3.9 3.7,3.7"/></svg></span>`;
-  };
-  container.innerHTML = pile.length ? pile.map(c => `
-    <div class="dead-pile-card${c.isDiscardEffect ? ' discard-effect' : ''}">
-      <div class="card-cost">${c.cost}</div>
-      ${mvpStar(c)}
-      <div class="card-name">${c.name}</div>
-      ${c.isDiscardEffect ? '' : `<div class="card-stats"><span class="atk">${c.attack || '?'}</span> / <span class="hp">${c.health || '?'}</span></div>`}
-    </div>`).join('') : '<p style="color:#888">No cards have died yet.</p>';
+  // ONE renderer — a fallen card is a full canonical face (art, badges, desc,
+  // orbs), greyed via the `disabled` opt, instead of the old text-only tile
+  // (the most divergent surface in the app). Dead-pile entries carry reset
+  // (base) stats and an ability list but no live instance fields, so build a
+  // face from the entry: add currentHealth/max + stamp keyword badges.
+  container.innerHTML = pile.length ? pile.map(c => {
+    // _synthFace routes the def-shaped dead entry through createCardInstance so
+    // keyword badges (Revive, Evade…) are stamped — the reset stats it carries
+    // are preserved as the instance's base.
+    const face = UI._synthFace(c, {});
+    const el = UI.makeCardEl(face, false, c.owner === 'ai' ? 'enemy' : 'ally', {
+      static: true, disabled: true,
+      extraClass: 'dead-pile-card' + (c.isDiscardEffect ? ' discard-effect' : ''),
+    });
+    el.setAttribute('data-card-name', c.name);
+    return el.outerHTML;
+  }).join('') : '<p style="color:#888">No cards have died yet.</p>';
   overlay.style.display = 'flex';
 }
 

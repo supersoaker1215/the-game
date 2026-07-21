@@ -8349,18 +8349,18 @@ body.mobile-card-dragging .cursor-trail { display: none !important; }
   text-shadow: 0 0 8px rgba(231,76,60,0.55);
 }
 .dead-pile-cards { display: flex; gap: 12px; flex-wrap: wrap; justify-content: center; margin-bottom: 20px; }
+/* Dead-pile cards are now full canonical card faces (makeCardEl, greyed via
+   .card-disabled). Neutralize the old text-tile chrome so the card's own
+   styling shows through; keep only a slightly smaller catalog width. */
 .dead-pile-card {
-  width: 120px; min-height: 100px; border-radius: 6px; padding: 5px 5px 10px;
-  position: relative;
-  background: #000000;
-  border: 1px solid rgba(231,76,60,0.95);
-  box-shadow: 0 0 12px rgba(231,76,60,0.45), 0 0 24px rgba(231,76,60,0.18);
-  text-align: center;
+  min-height: 0; padding: 0; background: transparent;
+  border: none; box-shadow: none; text-align: left;
 }
-.dead-pile-card.discard-effect {
-  border-color: rgba(79,195,247,0.95);
-  box-shadow: 0 0 12px rgba(79,195,247,0.45), 0 0 24px rgba(79,195,247,0.18);
-}
+.dead-pile-card.discard-effect { border: none; box-shadow: none; }
+/* Greyed "not live" look — dead pile, deck-builder at-max, any catalog
+   card the renderer marks disabled. */
+.card-disabled { filter: grayscale(0.82) brightness(0.64); }
+.card-disabled .card-portrait { filter: grayscale(0.5); }
 .dead-pile-card .card-name {
   font-family: 'Rajdhani', sans-serif;
   font-size: 11px; font-weight: 700;
