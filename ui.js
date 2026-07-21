@@ -4743,32 +4743,13 @@ const UI = {
           ? `<div class="card-abilities status-badges">${this.formatAbilityBadges(def.abilities)}</div>`
           : '';
         if (isTrick) {
-          const rarity = this.getTrickRarityStrip(cost || 0);
+          // One trick renderer — restores portrait art the old banner lacked.
           this.tooltipEl.innerHTML =
-            `<div class="kw-tip-card-pop">` +
-              `<div class="trick-card kw-tip-trick-render">` +
-                `<span class="card-cost">${cost}</span>` +
-                rarity +
-                `<div class="trick-name">${def.name}</div>` +
-                ab +
-                `<div class="trick-desc">${this.formatDesc(def.desc || '')}</div>` +
-              `</div>` +
-            `</div>` +
-            pinHint;
+            `<div class="kw-tip-card-pop">` + this.makeTrickEl(def, { extraClass: 'kw-tip-trick-render' }) + `</div>` + pinHint;
         } else {
-          this.tooltipEl.innerHTML =
-            `<div class="kw-tip-card-pop">` +
-              `<div class="card hand-card ${this.getCostClass(cost)} kw-tip-card-render" data-card-name="${def.name}">` +
-                `<span class="card-cost">${cost}</span>` +
-                `<div class="card-name-banner"><div class="card-name">${def.name}</div></div>` +
-                ab +
-                `<div class="card-desc">${this.formatDesc(def.desc || '')}</div>` +
-                (def.attack != null && def.health != null
-                  ? `<span class="stat-circle stat-atk">${def.attack}</span><span class="stat-circle stat-hp">${def.health}</span>`
-                  : '') +
-              `</div>` +
-            `</div>` +
-            pinHint;
+          // One card renderer — full canonical face (art + orbs + badges).
+          const el = this.makeCardEl(this._synthFace(def, {}), true, 'player', { static: true, extraClass: 'kw-tip-card-render' });
+          this.tooltipEl.innerHTML = `<div class="kw-tip-card-pop">` + el.outerHTML + `</div>` + pinHint;
         }
         return true;
       }
@@ -7221,19 +7202,7 @@ const UI = {
           // Same one renderer as classic draft — only the pick fn differs.
           html += this._draftCardHTML(c, i, 'twov2OnlineDraftPick');
         } else {
-          const trickBadges = c.abilities && c.abilities.length
-            ? `<div class="card-abilities status-badges">${this.formatAbilityBadges(c.abilities)}</div>` : '';
-          const trickRarity = this.getTrickRarityStrip(c.cost || 0);
-          const trickArtPath = this.getCardArtPath(c.name);
-          const safeTrickUrl = trickArtPath ? trickArtPath.replace(/'/g, '%27') : '';
-          const trickPortraitStyle = safeTrickUrl ? `--portrait-bg:url('${safeTrickUrl}')${UI._artFocalCard(c.name)}` : '';
-          html += `<div class="draft-card trick-draft" data-trick-name="${c.name}" onclick="twov2OnlineDraftPick(${i})">
-            <span class="card-cost">${c.cost}</span>
-            ${trickRarity}
-            <div class="card-portrait" style="${trickPortraitStyle}"><div class="card-name-overlay">${c.name}</div><i class="pt-shine" aria-hidden="true"></i></div>
-            ${trickBadges}
-            <div class="trick-desc">${this.formatDesc(c.desc)||''}</div>
-          </div>`;
+          html += this.makeTrickEl(c, { extraClass: 'draft-card trick-draft', onclick: 'twov2OnlineDraftPick(' + i + ')' });
         }
       });
     }
@@ -9762,20 +9731,7 @@ const UI = {
         // Tricks — render as purple-tinted compact trick cards (mirrors
         // how they appear in the draft + trick panel).
         body = filtered.map(t => {
-          const cost = t.cost || 0;
-          const abilitiesHtml = (t.abilities && t.abilities.length)
-            ? `<div class="card-abilities status-badges">${this.formatAbilityBadges(t.abilities)}</div>` : '';
-          const rarityStrip = this.getTrickRarityStrip ? this.getTrickRarityStrip(cost) : '';
-          const trickArtPath = this.getCardArtPath(t.name);
-          const safeEncUrl = trickArtPath ? trickArtPath.replace(/'/g, '%27') : '';
-          const trickPortraitStyle = safeEncUrl ? `--portrait-bg:url('${safeEncUrl}')${UI._artFocalCard(t.name)}` : '';
-          return `<div class="trick-card enc-trick" data-trick-name="${t.name}">
-            <span class="card-cost">${cost}</span>
-            ${rarityStrip}
-            <div class="card-portrait" style="${trickPortraitStyle}"><div class="card-name-overlay">${t.name}</div><i class="pt-shine" aria-hidden="true"></i></div>
-            ${abilitiesHtml}
-            <div class="trick-desc">${this.formatDesc(t.desc || '')}</div>
-          </div>`;
+          return this.makeTrickEl(t, { extraClass: 'enc-trick' });
         }).join('');
       }
     } else {
@@ -12707,22 +12663,8 @@ const UI = {
         // there now). Shared with the 2v2 draft (only the pick fn differs).
         html += this._draftCardHTML(c, i, 'draftPick');
       } else {
-        const draftTrickBadges = c.abilities && c.abilities.length
-          ? `<div class="card-abilities status-badges">${this.formatAbilityBadges(c.abilities)}</div>`
-          : '';
-        const draftTrickRarity = this.getTrickRarityStrip(c.cost || 0);
-        // Same portrait wiring as the character draft cards — full-bleed cover
-        // art + bottom name overlay (was square `contain` art with black bars).
-        const draftTrickArtPath = this.getCardArtPath(c.name);
-        const safeDraftUrl = draftTrickArtPath ? draftTrickArtPath.replace(/'/g, '%27') : '';
-        const draftTrickPortraitStyle = safeDraftUrl ? `--portrait-bg:url('${safeDraftUrl}')${UI._artFocalCard(c.name)}` : '';
-        html += `<div class="draft-card trick-draft" data-trick-name="${c.name}" onclick="draftPick(${i})">
-          <span class="card-cost">${c.cost}</span>
-          ${draftTrickRarity}
-          <div class="card-portrait" style="${draftTrickPortraitStyle}"><div class="card-name-overlay">${c.name}</div><i class="pt-shine" aria-hidden="true"></i></div>
-          ${draftTrickBadges}
-          <div class="trick-desc">${this.formatDesc(c.desc)||''}</div>
-        </div>`;
+        // Same one trick renderer — draft-card carries the picker footprint.
+        html += this.makeTrickEl(c, { extraClass: 'draft-card trick-draft', onclick: 'draftPick(' + i + ')' });
       }
     });
 
@@ -12811,20 +12753,33 @@ const UI = {
   // tray/draft/reveal use, so a trick looks identical everywhere it appears.
   // Replaces the old text-only fp-tricky body (user: "this popup needs to
   // look more polished with the trick art").
-  _fpTrickCardHTML(trick) {
+  // THE canonical TRICK renderer — the analog of makeCardEl for tricks (which
+  // have no stat orbs, a purple palette, and a trick rarity strip). Every trick
+  // face in the app routes through this so tricks look identical everywhere
+  // (codex, both drafts, floating prompt, trick history, keyword tooltip).
+  // Returns an HTML string (every caller concatenates strings).
+  // opts: {extraClass, onclick, descOverride}.
+  makeTrickEl(trick, opts) {
+    opts = opts || {};
     const artPath = this.getCardArtPath(trick.name);
     const safeUrl = artPath ? artPath.replace(/'/g, '%27') : '';
     const portraitStyle = safeUrl ? `--portrait-bg:url('${safeUrl}')${UI._artFocalCard(trick.name)}` : '';
     const badges = trick.abilities && trick.abilities.length
       ? `<div class="card-abilities status-badges">${this.formatAbilityBadges(trick.abilities)}</div>` : '';
-    return `<div class="trick-card fp-tricky" data-trick-name="${trick.name}">
+    const cls = 'trick-card' + (opts.extraClass ? ' ' + opts.extraClass : '');
+    const onclick = opts.onclick ? ` onclick="${opts.onclick}"` : '';
+    const desc = opts.descOverride != null ? opts.descOverride : (trick.desc || '');
+    return `<div class="${cls}" data-trick-name="${trick.name}"${onclick}>
       <span class="card-cost">${trick.cost}</span>
       ${this.getTrickRarityStrip(trick.cost || 0)}
       <div class="card-portrait" style="${portraitStyle}"><div class="card-name-overlay">${trick.name}</div><i class="pt-shine" aria-hidden="true"></i></div>
       ${badges}
-      <div class="trick-desc">${this.formatDesc(trick.desc) || ''}</div>
+      <div class="trick-desc">${this.formatDesc(desc) || ''}</div>
     </div>`;
   },
+  // Thin alias — the floating-prompt trick face is the canonical trick with a
+  // fp-tricky hook class. Kept so its callers don't churn.
+  _fpTrickCardHTML(trick) { return this.makeTrickEl(trick, { extraClass: 'fp-tricky' }); },
 
   // ===================== JUMP OFFER =====================
   // Player-side jump cards (Jason / Ghostface / Michael Myers) that become
@@ -22386,13 +22341,7 @@ function toggleTrickHistory(owner) {
       const rarity = UI.getTrickRarityStrip ? UI.getTrickRarityStrip(def.cost || 0) : '';
       const ab = (def.abilities && def.abilities.length)
         ? `<div class="card-abilities status-badges">${UI.formatAbilityBadges(def.abilities)}</div>` : '';
-      return `<div class="trick-card history-trick">
-        <span class="card-cost">${def.cost != null ? def.cost : ''}</span>
-        ${rarity}
-        <div class="trick-name">${def.name}</div>
-        ${ab}
-        <div class="trick-desc">${UI.formatDesc(def.desc || '')}</div>
-      </div>`;
+      return UI.makeTrickEl(def, { extraClass: 'history-trick' });
     }).join('');
   }
   overlay.style.display = 'flex';
