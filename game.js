@@ -981,6 +981,10 @@ const Game = {
           } else if (msg.choiceType === 'blockTrick') {
             const bt = this.state.pendingBlockTrick;
             if (!bt) break;
+            // Ownership: the guest may only resolve a block trick they own —
+            // matches the card/lane branches (was an unchecked gap: a guest
+            // could resolve the host's block trick).
+            if (this._promptOwnerSeat(bt, 'blockTrick') !== actor) break;
             this._clearPromptTimeout();
             this.state.pendingBlockTrick = null;
             const owner = bt._btOwner || actor;
@@ -1000,6 +1004,9 @@ const Game = {
             // Guest resolved Kang's "keep one card" choice. Apply on host.
             const kc = this.state.pendingKangChoice;
             if (!kc) break;
+            // Ownership parity with card/lane — the guest may only resolve a
+            // Kang choice they own (was an unchecked gap).
+            if (this._promptOwnerSeat(kc, 'kang') !== actor) break;
             this._clearPromptTimeout();
             this.state.pendingKangChoice = null;
             const idx = msg.idx != null ? msg.idx : 0;
