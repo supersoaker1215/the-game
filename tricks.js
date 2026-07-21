@@ -536,21 +536,9 @@ const TRICK_DEFS = [
         G.destroyLane(i, 3);
         G.killCard(G.state.lanes[i][owner]);
         G.killCard(G.state.lanes[i][opp]);
-        // One-shot death saves (Yoda shield, Phoenix etch, revives) can
-        // still leave a card alive inside the collapsed lane — the void
-        // has no lane for 3 rounds, so throw survivors clear into an
-        // open lane on their own side.
-        [owner, opp].forEach(side => {
-          const c = G.state.lanes[i][side];
-          if (c && c.currentHealth > 0) {
-            const open = G.getOpenLanes(side);
-            if (open.length) {
-              G.state.lanes[i][side] = null;
-              G.placeInLane(side, c, open[0]);
-              G.log(`  [VOID] ${c.name} is thrown clear of the collapsing lane into lane ${open[0] + 1}!`);
-            }
-          }
-        });
+        // One-shot death saves can leave a card alive inside the collapsed
+        // lane; throw survivors clear. Shared with Darkseid via the helper.
+        G.evictVoidSurvivors(i);
         G.log(`Anti-Life destroys lane ${i + 1}!`);
       };
       if (Game.isHuman(owner) && contested.length) {

@@ -3886,6 +3886,11 @@ const CARD_ABILITIES = {
         // only the enemy side.
         G.killCard(G.state.lanes[i][self.owner], self);
         G.killCard(G.state.lanes[i][opp], self);
+        // A death save (Yoda shield, revive, Iron Giant guard) can leave a card
+        // alive inside the void. Anti-Life already threw survivors clear;
+        // Darkseid didn't, stranding them in a lane that doesn't exist for 3
+        // rounds — untargetable but still swinging. Shared helper now.
+        G.evictVoidSurvivors(i);
         G.log(`Darkseid destroys lane ${i + 1}!`);
       };
       // Purge redesign (2026-07-16, user direction): "destroy up to 3

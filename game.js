@@ -2957,6 +2957,10 @@ const Game = {
 
   playCard(owner, card, laneIdx) {
     if (this.state.gameOver) return false;
+    // Same anti-duplication guard as playCardFree: never place a card that is
+    // already on the board (see the comment there for how 2v2 bridging let the
+    // hand removal silently miss).
+    if (card && this.findCardLane(card) >= 0) return false;
     // Iron Giant (and any future hand-guardian) can NEVER be placed on the
     // field — his whole card is the in-hand death-guard sacrifice, handled
     // by _ironGiantIntercept in handleDeath. Rejecting here covers every
@@ -3104,6 +3108,11 @@ const Game = {
       return true;
     }
 
+    // Slot and card.owner must always agree — the engine's cleanup invariant
+    // checks it, and a mismatch makes combat/targeting read the wrong side.
+    // 2v2 jump/free plays surfaced this: a card owned by one side landing in
+    // the other side's slot. placeInLane already stamped; these paths didn't.
+    card.owner = owner;
     lane[owner] = card;
     this._emitEntranceFX(card);
     if (card.statsEnteredRound == null) card.statsEnteredRound = this.state.round || 1;
@@ -3193,6 +3202,23 @@ const Game = {
   },
 
   playCardFree(owner, card, laneIdx) {
+    // A card already standing on the board can NEVER be placed again. The jump
+    // / free-play path removes the card from hand with hand.indexOf(card), and
+    // in 2v2 the side proxy is bridged to whichever player is ACTIVE — so when
+    // a jump fires for a different seat (Freddy Fazbear wakes on the opponent's
+    // unspent energy; Stripe/Jason trigger off damage) the card isn't in that
+    // hand, the splice silently no-ops, and the very same object gets assigned
+    // into a second lane. The fuzzer saw one Stripe instance occupying two
+    // lanes ~900x per 60 games, plus cards sitting on the wrong side. Refusing
+    // an already-placed card kills that corruption at the source.
+    if (card && this.findCardLane(card) >= 0) return false;
+    // Iron Giant guards from HAND and must never stand on the field. playCard
+    // enforced this but the jump / free-play path did not, so he still reached
+    // the board (the fuzzer caught him there). Same guard, every placement path.
+    if (card && card._neverPlayable) {
+      this.log(`[GUARD] ${card.name} can't be played onto the field — he guards from your hand.`);
+      return false;
+    }
     // Multiplayer guest: forward the free-play action and let the host run it.
     // _silentSim guard — see playCard: a preview sim must place locally on
     // the clone, never forward a network play.
@@ -3259,9 +3285,11 @@ const Game = {
           freeLane._env[side] = null;
         }
       });
+      card.owner = owner;   // slot/owner must agree (see playCard)
       freeLane._env[owner] = card;
       this.emitFX('envReveal', { lane: laneIdx, owner, name: card.name });
     } else {
+      card.owner = owner;   // slot/owner must agree (see playCard)
       freeLane[owner] = card;
       this._emitEntranceFX(card);
     }
@@ -6549,6 +6577,31 @@ const Game = {
     }
   },
 
+  // Throw any still-living card clear of a collapsed (void) lane.
+  //
+  // Callers collapse a lane and THEN kill its occupants. One-shot death saves
+  // (Yoda's shield, Phoenix etch, revives) can leave a card alive inside the
+  // void — and a void has no lane for 3 rounds, so that card is stranded:
+  // untargetable yet still swinging in combat. The engine's cleanup invariant
+  // reports it as the "limbo class". Anti-Life Equation already did this
+  // rescue inline; Darkseid did not, which is where most of the stranded
+  // cards came from. Shared here so every collapse path behaves the same.
+  // MUST be called AFTER the caller's kills — evicting earlier would let
+  // cards escape the collapse entirely.
+  evictVoidSurvivors(laneIdx) {
+    const lane = this.state.lanes[laneIdx];
+    if (!lane || !lane.destroyed) return;
+    ['player', 'ai'].forEach(side => {
+      const c = lane[side];
+      if (!c || !(c.currentHealth > 0)) return;
+      const open = this.getOpenLanes(side);
+      if (!open.length) return;   // nowhere to go — leave it rather than delete a live card
+      lane[side] = null;
+      this.placeInLane(side, c, open[0]);
+      this.log(`  [VOID] ${c.name} is thrown clear of the collapsing lane into lane ${open[0] + 1}!`);
+    });
+  },
+
   // ===================== IRON GIANT DEATH-GUARD =====================
   // Cheap, side-effect-free lookahead used by the UI's handleDeath wrapper
   // to suppress the death sound + derez visual for a card that's about to
@@ -7553,6 +7606,11 @@ const Game = {
       card._summonedBy = summoner;
       this._creditChain(summoner, 'statsEnergyGenerated', card.baseCost || card.cost || 0);
     }
+    // Slot and card.owner must always agree — the engine's cleanup invariant
+    // checks it, and a mismatch makes combat/targeting read the wrong side.
+    // 2v2 jump/free plays surfaced this: a card owned by one side landing in
+    // the other side's slot. placeInLane already stamped; these paths didn't.
+    card.owner = owner;
     this.state.lanes[laneIdx][owner] = card;
     this._emitEntranceFX(card);
     card.statsEnteredRound = this.state.round || 1;
@@ -7637,6 +7695,8 @@ const Game = {
 
   placeInLane(owner, card, laneIdx) {
     if (this.state.lanes[laneIdx][owner] || this.state.lanes[laneIdx].destroyed) return;
+    if (card && card._neverPlayable) return;   // Iron Giant — hand-guard only
+    if (card && this.findCardLane(card) >= 0) return;   // never place a card twice
     card.owner = owner;
     this.state.lanes[laneIdx][owner] = card;
     this._emitEntranceFX(card);
@@ -10287,84 +10347,10 @@ const Game = {
     }
   },
 
-  _2v2OnlinePlayCard(playerKey, cardIdx, laneIdx) {
-    const s = this.state;
-    const tt = s.twoVTwo;
-    if (!tt) return;
-    const ap = tt.players[playerKey];
-    if (!ap) return;
-    const card = ap.hand[cardIdx];
-    if (!card) return;
-    const side = this._2v2TeamSide[ap.team];
-    const energy = ap.energy - ap.usedEnergy;
-    if (energy < (card.cost || 0)) return;
-
-    // DISCARD-EFFECT cards (Mr. Fantastic, Catwoman, Jigsaw, Prof X, …) are
-    // 0/0 "play for the effect" cards — they must NEVER be placed on the
-    // board. The bespoke 2v2 online path dropped them into the lane like any
-    // creature, so a 0/0 Mr. Fantastic sat on the board (user report). Route
-    // them through their onDiscard hook instead. Card callbacks read/write the
-    // side proxy (state[side]) and state.drawPile — the 1v1 model — so bridge
-    // the 2v2 acting player's hand + shared pile in for the effect's duration
-    // so "Draw 1" and the like reach the right player and the right deck.
-    if (card.isDiscardEffect) {
-      ap.hand.splice(cardIdx, 1);
-      ap.usedEnergy = (ap.usedEnergy || 0) + (card.cost || 0);
-      this._2v2SyncActivePlayer();       // state[side].hand === ap.hand (same ref)
-      const savedDrawPile = s.drawPile;
-      s.drawPile = tt.drawPile;          // so drawCards() pulls from the 2v2 deck
-      try { if (card.onDiscard) card.onDiscard(this, side, card); }
-      catch (e) { console.error(e); }
-      s.drawPile = savedDrawPile;
-      this._2v2ReadBackActivePlayer();
-      this._2v2StampPendingActor();
-      return;
-    }
-
-    if (!s.lanes[laneIdx] || s.lanes[laneIdx][side]) return;
-    s.lanes[laneIdx][side] = card;
-    ap.hand.splice(cardIdx, 1);
-    ap.usedEnergy = (ap.usedEnergy || 0) + (card.cost || 0);
-    this._2v2SyncActivePlayer();
-    if (card.onPlay) try { card.onPlay(this, card, laneIdx); } catch (e) { console.error(e); }
-    this._2v2ReadBackActivePlayer();
-    // Stamp any prompt the onPlay raised with the acting player so the right
-    // client can resolve it (and the others can't). Covers effects that set
-    // pendingCardChoice/pendingLaneChoice directly, bypassing promptCardChoice.
-    this._2v2StampPendingActor();
-  },
-
-  _2v2OnlinePlayTrick(playerKey, trickIdx) {
-    const s = this.state;
-    const tt = s.twoVTwo;
-    if (!tt) return;
-    const ap = tt.players[playerKey];
-    if (!ap) return;
-    const trick = ap.trickHand[trickIdx];
-    if (!trick) return;
-    const side = this._2v2TeamSide[ap.team];
-    const energy = ap.energy - ap.usedEnergy;
-    if (energy < (trick.cost || 0)) return;
-    ap.trickHand.splice(trickIdx, 1);
-    ap.usedEnergy = (ap.usedEnergy || 0) + (trick.cost || 0);
-    this._2v2SyncActivePlayer();
-    const savedDrawPile = s.drawPile, savedTrickPile = s.trickDrawPile;
-    s.drawPile = tt.drawPile;            // Draw-N tricks pull from the 2v2 deck
-    s.trickDrawPile = tt.trickDrawPile;
-    try { if (trick.play) trick.play(this, side); } catch (e) { console.error(e); }
-    s.drawPile = savedDrawPile;
-    s.trickDrawPile = savedTrickPile;
-    this._2v2ReadBackActivePlayer();
-    // A trick may raise an acknowledge/target prompt (e.g. Lasso of Truth's
-    // reveal, which sets pendingCardChoice directly). Stamp it so the player
-    // who played the trick can dismiss it — without this the guest could never
-    // acknowledge and the host kept re-broadcasting the stuck prompt.
-    this._2v2StampPendingActor();
-  },
-
-  // Stamp whichever prompt was just raised with the current 2v2 acting player,
-  // so only that client renders it interactively and its resolution routes
-  // back to the host. No-op if there's no acting player or no fresh prompt.
+  // Stamp whichever prompt an effect just raised with the acting player, so
+  // only that client can resolve it. Covers effects that assign
+  // pendingCardChoice / pendingLaneChoice directly instead of going through
+  // promptCardChoice (which stamps them itself).
   _2v2StampPendingActor() {
     const cap = this._2v2CurrentActingPlayer;
     if (!cap) return;
@@ -10372,6 +10358,85 @@ const Game = {
     const lc = this.state.pendingLaneChoice;
     if (cc && !cc._2v2ActingPlayer) cc._2v2ActingPlayer = cap;
     if (lc && !lc._2v2ActingPlayer) lc._2v2ActingPlayer = cap;
+  },
+
+  // Bridge the 2v2 world onto the 1v1 side-proxy that every engine routine
+  // expects, run `fn`, then unbridge. state[side].hand is the acting player's
+  // ACTUAL array (same reference), and state[side].currency is their remaining
+  // energy, so the readback turns any spend back into usedEnergy.
+  //
+  // If `fn` leaves a prompt open (an onPlay that asks for a target), the
+  // unbridge is deferred until that whole prompt chain resolves — otherwise a
+  // Draw-N firing from inside the callback would pull from the 1v1 pile
+  // instead of the 2v2 deck, and the energy readback would miss the spend.
+  _2v2WithSideBridge(fn) {
+    const s = this.state, tt = s.twoVTwo;
+    this._2v2SyncActivePlayer();
+    const savedDraw = s.drawPile, savedTrickDraw = s.trickDrawPile;
+    s.drawPile = tt.drawPile;
+    s.trickDrawPile = tt.trickDrawPile;
+    const unbridge = () => {
+      tt.drawPile = s.drawPile;
+      tt.trickDrawPile = s.trickDrawPile;
+      s.drawPile = savedDraw;
+      s.trickDrawPile = savedTrickDraw;
+      this._2v2ReadBackActivePlayer();
+    };
+    let out, threw = true;
+    try { out = fn(); threw = false; }
+    finally {
+      if (!threw && this.hasPendingPrompt && this.hasPendingPrompt()) this.whenPromptCleared(unbridge);
+      else unbridge();
+    }
+    return out;
+  },
+
+  // Play a card in 2v2 by DELEGATING to the real playCard().
+  //
+  // This used to be a ~15-line reimplementation that only moved the card into
+  // a lane and called onPlay. It silently skipped nearly everything playCard
+  // does, so a long tail of cards were quietly broken in 2v2 only:
+  //   • _neverPlayable — Iron Giant could be PLAYED ONTO THE BOARD (he is
+  //     supposed to guard from hand); the fuzzer hit this 338x in 60 games
+  //   • lane.destroyed  — cards could be placed into destroyed lanes
+  //   • isEnvironment   — environments were dropped into the creature slot
+  //     instead of lane._env
+  //   • getCardCost     — cost discounts ignored (raw card.cost was charged)
+  //   • Batman lock, Batman Who Laughs intercept — never fired
+  //   • onAnyCardPlayed broadcast, cardPlayedBuff auras, Lone Wolf +1/+1
+  //   • drawOnPlay ("Draw 1"), Cantrip/Fear/Freeze/MindControl/Mark on-play
+  //   • checkLaneTrap, hunt chase, jump conditions, Magneto debuffs,
+  //     Doomsday scaling, cleanupDead, face-down plays, stats/energy credit
+  // Delegating means 2v2 inherits all of it — and every future 1v1 fix — for
+  // free, instead of the two paths drifting further apart.
+  _2v2OnlinePlayCard(playerKey, cardIdx, laneIdx) {
+    const s = this.state, tt = s.twoVTwo;
+    if (!tt) return;
+    const ap = tt.players[playerKey];
+    if (!ap) return;
+    const card = ap.hand[cardIdx];
+    if (!card) return;
+    const side = this._2v2TeamSide[ap.team];
+    this._2v2WithSideBridge(() => this.playCard(side, card, laneIdx));
+    // Stamp any prompt the play raised with the acting player so the right
+    // client resolves it (and the others can't).
+    this._2v2StampPendingActor();
+  },
+
+  // Same delegation for tricks — playTrick() owns Time Stone intercept,
+  // canPlay validation, trick cost discounts, the _inTrick flag that
+  // Untrickable/10-cost guards depend on, played-pile bookkeeping and stats.
+  // The old inline version called trick.play() raw and skipped all of it.
+  _2v2OnlinePlayTrick(playerKey, trickIdx) {
+    const s = this.state, tt = s.twoVTwo;
+    if (!tt) return;
+    const ap = tt.players[playerKey];
+    if (!ap) return;
+    const trick = ap.trickHand[trickIdx];
+    if (!trick) return;
+    const side = this._2v2TeamSide[ap.team];
+    this._2v2WithSideBridge(() => this.playTrick(side, trick));
+    this._2v2StampPendingActor();
   },
 
   // Host broadcasts current state to all joiners via Multiplayer4
