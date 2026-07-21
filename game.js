@@ -590,6 +590,90 @@ const Game = {
     this._mpBroadcast();
   },
 
+  // ===================== COMMAND PIPELINE (Step 1) =====================
+  // One validated intake for PLAYER-ORIGINATED actions. Every action a human
+  // takes — play a card, play a trick, jump — enters here as a typed command
+  // { type, payload, actor? }. submitCommand decides, in ONE place:
+  //   1. who is acting (actor defaults to this client's local seat),
+  //   2. whether they own the target (ownership validation), and
+  //   3. whether to APPLY locally (solo / host) or FORWARD to the host (guest).
+  // This replaces the forward-or-apply guard that was copy-pasted at the top
+  // of playCard / playCardFree / playTrick / playJumpCard. The backbone is
+  // unchanged — still host-authoritative + snapshot broadcast, and the wire
+  // messages are the exact ones _mpApplyAction already understands.
+  //
+  // NOT for engine-internal calls. Abilities, AI, and summon code keep calling
+  // the engine functions directly — those aren't player commands and must
+  // never be re-validated or forwarded. Only UI action handlers submit here.
+  //
+  // Step 1 scope: submitCommand is the single validated DOOR. It resolves +
+  // ownership-checks the target once, then dispatches to the existing engine
+  // entry point — which still owns the guest-forward / SFX-wrapper / _silentSim
+  // behavior it always had, so this layer changes ZERO runtime behavior. The
+  // per-function guest-forward guards therefore stay for now; a later step
+  // relocates forwarding into the pipeline (and moves the SFX trigger with it).
+  // 2v2 and prompt resolutions are not routed here yet.
+
+  // Which seat THIS client's human controls. Solo and 1v1 (host OR guest) all
+  // render the local human as 'player' — the guest's state is seat-flipped —
+  // so the local seat is uniformly 'player'.
+  _localSeat() { return 'player'; },
+
+  // Resolve the card/trick instance a command refers to, from the actor's own
+  // hand. Accepts a pre-resolved object (local UI has it) or an id (the wire).
+  _cmdCard(actor, p) {
+    if (p.card) return p.card;
+    const hand = (this.state[actor] && this.state[actor].hand) || [];
+    return hand.find(c => c.id === p.cardId) || null;
+  },
+  _cmdTrick(actor, p) {
+    if (p.trick) return p.trick;
+    const th = (this.state[actor] && this.state[actor].trickHand) || [];
+    return th.find(t => t.id === p.trickId) || null;
+  },
+
+  COMMANDS: {
+    playCard: {
+      resolve(G, actor, p) { return G._cmdCard(actor, p); },
+      apply(G, actor, p, card) { return G.playCard(actor, card, p.lane); },
+    },
+    playCardFree: {
+      resolve(G, actor, p) { return G._cmdCard(actor, p); },
+      apply(G, actor, p, card) { return G.playCardFree(actor, card, p.lane); },
+    },
+    playTrick: {
+      resolve(G, actor, p) { return G._cmdTrick(actor, p); },
+      apply(G, actor, p, trick) { return G.playTrick(actor, trick); },
+    },
+    playJump: {
+      resolve(G, actor, p) { const c = G._cmdCard(actor, p); return (c && c.jumpReady) ? c : null; },
+      apply(G, actor, p, card) { return G.playJumpCard(actor, card); },
+    },
+  },
+
+  // The single door. Returns the engine fn's result; false when the command
+  // is unknown or the actor doesn't own the target.
+  submitCommand(cmd) {
+    if (!cmd || !cmd.type) return false;
+    const def = this.COMMANDS[cmd.type];
+    if (!def) { console.warn('[cmd] unknown command type:', cmd.type); return false; }
+    const p = cmd.payload || {};
+    // Normalize object ↔ id so both the local object and the wire id are set.
+    if (p.card && p.cardId == null) p.cardId = p.card.id;
+    if (p.trick && p.trickId == null) p.trickId = p.trick.id;
+    const actor = cmd.actor || this._localSeat();
+    // Ownership, decided ONCE at the door: the target must belong to the
+    // actor's own hand. Previously this was implicit / trusted from the caller.
+    const target = def.resolve ? def.resolve(this, actor, p) : null;
+    if (def.resolve && !target) {
+      console.warn('[cmd] ownership/resolve failed:', cmd.type, 'actor=', actor);
+      return false;
+    }
+    // Dispatch to the existing engine entry point. It keeps its own
+    // guest-forward / _silentSim / SFX behavior, so nothing else changes yet.
+    return def.apply(this, actor, p, target);
+  },
+
   // Apply an action message arriving from the wire. `actor` is the
   // owner side ('player' or 'ai') the action originated from — for
   // host receiving guest msgs, actor is always 'ai' (the guest sits

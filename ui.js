@@ -16006,7 +16006,7 @@ const UI = {
           el.onclick = () => { if (UI.showAITrickToast) UI.showAITrickToast("Can't play that", 'Blocked by Batman — card is locked this turn.', 'error'); };
         } else if (card.jumpReady && hasOpen) {
           el.classList.add('jump-ready');
-          el.onclick = () => Game.playJumpCard('player', card);
+          el.onclick = () => Game.submitCommand({ type: 'playJump', payload: { card } });
         } else if (phaseAllowsThisCard && afford && hasOpen) {
           el.classList.add('playable');
           if (s.selectedCard === card) {
@@ -17634,7 +17634,7 @@ const UI = {
           const cost = Game.getTrickCost('player', trick);
           if (Game.state.player.currency >= cost) {
             Game.state.selectedTrick = null;
-            Game.playTrick('player', trick);
+            Game.submitCommand({ type: 'playTrick', payload: { trick } });
           } else {
             this.flashUnaffordable(cost, null);
           }
@@ -17699,7 +17699,7 @@ const UI = {
       // Discard-effect cards play the instant they're clicked — gate this
       // real play on the short stagger, and shake (never silently swallow).
       if (this._playStaggerBlocked(card)) return;
-      Game.playCard('player', card, 0); this.render(); return;
+      Game.submitCommand({ type: 'playCard', payload: { card, lane: 0 } }); this.render(); return;
     }
     // Can't-afford feedback — shake the energy orb + pop a toast when
     // the player tries to select a card they don't have energy for.
@@ -18130,7 +18130,7 @@ const UI = {
     // rejected inside Game.playCard before the forward, so it flashes the
     // "guards from your hand" hint instead of being sent.
     if (Game.isMultiplayer() && Game.mp && Game.mp.role === 'guest') {
-      if (Game.playCard('player', card, i)) {
+      if (Game.submitCommand({ type: 'playCard', payload: { card, lane: i } })) {
         this._clearOrLockSelection(s);
       } else {
         this._flashRejectedLaneClick(card, s);
@@ -18149,12 +18149,12 @@ const UI = {
           if (choice.id === 'facedown_opt') {
             card._playFaceDown = true;
           }
-          if (Game.playCard('player', card, i)) this._clearOrLockSelection(s);
+          if (Game.submitCommand({ type: 'playCard', payload: { card, lane: i } })) this._clearOrLockSelection(s);
           this.render();
         });
       return;
     }
-    if (Game.playCard('player', card, i)) {
+    if (Game.submitCommand({ type: 'playCard', payload: { card, lane: i } })) {
       this._clearOrLockSelection(s);
     } else {
       // Rejected placement — never leave the tap silent. Shake the card and
@@ -18201,7 +18201,7 @@ const UI = {
     // on the same trick plays it. Clicking a different trick switches selection.
     if (s.selectedTrick === trick) {
       s.selectedTrick = null;
-      Game.playTrick('player', trick);
+      Game.submitCommand({ type: 'playTrick', payload: { trick } });
     } else {
       s.selectedTrick = trick;
     }
@@ -22154,7 +22154,7 @@ function jumpOfferPlay() {
   s.pendingJumpOffer = null;
   const card = s.player.hand.find(c => c.id === offer.cardId);
   if (card && card.jumpReady) {
-    Game.playJumpCard('player', card);
+    Game.submitCommand({ type: 'playJump', payload: { card } });
   }
   Game.resumeCombatIfWaiting();
   UI.render();
