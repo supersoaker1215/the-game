@@ -367,6 +367,53 @@ gold('RG-15 reconcile re-applies an un-acked prediction on the authoritative bas
 });
 
 // ============================================================
+// EFFECTS-AS-DATA DSL
+// ============================================================
+
+// RG-16 — the declarative DSL reproduces Omni-Man's imperative AoE
+// EXACTLY: dealing `sweep` (3) to every living enemy, identical to a
+// hand-written getEnemiesOf().forEach. Proves the migration is behavior-
+// preserving (the whole point of an effects-as-data layer).
+gold('RG-16 effects-as-data DSL matches imperative AoE (Omni-Man)', function () {
+  function boardWithEnemies() {
+    reset();
+    var self = card({ name: 'Omni-Man', owner: 'player', attack: 5, health: 9 });
+    place(self, 0, 'player');
+    var e1 = card({ name: 'E1', owner: 'ai', attack: 1, health: 5 });  place(e1, 0, 'ai');
+    var e2 = card({ name: 'E2', owner: 'ai', attack: 1, health: 4 });  place(e2, 1, 'ai');
+    var e3 = card({ name: 'E3', owner: 'ai', attack: 1, health: 10 }); place(e3, 2, 'ai');
+    return { self: self, enemies: [e1, e2, e3] };
+  }
+  var sweep = 3;
+  // (A) DSL path — Omni-Man's migrated onPlay runs through Game.runEffect.
+  var A = boardWithEnemies();
+  CARD_ABILITIES['Omni-Man'].onPlay(Game, A.self, 0);
+  var dslHp = A.enemies.map(function (e) { return e.currentHealth; });
+  // (B) Imperative reference on an identical board.
+  var B = boardWithEnemies();
+  Game.getEnemiesOf(B.self.owner).forEach(function (e) { Game.dealDamage(e, sweep, B.self); });
+  var impHp = B.enemies.map(function (e) { return e.currentHealth; });
+  eq('DSL == imperative', JSON.stringify(dslHp), JSON.stringify(impHp));
+  eq('e1 took sweep', dslHp[0], 5 - sweep);
+  eq('e2 took sweep', dslHp[1], 4 - sweep);
+  eq('e3 took sweep', dslHp[2], 10 - sweep);
+});
+
+// RG-17 — the DSL routes through the SAME primitives, so the shared rules
+// still apply: an Invincible enemy shrugs off DSL damage exactly as it
+// would imperative damage (no separate rules path to drift).
+gold('RG-17 DSL damage respects Invincible (shared primitive path)', function () {
+  reset();
+  var self = card({ name: 'Omni-Man', owner: 'player', attack: 5, health: 9 });
+  place(self, 0, 'player');
+  var tank = card({ name: 'Tank', owner: 'ai', attack: 1, health: 6 });
+  tank.invincibleTurns = 1;
+  place(tank, 0, 'ai');
+  Game.runEffect({ do: 'damage', target: 'allEnemies', amount: 3 }, { self: self, lane: 0 });
+  eq('invincible enemy untouched', tank.currentHealth, 6);
+});
+
+// ============================================================
 // RUNNER
 // ============================================================
 for (var ci = 0; ci < __cases.length; ci++) {

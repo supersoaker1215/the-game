@@ -893,6 +893,55 @@ const Game = {
     return this.state;
   },
 
+  // ===================== EFFECTS-AS-DATA (declarative DSL) =====================
+  // A card effect can be expressed as DATA — a list of {do, target, ...}
+  // steps — instead of a hand-written closure. runEffect resolves each
+  // step's target SELECTOR to concrete cards via the existing board
+  // helpers, then dispatches to the SAME engine primitives the imperative
+  // abilities already call (dealDamage, buffCard, freezeCard, …). So a
+  // declarative card and a hand-written one share one code path and one set
+  // of rules (Immunity, Invincible, the effect-validity gate all still
+  // apply inside the primitives).
+  //
+  // This is the FOUNDATION + one representative migration (Omni-Man's entry
+  // sweep). It is deliberately NOT a rewrite of all ~124 abilities — the
+  // complex ones (prompts, custom revives, multi-phase hooks) stay
+  // imperative; the DSL earns its keep on the many simple "hit these, buff
+  // those" cards, which it can now express without a bespoke closure.
+  EFFECT_TARGETS: {
+    self:              (G, self) => self ? [self] : [],
+    allEnemies:        (G, self) => G.getEnemiesOf(self.owner),
+    allAllies:         (G, self) => G.getAlliesOf(self.owner).filter(c => c !== self),
+    allAlliesAndSelf:  (G, self) => G.getAlliesOf(self.owner),
+    frontEnemy:        (G, self, lane) => { const e = (lane >= 0 && G.state.lanes[lane]) ? G.state.lanes[lane][G.opponent(self.owner)] : null; return (e && e.currentHealth > 0) ? [e] : []; },
+    adjacentEnemies:   (G, self, lane) => (lane >= 0) ? G.getAdjacentEnemiesInContext(lane, self.owner) : [],
+  },
+  EFFECT_ACTIONS: {
+    damage: (G, self, t, s) => G.dealDamage(t, s.amount | 0, self),
+    buff:   (G, self, t, s) => G.buffCard(t, s.atk | 0, s.hp | 0, self),
+    debuff: (G, self, t, s) => G.debuffCard(t, s.atk | 0, s.hp | 0, !!s.allowKill, self),
+    freeze: (G, self, t, s) => G.freezeCard(t, self, s.turns || 1),
+    stun:   (G, self, t, s) => G.stunCard(t, self, s.turns || 1),
+  },
+  // Run a declarative effect (a single step or a list) for the given card.
+  // ctx = { self, lane?, log? }. Targets are SNAPSHOT before each step runs
+  // (an action may kill/relocate mid-loop, exactly like the imperative
+  // forEach it replaces); each target is re-checked alive before it's hit.
+  runEffect(spec, ctx) {
+    if (!spec || !ctx || !ctx.self) return;
+    const self = ctx.self;
+    const lane = (ctx.lane != null) ? ctx.lane : this.findCardLane(self);
+    const steps = Array.isArray(spec) ? spec : [spec];
+    for (const step of steps) {
+      const targetFn = this.EFFECT_TARGETS[step.target || 'self'];
+      const actionFn = this.EFFECT_ACTIONS[step.do];
+      if (!targetFn || !actionFn) { console.warn('[effect] unknown target/action:', step && (step.target + '/' + step.do)); continue; }
+      const targets = targetFn(this, self, lane).slice();
+      for (const t of targets) { if (t && t.currentHealth > 0) actionFn(this, self, t, step); }
+    }
+    if (ctx.log) this.log(ctx.log);
+  },
+
   // ===================== REPLAY (record + reproduce) =====================
   // A match is fully reproducible from its SEED + the log of player COMMANDS:
   // the AI is seeded-deterministic (Game.rng re-derives its moves), so only

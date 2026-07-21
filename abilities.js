@@ -3264,9 +3264,16 @@ const CARD_ABILITIES = {
       // Roguelite Text+ override — _omniManSweep scales the AOE damage.
       // Default 3 (classic); Text+ raises to 5 so the entry sweep clears
       // 5-HP bodies and softens up everything else.
+      //
+      // Effects-as-data migration: the entry sweep is now expressed as a
+      // declarative step and run through G.runEffect (the DSL foundation),
+      // instead of a hand-written getEnemiesOf().forEach. Identical result
+      // (deal `sweep` to every living enemy) — proven by golden RG-16.
       const sweep = self._omniManSweep || 3;
-      G.getEnemiesOf(self.owner).forEach(e => G.dealDamage(e, sweep, self));
-      G.log(`Omni-Man devastates all enemies for ${sweep}!`);
+      G.runEffect(
+        { do: 'damage', target: 'allEnemies', amount: sweep },
+        { self, lane, log: `Omni-Man devastates all enemies for ${sweep}!` }
+      );
     },
     // Mobility hook — same shape as Man-Bat's. Start of Tricks, Omni-Man
     // relocates to an empty ally lane (if one exists). Stun/freeze
