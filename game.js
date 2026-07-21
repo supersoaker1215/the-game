@@ -6458,6 +6458,19 @@ const Game = {
             if (prior && prior !== c) report('idCollision:' + c.id, `id ${c.id} shared by two DIFFERENT cards (${prior.name} lane ${seenInstances.get(prior) || '?'} and ${c.name} lane ${i + 1})`);
             else seenIds.set(c.id, c);
           }
+          // Stuck-buff guard — a granted temp buff whose turn counter is
+          // non-finite can never expire, welding its stat delta on forever
+          // (the "stuck buff" class); a buff missing its prop is equally
+          // un-revertable. Both are construction errors the buff-object
+          // formalization exists to prevent.
+          if (c._grantedBuffs && c._grantedBuffs.length) {
+            for (const b of c._grantedBuffs) {
+              if (!b || b.prop == null || typeof b.turnsLeft !== 'number' || !Number.isFinite(b.turnsLeft)) {
+                report('stuckBuff:' + c.name, `${c.name} holds a malformed granted buff (prop=${b && b.prop}, turnsLeft=${b && b.turnsLeft}) — it can never expire`);
+                break;
+              }
+            }
+          }
           if (c.owner !== side) report('owner:' + c.name, `${c.name} sits on '${side}' side but owner='${c.owner}' (flip/placement class)`);
           if (c.isEnvironment) report('envSlot:' + c.name, `${c.name} is an ENVIRONMENT in a combat slot (lane ${i + 1})`);
           if (!Number.isFinite(c.attack) || !Number.isFinite(c.currentHealth) || !Number.isFinite(c.maxHealth)) {
@@ -8931,22 +8944,56 @@ const Game = {
   },
 
   // Apply a temporary buff that auto-expires after `duration` turns (default 1).
-  // `buffs` is an object: numeric values are additive (+N), boolean values are set-and-revert.
-  // Example: G.grantTempBuff(ally, { attack: 2, maxHealth: 2, currentHealth: 2 })
-  grantTempBuff(target, buffs, duration = 1) {
+  // `buffs` is an object: numeric values are additive (+N), boolean values are
+  // set-and-revert. Optional `source` tags each buff object with its granter's
+  // id/name so a source-death handler can strip exactly the buffs that source
+  // handed out (removeGrantedBuffsFromSource) without touching buffs from other
+  // granters on the same target.
+  // Example: G.grantTempBuff(ally, { attack: 2, maxHealth: 2, currentHealth: 2 }, 1, self)
+  grantTempBuff(target, buffs, duration = 1, source) {
     if (!target || !buffs) return;
     if (this._trickBlocked(target)) return;
     if (!target._grantedBuffs) target._grantedBuffs = [];
+    const sourceId = (source && source.id != null) ? source.id : null;
+    const sourceName = (source && source.name) || null;
     Object.entries(buffs).forEach(([prop, value]) => {
       if (typeof value === 'boolean') {
         const prev = target[prop];
         target[prop] = value;
-        target._grantedBuffs.push({ prop, prev, set: true, turnsLeft: duration });
+        target._grantedBuffs.push({ prop, prev, set: true, turnsLeft: duration, sourceId, sourceName });
       } else {
         target[prop] = (target[prop] || 0) + value;
-        target._grantedBuffs.push({ prop, delta: value, turnsLeft: duration });
+        target._grantedBuffs.push({ prop, delta: value, turnsLeft: duration, sourceId, sourceName });
       }
     });
+  },
+
+  // Revert a single granted buff on `c`. Shared by the turn-based expiry AND
+  // the source-death cleanup so the two unwind paths can never drift — one
+  // definition of "how a buff comes back off".
+  _revertGrantedBuff(c, b) {
+    if (b.set) {
+      // Boolean set-and-revert. If `prev` was captured as undefined (e.g. the
+      // card was mid-creation or the prop wasn't yet initialized), restoring
+      // undefined corrupts the stat. Coerce numeric stats back to safe bases.
+      c[b.prop] = b.prev;
+      if (b.prop === 'currentHealth' && (typeof c.currentHealth !== 'number' || !Number.isFinite(c.currentHealth))) c.currentHealth = c.baseHealth || 1;
+      if (b.prop === 'maxHealth'     && (typeof c.maxHealth     !== 'number' || !Number.isFinite(c.maxHealth)))     c.maxHealth     = c.baseHealth || 1;
+      if (b.prop === 'attack'        && (typeof c.attack        !== 'number' || !Number.isFinite(c.attack)))        c.attack        = c.baseAttack || 0;
+    } else {
+      c[b.prop] = (c[b.prop] || 0) - b.delta;
+      if (b.prop === 'attack' || b.prop === 'evadeCharges' || b.prop === 'armorValue' || b.prop === 'splashRange') {
+        c[b.prop] = Math.max(0, c[b.prop]);
+      }
+      if (b.prop === 'maxHealth') {
+        // Ensure both maxHealth AND currentHealth survive the clamp
+        // as finite numbers before the Math.min below is reached.
+        if (typeof c.maxHealth !== 'number' || !Number.isFinite(c.maxHealth)) c.maxHealth = c.baseHealth || 1;
+        if (typeof c.currentHealth !== 'number' || !Number.isFinite(c.currentHealth)) c.currentHealth = c.baseHealth || 1;
+        c.currentHealth = Math.min(c.currentHealth, c.maxHealth);
+      }
+      if (b.prop === 'currentHealth') c[b.prop] = Math.max(0, c[b.prop]);
+    }
   },
 
   // Decrement and expire granted temp buffs at end of turn.
@@ -8956,29 +9003,24 @@ const Game = {
       c._grantedBuffs = c._grantedBuffs.filter(b => {
         b.turnsLeft--;
         if (b.turnsLeft > 0) return true;
-        if (b.set) {
-          // Boolean set-and-revert. If `prev` was captured as undefined
-          // (e.g. the card was mid-creation or the prop wasn't yet
-          // initialized), restoring undefined corrupts the stat. Coerce
-          // numeric stats back to safe bases.
-          c[b.prop] = b.prev;
-          if (b.prop === 'currentHealth' && (typeof c.currentHealth !== 'number' || !Number.isFinite(c.currentHealth))) c.currentHealth = c.baseHealth || 1;
-          if (b.prop === 'maxHealth'     && (typeof c.maxHealth     !== 'number' || !Number.isFinite(c.maxHealth)))     c.maxHealth     = c.baseHealth || 1;
-          if (b.prop === 'attack'        && (typeof c.attack        !== 'number' || !Number.isFinite(c.attack)))        c.attack        = c.baseAttack || 0;
-        } else {
-          c[b.prop] = (c[b.prop] || 0) - b.delta;
-          if (b.prop === 'attack' || b.prop === 'evadeCharges' || b.prop === 'armorValue' || b.prop === 'splashRange') {
-            c[b.prop] = Math.max(0, c[b.prop]);
-          }
-          if (b.prop === 'maxHealth') {
-            // Ensure both maxHealth AND currentHealth survive the clamp
-            // as finite numbers before the Math.min below is reached.
-            if (typeof c.maxHealth !== 'number' || !Number.isFinite(c.maxHealth)) c.maxHealth = c.baseHealth || 1;
-            if (typeof c.currentHealth !== 'number' || !Number.isFinite(c.currentHealth)) c.currentHealth = c.baseHealth || 1;
-            c.currentHealth = Math.min(c.currentHealth, c.maxHealth);
-          }
-          if (b.prop === 'currentHealth') c[b.prop] = Math.max(0, c[b.prop]);
-        }
+        this._revertGrantedBuff(c, b);
+        return false;
+      });
+    });
+  },
+
+  // Source-death cleanup — strip (and unwind) every granted buff a given source
+  // card handed out, wherever it landed. A While-Active / "while I stand" buff
+  // whose granter just left the board should not linger (the "stuck buff"
+  // class). Only touches buffs tagged with this sourceId, so timed buffs from
+  // OTHER granters on the same target are left to expire on their own clock.
+  removeGrantedBuffsFromSource(sourceId) {
+    if (sourceId == null) return;
+    this.getAllCardsOnBoard().forEach(c => {
+      if (!c._grantedBuffs || !c._grantedBuffs.length) return;
+      c._grantedBuffs = c._grantedBuffs.filter(b => {
+        if (b.sourceId !== sourceId) return true;
+        this._revertGrantedBuff(c, b);
         return false;
       });
     });

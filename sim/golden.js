@@ -261,6 +261,61 @@ gold('RG-10 checkInvariants flags an id collision (two objects, one id)', functi
 });
 
 // ============================================================
+// ENCHANTMENT / BUFF-OBJECT SYSTEM
+// ============================================================
+
+// RG-11 — timed buff lifecycle: grantTempBuff adds the delta and tags the
+// source; expireGrantedBuffs reverts it once the timer runs out.
+gold('RG-11 grantTempBuff applies + auto-expires, tagged with its source', function () {
+  reset();
+  var src = card({ name: 'Buffer', owner: 'ai' });
+  var tgt = card({ name: 'Target', owner: 'ai', attack: 2, health: 5 });
+  place(tgt, 0, 'ai');
+  Game.grantTempBuff(tgt, { attack: 3 }, 1, src);
+  eq('buffed attack', tgt.attack, 5);
+  eq('buff count', tgt._grantedBuffs.length, 1);
+  eq('buff tagged sourceId', tgt._grantedBuffs[0].sourceId, src.id);
+  Game.expireGrantedBuffs();          // one tick → turnsLeft 1 -> 0 -> revert
+  eq('reverted attack', tgt.attack, 2);
+  eq('buff cleared', tgt._grantedBuffs.length, 0);
+});
+
+// RG-12 — source-death cleanup strips ONLY the dying source's buffs and
+// leaves another granter's buff on the same target intact.
+gold('RG-12 removeGrantedBuffsFromSource strips only that source', function () {
+  reset();
+  var s1 = card({ name: 'S1', owner: 'ai' });
+  var s2 = card({ name: 'S2', owner: 'ai' });
+  var tgt = card({ name: 'Target', owner: 'ai', attack: 1, health: 9 });
+  place(tgt, 0, 'ai');
+  Game.grantTempBuff(tgt, { attack: 2 }, 5, s1);   // long timer, from s1
+  Game.grantTempBuff(tgt, { attack: 4 }, 5, s2);   // long timer, from s2
+  eq('both applied', tgt.attack, 7);
+  Game.removeGrantedBuffsFromSource(s1.id);         // s1 leaves the board
+  eq('only s1 stripped', tgt.attack, 5);            // 7 - 2
+  eq('one buff left', tgt._grantedBuffs.length, 1);
+  eq('remaining is s2', tgt._grantedBuffs[0].sourceId, s2.id);
+});
+
+// RG-13 — the stuck-buff audit fires on a buff that can never expire
+// (non-finite turn counter) and stays silent on a well-formed buff.
+gold('RG-13 checkInvariants flags a stuck (non-expiring) buff', function () {
+  reset();
+  var tgt = card({ name: 'Cursed', owner: 'ai', attack: 1, health: 9 });
+  place(tgt, 0, 'ai');
+  Game.grantTempBuff(tgt, { attack: 2 }, 1);
+  tgt._grantedBuffs[0].turnsLeft = Infinity;        // corrupt → never expires
+  var v = Game.checkInvariants('golden');
+  eq('stuck buff reported', v.some(function (l) { return /can never expire/.test(l); }), true);
+  // Well-formed buff → silent.
+  reset();
+  var ok = card({ name: 'Fine', owner: 'ai', attack: 1, health: 9 });
+  place(ok, 0, 'ai');
+  Game.grantTempBuff(ok, { attack: 2 }, 2);
+  eq('no false positive', Game.checkInvariants('golden').some(function (l) { return /can never expire/.test(l); }), false);
+});
+
+// ============================================================
 // RUNNER
 // ============================================================
 for (var ci = 0; ci < __cases.length; ci++) {
