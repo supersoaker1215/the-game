@@ -6266,15 +6266,21 @@ const Game = {
   // "Copy bug report" — a violation seen in telemetry = a bug caught before
   // anyone had to notice it on the board.
   _invariantSeen: null,
+  // Returns an array of violation strings (empty == clean) so callers — the
+  // live engine (fire-and-forget) AND the headless fuzzer — share ONE
+  // invariant definition instead of drifting copies. Console + __clbErrors
+  // reporting stays deduped per round; the RETURNED array collects every hit.
   checkInvariants(tag) {
     const s = this.state;
-    if (!s || !s.lanes || s.gameOver) return;
+    const violations = [];
+    if (!s || !s.lanes || s.gameOver) return violations;
     const report = (key, msg) => {
+      const line = `[INVARIANT${tag ? ' @' + tag : ''}] ${msg}`;
+      violations.push(line); // always collect for the caller (fuzz reads this)
       this._invariantSeen = this._invariantSeen || new Set();
       const k = key + '|' + (s.round || 0);
-      if (this._invariantSeen.has(k)) return;
+      if (this._invariantSeen.has(k)) return; // console/telemetry dedup only
       this._invariantSeen.add(k);
-      const line = `[INVARIANT${tag ? ' @' + tag : ''}] ${msg}`;
       console.error(line);
       try {
         if (typeof window !== 'undefined' && window.__clbErrors) {
@@ -6321,6 +6327,7 @@ const Game = {
       const bm = p.blockMeter | 0;
       if (bm < 0 || bm > (this.BLOCK_MAX || 8)) report('block:' + side, `${side} block meter out of range: ${p.blockMeter}`);
     });
+    return violations;
   },
 
   // ===================== GAME API (for card effects) =====================

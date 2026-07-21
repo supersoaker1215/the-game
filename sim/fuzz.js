@@ -121,6 +121,20 @@ function checkInvariants(state, ctx) {
     violations.push('exceeded max rounds (' + ctx.maxRounds + ') without gameOver');
   }
 
+  // ALSO run the ENGINE's own invariant sweep (Game.checkInvariants) so the
+  // fuzzer enforces exactly what the live game asserts — one invariant
+  // definition, no drift between the sim's copy and the engine's. The engine
+  // sweep returns its violation strings (its console/telemetry dedup is
+  // independent of the returned array).
+  try {
+    if (typeof Game !== 'undefined' && typeof Game.checkInvariants === 'function') {
+      var engineV = Game.checkInvariants('fuzz') || [];
+      for (var e = 0; e < engineV.length; e++) violations.push(engineV[e]);
+    }
+  } catch (err) {
+    violations.push('engine checkInvariants threw: ' + (err && err.message ? err.message : err));
+  }
+
   return violations;
 }
 
