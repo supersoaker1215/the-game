@@ -19056,6 +19056,95 @@ body {
   padding-top:    max(4px, env(safe-area-inset-top));
 }
 
+/* The TRICKS row is the last element in #game-area — the bottom-most thing
+   on screen — and it was the one interactive row missing from the list above.
+   env(safe-area-inset-bottom) alone doesn't save it either: on iPhone Safari
+   the floating URL/search bar is browser chrome that overlays the viewport and
+   is NOT reported as a safe-area inset, so the bottom ~44-56px of the page sits
+   underneath it. That put the trick cards under the search bar where they
+   couldn't be tapped at all. User report: "on my phone i cant play my tricks
+   its blocked by the search bar."
+   Reserve the inset PLUS clearance for the browser bar on touch layouts. */
+.tricks-section {
+  padding-bottom: max(10px, env(safe-area-inset-bottom));
+}
+@media (hover: none) and (pointer: coarse) {
+  .tricks-section {
+    padding-bottom: calc(56px + env(safe-area-inset-bottom)) !important;
+  }
+}
+
+/* ============================================================
+   CODEX ON PHONES
+   The existing mobile block shrank the .encyc-GRID (2 columns, 8px gap)
+   but never touched the CARD, which still carried min-width:220px and
+   min-height:420px from the desktop rule. Two 220px tracks + padding is
+   ~466px of content inside a 375px screen, so the grid overflowed and the
+   right-hand column was sliced off — and every card was a 420px-tall slab,
+   which is what made the page read as giant cards separated by dead space.
+   `1fr` couldn't save it either: 1fr floors at min-content, so the fixed
+   min-width won. minmax(0, 1fr) is what actually lets a track shrink.
+
+   .encyc-head had a second problem: its base rule is `display: grid` with
+   `grid-template-columns: 1fr auto`, and the mobile override tried to fix it
+   with `flex-direction: column` — a property grid ignores outright. So the
+   tab row stayed pinned in a squeezed auto column and ran off the edge.
+   Switching it to flex on small screens is what makes the stacking apply.
+   Same @container the rest of the mobile rules use, so it fires on real
+   phones AND under the desktop "Mobile preview" toggle. */
+@container (max-width: 520px) {
+  .encyc-head {
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: flex-start !important;
+    gap: 6px !important;
+    margin-bottom: 8px !important;
+  }
+  .encyc-tabs {
+    flex-wrap: wrap;
+    gap: 5px !important;
+  }
+  /* The dead space between the tabs, the search box and the cost chips was
+     `flex: 1 1 240px` on the search wrapper. That's sized for the desktop ROW
+     layout, where 240px is a width basis. The mobile rule flips the toolbar to
+     `flex-direction: column`, which re-points flex at the VERTICAL axis — so
+     the search wrapper became a 240px-TALL box that also grew to eat slack,
+     pushing everything apart. Pin it to its content height instead. */
+  .encyc-toolbar {
+    flex: 0 0 auto !important;
+    gap: 8px !important;
+  }
+  .encyc-toolbar .db-search-wrap {
+    flex: 0 0 auto !important;
+    width: 100% !important;
+    max-width: none !important;
+    min-width: 0 !important;
+  }
+  .encyc-toolbar .db-cost-row,
+  .encyc-rl-toggle { flex: 0 0 auto !important; }
+  .encyc-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 10px !important;
+    padding: 10px 8px 12px !important;
+  }
+  .encyc-grid .card.hand-card.enc-card {
+    min-width: 0 !important;      /* release the 220px floor so 2 fit */
+    max-width: none !important;
+    min-height: 0 !important;     /* no 420px slabs */
+    margin: 0 !important;
+    contain-intrinsic-size: auto 240px;
+  }
+  /* Scale the card internals down with the card so the text still reads. */
+  .encyc-grid .card.hand-card.enc-card .card-portrait { aspect-ratio: 1 / 1; }
+  .encyc-grid .card.hand-card.enc-card .card-name { font-size: 10px; }
+  .encyc-grid .card.hand-card.enc-card .card-desc { font-size: 9px; line-height: 1.25; }
+  .encyc-grid .trick-card.enc-trick {
+    min-width: 0 !important;
+    max-width: none !important;
+    width: 100% !important;
+  }
+}
+
 /* ---- Reduced-motion gates for the above ---- */
 @media (prefers-reduced-motion: reduce) {
   .card.hand-card::after,

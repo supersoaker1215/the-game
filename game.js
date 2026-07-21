@@ -3810,6 +3810,8 @@ const Game = {
         c.mindControlTarget = null;
         c.damageImmuneTurn = false;
       }
+      // Iron Giant's rescue shield is scoped to the combat that triggered it.
+      delete c._igSavedThisCombat;
       if (c._recurringBT) c.beforeTricksFired = false;
       if (c.tauntTurns > 0 && !c.permanentTaunt) c.tauntTurns--;
       if (c.tauntTurns === 0 && c.tauntOnlyLowestAttack) c.tauntOnlyLowestAttack = false;
@@ -4600,6 +4602,19 @@ const Game = {
   _classifyAbsorb(target, canEvade) {
     if (!target) return null;
     if (target.invincibleTurns > 0) return 'invincible';
+    // An Iron Giant sacrifice means "it survives" — so the ally is shielded for
+    // the REST of this combat round. Without this the save was worthless in a
+    // real fight: combat applies every lane's damage, queues the deaths, and
+    // the intercept restores the ally to 1 HP — then the remaining swings in
+    // that same round land on the restored card and kill it anyway. With two
+    // allies dying at once, BOTH Giants got spent and BOTH allies still died.
+    // User report: "iron giant protect 2 cards, when both cards died at the
+    // same time he can only save one." Cleared in postCombat.
+    // Gated on _inCombat as well as the flag: postCombat clears it from every
+    // card ON THE BOARD, but an instance that leaves play mid-combat (bounced
+    // to hand by Phantom Zone, say) would otherwise carry a stale shield into
+    // a later round. Scoping the check to live combat makes that impossible.
+    if (target._igSavedThisCombat && this.state && this.state._inCombat) return 'immunity';
     if (target.hasDamageImmunity) return 'immunity';
     if (canEvade && (target.evadeCharges || 0) > 0) return 'evade';
     return null;
@@ -6580,6 +6595,11 @@ const Game = {
         this.state[owner].discardPile.push(ig);
         card.currentHealth = restoreHp;
         card._deathHandled = false;
+        // Shield the rescued ally for the remainder of THIS combat round (see
+        // _classifyAbsorb). "It survives" has to mean it survives the fight
+        // that killed it — otherwise the still-pending swings from this same
+        // round immediately re-kill it and the sacrifice buys nothing.
+        card._igSavedThisCombat = true;
         this.log(`[IRON GIANT] Iron Giant gives himself — ${card.name} survives at ${restoreHp} HP!`);
         if (typeof UI !== 'undefined' && UI.sfx && UI.sfx.playCardSfx) {
           try { UI.sfx.playCardSfx('Iron Giant', 'ability'); } catch (e) {}

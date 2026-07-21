@@ -17475,8 +17475,18 @@ const UI = {
     };
     const laneEls = () => [...document.querySelectorAll('.board > .lane')];
     const laneIdxUnder = (x, y) => {
-      const el = document.elementFromPoint(x, y);
-      const lane = el && el.closest && el.closest('.board .lane');
+      // Probe the finger first, then progressively further UP. The drag ghost
+      // is drawn above the fingertip (translate -62% Y), so players naturally
+      // line the CARD up with the lane while their finger sits below it — on a
+      // tablet that gap is big enough that a finger-only hit-test lands on the
+      // hand row and the drop silently cancels. Checking a few points up the
+      // ghost makes the drop read as "where the card looks like it is."
+      let lane = null;
+      for (const dy of [0, -40, -80, -120]) {
+        const el = document.elementFromPoint(x, y + dy);
+        lane = el && el.closest && el.closest('.board .lane');
+        if (lane) break;
+      }
       if (!lane) return null;
       const i = laneEls().indexOf(lane);
       return i >= 0 ? i : null;
@@ -17527,10 +17537,24 @@ const UI = {
       const t = e.touches[0];
       const dx = t.clientX - d.x0, dy = t.clientY - d.y0;
       if (!d.moved) {
-        // Engage a play-drag only on an UPWARD, mostly-vertical gesture. A
-        // horizontal move = hand scroll → abandon so native scroll works.
-        if (!(dy < -10 && Math.abs(dy) > Math.abs(dx))) {
-          if (Math.abs(dx) > 12) d = null;
+        // Engage as soon as the finger LIFTS the card (>10px upward),
+        // whatever the horizontal component.
+        //
+        // This used to also demand the gesture be mostly-VERTICAL
+        // (|dy| > |dx|) and cancelled outright once |dx| passed 12. On a
+        // phone that's fine — the lanes sit directly above the hand, so every
+        // real drag is near-vertical. On an iPad the 8 lanes fan out across a
+        // much wider board, so dragging to an outer lane is steeply diagonal:
+        // |dx| crossed 12 before the lift registered, the drag was killed, and
+        // since tablets have no tap-to-place fallback (tap opens inspect) the
+        // card simply could not be played. User report: iPad players "having
+        // trouble placing the cards."
+        //
+        // Native hand-scrolling still works: a sideways swipe never lifts the
+        // card upward, so it falls through to the abandon branch below.
+        const liftedUp = dy < -10;
+        if (!liftedUp) {
+          if (Math.abs(dx) > 12 && Math.abs(dx) > Math.abs(dy)) d = null;
           return;
         }
         d.moved = true;
