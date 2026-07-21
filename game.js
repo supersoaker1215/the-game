@@ -2902,8 +2902,13 @@ const Game = {
     card.owner = opp;
     this.log(`[STOLEN] ${card.name} is intercepted by Batman Who Laughs!`);
     const bwl = this.getAllCardsOf(opp).find(c => c.name === 'The Batman Who Laughs');
-    if (opp === 'player') {
-      // Player chooses keep or destroy via prompt.
+    // isHuman(opp), NOT `opp === 'player'`. The 'ai' seat is a REAL PERSON in
+    // 1v1 online (the guest), hotseat, and 2v2 (Team B) — the old literal seat
+    // check handed all of them the AI's auto-decision, so those players were
+    // never offered the keep/destroy choice at all. User report: "batman who
+    // laughs hasnt been giving me the option to keep the card or kill."
+    if (this.isHuman(opp)) {
+      // Owner chooses keep or destroy via prompt.
       this.state[opp].stolenByBWL = { card, bwl };
       UI.render();
       this._startPromptTimeout(() => {
@@ -3213,7 +3218,9 @@ const Game = {
       card.owner = opp;
       this.log(`[STOLEN] ${card.name} is intercepted by Batman Who Laughs (via jump)!`);
       const bwl = this.getAllCardsOf(opp).find(c => c.name === 'The Batman Who Laughs');
-      if (opp === 'player') {
+      // Same isHuman gate as _resolveBwlIntercept — the jump path had the
+      // identical hardcoded-seat bug.
+      if (this.isHuman(opp)) {
         this.state[opp].stolenByBWL = { card, bwl };
         UI.render();
         this._startPromptTimeout(() => {

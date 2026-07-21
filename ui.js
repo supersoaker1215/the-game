@@ -5580,7 +5580,7 @@ const UI = {
     else { this._removeFloatingPrompt('time-stone-modal'); }
 
     // Batman Who Laughs steal choice
-    if (s.player.stolenByBWL) { this.renderBWLChoice(s); return; }
+    if (this._bwlSeat(s)) { this.renderBWLChoice(s); return; }
 
     // Kang deck choice — in 1v1 online the guest's Kang (owner==='ai') is
     // resolved on the guest's client, so the host must NOT render the guest's
@@ -13055,8 +13055,29 @@ const UI = {
 
   // ===================== BATMAN WHO LAUGHS CHOICE =====================
 
+  // Which seat is holding a pending Batman Who Laughs keep/destroy choice —
+  // or null. BWL's owner can be EITHER seat, so the prompt has to follow the
+  // card rather than assume 'player'.
+  //
+  // Solo, 1v1 online and hotseat all flip the state to the viewer's
+  // perspective, so the local seat there is always 'player'. 2v2 does NOT flip
+  // the side proxies — it maps each TEAM to a side — so a Team B player's own
+  // seat is 'ai', and reading s.player would have shown them the other team's
+  // prompt (or, more often, nothing at all).
+  _bwlSeat(s) {
+    if (!s) return null;
+    let seat = 'player';
+    if (Game.is2v2 && Game.is2v2() && s.twoVTwo && s.twoVTwo.you) {
+      const me = s.twoVTwo.players[s.twoVTwo.you];
+      if (me && Game._2v2TeamSide) seat = Game._2v2TeamSide[me.team] || 'player';
+    }
+    return (s[seat] && s[seat].stolenByBWL) ? seat : null;
+  },
+
   renderBWLChoice(s) {
-    const card = s.player.stolenByBWL.card;
+    const _seat = this._bwlSeat(s) || 'player';
+    if (!s[_seat] || !s[_seat].stolenByBWL) return;
+    const card = s[_seat].stolenByBWL.card;
     this._showDecisionModal(
       'Batman Who Laughs — Intercepted',
       `You intercepted <strong>${card.name}</strong> (${card.attack}/${card.currentHealth}) · ${this.formatDesc(card.desc)}`,
@@ -16269,7 +16290,7 @@ const UI = {
       return;
     }
 
-    const abilityPending = s.pendingCardChoice || s.pendingLaneChoice || s.pendingBlockTrick || s.pendingKangChoice || s.player.stolenByBWL;
+    const abilityPending = s.pendingCardChoice || s.pendingLaneChoice || s.pendingBlockTrick || s.pendingKangChoice || this._bwlSeat(s);
 
     // No Undo in online 1v1 — undo is a local-only state restore, so one
     // side rewinding desyncs the two clients (Game.snapshot/undo are also
@@ -22232,10 +22253,14 @@ function cardChoicePick(idx) {
 
 function bwlChoiceKeep() {
   const s = Game.state;
-  const data = s.player.stolenByBWL;
+  // Resolve the OWNING seat — BWL's owner may be the 'ai' side (1v1 online
+  // guest, hotseat P2, 2v2 Team B), not just 'player'.
+  const seat = UI._bwlSeat(s);
+  if (!seat) return;
+  const data = s[seat].stolenByBWL;
   if (!data) return;
-  s.player.stolenByBWL = null;
-  Game.addToHand('player', data.card);
+  s[seat].stolenByBWL = null;
+  Game.addToHand(seat, data.card, data.bwl);
   Game.log(`  [BWL] You keep ${data.card.name} in hand!`);
   UI.draftEl.style.display = 'none';
   document.getElementById('game-area').style.display = '';
@@ -22250,9 +22275,11 @@ function bwlChoiceKeep() {
 
 function bwlChoiceDestroy() {
   const s = Game.state;
-  const data = s.player.stolenByBWL;
+  const seat = UI._bwlSeat(s);
+  if (!seat) return;
+  const data = s[seat].stolenByBWL;
   if (!data) return;
-  s.player.stolenByBWL = null;
+  s[seat].stolenByBWL = null;
   // Only buff BWL if he's still alive — if he died after the steal
   // armed but before the player chose Destroy, the +2/+2 should not
   // land on a corpse. The card is destroyed regardless (already
