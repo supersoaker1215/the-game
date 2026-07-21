@@ -5549,9 +5549,14 @@ const UI = {
     if (is2v2OnlineDraft) { this._render2v2OnlineDraftPolished(s); return; }
     if (is2v2LocalDraft)  { this._render2v2LocalDraft(s); return; }
     if (is2v2) {
-      if (is2v2OnlineGame) { this._render2v2OnlineBoard(s); return; }
-      if (is2v2LocalGame)  { this._render2v2LocalGame(s); return; }
-      this.render2v2(s); return;
+      // The 2v2 board renderers return before the main path's choice-tray
+      // call (line ~5772), so scry/discover prompts (Mobius Chair, Dr.
+      // Strange, Deadpool steal…) raised a banner but never drew the pick
+      // cards. Render the tray here too — it self-gates on _2v2ActingPlayer,
+      // so only the player who owns the choice sees it interactively.
+      if (is2v2OnlineGame) { this._render2v2OnlineBoard(s); this.renderInlineChoiceFallback(s); return; }
+      if (is2v2LocalGame)  { this._render2v2LocalGame(s); this.renderInlineChoiceFallback(s); return; }
+      this.render2v2(s); this.renderInlineChoiceFallback(s); return;
     }
     if (isRoguelite && typeof Roguelite !== 'undefined') {
       if (Roguelite.renderPhase(s)) return;

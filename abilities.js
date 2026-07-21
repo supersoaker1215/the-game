@@ -1818,6 +1818,12 @@ const CARD_ABILITIES = {
       // still has reviveCharges). Default false (classic single-use);
       // Text+ true makes him a recurring slasher.
       if (!self._jasonNoOnceLimit && G.state[self.owner].jasonReviveUsed) {
+        // Once-per-game lock hit — consume the keyword charge so the generic
+        // Revive path in handleDeath can't fire a second full revive behind
+        // our back (double-fire class: a replayed/resurrected/copied Jason
+        // carries a fresh Revive 1 that would bypass this rule). Doomsday
+        // template.
+        self.reviveCharges = 0;
         return; // already used this game
       }
       if (self.reviveCharges > 0) {
@@ -4457,7 +4463,11 @@ const CARD_ABILITIES = {
         card._brDeathHooked = true;
         const orig = card.onDeath || null;
         card.onDeath = function(G, self, laneIdx) {
-          if (orig) orig.call(this, G, self, laneIdx);
+          // Propagate death-prevention (see Open Water) — a burning card that
+          // survives via a custom revive must not also spawn Freddy off a
+          // canceled death.
+          const prevented = orig ? orig.call(this, G, self, laneIdx) : false;
+          if (prevented) return true;
           const AB = CARD_ABILITIES['Boiler Room'];
           if (AB && !boilerRoom._brSpawned) {
             const brLane = G.findCardLane(boilerRoom);
@@ -4683,7 +4693,13 @@ const CARD_ABILITIES = {
       card._owHooked = true;
       const origDeath = card.onDeath || null;
       card.onDeath = function(G2, dying, laneIdx) {
-        if (origDeath) origDeath.call(this, G2, dying, laneIdx);
+        // Propagate the wrapped card's death-prevention result — a custom
+        // reviver (Jason/Wolverine/Mahoraga/Doomsday, Text+ Grundy/Spawn)
+        // returns truthy to CANCEL the death. Dropping it here made the
+        // reviver burn its charge, restore HP, then die anyway AND spawn
+        // Jaws off a death that never happened.
+        const prevented = origDeath ? origDeath.call(this, G2, dying, laneIdx) : false;
+        if (prevented) return true;
         if (!self._owSpawned) {
           const owLane = G2.findCardLane(self);
           if (owLane >= 0) {
