@@ -219,6 +219,48 @@ gold('RG-8 canTrickLand composite + dead/environment rejection', function () {
 });
 
 // ============================================================
+// ENTITY REGISTRY (id -> live card)
+// ============================================================
+
+// RG-9 — createCardInstance registers; findCard resolves the id back to
+// the SAME live instance; unknown ids return null; a rebuild picks up
+// cards wherever they live (board or hand).
+gold('RG-9 entity registry: findCard resolves ids to the live instance', function () {
+  reset();
+  var a = card({ name: 'Alpha', owner: 'ai' });
+  var b = card({ name: 'Beta',  owner: 'player' });
+  eq('findCard(a) is a', Game.findCard(a.id) === a, true);
+  eq('findCard(b) is b', Game.findCard(b.id) === b, true);
+  eq('unknown id -> null', Game.findCard(999999), null);
+  // Place on board + hand, rebuild, still resolvable to the same objects.
+  place(a, 0, 'ai');
+  Game.state.player.hand = [b];
+  Game.rebuildEntityIndex();
+  eq('board card resolves', Game.findCard(a.id) === a, true);
+  eq('hand card resolves',  Game.findCard(b.id) === b, true);
+});
+
+// RG-10 — the id-collision audit fires when two DIFFERENT objects share an
+// id (the exact class the registry exists to kill), and stays silent on a
+// clean board.
+gold('RG-10 checkInvariants flags an id collision (two objects, one id)', function () {
+  reset();
+  var a = card({ name: 'Real',  owner: 'ai' });
+  var clone = card({ name: 'Clone', owner: 'ai' });
+  clone.id = a.id;                       // force the collision
+  place(a, 0, 'ai');
+  place(clone, 1, 'ai');
+  var v = Game.checkInvariants('golden');
+  var hit = v.some(function (line) { return /shared by two DIFFERENT/.test(line); });
+  eq('collision reported', hit, true);
+  // Clean board → no idCollision.
+  reset();
+  place(card({ name: 'Solo', owner: 'ai' }), 0, 'ai');
+  var v2 = Game.checkInvariants('golden');
+  eq('no false positive', v2.some(function (l) { return /shared by two DIFFERENT/.test(l); }), false);
+});
+
+// ============================================================
 // RUNNER
 // ============================================================
 for (var ci = 0; ci < __cases.length; ci++) {

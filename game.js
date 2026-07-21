@@ -332,6 +332,68 @@ const Game = {
     this._stackResolving = false;
   },
 
+  // ===================== ENTITY REGISTRY =====================
+  // Canonical id -> live card-instance index. One source of truth for
+  // "which object IS card N", so systems that reference cards by id (the
+  // FX stream, MP payloads, prompt targets, undo) resolve to the ONE live
+  // instance instead of scanning every zone or holding a stale reference —
+  // the class behind the "two slots point at the same card" / "undo made a
+  // second Ahsoka" bugs. The index is DERIVED (rebuildable from the zones),
+  // so it lives on Game, NOT in state: never cloned or snapshotted, rebuilt
+  // at every state-restore boundary (startMatch, undo, MP push).
+  _entities: null,
+
+  rebuildEntityIndex() {
+    const m = this._entities || (this._entities = new Map());
+    m.clear();
+    const s = this.state;
+    if (!s) return m;
+    const add = c => { if (c && c.id != null) m.set(c.id, c); };
+    if (s.lanes) {
+      for (let i = 0; i < s.lanes.length; i++) {
+        const l = s.lanes[i]; if (!l) continue;
+        add(l.player); add(l.ai);
+        if (l._env) { add(l._env.player); add(l._env.ai); }
+      }
+    }
+    ['player', 'ai'].forEach(side => {
+      const p = s[side]; if (!p) return;
+      (p.hand || []).forEach(add);
+      (p.trickHand || []).forEach(add);
+    });
+    if (s.twoVTwo && s.twoVTwo.players) {
+      Object.keys(s.twoVTwo.players).forEach(pk => {
+        const pp = s.twoVTwo.players[pk]; if (!pp) return;
+        (pp.hand || []).forEach(add);
+        (pp.trickHand || []).forEach(add);
+      });
+    }
+    return m;
+  },
+
+  // Register a freshly-created instance. Called by createCardInstance so
+  // every card is indexed the moment it exists.
+  registerEntity(card) {
+    if (!card || card.id == null) return card;
+    if (!this._entities) this._entities = new Map();
+    this._entities.set(card.id, card);
+    return card;
+  },
+
+  // O(1) id -> live card. Self-healing: a miss or a stale hit triggers ONE
+  // rebuild-and-retry, so a lookup can never miss a card that exists in a
+  // zone (covers a caller that moved an instance without re-registering, or
+  // an index gone stale after the predictor's clone-and-restore swap).
+  findCard(id) {
+    if (id == null) return null;
+    if (!this._entities) this.rebuildEntityIndex();
+    let c = this._entities.get(id);
+    if (c && c.id === id) return c;
+    this.rebuildEntityIndex();
+    c = this._entities.get(id);
+    return (c && c.id === id) ? c : null;
+  },
+
   // ===================== UNDO HISTORY =====================
   // Snapshots of full game state taken before player actions, ability resolutions,
   // and combat. Cleared at the start of each new player sub-phase so undo can never
@@ -1265,6 +1327,9 @@ const Game = {
 
     if (this.mp.role === 'guest') state = this._mpFlipPerspective(state);
     this.state = state;
+    // Authoritative push replaces every card object — reindex so findCard
+    // resolves ids against the incoming instances, not the pre-push ones.
+    this.rebuildEntityIndex();
 
     // Any selection in the pushed state belongs to the HOST's UI, not the
     // guest's — discard it unconditionally (it points at a card the guest
@@ -1477,6 +1542,7 @@ const Game = {
     this._drainingPromptQueue = false;
     this._stackClear('init');          // stack events never cross a boot either
     this._stackHighWater = 0;
+    if (this._entities) this._entities.clear();  // ids reset below → drop stale cross-match entries so findCard can't return a previous game's card
     this.LANE_COUNT = 6;  // reset to 1v1 default; 2v2 entry points override to 8 AFTER init() (never before — this line clobbers it)
     nextCardId = 1;
     this.state = {
@@ -6371,6 +6437,7 @@ const Game = {
       } catch (e) { /* reporter must never break the game */ }
     };
     const seenInstances = new Map();
+    const seenIds = new Map();
     let crazyStamps = 0;
     for (let i = 0; i < this.LANE_COUNT; i++) {
       const lane = s.lanes[i];
@@ -6381,6 +6448,16 @@ const Game = {
           if (lane.destroyed) report('destLane:' + c.name, `${c.name} occupies DESTROYED lane ${i + 1} (limbo class)`);
           if (seenInstances.has(c)) report('dupRef:' + c.name, `${c.name} referenced by two slots (lanes ${seenInstances.get(c)} and ${i + 1})`);
           seenInstances.set(c, i + 1);
+          // Registry identity — two DIFFERENT objects must never share an id
+          // (the class the entity registry exists to kill: a stale clone
+          // colliding with a live card so findCard/FX/MP resolve the wrong
+          // instance). dupRef above is same-object-twice; this is
+          // same-id-different-object.
+          if (c.id != null) {
+            const prior = seenIds.get(c.id);
+            if (prior && prior !== c) report('idCollision:' + c.id, `id ${c.id} shared by two DIFFERENT cards (${prior.name} lane ${seenInstances.get(prior) || '?'} and ${c.name} lane ${i + 1})`);
+            else seenIds.set(c.id, c);
+          }
           if (c.owner !== side) report('owner:' + c.name, `${c.name} sits on '${side}' side but owner='${c.owner}' (flip/placement class)`);
           if (c.isEnvironment) report('envSlot:' + c.name, `${c.name} is an ENVIRONMENT in a combat slot (lane ${i + 1})`);
           if (!Number.isFinite(c.attack) || !Number.isFinite(c.currentHealth) || !Number.isFinite(c.maxHealth)) {
@@ -8755,6 +8832,7 @@ const Game = {
       _recurringBT: def._recurringBT || false,
     };
     this.applyAbilities(card);
+    this.registerEntity(card);
     return card;
   },
 
@@ -9387,6 +9465,10 @@ const Game = {
     this._stackClear('undo'); // queued deaths closure over pre-undo card objects
     const snap = this.history.pop();
     this.state = snap;
+    // The restored snapshot holds a fresh set of card OBJECTS — reindex so
+    // findCard resolves ids to the post-undo instances, not the pre-undo
+    // ones (same duplicate-Ahsoka class the prompt/stack purges guard).
+    this.rebuildEntityIndex();
     // Also wipe any deadline that may have been in the snapshot itself.
     this.state._promptDeadline = null;
     // Stale-closure purge — a prompt or parked continuation inside a
