@@ -839,6 +839,60 @@ const Game = {
     return result;
   },
 
+  // ===================== CLIENT-SIDE PREDICTION =====================
+  // Optimistic-input netcode. Today the guest FORWARDS a command and WAITS
+  // for the host's authoritative state broadcast — so every play carries a
+  // full network round-trip of visible lag. Prediction lets the guest apply
+  // its own command LOCALLY the instant it's issued (0-latency feel), then
+  // reconcile when the authoritative state lands. Determinism (serializable
+  // _rngState + the single command door) is what makes this sound: the
+  // guest's local prediction reproduces the host's result, so a correct
+  // prediction reconciles invisibly; only a genuine divergence snaps.
+  //
+  // This is the deterministic CORE + its tests. It is gated by
+  // _predictionEnabled (default false) because flipping the guest from
+  // forward-and-wait to apply-then-forward is a real desync risk that needs
+  // a live 2-client test — same rollout gate as the deferred secret-reveal
+  // work. The reconcile math below is proven headlessly (sim/golden RG-14/15).
+  _predictionEnabled: false,
+  _predictions: null,    // [{seq, cmd}] applied locally, not yet host-acked
+  _predictSeq: 0,
+  _silentReapply: false, // true while re-simulating during reconcile
+
+  // Issue a command optimistically: apply it locally NOW and remember it as
+  // in-flight so reconcile can re-apply it if the next authoritative state
+  // hasn't folded it in yet. Returns the sequence number (the ack key).
+  predictCommand(cmd) {
+    if (!cmd || !cmd.type) return -1;
+    if (!this._predictions) this._predictions = [];
+    const seq = ++this._predictSeq;
+    const result = this.submitCommand(cmd);
+    if (result !== false) this._predictions.push({ seq, cmd });
+    return (result !== false) ? seq : -1;
+  },
+
+  // Adopt the authoritative state, drop the predictions the host has already
+  // folded in (seq <= ackedThrough), then RE-SIMULATE the ones still in
+  // flight on top of the fresh base — so the guest keeps seeing its own
+  // un-acked inputs instead of rubber-banding back a round-trip. The re-sim
+  // is silent (no SFX, no replay-record, no re-forward to the host). Any
+  // prediction that no longer resolves against the authoritative state (the
+  // host rejected or superseded it) simply drops — self-correcting.
+  reconcile(authState, ackedThrough) {
+    if (authState) { this.state = authState; this.rebuildEntityIndex(); }
+    const ack = ackedThrough || 0;
+    this._predictions = (this._predictions || []).filter(p => p.seq > ack);
+    if (this._predictions.length) {
+      this._silentReapply = true;
+      try {
+        // Re-run survivors in issue order. filter() keeps a copy of any that
+        // still applied cleanly; a stale one (returns false) is dropped.
+        this._predictions = this._predictions.filter(p => this.submitCommand(p.cmd) !== false);
+      } finally { this._silentReapply = false; }
+    }
+    return this.state;
+  },
+
   // ===================== REPLAY (record + reproduce) =====================
   // A match is fully reproducible from its SEED + the log of player COMMANDS:
   // the AI is seeded-deterministic (Game.rng re-derives its moves), so only
@@ -857,8 +911,11 @@ const Game = {
   },
   stopReplayRecording() { const r = this.exportReplay(); this._replayLog = null; return r; },
   _recordCmd(entry) {
-    // Never record preview/silent-sim actions, and only while recording.
-    if (this._replayLog && !(this.state && this.state._silentSim)) this._replayLog.push(entry);
+    // Never record preview/silent-sim actions, re-simulated predictions, and
+    // only while recording. A reconcile re-apply is not a NEW input — the
+    // original prediction already recorded (or the host owns the log), so
+    // recording it again would double-count the replay.
+    if (this._replayLog && !this._silentReapply && !(this.state && this.state._silentSim)) this._replayLog.push(entry);
   },
   exportReplay() {
     return { v: 1, seed: this._replaySeed, mode: this._replayMode, log: (this._replayLog || []).slice() };

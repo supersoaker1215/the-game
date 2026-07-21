@@ -316,6 +316,57 @@ gold('RG-13 checkInvariants flags a stuck (non-expiring) buff', function () {
 });
 
 // ============================================================
+// CLIENT-SIDE PREDICTION / RECONCILIATION (netcode core)
+// ============================================================
+
+function playableState() {
+  reset();
+  Game.state.phase = 'player-cards';
+  Game.state.activePlayer = 'player';
+  Game.state.firstPlayer = 'player';
+  Game.state.player.currency = 10;
+  Game.state.ai.currency = 10;
+  Game.state.player.isHuman = false;
+  Game.state.ai.isHuman = false;
+  Game._predictions = null; Game._predictSeq = 0;
+  return Game;
+}
+
+// RG-14 — an ACKED prediction is dropped; the authoritative state stands.
+gold('RG-14 reconcile drops an acked prediction, adopts authoritative state', function () {
+  playableState();
+  var x = card({ name: 'Grunt', owner: 'player', attack: 2, health: 3 });
+  Game.state.player.hand = [x];
+  var seq = Game.predictCommand({ type: 'playCard', payload: { cardId: x.id, lane: 0 }, actor: 'player' });
+  eq('predicted ok', seq > 0, true);
+  eq('card left hand', Game.state.player.hand.length, 0);
+  eq('card in lane 0', !!Game.state.lanes[0].player, true);
+  // Host processed it → authoritative state reflects the play; ack covers seq.
+  var authPost = Game.cloneStateDeep(Game.state);
+  Game.reconcile(authPost, seq);
+  eq('predictions cleared', (Game._predictions || []).length, 0);
+  eq('lane still filled', !!Game.state.lanes[0].player, true);
+  eq('adopted authoritative', Game.state === authPost, true);
+});
+
+// RG-15 — an UN-ACKED prediction is re-applied on the fresh authoritative
+// base, so the guest keeps seeing its own in-flight play (no rubber-band).
+gold('RG-15 reconcile re-applies an un-acked prediction on the authoritative base', function () {
+  playableState();
+  var x = card({ name: 'Grunt', owner: 'player', attack: 2, health: 3 });
+  Game.state.player.hand = [x];
+  // Snapshot the PRE-play state — the host has NOT processed the play yet.
+  var authPre = Game.cloneStateDeep(Game.state);
+  var seq = Game.predictCommand({ type: 'playCard', payload: { cardId: x.id, lane: 0 }, actor: 'player' });
+  eq('predicted play landed', !!Game.state.lanes[0].player, true);
+  // Authoritative state arrives WITHOUT the play, ack=0 → re-apply the seq.
+  Game.reconcile(authPre, 0);
+  eq('prediction survived', (Game._predictions || []).length, 1);
+  eq('re-applied: lane filled', !!Game.state.lanes[0].player, true);
+  eq('re-applied: hand empty', Game.state.player.hand.length, 0);
+});
+
+// ============================================================
 // RUNNER
 // ============================================================
 for (var ci = 0; ci < __cases.length; ci++) {
