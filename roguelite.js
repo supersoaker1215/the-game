@@ -6572,11 +6572,13 @@ const Roguelite = {
     // big purple cost diamond, name banner, description block. Mirrors
     // the codex/deck-builder presentation so trick + card modals feel
     // consistent.
+    // ONE renderer — the canonical trick face (restores portrait art the old
+    // artless banner lacked). rl-tier carries the rarity styling.
+    if (typeof UI !== 'undefined' && UI.makeTrickEl) {
+      return UI.makeTrickEl(def, { extraClass: 'rl-tier-' + (t.rarity || 'common') });
+    }
     const costClass = 'cost-' + Math.min(10, Math.max(0, def.cost || 0));
-    // UI.formatDesc may rely on `this` (calls this.stripTraitDesc),
-    // so bind it before invoking.
-    const formatDesc = (typeof UI !== 'undefined' && UI.formatDesc)
-      ? UI.formatDesc.bind(UI) : (s => s);
+    const formatDesc = (typeof UI !== 'undefined' && UI.formatDesc) ? UI.formatDesc.bind(UI) : (s => s);
     return `
       <div class="card hand-card trick-card ${costClass}" data-card-name="${def.name}">
         <span class="card-cost">${def.cost}</span>
@@ -6801,6 +6803,28 @@ const Roguelite = {
     // tier. Legendary cards are capped, no bar shown.
     const xpHtml = this._renderCodexXp(deckCard);
     const curseCls = deckCard._isCurse ? ' rl-curse' : '';
+    // ONE renderer — route the resolved roguelite card through UI.makeCardEl so
+    // it gains the portrait art + name overlay + canonical chrome it never had
+    // (was the artless pre-redesign card-name-banner layout). All the roguelite
+    // computation above (tier stats, etch probe, Text+/Curse badges, variant
+    // desc, XP, stat-roll arrows) is preserved: the resolved values feed
+    // _synthFace as overrides, and the curated badge list feeds badgesHTML.
+    if (typeof UI !== 'undefined' && UI.makeCardEl && UI._synthFace) {
+      const face = UI._synthFace(def, { cost, attack: atk, health: hp, descOverride: descText, rarity: deckCard.rarity });
+      const badgesHTML = abilities.length && UI.formatAbilityBadges ? UI.formatAbilityBadges(abilities) : '';
+      const el = UI.makeCardEl(face, true, 'player', {
+        static: true,
+        badgesHTML,
+        extraClass: 'rl-tier-' + deckCard.rarity + curseCls,
+      });
+      el.setAttribute('data-card-name', def.name);
+      // Roguelite-only decorations makeCardEl doesn't know about:
+      if (atkClass) { const a = el.querySelector('.stat-atk'); if (a) a.classList.add(atkClass); }
+      if (hpClass)  { const h = el.querySelector('.stat-hp');  if (h) h.classList.add(hpClass); }
+      if (xpHtml) el.insertAdjacentHTML('beforeend', xpHtml);
+      return el.outerHTML;
+    }
+    // Fallback (UI unavailable — shouldn't happen in-app): old artless layout.
     return `
       <div class="card hand-card ${costClass} rl-tier-${deckCard.rarity}${curseCls}" data-card-name="${def.name}">
         <span class="card-cost">${cost}</span>

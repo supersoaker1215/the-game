@@ -14562,7 +14562,10 @@ const UI = {
     const descHtml = card._moderStripped
       ? `<div class="card-desc desc-stripped">⛔ Abilities Stripped</div>`
       : `<div class="card-desc">${this.formatDesc(card.desc)}</div>`;
-    const statusHtml = `<div class="status-badges">${this.getStatusBadges(card)}</div>`;
+    // Badge source: live instance badges by default; a caller with a CURATED
+    // printed list (roguelite's stripped keywords + Text+/Curse) passes
+    // opts.badgesHTML to override — the def-vs-instance badge switch, in one place.
+    const statusHtml = `<div class="status-badges">${opts.badgesHTML != null ? opts.badgesHTML : this.getStatusBadges(card)}</div>`;
     const activeHtml = card._moderStripped ? '' : this.getActiveAbilityText(card);
 
     // Live MVP tracker — only the TOP TWO cards per side (by composite
