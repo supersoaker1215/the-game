@@ -7218,30 +7218,8 @@ const UI = {
       myChoices.forEach((c, i) => {
         if (!c) return;
         if (isCards) {
-          const _abList = (c.abilities || []);
-          const _hasCrazy  = c.isCrazy  || _abList.includes('Crazy');
-          const _hasInsane = c.isInsane || _abList.includes('Insane');
-          const dHideAtk = !!(c.copiesOpposite || _hasCrazy || _hasInsane);
-          const dHideHp  = !!c.copiesOpposite;
-          const dAtkCell = dHideAtk ? '?' : c.attack;
-          const dHpCell  = dHideHp  ? '?' : c.health;
-          const statOrbs = c.isDiscardEffect ? '' : `
-            <span class="stat-circle stat-atk">${dAtkCell}</span>
-            <span class="stat-circle stat-hp">${dHpCell}</span>`;
-          const _dpCost = c.cost || 0;
-          const _dpPips = c.rarity || (_dpCost <= 3 ? 1 : _dpCost <= 6 ? 2 : _dpCost <= 8 ? 3 : 4);
-          const rarityPips = `<span class="rarity-strip">${'<span class="rpip"></span>'.repeat(_dpPips)}</span>`;
-          const portraitFile = UI.getCardArtPath(c.name);
-          const portraitPos = UI._artFocalCard(c.name);
-          const portraitHtml = `<div class="card-portrait" style="--portrait-bg:url('${portraitFile}')${portraitPos}"><div class="card-name-overlay">${c.name}</div></div>`;
-          html += `<div class="card draft-card ${this.getCostClass(c.cost)}${c.isDiscardEffect ? ' discard-effect' : ''}" data-card-name="${c.name}" onclick="twov2OnlineDraftPick(${i})">
-            <span class="card-cost">${c.cost}</span>
-            ${rarityPips}
-            ${portraitHtml}
-            <div class="card-abilities status-badges">${this.formatAbilityBadges(c.abilities)}</div>
-            <div class="card-desc">${this.formatDesc(c.desc)}</div>
-            ${statOrbs}
-          </div>`;
+          // Same one renderer as classic draft — only the pick fn differs.
+          html += this._draftCardHTML(c, i, 'twov2OnlineDraftPick');
         } else {
           const trickBadges = c.abilities && c.abilities.length
             ? `<div class="card-abilities status-badges">${this.formatAbilityBadges(c.abilities)}</div>` : '';
@@ -12724,40 +12702,10 @@ const UI = {
         // Draft cards are raw defs (applyAbilities hasn't fired), so
         // we check the abilities array string for the keyword in
         // addition to the runtime boolean flag.
-        const _abList = (c.abilities || []);
-        const _hasCrazy  = c.isCrazy  || _abList.includes('Crazy');
-        const _hasInsane = c.isInsane || _abList.includes('Insane');
-        const dHideAtk = !!(c.copiesOpposite || _hasCrazy || _hasInsane);
-        const dHideHp  = !!c.copiesOpposite;
-        const dAtkCell = dHideAtk ? '?' : c.attack;
-        const dHpCell  = dHideHp  ? '?' : c.health;
-        const statOrbs = c.isDiscardEffect ? '' : `
-          <span class="stat-circle stat-atk">${dAtkCell}</span>
-          <span class="stat-circle stat-hp">${dHpCell}</span>`;
-        // Rarity pips — same 1-4 tier rule as hand/board cards, so the rarity
-        // signal reads continuously from draft → hand → board.
-        const _dpCost = c.cost || 0;
-        const _dpPips = c.rarity || (_dpCost <= 3 ? 1 : _dpCost <= 6 ? 2 : _dpCost <= 8 ? 3 : 4);
-        const rarityPips = `<span class="rarity-strip">${'<span class="rpip"></span>'.repeat(_dpPips)}</span>`;
-        // Draft picks render with the SAME structure as in-hand cards so
-        // the chrome (portrait + name overlay + chamfered octagon orbs +
-        // monospace desc) is identical end-to-end: draft → hand → board.
-        // `card` pulls in the --rarity-rgb / --portrait-frame-rgb cascade
-        // and the unified element styles; `draft-card` only carries the
-        // larger picker footprint and hover lift. `hand-card` is omitted
-        // intentionally — its `:hover { transform: none !important; }`
-        // lock would suppress the draft picker's translateY(-8px) lift.
-        const portraitFile = UI.getCardArtPath(c.name);
-        const portraitPos = UI._artFocalCard(c.name);
-        const portraitHtml = `<div class="card-portrait" style="--portrait-bg:url('${portraitFile}')${portraitPos}"><div class="card-name-overlay">${c.name}</div></div>`;
-        html += `<div class="card draft-card ${this.getCostClass(c.cost)}${c.isDiscardEffect ? ' discard-effect' : ''}" data-card-name="${c.name}" onclick="draftPick(${i})">
-          <span class="card-cost">${c.cost}</span>
-          ${rarityPips}
-          ${portraitHtml}
-          <div class="card-abilities status-badges">${this.formatAbilityBadges(c.abilities)}</div>
-          <div class="card-desc">${this.formatDesc(c.desc)}</div>
-          ${statOrbs}
-        </div>`;
+        // ONE renderer — draft face is byte-identical to hand/board via
+        // makeCardEl (the '?'-hiding, rarity pips, badges, orbs all live
+        // there now). Shared with the 2v2 draft (only the pick fn differs).
+        html += this._draftCardHTML(c, i, 'draftPick');
       } else {
         const draftTrickBadges = c.abilities && c.abilities.length
           ? `<div class="card-abilities status-badges">${this.formatAbilityBadges(c.abilities)}</div>`
@@ -14445,6 +14393,22 @@ const UI = {
     if (opts.deckCardRef) face._runDeckCardRef = opts.deckCardRef;
     face._synthetic = true;
     return face;
+  },
+
+  // Shared draft-card HTML — classic AND 2v2 draft both build the pick tile
+  // here, so a draft card is byte-identical to the same card in hand/board
+  // (and identical between the two draft modes). Only the pick-callback name
+  // differs. Returns an outerHTML string (the draft grids concatenate strings).
+  _draftCardHTML(c, i, pickFn) {
+    const face = this._synthFace(c, {});
+    const el = this.makeCardEl(face, true, 'player', {
+      static: true,
+      noHandClass: true, // draft needs the hover-lift, which .hand-card suppresses
+      extraClass: 'draft-card' + (c.isDiscardEffect ? ' discard-effect' : ''),
+    });
+    el.setAttribute('data-card-name', c.name);
+    el.setAttribute('onclick', pickFn + '(' + i + ')');
+    return el.outerHTML;
   },
 
   // opts (all optional, back-compatible — absent opts = original behavior):
