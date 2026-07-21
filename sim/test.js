@@ -921,7 +921,9 @@ test('Moder strip + _unstripModer roundtrip restores fields', function () {
   victim.onPlay = function () { return 'play-fn'; };
   var moder = mkSynth({ name: 'Moder', owner: 'ai', _moderStripPending: 1 });
   G.state.lanes[0].player = victim; G.state.lanes[0].ai = moder;
-  CARD_ABILITIES['Moder'].onAnyCardPlayed(G, moder);
+  // Moder now strips only the specific card played INTO his lane (id match),
+  // so onAnyCardPlayed takes the played card as its third arg.
+  CARD_ABILITIES['Moder'].onAnyCardPlayed(G, moder, victim);
   assert(victim._moderStripped, 'Moder should set _moderStripped');
   assertEq(victim.onDeath, null, 'onDeath should be nulled');
   assertEq(typeof victim._unstripModer, 'function', '_unstripModer must be on card');
@@ -943,7 +945,7 @@ test('addToHand un-strips Moder-stripped card on bounce', function () {
   card.onPlay = function () { return 'fn'; };
   var moder = mkSynth({ name: 'Moder', owner: 'ai', _moderStripPending: 1 });
   G.state.lanes[0].player = card; G.state.lanes[0].ai = moder;
-  CARD_ABILITIES['Moder'].onAnyCardPlayed(G, moder);
+  CARD_ABILITIES['Moder'].onAnyCardPlayed(G, moder, card);
   assert(card._moderStripped, 'precondition: card should be stripped');
   G.addToHand('player', card);
   assert(!card._moderStripped, 'Strip flag must clear on hand re-entry');

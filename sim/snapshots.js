@@ -82,6 +82,7 @@ function makeCard(opts) {
     isFeared: !!opts.isFeared,
     isMindControlled: !!opts.isMindControlled,
     isBullseye: !!opts.isBullseye,
+    ignoresEvade: !!opts.ignoresEvade,
     tauntTurns: opts.tauntTurns | 0,
     abilities: [],
     statuses: [],
@@ -272,24 +273,39 @@ snap('GS-11 Multi-lane: three independent contested lanes', function () {
   assertEquals('L4.ai.dies',        predOf(r, a4.id).dies,    true);
 });
 
-// GS-12 — Bullseye vs Evade (predictor's known divergence).
+// GS-12 — Bullseye does NOT pierce a card's Evade.
 //
-// Live combat: Bullseye on the attacking card bypasses the defender's
-// evade — see applyHit's `if (canDodge && final.evade > 0 && !attackerBullseye)`.
-// So the predictor SHOULD apply Bullseye correctly here too. We pin
-// the CURRENT predictor behavior so any regression breaks loudly.
+// Bullseye bypasses the lane BLOCK METER (badge tip: "Damage bypasses
+// Block Meter"), a lane-level absorb — NOT a card's Evade. Only the
+// separate `ignoresEvade` flag disables Evade. Live combat's canDodge
+// gate proves it (game.js): canDodge = !stunned && !frozen &&
+// !(attacker && attacker.ignoresEvade) — isBullseye is absent. The
+// predictor (engine/combat.js) agrees. This case pins the two keywords
+// stay distinct; if Bullseye ever starts eating Evade charges, it fails.
 //
-// Setup: player 3/5 isBullseye, ai 1/6 evadeCharges=1. Bullseye on
-// the attacker → ai's evade does NOT trigger → ai takes 3 (HP 3).
+// Setup: player 3/5 isBullseye, ai 1/6 evadeCharges=1. Bullseye does
+// NOT bypass evade → ai spends a charge and dodges → ai takes 0 (HP 6).
 // Player still takes 1 from ai's regular swing.
-snap('GS-12 Bullseye vs Evade: attacker bullseye bypasses evade', function () {
+snap('GS-12 Bullseye does not pierce card Evade (only ignoresEvade does)', function () {
   reset();
   var p = place(makeCard({ owner: 'player', attack: 3, currentHealth: 5, maxHealth: 5, isBullseye: true }), 0);
   var a = place(makeCard({ owner: 'ai',     attack: 1, currentHealth: 6, maxHealth: 6, evadeCharges: 1 }), 0);
   var r = Game.predictCombatGlobal();
-  // Document the predictor's CURRENT behavior. If Bullseye-vs-evade
-  // semantics ever flip, this snapshot fails — and the failing
-  // expected/got numbers tell you exactly what changed.
+  assertEquals('ai.hpAfter',     predOf(r, a.id).hpAfter, 6);
+  assertEquals('ai.dmgIn',       predOf(r, a.id).dmgIn,   0);
+  assertEquals('player.hpAfter', predOf(r, p.id).hpAfter, 4);
+  assertEquals('player.dmgIn',   predOf(r, p.id).dmgIn,   1);
+});
+
+// GS-12b — the positive half: ignoresEvade DOES pierce card Evade.
+// Same board, attacker carries ignoresEvade instead of isBullseye →
+// ai's charge cannot save it → ai takes the full 3 (HP 3). Locks the
+// Bullseye/ignoresEvade distinction from both sides.
+snap('GS-12b ignoresEvade pierces card Evade', function () {
+  reset();
+  var p = place(makeCard({ owner: 'player', attack: 3, currentHealth: 5, maxHealth: 5, ignoresEvade: true }), 0);
+  var a = place(makeCard({ owner: 'ai',     attack: 1, currentHealth: 6, maxHealth: 6, evadeCharges: 1 }), 0);
+  var r = Game.predictCombatGlobal();
   assertEquals('ai.hpAfter',     predOf(r, a.id).hpAfter, 3);
   assertEquals('ai.dmgIn',       predOf(r, a.id).dmgIn,   3);
   assertEquals('player.hpAfter', predOf(r, p.id).hpAfter, 4);

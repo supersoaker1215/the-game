@@ -6396,6 +6396,16 @@ const Game = {
           if (c._crazyAppliedBy && (c.isFeared || (c.fearedTurns | 0) > 0)) {
             report('crazyFear:' + c.name, `${c.name} holds a Joker Crazy stamp AND is Feared — the stamp should have been shattered`);
           }
+          // Zombie guard — a card at ≤0 HP that is neither death-handled
+          // nor queued for death on the Stack is stuck on the board dead:
+          // some damage path drove HP to 0 without routing through
+          // handleDeath. Iron-Giant pending offers keep _deathHandled=true;
+          // Stack-queued deaths set _deathQueued — both legitimate, both
+          // excluded. (This closes a gap: sim/test.js's HUNTER caught these
+          // zombies but the engine sweep the fuzz uses did not.)
+          if (c.currentHealth != null && c.currentHealth <= 0 && !c._deathHandled && !c._deathQueued) {
+            report('zombie:' + c.name, `${c.name} has ${c.currentHealth} HP but no _deathHandled/_deathQueued flag (dead-but-unresolved)`);
+          }
         }
         const env = lane._env && lane._env[side];
         if (env && !env.isEnvironment) {
@@ -8223,6 +8233,13 @@ const Game = {
     card.maxHealth = Math.max(1, card.maxHealth - debuff);
     card.currentHealth = Math.max(0, card.currentHealth - debuff);
     this.log(`  [BEAR TRAP] ${card.name} triggers a Reverse Bear Trap! -${debuff}/-${debuff} → ${card.attack}/${card.currentHealth}`);
+    // A trap that drops the card to 0 HP is lethal — route through the
+    // canonical death path so it can't sit on the board as a 0-HP
+    // "zombie" (dead-but-unresolved). checkLaneTrap has 8 callers and most
+    // don't run cleanupDead afterward, so fixing it here (the source) is
+    // what makes every caller safe. Fuzz/HUNTER-caught: a trapped Magneto /
+    // Mr. Freeze survived at 0 HP into the next round.
+    if (card.currentHealth <= 0) this.handleDeath(card, laneIdx, null);
   },
 
   applyHawkeyePassive(owner, splashedEnemies) {
