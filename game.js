@@ -78,24 +78,45 @@ const Game = {
     return fx.events.filter(e => e.seq > cur);
   },
 
-  // ----- Deterministic RNG seam (Phase 1) -----
-  // Reads state._rng if a seed was set, else falls back to Math.random.
-  // Callsites can opt in by switching `Math.random()` → `Game.rng()`;
-  // Phase 1 doesn't migrate anything, so non-seeded play stays bit-for-
-  // bit identical to today.
+  // ----- Deterministic RNG (state-based) -----
+  // The RNG POSITION lives in state._rngState (a uint32 counter), NOT a
+  // closure — so it serializes across the MP wire, survives undo/snapshot
+  // (an undo restores the exact RNG position, so a replay can't diverge after
+  // an undo), and lets a fuzzer/replay reproduce a match bit-for-bit from its
+  // seed. Every gameplay Math.random() is migrated to Game.rng() (cosmetic
+  // randomness in ui.js stays Math.random — it must NOT consume the stream).
+  // Unseeded (no _rngState) falls back to Math.random so any un-migrated or
+  // pre-seed callsite is still safe.
   rng() {
-    return (this.state && this.state._rng) ? this.state._rng() : Math.random();
+    const s = this.state;
+    if (!s || s._rngState == null) return Math.random();
+    // mulberry32 step, advancing the counter in-place.
+    let a = (s._rngState + 0x6D2B79F5) >>> 0;
+    s._rngState = a;
+    let t = a;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
   },
-  // Entry point for seeded runs. Accepts a string or numeric seed,
-  // hashes strings to uint32, installs the RNG on game state. Match
-  // is started via the standard startMatch path so all the existing
-  // setup runs unchanged.
+  // Integer in [0, n) from the seeded stream.
+  rngInt(n) { return Math.floor(this.rng() * n); },
+  // Pick a random element from an array via the seeded stream.
+  rngPick(arr) { return (arr && arr.length) ? arr[this.rngInt(arr.length)] : undefined; },
+  // Seed the current match. String seeds hash to uint32. Records _seed (the
+  // original, for display/replay) and installs the RNG position.
+  seedMatch(seed) {
+    const s = this.state; if (!s) return;
+    const numeric = (typeof seed === 'string') ? hashString(seed) : (seed | 0);
+    s._seed = seed;
+    s._rngState = numeric >>> 0;
+  },
+  // Entry point for seeded runs (daily challenge / replay / fuzz).
   startSeededRun(seed, mode) {
     if (typeof this.init === 'function') this.init();
-    const numericSeed = (typeof seed === 'string') ? hashString(seed) : (seed | 0);
-    this.state._seed = seed;
-    this.state._rng = mulberry32(numericSeed);
+    this.seedMatch(seed);
+    this._seedLocked = true; // startMatch must not overwrite an explicit seed
     if (typeof this.startMatch === 'function') this.startMatch(mode || 'classic');
+    this._seedLocked = false;
   },
 
   // Check if any player prompt is pending and defer continuation until resolved
@@ -1808,6 +1829,21 @@ const Game = {
     // (startMatch reuses this.state in place, so stale combat/AI callbacks
     // would otherwise run against the new board).
     this._matchGen++;
+    // Seed the match RNG so EVERY match is reproducible from its seed
+    // (replay + fuzz). startSeededRun sets _seedLocked to keep its explicit
+    // seed; otherwise generate a fresh random one and record it. The MP guest
+    // inherits the host's seed via the state broadcast, so we only seed on the
+    // authoritative side (host/solo).
+    if (!this._seedLocked && !(this.isMultiplayer && this.isMultiplayer() && this.mp.role === 'guest')) {
+      this.seedMatch((Math.random() * 0xFFFFFFFF) >>> 0);
+      if (typeof console !== 'undefined') console.log('[SEED] match seed =', this.state._seed);
+    }
+    // Re-derive the first-player coin flip from the seeded stream (it was set
+    // at init via Math.random, before any seed existed) — so a replay/fuzz of
+    // this seed opens the same way. Guest inherits it via the broadcast.
+    if (!(this.isMultiplayer && this.isMultiplayer() && this.mp.role === 'guest') && this.state._rngState != null) {
+      this.state.oddPlayer = this.rng() < 0.5 ? 'player' : 'ai';
+    }
     this.state.mode = mode;
     // 1v1 local pass-and-play — both seats are humans on one device.
     // Set here (not just in startLocal1v1) so rematch() reconstitutes
@@ -1973,7 +2009,7 @@ const Game = {
         const pFingerprint = normalize(playerDeck.cards);
         const nonMirrorKeys = keys.filter(k => normalize(STARTER_DECKS[k].cards) !== pFingerprint);
         const poolKeys = nonMirrorKeys.length > 0 ? nonMirrorKeys : keys;
-        const pickKey = poolKeys[Math.floor(Math.random() * poolKeys.length)];
+        const pickKey = poolKeys[Math.floor(this.rng() * poolKeys.length)];
         aiDeck = STARTER_DECKS[pickKey];
         aiDeckKey = pickKey;
         this.log(`[AI DECK] Opponent drew "${aiDeck.name || pickKey}" — prepare to counter.`);
@@ -2091,7 +2127,7 @@ const Game = {
     }
     const pool = this.state.summonDeck.filter(predicate);
     if (!pool.length) return null;
-    const pick = pool[Math.floor(Math.random() * pool.length)];
+    const pick = pool[Math.floor(this.rng() * pool.length)];
     // Spread into a fresh object so subsequent calls that mutate the
     // result (summonCard adds owner/id/etc.) don't bleed into the
     // shared deck entry.
@@ -2134,7 +2170,7 @@ const Game = {
 
   shuffle(a) {
     for (let i = a.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
+      const j = Math.floor(this.rng() * (i + 1));
       [a[i], a[j]] = [a[j], a[i]];
     }
     return a;
@@ -2729,7 +2765,7 @@ const Game = {
           // Others → bottom of OWNER's pile (unshift = front-of-array =
           // bottom-of-stack since pop() draws from the end). Order
           // randomized so the player can't perfectly predict next draw.
-          const shuffled = others.slice().sort(() => Math.random() - 0.5);
+          const shuffled = others.slice().sort(() => this.rng() - 0.5);
           shuffled.forEach(c => pile.unshift(c));
           const ownWho = owner === 'player' ? 'You take' : 'AI takes';
           const otherList = others.map(c => c.name).join(', ');
@@ -5201,7 +5237,7 @@ const Game = {
     const grievousGate = this.state._grievousActiveFor
       && (this.state._grievousActiveFor[owner] || 0) > 0;
     if (!isBullseye && !grievousGate) {
-      const roll = 1 + Math.floor(Math.random() * 3);
+      const roll = 1 + Math.floor(this.rng() * 3);
       p.blockMeter += roll;
       this.log(`  [BLOCK METER] ${who} roll d3=${roll} → meter ${p.blockMeter}/${this.BLOCK_MAX}`);
       if (p.blockMeter >= this.BLOCK_MAX) {
@@ -5301,13 +5337,13 @@ const Game = {
           c => c.currentHealth > 0 && c.name !== 'Yoda'
         );
         if (pool.length) {
-          const tgt = pool[Math.floor(Math.random() * pool.length)];
+          const tgt = pool[Math.floor(this.rng() * pool.length)];
           const available = [];
           if (!(tgt.armorValue >= 1))   available.push('armor');
           if (!(tgt.evadeCharges >= 1)) available.push('evade');
           if (!tgt.isBullseye)          available.push('bullseye');
           if (available.length) {
-            const choice = available[Math.floor(Math.random() * available.length)];
+            const choice = available[Math.floor(this.rng() * available.length)];
             if (choice === 'armor') {
               tgt.armorValue = 1;
               this.log(`  [YODA AURA] ${tgt.name} gains Armor 1!`);
@@ -5532,7 +5568,7 @@ const Game = {
           const recycled = dead.splice(0, dead.length);
           // Fisher-Yates shuffle in-place before merging back
           for (let j = recycled.length - 1; j > 0; j--) {
-            const k = Math.floor(Math.random() * (j + 1));
+            const k = Math.floor(this.rng() * (j + 1));
             [recycled[j], recycled[k]] = [recycled[k], recycled[j]];
           }
           drawPile.push(...recycled);
@@ -6557,7 +6593,7 @@ const Game = {
     if (opts && opts.autoPick) {
       const withCards = enemyKeys.filter(k => ((tt.players[k].hand || []).length > 0));
       const poolKeys = withCards.length ? withCards : enemyKeys;
-      bridge(poolKeys[Math.floor(Math.random() * poolKeys.length)]);
+      bridge(poolKeys[Math.floor(this.rng() * poolKeys.length)]);
       return;
     }
 
@@ -6572,7 +6608,7 @@ const Game = {
       title || 'Choose an opponent',
       'Which opponent should this target?',
       (picked) => { if (picked && picked._playerKey) bridge(picked._playerKey); },
-      (cards) => cards[Math.floor(Math.random() * cards.length)],
+      (cards) => cards[Math.floor(this.rng() * cards.length)],
       { inlineTray: true }
     );
   },
@@ -8583,7 +8619,7 @@ const Game = {
     // INSANE always fires — Joker's intrinsic chaos isn't stoppable by
     // Fear. He keeps rolling 2-7 even when terrified.
     if (card.isInsane) {
-      let r; do { r = 2 + Math.floor(Math.random() * 6); } while (r === card._lastInsaneRoll);
+      let r; do { r = 2 + Math.floor(this.rng() * 6); } while (r === card._lastInsaneRoll);
       card._lastInsaneRoll = r; card.attack = r;
       this.log(`  [INSANE] ${card.name} rolls ATK ${before} → ${r}`);
       return;
@@ -8604,7 +8640,7 @@ const Game = {
         this.log(`  [STEADY] ${card.name} negates Crazy reroll (${left} charge${left === 1 ? '' : 's'} left)`);
         return;
       }
-      let r; do { r = 1 + Math.floor(Math.random() * 4); } while (r === card._lastCrazyRoll);
+      let r; do { r = 1 + Math.floor(this.rng() * 4); } while (r === card._lastCrazyRoll);
       card._lastCrazyRoll = r; card.attack = r;
       this.log(`  [CRAZY] ${card.name} rolls ATK ${before} → ${r}`);
     }
@@ -9935,7 +9971,7 @@ const Game = {
     // Shuffle helpers
     const shuffle = (arr) => {
       for (let i = arr.length - 1; i > 0; i--) {
-        const j = Math.floor(Math.random() * (i + 1));
+        const j = Math.floor(this.rng() * (i + 1));
         [arr[i], arr[j]] = [arr[j], arr[i]];
       }
       return arr;

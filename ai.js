@@ -700,7 +700,7 @@ const AI = {
     const open = Game.getOpenLanes(owner);
     if (!open.length) {
       // Environments can go into any lane even if the owner already has a card there.
-      if (card && card.isEnvironment) return Math.floor(Math.random() * Game.LANE_COUNT);
+      if (card && card.isEnvironment) return Math.floor(Game.rng() * Game.LANE_COUNT);
       return -1;
     }
     const hasTaunter = this.opponentHasTaunter(owner);

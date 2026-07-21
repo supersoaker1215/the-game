@@ -167,7 +167,7 @@ const CARD_ABILITIES = {
       // means Ivy reliably swings as a Hulk-1.
       const pick = self._ivyChooseHighest
         ? allies.slice().sort((a, b) => (b.attack || 0) - (a.attack || 0))[0]
-        : allies[Math.floor(Math.random() * allies.length)];
+        : allies[Math.floor(Game.rng() * allies.length)];
       self._ivyAlly = pick;
       self._ivyCharmedId = pick.id; // tracked so handleDeath can strip the buff
       // Stamp a direct flag on the charmed ally pointing back at Ivy.
@@ -335,7 +335,7 @@ const CARD_ABILITIES = {
           G.moveCard(self, lane, to);
         });
       } else {
-        const to = open[Math.floor(Math.random() * open.length)];
+        const to = open[Math.floor(Game.rng() * open.length)];
         G.moveCard(self, lane, to);
       }
     }
@@ -401,7 +401,7 @@ const CARD_ABILITIES = {
           G.moveCard(self, lane, to);
         });
       } else {
-        const to = open[Math.floor(Math.random() * open.length)];
+        const to = open[Math.floor(Game.rng() * open.length)];
         G.moveCard(self, lane, to);
       }
     }
@@ -1092,7 +1092,7 @@ const CARD_ABILITIES = {
           G.log(`Green Goblin moves to face ${e ? e.name : 'enemy'} in lane ${to + 1} and splashes!`);
         });
       } else {
-        const to = targetLanes[Math.floor(Math.random() * targetLanes.length)];
+        const to = targetLanes[Math.floor(Game.rng() * targetLanes.length)];
         G.moveCard(self, lane, to);
         G.splashDamage(to, self.owner, 1);
         const e = G.state.lanes[to][opp];
@@ -1216,7 +1216,7 @@ const CARD_ABILITIES = {
       G.log(`Loki fills the Block Meter by ${fillAmt}!`);
       if (allyEvade !== 'none') {
         const allies = G.getAlliesOf(self.owner).filter(a => a.id !== self.id);
-        const targets = allyEvade === 'all' ? allies : (allies.length ? [allies[Math.floor(Math.random() * allies.length)]] : []);
+        const targets = allyEvade === 'all' ? allies : (allies.length ? [allies[Math.floor(Game.rng() * allies.length)]] : []);
         targets.forEach(a => {
           a.evadeCharges = (a.evadeCharges || 0) + 1;
           G.log(`Loki grants ${a.name} an Evade charge!`);
@@ -1412,7 +1412,7 @@ const CARD_ABILITIES = {
           ? (ownDead || [])
           : [...(ownDead || []), ...(oppDead || [])];
         if (!dead.length) break;
-        const idx = Math.floor(Math.random() * dead.length);
+        const idx = Math.floor(Game.rng() * dead.length);
         let card;
         if (isRoguelite) {
           card = ownDead.splice(idx, 1)[0];
@@ -1675,7 +1675,7 @@ const CARD_ABILITIES = {
         // Classic / AI path — random pick (matches the previous default
         // behavior; AI can also follow this branch for the upgraded
         // card since prompting an AI seat for a hand pick has no UX).
-        const pick = eligible[Math.floor(Math.random() * eligible.length)];
+        const pick = eligible[Math.floor(Game.rng() * eligible.length)];
         summonChoice(pick);
       }
     }
@@ -1697,7 +1697,7 @@ const CARD_ABILITIES = {
       // infer which card is which from positional hints.
       const faceDownDeck = enemyHand.slice();
       for (let i = faceDownDeck.length - 1; i > 0; i--) {
-        const j = Math.floor(Math.random() * (i + 1));
+        const j = Math.floor(Game.rng() * (i + 1));
         [faceDownDeck[i], faceDownDeck[j]] = [faceDownDeck[j], faceDownDeck[i]];
       }
       // Roguelite Text+ override — _deadpoolNoGiveBack skips the trade
@@ -1755,7 +1755,7 @@ const CARD_ABILITIES = {
             },
             cards => cards.slice().sort((a, b) => (a.baseCost || a.cost) - (b.baseCost || b.cost))[0]);
         },
-        cards => cards[Math.floor(Math.random() * cards.length)],
+        cards => cards[Math.floor(Game.rng() * cards.length)],
         { faceDown: true });
       });
     }
@@ -1914,7 +1914,7 @@ const CARD_ABILITIES = {
     onPlay(G, self, lane) {
       const allDead = [...G.state.player.deadPile, ...G.state.ai.deadPile];
       if (!allDead.length) return;
-      const dead = allDead[Math.floor(Math.random() * allDead.length)];
+      const dead = allDead[Math.floor(Game.rng() * allDead.length)];
 
       // Copy string abilities (but keep Evade 1)
       if (dead.abilities) {
@@ -2636,7 +2636,7 @@ const CARD_ABILITIES = {
       const regain = (typeof self._spiderManRegainChance === 'number') ? self._spiderManRegainChance : 0.5;
       G.buffCard(self, buff, buff);
       G.log(`Spider-Man evades and grows! +${buff}/+${buff}`);
-      if (Math.random() < regain) {
+      if (Game.rng() < regain) {
         self.evadeCharges += 1;
         G.log(`Spider-Man's spider-sense tingles! Extra evade charge!`);
       }
@@ -2670,7 +2670,7 @@ const CARD_ABILITIES = {
         for (let i = 0; i < n; i++) {
           const allDead = [...G.state.player.deadPile, ...G.state.ai.deadPile];
           if (!allDead.length) break;
-          const idx = Math.floor(Math.random() * allDead.length);
+          const idx = Math.floor(Game.rng() * allDead.length);
           let card;
           if (idx < G.state.player.deadPile.length) {
             card = G.state.player.deadPile.splice(idx, 1)[0];
@@ -3294,7 +3294,7 @@ const CARD_ABILITIES = {
           G.moveCard(self, lane, to);
         });
       } else {
-        const to = open[Math.floor(Math.random() * open.length)];
+        const to = open[Math.floor(Game.rng() * open.length)];
         G.moveCard(self, lane, to);
       }
     },
@@ -3374,7 +3374,7 @@ const CARD_ABILITIES = {
       G.state[self.owner].hand.filter(card =>
         card.skipAutoUntrickable || (card.baseCost || card.cost || 0) < 10
       ).forEach(card => {
-        const kw = KEYWORDS[Math.floor(Math.random() * KEYWORDS.length)];
+        const kw = KEYWORDS[Math.floor(Game.rng() * KEYWORDS.length)];
         if (!card.abilities.includes(kw)) card.abilities.push(kw);
         G.applyAbilities(card);
         G.log(`[APOCALYPSE] ${card.name} permanently gains ${kw}.`);
@@ -3388,7 +3388,7 @@ const CARD_ABILITIES = {
       // ever loses 1 (never double-dipped).
       const shuffled = enemies.slice();
       for (let i = shuffled.length - 1; i > 0; i--) {
-        const j = Math.floor(Math.random() * (i + 1));
+        const j = Math.floor(Game.rng() * (i + 1));
         [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
       }
       shuffled.slice(0, 2).forEach(target => {
@@ -3570,7 +3570,7 @@ const CARD_ABILITIES = {
     onBeforeTricks(G, self, lane) {
       const enemies = G.getEnemiesOf(self.owner).filter(e => !e.isFrozen);
       if (enemies.length) {
-        const t = enemies[Math.floor(Math.random() * enemies.length)];
+        const t = enemies[Math.floor(Game.rng() * enemies.length)];
         G.freezeCardUnresistible(t);
         G.log(`Thor freezes ${t.name}!`);
       }
@@ -3705,7 +3705,7 @@ const CARD_ABILITIES = {
     onTurnStart(G, self) {
       if (self.currentHealth <= 0) return;
       G.getAllCardsOf(self.owner).filter(c => c.currentHealth > 0).forEach(a => {
-        a._criticalThisRound = Math.random() < 0.5;
+        a._criticalThisRound = Game.rng() < 0.5;
         if (a._criticalThisRound) G.log(`[HAN SOLO] ${a.name} is feeling lucky — Critical this round!`);
       });
     },
@@ -4101,7 +4101,7 @@ const CARD_ABILITIES = {
       let killed = 0;
       const maxLanes = Game.LANE_COUNT;
       while (rolled.size < Math.min(numRolls, maxLanes)) {
-        const r = Math.floor(Math.random() * maxLanes);
+        const r = Math.floor(Game.rng() * maxLanes);
         if (!rolled.has(r)) {
           rolled.add(r);
           const opp = G.opponent(self.owner);
@@ -4445,7 +4445,7 @@ const CARD_ABILITIES = {
           && G.canEffectLand(e, 'destroy', { owner: self.owner, source: self })
       );
       if (!targets.length) return;
-      const t = targets[Math.floor(Math.random() * targets.length)];
+      const t = targets[Math.floor(Game.rng() * targets.length)];
       self._trigonChaining = true;
       G.killCard(t, self);
       self._trigonChaining = false;
@@ -4602,7 +4602,7 @@ const CARD_ABILITIES = {
       const hand = (G.state[opp] && G.state[opp].hand) || [];
       const targets = hand.filter(c => (c.currentHealth !== undefined ? c.currentHealth : (c.health || 0)) > 0);
       if (!targets.length) { self._skipNormalAttack = true; return; }
-      const t = targets[Math.floor(Math.random() * targets.length)];
+      const t = targets[Math.floor(Game.rng() * targets.length)];
       let dmg = self.attack || 1;
       if (G.state._yodaShieldFor && G.state._yodaShieldFor[opp] > 0) dmg = Math.ceil(dmg / 2);
       const curHp = t.currentHealth !== undefined ? t.currentHealth : (t.health || 0);

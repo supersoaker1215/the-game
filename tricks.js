@@ -157,7 +157,7 @@ const TRICK_DEFS = [
         G.log("Lasso of Truth: opponent's hand is empty.");
         return;
       }
-      const c = h[Math.floor(Math.random() * h.length)];
+      const c = h[Math.floor(G.rng() * h.length)];
       G.log(`[REVEAL] Lasso of Truth reveals from opponent's hand: ${c.name} (${c.cost} cost, ${c.attack || '?'}/${c.currentHealth || c.maxHealth || c.health || '?'})`);
       // Show the revealed card prominently to the player via the
       // pending-choice modal. Single-card "choice" — clicking
@@ -200,7 +200,7 @@ const TRICK_DEFS = [
     play(G, owner) {
       const d = G.state[owner].deadPile;
       if (d.length) {
-        const archived = d.splice(Math.floor(Math.random() * d.length), 1)[0];
+        const archived = d.splice(Math.floor(G.rng() * d.length), 1)[0];
         // The dead-pile archive stores BASE stats (`attack`, `health`,
         // `cost`) but lacks the runtime fields a playable card needs
         // (`id`, `currentHealth`, `maxHealth`, `baseAttack`, `armorValue`,
@@ -296,7 +296,7 @@ const TRICK_DEFS = [
       const count = Math.min(3, pile.length);
       const indices = [];
       while (indices.length < count) {
-        const r = Math.floor(Math.random() * pile.length);
+        const r = Math.floor(G.rng() * pile.length);
         if (!indices.includes(r)) indices.push(r);
       }
       const choices = indices.map(i => pile[i]);
@@ -337,7 +337,7 @@ const TRICK_DEFS = [
   { name: "Two-Face Coin", cost: 2,
     desc: "Roll a die (1-8). Add the result to your Block Meter.",
     play(G, owner) {
-      const roll = 1 + Math.floor(Math.random() * 8);
+      const roll = 1 + Math.floor(G.rng() * 8);
       G.state[owner].blockMeter = Math.min(Game.BLOCK_MAX, G.state[owner].blockMeter + roll);
       G.log(`Two-Face Coin rolls ${roll}! Block Meter +${roll} → ${G.state[owner].blockMeter}`);
     }
@@ -629,7 +629,7 @@ const TRICK_DEFS = [
             G.log(`Joker's Card protects ${odd ? 'odd' : 'even'} lanes!`);
           });
       } else {
-        const odd = Math.random() < 0.5;
+        const odd = G.rng() < 0.5;
         for (let i = 0; i < Game.LANE_COUNT; i++) {
           if (((i + 1) % 2 === 1) === odd) G.state.lanes[i].protected = owner;
         }
