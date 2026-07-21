@@ -13356,6 +13356,16 @@ const UI = {
     const targetCardIds = new Set();
     if (cc && isMyCardChoice) cc.cards.forEach(c => { if (c.id !== undefined) targetCardIds.add(c.id); });
     const lcTargetSide = (lc && isMyLaneChoice) ? (lc.targetSide || lc.owner) : null;
+    // ABILITY TARGET PREVIEW — when a card is SELECTED in hand (and no pick
+    // prompt is currently open) glow the enemies its onPlay ability could hit,
+    // so the player sees Winter Soldier / Gamora / etc.'s reach BEFORE playing
+    // (the user wanted Iron Man's kill-preview generalized). Computed once per
+    // render; the class used (.target-highlight) is in _DECORATION_CLASSES, so
+    // it auto-clears on the next render once the card is deselected or played —
+    // no lingering-highlight bug.
+    const abilityTargetIds = (s.selectedCard && !cc && !lc && Game.previewAbilityTargets)
+      ? new Set((Game.previewAbilityTargets(s.selectedCard, s.selectedCard.owner) || []).map(c => c.id))
+      : null;
     // Effective forced lane for each seat — Moder's single forcedLane only.
     // (The Magneto-queue fallback was removed with the Magneto redesign: no
     // setter exists, so it could only paint phantom lock glyphs from stale state.)
@@ -13699,6 +13709,15 @@ const UI = {
           // Clear the preview class when Iron Man is no longer
           // selected so a stale highlight doesn't linger.
           cardEl.classList.remove('card-kill-preview');
+        }
+        // Generalized ability-target preview — the Iron Man idea for every
+        // targeting card (Winter Soldier / Gamora / Deathstroke / Human Torch /
+        // Venom / …). A card selected in hand glows the enemies its onPlay
+        // could hit. Gated to pure selection (no active pick prompt above), and
+        // uses .target-highlight (in _DECORATION_CLASSES → auto-cleared on the
+        // next render when the card is deselected or played).
+        if (abilityTargetIds && lane.ai && abilityTargetIds.has(lane.ai.id)) {
+          cardEl.classList.add('target-highlight');
         }
         // Lane-choice prompts (Vader's chain, Green Goblin target-lane,
         // etc.) that target the AI side need clicks on the OCCUPIED

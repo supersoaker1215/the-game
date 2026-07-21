@@ -4980,7 +4980,7 @@ const Game = {
             this.mindControlCard(target, card);
             picked.add(target.id);
             pickNext(remaining - 1);
-          }, aiPicker);
+          }, aiPicker, { forced: pool.length <= remaining });
       } else {
         const target = aiPicker(pool);
         this.mindControlCard(target, card);
@@ -6972,6 +6972,47 @@ const Game = {
     return this.getAlliesOf(owner).filter(t => this.canTrickLand(t, kind, owner));
   },
 
+  // ===================== ABILITY TARGET PREVIEW =====================
+  // "Which enemies would this hand card's onPlay ability be able to target?"
+  // Powers the board highlight when a card is selected in hand — so the
+  // player sees, BEFORE playing, exactly what Winter Soldier / Gamora / etc.
+  // can hit (the user wanted Iron Man's kill-preview generalized). Each entry
+  // MIRRORS that ability's own onPlay target filter (kept in sync here);
+  // `_copiedFrom` lets a Martian-Manhunter copy inherit the preview. Iron Man
+  // keeps its bespoke kill-preview and is intentionally not listed. Extend
+  // the map to cover more targeting cards.
+  //   kind   — the canEffectLand gate the ability uses (destroy/damage/debuff)
+  //   stat   — an optional "<= threshold" axis (attack | currentHealth)
+  //   thr    — number or (card)=>number (roguelite overrides live on the card)
+  //   filter — optional extra predicate mirroring an ability's own filter
+  TARGET_PREVIEW: {
+    'Winter Soldier': { kind: 'destroy', stat: 'attack',        thr: c => c._wsCostThreshold || 3 },
+    'Peacemaker':     { kind: 'destroy', stat: 'attack',        thr: c => c._peacemakerKillThreshold || 2 },
+    'Gamora':         { kind: 'destroy', stat: 'currentHealth', thr: c => c._gamoraExecuteThreshold || 2 },
+    'Deathstroke':    { kind: 'destroy', stat: 'currentHealth', thr: c => c._deathstrokeKillThreshold || 3 },
+    'Human Torch':    { kind: 'damage' },
+    'Rocket Raccoon': { kind: 'damage' },
+    'Predator':       { kind: 'damage' },
+    'Nightwing':      { kind: 'debuff', filter: e => (e.attack || 0) > 0 },
+    'Venom':          { kind: null },   // any living enemy (freeze — unfiltered pool)
+    'Spider-Man':     { kind: null },   // any living enemy (freeze — unfiltered pool)
+  },
+  previewAbilityTargets(card, owner) {
+    if (!card) return [];
+    const spec = this.TARGET_PREVIEW[card.name] ||
+                 (card._copiedFrom && this.TARGET_PREVIEW[card._copiedFrom]);
+    if (!spec) return [];
+    return this.getEnemiesOf(owner).filter(e => {
+      if (spec.kind && !this.canEffectLand(e, spec.kind, { owner, source: card })) return false;
+      if (spec.stat) {
+        const thr = (typeof spec.thr === 'function') ? spec.thr(card) : spec.thr;
+        if (!((e[spec.stat] || 0) <= thr)) return false;
+      }
+      if (spec.filter && !spec.filter(e, card)) return false;
+      return true;
+    });
+  },
+
   _trickBlocked(target) {
     if (!this.state._inTrick || !target) return false;
     // 10-cost titans are immune to ALL tricks, including friendly ones.
@@ -7445,47 +7486,47 @@ const Game = {
     // back and cover both sides of the source lane.
     const chainFrom = (startLane) => {
       let current = startLane;
-      let lockedDir = null; // null until first directional step, then 'left' | 'right'
-      const extendLeft = () => {
+      // Scan one direction (step -1 = left, +1 = right) from `current` for the
+      // next not-yet-hit enemy in an unbroken run of occupied lanes.
+      const extend = (step) => {
         let idx = current;
-        while (idx - 1 >= 0) {
-          const e = this.state.lanes[idx - 1][opp];
+        while (idx + step >= 0 && idx + step < this.LANE_COUNT) {
+          const e = this.state.lanes[idx + step][opp];
           if (!e || e.currentHealth <= 0) return null;
-          idx--;
+          idx += step;
           if (!hit.has(e.id)) return { idx, card: e };
         }
         return null;
       };
-      const extendRight = () => {
-        let idx = current;
-        while (idx + 1 < this.LANE_COUNT) {
-          const e = this.state.lanes[idx + 1][opp];
-          if (!e || e.currentHealth <= 0) return null;
-          idx++;
-          if (!hit.has(e.id)) return { idx, card: e };
+      // Once the direction is fixed the spread is deterministic — walk it to
+      // the end (or maxTargets) with NO further prompts. User: "which
+      // direction, after that it auto completes."
+      const autoWalk = (step) => {
+        while (!(maxTargets && hit.size >= maxTargets)) {
+          const next = extend(step);
+          if (!next) break;
+          applyAndLog(next.card);
+          current = next.idx;
         }
-        return null;
       };
-      const askNext = () => {
-        if (maxTargets && hit.size >= maxTargets) return; // cap reached
-        const left  = (lockedDir === 'right') ? null : extendLeft();
-        const right = (lockedDir === 'left')  ? null : extendRight();
-        const options = [];
-        if (left)  options.push({ name: `← ${left.card.name} (lane ${left.idx + 1})`,  desc: `Chain ${verb} to ${left.card.name}`,  _dir: 'left',  _target: left });
-        if (right) options.push({ name: `${right.card.name} (lane ${right.idx + 1}) →`, desc: `Chain ${verb} to ${right.card.name}`, _dir: 'right', _target: right });
-        options.push({ name: `Stop Chain`, desc: `End the ${verb} chain here`, _dir: 'stop' });
-        if (options.length === 1) return; // only 'stop' available
+      if (maxTargets && hit.size >= maxTargets) return;
+      const left = extend(-1), right = extend(1);
+      if (left && right) {
+        // Genuine fork — the ONE remaining choice is which way to spread. After
+        // it's picked the chain auto-completes (no per-step Stop prompt).
+        const options = [
+          { name: `← ${left.card.name} (lane ${left.idx + 1})`,  desc: `Chain ${verb} left`,  _step: -1 },
+          { name: `${right.card.name} (lane ${right.idx + 1}) →`, desc: `Chain ${verb} right`, _step: 1 },
+        ];
         this.promptCardChoice(owner, options, `${title} — Direction`,
-          `Chain continues from lane ${current + 1}. Pick next target or stop.`,
-          (pick) => {
-            if (pick._dir === 'stop' || !pick._target) return;
-            if (!lockedDir) lockedDir = pick._dir;
-            applyAndLog(pick._target.card);
-            current = pick._target.idx;
-            askNext();
-          }, cards => cards[0]);
-      };
-      askNext();
+          `Pick a direction — the ${verb} chain auto-completes from lane ${current + 1}.`,
+          (pick) => autoWalk(pick._step), cards => cards[0]);
+      } else if (left) {
+        autoWalk(-1);   // only one way to spread → no prompt, just complete
+      } else if (right) {
+        autoWalk(1);
+      }
+      // neither side chainable → the start was the whole chain
     };
 
     // Step 1: prompt for starting enemy
@@ -7946,7 +7987,7 @@ const Game = {
     }, delayMs);
   },
 
-  promptLaneChoice(owner, lanes, title, desc, callback, targetSide, previewCard, previewDamage) {
+  promptLaneChoice(owner, lanes, title, desc, callback, targetSide, previewCard, previewDamage, options) {
     // PROMPT QUEUE — a prompt is already open, so defer this arm instead of
     // clobbering the slot. The thunk re-enters this function on drain with
     // destroyed lanes filtered out; callbacks with stricter needs (summon
@@ -7955,7 +7996,7 @@ const Game = {
     if (this._promptBusy()) {
       this._promptQueue.push(() => this.promptLaneChoice(owner,
         (lanes || []).filter(i => this.state.lanes[i] && !this.state.lanes[i].destroyed),
-        title, desc, callback, targetSide, previewCard, previewDamage));
+        title, desc, callback, targetSide, previewCard, previewDamage, options));
       return;
     }
     if (!lanes || !lanes.length) {
@@ -7965,7 +8006,10 @@ const Game = {
       this.resumeCombatIfWaiting();
       return;
     }
-    if (this.isHuman(owner) && lanes.length > 1) {
+    // options.forced — a predetermined lane pick (e.g. Jigsaw trapping every
+    // open enemy lane): auto-place with no modal, same as the single-lane arm.
+    const forcedLane = !!(options && options.forced);
+    if (this.isHuman(owner) && lanes.length > 1 && !forcedLane) {
       // previewCard (optional) — synthetic card representing what lands
       //   in the chosen lane. Used for summon placement; UI renders
       //   makeDamagePreview against the lane's opposing enemy.
@@ -8025,22 +8069,26 @@ const Game = {
         this.resumeCombatIfWaiting();
         UI.render();
       });
-    } else if (this.isHuman(owner) && lanes.length === 1) {
+    } else if (this.isHuman(owner) && (lanes.length === 1 || forcedLane)) {
       // Single valid lane — auto-resolve. Match promptCardChoice and
       // surface a toast so the player sees WHY no choice screen
       // appeared. Wording is intentionally neutral ("Lane N — only
       // option") because callers split between placement-style
       // ("Place X") and damage-targeting ("Vader chain start") and
-      // a more specific verb would be wrong half the time.
-      try {
-        if (typeof UI !== 'undefined' && UI.showAITrickToast) {
-          UI.showAITrickToast(
-            `Lane ${lanes[0] + 1} — only option`,
-            title.replace(/^[^—]*—\s*/, '') || title,
-            'info'
-          );
-        }
-      } catch (e) { /* swallow */ }
+      // a more specific verb would be wrong half the time. Skip the toast
+      // for a FORCED multi-lane pick — "only option" would be a lie when
+      // several lanes are being auto-consumed (Jigsaw trapping them all).
+      if (lanes.length === 1) {
+        try {
+          if (typeof UI !== 'undefined' && UI.showAITrickToast) {
+            UI.showAITrickToast(
+              `Lane ${lanes[0] + 1} — only option`,
+              title.replace(/^[^—]*—\s*/, '') || title,
+              'info'
+            );
+          }
+        } catch (e) { /* swallow */ }
+      }
       callback(lanes[0]);
     } else {
       // AI auto-resolve. Add a delay + toast so the player sees
@@ -8076,7 +8124,16 @@ const Game = {
       return;
     }
     const forcePrompt = !!(options && options.forcePrompt);
-    if (this.isHuman(owner) && (cards.length > 1 || forcePrompt)) {
+    // Auto-resolve a MEANINGLESS choice: the caller sets options.forced when
+    // every candidate will be consumed anyway, so which one the player picks
+    // first can't change the outcome (Galactus devouring all remaining
+    // enemies, a chain freeze whose direction is already locked, an Omega
+    // Beam with a single enemy). This widens the single-target auto-resolve
+    // below from "exactly one option" to "one option that matters" — the
+    // GLOBAL hook, so no ability re-implements the skip. forcePrompt wins if
+    // a caller explicitly wants the tray shown even for a forced pick.
+    const forcedChoice = !forcePrompt && !!(options && options.forced);
+    if (this.isHuman(owner) && (cards.length > 1 || forcePrompt) && !forcedChoice) {
       this.state.pendingCardChoice = { owner, cards, title, desc, callback, faceDown: !!(options && options.faceDown), inlineTray: !!(options && options.inlineTray) };
       // 2v2 online: route guest choices to the guest client (same as lane choice)
       const _cap = this._2v2CurrentActingPlayer;
@@ -8117,14 +8174,18 @@ const Game = {
         this.resumeCombatIfWaiting();
         UI.render();
       });
-    } else if (this.isHuman(owner) && cards.length === 1) {
-      // Auto-resolve when there's only one valid target. The 'Auto-targeted
-      // X' toast that used to fire here was removed (user circled it: "this
-      // is still here") — its header masqueraded as the old 'AI played a
-      // Trick' banner, and the trick reveal + the visible on-board effect
-      // already tell the story. The log line below keeps it diagnosable.
-      const target = cards[0];
-      this.log(`  [AUTO-TARGET] ${title.replace(/\s*—.*$/, '')} → ${target.name} (only valid target)`);
+    } else if (this.isHuman(owner) && (cards.length === 1 || forcedChoice)) {
+      // Auto-resolve when there's only one valid target, OR when the caller
+      // flagged the choice as forced (every candidate gets taken anyway).
+      // The 'Auto-targeted X' toast that used to fire here was removed (user
+      // circled it) — the on-board effect tells the story. For a forced
+      // multi-candidate pick we take the aiPicker's choice (highest threat)
+      // so the first-picked card is sensible; in MP/2v2 all seats are human
+      // so we fall back to cards[0] (order is cosmetic — all get consumed).
+      const target = (forcedChoice && aiPicker && !this.isMultiplayer() && !this.is2v2())
+        ? aiPicker(cards) : cards[0];
+      const why = (cards.length === 1) ? 'only valid target' : 'choice is forced';
+      this.log(`  [AUTO-TARGET] ${title.replace(/\s*—.*$/, '')} → ${target.name} (${why})`);
       callback(target);
     } else {
       // AI auto-resolve. Show a toast naming the chosen target +
@@ -8604,44 +8665,42 @@ const Game = {
       };
       promptTarget((target) => {
         targeted.add(target.id);
-        // Pick amount
-        const amounts = [];
-        for (let n = 1; n <= remaining; n++) {
-          amounts.push({ name: `${n} Damage`, desc: `Deal ${n} to ${target.name}`, _amount: n });
-        }
-        if (Game.isHuman(card.owner)) {
-          this.promptCardChoice(card.owner, amounts,
-            `Omega Beam — ${target.name}`, `Allocate damage (${remaining} remaining)`,
-            (choice) => {
-              const dmg = choice._amount;
-              this.log(`  [OMEGA BEAM] Fires ${dmg} at ${target.name}!`);
-              this.dealDamage(target, dmg, card);
-              remaining -= dmg;
-              this.cleanupDead();
-              doNext();
-            },
-            (amts) => {
-              // AI fallback for amount picker (when human prompt collapses
-              // because amounts.length === 1, i.e., only 1 damage left).
-              const hp = target.currentHealth;
-              const armor = target.armorValue || 0;
-              const needed = hp + armor;
-              return needed <= remaining
-                ? amts.find(a => a._amount === needed) || amts[amts.length - 1]
-                : amts[amts.length - 1];
-            }
-          );
-        } else {
-          // AI controller — pick amount directly, no modal.
-          const hp = target.currentHealth;
-          const armor = target.armorValue || 0;
-          const needed = hp + armor;
-          const dmg = needed <= remaining ? needed : remaining;
+        const fire = (dmg) => {
           this.log(`  [OMEGA BEAM] Fires ${dmg} at ${target.name}!`);
           this.dealDamage(target, dmg, card);
           remaining -= dmg;
           this.cleanupDead();
-          doNext();
+          doNext();               // dump-and-CONTINUE (never dump-and-return: the old
+                                  //  return-here path is what froze the beam)
+        };
+        // The amount is a real choice ONLY when another enemy could still take
+        // the leftover. With a single remaining target the beam just dumps
+        // everything on it — no pointless "Allocate damage" modal (user:
+        // auto-resolve forced choices, "darkseids beams as well"). `available`
+        // was snapshot before this target was marked, so length 1 == sole target.
+        const soleTarget = available.length === 1;
+        if (Game.isHuman(card.owner) && !soleTarget) {
+          const amounts = [];
+          for (let n = 1; n <= remaining; n++) {
+            amounts.push({ name: `${n} Damage`, desc: `Deal ${n} to ${target.name}`, _amount: n });
+          }
+          this.promptCardChoice(card.owner, amounts,
+            `Omega Beam — ${target.name}`, `Allocate damage (${remaining} remaining)`,
+            (choice) => fire(choice._amount),
+            (amts) => {
+              // AI fallback for the amount picker (when amounts collapses to 1).
+              const needed = target.currentHealth + (target.armorValue || 0);
+              return needed <= remaining
+                ? amts.find(a => a._amount === needed) || amts[amts.length - 1]
+                : amts[amts.length - 1];
+            });
+        } else if (Game.isHuman(card.owner)) {
+          // Forced: the only target left gets the whole remaining beam.
+          fire(remaining);
+        } else {
+          // AI controller — spend exactly what's needed, save the rest.
+          const needed = target.currentHealth + (target.armorValue || 0);
+          fire(needed <= remaining ? needed : remaining);
         }
       });
     };

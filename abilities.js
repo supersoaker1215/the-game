@@ -276,7 +276,7 @@ const CARD_ABILITIES = {
           G.freezeCard(t, self);
           frozen++;
           if (frozen < freezes) pickNext();
-        });
+        }, undefined, { forced: remaining.length <= (freezes - frozen) });
       };
       pickNext();
       if (grantBullseye) {
@@ -1197,7 +1197,9 @@ const CARD_ABILITIES = {
             G.log(`[BEAR TRAP ${stepNumber}/${trapCount}] Jigsaw sets a Reverse Bear Trap in lane ${lane + 1}!`);
             placeTrapStep(remaining - 1);
           },
-          opp);
+          // Auto-place when forced: every open enemy lane gets trapped anyway
+          // (open <= traps remaining) so which order can't matter — no modal.
+          opp, null, 0, { forced: open.length <= remaining });
       };
 
       G.log(`Jigsaw's game begins — set ${trapCount} trap${trapCount === 1 ? '' : 's'}, then drag an enemy.`);
@@ -1483,7 +1485,7 @@ const CARD_ABILITIES = {
               G.log("Symbiote Spider-Man: You shuffle 2 cards back and draw 2!");
               if (onDone) onDone();
             });
-          });
+          }, undefined, { forced: hand.length <= 2 });
         }
       };
       // Process owner first, then opponent, then heal
@@ -3335,7 +3337,7 @@ const CARD_ABILITIES = {
             G.log(`Silver Surfer weakens ${t.name} by ${debuff} ATK!`);
             debuffed.add(t.id);
             if (debuffed.size < targets) pickNext();
-          }, _aiThreatPicker);
+          }, _aiThreatPicker, { forced: remaining.length <= (targets - debuffed.size) });
       };
       pickNext();
     },
@@ -4092,7 +4094,7 @@ const CARD_ABILITIES = {
           G.log(`Superman freezes ${t2.name} for ${freezeN}!`);
           doBlast();
         }, cards => cards.slice().sort((a, b) => AI.threatScore(b) - AI.threatScore(a))[0]);
-      }, cards => cards.slice().sort((a, b) => AI.threatScore(b) - AI.threatScore(a))[0]);
+      }, cards => cards.slice().sort((a, b) => AI.threatScore(b) - AI.threatScore(a))[0], { forced: unfrozen1.length <= 2 });
     }
   },
   "Thanos": {
@@ -4261,12 +4263,15 @@ const CARD_ABILITIES = {
           (AI && AI.threatScore ? (AI.threatScore(b) - AI.threatScore(a))
                                 : (b.attack || 0) - (a.attack || 0)))[0];
         if (Game.isHuman(self.owner)) {
+          // Auto-resolve when forced: if every remaining enemy will be
+          // drained anyway (available <= remaining drains) the pick can't
+          // change the outcome, so skip the modal (options.forced).
           G.promptCardChoice(self.owner, available, `Dormammu — Drain (${remaining} left)`,
             `Choose enemy to drain (${remaining} remaining)`, (t) => {
               G.drainCard(self, t);
               picked.push(t.id);
               drainChain(remaining - 1, picked);
-            }, threatPicker);
+            }, threatPicker, { forced: available.length <= remaining });
         } else {
           const t = threatPicker(available);
           G.drainCard(self, t);
@@ -4319,11 +4324,6 @@ const CARD_ABILITIES = {
         // of the devour menu, so Galactus couldn't even pick them.
         const available = enemies.filter(e => e.currentHealth > 0 && !picked.includes(e.id) && G.findCardLane(e) >= 0 && G.canEffectLand(e, 'destroy', { owner: self.owner, source: self }));
         if (!available.length) return;
-        // ALWAYS prompt the human player — even when only 1 target remains.
-        // User spec: "the user always chooses". The redundant-looking prompt
-        // for a single option is intentional — it shows the player exactly
-        // who's about to be devoured and gives them a deliberate confirm
-        // beat instead of an ambiguous instant resolution.
         // AI picker: devour highest threat. Cost-based picking missed
         // cards like Captain America (7-cost, modest stats but huge
         // strategic impact via shield) — threatScore captures that.
@@ -4333,12 +4333,19 @@ const CARD_ABILITIES = {
           (AI && AI.threatScore ? (AI.threatScore(b) - AI.threatScore(a))
                                 : (b.cost || 0) - (a.cost || 0)))[0];
         if (Game.isHuman(self.owner)) {
+          // Auto-resolve when the choice is forced: if every remaining
+          // candidate will be devoured anyway (available <= remaining
+          // devours), which one you pick first can't change the outcome, so
+          // skip the modal (user: "if there are only 2 or less enemies it
+          // should happen automatically"). options.forced routes through the
+          // engine's shared auto-resolve. When there ARE more targets than
+          // devours, the choice is real and still prompts.
           G.promptCardChoice(self.owner, available, `Galactus — Devour (${remaining} left)`,
             `Choose enemy to devour (${remaining} remaining)`, (t) => {
               G.devourCard(t, self);
               picked.push(t.id);
               devourChain(remaining - 1, picked);
-            }, threatPicker);
+            }, threatPicker, { forced: available.length <= remaining });
         } else {
           const t = threatPicker(available);
           G.devourCard(t, self);

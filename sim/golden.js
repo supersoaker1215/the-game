@@ -414,6 +414,92 @@ gold('RG-17 DSL damage respects Invincible (shared primitive path)', function ()
 });
 
 // ============================================================
+// FORCED-CHOICE AUTO-RESOLVE (no pointless prompts)
+// ============================================================
+
+// RG-18 — the global hook: promptCardChoice auto-resolves a multi-candidate
+// choice when options.forced is set (the "every candidate gets taken anyway"
+// case, e.g. Galactus devouring all remaining enemies) instead of arming a
+// modal, and it uses the aiPicker for a sensible first pick. A single
+// candidate still auto-resolves as before.
+gold('RG-18 promptCardChoice options.forced auto-resolves without a modal', function () {
+  reset();
+  Game.state.player.isHuman = true;
+  Game.state.pendingCardChoice = null;
+  var a = card({ name: 'A', owner: 'ai' });
+  var b = card({ name: 'B', owner: 'ai' });
+  var picked = null;
+  Game.promptCardChoice('player', [a, b], 'T', 'd',
+    function (t) { picked = t; }, function (cs) { return cs[1]; }, { forced: true });
+  eq('forced: callback fired', !!picked, true);
+  eq('forced: no modal armed', Game.state.pendingCardChoice, null);
+  eq('forced: used aiPicker (cs[1]=B)', picked && picked.name, 'B');
+  // A single candidate still auto-resolves (regression on the existing arm).
+  Game.state.pendingCardChoice = null;
+  var solo = null;
+  Game.promptCardChoice('player', [a], 'T', 'd', function (t) { solo = t; }, null, {});
+  eq('single: auto-resolved', solo && solo.name, 'A');
+  eq('single: no modal', Game.state.pendingCardChoice, null);
+});
+
+// RG-19 — Galactus auto-devours every enemy with NO modal when the number
+// of enemies is <= its devour count (user: "if there are only 2 or less
+// enemies it should happen automatically").
+gold('RG-19 Galactus auto-devours all when enemies <= devour count', function () {
+  reset();
+  Game.state.player.isHuman = true;
+  Game.state.ai.isHuman = false;
+  Game.state.pendingCardChoice = null;
+  var g = card({ name: 'Galactus', owner: 'player', cost: 10, attack: 5, health: 20 });
+  g._galactusDevourCount = 2;
+  place(g, 0, 'player');
+  place(card({ name: 'E1', owner: 'ai', attack: 2, health: 4 }), 0, 'ai');
+  place(card({ name: 'E2', owner: 'ai', attack: 2, health: 4 }), 1, 'ai');
+  CARD_ABILITIES['Galactus'].onBeforeTricks(Game, g, 0);
+  eq('no modal armed', Game.state.pendingCardChoice, null);
+  eq('E1 devoured (lane empty)', Game.state.lanes[0].ai, null);
+  eq('E2 devoured (lane empty)', Game.state.lanes[1].ai, null);
+});
+
+// RG-20 — Darkseid's Omega Beam dumps its whole payload on a single enemy
+// with NO "Allocate damage" modal ("darkseids beams as well").
+gold('RG-20 Omega Beam dumps all on a single enemy (no allocate modal)', function () {
+  reset();
+  Game.state.player.isHuman = true;
+  Game.state.ai.isHuman = false;
+  Game.state.pendingCardChoice = null;
+  var d = card({ name: 'Darkseid', owner: 'player', cost: 9, attack: 5, health: 9 });
+  place(d, 0, 'player');
+  var foe = card({ name: 'Foe', owner: 'ai', attack: 2, health: 12 });
+  place(foe, 0, 'ai');
+  Game.distributeOmegaBeam(d);
+  eq('no modal armed', Game.state.pendingCardChoice, null);
+  eq('all 5 dumped on the sole enemy', foe.currentHealth, 12 - 5);
+});
+
+// ============================================================
+// ABILITY TARGET PREVIEW (hand-selection highlight source)
+// ============================================================
+
+// RG-21 — previewAbilityTargets mirrors each ability's own onPlay filter,
+// so the board highlight shows exactly the enemies the card could hit.
+gold('RG-21 previewAbilityTargets mirrors ability filters (WS/Gamora)', function () {
+  reset();
+  var ws = card({ name: 'Winter Soldier', owner: 'player', attack: 3, health: 5 });
+  place(card({ name: 'Weak', owner: 'ai', attack: 2, health: 8 }), 0, 'ai');   // ATK 2 <= 3 → target
+  place(card({ name: 'Strong', owner: 'ai', attack: 6, health: 2 }), 1, 'ai');  // ATK 6 > 3 → not
+  eq('WS targets ATK<=3', JSON.stringify(Game.previewAbilityTargets(ws, 'player').map(c => c.name).sort()), JSON.stringify(['Weak']));
+  // Gamora executes HP<=2 → only Strong (HP 2). And an Invincible enemy drops
+  // out (mirrors the canEffectLand destroy gate).
+  var gam = card({ name: 'Gamora', owner: 'player', attack: 2, health: 5 });
+  eq('Gamora targets HP<=2', JSON.stringify(Game.previewAbilityTargets(gam, 'player').map(c => c.name)), JSON.stringify(['Strong']));
+  Game.state.lanes[1].ai.invincibleTurns = 1;
+  eq('Gamora excludes invincible', Game.previewAbilityTargets(gam, 'player').length, 0);
+  // A card with no targeting ability previews nothing.
+  eq('non-targeting → empty', Game.previewAbilityTargets(card({ name: 'Nobody', owner: 'player' }), 'player').length, 0);
+});
+
+// ============================================================
 // RUNNER
 // ============================================================
 for (var ci = 0; ci < __cases.length; ci++) {
