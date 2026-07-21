@@ -4704,8 +4704,15 @@ const CARD_ABILITIES = {
       const finishSpawn = (atk, hp) => {
         // The dying card may still occupy the slot when onDeath fires — clear it first.
         if (lane[owner] && lane[owner].currentHealth <= 0) lane[owner] = null;
+        const beforeJaws = G.state.lanes[laneIdx][owner];
         G.summonCard(owner, laneIdx, 'Jaws', 3, atk, hp, ['Overdrive'], def);
         const jaws = G.state.lanes[laneIdx][owner];
+        // Same identity guard as Sewers: never stamp Jaws' stats onto whatever
+        // card is standing in the lane if the summon bailed.
+        if (!jaws || jaws === beforeJaws || jaws.name !== 'Jaws') {
+          G.log(`  [OPEN WATER] Jaws can't surface in lane ${laneIdx + 1} — the lane is still occupied.`);
+          return;
+        }
         if (jaws) {
           jaws._envLane = laneIdx;
           jaws.attack = atk;
@@ -4792,9 +4799,24 @@ const CARD_ABILITIES = {
       const allyInLane = lane[owner];
 
       const finishSpawn = (atk, hp) => {
+        // Clear a DEAD occupant first. handleDeath defers slot clearing to
+        // cleanupDead (and returns early on death-saves), so the absorbed card
+        // is still sitting in the lane here — summonCard would see an occupied
+        // lane and bail. Open Water/Jaws already did this; Sewers didn't.
+        if (lane[owner] && lane[owner].currentHealth <= 0) lane[owner] = null;
+        const before = G.state.lanes[laneIdx][owner];
         G.summonCard(owner, laneIdx, 'Pennywise', 4, atk, hp, [], def);
         const pennywise = G.state.lanes[laneIdx][owner];
-        if (pennywise) {
+        // Only stamp stats if the summon actually placed a NEW Pennywise. When
+        // summonCard bails on an occupied lane the slot still holds the old
+        // card, and writing here handed IT Pennywise's stats — user report:
+        // "pennywise never destroyed the card that was there and the other
+        // card stayed and gained the stats".
+        if (!pennywise || pennywise === before || pennywise.name !== 'Pennywise') {
+          G.log(`  [SEWERS] Pennywise can't rise in lane ${laneIdx + 1} — the lane is still occupied.`);
+          return;
+        }
+        {
           pennywise._envLane = laneIdx;
           // summonCard ignores atk/hp when sourceDef is provided; set directly
           pennywise.attack = atk;
@@ -4832,7 +4854,20 @@ const CARD_ABILITIES = {
           const extraAtk = allyInLane.attack;
           const extraHp  = allyInLane.currentHealth;
           G.log(`  [ABSORB] Pennywise absorbs ${allyInLane.name} (+${extraAtk}/+${extraHp})!`);
+          // Absorbed = genuinely dead. Zero it BEFORE handleDeath so the card
+          // can't be read as alive, then free the slot ourselves.
+          //
+          // handleDeath does NOT reliably clear the lane: if another death is
+          // already resolving (THE STACK gate, _stackResolving) it merely
+          // QUEUES this one and returns, leaving the card standing. Sewers
+          // fires from onAnyCardPlayed, so any on-play effect that killed
+          // something puts us in exactly that state. summonCard then saw an
+          // occupied lane, bailed, and Pennywise's stats got stamped onto the
+          // surviving card — user report: "pennywise never destroyed the card
+          // that was there and the other card stayed and gained the stats".
+          allyInLane.currentHealth = 0;
           G.handleDeath(allyInLane, laneIdx, null);
+          if (lane[owner] === allyInLane) lane[owner] = null;
           finishSpawn(3 + extraAtk, 5 + extraHp);
         }
       } else {
