@@ -148,8 +148,10 @@ const TRICK_DEFS = [
     abilities: ["Draw 1"],
     desc: "Reveal a random card from the opponent's hand.",
     play(G, owner) {
-      const opp = G.opponent(owner);
       G.drawCards(owner, 1);
+      // 2v2 has two enemies — let the caster pick whose hand to peek at.
+      // 1v1 resolves instantly with the only opponent (unchanged behavior).
+      G.withChosenOpponent(owner, 'Lasso of Truth — whose hand?', (opp) => {
       const h = G.state[opp].hand;
       if (!h.length) {
         G.log("Lasso of Truth: opponent's hand is empty.");
@@ -174,15 +176,23 @@ const TRICK_DEFS = [
       // played the trick) restores the canonical "reveal goes to
       // the trick caster" semantics on both sides.
       if (Game.isHuman(owner)) {
-        G.state.pendingCardChoice = {
-          owner: owner,
-          cards: [c],
-          title: "Lasso of Truth — Revealed",
-          desc: `The opponent is holding ${c.name}. Click to acknowledge.`,
-          callback: () => {}
-        };
-        if (typeof UI !== 'undefined') UI.render();
+        // Routed through promptCardChoice rather than assigning
+        // state.pendingCardChoice directly: the helper stamps the 2v2
+        // _2v2ActingPlayer annotation, so the player who actually cast the
+        // trick is the one who can dismiss the reveal. A hand-rolled prompt
+        // carries no actor, and the resolve guard in cardChoicePick then lets
+        // ANY client try to clear it — on a guest that only mutates their
+        // display copy and the modal sticks. forcePrompt because a single
+        // card would otherwise auto-resolve without ever being shown.
+        G.promptCardChoice(
+          owner, [c],
+          'Lasso of Truth — Revealed',
+          `The opponent is holding ${c.name}. Click to acknowledge.`,
+          () => {}, null,
+          { forcePrompt: true, inlineTray: true }
+        );
       }
+      });
     }
   },
   { name: "Lazarus Pit", cost: 1,

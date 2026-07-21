@@ -7518,10 +7518,16 @@ const UI = {
     // no-ops without a connection — their hand clicks silently did
     // nothing. User report: "tried the 2v2 local and couldn't seem to
     // play any cards when clicking on them."
-    const isLocalSelect = (tt && !tt.online) || you === 'p1';
-    // Online host uses the lane-strip (card select + numbered buttons);
-    // online guests send req2v2LaneChoice and pick from the highlighted
-    // board lanes (same as 1v1).
+    // ONLINE (host included) uses the lane-prompt flow: click a card, the open
+    // lanes light up on the board, click one. That's exactly how 1v1 online
+    // plays, and it's the path the guests were already using successfully.
+    // The host used to be lumped in with local via `|| you === 'p1'` and got
+    // the numbered lane-strip instead — and that strip is what broke, leaving
+    // the host able to select a card but with no way to pick a lane. User
+    // report: "in 2v2 online again and i am the host and cant play cards."
+    // Host and guest now share one implementation (Game._2v2RequestLaneChoice);
+    // the strip survives only for LOCAL pass-and-play, where it belongs.
+    const isLocalSelect = (tt && !tt.online);
     const selectedId = (isLocalSelect && UI._2v2SelectedCardIdx != null && ap.hand[UI._2v2SelectedCardIdx])
       ? ap.hand[UI._2v2SelectedCardIdx].id : null;
     handEl.querySelectorAll('.hand-card-wrapper .card[data-card-id]').forEach(cardEl => {
@@ -7536,10 +7542,13 @@ const UI = {
         if (isLocalSelect) {
           UI._2v2SelectedCardIdx = UI._2v2SelectedCardIdx === apIdx ? null : apIdx;
           UI.render();
-        } else {
-          if (typeof Multiplayer4 !== 'undefined') {
-            Multiplayer4.send({ t: 'req2v2LaneChoice', playerKey: you, cardIdx: apIdx });
-          }
+        } else if (you === 'p1') {
+          // Host is authoritative — run the shared request directly, then push
+          // the resulting pendingLaneChoice out so the table sees the prompt.
+          Game._2v2RequestLaneChoice(you, apIdx);
+          Game._2v2OnlineBroadcast();
+        } else if (typeof Multiplayer4 !== 'undefined') {
+          Multiplayer4.send({ t: 'req2v2LaneChoice', playerKey: you, cardIdx: apIdx });
         }
       };
     });
@@ -7567,7 +7576,11 @@ const UI = {
       const ga = document.getElementById('game-area');
       if (ga) ga.appendChild(strip);
     }
-    if (UI._2v2SelectedCardIdx == null || !canPlay) {
+    // LOCAL pass-and-play only. Online (host and guests alike) now places via
+    // the highlighted-board-lane prompt, so the strip must never appear there
+    // — leaving it live would give the host two competing placement UIs.
+    const _ttStrip = Game.state.twoVTwo;
+    if ((_ttStrip && _ttStrip.online) || UI._2v2SelectedCardIdx == null || !canPlay) {
       strip.style.display = 'none';
       return;
     }

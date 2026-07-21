@@ -1684,7 +1684,10 @@ const CARD_ABILITIES = {
     // onPlay Taunt removed per balance pass. Deadpool now has no onPlay;
     // his kit is purely the onDeath face-down card swap.
     onDeath(G, self, lane) {
-      const opp = G.opponent(self.owner);
+      // 2v2: choose whose hand to raid. The alias is held across the whole
+      // face-down pick + trade-back chain (see withChosenOpponent), so the
+      // steal and the give-back both land on the chosen player.
+      G.withChosenOpponent(self.owner, "Deadpool — whose hand?", (opp) => {
       const enemyHand = G.state[opp].hand;
       if (!enemyHand.length) {
         G.log("Deadpool's final trick fails — the enemy has no cards in hand!");
@@ -1754,6 +1757,7 @@ const CARD_ABILITIES = {
         },
         cards => cards[Math.floor(Math.random() * cards.length)],
         { faceDown: true });
+      });
     }
   },
   "Green Lantern": {
@@ -2103,7 +2107,9 @@ const CARD_ABILITIES = {
   },
   "The Grinch": {
     onPlay(G, self, lane) {
-      const opp = G.opponent(self.owner);
+      // 2v2: the Grinch's owner picks WHICH opponent gets robbed; that player
+      // then picks which trick to give up. Alias is held across both prompts.
+      G.withChosenOpponent(self.owner, 'The Grinch — whose tricks?', (opp) => {
       const th = G.state[opp].trickHand;
       if (!th.length) {
         // No tricks to steal — triple stats
@@ -2178,6 +2184,7 @@ const CARD_ABILITIES = {
         const sorted = [...th].sort((a, b) => a.cost - b.cost);
         resolveGrinchChoice(sorted[0]);
       }
+      });
     }
   },
   "Venom": {
@@ -3324,7 +3331,8 @@ const CARD_ABILITIES = {
 
   "Mace Windu": {
     onPlay(G, self) {
-      const opp = G.opponent(self.owner);
+      // 2v2: choose whose hand to curse. 1v1 resolves instantly (unchanged).
+      G.withChosenOpponent(self.owner, 'Mace Windu — whose hand?', (opp) => {
       const hand = G.state[opp].hand;
       if (!hand.length) { G.log("Mace Windu: opponent's hand is empty."); return; }
       hand.forEach(c => {
@@ -3335,6 +3343,7 @@ const CARD_ABILITIES = {
         c.baseHealth    = Math.max(1, (c.baseHealth   || 0) - 1);
       });
       G.log(`Mace Windu curses ${hand.length} card${hand.length === 1 ? '' : 's'} in the opponent's hand (-1/-1 each)!`);
+      });
     },
     onAllyKilled(G, self) {
       if (self.currentHealth <= 0) return;
@@ -4567,7 +4576,9 @@ const CARD_ABILITIES = {
   },
   "Freddy Krueger": {
     onBeforeAttack(G, self) {
-      const opp = G.opponent(self.owner);
+      // autoPick: this fires on EVERY attack, so it picks an enemy hand on its
+      // own rather than prompting "whose hand?" each swing mid-combat.
+      G.withChosenOpponent(self.owner, 'Freddy Krueger', (opp) => {
       const hand = (G.state[opp] && G.state[opp].hand) || [];
       const targets = hand.filter(c => (c.currentHealth !== undefined ? c.currentHealth : (c.health || 0)) > 0);
       if (!targets.length) { self._skipNormalAttack = true; return; }
@@ -4592,6 +4603,7 @@ const CARD_ABILITIES = {
         setTimeout(() => UI._freddyHandSlash(t.name, dmg, t.id, handIdx, opp, destroyed), 60);
       }
       self._skipNormalAttack = true;
+      }, { autoPick: true });
     },
     onDeath(G, self, laneIdx) {
       // Clear burning from all enemies when Freddy dies

@@ -6159,6 +6159,90 @@ const Game = {
       && source.owner !== target.owner;
   },
 
+  // ===================== "WHOSE HAND?" — OPPONENT-PLAYER TARGETING ==========
+  // Any effect that READS or STEALS from an opponent's hand needs to know
+  // WHICH opponent. In 1v1 there's exactly one, so this resolves instantly and
+  // nothing about the old behavior changes. In 2v2 there are TWO enemies, and
+  // the acting player now gets to choose.
+  //
+  // Before this, every such effect just used G.state[opp] — the side proxy —
+  // which in 2v2 holds whichever enemy happened to be synced there. So you
+  // never got the choice and it often hit the wrong player. User report: "my
+  // brother played Lasso of Truth and he didn't get to choose what player he
+  // wanted to see a card from" (+ "make it the same for any other card where
+  // you should [pick] a player to steal a card from or look at cards").
+  //
+  // `run(oppSide, chosenKey)` is invoked with the chosen player's hand and
+  // trickHand temporarily ALIASED onto the opposing side proxy — same array
+  // references, so every existing `G.state[opp].hand` read, splice and steal
+  // inside these effects works unchanged and mutates the real player's hand.
+  // Callers: Lasso of Truth, Deadpool, The Grinch, Mace Windu, Freddy Krueger.
+  // opts.autoPick — skip the prompt and choose an enemy automatically
+  // (preferring one that actually has cards). For effects that fire on their
+  // own every combat rather than by player action: Freddy Krueger slashes the
+  // enemy hand on EVERY attack, and asking "whose hand?" on each swing would
+  // bury the match in prompts. Player-initiated effects always prompt.
+  withChosenOpponent(owner, title, run, opts) {
+    const opp = this.opponent(owner);
+    const tt = this.state && this.state.twoVTwo;
+    if (!this.is2v2() || !tt || !tt.players) { run(opp, null); return; }
+
+    const actingKey = this._2v2CurrentActingPlayer || this._2v2ActivePlayer();
+    const myTeam = tt.players[actingKey] ? tt.players[actingKey].team : null;
+    const enemyKeys = ['p1', 'p2', 'p3', 'p4']
+      .filter(k => tt.players[k] && tt.players[k].team && tt.players[k].team !== myTeam);
+    if (!enemyKeys.length) { run(opp, null); return; }
+
+    // Alias the chosen player's hand onto the side proxy for the effect's
+    // duration, then always restore — even if the effect throws.
+    const bridge = (pk) => {
+      const ap = tt.players[pk];
+      const proxy = this.state[opp];
+      if (!ap || !proxy) { run(opp, null); return; }
+      const savedHand = proxy.hand, savedTricks = proxy.trickHand;
+      proxy.hand = ap.hand;
+      proxy.trickHand = ap.trickHand;
+      const restore = () => { proxy.hand = savedHand; proxy.trickHand = savedTricks; };
+      let threw = true;
+      try { run(opp, pk); threw = false; }
+      finally {
+        // Several of these effects (Deadpool's face-down swap, The Grinch's
+        // steal) chain ANOTHER prompt and do their stealing in that second
+        // callback. Restoring synchronously here would un-alias the proxy
+        // before the player picks, and the steal would then splice the wrong
+        // hand. Hold the alias for exactly as long as the effect's prompt
+        // chain is live.
+        if (!threw && this.hasPendingPrompt && this.hasPendingPrompt()) this.whenPromptCleared(restore);
+        else restore();
+      }
+    };
+
+    // Only one living enemy seat — no point asking.
+    if (enemyKeys.length === 1) { bridge(enemyKeys[0]); return; }
+
+    if (opts && opts.autoPick) {
+      const withCards = enemyKeys.filter(k => ((tt.players[k].hand || []).length > 0));
+      const poolKeys = withCards.length ? withCards : enemyKeys;
+      bridge(poolKeys[Math.floor(Math.random() * poolKeys.length)]);
+      return;
+    }
+
+    const tiles = enemyKeys.map(k => ({
+      name: tt.players[k].name || k,
+      desc: `Team ${tt.players[k].team} · ${(tt.players[k].hand || []).length} cards in hand`,
+      _playerKey: k,
+      _isPlayerTile: true,
+    }));
+    this.promptCardChoice(
+      owner, tiles,
+      title || 'Choose an opponent',
+      'Which opponent should this target?',
+      (picked) => { if (picked && picked._playerKey) bridge(picked._playerKey); },
+      (cards) => cards[Math.floor(Math.random() * cards.length)],
+      { inlineTray: true }
+    );
+  },
+
   // True when we're currently inside a trick.play callback AND the target
   // has the Untrickable flag. Used by damage / kill / debuff / move paths
   // to short-circuit any trick effect that tries to touch an Untrickable
@@ -10076,36 +10160,9 @@ const Game = {
         this._2v2CurrentActingPlayer = pk; // track who triggered any ability prompts
         this._2v2OnlinePlayCard(pk, msg.cardIdx, msg.laneIdx);
         break;
-      case 'req2v2LaneChoice': {
-        // Guest clicked a card and wants to pick a lane — same as 1v1 reqLaneChoice.
-        // Host runs promptLaneChoice, broadcasts pendingLaneChoice; guest clicks a
-        // board lane and sends 2v2LaneChoiceResult to complete the placement.
-        if (pk !== activeKey) break;
-        if (this.state.pendingLaneChoice || this.state.pendingCardChoice) break;
-        const cardIdx = msg.cardIdx;
-        if (cardIdx == null) break;
-        const guestAp = this.state.twoVTwo.players[pk];
-        if (!guestAp) break;
-        const guestCard = guestAp.hand[cardIdx];
-        if (!guestCard) break;
-        const guestSide = this._2v2TeamSide[guestAp.team];
-        const guestEnergy = guestAp.energy - (guestAp.usedEnergy || 0);
-        if (guestEnergy < (guestCard.cost || 0)) break;
-        const openLanes = this.getOpenLanes(guestSide);
-        if (!openLanes.length) break;
-        this._2v2CurrentActingPlayer = pk;
-        if (openLanes.length === 1) {
-          this._2v2OnlinePlayCard(pk, cardIdx, openLanes[0]);
-        } else {
-          this.promptLaneChoice(
-            guestSide, openLanes,
-            `Place ${guestCard.name}`,
-            `Choose a lane for ${guestCard.name} (${guestCard.attack}/${guestCard.currentHealth || guestCard.health})`,
-            (lane) => this._2v2OnlinePlayCard(pk, cardIdx, lane)
-          );
-        }
+      case 'req2v2LaneChoice':
+        this._2v2RequestLaneChoice(pk, msg.cardIdx);
         break;
-      }
       case 'play2v2Trick':
         if (pk !== activeKey) break;
         this._2v2CurrentActingPlayer = pk;
@@ -10161,6 +10218,50 @@ const Game = {
       this._2v2CurrentActingPlayer = null;
     }
     this._2v2OnlineBroadcast();
+  },
+
+  // A player clicked a card in hand and needs to pick a lane for it. This is
+  // the SINGLE path every online seat uses — host included. It mirrors 1v1
+  // online exactly: select the card, the open lanes light up on the board,
+  // click one to place it.
+  //
+  // The host used to have its own separate flow (a numbered lane-strip driven
+  // by UI._2v2SelectedCardIdx). That strip was the thing that broke — the host
+  // could click a card and then have no way to choose a lane — while the
+  // guests' prompt-based path kept working. Rather than repair a second
+  // implementation, the host now runs this same method locally that guests
+  // reach via the 'req2v2LaneChoice' message, so there is one code path to
+  // keep correct instead of two.
+  _2v2RequestLaneChoice(playerKey, cardIdx) {
+    const pk = playerKey;
+    if (!pk || cardIdx == null) return;
+    if (pk !== this._2v2ActivePlayer()) return;                       // not your turn
+    if (this.state.pendingLaneChoice || this.state.pendingCardChoice) return;  // already prompting
+    const ap = this.state.twoVTwo && this.state.twoVTwo.players[pk];
+    if (!ap) return;
+    const card = ap.hand[cardIdx];
+    if (!card) return;
+    const side = this._2v2TeamSide[ap.team];
+    if ((ap.energy - (ap.usedEnergy || 0)) < (card.cost || 0)) return; // can't afford
+    // Discard-effect cards never take a lane — play them straight away.
+    if (card.isDiscardEffect) {
+      this._2v2CurrentActingPlayer = pk;
+      this._2v2OnlinePlayCard(pk, cardIdx, null);
+      return;
+    }
+    const openLanes = this.getOpenLanes(side);
+    if (!openLanes.length) return;
+    this._2v2CurrentActingPlayer = pk;
+    if (openLanes.length === 1) {
+      this._2v2OnlinePlayCard(pk, cardIdx, openLanes[0]);
+    } else {
+      this.promptLaneChoice(
+        side, openLanes,
+        `Place ${card.name}`,
+        `Choose a lane for ${card.name} (${card.attack}/${card.currentHealth || card.health})`,
+        (lane) => this._2v2OnlinePlayCard(pk, cardIdx, lane)
+      );
+    }
   },
 
   _2v2OnlinePlayCard(playerKey, cardIdx, laneIdx) {
