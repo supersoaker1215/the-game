@@ -18750,15 +18750,13 @@ body.phase-menu .kb-hints { display: none; }
 .encyc-grid .card.hand-card.enc-card .stat-hp  { right: 8px; }
 .encyc-grid .card.hand-card.enc-card .card-desc b,
 .encyc-grid .card.hand-card.enc-card .card-desc .kw {
-  /* Codex highlight tier — bold labels + kw spans both at 13 px
-     vs an 11 px body. User feedback (round 2): "the on play is
-     too small — make it just a little bit bigger. Mind Control
-     keyword should be the same size as on play."  13 px sits
-     subtly above the 11 px body (~18 % larger) and gives bold +
-     kw a unified hit-zone weight without the dramatic 16 px jump
-     from the prior pass that read as oversized. */
-  font-size: 13px;
-  letter-spacing: 0.6px;
+  /* Match the 11px codex body exactly — keyword highlights sit in-line, not
+     oversized. User feedback: the kw spans (Bullseye/Freeze/Energy/Sacrificed)
+     at 13px stuck out and didn't match the cards everywhere else. Emphasis now
+     comes from color + weight, not size. Explicit 11px (not `inherit`, which
+     would pick up the 8.5px bold parent when a kw sits inside a bold label). */
+  font-size: 11px;
+  letter-spacing: 0.4px;
 }
 /* Trick variant — purple, compact, matches in-game trick look. */
 .encyc-grid .trick-card.enc-trick {
