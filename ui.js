@@ -11236,26 +11236,57 @@ const UI = {
     const saved = this._dbGetSavedDecks();
     const d = saved && saved[key];
     if (!d || !Array.isArray(d.cards) || !Array.isArray(d.tricks)) return null;
+    // Size gate — a deck that no longer matches the required size (e.g. a 30/8
+    // deck saved before the 40/10 change) falls back to Classic instead of
+    // starting the match with a short deck.
+    if (d.cards.length !== this.DECK_CARD_MAX || d.tricks.length !== this.DECK_TRICK_MAX) return null;
     return { name: key, cards: d.cards.slice(), tricks: d.tricks.slice() };
   },
-  // <select> of Classic + every saved deck. Shown on the idle multiplayer
-  // screen so BOTH host and joiner choose before connecting.
+  // Classic + every saved deck. Shown on the idle multiplayer screen so BOTH
+  // host and joiner choose before connecting.
+  //
+  // Decks that aren't exactly DECK_CARD_MAX/DECK_TRICK_MAX are listed but
+  // DISABLED — an under-size deck can't legally start a match, and silently
+  // offering it would hand the engine a short deck. Raising the deck size to
+  // 40/10 made every previously-saved 30/8 deck incomplete, so this state is
+  // common right now and needs to explain itself rather than just vanish.
   _mpDeckPickerHTML() {
     const saved = this._dbGetSavedDecks() || {};
     const names = Object.keys(saved);
     const cur = this._mpDeckKey();
     const esc = (x) => String(x).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/"/g,'&quot;');
+    const C = this.DECK_CARD_MAX, T = this.DECK_TRICK_MAX;
+    const isComplete = (d) => d && Array.isArray(d.cards) && Array.isArray(d.tricks)
+      && d.cards.length === C && d.tricks.length === T;
+
+    // Nothing saved at all — give them a way OUT of here instead of a dead end.
     if (!names.length) {
-      return `<div class="mp-deck-pick mp-deck-pick-empty">Deck: <em>Classic draft</em>
-        <span class="mp-deck-hint">— build one in My Decks to bring your own</span></div>`;
+      return `<div class="mp-deck-pick mp-deck-pick-empty">
+        <span>Deck: <em>Classic draft</em></span>
+        <button type="button" class="mp-deck-build" onclick="openDeckBuilder()">Build a deck &rarr;</button>
+        <span class="mp-deck-hint">Build a ${C}-card deck (plus ${T} tricks) to bring your own.</span>
+      </div>`;
     }
+
+    const ready = names.filter(n => isComplete(saved[n]));
     const opts = [`<option value=""${cur === '' ? ' selected' : ''}>Classic draft</option>`]
-      .concat(names.map(n => `<option value="${esc(n)}"${cur === n ? ' selected' : ''}>${esc(n)}</option>`))
-      .join('');
+      .concat(names.map(n => {
+        const d = saved[n];
+        const ok = isComplete(d);
+        const size = `${(d.cards||[]).length}/${(d.tricks||[]).length}`;
+        return `<option value="${esc(n)}"${cur === n ? ' selected' : ''}${ok ? '' : ' disabled'}>`
+             + `${esc(n)}${ok ? '' : ` — incomplete (${size})`}</option>`;
+      })).join('');
+
+    const hint = ready.length
+      ? `Both players pick their own; each drafts from their deck.`
+      : `Your decks need ${C} cards + ${T} tricks to be playable — `
+        + `<button type="button" class="mp-deck-build mp-deck-build-inline" onclick="openDeckBuilder()">finish one</button>`;
+
     return `<div class="mp-deck-pick">
       <label for="mp-deck-sel">Your deck</label>
       <select id="mp-deck-sel" onchange="UI._mpSetDeck(this.value)">${opts}</select>
-      <span class="mp-deck-hint">Both players pick their own; each drafts from their deck.</span>
+      <span class="mp-deck-hint">${hint}</span>
     </div>`;
   },
 
