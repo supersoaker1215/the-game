@@ -6522,9 +6522,25 @@ const UI = {
   // onPlay-fired cast (Ghost Rider, Venom, Knull) inherits the fix.
   _fxWhenPainted(sourceCard, cb) {
     if (!sourceCard) return;
-    const el = this._fxCardElById(sourceCard.id);
-    if (el) { cb(el); return; }
-    setTimeout(() => { const e2 = this._fxCardElById(sourceCard.id); if (e2) cb(e2); }, 0);
+    const found = this._fxCardElById(sourceCard.id);
+    if (found) { cb(found); return; }
+    // Not painted yet. The caller's post-onPlay UI.render() is
+    // requestAnimationFrame-throttled and mutates the DOM inside its OWN
+    // rAF — registered AFTER this one, since onPlay runs before onLaneClick
+    // calls render(). So a setTimeout(0) macrotask, or a SINGLE rAF, both
+    // fire BEFORE that paint and still find nothing. Wait one frame PAST
+    // render's rAF via a DOUBLE rAF: our first rAF runs in the same frame
+    // (before render mutates the DOM), and schedules a second rAF that runs
+    // the frame after — by which point render has inserted the card element.
+    // Falls back to timers where rAF is unavailable (headless never gets here
+    // — UI is undefined in sim).
+    const raf = (typeof window !== 'undefined' && window.requestAnimationFrame)
+      ? window.requestAnimationFrame.bind(window)
+      : (f) => setTimeout(f, 16);
+    raf(() => raf(() => {
+      const e2 = this._fxCardElById(sourceCard.id);
+      if (e2) cb(e2);
+    }));
   },
 
   // Jagged electric arc between two viewport points. `from` null → the
