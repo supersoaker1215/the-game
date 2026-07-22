@@ -2993,6 +2993,22 @@ const Game = {
         delete this.state[owner]._dormammuForesight;
       }
 
+      // Lex Luthor blocks this too. Foresee hands the card over with
+      // addToHand() and never calls drawCards(), so it sailed straight past
+      // the preventDraw guard that lives inside drawCards — with an enemy Lex
+      // alive you could still Foresee yourself a card every turn. User report:
+      // "I have dormammu foresee and he has a lex luthor thats alive and I was
+      // still able to draw a card." Skip the whole peek for this owner (don't
+      // pop the pile) so nothing is drawn AND nothing is burned off the deck.
+      // The roguelite 1-draw cap needs no handling here: Foresee only ever
+      // takes one card, so only the hard block can bite.
+      const lexRule = this._lexDrawRestriction(owner);
+      if (lexRule.blocked) {
+        this.log(`[BLOCKED] Lex Luthor${lexRule.fullLock ? ' (Total Lockdown)' : ''} prevents ${this.seatLabel(owner)} from using ${source}!`);
+        processNext(i + 1);
+        return;
+      }
+
       // Foresee peeks the OWNER's pile — in Deckbuilder it's their own
       // deck, in Classic the shared pile.
       //
@@ -3036,7 +3052,7 @@ const Game = {
           // randomized so the player can't perfectly predict next draw.
           const shuffled = others.slice().sort(() => this.rng() - 0.5);
           shuffled.forEach(c => pile.unshift(c));
-          const ownWho = owner === 'player' ? 'You take' : 'AI takes';
+          const ownWho = this.seatVerb(owner, 'take', 'takes');
           const otherList = others.map(c => c.name).join(', ');
           this.log(`  [${tag}] ${ownWho} ${picked.name}; ${otherList} sent to the bottom of your deck.`);
           peeked.add(owner);
@@ -3532,7 +3548,7 @@ const Game = {
     if (!lane || lane.destroyed) return false;
     // Snapshot before any player-initiated card play so the action can be undone.
     if (owner === 'player' && this.isPlayerTurn()) this.snapshot();
-    const who = owner === 'player' ? 'You' : 'AI';
+    const who = this.seatLabel(owner);
 
     // Discard effects — card is spent for its onDiscard effect and goes
     // to the DISCARD pile (not the dead pile). This keeps them out of
@@ -3947,7 +3963,7 @@ const Game = {
       const rs = this.state._roundStats;
       (owner === 'player' ? rs.playerTricks : rs.aiTricks).push(trick.name);
     }
-    const who = owner === 'player' ? 'You' : 'AI';
+    const who = this.seatLabel(owner);
     this.log(`[TRICK] ${who} play ${trick.name} for ${cost} energy`);
     // Surface EVERY trick as the center-screen reveal — yours labelled
     // "You play a Trick", the opponent's with their name (user: "I played
@@ -5429,7 +5445,7 @@ const Game = {
       if (amount <= 0) return;
     }
     const p = this.state[owner];
-    const who = owner === 'player' ? 'You' : 'AI';
+    const who = this.seatLabel(owner);
 
     // Mr Freeze health bar freeze — negate damage. healthFrozen is a
     // counter (truthy when > 0); classic Mr. Freeze sets it to 1 for a
@@ -5747,7 +5763,7 @@ const Game = {
   drawCards(owner, count) {
     const p = this.state[owner];
     const opp = this.opponent(owner);
-    const who = owner === 'player' ? 'You' : 'AI';
+    const who = this.seatLabel(owner);
 
     // Lex Luthor's preventDraw passive. In CLASSIC mode this is a hard
     // block (matches the canonical "opponent cannot draw cards" text on
@@ -5758,23 +5774,14 @@ const Game = {
     // the original full lockdown so the upgrade is a meaningful power
     // spike. With multiple Lexes alive, ANY full-lock Lex on the board
     // wins (full block); otherwise the cap is 1 regardless of count.
-    const lexes = this.getAllCardsOf(opp).filter(c => c.passive === 'preventDraw');
-    if (lexes.length) {
-      const isRoguelite = this.state.mode && this.state.mode._roguelite;
-      if (isRoguelite) {
-        const fullLock = lexes.some(c => c._lexFullLock);
-        if (fullLock) {
-          this.log(`[BLOCKED] Lex Luthor (Total Lockdown) prevents ${who} from drawing!`);
-          return;
-        }
-        if (count > 1) {
-          this.log(`  [LEX] Lex Luthor caps ${who}'s draw at 1.`);
-          count = 1;
-        }
-      } else {
-        this.log(`[BLOCKED] Lex Luthor prevents ${who} from drawing!`);
-        return;
-      }
+    const lexRule = this._lexDrawRestriction(owner);
+    if (lexRule.blocked) {
+      this.log(`[BLOCKED] Lex Luthor${lexRule.fullLock ? ' (Total Lockdown)' : ''} prevents ${who} from drawing!`);
+      return;
+    }
+    if (lexRule.cap != null && count > lexRule.cap) {
+      this.log(`  [LEX] Lex Luthor caps ${who}'s draw at ${lexRule.cap}.`);
+      count = lexRule.cap;
     }
 
     const drawn = [];
@@ -6837,6 +6844,21 @@ const Game = {
     if (typeof card.maxHealth !== 'number' || !Number.isFinite(card.maxHealth)) card.maxHealth = card.baseHealth || 1;
     if (typeof atk === 'number' && Number.isFinite(atk) && atk) card.attack += atk;
     if (typeof hp  === 'number' && Number.isFinite(hp)  && hp)  { card.currentHealth += hp; card.maxHealth += hp; }
+  },
+
+  // Lex Luthor's preventDraw, in ONE place so every draw path honors it.
+  // CLASSIC: a hard block (his canonical "opponent cannot draw cards" text).
+  // ROGUELITE: softens to a 1-per-turn cap unless a Lex carries the Text+ etch
+  // (_lexFullLock), which restores the full lockdown.
+  // Returns { blocked, cap } — cap null means "no cap".
+  // (getAllCardsOf already filters to LIVING cards, so a dead Lex never counts.)
+  _lexDrawRestriction(owner) {
+    const lexes = this.getAllCardsOf(this.opponent(owner)).filter(c => c.passive === 'preventDraw');
+    if (!lexes.length) return { blocked: false, cap: null };
+    const isRoguelite = !!(this.state.mode && this.state.mode._roguelite);
+    if (!isRoguelite) return { blocked: true, cap: null };
+    if (lexes.some(c => c._lexFullLock)) return { blocked: true, cap: null, fullLock: true };
+    return { blocked: false, cap: 1 };
   },
 
   // 10-cost cards cannot affect enemy 10-cost cards with abilities.
