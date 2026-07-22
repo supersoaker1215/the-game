@@ -2213,7 +2213,13 @@ const Game = {
       playerChoices: [], aiChoices: [],
       playerDrafted: [], aiDrafted: [],
       playerTrickDrafted: [], aiTrickDrafted: [],
+      // Holding is PER SIDE. It used to be one shared pair of arrays that
+      // finishCardDraft flushed entirely into the PLAYER's pile — fine in
+      // Classic (one shared pile) but in deckbuilder that dumped the
+      // opponent's rejected cards into your deck. Measured: 5 of the guest's
+      // cards leaking into the host's pile in a single online match.
       cardHolding: [], trickHolding: [],
+      aiCardHolding: [], aiTrickHolding: [],
       // One mulligan per draft phase — resets when tricks phase starts.
       mulliganUsed: false
     };
@@ -2497,7 +2503,7 @@ const Game = {
           : d.aiChoices[0];
         const pickIdx = d.aiChoices.indexOf(picked);
         d.aiDrafted.push(d.aiChoices[pickIdx]);
-        d.cardHolding.push(d.aiChoices[1 - pickIdx]);
+        d.aiCardHolding.push(d.aiChoices[1 - pickIdx]);
       } else if (!bothHumans && d.aiChoices.length === 1) {
         d.aiDrafted.push(d.aiChoices[0]);
       }
@@ -2511,7 +2517,7 @@ const Game = {
           : d.aiChoices[0];
         const pickIdx = d.aiChoices.indexOf(picked);
         d.aiTrickDrafted.push(d.aiChoices[pickIdx]);
-        d.trickHolding.push(d.aiChoices[1 - pickIdx]);
+        d.aiTrickHolding.push(d.aiChoices[1 - pickIdx]);
       } else if (!bothHumans && d.aiChoices.length === 1) {
         d.aiTrickDrafted.push(d.aiChoices[0]);
       }
@@ -2555,7 +2561,9 @@ const Game = {
     const draftedKey  = d.phase === 'cards'
       ? (who === 'player' ? 'playerDrafted' : 'aiDrafted')
       : (who === 'player' ? 'playerTrickDrafted' : 'aiTrickDrafted');
-    const holdingKey  = d.phase === 'cards' ? 'cardHolding' : 'trickHolding';
+    const holdingKey  = d.phase === 'cards'
+      ? (who === 'player' ? 'cardHolding' : 'aiCardHolding')
+      : (who === 'player' ? 'trickHolding' : 'aiTrickHolding');
     const choices = d[choicesKey] || [];
     const picked = choices[index];
     if (!picked) { this.presentDraftChoices(); UI.render(); return; }
@@ -2643,6 +2651,8 @@ const Game = {
       aiTrickDrafted:     (d.aiTrickDrafted     || []).slice(),
       cardHolding:  (d.cardHolding  || []).slice(),
       trickHolding: (d.trickHolding || []).slice(),
+      aiCardHolding:  (d.aiCardHolding  || []).slice(),
+      aiTrickHolding: (d.aiTrickHolding || []).slice(),
       mulliganUsed: !!d.mulliganUsed,
       pile: pile.slice(),
       logLen: Array.isArray(this.state.log) ? this.state.log.length : 0
@@ -2674,6 +2684,8 @@ const Game = {
     d.aiTrickDrafted     = snap.aiTrickDrafted.slice();
     d.cardHolding  = snap.cardHolding.slice();
     d.trickHolding = snap.trickHolding.slice();
+    d.aiCardHolding  = (snap.aiCardHolding  || []).slice();
+    d.aiTrickHolding = (snap.aiTrickHolding || []).slice();
     d.mulliganUsed = snap.mulliganUsed;
     // Restore the pile in-place so any live references stay consistent.
     const pileRef = d.phase === 'cards' ? this.getDrawPile('player') : this.getTrickPile('player');
@@ -2697,6 +2709,11 @@ const Game = {
     // Deckbuilder never enters this path because the draft is skipped.
     const pile = this.getDrawPile('player');
     d.cardHolding.forEach(c => pile.push(c));
+    // AI's rejects go back to the AI's pile. In Classic both helpers return the
+    // same shared pile, so this is a no-op there.
+    const aiPile = this.getDrawPile('ai');
+    (d.aiCardHolding || []).forEach(c => aiPile.push(c));
+    if (aiPile !== pile) this.shuffle(aiPile);
     this.state.player.hand = d.playerDrafted.map(def => this.createCardInstance(def, 'player'));
     this.state.ai.hand = d.aiDrafted.map(def => this.createCardInstance(def, 'ai'));
     this.shuffle(pile);
@@ -2742,7 +2759,9 @@ const Game = {
     // Holding is already the draft's "seen but not taken" area (the rejected
     // half of every pick lands there) and is flushed back into the pile by
     // finishCardDraft / finishTrickDraft when the draft ends.
-    const holdingKey = d.phase === 'cards' ? 'cardHolding' : 'trickHolding';
+    const holdingKey = d.phase === 'cards'
+      ? (who === 'player' ? 'cardHolding' : 'aiCardHolding')
+      : (who === 'player' ? 'trickHolding' : 'aiTrickHolding');
     if (!d[holdingKey]) d[holdingKey] = [];
     d[choicesKey].forEach(c => { if (c) d[holdingKey].push(c); });
     // Refill from the pile; if it's dry, recycle holding as a last resort so
@@ -2768,6 +2787,9 @@ const Game = {
     // Unpicked tricks return to the shared trick pile. Classic only.
     const pile = this.getTrickPile('player');
     d.trickHolding.forEach(t => pile.push({ ...t }));
+    const aiTrickPile = this.getTrickPile('ai');
+    (d.aiTrickHolding || []).forEach(t => aiTrickPile.push({ ...t }));
+    if (aiTrickPile !== pile) this.shuffle(aiTrickPile);
     this.state.player.trickHand = d.playerTrickDrafted.map(t => ({ ...t, id: nextCardId++ }));
     this.state.ai.trickHand = d.aiTrickDrafted.map(t => ({ ...t, id: nextCardId++ }));
     this.shuffle(pile);

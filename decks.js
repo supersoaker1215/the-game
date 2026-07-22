@@ -1,7 +1,7 @@
 // ============================================================
 // STARTER DECKS — used by Deckbuilder mode (phase 2)
 //
-// Each deck is 30 cards + 8 tricks, flat 2-copy limit. Until the deck
+// Each deck is 40 cards + 10 tricks, flat 2-copy limit. Until the deck
 // builder UI (phase 3) lets the user construct their own, both sides
 // default to STARTER_DECKS.balanced.
 //
@@ -15,7 +15,7 @@ const STARTER_DECKS = {
   balanced: {
     name: 'Balanced Starter',
     description: 'A mix of aggro, control, and value across the cost curve.',
-    // 30 cards — 15 unique × 2 copies (flat 2-copy limit).
+    // 40 cards — 20 unique × 2 copies (flat 2-copy limit).
     cards: [
       'Ant-Man', 'Ant-Man',
       'King Shark', 'King Shark',
@@ -32,13 +32,19 @@ const STARTER_DECKS = {
       'Superman', 'Superman',
       'Thanos', 'Thanos',
       'Dr. Manhattan', 'Dr. Manhattan',
+      'Spider-Man', 'Spider-Man',
+      'Wolverine', 'Wolverine',
+      'Deadpool', 'Deadpool',
+      'Hulk', 'Hulk',
+      'Wonder Woman', 'Wonder Woman',
     ],
-    // 8 tricks — 4 unique × 2 copies.
+    // 10 tricks — 5 unique × 2 copies.
     tricks: [
       'Bat Signal', 'Bat Signal',
-      'Batarang', 'Batarang',
+      'Batarangs', 'Batarangs',
       'Fear Toxin', 'Fear Toxin',
       'Mother Box', 'Mother Box',
+      'Nth Metal', 'Nth Metal',
     ],
   },
   aggro: {
@@ -61,12 +67,18 @@ const STARTER_DECKS = {
       'Predator', 'Predator',
       'Scarlet Witch', 'Scarlet Witch',
       'Symbiote Spider-Man', 'Symbiote Spider-Man',
+      'Bane', 'Bane',
+      'Ghostface', 'Ghostface',
+      'Winter Soldier', 'Winter Soldier',
+      'Peacemaker', 'Peacemaker',
+      'Human Torch', 'Human Torch',
     ],
     tricks: [
-      'Batarang', 'Batarang',
+      'Batarangs', 'Batarangs',
       'Bat Signal', 'Bat Signal',
       'Bifrost', 'Bifrost',
       'Power Stone', 'Power Stone',
+      'Super Soldier Serum', 'Super Soldier Serum',
     ],
   },
   control: {
@@ -89,12 +101,18 @@ const STARTER_DECKS = {
       'Thanos', 'Thanos',
       'Dormammu', 'Dormammu',
       'Galactus', 'Galactus',
+      'Loki', 'Loki',
+      'Emperor Palpatine', 'Emperor Palpatine',
+      'Trigon', 'Trigon',
+      'Knull', 'Knull',
+      'Lex Luthor', 'Lex Luthor',
     ],
     tricks: [
       'Kryptonite', 'Kryptonite',
       'Fear Toxin', 'Fear Toxin',
       'Mother Box', 'Mother Box',
       'The Darkhold', 'The Darkhold',
+      'Phantom Zone', 'Phantom Zone',
     ],
   },
   // ----------------------------------------------------------------
@@ -108,11 +126,9 @@ const STARTER_DECKS = {
     name: 'Reanimator',
     description: 'Sacrifice your dead pile and revive them stronger. Wear the opponent down with a wave that won\'t stay buried.',
     cards: [
-      // Cheap fodder — happy to die for the recursion engine
       'Ant-Man', 'Ant-Man',
       'King Shark', 'King Shark',
       'Xenomorph', 'Xenomorph',
-      // Mid-cost death-trigger payoffs
       'Solomon Grundy', 'Solomon Grundy',
       'Carnage', 'Carnage',
       'Ghost Rider', 'Ghost Rider',
@@ -120,18 +136,23 @@ const STARTER_DECKS = {
       'Jason Voorhees', 'Jason Voorhees',
       'Michael Myers', 'Michael Myers',
       'Wolverine', 'Wolverine',
-      // Reanimator core — turns death into board presence
       'Hela', 'Hela',
       'Mahoraga', 'Mahoraga',
       'Dr. Doom', 'Dr. Doom',
       'Gorr', 'Gorr',
       'Knull', 'Knull',
+      'Freddy Fazbear', 'Freddy Fazbear',
+      'Ghostface', 'Ghostface',
+      'Doomsday', 'Doomsday',
+      'Spawn', 'Spawn',
+      'Venom', 'Venom',
     ],
     tricks: [
-      'Lazarus Pit', 'Lazarus Pit',         // bring back from dead pile
-      'Phantom Zone', 'Phantom Zone',       // banish enemy reanimator targets
-      'Soul Stone', 'Soul Stone',           // sacrifice + value
-      'Mother Box', 'Mother Box',           // utility / draw
+      'Lazarus Pit', 'Lazarus Pit',
+      'Phantom Zone', 'Phantom Zone',
+      'Soul Stone', 'Soul Stone',
+      'Mother Box', 'Mother Box',
+      'The Darkhold', 'The Darkhold',
     ],
   },
   // ----------------------------------------------------------------
@@ -146,12 +167,12 @@ const STARTER_DECKS = {
     description: 'Cards that buff their neighbors. Build a board where every ally makes every other ally stronger.',
     cards: [
       'Ant-Man', 'Ant-Man',
-      'Poison Ivy', 'Poison Ivy',          // gains ATK from charmed allies
-      'Hawkeye', 'Hawkeye',                // splash + atk-remove
-      'Invisible Woman', 'Invisible Woman',// evade share
-      'Jango Fett', 'Jango Fett',          // splash on attack
-      'Scarlet Witch', 'Scarlet Witch',    // ally relocation
-      'Captain America', 'Captain America',// squad-leader buff
+      'Poison Ivy', 'Poison Ivy',
+      'Hawkeye', 'Hawkeye',
+      'Invisible Woman', 'Invisible Woman',
+      'Jango Fett', 'Jango Fett',
+      'Scarlet Witch', 'Scarlet Witch',
+      'Captain America', 'Captain America',
       'Spider-Man', 'Spider-Man',
       'Iron Man', 'Iron Man',
       'Optimus Prime', 'Optimus Prime',
@@ -160,12 +181,18 @@ const STARTER_DECKS = {
       'Wolverine', 'Wolverine',
       'Omni-Man', 'Omni-Man',
       'Silver Surfer', 'Silver Surfer',
+      'Gizmo', 'Gizmo',
+      'Groot', 'Groot',
+      'Padme Amidala', 'Padme Amidala',
+      'Yoda', 'Yoda',
+      'Star-Lord', 'Star-Lord',
     ],
     tricks: [
       'Power Battery', 'Power Battery',
-      'Super Soldier Serum', 'Super Soldier Serum', // stat buff
-      'Nth Metal', 'Nth Metal',                     // Invincible 1
-      'Adamantium', 'Adamantium',                   // armor
+      'Super Soldier Serum', 'Super Soldier Serum',
+      'Nth Metal', 'Nth Metal',
+      'Adamantium', 'Adamantium',
+      'Vibranium', 'Vibranium',
     ],
   },
   // ----------------------------------------------------------------
@@ -179,31 +206,33 @@ const STARTER_DECKS = {
     name: 'Ramp Titans',
     description: 'Stall, accelerate, then slam game-ending finishers two rounds ahead of schedule.',
     cards: [
-      // Cheap survivability for the early rounds
       'Ant-Man', 'Ant-Man',
       'Mr. Freeze', 'Mr. Freeze',
       'Invisible Woman', 'Invisible Woman',
-      // Ramp engine
-      'Dr. Octopus', 'Dr. Octopus',        // +1 Energy/round while active
+      'Dr. Octopus', 'Dr. Octopus',
       'Groot', 'Groot',
       'Moder', 'Moder',
-      // Mid-curve threats that buy time
       'Davy Jones', 'Davy Jones',
       'Spider-Man', 'Spider-Man',
       'Hulk', 'Hulk',
       'Obi-Wan', 'Obi-Wan',
-      // Late-game payoffs (8-10 cost — what the ramp pays for)
       'Ultron', 'Ultron',
       'Silver Surfer', 'Silver Surfer',
       'Darth Vader', 'Darth Vader',
       'Galactus', 'Galactus',
       'Dr. Manhattan', 'Dr. Manhattan',
+      'Anakin Skywalker', 'Anakin Skywalker',
+      'Trigon', 'Trigon',
+      'Knull', 'Knull',
+      'Dormammu', 'Dormammu',
+      'Thanos', 'Thanos',
     ],
     tricks: [
-      'Power Battery', 'Power Battery',     // +2 energy next turn
-      'Bifrost', 'Bifrost',                 // movement / setup
-      'Mobius Chair', 'Mobius Chair',       // tempo
-      'Eye of Agamotto', 'Eye of Agamotto', // foresight + hand size
+      'Power Battery', 'Power Battery',
+      'Bifrost', 'Bifrost',
+      'Mobius Chair', 'Mobius Chair',
+      'Eye of Agamotto', 'Eye of Agamotto',
+      'Time Stone', 'Time Stone',
     ],
   },
   // ----------------------------------------------------------------
@@ -217,31 +246,33 @@ const STARTER_DECKS = {
     name: 'Burn Rush',
     description: 'Skip the board fight — punch the opponent\'s HP bar directly until it cracks.',
     cards: [
-      // 1-cost direct-damage punchers
-      'Sabertooth', 'Sabertooth',          // +1/+1 on HP damage
-      'Harley Quinn', 'Harley Quinn',      // Crazy
-      'Hawkeye', 'Hawkeye',                // splash
-      // 2-cost burn curve
+      'Sabertooth', 'Sabertooth',
+      'Harley Quinn', 'Harley Quinn',
+      'Hawkeye', 'Hawkeye',
       'Human Torch', 'Human Torch',
       'Spawn', 'Spawn',
-      'Peacemaker', 'Peacemaker',          // grows on kill
+      'Peacemaker', 'Peacemaker',
       'Gamora', 'Gamora',
-      // 3-4 cost — direct damage payoffs
       'Carnage', 'Carnage',
       'Deathstroke', 'Deathstroke',
       'Deadpool', 'Deadpool',
-      // Mid-late closers
       'Homelander', 'Homelander',
       'Red Hulk', 'Red Hulk',
       'Joker', 'Joker',
-      'Thor', 'Thor',                      // lightning damage
-      'Gorr', 'Gorr',                      // god-killer
+      'Thor', 'Thor',
+      'Gorr', 'Gorr',
+      'Ghost Rider', 'Ghost Rider',
+      'Omni-Man', 'Omni-Man',
+      'Symbiote Spider-Man', 'Symbiote Spider-Man',
+      'Winter Soldier', 'Winter Soldier',
+      'Bane', 'Bane',
     ],
     tricks: [
-      'Batarang', 'Batarang',               // direct damage
+      'Batarangs', 'Batarangs',
       'Nth Metal', 'Nth Metal',
-      'Kryptonite', 'Kryptonite',           // ATK strip on a problem
-      'Fear Toxin', 'Fear Toxin',           // damage / disable
+      'Kryptonite', 'Kryptonite',
+      'Fear Toxin', 'Fear Toxin',
+      'Power Stone', 'Power Stone',
     ],
   },
 };

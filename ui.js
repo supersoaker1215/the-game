@@ -7744,7 +7744,7 @@ const UI = {
                 'Shared deck of 95 cards. Draft 5 cards + 2 tricks before each match.',
                 true, '', "selectMode('1v1','classic')")}
           ${btn('mode-1v1-deck', 'My Deck',
-                'Bring your own 30-card deck. Match starts with the first 5 in hand.',
+                `Bring your own ${UI.DECK_CARD_MAX}-card deck. Match starts with the first 5 in hand.`,
                 true, '', "openDeckBuilder()")}
           <div class="mode-row-label">Two on Two</div>
           ${btn('mode-2v2-classic', '2v2 Local Play',
@@ -8941,7 +8941,7 @@ const UI = {
           <div class="mm-section-label">Solo · vs AI</div>
           <div class="mm-grid mm-grid-section">
             ${btn('mm-sub-classic', 'Classic Draft', 'Shared deck of 95 cards. Draft 5 cards + 2 tricks.', SVG.play,  "selectMode('1v1','classic')")}
-            ${btn('mm-sub-deck',    'My Deck',       'Bring your own 30-card deck.',                        SVG.decks, "openDeckBuilder()")}
+            ${btn('mm-sub-deck',    'My Deck',       `Bring your own ${UI.DECK_CARD_MAX}-card deck.`,                        SVG.decks, "openDeckBuilder()")}
           </div>
         </div>
         <div class="mm-section">
@@ -11450,23 +11450,23 @@ const UI = {
       // ✗ INCOMPLETE with the missing counts surfaced inline. Lets
       // the user see at a glance which saved decks are ready to
       // play without loading each one individually.
-      const isReady = cards.length === 30 && tricks.length === 8;
+      const isReady = cards.length === UI.DECK_CARD_MAX && tricks.length === UI.DECK_TRICK_MAX;
       const badge = isReady
         ? `<span class="md-deck-badge md-badge-ready" title="Deck is complete and ready to play">✓ READY</span>`
-        : `<span class="md-deck-badge md-badge-incomplete" title="Needs exactly 30 cards + 8 tricks">✗ INCOMPLETE</span>`;
+        : `<span class="md-deck-badge md-badge-incomplete" title="Needs exactly ${UI.DECK_CARD_MAX} cards + ${UI.DECK_TRICK_MAX} tricks">✗ INCOMPLETE</span>`;
       // Disable Play button when the deck isn't valid — clicking it
       // through would just UI.alertModal() inside mdPlay; gating here makes
       // the affordance clearer.
       const playBtn = isReady
         ? `<button type="button" class="md-action-btn md-action-play" onclick="mdPlay('${nameAttr}')">Play</button>`
-        : `<button type="button" class="md-action-btn md-action-play md-action-disabled" title="Edit the deck to reach 30 cards + 8 tricks first" disabled>Play</button>`;
+        : `<button type="button" class="md-action-btn md-action-play md-action-disabled" title="Edit the deck to reach ${UI.DECK_CARD_MAX} cards + ${UI.DECK_TRICK_MAX} tricks first" disabled>Play</button>`;
       return `
         <div class="md-deck-card ${isReady ? 'md-deck-ready' : 'md-deck-incomplete'}">
           <div class="md-deck-name">${name}</div>
           ${badge}
           <div class="md-deck-counts">
-            <span><b>${cards.length}</b>/30 cards</span>
-            <span><b>${tricks.length}</b>/8 tricks</span>
+            <span><b>${cards.length}</b>/${UI.DECK_CARD_MAX} cards</span>
+            <span><b>${tricks.length}</b>/${UI.DECK_TRICK_MAX} tricks</span>
           </div>
           <div class="md-deck-preview">${preview}</div>
           <div class="md-deck-actions">
@@ -11488,7 +11488,7 @@ const UI = {
           ? `<div class="md-deck-grid">${names.map(deckCard).join('')}</div>`
           : `<div class="md-empty">
               <strong>No decks saved yet.</strong><br>
-              Build a 30-card deck (plus 8 tricks) in the Deck Builder
+              Build a ${UI.DECK_CARD_MAX}-card deck (plus ${UI.DECK_TRICK_MAX} tricks) in the Deck Builder
               and save it here to bring it into matches.
             </div>`}
         <button type="button" class="md-new-btn" onclick="Game.enterDeckBuilder()">+ New Deck</button>
@@ -12384,7 +12384,7 @@ const UI = {
     const db = s.deckbuilder || { cards: [], tricks: [], presetName: null };
     const cardCount = db.cards.length;
     const trickCount = db.tricks.length;
-    const CARD_MAX = 30, TRICK_MAX = 8, COPY_MAX = 2;
+    const CARD_MAX = UI.DECK_CARD_MAX, TRICK_MAX = UI.DECK_TRICK_MAX, COPY_MAX = 2;
     const valid = cardCount === CARD_MAX && trickCount === TRICK_MAX;
 
     // Filter tab state — which tab of the collection grid is visible.
@@ -12603,7 +12603,7 @@ const UI = {
           <button type="button" class="db-back" onclick="dbBack()" title="Back to main menu">&larr; Menu</button>
           <div class="db-hud-center">
             <h1 class="db-hud-title">Deck Builder</h1>
-            <div class="db-hud-sub">Assemble 30 cards + 8 tricks — click to add, click a deck row to remove</div>
+            <div class="db-hud-sub">Assemble ${UI.DECK_CARD_MAX} cards + ${UI.DECK_TRICK_MAX} tricks — click to add, click a deck row to remove</div>
           </div>
           <div class="db-hud-right">
             <div class="db-meter-strip">
@@ -12754,6 +12754,10 @@ const UI = {
   // (localStorage is synchronous + small payloads) and matches the
   // settings-persistence pattern already in use.
   _DB_STORAGE_KEY: 'clb_saved_decks_v1',
+  // Deck size, in ONE place so validation, the counters, the Play gate and the
+  // copy can never drift apart (they were five separate magic numbers before).
+  DECK_CARD_MAX: 40,
+  DECK_TRICK_MAX: 10,
   _dbGetSavedDecks() {
     try {
       const raw = localStorage.getItem(this._DB_STORAGE_KEY);
@@ -22602,7 +22606,7 @@ function dbDelete() {
 function dbStart() {
   const db = Game.state.deckbuilder;
   if (!db) return;
-  if (db.cards.length !== 30 || db.tricks.length !== 8) return; // shouldn't happen — button is disabled
+  if (db.cards.length !== UI.DECK_CARD_MAX || db.tricks.length !== UI.DECK_TRICK_MAX) return; // shouldn't happen — button is disabled
   const customDeck = { cards: db.cards.slice(), tricks: db.tricks.slice() };
   // Clear the builder state and launch the match with the chosen deck.
   Game.state.deckbuilder = null;
@@ -22614,8 +22618,8 @@ function mdPlay(name) {
   const saved = UI._dbGetSavedDecks();
   const deck = saved[name];
   if (!deck) return;
-  if ((deck.cards || []).length !== 30 || (deck.tricks || []).length !== 8) {
-    UI.alertModal('This deck is invalid (needs exactly 30 cards + 8 tricks). Edit it first.');
+  if ((deck.cards || []).length !== UI.DECK_CARD_MAX || (deck.tricks || []).length !== UI.DECK_TRICK_MAX) {
+    UI.alertModal(`This deck is invalid (needs exactly ${UI.DECK_CARD_MAX} cards + ${UI.DECK_TRICK_MAX} tricks). Edit it first.`);
     return;
   }
   // withDraft: true so the saved deck still goes through the full draft
