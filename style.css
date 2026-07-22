@@ -32638,8 +32638,36 @@ body.round-tick .board::after {
   inset: 0;
   width: 100%;
   height: 100%;
-  object-fit: cover;
+  /* `contain`, not `cover`: the artwork has an ornate border that reads as
+     part of the design, and `cover` crops it off at the edges. `contain` fits
+     the whole image inside the card frame with the border intact. The card's
+     own dark background fills any letterbox gap, which is invisible against
+     the art's black field. User: "I think having the border looks best". */
+  object-fit: contain;
   border-radius: inherit;
   z-index: 2;
   pointer-events: none;
+}
+
+/* When the custom back art actually loads, it IS the whole card face — hide the
+   built-in pattern/glyph/label so they don't show through the letterbox gaps
+   left by object-fit: contain. If the art is missing these stay visible as the
+   fallback. */
+.card.face-down-hidden.has-back-art .card-back-pattern,
+.card.face-down-hidden.has-back-art .card-back-glyph,
+.card.face-down-hidden.has-back-art .card-back-label {
+  display: none;
+}
+.card.face-down-hidden.has-back-art {
+  background: #000;
+}
+
+/* A face-down card has no text content, so it used to collapse to its
+   min-height (140x130, nearly square) while a real card sits at 140x220. That
+   squat frame is what forced the back art into a hard letterbox. Match the
+   normal card's proportions so the board reads uniformly AND the artwork
+   (which is a full portrait card face) fills the frame with its border intact. */
+.card.face-down-hidden {
+  aspect-ratio: 140 / 220;
+  height: auto;
 }

@@ -15706,7 +15706,8 @@ const UI = {
       <div class="card-back-glyph">&#9830;</div>
       <div class="card-back-label">Face Down</div>
       <img class="card-back-art" src="${this.CARD_BACK_SRC}" alt="" aria-hidden="true"
-           onerror="this.remove()">`;
+           onerror="this.remove()"
+           onload="this.parentNode && this.parentNode.classList.add('has-back-art')">`;
     return el;
   },
 
