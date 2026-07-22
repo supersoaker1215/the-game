@@ -6891,6 +6891,8 @@ const Game = {
     if (typeof card.maxHealth !== 'number' || !Number.isFinite(card.maxHealth)) card.maxHealth = card.baseHealth || 1;
     if (typeof atk === 'number' && Number.isFinite(atk) && atk) card.attack += atk;
     if (typeof hp  === 'number' && Number.isFinite(hp)  && hp)  { card.currentHealth += hp; card.maxHealth += hp; }
+    // Splash-tracks-ATK cards (Hulk) keep splashRange live on ANY stat change.
+    if (card._splashTracksAtk) card.splashRange = Math.max(0, card.attack | 0);
   },
 
   // Lex Luthor's preventDraw, in ONE place so every draw path honors it.
@@ -7190,6 +7192,10 @@ const Game = {
         card.currentHealth = Math.max(1, card.currentHealth - hp);
       }
     }
+    // Splash-tracks-ATK cards (Hulk) keep splashRange live on ANY stat change,
+    // so the badge + combat forecast follow a debuff immediately (Pym Particles
+    // dropping Hulk to 1 ATK → Splash 1 right away, not a stale 4).
+    if (card._splashTracksAtk) card.splashRange = Math.max(0, card.attack | 0);
     // v3 instrumentation — credit the source for stat reductions. HP
     // already gets captured via killCard (if kill) or is implicit damage
     // in other paths; we count ATK debuff as the primary debuff value

@@ -2885,6 +2885,11 @@ const CARD_ABILITIES = {
       // sweep. Default 2 (classic, hits all enemies for 2); Text+
       // raises to 4 for a board-clearing alpha strike.
       const smashDmg = self._hulkSmashDamage || 2;
+      // Hulk's Splash always equals his LIVE ATK — flag it so buffCard/debuffCard
+      // keep splashRange synced whenever anything (Pym Particles, Nightwing,
+      // auras, his own +1/+1 rage) changes his attack, so the badge + combat
+      // forecast never lag behind (e.g. Pym drops him to 1 ATK → Splash 1).
+      self._splashTracksAtk = true;
       self.splashRange = self.attack;
       const opp = G.opponent(self.owner);
       const hit = [];
