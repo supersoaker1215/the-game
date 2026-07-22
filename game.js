@@ -6861,6 +6861,23 @@ const Game = {
     return { blocked: false, cap: 1 };
   },
 
+  // Gate for effects that hand a player a card AS A DRAW — from the deck or the
+  // dead pile — without going through drawCards(). Lex's block lived only
+  // inside drawCards(), so every one of these sailed past it (user: "I drew a
+  // card from the dead pile when I played hela and he had lex luthor").
+  // Returns true when the draw may proceed; logs and returns false when Lex is
+  // blocking.
+  //
+  // Deliberately NOT for effects that merely RETURN or MOVE a card to hand —
+  // Batman Who Laughs' intercept, Gizmo adding Stripe, bounce-to-hand. Those
+  // aren't draws and Lex shouldn't touch them.
+  canDrawToHand(owner, label) {
+    const r = this._lexDrawRestriction(owner);
+    if (!r.blocked) return true;
+    this.log(`[BLOCKED] Lex Luthor${r.fullLock ? ' (Total Lockdown)' : ''} prevents ${this.seatLabel(owner)} from drawing${label ? ` (${label})` : ''}!`);
+    return false;
+  },
+
   // 10-cost cards cannot affect enemy 10-cost cards with abilities.
   is10CostImmune(source, target) {
     if (!source || !target) return false;
@@ -8096,7 +8113,17 @@ const Game = {
       // rendering/timeout here — the broadcast in _apply2v2OnlineAction
       // delivers the pending choice to the correct guest.
       const _cap = this._2v2CurrentActingPlayer;
-      if (this.is2v2() && this.state.twoVTwo && this.state.twoVTwo.online && _cap && _cap !== 'p1') {
+      // Stamp the host (p1) too. Excluding p1 left every host-raised prompt
+      // unstamped, and the UI reads "no stamp" as "belongs to whoever is
+      // looking" (isMyLaneChoice/isMyCardChoice pass when _2v2ActingPlayer is
+      // absent) — so all four seats saw the host's prompt and could click it,
+      // resolving it locally on their own display copy. It bit CHAINED prompts
+      // hardest: _2v2StampPendingActor runs once when the card is played, so a
+      // second prompt raised from inside the first one's callback (Anti-Venom
+      // picks an ally, THEN asks for a lane) was never stamped at all. The
+      // resolve guards already handle actor==='p1' correctly — the host falls
+      // through to local resolution, guests bail — so stamping p1 is safe.
+      if (this.is2v2() && this.state.twoVTwo && this.state.twoVTwo.online && _cap) {
         this.state.pendingLaneChoice._2v2ActingPlayer = _cap;
         return;
       }
@@ -8205,7 +8232,17 @@ const Game = {
       this.state.pendingCardChoice = { owner, cards, title, desc, callback, faceDown: !!(options && options.faceDown), inlineTray: !!(options && options.inlineTray) };
       // 2v2 online: route guest choices to the guest client (same as lane choice)
       const _cap = this._2v2CurrentActingPlayer;
-      if (this.is2v2() && this.state.twoVTwo && this.state.twoVTwo.online && _cap && _cap !== 'p1') {
+      // Stamp the host (p1) too. Excluding p1 left every host-raised prompt
+      // unstamped, and the UI reads "no stamp" as "belongs to whoever is
+      // looking" (isMyLaneChoice/isMyCardChoice pass when _2v2ActingPlayer is
+      // absent) — so all four seats saw the host's prompt and could click it,
+      // resolving it locally on their own display copy. It bit CHAINED prompts
+      // hardest: _2v2StampPendingActor runs once when the card is played, so a
+      // second prompt raised from inside the first one's callback (Anti-Venom
+      // picks an ally, THEN asks for a lane) was never stamped at all. The
+      // resolve guards already handle actor==='p1' correctly — the host falls
+      // through to local resolution, guests bail — so stamping p1 is safe.
+      if (this.is2v2() && this.state.twoVTwo && this.state.twoVTwo.online && _cap) {
         this.state.pendingCardChoice._2v2ActingPlayer = _cap;
         return;
       }

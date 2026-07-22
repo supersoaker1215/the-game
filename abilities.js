@@ -1409,6 +1409,9 @@ const CARD_ABILITIES = {
       const isRoguelite = G.state.mode && G.state.mode._roguelite;
       const ownDead = G.state[self.owner] && G.state[self.owner].deadPile;
       const oppDead = G.state[G.opponent(self.owner)] && G.state[G.opponent(self.owner)].deadPile;
+      // Lex Luthor blocks dead-pile draws — addToHand() skips the drawCards()
+      // guard, same bypass Hela had.
+      if (!G.canDrawToHand(self.owner, 'Solomon Grundy')) return;
       for (let i = 0; i < draws; i++) {
         const dead = isRoguelite
           ? (ownDead || [])
@@ -1865,6 +1868,11 @@ const CARD_ABILITIES = {
       // Peeks the OWNER's pile (Classic = shared, Deckbuilder = personal).
       // (Internally still uses the "kang" prompt keys — the mechanic didn't change.)
       const pile = G.getDrawPile(self.owner);
+      // Lex Luthor blocks this: Paul's keep is an explicit deck draw (it even
+      // sets _kangSkipDraw, standing in for the round's normal draw), but it
+      // hands the card over with addToHand() and so skipped the drawCards()
+      // guard. Gate BEFORE popping so a blocked Paul disturbs nothing.
+      if (!G.canDrawToHand(self.owner, 'Paul Atreides')) return;
       if (pile.length < 2) {
         G.drawCards(self.owner, Math.min(2, pile.length));
         G.log("Paul Atreides glimpses the future! Not enough cards for full effect.");
@@ -2671,6 +2679,9 @@ const CARD_ABILITIES = {
       const zombies = G.rarityValue(self, { common: 1, rare: 2, special: 2, legendary: 3 });
       const pulls   = G.rarityValue(self, { common: 1, rare: 1, special: 2, legendary: 2 });
       const drawFromDead = (n) => {
+        // Lex Luthor blocks dead-pile draws too — this hands the card over with
+        // addToHand(), which never consults the drawCards() guard.
+        if (!G.canDrawToHand(self.owner, 'Hela')) return;
         for (let i = 0; i < n; i++) {
           const allDead = [...G.state.player.deadPile, ...G.state.ai.deadPile];
           if (!allDead.length) break;
