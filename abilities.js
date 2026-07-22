@@ -1627,7 +1627,7 @@ const CARD_ABILITIES = {
       if (!enemies.length) return;
       G.promptCardChoice(self.owner, enemies, "Ghost Rider — Penance Stare",
         "Choose an enemy to Fear 1",
-        (t) => { G.fearCard(t, self); G.log(`Ghost Rider's Penance Stare terrifies ${t.name}!`); },
+        (t) => { G.fearCard(t, self); if (typeof UI !== 'undefined' && UI._fxPenanceStare) { try { UI._fxPenanceStare(self, t); } catch (e) {} } G.log(`Ghost Rider's Penance Stare terrifies ${t.name}!`); },
         cards => cards.slice().sort((a, b) => (b.attack || 0) - (a.attack || 0))[0]);
     },
     onDeath(G, self, lane) {
@@ -2203,6 +2203,7 @@ const CARD_ABILITIES = {
       const enemies = G.getEnemiesOf(self.owner);
       if (enemies.length) {
         G.promptCardChoice(self.owner, enemies, "Venom — Freeze", `Choose enemy to Freeze ${freezeN}`, (e) => {
+          if (typeof UI !== 'undefined' && UI._fxSymbioteLash) { try { UI._fxSymbioteLash(self, e); } catch (er) {} }
           G.freezeCard(e, self, freezeN);
         }, _aiThreatPicker);
       }
@@ -2393,6 +2394,7 @@ const CARD_ABILITIES = {
           `Choose an enemy with base cost ${fearGate} or less to apply Fear to`,
           (t) => {
             G.fearCard(t, self);
+            if (typeof UI !== 'undefined' && UI._fxFearGas) { try { UI._fxFearGas(t); } catch (e) {} }
             G.log(`Joker terrifies ${t.name}!`);
           },
           cards => cards.slice().sort((a, b) => b.attack - a.attack)[0]);
@@ -4382,6 +4384,7 @@ const CARD_ABILITIES = {
       // ("God of Symbiotes") so the lottery can roll 10-cost titans.
       const maxCost = self._knullCostCeiling || 9;
       G._suppressSummonSfx = true;
+      const _knullSummoned = [];
       G.getOpenLanes(self.owner).filter(l => l !== lane).forEach(l => {
         // Pull from the shared summon deck so Knull's lottery spreads
         // across the full 95-card pool. Filter: cost minCost-maxCost,
@@ -4389,10 +4392,14 @@ const CARD_ABILITIES = {
         const d = G.drawFromSummonDeck(c => !c.isDiscardEffect && c.cost >= minCost && c.cost <= maxCost && (c.attack || 0) > 0);
         if (d) {
           G.summonCard(self.owner, l, d.name, d.cost, d.attack, d.health, d.abilities || [], d);
+          const sc = G.state.lanes[l] && G.state.lanes[l][self.owner];
+          if (sc) _knullSummoned.push(sc);
         }
       });
       G._suppressSummonSfx = false;
       G.log("Knull fills the battlefield!");
+      // Signature FX — black-and-red symbiote tendrils flood out to each summon.
+      if (typeof UI !== 'undefined' && UI._fxSymbioteFlood) { try { UI._fxSymbioteFlood(self, _knullSummoned); } catch (e) {} }
     }
   },
   "Trigon": {
@@ -4689,6 +4696,7 @@ const CARD_ABILITIES = {
       self.stunnedTurns = 0; self.isStunned = false;
       self.frozenTurns  = 0; self.isFrozen  = false;
       G.log(`[DOOMSDAY] Cannot be stopped — Doomsday rises! Permanently immune to Stun and Freeze.`);
+      if (typeof UI !== 'undefined' && UI._fxDoomsdayRise) { try { UI._fxDoomsdayRise(self); } catch (e) {} }
       return true; // prevent death
     }
   },

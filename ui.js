@@ -6514,6 +6514,18 @@ const UI = {
     if (!r || (r.width === 0 && r.height === 0)) return null;
     return { x: r.left + r.width / 2, y: r.top + r.height / 2 };
   },
+  // Run cb(el) with a card's DOM element, deferring one frame if the card
+  // was JUST played and isn't painted to .board yet (playCard's normal
+  // branch repaints only AFTER onPlay returns). Prevents source-dependent
+  // signature FX from silently dropping in the synchronous single-target
+  // case — the Superman heat-vision review finding, generalized so every
+  // onPlay-fired cast (Ghost Rider, Venom, Knull) inherits the fix.
+  _fxWhenPainted(sourceCard, cb) {
+    if (!sourceCard) return;
+    const el = this._fxCardElById(sourceCard.id);
+    if (el) { cb(el); return; }
+    setTimeout(() => { const e2 = this._fxCardElById(sourceCard.id); if (e2) cb(e2); }, 0);
+  },
 
   // Jagged electric arc between two viewport points. `from` null → the
   // bolt strikes down from the sky above `to`. Cosmetic jitter uses
@@ -6633,22 +6645,20 @@ const UI = {
   },
 
   // Superman heat vision: twin red/white beams to the blast target.
-  // Superman is played THIS tick, so his card element isn't in .board yet
-  // (playCard's normal branch has no render — the caller repaints AFTER
-  // onPlay returns). Capture the TARGET now (it exists and isn't damaged
-  // yet), then defer a frame so the freshly-played SOURCE element exists
-  // before we read its center — same ordering dodge _fxChainArc uses.
+  // Capture the TARGET now (it exists and isn't damaged yet), then draw
+  // once the freshly-played SOURCE is painted (_fxWhenPainted defers a
+  // frame — playCard repaints only after onPlay returns).
   _fxHeatVision(sourceCard, targetCard) {
     if (this._reducedMotion() || !sourceCard || !targetCard) return;
     const to = this._fxCenter(this._fxCardElById(targetCard.id));
     if (!to) return;
-    setTimeout(() => {
-      const from = this._fxCenter(this._fxCardElById(sourceCard.id));
+    this._fxWhenPainted(sourceCard, (srcEl) => {
+      const from = this._fxCenter(srcEl);
       if (!from) return;
       this._fxDrawBeam({ x: from.x - 11, y: from.y }, to, { color: '#ff3b30', core: '#ffffff', thickness: 5 });
       this._fxDrawBeam({ x: from.x + 11, y: from.y }, to, { color: '#ff3b30', core: '#ffffff', thickness: 5 });
       this._screenShake('light');
-    }, 0);
+    });
   },
 
   // Galactus devour: void singularity on the devoured card.
@@ -6658,6 +6668,138 @@ const UI = {
     if (!el) return;
     this._fxImplode(el, { color: '#b06bff' });
     this._screenShake('medium');
+  },
+
+  // ---- Wave 2 primitives ----
+
+  // Organic curved tendril that grows from `from` to `to` (symbiote lash).
+  // Quadratic bezier bowed to one side; the stroke draws on via dashoffset.
+  _fxTendril(from, to, opts) {
+    if (!from || !to || this._reducedMotion()) return;
+    opts = opts || {};
+    const color = opts.color || '#0c0c0c';
+    const glow  = opts.glow  || '#c1121f';
+    const layer = this._fxLayer();
+    const dx = to.x - from.x, dy = to.y - from.y;
+    const len = Math.hypot(dx, dy) || 1;
+    const px = -dy / len, py = dx / len;
+    const bow = (opts.bow != null ? opts.bow : 32) * (Math.random() < 0.5 ? -1 : 1);
+    const mx = from.x + dx * 0.5 + px * bow, my = from.y + dy * 0.5 + py * bow;
+    const d = 'M ' + from.x.toFixed(1) + ' ' + from.y.toFixed(1) +
+              ' Q ' + mx.toFixed(1) + ' ' + my.toFixed(1) + ' ' + to.x.toFixed(1) + ' ' + to.y.toFixed(1);
+    const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    svg.setAttribute('class', 'sig-tendril');
+    svg.style.filter = 'drop-shadow(0 0 5px ' + glow + ')';
+    svg.innerHTML =
+      '<path d="' + d + '" fill="none" stroke="' + color + '" stroke-width="8" stroke-linecap="round" pathLength="1" class="sig-tendril-path"></path>' +
+      '<path d="' + d + '" fill="none" stroke="' + glow + '" stroke-width="2.2" stroke-linecap="round" pathLength="1" class="sig-tendril-path sig-tendril-glint"></path>';
+    layer.appendChild(svg);
+    setTimeout(() => svg.remove(), 640);
+  },
+
+  // Expanding gas cloud over a card (Joker fear-gas). Detached overlay.
+  _fxGasBurst(el, opts) {
+    if (!el || this._reducedMotion()) return;
+    opts = opts || {};
+    const color = opts.color || '#8bf24e';
+    const c = this._fxCenter(el);
+    if (!c) return;
+    const layer = this._fxLayer();
+    const gas = document.createElement('div');
+    gas.className = 'sig-gas';
+    gas.style.cssText = 'left:' + c.x + 'px;top:' + c.y + 'px;--sig-c:' + color + ';';
+    layer.appendChild(gas);
+    setTimeout(() => gas.remove(), 760);
+  },
+
+  // Ashen wither over a card (Ghost Rider Penance Stare). A detached
+  // overlay that grayscales the card BENEATH it (backdrop-filter) with a
+  // soul-fire flicker — survives board re-renders because it's detached.
+  _fxAshen(el) {
+    if (!el || this._reducedMotion()) return;
+    const r = el.getBoundingClientRect();
+    if (!r || r.width === 0) return;
+    const layer = this._fxLayer();
+    const ash = document.createElement('div');
+    ash.className = 'sig-ashen';
+    ash.style.cssText = 'left:' + r.left + 'px;top:' + r.top + 'px;width:' + r.width + 'px;height:' + r.height + 'px;';
+    layer.appendChild(ash);
+    setTimeout(() => ash.remove(), 900);
+  },
+
+  // Bone-spike revive shockwave + green resurrection flash (Doomsday).
+  _fxRevive(el) {
+    if (!el || this._reducedMotion()) return;
+    const r = el.getBoundingClientRect();
+    if (!r || r.width === 0) return;
+    const c = { x: r.left + r.width / 2, y: r.top + r.height / 2 };
+    const layer = this._fxLayer();
+    const ring = document.createElement('div');
+    ring.className = 'sig-revive-ring';
+    ring.style.cssText = 'left:' + c.x + 'px;top:' + c.y + 'px;';
+    layer.appendChild(ring);
+    const flash = document.createElement('div');
+    flash.className = 'sig-revive-flash';
+    flash.style.cssText = 'left:' + r.left + 'px;top:' + r.top + 'px;width:' + r.width + 'px;height:' + r.height + 'px;';
+    layer.appendChild(flash);
+    setTimeout(() => { ring.remove(); flash.remove(); }, 820);
+    this._screenShake('heavy');
+  },
+
+  // ---- Wave 2 named per-card entry points ----
+
+  // Ghost Rider Penance Stare: the target withers to ash; his skull flares.
+  _fxPenanceStare(sourceCard, targetCard) {
+    if (this._reducedMotion() || !targetCard) return;
+    const tgtEl = this._fxCardElById(targetCard.id);
+    if (tgtEl) this._fxAshen(tgtEl);
+    this._fxWhenPainted(sourceCard, (srcEl) => {
+      srcEl.classList.add('fx-hellfire');
+      setTimeout(() => srcEl.classList.remove('fx-hellfire'), 660);
+    });
+    this._screenShake('light');
+  },
+
+  // Joker fear-gas: sickly-green laughing-gas burst over the feared enemy.
+  _fxFearGas(targetCard) {
+    if (this._reducedMotion() || !targetCard) return;
+    const el = this._fxCardElById(targetCard.id);
+    if (el) this._fxGasBurst(el, { color: '#8bf24e' });
+  },
+
+  // Venom symbiote lash: a black tendril whips from Venom to the frozen target.
+  _fxSymbioteLash(sourceCard, targetCard) {
+    if (this._reducedMotion() || !targetCard) return;
+    const to = this._fxCenter(this._fxCardElById(targetCard.id));
+    if (!to) return;
+    this._fxWhenPainted(sourceCard, (srcEl) => {
+      const from = this._fxCenter(srcEl);
+      if (from) this._fxTendril(from, to, { color: '#0b0b0b', glow: '#d8d8d8', bow: 30 });
+    });
+    this._screenShake('light');
+  },
+
+  // Knull symbiote flood: black-and-red tendrils ripple from Knull to each
+  // summoned card. Everything is placed THIS tick, so defer until painted.
+  _fxSymbioteFlood(sourceCard, summonedCards) {
+    if (this._reducedMotion() || !sourceCard || !summonedCards || !summonedCards.length) return;
+    this._fxWhenPainted(sourceCard, (srcEl) => {
+      const from = this._fxCenter(srcEl);
+      if (!from) return;
+      summonedCards.forEach((sc, i) => {
+        setTimeout(() => {
+          const to = this._fxCenter(this._fxCardElById(sc.id));
+          if (to) this._fxTendril(from, to, { color: '#0a0a0a', glow: '#c1121f', bow: 26 });
+        }, i * 90);
+      });
+    });
+    this._screenShake('medium');
+  },
+
+  // Doomsday rise: bone-spike shockwave + green revive flash on the reviver.
+  _fxDoomsdayRise(card) {
+    if (this._reducedMotion() || !card) return;
+    this._fxWhenPainted(card, (el) => this._fxRevive(el));
   },
 
   // ===================== DAMAGE MAGNITUDE TIER =====================
