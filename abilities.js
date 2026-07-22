@@ -3571,11 +3571,12 @@ const CARD_ABILITIES = {
       // crushing 3-lane finisher.
       const thunderDmg = self._thorThunderDamage || 5;
       const splashBurst = () => {
-        [lane - 1, lane, lane + 1].forEach((li, i) => {
+        let _thorSeq = 0;
+        [lane - 1, lane, lane + 1].forEach((li) => {
           if (li >= 0 && li < Game.LANE_COUNT) {
             const e = G.state.lanes[li][opp];
             if (e && e.currentHealth > 0) {
-              if (typeof UI !== 'undefined' && UI._fxThorStrike) { try { UI._fxThorStrike(e, i); } catch (er) {} }
+              if (typeof UI !== 'undefined' && UI._fxThorStrike) { try { UI._fxThorStrike(e, _thorSeq++); } catch (er) {} }
               G.dealDamage(e, thunderDmg, self);
               G.log(`Thor's thunder strikes ${e.name} for ${thunderDmg}!`);
             }

@@ -6871,7 +6871,8 @@ const UI = {
       spark.className = 'sig-proj-spark';
       spark.style.cssText = 'left:' + to.x + 'px;top:' + to.y + 'px;--sig-c:' + (opts.color || '#c9d1d9') + ';';
       layer.appendChild(spark);
-      setTimeout(() => { proj.remove(); spark.remove(); }, 480);
+      // Spark = 300ms anim + 260ms delay = 560ms; clean up after it fully fades.
+      setTimeout(() => { proj.remove(); spark.remove(); }, 580);
     });
   },
 
@@ -6881,10 +6882,14 @@ const UI = {
     const r = el.getBoundingClientRect();
     if (!r || r.width === 0) return;
     const layer = this._fxLayer();
+    const fh = r.height * 1.25;
     const flame = document.createElement('div');
     flame.className = 'sig-flame';
-    flame.style.cssText = 'left:' + (r.left + r.width / 2) + 'px;top:' + (r.top + r.height) + 'px;' +
-      'width:' + (r.width * 0.92) + 'px;height:' + (r.height * 1.25) + 'px;';
+    // Anchor the flame's BOTTOM at the card's base so it erupts UPWARD over
+    // the card (transform-origin:bottom center + scaleY grow), rather than
+    // rendering entirely in the row below it.
+    flame.style.cssText = 'left:' + (r.left + r.width / 2) + 'px;top:' + (r.top + r.height - fh) + 'px;' +
+      'width:' + (r.width * 0.92) + 'px;height:' + fh + 'px;';
     layer.appendChild(flame);
     setTimeout(() => flame.remove(), 740);
   },
@@ -6908,11 +6913,18 @@ const UI = {
   // Thor: Mjolnir sky-lightning hammers down on a struck enemy (seq staggers a volley).
   _fxThorStrike(targetCard, seq) {
     if (this._reducedMotion() || !targetCard) return;
+    // Capture the target's position NOW — the caller deals (often lethal)
+    // thunder synchronously right after, so a deferred DOM lookup would miss
+    // any enemy the strike kills (its element is swept by the next render).
+    // seq is a COMPACTED strike ordinal (0,1,2 among STRUCK enemies), so
+    // seq 0 both starts the stagger and fires the single volley shake.
+    const to = this._fxCenter(this._fxCardElById(targetCard.id));
+    if (!to) return;
+    const s = seq | 0;
     setTimeout(() => {
-      const to = this._fxCenter(this._fxCardElById(targetCard.id));
-      if (to) this._fxDrawBolt(null, to, { color: '#cfeaff', glow: '#4aa3ff' });
-      if ((seq | 0) === 0) this._screenShake('medium');
-    }, (seq | 0) * 70);
+      this._fxDrawBolt(null, to, { color: '#cfeaff', glow: '#4aa3ff' });
+      if (s === 0) this._screenShake('medium');
+    }, s * 70);
   },
 
   // Darth Vader: crimson Force-choke — a grip line from Vader + a red ring
