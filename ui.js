@@ -10965,7 +10965,15 @@ const UI = {
       // mode for v1 — deck-builder + custom decks come later via the
       // joinRoom payload.
       if (typeof Game !== 'undefined' && Game.startMultiplayerHost) {
-        Game.startMultiplayerHost();
+        // Deckbuilder online: the host's own pick plus whatever deck the joiner
+        // brought (arrives on the opponentJoined payload). If NEITHER side
+        // brought one this stays classic, exactly as before.
+        const hostDeck = this._mpDeckPayload();
+        const guestDeck = (m && m.deck && Array.isArray(m.deck.cards) && Array.isArray(m.deck.tricks))
+          ? { cards: m.deck.cards.slice(), tricks: m.deck.tricks.slice() }
+          : null;
+        this._mpState.oppDeckName = guestDeck ? (m.deck.name || 'custom deck') : null;
+        Game.startMultiplayerHost({ customDeck: hostDeck, aiDeck: guestDeck });
         // Override the AI personality name with the real opponent name.
         this._mpApplyNames(Game.state);
       }
@@ -11155,7 +11163,7 @@ const UI = {
     if (!transport) { UI.alertModal('No multiplayer transport available.'); return; }
     transport.open();
     Multiplayer.init(transport);
-    Multiplayer.createRoom({ name: this._mpName() });
+    Multiplayer.createRoom({ name: this._mpName(), deck: this._mpDeckPayload() });
   },
   _mpJoinRoom() {
     if (typeof Multiplayer === 'undefined') { UI.alertModal('Multiplayer module not loaded.'); return; }
@@ -11169,7 +11177,7 @@ const UI = {
     this._mpState.status = 'joining';
     this._mpState.code = code;
     this._mpRender();
-    Multiplayer.joinRoom(code, { name: this._mpName() });
+    Multiplayer.joinRoom(code, { name: this._mpName(), deck: this._mpDeckPayload() });
   },
   _mpLeaveRoom() {
     if (this._mpStateRetry) { clearInterval(this._mpStateRetry); this._mpStateRetry = null; }
@@ -11191,6 +11199,46 @@ const UI = {
       setTimeout(() => { if (el) el.classList.remove('mp-code-copied'); }, 700);
     }
   },
+  // Which saved deck this player brings to an online match.
+  // '' (empty) = Classic draft from the shared pool, the original behavior.
+  _mpDeckKey() {
+    try { return localStorage.getItem('clb-mp-deck') || ''; } catch (e) { return ''; }
+  },
+  _mpSetDeck(key) {
+    try { localStorage.setItem('clb-mp-deck', key || ''); } catch (e) {}
+    this._mpRender();
+  },
+  // Resolve the stored choice into a { cards, tricks } payload, or null for
+  // Classic. Guards against a deck that was renamed/deleted since it was picked.
+  _mpDeckPayload() {
+    const key = this._mpDeckKey();
+    if (!key) return null;
+    const saved = this._dbGetSavedDecks();
+    const d = saved && saved[key];
+    if (!d || !Array.isArray(d.cards) || !Array.isArray(d.tricks)) return null;
+    return { name: key, cards: d.cards.slice(), tricks: d.tricks.slice() };
+  },
+  // <select> of Classic + every saved deck. Shown on the idle multiplayer
+  // screen so BOTH host and joiner choose before connecting.
+  _mpDeckPickerHTML() {
+    const saved = this._dbGetSavedDecks() || {};
+    const names = Object.keys(saved);
+    const cur = this._mpDeckKey();
+    const esc = (x) => String(x).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/"/g,'&quot;');
+    if (!names.length) {
+      return `<div class="mp-deck-pick mp-deck-pick-empty">Deck: <em>Classic draft</em>
+        <span class="mp-deck-hint">— build one in My Decks to bring your own</span></div>`;
+    }
+    const opts = [`<option value=""${cur === '' ? ' selected' : ''}>Classic draft</option>`]
+      .concat(names.map(n => `<option value="${esc(n)}"${cur === n ? ' selected' : ''}>${esc(n)}</option>`))
+      .join('');
+    return `<div class="mp-deck-pick">
+      <label for="mp-deck-sel">Your deck</label>
+      <select id="mp-deck-sel" onchange="UI._mpSetDeck(this.value)">${opts}</select>
+      <span class="mp-deck-hint">Both players pick their own; each drafts from their deck.</span>
+    </div>`;
+  },
+
   _mpName() {
     // Display name lives in localStorage so it persists across visits;
     // fallback is a friendly anonymous label so the opponent doesn't
@@ -11294,7 +11342,8 @@ const UI = {
           ${_mmOpt('mp-opt-join', 'Join Room', "Enter a friend's code", IC.play, "UI._mpSetTab('join')")}
           ${joinInline}
           ${_mmOpt('mp-opt-2v2', '2v2 Online', '4 players · own devices', IC.multi, 'Game.goTo2v2OnlineLobby()')}
-        </div>`;
+        </div>
+        ${this._mpDeckPickerHTML()}`;
     } else if (st.status === 'waiting') {
       // Dots sit inline next to the label; the code is boxless glow-text (tap
       // to copy). No "Leave Room" — the "← Menu" back already drops the room.

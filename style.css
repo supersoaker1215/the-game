@@ -32709,3 +32709,24 @@ body.round-tick .board::after {
   aspect-ratio: 140 / 220;
   height: auto;
 }
+
+/* Online deck picker — sits under the Create/Join options on the multiplayer
+   screen so both players choose which saved deck they bring. */
+.mp-deck-pick {
+  margin: 14px 0 0;
+  display: flex; flex-wrap: wrap; align-items: center; gap: 8px;
+  font-family: 'Rajdhani', sans-serif; letter-spacing: 1px;
+  color: rgba(200,220,235,0.75); font-size: 13px; text-transform: uppercase;
+}
+.mp-deck-pick label { color: rgba(79,195,247,0.85); }
+.mp-deck-pick select {
+  background: rgba(6,12,22,0.85);
+  border: 1px solid rgba(120,160,210,0.4);
+  border-radius: 5px; padding: 5px 8px;
+  color: #dbe7f2; font-family: inherit; font-size: 13px; letter-spacing: 1px;
+}
+.mp-deck-pick .mp-deck-hint {
+  flex-basis: 100%; font-size: 11px; letter-spacing: 0.5px;
+  color: rgba(160,180,200,0.55); text-transform: none;
+}
+.mp-deck-pick-empty em { color: #dbe7f2; font-style: normal; }

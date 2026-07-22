@@ -638,7 +638,13 @@ const Game = {
   // Called by UI._mpInit() opponentJoined handler. Host kicks off a
   // standard classic match — the opponent will pick up the state via
   // the host's first broadcastState call below.
-  startMultiplayerHost() {
+  // opts (optional): { customDeck, aiDeck } — the HOST's saved deck and the
+  // GUEST's saved deck. When either is present the match runs in deckbuilder
+  // mode with draft-from-your-own-deck, exactly like solo "My Decks". The guest
+  // sits on the 'ai' seat from the host's perspective, so their deck maps onto
+  // the existing mode.aiDeck hook and buildDecks() wires per-player piles with
+  // no further changes.
+  startMultiplayerHost(opts) {
     this.mp = { role: 'host', you: 'player', opp: 'ai' };
     // Subscribe to inbound action messages from the guest. Idempotent
     // — only register once even if startMultiplayerHost runs twice.
@@ -692,7 +698,19 @@ const Game = {
     // on the host. Re-asserted after startMatch too (idempotent).
     if (this.state.player) this.state.player.isHuman = true;
     if (this.state.ai)     this.state.ai.isHuman = true;
-    this.startMatch({ players: '1v1', deck: 'classic' });
+    const _dbHost = opts && opts.customDeck;
+    const _dbGuest = opts && opts.aiDeck;
+    if (_dbHost || _dbGuest) {
+      // Either side brought a deck — run deckbuilder. A side without one falls
+      // back to a starter deck inside buildDecks().
+      this.startMatch({
+        players: '1v1', deck: 'deckbuilder', withDraft: true,
+        customDeck: _dbHost || null,
+        aiDeck: _dbGuest || null
+      });
+    } else {
+      this.startMatch({ players: '1v1', deck: 'classic' });
+    }
     if (this.state.player) this.state.player.isHuman = true;
     if (this.state.ai)     this.state.ai.isHuman = true;
     // SEAT HYGIENE — startMatch reuses this.state without re-running init(),
@@ -2449,14 +2467,21 @@ const Game = {
 
   presentDraftChoices() {
     const d = this.state.draft;
-    // Draft only runs in Classic — the helper falls back to the shared
-    // pile here because Deckbuilder never enters the draft phase.
-    const pile = d.phase === 'cards' ? this.getDrawPile('player') : this.getTrickPile('player');
+    // PER-SIDE piles. In Classic both helpers return the same shared pile, so
+    // this is identical to the old single-pile behavior. In DECKBUILDER-with-
+    // draft they return each side's OWN deck — and the old code popped BOTH
+    // sides' offers from the player's pile, so the opponent drafted out of the
+    // player's deck (and the player's deck drained twice as fast). Harmless-
+    // looking in solo My Decks; fatal for online deckbuilder, where it meant
+    // the guest would draft from the HOST's collection.
+    const pPile = d.phase === 'cards' ? this.getDrawPile('player') : this.getTrickPile('player');
+    const aPile = d.phase === 'cards' ? this.getDrawPile('ai')     : this.getTrickPile('ai');
+    const pile = pPile;   // kept for the single-card / fallback paths below
 
     if (d.phase === 'cards') {
-      // Player sees 2, AI sees 2 (separate draws from same pile)
-      d.playerChoices = [pile.pop(), pile.pop()].filter(Boolean);
-      d.aiChoices = [pile.pop(), pile.pop()].filter(Boolean);
+      // Player sees 2 from their pile, AI sees 2 from theirs.
+      d.playerChoices = [pPile.pop(), pPile.pop()].filter(Boolean);
+      d.aiChoices = [aPile.pop(), aPile.pop()].filter(Boolean);
       // In multiplayer, the "ai" seat is a real human on the guest
       // client. They make their own pick via UI → guest sends a
       // 'draftPick' action → host calls draftPick(idx, 'ai') below.
@@ -2477,8 +2502,8 @@ const Game = {
         d.aiDrafted.push(d.aiChoices[0]);
       }
     } else {
-      d.playerChoices = [pile.pop(), pile.pop()].filter(Boolean);
-      d.aiChoices = [pile.pop(), pile.pop()].filter(Boolean);
+      d.playerChoices = [pPile.pop(), pPile.pop()].filter(Boolean);
+      d.aiChoices = [aPile.pop(), aPile.pop()].filter(Boolean);
       const bothHumans = this.isMultiplayer() || this.isHotseat();
       if (!bothHumans && d.aiChoices.length >= 2) {
         const picked = (typeof AI !== 'undefined' && AI.pickDraftTrick)

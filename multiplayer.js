@@ -413,7 +413,7 @@ class LocalTabTransport {
     if (msg.t === 'joinRoom') {
       this._roomCode = msg.code;
       // Tell the host we're joining.
-      this._channel.postMessage({ kind: 'joinReq', code: msg.code, name: msg.name });
+      this._channel.postMessage({ kind: 'joinReq', code: msg.code, name: msg.name, deck: msg.deck || null });
       return;
     }
     // Game actions — relay to opposite tab via channel. The host's
@@ -437,7 +437,7 @@ class LocalTabTransport {
       // tell ourselves opponent joined, then send current state.
       if (this._isHost && data.code === this._roomCode) {
         this._channel.postMessage({ kind: 'joinAck', code: this._roomCode, you: 'ai' });
-        this._dispatch({ t: 'opponentJoined', name: data.name || 'Opponent' });
+        this._dispatch({ t: 'opponentJoined', name: data.name || 'Opponent', deck: data.deck || null });
       }
       return;
     }
@@ -764,7 +764,7 @@ class WebRTCTransport {
         serialization: 'json',    // JSON is more compatible than binary (BinaryPack) on iOS Safari
         // v: build stamp for the version handshake — the host compares it
         // to its own and warns BOTH players on mismatch (see _setupConn).
-        metadata: { name: msg.name || 'Opponent', v: _clbBuildStamp() },
+        metadata: { name: msg.name || 'Opponent', v: _clbBuildStamp(), deck: msg.deck || null },
       });
       this._setupConn(conn);
     });
@@ -803,7 +803,10 @@ class WebRTCTransport {
           // handshake itself. Same warning, same fix (refresh).
           this._dispatch({ t: 'versionMismatch', mine, theirs: 'old build (no stamp)' });
         }
-        this._dispatch({ t: 'opponentJoined', name });
+        // Carry the joiner's chosen deck up to the UI so the host can start a
+        // deckbuilder match with BOTH players' decks (guest sits on the 'ai'
+        // seat, so theirs becomes mode.aiDeck).
+        this._dispatch({ t: 'opponentJoined', name, deck: (conn.metadata && conn.metadata.deck) || null });
       } else {
         // Expect the host's versionInfo reply shortly after connecting. A
         // host on a pre-handshake build never sends one — which is exactly
