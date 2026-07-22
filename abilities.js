@@ -3401,6 +3401,7 @@ const CARD_ABILITIES = {
         G.applyAbilities(card);
         G.log(`[APOCALYPSE] ${card.name} permanently gains ${kw}.`);
       });
+      if (typeof UI !== 'undefined' && UI._fxCelestialSurge) { try { UI._fxCelestialSurge(self.owner); } catch (e) {} }
     },
     onTurnStart(G, self) {
       if (self.currentHealth <= 0) return;
@@ -3476,6 +3477,7 @@ const CARD_ABILITIES = {
         if (!enemies.length) { afterFear(); return; }
         const doFear = (target) => {
           G.fearCard(target, self);
+          if (typeof UI !== 'undefined' && UI._fxForceChoke) { try { UI._fxForceChoke(self, target); } catch (e) {} }
           afterFear();
         };
         if (Game.isHuman(self.owner)) {
@@ -3538,6 +3540,7 @@ const CARD_ABILITIES = {
       const enemies = G.getEnemiesOf(self.owner);
       if (enemies.length) {
         G.promptCardChoice(self.owner, enemies, "Luke Skywalker — Mind Control", "Choose an enemy to Mind Control 1", (t) => {
+          if (typeof UI !== 'undefined' && UI._fxSaberSlash) { try { UI._fxSaberSlash(self, t, { blade: '#3aa0ff', core: '#eaf4ff' }); } catch (e) {} }
           G.mindControlCard(t, self, () => { G.log(`Luke Skywalker Mind Controls ${t.name}!`); });
         }, _aiThreatPicker);
       }
@@ -3568,10 +3571,11 @@ const CARD_ABILITIES = {
       // crushing 3-lane finisher.
       const thunderDmg = self._thorThunderDamage || 5;
       const splashBurst = () => {
-        [lane - 1, lane, lane + 1].forEach(li => {
+        [lane - 1, lane, lane + 1].forEach((li, i) => {
           if (li >= 0 && li < Game.LANE_COUNT) {
             const e = G.state.lanes[li][opp];
             if (e && e.currentHealth > 0) {
+              if (typeof UI !== 'undefined' && UI._fxThorStrike) { try { UI._fxThorStrike(e, i); } catch (er) {} }
               G.dealDamage(e, thunderDmg, self);
               G.log(`Thor's thunder strikes ${e.name} for ${thunderDmg}!`);
             }
@@ -3751,6 +3755,7 @@ const CARD_ABILITIES = {
         const combined = a1.attack + a2.attack;
         a1._yodaCombinedAtk = combined;
         a2._yodaCombinedAtk = combined;
+        if (typeof UI !== 'undefined' && UI._fxForceChannel) { try { UI._fxForceChannel(a1, a2); } catch (e) {} }
         G.log(`[YODA] ${a1.name} and ${a2.name} will strike with combined force (${combined} ATK) this combat!`);
       };
 
@@ -3876,6 +3881,7 @@ const CARD_ABILITIES = {
         const pool = G.getEnemiesOf(self.owner).filter(e => e.currentHealth > 0 && G.canEffectLand(e, 'damage', { owner: self.owner, source: self }));
         if (!pool.length) return;
         G.promptCardChoice(self.owner, pool, "Batman — Strike 2", `Deal ${strikeDmg} damage to any enemy`, (t) => {
+          if (typeof UI !== 'undefined' && UI._fxBatarang) { try { UI._fxBatarang(self, t); } catch (e) {} }
           G.dealDamage(t, strikeDmg, self);
           G.log(`Batman strike 2: deals ${strikeDmg} to ${t.name}!`);
         }, pickDamage);
@@ -3885,6 +3891,7 @@ const CARD_ABILITIES = {
         const pool = G.getEnemiesOf(self.owner).filter(e => e.currentHealth > 0 && G.canEffectLand(e, 'damage', { owner: self.owner, source: self }));
         if (!pool.length) return;
         G.promptCardChoice(self.owner, pool, "Batman — Strike 1", `Deal ${strikeDmg} damage to any enemy`, (t) => {
+          if (typeof UI !== 'undefined' && UI._fxBatarang) { try { UI._fxBatarang(self, t); } catch (e) {} }
           G.dealDamage(t, strikeDmg, self);
           G.log(`Batman strike 1: deals ${strikeDmg} to ${t.name}!`);
           strike2();
@@ -3895,6 +3902,7 @@ const CARD_ABILITIES = {
       if (fearable.length) {
         G.promptCardChoice(self.owner, fearable, "Batman — Fear", "Fear any enemy", (t) => {
           G.fearCard(t, self);
+          if (typeof UI !== 'undefined' && UI._fxFearBats) { try { UI._fxFearBats(t); } catch (e) {} }
           G.log(`Batman fears ${t.name}!`);
           strike1();
         }, pickThreat);
@@ -4154,7 +4162,7 @@ const CARD_ABILITIES = {
       if (!enemies.length) return;
       G.promptCardChoice(self.owner, enemies, "Anakin — Strike",
         "Choose an enemy to deal 10 damage",
-        (t) => { G.dealDamage(t, 10, self); G.log(`Anakin unleashes the dark side on ${t.name} for 10!`); },
+        (t) => { if (typeof UI !== 'undefined' && UI._fxSaberStrike) { try { UI._fxSaberStrike(self, t); } catch (e) {} } G.dealDamage(t, 10, self); G.log(`Anakin unleashes the dark side on ${t.name} for 10!`); },
         cards => _aiKillPicker(cards, 10));
     },
     onBeforeTricks(G, self, lane) {
@@ -4282,12 +4290,14 @@ const CARD_ABILITIES = {
           // change the outcome, so skip the modal (options.forced).
           G.promptCardChoice(self.owner, available, `Dormammu — Drain (${remaining} left)`,
             `Choose enemy to drain (${remaining} remaining)`, (t) => {
+              if (typeof UI !== 'undefined' && UI._fxDrainSiphon) { try { UI._fxDrainSiphon(self, t); } catch (e) {} }
               G.drainCard(self, t);
               picked.push(t.id);
               drainChain(remaining - 1, picked);
             }, threatPicker, { forced: available.length <= remaining });
         } else {
           const t = threatPicker(available);
+          if (typeof UI !== 'undefined' && UI._fxDrainSiphon) { try { UI._fxDrainSiphon(self, t); } catch (e) {} }
           G.drainCard(self, t);
           picked.push(t.id);
           drainChain(remaining - 1, picked);
@@ -4303,6 +4313,7 @@ const CARD_ABILITIES = {
       // Default 5 (classic); Text+ raises to 10 so a single play double-
       // dips on the run-HP economy.
       const heal = self._manhattanHeal || 5;
+      if (typeof UI !== 'undefined' && UI._fxManhattan) { try { UI._fxManhattan(self, self.owner); } catch (e) {} }
       G.healPlayer(self.owner, heal, self);
       G.log(`Dr. Manhattan heals ${heal}!`);
     },
@@ -4458,6 +4469,7 @@ const CARD_ABILITIES = {
         return;
       }
       self.trigonFrozen = true;
+      if (typeof UI !== 'undefined' && UI._fxHellfire) { try { UI._fxHellfire(self, targets); } catch (e) {} }
       targets.forEach(e => G.freezeCardUnresistible(e, self));
       G.log(`Trigon freezes ${targets.length} enem${targets.length === 1 ? 'y' : 'ies'}!`);
     },

@@ -6818,6 +6818,199 @@ const UI = {
     this._fxWhenPainted(card, (el) => this._fxRevive(el));
   },
 
+  // ====================== WAVE 3 (cost-8+ titans) ======================
+  // More reusable primitives + the per-titan wrappers. Same rules: one-shot,
+  // reduced-motion-gated, battery-safe, tab-hidden-paused, guarded callers.
+
+  // Lightsaber slash across the target card — a bright diagonal blade sweep +
+  // spark. Target-anchored (the target is a pre-existing enemy, painted). When
+  // a source is given, a thin blade-line is also drawn from the caster once he
+  // paints, so it reads as coming from the Jedi.
+  _fxSaberSlash(sourceCard, targetCard, opts) {
+    if (this._reducedMotion() || !targetCard) return;
+    opts = opts || {};
+    const blade = opts.blade || '#3aa0ff';
+    const core  = opts.core  || '#eaf4ff';
+    const tgtEl = this._fxCardElById(targetCard.id);
+    if (!tgtEl) return;
+    const r = tgtEl.getBoundingClientRect();
+    if (!r || r.width === 0) return;
+    const layer = this._fxLayer();
+    const slash = document.createElement('div');
+    slash.className = 'sig-saber';
+    slash.style.cssText = 'left:' + (r.left + r.width / 2) + 'px;top:' + (r.top + r.height / 2) + 'px;' +
+      'width:' + (r.width * 1.7) + 'px;--sig-blade:' + blade + ';--sig-core:' + core + ';';
+    layer.appendChild(slash);
+    setTimeout(() => slash.remove(), 460);
+    if (sourceCard) {
+      const to = { x: r.left + r.width / 2, y: r.top + r.height / 2 };
+      this._fxWhenPainted(sourceCard, (srcEl) => {
+        const from = this._fxCenter(srcEl);
+        if (from) this._fxDrawBeam(from, to, { color: blade, core: core, thickness: opts.thickness || 4 });
+      });
+    }
+    this._screenShake('light');
+  },
+
+  // Spinning projectile that flies from caster to target (Batman batarang).
+  _fxProjectile(sourceCard, targetCard, opts) {
+    if (this._reducedMotion() || !targetCard) return;
+    opts = opts || {};
+    const to = this._fxCenter(this._fxCardElById(targetCard.id));
+    if (!to) return;
+    this._fxWhenPainted(sourceCard, (srcEl) => {
+      const from = this._fxCenter(srcEl);
+      if (!from) return;
+      const layer = this._fxLayer();
+      const proj = document.createElement('div');
+      proj.className = 'sig-projectile';
+      proj.style.cssText = 'left:' + from.x + 'px;top:' + from.y + 'px;' +
+        '--sig-dx:' + (to.x - from.x) + 'px;--sig-dy:' + (to.y - from.y) + 'px;--sig-c:' + (opts.color || '#c9d1d9') + ';';
+      layer.appendChild(proj);
+      const spark = document.createElement('div');
+      spark.className = 'sig-proj-spark';
+      spark.style.cssText = 'left:' + to.x + 'px;top:' + to.y + 'px;--sig-c:' + (opts.color || '#c9d1d9') + ';';
+      layer.appendChild(spark);
+      setTimeout(() => { proj.remove(); spark.remove(); }, 480);
+    });
+  },
+
+  // Upward hellfire column + flicker over a card (Trigon).
+  _fxFlameColumn(el) {
+    if (!el || this._reducedMotion()) return;
+    const r = el.getBoundingClientRect();
+    if (!r || r.width === 0) return;
+    const layer = this._fxLayer();
+    const flame = document.createElement('div');
+    flame.className = 'sig-flame';
+    flame.style.cssText = 'left:' + (r.left + r.width / 2) + 'px;top:' + (r.top + r.height) + 'px;' +
+      'width:' + (r.width * 0.92) + 'px;height:' + (r.height * 1.25) + 'px;';
+    layer.appendChild(flame);
+    setTimeout(() => flame.remove(), 740);
+  },
+
+  // Expanding — or contracting (opts.contract) — ring over a card.
+  _fxRing(el, opts) {
+    if (!el || this._reducedMotion()) return;
+    opts = opts || {};
+    const c = this._fxCenter(el);
+    if (!c) return;
+    const layer = this._fxLayer();
+    const ring = document.createElement('div');
+    ring.className = 'sig-ring' + (opts.contract ? ' sig-ring-contract' : '');
+    ring.style.cssText = 'left:' + c.x + 'px;top:' + c.y + 'px;--sig-c:' + (opts.color || '#c1121f') + ';';
+    layer.appendChild(ring);
+    setTimeout(() => ring.remove(), 540);
+  },
+
+  // ---- Wave 3 named per-card entry points ----
+
+  // Thor: Mjolnir sky-lightning hammers down on a struck enemy (seq staggers a volley).
+  _fxThorStrike(targetCard, seq) {
+    if (this._reducedMotion() || !targetCard) return;
+    setTimeout(() => {
+      const to = this._fxCenter(this._fxCardElById(targetCard.id));
+      if (to) this._fxDrawBolt(null, to, { color: '#cfeaff', glow: '#4aa3ff' });
+      if ((seq | 0) === 0) this._screenShake('medium');
+    }, (seq | 0) * 70);
+  },
+
+  // Darth Vader: crimson Force-choke — a grip line from Vader + a red ring
+  // constricting the target.
+  _fxForceChoke(sourceCard, targetCard) {
+    if (this._reducedMotion() || !targetCard) return;
+    const tgtEl = this._fxCardElById(targetCard.id);
+    const to = this._fxCenter(tgtEl);
+    if (tgtEl) this._fxRing(tgtEl, { color: '#ff2d2d', contract: true });
+    if (to) this._fxWhenPainted(sourceCard, (srcEl) => {
+      const from = this._fxCenter(srcEl);
+      if (from) this._fxTendril(from, to, { color: '#c1121f', glow: '#ff2d2d', bow: 18 });
+    });
+    this._screenShake('light');
+  },
+
+  // Yoda: serene green Force channel binding the two chosen allies. Either
+  // endpoint may be freshly-played Yoda, so re-query both past render's rAF.
+  _fxForceChannel(a1, a2) {
+    if (this._reducedMotion() || !a1 || !a2) return;
+    const draw = () => {
+      const p1 = this._fxCenter(this._fxCardElById(a1.id));
+      const p2 = this._fxCenter(this._fxCardElById(a2.id));
+      if (p1 && p2) { this._fxTendril(p1, p2, { color: '#7bf27a', glow: '#8bf24e', bow: 12 }); return true; }
+      return false;
+    };
+    if (draw()) return;
+    const raf = (typeof window !== 'undefined' && window.requestAnimationFrame) ? window.requestAnimationFrame.bind(window) : (f) => setTimeout(f, 16);
+    raf(() => raf(() => { draw(); }));
+  },
+
+  // Batman: a spinning batarang cracks into a struck enemy.
+  _fxBatarang(sourceCard, targetCard) {
+    this._fxProjectile(sourceCard, targetCard, { color: '#c9d1d9' });
+  },
+  // Batman: a swirling shadow-bat swarm engulfs the feared enemy.
+  _fxFearBats(targetCard) {
+    if (this._reducedMotion() || !targetCard) return;
+    const el = this._fxCardElById(targetCard.id);
+    if (el) this._fxGasBurst(el, { color: '#5b4b8a' });
+  },
+
+  // Anakin: a heavy blue saber power-strike with a dark-side rage edge.
+  _fxSaberStrike(sourceCard, targetCard) {
+    this._fxSaberSlash(sourceCard, targetCard, { blade: '#2b8cff', core: '#eaf4ff', thickness: 6 });
+  },
+
+  // Apocalypse: celestial-tech transmutation surge over your visible hand.
+  _fxCelestialSurge(owner) {
+    if (this._reducedMotion()) return;
+    if (owner && owner !== 'player') return;   // only the local human's face-up hand
+    const hand = document.querySelector('.player-hand-section');
+    if (!hand) return;
+    const r = hand.getBoundingClientRect();
+    if (!r || r.width === 0) return;
+    const layer = this._fxLayer();
+    const surge = document.createElement('div');
+    surge.className = 'sig-celestial';
+    surge.style.cssText = 'left:' + r.left + 'px;top:' + r.top + 'px;width:' + r.width + 'px;height:' + r.height + 'px;';
+    layer.appendChild(surge);
+    setTimeout(() => surge.remove(), 780);
+  },
+
+  // Dr. Manhattan: a cold quantum stream flows into the hero HP orb.
+  _fxManhattan(sourceCard, owner) {
+    if (this._reducedMotion()) return;
+    const orb = document.getElementById(owner === 'player' ? 'player-hp-fill' : 'ai-hp-fill')
+             || document.getElementById(owner === 'player' ? 'player-health' : 'ai-health');
+    if (!orb) return;
+    const orbR = orb.getBoundingClientRect();
+    if (!orbR || orbR.width === 0) return;
+    const to = { x: orbR.left + orbR.width / 2, y: orbR.top + orbR.height / 2 };
+    this._fxWhenPainted(sourceCard, (srcEl) => {
+      const from = this._fxCenter(srcEl);
+      if (from) this._fxDrawBeam(from, to, { color: '#3fd0ff', core: '#eaffff', thickness: 6 });
+    });
+  },
+
+  // Dormammu: a Dark-Dimension flame streamer rips power FROM the enemy BACK to him.
+  _fxDrainSiphon(sourceCard, targetCard) {
+    if (this._reducedMotion() || !sourceCard || !targetCard) return;
+    const from = this._fxCenter(this._fxCardElById(targetCard.id));
+    const to = this._fxCenter(this._fxCardElById(sourceCard.id));
+    if (from && to) this._fxTendril(from, to, { color: '#c04bff', glow: '#ff6a00', bow: 30 });
+  },
+
+  // Trigon: demonic hellfire erupts under every frozen enemy.
+  _fxHellfire(sourceCard, targets) {
+    if (this._reducedMotion() || !targets || !targets.length) return;
+    targets.forEach((t, i) => {
+      setTimeout(() => {
+        const el = t && this._fxCardElById(t.id);
+        if (el) this._fxFlameColumn(el);
+      }, i * 70);
+    });
+    this._screenShake('heavy');
+  },
+
   // ===================== DAMAGE MAGNITUDE TIER =====================
   // One shared classifier that maps a hit's magnitude to a feedback
   // intensity tier, and one parameter table that every feedback
