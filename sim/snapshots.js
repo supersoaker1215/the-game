@@ -496,34 +496,43 @@ snap('GS-24 Both uncontested: cards survive, no dmgIn', function () {
   assertEquals('ai.hpAfter',     predOf(r, a.id).hpAfter, 6);
 });
 
-// GS-25 — Splash asymmetry: a dying attacker's adjacent-lane
-// splash STILL fires in the predictor, but its own-lane splash
-// does NOT. Player 1/1 splashRange=3 dies to lane-0 ai 5/6
-// counter-swing → lane-0 ai eats only the front 1 (no own-lane
-// splash bonus), lane-1 ai eats the splash 3 (cross-lane fires
-// from left-adj pre-splash chain).
+// GS-25 — A DYING attacker's splash cone still fires IN FULL: the front
+// (own-lane, on top of the front swing) AND both adjacent lanes. Player 1/1
+// Splash 3 trades into lane-0 ai 5/6 — the ai eats the front swing (1) PLUS
+// the own-lane splash (3) = 4; the lane-1 ai eats the adjacent splash (3).
 //
-// Pinning this asymmetry intentionally so any attempt to
-// "unify" the splash paths breaks the snapshot loudly. If
-// you change behavior on purpose, update the expected values.
-snap('GS-25 Splash from dying attacker: adj fires, own-lane doesn\'t', function () {
+// This pins the REPORTED FIX: a dying splasher's own-lane splash is no longer
+// cancelled (the exact Red Hulk → Magneto case — Red Hulk's Splash 3 lands on
+// Magneto even as Red Hulk dies to the counter). Matches the resolver's
+// applySplash, which gates on HAD-a-valid-attack (game.js:4806), not on
+// post-exchange survival. (Was pinned to the buggy "own-lane doesn't fire".)
+snap('GS-25 Dying attacker splash cone: own-lane + adjacent both fire', function () {
   reset();
   var p  = place(makeCard({ owner: 'player', attack: 1, currentHealth: 1, maxHealth: 1, splashRange: 3 }), 0);
   var a0 = place(makeCard({ owner: 'ai',     attack: 5, currentHealth: 6, maxHealth: 6 }), 0);
   var a1 = place(makeCard({ owner: 'ai',     attack: 0, currentHealth: 4, maxHealth: 4 }), 1);
   var r = Game.predictCombatGlobal();
   assertEquals('player.dies',    predOf(r, p.id).dies,    true);
-  // Lane 0 ai: front swing only (1). Own-lane splash skipped
-  // because attacker died — divergence from the resolver, which
-  // fires applySplash even after attacker death (front.currentHealth>0
-  // gate inside applySplash means it WOULD fire on a 6-HP ai with
-  // 5 HP remaining). This is the sort of gap a future rules-engine
-  // extraction would close.
-  assertEquals('ai0.dmgIn',      predOf(r, a0.id).dmgIn,   1);
-  assertEquals('ai0.hpAfter',    predOf(r, a0.id).hpAfter, 5);
-  // Lane 1 ai eats splash 3 (left-adj cross-lane chain).
+  // Lane 0 ai: front swing (1) + own-lane splash (3) = 4.
+  assertEquals('ai0.dmgIn',      predOf(r, a0.id).dmgIn,   4);
+  assertEquals('ai0.hpAfter',    predOf(r, a0.id).hpAfter, 2);
+  // Lane 1 ai eats the adjacent splash (3).
   assertEquals('ai1.dmgIn',      predOf(r, a1.id).dmgIn,   3);
   assertEquals('ai1.hpAfter',    predOf(r, a1.id).hpAfter, 1);
+});
+
+// GS-25b — The user's exact report, verbatim: Red Hulk (4 ATK / 3 HP,
+// Splash 3) opposite Magneto (3 ATK / 5 HP). Red Hulk deals front 4 + own-lane
+// splash 3 = 7 → Magneto dies; Red Hulk takes 3 back and also dies. The old
+// predictor showed Magneto taking only 4 (splash dropped on the trade).
+snap('GS-25b Red Hulk (Splash 3) trades: Magneto eats 4 + 3 = 7 and dies', function () {
+  reset();
+  var rh  = place(makeCard({ owner: 'player', attack: 4, currentHealth: 3, maxHealth: 3, splashRange: 3 }), 2);
+  var mag = place(makeCard({ owner: 'ai',     attack: 3, currentHealth: 5, maxHealth: 5 }), 2);
+  var r = Game.predictCombatGlobal();
+  assertEquals('magneto.dmgIn',  predOf(r, mag.id).dmgIn,   7);
+  assertEquals('magneto.dies',   predOf(r, mag.id).dies,    true);
+  assertEquals('redhulk.dies',   predOf(r, rh.id).dies,     true);  // trades, still splashes
 });
 
 // GS-26 — predictLaneOutcome (per-lane API). The simpler API

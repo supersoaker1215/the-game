@@ -10104,35 +10104,26 @@ const Game = {
 
     const canHitEnemy = this._canSwingForward.bind(this);
 
-    // applyHit handles taunt redirect → evade → armor → HP. The first
-    // taunter on the target's side that ISN'T the target absorbs the
-    // hit, mirroring live combat's `getAllCardsOf().find()` lookup.
+    // applyHit → taunt redirect → invincible/immunity → evade (pierced only by
+    // ignoresEvade, NOT Bullseye) → armor → HP. The first alive non-target
+    // taunter on the defending side absorbs the hit, mirroring the resolver's
+    // getAttackTarget lookup. (The predictor is an APPROXIMATION of the full
+    // lane resolver — it does not model uncontested/face swings, mind-control
+    // or fear self-hits, or exact lane-by-lane taunt-kill ordering.)
     const applyHit = (targetCard, raw, attackerIgnoresEvade) => {
       if (!targetCard || raw <= 0) return 0;
       let final = snap.get(targetCard.id);
       if (!final || final.hp <= 0) return 0;
-      // Taunt redirection — pick the first non-target taunter by lane order.
       const owner = targetCard.owner;
-      let taunterPick = null;
-      let taunterPickLane = Infinity;
+      let taunterPick = null, taunterPickLane = Infinity;
       snap.forEach(s => {
-        if (s.owner !== owner) return;
-        if (s.id === targetCard.id) return;
-        if (!s.ref.tauntTurns || s.ref.tauntTurns <= 0) return;
-        if (s.hp <= 0) return;
-        if (s.lane < taunterPickLane) {
-          taunterPick = s;
-          taunterPickLane = s.lane;
-        }
+        if (s.owner !== owner || s.id === targetCard.id) return;
+        if (!s.ref.tauntTurns || s.ref.tauntTurns <= 0 || s.hp <= 0) return;
+        if (s.lane < taunterPickLane) { taunterPick = s; taunterPickLane = s.lane; }
       });
       if (taunterPick) final = taunterPick;
-      // After possible redirect, re-check for kill-block defenses.
       if (final.ref.invincibleTurns > 0 || final.ref.hasDamageImmunity) return 0;
       const canDodge = !final.ref.isStunned && !final.ref.isFrozen;
-      // Evade is only pierced by an ignoresEvade attacker — NOT by Bullseye.
-      // (Real combat gates on attacker.ignoresEvade at ~line 4048; this used to
-      // pass isBullseye, so a Bullseye attacker like Spawn wrongly cancelled an
-      // Evade defender's dodge and the lane read TRADE instead of WIN.)
       if (canDodge && final.evade > 0 && !attackerIgnoresEvade) { final.evade--; return 0; }
       const landed = Math.max(0, raw - (final.ref.armorValue | 0));
       final.hp -= landed;
@@ -10140,31 +10131,27 @@ const Game = {
       return landed;
     };
 
-    // For each lane in left-to-right order: pre-splash from left adj,
-    // front-on-front swings, own-lane splash. Right-adjacent splash is
-    // handled implicitly by the next lane's "left-adjacent" step.
+    // For each lane, left to right: front-on-front swings, then the splash cone.
     for (let i = 0; i < this.LANE_COUNT; i++) {
       const lane = this.state.lanes[i];
       if (!lane || lane.destroyed) continue;
       const p = lane.player, a = lane.ai;
 
-      // Step 0: pre-splash from left adj (only when this lane has cards
-      // that could be hit).
-      if (i > 0) {
-        const left = this.state.lanes[i - 1];
-        if (left && !left.destroyed) {
-          if (left.ai && (left.ai.splashRange | 0) > 0 && canHitEnemy(left.ai) && p) {
-            applyHit(p, left.ai.splashRange | 0, !!left.ai.ignoresEvade);
-          }
-          if (left.player && (left.player.splashRange | 0) > 0 && canHitEnemy(left.player) && a) {
-            applyHit(a, left.player.splashRange | 0, !!left.player.ignoresEvade);
-          }
-        }
-      }
-
-      // Step 1: front-on-front (simultaneous — snapshot ATK first).
       const pSnap = snap.get(p && p.id);
       const aSnap = snap.get(a && a.id);
+      // Splash-eligibility, captured BEFORE the front exchange: a card that
+      // COULD attack still deals its SPLASH even if it dies trading in the
+      // exchange — real combat gates splash on "HAD a valid attack" (applySplash
+      // at game.js:4806), not on post-exchange survival. THE reported fix: a
+      // TRADING splasher (Red Hulk 4/3 Splash 3 vs a 5-HP body that kills him)
+      // still lands front 4 + splash 3 = 7. canHitEnemy carries the
+      // stun/freeze/fear/mind-control gate, so those cards still don't splash
+      // (matches the predictor's prior approximation); +ATK>0 (a 0-ATK card
+      // never swings — resolveLaneCombat:4664).
+      const pCanSplash = !!(pSnap && pSnap.hp > 0 && canHitEnemy(p) && (p.attack | 0) > 0);
+      const aCanSplash = !!(aSnap && aSnap.hp > 0 && canHitEnemy(a) && (a.attack | 0) > 0);
+
+      // Front-on-front (simultaneous — ATK snapshotted before either lands).
       if (pSnap && aSnap && pSnap.hp > 0 && aSnap.hp > 0) {
         const pAtk = canHitEnemy(p) ? (p.attack | 0) : 0;
         const aAtk = canHitEnemy(a) ? (a.attack | 0) : 0;
@@ -10172,13 +10159,25 @@ const Game = {
         applyHit(a, pAtk, !!p.ignoresEvade);
       }
 
-      // Step 2: own-lane splash.
-      if (pSnap && pSnap.hp > 0 && (p.splashRange | 0) > 0 && a) {
-        applyHit(a, p.splashRange | 0, !!p.ignoresEvade);
-      }
-      if (aSnap && aSnap.hp > 0 && (a.splashRange | 0) > 0 && p) {
-        applyHit(p, a.splashRange | 0, !!a.ignoresEvade);
-      }
+      // Splash cone — mirrors the resolver's applySplash(card, i): the front
+      // enemy (same lane, ON TOP of the front swing) + BOTH adjacent lanes'
+      // enemies, for splashRange. PUSHING both directions here (rather than only
+      // PULLING from the left when the next lane runs) is what makes a
+      // splasher's LEFT-adjacent hit land at all — the old pull-from-left model
+      // silently dropped every leftward splash.
+      const splashCone = (attacker, could) => {
+        const s = attacker ? (attacker.splashRange | 0) : 0;
+        if (!could || s <= 0) return;
+        const iev = !!attacker.ignoresEvade;
+        const foe = attacker.owner === 'player' ? 'ai' : 'player';
+        [i - 1, i, i + 1].forEach(li => {
+          if (li < 0 || li >= this.LANE_COUNT) return;
+          const ln = this.state.lanes[li];
+          if (ln && !ln.destroyed && ln[foe]) applyHit(ln[foe], s, iev);
+        });
+      };
+      splashCone(p, pCanSplash);
+      splashCone(a, aCanSplash);
     }
 
     // Build the result map keyed by card id.
