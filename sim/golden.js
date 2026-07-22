@@ -164,9 +164,10 @@ gold('RG-6 Revive keyword stamps reviveCharges from the data', function () {
 // ============================================================
 
 // RG-7 — The gate answers 'will this even do anything?' consistently:
-// Untrickable blocks ENEMY tricks only; Invincible blocks destroy +
-// damage + debuff; damage-immunity blocks damage/debuff; a plain body
-// accepts everything.
+// Untrickable blocks ENEMY tricks only; Invincible is a DAMAGE/DESTROY
+// shield (blocks destroy + damage, but NOT debuffs); damage-immunity blocks
+// damage only. Debuffs are gated by Immunity (immunityCharges), never by
+// these damage shields — Invincible != Immunity. A plain body accepts all.
 gold('RG-7 canEffectLand gate: untrickable / invincible / damage-immune / normal', function () {
   reset();
   var untrick = card({ name: 'Strange', owner: 'ai', abilities: ['Untrickable'] });
@@ -180,14 +181,16 @@ gold('RG-7 canEffectLand gate: untrickable / invincible / damage-immune / normal
   eq('untrick enemy trick', Game.canEffectLand(untrick, 'trick', { owner: 'player' }), false);
   eq('untrick own trick',   Game.canEffectLand(untrick, 'trick', { owner: 'ai' }),     true);
 
-  // Invincible: can't destroy / damage / debuff.
+  // Invincible: can't destroy / damage, but DEBUFFS still land (damage shield,
+  // not a debuff shield — Invincible != Immunity).
   eq('invinc destroy', Game.canEffectLand(invinc, 'destroy', {}), false);
   eq('invinc damage',  Game.canEffectLand(invinc, 'damage',  {}), false);
-  eq('invinc debuff',  Game.canEffectLand(invinc, 'debuff',  {}), false);
+  eq('invinc debuff',  Game.canEffectLand(invinc, 'debuff',  {}), true);
 
-  // Damage immunity: damage/debuff blocked, destroy still allowed.
+  // Damage immunity: damage blocked, but destroy AND debuffs still land.
   eq('dmgImm damage',  Game.canEffectLand(dmgImm, 'damage',  {}), false);
   eq('dmgImm destroy', Game.canEffectLand(dmgImm, 'destroy', {}), true);
+  eq('dmgImm debuff',  Game.canEffectLand(dmgImm, 'debuff',  {}), true);
 
   // Plain body: everything lands.
   eq('plain trick',   Game.canEffectLand(plain, 'trick',   { owner: 'player' }), true);
@@ -497,6 +500,22 @@ gold('RG-21 previewAbilityTargets mirrors ability filters (WS/Gamora)', function
   eq('Gamora excludes invincible', Game.previewAbilityTargets(gam, 'player').length, 0);
   // A card with no targeting ability previews nothing.
   eq('non-targeting → empty', Game.previewAbilityTargets(card({ name: 'Nobody', owner: 'player' }), 'player').length, 0);
+});
+
+// RG-11 — Resolver half of the Invincible-vs-debuff rule: a stat strip
+// (debuffCard — used by Nightwing/Bear Trap/Silver Surfer/Bane and the
+// Luke/Magneto auras) LANDS on an Invincible card, and Invincible itself is
+// untouched (it still blocks damage/destroy). Reverses the old "stat debuffs
+// are damage in spirit → Invincible shrugs them off" rule. (User: you can be
+// debuffed while Invincible; only Immunity blocks debuffs.)
+gold('RG-11 stat debuff (debuffCard) lands on an Invincible card', function () {
+  reset();
+  var tgt = card({ name: 'Flash', owner: 'ai', attack: 3, health: 4, abilities: [] });
+  tgt.invincibleTurns = 2;
+  Game.debuffCard(tgt, 2, 1, false, { name: 'Nightwing' });
+  eq('atk after -2', tgt.attack, 1);              // debuff LANDED despite Invincible
+  eq('maxHp after -1', tgt.maxHealth, 3);
+  eq('invincible untouched', tgt.invincibleTurns, 2);  // still a damage/destroy shield
 });
 
 // ============================================================

@@ -7062,8 +7062,13 @@ const Game = {
       case 'destroy':
         return !(target.invincibleTurns > 0);
       case 'damage':
-      case 'debuff':
         return !(target.invincibleTurns > 0 || target.hasDamageImmunity);
+      case 'debuff':
+        // Invincible / Damage Immunity are DAMAGE shields, not debuff shields —
+        // a debuff can always be TARGETED. Immunity (immunityCharges) is the
+        // debuff shield, enforced in the debuff resolvers (tryApplyDebuff), not
+        // here. (User: Invincible ≠ Immunity — you can be debuffed while Invincible.)
+        return true;
       default:
         return true;
     }
@@ -7154,24 +7159,13 @@ const Game = {
   debuffCard(card, atk, hp, allowKill, source) {
     if (!card) return;
     if (this._trickBlocked(card)) return;
-    // Invincibility / Damage Immunity blocks stat-debuffs the same way
-    // it blocks raw damage — stat reductions ARE damage in spirit
-    // (they pre-kill the card or remove its offensive value), so an
-    // Invincible card should be untouched. User spec: "Flash has
-    // Invincibility, the Bear Trap -1/-1 shouldn't apply. Luke's aura
-    // -1/-1 also shouldn't apply while Invincibility is active. Once
-    // Invincibility wears off, debuffs apply normally."
-    if (card.invincibleTurns > 0 || card.hasDamageImmunity) {
-      const tag = card.invincibleTurns > 0 ? 'INVINCIBLE' : 'DMG IMMUNE';
-      const srcName = source && source.name ? source.name : 'a debuff';
-      this.log(`  [${tag}] ${card.name} shrugs off the ${srcName} debuff!`);
-      // Credit absorbed value via the same statsDamageAbsorbed path used
-      // for raw-damage blocks — a -2 ATK debuff that didn't land is
-      // worth ~2 to the absorber's defensive contribution.
-      const absorbedValue = (atk || 0) + (hp || 0);
-      if (absorbedValue > 0) this._creditAbsorb(card, 'Invincible', absorbedValue);
-      return;
-    }
+    // Invincible / Damage Immunity are DAMAGE shields — they do NOT block stat
+    // debuffs. Invincible = damage/destroy shield; Immunity (immunityCharges)
+    // is the debuff shield. So a -ATK/-HP strip (Nightwing, Bear Trap, Silver
+    // Surfer, Bane, and Luke/Magneto auras — which reconcile through here) now
+    // lands on an Invincible card, exactly like stun/freeze/fear already do.
+    // (User: "invincible is different than immunity — you can get debuffed with
+    // invincible." Reverses the earlier "stat debuffs are damage in spirit" rule.)
     // Defensive coerce — see buffCard; stops NaN from surviving a round.
     if (typeof card.attack !== 'number' || !Number.isFinite(card.attack)) card.attack = card.baseAttack || 0;
     if (typeof card.currentHealth !== 'number' || !Number.isFinite(card.currentHealth)) card.currentHealth = card.baseHealth || 1;
