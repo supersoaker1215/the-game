@@ -12486,6 +12486,14 @@ const UI = {
       return `<button type="button" class="db-cost-chip${active}" onclick="dbSetCost('${c}')">${label}</button>`;
     };
 
+    // Grid items now use the SAME renderer as the Codex — _synthFace +
+    // makeCardEl(static) — so every entry shows its real portrait, rarity
+    // strip, keyword badges and stat orbs instead of the old name+stats text
+    // row. User: "make the deck builder similar to the codex where you can see
+    // the pictures and read the abilities of everything."
+    //
+    // Deck-builder-only chrome is layered on top of that shared face: the ×N
+    // copies chip, the dimmed at-max/deck-full state, and click-to-add.
     const gridItemHtml = (item) => {
       const cmap = isCards ? cardCountMap : trickCountMap;
       const count = cmap[item.name] || 0;
@@ -12495,44 +12503,25 @@ const UI = {
       const full = listCount >= listMax;
       const disabled = atMax || full;
       const section = isCards ? 'cards' : 'tricks';
-      // Neon ATK / HP split so the numbers match the green-attack,
-      // red-health language used on board cards + stat orbs.
-      const stats = isCards
-        ? `<div class="db-grid-stat-row">
-             <span class="db-grid-atk">${item.attack}</span>
-             <span class="db-grid-slash">/</span>
-             <span class="db-grid-hp">${item.health}</span>
-           </div>`
-        : '';
-      // Ability badges — reuse formatAbilityBadges so the colors + text
-      // match the in-game `.status-badge` chrome 1:1 (Armor, Evade, Draw,
-      // Bullseye, Overdrive, Invincible, Taunt, Splash, Hunt, Revive,
-      // Unresistible, Untrickable, Immunity, Damage Immunity, Mind Control).
-      const badges = (item.abilities && item.abilities.length)
-        ? `<div class="db-grid-abilities">${this.formatAbilityBadges(item.abilities)}</div>`
-        : '';
+      const desc = (item.desc || '').replace(/"/g, '&quot;');
+      const nameArg = JSON.stringify(item.name).replace(/"/g, '&quot;');
+      const clickAttr = disabled ? '' : ` onclick="dbAdd('${section}', ${nameArg})"`;
+      const stateCls = (disabled ? ' db-pick-disabled' : '') + (count > 0 ? ' db-pick-owned' : '');
       const countChip = count > 0
-        ? `<span class="db-grid-count${atMax ? ' db-grid-count-max' : ''}">×${count}</span>`
+        ? `<span class="db-pick-count${atMax ? ' db-pick-count-max' : ''}">×${count}</span>`
         : '';
-      const costClass = this.getCostClass(item.cost || 0);
-      const clickAttr = disabled ? '' : `onclick="dbAdd('${section}', ${JSON.stringify(item.name).replace(/"/g,'&quot;')})"`;
-      const dimClass = disabled ? ' db-grid-item-disabled' : '';
-      // Two-column layout: name + stats on the LEFT, traits stacked on
-      // the RIGHT so the badges use the card's horizontal space instead
-      // of hugging the bottom border. Cost badge + count chip stay as
-      // absolute-positioned corner elements.
-      return `
-        <div class="db-grid-item ${costClass}${dimClass}" ${clickAttr} title="${(item.desc || '').replace(/"/g,'&quot;')}">
-          <div class="db-grid-cost">${item.cost || 0}</div>
-          <div class="db-grid-main">
-            <div class="db-grid-info">
-              <div class="db-grid-name">${item.name}</div>
-              ${stats}
-            </div>
-            ${badges}
-          </div>
-          ${countChip}
-        </div>`;
+
+      let faceHTML;
+      if (isCards) {
+        const face = this._synthFace(item, { descOverride: item.desc || '' });
+        const el = this.makeCardEl(face, true, 'player', { static: true, extraClass: 'db-pick-card' });
+        el.setAttribute('title', desc);
+        faceHTML = el.outerHTML;
+      } else {
+        faceHTML = this.makeTrickEl(item, { extraClass: 'db-pick-card' });
+      }
+      // Wrapper owns the click + state so the shared card face stays untouched.
+      return `<div class="db-pick${stateCls}"${clickAttr} title="${desc}">${faceHTML}${countChip}</div>`;
     };
 
     // Deck panel rows — group by name with the count baked into the chip,
@@ -12713,7 +12702,7 @@ const UI = {
               <button type="button" class="db-preset db-preset-clear" onclick="dbClear()" title="Remove all cards + tricks">Clear</button>
             </div>
 
-            <div class="db-grid ${isCards ? '' : 'db-grid-tricks'}">
+            <div class="db-grid db-pick-grid ${isCards ? '' : 'db-grid-tricks'}">
               ${filtered.length ? filtered.map(gridItemHtml).join('')
                 : `<div class="db-grid-empty">No ${isCards ? 'cards' : 'tricks'} match this filter.</div>`}
             </div>

@@ -32744,3 +32744,87 @@ body.round-tick .board::after {
   font-size: 11px; text-decoration: underline;
 }
 .mp-deck-pick select option[disabled] { color: rgba(160,180,200,0.45); }
+
+/* ===== DECK BUILDER PICKER GRID — Codex-style card faces =====
+   The grid now renders the same card faces the Codex does, so these rules only
+   add the deck-builder chrome on top: the click target, the ×N copies chip and
+   the dimmed at-max / deck-full state. */
+.db-pick {
+  position: relative;
+  cursor: pointer;
+  transition: transform 0.12s ease, filter 0.12s ease;
+}
+.db-pick:hover { transform: translateY(-3px); }
+.db-pick .card, .db-pick .trick-card { pointer-events: none; }  /* wrapper owns the click */
+.db-pick-owned .card,
+.db-pick-owned .trick-card {
+  outline: 1px solid rgba(79,195,247,0.65);
+  outline-offset: -1px;
+}
+.db-pick-disabled { cursor: default; filter: grayscale(0.55) brightness(0.6); }
+.db-pick-disabled:hover { transform: none; }
+.db-pick-count {
+  position: absolute; top: 4px; right: 4px; z-index: 4;
+  min-width: 20px; padding: 1px 5px; border-radius: 9px;
+  background: rgba(6,12,22,0.92); border: 1px solid rgba(79,195,247,0.6);
+  color: #4fc3f7; font-family: 'Rajdhani', sans-serif; font-weight: 700;
+  font-size: 11px; letter-spacing: 0.5px; text-align: center;
+  pointer-events: none;
+}
+.db-pick-count-max { border-color: rgba(255,138,128,0.75); color: #ff8a80; }
+
+/* Picker grid. Renders the SAME card faces the Codex does (real portrait,
+   keyword badges, stat orbs, rules text) but at the natural in-hand card size
+   rather than the Codex's full-screen scale — borrowing .encyc-grid produced
+   535px-tall cards in a 129px region, so nothing but the art was ever visible. */
+.db-pick-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, 140px);
+  justify-content: center;
+  align-content: start;
+  gap: 16px 14px;
+  padding: 10px 6px 12px;
+  overflow-y: auto;
+}
+.db-collection .db-pick-grid { grid-template-columns: repeat(auto-fill, 140px); }
+.db-pick-grid .db-pick-card { width: 140px; max-width: 140px; }
+/* The deck strip sits above the picker and is mostly empty until cards are
+   added — cap it so the picker gets enough height to show a WHOLE card. */
+.db-deck-strip { flex: 0 1 auto; max-height: 15vh; }
+.db-pick-grid .card.hand-card.enc-card {
+  min-width: 0;
+  width: 132px;
+  max-width: 132px;
+  min-height: 0;
+  contain-intrinsic-size: auto 300px;
+}
+/* Keep the rules text legible at the smaller size. */
+.db-pick-grid .card.hand-card.enc-card .card-desc {
+  font-size: 9px;
+  line-height: 1.25;
+}
+.db-pick-grid .card.hand-card.enc-card .card-name { font-size: 11px; }
+
+/* The deck strip carried min-height:160px, which beat the max-height cap and
+   kept the picker squeezed into ~130px — not even one card tall. The dashed
+   "No cards added yet" placeholder was 112px of that on its own. Shrink both so
+   the picker gets room to show WHOLE cards; the strip still grows as you add
+   cards, it just no longer reserves space it isn't using. */
+.db-deck-strip {
+  min-height: 0 !important;
+  max-height: 15vh !important;
+}
+.db-deck-strip .db-deck-empty {
+  min-height: 0 !important;
+  height: auto !important;
+  padding: 8px 10px !important;
+  font-size: 10px;
+}
+/* Sections may collapse when empty, but the LIST must size to its content or
+   added cards get clipped (it collapsed to 24px and hid the rows). Cap comes
+   from the strip's max-height; the list scrolls past that. */
+.db-deck-strip .db-deck-section { min-height: 0 !important; }
+.db-deck-strip .db-deck-list { min-height: 0 !important; flex: 1 1 auto; overflow-y: auto; }
+.db-deck-strip:has(.db-deck-row) { min-height: 92px !important; }
+/* Floor the picker so a full card is always visible even at 720p. */
+.db-collection .db-pick-grid { min-height: 232px; }
