@@ -12438,7 +12438,13 @@ const UI = {
     const isRL = (typeof Roguelite !== 'undefined' && Roguelite.isRogueliteOnlyName)
       ? (n) => Roguelite.isRogueliteOnlyName(n) : () => false;
     const rawPool = isCards ? CARD_DEFS : TRICK_DEFS;
-    const pool = rawPool.filter(c => !isRL(c.name));
+    // Summons (_spawnOnly: Gremlin, Stripe, Freddy Krueger, Pennywise, the
+    // Undead Warriors, …) are tokens that only ever reach the board through the
+    // card that spawns them — they're not draftable and can't legally start in
+    // a deck. The builder was pulling raw CARD_DEFS, so they showed up as
+    // pickable alongside real cards. The Codex already excludes them from its
+    // Cards tab (it gives them their own Summons tab); match that here.
+    const pool = rawPool.filter(c => !isRL(c.name) && !(isCards && c._spawnOnly));
     const costs = isCards ? ['all', '0-3', '4-6', '7-8', '9-10'] : ['all', '0-2', '3-4', '5+'];
     const inRange = (c) => {
       if (filter.cost === 'all') return true;
@@ -12797,8 +12803,10 @@ const UI = {
     const out = {};
     const dropped = [];
     if (!raw || typeof raw !== 'object') return { decks: out, dropped };
+    // Summons can't legally sit in a deck, so an imported/shared deck must not
+    // be able to smuggle them in either — same rule the picker now enforces.
     const cardNames = (typeof CARD_DEFS !== 'undefined')
-      ? new Set(CARD_DEFS.map(c => c.name)) : null;
+      ? new Set(CARD_DEFS.filter(c => !c._spawnOnly).map(c => c.name)) : null;
     const trickNames = (typeof TRICK_DEFS !== 'undefined')
       ? new Set(TRICK_DEFS.map(t => t.name)) : null;
     for (const [name, deck] of Object.entries(raw)) {
