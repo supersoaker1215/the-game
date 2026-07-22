@@ -3698,6 +3698,7 @@ const UI = {
     this.installCardSfx();
     this.installUiHoverSfx();
     this.installLongPressInspect();
+    this._installCombatForecast();
     this.installDrawAnimation();
     this.installTronGridFx();
     this.installCameraParallax();   // Wave 3 #8 — mouse-driven camera pivot
@@ -5804,6 +5805,19 @@ const UI = {
     // events on the MP guest entirely.
     this._applyHeroAvatars(s);
     this._applyDoneNudge(s);
+
+    // Keep the hover combat-forecast alive + accurate ACROSS renders: if the
+    // player is still hovering a board card, re-derive its arrows/badges from
+    // the freshly-rebuilt board (positions + pred cache are now current), so a
+    // background render (combat watchdog, animation tick) can't wipe it.
+    // Nulling _forecastForId first forces a redraw instead of the no-op guard.
+    if (this._forecastForId) {
+      const keepId = this._forecastForId;
+      this._forecastForId = null;
+      const el = this._fxCardElById(keepId);
+      if (el) this._showCombatForecast(el);
+      else this._clearCombatForecast();
+    }
   },
 
   // ===================== RISK / REWARD SIGNALING =====================
@@ -6513,6 +6527,135 @@ const UI = {
     const r = el.getBoundingClientRect();
     if (!r || (r.width === 0 && r.height === 0)) return null;
     return { x: r.left + r.width / 2, y: r.top + r.height / 2 };
+  },
+
+  // ===================== COMBAT-CLARITY HOVER FORECAST =====================
+  // Hover a board card → arrows to every card it strikes (front swing, splash
+  // cone, or the enemy hero) + a green/red HP-after pill on each. Attribution
+  // comes from Game.combatTargetsOf (taunt-aware, matches the resolver); the
+  // HP-after numbers come from the predictor cache (_combatPredCache), the same
+  // source the passive −N badge uses. Arrows live in a DEDICATED overlay so
+  // they persist while hovering and never disturb the signature cast layer.
+  _forecastLayer() {
+    let l = document.getElementById('forecast-fx-layer');
+    if (!l) { l = document.createElement('div'); l.id = 'forecast-fx-layer'; document.body.appendChild(l); }
+    return l;
+  },
+  _boardCardById(id) {
+    if (id == null || typeof Game === 'undefined' || !Game.state || !Game.state.lanes) return null;
+    const sid = String(id);
+    for (let i = 0; i < Game.LANE_COUNT; i++) {
+      const ln = Game.state.lanes[i]; if (!ln) continue;
+      if (ln.player && String(ln.player.id) === sid) return ln.player;
+      if (ln.ai && String(ln.ai.id) === sid) return ln.ai;
+    }
+    return null;
+  },
+  _clearCombatForecast() {
+    const l = document.getElementById('forecast-fx-layer');
+    if (l) l.replaceChildren();
+    document.querySelectorAll('.forecast-target, .forecast-source').forEach(el => {
+      el.classList.remove('forecast-target'); el.classList.remove('forecast-source');
+    });
+    this._forecastForId = null;
+  },
+  // One straight arrow from → to, tip pulled back to the card edge. kind tints
+  // it: front/hero red, splash orange.
+  _forecastArrow(from, to, kind) {
+    const color = kind === 'splash' ? '#ff9a3c' : '#ff5252';
+    const dx = to.x - from.x, dy = to.y - from.y;
+    const len = Math.hypot(dx, dy) || 1;
+    const ux = dx / len, uy = dy / len;
+    const sx = from.x + ux * 22, sy = from.y + uy * 22;
+    const tx = to.x - ux * 30, ty = to.y - uy * 30;
+    const ang = Math.atan2(uy, ux), ah = 10;
+    const p1x = tx - ah * Math.cos(ang - 0.5), p1y = ty - ah * Math.sin(ang - 0.5);
+    const p2x = tx - ah * Math.cos(ang + 0.5), p2y = ty - ah * Math.sin(ang + 0.5);
+    const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    svg.setAttribute('class', 'forecast-arrow');
+    svg.style.filter = 'drop-shadow(0 0 3px ' + color + ')';
+    svg.innerHTML =
+      '<line x1="' + sx.toFixed(1) + '" y1="' + sy.toFixed(1) + '" x2="' + tx.toFixed(1) + '" y2="' + ty.toFixed(1) + '" stroke="' + color + '" stroke-width="2.6" stroke-linecap="round"/>' +
+      '<polygon points="' + tx.toFixed(1) + ',' + ty.toFixed(1) + ' ' + p1x.toFixed(1) + ',' + p1y.toFixed(1) + ' ' + p2x.toFixed(1) + ',' + p2y.toFixed(1) + '" fill="' + color + '"/>';
+    this._forecastLayer().appendChild(svg);
+  },
+  // A "cur → after" pill above a struck target (skull if it dies). Reads the
+  // FULL predicted outcome, so it answers "does this survive the whole combat".
+  _forecastBadge(el, card) {
+    const pred = this._combatPredCache;
+    const p = pred && pred.byId && pred.byId.get(card.id);
+    const cur = card.currentHealth | 0;
+    const after = p ? p.hpAfter : cur;
+    const dies = p ? !!p.dies : false;
+    if (after === cur && !dies) return;   // no net change → the arrow alone says it
+    const r = el.getBoundingClientRect();
+    if (!r || r.width === 0) return;
+    const b = document.createElement('div');
+    b.className = 'forecast-hp ' + (dies ? 'forecast-hp-dies' : (after < cur ? 'forecast-hp-hurt' : 'forecast-hp-heal'));
+    b.textContent = dies ? (cur + ' → ☠') : (cur + ' → ' + after);
+    b.style.left = (r.left + r.width / 2) + 'px';
+    b.style.top = (r.top - 4) + 'px';
+    this._forecastLayer().appendChild(b);
+  },
+  _forecastHeroBadge(orb, cur, after) {
+    const r = orb.getBoundingClientRect();
+    if (!r || r.width === 0) return;
+    const b = document.createElement('div');
+    b.className = 'forecast-hp forecast-hp-hurt';
+    b.textContent = cur + ' → ' + Math.max(0, after);
+    b.style.left = (r.left + r.width / 2) + 'px';
+    b.style.top = (r.top - 2) + 'px';
+    this._forecastLayer().appendChild(b);
+  },
+  _showCombatForecast(cardEl) {
+    if (!cardEl || typeof Game === 'undefined' || !Game.combatTargetsOf) return;
+    const id = cardEl.getAttribute('data-card-id');
+    if (!id) return;
+    if (this._forecastForId === id) return;    // already drawn for this card
+    this._clearCombatForecast();
+    const card = this._boardCardById(id);
+    if (!card) return;
+    let info;
+    try { info = Game.combatTargetsOf(card); } catch (e) { return; }
+    if (!info || (!info.targets.length && !info.hitsHero)) return;   // can't attack → nothing
+    this._forecastForId = id;
+    cardEl.classList.add('forecast-source');
+    const from = this._fxCenter(cardEl);
+    if (!from) { this._clearCombatForecast(); return; }
+    info.targets.forEach(t => {
+      if (t.kind === 'self') { this._forecastBadge(cardEl, card); return; }   // feared → self
+      const tEl = this._fxCardElById(t.card.id);
+      const to = this._fxCenter(tEl);
+      if (!to) return;
+      this._forecastArrow(from, to, t.kind);
+      tEl.classList.add('forecast-target');
+      this._forecastBadge(tEl, t.card);
+    });
+    if (info.hitsHero) {
+      const heroSide = Game.opponent(card.owner);
+      const orb = document.getElementById(heroSide === 'player' ? 'player-hp-fill' : 'ai-hp-fill')
+               || document.getElementById(heroSide === 'player' ? 'player-health' : 'ai-health');
+      if (orb) {
+        const r = orb.getBoundingClientRect();
+        this._forecastArrow(from, { x: r.left + r.width / 2, y: r.top + r.height / 2 }, 'hero');
+        const hp = (heroSide === 'player' ? Game.state.player.health : Game.state.ai.health) | 0;
+        this._forecastHeroBadge(orb, hp, hp - (card.attack | 0));
+      }
+    }
+  },
+  _installCombatForecast() {
+    if (this._forecastInstalled) return;
+    this._forecastInstalled = true;
+    // Hover-capable (desktop) only — touch surfaces get this in a later pass.
+    try { if (!(window.matchMedia && window.matchMedia('(hover: hover) and (pointer: fine)').matches)) return; } catch (e) {}
+    document.addEventListener('mouseover', (e) => {
+      const el = e.target && e.target.closest && e.target.closest('.board .card[data-card-id]');
+      if (el) this._showCombatForecast(el);
+    });
+    document.addEventListener('mouseout', (e) => {
+      const el = e.target && e.target.closest && e.target.closest('.board .card[data-card-id]');
+      if (el && (!e.relatedTarget || !el.contains(e.relatedTarget))) this._clearCombatForecast();
+    });
   },
   // Run cb(el) with a card's DOM element, deferring one frame if the card
   // was JUST played and isn't painted to .board yet (playCard's normal
@@ -13841,7 +13984,8 @@ const UI = {
   _DECORATION_CLASSES: [
     'target-highlight', 'dimmed-by-selection', 'hit-flash', 'hit-shake',
     'card-enter', 'card-reveal-flip', 'card-anticipating', 'card-flying',
-    'is-selected', 'selected', 'jump-ready', 'card-shake-rejected'
+    'is-selected', 'selected', 'jump-ready', 'card-shake-rejected',
+    'forecast-target', 'forecast-source'
   ],
 
   // Snapshot of every card-state field that affects the rendered visual.

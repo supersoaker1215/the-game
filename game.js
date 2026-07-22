@@ -4581,6 +4581,39 @@ const Game = {
     return this.state.lanes[attackerLane][defOwner];
   },
 
+  // Read-only: which cards (and/or the enemy hero) a given board card will
+  // STRIKE this combat. Powers the hover forecast (arrows + HP-after badges).
+  // Mirrors the resolver's targeting exactly: the front swing is taunt-aware
+  // (getAttackTarget), splash is a cone (front lane + both adjacent), and an
+  // uncontested swinger hits the hero. Gated by the same pCanAttack rule the
+  // resolver uses (alive + not stunned/frozen + ATK > 0). A feared card swings
+  // at ITSELF. Never mutates state.
+  combatTargetsOf(card) {
+    const out = { targets: [], hitsHero: false };
+    if (!card || !this.state) return out;
+    const lane = this.findCardLane(card);
+    if (lane < 0) return out;
+    if (!(card.currentHealth > 0) || card.isStunned || card.isFrozen || (card.attack | 0) <= 0) return out;
+    if (card.isFeared) { out.targets.push({ card: card, kind: 'self' }); return out; }
+    const opp = this.opponent(card.owner);
+    // Front swing — taunt-redirected (a standing taunter intercepts it).
+    const front = this.getAttackTarget(card.owner, lane);
+    if (front && front.currentHealth > 0) out.targets.push({ card: front, kind: 'front' });
+    else out.hitsHero = true;   // empty opposing slot + no taunter → the hero
+    // Splash cone (front lane + both adjacent) — never taunt-redirected.
+    if ((card.splashRange | 0) > 0) {
+      [lane - 1, lane, lane + 1].forEach(li => {
+        if (li < 0 || li >= this.LANE_COUNT) return;
+        const ln = this.state.lanes[li];
+        const e = ln && !ln.destroyed && ln[opp];
+        if (e && e.currentHealth > 0 && !out.targets.some(t => t.card === e)) {
+          out.targets.push({ card: e, kind: 'splash' });
+        }
+      });
+    }
+    return out;
+  },
+
   // Get mind control target for a card. controller = the player who cast MC (opponent of card.owner).
   // If controller is 'player', prompt for choice. If 'ai', auto-pick highest HP ally.
   // healthBarOwner = card.owner (the MC'd card hits its own side's health bar).
