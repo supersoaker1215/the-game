@@ -6567,7 +6567,7 @@ const UI = {
     const beam = document.createElement('div');
     beam.className = 'sig-beam';
     beam.style.cssText =
-      'left:' + from.x + 'px;top:' + from.y + 'px;width:' + len + 'px;height:' + thickness + 'px;' +
+      'left:' + from.x + 'px;top:' + (from.y - thickness / 2) + 'px;width:' + len + 'px;height:' + thickness + 'px;' +
       '--sig-ang:' + ang + 'deg;' +
       'background:linear-gradient(90deg,' + color + '00 0%,' + color + ' 12%,' + core + ' 50%,' + color + ' 88%,' + color + '00 100%);' +
       'box-shadow:0 0 14px 3px ' + color + ';';
@@ -6633,14 +6633,22 @@ const UI = {
   },
 
   // Superman heat vision: twin red/white beams to the blast target.
+  // Superman is played THIS tick, so his card element isn't in .board yet
+  // (playCard's normal branch has no render — the caller repaints AFTER
+  // onPlay returns). Capture the TARGET now (it exists and isn't damaged
+  // yet), then defer a frame so the freshly-played SOURCE element exists
+  // before we read its center — same ordering dodge _fxChainArc uses.
   _fxHeatVision(sourceCard, targetCard) {
     if (this._reducedMotion() || !sourceCard || !targetCard) return;
-    const from = this._fxCenter(this._fxCardElById(sourceCard.id));
     const to = this._fxCenter(this._fxCardElById(targetCard.id));
-    if (!from || !to) return;
-    this._fxDrawBeam({ x: from.x - 11, y: from.y }, to, { color: '#ff3b30', core: '#ffffff', thickness: 5 });
-    this._fxDrawBeam({ x: from.x + 11, y: from.y }, to, { color: '#ff3b30', core: '#ffffff', thickness: 5 });
-    this._screenShake('light');
+    if (!to) return;
+    setTimeout(() => {
+      const from = this._fxCenter(this._fxCardElById(sourceCard.id));
+      if (!from) return;
+      this._fxDrawBeam({ x: from.x - 11, y: from.y }, to, { color: '#ff3b30', core: '#ffffff', thickness: 5 });
+      this._fxDrawBeam({ x: from.x + 11, y: from.y }, to, { color: '#ff3b30', core: '#ffffff', thickness: 5 });
+      this._screenShake('light');
+    }, 0);
   },
 
   // Galactus devour: void singularity on the devoured card.
