@@ -2959,7 +2959,7 @@ const CARD_ABILITIES = {
       };
       const finishMove = (target, to) => {
         G.moveCard(target, G.findCardLane(target), to);
-        if (typeof UI !== 'undefined' && UI._fxMagnetoHurl) { try { UI._fxMagnetoHurl(self, target); } catch (e) {} }
+        if (typeof UI !== 'undefined' && UI._fxMagnetoHurl) { try { UI._fxMagnetoHurl(self, target, to, target.owner); } catch (e) {} }
         G.log(`Magneto hurls ${target.name} into lane ${to + 1}!`);
         moved.push(target);
         step();

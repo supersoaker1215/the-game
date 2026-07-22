@@ -7112,11 +7112,16 @@ const UI = {
     });
     this._screenShake('medium');
   },
-  // Dr. Doom: emerald Latverian doom-magic + a conjure ring on the Doombot.
-  _fxDoomConjure(self, doombotCard) {
-    if (this._reducedMotion()) return;
-    if (self) this._fxWhenPainted(self, (el) => this._fxGasBurst(el, { color: '#2fbf4f' }));
-    if (doombotCard) this._fxWhenPainted(doombotCard, (el) => this._fxRing(el, { color: '#2fbf4f' }));
+  // Dr. Doom: emerald Latverian doom-magic — a green burst + sigil ring over
+  // Doom. (The summoned Doombot isn't reachable synchronously — summonCardChoice
+  // may defer behind a lane prompt and returns nothing — so the conjure is
+  // anchored on Doom himself rather than a token ring that would never fire.)
+  _fxDoomConjure(self) {
+    if (this._reducedMotion() || !self) return;
+    this._fxWhenPainted(self, (el) => {
+      this._fxGasBurst(el, { color: '#2fbf4f' });
+      this._fxRing(el, { color: '#2fbf4f' });
+    });
     this._screenShake('light');
   },
   // Ultron: cold red robotic energy collapses inward to forge each replica.
@@ -7131,12 +7136,27 @@ const UI = {
     if (self) this._fxWhenPainted(self, (el) => this._fxGasBurst(el, { color: '#2fdd6a' }));
     (warriors || []).filter(Boolean).forEach((w) => this._fxWhenPainted(w, (el) => this._fxRevive(el)));
   },
-  // Magneto: a magnetic metal shard hurls the card + a steel ripple on arrival.
-  _fxMagnetoHurl(self, targetCard) {
+  // Magneto: a magnetic metal shard hurls the card + a steel ripple that
+  // settles at the DESTINATION lane. moveCard only mutates state — the card's
+  // element is still at its OLD lane when this fires (then FLIP-animates over),
+  // so anchor the arrival ring to the destination lane SLOT (stable, not
+  // animated) rather than the still-old-positioned card element.
+  _fxMagnetoHurl(self, targetCard, toLane, owner) {
     if (this._reducedMotion() || !targetCard) return;
     this._fxProjectile(self, targetCard, { color: '#8fa8c8' });
-    // The hurled card relocates on the next render — settle a ring once it lands.
-    this._fxWhenPainted(targetCard, (el) => this._fxRing(el, { color: '#6f8fbf' }));
+    const lanes = document.querySelectorAll('.board > .lane');
+    const laneEl = (toLane != null) ? lanes[toLane | 0] : null;
+    const slot = laneEl && laneEl.querySelector(owner === 'player' ? '.player-slot' : '.ai-slot');
+    if (slot) {
+      // Let the card FLIP into place, then ripple the ring where it lands.
+      setTimeout(() => this._fxRing(slot, { color: '#6f8fbf' }), 340);
+    } else {
+      // No lane info → wait past the relocation render, then ring the card at
+      // its new position (double-rAF: _fxWhenPainted fires immediately here
+      // because the card is already painted at the OLD spot).
+      const raf = (typeof window !== 'undefined' && window.requestAnimationFrame) ? window.requestAnimationFrame.bind(window) : (f) => setTimeout(f, 16);
+      raf(() => raf(() => { const el = this._fxCardElById(targetCard.id); if (el) this._fxRing(el, { color: '#6f8fbf' }); }));
+    }
     this._screenShake('light');
   },
   // Hulk: a green ground-shatter shockwave ruptures across the enemy lanes.
