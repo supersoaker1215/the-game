@@ -481,8 +481,17 @@ const Game = {
       // before-tricks hooks) and return BEFORE _inCombat is set — an orphaned
       // MP prompt there used to hang with no watchdog at all. state.phase is
       // 'combat' from the moment we enter until postCombat advances the round.
+      // 2v2 never sets phase==='combat' (it uses '2v2-combat' and then its own
+      // per-seat phases), so this check used to disarm the watchdog the moment
+      // 2v2 combat handed off to postCombat — leaving the whole 2v2
+      // post-combat window (team read-back, draw phase, next round) unguarded,
+      // which is exactly where "combat finished but nobody can act" lands.
+      // Stay armed until the 2v2 round loop has actually resumed.
+      const _s = this.state;
+      const _2v2Live = !!(_s && _s.twoVTwo && this.is2v2 && this.is2v2() &&
+                          (_s.phase === '2v2-combat' || _s._combatFinishedThisRound));
       if (this._matchGen !== gen || !this.state ||
-          (this.state.phase !== 'combat' && !this.state._inCombat)) {
+          (this.state.phase !== 'combat' && !this.state._inCombat && !_2v2Live)) {
         this._clearCombatWatchdog();
         return;
       }
@@ -522,7 +531,19 @@ const Game = {
   },
   _forceEndStalledCombat() {
     const s = this.state;
-    if (!s || (s.phase !== 'combat' && !s._inCombat)) return;
+    // 2v2 runs its own phase names ('2v2-combat', '2v2-p1-cards', …) and its
+    // own round pipeline. Without this the recovery bailed on every 2v2
+    // post-combat stall, and when it DID fire mid-combat its fallbacks called
+    // the 1v1 drawPhase/startRound — which derails a 2v2 match into the 1v1
+    // engine (the exact failure postCombat's 2v2 branch exists to prevent).
+    const is2v2 = !!(this.is2v2 && this.is2v2());
+    const in2v2Combat = is2v2 && (s && (s.phase === '2v2-combat' || s._combatFinishedThisRound || s._inCombat));
+    if (!s || (s.phase !== 'combat' && !s._inCombat && !in2v2Combat)) return;
+    // Route the "force the round forward" fallback through the right pipeline.
+    const forceNextRound = () => {
+      if (is2v2) { this._2v2DrawPhase(); return; }
+      this.drawPhase(() => this.startRound());
+    };
     // Drop every blocker so hasPendingPrompt() can't re-park combat.
     s.pendingCardChoice = null; s.pendingLaneChoice = null;
     s.pendingBlockTrick = null; s.pendingKangChoice = null;
@@ -541,8 +562,8 @@ const Game = {
       try { this.postCombat(); }
       catch (e) {
         console.error('[COMBAT WATCHDOG] postCombat threw:', e);
-        try { this.drawPhase(() => this.startRound()); }
-        catch (e2) { console.error('[COMBAT WATCHDOG] forced drawPhase threw:', e2); try { this.startRound(); } catch (e3) {} }
+        try { forceNextRound(); }
+        catch (e2) { console.error('[COMBAT WATCHDOG] forced round advance threw:', e2); try { if (!is2v2) this.startRound(); else this.start2v2Round(); } catch (e3) {} }
       }
     } else if (s._combatFinishedThisRound) {
       // POST-combat stall — combat already resolved this round (that flag is
@@ -553,8 +574,8 @@ const Game = {
       // postCombat would. This is the branch the "combat finished but frozen"
       // freeze lands in now that the watchdog stays armed through postCombat.
       this.log('[COMBAT WATCHDOG] Post-combat stall — forcing next round.');
-      try { this.drawPhase(() => this.startRound()); }
-      catch (e) { console.error('[COMBAT WATCHDOG] forced drawPhase threw:', e); try { this.startRound(); } catch (e2) {} }
+      try { forceNextRound(); }
+      catch (e) { console.error('[COMBAT WATCHDOG] forced round advance threw:', e); try { if (!is2v2) this.startRound(); else this.start2v2Round(); } catch (e2) {} }
     } else {
       // Pre-combat stall: an onBeforeCombat / before-tricks prompt was
       // orphaned before _inCombat was set (e.g. an MP guest prompt never
@@ -571,7 +592,11 @@ const Game = {
       }
     }
     if (typeof UI !== 'undefined' && UI.render) UI.render();
-    if (this.isMultiplayer && this.isMultiplayer() && this.mp.role === 'host') this._mpBroadcast();
+    // Push the recovered state to the other clients. 2v2 rides Multiplayer4,
+    // so _mpBroadcast (1v1) is a no-op there — without this the host would
+    // recover locally while every guest stayed frozen on the stalled state.
+    if (is2v2) { if (s.twoVTwo && s.twoVTwo.online) this._2v2OnlineBroadcast(); }
+    else if (this.isMultiplayer && this.isMultiplayer() && this.mp.role === 'host') this._mpBroadcast();
   },
 
   // ===================== 1v1 LOCAL (pass-and-play hotseat) =====================
