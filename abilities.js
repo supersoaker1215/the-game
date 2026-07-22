@@ -2714,9 +2714,12 @@ const CARD_ABILITIES = {
         // (no choice, no overflow). The remainder is silently
         // dropped — same outcome as the prompt path returning
         // early when no lanes remain.
+        const _helaWarriors = [];
         for (let i = 0; i < openLanes.length && i < zombies; i++) {
           G.summonCard(self.owner, openLanes[i], "Undead Warrior", 1, 3, 1, []);
+          if (G.state.lanes[openLanes[i]]) _helaWarriors.push(G.state.lanes[openLanes[i]][self.owner]);
         }
+        if (typeof UI !== 'undefined' && UI._fxHelaRaise) { try { UI._fxHelaRaise(self, _helaWarriors); } catch (e) {} }
         drawFromDead(pulls);
         return;
       }
@@ -2731,6 +2734,7 @@ const CARD_ABILITIES = {
           drawFromDead(pulls);
         }
       };
+      if (typeof UI !== 'undefined' && UI._fxHelaRaise) { try { UI._fxHelaRaise(self, []); } catch (e) {} }
       G.summonCardChoice(self.owner, "Undead Warrior", 1, 3, 1, [], doSummon);
     }
   },
@@ -2891,7 +2895,10 @@ const CARD_ABILITIES = {
           hit.push(e.name);
         }
       }
-      if (hit.length) G.log(`Hulk SMASH! Deals ${smashDmg} damage to all enemies: ${hit.join(', ')}!`);
+      if (hit.length) {
+        G.log(`Hulk SMASH! Deals ${smashDmg} damage to all enemies: ${hit.join(', ')}!`);
+        if (typeof UI !== 'undefined' && UI._fxHulkSmash) { try { UI._fxHulkSmash(self); } catch (e) {} }
+      }
     },
     onBeforeAttack(G, self) {
       self.splashRange = self.attack;
@@ -2952,6 +2959,7 @@ const CARD_ABILITIES = {
       };
       const finishMove = (target, to) => {
         G.moveCard(target, G.findCardLane(target), to);
+        if (typeof UI !== 'undefined' && UI._fxMagnetoHurl) { try { UI._fxMagnetoHurl(self, target); } catch (e) {} }
         G.log(`Magneto hurls ${target.name} into lane ${to + 1}!`);
         moved.push(target);
         step();
@@ -2999,6 +3007,7 @@ const CARD_ABILITIES = {
       const mul = self._obiWanReflectMul || 1;
       const reflectDmg = dmg * mul;
       G.log(`  [REFLECT] Obi-Wan deflects ${reflectDmg} damage back to ${attacker.name}!`);
+      if (typeof UI !== 'undefined' && UI._fxObiReflect) { try { UI._fxObiReflect(self, attacker); } catch (e) {} }
       G.dealDamage(attacker, reflectDmg, self);
       self._obiWanReflecting = false;
     },
@@ -3025,6 +3034,12 @@ const CARD_ABILITIES = {
       const repHp  = (self._ultronReplicateHp  != null) ? self._ultronReplicateHp  : 3;
       if (open.length >= 1) G.summonCard(self.owner, open[0], "Ultron", 6, repAtk, repHp, []);
       if (open.length >= 2) G.summonCard(self.owner, open[open.length - 1], "Ultron", 6, repAtk, repHp, []);
+      if (typeof UI !== 'undefined' && UI._fxUltronReplicate) {
+        const _reps = [];
+        if (open.length >= 1 && G.state.lanes[open[0]]) _reps.push(G.state.lanes[open[0]][self.owner]);
+        if (open.length >= 2 && G.state.lanes[open[open.length - 1]]) _reps.push(G.state.lanes[open[open.length - 1]][self.owner]);
+        try { UI._fxUltronReplicate(_reps); } catch (e) {}
+      }
       G.log("Ultron replicates!");
     }
   },
@@ -3037,6 +3052,7 @@ const CARD_ABILITIES = {
         // Doombot rebalanced to 5/5 (was 6/5) — matches Dr. Doom's new
         // 5/5 line so the doppelganger token visually mirrors the boss.
         G.summonCardChoice(owner, "Doombot", 5, 5, 5, []);
+        if (typeof UI !== 'undefined' && UI._fxDoomConjure) { try { UI._fxDoomConjure(self); } catch (e) {} }
       };
       const dp = G.state[owner].deadPile.filter(d => (d.cost || 0) <= 9);
       if (!dp.length) {
@@ -3179,6 +3195,7 @@ const CARD_ABILITIES = {
         if (laneIsEven === isEven) continue;
         const e = G.state.lanes[i][opp];
         if (e && e.currentHealth > 0) {
+          if (typeof UI !== 'undefined' && UI._fxHollowPurple) { try { UI._fxHollowPurple(self, e); } catch (er) {} }
           G.killCard(e, self);
           G.log(`  Gojo destroys ${e.name} in lane ${i + 1}!`);
         }
@@ -3194,6 +3211,7 @@ const CARD_ABILITIES = {
       const enemyOnly = !!self._gorrEnemyOnly;
       const sides = enemyOnly ? [G.opponent(self.owner)] : ['player', 'ai'];
       const killed = { player: null, ai: null };
+      if (typeof UI !== 'undefined' && UI._fxNecrosword) { try { UI._fxNecrosword(self); } catch (e) {} }
       sides.forEach(p => {
         const hand = G.state[p].hand;
         if (!hand.length) return;
@@ -3264,6 +3282,7 @@ const CARD_ABILITIES = {
         self.immunityCharges = 1;
         self.armorValue = Math.max(self.armorValue || 0, 1);
         G.placeInLane(self.owner, self, lane);
+        if (typeof UI !== 'undefined' && UI._fxDharmaWheel) { try { UI._fxDharmaWheel(self); } catch (e) {} }
         G.log(`Mahoraga adapts! ${revAtk}/${revHp} Armor 1 + Immunity 1! (Revive ${self.reviveCharges} left)`);
         return true;
       }
@@ -3285,6 +3304,9 @@ const CARD_ABILITIES = {
       // instead of a hand-written getEnemiesOf().forEach. Identical result
       // (deal `sweep` to every living enemy) — proven by golden RG-16.
       const sweep = self._omniManSweep || 3;
+      // Capture the enemy row BEFORE the AoE removes any it kills, so the
+      // flight-streak's blood bursts land on every struck card.
+      if (typeof UI !== 'undefined' && UI._fxViltrumiteFlight) { try { UI._fxViltrumiteFlight(G.getEnemiesOf(self.owner)); } catch (e) {} }
       G.runEffect(
         { do: 'damage', target: 'allEnemies', amount: sweep },
         { self, lane, log: `Omni-Man devastates all enemies for ${sweep}!` }
@@ -3347,6 +3369,7 @@ const CARD_ABILITIES = {
           `Choose enemy to remove ${debuff} ATK from (${debuffed.size + 1}/${targets})`,
           (t) => {
             G.debuffCard(t, debuff, 0, false, self);
+            if (typeof UI !== 'undefined' && UI._fxCosmicWave) { try { UI._fxCosmicWave(self, t); } catch (e) {} }
             G.log(`Silver Surfer weakens ${t.name} by ${debuff} ATK!`);
             debuffed.add(t.id);
             if (debuffed.size < targets) pickNext();
@@ -3371,6 +3394,7 @@ const CARD_ABILITIES = {
         c.baseHealth    = Math.max(1, (c.baseHealth   || 0) - 1);
       });
       G.log(`Mace Windu curses ${hand.length} card${hand.length === 1 ? '' : 's'} in the opponent's hand (-1/-1 each)!`);
+      if (typeof UI !== 'undefined' && UI._fxVaapad) { try { UI._fxVaapad(self); } catch (e) {} }
       });
     },
     onAllyKilled(G, self) {
@@ -3834,6 +3858,7 @@ const CARD_ABILITIES = {
       if (!G.state._grievousActiveFor) G.state._grievousActiveFor = {};
       G.state._grievousActiveFor[opp] = (G.state._grievousActiveFor[opp] || 0) + 1;
       G.log(`General Grievous strangles ${G.seatPossessive(opp)} Block Meter — no more block charges while he stands!`);
+      if (typeof UI !== 'undefined' && UI._fxSaberFlurry) { try { UI._fxSaberFlurry(self); } catch (e) {} }
     },
     onDeath(G, self) {
       const opp = G.opponent(self.owner);

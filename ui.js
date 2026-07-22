@@ -6826,27 +6826,34 @@ const UI = {
   // spark. Target-anchored (the target is a pre-existing enemy, painted). When
   // a source is given, a thin blade-line is also drawn from the caster once he
   // paints, so it reads as coming from the Jedi.
-  _fxSaberSlash(sourceCard, targetCard, opts) {
-    if (this._reducedMotion() || !targetCard) return;
+  // Draw ONE lightsaber slash over a given ELEMENT (blade/core color + angle
+  // in deg via opts). Extracted so self-cast flourishes and the Grievous
+  // flurry can reuse it without a card-id lookup.
+  _fxSlashEl(el, opts) {
+    if (!el) return;
     opts = opts || {};
-    const blade = opts.blade || '#3aa0ff';
-    const core  = opts.core  || '#eaf4ff';
-    const tgtEl = this._fxCardElById(targetCard.id);
-    if (!tgtEl) return;
-    const r = tgtEl.getBoundingClientRect();
+    const r = el.getBoundingClientRect();
     if (!r || r.width === 0) return;
     const layer = this._fxLayer();
     const slash = document.createElement('div');
     slash.className = 'sig-saber';
     slash.style.cssText = 'left:' + (r.left + r.width / 2) + 'px;top:' + (r.top + r.height / 2) + 'px;' +
-      'width:' + (r.width * 1.7) + 'px;--sig-blade:' + blade + ';--sig-core:' + core + ';';
+      'width:' + (r.width * 1.7) + 'px;--sig-blade:' + (opts.blade || '#3aa0ff') + ';--sig-core:' + (opts.core || '#eaf4ff') +
+      ';--sig-ang:' + (opts.angle != null ? opts.angle : -38) + 'deg;';
     layer.appendChild(slash);
     setTimeout(() => slash.remove(), 460);
-    if (sourceCard) {
-      const to = { x: r.left + r.width / 2, y: r.top + r.height / 2 };
+  },
+  _fxSaberSlash(sourceCard, targetCard, opts) {
+    if (this._reducedMotion() || !targetCard) return;
+    opts = opts || {};
+    const tgtEl = this._fxCardElById(targetCard.id);
+    if (!tgtEl) return;
+    this._fxSlashEl(tgtEl, opts);
+    const to = this._fxCenter(tgtEl);
+    if (sourceCard && to) {
       this._fxWhenPainted(sourceCard, (srcEl) => {
         const from = this._fxCenter(srcEl);
-        if (from) this._fxDrawBeam(from, to, { color: blade, core: core, thickness: opts.thickness || 4 });
+        if (from) this._fxDrawBeam(from, to, { color: opts.blade || '#3aa0ff', core: opts.core || '#eaf4ff', thickness: opts.thickness || 4 });
       });
     }
     this._screenShake('light');
@@ -7021,6 +7028,140 @@ const UI = {
       }, i * 70);
     });
     this._screenShake('heavy');
+  },
+
+  // ====================== WAVE 4 (cost-6/7) ======================
+  // Two more primitives (spinning dharma WHEEL, horizontal flight STREAK);
+  // the rest compose the existing toolkit. Same rules throughout.
+
+  // Spinning spoked wheel over a card (Mahoraga's Wheel of Dharma).
+  _fxDharmaWheel(card) {
+    if (this._reducedMotion() || !card) return;
+    this._fxWhenPainted(card, (el) => {
+      const c = this._fxCenter(el);
+      if (!c) return;
+      const layer = this._fxLayer();
+      const wheel = document.createElement('div');
+      wheel.className = 'sig-wheel';
+      wheel.style.cssText = 'left:' + c.x + 'px;top:' + c.y + 'px;';
+      wheel.innerHTML =
+        '<svg viewBox="0 0 100 100"><circle cx="50" cy="50" r="46" fill="none" stroke="#d9a441" stroke-width="4"/>' +
+        '<circle cx="50" cy="50" r="12" fill="none" stroke="#d9a441" stroke-width="4"/>' +
+        Array.from({ length: 8 }, (_, i) => { const a = (i * 45) * Math.PI / 180; return '<line x1="' + (50 + 12 * Math.cos(a)).toFixed(1) + '" y1="' + (50 + 12 * Math.sin(a)).toFixed(1) + '" x2="' + (50 + 46 * Math.cos(a)).toFixed(1) + '" y2="' + (50 + 46 * Math.sin(a)).toFixed(1) + '" stroke="#3a3a3a" stroke-width="3"/>'; }).join('') +
+        '</svg>';
+      layer.appendChild(wheel);
+      setTimeout(() => wheel.remove(), 760);
+    });
+    this._screenShake('medium');
+  },
+
+  // Horizontal flight streak sweeping the enemy row + crimson blood bursts on
+  // each struck enemy (Omni-Man). Enemies are pre-existing (painted); capture
+  // them BEFORE the caller's synchronous AoE removes any it kills.
+  _fxViltrumiteFlight(enemies) {
+    if (this._reducedMotion() || !enemies || !enemies.length) return;
+    const pts = enemies.map(e => this._fxCenter(this._fxCardElById(e && e.id))).filter(Boolean);
+    if (!pts.length) return;
+    const layer = this._fxLayer();
+    const ys = pts.map(p => p.y), y = ys.reduce((a, b) => a + b, 0) / ys.length;
+    const streak = document.createElement('div');
+    streak.className = 'sig-streak';
+    streak.style.cssText = 'top:' + y + 'px;';
+    layer.appendChild(streak);
+    setTimeout(() => streak.remove(), 460);
+    pts.forEach((p, i) => setTimeout(() => {
+      const spat = document.createElement('div');
+      spat.className = 'sig-gas';
+      spat.style.cssText = 'left:' + p.x + 'px;top:' + p.y + 'px;--sig-c:#c1121f;';
+      layer.appendChild(spat);
+      setTimeout(() => spat.remove(), 760);
+    }, 120 + i * 40));
+    this._screenShake('heavy');
+  },
+
+  // ---- Wave 4 named per-card entry points ----
+
+  // Obi-Wan: Soresu deflect — blue blade arcs the blow back across the lanes.
+  _fxObiReflect(sourceCard, attackerCard) {
+    if (attackerCard) this._fxSaberSlash(sourceCard, attackerCard, { blade: '#2b8cff', core: '#eaf4ff' });
+  },
+  // Mace Windu: Vaapad — an amethyst saber flourish erupts over Mace.
+  _fxVaapad(self) {
+    if (this._reducedMotion() || !self) return;
+    this._fxWhenPainted(self, (el) => this._fxSlashEl(el, { blade: '#a855f7', core: '#f3e8ff', angle: -38 }));
+    this._screenShake('light');
+  },
+  // General Grievous: a whirling cyclone of four trophy lightsabers.
+  _fxSaberFlurry(self) {
+    if (this._reducedMotion() || !self) return;
+    this._fxWhenPainted(self, (el) => {
+      const blades = [
+        { blade: '#2b8cff', angle: -60 }, { blade: '#7bf27a', angle: -20 },
+        { blade: '#2b8cff', angle: 20 },  { blade: '#7bf27a', angle: 60 },
+      ];
+      blades.forEach((b, i) => setTimeout(() => this._fxSlashEl(el, { blade: b.blade, core: '#eaffea', angle: b.angle }), i * 90));
+    });
+    this._screenShake('medium');
+  },
+  // Gorr: the All-Black necrosword — a black shadow-slash + oily smoke.
+  _fxNecrosword(self) {
+    if (this._reducedMotion() || !self) return;
+    this._fxWhenPainted(self, (el) => {
+      this._fxSlashEl(el, { blade: '#0a0a0a', core: '#7a1fa2', angle: -30 });
+      this._fxGasBurst(el, { color: '#1a0a1a' });
+    });
+    this._screenShake('medium');
+  },
+  // Dr. Doom: emerald Latverian doom-magic + a conjure ring on the Doombot.
+  _fxDoomConjure(self, doombotCard) {
+    if (this._reducedMotion()) return;
+    if (self) this._fxWhenPainted(self, (el) => this._fxGasBurst(el, { color: '#2fbf4f' }));
+    if (doombotCard) this._fxWhenPainted(doombotCard, (el) => this._fxRing(el, { color: '#2fbf4f' }));
+    this._screenShake('light');
+  },
+  // Ultron: cold red robotic energy collapses inward to forge each replica.
+  _fxUltronReplicate(replicas) {
+    if (this._reducedMotion() || !replicas || !replicas.length) return;
+    replicas.filter(Boolean).forEach((rep) => this._fxWhenPainted(rep, (el) => this._fxRing(el, { color: '#ff3b3b', contract: true })));
+    this._screenShake('light');
+  },
+  // Hela: green Asgardian necromancy — a bone-ring bursts beneath each raise.
+  _fxHelaRaise(self, warriors) {
+    if (this._reducedMotion()) return;
+    if (self) this._fxWhenPainted(self, (el) => this._fxGasBurst(el, { color: '#2fdd6a' }));
+    (warriors || []).filter(Boolean).forEach((w) => this._fxWhenPainted(w, (el) => this._fxRevive(el)));
+  },
+  // Magneto: a magnetic metal shard hurls the card + a steel ripple on arrival.
+  _fxMagnetoHurl(self, targetCard) {
+    if (this._reducedMotion() || !targetCard) return;
+    this._fxProjectile(self, targetCard, { color: '#8fa8c8' });
+    // The hurled card relocates on the next render — settle a ring once it lands.
+    this._fxWhenPainted(targetCard, (el) => this._fxRing(el, { color: '#6f8fbf' }));
+    this._screenShake('light');
+  },
+  // Hulk: a green ground-shatter shockwave ruptures across the enemy lanes.
+  _fxHulkSmash(self) {
+    if (this._reducedMotion() || !self) return;
+    this._fxWhenPainted(self, (el) => this._fxRing(el, { color: '#4caf3a' }));
+    this._screenShake('heavy');
+  },
+  // Gojo: Hollow Purple implodes each doomed enemy into a violet singularity.
+  _fxHollowPurple(sourceCard, victimCard) {
+    if (this._reducedMotion() || !victimCard) return;
+    const el = this._fxCardElById(victimCard.id);
+    if (el) this._fxImplode(el, { color: '#b06bff' });
+    this._screenShake('medium');
+  },
+  // Silver Surfer: a chrome Power-Cosmic wave washes over the drained enemy.
+  _fxCosmicWave(sourceCard, targetCard) {
+    if (this._reducedMotion() || !targetCard) return;
+    const to = this._fxCenter(this._fxCardElById(targetCard.id));
+    const tgtEl = this._fxCardElById(targetCard.id);
+    if (tgtEl) this._fxRing(tgtEl, { color: '#cfd8e6', contract: true });
+    if (to) this._fxWhenPainted(sourceCard, (srcEl) => {
+      const from = this._fxCenter(srcEl);
+      if (from) this._fxDrawBeam(from, to, { color: '#cfd8e6', core: '#ffffff', thickness: 7 });
+    });
   },
 
   // ===================== DAMAGE MAGNITUDE TIER =====================
