@@ -394,6 +394,20 @@ const CARD_DEFS = [
     abilities: ["Immunity", "Invincible 1", "Unresistible 3", "Draw 1"],
     desc: "When Played: Steal the opponent's Block Meter. Start of Tricks (once): Freeze 1 all enemies (not other 10-cost cards). While Active: When Trigon destroys an enemy, destroy another random enemy." },
   { name: "Doomsday", cost: 12, attack: 1, health: 1, type: "villain",
+    // Doomsday is NOT a titan. He prints at 12 only because he starts as a 1/1
+    // that scales up while his cost scales DOWN (min 0) — the printed number is
+    // a countdown, not a power level. Every "cost >= 10" rule reads baseCost,
+    // which stays 12 forever, so without this flag he was silently swept into
+    // the titan class: auto-Untrickable (applyAbilities stamps it at >= 10), so
+    // NO trick could be played on or against him, and is10CostImmune treated him
+    // as a titan so other 10-costs (Dormammu's drain) bounced off him.
+    // The engine already had the whole opt-out mechanism — is10CostImmune, the
+    // auto-Untrickable stamp and every targeting filter check
+    // skipAutoUntrickable, and their comments cite Doomsday by name — but the
+    // flag was never actually set on this def, so none of it did anything.
+    // User (twice): "you still are counting doomsday as a 10 and tricks cant be
+    // played on or against him … he isnt a 10 cost card!"
+    skipAutoUntrickable: true,
     // Revive 1 as a real keyword so EVERY surface (board, codex, hand
     // chips, draft, gallery) badges it from the one canonical source.
     // His onDeath consumes the charge when the custom revive fires —

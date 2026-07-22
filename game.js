@@ -6966,7 +6966,9 @@ const Game = {
         // Mirror _trickBlocked without needing state._inTrick: 10-costs
         // are immune to ALL tricks (friendly included); Untrickable
         // blocks enemy tricks only.
-        if ((target.baseCost || target.cost || 0) >= 10) return false;
+        // Same skipAutoUntrickable opt-out as _trickBlocked — Doomsday prints
+        // at 12 but is not a titan, so tricks may target him.
+        if (!target.skipAutoUntrickable && (target.baseCost || target.cost || 0) >= 10) return false;
         if (target.isUntrickable && owner && target.owner !== owner) return false;
         return true;
       case 'destroy':
@@ -7041,7 +7043,12 @@ const Game = {
   _trickBlocked(target) {
     if (!this.state._inTrick || !target) return false;
     // 10-cost titans are immune to ALL tricks, including friendly ones.
-    if ((target.baseCost || target.cost || 0) >= 10) { this.log(`  [UNTRICKABLE] ${target.name} is a 10-cost card and cannot be affected by tricks!`); return true; }
+    // skipAutoUntrickable opts a card OUT of the titan class — Doomsday prints
+    // at 12 but is a scaling 1/1, not a titan. This check read baseCost raw, so
+    // it blocked every trick on him even after the flag was set (the flag only
+    // suppressed the auto-Untrickable STAMP, which this branch never consults).
+    // User: "tricks cant be played on or against him".
+    if (!target.skipAutoUntrickable && (target.baseCost || target.cost || 0) >= 10) { this.log(`  [UNTRICKABLE] ${target.name} is a 10-cost card and cannot be affected by tricks!`); return true; }
     // isUntrickable (keyword) only blocks ENEMY tricks — the card's own
     // team can still affect it. Anti-Life destroying your own lane card,
     // for example, should go through even if that card is Untrickable.
@@ -9302,7 +9309,9 @@ const Game = {
     }
     if (options && options.source) {
       const srcCost = options.source.baseCost || options.source.cost || 0;
-      if (srcCost >= 10) {
+      // A skipAutoUntrickable card is not a titan on EITHER side of the rule —
+      // as a source it shouldn't inherit the "tens can't touch tens" filter.
+      if (!options.source.skipAutoUntrickable && srcCost >= 10) {
         // skipAutoUntrickable opts a card OUT of the titan class, so it stays
         // targetable by 10-costs. Doomsday prints at 12 but is a 1/1 that
         // scales DOWN — his protection is earned by his revive, not handed to
