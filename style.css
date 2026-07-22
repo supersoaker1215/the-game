@@ -32629,3 +32629,17 @@ body.round-tick .board::after {
     filter: grayscale(0) brightness(1) !important;
   }
 }
+
+/* Custom card-back artwork. Sits above the fallback SVG pattern and fills the
+   card frame; if the image 404s the <img> removes itself and the pattern shows
+   through instead. Same back is rendered to BOTH players. */
+.card.face-down-hidden .card-back-art {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: inherit;
+  z-index: 2;
+  pointer-events: none;
+}

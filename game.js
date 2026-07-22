@@ -6996,6 +6996,8 @@ const Game = {
   // source = the acting card for ability effects.
   canEffectLand(target, kind, ctx) {
     if (!target || target.isEnvironment) return false;
+    // Face-down cards are untargetable by anything until they reveal.
+    if (target.isFaceDown) return false;
     if (target.currentHealth != null && target.currentHealth <= 0) return false;
     const owner = ctx && ctx.owner;
     const source = ctx && ctx.source;
@@ -7161,6 +7163,14 @@ const Game = {
   dealDamage(card, amount, source) {
     if (!card || card.currentHealth <= 0) return;
     if (card.isEnvironment) return;
+    // FACE-DOWN IMMUNITY. Invisible Woman's card text promises face-down cards
+    // are "immune to everything until revealed before Tricks", but nothing
+    // enforced it — Anti-Life Equation, Darkseid, splash, any trick or ability
+    // could kill a hidden card outright. A face-down card is unknowable, so it
+    // cannot be damaged, destroyed or targeted until it flips face-up (which
+    // happens before the trick phase, ahead of combat, so this never protects
+    // it during a fight).
+    if (card.isFaceDown) return;
     if (this._trickBlocked(card)) return;
     // Invincible / Damage Immunity blocks — attribute the full amount to
     // the blocking card's `statsDamageAbsorbed` so the Stats dashboard
@@ -7289,6 +7299,14 @@ const Game = {
     // the lane is invincible (killCard already returned early for it),
     // the collapse is cancelled entirely.
     const cards = ['player', 'ai'].map(s => lane[s]).filter(c => c && c.currentHealth > 0);
+    // A face-down card makes its whole LANE untargetable — Darkseid / Anti-Life
+    // can't collapse a lane they can't see into. User: "the lane cant be
+    // targeted".
+    const hiddenCard = cards.find(c => c.isFaceDown);
+    if (hiddenCard) {
+      this.log(`  [FACE DOWN] Lane ${laneIdx + 1} holds a face-down card and can't be destroyed!`);
+      return;
+    }
     const invCard = cards.find(c => c.invincibleTurns > 0);
     if (invCard) {
       this.log(`  [INVINCIBLE] ${invCard.name} blocks lane ${laneIdx + 1} from collapsing!`);
@@ -7466,6 +7484,8 @@ const Game = {
   killCard(card, source) {
     if (!card) return;
     if (card.isEnvironment) return;
+    // Face-down cards can't be destroyed either — see dealDamage.
+    if (card.isFaceDown) { this.log(`  [FACE DOWN] ${'A hidden card'} can't be destroyed while face down!`); return; }
     if (this._trickBlocked(card)) return;
     if (this.is10CostImmune(source, card)) { this.log(`  [IMMUNE] ${card.name} is immune to ${source.name}'s destruction!`); return; }
     if (card.invincibleTurns > 0) {
@@ -9362,7 +9382,8 @@ const Game = {
     //     drop every enemy that's also cost ≥10. Mirrors
     //     is10CostImmune so the "I can't even pick this" UX
     //     matches the "the effect refuses to land" engine guard.
-    let list = this.getAllCardsOf(this.opponent(owner)).filter(c => !c.isEnvironment);
+    //   • face-down path: a hidden card can't be picked by anything at all.
+    let list = this.getAllCardsOf(this.opponent(owner)).filter(c => !c.isEnvironment && !c.isFaceDown);
     if (this.state && this.state._inTrick) {
       list = list.filter(c => !c.isUntrickable && (c.skipAutoUntrickable || (c.baseCost || c.cost || 0) < 10));
     }

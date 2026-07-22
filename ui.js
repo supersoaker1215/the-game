@@ -14349,7 +14349,12 @@ const UI = {
       const plDisplayCard = lane.player;
       let plCardEl = null;
       if (plDisplayCard) {
-        plCardEl = this.makeCardElCached(plDisplayCard, false, 'ally');
+        // Face-down = card back for the OWNER as well, matching what the
+        // opponent sees (the ai-slot branch already did this). Both players
+        // now look at the identical hidden card.
+        plCardEl = plDisplayCard.isFaceDown
+          ? this.makeFaceDownEl()
+          : this.makeCardElCached(plDisplayCard, false, 'ally');
       }
       // Mirror of the AI-side stale-handler clear above. Prevents the
       // "wrong card got selected" bug when a prompt re-fires across
@@ -14366,6 +14371,10 @@ const UI = {
       }
       if (plDisplayCard) {
         const cardEl = plCardEl;
+        // A face-down card shows the CARD BACK to its owner too, not just the
+        // opponent. User: "when you play a face-down card, have this be what
+        // both players see." Previously the owner saw the real card with a
+        // blue glow, so the two players were looking at different boards.
         if (lane.player && lane.player.isFaceDown) cardEl.classList.add('face-down');
         if (plDisplayCard.id !== undefined) currentBoardIds.add(plDisplayCard.id);
         if (!this._lastBoardCardIds.has(plDisplayCard.id)) {
@@ -15674,6 +15683,11 @@ const UI = {
     }, 0);
   },
 
+  // Path to the custom card-back artwork. If the file is missing the <img>
+  // removes itself and the inline SVG pattern below shows through instead, so
+  // the game never renders a broken image.
+  CARD_BACK_SRC: 'audio/cards/art/card-back.png?v=1',
+
   makeFaceDownEl() {
     const el = document.createElement('div');
     el.className = 'card face-down-hidden';
@@ -15690,7 +15704,9 @@ const UI = {
         <rect width="60" height="90" fill="url(#cbp)"/>
       </svg>
       <div class="card-back-glyph">&#9830;</div>
-      <div class="card-back-label">Face Down</div>`;
+      <div class="card-back-label">Face Down</div>
+      <img class="card-back-art" src="${this.CARD_BACK_SRC}" alt="" aria-hidden="true"
+           onerror="this.remove()">`;
     return el;
   },
 
