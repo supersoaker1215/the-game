@@ -33153,3 +33153,105 @@ body.low-fx .card-portrait {
   opacity: 1;
   transform: translateX(-50%) translateY(0);
 }
+
+/* ============================================================
+   ONLINE ROOM BANNER IN THE DECK BUILDER
+   ============================================================
+   Building a deck for an online match used to be a one-way door: you left the
+   multiplayer screen, the room went with you, and there was no code to send a
+   friend. The builder now carries the live room code at the top so the friend
+   can join WHILE the deck is being assembled.
+   ============================================================ */
+.db-mp-banner {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin: 0 0 10px;
+  padding: 8px 14px;
+  border: 1px solid rgba(79, 195, 247, 0.45);
+  border-radius: 6px;
+  background: rgba(10, 22, 36, 0.85);
+  font-family: 'Rajdhani', sans-serif;
+}
+.db-mp-banner-go { border-color: rgba(120, 230, 160, 0.55); }
+.db-mp-label {
+  color: var(--theme-accent-bright, #4fc3f7);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+}
+.db-mp-banner-go .db-mp-label { color: #7ce6a0; }
+/* The code itself — big, monospaced, obviously copyable. */
+.db-mp-code {
+  font-family: ui-monospace, Menlo, Consolas, monospace;
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: 6px;
+  color: #eaf6ff;
+  background: rgba(6, 12, 22, 0.9);
+  border: 1px solid rgba(79, 195, 247, 0.6);
+  border-radius: 5px;
+  padding: 3px 12px;
+  cursor: pointer;
+}
+.db-mp-code:hover {
+  border-color: var(--theme-accent-bright, #4fc3f7);
+  background: rgba(79, 195, 247, 0.14);
+}
+.db-mp-code-create {
+  font-family: 'Rajdhani', sans-serif;
+  font-size: 13px;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  color: var(--theme-accent-bright, #4fc3f7);
+}
+.db-mp-hint {
+  flex: 1 1 240px;
+  min-width: 200px;
+  font-size: 12px;
+  letter-spacing: 0.3px;
+  color: rgba(180, 200, 220, 0.75);
+}
+.db-mp-hint b { color: #eaf6ff; font-weight: 700; }
+.db-mp-back {
+  background: none;
+  border: 1px solid rgba(120, 160, 210, 0.45);
+  border-radius: 5px;
+  color: #cfe3f5;
+  font-family: 'Rajdhani', sans-serif;
+  font-size: 12px;
+  letter-spacing: 1.2px;
+  text-transform: uppercase;
+  padding: 5px 12px;
+  cursor: pointer;
+  margin-left: auto;
+}
+.db-mp-back:hover {
+  border-color: var(--theme-accent-bright, #4fc3f7);
+  color: #eaf6ff;
+}
+@media (max-width: 720px) {
+  .db-mp-banner { gap: 8px; padding: 8px 10px; }
+  .db-mp-code { font-size: 18px; letter-spacing: 4px; }
+  .db-mp-hint { flex-basis: 100%; font-size: 11px; }
+  .db-mp-back { margin-left: 0; }
+}
+
+/* Deck picker repeated under the room code on the waiting screen — centered to
+   match the code above it, rather than the left-aligned idle-screen layout. */
+.mp-deck-pick-waiting {
+  justify-content: center;
+  margin-top: 16px;
+}
+.mp-deck-pick-waiting .mp-deck-hint { text-align: center; }
+/* "Share this code" line between the code and the deck picker. */
+.mp-share-hint {
+  margin-top: 8px;
+  font-family: 'Rajdhani', sans-serif;
+  font-size: 12px;
+  letter-spacing: 0.4px;
+  color: rgba(170, 195, 215, 0.7);
+  text-align: center;
+}

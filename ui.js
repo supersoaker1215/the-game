@@ -11100,6 +11100,9 @@ const UI = {
       if (typeof Game !== 'undefined' && Game.resetMultiplayer) Game.resetMultiplayer();
     }
     this._mpState = { tab: 'create', code: null, status: 'idle', you: null, opponent: null };
+    // Leaving multiplayer for real — a later, unrelated trip to the deck
+    // builder must not show the online-room banner.
+    this._mpReturnToLobby = false;
     this.mmBack();
   },
   _mpInit() {
@@ -11111,6 +11114,10 @@ const UI = {
       this._mpState.you = m.you;
       this._mpState.status = 'waiting';
       this._mpRender();
+      // If the room was created from inside the deck builder, _mpRender is a
+      // no-op (the MP panel isn't mounted) — re-render the builder so its
+      // banner shows the new code.
+      if (this._mpReturnToLobby && Game.state && Game.state.phase === 'deckbuilder-build') this.render();
     });
     Multiplayer.on('roomJoined', (m) => {
       this._mpState.code = m.code;
@@ -11412,7 +11419,11 @@ const UI = {
   // offering it would hand the engine a short deck. Raising the deck size to
   // 40/10 made every previously-saved 30/8 deck incomplete, so this state is
   // common right now and needs to explain itself rather than just vanish.
-  _mpDeckPickerHTML() {
+  // `opts.waiting` renders the compact variant shown under the room code on the
+  // waiting screen (see the waiting branch of _mpSubmenuHTML). Same control,
+  // just labelled for the "you already have a code" context.
+  _mpDeckPickerHTML(opts) {
+    const waiting = !!(opts && opts.waiting);
     const saved = this._dbGetSavedDecks() || {};
     const names = Object.keys(saved);
     const cur = this._mpDeckKey();
@@ -11420,18 +11431,22 @@ const UI = {
     const C = this.DECK_CARD_MAX, T = this.DECK_TRICK_MAX;
     const isComplete = (d) => d && Array.isArray(d.cards) && Array.isArray(d.tricks)
       && d.cards.length === C && d.tricks.length === T;
+    // Build/finish actions route through _mpOpenDeckBuilder so the builder
+    // remembers it was opened from multiplayer and can come back here with the
+    // room intact — plain openDeckBuilder() drops you on the main menu.
+    const buildCall = 'UI._mpOpenDeckBuilder()';
 
     // Nothing saved at all — give them a way OUT of here instead of a dead end.
     if (!names.length) {
-      return `<div class="mp-deck-pick mp-deck-pick-empty">
+      return `<div class="mp-deck-pick mp-deck-pick-empty${waiting ? ' mp-deck-pick-waiting' : ''}">
         <span>Deck: <em>Classic draft</em></span>
-        <button type="button" class="mp-deck-build" onclick="openDeckBuilder()">Build a deck &rarr;</button>
-        <span class="mp-deck-hint">Build a ${C}-card deck (plus ${T} tricks) to bring your own.</span>
+        <button type="button" class="mp-deck-build" onclick="${buildCall}">Build a deck &rarr;</button>
+        <span class="mp-deck-hint">Build a ${C}-card deck (plus ${T} tricks) to bring your own.${waiting ? ' Your room code stays live while you build.' : ''}</span>
       </div>`;
     }
 
     const ready = names.filter(n => isComplete(saved[n]));
-    const opts = [`<option value=""${cur === '' ? ' selected' : ''}>Classic draft</option>`]
+    const opts_ = [`<option value=""${cur === '' ? ' selected' : ''}>Classic draft</option>`]
       .concat(names.map(n => {
         const d = saved[n];
         const ok = isComplete(d);
@@ -11441,15 +11456,111 @@ const UI = {
       })).join('');
 
     const hint = ready.length
-      ? `Both players pick their own; each drafts from their deck.`
+      ? (waiting
+          ? `Locked in when your friend joins — you can still change it.`
+          : `Both players pick their own; each drafts from their deck.`)
       : `Your decks need ${C} cards + ${T} tricks to be playable — `
-        + `<button type="button" class="mp-deck-build mp-deck-build-inline" onclick="openDeckBuilder()">finish one</button>`;
+        + `<button type="button" class="mp-deck-build mp-deck-build-inline" onclick="${buildCall}">finish one</button>`;
 
-    return `<div class="mp-deck-pick">
+    return `<div class="mp-deck-pick${waiting ? ' mp-deck-pick-waiting' : ''}">
       <label for="mp-deck-sel">Your deck</label>
-      <select id="mp-deck-sel" onchange="UI._mpSetDeck(this.value)">${opts}</select>
+      <select id="mp-deck-sel" onchange="UI._mpSetDeck(this.value)">${opts_}</select>
       <span class="mp-deck-hint">${hint}</span>
     </div>`;
+  },
+
+  // ---- Deck builder round trip from multiplayer -------------------------
+  // Opening the builder from the MP screen used to be a one-way door: the
+  // builder's Back went to the main menu, the freshly-built deck was NOT
+  // selected for multiplayer, and any open room was abandoned — so a player
+  // who chose "build a deck" for an online match ended up with no room code.
+  // These three helpers keep the thread: remember where we came from, come
+  // back to it, and auto-select whatever they just built.
+  _mpOpenDeckBuilder() {
+    this._mpReturnToLobby = true;
+    // Keep the room alive while building. The host seat is just a PeerJS
+    // listener; nothing about the deck is transmitted until someone joins,
+    // and the deck is read fresh at that moment.
+    if (typeof Game !== 'undefined' && Game.enterDeckBuilder) Game.enterDeckBuilder();
+  },
+
+  // Called by dbBack() when the builder was entered from multiplayer.
+  // Returns to the MP submenu (with the room + code still live if one is open)
+  // instead of dropping to the main menu.
+  _mpReturnFromDeckBuilder() {
+    this._mpReturnToLobby = false;
+    if (typeof Game !== 'undefined' && Game.state) {
+      Game.state.deckbuilder = null;
+      Game.state.mode = null;
+      Game.state.phase = 'main-menu';
+    }
+    this._mmSub = 'mp';
+    this.render();
+    // Re-render the MP panel so the picker picks up any deck just saved.
+    this._mpRender();
+  },
+
+  // Called by dbSave() after a successful save when we came from multiplayer.
+  // Auto-selects the deck for the online match if it's actually playable —
+  // otherwise the player saves a deck, walks back, and finds the room still
+  // set to Classic draft with no indication why.
+  // Banner pinned to the top of the deck builder when it was opened from
+  // multiplayer. This is the piece that was missing outright: building a deck
+  // for an online match gave you no room code, so there was nothing to send a
+  // friend. Now the code travels with you into the builder — live, copyable,
+  // and joinable while you are still assembling the deck.
+  //
+  // Three states:
+  //   room open   → show the code, tap to copy
+  //   no room yet → offer "Create room" inline so a code exists to share
+  //   opponent in → tell them to head back; the match is ready to start
+  _mpLobbyBannerHTML() {
+    if (!this._mpReturnToLobby) return '';
+    const st = this._mpState || {};
+    if (st.status === 'waiting' && st.code) {
+      return `<div class="db-mp-banner">
+        <span class="db-mp-label">Online room</span>
+        <button type="button" class="db-mp-code" onclick="UI._mpCopyCode()" title="Tap to copy">${st.code}</button>
+        <span class="db-mp-hint">Share this code — your friend can join while you build. <b>Save your deck before they join</b>: the match starts the moment they do, using your saved+selected deck.</span>
+        <button type="button" class="db-mp-back" onclick="dbBack()">&larr; Back to lobby</button>
+      </div>`;
+    }
+    if (st.status === 'paired') {
+      return `<div class="db-mp-banner db-mp-banner-go">
+        <span class="db-mp-label">Opponent connected</span>
+        <span class="db-mp-hint">${st.opponent || 'Your friend'} is in the room — save your deck and head back to start.</span>
+        <button type="button" class="db-mp-back" onclick="dbBack()">&larr; Back to lobby</button>
+      </div>`;
+    }
+    return `<div class="db-mp-banner">
+      <span class="db-mp-label">Online match</span>
+      <span class="db-mp-hint">No room open yet — create one to get a code your friend can join with.</span>
+      <button type="button" class="db-mp-code db-mp-code-create" onclick="UI._mpCreateRoomFromBuilder()">Create room</button>
+      <button type="button" class="db-mp-back" onclick="dbBack()">&larr; Back to lobby</button>
+    </div>`;
+  },
+
+  // Create the room WITHOUT leaving the deck builder, so the code appears in
+  // the banner above and the friend can join while the deck is still being
+  // assembled. Safe because the host's deck is resolved at opponentJoined.
+  _mpCreateRoomFromBuilder() {
+    this._mpInit();
+    this._mpCreateRoom();
+    // _mpCreateRoom's roomCreated handler calls _mpRender(), which is a no-op
+    // while the MP panel isn't mounted — re-render the builder so the banner
+    // picks up the new code.
+    setTimeout(() => { if (Game.state && Game.state.phase === 'deckbuilder-build') this.render(); }, 400);
+  },
+
+  _mpAfterDeckSaved(name) {
+    if (!this._mpReturnToLobby) return;
+    const saved = this._dbGetSavedDecks() || {};
+    const d = saved[name];
+    const ok = d && Array.isArray(d.cards) && Array.isArray(d.tricks)
+      && d.cards.length === this.DECK_CARD_MAX && d.tricks.length === this.DECK_TRICK_MAX;
+    if (!ok) return;
+    try { localStorage.setItem('clb-mp-deck', name); } catch (e) {}
+    return true;
   },
 
   _mpName() {
@@ -11560,9 +11671,20 @@ const UI = {
     } else if (st.status === 'waiting') {
       // Dots sit inline next to the label; the code is boxless glow-text (tap
       // to copy). No "Leave Room" — the "← Menu" back already drops the room.
+      //
+      // The deck picker is repeated HERE, under the code, on purpose. Before,
+      // it only existed on the idle screen, so the moment you created a room
+      // the code appeared with no indication of which deck you were bringing —
+      // and a player who came in via "Build a deck" had no way to see that the
+      // room was still set to Classic draft. Changing it while waiting is safe
+      // and correct: the host's deck is resolved lazily in the opponentJoined
+      // handler (_mpDeckPayload() is read there, not at createRoom), so the
+      // pick that counts is whatever is selected when the friend actually joins.
       body = `<div class="mp-status">
         <div class="mp-status-label mp-status-waiting">Waiting for opponent<span class="mp-loader mp-loader-inline" aria-hidden="true"><span></span><span></span><span></span></span></div>
         <div id="mp-code-display" class="mp-code-display mp-code-boxless" onclick="UI._mpCopyCode()" title="Tap to copy">${st.code || '----'}</div>
+        <div class="mp-share-hint">Share this code — your friend picks Join Room and enters it.</div>
+        ${this._mpDeckPickerHTML({ waiting: true })}
       </div>`;
     } else if (st.status === 'joining') {
       body = `<div class="mp-status">
@@ -12787,8 +12909,9 @@ const UI = {
         <!-- HUD HEADER — back button top-left, centered title,
              meters + cost curve on the right. FORGE tag removed.
              READY chip replaced by the inline cost curve. -->
+        ${UI._mpLobbyBannerHTML()}
         <div class="db-hud">
-          <button type="button" class="db-back" onclick="dbBack()" title="Back to main menu">&larr; Menu</button>
+          <button type="button" class="db-back" onclick="dbBack()" title="${UI._mpReturnToLobby ? 'Back to multiplayer' : 'Back to main menu'}">&larr; ${UI._mpReturnToLobby ? 'Multiplayer' : 'Menu'}</button>
           <div class="db-hud-center">
             <h1 class="db-hud-title">Deck Builder</h1>
             <div class="db-hud-sub">Assemble ${UI.DECK_CARD_MAX} cards + ${UI.DECK_TRICK_MAX} tricks — click to add, click a deck row to remove</div>
@@ -22758,7 +22881,12 @@ function draftQuitToMenu() {
 function selectMode(players, deck) {
   Game.startMatch({ players: players, deck: deck });
 }
-function openDeckBuilder() { Game.enterDeckBuilder(); }
+function openDeckBuilder() {
+  // Plain (solo / My Decks) entry — make sure a stale multiplayer return flag
+  // from an earlier session can't put the online-room banner on this visit.
+  UI._mpReturnToLobby = false;
+  Game.enterDeckBuilder();
+}
 
 // ---- DECK BUILDER HANDLERS (phase 3) ----
 // All deck state lives on Game.state.deckbuilder so re-renders rehydrate
@@ -22842,6 +22970,11 @@ function dbSetSort(s) {
 }
 
 function dbBack() {
+  // Entered from the multiplayer screen? Go BACK there, not to the main menu —
+  // the room (and its code) may still be open, and dumping the player on the
+  // main menu is what made "build a deck for an online match" feel like it
+  // threw the room away.
+  if (UI._mpReturnToLobby) { UI._mpReturnFromDeckBuilder(); return; }
   // Drop any in-progress build state when going back to the main menu —
   // if the user changes their mind, the empty builder greets them next time.
   Game.state.deckbuilder = null;
@@ -22860,8 +22993,16 @@ function dbSave() {
   const saved = UI._dbGetSavedDecks();
   saved[name] = { cards: db.cards.slice(), tricks: db.tricks.slice() };
   UI._dbSetSavedDecks(saved);
+  // Came here from multiplayer → make this the deck we bring online, so
+  // walking back to the lobby shows it already selected next to the code.
+  const pickedForMp = UI._mpAfterDeckSaved(name);
   UI.render();
-  if (UI.showAITrickToast) UI.showAITrickToast('Deck Saved', `"${name}" — ${db.cards.length} cards + ${db.tricks.length} tricks`, 'trick');
+  if (UI.showAITrickToast) {
+    UI.showAITrickToast('Deck Saved',
+      `"${name}" — ${db.cards.length} cards + ${db.tricks.length} tricks`
+        + (pickedForMp ? ' · set as your online deck' : ''),
+      'trick');
+  }
 }
 function dbLoad() {
   const sel = document.getElementById('db-load-select');
