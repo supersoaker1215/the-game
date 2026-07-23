@@ -16518,6 +16518,10 @@ body.theme-purple .board-section {
      each rAF write as a new transition target → judder). The
      non-hover baseline below keeps the transition for the snap-back
      to rest when the cursor leaves. */
+  /* 3D context ONLY while hovered — this is what the inner
+     translateZ content layers need, and only they need it. */
+  transform-style: preserve-3d;
+  perspective: 800px;
 }
 .hand-card-wrapper:hover {
   z-index: 1000 !important;
@@ -16527,8 +16531,13 @@ body.theme-purple .board-section {
      leaves a card. Active hover writes via rAF lerp at higher rate
      so the transition only fires on hover-end. */
   transition: transform 240ms var(--ease-out-soft);
-  transform-style: preserve-3d;
   transform-origin: center bottom;
+  /* `transform-style: preserve-3d` MOVED to the :hover rule above.
+     At rest it bought nothing — the inner translateZ layers that need
+     a 3D context are all `:hover`-scoped — but it made every idle hand
+     card its own 3D rendering context, which the compositor has to
+     rasterize as a separate plane. See the BLANK-CARD block at the
+     bottom of this file for the full diagnosis. */
 }
 @media (prefers-reduced-motion: reduce) {
   .hand-card-wrapper:hover .card.hand-card { transform: none !important; }
@@ -16553,11 +16562,17 @@ body.theme-purple .board-section {
 }
 .card.ally-card,
 .card.enemy-card {
-  transform-style: preserve-3d;
+  /* `transform-style: preserve-3d` MOVED to the :hover rules below.
+     A board card at rest has no 3D children (the translateZ content
+     layers are hover-only), so preserve-3d only cost us: it made all
+     12 on-board cards permanent 3D rendering contexts nested inside
+     .card-slot's perspective inside #game-area's perspective. See the
+     BLANK-CARD block at the bottom of this file. */
   transform-origin: center;
   transition: transform 240ms var(--ease-out-soft);
 }
 .card.enemy-card:hover {
+  transform-style: preserve-3d;
   transform: scale(1.4)
              rotateX(calc(var(--tilt-y, 0) * -6deg))
              rotateY(calc(var(--tilt-x, 0) * 6deg)) !important;
@@ -16572,6 +16587,7 @@ body.theme-purple .board-section {
   text-rendering: geometricPrecision;
 }
 .card.ally-card:hover {
+  transform-style: preserve-3d;
   transform: scale(1.4)
              rotateX(calc(var(--tilt-y, 0) * -6deg))
              rotateY(calc(var(--tilt-x, 0) * 6deg)) !important;
@@ -19742,8 +19758,13 @@ body.combat-anticipate .board {
 }
 .trick-card,
 .draft-card.trick-draft {
-  transform-style: preserve-3d;
+  /* preserve-3d is :hover-scoped — see the BLANK-CARD block at the
+     bottom of this file. */
   transition: transform 240ms var(--ease-out-soft);
+}
+.trick-card:hover,
+.draft-card.trick-draft:hover {
+  transform-style: preserve-3d;
 }
 /* In-match trick chips are small (132px) — the 1.5× magnify is what makes them
    readable on hover. */
@@ -21232,6 +21253,12 @@ body.combat-anticipate .board {
    on the .card itself, so the unitless rule's calc fell back to
    0 and the tilt silently vanished. */
 .player-hand-section .hand-cards .card {
+  /* preserve-3d + perspective moved to :hover — see the BLANK-CARD
+     block at the bottom of this file. This rule previously stacked a
+     THIRD nested perspective (after #game-area's 1500px and
+     .hand-card-wrapper's 700px) onto every idle hand card. */
+}
+.player-hand-section .hand-cards .card:hover {
   transform-style: preserve-3d;
   perspective: 800px;
 }
@@ -32926,4 +32953,203 @@ body.round-tick .board::after {
      background image stays crisp during the transform instead of re-rasterising
      each frame on the CPU. */
   transform: translateZ(0);
+}
+
+/* ============================================================
+   BLANK-CARD / FLICKER FIX — NESTED 3D COMPOSITING STACK
+   ============================================================
+   User report (2026-07-23, 2 of 4 laptops affected):
+     • Hand: "the picture shows as long as the mouse isn't moving,
+       but once you move it, the picture goes in and out."
+     • Board: "the picture for all the cards is never there, and
+       even the NAME doesn't show — but hover the card and the
+       picture shows."
+
+   The name not rendering either is the tell: this is not an image
+   loading failure, it's a PAINT failure. The card element's tile is
+   never rasterized until something invalidates it (hover).
+
+   Root cause — three rules compounded so that every card at rest sat
+   inside a triple-nested 3D compositing stack:
+
+     1. #game-area  { perspective: 1500px;
+                      transform: rotateY(var(--cam-tx)) rotateX(var(--cam-ty)) }
+        A 3D root wrapping the ENTIRE game — and installCameraParallax()
+        rewrites --cam-tx/--cam-ty on every mousemove, so the root
+        transform of the whole scene changes every frame the mouse moves.
+     2. .card-slot / .hand-card-wrapper { perspective: 700px }
+        A second perspective, once per card.
+     3. .card.ally-card / .card.enemy-card / hand cards
+                     { transform-style: preserve-3d }
+        A third — permanent, on every card, making each one its own
+        3D rendering context that must be rasterized as a separate plane.
+
+   Nothing at rest needed (3): the translateZ content layers that
+   actually use the 3D context are all :hover-scoped. So idle cards paid
+   the full cost for zero visual benefit. On a laptop whose GPU driver is
+   blocklisted (Chrome falls back to software compositing) or whose
+   integrated GPU runs out of texture budget, the compositor defers or
+   drops those plane rasterizations — board cards never paint at all, and
+   hand cards drop tiles for exactly as long as the root transform keeps
+   changing (i.e. while the mouse moves). Machines with a healthy
+   discrete GPU rasterize it fine. Hence 2 laptops broken, 2 fine.
+
+   The permanent fix is above: preserve-3d + per-card perspective are now
+   :hover-scoped in all four places (hand cards, board ally/enemy cards,
+   the .player-hand-section hand card, trick/draft cards). Hover visuals
+   are unchanged; the idle board is flat 2D and paints on the normal path.
+
+   `body.low-fx` below is the belt-and-suspenders fallback for drivers
+   that still can't cope — it flattens the scene completely. Set
+   automatically when a software/blocklisted renderer or a sustained low
+   frame rate is detected, and forceable from Settings → Graphics.
+   ============================================================ */
+
+/* ---- 1. Flatten every 3D context ---------------------------------- */
+body.low-fx #game-area {
+  /* The mouse-parallax camera pivot is the single most expensive thing
+     on the page for a weak compositor: it re-transforms the 3D root
+     containing the whole game on every mouse move. Gone. */
+  perspective: none !important;
+  transform: none !important;
+  transition: none !important;
+}
+body.low-fx .card-slot,
+body.low-fx .hand-card-wrapper,
+body.low-fx .trick-cards,
+body.low-fx .draft-panel,
+body.low-fx .player-hand-section .hand-cards .card,
+body.low-fx .player-hand-section .hand-cards .card:hover {
+  perspective: none !important;
+}
+body.low-fx .card,
+body.low-fx .card:hover,
+body.low-fx .trick-card,
+body.low-fx .trick-card:hover,
+body.low-fx .draft-card.trick-draft,
+body.low-fx .draft-card.trick-draft:hover,
+body.low-fx .hand-card-wrapper:hover .card.hand-card,
+body.low-fx .card.ally-card:hover,
+body.low-fx .card.enemy-card:hover {
+  transform-style: flat !important;
+}
+
+/* ---- 2. Hover magnify WITHOUT the 3D tilt -------------------------
+   The enlarge is a readability feature (it's how you read a small card),
+   so it stays — but as a plain 2D scale with no rotateX/rotateY, so no
+   3D rendering context is created. */
+body.low-fx .hand-card-wrapper:hover .card.hand-card {
+  transform: translateY(-30px) scale(1.6) !important;
+}
+body.low-fx .card.ally-card:hover,
+body.low-fx .card.enemy-card:hover {
+  transform: scale(1.4) !important;
+}
+body.low-fx .trick-card:hover {
+  transform: scale(1.5) translateY(-6px) !important;
+}
+/* Inner content-layer pop-out needs the 3D context — drop it. */
+body.low-fx .hand-card-wrapper:hover .card.hand-card .card-desc,
+body.low-fx .hand-card-wrapper:hover .card.hand-card .card-name-banner,
+body.low-fx .hand-card-wrapper:hover .card.hand-card .status-badges,
+body.low-fx .hand-card-wrapper:hover .card.hand-card .stat-circle,
+body.low-fx .hand-card-wrapper:hover .card.hand-card .card-cost {
+  transform: none !important;
+}
+/* Particles lose their Z depth (they were only interesting under the
+   camera pivot, which is now off). */
+body.low-fx .game-particle { transform: none !important; }
+
+/* ---- 3. Kill the cursor-follow decoration -------------------------
+   Every one of these repaints on mousemove, which is precisely when the
+   flicker was reported. */
+body.low-fx .custom-cursor,
+body.low-fx .cursor-trail,
+body.low-fx #tron-cursor-trail,
+body.low-fx .mm-particle,
+body.low-fx .board-mote {
+  display: none !important;
+}
+
+/* ---- 4. No live blur anywhere -------------------------------------
+   backdrop-filter forces the compositor to re-rasterize everything
+   behind the element every frame. The surfaces keep their dark rgba
+   backgrounds, so nothing turns transparent. */
+body.low-fx *,
+body.low-fx *::before,
+body.low-fx *::after {
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+/* ---- 5. Stop the always-on ornamental animation loops -------------
+   Same list as the mobile low-power block — none of these convey game
+   state. Everything FUNCTIONAL (lane-active combat pulse, target
+   highlights, playable-slot cue, hp-critical, lethal skull, status
+   badges, spinners, thinking dots) is deliberately left alone. */
+body.low-fx::before,
+body.low-fx.turn-ai::before,
+body.low-fx.turn-player::after,
+body.low-fx.turn-combat::before,
+body.low-fx.turn-combat::after,
+body.low-fx .board::before,
+body.low-fx .board-section::before,
+body.low-fx .card.vibe-alien:not(.card-enter):not(.card-exit),
+body.low-fx .card.vibe-cosmic:not(.card-enter):not(.card-exit),
+body.low-fx .card.vibe-magnetic:not(.card-enter):not(.card-exit),
+body.low-fx .card.vibe-phase:not(.card-enter):not(.card-exit),
+body.low-fx .card.vibe-slasher:not(.card-enter):not(.card-exit),
+body.low-fx .card.vibe-speed:not(.card-enter):not(.card-exit),
+body.low-fx .card.vibe-symbiote:not(.card-enter):not(.card-exit),
+body.low-fx .card.vibe-titan:not(.card-enter):not(.card-exit),
+body.low-fx .tron-perimeter::after,
+body.low-fx .tron-shimmer,
+body.low-fx .tron-fx-breathe,
+body.low-fx .hud-pill-main,
+body.low-fx .hud-round #round-num,
+body.low-fx .hud-count b,
+body.low-fx .lane-number,
+body.low-fx .empty-hand::before,
+body.low-fx .mm-mw3 .mm-hero-img,
+body.low-fx .mm-sideart-img {
+  animation: none !important;
+}
+
+/* ---- 6. Belt-and-suspenders repaint guarantee ---------------------
+   If a driver STILL defers the card tile, giving the portrait its own
+   plain 2D containing block and an explicit backface makes Chrome take
+   the simple software-raster path for it rather than a deferred
+   composited one. Cheap, and only applied in the fallback mode. */
+body.low-fx .card-portrait {
+  transform: none !important;
+  will-change: auto !important;
+  backface-visibility: visible !important;
+}
+
+/* One-shot notice shown when the frame-rate probe auto-enables low-fx, so
+   a player on an affected machine knows why the visuals look plainer and
+   where the switch lives. Deliberately dependency-free (no modal, no
+   toast host element) — it has to work on the machine that's struggling. */
+.low-fx-notice {
+  position: fixed;
+  left: 50%;
+  bottom: 24px;
+  transform: translateX(-50%) translateY(12px);
+  z-index: 9999;
+  max-width: min(520px, 92vw);
+  padding: 10px 16px;
+  border: 1px solid rgba(127, 208, 255, 0.55);
+  border-radius: 6px;
+  background: rgba(6, 12, 20, 0.96);
+  color: #cfe9ff;
+  font-size: 12px;
+  letter-spacing: 0.4px;
+  text-align: center;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 300ms ease-out, transform 300ms ease-out;
+}
+.low-fx-notice.show {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
 }

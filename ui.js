@@ -517,7 +517,11 @@ const UI = {
     // panel (the flowing-energy reference art, recolored to the active theme).
     // Static, GPU-cheap (one optimized JPEG + a CSS blend). Intensity 0..1.
     menuFlow: true,
-    menuFlowIntensity: 0.18
+    menuFlowIntensity: 0.18,
+    // Graphics mode — 'auto' | 'high' | 'low'. Controls body.low-fx, which
+    // flattens the 3D card/camera stack. See _detectLowFx() and the
+    // BLANK-CARD block in style.css for why this exists.
+    graphics: 'auto'
   },
   SETTINGS_KEY: 'clb.settings.v1',
 
@@ -576,6 +580,9 @@ const UI = {
     document.body.classList.toggle('colorblind', !!this.settings.colorblind);
     // Apply CRT scanline overlay if enabled.
     document.body.classList.toggle('crt-on', !!this.settings.crt);
+    // Resolve the graphics mode BEFORE first render so a low-capability
+    // machine never paints a frame of the heavy 3D path.
+    this.applyGraphicsMode();
     // Apply UI scale on load so the first render is at the user's
     // chosen zoom, not a flash of 100% followed by resize.
     this._applyUiScale(this.settings.uiScale || 1);
@@ -897,6 +904,12 @@ const UI = {
       this.settings.colorblind = cbEl.checked;
       document.body.classList.toggle('colorblind', !!this.settings.colorblind);
     }
+    // Graphics mode — auto / high / low. Drives body.low-fx.
+    const gfxEl = g('setting-graphics');
+    if (gfxEl) {
+      this.settings.graphics = gfxEl.value;
+      this.applyGraphicsMode();
+    }
     // Haptics — user can opt out for a silent play experience or if
     // the phone's buzz is annoying in long sessions.
     const hapEl = g('setting-haptics-off');
@@ -1051,6 +1064,8 @@ const UI = {
     }
     const cbEl = g('setting-colorblind');
     if (cbEl) cbEl.checked = !!this.settings.colorblind;
+    const gfxEl = g('setting-graphics');
+    if (gfxEl) gfxEl.value = this.settings.graphics || 'auto';
     const hapEl = g('setting-haptics-off');
     if (hapEl) hapEl.checked = !!this.settings.hapticsOff;
     const scaleEl = g('setting-ui-scale');
@@ -3711,6 +3726,10 @@ const UI = {
     this.installAiActionHighlight(); // Pulse the lane the AI just played in
     this.installUndoFeedback();  // Toast + board flash on undo
     this.installAltArtPicker();  // Right-click any card → cycle art variant
+    // Runtime frame-rate probe — last line of defence for GPUs that report
+    // fine but still can't composite this scene. Only ever turns low-fx ON,
+    // only in 'auto', only once per session. See _startLowFxFrameProbe().
+    this._startLowFxFrameProbe();
     this.sfx.arm();
     this.sfx.setVolume(this.settings.sfxVolume ?? 0.55);
     // Flag menu music as "should be playing" on boot — we start on the main
@@ -19168,6 +19187,149 @@ const UI = {
     } catch (e) {}
     return !('ontouchstart' in window || (navigator.maxTouchPoints || 0) > 0);
   },
+
+  // ============================================================
+  // LOW-FX MODE — blank-card / flicker fallback
+  // ============================================================
+  // Two laptops (of four tested) never painted board card art OR the
+  // card name until the card was hovered, and flickered hand art while
+  // the mouse moved. Root cause was the nested 3D compositing stack
+  // (see the BLANK-CARD block at the bottom of style.css). The CSS fix
+  // there removes the always-on 3D contexts for everyone; this mode is
+  // the fallback for drivers that still can't rasterize the scene, and
+  // it also switches off every mousemove-driven repaint.
+  //
+  // `lowFxActive` is the resolved answer for the current session:
+  //   settings.graphics === 'low'  → always on
+  //   settings.graphics === 'high' → always off (user overrode detection)
+  //   settings.graphics === 'auto' → on if _detectLowFx() or the runtime
+  //                                  frame-rate probe trips
+  _lowFxActive: false,
+  _lowFxReason: '',
+
+  isLowFx() { return !!this._lowFxActive; },
+
+  // Static capability probe — runs once, before first paint. Catches the
+  // unambiguous cases: no WebGL at all, or a renderer string that names a
+  // software rasterizer. Chrome falls back to SwiftShader when a GPU
+  // driver is blocklisted, which is exactly the state that produced the
+  // unpainted board cards.
+  _detectLowFx() {
+    // Very low core count is a decent proxy for a netbook-class machine,
+    // but on its own it false-positives, so it only counts alongside a
+    // failed/software renderer check below.
+    const fewCores = (navigator.hardwareConcurrency || 8) <= 2;
+    let renderer = '';
+    try {
+      const c = document.createElement('canvas');
+      const gl = c.getContext('webgl') || c.getContext('experimental-webgl');
+      if (!gl) return { low: true, reason: 'no WebGL (software compositing)' };
+      const dbg = gl.getExtension('WEBGL_debug_renderer_info');
+      if (dbg) renderer = String(gl.getParameter(dbg.UNMASKED_RENDERER_WEBGL) || '');
+      // Release the context immediately — we only wanted the string.
+      const lose = gl.getExtension('WEBGL_lose_context');
+      if (lose) lose.loseContext();
+    } catch (e) {
+      return { low: true, reason: 'WebGL probe threw (software compositing)' };
+    }
+    const r = renderer.toLowerCase();
+    const software = /swiftshader|llvmpipe|softpipe|software|basic render|generic renderer|microsoft basic/.test(r);
+    if (software) return { low: true, reason: 'software renderer: ' + renderer };
+    if (fewCores && !renderer) return { low: true, reason: 'no renderer info + <=2 cores' };
+    return { low: false, reason: renderer || 'unknown renderer' };
+  },
+
+  // Runtime probe — some drivers report a real GPU but still composite
+  // this scene badly. Sample frame times once, after the board has
+  // rendered, and flip to low-fx if the page is sustainably slow.
+  // Deliberately conservative: it can only ever turn low-fx ON (never
+  // off), it runs once per session, and it needs a clear majority of
+  // slow frames so a single heavy combat animation can't trip it.
+  _startLowFxFrameProbe() {
+    if (this._lowFxProbeRan) return;
+    this._lowFxProbeRan = true;
+    if (this._lowFxActive) return;                       // already on, nothing to learn
+    if ((this.settings.graphics || 'auto') !== 'auto') return;  // user made the call
+
+    const SAMPLES = 120;          // ~2s of real frames at 60fps
+    const SLOW_FRAME_MS = 34;     // slower than ~30fps
+    const STALL_MS = 250;         // above this it's a stall/throttle, not a frame rate
+    const SLOW_RATIO = 0.5;       // over half the sampled frames must be slow
+
+    let n = 0, slow = 0, last = 0;
+
+    const reset = () => { n = 0; slow = 0; last = 0; };
+
+    const step = () => {
+      // A backgrounded tab throttles rAF to ~1Hz (and Chrome suspends it
+      // entirely when fully hidden). Those gaps are NOT a frame rate
+      // signal — counting them would falsely flag a perfectly good GPU
+      // just because the player alt-tabbed. Discard the window and wait.
+      if (document.hidden) { reset(); requestAnimationFrame(step); return; }
+      const now = performance.now();
+      if (last === 0) { last = now; requestAnimationFrame(step); return; }
+      const dt = now - last;
+      last = now;
+      // Outlier frames (GC pause, tab restore, a heavy one-off animation)
+      // are dropped rather than counted as slow.
+      if (dt >= STALL_MS) { requestAnimationFrame(step); return; }
+      if (dt > SLOW_FRAME_MS) slow++;
+      n++;
+      if (n < SAMPLES) { requestAnimationFrame(step); return; }
+      if (slow / n >= SLOW_RATIO) {
+        this._lowFxReason = `sustained low frame rate (${slow}/${n} frames > ${SLOW_FRAME_MS}ms)`;
+        this._setLowFx(true);
+        this._announceLowFx();
+      }
+    };
+    // Restart the sampling window whenever the tab comes back, so the
+    // measurement always reflects a continuously-visible stretch.
+    document.addEventListener('visibilitychange', reset);
+    requestAnimationFrame(step);
+  },
+
+  _setLowFx(on) {
+    this._lowFxActive = !!on;
+    document.body.classList.toggle('low-fx', !!on);
+  },
+
+  // Resolve settings.graphics → body.low-fx. Called on load and whenever
+  // Settings saves.
+  applyGraphicsMode() {
+    const mode = this.settings.graphics || 'auto';
+    if (mode === 'low') {
+      this._lowFxReason = 'forced in Settings';
+      this._setLowFx(true);
+      return;
+    }
+    if (mode === 'high') {
+      this._lowFxReason = 'disabled in Settings';
+      this._setLowFx(false);
+      return;
+    }
+    const d = this._detectLowFx();
+    this._lowFxReason = d.reason;
+    this._setLowFx(d.low);
+  },
+
+  // One-time, dismissible note so a player on a broken machine knows why
+  // the visuals look plainer — and where the switch is.
+  // Self-contained so it can't depend on any modal being present.
+  _announceLowFx() {
+    if (this._lowFxAnnounced) return;
+    this._lowFxAnnounced = true;
+    try {
+      const n = document.createElement('div');
+      n.className = 'low-fx-notice';
+      n.textContent = 'Reduced graphics turned on for performance — Settings → Graphics';
+      document.body.appendChild(n);
+      setTimeout(() => n.classList.add('show'), 30);
+      setTimeout(() => {
+        n.classList.remove('show');
+        setTimeout(() => n.remove(), 400);
+      }, 6000);
+    } catch (e) { /* purely informational; never let it break startup */ }
+  },
   // Draw a tracer beam from attacker → target for a combat hit. The
   // beam is an absolutely-positioned rotated div sized to span the
   // two card centers. Short-lived (~260ms) with a scale-out on the
@@ -19308,7 +19470,9 @@ const UI = {
     // when the cursor stops, and disappears entirely when the
     // cursor is idle.
     const reduceMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-    if (!reduceMotion && this._hasFinePointer()) {  // cursor trail is mouse-only; a tap would freeze the line at the tap point
+    // Low-fx also skips it: it redraws a full-viewport SVG overlay on every
+    // mouse move, which is the exact interaction the flicker was reported on.
+    if (!reduceMotion && this._hasFinePointer() && !this.isLowFx()) {  // cursor trail is mouse-only; a tap would freeze the line at the tap point
       // Build the SVG layer once. Lives at body level so it overlays
       // the entire page (menus, board, panels — all surfaces).
       const SVGNS = 'http://www.w3.org/2000/svg';
@@ -20126,9 +20290,10 @@ const UI = {
     // Throttled mousemove on document — set body.style.--grid-px-x/y
     // based on cursor position normalized to viewport. Subtle ±6px
     // shift gives a mild parallax depth cue without being distracting.
-    if (!reduceMotion && finePointer) {  // mouse-only; a tap would leave the grid offset frozen
+    if (!reduceMotion && finePointer && !this.isLowFx()) {  // mouse-only; a tap would leave the grid offset frozen
       let lastMove = 0;
       document.addEventListener('mousemove', (e) => {
+        if (UI.isLowFx()) return;   // probe can trip after install
         const now = performance.now();
         if (now - lastMove < 30) return;
         lastMove = now;
@@ -21239,6 +21404,7 @@ const UI = {
   // that each UI surface (mm-panel, body::before) reads for tiny offsets.
   installParallaxMenu() {
     if (!this._hasFinePointer()) return;  // mouse-driven menu parallax; a tap would leave the bg shifted
+    if (this.isLowFx()) return;           // mousemove repaint — off on low-capability GPUs
     let rafPending = false;
     document.addEventListener('mousemove', (e) => {
       if (rafPending) return;
@@ -21591,6 +21757,12 @@ const UI = {
     this._cameraParallaxInstalled = true;
     if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
     if (!this._hasFinePointer()) return;  // mouse-driven camera pivot; touch would lock the tilt at the tap point
+    // THE flicker source on weak GPUs: this rewrites the transform of
+    // #game-area — the perspective root containing the entire scene — on
+    // every mouse move, forcing a full re-raster each frame. Never install
+    // it in low-fx mode. (CSS also pins #game-area to transform:none there,
+    // so even a stale var can't take effect.)
+    if (this.isLowFx()) return;
     const ga = document.getElementById('game-area');
     if (!ga) return;
     let rafScheduled = false;
@@ -21601,6 +21773,9 @@ const UI = {
       ga.style.setProperty('--cam-ty', nextY.toFixed(3));
     };
     document.addEventListener('mousemove', (e) => {
+      // Re-checked per event, not just at install time: the runtime frame
+      // probe can flip low-fx on AFTER these listeners are attached.
+      if (UI.isLowFx()) return;
       // -1 at left edge, +1 at right; same for vertical
       const cx = (e.clientX / window.innerWidth)  * 2 - 1;
       const cy = (e.clientY / window.innerHeight) * 2 - 1;
@@ -21619,6 +21794,10 @@ const UI = {
     if (this._handTiltInstalled) return;
     this._handTiltInstalled = true;
     if (!this._hasFinePointer()) return;  // hover-tilt is mouse-only; a tap would freeze a card mid-tilt
+    // The tilt vars drive rotateX/rotateY on the hovered card, which is what
+    // creates its 3D rendering context. In low-fx the CSS forces a flat 2D
+    // scale instead, so writing the vars would just burn frames.
+    if (this.isLowFx()) return;
     // Both hand cards and tricks get the 3D tilt. Hand cards live
     // inside a .hand-card-wrapper (the CSS keys the transform off
     // that wrapper's hover + its child card). Tricks don't have a
@@ -21712,6 +21891,7 @@ const UI = {
     const kick = () => { if (!raf) raf = requestAnimationFrame(tick); };
 
     document.addEventListener('mousemove', (e) => {
+      if (UI.isLowFx()) return;   // probe can trip after install
       const target = e.target.closest && e.target.closest(TILT_SELECTORS);
       if (!target) return;
       // For .hand-card-wrapper the wrapper itself ISN'T scaled (only
@@ -21916,6 +22096,7 @@ const UI = {
   installBoardCursorLight() {
     if (this._boardCursorLightInstalled) return;
     if (!this._hasFinePointer()) return;  // cursor-anchored — touch would lock the light at the tap point
+    if (this.isLowFx()) return;           // repaints the board on every mouse move
     const board = document.getElementById('board');
     if (!board) return;
     this._boardCursorLightInstalled = true;
@@ -21942,6 +22123,7 @@ const UI = {
       board.style.setProperty('--by', pendingY + '%');
     };
     board.addEventListener('mousemove', (e) => {
+      if (UI.isLowFx()) return;   // probe can trip after install
       const rect = getRect();
       pendingX = ((e.clientX - rect.left) / rect.width  * 100).toFixed(1);
       pendingY = ((e.clientY - rect.top)  / rect.height * 100).toFixed(1);
@@ -22061,6 +22243,10 @@ const UI = {
       // permanently drifted. (The chromatic-hit / afterimage / glitch FX
       // below are gameplay-driven and stay active on every device.)
       if (!UI._hasFinePointer()) return;
+      // Writing a custom property on <body> invalidates style for the whole
+      // subtree; on a weak compositor that's a per-mousemove repaint of the
+      // entire board. Skipped in low-fx.
+      if (UI.isLowFx()) return;
       const cx = window.innerWidth / 2;
       const cy = window.innerHeight / 2;
       // Clamp to ±5px, multiply by -1 so background drifts AGAINST
