@@ -150,6 +150,14 @@ const Multiplayer = {
         // can send, the receiver shows it on the opponent's avatar chip.
         this._emit('emote', msg);
         break;
+      case 'lobby':
+        // Deck-building lobby sync. Symmetric like 'emote': both sides
+        // publish { name, ready, deckName, deck, counts } whenever their
+        // ready state or deck changes, and render the opponent's copy.
+        // The match starts only once BOTH sides report ready — see
+        // UI._mpOnLobby / _mpMaybeStartFromLobby.
+        this._emit('lobby', msg);
+        break;
       case 'versionMismatch':
         // Host/guest builds differ (stale PWA cache on one side) —
         // surface so the UI can tell both players to refresh.

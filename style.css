@@ -33255,3 +33255,51 @@ body.low-fx .card-portrait {
   color: rgba(170, 195, 215, 0.7);
   text-align: center;
 }
+
+/* ---- Shared deck-build lobby: ready-check row ----------------------
+   Both players build at once; each readies up when their deck is legal and
+   the match auto-starts. These sit inside .db-mp-banner. */
+.db-mp-banner-lobby { border-color: rgba(79, 195, 247, 0.55); }
+.db-mp-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.db-mp-chip {
+  font-family: 'Rajdhani', sans-serif;
+  font-size: 11px;
+  letter-spacing: 0.8px;
+  text-transform: uppercase;
+  color: rgba(190, 210, 230, 0.85);
+  background: rgba(6, 12, 22, 0.8);
+  border: 1px solid rgba(120, 160, 210, 0.35);
+  border-radius: 999px;
+  padding: 3px 10px;
+  white-space: nowrap;
+}
+.db-mp-chip-ready {
+  color: #7ce6a0;
+  border-color: rgba(120, 230, 160, 0.6);
+  background: rgba(20, 50, 34, 0.7);
+}
+.db-mp-ready {
+  background: rgba(79, 195, 247, 0.14);
+  border: 1px solid rgba(79, 195, 247, 0.65);
+  border-radius: 5px;
+  color: #eaf6ff;
+  font-family: 'Rajdhani', sans-serif;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 1.4px;
+  text-transform: uppercase;
+  padding: 6px 16px;
+  cursor: pointer;
+}
+.db-mp-ready:hover:not(:disabled) { background: rgba(79, 195, 247, 0.26); }
+.db-mp-ready:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  border-color: rgba(120, 160, 210, 0.3);
+}
+.db-mp-ready-on {
+  background: rgba(20, 60, 38, 0.85);
+  border-color: rgba(120, 230, 160, 0.7);
+  color: #7ce6a0;
+}
+.db-mp-ready-on:hover { background: rgba(28, 80, 50, 0.9); }

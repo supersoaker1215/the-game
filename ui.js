@@ -11074,6 +11074,168 @@ const UI = {
   // exists, the URL will default to that and end-users won't need to
   // touch this — it's a power-user knob.
   _mpState: { tab: 'create', code: null, status: 'idle', you: null, opponent: null },
+
+  // ===================== SHARED DECK-BUILD LOBBY =====================
+  // When a friend joins an online 1v1, BOTH players land in the deck builder
+  // and build simultaneously. Each side hits Ready once their deck is a legal
+  // DECK_CARD_MAX/DECK_TRICK_MAX; the match auto-starts when both are ready.
+  //
+  // Why not start on join (the old behaviour): opponentJoined fired
+  // startMultiplayerHost() unconditionally, so the match began the instant the
+  // guest connected. The guest never saw a builder at all, and a host who was
+  // mid-build got yanked out and lost the work. There was no moment where both
+  // players could deliberately say "I'm set."
+  //
+  // Ready reads the LIVE builder contents (Game.state.deckbuilder), not a saved
+  // deck — a player who arrives with nothing saved can build from scratch here
+  // and ready up without ever naming/saving the deck.
+  _mpLobby: { active: false, myReady: false, oppReady: false, oppDeck: null, oppName: '', oppCounts: null, starting: false },
+
+  _mpLobbyReset() {
+    this._mpLobby = { active: false, myReady: false, oppReady: false, oppDeck: null, oppName: '', oppCounts: null, starting: false };
+  },
+
+  // The deck currently sitting in the builder, or null if it isn't legal yet.
+  // This is the single source of truth for "can I ready up".
+  _mpLobbyMyDeck() {
+    const db = (typeof Game !== 'undefined' && Game.state) ? Game.state.deckbuilder : null;
+    if (!db || !Array.isArray(db.cards) || !Array.isArray(db.tricks)) return null;
+    if (db.cards.length !== this.DECK_CARD_MAX || db.tricks.length !== this.DECK_TRICK_MAX) return null;
+    return { cards: db.cards.slice(), tricks: db.tricks.slice() };
+  },
+
+  _mpLobbyMyCounts() {
+    const db = (typeof Game !== 'undefined' && Game.state) ? Game.state.deckbuilder : null;
+    return {
+      cards: db && Array.isArray(db.cards) ? db.cards.length : 0,
+      tricks: db && Array.isArray(db.tricks) ? db.tricks.length : 0
+    };
+  },
+
+  // Drop both players into the builder for the shared build phase. Called on
+  // opponentJoined (host) and roomJoined (guest) so the two sides enter the
+  // same screen from their own trigger.
+  _mpEnterLobby() {
+    this._mpLobby.active = true;
+    this._mpLobby.myReady = false;
+    this._mpLobby.starting = false;
+    this._mpReturnToLobby = true;
+    // Preserve an in-progress build if the host was already assembling one;
+    // otherwise open an empty builder to build from scratch.
+    const db = (typeof Game !== 'undefined' && Game.state) ? Game.state.deckbuilder : null;
+    const hasWork = db && ((db.cards && db.cards.length) || (db.tricks && db.tricks.length));
+    if (Game.state.phase !== 'deckbuilder-build') {
+      if (hasWork) { Game.state.phase = 'deckbuilder-build'; this.render(); }
+      else Game.enterDeckBuilder();
+    } else {
+      this.render();
+    }
+    // Seed the opponent with our starting status (not ready, current counts).
+    this._mpSendLobby();
+  },
+
+  // Publish our lobby status. Sent on entry, on every ready toggle, and
+  // whenever the builder contents change while we're readied.
+  _mpSendLobby() {
+    if (!this._mpLobby.active || typeof Multiplayer === 'undefined') return;
+    const deck = this._mpLobbyMyDeck();
+    try {
+      Multiplayer.send({
+        t: 'lobby',
+        name: this._mpName(),
+        ready: !!this._mpLobby.myReady,
+        deck: (this._mpLobby.myReady && deck) ? deck : null,
+        counts: this._mpLobbyMyCounts()
+      });
+    } catch (e) { /* channel not up yet — entry resend covers it */ }
+  },
+
+  // Opponent published their status.
+  _mpOnLobby(msg) {
+    if (!msg) return;
+    // A lobby message can arrive before our own entry trigger fires (the guest's
+    // roomJoined and the host's opponentJoined race). Treat it as proof the
+    // other side is in the lobby and join them.
+    if (!this._mpLobby.active) this._mpEnterLobby();
+    this._mpLobby.oppName = msg.name || 'Opponent';
+    this._mpLobby.oppReady = !!msg.ready;
+    this._mpLobby.oppCounts = msg.counts || null;
+    if (msg.deck && Array.isArray(msg.deck.cards) && Array.isArray(msg.deck.tricks)) {
+      this._mpLobby.oppDeck = { cards: msg.deck.cards.slice(), tricks: msg.deck.tricks.slice() };
+    } else if (!msg.ready) {
+      // They un-readied — drop the stale deck so we can't start with it.
+      this._mpLobby.oppDeck = null;
+    }
+    this._mpState.opponent = this._mpLobby.oppName;
+    if (Game.state && Game.state.phase === 'deckbuilder-build') this.render();
+    this._mpMaybeStartFromLobby();
+  },
+
+  // Guest-side safety net for the one moment a state push is expected: both
+  // players readied, so the host is starting the match. That first broadcast
+  // can be lost (channel still settling, flaky Wi-Fi), which would strand the
+  // guest on "Starting…" forever. Poll the host until a state lands; the host
+  // answers each reqState with a full rebroadcast.
+  _mpArmStateRetry() {
+    if (this._mpStateRetry) clearInterval(this._mpStateRetry);
+    this._mpState.gotState = false;
+    let tries = 0;
+    this._mpStateRetry = setInterval(() => {
+      if (this._mpState.gotState || tries++ > 20) {
+        clearInterval(this._mpStateRetry); this._mpStateRetry = null;
+        return;
+      }
+      try { Multiplayer.send({ t: 'reqState' }); } catch (e) {}
+    }, 2500);
+  },
+
+  // The builder contents changed. Keep the opponent's view of our progress
+  // live, and drop our ready flag if the edit made the deck illegal again —
+  // otherwise we could start a match on a deck that no longer validates.
+  _mpOnDeckEdited() {
+    const L = this._mpLobby;
+    if (!L || !L.active) return;
+    if (L.myReady && !this._mpLobbyMyDeck()) L.myReady = false;
+    this._mpSendLobby();
+  },
+
+  // Toggle our own ready state. Refuses to ready with an illegal deck — the
+  // button is disabled in that case too, this is the belt-and-braces check.
+  _mpToggleReady() {
+    if (!this._mpLobby.active) return;
+    if (!this._mpLobby.myReady && !this._mpLobbyMyDeck()) return;
+    this._mpLobby.myReady = !this._mpLobby.myReady;
+    this._mpSendLobby();
+    this.render();
+    this._mpMaybeStartFromLobby();
+  },
+
+  // Both ready → the HOST starts the match and broadcasts state; the guest
+  // simply lands in the draft when that state arrives. Guarded so the start
+  // can only fire once.
+  _mpMaybeStartFromLobby() {
+    const L = this._mpLobby;
+    if (!L.active || L.starting) return;
+    if (!L.myReady || !L.oppReady) return;
+    const mine = this._mpLobbyMyDeck();
+    if (!mine) return;
+    // Only the host runs the engine. The guest just waits for the state push.
+    const isHost = this._mpState.you === 'player';
+    if (!isHost) {
+      L.starting = true;
+      this.render();
+      this._mpArmStateRetry();   // now a state broadcast IS expected — guard it
+      return;
+    }
+    if (!L.oppDeck) return;   // host needs both decks before it can build the match
+    L.starting = true;
+    this.render();
+    if (typeof Game !== 'undefined' && Game.startMultiplayerHost) {
+      this._mpReturnToLobby = false;
+      Game.startMultiplayerHost({ customDeck: mine, aiDeck: L.oppDeck });
+      this._mpApplyNames(Game.state);
+    }
+  },
   // Multiplayer is now an IN-SHELL main-menu submenu (no popup). Opens the
   // 'mp' sub the same way Solo Match swaps its list, so the hero + music stay
   // alive behind it. Connection-state updates re-render the panel in place
@@ -11101,8 +11263,9 @@ const UI = {
     }
     this._mpState = { tab: 'create', code: null, status: 'idle', you: null, opponent: null };
     // Leaving multiplayer for real — a later, unrelated trip to the deck
-    // builder must not show the online-room banner.
+    // builder must not show the online-room banner or a stale ready state.
     this._mpReturnToLobby = false;
+    this._mpLobbyReset();
     this.mmBack();
   },
   _mpInit() {
@@ -11126,46 +11289,33 @@ const UI = {
       this._mpState.gotState = false;
       this._mpState.pairedAt = Date.now();
       this._mpRender();
-      // Joiner lands in the host's match when the first 'state' broadcast
-      // arrives — but that first push can be lost (data channel still
-      // settling, flaky hotel-grade Wi-Fi, dropped message). Poll the host
-      // with reqState until a state lands so the guest can't strand on
-      // "Dropping into the match…" forever. Host answers each reqState
-      // with a full rebroadcast (free — _mpApplyAction's trailing push).
-      if (this._mpStateRetry) clearInterval(this._mpStateRetry);
-      let tries = 0;
-      this._mpStateRetry = setInterval(() => {
-        if (this._mpState.gotState || this._mpState.status !== 'paired' || tries++ > 20) {
-          clearInterval(this._mpStateRetry); this._mpStateRetry = null;
-          this._mpRender();  // stuck past the cap → paired body shows the reset rescue
-          return;
-        }
-        try { Multiplayer.send({ t: 'reqState' }); } catch (e) {}
-        // Re-render occasionally so the "taking too long" rescue appears.
-        if (tries === 4) this._mpRender();
-      }, 2500);
+      // Guest: connected — join the host in the shared deck builder. The old
+      // path polled the host with reqState waiting for a match state, which
+      // would now hang forever (the host doesn't start until both ready).
+      // The reqState safety net is re-armed at START time instead, once both
+      // sides are ready and a state broadcast is genuinely expected.
+      this._mpEnterLobby();
     });
+    // Lobby sync from the other side (ready flag + deck once ready).
+    Multiplayer.on('lobby', (m) => this._mpOnLobby(m));
     Multiplayer.on('opponentJoined', (m) => {
       this._mpState.opponent = (m && m.name) || 'Opponent';
       this._mpState.status = 'paired';
       this._mpRender();
-      // Host: as soon as opponent joins, kick off a draft and broadcast
-      // the initial state so the joiner can mirror it. Keeping classic
-      // mode for v1 — deck-builder + custom decks come later via the
-      // joinRoom payload.
-      if (typeof Game !== 'undefined' && Game.startMultiplayerHost) {
-        // Deckbuilder online: the host's own pick plus whatever deck the joiner
-        // brought (arrives on the opponentJoined payload). If NEITHER side
-        // brought one this stays classic, exactly as before.
-        const hostDeck = this._mpDeckPayload();
-        const guestDeck = (m && m.deck && Array.isArray(m.deck.cards) && Array.isArray(m.deck.tricks))
-          ? { cards: m.deck.cards.slice(), tricks: m.deck.tricks.slice() }
-          : null;
-        this._mpState.oppDeckName = guestDeck ? (m.deck.name || 'custom deck') : null;
-        Game.startMultiplayerHost({ customDeck: hostDeck, aiDeck: guestDeck });
-        // Override the AI personality name with the real opponent name.
-        this._mpApplyNames(Game.state);
-      }
+      // Host: the opponent is here — drop BOTH players into the shared deck
+      // builder rather than starting the match immediately. The match now
+      // begins only when both sides hit Ready (see _mpMaybeStartFromLobby).
+      //
+      // Previously this called startMultiplayerHost() right here, which is
+      // why the guest never saw a builder and a mid-build host got yanked
+      // out of theirs.
+      const guestDeck = (m && m.deck && Array.isArray(m.deck.cards) && Array.isArray(m.deck.tricks))
+        ? { cards: m.deck.cards.slice(), tricks: m.deck.tricks.slice() }
+        : null;
+      this._mpState.oppDeckName = guestDeck ? (m.deck.name || 'custom deck') : null;
+      // A deck sent on the join handshake is only a starting point — the guest
+      // still has to ready up in the lobby before it counts.
+      this._mpEnterLobby();
     });
     Multiplayer.on('opponentLeft', () => {
       this._mpState.status = 'opponentLeft';
@@ -11515,21 +11665,60 @@ const UI = {
   //   no room yet → offer "Create room" inline so a code exists to share
   //   opponent in → tell them to head back; the match is ready to start
   _mpLobbyBannerHTML() {
-    if (!this._mpReturnToLobby) return '';
+    const L = this._mpLobby || {};
+    if (!this._mpReturnToLobby && !L.active) return '';
     const st = this._mpState || {};
+    // Room open, nobody joined yet — show the code to share. No longer warns
+    // about saving first: joining now drops both players into this same
+    // builder and waits for a ready-check, so there's no race to lose to.
     if (st.status === 'waiting' && st.code) {
       return `<div class="db-mp-banner">
         <span class="db-mp-label">Online room</span>
         <button type="button" class="db-mp-code" onclick="UI._mpCopyCode()" title="Tap to copy">${st.code}</button>
-        <span class="db-mp-hint">Share this code — your friend can join while you build. <b>Save your deck before they join</b>: the match starts the moment they do, using your saved+selected deck.</span>
+        <span class="db-mp-hint">Share this code. When your friend joins, they build here too — the match starts once you both hit Ready.</span>
         <button type="button" class="db-mp-back" onclick="dbBack()">&larr; Back to lobby</button>
       </div>`;
     }
-    if (st.status === 'paired') {
-      return `<div class="db-mp-banner db-mp-banner-go">
-        <span class="db-mp-label">Opponent connected</span>
-        <span class="db-mp-hint">${st.opponent || 'Your friend'} is in the room — save your deck and head back to start.</span>
-        <button type="button" class="db-mp-back" onclick="dbBack()">&larr; Back to lobby</button>
+    // Both players connected and building — the ready-check panel.
+    if (L.active && st.status === 'paired') {
+      const C = this.DECK_CARD_MAX, T = this.DECK_TRICK_MAX;
+      const mine = this._mpLobbyMyCounts();
+      const canReady = !!this._mpLobbyMyDeck();
+      const oc = L.oppCounts;
+      const esc = (x) => String(x == null ? '' : x).replace(/&/g,'&amp;').replace(/</g,'&lt;');
+      const oppName = esc(L.oppName || st.opponent || 'Opponent');
+
+      if (L.starting) {
+        return `<div class="db-mp-banner db-mp-banner-go">
+          <span class="db-mp-label">Both ready</span>
+          <span class="db-mp-hint">Starting the match…</span>
+        </div>`;
+      }
+
+      const meChip = L.myReady
+        ? `<span class="db-mp-chip db-mp-chip-ready">You &check; ready</span>`
+        : `<span class="db-mp-chip">You &middot; ${mine.cards}/${C} cards &middot; ${mine.tricks}/${T} tricks</span>`;
+      const oppChip = L.oppReady
+        ? `<span class="db-mp-chip db-mp-chip-ready">${oppName} &check; ready</span>`
+        : `<span class="db-mp-chip">${oppName} &middot; ${oc ? `${oc.cards}/${C} cards &middot; ${oc.tricks}/${T} tricks` : 'building…'}</span>`;
+
+      const readyBtn = L.myReady
+        ? `<button type="button" class="db-mp-ready db-mp-ready-on" onclick="UI._mpToggleReady()">&check; Ready — click to undo</button>`
+        : (canReady
+            ? `<button type="button" class="db-mp-ready" onclick="UI._mpToggleReady()">I'm ready</button>`
+            : `<button type="button" class="db-mp-ready" disabled title="Your deck needs exactly ${C} cards and ${T} tricks">Need ${C}/${T} to ready</button>`);
+
+      const waitLine = L.myReady && !L.oppReady
+        ? `<span class="db-mp-hint">Waiting for ${oppName} to finish their deck — the match starts automatically when you're both ready.</span>`
+        : (!L.myReady && L.oppReady
+            ? `<span class="db-mp-hint">${oppName} is ready and waiting on you.</span>`
+            : `<span class="db-mp-hint">Both of you are building. The match starts automatically once you're both ready.</span>`);
+
+      return `<div class="db-mp-banner db-mp-banner-lobby${L.oppReady && L.myReady ? ' db-mp-banner-go' : ''}">
+        <span class="db-mp-label">Online match</span>
+        <span class="db-mp-chips">${meChip}${oppChip}</span>
+        ${readyBtn}
+        ${waitLine}
       </div>`;
     }
     return `<div class="db-mp-banner">
@@ -12911,7 +13100,12 @@ const UI = {
              READY chip replaced by the inline cost curve. -->
         ${UI._mpLobbyBannerHTML()}
         <div class="db-hud">
-          <button type="button" class="db-back" onclick="dbBack()" title="${UI._mpReturnToLobby ? 'Back to multiplayer' : 'Back to main menu'}">&larr; ${UI._mpReturnToLobby ? 'Multiplayer' : 'Menu'}</button>
+          ${(() => {
+            const inLobby = UI._mpLobby && UI._mpLobby.active && UI._mpState.status === 'paired';
+            const label = inLobby ? 'Leave match' : (UI._mpReturnToLobby ? 'Multiplayer' : 'Menu');
+            const title = inLobby ? 'Leave the online match' : (UI._mpReturnToLobby ? 'Back to multiplayer' : 'Back to main menu');
+            return `<button type="button" class="db-back" onclick="dbBack()" title="${title}">&larr; ${label}</button>`;
+          })()}
           <div class="db-hud-center">
             <h1 class="db-hud-title">Deck Builder</h1>
             <div class="db-hud-sub">Assemble ${UI.DECK_CARD_MAX} cards + ${UI.DECK_TRICK_MAX} tricks — click to add, click a deck row to remove</div>
@@ -22895,7 +23089,13 @@ function openDeckBuilder() {
 function dbAdd(section, name) {
   const db = Game.state.deckbuilder;
   if (!db) return;
-  const CARD_MAX = 30, TRICK_MAX = 8, COPY_MAX = 2;
+  // BUG FIX: these were hardcoded 30 / 8, left behind when the deck size was
+  // raised to 40 / 10. The RENDER used UI.DECK_CARD_MAX/DECK_TRICK_MAX while
+  // this handler capped at the old numbers, so clicking cards stopped dead at
+  // 30/8 — a deck could never reach the 40/10 the validity check (and the
+  // READY badge, and Play) require. Every hand-built deck was permanently
+  // INCOMPLETE. Read from the constants so the two can't drift again.
+  const CARD_MAX = UI.DECK_CARD_MAX, TRICK_MAX = UI.DECK_TRICK_MAX, COPY_MAX = 2;
   const list = section === 'cards' ? db.cards : db.tricks;
   const max = section === 'cards' ? CARD_MAX : TRICK_MAX;
   if (list.length >= max) return;
@@ -22903,6 +23103,7 @@ function dbAdd(section, name) {
   if (copies >= COPY_MAX) return;
   list.push(name);
   db.presetName = null; // diverged from preset
+  UI._mpOnDeckEdited();
   UI.render();
 }
 
@@ -22913,6 +23114,7 @@ function dbRemove(section, name) {
   const idx = list.lastIndexOf(name); // remove most recent copy
   if (idx >= 0) list.splice(idx, 1);
   db.presetName = null;
+  UI._mpOnDeckEdited();
   UI.render();
 }
 
@@ -22924,11 +23126,13 @@ function dbPreset(key) {
     tricks: preset.tricks.slice(),
     presetName: key
   };
+  UI._mpOnDeckEdited();
   UI.render();
 }
 
 function dbClear() {
   Game.state.deckbuilder = { cards: [], tricks: [], presetName: null };
+  UI._mpOnDeckEdited();
   UI.render();
 }
 
@@ -22970,6 +23174,16 @@ function dbSetSort(s) {
 }
 
 function dbBack() {
+  // Mid-lobby with an opponent already connected: the builder IS the lobby, so
+  // "back" means leaving the match. Confirm, because the other player is
+  // sitting in their own builder waiting on this one.
+  if (UI._mpLobby && UI._mpLobby.active && UI._mpState.status === 'paired') {
+    UI.confirmModal(
+      'Leave this match? Your opponent is building their deck and will be dropped.',
+      { title: 'Leave match', okText: 'Leave', danger: true }
+    ).then(ok => { if (ok) { UI._mpLobbyReset(); UI._mpBack(); } });
+    return;
+  }
   // Entered from the multiplayer screen? Go BACK there, not to the main menu —
   // the room (and its code) may still be open, and dumping the player on the
   // main menu is what made "build a deck for an online match" feel like it
