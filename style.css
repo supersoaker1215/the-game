@@ -7737,6 +7737,12 @@ body.mobile-card-dragging .cursor-trail { display: none !important; }
 /* Player hand card — refined hover lift */
 .player-hand-section .hand-cards .card {
   transition: transform 0.18s ease-out, box-shadow 0.18s ease-out, filter 0.18s ease-out;
+  /* will-change removed — persistent on every hand card, it's the MDN
+     antipattern (a hint meant to be transient, not a permanent rule on many
+     elements). :hover below promotes just the card being interacted with. */
+}
+.player-hand-section .hand-cards .card:hover,
+.player-hand-section .hand-cards .card.card-dragging {
   will-change: transform;
 }
 .player-hand-section .hand-cards .card:hover {
@@ -29531,8 +29537,18 @@ body.combat-anticipate::after  { content: none !important; }
   background-size: var(--portrait-size, cover), 200% 100%;
   background-position: var(--portrait-pos, center center), 0% 0%;
   background-repeat: no-repeat, no-repeat;
-  transform: translateZ(0);
-  will-change: transform;
+  /* PERF: no permanent layer promotion here. Every card portrait carries a
+     large background image; forcing each onto its own GPU compositor layer
+     (via translateZ(0) + will-change) meant a full board — 12 lanes x 2 +
+     hand + previews = 30+ portraits — held 30+ image textures in VRAM at once.
+     On laptops with integrated graphics that blows the texture budget, so the
+     compositor DEFERS painting some portraits until a repaint is forced —
+     which is exactly why art showed up blank on the board until a card
+     attacked (the attack transform triggers the repaint). It also caused the
+     general lag. The portrait is static; only the parent .card animates, and
+     it promotes itself just-in-time while animating (see .card.is-animating).
+     User: images "dont load on the board ... and only show when they attack",
+     and "super laggy". */
 
   /* === TRON GEM CONTAINER — soft shading + double-line frame ===
      The portrait is now framed as a real "container for the gem"
@@ -32882,3 +32898,32 @@ body.round-tick .board::after {
 .db-deck-strip:has(.db-deck-row) { min-height: 92px !important; }
 /* Floor the picker so a full card is always visible even at 720p. */
 .db-collection .db-pick-grid { min-height: 232px; }
+
+/* ============================================================
+   PERF: JUST-IN-TIME LAYER PROMOTION
+   Card portraits and cards no longer carry a permanent will-change /
+   translateZ layer (that promoted 30+ image-textured layers at once and
+   starved integrated GPUs — see .card-portrait). Instead, promote a card to
+   its own compositor layer ONLY while it is actually animating, then drop back.
+   This keeps attack lunges / entrances / shakes smooth without the always-on
+   VRAM cost. These classes are added transiently by the JS animation helpers
+   and removed when the animation ends. */
+.card.card-enter,
+.card.lane-landed,
+.card.combat-attacker,
+.card.combat-target,
+.card.titan-shake,
+.card.crit-shake,
+.card.card-shake-rejected,
+.card.hit-flash {
+  will-change: transform;
+}
+.card.card-enter .card-portrait,
+.card.lane-landed .card-portrait,
+.card.combat-attacker .card-portrait,
+.card.combat-target .card-portrait {
+  /* Promote the painting too, but only for the moment the parent moves, so the
+     background image stays crisp during the transform instead of re-rasterising
+     each frame on the CPU. */
+  transform: translateZ(0);
+}
