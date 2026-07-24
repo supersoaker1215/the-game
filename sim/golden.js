@@ -518,6 +518,28 @@ gold('RG-11 stat debuff (debuffCard) lands on an Invincible card', function () {
   eq('invincible untouched', tgt.invincibleTurns, 2);  // still a damage/destroy shield
 });
 
+// RG-12 — the DESTROY-shield half: an allowKill stat debuff (Bane / Man-Bat /
+// Magneto-Luke aura) can NOT kill an Invincible card. The -HP lands (down to a
+// floor of 1) but Invincible blocks the destroy — the card survives on the
+// board, not stranded <=0 for cleanupDead to reap. (Regression guard for the
+// Invincible-allows-debuffs change.)
+gold('RG-12 allowKill debuff cannot destroy an Invincible card', function () {
+  reset();
+  var tgt = card({ name: 'Flash', owner: 'ai', attack: 2, health: 1, abilities: [] });
+  tgt.invincibleTurns = 2;
+  Game.state.lanes[0].ai = tgt;                    // on the board
+  Game.debuffCard(tgt, 1, 5, true, { name: 'Bane' });  // allowKill, huge -HP
+  eq('survives (hp floored at 1)', tgt.currentHealth, 1);
+  eq('still on the board', Game.state.lanes[0].ai === tgt, true);
+  eq('invincible untouched', tgt.invincibleTurns, 2);
+  // And a NON-invincible card under the same allowKill debuff IS destroyed.
+  reset();
+  var mortal = card({ name: 'Mortal', owner: 'ai', attack: 2, health: 1, abilities: [] });
+  Game.state.lanes[0].ai = mortal;
+  Game.debuffCard(mortal, 1, 5, true, { name: 'Bane' });
+  eq('mortal died', !(mortal.currentHealth > 0), true);
+});
+
 // ============================================================
 // RUNNER
 // ============================================================

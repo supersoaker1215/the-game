@@ -7250,7 +7250,15 @@ const Game = {
     const atkReduced = atk ? Math.min(atk, card.attack || 0) : 0;
     if (atk) card.attack = Math.max(0, card.attack - atk);
     if (hp) {
-      if (allowKill) {
+      // allowKill (Magneto/Luke aura, Bane, Man-Bat, Bear Trap) may drop HP to
+      // 0 and destroy — BUT Invincible / Damage Immunity is a DESTROY shield.
+      // The stat strip still LANDS (Invincible allows debuffs), yet it can't
+      // KILL: floor at 1. Without this, killCard bails on Invincible without
+      // restoring HP, stranding the card <=0 for cleanupDead to reap — i.e.
+      // The Flash dying to a Bear Trap/aura, which the Invincible-allows-debuffs
+      // rule must NOT introduce (Invincible = damage/destroy shield only).
+      const destroyShielded = card.invincibleTurns > 0 || card.hasDamageImmunity;
+      if (allowKill && !destroyShielded) {
         card.maxHealth = Math.max(1, card.maxHealth - hp);
         card.currentHealth -= hp;
         if (card.currentHealth <= 0) {
