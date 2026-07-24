@@ -348,6 +348,24 @@ const Multiplayer = {
     // pick, so the guest's card "places itself" in a stray lane. Strip them.
     delete clone.selectedCard;
     delete clone.selectedTrick;
+    // WIRE TRIM (host-authoritative → guest only RENDERS this state):
+    //  • Draw piles are HIDDEN — the guest shows them only as a DECK COUNT
+    //    (state.drawPile.length). So replace each hidden card with a tiny
+    //    {id,name} stub: the count survives, but ~85 full card objects PER SIDE
+    //    (stats + abilities[] + baseAbilities[] + desc string + flags) no longer
+    //    ride EVERY action's broadcast. The guest never draws from its own pile
+    //    (the host does, and the drawn card arrives via the hand), and
+    //    rehydrateCard skips nameless/def-less cards, so this can't desync play.
+    //  • The combat LOG is capped to its recent tail — the guest only shows
+    //    recent lines, so shipping all 300 every action is wasted bytes.
+    const stubPile = (pile) => Array.isArray(pile)
+      ? pile.map(c => (c && c.id != null) ? { id: c.id, name: c.name } : {})
+      : pile;
+    if (clone.drawPile) clone.drawPile = stubPile(clone.drawPile);
+    ['player', 'ai'].forEach(side => {
+      if (clone[side] && clone[side].drawPile) clone[side].drawPile = stubPile(clone[side].drawPile);
+    });
+    if (Array.isArray(clone.log) && clone.log.length > 60) clone.log = clone.log.slice(-60);
     const fixRefs = (c) => {
       if (!c) return;
       // Functions already gone via JSON.stringify; just convert
