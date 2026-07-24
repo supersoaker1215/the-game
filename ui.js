@@ -5834,8 +5834,12 @@ const UI = {
       const keepId = this._forecastForId;
       this._forecastForId = null;
       const el = this._fxCardElById(keepId);
+      // Silent redraw — rebuild the same arrows/pills WITHOUT re-triggering
+      // their fade-in, so a burst of renders mid-hover doesn't strobe them.
+      this._forecastSilent = true;
       if (el) this._showCombatForecast(el);
       else this._clearCombatForecast();
+      this._forecastSilent = false;
     }
   },
 
@@ -6596,6 +6600,7 @@ const UI = {
     svg.innerHTML =
       '<line x1="' + sx.toFixed(1) + '" y1="' + sy.toFixed(1) + '" x2="' + tx.toFixed(1) + '" y2="' + ty.toFixed(1) + '" stroke="' + color + '" stroke-width="2.6" stroke-linecap="round"/>' +
       '<polygon points="' + tx.toFixed(1) + ',' + ty.toFixed(1) + ' ' + p1x.toFixed(1) + ',' + p1y.toFixed(1) + ' ' + p2x.toFixed(1) + ',' + p2y.toFixed(1) + '" fill="' + color + '"/>';
+    if (this._forecastSilent) svg.style.animation = 'none';   // render-driven redraw: don't restart the fade (strobe)
     this._forecastLayer().appendChild(svg);
   },
   // A "cur → after" pill above a struck target (skull if it dies). Reads the
@@ -6614,6 +6619,7 @@ const UI = {
     b.textContent = dies ? (cur + ' → ☠') : (cur + ' → ' + after);
     b.style.left = (r.left + r.width / 2) + 'px';
     b.style.top = (r.top - 4) + 'px';
+    if (this._forecastSilent) b.style.animation = 'none';
     this._forecastLayer().appendChild(b);
   },
   _forecastHeroBadge(orb, cur, after) {
@@ -6628,6 +6634,10 @@ const UI = {
   },
   _showCombatForecast(cardEl) {
     if (!cardEl || typeof Game === 'undefined' || !Game.combatTargetsOf) return;
+    // 1v1 only: the 2v2/MP render paths early-return before the cross-render
+    // redraw hook, so arrows would orphan (and 2v2 lane geometry differs).
+    const md = Game.state && Game.state.mode;
+    if (md && String(md.players || '').indexOf('2v2') >= 0) { this._clearCombatForecast(); return; }
     const id = cardEl.getAttribute('data-card-id');
     if (!id) return;
     if (this._forecastForId === id) return;    // already drawn for this card

@@ -4630,6 +4630,9 @@ const Game = {
     const lane = this.findCardLane(card);
     if (lane < 0) return out;
     if (!(card.currentHealth > 0) || card.isStunned || card.isFrozen || (card.attack | 0) <= 0) return out;
+    // A mind-controlled card swings at its OWN side (getMindControlTarget) — not
+    // the enemy. Rather than draw a misleading enemy arrow, show nothing.
+    if (card.isMindControlled) return out;
     if (card.isFeared) { out.targets.push({ card: card, kind: 'self' }); return out; }
     const opp = this.opponent(card.owner);
     // Front swing — taunt-redirected (a standing taunter intercepts it).
@@ -10219,9 +10222,11 @@ const Game = {
     // damage and is not modeled). Honors is10CostImmune + selective
     // (lowest-attack) taunts exactly like the resolver.
     const snapAlive = (c) => { const s = c && snap.get(c.id); return !!(s && s.hp > 0); };
-    const resolveTarget = (attackerSide, laneIdx) => {
+    // The intercepting taunter for a swing/splash BY attackerCard on
+    // attackerSide (first alive defending-side taunter by lane, honoring
+    // is10CostImmune + selective/lowest-attack taunts), or null.
+    const taunterFor = (attackerCard, attackerSide) => {
       const defSide = attackerSide === 'player' ? 'ai' : 'player';
-      const attackerCard = this.state.lanes[laneIdx][attackerSide];
       for (let li = 0; li < this.LANE_COUNT; li++) {
         const c = this.state.lanes[li][defSide];
         if (!c || (c.tauntTurns | 0) <= 0 || !snapAlive(c)) continue;
@@ -10234,6 +10239,13 @@ const Game = {
         }
         return c;
       }
+      return null;
+    };
+    const resolveTarget = (attackerSide, laneIdx) => {
+      const attackerCard = this.state.lanes[laneIdx][attackerSide];
+      const t = taunterFor(attackerCard, attackerSide);
+      if (t) return t;
+      const defSide = attackerSide === 'player' ? 'ai' : 'player';
       const front = this.state.lanes[laneIdx][defSide];
       return (front && snapAlive(front)) ? front : null;
     };
@@ -10283,10 +10295,14 @@ const Game = {
         if (!could || s <= 0) return;
         const iev = !!attacker.ignoresEvade;
         const foe = attacker.owner === 'player' ? 'ai' : 'player';
+        // Splash goes through dealDamage in the resolver, which taunt-redirects
+        // enemy damage to the defending side's taunter — so EACH cone hit that
+        // would land on an enemy is soaked by the taunter if one stands.
+        const taunt = taunterFor(attacker, attacker.owner);
         [i - 1, i, i + 1].forEach(li => {
           if (li < 0 || li >= this.LANE_COUNT) return;
           const ln = this.state.lanes[li];
-          if (ln && !ln.destroyed && ln[foe]) applyHit(ln[foe], s, iev);
+          if (ln && !ln.destroyed && ln[foe]) applyHit(taunt || ln[foe], s, iev);
         });
       };
       splashCone(p, pCanAttack);
