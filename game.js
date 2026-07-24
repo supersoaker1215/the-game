@@ -1152,7 +1152,20 @@ const Game = {
               this._clearPromptTimeout();
               this.state.pendingLaneChoice = null;
             }
+            // Honour the guest's Invisible Woman choice. Gated on the actor
+            // actually having the passive so a tampered/stale message can't
+            // hide a card without Invisible Woman on the board.
+            if (msg.faceDown && this.state[actor] && this.state[actor].faceDownAvailable) {
+              card._playFaceDown = true;
+            }
             const placed = this.playCard(actor, card, msg.lane);
+            // playCard consumes the flag on success. On a REJECTED play
+            // (occupied lane, unaffordable) it never gets that far, and the
+            // flag would stay stuck on the card in hand — so the next time
+            // that card was played, even face UP, it would come down hidden.
+            // Clear it unconditionally; deleting an already-consumed flag is
+            // a no-op.
+            delete card._playFaceDown;
             // Surface SILENT host-side rejections so a guest's "card didn't
             // land where I clicked" is diagnosable instead of vanishing.
             if (placed === false) {
@@ -3599,7 +3612,13 @@ const Game = {
     if (this.isMultiplayer() && this.mp.role === 'guest' && owner === this.mp.you && !(this.state && this.state._silentSim)) {
       if (typeof Multiplayer !== 'undefined' && card && card.id != null) {
         console.log('[MP GUEST] playCard:', card.name, 'lane:', laneIdx, '(0-based), visual lane:', laneIdx + 1);
-        Multiplayer.send({ t: 'playCard', cardId: card.id, lane: laneIdx });
+        // faceDown rides along: the guest answers the Invisible Woman prompt
+        // locally, but the HOST owns the engine, so the choice has to travel
+        // with the play or it's lost. Without this the guest could pick "face
+        // down" and still get a face-up card.
+        const faceDown = !!card._playFaceDown;
+        delete card._playFaceDown;   // local copy is throwaway; host applies it
+        Multiplayer.send({ t: 'playCard', cardId: card.id, lane: laneIdx, faceDown });
       }
       return true;
     }
@@ -8346,7 +8365,12 @@ const Game = {
     // a caller explicitly wants the tray shown even for a forced pick.
     const forcedChoice = !forcePrompt && !!(options && options.forced);
     if (this.isHuman(owner) && (cards.length > 1 || forcePrompt) && !forcedChoice) {
-      this.state.pendingCardChoice = { owner, cards, title, desc, callback, faceDown: !!(options && options.faceDown), inlineTray: !!(options && options.inlineTray) };
+      // localOnly: a CLIENT-SIDE prompt the engine/host knows nothing about
+      // (currently the Invisible Woman face-up/face-down question, asked before
+      // the play is submitted). A guest must resolve these locally — forwarding
+      // a promptResolve for a prompt the host never armed would be dropped and
+      // the play would never happen. See cardChoicePick.
+      this.state.pendingCardChoice = { owner, cards, title, desc, callback, faceDown: !!(options && options.faceDown), inlineTray: !!(options && options.inlineTray), localOnly: !!(options && options.localOnly) };
       // 2v2 online: route guest choices to the guest client (same as lane choice)
       const _cap = this._2v2CurrentActingPlayer;
       // Stamp the host (p1) too. Excluding p1 left every host-raised prompt

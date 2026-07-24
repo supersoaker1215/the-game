@@ -19435,16 +19435,12 @@ const UI = {
     // double-click can't fire a second play. _neverPlayable (Iron Giant) is
     // rejected inside Game.playCard before the forward, so it flashes the
     // "guards from your hand" hint instead of being sent.
-    if (Game.isMultiplayer() && Game.mp && Game.mp.role === 'guest') {
-      if (Game.submitCommand({ type: 'playCard', payload: { card, lane: i } })) {
-        this._clearOrLockSelection(s);
-      } else {
-        this._flashRejectedLaneClick(card, s);
-      }
-      this.render();
-      return;
-    }
-    // Invisible Woman face-down option
+    // Invisible Woman face-down option. Checked BEFORE the guest-forward
+    // below: this used to sit after it, so an online GUEST hit the early
+    // return and was never offered the choice — Invisible Woman simply did
+    // nothing for the joining player. The prompt is local to whoever is
+    // placing the card (state is seat-flipped on the guest, so `s.player` is
+    // always the local human), and the resulting flag rides the wire.
     if (s.player.faceDownAvailable && !card.isDiscardEffect) {
       const faceUp = { name: 'Play Face Up', desc: 'Play normally — all abilities activate', id: 'faceup_opt' };
       const faceDown = { name: 'Play Face Down', desc: 'Hidden until combat — abilities activate on reveal', id: 'facedown_opt' };
@@ -19455,9 +19451,32 @@ const UI = {
           if (choice.id === 'facedown_opt') {
             card._playFaceDown = true;
           }
-          if (Game.submitCommand({ type: 'playCard', payload: { card, lane: i } })) this._clearOrLockSelection(s);
+          if (Game.submitCommand({ type: 'playCard', payload: { card, lane: i } })) {
+            this._clearOrLockSelection(s);
+          } else {
+            // Rejected before it ever reached playCard (which is what clears
+            // the flag) — drop it here so a later face-UP play of this same
+            // card isn't silently hidden.
+            delete card._playFaceDown;
+            this._flashRejectedLaneClick(card, s);
+          }
           this.render();
-        });
+        },
+        null,
+        // Client-side question — the host never armed this prompt, so the
+        // guest must resolve it locally and send the answer with the play.
+        { localOnly: true, forcePrompt: true });
+      return;
+    }
+    // MP GUEST plays EXACTLY like the host: forward ONE authoritative
+    // {t:'playCard', cardId, lane} for the lane the guest actually clicked.
+    if (Game.isMultiplayer() && Game.mp && Game.mp.role === 'guest') {
+      if (Game.submitCommand({ type: 'playCard', payload: { card, lane: i } })) {
+        this._clearOrLockSelection(s);
+      } else {
+        this._flashRejectedLaneClick(card, s);
+      }
+      this.render();
       return;
     }
     if (Game.submitCommand({ type: 'playCard', payload: { card, lane: i } })) {
@@ -23736,8 +23755,18 @@ function cardChoicePick(idx) {
   if (!cc) return;
   // In multiplayer the guest sends their choice to the host for authoritative
   // resolution instead of running the callback in their local display copy.
-  if (Game.isMultiplayer() && Game.mp && Game.mp.role === 'guest') {
+  // localOnly prompts are pure client-side questions the host never armed
+  // (Invisible Woman's face-up/face-down). Forwarding one would be dropped by
+  // the host and the pending action would never fire — resolve it here.
+  if (Game.isMultiplayer() && Game.mp && Game.mp.role === 'guest' && !cc.localOnly) {
     if (typeof Multiplayer !== 'undefined') Multiplayer.send({ t: 'promptResolve', choiceType: 'card', idx });
+    return;
+  }
+  if (cc.localOnly) {
+    const pick = cc.cards[idx];
+    Game.state.pendingCardChoice = null;
+    if (typeof cc.callback === 'function' && pick) cc.callback(pick);
+    UI.render();
     return;
   }
   // Host in 1v1 multiplayer: don't let the host resolve the opponent's (guest's) choices.
