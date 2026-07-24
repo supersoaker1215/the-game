@@ -11073,7 +11073,10 @@ const UI = {
   // localStorage as `clb-mp-server`). Once a public PartyKit deploy
   // exists, the URL will default to that and end-users won't need to
   // touch this — it's a power-user knob.
-  _mpState: { tab: 'create', code: null, status: 'idle', you: null, opponent: null },
+  // `mode` is the ROOM's mode, chosen by the host at create time: 'classic'
+  // (shared 95-card draft) or 'deck' (both build, then ready up). The guest
+  // learns it from the first message the host sends.
+  _mpState: { tab: 'create', code: null, status: 'idle', you: null, opponent: null, mode: 'classic' },
 
   // ===================== SHARED DECK-BUILD LOBBY =====================
   // When a friend joins an online 1v1, BOTH players land in the deck builder
@@ -11119,9 +11122,15 @@ const UI = {
     this._mpLobby.active = true;
     this._mpLobby.myReady = false;
     this._mpLobby.starting = false;
+    this._mpState.mode = 'deck';
     this._mpReturnToLobby = true;
-    // Preserve an in-progress build if the host was already assembling one;
-    // otherwise open an empty builder to build from scratch.
+    // We know the room's mode now — the join-time reqState poll (which exists
+    // for classic rooms) has nothing left to wait for.
+    if (this._mpStateRetry) { clearInterval(this._mpStateRetry); this._mpStateRetry = null; }
+    // Preserve an in-progress build if one was already under way; otherwise
+    // seed the builder with the deck picked on the multiplayer screen, so a
+    // pre-picked deck can be readied immediately (or tweaked). Falls back to an
+    // empty builder when nothing was chosen — build from scratch.
     const db = (typeof Game !== 'undefined' && Game.state) ? Game.state.deckbuilder : null;
     const hasWork = db && ((db.cards && db.cards.length) || (db.tricks && db.tricks.length));
     if (Game.state.phase !== 'deckbuilder-build') {
@@ -11129,6 +11138,13 @@ const UI = {
       else Game.enterDeckBuilder();
     } else {
       this.render();
+    }
+    if (!hasWork) {
+      const pre = this._mpDeckPayload();
+      if (pre) {
+        Game.state.deckbuilder = { cards: pre.cards.slice(), tricks: pre.tricks.slice(), presetName: null };
+        this.render();
+      }
     }
     // Seed the opponent with our starting status (not ready, current counts).
     this._mpSendLobby();
@@ -11289,12 +11305,17 @@ const UI = {
       this._mpState.gotState = false;
       this._mpState.pairedAt = Date.now();
       this._mpRender();
-      // Guest: connected — join the host in the shared deck builder. The old
-      // path polled the host with reqState waiting for a match state, which
-      // would now hang forever (the host doesn't start until both ready).
-      // The reqState safety net is re-armed at START time instead, once both
-      // sides are ready and a state broadcast is genuinely expected.
-      this._mpEnterLobby();
+      // Guest: connected, but the ROOM'S MODE is the host's call and we don't
+      // know it yet. Just wait and let the first message decide:
+      //   • a 'lobby' message  → custom-deck room; _mpOnLobby pulls us into
+      //     the shared builder.
+      //   • a 'state' push     → classic room; the existing state handler
+      //     drops us straight into the draft, as it always did.
+      // Keep polling reqState meanwhile: in a classic room the host IS in a
+      // match and that first push can be lost, which used to strand the guest
+      // on "Dropping into the match…". In a deck room the poll is harmless —
+      // the host's _mpBroadcast refuses to send a pre-match state.
+      this._mpArmStateRetry();
     });
     // Lobby sync from the other side (ready flag + deck once ready).
     Multiplayer.on('lobby', (m) => this._mpOnLobby(m));
@@ -11313,8 +11334,19 @@ const UI = {
         ? { cards: m.deck.cards.slice(), tricks: m.deck.tricks.slice() }
         : null;
       this._mpState.oppDeckName = guestDeck ? (m.deck.name || 'custom deck') : null;
-      // A deck sent on the join handshake is only a starting point — the guest
-      // still has to ready up in the lobby before it counts.
+      // CLASSIC room: behave exactly as before — start the shared-pool draft
+      // immediately. No builder, no ready check. This is the path the ready-
+      // check work had accidentally removed.
+      if (this._mpState.mode !== 'deck') {
+        if (typeof Game !== 'undefined' && Game.startMultiplayerHost) {
+          this._mpReturnToLobby = false;
+          Game.startMultiplayerHost({});
+          this._mpApplyNames(Game.state);
+        }
+        return;
+      }
+      // CUSTOM-DECK room: both players build, then ready up. A deck sent on the
+      // join handshake is only a starting point — the guest still has to ready.
       this._mpEnterLobby();
     });
     Multiplayer.on('opponentLeft', () => {
@@ -11496,10 +11528,14 @@ const UI = {
     }
     return new Multiplayer.WebRTCTransport();
   },
-  _mpCreateRoom() {
+  // mode: 'classic' (shared 95-card draft, straight into the match) or 'deck'
+  // (both players build in the shared lobby and ready up). The HOST owns this
+  // choice for the room; the guest is told which on join — it doesn't pick.
+  _mpCreateRoom(mode) {
     if (typeof Multiplayer === 'undefined') { UI.alertModal('Multiplayer module not loaded.'); return; }
     const transport = this._mpPickTransport();
     if (!transport) { UI.alertModal('No multiplayer transport available.'); return; }
+    this._mpState.mode = (mode === 'deck') ? 'deck' : 'classic';
     transport.open();
     Multiplayer.init(transport);
     Multiplayer.createRoom({ name: this._mpName(), deck: this._mpDeckPayload() });
@@ -11522,7 +11558,8 @@ const UI = {
     if (this._mpStateRetry) { clearInterval(this._mpStateRetry); this._mpStateRetry = null; }
     if (typeof Multiplayer !== 'undefined') Multiplayer.leave();
     if (typeof Game !== 'undefined' && Game.resetMultiplayer) Game.resetMultiplayer();
-    this._mpState = { tab: 'create', code: null, status: 'idle', you: null, opponent: null };
+    this._mpState = { tab: 'create', code: null, status: 'idle', you: null, opponent: null, mode: 'classic' };
+    this._mpLobbyReset();
     this._mpRender();
   },
   _mpCopyCode() {
@@ -11734,7 +11771,9 @@ const UI = {
   // assembled. Safe because the host's deck is resolved at opponentJoined.
   _mpCreateRoomFromBuilder() {
     this._mpInit();
-    this._mpCreateRoom();
+    // Opening a room from inside the builder is unambiguously a custom-deck
+    // room — the player is already building.
+    this._mpCreateRoom('deck');
     // _mpCreateRoom's roomCreated handler calls _mpRender(), which is a no-op
     // while the MP panel isn't mounted — re-render the builder so the banner
     // picks up the new code.
@@ -11851,8 +11890,9 @@ const UI = {
         </div>` : '';
       body = `
         <div class="mm-grid mm-grid-section mp-opts">
-          ${_mmOpt('mp-opt-create', 'Create Room', 'Generate a code to share', IC.play, 'UI._mpCreateRoom()')}
-          ${_mmOpt('mp-opt-join', 'Join Room', "Enter a friend's code", IC.play, "UI._mpSetTab('join')")}
+          ${_mmOpt('mp-opt-create', 'Create Room · Classic Draft', 'Shared 95-card pool — straight into the draft', IC.play, "UI._mpCreateRoom('classic')")}
+          ${_mmOpt('mp-opt-create-deck', 'Create Room · Custom Decks', `Both build a ${UI.DECK_CARD_MAX}-card deck, then ready up`, IC.decks, "UI._mpCreateRoom('deck')")}
+          ${_mmOpt('mp-opt-join', 'Join Room', "Enter a friend's code — the host picks the mode", IC.play, "UI._mpSetTab('join')")}
           ${joinInline}
           ${_mmOpt('mp-opt-2v2', '2v2 Online', '4 players · own devices', IC.multi, 'Game.goTo2v2OnlineLobby()')}
         </div>
@@ -11873,7 +11913,10 @@ const UI = {
         <div class="mp-status-label mp-status-waiting">Waiting for opponent<span class="mp-loader mp-loader-inline" aria-hidden="true"><span></span><span></span><span></span></span></div>
         <div id="mp-code-display" class="mp-code-display mp-code-boxless" onclick="UI._mpCopyCode()" title="Tap to copy">${st.code || '----'}</div>
         <div class="mp-share-hint">Share this code — your friend picks Join Room and enters it.</div>
-        ${this._mpDeckPickerHTML({ waiting: true })}
+        <div class="mp-share-hint">${st.mode === 'deck'
+          ? `Custom decks — when they join you'll both build a ${UI.DECK_CARD_MAX}-card deck and ready up.`
+          : 'Classic draft — the match starts as soon as they join.'}</div>
+        ${st.mode === 'deck' ? this._mpDeckPickerHTML({ waiting: true }) : ''}
       </div>`;
     } else if (st.status === 'joining') {
       body = `<div class="mp-status">

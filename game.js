@@ -1663,6 +1663,11 @@ const Game = {
   // delegates to whichever transport is active. Called whenever the
   // host applies an action — keeps the guest in sync with no extra
   // bookkeeping at call sites.
+  // Menu / pre-match screens. A state carrying one of these phases is never
+  // authoritative match state, so it must not go over the wire — see the guard
+  // in _mpBroadcast.
+  _MP_NON_MATCH_PHASES: /^(main-menu|mode-select|my-decks|stats|deckbuilder-|2v2-online-lobby|2v2-team-setup)/,
+
   _mpBroadcast() {
     if (!this.isMultiplayer() || this.mp.role !== 'host') return;
     // _silentSim guard: previewPlacement()/previewPlay() swap this.state to a
@@ -1674,6 +1679,18 @@ const Game = {
     // run must never touch the wire; the real broadcast fires when the host
     // actually plays (this.state is the live state, _silentSim unset).
     if (this.state && this.state._silentSim) return;
+    // Never broadcast a PRE-MATCH state. During the shared deck-build lobby the
+    // host's state is its own deckbuilder; pushing that to the guest would run
+    // acceptMultiplayerState on a 'deckbuilder-build' phase and stomp the
+    // guest's in-progress deck with the host's. The guest polls reqState while
+    // it waits (that poll exists for classic mode, where the host IS in a
+    // match), and the trailing broadcast in _mpApplyAction answers every action
+    // unconditionally — so without this guard a single stray reqState during
+    // the lobby would wipe the other player's build.
+    // Blocklist (not an allowlist) so a match phase I failed to enumerate is
+    // never silently dropped from the wire — only known menu screens are cut.
+    const _ph = this.state && this.state.phase;
+    if (_ph && this._MP_NON_MATCH_PHASES.test(_ph)) return;
     if (typeof Multiplayer === 'undefined') return;
     const t = Multiplayer._transport;
     if (!t || typeof t.broadcastState !== 'function') return;
