@@ -16713,20 +16713,25 @@ const UI = {
     );
     let charmed = false;
     for (const ivy of sideIvys) {
-      // Layer 1 — explicit flag set in _charm
-      if (c._charmedByIvy != null && c._charmedByIvy === ivy.id) { charmed = true; break; }
-      // Layer 2 — legacy object-ref match
-      if (ivy._ivyAlly && ivy._ivyAlly.id === c.id) { charmed = true; break; }
-      // Layer 3 — self-heal: if Ivy has an active charm buff and this
-      // ally is the highest-ATK match for the buff delta, claim it.
-      const buff = (ivy._grantedBuffs || []).find(b => b && b._ivyCharm && (b.delta | 0) > 0);
-      if (!buff) continue;
-      const allies = Game.getAllCardsOf(ivy.owner).filter(a => a.id !== ivy.id && a.currentHealth > 0 && (a.attack || 0) > 0);
-      if (!allies.length) continue;
-      // Pick whoever's ATK matches the buff delta (Ivy gained +N → ally has N ATK).
-      const matching = allies.filter(a => (a.attack | 0) === (buff.delta | 0));
-      const sortedByAtk = (matching.length ? matching : allies).slice().sort((a, b) => (b.attack || 0) - (a.attack || 0));
-      if (sortedByAtk[0] && sortedByAtk[0].id === c.id) { charmed = true; break; }
+      // Resolve this Ivy's ONE charmed ally: Layer 1 (explicit flag) → Layer 2
+      // (legacy ref) → Layer 3 (self-heal guess). Layer 3 must fire ONLY when
+      // 1 & 2 found nothing — else it independently attributes the charm to the
+      // highest-ATK ally IN ADDITION to the real target, lighting a SECOND
+      // (phantom) Charmed badge. One Ivy charms exactly one ally.
+      let charmedId = null;
+      const tagged = Game.getAllCardsOnBoard().find(x => x._charmedByIvy === ivy.id);
+      if (tagged) charmedId = tagged.id;                                              // Layer 1
+      else if (ivy._ivyAlly && ivy._ivyAlly.id != null) charmedId = ivy._ivyAlly.id;  // Layer 2
+      else {                                                                          // Layer 3 (fallback only)
+        const buff = (ivy._grantedBuffs || []).find(b => b && b._ivyCharm && (b.delta | 0) > 0);
+        if (buff) {
+          const allies = Game.getAllCardsOf(ivy.owner).filter(a => a.id !== ivy.id && a.currentHealth > 0 && (a.attack || 0) > 0);
+          const matching = allies.filter(a => (a.attack | 0) === (buff.delta | 0));
+          const sorted = (matching.length ? matching : allies).slice().sort((a, b) => (b.attack || 0) - (a.attack || 0));
+          if (sorted[0]) charmedId = sorted[0].id;
+        }
+      }
+      if (charmedId != null && charmedId === c.id) { charmed = true; break; }
     }
     if (charmed) b.push(badge('badge-charmed', 'Charmed', 'Charm'));
     return b.join('');
