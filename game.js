@@ -10184,24 +10184,17 @@ const Game = {
 
     const canHitEnemy = this._canSwingForward.bind(this);
 
-    // applyHit → taunt redirect → invincible/immunity → evade (pierced only by
-    // ignoresEvade, NOT Bullseye) → armor → HP. The first alive non-target
-    // taunter on the defending side absorbs the hit, mirroring the resolver's
-    // getAttackTarget lookup. (The predictor is an APPROXIMATION of the full
-    // lane resolver — it does not model uncontested/face swings, mind-control
-    // or fear self-hits, or exact lane-by-lane taunt-kill ordering.)
+    // applyHit = PURE damage application: invincible/immunity block → evade
+    // (pierced only by ignoresEvade, NOT Bullseye) → armor → HP. NO taunt
+    // redirect here — a FRONT swing's real target is chosen up-front by
+    // resolveTarget (taunt-aware, below), and SPLASH never redirects (the
+    // resolver's applySplash hits specific lanes directly). Baking redirect into
+    // applyHit wrongly bounced SPLASH onto taunters and picked taunters the
+    // resolver would already have killed with an uncontested swing this pass.
     const applyHit = (targetCard, raw, attackerIgnoresEvade) => {
       if (!targetCard || raw <= 0) return 0;
-      let final = snap.get(targetCard.id);
+      const final = snap.get(targetCard.id);
       if (!final || final.hp <= 0) return 0;
-      const owner = targetCard.owner;
-      let taunterPick = null, taunterPickLane = Infinity;
-      snap.forEach(s => {
-        if (s.owner !== owner || s.id === targetCard.id) return;
-        if (!s.ref.tauntTurns || s.ref.tauntTurns <= 0 || s.hp <= 0) return;
-        if (s.lane < taunterPickLane) { taunterPick = s; taunterPickLane = s.lane; }
-      });
-      if (taunterPick) final = taunterPick;
       if (final.ref.invincibleTurns > 0 || final.ref.hasDamageImmunity) return 0;
       const canDodge = !final.ref.isStunned && !final.ref.isFrozen;
       if (canDodge && final.evade > 0 && !attackerIgnoresEvade) { final.evade--; return 0; }
@@ -10209,6 +10202,32 @@ const Game = {
       final.hp -= landed;
       final.dmgIn += landed;
       return landed;
+    };
+
+    // Taunt-aware target selection — mirrors getAttackTarget (game.js:4552) but
+    // reads the SNAPSHOT for liveness. Returns the intercepting taunter (first
+    // alive defending-side taunter by lane order), else the card directly in
+    // front, else null (an uncontested swing → the hero, which deals no CARD
+    // damage and is not modeled). Honors is10CostImmune + selective
+    // (lowest-attack) taunts exactly like the resolver.
+    const snapAlive = (c) => { const s = c && snap.get(c.id); return !!(s && s.hp > 0); };
+    const resolveTarget = (attackerSide, laneIdx) => {
+      const defSide = attackerSide === 'player' ? 'ai' : 'player';
+      const attackerCard = this.state.lanes[laneIdx][attackerSide];
+      for (let li = 0; li < this.LANE_COUNT; li++) {
+        const c = this.state.lanes[li][defSide];
+        if (!c || (c.tauntTurns | 0) <= 0 || !snapAlive(c)) continue;
+        if (this.is10CostImmune(attackerCard, c)) continue;
+        if (c.tauntOnlyLowestAttack) {
+          const same = this.getAllCardsOf(attackerSide);
+          const minAtk = same.length ? Math.min.apply(null, same.map(x => x.attack | 0)) : 0;
+          if (attackerCard && (attackerCard.attack | 0) === minAtk) return c;
+          continue;
+        }
+        return c;
+      }
+      const front = this.state.lanes[laneIdx][defSide];
+      return (front && snapAlive(front)) ? front : null;
     };
 
     // For each lane, left to right: front-on-front swings, then the splash cone.
@@ -10228,16 +10247,22 @@ const Game = {
       // stun/freeze/fear/mind-control gate, so those cards still don't splash
       // (matches the predictor's prior approximation); +ATK>0 (a 0-ATK card
       // never swings — resolveLaneCombat:4664).
-      const pCanSplash = !!(pSnap && pSnap.hp > 0 && canHitEnemy(p) && (p.attack | 0) > 0);
-      const aCanSplash = !!(aSnap && aSnap.hp > 0 && canHitEnemy(a) && (a.attack | 0) > 0);
+      const pCanAttack = !!(pSnap && pSnap.hp > 0 && canHitEnemy(p) && (p.attack | 0) > 0);
+      const aCanAttack = !!(aSnap && aSnap.hp > 0 && canHitEnemy(a) && (a.attack | 0) > 0);
 
-      // Front-on-front (simultaneous — ATK snapshotted before either lands).
-      if (pSnap && aSnap && pSnap.hp > 0 && aSnap.hp > 0) {
-        const pAtk = canHitEnemy(p) ? (p.attack | 0) : 0;
-        const aAtk = canHitEnemy(a) ? (a.attack | 0) : 0;
-        applyHit(p, aAtk, !!a.ignoresEvade);
-        applyHit(a, pAtk, !!p.ignoresEvade);
-      }
+      // Front swing — routed through the SAME taunt-aware targeting the resolver
+      // uses (getAttackTarget). Each side swings independently at its resolved
+      // target, so an UNCONTESTED attacker still hits a standing taunter (and can
+      // KILL it, changing who later lanes strike). ATK is snapshotted so a card
+      // that dies in the exchange still deals full; targets read the CURRENT
+      // snapshot, so a taunter already killed by an earlier lane is skipped and
+      // the swing falls through to the front card.
+      const pAtk = pCanAttack ? (p.attack | 0) : 0;
+      const aAtk = aCanAttack ? (a.attack | 0) : 0;
+      const pTgt = pCanAttack ? resolveTarget('player', i) : null;
+      const aTgt = aCanAttack ? resolveTarget('ai', i) : null;
+      if (pTgt) applyHit(pTgt, pAtk, !!p.ignoresEvade);
+      if (aTgt) applyHit(aTgt, aAtk, !!a.ignoresEvade);
 
       // Splash cone — mirrors the resolver's applySplash(card, i): the front
       // enemy (same lane, ON TOP of the front swing) + BOTH adjacent lanes'
@@ -10256,8 +10281,8 @@ const Game = {
           if (ln && !ln.destroyed && ln[foe]) applyHit(ln[foe], s, iev);
         });
       };
-      splashCone(p, pCanSplash);
-      splashCone(a, aCanSplash);
+      splashCone(p, pCanAttack);
+      splashCone(a, aCanAttack);
     }
 
     // Build the result map keyed by card id.
