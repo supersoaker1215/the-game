@@ -4458,6 +4458,16 @@ const Game = {
     });
 
     this.getAllCardsOnBoard().forEach(c => {
+      // A card that ENTERED mid-combat — summoned by an onDeath/onKill THIS
+      // combat (Ghost Rider's rise, etc.), after the attack phase — hasn't had
+      // a turn, so it must NOT be charged a round of its N-turn status counters
+      // (Invincible N, Taunt N, stun/freeze/fear). Skip its whole end-of-round
+      // tick once and consume the flag, so those durations start counting NEXT
+      // round. (Same "entered late → keep the full count" spirit as
+      // _debuffDelayedClear below. User: a Ghost-Rider-summoned card "didn't
+      // take its turn yet after the attack phase," so its effects are for next
+      // turn.)
+      if (c._enteredMidCombat) { delete c._enteredMidCombat; return; }
       // Debuffs applied AFTER combat resolved this round (block-trick
       // plays like Mind Stone on a filled block meter, or any trick
       // fired while _combatFinishedThisRound is true) carry over one
@@ -8596,6 +8606,9 @@ const Game = {
     // the other side's slot. placeInLane already stamped; these paths didn't.
     card.owner = owner;
     this.state.lanes[laneIdx][owner] = card;
+    // Summoned DURING combat (Ghost Rider onDeath, etc.) → skip this round's
+    // status-counter tick (it hasn't had a turn). Consumed in postCombat.
+    if (this.state._inCombat) card._enteredMidCombat = true;
     this._emitEntranceFX(card);
     card.statsEnteredRound = this.state.round || 1;
     this.log(`  [SUMMON] ${name} (${card.attack}/${card.currentHealth}) in lane ${laneIdx + 1}`);
@@ -8683,6 +8696,9 @@ const Game = {
     if (card && this.findCardLane(card) >= 0) return;   // never place a card twice
     card.owner = owner;
     this.state.lanes[laneIdx][owner] = card;
+    // Entered DURING combat (a mid-combat revive/placement) → skip this round's
+    // status-counter tick; it hasn't had a turn. Consumed in postCombat.
+    if (this.state._inCombat) card._enteredMidCombat = true;
     this._emitEntranceFX(card);
     this.checkLaneTrap(card, laneIdx);
   },
