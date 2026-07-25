@@ -172,6 +172,10 @@ const Game = {
   },
 
   resumeCombatIfWaiting() {
+    // A dead-BWL keep/destroy prompt must not park combat — auto-keep + clear it
+    // before the pending-prompt gate below (it counts stolenByBWL). Safe: the
+    // reconcile never re-enters resumeCombatIfWaiting.
+    this._reconcileBwlPrompts();
     // If the callback chained a new prompt (e.g. Omega Beam target→amount),
     // keep the continuation parked and let the next resolve fire it.
     if (this.hasPendingPrompt()) return;
@@ -1185,6 +1189,13 @@ const Game = {
         case 'playCardFree': {
           const card = findCardById(msg.cardId);
           if (card) this.playCardFree(actor, card, msg.lane);
+          break;
+        }
+        case 'bwlChoice': {
+          // Guest resolved a Batman Who Laughs keep/destroy prompt — apply it
+          // authoritatively so the host clears stolenByBWL and broadcasts (else
+          // the popup loops on the guest). Only the actor's own prompt.
+          this._applyBwlChoice(actor, !!msg.keep);
           break;
         }
         case 'playJump': {
@@ -3548,6 +3559,81 @@ const Game = {
     return laneIdx;
   },
 
+  // Present the Batman Who Laughs keep/destroy choice to a HUMAN owner — or
+  // AUTO-KEEP when the choice is moot. The ONLY reason to Destroy is to buff BWL
+  // (+2/+2); with BWL already dead there is nothing to buff, so we auto-keep and
+  // never arm the prompt. Running this host-authoritatively (and reconciling on
+  // every death, below) is also what stops the popup looping forever in MP when
+  // BWL died. User: "BWL was killed so it needs to auto keep." One shared entry
+  // point for both the playCard and jump/free-play intercept paths.
+  _offerBwlKeepOrDestroy(opp, card, bwl) {
+    const bwlAlive = !!(bwl && bwl.currentHealth > 0 && this.findCardLane(bwl) >= 0);
+    if (!bwlAlive) {
+      this.addToHand(opp, card, bwl);
+      this.log(`  [BWL] ${card.name} is kept — Batman Who Laughs is gone.`);
+      this.resumeCombatIfWaiting();
+      if (typeof UI !== 'undefined' && UI.render) UI.render();
+      return;
+    }
+    this.state[opp].stolenByBWL = { card, bwl };
+    if (typeof UI !== 'undefined' && UI.render) UI.render();
+    this._startPromptTimeout(() => {
+      const data = this.state[opp].stolenByBWL;
+      if (!data) return;
+      this.state[opp].stolenByBWL = null;
+      this.addToHand(opp, data.card, data.bwl);
+      this.log(`  [BWL] You keep ${data.card.name} in hand!`);
+      this.resumeCombatIfWaiting();
+      if (typeof UI !== 'undefined' && UI.render) UI.render();
+    });
+  },
+
+  // Host-authoritative self-heal: if a BWL keep/destroy prompt is still pending
+  // but its Batman Who Laughs has since died (killed mid-prompt), auto-keep the
+  // stolen card and clear the prompt — Destroy is pointless with no BWL to buff,
+  // and leaving it armed loops the popup forever in MP. Called from cleanupDead
+  // (every death sweep) and from resumeCombatIfWaiting (so a parked combat
+  // unblocks). Returns true if it cleared anything. Does NOT call resume itself
+  // (avoids re-entrancy inside the death sweep).
+  _reconcileBwlPrompts() {
+    let cleared = false;
+    ['player', 'ai'].forEach(seat => {
+      const st = this.state[seat];
+      if (!st || !st.stolenByBWL) return;
+      const bwl = st.stolenByBWL.bwl;
+      if (bwl && bwl.currentHealth > 0 && this.findCardLane(bwl) >= 0) return; // still alive
+      const data = st.stolenByBWL;
+      st.stolenByBWL = null;
+      this.addToHand(seat, data.card, data.bwl);
+      this.log(`  [BWL] ${data.card.name} is kept — Batman Who Laughs is gone.`);
+      cleared = true;
+    });
+    return cleared;
+  },
+
+  // Host-authoritative resolution of a BWL keep/destroy choice. In MP the guest
+  // FORWARDS its choice via a 'bwlChoice' action rather than mutating its local
+  // display copy — otherwise the host keeps re-broadcasting stolenByBWL and the
+  // popup loops on the guest. Auto-keeps if BWL is dead regardless of the pick
+  // (nothing to buff). Also the single resolve path for host / single-player.
+  _applyBwlChoice(seat, keep) {
+    const st = this.state[seat];
+    if (!st || !st.stolenByBWL) return;
+    const data = st.stolenByBWL;
+    st.stolenByBWL = null;
+    const bwl = data.bwl;
+    const bwlAlive = !!(bwl && bwl.currentHealth > 0 && this.findCardLane(bwl) >= 0);
+    if (keep || !bwlAlive) {
+      this.addToHand(seat, data.card, bwl);
+      this.log(`  [BWL] ${this.seatLabel(seat)} keeps ${data.card.name} in hand!`);
+    } else {
+      this.buffCard(bwl, 2, 2);
+      this.log(`  [BWL] ${this.seatLabel(seat)} destroys ${data.card.name} — Batman Who Laughs gains +2/+2!`);
+    }
+    this.resumeCombatIfWaiting();
+    if (typeof UI !== 'undefined' && UI.render) UI.render();
+  },
+
   // Batman Who Laughs intercept — when the playing side has a flagged
   // pending steal, the card transfers to the opponent's hand instead of
   // landing on the board. Player gets a destroy/keep choice; AI auto-
@@ -3578,19 +3664,8 @@ const Game = {
     // never offered the keep/destroy choice at all. User report: "batman who
     // laughs hasnt been giving me the option to keep the card or kill."
     if (this.isHuman(opp)) {
-      // Owner chooses keep or destroy via prompt.
-      this.state[opp].stolenByBWL = { card, bwl };
-      UI.render();
-      this._startPromptTimeout(() => {
-        const data = this.state[opp].stolenByBWL;
-        if (!data) return;
-        this.state[opp].stolenByBWL = null;
-        // Default: keep (matches typical player intent — preserves a card)
-        this.addToHand(opp, data.card, data.bwl);
-        this.log(`  [BWL] You keep ${data.card.name} in hand!`);
-        this.resumeCombatIfWaiting();
-        UI.render();
-      });
+      // Owner chooses keep or destroy — or auto-keep if BWL is already gone.
+      this._offerBwlKeepOrDestroy(opp, card, bwl);
     } else {
       // AI auto-keeps high cost, destroys low cost.
       if (card.baseCost <= 3 && bwl) {
@@ -3923,17 +3998,7 @@ const Game = {
       // Same isHuman gate as _resolveBwlIntercept — the jump path had the
       // identical hardcoded-seat bug.
       if (this.isHuman(opp)) {
-        this.state[opp].stolenByBWL = { card, bwl };
-        UI.render();
-        this._startPromptTimeout(() => {
-          const data = this.state[opp].stolenByBWL;
-          if (!data) return;
-          this.state[opp].stolenByBWL = null;
-          this.addToHand(opp, data.card, data.bwl);
-          this.log(`  [BWL] You keep ${data.card.name} in hand!`);
-          this.resumeCombatIfWaiting();
-          UI.render();
-        });
+        this._offerBwlKeepOrDestroy(opp, card, bwl);
       } else {
         if (card.baseCost <= 3 && bwl) {
           this.buffCard(bwl, 2, 2);
@@ -6695,6 +6760,9 @@ const Game = {
         if (c && c.currentHealth <= 0) this.handleDeath(c, i, null);
       });
     }
+    // If a Batman Who Laughs just died with a keep/destroy prompt still armed,
+    // auto-keep the stolen card so the popup can't loop (esp. in MP).
+    this._reconcileBwlPrompts();
     // Aura reconcile rides every death sweep — a source that just died has
     // its aura lifted here. Hostile aura kills reap themselves (debuffCard's
     // allowKill path calls killCard), but if a reconcile strands a card at

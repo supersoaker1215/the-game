@@ -184,6 +184,52 @@ gold('RG-3e Moder cannot claim into an occupied lane; BWL takes it', function ()
 });
 
 // ============================================================
+// BATMAN WHO LAUGHS keep/destroy auto-keep (2026-07-24)
+// A dead BWL has nothing to buff, so the keep/destroy prompt must auto-keep
+// (and clear) instead of looping the popup — esp. host-authoritatively in MP.
+// ============================================================
+
+// RG-3f — a pending steal whose BWL has since died is reconciled to a keep.
+gold('RG-3f BWL prompt auto-keeps when Batman Who Laughs is dead', function () {
+  reset();
+  var stolen = card({ name: 'Gizmo', owner: 'ai' });
+  var bwl = card({ name: 'The Batman Who Laughs', owner: 'ai' });
+  bwl.currentHealth = 0;                       // dead + never placed -> findCardLane = -1
+  Game.state.ai.stolenByBWL = { card: stolen, bwl: bwl };
+  var cleared = Game._reconcileBwlPrompts();
+  eq('reconcile cleared',  cleared, true);
+  eq('prompt cleared',     Game.state.ai.stolenByBWL, null);
+  eq('card kept in hand',  Game.state.ai.hand.indexOf(stolen) >= 0, true);
+});
+
+// RG-3g — choosing Destroy with a dead BWL still keeps (no corpse to buff).
+gold('RG-3g BWL Destroy with a dead Batman auto-keeps', function () {
+  reset();
+  var stolen = card({ name: 'Gremlin', owner: 'ai' });
+  var bwl = card({ name: 'The Batman Who Laughs', owner: 'ai' });
+  bwl.currentHealth = 0;
+  Game.state.ai.stolenByBWL = { card: stolen, bwl: bwl };
+  Game._applyBwlChoice('ai', false);           // Destroy...
+  eq('prompt cleared', Game.state.ai.stolenByBWL, null);
+  eq('kept anyway',    Game.state.ai.hand.indexOf(stolen) >= 0, true);
+});
+
+// RG-3h — Destroy with a LIVING BWL destroys the card and buffs him +2/+2.
+gold('RG-3h BWL Destroy with a living Batman buffs +2/+2', function () {
+  reset();
+  var stolen = card({ name: 'Gremlin', owner: 'ai', attack: 2, health: 2 });
+  var bwl = card({ name: 'The Batman Who Laughs', owner: 'ai', attack: 4, health: 5 });
+  place(bwl, 2, 'ai');                         // alive on board
+  Game.state.ai.stolenByBWL = { card: stolen, bwl: bwl };
+  var atk0 = bwl.attack, hp0 = bwl.currentHealth;
+  Game._applyBwlChoice('ai', false);           // Destroy
+  eq('prompt cleared',   Game.state.ai.stolenByBWL, null);
+  eq('card NOT in hand', Game.state.ai.hand.indexOf(stolen) < 0, true);
+  eq('bwl +2 atk',       bwl.attack, atk0 + 2);
+  eq('bwl +2 hp',        bwl.currentHealth, hp0 + 2);
+});
+
+// ============================================================
 // FORCED FREEZE (freezeCardUnresistible)
 // ============================================================
 

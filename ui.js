@@ -23926,6 +23926,13 @@ function bwlChoiceKeep() {
   // guest, hotseat P2, 2v2 Team B), not just 'player'.
   const seat = UI._bwlSeat(s);
   if (!seat) return;
+  // Guest forwards to the host for authoritative resolution — resolving in the
+  // guest's local display copy gets overwritten by the host's next broadcast,
+  // so the popup loops. The host clears stolenByBWL and broadcasts.
+  if (Game.isMultiplayer() && Game.mp && Game.mp.role === 'guest') {
+    if (typeof Multiplayer !== 'undefined') Multiplayer.send({ t: 'bwlChoice', keep: true });
+    return;
+  }
   const data = s[seat].stolenByBWL;
   if (!data) return;
   s[seat].stolenByBWL = null;
@@ -23946,6 +23953,12 @@ function bwlChoiceDestroy() {
   const s = Game.state;
   const seat = UI._bwlSeat(s);
   if (!seat) return;
+  // Guest forwards to the host (see bwlChoiceKeep) so the choice is authoritative
+  // and the popup doesn't loop.
+  if (Game.isMultiplayer() && Game.mp && Game.mp.role === 'guest') {
+    if (typeof Multiplayer !== 'undefined') Multiplayer.send({ t: 'bwlChoice', keep: false });
+    return;
+  }
   const data = s[seat].stolenByBWL;
   if (!data) return;
   s[seat].stolenByBWL = null;
