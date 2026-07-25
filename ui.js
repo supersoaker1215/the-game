@@ -6739,14 +6739,36 @@ const UI = {
       d += ' L ' + x.toFixed(1) + ' ' + y.toFixed(1);
     }
     d += ' L ' + to.x.toFixed(1) + ' ' + to.y.toFixed(1);
+    // AAA: 1-2 jagged branch forks off the main arc so it reads as real
+    // lightning, not a single stroke.
+    let forks = '';
+    const nForks = 1 + (Math.random() < 0.6 ? 1 : 0);
+    for (let f = 0; f < nForks; f++) {
+      const bt = 0.42 + Math.random() * 0.42;
+      const bx = src.x + dx * bt, by = src.y + dy * bt;
+      const fa = Math.atan2(dy, dx) + (Math.random() < 0.5 ? -1 : 1) * (0.5 + Math.random() * 0.6);
+      const flen = len * (0.16 + Math.random() * 0.22);
+      let fd = 'M ' + bx.toFixed(1) + ' ' + by.toFixed(1);
+      for (let i = 1; i <= 3; i++) {
+        const t = i / 3;
+        fd += ' L ' + (bx + Math.cos(fa) * flen * t + (Math.random() - 0.5) * 18).toFixed(1) +
+              ' ' + (by + Math.sin(fa) * flen * t + (Math.random() - 0.5) * 18).toFixed(1);
+      }
+      forks +=
+        '<path d="' + fd + '" fill="none" stroke="' + glow + '" stroke-width="3.4" stroke-linecap="round" opacity="0.45"></path>' +
+        '<path d="' + fd + '" fill="none" stroke="' + color + '" stroke-width="1.4" stroke-linecap="round"></path>';
+    }
     const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
     svg.setAttribute('class', 'sig-bolt');
     svg.style.filter = 'drop-shadow(0 0 6px ' + glow + ')';
-    svg.innerHTML =
+    svg.innerHTML = forks +
       '<path d="' + d + '" fill="none" stroke="' + glow + '" stroke-width="6.5" stroke-linecap="round" stroke-linejoin="round" opacity="0.5"></path>' +
       '<path d="' + d + '" fill="none" stroke="' + color + '" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"></path>' +
       '<path d="' + d + '" fill="none" stroke="#ffffff" stroke-width="1" stroke-linecap="round" stroke-linejoin="round" opacity="0.9"></path>';
     layer.appendChild(svg);
+    // AAA: strike flash + spark burst where the bolt lands.
+    this._fxImpact(to, { color: glow, core: '#ffffff', size: 0.85 });
+    this._fxSparks(to, { color: '#ffffff', glow: glow, count: 9, spread: 56, size: 2.6 });
     setTimeout(() => svg.remove(), 440);
   },
 
@@ -6763,20 +6785,23 @@ const UI = {
     const layer = this._fxLayer();
     const dx = to.x - from.x, dy = to.y - from.y;
     const len = Math.hypot(dx, dy);
-    const ang = Math.atan2(dy, dx) * 180 / Math.PI;
+    const angRad = Math.atan2(dy, dx);
+    const ang = angRad * 180 / Math.PI;
     const beam = document.createElement('div');
     beam.className = 'sig-beam';
     beam.style.cssText =
       'left:' + from.x + 'px;top:' + (from.y - thickness / 2) + 'px;width:' + len + 'px;height:' + thickness + 'px;' +
       '--sig-ang:' + ang + 'deg;' +
       'background:linear-gradient(90deg,' + color + '00 0%,' + color + ' 12%,' + core + ' 50%,' + color + ' 88%,' + color + '00 100%);' +
-      'box-shadow:0 0 14px 3px ' + color + ';';
+      'box-shadow:0 0 18px 4px ' + color + ', 0 0 40px 9px ' + color + '66;';
     layer.appendChild(beam);
-    const burst = document.createElement('div');
-    burst.className = 'sig-beam-impact';
-    burst.style.cssText = 'left:' + to.x + 'px;top:' + to.y + 'px;--sig-c:' + color + ';';
-    layer.appendChild(burst);
-    setTimeout(() => { beam.remove(); burst.remove(); }, 540);
+    // AAA: muzzle flash + forward spark-spit at the origin; a real impact
+    // flash, shockwave, and debris burst at the target (replaces the old dot).
+    this._fxImpact(from, { color: color, core: core, size: 0.5 });
+    this._fxSparks(from, { color: core, glow: color, count: 5, angle: angRad, cone: 1.0, spread: 38, size: 2.4 });
+    this._fxImpact(to, { color: color, core: core, size: opts.impact || 1 });
+    this._fxSparks(to, { color: core, glow: color, count: 13, spread: 72, size: 3 });
+    setTimeout(() => { beam.remove(); }, 540);
   },
 
   // Void singularity that swallows a card (Galactus devour). Clones the
@@ -6801,6 +6826,63 @@ const UI = {
     ring.style.cssText = 'left:' + (r.left + r.width / 2) + 'px;top:' + (r.top + r.height / 2) + 'px;--sig-c:' + color + ';';
     layer.appendChild(ring);
     setTimeout(() => { ghost.remove(); ring.remove(); }, 660);
+  },
+
+  // ---- AAA "juice" primitives — shared debris + impact so every line-based
+  // cast (beam / bolt / tendril / saber) lands with weight instead of just a
+  // stroke. All one-shot + auto-removing + reduced-motion guarded; cosmetic
+  // jitter uses Math.random, never Game.rng. ----
+
+  // Particle spark burst: N bright motes fly out of `point` and fade. Radial
+  // by default; pass opts.angle (radians) + opts.cone for a directional spit
+  // (muzzle spray). opts: count, color, glow, spread(px), size, angle, cone.
+  _fxSparks(point, opts) {
+    if (!point || this._reducedMotion()) return;
+    opts = opts || {};
+    const n = opts.count || 10;
+    const color = opts.color || '#cfeaff';
+    const glow = opts.glow || color;
+    const spread = opts.spread || 62;
+    const size = opts.size || 3;
+    const layer = this._fxLayer();
+    const dir = (opts.angle != null) ? opts.angle : null;
+    const cone = (opts.cone != null) ? opts.cone : 1.4;
+    for (let i = 0; i < n; i++) {
+      const a = (dir != null) ? dir + (Math.random() - 0.5) * cone : Math.random() * Math.PI * 2;
+      const dist = spread * (0.4 + Math.random() * 0.6);
+      const sx = Math.cos(a) * dist, sy = Math.sin(a) * dist;
+      const s = (size * (0.55 + Math.random() * 0.9)).toFixed(1);
+      const sp = document.createElement('div');
+      sp.className = 'sig-spark';
+      sp.style.cssText =
+        'left:' + point.x + 'px;top:' + point.y + 'px;width:' + s + 'px;height:' + s + 'px;' +
+        '--sx:' + sx.toFixed(1) + 'px;--sy:' + sy.toFixed(1) + 'px;' +
+        '--sig-c:' + color + ';--sig-g:' + glow + ';' +
+        'animation-delay:' + (Math.random() * 60).toFixed(0) + 'ms;';
+      layer.appendChild(sp);
+      setTimeout(() => sp.remove(), 640);
+    }
+  },
+
+  // Impact burst: a bright radial flash + an expanding shockwave ring at
+  // `point`. opts: color, core, size (scale multiplier). Replaces the old
+  // 12px dot bursts with something that reads as a real hit.
+  _fxImpact(point, opts) {
+    if (!point || this._reducedMotion()) return;
+    opts = opts || {};
+    const color = opts.color || '#ffd0d0';
+    const core = opts.core || '#ffffff';
+    const size = opts.size || 1;
+    const layer = this._fxLayer();
+    const flash = document.createElement('div');
+    flash.className = 'sig-flash';
+    flash.style.cssText = 'left:' + point.x + 'px;top:' + point.y + 'px;--sig-c:' + color + ';--sig-core:' + core + ';--sig-s:' + size + ';';
+    layer.appendChild(flash);
+    const shock = document.createElement('div');
+    shock.className = 'sig-shock';
+    shock.style.cssText = 'left:' + point.x + 'px;top:' + point.y + 'px;--sig-c:' + color + ';--sig-s:' + size + ';';
+    layer.appendChild(shock);
+    setTimeout(() => { flash.remove(); shock.remove(); }, 580);
   },
 
   // ---- Named per-card entry points (thin wrappers over the primitives) ----
@@ -6882,6 +6964,8 @@ const UI = {
       '<path d="' + d + '" fill="none" stroke="' + color + '" stroke-width="8" stroke-linecap="round" pathLength="1" class="sig-tendril-path"></path>' +
       '<path d="' + d + '" fill="none" stroke="' + glow + '" stroke-width="2.2" stroke-linecap="round" pathLength="1" class="sig-tendril-path sig-tendril-glint"></path>';
     layer.appendChild(svg);
+    // AAA: a small burst where the tendril seizes its target.
+    this._fxSparks(to, { color: glow, glow: glow, count: 7, spread: 40, size: 2.3 });
     setTimeout(() => svg.remove(), 640);
   },
 
