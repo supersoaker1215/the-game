@@ -12900,7 +12900,6 @@ const UI = {
             ${row('Avg Debuff Pts',  avgPerPlay(r.debuff))}
             ${row('Avg Kills / Play',r.plays ? (r.kills / r.plays).toFixed(2) : '—')}
             ${row('Freezes Applied', r.freezesApplied)}
-            ${row('Stuns Applied',   r.stunsApplied)}
             ${row('Fears Applied',   r.fearsApplied)}
             ${row('MC Applied',      r.mcApplied)}
             ${row('Raw Impact / E',  rawIpeLabel)}
@@ -14487,6 +14486,37 @@ const UI = {
   // the caller can apply this render's decorations (target-highlight,
   // selection tint, etc.) on top of a clean baseline. The snapshot
   // string is stamped on data-snap so subsequent renders can compare.
+
+  // ART-FLICKER FIX (2026-07-24): preserve the already-composited
+  // `.card-portrait` node across a transplant when the art URL is unchanged.
+  // The STATE-CHANGED diff branch below rebuilds a card's inner subtree via
+  // `cached.replaceChildren(...fresh.childNodes)` whenever ANY snapshot field
+  // changes — and the snapshot bakes in currentHealth + the per-render combat
+  // predictor (pdi/pdd), so during combat/AI turns it busts for many cards at
+  // once. replaceChildren destroys the old `.card-portrait` (which holds the
+  // decoded, composited background-image) and inserts fresh's brand-new one.
+  // Because `.card-portrait` is intentionally NOT GPU-layer-promoted (VRAM
+  // budget, see style.css), the compositor defers painting the fresh node's
+  // background-image, so it flashes its #111 + shimmer fallback for a frame
+  // before the bitmap composites — the art visibly blinks "in and out."
+  // The art URL is stable (constant ?v=), so keeping the SAME portrait node
+  // alive (its bitmap already painted) kills the blink while stats / badges /
+  // damage-preview siblings still refresh. Call right before the caller's
+  // replaceChildren. Presentation-only; no data touched.
+  _preserveCardArt(cached, fresh) {
+    if (!cached || !fresh) return;
+    const oldP = cached.querySelector(':scope > .card-portrait');
+    const newP = fresh.querySelector(':scope > .card-portrait');
+    if (oldP && newP &&
+        oldP.style.getPropertyValue('--portrait-bg') === newP.style.getPropertyValue('--portrait-bg')) {
+      // Same art → keep the live composited node. Refresh its inner content
+      // (name overlay) from fresh in case it ever changes, then substitute the
+      // live node into fresh's child list so it survives replaceChildren.
+      oldP.replaceChildren(...newP.childNodes);
+      fresh.replaceChild(oldP, newP);
+    }
+  },
+
   makeCardElCached(card, inHand, side) {
     if (!card || card.id == null || inHand) {
       // Hand cards aren't covered by this cache — they re-shuffle position
@@ -14532,6 +14562,10 @@ const UI = {
     // re-fires after the 280ms HOVER_DELAY).
     const fresh = this.makeCardEl(card, inHand, side);
     if (cached) {
+      // Keep the composited art node alive when the URL is unchanged (kills
+      // the "art glitching in and out" flicker) — must run before the
+      // replaceChildren transplant below.
+      this._preserveCardArt(cached, fresh);
       // Move children from fresh into cached without recreating fresh
       // (replaceChildren is faster + avoids innerHTML stringification).
       cached.replaceChildren(...fresh.childNodes);
@@ -16750,12 +16784,11 @@ const UI = {
     'Armor':       { color: '#cdaa6e', svg: '<svg viewBox="0 0 12 12"><path d="M6 1 L10 3 V6 C10 9 6 11 6 11 C6 11 2 9 2 6 V3 Z" stroke="currentColor" stroke-width="1.2" fill="none"/></svg>', tip: 'Reduces incoming damage by N. Zero damage if fully absorbed.' },
     'Evade':       { color: '#2ecc71', svg: '<svg viewBox="0 0 12 12"><path d="M2 8 Q6 2 10 8" stroke="currentColor" stroke-width="1.4" fill="none" stroke-linecap="round"/><circle cx="6" cy="5.5" r="1" fill="currentColor"/></svg>', tip: 'Dodges the next N attacks completely.' },
     'Taunt':       { color: '#f39c12', svg: '<svg viewBox="0 0 12 12"><path d="M6 1 L6 7 M6 9 L6 11" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/><circle cx="6" cy="10" r="0.7" fill="currentColor"/></svg>', tip: 'Enemies must attack this card first.' },
-    'Immunity':    { color: '#9b59b6', svg: '<svg viewBox="0 0 12 12"><circle cx="6" cy="6" r="4.5" stroke="currentColor" stroke-width="1.2" fill="none"/><path d="M6 3 V9 M3 6 H9" stroke="currentColor" stroke-width="1.2"/></svg>', tip: 'Blocks N debuffs (Freeze, Stun, Fear, etc.)' },
+    'Immunity':    { color: '#9b59b6', svg: '<svg viewBox="0 0 12 12"><circle cx="6" cy="6" r="4.5" stroke="currentColor" stroke-width="1.2" fill="none"/><path d="M6 3 V9 M3 6 H9" stroke="currentColor" stroke-width="1.2"/></svg>', tip: 'Blocks N debuffs (Freeze, Fear, etc.)' },
     'Invincible':  { color: '#ecf0f1', svg: '<svg viewBox="0 0 12 12"><path d="M6 1 L7.5 5 L11 5 L8 7.5 L9 11 L6 9 L3 11 L4 7.5 L1 5 L4.5 5 Z" fill="currentColor"/></svg>', tip: 'Cannot die for N turns. Lethal hits are absorbed.' },
     'Unresistible':{ color: '#ff4757', svg: '<svg viewBox="0 0 12 12"><path d="M2 6 L10 6 M7 3 L10 6 L7 9" stroke="currentColor" stroke-width="1.4" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>', tip: 'Bypasses Immunity when applying debuffs.' },
     'Untrickable': { color: '#95a5a6', svg: '<svg viewBox="0 0 12 12"><circle cx="6" cy="6" r="4.5" stroke="currentColor" stroke-width="1.2" fill="none"/><path d="M3 9 L9 3" stroke="currentColor" stroke-width="1.2"/></svg>', tip: 'Cannot be targeted by Tricks.' },
-    'Stun':        { color: '#3498db', svg: '<svg viewBox="0 0 12 12"><path d="M3 2 L6 5 L4 5 L8 10 L6 7 L8 7 Z" fill="currentColor"/></svg>', tip: 'Cannot attack or dodge this turn.' },
-    'Freeze':      { color: '#85c1e9', svg: '<svg viewBox="0 0 12 12"><path d="M6 1 V11 M1.5 3.5 L10.5 8.5 M10.5 3.5 L1.5 8.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>', tip: 'Can\'t attack or move while frozen.' },
+    'Freeze':      { color: '#85c1e9', svg: '<svg viewBox="0 0 12 12"><path d="M6 1 V11 M1.5 3.5 L10.5 8.5 M10.5 3.5 L1.5 8.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>', tip: 'Can\'t attack, move, or make bonus attacks while frozen.' },
     'Fear':        { color: '#5a5a5a', svg: '<svg viewBox="0 0 12 12"><circle cx="4" cy="5" r="1" fill="currentColor"/><circle cx="8" cy="5" r="1" fill="currentColor"/><path d="M3 9 Q6 7 9 9" stroke="currentColor" stroke-width="1.2" fill="none"/></svg>', tip: 'Attacks itself instead of the enemy.' },
     'Parlay':      { color: '#d4ac6e', svg: '<svg viewBox="0 0 12 12"><path d="M3.5 1.5 V10.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/><path d="M3.5 2 H9.5 L8 4 L9.5 6 H3.5 Z" fill="currentColor"/></svg>', tip: 'Singled out by Jack Sparrow — this card cannot attack this round.' },
     'Steady':      { color: '#16a085', svg: '<svg viewBox="0 0 12 12"><circle cx="6" cy="6" r="2.5" stroke="currentColor" stroke-width="1.2" fill="none"/><path d="M3 6 H9 M6 3 V9" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>', tip: 'Cancels one Crazy reroll per charge — ATK stays at base for that turn.' },
@@ -16999,7 +17032,6 @@ const UI = {
       ['Mind Control(?:led|s)?',       'mind-ctrl'],
       ['Block Meter',                  'block'],
       // Traits (single-word with optional plural/tense variants)
-      ['Stun(?:s|ned|ning)?',          'stun'],
       ['Freeze(?:s|n)?|Frozen',        'freeze'],
       ['Fear(?:ed)?',                  'fear'],
       ['Drain(?:s|ed|ing)?',           'drain'],
@@ -17254,6 +17286,10 @@ const UI = {
         // before this cache was added.
         const fresh = this.makeCardEl(card, true);
         if (existing) {
+          // Keep the composited art node alive when the URL is unchanged — hand
+          // snapshots bust on cost/energy/affordability changes, so hand-card
+          // art flickers on those renders too without this guard.
+          this._preserveCardArt(existing, fresh);
           existing.replaceChildren(...fresh.childNodes);
           const oldClasses = existing.className ? existing.className.trim().split(/\s+/) : [];
           const newClasses = fresh.className ? fresh.className.trim().split(/\s+/) : [];

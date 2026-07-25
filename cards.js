@@ -235,7 +235,7 @@ const CARD_DEFS = [
     desc: "When Played: Draw a Trick; it costs 1 less. While Active: Gain (+2/+0) each time YOU play a Trick." },
   { name: "Raven", cost: 3, attack: 3, health: 4, type: "hero",
     abilities: [],
-    desc: "When Played: Empty the opponent's Block Meter. Unfreeze and unstun all allies." },
+    desc: "When Played: Empty the opponent's Block Meter. Unfreeze all allies." },
   { name: "The Grinch", cost: 3, attack: 1, health: 2, type: "villain",
     abilities: [],
     desc: "When Played: Steal a Trick (opponent picks). Keep it (cost +1) or return it to triple The Grinch's stats. If opponent has no tricks, stats triple." },
@@ -247,7 +247,7 @@ const CARD_DEFS = [
     desc: "While Active: Destroy any enemy with cost ≤ 7 that damages Wolverine. When Destroyed: Revive as (6/5) with Overdrive." },
   { name: "Wonder Woman", cost: 4, attack: 3, health: 3, type: "hero",
     abilities: ["Armor 1", "Unresistible"],
-    desc: "When Played: Stun 1 the enemy opposite. Add 2 to your Block Meter. While Active: Your attack chains (ATK−1) to 1 adjacent enemy." },
+    desc: "When Played: Freeze 1 the enemy opposite. Add 2 to your Block Meter. While Active: Your attack chains (ATK−1) to 1 adjacent enemy." },
 
   // ==================== COST 5 ====================
   { name: "Davy Jones", cost: 5, attack: 3, health: 6, type: "villain",
@@ -413,8 +413,8 @@ const CARD_DEFS = [
     // His onDeath consumes the charge when the custom revive fires —
     // same contract as Jason/Grundy/Drax; the desc text stays because
     // his revive differs from generic Revive (full HP + permanent
-    // Stun/Freeze immunity, NOT played-anew).
+    // Freeze immunity, NOT played-anew).
     abilities: ["Revive 1"],
-    desc: "Gains +1/+1 each time you play a card (even undrawn). While in Hand: costs 1 less each time an ally is destroyed (min cost 0). When First Destroyed: Revives at full HP, permanently immune to Stun and Freeze." }
+    desc: "Gains +1/+1 each time you play a card (even undrawn). While in Hand: costs 1 less each time an ally is destroyed (min cost 0). When First Destroyed: Revives at full HP, permanently immune to Freeze." }
 ];
 

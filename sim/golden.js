@@ -71,47 +71,116 @@ function place(c, lane, side) {
 }
 
 // ============================================================
-// IMMUNITY vs UNRESISTIBLE (stun path → tryApplyDebuff gate)
+// IMMUNITY vs UNRESISTIBLE (tryApplyDebuff gate). Stun was merged into Freeze
+// (2026-07-24) — stunCard is now a back-compat alias for freezeCard, so these
+// still call stunCard (verifying the alias routes correctly) but assert on
+// isFrozen, since isStunned is never set anymore.
 // ============================================================
 
-// RG-1 — Immunity blocks a stun; the charge is spent, card unstunned.
-gold('RG-1 Immunity blocks stun (no Unresistible): charge spent, not stunned', function () {
+// RG-1 — Immunity blocks the freeze; the charge is spent, card not frozen.
+gold('RG-1 Immunity blocks freeze (no Unresistible): charge spent, not frozen', function () {
   reset();
   var src = card({ name: 'Stunner', owner: 'ai', abilities: [] });
   var tgt = card({ name: 'Immune',  owner: 'player', abilities: ['Immunity'] });
   eq('immunity before', tgt.immunityCharges, 1);
-  Game.stunCard(tgt, src, 1);
-  eq('isStunned',        !!tgt.isStunned, false);
+  Game.stunCard(tgt, src, 1);          // alias → freezeCard
+  eq('isFrozen',         !!tgt.isFrozen, false);
   eq('immunity after',   tgt.immunityCharges, 0);
 });
 
-// RG-2 — Unresistible pierces Immunity: stun lands, ONLY Unresistible
+// RG-2 — Unresistible pierces Immunity: freeze lands, ONLY Unresistible
 // is spent, Immunity is UNTOUCHED (the fix — it never blocked anything).
-gold('RG-2 Unresistible pierces Immunity: stun lands, Immunity untouched', function () {
+gold('RG-2 Unresistible pierces Immunity: freeze lands, Immunity untouched', function () {
   reset();
   var src = card({ name: 'Palp',   owner: 'ai',     abilities: ['Unresistible'] });
   var tgt = card({ name: 'Immune', owner: 'player', abilities: ['Immunity'] });
-  Game.stunCard(tgt, src, 1);
-  eq('isStunned',           !!tgt.isStunned, true);
+  Game.stunCard(tgt, src, 1);          // alias → freezeCard
+  eq('isFrozen',            !!tgt.isFrozen, true);
   eq('src unresistible',    src.unresistibleCharges, 0);
   eq('tgt immunity intact', tgt.immunityCharges, 1);
 });
 
 // RG-3 — The exact user bug: a source with ONE Unresistible cannot
-// stun-lock two immune enemies back to back. First lands (spends
+// freeze-lock two immune enemies back to back. First lands (spends
 // Unresistible); second is blocked by Immunity.
-gold('RG-3 One Unresistible cannot double-stun two immune enemies', function () {
+gold('RG-3 One Unresistible cannot double-freeze two immune enemies', function () {
   reset();
   var src = card({ name: 'Palp', owner: 'ai',     abilities: ['Unresistible'] });
   var a   = card({ name: 'Ana',  owner: 'player', abilities: ['Immunity'] });
   var b   = card({ name: 'Sup',  owner: 'player', abilities: ['Immunity'] });
-  Game.stunCard(a, src, 1);
+  Game.stunCard(a, src, 1);            // alias → freezeCard
   Game.stunCard(b, src, 1);
-  eq('a stunned',       !!a.isStunned, true);
-  eq('b NOT stunned',   !!b.isStunned, false);
+  eq('a frozen',        !!a.isFrozen, true);
+  eq('b NOT frozen',    !!b.isFrozen, false);
   eq('src unresistible', src.unresistibleCharges, 0);
   eq('a immunity',      a.immunityCharges, 1);  // pierced → untouched
   eq('b immunity',      b.immunityCharges, 0);  // blocked → spent
+});
+
+// ============================================================
+// FEARED = FROZEN for extra actions (2026-07-24)
+// Feared cards can't move or take bonus attacks, matching frozen.
+// ============================================================
+
+// RG-3a — a feared card cannot move (moveCard refuses, same as frozen).
+gold('RG-3a Feared card cannot move', function () {
+  reset();
+  var c = card({ name: 'Runner', owner: 'player', attack: 2, health: 5 });
+  place(c, 0, 'player');
+  c.isFeared = true; c.fearedTurns = 1;
+  Game.moveCard(c, 0, 3);
+  eq('still in lane 0', Game.state.lanes[0].player === c, true);
+  eq('lane 3 empty',    Game.state.lanes[3].player, null);
+});
+
+// RG-3b — a feared card drains NO bonus attack; the queued attack is cleared
+// and the enemy is untouched. (Also closed the hole where FROZEN cards could
+// still bonus-attack.)
+gold('RG-3b Feared card takes no bonus attack', function () {
+  reset();
+  var c = card({ name: 'Striker', owner: 'player', attack: 3, health: 5 });
+  var e = card({ name: 'Victim',  owner: 'ai',     attack: 0, health: 5 });
+  place(c, 0, 'player'); place(e, 0, 'ai');
+  c.isFeared = true; c.fearedTurns = 1; c.bonusAttack = 2;
+  Game.drainBonusAttacks(c);
+  eq('bonus cleared', !!c.bonusAttack, false);
+  eq('victim unharmed', e.currentHealth, 5);
+});
+
+// ============================================================
+// INTERCEPT PRIORITY — one played card, one "next enemy card" trigger.
+// Moder (forcedLane) vs The Batman Who Laughs (nextCardStolen): the
+// LOWEST-LANE source claims the card; the loser stays armed. (2026-07-24)
+// ============================================================
+
+// RG-3c — Moder (lower lane) claims; BWL loses the tie-break and stays armed.
+gold('RG-3c Moder lower lane wins the intercept; BWL stays armed', function () {
+  reset();
+  place(card({ name: 'The Batman Who Laughs', owner: 'ai' }), 4, 'ai'); // BWL lane 4
+  Game.state.player.forcedLane = 1;        // Moder forces the player into lane 1
+  Game.state.player.nextCardStolen = true; // BWL armed against the player
+  eq('moder wins (1 < 4)', Game._nextEnemyCardClaimant('player'), 'moder');
+});
+
+// RG-3d — BWL (lower lane) claims; Moder's forcedLane stays armed so its
+// warning persists until a card is genuinely pulled in.
+gold('RG-3d BWL lower lane wins the intercept; Moder stays armed', function () {
+  reset();
+  place(card({ name: 'The Batman Who Laughs', owner: 'ai' }), 0, 'ai'); // BWL lane 0
+  Game.state.player.forcedLane = 3;        // Moder lane 3
+  Game.state.player.nextCardStolen = true;
+  eq('bwl wins (0 < 3)', Game._nextEnemyCardClaimant('player'), 'bwl');
+});
+
+// RG-3e — if Moder's lane is occupied he can't claim, so BWL takes it even at
+// a higher lane number (feasibility beats raw lane order).
+gold('RG-3e Moder cannot claim into an occupied lane; BWL takes it', function () {
+  reset();
+  place(card({ name: 'Blocker', owner: 'player' }), 1, 'player'); // lane 1 occupied
+  place(card({ name: 'The Batman Who Laughs', owner: 'ai' }), 4, 'ai');
+  Game.state.player.forcedLane = 1;        // Moder can't pull in — lane full
+  Game.state.player.nextCardStolen = true;
+  eq('bwl claims (moder blocked)', Game._nextEnemyCardClaimant('player'), 'bwl');
 });
 
 // ============================================================

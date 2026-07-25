@@ -22304,7 +22304,20 @@ body.killing-blow-cinema::after {
      the cursor enters/leaves the board area. */
   opacity: var(--b-light, 0);
   transition: opacity 320ms var(--ease-out-soft, ease);
-  mix-blend-mode: screen;
+  /* FLICKER FIX (2026-07-24): user — "the art glitches whenever i move my
+     mouse; when the mouse is still the art is fine." This cursor-light's
+     gradient position updates on every mousemove (--bx/--by). It USED to carry
+     mix-blend-mode:screen while sharing the board's raster layer, so each move
+     forced the whole board subtree — including every un-GPU-promoted
+     .card-portrait background image — to re-rasterize, flashing the #111
+     portrait fallback for a frame. Fix: (1) drop mix-blend-mode — it pulled the
+     card backdrop into the blend and forced the re-raster; a plain 7% white
+     radial reads virtually identical on the near-black board. (2) Promote this
+     overlay to its OWN compositor layer so its per-move gradient re-raster is
+     isolated to this one element and never touches the portraits. One extra
+     layer (not the 30+ the base .card-portrait VRAM note warns about). */
+  will-change: transform;
+  transform: translateZ(0);
 }
 
 /* (4) ROUND-END BEAM SWEEP — between rounds, a soft horizontal

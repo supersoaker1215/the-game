@@ -3467,12 +3467,40 @@ const Game = {
 
   // ===================== playCard helpers =====================
 
+  // Which "next enemy card" intercept claims the card `owner` is about to play,
+  // when more than one is armed: the LOWEST-LANE source wins. Contenders are
+  // Moder (forcedLane → pulls the card into his lane) and The Batman Who Laughs
+  // (nextCardStolen → steals it). Moder only counts if his lane can actually
+  // receive the card (free, not destroyed) — otherwise he can't claim and BWL
+  // takes it. One played card can satisfy only ONE such trigger. Returns
+  // 'moder' | 'bwl' | null.
+  _nextEnemyCardClaimant(owner) {
+    const opp = this.opponent(owner);
+    const mpGuestPlay = this.isMultiplayer() && this.mp.role === 'host' && owner !== 'player';
+    let moderLane = -1;
+    if (this.state[owner].forcedLane != null) {
+      const fl = this.state[owner].forcedLane;
+      const ln = this.state.lanes[fl];
+      if (mpGuestPlay || (ln && !ln.destroyed && !ln[owner])) moderLane = fl;
+    }
+    let bwlLane = -1;
+    if (this.state[owner].nextCardStolen) {
+      const bwl = this.getAllCardsOf(opp).find(c => this.isCardKind(c, 'The Batman Who Laughs'));
+      bwlLane = bwl ? this.findCardLane(bwl) : 99;
+    }
+    if (moderLane >= 0 && bwlLane >= 0) return (moderLane <= bwlLane) ? 'moder' : 'bwl';
+    if (moderLane >= 0) return 'moder';
+    if (bwlLane >= 0) return 'bwl';
+    return null;
+  },
+
   // Moder + Magneto can pre-empt the player's chosen lane. Returns the
   // (possibly redirected) laneIdx. Discard-effect cards bypass both
   // mechanics entirely. Idempotent — clears the forced-lane state once
   // the redirect either lands or fails (lane destroyed / occupied).
   _redirectForForcedLane(owner, card, laneIdx) {
     const _origLane = laneIdx;
+    this._nextCardClaimed = false;   // reset the one-claim-per-play guard (before any early return)
     if (card.isDiscardEffect) return laneIdx;
     // Environments are a separate category — Moder/Magneto force COMBAT cards
     // into a lane, not the terrain. Return untouched so the forced-lane state
@@ -3484,16 +3512,27 @@ const Game = {
     // their pick, which would create a race-condition window between the UI
     // lock appearing and the server processing the play.
     const mpGuestPlay = this.isMultiplayer() && this.mp.role === 'host' && owner !== 'player';
-    // Moder forced lane — next non-discard card is pulled into forced lane.
-    if (this.state[owner].forcedLane != null) {
+    // Moder forced lane — next non-discard card is pulled into forced lane. But
+    // only ONE "next enemy card" intercept claims a card: if Batman Who Laughs
+    // (nextCardStolen) is ALSO armed, the lowest-lane source wins; the loser
+    // stays armed for the next card. forcedLane is consumed ONLY when the card is
+    // genuinely pulled in (requirement met) — so Moder's warning persists if his
+    // lane is full or BWL takes priority.
+    if (this.state[owner].forcedLane != null && this._nextEnemyCardClaimant(owner) === 'moder') {
       const fl = this.state[owner].forcedLane;
-      this.state[owner].forcedLane = null;
-      if (!mpGuestPlay) {
+      if (mpGuestPlay) {
+        // Guest is UI-locked to the forced lane — their pick IS fl. Claim it.
+        this.state[owner].forcedLane = null;
+        this._nextCardClaimed = true;
+      } else {
         const flLane = this.state.lanes[fl];
         if (flLane && !flLane.destroyed && !flLane[owner]) {
           laneIdx = fl;
           this.log(`[MODER] ${card.name} is pulled into lane ${fl + 1} by Moder!`);
+          this.state[owner].forcedLane = null;
+          this._nextCardClaimed = true;
         }
+        // else: Moder's lane is full → leave forcedLane armed (warning persists).
       }
     }
     // Old-Magneto forced-lane queue: the reader lived here until 2026-07-15.
@@ -3519,6 +3558,9 @@ const Game = {
     // next enemy CARD, not the terrain. Don't consume the steal here so it
     // still lands on the next real card the opponent plays.
     if (card.isEnvironment) return false;
+    // One-claim rule: if Moder already pulled this card into his lane, or Moder
+    // (lower lane) has priority, BWL yields and stays armed for the next card.
+    if (this._nextCardClaimed || this._nextEnemyCardClaimant(owner) === 'moder') return false;
     this.state[owner].nextCardStolen = false;
     const opp = this.opponent(owner);
     // Mark BWL's owner as having consumed their 1-per-game intercept so
@@ -3568,8 +3610,8 @@ const Game = {
   _resolveHuntChase(opp, card, laneIdx) {
     this.getAllCardsOf(opp).forEach(c => {
       if (!c.hasHunt) return;
-      if (c.isFrozen || c.isStunned) {
-        this.log(`[HUNT BLOCKED] ${c.name} is ${c.isFrozen ? 'FROZEN' : 'STUNNED'} — can't hunt.`);
+      if (c.isFrozen || c.isStunned || c.isFeared) {
+        this.log(`[HUNT BLOCKED] ${c.name} is ${c.isFeared ? 'FEARED' : 'FROZEN'} — can't hunt.`);
         return;
       }
       const from = this.findCardLane(c);
@@ -6585,6 +6627,15 @@ const Game = {
     if (!c) return;
     let remaining = typeof c.bonusAttack === 'number' ? c.bonusAttack : (c.bonusAttack ? 1 : 0);
     if (remaining <= 0) return;
+    // Frozen / feared cards can't take bonus attacks — same lock that stops
+    // them acting in normal combat and moving. (Stun merged into Freeze; feared
+    // treated as frozen for extra actions per user direction. This also closed a
+    // hole where a frozen card could still make queued bonus attacks.)
+    if (c.isFrozen || c.isStunned || c.isFeared) {
+      this.log(`  [BONUS BLOCKED] ${c.name} can't bonus attack (${c.isFeared ? 'FEARED' : 'FROZEN'}).`);
+      c.bonusAttack = false;
+      return;
+    }
     const oppSide = this.opponent(c.owner);
     // Lex Luthor's bonus-attack suppression. CLASSIC: any Lex on the
     // opposite side blocks bonus attacks (matches his canonical card
@@ -8025,20 +8076,13 @@ const Game = {
   // Cards stack via tryApplyDebuff so Immunity / Unresistible still
   // gate properly — applying an extra Freeze through Immunity still
   // costs the Immunity charge, doesn't increment the counter.
+  // Stun was merged into Freeze (2026-07-24) — one status, one visual, one set
+  // of rules. stunCard is kept only as a back-compat alias so any effects-data
+  // or ability still calling it just freezes. Nothing sets isStunned anymore, so
+  // every paired `isStunned || isFrozen` read collapses to the freeze branch and
+  // every `? 'STUNNED' : 'FROZEN'` log shows FROZEN.
   stunCard(card, source, n) {
-    if (!card) return;
-    const turns = Math.max(1, n || 1);
-    this.tryApplyDebuff(source, card, 'Stun', () => {
-      card.stunnedTurns = (card.stunnedTurns || 0) + turns;
-      card.isStunned = true;
-      const total = card.stunnedTurns;
-      this.log(`  [STUN] ${card.name} is stunned (${total})!`);
-      this._simulatePhantomSwing(source, card);
-      this._creditChain(source, 'statsStunsApplied', turns);
-      if (typeof UI !== 'undefined' && UI.sfx && UI.sfx.play) {
-        try { UI.sfx.play('statusStun'); } catch (e) {}
-      }
-    });
+    return this.freezeCard(card, source, n);
   },
   freezeCard(card, source, n) {
     if (!card) return;
@@ -8713,11 +8757,12 @@ const Game = {
       return;
     }
     if (this._trickBlocked(card)) return;
-    // Frozen / stunned cards can't move — they're locked in their lane
-    // until the status clears. Previously tricks and abilities that moved
-    // cards (Bifrost, Ahsoka's swap, Gojo's displace) bypassed the freeze.
-    if (card.isFrozen || card.isStunned) {
-      this.log(`  [MOVE BLOCKED] ${card.name} is ${card.isFrozen ? 'FROZEN' : 'STUNNED'} — can't move.`);
+    // Frozen / feared cards can't move — frozen are locked in their lane,
+    // feared are too panicked to reposition (user: "feared opponents are frozen
+    // ... they can't bonus attack/move"). Previously tricks and abilities that
+    // moved cards (Bifrost, Ahsoka's swap, Gojo's displace) bypassed the freeze.
+    if (card.isFrozen || card.isStunned || card.isFeared) {
+      this.log(`  [MOVE BLOCKED] ${card.name} is ${card.isFeared ? 'FEARED' : 'FROZEN'} — can't move.`);
       return;
     }
     this.state.lanes[from][card.owner] = null;

@@ -2266,16 +2266,16 @@ const CARD_ABILITIES = {
   },
   "Wonder Woman": {
     onPlay(G, self, lane) {
-      // Roguelite Text+ — _wwStunSize scales the stun duration. Default
-      // 1 (classic); Text+ sets 2.
-      const stunN = self._wwStunSize || 1;
+      // Roguelite Text+ — _wwStunSize scales the freeze duration. Default
+      // 1 (classic); Text+ sets 2. (Stun merged into Freeze 2026-07-24.)
+      const freezeN = self._wwStunSize || 1;
       const e = G.state.lanes[lane] ? G.state.lanes[lane][G.opponent(self.owner)] : null;
-      if (e) { G.stunCard(e, self, stunN); }
+      if (e) { G.freezeCard(e, self, freezeN); }
       // _wonderWomanBlockGain scales the block meter add. Default 2
       // (classic); Text+ bumps to 4.
       const blockGain = self._wonderWomanBlockGain || 2;
       G.state[self.owner].blockMeter = Math.min(Game.BLOCK_MAX, G.state[self.owner].blockMeter + blockGain);
-      G.log(`Wonder Woman Stuns ${e ? e.name : 'nothing'} (${stunN}) and adds ${blockGain} Block Meter!`);
+      G.log(`Wonder Woman Freezes ${e ? e.name : 'nothing'} (${freezeN}) and adds ${blockGain} Block Meter!`);
     },
     onBeforeAttack(G, self) {
       const chainDmg = self.attack - 1;

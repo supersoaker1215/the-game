@@ -13,7 +13,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap">
-  <link rel="stylesheet" href="style.css?v=775">
+  <link rel="stylesheet" href="style.css?v=776">
   <script>
     // Lightweight error reporter (pre-Sentry) — capture runtime JS
     // errors + unhandled promise rejections to a localStorage ring
@@ -232,8 +232,7 @@
         <ul>
           <li><span class="kw kw-mindcontrol">Mind Control</span> (Gorilla Grodd, Luke Skywalker, Mind Stone, Michael Myers) — the controlled card swings at one of its own allies next combat. You pick which.</li>
           <li><span class="kw kw-fear">Fear</span> (Joker, Batman, Fear Toxin, Darth Vader) — the target attacks <strong>itself</strong> next combat, often killing it outright.</li>
-          <li><span class="kw kw-freeze">Freeze</span> — can't attack or dodge; Palpatine doubles his damage to frozen targets.</li>
-          <li><span class="kw kw-stun">Stun</span> — can't attack or dodge (no double-damage interaction).</li>
+          <li><span class="kw kw-freeze">Freeze</span> — can't attack, dodge, move, or make bonus attacks; Palpatine doubles his damage to frozen targets.</li>
           <li><strong>Crazy</strong> — Joker stamps "Crazy" on the highest-ATK enemy. Crazy cards reroll their ATK between 1-4 every turn (chaotic).</li>
           <li><strong>Insane</strong> — Joker's intrinsic state. He rolls ATK 2-7 every turn — Fear and Steady can't suppress it.</li>
           <li><strong>Charmed</strong> — Poison Ivy charms a random ally. The charmed card's ATK is "loaned" to Ivy for the round; the charmed card swings normally on its own lane.</li>
@@ -258,7 +257,7 @@
           <li><span class="kw kw-evade">Evade N</span> — dodges the next N attacks (consumes one charge per evade).</li>
           <li><span class="kw kw-armor">Armor N</span> — subtracts N from every incoming damage instance.</li>
           <li><span class="kw kw-invincible">Invincible N</span> — negates all damage for N turns.</li>
-          <li><span class="kw kw-immunity">Immunity N</span> — negates N incoming debuffs (Stun/Freeze/Fear/Mind Control).</li>
+          <li><span class="kw kw-immunity">Immunity N</span> — negates N incoming debuffs (Freeze/Fear/Mind Control).</li>
           <li><span class="kw kw-untrickable">Untrickable</span> — automatic on every 10-cost card; tricks simply don't affect them.</li>
           <li><span class="kw kw-unresistible">Unresistible</span> — bypasses one Immunity charge; consumed when it fires.</li>
         </ul>
@@ -779,16 +778,16 @@
     </div>
   </div>
 
-  <script src="cards.js?v=172"></script>
+  <script src="cards.js?v=173"></script>
   <script src="tricks.js?v=68"></script>
-  <script src="abilities.js?v=308"></script>
+  <script src="abilities.js?v=309"></script>
   <!-- Combat-rule helpers shared by resolver + predictor (Phase 1
        extraction). Loaded BEFORE game.js so Game.* methods can
        forward to it. See engine/combat.js header. -->
   <script src="engine/combat.js?v=2"></script>
   <!-- (game.js / ui.js / roguelite.js cache bumps follow) -->
   <script src="decks.js?v=6"></script>
-  <script src="game.js?v=443"></script>
+  <script src="game.js?v=444"></script>
   <script src="ai.js?v=52"></script>
   <script src="roguelite.js?v=122"></script>
   <!-- PeerJS for WebRTC peer-to-peer multiplayer. Uses the public
@@ -797,7 +796,7 @@
   <script src="peerjs.min.js"></script>
   <script src="multiplayer.js?v=28"></script>
   <script src="card-art-manifest.js?v=53"></script>
-  <script src="ui.js?v=988"></script>
+  <script src="ui.js?v=990"></script>
   <script src="tutorial.js?v=7"></script>
   <script src="logger.js?v=5"></script>
   <!-- Always-on crash capture. Hooks window.onerror +
