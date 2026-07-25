@@ -81,10 +81,10 @@ const CARD_DEFS = [
   { name: "Spawn", cost: 2, attack: 3, health: 3, type: "villain",
     abilities: ["Bullseye", "Overdrive"],
     desc: "" },
-  { name: "Gizmo", cost: 2, attack: 1, health: 3, type: "villain",
+  { name: "Gizmo", cost: 2, attack: 1, health: 1, type: "villain",
     abilities: [],
     desc: "When Damaged (first time only): Spawn a Gremlin in any open lane and add Stripe to your hand — even if the hit destroys Gizmo." },
-  { name: "Gremlin", cost: 2, attack: 2, health: 3, type: "villain",
+  { name: "Gremlin", cost: 2, attack: 2, health: 2, type: "villain",
     _spawnOnly: true,
     abilities: [],
     desc: "Swarm: +1 ATK for each other Gremlin on the field. (Spawned by Gizmo and Stripe.)" },
@@ -338,7 +338,7 @@ const CARD_DEFS = [
     desc: "When Played: All cards in the opponent's hand permanently lose (−1/−1). While Active: When an ally is destroyed, gain (+0/+2). When an enemy is destroyed (by any means), gain (+2/+0)." },
   { name: "Revan", cost: 5, attack: 4, health: 6, type: "villain",
     abilities: [],
-    desc: "When Played: Give another ally Revive 1 — it revives as if played anew (abilities reset, On Play re-triggers)." },
+    desc: "When Played: Give another ally (not a 10-cost card) Revive 1 — it revives as if played anew (abilities reset, On Play re-triggers)." },
 
   // ==================== COST 8 ====================
   { name: "Apocalypse", cost: 8, attack: 5, health: 6, type: "villain",
