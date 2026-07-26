@@ -513,6 +513,11 @@ const UI = {
     // Menu music on/off — plays on main menu, mode picker, deck builder,
     // and draft screens. Stops automatically when a round begins.
     menuMusic: true,
+    // Hand-audio privacy — every card/trick has its OWN hover cue, so browsing
+    // your hand out loud tells anyone sitting next to you what you're holding.
+    // On: hand hover cues fall back to one generic blip (feedback kept, tell
+    // removed) while the rest of the game stays at full volume. Off by default.
+    handAudioPrivacy: false,
     // Menu atmosphere — soft theme-tinted energy field behind the main-menu
     // panel (the flowing-energy reference art, recolored to the active theme).
     // Static, GPU-cheap (one optimized JPEG + a CSS blend). Intensity 0..1.
@@ -880,6 +885,16 @@ const UI = {
       this.settings.musicVolume = parseInt(musicVolEl.value, 10) / 100;
       if (this.sfx) this.sfx.setMusicVolume();
     }
+    const handPrivSaveEl = g('setting-hand-audio-privacy');
+    if (handPrivSaveEl) {
+      this.settings.handAudioPrivacy = handPrivSaveEl.checked;
+      // Kill any identifying hover cue already ringing when it's switched on,
+      // so the card you were hovering doesn't finish announcing itself.
+      if (this.settings.handAudioPrivacy && this.sfx && this.sfx._currentHoverAudio) {
+        try { this.sfx._currentHoverAudio.pause(); } catch (e) {}
+        this.sfx._currentHoverAudio = null;
+      }
+    }
     const menuMusicEl = g('setting-menu-music');
     if (menuMusicEl) {
       const prev = this.settings.menuMusic !== false;
@@ -1034,6 +1049,8 @@ const UI = {
     }
     const menuMusicEl = g('setting-menu-music');
     if (menuMusicEl) menuMusicEl.checked = this.settings.menuMusic !== false;
+    const handPrivEl = g('setting-hand-audio-privacy');
+    if (handPrivEl) handPrivEl.checked = !!this.settings.handAudioPrivacy;
     // Menu atmosphere — toggle + intensity, both live-preview over the menu
     // sitting behind the settings overlay.
     const flowToggleEl = g('setting-menu-flow');
@@ -3154,6 +3171,15 @@ const UI = {
       //     Same cap/fade settings as play; NOT auto-fired by playCard.
       const ALLOWED = { hover: 1, play: 1, death: 1, ability: 1, kill: 1, spawn: 1 };
       if (!ALLOWED[event]) return null;
+      // HAND-AUDIO PRIVACY (user, 2026-07-25): every card has its OWN hover cue,
+      // so browsing your hand tells anyone sitting beside you exactly what you
+      // are holding — a real tell when you play online next to your opponent.
+      // With the setting on we return null for the IDENTIFYING hover cue only;
+      // each call site already falls back to the generic `cardHover` blip, so
+      // you keep the tactile feedback and lose the information leak — and the
+      // rest of the game stays at full volume. play/death/kill/spawn are NOT
+      // gated: by then the card is face-up on the board and already public.
+      if (event === 'hover' && UI.settings && UI.settings.handAudioPrivacy) return null;
       // Resolve file: card-specific first, else global default.
       const reg = this.CARD_SFX[name] || {};
       const fileEntry = reg[event] ?? this.DEFAULT_CARD_SFX[event];
@@ -3272,6 +3298,10 @@ const UI = {
     // hover instead of restarting.
     playTrickSfx(name, event) {
       if (!name) return null;
+      // Hand-audio privacy — same rule as playCardSfx: the per-trick hover cue
+      // identifies what you're holding to anyone beside you. Null here falls
+      // back to the generic blip at every call site.
+      if (event === 'hover' && UI.settings && UI.settings.handAudioPrivacy) return null;
       const reg = this.TRICK_SFX[name] || {};
       const entry = reg[event] ?? this.DEFAULT_TRICK_SFX[event];
       const resolved = this._resolveSfxEntry(entry);
