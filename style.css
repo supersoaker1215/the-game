@@ -33139,6 +33139,32 @@ body.low-fx .mm-particle,
 body.low-fx .board-mote {
   display: none !important;
 }
+/* ...but GIVE THE NATIVE CURSOR BACK. The global rule at the top of the
+   cursor section sets `cursor: none` everywhere so the glowing custom
+   follower can stand in for it. In low-fx we've just hidden that follower,
+   so without this the player has NO cursor at all and can't tell where
+   they're clicking (user report). Same restore the touch safety-net does:
+   re-enable the native arrow, with pointer/text affordances on the right
+   elements. Placed after the global rule so equal-specificity !important
+   wins by source order. */
+body.low-fx,
+body.low-fx *,
+body.low-fx *::before,
+body.low-fx *::after { cursor: auto !important; }
+body.low-fx a,
+body.low-fx button,
+body.low-fx [role="button"],
+body.low-fx summary,
+body.low-fx label[for],
+body.low-fx select,
+body.low-fx .card.playable,
+body.low-fx .hand-card-wrapper,
+body.low-fx .lane,
+body.low-fx .choice-card,
+body.low-fx .choice-real { cursor: pointer !important; }
+body.low-fx input:not([type="button"]):not([type="submit"]):not([type="reset"]),
+body.low-fx textarea,
+body.low-fx [contenteditable="true"] { cursor: text !important; }
 
 /* ---- 4. No live blur anywhere -------------------------------------
    backdrop-filter forces the compositor to re-rasterize everything

@@ -23165,6 +23165,10 @@ const UI = {
     // Touch devices get NO custom cursor — a tap would otherwise strand the
     // neon ring at the tap point with no mouseleave to clear it.
     if (!this._hasFinePointer()) return;
+    // Low-fx: the CSS hides the follower and restores the NATIVE cursor, so
+    // building the follower (and running its per-mousemove position write)
+    // would be wasted work with nothing to show for it.
+    if (this.isLowFx()) return;
     this._customCursorInstalled = true;
     const main = document.createElement('div');
     main.className = 'custom-cursor hidden';
