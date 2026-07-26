@@ -7912,7 +7912,7 @@ const UI = {
         ? `<span class="card-type-sigil discard-sigil">&#9670;</span>`
         : (card.attack !== undefined ? `<span class="card-type-sigil char-sigil">&#9733;</span>` : '');
       const stats = card.attack !== undefined
-        ? `<span class="stat-circle stat-atk">${card.attack}</span><span class="stat-circle stat-hp">${card.currentHealth || card.health || 0}</span>`
+        ? `<span class="stat-circle stat-atk">${card.attack}</span><span class="stat-circle stat-hp">${card.currentHealth != null ? card.currentHealth : (card.health != null ? card.health : 0)}</span>`
         : '';
       // REAL CARD FACE — if the option is an actual card (Dr. Strange foresee,
       // Deadpool, Mobius picks…), render it through makeCardEl so the chooser
@@ -16030,7 +16030,20 @@ const UI = {
     const hideAllStats = !!card.copiesOpposite && inHand;
     const hideAtk = inHand && (card.copiesOpposite || card.isCrazy || card.isInsane);
     const atkCell = hideAtk ? '?' : card.attack;
-    const hpCell  = hideAllStats ? '?' : card.currentHealth;
+    // HP fallback: a live card instance carries currentHealth (a number, and
+    // legitimately 0 when damaged — which must still print "0"). A raw
+    // CARD_DEF has no currentHealth, only `health`. Foresee / Scry pickers
+    // (Dr. Strange, Dormammu, Eye of Agamotto) hand this function the DEFS
+    // straight off the draw pile, so `card.currentHealth` was undefined and
+    // the HP orb rendered the literal string "undefined". Prefer
+    // currentHealth when present (0 included via != null), else the def's
+    // full health, else maxHealth. Display-only — the drawn card is still
+    // instantiated at full health by createCardInstance.
+    const hpCell  = hideAllStats
+      ? '?'
+      : (card.currentHealth != null ? card.currentHealth
+         : (card.health != null ? card.health
+            : (card.maxHealth != null ? card.maxHealth : 0)));
     const statOrbs = (card.isDiscardEffect || card.isEnvironment) ? '' : `
       <span class="stat-circle stat-atk${atkCls}"${atkTip}>${atkCell}</span>
       <span class="stat-circle stat-hp${hpCls}"${hpTip}>${hpCell}</span>`;
