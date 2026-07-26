@@ -1692,7 +1692,42 @@ const Game = {
   // in _mpBroadcast.
   _MP_NON_MATCH_PHASES: /^(main-menu|mode-select|my-decks|stats|deckbuilder-|2v2-online-lobby|2v2-team-setup)/,
 
-  _mpBroadcast() {
+  // BROADCAST COALESCING — 17 call sites funnel here, and several fire inside
+  // ONE synchronous action: the 13 wrapBroadcast-wrapped engine fns each push,
+  // plus _mpApplyAction's unconditional trailing push. Measured 2.3-5.2 full
+  // serialize+send round trips per single guest tap, every one of them a
+  // complete state snapshot. Only the LAST one is observable — the guest just
+  // renders whatever arrived most recently — so we mark the state dirty and
+  // flush ONCE on a microtask.
+  //
+  // Microtask, deliberately NOT requestAnimationFrame: rAF is throttled (or
+  // stopped entirely) when the host backgrounds its tab, which would stall the
+  // guest behind a host that looks idle. A microtask always drains at the end
+  // of the current synchronous task, so the final state of any chain still goes
+  // out in the same tick — no added latency, just no duplicate sends.
+  // Pass immediate=true to bypass coalescing (nothing needs it today; it exists
+  // so a future caller that must land before some other message can opt out).
+  _mpBroadcast(immediate) {
+    if (!this.isMultiplayer() || this.mp.role !== 'host') return;
+    // A dry-run preview must never schedule a send (see the _silentSim note in
+    // the flush). Checked here too so a preview can't even arm the microtask.
+    if (this.state && this.state._silentSim) return;
+    if (immediate) { this._mpFlushBroadcast(); return; }
+    this._mpBroadcastDirty = true;
+    if (this._mpBroadcastScheduled) return;
+    this._mpBroadcastScheduled = true;
+    const flush = () => {
+      this._mpBroadcastScheduled = false;
+      if (!this._mpBroadcastDirty) return;
+      this._mpBroadcastDirty = false;
+      this._mpFlushBroadcast();
+    };
+    if (typeof queueMicrotask === 'function') queueMicrotask(flush);
+    else if (typeof Promise !== 'undefined') Promise.resolve().then(flush);
+    else flush();
+  },
+
+  _mpFlushBroadcast() {
     if (!this.isMultiplayer() || this.mp.role !== 'host') return;
     // _silentSim guard: previewPlacement()/previewPlay() swap this.state to a
     // deep clone (stamped _silentSim) and call playCard/resolveLanes on it to
@@ -1719,6 +1754,9 @@ const Game = {
     const t = Multiplayer._transport;
     if (!t || typeof t.broadcastState !== 'function') return;
     const clone = Multiplayer.serializeState(this.state);
+    // Instrumentation — actual sends, not scheduled ones. Lets a headless test
+    // assert "<= 1 broadcast per command" and makes a regression visible.
+    this._mpBroadcastCount = (this._mpBroadcastCount || 0) + 1;
     try { t.broadcastState(clone); } catch (e) { console.error('mp broadcast error', e); }
   },
 

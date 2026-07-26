@@ -42,6 +42,10 @@ echo "=== test.js (mechanic units) ==="
 run_suite sim/test.js
 
 echo ""
+echo "=== mpwire.js (MP wire budget + broadcast coalescing) ==="
+run_suite sim/mpwire.js
+
+echo ""
 if [ "$FAIL" -ne 0 ]; then
   echo "❌ TESTS FAILED — see suites above."
   exit 1

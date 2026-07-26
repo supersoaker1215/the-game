@@ -358,13 +358,31 @@ const Multiplayer = {
     //    rehydrateCard skips nameless/def-less cards, so this can't desync play.
     //  • The combat LOG is capped to its recent tail — the guest only shows
     //    recent lines, so shipping all 300 every action is wasted bytes.
+    //  • The stub carries ONLY {id} — dropping `name` both saves bytes and
+    //    closes a fairness hole: the full draw ORDER of both decks was riding
+    //    every broadcast, so anything reading the guest's state could see the
+    //    next N cards. rehydrateCard bails on !c.name, and the guest renders
+    //    hidden piles purely by .length, so nothing downstream needs the name.
     const stubPile = (pile) => Array.isArray(pile)
-      ? pile.map(c => (c && c.id != null) ? { id: c.id, name: c.name } : {})
+      ? pile.map(c => (c && c.id != null) ? { id: c.id } : {})
       : pile;
     if (clone.drawPile) clone.drawPile = stubPile(clone.drawPile);
+    //  • trickDrawPile is hidden exactly like drawPile — same stub, both the
+    //    shared pile and the per-side piles (deckbuilder mode).
+    if (clone.trickDrawPile) clone.trickDrawPile = stubPile(clone.trickDrawPile);
     ['player', 'ai'].forEach(side => {
-      if (clone[side] && clone[side].drawPile) clone[side].drawPile = stubPile(clone[side].drawPile);
+      if (!clone[side]) return;
+      if (clone[side].drawPile) clone[side].drawPile = stubPile(clone[side].drawPile);
+      if (clone[side].trickDrawPile) clone[side].trickDrawPile = stubPile(clone[side].trickDrawPile);
     });
+    //  • summonDeck is the SHARED ~95-card summon lottery pool (Mother Box,
+    //    Bat Signal, Knull...). Measured at 41% of a mid-match payload — the
+    //    single largest object on the wire — and the guest never draws from it:
+    //    the host resolves every summon and broadcasts the RESULT. It is also
+    //    self-healing (drawFromSummonDeck re-inits via _initSummonDeck when the
+    //    pool is missing or empty), so dropping it cannot desync or strand a
+    //    draw. Same fairness note as above: it was leaking the summon order.
+    delete clone.summonDeck;
     if (Array.isArray(clone.log) && clone.log.length > 60) clone.log = clone.log.slice(-60);
     const fixRefs = (c) => {
       if (!c) return;
