@@ -623,28 +623,30 @@ gold('RG-21 previewAbilityTargets mirrors ability filters (WS/Gamora)', function
 // untouched (it still blocks damage/destroy). Reverses the old "stat debuffs
 // are damage in spirit → Invincible shrugs them off" rule. (User: you can be
 // debuffed while Invincible; only Immunity blocks debuffs.)
-gold('RG-11 stat debuff (debuffCard) lands on an Invincible card', function () {
+// UPDATED 2026-07-25 — the shield rule is now "HP shielded, ATK still drops":
+// Invincible / Damage Immunity blocks ALL health loss from a stat debuff, while
+// the ATK strip still lands. (Was: HP landed, floored at 1.)
+gold('RG-11 stat debuff lands ATK on Invincible; health is shielded', function () {
   reset();
   var tgt = card({ name: 'Flash', owner: 'ai', attack: 3, health: 4, abilities: [] });
   tgt.invincibleTurns = 2;
   Game.debuffCard(tgt, 2, 1, false, { name: 'Nightwing' });
-  eq('atk after -2', tgt.attack, 1);              // debuff LANDED despite Invincible
-  eq('maxHp after -1', tgt.maxHealth, 3);
-  eq('invincible untouched', tgt.invincibleTurns, 2);  // still a damage/destroy shield
+  eq('atk after -2',    tgt.attack, 1);            // ATK debuff LANDED
+  eq('maxHp shielded',  tgt.maxHealth, 4);         // health untouched
+  eq('curHp shielded',  tgt.currentHealth, 4);
+  eq('invincible untouched', tgt.invincibleTurns, 2);
 });
 
-// RG-12 — the DESTROY-shield half: an allowKill stat debuff (Bane / Man-Bat /
-// Magneto-Luke aura) can NOT kill an Invincible card. The -HP lands (down to a
-// floor of 1) but Invincible blocks the destroy — the card survives on the
-// board, not stranded <=0 for cleanupDead to reap. (Regression guard for the
-// Invincible-allows-debuffs change.)
-gold('RG-12 allowKill debuff cannot destroy an Invincible card', function () {
+// RG-12 — an allowKill stat debuff (Bane / Man-Bat / hostile Magneto-Luke aura)
+// can't touch a shielded card's health at all, so it certainly can't kill it.
+gold('RG-12 allowKill debuff cannot reduce or destroy an Invincible card', function () {
   reset();
   var tgt = card({ name: 'Flash', owner: 'ai', attack: 2, health: 1, abilities: [] });
   tgt.invincibleTurns = 2;
   Game.state.lanes[0].ai = tgt;                    // on the board
   Game.debuffCard(tgt, 1, 5, true, { name: 'Bane' });  // allowKill, huge -HP
-  eq('survives (hp floored at 1)', tgt.currentHealth, 1);
+  eq('atk still stripped', tgt.attack, 1);
+  eq('hp fully shielded',  tgt.currentHealth, 1);
   eq('still on the board', Game.state.lanes[0].ai === tgt, true);
   eq('invincible untouched', tgt.invincibleTurns, 2);
   // And a NON-invincible card under the same allowKill debuff IS destroyed.
@@ -653,6 +655,44 @@ gold('RG-12 allowKill debuff cannot destroy an Invincible card', function () {
   Game.state.lanes[0].ai = mortal;
   Game.debuffCard(mortal, 1, 5, true, { name: 'Bane' });
   eq('mortal died', !(mortal.currentHealth > 0), true);
+});
+
+// RG-12b — Pym Particles (-3/-3, allowKill) vs Damage Immunity. User-reported:
+// a Damage-Immune card was still being shrunk. ATK strips, health untouched.
+gold('RG-12b Pym Particles strips ATK but not health (Damage Immunity)', function () {
+  reset();
+  var tgt = card({ name: 'Groot', owner: 'ai', attack: 3, health: 3, abilities: [] });
+  tgt.hasDamageImmunity = true;
+  Game.state.lanes[0].ai = tgt;
+  Game.debuffCard(tgt, 3, 3, true, { name: 'Pym Particles' });
+  eq('atk stripped',   tgt.attack, 0);
+  eq('curHp shielded', tgt.currentHealth, 3);
+  eq('maxHp shielded', tgt.maxHealth, 3);
+  eq('alive on board', Game.state.lanes[0].ai === tgt, true);
+});
+
+// RG-12c — Jigsaw's Reverse Bear Trap now agrees with the debuff path: it no
+// longer whiffs entirely on a shielded card, it strips ATK and spares health.
+gold('RG-12c Bear Trap strips ATK, health shielded by Damage Immunity', function () {
+  reset();
+  var tgt = card({ name: 'Flash', owner: 'ai', attack: 2, health: 1, abilities: [] });
+  tgt.hasDamageImmunity = true;
+  Game.state.lanes[0].trap = { placedBy: 'player', debuff: 2 };
+  Game.checkLaneTrap(tgt, 0);
+  eq('atk stripped',   tgt.attack, 0);
+  eq('curHp shielded', tgt.currentHealth, 1);
+  eq('maxHp shielded', tgt.maxHealth, 1);
+  eq('trap consumed',  Game.state.lanes[0].trap, null);
+});
+
+// RG-12d — control: an UNSHIELDED card still eats the full -N/-N from a trap.
+gold('RG-12d Bear Trap takes both stats on an unshielded card', function () {
+  reset();
+  var tgt = card({ name: 'Mortal', owner: 'ai', attack: 3, health: 4, abilities: [] });
+  Game.state.lanes[0].trap = { placedBy: 'player', debuff: 2 };
+  Game.checkLaneTrap(tgt, 0);
+  eq('atk -2', tgt.attack, 1);
+  eq('hp -2',  tgt.currentHealth, 2);
 });
 
 // ============================================================

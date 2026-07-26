@@ -7382,15 +7382,18 @@ const Game = {
     const atkReduced = atk ? Math.min(atk, card.attack || 0) : 0;
     if (atk) card.attack = Math.max(0, card.attack - atk);
     if (hp) {
-      // allowKill (Magneto/Luke aura, Bane, Man-Bat, Bear Trap) may drop HP to
-      // 0 and destroy — BUT Invincible / Damage Immunity is a DESTROY shield.
-      // The stat strip still LANDS (Invincible allows debuffs), yet it can't
-      // KILL: floor at 1. Without this, killCard bails on Invincible without
-      // restoring HP, stranding the card <=0 for cleanupDead to reap — i.e.
-      // The Flash dying to a Bear Trap/aura, which the Invincible-allows-debuffs
-      // rule must NOT introduce (Invincible = damage/destroy shield only).
-      const destroyShielded = card.invincibleTurns > 0 || card.hasDamageImmunity;
-      if (allowKill && !destroyShielded) {
+      // CANONICAL SHIELD RULE (user, 2026-07-25): Invincible / Damage Immunity
+      // shields ALL HEALTH LOSS, but the ATK strip still lands ("you can get
+      // debuffed with Invincible"). So a shielded card hit by Pym Particles,
+      // a Bear Trap, or a hostile Magneto/Luke aura loses ATK and keeps its HP
+      // untouched — it can't be shrunk to 1 and it can't be killed. Fixing it
+      // HERE means every debuff source inherits the rule (Pym, Nightwing, Bane,
+      // Man-Bat, auras); recomputeAuras measures its landed delta off maxHealth,
+      // so a shielded target simply records no HP delta and stays consistent.
+      const hpShielded = card.invincibleTurns > 0 || card.hasDamageImmunity;
+      if (hpShielded) {
+        // Health untouched — no maxHealth/currentHealth change at all.
+      } else if (allowKill) {
         card.maxHealth = Math.max(1, card.maxHealth - hp);
         card.currentHealth -= hp;
         if (card.currentHealth <= 0) {
@@ -8859,23 +8862,24 @@ const Game = {
     if (!card || laneIdx < 0 || laneIdx >= this.LANE_COUNT) return;
     const lane = this.state.lanes[laneIdx];
     if (!lane || !lane.trap || lane.trap.placedBy === card.owner) return;
-    // Invincibility / Damage Immunity blocks the Bear Trap entirely —
-    // the card "stepped on the trap but nothing happened." User spec:
-    // "If Flash has Invincibility he should still be 2/1 because he
-    // didn't get damaged by the bear trap. Same for any card."
-    if (card.invincibleTurns > 0 || card.hasDamageImmunity) {
-      lane.trap = null;
-      this.log(`  [BEAR TRAP] ${card.name} steps on a Reverse Bear Trap — Invincibility absorbs it!`);
-      return;
-    }
     // Trap-set Text+ ("Game Master") stamps a custom debuff on each
     // trap; default is the classic 1 (so -1/-1).
     const debuff = (lane.trap && lane.trap.debuff) || 1;
     lane.trap = null;
+    // CANONICAL SHIELD RULE (user, 2026-07-25) — matches debuffCard: Invincible
+    // / Damage Immunity shields ALL HEALTH LOSS, but the ATK strip still lands.
+    // Previously the trap was absorbed WHOLESALE (early return), which made the
+    // same shield behave differently here than for Pym Particles / hostile auras
+    // — the inconsistency the user reported. Now all three agree.
+    const hpShielded = card.invincibleTurns > 0 || card.hasDamageImmunity;
     card.attack = Math.max(0, card.attack - debuff);
-    card.maxHealth = Math.max(1, card.maxHealth - debuff);
-    card.currentHealth = Math.max(0, card.currentHealth - debuff);
-    this.log(`  [BEAR TRAP] ${card.name} triggers a Reverse Bear Trap! -${debuff}/-${debuff} → ${card.attack}/${card.currentHealth}`);
+    if (!hpShielded) {
+      card.maxHealth = Math.max(1, card.maxHealth - debuff);
+      card.currentHealth = Math.max(0, card.currentHealth - debuff);
+    }
+    this.log(hpShielded
+      ? `  [BEAR TRAP] ${card.name} triggers a Reverse Bear Trap! -${debuff} ATK — health shielded → ${card.attack}/${card.currentHealth}`
+      : `  [BEAR TRAP] ${card.name} triggers a Reverse Bear Trap! -${debuff}/-${debuff} → ${card.attack}/${card.currentHealth}`);
     // A trap that drops the card to 0 HP is lethal — route through the
     // canonical death path so it can't sit on the board as a 0-HP
     // "zombie" (dead-but-unresolved). checkLaneTrap has 8 callers and most
