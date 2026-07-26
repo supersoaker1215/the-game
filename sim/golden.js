@@ -696,6 +696,43 @@ gold('RG-12d Bear Trap takes both stats on an unshielded card', function () {
 });
 
 // ============================================================
+// SUMMON CASCADE ORDERING (2026-07-25)
+// A summoned card's own On Play (Hela raising Undead Warriors) must claim its
+// lanes SYNCHRONOUSLY, before the outer summoner's loop (Knull filling every
+// open lane) continues — otherwise Knull fills the board first and the nested
+// summons are silently dropped. User: "Hela needs to spawn her 2 minions first
+// before more cards are summoned by Knull — 2 less total summons."
+// ============================================================
+gold('RG-13 nested summon chain places every token synchronously', function () {
+  reset();
+  var count = 0;
+  var doSummon = function () {
+    count++;
+    if (count < 2) Game.summonCardChoice('player', 'Undead Warrior', 1, 3, 1, [], doSummon);
+  };
+  Game._summonCascadeDepth = 1;          // simulate "inside Knull's onPlay loop"
+  Game.summonCardChoice('player', 'Undead Warrior', 1, 3, 1, [], doSummon);
+  Game._summonCascadeDepth = 0;
+  var placed = 0;
+  for (var i = 0; i < Game.LANE_COUNT; i++) if (Game.state.lanes[i].player) placed++;
+  eq('both warriors placed synchronously', placed, 2);
+  eq('no lane prompt armed', !Game.state.pendingLaneChoice, true);
+});
+
+// RG-13b — outside a cascade the normal (prompt / delayed) path is untouched.
+gold('RG-13b outside a cascade summonCardChoice keeps its normal path', function () {
+  reset();
+  eq('cascade depth clear', (Game._summonCascadeDepth || 0), 0);
+  Game.summonCardChoice('player', 'Undead Warrior', 1, 3, 1, [], function () {});
+  var placed = 0;
+  for (var i = 0; i < Game.LANE_COUNT; i++) if (Game.state.lanes[i].player) placed++;
+  // Either it placed immediately (single-lane / AI seat) or armed a prompt —
+  // both are the pre-existing behavior; what matters is it did NOT crash and
+  // did not place more than one token.
+  eq('at most one token placed', placed <= 1, true);
+});
+
+// ============================================================
 // RUNNER
 // ============================================================
 for (var ci = 0; ci < __cases.length; ci++) {

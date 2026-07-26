@@ -4439,6 +4439,13 @@ const CARD_ABILITIES = {
       G._suppressSummonSfx = true;
       const _knullSummoned = [];
       G.getOpenLanes(self.owner).filter(l => l !== lane).forEach(l => {
+        // RE-CHECK LIVE: the open-lane list is a snapshot, but a summoned card's
+        // own On Play can claim lanes mid-loop (Hela raising Undead Warriors).
+        // Check BEFORE drawing so we don't burn a card out of the shared summon
+        // deck on a lane we can no longer fill — Knull simply summons that many
+        // fewer, which is the intended interaction.
+        const ln = G.state.lanes[l];
+        if (!ln || ln.destroyed || ln[self.owner]) return;
         // Pull from the shared summon deck so Knull's lottery spreads
         // across the full 95-card pool. Filter: cost minCost-maxCost,
         // attack > 0, not a discard-effect card.

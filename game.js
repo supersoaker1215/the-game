@@ -8590,6 +8590,18 @@ const Game = {
     if (typeof preferredLanesOrCb === 'function') { onComplete = preferredLanesOrCb; preferredLanes = null; }
     const open = preferredLanes || this.getOpenLanes(owner);
     if (!open.length) { if (onComplete) onComplete(); return; }
+    // NESTED IN A SUMMON CASCADE (Knull summons Hela → Hela raises warriors):
+    // the outer summoner's loop is SYNCHRONOUS, so we cannot prompt and we
+    // cannot defer through _aiActionDelay — either would let Knull fill every
+    // remaining lane before these warriors claim theirs, silently dropping them.
+    // Place immediately, lowest open lane first, and continue the chain inline
+    // so the whole nested effect is done before the outer loop's next step.
+    if ((this._summonCascadeDepth || 0) > 0) {
+      const lane = open[0];
+      this.summonCard(owner, lane, name, cost, attack, health, abilities, sourceDef);
+      if (onComplete) onComplete();
+      return;
+    }
     if (!this.isHuman(owner) || open.length === 1) {
       // The summon itself fires immediately (its own card-build-in
       // animation IS the visual cue showing WHERE the summon went).
@@ -8768,7 +8780,21 @@ const Game = {
       });
       // onPlay still only fires for real-card summons.
       if (sourceDef) {
-        this._runHook(card, 'onPlay', this, card, laneIdx);
+        // SUMMON CASCADE DEPTH — a summoned card's own On Play (Hela raising
+        // Undead Warriors) runs INSIDE the summoner's loop (Knull filling every
+        // open lane). That nested effect must finish claiming its lanes BEFORE
+        // the outer loop continues, or the outer summoner fills the board first
+        // and the nested summons are silently dropped. summonCardChoice reads
+        // this depth and resolves synchronously instead of prompting / deferring
+        // through _aiActionDelay. User report: "Hela needs to spawn her 2 minions
+        // first before more cards are summoned by Knull — there should be 2 less
+        // total summons."
+        this._summonCascadeDepth = (this._summonCascadeDepth || 0) + 1;
+        try {
+          this._runHook(card, 'onPlay', this, card, laneIdx);
+        } finally {
+          this._summonCascadeDepth = Math.max(0, (this._summonCascadeDepth || 1) - 1);
+        }
         // Draw-on-play keyword resolution — mirrors the path in
         // playCard so cards entering via SUMMON (Super Soldier Serum
         // transform, Bat Signal pull, Hela revive, etc.) still honor
