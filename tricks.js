@@ -5,7 +5,7 @@
 const TRICK_DEFS = [
   // Cost 0
   { name: "Space Stone", cost: 0,
-    desc: "Choose a card from your hand — it can be played during the Trick Phase this round at its normal cost.",
+    desc: "Choose a card in your hand. It can be played during the Trick Phase at its normal cost.",
     play(G, owner) {
       const hand = G.state[owner].hand.filter(c => !c.isDiscardEffect && !c.trickPhasePlayable);
       if (!hand.length) {
@@ -33,7 +33,7 @@ const TRICK_DEFS = [
     // Badge only — the actual draw is fired by Game.timeStoneCounter. Tricks
     // don't run applyAbilities on their play path, so this won't double-draw.
     abilities: ["Draw 1"],
-    desc: "Reaction: When the enemy plays a hostile trick against your cards, negate it. The enemy's trick returns to their hand and is blocked this round. Time Stone is consumed.",
+    desc: "Reaction: When an enemy plays a hostile trick, cancel it. That trick stays in their hand and cannot be played again this round.",
     // `canPlay` returns false so the player can't manually click Time Stone
     // from the tricks panel — it only ever fires via the Counter prompt
     // (Game._playerHasTimeStone + Game.timeStoneCounter). Keeps the card in
@@ -51,7 +51,7 @@ const TRICK_DEFS = [
     // line since that's a GENERAL trick rule (all tricks are blocked by
     // Untrickable), not Batarangs-specific. Behavior is unchanged — Untrickable
     // enemies are still filtered out.
-    desc: "Deal 2 damage 2 separate times to enemies.",
+    desc: "Deal 2 damage to an enemy 2 times. Each hit can target a different enemy.",
     canPlay(G, owner) {
       return G.getEnemiesOf(owner).some(e => G.canTrickLand(e, 'damage', owner));
     },
@@ -80,7 +80,7 @@ const TRICK_DEFS = [
     }
   },
   { name: "Bat Signal", cost: 1,
-    desc: "Summon a random 1-cost card (or Batman) from the summon deck.",
+    desc: "Summon a random card with cost ≤ 1, or Batman.",
     play(G, owner) {
       // Pull from the SHARED summon deck (95-card reference pool) rather
       // than this player's drawPile so summoned cards can duplicate
@@ -223,7 +223,7 @@ const TRICK_DEFS = [
     }
   },
   { name: "Mother Box", cost: 1,
-    desc: "Summon a random 1-cost card (or Darkseid) from the summon deck.",
+    desc: "Summon a random card with cost ≤ 1, or Darkseid.",
     play(G, owner) {
       // Pulls from the shared summon deck. Filter: cost ≤ 1 OR Darkseid,
       // no discard-effect cards. Same scope shift as Bat Signal — was
@@ -335,7 +335,7 @@ const TRICK_DEFS = [
     }
   },
   { name: "Two-Face Coin", cost: 2,
-    desc: "Roll a die (1-8). Add the result to your Block Meter.",
+    desc: "Add a random 1-8 to your Block Meter.",
     play(G, owner) {
       const roll = 1 + Math.floor(G.rng() * 8);
       G.state[owner].blockMeter = Math.min(Game.BLOCK_MAX, G.state[owner].blockMeter + roll);
@@ -386,7 +386,7 @@ const TRICK_DEFS = [
     }
   },
   { name: "Super Soldier Serum", cost: 3,
-    desc: "LEAP +1 — Transform an ally into a random card that costs EXACTLY one more.",
+    desc: "Transform an ally into a random card that costs exactly 1 more.",
     // The "leap" — transforming the ally always produces a card that
     // costs EXACTLY ONE MORE than the picked ally. User refinement:
     // "It can only upgrade the card one cost. So if you have a 1-cost
@@ -440,7 +440,7 @@ const TRICK_DEFS = [
     }
   },
   { name: "Pym Particles", cost: 2,
-    desc: "Shrink an enemy — (−3/−3).",
+    desc: "Remove (−3/−3) from an enemy. This can destroy it.",
     canPlay(G, owner) { return G.getEnemiesOf(owner).some(e => G.canTrickLand(e, 'debuff', owner)); },
     play(G, owner) {
       const enemies = G.getEnemiesOf(owner).filter(e => G.canTrickLand(e, 'debuff', owner));
@@ -457,7 +457,7 @@ const TRICK_DEFS = [
   },
   // Cost 4
   { name: "Phantom Zone", cost: 3,
-    desc: "Return an enemy to their hand. (May exceed max hand size for 1 turn.)",
+    desc: "Return an enemy to their hand at base stats. If their hand is full, it is lost.",
     // Needs a live target — greys out in the tray + refused by playTrick otherwise.
     canPlay(G, owner) { return G.getEnemiesOf(owner).some(e => G.canTrickLand(e, 'trick', owner)); },
     play(G, owner) {
@@ -486,7 +486,7 @@ const TRICK_DEFS = [
     play(G, owner) { G.addNextTurnCurrency(owner, 2); G.log("Power Battery: +2 next turn!"); }
   },
   { name: "Soul Stone", cost: 3,
-    desc: "Destroy one of your cards and an enemy within 4 base cost of it.",
+    desc: "Destroy an ally and an enemy within 4 base cost of it.",
     // Needs a live target — greys out in the tray + refused by playTrick otherwise.
     canPlay(G, owner) { const allies = G.getAlliesOf(owner).filter(a => G.canTrickLand(a, 'destroy', owner)), enemies = G.getEnemiesOf(owner).filter(e => G.canTrickLand(e, 'destroy', owner)); return allies.some(a => enemies.some(e => Math.abs((a.baseCost || a.cost || 0) - (e.baseCost || e.cost || 0)) <= 4)); },
     play(G, owner) {
@@ -512,7 +512,7 @@ const TRICK_DEFS = [
   },
   // Cost 5
   { name: "Anti-Life Equation", cost: 4,
-    desc: "Destroy both cards in a contested lane and collapse it into the void for 3 rounds. Can't target lanes holding an Invincible, Untrickable, or 10-cost card.",
+    desc: "Destroy both cards in a contested lane and collapse it into the void for 3 rounds. Only lanes where both cards can be destroyed may be chosen.",
     play(G, owner) {
       const opp = G.opponent(owner);
       const contested = [];
@@ -550,7 +550,7 @@ const TRICK_DEFS = [
   },
   { name: "Mind Stone", cost: 4,
     abilities: ["Unresistible 1"],
-    desc: "Mind Control 1 an enemy this turn.",
+    desc: "Mind Control 1 an enemy.",
     canPlay(G, owner) { return G.getEnemiesOf(owner).some(e => G.canTrickLand(e, 'trick', owner)); },
     play(G, owner) {
       // Kind 'trick' ONLY — Mind Stone's Unresistible source pierces Immunity,
@@ -570,7 +570,7 @@ const TRICK_DEFS = [
     }
   },
   { name: "Reality Stone", cost: 4,
-    desc: "Permanently swap an ally's ATK/HP with an enemy's ATK/HP.",
+    desc: "Permanently swap an ally's ATK and HP with an enemy's.",
     // Needs a live target — greys out in the tray + refused by playTrick otherwise.
     canPlay(G, owner) { return G.getAlliesOf(owner).some(a => G.canTrickLand(a, 'trick', owner)) && G.getEnemiesOf(owner).some(e => G.canTrickLand(e, 'debuff', owner)); },
     play(G, owner) {
@@ -614,7 +614,7 @@ const TRICK_DEFS = [
   },
   // Cost 5
   { name: "Joker's Playing Card", cost: 4,
-    desc: "Protect either odd or even lanes from damage this round.",
+    desc: "Choose odd or even lanes. Uncontested enemies in those lanes cannot attack this round.",
     play(G, owner) {
       if (Game.isHuman(owner)) {
         G.promptCardChoice(owner,

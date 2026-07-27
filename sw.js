@@ -5,7 +5,7 @@
 // HTML + JS + CSS are network-first (cached only as a fallback for
 // genuinely offline visits). Audio/images/manifest stay cache-first
 // since they rarely change and are heavy to re-download.
-const CACHE_VERSION = 'clb-v64-global-magnify';
+const CACHE_VERSION = 'clb-v65-card-text-rewrite';
 const APP_SHELL = [
   './manifest.webmanifest',
   './icon.svg'
