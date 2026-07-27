@@ -13,7 +13,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap">
-  <link rel="stylesheet" href="style.css?v=778">
+  <link rel="stylesheet" href="style.css?v=779">
   <script>
     // Lightweight error reporter (pre-Sentry) — capture runtime JS
     // errors + unhandled promise rejections to a localStorage ring
@@ -465,6 +465,18 @@
 
     <!-- PLAYER HAND (cards above tricks) -->
     <div class="player-hand-section">
+      <!-- HAND-AUDIO PRIVACY TOGGLE — every card has its own hover sound, which
+           tells anyone next to you (or on the call) what's in your hand. This is
+           the same setting as "Hide hand sounds" in the settings panel, surfaced
+           where it's actually needed: at the head of the hand row, one tap. The
+           two stay in sync in both directions. -->
+      <button type="button"
+              id="hand-audio-toggle"
+              class="hand-audio-toggle"
+              onclick="UI.toggleHandAudioPrivacy()"
+              title="Hide hand sounds — replace per-card hover cues with one generic blip"
+              aria-label="Hide hand sounds"
+              aria-pressed="false"><span class="hand-audio-icon" aria-hidden="true">♪</span></button>
       <div id="player-hand" class="hand-cards"></div>
     </div>
 
@@ -800,7 +812,7 @@
   <script src="peerjs.min.js"></script>
   <script src="multiplayer.js?v=30"></script>
   <script src="card-art-manifest.js?v=53"></script>
-  <script src="ui.js?v=998"></script>
+  <script src="ui.js?v=999"></script>
   <script src="tutorial.js?v=7"></script>
   <script src="logger.js?v=5"></script>
   <!-- Always-on crash capture. Hooks window.onerror +

@@ -7823,6 +7823,57 @@ body.mobile-card-dragging .cursor-trail { display: none !important; }
      would block the upward lift too. */
   clip-path: inset(-999px 0 0 0);
 }
+
+/* HAND-AUDIO PRIVACY TOGGLE — the small ♪ at the head of the hand row.
+   ABSOLUTELY positioned (the section is position:relative) rather than placed in
+   the flex flow, so it can't shift the centred hand or steal a card's width.
+   Boxless per the house style: a bare glyph that grows + glows on hover, never a
+   box. Muted state dims it and draws a diagonal slash with a pseudo-element —
+   no second glyph, so it can't break on a font without a "muted note" char. */
+.hand-audio-toggle {
+  position: absolute;
+  left: 14px;
+  top: 20px;
+  z-index: 3;
+  background: none;
+  border: 0;
+  padding: 0;
+  /* 44px keeps it a legitimate touch target without drawing a 44px box. */
+  min-width: 44px; min-height: 44px;
+  display: flex; align-items: center; justify-content: center;
+  color: var(--tron-glow, #4fc3f7);
+  opacity: 0.45;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: opacity 160ms ease, transform 160ms ease, color 160ms ease;
+}
+.hand-audio-toggle .hand-audio-icon {
+  position: relative;
+  display: block;
+  font-size: 19px;
+  line-height: 1;
+  text-shadow: 0 0 8px currentColor;
+}
+.hand-audio-toggle:hover,
+.hand-audio-toggle:focus-visible { opacity: 1; transform: scale(1.15); outline: none; }
+/* Hidden/muted — desaturated, with a slash struck through the note. */
+.hand-audio-toggle.is-muted { color: #8096ad; opacity: 0.8; }
+.hand-audio-toggle.is-muted .hand-audio-icon::after {
+  content: '';
+  position: absolute;
+  left: -4px; right: -4px; top: 50%;
+  height: 1.5px;
+  background: currentColor;
+  box-shadow: 0 0 6px currentColor;
+  transform: rotate(-45deg);
+}
+/* Narrow screens: the hand fills the width, so tuck the toggle up and in so it
+   can never sit on top of the first card. */
+@media (max-width: 760px) {
+  .hand-audio-toggle { left: 2px; top: 6px; min-width: 34px; min-height: 34px; }
+  .hand-audio-toggle .hand-audio-icon { font-size: 16px; }
+}
+
 .hand-cards {
   /* nowrap — hand stays on one row so cards can't spill horizontally.
      Taller min-height so hover-scale doesn't crowd the bottom border.

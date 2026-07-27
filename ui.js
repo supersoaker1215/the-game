@@ -856,6 +856,40 @@ const UI = {
     pre.onerror = () => {};   // keep whatever's showing if the art 404s
     pre.src = art;
   },
+  // Hand-audio privacy quick toggle — the small ♪ at the head of the hand row.
+  // Exactly the same state as the "Hide hand sounds" settings checkbox, just
+  // surfaced where it matters: every card has its own hover cue, so anyone next
+  // to you (or listening on a call) can hear what you're holding. Flipping
+  // either control updates the other; both write the same persisted key.
+  toggleHandAudioPrivacy() {
+    if (!this.settings) return;
+    this.settings.handAudioPrivacy = !this.settings.handAudioPrivacy;
+    // Cut any identifying hover cue already ringing, so the card you were
+    // hovering doesn't finish announcing itself after you've hit mute.
+    if (this.settings.handAudioPrivacy && this.sfx && this.sfx._currentHoverAudio) {
+      try { this.sfx._currentHoverAudio.pause(); } catch (e) {}
+      this.sfx._currentHoverAudio = null;
+    }
+    try { localStorage.setItem(this.SETTINGS_KEY, JSON.stringify(this.settings)); } catch (e) {}
+    this.syncHandAudioToggle();
+  },
+
+  // Paint the toggle to match state and keep the settings checkbox in agreement
+  // (so opening Settings after using the quick toggle shows the truth).
+  syncHandAudioToggle() {
+    const on = !!(this.settings && this.settings.handAudioPrivacy);
+    const btn = document.getElementById('hand-audio-toggle');
+    if (btn) {
+      btn.classList.toggle('is-muted', on);
+      btn.setAttribute('aria-pressed', on ? 'true' : 'false');
+      btn.title = on
+        ? 'Hand sounds hidden — per-card hover cues are replaced with one generic blip'
+        : 'Hide hand sounds — stop per-card hover cues from revealing your hand';
+    }
+    const box = document.getElementById('setting-hand-audio-privacy');
+    if (box) box.checked = on;
+  },
+
   saveSettings() {
     const g = (id) => document.getElementById(id);
     this.settings.difficulty  = g('setting-difficulty').value;
@@ -894,6 +928,8 @@ const UI = {
         try { this.sfx._currentHoverAudio.pause(); } catch (e) {}
         this.sfx._currentHoverAudio = null;
       }
+      // Keep the in-hand quick toggle in step when it's changed from Settings.
+      this.syncHandAudioToggle();
     }
     const menuMusicEl = g('setting-menu-music');
     if (menuMusicEl) {
@@ -1051,6 +1087,8 @@ const UI = {
     if (menuMusicEl) menuMusicEl.checked = this.settings.menuMusic !== false;
     const handPrivEl = g('setting-hand-audio-privacy');
     if (handPrivEl) handPrivEl.checked = !!this.settings.handAudioPrivacy;
+    // Paint the in-hand quick toggle from the saved value on boot.
+    this.syncHandAudioToggle();
     // Menu atmosphere — toggle + intensity, both live-preview over the menu
     // sitting behind the settings overlay.
     const flowToggleEl = g('setting-menu-flow');
