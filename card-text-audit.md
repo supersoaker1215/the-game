@@ -127,3 +127,51 @@ Surfaced as each batch is reviewed. Each entry: card name, what disagreed, the d
 ## Styling decision
 
 **Option A — chosen.** `.card-desc` color changed from `#9caab4` (cool grey) to `#c5d2de` (cyan-tinted off-white). Applied in [style.css:1299](style.css:1299). No changes to trigger labels or hairlines — keep it clean.
+
+---
+
+## Re-audit pass — 2026-07-27 (commit 5145e9e)
+
+Full second pass over all **144** entries (116 cards + 28 tricks). Every `desc` was
+**re-derived from the implementation** rather than edited as prose, then
+adversarially re-checked against that same code by a second reviewer.
+
+**Result:** 84 rewritten, 15 corrected during review, 0 reverted, **93 code/text
+mismatches** found and fixed. Verified mechanically that the diff touches zero
+`cost`/`attack`/`health`/`abilities` lines — text only, no balance change.
+
+### Notable mismatches (the card was lying to the player)
+
+- **Galactus** — desc implied it devoured the whole ≤4-ATK pool each turn. Code sorts
+  by threat and devours **one**. Genuine power-level misread.
+- **Phantom Zone** — never said the returned card is a **fresh instance** (every buff,
+  debuff and status wiped). That is the entire point of the trick.
+- **Xenomorph** — "(not summoned)" was false; `onAnyCardPlayed` fires on summons too.
+- **Wonder Woman** — chain damage does **not** decay per step; it recurses at full damage.
+- **Dr. Strange** — the Foresee card **is** that round's draw for both seats, not a bonus.
+- **Freddy Krueger** — never swings at the lane at all; `_skipNormalAttack` on every path.
+- **Open Water** — the env slot clears when Jaws **rises**, not when he dies.
+- **Boiler Room** — Burning ticks in `onBeforeAttack`, so a card that never swings never burns.
+- **Gizmo** — the Gremlin arrives at its def **(2/2)**; the literal args in the call are
+  ignored because the def is passed as `sourceDef`.
+- **Jigsaw** — classic default is **2** traps; the adjacent code comment saying 3 is stale.
+- **Revan** — "(not a 10-cost card)" was wrong: the filter is `baseCost <= 9`, which also
+  excludes printed-above-10 bodies like Doomsday (cost 12).
+
+### Sweeps completed
+
+- No `Stun` wording survives anywhere (merged into Freeze globally — nothing sets `isStunned`).
+- No `or less` — all conditional filters use `≤`.
+- No hyphen-minus inside debuff parens — all real U+2212 `−`.
+- Keyword-badge rule re-verified. Remaining keyword mentions in desc are all legitimate:
+  a summoned **token's** keywords (Ghostface), or bespoke twists the glossary permits
+  (Revive-as-different-stats, Dr. Manhattan's Taunt exception).
+
+### Known follow-ups (out of scope, text-only pass)
+
+- `Mind Control 1` still appears on **Mind Stone** (tricks.js) and **Luke Skywalker**
+  (cards.js). Mind Control is a **flag**, not parameterized — the `1` should be dropped
+  for consistency (Gorilla Grodd already fixed).
+- **Michael Myers** and **Gamora** both carry a card-specific lone-wolf `+1/+1` that
+  double-stacks with the universal engine Lone Wolf — net `(+2/+2)` alone. Code smell,
+  not a text problem.
