@@ -7637,7 +7637,24 @@ const UI = {
       }
       // Card-targeted events — find card element on board
       const cardEl = document.querySelector(`[data-card-id="${ev.cardId}"]`);
-      if (!cardEl) continue;
+      if (!cardEl) {
+        // The card is already off the board — which is precisely what happens on
+        // a KILLING BLOW: the victim is removed before this runs, so `continue`
+        // silently threw away the whole beat and the most dramatic hit in the
+        // game landed with no flash, no shake, no freeze-frame, no sound. The
+        // node-anchored channels (flash / burst / knockback / chips / float)
+        // genuinely have nothing to attach to, but the BOARD-level ones don't
+        // need a node — fire those so a kill still registers as an event.
+        if (ev.type === 'hit') {
+          const tier = this._damageTier(ev.amount, ev.lethal);
+          const fx = this._TIER_FX[tier] || this._TIER_FX.medium;
+          if (fx.shake) this._screenShake(fx.shake);
+          if (fx.hitPause) this._hitPauseFreeze(fx.hitPause);
+          try { this.sfx.play('hit', fx.sfxGain, 0); } catch (e) {}
+          if (ev.amount > 0) this._haptic('hit');
+        }
+        continue;
+      }
       // Defer the visual FX + damage number of a contested-lane combat hit
       // to the lunge impact frame (~190ms) so they land ON contact. Splash /
       // trick / ability hits (no attackerId, no lunge) and reduced-motion
@@ -14490,6 +14507,28 @@ const UI = {
     'forecast-target', 'forecast-source'
   ],
 
+  // ONE-SHOT COMBAT FX CLASSES — applied IMPERATIVELY after a render (not by
+  // makeCardEl from state), so the className diff in the cached-card transplant
+  // saw them as "on the cached node, absent from the fresh node" and REMOVED
+  // them. Combat is exactly when a card's snapshot busts (its HP changed), so
+  // the transplant ran mid-animation and killed these every damaging exchange —
+  // the 540ms lunge keyframe (style.css ~16854) has in practice never played
+  // during a real trade. Same class of bug as the art flicker, same fix shape:
+  // exempt them from the REMOVAL half of the diff so a live animation survives.
+  //
+  // SAFETY RULE — every class here MUST provably remove itself on a timer, or
+  // exempting it would strand it on the card forever (a permanently stuck glow,
+  // strictly worse than the current bug). Verified self-removing:
+  //   combat-attacker / combat-target  → classOnCard's setTimeout (ui.js ~22104)
+  //   hit-flash-heavy / hit-flash-lethal → setTimeout at ui.js ~7673
+  //   card-knockback                     → setTimeout at ui.js ~7538
+  // Do NOT add a class here without finding its removal timer first.
+  _FX_TRANSIENT_CLASSES: [
+    'combat-attacker', 'combat-target',
+    'hit-flash-heavy', 'hit-flash-lethal',
+    'card-knockback'
+  ],
+
   // Snapshot of every card-state field that affects the rendered visual.
   // If this string changes between renders, the cached element is stale
   // and a fresh build is required. Numeric fields are coerced via | 0
@@ -14702,7 +14741,14 @@ const UI = {
       const newClasses = fresh.className ? fresh.className.trim().split(/\s+/) : [];
       const oldSet = new Set(oldClasses);
       const newSet = new Set(newClasses);
-      for (const c of oldClasses) if (!newSet.has(c)) cached.classList.remove(c);
+      // Exempt live one-shot combat FX from the REMOVAL half — they're applied
+      // imperatively so they're never on `fresh`, and stripping them here is
+      // what has been cancelling the lunge/knockback/tier-flash mid-animation.
+      // Each is self-removing on its own timer (see _FX_TRANSIENT_CLASSES).
+      const fxKeep = this._FX_TRANSIENT_CLASSES;
+      for (const c of oldClasses) {
+        if (!newSet.has(c) && fxKeep.indexOf(c) === -1) cached.classList.remove(c);
+      }
       for (const c of newClasses) if (!oldSet.has(c)) cached.classList.add(c);
       // Sync dataset (snap stamp + builder-set attrs like data-card-name).
       Object.keys(fresh.dataset).forEach(k => { cached.dataset[k] = fresh.dataset[k]; });
