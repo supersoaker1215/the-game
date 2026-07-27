@@ -5652,7 +5652,12 @@ const UI = {
     // Phase transition banners
     this.checkPhaseTransition(s);
     this.markActiveLaneBeat();
-    this.animateStatChanges();
+    // animateStatChanges USED TO RUN HERE — 170+ lines before renderBoard, in
+    // the same pass. That made buff/debuff feedback a no-op twice over: the DOM
+    // still held the OLD digits (so the digit tick read prev === target and
+    // early-returned), and renderBoard then transplanted fresh children into the
+    // card, destroying the very orb node that had just been decorated. Moved to
+    // immediately AFTER renderBoard — see the call site there.
 
     // One-shot effect banners (e.g. Gorr devour) — give these a longer
     // explicit duration since they carry info the player actually
@@ -5825,6 +5830,11 @@ const UI = {
     this.renderRoundTrack(s);
     this._updateDominanceVars(s);  // Color Invasion — write dominance CSS vars before rendering
     this.renderBoard(s);
+    // Stat pops run AFTER the board is rebuilt, so they decorate the orb node
+    // that will actually survive to paint and read the NEW digit as their
+    // target. (Comparison is against _lastCardStats — engine state, untouched by
+    // rendering — so moving the call can't change which changes are detected.)
+    this.animateStatChanges();
     this.renderPlayerHand(s);
     this.renderAIHand(s);
     this.renderPlayerTricks(s);
@@ -6063,6 +6073,25 @@ const UI = {
     });
   },
 
+  // Slide a board card from where it WAS to where it now is (the Invert+Play
+  // half of a FLIP). Deliberately uses the Web Animations API rather than an
+  // inline transform + transition: the cached-card transplant STRIPS every
+  // inline style property off a card each time its snapshot busts, and the
+  // className diff strips classes — either would snap a slide mid-flight the
+  // moment anything re-rendered. A WAAPI animation is held by the element
+  // itself, so it survives both, and it runs on the compositor (transform
+  // only), so it stays battery-cheap. One-shot; nothing to clean up.
+  _animateLaneSlide(el, dx, dy) {
+    if (!el || typeof el.animate !== 'function') return;
+    if (this._reducedMotion && this._reducedMotion()) return;
+    try {
+      el.animate(
+        [{ transform: `translate(${dx}px, ${dy}px)` }, { transform: 'translate(0, 0)' }],
+        { duration: 280, easing: 'cubic-bezier(0.22, 1, 0.36, 1)', composite: 'add' }
+      );
+    } catch (e) { /* non-fatal — the card simply appears in its new lane */ }
+  },
+
   _applyMotionEffects() {
     if (!this._prevRects) return;
     const current = new Map();
@@ -6076,6 +6105,25 @@ const UI = {
       if (!prev || !prev.inHand) continue;
       if (el.classList.contains('hand-card')) continue;
       this._animateFly(el, prev.rect);
+    }
+
+    // Board → Board relocation (FLIP). Previously MISSING entirely: only
+    // hand→board and death were handled, so a card that changed lane —
+    // a hunt chase, an Ahsoka/Jigsaw drag, Bifrost, Moder's pull, any
+    // moveCard — simply TELEPORTED to its new slot. Fixing it here covers
+    // every relocation path at once, since they all land in the same
+    // capture-before / apply-after render pass.
+    for (const [id, el] of current) {
+      const prev = this._prevRects.get(id);
+      if (!prev || prev.inHand) continue;                 // hand→board: above
+      if (el.classList.contains('hand-card')) continue;   // board→hand (bounce)
+      const now = el.getBoundingClientRect();
+      if (now.width < 1) continue;
+      const dx = prev.rect.left - now.left;
+      const dy = prev.rect.top  - now.top;
+      // Threshold — ignore sub-lane jitter from layout reflow / scrollbars.
+      if (Math.abs(dx) < 24 && Math.abs(dy) < 24) continue;
+      this._animateLaneSlide(el, dx, dy);
     }
 
     // Deaths — board cards that are no longer present anywhere.
@@ -22177,16 +22225,20 @@ const UI = {
       setTimeout(() => el.classList.remove('hit-flash'), 320);
     };
     if (p && a) {
-      // Contested lane — both cards swing simultaneously. Each card
-      // gets BOTH attacker (its outgoing swing) AND target (the
-      // incoming hit) classes; the resulting visual is each card
-      // lunging toward the centerline AND being shoved back. CSS
-      // collapses the two animations onto the same property by
-      // letting the LAST class to be added win, so we toggle both
-      // into a single combined class via a short delay so neither
-      // lone-class state lingers.
-      classOnCard(p.id, 'combat-attacker');
-      classOnCard(a.id, 'combat-attacker');
+      // Contested lane — each card plays the animation matching what it
+      // ACTUALLY does this beat. Both cards used to get 'combat-attacker'
+      // unconditionally, so a card that CAN'T swing (frozen, or 0 ATK) still
+      // lunged at an enemy it never touched. A non-swinging card now plays the
+      // TARGET recoil instead — which finally uses the cardLungeTarget* pair
+      // (style.css ~16856) that was defined but applied nowhere.
+      // NEVER put both classes on one card: the two rules set the same
+      // `animation` property at equal specificity, so the later one silently
+      // wins and the other is lost. It's one or the other, per card.
+      // Mirrors the resolver's own swing rule (alive, not frozen, ATK > 0).
+      const canSwing = (c) => !!c && c.currentHealth > 0
+        && !c.isFrozen && !c.isStunned && (c.attack || 0) > 0;
+      classOnCard(p.id, canSwing(p) ? 'combat-attacker' : 'combat-target');
+      classOnCard(a.id, canSwing(a) ? 'combat-attacker' : 'combat-target');
       // Drive impact effects at the ~190ms mark so the hit-flash and
       // camera-shake align with the keyframe's impact-hold frame.
       const peakAtk = Math.max(p.attack || 0, a.attack || 0);
@@ -22582,18 +22634,28 @@ const UI = {
     // Reads the previous integer from data-prev-stat (set by us last
     // tick) so re-renders don't lose history. Plays a smooth digit
     // count instead of an instant snap — small detail, big polish.
-    this._tickStatDigit(orb);
+    this._tickStatDigit(orb, delta);
   },
 
   // Tick a stat orb's digit text from its prior numeric value to its
   // current rendered value, over 380ms with ease-out. Idempotent: if
   // the orb's text isn't a clean integer, skip (e.g. "X" placeholder).
-  _tickStatDigit(orb) {
+  _tickStatDigit(orb, delta) {
     const txt = (orb.textContent || '').trim();
     const target = parseInt(txt, 10);
     if (!Number.isFinite(target)) return;
-    const prevAttr = orb.getAttribute('data-prev-stat');
-    const prev = prevAttr != null ? parseInt(prevAttr, 10) : target;
+    // Prefer the CALLER'S EXPLICIT DELTA. Inferring the previous value from the
+    // DOM cannot work here: this now runs after renderBoard, so the orb is a
+    // freshly-built node with no data-prev-stat, and prev would fall back to
+    // target — silently skipping every tick (which is what used to happen).
+    // The caller compared engine state and knows the real change, so trust it.
+    let prev;
+    if (typeof delta === 'number' && delta !== 0) {
+      prev = target - delta;
+    } else {
+      const prevAttr = orb.getAttribute('data-prev-stat');
+      prev = prevAttr != null ? parseInt(prevAttr, 10) : target;
+    }
     orb.setAttribute('data-prev-stat', String(target));
     if (!Number.isFinite(prev) || prev === target) return;
     // Cancel any in-flight tick on this orb so back-to-back changes
