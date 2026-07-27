@@ -7842,7 +7842,10 @@ body.mobile-card-dragging .cursor-trail { display: none !important; }
   min-width: 44px; min-height: 44px;
   display: flex; align-items: center; justify-content: center;
   color: var(--tron-glow, #4fc3f7);
-  opacity: 0.45;
+  /* Resting opacity was 0.45 — a dim cyan glyph on pure black read as invisible
+     and the control was undiscoverable ("its not there"). Bright enough to find,
+     still quiet enough not to compete with the cards. */
+  opacity: 0.85;
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
   transition: opacity 160ms ease, transform 160ms ease, color 160ms ease;
@@ -7850,14 +7853,14 @@ body.mobile-card-dragging .cursor-trail { display: none !important; }
 .hand-audio-toggle .hand-audio-icon {
   position: relative;
   display: block;
-  font-size: 19px;
+  font-size: 24px;
   line-height: 1;
-  text-shadow: 0 0 8px currentColor;
+  text-shadow: 0 0 10px currentColor, 0 0 22px currentColor;
 }
 .hand-audio-toggle:hover,
 .hand-audio-toggle:focus-visible { opacity: 1; transform: scale(1.15); outline: none; }
 /* Hidden/muted — desaturated, with a slash struck through the note. */
-.hand-audio-toggle.is-muted { color: #8096ad; opacity: 0.8; }
+.hand-audio-toggle.is-muted { color: #90a6bd; opacity: 0.9; }
 .hand-audio-toggle.is-muted .hand-audio-icon::after {
   content: '';
   position: absolute;
