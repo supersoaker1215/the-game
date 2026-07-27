@@ -7746,12 +7746,14 @@ body.mobile-card-dragging .cursor-trail { display: none !important; }
   will-change: transform;
 }
 .player-hand-section .hand-cards .card:hover {
-  /* DELIBERATELY NO TRANSFORM. translateY(-Npx) on hover pushes the
+  /* DELIBERATELY NO TRANSFORM here. translateY(-Npx) on hover pushes the
      card upward, the cursor "falls off" the bottom edge mid-translate
      → mouseleave → reverse-translate → cursor lands on card again →
      mouseenter → loop. User report: "the card is bouncing while my
      cursor is over the card." Affordance comes from box-shadow +
-     filter only (compositor-cheap, no layout shift, no flip-flop). */
+     filter only (compositor-cheap, no layout shift, no flip-flop).
+     NOTE: hand cards get their Snap-style enlarge from the WRAPPER rule
+     (.hand-card-wrapper — see the magnify block), not from here. */
   transform: none !important;
   box-shadow: 0 10px 24px rgba(0,0,0,0.55), 0 0 14px rgba(46,204,113,0.35);
   filter: brightness(1.06);
@@ -16546,10 +16548,32 @@ body.theme-purple .board-section {
    only ONE card is on screen at a time.
    `!important` beats the .card.hand-card:hover `transform: none`
    lock at line ~5654. */
+/* SMOOTH GROWTH — the enlarge (lift + scale) moved to the WRAPPER; the CARD
+   keeps only the cursor tilt. User: "for the tricks you see the card the whole
+   time get bigger when you hover, for the cards there's a little jump — I want
+   the smooth trick magnify."
+   WHY IT JUMPED: the lift+scale used to live on the card together with the tilt,
+   and this hover state deliberately carries NO `transition: transform`, because
+   installHandTilt's rAF lerp writes the transform every frame and a transition
+   would fight it. But that lerp only interpolates --tilt-x/--tilt-y — the SCALE
+   was never interpolated by anything, so it snapped from 1 to 1.6 in a single
+   frame. That snap is the jump. A transition couldn't be added without breaking
+   the tilt, because both effects were competing for one `transform` property.
+   THE FIX: put them on DIFFERENT elements. The wrapper owns lift+scale and can
+   therefore carry a real 240ms transition (same curve as .trick-card, so both
+   surfaces now grow identically); the card owns the rAF-driven tilt with no
+   transition, exactly as before. Two elements, two transform properties, no
+   fight. transform-origin stays center-bottom on both so it still grows UPWARD
+   from the hand baseline. */
+.hand-card-wrapper {
+  transform-origin: center bottom;
+  transition: transform 240ms var(--ease-out-soft, cubic-bezier(0.22, 1, 0.36, 1));
+}
+.hand-card-wrapper:hover {
+  transform: translateY(-30px) scale(1.6);
+}
 .hand-card-wrapper:hover .card.hand-card {
-  transform: translateY(-30px)
-             scale(1.6)
-             rotateX(calc(var(--tilt-y, 0) * -6deg))
+  transform: rotateX(calc(var(--tilt-y, 0) * -6deg))
              rotateY(calc(var(--tilt-x, 0) * 6deg)) !important;
   transform-origin: center bottom;
   /* CRISP-RENDER PATH — diagnosis: previously had `will-change:
@@ -32411,7 +32435,10 @@ body.round-tick .board::after {
    ============================================================ */
 @media (hover: none) {
   .hand-card-wrapper:hover .card.hand-card { transform: none !important; }
-  .hand-card-wrapper:hover { z-index: auto !important; }
+  /* The lift+scale now lives on the WRAPPER (see the magnify block), so the
+     touch kill has to neutralise it there too — otherwise a sticky :hover on a
+     phone would leave a hand card enlarged with no way to dismiss it. */
+  .hand-card-wrapper:hover { transform: none !important; z-index: auto !important; }
   .card.enemy-card:hover,
   .card.ally-card:hover { transform: none !important; z-index: auto; }
   .lane .card:hover,
@@ -33242,7 +33269,11 @@ body.low-fx .card.enemy-card:hover {
    so it stays — but as a plain 2D scale with no rotateX/rotateY, so no
    3D rendering context is created. */
 body.low-fx .hand-card-wrapper:hover .card.hand-card {
-  transform: translateY(-30px) scale(1.6) !important;
+  /* The lift+scale now lives on the WRAPPER, so low-fx must NOT re-apply it on
+     the card — that would compound into 1.6 x 1.6 = 2.56x. Low-fx's actual job
+     here is dropping the 3D tilt, so the card's transform is simply cleared and
+     the wrapper's plain 2D enlarge (which needs no 3D context) carries it. */
+  transform: none !important;
 }
 body.low-fx .card.ally-card:hover,
 body.low-fx .card.enemy-card:hover {
