@@ -20541,11 +20541,17 @@ body.combat-anticipate .board {
   --tron-fx-breath-high: 0.18;
   /* Per-element stagger offset (multiplied by --tron-fx-stagger-i). */
   --tron-fx-stagger-step-ms: -700ms;
-  /* Default (cyan) sweep gradient — overridable per-element via the
-     --tron-fx-color custom property. */
-  --tron-fx-color-r: 127;
-  --tron-fx-color-g: 208;
-  --tron-fx-color-b: 255;
+  /* Sweep gradient — FOLLOWS THE PLAYER'S THEME. These were hardcoded to the
+     default cyan (127,208,255), so the interaction-feedback layer ignored the
+     theme picker entirely: on Gold the menu, title, labels and cog ring all turn
+     gold, then hovering ANY button washes it BLUE. That one mismatch made the
+     whole theme feature look broken, because this layer is applied by JS to
+     .btn — i.e. essentially every button in the game — plus the menu options,
+     mode tiles and MP tabs. Falls back to the old cyan if a theme is somehow
+     unset. Still overridable per-element via --tron-fx-color-*. */
+  --tron-fx-color-r: var(--theme-r, 127);
+  --tron-fx-color-g: var(--theme-g, 208);
+  --tron-fx-color-b: var(--theme-b, 255);
 }
 
 /* Parent class — applied to every interactive surface by JS. Sets
