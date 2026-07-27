@@ -352,6 +352,32 @@ const UI = {
   // — see the lane render in render(). Non-candidates still open
   // inspect, which is useful: the player can review any card on
   // board before committing to a target.
+  // Shrink an inspect modal's card until it fits the viewport height. Returns
+  // the zoom actually applied. Scales DOWN only — never magnifies past the 1.7
+  // design size — and floors at 0.85 so a pathological card can't become
+  // unreadable (the backdrop's overflow-y:auto covers that remainder).
+  _fitInspectToViewport(modal) {
+    if (!modal) return null;
+    const inner = modal.querySelector('.inspect-card');
+    if (!inner) return null;
+    inner.style.zoom = '';                       // start from the CSS 1.7
+    const PAD = 52;                              // backdrop padding + a little air
+    let zoom = parseFloat(getComputedStyle(inner).zoom) || 1.7;
+    // Iterate: shrinking the card rewraps the description onto MORE lines, which
+    // claws height back, so a single ratio pass overshoots. The 0.98 nudge makes
+    // it converge downward instead of oscillating just above the limit.
+    for (let pass = 0; pass < 4; pass++) {
+      const avail = window.innerHeight - PAD;
+      const h = modal.getBoundingClientRect().height;
+      if (h <= avail) break;
+      const next = Math.max(0.85, zoom * (avail / h) * 0.98);
+      if (next >= zoom) break;                   // already floored — stop
+      zoom = next;
+      inner.style.zoom = String(zoom);
+    }
+    return zoom;
+  },
+
   openCardInspect(card) {
     if (!card) return;
     this.closeCardInspect();   // dismiss any open inspect first
@@ -410,6 +436,15 @@ const UI = {
     modal.addEventListener('click', (e) => e.stopPropagation());
     backdrop.appendChild(modal);
     document.body.appendChild(backdrop);
+    // FIT THE CARD TO THE WINDOW. The inspect card renders at zoom 1.7, which on
+    // a short window plus a long description (Superman, Obi-Wan, Galactus) is
+    // taller than the screen. The backdrop scrolls as a safety net, but a modal
+    // that doesn't LOOK scrollable just reads as clipped — user: "the tops looks
+    // better but are still cut off." So shrink the zoom until the whole card is
+    // visible at once. Only ever scales DOWN: a card that already fits keeps the
+    // full 1.7 design size. Two passes because reducing zoom reflows the
+    // description to more lines, which claws some height back.
+    this._fitInspectToViewport(modal);
     // Escape dismisses too — keyboard-friendly close.
     this._inspectEscHandler = (e) => {
       if (e.key === 'Escape' || e.key === 'Esc') this.closeCardInspect();
