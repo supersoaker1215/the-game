@@ -1180,6 +1180,13 @@ const Game = {
                 '| lane destroyed:', !!lane.destroyed,
                 '| guest energy:', this.state[actor] && this.state[actor].currency,
                 '| card cost:', card && card.cost);
+              // Tell the GUEST why, instead of only logging it here. Pick the
+              // specific reason where we can — a silent refusal is the thing
+              // that made this feel broken.
+              const why = lane[actor] ? 'That lane is already taken on your side.'
+                : lane.destroyed ? 'That lane has collapsed into the void.'
+                : 'Not enough energy for that card.';
+              this._mpNotifyGuest(`${card.name} couldn't be played`, why);
             }
           } else {
             console.warn('[MP HOST] guest playCard: card id', msg.cardId, 'NOT FOUND in', actor, 'hand — nothing placed');
@@ -1265,7 +1272,22 @@ const Game = {
         }
         case 'playTrick': {
           const trick = findTrickById(msg.trickId);
-          if (trick && this.playTrick) this.playTrick(actor, trick);
+          if (!trick) {
+            console.warn('[MP HOST] guest playTrick: trick id', msg.trickId, 'NOT FOUND in', actor, 'trickHand');
+            this._mpNotifyGuest('Trick not played', 'The host no longer has that trick in your hand — try again.');
+            break;
+          }
+          // playTrick returns false on every refusal (cost, Time-Stone lockout,
+          // no valid targets). That used to be swallowed here, so the guest's
+          // trick just sat in hand with no explanation.
+          const played = this.playTrick ? this.playTrick(actor, trick) : false;
+          if (played === false) {
+            console.warn('[MP HOST] guest playTrick REJECTED:', trick.name,
+              '| energy:', this.state[actor] && this.state[actor].currency,
+              '| cost:', this.getTrickCost(actor, trick));
+            this._mpNotifyGuest(`${trick.name} couldn't be played`,
+              'No valid targets, not enough energy, or it is frozen this round.');
+          }
           break;
         }
         case 'reqState': {
@@ -1691,6 +1713,19 @@ const Game = {
   // authoritative match state, so it must not go over the wire — see the guard
   // in _mpBroadcast.
   _MP_NON_MATCH_PHASES: /^(main-menu|mode-select|my-decks|stats|deckbuilder-|2v2-online-lobby|2v2-team-setup)/,
+
+  // Host → guest "here's why that didn't work" — the NACK this protocol never
+  // had. When the host rejected a guest's action it only console.warn'd on the
+  // HOST's own machine and re-broadcast an unchanged state, so on the guest the
+  // card simply refused to move with nothing said. Cosmetic only: it carries no
+  // state and the guest never applies it to the engine, so it cannot desync.
+  _mpNotifyGuest(title, message) {
+    if (!this.isMultiplayer() || !this.mp || this.mp.role !== 'host') return;
+    if (typeof Multiplayer === 'undefined' || !Multiplayer.send) return;
+    try {
+      Multiplayer.send({ t: 'notice', kind: 'rejected', title: title, msg: message });
+    } catch (e) { /* non-fatal — the warn above still records it host-side */ }
+  },
 
   // BROADCAST COALESCING — 17 call sites funnel here, and several fire inside
   // ONE synchronous action: the 13 wrapBroadcast-wrapped engine fns each push,
@@ -4123,11 +4158,59 @@ const Game = {
     return cost;
   },
 
+  // The subset of playTrick's gates a multiplayer GUEST can evaluate locally and
+  // truthfully: its own energy, its own Time-Stone lockout, and the trick's own
+  // target test against the shared board — all of which the guest holds an
+  // accurate copy of. Mirrors the host-side checks in playTrick so the two can't
+  // disagree, and surfaces the SAME reason the host would log, so a refusal is
+  // never silent. Returns true if the play is worth sending.
+  _guestCanAttemptTrick(owner, trick) {
+    if (!trick) return false;
+    const toast = (title, msg) => {
+      if (typeof UI !== 'undefined' && UI.showAITrickToast) {
+        try { UI.showAITrickToast(title, msg, 'error'); } catch (e) {}
+      }
+    };
+    const cost = this.getTrickCost(owner, trick);
+    if (this.state[owner].currency < cost) {
+      this.log(`[TRICK] ${trick.name} costs ${cost} — not enough energy.`);
+      toast('Not enough energy', `${trick.name} costs ${cost}`);
+      return false;
+    }
+    if (trick._timeStonedAtRound === this.state.round) {
+      this.log(`[TIME STONE] ${trick.name} is frozen this round — it cannot be replayed.`);
+      toast('Frozen by Time Stone', `${trick.name} is blocked until next round`);
+      return false;
+    }
+    if (trick.canPlay && !trick.canPlay(this, owner)) {
+      this.log(`[TRICK] ${trick.name} cannot be played — no valid targets!`);
+      toast('No valid targets', `${trick.name} has nothing to affect`);
+      return false;
+    }
+    return true;
+  },
+
   playTrick(owner, trick) {
     if (this.state.gameOver) return false;
     // Multiplayer guest: forward and bail. _silentSim guard — see playCard:
     // a preview/prediction sim must run locally on the clone, never forward.
     if (this.isMultiplayer() && this.mp.role === 'guest' && owner === this.mp.you && !(this.state && this.state._silentSim)) {
+      // Run the LOCAL gates BEFORE forwarding. This branch used to `return true`
+      // unconditionally — ahead of the cost check, the Time-Stone lockout and
+      // the canPlay/valid-target check below — so an ILLEGAL trick reported
+      // SUCCESS to the UI (which cleared the selection and played the placement
+      // sound), the host then silently rejected it, and the card just sat in
+      // hand with no explanation. User report: "he selects it once but then
+      // tries again to play and it never leaves his hand."
+      // Every gate re-checked here reads only state the guest holds an accurate
+      // copy of, so refusing locally cannot disagree with the host.
+      if (!this._guestCanAttemptTrick(owner, trick)) return false;
+      // In-flight lock — without it a second tap while the first is still in
+      // the air sends a duplicate the host may apply twice. Self-heals so a
+      // dropped connection can't lock the trick out permanently.
+      if (trick._mpSendPending) return false;
+      trick._mpSendPending = true;
+      this._schedule(() => { delete trick._mpSendPending; }, 4000);
       if (typeof Multiplayer !== 'undefined' && trick && trick.id != null) {
         Multiplayer.send({ t: 'playTrick', trickId: trick.id });
       }

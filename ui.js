@@ -16545,6 +16545,17 @@ const UI = {
       this.showEmoteBubble('ai', m && m.id);
       if (this._haptic) this._haptic('cardPlay');
     });
+    // Host → guest rejection notices (Game._mpNotifyGuest). Before this, a host
+    // rejection was invisible on the guest: the card just refused to move and
+    // nothing explained why. Surfaced through the same toast the solo game
+    // already uses for "can't play that", so the grammar matches.
+    Multiplayer.on('notice', (m) => {
+      if (!m) return;
+      if (this.showAITrickToast) {
+        try { this.showAITrickToast(m.title || 'Not played', m.msg || '', 'error'); } catch (e) {}
+      }
+      if (this._haptic) this._haptic('hit');
+    });
   },
   toggleEmotePicker() {
     const pick = document.getElementById('emote-picker');

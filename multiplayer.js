@@ -150,6 +150,16 @@ const Multiplayer = {
         // can send, the receiver shows it on the opponent's avatar chip.
         this._emit('emote', msg);
         break;
+      case 'notice':
+        // Host → guest explanation (an ACK-less protocol's missing NACK).
+        // When the host REJECTS a guest's action it used to only console.warn
+        // on the HOST's own machine and re-broadcast an unchanged state, so on
+        // the guest the card simply refused to move with no reason given —
+        // the "it never leaves my hand" report. The host now says why.
+        // Deliberately NOT in _GAME_ACTION_TYPES: this is host→guest feedback,
+        // not a game action, and must never be applied to the engine.
+        this._emit('notice', msg);
+        break;
       case 'lobby':
         // Deck-building lobby sync. Symmetric like 'emote': both sides
         // publish { name, ready, deckName, deck, counts } whenever their
