@@ -878,14 +878,20 @@ const UI = {
   // (so opening Settings after using the quick toggle shows the truth).
   syncHandAudioToggle() {
     const on = !!(this.settings && this.settings.handAudioPrivacy);
-    const btn = document.getElementById('hand-audio-toggle');
-    if (btn) {
+    // Every surface that offers the toggle carries [data-hand-audio-toggle] —
+    // the in-hand glyph AND the draft HUD button (draft cards have per-card
+    // hover cues too, so the control has to be reachable there). Driving them
+    // all from one query keeps them from drifting apart.
+    document.querySelectorAll('[data-hand-audio-toggle]').forEach(btn => {
       btn.classList.toggle('is-muted', on);
       btn.setAttribute('aria-pressed', on ? 'true' : 'false');
       btn.title = on
         ? 'Hand sounds hidden — per-card hover cues are replaced with one generic blip'
         : 'Hide hand sounds — stop per-card hover cues from revealing your hand';
-    }
+      // The draft variant is a labelled HUD button; the in-hand one is bare.
+      const lbl = btn.querySelector('.mulligan-label');
+      if (lbl) lbl.textContent = on ? 'Sounds Hidden' : 'Hide Sounds';
+    });
     const box = document.getElementById('setting-hand-audio-privacy');
     if (box) box.checked = on;
   },
@@ -6700,22 +6706,45 @@ const UI = {
   },
   // One straight arrow from → to, tip pulled back to the card edge. kind tints
   // it: front/hero red, splash orange.
-  _forecastArrow(from, to, kind) {
+  // Tron-styled forecast arrow. Layered like the signature-FX beams — a soft
+  // outer bloom, a saturated beam, a white-hot core — plus a circuit node at the
+  // origin and an open chevron head instead of a flat filled triangle. All
+  // static strokes: no infinite animation (mobile battery diet).
+  // opts.startTrim / opts.endTrim shorten each end; the hero "straight ahead"
+  // swing passes 0 so it can start exactly at the card's edge.
+  _forecastArrow(from, to, kind, opts) {
+    opts = opts || {};
     const color = kind === 'splash' ? '#ff9a3c' : '#ff5252';
+    const startTrim = opts.startTrim != null ? opts.startTrim : 22;
+    const endTrim   = opts.endTrim   != null ? opts.endTrim   : 30;
     const dx = to.x - from.x, dy = to.y - from.y;
     const len = Math.hypot(dx, dy) || 1;
     const ux = dx / len, uy = dy / len;
-    const sx = from.x + ux * 22, sy = from.y + uy * 22;
-    const tx = to.x - ux * 30, ty = to.y - uy * 30;
-    const ang = Math.atan2(uy, ux), ah = 10;
-    const p1x = tx - ah * Math.cos(ang - 0.5), p1y = ty - ah * Math.sin(ang - 0.5);
-    const p2x = tx - ah * Math.cos(ang + 0.5), p2y = ty - ah * Math.sin(ang + 0.5);
+    const sx = from.x + ux * startTrim, sy = from.y + uy * startTrim;
+    const tx = to.x - ux * endTrim,     ty = to.y - uy * endTrim;
+    const ang = Math.atan2(uy, ux), ah = 12;
+    const p1x = tx - ah * Math.cos(ang - 0.45), p1y = ty - ah * Math.sin(ang - 0.45);
+    const p2x = tx - ah * Math.cos(ang + 0.45), p2y = ty - ah * Math.sin(ang + 0.45);
+    const n = (v) => v.toFixed(1);
+    const line = (w, c, o) =>
+      '<line x1="' + n(sx) + '" y1="' + n(sy) + '" x2="' + n(tx) + '" y2="' + n(ty) +
+      '" stroke="' + c + '" stroke-width="' + w + '" stroke-linecap="round"' +
+      (o != null ? ' opacity="' + o + '"' : '') + '/>';
+    const chevron = (w, c, o) =>
+      '<polyline points="' + n(p1x) + ',' + n(p1y) + ' ' + n(tx) + ',' + n(ty) + ' ' + n(p2x) + ',' + n(p2y) +
+      '" fill="none" stroke="' + c + '" stroke-width="' + w + '" stroke-linecap="round" stroke-linejoin="round"' +
+      (o != null ? ' opacity="' + o + '"' : '') + '/>';
     const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
     svg.setAttribute('class', 'forecast-arrow');
-    svg.style.filter = 'drop-shadow(0 0 3px ' + color + ')';
+    svg.style.filter = 'drop-shadow(0 0 5px ' + color + ')';
     svg.innerHTML =
-      '<line x1="' + sx.toFixed(1) + '" y1="' + sy.toFixed(1) + '" x2="' + tx.toFixed(1) + '" y2="' + ty.toFixed(1) + '" stroke="' + color + '" stroke-width="2.6" stroke-linecap="round"/>' +
-      '<polygon points="' + tx.toFixed(1) + ',' + ty.toFixed(1) + ' ' + p1x.toFixed(1) + ',' + p1y.toFixed(1) + ' ' + p2x.toFixed(1) + ',' + p2y.toFixed(1) + '" fill="' + color + '"/>';
+      line(7, color, 0.22) +                       // outer bloom
+      line(2.4, color) +                           // beam
+      line(0.9, '#ffffff', 0.85) +                 // hot core
+      '<circle cx="' + n(sx) + '" cy="' + n(sy) + '" r="3.4" fill="none" stroke="' + color +
+        '" stroke-width="1.5" opacity="0.9"/>' +   // circuit node at the origin
+      chevron(2.8, color) +
+      chevron(1, '#ffffff', 0.9);
     if (this._forecastSilent) svg.style.animation = 'none';   // render-driven redraw: don't restart the fade (strobe)
     this._forecastLayer().appendChild(svg);
   },
@@ -6781,8 +6810,22 @@ const UI = {
       const orb = document.getElementById(heroSide === 'player' ? 'player-hp-fill' : 'ai-hp-fill')
                || document.getElementById(heroSide === 'player' ? 'player-health' : 'ai-health');
       if (orb) {
-        const r = orb.getBoundingClientRect();
-        this._forecastArrow(from, { x: r.left + r.width / 2, y: r.top + r.height / 2 }, 'hero');
+        // STRAIGHT AHEAD — a short swing launching out of the card's own lane,
+        // NOT a long diagonal across the whole board to the HP bar. The bar
+        // still carries the "cur → after" number, so the diagonal was only ever
+        // noise cutting across unrelated lanes. Allies sit on the bottom row and
+        // swing upward; enemies sit on top and swing down.
+        const r0 = cardEl.getBoundingClientRect();
+        const up = cardEl.classList.contains('ally-card');
+        const dir = up ? -1 : 1;
+        const originX = r0.left + r0.width / 2;
+        const edgeY = up ? r0.top : r0.bottom;
+        this._forecastArrow(
+          { x: originX, y: edgeY },
+          { x: originX, y: edgeY + dir * 78 },
+          'hero',
+          { startTrim: 0, endTrim: 6 }
+        );
         const hp = (heroSide === 'player' ? Game.state.player.health : Game.state.ai.health) | 0;
         this._forecastHeroBadge(orb, hp, hp - (card.attack | 0));
       }
@@ -14174,6 +14217,19 @@ const UI = {
     html +=     `<button type="button" class="draft-undo-btn${undoDisabled}" onclick="draftUndo()"${undoAttr} title="Undo the previous pick">`;
     html +=       `<span class="mulligan-icon">&#x21B6;</span>`;
     html +=       `<span class="mulligan-label">Back</span>`;
+    html +=     `</button>`;
+    // Hand-audio privacy — draft cards have per-card hover cues exactly like a
+    // hand does, so someone beside you (or on the call) can hear which offers
+    // you're weighing. The in-hand glyph doesn't exist on this screen, so the
+    // control gets its own HUD button here. Same setting, same persisted key;
+    // [data-hand-audio-toggle] is what keeps every surface in sync.
+    const _haOn = !!(this.settings && this.settings.handAudioPrivacy);
+    html +=     `<button type="button" class="draft-audio-btn${_haOn ? ' is-muted' : ''}"`;
+    html +=       ` data-hand-audio-toggle aria-pressed="${_haOn ? 'true' : 'false'}"`;
+    html +=       ` onclick="UI.toggleHandAudioPrivacy()"`;
+    html +=       ` title="${_haOn ? 'Hand sounds hidden — per-card hover cues are replaced with one generic blip' : 'Hide hand sounds — stop per-card hover cues from revealing your picks'}">`;
+    html +=       `<span class="mulligan-icon">&#9834;</span>`;
+    html +=       `<span class="mulligan-label">${_haOn ? 'Sounds Hidden' : 'Hide Sounds'}</span>`;
     html +=     `</button>`;
     html +=     `<button type="button" class="draft-mulligan-btn${mulliganDisabled}" onclick="draftMulligan()"${mulliganAttr}>`;
     html +=       `<span class="mulligan-icon">&#x21BB;</span>`;
