@@ -20,6 +20,26 @@
      Previously-off-palette colors (purple, orange, teal, pink variants)
      have been remapped into the nearest semantic tier so every neon
      element in the game reads from the same five families. */
+  /* ---- SCREEN SHELL RECIPE ----------------------------------------
+     Every full-screen panel used to invent its own chrome: 9 panels with 9
+     different paddings, 3 different border colours (--theme-rgb vs
+     --theme-accent-ring vs --theme-accent-bright vs none) and 2 radii. Walking
+     Menu -> Mode -> Codex -> Deck Builder -> Stats -> Draft -> Roguelite ->
+     Multiplayer, the neon frame sat a different distance from the title on
+     every single screen, so the app read as several products stitched
+     together. Two recipes now: a roomy SHELL for screens that present, and a
+     DENSE one for screens that pack a grid (deck builder, draft). */
+  --panel-pad:        48px 40px 36px;
+  --panel-pad-dense:  26px 30px 24px;
+  --panel-border:     1px solid rgba(var(--theme-rgb, 79,195,247), 0.55);
+  --panel-radius:     6px;
+  /* Sub-screen titles. The main-menu hero (52px) is deliberately NOT part of
+     this — a product title outranking a sub-screen title is hierarchy, not
+     inconsistency. Everything below it now shares one treatment. */
+  --title-screen-size:    28px;
+  --title-screen-weight:  700;
+  --title-screen-track:   8px;
+
   /* ---- TEXT COLOUR RAMP -------------------------------------------
      61 near-identical neutral hexes (#f5fbff / #f4f8fd / #f0f6fb / #eaf6ff /
      #e8f5ff / #eaf4ff ...) were doing the work of five roles across 292
@@ -1478,10 +1498,10 @@ body.hit-pause .ai-hand * {
 }
 .mode-panel {
   max-width: 820px; width: 92%;
-  padding: 48px 40px 44px;
+  padding: var(--panel-pad);
   background: #000;
-  border: 1px solid rgba(var(--theme-rgb, 79,195,247), 0.55);
-  border-radius: 4px;
+  border: var(--panel-border);
+  border-radius: var(--panel-radius);
   box-shadow:
     0 0 24px rgba(var(--theme-rgb, 79,195,247), 0.30),
     0 0 56px rgba(var(--theme-rgb, 79,195,247), 0.14),
@@ -1490,8 +1510,8 @@ body.hit-pause .ai-hand * {
 }
 .mode-title {
   font-family: 'Rajdhani', sans-serif;
-  font-size: 36px; font-weight: 700;
-  letter-spacing: 8px; text-transform: uppercase;
+  font-size: var(--title-screen-size); font-weight: var(--title-screen-weight);
+  letter-spacing: var(--title-screen-track); text-transform: uppercase;
   text-align: center; margin: 0 0 6px;
   color: var(--text-hi, #f5fbff);
   text-shadow:
@@ -1683,12 +1703,10 @@ body.hit-pause .ai-hand * {
   position: relative;
   z-index: 1;   /* above the .mm-flow atmosphere */
   max-width: 580px; width: 92%;
-  padding: 52px 48px 38px;
-  background:
-    linear-gradient(180deg, rgba(var(--theme-rgb, 79,195,247), 0.05) 0%, rgba(0,0,0,0) 40%),
-    #000;
-  border: 1px solid rgba(var(--theme-rgb, 79,195,247), 0.55);
-  border-radius: 4px;
+  padding: var(--panel-pad);
+  background: none;
+  border: var(--panel-border);
+  border-radius: var(--panel-radius);
   box-shadow:
     0 0 32px rgba(var(--theme-rgb, 79,195,247), 0.30),
     0 0 72px rgba(var(--theme-rgb, 79,195,247), 0.14),
@@ -2871,14 +2889,12 @@ body.hit-pause .ai-hand * {
      harmonious with codex." Layered gradient wash + theme-aware
      border + dual-layer bloom. */
   margin: 24px auto;
-  padding: 52px 28px 32px;
+  padding: var(--panel-pad);
   position: relative;
   font-family: 'Rajdhani', sans-serif;
-  background:
-    linear-gradient(180deg, var(--theme-wash-05, rgba(79,195,247,0.05)) 0%, rgba(0,0,0,0) 42%),
-    #000;
-  border: 1px solid var(--theme-accent-ring, rgba(79,195,247,0.55));
-  border-radius: 4px;
+  background: #000;
+  border: var(--panel-border);
+  border-radius: var(--panel-radius);
   box-shadow:
     0 0 32px var(--theme-glow-inner, rgba(79,195,247,0.30)),
     0 0 72px var(--theme-glow-outer, rgba(79,195,247,0.14)),
@@ -2906,8 +2922,8 @@ body.hit-pause .ai-hand * {
   border-right-width: 2px;
 }
 .stats-title {
-  font-size: 26px; font-weight: 700;
-  letter-spacing: 8px; text-transform: uppercase;
+  font-size: var(--title-screen-size); font-weight: var(--title-screen-weight);
+  letter-spacing: var(--title-screen-track); text-transform: uppercase;
   color: color-mix(in srgb, rgb(var(--theme-rgb, 79,195,247)) 5%, white);
   text-align: center;
   margin: 0 0 8px;
@@ -3536,10 +3552,13 @@ body.hit-pause .ai-hand * {
 .db-panel {
   width: 100%;
   max-width: 1440px;
-  padding: 18px 24px 16px;
+  padding: var(--panel-pad-dense);
   display: flex; flex-direction: column;
   box-sizing: border-box;
   font-family: 'Rajdhani', sans-serif;
+  background: #000;
+  border: var(--panel-border);
+  border-radius: var(--panel-radius);
 }
 
 /* ---- Header row ---- */
@@ -3552,8 +3571,8 @@ body.hit-pause .ai-hand * {
   border-bottom: 1px solid rgba(var(--theme-rgb, 79,195,247), 0.35);
 }
 .db-title {
-  font-size: 22px; font-weight: 700;
-  letter-spacing: 6px; text-transform: uppercase;
+  font-size: var(--title-screen-size); font-weight: var(--title-screen-weight);
+  letter-spacing: var(--title-screen-track); text-transform: uppercase;
   color: var(--text-hi, #f5fbff); margin: 0;
   text-shadow: 0 0 8px rgba(var(--theme-rgb, 79,195,247), 0.70);
   text-align: center;
@@ -4035,12 +4054,10 @@ body.hit-pause .ai-hand * {
 .mh-panel {
   position: relative;
   max-width: 760px; width: 100%;
-  padding: 48px 36px 32px;
-  background:
-    linear-gradient(180deg, var(--theme-wash-05, rgba(79,195,247,0.05)) 0%, rgba(0,0,0,0) 40%),
-    #000;
-  border: 1px solid var(--theme-accent-ring, rgba(79,195,247,0.55));
-  border-radius: 4px;
+  padding: var(--panel-pad);
+  background: #000;
+  border: var(--panel-border);
+  border-radius: var(--panel-radius);
   box-shadow:
     0 0 32px var(--theme-glow-inner, rgba(79,195,247,0.30)),
     0 0 72px var(--theme-glow-outer, rgba(79,195,247,0.14)),
@@ -4064,8 +4081,8 @@ body.hit-pause .ai-hand * {
   filter: drop-shadow(0 0 6px var(--theme-glow-outer, rgba(79,195,247,0.75)));
 }
 .mh-title {
-  font-size: 32px; font-weight: 700;
-  letter-spacing: 8px; text-transform: uppercase;
+  font-size: var(--title-screen-size); font-weight: var(--title-screen-weight);
+  letter-spacing: var(--title-screen-track); text-transform: uppercase;
   text-align: center; margin: 0 0 4px;
   color: var(--text-hi, #f5fbff);
   text-shadow:
@@ -4512,16 +4529,16 @@ body.hit-pause .ai-hand * {
   text-align: center;
   max-width: 980px;
   width: 100%;
-  padding: 28px 36px 32px;
+  padding: var(--panel-pad-dense);
   position: relative;
-  background:
-    radial-gradient(ellipse at top, rgba(255,255,255,0.04) 0%, rgba(255,255,255,0) 60%),
-    #000000;
+  background: #000;
   border-top: 1px solid rgba(255,255,255,0.95);
   border-bottom: 1px solid rgba(255,255,255,0.95);
   box-shadow:
     0 -12px 14px -12px rgba(255,255,255,0.55),
     0  12px 14px -12px rgba(255,255,255,0.55);
+  border: var(--panel-border);
+  border-radius: var(--panel-radius);
 }
 .draft-panel.draft-tricks {
   /* Trick drafts share the same white chrome — keeps the UI consistent */
@@ -22821,10 +22838,10 @@ body.killing-blow-cinema::after {
 .rl-panel {
   position: relative;
   width: 100%; max-width: 880px; max-height: 92vh;
-  padding: 32px 36px 28px;
+  padding: var(--panel-pad);
   background: #000;
-  border: 1px solid var(--theme-accent-bright, rgba(79,195,247,0.55));
-  border-radius: 6px;
+  border: var(--panel-border);
+  border-radius: var(--panel-radius);
   box-shadow:
     0 0 14px var(--theme-glow-outer, rgba(79,195,247,0.55)),
     0 0 28px var(--theme-glow-inner, rgba(79,195,247,0.25));
@@ -22834,8 +22851,8 @@ body.killing-blow-cinema::after {
 .rl-title {
   margin: 0 0 4px;
   font-family: 'Rajdhani', sans-serif;
-  font-size: 28px; font-weight: 800;
-  letter-spacing: 6px; text-transform: uppercase;
+  font-size: var(--title-screen-size); font-weight: var(--title-screen-weight);
+  letter-spacing: var(--title-screen-track); text-transform: uppercase;
   text-align: center;
   color: var(--theme-accent-bright, #f5fbff);
   text-shadow:
@@ -25587,14 +25604,14 @@ body.killing-blow-cinema::after {
   position: relative;
   width: 96%; max-width: 1080px;
   max-height: 86vh;
-  padding: 36px 36px 32px;
+  padding: var(--panel-pad);
   /* Solid black panel — the previous top-fade gradient read as a
      "weird stripe" against the modal title. User report: "this weird
      gradient or whatever on the top." Pure black + the corner-bracket
      accents + outer glow are enough Tron treatment. */
   background: #000;
-  border: 1px solid var(--theme-accent-bright, rgba(79,195,247,0.55));
-  border-radius: 6px;
+  border: var(--panel-border);
+  border-radius: var(--panel-radius);
   box-shadow:
     0 0 32px var(--theme-glow-inner, rgba(79,195,247,0.30)),
     0 0 72px var(--theme-glow-outer, rgba(79,195,247,0.14)),
@@ -33709,4 +33726,61 @@ body.low-fx .card-portrait {
 .game-over-btn:focus-visible {
   outline: 2px solid var(--theme-accent-bright, #4fc3f7) !important;
   outline-offset: 3px;
+}
+
+/* ============================================================
+   SCREEN SHELL — THE FINAL WORD (2026-07-27)
+   User: "I just want uniformity from game board to codex to roguelite to menu
+   to multiplayer — everything the same style, texture."
+
+   Assigning the shell tokens at each panel's own rule was not enough: the
+   sheet has accumulated EIGHT later blocks that re-apply a gradient wash
+   (linear-gradient theme-wash at ~12333, 12351, 13147, 13880, 27611; radial
+   at ~14191, 14509; plus the deck-builder's own at ~18079), and several that
+   re-assert `border-radius: 4px` and a different border colour. Source order
+   meant those always won, so panels kept drifting apart no matter what the
+   token said — which is exactly why the screens never looked like one product.
+
+   This block is deliberately LAST and deliberately uses !important. That is
+   normally a smell, and here it is the point: it makes the shell recipe the
+   single authority instead of the last edit to touch a panel. One texture
+   (pure #000 — the neon border and glow carry all the identity), one frame,
+   one radius, everywhere.
+
+   NOT included: padding. The responsive blocks legitimately tighten padding on
+   small screens, so forcing one value here would break phone layout. Desktop
+   padding is unified via --panel-pad / --panel-pad-dense at each panel's rule.
+   ============================================================ */
+/* .mm-panel is DELIBERATELY EXCLUDED. The main menu is not a bordered panel —
+   it is a hero composition: the panel is transparent ON PURPOSE so the
+   full-bleed character art (.mm-hero-img) reads through it. Forcing it to an
+   opaque #000 here painted over the artwork AND the option list, blacking out
+   the most-seen screen in the game. Caught by screenshotting after the change;
+   the computed styles alone looked fine, which is exactly why a visual check is
+   not optional for this kind of sweep. A hero screen differing from a panel
+   screen is hierarchy, not inconsistency. */
+.mode-panel,
+.draft-panel,
+.db-panel,
+.stats-panel,
+.rl-panel,
+.mh-panel,
+.rl-modal-panel,
+.encyc-panel,
+.mp-panel,
+/* The draft screen defended itself with COMPOUND selectors at (0,2,0) —
+   `.draft-panel:not(.draft-tricks)` and `.draft-panel.draft-tricks` — carrying
+   !important on border-top-color / border-bottom-color plus their own radial
+   wash. Two !important declarations are resolved by specificity, so a bare
+   `.draft-panel` here could never win: the draft screen kept a brighter frame
+   (0.95 alpha vs 0.55) and a gradient nobody else had. Matching their
+   specificity is what finally brings it into line with the other nine. */
+.draft-panel:not(.draft-tricks),
+.draft-panel.draft-tricks {
+  background: #000 !important;
+  background-image: none !important;   /* kills every re-applied wash gradient */
+  border: var(--panel-border) !important;
+  border-top-color: rgba(var(--theme-rgb, 79,195,247), 0.55) !important;
+  border-bottom-color: rgba(var(--theme-rgb, 79,195,247), 0.55) !important;
+  border-radius: var(--panel-radius) !important;
 }
