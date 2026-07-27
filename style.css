@@ -166,6 +166,40 @@
   --ix-active-translate: translateY(1px);
 }
 
+/* ============================================================
+   GLOBAL KEYBOARD-FOCUS BASELINE
+   Measured before this existed: 517 :hover rules against 41 :focus-visible —
+   about 8% coverage. Tabbing through the game was therefore almost entirely
+   invisible: 36 buttons, 13 inputs and 5 selects with no indication of where
+   you were. Every shipped product has this; its absence is one of the loudest
+   "unfinished" tells, and it is the whole keyboard experience for anyone who
+   doesn't use a mouse.
+
+   SPECIFICITY IS THE WHOLE DESIGN HERE. The first attempt wrapped this in
+   :where() for zero specificity, and it did nothing: the sheet carries 32
+   blanket `outline: none` resets, and a zero-specificity rule loses to every
+   one of them (verified by tabbing to the main menu and reading
+   outline-style: none). A bare element selector lands at (0,1,1), which is the
+   correct middle: it BEATS the element/single-class `outline:none` resets that
+   were hiding focus, and still LOSES to every bespoke `.foo:focus-visible`
+   rule at (0,2,0)+, so none of the 41 deliberate treatments is overridden.
+
+   :focus-visible, not :focus — the browser only matches it for keyboard/AT
+   navigation, so clicking a button with a mouse never draws a ring and normal
+   play is completely unaffected. Colour comes from the theme token, so the
+   ring follows the player's chosen theme like everything else now does.
+   ============================================================ */
+a[href]:focus-visible,
+button:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible,
+summary:focus-visible,
+[tabindex]:focus-visible {
+  outline: 2px solid var(--theme-accent-bright, #4fc3f7);
+  outline-offset: 2px;
+}
+
 /* ---- Keyword span — generic base style + per-keyword color via var ----
    Rendered by ui.js formatDesc() for every recognized ability/mechanic in
    card and trick description text. Bold + neon text-shadow so the term pops
@@ -18249,7 +18283,7 @@ body.phase-menu .kb-hints { display: none; }
   color: color-mix(in srgb, var(--theme-accent, rgb(79,195,247)) 25%, #7a8691);
   font-style: italic;
 }
-.db-search:focus {
+.db-search:focus:not(:focus-visible) {
   outline: none;
   border-color: var(--theme-accent-bright, rgba(79,195,247,1));
   box-shadow:
@@ -27817,7 +27851,7 @@ input[type="number"]::-webkit-outer-spin-button {
     inset 0 0 8px rgba(var(--theme-rgb, 79,195,247), 0.10) !important;
 }
 .mp-code-input:focus,
-.mp-code-display:focus {
+.mp-code-display:focus:not(:focus-visible) {
   outline: none !important;
   border-color: rgba(var(--theme-rgb, 79,195,247), 1) !important;
   box-shadow: 0 0 0 2px rgba(var(--theme-rgb, 79,195,247), 0.30) !important;
@@ -27888,7 +27922,7 @@ input[type="number"]::-webkit-outer-spin-button {
 }
 
 /* Deck builder search focus — settings-reference 2-layer glow. */
-.db-search:focus {
+.db-search:focus:not(:focus-visible) {
   outline: none !important;
   border-color: rgba(var(--theme-rgb, 79,195,247), 1) !important;
   box-shadow:
@@ -33644,4 +33678,20 @@ body.low-fx .card-portrait {
   .draft-card, .rl-pick-cardslot, .choice-tray .choice-card {
     transition-duration: 0.01ms;
   }
+}
+
+/* ---- Focus rings restored where a reset had removed them outright --------
+   Three rules killed the focus ring with `outline: none !important` and put
+   nothing in its place, so keyboard users had no idea where they were:
+   .mp-code-display (the multiplayer room code), .db-search (the deck-builder
+   search field — an INPUT, where focus matters most), and .game-over-btn.
+   The first two are now scoped to `:focus:not(:focus-visible)`, the standard
+   pattern: no ring when clicked with a mouse, ring when reached by keyboard.
+   .game-over-btn's reset sits on its BASE rule, so it needs an explicit
+   keyboard-only override rather than a rescope. Deliberately NOT touched:
+   .mm-mw3 .mm-option:focus-visible, which suppresses the outline because it
+   has its own scale + glow focus treatment — that one is a design choice. */
+.game-over-btn:focus-visible {
+  outline: 2px solid var(--theme-accent-bright, #4fc3f7) !important;
+  outline-offset: 3px;
 }
