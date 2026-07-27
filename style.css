@@ -33563,3 +33563,59 @@ body.low-fx .card-portrait {
   color: #7ce6a0;
 }
 .db-mp-ready-on:hover { background: rgba(28, 80, 50, 0.9); }
+
+/* ============================================================
+   GLOBAL CARD-MAGNIFY MOTION (2026-07-27)
+   User: "hover should be GLOBAL in all areas of the game, not just a local fix
+   — like on boards, roguelite, draft if necessary. All the changes I make are
+   GLOBAL."
+   The smooth hover growth was only ever authored on .trick-card (and then the
+   hand). Every OTHER card surface had its own ad-hoc timing with the browser
+   default ease, which is why they felt like a snap next to the tricks:
+       .card                     transform 0.2s
+       .draft-card               transform 0.2s
+       .rl-pick-cardslot         transform 0.18s
+       .choice-tray .choice-card transform 0.15s
+       .db-grid-item             transform 0.1s
+       .trick-card               transform 240ms + soft ease   <- the good one
+   Five durations, one shared feel missing. This block makes the trick's motion
+   the SINGLE SOURCE OF TRUTH for every card-like surface — board, hand, tricks,
+   draft, roguelite picks, choice trays, deck-builder grid — so a card magnifies
+   identically wherever it appears, and a new surface only has to choose its
+   scale AMOUNT, never re-invent the timing.
+   DELIBERATELY NOT unified: transform-origin. It is contextual and already
+   documented per surface — hand + tricks grow UPWARD from their row baseline
+   (center bottom), board cards grow from center because lanes have headroom
+   both ways and a bottom origin would shove them into the opposite row.
+   Placed last so it beats the per-surface transitions above without !important.
+   ============================================================ */
+:root {
+  --card-magnify-dur: 240ms;
+  --card-magnify-ease: cubic-bezier(0.22, 1, 0.36, 1);
+}
+.card,
+.hand-card-wrapper,
+.hand-card-wrapper .card.hand-card,
+.trick-card,
+.draft-card,
+.rl-pick-cardslot,
+.choice-tray .choice-card {
+  transition: transform var(--card-magnify-dur) var(--card-magnify-ease),
+              box-shadow 200ms ease,
+              border-color 200ms ease,
+              filter 200ms ease;
+}
+/* .db-grid-item is deliberately NOT in that list. The deck-builder grid does not
+   MAGNIFY — its hover is a 2px lift on a dense list of dozens of rows. Pushing a
+   240ms grow-curve onto a 2px nudge makes the whole grid feel sluggish, so this
+   contract covers surfaces that actually scale a card. (It also declares
+   `transition: all 0.15s !important`, which would need an !important war to
+   override — not worth starting for a change that would make it feel worse.) */
+/* Reduced motion / low-fx keep the snap — growth is the affordance, not the
+   animation, so removing the tween must not remove the enlarge. */
+@media (prefers-reduced-motion: reduce) {
+  .card, .hand-card-wrapper, .hand-card-wrapper .card.hand-card, .trick-card,
+  .draft-card, .rl-pick-cardslot, .choice-tray .choice-card {
+    transition-duration: 0.01ms;
+  }
+}
