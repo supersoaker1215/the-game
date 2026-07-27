@@ -30199,7 +30199,17 @@ body.round-tick .board::after {
   /* Pairs with the backdrop's align-items:flex-start — centres the modal while
      it fits, and stops clipping the top once it doesn't (see the note there). */
   margin: auto;
-  animation: cardInspectPopIn 260ms cubic-bezier(.18,1.04,.45,1.18);
+  /* MATCH THE TRICK INSPECT. User: "the trick magnify looks way smoother than
+     the card — I want the cards to match the tricks."
+     The old cardInspectPopIn OVERSHOT (scale .72 -> 1.04 -> 1.00). Overshooting
+     a subtree that is already `zoom: 1.7` makes the browser re-rasterise every
+     glyph, border and glow at a new non-integer scale on EVERY frame, and the
+     bounce doubles the number of those scales it has to pass through — that is
+     the judder. ciPanelIn is the trick modal's animation: one monotonic move,
+     no overshoot, soft ease. will-change promotes it so the tween composites
+     instead of re-rastering. */
+  animation: ciPanelIn 280ms var(--ease-out-soft, cubic-bezier(.18,1.04,.45,1.18)) both;
+  will-change: transform, opacity;
   /* Stop click-through — only the backdrop dismisses */
   pointer-events: auto;
 }
@@ -32267,6 +32277,20 @@ body.round-tick .board::after {
   background: none !important;
   border: none !important;
   box-shadow: none !important;
+  /* TYPOGRAPHY LIVES HERE TOO. Dropping a button from the boxed base rule to
+     un-box it also dropped its type, so it fell back to plain mixed-case sans
+     next to MENU / BACK / MULLIGAN — un-Tron. The row's spaced-caps Rajdhani is
+     part of the language, not part of the box, so it belongs on the container
+     where every button (present and future) inherits it. */
+  display: inline-flex; align-items: center; gap: 10px;
+  font-family: 'Rajdhani', sans-serif;
+  font-size: 11px;
+  /* 700, not the base rule's 800 — that's what MENU / BACK / MULLIGAN actually
+     compute to once the later glow-text block lands, and the point is parity. */
+  font-weight: 700;
+  letter-spacing: 3.5px;
+  text-transform: uppercase;
+  cursor: pointer;
   padding: 8px 14px;
   transition: transform 0.15s ease, color 0.2s ease, text-shadow 0.2s ease;
 }
