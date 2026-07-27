@@ -4867,16 +4867,20 @@ const Game = {
     if (!card || !this.state) return out;
     const lane = this.findCardLane(card);
     if (lane < 0) return out;
-    if (!(card.currentHealth > 0) || card.isStunned || card.isFrozen || (card.attack | 0) <= 0) return out;
+    if (!(card.currentHealth > 0) || card.isStunned || card.isFrozen || card.isFaceDown || (card.attack | 0) <= 0) return out;
     // A mind-controlled card swings at its OWN side (getMindControlTarget) — not
     // the enemy. Rather than draw a misleading enemy arrow, show nothing.
     if (card.isMindControlled) return out;
     if (card.isFeared) { out.targets.push({ card: card, kind: 'self' }); return out; }
     const opp = this.opponent(card.owner);
     // Front swing — taunt-redirected (a standing taunter intercepts it).
+    // A face-down front card can't be struck (applyCombatDamage no-ops on it),
+    // so the swing is absorbed by the lane — no arrow, and NOT a hero hit
+    // (the lane is occupied, so it isn't uncontested).
     const front = this.getAttackTarget(card.owner, lane);
-    if (front && front.currentHealth > 0) out.targets.push({ card: front, kind: 'front' });
-    else out.hitsHero = true;   // empty opposing slot + no taunter → the hero
+    if (front && front.currentHealth > 0) {
+      if (!front.isFaceDown) out.targets.push({ card: front, kind: 'front' });
+    } else out.hitsHero = true;   // empty opposing slot + no taunter → the hero
     // Splash cone (front lane + both adjacent) — never taunt-redirected.
     if ((card.splashRange | 0) > 0) {
       [lane - 1, lane, lane + 1].forEach(li => {
@@ -4971,8 +4975,16 @@ const Game = {
     if (pCard.isFeared) pTarget = pCard;
     if (aCard.isFeared) aTarget = aCard;
 
-    const pCanAttack = pCard.currentHealth > 0 && !pCard.isStunned && !pCard.isFrozen && pCard.attack > 0;
-    const aCanAttack = aCard.currentHealth > 0 && !aCard.isStunned && !aCard.isFrozen && aCard.attack > 0;
+    // A FACE-DOWN card is inert in combat: it neither swings nor takes damage
+    // (the damage side is enforced in applyCombatDamage). Normally face-down
+    // cards reveal before the trick phase (revealFaceDownCards), so combat
+    // never sees one — but Space Stone / any effect that plays a card face
+    // down DURING the trick phase slips it past that reveal, leaving it hidden
+    // in the fight. A hidden card is "unknowable," so it can't attack, deal, or
+    // take damage until it flips face-up. User report: a face-down card in
+    // front of Doomsday still attacked and was killed.
+    const pCanAttack = pCard.currentHealth > 0 && !pCard.isStunned && !pCard.isFrozen && !pCard.isFaceDown && pCard.attack > 0;
+    const aCanAttack = aCard.currentHealth > 0 && !aCard.isStunned && !aCard.isFrozen && !aCard.isFaceDown && aCard.attack > 0;
 
     if (!pCanAttack && pCard.currentHealth > 0 && pCard.attack > 0)
       this.log(`  ${pCard.name} is ${pCard.isStunned ? 'STUNNED' : 'FROZEN'} — can't attack or dodge!`);
@@ -5570,6 +5582,18 @@ const Game = {
 
   applyCombatDamage(attacker, target, opts) {
     if (!target || target.currentHealth <= 0) return false;
+    // Face-down cards can't be damaged by a combat swing — the whole point of
+    // "hidden" is that it's untouchable until it reveals (matches dealDamage /
+    // killCard / canEffectLand, which already bail on isFaceDown). A card that
+    // reaches combat still face-down (played via Space Stone during the trick
+    // phase, after the pre-combat reveal) absorbs the swing harmlessly and the
+    // attacker just whiffs into the lane — no face damage, since the lane is
+    // occupied. It also can't swing back (see resolveLaneCombat).
+    if (target.isFaceDown) {
+      this.log(`  [FACE DOWN] ${attacker.name}'s attack can't touch the hidden card in lane ${this.findCardLane(target) + 1}!`);
+      this.emitDmg(target.id, 0, 'block');
+      return false;
+    }
     this._coerceCombatStats(attacker, target);
 
     // Pre-damage absorbs via the shared _classifyAbsorb (canonical order:
