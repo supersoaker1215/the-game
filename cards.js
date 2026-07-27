@@ -341,7 +341,7 @@ const CARD_DEFS = [
     desc: "When Played: Give another ally (not a 10-cost card) Revive 1 — it revives as if played anew (abilities reset, On Play re-triggers)." },
 
   // ==================== COST 8 ====================
-  { name: "Apocalypse", cost: 8, attack: 5, health: 6, type: "villain",
+  { name: "Apocalypse", cost: 7, attack: 5, health: 6, type: "villain",
     abilities: [],
     desc: "When Played: Every card in your hand (cost ≤ 9) permanently gains a random keyword — Armor 1, Evade 1, Bullseye, or Overdrive. While Active: At the start of each round, 2 random enemies on the field each permanently lose 1 ATK." },
   { name: "Darth Vader", cost: 8, attack: 6, health: 7, type: "villain",
