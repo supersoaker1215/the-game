@@ -29,6 +29,10 @@
      every single screen, so the app read as several products stitched
      together. Two recipes now: a roomy SHELL for screens that present, and a
      DENSE one for screens that pack a grid (deck builder, draft). */
+  /* In-match horizontal gutter. The HUD banners used 12px while the hand and
+     tricks rows below them used 16px, so the HP bar and energy orb sat 4px
+     inboard of everything beneath — the stack never squared up. One value now. */
+  --match-gutter: 16px;
   --panel-pad:        48px 40px 36px;
   --panel-pad-dense:  26px 30px 24px;
   --panel-border:     1px solid rgba(var(--theme-rgb, 79,195,247), 0.55);
@@ -7875,7 +7879,7 @@ body.mobile-card-dragging .cursor-trail { display: none !important; }
      sits at the banner's bottom-right — has breathing room between itself
      and the top edge of the hand section / the first card in hand.
      Previously the orb's glow clipped into the section's top border. */
-  padding: 12px 16px 14px;
+  padding: 12px var(--match-gutter) 12px;
   /* Pure black to match the lanes — was #05080c which read as a
      subtle bluish strip to the left/right of the centered hand
      cards (and to the left of lane 1 / right of lane 6 below
@@ -8047,7 +8051,7 @@ body.mobile-card-dragging .cursor-trail { display: none !important; }
 .tricks-section {
   /* Matched breathing room for the tricks row — same reason as the hand
      section above. Was 2px. */
-  padding: 10px 16px 6px;
+  padding: 10px var(--match-gutter) 6px;
   border-top: 1px solid var(--tron-dim);
   box-shadow: 0 -1px 0 var(--tron-glow);
   position: relative;
@@ -9025,7 +9029,7 @@ body.mobile-card-dragging .cursor-trail { display: none !important; }
   .turn-hud { padding-right: 130px; }
 }
 @media (max-width: 800px) {
-  .info-bar { padding: 8px 12px; gap: 10px; grid-template-columns: 180px 52px 1fr 52px 88px; }
+  .info-bar { padding: 8px var(--match-gutter); gap: 10px; grid-template-columns: 180px 52px 1fr 52px 88px; }
   .health-bar { width: 130px; height: 16px; }
   .block-circle { width: 40px; height: 40px; }
   .energy-text { width: 40px; height: 40px; font-size: 16px; }
