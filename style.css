@@ -872,7 +872,7 @@ body.turn-combat::before { background: linear-gradient(to bottom, rgba(255,215,0
    than just inline text. */
 .hud-count {
   font-family: 'Rajdhani', sans-serif;
-  font-size: 10.5px; font-weight: 700;
+  font-size: 11px; font-weight: 700;
   letter-spacing: 2px; text-transform: uppercase;
   text-indent: 2px;
   display: inline-flex; align-items: center; gap: 7px;
@@ -1101,7 +1101,7 @@ body.turn-combat::before { background: linear-gradient(to bottom, rgba(255,215,0
      caps sit in the top half of the em — visually the text looks low when
      the line-box is perfectly centered. Adding padding-bottom shrinks the
      flex content box so align-items:center places glyphs ~2px higher. */
-  padding: 0 14px 4px; font-size: 11.5px; letter-spacing: 1px;
+  padding: 0 14px 4px; font-size: 12px; letter-spacing: 1px;
   /* Match text-indent to this rule's own letter-spacing (base .btn uses 1.8px). */
   text-indent: 1px;
   height: 30px; line-height: 1;
@@ -1337,7 +1337,7 @@ body.hit-pause .ai-hand * {
   border: none;
   color: #ffe066;
   font-family: 'Rajdhani', sans-serif;
-  font-weight: 700; font-size: 17px;
+  font-weight: 700; font-size: 18px;
   display: inline-flex; align-items: center; justify-content: center;
   text-shadow: 0 0 6px rgba(255,215,0,0.95), 0 0 14px rgba(255,215,0,0.55);
   line-height: 1;
@@ -1761,7 +1761,7 @@ body.hit-pause .ai-hand * {
 }
 .mm-profile-av {
   width: 30px; height: 30px; border-radius: 50%; flex: 0 0 auto;
-  display: flex; align-items: center; justify-content: center; font-size: 15px;
+  display: flex; align-items: center; justify-content: center; font-size: 16px;
   background: rgba(var(--theme-rgb, 79,195,247),0.16);
   border: 1px solid rgba(var(--theme-rgb, 79,195,247),0.5);
   color: rgb(var(--theme-rgb, 79,195,247));
@@ -1771,7 +1771,7 @@ body.hit-pause .ai-hand * {
   font-family: 'Rajdhani', sans-serif; font-weight: 700; font-size: 13px;
   letter-spacing: 0.5px; color: var(--text-body, #eaf4ff); text-transform: uppercase;
 }
-.mm-profile-record { font-family: 'Inter', sans-serif; font-size: 10.5px; color: #8ea8be; letter-spacing: 0.3px; }
+.mm-profile-record { font-family: 'Inter', sans-serif; font-size: 11px; color: #8ea8be; letter-spacing: 0.3px; }
 /* One-shot entrance stagger on the menu option tiles (fade + rise in
    sequence on each landing) — NOT an idle loop. `backwards` fill so the
    animation never holds `transform` and block the hover-lift. */
@@ -2597,7 +2597,7 @@ body.hit-pause .ai-hand * {
   transition: transform 150ms, color 0.2s, text-shadow 0.2s;
 }
 .twov2-mm-opt:hover { color: #fff; transform: scale(1.06); transform-origin: left center; text-shadow: 0 0 14px rgba(var(--theme-rgb,79,195,247),0.9), 0 0 26px rgba(var(--theme-rgb,79,195,247),0.5); }
-.twov2-mm-ic { font-size: 15px; opacity: 0.85; }
+.twov2-mm-ic { font-size: 16px; opacity: 0.85; }
 .twov2-mm-optsub { font-size: 12px; letter-spacing: 2px; opacity: 0.5; }
 .twov2-mm-joinrow { display: flex; align-items: center; gap: 18px; margin: 8px 0; padding-left: 32px; }
 .twov2-mm .twov2-mm-code {
@@ -2610,7 +2610,7 @@ body.hit-pause .ai-hand * {
 .twov2-mm .twov2-mm-code::placeholder { color: rgba(159,207,237,0.3); }
 .twov2-mm-go {
   background: none; border: none; cursor: pointer; font-family: 'Rajdhani', sans-serif;
-  text-transform: uppercase; font-size: 15px; font-weight: 700; letter-spacing: 3px;
+  text-transform: uppercase; font-size: 16px; font-weight: 700; letter-spacing: 3px;
   color: color-mix(in srgb, rgb(var(--theme-rgb,79,195,247)) 72%, #dcebf8);
   text-shadow: 0 0 6px rgba(var(--theme-rgb,79,195,247),0.35);
   transition: transform 150ms, color 0.2s, text-shadow 0.2s;
@@ -2727,7 +2727,7 @@ body.hit-pause .ai-hand * {
   font-family: 'Rajdhani', sans-serif;
 }
 .md-title {
-  font-size: 26px; font-weight: 700;
+  font-size: 28px; font-weight: 700;
   letter-spacing: 8px; text-transform: uppercase;
   color: var(--text-hi, #f5fbff);
   text-align: center;
@@ -3331,7 +3331,7 @@ body.hit-pause .ai-hand * {
 }
 .stats-def-formula .stats-def-body {
   color: color-mix(in srgb, rgb(var(--theme-rgb, 79,195,247)) 25%, #8a96a5);
-  font-size: 10.5px;
+  font-size: 11px;
 }
 
 /* Stats table */
@@ -3341,7 +3341,7 @@ body.hit-pause .ai-hand * {
   border-collapse: separate;
   border-spacing: 0;
   font-family: 'Rajdhani', sans-serif;
-  font-size: 11.5px;
+  font-size: 12px;
 }
 .stats-table th, .stats-table td {
   padding: 7px 10px;
@@ -3730,7 +3730,7 @@ body.hit-pause .ai-hand * {
   z-index: -1;
 }
 .db-grid-name {
-  font-size: 11.5px; font-weight: 700;
+  font-size: 12px; font-weight: 700;
   letter-spacing: 0.6px;
   color: var(--text-body, #e8f5ff);
   line-height: 1.2;
@@ -3819,7 +3819,7 @@ body.hit-pause .ai-hand * {
   z-index: 2;
 }
 .db-grid-abilities .status-badge {
-  font-size: 8.5px; padding: 1px 5px; letter-spacing: 0.5px;
+  font-size: 9px; padding: 1px 5px; letter-spacing: 0.5px;
   max-width: 82px;
   white-space: nowrap;
   overflow: hidden;
@@ -3967,7 +3967,7 @@ body.hit-pause .ai-hand * {
   font-variant-numeric: tabular-nums;
 }
 .db-deck-name {
-  font-size: 11.5px; font-weight: 600;
+  font-size: 12px; font-weight: 600;
   color: var(--text-body, #e8f5ff);
   letter-spacing: 0.4px;
 }
@@ -4346,7 +4346,7 @@ body.hit-pause .ai-hand * {
   border-radius: 3px;
   color: var(--text-hi, #f5fbff);
   font-family: 'Rajdhani', sans-serif;
-  font-size: 30px; font-weight: 800;
+  font-size: 32px; font-weight: 800;
   letter-spacing: 8px; text-transform: uppercase;
   text-align: center;
   outline: none;
@@ -4461,7 +4461,7 @@ body.hit-pause .ai-hand * {
 @container (max-width: 520px) {
   .mp-panel { padding: 40px 20px 24px; }
   .mp-code-display { font-size: 42px; letter-spacing: 10px; padding: 12px 18px; }
-  .mp-code-input { font-size: 26px; letter-spacing: 6px; }
+  .mp-code-input { font-size: 28px; letter-spacing: 6px; }
 }
 
 .db-save-btn, .db-load-btn, .db-delete-btn, .db-start-btn,
@@ -4609,7 +4609,7 @@ body.hit-pause .ai-hand * {
   text-shadow: 0 0 6px rgba(255,255,255,0.55);
 }
 .draft-hud-counter em {
-  font-style: normal; color: var(--text-hi, #ffffff); font-weight: 800; font-size: 15px;
+  font-style: normal; color: var(--text-hi, #ffffff); font-weight: 800; font-size: 16px;
   margin: 0 2px;
   text-shadow: 0 0 10px rgba(255,255,255,0.95), 0 0 18px rgba(255,255,255,0.45);
 }
@@ -4719,7 +4719,7 @@ body.hit-pause .ai-hand * {
 }
 .draft-mulligan-btn .mulligan-icon {
   display: inline-block;
-  font-size: 15px; line-height: 1;
+  font-size: 16px; line-height: 1;
   transition: transform 0.3s;
 }
 .draft-mulligan-btn:hover .mulligan-icon {
@@ -4909,7 +4909,7 @@ body.hit-pause .ai-hand * {
 .draft-card.trick-draft .rarity-strip { top: 20px; right: 21px; }
 .card.draft-card .stat-circle {
   width: 32px; height: 32px;
-  font-size: 15px;
+  font-size: 16px;
   bottom: 8px;
 }
 .card.draft-card .stat-atk { left: 8px; }
@@ -5175,7 +5175,7 @@ body.hit-pause .ai-hand * {
   position: absolute; top: -10px; left: -10px;
   width: 30px; height: 30px; border-radius: 50%;
   background: #000000;
-  color: #d7b3e6; font-weight: 900; font-size: 15px;
+  color: #d7b3e6; font-weight: 900; font-size: 16px;
   display: flex; align-items: center; justify-content: center;
   /* Match the HUD tricks divider / count — fully saturated amethyst. */
   border: 1px solid rgba(155,89,182,1);
@@ -5245,7 +5245,7 @@ body.hit-pause .ai-hand * {
 }
 .draft-card .trick-desc {
   font-family: 'Inter', 'Segoe UI', system-ui, sans-serif;
-  font-size: 11.5px; color: var(--text-hi, #f5fbff);
+  font-size: 12px; color: var(--text-hi, #f5fbff);
   margin-top: 10px; line-height: 1.6;
   font-style: normal; letter-spacing: 0.15px; font-weight: 400;
   padding: 0 6px;
@@ -5255,7 +5255,7 @@ body.hit-pause .ai-hand * {
   color: #d7b3e6 !important;
   font-weight: 600;
   letter-spacing: 0.5px;
-  font-size: 10.5px;
+  font-size: 11px;
   text-transform: uppercase;
   text-shadow: 0 0 4px rgba(155,89,182,0.75), 0 0 10px rgba(155,89,182,0.40);
 }
@@ -6202,7 +6202,7 @@ body.hit-pause .ai-hand * {
 }
 .card-abilities {
   font-family: 'Rajdhani', 'Segoe UI', system-ui, sans-serif;
-  font-size: 9.5px; text-align: center; color: var(--text-dim, #d5dfe8);
+  font-size: 10px; text-align: center; color: var(--text-dim, #d5dfe8);
   line-height: 1.3; letter-spacing: 0.8px; text-transform: uppercase;
   font-weight: 600;
   word-break: break-word; margin-top: 2px;
@@ -6215,7 +6215,7 @@ body.hit-pause .ai-hand * {
    "voice", keywords are the highlights. */
 .card-desc {
   font-family: 'JetBrains Mono', 'SF Mono', ui-monospace, Menlo, Consolas, monospace;
-  font-size: 8.5px; text-align: center;
+  font-size: 9px; text-align: center;
   color: rgba(var(--portrait-frame-rgb, 79,195,247), 0.94);
   margin-top: 4px; line-height: 1.42; letter-spacing: 0.15px;
   font-weight: 500;
@@ -6277,7 +6277,7 @@ body.hit-pause .ai-hand * {
   background: rgba(255,215,0,0.06);
   border-left: 2px solid rgba(255,215,0,0.55);
   border-radius: 2px;
-  font-size: 9.5px;
+  font-size: 10px;
   line-height: 1.35;
   text-align: left;
   position: relative;
@@ -6287,7 +6287,7 @@ body.hit-pause .ai-hand * {
   display: block;
   font-weight: 700;
   letter-spacing: 1.1px;
-  font-size: 8.5px;
+  font-size: 9px;
   text-transform: uppercase;
   color: #ffe066;
   text-shadow:
@@ -6325,7 +6325,7 @@ body.hit-pause .ai-hand * {
   margin-top: 6px;
   font-weight: 700;
   letter-spacing: 0.9px;
-  font-size: 8.5px;
+  font-size: 9px;
   text-transform: uppercase;
   text-align: center;
   /* Default color falls through to the card-desc text color; rarity-
@@ -6540,7 +6540,7 @@ body.hit-pause .ai-hand * {
      text on a card reads as the same typographic family. Default color
      is cyan; per-card modifier classes below override for specific
      cards (Gojo = neon purple, BWL = red). */
-  font-size: 8.5px; text-align: center;
+  font-size: 9px; text-align: center;
   margin-top: 3px;
   padding-bottom: 20px;
   line-height: 1.35; letter-spacing: 0.9px; font-weight: 700;
@@ -6827,7 +6827,7 @@ body.hit-pause .ai-hand * {
 }
 .status-badge {
   font-family: 'JetBrains Mono', 'SF Mono', ui-monospace, Menlo, Consolas, monospace;
-  font-size: 7px; font-weight: 700; padding: 0 4px; border-radius: 2px;
+  font-size: 8px; font-weight: 700; padding: 0 4px; border-radius: 2px;
   line-height: 1.35; letter-spacing: 0.3px; white-space: nowrap;
   text-transform: uppercase;
   background: rgba(0, 8, 14, 0.55);
@@ -7843,7 +7843,7 @@ body.mobile-card-dragging .cursor-trail { display: none !important; }
 /* HP bar floating damage number */
 .hp-dmg-float {
   position: absolute; top: -8px; right: 10%;
-  font-size: 26px; font-weight: 900; color: #e74c3c; z-index: 100; pointer-events: none;
+  font-size: 28px; font-weight: 900; color: #e74c3c; z-index: 100; pointer-events: none;
   text-shadow: 0 0 8px rgba(231,76,60,0.7), 0 2px 4px rgba(0,0,0,0.8);
   animation: hpDmgFloat 1.1s ease-out forwards;
 }
@@ -8149,7 +8149,7 @@ body.mobile-card-dragging .cursor-trail { display: none !important; }
 }
 .trick-desc {
   font-family: 'Inter', 'Segoe UI', system-ui, sans-serif;
-  font-size: 8.5px; color: var(--text-hi, #f5fbff); line-height: 1.45;
+  font-size: 9px; color: var(--text-hi, #f5fbff); line-height: 1.45;
   text-align: center; letter-spacing: 0.15px;
   font-weight: 400;
   padding: 0 2px;
@@ -8223,7 +8223,7 @@ body.mobile-card-dragging .cursor-trail { display: none !important; }
   background: rgba(6,10,16,0.55);
   border: 1px solid var(--tron-dim);
   border-radius: 4px; padding: 5px 8px;
-  font-family: 'Courier New', monospace; font-size: 10.5px;
+  font-family: 'Courier New', monospace; font-size: 11px;
   box-shadow: inset 0 0 10px rgba(0,0,0,0.5);
 }
 .log-entry {
@@ -8250,7 +8250,7 @@ body.mobile-card-dragging .cursor-trail { display: none !important; }
 .log-entry.log-utility  { border-left-color: rgba(127,140,141,0.65); box-shadow: inset 2px 0 6px rgba(127,140,141,0.15); }
 .log-header {
   padding: 2px 0 2px 10px;
-  color: var(--tron); font-weight: 800; font-size: 10.5px;
+  color: var(--tron); font-weight: 800; font-size: 11px;
   letter-spacing: 1.2px; text-transform: uppercase;
   border-left: 2px solid var(--tron);
   box-shadow: -1px 0 6px var(--tron-glow);
@@ -8537,7 +8537,7 @@ body.mobile-card-dragging .cursor-trail { display: none !important; }
 }
 .dead-pile-card .card-desc {
   font-family: 'Inter', sans-serif;
-  font-size: 8.5px; color: var(--text-hi, #f5fbff); line-height: 1.45; letter-spacing: 0.15px;
+  font-size: 9px; color: var(--text-hi, #f5fbff); line-height: 1.45; letter-spacing: 0.15px;
   font-weight: 400;
 }
 
@@ -8832,7 +8832,7 @@ body.mobile-card-dragging .cursor-trail { display: none !important; }
 .sotm-headline-value {
   color: #ffd95c;
   font-family: 'Rajdhani', sans-serif;
-  font-size: 26px;
+  font-size: 28px;
   font-weight: 800;
   text-shadow: 0 0 8px rgba(255,217,92,0.45);
   font-variant-numeric: tabular-nums;
@@ -8949,7 +8949,7 @@ body.mobile-card-dragging .cursor-trail { display: none !important; }
    so the player knows what an "MVP+ 165" means at a glance. */
 .game-over-stats .go-mvp-footnote {
   margin-top: 6px;
-  font-size: 9.5px;
+  font-size: 10px;
   letter-spacing: 1.4px;
   text-transform: uppercase;
   color: rgba(213, 226, 236, 0.55);
@@ -9000,7 +9000,7 @@ body.mobile-card-dragging .cursor-trail { display: none !important; }
   .lane { width: 130px; min-width: 130px; }
   .card { width: 108px; min-height: 95px; }
   .card-slot { width: 124px; }
-  .phase-banner-text { font-size: 30px; }
+  .phase-banner-text { font-size: 32px; }
 }
 /* iPad mini (744–820px) + landscape-phone / narrow-tablet bracket.
    Board at 800px is 723px wide against a 744px viewport (5px spare) —
@@ -9121,8 +9121,8 @@ body.turn-combat .board .lane.lane-active {
      at normal width with desc visible. */
   .board .card .card-desc { display: none; }
   /* Status badges shrink so multiple fit at this size. */
-  .board .card .card-abilities.status-badges { font-size: 5.8px; gap: 1px; flex-wrap: wrap; max-width: 100%; }
-  .board .card .status-badge { padding: 1px 2px; font-size: 5.8px; letter-spacing: 0.1px; max-width: 100%; }
+  .board .card .card-abilities.status-badges { font-size: 6px; gap: 1px; flex-wrap: wrap; max-width: 100%; }
+  .board .card .status-badge { padding: 1px 2px; font-size: 6px; letter-spacing: 0.1px; max-width: 100%; }
   /* Cost orb + stat orbs scale down to fit the compact card.
      User direction (2026-05-18): "the damage and the health
      squares and the energy squares are not positioned correctly
@@ -9159,8 +9159,8 @@ body.turn-combat .board .lane.lane-active {
   .card-drag-ghost .card-desc,
   .card-drag-ghost .trick-desc,
   .card-drag-ghost .card-active-text { display: none !important; }
-  .card-drag-ghost .card-abilities.status-badges { font-size: 5.8px; gap: 1px; flex-wrap: wrap; max-width: 100%; }
-  .card-drag-ghost .status-badge { padding: 1px 2px; font-size: 5.8px; letter-spacing: 0.1px; max-width: 100%; }
+  .card-drag-ghost .card-abilities.status-badges { font-size: 6px; gap: 1px; flex-wrap: wrap; max-width: 100%; }
+  .card-drag-ghost .status-badge { padding: 1px 2px; font-size: 6px; letter-spacing: 0.1px; max-width: 100%; }
   .card-drag-ghost .card-cost { width: 18px; height: 18px; font-size: 11px; top: 2px; left: 2px; }
   .card-drag-ghost .stat-circle { width: 16px; height: 16px; font-size: 10px; }
   .card-drag-ghost .stat-circle.stat-atk { bottom: 2px; left: 2px; }
@@ -9218,7 +9218,7 @@ body.turn-combat .board .lane.lane-active {
      pile needs to be smaller. It has to match everything else." */
   .pile-badge {
     padding: 2px 5px;
-    font-size: 8.5px;
+    font-size: 9px;
     letter-spacing: 0.5px;
     line-height: 1;
     height: 18px;
@@ -9228,33 +9228,33 @@ body.turn-combat .board .lane.lane-active {
   /* Mobile: surface opponent deck + tricks counts (hidden on desktop
      because the central HUD pill carries them). User feedback: "no
      symbols for the opponent's deck — needs to be added back in." */
-  .pile-badge-mobile-only { display: inline-flex !important; gap: 3px; padding: 2px 4px; font-size: 8.5px; margin-right: 2px; }
-  .pile-mini-label { font-size: 7.5px; letter-spacing: 0.5px; opacity: 0.65; font-weight: 700; }
+  .pile-badge-mobile-only { display: inline-flex !important; gap: 3px; padding: 2px 4px; font-size: 9px; margin-right: 2px; }
+  .pile-mini-label { font-size: 8px; letter-spacing: 0.5px; opacity: 0.65; font-weight: 700; }
   .ai-deck-badge   .pile-mini-label { color: rgba(125,210,255,0.95); }
   .ai-tricks-badge .pile-mini-label { color: rgba(180,120,255,0.95); }
-  .actions-section .btn { min-height: 34px; height: 34px; padding: 3px 10px; font-size: 9.5px; letter-spacing: 0.6px; }
+  .actions-section .btn { min-height: 34px; height: 34px; padding: 3px 10px; font-size: 10px; letter-spacing: 0.6px; }
   button, .btn { min-height: 40px; } /* 40px tap target baseline */
   .phase-banner-text { font-size: 20px; }
   /* HUD pill: drop the phase text + tighten counters so the whole pill
      fits within the viewport WITHOUT colliding with the settings gear
      at top-right. Was 393px (overflowed), target ≤ 280px. */
   .hud-pill-main {
-    font-size: 10.5px;
+    font-size: 11px;
     padding: 4px 10px;
     gap: 6px;
     max-width: calc(100vw - 96px); /* leave room for the gear at right */
   }
   .hud-pill-main .hud-phase { display: none; }
   .hud-pill-main .hud-phase + .hud-divider { display: none; }
-  .hud-round { font-size: 10.5px; letter-spacing: 1.5px; }
-  .hud-count { font-size: 10.5px; letter-spacing: 1px; }
+  .hud-round { font-size: 11px; letter-spacing: 1.5px; }
+  .hud-count { font-size: 11px; letter-spacing: 1px; }
   /* Settings gear — pull tighter to the corner so it doesn't compete
      with the HUD pill for horizontal real estate. The earlier
      transform: scale(0.85) shrank the touch target to ~37px, BELOW
      the 44px minimum — backwards for the device where touch
      precision matters most. Dropped the scale; keep the corner pull.
      The sync button rides alongside it at a matching offset. */
-  .settings-cog { right: 8px !important; top: 8px !important; width: 38px !important; height: 38px !important; font-size: 17px !important; }
+  .settings-cog { right: 8px !important; top: 8px !important; width: 38px !important; height: 38px !important; font-size: 18px !important; }
   .sync-btn { right: 62px !important; top: 8px !important; }
   /* Mobile: the ? button is removed from the HUD to declutter the top bar —
      Rules & keywords now live in Settings → Help. */
@@ -9269,7 +9269,7 @@ body.turn-combat .board .lane.lane-active {
   .ai-hand-mini .hand-cards { gap: 2px; padding: 0; min-height: 0; }
   .settings-panel { padding: 14px 16px; min-width: 0; width: 100%; max-width: 360px; }
   .game-over-content { padding: 22px 18px; min-width: 0; }
-  .game-over-title { font-size: 30px; letter-spacing: 4px; }
+  .game-over-title { font-size: 32px; letter-spacing: 4px; }
   .cheat-sheet-panel { padding: 20px 20px 16px; }
 
   /* Card draft — currently 2 huge cards stack vertically on phone,
@@ -9284,7 +9284,7 @@ body.turn-combat .board .lane.lane-active {
     min-height: 220px;
   }
   .draft-card .card-name { font-size: 11px; letter-spacing: 0.6px; }
-  .draft-card .card-desc { font-size: 9.5px; line-height: 1.3; }
+  .draft-card .card-desc { font-size: 10px; line-height: 1.3; }
   .draft-card .card-cost { width: 18px; height: 18px; font-size: 11px; }
   /* Pick counter + dot indicator + back-buttons row on draft */
   .draft-hud-row { gap: 8px; padding: 6px 2px 8px; }
@@ -9327,7 +9327,7 @@ body.turn-combat .board .lane.lane-active {
      "SIM" tag and the verbose "N ATK + M Splash =" breakdown. */
   .dmg-preview { min-width: 0 !important; max-width: 62px; padding: 2px 3px; font-size: 8px; bottom: 2px; border-radius: 3px; line-height: 1.15; }
   .dmg-preview .dp-sim-tag, .dmg-preview .dp-sub { display: none !important; }
-  .dmg-preview .dp-verdict { font-size: 7.5px; letter-spacing: 0.2px; margin-bottom: 1px; }
+  .dmg-preview .dp-verdict { font-size: 8px; letter-spacing: 0.2px; margin-bottom: 1px; }
   .dmg-preview .dp-row { gap: 3px; }
   /* Mobile hand: 92px-wide cards fit FOUR comfortably in a 380px
      viewport (4×92 + 3×4 = 380), with description text legible. Hand
@@ -9352,11 +9352,11 @@ body.turn-combat .board .lane.lane-active {
   }
   .player-hand-section .hand-cards .card {
     min-height: 130px;
-    font-size: 9.5px;
+    font-size: 10px;
     padding: 5px 3px 14px;
   }
-  .player-hand-section .hand-cards .card .card-name { font-size: 9.5px; letter-spacing: 0.3px; }
-  .player-hand-section .hand-cards .card .card-desc { display: block; font-size: 7.5px; line-height: 1.15; }
+  .player-hand-section .hand-cards .card .card-name { font-size: 10px; letter-spacing: 0.3px; }
+  .player-hand-section .hand-cards .card .card-desc { display: block; font-size: 8px; line-height: 1.15; }
   .player-hand-section .hand-cards .card .card-cost { width: 22px; height: 22px; font-size: 12px; top: 4px; left: 4px; }
   .player-hand-section .hand-cards .card .stat-circle { width: 18px; height: 18px; font-size: 11px; }
   .player-hand-section .hand-cards .card .stat-circle.stat-atk { bottom: 4px; left: 4px; }
@@ -9415,7 +9415,7 @@ body.turn-combat .board .lane.lane-active {
        leaves equal space above and below. */
   }
   .mm-title {
-    font-size: 26px;
+    font-size: 28px;
     letter-spacing: 5px;
     margin-bottom: 4px;
   }
@@ -9724,7 +9724,7 @@ body.turn-combat .board .lane.lane-active {
     min-height: 0 !important;
   }
   .draft-card .card-name { font-size: 12px; letter-spacing: 0.6px; }
-  .draft-card .card-desc { font-size: 9.5px; line-height: 1.3; }
+  .draft-card .card-desc { font-size: 10px; line-height: 1.3; }
   /* Cost diamond was 18×18 — too small next to the 38×38 ATK/HP orbs.
      Grow to 30×30 (font 15px) so the cost reads at the same weight as
      the stat orbs. User feedback: "the energy diamond is too small
@@ -10294,7 +10294,7 @@ body.turn-combat .board .lane.lane-active {
 .lr-who {
   text-transform: uppercase;
   letter-spacing: 1px;
-  font-size: 10.5px;
+  font-size: 11px;
 }
 .lr-arrow {
   opacity: 0.6; font-weight: 400;
@@ -10632,7 +10632,7 @@ body.turn-combat .board .lane.lane-active {
 .db-hud-curve-slot .db-curve-bars {
   height: 36px;
 }
-.db-hud-curve-slot .db-curve-count { font-size: 8.5px; top: -1px; }
+.db-hud-curve-slot .db-curve-count { font-size: 9px; top: -1px; }
 .db-hud-curve-slot .db-curve-label { font-size: 8px; margin-top: 1px; }
 .db-hud-curve-slot .db-curve-title { font-size: 9px; margin-bottom: 4px; }
 
@@ -11072,7 +11072,7 @@ body.turn-combat .board .lane.lane-active {
   display: block;
   font-family: 'Rajdhani', sans-serif;
   text-transform: uppercase; letter-spacing: 3px;
-  font-weight: 700; font-size: 15px;
+  font-weight: 700; font-size: 16px;
   color: var(--text-hi, #f5fbff);
   text-shadow: 0 0 10px rgba(var(--theme-rgb, 79,195,247),0.5);
 }
@@ -11270,7 +11270,7 @@ body.turn-combat .board .lane.lane-active {
 }
 .choice-tray .choice-card .card-desc {
   font-family: 'Inter', sans-serif;
-  font-size: 10.5px; color: var(--text-hi, #f5fbff);
+  font-size: 11px; color: var(--text-hi, #f5fbff);
   line-height: 1.45; text-align: center;
   margin-top: 4px;
 }
@@ -11352,7 +11352,7 @@ body.turn-combat .board .lane.lane-active {
 .decision-modal .decision-choice:active { transform: translateY(-1px) scale(1.0); }
 .decision-choice-title {
   font-family: 'Rajdhani', sans-serif;
-  font-size: 15px; font-weight: 700; letter-spacing: 2px; text-transform: uppercase;
+  font-size: 16px; font-weight: 700; letter-spacing: 2px; text-transform: uppercase;
   color: var(--text-hi, #f5fbff); text-shadow: 0 0 8px rgba(var(--theme-rgb,79,195,247),0.5);
 }
 .decision-choice-sub {
@@ -11923,7 +11923,7 @@ body.turn-combat .board .lane.lane-active {
    Helps debug edge cases where the sim's verdict feels wrong. */
 .dmg-preview .dp-sim-tag {
   display: inline-block;
-  font-size: 7px; letter-spacing: 1.4px; text-transform: uppercase;
+  font-size: 8px; letter-spacing: 1.4px; text-transform: uppercase;
   font-weight: 800;
   /* User feedback May-1: SIM pill stayed cyan even in red/green/silver/
      purple themes. Now follows the active neon. */
@@ -12168,7 +12168,7 @@ body.in-match .cheat-help-toggle { display: flex; }
   text-shadow: 0 0 10px rgba(var(--theme-rgb, 79,195,247),0.5); margin-bottom: 10px;
 }
 .first-run-body {
-  font-family: 'Inter', sans-serif; font-size: 13.5px; line-height: 1.5;
+  font-family: 'Inter', sans-serif; font-size: 14px; line-height: 1.5;
   color: var(--text-dim, #c8d4e0); margin-bottom: 20px;
 }
 .first-run-actions { display: flex; flex-direction: column; gap: 10px; }
@@ -12192,12 +12192,12 @@ body.in-match .cheat-help-toggle { display: flex; }
   animation: gameOverSlideUp 0.4s var(--ease-spring, cubic-bezier(0.34,1.56,0.64,1.0));
 }
 .app-modal-title {
-  font-family: 'Rajdhani', sans-serif; font-weight: 700; font-size: 19px;
+  font-family: 'Rajdhani', sans-serif; font-weight: 700; font-size: 20px;
   letter-spacing: 0.6px; color: rgb(var(--theme-rgb, 79,195,247));
   text-shadow: 0 0 9px rgba(var(--theme-rgb, 79,195,247),0.45); margin-bottom: 10px;
 }
 .app-modal-body {
-  font-family: 'Inter', sans-serif; font-size: 13.5px; line-height: 1.5;
+  font-family: 'Inter', sans-serif; font-size: 14px; line-height: 1.5;
   color: var(--text-dim, #d2dde8); margin-bottom: 18px; white-space: pre-line;
 }
 .app-modal-actions { display: flex; gap: 10px; justify-content: flex-end; }
@@ -14786,7 +14786,7 @@ body.round-first-ai .hud-pill-main {
    the card visually; desc body lightens a notch so the name/stat
    hierarchy reads cleanly at thumbnail scale. */
 .card .card-name {
-  font-size: 11.5px !important;
+  font-size: 12px !important;
   letter-spacing: 1.4px !important;
   font-weight: 800 !important;
 }
@@ -14802,7 +14802,7 @@ body.round-first-ai .hud-pill-main {
   letter-spacing: 0.3px;
 }
 .card .card-desc b {
-  font-size: 8.5px !important;
+  font-size: 9px !important;
   letter-spacing: 1px !important;
 }
 /* Stat circles — tighter numerals, slightly bolder, better tabular alignment. */
@@ -15890,7 +15890,7 @@ body.kill-flash-ai::after {
   width: 32px; height: 32px;
   border-radius: 50%;
   display: flex; align-items: center; justify-content: center;
-  font-size: 15px; font-weight: 700;
+  font-size: 16px; font-weight: 700;
   font-family: 'Rajdhani', sans-serif;
   color: #fff;
   background: var(--theme-accent-bright, #4fc3f7);
@@ -16207,7 +16207,7 @@ body::before {
   display: flex; flex-wrap: wrap; gap: 4px;
 }
 .deck-viewer-chip {
-  font-size: 10.5px; font-weight: 700;
+  font-size: 11px; font-weight: 700;
   letter-spacing: 0.8px; text-transform: uppercase;
   padding: 3px 8px; border-radius: 3px;
   background: #000;
@@ -17268,7 +17268,7 @@ body.ai-thinking .ai-thinking-dots { display: inline-flex; }
   transform: translate(-50%, -50%);
   font-family: 'Rajdhani', sans-serif;
   font-weight: 700;
-  font-size: 17px;
+  font-size: 18px;
   color: #ffd77a;
   text-shadow: 0 0 6px rgba(255,215,0,0.9), 0 0 12px rgba(255,215,0,0.5);
   pointer-events: none;
@@ -17459,7 +17459,7 @@ input:focus-visible,
 }
 .deck-viewer-preview .dvp-row {
   display: flex; justify-content: space-between;
-  font-size: 10.5px; letter-spacing: 1px;
+  font-size: 11px; letter-spacing: 1px;
   color: color-mix(in srgb, var(--theme-accent) 25%, #b8c2cc);
   margin-top: 2px;
 }
@@ -18161,7 +18161,7 @@ body.phase-menu .kb-hints { display: none; }
 }
 .db-hud-title {
   font-family: 'Rajdhani', sans-serif;
-  font-size: 34px; font-weight: 700;
+  font-size: 36px; font-weight: 700;
   letter-spacing: 8px; text-transform: uppercase;
   color: var(--text-hi, #f5fbff);
   margin: 0 0 4px;
@@ -18539,7 +18539,7 @@ body.phase-menu .kb-hints { display: none; }
     padding-left: 0;
     padding-top: 44px; /* room for the absolute back button */
   }
-  .db-hud-title { font-size: 26px; letter-spacing: 6px; }
+  .db-hud-title { font-size: 28px; letter-spacing: 6px; }
   .db-meter-strip { flex-wrap: wrap; }
 }
 
@@ -18716,7 +18716,7 @@ body.phase-menu .kb-hints { display: none; }
   opacity: 0.85;
 }
 .encyc-title {
-  font-size: 30px; font-weight: 700;
+  font-size: 32px; font-weight: 700;
   letter-spacing: 7px; text-transform: uppercase;
   color: var(--text-hi, #f5fbff);
   margin: 2px 0;
@@ -18916,7 +18916,7 @@ body.phase-menu .kb-hints { display: none; }
    octagon mask and rarity-tinted bold styling — just scaled to read
    correctly at codex card size. */
 .encyc-grid .card.hand-card.enc-card .card-cost {
-  width: 30px; height: 30px; font-size: 15px;
+  width: 30px; height: 30px; font-size: 16px;
   top: 8px; left: 8px;
 }
 .encyc-grid .card.hand-card.enc-card .stat-circle {
@@ -19535,7 +19535,7 @@ body.ai-thinking .ai-thinking-ring { opacity: 1; }
 }
 .ai-name {
   font-family: 'Rajdhani', sans-serif;
-  font-size: 10.5px; font-weight: 800;
+  font-size: 11px; font-weight: 800;
   letter-spacing: 2px; text-transform: uppercase;
   color: #ff8a7a;
   text-shadow: 0 0 4px rgba(231, 76, 60, 0.75);
@@ -19570,7 +19570,7 @@ body.ai-thinking .ai-thinking-ring { opacity: 1; }
 }
 .player-name {
   font-family: 'Rajdhani', sans-serif;
-  font-size: 10.5px; font-weight: 800;
+  font-size: 11px; font-weight: 800;
   letter-spacing: 2px; text-transform: uppercase;
   color: #a8dcff;
   text-shadow: 0 0 4px rgba(var(--theme-rgb, 79,195,247), 0.75);
@@ -22602,7 +22602,7 @@ body.killing-blow-cinema::after {
   .update-banner {
     top: 6px; left: 8px;
     padding: 4px 10px 4px 8px;
-    font-size: 9.5px;
+    font-size: 10px;
     letter-spacing: 1.4px;
   }
   .update-banner-icon { font-size: 12px; }
@@ -23101,7 +23101,7 @@ body.killing-blow-cinema::after {
 .rl-relic-card.rl-relic-rare    { border-color: rgba(120,180,255,0.7); box-shadow: 0 0 10px rgba(120,180,255,0.20) inset; }
 .rl-relic-card.rl-relic-boss    { border-color: rgba(255,200,120,0.85); box-shadow: 0 0 14px rgba(255,200,120,0.30) inset; }
 .rl-relic-card-icon {
-  font-size: 30px; line-height: 1;
+  font-size: 32px; line-height: 1;
   color: var(--theme-accent-bright, #b9f5cb);
   text-shadow: 0 0 8px var(--theme-glow-outer);
   margin-bottom: 4px;
@@ -23343,7 +23343,7 @@ body.killing-blow-cinema::after {
 }
 .rl-relic-card-tron .rl-relic-card-name {
   font-family: 'Rajdhani', sans-serif;
-  font-size: 17px; font-weight: 700;
+  font-size: 18px; font-weight: 700;
   letter-spacing: 3px; text-transform: uppercase;
   color: var(--theme-accent-bright, #f5fbff);
   text-shadow: 0 0 6px var(--theme-glow-outer, rgba(79,195,247,0.65));
@@ -23524,7 +23524,7 @@ body.killing-blow-cinema::after {
 /* Event narrative modal */
 .rl-event-flavor {
   font-family: 'Rajdhani', sans-serif;
-  font-size: 15px; line-height: 1.55;
+  font-size: 16px; line-height: 1.55;
   color: rgba(220,225,235,0.95);
   text-align: center;
   padding: 12px 20px 20px;
@@ -25817,7 +25817,7 @@ button:focus-visible, .btn:focus-visible {
         re-inventing letter-spacing / font-weight / shadow per component. */
 .tron-h1 {
   font-family: 'Rajdhani', sans-serif;
-  font-size: 38px; font-weight: 700;
+  font-size: 36px; font-weight: 700;
   letter-spacing: 8px; text-transform: uppercase;
   color: var(--text-hi, #ffffff);
   text-shadow:
@@ -26282,12 +26282,12 @@ button:disabled, button[disabled] {
 .gal-slider { display: flex; align-items: center; gap: 8px; font-size: 11px; color: #7d90a2; }
 .gal-slider input[type=range] { flex: 1; accent-color: rgb(var(--theme-rgb,79,195,247)); }
 .gal-thumb-foot { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
-.gal-reset { padding: 2px 6px; font-size: 9.5px; letter-spacing: 1.5px; text-transform: uppercase;
+.gal-reset { padding: 2px 6px; font-size: 10px; letter-spacing: 1.5px; text-transform: uppercase;
   color: #7d90a2; }
 .gal-reset:hover { background: none; color: #fff; transform: scale(1.1);
   text-shadow: 0 0 10px rgba(var(--theme-rgb,79,195,247),0.8); }
 .gal-zoom-row { display: flex; align-items: center; justify-content: center; gap: 6px; }
-.gal-zbtn { width: 24px; height: 20px; font-size: 15px; line-height: 1; padding: 0; }
+.gal-zbtn { width: 24px; height: 20px; font-size: 16px; line-height: 1; padding: 0; }
 .gal-zbtn:hover { background: none; color: #fff; transform: scale(1.25);
   text-shadow: 0 0 10px rgba(var(--theme-rgb,79,195,247),0.85); }
 .gal-zoom-val { font-size: 10px; color: #7d90a2; min-width: 34px; text-align: center; }
@@ -26322,7 +26322,7 @@ button:disabled, button[disabled] {
   border: none !important; background: none !important; border-radius: 0 !important;
   box-shadow: none !important; padding: 4px 4px !important;
   color: color-mix(in srgb, rgb(var(--theme-rgb, 79,195,247)) 82%, white);
-  font-family: 'Rajdhani', sans-serif; font-size: 17px; font-weight: 700;
+  font-family: 'Rajdhani', sans-serif; font-size: 18px; font-weight: 700;
   letter-spacing: 2.5px; text-transform: uppercase;
   display: inline-flex; align-items: center;
   transform-origin: left center;
@@ -26510,7 +26510,7 @@ button:disabled, button[disabled] {
 }
 .aa-splicer-close:hover { background: rgba(231,76,60,0.18); color: #fff; border-color: rgba(231,76,60,0.5); }
 .aa-splicer-src {
-  font-family: ui-monospace, monospace; font-size: 10.5px;
+  font-family: ui-monospace, monospace; font-size: 11px;
   color: #7a9; margin-bottom: 8px;
 }
 .aa-splicer-wave {
@@ -27117,7 +27117,7 @@ input[type="number"]::-webkit-outer-spin-button {
 }
 .rl-boss-intro-meta-value {
   font-family: 'Rajdhani', sans-serif;
-  font-size: 15px;
+  font-size: 16px;
   letter-spacing: 2px;
   color: var(--theme-accent-bright, #4fc3f7);
   text-shadow: 0 0 4px var(--theme-glow-inner, rgba(79,195,247,0.4));
@@ -27166,7 +27166,7 @@ input[type="number"]::-webkit-outer-spin-button {
 }
 .rl-boss-intro-begin {
   font-family: 'Rajdhani', sans-serif;
-  font-size: 17px;
+  font-size: 18px;
   font-weight: 700;
   letter-spacing: 6px;
   padding: 14px 36px;
@@ -27284,7 +27284,7 @@ input[type="number"]::-webkit-outer-spin-button {
 }
 .rl-curse-intro-lede {
   text-align: center;
-  font-size: 15px;
+  font-size: 16px;
   line-height: 1.5;
   color: var(--text-body, #e6eef5);
   margin: 0 0 4px;
@@ -29851,7 +29851,7 @@ body.combat-anticipate::after  { content: none !important; }
   background: #000;
   padding: 0 4px;
   font-family: ui-monospace, 'JetBrains Mono', Menlo, monospace;
-  font-size: 7px;
+  font-size: 8px;
   font-weight: 500;
   letter-spacing: 0.18em;
   color: rgba(var(--portrait-frame-rgb, 79, 195, 247), 0.75);
@@ -31499,7 +31499,7 @@ body.round-tick .board::after {
   border: 1px solid rgba(var(--theme-rgb, 79,195,247),0.40);
   border-radius: 3px; padding: 8px 10px;
   color: var(--text-hi, #f5fbff);
-  font-family: 'Rajdhani', sans-serif; font-size: 15px; font-weight: 600;
+  font-family: 'Rajdhani', sans-serif; font-size: 16px; font-weight: 600;
   outline: none; width: 100%; box-sizing: border-box;
   transition: border-color 0.15s, box-shadow 0.15s;
 }
@@ -32658,7 +32658,7 @@ body.round-tick .board::after {
   position: absolute; top: 6px; left: 6px;
   min-width: 26px; height: 26px; padding: 0 4px;
   display: flex; align-items: center; justify-content: center;
-  font-family: 'Rajdhani', sans-serif; font-weight: 700; font-size: 15px;
+  font-family: 'Rajdhani', sans-serif; font-weight: 700; font-size: 16px;
   color: var(--text-dim, #e6d5f0);
   background: rgba(10, 2, 16, 0.85);
   border: 1px solid rgba(155, 89, 182, 0.9);
@@ -32670,7 +32670,7 @@ body.round-tick .board::after {
   padding: 4px 8px;
   text-align: center;
   font-family: 'Rajdhani', sans-serif; font-weight: 700;
-  font-size: 15px; letter-spacing: 1.5px; text-transform: uppercase;
+  font-size: 16px; letter-spacing: 1.5px; text-transform: uppercase;
   color: var(--text-body, #f2e8fa);
   background: linear-gradient(rgba(10,2,16,0), rgba(10,2,16,0.82) 30%, rgba(10,2,16,0.82) 70%, rgba(10,2,16,0));
   text-shadow: 0 0 10px rgba(155, 89, 182, 0.9);
@@ -32681,7 +32681,7 @@ body.round-tick .board::after {
   max-height: 32%;
   overflow: hidden;
   padding: 6px 9px 8px;
-  font-size: 10.5px; line-height: 1.35; text-align: center;
+  font-size: 11px; line-height: 1.35; text-align: center;
   color: var(--text-mute, #cdbbd9);
   background: rgba(10, 2, 16, 0.88);
   border-top: 1px solid rgba(155, 89, 182, 0.35);
@@ -32918,7 +32918,7 @@ body.round-tick .board::after {
   flex: 0 0 22px;
   border: none; background: none; padding: 0;
   color: rgba(207, 232, 247, 0.55);
-  font-size: 15px; line-height: 1;
+  font-size: 16px; line-height: 1;
   cursor: pointer;
   transition: transform 150ms var(--ease-out-soft), color 150ms ease, text-shadow 150ms ease;
 }
@@ -32940,7 +32940,7 @@ body.round-tick .board::after {
 }
 .emote-opt {
   border: none; background: none; padding: 2px 4px;
-  font-family: 'Rajdhani', sans-serif; font-weight: 700; font-size: 19px;
+  font-family: 'Rajdhani', sans-serif; font-weight: 700; font-size: 20px;
   color: var(--text-body, #e8f4fb);
   cursor: pointer;
   transition: transform 150ms var(--ease-out-soft), text-shadow 150ms ease;
@@ -32993,7 +32993,7 @@ body.round-tick .board::after {
   position: absolute; left: 50%; top: 46%;
   transform: translate(-50%, -50%) scale(0.8);
   font-family: 'Rajdhani', sans-serif; font-weight: 700;
-  font-size: 15px; letter-spacing: 3px; text-transform: uppercase;
+  font-size: 16px; letter-spacing: 3px; text-transform: uppercase;
   color: var(--text-body, #d9ffe5);
   text-shadow: 0 0 12px rgba(46, 204, 113, 0.95), 0 0 26px rgba(46, 204, 113, 0.5);
   white-space: nowrap;
