@@ -20930,7 +20930,7 @@ body.combat-anticipate .board {
     rgba(var(--tron-perim-r), var(--tron-perim-g), var(--tron-perim-b), 0)    100%);
   /* Ring mask: paint full pseudo, subtract content-box copy →
      leaves a 1.5px-wide ring tracing the perimeter. */
-  padding: 1.6px;
+  padding: 1.5px;
   -webkit-mask:
     linear-gradient(#000 0 0) content-box,
     linear-gradient(#000 0 0);
@@ -22297,7 +22297,11 @@ html {
 .click-spark {
   position: fixed;
   width: 3px; height: 3px;
-  margin-left: -1.6px; margin-top: -1.6px;
+  /* Exactly -width/2 — ui.js sets left/top to the raw cursor point, so these
+     margins are the only thing centering the spark on the click. Keep them
+     locked to half of width/height above; a spacing sweep once nudged them to
+     -1.6px and silently broke that invariant. */
+  margin-left: -1.5px; margin-top: -1.5px;
   border-radius: 50%;
   background: radial-gradient(circle,
     rgba(255,255,255,1) 0%,
