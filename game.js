@@ -3191,7 +3191,7 @@ const Game = {
       }
       if (pile.length === 1) {
         const def = pile.pop();
-        this.addToHand(owner, this.createCardInstance(def, owner));
+        this.addToHand(owner, this._applyDoomsdayDrawScaling(this.createCardInstance(def, owner), owner));
         this.log(`  [${tag}] Only one card remains — ${this.seatVerb(owner, 'take', 'takes')} ${def.name}.`);
         peeked.add(owner);
         processNext(i + 1);
@@ -3207,7 +3207,7 @@ const Game = {
         const distributeR = (picked) => {
           const others = choices.filter(c => c !== picked);
           // Picked card → owner's hand
-          this.addToHand(owner, this.createCardInstance(picked, owner));
+          this.addToHand(owner, this._applyDoomsdayDrawScaling(this.createCardInstance(picked, owner), owner));
           // Others → bottom of OWNER's pile (unshift = front-of-array =
           // bottom-of-stack since pop() draws from the end). Order
           // randomized so the player can't perfectly predict next draw.
@@ -3243,8 +3243,10 @@ const Game = {
 
       const distribute = (picked) => {
         const other = choices.find(c => c !== picked);
-        this.addToHand(owner, this.createCardInstance(picked, owner));
-        this.addToHand(opp, this.createCardInstance(other, opp));
+        this.addToHand(owner, this._applyDoomsdayDrawScaling(this.createCardInstance(picked, owner), owner));
+        // The unpicked card goes to the OPPONENT — scale it for THEM (their
+        // own cardsPlayedCount) if it happens to be Doomsday.
+        this.addToHand(opp, this._applyDoomsdayDrawScaling(this.createCardInstance(other, opp), opp));
         const ownWho = owner === 'player' ? 'You take' : 'AI takes';
         const oppWho = opp === 'player' ? 'you receive' : 'AI receives';
         this.log(`  [${tag}] ${ownWho} ${picked.name}; ${oppWho} ${other.name}.`);
@@ -6364,14 +6366,9 @@ const Game = {
       // Doomsday: set stats from the owner's card-play counter so his
       // strength reflects every card played up to this draw, regardless
       // of whether he was in the pile the whole time.
-      if (card.passive === 'doomsdayScaling') {
-        const count = (p.cardsPlayedCount || 0);
-        card.attack       = 1 + count;
-        card.health       = 1 + count;
-        card.maxHealth    = 1 + count;
-        card.currentHealth = 1 + count;
-        this.log(`[DOOMSDAY] Drawn — ${count} cards played, enters as ${card.attack}/${card.maxHealth}`);
-      }
+      // Doomsday: set stats from the owner's card-play counter (shared helper —
+      // same logic used by the Foresee / Scry paths so they can't drift).
+      this._applyDoomsdayDrawScaling(card, owner);
       if (!this.addToHand(owner, card)) break;
       drawn.push(card.name);
     }
@@ -6807,6 +6804,27 @@ const Game = {
   // is in hand OR still in the draw pile — so a late draw still arrives
   // buffed. Cost never changes here; cost only drops on ally deaths while
   // Doomsday is already in hand (_scaleDoomsdayInHands above).
+  // Set a freshly-acquired Doomsday's stats from the acquiring seat's
+  // card-play counter, so he reflects every card played up to the moment he
+  // enters hand — no matter which path delivered him. drawCards had this inline
+  // for the normal draw, but Foresee / Scry (Dr. Strange, Dormammu, Eye of
+  // Agamotto) build the card with createCardInstance + addToHand directly and
+  // bypassed it, so a Doomsday drawn that way entered as a base 1/1. User
+  // report: "drew Doomsday from Foresee and he is still a 1/1." One helper now
+  // covers every acquisition path; owner is who receives the card (the Foresee
+  // "other" card can go to the opponent, so pass the RECEIVER, not the caster).
+  _applyDoomsdayDrawScaling(card, owner) {
+    if (!card || card.passive !== 'doomsdayScaling') return card;
+    const p = this.state[owner];
+    const count = (p && p.cardsPlayedCount) || 0;
+    card.attack = 1 + count;
+    card.health = 1 + count;
+    card.maxHealth = 1 + count;
+    card.currentHealth = 1 + count;
+    this.log(`[DOOMSDAY] Enters ${this.seatLabel(owner)} hand — ${count} cards played, ${card.attack}/${card.maxHealth}`);
+    return card;
+  },
+
   _scaleDoomsdayOnOwnerPlay(owner) {
     // Track total cards played so that a Doomsday still in the draw pile
     // gets the right stats the moment it's drawn (see drawCards).
