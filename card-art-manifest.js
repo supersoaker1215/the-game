@@ -95,9 +95,9 @@ window.CARD_ART_VARIANTS = {
   'Stripe':              ['Stripe.jpg'],
   // Iron Giant (2026-07-15) — jpg art, same manifest-entry reason as Stripe.
   'Iron Giant':          ['Iron Giant.jpg'],
-  // Killer Moth — default is the close-up portrait; variant 2 is the Gotham
-  // skyline pose. Name-click cycles between them.
-  'Killer Moth':         ['Killer Moth.png',          'Killer Moth 2.png'],
+  // Killer Moth — default is the Gotham skyline pose (user preference); the
+  // close-up portrait is the alternate. Name-click cycles between them.
+  'Killer Moth':         ['Killer Moth 2.png',        'Killer Moth.png'],
 };
 
 // =============================================================================
