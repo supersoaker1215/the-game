@@ -674,23 +674,33 @@ const UI = {
       const k = 255 / Math.max(sum[0], sum[1], sum[2], 1);
       const [mixH] = hsl(sum[0] * k, sum[1] * k, sum[2] * k);
 
-      // A near-grey theme (silver) has no hue to contribute, so additive
-      // mixing correctly returns ~red — physically right (white + red IS light
-      // red) but it would make the seam indistinguishable from the enemy side.
-      // Resolve it the way the color wheel does: pale it out into PINK. The
-      // less chromatic the player color, the lighter and softer the seam.
+      // A near-grey theme (silver) has no hue to contribute, so additive mixing
+      // correctly returns ~red — physically right (white + red IS light red)
+      // but it leaves the seam reading as a lighter enemy red.
+      //
+      // The first version of this only lightened and desaturated, which was NOT
+      // enough: paling red without moving the hue gives SALMON. Measured, silver
+      // came out at hue 3.1 deg / #EC7E78, only dE 28.6 from the enemy red —
+      // actually worse than the hand-picked hot pink it replaced. So rotate the
+      // hue toward magenta in proportion to how grey the theme is, which is what
+      // "white + red = pink" means on the wheel. Silver lands on 333 deg, the
+      // same hue as the old hand-picked value, and dE 28.6 -> 51.4.
+      // Vivid themes have wash = 0 and are left exactly as they were.
       const playerSat = hsl(P[0], P[1], P[2])[1];
       const wash = 1 - Math.min(1, playerSat / 0.55);   // 0 = vivid theme, 1 = grey theme
+      const hue = (mixH - (55 * wash) + 360) % 360;
       const S = 0.92 - (0.30 * wash);
       const L = 0.60 + (0.18 * wash);
 
-      const [r, g, b] = toRgb(mixH, S, L);
+      const [r, g, b] = toRgb(hue, S, L);
       const body = document.body;
       body.style.setProperty('--contest-pop', `rgb(${r}, ${g}, ${b})`);
       body.style.setProperty('--contest-pop-soft', `rgba(${r}, ${g}, ${b}, 0.55)`);
       // Exposed for the seam gradient so the two sides can fade INTO the mix.
       body.style.setProperty('--contest-pop-dim', `rgba(${r}, ${g}, ${b}, 0.22)`);
-      this._contestMix = { h: Math.round(mixH), rgb: [r, g, b] };
+      // Record the hue ACTUALLY used (post-rotation), not the raw additive one —
+      // they differ on grey themes and the raw value would mislead debugging.
+      this._contestMix = { h: Math.round(hue), rawAdditiveH: Math.round(mixH), rgb: [r, g, b] };
     } catch (e) {
       // Leave the CSS hand-picked fallbacks in place — never break the board
       // over a seam color.
@@ -17002,6 +17012,9 @@ const UI = {
     sec.classList.toggle('collapsed');
     // When opening, scroll to bottom
     if (!sec.classList.contains('collapsed')) {
+      // renderLog skips itself while collapsed, so catch the drawer up on the
+      // entries added while it was shut BEFORE measuring scrollHeight.
+      if (Game.state) this._safe('renderLog(open)', () => this.renderLog(Game.state));
       const log = document.getElementById('game-log');
       if (log) log.scrollTop = log.scrollHeight;
     }
@@ -18414,6 +18427,25 @@ const UI = {
   // ===================== LOG =====================
 
   renderLog(s) {
+    // SKIP ENTIRELY WHILE CLOSED. The drawer ships collapsed (index.html:571,
+    // translated fully off-screen by .log-drawer.collapsed) yet this function
+    // tore down and rebuilt every log entry — up to the engine's 300-entry cap,
+    // ~77KB of innerHTML with two regex passes per line — on EVERY painted
+    // frame, for a panel nobody is looking at. Measured on a full board at
+    // 390x812: 10.1ms total render, 7.4ms with renderLog stubbed out, i.e. this
+    // was ~28% of the frame and roughly 7x the cost of renderBoard itself.
+    //
+    // Guarded here rather than with CSS: content-visibility:hidden was measured
+    // and does NOT help (0.55ms of that cost is just parsing the string into a
+    // detached node, and the scrollHeight read below forces layout of the
+    // skipped subtree anyway). Both open paths — toggleLogDrawer and
+    // toggleGameOverLog — call renderLog before they scroll, so opening the
+    // drawer always shows current content.
+    const drawerEl = this.logEl && this.logEl.closest('.log-drawer');
+    if (drawerEl && drawerEl.classList.contains('collapsed')
+        && !drawerEl.classList.contains('game-over-log-open')) {
+      return;
+    }
     // Show the full match log — previously capped at the last 25 entries,
     // which made mid-match scroll-back impossible. The drawer is
     // overflow-y:auto so it scrolls naturally; we pin the view to the
@@ -19310,6 +19342,8 @@ const UI = {
     } else {
       drawer.classList.remove('collapsed');
       drawer.classList.add('game-over-log-open');
+      // Same catch-up as toggleLogDrawer — renderLog no-ops while collapsed.
+      if (Game.state) this._safe('renderLog(open)', () => this.renderLog(Game.state));
       const log = document.getElementById('game-log');
       if (log) log.scrollTop = log.scrollHeight;
     }

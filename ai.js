@@ -494,19 +494,29 @@ const AI = {
       if (c.trickPhasePlayable) return false;
       return true;
     });
-    remaining.sort((a, b) => {
-      const aHasOnPlay = a.onPlay ? 1 : 0;
-      const bHasOnPlay = b.onPlay ? 1 : 0;
-      if (defensive) {
-        if (aHasOnPlay !== bHasOnPlay) return bHasOnPlay - aHasOnPlay;
-        return (a.cost || 0) - (b.cost || 0);
+    const __ord = (this.WEIGHTS && this.WEIGHTS._playOrder) || 'asc'; // EXPERIMENT GATE
+    if (__ord === 'rand') {
+      for (let i = remaining.length - 1; i > 0; i--) {
+        const j = Game.rngInt(i + 1);
+        const t = remaining[i]; remaining[i] = remaining[j]; remaining[j] = t;
       }
-      if (behind) {
-        if (aHasOnPlay !== bHasOnPlay) return bHasOnPlay - aHasOnPlay;
-        return (b.cost || 0) - (a.cost || 0);
-      }
-      return (a.cost || 0) - (b.cost || 0);
-    });
+    } else {
+      const dir = __ord === 'desc' ? -1 : 1;
+      remaining.sort((a, b) => {
+        const aHasOnPlay = a.onPlay ? 1 : 0;
+        const bHasOnPlay = b.onPlay ? 1 : 0;
+        const tie = dir * ((a.cost || 0) - (b.cost || 0));
+        if (defensive) {
+          if (aHasOnPlay !== bHasOnPlay) return bHasOnPlay - aHasOnPlay;
+          return tie;
+        }
+        if (behind) {
+          if (aHasOnPlay !== bHasOnPlay) return bHasOnPlay - aHasOnPlay;
+          return (b.cost || 0) - (a.cost || 0);
+        }
+        return tie;
+      });
+    }
 
     for (const cardRef of remaining) {
       queue.push(() => {
