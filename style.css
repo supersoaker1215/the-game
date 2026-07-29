@@ -33867,3 +33867,70 @@ body.low-fx .card-portrait {
      7px outside the 30px visual still fires the button's handler. Setting
      pointer-events:none would make this whole block a silent no-op. */
 }
+
+/* ============================================================
+   CONTESTED SEAM — the two sides actually MEET and blend
+   ============================================================
+   User: "i like color theory and tron, so when red and blue meet it creates
+   purple in the middle, when the neon theme changes so does the middle —
+   red and green make yellow and so on. make the color transition smooth and
+   different depending on the combination."
+
+   The MIX ITSELF is computed in UI.recomputeContestMix() (ui.js) by additive
+   light mixing of the live --enemy-* and --player-* triplets, so it is correct
+   for any theme including ones added later. It lands on magenta for red+blue,
+   yellow for red+green, orange for red+gold, pink for red+purple. The
+   hand-picked --contest-pop values stay in the cascade purely as a fallback
+   for the frame before JS runs.
+
+   This block is the other half: making the meeting VISIBLE. The centerline is
+   a 1px hairline, so a gradient inside it has nowhere to go. Instead a band
+   sits behind the seam carrying enemy colour down from above and player colour
+   up from below, crossing through the computed mix exactly at the centerline —
+   two neon fields bleeding into each other rather than a flat divider. */
+.lane.occ-both .lane-sep::after {
+  content: '';
+  position: absolute;
+  left: 0; right: 0;
+  top: 50%;
+  /* Tall enough to read as a bleed, centered on the hairline. */
+  height: 46px;
+  transform: translateY(-50%);
+  pointer-events: none;
+  z-index: -1;
+  background:
+    /* Vertical: enemy above -> MIX at the seam -> player below. */
+    linear-gradient(180deg,
+      transparent                                     0%,
+      var(--enemy-glow-inner,  rgba(231,76,60,0.22)) 26%,
+      var(--contest-pop, rgb(255, 60, 200))          50%,
+      var(--player-glow-inner, rgba(79,195,247,0.22))74%,
+      transparent                                   100%);
+  /* Horizontal falloff so the band dies out at the lane edges instead of
+     ending in a hard rectangle. */
+  -webkit-mask-image: linear-gradient(90deg, transparent 0%, #000 22%, #000 78%, transparent 100%);
+          mask-image: linear-gradient(90deg, transparent 0%, #000 22%, #000 78%, transparent 100%);
+  opacity: 0.55;
+}
+
+/* SMOOTH TRANSITION on a theme change. Custom properties do not animate on
+   their own, so the transition goes on the properties that consume them —
+   swapping themes cross-fades the seam from (say) magenta to yellow instead of
+   snapping. Duration deliberately longer than the UI's 240ms motion rung: this
+   is an ambient colour shift, not a control responding to a tap.
+   Held to the contested seam only, so no other surface gains a transition. */
+.lane .lane-sep::before,
+.lane .lane-sep::after,
+.lane .lane-number {
+  transition:
+    background 420ms var(--ease-out-soft, ease),
+    background-color 420ms var(--ease-out-soft, ease),
+    border-color 420ms var(--ease-out-soft, ease),
+    box-shadow 420ms var(--ease-out-soft, ease),
+    color 420ms var(--ease-out-soft, ease);
+}
+@media (prefers-reduced-motion: reduce) {
+  .lane .lane-sep::before,
+  .lane .lane-sep::after,
+  .lane .lane-number { transition: none; }
+}

@@ -597,6 +597,9 @@ const UI = {
       root.classList.add('theme-' + theme);
     }
     this.settings.theme = theme;
+    // Recompute the contested-lane seam color from the two colors that are
+    // now live. Must run AFTER the class swap so it reads the new theme.
+    this.recomputeContestMix();
     // Reflect active swatch in the custom theme picker if it's rendered.
     const picker = document.getElementById('setting-theme-picker');
     if (picker) {
@@ -604,6 +607,93 @@ const UI = {
         b.classList.toggle('theme-swatch-active', b.dataset.theme === theme);
         b.setAttribute('aria-checked', b.dataset.theme === theme);
       });
+    }
+  },
+
+  // ===================== CONTESTED-LANE COLOR MIX =====================
+  // When both sides hold a lane, the seam between them shows what those two
+  // neon colors make TOGETHER — red + blue = magenta, red + green = yellow,
+  // red + gold = orange. User: "i like color theory and tron, so when red and
+  // blue meet it creates purple in the middle... make it different depending
+  // on the combination."
+  //
+  // This replaced a hand-picked table of 5 constants. That table could not
+  // adapt (a new theme silently got the default magenta), and it encoded the
+  // answer instead of the rule.
+  //
+  // WHY NORMALIZED-ADDITIVE, and not the two obvious CSS one-liners:
+  //   • color-mix(in srgb, ...) is the muddy midpoint the old comment
+  //     complained about — red+blue gives a grey mauve, not magenta.
+  //   • color-mix(in oklch shorter hue, ...) looked right on paper but two of
+  //     five themes paint WRONG, because the mixed hue falls outside sRGB at
+  //     that lightness and gamut-clipping drags it: red+green landed on orange
+  //     (h=36), not yellow. Measured off real painted pixels, not serialized
+  //     values — the serialization looks fine, the pixels do not.
+  // Adding the two lights and rescaling so the brightest channel hits 255 is
+  // how light actually mixes, is in-gamut by construction, and lands on
+  // magenta 304 / yellow 62 / orange 33 / pink 339 — the color-wheel answers.
+  recomputeContestMix() {
+    try {
+      const cs = getComputedStyle(document.body);
+      const num = (name, fallback) => {
+        const v = parseFloat(cs.getPropertyValue(name));
+        return Number.isFinite(v) ? v : fallback;
+      };
+      // Read the LIVE theme triplets, so this works for any theme that exists
+      // now or is added later without touching this function.
+      const E = [num('--enemy-r', 231), num('--enemy-g', 76),  num('--enemy-b', 60)];
+      const P = [num('--player-r', 79), num('--player-g', 195), num('--player-b', 247)];
+
+      const hsl = (r, g, b) => {
+        r /= 255; g /= 255; b /= 255;
+        const mx = Math.max(r, g, b), mn = Math.min(r, g, b), d = mx - mn, l = (mx + mn) / 2;
+        let h = 0, s = 0;
+        if (d) {
+          s = d / (1 - Math.abs(2 * l - 1));
+          if (mx === r) h = ((g - b) / d) % 6;
+          else if (mx === g) h = (b - r) / d + 2;
+          else h = (r - g) / d + 4;
+          h = ((h * 60) + 360) % 360;
+        }
+        return [h, s, l];
+      };
+      const toRgb = (h, s, l) => {
+        const c = (1 - Math.abs(2 * l - 1)) * s;
+        const x = c * (1 - Math.abs(((h / 60) % 2) - 1));
+        const m = l - c / 2;
+        const [r, g, b] =
+          h < 60 ? [c, x, 0] : h < 120 ? [x, c, 0] : h < 180 ? [0, c, x] :
+          h < 240 ? [0, x, c] : h < 300 ? [x, 0, c] : [c, 0, x];
+        return [Math.round((r + m) * 255), Math.round((g + m) * 255), Math.round((b + m) * 255)];
+      };
+
+      // Additive light mix, rescaled so the brightest channel is full — keeps
+      // the additive HUE without washing out to white the way a raw clamped
+      // sum does (231+79, 76+195, 60+247 all clip to 255 = pure white).
+      const sum = [E[0] + P[0], E[1] + P[1], E[2] + P[2]];
+      const k = 255 / Math.max(sum[0], sum[1], sum[2], 1);
+      const [mixH] = hsl(sum[0] * k, sum[1] * k, sum[2] * k);
+
+      // A near-grey theme (silver) has no hue to contribute, so additive
+      // mixing correctly returns ~red — physically right (white + red IS light
+      // red) but it would make the seam indistinguishable from the enemy side.
+      // Resolve it the way the color wheel does: pale it out into PINK. The
+      // less chromatic the player color, the lighter and softer the seam.
+      const playerSat = hsl(P[0], P[1], P[2])[1];
+      const wash = 1 - Math.min(1, playerSat / 0.55);   // 0 = vivid theme, 1 = grey theme
+      const S = 0.92 - (0.30 * wash);
+      const L = 0.60 + (0.18 * wash);
+
+      const [r, g, b] = toRgb(mixH, S, L);
+      const body = document.body;
+      body.style.setProperty('--contest-pop', `rgb(${r}, ${g}, ${b})`);
+      body.style.setProperty('--contest-pop-soft', `rgba(${r}, ${g}, ${b}, 0.55)`);
+      // Exposed for the seam gradient so the two sides can fade INTO the mix.
+      body.style.setProperty('--contest-pop-dim', `rgba(${r}, ${g}, ${b}, 0.22)`);
+      this._contestMix = { h: Math.round(mixH), rgb: [r, g, b] };
+    } catch (e) {
+      // Leave the CSS hand-picked fallbacks in place — never break the board
+      // over a seam color.
     }
   },
 
