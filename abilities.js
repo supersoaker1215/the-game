@@ -340,6 +340,34 @@ const CARD_ABILITIES = {
       }
     }
   },
+  "Killer Moth": {
+    // Fires every Start of Tricks (not just the first) — same re-arm flag
+    // Man-Bat / Omni-Man use so beforeTricksFired resets each round.
+    _recurringBT: true,
+    onBeforeTricks(G, self, lane) {
+      // Stun / freeze grounds him — no flutter and no growth this round.
+      if (self.isStunned || self.isFrozen) {
+        G.log(`  [SKIP] ${self.name} is ${self.isStunned ? 'STUNNED' : 'FROZEN'} — stays put.`);
+        return;
+      }
+      // getOpenLanes already excludes his own lane (he occupies it); the
+      // filter is belt-and-suspenders.
+      const open = G.getOpenLanes(self.owner).filter(l => l !== lane);
+      if (open.length) {
+        // Always random — no player prompt (unlike Man-Bat / Omni-Man, which
+        // let the owner choose or stay). Killer Moth relocates on his own.
+        const to = open[Math.floor(Game.rng() * open.length)];
+        G.moveCard(self, lane, to);
+      } else {
+        // Every lane on his side is full — nowhere to fly, so he grows.
+        // Permanent self-buff (self-buffs never expire — see CLAUDE.md).
+        self.attack = (self.attack || 0) + 1;
+        self.maxHealth = (self.maxHealth || 0) + 1;
+        self.currentHealth = (self.currentHealth || 0) + 1;
+        G.log(`[KILLER MOTH] No open lane — Killer Moth grows to ${self.attack}/${self.currentHealth}.`);
+      }
+    }
+  },
   "Harley Quinn": {
     onPlay(G, self, lane) {
       // Roguelite Text+ override — _harleyDraw scales the draw amount.
