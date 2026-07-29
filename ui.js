@@ -4839,13 +4839,35 @@ const UI = {
     };
   },
 
+  // Run one sub-renderer with its faults contained. See the call sites in the
+  // render pass for why this exists: without it, one throw ends the frame AND
+  // every frame after it, because the same state throws again next time.
+  // De-duplicates by name+message so a per-frame throw logs once, not 60x/sec.
+  _safe(name, fn) {
+    try {
+      fn();
+    } catch (e) {
+      const key = name + '|' + ((e && e.message) || String(e));
+      this._safeSeen = this._safeSeen || new Set();
+      if (!this._safeSeen.has(key)) {
+        this._safeSeen.add(key);
+        console.error('[render] ' + name + ' threw — skipped, rest of the frame continues:', e);
+        try {
+          if (typeof window !== 'undefined' && window.__clbErrors) {
+            window.__clbErrors.report('render', e, { subRenderer: name });
+          }
+        } catch (_) {}
+      }
+    }
+  },
+
   // ===================== KEYWORD TOOLTIPS =====================
   installKeywordTooltips() {
     if (!this.tooltipEl) return;
-    // Hover tooltips are desktop-only — on touch a tap would strand the
-    // tooltip with no mouseout to clear it. Mobile shows keyword
-    // definitions inside the tap-to-inspect popout instead.
-    if (!this._hasFinePointer()) return;
+    // NOTE: this used to `return` here on any coarse pointer, which killed the
+    // whole installer on touch — see the listener registration at the bottom.
+    // The fine-pointer gate now guards ONLY the hover listeners; tap-to-pin
+    // works everywhere.
     this._tooltipPinned = false;
     const render = (kw) => {
       const pinHint = this._tooltipPinned
@@ -4938,9 +4960,21 @@ const UI = {
         this.tooltipEl.classList.remove('kw-tooltip-pinned');
       }
     };
-    document.addEventListener('mouseover', show);
-    document.addEventListener('mousemove', move);
-    document.addEventListener('mouseout', hide);
+    // HOVER handlers are genuinely desktop-only — a touch device has no
+    // mouseout, so a hover-shown tooltip would strand itself on screen.
+    if (this._hasFinePointer()) {
+      document.addEventListener('mouseover', show);
+      document.addEventListener('mousemove', move);
+      document.addEventListener('mouseout', hide);
+    }
+    // The CLICK handler ships on EVERY device. It was previously unreachable on
+    // touch because the whole installer bailed at the top on a coarse pointer,
+    // which left all ~52 keyword definitions (Taunt, Evade, Bullseye,
+    // Overdrive, Splash, Hunt, Jump, Revive...) with no explanation anywhere on
+    // a phone — in a game that is explicitly phone-first. The handler already
+    // implements exactly the interaction touch needs and needs no mouseout:
+    // tap a keyword to PIN its tooltip, tap the same keyword to unpin, tap
+    // anywhere else to dismiss. It just was never being registered.
     document.addEventListener('click', click, true);
   },
   moveTooltip(e) {
@@ -5906,21 +5940,38 @@ const UI = {
     // Prompt banner for inline card/lane choices
     this.renderPromptBanner(s);
 
-    this.renderRoundTrack(s);
-    this._updateDominanceVars(s);  // Color Invasion — write dominance CSS vars before rendering
-    this.renderBoard(s);
+    // FAULT ISOLATION. This sequence used to be bare calls with no try/catch
+    // anywhere in the render pass, so a single TypeError in ANY one of them
+    // meant every sub-renderer after it never ran — and not just once: the same
+    // state throws again on the very next frame, so the match was bricked
+    // permanently with no way back except a reload. One bad card, one undefined
+    // field, and the player loses the game they were in.
+    // _safe() contains the blast radius to the one sub-renderer that failed and
+    // lets the rest of the frame finish. Errors are logged ONCE per unique
+    // name+message (a throw here repeats every frame and would otherwise flood
+    // the console and the error ring-buffer), and reported to the existing
+    // __clbErrors reporter so it is still diagnosable.
+    this._safe('renderRoundTrack',        () => this.renderRoundTrack(s));
+    this._safe('_updateDominanceVars',    () => this._updateDominanceVars(s));
+    this._safe('renderBoard',             () => this.renderBoard(s));
     // Stat pops run AFTER the board is rebuilt, so they decorate the orb node
     // that will actually survive to paint and read the NEW digit as their
     // target. (Comparison is against _lastCardStats — engine state, untouched by
     // rendering — so moving the call can't change which changes are detected.)
-    this.animateStatChanges();
-    this.renderPlayerHand(s);
-    this.renderAIHand(s);
-    this.renderPlayerTricks(s);
-    this.renderInlineChoiceFallback(s);
-    this.renderButtons(s);
-    this.renderLog(s);
-    this.showDamageFloats();
+    this._safe('animateStatChanges',      () => this.animateStatChanges());
+    this._safe('renderPlayerHand',        () => this.renderPlayerHand(s));
+    this._safe('renderAIHand',            () => this.renderAIHand(s));
+    this._safe('renderPlayerTricks',      () => this.renderPlayerTricks(s));
+    this._safe('renderInlineChoiceFallback', () => this.renderInlineChoiceFallback(s));
+    this._safe('renderButtons',           () => this.renderButtons(s));
+    this._safe('renderLog',               () => this.renderLog(s));
+    this._safe('showDamageFloats',        () => this.showDamageFloats());
+    // RETRY the two that decide whether the player can still ACT. If one of
+    // them was the thing that threw, the player is staring at a board with no
+    // buttons and no prompt — unable to do anything at all. Running them last
+    // as well means a transient fault earlier in the pass can't strand them.
+    this._safe('renderButtons(retry)',    () => this.renderButtons(s));
+    this._safe('renderPromptBanner(retry)', () => this.renderPromptBanner(s));
 
     // Apply the shared Tron interaction language (hover-fill, active
     // pulse, border breathing, click flash) to every interactive
@@ -15004,7 +15055,22 @@ const UI = {
     el.style.setProperty(varName || '--phase-offset', offset + 'ms');
   },
 
+  // Thin wrapper so the captured-element Map is ALWAYS released, including on
+  // a throw. The doc comment on _capturedBoardCardEls has always claimed it is
+  // "cleared at the end of renderBoard" — it wasn't. Normally the next render's
+  // _captureBoardCardEls() overwrites it, so the leak was bounded; but if the
+  // board pass throws partway through (now survivable, see _safe), the stale
+  // Map full of detached nodes outlives the failed pass and the NEXT render's
+  // makeCardElCached() can hand back elements from the aborted one.
   renderBoard(s) {
+    try {
+      this._renderBoardImpl(s);
+    } finally {
+      this._capturedBoardCardEls = null;
+    }
+  },
+
+  _renderBoardImpl(s) {
     // STEP 1 — capture every card element currently on the board, keyed
     // by data-card-id, so makeCardElCached() below can reuse the same
     // DOM node when the card's visual state is unchanged. This is the
@@ -21574,8 +21640,13 @@ const UI = {
         // (AAA) Fade out the ambient arena hum on match end. 1.4s
         // tail so it doesn't disappear abruptly under the victory
         // sting.
-        try { if (A && A.arenaHumStop) A.arenaHumStop(); } catch (e) {}
-        try { if (A && A._dangerHeartbeatStop) A._dangerHeartbeatStop(); } catch (e) {}
+        // NOTE: these live on UI.sfx, NOT on UI.audio (which `A` is bound to).
+        // They were called as A.arenaHumStop() behind an `if (A && A.arenaHumStop)`
+        // guard, so the lookup was undefined and the guard swallowed it SILENTLY —
+        // the ambient arena hum and the danger heartbeat just kept playing after
+        // the match ended, with no error to show for it. Call the real owner.
+        try { if (this.sfx && this.sfx.arenaHumStop) this.sfx.arenaHumStop(); } catch (e) {}
+        try { if (this.sfx && this.sfx._dangerHeartbeatStop) this.sfx._dangerHeartbeatStop(); } catch (e) {}
       } else if (s && !s.gameOver) {
         // Reset the latch when a new game starts.
         this._gameOverCued = false;

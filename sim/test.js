@@ -1364,6 +1364,39 @@ test('Block-trick: tryApplyDebuff stamps _debuffDelayedClear on a swung target',
     '_debuffDelayedClear must be stamped so postCombat skips the decrement');
 });
 
+// Regression: the titan ("tens can't touch tens") rule has ONE authority —
+// is10CostImmune, reached through canEffectLand. Trigon's bonus-destroy carried
+// a second, hand-rolled copy (`cost < 10`) in front of that call, and the copy
+// disagreed: it swept in Doomsday, who prints at 12 but is explicitly NOT a
+// titan (skipAutoUntrickable). killCard already allowed the hit — only the
+// target filter hid him, so the effect just silently skipped a legal target.
+// Drives the real onKill hook (not canEffectLand directly) — the hand-rolled
+// filter lived in the hook, so only calling the hook can catch it. killCard is
+// stubbed so the assertion is "who did Trigon PICK", independent of Doomsday's
+// Revive charge deciding whether he actually stays dead.
+function __trigonPicks(enemyName) {
+  var G = freshGame();
+  var trigon = place(G, 'Trigon', 'player', 0);
+  var enemy = place(G, enemyName, 'ai', 1);
+  var picked = null;
+  var realKill = G.killCard;
+  G.killCard = function (t) { picked = t && t.name; };
+  try { CARD_ABILITIES.Trigon.onKill(G, trigon); } finally { G.killCard = realKill; }
+  return { picked: picked, enemy: enemy, trigon: trigon };
+}
+
+test('Trigon bonus-destroy reaches Doomsday but not a real titan', function () {
+  var d = __trigonPicks('Doomsday');
+  assert(!!d.enemy.skipAutoUntrickable, 'Doomsday must carry the not-a-titan flag');
+  assertEq(d.picked, 'Doomsday',
+    'Doomsday prints at 12 but is not a titan — Trigon must be able to pick him');
+
+  var g = __trigonPicks('Galactus');
+  assert((g.enemy.baseCost || g.enemy.cost) >= 10, 'Galactus must be a real titan');
+  assert((g.trigon.baseCost || g.trigon.cost) >= 10, 'Trigon must be a real titan');
+  assertEq(g.picked, null, 'Galactus is a titan — tens still cannot touch tens');
+});
+
 // ============================================================
 // ---- RUNNER ------------------------------------------------
 // ============================================================

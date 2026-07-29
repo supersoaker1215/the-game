@@ -4523,8 +4523,13 @@ const CARD_ABILITIES = {
       // Passive: each kill triggers one bonus random kill. Re-entry guard
       // prevents the bonus kill from spawning another bonus kill.
       if (self._trigonChaining) return;
+      // The titan test is canEffectLand's job (it calls is10CostImmune, which
+      // honors skipAutoUntrickable). A hand-rolled `cost < 10` in front of it
+      // was a second, WRONG copy of that rule: it swept in Doomsday, who prints
+      // at 12 but is explicitly not a titan — the exact bug the user has called
+      // out twice. killCard already allowed the hit; only this filter hid him.
       const targets = G.getEnemiesOf(self.owner).filter(
-        e => e.currentHealth > 0 && (e.baseCost || e.cost) < 10
+        e => e.currentHealth > 0
           && G.canEffectLand(e, 'destroy', { owner: self.owner, source: self })
       );
       if (!targets.length) return;

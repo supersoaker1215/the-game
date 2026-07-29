@@ -343,7 +343,7 @@ const CARD_DEFS = [
   // ==================== COST 8 ====================
   { name: "Apocalypse", cost: 7, attack: 5, health: 6, type: "villain",
     abilities: [],
-    desc: "When Played: Give each card in your hand with cost ≤ 9 a random keyword — Armor 1, Evade 1, Bullseye, or Overdrive. Each Turn: Permanently remove 1 ATK from 2 random enemies." },
+    desc: "When Played: Give each card in your hand (not 10-cost cards) a random keyword — Armor 1, Evade 1, Bullseye, or Overdrive. Each Turn: Permanently remove 1 ATK from 2 random enemies." },
   { name: "Darth Vader", cost: 8, attack: 6, health: 7, type: "villain",
     abilities: ["Armor 1", "Unresistible 1"],
     desc: "When Played: Move an enemy to an empty lane. Fear 1 an enemy. Deal 7 damage to a chosen enemy, then pick one direction — the chain runs through adjacent enemies for 1 less damage each step." },
@@ -392,7 +392,7 @@ const CARD_DEFS = [
     desc: "When Played: Summon a random card (cost 1-9) in each of your empty lanes." },
   { name: "Trigon", cost: 10, attack: 9, health: 8, type: "villain",
     abilities: ["Immunity", "Invincible 1", "Unresistible 3", "Draw 1"],
-    desc: "When Played: Steal the opponent's Block Meter. Start of Tricks (once): Freeze 1 all enemies (not other 10-cost cards). While Active: Destroy another random enemy (cost ≤ 9) when Trigon destroys an enemy." },
+    desc: "When Played: Steal the opponent's Block Meter. Start of Tricks (once): Freeze 1 all enemies (not other 10-cost cards). While Active: Destroy another random enemy (not other 10-cost cards) when Trigon destroys an enemy." },
   { name: "Doomsday", cost: 12, attack: 1, health: 1, type: "villain",
     // Doomsday is NOT a titan. He prints at 12 only because he starts as a 1/1
     // that scales up while his cost scales DOWN (min 0) — the printed number is

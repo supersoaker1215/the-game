@@ -5,7 +5,17 @@
 // HTML + JS + CSS are network-first (cached only as a fallback for
 // genuinely offline visits). Audio/images/manifest stay cache-first
 // since they rarely change and are heavy to re-download.
-const CACHE_VERSION = 'clb-v74-motion-spacing';
+// TWO CACHES, NOT ONE. Previously a single CACHE_VERSION held BOTH the
+// versioned code and the heavy static assets, and `activate` deleted every
+// cache whose key wasn't the current version — so EVERY DEPLOY threw away the
+// entire audio and card-art cache and forced a full re-download of tens of MB,
+// even though none of it had changed. Splitting them means a code deploy
+// refreshes code and leaves the assets alone.
+//   CODE_CACHE  — bumped on every deploy (that's the point: fresh code).
+//   ASSET_CACHE — bumped ONLY when the art/audio themselves change.
+const CACHE_VERSION = 'clb-v75-cache-split';
+const CODE_CACHE  = CACHE_VERSION;
+const ASSET_CACHE = 'clb-assets-v1';
 const APP_SHELL = [
   './manifest.webmanifest',
   './icon.svg'
@@ -13,7 +23,7 @@ const APP_SHELL = [
 
 self.addEventListener('install', (event) => {
   event.waitUntil(
-    caches.open(CACHE_VERSION).then((cache) => cache.addAll(APP_SHELL))
+    caches.open(ASSET_CACHE).then((cache) => cache.addAll(APP_SHELL))
       .then(() => self.skipWaiting())
   );
 });
@@ -21,7 +31,11 @@ self.addEventListener('install', (event) => {
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches.keys().then((keys) =>
-      Promise.all(keys.filter((k) => k !== CACHE_VERSION).map((k) => caches.delete(k)))
+      // Keep BOTH live caches; sweep only genuinely stale ones (old code
+      // versions, and any asset cache from a previous asset generation).
+      Promise.all(keys
+        .filter((k) => k !== CODE_CACHE && k !== ASSET_CACHE)
+        .map((k) => caches.delete(k)))
     ).then(() => self.clients.claim())
   );
 });
@@ -54,7 +68,7 @@ self.addEventListener('fetch', (event) => {
         // Cache the fresh response so it's available offline next time.
         if (res && res.ok && res.type === 'basic') {
           const copy = res.clone();
-          caches.open(CACHE_VERSION).then((c) => c.put(req, copy));
+          caches.open(CODE_CACHE).then((c) => c.put(req, copy));
         }
         return res;
       }).catch(() => caches.match(req))
@@ -68,7 +82,9 @@ self.addEventListener('fetch', (event) => {
     caches.match(req).then((hit) => hit || fetch(req).then((res) => {
       if (res && res.ok && res.type === 'basic') {
         const copy = res.clone();
-        caches.open(CACHE_VERSION).then((c) => c.put(req, copy));
+        // Heavy, rarely-changing media lands in the ASSET cache so a code
+        // deploy can never evict it.
+        caches.open(ASSET_CACHE).then((c) => c.put(req, copy));
       }
       return res;
     }))
