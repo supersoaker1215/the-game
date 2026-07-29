@@ -34024,3 +34024,28 @@ body.low-fx .card-portrait {
     0 0 10px var(--lane-mid-color, rgba(255,255,255,0.55)),
     0 0 20px var(--contest-pop-soft, rgba(255,255,255,0.20)) !important;
 }
+
+/* ============================================================
+   HIT FLASH must beat the ambient "vibe" breathe
+   ============================================================
+   `animation` is a single property, so a card's ambient loop and its one-shot
+   damage flash compete — and the ambient one was winning on specificity:
+
+     .card.vibe-titan:not(.card-enter):not(.card-exit)   (0,4,0)
+     .card.hit-flash                                     (0,2,0)
+
+   So every card with a vibe (titan / cosmic / symbiote / slasher / phase /
+   speed — i.e. exactly the splashy ones where impact matters most) breathed
+   calmly through being hit and never flashed at all. Measured live: Bane
+   (vibe-titan) computed animationName `vibeTitanBreathe` with .hit-flash
+   applied, while King Shark (no vibe) correctly computed `hitFlash`.
+
+   Matching the vibe rules' shape gives equal specificity, and being later in
+   the file wins the tie. For the 300-520ms the flash runs it replaces the
+   3.6s breathe, which is the correct read — a card taking a hit should flash,
+   not breathe. The ambient loop resumes when the class self-removes.
+   Both !important guards still outrank this: reduced-motion and the
+   coarse-pointer / narrow-screen battery diet continue to suppress it. */
+.card.hit-flash:not(.card-enter):not(.card-exit) {
+  animation: hitFlash var(--flash-ms, 0.3s) ease-out;
+}

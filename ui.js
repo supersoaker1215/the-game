@@ -14819,7 +14819,10 @@ const UI = {
   // game-state context (target highlight, dimmed-by-selection, etc.).
   // Stripped before a cached element is reused so they don't leak.
   _DECORATION_CLASSES: [
-    'target-highlight', 'dimmed-by-selection', 'hit-flash', 'hit-shake',
+    // 'hit-flash' MOVED OUT to _FX_TRANSIENT_CLASSES — see the note there.
+    // It carries the actual hitFlash animation and was being stripped here on
+    // every render, which is exactly when a damaged card re-renders.
+    'target-highlight', 'dimmed-by-selection', 'hit-shake',
     'card-enter', 'card-reveal-flip', 'card-anticipating', 'card-flying',
     'is-selected', 'selected', 'jump-ready', 'card-shake-rejected',
     'forecast-target', 'forecast-source'
@@ -14843,6 +14846,17 @@ const UI = {
   // Do NOT add a class here without finding its removal timer first.
   _FX_TRANSIENT_CLASSES: [
     'combat-attacker', 'combat-target',
+    // THE BASE CLASS, not just the modifiers. The earlier pass exempted only
+    // hit-flash-heavy / hit-flash-lethal — but those two do nothing on their
+    // own; they just set --flash-bright. The animation itself lives on the
+    // BASE `.card.hit-flash` (style.css:7781), which stayed in
+    // _DECORATION_CLASSES and so was stripped by BOTH the baseline reset and
+    // the className diff on every render. Since a hit is precisely when the
+    // card's HP — and therefore its snapshot — changes, the flash was being
+    // cancelled a frame or two into a 300-520ms animation, every single trade.
+    // Self-removes on a timer at ui.js:7995 / :22526 / :22627, so it satisfies
+    // the safety rule below.
+    'hit-flash',
     'hit-flash-heavy', 'hit-flash-lethal',
     'card-knockback'
   ],
