@@ -17948,6 +17948,7 @@ body.phase-menu .kb-hints { display: none; }
   border-radius: 6px;
   background: #000 !important;
   border: 1px solid var(--theme-accent-edge) !important;
+  /* Tap target handled globally — see the 44px hit-target block. */
   color: color-mix(in srgb, var(--theme-accent) 40%, white) !important;
   box-shadow:
     0 0 7px var(--theme-glow-inner),
@@ -33799,4 +33800,70 @@ body.low-fx .card-portrait {
   border-top-color: rgba(var(--theme-rgb, 79,195,247), 0.55) !important;
   border-bottom-color: rgba(var(--theme-rgb, 79,195,247), 0.55) !important;
   border-radius: var(--panel-radius) !important;
+}
+
+/* ============================================================
+   44px HIT TARGETS — the controls the 2026-06 a11y pass missed
+   ============================================================
+   That pass took .settings-cog from 42 -> 44px and shipped the in-match help
+   button at 44px, but seven other real controls stayed between 30 and 36px:
+   the battle-log toggle a phone player taps mid-match, and the close buttons
+   that are the only way out of the card-inspect / encyclopedia / game-over
+   panels on touch. Under the WCAG 2.5.5 / Apple HIG 44px minimum.
+
+   The VISUAL size is deliberate (a chunky 44px square in the HUD next to the
+   round pill would read as a box, and the house rule is no boxes), so only the
+   hit area grows. A centered 44x44 pseudo does it independently of each
+   control's own size — one rule instead of seven bespoke insets — and being
+   out of flow it changes no layout.
+
+   DELIBERATELY EXCLUDED, both for the same reason — a bigger target that
+   overlaps a neighbour is WORSE than a small accurate one, because it starts
+   stealing the neighbour's taps:
+
+   .theme-swatch — 29px rings on a 36px pitch; 44px would overlap each
+   neighbour by 8px a side. Needs the row respaced, which is a visual call.
+
+   .log-drawer-toggle — it is anchored at left: calc(50% + 300px) while the
+   in-match help button is at right: 68px. Clearing each other needs a viewport
+   of at least 884px, but the media query that relocates the toggle only fires
+   at <= 700px. So at 700-884px the two ALREADY overlap by up to 26px before
+   any hit-area change (measured 694-724 vs 676-720 at a 788px viewport).
+   That is a pre-existing placement bug, and where the toggle should live
+   instead is a design decision, not something to patch invisibly here. */
+.ci-close,
+.peek-toggle,
+.encyc-close,
+.card-inspect-close,
+.game-over-toggle,
+.viewport-toggle {
+  /* The pseudo positions against the control, so it must not be static.
+     Only .encyc-close was (the rest are already fixed/absolute). */
+  position: relative;
+}
+/* Re-assert the ones that were already fixed/absolute — `position: relative`
+   above must not clobber their placement. */
+.viewport-toggle { position: fixed; }
+.ci-close, .peek-toggle, .card-inspect-close, .game-over-toggle { position: absolute; }
+
+.ci-close::after,
+.peek-toggle::after,
+.encyc-close::after,
+.card-inspect-close::after,
+.game-over-toggle::after,
+.viewport-toggle::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 44px;
+  height: 44px;
+  transform: translate(-50%, -50%);
+  /* Invisible: this is reach, not chrome. */
+  background: none;
+  border: 0;
+  /* NO pointer-events:none here. The pseudo is what makes the extra area
+     tappable at all — hit-testing attributes it to its host button, so a tap
+     7px outside the 30px visual still fires the button's handler. Setting
+     pointer-events:none would make this whole block a silent no-op. */
 }
