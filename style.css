@@ -33934,3 +33934,93 @@ body.low-fx .card-portrait {
   .lane .lane-sep::after,
   .lane .lane-number { transition: none; }
 }
+
+/* ============================================================
+   CONTESTED LANE — one color for the whole seam, blended
+   ============================================================
+   User, looking at a contested lane: "the lanes in the middle should also
+   match the contested color, so for red/blue there should be no yellow on the
+   left/right, it should be magenta and a seamless blend. red/green is
+   yellow/gold, red/white is pink, red/gold is orange and so on."
+
+   Two separate things were painting gold over a contested lane:
+
+   1. The lane's LEFT/RIGHT BORDERS. .lane.occ-both drew its border-image as
+      enemy-red down to 46%, a hard LEGENDARY-GOLD band from 47-53%, then
+      player colour from 54%. That gold band sits at exactly seam height, which
+      is the yellow flanking the magenta centre. It came from an older spec
+      ("this yellow should be the same yellow you use as in legendaries") that
+      this instruction supersedes.
+   2. The ACTIVE-LANE combat pulse, still hardcoded gold in three places even
+      though its own comment says the gold was replaced by a neutral pulse
+      precisely so it "doesn't fight the lane's faction color".
+
+   --lane-mid-color was already the canonical per-occupancy seam variable
+   (player colour when you hold it, enemy colour when they do). It just needed
+   to point at the computed mix for contested, and everything else needed to
+   stop hardcoding gold and read it. One variable, every lane cue derives. */
+.board-section .lane.occ-both {
+  --lane-mid-color: var(--contest-pop, rgb(255, 60, 200));
+  /* Seamless: the old stops were 46/47/53/54, deliberately hard-edged. The two
+     sides now bleed through the mix instead of butting against a band. */
+  border-image: linear-gradient(180deg,
+    rgba(var(--enemy-r, 231), var(--enemy-g, 76), var(--enemy-b, 60), 0.95)     0%,
+    rgba(var(--enemy-r, 231), var(--enemy-g, 76), var(--enemy-b, 60), 0.95)    28%,
+    var(--lane-mid-color)                                                      50%,
+    rgba(var(--player-r, 79), var(--player-g, 195), var(--player-b, 247), 0.95) 72%,
+    rgba(var(--player-r, 79), var(--player-g, 195), var(--player-b, 247), 0.95) 100%
+  ) 1 !important;
+}
+
+/* Lane interior — the pillar left a transparent hole at 50%, exactly where the
+   two colours meet. Carry a faint wash of the mix through it so the blend
+   reads across the whole lane, not just on the 1px centreline. Kept low-alpha:
+   this is atmosphere behind the cards, not a beam. */
+.lane.occ-both::before {
+  background: linear-gradient(180deg,
+    transparent 0%,
+    rgba(var(--enemy-r, 231), var(--enemy-g, 76), var(--enemy-b, 60), 0.10)     22%,
+    rgba(var(--enemy-r, 231), var(--enemy-g, 76), var(--enemy-b, 60), 0.10)     42%,
+    var(--contest-pop-dim, rgba(255, 60, 200, 0.22))                            50%,
+    rgba(var(--player-r, 79), var(--player-g, 195), var(--player-b, 247), 0.10) 58%,
+    rgba(var(--player-r, 79), var(--player-g, 195), var(--player-b, 247), 0.10) 78%,
+    transparent 100%) !important;
+}
+
+/* Active lane (the one resolving combat) — reads the lane's OWN seam colour
+   instead of gold, so a contested lane pulses magenta/yellow/orange to match
+   its own mix. The "resolving now" cue is carried by the 1.2s pulse and the
+   tracer sweep, which is what the earlier note intended. Empty lanes have no
+   --lane-mid-color, so they fall back to neutral white rather than gold. */
+.lane.lane-active {
+  border-color: var(--lane-mid-color, rgba(255,255,255,0.95)) !important;
+  box-shadow:
+    0 0 12px var(--lane-mid-color, rgba(255,255,255,0.95)),
+    0 0 24px var(--contest-pop-soft, rgba(255,255,255,0.25)) !important;
+}
+/* A contested lane KEEPS its blended border while active — the old rule killed
+   border-image outright so the gold could win, which threw away the whole
+   red -> mix -> player gradient for the duration of combat. */
+.board-section .lane.occ-both.lane-active {
+  border-image: linear-gradient(180deg,
+    rgba(var(--enemy-r, 231), var(--enemy-g, 76), var(--enemy-b, 60), 0.95)     0%,
+    rgba(var(--enemy-r, 231), var(--enemy-g, 76), var(--enemy-b, 60), 0.95)    28%,
+    var(--lane-mid-color)                                                      50%,
+    rgba(var(--player-r, 79), var(--player-g, 195), var(--player-b, 247), 0.95) 72%,
+    rgba(var(--player-r, 79), var(--player-g, 195), var(--player-b, 247), 0.95) 100%
+  ) 1 !important;
+}
+.lane.lane-active::after {
+  background: linear-gradient(180deg,
+    transparent 0%,
+    var(--lane-mid-color, rgba(255,255,255,0.95)) 50%,
+    transparent 100%) !important;
+  box-shadow:
+    0 0 12px var(--lane-mid-color, rgba(255,255,255,0.95)),
+    0 0 24px var(--contest-pop-soft, rgba(255,255,255,0.30)) !important;
+}
+.lane .lane-sep.lane-active::before {
+  box-shadow:
+    0 0 10px var(--lane-mid-color, rgba(255,255,255,0.55)),
+    0 0 20px var(--contest-pop-soft, rgba(255,255,255,0.20)) !important;
+}
