@@ -1397,6 +1397,74 @@ test('Trigon bonus-destroy reaches Doomsday but not a real titan', function () {
   assertEq(g.picked, null, 'Galactus is a titan — tens still cannot touch tens');
 });
 
+// Regression: THE REAL Knull -> Hela cascade, end to end.
+// User: "Hela needs to spawn her 2 minions first before more cards are summoned
+// by Knull, since she is in lane 2 — so there should be 2 less total summons."
+// Golden RG-13 covers the MECHANISM (it sets _summonCascadeDepth by hand and
+// calls summonCardChoice directly) but never runs Knull's onPlay, so it cannot
+// catch a regression in summonCard's depth bookkeeping or in Knull's live
+// lane re-check. This drives the actual cards and asserts the actual outcome:
+// Hela's warriors land, and Knull draws FEWER cards because of it.
+test('Knull -> Hela cascade: warriors land first, Knull draws 2 fewer', function () {
+  var G = freshGame();
+  var knull = place(G, 'Knull', 'player', 0);
+
+  // Deterministic pull order: Hela first, then plain fillers with no On Play.
+  // The spread MUST be shallow — CARD_DEFS carries the merged ability hooks as
+  // function properties, and a JSON deep-clone would silently strip onPlay and
+  // make this test pass for the wrong reason.
+  var draws = 0;
+  var realDraw = G.drawFromSummonDeck;
+  G.drawFromSummonDeck = function () {
+    draws++;
+    if (draws === 1) return { ...cardByName('Hela') };
+    return { name: 'Filler', cost: 2, attack: 2, health: 2, abilities: [] };
+  };
+  // THE ACTUAL GUARD. The sim cannot reproduce the original bug by outcome:
+  // under the shim the prompt / _aiActionDelay path resolves synchronously, so
+  // the warriors land either way and only their lane assignment differs. What
+  // IS deterministic — and what actually breaks if summonCard stops bracketing
+  // the nested onPlay — is that Hela's summons are seen INSIDE the cascade.
+  // Golden RG-13 sets _summonCascadeDepth by hand, so it cannot catch that;
+  // this reads the depth the real Knull->Hela flow produces.
+  var depthsAtChoice = [];
+  var realChoice = G.summonCardChoice;
+  G.summonCardChoice = function () {
+    depthsAtChoice.push(G._summonCascadeDepth || 0);
+    return realChoice.apply(G, arguments);
+  };
+  try {
+    CARD_ABILITIES.Knull.onPlay(G, knull, 0);
+  } finally {
+    G.drawFromSummonDeck = realDraw;
+    G.summonCardChoice = realChoice;
+  }
+
+  assert(depthsAtChoice.length > 0, 'Hela should have requested lanes for her warriors');
+  assert(depthsAtChoice.every(function (d) { return d > 0; }),
+    'every nested summon must run with _summonCascadeDepth > 0 so summonCardChoice ' +
+    'places synchronously instead of prompting / deferring. Saw depths: ' + depthsAtChoice.join(','));
+  assertEq(!!G.state.pendingLaneChoice, false, 'no lane prompt may be left armed by the cascade');
+
+  var names = [];
+  for (var i = 0; i < G.LANE_COUNT; i++) {
+    var c = G.state.lanes[i].player;
+    names.push(c ? c.name : null);
+  }
+  var warriors = names.filter(function (n) { return n === 'Undead Warrior'; }).length;
+  var occupied = names.filter(Boolean).length;
+
+  assert(names.indexOf('Hela') > -1, 'Hela should have been summoned, got: ' + names.join(','));
+  assertEq(warriors, 2, 'Hela must raise both Undead Warriors — they are dropped if ' +
+    'her On Play resolves after Knull has already filled the board. Board: ' + names.join(','));
+  assertEq(occupied, G.LANE_COUNT, 'every lane should end up occupied: ' + names.join(','));
+  // The whole point of the user's ruling: the warriors take lanes Knull would
+  // otherwise have filled, so Knull burns 2 fewer cards from the summon deck.
+  // 5 open lanes, minus the 2 the warriors claimed = 3 draws.
+  assertEq(draws, 3, 'Knull should draw 3 (not 5) — 2 fewer, because the warriors ' +
+    'claimed two lanes before his loop reached them');
+});
+
 // ============================================================
 // ---- RUNNER ------------------------------------------------
 // ============================================================
