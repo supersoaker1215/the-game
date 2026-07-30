@@ -7737,12 +7737,12 @@ const Game = {
     }
   },
 
-  // Destroy a lane temporarily. Duration (default 3 rounds) ticks down in
+  // Destroy a lane temporarily. Duration (default 2 rounds) ticks down in
   // drawPhase's per-round cleanup; when it reaches 0 the lane reforms and
   // both sides can place cards there again. Any cards currently IN the
   // lane should be killed separately by the caller before this fires —
   // this helper only manages the lane state, not its occupants.
-  destroyLane(laneIdx, duration = 3) {
+  destroyLane(laneIdx, duration = 2) {
     const lane = this.state.lanes[laneIdx];
     if (!lane) return;
     // Invincible cards block lane destruction — if any living card in
@@ -7782,7 +7782,7 @@ const Game = {
   //
   // Callers collapse a lane and THEN kill its occupants. One-shot death saves
   // (Yoda's shield, Phoenix etch, revives) can leave a card alive inside the
-  // void — and a void has no lane for 3 rounds, so that card is stranded:
+  // void — and a void has no lane while collapsed, so that card is stranded:
   // untargetable yet still swinging in combat. The engine's cleanup invariant
   // reports it as the "limbo class". Anti-Life Equation already did this
   // rescue inline; Darkseid did not, which is where most of the stranded
@@ -7795,21 +7795,20 @@ const Game = {
     ['player', 'ai'].forEach(side => {
       const c = lane[side];
       if (!c || !(c.currentHealth > 0)) return;
-      const open = this.getOpenLanes(side);
-      if (open.length) {
-        lane[side] = null;
-        this.placeInLane(side, c, open[0]);
-        this.log(`  [VOID] ${c.name} is thrown clear of the collapsing lane into lane ${open[0] + 1}!`);
-      } else {
-        // Nowhere to go — a void has no lane for its remaining rounds, so a
-        // survivor with no open lane is CLAIMED by the void (it cannot keep
-        // standing in a lane that does not exist). Removing it upholds the
-        // no-card-in-a-destroyed-lane invariant. Rare (needs a full board +
-        // a collapse / a pull-in). Silent removal — the collapse already
-        // narrated the lane's destruction.
-        lane[side] = null;
-        this.log(`  [VOID] ${c.name} is claimed by the void — no lane to be thrown to.`);
-      }
+      // The void CLAIMS a survivor — it does NOT throw it clear to another
+      // lane. A card that lived through the collapse's own kill (an Iron Giant
+      // save, a Yoda shield, a Phoenix etch, a revive) is consumed by the
+      // collapsing lane and removed. The old behavior relocated it to the
+      // first open lane, which made Darkseid's purge "soft": user report — a
+      // Solomon Grundy that Iron Giant saved got flung out of the lane instead
+      // of being destroyed with it ("blown up by Darkseid, and he just moved
+      // out of the lane"). Claiming matches the generic-revive rule ("the void
+      // simply claims them") and upholds the no-card-in-a-destroyed-lane
+      // invariant. Silent removal (no dead-pile / onDeath) so a save that just
+      // fired isn't immediately re-triggered — the collapse already narrated
+      // the lane's destruction.
+      lane[side] = null;
+      this.log(`  [VOID] ${c.name} is claimed by the collapsing lane.`);
     });
   },
 

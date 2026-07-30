@@ -512,7 +512,7 @@ const TRICK_DEFS = [
   },
   // Cost 5
   { name: "Anti-Life Equation", cost: 4,
-    desc: "Destroy both cards in a contested lane and collapse it into the void for 3 rounds. Only lanes where both cards can be destroyed may be chosen.",
+    desc: "Destroy both cards in a contested lane and collapse it into the void for 2 rounds. Only lanes where both cards can be destroyed may be chosen.",
     play(G, owner) {
       const opp = G.opponent(owner);
       const contested = [];
@@ -521,7 +521,7 @@ const TRICK_DEFS = [
         const theirs = G.state.lanes[i][opp];
         if (mine && theirs && !G.state.lanes[i].destroyed) {
           // Only offer lanes where BOTH cards will actually die — any
-          // survivor would be left standing inside the void for 3 rounds
+          // survivor would be left standing inside the collapsed void
           // (user report: Invincible Spider-Man stranded in a voided lane).
           //   • 10-cost titans: immune to all tricks.
           //   • Invincible: killCard refuses ("that character can't die").
@@ -533,7 +533,7 @@ const TRICK_DEFS = [
       }
       const collapse = (i) => {
         // Collapse first so Jason's allyDied trigger sees lane.destroyed = true
-        G.destroyLane(i, 3);
+        G.destroyLane(i, 2);
         G.killCard(G.state.lanes[i][owner]);
         G.killCard(G.state.lanes[i][opp]);
         // One-shot death saves can leave a card alive inside the collapsed

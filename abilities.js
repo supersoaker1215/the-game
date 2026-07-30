@@ -4000,7 +4000,7 @@ const CARD_ABILITIES = {
       const opp = G.opponent(self.owner);
       const destroyLane = (i) => {
         // Collapse first so Jason's allyDied trigger sees lane.destroyed = true
-        G.destroyLane(i, 3);
+        G.destroyLane(i, 2);
         // Pass self as source — killCard's guard `card.owner !== source.owner`
         // ensures Darkseid isn't credited for killing his own card,
         // only the enemy side.
