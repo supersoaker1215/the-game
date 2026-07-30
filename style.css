@@ -34458,4 +34458,21 @@ body.low-fx .card-portrait {
      The base .card-portrait rule already states both layers correctly and now
      carries the focal default too, so the tile inherits it and the tile, draft
      card and codex cannot drift apart. */
+
+  /* DROP THE PORTRAIT'S 1px FRAME RING — THIS is the "separation point".
+     The base rule (~29754, the Tron frame) draws
+       inset 0 0 0 1px rgba(var(--portrait-frame-rgb), 0.55)
+     which is a theme-coloured line around all four sides of the ART BOX. That
+     was right when the art was an inset 94x123 window: the ring framed the
+     painting. Edge-to-edge it is wrong twice over — three sides now sit
+     directly under the card's own 1px border and double it, and the fourth
+     draws a bright green line straight across the middle of the card at the
+     art's bottom edge.
+     That line is what has been read as the seam all along. It is why fixing
+     the scrim's opacity and then its length both helped and neither finished
+     the job: they were dissolving the PAINTING into the black correctly while
+     a 1px rule stayed drawn on top of the result.
+     The inner vignette is kept — it is soft (18px blur), so it has no edge to
+     see, and it is what gives the art depth. */
+  box-shadow: inset 0 0 18px 4px rgba(0, 0, 0, 0.55);
 }
