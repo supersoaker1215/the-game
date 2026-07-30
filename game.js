@@ -10661,6 +10661,28 @@ const Game = {
       if (pTgt) applyHit(pTgt, pAtk, !!p.ignoresEvade);
       if (aTgt) applyHit(aTgt, aAtk, !!a.ignoresEvade);
 
+      // FEAR TURNS THE SWING INWARD. canSwingForward() is false for a feared
+      // card, so the two branches above correctly predict it dealing nothing to
+      // the enemy — but the self-hit was never modelled at all, so the forecast
+      // under-counted the feared card's own incoming damage and never marked it
+      // as dying. User report: a FEARED Iron Man (5 ATK, Armor 1, 4 HP) showed
+      // "-1" and no skull, when in reality he hits himself for 5, armor takes 1,
+      // and he dies to his own swing.
+      // The resolver has always done this (game.js:4977-4978 retarget to self)
+      // and so does the hover forecast (combatTargetsOf, game.js:4876 kind
+      // 'self') — predictCombatGlobal was the odd one out.
+      // Routed through the same applyHit so armor / invincible / immunity are
+      // honoured identically; evade is not pierced, matching a normal swing.
+      const selfHit = (c, snapshot) => {
+        if (!c || !snapshot || snapshot.hp <= 0) return;
+        if (!c.isFeared) return;
+        if (c.isStunned || c.isFrozen) return;   // too locked to swing at all
+        if ((c.attack | 0) <= 0) return;
+        applyHit(c, c.attack | 0, !!c.ignoresEvade);
+      };
+      selfHit(p, pSnap);
+      selfHit(a, aSnap);
+
       // Splash cone — mirrors the resolver's applySplash(card, i): the front
       // enemy (same lane, ON TOP of the front swing) + BOTH adjacent lanes'
       // enemies, for splashRange. PUSHING both directions here (rather than only

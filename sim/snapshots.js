@@ -365,17 +365,54 @@ snap('GS-14 MC attacker: predictor zeros forward swing', function () {
   assertEquals('player.hpAfter', predOf(r, p.id).hpAfter,   4);
 });
 
-// GS-15 — Feared attacker forecasts ZERO forward damage. Same
-// canSwingForward gate as MC. Feared swings at self IRL but the
-// predictor models it as "no damage to opposing lane."
-snap('GS-15 Feared attacker: predictor zeros forward swing', function () {
+// GS-15 — Feared attacker deals ZERO forward and hits ITSELF.
+// EXPECTATION UPDATED 2026-07-30. This case used to assert
+// `player.dmgIn = 1`, and its comment said so explicitly: "Feared swings at
+// self IRL but the predictor models it as 'no damage to opposing lane.'" That
+// approximation was pinned deliberately — and it is exactly what the user
+// reported as a bug: a feared card showed a tiny incoming number and no skull,
+// then died anyway when combat resolved.
+// The forecast now models the self-hit, so it agrees with the resolver.
+// Verified against a real resolveCombat() on this same board before changing
+// the number: player DIES, ai ends on 4 HP untouched.
+snap('GS-15 Feared attacker: zero forward, and hits itself', function () {
   reset();
   var p = place(makeCard({ owner: 'player', attack: 5, currentHealth: 5, maxHealth: 5, isFeared: true }), 0);
   var a = place(makeCard({ owner: 'ai',     attack: 1, currentHealth: 4, maxHealth: 4 }), 0);
   var r = Game.predictCombatGlobal();
-  assertEquals('ai.dmgIn',     predOf(r, a.id).dmgIn,     0);
-  assertEquals('ai.hpAfter',   predOf(r, a.id).hpAfter,   4);
-  assertEquals('player.dmgIn', predOf(r, p.id).dmgIn,     1);
+  assertEquals('ai.dmgIn',       predOf(r, a.id).dmgIn,     0);
+  assertEquals('ai.hpAfter',     predOf(r, a.id).hpAfter,   4);
+  // 5 self + 1 from ai = 6, so the 5 HP card is dead.
+  assertEquals('player.dmgIn',   predOf(r, p.id).dmgIn,     6);
+  assertEquals('player.hpAfter', predOf(r, p.id).hpAfter,   0);
+  assertEquals('player.dies',    predOf(r, p.id).dies,      true);
+});
+
+// GS-15b — the user's exact reported board: a FEARED Iron Man, 5 ATK / 4 HP /
+// Armor 1, opposite a 2-ATK Black Widow. Displayed "-1" with no skull; he
+// actually dies to his own swing. Armor applies to the self-hit as well, so
+// 5-1=4 from himself plus 2-1=1 from Black Widow = 5 into a 4 HP card.
+snap('GS-15b Feared Iron Man dies to his own swing (user report)', function () {
+  reset();
+  var p = place(makeCard({ owner: 'player', attack: 2, currentHealth: 1, maxHealth: 1 }), 0);
+  var a = place(makeCard({ owner: 'ai', attack: 5, currentHealth: 4, maxHealth: 4,
+                           armorValue: 1, isFeared: true }), 0);
+  var r = Game.predictCombatGlobal();
+  assertEquals('feared.dmgIn',   predOf(r, a.id).dmgIn,   5);
+  assertEquals('feared.hpAfter', predOf(r, a.id).hpAfter, 0);
+  assertEquals('feared.dies',    predOf(r, a.id).dies,    true);
+  assertEquals('enemy.dmgIn',    predOf(r, p.id).dmgIn,   0);
+});
+
+// GS-15c — feared AND frozen is too locked to swing at all, so there is no
+// self-hit either. Guards against the fix over-applying.
+snap('GS-15c Feared AND frozen: no self-hit', function () {
+  reset();
+  var a = place(makeCard({ owner: 'ai', attack: 5, currentHealth: 4, maxHealth: 4,
+                           isFeared: true, isFrozen: true }), 0);
+  var r = Game.predictCombatGlobal();
+  assertEquals('dmgIn',   predOf(r, a.id).dmgIn,   0);
+  assertEquals('hpAfter', predOf(r, a.id).hpAfter, 4);
 });
 
 // GS-16 — MC + Frozen co-occurring (the fuzzer-stall config from

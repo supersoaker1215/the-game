@@ -1513,6 +1513,52 @@ test('feared cards cannot take extra actions (Han Solo redirect + friends)', fun
   assertEq(jug.currentHealth, hpBefore, 'feared Man-Bat should not debuff');
 });
 
+// Regression: a "move an enemy" ability must NOT prompt when the enemy side has
+// no open lane. User report, board with all six enemy lanes occupied: "the lanes
+// are full, no one to move, so this prompt shouldn't pop up" — Gojo still asked
+// and ran a 23s choice timer, then logged "No open lanes" and did nothing.
+// Three cards shared the shape (prompt first, look for a destination second):
+// Gojo, Jigsaw and Darth Vader. All three now check first.
+test('move-an-enemy abilities do not prompt when every enemy lane is full', function () {
+  function fullBoard() {
+    var G = freshGame();
+    // Fill ALL six enemy lanes so there is nowhere to move anyone.
+    for (var i = 0; i < G.LANE_COUNT; i++) place(G, 'King Shark', 'ai', i);
+    return G;
+  }
+  // Count only MOVE-related prompts. Darth Vader's onPlay legitimately prompts
+  // for its later steps (Fear, then the damage chain), so counting every prompt
+  // would fail for the wrong reason — match on the title instead.
+  function movePrompts(cardName, board) {
+    var G = board();
+    var self = place(G, cardName, 'player', 0);
+    var asked = 0;
+    var isMove = function (title) { return /move|relocate|drag/i.test(String(title || '')); };
+    var realCard = G.promptCardChoice, realLane = G.promptLaneChoice;
+    G.promptCardChoice = function (o, c, title) { if (isMove(title)) asked++; return realCard.apply(G, arguments); };
+    G.promptLaneChoice = function (o, l, title) { if (isMove(title)) asked++; return realLane.apply(G, arguments); };
+    try { CARD_ABILITIES[cardName].onPlay(G, self, 0); }
+    catch (e) { /* later steps may need more setup; we only care about move prompts */ }
+    finally { G.promptCardChoice = realCard; G.promptLaneChoice = realLane; }
+    return asked;
+  }
+  function oneLaneOpen() {
+    var G = freshGame();
+    for (var i = 1; i < G.LANE_COUNT; i++) place(G, 'King Shark', 'ai', i);
+    return G;
+  }
+
+  assertEq(fullBoard().getOpenLanes('ai').length, 0, 'setup sanity: ai side has no open lane');
+  assertEq(oneLaneOpen().getOpenLanes('ai').length, 1, 'setup sanity: control leaves exactly one open');
+
+  // Controls FIRST — if these were 0, the assertions below would pass vacuously.
+  assert(movePrompts('Gojo', oneLaneOpen) > 0, 'control: Gojo should offer the move when a lane is open');
+  assert(movePrompts('Darth Vader', oneLaneOpen) > 0, 'control: Vader should offer the move when a lane is open');
+
+  assertEq(movePrompts('Gojo', fullBoard), 0, 'Gojo must not prompt to move with every enemy lane full');
+  assertEq(movePrompts('Darth Vader', fullBoard), 0, 'Vader must not prompt to move with every enemy lane full');
+});
+
 // ============================================================
 // ---- RUNNER ------------------------------------------------
 // ============================================================

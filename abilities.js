@@ -1160,6 +1160,13 @@ const CARD_ABILITIES = {
         // pickable pool so Jigsaw can't move a frozen victim.
         const enemies = G.getEnemiesOf(owner).filter(e => !e.isFrozen && !e.isStunned);
         if (!enemies.length) { G.log("Jigsaw finds no enemy cards left to drag."); return; }
+        // Same guard as Gojo / Darth Vader: with no open enemy-side lane there
+        // is no destination for ANY pick, so asking wastes the player's choice
+        // timer on a dead end.
+        if (!G.getOpenLanes(G.opponent(owner)).length) {
+          G.log('Jigsaw finds no open lane to drag anyone into — skipping.');
+          return;
+        }
         G.promptCardChoice(owner, enemies,
           "Jigsaw — Relocate",
           "Choose an enemy card to drag to any open lane",
@@ -3133,6 +3140,17 @@ const CARD_ABILITIES = {
       const enemies = G.getEnemiesOf(self.owner);
       const moveEnemy = (afterMove) => {
         if (!enemies.length) { afterMove(); return; }
+        // NOWHERE TO MOVE THEM = DO NOT ASK. The destination set is the same
+        // for every candidate (enemy-side lanes that are empty and not
+        // destroyed), so if it is empty this prompt cannot lead anywhere. It
+        // used to ask anyway, burn the full choice timer, then log "No open
+        // lanes" and move on — user report: a board with all six enemy lanes
+        // occupied still popped "Gojo — Move Enemy" with a 23s countdown.
+        if (!G.getOpenLanes(opp).length) {
+          G.log('Gojo finds no open lane to move an enemy into — skipping.');
+          afterMove();
+          return;
+        }
         G.promptCardChoice(self.owner, enemies, "Gojo — Move Enemy", "Choose an enemy to move to another lane", (target) => {
           const fromLane = G.findCardLane(target);
           const openLanes = [];
@@ -3488,6 +3506,13 @@ const CARD_ABILITIES = {
         absfx('move');
         const enemies = G.getEnemiesOf(self.owner);
         if (!enemies.length) { afterMove(); return; }
+        // Same guard as Gojo / Jigsaw — no open enemy-side lane means no
+        // destination for any pick, so skip rather than prompt into a dead end.
+        if (!G.getOpenLanes(opp).length) {
+          G.log('Darth Vader finds no open lane to move an enemy into — skipping.');
+          afterMove();
+          return;
+        }
         const doMove = (target) => {
           const fromLane = G.findCardLane(target);
           const openLanes = [];
