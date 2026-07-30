@@ -34548,3 +34548,38 @@ body.low-fx .card-portrait {
 .card-drag-ghost::after {
   background-image: none;
 }
+
+/* ============================================================
+   THE HAIRLINE AT THE ART'S BOTTOM — A #111 BOX ON A #000 CARD
+   ============================================================
+   User: "there's still a visible line/edge."
+
+   There was, and it is not drawn by anything — it is a COMPOSITING artifact,
+   which is why removing the frame ring, the corner brackets and the gloss
+   sweep each fixed a real defect and none of them touched this.
+
+   Two facts that only matter together:
+     1. .card-portrait carries `background-color: #111` — a loading placeholder
+        so the art area is not a black void while the image fetches. With the
+        art painted over it at `cover`, that colour is never visible... except
+        exactly at the element's edge.
+     2. The portrait's height comes from aspect-ratio (360/472), so it is
+        138.942px — its bottom edge lands on a FRACTIONAL pixel (measured
+        882.052).
+
+   A #111 box therefore meets the card's #000 on a partial pixel row. The
+   browser blends that row and leaves something marginally lighter than the
+   base, one pixel tall, precisely at the art's bottom edge. On any other
+   background it would be invisible; on pure black it is a hairline.
+
+   Making the placeholder #000 removes the only colour in the stack that is
+   lighter than the card, so the partial pixel blends black into black and there
+   is nothing left to anti-alias. The loading shimmer gradient is untouched —
+   it still sweeps while art loads, it just sweeps over black instead of #111,
+   which is what the rest of the card looks like anyway. */
+.player-hand-section .hand-cards .card .card-portrait,
+.card.ally-card .card-portrait,
+.card.enemy-card .card-portrait,
+.card-drag-ghost .card-portrait {
+  background-color: #000;
+}
