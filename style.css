@@ -34542,9 +34542,17 @@ body.low-fx .card-portrait {
    the boundary is well under 2% and invisible. The sheen was 10x that and
    unveiled. Removing texture that is not visible would only cost the art its
    CRT feel, and the CRT toggle owns that layer. */
+/* BOARD CARDS ARE DELIBERATELY NOT IN THIS LIST — they were, and it was a bug.
+   .card.ally-card::after / .card.enemy-card::after (style.css:29028) OVERRIDE the base
+   gloss with something completely different: the CONTACT SHADOW, the soft ellipse under
+   the card that makes it read as a physical token resting on the grid
+   (radial-gradient + bottom:-12px + blur(4px) + rotateX(60deg)).
+   So board cards never carried the sheen this rule removes — and including them here
+   blanked their `background-image`, which is the gradient the shadow is MADE of. The
+   geometry survived (still 28px tall, still blurred, still rotated) with nothing left to
+   draw, so every card on the board went flat against the grid like a sticker.
+   Two selectors, ten thousand lines apart, sharing one pseudo-element. */
 .player-hand-section .hand-cards .card::after,
-.card.ally-card::after,
-.card.enemy-card::after,
 .card-drag-ghost::after {
   background-image: none;
 }
