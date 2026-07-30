@@ -34243,11 +34243,13 @@ body.low-fx .card-portrait {
   /* Reserved strip for the corner ATK/HP orbs — mirrors the board rule. */
   padding-bottom: 30px;
   /* One baseline for the whole row, sized from the measured worst case that is
-     worth fitting: portrait bottom 130 + 2px strip margin = strip top 134, two
-     badge rows = 28px, so the strip ends at 162; the ATK/HP orbs sit 28px off
-     the bottom, so 162 + 4px clearance + 28 = 194.
-     Ragged before this: 117 / 141 / 154 / 154 / 169 / 213. */
-  height: 194px;
+     worth fitting: art 139 (full width at the art's own 0.763 ratio) + two
+     badge rows 28 = 167, + the 30px orb strip = 197, + 3px clearance = 200.
+     Was 194 while the art window was 123 tall; going edge-to-edge made the art
+     139, and the extra 16px pushed the badge row onto the ATK/HP orbs on 12
+     cards (Thor, Gojo, Predator, Juggernaut...) by exactly 4px.
+     Ragged before any of this: 117 / 141 / 154 / 154 / 169 / 213. */
+  height: 200px;
   box-sizing: border-box;
 }
 .player-hand-section .hand-cards .card .status-badges {
@@ -34325,139 +34327,82 @@ body.low-fx .card-portrait {
 .card-drag-ghost .rarity-strip { top: 3px; right: 3px; transform: scale(0.6); transform-origin: top right; }
 
 /* ============================================================
-   IN-MATCH CARD TILE — FULL-BLEED ART
+   IN-MATCH CARD TILE — EDGE-TO-EDGE ART, ORIGINAL CROP
    ============================================================
    User: "now there is so much more room on the front to make the cards look
-   sleeker and for the art to not clip — what do you suggest for premium TCG
-   feel."
+   sleeker and for the art to not clip", then, on the first attempt:
+   "the zooms are a little off ... the zooms need to be like the original crops
+   ... like the draft cards."
 
-   MEASURED FIRST, because the obvious read was wrong. The art is not uniformly
-   clipped: 67 of 117 cards are cropped 0%, because they are the batch-resized
-   360x472 set whose 0.763 aspect exactly matches the old 94x123 window. The
-   other 50 were never normalised and sit at THIRTY different aspect ratios,
-   from 0.462 to 1.5. That is where the clipping lives:
-     no crop 67 · under 10% 13 · 10-20% 12 · OVER 20% 25
-   Worst: Jack Sparrow and The Batman Who Laughs lose 49% (landscape 1.5 art in
-   a portrait window — half the image discarded), Captain America 40%,
-   Obi-Wan 36%.
+   WHAT THE FIRST ATTEMPT GOT WRONG. It stretched the art to the CARD's shape.
+   The card is 0.557 and the art is 0.763, so cover had to scale to the taller
+   side: every card came out magnified 1.57x with 27% of its width cut. More art
+   on screen, yes, but a different photograph — and it re-framed the 51 focal
+   and 11 zoom overrides that had been dialled in by hand.
 
-   WHY FULL-BLEED WINS DESPITE CROPPING MORE ON PAPER.
-   Going edge-to-edge takes average crop from 8% to 24%, which sounds like a
-   regression and is not. It changes WHICH EDGE gets cut: 35 cards were being
-   cropped top/bottom, and with background-position at 50% 50% that means
-   cutting heads. Full-bleed makes 115 of 117 crop on the SIDES instead, and
-   side-cropping a centred portrait trims background while keeping the subject.
-   It also nearly doubles the art on the card, 11,562px -> 20,952px, and
-   removes the 63px black band that sat under the old window.
+   The draft card is the reference and shows why: its window is 186x244, aspect
+   0.763 — the ART'S OWN SHAPE — so cover crops nothing. The old hand window
+   (94x123) was the same 0.763. Matching that aspect is what makes the crop
+   "original", at any size.
 
-   The cards cannot simply get WIDER instead: the hand row is 959px and eight
-   cards at the current 108px already need 920px. Edge-to-edge is the only
-   direction left.
+   SO THE ART BOX KEEPS 0.763 AND ONLY GETS WIDER: full card width instead of
+   inset 6px, height following the ratio. Same aspect means the same crop as the
+   draft card and as the original for every card, every focal point and every
+   zoom, while still being ~27% more art than before and edge-to-edge across the
+   card. Sleeker without re-framing anything.
 
-   HAND AND BOARD TOGETHER, deliberately. Measured side by side they are the
-   same object — 108x193/194, padding 6px 6px 30px, portrait 94x123 at radius 0,
-   63-64px of dead space below — so treating only the hand would create a third
-   look in a game that is meant to be uniform. Codex/draft/dead-pile are
-   excluded on purpose: those still render rules text in normal flow, and an
-   absolutely-positioned full-bleed portrait would sit underneath it. */
+   The portrait stays in NORMAL FLOW. Taking it out was what forced the rest of
+   this block to re-place the name and badges absolutely, and with a 139px-tall
+   art box instead of 194 those hand-placed offsets dropped the name plate on
+   top of the badge row (visible on Batman, Black Widow and Thor). In flow, the
+   badges sit under the art on their own, exactly as they always did.
+
+   Hand and board share this: measured side by side they are the same object.
+   Codex/draft/dead-pile are untouched — they already frame the art correctly,
+   which is the whole reason the draft card was the target. */
 .player-hand-section .hand-cards .card,
 .card.ally-card,
 .card.enemy-card,
 /* The drag ghost is a hand-card clone appended to <body>, so it escapes every
-   .player-hand-section-scoped rule and would keep the OLD windowed art while
-   the card it left and the slot it is heading for both went full-bleed. It is
-   listed here for the same reason its text-hiding rules were promoted out of
-   the phone-only block earlier: the ghost has to be the tile it will become,
-   and that only stays true if it is in the selector rather than tracking it. */
+   .player-hand-section-scoped rule and would keep the old inset art while the
+   card it left and the slot it targets both went edge-to-edge. */
 .card-drag-ghost {
-  /* The art is the card now, so nothing needs to be inset from the edge. */
-  padding: 0;
-  /* Required, not cosmetic: the portrait leaving normal flow removes what was
-     giving these cards their height. Fixing it also puts hand and board on the
-     identical box, which is the point. */
-  height: 194px;
-  box-sizing: border-box;
+  /* Only the side/top inset goes; the bottom 30px stays as the orb strip. */
+  padding: 0 0 30px;
 }
 .player-hand-section .hand-cards .card .card-portrait,
 .card.ally-card .card-portrait,
 .card.enemy-card .card-portrait,
 .card-drag-ghost .card-portrait {
-  position: absolute;
-  inset: 0;
-  width: auto;
+  /* Full width, and the height follows the art's own ratio — the draft card's
+     window shape. Left in flow so the badges keep falling underneath it. */
+  display: block;
+  width: 100%;
   height: auto;
-  /* Without this the box never actually stretches. The portrait carries
-     aspect-ratio: 360/472 (the old art window's shape), and an aspect-ratio
-     beats inset:0 while height is auto — the box sized itself from its width
-     and came out 106x139 inside a 108x194 card, so "full-bleed" silently was
-     not. Releasing the ratio lets top/bottom do their job. */
-  aspect-ratio: auto;
-  /* Left over from the flow layout, where it separated the art from the badge
-     row. Absolutely positioned it does nothing but hold the art 4px off the
-     bottom edge — which is exactly the seam full-bleed is meant to remove. */
+  aspect-ratio: 360 / 472;
   margin: 0;
-  /* Square art inside a 5px-rounded card is the classic cheap tell — the
-     portrait was border-radius: 0 while the card was 5px. */
+  /* Square art inside a 5px-rounded card is the classic cheap tell. Only the
+     TOP corners round: the art stops partway down the card, so rounding its
+     bottom corners would draw a curve across the middle of it. */
   border-radius: inherit;
+  border-bottom-left-radius: 0;
+  border-bottom-right-radius: 0;
   /* MUST stay a var with a fallback, and MUST keep the second layer's own
-     value. Writing a bare `background-position: 50% 30%` here (as this rule
-     first did) broke two things at once:
+     value. A bare `background-position` here broke two things at once:
 
-       1. It overrode --portrait-pos, and that variable is not decoration — it
-          carries 51 hand-tuned focal points and 11 zoom entries published in
+       1. It overrode --portrait-pos, which is not decoration — it carries 51
+          hand-tuned focal points and 11 zoom entries published in
           card-art-manifest.js, plus PORTRAIT_POSITION and any local gallery
           draft. Every one of those crops was silently discarded.
        2. The portrait paints TWO background layers (art, then a 200% 100%
-          sweep). One position value is applied to BOTH layers, so the sweep
-          lost its 0% 0% anchor.
+          sweep). One position value applies to BOTH, so the sweep lost its
+          0% 0% anchor.
 
-     The fallback is where the focal default belongs. It only bites on cards
-     with no override — and note it is nearly a no-op now: full-bleed makes the
-     art overflow HORIZONTALLY on 115 of 117 cards, so the vertical focal only
-     does work on the two that are narrower than the card (Captain America,
-     Obi-Wan) and on anything zoomed past cover. */
-  background-position: var(--portrait-pos, 50% 30%), 0% 0%;
-}
-/* The ghost's width is set inline by the drag code, so it takes the tile's
-   PROPORTIONS rather than the fixed 194px above — same shape at any grab size.
-   The explicit height is still needed: the portrait leaving flow is what would
-   otherwise collapse it. */
-.card-drag-ghost { aspect-ratio: 108 / 194; height: auto; }
-
-/* Chrome floats ON the art. */
-.player-hand-section .hand-cards .card .card-cost,
-.player-hand-section .hand-cards .card .stat-circle,
-.card.ally-card .card-cost,  .card.ally-card .stat-circle,
-.card.enemy-card .card-cost, .card.enemy-card .stat-circle,
-.card-drag-ghost .card-cost, .card-drag-ghost .stat-circle {
-  z-index: 6;
-}
-/* The name keeps its gradient scrim, but the scrim now runs all the way to the
-   bottom edge while the TEXT still sits above the orbs — one continuous darkening
-   at the foot of the card instead of a band with a strip of art below it. */
-.player-hand-section .hand-cards .card .card-name-overlay,
-.card.ally-card .card-name-overlay,
-.card.enemy-card .card-name-overlay,
-.card-drag-ghost .card-name-overlay {
-  bottom: 0;
-  height: auto;
-  padding-bottom: 30px;
-  /* Extends the existing transparent-to-black gradient UP over the badge row
-     as well, so every piece of chrome sits on a darkened base instead of
-     fighting whatever the art happens to be doing behind it. padding rather
-     than height because the box grows upward while the name text stays put. */
-  padding-top: 46px;
-  z-index: 5;
-}
-/* Badges ride just above the name plate, over the art. */
-.player-hand-section .hand-cards .card .status-badges,
-.card.ally-card .status-badges,
-.card.enemy-card .status-badges,
-.card-drag-ghost .status-badges {
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: 62px;
-  z-index: 6;
-  margin: 0;
+     The fallback stays `center center`, the ORIGINAL default. An earlier pass
+     set it to 50% 30% to save faces from top/bottom cropping — sound reasoning
+     for a box that no longer exists. With the art box back to 0.763, cropping
+     is exactly what it always was, and shifting the default would re-frame the
+     ~66 cards that have no override: the opposite of "like the original
+     crops". Per-card focal belongs in CARD_ART_OVERRIDES via the gallery. */
+  background-position: var(--portrait-pos, center center), 0% 0%;
 }

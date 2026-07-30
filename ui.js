@@ -122,26 +122,21 @@ const UI = {
   _artSizeFor(name, file, kind) {   // background-size for a variant's zoom
     const z = this._artZoomFor(name, file, kind);
     if (Math.abs(z - 1) < 0.001) return 'cover';
-    const pct = Math.round(z * 100);
-    // ZOOM MEANS "x COVER", NOT "% OF THE BOX WIDTH".
+    // A plain percentage of the box width, which is what every stored zoom was
+    // dialled in against.
     //
-    // A bare `110%` sizes the art to 110% of the BOX WIDTH with height auto, so
-    // what it actually frames depends on the box's shape. Every card zoom was
-    // tuned against the old 94x123 art window; when the tile went full-bleed to
-    // 108x194 the box got 58% taller and six of the eleven zoomed cards stopped
-    // covering it — Batman, Black Panther, Green Lantern and Padme short by
-    // 38px, Jack Sparrow 36, Darth Maul 21 — which with background-repeat:
-    // no-repeat is a bare gap, not a crop.
+    // This briefly emitted `auto <pct>` instead. That was a fix for a problem
+    // that no longer exists: while the art box was stretched to the card's
+    // 0.557 it had grown 58% taller, and a width-relative percentage stopped
+    // covering it on six of the eleven zoomed cards. Sizing by height fixed the
+    // gap but re-framed them, which is the opposite of what was wanted.
     //
-    // `auto <pct>` sizes by HEIGHT instead. For art wider than the box (115 of
-    // 117 cards at the tile's 0.557) cover IS height:100%, so this reads as a
-    // clean multiple of cover and can never fall short of it. The framing stops
-    // depending on the box's aspect, which is what made a layout change able to
-    // silently break stored art data in the first place.
-    //
-    // Card context only. The menu box did not change, so its stored zooms still
-    // mean what they meant when they were dialled in.
-    return (kind === 'menu') ? (pct + '%') : ('auto ' + pct + '%');
+    // The art box is back to the art's own 0.763 — the draft card's shape — so
+    // it is only WIDER than the original window (108 vs 94), not a different
+    // shape. A width-relative percentage scales by exactly that same factor, so
+    // every stored zoom frames identically to the day it was set. Nothing to
+    // re-tune.
+    return Math.round(z * 100) + '%';
   },
   _setArtZoom(name, file, kind, zoom) {
     const k = (kind === 'menu') ? 'menu' : 'card';
