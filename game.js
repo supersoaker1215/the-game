@@ -7602,17 +7602,28 @@ const Game = {
     // Invincible / Immunity first (free, before any amount reduction) via the
     // shared classifier; canEvade=false so this only catches those two.
     const preAbsorb = this._classifyAbsorb(card, false);
+    // FX ON THE ABILITY PATH. Every branch below used to log() and return in
+    // silence, while the COMBAT path (applyCombatDamage) emitted for the very
+    // same situations. That asymmetry is why spending a trick on a shielded
+    // enemy produced a screen identical to the one before it — the player
+    // could not tell "blocked" from "did nothing". Same emit, same types.
     if (preAbsorb === 'invincible') {
       this.log(`  [INVINCIBLE] ${card.name} blocks ${amount} damage${source ? ` from ${source.name}` : ''}!`);
+      this.emitDmg(card.id, 0, 'block');
       this._creditAbsorb(card, 'Invincible', amount);
       return;
     }
     if (preAbsorb === 'immunity') {
       this.log(`  [DMG IMMUNE] ${card.name} ignores ${amount} damage${source ? ` from ${source.name}` : ''}!`);
+      this.emitDmg(card.id, 0, 'block');
       this._creditAbsorb(card, 'Invincible', amount);
       return;
     }
-    if (this.is10CostImmune(source, card)) { this.log(`  [IMMUNE] ${card.name} is immune to ${source.name}'s ability!`); return; }
+    if (this.is10CostImmune(source, card)) {
+      this.log(`  [IMMUNE] ${card.name} is immune to ${source.name}'s ability!`);
+      this.emitDmg(card.id, 0, 'block');
+      return;
+    }
     // Yoda shield — allies take half damage (rounded up) while Yoda is active
     if (this.state._yodaShieldFor && this.state._yodaShieldFor[card.owner] > 0) {
       amount = Math.ceil(amount / 2);
@@ -7623,6 +7634,7 @@ const Game = {
     if (this._classifyAbsorb(card, !card.isStunned && !card.isFrozen) === 'evade') {
       card.evadeCharges--;
       this.log(`  [EVADE] ${card.name} dodges ${amount} damage! (${card.evadeCharges} charges left)`);
+      this.emitDmg(card.id, 0, 'evade');
       this._creditAbsorb(card, 'Evade', amount);
       if (card.onEvade) card.onEvade(this, card);
       return;
@@ -7669,9 +7681,25 @@ const Game = {
     const actual = card.armorValue > 0 ? amount - card.armorValue : amount;
     if (card.armorValue > 0 && actual > 0) {
       this.log(`  [ARMOR] ${card.name}'s Armor ${card.armorValue} reduces ${amount} → ${actual}${source ? ` from ${source.name}` : ''}`);
+      // PARTIAL absorb had no cue at all — only the full-absorb branch above
+      // emitted. So a 6-ATK hit landing for 3 looked like the attacker had
+      // simply done less, with no way to know Armor was the reason.
+      this.emitDmg(card.id, 0, 'armor');
       this._creditAbsorb(card, 'Armor', card.armorValue);
     }
     card.currentHealth -= actual;
+    // THE LANDED HIT. This is the one that mattered most: ability, trick,
+    // splash and chain damage all funnel through here (~30 call sites across
+    // abilities.js / tricks.js / game.js) and NONE of it emitted, so roughly a
+    // quarter of all damage in the game arrived with no number, no flash and
+    // no sound — the HP digit just quietly changed. Emitted after the HP write
+    // but BEFORE handleDeath so the float still has a card to attach to, and
+    // `lethal` drives the existing heavy/lethal tier FX in showDamageFloats.
+    if (actual > 0) {
+      this.emitDmg(card.id, actual, 'hit', card.owner,
+                   (source && source.id != null) ? source.id : null,
+                   card.currentHealth <= 0);
+    }
     if (actual > 0) card.statsHpTaken = (card.statsHpTaken || 0) + actual;
     // Track landed damage for the currencyOnDamage passive (e.g. Green Lantern)
     if (source && source.passive === 'currencyOnDamage' && actual > 0) {
@@ -8414,6 +8442,12 @@ const Game = {
     const healed = this.state[owner].health - before;
     if (healed > 0) {
       this.log(`  [HEAL] ${this.seatVerb(owner, 'heal', 'heals')} ${healed} → ${this.state[owner].health}/${maxHP} HP`);
+      // Healing has never emitted anything — the 'heal' type was documented on
+      // emitDmg and the `+N` float branch was written in showDamageFloats, but
+      // no engine path ever raised the event, so both were dead code. Lifesteal
+      // in particular was invisible: HP would tick up mid-combat with no tell.
+      // Mirrors the hpHit convention — null cardId, owner set.
+      this.emitDmg(null, healed, 'heal', owner);
       if (source) {
         // Raw heal — kept for back-compat dashboards.
         this._creditChain(source, 'statsHealingDone', healed);

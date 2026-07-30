@@ -34049,3 +34049,33 @@ body.low-fx .card-portrait {
 .card.hit-flash:not(.card-enter):not(.card-exit) {
   animation: hitFlash var(--flash-ms, 0.3s) ease-out;
 }
+
+/* ============================================================
+   HERO HEAL FEEDBACK — the green mirror of the damage float
+   ============================================================
+   Healing emitted nothing at all until now: the `heal` FX type was documented
+   on Game.emitDmg and the `+N` branch existed in showDamageFloats, but no
+   engine path ever raised the event, so both were dead code. Lifesteal was the
+   worst case — HP crept up mid-combat with no tell whatsoever.
+   Reuses .hp-dmg-float's geometry and timing so a heal reads as the exact
+   counterpart of a hit, only green and offset to the other side so a
+   simultaneous hit and heal don't overlap. */
+.hp-dmg-float.hp-heal-float {
+  color: #7ee8a5;
+  right: auto;
+  left: 10%;
+  text-shadow: 0 0 8px rgba(46,204,113,0.7), 0 2px 4px rgba(0,0,0,0.8);
+}
+/* Bar pulse on heal — counterpart of .hp-flash, which is the damage version. */
+.hp-heal-flash {
+  animation: hpHealFlash 500ms ease-out;
+}
+@keyframes hpHealFlash {
+  0%   { filter: brightness(1); }
+  30%  { filter: brightness(1.9) saturate(1.3); }
+  100% { filter: brightness(1); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .hp-dmg-float.hp-heal-float { animation: none; }
+  .hp-heal-flash { animation: none; }
+}

@@ -7950,6 +7950,26 @@ const UI = {
         }
         continue;
       }
+      // Hero heal — the mirror of hpHit above. Same health-container float,
+      // green and rising, so lifesteal and heal effects are finally legible
+      // instead of the bar quietly growing.
+      if (ev.type === 'heal' && ev.cardId == null) {
+        const hfill = document.getElementById(ev.owner === 'player' ? 'player-hp-fill' : 'ai-hp-fill');
+        const hcontainer = hfill ? hfill.closest('.health-container') : null;
+        if (hcontainer && ev.amount > 0) {
+          hcontainer.style.position = 'relative';
+          const hf = document.createElement('div');
+          hf.className = 'hp-dmg-float hp-heal-float';
+          hf.textContent = `+${ev.amount}`;
+          hcontainer.appendChild(hf);
+          setTimeout(() => hf.remove(), 1200);
+          if (hfill) {
+            hfill.classList.add('hp-heal-flash');
+            setTimeout(() => hfill.classList.remove('hp-heal-flash'), 500);
+          }
+        }
+        continue;
+      }
       // Card-targeted events — find card element on board
       const cardEl = document.querySelector(`[data-card-id="${ev.cardId}"]`);
       if (!cardEl) {
