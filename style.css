@@ -34583,3 +34583,40 @@ body.low-fx .card-portrait {
 .card-drag-ghost .card-portrait {
   background-color: #000;
 }
+
+/* ============================================================
+   NO INNER RING ON THE IN-MATCH TILE
+   ============================================================
+   User, pointing at the black base beside the SPLASH 1 / CRAZY badges: "to the
+   right and left, that is not pure black, that is a green line, thats what im
+   talking about."
+
+   It is the outline at style.css:12666:
+
+     .card { outline: 1px solid color-mix(in srgb, var(--card-edge) 22%, transparent);
+             outline-offset: -5px; }
+
+   A NEGATIVE outline-offset draws the ring INSIDE the element — a 1px rectangle
+   5px in from the card's edge, all four sides, full height. Its own comment
+   calls it "premium depth", and it was: over a textured base and an inset art
+   window it read as a subtle inner bevel.
+
+   Now that the base is genuinely pure #000 it has nothing to blend into, so it
+   is just a coloured rectangle drawn in the black — and because --card-edge is
+   the side/rarity colour it is GREEN on a player card. Its vertical runs pass
+   immediately left and right of the badge row, which is exactly where it was
+   reported.
+
+   This is also why I kept missing it: it is an `outline`, not a border, not a
+   background, not a box-shadow. Every audit I ran walked backgrounds, borders
+   and shadows, so it was never in the results.
+
+   The card keeps its real edge — the 1px border and the tron-perimeter glow are
+   untouched. Tricks keep theirs (.trick-card declares its own purple ring and
+   still uses the text layout this was designed for). */
+.player-hand-section .hand-cards .card,
+.card.ally-card,
+.card.enemy-card,
+.card-drag-ghost {
+  outline: none;
+}
