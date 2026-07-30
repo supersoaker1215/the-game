@@ -4771,16 +4771,49 @@ const UI = {
     document.addEventListener('click', (e) => {
       if (this._suppressNextHandFlip) return;      // the tail of a drag
       if (!this._hasFinePointer()) return;         // touch has tap-to-inspect
-      const cardEl = e.target.closest && e.target.closest('.player-hand-section .hand-cards .card');
-      if (!cardEl) return;
-      this.toggleHandCardFlip(cardEl);
+      const cardEl = e.target.closest && e.target.closest(this.FLIPPABLE_SELECTOR);
+      if (cardEl) { this.toggleHandCardFlip(cardEl); return; }
+      // CLICKED OFF THE CARD. User: "the only way to unclick is to play the card
+      // or leave it backwards — if you click off the card it should deselect and
+      // flip back." Before this the only exits were clicking the same card again,
+      // Esc, or playing it, so a mis-click left a card face-down with no obvious
+      // way back and the board still lit up with its targets.
+      this.dismissHandCardFlip(e);
     });
-    // Esc turns the card back over, matching every other dismissable surface.
+    // Esc does the same thing, matching every other dismissable surface.
     document.addEventListener('keydown', (e) => {
-      if (e.key !== 'Escape' || !this._flippedHandCardId) return;
-      const el = document.querySelector('.player-hand-section .hand-cards .card.face-flipped');
-      if (el) this.toggleHandCardFlip(el);
+      if (e.key === 'Escape') this.dismissHandCardFlip(null);
     });
+  },
+
+  // Every surface that flips. Tricks are in the list because they now carry the
+  // identical treatment — see the .trick-cards block in style.css.
+  FLIPPABLE_SELECTOR: '.player-hand-section .hand-cards .card, .trick-cards .trick-card',
+  // The element carrying the rules text on each of those. Tricks use
+  // .trick-desc rather than .card-desc, which is the only structural
+  // difference between the two surfaces.
+  FLIP_FACE_SELECTOR: '.card-desc, .card-trick-passive, .trick-desc',
+
+  // Turn any flipped card back over, and drop the selection with it.
+  dismissHandCardFlip(e) {
+    const flipped = document.querySelector('.face-flipped');
+    if (flipped) {
+      flipped.classList.remove('face-flipped');
+      this._flippedHandCardId = null;
+    }
+    // Deselect too — the flip and the selection were made by the same click, so
+    // they should end together. EXCEPT when the click landed on a lane: that
+    // click IS the play, and clearing selectedCard here would cancel the very
+    // action the player just took. The lane's own handler runs first (it is on
+    // the element, this listener is on document), but the play can continue
+    // asynchronously through a prompt, so the selection has to survive.
+    const onLane = e && e.target && e.target.closest &&
+      e.target.closest('.lane, .card-slot, .lane-col, [data-lane]');
+    const s = (typeof Game !== 'undefined') && Game.state;
+    if (!onLane && s && s.selectedCard) {
+      s.selectedCard = null;
+      this.render();
+    }
   },
 
   // Which hand card is currently turned over to its rules face. One at a time —
@@ -4799,15 +4832,17 @@ const UI = {
   // branches that can drift apart.
   toggleHandCardFlip(cardEl) {
     if (!cardEl) return false;
-    const face = cardEl.querySelector('.card-desc, .card-trick-passive');
+    const face = cardEl.querySelector(this.FLIP_FACE_SELECTOR);
     // Nothing to turn over. King Shark, Spawn and The Thing are pure
     // stat-lines with no rules text, and flipping them showed a blank black
     // panel where the art had been — strictly worse than leaving the art up.
     if (!face || !(face.textContent || '').trim()) return false;
-    const id = cardEl.dataset.cardId;
+    const id = cardEl.dataset.cardId || cardEl.dataset.trickId;
     const wasFlipped = cardEl.classList.contains('face-flipped');
-    // Any previously flipped card turns back.
-    document.querySelectorAll('.player-hand-section .hand-cards .card.face-flipped')
+    // Any previously flipped surface turns back — matched on the CLASS, not on a
+    // hand-scoped selector, so a flipped trick closes when a card opens and
+    // vice versa. One thing face-up at a time, across both rows.
+    document.querySelectorAll('.face-flipped')
       .forEach(el => el.classList.remove('face-flipped'));
     if (wasFlipped) {
       this._flippedHandCardId = null;
@@ -4820,8 +4855,8 @@ const UI = {
   },
 
   _fitHandCardFace(cardEl) {
-    if (!cardEl || !cardEl.closest('.player-hand-section .hand-cards')) return;
-    const face = cardEl.querySelector('.card-desc, .card-trick-passive');
+    if (!cardEl || !cardEl.closest('.player-hand-section .hand-cards, .trick-cards')) return;
+    const face = cardEl.querySelector(this.FLIP_FACE_SELECTOR);
     if (!face || face.dataset.faceFit) return;
     const STEPS = [8, 7.5, 7, 6.5, 6];
     let fit = STEPS[STEPS.length - 1];

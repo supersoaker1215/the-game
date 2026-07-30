@@ -34644,3 +34644,101 @@ body.low-fx .card-portrait {
 .card-drag-ghost {
   outline: none;
 }
+
+/* ============================================================
+   TRICKS GET THE CARD TREATMENT — same materials, same finish
+   ============================================================
+   User: "can we do to tricks the exact same we did to cards."
+
+   The in-match trick row sits 8px below the hand, so the two rows are on screen
+   together and every difference reads as two different games. Measured before
+   this, trick vs hand card:
+     art inset 8px vs edge-to-edge · frame ring vs none · L-brackets vs none ·
+     gloss sweep vs none · inner outline ring vs none · #111 placeholder vs #000 ·
+     square art corners vs rounded · rules text in flow vs a flip face
+   Everything on the left is exactly what was stripped off the card today.
+
+   Structurally a trick is already almost a card — same .card-portrait at the
+   art's own 0.765, same cost pip, same rarity strip, same .card-name-overlay —
+   so the whole treatment transfers. The one real difference is .trick-desc
+   instead of .card-desc, which is why it needs its own selector below.
+
+   SCOPED TO .trick-cards, the in-match row. The DRAFT trick
+   (.trick-card.draft-card.trick-draft, 220px wide in .draft-choices) is a
+   deliberately different object: it is a big pick-me card that must show its
+   full rules text in flow while you choose. It keeps its own look, exactly as
+   the draft CARD does. */
+.trick-cards .trick-card {
+  /* Sides go, the bottom strip stays for the same reason it does on a card. */
+  padding: 0 0 30px;
+  /* PROPORTION, not a fixed height — the same lesson the cards just taught:
+     trick width is fluid (132px here) and any px height would make the shape
+     drift with the window and overflow the art at wide viewports. Same ratio as
+     a hand card so the two rows are the same object at any size. */
+  aspect-ratio: 92 / 182;
+  height: auto;
+  box-sizing: border-box;
+  outline: none;              /* the 1px inner ring at offset -5px */
+}
+.trick-cards .trick-card::before { background-image: none; }   /* corner brackets */
+.trick-cards .trick-card::after  { background-image: none; }   /* diagonal gloss sweep */
+.trick-cards .trick-card .card-portrait {
+  display: block;
+  width: 100%;
+  height: auto;
+  aspect-ratio: 360 / 472;
+  margin: 0;
+  border-radius: inherit;
+  border-bottom-left-radius: 0;
+  border-bottom-right-radius: 0;
+  /* #111 meeting #000 on the portrait's fractional edge is what draws a
+     hairline on pure black — the same artifact chased down on the cards. */
+  background-color: #000;
+  /* Keep the soft inner vignette, drop the 1px themed frame ring. */
+  box-shadow: inset 0 0 18px 4px rgba(0, 0, 0, 0.55);
+}
+
+/* The rules text becomes a flip face, exactly as it did on cards: absolutely
+   positioned so it can never drive the tile's height, swinging in on rotateY.
+   Click turns it over, click again turns it back; drag still plays it, because
+   the flip listener is bubble-phase and never stops propagation. */
+.trick-cards .trick-card .trick-desc {
+  position: absolute;
+  inset: 0;
+  z-index: 7;
+  margin: 0;
+  display: block;
+  align-content: center;
+  text-align: center;
+  padding: 5px 5px;
+  background: #000;
+  font-size: 8px !important;
+  line-height: 1.25;
+  letter-spacing: 0.1px;
+  overflow: hidden;
+  border-radius: inherit;
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transform: rotateY(90deg);
+  transform-origin: 50% 50%;
+  backface-visibility: hidden;
+}
+.trick-cards .trick-card.face-flipped .trick-desc {
+  visibility: visible;
+  opacity: 1;
+  transform: rotateY(0deg);
+  transition: transform 240ms var(--ease-out-quart), opacity 90ms linear 70ms;
+}
+.trick-cards .trick-card .card-portrait {
+  transition: transform 240ms var(--ease-out-quart), opacity 90ms linear 70ms;
+  backface-visibility: hidden;
+}
+.trick-cards .trick-card.face-flipped .card-portrait {
+  transform: rotateY(-90deg);
+  opacity: 0;
+}
+.trick-cards .trick-card.face-flipped .card-name-overlay { opacity: 0; transition: opacity 90ms linear; }
+@media (prefers-reduced-motion: reduce) {
+  .trick-cards .trick-card .trick-desc { transform: none; transition: opacity 120ms linear; }
+}
