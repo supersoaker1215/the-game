@@ -14852,8 +14852,11 @@ const UI = {
     // 'hit-flash' MOVED OUT to _FX_TRANSIENT_CLASSES — see the note there.
     // It carries the actual hitFlash animation and was being stripped here on
     // every render, which is exactly when a damaged card re-renders.
+    // 'card-enter' MOVED OUT to _FX_TRANSIENT_CLASSES — it is the on-play
+    // entrance animation, and playing a card is guaranteed to trigger a render,
+    // so it was being stripped mid-flight every single time.
     'target-highlight', 'dimmed-by-selection', 'hit-shake',
-    'card-enter', 'card-reveal-flip', 'card-anticipating', 'card-flying',
+    'card-reveal-flip', 'card-anticipating', 'card-flying',
     'is-selected', 'selected', 'jump-ready', 'card-shake-rejected',
     'forecast-target', 'forecast-source'
   ],
@@ -14888,7 +14891,21 @@ const UI = {
     // the safety rule below.
     'hit-flash',
     'hit-flash-heavy', 'hit-flash-lethal',
-    'card-knockback'
+    'card-knockback',
+    // THE ON-PLAY ENTRANCE. User: "the on play animation of the card being
+    // placed onto the board is good, a little janky — can we smooth that out?"
+    // That jank was the same cancellation bug: playing a card ALWAYS triggers a
+    // render (the board just changed), and card-enter sat in
+    // _DECORATION_CLASSES, so the 1.0s build-in was cut a frame or two in and
+    // the card snapped to its final state. card-landing (the 400ms settle dip)
+    // is applied imperatively too, so the diff stripped it for the same reason.
+    // Both self-remove on timers — card-enter at ui.js:6392 / :15539 (1100ms),
+    // card-landing at ui.js:6389 (400ms) — so both satisfy the rule below.
+    // Bonus: the vibe loops are gated on `:not(.card-enter)` specifically to
+    // hold off until the entrance finishes. With card-enter dying early, the
+    // ambient animation was also starting early, on top of a half-played
+    // entrance — a second source of the same visual stutter.
+    'card-enter', 'card-landing'
   ],
 
   // Snapshot of every card-state field that affects the rendered visual.
