@@ -1600,6 +1600,46 @@ test('placement preview matches real combat for a reactive card (Bane rage)', fu
   assertEq(predicted.dies, false, 'Bane does not die here');
 });
 
+// Regression: a FACE-DOWN card is untouchable until it reveals. Invisible
+// Woman's text promises exactly that, and dealDamage / killCard /
+// canEffectLand / combat all honoured it — but four paths did not, so a hidden
+// card could still be weakened, frozen, feared or dragged out of its lane.
+// User: "nothing can interact with a downturned card."
+test('face-down cards cannot be damaged, debuffed, statused or moved', function () {
+  function hidden() {
+    var G = freshGame();
+    var c = place(G, 'Bane', 'ai', 0);
+    c.attack = 3; c.currentHealth = 4; c.maxHealth = 4; c.isFaceDown = true;
+    return { G: G, c: c };
+  }
+  var t;
+  t = hidden(); t.G.dealDamage(t.c, 3, null);
+  assertEq(t.c.currentHealth, 4, 'face-down takes no damage');
+  t = hidden(); t.G.killCard(t.c, null);
+  assert(t.c.currentHealth > 0, 'face-down cannot be destroyed');
+  t = hidden(); t.G.debuffCard(t.c, 1, 1, true, null);
+  assertEq(t.c.attack, 3, 'face-down keeps its ATK');
+  assertEq(t.c.currentHealth, 4, 'face-down keeps its HP');
+  t = hidden(); t.G.freezeCard(t.c, null, 1);
+  assertEq(!!t.c.isFrozen, false, 'face-down cannot be frozen');
+  t = hidden(); t.G.fearCard(t.c, null, 1);
+  assertEq(!!t.c.isFeared, false, 'face-down cannot be feared');
+  t = hidden(); t.G.moveCard(t.c, 0, 3);
+  assertEq(t.G.findCardLane(t.c), 0, 'face-down cannot be relocated');
+  t = hidden();
+  assertEq(t.G.canEffectLand(t.c, 'trick', { owner: 'player' }), false,
+    'no trick can land on a face-down card');
+
+  // ...and once REVEALED it is a normal card again, or the guards would be a
+  // permanent immunity rather than a hidden-state one.
+  t = hidden();
+  t.c.isFaceDown = false;
+  t.G.dealDamage(t.c, 2, null);
+  assert(t.c.currentHealth < 4, 'a revealed card takes damage normally');
+  t.G.freezeCard(t.c, null, 1);
+  assertEq(!!t.c.isFrozen, true, 'a revealed card can be frozen normally');
+});
+
 // ============================================================
 // ---- RUNNER ------------------------------------------------
 // ============================================================

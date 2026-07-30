@@ -7524,6 +7524,14 @@ const Game = {
   // Magneto's aura so low-HP cards like Rocket can't survive -1/-2).
   debuffCard(card, atk, hp, allowKill, source) {
     if (!card) return;
+    // Same face-down rule as dealDamage / killCard. debuffCard does not route
+    // through tryApplyDebuff (auras and direct stat strips call it straight),
+    // so it needs its own guard — a hidden card was taking -1/-1 from Bane,
+    // Nightwing, Bear Trap and the Luke / Magneto auras.
+    if (card.isFaceDown) {
+      this.log(`  [FACE DOWN] A hidden card can't be weakened while face down!`);
+      return;
+    }
     if (this._trickBlocked(card)) return;
     // Invincible / Damage Immunity are DAMAGE shields — they do NOT block stat
     // debuffs. Invincible = damage/destroy shield; Immunity (immunityCharges)
@@ -8178,6 +8186,15 @@ const Game = {
   // Returns true if debuff landed, false if blocked by Immunity.
   tryApplyDebuff(source, target, debuffName, applyFn) {
     if (!target) return false;
+    // FACE-DOWN IS UNTOUCHABLE. Invisible Woman's text promises a hidden card
+    // is immune to everything until it reveals, and dealDamage / killCard /
+    // canEffectLand all honour that — but the STATUS paths did not, so a
+    // face-down card could still be Frozen or Feared. This is the shared gate
+    // for every named debuff, so one check covers all of them.
+    if (target.isFaceDown) {
+      this.log(`  [FACE DOWN] A hidden card can't be affected by ${debuffName} while face down!`);
+      return false;
+    }
     if (this._trickBlocked(target)) return false;
     if (this.is10CostImmune(source, target)) { this.log(`  [IMMUNE] ${target.name} is immune to ${source.name}'s ${debuffName}!`); return false; }
     if (target._doomsdayRevived && (debuffName === 'Stun' || debuffName === 'Freeze')) {
@@ -9077,6 +9094,14 @@ const Game = {
     // moved cards (Bifrost, Ahsoka's swap, Gojo's displace) bypassed the freeze.
     if (this.isActionLocked(card)) {
       this.log(`  [MOVE BLOCKED] ${card.name} is ${this.actionLockLabel(card)} — can't move.`);
+      return;
+    }
+    // A hidden card cannot be relocated either — Gojo, Jigsaw, Darth Vader and
+    // Bifrost could all drag a face-down card out of its lane, which both
+    // breaks the "immune until revealed" promise and leaks information about
+    // where it is. Same rule as dealDamage / killCard / tryApplyDebuff.
+    if (card.isFaceDown) {
+      this.log(`  [FACE DOWN] A hidden card can't be moved while face down!`);
       return;
     }
     this.state.lanes[from][card.owner] = null;
