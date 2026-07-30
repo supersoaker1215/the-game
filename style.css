@@ -34108,13 +34108,18 @@ body.low-fx .card-portrait {
    writing transform every frame. The face is a free surface, and flipping it
    over a stationary card reads the same.
 
-   The orb strip (bottom 30px) is left uncovered so ATK/HP stay readable while
-   you read the text — those are the numbers you are comparing against the
-   board, and losing them mid-hover is exactly when you want them. */
+   The face covers the WHOLE card, orbs included. It first stopped 30px short
+   so the ATK/HP orbs stayed readable, and that was wrong on screen — the black
+   panel ended in a seam just above the numbers instead of reading as the back
+   of the card. User: "i want that pure black on the whole back of the card it
+   stops just abover the damage/health that needs to cover the entire back."
+   Going full-bleed also hands the text those 30px, which is why fewer cards
+   need to step their font down now. */
 .player-hand-section .hand-cards .card .card-desc,
 .player-hand-section .hand-cards .card .card-trick-passive {
   position: absolute;
-  inset: 0 0 30px 0;   /* stop above the orb strip */
+  inset: 0;
+  border-radius: inherit;   /* follow the card's corners, do not square them off */
   z-index: 7;
   margin: 0;
   /* MUST be block flow, not flex. The description is rich text — it contains
@@ -34124,6 +34129,13 @@ body.low-fx .card-portrait {
      Yoda: 250 characters demanded 746px of height inside a 162px box. Block
      flow lets the inline runs sit in the sentence where they belong. */
   display: block;
+  /* Vertical centering WITHOUT display:flex — align-content works on a block
+     container in modern engines, so the text block is centred while its inline
+     runs (<b>, keyword chips) keep laying out as a normal sentence. Flex would
+     centre it too, and would also shatter the sentence into one flex item per
+     inline element. Where align-content is unsupported the text just sits at
+     the top, which is the previous behaviour and perfectly readable. */
+  align-content: center;
   text-align: center;
   padding: 5px 5px;
   background: #000;    /* panel interiors are always pure #000 */
@@ -34139,25 +34151,62 @@ body.low-fx .card-portrait {
   transform-origin: 50% 50%;
   backface-visibility: hidden;
 }
-@media (hover: hover) and (pointer: fine) {
-  .player-hand-section .hand-cards .hand-card-wrapper:hover .card .card-desc,
-  .player-hand-section .hand-cards .hand-card-wrapper:hover .card .card-trick-passive {
-    visibility: visible;
-    opacity: 1;
-    transform: rotateY(0deg);
-    /* Opacity lands at the halfway point of the turn, so the face appears
-       edge-on rather than fading in flat. */
-    transition:
-      transform 240ms var(--ease-out-quart),
-      opacity 90ms linear 70ms;
-  }
+/* THE FLIP IS A CLICK, NOT A HOVER.
+   Hover used to reveal the face automatically, and that was wrong: the cursor
+   crosses the hand constantly, so cards kept turning over on their own and you
+   could never just look at the art. User: "when you hover over a card it
+   shouldnt automatically show the text you have to click in order to flip the
+   card ... so you can still see the art on the front when you magnify".
+   Hover now does nothing but magnify. Click turns the card over, click again
+   turns it back, and dragging still plays it — the drag handler suppresses the
+   click that ends a drag, so pulling a card out never flips it on the way. */
+.player-hand-section .hand-cards .card.face-flipped .card-desc,
+.player-hand-section .hand-cards .card.face-flipped .card-trick-passive {
+  visibility: visible;
+  opacity: 1;
+  transform: rotateY(0deg);
+  /* Opacity lands at the halfway point of the turn, so the face appears
+     edge-on rather than fading in flat. */
+  transition:
+    transform 240ms var(--ease-out-quart),
+    opacity 90ms linear 70ms;
 }
-/* Environments have no ATK/HP orbs, so there is nothing to reserve the bottom
-   strip for — give their face the whole card. Worth 30px, which is most of
-   what the wordiest card in the game (Boiler Room, 384 chars) was missing. */
-.player-hand-section .hand-cards .card.env-card .card-desc,
-.player-hand-section .hand-cards .card.env-card .card-trick-passive {
-  inset: 0;
+/* The turn reads as one object rotating: the art swings out as the text swings
+   in, rather than a black panel simply appearing on top of a static portrait. */
+.player-hand-section .hand-cards .card .card-portrait {
+  transition: transform 240ms var(--ease-out-quart), opacity 90ms linear 70ms;
+  backface-visibility: hidden;
+}
+.player-hand-section .hand-cards .card.face-flipped .card-portrait {
+  transform: rotateY(-90deg);
+  opacity: 0;
+}
+/* A flipped card is showing its rules, so the front chrome should not be
+   half-visible around the edges of the panel. */
+.player-hand-section .hand-cards .card.face-flipped .status-badges,
+.player-hand-section .hand-cards .card.face-flipped .card-name-overlay,
+.player-hand-section .hand-cards .card.face-flipped .card-name-banner {
+  opacity: 0;
+  transition: opacity 90ms linear;
+}
+/* THE FRONT CHROME IS NOT A HOVER TARGET WHILE THE FACE IS UP.
+   The face is pointer-events:none so it never eats a drag, which means the
+   badge strip UNDERNEATH kept receiving the hover and kept firing its keyword
+   tooltip — describing badges the player can no longer see, on top of the card
+   they are trying to read. User: "when i hover over the card the status badges
+   in the front are still being described."
+   Making the covered chrome non-interactive is the fix at the source rather
+   than teaching the tooltip code about this one case, and it settles a second
+   bug for free: the keyword click handler calls stopPropagation, so clicking
+   the badge strip on a hand card used to pin a tooltip INSTEAD of playing the
+   card — an invisible dead zone once the face covered it.
+   Scoped to hover-capable pointers, which is exactly where the face exists.
+   Touch never flips, its badges stay visible, and tap-to-pin still works. */
+@media (hover: hover) and (pointer: fine) {
+  .player-hand-section .hand-cards .card .status-badges,
+  .player-hand-section .hand-cards .card .status-badge {
+    pointer-events: none;
+  }
 }
 /* Motion budget: reduced-motion users get the same face, no rotation. */
 @media (prefers-reduced-motion: reduce) {

@@ -3914,6 +3914,7 @@ const UI = {
     this.installKeywordTooltips();
     this.installKeyboardShortcuts();
     this.installMobileCardDrag();
+    this.installHandCardFlip();
     this.wireUndoButton();
     this.wireRoundSummary();
     this.installParallaxMenu();
@@ -4744,6 +4745,65 @@ const UI = {
   // element, so the measure happens once per card element. visibility:hidden
   // still participates in layout, so the face measures correctly even though
   // it is edge-on and invisible at the time.
+  installHandCardFlip() {
+    if (this._handFlipInstalled) return;
+    this._handFlipInstalled = true;
+    // Bubble phase, not capture: the card's own onclick (select / play / toast)
+    // has to keep working exactly as before. The flip is a READING action laid
+    // alongside it, not a replacement for it — clicking a card still selects it
+    // and still lights up its lanes and targets, it just also turns over so you
+    // can read what you are about to commit to.
+    document.addEventListener('click', (e) => {
+      if (this._suppressNextHandFlip) return;      // the tail of a drag
+      if (!this._hasFinePointer()) return;         // touch has tap-to-inspect
+      const cardEl = e.target.closest && e.target.closest('.player-hand-section .hand-cards .card');
+      if (!cardEl) return;
+      this.toggleHandCardFlip(cardEl);
+    });
+    // Esc turns the card back over, matching every other dismissable surface.
+    document.addEventListener('keydown', (e) => {
+      if (e.key !== 'Escape' || !this._flippedHandCardId) return;
+      const el = document.querySelector('.player-hand-section .hand-cards .card.face-flipped');
+      if (el) this.toggleHandCardFlip(el);
+    });
+  },
+
+  // Which hand card is currently turned over to its rules face. One at a time —
+  // flipping a second card turns the first back, the same way you can only
+  // really read one card at a time anyway.
+  _flippedHandCardId: null,
+
+  // Turn a hand card over (or back). Returns true if the flip state changed.
+  //
+  // Deliberately NOT wired through the per-card el.onclick in the hand
+  // renderer: that handler is assigned in branches (playable / unaffordable /
+  // Batman-blocked / jump-ready / prompt-pending), and several of them replace
+  // it with a toast or a play command. Reading a card must work in every one of
+  // those states — you especially want to read the card you cannot afford — so
+  // this rides a single delegated listener instead of being duplicated into six
+  // branches that can drift apart.
+  toggleHandCardFlip(cardEl) {
+    if (!cardEl) return false;
+    const face = cardEl.querySelector('.card-desc, .card-trick-passive');
+    // Nothing to turn over. King Shark, Spawn and The Thing are pure
+    // stat-lines with no rules text, and flipping them showed a blank black
+    // panel where the art had been — strictly worse than leaving the art up.
+    if (!face || !(face.textContent || '').trim()) return false;
+    const id = cardEl.dataset.cardId;
+    const wasFlipped = cardEl.classList.contains('face-flipped');
+    // Any previously flipped card turns back.
+    document.querySelectorAll('.player-hand-section .hand-cards .card.face-flipped')
+      .forEach(el => el.classList.remove('face-flipped'));
+    if (wasFlipped) {
+      this._flippedHandCardId = null;
+    } else {
+      this._fitHandCardFace(cardEl);   // size the text before it comes into view
+      cardEl.classList.add('face-flipped');
+      this._flippedHandCardId = id;
+    }
+    return true;
+  },
+
   _fitHandCardFace(cardEl) {
     if (!cardEl || !cardEl.closest('.player-hand-section .hand-cards')) return;
     const face = cardEl.querySelector('.card-desc, .card-trick-passive');
@@ -14904,7 +14964,13 @@ const UI = {
     'target-highlight', 'dimmed-by-selection', 'hit-shake',
     'card-reveal-flip', 'card-anticipating', 'card-flying',
     'is-selected', 'selected', 'jump-ready', 'card-shake-rejected',
-    'forecast-target', 'forecast-source'
+    'forecast-target', 'forecast-source',
+    // 'face-flipped' belongs HERE and not in _FX_TRANSIENT_CLASSES: it is not
+    // a self-removing one-shot, it is durable state (UI._flippedHandCardId)
+    // that the hand renderer re-applies from that state every render. Stripping
+    // it on the cached-element reset and re-adding it is exactly the right
+    // lifecycle — the class always agrees with the state.
+    'face-flipped'
   ],
 
   // ONE-SHOT COMBAT FX CLASSES — applied IMPERATIVELY after a render (not by
@@ -17956,6 +18022,16 @@ const UI = {
       // fire after the card's affordability state changed.
       el.onclick = null;
 
+      // Re-apply the turned-over state from UI._flippedHandCardId. Required,
+      // not cosmetic: 'face-flipped' is in _DECORATION_CLASSES, so the cached
+      // hand-card path strips it on every render. Without this the card would
+      // snap back to its art the instant anything else re-rendered the hand
+      // (energy change, opponent play, timer tick) while you were reading it.
+      if (this._flippedHandCardId != null &&
+          String(card.id) === String(this._flippedHandCardId)) {
+        el.classList.add('face-flipped');
+      }
+
       // reqLaneChoice flow: guest card is pending lane placement — lc.previewCard
       // IS this card. Show it as selected so the user sees their pick registered,
       // even though hasPending blocks the normal !hasPending branch below.
@@ -19726,7 +19802,17 @@ const UI = {
       // handler untouched, so only swallow the event when we actually dragged.
       const wasDrag = d.moved;
       endAt(e.clientX, e.clientY);
-      if (wasDrag) { e.preventDefault(); e.stopPropagation(); }
+      if (wasDrag) {
+        e.preventDefault(); e.stopPropagation();
+        // Tell the flip handler to ignore the click this drag is about to
+        // synthesise. Suppressing mouseup is not enough: the browser still
+        // fires a click on the nearest common ancestor of the mousedown and
+        // mouseup targets, so a drag that starts AND ends over the same card
+        // (a pull-out you thought better of) lands a click right on it and
+        // would turn the card over as a parting gift.
+        UI._suppressNextHandFlip = true;
+        setTimeout(() => { UI._suppressNextHandFlip = false; }, 0);
+      }
     }, true);
   },
   // Floating clone of the dragged card that tracks the finger.
