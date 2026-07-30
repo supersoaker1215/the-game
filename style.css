@@ -34323,3 +34323,128 @@ body.low-fx .card-portrait {
 .card-drag-ghost .stat-circle.stat-atk { bottom: 2px; left: 2px; }
 .card-drag-ghost .stat-circle.stat-hp  { bottom: 2px; right: 2px; }
 .card-drag-ghost .rarity-strip { top: 3px; right: 3px; transform: scale(0.6); transform-origin: top right; }
+
+/* ============================================================
+   IN-MATCH CARD TILE — FULL-BLEED ART
+   ============================================================
+   User: "now there is so much more room on the front to make the cards look
+   sleeker and for the art to not clip — what do you suggest for premium TCG
+   feel."
+
+   MEASURED FIRST, because the obvious read was wrong. The art is not uniformly
+   clipped: 67 of 117 cards are cropped 0%, because they are the batch-resized
+   360x472 set whose 0.763 aspect exactly matches the old 94x123 window. The
+   other 50 were never normalised and sit at THIRTY different aspect ratios,
+   from 0.462 to 1.5. That is where the clipping lives:
+     no crop 67 · under 10% 13 · 10-20% 12 · OVER 20% 25
+   Worst: Jack Sparrow and The Batman Who Laughs lose 49% (landscape 1.5 art in
+   a portrait window — half the image discarded), Captain America 40%,
+   Obi-Wan 36%.
+
+   WHY FULL-BLEED WINS DESPITE CROPPING MORE ON PAPER.
+   Going edge-to-edge takes average crop from 8% to 24%, which sounds like a
+   regression and is not. It changes WHICH EDGE gets cut: 35 cards were being
+   cropped top/bottom, and with background-position at 50% 50% that means
+   cutting heads. Full-bleed makes 115 of 117 crop on the SIDES instead, and
+   side-cropping a centred portrait trims background while keeping the subject.
+   It also nearly doubles the art on the card, 11,562px -> 20,952px, and
+   removes the 63px black band that sat under the old window.
+
+   The cards cannot simply get WIDER instead: the hand row is 959px and eight
+   cards at the current 108px already need 920px. Edge-to-edge is the only
+   direction left.
+
+   HAND AND BOARD TOGETHER, deliberately. Measured side by side they are the
+   same object — 108x193/194, padding 6px 6px 30px, portrait 94x123 at radius 0,
+   63-64px of dead space below — so treating only the hand would create a third
+   look in a game that is meant to be uniform. Codex/draft/dead-pile are
+   excluded on purpose: those still render rules text in normal flow, and an
+   absolutely-positioned full-bleed portrait would sit underneath it. */
+.player-hand-section .hand-cards .card,
+.card.ally-card,
+.card.enemy-card,
+/* The drag ghost is a hand-card clone appended to <body>, so it escapes every
+   .player-hand-section-scoped rule and would keep the OLD windowed art while
+   the card it left and the slot it is heading for both went full-bleed. It is
+   listed here for the same reason its text-hiding rules were promoted out of
+   the phone-only block earlier: the ghost has to be the tile it will become,
+   and that only stays true if it is in the selector rather than tracking it. */
+.card-drag-ghost {
+  /* The art is the card now, so nothing needs to be inset from the edge. */
+  padding: 0;
+  /* Required, not cosmetic: the portrait leaving normal flow removes what was
+     giving these cards their height. Fixing it also puts hand and board on the
+     identical box, which is the point. */
+  height: 194px;
+  box-sizing: border-box;
+}
+.player-hand-section .hand-cards .card .card-portrait,
+.card.ally-card .card-portrait,
+.card.enemy-card .card-portrait,
+.card-drag-ghost .card-portrait {
+  position: absolute;
+  inset: 0;
+  width: auto;
+  height: auto;
+  /* Without this the box never actually stretches. The portrait carries
+     aspect-ratio: 360/472 (the old art window's shape), and an aspect-ratio
+     beats inset:0 while height is auto — the box sized itself from its width
+     and came out 106x139 inside a 108x194 card, so "full-bleed" silently was
+     not. Releasing the ratio lets top/bottom do their job. */
+  aspect-ratio: auto;
+  /* Left over from the flow layout, where it separated the art from the badge
+     row. Absolutely positioned it does nothing but hold the art 4px off the
+     bottom edge — which is exactly the seam full-bleed is meant to remove. */
+  margin: 0;
+  /* Square art inside a 5px-rounded card is the classic cheap tell — the
+     portrait was border-radius: 0 while the card was 5px. */
+  border-radius: inherit;
+  /* Faces sit in the upper third of character art, so a 50% 50% crop cuts
+     foreheads on every top/bottom-cropped card. 30% keeps the head. Per-card
+     exceptions belong in CARD_ART_OVERRIDES via the gallery art manager, not
+     in more CSS. */
+  background-position: 50% 30%;
+}
+/* The ghost's width is set inline by the drag code, so it takes the tile's
+   PROPORTIONS rather than the fixed 194px above — same shape at any grab size.
+   The explicit height is still needed: the portrait leaving flow is what would
+   otherwise collapse it. */
+.card-drag-ghost { aspect-ratio: 108 / 194; height: auto; }
+
+/* Chrome floats ON the art. */
+.player-hand-section .hand-cards .card .card-cost,
+.player-hand-section .hand-cards .card .stat-circle,
+.card.ally-card .card-cost,  .card.ally-card .stat-circle,
+.card.enemy-card .card-cost, .card.enemy-card .stat-circle,
+.card-drag-ghost .card-cost, .card-drag-ghost .stat-circle {
+  z-index: 6;
+}
+/* The name keeps its gradient scrim, but the scrim now runs all the way to the
+   bottom edge while the TEXT still sits above the orbs — one continuous darkening
+   at the foot of the card instead of a band with a strip of art below it. */
+.player-hand-section .hand-cards .card .card-name-overlay,
+.card.ally-card .card-name-overlay,
+.card.enemy-card .card-name-overlay,
+.card-drag-ghost .card-name-overlay {
+  bottom: 0;
+  height: auto;
+  padding-bottom: 30px;
+  /* Extends the existing transparent-to-black gradient UP over the badge row
+     as well, so every piece of chrome sits on a darkened base instead of
+     fighting whatever the art happens to be doing behind it. padding rather
+     than height because the box grows upward while the name text stays put. */
+  padding-top: 46px;
+  z-index: 5;
+}
+/* Badges ride just above the name plate, over the art. */
+.player-hand-section .hand-cards .card .status-badges,
+.card.ally-card .status-badges,
+.card.enemy-card .status-badges,
+.card-drag-ghost .status-badges {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 62px;
+  z-index: 6;
+  margin: 0;
+}
