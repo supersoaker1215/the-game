@@ -16651,9 +16651,27 @@ body.theme-purple .board-section {
   transform: translateY(-30px) scale(1.6);
 }
 .hand-card-wrapper:hover .card.hand-card {
-  transform: rotateX(calc(var(--tilt-y, 0) * -6deg))
-             rotateY(calc(var(--tilt-x, 0) * 6deg)) !important;
-  transform-origin: center bottom;
+  /* 6deg -> 9deg to pay for the origin change below. Rotating about the centre
+     halves the lever arm — the furthest point is now 100px from the pivot
+     instead of 200 — so the same angle produced roughly half the travel and the
+     card read as nearly static. Measured at 6deg with a centre pivot: top 1.3px,
+     bottom 2.1px, against 4.8px of top swing before. 9deg puts the whole card
+     back in the same range of visible movement the top alone used to have. */
+  transform: rotateX(calc(var(--tilt-y, 0) * -9deg))
+             rotateY(calc(var(--tilt-x, 0) * 9deg)) !important;
+  /* PIVOT FROM THE MIDDLE, NOT THE BOTTOM EDGE.
+     User: "i want the whole card to move ... not just the top art but also the
+     black part attached to the bottom of the card. i dont just want the top
+     shaking i want the whole card to move."
+     That is exactly what `center bottom` produces, by definition: the bottom
+     edge IS the pivot, so it cannot translate at all, while the top swings the
+     entire arc. The card read as a flap hinged at its base rather than as one
+     object being tilted — and the effect got more obvious once the art went
+     edge-to-edge, because the moving part is now the whole upper card instead
+     of a small inset window.
+     From the centre both halves move, in opposite directions, which is what
+     reads as a solid card turning in the light. */
+  transform-origin: center center;
   /* CRISP-RENDER PATH — diagnosis: previously had `will-change:
      transform` + `backface-visibility: hidden` on the hover state,
      which promote the card to a frozen GPU bitmap that the browser
@@ -16687,7 +16705,12 @@ body.theme-purple .board-section {
      leaves a card. Active hover writes via rAF lerp at higher rate
      so the transition only fires on hover-end. */
   transition: transform 240ms var(--ease-out-soft);
-  transform-origin: center bottom;
+  /* Must MATCH the hover origin above (center center). This is the rest state
+     the tilt snaps back through, so if the two disagree the pivot changes
+     partway through the 240ms transition and the card visibly kicks as it
+     settles. Only the WRAPPER keeps center-bottom, and deliberately — that is
+     the lift+scale, which should still grow upward from the hand baseline. */
+  transform-origin: center center;
   /* `transform-style: preserve-3d` MOVED to the :hover rule above.
      At rest it bought nothing — the inner translateZ layers that need
      a 3D context are all `:hover`-scoped — but it made every idle hand
