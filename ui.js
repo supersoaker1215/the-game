@@ -19580,10 +19580,13 @@ const UI = {
       }
     }, { passive: false });
 
-    const end = (e) => {
+    // Drop resolution, shared by touch and mouse. Takes plain coordinates so
+    // the two input paths differ only in how they read the pointer position;
+    // everything downstream (lane hit-test, trick tray, cancel) is identical.
+    const endAt = (px, py) => {
       if (!d) return;
       const wasDrag = d.moved, card = d.card, trick = d.trick, ghost = d.ghost;
-      const t = e.changedTouches && e.changedTouches[0];
+      const t = (px == null || py == null) ? null : { clientX: px, clientY: py };
       if (ghost) ghost.remove();
       clearHi();
       document.body.classList.remove('mobile-card-dragging');
@@ -19614,6 +19617,10 @@ const UI = {
         this.render();
       }
     };
+    const end = (e) => {
+      const t = e.changedTouches && e.changedTouches[0];
+      endAt(t ? t.clientX : null, t ? t.clientY : null);
+    };
     document.addEventListener('touchend', end, { passive: true });
     document.addEventListener('touchcancel', (e) => {
       if (!d) return;
@@ -19622,6 +19629,72 @@ const UI = {
       document.body.classList.remove('mobile-card-dragging');
       d = null;
     }, { passive: true });
+
+    // ---- MOUSE DRAG (desktop) -------------------------------------------
+    // User: "and then it's drag drop". Touch has had drag-to-play for a while;
+    // this gives the same gesture a mouse, reusing the SAME ghost, lane
+    // hit-test, highlight and drop resolution rather than a parallel
+    // implementation — the only difference is where the coordinates come from.
+    //
+    // CLICK STILL WORKS, by explicit choice: a drag only engages after the
+    // pointer travels DRAG_PX with the button down. Under that, nothing is
+    // consumed and the element's own click handler runs, so select-then-click-
+    // a-lane is untouched. Ryan and the user both already play that way and it
+    // would be rude to retrain them mid-season.
+    //
+    // Bound to mousedown (not pointerdown) so it cannot double-fire alongside
+    // the touch path on a hybrid device, and gated on a real fine pointer so
+    // the synthetic mouse events phones emit after a tap are ignored.
+    const DRAG_PX = 8;
+    document.addEventListener('mousedown', (e) => {
+      if (d || e.button !== 0) return;
+      if (!this._hasFinePointer || !this._hasFinePointer()) return;
+      const s = Game.state;
+      if (!s) return;
+      let hit = null, trickHit = null;
+      if (this.canPlayerPlayCards && this.canPlayerPlayCards(s)) {
+        hit = cardFromEl(e.target);
+        if (hit && hit.card.isDiscardEffect) hit = null;   // discard cards play on click, no lane
+      }
+      if (!hit) trickHit = trickFromEl(e.target);
+      if (!hit && !trickHit) return;
+      d = { card: hit && hit.card, trick: trickHit && trickHit.trick,
+            cardEl: (hit || trickHit).cardEl, x0: e.clientX, y0: e.clientY,
+            moved: false, ghost: null };
+    });
+
+    document.addEventListener('mousemove', (e) => {
+      if (!d || !d.cardEl) return;
+      const dx = e.clientX - d.x0, dy = e.clientY - d.y0;
+      if (!d.moved) {
+        if (Math.hypot(dx, dy) < DRAG_PX) return;   // still a click, not a drag
+        d.moved = true;
+        if (d.card) Game.state.selectedCard = d.card;
+        d.ghost = this._makeCardDragGhost(d.cardEl);
+        document.body.classList.add('mobile-card-dragging');
+      }
+      e.preventDefault();   // stop the drag turning into a text selection
+      if (d.ghost) {
+        const dxi = e.clientX - (d.lastX != null ? d.lastX : e.clientX);
+        d.lastX = e.clientX;
+        d.tilt = Math.max(-16, Math.min(16, (d.tilt || 0) * 0.62 + dxi * 0.9));
+        d.ghost.style.transform = `translate(${e.clientX}px, ${e.clientY}px) translate(-50%, -62%) rotate(${d.tilt.toFixed(1)}deg) scale(1.06)`;
+      }
+      clearHi();
+      if (d.card) {
+        const i = laneIdxUnder(e.clientX, e.clientY);
+        if (i != null) { const l = laneEls()[i]; if (l) l.classList.add('drag-over'); }
+      }
+    });
+
+    document.addEventListener('mouseup', (e) => {
+      if (!d) return;
+      // A drag that never passed the threshold must fall through to the click
+      // handler untouched, so only swallow the event when we actually dragged.
+      const wasDrag = d.moved;
+      endAt(e.clientX, e.clientY);
+      if (wasDrag) { e.preventDefault(); e.stopPropagation(); }
+    }, true);
   },
   // Floating clone of the dragged card that tracks the finger.
   _makeCardDragGhost(cardEl) {
