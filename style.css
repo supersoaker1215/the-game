@@ -29912,11 +29912,22 @@ body.combat-anticipate::after  { content: none !important; }
 .card-portrait .card-name-overlay {
   position: absolute;
   left: 0; right: 0; bottom: 0;
-  /* Dark gradient backdrop so the name reads against any painting */
+  /* Dark gradient backdrop so the name reads against any painting.
+     THE LAST STOP MUST BE FULLY OPAQUE. User, on the magnified card: "you see
+     how you can clearly see the separation point of the art and the card? can
+     we remove that to have it be one pure black just like the back."
+     It ended at 0.92, so the art was still 8% visible at the very bottom of
+     the portrait, and the card below it is pure #000 — that 8%-to-0 step IS
+     the line. It reads as a seam precisely because it is one.
+     At 1 the art dissolves completely by the time it reaches the portrait's
+     edge, so the painting and the black below it are the same black and there
+     is nothing to see. The stop at 88% keeps the ramp gentle instead of
+     slamming to black right under the name. */
   background: linear-gradient(180deg,
     transparent 0%,
     rgba(0, 0, 0, 0.55) 35%,
-    rgba(0, 0, 0, 0.92) 100%);
+    rgba(0, 0, 0, 0.94) 88%,
+    #000 100%);
   color: rgba(255, 255, 255, 0.96);
   font-family: 'Rajdhani', sans-serif;
   font-weight: 700;
