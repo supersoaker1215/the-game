@@ -1559,6 +1559,47 @@ test('move-an-enemy abilities do not prompt when every enemy lane is full', func
   assertEq(movePrompts('Darth Vader', fullBoard), 0, 'Vader must not prompt to move with every enemy lane full');
 });
 
+// Regression: the placement preview must agree with what actually happens,
+// including REACTIVE abilities. User report on Bane (3/4, "While Active: Add
+// (+1/+1) when damaged"): the SIM tooltip read "ENEMY 4 -> 2" when the true
+// result is 4 -> 3, because previewPlacement simulated the PLACEMENT for real
+// but handed COMBAT to the static predictor, which models damage/armor/evade/
+// taunt and knows nothing about on-damaged hooks.
+// It now resolves combat on the clone, so this holds for every reactive card,
+// not just Bane. Asserted against a real resolveCombat() on the same board so
+// the expectation is ground truth rather than a number I chose.
+test('placement preview matches real combat for a reactive card (Bane rage)', function () {
+  function board() {
+    var G = freshGame();
+    G.state.player.isHuman = false; G.state.ai.isHuman = false;
+    G.state.player.currency = 10;
+    var b = place(G, 'Bane', 'ai', 0);
+    b.attack = 3; b.currentHealth = 4; b.maxHealth = 4;
+    var c = G.createCardInstance(cardByName('Gremlin'), 'player');
+    c.attack = 2; c.currentHealth = 2; c.maxHealth = 2; c.cost = 1;
+    G.state.player.hand = [c];
+    return { G: G, bane: b, card: c };
+  }
+  // Ground truth: play it for real and resolve.
+  var t = board();
+  t.G.playCard('player', t.card, 0);
+  t.G.resolveCombat();
+  var real = t.G.state.lanes[0].ai;
+  var trueHp = real ? real.currentHealth : 0;
+  assert(!!real, 'ground truth: Bane should survive this exchange');
+  assert(real.attack > 3, 'ground truth: Bane should have raged (ATK up from 3)');
+
+  // The preview must say the same thing.
+  var p = board();
+  var sim = p.G.previewPlacement('player', p.card.id, 0);
+  assert(!!sim, 'previewPlacement should return a result');
+  var predicted = sim.lanes[0] && sim.lanes[0].ai;
+  assert(!!predicted, 'preview should include the enemy lane');
+  assertEq(predicted.hpAfter, trueHp,
+    'preview hpAfter must equal what real combat produces (Bane rages +1 HP)');
+  assertEq(predicted.dies, false, 'Bane does not die here');
+});
+
 // ============================================================
 // ---- RUNNER ------------------------------------------------
 // ============================================================

@@ -10795,13 +10795,56 @@ const Game = {
       if (!card) throw new Error('hypothetical card not in hand');
       const ok = this.playCard(side, card, laneIdx);
       if (!ok) throw new Error('playCard returned false in sim');
-      // Read out per-lane predictions on the post-play clone state.
-      const lanes = [];
+      // RESOLVE COMBAT FOR REAL ON THE CLONE, rather than statically predicting
+      // it. The placement itself was always simulated properly (playCard above
+      // runs the real onPlay), but the COMBAT half used predictLaneOutcome —
+      // a static model that knows damage, armor, evade and taunt but nothing
+      // about REACTIVE abilities. So any card that changes when it is hit was
+      // forecast wrong.
+      // User report: Bane (3/4, "While Active: Add (+1/+1) when damaged")
+      // previewed as 4 -> 2 when the true result is 4 -> 3, because his rage
+      // was never applied. Measured on that board: old preview hpAfter 1,
+      // real combat 2 (and his ATK 3 -> 4, which the static model also missed).
+      // Running the real resolver fixes Bane and every other on-damaged /
+      // on-death / thorns / splash-chain interaction at once, instead of
+      // teaching the static model one ability at a time.
+      // Safe because: the clone owns its own _rngState (rng() reads
+      // this.state._rngState), so simulating combat cannot disturb the live
+      // seeded stream; UI is stubbed above; and setTimeout fires synchronously
+      // so combat pacing and any auto-resolving prompt collapse inline.
+      // Cost measured on a full 6-lane board: 0.13ms -> 0.73ms per preview.
+      // This runs on hover, not per frame, so sub-1ms is comfortable.
+      const preCombat = new Map();
       for (let i = 0; i < this.LANE_COUNT; i++) {
-        let r = null;
-        try { r = this.predictLaneOutcome(i); } catch (e) { /* swallow */ }
-        lanes.push(r);
+        ['player', 'ai'].forEach(sd => {
+          const c = clone.lanes[i] && clone.lanes[i][sd];
+          if (c && c.currentHealth > 0) preCombat.set(c.id, { hp: c.currentHealth, lane: i, side: sd });
+        });
       }
+      try { this.resolveCombat(); } catch (e) { /* swallow — fall through to read-out */ }
+      // Locate each pre-combat card by ID afterwards: it may have MOVED lane
+      // (Ghost Rider, Gargantua) or left the board entirely (died).
+      const liveById = new Map();
+      for (let i = 0; i < this.LANE_COUNT; i++) {
+        ['player', 'ai'].forEach(sd => {
+          const c = clone.lanes[i] && clone.lanes[i][sd];
+          if (c) liveById.set(String(c.id), c);
+        });
+      }
+      const lanes = [];
+      for (let i = 0; i < this.LANE_COUNT; i++) lanes.push(null);
+      preCombat.forEach((before, id) => {
+        const found = liveById.get(String(id));
+        const hpAfter = found ? (found.currentHealth | 0) : 0;
+        if (!lanes[before.lane]) lanes[before.lane] = { player: null, ai: null };
+        lanes[before.lane][before.side] = {
+          hpAfter,
+          dies: !found || hpAfter <= 0,
+          // Clamped at 0: a card that HEALS or rages through the exchange
+          // (Bane) must not report negative incoming damage.
+          dmgIn: Math.max(0, before.hp - hpAfter),
+        };
+      });
       result = {
         lanes,
         // Surface the post-onPlay lane the card landed in for UI display.
