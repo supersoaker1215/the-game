@@ -34510,3 +34510,41 @@ body.low-fx .card-portrait {
 .card-drag-ghost::before {
   background-image: none;
 }
+
+/* ============================================================
+   THE BASE MUST BE ACTUALLY BLACK — KILL THE SHEEN OVER IT
+   ============================================================
+   User: "you have to be messing with me this is not the same", circling the
+   black area under the art.
+
+   They were right and I had been chasing edges when the problem was a FILL.
+   .card::after paints, across the WHOLE card:
+
+     linear-gradient(125deg, transparent 30%, rgba(255,255,255,0.10) 45%,
+                     rgba(171,226,255,0.18) 50%, rgba(255,255,255,0.10) 55%,
+                     transparent 70%)
+
+   a diagonal gloss sweep. Over the painting it is invisible — it is competing
+   with a photograph. Over the base it is an 18% pale-blue band lying across
+   pure #000, which is roughly rgb(30,40,46) and obvious. So the two halves of
+   the card were made of different material: photo above, tinted gloss below.
+   No amount of work on the art's bottom edge could fix that, because the edge
+   was never what was showing.
+
+   Only the background is dropped. The border and box-shadow on the same
+   pseudo-element are the tron-perimeter glow edge and are untouched, so the
+   card keeps its lit outline.
+
+   NOTE the sibling texture, deliberately left alone: .card-portrait::before
+   carries the CRT scanlines and stops at the art (118px), so it too ends at the
+   boundary. Measured, it does not matter — the lines are rgba(0,200,255,0.043)
+   and by that depth they sit under ~65% of the name scrim, so the step across
+   the boundary is well under 2% and invisible. The sheen was 10x that and
+   unveiled. Removing texture that is not visible would only cost the art its
+   CRT feel, and the CRT toggle owns that layer. */
+.player-hand-section .hand-cards .card::after,
+.card.ally-card::after,
+.card.enemy-card::after,
+.card-drag-ghost::after {
+  background-image: none;
+}
