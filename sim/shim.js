@@ -210,6 +210,48 @@ for (var __i = 0; __i < __SIM_FILES.length; __i++) {
 // `weightsP` / `weightsA` default to `AI.WEIGHTS` if null. Swaps `AI.WEIGHTS` around
 // each seat's turn; all parameterized reads (threatScore, blockFitScore, evalTrick,
 // pickDraftCard, etc.) go through `this.WEIGHTS` so the swap is sufficient.
+// Per-seat weight pointers, set at the top of each runSimGame call.
+var _simWP = null, _simWA = null, _seatDispatchInstalled = false;
+
+// Wrap the AI's own entry points so the weight set is chosen by the OWNER
+// argument rather than by which driver happened to make the call. Every
+// downstream scorer (threatScore, blockFitScore, chooseLane, evalTrick,
+// planDefensiveBlocks) reads AI.WEIGHTS, so setting it at the entry point
+// covers the whole decision tree beneath it.
+//
+// Game.presentDraftChoices needs its own wrapper: the ai seat's draft picks
+// happen INSIDE it (game.js:2616 / :2630 call AI.pickDraftCard/pickDraftTrick
+// on d.aiChoices), so draftBucketDeficitMult / draftStatMult / draftLowBias
+// never reached the ai seat either. Wrapping presentDraftChoices rather than
+// draftPick matters: it is called BOTH from draftPick (game.js:2683/:2703) and
+// once from startMatch (game.js:2344) for the opening deal — that first call is
+// outside draftPick, which left exactly one ai pick per game on default
+// weights (measured: 12 leaked picks across 12 games).
+// The player's pick is always made before this runs, under withP, so scoping
+// the whole call to wA is correct.
+function _installSeatWeightDispatch() {
+  if (_seatDispatchInstalled) return;
+  _seatDispatchInstalled = true;
+  ['playCards', 'playTrickPhaseCards', 'playTricks'].forEach(function (name) {
+    var orig = AI[name];
+    if (typeof orig !== 'function') return;
+    AI[name] = function (owner) {
+      var prev = AI.WEIGHTS;
+      var w = (owner === 'ai') ? _simWA : _simWP;
+      if (w) AI.WEIGHTS = w;
+      try { return orig.apply(this, arguments); } finally { AI.WEIGHTS = prev; }
+    };
+  });
+  var origPresent = Game.presentDraftChoices;
+  if (typeof origPresent === 'function') {
+    Game.presentDraftChoices = function () {
+      var prev = AI.WEIGHTS;
+      if (_simWA) AI.WEIGHTS = _simWA;
+      try { return origPresent.apply(this, arguments); } finally { AI.WEIGHTS = prev; }
+    };
+  }
+}
+
 this.SIM_MAX_ROUNDS = 40;
 this.runSimGame = function (weightsP, weightsA, collect) {
   var savedW = AI.WEIGHTS;
@@ -217,6 +259,29 @@ this.runSimGame = function (weightsP, weightsA, collect) {
   var wA = weightsA || savedW;
   function withP(fn) { AI.WEIGHTS = wP; try { fn(); } finally { AI.WEIGHTS = savedW; } }
   function withA(fn) { AI.WEIGHTS = wA; try { fn(); } finally { AI.WEIGHTS = savedW; } }
+
+  // ---- PER-SEAT WEIGHTS MUST DISPATCH ON OWNER, NOT ON THE CALL SITE ----
+  // withA() below never actually fired. The engine SELF-DRIVES the ai seat:
+  // startPhase1 (game.js:3304) and the endPhase handlers call
+  // AI.playCards('ai') / playTricks('ai') directly, and Game._schedule runs
+  // them synchronously under _syncMode — so the shim's phase loop never
+  // observes an 'ai-*' phase and its `case 'ai-cards'` arms are dead code.
+  // The ai seat therefore ran on the DEFAULT AI.WEIGHTS every game.
+  //
+  // That silently halved sim/tune.js's fitness signal: evalPair's second half
+  // believed it was running champion-vs-challenger but was running
+  // champion-vs-DEFAULT, so those games were entirely challenger-independent.
+  // Measured on a crippled challenger over 200 games, the discriminating
+  // signal |WR-50| went 9.0pp -> 26.0pp once dispatch was fixed — a 2.9x
+  // attenuation. The shipped ai.js WEIGHTS were CEM-tuned through that, which
+  // is why sim/data/tune-log.md shows every generation pinned near 50%.
+  //
+  // Dispatching inside the AI's own entry points covers BOTH drivers (the
+  // shim's player calls and the engine's ai calls) with one mechanism.
+  // Installed once per process; when weights are null both sides resolve to
+  // savedW and this is a provable no-op (BASE-vs-BASE is byte-identical).
+  _simWP = wP; _simWA = wA;
+  _installSeatWeightDispatch();
 
   Game.init();
   // First-class logic/presentation separation: the engine resolves every
