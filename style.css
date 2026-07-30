@@ -34079,3 +34079,39 @@ body.low-fx .card-portrait {
   .hp-dmg-float.hp-heal-float { animation: none; }
   .hp-heal-flash { animation: none; }
 }
+
+/* ============================================================
+   HAND CARDS READ LIKE BOARD CARDS — text on hover only
+   ============================================================
+   User: "can we change the cards in hand to look like the ones on board with
+   no text? and then when you hover it will show the text."
+
+   The phone build has done exactly this for a while (the rule in the <=640px
+   block), and its comment records the payoff: dropping the description takes a
+   hand card from ~276px to ~140px — i.e. board-card height. Desktop kept the
+   tall text face, which is why the hand reads as a different object from the
+   board, and why at 430px three of eight cards sit entirely off-screen.
+
+   So this is the phone treatment promoted to the default, which also makes the
+   two surfaces consistent rather than adding a third look.
+
+   Reading the card is UNCHANGED and deliberately so: the existing hover
+   magnify (translateY(-30px) scale(1.6), style.css ~16661) already lifts the
+   card and shows its text — the interaction the user specifically asked for
+   and liked. This just hides that text at REST. No flip: hover fires constantly
+   as the cursor crosses the hand, so a flip per pass would be noise, and the
+   magnify already answers "what does this card do".
+
+   Hover reveal is gated on a real hover-capable fine pointer. On touch,
+   :hover latches after a tap and would leave a card stuck open — touch keeps
+   its own path (tap = inspect modal, drag = play). */
+.player-hand-section .hand-cards .card .card-desc,
+.player-hand-section .hand-cards .card .card-trick-passive {
+  display: none;
+}
+@media (hover: hover) and (pointer: fine) {
+  .player-hand-section .hand-cards .hand-card-wrapper:hover .card .card-desc,
+  .player-hand-section .hand-cards .hand-card-wrapper:hover .card .card-trick-passive {
+    display: block;
+  }
+}
