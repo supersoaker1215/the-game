@@ -29751,7 +29751,22 @@ body.combat-anticipate::after  { content: none !important; }
   background-color: #111;
   background-image: var(--portrait-bg, linear-gradient(110deg, #111 30%, #1a1a1a 50%, #111 70%));
   background-size: var(--portrait-size, cover), 200% 100%;
-  background-position: var(--portrait-pos, center center), 0% 0%;
+  /* DEFAULT FOCAL SITS ABOVE CENTRE, because heads are above centre.
+     User: "when we zoom in on card in hand the top gets cut off ... thats
+     where the head of some cards is."
+     Nothing is clipping the card — this is the art crop itself. The window is
+     0.763 and 35 cards have art TALLER than that, so cover has to trim top and
+     bottom, and `center center` splits that loss evenly, taking half of it out
+     of the head. Magnifying does not change the crop, it just makes it obvious.
+     30% shifts the window up so the trim comes mostly off the feet.
+     Precisely targeted by construction: for the 67 cards that fit the window
+     exactly and the 15 cropped on the SIDES there is no vertical overflow, so
+     this is a literal no-op; of the 35 affected, 23 already carry a hand-tuned
+     focal that wins over this fallback. It moves exactly 12 cards — Hawkeye and
+     Rocket Raccoon among them — none of which had any tuning at all.
+     Set on the BASE rule, not on the in-match tile, so the tile, the draft card
+     and the codex keep framing identically. */
+  background-position: var(--portrait-pos, center 30%), 0% 0%;
   background-repeat: no-repeat, no-repeat;
   /* PERF: no permanent layer promotion here. Every card portrait carries a
      large background image; forcing each onto its own GPU compositor layer
@@ -34387,22 +34402,13 @@ body.low-fx .card-portrait {
   border-radius: inherit;
   border-bottom-left-radius: 0;
   border-bottom-right-radius: 0;
-  /* MUST stay a var with a fallback, and MUST keep the second layer's own
-     value. A bare `background-position` here broke two things at once:
-
-       1. It overrode --portrait-pos, which is not decoration — it carries 51
-          hand-tuned focal points and 11 zoom entries published in
-          card-art-manifest.js, plus PORTRAIT_POSITION and any local gallery
-          draft. Every one of those crops was silently discarded.
-       2. The portrait paints TWO background layers (art, then a 200% 100%
-          sweep). One position value applies to BOTH, so the sweep lost its
-          0% 0% anchor.
-
-     The fallback stays `center center`, the ORIGINAL default. An earlier pass
-     set it to 50% 30% to save faces from top/bottom cropping — sound reasoning
-     for a box that no longer exists. With the art box back to 0.763, cropping
-     is exactly what it always was, and shifting the default would re-frame the
-     ~66 cards that have no override: the opposite of "like the original
-     crops". Per-card focal belongs in CARD_ART_OVERRIDES via the gallery. */
-  background-position: var(--portrait-pos, center center), 0% 0%;
+  /* NO background-position here on purpose. This rule briefly set one, and a
+     bare value broke two things at once: it overrode --portrait-pos, which
+     carries 51 hand-tuned focal points and 11 zooms published in
+     card-art-manifest.js plus PORTRAIT_POSITION and any local gallery draft;
+     and it collapsed the portrait's TWO background layers (art, then a
+     200% 100% sweep) onto one value, so the sweep lost its 0% 0% anchor.
+     The base .card-portrait rule already states both layers correctly and now
+     carries the focal default too, so the tile inherits it and the tile, draft
+     card and codex cannot drift apart. */
 }
