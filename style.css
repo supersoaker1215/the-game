@@ -34304,14 +34304,30 @@ body.low-fx .card-portrait {
 .player-hand-section .hand-cards .card {
   /* Reserved strip for the corner ATK/HP orbs — mirrors the board rule. */
   padding-bottom: 30px;
-  /* One baseline for the whole row, sized from the measured worst case that is
-     worth fitting: art 139 (full width at the art's own 0.763 ratio) + two
-     badge rows 28 = 167, + the 30px orb strip = 197, + 3px clearance = 200.
-     Was 194 while the art window was 123 tall; going edge-to-edge made the art
-     139, and the extra 16px pushed the badge row onto the ATK/HP orbs on 12
-     cards (Thor, Gojo, Predator, Juggernaut...) by exactly 4px.
+  /* PROPORTION, NOT A FIXED HEIGHT. User: "why do the cards change aspect
+     ratio, that shouldnt happen."
+
+     This was `height: 200px`, and that was wrong the moment it was written: the
+     card's WIDTH is fluid. It has no width rule at all — it is a shrink-to-fit
+     flex item, so its width comes out of the layout and measures 92px in the
+     <=520px container query, 108px at a 836px viewport and 140px at 1400px.
+     Pinning the height to a constant while the width floats means the card's
+     SHAPE changes with the window: measured 0.54 at 836 and 0.70 at 1400.
+
+     It also broke the layout outright, because the art's height derives from
+     the width via aspect-ratio 360/472. At 140px wide the art is 181 tall, so
+     the card needs 181 + 28 badges + 30 orb strip = 239px of content inside a
+     200px box — every card in the hand overflowed, by 26px on a two-badge card
+     and 41px on Galactus, which is the badge spill visible under the card.
+
+     aspect-ratio makes height track width, so the card is the same object at
+     every size. The ratio is set by the SMALLEST width, since the badge strip
+     and orb strip are fixed px and therefore eat the largest share there:
+       92 wide  -> art 120.6 + badges 28 + orbs 30 + 3 clearance = 181.6
+     giving 92/182. Wider cards inherit slack rather than overflow — at 108 the
+     content needs 202 of 213, at 140 it needs 245 of 277.
      Ragged before any of this: 117 / 141 / 154 / 154 / 169 / 213. */
-  height: 200px;
+  aspect-ratio: 92 / 182;
   box-sizing: border-box;
 }
 .player-hand-section .hand-cards .card .status-badges {
