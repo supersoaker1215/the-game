@@ -9165,19 +9165,8 @@ body.turn-combat .board .lane.lane-active {
      reappeared under the finger. Same values as the .board .card compaction
      above. User: "the drag works but its the whole long card not the
      condensed board version." */
-  .card-drag-ghost .card-name-overlay,
-  .card-drag-ghost .card-name-banner,
-  .card-drag-ghost .card-name,
-  .card-drag-ghost .card-desc,
-  .card-drag-ghost .trick-desc,
-  .card-drag-ghost .card-active-text { display: none !important; }
-  .card-drag-ghost .card-abilities.status-badges { font-size: 6px; gap: 1px; flex-wrap: wrap; max-width: 100%; }
-  .card-drag-ghost .status-badge { padding: 1px 2px; font-size: 6px; letter-spacing: 0.1px; max-width: 100%; }
-  .card-drag-ghost .card-cost { width: 18px; height: 18px; font-size: 11px; top: 2px; left: 2px; }
-  .card-drag-ghost .stat-circle { width: 16px; height: 16px; font-size: 10px; }
-  .card-drag-ghost .stat-circle.stat-atk { bottom: 2px; left: 2px; }
-  .card-drag-ghost .stat-circle.stat-hp  { bottom: 2px; right: 2px; }
-  .card-drag-ghost .rarity-strip { top: 3px; right: 3px; transform: scale(0.6); transform-origin: top right; }
+  /* Drag-ghost compaction MOVED OUT of this phone block — see the global
+     rule at the end of the file. It was never phone-specific. */
   /* Info-bar — tighter grid so HP / block / center / energy / dead-
      pile columns each get just enough room without overflowing on a
      ~380px viewport. Old: 120+38+1fr+38+64+padding+gaps = 300+px
@@ -34095,23 +34084,193 @@ body.low-fx .card-portrait {
    So this is the phone treatment promoted to the default, which also makes the
    two surfaces consistent rather than adding a third look.
 
-   Reading the card is UNCHANGED and deliberately so: the existing hover
-   magnify (translateY(-30px) scale(1.6), style.css ~16661) already lifts the
-   card and shows its text — the interaction the user specifically asked for
-   and liked. This just hides that text at REST. No flip: hover fires constantly
-   as the cursor crosses the hand, so a flip per pass would be noise, and the
-   magnify already answers "what does this card do".
-
    Hover reveal is gated on a real hover-capable fine pointer. On touch,
    :hover latches after a tap and would leave a card stuck open — touch keeps
-   its own path (tap = inspect modal, drag = play). */
+   its own path (tap = inspect modal, drag = play).
+
+   THE TEXT IS A FACE, NOT CONTENT — this is the whole trick.
+   The first attempt simply un-hid .card-desc on hover, and it fell apart on
+   screen: a hand card is ~125px wide, so releasing a long description inside it
+   reflowed the card into a 700px ribbon of two-word lines that ran off the
+   bottom of the viewport (Boiler Room, worst case, is ~60 words). Nothing about
+   a fixed card height survives content that can triple it.
+
+   So the description is taken OUT OF FLOW and laid over the card as its back
+   face: position:absolute, so it can never contribute to card height, and the
+   194px row below stays true no matter how wordy the card is. It swings in on
+   rotateY, which is the flip the user asked for — "when you hover press it will
+   flip the card to show the text".
+
+   The rotation is on the FACE, not the card, and that is deliberate: the card's
+   own transform is already owned by the JS hover spring (see the note at
+   ~21567 about the spring driving translate3d), and the wrapper's transform is
+   owned by the tilt parallax. Animating either here would fight code that is
+   writing transform every frame. The face is a free surface, and flipping it
+   over a stationary card reads the same.
+
+   The orb strip (bottom 30px) is left uncovered so ATK/HP stay readable while
+   you read the text — those are the numbers you are comparing against the
+   board, and losing them mid-hover is exactly when you want them. */
 .player-hand-section .hand-cards .card .card-desc,
 .player-hand-section .hand-cards .card .card-trick-passive {
-  display: none;
+  position: absolute;
+  inset: 0 0 30px 0;   /* stop above the orb strip */
+  z-index: 7;
+  margin: 0;
+  /* MUST be block flow, not flex. The description is rich text — it contains
+     <b> runs and <span class="kw"> keyword chips — and under `display: flex`
+     every one of those becomes its own flex item in a row, each squeezed to
+     its minimum content width and wrapped character-by-character. Measured on
+     Yoda: 250 characters demanded 746px of height inside a 162px box. Block
+     flow lets the inline runs sit in the sentence where they belong. */
+  display: block;
+  text-align: center;
+  padding: 5px 5px;
+  background: #000;    /* panel interiors are always pure #000 */
+  font-size: 8px !important;   /* beats the base .card-desc size (9px) */
+  line-height: 1.25;
+  letter-spacing: 0.1px;
+  overflow: hidden;
+  /* Out of sight at rest, and out of the way of clicks/drags. */
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transform: rotateY(90deg);
+  transform-origin: 50% 50%;
+  backface-visibility: hidden;
 }
 @media (hover: hover) and (pointer: fine) {
   .player-hand-section .hand-cards .hand-card-wrapper:hover .card .card-desc,
   .player-hand-section .hand-cards .hand-card-wrapper:hover .card .card-trick-passive {
-    display: block;
+    visibility: visible;
+    opacity: 1;
+    transform: rotateY(0deg);
+    /* Opacity lands at the halfway point of the turn, so the face appears
+       edge-on rather than fading in flat. */
+    transition:
+      transform 240ms var(--ease-out-quart),
+      opacity 90ms linear 70ms;
   }
 }
+/* Environments have no ATK/HP orbs, so there is nothing to reserve the bottom
+   strip for — give their face the whole card. Worth 30px, which is most of
+   what the wordiest card in the game (Boiler Room, 384 chars) was missing. */
+.player-hand-section .hand-cards .card.env-card .card-desc,
+.player-hand-section .hand-cards .card.env-card .card-trick-passive {
+  inset: 0;
+}
+/* Motion budget: reduced-motion users get the same face, no rotation. */
+@media (prefers-reduced-motion: reduce) {
+  .player-hand-section .hand-cards .card .card-desc,
+  .player-hand-section .hand-cards .card .card-trick-passive {
+    transform: none;
+    transition: opacity 120ms linear;
+  }
+}
+
+/* ============================================================
+   HAND CARD SPACING — orb strip + an even row
+   ============================================================
+   Fallout from making hand cards textless. Two things broke, both visible on
+   Thor (Splash 5 + Unresistible):
+
+   1. THE STAT ORBS GOT SAT ON. .stat-circle is absolutely positioned in the
+      bottom corners, and the description used to occupy the space above them.
+      With the text gone the badge block runs straight down into the orbs, so a
+      two-row badge set overlaps the ATK/HP numbers.
+      This is the same problem the BOARD already solved — .card-slot > .card
+      carries `padding-bottom: 30px` as a dedicated orb strip, with a comment
+      about PEACEMAKER reading as EACEMAKE when the orbs sat on the name. The
+      hand needs the identical reservation.
+
+   2. THE ROW WENT RAGGED. Card height is now driven by badge COUNT, measured
+      across a real hand: Boiler Room 117, Gizmo 141, The Thing 154,
+      Spider-Man 154, Thor 169, Galactus 213 — a 96px spread, so the cards no
+      longer sit on a shared baseline.
+      A fixed height puts them back on one. Badges that do not fit are clipped
+      at rest and revealed on hover, which is the same bargain the text already
+      makes: rest is the at-a-glance read, hover is the full card. */
+.player-hand-section .hand-cards .card {
+  /* Reserved strip for the corner ATK/HP orbs — mirrors the board rule. */
+  padding-bottom: 30px;
+  /* One baseline for the whole row, sized from the measured worst case that is
+     worth fitting: portrait bottom 130 + 2px strip margin = strip top 134, two
+     badge rows = 28px, so the strip ends at 162; the ATK/HP orbs sit 28px off
+     the bottom, so 162 + 4px clearance + 28 = 194.
+     Ragged before this: 117 / 141 / 154 / 154 / 169 / 213. */
+  height: 194px;
+  box-sizing: border-box;
+}
+.player-hand-section .hand-cards .card .status-badges {
+  /* Badges live between the portrait and the orb strip: 178 - 30 orbs - 123
+     portrait leaves 25px, so the strip is capped at two rows.
+
+     Sizing it by ROWS rather than clipping horizontally is deliberate. The
+     strip is justify-content: center, so a nowrap + overflow clip would slice
+     the FIRST and LAST badge in half and show two stubs. Wrapping and capping
+     the height keeps every badge that is visible a whole, readable badge, and
+     drops whole rows past the cap.
+
+     The shrink is what makes the cap nearly free. Measured across all 117 card
+     defs at the old size, the strip came out 0 / 13 / 28 / 42 / 72px tall
+     (Anakin Skywalker worst at 5 badges). Sizing the CARD to fit 72px would
+     mean a 225px-tall hand row, which is why the cap exists at all — but a
+     badge two steps smaller re-flows those same badges into far fewer rows, so
+     the cap catches only the heaviest handful instead of a third of the set.
+
+     Re-measured after the shrink, the strip is 0px on 59 cards, one row on 40,
+     two rows on 12, and only 6 need more (Knull at 3 rows; Anakin, Dormammu,
+     Dr. Manhattan, Galactus and Trigon at 5 badges / 4 rows). Capping at two
+     rows therefore shows every badge on 111 of 117 cards, and those last 6 are
+     exactly the legends whose card you were going to hover anyway. */
+  max-height: 28px;
+  overflow: hidden;
+  gap: 1px;
+  font-size: 7px;
+  letter-spacing: 0.1px;
+}
+.player-hand-section .hand-cards .card .status-badge {
+  padding: 1px 3px;
+  font-size: 7px;
+  letter-spacing: 0.1px;
+}
+/* NOTE — the height stays 194px on hover too, and there is deliberately no
+   `height: auto` release here. That release existed while the description was
+   in flow; now that the text is an absolutely-positioned face (see above) it
+   adds nothing, and it would actively hurt: with the desc out of flow the
+   natural height is only ~164px, so releasing would make the card SHRINK the
+   moment you hover it. Same reason the badge clamp is not released — the text
+   face is drawn over the badge strip, so anything revealed underneath is
+   simply not visible. */
+
+/* ============================================================
+   DRAG GHOST = THE BOARD TILE IT WILL BECOME (all screen sizes)
+   ============================================================
+   User, on the new desktop drag: "for the drag there should be no text as it
+   looks weird" — the ghost was dragging the full tall card, description and
+   all.
+
+   These rules already existed and already fixed exactly this, but they were
+   written INSIDE the <=640px block, so only phones got them. The comment there
+   even recorded the same complaint from the mobile era: "the drag works but its
+   the whole long card not the condensed board version." Desktop drag simply
+   inherited the bug the moment mouse drag was added.
+
+   The ghost is a hand-card clone appended to <body>, so it escapes every
+   .player-hand-section-scoped rule — including the textless-hand rule — which
+   is why it needs its own explicit compaction rather than inheriting one.
+   Promoted here verbatim and deleted from the media query, so there is ONE
+   definition instead of two that can drift apart. */
+.card-drag-ghost .card-name-overlay,
+.card-drag-ghost .card-name-banner,
+.card-drag-ghost .card-name,
+.card-drag-ghost .card-desc,
+.card-drag-ghost .trick-desc,
+.card-drag-ghost .card-active-text { display: none !important; }
+.card-drag-ghost .card-abilities.status-badges { font-size: 6px; gap: 1px; flex-wrap: wrap; max-width: 100%; }
+.card-drag-ghost .status-badge { padding: 1px 2px; font-size: 6px; letter-spacing: 0.1px; max-width: 100%; }
+.card-drag-ghost .card-cost { width: 18px; height: 18px; font-size: 11px; top: 2px; left: 2px; }
+.card-drag-ghost .stat-circle { width: 16px; height: 16px; font-size: 10px; }
+.card-drag-ghost .stat-circle.stat-atk { bottom: 2px; left: 2px; }
+.card-drag-ghost .stat-circle.stat-hp  { bottom: 2px; right: 2px; }
+.card-drag-ghost .rarity-strip { top: 3px; right: 3px; transform: scale(0.6); transform-origin: top right; }

@@ -4727,6 +4727,37 @@ const UI = {
   // matches what professional card games (Hearthstone, MTG Arena, Marvel
   // Snap, LoR) all do — readers don't want the preview moving while they're
   // reading it. Compositor-cheap (transform + opacity only).
+  // Shrink-to-fit for the hand card's flip-over text face.
+  //
+  // The face is a fixed box (the card is a fixed 194px so the hand row stays
+  // even), but descriptions are not fixed — they run from 0 to 384
+  // characters. One font size for all of them is a bad trade in both
+  // directions: 8px overflows 15 cards, and the 7px that fits them makes the
+  // other ~100 needlessly small.
+  //
+  // So 8px is the default and only the cards that actually overflow step
+  // down. Measured: 8px clears everything except Boiler Room, Yoda, Iron
+  // Giant and Gojo, and those four land by 7px.
+  //
+  // Cheap by construction: it runs on hover for the ONE card being hovered
+  // (not per render, not for the whole hand), and the result is cached on the
+  // element, so the measure happens once per card element. visibility:hidden
+  // still participates in layout, so the face measures correctly even though
+  // it is edge-on and invisible at the time.
+  _fitHandCardFace(cardEl) {
+    if (!cardEl || !cardEl.closest('.player-hand-section .hand-cards')) return;
+    const face = cardEl.querySelector('.card-desc, .card-trick-passive');
+    if (!face || face.dataset.faceFit) return;
+    const STEPS = [8, 7.5, 7, 6.5, 6];
+    let fit = STEPS[STEPS.length - 1];
+    for (const px of STEPS) {
+      face.style.setProperty('font-size', px + 'px', 'important');
+      if (face.scrollHeight <= face.clientHeight + 1) { fit = px; break; }
+    }
+    face.style.setProperty('font-size', fit + 'px', 'important');
+    face.dataset.faceFit = String(fit);
+  },
+
   installHoverMagnify() {
     // DISABLED 2026-05-18 — the new card-inspect popup (openCardInspect)
     // replaces this Hearthstone-style hover-magnify. User direction:
@@ -4876,6 +4907,8 @@ const UI = {
     document.addEventListener('mouseover', (e) => {
       const el = e.target.closest('.hand-card-wrapper .card, .draft-card, .trick-card');
       if (!el || el === lastEl) return;
+      // Size the hand card's text face before it flips into view.
+      this._fitHandCardFace(el);
       // If a different card was magnified, hide instantly so the next
       // one can take its place — no double-popups.
       if (openEl && openEl !== el && pop.style.display === 'block') hide();
