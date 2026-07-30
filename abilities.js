@@ -315,7 +315,7 @@ const CARD_ABILITIES = {
       // Stun / freeze gates the whole ability. The arrival debuff now lives
       // in onMoved (fired by moveCard), so this callback only handles the
       // flight itself — no explicit debuff here or it would double-sting.
-      if (self.isStunned || self.isFrozen) {
+      if (Game.isActionLocked(self)) {
         G.log(`  [SKIP] ${self.name} is ${self.isStunned ? 'STUNNED' : 'FROZEN'} — stays put.`);
         return;
       }
@@ -346,7 +346,7 @@ const CARD_ABILITIES = {
     _recurringBT: true,
     onBeforeTricks(G, self, lane) {
       // Stun / freeze grounds him — no flutter and no growth this round.
-      if (self.isStunned || self.isFrozen) {
+      if (Game.isActionLocked(self)) {
         G.log(`  [SKIP] ${self.name} is ${self.isStunned ? 'STUNNED' : 'FROZEN'} — stays put.`);
         return;
       }
@@ -413,7 +413,7 @@ const CARD_ABILITIES = {
       // existing onMoved handler picks up the arrival splash. Classic
       // Jango has no movement of his own — this hook is gated.
       if (!self._jangoMoveLikeManBat) return;
-      if (self.isStunned || self.isFrozen) {
+      if (Game.isActionLocked(self)) {
         G.log(`  [SKIP] ${self.name} is ${self.isStunned ? 'STUNNED' : 'FROZEN'} — stays put.`);
         return;
       }
@@ -1090,7 +1090,7 @@ const CARD_ABILITIES = {
       // Stun / freeze blocks the move AND the follow-up splash. Same
       // guard as Man-Bat — moveCard alone isn't enough because the
       // splash fires after the refused move.
-      if (self.isStunned || self.isFrozen) {
+      if (Game.isActionLocked(self)) {
         G.log(`  [SKIP] ${self.name} is ${self.isStunned ? 'STUNNED' : 'FROZEN'} — stays put.`);
         return;
       }
@@ -3352,7 +3352,7 @@ const CARD_ABILITIES = {
     // on the destination's opposite enemy — Omni-Man is already an
     // AOE damage threat on entry; the move is purely repositioning.
     onBeforeTricks(G, self, lane) {
-      if (self.isStunned || self.isFrozen) {
+      if (Game.isActionLocked(self)) {
         G.log(`  [SKIP] ${self.name} is ${self.isStunned ? 'STUNNED' : 'FROZEN'} — stays put.`);
         return;
       }
@@ -3693,7 +3693,7 @@ const CARD_ABILITIES = {
     // picks ONE uncontested enemy lane right before every combat while
     // he's active — that enemy sits the round out.
     onBeforeCombat(G, self, lane) {
-      if (self.isStunned || self.isFrozen || self.currentHealth <= 0) return;
+      if (Game.isActionLocked(self) || self.currentHealth <= 0) return;
       const opp = G.opponent(self.owner);
       const lanes = [];
       for (let i = 0; i < G.LANE_COUNT; i++) {
@@ -3728,7 +3728,7 @@ const CARD_ABILITIES = {
   },
   "Han Solo": {
     onBeforeCombat(G, self, lane) {
-      if (self.isStunned || self.isFrozen) return;
+      if (Game.isActionLocked(self)) return;
       const opp = G.opponent(self.owner);
       const redirectLanes = [];
       for (let i = 0; i < G.LANE_COUNT; i++) {
@@ -4226,7 +4226,7 @@ const CARD_ABILITIES = {
     },
     onBeforeTricks(G, self, lane) {
       if (self.anakinMoved) return;           // fires exactly once per instance
-      if (self.isStunned || self.isFrozen) {
+      if (Game.isActionLocked(self)) {
         G.log(`  [SKIP] ${self.name} is ${self.isStunned ? 'STUNNED' : 'FROZEN'} — stays put.`);
         return;
       }
@@ -4299,7 +4299,7 @@ const CARD_ABILITIES = {
       moveChain(moveCount);
     },
     onAllyKilled(G, self) {
-      if (self.isStunned || self.isFrozen) return;
+      if (Game.isActionLocked(self)) return;
       self.bonusAttack = (typeof self.bonusAttack === 'number' ? self.bonusAttack : 0) + 1;
     }
   },

@@ -3760,8 +3760,8 @@ const Game = {
   _resolveHuntChase(opp, card, laneIdx) {
     this.getAllCardsOf(opp).forEach(c => {
       if (!c.hasHunt) return;
-      if (c.isFrozen || c.isStunned || c.isFeared) {
-        this.log(`[HUNT BLOCKED] ${c.name} is ${c.isFeared ? 'FEARED' : 'FROZEN'} — can't hunt.`);
+      if (this.isActionLocked(c)) {
+        this.log(`[HUNT BLOCKED] ${c.name} is ${this.actionLockLabel(c)} — can't hunt.`);
         return;
       }
       const from = this.findCardLane(c);
@@ -6859,8 +6859,8 @@ const Game = {
     // them acting in normal combat and moving. (Stun merged into Freeze; feared
     // treated as frozen for extra actions per user direction. This also closed a
     // hole where a frozen card could still make queued bonus attacks.)
-    if (c.isFrozen || c.isStunned || c.isFeared) {
-      this.log(`  [BONUS BLOCKED] ${c.name} can't bonus attack (${c.isFeared ? 'FEARED' : 'FROZEN'}).`);
+    if (this.isActionLocked(c)) {
+      this.log(`  [BONUS BLOCKED] ${c.name} can't bonus attack (${this.actionLockLabel(c)}).`);
       c.bonusAttack = false;
       return;
     }
@@ -8346,6 +8346,27 @@ const Game = {
   stunCard(card, source, n) {
     return this.freezeCard(card, source, n);
   },
+
+  // CANONICAL "can this card take an EXTRA action?" predicate.
+  // Extra action = anything beyond its ordinary combat swing: moving, hunting,
+  // bonus attacks, Start-of-Tricks repositioning, redirecting its strike into
+  // another lane, reacting to an ally's death. A feared card is treated as
+  // frozen for all of these (user direction: "feared opponents are frozen ...
+  // they can't bonus attack/move"); a feared card CAN still make its normal
+  // attack, which is why this must not be used to gate ordinary combat.
+  //
+  // This exists because the rule was written out longhand in 12 places and 9 of
+  // them — every ability-side guard — had drifted to `isStunned || isFrozen`
+  // and silently omitted fear. That is how a FEARED Han Solo could still pick a
+  // different lane and shoot into it (user report). One predicate now, so a new
+  // card with an extra-action hook inherits the rule instead of re-deriving it.
+  isActionLocked(card) {
+    return !!(card && (card.isFrozen || card.isStunned || card.isFeared));
+  },
+  // Which status to name in the "blocked" log line.
+  actionLockLabel(card) {
+    return (card && card.isFeared) ? 'FEARED' : 'FROZEN';
+  },
   freezeCard(card, source, n) {
     if (!card) return;
     const turns = Math.max(1, n || 1);
@@ -9055,8 +9076,8 @@ const Game = {
     // feared are too panicked to reposition (user: "feared opponents are frozen
     // ... they can't bonus attack/move"). Previously tricks and abilities that
     // moved cards (Bifrost, Ahsoka's swap, Gojo's displace) bypassed the freeze.
-    if (card.isFrozen || card.isStunned || card.isFeared) {
-      this.log(`  [MOVE BLOCKED] ${card.name} is ${card.isFeared ? 'FEARED' : 'FROZEN'} — can't move.`);
+    if (this.isActionLocked(card)) {
+      this.log(`  [MOVE BLOCKED] ${card.name} is ${this.actionLockLabel(card)} — can't move.`);
       return;
     }
     this.state.lanes[from][card.owner] = null;

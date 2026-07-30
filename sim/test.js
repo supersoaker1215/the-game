@@ -1465,6 +1465,54 @@ test('Knull -> Hela cascade: warriors land first, Knull draws 2 fewer', function
     'claimed two lanes before his loop reached them');
 });
 
+// Regression: a FEARED card must not take EXTRA actions. User report:
+// "han solo was able to strike when he was feared in a different lane that
+// wasn't his own — that shouldn't happen."
+// The engine already gated moving / hunting / bonus attacks on
+// isFrozen || isStunned || isFeared, but every ability-side guard had drifted
+// to `isStunned || isFrozen` and omitted fear — 9 sites. All now route through
+// Game.isActionLocked so the rule has one definition.
+test('feared cards cannot take extra actions (Han Solo redirect + friends)', function () {
+  // Count whether Han is even OFFERED the redirect. Asserting on
+  // pendingLaneChoice does not work here: the sim shim resolves prompts
+  // synchronously, so the slot is armed and cleared before the test can read it
+  // (see the sim-fidelity note — outcome-only assertions silently pass either
+  // way). Counting the promptLaneChoice call is deterministic and is exactly
+  // the guard under test.
+  function offersRedirect(feared) {
+    var G = freshGame();
+    var han = place(G, 'Han Solo', 'player', 0);
+    place(G, 'Bane', 'ai', 1);              // a redirect target in another lane
+    var asked = 0, real = G.promptLaneChoice;
+    G.promptLaneChoice = function () { asked++; return real.apply(G, arguments); };
+    han.isFeared = feared;
+    try { CARD_ABILITIES['Han Solo'].onBeforeCombat(G, han, 0); }
+    finally { G.promptLaneChoice = real; }
+    return asked;
+  }
+  // Control first — if an UNFEARED Han did not offer a shot, the test below
+  // would pass for the wrong reason.
+  assertEq(offersRedirect(false), 1, 'control: an unfeared Han Solo should be offered the redirect');
+  assertEq(offersRedirect(true), 0, 'a FEARED Han Solo must not be offered a shot into another lane');
+
+  var G = freshGame();
+
+  // The predicate itself is the thing every other card now inherits.
+  assertEq(G.isActionLocked({ isFeared: true }), true, 'feared is action-locked');
+  assertEq(G.isActionLocked({ isFrozen: true }), true, 'frozen is action-locked');
+  assertEq(G.isActionLocked({}), false, 'a clean card is not action-locked');
+
+  // Spot-check one of the other 8 that had the same drift.
+  var G2 = freshGame();
+  var mb = place(G2, 'Man-Bat', 'ai', 0);
+  var jug = place(G2, 'Juggernaut', 'player', 3);
+  mb.isFeared = true; mb.beforeTricksFired = false;
+  var hpBefore = jug.currentHealth;
+  G2.runBeforeTricks();
+  assertEq(G2.findCardLane(mb), 0, 'feared Man-Bat should not move');
+  assertEq(jug.currentHealth, hpBefore, 'feared Man-Bat should not debuff');
+});
+
 // ============================================================
 // ---- RUNNER ------------------------------------------------
 // ============================================================

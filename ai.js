@@ -494,7 +494,7 @@ const AI = {
       if (c.trickPhasePlayable) return false;
       return true;
     });
-    const __ord = (this.WEIGHTS && this.WEIGHTS._playOrder) || 'asc'; // EXPERIMENT GATE
+    const __ord = (this.WEIGHTS && this.WEIGHTS._playOrder) || 'desc'; // EXPERIMENT GATE
     if (__ord === 'rand') {
       for (let i = remaining.length - 1; i > 0; i--) {
         const j = Game.rngInt(i + 1);
