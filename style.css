@@ -29920,13 +29920,18 @@ body.combat-anticipate::after  { content: none !important; }
      the portrait, and the card below it is pure #000 — that 8%-to-0 step IS
      the line. It reads as a seam precisely because it is one.
      At 1 the art dissolves completely by the time it reaches the portrait's
-     edge, so the painting and the black below it are the same black and there
-     is nothing to see. The stop at 88% keeps the ramp gentle instead of
-     slamming to black right under the name. */
+     edge, so the painting and the black below it are the same black.
+
+     Opacity alone was not enough, though, and this is the part I got wrong the
+     first time: the scrim was only ~30px tall on a 139px painting, so the whole
+     dissolve was crammed into the last fifth of the art and still read as a
+     band with an edge. The fade needs LENGTH as well as a black endpoint — see
+     the padding-top below, which stretches this same gradient over ~62px. */
   background: linear-gradient(180deg,
     transparent 0%,
-    rgba(0, 0, 0, 0.55) 35%,
-    rgba(0, 0, 0, 0.94) 88%,
+    rgba(0, 0, 0, 0.35) 30%,
+    rgba(0, 0, 0, 0.75) 62%,
+    rgba(0, 0, 0, 0.95) 88%,
     #000 100%);
   color: rgba(255, 255, 255, 0.96);
   font-family: 'Rajdhani', sans-serif;
@@ -29935,7 +29940,15 @@ body.combat-anticipate::after  { content: none !important; }
   letter-spacing: 0.08em;
   text-transform: uppercase;
   text-align: center;
-  padding: 12px 6px 4px;
+  /* The top padding is the FADE LENGTH, not spacing. The box is anchored
+     bottom:0 with no height, so its height is padding-top + one line of text —
+     which means this number is how far up the painting the gradient above gets
+     to dissolve. At the original 12px the scrim was ~30px on a 139px painting
+     and the art still ended on a visible line; at 44px it spans ~62px, a bit
+     under half the art, and the painting sinks into the black instead of
+     stopping against it. The name itself does not move: padding-top grows the
+     box upward, so the text stays its original 4px off the bottom edge. */
+  padding: 44px 6px 4px;
   /* Name strip is the dedicated alt-art picker target. pointer-events
      was `none` originally so the overlay sat purely as a label and
      clicks fell through to the card. With the alt-art feature, this
