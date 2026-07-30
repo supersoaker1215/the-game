@@ -34399,11 +34399,24 @@ body.low-fx .card-portrait {
   /* Square art inside a 5px-rounded card is the classic cheap tell — the
      portrait was border-radius: 0 while the card was 5px. */
   border-radius: inherit;
-  /* Faces sit in the upper third of character art, so a 50% 50% crop cuts
-     foreheads on every top/bottom-cropped card. 30% keeps the head. Per-card
-     exceptions belong in CARD_ART_OVERRIDES via the gallery art manager, not
-     in more CSS. */
-  background-position: 50% 30%;
+  /* MUST stay a var with a fallback, and MUST keep the second layer's own
+     value. Writing a bare `background-position: 50% 30%` here (as this rule
+     first did) broke two things at once:
+
+       1. It overrode --portrait-pos, and that variable is not decoration — it
+          carries 51 hand-tuned focal points and 11 zoom entries published in
+          card-art-manifest.js, plus PORTRAIT_POSITION and any local gallery
+          draft. Every one of those crops was silently discarded.
+       2. The portrait paints TWO background layers (art, then a 200% 100%
+          sweep). One position value is applied to BOTH layers, so the sweep
+          lost its 0% 0% anchor.
+
+     The fallback is where the focal default belongs. It only bites on cards
+     with no override — and note it is nearly a no-op now: full-bleed makes the
+     art overflow HORIZONTALLY on 115 of 117 cards, so the vertical focal only
+     does work on the two that are narrower than the card (Captain America,
+     Obi-Wan) and on anything zoomed past cover. */
+  background-position: var(--portrait-pos, 50% 30%), 0% 0%;
 }
 /* The ghost's width is set inline by the drag code, so it takes the tile's
    PROPORTIONS rather than the fixed 194px above — same shape at any grab size.

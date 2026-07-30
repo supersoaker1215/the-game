@@ -121,7 +121,27 @@ const UI = {
   },
   _artSizeFor(name, file, kind) {   // background-size for a variant's zoom
     const z = this._artZoomFor(name, file, kind);
-    return (Math.abs(z - 1) < 0.001) ? 'cover' : (Math.round(z * 100) + '%');
+    if (Math.abs(z - 1) < 0.001) return 'cover';
+    const pct = Math.round(z * 100);
+    // ZOOM MEANS "x COVER", NOT "% OF THE BOX WIDTH".
+    //
+    // A bare `110%` sizes the art to 110% of the BOX WIDTH with height auto, so
+    // what it actually frames depends on the box's shape. Every card zoom was
+    // tuned against the old 94x123 art window; when the tile went full-bleed to
+    // 108x194 the box got 58% taller and six of the eleven zoomed cards stopped
+    // covering it — Batman, Black Panther, Green Lantern and Padme short by
+    // 38px, Jack Sparrow 36, Darth Maul 21 — which with background-repeat:
+    // no-repeat is a bare gap, not a crop.
+    //
+    // `auto <pct>` sizes by HEIGHT instead. For art wider than the box (115 of
+    // 117 cards at the tile's 0.557) cover IS height:100%, so this reads as a
+    // clean multiple of cover and can never fall short of it. The framing stops
+    // depending on the box's aspect, which is what made a layout change able to
+    // silently break stored art data in the first place.
+    //
+    // Card context only. The menu box did not change, so its stored zooms still
+    // mean what they meant when they were dialled in.
+    return (kind === 'menu') ? (pct + '%') : ('auto ' + pct + '%');
   },
   _setArtZoom(name, file, kind, zoom) {
     const k = (kind === 'menu') ? 'menu' : 'card';
