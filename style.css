@@ -34459,6 +34459,9 @@ body.low-fx .card-portrait {
      carries the focal default too, so the tile inherits it and the tile, draft
      card and codex cannot drift apart. */
 
+  /* (see also the corner-bracket rule below, which clears the thin lines that
+     were left sitting in the black base under the art) */
+
   /* DROP THE PORTRAIT'S 1px FRAME RING — THIS is the "separation point".
      The base rule (~29754, the Tron frame) draws
        inset 0 0 0 1px rgba(var(--portrait-frame-rgb), 0.55)
@@ -34475,4 +34478,35 @@ body.low-fx .card-portrait {
      The inner vignette is kept — it is soft (18px blur), so it has no edge to
      see, and it is what gives the art depth. */
   box-shadow: inset 0 0 18px 4px rgba(0, 0, 0, 0.55);
+}
+
+/* ============================================================
+   NO CORNER BRACKETS ON THE IN-MATCH TILE
+   ============================================================
+   User, after asking how the card is built: "thats why theres a base bottom
+   with thin lines? i want the art to stay exactly where it is, just add black
+   to the bottom to cover the entire card, thats all i want."
+
+   The thin lines are .card::before. It paints EIGHT solid segments of
+   rgba(220,226,234,0.75) — sized 10px x 1px and 1px x 10px, positioned at
+   0%/0%, 100%/0%, 0%/100% and 100%/100% — i.e. an L-shaped bracket at each
+   corner of the card.
+
+   Over the art the top two are lost in the painting. The bottom two land in
+   the black base, and a pair of bright right-angles down there is exactly what
+   makes the base read as a separate panel bolted under the art rather than as
+   the same card continuing. Answering the question directly: the art is a
+   layer covering the top 140px of a 200px card, so everything below it is the
+   card's own body showing through — and these brackets were the only thing
+   drawing in it.
+
+   Dropped for the in-match tile only. The card keeps its glowing edge: that is
+   .card::after, the animated tron-perimeter tube, which is untouched — this
+   removes the corner ticks, not the frame.
+   Every other panel that uses .tron-perimeter keeps its brackets. */
+.player-hand-section .hand-cards .card::before,
+.card.ally-card::before,
+.card.enemy-card::before,
+.card-drag-ghost::before {
+  background-image: none;
 }
