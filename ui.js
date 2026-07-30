@@ -529,6 +529,14 @@ const UI = {
     aiSpeed: 'normal',     // fast | normal | slow
     roundRecap: true,
     tooltips: true,
+    // Attack telegraph — the lines drawn from each enemy card to whatever it
+    // will strike this combat. Genuinely useful while you are learning the
+    // board, and clutter once you are not: user, on a busy round-7 board, "I
+    // don't need the lines telling me where they are attacking, that should be
+    // a toggle on/off." Default ON so nothing changes for anyone who liked it.
+    // Turning it off loses NO information — the per-card incoming-damage badge
+    // and the skull-on-lethal still say exactly what is coming.
+    attackTelegraph: true,
     // Phase 4c — opt-in card stats telemetry. ON by default; a setting
     // lets privacy-conscious users disable it. Stats stay entirely local.
     trackStats: true,
@@ -1037,6 +1045,8 @@ const UI = {
     this.settings.aiSpeed     = g('setting-ai-speed').value;
     this.settings.roundRecap  = g('setting-round-recap').checked;
     this.settings.tooltips    = g('setting-tooltips').checked;
+    const telegraphEl = g('setting-telegraph');
+    if (telegraphEl) this.settings.attackTelegraph = telegraphEl.checked;
     const aiPacingEl = g('setting-ai-pacing');
     if (aiPacingEl) this.settings.aiPacing = aiPacingEl.value;
     const trackStatsEl = g('setting-track-stats');
@@ -1187,6 +1197,9 @@ const UI = {
     g('setting-ai-speed').value   = this.settings.aiSpeed;
     g('setting-round-recap').checked = this.settings.roundRecap;
     g('setting-tooltips').checked   = this.settings.tooltips;
+    const telegraphElLoad = g('setting-telegraph');
+    // Default ON when the key is absent (older saved settings predate it).
+    if (telegraphElLoad) telegraphElLoad.checked = this.settings.attackTelegraph !== false;
     const crtElLoad = g('setting-crt');
     if (crtElLoad) {
       crtElLoad.checked = !!this.settings.crt;
@@ -20400,6 +20413,15 @@ const UI = {
   _renderAttackTelegraph() {
     const s = (typeof Game !== 'undefined') && Game.state;
     let svg = document.getElementById('attack-telegraph');
+    // Player toggle (Settings > Attack lines). `!== false` so settings saved
+    // before this option existed keep the old behaviour. Bailing here also
+    // skips the whole build — 14 getBoundingClientRect reads interleaved with
+    // SVG appends — so turning it off is a frame-time win too, not just a
+    // visual one.
+    if (this.settings && this.settings.attackTelegraph === false) {
+      if (svg) svg.innerHTML = '';
+      return;
+    }
     const planning = s && !s.gameOver
       && /^(player-cards|player-cards-tricks|player-tricks)$/.test(s.phase || '')
       && typeof Game.getAttackTarget === 'function';
