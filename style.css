@@ -34599,9 +34599,13 @@ body.hand-text-always .player-hand-section .hand-cards .card .card-trick-passive
   padding: 3px 6px 4px;
   pointer-events: none;
 }
-/* Let the card grow to fit the in-flow rules (the redesign had capped it to
-   art height because the text was out of flow). */
+/* Let the card grow to fit the in-flow rules. The card carries
+   `aspect-ratio: 92/182`, which pins its height to its WIDTH regardless of
+   content — so with the description back in flow, long cards (Galactus,
+   Anakin) overflowed their own border (user: "the card text leaves the card
+   border"). Dropping the ratio here lets the height track the CONTENT again. */
 body.hand-text-always .player-hand-section .hand-cards .card {
+  aspect-ratio: auto !important;
   height: auto !important;
   min-height: 0 !important;
 }
@@ -35216,6 +35220,9 @@ body.hand-text-always .trick-cards .trick-card .trick-desc {
   pointer-events: none;
 }
 body.hand-text-always .trick-cards .trick-card {
+  /* Drop the artwork aspect-ratio so the trick grows to fit its in-flow rules
+     instead of overflowing its border (same fix as the hand cards above). */
+  aspect-ratio: auto !important;
   height: auto !important;
   min-height: 0 !important;
 }
