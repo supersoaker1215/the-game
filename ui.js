@@ -5025,6 +5025,13 @@ const UI = {
   // really read one card at a time anyway.
   _flippedHandCardId: null,
 
+  // Which hand card is currently in flight under the cursor/finger. Durable for
+  // the length of the drag and cleared by the pointer-release sweep in
+  // _makeCardDragGhost. Exists for the same reason _flippedHandCardId does: the
+  // render diff strips the class, so the ID is the source of truth and the class
+  // is re-derived from it on every render.
+  _draggingCardId: null,
+
   // Turn a hand card over (or back). Returns true if the flip state changed.
   //
   // Deliberately NOT wired through the per-card el.onclick in the hand
@@ -15365,6 +15372,11 @@ const UI = {
     // so it was being stripped mid-flight every single time.
     'target-highlight', 'dimmed-by-selection', 'hit-shake',
     'card-reveal-flip', 'card-anticipating', 'card-flying',
+    // Durable for the length of a drag, re-applied from UI._draggingCardId by
+    // the hand renderer — exactly like 'face-flipped' below. Belongs HERE and
+    // not in _FX_TRANSIENT_CLASSES: it does not self-remove on a timer, it ends
+    // on a pointer-release event.
+    'card-being-dragged',
     'is-selected', 'selected', 'jump-ready', 'card-shake-rejected',
     'forecast-target', 'forecast-source',
     // 'face-flipped' belongs HERE and not in _FX_TRANSIENT_CLASSES: it is not
@@ -18532,6 +18544,15 @@ const UI = {
         el.classList.add('face-flipped');
       }
 
+      // Same deal for the in-flight drag. Starting a drag sets selectedCard,
+      // which renders on the spot, so without this the source card lit straight
+      // back up the moment the ghost left the hand — the gap it is supposed to
+      // leave behind lasted a single frame.
+      if (this._draggingCardId != null &&
+          String(card.id) === String(this._draggingCardId)) {
+        el.classList.add('card-being-dragged');
+      }
+
       // reqLaneChoice flow: guest card is pending lane placement — lc.previewCard
       // IS this card. Show it as selected so the user sees their pick registered,
       // even though hasPending blocks the normal !hasPending branch below.
@@ -20374,13 +20395,30 @@ const UI = {
     // touchcancel, and the early-return when a drop is rejected), and a class
     // that sticks would leave a permanently invisible card in the hand. One
     // idempotent listener on every pointer-release event cannot miss a path.
+    // BACKED BY STATE, not just stamped on the element. Starting a drag sets
+    // Game.state.selectedCard, which renders immediately — and the cached
+    // hand-card path diffs className and strips anything it does not recognise.
+    // 'card-being-dragged' was in neither _DECORATION_CLASSES nor
+    // _FX_TRANSIENT_CLASSES, so it was wiped by that very first render and the
+    // hand card snapped back to full brightness under the cursor while the
+    // ghost was still flying. User: "there is the card on the top left and
+    // where im dragging it its glitching out."
+    // Same shape as UI._flippedHandCardId: the id is the truth, the class is
+    // re-applied from it every render (see the hand renderer), and the class is
+    // listed in _DECORATION_CLASSES so the diff strips-and-restores rather than
+    // fighting it. It must NOT go in _FX_TRANSIENT_CLASSES — that list is only
+    // for provably self-removing one-shots, and a drag ends on an event.
     document.querySelectorAll('.card-being-dragged')
       .forEach(el => el.classList.remove('card-being-dragged'));
     cardEl.classList.add('card-being-dragged');
+    this._draggingCardId = cardEl.dataset.cardId != null ? cardEl.dataset.cardId : null;
     if (!this._dragClassSweepInstalled) {
       this._dragClassSweepInstalled = true;
-      const sweep = () => document.querySelectorAll('.card-being-dragged')
-        .forEach(el => el.classList.remove('card-being-dragged'));
+      const sweep = () => {
+        this._draggingCardId = null;
+        document.querySelectorAll('.card-being-dragged')
+          .forEach(el => el.classList.remove('card-being-dragged'));
+      };
       ['mouseup', 'touchend', 'touchcancel', 'dragend'].forEach(evt =>
         document.addEventListener(evt, sweep, { capture: true, passive: true }));
     }
