@@ -17866,12 +17866,25 @@ const UI = {
           if (HIDE_ONE[m[1]] && num === '1') num = '';
           // Only attach data-kw if KEYWORD_DATA actually has an entry
           // for this kw — keywords without one remain plain text.
-          const hasTip = !!this.KEYWORD_DATA[kw];
+          const kdata = this.KEYWORD_DATA[kw];
+          const hasTip = !!kdata;
           const dataAttr = hasTip ? ` data-kw="${kw}"` : '';
-          return `<span class="status-badge ${cls[kw]}"${dataAttr}>${m[1]}${num ? ' ' + num : ''}</span>`;
+          // Word, number and icon are now SEPARATE elements rather than one text
+          // run. Nothing changes visually by default — .sb-i is display:none
+          // everywhere except the phone board — but it lets that one surface swap
+          // the word for the keyword's icon while KEEPING the number, which is
+          // impossible when "Taunt 99" is a single text node.
+          // The icon is not new art: KEYWORD_DATA already carries an `svg` for
+          // every keyword (it draws the tooltip header), so this is the canonical
+          // source, not a parallel icon table that could drift out of sync.
+          const icon = (kdata && kdata.svg) ? `<i class="sb-i" aria-hidden="true">${kdata.svg}</i>` : '';
+          return `<span class="status-badge ${cls[kw]}${icon ? '' : ' sb-noicon'}"${dataAttr}>`
+            + `${icon}<i class="sb-w">${m[1]}</i>${num ? `<i class="sb-n">${num}</i>` : ''}</span>`;
         }
       }
-      return `<span class="status-badge">${text}</span>`;
+      // No keyword match — plain text, and no icon exists for it. sb-noicon lets
+      // the phone board drop it entirely rather than render an empty chip.
+      return `<span class="status-badge sb-noicon"><i class="sb-w">${text}</i></span>`;
     }).join('');
   },
 
