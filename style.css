@@ -35564,3 +35564,73 @@ body.low-fx .card.status-burning:not(.card-enter):not(.card-exit) {
 /* The tray tile no longer needs room reserved under the art for a text block —
    the text lives on the back now. */
 .choice-tray .choice-card { padding: 0 0 10px; }
+
+/* ============================================================
+   HAND + TRICK BADGES: ICONS, ONE ROW, LEGIBLE
+   ============================================================
+   The 7px badge text was not a style choice, it was a consequence. The strip
+   gets ~28px between the portrait and the orb row, so the font was shrunk two
+   steps specifically to reflow badges into two rows — see the measurement log
+   on `.player-hand-section .hand-cards .card .status-badges` above, which
+   records 0/13/28/42/72px strip heights across all 117 defs and notes that
+   fitting the worst case would demand a 225px-tall hand row. Legibility was
+   knowingly traded away to hold that cap, and 6 cards got sliced anyway.
+   Icons BREAK the trade instead of re-striking it — they are bigger marks that
+   take fewer rows. Measured on real cards at hand size:
+     Predator (3 kw)  words 104px / 1 row   ->  icons  61px / 1 row
+     Knull    (3 kw)  words 155px / 2 rows  ->  icons  61px / 1 row
+     Anakin   (5 kw)  words 202px / 2+ rows ->  icons 110px / 1 row
+   Every card in the set now fits one row, which is what buys the size back.
+   The glyphs are the same KEYWORD_DATA `svg` the tooltip header draws and the
+   board already uses, so this also ends the split where the board spoke in
+   icons and the hand spoke in 7px words.
+   Nothing is lost: the count stays (Armor 2 vs Armor 1 is live combat math),
+   hovering or tapping a badge still names the keyword through its data-kw
+   tooltip, and the card's full rules are one flip away.
+   ============================================================ */
+.player-hand-section .hand-cards .card .status-badges,
+.trick-cards .trick-card .status-badges {
+  /* One row of 11px icons + padding. Was 28px for two rows of 7px text. */
+  max-height: 22px;
+  overflow: hidden;
+  /* 2px, not 3px. The five-keyword legends — Anakin, Dormammu, Dr. Manhattan,
+     Galactus, Trigon — are the whole reason the old cap clipped, and at 3px
+     gaps they still spilled to a second row (measured 141px of badges + gaps
+     against ~136px of usable strip). A pixel off each gap and each side of the
+     padding below brings the worst card in the set to ~127px, so EVERY card
+     now fits the single row this is capped at, which is what makes the cap
+     safe rather than lossy. */
+  gap: 2px;
+  flex-wrap: wrap;
+}
+.player-hand-section .hand-cards .card .status-badge,
+.trick-cards .trick-card .status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 2px 3px;         /* 3px, not 4 — see the gap note above */
+  font-size: 10px;          /* was 7px — this is the readability win */
+  letter-spacing: 0;
+  line-height: 1;
+}
+.player-hand-section .hand-cards .card .status-badge .sb-w,
+.trick-cards .trick-card .status-badge .sb-w { display: none; }
+.player-hand-section .hand-cards .card .status-badge .sb-i,
+.trick-cards .trick-card .status-badge .sb-i {
+  display: inline-flex;
+  width: 11px; height: 11px;
+}
+.player-hand-section .hand-cards .card .status-badge .sb-n,
+.trick-cards .trick-card .status-badge .sb-n {
+  font-size: 10px; font-weight: 700; margin-left: 0;
+}
+/* A keyword with no KEYWORD_DATA entry has no glyph to show, so it KEEPS ITS
+   WORD rather than rendering as an empty chip. Deliberately different from the
+   board, which drops them: at 55px a stray word is noise, but in the hand it is
+   the only way that keyword can be read at all, and there is room for it. */
+.player-hand-section .hand-cards .card .status-badge.sb-noicon .sb-w,
+.trick-cards .trick-card .status-badge.sb-noicon .sb-w {
+  display: inline;
+  font-size: 8px;
+  letter-spacing: 0.1px;
+}
