@@ -84,7 +84,7 @@ const CARD_DEFS = [
   { name: "Gizmo", cost: 2, attack: 1, health: 1, type: "villain",
     abilities: [],
     desc: "When Damaged (once): Summon a (2/2) Gremlin in any open lane. Add Stripe to your hand. Fires even if the hit destroys Gizmo." },
-  { name: "Killer Moth", cost: 2, attack: 1, health: 2, type: "villain",
+  { name: "Killer Moth", cost: 1, attack: 1, health: 2, type: "villain",
     abilities: [],
     desc: "Start of Tricks: Move to a random open lane. If every lane is full, gain (+1/+1) permanently instead." },
   { name: "Gremlin", cost: 2, attack: 2, health: 2, type: "villain",
