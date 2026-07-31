@@ -350,16 +350,26 @@ const CARD_ABILITIES = {
         G.log(`  [SKIP] ${self.name} is ${self.isStunned ? 'STUNNED' : 'FROZEN'} — stays put.`);
         return;
       }
-      // getOpenLanes already excludes his own lane (he occupies it); the
-      // filter is belt-and-suspenders.
-      const open = G.getOpenLanes(self.owner).filter(l => l !== lane);
-      if (open.length) {
+      // "Open" here means EMPTY ON BOTH SIDES — Killer Moth relocates to
+      // unoccupied ground, not into a lane an enemy already holds. User:
+      // "killer moth moved into an occupied lane when he shouldn't." The old
+      // filter used getOpenLanes(self.owner), which only checks the owner's
+      // OWN side, so it let him flutter straight into an enemy-contested lane
+      // (player slot empty, enemy slot full) and pick a fight at random. Now he
+      // only lands where nothing stands on either side.
+      const empty = [];
+      for (let i = 0; i < G.LANE_COUNT; i++) {
+        if (i === lane) continue;
+        const L = G.state.lanes[i];
+        if (L && !L.destroyed && !L.player && !L.ai) empty.push(i);
+      }
+      if (empty.length) {
         // Always random — no player prompt (unlike Man-Bat / Omni-Man, which
         // let the owner choose or stay). Killer Moth relocates on his own.
-        const to = open[Math.floor(Game.rng() * open.length)];
+        const to = empty[Math.floor(Game.rng() * empty.length)];
         G.moveCard(self, lane, to);
       } else {
-        // Every lane on his side is full — nowhere to fly, so he grows.
+        // No empty lane to fly to — nowhere to go, so he grows instead.
         // Permanent self-buff (self-buffs never expire — see CLAUDE.md).
         self.attack = (self.attack || 0) + 1;
         self.maxHealth = (self.maxHealth || 0) + 1;
