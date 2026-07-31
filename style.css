@@ -2,6 +2,26 @@
    CARD LANE BATTLE — Professional TCG Theme
    ============================================================ */
 :root {
+  /* ------------------------------------------------------------------
+     TYPEFACES — one definition each. Point every declaration at these.
+     Before this there were EIGHT different mono stacks across 22
+     declarations, and the two faces they led with never loaded: the page
+     requests only Rajdhani and Inter, there is no @font-face anywhere in
+     the sheet, and neither 'JetBrains Mono' nor 'SF Mono' is a system
+     font (probed both — they fail to resolve even on macOS). So every
+     number on every card — cost, ATK, HP, and the rules body — was
+     typeset by whatever mono the OS happened to supply: Menlo here,
+     Consolas on Windows, Roboto Mono on Android. The tile held up as the
+     house style rendered differently on every device.
+     'Orbitron' was a fourth phantom, one declaration, silently landing on
+     Rajdhani anyway.
+     JetBrains Mono is now actually fetched (index.html), so the numerals
+     are the same everywhere; the fallbacks stay so a failed fetch degrades
+     to exactly today's behaviour rather than to a serif. */
+  --font-display: 'Rajdhani', sans-serif;
+  --font-body:    'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-mono:    'JetBrains Mono', ui-monospace, Menlo, Consolas, monospace;
+
   /* Tron palette — sleek neon cyan used for panel chrome + focus states.
      Kept deliberately narrow: semantic colors (green=player, red=AI,
      gold=energy) are untouched so the UI still reads at a glance. */
@@ -1289,7 +1309,7 @@ body.hit-pause .ai-hand * {
   font-weight: 700; font-size: 20px; min-width: 38px; text-align: center;
   letter-spacing: 0.5px;
   font-variant-numeric: tabular-nums;
-  font-family: 'SF Mono', 'Menlo', 'Consolas', monospace;
+  font-family: var(--font-mono);
   line-height: 1;
 }
 .health-text.player-color {
@@ -2577,7 +2597,7 @@ body.hit-pause .ai-hand * {
 }
 .twov2-mm-back:hover { color: #fff; transform: translateX(-3px); text-shadow: 0 0 10px rgba(var(--theme-rgb,79,195,247),0.8); }
 .twov2-mm-title {
-  font-family: 'Orbitron','Rajdhani',sans-serif; font-weight: 800; margin: 0 0 20px;
+  font-family: var(--font-display); font-weight: 800; margin: 0 0 20px;
   font-size: clamp(28px, 4vw, 54px); letter-spacing: 0.14em; text-transform: uppercase;
   color: var(--text-body, #eaf4fb); text-shadow: 0 0 18px rgba(var(--theme-rgb,79,195,247),0.6);
 }
@@ -5768,7 +5788,7 @@ body.hit-pause .ai-hand * {
     0 1px 0 rgba(0,0,0,0.95),
     0 -0.5px 0 rgba(var(--portrait-frame-rgb, 255,215,0), 0.35),
     0 0 4px rgba(var(--portrait-frame-rgb, 255,215,0), 0.35);
-  font-family: 'JetBrains Mono', 'SF Mono', ui-monospace, Menlo, Consolas, monospace;
+  font-family: var(--font-mono);
   font-variant-numeric: tabular-nums;
 }
 /* Filled well — chamfered-square silhouette via SVG mask (smoother
@@ -6140,7 +6160,7 @@ body.hit-pause .ai-hand * {
     0 1px 0 rgba(0,0,0,0.95),
     0 -0.5px 0 rgba(46,204,113,0.40),
     0 0 4px rgba(46,204,113,0.50);
-  font-family: 'JetBrains Mono', 'SF Mono', ui-monospace, Menlo, Consolas, monospace;
+  font-family: var(--font-mono);
 }
 .stat-atk::before {
   content: '';
@@ -6168,7 +6188,7 @@ body.hit-pause .ai-hand * {
     0 1px 0 rgba(0,0,0,0.95),
     0 -0.5px 0 rgba(231,76,60,0.40),
     0 0 4px rgba(231,76,60,0.50);
-  font-family: 'JetBrains Mono', 'SF Mono', ui-monospace, Menlo, Consolas, monospace;
+  font-family: var(--font-mono);
 }
 .stat-hp::before {
   content: '';
@@ -6226,7 +6246,7 @@ body.hit-pause .ai-hand * {
    (.kw-*) override locally to keep their accent hues — base text is the
    "voice", keywords are the highlights. */
 .card-desc {
-  font-family: 'JetBrains Mono', 'SF Mono', ui-monospace, Menlo, Consolas, monospace;
+  font-family: var(--font-mono);
   font-size: 9px; text-align: center;
   color: rgba(var(--portrait-frame-rgb, 79,195,247), 0.94);
   margin-top: 4px; line-height: 1.42; letter-spacing: 0.15px;
@@ -6257,7 +6277,7 @@ body.hit-pause .ai-hand * {
    a tighter glow so they read as the anchor of each sentence without
    breaking the unified rarity-color voice. */
 .card-desc b {
-  font-family: 'JetBrains Mono', 'SF Mono', ui-monospace, Menlo, Consolas, monospace;
+  font-family: var(--font-mono);
   font-weight: 700;
   letter-spacing: 0.7px;
   /* Bold trigger labels (ON PLAY / PASSIVE / 1ST TRICK PHASE) sit
@@ -6838,7 +6858,7 @@ body.hit-pause .ai-hand * {
   padding: 0 2px;
 }
 .status-badge {
-  font-family: 'JetBrains Mono', 'SF Mono', ui-monospace, Menlo, Consolas, monospace;
+  font-family: var(--font-mono);
   font-size: 8px; font-weight: 700; padding: 0 4px; border-radius: 2px;
   line-height: 1.35; letter-spacing: 0.3px; white-space: nowrap;
   text-transform: uppercase;
@@ -26435,12 +26455,12 @@ button:disabled, button[disabled] {
 .audio-audit-panel .aa-cell-file-name {
   flex: 1; min-width: 0;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-  font-family: ui-monospace, SF Mono, monospace;
+  font-family: var(--font-mono);
   font-size: 11px;
 }
 .audio-audit-panel .aa-cell-maxdur {
   font-size: 10px; color: #7fcf9b; opacity: 0.8;
-  font-family: ui-monospace, SF Mono, monospace;
+  font-family: var(--font-mono);
 }
 .audio-audit-panel .aa-cell-play,
 .audio-audit-panel .aa-cell-splice {
@@ -26501,7 +26521,7 @@ button:disabled, button[disabled] {
 .audio-audit-panel .aa-sys-kind {
   font-size: 9px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase;
   padding: 1px 6px; border-radius: 3px;
-  font-family: ui-monospace, SF Mono, monospace;
+  font-family: var(--font-mono);
 }
 .audio-audit-panel .aa-sys-kind-proc {
   color: #ffce5c;
@@ -26515,7 +26535,7 @@ button:disabled, button[disabled] {
 }
 .audio-audit-panel .aa-sys-src {
   font-size: 10px; color: #7fcf9b; opacity: 0.85;
-  font-family: ui-monospace, SF Mono, monospace;
+  font-family: var(--font-mono);
   margin-top: 2px;
   word-break: break-all;
 }
@@ -26550,7 +26570,7 @@ button:disabled, button[disabled] {
   background: rgba(74,170,255,0.18);
   color: #9cf;
   padding: 1px 6px; border-radius: 3px;
-  font-size: 11px; font-family: ui-monospace, monospace;
+  font-size: 11px; font-family: var(--font-mono);
   margin-left: 4px;
 }
 .aa-splicer-close {
@@ -26561,7 +26581,7 @@ button:disabled, button[disabled] {
 }
 .aa-splicer-close:hover { background: rgba(231,76,60,0.18); color: #fff; border-color: rgba(231,76,60,0.5); }
 .aa-splicer-src {
-  font-family: ui-monospace, monospace; font-size: 11px;
+  font-family: var(--font-mono); font-size: 11px;
   color: #7a9; margin-bottom: 8px;
 }
 .aa-splicer-wave {
@@ -26580,7 +26600,7 @@ button:disabled, button[disabled] {
   background: #0a0f15; color: var(--text-dim, #d8e8ff);
   border: 1px solid rgba(74,170,255,0.35);
   border-radius: 3px; padding: 3px 6px;
-  font-family: ui-monospace, monospace; font-size: 11px;
+  font-family: var(--font-mono); font-size: 11px;
 }
 .aa-splicer-controls button {
   background: rgba(74,170,255,0.15);
@@ -26593,7 +26613,7 @@ button:disabled, button[disabled] {
 .aa-splicer-controls button:hover { background: rgba(74,170,255,0.3); border-color: #4af; }
 .aa-splicer-status {
   margin-top: 8px; font-size: 11px; color: #7a9;
-  font-family: ui-monospace, monospace;
+  font-family: var(--font-mono);
   min-height: 14px;
 }
 
@@ -29928,7 +29948,7 @@ body.combat-anticipate::after  { content: none !important; }
   z-index: 1;
   background: #000;
   padding: 0 4px;
-  font-family: ui-monospace, 'JetBrains Mono', Menlo, monospace;
+  font-family: var(--font-mono);
   font-size: 8px;
   font-weight: 500;
   letter-spacing: 0.18em;
@@ -33631,7 +33651,7 @@ body.low-fx .card-portrait {
 .db-mp-banner-go .db-mp-label { color: #7ce6a0; }
 /* The code itself — big, monospaced, obviously copyable. */
 .db-mp-code {
-  font-family: ui-monospace, Menlo, Consolas, monospace;
+  font-family: var(--font-mono);
   font-size: 22px;
   font-weight: 700;
   letter-spacing: 6px;
