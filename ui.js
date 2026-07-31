@@ -3206,6 +3206,27 @@ const UI = {
       // busiest — kicked off megabytes of hover audio that was then never
       // played. Card hover files average 1.65 MB.
       if (isHover && this._activeNonHover && this._activeNonHover.size > 0) return null;
+      // CONCURRENCY CAP ON SUPPORTING CUES — same reasoning as the hover check
+      // above, and deliberately in the same place: ahead of pool creation, so a
+      // cue we are not going to play never spawns its clones.
+      // A wiped board fires a death cue per casualty, and _activeNonHover had no
+      // ceiling at all. Measured with a 12-card wipe: 12 Audio elements created
+      // in one tick, 6 playing at once. On a phone each of those is a cold fetch
+      // AND a decode landing in the same frame as the deaths themselves, which
+      // is precisely the moment the board is busiest — and twelve overlapping
+      // death sounds are not readable as twelve deaths anyway, they are noise.
+      // So this is a legibility fix as much as a performance one; the user's two
+      // complaints ("lags like crazy" and "impossible to tell what happens") are
+      // the same event seen from two sides.
+      // Only SUPPORTING cues are capped. Marquee audio — a card's voice line,
+      // its play cue, its ability — is never dropped, matching the mixing rule
+      // the category-gain table already encodes: voice ducks SFX, SFX never
+      // ducks voice. Four is the point past which additional simultaneous
+      // effects stop being distinguishable.
+      const _cat = (opts && opts.category) || (isHover ? 'hover' : 'effect');
+      if (!isHover
+          && (_cat === 'effect' || _cat === 'death')
+          && this._activeNonHover.size >= 4) return null;
       let clones = this._samplePool.get(src);
       if (!clones) {
         clones = [];
