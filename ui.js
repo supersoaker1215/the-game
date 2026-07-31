@@ -998,6 +998,9 @@ const UI = {
       return;
     }
     if (hero._artSrc === art) return;   // already showing this card
+    // Remember who is on screen — the in-match avatar falls back to this when
+    // no hero is starred, so your chip shows the face the menu just showed you.
+    this._lastMenuHeroName = name || this._lastMenuHeroName;
     const pre = new Image();
     pre.onload = () => {
       hero._artSrc = art;
@@ -16998,10 +17001,34 @@ const UI = {
     const inDraft = s.phase && String(s.phase).startsWith('draft');
     const isGuest = Game.isMultiplayer && Game.isMultiplayer() && Game.mp && Game.mp.role === 'guest';
     if (!s._avatars && !inDraft && !isGuest) {
-      // Player portrait = a starred menu hero ONLY (no highest-cost fallback).
-      // The opponent has no portrait chooser yet, so it stays glyph-only.
-      const mine = (this.settings && this.settings.defaultMenuHero) || null;
-      s._avatars = { player: mine, ai: null };
+      // YOUR side = the hero you favourited on the menu. That already worked,
+      // but it fell through to a bare glyph whenever nothing was starred —
+      // which is the state a new player is always in, so in practice everyone
+      // saw a triangle. Fall back to the hero the MENU last showed you, so the
+      // chip is your character art either way and the match carries the face
+      // you were just looking at. User: "the icon here should be your menu
+      // character art you have favorited."
+      const mine = (this.settings && this.settings.defaultMenuHero)
+        || this._lastMenuHeroName
+        || (this._pickRandomMenuHeroName && this._pickRandomMenuHeroName())
+        || null;
+
+      // THEIR side = a random character, which it has never had. The comment
+      // here used to read "the opponent has no portrait chooser yet, so it
+      // stays glyph-only" — but the opponent does not need a chooser, it needs
+      // a face. Drawn once per match and stored in _avatars, so it is stable
+      // for the whole match (not re-rolled every render) and rides the MP
+      // broadcast + perspective flip like the player's does.
+      let theirs = null;
+      const pool = (this._menuHeroNames && this._menuHeroNames()) || [];
+      const choices = pool.filter(n => n && n !== mine);
+      if (choices.length) {
+        // Uses the seeded RNG when one is available so a replay picks the same
+        // opponent face it did the first time.
+        const r = (Game.rng ? Game.rng() : Math.random());
+        theirs = choices[Math.floor(r * choices.length) % choices.length];
+      }
+      s._avatars = { player: mine, ai: theirs };
     }
     const glyphFor = (side) => {
       if (side === 'player') return (this.settings && this.settings.playerAvatar) || '▲';
