@@ -3299,9 +3299,42 @@ const UI = {
       // (hover 1000ms, play 500ms; default 130ms for death).
       try {
         pick.volume = 0;
-        if (!isHover) pick.currentTime = 0;
+        // `pick.currentTime = 0` used to sit bare inside this same try. On iOS
+        // Safari, setting currentTime on a media element still in HAVE_NOTHING
+        // (readyState 0) throws InvalidStateError — and the clone pool above is
+        // built LAZILY, so the very first play of any given card's sound is
+        // always in exactly that state. The throw aborted this whole block
+        // before pick.play() was ever reached and the `catch { return null }`
+        // swallowed it, so the cue was silently lost on its first use and
+        // worked every time after. That is the reported symptom: "the when
+        // played audio doesnt fire all the time on mobile."
+        // Rewinding is only meaningful once there IS media to rewind, so skip
+        // it when there is none, and never let it take the play() call down.
+        if (!isHover && pick.readyState > 0) {
+          try { pick.currentTime = 0; } catch (_) {}
+        }
         const p = pick.play();
-        if (p && p.catch) p.catch(() => {});
+        if (p && p.catch) {
+          let retried = false;
+          p.catch(() => {
+            // ONE retry once the element actually has data. iOS rejects play()
+            // with NotAllowedError / AbortError while a pooled element is still
+            // loading or was interrupted mid-load; the previous empty catch
+            // dropped the cue permanently. Self-removing one-shot listener —
+            // no polling, no new timers, nothing that runs on idle.
+            if (retried) return;
+            retried = true;
+            pick.addEventListener('canplay', () => {
+              // Only resume if this cue is still wanted — a card whose sound
+              // was stopped or superseded in the meantime has already been
+              // pulled from the active set by the 'pause'/'ended' handlers
+              // registered just below.
+              const live = isHover ? this._activeHover : this._activeNonHover;
+              if (!live || !live.has(pick) || !pick.paused) return;
+              try { pick.play().catch(() => {}); } catch (_) {}
+            }, { once: true });
+          });
+        }
       } catch (e) { return null; }
       // Track active audio in category-aware sets so the duck logic
       // can operate on the right group. Hover gets its own set
