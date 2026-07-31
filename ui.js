@@ -18421,25 +18421,21 @@ const UI = {
         el.title = reason;
         el.addEventListener('click', () => {
           // Pure-touch: a tap on ANY trick — playable or not — reads it
-          // (inspect), matching cards. The shake/toast is the DRAG-to-play
-          // rejection feedback there; on desktop the click keeps the shake.
+          // (inspect), matching cards.
           if (window.matchMedia && window.matchMedia('(hover: none)').matches) {
             if (this.showCardInspect) this.showCardInspect(el);
             return;
           }
-          el.classList.remove('trick-shake-rejected');
-          void el.offsetWidth;
-          el.classList.add('trick-shake-rejected');
-          setTimeout(() => el && el.classList.remove('trick-shake-rejected'), 480);
-          if (this._haptic) this._haptic('block');
-          if (this.showAITrickToast) {
-            const headline = frozen ? 'Frozen by Time Stone'
-              : trick.reactive ? 'Reaction trick'
-              : noTargets ? 'No valid targets'
-              : !afford ? 'Not enough energy'
-              : 'Not the trick phase';
-            this.showAITrickToast(headline, reason, 'error');
-          }
+          // DESKTOP: nothing. A click is a READ now — it turns the trick over to
+          // show its rules — so the play-rejection shake and toast fired every
+          // time the player flipped one to look at it. User: "the tricks shake
+          // when flipped, lets not do that."
+          // The line this replaces was commented "on desktop the click keeps the
+          // shake", which was true when a click meant "try to play this".
+          // The reason still reaches the player two ways: el.title above on
+          // hover, and the real rejection feedback when a play is actually
+          // ATTEMPTED by dragging — which is the moment it is wanted.
+          // Same fix already applied to hand cards for the identical reason.
         });
       }
       this.playerTricks.appendChild(el);
