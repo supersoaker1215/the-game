@@ -9289,9 +9289,18 @@ body.turn-combat .board .lane.lane-active {
   /* PvZ-style board piece — hide the NAME on the tile (you read a piece by its
      art, like PvZ; the full name is one tap-inspect away). Leaves a clean
      art + cost + stats + keyword-badge tile with more room to breathe. */
-  .board .card .card-name-overlay,
   .board .card .card-name-banner,
   .board .card .card-name { display: none !important; }
+  /* Same trap as the drag ghost — .card-name-overlay is the ART-TO-BLACK SCRIM
+     that happens to also carry the name, not a name label. It was in the hide
+     list above, so every phone board tile had its painting stop on a hard edge
+     against the card body instead of dissolving into it. Hide the text, keep
+     the fade. (Transparent rather than font-size:0 so the box keeps its
+     padding-top PLUS one line of height, which IS the length of the gradient.) */
+  .board .card .card-name-overlay {
+    color: transparent !important;
+    text-shadow: none !important;
+  }
   /* Drag ghost = the board tile it will become. The ghost is a hand-card
      clone appended to <body>, so the .player-hand-section-scoped hide rules
      stop applying — without these mirrors the full "long card" (name, desc)
@@ -34729,12 +34738,32 @@ body.hand-text-always .player-hand-section .hand-cards .card.face-flipped .card-
    is why it needs its own explicit compaction rather than inheriting one.
    Promoted here verbatim and deleted from the media query, so there is ONE
    definition instead of two that can drift apart. */
-.card-drag-ghost .card-name-overlay,
 .card-drag-ghost .card-name-banner,
 .card-drag-ghost .card-name,
 .card-drag-ghost .card-desc,
 .card-drag-ghost .trick-desc,
 .card-drag-ghost .card-active-text { display: none !important; }
+/* .card-name-overlay IS NOT A NAME LABEL — IT IS THE ART-TO-BLACK SCRIM.
+   It used to sit in the hide list above, and that brought back the exact seam
+   the user reported months ago on the magnified card ("you can clearly see the
+   separation point of the art and the card"), this time on the drag ghost:
+   "when you drag a card you see the crisp separation of the art and black, it
+   should be merged like the card in hand."
+   The element carries BOTH jobs — the 180deg gradient that dissolves the
+   painting into #000 (see .card-portrait .card-name-overlay, whose whole
+   comment is about that fade needing LENGTH as well as a black endpoint), and
+   the name text drawn on top of it. Hiding the element to lose the text threw
+   away the fade with it, and the art then ended on a hard edge against the
+   card body.
+   So hide the TEXT and keep the SCRIM. Transparent colour rather than
+   font-size:0 on purpose: the box is anchored bottom:0 with no height, so its
+   height is padding-top PLUS one line — collapsing the line would shorten the
+   gradient by ~13px and quietly weaken the very blend this is protecting.
+   The ghost now dissolves identically to the card it was cloned from. */
+.card-drag-ghost .card-name-overlay {
+  color: transparent !important;
+  text-shadow: none !important;
+}
 .card-drag-ghost .card-abilities.status-badges { font-size: 6px; gap: 1px; flex-wrap: wrap; max-width: 100%; }
 .card-drag-ghost .status-badge { padding: 1px 2px; font-size: 6px; letter-spacing: 0.1px; max-width: 100%; }
 .card-drag-ghost .card-cost { width: 18px; height: 18px; font-size: 11px; top: 2px; left: 2px; }
