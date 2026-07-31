@@ -4987,10 +4987,25 @@ const UI = {
     // action the player just took. The lane's own handler runs first (it is on
     // the element, this listener is on document), but the play can continue
     // asynchronously through a prompt, so the selection has to survive.
-    const onLane = e && e.target && e.target.closest &&
-      e.target.closest('.lane, .card-slot, .lane-col, [data-lane]');
+    // This exemption used to be `.lane, .card-slot, .lane-col, [data-lane]`,
+    // which is almost the entire board — so once a card was selected, most of
+    // the screen could no longer deselect it. Reproduced: click a card, then
+    // click an ENEMY slot, a lane column, or a lane number, and the card stays
+    // highlighted forever with no way back except Esc or the hand background.
+    // User: "i clicked on ant man and he is highlighted now indefinitely."
+    // The play only ever lands on the player's OWN slot — that is where
+    // pSlot.onclick (onLaneClick / laneChoicePick) is wired, and .lane itself
+    // carries no handler at all. So that is the only element whose click can
+    // legitimately be "the play", and the only one that needs protecting.
+    const onPlayTarget = e && e.target && e.target.closest &&
+      e.target.closest('.card-slot.player-slot');
     const s = (typeof Game !== 'undefined') && Game.state;
-    if (!onLane && s && s.selectedCard) {
+    // While a prompt is armed the selection belongs to the PROMPT, not to this
+    // reading gesture — clearing it mid-prompt would cancel a choice the player
+    // is in the middle of making (and enemy-side targeting legitimately clicks
+    // an ai-slot, which is no longer exempt above).
+    const promptArmed = !!(s && (s.pendingCardChoice || s.pendingLaneChoice));
+    if (!onPlayTarget && !promptArmed && s && s.selectedCard) {
       s.selectedCard = null;
       this.render();
     }
