@@ -7221,6 +7221,34 @@ const UI = {
       const el = e.target && e.target.closest && e.target.closest('.board .card[data-card-id]');
       if (el && (!e.relatedTarget || !el.contains(e.relatedTarget))) this._clearCombatForecast();
     });
+    // REDRAW ON SCROLL / RESIZE. The arrows live in #forecast-fx-layer, which is
+    // position:fixed, and they are plotted from getBoundingClientRect() — i.e.
+    // VIEWPORT coordinates. That pairing is correct, but only at the instant it
+    // is drawn: nothing recomputed it afterwards, so scrolling moved the cards
+    // while the arrows stayed nailed to the viewport and ended up pointing at
+    // empty space. User: "when i scroll down the combat preview also scrolls,
+    // thats not right."
+    // Re-plot from fresh rects instead of clearing, so the forecast keeps
+    // tracking the card you are still hovering. Nulling _forecastForId first is
+    // required — _showCombatForecast early-returns when it is already drawn for
+    // that id (same idiom the render path uses at ~6294).
+    const replot = () => {
+      this._forecastRaf = 0;
+      const id = this._forecastForId;
+      if (id == null) return;
+      const el = document.querySelector('.board .card[data-card-id="' + String(id).replace(/"/g, '\\"') + '"]');
+      if (!el) { this._clearCombatForecast(); return; }   // card scrolled out of the DOM
+      this._forecastForId = null;
+      this._showCombatForecast(el);
+    };
+    const schedule = () => {
+      if (this._forecastForId == null || this._forecastRaf) return;
+      this._forecastRaf = requestAnimationFrame(replot);
+    };
+    // Capture + passive: catches scrolling of ANY ancestor container, not just
+    // the window, and never blocks the scroll itself.
+    window.addEventListener('scroll', schedule, { capture: true, passive: true });
+    window.addEventListener('resize', schedule, { passive: true });
   },
   // Run cb(el) with a card's DOM element, deferring one frame if the card
   // was JUST played and isn't painted to .board yet (playCard's normal
@@ -19999,9 +20027,35 @@ const UI = {
     // CSS mirrors the mobile board compaction (name/desc hidden, small orbs).
     const slot = document.querySelector('.board .card-slot');
     const w = slot ? Math.max(48, slot.offsetWidth - 6) : cardEl.offsetWidth;
+    // OPAQUE. This was opacity:0.92, and the ghost floats over the hand and the
+    // board — so 8% of whatever it passed over bled through it, and what you
+    // read through a card is its TEXT. The ghost's own name and description are
+    // correctly display:none, so the text being seen was never the ghost's; it
+    // was the cards underneath. User: "when you drag you can see the text
+    // slightly." A dragged card is a solid object; the drop shadow already
+    // separates it from the board without needing translucency.
     g.style.cssText = `position:fixed; left:0; top:0; z-index:3000; pointer-events:none;
-      width:${w}px; margin:0; opacity:0.92;`;
+      width:${w}px; margin:0; opacity:1;`;
     document.body.appendChild(g);
+    // Mark the card being dragged so the hand shows a gap where it was, rather
+    // than the same card appearing twice — once in the hand and once under the
+    // cursor.
+    //
+    // Cleared by a single document-level sweep rather than in the teardown,
+    // deliberately: the drag has SEVERAL exit paths (mouseup, touchend,
+    // touchcancel, and the early-return when a drop is rejected), and a class
+    // that sticks would leave a permanently invisible card in the hand. One
+    // idempotent listener on every pointer-release event cannot miss a path.
+    document.querySelectorAll('.card-being-dragged')
+      .forEach(el => el.classList.remove('card-being-dragged'));
+    cardEl.classList.add('card-being-dragged');
+    if (!this._dragClassSweepInstalled) {
+      this._dragClassSweepInstalled = true;
+      const sweep = () => document.querySelectorAll('.card-being-dragged')
+        .forEach(el => el.classList.remove('card-being-dragged'));
+      ['mouseup', 'touchend', 'touchcancel', 'dragend'].forEach(evt =>
+        document.addEventListener(evt, sweep, { capture: true, passive: true }));
+    }
     return g;
   },
 

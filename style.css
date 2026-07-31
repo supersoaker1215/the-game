@@ -5084,7 +5084,17 @@ body.hit-pause .ai-hand * {
    and diamond node. Keeps the rarity signal consistent with hand/board cards. */
 .draft-card.cost-0, .draft-card.cost-1,
 .draft-card.cost-2, .draft-card.cost-3 { --card-edge: rgba(46,204,113,0.85); }
-.draft-card.cost-4, .draft-card.cost-5, .draft-card.cost-6 { --card-edge: rgba(var(--theme-rgb, 79,195,247),0.80); }
+/* COST TIER IS GAMEPLAY, NOT CHROME — so it must not be themeable.
+   This tier read `rgba(var(--theme-rgb), 0.80)`, i.e. it borrowed whatever the
+   player had picked as their UI accent. On the SILVER theme --theme-rgb
+   resolves to 220,226,234 while the cost 7-8 tier below is 240,245,250 — a
+   distance of 32 in RGB, which is the same white to the eye. So a cost-5 card
+   (Spider-Man) drew the identical border to a cost-7/8 card and the whole tier
+   ladder collapsed. Reported as "why is the border white for Spider-Man".
+   Pinned to the blue this tier was always meant to be (it was already the
+   fallback in the var), so green/blue/silver/gold stay four distinct steps no
+   matter which theme is selected. */
+.draft-card.cost-4, .draft-card.cost-5, .draft-card.cost-6 { --card-edge: rgba(79,195,247,0.80); }
 .draft-card.cost-7, .draft-card.cost-8 { --card-edge: rgba(240,245,250,0.90); }
 .draft-card.cost-9, .draft-card.cost-10 { --card-edge: rgba(255,215,0,0.95); }
 
@@ -35081,4 +35091,14 @@ body.low-fx .card.status-feared,
 body.low-fx .card.status-mind-ctrl,
 body.low-fx .card.status-burning:not(.card-enter):not(.card-exit) {
   animation: none !important;
+}
+
+/* The card currently under the cursor mid-drag. The ghost IS that card now, so
+   the original should read as lifted out of the hand rather than duplicated —
+   without it you see the same card twice, once in the row and once in flight.
+   Kept as a dim ghost-slot rather than display:none so the hand does not reflow
+   and the other cards stay where the player expects them. */
+.card.card-being-dragged {
+  opacity: 0.22;
+  filter: grayscale(1);
 }
