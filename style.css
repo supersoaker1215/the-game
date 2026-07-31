@@ -7299,15 +7299,15 @@ body.hit-pause .ai-hand * {
   inset: 0;
   pointer-events: none;
   border-radius: inherit;
-  background:
-    linear-gradient(var(--card-edge), var(--card-edge)) top    left   / 10px 1px no-repeat,
-    linear-gradient(var(--card-edge), var(--card-edge)) top    left   / 1px 10px no-repeat,
-    linear-gradient(var(--card-edge), var(--card-edge)) top    right  / 10px 1px no-repeat,
-    linear-gradient(var(--card-edge), var(--card-edge)) top    right  / 1px 10px no-repeat,
-    linear-gradient(var(--card-edge), var(--card-edge)) bottom left   / 10px 1px no-repeat,
-    linear-gradient(var(--card-edge), var(--card-edge)) bottom left   / 1px 10px no-repeat,
-    linear-gradient(var(--card-edge), var(--card-edge)) bottom right  / 10px 1px no-repeat,
-    linear-gradient(var(--card-edge), var(--card-edge)) bottom right  / 1px 10px no-repeat;
+  /* CORNER BRACKETS REMOVED AT THE SOURCE. Eight solid segments — 10x1 and
+     1x10 at each of the four corners — drew an L-shaped tick on every card.
+     Over the art the top two vanish into the painting; the bottom two sit in
+     the black base, and a pair of bright right-angles down there is what made
+     the base read as a separate panel bolted under the art rather than the
+     same card continuing. Removed tile-scoped first; moved here so every
+     surface matches. The rule is kept, not deleted — it still supplies the
+     positioning and stacking context other rules layer onto. */
+  background: none;
   z-index: 2;
 }
 
@@ -12679,8 +12679,15 @@ body.in-match .cheat-help-toggle { display: flex; }
    tracks rarity in hand and side color on the board.
    ============================================================ */
 .card {
-  outline: 1px solid color-mix(in srgb, var(--card-edge) 22%, transparent);
-  outline-offset: -5px;
+  /* INNER RING REMOVED AT THE SOURCE. This drew a 1px rectangle 5px inside the
+     card (negative outline-offset), on every card on every surface. It read as
+     an inner bevel over the old textured base; against the pure #000 base it is
+     a coloured rectangle sitting in the black, and --card-edge is the side
+     colour, so it showed up green on player cards. Reported as "that is a green
+     line" beside the badges.
+     It was first removed in a tile-scoped override; moved here so the codex,
+     draft, deck-builder and every modal lose it too. */
+  outline: none;
 }
 /* Rarity/side gradient wash — hand, ally, enemy variants each declare
    background: #000 shorthand upstream, which resets background-image.
@@ -29786,8 +29793,14 @@ body.combat-anticipate::after  { content: none !important; }
      The dark fallback color + shimmer gradient are the loading state —
      visible on iOS/iPad when the image hasn't cached yet so the portrait
      area never flashes as a plain black void while the fetch is in flight. */
-  background-color: #111;
-  background-image: var(--portrait-bg, linear-gradient(110deg, #111 30%, #1a1a1a 50%, #111 70%));
+  /* #000, NOT #111. The placeholder is only ever visible at the portrait's own
+     edge (the art covers it), and the portrait's height comes from aspect-ratio
+     so that edge lands on a FRACTIONAL pixel. A #111 box meeting the card's
+     #000 across a partial pixel row anti-aliases into a hairline — invisible on
+     any other backdrop, a drawn line on pure black. Was tile-scoped; moved here
+     so every surface loses the hairline. */
+  background-color: #000;
+  background-image: var(--portrait-bg, linear-gradient(110deg, #000 30%, #141414 50%, #000 70%));
   background-size: var(--portrait-size, cover), 200% 100%;
   /* DEFAULT FOCAL SITS ABOVE CENTRE, because heads are above centre.
      User: "when we zoom in on card in hand the top gets cut off ... thats
@@ -29844,8 +29857,14 @@ body.combat-anticipate::after  { content: none !important; }
   /* --portrait-frame-rgb is now inherited from .card (set up at top
      of file). Box-shadow uses it for the thin frame line below. */
   box-shadow:
-    /* Thin context-tinted frame */
-    inset 0 0 0 1px rgba(var(--portrait-frame-rgb), 0.55),
+    /* FRAME RING REMOVED AT THE SOURCE, vignette kept below. The 1px themed
+       ring outlined the ART BOX on all four sides. That was right while the
+       art was an inset window — it framed the painting — but where the art
+       reaches the card edge, three sides just double the card's own border
+       and the fourth draws a bright line straight across the middle of the
+       card at the art's bottom edge. That line was the "separation point"
+       between art and card. Removed tile-scoped first; moved here so the
+       codex, draft, deck-builder and every modal lose it too. */
     /* Soft inner vignette — edges feather into card body */
     inset 0 0 18px 4px rgba(0, 0, 0, 0.55);
 
@@ -34635,9 +34654,16 @@ body.hand-text-always .player-hand-section .hand-cards .card.face-flipped .card-
    geometry survived (still 28px tall, still blurred, still rotated) with nothing left to
    draw, so every card on the board went flat against the grid like a sticker.
    Two selectors, ten thousand lines apart, sharing one pseudo-element. */
+/* REVERTED — this used to blank the ::after background on hand cards and the
+   drag ghost, on the theory that a diagonal gloss was tinting the black base.
+   It was not. That gradient sits at `opacity: 0` at rest and only rises to 1 on
+   :hover (style.css ~19099), sweeping its background-position across — it is the
+   card's hover SHINE, and it was invisible at rest the whole time. The base was
+   actually being tinted by the inner outline ring, found later and now removed
+   at the source. Blanking this only cost hand cards their shine.
+   Kept as an empty rule so the history of the mistake stays attached to it. */
 .player-hand-section .hand-cards .card::after,
 .card-drag-ghost::after {
-  background-image: none;
 }
 
 /* ============================================================
@@ -34922,4 +34948,48 @@ body.hand-text-always .trick-cards .trick-card.face-flipped .trick-desc {
   align-content: center;
   background: #000;
   padding: 5px 5px;
+}
+
+/* ============================================================
+   BOARD TILE GETS THE HAND TILE'S GEOMETRY CONTRACT
+   ============================================================
+   Measured across a live 6-lane row: 174 / 187 / 202 / 202 / 231 / 231 — a 57px
+   spread, entirely driven by badge count (0 badges 174, 4 badges 231). The board
+   read as untidy because every card was a different height.
+
+   This is a debt I created. When the art went edge-to-edge I gave the HAND a
+   fixed geometry and deliberately left the board on auto height so cards with
+   four or five status badges could show all of them. That restored exactly the
+   raggedness the hand block had just fixed — its own comment records the same
+   problem ("THE ROW WENT RAGGED... a 96px spread").
+
+   Same contract as the hand, and for the same reasons:
+     - aspect-ratio, NOT a px height. Board card width is fluid; a fixed height
+       makes the shape drift with the window and overflows the art at wide
+       viewports, which is the bug the hand hit at 1400px.
+     - badges capped at two rows, so the tile cannot be pushed taller by a card
+       that happens to carry five keywords.
+   The cap is only safe because the clip ORDER is fixed in the same change (see
+   getStatusBadges in ui.js): transients like Frozen and Critical now sort ahead
+   of permanent keywords, so what survives the cap is what changes your decision
+   this turn. Capping without that would have hidden the urgent ones. */
+.card.ally-card,
+.card.enemy-card {
+  aspect-ratio: 92 / 182;
+  height: auto;
+  box-sizing: border-box;
+}
+.card.ally-card .status-badges,
+.card.enemy-card .status-badges {
+  max-height: 28px;          /* two rows */
+  overflow: hidden;
+  gap: 1px;
+  font-size: 7px;
+  letter-spacing: 0.1px;
+}
+.card.ally-card .status-badge,
+.card.enemy-card .status-badge {
+  padding: 1px 3px;
+  font-size: 7px;
+  letter-spacing: 0.1px;
 }

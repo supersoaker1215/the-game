@@ -17450,65 +17450,76 @@ const UI = {
     if (c.reviveCharges > 0) b.push(badge('badge-revive', `Revive ${c.reviveCharges}`, 'Revive'));
     if (c.hasDamageImmunity) b.push(badge('badge-dmg-immune', 'DmgImmune', 'Damage Immunity'));
     if (c.isUntrickable) b.push(badge('badge-untrickable', 'Untrickable', 'Untrickable'));
+    // TRANSIENTS LEAD. The badge strip is capped at two rows on both the hand
+    // and the board, and the cap clips from the END of the array — so whatever
+    // is pushed last is what disappears. Everything above this point is a
+    // PERMANENT printed keyword; everything below is a temporary state.
+    // Pushed in source order that is exactly backwards: measured with Frozen +
+    // Critical applied, both vanished while Immunity and Invincible stayed.
+    // Immunity is true forever and can wait for a hover; Frozen 2 expires in two
+    // turns and changes what you play THIS turn. Collect the transients
+    // separately and concat them in front, so the cap eats the ones you can
+    // afford to look up instead of the ones you need right now.
+    const t = [];
     // Stack-aware status badges — counters drive these.
-    if (c._criticalThisRound) b.push(badge('badge-critical', 'CRITICAL', 'Critical — deals double damage this round'));
-    if (c.isBurning) b.push(badge('badge-burning', 'Burning', 'Burning'));
+    if (c._criticalThisRound) t.push(badge('badge-critical', 'CRITICAL', 'Critical — deals double damage this round'));
+    if (c.isBurning) t.push(badge('badge-burning', 'Burning', 'Burning'));
     if (c.isStunned) {
       const n = c.stunnedTurns > 0 ? c.stunnedTurns : 1;
-      b.push(badge('badge-stunned', `Stunned ${n}`, 'Stun'));
+      t.push(badge('badge-stunned', `Stunned ${n}`, 'Stun'));
     }
     if (c.isFrozen) {
       const n = c.frozenTurns > 0 ? c.frozenTurns : 1;
-      b.push(badge('badge-frozen', `Frozen ${n}`, 'Freeze'));
+      t.push(badge('badge-frozen', `Frozen ${n}`, 'Freeze'));
     }
     if (c.isFeared) {
       const n = c.fearedTurns > 0 ? c.fearedTurns : 1;
-      b.push(badge('badge-feared', `Feared ${n}`, 'Fear'));
+      t.push(badge('badge-feared', `Feared ${n}`, 'Fear'));
     }
     // Jack Sparrow singled this card out before combat — it sits the
     // round out. Flag set in his onBeforeCombat, consumed at attack
     // time, cleared at round start.
-    if (c._parlayedThisRound) b.push(badge('badge-parlay', 'Parlay', 'Parlay'));
+    if (c._parlayedThisRound) t.push(badge('badge-parlay', 'Parlay', 'Parlay'));
     if (c.isMindControlled) {
       const tgt = c.mindControlTarget;
       const tgtName = tgt && tgt.currentHealth > 0 ? tgt.name : null;
-      b.push(badge('badge-mind-ctrl', `MIND${tgtName ? ' - ' + tgtName : ''}`, 'Mind Control'));
+      t.push(badge('badge-mind-ctrl', `MIND${tgtName ? ' - ' + tgtName : ''}`, 'Mind Control'));
     }
-    if (c._debuffStacks > 0) b.push(badge('badge-debuff', `-${c._debuffStacks}/-${c._debuffStacks}`));
+    if (c._debuffStacks > 0) t.push(badge('badge-debuff', `-${c._debuffStacks}/-${c._debuffStacks}`));
     // Etch-driven roguelite traits — these are flags set by etch.apply()
     // in Roguelite.buildRunCard. User report: "Phoenix for Flash has
     // disappeared, but I didn't see it as an etch on the card. That
     // needs to be on the card so you don't forget about it." Same
     // principle for Cantrip / Lifesteal / Echo / Berserker / Zealot /
     // Thorns / Discount / Fear — all earned via level-up etches.
-    if (c.hasPhoenix > 0) b.push(badge('badge-phoenix', 'Phoenix', 'Phoenix'));
+    if (c.hasPhoenix > 0) t.push(badge('badge-phoenix', 'Phoenix', 'Phoenix'));
     // Cantrip merged into Draw — both render the Draw N badge above
     // via card.drawOnPlay. Legacy in-flight cards with `hasCantrip`
     // also surface as Draw via the on-play resolution shim.
-    if (c.hasCantrip > 0 && !(c.drawOnPlay > 0)) b.push(badge('badge-draw', `Draw ${c.hasCantrip}`, 'Draw'));
-    if (c.hasLifesteal > 0) b.push(badge('badge-lifesteal', 'Lifesteal', 'Lifesteal'));
-    if (c.hasEcho > 0) b.push(badge('badge-echo', c.hasEcho > 1 ? `Echo ${c.hasEcho}` : 'Echo', 'Echo'));
-    if (c.hasBerserker > 0) b.push(badge('badge-berserker', 'Berserker', 'Berserker'));
-    if (c.hasZealot > 0) b.push(badge('badge-zealot', 'Zealot', 'Zealot'));
-    if (c.hasThorns > 0) b.push(badge('badge-thorns', c.hasThorns > 1 ? `Thorns ${c.hasThorns}` : 'Thorns', 'Thorns'));
-    if (c.hasFear > 0) b.push(badge('badge-fear', `Fear ${c.hasFear}`, 'Fear'));
+    if (c.hasCantrip > 0 && !(c.drawOnPlay > 0)) t.push(badge('badge-draw', `Draw ${c.hasCantrip}`, 'Draw'));
+    if (c.hasLifesteal > 0) t.push(badge('badge-lifesteal', 'Lifesteal', 'Lifesteal'));
+    if (c.hasEcho > 0) t.push(badge('badge-echo', c.hasEcho > 1 ? `Echo ${c.hasEcho}` : 'Echo', 'Echo'));
+    if (c.hasBerserker > 0) t.push(badge('badge-berserker', 'Berserker', 'Berserker'));
+    if (c.hasZealot > 0) t.push(badge('badge-zealot', 'Zealot', 'Zealot'));
+    if (c.hasThorns > 0) t.push(badge('badge-thorns', c.hasThorns > 1 ? `Thorns ${c.hasThorns}` : 'Thorns', 'Thorns'));
+    if (c.hasFear > 0) t.push(badge('badge-fear', `Fear ${c.hasFear}`, 'Fear'));
     // Pennywise fear meter — rounds left on his block-meter-bypass aura.
     // Without this the aura was invisible (user report: "his fear meter
     // on his card isn't working") — the engine effect fired but nothing
     // on the card showed it.
-    if (c._bullseyeRoundsLeft > 0) b.push(badge('badge-fear-aura', `Fear ${c._bullseyeRoundsLeft}`, 'Fear Aura'));
-    if (c.hasFreeze > 0) b.push(badge('badge-freeze', `Freeze ${c.hasFreeze}`, 'Freeze'));
+    if (c._bullseyeRoundsLeft > 0) t.push(badge('badge-fear-aura', `Fear ${c._bullseyeRoundsLeft}`, 'Fear Aura'));
+    if (c.hasFreeze > 0) t.push(badge('badge-freeze', `Freeze ${c.hasFreeze}`, 'Freeze'));
     // MC N — offensive-side mind control etch (mc-1 / mc-2). Reuses
     // the badge-mind-ctrl color so the visual lineage is "this card
     // does mind control on play." The defensive `isMindControlled`
     // badge above is what shows on a card that's BEEN mind-controlled.
-    if (c.hasMc > 0) b.push(badge('badge-mind-ctrl', `MC ${c.hasMc}`, 'Mind Control'));
+    if (c.hasMc > 0) t.push(badge('badge-mind-ctrl', `MC ${c.hasMc}`, 'Mind Control'));
     // Mark — adjacent-ally Bullseye aura on play.
-    if (c.hasMark > 0) b.push(badge('badge-mark', 'Mark', 'Mark'));
-    if (c.hasSteady > 0) b.push(badge('badge-steady', `Steady ${c.hasSteady}`, 'Steady'));
-    if (c._discountTotal > 0) b.push(badge('badge-discount', `Discount ${c._discountTotal}`, 'Discount'));
-    if (c.isInsane) b.push(badge('badge-insane', 'Insane', 'Insane'));
-    else if (c.isCrazy) b.push(badge('badge-crazy', 'Crazy', 'Crazy'));
+    if (c.hasMark > 0) t.push(badge('badge-mark', 'Mark', 'Mark'));
+    if (c.hasSteady > 0) t.push(badge('badge-steady', `Steady ${c.hasSteady}`, 'Steady'));
+    if (c._discountTotal > 0) t.push(badge('badge-discount', `Discount ${c._discountTotal}`, 'Discount'));
+    if (c.isInsane) t.push(badge('badge-insane', 'Insane', 'Insane'));
+    else if (c.isCrazy) t.push(badge('badge-crazy', 'Crazy', 'Crazy'));
     // Poison Ivy charmed ally indicator. Three layers, in order:
     //   1. Direct flag set on the ally (`_charmedByIvy = ivyId`).
     //   2. Legacy `_ivyAlly` object-ref match.
@@ -17545,8 +17556,8 @@ const UI = {
       }
       if (charmedId != null && charmedId === c.id) { charmed = true; break; }
     }
-    if (charmed) b.push(badge('badge-charmed', 'Charmed', 'Charm'));
-    return b.join('');
+    if (charmed) t.push(badge('badge-charmed', 'Charmed', 'Charm'));
+    return t.concat(b).join('');
   },
 
   // Strip leading intrinsic trait text from card descriptions — badges already show these
