@@ -4773,12 +4773,17 @@ const UI = {
           // audio still going — user: "audio combat per lane needs to resolve
           // before moving on to the next".
           const live = this.sfx.activeTailMs ? this.sfx.activeTailMs() : 0;
-          const tail = Math.max(remaining, live);
+          // AND the visuals. Audio alone was not "resolve everything": a lane
+          // could still advance with its damage numbers mid-flight, because the
+          // damage float runs 1.1s against a 900ms base delay. See
+          // UI.activeFxTailMs.
+          const fx = this.activeFxTailMs ? this.activeFxTailMs() : 0;
+          const tail = Math.max(remaining, live, fx);
           // Floor at the base delay so the aiSpeed setting still sets the pace
-          // when a lane happens to be silent, and never go BELOW it — the user
-          // reports combat reading as too fast, so audio can only ever extend a
-          // lane, never shorten it.
-          const computed = tail > 0 ? Math.max(baseMs, tail + 250) : baseMs;
+          // when a lane happens to be silent and still, and never go BELOW it —
+          // the user reports combat reading as too fast, so audio and FX can
+          // only ever extend a lane, never shorten it.
+          const computed = tail > 0 ? Math.max(baseMs, tail + this.COMBAT_LANE_BEAT_MS) : baseMs;
           // Reset for next lane (the getter fires once per advance).
           this.sfx._laneAudioEl = null;
           this.sfx._laneAudioEndsAt = 0;
@@ -4803,8 +4808,9 @@ const UI = {
               // lane's audio is the one most likely to be cut off, since there
               // is no following lane to absorb its tail.
               const live = this.sfx.activeTailMs ? this.sfx.activeTailMs() : 0;
-              const tail = Math.max(remaining, live);
-              const computed = tail > 0 ? Math.max(base, tail + 250) : base;
+              const fx = this.activeFxTailMs ? this.activeFxTailMs() : 0;
+              const tail = Math.max(remaining, live, fx);
+              const computed = tail > 0 ? Math.max(base, tail + this.COMBAT_LANE_BEAT_MS) : base;
               this.sfx._laneAudioEl = null;
               this.sfx._laneAudioEndsAt = 0;
               this.sfx._laneDeathCost = null;
@@ -5988,6 +5994,63 @@ const UI = {
   // render janky shows up as a number, not a "feels laggy" report. Run
   // from the console: UI.profileRender(300). Budget: a full render should
   // stay well under one 60fps frame (16.7 ms).
+  // How long until every combat VISUAL still running has finished, in ms.
+  // The twin of sfx.activeTailMs, and the other half of "each lane needs to
+  // resolve everything before moving on": waiting only on audio still let a
+  // lane advance while its damage numbers were mid-flight. Measured durations
+  // of what a lane actually runs — damage float 1.1s, combat reveal 900ms,
+  // strike 520ms, stat pop 460ms, shakes 180-320ms — against a 900ms base
+  // delay, so the float in particular was reliably still climbing when the next
+  // lane started.
+  //
+  // MEASURED, not enumerated. document.getAnimations() reports what is really
+  // running, so this covers every present and future FX class without a list to
+  // keep in sync — the same reason measuring beat booking for the audio tail.
+  // Enumerating would have meant naming ~20 keyframe names and silently missing
+  // the 21st.
+  //
+  // Three filters carry the correctness:
+  //  - iterations must be FINITE. The board carries ornamental infinite loops
+  //    (lane pulses, glows); without this the tail is Infinity and combat stops
+  //    forever. This is the one that would break the game if it were wrong.
+  //  - the target must live in the match area, so a menu shimmer or an
+  //    unrelated overlay cannot hold combat open.
+  //  - capped, so a single long cinematic cannot stall the sequence.
+  // The deliberate pause AFTER a lane's audio and visuals have both finished,
+  // before the next lane starts. User: "each lane needs to resolve everything
+  // before moving on and even then there should be a small delay" — this is
+  // that delay, and it is the number to tune if combat now reads as too slow
+  // (or still too fast). It is separate from the audio/FX tails on purpose:
+  // those are measurements of when things END, this is the breathing room after
+  // them, and the two should not be conflated in one magic number.
+  COMBAT_LANE_BEAT_MS: 420,
+  activeFxTailMs(capMs) {
+    const CAP_MS = capMs || 1400;
+    try {
+      if (typeof document.getAnimations !== 'function') return 0;
+      const anims = document.getAnimations();
+      let worst = 0;
+      for (let i = 0; i < anims.length; i++) {
+        const anim = anims[i];
+        if (!anim || anim.playState !== 'running') continue;
+        const eff = anim.effect;
+        if (!eff || typeof eff.getComputedTiming !== 'function') continue;
+        const t = eff.getComputedTiming();
+        // Ornamental loop — never let one gate combat.
+        if (!isFinite(t.iterations) || !isFinite(t.activeDuration)) continue;
+        const target = eff.target;
+        if (!target || typeof target.closest !== 'function') continue;
+        if (!target.closest('.board-section, .info-bar, #signature-fx-layer, .player-hand-section')) continue;
+        const cur = typeof anim.currentTime === 'number'
+          ? anim.currentTime
+          : (anim.currentTime && anim.currentTime.value) || 0;
+        const end = isFinite(t.endTime) ? t.endTime : t.activeDuration;
+        const remain = Math.max(0, end - cur);
+        if (remain > 0) worst = Math.max(worst, Math.min(CAP_MS, remain));
+      }
+      return worst;
+    } catch (e) { return 0; }   // never let instrumentation stall combat
+  },
   profileRender(n) {
     if (typeof performance === 'undefined') return null;
     const N = n || 200;
