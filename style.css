@@ -9261,7 +9261,30 @@ body.turn-combat .board .lane.lane-active {
   .board .card .rarity-strip { display: none; }
   /* Predicted-death skull sits between the tiny ATK/HP orbs — shrink it so it
      fits inside the compact board tile instead of overlapping the stats. */
-  .board .card .incoming-damage.lethal { transform: scale(0.72); }
+  /* SKULL PLACEMENT — two bugs, one of them a classic.
+     (1) The base rule centres this chip with `transform: translateX(-50%)`
+     against `left: 50%`. This rule set `transform: scale(0.72)`, which does not
+     ADD to that transform, it REPLACES it — so the chip lost its centering and
+     hung off to the right, landing on top of the HP orb. Transform is one
+     property; a second declaration wins outright. Both functions now travel
+     together, in the right order (translate first, then scale about the
+     already-centred origin).
+     (2) Even perfectly centred it does not fit. At a ~58px card the ATK orb
+     (16px at left:2) and HP orb (16px at right:2) leave ~22px between them, and
+     the chip is a 10px skull plus a number plus 12px of padding. `bottom: 3px`
+     put it in the orb row regardless. Lift it clear of that row entirely — the
+     card's bottom padding is 18px and the orbs sit 2..18px, so bottom: 20px
+     places it just above them, over the base of the art where there is full
+     width to use. */
+  .board .card .incoming-damage {
+    bottom: 20px;
+    transform: translateX(-50%) scale(0.82);
+    transform-origin: bottom center;
+  }
+  .board .card .incoming-damage.lethal {
+    transform: translateX(-50%) scale(0.82);
+    transform-origin: bottom center;
+  }
   .board .card .incoming-damage.lethal .incoming-skull { width: 10px; height: 10px; }
   /* PvZ-style board piece — hide the NAME on the tile (you read a piece by its
      art, like PvZ; the full name is one tap-inspect away). Leaves a clean
@@ -9441,7 +9464,23 @@ body.turn-combat .board .lane.lane-active {
   /* Touch on a hand card = drag-to-play (vertical) or scroll-the-hand
      (horizontal) — never a page scroll, so dragging a card no longer scrolls
      the board out from under the finger. */
-  .player-hand-section .hand-cards .card { touch-action: pan-x; }
+  /* Touch on a draggable card = drag-to-play (vertical) or scroll-the-row
+     (horizontal) — never a PAGE scroll.
+     TRICKS WERE MISSING FROM THIS. Hand cards have carried pan-x for a while;
+     .trick-card had no touch-action at all, so it inherited `auto` and the
+     browser was free to start a vertical page scroll the instant a finger moved.
+     That matters because touch-action is evaluated ONCE, at gesture start: the
+     drag code only decides "this is a drag" after 10px of upward travel, and by
+     then the browser has already committed to scrolling. preventDefault() on a
+     later touchmove cannot revoke a scroll that is already in flight — which is
+     also why `body.mobile-card-dragging { touch-action: none }` does not save
+     it, since that class is added mid-gesture and only affects the NEXT one.
+     User: "when i drag a card/trick sometimes the phone scrolls at the same
+     time." pan-x keeps the trick row horizontally scrollable and takes the page
+     scroll off the table before the gesture ever starts. */
+  .player-hand-section .hand-cards .card,
+  .tricks-section .trick-card,
+  .tricks-section .trick-cards > * { touch-action: pan-x; }
   /* SIM combat previews shrink to fit ONE narrow lane so they stop
      overlapping neighbours. Keep the one-word verdict + key number; drop the
      "SIM" tag and the verbose "N ATK + M Splash =" breakdown. */
@@ -19464,8 +19503,23 @@ body {
   padding-bottom: max(10px, env(safe-area-inset-bottom));
 }
 @media (hover: none) and (pointer: coarse) {
+  /* 56px was a GUESS at how much of the viewport iOS Safari's floating URL bar
+     covers, and it is too small on current iOS — user report, with a photo:
+     "the tricks are clipping at the bottom", the last trick row sliced by the
+     browser bar with no way to scroll it clear.
+     It does not have to be a guess. `100lvh` is the viewport with the bar
+     retracted and `100svh` is the viewport with it shown, so their difference
+     is EXACTLY the height of the collapsible chrome, on any device, at any iOS
+     version, without naming a number. Falls back to the old 56px on anything
+     that lacks lvh/svh (pre-iOS 15.4), since an unsupported unit invalidates
+     the whole declaration and the previous one stands. */
   .tricks-section {
     padding-bottom: calc(56px + env(safe-area-inset-bottom)) !important;
+    padding-bottom: calc(
+      max(10px, env(safe-area-inset-bottom))
+      + (100lvh - 100svh)
+      + 12px
+    ) !important;
   }
 }
 

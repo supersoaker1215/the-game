@@ -17563,16 +17563,38 @@ const UI = {
     return !!(card.isCrazy || card.isInsane);
   },
 
+  // THE one place a .status-badge is built. There are two producers — this file's
+  // getStatusBadges (LIVE / transient state read off the card instance) and
+  // formatAbilityBadges (a card's PRINTED keywords) — and they had independently
+  // grown their own identical-looking markup. When the phone board switched to
+  // icons, only formatAbilityBadges was updated, so Bullseye (which comes from
+  // getStatusBadges, because it is an instance flag) kept rendering as a WORD on
+  // the board while everything else became a glyph. Routing both through here
+  // means badge structure can only ever be changed in one place.
+  //   word  — the keyword text, hidden on the phone board
+  //   num   — the count, kept everywhere (Armor 2 vs Armor 1 is live combat math)
+  //   kw    — canonical keyword; supplies both the tooltip and the icon
+  _badgeHTML(cls, word, num, kw) {
+    const kdata = kw && this.KEYWORD_DATA[kw];
+    const dataAttr = kdata ? ` data-kw="${kw}"` : '';
+    const icon = (kdata && kdata.svg) ? `<i class="sb-i" aria-hidden="true">${kdata.svg}</i>` : '';
+    return `<span class="status-badge ${cls}${icon ? '' : ' sb-noicon'}"${dataAttr}>`
+      + `${icon}<i class="sb-w">${word}</i>${num ? `<i class="sb-n">${num}</i>` : ''}</span>`;
+  },
   getStatusBadges(c) {
     const b = [];
     // Helper: build a status badge with the keyword tooltip wired in.
     // Stamps `data-kw="<canonical>"` so the same hover/click-to-pin
     // tooltip system the body-text spans use also fires here. Skips
     // the data-kw attribute when the keyword has no KEYWORD_DATA entry.
+    // Labels arrive pre-joined ("Evade 3", "Bullseye", "Damage Immunity"), so
+    // split the trailing count back off and hand word + number to the canonical
+    // builder. Lazy head + optional tail means a keyword containing a space
+    // ("Damage Immunity") stays whole and only a real trailing integer is
+    // treated as the count.
     const badge = (cls, label, kw) => {
-      const hasTip = kw && this.KEYWORD_DATA[kw];
-      const dataAttr = hasTip ? ` data-kw="${kw}"` : '';
-      return `<span class="status-badge ${cls}"${dataAttr}>${label}</span>`;
+      const m = String(label).match(/^(.+?)(?:\s+(\d+))?$/);
+      return this._badgeHTML(cls, m ? m[1] : label, m && m[2] ? m[2] : '', kw);
     };
     if (c.drawOnPlay > 0) b.push(badge('badge-draw', `Draw ${c.drawOnPlay}`, 'Draw'));
     if (c.evadeCharges > 0) b.push(badge('badge-evade', `Evade ${c.evadeCharges}`, 'Evade'));
@@ -17866,25 +17888,21 @@ const UI = {
           if (HIDE_ONE[m[1]] && num === '1') num = '';
           // Only attach data-kw if KEYWORD_DATA actually has an entry
           // for this kw — keywords without one remain plain text.
-          const kdata = this.KEYWORD_DATA[kw];
-          const hasTip = !!kdata;
-          const dataAttr = hasTip ? ` data-kw="${kw}"` : '';
-          // Word, number and icon are now SEPARATE elements rather than one text
-          // run. Nothing changes visually by default — .sb-i is display:none
-          // everywhere except the phone board — but it lets that one surface swap
-          // the word for the keyword's icon while KEEPING the number, which is
-          // impossible when "Taunt 99" is a single text node.
-          // The icon is not new art: KEYWORD_DATA already carries an `svg` for
-          // every keyword (it draws the tooltip header), so this is the canonical
-          // source, not a parallel icon table that could drift out of sync.
-          const icon = (kdata && kdata.svg) ? `<i class="sb-i" aria-hidden="true">${kdata.svg}</i>` : '';
-          return `<span class="status-badge ${cls[kw]}${icon ? '' : ' sb-noicon'}"${dataAttr}>`
-            + `${icon}<i class="sb-w">${m[1]}</i>${num ? `<i class="sb-n">${num}</i>` : ''}</span>`;
+          // Word, number and icon are SEPARATE elements rather than one text run.
+          // Nothing changes visually by default — .sb-i is display:none everywhere
+          // except the phone board — but it lets that one surface swap the word for
+          // the keyword's icon while KEEPING the number, which is impossible when
+          // "Taunt 99" is a single text node.
+          // The icon is not new art: KEYWORD_DATA already carries an `svg` for every
+          // keyword (it draws the tooltip header), so this reads the canonical source
+          // rather than a parallel icon table that could drift out of sync.
+          return this._badgeHTML(cls[kw], m[1], num, kw);
         }
       }
-      // No keyword match — plain text, and no icon exists for it. sb-noicon lets
-      // the phone board drop it entirely rather than render an empty chip.
-      return `<span class="status-badge sb-noicon"><i class="sb-w">${text}</i></span>`;
+      // No keyword match — plain text, and no icon exists for it. _badgeHTML tags
+      // it sb-noicon, which lets the phone board drop it rather than render an
+      // empty chip.
+      return this._badgeHTML('', text, '', null);
     }).join('');
   },
 
