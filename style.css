@@ -33136,11 +33136,7 @@ body.round-tick .board::after {
   92%, 100% { transform: translateX(130%) skewX(-18deg); }
 }
 
-/* ---- Hover parallax (Snap depth cheat) -------------------
-   The tilt rAF already writes --tilt-x/--tilt-y; sliding the
-   portrait a few px AGAINST the tilt makes the art float
-   behind the frame. scale hides the revealed edges. Hover-
-   driven, so it costs nothing on touch devices. */
+/* ---- Hover extras (the Snap art-float that lived here is gone) ---- */
 @media (hover: hover) and (pointer: fine) {
   /* Clip at the CARD level — transform:scale grows the portrait's whole
      BOX, and overflow:hidden on the portrait only clips its background,
@@ -33148,21 +33144,17 @@ body.round-tick .board::after {
      the enlarged art painted past the frame line (user: "the 3d effect
      is still clipping"). Hidden only WHILE hovered, so nothing else ever
      loses its overflow behavior. */
-  .hand-card-wrapper:hover .card.hand-card,
-  .card.ally-card:hover,
-  .card.enemy-card:hover {
-    overflow: hidden;
-  }
-  .hand-card-wrapper:hover .card.hand-card .card-portrait,
-  .card.ally-card:hover .card-portrait,
-  .card.enemy-card:hover .card-portrait {
-    /* Origin pinned to the bottom (the name strip): the overscan grows
-       upward + sideways into the card-clipped frame and NEVER creeps
-       down over the badge row. */
-    transform: translate(calc(var(--tilt-x, 0) * -3px), calc(var(--tilt-y, 0) * -3px)) scale(1.12);
-    transform-origin: 50% 100%;
-    overflow: hidden;
-  }
+  /* REMOVED — the Snap art-float. User: "can you get rid of the marvel snap
+     style card art zoom in move?"
+     It was `translate(tilt * -3px) scale(1.12)` on the portrait, sliding the
+     art against the tilt so it appeared to hover behind the frame. Two reasons
+     it stopped earning its keep: the art is now EDGE-TO-EDGE, so a 1.12 overscan
+     is cropping 12% off a painting that was just given the whole card, and the
+     whole-card tilt already supplies the depth this was faking.
+     The `overflow: hidden` that sat on the hovered card went with it — it
+     existed ONLY to clip this overscan (see the note about art painting past
+     the frame line), so keeping it would clip for no reason. Cards go back to
+     the overflow behaviour they have at rest. */
   /* Magnified hover restores FULL color on an unaffordable card — you're
      reading it, not playing it; the softened grey snaps back on leave. */
   .hand-card-wrapper:hover .card.hand-card.unafford {
@@ -34725,13 +34717,20 @@ body.hand-text-always .player-hand-section .hand-cards .card.face-flipped .card-
    full rules text in flow while you choose. It keeps its own look, exactly as
    the draft CARD does. */
 .trick-cards .trick-card {
-  /* Sides go, the bottom strip stays for the same reason it does on a card. */
-  padding: 0 0 30px;
-  /* PROPORTION, not a fixed height — the same lesson the cards just taught:
-     trick width is fluid (132px here) and any px height would make the shape
-     drift with the window and overflow the art at wide viewports. Same ratio as
-     a hand card so the two rows are the same object at any size. */
-  aspect-ratio: 92 / 182;
+  /* NO bottom strip. User: "the tricks are too long you can shorten them."
+     A card reserves 30px there for the ATK/HP orbs and room above it for the
+     badge row. A trick has NEITHER — no orbs, no badges — so on a trick that
+     space was reserved for nothing and the tile was 261px of which ~88 was
+     empty black. */
+  padding: 0;
+  /* THE TRICK IS EXACTLY ITS ARTWORK. Matching the card's 92/182 made the two
+     rows identical, which was the point at the time, but it also inherited the
+     card's allowance for chrome a trick does not have. Taking the ART's own
+     ratio instead means the tile ends where the painting ends: 261px -> ~173,
+     a third shorter, with nothing lost because nothing was down there.
+     Still a ratio and not a height, for the reason the cards demonstrated —
+     trick width is fluid, so a px height would drift with the window. */
+  aspect-ratio: 360 / 472;
   height: auto;
   box-sizing: border-box;
   outline: none;              /* the 1px inner ring at offset -5px */
