@@ -2464,8 +2464,20 @@ body.hit-pause .ai-hand * {
    star the top line to make the current hero your default. */
 .mm-mw3 .mm-heropick {
   position: relative; margin-top: 0; max-width: 220px;
-  max-height: 58px;                 /* ~3 rows tall */
+  /* 58px was "~3 rows tall" against the DESKTOP row height of ~19px. On a phone
+     these rows are <button> elements, and the phone block's 40px tap-target
+     baseline (`button, .btn { min-height: 40px }`) more than doubles them — so
+     the same 58px window shows 1.45 of 55 heroes. Measured live at 390px:
+     clientHeight 58, scrollHeight 2200. A 58px porthole onto a 2200px list,
+     sitting at the very bottom of the page, is why picking the menu music read
+     as "not scrollable / hit or miss" — there was almost nothing to grab.
+     Row-height-relative instead of a magic number, so it stays ~3 rows on both:
+     desktop 3 x 19 = 58px (unchanged), phone 3 x 40 = 122px. */
+  max-height: calc(3 * var(--heropick-row-h, 19.4px));
   overflow-y: auto; pointer-events: auto;
+  /* The list scrolls vertically; without this a vertical drag that starts on a
+     row can be claimed by an ancestor gesture instead of scrolling the list. */
+  touch-action: pan-y;
   scrollbar-width: thin;
   scrollbar-color: rgba(var(--theme-rgb,79,195,247),0.35) transparent;
   overscroll-behavior: contain;
@@ -9144,7 +9156,16 @@ body.turn-combat .board .lane.lane-active {
        min-height, which still leaves each card ~24px of outer breathing room
        and keeps the mirror-image lane anchoring intact. Measured at 390x844:
        board 380px -> 250px, and the page stops overflowing the viewport. */
-    min-height: auto; }
+    min-height: auto;
+    /* The canonical .lane also carries `padding: 3px`, never overridden here.
+       Measured at 390px, the width spent on inter-lane chrome before a single
+       pixel of art is: 6 lanes x 6px padding (36) + 6 x 2px borders (12) +
+       5 x 2px gaps (10) + 4px board padding = 62px, i.e. 16% of the viewport.
+       That is the single cheapest width to buy back — 1px of lane padding is
+       2px of card width, and at a 55px card every pixel is ~2%. Trimmed to 1px
+       (still enough for the corner-orb overshoot guard the 3px was protecting),
+       which returns 8px to the row: card 54.7 -> 58.7px, +7%. */
+    padding: 1px; }
   /* Scope shrink to BOARD cards only — hand cards live in their own
      row with fixed widths so multiple fit horizontally.
      Bottom padding is 24px (vs the original 14px) to give the cost
@@ -9272,6 +9293,10 @@ body.turn-combat .board .lane.lane-active {
   .ai-tricks-badge .pile-mini-label { color: rgba(180,120,255,0.95); }
   .actions-section .btn { min-height: 34px; height: 34px; padding: 3px 10px; font-size: 10px; letter-spacing: 0.6px; }
   button, .btn { min-height: 40px; } /* 40px tap target baseline */
+  /* Tell the menu-hero (music) picker how tall its rows really are here, so its
+     "show ~3 rows" window scales with the 40px tap target above instead of
+     staying at the desktop 58px. See the .mm-mw3 .mm-heropick note. */
+  .mm-mw3 .mm-heropick { --heropick-row-h: 40px; }
   .phase-banner-text { font-size: 20px; }
   /* HUD pill: drop the phase text + tighten counters so the whole pill
      fits within the viewport WITHOUT colliding with the settings gear

@@ -5938,7 +5938,9 @@ const UI = {
       const handKey = s.player.hand.map(c => c.name).join(',');
       if (handKey !== this._lastPreloadedHandKey) {
         this._lastPreloadedHandKey = handKey;
-        this._preloadArt(s.player.hand.map(c => c.name));
+        // Hand cards paint the art-md tier on mobile (makeCardEl, inHand) — warm
+        // that same tier, not art-sm. See the note on _preloadArt.
+        this._preloadArt(s.player.hand.map(c => c.name), { md: true });
       }
     }
 
@@ -14623,11 +14625,16 @@ const UI = {
   // them in cache before the CSS background-image rule renders them. Critical
   // on iOS/iPad where background-image loads lazily and can flash blank on
   // first render. Uses a Map so the same URL is only fetched once per session.
-  _preloadArt(names) {
+  // `opts` is passed straight through to getCardArtPath so a caller can warm the
+  // SAME tier the surface will actually paint. Without it the draft prefetched
+  // art-sm while painting art-md — warming a file that is never used and leaving
+  // the one that is used to arrive cold, which is the exact blank-portrait flash
+  // this preload exists to prevent.
+  _preloadArt(names, opts) {
     if (!names || !names.length) return;
     if (!this._artPreloadCache) this._artPreloadCache = new Set();
     names.forEach(name => {
-      const path = this.getCardArtPath(name);
+      const path = this.getCardArtPath(name, opts);
       if (!path || this._artPreloadCache.has(path)) return;
       this._artPreloadCache.add(path);
       const img = new Image();
@@ -14644,7 +14651,11 @@ const UI = {
 
     // Kick off image prefetch for both draft choices so iOS has them cached
     // before the CSS background-image rule renders — prevents blank-portrait flash.
-    if (isCards && choices) this._preloadArt(choices.map(c => c.name));
+    // { md: true } MUST match what the draft card actually paints — makeCardEl
+    // picks the art-md tier for draft/hand surfaces on mobile. Warming art-sm
+    // here while the DOM requests art-md would prefetch a file nothing uses and
+    // let the real one arrive cold, i.e. the opposite of this call's purpose.
+    if (isCards && choices) this._preloadArt(choices.map(c => c.name), { md: true });
     const drafted = isCards ? d.playerDrafted : d.playerTrickDrafted;
 
     // Build the pick-progress pip row ("● ● ○ ○ ○") — HUD-style dots so the
