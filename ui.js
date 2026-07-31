@@ -20340,6 +20340,26 @@ const UI = {
         d.ghost = this._makeCardDragGhost(d.cardEl);
         document.body.classList.add('mobile-card-dragging');
       }
+      // THE BUTTON CAME UP SOMEWHERE WE NEVER HEARD ABOUT.
+      // This whole drag is torn down by exactly one thing: a mouseup that
+      // reaches `document`. Several ordinary exits never deliver one — releasing
+      // over the browser toolbar or tab strip after overshooting the top of the
+      // window (which is easy here, because you drag hand cards UPWARD toward
+      // the lanes), an alt-tab or OS focus steal mid-drag, or a native
+      // drag-and-drop takeover that ends in `dragend`. When that happens `d`
+      // survives and this handler keeps re-positioning the ghost against a
+      // pointer with NO BUTTON HELD — a card glued to the cursor until the next
+      // click anywhere clears it. That is the "glitching out" half of the drag
+      // report, and it is separate from the top-left pinning (a CSS !important
+      // beating the inline transform, fixed at the clone and in the rule).
+      // e.buttons is the authoritative "is a button still down" on every move
+      // event, so this one check covers every one of those exits at once instead
+      // of needing a listener per exit.
+      // endAt(null, null) is deliberately the CANCEL form: with no coordinates
+      // it resolves no lane and plays no trick, so a drag we lost track of tidies
+      // itself away rather than dropping the card somewhere the player never
+      // chose.
+      if (e.buttons === 0) { endAt(null, null); return; }
       e.preventDefault();   // stop the drag turning into a text selection
       if (d.ghost) {
         const dxi = e.clientX - (d.lastX != null ? d.lastX : e.clientX);
