@@ -4859,7 +4859,18 @@ const UI = {
     // can read what you are about to commit to.
     document.addEventListener('click', (e) => {
       if (this._suppressNextHandFlip) return;      // the tail of a drag
-      if (!this._hasFinePointer()) return;         // touch has tap-to-inspect
+      // TOUCH USED TO BE EXCLUDED HERE ("touch has tap-to-inspect"), which was
+      // wrong on two counts. The touch equivalent is a 450ms LONG-PRESS, not a
+      // tap — an undiscoverable gesture nobody finds without being told — and
+      // the phone hand card hides .card-desc outright, so a phone player had no
+      // way at all to read what a card does before committing to it. User:
+      // "the card flip isnt implemented on mobile to see the text in hand."
+      // A plain tap is also completely free on touch: drag-to-play is the only
+      // way to play a card there, so tap has no competing job. That makes the
+      // touch interaction identical to the mouse one — tap to read, tap again
+      // (or tap off) to turn back, drag to play — instead of a second, hidden
+      // model. Long-press inspect still works and is now suppressed below so it
+      // cannot flip the card behind its own modal.
       const cardEl = e.target.closest && e.target.closest(this.FLIPPABLE_SELECTOR);
       if (cardEl) { this.toggleHandCardFlip(cardEl); return; }
       // CLICKED OFF THE CARD. User: "the only way to unclick is to play the card
@@ -22511,6 +22522,15 @@ const UI = {
       currentEl = cardEl;
       timer = setTimeout(() => {
         timer = null;
+        // Tap now flips a hand card (see installHandCardFlip), and a long-press
+        // still ends in a `click` when the finger lifts — so without this the
+        // hold would open the inspect modal AND quietly turn the card over
+        // behind it, leaving it face-down once the modal closed. Same flag the
+        // drag handler uses for the click that ends a drag. Cleared on a
+        // timeout rather than in the click handler so it can't get stuck on if
+        // the modal swallows the click.
+        this._suppressNextHandFlip = true;
+        setTimeout(() => { this._suppressNextHandFlip = false; }, 400);
         this.showCardInspect(cardEl);
         // Play the card's hover audio so the long-press feels alive —
         // on touch there's no cursor to trigger mouseover, so this is

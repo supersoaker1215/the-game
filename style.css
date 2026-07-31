@@ -9487,7 +9487,20 @@ body.turn-combat .board .lane.lane-active {
   .dmg-preview { min-width: 0 !important; max-width: 62px; padding: 2px 3px; font-size: 8px; bottom: 2px; border-radius: 3px; line-height: 1.15; }
   .dmg-preview .dp-sim-tag, .dmg-preview .dp-sub { display: none !important; }
   .dmg-preview .dp-verdict { font-size: 8px; letter-spacing: 0.2px; margin-bottom: 1px; }
-  .dmg-preview .dp-row { gap: 3px; }
+  /* This box was clipping: user photo shows an undefended lane reading "DIRECT"
+     with the next line sliced to "HI". Cause is a flex row of two labels —
+     <span class="dp-side">Direct</span><span class="dp-nums">-5 HP</span> —
+     inside a 62px cap. Flex does not wrap, so the SPANS wrap their own text
+     instead, and the second line falls out of the box.
+     The .dp-side label is the part to lose. It is exactly the "verbose" half
+     this block already set out to drop (see the note above about keeping the
+     one-word verdict + the key number), and the numbers carry the meaning on
+     their own: "-5 HP" against an empty lane, "8 -> 3" for a contested one.
+     nowrap then makes clipping structurally impossible rather than merely
+     unlikely at the current font size. */
+  .dmg-preview .dp-row { gap: 3px; white-space: nowrap; }
+  .dmg-preview .dp-side { display: none; }
+  .dmg-preview .dp-nums { white-space: nowrap; }
   /* Mobile hand: 92px-wide cards fit FOUR comfortably in a 380px
      viewport (4×92 + 3×4 = 380), with description text legible. Hand
      auto-scrolls horizontally for hands of 5+ cards. User feedback:
@@ -22878,7 +22891,20 @@ body.killing-blow-cinema::after {
 /* Mobile: shrink so it doesn't crowd the HUD on a 380px viewport */
 @container (max-width: 520px) {
   .update-banner {
-    top: 6px; left: 8px;
+    /* MOVED OFF THE TOP BAR. At top:6/left:8 this ~200px pill landed straight
+       across the ROUND / DECK / TRICKS readout and the log toggle — the phone's
+       top row is the single most contested strip on the screen (hamburger at
+       left 8-52, cog at right 8-52, HUD pill filling everything between), so
+       there is no gap wide enough for it. User photo: the banner completely
+       covering the round counter.
+       Bottom-left instead, directly above the build badge — the corner that is
+       already where this app puts system chrome, so the two read as one stack
+       and neither touches gameplay. It also can no longer sit under the
+       Dynamic Island, which it did: this is position:fixed, so it resolves
+       against the viewport and never saw body's safe-area padding. */
+    top: auto;
+    bottom: calc(32px + env(safe-area-inset-bottom));
+    left: 8px;
     padding: 4px 10px 4px 8px;
     font-size: 10px;
     letter-spacing: 1.4px;
@@ -35316,3 +35342,56 @@ body.low-fx .card.status-burning:not(.card-enter):not(.card-exit) {
 /* Restores the single space that used to sit between the keyword and its count
    back when they were one text node. */
 .status-badge .sb-n { margin-left: 0.32em; }
+
+/* ============================================================
+   MOBILE HAND-CARD FLIP + VICTORY-SCREEN MVP CARD
+   ============================================================ */
+
+/* TAP-TO-FLIP ON PHONES.
+   The phone hand card hides its rules text outright —
+     .player-hand-section .hand-cards .card .card-desc { display: none !important }
+   — which is right for the card's FRONT (at 92px wide the description is
+   unreadable and it doubled the card's height), but it also killed the flipped
+   FACE, because that face IS .card-desc repositioned. So enabling the tap
+   gesture alone would have turned the card over to a blank black panel.
+   These re-assert display on the flipped state only, and must carry !important
+   to beat the front-face hide, which is itself !important and equally specific.
+   The front stays textless exactly as before; only a card you have explicitly
+   turned over shows its text. */
+@container (max-width: 520px) {
+  .player-hand-section .hand-cards .card.face-flipped .card-desc,
+  .player-hand-section .hand-cards .card.face-flipped .card-trick-passive,
+  .trick-cards .trick-card.face-flipped .trick-desc {
+    display: block !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+    transform: rotateY(0deg) !important;
+  }
+  /* A 92px card is narrower than the ~140px desktop hand card the 8px face size
+     was tuned against, so start a step down. UI._fitHandCardFace still measures
+     each card and steps further on demand; this only moves its starting point
+     so fewer cards need the extra pass. */
+  .player-hand-section .hand-cards .card.face-flipped .card-desc {
+    font-size: 7px !important;
+    padding: 4px 4px;
+    line-height: 1.22;
+  }
+}
+
+/* VICTORY SCREEN — the MVP / runner-up card is a TROPHY, not a reference card.
+   It is built by renderCard() in the game-over stats via makeCardEl, which
+   emits the full card including its description. On a wordy card that is
+   catastrophic on a phone: Gojo's ~400-character rules text stretched the tile
+   to roughly 1000px, wrapping to two or three words a line, burying the Impact
+   / Damage / Kills readout that is the actual point of the panel and pushing
+   REMATCH and VIEW REPLAY off the bottom (user screenshot).
+   Nothing is lost by cutting it — you have just finished playing this card, the
+   stats block directly beneath it is what the screen is for, and the full text
+   is in the codex. Same reasoning as the board token: show the art and the
+   numbers, defer the prose. Applied on every screen size, not just phones —
+   "for the victory screen theres no need for the text". */
+.go-mvp-real .card-desc,
+.go-mvp-real .card-trick-passive,
+.go-mvp-real .card-active-text {
+  display: none !important;
+}
