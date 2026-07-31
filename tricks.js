@@ -187,7 +187,7 @@ const TRICK_DEFS = [
         G.promptCardChoice(
           owner, [c],
           'Lasso of Truth — Revealed',
-          `The opponent is holding ${c.name}. Click to acknowledge.`,
+          `The opponent is holding ${c.name}. Tap the card to read it.`,
           () => {}, null,
           { forcePrompt: true, inlineTray: true }
         );

@@ -8742,8 +8742,14 @@ const UI = {
     // in at 9px. Splitting the two gives the card back to READING — tap it as
     // many times as you like, it only ever flips — and makes committing an
     // explicit, separate act. See the .choice-pick-btn styles.
+    // "Pick" is wrong when there is nothing to pick BETWEEN. Several prompts
+    // are pure reveals wearing a choice tray — Lasso of Truth shows one card
+    // with forcePrompt purely so you get to see it — and labelling their only
+    // button "Pick" implies a decision that does not exist. One option reads as
+    // an acknowledgement; two or more is a real choice.
+    const pickLabel = (cc.pickLabel) || (unmatched.length === 1 ? 'Continue' : 'Pick');
     const pickBtn = (idx) =>
-      `<button type="button" class="choice-pick-btn" data-pick="${idx}">Pick</button>`;
+      `<button type="button" class="choice-pick-btn" data-pick="${idx}">${pickLabel}</button>`;
     const cardsHtml = unmatched.map((card) => {
       const idx = cc.cards.indexOf(card);
       if (cc.faceDown) {
@@ -15092,7 +15098,11 @@ const UI = {
   },
   // Thin alias — the floating-prompt trick face is the canonical trick with a
   // fp-tricky hook class. Kept so its callers don't churn.
-  _fpTrickCardHTML(trick) { return this.makeTrickEl(trick, { extraClass: 'fp-tricky' }); },
+  // flip-host: the floating prompt has its OWN Play/Skip buttons, so the trick
+  // face itself is free to be a read surface — tap it to turn it over. This is
+  // the surface where reading matters most: the whole prompt is "do you want to
+  // play this trick", and you cannot answer that without its rules text.
+  _fpTrickCardHTML(trick) { return this.makeTrickEl(trick, { extraClass: 'fp-tricky flip-host' }); },
 
   // ===================== JUMP OFFER =====================
   // Player-side jump cards (Jason / Ghostface / Michael Myers) that become
