@@ -9131,7 +9131,20 @@ body.turn-combat .board .lane.lane-active {
      take up the whole space of the phone its too small and looks off." */
   .board-section { overflow-x: visible; -webkit-overflow-scrolling: auto; scroll-snap-type: none; padding: 0; width: 100%; }
   .board { width: 100%; min-width: 0; gap: 2px; padding: 0 2px; justify-content: stretch; box-sizing: border-box; }
-  .lane { width: auto; min-width: 0; flex: 1 1 0; scroll-snap-align: none; }
+  .lane { width: auto; min-width: 0; flex: 1 1 0; scroll-snap-align: none;
+    /* The canonical .lane rule carries `min-height: 380px` — a DESKTOP number
+       sized for the 240px desktop card. The phone block shrank the card
+       (aspect-ratio 92/182 at a ~55px lane width = 108px tall) and the slot
+       (min-height 132px) but never this, so every lane stayed 380px tall
+       holding a 108px card: measured 172px per slot against a 108px card,
+       i.e. 64px of dead black per slot, 128px per lane. That is what made the
+       board read as "crammed and tiny" — the card was not just small, it was
+       marooned in a column three and a half times its height.
+       `auto` lets the two flex:1 slots collapse onto their own 132px
+       min-height, which still leaves each card ~24px of outer breathing room
+       and keeps the mirror-image lane anchoring intact. Measured at 390x844:
+       board 380px -> 250px, and the page stops overflowing the viewport. */
+    min-height: auto; }
   /* Scope shrink to BOARD cards only — hand cards live in their own
      row with fixed widths so multiple fit horizontally.
      Bottom padding is 24px (vs the original 14px) to give the cost
@@ -9279,7 +9292,12 @@ body.turn-combat .board .lane.lane-active {
      the 44px minimum — backwards for the device where touch
      precision matters most. Dropped the scale; keep the corner pull.
      The sync button rides alongside it at a matching offset. */
-  .settings-cog { right: 8px !important; top: 8px !important; width: 38px !important; height: 38px !important; font-size: 18px !important; }
+  /* Same `position: fixed` / safe-area problem as .log-drawer-toggle above —
+     see the note there. Also: 38px was below the 44px Apple HIG / WCAG touch
+     minimum that the desktop rule deliberately sets, and this is the TOUCH
+     layout, where the minimum matters most. Kept at 44px; the glyph stays 18px
+     so the button reads the same size, it just has a real hit area. */
+  .settings-cog { right: 8px !important; top: calc(8px + env(safe-area-inset-top)) !important; width: 44px !important; height: 44px !important; font-size: 18px !important; }
   .sync-btn { right: 62px !important; top: 8px !important; }
   /* Mobile: the ? button is removed from the HUD to declutter the top bar —
      Rules & keywords now live in Settings → Help. */
@@ -9366,7 +9384,19 @@ body.turn-combat .board .lane.lane-active {
     overflow-y: visible;
     scroll-snap-type: x mandatory;
     -webkit-overflow-scrolling: touch;
-    mask-image: linear-gradient(to right, #000 0, #000 calc(100% - 24px), transparent 100%);
+    /* NO fade mask here. It used to be
+         mask-image: linear-gradient(to right, #000 0, #000 calc(100% - 24px), transparent 100%);
+       intended as a "there's more to scroll" hint. It was wrong twice over:
+       (1) it was applied to .hand-cards, which is the CONTENT (min-width:
+       max-content, measured 476px), not the scroller — the scroller is the
+       parent .player-hand-section. A mask on the content is painted in
+       CONTENT coordinates and never moves, so it sat permanently over the
+       last 24px of the LAST card no matter where you scrolled; and
+       (2) it applied even when the hand fitted and there was nothing to
+       scroll to. User report: "the far right card is black on the right side
+       for some reason" — that black was this gradient, not clipping and not
+       the art. If a scroll affordance is wanted later it belongs on the
+       SCROLLER (.player-hand-section) and must be conditional. */
   }
   .player-hand-section .hand-cards .card,
   .player-hand-section .hand-cards .hand-card-wrapper {
@@ -9464,14 +9494,38 @@ body.turn-combat .board .lane.lane-active {
   .mm-option-sub { font-size: 10px; line-height: 1.25; }
 
   /* ---- SETTINGS ---- */
-  .settings-overlay { padding: 10px; }
+  .settings-overlay {
+    padding: 10px;
+    /* The overlay is the ONE scroller (see the canonical .settings-overlay /
+       .settings-panel pair further down: "the scroll lives on the overlay,
+       not the panel"). `contain` stops a swipe that reaches the end of the
+       list from chaining on to the page behind it. */
+    overscroll-behavior: contain;
+  }
   .settings-panel {
     padding: 14px 14px 12px;
     max-width: calc(100vw - 20px);
     width: calc(100vw - 20px);
-    max-height: calc(100vh - 24px);
-    overflow-y: auto;
+    /* NO `max-height: calc(100vh - 24px)` and NO `overflow-y: auto` here.
+       Both used to be set, which quietly created a SECOND scroller nested
+       inside the overlay's, directly contradicting the canonical rule below.
+       Measured on a 390x844 phone viewport: the overlay could scroll 16px and
+       the panel could scroll 384px, with `overscroll-behavior: auto` on both,
+       so iOS picked a different scroll chain depending on where the finger
+       landed and how close that scroller was to its boundary. That is exactly
+       the reported symptom — user: "the scrolling feature is hit or miss."
+       The 100vh was wrong too: on iOS Safari 100vh is the LARGE viewport and
+       ignores the URL bar, so the panel claimed 820px of a ~750px visible
+       area and its bottom sat under the browser chrome. Letting the overlay
+       own the scroll makes both problems go away without a magic number. */
   }
+  /* A vertical swipe that happens to start on a volume slider must SCROLL the
+     settings list, not drag the slider. `pan-y` keeps vertical gestures for
+     the scroller while leaving horizontal drags to the slider, which is the
+     only axis a range input actually needs. The Audio group is where the user
+     was looking, and it holds two of the three sliders — so this was the
+     other half of "hit or miss". */
+  .settings-row input[type="range"] { touch-action: pan-y; }
   .settings-title { font-size: 18px; letter-spacing: 3px; margin-bottom: 8px; }
   .settings-group { margin-bottom: 10px; }
   .settings-group-title {
@@ -18045,7 +18099,13 @@ body.phase-menu .kb-hints { display: none; }
   .log-drawer-toggle {
     left: 10px !important;
     right: auto !important;
-    top: 8px !important;
+    /* `position: fixed` resolves against the VIEWPORT, not the padded body
+       box — so `body { padding-top: env(safe-area-inset-top) }` (the site-wide
+       safe-area recipe) does not move this button. At a bare `top: 8px` it
+       sits under the iPhone status bar / Dynamic Island, which is exactly
+       what the user's screenshot shows. Fixed elements have to carry the
+       inset themselves. Resolves to 8px on hardware with no inset. */
+    top: calc(8px + env(safe-area-inset-top)) !important;
   }
 }
 .log-drawer {

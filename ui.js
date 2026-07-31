@@ -212,10 +212,29 @@ const UI = {
     // cooks the battery. art-sm mirrors art/ filename-for-filename at 256px
     // (~9x less decode memory). Pass {full:true} for the few surfaces that
     // want full resolution (inspect modal; the menu hero has its own path).
+    // THREE mobile tiers, not two, because "mobile" is not one render size.
+    // Measured on a 390px viewport (iPhone 14/15 portrait):
+    //   board tile   55px wide  -> 165 device px at DPR 3  -> art-sm (195px) is AMPLE
+    //   hand card    92px wide  -> 276 device px            -> art-sm upscales 1.4x
+    //   draft card  148px wide  -> 444 device px            -> art-sm upscales 2.3x,
+    //                and on the 11 cards carrying a zoomCard override (Darth Maul
+    //                renders at background-size: 160%) it upscales 3.6x.
+    // That 2.3-3.6x on the biggest, most-scrutinised card on the screen is the
+    // whole of the user's report: "the quality of the art in the draft looks low."
+    // The art-sm set was NOT a mistake — it exists because decoding the 768-1280px
+    // originals for tiny tiles blew iOS Safari's image-memory cap and portraits
+    // went blank. That reasoning holds for a 55px board tile and fails for a 148px
+    // draft card, so the answer is a middle tier rather than abandoning either end.
+    // art-md = 512px long edge, JPEG q88, an exact filename mirror of art/ at 14MB
+    // total — which is actually SMALLER than the 256px art-sm set (17MB), because
+    // art-sm is mostly PNG. Decode cost stays bounded because only a handful of
+    // cards render large at once (2 draft / ~5 hand) versus 12 board tiles.
     const wantFull = !!(opts && opts.full);
+    const wantMd = !wantFull && !!(opts && opts.md);
     const mobile = !wantFull && typeof window !== 'undefined' && window.matchMedia
       && window.matchMedia('(max-width: 640px)').matches;
-    const dir = mobile ? 'audio/cards/art-sm' : 'audio/cards/art';
+    const dir = !mobile ? 'audio/cards/art'
+      : (wantMd ? 'audio/cards/art-md' : 'audio/cards/art-sm');
     // Resilient art: if this card's versioned URL failed to load earlier
     // (flaky mobile network + a fresh ?v means the SW has nothing cached
     // under the new key, so one dropped fetch = a blank portrait until the
@@ -223,7 +242,14 @@ const UI = {
     // memoized fallback instead.
     const fbKey = dir + '|' + name;
     if (this._artFallback && this._artFallback[fbKey]) return this._artFallback[fbKey];
-    const file = this.getCardArtVariant(name);
+    // art-sm mirrors art/ extension-for-extension (175 .png + 31 .jpg); art-md is
+    // re-encoded so every file is .jpg. Swap the extension for that tier only —
+    // serving JPEG bytes under a .png name would work by content sniffing but
+    // would be served with the wrong Content-Type, which is not worth the trick.
+    // Stems are unique across art/ (verified), so a flat .jpg mirror is lossless
+    // and alt-art variants come along automatically.
+    let file = this.getCardArtVariant(name);
+    if (dir === 'audio/cards/art-md') file = file.replace(/\.[^.]+$/, '.jpg');
     const url = `${dir}/${encodeURIComponent(file)}?v=${this._CARD_ART_VERSION || 1}`;
     this._probeArt(url, fbKey, file, dir);
     return url;
@@ -14795,7 +14821,12 @@ const UI = {
   // opts: {extraClass, onclick, descOverride}.
   makeTrickEl(trick, opts) {
     opts = opts || {};
-    const artPath = this.getCardArtPath(trick.name);
+    // Tricks always take the mid art tier on mobile. Unlike cards there is no
+    // trick equivalent of the ~55px board tile — the smallest a trick ever
+    // renders is the 110px tray card (330 device px at DPR 3, which art-sm's
+    // 195px would upscale 1.7x), and the draft picker is larger still. See the
+    // tier note in getCardArtPath.
+    const artPath = this.getCardArtPath(trick.name, { md: true });
     const safeUrl = artPath ? artPath.replace(/'/g, '%27') : '';
     const portraitStyle = safeUrl ? `--portrait-bg:url('${safeUrl}')${UI._artFocalCard(trick.name)}` : '';
     const badges = trick.abilities && trick.abilities.length
@@ -16885,7 +16916,15 @@ const UI = {
     // stale cached PNGs. PNG files don't have a built-in cache buster
     // (unlike HTML/CSS/JS which use ?v=N in index.html), so we append
     // it here at render time.
-    const portraitFile = card.name ? UI.getCardArtPath(card.name) : null;
+    // Pick the art TIER from what this one canonical renderer already knows about
+    // the surface it is drawing, so every caller inherits the right resolution
+    // without threading a flag through 15 call sites. Board tiles render at ~55px
+    // on a phone and keep the small set; the draft picker, the hand, and the codex
+    // render 2-3x larger and get art-md. Non-mobile ignores all of this and gets
+    // full-resolution art as before (getCardArtPath gates on max-width: 640px).
+    const _bigSurface = !!inHand
+      || /\b(draft-card|enc-card|inspect-card)\b/.test(String(opts.extraClass || ''));
+    const portraitFile = card.name ? UI.getCardArtPath(card.name, { md: _bigSurface }) : null;
     // REDESIGN: art-at-top with name overlay (Marvel Snap pattern).
     // Standalone .card-name-banner row removed — the name now lives as
     // a translucent strip across the BOTTOM of the portrait. One
