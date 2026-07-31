@@ -19641,10 +19641,22 @@ body {
   .card.hand-card::after,
   .card.ally-card::after,
   .draft-card::after { transition: none !important; opacity: 0 !important; }
-  .card.hand-card.selected {
+  /* :not(.card-drag-ghost) — braces to the belt in _makeCardDragGhost.
+     The ghost is a hand-card clone, so it matches this selector, and this
+     `!important` transform beat the INLINE translate(x,y) that positions it —
+     parking the dragged card in the top-left corner for anyone with OS
+     reduce-motion on. The clone now has `.selected` stripped, which alone fixes
+     it; this makes the ghost structurally immune, so a future `!important`
+     landing on some other class the clone happens to carry cannot resurrect the
+     same bug. What a card looks like sitting selected in the hand has nothing
+     to say about a clone flying under the cursor. */
+  .card.hand-card.selected:not(.card-drag-ghost) {
     transform: translateY(-16px) scale(1.04) !important;
     transition: none !important;
   }
+  /* Belt-and-braces for the general case: nothing may override the inline
+     transform that IS the ghost's position. */
+  .card-drag-ghost { transform: none; }
   .player-bar .energy-text.can-play::before,
   .health-fill.hp-critical,
   .health-text.hp-critical-text,
@@ -35690,3 +35702,60 @@ body.low-fx .card.status-burning:not(.card-enter):not(.card-exit) {
   font-size: 8px;
   letter-spacing: 0.1px;
 }
+
+/* ============================================================
+   BOARD BADGES: ONE ROW ACROSS, NEVER A VERTICAL STACK
+   ============================================================
+   User: "the symbols help but they need to all be on the card, not one vertical
+   line like Spawn, but spread across."
+   Measured on a 58.6px board tile with three keywords: the badges came to 24 +
+   16 + 16 = 56px, plus two 1px gaps = 58px, against a 57px strip. One pixel
+   over — so the third badge wrapped and the set read as a vertical column down
+   the middle of the art instead of a row across it.
+   Two things caused the squeeze. The badges were still carrying `padding: 1px
+   3px` and `font-size: 7px` from the `.card.ally-card/.enemy-card` block near
+   the end of this file, which lands AFTER the phone `@container` block and
+   quietly won the cascade over the icon sizing set there. And nothing capped
+   the strip to a single row, so overflow turned into stacking rather than into
+   a decision.
+   Both fixed here, in a rule that is last and therefore actually authoritative:
+   trim the horizontal padding to the minimum that still reads as a chip, and
+   cap the strip at ONE row so a card with more keywords than fit drops the
+   extras (readable in tap-inspect) rather than growing a column over its own
+   art. Wrap is left ON rather than using nowrap on purpose: the strip is
+   justify-content:center, and nowrap + overflow would slice the FIRST and LAST
+   badge in half and show two stubs — the exact failure the hand block's own
+   comment warns about. Wrapping past a one-row cap drops whole badges instead.
+   ============================================================ */
+.card.ally-card .status-badges,
+.card.enemy-card .status-badges {
+  max-height: 14px;        /* ONE row of 8px glyphs + chip padding */
+  overflow: hidden;
+  flex-wrap: wrap;         /* wrap-then-clip drops whole badges, never half ones */
+  gap: 1px;
+  justify-content: center;
+}
+.card.ally-card .status-badge,
+.card.enemy-card .status-badge {
+  padding: 0 1px;
+  gap: 1px;
+  font-size: 7px;
+  line-height: 1;
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+}
+.card.ally-card .status-badge .sb-i,
+.card.enemy-card .status-badge .sb-i {
+  display: inline-flex;
+  width: 8px; height: 8px;
+}
+.card.ally-card .status-badge .sb-w,
+.card.enemy-card .status-badge .sb-w { display: none; }
+.card.ally-card .status-badge .sb-n,
+.card.enemy-card .status-badge .sb-n { font-size: 7px; font-weight: 700; }
+/* No glyph means an empty chip at this size — drop it; the word is one
+   tap-inspect away. (The hand does the opposite and keeps the word, because
+   there is room for it there.) */
+.card.ally-card .status-badge.sb-noicon,
+.card.enemy-card .status-badge.sb-noicon { display: none; }

@@ -18584,14 +18584,15 @@ const UI = {
         if (batBlocked) {
           el.classList.add('unplayable');
           el.title = 'Blocked by Batman — card is locked this turn.';
-          // Touch only. On a fine pointer the `title` above IS the explanation on
-          // hover, and a click is now a READ (it flips the card), so firing a
-          // toast here scolded the player every single time they turned a card
-          // over to look at it. User: "every time i flip the card the purple
-          // banner cant play that not enough energy."
-          if (!this._hasFinePointer()) {
-            el.onclick = () => { if (UI.showAITrickToast) UI.showAITrickToast("Can't play that", 'Blocked by Batman — card is locked this turn.', 'error'); };
-          }
+          // NO TOAST ON TAP — see the matching note on the affordability branch
+          // below. This comment already recorded the right reasoning ("a click
+          // is now a READ (it flips the card), so firing a toast here scolded
+          // the player every single time they turned a card over") but applied
+          // it only to fine pointers, because at the time TOUCH taps did not
+          // flip. They do now, so touch had exactly the same complaint waiting
+          // for it, and the `!_hasFinePointer()` gate is what delivered it.
+          // The card stays greyed, `title` still explains on hover, and an
+          // actual play attempt still gets a real rejection toast.
         } else if (card.jumpReady && hasOpen) {
           el.classList.add('jump-ready');
           el.onclick = () => Game.submitCommand({ type: 'playJump', payload: { card } });
@@ -18627,16 +18628,24 @@ const UI = {
           else if (!hasOpen) reason = 'No open lane available.';
           if (reason) {
             el.title = reason;
-            // Touch has no hover, so the title never shows — a beginner taps a
-            // greyed card and gets nothing at the moment they're most confused.
-            // Surface the reason as a toast on tap (long-press still inspects).
-            // Touch only — see the note on the Batman branch above. The reason
-            // still reaches desktop through el.title on hover, and through the
-            // real rejection toast when a play is actually ATTEMPTED (drag or
-            // lane click), which is the moment it is wanted.
-            if (!this._hasFinePointer()) {
-              el.onclick = () => { if (UI.showAITrickToast) UI.showAITrickToast("Can't play that", reason, 'error'); };
-            }
+            // NO TOAST ON TAP ANY MORE.
+            // This was touch-only and its reasoning was sound at the time: touch
+            // has no hover, so el.title never shows, and "a beginner taps a
+            // greyed card and gets nothing at the moment they're most confused."
+            // That held while a tap on touch did nothing else. It no longer does
+            // — tap now turns the card over to read it (installHandCardFlip), so
+            // every single read of an unaffordable card also fired this error
+            // banner. User: "when i flip on mobile it gives the 'cant play that'
+            // bug like we handled before" — and it IS the same bug, arriving by a
+            // new route: desktop was fixed earlier, touch was exempt from that
+            // fix by this very `!_hasFinePointer()` gate.
+            // Nothing is actually lost. Leaving el.onclick null lets the tap fall
+            // through to the flip, which now shows the card's own rules text —
+            // strictly more informative than the banner. The card is still
+            // visibly greyed, el.title still carries the reason on any pointer
+            // that hovers, and the real rejection toast still fires when a play
+            // is genuinely ATTEMPTED by drag or lane click, which this rule's own
+            // comment already called "the moment it is wanted".
           }
         }
       } else {
@@ -20369,6 +20378,24 @@ const UI = {
     const g = cardEl.cloneNode(true);
     g.removeAttribute('data-card-id');
     g.classList.add('card-drag-ghost');
+    // A CLONE KEEPS EVERY CLASS, AND EVERY CLASS IS A CSS HANDLE.
+    // This is why the dragged card was appearing pinned in the top-left corner.
+    // The ghost is positioned by an INLINE transform written on every mousemove,
+    // and an inline author style LOSES to any `!important` the element still
+    // matches. Drag a card you had already clicked to select and the clone
+    // arrives still wearing `.selected` — and under
+    // @media (prefers-reduced-motion: reduce) there is
+    //   .card.hand-card.selected { transform: translateY(-16px) scale(1.04) !important }
+    // which vetoes the inline translate(x,y) outright. The ghost then sits at
+    // its base left:0/top:0, nudged up 16px: the top-left corner, over the HUD,
+    // immovable no matter how far the pointer travels. The JS is not broken and
+    // the style attribute updates correctly every frame — only the COMPUTED
+    // value differs, which is why reading the drag handlers found nothing.
+    // The other clone path in this file already learned this (see the
+    // card-flight-ghost above, which strips the same list). Doing it here too.
+    g.classList.remove('selected', 'is-selected', 'card-selected', 'target-highlight',
+      'targetable', 'playable', 'unplayable', 'card-enter', 'card-flying',
+      'card-landing', 'magnifying', 'face-flipped', 'card-being-dragged');
     // Size the ghost to the BOARD TILE it will become — not the tall hand
     // card. The clone leaves .player-hand-section, so the hand-scoped mobile
     // hide-rules stop applying and the full desc/name reappeared ("the whole
