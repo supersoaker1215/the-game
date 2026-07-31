@@ -3118,6 +3118,38 @@ const UI = {
     // `cancelAnimationFrame` instead of `clearInterval`. The `slot`
     // contract stays the same so all the existing fade-in /
     // fade-out / stop / duck call sites work unchanged.
+    // How long until every currently-sounding non-hover cue has finished, in ms.
+    // Combat's lane advance uses this to hold a lane open until you have actually
+    // HEARD it resolve.
+    // Why this is needed alongside the existing _laneAudioEndsAt: that field is
+    // only written when a card had a real death SAMPLE that won the lane's single
+    // audio slot. Cards that fall back to a procedural cue return null from
+    // playCardSfx, so `chosen` was null, nothing was recorded, and the lane
+    // advanced on the flat base delay while the sound was still going. Measuring
+    // the live elements covers those, plus anything an onDeath trigger fired
+    // (ability cues, voice lines) that the single-slot bookkeeping never saw.
+    // Reading the ELEMENT rather than trusting a precomputed end-time also fixes
+    // the case where duration was NaN when the estimate was made — a freshly
+    // constructed Audio has readyState 0, so duration is unknown at exactly the
+    // moment the old code needed it.
+    // Bounded by design: the concurrency cap keeps this set small, and CAP_MS
+    // stops one long voice line from stalling the whole combat.
+    activeTailMs(capMs) {
+      const CAP_MS = capMs || 2600;
+      // No metadata yet -> assume a typical capped cue rather than 0. Guessing
+      // low here reintroduces the bug; guessing high only costs a short pause.
+      const UNKNOWN_MS = 1100;
+      let worst = 0;
+      const consider = (a) => {
+        if (!a || a.paused || a.ended) return;
+        const known = !isNaN(a.duration) && a.duration > 0;
+        const remain = known ? Math.max(0, (a.duration - a.currentTime) * 1000) : UNKNOWN_MS;
+        const capped = Math.min(CAP_MS, remain);
+        if (capped > worst) worst = capped;
+      };
+      if (this._activeNonHover) this._activeNonHover.forEach(consider);
+      return worst;
+    },
     _fadeVolume(a, toVol, durMs, slot, onDone) {
       const startVol = a.volume;
       const goingDown = toVol < startVol;
@@ -4730,7 +4762,23 @@ const UI = {
           const endsAt = this.sfx._laneAudioEndsAt || 0;
           const now = performance.now();
           const remaining = endsAt > now ? (endsAt - now) : 0;
-          const computed = remaining > 0 ? (remaining + 250) : baseMs;
+          // TWO SOURCES, take whichever says "still playing" for longer.
+          // `remaining` is the BOOKED estimate, written only when a card had a
+          // real death sample that won the lane's single audio slot. `live` is
+          // measured off the elements that are actually sounding right now, and
+          // it is the one that catches everything the booking misses: cards
+          // whose death falls back to a procedural cue (playCardSfx returns
+          // null, so nothing was ever booked), and any ability or voice cue an
+          // onDeath trigger fired. That gap is why a lane could advance with its
+          // audio still going — user: "audio combat per lane needs to resolve
+          // before moving on to the next".
+          const live = this.sfx.activeTailMs ? this.sfx.activeTailMs() : 0;
+          const tail = Math.max(remaining, live);
+          // Floor at the base delay so the aiSpeed setting still sets the pace
+          // when a lane happens to be silent, and never go BELOW it — the user
+          // reports combat reading as too fast, so audio can only ever extend a
+          // lane, never shorten it.
+          const computed = tail > 0 ? Math.max(baseMs, tail + 250) : baseMs;
           // Reset for next lane (the getter fires once per advance).
           this.sfx._laneAudioEl = null;
           this.sfx._laneAudioEndsAt = 0;
@@ -4751,7 +4799,12 @@ const UI = {
               const now = performance.now();
               const remaining = endsAt > now ? (endsAt - now) : 0;
               const base = origPostGet.call(Game);
-              const computed = remaining > 0 ? (remaining + 250) : base;
+              // Same booked-vs-live pair as the lane delay above — the last
+              // lane's audio is the one most likely to be cut off, since there
+              // is no following lane to absorb its tail.
+              const live = this.sfx.activeTailMs ? this.sfx.activeTailMs() : 0;
+              const tail = Math.max(remaining, live);
+              const computed = tail > 0 ? Math.max(base, tail + 250) : base;
               this.sfx._laneAudioEl = null;
               this.sfx._laneAudioEndsAt = 0;
               this.sfx._laneDeathCost = null;
