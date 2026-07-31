@@ -34866,3 +34866,31 @@ body.hand-text-always .player-hand-section .hand-cards .card.face-flipped .card-
 .ai-trick-toast.toast-kind-discard .ai-trick-label,
 .ai-trick-toast.toast-kind-discard .ai-trick-name { color: inherit; }
 .ai-trick-toast.toast-kind-discard .ai-trick-name { color: var(--text-hi, #f5fbff); }
+/* SETTING: "Always show" (body.hand-text-always) — same treatment the hand
+   cards get, applied to the in-match trick row. The rules show at rest as a
+   panel across the lower part of the trick, art visible above; cost stays on
+   top. Click-to-flip still works. See the hand-card block above. */
+body.hand-text-always .trick-cards .trick-card .trick-desc {
+  visibility: visible;
+  opacity: 1;
+  transform: none;
+  inset: auto 0 0 0;
+  height: 58%;
+  z-index: 3;
+  border-radius: 0 0 inherit inherit;
+  background: linear-gradient(to bottom, rgba(0,0,0,0) 0%, rgba(0,0,0,0.86) 20%, rgba(0,0,0,0.95) 100%);
+  align-content: end;
+  padding: 8px 5px 8px;
+}
+/* Keep the trick name legible above the panel. */
+body.hand-text-always .trick-cards .trick-card .card-name-overlay {
+  z-index: 4;
+}
+/* A clicked (flipped) trick still reads as the full-bleed face. */
+body.hand-text-always .trick-cards .trick-card.face-flipped .trick-desc {
+  inset: 0;
+  height: auto;
+  align-content: center;
+  background: #000;
+  padding: 5px 5px;
+}
