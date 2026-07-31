@@ -4803,6 +4803,19 @@ const Game = {
       // "--- Round 1 --- You go first" re-logged, and the endPhase chain
       // handed Team B's turns to the AI.
       if (this.is2v2()) { this._2v2PostCombat(); return; }
+      // SILENT SIM (previewPlacement / previewPlay): combat has fully resolved
+      // on the throwaway clone and the caller only reads the resulting board.
+      // STOP here — do NOT advance to the next round. Critically, this also
+      // avoids the async Promise branch below: previewPlacement stubs
+      // UI.showRoundSummary to a no-op but leaves it DEFINED, so `showRecap`
+      // was truthy and postCombat took `Promise.resolve(...).then(proceed)`.
+      // That `.then(proceed)` is a MICROTASK — it runs AFTER previewPlacement's
+      // finally restores the live state, so `proceed` (drawPhase -> startRound)
+      // advanced the REAL game. Previews fire on every hover / card selection
+      // (one per open lane), so the live round skipped ahead repeatedly —
+      // "skipping ahead rounds, unplayable." (2026-07-30 regression from the
+      // preview-resolves-real-combat change.)
+      if (this.state._silentSim) return;
       // Show round recap before draw phase, if the player has it enabled.
       const rs = this.state._roundStats;
       const showRecap = typeof UI !== 'undefined' && UI.showRoundSummary;
