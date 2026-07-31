@@ -1177,7 +1177,7 @@ const UI = {
     try { localStorage.setItem(this.SETTINGS_KEY, JSON.stringify(this.settings)); } catch (e) {}
     // Commitment actions must confirm — otherwise the only way to know a
     // save worked is to re-open the panel. The themed toast already exists.
-    if (this.showAITrickToast) this.showAITrickToast('Settings Saved', 'Your preferences are stored', 'trick');
+    if (this.showAITrickToast) this.showAITrickToast('Settings Saved', 'Your preferences are stored', 'system');
     this.closeSettings();
   },
   // Sync the current page to the latest GitHub Pages deploy.
@@ -1377,7 +1377,7 @@ const UI = {
         savedDecks: this._dbGetSavedDecks()
       }, null, 2);
       const flash = (msg) => {
-        if (this.showAITrickToast) this.showAITrickToast('Settings Copied', msg, 'trick');
+        if (this.showAITrickToast) this.showAITrickToast('Settings Copied', msg, 'system');
         else UI.alertModal(msg);
       };
       if (navigator.clipboard && navigator.clipboard.writeText) {
@@ -9587,7 +9587,7 @@ const UI = {
     try { localStorage.setItem('clb-block-taught', '1'); } catch (e) {}
     const max = (typeof Game !== 'undefined' && Game.BLOCK_MAX) || 8;
     if (this.showAITrickToast) {
-      this.showAITrickToast('Block Meter', `Damage you take fills it. At ${max}/${max} it hard-blocks the next hit AND draws you a free Trick.`, 'trick');
+      this.showAITrickToast('Block Meter', `Damage you take fills it. At ${max}/${max} it hard-blocks the next hit AND draws you a free Trick.`, 'info');
     }
   },
 
@@ -10059,7 +10059,7 @@ const UI = {
       this._persistSet('artZoom_card', this._artZoomMap('card'));
       this._persistSet('artZoom_menu', this._artZoomMap('menu'));
     } catch (e) {}
-    if (this.showAITrickToast) this.showAITrickToast('Crop saved', name, 'trick');
+    if (this.showAITrickToast) this.showAITrickToast('Crop saved', name, 'system');
   },
   // Export ALL gallery edits (crops, zooms, reorder/primary, deletions) as JSON
   // and copy it to the clipboard so they can be PUBLISHED to the repo (paste to
@@ -14096,7 +14096,7 @@ const UI = {
   },
   _copyToClipboard(text) {
     const flash = (msg) => {
-      if (this.showAITrickToast) this.showAITrickToast('Copied to clipboard', msg, 'trick');
+      if (this.showAITrickToast) this.showAITrickToast('Copied to clipboard', msg, 'system');
       else UI.alertModal(msg);
     };
     if (navigator.clipboard && navigator.clipboard.writeText) {
@@ -17158,9 +17158,24 @@ const UI = {
       const { name, desc, kind } = this._aiTrickQueue.shift();
       nameEl.textContent = name;
       descEl.innerHTML = this.formatDesc(desc) || '';
-      if (labelEl) labelEl.textContent = kind === 'discard' ? (UI.oppName() + ' played a Discard') : (UI.oppName() + ' played a Trick');
-      toast.classList.toggle('toast-kind-discard', kind === 'discard');
-      toast.classList.toggle('toast-kind-trick', kind !== 'discard');
+      // THE EYEBROW MUST MATCH THE MESSAGE. This had exactly two branches —
+      // discard, else trick — so EVERY other kind announced itself as
+      // "<opponent> played a Trick". Saving your settings said the AI played a
+      // trick. Copying a deck code said the AI played a trick. And "Can't play
+      // that" said it while wearing the purple trick chrome, which is why the
+      // banner read as broken rather than as a warning.
+      const KIND = {
+        discard: { label: () => UI.oppName() + ' played a Discard', cls: 'toast-kind-discard', ms: 4000 },
+        trick:   { label: () => UI.oppName() + ' played a Trick',   cls: 'toast-kind-trick',   ms: 4000 },
+        error:   { label: () => 'Cannot Play',                      cls: 'toast-kind-error',   ms: 2400 },
+        info:    { label: () => 'Notice',                           cls: 'toast-kind-info',    ms: 3000 },
+        system:  { label: () => 'System',                           cls: 'toast-kind-system',  ms: 2400 },
+      };
+      const k = KIND[kind] || KIND.trick;
+      if (labelEl) labelEl.textContent = k.label();
+      Object.values(KIND).forEach(v => toast.classList.remove(v.cls));
+      toast.classList.add(k.cls);
+      this._aiTrickHoldMs = k.ms;
       toast.style.display = 'block';
       toast.classList.add('active');
       clearTimeout(this._aiTrickTimeout);
@@ -17177,7 +17192,7 @@ const UI = {
           if (!this._aiTrickQueue.length) toast.style.display = 'none';
           showNext();
         }, 300);
-      }, 4000);
+      }, this._aiTrickHoldMs || 4000);
     };
     showNext();
   },
@@ -18128,7 +18143,14 @@ const UI = {
         if (batBlocked) {
           el.classList.add('unplayable');
           el.title = 'Blocked by Batman — card is locked this turn.';
-          el.onclick = () => { if (UI.showAITrickToast) UI.showAITrickToast("Can't play that", 'Blocked by Batman — card is locked this turn.', 'error'); };
+          // Touch only. On a fine pointer the `title` above IS the explanation on
+          // hover, and a click is now a READ (it flips the card), so firing a
+          // toast here scolded the player every single time they turned a card
+          // over to look at it. User: "every time i flip the card the purple
+          // banner cant play that not enough energy."
+          if (!this._hasFinePointer()) {
+            el.onclick = () => { if (UI.showAITrickToast) UI.showAITrickToast("Can't play that", 'Blocked by Batman — card is locked this turn.', 'error'); };
+          }
         } else if (card.jumpReady && hasOpen) {
           el.classList.add('jump-ready');
           el.onclick = () => Game.submitCommand({ type: 'playJump', payload: { card } });
@@ -18167,7 +18189,13 @@ const UI = {
             // Touch has no hover, so the title never shows — a beginner taps a
             // greyed card and gets nothing at the moment they're most confused.
             // Surface the reason as a toast on tap (long-press still inspects).
-            el.onclick = () => { if (UI.showAITrickToast) UI.showAITrickToast("Can't play that", reason, 'error'); };
+            // Touch only — see the note on the Batman branch above. The reason
+            // still reaches desktop through el.title on hover, and through the
+            // real rejection toast when a play is actually ATTEMPTED (drag or
+            // lane click), which is the moment it is wanted.
+            if (!this._hasFinePointer()) {
+              el.onclick = () => { if (UI.showAITrickToast) UI.showAITrickToast("Can't play that", reason, 'error'); };
+            }
           }
         }
       } else {

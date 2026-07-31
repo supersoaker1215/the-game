@@ -34797,3 +34797,72 @@ body.hand-text-always .player-hand-section .hand-cards .card.face-flipped .card-
 @media (prefers-reduced-motion: reduce) {
   .trick-cards .trick-card .trick-desc { transform: none; transition: opacity 120ms linear; }
 }
+
+/* ============================================================
+   NOTIFICATION BANNER — TRON PASS
+   ============================================================
+   User: "update the banner to be more triple AAA professional tron style."
+
+   It was a purple rounded box on a navy fill (rgba(6,10,18,0.96)) with a purple
+   border, wearing the trick identity no matter what it was announcing — which
+   is how an error ended up looking like a trick. The kind now drives the
+   colour, and the shell follows the game's own language: pure #000 interior,
+   one hairline edge, one outer glow, a square-ish corner and a lit rule under
+   the eyebrow instead of a coloured slab.
+
+   --toast-accent is set per kind below; everything else reads from it, so a new
+   kind is one rule and not a restyle. */
+.ai-trick-toast {
+  --toast-accent: 155, 89, 182;          /* trick purple, overridden per kind */
+  background: #000;                       /* panel interiors are ALWAYS pure #000 */
+  border: 1px solid rgba(var(--toast-accent), 0.85);
+  border-radius: 3px;                     /* squarer reads as machined, not soft */
+  padding: 13px 22px 14px;
+  box-shadow:
+    0 0 0 1px rgba(0,0,0,0.9),
+    0 10px 34px rgba(0,0,0,0.75),
+    0 0 22px rgba(var(--toast-accent), 0.30),
+    inset 0 0 18px rgba(var(--toast-accent), 0.06);
+  /* The lit top edge — the same "tube of light along the perimeter" idea the
+     cards and panels use, applied to one edge so the banner reads as a HUD
+     element rather than a floating card. */
+  background-image: linear-gradient(90deg,
+    rgba(var(--toast-accent), 0) 0%,
+    rgba(var(--toast-accent), 0.9) 22%,
+    rgba(var(--toast-accent), 0.9) 78%,
+    rgba(var(--toast-accent), 0) 100%);
+  background-size: 100% 1px;
+  background-position: 0 0;
+  background-repeat: no-repeat;
+}
+.ai-trick-toast .ai-trick-label {
+  color: rgba(var(--toast-accent), 0.95);
+  font-size: 9px;
+  letter-spacing: 3.2px;                  /* wide-tracked eyebrow = HUD voice */
+  opacity: 0.9;
+  margin-bottom: 6px;
+}
+.ai-trick-toast .ai-trick-name {
+  color: var(--text-hi, #f5fbff);         /* the MESSAGE is white; the accent is chrome */
+  font-size: 15px;
+  letter-spacing: 2px;
+  text-shadow: 0 0 14px rgba(var(--toast-accent), 0.45);
+}
+.ai-trick-toast .ai-trick-desc {
+  margin-top: 5px;
+  font-size: 11.5px;
+  color: var(--text-mute, #b8c2cc);
+}
+
+/* Kind = colour. Only the accent changes; the shell above is identical, which
+   is what makes them feel like one component instead of five banners. */
+.ai-trick-toast.toast-kind-trick   { --toast-accent: 155, 89, 182; }   /* trick purple */
+.ai-trick-toast.toast-kind-discard { --toast-accent: 220, 226, 234; }  /* spent-a-card white */
+.ai-trick-toast.toast-kind-error   { --toast-accent: 231,  76,  60; }  /* refusal red */
+.ai-trick-toast.toast-kind-info    { --toast-accent:  79, 195, 247; }  /* neutral cyan */
+.ai-trick-toast.toast-kind-system  { --toast-accent:  46, 204, 113; }  /* confirmation green */
+/* The discard variant used to recolour the label to white explicitly; it now
+   inherits from --toast-accent like every other kind. */
+.ai-trick-toast.toast-kind-discard .ai-trick-label,
+.ai-trick-toast.toast-kind-discard .ai-trick-name { color: inherit; }
+.ai-trick-toast.toast-kind-discard .ai-trick-name { color: var(--text-hi, #f5fbff); }
