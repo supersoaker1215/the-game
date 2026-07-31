@@ -4847,6 +4847,11 @@ const UI = {
   // branches that can drift apart.
   toggleHandCardFlip(cardEl) {
     if (!cardEl) return false;
+    // "Always show" mode: the rules already sit on the card/trick face, so a
+    // click must NOT flip to the full-bleed panel — the flip just gets in the
+    // way when the text is right there (user). The card's own select/play
+    // onclick still fires; only the read-flip is suppressed.
+    if (document.body.classList.contains('hand-text-always')) return false;
     const face = cardEl.querySelector(this.FLIP_FACE_SELECTOR);
     // Nothing to turn over. King Shark, Spawn and The Thing are pure
     // stat-lines with no rules text, and flipping them showed a blank black
