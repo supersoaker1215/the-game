@@ -35395,3 +35395,136 @@ body.low-fx .card.status-burning:not(.card-enter):not(.card-exit) {
 .go-mvp-real .card-active-text {
   display: none !important;
 }
+
+/* ============================================================
+   FLIP SURFACES — the general, opt-in version of the hand-card turn-over
+   ============================================================
+   The hand and trick rows grew their own flip implementation, scoped hard to
+   `.player-hand-section .hand-cards .card`. That was right for one surface and
+   wrong as a pattern: every other place a card appears — card-choice prompts
+   (Paul Atreides, Batman Who Laughs, Dr Strange), trick reveals (Lasso of
+   Truth), floating prompts — either crammed the rules text onto the tile at 9px
+   or dropped it entirely.
+   `.flip-host` is the opt-in. A renderer adds the class and inherits the whole
+   treatment; no new selector list, no second copy of the animation. This is the
+   "fix the source" version of what the hand does.
+   DRAFT IS EXCLUDED ON PURPOSE — a draft card is chosen BY its text, so hiding
+   that text behind a flip would defeat the surface.
+   ============================================================ */
+
+/* THE FACE. Absolutely positioned so it can never change the card's height —
+   the same reason the hand does it this way. `inset: 0` resolves to the padding
+   box, so the card's neon perimeter survives underneath. */
+.flip-host { position: relative; }
+.flip-host .card-desc,
+.flip-host .card-trick-passive,
+.flip-host .trick-desc {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  z-index: 7;
+  margin: 0;
+  /* MUST be block flow, not flex — descriptions carry <b> runs and .kw keyword
+     chips, and under flex each becomes its own flex item squeezed to minimum
+     width and wrapped character by character. align-content centres the block
+     without shattering the sentence. */
+  display: block;
+  align-content: center;
+  text-align: center;
+  padding: 8px 8px;
+  background: #000;    /* panel interiors are always pure #000 */
+  line-height: 1.3;
+  overflow: hidden;
+  /* Out of sight at rest, and out of the way of clicks. */
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transform: rotateY(90deg);
+  transform-origin: 50% 50%;
+  backface-visibility: hidden;
+}
+.flip-host.face-flipped .card-desc,
+.flip-host.face-flipped .card-trick-passive,
+.flip-host.face-flipped .trick-desc {
+  visibility: visible;
+  opacity: 1;
+  transform: rotateY(0deg);
+  /* Opacity lands halfway through the turn so the face arrives edge-on rather
+     than fading in flat. */
+  transition:
+    transform 240ms var(--ease-out-quart),
+    opacity 90ms linear 70ms;
+}
+/* The art swings out as the text swings in, so the turn reads as ONE object
+   rotating rather than a black panel appearing over a static portrait. */
+.flip-host .card-portrait {
+  transition: transform 240ms var(--ease-out-quart), opacity 90ms linear 70ms;
+  backface-visibility: hidden;
+}
+.flip-host.face-flipped .card-portrait {
+  transform: rotateY(-90deg);
+  opacity: 0;
+}
+/* A flipped card is showing its rules — the front chrome should not be left
+   half-visible around the edges of the panel. */
+.flip-host.face-flipped .status-badges,
+.flip-host.face-flipped .card-abilities,
+.flip-host.face-flipped .card-name-overlay,
+.flip-host.face-flipped .card-name-banner,
+.flip-host.face-flipped .card-name,
+.flip-host.face-flipped .rarity-strip,
+.flip-host.face-flipped .card-type-sigil {
+  opacity: 0;
+  transition: opacity 90ms linear;
+  pointer-events: none;
+}
+/* Reading is a click, so say so. */
+.flip-host { cursor: pointer; }
+@media (prefers-reduced-motion: reduce) {
+  .flip-host .card-desc,
+  .flip-host .card-trick-passive,
+  .flip-host .trick-desc,
+  .flip-host .card-portrait { transition: none !important; transform: none !important; }
+  .flip-host.face-flipped .card-portrait { opacity: 0; }
+}
+
+/* ---- CHOICE TRAY: art-first cards + an explicit PICK button ----
+   The card face used to BE the pick target, so one click committed an
+   irreversible choice on a tile whose rules were crammed in at 9px. The card is
+   now purely for reading (tap it as often as you like — it only flips) and
+   committing is a separate, labelled act. */
+.choice-tray .choice-opt {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 8px;
+}
+.choice-tray .choice-pick-btn {
+  /* Boxless glow-text, per the house button language — NEVER the blue box. */
+  background: none;
+  border: 0;
+  border-top: 1px solid rgba(var(--theme-rgb, 79,195,247),0.35);
+  color: rgba(var(--theme-rgb, 79,195,247),0.95);
+  font-family: 'Rajdhani', sans-serif;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 3px;
+  text-transform: uppercase;
+  padding: 10px 6px 8px;
+  /* 44px min so it is a real touch target on the layout where it matters. */
+  min-height: 44px;
+  cursor: pointer;
+  text-shadow: 0 0 8px rgba(var(--theme-rgb, 79,195,247),0.55);
+  transition: color 0.15s, text-shadow 0.15s, transform 0.15s, border-color 0.15s;
+}
+.choice-tray .choice-pick-btn:hover,
+.choice-tray .choice-pick-btn:focus-visible {
+  color: #ffffff;
+  border-top-color: rgba(var(--theme-rgb, 79,195,247),0.9);
+  text-shadow: 0 0 12px rgba(var(--theme-rgb, 79,195,247),0.95);
+  transform: translateY(-1px);
+}
+.choice-tray .choice-pick-btn:active { transform: translateY(1px); }
+/* The tray tile no longer needs room reserved under the art for a text block —
+   the text lives on the back now. */
+.choice-tray .choice-card { padding: 0 0 10px; }

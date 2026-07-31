@@ -4968,7 +4968,16 @@ const UI = {
 
   // Every surface that flips. Tricks are in the list because they now carry the
   // identical treatment — see the .trick-cards block in style.css.
-  FLIPPABLE_SELECTOR: '.player-hand-section .hand-cards .card, .trick-cards .trick-card',
+  // Every surface that turns over. `.flip-host` is the general opt-in — any
+  // renderer that wants the read-flip adds that class and inherits the whole
+  // treatment, instead of each new surface needing its own selector here AND
+  // its own copy of the CSS. The two hand rows keep their explicit entries
+  // because they predate the class and carry hand-specific styling.
+  // DRAFT IS DELIBERATELY ABSENT. A draft card is chosen BY its text, so the
+  // text is the point of the surface and hiding it behind a flip would be
+  // backwards — user: "the flip effect should be in mostly all areas besides
+  // draft".
+  FLIPPABLE_SELECTOR: '.player-hand-section .hand-cards .card, .trick-cards .trick-card, .flip-host',
   // The element carrying the rules text on each of those. Tricks use
   // .trick-desc rather than .card-desc, which is the only structural
   // difference between the two surfaces.
@@ -8727,10 +8736,22 @@ const UI = {
     tray.className = 'choice-tray';
     const title = cc.title || 'Choose a card';
     const desc = cc.desc || '';
+    // EVERY option is a card you can turn over, plus its OWN pick button.
+    // The card face used to be the pick target, which meant a single click
+    // committed an irreversible choice on a tile whose rules text was crammed
+    // in at 9px. Splitting the two gives the card back to READING — tap it as
+    // many times as you like, it only ever flips — and makes committing an
+    // explicit, separate act. See the .choice-pick-btn styles.
+    const pickBtn = (idx) =>
+      `<button type="button" class="choice-pick-btn" data-pick="${idx}">Pick</button>`;
     const cardsHtml = unmatched.map((card) => {
       const idx = cc.cards.indexOf(card);
       if (cc.faceDown) {
-        return `<div class="choice-card choice-facedown" data-idx="${idx}">?</div>`;
+        // Face-down (Deadpool steal) has nothing to read, but still needs the
+        // same commit affordance so the tray has one consistent grammar.
+        return `<div class="choice-opt">`
+          + `<div class="choice-card choice-facedown" data-idx="${idx}">?</div>`
+          + pickBtn(idx) + `</div>`;
       }
       const costClass = this.getCostClass(card.baseCost || card.cost || 0);
       const typeSigil = card.isDiscardEffect
@@ -8754,10 +8775,13 @@ const UI = {
           // tile chrome must never override the card's own cascade.
           const el = this.makeCardEl(card, true, 'player');
           el.classList.add('choice-real');
+          // flip-host opts this surface into the shared turn-over treatment —
+          // art at rest, rules on the back. See the FLIP SURFACES css block.
+          el.classList.add('flip-host');
           el.setAttribute('data-idx', idx);
           // Strip live-board-only states — this is a picker, not the lane.
           el.classList.remove('card-enter', 'lane-landed', 'card-hp-critical', 'target-highlight', 'card-damaged');
-          return el.outerHTML;
+          return `<div class="choice-opt">${el.outerHTML}${pickBtn(idx)}</div>`;
         } catch (e) { /* fall through to the labeled tile */ }
       }
       // Synthetic option tiles (Grinch keep-or-discard etc.) can point at a
@@ -8772,12 +8796,15 @@ const UI = {
       const isTrickFace = !!card._isTrick ||
         (typeof TRICK_DEFS !== 'undefined' && artName && TRICK_DEFS.some(td => td.name === artName));
       return `
-        <div class="choice-card card ${costClass}${isTrickFace ? ' choice-trick' : ''}" data-idx="${idx}">
-          ${costHtml}
-          ${typeSigil}
-          ${portraitHtml}
-          <div class="card-desc">${this.formatDesc(card.desc)}</div>
-          ${stats}
+        <div class="choice-opt">
+          <div class="choice-card card flip-host ${costClass}${isTrickFace ? ' choice-trick' : ''}" data-idx="${idx}">
+            ${costHtml}
+            ${typeSigil}
+            ${portraitHtml}
+            <div class="card-desc">${this.formatDesc(card.desc)}</div>
+            ${stats}
+          </div>
+          ${pickBtn(idx)}
         </div>`;
     }).join('');
     tray.innerHTML = `
@@ -8790,10 +8817,24 @@ const UI = {
         <div class="choice-tray-cards">${cardsHtml}</div>
       </div>`;
     document.body.appendChild(tray);
-    // Wire clicks after insertion (.choice-real = real card faces via makeCardEl)
-    tray.querySelectorAll('.choice-card, .choice-real').forEach(el => {
+    // COMMITTING is the button, and only the button. The card face is left
+    // alone so the delegated flip listener owns it (installHandCardFlip's
+    // FLIPPABLE_SELECTOR includes .choice-tray .flip-host), which is what lets
+    // a player turn a card over and read it without risking the pick.
+    tray.querySelectorAll('.choice-pick-btn').forEach(btn => {
+      const idx = +btn.getAttribute('data-pick');
+      btn.addEventListener('click', (ev) => {
+        // The tray is torn down by cardChoicePick; stop the click from also
+        // reaching the document-level flip/dismiss listener afterwards.
+        ev.stopPropagation();
+        cardChoicePick(idx);
+      });
+    });
+    // Face-down options carry no readable face, so keep the historic
+    // click-the-tile-to-pick shortcut there — there is nothing to misread.
+    tray.querySelectorAll('.choice-facedown').forEach(el => {
       const idx = +el.getAttribute('data-idx');
-      el.addEventListener('click', () => cardChoicePick(idx));
+      el.addEventListener('click', (ev) => { ev.stopPropagation(); cardChoicePick(idx); });
     });
   },
 
