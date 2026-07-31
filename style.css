@@ -5723,7 +5723,27 @@ body.hit-pause .ai-hand * {
      Width 154px = 140px card + lane padding. */
   width: 154px;
   flex: 1 1 0;
-  min-height: 240px;
+  /* DERIVED, NOT A CONSTANT — and this is the fix for cards hanging out of the
+     arena on desktop.
+     The 240 above, and the comment justifying it, describe a board tile whose
+     height came from its CONTENT: "~209px (0 badges) to ~278px (5 badges)",
+     with the rare tall one allowed to "grow its own lane a little rather than
+     clip". That stopped being true when the board tile was given the hand's
+     geometry contract (`.card.ally-card/.enemy-card { aspect-ratio: 92/182;
+     height: auto }`, added to stop the row reading ragged at 174-231px).
+     Height is now a pure function of width, and every board card is the same
+     height: at the desktop card width of 140px that is 140 x 182/92 = 277px.
+     So the slot was not occasionally too short for a heavy card — it was
+     ALWAYS 37px too short, for every card on the board.
+     And it could not grow out of it. `flex: 1 1 0` gives the slot a basis of 0,
+     and an explicit min-height REPLACES the automatic content-based minimum
+     that would otherwise stop a flex item shrinking below its contents. So the
+     "grows rather than clips" escape hatch the old comment relied on had been
+     silently disabled by the same declaration that was too small.
+     Expressed as the actual chain so it cannot drift again: card width x the
+     tile's aspect ratio, plus the slot's own 10px of vertical padding (6+4).
+     Measured after: card 276.9px inside a 287px slot, nothing overflowing. */
+  min-height: calc(140px * 182 / 92 + 10px);
   display: flex; justify-content: center; border-radius: 8px;
 }
 /* Card alignment within each slot: anchor each card TO THE SEP (AI bottom,
