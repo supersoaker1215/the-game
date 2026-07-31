@@ -34630,10 +34630,46 @@ body.hand-text-always .player-hand-section .hand-cards .card {
   min-height: 0 !important;
 }
 /* Show the keyword badges (Bullseye / Evade / …) as they used to appear, and
-   let the strip show every row rather than the 2-row art-mode clamp. */
-body.hand-text-always .player-hand-section .hand-cards .card .status-badges {
+   let the strip show every row rather than the 2-row art-mode clamp.
+   The compact flip view renders badges as ICONS to fit one fixed row; but an
+   "Always show" card GROWS to its content, so there is room for the readable
+   WORD badges the way they used to look. Swap the glyph back for the word and
+   let the strip wrap to as many rows as it needs. User: "why do the badges
+   look so weird to how they used to look." */
+body.hand-text-always .player-hand-section .hand-cards .card .status-badges,
+body.hand-text-always .trick-cards .trick-card .status-badges {
   max-height: none;
   overflow: visible;
+}
+body.hand-text-always .player-hand-section .hand-cards .card .status-badge .sb-i,
+body.hand-text-always .trick-cards .trick-card .status-badge .sb-i {
+  display: none;
+}
+body.hand-text-always .player-hand-section .hand-cards .card .status-badge .sb-w,
+body.hand-text-always .trick-cards .trick-card .status-badge .sb-w {
+  display: inline;
+  font-size: 8px;
+  letter-spacing: 0.2px;
+}
+body.hand-text-always .player-hand-section .hand-cards .card .status-badge,
+body.hand-text-always .trick-cards .trick-card .status-badge {
+  font-size: 8px;
+  padding: 1px 4px;
+  gap: 2px;
+}
+body.hand-text-always .player-hand-section .hand-cards .card .status-badge .sb-n,
+body.hand-text-always .trick-cards .trick-card .status-badge .sb-n {
+  font-size: 8px;
+}
+/* Re-enable badge hover/tap so the keyword tooltip works. Badges are
+   pointer-events:none in the compact view only because the flip face covers
+   them; in "Always show" there is no face over them, and the user wants a
+   badge to name itself on hover or click. */
+body.hand-text-always .player-hand-section .hand-cards .card .status-badges,
+body.hand-text-always .player-hand-section .hand-cards .card .status-badge,
+body.hand-text-always .trick-cards .trick-card .status-badges,
+body.hand-text-always .trick-cards .trick-card .status-badge {
+  pointer-events: auto;
 }
 /* The name sits over the art as before — keep it readable above everything. */
 body.hand-text-always .player-hand-section .hand-cards .card .card-name-banner,
