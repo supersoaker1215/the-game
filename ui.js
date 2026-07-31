@@ -3169,13 +3169,25 @@ const UI = {
       if (!this._activeHover) this._activeHover = new Set();
       if (!this._activeNonHover) this._activeNonHover = new Set();
       src = this._bustCache(src);
+      const isHover = !!(opts && opts.hover);
+      // SUPPRESSION CHECK MOVED AHEAD OF POOL CREATION. The 3 clones below are
+      // created with preload='auto', i.e. three full downloads, and this used
+      // to happen BEFORE the hover-suppression return further down. So sweeping
+      // the cursor across the board during combat — exactly when the board is
+      // busiest — kicked off megabytes of hover audio that was then never
+      // played. Card hover files average 1.65 MB.
+      if (isHover && this._activeNonHover && this._activeNonHover.size > 0) return null;
       let clones = this._samplePool.get(src);
       if (!clones) {
         clones = [];
-        for (let i = 0; i < 3; i++) { const a = new Audio(src); a.preload = 'auto'; clones.push(a); }
+        // ONE clone for hover, three for everything else. Only a single hover
+        // may sound at a time (enforced just below), so the other two were
+        // pure resident memory: every distinct card hovered in a match pinned
+        // 3 x 1.65 MB forever — _samplePool has no eviction path anywhere.
+        const n = isHover ? 1 : 3;
+        for (let i = 0; i < n; i++) { const a = new Audio(src); a.preload = 'auto'; clones.push(a); }
         this._samplePool.set(src, clones);
       }
-      const isHover = !!(opts && opts.hover);
       let pick;
       if (isHover) {
         // Block hover starts while any board SFX (play/death/kill/spawn/ability) is active.
@@ -17244,6 +17256,15 @@ const UI = {
       return;
     }
     sec.classList.toggle('collapsed');
+    // ON CLOSE, DROP THE NODES. Collapsing only hides the drawer — the log
+    // entries stayed in the document, and every render walks the document. A
+    // capped log is ~300 entries of several nodes each, so a closed drawer was
+    // still making the page bigger for the rest of the match, permanently.
+    // Safe to discard: renderLog rebuilds from state.log on open, and it is
+    // explicitly called on the open path a few lines below.
+    if (sec.classList.contains('collapsed') && this.logEl && this.logEl.replaceChildren) {
+      this.logEl.replaceChildren();
+    }
     // When opening, scroll to bottom
     if (!sec.classList.contains('collapsed')) {
       // renderLog skips itself while collapsed, so catch the drawer up on the
@@ -18715,7 +18736,14 @@ const UI = {
     // overflow-y:auto so it scrolls naturally; we pin the view to the
     // newest entry at the end of render unless the user has scrolled up.
     const stickBottom = !this._logEl_userScrolled;
-    const visible = s.log;
+    // TAIL ONLY. This was `s.log` — the entire array — blown away into
+    // innerHTML on EVERY render while the drawer is open. The log grows ~17-32
+    // entries a round and caps at 300 (game.js), so it hits the cap around
+    // round 12 and every frame from then on rebuilt 300 nodes and re-ran two
+    // regex passes over each. The drawer shows ~15 lines at a time; 80 gives
+    // several screens of scroll-back for a fraction of the work.
+    const LOG_TAIL = 80;
+    const visible = s.log.length > LOG_TAIL ? s.log.slice(-LOG_TAIL) : s.log;
     const tagColors = {
       'HIT': '#e74c3c', 'KILLED': '#c0392b', 'DEAD': '#c0392b',
       'DAMAGE': '#e67e22', 'BLOCKED!': '#3498db', 'BLOCK METER': '#2980b9',
@@ -18769,7 +18797,19 @@ const UI = {
         this._logEl_userScrolled = !nearBottom;
       });
     }
-    if (stickBottom) this.logEl.scrollTop = this.logEl.scrollHeight;
+    // DEFERRED, and this one line was the expensive part. Reading scrollHeight
+    // immediately after writing innerHTML forces a synchronous layout of the
+    // whole log subtree — measured at 300 entries, renderLog cost 8.96ms of
+    // which 8.32ms was this read. Moving it into rAF lets the write settle
+    // first, so the read costs nothing and the scroll still lands on the same
+    // frame the player sees.
+    if (stickBottom) {
+      if (this._logScrollRaf) cancelAnimationFrame(this._logScrollRaf);
+      this._logScrollRaf = requestAnimationFrame(() => {
+        this._logScrollRaf = 0;
+        if (this.logEl) this.logEl.scrollTop = this.logEl.scrollHeight;
+      });
+    }
   },
 
   // ===================== LANE FLASH =====================

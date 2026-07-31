@@ -13,7 +13,7 @@
 // refreshes code and leaves the assets alone.
 //   CODE_CACHE  — bumped on every deploy (that's the point: fresh code).
 //   ASSET_CACHE — bumped ONLY when the art/audio themselves change.
-const CACHE_VERSION = 'clb-v127-dmgfloat-and-battery';
+const CACHE_VERSION = 'clb-v128-late-round-lag';
 const CODE_CACHE  = CACHE_VERSION;
 const ASSET_CACHE = 'clb-assets-v1';
 const APP_SHELL = [
@@ -53,7 +53,20 @@ self.addEventListener('fetch', (event) => {
   // fresh deploy reaches the client immediately on next page load.
   // Falls back to cache only if the network is genuinely unreachable.
   const isHtml = req.mode === 'navigate' || url.pathname.endsWith('.html') || url.pathname.endsWith('/');
-  const isVersioned = url.search.includes('v=');
+  // MEDIA IS NOT CODE. This used to be a bare `url.search.includes('v=')`,
+  // which is true for any query string containing those two characters — and
+  // card audio is stamped `?cv=<n>` (ui.js:3144) while card art is stamped
+  // `?v=<n>` (ui.js ~227). Both matched, so every image and every audio file
+  // took the network-first branch below and was written into CODE_CACHE...
+  // which `activate` deletes on EVERY deploy. Net effect: ~100 MB of art and
+  // audio re-downloaded after every single deploy, and served from the network
+  // during play instead of from cache. ASSET_CACHE only ever held the 2-entry
+  // app shell. The header comment at the top of this file claims "audio/images
+  // stay cache-first" — that was true for nothing the game actually loads.
+  // Versioning only means "this is code that changes on deploy" for the three
+  // extensions that actually are code.
+  const isVersionedCode = url.search.includes('v=') &&
+    (url.pathname.endsWith('.js') || url.pathname.endsWith('.css') || url.pathname.endsWith('.html'));
   const isJsCss = url.pathname.endsWith('.js') || url.pathname.endsWith('.css');
   // Sim-data JSON files (sim/data/**/*.json) get re-generated on
   // every 20K-game run. The stats panel's "Reload Sim" button
@@ -62,7 +75,7 @@ self.addEventListener('fetch', (event) => {
   // panel after running a fresh sim. User report: "I'm reloading
   // the SIM, and it's not There."
   const isJson = url.pathname.endsWith('.json');
-  if (isHtml || isVersioned || isJsCss || isJson) {
+  if (isHtml || isVersionedCode || isJsCss || isJson) {
     event.respondWith(
       fetch(req).then((res) => {
         // Cache the fresh response so it's available offline next time.
