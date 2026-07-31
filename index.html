@@ -13,7 +13,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap">
-  <link rel="stylesheet" href="style.css?v=848">
+  <link rel="stylesheet" href="style.css?v=849">
   <script>
     // Lightweight error reporter (pre-Sentry) — capture runtime JS
     // errors + unhandled promise rejections to a localStorage ring
@@ -694,6 +694,13 @@
           </select>
         </div>
         <div class="settings-row">
+          <label for="setting-hand-text" title="Flip to view: hand cards show art; click a card to flip it and read its rules. Always show: the rules stay visible under the art without clicking.">Hand card text</label>
+          <select id="setting-hand-text">
+            <option value="flip">Flip to view</option>
+            <option value="always">Always show</option>
+          </select>
+        </div>
+        <div class="settings-row">
           <label for="setting-menu-flow" title="Soft energy field behind the main-menu panel. Recolors to your Neon Theme. Purely cosmetic; static (no animation).">Menu atmosphere</label>
           <input type="checkbox" id="setting-menu-flow" checked>
         </div>
@@ -817,7 +824,7 @@
   <script src="peerjs.min.js"></script>
   <script src="multiplayer.js?v=31"></script>
   <script src="card-art-manifest.js?v=55"></script>
-  <script src="ui.js?v=1018"></script>
+  <script src="ui.js?v=1019"></script>
   <script src="tutorial.js?v=7"></script>
   <script src="logger.js?v=5"></script>
   <!-- Always-on crash capture. Hooks window.onerror +

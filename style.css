@@ -10420,7 +10420,17 @@ body.turn-combat .board .lane.lane-active {
 }
 .settings-overlay {
   position: fixed !important; inset: 0; background: rgba(0,0,0,0.7);
-  z-index: 450 !important; display: flex; align-items: center; justify-content: center;
+  z-index: 450 !important; display: flex; justify-content: center;
+  /* Scroll the WHOLE overlay when the panel is taller than the window, and
+     pin the panel to the top (align-items:flex-start) so its top is always
+     reachable — `align-items:center` + overflow clips the top out of reach,
+     which left the panel un-scrollable and the close row stranded below the
+     fold (user: "i cant scroll down to get out of it"). The panel keeps its
+     `margin:auto` centering for windows tall enough to fit it. */
+  align-items: flex-start;
+  overflow-y: auto;
+  padding: 20px;
+  -webkit-overflow-scrolling: touch;
 }
 .settings-panel {
   background: #000;
@@ -10428,6 +10438,11 @@ body.turn-combat .board .lane.lane-active {
   border-radius: 8px;
   padding: 22px 28px; min-width: min(360px, 100%);
   font-family: 'Inter', 'Segoe UI', system-ui, sans-serif;
+  /* Auto margins center the panel when the window can fit it, and collapse to
+     0 when it can't — so a too-tall panel sits at the top and the overlay
+     scrolls to reveal the rest (decorations on the panel stay intact because
+     the scroll lives on the overlay, not the panel). */
+  margin: auto;
 }
 .settings-panel h2 {
   font-family: 'Rajdhani', sans-serif;
@@ -34277,6 +34292,47 @@ body.low-fx .card-portrait {
     transform: none;
     transition: opacity 120ms linear;
   }
+}
+
+/* ============================================================
+   SETTING: HAND CARD TEXT = "ALWAYS SHOW"  (body.hand-text-always)
+   ============================================================
+   Default is flip-to-view (art on front, click to read). This opt-in mode
+   (Settings > Hand card text > Always show) keeps the rules visible at rest,
+   as a panel across the LOWER half of the card with the art still showing
+   above it. User: "i like it better when you can see the cards description."
+   The panel sits at z-index 3 — under the cost badge and the ATK/HP orbs
+   (both z-index 4), so those stay legible on top — and over the portrait. The
+   click-to-flip face still works; this only changes the at-rest look. */
+body.hand-text-always .player-hand-section .hand-cards .card .card-desc,
+body.hand-text-always .player-hand-section .hand-cards .card .card-trick-passive {
+  visibility: visible;
+  opacity: 1;
+  transform: none;
+  /* Bottom band, not a full-bleed flip face — the art reads above it. */
+  inset: auto 0 0 0;
+  height: 52%;
+  z-index: 3;
+  border-radius: 0 0 inherit inherit;
+  background: linear-gradient(to bottom, rgba(0,0,0,0) 0%, rgba(0,0,0,0.86) 22%, rgba(0,0,0,0.94) 100%);
+  align-content: end;
+  /* Bottom padding clears the ATK/HP orbs anchored ~5px from the bottom. */
+  padding: 10px 6px 22px;
+}
+/* Keep the name banner readable above the panel, not buried under it. */
+body.hand-text-always .player-hand-section .hand-cards .card .card-name-banner,
+body.hand-text-always .player-hand-section .hand-cards .card .card-name-overlay {
+  z-index: 4;
+}
+/* The click-flip face, when used in this mode, is still the full-bleed panel —
+   restore its full height so a flipped card reads exactly as before. */
+body.hand-text-always .player-hand-section .hand-cards .card.face-flipped .card-desc,
+body.hand-text-always .player-hand-section .hand-cards .card.face-flipped .card-trick-passive {
+  inset: 0;
+  height: auto;
+  align-content: center;
+  background: #000;
+  padding: 5px 5px;
 }
 
 /* ============================================================

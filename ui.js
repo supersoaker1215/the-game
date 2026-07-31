@@ -584,7 +584,11 @@ const UI = {
     // Graphics mode — 'auto' | 'high' | 'low'. Controls body.low-fx, which
     // flattens the 3D card/camera stack. See _detectLowFx() and the
     // BLANK-CARD block in style.css for why this exists.
-    graphics: 'auto'
+    graphics: 'auto',
+    // Hand card text — 'flip' (default: art on front, click/hover to reveal the
+    // rules) or 'always' (rules shown at rest under the art). User preferred
+    // seeing descriptions without clicking; this lets each player choose.
+    handText: 'flip'
   },
   SETTINGS_KEY: 'clb.settings.v1',
 
@@ -746,6 +750,8 @@ const UI = {
     // Resolve the graphics mode BEFORE first render so a low-capability
     // machine never paints a frame of the heavy 3D path.
     this.applyGraphicsMode();
+    // Hand-card text mode — body class drives the CSS.
+    document.body.classList.toggle('hand-text-always', this.settings.handText === 'always');
     // Apply UI scale on load so the first render is at the user's
     // chosen zoom, not a flash of 100% followed by resize.
     this._applyUiScale(this.settings.uiScale || 1);
@@ -1127,6 +1133,13 @@ const UI = {
       this.settings.graphics = gfxEl.value;
       this.applyGraphicsMode();
     }
+    // Hand card text — flip (click to reveal) / always (shown at rest).
+    const htEl = g('setting-hand-text');
+    if (htEl) {
+      this.settings.handText = htEl.value;
+      document.body.classList.toggle('hand-text-always', this.settings.handText === 'always');
+      if (Game && Game.state) this.render();
+    }
     // Haptics — user can opt out for a silent play experience or if
     // the phone's buzz is annoying in long sessions.
     const hapEl = g('setting-haptics-off');
@@ -1290,6 +1303,8 @@ const UI = {
     if (cbEl) cbEl.checked = !!this.settings.colorblind;
     const gfxEl = g('setting-graphics');
     if (gfxEl) gfxEl.value = this.settings.graphics || 'auto';
+    const htEl = g('setting-hand-text');
+    if (htEl) htEl.value = this.settings.handText || 'flip';
     const hapEl = g('setting-haptics-off');
     if (hapEl) hapEl.checked = !!this.settings.hapticsOff;
     const scaleEl = g('setting-ui-scale');
