@@ -7966,6 +7966,33 @@ const UI = {
       setTimeout(() => el.classList.remove('card-burn-flinch'), 520);
     });
   },
+  // Fired from applyCombatDamage when a swing is EVADED. The card sidesteps —
+  // it blurs sideways and snaps back — while a translucent after-image is left
+  // behind at its original spot and fades. Reads as a real dodge instead of a
+  // silent 0. One-shot, reduced-motion / low-fx gated, self-removing.
+  _fxEvadeDodge(card) {
+    if (!card || this._reducedMotion()) return;
+    const el = this._fxCardElById(card.id);
+    if (!el) return;
+    const r = el.getBoundingClientRect();
+    if (!r || r.width === 0) return;
+    // Dodge AWAY from centre so it always sidesteps toward open space.
+    const dir = (r.left + r.width / 2) < (window.innerWidth / 2) ? -1 : 1;
+    // After-image ghost pinned at the card's current spot, fading as it lingers.
+    const layer = this._fxLayer();
+    const ghost = document.createElement('div');
+    ghost.className = 'fx-evade-afterimage';
+    ghost.style.cssText =
+      'left:' + r.left + 'px;top:' + r.top + 'px;width:' + r.width + 'px;height:' + r.height + 'px;';
+    layer.appendChild(ghost);
+    setTimeout(() => ghost.remove(), 400);
+    // The real card sidesteps and snaps back.
+    el.style.setProperty('--evade-dx', (dir * Math.min(22, r.width * 0.28)).toFixed(1) + 'px');
+    el.classList.remove('card-evade-dodge');
+    void el.offsetWidth;
+    el.classList.add('card-evade-dodge');
+    setTimeout(() => { el.classList.remove('card-evade-dodge'); el.style.removeProperty('--evade-dx'); }, 400);
+  },
 
   // ====================== WAVE 3 (cost-8+ titans) ======================
   // More reusable primitives + the per-titan wrappers. Same rules: one-shot,

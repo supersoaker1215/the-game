@@ -5639,6 +5639,11 @@ const Game = {
       this.log(`  [EVADE] ${target.name} dodges ${attacker.name}! (${target.evadeCharges} charges left)`);
       this.emitDmg(target.id, 0, 'evade');
       this._creditAbsorb(target, 'Evade', attacker.attack || 0);
+      // Dodge FX one-shot — the card sidesteps the swing with an after-image.
+      // Guarded UI call (no-op in the headless sim), same pattern as Freeze/Burn.
+      if (typeof UI !== 'undefined' && UI._fxEvadeDodge) {
+        try { UI._fxEvadeDodge(target); } catch (e) {}
+      }
       if (target.onEvade) target.onEvade(this, target);
       return false;
     }

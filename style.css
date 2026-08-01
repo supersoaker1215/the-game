@@ -33435,6 +33435,43 @@ body.low-fx .card-burn::before,
 body.low-fx .card-burn i { animation: none !important; }
 body.low-fx .card-burn i { display: none; }
 
+/* ============================================================
+   EVADE FX — a dodged swing
+   ============================================================
+   When a swing is evaded the card sidesteps (blurs out to --evade-dx and snaps
+   back) and leaves a translucent after-image behind at its original spot.
+   Fired from applyCombatDamage via UI._fxEvadeDodge. Motion gated off under
+   reduced-motion / low-fx (the engine still resolves the evade; it just skips
+   the flourish). Mirrors the frost / burn one-shots. */
+.card-evade-dodge { animation: cardEvadeDodge 380ms cubic-bezier(0.22, 1, 0.36, 1); }
+@keyframes cardEvadeDodge {
+  0%   { transform: translateX(0);                 filter: none; }
+  30%  { transform: translateX(var(--evade-dx, 18px)); filter: blur(1.2px) brightness(1.15); }
+  55%  { transform: translateX(var(--evade-dx, 18px)); filter: blur(0.6px); }
+  100% { transform: translateX(0);                 filter: none; }
+}
+/* The after-image — a faint theme-tinted silhouette of the card left behind. */
+.fx-evade-afterimage {
+  position: fixed;
+  pointer-events: none;
+  z-index: 82;
+  border-radius: 8px;
+  border: 1px solid rgba(var(--theme-rgb, 79,195,247), 0.55);
+  background: rgba(var(--theme-rgb, 79,195,247), 0.10);
+  box-shadow: 0 0 14px rgba(var(--theme-rgb, 79,195,247), 0.35), inset 0 0 18px rgba(var(--theme-rgb, 79,195,247), 0.18);
+  animation: fxEvadeAfterimage 380ms ease-out forwards;
+}
+@keyframes fxEvadeAfterimage {
+  0%   { opacity: 0.7; transform: scale(1); }
+  100% { opacity: 0;   transform: scale(0.96); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .card-evade-dodge { animation: none !important; }
+  .fx-evade-afterimage { display: none !important; }
+}
+body.low-fx .card-evade-dodge { animation: none !important; }
+body.low-fx .fx-evade-afterimage { display: none !important; }
+
 .card.status-stunned .card-portrait {
   filter: grayscale(0.65) brightness(0.85);
   box-shadow: inset 0 0 22px rgba(241, 196, 15, 0.30);
