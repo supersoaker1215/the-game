@@ -35956,3 +35956,48 @@ body.low-fx .card.status-burning:not(.card-enter):not(.card-exit) {
   animation: none;
   transform: scale(1.05) translate(0, -1.5%);
 }
+
+/* ============================================================
+   MENU TYPE SCALE — the caps were sized for a 560px column
+   ============================================================
+   User: "nice but now the text is too small."
+   Every menu size is a clamp, and on a big display it is the MAX that governs,
+   not the vw term — so the menu stopped growing long before the window did.
+   Measured on a 1900px-wide viewport: title pinned at its 62px cap while 4.4vw
+   wanted 84px, options pinned at 30px while 1.7vw wanted 32px, and the whole
+   menu block occupied 14.7% of the screen. Those ceilings date from the
+   left-column layout, where the panel was a 560px strip beside the art and text
+   larger than that would have collided with the hero. Centred over a full-bleed
+   hero there is nothing to collide with, so the ceilings are just leftovers.
+   Raised roughly 1.5x across the board, keeping every vw coefficient and every
+   floor untouched — so small windows and phones render EXACTLY as before, and
+   only the large-display case (which was the complaint) changes. The panel cap
+   goes up with them, otherwise bigger type would just wrap inside the old strip.
+   ============================================================ */
+.mm-mw3 .mm-panel { width: min(760px, 82vw); }
+.mm-mw3 .mm-title { font-size: clamp(30px, 4.4vw, 92px); }
+/* Coefficient raised too, not just the ceiling — this is the one size where the
+   vw term was still the binding constraint after the cap came up. At 2000px the
+   old 1.7vw gave 34px against an 88px title, a 2.6:1 gap that read as a big
+   title above a small list rather than one type scale. 2.2vw lands 44px, a 2:1
+   title-to-item ratio. The 18px floor is untouched, so phones are unchanged. */
+.mm-mw3 .mm-option-label { font-size: clamp(18px, 2.2vw, 48px); }
+.mm-mw3 .mm-section-label { font-size: clamp(11px, 1vw, 22px); }
+.mm-mw3 .mm-option-icon { width: clamp(30px, 2.6vw, 64px); height: clamp(30px, 2.6vw, 64px); }
+.mm-mw3 .mm-svg { width: clamp(22px, 2vw, 48px); height: clamp(22px, 2vw, 48px); }
+.mm-mw3 .mm-option { padding-top: clamp(12px, 1.1vw, 26px); padding-bottom: clamp(12px, 1.1vw, 26px); }
+/* The footer chrome was a flat 11px — fine beside a 30px label, undersized
+   beside a 44px one. Scaled the same way, with the same 11px floor. */
+.mm-mw3 .mm-nowplaying { font-size: clamp(11px, 0.75vw, 16px); }
+.mm-mw3 .mm-heropick-row { font-size: clamp(11px, 0.72vw, 15px); }
+.mm-mw3 .mm-botbar { max-width: min(340px, 40vw); }
+.mm-mw3 .mm-heropick { max-width: min(340px, 40vw); }
+
+/* The PORTRAIT branch (@media max-aspect-ratio: 1/1) caps the title at 40px.
+   That cap was written for phones, but the query matches ANY window at least as
+   tall as it is wide — including a 1900x1900 desktop one, which then rendered a
+   40px title on a huge screen. Same treatment: keep the 26px floor and the 6vw
+   coefficient, lift only the ceiling. */
+@media (max-aspect-ratio: 1/1) {
+  .mm-mw3 .mm-title { font-size: clamp(26px, 6vw, 84px); }
+}
