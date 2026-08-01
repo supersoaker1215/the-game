@@ -35868,3 +35868,66 @@ body.low-fx .card.status-burning:not(.card-enter):not(.card-exit) {
   margin-left: auto;
   margin-right: auto;
 }
+
+/* ============================================================
+   CENTRED MENU, PART 2 — SECTION RULES + THE MUSIC BLOCK
+   ============================================================ */
+
+/* PLAY / LIBRARY: FLANKING HAIRLINES, NOT A LEFT BAR.
+   The bar is `border-left: 2px` + `padding-left: 10px` from the base
+   .mm-section-label — chrome designed for a LEFT-ALIGNED list, where a bar on
+   the left edge lines up with the column. Centre the label and that same bar
+   becomes an off-centre tick hanging on one side, which is what looks wrong.
+   The user suggested an underline. I went with flanking rules instead, for
+   three reasons:
+     - this menu ALREADY has the pattern. .mm-mw3 .mm-tagline is a centred caps
+       label flanked by fading 1px neon rules, directly under THE GAME. Using it
+       here makes PLAY / LIBRARY speak the same language instead of inventing a
+       third treatment.
+     - it is symmetric, so it survives centring by construction — the failure
+       mode we just fixed cannot come back.
+     - an underline under a short centred label reads as a text FIELD, and it
+       would sit a few pixels above the first option row, competing with it.
+       A rule that runs OUT from the label reads as a section divider, which is
+       what this element actually is.
+   The gradients fade outward from the text, so the rules dissolve into the art
+   rather than stopping on a hard edge — the same trick the hero mask uses. */
+.mm-mw3 .mm-section-label {
+  border-left: none;
+  padding-left: 0;
+  margin: 10px auto 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+}
+.mm-mw3 .mm-section-label::before,
+.mm-mw3 .mm-section-label::after {
+  content: '';
+  height: 1px;
+  width: clamp(26px, 5vw, 64px);
+  background: linear-gradient(90deg, transparent, rgba(var(--theme-rgb, 79,195,247), 0.7));
+}
+.mm-mw3 .mm-section-label::after {
+  background: linear-gradient(90deg, rgba(var(--theme-rgb, 79,195,247), 0.7), transparent);
+}
+
+/* THE MUSIC BLOCK — same root cause as the panel itself.
+   .mm-botbar is `max-width: 220px` sitting in flow at the end of a panel that
+   is now centred, so it stayed pinned to the panel's LEFT edge — a narrow
+   column hanging off-axis under a centred menu, over the dark left side of the
+   art. User: "the music scroll doesnt go with the art."
+   Auto side margins put it on the same centre line as everything else, and its
+   own contents centre within it so the now-playing line, the star and the hero
+   list all share that axis. Its top hairline is kept — that rule is what
+   separates the chrome from the menu, and centred it now reads as a deliberate
+   footer divider rather than a left-edge tick. */
+.mm-mw3 .mm-botbar {
+  margin-inline: auto;
+}
+.mm-mw3 .mm-npline {
+  justify-content: center;
+}
+.mm-mw3 .mm-heropick-row {
+  text-align: center;
+}
