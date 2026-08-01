@@ -17352,7 +17352,13 @@ const UI = {
     // fired from the engine (UI._fxBurnIgnite); this is the standing state layer,
     // same split as the frost overlay above.
     const burnHtml = card.isBurning ? '<div class="card-burn" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></div>' : '';
-    const portraitHtml = `<div class="card-portrait" style="${portraitStyle}"><div class="card-name-overlay">${card.name || ''}</div>${frostHtml}${burnHtml}</div>`;
+    // Taunt aura — a pulsing magnetic pull ring on a card that is forcing
+    // attacks onto itself. Persistent while tauntTurns > 0, same injection
+    // pattern as frost/burn. Board cards only (never in hand — a card only
+    // taunts once it's on the field). The two <i> are the pull rings.
+    const tauntHtml = (card.tauntTurns > 0 && !inHand)
+      ? '<div class="card-taunt" aria-hidden="true"><i></i><i></i></div>' : '';
+    const portraitHtml = `<div class="card-portrait" style="${portraitStyle}"><div class="card-name-overlay">${card.name || ''}</div>${frostHtml}${burnHtml}${tauntHtml}</div>`;
     // [ CARD DATA ] divider was removed per user feedback — read as
     // distracting, didn't add information beyond the visual gap that
     // already exists between the portrait and the desc text. The
