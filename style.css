@@ -2474,7 +2474,20 @@ body.hit-pause .ai-hand * {
      Row-height-relative instead of a magic number, so it stays ~3 rows on both:
      desktop 3 x 19 = 58px (unchanged), phone 3 x 40 = 122px. */
   max-height: calc(3 * var(--heropick-row-h, 19.4px));
-  overflow-y: auto; pointer-events: auto;
+  /* overflow-x MUST be stated. Declaring only `overflow-y: auto` does NOT leave
+     the other axis alone — per spec, when one axis is `visible` and the other
+     is not, the `visible` one computes to `auto`. So this list had a horizontal
+     scrollbar it never asked for, and taking the window from 58px to 3 real
+     rows made it visible. User: "there should be no horizontal scroll bar for
+     the menu music character."
+     Two things were overflowing sideways: a long uppercase name at 1.8px
+     letter-spacing (ANAKIN SKYWALKER, plus its ★ marker) against the 220px
+     max-width once the vertical scrollbar takes its 4px, and — on its own,
+     for any row — the `:hover { transform: translateX(2px) }` nudge below.
+     This list only ever scrolls one way. */
+  overflow-y: auto;
+  overflow-x: hidden;
+  pointer-events: auto;
   /* The list scrolls vertically; without this a vertical drag that starts on a
      row can be claimed by an ancestor gesture instead of scrolling the list. */
   touch-action: pan-y;
@@ -2488,6 +2501,14 @@ body.hit-pause .ai-hand * {
 .mm-mw3 .mm-heropick-row {
   display: block; width: 100%; text-align: left;
   background: none; border: 0; padding: 2px 0; cursor: pointer;
+  /* Truncate rather than push the row wider than the list. Belt to the
+     overflow-x: hidden brace above: that stops the SCROLLBAR, this stops a long
+     name being silently chopped mid-letter — it now ends in an ellipsis, which
+     reads as "there is more name" instead of looking broken. */
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  box-sizing: border-box;
   font-family: 'Rajdhani', sans-serif; text-transform: uppercase;
   font-size: 11px; font-weight: 600; letter-spacing: 1.8px; line-height: 1.4;
   color: color-mix(in srgb, rgb(var(--theme-rgb,79,195,247)) 55%, white);
