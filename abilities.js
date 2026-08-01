@@ -4606,7 +4606,13 @@ const CARD_ABILITIES = {
   "Boiler Room": {
     _markBurning(card, boilerRoom) {
       if (!card || card.isEnvironment) return;
+      const _wasBurning = card.isBurning;
       card.isBurning = true;
+      // Ignite one-shot the instant a card catches (not on every re-mark).
+      // Guarded UI call — no-op in the headless sim, same pattern as Freeze.
+      if (!_wasBurning && typeof UI !== 'undefined' && UI._fxBurnIgnite) {
+        try { UI._fxBurnIgnite(card); } catch (e) {}
+      }
       // Add the Freddy spawn onDeath hook independently of isBurning so
       // a card pre-marked by another source (Knull, Freddy Krueger passive)
       // still triggers the spawn when it dies in the Boiler Room's lane.

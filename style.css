@@ -33313,6 +33313,128 @@ body.round-tick .board::after {
   0%   { transform: translate(0,0) rotate(0deg) scale(1); opacity: 0.95; }
   100% { transform: translate(var(--sx,0), calc(var(--sy,0) + 18px)) rotate(var(--sr,120deg)) scale(0.5); opacity: 0; }
 }
+/* ============================================================
+   BURN FX — a card that is on fire (Boiler Room / Burning)
+   ============================================================
+   .card-burn is injected into the portrait of a burning card (makeCardEl):
+   a smouldering edge glow, a heat shimmer, and embers (its <i> children)
+   drifting up off the art. The ignite BURST (.fx-burn-ignite) and heat flinch
+   are one-shots fired from the engine (UI._fxBurnIgnite). All motion gated off
+   under reduced-motion / low-fx below; the static ember tint stays as a plain
+   state cue. Mirrors the frost block above. */
+.card-burn {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  border-radius: inherit;
+  z-index: 4;                 /* over the art, same layer as frost */
+  overflow: hidden;
+  /* Smouldering wash — hotter at the bottom, fading up. */
+  background:
+    radial-gradient(120% 80% at 50% 108%, rgba(255,140,40,0.42) 0%, rgba(255,90,20,0) 55%),
+    linear-gradient(0deg, rgba(120,30,0,0.30) 0%, rgba(255,120,30,0) 46%);
+  mix-blend-mode: screen;
+  box-shadow:
+    inset 0 0 0 1px rgba(255,170,70,0.35),
+    inset 0 -14px 20px rgba(255,110,20,0.40);
+}
+/* Heat shimmer — a warm highlight breathing over the art. */
+.card-burn::before {
+  content: "";
+  position: absolute; inset: 0;
+  border-radius: inherit;
+  background: radial-gradient(90% 60% at 50% 100%, rgba(255,200,120,0.30) 0%, rgba(255,150,50,0) 60%);
+  mix-blend-mode: screen;
+  animation: burnHeat 1.7s ease-in-out infinite;
+}
+/* Embers — small glowing motes rising and fading. Positions/sizes staggered
+   via nth-child so the five <i> read as a scatter, not a column. */
+.card-burn i {
+  position: absolute;
+  bottom: -6px;
+  width: 3px; height: 3px;
+  border-radius: 50%;
+  background: radial-gradient(circle, #ffe6a8 0%, #ff8c2a 55%, rgba(255,90,20,0) 100%);
+  box-shadow: 0 0 5px rgba(255,150,60,0.9);
+  opacity: 0;
+  animation: burnEmber 1.9s ease-in infinite;
+}
+.card-burn i:nth-child(1) { left: 18%; animation-delay: 0s;    transform: scale(1.1); }
+.card-burn i:nth-child(2) { left: 38%; animation-delay: 0.5s;  transform: scale(0.8); }
+.card-burn i:nth-child(3) { left: 54%; animation-delay: 0.9s;  transform: scale(1.25); }
+.card-burn i:nth-child(4) { left: 70%; animation-delay: 0.3s;  transform: scale(0.9); }
+.card-burn i:nth-child(5) { left: 84%; animation-delay: 1.2s;  transform: scale(1.05); }
+@keyframes burnHeat {
+  0%, 100% { opacity: 0.35; }
+  50%      { opacity: 0.7; }
+}
+@keyframes burnEmber {
+  0%   { transform: translateY(0) scale(var(--es,1)); opacity: 0; }
+  15%  { opacity: 0.95; }
+  100% { transform: translateY(-70px) scale(0.3); opacity: 0; }
+}
+/* Ignite burst — flame flares up over the card the instant it catches. */
+.fx-burn-ignite {
+  position: fixed;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+  z-index: 90;
+  border-radius: 12px;
+  background:
+    radial-gradient(80% 90% at 50% 82%, rgba(255,238,180,0.95) 0%, rgba(255,140,40,0.6) 38%, rgba(255,80,20,0) 72%);
+  box-shadow: 0 0 30px rgba(255,140,40,0.7);
+  animation: fxBurnIgnite 620ms var(--ease-out-soft, cubic-bezier(0.16,1,0.3,1)) forwards;
+}
+/* Licking flame tongues drawn as a conic sheen inside the burst. */
+.fx-burn-ignite::before {
+  content: "";
+  position: absolute; inset: 12%;
+  border-radius: inherit;
+  background: conic-gradient(from 200deg,
+    rgba(255,210,120,0.6) 0deg, transparent 22deg, rgba(255,160,60,0.55) 48deg, transparent 70deg,
+    rgba(255,200,110,0.6) 96deg, transparent 118deg, rgba(255,150,50,0.5) 150deg, transparent 172deg,
+    rgba(255,190,90,0.55) 210deg, transparent 232deg, rgba(255,140,40,0.5) 300deg, transparent 322deg);
+  mix-blend-mode: screen;
+}
+.fx-burn-ignite i {
+  position: absolute; left: 50%; top: 62%;
+  width: 4px; height: 4px;
+  margin: -2px 0 0 -2px;
+  border-radius: 50%;
+  background: radial-gradient(circle, #ffedb0 0%, #ff8c2a 60%, rgba(255,90,20,0) 100%);
+  box-shadow: 0 0 6px rgba(255,150,60,0.9);
+  animation: fxBurnSpark 620ms ease-out forwards;
+  animation-delay: var(--sd, 0ms);
+  opacity: 0;
+}
+@keyframes fxBurnIgnite {
+  0%   { transform: translate(-50%,-50%) scale(0.4); opacity: 0; }
+  22%  { opacity: 1; }
+  100% { transform: translate(-50%,-50%) scale(1.15); opacity: 0; }
+}
+@keyframes fxBurnSpark {
+  0%   { transform: translate(0,0) scale(1); opacity: 0.95; }
+  100% { transform: translate(var(--sx,0), calc(var(--sy,0) - 14px)) scale(0.4); opacity: 0; }
+}
+/* Heat flinch on the card as it ignites — a small recoil + a warm flash. */
+.card-burn-flinch { animation: cardBurnFlinch 480ms ease-out; }
+@keyframes cardBurnFlinch {
+  0%,100% { transform: translate(0,0); filter: none; }
+  20% { transform: translate(0, -2px); filter: brightness(1.25) saturate(1.2); }
+  45% { transform: translate(1px, 1px); }
+  70% { transform: translate(-1px, 0); filter: brightness(1.08); }
+}
+/* Reduced-motion / low-fx: keep the static ember tint as a state cue, drop
+   every animation (shimmer, embers, burst, flinch). */
+@media (prefers-reduced-motion: reduce) {
+  .card-burn::before, .card-burn i, .fx-burn-ignite, .fx-burn-ignite i,
+  .card-burn-flinch { animation: none !important; }
+  .card-burn i { display: none; }
+}
+body.low-fx .card-burn::before,
+body.low-fx .card-burn i { animation: none !important; }
+body.low-fx .card-burn i { display: none; }
+
 .card.status-stunned .card-portrait {
   filter: grayscale(0.65) brightness(0.85);
   box-shadow: inset 0 0 22px rgba(241, 196, 15, 0.30);

@@ -7931,6 +7931,41 @@ const UI = {
     layer.appendChild(shatter);
     setTimeout(() => shatter.remove(), 620);
   },
+  // Fired from Boiler Room._markBurning the instant a card catches fire. A
+  // burst of flame licks up over the card and it flinches from the heat. The
+  // PERSISTENT ember/heat layer is the .card-burn overlay makeCardEl injects
+  // while isBurning; this is only the one-shot "it just ignited" beat.
+  // One-shot, reduced-motion / low-fx gated, self-removing.
+  _fxBurnIgnite(card) {
+    if (!card || this._reducedMotion()) return;
+    this._fxWhenPainted(card, (el) => {
+      if (!el) return;
+      const r = el.getBoundingClientRect();
+      if (!r || r.width === 0) return;
+      const layer = this._fxLayer();
+      const flare = document.createElement('div');
+      flare.className = 'fx-burn-ignite';
+      flare.style.cssText =
+        'left:' + (r.left + r.width / 2) + 'px;top:' + (r.top + r.height / 2) + 'px;' +
+        'width:' + r.width + 'px;height:' + r.height + 'px;';
+      // A spray of sparks flung upward from the ignition.
+      let sparks = '';
+      for (let i = 0; i < 9; i++) {
+        const ang = -Math.PI / 2 + (Math.random() - 0.5) * 2.2;   // fan upward
+        const dist = 24 + Math.random() * 34;
+        sparks += '<i style="--sx:' + (Math.cos(ang) * dist).toFixed(1) + 'px;--sy:' +
+          (Math.sin(ang) * dist).toFixed(1) + 'px;--sd:' + (i * 14) + 'ms"></i>';
+      }
+      flare.innerHTML = sparks;
+      layer.appendChild(flare);
+      setTimeout(() => flare.remove(), 760);
+      // A quick heat flinch on the card itself.
+      el.classList.remove('card-burn-flinch');
+      void el.offsetWidth;
+      el.classList.add('card-burn-flinch');
+      setTimeout(() => el.classList.remove('card-burn-flinch'), 520);
+    });
+  },
 
   // ====================== WAVE 3 (cost-8+ titans) ======================
   // More reusable primitives + the per-titan wrappers. Same rules: one-shot,
@@ -17264,7 +17299,12 @@ const UI = {
     // burst is a one-shot fired from the engine (UI._fxFreezeStrike), not this
     // persistent layer.
     const frostHtml = card.isFrozen ? '<div class="card-frost" aria-hidden="true"></div>' : '';
-    const portraitHtml = `<div class="card-portrait" style="${portraitStyle}"><div class="card-name-overlay">${card.name || ''}</div>${frostHtml}</div>`;
+    // Burning card — a persistent ember/heat overlay over the art (embers rising,
+    // a smouldering edge glow, a heat shimmer). The ignite BURST is a one-shot
+    // fired from the engine (UI._fxBurnIgnite); this is the standing state layer,
+    // same split as the frost overlay above.
+    const burnHtml = card.isBurning ? '<div class="card-burn" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></div>' : '';
+    const portraitHtml = `<div class="card-portrait" style="${portraitStyle}"><div class="card-name-overlay">${card.name || ''}</div>${frostHtml}${burnHtml}</div>`;
     // [ CARD DATA ] divider was removed per user feedback — read as
     // distracting, didn't add information beyond the visual gap that
     // already exists between the portrait and the desc text. The
