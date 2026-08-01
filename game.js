@@ -9086,8 +9086,18 @@ const Game = {
   // moved) gets the titan-entrance FX. Event-driven so it fires once, on
   // every client, and never on undo-restores.
   _emitEntranceFX(card) {
-    if (card && !card.isEnvironment && (card.baseCost || card.cost || 0) >= 9) {
+    if (!card || card.isEnvironment) return;
+    const cost = card.baseCost || card.cost || 0;
+    if (cost >= 9) {
       this.emitFX('titan', { cardId: card.id, owner: card.owner });
+    }
+    // LEGENDARY entrance — genuine 10-cost titans ONLY. Gated on the SAME
+    // authority as is10CostImmune: cost >= 10 AND not skipAutoUntrickable.
+    // Doomsday prints at cost 12 but is a scaling 1/1 flagged
+    // skipAutoUntrickable ("not a titan"), so he is deliberately EXCLUDED.
+    // User: "doomsday is not a 10 cost card ... NOT DOOMSDAY."
+    if (cost >= 10 && !card.skipAutoUntrickable) {
+      this.emitFX('legendary', { cardId: card.id, owner: card.owner });
     }
   },
 

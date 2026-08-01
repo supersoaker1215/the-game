@@ -7976,22 +7976,38 @@ const UI = {
     if (!el) return;
     const r = el.getBoundingClientRect();
     if (!r || r.width === 0) return;
-    // Dodge AWAY from centre so it always sidesteps toward open space.
+    // Sidestep AWAY from centre, toward open space.
     const dir = (r.left + r.width / 2) < (window.innerWidth / 2) ? -1 : 1;
-    // After-image ghost pinned at the card's current spot, fading as it lingers.
+    const dx = dir * Math.max(30, r.width * 0.55);
     const layer = this._fxLayer();
+    // The GHOST carries the whole dodge: a glowing after-image of the card that
+    // slides sideways and fades. It lives on the FX layer, so it survives the
+    // render that combat fires right after — which is why the old version
+    // (which only animated the card element itself) "didn't work": the class
+    // was wiped a frame later. We copy the card art onto the ghost so it reads
+    // as the card itself whooshing out of the way.
     const ghost = document.createElement('div');
     ghost.className = 'fx-evade-afterimage';
     ghost.style.cssText =
-      'left:' + r.left + 'px;top:' + r.top + 'px;width:' + r.width + 'px;height:' + r.height + 'px;';
+      'left:' + r.left + 'px;top:' + r.top + 'px;width:' + r.width + 'px;height:' + r.height + 'px;' +
+      '--evade-dx:' + dx.toFixed(1) + 'px;';
+    const portrait = el.querySelector('.card-portrait');
+    if (portrait) {
+      const bg = getComputedStyle(portrait).backgroundImage;
+      if (bg && bg !== 'none') {
+        ghost.style.backgroundImage = bg;
+        ghost.style.backgroundSize = 'cover';
+        ghost.style.backgroundPosition = 'center';
+      }
+    }
     layer.appendChild(ghost);
-    setTimeout(() => ghost.remove(), 400);
-    // The real card sidesteps and snaps back.
-    el.style.setProperty('--evade-dx', (dir * Math.min(22, r.width * 0.28)).toFixed(1) + 'px');
+    setTimeout(() => ghost.remove(), 480);
+    // Nudge the real card too, in case it isn't re-rendered this beat.
+    el.style.setProperty('--evade-dx', dx.toFixed(1) + 'px');
     el.classList.remove('card-evade-dodge');
     void el.offsetWidth;
     el.classList.add('card-evade-dodge');
-    setTimeout(() => { el.classList.remove('card-evade-dodge'); el.style.removeProperty('--evade-dx'); }, 400);
+    setTimeout(() => { el.classList.remove('card-evade-dodge'); el.style.removeProperty('--evade-dx'); }, 480);
   },
 
   // ====================== WAVE 3 (cost-8+ titans) ======================
@@ -8443,6 +8459,11 @@ const UI = {
       if (ev.type === 'titan') {
         const tEl = this.board && this.board.querySelector(`.card-slot .card[data-card-id="${ev.cardId}"]`);
         if (tEl) this.fxTitanEntrance(tEl);
+        continue;
+      }
+      if (ev.type === 'legendary') {
+        const lEl = this.board && this.board.querySelector(`.card-slot .card[data-card-id="${ev.cardId}"]`);
+        this.fxLegendaryEntrance(lEl, ev.owner);
         continue;
       }
       if (ev.type === 'envReveal') {
@@ -17419,6 +17440,34 @@ const UI = {
       void ga.offsetWidth;
       ga.classList.add('titan-shake');
       setTimeout(() => ga.classList.remove('titan-shake'), 340);
+    }
+  },
+
+  // LEGENDARY entrance — a bigger, cinematic drop for genuine 10-cost titans.
+  // The engine gates who gets this (cost >= 10 AND not skipAutoUntrickable, so
+  // Doomsday is excluded); here we just play the full-screen accent flash +
+  // a heavier card arrival on top of the standard titan shake.
+  fxLegendaryEntrance(cardEl, owner) {
+    if (this._reducedMotion && this._reducedMotion()) return;
+    // Full-screen accent flash — colored to the arriving side.
+    const flash = document.createElement('div');
+    flash.className = 'fx-legendary-flash fx-legendary-' + (owner === 'ai' ? 'enemy' : 'ally');
+    document.body.appendChild(flash);
+    setTimeout(() => flash.remove(), 950);
+    // Heavier drop on the card itself (a beat bigger than titan-arrival).
+    if (cardEl) {
+      cardEl.classList.remove('legendary-arrival');
+      void cardEl.offsetWidth;
+      cardEl.classList.add('legendary-arrival');
+      setTimeout(() => cardEl.classList.remove('legendary-arrival'), 1200);
+    }
+    // A firmer board shake than the titan tremor.
+    const ga = document.getElementById('game-area');
+    if (ga) {
+      ga.classList.remove('titan-shake');
+      void ga.offsetWidth;
+      ga.classList.add('titan-shake');
+      setTimeout(() => ga.classList.remove('titan-shake'), 460);
     }
   },
 
