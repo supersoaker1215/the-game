@@ -33203,6 +33203,116 @@ body.round-tick .board::after {
     inset 0 0 26px rgba(140, 205, 255, 0.55),
     inset 0 0 8px rgba(205, 235, 255, 0.35);
 }
+
+/* ============================================================
+   FREEZE FX — persistent ice sheet + freeze-in burst + thaw shatter
+   ============================================================
+   .card-frost is injected into the portrait of a frozen card (makeCardEl). It
+   layers a frosted-glass sheet, crystal bloom in the corners and a slow
+   diagonal shimmer, so a frozen card reads as ENCASED, not just blue-glowing.
+   The one-shot beats (.fx-freeze-burst on land, .fx-thaw-shatter on thaw) are
+   spawned into #signature-fx-layer by the engine — see UI._fxFreezeStrike /
+   _fxThaw. All gated off under reduced-motion / low-fx below. */
+.card-frost {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  border-radius: inherit;
+  z-index: 4;                 /* over the art, under the name overlay (z-index varies) */
+  overflow: hidden;
+  /* Frosted sheet + crystal bloom from the corners. */
+  background:
+    radial-gradient(120% 90% at 12% 8%,  rgba(214,240,255,0.55) 0%, rgba(214,240,255,0) 42%),
+    radial-gradient(120% 90% at 88% 92%, rgba(190,228,255,0.45) 0%, rgba(190,228,255,0) 46%),
+    linear-gradient(160deg, rgba(150,205,245,0.24) 0%, rgba(120,180,230,0.30) 100%);
+  mix-blend-mode: screen;
+  box-shadow:
+    inset 0 0 0 1px rgba(220,244,255,0.35),
+    inset 0 0 18px rgba(180,225,255,0.30);
+}
+/* Hairline cracks — thin light lines fanning across the ice. */
+.card-frost::before {
+  content: "";
+  position: absolute; inset: 0;
+  border-radius: inherit;
+  background:
+    linear-gradient(58deg,  transparent 48.6%, rgba(230,246,255,0.5) 49.4%, transparent 50.2%),
+    linear-gradient(-36deg, transparent 62.4%, rgba(210,238,255,0.4) 63.0%, transparent 63.6%),
+    linear-gradient(14deg,  transparent 33.5%, rgba(200,232,255,0.34) 34.0%, transparent 34.5%);
+  opacity: 0.9;
+}
+/* Slow shimmer sweep — a highlight gliding across the ice. */
+.card-frost::after {
+  content: "";
+  position: absolute; top: -60%; left: -60%;
+  width: 60%; height: 220%;
+  transform: rotate(24deg);
+  background: linear-gradient(90deg, rgba(255,255,255,0) 0%, rgba(255,255,255,0.45) 50%, rgba(255,255,255,0) 100%);
+  animation: frostShimmer 3.4s ease-in-out infinite;
+}
+@keyframes frostShimmer {
+  0%, 100% { transform: translateX(-40%) rotate(24deg); opacity: 0; }
+  45%      { opacity: 0.7; }
+  60%      { transform: translateX(340%) rotate(24deg); opacity: 0; }
+}
+
+/* Freeze-in burst — frost detonates over the card the instant it freezes. */
+.fx-freeze-burst {
+  position: fixed;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+  z-index: 90;
+  border-radius: 12px;
+  background:
+    radial-gradient(closest-side, rgba(255,255,255,0.9) 0%, rgba(190,230,255,0.55) 40%, rgba(150,205,245,0) 72%);
+  box-shadow: 0 0 26px rgba(190,230,255,0.7);
+  animation: fxFreezeBurst 720ms var(--ease-out-soft, cubic-bezier(0.16,1,0.3,1)) forwards;
+}
+/* Radiating spikes drawn as a conic sheen inside the burst. */
+.fx-freeze-burst::before {
+  content: "";
+  position: absolute; inset: 8%;
+  border-radius: inherit;
+  background: conic-gradient(from 0deg,
+    rgba(220,244,255,0.55) 0deg, transparent 18deg, rgba(220,244,255,0.55) 45deg, transparent 63deg,
+    rgba(220,244,255,0.55) 90deg, transparent 108deg, rgba(220,244,255,0.55) 135deg, transparent 153deg,
+    rgba(220,244,255,0.55) 180deg, transparent 198deg, rgba(220,244,255,0.55) 225deg, transparent 243deg,
+    rgba(220,244,255,0.55) 270deg, transparent 288deg, rgba(220,244,255,0.55) 315deg, transparent 333deg);
+  mix-blend-mode: screen;
+}
+@keyframes fxFreezeBurst {
+  0%   { transform: translate(-50%,-50%) scale(0.35); opacity: 0; }
+  25%  { opacity: 1; }
+  100% { transform: translate(-50%,-50%) scale(1.15); opacity: 0; }
+}
+/* The card shudders as it locks up. */
+.card-freeze-shudder { animation: cardFreezeShudder 480ms ease-out; }
+@keyframes cardFreezeShudder {
+  0%,100% { transform: translate(0,0); }
+  15% { transform: translate(-2px, 1px); }
+  30% { transform: translate(2px, -1px); }
+  45% { transform: translate(-1.5px, -1px); }
+  60% { transform: translate(1.5px, 1px); }
+  75% { transform: translate(-1px, 0); }
+}
+
+/* Thaw shatter — ice shards fling off when the freeze wears off. */
+.fx-thaw-shatter { position: fixed; pointer-events: none; z-index: 90; }
+.fx-thaw-shatter i {
+  position: absolute; left: 50%; top: 50%;
+  width: 7px; height: 9px;
+  margin: -4px 0 0 -3px;
+  background: linear-gradient(135deg, rgba(255,255,255,0.95), rgba(180,225,255,0.65));
+  clip-path: polygon(50% 0, 100% 38%, 78% 100%, 22% 100%, 0 38%);
+  box-shadow: 0 0 6px rgba(200,235,255,0.8);
+  animation: fxThawShard 560ms ease-out forwards;
+  animation-delay: var(--sd, 0ms);
+  opacity: 0;
+}
+@keyframes fxThawShard {
+  0%   { transform: translate(0,0) rotate(0deg) scale(1); opacity: 0.95; }
+  100% { transform: translate(var(--sx,0), calc(var(--sy,0) + 18px)) rotate(var(--sr,120deg)) scale(0.5); opacity: 0; }
+}
 .card.status-stunned .card-portrait {
   filter: grayscale(0.65) brightness(0.85);
   box-shadow: inset 0 0 22px rgba(241, 196, 15, 0.30);
@@ -35437,7 +35547,8 @@ body.hand-text-always .trick-cards .trick-card.face-flipped .trick-desc {
   .card.status-frozen,
   .card.status-feared,
   .card.status-mind-ctrl,
-  .card.status-burning:not(.card-enter):not(.card-exit) {
+  .card.status-burning:not(.card-enter):not(.card-exit),
+  .card-frost::after {
     animation: none !important;
   }
 }
@@ -35454,7 +35565,8 @@ body.low-fx .card.status-stunned,
 body.low-fx .card.status-frozen,
 body.low-fx .card.status-feared,
 body.low-fx .card.status-mind-ctrl,
-body.low-fx .card.status-burning:not(.card-enter):not(.card-exit) {
+body.low-fx .card.status-burning:not(.card-enter):not(.card-exit),
+body.low-fx .card-frost::after {
   animation: none !important;
 }
 

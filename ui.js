@@ -7878,6 +7878,60 @@ const UI = {
     this._fxWhenPainted(card, (el) => this._fxRevive(el));
   },
 
+  // ====================== FREEZE FX ======================
+  // Fired from Game.freezeCard the instant a freeze LANDS. A burst of frost
+  // radiates over the card, a quick blue flash, and the card shudders as it
+  // ices over. The PERSISTENT ice sheet is the .card-frost overlay makeCardEl
+  // injects while isFrozen; this is only the one-shot "it just froze" beat.
+  // One-shot, reduced-motion / low-fx gated, self-removing.
+  _fxFreezeStrike(card) {
+    if (!card || this._reducedMotion()) return;
+    this._fxWhenPainted(card, (el) => {
+      if (!el) return;
+      const r = el.getBoundingClientRect();
+      if (!r || r.width === 0) return;
+      const layer = this._fxLayer();
+      const burst = document.createElement('div');
+      burst.className = 'fx-freeze-burst';
+      burst.style.cssText =
+        'left:' + (r.left + r.width / 2) + 'px;top:' + (r.top + r.height / 2) + 'px;' +
+        'width:' + r.width + 'px;height:' + r.height + 'px;';
+      layer.appendChild(burst);
+      setTimeout(() => burst.remove(), 760);
+      // Brief shudder on the card itself.
+      el.classList.remove('card-freeze-shudder');
+      void el.offsetWidth;
+      el.classList.add('card-freeze-shudder');
+      setTimeout(() => el.classList.remove('card-freeze-shudder'), 520);
+    });
+  },
+  // Fired when a card THAWS (frozenTurns hits 0). The ice cracks and shatters
+  // off in shards. Target-anchored, one-shot, gated, self-removing.
+  _fxThaw(card) {
+    if (!card || this._reducedMotion()) return;
+    const el = this._fxCardElById(card.id);
+    if (!el) return;
+    const r = el.getBoundingClientRect();
+    if (!r || r.width === 0) return;
+    const layer = this._fxLayer();
+    const shatter = document.createElement('div');
+    shatter.className = 'fx-thaw-shatter';
+    shatter.style.cssText =
+      'left:' + r.left + 'px;top:' + r.top + 'px;width:' + r.width + 'px;height:' + r.height + 'px;';
+    // A handful of ice shards flung outward.
+    let shards = '';
+    for (let i = 0; i < 7; i++) {
+      const ang = (Math.PI * 2 * i) / 7 + (Math.random() - 0.5) * 0.5;
+      const dist = 26 + Math.random() * 26;
+      shards += '<i style="--sx:' + (Math.cos(ang) * dist).toFixed(1) + 'px;--sy:' +
+        (Math.sin(ang) * dist).toFixed(1) + 'px;--sr:' + ((Math.random() - 0.5) * 220).toFixed(0) +
+        'deg;--sd:' + (i * 18) + 'ms"></i>';
+    }
+    shatter.innerHTML = shards;
+    layer.appendChild(shatter);
+    setTimeout(() => shatter.remove(), 620);
+  },
+
   // ====================== WAVE 3 (cost-8+ titans) ======================
   // More reusable primitives + the per-titan wrappers. Same rules: one-shot,
   // reduced-motion-gated, battery-safe, tab-hidden-paused, guarded callers.
@@ -17204,7 +17258,13 @@ const UI = {
     // only, no HTML, so a card named with special chars renders safely.
     const portraitPos = UI._artFocalCard(card.name);
     const portraitStyle = portraitFile ? `--portrait-bg:url('${portraitFile}')${portraitPos}` : '';
-    const portraitHtml = `<div class="card-portrait" style="${portraitStyle}"><div class="card-name-overlay">${card.name || ''}</div></div>`;
+    // Frost overlay for a frozen card — a persistent sheet of ice over the art
+    // (crystals in the corners + hairline cracks + a slow shimmer). No entrance
+    // animation here: makeCardEl rebuilds elements each render, so the freeze-IN
+    // burst is a one-shot fired from the engine (UI._fxFreezeStrike), not this
+    // persistent layer.
+    const frostHtml = card.isFrozen ? '<div class="card-frost" aria-hidden="true"></div>' : '';
+    const portraitHtml = `<div class="card-portrait" style="${portraitStyle}"><div class="card-name-overlay">${card.name || ''}</div>${frostHtml}</div>`;
     // [ CARD DATA ] divider was removed per user feedback — read as
     // distracting, didn't add information beyond the visual gap that
     // already exists between the portrait and the desc text. The

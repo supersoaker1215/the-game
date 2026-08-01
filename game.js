@@ -4714,8 +4714,13 @@ const Game = {
         // what makes stacking actually mean "lasts longer."
         c.stunnedTurns = Math.max(0, (c.stunnedTurns || (c.isStunned ? 1 : 0)) - 1);
         c.isStunned    = c.stunnedTurns > 0;
+        const _wasFrozen = c.isFrozen;
         c.frozenTurns  = Math.max(0, (c.frozenTurns  || (c.isFrozen  ? 1 : 0)) - 1);
         c.isFrozen     = c.frozenTurns > 0;
+        // Thawed this tick — crack the ice off. Guarded UI call (no-op in sim).
+        if (_wasFrozen && !c.isFrozen && typeof UI !== 'undefined' && UI._fxThaw) {
+          try { UI._fxThaw(c); } catch (e) {}
+        }
         c.fearedTurns  = Math.max(0, (c.fearedTurns  || (c.isFeared  ? 1 : 0)) - 1);
         c.isFeared     = c.fearedTurns > 0;
         // Mind-control isn't stacked (single binary state) — clear
@@ -8408,6 +8413,9 @@ const Game = {
       this._creditChain(source, 'statsFreezesApplied', turns);
       if (typeof UI !== 'undefined' && UI.sfx && UI.sfx.play) {
         try { UI.sfx.play('statusFreeze'); } catch (e) {}
+      }
+      if (typeof UI !== 'undefined' && UI._fxFreezeStrike) {
+        try { UI._fxFreezeStrike(card); } catch (e) {}
       }
     });
   },
