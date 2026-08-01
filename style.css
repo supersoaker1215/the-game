@@ -35780,3 +35780,91 @@ body.low-fx .card.status-burning:not(.card-enter):not(.card-exit) {
    there is room for it there.) */
 .card.ally-card .status-badge.sb-noicon,
 .card.enemy-card .status-badge.sb-noicon { display: none; }
+
+/* ============================================================
+   MAIN MENU: ONE LAYOUT, ALWAYS CENTERED, HERO BEHIND
+   ============================================================
+   User: "i want the menu to always look like this, no more left column text
+   menu with art on right, always like this, so i want the play and library
+   centered as well, and make sure the aspect ratio for the character art behind
+   doesnt change when making the screen bigger — just have it fade out to black
+   on both left and right and keep it centered."
+
+   WHY IT CHANGED SHAPE BY ITSELF. .mm-mw3 was already applied unconditionally,
+   so there was never a second layout being chosen — the ONE layout just read as
+   two different designs depending on the window. The hero was anchored
+   `right: 0` at `width: min(calc(100% - 14%), 86vh)`: on a tall/narrow window
+   the bleed term won and the art spread behind the list (the look being asked
+   for), while on a wide window the 86vh cap won and the same art collapsed into
+   a portrait column pinned to the right, leaving the text stranded in a left
+   column. Same rule, two identities.
+
+   THE ASPECT DRIFT HAS THE SAME ROOT. The art itself never distorted —
+   .mm-hero-img is background-size: cover, which crops rather than stretches.
+   What changed was the BOX: its height came from the viewport (top/bottom: 0)
+   while its width came from a min() that switched terms, so `cover` cropped a
+   different part of the figure at every window size. Deriving BOTH dimensions
+   from viewport HEIGHT fixes it by construction — at any width the box is the
+   same shape, so the crop is identical and the art simply has more black
+   around it.
+   ============================================================ */
+.mm-mw3 .mm-hero {
+  /* Centred by auto margins, NOT by transform: translateX(-50%). The rez-in
+     keyframes below already animate `transform`, and a centering transform
+     would be overwritten the moment that animation ran. */
+  left: 0; right: 0;
+  margin-inline: auto;
+  /* Width from vh, height from top/bottom — both viewport-height-derived, so the
+     box holds one shape at every window width. min(100%) lets it go full-bleed
+     on a phone, where there is no room to letterbox anyway. */
+  width: min(100%, 78vh);
+}
+/* Fade to black on BOTH sides now that the art is centred rather than
+   right-anchored — the old mask faded only the left edge, because the right
+   edge used to sit against the window. Vertical letterbox crop kept as-is. */
+.mm-mw3 .mm-hero {
+  -webkit-mask-image:
+    linear-gradient(to right, transparent 0%, #000 22%, #000 78%, transparent 100%),
+    linear-gradient(to bottom, transparent 0%, #000 11%, #000 86%, transparent 100%);
+  -webkit-mask-composite: source-in;
+          mask-image:
+    linear-gradient(to right, transparent 0%, #000 22%, #000 78%, transparent 100%),
+    linear-gradient(to bottom, transparent 0%, #000 11%, #000 86%, transparent 100%);
+          mask-composite: intersect;
+}
+/* The figure was pushed to 72% horizontally to sit in the right-hand column it
+   used to occupy. Centred box wants a centred subject. */
+.mm-mw3 .mm-hero-img { background-position: 50% 26%; }
+
+/* ---- The text column centres too, so the menu reads as one axis ---- */
+.mm-mw3 .mm-header { align-items: center; }
+.mm-mw3 .mm-title { text-align: center; }
+/* PLAY / LIBRARY. These are `width: fit-content` (so the hover hotspot is the
+   text, not the empty space beside it), which means auto side-margins are what
+   centres them — text-align alone would do nothing to a shrink-wrapped box. */
+.mm-mw3 .mm-section-label {
+  margin-left: auto;
+  margin-right: auto;
+  text-align: center;
+}
+/* The option rows stay a left-aligned BLOCK that is itself centred: centring
+   each row individually would ragged-edge the icons, since SOLO MATCH and
+   MULTIPLAYER are different lengths and their glyphs would no longer line up. */
+.mm-mw3 .mm-grid.mm-grid-section {
+  width: fit-content;
+  margin-inline: auto;
+}
+
+/* THE LEFT COLUMN WAS ONE DECLARATION.
+   `.mm-mw3 .mm-panel { margin: 0 0 0 clamp(34px, 7vw, 120px) }` pinned the whole
+   text block to the left edge — that margin IS the "left column text menu with
+   art on the right" the user asked to be rid of. Everything inside it was
+   already centring correctly against the panel; the panel itself just was not
+   on the screen's centre line (measured: contents centred at x=350 in a 1000px
+   window, 150px left of centre).
+   The overlay is already `display: flex; justify-content: center`, so auto side
+   margins put the panel on the same axis as the hero behind it. */
+.mm-mw3 .mm-panel {
+  margin-left: auto;
+  margin-right: auto;
+}
