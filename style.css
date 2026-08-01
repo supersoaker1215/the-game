@@ -35931,3 +35931,28 @@ body.low-fx .card.status-burning:not(.card-enter):not(.card-exit) {
 .mm-mw3 .mm-heropick-row {
   text-align: center;
 }
+
+/* THE HERO STOPS DRIFTING — ONE FRAMING, HELD.
+   User: "i want the one with the happy face all the time, not for it to switch."
+   The two screenshots were not two layouts or two window sizes — they are the
+   two ENDS of a loop. `.mm-mw3 .mm-hero-img` carried
+     animation: mmHeroDrift 34s ease-in-out infinite alternate
+   whose keyframes are
+     0%   { transform: scale(1.05) translate(0, -1.5%) }
+     100% { transform: scale(1.11) translate(-1.8%, 1.5%) }
+   so over every 34 seconds the art zoomed 6% and slid, then reversed, forever.
+   The wider/brighter frame is the 100% end (more zoom pulls the lit wall on the
+   right into view); the calmer one with more black around the figure is 0%.
+   Pinned at 0% — the framing that was asked for. Chosen over "slow the drift
+   down" because a slower loop still arrives at both ends, and what was asked
+   for is that it stop arriving at the second one.
+   This also removes a 34-second infinite animation from the menu, which the
+   mobile battery diet wants gone anyway. The prefers-reduced-motion rule above
+   already pinned exactly this state; it is now simply the default for everyone
+   rather than an accessibility fallback.
+   The one-shot rez-in on .mm-hero is untouched — it plays once on load and
+   settles, so it never switches anything. */
+.mm-mw3 .mm-hero-img {
+  animation: none;
+  transform: scale(1.05) translate(0, -1.5%);
+}
