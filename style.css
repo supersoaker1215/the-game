@@ -34694,6 +34694,29 @@ body.hand-text-always .player-hand-section .hand-cards .card .status-badge .sb-n
 body.hand-text-always .trick-cards .trick-card .status-badge .sb-n {
   font-size: 8px;
 }
+/* BOARD character cards match the hand in "Always show": word badges, not the
+   compact-view icon glyphs. User: "i want the badges for characters on the
+   board to be like the way they are in hand." The board strip keeps its 2-row
+   cap, so a 5-keyword legend still clips its overflow the way the board always
+   did — the card is a fixed lane slot and cannot grow like a hand card. */
+body.hand-text-always .card.ally-card .status-badge .sb-i,
+body.hand-text-always .card.enemy-card .status-badge .sb-i {
+  display: none;
+}
+body.hand-text-always .card.ally-card .status-badge .sb-w,
+body.hand-text-always .card.enemy-card .status-badge .sb-w {
+  display: inline;
+}
+/* A keyword with no glyph is dropped on the compact board; with words back it
+   can show its text again. */
+body.hand-text-always .card.ally-card .status-badge.sb-noicon,
+body.hand-text-always .card.enemy-card .status-badge.sb-noicon {
+  display: inline-flex;
+}
+body.hand-text-always .card.ally-card .status-badge.sb-noicon .sb-w,
+body.hand-text-always .card.enemy-card .status-badge.sb-noicon .sb-w {
+  display: inline;
+}
 /* Re-enable badge hover/tap so the keyword tooltip works. Badges are
    pointer-events:none in the compact view only because the flip face covers
    them; in "Always show" there is no face over them, and the user wants a

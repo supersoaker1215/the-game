@@ -21242,6 +21242,23 @@ const UI = {
   // to keep it clean. Purely visual (pointer-events:none, no state mutation);
   // cleared outside planning / on combat / game-over.
   _renderAttackTelegraph() {
+    // The SVG is position:fixed and its lines are computed from LIVE viewport
+    // coordinates (getBoundingClientRect) — correct at render time, but stale
+    // the moment the page scrolls, so the lines drift off the cards and look
+    // like they "follow" the scroll instead of staying on the board (user).
+    // Re-draw on scroll (rAF-throttled) so the lines re-anchor to where the
+    // cards actually are now. Wired once.
+    if (!this._teleScrollWired) {
+      this._teleScrollWired = true;
+      let raf = 0;
+      const resync = () => {
+        raf = 0;
+        if (document.getElementById('attack-telegraph')) this._renderAttackTelegraph();
+      };
+      window.addEventListener('scroll', () => {
+        if (!raf) raf = requestAnimationFrame(resync);
+      }, { capture: true, passive: true });
+    }
     const s = (typeof Game !== 'undefined') && Game.state;
     let svg = document.getElementById('attack-telegraph');
     // Player toggle (Settings > Attack lines). `!== false` so settings saved
