@@ -15246,7 +15246,17 @@ const UI = {
   // face itself is free to be a read surface — tap it to turn it over. This is
   // the surface where reading matters most: the whole prompt is "do you want to
   // play this trick", and you cannot answer that without its rules text.
-  _fpTrickCardHTML(trick) { return this.makeTrickEl(trick, { extraClass: 'fp-tricky flip-host' }); },
+  _fpTrickCardHTML(trick) {
+    // The full-art trick card hides its rules text (same as a board card / a
+    // face-down flip card), and inside these prompts it also carries
+    // `pointer-events:none`, so there was no way to read what the free trick
+    // actually does before choosing Play/Keep. User: "i want the trick
+    // description, on this block meter draw of tricks cards." Show the rules as
+    // a readable panel beneath the card — the old spec-sheet look.
+    const rules = this.formatDesc((trick && trick.desc) || '') || '';
+    return this.makeTrickEl(trick, { extraClass: 'fp-tricky flip-host' })
+      + (rules ? `<div class="fp-trick-rules">${rules}</div>` : '');
+  },
 
   // ===================== JUMP OFFER =====================
   // Player-side jump cards (Jason / Ghostface / Michael Myers) that become

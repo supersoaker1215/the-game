@@ -4901,9 +4901,11 @@ const Game = {
     if (front && front.currentHealth > 0) {
       if (!front.isFaceDown) out.targets.push({ card: front, kind: 'front' });
     } else out.hitsHero = true;   // empty opposing slot + no taunter → the hero
-    // Splash cone (front lane + both adjacent) — never taunt-redirected.
+    // Splash cone (the two ADJACENT lanes only) — never taunt-redirected, and
+    // never the front lane (that enemy already ate the normal swing; splash
+    // hits its neighbours). Matches applySplash + the "adjacent enemies" text.
     if ((card.splashRange | 0) > 0) {
-      [lane - 1, lane, lane + 1].forEach(li => {
+      [lane - 1, lane + 1].forEach(li => {
         if (li < 0 || li >= this.LANE_COUNT) return;
         const ln = this.state.lanes[li];
         const e = ln && !ln.destroyed && ln[opp];
@@ -5680,22 +5682,14 @@ const Game = {
   },
 
   applySplash(card, laneIdx) {
-    // Splash X = cone: hits enemy in front (same lane) + adjacent lanes for splashRange damage.
-    // Front damage stacks on top of the normal attack.
+    // Splash X = hits the two ADJACENT enemy lanes for splashRange damage.
+    // The enemy directly in front (same lane) is NOT splashed — it already ate
+    // the normal attack, and the card text reads "adjacent enemies". User:
+    // "i just want the splash to hit adjacent enemies not the card in front too."
     const opp = this.opponent(card.owner);
     const splashDmg = card.splashRange;
     const splashed = [];
-    // Front (same lane)
-    const front = this.state.lanes[laneIdx][opp];
-    if (front && front.currentHealth > 0) {
-      const hpBefore = front.currentHealth;
-      this.dealDamage(front, splashDmg, card);
-      this.log(`  [SPLASH] ${card.name} hits ${front.name} in lane ${laneIdx + 1} for ${splashDmg}`);
-      // Hawkeye's ATK debuff only triggers on enemies that actually TOOK damage —
-      // invincible / evade / full-armor blocks mean the splash "didn't hit".
-      if (front.currentHealth > 0 && front.currentHealth < hpBefore) splashed.push(front);
-    }
-    // Adjacent lanes
+    // Adjacent lanes only — no front (same-lane) hit.
     [laneIdx - 1, laneIdx + 1].forEach(li => {
       if (li >= 0 && li < this.LANE_COUNT) {
         const t = this.state.lanes[li][opp];
@@ -8337,10 +8331,9 @@ const Game = {
     // being measured, not the downstream defenses.
     const splash = frozen.splashRange || 0;
     if (splash > 0) {
-      // Front (same lane) splash + each adjacent lane that has an enemy
-      // card to splash onto. Up to 3 splash hits total.
+      // Each ADJACENT lane that has an enemy card to splash onto. The front
+      // (same lane) is NOT splashed anymore (see applySplash), so up to 2 hits.
       let splashTargets = 0;
-      if (this.state.lanes[lane][opp]) splashTargets++;
       if (lane > 0 && this.state.lanes[lane - 1][opp]) splashTargets++;
       if (lane < this.LANE_COUNT - 1 && this.state.lanes[lane + 1][opp]) splashTargets++;
       absorbed += splash * splashTargets;
@@ -10549,14 +10542,11 @@ const Game = {
       aDmgIn += applyHit(a, pAtk, p);   // Player's swing damages AI
     }
 
-    // Step 2: own-lane splash from each side (splash also lands on the
-    // front enemy in the same lane). Skipped when the splasher's front
-    // didn't get to swing (already-dead from pre-splash → no swing →
-    // no splash). The pre-step pre-emptively zeroes pSplash/aSplash
-    // for status-locked cards already, but not for "killed by left-adj
-    // splash" — hence the explicit alive-gate via the swing condition.
-    if (p && p.currentHealth > 0 && pSplash > 0 && a) { aDmgIn += applyHit(a, pSplash, p); }
-    if (a && a.currentHealth > 0 && aSplash > 0 && p) { pDmgIn += applyHit(p, aSplash, a); }
+    // Step 2 REMOVED: splash no longer lands on the front (same-lane) enemy —
+    // it only hits the two ADJACENT lanes now (see applySplash). The own-lane
+    // splash hit that used to be modeled here would double-count the front
+    // enemy's damage, so it's gone. Adjacent splash onto THIS lane's cards is
+    // still modeled by the left-adj (step 0) and right-adj (step 3) blocks.
 
     // Step 3 (POST-SPLASH from RIGHT adjacent): idx+1's lane resolves
     // AFTER this lane, so its splash lands AFTER this lane's outcome

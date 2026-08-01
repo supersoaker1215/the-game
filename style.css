@@ -11356,7 +11356,24 @@ body.turn-combat .board .lane.lane-active {
 .fp-body { display: flex; gap: 18px; align-items: stretch; }
 .fp-trick-preview {
   flex: 0 0 160px;
-  display: flex; align-items: center; justify-content: center;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px;
+}
+/* Readable rules panel under the free-trick art (block-meter draw, Time Stone
+   react). The trick card itself hides its text, so this is the only place the
+   player can read what the trick does before Play/Keep. Purple-tinted to match
+   the trick palette. */
+.fp-trick-rules {
+  width: 100%;
+  max-width: 190px;
+  font-size: 12px;
+  line-height: 1.36;
+  color: var(--text-body, #f0f6fb);
+  text-align: center;
+  background: rgba(22, 13, 33, 0.6);
+  border: 1px solid rgba(158, 120, 255, 0.38);
+  border-radius: 6px;
+  padding: 7px 10px;
+  box-shadow: inset 0 0 12px rgba(158, 120, 255, 0.08);
 }
 /* The block-trigger / Time Stone modals embed an actual `.trick-card`
    element so it inherits ALL the in-hand chrome (diamond cost pip,
@@ -30766,6 +30783,29 @@ body.round-tick .board::after {
   /* Reset any board-side overrides so the inspect card always
      looks "fresh" — no MVP-rank scaling, no tron border glitches. */
   pointer-events: auto;
+  /* GROW TO FIT THE DESCRIPTION. The inspect view forces the full .card-desc
+     back on (see .inspect-card escape hatch), but the base card carries
+     `aspect-ratio: 92/182`, which pins its height to its WIDTH regardless of
+     content — so long-text cards (Gojo, Galactus, Boiler Room) pushed the
+     description clean past their own bottom border, red rules text floating
+     below the painted card. User: "some cards when clicked the text goes
+     bigger than the card." Dropping the ratio here lets the card height track
+     the CONTENT (art on top keeps its own 360/472 width-based aspect, so it
+     never stretches), wrapping the whole description inside the frame. The
+     modal then re-fits the taller card to the viewport via _fitInspectToViewport. */
+  aspect-ratio: auto !important;
+  height: auto !important;
+  min-height: 0 !important;
+}
+/* Description flows in the card body (below art + name), padded so the text
+   doesn't kiss the border, and never clipped now that the card grows for it. */
+.card-inspect-modal .inspect-card .card-desc,
+.card-inspect-modal .inspect-card .card-active-text {
+  position: static !important;
+  height: auto !important;
+  max-height: none !important;
+  overflow: visible !important;
+  padding: 4px 8px 8px !important;
 }
 /* Hover effects DISABLED inside the inspect modal — the card is
    already zoomed 1.7× via `zoom`; any additional lift / scale
