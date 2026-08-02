@@ -30755,6 +30755,24 @@ body.round-tick .board::after {
 }
 #btn-action:hover::before,
 #btn-action:focus-visible::before { inset: 1px; }
+/* This button also carries .tron-fx / .tron-fx-breathe, which is where the box
+   was actually coming from: a 1px breathing OUTLINE around the whole button,
+   plus a .tron-sweep child that slides a filled blue gradient across it. Both
+   are the fill-and-frame language the rest of the UI moved away from, so both
+   are switched off HERE only — the classes stay on every other button.
+   What is left is a glow: text-shadow on the word and the corner reticle,
+   exactly how the main menu's options read. */
+#btn-action.btn-primary {
+  outline: none;
+  animation: none;
+  /* !important is required, not lazy: one of the .btn-primary rules declares
+     its glow with !important, and an important CLASS declaration beats a
+     plain ID one. This is the last vestige of the box — a rectangular halo
+     tracing the button's edges. The word keeps its own text-shadow, which is
+     what the main menu's options glow with. */
+  box-shadow: none !important;
+}
+#btn-action > .tron-sweep { display: none; }
 #btn-action:active { transform: scale(0.97); }
 #btn-action:active::before { inset: 6px; }
 @media (prefers-reduced-motion: reduce) {
@@ -36632,24 +36650,24 @@ body.low-fx .card-frost::after {
 .card.enemy-card .status-badges,
 .player-hand-section .hand-cards .card .status-badges,
 .trick-cards .trick-card .status-badges {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  /* Rows are created ON DEMAND, never reserved: grid-template-rows would hold
-     both rows open on a card with no badges at all, which is most cards, and
-     stamp 60px of empty band into every one of them. grid-auto-rows fixes the
-     HEIGHT of whatever rows do appear, and max-height stops the box at two of
-     them, so a 7th badge is clipped as a whole row — never sliced in half the
-     way the old flex wrap did to Trigon. */
-  grid-auto-rows: calc(var(--sb-i) * 1.42);
-  max-height: calc(var(--sb-i) * 2.84 + var(--sb-pad) * 1.1);
-  overflow: hidden;
-  gap: calc(var(--sb-pad) * 1.1);
-  justify-items: center;
-  align-items: center;
-  /* The row was flex before; these no longer apply but are harmless if a
-     surface below still assumes them. */
+  /* Flex, not grid — and the difference is exactly what a PARTIAL row does.
+     A 3-column grid pins every badge to a column, so a card with one badge put
+     it in column 1 and it sat hard LEFT. Flex thirds keep the three-per-row
+     rhythm (each badge is locked to a third, so a full row still lines up
+     across cards) while justify-content centres whatever is actually there:
+     one badge lands dead centre, two straddle the middle, three fill the row
+     left / centre / right. */
+  display: flex;
   flex-wrap: wrap;
   justify-content: center;
+  align-content: flex-start;
+  --sb-gap: calc(var(--sb-pad) * 1.1);
+  gap: var(--sb-gap);
+  /* Two rows, then clip. Rows are content-created so a card with no badges
+     reserves nothing, and every badge is the same fixed height, so a 7th is
+     dropped as a WHOLE row rather than sliced the way the old wrap did. */
+  max-height: calc(var(--sb-i) * 2.84 + var(--sb-gap));
+  overflow: hidden;
 }
 .card.ally-card .status-badge,
 .card.enemy-card .status-badge,
@@ -36667,6 +36685,10 @@ body.low-fx .card-frost::after {
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  /* Locked to a third of the row (minus the two gaps), so exactly three fit
+     per row on every card and a full row always lines up. */
+  flex: 0 0 calc((100% - var(--sb-gap) * 2) / 3);
+  height: calc(var(--sb-i) * 1.42);
   max-width: 100%;
   text-shadow: 0 0 calc(var(--sb-i) * 0.5) currentColor;
 }
