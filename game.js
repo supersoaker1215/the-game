@@ -4615,7 +4615,51 @@ const Game = {
       advance();
     };
 
+    // FIRST STRIKE — cards flagged `attacksFirst` (Han Solo) take their swing
+    // NOW, before lane 0, so their target can die before it retaliates. Runs
+    // after the onBeforeCombat hooks (so Han's redirect lane is already chosen)
+    // and after _inCombat is set (deaths batch to postCombat correctly).
+    this._resolveFirstStrikes();
+
     resolveLane(0);
+  },
+
+  // Resolve all `attacksFirst` swings at the very start of combat. Only hits
+  // CARD targets (the opposite card, or a redirected lane) — an uncontested
+  // hero hit has no retaliation to pre-empt, so that's left to normal lane
+  // flow. Setting `_skipNormalAttack` stops the striker swinging again when its
+  // own lane resolves (both resolveLaneCombat and resolveUncontestedLane honour
+  // the flag). User: "han solo attacks first no matter what lane he is in."
+  _resolveFirstStrikes() {
+    const strikers = this.getAllCardsOnBoard()
+      .filter(c => c.currentHealth > 0 && c.attacksFirst && (c.attack | 0) > 0);
+    if (!strikers.length) return;
+    // Deterministic order — lowest lane first, so a mirror-match (both sides
+    // have a first-striker) resolves consistently.
+    strikers.sort((x, y) => this.findCardLane(x) - this.findCardLane(y));
+    for (const c of strikers) {
+      if (c.currentHealth <= 0) continue;                 // died to an earlier strike
+      if (this.isActionLocked(c)) continue;               // frozen / stunned / parlayed
+      const lane = this.findCardLane(c);
+      if (lane < 0) continue;
+      const opp = this.opponent(c.owner);
+      // Redirect path — the card's own onBeforeAttack consumes _hanRedirectLane,
+      // fires the cross-lane shot, and sets _skipNormalAttack itself.
+      if (c.onBeforeAttack) {
+        try { c.onBeforeAttack(this, c); } catch (e) { console.error(e); }
+      }
+      if (c._skipNormalAttack) { this.cleanupDead(); continue; }   // redirect already fired
+      // Own-lane path — strike the opposite card now, before it can swing back.
+      const enemy = this.state.lanes[lane][opp];
+      if (enemy && enemy.currentHealth > 0 && !enemy.isFaceDown) {
+        this.log(`[FIRST STRIKE] ${c.name} strikes first in lane ${lane + 1}!`);
+        this.applyCombatDamage(c, enemy);
+        if (c.splashRange > 0) this.applySplash(c, lane);
+        c._skipNormalAttack = true;   // don't swing again when this lane resolves
+        this.cleanupDead();
+      }
+      // else: uncontested (or face-down) — leave the hero/normal hit to the lane loop.
+    }
   },
 
   postCombat() {

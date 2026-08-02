@@ -261,7 +261,7 @@ const CARD_DEFS = [
     desc: "While Active: Before each combat, choose an enemy in an uncontested lane (no ally opposite). It cannot attack this round." },
   { name: "Han Solo", cost: 5, attack: 3, health: 4, type: "hero",
     abilities: [],
-    desc: "While Active: Before each combat, choose any enemy lane for Han Solo to attack instead of his own, or stay. Each Turn: Each ally has a 50% chance to gain Critical — double damage for the round." },
+    desc: "First Strike: Han Solo attacks at the start of combat, before other lanes. Before each combat, choose any enemy lane for him to attack instead of his own, or stay. Each Turn: Each ally has a 50% chance to gain Critical — double damage for the round." },
   { name: "Captain America", cost: 5, attack: 3, health: 4, type: "hero",
     abilities: ["Armor 1"],
     desc: "When Played: Give an ally Invincible 1. While Active: All cards in your hand cost 1 less Energy." },

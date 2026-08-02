@@ -3762,6 +3762,13 @@ const CARD_ABILITIES = {
     }
   },
   "Han Solo": {
+    onPlay(G, self) {
+      // First Strike — Han takes his shot at the very START of combat, before
+      // the lane-by-lane exchange, no matter which lane he's in. Read by
+      // Game._resolveFirstStrikes(). User: "han solo attacks first no matter
+      // what lane he is in, so start of combat he attacks first."
+      self.attacksFirst = true;
+    },
     onBeforeCombat(G, self, lane) {
       if (Game.isActionLocked(self)) return;
       const opp = G.opponent(self.owner);
