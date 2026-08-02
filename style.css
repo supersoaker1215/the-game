@@ -9326,12 +9326,12 @@ body.turn-combat .board .lane.lane-active {
      The COUNT stays visible — "Armor 2" vs "Armor 1" is live combat math, and
      it is the half of the badge that actually changes during a fight. */
   .board .card .status-badge {
-    padding: 1px 2px; font-size: 8px; letter-spacing: 0; max-width: 100%;
+    padding: var(--sb-pad) calc(var(--sb-pad) * 2); font-size: var(--sb-num); letter-spacing: 0; max-width: 100%;
     display: inline-flex; align-items: center; gap: 1px; line-height: 1;
   }
   .board .card .status-badge .sb-w { display: none; }
-  .board .card .status-badge .sb-i { display: inline-flex; width: 8px; height: 8px; }
-  .board .card .status-badge .sb-n { font-size: 8px; font-weight: 700; }
+  .board .card .status-badge .sb-i { display: inline-flex; width: var(--sb-i); height: var(--sb-i); }
+  .board .card .status-badge .sb-n { font-size: var(--sb-num); font-weight: 700; }
   /* A badge with no keyword icon would render as an empty chip — drop it. Its
      text is still in the inspect modal. */
   .board .card .status-badge.sb-noicon { display: none; }
@@ -35899,10 +35899,13 @@ body.hand-text-always .trick-cards .trick-card.face-flipped .trick-desc {
 }
 .card.ally-card .status-badges,
 .card.enemy-card .status-badges {
-  max-height: 28px;          /* two rows */
+  /* Two rows, expressed in icons so the cap tracks the badge instead of
+     clipping a row off the moment the badge scales up. 8px icon x 3.5 = the
+     28px this used to be, so nothing moves at the size it was tuned at. */
+  max-height: calc(var(--sb-i) * 3.5);
   overflow: hidden;
-  gap: 1px;
-  font-size: 7px;
+  gap: calc(var(--sb-pad) * 0.9);
+  font-size: var(--sb-num);
   letter-spacing: 0.1px;
 }
 .card.ally-card .status-badge,
@@ -36221,8 +36224,9 @@ body.low-fx .card-frost::after {
    ============================================================ */
 .player-hand-section .hand-cards .card .status-badges,
 .trick-cards .trick-card .status-badges {
-  /* One row of 11px icons + padding. Was 28px for two rows of 7px text. */
-  max-height: 22px;
+  /* One row of icons + padding, expressed in icons: 11px x 2 = the 22px this
+     used to be. Was 28px for two rows of 7px text before the icons landed. */
+  max-height: calc(var(--sb-i) * 2);
   overflow: hidden;
   /* 2px, not 3px. The five-keyword legends — Anakin, Dormammu, Dr. Manhattan,
      Galactus, Trigon — are the whole reason the old cap clipped, and at 3px
@@ -36249,11 +36253,11 @@ body.low-fx .card-frost::after {
 .player-hand-section .hand-cards .card .status-badge .sb-i,
 .trick-cards .trick-card .status-badge .sb-i {
   display: inline-flex;
-  width: 11px; height: 11px;
+  width: var(--sb-i); height: var(--sb-i);
 }
 .player-hand-section .hand-cards .card .status-badge .sb-n,
 .trick-cards .trick-card .status-badge .sb-n {
-  font-size: 10px; font-weight: 700; margin-left: 0;
+  font-size: var(--sb-num); font-weight: 700; margin-left: 0;
 }
 /* A keyword with no KEYWORD_DATA entry has no glyph to show, so it KEEPS ITS
    WORD rather than rendering as an empty chip. Deliberately different from the
@@ -36292,31 +36296,103 @@ body.low-fx .card-frost::after {
    ============================================================ */
 .card.ally-card .status-badges,
 .card.enemy-card .status-badges {
-  max-height: 14px;        /* ONE row of 8px glyphs + chip padding */
+  /* Expressed in icons so the cap tracks the badge instead of clipping a row
+     the moment the glyph grows (8px x 1.75 is exactly the 14px this used to
+     be — see the phone override below, which pins that).
+
+     TWO rows off the phone. A proportionally bigger glyph is also a wider
+     chip, so a 140px card that used to fit seven 8px badges on one row fits
+     about three at 20px. The count would have dropped for no reason: the big
+     card has a large empty band between the name and the stat orbs, which the
+     old one-row cap was never sized against — it was sized against the phone
+     tile, where that band does not exist. */
+  max-height: calc(var(--sb-i) * 3.6);
   overflow: hidden;
   flex-wrap: wrap;         /* wrap-then-clip drops whole badges, never half ones */
-  gap: 1px;
+  gap: calc(var(--sb-pad) * 0.9);
   justify-content: center;
+}
+/* The phone tile keeps ONE row. Its badge band is the ~14px between the name and
+   the stat orbs — there is no spare vertical space here to spend on a second
+   row, which is exactly why the big card gets two and this does not. Resolves
+   to the same 14px it has always been (8px icon x 1.75).
+   This has to sit AFTER the rule above, not up in the phone block near the
+   other board overrides: same specificity, so source order decides, and from
+   up there it lost and the tile silently got the desktop two-row cap. */
+@container (max-width: 520px) {
+  .board .card .status-badges,
+  .card.ally-card .status-badges,
+  .card.enemy-card .status-badges { max-height: calc(var(--sb-i) * 1.75); }
 }
 .card.ally-card .status-badge,
 .card.enemy-card .status-badge {
-  padding: 0 1px;
-  gap: 1px;
-  font-size: 7px;
+  padding: 0 calc(var(--sb-pad) * 1.4);
+  gap: calc(var(--sb-pad) * 0.9);
+  font-size: var(--sb-num);
   line-height: 1;
   flex: 0 0 auto;
   display: inline-flex;
   align-items: center;
 }
+/* ============================================================
+   BADGE SCALE — one share of the card, every screen.
+   Badge sizes used to be fixed px while card widths were not, so the badge's
+   share of the card drifted badly across devices. Measured before this rule:
+
+     board card   phone 56.2px / 8px icon  = 14.2%
+                  desktop 140px / 8px icon =  5.7%     <- 2.5x drift
+     hand card    phone 92.1px / 11px      = 11.9%
+                  desktop 140px / 11px     =  7.9%
+
+   i.e. the same ARMOR 1 pill read large in hand and nearly invisible on the
+   board. Now every surface multiplies its OWN card width by one shared
+   constant, so the pill occupies the same fraction of the card on a phone, a
+   tablet and a desktop — the card can be any size and the badge follows it.
+
+   Why the width is declared per surface instead of read from the element: CSS
+   can only read an element's own width through a container query, and giving
+   .card a container-type would re-point all ten UNNAMED
+   `@container (max-width: 520px)` blocks at the card instead of body. A card
+   is never wider than 520px, so every one of those phone-only rules would then
+   match at any viewport. Explicit widths are the only safe option here.
+   ============================================================ */
+:root {
+  /* The phone board tile is both the tuned reference and the legibility floor:
+     an 8px icon on a 56.2px card. 8 / 56.2 = 0.1423. Everything else scales up
+     to meet it rather than the tile scaling down to meet everything else. */
+  --sb-share: 0.1423;
+}
+/* These live on the CARD, not on .status-badge. The badge ROW (.status-badges)
+   needs --sb-i too, for its own height cap, and custom properties only inherit
+   downward — declared on the pill, the row saw nothing, its calc() was invalid,
+   and max-height silently computed to `none`. That let a five-badge card stack
+   five rows and spill 17.6px past the bottom of the card. */
+.card, .trick-card {
+  --sb-card: 140px;
+  /* max() keeps the floor: at phone-board width this resolves to exactly 8px,
+     so the tile that was already tuned does not move by a fraction of a pixel. */
+  --sb-i: max(8px, calc(var(--sb-card, 140px) * var(--sb-share)));
+  /* The pill's own padding and its count scale with the glyph, or the chip's
+     proportions drift even though the icon inside it does not. */
+  --sb-pad: calc(var(--sb-i) * 0.18);
+  --sb-num: calc(var(--sb-i) * 0.86);
+}
+.trick-card { --sb-card: 132px; }
+@container (max-width: 520px) {
+  .board .card { --sb-card: calc((100cqw - 14px) / 6 - 4px); }
+  .player-hand-section .hand-cards .card { --sb-card: 92px; }
+  .trick-cards .trick-card { --sb-card: 110px; }
+}
+
 .card.ally-card .status-badge .sb-i,
 .card.enemy-card .status-badge .sb-i {
   display: inline-flex;
-  width: 8px; height: 8px;
+  width: var(--sb-i); height: var(--sb-i);
 }
 .card.ally-card .status-badge .sb-w,
 .card.enemy-card .status-badge .sb-w { display: none; }
 .card.ally-card .status-badge .sb-n,
-.card.enemy-card .status-badge .sb-n { font-size: 7px; font-weight: 700; }
+.card.enemy-card .status-badge .sb-n { font-size: var(--sb-num); font-weight: 700; }
 /* No glyph means an empty chip at this size — drop it; the word is one
    tap-inspect away. (The hand does the opposite and keeps the word, because
    there is room for it there.) */
