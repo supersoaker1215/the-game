@@ -30699,7 +30699,60 @@ body.round-tick .board::after {
    ============================================================ */
 #btn-action {
   position: relative;
-  overflow: hidden;
+  /* visible, not hidden: the reticle brackets sit OUTSIDE the text box and
+     push further out on hover. */
+  overflow: visible;
+  /* The box is gone. This was the last surviving rounded blue rectangle in the
+     match UI — 6px radius, 1px full border, four stacked glows — and next to
+     the boxless menu it read as a leftover from a different design. What
+     replaces it is a targeting reticle: pure #000 interior, no border at all,
+     and four corner brackets that frame the word without enclosing it. */
+  background: #000;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  padding: 11px 30px;
+  /* Keeps the 44px touch target the mobile pass established. */
+  min-height: 44px;
+  color: rgba(var(--theme-rgb, 79,195,247), 0.95);
+  text-shadow: 0 0 10px rgba(var(--theme-rgb, 79,195,247), 0.45);
+  transition: color 0.18s, text-shadow 0.18s, transform 0.15s var(--ease-spring, ease);
+}
+/* The reticle. Eight hairlines, two per corner, drawn as background gradients
+   so the whole frame is one element and one paint. */
+#btn-action::before {
+  content: '';
+  position: absolute;
+  inset: -6px;
+  pointer-events: none;
+  --c: rgba(var(--theme-rgb, 79,195,247), 0.9);
+  background:
+    linear-gradient(90deg,  var(--c) 0 100%) 0    0    / 15px 1px no-repeat,
+    linear-gradient(180deg, var(--c) 0 100%) 0    0    / 1px 15px no-repeat,
+    linear-gradient(90deg,  var(--c) 0 100%) 100% 0    / 15px 1px no-repeat,
+    linear-gradient(180deg, var(--c) 0 100%) 100% 0    / 1px 15px no-repeat,
+    linear-gradient(90deg,  var(--c) 0 100%) 0    100% / 15px 1px no-repeat,
+    linear-gradient(180deg, var(--c) 0 100%) 0    100% / 1px 15px no-repeat,
+    linear-gradient(90deg,  var(--c) 0 100%) 100% 100% / 15px 1px no-repeat,
+    linear-gradient(180deg, var(--c) 0 100%) 100% 100% / 1px 15px no-repeat;
+  filter: drop-shadow(0 0 5px rgba(var(--theme-rgb, 79,195,247), 0.55));
+  transition: inset 0.18s var(--ease-spring, ease), opacity 0.18s;
+}
+/* Hover / focus: the reticle opens outward and the word brightens. Grow and
+   glow, exactly like the menu's text buttons — never a fill, never a box. */
+#btn-action:hover,
+#btn-action:focus-visible {
+  color: #fff;
+  text-shadow:
+    0 0 14px rgba(var(--theme-rgb, 79,195,247), 0.85),
+    0 0 4px  rgba(var(--theme-rgb, 79,195,247), 0.6);
+}
+#btn-action:hover::before,
+#btn-action:focus-visible::before { inset: -11px; }
+#btn-action:active { transform: scale(0.97); }
+#btn-action:active::before { inset: -4px; }
+@media (prefers-reduced-motion: reduce) {
+  #btn-action, #btn-action::before { transition: none; }
 }
 #btn-action::after {
   content: '';
