@@ -30699,9 +30699,12 @@ body.round-tick .board::after {
    ============================================================ */
 #btn-action {
   position: relative;
-  /* visible, not hidden: the reticle brackets sit OUTSIDE the text box and
-     push further out on hover. */
-  overflow: visible;
+  /* MUST stay hidden. This button also carries .tron-fx, whose .tron-sweep
+     child is parked at translateX(-100%) and is hidden by nothing except this
+     clip — switching it to visible to let the brackets sit outside unparked the
+     sweep and painted a bright slab to the LEFT of the button. The reticle
+     lives inside the box instead. */
+  overflow: hidden;
   /* The box is gone. This was the last surviving rounded blue rectangle in the
      match UI — 6px radius, 1px full border, four stacked glows — and next to
      the boxless menu it read as a leftover from a different design. What
@@ -30723,7 +30726,10 @@ body.round-tick .board::after {
 #btn-action::before {
   content: '';
   position: absolute;
-  inset: -6px;
+  /* Inside the box, because the parent has to stay overflow:hidden (see
+     above). The brackets still grow toward the edges on hover, so the gesture
+     is unchanged — it just happens within the button's own bounds. */
+  inset: 4px;
   pointer-events: none;
   --c: rgba(var(--theme-rgb, 79,195,247), 0.9);
   background:
@@ -30748,9 +30754,9 @@ body.round-tick .board::after {
     0 0 4px  rgba(var(--theme-rgb, 79,195,247), 0.6);
 }
 #btn-action:hover::before,
-#btn-action:focus-visible::before { inset: -11px; }
+#btn-action:focus-visible::before { inset: 1px; }
 #btn-action:active { transform: scale(0.97); }
-#btn-action:active::before { inset: -4px; }
+#btn-action:active::before { inset: 6px; }
 @media (prefers-reduced-motion: reduce) {
   #btn-action, #btn-action::before { transition: none; }
 }
@@ -33777,6 +33783,82 @@ body.low-fx .card-fear::after { animation: none !important; }
   .card-mind-ctrl::after { animation: none !important; }
 }
 body.low-fx .card-mind-ctrl::after { animation: none !important; }
+
+/* ============================================================
+   INVINCIBLE FX — an aegis the card is sealed inside
+   ============================================================
+   .card-invincible is injected into the portrait of a card with
+   invincibleTurns > 0 (makeCardEl), same shell and z-layer as the rest.
+
+   Note this status had NO card-level styling whatsoever before now: the
+   status-invincible class was being added in makeCardEl and no rule in the
+   sheet ever matched it, so the only cue was the badge star. For the status
+   that says "cannot die", that was the biggest hole in the set.
+
+   Its direction is the PERIMETER. Every member owns one so several can stack
+   and still be told apart — frost cuts diagonals, burn rises from the bottom,
+   taunt contracts in rings, fear gathers in the corners, mind control hangs
+   verticals — and nothing was using the edge. The chamfered corner plates read
+   as armour rather than as another glow, which is what keeps it from reading
+   like taunt: taunt's rings MOVE inward, this shell is fixed and only
+   brightens.
+
+   Cold platinum (#ecf0f1, the keyword's own colour) so it never reads as
+   taunt's gold, and the centre stays clear so the art is undimmed — being
+   invincible should not cost you the ability to see the card. */
+.card-invincible {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  border-radius: inherit;
+  z-index: 4;
+  overflow: hidden;
+  background:
+    radial-gradient(132% 102% at 50% 50%, rgba(0,0,0,0) 54%,
+                    rgba(226,240,248,0.14) 84%, rgba(255,255,255,0.26) 100%);
+  mix-blend-mode: screen;
+  box-shadow:
+    inset 0 0 0 1px rgba(255,255,255,0.50),
+    inset 0 0 20px rgba(210,235,255,0.24);
+  -webkit-mask-image: linear-gradient(180deg, #000 0%, #000 82%, rgba(0,0,0,0.5) 93%, rgba(0,0,0,0) 100%);
+          mask-image: linear-gradient(180deg, #000 0%, #000 82%, rgba(0,0,0,0.5) 93%, rgba(0,0,0,0) 100%);
+}
+/* Chamfered corner plates. Each is one tile carrying the diagonal that cuts
+   its own corner — the 50% isoline of a corner-to-corner gradient axis is the
+   opposite diagonal, which is exactly the cut we want. */
+.card-invincible::before {
+  content: "";
+  position: absolute; inset: 0;
+  border-radius: inherit;
+  --p: rgba(255,255,255,0.55);
+  background:
+    linear-gradient(to bottom right, transparent calc(50% - 0.6px), var(--p) calc(50% - 0.6px),
+                    var(--p) calc(50% + 0.6px), transparent calc(50% + 0.6px)) 0    0    / 24px 24px no-repeat,
+    linear-gradient(to bottom left,  transparent calc(50% - 0.6px), var(--p) calc(50% - 0.6px),
+                    var(--p) calc(50% + 0.6px), transparent calc(50% + 0.6px)) 100% 0    / 24px 24px no-repeat,
+    linear-gradient(to top right,    transparent calc(50% - 0.6px), var(--p) calc(50% - 0.6px),
+                    var(--p) calc(50% + 0.6px), transparent calc(50% + 0.6px)) 0    100% / 24px 24px no-repeat,
+    linear-gradient(to top left,     transparent calc(50% - 0.6px), var(--p) calc(50% - 0.6px),
+                    var(--p) calc(50% + 0.6px), transparent calc(50% + 0.6px)) 100% 100% / 24px 24px no-repeat;
+}
+/* ONE loop, opacity only — the shield holding, not pulsing at you. */
+.card-invincible::after {
+  content: "";
+  position: absolute; inset: 0;
+  border-radius: inherit;
+  box-shadow:
+    inset 0 0 0 1.5px rgba(255,255,255,0.80),
+    inset 0 0 15px rgba(215,240,255,0.45);
+  animation: aegisHold 3.4s ease-in-out infinite;
+}
+@keyframes aegisHold {
+  0%, 100% { opacity: 0.42; }
+  50%      { opacity: 1; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .card-invincible::after { animation: none !important; }
+}
+body.low-fx .card-invincible::after { animation: none !important; }
 /* Ignite burst — flame flares up over the card the instant it catches. */
 .fx-burn-ignite {
   position: fixed;

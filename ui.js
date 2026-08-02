@@ -17399,7 +17399,12 @@ const UI = {
     // independent gate as frost/burn/fear rather than the status-* else-if
     // chain, so it stacks with them instead of one winning.
     const mindHtml = card.isMindControlled ? '<div class="card-mind-ctrl" aria-hidden="true"></div>' : '';
-    const portraitHtml = `<div class="card-portrait" style="${portraitStyle}"><div class="card-name-overlay">${card.name || ''}</div>${frostHtml}${burnHtml}${tauntHtml}${fearHtml}${mindHtml}</div>`;
+    // Invincible — a chamfered aegis sealed around the card. Board only: the
+    // count only ticks while it is on the field, and in hand the shell would
+    // read as a rarity treatment rather than a status.
+    const invincibleHtml = (card.invincibleTurns > 0 && !inHand)
+      ? '<div class="card-invincible" aria-hidden="true"></div>' : '';
+    const portraitHtml = `<div class="card-portrait" style="${portraitStyle}"><div class="card-name-overlay">${card.name || ''}</div>${frostHtml}${burnHtml}${tauntHtml}${fearHtml}${mindHtml}${invincibleHtml}</div>`;
     // [ CARD DATA ] divider was removed per user feedback — read as
     // distracting, didn't add information beyond the visual gap that
     // already exists between the portrait and the desc text. The
