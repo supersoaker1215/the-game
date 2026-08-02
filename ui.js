@@ -20419,7 +20419,7 @@ const UI = {
         }
         d.moved = true;
         if (d.card) Game.state.selectedCard = d.card;
-        d.ghost = this._makeCardDragGhost(d.cardEl);
+        d.ghost = this._makeCardDragGhost(d.cardEl, t.clientX, t.clientY);
         document.body.classList.add('mobile-card-dragging');
         try { if (this._haptic) this._haptic('cardPlay'); } catch (_) {}
       }
@@ -20431,7 +20431,7 @@ const UI = {
         const dxi = t.clientX - (d.lastX != null ? d.lastX : t.clientX);
         d.lastX = t.clientX;
         d.tilt = Math.max(-16, Math.min(16, (d.tilt || 0) * 0.62 + dxi * 0.9));
-        d.ghost.style.transform = `translate(${t.clientX}px, ${t.clientY}px) translate(-50%, -62%) rotate(${d.tilt.toFixed(1)}deg) scale(1.06)`;
+        this._positionDragGhost(d.ghost, t.clientX, t.clientY, d.tilt);
       }
       clearHi();
       // Lane drop-highlight is a CARD thing — tricks are lane-less, they
@@ -20532,7 +20532,7 @@ const UI = {
         if (Math.hypot(dx, dy) < DRAG_PX) return;   // still a click, not a drag
         d.moved = true;
         if (d.card) Game.state.selectedCard = d.card;
-        d.ghost = this._makeCardDragGhost(d.cardEl);
+        d.ghost = this._makeCardDragGhost(d.cardEl, e.clientX, e.clientY);
         document.body.classList.add('mobile-card-dragging');
       }
       // THE BUTTON CAME UP SOMEWHERE WE NEVER HEARD ABOUT.
@@ -20560,7 +20560,7 @@ const UI = {
         const dxi = e.clientX - (d.lastX != null ? d.lastX : e.clientX);
         d.lastX = e.clientX;
         d.tilt = Math.max(-16, Math.min(16, (d.tilt || 0) * 0.62 + dxi * 0.9));
-        d.ghost.style.transform = `translate(${e.clientX}px, ${e.clientY}px) translate(-50%, -62%) rotate(${d.tilt.toFixed(1)}deg) scale(1.06)`;
+        this._positionDragGhost(d.ghost, e.clientX, e.clientY, d.tilt);
       }
       clearHi();
       if (d.card) {
@@ -20589,7 +20589,32 @@ const UI = {
     }, true);
   },
   // Floating clone of the dragged card that tracks the finger.
-  _makeCardDragGhost(cardEl) {
+  // THE ONE PLACE A DRAG GHOST IS POSITIONED.
+  // left/top carry the position because they are real layout properties — no
+  // `transform` rule, however specific or !important, can move them — and they
+  // are written with setProperty(..., 'important') so no stylesheet can outrank
+  // the inline value either. transform carries ONLY the tilt and scale, so if
+  // it is ever lost the ghost keeps tracking the pointer and merely stops
+  // leaning. The centring offsets are applied in real pixels off the measured
+  // box rather than via translate(-50%,-62%), so centring does not depend on
+  // transform surviving either.
+  _positionDragGhost(g, x, y, tilt) {
+    if (!g) return;
+    const w = g.offsetWidth || 0, h = g.offsetHeight || 0;
+    g.style.setProperty('left', (x - w / 2) + 'px', 'important');
+    g.style.setProperty('top',  (y - h * 0.62) + 'px', 'important');
+    // transform-origin MUST be the centre here. The .card-drag-ghost rule sets
+    // `transform-origin: 0 0`, which is right for a magnify-from-the-corner
+    // effect and wrong for this: with a top-left origin the scale and the tilt
+    // both push the painted box away from the point left/top just placed it,
+    // so the card visibly hangs off the cursor by a growing margin the more it
+    // leans. Measured with a 9 degree tilt: the box centre landed 16px from the
+    // pointer. Centre origin makes the transform purely cosmetic — it can grow
+    // and lean the card without ever moving where it sits.
+    g.style.setProperty('transform-origin', '50% 50%', 'important');
+    g.style.setProperty('transform', `rotate(${(tilt || 0).toFixed(1)}deg) scale(1.06)`, 'important');
+  },
+  _makeCardDragGhost(cardEl, px, py) {
     const g = cardEl.cloneNode(true);
     g.removeAttribute('data-card-id');
     g.classList.add('card-drag-ghost');
@@ -20625,9 +20650,30 @@ const UI = {
     // was the cards underneath. User: "when you drag you can see the text
     // slightly." A dragged card is a solid object; the drop shadow already
     // separates it from the board without needing translucency.
-    g.style.cssText = `position:fixed; left:0; top:0; z-index:3000; pointer-events:none;
-      width:${w}px; margin:0; opacity:1;`;
+    // BORN OFF-SCREEN, NEVER AT 0,0.
+    // This used to be `left:0; top:0` with the ghost positioned ENTIRELY by an
+    // inline `transform`. That made the viewport's top-left corner the ghost's
+    // resting pose, so ANY failure to apply that transform — a cascade fight, a
+    // frame where the move handler had not run yet, a lost event — parked a
+    // full-size card over the HUD. I twice diagnosed a specific cause for that
+    // and twice it came back, which is the signal to stop naming causes and
+    // remove the pose itself: at -9999px an unpositioned ghost is invisible
+    // instead of being a bug report.
+    // Position now rides `left`/`top`, which are real layout properties that no
+    // transform rule can touch, and they are written with setProperty(...,
+    // 'important') so no stylesheet can outrank them either. `transform` is
+    // demoted to what it should always have been — the cosmetic tilt and scale.
+    // Worst case now costs the tilt, not the position.
+    g.style.cssText = `position:fixed; left:-9999px; top:-9999px; z-index:3000;
+      pointer-events:none; width:${w}px; margin:0; opacity:1;`;
     document.body.appendChild(g);
+    // Place it AT THE POINTER the moment it exists, rather than trusting the
+    // caller to do it on the same tick. The caller does — both drag handlers
+    // position it a few lines later — but a ghost that can only be correct
+    // because of what someone else remembers to do is the shape of the bug this
+    // is fixing. offsetWidth/offsetHeight are readable now because it is in the
+    // document.
+    if (typeof px === 'number' && typeof py === 'number') this._positionDragGhost(g, px, py, 0);
     // Mark the card being dragged so the hand shows a gap where it was, rather
     // than the same card appearing twice — once in the hand and once under the
     // cursor.
