@@ -768,6 +768,13 @@ const CARD_ABILITIES = {
   },
   "Human Torch": {
     onPlay(G, self, lane) {
+      // Flame-on cue — fire Human Torch's ability sound the instant he ignites
+      // (registered in CARD_SFX; matches the Predator / Spider-Man pattern of
+      // firing 'ability' from the card's own onPlay). Guarded so the headless
+      // sim no-ops. User: "add this to human torch ability."
+      if (typeof UI !== 'undefined' && UI.sfx) {
+        try { UI.sfx.playCardSfx('Human Torch', 'ability', self); } catch (e) {}
+      }
       // Roguelite Text+ override — _humanTorchBlast scales the targeted
       // damage. Default 2 (classic); Text+ raises to 4 so the directed
       // blast can finish mid-cost bodies on its own.

@@ -1515,6 +1515,9 @@ const UI = {
       // lets the full phrase play; ability slot kept for the legacy
       // Spider-Man swing cue.
       'Spider-Man':       { hover: { src: 'audio/cards/spider-man-hover.mp3?v=4', maxDur: 81 }, ability: 'audio/cards/spider-man-ability.mp3' },
+      // Human Torch's flame-on cue — fired from his onPlay (abilities.js) when
+      // he ignites, the same way Spider-Man / Predator fire their 'ability'.
+      'Human Torch':      { ability: { src: 'audio/cards/human-torch-ability.mp3', maxDur: 4.0 } },
       'Ant-Man':          { death: { src: 'audio/cards/ant-man-death.m4a', fullDuration: true } },
       // Ghostface hover: 58s of Nick Cave & The Bad Seeds' "Red Right
       // Hand" (start → 0:58 of the source — intro through the first
