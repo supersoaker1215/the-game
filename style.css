@@ -33313,7 +33313,9 @@ body.round-tick .board::after {
    diagonal shimmer, so a frozen card reads as ENCASED, not just blue-glowing.
    The one-shot beats (.fx-freeze-burst on land, .fx-thaw-shatter on thaw) are
    spawned into #signature-fx-layer by the engine — see UI._fxFreezeStrike /
-   _fxThaw. All gated off under reduced-motion / low-fx below. */
+   _fxThaw. The shimmer is gated off under reduced-motion / low-fx below; the
+   static ice sheet always stays, because it is the informative half of the cue
+   and a frozen card must still read as frozen. */
 .card-frost {
   position: absolute;
   inset: 0;
@@ -33355,6 +33357,14 @@ body.round-tick .board::after {
   0%, 100% { transform: translateX(-40%) rotate(24deg); opacity: 0; }
   45%      { opacity: 0.7; }
   60%      { transform: translateX(340%) rotate(24deg); opacity: 0; }
+}
+/* The shimmer had NO prefers-reduced-motion rule at all — it was gated only by
+   the coarse-pointer/<=640px block and body.low-fx further down the sheet, so a
+   desktop user who had asked the OS for reduced motion still got a 3.4s loop
+   sweeping every frozen card. The matching low-fx rule already exists in that
+   block; this is the half that was missing. */
+@media (prefers-reduced-motion: reduce) {
+  .card-frost::after { animation: none !important; }
 }
 
 /* Freeze-in burst — frost detonates over the card the instant it freezes. */
@@ -33552,6 +33562,83 @@ body.round-tick .board::after {
 }
 body.low-fx .card-taunt { animation: none !important; }
 body.low-fx .card-taunt i { display: none; }
+
+/* ============================================================
+   FEAR FX — dread closing in on a card that now attacks ITSELF
+   ============================================================
+   .card-fear is injected into the portrait of a feared card (makeCardEl),
+   same shell and same z-layer as frost / burn / taunt.
+
+   What it has to say is "the threat is inside this card", so it is built as
+   the exact inverse of taunt: taunt pushes gold rings OUTWARD to advertise
+   itself, fear presses darkness INWARD until the art is squeezed into a
+   shrinking pool of light. Crimson rather than the keyword's flat grey,
+   because the portrait tint this sits on top of is already
+   rgba(200,40,60) — the overlay finishes a cue that was half there.
+
+   Weighted to the TOP and SIDES, deliberately lighter along the bottom: the
+   whole family sits at z-index 4, which is ABOVE .card-name-overlay (z-index
+   3), and unlike frost and burn this overlay REMOVES light. Darkening the
+   bottom edge evenly would push the card's own name toward unreadable. */
+.card-fear {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  border-radius: inherit;
+  z-index: 4;                 /* over the art, same layer as frost/burn/taunt */
+  overflow: hidden;
+  /* No mix-blend-mode: frost and burn screen because they ADD light, this
+     subtracts it, so it composites normally. */
+  background:
+    radial-gradient(125% 88% at 50% 34%, rgba(0,0,0,0) 30%, rgba(26,0,8,0.55) 72%, rgba(10,0,4,0.86) 100%),
+    linear-gradient(180deg, rgba(14,0,5,0.55) 0%, rgba(0,0,0,0) 40%);
+  box-shadow:
+    inset 0 0 0 1px rgba(150,25,45,0.40),
+    inset 0 0 24px rgba(90,0,18,0.66);
+  /* Thinned out across the name band. Frost and burn ADD light, so sitting at
+     z-index 4 over .card-name-overlay (z-index 3) costs them nothing; this one
+     subtracts it, and at full strength it dimmed the card's own name to
+     unreadable. Masking the overlay — pseudo-elements included, since a mask
+     applies to the element as a group — is the fix that stays inside fear
+     rather than re-layering the whole family for one member. */
+  -webkit-mask-image: linear-gradient(180deg,
+    #000 0%, #000 66%, rgba(0,0,0,0.30) 74%, rgba(0,0,0,0.30) 88%, #000 96%);
+          mask-image: linear-gradient(180deg,
+    #000 0%, #000 66%, rgba(0,0,0,0.30) 74%, rgba(0,0,0,0.30) 88%, #000 96%);
+}
+/* Shapes reaching in from the upper corners — the thing it is afraid of. */
+.card-fear::before {
+  content: "";
+  position: absolute; inset: 0;
+  border-radius: inherit;
+  background:
+    radial-gradient(54% 38% at 0% 0%,    rgba(0,0,0,0.78) 0%, rgba(0,0,0,0) 64%),
+    radial-gradient(54% 38% at 100% 0%,  rgba(0,0,0,0.78) 0%, rgba(0,0,0,0) 64%),
+    radial-gradient(46% 30% at 0% 100%,  rgba(0,0,0,0.42) 0%, rgba(0,0,0,0) 66%),
+    radial-gradient(46% 30% at 100% 100%,rgba(0,0,0,0.42) 0%, rgba(0,0,0,0) 66%);
+}
+/* ONE loop, opacity and transform only so it stays on the compositor — the
+   dark breathing inward, like the card flinching from itself. Deliberately
+   slow: this is dread, not panic, and a fast loop on a persistent overlay is
+   exactly the battery cost the low-fx toggle exists to remove. */
+.card-fear::after {
+  content: "";
+  position: absolute; inset: -14%;
+  border-radius: inherit;
+  background: radial-gradient(closest-side, rgba(0,0,0,0) 50%, rgba(120,0,26,0.28) 80%, rgba(0,0,0,0.52) 100%);
+  animation: fearClose 2.8s ease-in-out infinite;
+}
+@keyframes fearClose {
+  0%, 100% { transform: scale(1.06); opacity: 0.5; }
+  50%      { transform: scale(0.94); opacity: 0.9; }
+}
+/* Gated from the start, both halves — the mistake frost and burn each made in
+   their own way. The static vignette stays under both: it is the informative
+   half of the cue, only the breathing stops. */
+@media (prefers-reduced-motion: reduce) {
+  .card-fear::after { animation: none !important; }
+}
+body.low-fx .card-fear::after { animation: none !important; }
 /* Ignite burst — flame flares up over the card the instant it catches. */
 .fx-burn-ignite {
   position: fixed;
@@ -33605,12 +33692,19 @@ body.low-fx .card-taunt i { display: none; }
 }
 /* Reduced-motion / low-fx: keep the static ember tint as a state cue, drop
    every animation (shimmer, embers, burst, flinch). */
+/* The list below used to omit the BASE .card-burn (burnFlicker, 0.42s) and
+   .card-burn::after (burnFlames, 0.9s), so the two fastest of burn's four
+   infinite loops ran straight through both reduced-motion and low-fx — the
+   heaviest overlay in the game was also the least gated. Both are now named. */
 @media (prefers-reduced-motion: reduce) {
-  .card-burn::before, .card-burn i, .fx-burn-ignite, .fx-burn-ignite i,
+  .card-burn, .card-burn::before, .card-burn::after, .card-burn i,
+  .fx-burn-ignite, .fx-burn-ignite i,
   .card-burn-flinch { animation: none !important; }
   .card-burn i { display: none; }
 }
+body.low-fx .card-burn,
 body.low-fx .card-burn::before,
+body.low-fx .card-burn::after,
 body.low-fx .card-burn i { animation: none !important; }
 body.low-fx .card-burn i { display: none; }
 

@@ -17388,7 +17388,14 @@ const UI = {
     // taunts once it's on the field). The two <i> are the pull rings.
     const tauntHtml = (card.tauntTurns > 0 && !inHand)
       ? '<div class="card-taunt" aria-hidden="true"><i></i><i></i></div>' : '';
-    const portraitHtml = `<div class="card-portrait" style="${portraitStyle}"><div class="card-name-overlay">${card.name || ''}</div>${frostHtml}${burnHtml}${tauntHtml}</div>`;
+    // Feared card — dread pressing inward on a card that now attacks ITSELF.
+    // Gated on isFeared alone, like frost and burn rather than taunt: fear is
+    // a debuff another card put there, so it should read the same wherever the
+    // card is drawn. Also independent of the status-* glow class, which is an
+    // else-if chain — a card that is both frozen AND feared shows both
+    // overlays, exactly as frost and burn already stack.
+    const fearHtml = card.isFeared ? '<div class="card-fear" aria-hidden="true"></div>' : '';
+    const portraitHtml = `<div class="card-portrait" style="${portraitStyle}"><div class="card-name-overlay">${card.name || ''}</div>${frostHtml}${burnHtml}${tauntHtml}${fearHtml}</div>`;
     // [ CARD DATA ] divider was removed per user feedback — read as
     // distracting, didn't add information beyond the visual gap that
     // already exists between the portrait and the desc text. The
