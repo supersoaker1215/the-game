@@ -6477,6 +6477,14 @@ const Game = {
       this.log(`  [TRICKS FULL] ${this.seatPossessive(owner)} trick hand is full (${p.maxTrickHandSize}) — ${trick && trick.name ? trick.name : 'trick'} discarded.`);
       return false;
     }
+    // Every trick in hand MUST carry a unique id — the UI keys its play/drag
+    // handler on data-trick-id (renderPlayerTricks → trickFromEl), so an
+    // id-less trick renders but can't be clicked or dragged. Callers that pull
+    // straight from a draw pile (Darth Maul's onPlay) pass a raw TRICK_DEF
+    // with no id; stamp one here so it's playable. Callers that already made a
+    // proper instance keep their id (guard skips them). User report: "i drew
+    // this trick from darth maul and now i cant play it."
+    if (trick && trick.id == null) trick.id = nextCardId++;
     p.trickHand.push(trick);
     return true;
   },
