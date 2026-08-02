@@ -33332,6 +33332,13 @@ body.round-tick .board::after {
   box-shadow:
     inset 0 0 0 1px rgba(220,244,255,0.35),
     inset 0 0 18px rgba(180,225,255,0.30);
+  /* Falls off at the portrait's bottom edge rather than stopping square. The
+     ice used to end in a hard horizontal line where the portrait does, which
+     read as a rectangle laid over the card instead of the card being frozen.
+     Only the last sliver is touched — the sheet, the cracks and the corner
+     bloom are all untouched above it. */
+  -webkit-mask-image: linear-gradient(180deg, #000 0%, #000 84%, rgba(0,0,0,0.55) 94%, rgba(0,0,0,0) 100%);
+          mask-image: linear-gradient(180deg, #000 0%, #000 84%, rgba(0,0,0,0.55) 94%, rgba(0,0,0,0) 100%);
 }
 /* Hairline cracks — thin light lines fanning across the ice. */
 .card-frost::before {
@@ -33590,21 +33597,33 @@ body.low-fx .card-taunt i { display: none; }
   /* No mix-blend-mode: frost and burn screen because they ADD light, this
      subtracts it, so it composites normally. */
   background:
-    radial-gradient(125% 88% at 50% 34%, rgba(0,0,0,0) 30%, rgba(26,0,8,0.55) 72%, rgba(10,0,4,0.86) 100%),
-    linear-gradient(180deg, rgba(14,0,5,0.55) 0%, rgba(0,0,0,0) 40%);
+    /* Wide, slow falloff. The first pass stepped from clear to dark over a
+       narrow band, which drew a visible dark RING on the art instead of
+       reading as gloom — that hard shoulder is what made it look stark. */
+    radial-gradient(140% 105% at 50% 30%, rgba(0,0,0,0) 12%, rgba(24,0,8,0.20) 48%,
+                    rgba(18,0,6,0.44) 76%, rgba(10,0,4,0.66) 100%),
+    linear-gradient(180deg, rgba(14,0,5,0.38) 0%, rgba(0,0,0,0) 46%);
   box-shadow:
-    inset 0 0 0 1px rgba(150,25,45,0.40),
-    inset 0 0 24px rgba(90,0,18,0.66);
+    inset 0 0 0 1px rgba(150,25,45,0.26),
+    inset 0 0 30px rgba(90,0,18,0.44);
   /* Thinned out across the name band. Frost and burn ADD light, so sitting at
      z-index 4 over .card-name-overlay (z-index 3) costs them nothing; this one
      subtracts it, and at full strength it dimmed the card's own name to
      unreadable. Masking the overlay — pseudo-elements included, since a mask
      applies to the element as a group — is the fix that stays inside fear
      rather than re-layering the whole family for one member. */
+  /* Two jobs. It thins across the name band (see above), and it FADES THE
+     OVERLAY OUT at the portrait's bottom edge, so the effect dissolves into
+     the card instead of stopping dead in a hard horizontal line where the
+     portrait ends. That line was the stark part — an overlay that terminates
+     square reads as a graphic pasted on top; one that falls off reads as
+     something happening TO the art. */
   -webkit-mask-image: linear-gradient(180deg,
-    #000 0%, #000 66%, rgba(0,0,0,0.30) 74%, rgba(0,0,0,0.30) 88%, #000 96%);
+    #000 0%, #000 60%, rgba(0,0,0,0.34) 74%, rgba(0,0,0,0.30) 86%,
+    rgba(0,0,0,0.12) 95%, rgba(0,0,0,0) 100%);
           mask-image: linear-gradient(180deg,
-    #000 0%, #000 66%, rgba(0,0,0,0.30) 74%, rgba(0,0,0,0.30) 88%, #000 96%);
+    #000 0%, #000 60%, rgba(0,0,0,0.34) 74%, rgba(0,0,0,0.30) 86%,
+    rgba(0,0,0,0.12) 95%, rgba(0,0,0,0) 100%);
 }
 /* Shapes reaching in from the upper corners — the thing it is afraid of. */
 .card-fear::before {
@@ -33612,10 +33631,10 @@ body.low-fx .card-taunt i { display: none; }
   position: absolute; inset: 0;
   border-radius: inherit;
   background:
-    radial-gradient(54% 38% at 0% 0%,    rgba(0,0,0,0.78) 0%, rgba(0,0,0,0) 64%),
-    radial-gradient(54% 38% at 100% 0%,  rgba(0,0,0,0.78) 0%, rgba(0,0,0,0) 64%),
-    radial-gradient(46% 30% at 0% 100%,  rgba(0,0,0,0.42) 0%, rgba(0,0,0,0) 66%),
-    radial-gradient(46% 30% at 100% 100%,rgba(0,0,0,0.42) 0%, rgba(0,0,0,0) 66%);
+    radial-gradient(62% 46% at 0% 0%,    rgba(0,0,0,0.52) 0%, rgba(0,0,0,0) 76%),
+    radial-gradient(62% 46% at 100% 0%,  rgba(0,0,0,0.52) 0%, rgba(0,0,0,0) 76%),
+    radial-gradient(54% 38% at 0% 100%,  rgba(0,0,0,0.26) 0%, rgba(0,0,0,0) 78%),
+    radial-gradient(54% 38% at 100% 100%,rgba(0,0,0,0.26) 0%, rgba(0,0,0,0) 78%);
 }
 /* ONE loop, opacity and transform only so it stays on the compositor — the
    dark breathing inward, like the card flinching from itself. Deliberately
@@ -33625,7 +33644,7 @@ body.low-fx .card-taunt i { display: none; }
   content: "";
   position: absolute; inset: -14%;
   border-radius: inherit;
-  background: radial-gradient(closest-side, rgba(0,0,0,0) 50%, rgba(120,0,26,0.28) 80%, rgba(0,0,0,0.52) 100%);
+  background: radial-gradient(closest-side, rgba(0,0,0,0) 46%, rgba(120,0,26,0.17) 78%, rgba(0,0,0,0.34) 100%);
   animation: fearClose 2.8s ease-in-out infinite;
 }
 @keyframes fearClose {
@@ -33639,6 +33658,72 @@ body.low-fx .card-taunt i { display: none; }
   .card-fear::after { animation: none !important; }
 }
 body.low-fx .card-fear::after { animation: none !important; }
+
+/* ============================================================
+   MIND CONTROL FX — the card is being worked from outside
+   ============================================================
+   .card-mind-ctrl is injected into the portrait of a mind-controlled card
+   (makeCardEl), same shell and z-layer as frost / burn / taunt / fear.
+
+   Puppet STRINGS, drawn as hairlines dropping from the top edge into the art.
+   Every other member of the family owns a different direction, which is what
+   keeps five overlays legible on one board: frost is diagonal cracks, burn
+   rises from the bottom, taunt contracts in rings, fear gathers in the
+   corners. Nothing else uses verticals, so this reads as its own thing at a
+   glance even at board size.
+
+   Violet, matching the rgba(155,89,182) already on this status's portrait
+   tint, rather than the keyword's badge yellow — same call as fear, where the
+   overlay finishes the cue the tint had started. */
+.card-mind-ctrl {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  border-radius: inherit;
+  z-index: 4;                 /* over the art, same layer as the rest */
+  overflow: hidden;
+  background:
+    radial-gradient(120% 70% at 50% 0%, rgba(155,89,182,0.34) 0%, rgba(120,60,160,0) 62%),
+    linear-gradient(180deg, rgba(140,70,180,0.22) 0%, rgba(90,40,130,0) 55%);
+  mix-blend-mode: screen;
+  box-shadow:
+    inset 0 0 0 1px rgba(190,140,225,0.26),
+    inset 0 0 26px rgba(140,70,180,0.34);
+  /* Falls off at the portrait's bottom edge instead of stopping square, the
+     same dissolve frost and fear use. */
+  -webkit-mask-image: linear-gradient(180deg, #000 0%, #000 78%, rgba(0,0,0,0.5) 92%, rgba(0,0,0,0) 100%);
+          mask-image: linear-gradient(180deg, #000 0%, #000 78%, rgba(0,0,0,0.5) 92%, rgba(0,0,0,0) 100%);
+}
+/* The strings. Uneven lengths and spacing so they read as hanging rather than
+   as a ruled grid. */
+.card-mind-ctrl::before {
+  content: "";
+  position: absolute; inset: 0;
+  border-radius: inherit;
+  background:
+    linear-gradient(180deg, rgba(214,170,245,0.62) 0%, rgba(214,170,245,0) 58%),
+    linear-gradient(180deg, rgba(196,146,235,0.52) 0%, rgba(196,146,235,0) 74%),
+    linear-gradient(180deg, rgba(214,170,245,0.58) 0%, rgba(214,170,245,0) 46%);
+  background-repeat: no-repeat;
+  background-size: 1px 100%, 1px 100%, 1px 100%;
+  background-position: 27% 0, 51% 0, 73% 0;
+}
+/* ONE loop, opacity only — the hold tightening and slackening. */
+.card-mind-ctrl::after {
+  content: "";
+  position: absolute; inset: 0;
+  border-radius: inherit;
+  background: radial-gradient(90% 55% at 50% 6%, rgba(205,150,240,0.30) 0%, rgba(160,90,200,0) 66%);
+  animation: mindPull 3.1s ease-in-out infinite;
+}
+@keyframes mindPull {
+  0%, 100% { opacity: 0.35; }
+  50%      { opacity: 0.85; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .card-mind-ctrl::after { animation: none !important; }
+}
+body.low-fx .card-mind-ctrl::after { animation: none !important; }
 /* Ignite burst — flame flares up over the card the instant it catches. */
 .fx-burn-ignite {
   position: fixed;

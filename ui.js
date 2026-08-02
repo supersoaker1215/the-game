@@ -17395,7 +17395,11 @@ const UI = {
     // else-if chain — a card that is both frozen AND feared shows both
     // overlays, exactly as frost and burn already stack.
     const fearHtml = card.isFeared ? '<div class="card-fear" aria-hidden="true"></div>' : '';
-    const portraitHtml = `<div class="card-portrait" style="${portraitStyle}"><div class="card-name-overlay">${card.name || ''}</div>${frostHtml}${burnHtml}${tauntHtml}${fearHtml}</div>`;
+    // Mind-controlled card — puppet strings dropping from the top edge. Same
+    // independent gate as frost/burn/fear rather than the status-* else-if
+    // chain, so it stacks with them instead of one winning.
+    const mindHtml = card.isMindControlled ? '<div class="card-mind-ctrl" aria-hidden="true"></div>' : '';
+    const portraitHtml = `<div class="card-portrait" style="${portraitStyle}"><div class="card-name-overlay">${card.name || ''}</div>${frostHtml}${burnHtml}${tauntHtml}${fearHtml}${mindHtml}</div>`;
     // [ CARD DATA ] divider was removed per user feedback — read as
     // distracting, didn't add information beyond the visual gap that
     // already exists between the portrait and the desc text. The
