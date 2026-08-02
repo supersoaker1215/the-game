@@ -25715,7 +25715,11 @@ function kangChoicePick(idx) {
   const other = kc.cards[1 - idx];
   // The rejected card drops back onto the Kang owner's own pile.
   Game.getDrawPile(kc.owner).push(other);
-  const card = Game.createCardInstance(picked, kc.owner);
+  // Doomsday scales while still in the deck (+1/+1 per card played); a raw
+  // createCardInstance would hand him over at base 1/1. Apply his accumulated
+  // stats the same way the normal draw paths do. User: "when i got doomsday
+  // his stats didnt keep and got reset."
+  const card = Game._applyDoomsdayDrawScaling(Game.createCardInstance(picked, kc.owner), kc.owner);
   card.cost = Math.max(0, card.cost - 2);
   Game.log(`  [KANG] Kept ${card.name} (cost reduced to ${card.cost})`);
   Game.addToHand(kc.owner, card);

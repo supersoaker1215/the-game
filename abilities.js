@@ -1934,6 +1934,12 @@ const CARD_ABILITIES = {
       const card2 = pile.pop();
       if (Game.isHuman(self.owner)) {
         G.state.pendingKangChoice = { owner: self.owner, cards: [card1, card2], kangCard: self };
+        // A silent forecast sim (previewPlacement clones the state and runs
+        // onPlay to preview a placement) must NOT drive the UI or arm a real
+        // prompt timer — the kept card goes to hand and never touches the board
+        // the forecast measures, and every hover would otherwise re-fire this.
+        // Bail once the choice is recorded on the clone.
+        if (G.state && G.state._silentSim) return;
         // 1v1 online: the guest's Kang (owner==='ai') is resolved on the guest's
         // client. Broadcast the pending choice (so the guest renders/forwards it)
         // but skip the host's render + 30s auto-pick — that timeout was
@@ -1954,7 +1960,9 @@ const CARD_ABILITIES = {
         const pick = card1.cost >= card2.cost ? card1 : card2;
         const other = pick === card1 ? card2 : card1;
         pile.push(other);
-        const card = G.createCardInstance(pick, self.owner);
+        // Doomsday scales in the deck — apply his accumulated stats so the AI's
+        // Paul keep doesn't hand him over reset to base 1/1.
+        const card = G._applyDoomsdayDrawScaling(G.createCardInstance(pick, self.owner), self.owner);
         card.cost = Math.max(0, card.cost - 2);
         G.addToHand(self.owner, card, self);
         // Kang's pick counts as this round's draw — skip the end-of-round draw.

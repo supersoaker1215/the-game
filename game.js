@@ -1455,7 +1455,10 @@ const Game = {
             const other  = kc.cards[1 - idx];
             if (picked && other) {
               this.getDrawPile(kc.owner).push(other);
-              const card = this.createCardInstance(picked, kc.owner);
+              // Doomsday scales in the deck (+1/+1 per card played) — apply his
+              // accumulated stats on the keep, same as the normal draw paths,
+              // so he doesn't reset to base 1/1.
+              const card = this._applyDoomsdayDrawScaling(this.createCardInstance(picked, kc.owner), kc.owner);
               card.cost = Math.max(0, card.cost - 2);
               this.log(`  [KANG] Kept ${card.name} (cost reduced to ${card.cost})`);
               this.addToHand(kc.owner, card);
