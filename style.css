@@ -1117,6 +1117,67 @@ body.turn-combat::before { background: linear-gradient(to bottom, rgba(255,215,0
   text-shadow: 0 0 10px rgba(231,76,60,0.95);
 }
 
+/* ============================================================
+   BLOCK METER — one-shot charge FX. Idle looping motion stays OFF
+   (removed per earlier feedback: "get rid of these running
+   animations"); these fire ONLY on an event — a gain tick or the
+   8/8 discharge — then strip their own class. Per-side burst colour:
+   player theme-blue, AI red, matching the ring's own hue.
+   ============================================================ */
+.player-bar .block-circle { --bc: var(--theme-rgb, 79,195,247); }
+.ai-bar     .block-circle { --bc: 231,76,60; }
+
+/* Gain tick — a quick swell + brightness kick the moment the block
+   spark reaches the ring, so "+1 notch" reads as a beat, not a silent
+   number bump. */
+@keyframes blockGainPop {
+  0%   { transform: scale(1);    filter: brightness(1); }
+  40%  { transform: scale(1.18); filter: brightness(1.7); }
+  100% { transform: scale(1);    filter: brightness(1); }
+}
+.block-circle.block-gain {
+  animation: blockGainPop 440ms var(--ease-out-soft, cubic-bezier(.2,.7,.3,1));
+}
+
+/* 8/8 discharge — the ring flares white-hot, punches out, and snaps
+   back while shock rings radiate. This is the "free Trick incoming"
+   beat that pairs with the BLOCKED! banner. */
+@keyframes blockChargeFlare {
+  0%   { transform: scale(1);    filter: brightness(1); }
+  18%  { transform: scale(1.45); filter: brightness(2.2) saturate(1.3);
+         box-shadow: 0 0 26px #fff, 0 0 60px rgba(var(--bc, 255,215,0), 0.95); }
+  55%  { transform: scale(0.95); }
+  100% { transform: scale(1);    filter: brightness(1); }
+}
+.block-circle.block-charged {
+  animation: blockChargeFlare 900ms cubic-bezier(.2,.75,.25,1);
+  z-index: 60;
+}
+.block-circle.block-charged .block-circle-value {
+  animation: blockChargeValue 900ms ease-out;
+}
+@keyframes blockChargeValue {
+  0%, 100% { transform: scale(1);   filter: brightness(1); }
+  18%      { transform: scale(1.35); filter: brightness(2.2); }
+}
+
+/* Radiating shock rings — injected on discharge, expand and fade.
+   `inset:0` sizes each ring to the circle, then scale blows it out. */
+.block-burst-ring {
+  position: absolute; inset: 0;
+  border-radius: 50%;
+  border: 2px solid rgba(var(--bc, 255,215,0), 0.9);
+  box-shadow: 0 0 10px rgba(var(--bc, 255,215,0), 0.6);
+  pointer-events: none;
+  opacity: 0;
+  transform-origin: center;
+  animation: blockShock 820ms cubic-bezier(.2,.7,.3,1) forwards;
+}
+@keyframes blockShock {
+  0%   { transform: scale(0.9); opacity: 0.95; }
+  100% { transform: scale(3.3); opacity: 0; }
+}
+
 /* Action buttons integrated into the player banner. The .bar-center grid
    cell (col 3) sits between the block circle and the energy orb, so letting
    the cell's own justify-content: center handle alignment gives the Undo +

@@ -8500,6 +8500,9 @@ const UI = {
         this._haptic('block');
         // Shield ring on the HP bar — the meter was spent absorbing this.
         this.fxBlockAbsorb(ev.owner);
+        // Charge burst on the block circle itself — the ring flares and
+        // radiates shock rings as it discharges into the free Trick.
+        this.fxBlockCharge(ev.owner);
         continue;
       }
       if (ev.type === 'hpHit') {
@@ -24053,6 +24056,37 @@ const UI = {
     sp.style.setProperty('--dy', `${bcR.top + bcR.height / 2 - hpR.top - hpR.height / 2 + 4}px`);
     document.body.appendChild(sp);
     setTimeout(() => sp.remove(), 640);
+    // When the spark lands on the ring, give it a quick swell so the tick
+    // reads as a beat rather than a silent number change. Timed to the
+    // spark's travel (it removes at 640ms).
+    if (!(this._reducedMotion && this._reducedMotion())) {
+      setTimeout(() => {
+        blockCircle.classList.remove('block-gain');
+        void blockCircle.offsetWidth;
+        blockCircle.classList.add('block-gain');
+        setTimeout(() => blockCircle.classList.remove('block-gain'), 460);
+      }, 430);
+    }
+  },
+
+  // 8/8 discharge flare on the block circle — the ring punches out white-hot
+  // and three staggered shock rings radiate as the meter spends itself on the
+  // free Trick. Fired from the engine 'blocked' FX event (both clients in MP).
+  fxBlockCharge(side) {
+    if (this._reducedMotion && this._reducedMotion()) return;
+    const circle = document.querySelector((side === 'player' ? '.player-bar' : '.ai-bar') + ' .block-circle');
+    if (!circle) return;
+    circle.classList.remove('block-charged');
+    void circle.offsetWidth;               // reflow → restart the flare
+    circle.classList.add('block-charged');
+    for (let i = 0; i < 3; i++) {
+      const ring = document.createElement('span');
+      ring.className = 'block-burst-ring';
+      ring.style.animationDelay = (i * 130) + 'ms';
+      circle.appendChild(ring);
+      setTimeout(() => ring.remove(), 900 + i * 130);
+    }
+    setTimeout(() => circle.classList.remove('block-charged'), 950);
   },
 
   // (A) Stat counter flip: compare previous stat values and flip the
