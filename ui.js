@@ -3529,6 +3529,20 @@ const UI = {
       // rest of the game stays at full volume. play/death/kill/spawn are NOT
       // gated: by then the card is face-up on the board and already public.
       if (event === 'hover' && UI.settings && UI.settings.handAudioPrivacy) return null;
+      // FACE-DOWN PRIVACY — a card played face-down (Invisible Woman's cloak, a
+      // hidden Deadpool steal, etc.) is NOT public: only a card BACK shows on
+      // the board. But its identifying play/spawn theme would announce exactly
+      // which card it is — a real tell, and online BOTH clients fire the cue.
+      // Swap the card-specific theme for the generic placement blip so the
+      // play still lands with tactile feedback but leaks nothing. death/kill
+      // are unaffected (a face-down card flips face-up before it can die) and
+      // hover is already gated above. User: "when a card is played upside down,
+      // the sounds still fire and gives away the card."
+      if ((event === 'play' || event === 'spawn')
+          && cardOrCost && typeof cardOrCost === 'object' && cardOrCost.isFaceDown) {
+        this.play(cardOrCost.owner === 'ai' ? 'cardPlayEnemy' : 'cardPlay');
+        return null;
+      }
       // Resolve file: card-specific first, else global default.
       const reg = this.CARD_SFX[name] || {};
       const fileEntry = reg[event] ?? this.DEFAULT_CARD_SFX[event];
