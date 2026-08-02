@@ -414,7 +414,7 @@ const CARD_ABILITIES = {
       // arrival splash. Default 1 (classic); Text+ raises to 2 so
       // moving him hits a wider cone for double the damage.
       const dmg = self._jangoSplashOnMove || 1;
-      G.splashDamage(toLane, self.owner, dmg);
+      G.splashDamage(toLane, self.owner, dmg, self);
       G.log(`Jango Fett splashes lane ${toLane + 1} for ${dmg} on arrival!`);
     },
     onBeforeTricks(G, self, lane) {
@@ -484,7 +484,7 @@ const CARD_ABILITIES = {
       const splash = self._hawkeyeSplash
         ? self._hawkeyeSplash
         : G.rarityValue(self, { common: 1, rare: 1, special: 2, legendary: 2 });
-      G.splashDamage(lane, self.owner, splash);
+      G.splashDamage(lane, self.owner, splash, self);
       G.log(`Hawkeye splashes adjacent enemies for ${splash}!`);
     },
     passive: "splashWeaken"
@@ -613,7 +613,7 @@ const CARD_ABILITIES = {
       // Splash radius also scales with tier. Common = 1 (listed), boss
       // tiers get a wider blast.
       const splash = G.rarityValue(self, { common: 1, rare: 1, special: 2, legendary: 3 });
-      G.splashDamage(lane, self.owner, splash);
+      G.splashDamage(lane, self.owner, splash, self);
       G.log(`Xenomorph explodes for Splash ${splash}!`);
     }
   },
@@ -775,7 +775,7 @@ const CARD_ABILITIES = {
       // _humanTorchArrivalSplash scales the splash on entry. Default 1
       // (classic); Text+ raises to 3.
       const arrival = self._humanTorchArrivalSplash || 1;
-      G.splashDamage(lane, self.owner, arrival);
+      G.splashDamage(lane, self.owner, arrival, self);
       G.log(`Human Torch ignites on arrival — Splash ${arrival}!`);
       const enemies = G.getEnemiesOf(self.owner).filter(t => G.canEffectLand(t, 'damage', { owner: self.owner, source: self }));
       if (enemies.length) {
@@ -1092,8 +1092,8 @@ const CARD_ABILITIES = {
       // pumpkin-bomb splash. Default 0 (classic 1+2); Text+ sets to 1
       // so the bombs hit for 2+3 (one extra damage on each splash).
       const boost = self._goblinBombBoost || 0;
-      G.splashDamage(lane, self.owner, 1 + boost);
-      G.splashDamage(lane, self.owner, 2 + boost);
+      G.splashDamage(lane, self.owner, 1 + boost, self);
+      G.splashDamage(lane, self.owner, 2 + boost, self);
       G.log(`Green Goblin throws pumpkin bombs! Splash ${1 + boost} then Splash ${2 + boost}!`);
     },
     onBeforeTricks(G, self, lane) {
@@ -1125,14 +1125,14 @@ const CARD_ABILITIES = {
             return;
           }
           G.moveCard(self, lane, to);
-          G.splashDamage(to, self.owner, 1);
+          G.splashDamage(to, self.owner, 1, self);
           const e = G.state.lanes[to][opp];
           G.log(`Green Goblin moves to face ${e ? e.name : 'enemy'} in lane ${to + 1} and splashes!`);
         });
       } else {
         const to = targetLanes[Math.floor(Game.rng() * targetLanes.length)];
         G.moveCard(self, lane, to);
-        G.splashDamage(to, self.owner, 1);
+        G.splashDamage(to, self.owner, 1, self);
         const e = G.state.lanes[to][opp];
         G.log(`Green Goblin moves to face ${e ? e.name : 'enemy'} in lane ${to + 1} and splashes!`);
       }
@@ -2666,7 +2666,7 @@ const CARD_ABILITIES = {
       G.log(`Red Hulk adds ${dmg} to Block Meter!`);
       const lane = G.findCardLane(self);
       if (lane >= 0) {
-        G.splashDamage(lane, self.owner, dmg);
+        G.splashDamage(lane, self.owner, dmg, self);
         G.log(`Red Hulk splashes for ${dmg}!`);
       }
     }
@@ -3816,7 +3816,7 @@ const CARD_ABILITIES = {
       if (enemy && enemy.currentHealth > 0) {
         G.log(`[HAN SOLO] Han fires across to lane ${targetLane + 1}!`);
         G.applyCombatDamage(self, enemy);
-        if (self.splash > 0) G.splashDamage(targetLane, self.owner, self.splash);
+        if (self.splash > 0) G.splashDamage(targetLane, self.owner, self.splash, self);
         self._skipNormalAttack = true;
       }
       // If enemy died before combat, Han fights his own lane normally (no skip)

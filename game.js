@@ -9203,7 +9203,23 @@ const Game = {
     });
   },
 
-  splashDamage(laneIdx, owner, amount) {
+  // `source` is the CARD that caused the splash, and it is not optional
+  // bookkeeping — dealDamage gates five separate systems on it:
+  //   card.onDamaged(this, card, source, actual)   <- retaliation hooks
+  //   _resolveLifesteal(source, actual)            <- Lifesteal drain
+  //   _resolveThorns(card, source)                 <- Thorns chip, incl. on a kill
+  //   _creditChain(source, 'statsEnemyDamage'/'statsKills')
+  //   handleDeath(card, l, source)                 <- who gets the kill
+  // Splash used to call dealDamage with only two arguments, so `source` arrived
+  // undefined and all five silently did nothing for every splash in the game.
+  // User report: "red hulk splashed and killed wolverine so he should die" —
+  // Wolverine is "When Damaged: Destroy the card that dealt the damage if its
+  // cost is <= 7", Red Hulk is cost 5, and his own splash is what damaged
+  // Wolverine. The hook DID fire (dealDamage calls onDamaged before the death
+  // check, so lethal damage is not the problem), but it fired with
+  // attacker === undefined, and Wolverine's `if (attacker && ...)` guard
+  // short-circuits — so the retaliation was skipped, not lost to ordering.
+  splashDamage(laneIdx, owner, amount, source) {
     const opp = this.opponent(owner);
     const splashed = [];
     // Only surviving enemies that ACTUALLY took damage count for Hawkeye's
@@ -9213,20 +9229,20 @@ const Game = {
     const front = this.state.lanes[laneIdx][opp];
     if (front && front.currentHealth > 0) {
       const hpBefore = front.currentHealth;
-      this.dealDamage(front, amount);
+      this.dealDamage(front, amount, source);
       if (front.currentHealth > 0 && front.currentHealth < hpBefore) splashed.push(front);
     }
     // Adjacent lanes
     if (laneIdx > 0 && this.state.lanes[laneIdx - 1][opp]) {
       const t = this.state.lanes[laneIdx - 1][opp];
       const hpBefore = t.currentHealth;
-      this.dealDamage(t, amount);
+      this.dealDamage(t, amount, source);
       if (t.currentHealth > 0 && t.currentHealth < hpBefore) splashed.push(t);
     }
     if (laneIdx < this.LANE_COUNT - 1 && this.state.lanes[laneIdx + 1][opp]) {
       const t = this.state.lanes[laneIdx + 1][opp];
       const hpBefore = t.currentHealth;
-      this.dealDamage(t, amount);
+      this.dealDamage(t, amount, source);
       if (t.currentHealth > 0 && t.currentHealth < hpBefore) splashed.push(t);
     }
     this.applyHawkeyePassive(owner, splashed);

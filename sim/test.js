@@ -121,6 +121,46 @@ test('Anakin when stunned skips move + bonus attack', function () {
   assertEq(ana.bonusAttack || 0, 0, 'Bonus attack should not queue');
 });
 
+// Regression: SPLASH DAMAGE MUST CARRY ITS SOURCE.
+// User report: "red hulk splashed and killed wolverine so he should die."
+// Wolverine is "When Damaged: Destroy the card that dealt the damage if its
+// cost is <= 7"; Red Hulk is cost 5 and his own splash is what damaged
+// Wolverine, so Red Hulk should have been destroyed.
+// Game.splashDamage used to call dealDamage with only (card, amount) — no
+// source — so every onDamaged hook fired with attacker === undefined and
+// Wolverine's `if (attacker && ...)` guard short-circuited. Ordering was never
+// the problem: dealDamage fires onDamaged BEFORE the death check, so even
+// lethal damage triggers the hook.
+test('splashDamage passes its source to onDamaged (Wolverine kills the splasher)', function () {
+  var G = freshGame();
+  // Wolverine adjacent to the splash origin lane, on the receiving side.
+  var wolv = place(G, 'Wolverine', 'player', 1);
+  var hulk = place(G, 'Red Hulk', 'ai', 0);
+  assert(!!wolv && !!hulk, 'both cards should exist');
+  // Splash out of lane 0 on the AI side — hits the player card in lane 1.
+  G.splashDamage(0, 'ai', 3, hulk);
+  assert(hulk.currentHealth <= 0 || G.findCardLane(hulk) < 0,
+    'Red Hulk (cost 5) should be destroyed by Wolverine\'s When Damaged retaliation');
+});
+
+// Regression: the same missing argument also silenced Thorns on splash.
+// dealDamage gates _resolveThorns on `source` too, so a thorned card took
+// splash damage without ever chipping back.
+test('splashDamage source enables Thorns retaliation', function () {
+  var G = freshGame();
+  var victim = place(G, 'Wolverine', 'player', 1);
+  var splasher = place(G, 'Red Hulk', 'ai', 0);
+  if (!victim || !splasher) return;
+  // Neutralise Wolverine's own retaliation so we isolate Thorns.
+  victim.onDamaged = null;
+  victim.hasThorns = true;
+  victim.thornsDamage = 1;
+  var hpBefore = splasher.currentHealth;
+  G.splashDamage(0, 'ai', 1, splasher);
+  assert(splasher.currentHealth <= hpBefore,
+    'splasher should be reachable by the victim\'s Thorns (source must be threaded)');
+});
+
 // Regression: Green Goblin when stunned skips move + splash.
 test('Green Goblin when stunned skips move + splash', function () {
   var G = freshGame();
