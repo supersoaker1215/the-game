@@ -36294,45 +36294,74 @@ body.low-fx .card-frost::after {
    badge in half and show two stubs — the exact failure the hand block's own
    comment warns about. Wrapping past a one-row cap drops whole badges instead.
    ============================================================ */
-.card.ally-card .status-badges,
-.card.enemy-card .status-badges {
-  /* Expressed in icons so the cap tracks the badge instead of clipping a row
-     the moment the glyph grows (8px x 1.75 is exactly the 14px this used to
-     be — see the phone override below, which pins that).
+/* ============================================================
+   THE STATUS BOX — a fixed 3 x 2 grid of BOXLESS glyphs.
 
-     TWO rows off the phone. A proportionally bigger glyph is also a wider
-     chip, so a 140px card that used to fit seven 8px badges on one row fits
-     about three at 20px. The count would have dropped for no reason: the big
-     card has a large empty band between the name and the stat orbs, which the
-     old one-row cap was never sized against — it was sized against the phone
-     tile, where that band does not exist. */
-  max-height: calc(var(--sb-i) * 3.6);
+   Two problems, one shape. Wrapping was ragged: the strip flowed as a flex
+   row and clipped at a height cap, so Trigon's five badges spilled a SECOND
+   ROW THAT GOT SLICED IN HALF — the card showed three whole badges and two
+   stumps. A fixed 3-column, 2-row grid cannot do that. Six slots is the shape
+   on every card, occupied or not, and six covers the widest cards in the game
+   (the five-keyword legends: Anakin, Dormammu, Dr. Manhattan, Galactus,
+   Trigon) with one to spare.
+
+   And the chip itself is gone. At the old 8px the pill's border and fill read
+   as a hairline; scaled up to 20px the same chrome became six chunky boxes
+   fighting the art. So the glyph now sits straight on the black and glows in
+   its own keyword colour — the same move as the menu's text buttons, and it
+   keeps card interiors pure #000 with nothing drawn on top of them.
+
+   Scoped to the four surfaces that render ICONS. The codex, deck builder and
+   draft render the keyword WORD instead, where a pill still earns its keep.
+   ============================================================ */
+.card.ally-card .status-badges,
+.card.enemy-card .status-badges,
+.player-hand-section .hand-cards .card .status-badges,
+.trick-cards .trick-card .status-badges {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  /* Rows are created ON DEMAND, never reserved: grid-template-rows would hold
+     both rows open on a card with no badges at all, which is most cards, and
+     stamp 60px of empty band into every one of them. grid-auto-rows fixes the
+     HEIGHT of whatever rows do appear, and max-height stops the box at two of
+     them, so a 7th badge is clipped as a whole row — never sliced in half the
+     way the old flex wrap did to Trigon. */
+  grid-auto-rows: calc(var(--sb-i) * 1.42);
+  max-height: calc(var(--sb-i) * 2.84 + var(--sb-pad) * 1.1);
   overflow: hidden;
-  flex-wrap: wrap;         /* wrap-then-clip drops whole badges, never half ones */
-  gap: calc(var(--sb-pad) * 0.9);
+  gap: calc(var(--sb-pad) * 1.1);
+  justify-items: center;
+  align-items: center;
+  /* The row was flex before; these no longer apply but are harmless if a
+     surface below still assumes them. */
+  flex-wrap: wrap;
   justify-content: center;
 }
-/* The phone tile keeps ONE row. Its badge band is the ~14px between the name and
-   the stat orbs — there is no spare vertical space here to spend on a second
-   row, which is exactly why the big card gets two and this does not. Resolves
-   to the same 14px it has always been (8px icon x 1.75).
-   This has to sit AFTER the rule above, not up in the phone block near the
-   other board overrides: same specificity, so source order decides, and from
-   up there it lost and the tile silently got the desktop two-row cap. */
-@container (max-width: 520px) {
-  .board .card .status-badges,
-  .card.ally-card .status-badges,
-  .card.enemy-card .status-badges { max-height: calc(var(--sb-i) * 1.75); }
-}
 .card.ally-card .status-badge,
-.card.enemy-card .status-badge {
-  padding: 0 calc(var(--sb-pad) * 1.4);
+.card.enemy-card .status-badge,
+.player-hand-section .hand-cards .card .status-badge,
+.trick-cards .trick-card .status-badge {
+  /* Boxless: no fill, no border, no pill halo. The glow IS the chrome. */
+  background: none;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  padding: 0;
   gap: calc(var(--sb-pad) * 0.9);
   font-size: var(--sb-num);
   line-height: 1;
-  flex: 0 0 auto;
   display: inline-flex;
   align-items: center;
+  justify-content: center;
+  max-width: 100%;
+  text-shadow: 0 0 calc(var(--sb-i) * 0.5) currentColor;
+}
+.card.ally-card .status-badge .sb-i,
+.card.enemy-card .status-badge .sb-i,
+.player-hand-section .hand-cards .card .status-badge .sb-i,
+.trick-cards .trick-card .status-badge .sb-i {
+  /* text-shadow does nothing for an SVG; the glyph needs its own glow. */
+  filter: drop-shadow(0 0 calc(var(--sb-i) * 0.34) currentColor);
 }
 /* ============================================================
    BADGE SCALE — one share of the card, every screen.
