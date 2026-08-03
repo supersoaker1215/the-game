@@ -86,6 +86,41 @@ function place(G, name, owner, lane) {
 // dodges an ATTACK; canEffectLand('destroy') is blocked by Invincible and
 // nothing else. User: "i killed 4 cost jason with homelander and wanted to kill
 // predator a 4 cost card wasnt able to". Both 4-cost; Predator has Evade 1.
+// Red Skull's empower moves from the BOARD to the HAND (owner direction).
+// Two assertions because "buffs a hand card" and "leaves the board alone" are
+// separate failures: a version that buffed both would pass the first alone.
+test('Red Skull buffs a card in HAND, not an ally on board', function () {
+  var G = freshGame();
+  var skull = G.createCardInstance(cardByName('Red Skull'), 'player');
+  var boardAlly = place(G, 'The Thing', 'player', 1);
+  var boardAtk = boardAlly.attack, boardHp = boardAlly.maxHealth;
+
+  var inHand = G.createCardInstance(cardByName('Bane'), 'player');
+  var handAtk = inHand.attack, handHp = inHand.maxHealth;
+  G.state.player.hand = [inHand];
+
+  G.state.lanes[0].player = skull;
+  CARD_ABILITIES['Red Skull'].onPlay(G, skull, 0);
+
+  assertEq(inHand.attack, handAtk + 2, 'hand card should gain +2 ATK');
+  assertEq(inHand.maxHealth, handHp + 2, 'hand card should gain +2 HP');
+  assertEq(boardAlly.attack, boardAtk, 'board ally must NOT be buffed');
+  assertEq(boardAlly.maxHealth, boardHp, 'board ally HP must NOT change');
+});
+
+// An empty hand is a real state (you played your last card into Red Skull's
+// own slot), and it must not throw or buff the board as a fallback.
+test('Red Skull with an empty hand buffs nothing and does not throw', function () {
+  var G = freshGame();
+  var skull = G.createCardInstance(cardByName('Red Skull'), 'player');
+  var boardAlly = place(G, 'The Thing', 'player', 1);
+  var boardAtk = boardAlly.attack;
+  G.state.player.hand = [];
+  G.state.lanes[0].player = skull;
+  CARD_ABILITIES['Red Skull'].onPlay(G, skull, 0);
+  assertEq(boardAlly.attack, boardAtk, 'no board fallback when the hand is empty');
+});
+
 test('Homelander can destroy an enemy that has Evade', function () {
   var G = freshGame();
   var evasive = place(G, 'Predator', 'ai', 0);

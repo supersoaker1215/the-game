@@ -1372,26 +1372,32 @@ const CARD_ABILITIES = {
     passive: "allowCardsInTricksPhase",
     onPlay(G, self, lane) {
       G.log(`Red Skull commands the field — character cards may be deployed during the trick phase while he stands.`);
-      // Buff applies to ANY ally, not just villains. User spec: "red
+      // Buff applies to ANY card, not just villains. User spec: "red
       // skull should give an ally +2/+2 not just a villain". Lets
       // hero-leaning decks (e.g. Synergy Swarm) use Red Skull as the
-      // tricks-phase enabler without a type-tax on which ally gets the
+      // tricks-phase enabler without a type-tax on which card gets the
       // empower.
       // Roguelite Text+ override — _redSkullEmpower scales the buff.
       // Default 2 (classic +2/+2); Text+ raises to 3 (+3/+3) for an
       // even bigger finisher buff.
       const empower = self._redSkullEmpower || 2;
-      const allies = G.getAlliesOf(self.owner).filter(a => a.id !== self.id);
-      const grant = (a) => {
-        G.buffCard(a, empower, empower);
-        G.log(`Red Skull empowers ${a.name} +${empower}/+${empower}!`);
-      };
-      if (allies.length) {
-        G.promptCardChoice(self.owner, allies, "Red Skull — Empower", `Choose an ally to give +${empower}/+${empower}`, grant,
-          // AI picks the highest-cost ally — biggest absolute swing
-          // from the flat buff (a 9-cost finisher gets disproportionately
-          // more value from a flat buff than a 1-cost token).
-          cards => cards.slice().sort((a, b) => (b.cost || 0) - (a.cost || 0))[0]);
+      // TARGETS THE HAND, AT RANDOM. Owner direction: the empower lands on a
+      // card you have not played yet, not on one already on the board. That
+      // changes what the card IS — it stops being a board-swing finisher you
+      // aim, and becomes a setup card that makes a future play bigger. Random
+      // rather than chosen for the same reason: no prompt, no aiming.
+      //
+      // G.rng(), never Math.random — this is the seeded engine RNG, and the
+      // fuzz harness and replay system both depend on the same seed producing
+      // the same game.
+      const hand = (G.state && G.state[self.owner] && G.state[self.owner].hand) || [];
+      const pool = hand.filter(c => c && c.id !== self.id);
+      if (pool.length) {
+        const pick = pool[Math.floor(G.rng() * pool.length)];
+        G.buffCard(pick, empower, empower);
+        G.log(`Red Skull empowers ${pick.name} in hand +${empower}/+${empower}!`);
+      } else {
+        G.log(`Red Skull has no card in hand to empower.`);
       }
     }
   },

@@ -176,7 +176,7 @@ const CARD_DEFS = [
     desc: "Each Turn: Add (+1/+1) to all other allies." },
   { name: "Red Skull", cost: 3, attack: 1, health: 4, type: "villain",
     abilities: [],
-    desc: "When Played: Give an ally (+2/+2). While Active: Your cards can be played during the Trick Phase." },
+    desc: "When Played: Give a random card in your hand (+2/+2). While Active: Your cards can be played during the Trick Phase." },
   { name: "Scarlet Witch", cost: 3, attack: 0, health: 0, type: "hero",
     abilities: [],
     copiesOpposite: true,
