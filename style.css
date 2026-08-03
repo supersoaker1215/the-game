@@ -30813,6 +30813,12 @@ body.round-tick .board::after {
   box-shadow: none !important;
 }
 #btn-action > .tron-sweep { display: none; }
+/* And the underline. It is a 2px bar pinned to the button's bottom edge with
+   its own pulse and a cyan halo that bleeds below the button — the last piece
+   of frame left after the outline, the sweep fill and the box-shadow went. A
+   glowing rule under the word is still a box edge; it just only drew one side.
+   The word, its text-shadow and the corner reticle carry it now. */
+#btn-action.btn-primary::after { content: none; }
 #btn-action:active { transform: scale(0.97); }
 #btn-action:active::before { inset: 6px; }
 @media (prefers-reduced-motion: reduce) {
