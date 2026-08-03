@@ -37679,56 +37679,17 @@ body.low-fx .card-frost::after {
    the sheet, so this has to override it, not merely stop adding to it. */
 .info-bar .bar-cell.bar-center > .btn { background: transparent; }
 
-/* ============================================================
-   THREAT ON THE LANE   (board design 02)
-   ============================================================
-   A lane that will reach a FACE next combat says so where the threat is,
-   instead of only as a cell in the strip under the board. Red rising from the
-   bottom = it reaches YOU. Cyan from the top = it reaches THEM.
-
-   Zero idle cost by construction: one pseudo-element, two static gradients,
-   and a number pulled straight out of the data attribute with attr(). Nothing
-   animates, nothing is scheduled — it repaints only on the render where the
-   attribute changed.
-
-   One pseudo covers both directions because the two are mutually exclusive: a
-   side only reaches the face when the OPPOSING slot is empty, so a lane can
-   never be threatening in both directions at once. See UI.laneFaceDamage. */
-.board-section .lane[data-threat-in]::after,
-.board-section .lane[data-threat-out]::after {
-  content: "";
-  position: absolute;
-  left: 0; right: 0;
-  height: 30%;
-  pointer-events: none;
-  z-index: 1;
-  font: 700 11px/1 var(--font-mono, ui-monospace, monospace);
-  letter-spacing: 0.06em;
-  display: flex;
-  justify-content: center;
-}
-.board-section .lane[data-threat-in]::after {
-  content: attr(data-threat-in);
-  bottom: 0;
-  align-items: flex-end;
-  padding-bottom: 3px;
-  color: rgba(255, 157, 144, 0.95);
-  background: linear-gradient(0deg,
-    rgba(var(--enemy-r, 231), var(--enemy-g, 76), var(--enemy-b, 60), 0.30) 0%,
-    rgba(var(--enemy-r, 231), var(--enemy-g, 76), var(--enemy-b, 60), 0) 100%);
-}
-.board-section .lane[data-threat-out]::after {
-  content: attr(data-threat-out);
-  top: 0;
-  align-items: flex-start;
-  padding-top: 3px;
-  color: rgba(168, 228, 255, 0.95);
-  background: linear-gradient(180deg,
-    rgba(var(--player-r, 79), var(--player-g, 195), var(--player-b, 247), 0.28) 0%,
-    rgba(var(--player-r, 79), var(--player-g, 195), var(--player-b, 247), 0) 100%);
-}
-/* A destroyed lane delivers nothing, whatever a stale attribute says. */
-.board-section .lane.destroyed::after { content: none; }
+/* THREAT ON THE LANE — REMOVED.
+   This painted a red rise plus a damage number on .lane::after for any lane
+   reaching a face. It was a duplicate: updateThreatSignaling has computed lane
+   threat since the initial commit and paints .lane.threat-lane::after with an
+   inset danger glow scaled 1-3 by severity. Both used the SAME pseudo-element,
+   so they over-constrained each other — the original sets inset:0, this set
+   height:30%+bottom:0, and with top and height both resolved the bottom was
+   ignored. The gradient pinned to the TOP of the lane and stopped dead a third
+   of the way down: the "red overlay that gets cut off".
+   The original also handles stun, freeze, Bullseye, armor and invincible,
+   which this did not. Removed rather than reconciled. */
 
 /* ============================================================
    ENVIRONMENTS READ AS TERRAIN   (board design 03)

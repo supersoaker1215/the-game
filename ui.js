@@ -16128,16 +16128,13 @@ const UI = {
         el.dataset.forecast = forecast.label;
         el.dataset.forecastCls = forecast.cls;
       }
-      // Face damage, painted ON the lane that will deliver it. The strip below
-      // the board has had these numbers all along, but reading six lanes there
-      // means mapping a row of cells back onto the board six times.
-      // Attributes are DELETED when zero, not set to "0" — CSS keys off their
-      // presence, and a stale attribute would leave a lane shaded red after the
-      // threat was blocked.
-      const inDmg  = this.laneFaceDamage(s, i, 'ai');
-      const outDmg = this.laneFaceDamage(s, i, 'player');
-      if (inDmg  > 0) el.dataset.threatIn  = inDmg;  else delete el.dataset.threatIn;
-      if (outDmg > 0) el.dataset.threatOut = outDmg; else delete el.dataset.threatOut;
+      // (Removed: data-threatIn / data-threatOut. They fed a SECOND threat
+      // visual that duplicated updateThreatSignaling — which has computed
+      // exactly this since the initial commit, and does it better: it accounts
+      // for stun, freeze, Bullseye, armor and invincible, none of which the
+      // duplicate knew about. Both drew on .lane::after, so they fought, and
+      // the loser rendered as a red band cut off a third of the way down the
+      // lane. Deleted rather than reconciled — the original was already right.)
       // Per-lane stagger for the Tron flowing-light packet. CSS uses
       // calc(var(--lane-index) * -1.6s) so each lane lights up 1.6s
       // after the previous, sweeping across the field as a wave.
