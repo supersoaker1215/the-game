@@ -8442,6 +8442,40 @@ body.mobile-card-dragging .cursor-trail { display: none !important; }
 .log-entry.log-move     { border-left-color: rgba(149,165,166,0.65); box-shadow: inset 2px 0 6px rgba(149,165,166,0.15); }
 .log-entry.log-control  { border-left-color: rgba(155,89,182,0.80);  box-shadow: inset 2px 0 6px rgba(155,89,182,0.22); }
 .log-entry.log-utility  { border-left-color: rgba(127,140,141,0.65); box-shadow: inset 2px 0 6px rgba(127,140,141,0.15); }
+
+/* Placed AFTER the ten category rules on purpose. These override them at the
+   same specificity, so source order is the only thing deciding it — my first
+   attempt sat above them and lost silently: the rail stayed lit and the tint
+   never applied. */
+/* NEON TEXT ENCODING — the colour moves onto the words.
+   The [TAG] was already coloured from a 35-entry table; the sentence after it
+   was flat #888, so the meaning of a line lived in three bracketed characters
+   and a 2px rail. The tag's colour is now published per line as --log-c, and
+   both the tag and the sentence read from it: the tag full-strength with its
+   own glow, the sentence the same hue mixed into a near-white so a long log
+   stays comfortable. Same split as the keyword tooltips.
+   The RAIL is switched off below — it was saying the same thing a third time,
+   and the whole point of this pass is that the words carry it. */
+.log-entry[style*="--log-c"] {
+  color: color-mix(in srgb, var(--log-c) 38%, #cfd8e2);
+}
+.log-entry .log-tag {
+  font-weight: 700;
+  text-shadow: 0 0 7px currentColor;
+}
+.log-entry.log-dead,
+.log-entry.log-damage,
+.log-entry.log-defense,
+.log-entry.log-draw,
+.log-entry.log-play,
+.log-entry.log-trick,
+.log-entry.log-jump,
+.log-entry.log-move,
+.log-entry.log-control,
+.log-entry.log-utility {
+  border-left-color: transparent;
+  box-shadow: none;
+}
 .log-header {
   padding: 2px 0 2px 10px;
   color: var(--tron); font-weight: 800; font-size: 11px;
@@ -11279,6 +11313,38 @@ body.turn-combat .board .lane.lane-active {
 .game-log .log-move    { border-left-color: rgba(52,152,219,0.7);   box-shadow: inset 2px 0 6px rgba(52,152,219,0.12); }
 .game-log .log-control { border-left-color: rgba(155,89,182,0.95);  box-shadow: inset 2px 0 10px rgba(155,89,182,0.22); background: rgba(155,89,182,0.05); }
 .game-log .log-utility { border-left-color: rgba(149,165,166,0.75); }
+
+/* NEON TEXT ENCODING — placed HERE, after the .game-log set, because that is
+   what it has to beat. There are TWO log rule sets in this file: a base one
+   around line 8423 and this .game-log-scoped one, which is later AND more
+   specific. My first two attempts only overrode the base set and lost silently
+   to these — the rail stayed lit and the tint never applied, twice.
+   The tag was already coloured from a 35-entry table; the sentence was flat.
+   Now both read from --log-c, published per line by the renderer: the tag at
+   full strength with its own glow, the sentence the same hue mixed into a
+   near-white so a long log stays comfortable. Same split as the tooltips.
+   The rails go — they were a third statement of the same fact. */
+.game-log .log-entry[style*="--log-c"] {
+  color: color-mix(in srgb, var(--log-c) 38%, #cfd8e2);
+}
+.game-log .log-entry .log-tag {
+  font-weight: 700;
+  text-shadow: 0 0 7px currentColor;
+}
+.game-log .log-damage,
+.game-log .log-dead,
+.game-log .log-defense,
+.game-log .log-draw,
+.game-log .log-play,
+.game-log .log-trick,
+.game-log .log-jump,
+.game-log .log-move,
+.game-log .log-control,
+.game-log .log-utility {
+  border-left-color: transparent;
+  box-shadow: none;
+  background: none;
+}
 
 /* Respect reduced-motion preferences — turn off the cog hover rotation */
 @media (prefers-reduced-motion: reduce) {

@@ -19587,11 +19587,18 @@ const UI = {
         return `<div class="log-header">${m}</div>`;
       const firstTag = (m.match(/\[([A-Z .!]+)\]/) || [])[1];
       const cat = categoryOf(firstTag);
+      // The TAG has always been coloured. The SENTENCE after it was flat #888,
+      // so a line's meaning lived in three bracketed characters and a 2px rail
+      // while the words carried none of it. Publishing the tag's colour as a
+      // custom property lets the stylesheet tint the whole line from the same
+      // source — one value, no second colour table to drift out of sync.
+      const lineColor = (firstTag && tagColors[firstTag]) || '';
       const colored = m.replace(/\[([A-Z .!]+)\]/g, (match, tag) => {
         const color = tagColors[tag] || '#888';
-        return `<span style="color:${color};font-weight:bold">[${tag}]</span>`;
+        return `<span class="log-tag" style="color:${color}">[${tag}]</span>`;
       });
-      return `<div class="log-entry${cat ? ' log-' + cat : ''}">${colored}</div>`;
+      const varAttr = lineColor ? ` style="--log-c:${lineColor}"` : '';
+      return `<div class="log-entry${cat ? ' log-' + cat : ''}"${varAttr}>${colored}</div>`;
     }).join('');
     // Only auto-scroll to the tail if the user hasn't scrolled up to read
     // back-history. Detach once, then re-track.
