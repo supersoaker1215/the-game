@@ -18610,7 +18610,7 @@ const UI = {
     // (the trigger pass above can emit "1st Trick Phase:"); without
     // it that whole label would render plain because the regex
     // previously required [A-Z] at position 1.
-    t = t.replace(/([1-9A-Z][^:.]*?):/g, '<b style="color:#fff">$1:</b>');
+    t = t.replace(/([1-9A-Z][^:.]*?):/g, '<b class="cd-trig">$1</b>');
     // Color stat patterns like (+1/+2), (−1/−1), or (1/1) — class-based so the
     // number gets the same neon glow as the attack/health orbs on the card
     // chrome. The sign class accepts BOTH ASCII hyphen `-` and Unicode minus
@@ -18739,6 +18739,54 @@ const UI = {
     // visually framed by the card border. Tolerates trailing whitespace
     // and any closing inline tags from the keyword-wrap pass above.
     t = t.replace(/\.\s*(<\/[^>]+>\s*)*$/i, '$1').trimEnd();
+
+    // ---- ROW STRUCTURE ----------------------------------------------------
+    // Split the finished prose into ONE ROW PER TRIGGER: a label, then its
+    // effect beneath it. Every card ends up with the same anatomy whether it
+    // has one trigger or four, which is the whole point — uniformity that comes
+    // from structure instead of from how much text a card happens to have.
+    //
+    // Done HERE, at the end of formatDesc, so every surface inherits it: the
+    // hand card's flip face, the inspect modal, the codex, the draft. One
+    // renderer, one shape.
+    //
+    // The rows are real BLOCK elements, which is also what makes vertical
+    // centring safe. Centring raw prose by making its container a flex/grid
+    // shatters it — every inline child becomes its own item, so the spans
+    // inside "(+1/+1)" each land on a line. Wrapping the text in rows first
+    // means the container only ever has block children to place.
+    // `.*?` and NOT `[^<]*`: the keyword pass runs after the label pass, so a
+    // trigger whose own words are keywords ends up with markup INSIDE it —
+    // "When Destroyed" becomes <b class="cd-trig">When <span class="kw
+    // kw-destroy">Destroyed</span></b>. With [^<]* that label stopped matching,
+    // so its row never split: the trigger silently merged into the row above and
+    // lost its colon, which reads as one rule when it is two.
+    const RX_TRIG = /<b class="cd-trig">.*?<\/b>/g;
+    if (RX_TRIG.test(t)) {
+      RX_TRIG.lastIndex = 0;
+      const pieces = t.split(/(<b class="cd-trig">.*?<\/b>)/g).filter(x => x !== '');
+      const rows = [];
+      let cur = null;
+      pieces.forEach(piece => {
+        if (/^<b class="cd-trig">/.test(piece)) {
+          if (cur) rows.push(cur);
+          cur = { label: piece, body: '' };
+        } else if (cur) {
+          cur.body += piece;
+        } else {
+          // Text before any trigger (e.g. Doomsday opens with a bare clause).
+          rows.push({ label: '', body: piece });
+        }
+      });
+      if (cur) rows.push(cur);
+      t = rows.map(r =>
+        `<span class="cd-row">${r.label}<span class="cd-eff">${r.body.trim()}</span></span>`
+      ).join('');
+    } else if (t) {
+      // No trigger at all — still emit ONE row, so the container never has to
+      // lay out bare inline text and the centring stays safe.
+      t = `<span class="cd-row"><span class="cd-eff">${t}</span></span>`;
+    }
     return t + trickPhaseFooter;
   },
 

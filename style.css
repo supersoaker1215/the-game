@@ -37372,10 +37372,38 @@ body.low-fx .card-frost::after {
    ability read as a fragment stuck to the ceiling. Centring on both axes means
    two lines and eight lines are both composed rather than only the long ones
    looking right. */
+/* ============================================================
+   CARD RULES TEXT — LABELLED ROWS, CENTRED
+   ============================================================
+   formatDesc now emits one .cd-row per trigger: a label, then its effect. The
+   anatomy is identical whether a card has one trigger or four, which is the
+   uniformity that text-length alone could never give.
+   Global on .card-desc, not just the flip face, so the inspect modal, codex and
+   draft all read the same. */
+.card-desc .cd-row {
+  display: block;
+  text-align: center;
+}
+.card-desc .cd-row + .cd-row { margin-top: 0.55em; }
+.card-desc .cd-trig {
+  display: block;
+  font-size: 0.86em;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  font-weight: 700;
+  color: rgba(var(--theme-rgb, 79,195,247), 0.95);
+  margin-bottom: 0.12em;
+}
+.card-desc .cd-eff { display: block; }
+
+/* Vertically centred, and SAFE to do now: the container's children are block
+   rows, not raw inline text. Centring the prose directly is what shattered
+   "(+1/+1)" into five lines — grid and flex place BOXES, so the fix was to give
+   them boxes to place rather than to stop centring. */
 .player-hand-section .hand-cards .card.face-flipped .card-desc {
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
+  display: grid;
+  align-content: center;
+  justify-items: center;
   text-align: center;
 }
 
