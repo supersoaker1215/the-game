@@ -20595,7 +20595,11 @@ body.combat-anticipate .board {
    gave each lane its "claimed by this side" identity, the soft
    neon-tinted glass under the cards.
    Color rules:
-     • Empty lane     → faint white wash (neutral, lit but unclaimed)
+     • Empty lane     → SUPERSEDED. The white wash below is overridden by a
+                        later .lane::before black vignette (three rules set
+                        this same background at equal specificity; the last
+                        one wins). The lanes are meant to read dark — do not
+                        "restore" the white wash, it was replaced on purpose.
      • Player owns    → cyan wash matching the player banner
      • AI owns        → red wash matching the AI banner
      • Both occupy    → split: red top half, blue bottom half
@@ -29332,6 +29336,22 @@ body > .grid-bg {
   box-shadow: none !important;
 }
 
+/* The receptive cue ("this lane is ready to catch the card you're holding")
+   was silently dead. .lane.lane-receptive already declares its glow with
+   !important, and its comment says that is to beat `.lane { box-shadow }` —
+   which it does, at (0,1,0). What it does NOT beat is the rule directly above:
+   `.board-section .lane` ties it at (0,2,0) and, being later in the file, wins.
+   So the class was applied by JS (ui.js toggles it) and painted nothing.
+
+   Restated one level more specific, AFTER the rule that was winning, so it is
+   ordering-independent. The border-image lane system above still owns the
+   lane's outer edge; this only adds the inner glow back. */
+.board-section .lane.lane-receptive {
+  box-shadow:
+    inset 0 0 16px rgba(var(--theme-rgb, 127,208,255), 0.18),
+    inset 0 0 32px rgba(var(--theme-rgb, 127,208,255), 0.08) !important;
+}
+
 /* Ally only — middle band is the player theme color. */
 .board-section .lane.occ-player {
   --lane-mid-color: rgba(var(--player-r, 79), var(--player-g, 195), var(--player-b, 247), 0.85);
@@ -29577,7 +29597,6 @@ body > .grid-bg {
    on top below the enemy health bar... a lot of extra stuff."
    It was the prominent green horizontal beam at the top of the
    arena. Cleaner without it.) */
-.board-section .carrier-stripe { display: none !important; }
 
 /* Polish D — BOOT-UP SCAN. Bright horizontal scan line travels
    top→bottom across the arena once at round start, like a CRT
@@ -29697,7 +29716,6 @@ body.low-fx .board-section .crt-scanlines { display: none; }
   }
   .board-section .crt-scanlines { display: none; }
   .board-section .boot-scan-beam { display: none; }
-  .board-section .carrier-stripe { animation: none; }
   #game-area .info-bar.ai-bar,
   #game-area .info-bar.player-bar { transform: none; }
   .lane.occ-ai::before,
