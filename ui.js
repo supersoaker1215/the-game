@@ -21722,13 +21722,22 @@ const UI = {
         if (!raf) raf = requestAnimationFrame(resync);
       }, { capture: true, passive: true });
     }
+    // REMOVED. This drew a curved line and a dot from every card to what it
+    // would strike, permanently, through the whole planning phase. The hover
+    // forecast now answers the same question on demand and answers it better —
+    // it shows the resulting HP, follows the card, and only appears for the one
+    // card you are actually asking about. Two systems saying the same thing, one
+    // of them always-on, on a board already called too busy.
+    //
+    // Kept as a clearing no-op rather than deleted at the call sites: it is
+    // invoked from the render path and the profiler, and this way any element a
+    // previous build left behind is torn down on the next render.
+    const svgOld = document.getElementById('attack-telegraph');
+    if (svgOld) svgOld.remove();
+    return;
+    /* eslint-disable no-unreachable */
     const s = (typeof Game !== 'undefined') && Game.state;
     let svg = document.getElementById('attack-telegraph');
-    // Player toggle (Settings > Attack lines). `!== false` so settings saved
-    // before this option existed keep the old behaviour. Bailing here also
-    // skips the whole build — 14 getBoundingClientRect reads interleaved with
-    // SVG appends — so turning it off is a frame-time win too, not just a
-    // visual one.
     if (this.settings && this.settings.attackTelegraph === false) {
       if (svg) svg.innerHTML = '';
       return;
