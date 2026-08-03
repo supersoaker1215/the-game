@@ -4113,7 +4113,15 @@ const UI = {
     this._installCombatForecast();
     this.installDrawAnimation();
     this.installTronGridFx();
-    this.installCameraParallax();   // Wave 3 #8 — mouse-driven camera pivot
+    // Camera parallax is DELIBERATELY NOT INSTALLED. It leaned the board toward
+    // the cursor; for most of its life the lean was a no-op (the perspective sat
+    // on the wrong element, so it moved the board 0.86px), and once that was
+    // corrected the real lean read as distracting. User call: remove it.
+    // Not installing is also the cheap option, which matters here: it removes a
+    // document-level mousemove handler, the rAF loop it drove, and the board-rect
+    // cache invalidation that a moving board required. Nothing idles for it now.
+    // The function is kept below so the behaviour can be restored in one line.
+    // this.installCameraParallax();
     this.installPolishLayer();  // Tier 1-4 reactive + ambient FX
     this.installAudioHooks();   // Game event → audio cue mapping
     this.installSplashFx();     // Splash damage → shockwave + lunge
@@ -24045,13 +24053,9 @@ const UI = {
       rafScheduled = false;
       ga.style.setProperty('--cam-tx', nextX.toFixed(3));
       ga.style.setProperty('--cam-ty', nextY.toFixed(3));
-      // The board just moved, so anything caching its rect is now stale.
-      // Deliberately called from HERE rather than from the mousemove handler:
-      // this flush is already rAF-throttled, so the rect is recomputed at most
-      // once per frame instead of once per event. That distinction is the whole
-      // point of the cache — the original bug was a layout read on every one of
-      // 60-120 events per second, and one read per frame is not that.
-      if (UI._invalidateBoardRect) UI._invalidateBoardRect();
+      // (If this is ever re-enabled, re-add UI._invalidateBoardRect() here — a
+      // moving board invalidates every cached rect, and the cursor light caches
+      // one. It was removed with the lean because nothing else moves the board.)
     };
     document.addEventListener('mousemove', (e) => {
       // Re-checked per event, not just at install time: the runtime frame
@@ -24437,13 +24441,8 @@ const UI = {
       return cachedRect;
     };
     const invalidateRect = () => { cachedRect = null; };
-    // Published so the camera can drop it. The board's rect is no longer
-    // static: the camera lean now really transforms .board-section, and a
-    // rotated element's getBoundingClientRect is the axis-aligned box of the
-    // TRANSFORMED geometry — measured at 1053px wide flat and 1063.8px at full
-    // lean. A rect cached before the lean puts the light ~11px off the cursor
-    // and never recovers, which is the same class of bug the cache was added
-    // to fix, arriving from the other direction.
+    // Published so a future board-moving feature can drop it. Nothing moves the
+    // board today, so resize is the only invalidation that fires.
     this._invalidateBoardRect = invalidateRect;
     window.addEventListener('resize', invalidateRect, { passive: true });
     window.addEventListener('scroll', invalidateRect, { passive: true });
