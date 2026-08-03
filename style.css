@@ -37067,3 +37067,138 @@ body.low-fx .card-frost::after {
 @media (max-aspect-ratio: 1/1) {
   .mm-mw3 .mm-title { font-size: clamp(26px, 6vw, 84px); }
 }
+
+/* ============================================================
+   THE ARENA — light-cells, horizon, verdict rails
+   ============================================================
+   An empty .card-slot used to paint NOTHING: no background, no border, no
+   box-shadow, and neither pseudo-element. Twelve of them tile almost the whole
+   play area, which is the entire reason the board read as a void — not lane
+   height. The lane is 610px and its two slots take 574 of it; the space was
+   allocated, just blank.
+
+   WHERE THESE LAYERS LIVE, and why. Both .card-slot pseudos are already spoken
+   for (.target-highlight uses both, .playable uses ::after) and .lane::before
+   is claimed three times over. The free channel is .empty-lane-glyph — a real
+   element that ONLY exists while a slot is empty and currently renders nothing.
+   Using it plus its two pseudos gives three layers with zero contention, and
+   scopes the whole treatment to empty slots without :has() or a JS flag.
+
+   Everything here is static paint. Nothing loops, so there is nothing new for
+   reduced-motion or low-fx to gate.
+   ============================================================ */
+
+/* ---- 1. THE LIGHT-CELL ---------------------------------------------------
+   Revives the glyph element, which is switched off globally at style.css:15007
+   (that rule kills the old "+" and carries !important, so this needs both a
+   deeper selector and !important to answer it). The lock variant stays hidden —
+   it is a different mark with a different job. */
+.card-slot .empty-lane-glyph:not(.lane-glyph-locked) {
+  display: grid !important;
+  place-items: center;
+  position: absolute;
+  inset: 0;
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: clamp(22px, 34cqw, 52px);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: rgba(255, 255, 255, 0.05);
+  pointer-events: none;
+}
+/* Floor grid. Sits inside a 7px margin so it never touches the lane rails. */
+.card-slot .empty-lane-glyph:not(.lane-glyph-locked)::before {
+  content: "";
+  position: absolute; inset: 7px;
+  background:
+    repeating-linear-gradient(0deg,  transparent 0 21px, rgba(255,255,255,0.028) 21px 22px),
+    repeating-linear-gradient(90deg, transparent 0 21px, rgba(255,255,255,0.028) 21px 22px);
+}
+/* Corner brackets — FOUR CORNERS, NOT A BORDER. A full outline would box the
+   slot in, which is the language this project has spent months removing; the
+   corners imply the rectangle without drawing it, same reticle as DONE. Eight
+   1px background slices, so it costs no extra element. */
+.card-slot .empty-lane-glyph:not(.lane-glyph-locked)::after {
+  content: "";
+  position: absolute; inset: 7px;
+  --b: rgba(79, 195, 247, 0.30);
+  --len: 15px;
+  background:
+    linear-gradient(var(--b), var(--b)) left  top    / var(--len) 1px no-repeat,
+    linear-gradient(var(--b), var(--b)) left  top    / 1px var(--len) no-repeat,
+    linear-gradient(var(--b), var(--b)) right top    / var(--len) 1px no-repeat,
+    linear-gradient(var(--b), var(--b)) right top    / 1px var(--len) no-repeat,
+    linear-gradient(var(--b), var(--b)) left  bottom / var(--len) 1px no-repeat,
+    linear-gradient(var(--b), var(--b)) left  bottom / 1px var(--len) no-repeat,
+    linear-gradient(var(--b), var(--b)) right bottom / var(--len) 1px no-repeat,
+    linear-gradient(var(--b), var(--b)) right bottom / 1px var(--len) no-repeat;
+  transition: background 0.2s ease, opacity 0.2s ease;
+}
+.card-slot.ai-slot .empty-lane-glyph:not(.lane-glyph-locked)::after {
+  --b: rgba(255, 90, 74, 0.28);
+}
+
+/* ---- 2. THE HORIZON ------------------------------------------------------
+   A shallow gradient per half, brightest at the centre seam and gone by the
+   halfway mark, so the two territories read as facing lit planes rather than
+   one flat sheet. GRADIENTS, NOT PERSPECTIVE: a real 3D perspective on the
+   board would re-parent every transform inside it — the hand magnify, the drag
+   ghost, the FLIP moves — and break five things to fix one.
+   Two classes deep so it outranks .card-slot.playable's background: transparent. */
+.card-slot.ai-slot {
+  background: linear-gradient(180deg,
+    transparent 52%, rgba(255,90,74,0.020) 76%, rgba(255,90,74,0.075) 100%);
+}
+.card-slot.player-slot {
+  background: linear-gradient(0deg,
+    transparent 52%, rgba(79,195,247,0.020) 76%, rgba(79,195,247,0.075) 100%);
+}
+
+/* ---- 3. VERDICT RAILS ----------------------------------------------------
+   renderBoard ALREADY stamps data-forecast-cls on the lane from
+   laneForecastVerdict — the same helper the footer strip reads. So the lane can
+   show who is winning it with no new JS and no second source of truth: the
+   strip and the rails cannot disagree.
+   Painted as background slices on .lane, whose background is unset — both
+   .lane pseudo-elements are already taken. */
+.lane[data-forecast-cls] {
+  --rail: rgba(255,255,255,0.16);
+  background:
+    linear-gradient(var(--rail), var(--rail)) left  center / 1px 100% no-repeat,
+    linear-gradient(var(--rail), var(--rail)) right center / 1px 100% no-repeat;
+}
+.lane[data-forecast-cls="lf-win"]   { --rail: rgba(79,195,247,0.75); }
+.lane[data-forecast-cls="lf-lose"]  { --rail: rgba(255,90,74,0.75); }
+/* A trade is genuinely both, so it gets both — the rail reads as a live wire
+   rather than picking a winner that does not exist. */
+.lane[data-forecast-cls="lf-trade"] {
+  background:
+    linear-gradient(180deg, rgba(255,90,74,0.75) 0 50%, rgba(79,195,247,0.75) 50% 100%)
+      left center / 1px 100% no-repeat,
+    linear-gradient(180deg, rgba(255,90,74,0.75) 0 50%, rgba(79,195,247,0.75) 50% 100%)
+      right center / 1px 100% no-repeat;
+}
+.lane[data-forecast-cls="lf-stall"] { --rail: rgba(255,255,255,0.30); }
+
+/* ---- 4. ARMED ------------------------------------------------------------
+   The existing affordance is a 1px dashed outline at 18% white. With a
+   light-cell already sitting there this is a STATE CHANGE ON AN EXISTING
+   OBJECT rather than a new one: brackets snap to full, the floor grid lights,
+   and a glow gathers at the base where the card will land. That is why it costs
+   a transition and not a layer — and why it reads instantly, since the eye
+   already knows the pad's resting state. */
+.card-slot.playable .empty-lane-glyph:not(.lane-glyph-locked)::after {
+  --b: rgba(79,195,247,0.95);
+  --len: 22px;
+}
+.card-slot.playable .empty-lane-glyph:not(.lane-glyph-locked)::before {
+  background:
+    repeating-linear-gradient(0deg,  transparent 0 21px, rgba(79,195,247,0.10) 21px 22px),
+    repeating-linear-gradient(90deg, transparent 0 21px, rgba(79,195,247,0.10) 21px 22px),
+    radial-gradient(120% 80% at 50% 100%, rgba(79,195,247,0.13), transparent 70%);
+}
+.card-slot.playable .empty-lane-glyph:not(.lane-glyph-locked) {
+  color: rgba(79,195,247,0.30);
+}
+.card-slot.playable:hover .empty-lane-glyph:not(.lane-glyph-locked) {
+  color: rgba(79,195,247,0.55);
+}

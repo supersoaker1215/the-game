@@ -16378,10 +16378,14 @@ const UI = {
           aiSlot.appendChild(hs);
         }
       } else if (!lane.destroyed) {
-        // Empty-lane drop glyph — faint "+" hinting at placement
+        // The empty slot's mark. Was a faint fullwidth "+", switched off
+        // globally because it read as cheap; it is now the LANE NUMBER, ghosted
+        // behind the light-cell. Same element, so no new DOM — and because it
+        // only exists while the slot is empty, the whole light-cell treatment
+        // is scoped to empty slots for free, with no :has() and no JS gate.
         const empty = document.createElement('div');
         empty.className = 'empty-lane-glyph';
-        empty.innerHTML = '&#xFF0B;';
+        empty.textContent = String(i + 1);
         aiSlot.appendChild(empty);
       }
       // Same anti-reattach guard for the slot itself.
@@ -16537,11 +16541,26 @@ const UI = {
           pSlot.onclick = () => this.onLaneClick(i);
         }
       } else if (!lane.destroyed && !lane.player && !cc && !lc) {
-        // Empty ally slot + nothing selected — show the drop glyph
+        // Empty ally slot + nothing selected — the lane number, as above.
         const empty = document.createElement('div');
         empty.className = 'empty-lane-glyph';
-        empty.innerHTML = '&#xFF0B;';
+        empty.textContent = String(i + 1);
         pSlot.appendChild(empty);
+      }
+      // THE LIGHT-CELL IS THE EMPTY SLOT'S RESTING LAYER, so it has to survive
+      // every branch above. Those are if/else-if, so a slot gets EITHER the
+      // playable branch (which appends a damage preview) OR the glyph — never
+      // both. That left the pad unlit at exactly the moment it matters most:
+      // while the player is holding a card and choosing where to drop it.
+      // Append it here instead, once, for any empty slot that still lacks one.
+      // insertBefore keeps it first in DOM order so the preview draws over it,
+      // and the existing querySelector guard means a forced-lane lock (which is
+      // also an .empty-lane-glyph) still suppresses it.
+      if (!lane.destroyed && !lane.player && !pSlot.querySelector('.empty-lane-glyph')) {
+        const cell = document.createElement('div');
+        cell.className = 'empty-lane-glyph';
+        cell.textContent = String(i + 1);
+        pSlot.insertBefore(cell, pSlot.firstChild);
       }
       if (pSlot.parentNode !== el) el.appendChild(pSlot);
       if (el.parentNode !== this.board) this.board.appendChild(el);
