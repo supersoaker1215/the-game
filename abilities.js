@@ -2802,22 +2802,41 @@ const CARD_ABILITIES = {
       const allies = G.getAlliesOf(self.owner).filter(a => a.id !== self.id).sort((a, b) => a.cost - b.cost);
       if (!allies.length) return;
 
-      const damageableEnemies = () => G.getEnemiesOf(self.owner).filter(e =>
-        !(e.invincibleTurns > 0) && !e.hasDamageImmunity && !(e.evadeCharges > 0)
-      );
+      // Per-mode targeting through the canonical gate instead of a hand-rolled
+      // filter. The old one excluded anything with evadeCharges > 0 from BOTH
+      // modes, which is wrong twice over:
+      //
+      //   DESTROY — canEffectLand('destroy') is blocked by Invincible and
+      //   nothing else. Evade dodges an ATTACK; it has no say in a destroy
+      //   effect, and the card text ("destroy an enemy with cost <= that ally's
+      //   cost") does not mention it. This is the reported bug: Predator has
+      //   Evade 1, so a 4-cost sacrifice could destroy 4-cost Jason but not
+      //   4-cost Predator.
+      //
+      //   DAMAGE — Evade should ABSORB the hit and spend a charge when it
+      //   lands, which dealDamage already does. Removing the card from the
+      //   list entirely made it untargetable, a rule no other ability applies.
+      //
+      // The gate also catches what the hand-rolled version missed: environments,
+      // face-down cards, already-dead cards and 10-cost source immunity.
+      const enemiesFor = (kind) => G.getEnemiesOf(self.owner)
+        .filter(e => G.canEffectLand(e, kind, { owner: self.owner, source: self }));
+      const damageableEnemies = () => enemiesFor('damage');
+      const destroyableEnemies = () => enemiesFor('destroy');
 
       // AI evaluator — for each ally, find the best Damage and Destroy trade.
       // Destroy bypasses HP/armor entirely so it's higher value when an enemy
       // matches the cost gate. Damage is the fallback when no destroy target
       // exists at the ally's cost. Returns { ally, mode, enemy, score } or null.
       const findBestTrade = (threshold) => {
-        const tgts = damageableEnemies();
-        if (!tgts.length) return null;
+        const dmgTgts = damageableEnemies();
+        const destTgts = destroyableEnemies();
+        if (!dmgTgts.length && !destTgts.length) return null;
         let best = null, bestScore = -Infinity;
         for (const ally of allies) {
           const d = ally.baseCost || ally.cost || 0;
           // Destroy: any enemy with cost ≤ ally cost. No HP/armor check needed.
-          const destroyTargets = tgts.filter(e => (e.baseCost || e.cost || 0) <= d);
+          const destroyTargets = destTgts.filter(e => (e.baseCost || e.cost || 0) <= d);
           if (destroyTargets.length) {
             const topDestroy = destroyTargets.reduce((x, y) => AI.threatScore(y) > AI.threatScore(x) ? y : x);
             const t = AI.threatScore(topDestroy);
@@ -2829,7 +2848,7 @@ const CARD_ABILITIES = {
             }
           }
           // Damage: any enemy whose effective HP fits within d damage.
-          const damageKills = tgts.filter(e => (e.currentHealth + (e.armorValue || 0)) <= d);
+          const damageKills = dmgTgts.filter(e => (e.currentHealth + (e.armorValue || 0)) <= d);
           if (damageKills.length) {
             const topDmg = damageKills.reduce((x, y) => AI.threatScore(y) > AI.threatScore(x) ? y : x);
             const t = AI.threatScore(topDmg);
@@ -2906,9 +2925,16 @@ const CARD_ABILITIES = {
           };
           G.killCard(victim);
           const enemies = damageableEnemies();
-          if (!enemies.length) return;
-          const validDestroyTargets = enemies.filter(e => (e.baseCost || e.cost || 0) <= dmg);
-          const modeChoices = validDestroyTargets.length ? [damageOpt, destroyOpt] : [damageOpt];
+          const validDestroyTargets = destroyableEnemies()
+            .filter(e => (e.baseCost || e.cost || 0) <= dmg);
+          // Bail only when NEITHER mode has a target — an enemy that is
+          // destroyable but not damageable (Damage Immunity) still deserves the
+          // prompt, and the old early-return on the damage list alone threw the
+          // whole ability away in that case.
+          if (!enemies.length && !validDestroyTargets.length) return;
+          const modeChoices = [];
+          if (enemies.length) modeChoices.push(damageOpt);
+          if (validDestroyTargets.length) modeChoices.push(destroyOpt);
           G.promptCardChoice(self.owner, modeChoices,
             "Homelander — Strike Mode", `Choose how to spend ${victim.name}'s sacrifice`,
             (modeChoice) => {

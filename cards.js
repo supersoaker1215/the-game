@@ -259,7 +259,7 @@ const CARD_DEFS = [
   { name: "Jack Sparrow", cost: 5, attack: 3, health: 5, type: "hero",
     abilities: [],
     desc: "While Active: Before each combat, choose an enemy in an uncontested lane (no ally opposite). It cannot attack this round." },
-  { name: "Han Solo", cost: 5, attack: 3, health: 4, type: "hero",
+  { name: "Han Solo", cost: 4, attack: 3, health: 4, type: "hero",
     abilities: [],
     desc: "First Strike: Han Solo attacks at the start of combat, before other lanes. Before each combat, choose any enemy lane for him to attack instead of his own, or stay. Each Turn: Each ally has a 50% chance to gain Critical — double damage for the round." },
   { name: "Captain America", cost: 5, attack: 3, health: 4, type: "hero",

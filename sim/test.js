@@ -82,6 +82,39 @@ function place(G, name, owner, lane) {
 // Regression: stunned Man-Bat shouldn't prompt-and-debuff.
 // (Bug hit in live play: Wonder Woman stunned Man-Bat, player
 // was still prompted to move, -1/-1 still fired on Juggernaut.)
+// Regression: Homelander's destroy mode refused an enemy with Evade. Evade
+// dodges an ATTACK; canEffectLand('destroy') is blocked by Invincible and
+// nothing else. User: "i killed 4 cost jason with homelander and wanted to kill
+// predator a 4 cost card wasnt able to". Both 4-cost; Predator has Evade 1.
+test('Homelander can destroy an enemy that has Evade', function () {
+  var G = freshGame();
+  var evasive = place(G, 'Predator', 'ai', 0);
+  assertEq((evasive.evadeCharges || 0) > 0, true, 'Predator should carry Evade');
+  assertEq(G.canEffectLand(evasive, 'destroy', { owner: 'player' }), true,
+    'Evade must not block a destroy effect');
+});
+
+// The flip side, so the gate is not just permissive: Invincible DOES block it.
+test('Invincible blocks a destroy effect', function () {
+  var G = freshGame();
+  var t = place(G, 'The Thing', 'ai', 0);
+  t.invincibleTurns = 1;
+  assertEq(G.canEffectLand(t, 'destroy', { owner: 'player' }), false,
+    'Invincible must block a destroy effect');
+  t.invincibleTurns = 0;
+  t.hasDamageImmunity = true;
+  assertEq(G.canEffectLand(t, 'destroy', { owner: 'player' }), true,
+    'Damage Immunity is a DAMAGE shield and must not block destroy');
+  assertEq(G.canEffectLand(t, 'damage', { owner: 'player' }), false,
+    'Damage Immunity does block damage');
+});
+
+// Han Solo moved to 4 cost at the owner's request — pinned so a future edit to
+// cards.js does not silently drift it back.
+test('Han Solo costs 4', function () {
+  assertEq(cardByName('Han Solo').cost, 4, 'Han Solo should be a 4 cost');
+});
+
 // Regression: a target list built before something died still contained the
 // corpse, so Palpatine's chain freeze / Magneto's move offered a dead card and
 // spending the pick on it wasted the ability. The queue path always filtered;
