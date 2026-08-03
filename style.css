@@ -37541,6 +37541,59 @@ body.low-fx .card-frost::after {
 }
 
 /* ============================================================
+   FORCED LANE LOCKOUT   (board design 05)
+   ============================================================
+   When an ability forces your next card into one lane, the other five are
+   closed — and until now the board said nothing at all. There has been a
+   padlock glyph for exactly this since the feature shipped, and it NEVER DREW:
+   `.empty-lane-glyph { display: none !important }` hides the whole family, and
+   every light-cell rule excludes the locked variant with :not(.lane-glyph-locked),
+   so it fell straight through to the global hide with nothing to catch it.
+   Un-hiding it needs !important of its own — that is what it is competing with,
+   not sloppiness.
+
+   The treatment is a whole-board statement rather than one slot: five closed
+   doors read faster than one open one. Hatch goes on .card-slot::before, which
+   was genuinely free — .lane's two pseudos are both long spoken for. */
+.card-slot .empty-lane-glyph.lane-glyph-locked {
+  display: flex !important;
+  align-items: center;
+  justify-content: center;
+  font-size: 15px;
+  color: rgba(255, 190, 110, 0.5);
+  filter: grayscale(1) brightness(1.6);
+  z-index: 3;
+}
+/* The five that are closed: hatched floor, dimmed, number nearly gone. */
+.lane.lane-locked .card-slot.player-slot::before {
+  content: "";
+  position: absolute; inset: 0;
+  pointer-events: none;
+  z-index: 1;
+  background:
+    repeating-linear-gradient(45deg,
+      rgba(255,255,255,0.05) 0 5px, transparent 5px 11px),
+    rgba(0,0,0,0.55);
+}
+.lane.lane-locked .card-slot.player-slot .empty-lane-glyph:not(.lane-glyph-locked) {
+  opacity: 0.25;
+}
+/* The one that is open. Amber, because this is a CONSTRAINT rather than a
+   friendly prompt — it deliberately does not borrow the player's neon, which
+   everywhere else means "yours to choose". */
+.lane.lane-forced {
+  border-color: rgba(255, 180, 84, 0.75) !important;
+}
+.lane.lane-forced .card-slot.player-slot .empty-lane-glyph {
+  color: rgba(255, 180, 84, 0.55);
+}
+/* Phone: the hatch stays, the padlock shrinks. At a 56px tile a 15px glyph is
+   most of the slot. */
+@container (max-width: 520px) {
+  .card-slot .empty-lane-glyph.lane-glyph-locked { font-size: 10px; }
+}
+
+/* ============================================================
    CENTRE BAR CELL
    ============================================================
    This held the conduit spine: a rail across the cell whose lit length was

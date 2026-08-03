@@ -16573,12 +16573,20 @@ const UI = {
         }
         if (fl !== null && fl !== i && !s.selectedCard.isEnvironment) {
           // Not the forced lane — show as locked, not playable.
+          // The class goes on the LANE, not just the slot: a lockout is a
+          // statement about the whole board, and the player needs to see the
+          // five closed doors as easily as the one open one. Safe to add here
+          // because the lane's className is rebuilt from scratch earlier in
+          // this same render (see nextCls), so it clears itself next frame.
+          el.classList.add('lane-locked');
           const empty = document.createElement('div');
           empty.className = 'empty-lane-glyph lane-glyph-locked';
           empty.title = `Your next card is forced into lane ${fl + 1}`;
           empty.innerHTML = '&#x1F512;';
           pSlot.appendChild(empty);
         } else {
+          // The forced lane itself — mark it so it can be the one lit thing.
+          if (fl !== null && fl === i) el.classList.add('lane-forced');
           // Only glow the lane as playable when the card is actually affordable
           // — otherwise the lit lane + preview invite a click that silently
           // fails. The click stays wired so a tap still shakes + explains.
