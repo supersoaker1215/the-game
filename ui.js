@@ -7351,6 +7351,11 @@ const UI = {
       el.classList.remove('forecast-target'); el.classList.remove('forecast-source');
     });
     this._forecastForId = null;
+    // Stop following a card that no longer has a forecast.
+    if (this._forecastFollowRaf) {
+      cancelAnimationFrame(this._forecastFollowRaf);
+      this._forecastFollowRaf = 0;
+    }
   },
   // One straight arrow from → to, tip pulled back to the card edge. kind tints
   // it: front/hero red, splash orange.
@@ -7513,7 +7518,7 @@ const UI = {
     try { if (!(window.matchMedia && window.matchMedia('(hover: hover) and (pointer: fine)').matches)) return; } catch (e) {}
     document.addEventListener('mouseover', (e) => {
       const el = e.target && e.target.closest && e.target.closest('.board .card[data-card-id]');
-      if (el) this._showCombatForecast(el);
+      if (el) { this._showCombatForecast(el); this._forecastStartFollow(); }
     });
     document.addEventListener('mouseout', (e) => {
       const el = e.target && e.target.closest && e.target.closest('.board .card[data-card-id]');
@@ -7547,6 +7552,39 @@ const UI = {
     // the window, and never blocks the scroll itself.
     window.addEventListener('scroll', schedule, { capture: true, passive: true });
     window.addEventListener('resize', schedule, { passive: true });
+
+    // FOLLOW THE CARD WHILE IT MOVES. Scroll and resize were handled; the card
+    // ITSELF moving was not. The hover magnify scales it, a play or move
+    // animation slides it, a relayout shifts it — and because the arrows are
+    // plotted from getBoundingClientRect() into a position:fixed layer, they
+    // stayed where the card used to be. The arrow read as floating above a card
+    // it was supposed to be attached to.
+    //
+    // Tracks only WHILE the rect is actually changing, then stops. A transform
+    // transition is ~180ms, so this is a handful of frames per hover and
+    // nothing once the card settles — no loop while the cursor rests on a card.
+    let followKey = '', followStill = 0;
+    const follow = () => {
+      this._forecastFollowRaf = 0;
+      const id = this._forecastForId;
+      if (id == null) return;
+      const el = document.querySelector('.board .card[data-card-id="' + String(id).replace(/"/g, '\\"') + '"]');
+      if (!el) { this._clearCombatForecast(); return; }
+      const r = el.getBoundingClientRect();
+      const key = r.top.toFixed(1) + ',' + r.left.toFixed(1) + ',' + r.width.toFixed(1) + ',' + r.height.toFixed(1);
+      if (key !== followKey) {
+        followKey = key; followStill = 0;
+        replot();                       // re-plot from the rect it has NOW
+      } else if (++followStill > 2) {
+        return;                         // settled for 3 frames — stop
+      }
+      this._forecastFollowRaf = requestAnimationFrame(follow);
+    };
+    this._forecastStartFollow = () => {
+      if (this._forecastFollowRaf) return;
+      followKey = ''; followStill = 0;
+      this._forecastFollowRaf = requestAnimationFrame(follow);
+    };
   },
   // Run cb(el) with a card's DOM element, deferring one frame if the card
   // was JUST played and isn't painted to .board yet (playCard's normal
