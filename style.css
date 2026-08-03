@@ -11314,6 +11314,34 @@ body.turn-combat .board .lane.lane-active {
 .game-log .log-control { border-left-color: rgba(155,89,182,0.95);  box-shadow: inset 2px 0 10px rgba(155,89,182,0.22); background: rgba(155,89,182,0.05); }
 .game-log .log-utility { border-left-color: rgba(149,165,166,0.75); }
 
+/* ============================================================
+   NEON TEXT — DAMAGE PREVIEW BY SIDE  (option 02)
+   ============================================================
+   Both rows of the preview printed the same red, so "You 3 -> 0" and
+   "Enemy 4 -> 1" were the same colour and you had to read the WORD to know
+   whose health was moving. The rows now carry dp-mine / dp-theirs, tagged at
+   the six places the renderer emits them, and colour by whose loss it is:
+   red when it costs you, green when it costs them. The numbers already
+   existed — this just says which side they belong to. */
+.dmg-preview .dp-row.dp-mine .dp-nums {
+  color: #ff8a7a;
+  text-shadow: 0 0 7px rgba(231, 76, 60, 0.55);
+}
+.dmg-preview .dp-row.dp-theirs .dp-nums {
+  color: #7ee8a5;
+  text-shadow: 0 0 7px rgba(46, 204, 113, 0.55);
+}
+
+/* ============================================================
+   NEON TEXT — PHASE BANNER  (option 03)
+   ============================================================
+   Only combat had a colour; cards and tricks were near-white, so the largest
+   text on screen announced the phase without encoding it. Each phase now
+   carries its own, matching the language the board already speaks: the
+   player's theme cyan for cards, purple for tricks (the colour tricks use
+   everywhere else), and combat keeps what it had. */
+
+
 /* NEON TEXT ENCODING — placed HERE, after the .game-log set, because that is
    what it has to beat. There are TWO log rule sets in this file: a base one
    around line 8423 and this .game-log-scoped one, which is later AND more
@@ -37852,3 +37880,44 @@ body.low-fx .card-frost::after {
 /* Nothing on terrain is a target, so drop the combat affordances. */
 .board .card.env-card .status-badges,
 .card-slot .card.env-card .status-badges { display: none; }
+
+
+/* ============================================================
+   PHASE BANNER COLOURS  (neon text, option 03) — END OF FILE
+   ============================================================
+   Appended at the very end deliberately. Three separate later rules declare
+   .phase-banner-text's colour !important, and one of them was already killing
+   the .phase-combat rule that has existed since long before this change — so
+   combat had no colour of its own and nobody noticed. Living at the end with
+   !important means nothing outranks these, which is the only way to win
+   against three important declarations spread across the file.
+
+   The colours are EXPLICIT, not derived from --theme-rgb. That was the second
+   failure: on the silver theme the "player colour" is #dce2ea, so a cards
+   banner mixed from it came out near-white and identical to combat. The point
+   of the pass is telling the phases apart, so each gets a fixed hue that holds
+   on every theme. */
+.phase-banner-text.phase-cards {
+  color: #7fd4ff !important;
+  border-color: rgba(79, 195, 247, 0.85) !important;
+  text-shadow: 0 0 10px rgba(79, 195, 247, 0.65) !important;
+  box-shadow:
+    0 0 12px rgba(79, 195, 247, 0.42),
+    0 0 26px rgba(79, 195, 247, 0.18) !important;
+}
+.phase-banner-text.phase-tricks {
+  color: #d7b3e6 !important;
+  border-color: rgba(155, 89, 182, 0.85) !important;
+  text-shadow: 0 0 10px rgba(155, 89, 182, 0.65) !important;
+  box-shadow:
+    0 0 12px rgba(155, 89, 182, 0.42),
+    0 0 26px rgba(155, 89, 182, 0.18) !important;
+}
+.phase-banner-text.phase-combat {
+  color: #ff9d90 !important;
+  border-color: rgba(231, 76, 60, 0.85) !important;
+  text-shadow: 0 0 10px rgba(231, 76, 60, 0.65) !important;
+  box-shadow:
+    0 0 12px rgba(231, 76, 60, 0.45),
+    0 0 26px rgba(231, 76, 60, 0.20) !important;
+}

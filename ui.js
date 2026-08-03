@@ -5764,7 +5764,12 @@ const UI = {
       return `<span class="${cls}" style="animation-delay:${i * 35}ms">${safe}</span>`;
     }).join('');
     this.phaseBannerText.innerHTML = letters;
+    // Phase gets its own colour, not just combat. The banner was near-white for
+    // everything except combat, so the biggest text on screen said WHAT was
+    // happening without saying WHICH PART of the turn it was.
     this.phaseBannerText.classList.toggle('phase-combat', /combat/i.test(text));
+    this.phaseBannerText.classList.toggle('phase-cards',  /card/i.test(text)  && !/combat/i.test(text));
+    this.phaseBannerText.classList.toggle('phase-tricks', /trick/i.test(text) && !/combat/i.test(text) && !/card/i.test(text));
     this.phaseBanner.classList.add('active');
     clearTimeout(this._bannerTimeout);
     // Banners carrying per-event info (Gorr devour, etc.) need more
@@ -16798,7 +16803,7 @@ const UI = {
     // If a Magneto even-lane debuff would outright kill the card on entry,
     // surface that instead of a misleading trade preview.
     if (myHp <= 0) {
-      box.innerHTML = `<div class="dp-row dp-will-die"><span class="dp-side">You</span><span class="dp-nums">Dies on entry</span></div>`;
+      box.innerHTML = `<div class="dp-row dp-will-die dp-mine"><span class="dp-side">You</span><span class="dp-nums">Dies on entry</span></div>`;
       return box;
     }
 
@@ -16849,7 +16854,7 @@ const UI = {
             let directRow = `<div class="dp-row"><span class="dp-side">Direct</span><span class="dp-nums">&minus;${total} HP</span></div>${splashBit}`;
             if (incoming > 0) {
               const dies = me && me.dies;
-              directRow += `<div class="dp-row${dies ? ' dp-will-die' : ''}"><span class="dp-side">You</span><span class="dp-nums">${myHp}&nbsp;&rarr;&nbsp;${myHpAfter}</span></div>`;
+              directRow += `<div class="dp-row dp-mine${dies ? ' dp-will-die' : ''}"><span class="dp-side">You</span><span class="dp-nums">${myHp}&nbsp;&rarr;&nbsp;${myHpAfter}</span></div>`;
               if (dies) directRow = `<div class="dp-verdict dp-verdict-lose">LOSE</div>` + directRow;
             }
             box.innerHTML = `<div class="dp-sim-tag">SIM</div>${directRow}`;
@@ -16869,8 +16874,8 @@ const UI = {
           const enemyHpStart = (you && (you.hpAfter + you.dmgIn)) || (enemy ? enemy.currentHealth : 0);
           box.innerHTML =
             `<div class="dp-verdict ${verdictCls}">${verdict}</div>` +
-            `<div class="dp-row"><span class="dp-side">You</span><span class="dp-nums">${myHp}&nbsp;&rarr;&nbsp;${myHpAfter}</span></div>` +
-            `<div class="dp-row"><span class="dp-side">Enemy</span><span class="dp-nums">${enemyHpStart}&nbsp;&rarr;&nbsp;${enemyHpAfter}</span></div>` +
+            `<div class="dp-row dp-mine"><span class="dp-side">You</span><span class="dp-nums">${myHp}&nbsp;&rarr;&nbsp;${myHpAfter}</span></div>` +
+            `<div class="dp-row dp-theirs"><span class="dp-side">Enemy</span><span class="dp-nums">${enemyHpStart}&nbsp;&rarr;&nbsp;${enemyHpAfter}</span></div>` +
             noteHtml +
             `<div class="dp-sim-tag" title="Simulated with abilities + buffs">SIM</div>`;
           return box;
@@ -16914,7 +16919,7 @@ const UI = {
           // 5/2 enters and immediately drops to 5/0 from a flanking Hulk.
           const after = result.player.hpAfter;
           const dies = result.player.dies;
-          directRow += `<div class="dp-row${dies ? ' dp-will-die' : ''}"><span class="dp-side">You</span><span class="dp-nums">${myHp}&nbsp;&rarr;&nbsp;${after}</span></div>`;
+          directRow += `<div class="dp-row dp-mine${dies ? ' dp-will-die' : ''}"><span class="dp-side">You</span><span class="dp-nums">${myHp}&nbsp;&rarr;&nbsp;${after}</span></div>`;
           if (dies) {
             directRow = `<div class="dp-verdict dp-verdict-lose">LOSE</div>` + directRow;
           }
@@ -16995,8 +17000,8 @@ const UI = {
 
     box.innerHTML =
       `<div class="dp-verdict ${verdictCls}">${verdict}</div>` +
-      `<div class="dp-row"><span class="dp-side">You</span><span class="dp-nums">${myHp}&nbsp;&rarr;&nbsp;${myHpAfter}</span></div>` +
-      `<div class="dp-row"><span class="dp-side">Enemy</span><span class="dp-nums">${enemy.currentHealth}&nbsp;&rarr;&nbsp;${enemyHpAfter}</span></div>` +
+      `<div class="dp-row dp-mine"><span class="dp-side">You</span><span class="dp-nums">${myHp}&nbsp;&rarr;&nbsp;${myHpAfter}</span></div>` +
+      `<div class="dp-row dp-theirs"><span class="dp-side">Enemy</span><span class="dp-nums">${enemy.currentHealth}&nbsp;&rarr;&nbsp;${enemyHpAfter}</span></div>` +
       noteHtml;
     return box;
   },
