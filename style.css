@@ -37541,6 +37541,60 @@ body.low-fx .card-frost::after {
 }
 
 /* ============================================================
+   NO BOXES, ANYWHERE   (the menu's language, made global)
+   ============================================================
+   I had been removing the box one button at a time — DONE got the treatment
+   three separate times — which is why it kept coming back somewhere else. A
+   measured sweep found TWELVE elements still carrying it: undo, new game,
+   danger, round-summary continue, the settings cog, five secondaries, quit,
+   primary and the viewport toggle.
+
+   The box is two things, both from the shared .tron-fx machinery rather than
+   from any one button: a .tron-sweep CHILD that slides a filled gradient across
+   the element, and a 1px breathing OUTLINE from .tron-fx-breathe. Killing them
+   at the source is the fix; killing them per-button was the mistake.
+
+   What survives is the menu's language: the word, its text-shadow, and any
+   corner reticle. */
+.tron-sweep { display: none !important; }
+/* Cards keep their animation (they have their own shimmer work); they only
+   lose the outline. Everything else loses both, so no no-op loop is left
+   running for an outline that no longer paints. */
+.tron-fx-breathe:not(.card):not(.trick-card) {
+  outline: none !important;
+  animation: none !important;
+}
+.tron-fx-breathe.card,
+.tron-fx-breathe.trick-card { outline: none !important; }
+
+/* ============================================================
+   BLOCK RING + ENERGY DIAMOND
+   ============================================================
+   The bright arc on the left of the block circle was not the gauge — it was
+   .tron-perimeter, a conic "flow" sweep layered on top of it. At 0/8 the gauge
+   itself draws nothing, so the only thing left was that shine, which read as a
+   stray highlight on an empty ring. Off on both the ring and the diamond: what
+   is wanted is the ring, not a lens flare on it. */
+.block-circle.tron-perimeter::after,
+.energy-text.tron-perimeter::after { content: none !important; }
+
+/* The diamond's fill was one flat pass of silver, which is what made it read
+   as unfinished — a solid shape with a hard diagonal edge and nothing
+   happening inside it. It gets a texture: a fine diagonal weave over the fill
+   so it reads as charged material rather than paint, plus a brighter edge
+   where the fill ends. Static gradients, so nothing runs at rest. */
+.energy-text::before {
+  background-image:
+    repeating-linear-gradient(45deg,
+      rgba(255,255,255,0.10) 0 1px,
+      rgba(0,0,0,0.16) 1px 3px),
+    repeating-linear-gradient(-45deg,
+      rgba(255,255,255,0.05) 0 1px,
+      transparent 1px 4px);
+  background-blend-mode: overlay, normal;
+}
+
+/* ============================================================
    FORCED LANE LOCKOUT   (board design 05)
    ============================================================
    When an ability forces your next card into one lane, the other five are
