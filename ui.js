@@ -17421,23 +17421,32 @@ const UI = {
     // Invincible — a chamfered aegis sealed around the card. Board only: the
     // count only ticks while it is on the field, and in hand the shell would
     // read as a rarity treatment rather than a status.
-    const invincibleHtml = (card.invincibleTurns > 0 && !inHand)
+    // BOARD ONLY means exactly this, and !inHand is NOT it. makeCardEl is the
+    // renderer for every surface — draft, codex, inspect, deck builder — and
+    // those all pass inHand=false, so !inHand alone is true for most of them.
+    // The signal that a card is actually in a lane is the same one that adds
+    // .ally-card / .enemy-card a few lines above: a real side.
+    // This matters because Armor and Evade are INNATE. A draft card for a hero
+    // with Evade 1 genuinely has evadeCharges > 0, so gating on !inHand would
+    // paint the overlay across the draft screen and the codex.
+    const onBoard = !inHand && (side === 'ally' || side === 'enemy');
+    const invincibleHtml = (card.invincibleTurns > 0 && onBoard)
       ? '<div class="card-invincible" aria-hidden="true"></div>' : '';
     // The remaining four combat states. All BOARD ONLY, unlike frost/burn/fear:
     // those are things done TO a card and should read wherever it is drawn, but
     // these four are how a card behaves in a fight. Armor and Evade in
     // particular can be innate and would otherwise paint on every matching card
-    // sitting in your hand, where the badge already says so and an overlay is
-    // just noise. Each is gated independently rather than through the status-*
+    // sitting in your hand OR in the draft, where the badge already says so and
+    // an overlay is just noise. Each is gated independently rather than status-*
     // else-if chain, so a card with Armor AND Evade shows both — same as frost
     // and burn already stack.
-    const dmgImmuneHtml = (card.hasDamageImmunity && !inHand)
+    const dmgImmuneHtml = (card.hasDamageImmunity && onBoard)
       ? '<div class="card-dmg-immune" aria-hidden="true"></div>' : '';
-    const evadeHtml = (card.evadeCharges > 0 && !inHand)
+    const evadeHtml = (card.evadeCharges > 0 && onBoard)
       ? '<div class="card-evade" aria-hidden="true"></div>' : '';
-    const armorHtml = (card.armorValue > 0 && !inHand)
+    const armorHtml = (card.armorValue > 0 && onBoard)
       ? '<div class="card-armor" aria-hidden="true"></div>' : '';
-    const criticalHtml = (card._criticalThisRound && !inHand)
+    const criticalHtml = (card._criticalThisRound && onBoard)
       ? '<div class="card-critical" aria-hidden="true"></div>' : '';
     const portraitHtml = `<div class="card-portrait" style="${portraitStyle}"><div class="card-name-overlay">${card.name || ''}</div>${frostHtml}${burnHtml}${tauntHtml}${fearHtml}${mindHtml}${invincibleHtml}${dmgImmuneHtml}${evadeHtml}${armorHtml}${criticalHtml}</div>`;
     // [ CARD DATA ] divider was removed per user feedback — read as
@@ -20487,9 +20496,20 @@ const UI = {
           return;
         }
         d.moved = true;
-        if (d.card) Game.state.selectedCard = d.card;
+        // Ghost FIRST, then select, then render — the order is load-bearing.
+        // The ghost is cloned from the live hand element, and the render below
+        // rebuilds the hand, so cloning second would clone a detached node.
+        // Making it first also sets _draggingCardId, which is what the hand
+        // renderer re-applies 'card-being-dragged' from, so the dragged card
+        // stays dimmed across the render instead of snapping back to full
+        // brightness under the cursor.
         d.ghost = this._makeCardDragGhost(d.cardEl, t.clientX, t.clientY);
         document.body.classList.add('mobile-card-dragging');
+        // Selecting was already happening; RENDERING was not, which is why
+        // dragging never showed the combat prediction that clicking does. The
+        // previews are built in renderBoard from state.selectedCard, so setting
+        // it without a render left them unbuilt until the drop.
+        if (d.card) { Game.state.selectedCard = d.card; this.render(); }
         try { if (this._haptic) this._haptic('cardPlay'); } catch (_) {}
       }
       e.preventDefault();
@@ -20600,9 +20620,12 @@ const UI = {
       if (!d.moved) {
         if (Math.hypot(dx, dy) < DRAG_PX) return;   // still a click, not a drag
         d.moved = true;
-        if (d.card) Game.state.selectedCard = d.card;
+        // Same ordering as the touch path above, for the same reasons: clone
+        // the ghost off the live element before the render replaces it, then
+        // select and render so the lane previews actually get built.
         d.ghost = this._makeCardDragGhost(d.cardEl, e.clientX, e.clientY);
         document.body.classList.add('mobile-card-dragging');
+        if (d.card) { Game.state.selectedCard = d.card; this.render(); }
       }
       // THE BUTTON CAME UP SOMEWHERE WE NEVER HEARD ABOUT.
       // This whole drag is torn down by exactly one thing: a mouseup that
