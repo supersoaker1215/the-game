@@ -33937,6 +33937,159 @@ body.low-fx .card-mind-ctrl::after { animation: none !important; }
   .card-invincible::after { animation: none !important; }
 }
 body.low-fx .card-invincible::after { animation: none !important; }
+
+/* ============================================================
+   DAMAGE IMMUNITY FX — the hit does not land at all
+   ============================================================
+   Deliberately not a second aegis. Invincible ABSORBS a lethal hit, so it is
+   a shell hugging the perimeter; this REFUSES damage outright, so it reads as
+   a field filling the whole surface. Three gradient axes 60 degrees apart tile
+   into the hex lattice a force field is always drawn with, and full-surface is
+   the one direction the family had not spent (frost runs diagonal, burn rises,
+   taunt contracts, fear gathers at the corners, invincible hugs the edge). */
+.card-dmg-immune {
+  position: absolute; inset: 0;
+  pointer-events: none; border-radius: inherit;
+  z-index: 4; overflow: hidden;
+  background: radial-gradient(120% 96% at 50% 50%, rgba(211,84,0,0) 42%,
+              rgba(211,84,0,0.16) 78%, rgba(255,140,50,0.26) 100%);
+  mix-blend-mode: screen;
+  box-shadow: inset 0 0 0 1px rgba(255,150,60,0.40), inset 0 0 22px rgba(211,84,0,0.28);
+  -webkit-mask-image: linear-gradient(180deg,#000 0%,#000 80%,rgba(0,0,0,0.5) 92%,rgba(0,0,0,0) 100%);
+          mask-image: linear-gradient(180deg,#000 0%,#000 80%,rgba(0,0,0,0.5) 92%,rgba(0,0,0,0) 100%);
+}
+.card-dmg-immune::before {
+  content: ""; position: absolute; inset: 0; border-radius: inherit;
+  --l: rgba(255,160,70,0.17);
+  background:
+    repeating-linear-gradient(60deg,  transparent 0 13px, var(--l) 13px 14px),
+    repeating-linear-gradient(-60deg, transparent 0 13px, var(--l) 13px 14px),
+    repeating-linear-gradient(0deg,   transparent 0 13px, var(--l) 13px 14px);
+  mix-blend-mode: screen;
+}
+/* ONE loop, opacity only — the field energised, not strobing. */
+.card-dmg-immune::after {
+  content: ""; position: absolute; inset: 0; border-radius: inherit;
+  box-shadow: inset 0 0 0 1.5px rgba(255,170,80,0.68), inset 0 0 16px rgba(255,120,30,0.38);
+  animation: fieldHold 3.1s ease-in-out infinite;
+}
+@keyframes fieldHold { 0%, 100% { opacity: 0.38; } 50% { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .card-dmg-immune::after { animation: none !important; } }
+body.low-fx .card-dmg-immune::after { animation: none !important; }
+
+/* ============================================================
+   EVADE FX — the card is already half somewhere else
+   ============================================================
+   Lateral displacement, which nothing else in the family uses. The weight sits
+   on the LEFT AND RIGHT edges rather than anywhere central, so the card reads
+   as mid-sidestep instead of merely glowing green. */
+.card-evade {
+  position: absolute; inset: 0;
+  pointer-events: none; border-radius: inherit;
+  z-index: 4; overflow: hidden;
+  background:
+    linear-gradient(90deg,  rgba(46,204,113,0.24) 0%, rgba(46,204,113,0) 22%),
+    linear-gradient(270deg, rgba(46,204,113,0.24) 0%, rgba(46,204,113,0) 22%);
+  mix-blend-mode: screen;
+  box-shadow: inset 0 0 0 1px rgba(90,230,150,0.30);
+  -webkit-mask-image: linear-gradient(180deg,#000 0%,#000 78%,rgba(0,0,0,0.45) 92%,rgba(0,0,0,0) 100%);
+          mask-image: linear-gradient(180deg,#000 0%,#000 78%,rgba(0,0,0,0.45) 92%,rgba(0,0,0,0) 100%);
+}
+/* The afterimage it leaves slipping the hit. */
+.card-evade::before {
+  content: ""; position: absolute; inset: 0; border-radius: inherit;
+  background: repeating-linear-gradient(90deg, transparent 0 6px, rgba(120,255,180,0.11) 6px 7px);
+  mix-blend-mode: screen;
+}
+/* ONE loop, transform + opacity only so it stays on the compositor. */
+.card-evade::after {
+  content: ""; position: absolute; inset: 0; border-radius: inherit;
+  background: linear-gradient(90deg, transparent 0%, rgba(150,255,200,0.18) 45%, transparent 90%);
+  mix-blend-mode: screen;
+  animation: evadeSlip 2.6s ease-in-out infinite;
+}
+@keyframes evadeSlip {
+  0%, 100% { transform: translateX(-13%); opacity: 0.25; }
+  50%      { transform: translateX(13%);  opacity: 0.72; }
+}
+@media (prefers-reduced-motion: reduce) { .card-evade::after { animation: none !important; } }
+body.low-fx .card-evade::after { animation: none !important; }
+
+/* ============================================================
+   ARMOR FX — plating, and the quietest member on purpose
+   ============================================================
+   Armor is COMMON and passive: a card can carry it from turn one to the end of
+   the match, and several can carry it at once. So this gets banding and a rim
+   and no wash at all. If every armoured card had a dramatic overlay the truly
+   dramatic states would stop reading as dramatic — the family only works if
+   its weights are graded. Horizontal banding is also the last axis left. */
+.card-armor {
+  position: absolute; inset: 0;
+  pointer-events: none; border-radius: inherit;
+  z-index: 4; overflow: hidden;
+  box-shadow: inset 0 0 0 1px rgba(205,170,110,0.32), inset 0 0 14px rgba(205,170,110,0.13);
+  -webkit-mask-image: linear-gradient(180deg,#000 0%,#000 78%,rgba(0,0,0,0.4) 92%,rgba(0,0,0,0) 100%);
+          mask-image: linear-gradient(180deg,#000 0%,#000 78%,rgba(0,0,0,0.4) 92%,rgba(0,0,0,0) 100%);
+}
+/* Plate strips — a bright top edge and a dark under-edge read as bevelled. */
+.card-armor::before {
+  content: ""; position: absolute; inset: 0; border-radius: inherit;
+  background: repeating-linear-gradient(180deg,
+    rgba(228,200,150,0.15) 0 1px,
+    rgba(120,95,55,0.09)   1px 2px,
+    transparent            2px 17px);
+  mix-blend-mode: screen;
+}
+/* ONE loop — a sheen travelling down the plates. transform only. */
+.card-armor::after {
+  content: ""; position: absolute; left: 0; right: 0; top: -40%; height: 40%;
+  background: linear-gradient(180deg, transparent, rgba(255,235,190,0.15), transparent);
+  mix-blend-mode: screen;
+  animation: armorSheen 4.2s linear infinite;
+}
+@keyframes armorSheen { 0% { transform: translateY(0); } 100% { transform: translateY(350%); } }
+@media (prefers-reduced-motion: reduce) { .card-armor::after { animation: none !important; } }
+body.low-fx .card-armor::after { animation: none !important; }
+
+/* ============================================================
+   CRITICAL FX — charged to hit for double
+   ============================================================
+   The only OFFENSIVE member of the family, so it is the only one that radiates
+   OUTWARD from the centre. Fear gathers inward, taunt contracts inward — this
+   is the opposite vector, and it should be, because the threat is leaving the
+   card rather than closing on it. Lasts one round, so it is allowed to be the
+   fastest loop here. */
+.card-critical {
+  position: absolute; inset: 0;
+  pointer-events: none; border-radius: inherit;
+  z-index: 4; overflow: hidden;
+  background: radial-gradient(72% 58% at 50% 50%, rgba(255,105,180,0.28) 0%,
+              rgba(255,60,140,0.11) 46%, rgba(255,20,120,0) 78%);
+  mix-blend-mode: screen;
+  box-shadow: inset 0 0 0 1px rgba(255,120,190,0.42), inset 0 0 24px rgba(255,40,130,0.24);
+  -webkit-mask-image: linear-gradient(180deg,#000 0%,#000 80%,rgba(0,0,0,0.5) 92%,rgba(0,0,0,0) 100%);
+          mask-image: linear-gradient(180deg,#000 0%,#000 80%,rgba(0,0,0,0.5) 92%,rgba(0,0,0,0) 100%);
+}
+/* Charge spokes firing out of the centre. */
+.card-critical::before {
+  content: ""; position: absolute; inset: 0; border-radius: inherit;
+  background: repeating-conic-gradient(from 0deg at 50% 50%,
+    rgba(255,140,200,0.18) 0deg 5deg, transparent 5deg 30deg);
+  mix-blend-mode: screen;
+}
+/* ONE loop — the charge swelling. transform + opacity, compositor only. */
+.card-critical::after {
+  content: ""; position: absolute; inset: 0; border-radius: inherit;
+  background: radial-gradient(closest-side, rgba(255,150,210,0.32) 0%, rgba(255,60,140,0) 72%);
+  mix-blend-mode: screen;
+  animation: critCharge 1.5s ease-in-out infinite;
+}
+@keyframes critCharge {
+  0%, 100% { transform: scale(0.86); opacity: 0.35; }
+  50%      { transform: scale(1.06); opacity: 0.88; }
+}
+@media (prefers-reduced-motion: reduce) { .card-critical::after { animation: none !important; } }
+body.low-fx .card-critical::after { animation: none !important; }
 /* Ignite burst — flame flares up over the card the instant it catches. */
 .fx-burn-ignite {
   position: fixed;

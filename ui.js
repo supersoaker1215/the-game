@@ -17423,7 +17423,23 @@ const UI = {
     // read as a rarity treatment rather than a status.
     const invincibleHtml = (card.invincibleTurns > 0 && !inHand)
       ? '<div class="card-invincible" aria-hidden="true"></div>' : '';
-    const portraitHtml = `<div class="card-portrait" style="${portraitStyle}"><div class="card-name-overlay">${card.name || ''}</div>${frostHtml}${burnHtml}${tauntHtml}${fearHtml}${mindHtml}${invincibleHtml}</div>`;
+    // The remaining four combat states. All BOARD ONLY, unlike frost/burn/fear:
+    // those are things done TO a card and should read wherever it is drawn, but
+    // these four are how a card behaves in a fight. Armor and Evade in
+    // particular can be innate and would otherwise paint on every matching card
+    // sitting in your hand, where the badge already says so and an overlay is
+    // just noise. Each is gated independently rather than through the status-*
+    // else-if chain, so a card with Armor AND Evade shows both — same as frost
+    // and burn already stack.
+    const dmgImmuneHtml = (card.hasDamageImmunity && !inHand)
+      ? '<div class="card-dmg-immune" aria-hidden="true"></div>' : '';
+    const evadeHtml = (card.evadeCharges > 0 && !inHand)
+      ? '<div class="card-evade" aria-hidden="true"></div>' : '';
+    const armorHtml = (card.armorValue > 0 && !inHand)
+      ? '<div class="card-armor" aria-hidden="true"></div>' : '';
+    const criticalHtml = (card._criticalThisRound && !inHand)
+      ? '<div class="card-critical" aria-hidden="true"></div>' : '';
+    const portraitHtml = `<div class="card-portrait" style="${portraitStyle}"><div class="card-name-overlay">${card.name || ''}</div>${frostHtml}${burnHtml}${tauntHtml}${fearHtml}${mindHtml}${invincibleHtml}${dmgImmuneHtml}${evadeHtml}${armorHtml}${criticalHtml}</div>`;
     // [ CARD DATA ] divider was removed per user feedback — read as
     // distracting, didn't add information beyond the visual gap that
     // already exists between the portrait and the desc text. The
