@@ -37499,32 +37499,29 @@ body.low-fx .card-frost::after {
 /* ============================================================
    ENERGY DIAMOND — the shape is the gauge
    ============================================================
-   It was a bare number in an outline, with NO MAXIMUM anywhere on screen, so
-   "4" could have been 4 of 8 or 4 of anything. The silhouette is unchanged —
-   this is the least disruptive way to add the missing half of the reading —
-   but it now fills from the bottom like a tank, driven by --nrg-fill written
-   once per render in renderEnergyOrbs. Static: a plain height, so nothing
-   repaints between changes. */
-.energy-display {
-  position: relative;
-  --nrg-fill: 0%;
-}
-.energy-text {
-  position: relative;
-  overflow: hidden;
-  z-index: 1;
-}
+   It was a bare number with NO MAXIMUM anywhere on screen, so "4" could have
+   been 4 of 8 or 4 of anything. The diamond now fills like a tank.
+
+   BOTH PSEUDO-ELEMENTS WERE ALREADY TAKEN, and I burned an attempt on each
+   before checking: ::before IS the diamond backdrop (inset 4px, rotated 45deg,
+   gold border, black interior) — overriding it deleted the diamond and left a
+   grey rectangle. ::after belongs to .tron-perimeter, which .energy-text also
+   carries, so a rule there lost the cascade and painted nothing at all.
+
+   So the fill is layered ONTO the existing diamond instead of claiming an
+   element. Setting background-IMAGE only leaves the shorthand's
+   background-color: #000 intact underneath, so the plate, the border and the
+   rotation are all untouched and the gradient simply paints over the black.
+
+   -45deg because the element is rotated +45deg: the two cancel and the fill
+   line reads horizontal on screen rather than running diagonally across the
+   diamond, which was the other half of why the first attempt looked wrong. */
+.energy-display { --nrg-fill: 0%; }
 .energy-text::before {
-  content: "";
-  position: absolute;
-  left: 0; right: 0; bottom: 0;
-  height: var(--nrg-fill);
-  background: linear-gradient(0deg,
-    rgba(var(--theme-rgb, 79,195,247), 0.85),
-    rgba(var(--theme-rgb, 79,195,247), 0.22));
-  pointer-events: none;
-  z-index: -1;
-  transition: height 240ms var(--ease-out-soft, cubic-bezier(0.16,1,0.3,1));
+  background-image: linear-gradient(-45deg,
+    rgba(var(--theme-rgb, 79,195,247), 0.50) 0 var(--nrg-fill),
+    rgba(0,0,0,0) var(--nrg-fill) 100%);
+  transition: background-image 240ms var(--ease-out-soft, cubic-bezier(0.16,1,0.3,1));
 }
 @media (prefers-reduced-motion: reduce) {
   .energy-text::before { transition: none; }
