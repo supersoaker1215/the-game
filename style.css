@@ -1048,15 +1048,40 @@ body.turn-combat::before { background: linear-gradient(to bottom, rgba(255,215,0
   --fill: 0%;
   width: 44px; height: 44px; border-radius: 50%;
   position: relative;
-  background: #000000;
+  /* THE RING IS THE METER. --fill was already being written on every render as
+     a percentage and only the .full state ever drew a conic-gradient, so at 6/8
+     the circle looked identical to 0/8 and the two digits inside were carrying
+     the entire signal. Now the ring itself fills round, and the number confirms
+     rather than announces. from -90deg starts it at twelve o'clock. */
+  background:
+    conic-gradient(from -90deg,
+      rgba(255,215,0,0.95) 0 var(--fill),
+      rgba(255,215,0,0.10) var(--fill) 100%);
   border: 1px solid rgba(255,215,0,0.95);
   box-shadow: 0 0 12px rgba(255,215,0,0.60), 0 0 24px rgba(255,215,0,0.25);
   transition: border-color 240ms, box-shadow 240ms, background 240ms;
   display: flex; align-items: center; justify-content: center;
 }
-.block-circle-label { display: none; }
+/* Punches the middle out so the conic paints a RING, not a pie. */
+.block-circle::after {
+  content: "";
+  position: absolute; inset: 4px;
+  border-radius: 50%;
+  background: #000;
+}
+/* The label was in the markup and switched off. With the ring carrying the
+   value, there is room for the word — and without it the circle never said
+   what it measured. */
+.block-circle-label {
+  display: block;
+  position: absolute; left: 0; right: 0; bottom: -11px;
+  z-index: 2;
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 6.5px; letter-spacing: 0.16em; text-align: center;
+  color: rgba(255,215,0,0.55);
+}
 .block-circle-value {
-  position: relative; z-index: 1;
+  position: relative; z-index: 2;
   font-family: 'Rajdhani', sans-serif;
   font-size: 12px; font-weight: 700; letter-spacing: 0.3px;
   color: var(--text-hi, #f5fbff);
@@ -30851,6 +30876,23 @@ body.round-tick .board::after {
    are switched off HERE only — the classes stay on every other button.
    What is left is a glow: text-shadow on the word and the corner reticle,
    exactly how the main menu's options read. */
+/* UNDO stops being a bordered box beside DONE — the last boxed control in the
+   bar, competing with DONE for weight despite being the lesser action. An arrow
+   and the count, in the quiet tone, so DONE is unmistakably primary. */
+#btn-undo.btn {
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+  padding: 9px 8px;
+  min-height: 44px;
+  display: inline-flex; align-items: center; gap: 4px;
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 10px; font-weight: 700; letter-spacing: 0.12em;
+  color: var(--text-dim, #8d9cad);
+  transition: color 0.15s;
+}
+#btn-undo.btn:hover { color: var(--text-hi, #e6edf4); }
+#btn-undo .undo-arrow { width: 13px; height: 13px; flex: none; }
 #btn-action.btn-primary {
   outline: none;
   animation: none;
@@ -37453,6 +37495,40 @@ body.low-fx .card-frost::after {
   color: rgba(79,195,247,0.55);
 }
 
+
+/* ============================================================
+   ENERGY DIAMOND — the shape is the gauge
+   ============================================================
+   It was a bare number in an outline, with NO MAXIMUM anywhere on screen, so
+   "4" could have been 4 of 8 or 4 of anything. The silhouette is unchanged —
+   this is the least disruptive way to add the missing half of the reading —
+   but it now fills from the bottom like a tank, driven by --nrg-fill written
+   once per render in renderEnergyOrbs. Static: a plain height, so nothing
+   repaints between changes. */
+.energy-display {
+  position: relative;
+  --nrg-fill: 0%;
+}
+.energy-text {
+  position: relative;
+  overflow: hidden;
+  z-index: 1;
+}
+.energy-text::before {
+  content: "";
+  position: absolute;
+  left: 0; right: 0; bottom: 0;
+  height: var(--nrg-fill);
+  background: linear-gradient(0deg,
+    rgba(var(--theme-rgb, 79,195,247), 0.85),
+    rgba(var(--theme-rgb, 79,195,247), 0.22));
+  pointer-events: none;
+  z-index: -1;
+  transition: height 240ms var(--ease-out-soft, cubic-bezier(0.16,1,0.3,1));
+}
+@media (prefers-reduced-motion: reduce) {
+  .energy-text::before { transition: none; }
+}
 
 /* ============================================================
    CENTRE BAR CELL

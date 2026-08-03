@@ -5885,6 +5885,12 @@ const UI = {
     // The previous innerHTML rebuild destroyed the element on every
     // single render, which restarted any infinite animations on it.
     // By updating textContent in place, the same DOM node persists.
+    // Feed the diamond gauge. One property, written only here — on the renders
+    // where energy is recomputed — so the fill has nothing running between
+    // changes. max can be 0 early in a match; guard rather than divide by it.
+    const _frac = max > 0 ? Math.max(0, Math.min(1, current / max)) : 0;
+    el.style.setProperty('--nrg-fill', (_frac * 100).toFixed(1) + '%');
+
     let span = el.querySelector('.energy-text');
     if (!span) {
       // First paint — create the element once. All subsequent calls
@@ -19204,10 +19210,22 @@ const UI = {
     const undoAllowed = !(Game.isMultiplayer && Game.isMultiplayer());
 
     if (btnU && undoAllowed && Game.isPlayerTurn() && Game.history.length > 0 && !abilityPending) {
-      btnU.textContent = `Undo (${Game.history.length})`;
+      // Arrow + count, not "Undo (N)". innerHTML rather than textContent because
+      // the glyph is an inline SVG; the count is the only part that changes, but
+      // rebuilding both is cheap and keeps this one line the single writer.
+      btnU.innerHTML =
+        '<svg class="undo-arrow" viewBox="0 0 16 16" fill="none" stroke="currentColor" '
+        + 'stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
+        + '<path d="M3 8h7a3 3 0 0 1 0 6H7"/><path d="M6 5 3 8l3 3"/></svg>'
+        + '<span>' + Game.history.length + '</span>';
+      btnU.setAttribute('aria-label', 'Undo (' + Game.history.length + ' available)');
+      btnU.title = 'Undo';
       btnU.className = 'btn btn-secondary';
       btnU.onclick = () => Game.undo();
-      btnU.style.display = 'inline-block';
+      // inline-FLEX, not inline-block: this inline style beats the stylesheet, so
+      // setting it to inline-block here would silently undo the flex alignment
+      // that puts the arrow and the count on one baseline.
+      btnU.style.display = 'inline-flex';
       btnU.disabled = false;
       btnU.style.opacity = '';
     }
