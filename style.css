@@ -21614,6 +21614,10 @@ body.combat-anticipate .board {
 /* Container that establishes the 3D context for all child cubes. JS
    creates one container per dying card, sized to match the card's
    bounding rect. */
+/* The derez had a prefers-reduced-motion gate and no low-fx one, so the
+   explicit low-power toggle still paid for 30 perspective-transformed nodes on
+   every death — the same inversion the scanline drift had. */
+body.low-fx .tron-derez { display: none !important; }
 .tron-derez {
   position: fixed;
   pointer-events: none;
@@ -29513,15 +29517,35 @@ body > .grid-bg {
    existing perspective for a real "I'm in this room" feel.
    The actual transform values are JS-driven via CSS vars
    --cam-tx (-1..1) / --cam-ty (-1..1), set by installCameraParallax(). */
-#game-area {
-  /* `transform` here composes with the parent perspective —
-     since we're a 3D context, this rotation becomes a real
-     camera pivot, not a 2D rotation. Magnitudes are tiny
-     (±2°) so the playfield doesn't feel seasick. */
+/* MOVED DOWN ONE ELEMENT, and that move IS the fix.
+   The comment that used to sit here said this transform "composes with the
+   parent perspective". It did not. perspective projects an element's CHILDREN,
+   never the element's own transform. #game-area declares perspective: 1500px
+   and then rotated ITSELF, so its rotation was projected by whatever its
+   ANCESTORS declare — and body and html both compute to perspective: none.
+   The camera pivot was therefore a flat 2-degree rotation.
+
+   Measured before the change: driving --cam-tx/--cam-ty from centre to hard
+   corner moved the board by 0.86px and changed its width by 0.08px, on a
+   1053px-wide board. That is not a lean, it is nothing.
+
+   .board-section is a CHILD of #game-area, so the identical values now pass
+   through the 1500px projection and become a real camera pivot. Nothing else
+   changes: the vars are still written by installCameraParallax, which already
+   gates itself on reduced-motion, fine-pointer and low-fx. */
+.board-section {
   transform: rotateY(calc(var(--cam-tx, 0) * 2deg))
              rotateX(calc(var(--cam-ty, 0) * -1.5deg));
   transform-origin: center bottom;
   transition: transform 200ms var(--ease-out-soft);
+}
+/* The CSS half of the low-fx gate did not exist for the board. #game-area had
+   one; .board-section did not, so moving the transform would have moved it out
+   of cover. The reduced-motion reset further down already names .board-section,
+   so that half was fine. */
+body.low-fx .board-section {
+  transform: none !important;
+  transition: none !important;
 }
 
 /* #9 — PARTICLES IN TRUE 3D SPACE

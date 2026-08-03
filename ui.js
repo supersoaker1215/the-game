@@ -21563,7 +21563,15 @@ const UI = {
     beam.style.top  = ay + 'px';
     beam.style.width = len + 'px';
     beam.style.transform = `rotate(${angle}deg)`;
-    document.body.appendChild(beam);
+    // Into the signature layer, not document.body — and the reason is the
+    // combat pacing, not tidiness. UI.activeFxTailMs scopes its scan to a fixed
+    // set of containers, and #signature-fx-layer is one of them while body is
+    // not. Appended to body the beam was invisible to the tail measurement, so
+    // the per-lane combat gate — which is supposed to hold the next lane until
+    // this lane's audio AND visuals finish — did not count the one visual that
+    // actually shows the attack landing. The layer is position:fixed inset:0,
+    // so the beam's viewport coordinates resolve identically.
+    this._fxLayer().appendChild(beam);
     setTimeout(() => beam.remove(), 420);
   },
 
@@ -24010,11 +24018,15 @@ const UI = {
     this._cameraParallaxInstalled = true;
     if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
     if (!this._hasFinePointer()) return;  // mouse-driven camera pivot; touch would lock the tilt at the tap point
-    // THE flicker source on weak GPUs: this rewrites the transform of
-    // #game-area — the perspective root containing the entire scene — on
-    // every mouse move, forcing a full re-raster each frame. Never install
-    // it in low-fx mode. (CSS also pins #game-area to transform:none there,
-    // so even a stale var can't take effect.)
+    // THE flicker source on weak GPUs: this drives the transform of the board
+    // on every mouse move, forcing a re-raster each frame. Never install it in
+    // low-fx mode. (CSS also pins the board to transform:none there, so even a
+    // stale var cannot take effect.)
+    // The vars are still WRITTEN to #game-area — they inherit — but the
+    // transform that consumes them now lives on .board-section. It has to:
+    // perspective projects an element's children, not its own transform, so
+    // rotating #game-area, which declares the perspective, produced a flat
+    // rotation worth 0.86px of movement. See the note in style.css.
     if (this.isLowFx()) return;
     const ga = document.getElementById('game-area');
     if (!ga) return;
@@ -24024,6 +24036,13 @@ const UI = {
       rafScheduled = false;
       ga.style.setProperty('--cam-tx', nextX.toFixed(3));
       ga.style.setProperty('--cam-ty', nextY.toFixed(3));
+      // The board just moved, so anything caching its rect is now stale.
+      // Deliberately called from HERE rather than from the mousemove handler:
+      // this flush is already rAF-throttled, so the rect is recomputed at most
+      // once per frame instead of once per event. That distinction is the whole
+      // point of the cache — the original bug was a layout read on every one of
+      // 60-120 events per second, and one read per frame is not that.
+      if (UI._invalidateBoardRect) UI._invalidateBoardRect();
     };
     document.addEventListener('mousemove', (e) => {
       // Re-checked per event, not just at install time: the runtime frame
@@ -24409,6 +24428,14 @@ const UI = {
       return cachedRect;
     };
     const invalidateRect = () => { cachedRect = null; };
+    // Published so the camera can drop it. The board's rect is no longer
+    // static: the camera lean now really transforms .board-section, and a
+    // rotated element's getBoundingClientRect is the axis-aligned box of the
+    // TRANSFORMED geometry — measured at 1053px wide flat and 1063.8px at full
+    // lean. A rect cached before the lean puts the light ~11px off the cursor
+    // and never recovers, which is the same class of bug the cache was added
+    // to fix, arriving from the other direction.
+    this._invalidateBoardRect = invalidateRect;
     window.addEventListener('resize', invalidateRect, { passive: true });
     window.addEventListener('scroll', invalidateRect, { passive: true });
     const flush = () => {
