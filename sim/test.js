@@ -1681,6 +1681,65 @@ test('face-down cards cannot be damaged, debuffed, statused or moved', function 
 });
 
 // ============================================================
+// ---- ATK SUPPRESSION vs CRAZY -------------------------------
+// ============================================================
+// Reported 2026-08-02: "i played gojo on hela she had crazy, moved her to lane
+// 2, she had 0 attack, then the thing got crazy and hela went back to 5 attack".
+// Gojo removes all ATK for a turn by snapshotting the stat and pinning it to 0.
+// The Crazy stamp moving to another card ran a blind `attack = _preCrazyAttack`,
+// which un-suppressed her early AND left Gojo holding a stale restore value.
+
+test('Crazy un-stamp does not break Gojo ATK suppression', function () {
+  var G = freshGame();
+  var v = place(G, 'Hela', 'ai', 1);
+  v.attack = 5;
+  // Gojo's suppression, exactly as his onPlay writes it.
+  v._gojoAttackZeroed = v.attack;
+  v._gojoZeroedBy = 'gojo-test';
+  v.attack = 0;
+  // Now Crazy is applied and then stripped, as the stamp moving would do.
+  v.isCrazy = true; v._crazyAppliedBy = true; v._preCrazyAttack = 5;
+  G.setTrueAttack(v, v._preCrazyAttack);
+  assertEq(v.attack, 0, 'stays at 0 while Gojo suppression is active');
+  assertEq(v._gojoAttackZeroed, 5, 'the restore value lands in Gojo\'s snapshot');
+});
+
+test('Gojo expiry restores the value Crazy left behind, not a stale one', function () {
+  var G = freshGame();
+  var v = place(G, 'Hela', 'ai', 1);
+  v.attack = 5;
+  v._gojoAttackZeroed = v.attack; v._gojoZeroedBy = 'gojo-test'; v.attack = 0;
+  // Crazy rolls a 3 while suppressed — it must be banked, not shown.
+  G.setTrueAttack(v, 3);
+  assertEq(v.attack, 0, 'a Crazy roll cannot un-suppress the card');
+  // Suppression lifts (Gojo's own restore).
+  v.attack = v._gojoAttackZeroed;
+  delete v._gojoAttackZeroed; delete v._gojoZeroedBy;
+  assertEq(v.attack, 3, 'expiry restores the banked roll, not the pre-Crazy 5');
+});
+
+test('setTrueAttack writes the live stat when nothing suppresses it', function () {
+  var G = freshGame();
+  var v = place(G, 'Hela', 'ai', 1);
+  v.attack = 5;
+  var changed = G.setTrueAttack(v, 2);
+  assertEq(v.attack, 2, 'unsuppressed card takes the value directly');
+  assertEq(changed, true, 'reports that the live stat changed');
+  assertEq(G.setTrueAttack(v, NaN), false, 'a non-finite value is refused');
+  assertEq(v.attack, 2, 'and leaves the stat alone');
+});
+
+test('Obi-Wan suppression is respected the same way as Gojo', function () {
+  var G = freshGame();
+  var v = place(G, 'Hela', 'ai', 1);
+  v.attack = 5;
+  v._obiWanAttackZeroed = v.attack; v.attack = 0;
+  G.setTrueAttack(v, 4);
+  assertEq(v.attack, 0, 'stays suppressed');
+  assertEq(v._obiWanAttackZeroed, 4, 'banked into Obi-Wan\'s snapshot');
+});
+
+// ============================================================
 // ---- RUNNER ------------------------------------------------
 // ============================================================
 

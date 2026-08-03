@@ -2503,9 +2503,8 @@ const CARD_ABILITIES = {
           c.isCrazy = false;
           delete c._crazyAppliedBy;
           const restoreTo = (c._preCrazyAttack != null) ? c._preCrazyAttack : (c.baseAttack || c.attack);
-          if (typeof restoreTo === 'number' && restoreTo !== c.attack) {
-            const wasAtk = c.attack;
-            c.attack = restoreTo;
+          const wasAtk = c.attack;
+          if (G.setTrueAttack(c, restoreTo)) {
             G.log(`  [CRAZY] ${c.name} is no longer Crazy — ATK restored ${wasAtk} → ${restoreTo}.`);
           } else {
             G.log(`  [CRAZY] ${c.name} is no longer Crazy — Joker is gone.`);
@@ -2537,7 +2536,7 @@ const CARD_ABILITIES = {
           c.isCrazy = false;
           delete c._crazyAppliedBy;
           const restoreTo = (c._preCrazyAttack != null) ? c._preCrazyAttack : (c.baseAttack || c.attack);
-          if (typeof restoreTo === 'number' && restoreTo !== c.attack) c.attack = restoreTo;
+          G.setTrueAttack(c, restoreTo);
           delete c._preCrazyAttack;
           delete c._lastCrazyRoll;
           G.log(`  [CRAZY] The stamp moves on — ${c.name} recovers.`);

@@ -8492,12 +8492,12 @@ const Game = {
           card.isCrazy = false;
           delete card._crazyAppliedBy;
           const restoreTo = (card._preCrazyAttack != null) ? card._preCrazyAttack : (card.baseAttack || 0);
-          if (typeof restoreTo === 'number') card.attack = restoreTo;
+          this.setTrueAttack(card, restoreTo);
           delete card._preCrazyAttack;
           card._lastCrazyRoll = null;
           this.log(`  [CRAZY] Fear shatters the Crazy stamp on ${card.name}.`);
         } else {
-          card.attack = card.baseAttack || 0;
+          this.setTrueAttack(card, card.baseAttack || 0);
           card._lastCrazyRoll = null;
         }
       }
@@ -9800,13 +9800,16 @@ const Game = {
       // hasSteady drops to 0, Crazy rerolls resume normally.
       if (card.hasSteady > 0) {
         card.hasSteady--;
-        card.attack = card.baseAttack || card.attack;
+        this.setTrueAttack(card, card.baseAttack || card.attack);
         const left = card.hasSteady;
         this.log(`  [STEADY] ${card.name} negates Crazy reroll (${left} charge${left === 1 ? '' : 's'} left)`);
         return;
       }
       let r; do { r = 1 + Math.floor(this.rng() * 4); } while (r === card._lastCrazyRoll);
-      card._lastCrazyRoll = r; card.attack = r;
+      // Through setTrueAttack: a Crazy card that Gojo has zeroed must stay at 0
+      // for the duration, with the roll landing in Gojo's snapshot so it is
+      // what comes back when the suppression lifts.
+      card._lastCrazyRoll = r; this.setTrueAttack(card, r);
       this.log(`  [CRAZY] ${card.name} rolls ATK ${before} → ${r}`);
     }
   },
@@ -9814,6 +9817,34 @@ const Game = {
   // per-round re-roll sweeps re-roll its ATK 1-4, and rolls once
   // immediately so the new attack value shows this turn. Used by
   // Joker to CRAZY the highest-attack enemy.
+  // Write a card's REAL attack while respecting any active ATK suppression.
+  //
+  // Two abilities suppress attack by the same mechanism: Gojo ("remove all ATK
+  // for 1 turn") and Obi-Wan (zeroed for the combat phase). Both snapshot the
+  // card's attack into a private field and pin the live stat to 0 until they
+  // expire, at which point they write the snapshot back.
+  //
+  // Anything else that wants to change the card's real attack DURING that
+  // window must write into the snapshot, not the live stat. Writing the live
+  // stat does two wrong things at once: it un-suppresses the card early, and
+  // it leaves the suppressor holding a stale value that it restores on expiry.
+  //
+  // Bug this fixes (reported 2026-08-02): Gojo zeroed Hela and snapshotted her
+  // 5. The Crazy stamp then moved to another card, and the un-stamp restored
+  // Hela's pre-Crazy attack with a blind assignment — so she was back to 5 ATK
+  // while Gojo's effect was still supposed to be holding her at 0.
+  //
+  // Returns true if the LIVE stat changed, so callers can log accurately.
+  setTrueAttack(card, value) {
+    if (!card || typeof value !== 'number' || !Number.isFinite(value)) return false;
+    let suppressed = false;
+    if (card._gojoAttackZeroed   !== undefined) { card._gojoAttackZeroed   = value; suppressed = true; }
+    if (card._obiWanAttackZeroed !== undefined) { card._obiWanAttackZeroed = value; suppressed = true; }
+    if (suppressed) return false;   // the suppressor owns the live stat
+    card.attack = value;
+    return true;
+  },
+
   applyCrazyToCard(card) {
     if (!card || card.isCrazy || card.currentHealth <= 0) return;
     // Feared cards can't ALSO be Crazy. User direction (cross-mode):
