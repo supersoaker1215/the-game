@@ -15679,6 +15679,7 @@ const UI = {
       ut: !!card.isUntrickable,
       fks: !!card._freddySlashing,
       crit: !!card._criticalThisRound, burn: !!card.isBurning,
+      ma: !!card._mastersApprentice,
       brl: card._bullseyeRoundsLeft | 0, ds: card._debuffStacks | 0,
       // Predictor + projected XP fields — keep last so they're visible
       // in the data-snap attr for debugging.
@@ -18168,6 +18169,7 @@ const UI = {
     // afford to look up instead of the ones you need right now.
     const t = [];
     // Stack-aware status badges — counters drive these.
+    if (c._mastersApprentice) t.push(badge('badge-apprentice', 'Apprentice', "Master's Apprentice"));
     if (c._criticalThisRound) t.push(badge('badge-critical', 'CRITICAL', 'Critical — deals double damage this round'));
     if (c.isBurning) t.push(badge('badge-burning', 'Burning', 'Burning'));
     if (c.isStunned) {
@@ -18288,6 +18290,9 @@ const UI = {
     'Fear':        { color: '#5a5a5a', svg: '<svg viewBox="0 0 12 12"><circle cx="4" cy="5" r="1" fill="currentColor"/><circle cx="8" cy="5" r="1" fill="currentColor"/><path d="M3 9 Q6 7 9 9" stroke="currentColor" stroke-width="1.2" fill="none"/></svg>', tip: 'Attacks itself instead of the enemy.' },
     'Parlay':      { color: '#d4ac6e', svg: '<svg viewBox="0 0 12 12"><path d="M3.5 1.5 V10.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/><path d="M3.5 2 H9.5 L8 4 L9.5 6 H3.5 Z" fill="currentColor"/></svg>', tip: 'Singled out by Jack Sparrow — this card cannot attack this round.' },
     'Steady':      { color: '#16a085', svg: '<svg viewBox="0 0 12 12"><circle cx="6" cy="6" r="2.5" stroke="currentColor" stroke-width="1.2" fill="none"/><path d="M3 6 H9 M6 3 V9" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>', tip: 'Cancels one Crazy reroll per charge — ATK stays at base for that turn.' },
+    // Yoda's gift — a lightsaber crossing into a target, reading as "strike
+    // straight through." Overkill from this card's kill hits the enemy player.
+    "Master's Apprentice": { color: '#8ede6d', svg: '<svg viewBox="0 0 12 12"><path d="M1.4 10.6 L8.5 3.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><path d="M8.2 1.6 L10.4 3.8 L9 5.2 L6.8 3 Z" fill="currentColor"/><path d="M10.6 8 A3 3 0 1 1 7.6 5" stroke="currentColor" stroke-width="1" fill="none" stroke-linecap="round"/></svg>', tip: 'Overkill — leftover combat damage past the blocker carries through to the enemy player.' },
     'Curse':       { color: '#9b3c7f', svg: '<svg viewBox="0 0 12 12"><path d="M3 3 L9 9 M9 3 L3 9" stroke="currentColor" stroke-width="1.4" fill="none" stroke-linecap="round"/><circle cx="6" cy="6" r="4.5" stroke="currentColor" stroke-width="0.8" fill="none" stroke-dasharray="1.5 1"/></svg>', tip: 'Permanent deck liability — clogs your hand, may trigger a downside when played. Cannot be drafted away. Removable at Rest Sites or specific events.' },
     'Drain':       { color: '#8e44ad', svg: '<svg viewBox="0 0 12 12"><path d="M6 2 L8 6 C8 8 7 9 6 9 C5 9 4 8 4 6 Z" fill="currentColor"/></svg>', tip: 'Steals ATK/HP from an enemy.' },
     'Revive':      { color: '#27ae60', svg: '<svg viewBox="0 0 12 12"><path d="M6 10 V4 M6 4 L3 7 M6 4 L9 7" stroke="currentColor" stroke-width="1.4" fill="none" stroke-linecap="round" stroke-linejoin="round"/><path d="M3 2 H9" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>', tip: 'When destroyed, revive N times — the card is played anew: its abilities reset and its On Play re-triggers.' },

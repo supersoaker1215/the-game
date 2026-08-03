@@ -5721,7 +5721,19 @@ const Game = {
     if (target.onDamaged) target.onDamaged(this, target, attacker, dmg);
 
     if (target.currentHealth <= 0) {
-      return this._resolveTargetDeath(attacker, target, opts);
+      // Master's Apprentice (Yoda) — overkill trample. currentHealth is now
+      // negative by exactly the leftover damage; capture it BEFORE death
+      // resolution (a Phoenix revive would reset the HP). Only carries through
+      // on a real kill, and never off the mind-controlled/redirected swing.
+      const overkill = (attacker._mastersApprentice && !attacker.isMindControlled && !attacker.isFeared)
+        ? Math.max(0, -target.currentHealth) : 0;
+      const died = this._resolveTargetDeath(attacker, target, opts);
+      if (died && overkill > 0) {
+        const defOwner = this.opponent(attacker.owner);
+        this.log(`  [APPRENTICE] ${attacker.name}'s overkill carries ${overkill} through to ${this.seatLabel(defOwner)}!`);
+        this.damagePlayer(defOwner, overkill, attacker.isBullseye, attacker);
+      }
+      return died;
     }
     // Survivor thorns retaliation — only on landed damage, not whiffs.
     if (dmg > 0) this._resolveThorns(target, attacker);
@@ -6065,36 +6077,6 @@ const Game = {
     // here (post-floor, damage actually applied) so blocked/absorbed
     // hits never arm the jump.
     this.checkJumpConditions('heroDamaged', { owner });
-    // Yoda passive — when an ally deals direct hero damage, a random ally
-    // (never Yoda himself) gains a buff it doesn't already have at cap.
-    if (source && source.id != null) {
-      const attackerOwner = source.owner || this.opponent(owner);
-      if (this.state._yodaShieldFor && this.state._yodaShieldFor[attackerOwner] > 0) {
-        const pool = this.getAllCardsOf(attackerOwner).filter(
-          c => c.currentHealth > 0 && c.name !== 'Yoda'
-        );
-        if (pool.length) {
-          const tgt = pool[Math.floor(this.rng() * pool.length)];
-          const available = [];
-          if (!(tgt.armorValue >= 1))   available.push('armor');
-          if (!(tgt.evadeCharges >= 1)) available.push('evade');
-          if (!tgt.isBullseye)          available.push('bullseye');
-          if (available.length) {
-            const choice = available[Math.floor(this.rng() * available.length)];
-            if (choice === 'armor') {
-              tgt.armorValue = 1;
-              this.log(`  [YODA AURA] ${tgt.name} gains Armor 1!`);
-            } else if (choice === 'evade') {
-              tgt.evadeCharges = 1;
-              this.log(`  [YODA AURA] ${tgt.name} gains Evade 1!`);
-            } else {
-              tgt.isBullseye = true;
-              this.log(`  [YODA AURA] ${tgt.name} gains Bullseye!`);
-            }
-          }
-        }
-      }
-    }
     // Track face damage for the round recap. Damage to player = damage AI dealt.
     if (this.state._roundStats) {
       const rs = this.state._roundStats;

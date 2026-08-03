@@ -361,7 +361,7 @@ const CARD_DEFS = [
     desc: "When Played: Freeze 1 an enemy. Deal 5 damage to the enemy opposite and both adjacent enemies. Start of Tricks: Freeze 1 a random unfrozen enemy." },
   { name: "Yoda", cost: 8, attack: 4, health: 5, type: "hero",
     abilities: ["Immunity"],
-    desc: "When Played: Choose 2 allies (Yoda counts). Both strike with their combined ATK this combat. While Active: Allies and your hero take half damage, rounded up. When an ally damages the opponent's HP, give a random ally (never Yoda) Armor 1, Evade 1, or Bullseye." },
+    desc: "While Active: Allies and your hero take half damage, rounded up. Start of Tricks: Give an ally Master's Apprentice — when they destroy the enemy in front, the leftover damage carries through and hits the enemy player." },
 
   // ==================== COST 9 ====================
   { name: "Batman", cost: 9, attack: 7, health: 5, type: "hero",
