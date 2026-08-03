@@ -31484,6 +31484,47 @@ body.round-tick .board::after {
   z-index: 190;
   overflow: visible;
 }
+
+/* ============================================================
+   INTENT TELEGRAPH — the always-on half of the forecast
+   ============================================================
+   Its own layer, deliberately: _clearCombatForecast() empties
+   #forecast-fx-layer wholesale on every mouseout, so sharing one layer would
+   make hovering any card erase the telegraph for the whole board.
+   One z-index BELOW the hover layer, so when both are up the thing you asked
+   for sits on top of the thing that was already there. */
+#telegraph-fx-layer {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 189;
+  overflow: visible;
+}
+/* Hovering a card is a request for detail about THAT card, so the always-on
+   layer gets out of the way rather than double-drawing over it — without this
+   a lethal swing would be drawn twice, once by each system, in the same place.
+   Opacity only, and it is a state flip rather than a transition, so nothing
+   animates and the layer keeps its position for the moment hover ends. */
+body.forecast-hovering #telegraph-fx-layer { opacity: 0; }
+
+/* The dashed ring on something that is about to die. Deliberately NOT the same
+   treatment as .forecast-target: that one is the answer to a question you
+   asked, this is an unprompted warning, so it reads as a marked tile rather
+   than a highlighted card. Static — no dash animation, which is the usual and
+   expensive way to draw this. */
+.card.telegraph-target {
+  outline: 2px dashed rgba(255, 90, 70, 0.8);
+  outline-offset: 2px;
+}
+.card.telegraph-target.ally-card {
+  outline-color: rgba(255, 120, 100, 0.85);
+}
+/* Phone: the arrows and pills stay, the ring does not. At a 56px tile a 2px
+   dashed outline plus its offset is most of the gap between lanes, and the
+   HP pill already says the card dies. */
+@container (max-width: 520px) {
+  .card.telegraph-target { outline: none; }
+}
 .forecast-arrow {
   position: fixed;
   left: 0; top: 0;

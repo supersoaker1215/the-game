@@ -6576,6 +6576,18 @@ const UI = {
       else this._clearCombatForecast();
       this._forecastSilent = false;
     }
+
+    // Intent telegraph — always on, so it is rebuilt from the freshly-painted
+    // board on EVERY render rather than only while something is hovered. Wrapped
+    // in _safe for the same reason every other sub-renderer is: one throw here
+    // used to brick the whole match, not just one frame. Silent, so a burst of
+    // renders mid-turn rebuilds the same arrows without re-triggering their
+    // fade-in and strobing.
+    this._safe('intentTelegraph', () => {
+      this._forecastSilent = true;
+      this._showIntentTelegraph();
+      this._forecastSilent = false;
+    });
   },
 
   // ===================== RISK / REWARD SIGNALING =====================
@@ -7353,6 +7365,7 @@ const UI = {
     document.querySelectorAll('.forecast-target, .forecast-source').forEach(el => {
       el.classList.remove('forecast-target'); el.classList.remove('forecast-source');
     });
+    document.body.classList.remove('forecast-hovering');
     this._forecastForId = null;
   },
   // One straight arrow from → to, tip pulled back to the card edge. kind tints
@@ -7397,11 +7410,15 @@ const UI = {
       chevron(2.8, color) +
       chevron(1, '#ffffff', 0.9);
     if (this._forecastSilent) svg.style.animation = 'none';   // render-driven redraw: don't restart the fade (strobe)
-    this._forecastLayer().appendChild(svg);
+    // opts.layer lets the always-on intent telegraph reuse this exact arrow in
+    // its OWN layer. Same shape, same colours — the two features must not drift
+    // into two different visual languages for "this hits that".
+    (opts.layer || this._forecastLayer()).appendChild(svg);
   },
   // A "cur → after" pill above a struck target (skull if it dies). Reads the
   // FULL predicted outcome, so it answers "does this survive the whole combat".
-  _forecastBadge(el, card) {
+  _forecastBadge(el, card, opts) {
+    opts = opts || {};
     const pred = this._combatPredCache;
     const p = pred && pred.byId && pred.byId.get(card.id);
     const cur = card.currentHealth | 0;
@@ -7416,9 +7433,10 @@ const UI = {
     b.style.left = (r.left + r.width / 2) + 'px';
     b.style.top = (r.top - 4) + 'px';
     if (this._forecastSilent) b.style.animation = 'none';
-    this._forecastLayer().appendChild(b);
+    (opts.layer || this._forecastLayer()).appendChild(b);
   },
-  _forecastHeroBadge(orb, cur, after) {
+  _forecastHeroBadge(orb, cur, after, opts) {
+    opts = opts || {};
     const r = orb.getBoundingClientRect();
     if (!r || r.width === 0) return;
     const b = document.createElement('div');
@@ -7426,7 +7444,95 @@ const UI = {
     b.textContent = cur + ' → ' + Math.max(0, after);
     b.style.left = (r.left + r.width / 2) + 'px';
     b.style.top = (r.top - 2) + 'px';
-    this._forecastLayer().appendChild(b);
+    (opts.layer || this._forecastLayer()).appendChild(b);
+  },
+  // ===================== INTENT TELEGRAPH =====================
+  // Always-on version of the hover forecast, modelled on Into the Breach: the
+  // swings that MATTER are drawn on the board before you commit, so you never
+  // have to hover six cards to find out what combat does.
+  //
+  // Two deliberate differences from the hover forecast it shares primitives
+  // with:
+  //   1. It runs on TOUCH too. The hover forecast is gated to fine pointers
+  //      because hovering is the only way to summon it; this one needs no
+  //      input at all, which is exactly why it is worth more on a phone.
+  //   2. It only draws DECISIVE swings — one that kills its target, or one
+  //      that reaches a hero. An arrow for every trade is six arrows crossing
+  //      the board and reads as noise; Into the Breach draws what changes the
+  //      board, not every interaction. Hover still gives the full detail for
+  //      any single card.
+  _telegraphLayer() {
+    let l = document.getElementById('telegraph-fx-layer');
+    if (!l) { l = document.createElement('div'); l.id = 'telegraph-fx-layer'; document.body.appendChild(l); }
+    return l;
+  },
+  _clearIntentTelegraph() {
+    const l = document.getElementById('telegraph-fx-layer');
+    if (l) l.replaceChildren();
+    document.querySelectorAll('.telegraph-target').forEach(el => el.classList.remove('telegraph-target'));
+  },
+  _showIntentTelegraph() {
+    this._clearIntentTelegraph();
+    if (typeof Game === 'undefined' || !Game.state || !Game.combatTargetsOf) return;
+    if (Game.state.gameOver) return;
+    // 1v1 only, same reason the hover forecast bails: the 2v2 render paths
+    // early-return before the cross-render redraw hook, so arrows would orphan.
+    const md = Game.state.mode;
+    if (md && String(md.players || '').indexOf('2v2') >= 0) return;
+    const layer = this._telegraphLayer();
+    const pred = this._combatPredCache;
+    const dies = (c) => {
+      const p = pred && pred.byId && pred.byId.get(c.id);
+      return !!(p && p.dies);
+    };
+    for (let i = 0; i < Game.LANE_COUNT; i++) {
+      const ln = Game.state.lanes[i];
+      if (!ln || ln.destroyed) continue;
+      ['player', 'ai'].forEach(side => {
+        const card = ln[side];
+        if (!card || !(card.currentHealth > 0)) return;
+        let info;
+        try { info = Game.combatTargetsOf(card); } catch (e) { return; }
+        if (!info) return;
+        const lethal = info.targets.filter(t => t.kind !== 'self' && t.card && dies(t.card));
+        // Nothing decisive in this lane — stay quiet.
+        if (!lethal.length && !info.hitsHero) return;
+        const el = this._fxCardElById(card.id);
+        if (!el) return;
+        const from = this._fxCenter(el);
+        if (!from) return;
+        lethal.forEach(t => {
+          const tEl = this._fxCardElById(t.card.id);
+          const to = this._fxCenter(tEl);
+          if (!to) return;
+          this._forecastArrow(from, to, t.kind, { layer: layer });
+          tEl.classList.add('telegraph-target');
+          this._forecastBadge(tEl, t.card, { layer: layer });
+        });
+        if (info.hitsHero) {
+          const heroSide = Game.opponent(card.owner);
+          const orb = document.getElementById(heroSide === 'player' ? 'player-hp-fill' : 'ai-hp-fill')
+                   || document.getElementById(heroSide === 'player' ? 'player-health' : 'ai-health');
+          // Short swing out of the card's own lane, not a diagonal across the
+          // board — the same call the hover forecast makes, for the same reason.
+          const r0 = el.getBoundingClientRect();
+          const up = el.classList.contains('ally-card');
+          const dir = up ? -1 : 1;
+          const originX = r0.left + r0.width / 2;
+          const edgeY = up ? r0.top : r0.bottom;
+          this._forecastArrow(
+            { x: originX, y: edgeY },
+            { x: originX, y: edgeY + dir * 78 },
+            'hero',
+            { startTrim: 0, endTrim: 6, layer: layer }
+          );
+          if (orb) {
+            const hp = (heroSide === 'player' ? Game.state.player.health : Game.state.ai.health) | 0;
+            this._forecastHeroBadge(orb, hp, hp - (card.attack | 0), { layer: layer });
+          }
+        }
+      });
+    }
   },
   _showCombatForecast(cardEl) {
     if (!cardEl || typeof Game === 'undefined' || !Game.combatTargetsOf) return;
@@ -7444,6 +7550,7 @@ const UI = {
     try { info = Game.combatTargetsOf(card); } catch (e) { return; }
     if (!info || (!info.targets.length && !info.hitsHero)) return;   // can't attack → nothing
     this._forecastForId = id;
+    document.body.classList.add('forecast-hovering');
     cardEl.classList.add('forecast-source');
     const from = this._fxCenter(cardEl);
     if (!from) { this._clearCombatForecast(); return; }
@@ -7523,6 +7630,21 @@ const UI = {
     // the window, and never blocks the scroll itself.
     window.addEventListener('scroll', schedule, { capture: true, passive: true });
     window.addEventListener('resize', schedule, { passive: true });
+
+    // The telegraph is plotted from getBoundingClientRect into a position:fixed
+    // layer too, so it has exactly the same problem the hover arrows had: scroll
+    // moves the cards and leaves the arrows nailed to the viewport. Same fix,
+    // rAF-coalesced, and it runs whether or not anything is being hovered.
+    let tRaf = 0;
+    const replotTelegraph = () => {
+      tRaf = 0;
+      this._forecastSilent = true;
+      try { this._showIntentTelegraph(); } catch (e) {}
+      this._forecastSilent = false;
+    };
+    const scheduleTelegraph = () => { if (!tRaf) tRaf = requestAnimationFrame(replotTelegraph); };
+    window.addEventListener('scroll', scheduleTelegraph, { capture: true, passive: true });
+    window.addEventListener('resize', scheduleTelegraph, { passive: true });
   },
   // Run cb(el) with a card's DOM element, deferring one frame if the card
   // was JUST played and isn't painted to .board yet (playCard's normal
