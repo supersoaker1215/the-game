@@ -29668,6 +29668,22 @@ body > .grid-bg {
 /* Reduced-motion users get the old flat 2D view. The 3D
    perspective tilt can trigger motion-sensitivity issues, so
    we honor the OS preference. */
+/* The scanline drift is the single most expensive layer in the arena: a
+   full-bleed element with mix-blend-mode: screen, animating forever. The
+   reduced-motion block below already hid it — but neither BATTERY gate did,
+   so the phone and the explicit low-power toggle both kept the heaviest layer
+   running while switching off the eight cheap ones.
+
+   Measured on an idle board: 9 animations running, and body.low-fx took that
+   to 1 — this one. An OS accessibility setting was doing more for battery
+   than the button that exists to save it. Both gates now match reduced-motion,
+   which is what the low-fx block elsewhere in this file means when it says it
+   "mirrors the mobile block". */
+@media (pointer: coarse), (hover: none), (max-width: 640px) {
+  .board-section .crt-scanlines { display: none; }
+}
+body.low-fx .board-section .crt-scanlines { display: none; }
+
 @media (prefers-reduced-motion: reduce) {
   #game-area {
     perspective: none;
