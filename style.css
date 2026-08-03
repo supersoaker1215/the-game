@@ -37519,7 +37519,7 @@ body.low-fx .card-frost::after {
 .card-slot .empty-lane-glyph:not(.lane-glyph-locked)::after {
   content: "";
   position: absolute; inset: 7px;
-  --b: rgba(79, 195, 247, 0.30);
+  --b: rgba(var(--theme-rgb, 79,195,247), 0.30);
   --len: 15px;
   background:
     linear-gradient(var(--b), var(--b)) left  top    / var(--len) 1px no-repeat,
@@ -37549,7 +37549,7 @@ body.low-fx .card-frost::after {
 }
 .card-slot.player-slot {
   background: linear-gradient(0deg,
-    transparent 52%, rgba(79,195,247,0.020) 76%, rgba(79,195,247,0.075) 100%);
+    transparent 52%, rgba(var(--theme-rgb, 79,195,247),0.020) 76%, rgba(var(--theme-rgb, 79,195,247),0.075) 100%);
 }
 
 /* ---- 3. VERDICT RAILS ----------------------------------------------------
@@ -37594,20 +37594,20 @@ body.low-fx .card-frost::after {
    a transition and not a layer — and why it reads instantly, since the eye
    already knows the pad's resting state. */
 .card-slot.playable .empty-lane-glyph:not(.lane-glyph-locked)::after {
-  --b: rgba(79,195,247,0.95);
+  --b: rgba(var(--theme-rgb, 79,195,247),0.95);
   --len: 22px;
 }
 .card-slot.playable .empty-lane-glyph:not(.lane-glyph-locked)::before {
   background:
-    repeating-linear-gradient(0deg,  transparent 0 21px, rgba(79,195,247,0.10) 21px 22px),
-    repeating-linear-gradient(90deg, transparent 0 21px, rgba(79,195,247,0.10) 21px 22px),
-    radial-gradient(120% 80% at 50% 100%, rgba(79,195,247,0.13), transparent 70%);
+    repeating-linear-gradient(0deg,  transparent 0 21px, rgba(var(--theme-rgb, 79,195,247),0.10) 21px 22px),
+    repeating-linear-gradient(90deg, transparent 0 21px, rgba(var(--theme-rgb, 79,195,247),0.10) 21px 22px),
+    radial-gradient(120% 80% at 50% 100%, rgba(var(--theme-rgb, 79,195,247),0.13), transparent 70%);
 }
 .card-slot.playable .empty-lane-glyph:not(.lane-glyph-locked) {
-  color: rgba(79,195,247,0.30);
+  color: rgba(var(--theme-rgb, 79,195,247),0.30);
 }
 .card-slot.playable:hover .empty-lane-glyph:not(.lane-glyph-locked) {
-  color: rgba(79,195,247,0.55);
+  color: rgba(var(--theme-rgb, 79,195,247),0.55);
 }
 
 
