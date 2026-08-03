@@ -37373,6 +37373,65 @@ body.low-fx .card-frost::after {
    two lines and eight lines are both composed rather than only the long ones
    looking right. */
 /* ============================================================
+   HOLLOW PURPLE — two energies colliding
+   ============================================================
+   The direction nothing else in the family uses: everything so far either
+   radiates OUT (critical), gathers IN at the corners (fear), contracts toward
+   the middle (taunt), rises (burn), runs diagonal (frost), hugs the perimeter
+   (invincible/immunity) or displaces sideways (evade). This CONVERGES — two
+   arcs driving in from opposite corners onto a core at the centre, which is
+   what Hollow Purple is: red and blue cursed energy collided into one point.
+
+   Two stages, driven by Gojo's own combat counter rather than a timer, so the
+   card tells you how close the board-clear is:
+     hp-stage-0  gathering  — faint core, arcs barely lit
+     hp-stage-1  critical   — core hot, arcs bright, one combat from firing */
+.card-hollow-purple {
+  position: absolute; inset: 0;
+  pointer-events: none; border-radius: inherit;
+  z-index: 4; overflow: hidden;
+  mix-blend-mode: screen;
+  background: radial-gradient(38% 30% at 50% 50%,
+    rgba(168,85,247,0.55) 0%, rgba(120,40,200,0.20) 45%, rgba(80,20,160,0) 72%);
+  -webkit-mask-image: linear-gradient(180deg,#000 0%,#000 80%,rgba(0,0,0,0.5) 92%,rgba(0,0,0,0) 100%);
+          mask-image: linear-gradient(180deg,#000 0%,#000 80%,rgba(0,0,0,0.5) 92%,rgba(0,0,0,0) 100%);
+}
+/* The two energies. Red drives in from the top-left, blue from the bottom-right
+   — the collision that makes the purple, kept as separate hues so the core
+   reads as a MIX rather than as a flat violet wash. */
+.card-hollow-purple::before {
+  content: ""; position: absolute; inset: 0; border-radius: inherit;
+  background:
+    radial-gradient(46% 34% at 4% 4%,   rgba(255,60,90,0.42) 0%, rgba(255,60,90,0) 70%),
+    radial-gradient(46% 34% at 96% 96%, rgba(70,140,255,0.42) 0%, rgba(70,140,255,0) 70%);
+  mix-blend-mode: screen;
+}
+/* ONE loop — the core breathing as it gathers. transform + opacity only. */
+.card-hollow-purple::after {
+  content: ""; position: absolute; inset: 0; border-radius: inherit;
+  background: radial-gradient(closest-side, rgba(214,160,255,0.55) 0%, rgba(168,85,247,0) 62%);
+  animation: hollowGather 2.4s ease-in-out infinite;
+}
+@keyframes hollowGather {
+  0%, 100% { transform: scale(0.72); opacity: 0.34; }
+  50%      { transform: scale(1.0);  opacity: 0.9; }
+}
+/* Stage 0 — gathering. Deliberately quiet: this is most of Gojo's life on the
+   board and it must not shout over the cards around him. */
+.card-hollow-purple.hp-stage-0 { opacity: 0.45; }
+/* Stage 1 — critical. One combat from firing, and it should read across the
+   board without being hunted for. */
+.card-hollow-purple.hp-stage-1 {
+  opacity: 1;
+  box-shadow: inset 0 0 0 1px rgba(200,130,255,0.55), inset 0 0 26px rgba(150,60,240,0.40);
+}
+.card-hollow-purple.hp-stage-1::after { animation-duration: 1.35s; }
+@media (prefers-reduced-motion: reduce) {
+  .card-hollow-purple::after { animation: none !important; }
+}
+body.low-fx .card-hollow-purple::after { animation: none !important; }
+
+/* ============================================================
    CARD RULES TEXT — LABELLED ROWS, CENTRED
    ============================================================
    formatDesc now emits one .cd-row per trigger: a label, then its effect. The

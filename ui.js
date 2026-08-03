@@ -17571,7 +17571,16 @@ const UI = {
       ? '<div class="card-armor" aria-hidden="true"></div>' : '';
     const criticalHtml = (card._criticalThisRound && onBoard)
       ? '<div class="card-critical" aria-hidden="true"></div>' : '';
-    const portraitHtml = `<div class="card-portrait" style="${portraitStyle}"><div class="card-name-overlay"><span class="cn-text">${card.name || ''}</span></div>${frostHtml}${burnHtml}${tauntHtml}${fearHtml}${mindHtml}${invincibleHtml}${dmgImmuneHtml}${evadeHtml}${armorHtml}${criticalHtml}</div>`;
+    // HOLLOW PURPLE, CHARGING. Gojo counts combats in his own lane and fires on
+    // the 2nd. That counter was invisible — the board gave no sign the biggest
+    // clear in the game was one combat away. This reads the SAME state the
+    // ability reads, so the two cannot drift, and it steps with the count:
+    // gathering at 0, critical at 1. It stops the instant _gojoFired flips.
+    const hpCharge = (onBoard && card._gojoCombats !== undefined && !card._gojoFired)
+      ? Math.min(1, card._gojoCombats | 0) : null;
+    const hollowHtml = (hpCharge === null) ? ''
+      : `<div class="card-hollow-purple hp-stage-${hpCharge}" aria-hidden="true"></div>`;
+    const portraitHtml = `<div class="card-portrait" style="${portraitStyle}"><div class="card-name-overlay"><span class="cn-text">${card.name || ''}</span></div>${frostHtml}${burnHtml}${tauntHtml}${fearHtml}${mindHtml}${invincibleHtml}${dmgImmuneHtml}${evadeHtml}${armorHtml}${criticalHtml}${hollowHtml}</div>`;
     // [ CARD DATA ] divider was removed per user feedback — read as
     // distracting, didn't add information beyond the visual gap that
     // already exists between the portrait and the desc text. The
@@ -18377,6 +18386,7 @@ const UI = {
     'Evade':       { color: '#2ecc71', svg: '<svg viewBox="0 0 12 12"><path d="M0.6 3.1H4.3" stroke="currentColor" stroke-width=".9" stroke-linecap="round" opacity=".55"/><circle cx="5.9" cy="3.1" r=".8" fill="currentColor"/><circle cx="4.3" cy="6.7" r="1.15" fill="currentColor"/><path d="M5.15 7.7q2.1 1.4 1.2 3.4" stroke="currentColor" stroke-width="1.35" fill="none" stroke-linecap="round"/></svg>', tip: 'Dodges the next N attacks completely.' },
     'Taunt':       { color: '#f39c12', svg: '<svg viewBox="0 0 12 12"><path d="M6 1 L6 7 M6 9 L6 11" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/><circle cx="6" cy="10" r="0.7" fill="currentColor"/></svg>', tip: 'Enemies must attack this card first.' },
     'Immunity':    { color: '#9b59b6', svg: '<svg viewBox="0 0 12 12"><path d="M6 1.7c2.1 2.6 3.1 4 3.1 5.3a3.1 3.1 0 0 1-6.2 0c0-1.3 1-2.7 3.1-5.3Z" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.2"/><path d="M2 10.1 10 1.9" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.45"/></svg>', tip: 'Blocks N debuffs (Freeze, Fear, etc.)' },
+    'Hollow Purple': { color: '#a855f7', svg: '<svg viewBox="0 0 12 12"><circle cx="6" cy="6" r="2.9" fill="currentColor"/><path d="M1.5 3.2A5.1 5.1 0 0 1 4.6 1.4" stroke="currentColor" stroke-width="1.3" fill="none" stroke-linecap="round"/><path d="M10.5 8.8a5.1 5.1 0 0 1-3.1 1.8" stroke="currentColor" stroke-width="1.3" fill="none" stroke-linecap="round"/></svg>', tip: 'Two cursed energies collide. After Gojo&apos;s lane fights 2 combats, every enemy in the opposite-parity lanes is destroyed.' },
     'Invincible':  { color: '#ecf0f1', svg: '<svg viewBox="0 0 12 12"><path d="M6 1 L7.5 5 L11 5 L8 7.5 L9 11 L6 9 L3 11 L4 7.5 L1 5 L4.5 5 Z" fill="currentColor"/></svg>', tip: 'Cannot die for N turns. Lethal hits are absorbed.' },
     'Unresistible':{ color: '#ff4757', svg: '<svg viewBox="0 0 12 12"><path d="M7.9 0.7 3.3 6.3h2.5L4.6 11.3 9 5.2H6.5Z" fill="currentColor"/></svg>', tip: 'Bypasses Immunity when applying debuffs.' },
     'Untrickable': { color: '#95a5a6', svg: '<svg viewBox="0 0 12 12"><circle cx="6" cy="6" r="4.5" stroke="currentColor" stroke-width="1.2" fill="none"/><path d="M3 9 L9 3" stroke="currentColor" stroke-width="1.2"/></svg>', tip: 'Cannot be targeted by Tricks.' },
