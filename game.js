@@ -3141,6 +3141,31 @@ const Game = {
     const peeked = new Set();
     if (!queue.length) { callback(peeked); return; }
 
+    // BOTH SIDES FORESEEING CANCELS.
+    // The Classic mechanic is zero-sum on purpose: you keep one of the top two
+    // and the REJECT goes to the opponent. That is a trade — one card each.
+    // When both players have it queued for the SAME draw phase it stops being a
+    // trade and becomes a gift in both directions: each keeps one AND receives
+    // the other's reject, which is two cards, and both of them skip their normal
+    // draw on top of that. User report: Dr. Strange into Eye of Agamotto, "we
+    // both got 2 cards to choose from, so that round we got 2 cards in our hand
+    // instead of 1, they should cancel each other out."
+    // So they do. Both visions are consumed, nobody peeks, and the empty
+    // `peeked` set means drawPhase runs the normal draw for both — which is what
+    // cancelling has to mean here, since skipping the draw as well would punish
+    // both players for having played the card.
+    if (queue.length === 2) {
+      queue.forEach(o => {
+        // A multi-turn Dormammu foresight still SPENDS a turn being cancelled.
+        // It was used, not left unspent — otherwise cancelling would refund it.
+        if (this.state[o]._dormammuForesight > 1) this.state[o]._dormammuForesight--;
+        else { this.state[o].drStrangeReorder = false; delete this.state[o]._dormammuForesight; }
+      });
+      this.log('Both foresights open on the same draw — the visions cancel out. Normal draw for both.');
+      callback(peeked);
+      return;
+    }
+
     const processNext = (i) => {
       if (i >= queue.length) { callback(peeked); return; }
       const owner = queue[i];

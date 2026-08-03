@@ -12861,7 +12861,7 @@ const UI = {
       return `<div class="mp-deck-pick mp-deck-pick-empty${waiting ? ' mp-deck-pick-waiting' : ''}">
         <span>Deck: <em>Classic draft</em></span>
         <button type="button" class="mp-deck-build" onclick="${buildCall}">Build a deck &rarr;</button>
-        <span class="mp-deck-hint">Build a ${C}-card deck (plus ${T} tricks) to bring your own.${waiting ? ' Your room code stays live while you build.' : ''}</span>
+        ${waiting ? '<span class="mp-deck-hint">Your room code stays live while you build.</span>' : ''}
       </div>`;
     }
 
@@ -13108,8 +13108,12 @@ const UI = {
     // they persisted in localStorage and a stale value silently broke every
     // connection.) Only surfaced signal is the PeerJS-failed-to-load warning.
     const peerJsLoaded = typeof Peer !== 'undefined';
+    // The "Peer-to-peer · over the internet" status is gone. It described the
+    // transport, which the player neither chooses nor can act on, and it sat
+    // under the menu as permanent grey text. The FAILURE line stays — that one
+    // is actionable, and it is the only signal here worth a row.
     const transportLine = peerJsLoaded
-      ? `<div class="mp-transport-min">Peer-to-peer · over the internet</div>`
+      ? ''
       : `<div class="mp-transport-min mp-transport-warn">⚠ PeerJS didn't load — refresh.</div>`;
 
     // Body by connection status. Idle = the three menu-style options; the rest

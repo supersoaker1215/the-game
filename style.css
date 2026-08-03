@@ -37335,6 +37335,51 @@ body.low-fx .card-frost::after {
 }
 
 /* ============================================================
+   EVERY SUBMENU SECTION CENTRES — GLOBAL RULE
+   ============================================================
+   The panel itself was already dead centre; what differed was INSIDE it.
+   Measured, same 760px panel centred at 585.5 in a 1171 window:
+
+     Solo   .mm-grid-section  margin 248.7px auto   options centred on 585.5
+     MP     .mm-section       margin 0, width 320   options pinned at 205.5
+
+   So Multiplayer was a fixed 320px column hard against the panel's left edge
+   while Solo was a full-width section with an auto-centred grid inside it. One
+   of the two had been centred and the other had not.
+   Stated as a rule over both wrappers rather than a patch on .mp-section, so a
+   future submenu inherits it instead of being the next one to miss out. Solo is
+   unaffected: its section already spans the full panel, and auto margins on a
+   full-width box resolve to zero. */
+.mm-mw3 .mm-panel .mm-section,
+.mm-mw3 .mm-panel .mm-grid-section {
+  margin-inline: auto;
+}
+
+/* ============================================================
+   SIM / DIRECT LABELS, AND THE CARD BACK
+   ============================================================
+   THE LABELS GO. The damage preview printed a "SIM" chip and a "Direct" side
+   label above the number. Neither is information: SIM tags every preview, so a
+   flag on all of them distinguishes nothing, and "Direct" names the mechanism
+   rather than the outcome — the player wants the number. The phone breakpoint
+   had ALREADY hidden both for exactly this reason (see the dp-sim-tag rule in
+   the phone block); this just stops desktop disagreeing with it. */
+.dmg-preview .dp-sim-tag { display: none !important; }
+.dmg-preview .dp-row > .dp-side { display: none !important; }
+
+/* THE CARD BACK CENTRES ITS TEXT. Rules text started at the top of the face and
+   left a large dead gap underneath on anything but the longest card, so a short
+   ability read as a fragment stuck to the ceiling. Centring on both axes means
+   two lines and eight lines are both composed rather than only the long ones
+   looking right. */
+.player-hand-section .hand-cards .card.face-flipped .card-desc {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  text-align: center;
+}
+
+/* ============================================================
    CENTRED MENU, PART 2 — SECTION RULES + THE MUSIC BLOCK
    ============================================================ */
 
