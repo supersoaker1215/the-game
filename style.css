@@ -1057,8 +1057,12 @@ body.turn-combat::before { background: linear-gradient(to bottom, rgba(255,215,0
     conic-gradient(from -90deg,
       rgba(255,215,0,0.95) 0 var(--fill),
       rgba(255,215,0,0.10) var(--fill) 100%);
-  border: 1px solid rgba(255,215,0,0.95);
-  box-shadow: 0 0 12px rgba(255,215,0,0.60), 0 0 24px rgba(255,215,0,0.25);
+  border: 1px solid rgba(255,215,0,0.55);
+  /* No halo. Two stacked outer glows on a 44px circle bloomed into the bar and
+     read as cheap shine rather than instrumentation — the ring itself is the
+     signal now, so it does not need selling. The .full state below keeps its
+     glow, because there the bloom IS the event. */
+  box-shadow: none;
   transition: border-color 240ms, box-shadow 240ms, background 240ms;
   display: flex; align-items: center; justify-content: center;
 }
@@ -1069,17 +1073,11 @@ body.turn-combat::before { background: linear-gradient(to bottom, rgba(255,215,0
   border-radius: 50%;
   background: #000;
 }
-/* The label was in the markup and switched off. With the ring carrying the
-   value, there is room for the word — and without it the circle never said
-   what it measured. */
-.block-circle-label {
-  display: block;
-  position: absolute; left: 0; right: 0; bottom: -11px;
-  z-index: 2;
-  font-family: var(--font-mono, ui-monospace, monospace);
-  font-size: 6.5px; letter-spacing: 0.16em; text-align: center;
-  color: rgba(255,215,0,0.55);
-}
+/* Label stays OFF. I switched it on when the ring became a gauge, reasoning
+   the circle never said what it measured — but a 6.5px word hanging under a
+   44px circle read as a clock face, not a caption. The ring and the fraction
+   carry it. */
+.block-circle-label { display: none; }
 .block-circle-value {
   position: relative; z-index: 2;
   font-family: 'Rajdhani', sans-serif;
@@ -1115,8 +1113,12 @@ body.turn-combat::before { background: linear-gradient(to bottom, rgba(255,215,0
   background: conic-gradient(from -90deg,
     rgba(var(--theme-rgb, 79,195,247), 0.85) 0 var(--fill),
     rgba(6,10,16,0.92) var(--fill) 100%);
-  border-color: rgba(var(--theme-rgb, 79,195,247), 0.95);
-  box-shadow: 0 0 12px rgba(var(--theme-rgb, 79,195,247), 0.60), 0 0 24px rgba(var(--theme-rgb, 79,195,247), 0.25);
+  border-color: rgba(var(--theme-rgb, 79,195,247), 0.55);
+  /* Halo removed. Two stacked outer glows bloomed off a 44px circle and read as
+     shine rather than instrumentation. The ring IS the reading now, so it does
+     not need selling — .full below keeps its glow, because there the bloom is
+     the event rather than decoration. */
+  box-shadow: none;
 }
 .player-bar .block-circle.full {
   background: conic-gradient(from -90deg, rgba(var(--theme-rgb, 79,195,247), 0.92) 0 100%, rgba(var(--theme-rgb, 79,195,247), 0.92) 100%);
@@ -1136,8 +1138,8 @@ body.turn-combat::before { background: linear-gradient(to bottom, rgba(255,215,0
   background: conic-gradient(from -90deg,
     rgba(231,76,60,0.85) 0 var(--fill),
     rgba(16,7,7,0.92) var(--fill) 100%);
-  border-color: rgba(231,76,60,0.95);
-  box-shadow: 0 0 12px rgba(231,76,60,0.60), 0 0 24px rgba(231,76,60,0.25);
+  border-color: rgba(231,76,60,0.55);
+  box-shadow: none;   /* same as the player side — see note above */
 }
 .ai-bar .block-circle.full {
   background: conic-gradient(from -90deg, rgba(231,76,60,0.92) 0 100%, rgba(231,76,60,0.92) 100%);
@@ -1498,6 +1500,7 @@ body.hit-pause .ai-hand * {
     0 0 14px rgba(var(--theme-rgb, 79,195,247), 0.55);
 }
 .player-bar .energy-text::before {
+  --nrg-tint: var(--theme-rgb, 79,195,247);
   border-color: rgba(var(--theme-rgb, 79,195,247), 1);
   box-shadow:
     0 0 12px rgba(var(--theme-rgb, 79,195,247), 0.80),
@@ -1508,6 +1511,7 @@ body.hit-pause .ai-hand * {
   text-shadow: 0 0 6px rgba(231,76,60,0.95), 0 0 14px rgba(231,76,60,0.55);
 }
 .ai-bar .energy-text::before {
+  --nrg-tint: 231,76,60;
   border-color: rgba(231,76,60,1);
   box-shadow: 0 0 12px rgba(231,76,60,0.80), 0 0 24px rgba(231,76,60,0.40);
 }
@@ -14089,11 +14093,15 @@ body {
 /* Block meter — player + AI sides follow their respective theme. */
 .player-bar .block-circle {
   border-color: var(--player-accent-bright) !important;
-  box-shadow: 0 0 7px var(--player-glow-outer), 0 0 14px var(--player-glow-inner) !important;
+  /* Halo off — see the note on the base .block-circle rule. This is one of
+     FIVE rules in this sheet setting box-shadow on the block circle, and one
+     of the two that actually win because they carry !important. Removing it
+     upstream did nothing; it has to come off here. */
+  box-shadow: none !important;
 }
 .ai-bar .block-circle {
   border-color: var(--enemy-accent-bright) !important;
-  box-shadow: 0 0 7px var(--enemy-glow-outer), 0 0 14px var(--enemy-glow-inner) !important;
+  box-shadow: none !important;
 }
 /* Player ally cards — frame + gradient wash uses player theme. */
 .card.ally-card {
@@ -28234,9 +28242,9 @@ input[type="number"]::-webkit-outer-spin-button {
 .player-bar .block-circle,
 .player-side .block-circle {
   border-color: rgba(var(--theme-rgb, 79,195,247), 0.95) !important;
-  box-shadow:
-    0 0 12px rgba(var(--theme-rgb, 79,195,247), 0.60),
-    0 0 24px rgba(var(--theme-rgb, 79,195,247), 0.25) !important;
+  /* The LAST of the five, and therefore the one that was actually painting the
+     halo. Off here too. */
+  box-shadow: none !important;
 }
 .player-bar .block-circle.full,
 .player-side .block-circle.full {
@@ -37517,9 +37525,14 @@ body.low-fx .card-frost::after {
    line reads horizontal on screen rather than running diagonally across the
    diamond, which was the other half of why the first attempt looked wrong. */
 .energy-display { --nrg-fill: 0%; }
+/* --nrg-tint is set PER SIDE below. It is not defaulted to the theme here on
+   purpose: an unscoped theme colour is exactly the mistake that put the
+   player's neon on the OPPONENT's diamond. Every other rule on this element is
+   already split .player-bar / .ai-bar; the fill now matches that shape instead
+   of quietly assuming one side. */
 .energy-text::before {
   background-image: linear-gradient(-45deg,
-    rgba(var(--theme-rgb, 79,195,247), 0.50) 0 var(--nrg-fill),
+    rgba(var(--nrg-tint, 255,215,0), 0.50) 0 var(--nrg-fill),
     rgba(0,0,0,0) var(--nrg-fill) 100%);
   transition: background-image 240ms var(--ease-out-soft, cubic-bezier(0.16,1,0.3,1));
 }
