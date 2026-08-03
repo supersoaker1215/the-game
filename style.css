@@ -1337,6 +1337,10 @@ body.hit-pause .ai-hand * {
 }
 /* HP fill — colored wash with a bright 2px leading edge that cuts into the
    black channel. Stronger glow makes it read as an illuminated pipe. */
+/* DEAD RULE — kept only because deleting it is a separate cleanup. The live
+   .health-fill.player-hp is the !important one further down the file (search
+   --player-r); it wins on importance regardless of order. Editing here changes
+   nothing on screen. */
 .health-fill.player-hp {
   background: linear-gradient(90deg, rgba(var(--theme-rgb, 79,195,247), 0.08), rgba(var(--theme-rgb, 79,195,247), 0.20));
   box-shadow:
@@ -14002,10 +14006,17 @@ body {
   border-color: var(--enemy-accent-bright) !important;
   box-shadow: 0 0 6px var(--enemy-glow-outer), 0 0 14px var(--enemy-glow-inner) !important;
 }
+/* Fill alpha raised from 0.08-0.20 to 0.50-0.92. At the old values a FULL bar
+   was indistinguishable from an empty one on black, and the 100% rule hides the
+   bright leading edge, so at full health there was no cue at all — you read HP
+   from an edge position, never from a bar. Value change only: no new element,
+   no animation, nothing that repaints at rest.
+   NOTE this is the LIVE rule. Two earlier .health-fill.player-hp rules exist
+   higher in the file and are both dead: this one carries !important. */
 .health-fill.player-hp {
   background: linear-gradient(90deg,
-    rgba(var(--player-r), var(--player-g), var(--player-b), 0.08),
-    rgba(var(--player-r), var(--player-g), var(--player-b), 0.20)) !important;
+    rgba(var(--player-r), var(--player-g), var(--player-b), 0.50),
+    rgba(var(--player-r), var(--player-g), var(--player-b), 0.92)) !important;
   box-shadow:
     inset -2px 0 0 0 rgba(var(--player-r), var(--player-g), var(--player-b), 1),
     2px 0 4px rgba(var(--player-r), var(--player-g), var(--player-b), 0.65),
@@ -14013,8 +14024,8 @@ body {
 }
 .health-fill.ai-hp {
   background: linear-gradient(90deg,
-    rgba(var(--enemy-r), var(--enemy-g), var(--enemy-b), 0.08),
-    rgba(var(--enemy-r), var(--enemy-g), var(--enemy-b), 0.24)) !important;
+    rgba(var(--enemy-r), var(--enemy-g), var(--enemy-b), 0.50),
+    rgba(var(--enemy-r), var(--enemy-g), var(--enemy-b), 0.94)) !important;
   box-shadow:
     inset -2px 0 0 0 rgba(var(--enemy-r), var(--enemy-g), var(--enemy-b), 1),
     2px 0 4px rgba(var(--enemy-r), var(--enemy-g), var(--enemy-b), 0.70),
@@ -37418,4 +37429,68 @@ body.low-fx .card-frost::after {
 }
 .card-slot.playable:hover .empty-lane-glyph:not(.lane-glyph-locked) {
   color: rgba(79,195,247,0.55);
+}
+
+
+/* ============================================================
+   CONDUIT SPINE  (banner direction B)
+   ============================================================
+   The centre cell measured 505px — 48% of the whole bar — holding one 91px
+   button: 82% empty. It becomes the bar's spine: a rail running the cell with
+   the action button sitting on it as a node, and the lit length of the rail is
+   your energy. The number in the orb stays; this is the peripheral read.
+
+   BUILT FOR ZERO IDLE COST, which is the whole constraint here:
+     - no @keyframes, no infinite animation, nothing running while you think
+     - no filter and no blur, the two things that force a full-layer repaint
+     - no will-change, which would pin a compositor layer forever
+   The lit length is a plain width driven by --nrg, so the only frames that
+   repaint are the ones where your energy actually changed. At rest this is two
+   static gradients and the GPU has nothing to do. */
+.info-bar .bar-cell.bar-center {
+  position: relative;
+  justify-content: center;
+}
+/* The rail. Fades at both ends so it reads as a conduit passing through the
+   bar rather than a box drawn inside it. */
+.info-bar .bar-cell.bar-center::before {
+  content: "";
+  position: absolute;
+  left: 8px; right: 8px; top: 50%;
+  height: 2px; margin-top: -1px;
+  pointer-events: none;
+  background: linear-gradient(90deg,
+    transparent 0%, rgba(255,255,255,0.13) 9%,
+    rgba(255,255,255,0.13) 91%, transparent 100%);
+}
+/* The charge. Width is the only thing that ever changes. */
+.info-bar .bar-cell.bar-center::after {
+  content: "";
+  position: absolute;
+  left: 8px; top: 50%;
+  height: 2px; margin-top: -1px;
+  width: calc((100% - 16px) * var(--nrg, 0));
+  pointer-events: none;
+  transition: width 260ms var(--ease-out-soft, cubic-bezier(0.16,1,0.3,1));
+}
+.player-bar .bar-cell.bar-center::after {
+  background: linear-gradient(90deg,
+    rgba(var(--theme-rgb, 79,195,247), 0.45), rgba(168,220,255,0.95));
+  box-shadow: 0 0 7px rgba(var(--theme-rgb, 79,195,247), 0.70);
+}
+.ai-bar .bar-cell.bar-center::after {
+  background: linear-gradient(90deg, rgba(231,76,60,0.45), rgba(255,150,135,0.95));
+  box-shadow: 0 0 7px rgba(231,76,60,0.70);
+}
+/* Buttons and the AI hand ride ON the rail, with the bar's own black behind
+   them so the line does not run through the lettering. */
+.info-bar .bar-cell.bar-center > * {
+  position: relative;
+  z-index: 1;
+}
+.info-bar .bar-cell.bar-center > .btn { background: #000; }
+/* Reduced motion keeps the conduit — it is information, not decoration — and
+   only drops the tween. */
+@media (prefers-reduced-motion: reduce) {
+  .info-bar .bar-cell.bar-center::after { transition: none; }
 }
