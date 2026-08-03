@@ -36686,8 +36686,15 @@ body.low-fx .card-frost::after {
   align-items: center;
   justify-content: center;
   /* Locked to a third of the row (minus the two gaps), so exactly three fit
-     per row on every card and a full row always lines up. */
+     per row on every card and a full row always lines up.
+     min-width: 0 is what MAKES that true rather than merely intended. A flex
+     item defaults to min-width: auto, which refuses to go below its content
+     width — so on a card whose row is a few px narrower (padding, a magnified
+     tile, a two-digit count) the third stops binding, the item keeps its
+     content width, and only TWO fit per row. That is the Dormammu 2x2. With
+     min-width: 0 the third always wins and the row is always three across. */
   flex: 0 0 calc((100% - var(--sb-gap) * 2) / 3);
+  min-width: 0;
   height: calc(var(--sb-i) * 1.42);
   max-width: 100%;
   text-shadow: 0 0 calc(var(--sb-i) * 0.5) currentColor;
