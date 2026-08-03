@@ -19215,14 +19215,14 @@ const UI = {
     const undoAllowed = !(Game.isMultiplayer && Game.isMultiplayer());
 
     if (btnU && undoAllowed && Game.isPlayerTurn() && Game.history.length > 0 && !abilityPending) {
-      // Arrow + count, not "Undo (N)". innerHTML rather than textContent because
-      // the glyph is an inline SVG; the count is the only part that changes, but
-      // rebuilding both is cheap and keeps this one line the single writer.
+      // Arrow ONLY. The count is gone from the face of the button — it was a
+      // number nobody acts on (you undo the last thing, not the 17th), and it
+      // made a one-glyph control read as a stat. It still rides the aria-label
+      // below, so it is announced without being drawn.
       btnU.innerHTML =
         '<svg class="undo-arrow" viewBox="0 0 16 16" fill="none" stroke="currentColor" '
         + 'stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
-        + '<path d="M3 8h7a3 3 0 0 1 0 6H7"/><path d="M6 5 3 8l3 3"/></svg>'
-        + '<span>' + Game.history.length + '</span>';
+        + '<path d="M3 8h7a3 3 0 0 1 0 6H7"/><path d="M6 5 3 8l3 3"/></svg>';
       btnU.setAttribute('aria-label', 'Undo (' + Game.history.length + ' available)');
       btnU.title = 'Undo';
       btnU.className = 'btn btn-secondary';

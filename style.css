@@ -30917,37 +30917,19 @@ body.round-tick .board::after {
    of frame left after the outline, the sweep fill and the box-shadow went. A
    glowing rule under the word is still a box edge; it just only drew one side.
    The word, its text-shadow and the corner reticle carry it now. */
-#btn-action.btn-primary::after { content: none; }
 #btn-action:active { transform: scale(0.97); }
 #btn-action:active::before { inset: 6px; }
 @media (prefers-reduced-motion: reduce) {
   #btn-action, #btn-action::before { transition: none; }
 }
-#btn-action::after {
-  content: '';
-  position: absolute;
-  left: 8%; right: 8%;
-  bottom: 0;
-  height: 2px;
-  background: linear-gradient(90deg,
-    transparent 0%,
-    rgba(var(--theme-rgb, 79, 195, 247), 0.85) 30%,
-    rgba(255, 255, 255, 0.95) 50%,
-    rgba(var(--theme-rgb, 79, 195, 247), 0.85) 70%,
-    transparent 100%);
-  box-shadow:
-    0 0 6px rgba(var(--theme-rgb, 79, 195, 247), 0.65),
-    0 0 14px rgba(var(--theme-rgb, 79, 195, 247), 0.35);
-  pointer-events: none;
-  animation: aaaDoneEdgePulse 2.2s ease-in-out infinite;
-}
-@keyframes aaaDoneEdgePulse {
-  0%, 100% { opacity: 0.50; transform: scaleX(0.92); }
-  50%      { opacity: 1.00; transform: scaleX(1.00); }
-}
-@media (prefers-reduced-motion: reduce) {
-  #btn-action::after { animation: none; opacity: 0.7; transform: scaleX(1); }
-}
+/* The DONE underline is gone for good. It was a 2px glowing bar pinned to the
+   button's bottom edge with its own infinite pulse — the last piece of frame.
+   I removed it once by writing #btn-action.btn-primary::after { content: none },
+   which was the wrong SHAPE of fix: the button does not carry .btn-primary in
+   every phase, so the moment it did not, my override stopped matching and the
+   source rule below painted the bar again. That is why it "came back sometimes".
+   Deleting the rule itself removes it in every phase, which is what should have
+   happened the first time. The keyframes went with it — nothing else used them. */
 
 /* HAND FAN CURVE — REMOVED per user feedback ("I don't like the
    new card tilt, let's get rid of that completely"). The CSS variables
@@ -37539,6 +37521,37 @@ body.low-fx .card-frost::after {
 @media (prefers-reduced-motion: reduce) {
   .energy-text::before { transition: none; }
 }
+
+/* ============================================================
+   UNDO — the menu's grow + glow, on an arrow
+   ============================================================
+   Same treatment the main-menu options use, which the stylesheet there calls
+   "the letters grow + brighten + glow (the ONLY highlight chrome)". No box, no
+   wash, no ring: the mark itself scales up, brightens toward white and throws a
+   glow. The one difference is that an SVG arrow cannot take text-shadow, so the
+   glow is drop-shadow instead — same look, correct property. */
+#btn-undo {
+  background: none !important;
+  border: 0 !important;
+  box-shadow: none !important;
+  outline: none !important;
+  padding: 6px 8px;
+}
+#btn-undo .undo-arrow {
+  transition:
+    transform 180ms var(--ease-out-soft, cubic-bezier(0.22, 1, 0.36, 1)),
+    filter 180ms ease,
+    color 180ms ease;
+}
+#btn-undo:hover .undo-arrow,
+#btn-undo:focus-visible .undo-arrow {
+  transform: scale(1.18);
+  color: color-mix(in srgb, rgb(var(--theme-rgb, 79,195,247)) 92%, white);
+  filter:
+    drop-shadow(0 0 8px rgba(var(--theme-rgb, 79,195,247), 0.85))
+    drop-shadow(0 0 16px rgba(var(--theme-rgb, 79,195,247), 0.40));
+}
+#btn-undo:active .undo-arrow { transform: scale(1.06); }
 
 /* ============================================================
    NO BOXES, ANYWHERE   (the menu's language, made global)
