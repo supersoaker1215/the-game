@@ -292,7 +292,7 @@ const CARD_DEFS = [
   { name: "General Grievous", cost: 6, attack: 4, health: 7, type: "villain",
     abilities: [],
     desc: "While Active: The opposing player cannot charge their Block Meter when hit." },
-  { name: "Gargantua", cost: 3, attack: 0, health: 1, type: "environment",
+  { name: "Gargantua", cost: 2, attack: 0, health: 1, type: "environment",
     isEnvironment: true,
     abilities: [],
     desc: "Each Turn: Pay 1 Energy to pull all enemies 1 lane closer, or skip — Gargantua stays either way. An enemy pulled into this lane collides with the enemy already there — each deals its ATK to the other. If the occupant is destroyed, the pulled enemy takes the lane." },
