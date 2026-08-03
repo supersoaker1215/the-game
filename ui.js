@@ -19320,10 +19320,12 @@ const UI = {
     const btnA = document.getElementById('btn-action');
     const btnNew = document.getElementById('btn-new-game');
     const btnU = document.getElementById('btn-undo');
+    const btnR = document.getElementById('btn-redraw');
 
     btnNew.style.display = s.gameOver ? 'inline-block' : 'none';
     btnA.style.display = 'none';
     if (btnU) btnU.style.display = 'none';
+    if (btnR) btnR.style.display = 'none';
 
     if (s.gameOver) {
       this.showGameOverScreen(s.winner);
@@ -19357,6 +19359,31 @@ const UI = {
       btnU.style.display = 'inline-flex';
       btnU.disabled = false;
       btnU.style.opacity = '';
+    }
+
+    // REDRAW — trick phase only. The button is SHOWN whenever the phase is
+    // right and only DISABLED for the other reasons, so the escalating cost
+    // stays visible instead of the control vanishing when you cannot afford it:
+    // knowing the next one costs 8 is exactly the information you plan around.
+    // Its label and its disabled state both come from the engine
+    // (getRedrawCost / redrawBlockedReason), so the button can never disagree
+    // with what the engine would actually allow.
+    if (btnR && Game.isPlayerTurn() && !abilityPending
+        && /^(player-tricks|player-cards-tricks)$/.test(s.phase || '')) {
+      const cost = Game.getRedrawCost('player');
+      const blocked = Game.redrawBlockedReason('player');
+      btnR.innerHTML =
+        '<svg class="redraw-arrow" viewBox="0 0 16 16" fill="none" stroke="currentColor" '
+        + 'stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
+        + '<path d="M13 7a5 5 0 1 0-1.2 4.2"/><path d="M13 3v4h-4"/></svg>'
+        + '<span class="redraw-cost">' + cost + '</span>';
+      btnR.title = blocked ? blocked : ('Redraw a card — ' + cost + ' Energy');
+      btnR.setAttribute('aria-label', btnR.title);
+      btnR.className = 'btn btn-secondary';
+      btnR.style.display = 'inline-flex';
+      btnR.disabled = !!blocked;
+      btnR.style.opacity = blocked ? '0.4' : '';
+      btnR.onclick = () => this.onRedrawClick();
     }
 
     // Button text deliberately short ("Done") so the label fits entirely
@@ -21029,6 +21056,29 @@ const UI = {
         document.addEventListener(evt, sweep, { capture: true, passive: true }));
     }
     return g;
+  },
+
+  // Pick-then-spend. promptCardChoice is the right tool rather than a bespoke
+  // picker: it already queues behind other prompts, auto-resolves a one-card
+  // hand via `forced`, and routes through the same prompt plumbing multiplayer
+  // uses. The command then goes through submitCommand like every other action,
+  // so ownership is validated at the one door instead of here.
+  onRedrawClick() {
+    const s = Game.state;
+    const blocked = Game.redrawBlockedReason('player');
+    if (blocked) { this.toast ? this.toast(blocked) : null; return; }
+    const hand = (s.player.hand || []).slice();
+    if (!hand.length) return;
+    const cost = Game.getRedrawCost('player');
+    Game.promptCardChoice('player', hand, 'Redraw',
+      `Choose a card to bin and replace — ${cost} Energy`,
+      (card) => {
+        if (!card) return;
+        Game.submitCommand({ type: 'redraw', payload: { card } });
+        this.render();
+      },
+      null,
+      { forced: hand.length === 1 });
   },
 
   onCardClick(card) {

@@ -89,6 +89,76 @@ function place(G, name, owner, lane) {
 // Red Skull's empower moves from the BOARD to the HAND (owner direction).
 // Two assertions because "buffs a hand card" and "leaves the board alone" are
 // separate failures: a version that buffed both would pass the first alone.
+test('Redraw cost doubles per match: 2, 4, 8', function () {
+  var G = freshGame();
+  G.state.phase = 'player-tricks';
+  assertEq(G.getRedrawCost('player'), 2, 'first redraw costs 2');
+  G.state.player.redrawsUsed = 1;
+  assertEq(G.getRedrawCost('player'), 4, 'second costs 4');
+  G.state.player.redrawsUsed = 2;
+  assertEq(G.getRedrawCost('player'), 8, 'third costs 8');
+  G.state.player.redrawsUsed = 3;
+  assertEq(G.getRedrawCost('player'), 16, 'fourth costs 16 (unaffordable by design)');
+});
+
+test('Redraw swaps the card, spends energy, and does not change hand size', function () {
+  var G = freshGame();
+  G.state.phase = 'player-tricks';
+  G.state.player.currency = 8;
+  var doomed = G.createCardInstance(cardByName('Bane'), 'player');
+  var keep   = G.createCardInstance(cardByName('Catwoman'), 'player');
+  G.state.player.hand = [doomed, keep];
+  var pile = G.getDrawPile('player');
+  pile.push(cardByName('Hawkeye'));
+  var before = G.state.player.hand.length;
+
+  var ok = G.redrawCard('player', doomed);
+  assertEq(ok, true, 'redraw should succeed');
+  assertEq(G.state.player.currency, 6, 'spends 2 energy on the first redraw');
+  assertEq(G.state.player.hand.length, before, 'hand size unchanged: one out, one in');
+  assertEq(G.state.player.hand.indexOf(doomed), -1, 'redrawn card leaves the hand');
+  assertEq(G.state.player.redrawsUsed, 1, 'counter increments');
+});
+
+test('Redraw is refused outside the trick phase', function () {
+  var G = freshGame();
+  G.state.phase = 'player-cards';
+  G.state.player.currency = 8;
+  G.state.player.hand = [G.createCardInstance(cardByName('Bane'), 'player')];
+  G.getDrawPile('player').push(cardByName('Hawkeye'));
+  assertEq(G.redrawBlockedReason('player'), 'Trick phase only', 'blocked in the cards phase');
+  assertEq(G.redrawCard('player', G.state.player.hand[0]), false, 'and refuses to run');
+  assertEq(G.state.player.currency, 8, 'no energy spent on a refused redraw');
+});
+
+test('Redraw is refused when it cannot be afforded', function () {
+  var G = freshGame();
+  G.state.phase = 'player-tricks';
+  G.state.player.redrawsUsed = 2;   // next costs 8
+  G.state.player.currency = 7;
+  G.state.player.hand = [G.createCardInstance(cardByName('Bane'), 'player')];
+  G.getDrawPile('player').push(cardByName('Hawkeye'));
+  assertEq(G.redrawBlockedReason('player'), 'Needs 8 Energy', 'reports the real escalated cost');
+  assertEq(G.state.player.hand.length, 1, 'hand untouched');
+});
+
+test('Redraw discards BEFORE drawing so a full hand still gets its replacement', function () {
+  var G = freshGame();
+  G.state.phase = 'player-tricks';
+  G.state.player.currency = 8;
+  // Fill the hand to exactly maxHandSize — drawing first would be refused.
+  var hand = [];
+  for (var i = 0; i < G.state.player.maxHandSize; i++) {
+    hand.push(G.createCardInstance(cardByName('Catwoman'), 'player'));
+  }
+  G.state.player.hand = hand;
+  G.getDrawPile('player').push(cardByName('Hawkeye'));
+  var full = G.state.player.hand.length;
+
+  assertEq(G.redrawCard('player', hand[0]), true, 'redraw works at max hand size');
+  assertEq(G.state.player.hand.length, full, 'still full — the replacement landed');
+});
+
 test('Red Skull buffs a card in HAND, not an ally on board', function () {
   var G = freshGame();
   var skull = G.createCardInstance(cardByName('Red Skull'), 'player');

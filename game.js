@@ -820,6 +820,78 @@ const Game = {
 
   // Resolve the card/trick instance a command refers to, from the actor's own
   // hand. Accepts a pre-resolved object (local UI has it) or an id (the wire).
+  // ---- REDRAW ------------------------------------------------------------
+  // Trick phase only: bin a card from hand and draw its replacement. The cost
+  // DOUBLES each time and the counter is per MATCH, never per turn — with
+  // energy capped at 8 that is 2, then 4, then 8, so the third redraw costs a
+  // whole turn and a fourth is impossible. Redraw is meant to be the button you
+  // press when your hand is dead, not part of the turn loop.
+  getRedrawCost(owner) {
+    const used = (this.state[owner] && this.state[owner].redrawsUsed) | 0;
+    return 2 * Math.pow(2, used);
+  },
+
+  // Every reason a redraw can be refused, in one place, so the UI can grey the
+  // control for the SAME reason the engine would reject it. Returns null when
+  // the redraw is legal.
+  redrawBlockedReason(owner) {
+    const s = this.state;
+    if (!s || s.gameOver) return 'Not now';
+    const p = s[owner];
+    if (!p) return 'Not now';
+    // Trick phase only. Both trick phases count — 'player-cards-tricks' is the
+    // combined phase some modes use.
+    const inTricks = owner === 'player'
+      ? /^(player-tricks|player-cards-tricks)$/.test(s.phase || '')
+      : /^(ai-tricks|ai-cards-tricks)$/.test(s.phase || '');
+    if (!inTricks) return 'Trick phase only';
+    if (!p.hand || !p.hand.length) return 'No cards to redraw';
+    if (!this.getDrawPile(owner).length) return 'Draw pile empty';
+    // Lex Luthor stops draws, and a redraw IS a draw. Checking here means the
+    // control is refused up front rather than eating the card and the energy
+    // and then silently failing inside drawCards.
+    const lex = this._lexDrawRestriction(owner);
+    if (lex.blocked) return 'Lex Luthor blocks draws';
+    const cost = this.getRedrawCost(owner);
+    if ((p.currency | 0) < cost) return `Needs ${cost} Energy`;
+    return null;
+  },
+
+  redrawCard(owner, card) {
+    const reason = this.redrawBlockedReason(owner);
+    if (reason) { this.log(`[REDRAW] ${reason}.`); return false; }
+    const p = this.state[owner];
+    if (!card || p.hand.indexOf(card) === -1) return false;
+
+    // Snapshot BEFORE any mutation, matching playCard / playTrick — otherwise a
+    // redraw is the one action in the game you cannot take back. Same guard
+    // they use: player turns only, and snapshot() itself no-ops in online play.
+    if (owner === 'player' && this.isPlayerTurn()) this.snapshot();
+
+    const cost = this.getRedrawCost(owner);
+    p.currency -= cost;
+    if (this.state._stats && this.state._stats[owner]) this.state._stats[owner].energySpent += cost;
+
+    // DISCARD BEFORE DRAWING, and the order is load-bearing: drawCards refuses
+    // to add to a hand already at maxHandSize, so drawing first would spend the
+    // energy and hand back nothing on a full hand.
+    const idx = p.hand.indexOf(card);
+    p.hand.splice(idx, 1);
+    p.discardPile.push({
+      name: card.name, cost: card.baseCost || card.cost,
+      type: card.type, abilities: card.abilities, desc: card.desc,
+      _sourceInstance: card
+    });
+
+    p.redrawsUsed = (p.redrawsUsed | 0) + 1;
+    this.log(`${this.seatLabel(owner)} redraws ${card.name} for ${cost} Energy (next redraw: ${this.getRedrawCost(owner)}).`);
+    // Through drawCards, NOT addToHand — that is the documented trap. Foresee
+    // once bypassed the Lex guard by calling addToHand directly, and a redraw
+    // reaching into the pile itself would repeat it.
+    this.drawCards(owner, 1);
+    return true;
+  },
+
   _cmdCard(actor, p) {
     if (p.card) return p.card;
     const hand = (this.state[actor] && this.state[actor].hand) || [];
@@ -847,6 +919,10 @@ const Game = {
     playJump: {
       resolve(G, actor, p) { const c = G._cmdCard(actor, p); return (c && c.jumpReady) ? c : null; },
       apply(G, actor, p, card) { return G.playJumpCard(actor, card); },
+    },
+    redraw: {
+      resolve(G, actor, p) { return G._cmdCard(actor, p); },
+      apply(G, actor, p, card) { return G.redrawCard(actor, card); },
     },
   },
 
@@ -2366,6 +2442,9 @@ const Game = {
       nextTurnCurrency: 0, maxHandSize: 7, maxTrickHandSize: 3,
       nextCardStolen: false, stolenByBWL: null, bwlInterceptUsed: false,
       drStrangeReorder: false, faceDownAvailable: false,
+      // Redraws used THIS MATCH. Drives the doubling cost (2, 4, 8...), so it
+      // deliberately never resets between turns — see getRedrawCost.
+      redrawsUsed: 0,
       // Per-player piles — used only in Deckbuilder mode. In Classic these
       // stay empty; the shared state.drawPile / state.trickDrawPile are
       // used instead via the same getDrawPile/getTrickPile helpers.

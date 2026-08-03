@@ -37825,6 +37825,50 @@ body.low-fx .card-hollow-purple::after { animation: none !important; }
 }
 
 /* ============================================================
+   REDRAW — the same grow + glow, with its price on it
+   ============================================================
+   Sits beside Undo and behaves like it: no box, no wash, the mark itself grows
+   and glows. The one addition is the COST, because that number changes (2, 4,
+   8) and is the whole decision — a redraw control that hid its escalating price
+   would be asking you to plan blind. */
+#btn-redraw {
+  background: none !important;
+  border: 0 !important;
+  box-shadow: none !important;
+  outline: none !important;
+  padding: 6px 8px;
+  gap: 5px;
+  align-items: center;
+}
+#btn-redraw .redraw-arrow,
+#btn-redraw .redraw-cost {
+  transition:
+    transform 180ms var(--ease-out-soft, cubic-bezier(0.22, 1, 0.36, 1)),
+    filter 180ms ease,
+    color 180ms ease;
+}
+#btn-redraw .redraw-cost {
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 12px; font-weight: 700; letter-spacing: 0.04em;
+  color: rgba(var(--theme-rgb, 79,195,247), 0.9);
+}
+#btn-redraw:not(:disabled):hover .redraw-arrow,
+#btn-redraw:not(:disabled):hover .redraw-cost,
+#btn-redraw:not(:disabled):focus-visible .redraw-arrow,
+#btn-redraw:not(:disabled):focus-visible .redraw-cost {
+  transform: scale(1.18);
+  color: color-mix(in srgb, rgb(var(--theme-rgb, 79,195,247)) 92%, white);
+  filter:
+    drop-shadow(0 0 8px rgba(var(--theme-rgb, 79,195,247), 0.85))
+    drop-shadow(0 0 16px rgba(var(--theme-rgb, 79,195,247), 0.40));
+}
+#btn-redraw:not(:disabled):active .redraw-arrow { transform: scale(1.06); }
+/* Disabled stays VISIBLE and legible — it is showing you a price you cannot
+   pay yet, which is information, not clutter. Hover effects are off so it does
+   not read as pressable. */
+#btn-redraw:disabled { cursor: default; }
+
+/* ============================================================
    UNDO — the menu's grow + glow, on an arrow
    ============================================================
    Same treatment the main-menu options use, which the stylesheet there calls

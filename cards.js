@@ -187,7 +187,7 @@ const CARD_DEFS = [
   { name: "Star-Lord", cost: 3, attack: 2, health: 2, type: "hero",
     abilities: ["Taunt 1", "Evade 1"],
     desc: "When Played: Give an ally (+2/+2)." },
-  { name: "Symbiote Spider-Man", cost: 3, attack: 3, health: 3, type: "hero",
+  { name: "Symbiote Spider-Man", cost: 2, attack: 3, health: 3, type: "hero",
     abilities: ["Evade 1"],
     desc: "When Played: Both players shuffle 2 cards back into the deck and draw 2. Heal yourself for 2." },
   { name: "Winter Soldier", cost: 3, attack: 3, health: 2, type: "villain",
