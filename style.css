@@ -37413,71 +37413,29 @@ body.low-fx .card-frost::after {
 
 
 /* ============================================================
-   CONDUIT SPINE  (banner direction B)
+   CENTRE BAR CELL
    ============================================================
-   The centre cell measured 505px — 48% of the whole bar — holding one 91px
-   button: 82% empty. It becomes the bar's spine: a rail running the cell with
-   the action button sitting on it as a node, and the lit length of the rail is
-   your energy. The number in the orb stays; this is the peripheral read.
+   This held the conduit spine: a rail across the cell whose lit length was
+   your energy. Removed at the owner's call, and the reason it goes cleanly is
+   that it was never the only place that number lived — the 0/8 orb sits
+   directly beside it saying the same thing in digits. The rail was a second
+   rendering of one value, and a horizontal line through the middle of the bar
+   is an expensive way to say something already written two inches to the left.
 
-   BUILT FOR ZERO IDLE COST, which is the whole constraint here:
-     - no @keyframes, no infinite animation, nothing running while you think
-     - no filter and no blur, the two things that force a full-layer repaint
-     - no will-change, which would pin a compositor layer forever
-   The lit length is a plain width driven by --nrg, so the only frames that
-   repaint are the ones where your energy actually changed. At rest this is two
-   static gradients and the GPU has nothing to do. */
+   The layout rules stay: the cell still centres its contents, and its children
+   still sit in their own stacking context. */
 .info-bar .bar-cell.bar-center {
   position: relative;
   justify-content: center;
 }
-/* The rail. Fades at both ends so it reads as a conduit passing through the
-   bar rather than a box drawn inside it. */
-.info-bar .bar-cell.bar-center::before {
-  content: "";
-  position: absolute;
-  left: 8px; right: 8px; top: 50%;
-  height: 2px; margin-top: -1px;
-  pointer-events: none;
-  /* The EMPTY track is gone. It ran the full width of the centre cell whether
-     or not you had any energy, so at 0/8 — which is most of a turn — it was a
-     long horizontal line through the middle of the bar carrying no information
-     at all. The charge below still draws, so the rail now APPEARS as you gain
-     energy and is absent when you have none, which is the same readout with
-     none of the idle ink. */
-  background: none;
-}
-/* The charge. Width is the only thing that ever changes. */
-.info-bar .bar-cell.bar-center::after {
-  content: "";
-  position: absolute;
-  left: 8px; top: 50%;
-  height: 2px; margin-top: -1px;
-  width: calc((100% - 16px) * var(--nrg, 0));
-  pointer-events: none;
-  transition: width 260ms var(--ease-out-soft, cubic-bezier(0.16,1,0.3,1));
-}
-.player-bar .bar-cell.bar-center::after {
-  background: linear-gradient(90deg,
-    rgba(var(--theme-rgb, 79,195,247), 0.45), rgba(168,220,255,0.95));
-  box-shadow: 0 0 7px rgba(var(--theme-rgb, 79,195,247), 0.70);
-}
-.ai-bar .bar-cell.bar-center::after {
-  background: linear-gradient(90deg, rgba(231,76,60,0.45), rgba(255,150,135,0.95));
-  box-shadow: 0 0 7px rgba(231,76,60,0.70);
-}
-/* Buttons and the AI hand ride ON the rail, with the bar's own black behind
-   them so the line does not run through the lettering. */
 .info-bar .bar-cell.bar-center > * {
   position: relative;
   z-index: 1;
 }
+/* Kept deliberately. This began as a mask so the rail did not run through the
+   lettering, but the action button reads as a black plate on its own and
+   dropping it would change how DONE looks, which is not what was asked for. */
 .info-bar .bar-cell.bar-center > .btn { background: #000; }
-/* Reduced motion keeps the conduit — it is information, not decoration — and
-   only drops the tween. */
-@media (prefers-reduced-motion: reduce) {
-  .info-bar .bar-cell.bar-center::after { transition: none; }
-}
 
 /* ============================================================
    THREAT ON THE LANE   (board design 02)

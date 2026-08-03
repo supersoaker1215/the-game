@@ -5881,15 +5881,6 @@ const UI = {
     const prev = this._prevEnergy[containerId];
     const gained = prev !== undefined && current > prev;
     this._prevEnergy[containerId] = current;
-    // Feed the conduit spine. One custom property on the bar; CSS turns it into
-    // the lit length of the rail across the centre cell. Written only here, on
-    // the renders where energy is recomputed, so the rail has nothing running
-    // between changes — no loop, no rAF, no repaint at rest.
-    const bar = el.closest && el.closest('.info-bar');
-    if (bar) {
-      const frac = max > 0 ? Math.max(0, Math.min(1, current / max)) : 0;
-      bar.style.setProperty('--nrg', frac.toFixed(4));
-    }
     // PRO FIX: never replace the .energy-text node on re-render.
     // The previous innerHTML rebuild destroyed the element on every
     // single render, which restarted any infinite animations on it.
