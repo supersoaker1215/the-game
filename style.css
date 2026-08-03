@@ -37373,6 +37373,51 @@ body.low-fx .card-frost::after {
    two lines and eight lines are both composed rather than only the long ones
    looking right. */
 /* ============================================================
+   TRICK DROP ZONE — showing what already worked
+   ============================================================
+   Dropping a trick anywhere clear of the tray has ALWAYS played it; the code
+   for that is one `!onTray` test. What never existed was any sign of it, so the
+   only discoverable way to play a trick was the one you already knew about.
+   Nothing here changes behaviour — it makes the existing target visible for the
+   length of the drag and then gets out of the way.
+
+   Costs nothing at rest: every rule below is behind body.dragging-trick, which
+   exists only while a trick is actually in hand mid-drag. */
+body.dragging-trick .info-bar.player-bar {
+  outline: 1px dashed rgba(155, 89, 182, 0.75);
+  outline-offset: -3px;
+  /* !important because THREE .info-bar.player-bar background rules already
+     carry it — measured, not assumed. Without it the outline and label landed
+     but the wash silently did not, which is the half-applied state that looks
+     deliberate and is not. */
+  background:
+    linear-gradient(0deg, rgba(155,89,182,0.16), rgba(155,89,182,0) 70%),
+    #000 !important;
+}
+/* The whole board above the tray is a valid drop, not just the banner, so it
+   gets the same quiet wash — otherwise the banner reads as the ONLY target and
+   the rule is narrower on screen than it is in code. */
+body.dragging-trick .board-section {
+  /* Same story: .board-section declares box-shadow:none with !important. */
+  box-shadow: inset 0 0 0 1px rgba(155,89,182,0.28) !important;
+}
+/* Says the rule in words the first time, where the hand can see it. */
+body.dragging-trick .info-bar.player-bar::after {
+  content: "RELEASE ANYWHERE ABOVE TO PLAY";
+  position: absolute; left: 0; right: 0; top: 50%;
+  transform: translateY(-50%);
+  text-align: center;
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 10px; letter-spacing: 0.18em; font-weight: 700;
+  color: rgba(214, 160, 255, 0.95);
+  text-shadow: 0 0 10px rgba(155, 89, 182, 0.8);
+  pointer-events: none;
+  z-index: 2;
+}
+/* The bar's own contents step back so the label is the thing you read. */
+body.dragging-trick .info-bar.player-bar > * { opacity: 0.25; }
+
+/* ============================================================
    HOLLOW PURPLE — two energies colliding
    ============================================================
    The direction nothing else in the family uses: everything so far either

@@ -20703,6 +20703,11 @@ const UI = {
         // brightness under the cursor.
         d.ghost = this._makeCardDragGhost(d.cardEl, t.clientX, t.clientY);
         document.body.classList.add('mobile-card-dragging');
+        // Tricks already play on any drop ABOVE the tray — that worked, it just
+        // never said so. This class is the missing half: it lights the banner as
+        // a target for the length of the drag, so the drop zone is visible
+        // rather than folklore.
+        if (d.trick) document.body.classList.add('dragging-trick');
         // Selecting was already happening; RENDERING was not, which is why
         // dragging never showed the combat prediction that clicking does. The
         // previews are built in renderBoard from state.selectedCard, so setting
@@ -20739,6 +20744,7 @@ const UI = {
       if (ghost) ghost.remove();
       clearHi();
       document.body.classList.remove('mobile-card-dragging');
+      document.body.classList.remove('dragging-trick');
       d = null;
       if (!wasDrag) return;   // it was a tap → the element's own onclick inspects
       if (card && card.isDiscardEffect) {
@@ -20787,6 +20793,7 @@ const UI = {
       if (d.ghost) d.ghost.remove();
       clearHi();
       document.body.classList.remove('mobile-card-dragging');
+      document.body.classList.remove('dragging-trick');
       d = null;
     }, { passive: true });
 
@@ -20839,6 +20846,11 @@ const UI = {
         // select and render so the lane previews actually get built.
         d.ghost = this._makeCardDragGhost(d.cardEl, e.clientX, e.clientY);
         document.body.classList.add('mobile-card-dragging');
+        // Tricks already play on any drop ABOVE the tray — that worked, it just
+        // never said so. This class is the missing half: it lights the banner as
+        // a target for the length of the drag, so the drop zone is visible
+        // rather than folklore.
+        if (d.trick) document.body.classList.add('dragging-trick');
         if (d.card) { Game.state.selectedCard = d.card; this.render(); }
       }
       // THE BUTTON CAME UP SOMEWHERE WE NEVER HEARD ABOUT.
