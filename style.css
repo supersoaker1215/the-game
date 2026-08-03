@@ -116,7 +116,13 @@
   /* Traits (match existing .badge-*) */
   --kw-evade:          #7ee8a5;   /* green */
   --kw-armor:          #ffe066;   /* gold */
-  --kw-bullseye:       #ff8a7a;   /* red */
+  /* Was #ff8a7a here while KEYWORD_DATA carried #e74c3c for the same keyword —
+     two different reds for one thing, and #e74c3c is byte-identical to the
+     enemy/damage red used across the board. That is why the badge read as part
+     of the card's art treatment rather than as a status: it was wearing the
+     colour reserved for "this is the enemy / this is damage". Now a neutral
+     platinum, the same tone Invincible uses, so it reads as a marker. */
+  --kw-bullseye:       #e8eef5;   /* neutral — see note above */
   --kw-overdrive:      #ff8a7a;   /* red */
   --kw-splash:         #ff8a7a;   /* red */
   --kw-immune:         #ffe066;   /* gold */
@@ -37402,15 +37408,23 @@ body.low-fx .card-frost::after {
     linear-gradient(var(--rail), var(--rail)) left  center / 1px 100% no-repeat,
     linear-gradient(var(--rail), var(--rail)) right center / 1px 100% no-repeat;
 }
-.lane[data-forecast-cls="lf-win"]   { --rail: rgba(79,195,247,0.75); }
+/* WIN is YOUR outcome, so the rail is your neon, not a fixed cyan. This and the
+   trade rail below were the "boxes in the lanes not all blue" — the only two
+   board rules in the sheet still holding a literal instead of the token. Every
+   other .lane / .ally-card rule already spells it var(--theme-rgb, 79,195,247),
+   where the hex is only a fallback. LOSE stays red because that is the enemy's
+   colour and enemy red is fixed by design. */
+.lane[data-forecast-cls="lf-win"]   { --rail: rgba(var(--theme-rgb, 79,195,247),0.75); }
 .lane[data-forecast-cls="lf-lose"]  { --rail: rgba(255,90,74,0.75); }
 /* A trade is genuinely both, so it gets both — the rail reads as a live wire
    rather than picking a winner that does not exist. */
 .lane[data-forecast-cls="lf-trade"] {
   background:
-    linear-gradient(180deg, rgba(255,90,74,0.75) 0 50%, rgba(79,195,247,0.75) 50% 100%)
+    linear-gradient(180deg, rgba(255,90,74,0.75) 0 50%,
+                            rgba(var(--theme-rgb, 79,195,247),0.75) 50% 100%)
       left center / 1px 100% no-repeat,
-    linear-gradient(180deg, rgba(255,90,74,0.75) 0 50%, rgba(79,195,247,0.75) 50% 100%)
+    linear-gradient(180deg, rgba(255,90,74,0.75) 0 50%,
+                            rgba(var(--theme-rgb, 79,195,247),0.75) 50% 100%)
       right center / 1px 100% no-repeat;
 }
 .lane[data-forecast-cls="lf-stall"] { --rail: rgba(255,255,255,0.30); }
