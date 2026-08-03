@@ -9330,7 +9330,14 @@ body.turn-combat .board .lane.lane-active {
   }
   .board .card .status-badge .sb-w { display: none; }
   .board .card .status-badge .sb-i { display: inline-flex; width: var(--sb-i); height: var(--sb-i); }
-  .board .card .status-badge .sb-n { font-size: var(--sb-num); font-weight: 700; }
+  /* Inline, not cornered. The corner treatment needs a glyph big enough to
+     carry a number in its corner; at the 8px phone tile that number computes
+     to under 5px. Below this size the count goes back beside its glyph, where
+     the row is short enough that binding stays obvious anyway. */
+  .board .card .status-badge .sb-n {
+    position: static; font-size: var(--sb-num); font-weight: 700;
+  }
+  .board .card .status-badge { gap: 1px; }
   /* A badge with no keyword icon would render as an empty chip — drop it. Its
      text is still in the inspect modal. */
   .board .card .status-badge.sb-noicon { display: none; }
@@ -33525,15 +33532,35 @@ body.round-tick .board::after {
   overflow: hidden;
   /* Smouldering wash — hot at the bottom, licking up the sides. The whole
      glow FLICKERS like real firelight (opacity + inner-shadow pulse). */
+  /* THE HOT ZONE SITS INSIDE THE ELEMENT, NOT PAST ITS EDGE.
+     These radials used to be centred at 50% 112% and 15/85% 100% — below and
+     exactly on the bottom edge. .card-burn is inset:0 on the portrait with
+     overflow:hidden, so that put PEAK BRIGHTNESS on the clip line, and the
+     portrait's bottom edge falls mid-card. The result was a hard horizontal
+     cut from full orange straight to black, which read as a rendering seam
+     rather than as fire. Pulling the centres up to 94/88% peaks the wash in
+     the lower third of the art, already falling off by the boundary. */
   background:
-    radial-gradient(130% 85% at 50% 112%, rgba(255,150,45,0.60) 0%, rgba(255,90,20,0) 58%),
-    radial-gradient(70% 50% at 15% 100%, rgba(255,120,30,0.34) 0%, rgba(255,90,20,0) 60%),
-    radial-gradient(70% 50% at 85% 100%, rgba(255,120,30,0.34) 0%, rgba(255,90,20,0) 60%),
-    linear-gradient(0deg, rgba(150,35,0,0.42) 0%, rgba(255,120,30,0) 52%);
+    radial-gradient(130% 78% at 50% 80%, rgba(255,150,45,0.62) 0%, rgba(255,90,20,0) 62%),
+    radial-gradient(70% 48% at 15% 76%, rgba(255,120,30,0.34) 0%, rgba(255,90,20,0) 64%),
+    radial-gradient(70% 48% at 85% 76%, rgba(255,120,30,0.34) 0%, rgba(255,90,20,0) 64%),
+    linear-gradient(0deg, rgba(150,35,0,0) 0%, rgba(150,35,0,0.30) 20%, rgba(255,120,30,0) 62%);
   mix-blend-mode: screen;
-  box-shadow:
-    inset 0 0 0 1px rgba(255,180,80,0.45),
-    inset 0 -20px 28px rgba(255,110,20,0.55);
+  /* The inset -20px bottom glow was the hardest edge of the lot: a bright band
+     painted along the inside of the very edge being cut. Gone; only the thin
+     ember rim survives. */
+  box-shadow: inset 0 0 0 1px rgba(255,180,80,0.32);
+  /* THE FADE MUST START BELOW THE FIRE, NOT THROUGH IT.
+     The mask and the hot zone are one decision, not two: feather too early and
+     it erases the flames it was meant to soften, which inverts the effect and
+     makes the light look like it is coming from above. Peak sits at 76-80%,
+     the mask holds solid to 80%, and only the tail past it dissolves — so the
+     fire still reads as rising from the lower art and simply runs out of fuel
+     before the portrait's edge instead of being cut off at full brightness.
+     Applies to the flame tongues and embers too, since they are children;
+     embers now fade IN as they rise off the bottom rather than popping on. */
+  -webkit-mask-image: linear-gradient(180deg, #000 0%, #000 80%, rgba(0,0,0,0.55) 92%, transparent 100%);
+  mask-image: linear-gradient(180deg, #000 0%, #000 80%, rgba(0,0,0,0.55) 92%, transparent 100%);
   animation: burnFlicker 0.42s ease-in-out infinite alternate;
 }
 /* Heat shimmer — a warm haze breathing over the art. */
@@ -36678,12 +36705,15 @@ body.low-fx .card-frost::after {
   border-radius: 0;
   box-shadow: none;
   padding: 0;
-  gap: calc(var(--sb-pad) * 0.9);
+  /* No gap: the count is out of flow now (see .sb-n below), so the glyph is
+     the badge's only in-flow child and centres in its third by itself. */
+  gap: 0;
   font-size: var(--sb-num);
   line-height: 1;
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  position: relative;
   /* Locked to a third of the row (minus the two gaps), so exactly three fit
      per row on every card and a full row always lines up.
      min-width: 0 is what MAKES that true rather than merely intended. A flex
@@ -36697,6 +36727,31 @@ body.low-fx .card-frost::after {
   height: calc(var(--sb-i) * 1.42);
   max-width: 100%;
   text-shadow: 0 0 calc(var(--sb-i) * 0.5) currentColor;
+}
+/* THE COUNT RIDES ITS GLYPH'S CORNER, rather than sitting beside it.
+   Inline, the count was 86% of the icon, so a two-digit value like 12 was
+   physically WIDER than the glyph it described — and with three badges in a
+   row there was nothing to say whether a number bound to the glyph on its left
+   or the one on its right. Tucked into the bottom-right corner and overlapping
+   slightly, glyph and count read as ONE object and the binding is unambiguous
+   no matter how many badges sit side by side.
+   Positioned from the badge's CENTRE, not its right edge: the badge box is a
+   full third of the row and much wider than the glyph, so anchoring right
+   would strand the number out in the gap. The double black shadow keeps it
+   legible where it overlaps the glyph's own glow. */
+.card.ally-card .status-badge .sb-n,
+.card.enemy-card .status-badge .sb-n,
+.player-hand-section .hand-cards .card .status-badge .sb-n,
+.trick-cards .trick-card .status-badge .sb-n {
+  position: absolute;
+  left: calc(50% + var(--sb-i) * 0.26);
+  /* Sits INSIDE the badge box, not below it. A negative offset hung the digit
+     past the box and the row's overflow:hidden clipped its descender. */
+  bottom: calc(var(--sb-i) * 0.03);
+  font-size: calc(var(--sb-i) * 0.60);
+  line-height: 1;
+  margin-left: 0;
+  text-shadow: 0 0 2px #000, 0 0 2px #000, 0 0 calc(var(--sb-i) * 0.42) currentColor;
 }
 .card.ally-card .status-badge .sb-i,
 .card.enemy-card .status-badge .sb-i,
@@ -36762,8 +36817,12 @@ body.low-fx .card-frost::after {
 }
 .card.ally-card .status-badge .sb-w,
 .card.enemy-card .status-badge .sb-w { display: none; }
+/* Board keeps its own weight, but the SIZE now comes from the corner-count
+   block above. This rule used to re-assert font-size: var(--sb-num) at the same
+   specificity and, being later in the file, silently beat it — leaving the
+   board on the old 0.86x inline size while the hand had already moved. */
 .card.ally-card .status-badge .sb-n,
-.card.enemy-card .status-badge .sb-n { font-size: var(--sb-num); font-weight: 700; }
+.card.enemy-card .status-badge .sb-n { font-weight: 700; }
 /* No glyph means an empty chip at this size — drop it; the word is one
    tap-inspect away. (The hand does the opposite and keeps the word, because
    there is room for it there.) */
