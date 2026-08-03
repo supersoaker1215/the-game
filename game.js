@@ -9964,6 +9964,19 @@ const Game = {
   },
 
   applyAbilities(card) {
+    // ENVIRONMENTS NEVER CARRY KEYWORDS. They are a separate category — not
+    // attackable, no combat role — so Armor, Evade, Overdrive and the rest are
+    // meaningless on them, and a card that cannot fight showing a combat badge
+    // reads as a bug because it is one. All four environment defs ship with
+    // `abilities: []`, so nothing legitimate is lost by refusing here; this
+    // only catches keywords GRANTED at runtime by another card.
+    //
+    // The guard lives here rather than at each granting card because this is
+    // the single door every keyword walks through to become a flag. Apocalypse
+    // is the one that surfaced it (user: "i played apocolypse and any
+    // enviroments shouldnt get status effects"), but any future card that hands
+    // out keywords is covered without knowing this rule exists.
+    if (card && card.isEnvironment) return;
     (card.abilities || []).forEach(ab => {
       const parts = ab.split(' ');
       const name = parts[0];

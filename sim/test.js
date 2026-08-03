@@ -82,6 +82,44 @@ function place(G, name, owner, lane) {
 // Regression: stunned Man-Bat shouldn't prompt-and-debuff.
 // (Bug hit in live play: Wonder Woman stunned Man-Bat, player
 // was still prompted to move, -1/-1 still fired on Juggernaut.)
+// Regression: Apocalypse hands a random keyword to every card in your hand.
+// Environments sit in the hand like anything else but never fight, so a combat
+// keyword on one is meaningless — user saw Gargantua wearing an Overdrive badge.
+// Guarded in TWO places, and this asserts both: the grant site skips them so no
+// phantom entry lands in card.abilities, and applyAbilities refuses outright so
+// any future granting card is covered without knowing the rule.
+test('Apocalypse does not give keywords to environments', function () {
+  var G = freshGame();
+  var apoc = place(G, 'Apocalypse', 'player', 0);
+  var env = G.createCardInstance(cardByName('Gargantua'), 'player');
+  var norm = G.createCardInstance(cardByName('The Thing'), 'player');
+  G.state.player.hand.push(env, norm);
+  var envAbilitiesBefore = (env.abilities || []).slice();
+  CARD_ABILITIES['Apocalypse'].onPlay(G, apoc, 0);
+  assertEq((env.abilities || []).length, envAbilitiesBefore.length,
+    'environment must not gain an ability entry');
+  assertEq(!!env.isOverdrive, false, 'environment must not gain Overdrive');
+  assertEq(!!env.isBullseye, false, 'environment must not gain Bullseye');
+  assertEq(env.armorValue || 0, 0, 'environment must not gain Armor');
+  assertEq(env.evadeCharges || 0, 0, 'environment must not gain Evade');
+  // The non-environment in the same hand still gets its handout, so the guard
+  // is not just switching the whole effect off.
+  assertEq((norm.abilities || []).length > 0, true,
+    'a normal card in hand should still receive a keyword');
+});
+
+// Regression: the central door refuses environments even if a keyword is forced
+// straight onto the abilities array by some other path.
+test('applyAbilities refuses to stamp flags on an environment', function () {
+  var G = freshGame();
+  var env = G.createCardInstance(cardByName('Sewers'), 'player');
+  env.abilities = ['Armor 2', 'Overdrive', 'Taunt 3'];
+  G.applyAbilities(env);
+  assertEq(env.armorValue || 0, 0, 'Armor must not stamp on an environment');
+  assertEq(!!env.isOverdrive, false, 'Overdrive must not stamp on an environment');
+  assertEq(env.tauntTurns || 0, 0, 'Taunt must not stamp on an environment');
+});
+
 test('Man-Bat when stunned skips move + debuff', function () {
   var G = freshGame();
   var mb = place(G, 'Man-Bat', 'ai', 0);

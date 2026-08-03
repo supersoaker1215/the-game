@@ -8969,7 +8969,7 @@ const UI = {
       const trayArtPath = artName ? this.getCardArtPath(artName) : null;
       const safeTrayUrl = trayArtPath ? trayArtPath.replace(/'/g, '%27') : '';
       const trayPortraitStyle = safeTrayUrl ? `--portrait-bg:url('${safeTrayUrl}')${this._artFocalCard(artName)}` : '';
-      const portraitHtml = `<div class="card-portrait" style="${trayPortraitStyle}"><div class="card-name-overlay">${card.name || 'Unknown'}</div></div>`;
+      const portraitHtml = `<div class="card-portrait" style="${trayPortraitStyle}"><div class="card-name-overlay"><span class="cn-text">${card.name || 'Unknown'}</span></div></div>`;
       const costHtml = card.cost !== undefined ? `<span class="card-cost">${card.cost}</span>` : '';
       const isTrickFace = !!card._isTrick ||
         (typeof TRICK_DEFS !== 'undefined' && artName && TRICK_DEFS.some(td => td.name === artName));
@@ -15263,7 +15263,7 @@ const UI = {
     return `<div class="${cls}" data-trick-name="${trick.name}"${onclick}>
       <span class="card-cost">${trick.cost}</span>
       ${this.getTrickRarityStrip(trick.cost || 0)}
-      <div class="card-portrait" style="${portraitStyle}"><div class="card-name-overlay">${trick.name}</div><i class="pt-shine" aria-hidden="true"></i></div>
+      <div class="card-portrait" style="${portraitStyle}"><div class="card-name-overlay"><span class="cn-text">${trick.name}</span></div><i class="pt-shine" aria-hidden="true"></i></div>
       ${badges}
       <div class="trick-desc">${this.formatDesc(desc) || ''}</div>
     </div>`;
@@ -17467,7 +17467,7 @@ const UI = {
       ? '<div class="card-armor" aria-hidden="true"></div>' : '';
     const criticalHtml = (card._criticalThisRound && onBoard)
       ? '<div class="card-critical" aria-hidden="true"></div>' : '';
-    const portraitHtml = `<div class="card-portrait" style="${portraitStyle}"><div class="card-name-overlay">${card.name || ''}</div>${frostHtml}${burnHtml}${tauntHtml}${fearHtml}${mindHtml}${invincibleHtml}${dmgImmuneHtml}${evadeHtml}${armorHtml}${criticalHtml}</div>`;
+    const portraitHtml = `<div class="card-portrait" style="${portraitStyle}"><div class="card-name-overlay"><span class="cn-text">${card.name || ''}</span></div>${frostHtml}${burnHtml}${tauntHtml}${fearHtml}${mindHtml}${invincibleHtml}${dmgImmuneHtml}${evadeHtml}${armorHtml}${criticalHtml}</div>`;
     // [ CARD DATA ] divider was removed per user feedback — read as
     // distracting, didn't add information beyond the visual gap that
     // already exists between the portrait and the desc text. The
@@ -18905,44 +18905,19 @@ const UI = {
           el.onclick = () => this.onCardClick(card);
         } else {
           el.classList.add('unplayable');
-          // Explain why it's unplayable on hover
-          let reason;
-          if (!phaseAllowsThisCard) {
-            // Be specific so the player understands why an affordable
-            // card is greyed out during the trick phase.
-            if (s.phase === 'player-tricks') {
-              reason = card.trickPhasePlayable
-                ? "Card not yet eligible this trick phase."
-                : "Trick phase — only Tricks (and trick-phase cards) can be played.";
-            } else if (s.phase && s.phase.startsWith('ai-')) {
-              reason = "Wait for your turn.";
-            } else {
-              reason = "Not your turn to play cards.";
-            }
-          }
-          else if (!afford) reason = `Not enough energy — needs ${cost}, you have ${s.player.currency}.`;
-          else if (!hasOpen) reason = 'No open lane available.';
-          if (reason) {
-            el.title = reason;
-            // NO TOAST ON TAP ANY MORE.
-            // This was touch-only and its reasoning was sound at the time: touch
-            // has no hover, so el.title never shows, and "a beginner taps a
-            // greyed card and gets nothing at the moment they're most confused."
-            // That held while a tap on touch did nothing else. It no longer does
-            // — tap now turns the card over to read it (installHandCardFlip), so
-            // every single read of an unaffordable card also fired this error
-            // banner. User: "when i flip on mobile it gives the 'cant play that'
-            // bug like we handled before" — and it IS the same bug, arriving by a
-            // new route: desktop was fixed earlier, touch was exempt from that
-            // fix by this very `!_hasFinePointer()` gate.
-            // Nothing is actually lost. Leaving el.onclick null lets the tap fall
-            // through to the flip, which now shows the card's own rules text —
-            // strictly more informative than the banner. The card is still
-            // visibly greyed, el.title still carries the reason on any pointer
-            // that hovers, and the real rejection toast still fires when a play
-            // is genuinely ATTEMPTED by drag or lane click, which this rule's own
-            // comment already called "the moment it is wanted".
-          }
+          // NO HOVER TOOLTIP AND NO TAP TOAST for an unplayable card.
+          //
+          // The tooltip was an el.title, which the browser draws as a grey
+          // system box — the one thing on screen the theme cannot style, and it
+          // arrived unbidden just for passing the cursor over a card. The toast
+          // went earlier for its own reason: tapping now turns the card over to
+          // read it, so every read of an unaffordable card fired an error
+          // banner.
+          //
+          // Nothing is lost. The card is visibly greyed, its cost orb states
+          // the price against your energy, tapping flips it to its rules text,
+          // and real rejection feedback still fires when a play is genuinely
+          // ATTEMPTED by drag or lane click — the moment it is wanted.
         }
       } else {
         // A prompt is pending — cards can't be clicked, but the
@@ -19111,7 +19086,7 @@ const UI = {
       el.innerHTML = `
         <span class="card-cost">${cost}</span>
         ${rarityStrip}
-        <div class="card-portrait" style="${trickPortraitStyle}"><div class="card-name-overlay">${trick.name}</div><i class="pt-shine" aria-hidden="true"></i></div>
+        <div class="card-portrait" style="${trickPortraitStyle}"><div class="card-name-overlay"><span class="cn-text">${trick.name}</span></div><i class="pt-shine" aria-hidden="true"></i></div>
         ${trickBadges}
         <div class="trick-desc">${this.formatDesc(trick.desc)}</div>
       `;
@@ -19139,16 +19114,11 @@ const UI = {
         // Dead-tap feedback — explain why on hover, and shake + toast on tap
         // (mirrors the hand-card "can't afford" grammar) so an unplayable
         // trick never eats the click silently.
-        const reason = frozen
-          ? 'Frozen by Time Stone — blocked until next round'
-          : trick.reactive
-          ? 'Reaction — fires on its own to counter an enemy trick'
-          : noTargets
-          ? 'No valid targets right now'
-          : !afford
-          ? `Not enough energy — need ${trick.cost || 0}, have ${s.player.currency}`
-          : `Tricks can only be played in the tricks phase`;
-        el.title = reason;
+        // No el.title here either — same OS-tooltip removal as the hand. The
+        // comment inside the click handler below still refers to it as one of
+        // the two ways the reason reaches the player; the other one, real
+        // rejection feedback on an actual drag-to-play, is now the only one and
+        // is the one that fires at the moment it is wanted.
         el.addEventListener('click', () => {
           // Pure-touch: a tap on ANY trick — playable or not — reads it
           // (inspect), matching cards.

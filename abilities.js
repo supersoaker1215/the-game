@@ -3493,7 +3493,12 @@ const CARD_ABILITIES = {
       // auto-Untrickable, so Doomsday (skipAutoUntrickable) still
       // qualifies despite his 12 starting cost.
       G.state[self.owner].hand.filter(card =>
-        card.skipAutoUntrickable || (card.baseCost || card.cost || 0) < 10
+        // Environments are excluded outright — they never fight, so a combat
+        // keyword on one is noise. applyAbilities refuses them too, but doing
+        // it here as well keeps the phantom entry out of card.abilities and
+        // stops the log claiming a grant that never happened.
+        !card.isEnvironment &&
+        (card.skipAutoUntrickable || (card.baseCost || card.cost || 0) < 10)
       ).forEach(card => {
         const kw = KEYWORDS[Math.floor(Game.rng() * KEYWORDS.length)];
         if (!card.abilities.includes(kw)) card.abilities.push(kw);
