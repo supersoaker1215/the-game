@@ -89,6 +89,38 @@ function place(G, name, owner, lane) {
 // Red Skull's empower moves from the BOARD to the HAND (owner direction).
 // Two assertions because "buffs a hand card" and "leaves the board alone" are
 // separate failures: a version that buffed both would pass the first alone.
+test('Killer Moth grows when he MOVES, not when he is boxed in', function () {
+  var G = freshGame();
+  var moth = place(G, 'Killer Moth', 'player', 0);
+  var atk = moth.attack, hp = moth.currentHealth;
+  // lanes 1..5 are empty, so he has somewhere to fly
+  CARD_ABILITIES['Killer Moth'].onBeforeTricks(G, moth, 0);
+  assertEq(moth.attack, atk + 1, 'gains +1 ATK on the move');
+  assertEq(moth.currentHealth, hp + 1, 'gains +1 HP on the move');
+  assert(G.findCardLane(moth) !== 0, 'and he actually relocated');
+});
+
+test('Killer Moth boxed in does NOT grow', function () {
+  var G = freshGame();
+  var moth = place(G, 'Killer Moth', 'player', 0);
+  // fill every other lane on BOTH sides so no lane is empty
+  for (var i = 1; i < G.LANE_COUNT; i++) {
+    place(G, 'Catwoman', 'player', i);
+    place(G, 'Bane', 'ai', i);
+  }
+  var atk = moth.attack, hp = moth.currentHealth;
+  CARD_ABILITIES['Killer Moth'].onBeforeTricks(G, moth, 0);
+  assertEq(moth.attack, atk, 'no move means no ATK growth');
+  assertEq(moth.currentHealth, hp, 'no move means no HP growth');
+  assertEq(G.findCardLane(moth), 0, 'and he stayed put');
+});
+
+test('Killer Moth starts as a 1/1', function () {
+  var def = cardByName('Killer Moth');
+  assertEq(def.attack, 1, 'base ATK 1');
+  assertEq(def.health, 1, 'base HP 1');
+});
+
 test('Redraw cost doubles per match: 2, 4, 8', function () {
   var G = freshGame();
   G.state.phase = 'player-tricks';

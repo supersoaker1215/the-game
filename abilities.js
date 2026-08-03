@@ -368,13 +368,19 @@ const CARD_ABILITIES = {
         // let the owner choose or stay). Killer Moth relocates on his own.
         const to = empty[Math.floor(Game.rng() * empty.length)];
         G.moveCard(self, lane, to);
-      } else {
-        // No empty lane to fly to — nowhere to go, so he grows instead.
+        // GROWTH IS THE MOVE, not the failure to move. He used to grow only
+        // when boxed in, which made a full board his best case and rewarded him
+        // for the one round he did nothing. Now the flutter itself is what feeds
+        // him: every relocation is +1/+1, so he compounds while he is doing his
+        // job. Starting at 1/1 keeps that curve honest.
         // Permanent self-buff (self-buffs never expire — see CLAUDE.md).
         self.attack = (self.attack || 0) + 1;
         self.maxHealth = (self.maxHealth || 0) + 1;
         self.currentHealth = (self.currentHealth || 0) + 1;
-        G.log(`[KILLER MOTH] No open lane — Killer Moth grows to ${self.attack}/${self.currentHealth}.`);
+        G.log(`[KILLER MOTH] Flutters to lane ${to + 1} and grows to ${self.attack}/${self.currentHealth}.`);
+      } else {
+        // Boxed in. No move, so no growth — he simply sits this round out.
+        G.log(`  [KILLER MOTH] No open lane — stays put.`);
       }
     }
   },
