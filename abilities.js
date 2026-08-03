@@ -3920,7 +3920,7 @@ const CARD_ABILITIES = {
       };
       if (allies.length === 1) { grant(allies[0]); return; }
       G.promptCardChoice(self.owner, allies,
-        "Yoda — Master's Apprentice",
+        "Yoda — Master's Guidance",
         'Choose an ally. Their overkill damage carries through to the enemy player.',
         grant,
         cards => cards.slice().sort((a, b) => b.attack - a.attack)[0]);
