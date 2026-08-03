@@ -20493,7 +20493,12 @@ const UI = {
       let hit = null, trickHit = null;
       if (this.canPlayerPlayCards && this.canPlayerPlayCards(s)) {
         hit = cardFromEl(e.target);
-        if (hit && hit.card.isDiscardEffect) hit = null;   // discard cards play on tap, no lane
+        // Discard cards CAN be dragged now. They still need no lane — endAt
+        // plays them wherever they are released over the board — but refusing
+        // the drag outright made them the one card in the game that ignores the
+        // gesture every other card is played with, so dragging Mr. Fantastic
+        // just did nothing. User: "sometimes i cant play mr fantastic".
+        // Tapping still plays them, unchanged.
       }
       // Trick — tricks drag-to-play exactly like cards (user spec). Allowed
       // during the tricks phase, or any player phase for `anytime` tricks —
@@ -20582,7 +20587,18 @@ const UI = {
       document.body.classList.remove('mobile-card-dragging');
       d = null;
       if (!wasDrag) return;   // it was a tap → the element's own onclick inspects
-      if (card) {
+      if (card && card.isDiscardEffect) {
+        // Lane-less, like a trick: released anywhere over the board it fires,
+        // released back over the hand it cancels. laneIdxUnder is not consulted
+        // because a discard effect never occupies a lane — the engine takes
+        // lane 0 as a placeholder, exactly as the tap path already passes it.
+        const b = this.board && this.board.getBoundingClientRect();
+        const overBoard = !!(t && b && t.clientX >= b.left && t.clientX <= b.right
+                                    && t.clientY >= b.top  && t.clientY <= b.bottom);
+        if (overBoard) Game.submitCommand({ type: 'playCard', payload: { card, lane: 0 } });
+        Game.state.selectedCard = null;
+        this.render();
+      } else if (card) {
         const i = t ? laneIdxUnder(t.clientX, t.clientY) : null;
         if (i != null && Game.state.selectedCard === card) {
           this.onLaneClick(i);
@@ -20644,7 +20660,12 @@ const UI = {
       let hit = null, trickHit = null;
       if (this.canPlayerPlayCards && this.canPlayerPlayCards(s)) {
         hit = cardFromEl(e.target);
-        if (hit && hit.card.isDiscardEffect) hit = null;   // discard cards play on click, no lane
+        // Discard cards CAN be dragged now. They still need no lane — endAt
+        // plays them wherever they are released over the board — but refusing
+        // the drag outright made them the one card in the game that ignores the
+        // gesture every other card is played with, so dragging Mr. Fantastic
+        // just did nothing. User: "sometimes i cant play mr fantastic".
+        // Tapping still plays them, unchanged.
       }
       if (!hit) trickHit = trickFromEl(e.target);
       if (!hit && !trickHit) return;
