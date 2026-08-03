@@ -5403,8 +5403,13 @@ const UI = {
       }
       const data = this.KEYWORD_DATA[kw];
       if (!data) return false;
+      // One custom property carries the keyword's colour, and the stylesheet
+      // drives the title, body, border and glow off it. Previously only the
+      // TITLE was tinted, inline, and everything else stayed theme-cyan — so a
+      // green keyword sat in a blue box.
+      this.tooltipEl.style.setProperty('--kw-c', data.color);
       this.tooltipEl.innerHTML =
-        `<div class="kw-tip-name" style="color:${data.color}">${kw}</div>` +
+        `<div class="kw-tip-name">${kw}</div>` +
         `<div class="kw-tip-body">${data.tip}</div>` +
         pinHint;
       return true;

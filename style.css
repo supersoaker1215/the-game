@@ -10235,10 +10235,17 @@ body.turn-combat .board .lane.lane-active {
   z-index: 10000 !important;
   max-width: 240px;
   padding: 8px 12px;
-  background: rgba(8,14,22,0.96);
-  border: 1px solid rgba(var(--theme-rgb, 79,195,247),0.45);
+  /* Pure #000, like every other panel interior in the game — this was
+     rgba(8,14,22,.96), a navy that read as a different material from the
+     cards it sits over. The keyword's own colour now drives the frame and
+     the glow via --kw-c, set by the tooltip builder, so a green keyword
+     gets a green box instead of a green title in a blue one. */
+  background: #000;
+  border: 1px solid color-mix(in srgb, var(--kw-c, rgb(var(--theme-rgb, 79,195,247))) 55%, transparent);
   border-radius: 6px;
-  box-shadow: 0 4px 14px rgba(0,0,0,0.6);
+  box-shadow:
+    0 0 14px color-mix(in srgb, var(--kw-c, rgb(var(--theme-rgb, 79,195,247))) 26%, transparent),
+    0 4px 14px rgba(0,0,0,0.6);
   pointer-events: none;
   font-family: 'Inter', 'Segoe UI', system-ui, sans-serif;
   font-size: 12px;
@@ -10252,9 +10259,19 @@ body.turn-combat .board .lane.lane-active {
   text-transform: uppercase;
   letter-spacing: 1.5px;
   margin-bottom: 4px;
+  /* Colour comes from the variable now, not an inline style, so the whole
+     tooltip can share one source. Neon = the colour plus its own glow. */
+  color: var(--kw-c, rgb(var(--theme-rgb, 79,195,247)));
+  text-shadow:
+    0 0 8px color-mix(in srgb, var(--kw-c, rgb(var(--theme-rgb, 79,195,247))) 70%, transparent),
+    0 0 18px color-mix(in srgb, var(--kw-c, rgb(var(--theme-rgb, 79,195,247))) 35%, transparent);
 }
 .kw-tooltip .kw-tip-body {
-  color: var(--text-mute, #aab3bd);
+  /* TINTED, not saturated. The body is the part you actually read, and a
+     fully neon paragraph on black is genuinely hard to — so it is the
+     keyword colour mixed into a near-white: unmistakably that keyword's
+     hue, still comfortable at 12px. */
+  color: color-mix(in srgb, var(--kw-c, rgb(var(--theme-rgb, 79,195,247))) 42%, #e9eff6);
 }
 /* Pin hint footer — small muted line under the tip text. Becomes more
    prominent once the tooltip is actually pinned (user has clicked). */
