@@ -82,6 +82,43 @@ function place(G, name, owner, lane) {
 // Regression: stunned Man-Bat shouldn't prompt-and-debuff.
 // (Bug hit in live play: Wonder Woman stunned Man-Bat, player
 // was still prompted to move, -1/-1 still fired on Juggernaut.)
+// Regression: a target list built before something died still contained the
+// corpse, so Palpatine's chain freeze / Magneto's move offered a dead card and
+// spending the pick on it wasted the ability. The queue path always filtered;
+// the immediate path did not. User: "dead cards shouldnt be an option to selct".
+//
+// SCOPE, stated honestly: sim/shim.js REPLACES Game.promptCardChoice with a
+// synchronous auto-picker, so this exercises the SHIM's copy of the rule, not
+// the engine's. It is still worth pinning — the shim was feeding corpses to
+// every fuzz and balance run — but the engine-side fix is verified in the
+// browser, not here. Do not read a pass as proof the engine filters.
+test('promptCardChoice drops dead cards from an immediate prompt', function () {
+  var G = freshGame();
+  var alive = place(G, 'The Thing', 'ai', 0);
+  var dead  = place(G, 'Loki', 'ai', 1);
+  dead.currentHealth = 0;
+  var offered = null;
+  G.promptCardChoice('player', [alive, dead], 'T', 'D', function () {}, function (cards) {
+    offered = cards.slice();
+    return cards[0];
+  });
+  assertEq(offered !== null, true, 'prompt should have been raised');
+  assertEq(offered.length, 1, 'only the living card should be offered');
+  assertEq(offered[0].name, 'The Thing', 'the living card is the one offered');
+});
+
+// Synthetic choices (Kang's card defs, Darkseid's lane list) have no
+// currentHealth at all and must survive the filter untouched.
+test('promptCardChoice keeps synthetic choices that have no health', function () {
+  var G = freshGame();
+  var offered = null;
+  G.promptCardChoice('player',
+    [{ name: 'Option A' }, { name: 'Option B' }], 'T', 'D',
+    function () {}, function (cards) { offered = cards.slice(); return cards[0]; });
+  assertEq(offered !== null, true, 'prompt should have been raised');
+  assertEq(offered.length, 2, 'synthetic options must not be filtered out');
+});
+
 // Regression: Apocalypse hands a random keyword to every card in your hand.
 // Environments sit in the hand like anything else but never fight, so a combat
 // keyword on one is meaningless — user saw Gargantua wearing an Overdrive badge.

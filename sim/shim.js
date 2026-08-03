@@ -91,6 +91,15 @@ for (var __i = 0; __i < __SIM_FILES.length; __i++) {
   //    do this and without it `whenPromptCleared` continuations never fire, so combat
   //    can hang after an onPlay prompt that was parked via `state._combatContinuation`.
   Game.promptCardChoice = function (owner, cards, title, desc, callback, aiPicker) {
+    // MIRROR THE ENGINE: dead cards are never offered. The real
+    // Game.promptCardChoice filters them out, so a shim that did not was
+    // letting the sim spend abilities on corpses — silently degrading every
+    // fuzz and balance run that involved a targeted ability after a death.
+    // Same predicate as the engine: entries with NO currentHealth are
+    // synthetic choices (Kang's defs, Darkseid's lane list) and pass through.
+    cards = (cards || []).filter(function (c) {
+      return !c || c.currentHealth == null || c.currentHealth > 0;
+    });
     if (!cards || !cards.length) return;
     // Use aiPicker if provided; else pick uniformly at random. The earlier
     // `cards[0]` default systematically biased 'player'-owned prompts

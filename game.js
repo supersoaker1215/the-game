@@ -8646,6 +8646,11 @@ const Game = {
         title, desc, callback, targetSide, previewCard, previewDamage, options));
       return;
     }
+    // Destroyed lanes are never an option either — the same asymmetry the card
+    // prompt had: the queue filtered them, the immediate path did not. Before
+    // the empty check so an all-destroyed list unsticks instead of prompting.
+    lanes = (lanes || []).filter(i => this.state.lanes[i] && !this.state.lanes[i].destroyed);
+
     if (!lanes || !lanes.length) {
       // No valid lanes — caller's effect can't resolve. Unstick combat so
       // the engine doesn't hang waiting on a callback that will never fire.
@@ -8772,6 +8777,22 @@ const Game = {
         title, desc, callback, aiPicker, options));
       return;
     }
+    // DEAD CARDS ARE NEVER AN OPTION. The queued path above has always dropped
+    // them; the IMMEDIATE path did not, so any ability whose target list was
+    // built before something died still offered the corpse — and picking it
+    // spent the ability on nothing. User: "for palpatines chain freeze or
+    // magneto move, if an enemy card dies i have to select that card to chain
+    // freeze from or move, wasting the ability".
+    //
+    // Same predicate as the queue, deliberately: entries WITHOUT currentHealth
+    // are synthetic choices (Darkseid's lane list, Kang's card defs) and must
+    // pass through untouched — filtering on a falsy health would silently empty
+    // those prompts instead.
+    //
+    // Placed BEFORE the empty check so a list that was entirely dead falls into
+    // the unstick branch below rather than raising a prompt with no options.
+    cards = (cards || []).filter(c => !c || c.currentHealth == null || c.currentHealth > 0);
+
     if (!cards || !cards.length) {
       // No valid targets — log and unstick combat so an empty filter
       // upstream (e.g. chain ability with no enemies) doesn't strand
@@ -10830,12 +10851,22 @@ const Game = {
       selfHit(p, pSnap);
       selfHit(a, aSnap);
 
-      // Splash cone — mirrors the resolver's applySplash(card, i): the front
-      // enemy (same lane, ON TOP of the front swing) + BOTH adjacent lanes'
-      // enemies, for splashRange. PUSHING both directions here (rather than only
-      // PULLING from the left when the next lane runs) is what makes a
-      // splasher's LEFT-adjacent hit land at all — the old pull-from-left model
-      // silently dropped every leftward splash.
+      // Splash cone — mirrors the resolver's applySplash(card, i): BOTH adjacent
+      // lanes' enemies, for splashRange. NOT the front enemy: applySplash hits
+      // [laneIdx - 1, laneIdx + 1] only, because the card in front already ate
+      // the normal swing and the card text reads "adjacent enemies".
+      //
+      // This predictor still modelled the front hit after the resolver dropped
+      // it, so every forecast involving a splasher over-reported by splashRange
+      // against the card directly opposite — the pill said a card died that
+      // lived. predictLaneOutcome had already been corrected; this one had not,
+      // which is exactly the trap of two predictors: fixing the resolver and one
+      // of them looks finished.
+      //
+      // PUSHING both directions here (rather than only PULLING from the left
+      // when the next lane runs) is what makes a splasher's LEFT-adjacent hit
+      // land at all — the old pull-from-left model silently dropped every
+      // leftward splash.
       const splashCone = (attacker, could) => {
         const s = attacker ? (attacker.splashRange | 0) : 0;
         if (!could || s <= 0) return;
@@ -10845,7 +10876,7 @@ const Game = {
         // enemy damage to the defending side's taunter — so EACH cone hit that
         // would land on an enemy is soaked by the taunter if one stands.
         const taunt = taunterFor(attacker, attacker.owner);
-        [i - 1, i, i + 1].forEach(li => {
+        [i - 1, i + 1].forEach(li => {
           if (li < 0 || li >= this.LANE_COUNT) return;
           const ln = this.state.lanes[li];
           if (ln && !ln.destroyed && ln[foe]) applyHit(taunt || ln[foe], s, iev);

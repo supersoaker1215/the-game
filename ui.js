@@ -7354,9 +7354,29 @@ const UI = {
   // static strokes: no infinite animation (mobile battery diet).
   // opts.startTrim / opts.endTrim shorten each end; the hero "straight ahead"
   // swing passes 0 so it can start exactly at the card's edge.
+  // Reads the live neon theme so anything drawn from JS matches what CSS is
+  // painting. The theme is a body/:root custom property (--theme-rgb, e.g.
+  // "220, 226, 234" for silver), which SVG attributes cannot consume directly —
+  // an attribute takes a colour string, not a var() — so it has to be resolved
+  // here and interpolated.
+  _themeRGB() {
+    try {
+      const v = getComputedStyle(document.documentElement)
+        .getPropertyValue('--theme-rgb').trim();
+      if (v) return v;
+    } catch (e) {}
+    return '79, 195, 247';
+  },
   _forecastArrow(from, to, kind, opts) {
     opts = opts || {};
-    const color = kind === 'splash' ? '#ff9a3c' : '#ff5252';
+    // Colour follows OWNERSHIP, not damage. A swing leaving YOUR card is drawn
+    // in your selected neon so it reads as yours — the same colour its border
+    // is already painted in — while an enemy swing stays red and splash stays
+    // orange. Hardcoding red made every arrow look like a threat even when it
+    // was your own attack, and it ignored the theme entirely.
+    const color = kind === 'splash' ? '#ff9a3c'
+                : opts.mine        ? `rgb(${this._themeRGB()})`
+                : '#ff5252';
     const startTrim = opts.startTrim != null ? opts.startTrim : 22;
     const endTrim   = opts.endTrim   != null ? opts.endTrim   : 30;
     const dx = to.x - from.x, dy = to.y - from.y;
@@ -7383,8 +7403,13 @@ const UI = {
       line(7, color, 0.22) +                       // outer bloom
       line(2.4, color) +                           // beam
       line(0.9, '#ffffff', 0.85) +                 // hot core
-      '<circle cx="' + n(sx) + '" cy="' + n(sy) + '" r="3.4" fill="none" stroke="' + color +
-        '" stroke-width="1.5" opacity="0.9"/>' +   // circuit node at the origin
+      // The origin node is what made the arrow read as something SET ON TOP of
+      // the card rather than leaving it. Suppressed when the arrow starts on
+      // the card's own edge — there it should look like the border continuing
+      // upward, and a circle sitting on that edge breaks the line.
+      (opts.noOriginNode ? '' :
+        '<circle cx="' + n(sx) + '" cy="' + n(sy) + '" r="3.4" fill="none" stroke="' + color +
+          '" stroke-width="1.5" opacity="0.9"/>') +
       chevron(2.8, color) +
       chevron(1, '#ffffff', 0.9);
     if (this._forecastSilent) svg.style.animation = 'none';   // render-driven redraw: don't restart the fade (strobe)
@@ -7443,7 +7468,7 @@ const UI = {
       const tEl = this._fxCardElById(t.card.id);
       const to = this._fxCenter(tEl);
       if (!to) return;
-      this._forecastArrow(from, to, t.kind);
+      this._forecastArrow(from, to, t.kind, { mine: card.owner === 'player' });
       tEl.classList.add('forecast-target');
       this._forecastBadge(tEl, t.card);
     });
@@ -7466,7 +7491,9 @@ const UI = {
           { x: originX, y: edgeY },
           { x: originX, y: edgeY + dir * 78 },
           'hero',
-          { startTrim: 0, endTrim: 6 }
+          // startTrim 0 puts the tail exactly on the card edge; noOriginNode
+          // keeps that edge unbroken so the line reads as the border extending.
+          { startTrim: 0, endTrim: 6, noOriginNode: true, mine: up }
         );
         const hp = (heroSide === 'player' ? Game.state.player.health : Game.state.ai.health) | 0;
         this._forecastHeroBadge(orb, hp, hp - (card.attack | 0));

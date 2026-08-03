@@ -30461,10 +30461,22 @@ body.combat-anticipate::after  { content: none !important; }
      next variant via the capture-phase click listener in
      installAltArtPicker. Cards without variants pass through to the
      card's normal click handler. */
-  pointer-events: auto;
-  cursor: pointer;
+  /* THE SCRIM IS NOT THE HIT TARGET. padding-top above is the fade LENGTH, so
+     this box is ~62px tall on a 181px painting — a third of the art. With
+     pointer-events on the box, hovering anywhere in the lower third of the
+     painting lit the name and armed the alt-art click. The box stays exactly
+     the same size, because that size is the gradient; only .cn-text inside it
+     takes the pointer, so the target is the letterforms and nothing else. */
+  pointer-events: none;
   text-shadow: 0 1px 2px rgba(0, 0, 0, 0.85), 0 0 6px rgba(0, 0, 0, 0.55);
   transition: color 0.15s ease, text-shadow 0.15s ease, box-shadow 0.15s ease;
+}
+.card-portrait .card-name-overlay .cn-text {
+  pointer-events: auto;
+  cursor: pointer;
+  /* inline-block so the box wraps the glyphs rather than the full line width —
+     an inline span would still stretch edge to edge on a centred line. */
+  display: inline-block;
 }
 /* Rarity-tinted hover highlight — leans on the card's existing
    --portrait-frame-rgb cascade (cost-0..3 = green, cost-4..6 = cyan,
@@ -30478,7 +30490,7 @@ body.combat-anticipate::after  { content: none !important; }
    the text color + text-shadow change on hover, so the gradient
    strip behind the name stays its original dark/transparent and
    ONLY the letterforms glow. */
-.card-portrait .card-name-overlay:hover {
+.card-portrait .card-name-overlay .cn-text:hover {
   color: rgba(var(--portrait-frame-rgb, 240, 245, 250), 1);
   text-shadow:
     0 0 8px  rgba(var(--portrait-frame-rgb, 240, 245, 250), 0.95),
