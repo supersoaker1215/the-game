@@ -5369,7 +5369,12 @@ const UI = {
     const render = (kw) => {
       const pinHint = this._tooltipPinned
         ? '<span class="kw-tip-pin">📌 pinned — click anywhere to unpin</span>'
-        : '<span class="kw-tip-pin-hint">click to pin</span>';
+        // The "click to pin" hint is gone from every description box. It sat
+        // under EVERY tooltip permanently to advertise an interaction you use
+        // once, and it was a third of the box's height on the short ones. The
+        // pinned state still says how to get out of itself, which is the half
+        // that is actually load-bearing.
+        : '';
       // CARD-REFERENCE tooltip — when a body-text keyword references an
       // actual trick/card (e.g. Batman's "throw Batarangs"), render the
       // referenced card itself in the tooltip body. Lets the player
@@ -5439,6 +5444,15 @@ const UI = {
       const onKw = e.target.closest && e.target.closest('[data-kw]');
       const onTooltip = e.target === this.tooltipEl || (e.target.closest && e.target.closest('.kw-tooltip'));
       if (onKw) {
+        // A badge on a HAND card never pins. Clicking a hand card plays it,
+        // and this handler calls stopPropagation — so pinning here used to
+        // eat the play and turn the badge strip into an invisible dead zone.
+        // That is the reason hand badges were made pointer-events:none, which
+        // in turn killed their HOVER tooltips (user: "hovering over overdrive
+        // and the description is not popping up"). Letting the click fall
+        // through is what makes it safe to hover them again; hover still
+        // describes the keyword, the click still plays the card.
+        if (onKw.closest('.player-hand-section')) return;
         // Toggle pin when a keyword pill is clicked. If already pinned on
         // a different keyword, swap to the new one and stay pinned.
         const kw = onKw.getAttribute('data-kw');

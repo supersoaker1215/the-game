@@ -35772,8 +35772,18 @@ body.low-fx .card-portrait {
    Scoped to hover-capable pointers, which is exactly where the face exists.
    Touch never flips, its badges stay visible, and tap-to-pin still works. */
 @media (hover: hover) and (pointer: fine) {
-  .player-hand-section .hand-cards .card .status-badges,
-  .player-hand-section .hand-cards .card .status-badge {
+  /* NARROWED to the flipped state only. Blanket pointer-events:none also
+     killed the tooltip on a badge you CAN see — hovering Overdrive on a hand
+     card described nothing, because elementFromPoint returned the card and
+     closest('[data-kw]') found nothing to describe.
+     Both original bugs stay fixed. The "describing chrome hidden behind the
+     face" case is exactly the flipped state, which is still switched off here.
+     The "click pins instead of playing the card" case is now handled in the
+     click handler itself, which returns early for any keyword inside the hand
+     — a better place for it, since it is about what a CLICK means rather than
+     whether the element can be pointed at. */
+  .player-hand-section .hand-cards .card.face-flipped .status-badges,
+  .player-hand-section .hand-cards .card.face-flipped .status-badge {
     pointer-events: none;
   }
 }
