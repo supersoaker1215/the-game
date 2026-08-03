@@ -11284,10 +11284,10 @@ body.turn-combat .board .lane.lane-active {
 /* Neon-glow the [TAG] spans the inline style sets — inherit its color
    into a drop-shadow so the tag lights up the way every other neon
    accent does. Applied via filter so per-tag text colors carry through. */
-.game-log .log-entry span[style*="font-weight"] {
-  filter: drop-shadow(0 0 3px currentColor) drop-shadow(0 0 6px currentColor);
-  letter-spacing: 0.5px;
-}
+/* RETIRED: this targeted span[style*="font-weight"], which stopped matching the
+   moment the tag's font-weight moved out of the inline style and into .log-tag.
+   It was dead code that still greps as "the tag glow" — the live rule is
+   .game-log .log-entry .log-tag below, which now carries what this used to. */
 .game-log .log-header {
   font-family: 'Rajdhani', sans-serif;
   font-weight: 700;
@@ -11357,7 +11357,11 @@ body.turn-combat .board .lane.lane-active {
 }
 .game-log .log-entry .log-tag {
   font-weight: 700;
-  text-shadow: 0 0 7px currentColor;
+  /* The two stacked drop-shadows and the 0.5px tracking are restored from the
+     rule retired above — moving font-weight into this class silently orphaned
+     that selector and downgraded every tag to a single flat text-shadow. */
+  filter: drop-shadow(0 0 3px currentColor) drop-shadow(0 0 6px currentColor);
+  letter-spacing: 0.5px;
 }
 .game-log .log-damage,
 .game-log .log-dead,
