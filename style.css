@@ -25,7 +25,12 @@
   /* Tron palette — sleek neon cyan used for panel chrome + focus states.
      Kept deliberately narrow: semantic colors (green=player, red=AI,
      gold=energy) are untouched so the UI still reads at a glance. */
-  --tron:       #4fc3f7;           /* primary cyan (edges, labels) */
+  /* Was a hardcoded #4fc3f7 while --tron-dim/edge/glow/ink below were all
+     converted to --theme-rgb. That is the exact shape of the recurring leak:
+     grepping for the hex finds it, grepping for --theme does not, so it kept
+     surviving theme sweeps. Ten live consumers — the game log, the scrollbar
+     thumb, section eyebrows — went on painting cyan in every theme. */
+  --tron:       var(--theme-accent);   /* primary accent (edges, labels) */
   --tron-dim:   rgba(var(--theme-rgb, 79,195,247),0.28);  /* standard 1px border */
   --tron-edge:  rgba(var(--theme-rgb, 79,195,247),0.55);  /* hover / active border */
   --tron-glow:  rgba(var(--theme-rgb, 79,195,247),0.22);  /* ambient outer glow */
@@ -13506,6 +13511,10 @@ body, :root {
   --theme-glow-outer:   rgba(var(--theme-r), var(--theme-g), var(--theme-b), 0.45);
   --theme-wash-08:      rgba(var(--theme-r), var(--theme-g), var(--theme-b), 0.08);
   --theme-wash-05:      rgba(var(--theme-r), var(--theme-g), var(--theme-b), 0.05);
+  /* Referenced at the viewport toggle but never declared, so that rule always
+     took its hardcoded cyan fallback no matter the theme. Declaring it is the
+     whole fix — the consumer already asks for it by name. */
+  --theme-wash-15:      rgba(var(--theme-r), var(--theme-g), var(--theme-b), 0.15);
   /* Composable triplet alias — any rgba(var(--theme-rgb), α) resolves to
      the active theme color at use time. Lets downstream rules
      (section titles, victory border, HP chart, button hover auras) stay
@@ -30775,9 +30784,16 @@ body.round-tick .board::after {
   /* The box is gone. This was the last surviving rounded blue rectangle in the
      match UI — 6px radius, 1px full border, four stacked glows — and next to
      the boxless menu it read as a leftover from a different design. What
-     replaces it is a targeting reticle: pure #000 interior, no border at all,
-     and four corner brackets that frame the word without enclosing it. */
-  background: #000;
+     replaces it is a targeting reticle: no interior fill at all, no border, and
+     four corner brackets that frame the word without enclosing it.
+
+     The interior was #000 until now. That is not the same as nothing: the
+     banner behind it carries a vertical gradient, so an opaque black plate read
+     as a rectangle PUNCHED INTO the banner rather than a button sitting on it.
+     Transparent lets the gradient run straight through and the reticle and word
+     become the only marks. Set here rather than overridden downstream because
+     this ID rule is what every class-level attempt was losing to. */
+  background: transparent;
   border: 0;
   border-radius: 0;
   box-shadow: none;
@@ -37444,10 +37460,17 @@ body.low-fx .card-frost::after {
   position: relative;
   z-index: 1;
 }
-/* Kept deliberately. This began as a mask so the rail did not run through the
-   lettering, but the action button reads as a black plate on its own and
-   dropping it would change how DONE looks, which is not what was asked for. */
-.info-bar .bar-cell.bar-center > .btn { background: #000; }
+/* Gone now. It began as a mask so the conduit rail would not run through the
+   lettering; the rail was removed, and I kept this on the grounds that changing
+   how DONE looked was not what had been asked for. It since was — the plate
+   reads as a black rectangle punched into the banner instead of a button
+   sitting ON it, because the banner has a vertical gradient and the plate does
+   not. Transparent lets that gradient run straight through, so the reticle and
+   the word are all that mark the button.
+
+   Explicit rather than just deleted: .btn carries its own background further up
+   the sheet, so this has to override it, not merely stop adding to it. */
+.info-bar .bar-cell.bar-center > .btn { background: transparent; }
 
 /* ============================================================
    THREAT ON THE LANE   (board design 02)
