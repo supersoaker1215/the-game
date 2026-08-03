@@ -16103,6 +16103,16 @@ const UI = {
         el.dataset.forecast = forecast.label;
         el.dataset.forecastCls = forecast.cls;
       }
+      // Face damage, painted ON the lane that will deliver it. The strip below
+      // the board has had these numbers all along, but reading six lanes there
+      // means mapping a row of cells back onto the board six times.
+      // Attributes are DELETED when zero, not set to "0" — CSS keys off their
+      // presence, and a stale attribute would leave a lane shaded red after the
+      // threat was blocked.
+      const inDmg  = this.laneFaceDamage(s, i, 'ai');
+      const outDmg = this.laneFaceDamage(s, i, 'player');
+      if (inDmg  > 0) el.dataset.threatIn  = inDmg;  else delete el.dataset.threatIn;
+      if (outDmg > 0) el.dataset.threatOut = outDmg; else delete el.dataset.threatOut;
       // Per-lane stagger for the Tron flowing-light packet. CSS uses
       // calc(var(--lane-index) * -1.6s) so each lane lights up 1.6s
       // after the previous, sweeping across the field as a wave.
@@ -19243,6 +19253,30 @@ const UI = {
   // verdict tag + class for both the strip cell and the data-attr on
   // the lane element. Reused by renderLaneForecastStrip (strip cells)
   // and renderBoard (lane data-forecast attribute → CSS hover badge).
+  // How much this lane will put on a FACE next combat, for one side.
+  // Was a closure inside renderLaneForecastStrip; hoisted so the board can
+  // paint the same number the strip prints. One source, two surfaces — the
+  // strip and the lane can never disagree about which lane is dangerous.
+  //
+  // Note the two directions are MUTUALLY EXCLUSIVE by construction: a side
+  // only reaches the face when the OPPOSING slot is empty, so at most one of
+  // laneFaceDamage(s,i,'ai') and laneFaceDamage(s,i,'player') is ever non-zero.
+  // That is what lets the lane shade both directions from a single pseudo.
+  laneFaceDamage(s, laneIdx, side) {
+    const lane = s && s.lanes && s.lanes[laneIdx];
+    if (!lane || lane.destroyed) return 0;
+    const me  = lane[side];
+    const opp = lane[side === 'player' ? 'ai' : 'player'];
+    // No attacker on this side, OR the opposing card blocks the swing
+    if (!me || me.currentHealth <= 0) return 0;
+    if (opp && opp.currentHealth > 0) return 0;
+    // Status gates: stunned / frozen → no swing. Feared → swings at
+    // own allies (no face damage). Mind-controlled → swings for the
+    // opponent (also no face damage in your direction).
+    if (me.isStunned || me.isFrozen || me.isFeared || me.isMindControlled) return 0;
+    return me.attack || 0;
+  },
+
   laneForecastVerdict(s, laneIdx) {
     const lane = s && s.lanes && s.lanes[laneIdx];
     if (!lane || lane.destroyed) return { label: '—', cls: 'lf-destroyed' };
@@ -19323,20 +19357,7 @@ const UI = {
     // Stunned/frozen attackers contribute zero. Block-meter clamping
     // is intentionally NOT modeled — the player can read their own
     // block meter directly.
-    const faceDamageFor = (laneIdx, side) => {
-      const lane = s.lanes[laneIdx];
-      if (!lane || lane.destroyed) return 0;
-      const me  = lane[side];
-      const opp = lane[side === 'player' ? 'ai' : 'player'];
-      // No attacker on this side, OR the opposing card blocks the swing
-      if (!me || me.currentHealth <= 0) return 0;
-      if (opp && opp.currentHealth > 0) return 0;
-      // Status gates: stunned / frozen → no swing. Feared → swings at
-      // own allies (no face damage). Mind-controlled → swings for the
-      // opponent (also no face damage in your direction).
-      if (me.isStunned || me.isFrozen || me.isFeared || me.isMindControlled) return 0;
-      return me.attack || 0;
-    };
+    const faceDamageFor = (laneIdx, side) => this.laneFaceDamage(s, laneIdx, side);
     // Build per-lane verdict cells. Verdict math lives in the shared
     // helper laneForecastVerdict so the strip and the lane data-attr
     // (used by future features) stay in sync.
