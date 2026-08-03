@@ -19135,6 +19135,14 @@ const UI = {
       if (((isAnytime && playerActive) || canTrick) && afford && !frozen && !noTargets) {
         el.classList.add('playable');
         if (s.selectedTrick === trick) el.classList.add('selected');
+        // Re-apply the turned-over state, same reason as the hand: 'face-flipped'
+        // is stripped by the render diff, so the ID is the truth and the class is
+        // re-derived. Without it a trick you turned over to read snapped back to
+        // its art the moment anything else re-rendered.
+        if (this._flippedHandCardId != null &&
+            String(trick.id) === String(this._flippedHandCardId)) {
+          el.classList.add('face-flipped');
+        }
         el.addEventListener('click', () => this.onTrickClick(trick));
       } else {
         el.classList.add('unplayable');
@@ -21380,18 +21388,19 @@ const UI = {
       if (el && this.showCardInspect) this.showCardInspect(el);
       return;
     }
-    const playerActive = s.phase && s.phase.startsWith('player-') && !s.gameOver;
-    const allowed = this.canPlayerPlayTricks(s) || (trick.anytime && playerActive);
-    if (!allowed) return;
-    // Two-click toggle: first click highlights the trick as "selected", second click
-    // on the same trick plays it. Clicking a different trick switches selection.
-    if (s.selectedTrick === trick) {
-      s.selectedTrick = null;
-      Game.submitCommand({ type: 'playTrick', payload: { trick } });
-    } else {
-      s.selectedTrick = trick;
-    }
-    this.render();
+    // DESKTOP: a click is a READ, not a play — the same contract hand cards
+    // have. It turns the trick over to its rules text (installHandCardFlip owns
+    // that; .trick-card is already in FLIPPABLE_SELECTOR) and DRAGGING plays it.
+    //
+    // What this replaces was a two-click toggle: first click selected, second
+    // click played. That made tricks the only thing on the board with their own
+    // grammar, and it meant flipping one over to read it was indistinguishable
+    // from arming it — the second click to flip BACK played the trick instead.
+    //
+    // Nothing is returned early here: falling through with no work lets the
+    // flip handler have the click. Clearing a stale selection is the one thing
+    // still worth doing, since nothing sets it any more.
+    if (s.selectedTrick) { s.selectedTrick = null; this.render(); }
   },
 
   getCostClass(cost) {

@@ -614,27 +614,65 @@ const TRICK_DEFS = [
   },
   // Cost 5
   { name: "Joker's Playing Card", cost: 4,
-    desc: "Choose odd or even lanes. Uncontested enemies in those lanes cannot attack this round.",
+    desc: "Choose 3 lanes. Uncontested enemies in those lanes cannot attack this round.",
     play(G, owner) {
-      if (Game.isHuman(owner)) {
-        G.promptCardChoice(owner,
-          [{ name: 'Protect Odd Lanes', desc: 'Lanes 1, 3, 5', _choice: 'odd' },
-           { name: 'Protect Even Lanes', desc: 'Lanes 2, 4, 6', _choice: 'even' }],
-          "Joker's Playing Card", "Choose which lanes to protect",
-          (choice) => {
-            const odd = choice._choice === 'odd';
-            for (let i = 0; i < Game.LANE_COUNT; i++) {
-              if (((i + 1) % 2 === 1) === odd) G.state.lanes[i].protected = owner;
-            }
-            G.log(`Joker's Card protects ${odd ? 'odd' : 'even'} lanes!`);
-          });
-      } else {
-        const odd = G.rng() < 0.5;
+      const PICKS = 3;
+      const opp = G.opponent(owner);
+      // Any lane that still exists is pickable. Deliberately NOT filtered to
+      // lanes that currently hold an uncontested enemy: the protection is
+      // checked at combat, and the board can change between playing this and
+      // combat resolving, so pre-filtering would quietly remove lanes that turn
+      // out to matter.
+      const eligible = () => {
+        const out = [];
         for (let i = 0; i < Game.LANE_COUNT; i++) {
-          if (((i + 1) % 2 === 1) === odd) G.state.lanes[i].protected = owner;
+          const ln = G.state.lanes[i];
+          if (ln && !ln.destroyed && ln.protected !== owner) out.push(i);
         }
-        G.log(`Joker's Card protects ${odd ? 'odd' : 'even'} lanes!`);
+        return out;
+      };
+      const claim = (i) => { G.state.lanes[i].protected = owner; };
+
+      if (!Game.isHuman(owner)) {
+        // Protect where it actually saves face damage first: a lane holding an
+        // uncontested enemy is a swing straight at the hero. Highest attack
+        // first, then anything else to fill the three.
+        const pool = eligible();
+        const threat = pool.filter(i => {
+          const e = G.state.lanes[i][opp];
+          return e && e.currentHealth > 0 && !G.state.lanes[i][owner];
+        }).sort((a, b) => (G.state.lanes[b][opp].attack || 0) - (G.state.lanes[a][opp].attack || 0));
+        const rest = pool.filter(i => threat.indexOf(i) < 0);
+        const chosen = threat.concat(rest).slice(0, PICKS);
+        chosen.forEach(claim);
+        G.log(`Joker's Card protects lanes ${chosen.map(i => i + 1).join(', ')}!`);
+        return;
       }
+
+      // Human: one lane at a time, the same recursive-prompt idiom the other
+      // PICK-N abilities use. `forced` auto-resolves the tail when exactly as
+      // many lanes remain as picks, so the last prompt never asks a question
+      // with one answer.
+      const chosen = [];
+      const step = () => {
+        if (chosen.length >= PICKS) {
+          G.log(`Joker's Card protects lanes ${chosen.map(i => i + 1).join(', ')}!`);
+          return;
+        }
+        const open = eligible();
+        if (!open.length) {
+          if (chosen.length) G.log(`Joker's Card protects lanes ${chosen.map(i => i + 1).join(', ')}!`);
+          else G.log(`Joker's Card finds no lanes to protect.`);
+          return;
+        }
+        G.promptLaneChoice(owner, open,
+          "Joker's Playing Card",
+          `Choose lane ${chosen.length + 1} of ${PICKS} to protect`,
+          (l) => { claim(l); chosen.push(l); step(); },
+          owner, null, null,
+          { forced: open.length <= (PICKS - chosen.length) });
+      };
+      step();
     }
   }
 ];
