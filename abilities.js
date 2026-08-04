@@ -3905,8 +3905,12 @@ const CARD_ABILITIES = {
       // Activate the half-damage shield passive on entry (kept). The
       // combined-force strike and the random hero-hit badge are gone — Yoda's
       // active gift is now Master's Apprentice, handed out each Trick phase.
-      if (!G.state._yodaShieldFor) G.state._yodaShieldFor = {};
-      G.state._yodaShieldFor[self.owner] = (G.state._yodaShieldFor[self.owner] || 0) + 1;
+      // NOTHING TO STAMP. The shield is derived from the board by
+      // Game.yodaShieldCount — his `passive: 'yodaShield'` above IS the source
+      // of truth. The old counter here had to be unwound in onDeath, and every
+      // exit that skipped onDeath (Super Soldier Serum's killCardSilent,
+      // devour-to-void, bounce, a Moder strip) left it on forever.
+      G.log('[YODA] The Force is with you — this side takes half combat damage.');
     },
     onBeforeTricks(G, self) {
       // Start of the Trick phase — Yoda anoints ONE ally his apprentice. That
@@ -3932,11 +3936,10 @@ const CARD_ABILITIES = {
         cards => cards.slice().sort((a, b) => b.attack - a.attack)[0]);
     },
     onDeath(G, self) {
-      if (G.state._yodaShieldFor && G.state._yodaShieldFor[self.owner] > 0) {
-        G.state._yodaShieldFor[self.owner]--;
-        if (G.state._yodaShieldFor[self.owner] === 0)
-          G.log('Yoda falls — the Force shield fades.');
-      }
+      // No counter to unwind — the shield stops the moment he is off the board,
+      // because yodaShieldCount reads the board. This log is the only thing
+      // left, and it is gated on there being no OTHER Yoda still standing.
+      if (G.yodaShieldCount(self.owner) <= 1) G.log('Yoda falls — the Force shield fades.');
       // The apprentice's gift fades when the master falls.
       G.getAllCardsOf(self.owner).forEach(a => { delete a._mastersApprentice; });
     }
@@ -4817,7 +4820,7 @@ const CARD_ABILITIES = {
       if (!targets.length) { self._skipNormalAttack = true; return; }
       const t = targets[Math.floor(Game.rng() * targets.length)];
       let dmg = self.attack || 1;
-      if (G.state._yodaShieldFor && G.state._yodaShieldFor[opp] > 0) dmg = Math.ceil(dmg / 2);
+      if (G.yodaShieldCount(opp) > 0) dmg = Math.ceil(dmg / 2);
       const curHp = t.currentHealth !== undefined ? t.currentHealth : (t.health || 0);
       t.currentHealth = Math.max(0, curHp - dmg);
       G.log(`[FREDDY] Freddy slashes ${t.name} in the enemy's hand for ${dmg}!`);

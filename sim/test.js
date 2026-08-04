@@ -2345,6 +2345,71 @@ test('jumpTargetLane agrees with what playJumpCard will actually accept', functi
   assertEq(G.jumpTargetLane('player', gf), -1, 'full board → free-lane jumper is illegal too');
 });
 
+test("Yoda's shield stops when he stops being Yoda", function () {
+  // User: "i super soilder serumed yoda into superman, and yodas passsive of
+  // taking half health is still active". The shield was a per-side counter
+  // bumped in onPlay and unwound in onDeath, and Super Soldier Serum removes
+  // the card with killCardSilent — which fires no onDeath at all.
+  var G = freshGame();
+  var yoda = place(G, 'Yoda', 'player', 0);
+  if (CARD_ABILITIES['Yoda'].onPlay) CARD_ABILITIES['Yoda'].onPlay(G, yoda, 0);
+  assertEq(G.yodaShieldCount('player'), 1, 'control: the shield is up while Yoda stands');
+
+  // The exact removal the Serum uses.
+  G.killCardSilent(yoda);
+  assertEq(G.yodaShieldCount('player'), 0, 'shield is down the moment he leaves the board');
+
+  // And the damage path agrees — this is what the player actually feels.
+  var G2 = freshGame();
+  var y2 = place(G2, 'Yoda', 'player', 0);
+  if (CARD_ABILITIES['Yoda'].onPlay) CARD_ABILITIES['Yoda'].onPlay(G2, y2, 0);
+  var ally = place(G2, 'Juggernaut', 'player', 1);
+  var attacker = place(G2, 'Bane', 'ai', 1);
+  attacker.attack = 4;
+  var halved = G2._computeIncomingDamage(attacker, ally);
+  assertEq(halved, 2, 'with Yoda up, a 4 lands as 2');
+  G2.killCardSilent(y2);
+  var full = G2._computeIncomingDamage(attacker, ally);
+  assertEq(full, 4, 'with Yoda gone, the same 4 lands in full');
+});
+
+test("a dead Yoda still on the board does not hold the shield up", function () {
+  // yodaShieldCount filters on currentHealth — a corpse awaiting cleanup must
+  // not keep halving damage.
+  var G = freshGame();
+  var yoda = place(G, 'Yoda', 'player', 0);
+  if (CARD_ABILITIES['Yoda'].onPlay) CARD_ABILITIES['Yoda'].onPlay(G, yoda, 0);
+  assertEq(G.yodaShieldCount('player'), 1, 'control: up while alive');
+  yoda.currentHealth = 0;
+  assertEq(G.yodaShieldCount('player'), 0, 'a 0-HP Yoda holds nothing up');
+});
+
+test("two Yodas do not stack, and one leaving does not drop the other's shield", function () {
+  var G = freshGame();
+  var a = place(G, 'Yoda', 'player', 0);
+  var b = place(G, 'Yoda', 'player', 1);
+  if (CARD_ABILITIES['Yoda'].onPlay) {
+    CARD_ABILITIES['Yoda'].onPlay(G, a, 0);
+    CARD_ABILITIES['Yoda'].onPlay(G, b, 1);
+  }
+  assertEq(G.yodaShieldCount('player'), 2, 'both counted');
+  G.killCardSilent(a);
+  assertEq(G.yodaShieldCount('player') > 0, true, 'the survivor keeps the shield up');
+  // The shield is binary at every read site, so 2 must not halve twice.
+  var ally = place(G, 'Juggernaut', 'player', 3);
+  var atk = place(G, 'Bane', 'ai', 3);
+  atk.attack = 4;
+  assertEq(G._computeIncomingDamage(atk, ally), 2, 'halved once, not twice');
+});
+
+test("the enemy's Yoda does not shield YOUR side", function () {
+  var G = freshGame();
+  var y = place(G, 'Yoda', 'ai', 0);
+  if (CARD_ABILITIES['Yoda'].onPlay) CARD_ABILITIES['Yoda'].onPlay(G, y, 0);
+  assertEq(G.yodaShieldCount('ai'), 1, 'their side is shielded');
+  assertEq(G.yodaShieldCount('player'), 0, 'ours is not');
+});
+
 test('Iron Giant is still never placeable, and the desc still says so', function () {
   // The gate itself is untouched by the draw work — this pins that.
   var G = igSetup();

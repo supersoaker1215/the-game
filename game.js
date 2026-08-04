@@ -5521,7 +5521,7 @@ const Game = {
       this._creditAbsorb(attacker, 'Armor', attacker.armorValue);
       chip -= attacker.armorValue;
     }
-    if (this.state._yodaShieldFor && this.state._yodaShieldFor[attacker.owner] > 0) {
+    if (this.yodaShieldCount(attacker.owner) > 0) {
       chip = Math.ceil(chip / 2);
       if (chip <= 0) return;
     }
@@ -5760,7 +5760,7 @@ const Game = {
       dmg = crit;
     }
     // Yoda shield — target's side takes half combat damage (rounded up)
-    if (this.state._yodaShieldFor && this.state._yodaShieldFor[target.owner] > 0 && dmg > 0) {
+    if (this.yodaShieldCount(target.owner) > 0 && dmg > 0) {
       const halved = Math.ceil(dmg / 2);
       this.log(`  [YODA SHIELD] ${target.name} takes half damage (${dmg} → ${halved})`);
       dmg = halved;
@@ -6100,7 +6100,7 @@ const Game = {
   damagePlayer(owner, amount, isBullseye, source) {
     if (amount <= 0) return;
     // Yoda shield — hero health takes half damage (rounded up)
-    if (this.state._yodaShieldFor && this.state._yodaShieldFor[owner] > 0) {
+    if (this.yodaShieldCount(owner) > 0) {
       amount = Math.ceil(amount / 2);
       if (amount <= 0) return;
     }
@@ -7892,7 +7892,7 @@ const Game = {
       return;
     }
     // Yoda shield — allies take half damage (rounded up) while Yoda is active
-    if (this.state._yodaShieldFor && this.state._yodaShieldFor[card.owner] > 0) {
+    if (this.yodaShieldCount(card.owner) > 0) {
       amount = Math.ceil(amount / 2);
       if (amount <= 0) return;
     }
@@ -8278,6 +8278,30 @@ const Game = {
   },
 
   killCardSilent(card) { const l = this.findCardLane(card); if (l >= 0) this.removeFromLane(card, l); },
+
+  // YODA'S HALF-DAMAGE SHIELD — DERIVED FROM THE BOARD, NEVER STAMPED.
+  // It used to be a per-side counter on state, bumped in Yoda's onPlay and
+  // decremented in his onDeath, so ANY exit that skips onDeath left the shield
+  // stuck on for the rest of the match. Super Soldier Serum is exactly that: it
+  // transforms via killCardSilent, which only unhooks the card from its lane.
+  // User: "i super soilder serumed yoda into superman, and yodas passsive of
+  // taking half health is still active".
+  // Reading it live is the same shape as Lex Luthor's draw block
+  // (`passive === 'preventDraw'`), and it closes every other silent-exit path
+  // at once — devour-to-void (which skips handleDeath entirely), bounce to
+  // hand, a Moder ability strip, lane collapse — because none of them can
+  // leave a living Yoda on the board. It is also correct on an MP guest: the
+  // board rides the wire and the perspective flip swaps the lanes, whereas a
+  // seat-keyed counter had to be flipped separately to stay on the right side.
+  yodaShieldCount(owner) {
+    if (!this.state || !this.state.lanes) return 0;
+    let n = 0;
+    for (let i = 0; i < this.LANE_COUNT; i++) {
+      const c = this.state.lanes[i] && this.state.lanes[i][owner];
+      if (c && c.currentHealth > 0 && c.passive === 'yodaShield') n++;
+    }
+    return n;
+  },
 
   // True when a revive/resurrection cannot fire because the death lane is
   // destroyed — no card can occupy a destroyed lane, so there is nowhere
@@ -9603,7 +9627,7 @@ const Game = {
       this.log(`  [ARMOR] ${card.name}'s Armor ${card.armorValue} reduces chain damage to ${amount}`);
     }
 
-    if (this.state._yodaShieldFor && this.state._yodaShieldFor[card.owner] > 0) {
+    if (this.yodaShieldCount(card.owner) > 0) {
       amount = Math.ceil(amount / 2);
       if (amount <= 0) return true;
     }
@@ -10920,7 +10944,7 @@ const Game = {
       if (absorb) { if (absorb === 'evade') tgt.evadeCharges--; return 0; }
       let dmg = raw;
       // Yoda shield — target's side takes half combat damage (rounded up).
-      if (this.state._yodaShieldFor && this.state._yodaShieldFor[tgt.owner] > 0) dmg = Math.ceil(dmg / 2);
+      if (this.yodaShieldCount(tgt.owner) > 0) dmg = Math.ceil(dmg / 2);
       // Palpatine passive — a frozen target takes DOUBLE damage when the
       // attacker's side fields an active doubleFrozenDamage card.
       if (tgt.isFrozen && attacker && this.getAllCardsOf(attacker.owner).some(
