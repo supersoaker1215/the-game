@@ -13,7 +13,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;700&display=swap">
-  <link rel="stylesheet" href="style.css?v=956">
+  <link rel="stylesheet" href="style.css?v=958">
   <script>
     // Lightweight error reporter (pre-Sentry) — capture runtime JS
     // errors + unhandled promise rejections to a localStorage ring
@@ -451,7 +451,6 @@
       </div>
       <div class="bar-cell bar-center actions-section">
         <button id="btn-undo" class="btn btn-secondary" style="display:none">Undo</button>
-        <button id="btn-redraw" class="btn btn-secondary" style="display:none">Redraw</button>
         <button id="btn-action" class="btn btn-primary" style="display:none">Done</button>
         <button id="btn-new-game" class="btn btn-danger" onclick="newGame()" style="display:none">New Game</button>
       </div>
@@ -478,6 +477,7 @@
               title="Hide hand sounds — replace per-card hover cues with one generic blip"
               aria-label="Hide hand sounds"
               aria-pressed="false"><span class="hand-audio-icon" aria-hidden="true">♪</span></button>
+      <button type="button" id="btn-redraw" class="hand-redraw-toggle" style="display:none"></button>
       <div id="player-hand" class="hand-cards"></div>
     </div>
 
@@ -821,7 +821,7 @@
   <script src="peerjs.min.js"></script>
   <script src="multiplayer.js?v=31"></script>
   <script src="card-art-manifest.js?v=55"></script>
-  <script src="ui.js?v=1104"></script>
+  <script src="ui.js?v=1106"></script>
   <script src="tutorial.js?v=7"></script>
   <script src="logger.js?v=5"></script>
   <!-- Always-on crash capture. Hooks window.onerror +

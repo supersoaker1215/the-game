@@ -19385,15 +19385,30 @@ const UI = {
         && /^(player-tricks|player-cards-tricks)$/.test(s.phase || '')) {
       const cost = Game.getRedrawCost('player');
       const blocked = Game.redrawBlockedReason('player');
+      // The deck, with an undo arc WOVEN through it: the arc is drawn in two
+      // segments either side of the cards, so it passes BEHIND the back card
+      // and IN FRONT of the front one. Both cards are outlined on a black fill
+      // rather than solid — a same-colour arrow drawn over a solid card is
+      // invisible, so the fill is what makes the weave legible at all. The
+      // black matches the hand strip it sits on.
       btnR.innerHTML =
-        '<svg class="redraw-arrow" viewBox="0 0 16 16" fill="none" stroke="currentColor" '
-        + 'stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
-        + '<path d="M13 7a5 5 0 1 0-1.2 4.2"/><path d="M13 3v4h-4"/></svg>'
+        '<svg class="redraw-glyph" viewBox="0 0 24 24" aria-hidden="true">'
+        +   '<path d="M4.6 9.4A8.2 8.2 0 0 1 19.6 8.2" fill="none" stroke="currentColor" '
+        +     'stroke-width="1.7" stroke-linecap="round"/>'
+        +   '<rect x="12" y="6.4" width="6.4" height="8.4" rx="1" fill="#000" '
+        +     'stroke="currentColor" stroke-width="1.25" stroke-opacity="0.65"/>'
+        +   '<rect x="6.4" y="9.4" width="6.7" height="8.9" rx="1" fill="#000" '
+        +     'stroke="currentColor" stroke-width="1.45"/>'
+        +   '<path d="M19.6 8.2A8.2 8.2 0 0 1 8.9 19.8" fill="none" stroke="currentColor" '
+        +     'stroke-width="1.7" stroke-linecap="round"/>'
+        +   '<path d="M11.4 18.1 8.9 19.8l1.8 2.3" fill="none" stroke="currentColor" '
+        +     'stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>'
+        + '</svg>'
         + '<span class="redraw-cost">' + cost + '</span>';
       btnR.title = blocked ? blocked : ('Redraw a card — ' + cost + ' Energy');
       btnR.setAttribute('aria-label', btnR.title);
-      btnR.className = 'btn btn-secondary';
-      btnR.style.display = 'inline-flex';
+      btnR.className = 'hand-redraw-toggle';
+      btnR.style.display = 'flex';
       btnR.disabled = !!blocked;
       btnR.style.opacity = blocked ? '0.4' : '';
       btnR.onclick = () => this.onRedrawClick();

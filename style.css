@@ -37825,48 +37825,45 @@ body.low-fx .card-hollow-purple::after { animation: none !important; }
 }
 
 /* ============================================================
-   REDRAW — the same grow + glow, with its price on it
+   REDRAW — beside the music toggle, in the hand strip
    ============================================================
-   Sits beside Undo and behaves like it: no box, no wash, the mark itself grows
-   and glows. The one addition is the COST, because that number changes (2, 4,
-   8) and is the whole decision — a redraw control that hid its escalating price
-   would be asking you to plan blind. */
-#btn-redraw {
-  background: none !important;
-  border: 0 !important;
-  box-shadow: none !important;
-  outline: none !important;
-  padding: 6px 8px;
-  gap: 5px;
-  align-items: center;
+   Moved out of the action bar to sit under the note at the head of the hand
+   row. That is where it belongs: redraw acts on your HAND, so the control lives
+   with the hand rather than with Done and Undo, which act on the turn.
+   Mirrors .hand-audio-toggle exactly — same absolute corner, same 44px touch
+   target with no 44px box drawn, same resting opacity and grow-on-hover. */
+.hand-redraw-toggle {
+  position: absolute;
+  left: 14px;
+  top: 64px;
+  z-index: 3;
+  background: none;
+  border: 0;
+  padding: 0;
+  min-width: 44px; min-height: 44px;
+  display: flex; align-items: center; justify-content: center; gap: 3px;
+  color: var(--tron-glow, #4fc3f7);
+  opacity: 0.85;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: opacity 150ms ease, transform 150ms ease, color 150ms ease;
 }
-#btn-redraw .redraw-arrow,
-#btn-redraw .redraw-cost {
-  transition:
-    transform 180ms var(--ease-out-soft, cubic-bezier(0.22, 1, 0.36, 1)),
-    filter 180ms ease,
-    color 180ms ease;
+.hand-redraw-toggle .redraw-glyph {
+  width: 23px; height: 23px; display: block;
+  filter: drop-shadow(0 0 7px currentColor);
 }
-#btn-redraw .redraw-cost {
+.hand-redraw-toggle .redraw-cost {
   font-family: var(--font-mono, ui-monospace, monospace);
-  font-size: 12px; font-weight: 700; letter-spacing: 0.04em;
-  color: rgba(var(--theme-rgb, 79,195,247), 0.9);
+  font-size: 12px; font-weight: 700; line-height: 1;
+  text-shadow: 0 0 8px currentColor;
 }
-#btn-redraw:not(:disabled):hover .redraw-arrow,
-#btn-redraw:not(:disabled):hover .redraw-cost,
-#btn-redraw:not(:disabled):focus-visible .redraw-arrow,
-#btn-redraw:not(:disabled):focus-visible .redraw-cost {
-  transform: scale(1.18);
-  color: color-mix(in srgb, rgb(var(--theme-rgb, 79,195,247)) 92%, white);
-  filter:
-    drop-shadow(0 0 8px rgba(var(--theme-rgb, 79,195,247), 0.85))
-    drop-shadow(0 0 16px rgba(var(--theme-rgb, 79,195,247), 0.40));
+.hand-redraw-toggle:hover:not(:disabled),
+.hand-redraw-toggle:focus-visible:not(:disabled) {
+  opacity: 1; transform: scale(1.15); outline: none;
 }
-#btn-redraw:not(:disabled):active .redraw-arrow { transform: scale(1.06); }
-/* Disabled stays VISIBLE and legible — it is showing you a price you cannot
-   pay yet, which is information, not clutter. Hover effects are off so it does
-   not read as pressable. */
-#btn-redraw:disabled { cursor: default; }
+/* Unaffordable: greyed but still legible, because the number it is showing you
+   is the thing you are planning around. */
+.hand-redraw-toggle:disabled { color: #90a6bd; opacity: 0.5; cursor: default; }
 
 /* ============================================================
    UNDO — the menu's grow + glow, on an arrow
