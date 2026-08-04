@@ -38169,3 +38169,39 @@ body.low-fx .card-hollow-purple::after { animation: none !important; }
     0 0 12px rgba(231, 76, 60, 0.45),
     0 0 26px rgba(231, 76, 60, 0.20) !important;
 }
+
+/* ============================================================
+   NO TEXT SELECTION ON THE PLAYFIELD
+   ============================================================
+   Dragging a card across the board rubber-band-SELECTED everything it swept
+   over — the big lane watermarks lit up in grey selection boxes behind the
+   numbers, which is what a text editor should do and a card game should not.
+   User: "is there a way to not have numbers highlited when holding down the
+   cursor and draging".
+
+   There was already a guard for exactly this, but only
+   `body.mobile-card-dragging`, i.e. touch only and only mid-drag. Desktop had
+   none, and a state-scoped rule is the wrong shape anyway: it has to be armed
+   before the gesture that needs it. Nothing on the playfield is prose, so it is
+   simply never selectable.
+
+   Scoped to the match shell rather than <body> so the surfaces where reading
+   and copying genuinely matter are untouched — and the game log, which IS
+   prose, gets it back explicitly below. */
+.board,
+.info-bar,
+.player-hand-section,
+.trick-cards,
+.lane,
+.card,
+.trick-card {
+  -webkit-user-select: none;
+  user-select: none;
+}
+/* The log is the one thing on this screen you might want to read closely or
+   copy out of, so it keeps normal text behaviour. */
+.game-log,
+.log-entry {
+  -webkit-user-select: text;
+  user-select: text;
+}
