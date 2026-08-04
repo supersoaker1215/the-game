@@ -4900,6 +4900,49 @@ const CARD_ABILITIES = {
       G.getAllCardsOf(opp).forEach(e => { e.isBurning = false; });
     },
   },
+  "Godzilla": {
+    // Atomic breath — every enemy card catches fire. The burn uses the same
+    // "take damage before attacking" model as Boiler Room, but on a decaying
+    // schedule held per-card: 3 this turn, then 1 for each of the next 2
+    // rounds. onBeforeAttack shifts one value off the queue per attack, so a
+    // card only burns on the rounds it actually swings — matching Boiler Room.
+    _ignite(G, card) {
+      if (!card || card.isEnvironment || card.currentHealth <= 0) return;
+      // Refresh the schedule (a second Godzilla, or a re-play, re-stokes it).
+      card._godzillaBurn = [3, 1, 1];
+      const _wasBurning = card.isBurning;
+      card.isBurning = true;
+      if (!_wasBurning && typeof UI !== 'undefined' && UI._fxBurnIgnite) {
+        try { UI._fxBurnIgnite(card); } catch (e) {}
+      }
+      if (card._godzillaBurnHooked) return;
+      card._godzillaBurnHooked = true;
+      const origAttack = card.onBeforeAttack || null;
+      card.onBeforeAttack = function(G, self) {
+        const q = self._godzillaBurn;
+        if (q && q.length && self.currentHealth > 0) {
+          const dmg = q.shift();
+          G.dealDamage(self, dmg, null);
+          G.log(`[BURN] ${self.name} takes ${dmg} burn damage before attacking! (Godzilla)`);
+          // Fire out — clear the flame unless a Boiler Room is on the board
+          // keeping its own burn alive on this card (shared isBurning flag).
+          if (!q.length) {
+            const anyBoiler = ['player', 'ai'].some(o =>
+              G.getAllCardsOf(o).some(c => c.name === 'Boiler Room'));
+            if (!anyBoiler) self.isBurning = false;
+          }
+        }
+        if (origAttack) origAttack.call(this, G, self);
+      };
+    },
+    onPlay(G, self, lane) {
+      const enemies = G.getEnemiesOf(self.owner);
+      const AB = CARD_ABILITIES['Godzilla'];
+      if (!enemies.length) { G.log('Godzilla roars — but there is nothing to burn.'); return; }
+      enemies.forEach(e => AB._ignite(G, e));
+      G.log(`Godzilla unleashes atomic fire — ${enemies.length} enemy card${enemies.length === 1 ? '' : 's'} set ablaze!`);
+    },
+  },
   "Freddy Krueger": {
     onBeforeAttack(G, self) {
       // autoPick: this fires on EVERY attack, so it picks an enemy hand on its
