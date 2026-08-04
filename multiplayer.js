@@ -120,7 +120,7 @@ const Multiplayer = {
   _GAME_ACTION_TYPES: new Set([
     'playCard', 'playCardFree', 'playJump', 'playTrick', 'doneTurn', 'mulligan',
     'draftPick', 'draftMulligan', 'promptResolve', 'bwlChoice', 'forfeit',
-    'reqLaneChoice', 'reqState'
+    'reqLaneChoice', 'reqState', 'undo'
   ]),
   _handleServerMsg(msg) {
     if (!msg || typeof msg !== 'object') return;

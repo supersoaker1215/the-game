@@ -1375,6 +1375,15 @@ const Game = {
           // "Dropping into the match…" while the host was in the draft.
           break;
         }
+        case 'undo': {
+          // A guest asked to take its last action back. The HOST restores its
+          // own authoritative snapshot and the unconditional broadcast at the
+          // end of this function pushes the result to both sides — so there is
+          // one timeline, not two. undo() re-checks the per-match cap itself,
+          // so a spammed request cannot spend more than the one.
+          this.undo(actor);
+          break;
+        }
         case 'doneTurn': {
           // The guest hit Done — dispatch to the right phase-end based
           // on the current phase. Guest sends 'doneTurn' with no extra
@@ -2445,6 +2454,9 @@ const Game = {
       // Redraws used THIS MATCH. Drives the doubling cost (2, 4, 8...), so it
       // deliberately never resets between turns — see getRedrawCost.
       redrawsUsed: 0,
+      // Undos used THIS MATCH. Online gets exactly ONE per player per match —
+      // see snapshot()/undo(). Solo is unlimited and ignores this.
+      undosUsed: 0,
       // Per-player piles — used only in Deckbuilder mode. In Classic these
       // stay empty; the shared state.drawPile / state.trickDrawPile are
       // used instead via the same getDrawPile/getTrickPile helpers.
@@ -10568,16 +10580,46 @@ const Game = {
   // also saves a deep state clone on every play.
   snapshot() {
     if (!this.state || this.state.gameOver) return;
-    if (this.isMultiplayer()) return;
+    // ONLINE: only the HOST keeps history, because only the host applies
+    // actions — a guest's local snapshot is a photo of a state it received,
+    // and restoring it locally is exactly the desync this used to cause
+    // ("the opponent clicked undo and the entire turn reset for him, but for
+    // me it stayed the same"). The guest never restores anything; it asks the
+    // host, and the host's broadcast is what both sides see. One entry is all
+    // that is needed since online undo is capped at one action.
+    if (this.isMultiplayer()) {
+      if (this.mp && this.mp.role !== 'host') return;
+      this.history = [this.cloneStateDeep(this.state)];
+      return;
+    }
     if (this.history.length >= this.HISTORY_LIMIT) this.history.shift();
     this.history.push(this.cloneStateDeep(this.state));
   },
 
   // Restore the most recent snapshot. Returns true if anything was restored.
-  undo() {
-    if (this.isMultiplayer()) return false; // no undo in online play — see snapshot()
+  // seat defaults to the local player; the host passes the requesting seat when
+  // it is honouring a guest's forwarded undo.
+  undo(seat) {
+    const owner = seat || 'player';
+    if (this.isMultiplayer()) {
+      // ONE undo per player per match online. Checked here rather than in the
+      // UI so a guest cannot mint extra undos by driving the socket directly.
+      const p = this.state && this.state[owner];
+      if (!p || (p.undosUsed | 0) >= 1) return false;
+      // GUEST: never restore locally — that is the desync. Ask the host and
+      // wait for the authoritative broadcast, exactly like playing a card.
+      if (this.mp && this.mp.role === 'guest') {
+        if (typeof Multiplayer !== 'undefined' && Multiplayer.send) Multiplayer.send({ t: 'undo' });
+        return true;
+      }
+      if (!this.history.length) return false;
+      p.undosUsed = (p.undosUsed | 0) + 1;
+      // fall through to the shared restore below
+    } else {
+      if (!this.isPlayerTurn()) return false; // safety: undo is a player-turn action
+    }
     if (!this.history.length) return false;
-    if (!this.isPlayerTurn()) return false; // safety: undo is a player-turn action
+    if (!this.isMultiplayer() && !this.isPlayerTurn()) return false;
     // Abuse prevention — cancel any live prompt timer + deadline before the
     // restore so a stale timer from the snapshot can't linger.
     this._clearPromptTimeout();

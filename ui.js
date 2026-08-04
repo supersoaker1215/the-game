@@ -19338,9 +19338,20 @@ const UI = {
     // side rewinding desyncs the two clients (Game.snapshot/undo are also
     // MP-gated; hiding the button keeps the bar honest). Stale history from
     // a pre-match solo game can linger, hence the explicit gate here.
-    const undoAllowed = !(Game.isMultiplayer && Game.isMultiplayer());
+    // ONLINE now gets exactly ONE undo per player per match. It is safe because
+    // the guest never restores locally — it forwards to the host, the host
+    // restores its own authoritative snapshot and broadcasts, so both sides
+    // move together. Local undo is what desynced before, not undo itself.
+    // The icon DISAPPEARS once spent, which is why this reads undosUsed rather
+    // than greying: an undo you cannot take is not worth a slot in the bar.
+    const _mpNow = !!(Game.isMultiplayer && Game.isMultiplayer());
+    const _undosLeft = 1 - ((s.player && s.player.undosUsed) | 0);
+    const undoAllowed = _mpNow ? (_undosLeft > 0) : true;
+    // Online the guest has no local history — the host holds it — so the
+    // history check only applies offline.
+    const _haveUndo = _mpNow ? true : Game.history.length > 0;
 
-    if (btnU && undoAllowed && Game.isPlayerTurn() && Game.history.length > 0 && !abilityPending) {
+    if (btnU && undoAllowed && Game.isPlayerTurn() && _haveUndo && !abilityPending) {
       // Arrow ONLY. The count is gone from the face of the button — it was a
       // number nobody acts on (you undo the last thing, not the 17th), and it
       // made a one-glyph control read as a stat. It still rides the aria-label
@@ -19349,8 +19360,10 @@ const UI = {
         '<svg class="undo-arrow" viewBox="0 0 16 16" fill="none" stroke="currentColor" '
         + 'stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
         + '<path d="M3 8h7a3 3 0 0 1 0 6H7"/><path d="M6 5 3 8l3 3"/></svg>';
-      btnU.setAttribute('aria-label', 'Undo (' + Game.history.length + ' available)');
-      btnU.title = 'Undo';
+      btnU.setAttribute('aria-label', _mpNow
+        ? 'Undo (1 per match, ' + _undosLeft + ' left)'
+        : 'Undo (' + Game.history.length + ' available)');
+      btnU.title = _mpNow ? 'Undo — one per match' : 'Undo';
       btnU.className = 'btn btn-secondary';
       btnU.onclick = () => Game.undo();
       // inline-FLEX, not inline-block: this inline style beats the stylesheet, so
