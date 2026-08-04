@@ -3972,26 +3972,55 @@ const CARD_ABILITIES = {
       G.log('[YODA] The Force is with you — this side takes half combat damage.');
     },
     onBeforeTricks(G, self) {
-      // Start of the Trick phase — Yoda anoints ONE ally his apprentice. That
-      // ally's overkill (combat damage beyond the blocker's HP) carries through
-      // and strikes the enemy player. Re-chosen every Trick phase, so clear the
-      // prior mark first — only one apprentice at a time. User spec.
+      // Start of the Trick phase — Yoda gives TWO gifts, to two allies:
+      //   1. Master's Guidance to one ally — their overkill (combat damage
+      //      beyond the blocker's HP) carries through and strikes the enemy
+      //      player.
+      //   2. The Force shield to a DIFFERENT ally — Invincible for 1 turn.
+      // Both are re-chosen every Trick phase, so clear the prior mark first.
       if (self.currentHealth <= 0) return;
       G.getAllCardsOf(self.owner).forEach(a => { delete a._mastersApprentice; });
       const allies = G.getAlliesOf(self.owner)
         .filter(a => a.currentHealth > 0 && a.id !== self.id && !a.isEnvironment);
       if (!allies.length) { G.log('[YODA] No apprentice to teach — Yoda waits.'); return; }
-      const grant = (a) => {
+
+      const fx = (a) => {
+        if (typeof UI !== 'undefined' && UI._fxForceChannel) { try { UI._fxForceChannel(self, a); } catch (e) {} }
+      };
+      // The Invincible counter ticks down in the end-of-round pass, matching
+      // the Captain America / Invisible Woman convention.
+      const shield = (a) => {
+        if (!a) return;
+        a.invincibleTurns = Math.max(a.invincibleTurns || 0, 1);
+        G.log(`[YODA] The Force shields ${a.name} — Invincible this turn.`);
+        fx(a);
+      };
+      const teach = (a) => {
         if (!a) return;
         a._mastersApprentice = true;
         G.log(`[YODA] ${a.name} becomes Yoda's apprentice — overkill will strike the enemy player.`);
-        if (typeof UI !== 'undefined' && UI._fxForceChannel) { try { UI._fxForceChannel(self, a); } catch (e) {} }
+        fx(a);
       };
-      if (allies.length === 1) { grant(allies[0]); return; }
+
+      const pickShield = () => {
+        // Shield any ally — the pick is independent of the apprentice, so it
+        // may be the same card or a different one, wherever the player wants
+        // the Force's protection.
+        if (allies.length === 1) { shield(allies[0]); return; }
+        G.promptCardChoice(self.owner, allies,
+          'Yoda — The Force Shield',
+          'Choose an ally to make Invincible this turn (can be the same card).',
+          shield,
+          cards => cards.slice().sort((a, b) => (b.attack * b.currentHealth) - (a.attack * a.currentHealth))[0]);
+      };
+
+      const pickApprentice = (a) => { teach(a); pickShield(); };
+
+      if (allies.length === 1) { pickApprentice(allies[0]); return; }
       G.promptCardChoice(self.owner, allies,
         "Yoda — Master's Guidance",
         'Choose an ally. Their overkill damage carries through to the enemy player.',
-        grant,
+        pickApprentice,
         cards => cards.slice().sort((a, b) => b.attack - a.attack)[0]);
     },
     onDeath(G, self) {
