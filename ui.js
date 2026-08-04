@@ -18274,7 +18274,12 @@ const UI = {
     const t = [];
     // Stack-aware status badges — counters drive these.
     if (c._mastersApprentice) t.push(badge('badge-apprentice', 'Masters Guidance', "Master's Guidance"));
-    if (c._criticalThisRound) t.push(badge('badge-critical', 'CRITICAL', 'Critical — deals double damage this round'));
+    // Third arg is the CANONICAL KEYWORD, not prose — it is the KEYWORD_DATA
+    // lookup key, and it supplies both the icon and the tooltip. This was
+    // passing the whole sentence "Critical — deals double damage this round",
+    // which matches no entry, so Critical was the one status with no glyph and
+    // no hover explanation. The description belongs in KEYWORD_DATA.tip.
+    if (c._criticalThisRound) t.push(badge('badge-critical', 'Critical', 'Critical'));
     if (c.isBurning) t.push(badge('badge-burning', 'Burning', 'Burning'));
     if (c.isStunned) {
       const n = c.stunnedTurns > 0 ? c.stunnedTurns : 1;
@@ -18390,6 +18395,14 @@ const UI = {
     'Invincible':  { color: '#ecf0f1', svg: '<svg viewBox="0 0 12 12"><path d="M6 1 L7.5 5 L11 5 L8 7.5 L9 11 L6 9 L3 11 L4 7.5 L1 5 L4.5 5 Z" fill="currentColor"/></svg>', tip: 'Cannot die for N turns. Lethal hits are absorbed.' },
     'Unresistible':{ color: '#ff4757', svg: '<svg viewBox="0 0 12 12"><path d="M7.9 0.7 3.3 6.3h2.5L4.6 11.3 9 5.2H6.5Z" fill="currentColor"/></svg>', tip: 'Bypasses Immunity when applying debuffs.' },
     'Untrickable': { color: '#95a5a6', svg: '<svg viewBox="0 0 12 12"><circle cx="6" cy="6" r="4.5" stroke="currentColor" stroke-width="1.2" fill="none"/><path d="M3 9 L9 3" stroke="currentColor" stroke-width="1.2"/></svg>', tip: 'Cannot be targeted by Tricks.' },
+    // A four-point sparkle with a pinched waist — the crit-burst read, in the
+    // spirit of the reference. Deliberately CONCAVE: Invincible already owns a
+    // convex five-point star, and at 10px a second chunky star would be its
+    // twin. The pinch is what keeps them apart at badge size, and the hot pink
+    // vs Invincible's white finishes the job. Chosen over an X-burst and a
+    // burst-plus-chevron by rasterising all three at 10/14/20/34px — the other
+    // two turned to mud below 14.
+    'Critical':    { color: '#ff69b4', svg: '<svg viewBox="0 0 12 12"><path d="M6 0.3 Q6.55 4.35 11.7 6 Q6.55 7.65 6 11.7 Q5.45 7.65 0.3 6 Q5.45 4.35 6 0.3Z" fill="currentColor"/></svg>', tip: 'Deals DOUBLE damage this round.' },
     'Burning':     { color: '#ff7a00', svg: '<svg viewBox="0 0 12 12"><path d="M6.6.5c.3 1.8-.5 2.8-1.4 3.8-1 1-2 2-2 3.4a3.4 3.4 0 0 0 6.8.1c0-1.4-.7-2.4-1.5-3.3-.4.5-.6 1-.6 1.7C6.9 4.6 6.4 2.6 6.6.5Z" fill="currentColor"/></svg>', tip: 'Takes damage at the start of each round until the fire goes out.' },
     'Freeze':      { color: '#85c1e9', svg: '<svg viewBox="0 0 12 12"><path d="M6 1 V11 M1.5 3.5 L10.5 8.5 M10.5 3.5 L1.5 8.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>', tip: 'Can\'t attack, move, or make bonus attacks while frozen.' },
     'Fear':        { color: '#5a5a5a', svg: '<svg viewBox="0 0 12 12"><circle cx="4" cy="5" r="1" fill="currentColor"/><circle cx="8" cy="5" r="1" fill="currentColor"/><path d="M3 9 Q6 7 9 9" stroke="currentColor" stroke-width="1.2" fill="none"/></svg>', tip: 'Attacks itself instead of the enemy.' },

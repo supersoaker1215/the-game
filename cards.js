@@ -19,7 +19,12 @@ const CARD_DEFS = [
   // ==================== COST 0 ====================
   { name: "Iron Giant", cost: 0, attack: 0, health: 0, type: "scifi",
     _neverPlayable: true,
-    abilities: [],
+    // "Draw 1" is carried for the BADGE — the sacrifice draw is real and should
+    // be readable at a glance on the tile. The keyword's own drawOnPlay effect
+    // is inert here and always will be: it fires only on play paths, and six
+    // gates make sure this card is never played. The actual draw lives in
+    // _ironGiantIntercept's doSave.
+    abilities: ["Draw 1"],
     desc: "Leaves your hand only to save an ally. While in Hand: When an ally would be destroyed, you may sacrifice Iron Giant to save it — it survives with its remaining HP (minimum 1) and takes no more damage this combat. When Sacrificed: Deal 1 damage to all enemies. Draw a card." },
   // ==================== COST 1 ====================
   { name: "Ant-Man", cost: 1, attack: 2, health: 1, type: "hero",

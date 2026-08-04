@@ -2374,6 +2374,13 @@ const Game = {
       if (!seat) return;
       seat.redrawsUsed = 0;
       seat.undosUsed = 0;
+      // Mobius Chair raises maxHandSize permanently, so it MUST come back to 7
+      // here. makePlayer() runs once per page load, not once per match — the
+      // exact reason the redraw counters above leaked into a second match and
+      // opened it at cost 8. Two Chairs in a match would otherwise mean you
+      // started your next one holding nine cards.
+      seat.maxHandSize = 7;
+      seat.maxTrickHandSize = 3;
     });
     // Seed the match RNG so EVERY match is reproducible from its seed
     // (replay + fuzz). startSeededRun sets _seedLocked to keep its explicit

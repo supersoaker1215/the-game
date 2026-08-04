@@ -2175,6 +2175,63 @@ test('the Iron Giant save recharges for the next combat', function () {
   assertEq(!!G.state.player._igSpentThisCombat, false, 'player save recharges after combat');
 });
 
+test('Mobius Chair raises max hand size, so its card fits a full hand', function () {
+  var TR = (typeof TRICK_DEFS !== 'undefined' ? TRICK_DEFS : null);
+  if (!TR) throw new Error('TRICK_DEFS not loaded');
+  var chair = TR.find(function (t) { return t.name === 'Mobius Chair'; });
+
+  // A FULL hand is the case that was silently broken: addToHand refuses at the
+  // cap and bins the card, so you paid 2 Energy for nothing.
+  var G = freshGame();
+  var p = G.state.player;
+  p.maxHandSize = 7;
+  p.hand = [];
+  for (var i = 0; i < 7; i++) p.hand.push(G.createCardInstance(cardByName('Bane'), 'player'));
+  for (var j = 0; j < 3; j++) G.getDrawPile('player').push(Object.assign({}, cardByName('Hawkeye')));
+  chair.play(G, 'player');
+  assertEq(p.maxHandSize, 8, 'max hand size went up by 1');
+  assertEq(p.hand.length, 8, 'and the picked card actually landed instead of being binned');
+
+  // It stacks — two Chairs, two points of headroom.
+  chair.play(G, 'player');
+  assertEq(p.maxHandSize, 9, 'a second Chair stacks');
+
+  // Empty draw pile still grants the headroom (the +1 is not conditional on
+  // finding cards) and must not throw.
+  var G2 = freshGame();
+  G2.getDrawPile('player').length = 0;
+  var before = G2.state.player.maxHandSize;
+  chair.play(G2, 'player');
+  assertEq(G2.state.player.maxHandSize, before + 1, 'headroom granted even with an empty pile');
+});
+
+test('max hand size resets between matches', function () {
+  // makePlayer() runs once per PAGE LOAD, not per match — the same trap that
+  // let the redraw cost carry over. Two Chairs must not follow you into the
+  // next match.
+  var G = freshGame();
+  G.state.player.maxHandSize = 9;
+  G.state.ai.maxHandSize = 8;
+  G.startMatch();
+  assertEq(G.state.player.maxHandSize, 7, 'player max hand size is back to 7');
+  assertEq(G.state.ai.maxHandSize, 7, 'AI max hand size is back to 7');
+});
+
+test('Iron Giant carries the Draw 1 badge without gaining a play-time draw', function () {
+  var def = cardByName('Iron Giant');
+  assertEq(def.abilities.indexOf('Draw 1') > -1, true, 'the badge keyword is on the def');
+  var G = freshGame();
+  var ig = G.createCardInstance(def, 'player');
+  // The keyword stamps drawOnPlay, which is fine ONLY because he can never be
+  // played. Pin both halves: the flag exists, and the gate that makes it inert
+  // is still in place.
+  assertEq(ig._neverPlayable, true, 'still never playable, so drawOnPlay can never fire');
+  G.state.player.hand.push(ig);
+  var handBefore = G.state.player.hand.length;
+  assertEq(G.playCard('player', ig, 0), false, 'playCard still refuses him');
+  assertEq(G.state.player.hand.length, handBefore, 'and no draw happened');
+});
+
 test('Iron Giant is still never placeable, and the desc still says so', function () {
   // The gate itself is untouched by the draw work — this pins that.
   var G = igSetup();

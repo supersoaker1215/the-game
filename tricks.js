@@ -289,8 +289,19 @@ const TRICK_DEFS = [
     }
   },
   { name: "Mobius Chair", cost: 2,
-    desc: "Look at 3 random cards from the draw pile. Add one to your hand.",
+    desc: "Your max hand size increases by 1. Look at 3 random cards from the draw pile. Add one to your hand.",
     play(G, owner) {
+      // The +1 lands FIRST, and unconditionally — before the empty-pile bail
+      // and before the pick. addToHand refuses at the cap and silently bins the
+      // card (it only logs [HAND FULL]), so a Chair played on a full hand used
+      // to show you three cards, take your pick, charge you 2 Energy and hand
+      // you nothing. Raising the cap up front is what makes the card it gives
+      // you actually fit.
+      const p = G.state[owner];
+      if (p) {
+        p.maxHandSize = (p.maxHandSize | 0) + 1;
+        G.log(`Mobius Chair: ${G.seatPossessive(owner)} max hand size is now ${p.maxHandSize}.`);
+      }
       const pile = G.getDrawPile(owner);
       if (!pile.length) { G.log(`Mobius Chair finds nothing — draw pile empty!`); return; }
       const count = Math.min(3, pile.length);
