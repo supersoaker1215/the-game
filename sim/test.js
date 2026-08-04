@@ -2928,6 +2928,66 @@ test('a draft mulligan draws from the mulliganing side\'s own pile', function ()
   assertEq(G.state.ai.drawPile.length < guestBefore, true, "the guest drew from their OWN pile");
 });
 
+test('a second match does not inherit the first', function () {
+  // makePlayer() runs once per PAGE LOAD and startMatch reuses this.state, so
+  // the only things reset were the counters. Measured after quitting a match
+  // and hosting again: round 13, gameOver TRUE, HP 4/9, last match's hand,
+  // piles, block meter, an armed one-shot, and two lanes still occupied.
+  var G = freshGame();
+  G.startMatch({ players: '1v1', deck: 'classic' });
+  var s = G.state;
+  s.round = 13; s.gameOver = true; s.winner = 'player';
+  s.player.health = 4; s.ai.health = 9;
+  s.player.hand = [G.createCardInstance(cardByName('Bane'), 'player')];
+  s.player.deadPile = [{ name: 'Ghost' }];
+  s.player.discardPile = [{ name: 'Trash' }];
+  s.player.blockMeter = 6;
+  s.player.nextCardStolen = true;
+  s.lanes[0].player = G.createCardInstance(cardByName('Hela'), 'player');
+  s.lanes[2].ai = G.createCardInstance(cardByName('Revan'), 'ai');
+  s.lanes[4].destroyed = true;
+
+  G.startMatch({ players: '1v1', deck: 'classic' });
+  var n = G.state;
+  assertEq(n.round, 0, 'round reset (round 13 = 13 energy on turn one)');
+  assertEq(n.gameOver, false, 'gameOver cleared');
+  assertEq(n.winner, null, 'winner cleared');
+  assertEq(n.player.health, 30, 'player HP restored');
+  assertEq(n.ai.health, 30, 'AI HP restored');
+  assertEq(n.player.deadPile.length, 0, 'dead pile emptied');
+  assertEq(n.player.discardPile.length, 0, 'discard emptied');
+  assertEq(n.player.blockMeter, 0, 'block meter reset');
+  assertEq(!!n.player.nextCardStolen, false, 'armed one-shot cleared');
+  assertEq(n.lanes.filter(function (l) { return l.player || l.ai; }).length, 0, 'board cleared');
+  assertEq(!!n.lanes[4].destroyed, false, 'destroyed lanes restored');
+});
+
+test("a guest's undo cannot pop the host's snapshot", function () {
+  // Every conditional snapshot site read `owner === 'player'`, so a GUEST
+  // action — which reaches the host as 'ai' — produced no entry at all, and
+  // the guest's Undo popped whatever the host had last stored.
+  var G = freshGame();
+  var realMP = G.isMultiplayer;
+  G.isMultiplayer = function () { return true; };
+  G.mp = { role: 'host', you: 'player' };
+  try {
+    // The HOST takes a snapshot for its own move.
+    G.snapshot('player');
+    assertEq(G.history.length, 1, 'control: the host recorded an entry');
+    // The guest now asks to undo. That entry is not theirs.
+    assertEq(G.undo('ai'), false, "the guest cannot pop the host's entry");
+    assertEq(G.history.length, 1, 'and it is still there for its owner');
+    // The host can take its own back.
+    assertEq(G.undo('player'), true, 'the host undoes its own move');
+
+    // A guest action now records too, tagged to the guest.
+    G.snapshot('ai');
+    assertEq(G.history[0]._undoSeat, 'ai', 'the entry is stamped to the guest');
+    assertEq(G.undo('player'), false, "and the host cannot pop the guest's");
+    assertEq(G.undo('ai'), true, 'the guest undoes their own move');
+  } finally { G.isMultiplayer = realMP; G.mp = null; }
+});
+
 test('Iron Giant is still never placeable, and the desc still says so', function () {
   // The gate itself is untouched by the draw work — this pins that.
   var G = igSetup();

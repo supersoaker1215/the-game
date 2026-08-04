@@ -904,7 +904,8 @@ const Game = {
     // Snapshot BEFORE any mutation, matching playCard / playTrick — otherwise a
     // redraw is the one action in the game you cannot take back. Same guard
     // they use: player turns only, and snapshot() itself no-ops in online play.
-    if (owner === 'player' && this.isPlayerTurn()) this.snapshot();
+    if (this.isPlayerTurn() || (this.isMultiplayer() && this.mp && this.mp.role === 'host'))
+      this.snapshot(owner);
 
     const cost = this.getRedrawCost(owner);
     p.currency -= cost;
@@ -1222,7 +1223,8 @@ const Game = {
     // armed prompt (its callback is a live closure; undoing to it replays the
     // original timeline's objects → the duplicate-Ahsoka class).
     this.state[slotKey] = null;
-    if (prompt.owner === 'player' && this.isPlayerTurn()) this.snapshot();
+    if (this.isPlayerTurn() || (this.isMultiplayer() && this.mp && this.mp.role === 'host'))
+      this.snapshot(prompt.owner);
     // Replay recording — capture the prompt resolution (kind + validated
     // payload) before the callback runs, so a replay resolves it identically.
     this._recordCmd({ k: 'resolve', kind, payload: (kind === 'lane') ? { laneIdx: arg } : { idx: payload.idx } });
@@ -2397,7 +2399,58 @@ const Game = {
       // class keeps coming back. Scrubbed at the one door every match enters.
       seat.forcedLane = null;
       delete seat.magnetoForcedLanes;
+      // A SECOND MATCH IN THE SAME PAGE LOAD WAS INHERITING THE FIRST.
+      // makePlayer() runs once per page load; startMatch reuses this.state and
+      // only ever reset the counters above. Measured after quitting a match and
+      // starting another: round 13, gameOver still TRUE, HP 4 and 9, last
+      // match's hand, dead pile, discard pile, block meter 6, an armed
+      // nextCardStolen, and two lanes still occupied. Round 13 also means both
+      // seats open the new match on 13 energy.
+      // Reachable without a reload: Settings -> Main Menu mid-match, or Quit
+      // Draft, then host again.
+      seat.health = seat.maxHealth = 30;
+      seat.hand = [];
+      seat.trickHand = [];
+      seat.deadPile = [];
+      seat.discardPile = [];
+      seat.playedTrickPile = [];
+      seat.blockMeter = 0;
+      seat.cardsPlayedCount = 0;
+      seat.currency = 0;
+      seat.nextTurnCurrency = 0;
+      seat.discount = 0;
+      seat.nextDrawDiscount = 0;
+      seat.nextDrawDiscountCount = 0;
+      // Armed one-shots. A stale nextCardStolen meant the new match's first
+      // card was intercepted by a Batman Who Laughs that is not on the board.
+      seat.nextCardStolen = false;
+      seat.stolenByBWL = null;
+      seat.drStrangeReorder = false;
     });
+    // Match-level state, same reason as the seat fields above.
+    this.state.round = 0;
+    this.state.gameOver = false;
+    this.state.winner = null;
+    this.state.voidPile = [];
+    this.state._hpHistory = null;
+    this.state._roundStats = null;
+    this.state._combatFinishedThisRound = false;
+    delete this.state._beforeCombatFired;
+    // The board itself. Lanes are only rebuilt further down when the array is
+    // not already six long — which after one match it always is, so last
+    // match's cards were still standing on it.
+    for (let i = 0; i < this.LANE_COUNT; i++) {
+      const ln = this.state.lanes && this.state.lanes[i];
+      if (!ln) continue;
+      ln.player = null;
+      ln.ai = null;
+      ln.destroyed = false;
+      ln.destroyedTurns = 0;
+      ln.protected = null;
+      if (ln._env) { ln._env.player = null; ln._env.ai = null; }
+    }
+    // Undo history belongs to the match that made it.
+    this.history = [];
     // Seed the match RNG so EVERY match is reproducible from its seed
     // (replay + fuzz). startSeededRun sets _seedLocked to keep its explicit
     // seed; otherwise generate a fresh random one and record it. The MP guest
@@ -4052,7 +4105,8 @@ const Game = {
     const lane = this.state.lanes[laneIdx];
     if (!lane || lane.destroyed) return false;
     // Snapshot before any player-initiated card play so the action can be undone.
-    if (owner === 'player' && this.isPlayerTurn()) this.snapshot();
+    if (this.isPlayerTurn() || (this.isMultiplayer() && this.mp && this.mp.role === 'host'))
+      this.snapshot(owner);
     const who = this.seatLabel(owner);
 
     // Discard effects — card is spent for its onDiscard effect and goes
@@ -4494,7 +4548,8 @@ const Game = {
       return false; // caller's loop pauses via whenPromptCleared / hasPendingPrompt
     }
     // Snapshot before any player-initiated trick play so the action can be undone.
-    if (owner === 'player' && this.isPlayerTurn()) this.snapshot();
+    if (this.isPlayerTurn() || (this.isMultiplayer() && this.mp && this.mp.role === 'host'))
+      this.snapshot(owner);
     this.state[owner].currency -= cost;
     if (this.state._stats && this.state._stats[owner]) this.state._stats[owner].energySpent += cost;
     const idx = this.state[owner].trickHand.indexOf(trick);
@@ -10719,7 +10774,8 @@ const Game = {
     // is consumed so an undo restores a still-jumpable card. Previously the
     // only boundary was the lane-choice resolve, which fired after the flag
     // was cleared: undo gave the card back but silently ate the jump.
-    if (owner === 'player' && this.isPlayerTurn()) this.snapshot();
+    if (this.isPlayerTurn() || (this.isMultiplayer() && this.mp && this.mp.role === 'host'))
+      this.snapshot(owner);
     // If the modal-driven jump offer referenced THIS card, clear it and
     // resume combat so the lane timeline continues after Jason lands.
     if (this.isHuman(owner) && this.state.pendingJumpOffer && this.state.pendingJumpOffer.cardId === card.id) {
@@ -10925,13 +10981,22 @@ const Game = {
     // me it stayed the same"). The guest never restores anything; it asks the
     // host, and the host's broadcast is what both sides see. One entry is all
     // that is needed since online undo is capped at one action.
+    // WHOSE action is about to happen. Every conditional snapshot site reads
+    // `owner === 'player'`, so a GUEST action — which reaches the host as 'ai'
+    // — produced no entry at all, and the guest's Undo then popped whatever the
+    // host had last stored: the host's own move, or a whole combat. Stamping
+    // the seat lets undo refuse an entry that is not its own instead of
+    // rewinding the wrong player.
+    const seat = (arguments.length && arguments[0]) ? arguments[0] : 'player';
+    const clone = this.cloneStateDeep(this.state);
+    clone._undoSeat = seat;
     if (this.isMultiplayer()) {
       if (this.mp && this.mp.role !== 'host') return;
-      this.history = [this.cloneStateDeep(this.state)];
+      this.history = [clone];
       return;
     }
     if (this.history.length >= this.HISTORY_LIMIT) this.history.shift();
-    this.history.push(this.cloneStateDeep(this.state));
+    this.history.push(clone);
   },
 
   // Restore the most recent snapshot. Returns true if anything was restored.
@@ -10951,6 +11016,18 @@ const Game = {
         return true;
       }
       if (!this.history.length) return false;
+      // ONLY YOUR OWN MOVE. History holds one entry online, and it is now
+      // stamped with the seat whose action it precedes. Without this check a
+      // guest's Undo popped whatever the host last stored — the host's own play,
+      // or an entire combat — and the host then broadcast that rewind to both
+      // clients. An untagged entry is refused too: it predates this fix or came
+      // from resolveCombat's unconditional snapshot, and neither belongs to a
+      // player's take-back.
+      const top = this.history[this.history.length - 1];
+      if (!top || top._undoSeat !== owner) {
+        this.log(`  [UNDO] Nothing of ${this.seatPossessive(owner)} own to take back.`);
+        return false;
+      }
       // NOT incremented here. `p` points at the CURRENT state, and the restore
       // below does `this.state = snap` — a clone captured BEFORE this line ran.
       // So the counter was written and then immediately thrown away, and the
