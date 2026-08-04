@@ -19410,7 +19410,9 @@ const UI = {
       btnR.className = 'hand-redraw-toggle';
       btnR.style.display = 'flex';
       btnR.disabled = !!blocked;
-      btnR.style.opacity = blocked ? '0.4' : '';
+      // No inline opacity — the :disabled rule owns how "unaffordable" looks.
+      // Setting it here as well meant two places decided the same thing, and the
+      // inline one (0.4) silently beat the stylesheet every time.
       btnR.onclick = () => this.onRedrawClick();
     }
 

@@ -33,6 +33,10 @@
   --tron:       var(--theme-accent);   /* primary accent (edges, labels) */
   --tron-dim:   rgba(var(--theme-rgb, 79,195,247),0.28);  /* standard 1px border */
   --tron-edge:  rgba(var(--theme-rgb, 79,195,247),0.55);  /* hover / active border */
+  /* GLOW ONLY — box-shadow / drop-shadow. Never `color`: at 0.22 alpha it paints
+     a mark you can barely see on black, AND kills any currentColor glow that
+     mark throws. Foreground ink is --theme-accent. Two controls (the hand's
+     music note and redraw) had made exactly this mistake. */
   --tron-glow:  rgba(var(--theme-rgb, 79,195,247),0.22);  /* ambient outer glow */
   --tron-ink:   rgba(var(--theme-rgb, 79,195,247),0.08);  /* fill wash for subtle bg */
 
@@ -8114,7 +8118,11 @@ body.mobile-card-dragging .cursor-trail { display: none !important; }
   /* 44px keeps it a legitimate touch target without drawing a 44px box. */
   min-width: 44px; min-height: 44px;
   display: flex; align-items: center; justify-content: center;
-  color: var(--tron-glow, #4fc3f7);
+  /* --theme-accent, NOT --tron-glow. The glow token is a 0.22-alpha AMBIENT
+     token meant for box-shadow; using it as ink painted the note at 22% of the
+     theme colour, so the "glow" it threw was 22% too and the whole control read
+     as dark grey on black. Foreground marks take the full-strength accent. */
+  color: var(--theme-accent, #4fc3f7);
   /* Resting opacity was 0.45 — a dim cyan glyph on pure black read as invisible
      and the control was undiscoverable ("its not there"). Bright enough to find,
      still quiet enough not to compete with the cards. */
@@ -8132,8 +8140,11 @@ body.mobile-card-dragging .cursor-trail { display: none !important; }
 }
 .hand-audio-toggle:hover,
 .hand-audio-toggle:focus-visible { opacity: 1; transform: scale(1.15); outline: none; }
-/* Hidden/muted — desaturated, with a slash struck through the note. */
-.hand-audio-toggle.is-muted { color: #90a6bd; opacity: 0.9; }
+/* Hidden/muted — quieter, with a slash struck through the note. Dimmed from the
+   THEME rather than a hardcoded slate: #90a6bd painted the same blue-grey in
+   every theme, so on red or silver the muted note left the palette entirely.
+   Same hue, lower alpha — it reads as "off", not as "some other control". */
+.hand-audio-toggle.is-muted { color: rgba(var(--theme-rgb, 79,195,247), 0.55); opacity: 0.9; }
 .hand-audio-toggle.is-muted .hand-audio-icon::after {
   content: '';
   position: absolute;
@@ -37842,7 +37853,10 @@ body.low-fx .card-hollow-purple::after { animation: none !important; }
   padding: 0;
   min-width: 44px; min-height: 44px;
   display: flex; align-items: center; justify-content: center; gap: 3px;
-  color: var(--tron-glow, #4fc3f7);
+  /* Full-strength accent — see the note on .hand-audio-toggle. Both controls
+     were the only two places in the stylesheet using the ambient glow token as
+     ink, and both were the ones that read as dark grey. */
+  color: var(--theme-accent, #4fc3f7);
   opacity: 0.85;
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
@@ -37861,9 +37875,17 @@ body.low-fx .card-hollow-purple::after { animation: none !important; }
 .hand-redraw-toggle:focus-visible:not(:disabled) {
   opacity: 1; transform: scale(1.15); outline: none;
 }
-/* Unaffordable: greyed but still legible, because the number it is showing you
-   is the thing you are planning around. */
-.hand-redraw-toggle:disabled { color: #90a6bd; opacity: 0.5; cursor: default; }
+/* Unaffordable: dimmed but still legible, because the number it is showing you
+   is the thing you are planning around. Dimmed IN THEME — the old #90a6bd slate
+   plus the global button:disabled saturate(0.4) desaturated it twice over, so an
+   unaffordable redraw stopped looking like the same control and started looking
+   like dead chrome. Same hue at lower alpha reads as "can't afford it yet". */
+.hand-redraw-toggle:disabled {
+  color: rgba(var(--theme-rgb, 79,195,247), 0.6);
+  opacity: 0.6;
+  filter: none;
+  cursor: default;
+}
 
 /* ============================================================
    UNDO — the menu's grow + glow, on an arrow
