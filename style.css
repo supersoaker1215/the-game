@@ -35806,8 +35806,7 @@ body.low-fx .card-portrait {
    stops just abover the damage/health that needs to cover the entire back."
    Going full-bleed also hands the text those 30px, which is why fewer cards
    need to step their font down now. */
-.player-hand-section .hand-cards .card .card-desc,
-.player-hand-section .hand-cards .card .card-trick-passive {
+.player-hand-section .hand-cards .card .card-desc {
   position: absolute;
   inset: 0;
   border-radius: inherit;   /* follow the card's corners, do not square them off */
@@ -35851,8 +35850,7 @@ body.low-fx .card-portrait {
    Hover now does nothing but magnify. Click turns the card over, click again
    turns it back, and dragging still plays it — the drag handler suppresses the
    click that ends a drag, so pulling a card out never flips it on the way. */
-.player-hand-section .hand-cards .card.face-flipped .card-desc,
-.player-hand-section .hand-cards .card.face-flipped .card-trick-passive {
+.player-hand-section .hand-cards .card.face-flipped .card-desc {
   visibility: visible;
   opacity: 1;
   transform: rotateY(0deg);
@@ -35911,8 +35909,7 @@ body.low-fx .card-portrait {
 }
 /* Motion budget: reduced-motion users get the same face, no rotation. */
 @media (prefers-reduced-motion: reduce) {
-  .player-hand-section .hand-cards .card .card-desc,
-  .player-hand-section .hand-cards .card .card-trick-passive {
+  .player-hand-section .hand-cards .card .card-desc {
     transform: none;
     transition: opacity 120ms linear;
   }
@@ -35928,8 +35925,7 @@ body.low-fx .card-portrait {
    The panel sits at z-index 3 — under the cost badge and the ATK/HP orbs
    (both z-index 4), so those stay legible on top — and over the portrait. The
    click-to-flip face still works; this only changes the at-rest look. */
-body.hand-text-always .player-hand-section .hand-cards .card .card-desc,
-body.hand-text-always .player-hand-section .hand-cards .card .card-trick-passive {
+body.hand-text-always .player-hand-section .hand-cards .card .card-desc {
   /* OLD SPEC-SHEET LOOK: the rules flow IN the card body again (below the art
      and the keyword badges) instead of being a hidden flip face, and the card
      grows to fit — art on top, name, badges, then the description, all visible
@@ -36032,8 +36028,7 @@ body.hand-text-always .player-hand-section .hand-cards .card .card-name-overlay 
 }
 /* The click-flip face, when used in this mode, is still the full-bleed panel —
    restore its full height so a flipped card reads exactly as before. */
-body.hand-text-always .player-hand-section .hand-cards .card.face-flipped .card-desc,
-body.hand-text-always .player-hand-section .hand-cards .card.face-flipped .card-trick-passive {
+body.hand-text-always .player-hand-section .hand-cards .card.face-flipped .card-desc {
   inset: 0;
   height: auto;
   align-content: center;
@@ -36811,7 +36806,6 @@ body.low-fx .card-frost::after {
    turned over shows its text. */
 @container (max-width: 520px) {
   .player-hand-section .hand-cards .card.face-flipped .card-desc,
-  .player-hand-section .hand-cards .card.face-flipped .card-trick-passive,
   .trick-cards .trick-card.face-flipped .trick-desc {
     display: block !important;
     visibility: visible !important;
@@ -36868,7 +36862,6 @@ body.low-fx .card-frost::after {
    box, so the card's neon perimeter survives underneath. */
 .flip-host { position: relative; }
 .flip-host .card-desc,
-.flip-host .card-trick-passive,
 .flip-host .trick-desc {
   position: absolute;
   inset: 0;
@@ -36895,7 +36888,6 @@ body.low-fx .card-frost::after {
   backface-visibility: hidden;
 }
 .flip-host.face-flipped .card-desc,
-.flip-host.face-flipped .card-trick-passive,
 .flip-host.face-flipped .trick-desc {
   visibility: visible;
   opacity: 1;
@@ -36933,7 +36925,6 @@ body.low-fx .card-frost::after {
 .flip-host { cursor: pointer; }
 @media (prefers-reduced-motion: reduce) {
   .flip-host .card-desc,
-  .flip-host .card-trick-passive,
   .flip-host .trick-desc,
   .flip-host .card-portrait { transition: none !important; transform: none !important; }
   .flip-host.face-flipped .card-portrait { opacity: 0; }

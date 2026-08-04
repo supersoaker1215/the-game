@@ -5010,7 +5010,13 @@ const UI = {
   // The element carrying the rules text on each of those. Tricks use
   // .trick-desc rather than .card-desc, which is the only structural
   // difference between the two surfaces.
-  FLIP_FACE_SELECTOR: '.card-desc, .card-trick-passive, .trick-desc',
+  // .card-trick-passive is NOT listed here: it is a CHILD of .card-desc, not a
+  // peer face. Treating it as one is what blacked out Iron Man's and Thanos's
+  // rules — the flip CSS gave it `position:absolute; inset:0; background:#000`,
+  // so it filled its own parent and painted over its siblings, and the two
+  // cards that carry it showed nothing but "Can be played during the Trick
+  // Phase". It inherits show/hide from .card-desc and needs no rule of its own.
+  FLIP_FACE_SELECTOR: '.card-desc, .trick-desc',
 
   // Turn any flipped card back over, and drop the selection with it.
   dismissHandCardFlip(e) {
