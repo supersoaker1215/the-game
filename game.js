@@ -7176,6 +7176,23 @@ const Game = {
         this.applyCombatDamage(c, enemy);
         this.cleanupDead();
       } else if (!enemy) {
+        // JOKER'S PLAYING CARD — "Uncontested enemies in those lanes cannot
+        // attack this round." resolveUncontestedLane honours lane.protected;
+        // this path never did, so a bonus attack walked straight through the
+        // protection and hit the hero. User: "the opponent played jokers
+        // playing card in lane 3, the anakin moved did a bonus attack in lane 3
+        // and it still hit."
+        // Checked HERE and not at the top of the function because the card's
+        // lane is re-read every iteration — a bonus attack can land in a
+        // different lane than the one the drain started in. And only in this
+        // branch: the card protects UNCONTESTED enemies, so a contested trade
+        // above is unaffected, exactly as the printed text says.
+        const ln = this.state.lanes[lane];
+        const protectedFromSide = c.owner === 'player' ? 'ai' : 'player';
+        if (ln && ln.protected === protectedFromSide) {
+          this.log(`  [BONUS BLOCKED] Lane ${lane + 1} is protected — ${c.name}'s bonus attack is turned aside.`);
+          break;   // the lane stays protected all round, so the rest are dead too
+        }
         // Splash does NOT stack on the HP-bar hit when the lane is
         // uncontested — same rule as normal attacks (see line ~3105
         // and the long comment there). User report: Ahsoka with 1 ATK

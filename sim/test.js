@@ -2693,6 +2693,49 @@ test('choosing Skip on Magneto leaves the board alone', function () {
   assertEq(G.findCardLane(lone), 0, 'and the lone card stayed put');
 });
 
+test("Joker's Playing Card blocks a BONUS attack, not just the normal swing", function () {
+  // User: "the opponent played jokers playing card in lane 3, the anakin moved
+  // did a bonus attack in lane 3 and it still hit." resolveUncontestedLane
+  // honoured lane.protected; drainBonusAttacks never did.
+  function heroDamageFrom(protectLane) {
+    var G = freshGame();
+    var atk = place(G, 'Anakin Skywalker', 'player', 2);   // lane 3, uncontested
+    atk.attack = 5;
+    atk.bonusAttack = 1;
+    if (protectLane) G.state.lanes[2].protected = 'ai';    // the AI cast the trick
+    var before = G.state.ai.health;
+    G.drainBonusAttacks(atk);
+    return before - G.state.ai.health;
+  }
+  // CONTROL FIRST — an unprotected lane must still land, or the assertion below
+  // would pass simply by having broken bonus attacks outright.
+  assertEq(heroDamageFrom(false), 5, 'control: an unprotected bonus attack still hits the hero');
+  assertEq(heroDamageFrom(true), 0, 'a protected lane turns the bonus attack aside');
+});
+
+test("Joker's protection does NOT stop a contested bonus attack", function () {
+  // The card reads "UNCONTESTED enemies in those lanes cannot attack", so a
+  // real trade in a protected lane is unaffected. Pinning this stops the fix
+  // from quietly becoming "protected lanes are immune to everything".
+  var G = freshGame();
+  var atk = place(G, 'Anakin Skywalker', 'player', 2);
+  atk.attack = 4; atk.bonusAttack = 1;
+  var blocker = place(G, 'Bane', 'ai', 2);
+  blocker.currentHealth = 10; blocker.maxHealth = 10;
+  G.state.lanes[2].protected = 'ai';
+  // Spy on the SWING rather than measuring net HP. Bane's own "add (+1/+1)
+  // when damaged" heals him mid-hit, so net health conflates the damage with
+  // his reaction — my first version of this test read 3 for a 4-ATK swing and
+  // looked like a bug in the fix. The question here is only whether the hit
+  // happened at all.
+  var hits = [];
+  var real = G.applyCombatDamage;
+  G.applyCombatDamage = function (from, to) { hits.push((from && from.name) + '->' + (to && to.name)); return real.apply(G, arguments); };
+  try { G.drainBonusAttacks(atk); } finally { G.applyCombatDamage = real; }
+  assertEq(hits.length, 1, 'the contested trade still resolves');
+  assertEq(hits[0], 'Anakin Skywalker->Bane', 'and it struck the blocker, not the hero');
+});
+
 test('Iron Giant is still never placeable, and the desc still says so', function () {
   // The gate itself is untouched by the draw work — this pins that.
   var G = igSetup();
