@@ -9772,9 +9772,9 @@ body.turn-combat .board .lane.lane-active {
   }
   .fp-body { flex-direction: column; gap: 12px; }
   .fp-trick-preview { flex: 0 0 auto; }
-  .fp-btn { padding: 10px 12px; }
-  .fp-btn-title { font-size: 12px; }
-  .fp-btn-sub { font-size: 10px; }
+  /* Narrow screens keep the full 44px touch target — only the word shrinks.
+     (.fp-btn-sub is gone: prompt buttons are bare labels now.) */
+  .fp-btn-title { font-size: 14px; }
 }
 
 /* ============================================================
@@ -11643,62 +11643,79 @@ body.turn-combat .board .lane.lane-active {
   aspect-ratio: 3 / 4;
   height: auto;
 }
-.fp-choices { flex: 1; display: flex; flex-direction: column; gap: 10px; justify-content: center; }
+/* ============================================================
+   PROMPT CHOICES — the menu's grow + glow, and nothing else
+   ============================================================
+   These were bordered, filled, radiused boxes, each with a second line of grey
+   subtext under the verb. The main menu settled that argument already: it hides
+   its own .mm-option-sub with the note "labels only — cleaner, AAA", and its
+   only hover chrome is the letters growing, brightening and glowing. Same call
+   here — the prompt states the question, the card is right there with its cost
+   pip showing, so a sentence under each verb was narrating what the player can
+   already see.
+   The buttons are now bare words. Selection reads as the word coming toward
+   you. No box, ever. */
+.fp-choices {
+  flex: 1;
+  display: flex; flex-direction: column;
+  gap: 2px;
+  justify-content: center; align-items: center;
+}
 .fp-btn {
-  background: rgba(8,14,22,0.9);
-  border: 1px solid rgba(var(--theme-rgb, 79,195,247),0.65);
-  border-radius: 6px;
-  padding: 12px 16px;
+  background: none;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  /* 44px of touch target without drawing a 44px box. */
+  min-height: 44px;
+  padding: 6px 14px;
+  display: flex; align-items: center; justify-content: center;
+  width: fit-content; max-width: 100%;
   cursor: pointer;
   color: var(--text-body, #f0f6fb);
-  text-align: left;
-  transition: background 0.15s, border-color 0.15s, transform 0.12s, box-shadow 0.15s;
+  text-align: center;
   font-family: inherit;
-  /* Neon outer glow keyed to the button's variant tone. Tracks
-     `currentColor` via box-shadow so primary-green and secondary-cyan
-     each carry their own halo. */
-  box-shadow:
-    0 0 8px rgba(var(--theme-rgb, 79,195,247),0.20),
-    0 0 16px rgba(var(--theme-rgb, 79,195,247),0.08);
+  -webkit-tap-highlight-color: transparent;
 }
-.fp-btn:hover {
-  background: rgba(var(--theme-rgb, 79,195,247),0.14);
-  border-color: rgba(var(--theme-rgb, 79,195,247),1);
-  transform: translateY(-1px);
-  box-shadow:
-    0 0 14px rgba(var(--theme-rgb, 79,195,247),0.55),
-    0 0 28px rgba(var(--theme-rgb, 79,195,247),0.22);
-}
+/* The LETTERS carry the whole interaction — scale + brighten + halo. The scale
+   lives on the inner span, not the button, so the 44px hit area never moves
+   under the pointer while the word grows. */
 .fp-btn-title {
-  display: block;
+  display: inline-block;
   font-family: 'Rajdhani', sans-serif;
-  font-weight: 700; font-size: 13px;
-  letter-spacing: 1.5px; text-transform: uppercase;
-  /* Neon glow on the action title — matches the rest of the HUD. */
-  text-shadow: 0 0 6px rgba(var(--theme-rgb, 79,195,247),0.65), 0 0 12px rgba(var(--theme-rgb, 79,195,247),0.30);
+  font-weight: 700; font-size: 15px;
+  letter-spacing: 2.5px; text-transform: uppercase;
+  transform-origin: center;
+  transition: transform 200ms ease, color 200ms ease, text-shadow 200ms ease;
+  text-shadow: 0 0 6px rgba(var(--theme-rgb, 79,195,247),0.45);
 }
-.fp-btn-sub {
-  display: block; margin-top: 2px;
-  font-size: 11px; color: #8aa0b0;
+.fp-btn:hover .fp-btn-title,
+.fp-btn:focus-visible .fp-btn-title {
+  transform: scale(1.12);
+  color: color-mix(in srgb, rgb(var(--theme-rgb, 79,195,247)) 92%, white);
+  text-shadow: 0 0 12px rgba(var(--theme-rgb, 79,195,247),0.85), 0 0 22px rgba(var(--theme-rgb, 79,195,247),0.4);
 }
-.fp-btn-primary {
-  border-color: rgba(46,204,113,0.85);
-  box-shadow:
-    0 0 10px rgba(46,204,113,0.32),
-    0 0 22px rgba(46,204,113,0.12);
-}
-.fp-btn-primary:hover {
-  background: rgba(46,204,113,0.15);
-  border-color: rgba(46,204,113,1);
-  box-shadow:
-    0 0 18px rgba(46,204,113,0.65),
-    0 0 36px rgba(46,204,113,0.30);
-}
+.fp-btn:focus-visible { outline: none; }
+/* The confirming choice keeps the game's player-green so the two options stay
+   tellable apart at a glance without either one needing a box. */
 .fp-btn-primary .fp-btn-title {
   color: #7ee8a5;
-  text-shadow: 0 0 6px rgba(46,204,113,0.75), 0 0 14px rgba(46,204,113,0.40);
+  text-shadow: 0 0 6px rgba(46,204,113,0.55);
 }
-.fp-btn-secondary:hover { background: rgba(var(--theme-rgb, 79,195,247),0.14); }
+.fp-btn-primary:hover .fp-btn-title,
+.fp-btn-primary:focus-visible .fp-btn-title {
+  color: color-mix(in srgb, #7ee8a5 80%, white);
+  text-shadow: 0 0 12px rgba(46,204,113,0.9), 0 0 24px rgba(46,204,113,0.45);
+}
+/* Not a button — a status line. It must not grow, glow or invite a click. */
+.fp-btn-waiting { cursor: default; }
+.fp-btn-waiting .fp-btn-title { font-weight: 600; opacity: 0.7; letter-spacing: 1.5px; }
+.fp-btn-waiting:hover .fp-btn-title { transform: none; color: inherit; }
+@media (prefers-reduced-motion: reduce) {
+  .fp-btn-title { transition: color 200ms ease, text-shadow 200ms ease; }
+  .fp-btn:hover .fp-btn-title,
+  .fp-btn:focus-visible .fp-btn-title { transform: none; }
+}
 /* Neon header label — matches the codex/deckbuilder title chrome. */
 .fp-label {
   text-shadow:
@@ -17784,30 +17801,13 @@ body.theme-purple .board-section {
   color: color-mix(in srgb, var(--theme-accent) 30%, white) !important;
   text-shadow: 0 0 8px var(--theme-glow-outer) !important;
 }
-/* Secondary button inside choice-tray / full-page prompts (fp-*)
-   and any button with .fp-btn-secondary — unify to theme. */
-.fp-btn-primary,
-.fp-btn {
-  border-color: var(--theme-accent-edge) !important;
-  color: color-mix(in srgb, var(--theme-accent) 40%, white) !important;
-  background: #000 !important;
-}
-.fp-btn-primary:hover,
-.fp-btn:hover {
-  border-color: var(--theme-accent-bright) !important;
-  color: var(--text-hi, #f5fbff) !important;
-  box-shadow: 0 0 10px var(--theme-glow-outer), 0 0 20px var(--theme-glow-inner) !important;
-}
-.fp-btn-secondary {
-  border-color: var(--theme-accent-dim) !important;
-  color: color-mix(in srgb, var(--theme-accent) 20%, #b8c2cc) !important;
-  background: #000 !important;
-}
-.fp-btn-secondary:hover {
-  border-color: var(--theme-accent-edge) !important;
-  color: var(--text-hi, #f5fbff) !important;
-  background: var(--theme-wash-08) !important;
-}
+/* Prompt choices (fp-*) — theme the WORDS, never a box. This block used to
+   paint a border, a black fill and a hover halo on every prompt button; those
+   are the exact box that the boxless rewrite above removed, and being authored
+   later with !important they would have won and drawn it straight back. Colour
+   is all that is left here. */
+.fp-btn { color: color-mix(in srgb, var(--theme-accent) 55%, white) !important; }
+.fp-btn-secondary { color: color-mix(in srgb, var(--theme-accent) 30%, #b8c2cc) !important; }
 
 /* (o) AI "thinking" indicator — three pulsing dots attached to
    the AI info-bar while body.turn-ai is active. */

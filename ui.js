@@ -15319,12 +15319,10 @@ const UI = {
           </div>
           <div class="fp-choices">
             <button class="fp-btn fp-btn-primary" onclick="blockTrickPlay()">
-              <span class="fp-btn-title">Play FREE</span>
-              <span class="fp-btn-sub">Use now at no cost</span>
+              <span class="fp-btn-title">Play Free</span>
             </button>
             <button class="fp-btn fp-btn-secondary" onclick="blockTrickKeep()">
-              <span class="fp-btn-title">Keep in Hand</span>
-              <span class="fp-btn-sub">Pay ${trick.cost} to play later</span>
+              <span class="fp-btn-title">Keep</span>
             </button>
           </div>
         </div>
@@ -15409,18 +15407,15 @@ const UI = {
     const choicesHtml = myChoice ? `
           <div class="fp-choices">
             <button class="fp-btn fp-btn-primary" onclick="timeStoneCounter()">
-              <span class="fp-btn-title">Counter (spend Time Stone)</span>
-              <span class="fp-btn-sub">${t.name} returns to enemy hand + blocked this round</span>
+              <span class="fp-btn-title">Counter</span>
             </button>
             <button class="fp-btn fp-btn-secondary" onclick="timeStoneAllow()">
-              <span class="fp-btn-title">Let it resolve</span>
-              <span class="fp-btn-sub">Trick fires; Time Stone stays in hand</span>
+              <span class="fp-btn-title">Allow</span>
             </button>
           </div>` : `
           <div class="fp-choices">
             <div class="fp-btn fp-btn-secondary fp-btn-waiting">
               <span class="fp-btn-title">Opponent may react…</span>
-              <span class="fp-btn-sub">They hold Time Stone — waiting for their decision</span>
             </div>
           </div>`;
     modal.innerHTML = `
@@ -15478,12 +15473,10 @@ const UI = {
       : `<div class="fp-body">
           <div class="fp-choices">
             <button class="fp-btn fp-btn-primary" onclick="jumpOfferPlay()">
-              <span class="fp-btn-title">Play FREE</span>
-              <span class="fp-btn-sub">Place ${card.name} (${card.attack}/${card.currentHealth}) now</span>
+              <span class="fp-btn-title">Play Free</span>
             </button>
             <button class="fp-btn fp-btn-secondary" onclick="jumpOfferSkip()">
               <span class="fp-btn-title">Skip</span>
-              <span class="fp-btn-sub">Let combat continue</span>
             </button>
           </div>
         </div>`;
