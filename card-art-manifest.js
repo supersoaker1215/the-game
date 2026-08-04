@@ -98,6 +98,9 @@ window.CARD_ART_VARIANTS = {
   // Killer Moth — default is the Gotham skyline pose (user preference); the
   // close-up portrait is the alternate. Name-click cycles between them.
   'Killer Moth':         ['Killer Moth 2.png',        'Killer Moth.png'],
+  // Godzilla (2026-08-04) — jpg art, same manifest-entry reason as Stripe /
+  // Iron Giant (default lookup assumes <Name>.png).
+  'Godzilla':            ['Godzilla.jpg'],
 };
 
 // =============================================================================

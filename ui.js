@@ -13,7 +13,7 @@ const UI = {
   // cached PNGs (which don't have built-in cache busters since they're
   // referenced via background-image url() and not the index.html
   // version-suffix system). Bump this every time you regen art.
-  _CARD_ART_VERSION: 80,
+  _CARD_ART_VERSION: 81,
 
   // Per-card background-position overrides. Default is "center center".
   // Use when an image crops poorly at the default — e.g. a head gets cut
@@ -1588,6 +1588,9 @@ const UI = {
       // with Deadpool's "Bye Bye Bye" cue. -20 LUFS, 1 s fade-in /
       // 2 s fade-out baked.
       'Wolverine':        { hover: { src: 'audio/cards/wolverine-hover.mp3', maxDur: 79 } },
+      // Godzilla hover: ~65s of the King-of-the-Monsters theme — the roar-and-
+      // brass build that scores his arrival. maxDur lets the full phrase play.
+      'Godzilla':         { hover: { src: 'audio/cards/godzilla-hover.mp3', maxDur: 65 } },
       // The Flash hover: 67 s of Junkie XL's "At the Speed of
       // Force" (Justice League / The Flash motif), 1:35 → 2:42 —
       // the percussive run sequence that scores Barry's speed-
