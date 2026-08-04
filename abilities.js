@@ -3975,25 +3975,27 @@ const CARD_ABILITIES = {
     }
   },
   "General Grievous": {
-    // 2026-05-26 — passive: while Grievous is alive on the AI's
-    // (or player's) board, the OPPOSING player cannot charge their
-    // Block Meter from face damage. The damagePlayer path reads
-    // state._grievousActiveFor[opp] to decide whether to fill the
-    // block. State flag is set on play and cleared on death.
+    // 2026-05-26 — passive: while Grievous is alive on either board, the
+    // OPPOSING player cannot charge their Block Meter from face damage.
+    // damagePlayer asks Game.grievousLocksBlockFor(victim), which reads the
+    // BOARD. It used to read a state._grievousActiveFor counter stamped here
+    // and unwound in onDeath, which leaked on every silent exit.
     onPlay(G, self, lane) {
+      // NOTHING STAMPED — Game.grievousLocksBlockFor reads the board. The old
+      // counter had to be unwound in onDeath, so every silent exit (Super
+      // Soldier Serum's killCardSilent, devour-to-void, bounce, lane collapse)
+      // left the opponent's Block Meter strangled for the rest of the match.
       const opp = G.opponent(self.owner);
-      if (!G.state._grievousActiveFor) G.state._grievousActiveFor = {};
-      G.state._grievousActiveFor[opp] = (G.state._grievousActiveFor[opp] || 0) + 1;
       G.log(`General Grievous strangles ${G.seatPossessive(opp)} Block Meter — no more block charges while he stands!`);
       if (typeof UI !== 'undefined' && UI._fxSaberFlurry) { try { UI._fxSaberFlurry(self); } catch (e) {} }
     },
     onDeath(G, self) {
+      // Nothing to unwind — the lock is off the moment no living Grievous is
+      // on the board. Log only when this was the LAST one; grievousLocksBlockFor
+      // filters on currentHealth, so a dying self is already excluded.
       const opp = G.opponent(self.owner);
-      if (G.state._grievousActiveFor && G.state._grievousActiveFor[opp] > 0) {
-        G.state._grievousActiveFor[opp]--;
-        if (G.state._grievousActiveFor[opp] === 0) {
-          G.log(`Grievous falls — ${G.seatPossessive(opp)} Block Meter recharges normally.`);
-        }
+      if (!G.grievousLocksBlockFor(opp)) {
+        G.log(`Grievous falls — ${G.seatPossessive(opp)} Block Meter recharges normally.`);
       }
     }
   },

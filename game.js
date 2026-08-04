@@ -6179,13 +6179,13 @@ const Game = {
     }
     // General Grievous passive — while he's alive on the OPPOSING
     // board, the victim's Block Meter doesn't charge from face hits.
-    // _grievousActiveFor[victim_owner] is set/cleared in his
+    // The lock is derived from the board by grievousLocksBlockFor; it used
+    // to be a state counter set/cleared in his
     // onPlay / onDeath hooks. User direction 2026-05-19: "the
     // opposing player cannot charge block when hit for as long
     // as Grievous is alive." Bullseye-skip path doesn't run this
     // either since Grievous's gate is broader than Bullseye.
-    const grievousGate = this.state._grievousActiveFor
-      && (this.state._grievousActiveFor[owner] || 0) > 0;
+    const grievousGate = this.grievousLocksBlockFor(owner);
     if (!isBullseye && !grievousGate) {
       const roll = 1 + Math.floor(this.rng() * 3);
       p.blockMeter += roll;
@@ -8301,6 +8301,25 @@ const Game = {
       if (c && c.currentHealth > 0 && c.passive === 'yodaShield') n++;
     }
     return n;
+  },
+
+  // GENERAL GRIEVOUS — same treatment, same reason. Is `owner`'s Block Meter
+  // being strangled, i.e. does the OPPOSING side have a living Grievous?
+  // This was `state._grievousActiveFor`, stamped in his onPlay and unwound in
+  // his onDeath, so it leaked through every silent exit exactly like Yoda's
+  // shield did. It was the WORSE of the two online: unlike the seat blobs, a
+  // top-level seat-keyed object is not swapped by _mpFlipPerspective, so on a
+  // guest the lock was read in the HOST's frame and landed on the wrong side.
+  // isCardKind, not a name check, so a Martian-Manhunter copy of Grievous
+  // strangles the meter too — which is what the card should do.
+  grievousLocksBlockFor(owner) {
+    if (!this.state || !this.state.lanes) return false;
+    const opp = this.opponent(owner);
+    for (let i = 0; i < this.LANE_COUNT; i++) {
+      const c = this.state.lanes[i] && this.state.lanes[i][opp];
+      if (c && c.currentHealth > 0 && this.isCardKind(c, 'General Grievous')) return true;
+    }
+    return false;
   },
 
   // True when a revive/resurrection cannot fire because the death lane is

@@ -2410,6 +2410,31 @@ test("the enemy's Yoda does not shield YOUR side", function () {
   assertEq(G.yodaShieldCount('player'), 0, 'ours is not');
 });
 
+test("Grievous's Block Meter lock stops when he leaves the board", function () {
+  // Same class as the Yoda shield, found by sweeping for the pattern. Worse
+  // online: _grievousActiveFor was a TOP-LEVEL seat-keyed object, and unlike
+  // the seat blobs the MP perspective flip never swapped it — so a guest read
+  // the lock in the host's frame and applied it to the wrong side.
+  var G = freshGame();
+  var gr = place(G, 'General Grievous', 'ai', 0);
+  if (CARD_ABILITIES['General Grievous'].onPlay) CARD_ABILITIES['General Grievous'].onPlay(G, gr, 0);
+  assertEq(G.grievousLocksBlockFor('player'), true, "control: the player's meter is strangled");
+  assertEq(G.grievousLocksBlockFor('ai'), false, 'and his own side is not');
+
+  G.killCardSilent(gr);          // exactly what Super Soldier Serum does
+  assertEq(G.grievousLocksBlockFor('player'), false, 'lock lifts the moment he is off the board');
+});
+
+test('a Martian Manhunter copy of Grievous also locks the meter', function () {
+  // isCardKind, not a name equality check — a copy should do what the card does.
+  var G = freshGame();
+  var fake = place(G, 'Bane', 'ai', 0);
+  fake._copiedFrom = 'General Grievous';
+  assertEq(G.grievousLocksBlockFor('player'), true, 'a copy strangles the meter too');
+  fake.currentHealth = 0;
+  assertEq(G.grievousLocksBlockFor('player'), false, 'and a dead copy does not');
+});
+
 test('Iron Giant is still never placeable, and the desc still says so', function () {
   // The gate itself is untouched by the draw work — this pins that.
   var G = igSetup();
