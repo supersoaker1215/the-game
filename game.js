@@ -6926,7 +6926,15 @@ const Game = {
     // shouldn't be resurrected by Lazarus Pit / Solomon Grundy / Hela.
     // Stats for living tokens are still tracked while alive; we just
     // drop the persistent record on death so no pile effect can see them.
-    if (card._isToken) {
+    // ENVIRONMENTS NEVER ENTER THE DEAD PILE either, for a sharper reason than
+    // tokens: they CANNOT be brought back. They deploy into the env slot via
+    // playCard's isEnvironment branch, while every revival (Hela, Solomon
+    // Grundy, Lazarus Pit, Dr. Doom) writes a COMBAT slot through summonCard —
+    // which explicitly refuses environments. So an archived environment is a
+    // trap: it shows up as a revive candidate, gets picked, and the effect
+    // silently does nothing. Measured before this guard: Boiler Room, Sewers
+    // and Open Water all landed in the pile.
+    if (card._isToken || card.isEnvironment || card.type === 'environment') {
       // onDeath already fired at the top of handleDeath. Run the other
       // death-adjacent hooks (killer onKill, ally onAllyKilled, jump
       // checks, bonus-attack drain) but skip the deadPile push and the

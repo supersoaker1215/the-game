@@ -2514,6 +2514,34 @@ test('predicting damage must not write to the combat log', function () {
     'real combat still narrates the crit');
 });
 
+test('environments never enter the dead pile', function () {
+  // User: "enviroments dont go into the dead pile". They cannot be revived —
+  // revival writes a COMBAT slot via summonCard, which refuses environments —
+  // so an archived environment is a trap: it appears as a revive candidate,
+  // gets picked, and the effect silently does nothing.
+  var G = freshGame();
+  var envDefs = CARD_DEFS.filter(function (d) { return d.type === 'environment'; });
+  assertEq(envDefs.length > 0, true, 'control: there are environment cards to test');
+  envDefs.slice(0, 4).forEach(function (def, i) {
+    var e = G.createCardInstance(def, 'player');
+    if (!G.state.lanes[i]._env) G.state.lanes[i]._env = {};
+    G.state.lanes[i]._env.player = e;
+    e.currentHealth = 0;
+    G.handleDeath(e, i, null);
+  });
+  var envInPile = G.state.player.deadPile.filter(function (d) { return d.type === 'environment'; });
+  assertEq(envInPile.length, 0, 'no environment reached the dead pile');
+
+  // CONTROL — an ordinary card must still be archived, or this test would pass
+  // by having simply broken the dead pile.
+  var G2 = freshGame();
+  var bane = place(G2, 'Bane', 'player', 0);
+  bane.currentHealth = 0;
+  G2.handleDeath(bane, 0, null);
+  assertEq(G2.state.player.deadPile.some(function (d) { return d.name === 'Bane'; }), true,
+    'control: a normal card is still archived');
+});
+
 test('Iron Giant is still never placeable, and the desc still says so', function () {
   // The gate itself is untouched by the draw work — this pins that.
   var G = igSetup();
