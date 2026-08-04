@@ -2232,6 +2232,62 @@ test('Iron Giant carries the Draw 1 badge without gaining a play-time draw', fun
   assertEq(G.state.player.hand.length, handBefore, 'and no draw happened');
 });
 
+test('a summoned card keeps the stats it actually had, not its printed ones', function () {
+  // User report: "doomsday was spawned in by ghostrider from hand he was an 8/8
+  // and then became a 1/1 on board". summonCard takes attack/health arguments
+  // but the real-card branch ignored them and rebuilt from the printed def.
+  var G = freshGame();
+  var dd = G.createCardInstance(cardByName('Doomsday'), 'player');
+  G.state.player.hand.push(dd);
+  G.state.player.cardsPlayedCount = 0;
+  for (var i = 0; i < 7; i++) G._scaleDoomsdayOnOwnerPlay('player');
+  assertEq(dd.attack, 8, 'control: he really is an 8/8 in hand');
+  assertEq(dd.maxHealth, 8, 'control: and 8 max HP');
+
+  // A SECOND surviving ally, on purpose: a real-card summon entering an
+  // otherwise-empty board picks up LONE WOLF's +1/+1, which would muddy the
+  // numbers this test exists to pin.
+  place(G, 'Juggernaut', 'player', 5);
+  var gr = place(G, 'Ghost Rider', 'player', 2);
+  gr.currentHealth = 0;
+  G.handleDeath(gr, 2, null);
+
+  var onBoard = null;
+  for (var l = 0; l < G.LANE_COUNT; l++) {
+    var c = G.state.lanes[l].player;
+    if (c && c.name === 'Doomsday') { onBoard = c; break; }
+  }
+  assertEq(!!onBoard, true, 'Doomsday was summoned somewhere');
+  assertEq(onBoard.attack, 8, 'he arrives with the ATK he had in hand');
+  assertEq(onBoard.maxHealth, 8, 'and the max HP he had in hand');
+  assertEq(onBoard.currentHealth, 8, 'at full health');
+});
+
+test('summoning still uses printed stats when the caller passes the def values', function () {
+  // The control case for the fix above: a normal summon of an unmodified card
+  // must be unchanged. Guards against "explicit stats win" quietly rewriting
+  // every other summon in the game.
+  var G = freshGame();
+  place(G, 'Bane', 'player', 5);        // keeps LONE WOLF (+1/+1) out of the maths
+  var def = cardByName('Juggernaut');
+  G.summonCard('player', 0, def.name, def.cost, def.attack, def.health, def.abilities || [], def);
+  var c = G.state.lanes[0].player;
+  assertEq(!!c, true, 'the summon landed');
+  assertEq(c.attack, def.attack, 'printed ATK preserved');
+  assertEq(c.maxHealth, def.health, 'printed HP preserved');
+});
+
+test('LONE WOLF still fires on a summon into an empty board', function () {
+  // The rule the two tests above deliberately sidestep — pinned here so
+  // sidestepping it never quietly becomes deleting it.
+  var G = freshGame();
+  var def = cardByName('Juggernaut');
+  G.summonCard('player', 0, def.name, def.cost, def.attack, def.health, def.abilities || [], def);
+  var c = G.state.lanes[0].player;
+  assertEq(c.attack, def.attack + 1, 'alone on the board → +1 ATK');
+  assertEq(c.maxHealth, def.health + 1, 'alone on the board → +1 HP');
+});
+
 test('Iron Giant is still never placeable, and the desc still says so', function () {
   // The gate itself is untouched by the draw work — this pins that.
   var G = igSetup();

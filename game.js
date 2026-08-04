@@ -9251,6 +9251,25 @@ const Game = {
     }
 
     const card = this.createCardInstance(def, owner);
+    // THE CALLER'S EXPLICIT STATS WIN OVER THE PRINTED DEF.
+    // summonCard takes attack/health in its signature, but the sourceDef branch
+    // above was quietly ignoring both — only the token branch (which bakes them
+    // into an inline def) ever honoured them. So summoning a REAL card rebuilt
+    // it from its printed stats and threw away whatever it had actually become.
+    // Doomsday made it undeniable: his whole identity is growing +1/+1 per card
+    // played while he sits in hand, so Ghost Rider summoning him out of an 8/8
+    // hand put a 1/1 on the board. Any buffed card summoned from hand had the
+    // same silent reset; he was just the one where it was obvious.
+    // Guarded on typeof so a caller that omits them keeps the def's values.
+    if (sourceDef) {
+      if (typeof attack === 'number' && attack >= 0 && attack !== card.attack) {
+        card.attack = attack;
+      }
+      if (typeof health === 'number' && health > 0 && health !== card.maxHealth) {
+        card.maxHealth = health;
+        card.currentHealth = health;
+      }
+    }
     // Flag tokens so they can be excluded from the dead pile on death.
     // Tokens are inline-defined summons (Ant, Parademon, Undead Warrior,
     // The Kraken, etc.) — they're not part of either player's
