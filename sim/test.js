@@ -89,6 +89,28 @@ function place(G, name, owner, lane) {
 // Red Skull's empower moves from the BOARD to the HAND (owner direction).
 // Two assertions because "buffs a hand card" and "leaves the board alone" are
 // separate failures: a version that buffed both would pass the first alone.
+test('Hawkeye carries a standing Splash 1, on top of his on-play burst', function () {
+  var G = freshGame();
+  var hawk = place(G, 'Hawkeye', 'player', 1);
+  // The ability keyword is what makes him splash EVERY combat.
+  assert(hawk.splashRange >= 1, 'splashRange set from the Splash 1 ability');
+  assert(hawk.isBullseye === true, 'Bullseye survived alongside it');
+});
+
+test('Per-match counters reset on a NEW match, not just on init', function () {
+  var G = freshGame();
+  G.state.player.redrawsUsed = 2;
+  G.state.player.undosUsed = 1;
+  G.state.ai.redrawsUsed = 3;
+  // startMatch REUSES state — the factory default only ever applies at init(),
+  // so without an explicit wipe the next match inherits the escalated cost.
+  G.startMatch({ players: '1v1', deck: 'classic' });
+  assertEq(G.state.player.redrawsUsed, 0, 'player redraws reset for the new match');
+  assertEq(G.state.player.undosUsed, 0, 'player undos reset for the new match');
+  assertEq(G.state.ai.redrawsUsed, 0, 'ai redraws reset too');
+  assertEq(G.getRedrawCost('player'), 2, 'so the first redraw is 2 again, not 8');
+});
+
 test('Killer Moth grows when he MOVES, not when he is boxed in', function () {
   var G = freshGame();
   var moth = place(G, 'Killer Moth', 'player', 0);

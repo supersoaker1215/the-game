@@ -863,6 +863,19 @@ const Game = {
     const p = this.state[owner];
     if (!card || p.hand.indexOf(card) === -1) return false;
 
+    // MULTIPLAYER GUEST: forward, do not apply. Same rule as playCard — the
+    // host owns the deck and the draw, so a guest redrawing locally would pull
+    // a card the host never dealt and desync the two hands immediately. The
+    // _silentSim guard matches playCard's: preview clones run this on a copy
+    // and must not fire a real network action.
+    if (this.isMultiplayer() && this.mp && this.mp.role === 'guest'
+        && owner === this.mp.you && !(this.state && this.state._silentSim)) {
+      if (typeof Multiplayer !== 'undefined' && Multiplayer.send && card.id != null) {
+        Multiplayer.send({ t: 'redraw', cardId: card.id });
+      }
+      return true;
+    }
+
     // Snapshot BEFORE any mutation, matching playCard / playTrick — otherwise a
     // redraw is the one action in the game you cannot take back. Same guard
     // they use: player turns only, and snapshot() itself no-ops in online play.
@@ -1373,6 +1386,15 @@ const Game = {
           // the unconditional _mpBroadcast at the end of this function
           // is the answer. User report: guest paired but stuck on
           // "Dropping into the match…" while the host was in the draft.
+          break;
+        }
+        case 'redraw': {
+          // Guest asked to redraw. Resolve the id against THAT seat's hand so a
+          // guest cannot name a card it does not hold, then run the normal
+          // path — which re-checks phase, cost and Lex before spending anything.
+          const rHand = (this.state[actor] && this.state[actor].hand) || [];
+          const rCard = rHand.find(c => c && c.id === msg.cardId);
+          if (rCard) this.redrawCard(actor, rCard);
           break;
         }
         case 'undo': {
@@ -2315,6 +2337,19 @@ const Game = {
     // (startMatch reuses this.state in place, so stale combat/AI callbacks
     // would otherwise run against the new board).
     this._matchGen++;
+    // PER-MATCH COUNTERS. makePlayer() runs only inside init(), and startMatch
+    // deliberately REUSES this.state — so a factory default is applied exactly
+    // once per page load, not once per match. Menu -> Play -> a second match
+    // therefore inherited the previous match's counters: the first redraw of a
+    // fresh game cost 8 instead of 2, and a player who had spent their online
+    // undo never saw the button again. Anything that means "this match" has to
+    // be reset here, next to the seat hygiene above it.
+    ['player', 'ai'].forEach(sd => {
+      const seat = this.state && this.state[sd];
+      if (!seat) return;
+      seat.redrawsUsed = 0;
+      seat.undosUsed = 0;
+    });
     // Seed the match RNG so EVERY match is reproducible from its seed
     // (replay + fuzz). startSeededRun sets _seedLocked to keep its explicit
     // seed; otherwise generate a fresh random one and record it. The MP guest
