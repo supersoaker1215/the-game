@@ -344,6 +344,21 @@ const CARD_ABILITIES = {
     // Fires every Start of Tricks (not just the first) — same re-arm flag
     // Man-Bat / Omni-Man use so beforeTricksFired resets each round.
     _recurringBT: true,
+    // GROWTH IS THE MOVE — ANY move, not just his own flutter. moveCard already
+    // fires this hook for every mover in the game (Bifrost, Magneto, Gargantua's
+    // pull, Gojo's displace, a hunt/chase), so hanging the buff here is what
+    // makes his card text literally true. It used to be stamped inline right
+    // after his own moveCard call, which meant he grew on the one move he makes
+    // himself and rode every other one for free.
+    // Fires on ENEMY-caused moves too, deliberately: shoving him around is the
+    // thing he feeds on.
+    // Permanent self-buff (self-buffs never expire — see CLAUDE.md).
+    onMoved(G, self, to) {
+      self.attack = (self.attack || 0) + 1;
+      self.maxHealth = (self.maxHealth || 0) + 1;
+      self.currentHealth = (self.currentHealth || 0) + 1;
+      G.log(`[KILLER MOTH] Carried to lane ${to + 1} and grows to ${self.attack}/${self.currentHealth}.`);
+    },
     onBeforeTricks(G, self, lane) {
       // Stun / freeze grounds him — no flutter and no growth this round.
       if (Game.isActionLocked(self)) {
@@ -367,17 +382,12 @@ const CARD_ABILITIES = {
         // Always random — no player prompt (unlike Man-Bat / Omni-Man, which
         // let the owner choose or stay). Killer Moth relocates on his own.
         const to = empty[Math.floor(Game.rng() * empty.length)];
+        // The growth is NOT stamped here any more — moveCard fires onMoved and
+        // that is where it lives now. Stamping it at this one call site meant
+        // only HIS OWN flutter paid; being moved by anything else relocated him
+        // for free. User: "i used bifrost on killer moth, bifrost moved killer
+        // moth yet he didnt gain +1/+1."
         G.moveCard(self, lane, to);
-        // GROWTH IS THE MOVE, not the failure to move. He used to grow only
-        // when boxed in, which made a full board his best case and rewarded him
-        // for the one round he did nothing. Now the flutter itself is what feeds
-        // him: every relocation is +1/+1, so he compounds while he is doing his
-        // job. Starting at 1/1 keeps that curve honest.
-        // Permanent self-buff (self-buffs never expire — see CLAUDE.md).
-        self.attack = (self.attack || 0) + 1;
-        self.maxHealth = (self.maxHealth || 0) + 1;
-        self.currentHealth = (self.currentHealth || 0) + 1;
-        G.log(`[KILLER MOTH] Flutters to lane ${to + 1} and grows to ${self.attack}/${self.currentHealth}.`);
       } else {
         // Boxed in. No move, so no growth — he simply sits this round out.
         G.log(`  [KILLER MOTH] No open lane — stays put.`);

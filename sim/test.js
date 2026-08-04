@@ -2779,6 +2779,50 @@ test('per-match seat hygiene runs for BOTH classic and custom-deck matches', fun
   });
 });
 
+test('Killer Moth grows on ANY move, not just his own flutter', function () {
+  // User: "i used bifrost on killer moth, bifrost moved killer moth yet he
+  // didnt gain +1/+1." The buff was stamped inline at his own moveCard call
+  // site, so only the move he makes himself paid.
+  var G = freshGame();
+  var km = place(G, 'Killer Moth', 'player', 0);
+  var a0 = km.attack, h0 = km.maxHealth;
+
+  // An EXTERNAL move — exactly what Bifrost does.
+  G.moveCard(km, 0, 2);
+  assertEq(G.findCardLane(km), 2, 'control: he actually moved');
+  assertEq(km.attack, a0 + 1, 'external move grows ATK');
+  assertEq(km.maxHealth, h0 + 1, 'external move grows HP');
+
+  G.moveCard(km, 2, 4);
+  assertEq(km.attack, a0 + 2, 'and it compounds per move');
+
+  // His OWN flutter must grow him exactly ONCE, not twice — the inline stamp
+  // was removed precisely so moveCard's hook is the only source.
+  var G2 = freshGame();
+  var km2 = place(G2, 'Killer Moth', 'player', 0);
+  var before = km2.attack;
+  km2.beforeTricksFired = false;
+  CARD_ABILITIES['Killer Moth'].onBeforeTricks(G2, km2, 0);
+  assertEq(km2.attack, before + 1, 'his own flutter grows him once, not twice');
+});
+
+test('a blocked move does not grow Killer Moth', function () {
+  // moveCard bails before the hook on a destroyed / occupied / frozen move, so
+  // a refused relocation must not pay. Otherwise "grows when he moves" quietly
+  // becomes "grows when anything tries to move him".
+  var G = freshGame();
+  var km = place(G, 'Killer Moth', 'player', 0);
+  var a0 = km.attack;
+  G.state.lanes[3].destroyed = true;
+  G.moveCard(km, 0, 3);
+  assertEq(G.findCardLane(km), 0, 'the move was refused');
+  assertEq(km.attack, a0, 'and he did not grow');
+
+  km.isFrozen = true;
+  G.moveCard(km, 0, 2);
+  assertEq(km.attack, a0, 'a frozen Moth cannot be moved and does not grow');
+});
+
 test('Iron Giant is still never placeable, and the desc still says so', function () {
   // The gate itself is untouched by the draw work — this pins that.
   var G = igSetup();
