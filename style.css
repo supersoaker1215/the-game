@@ -38290,3 +38290,49 @@ body.low-fx .card-hollow-purple::after { animation: none !important; }
      halo back. */
   animation: laneActivePulse 1.2s ease-in-out infinite;
 }
+
+/* ============================================================
+   DEAD PILE — CARDS GROW TO FIT THEIR OWN RULES TEXT
+   ============================================================
+   User: "my opponent was looking at the dead pile and Mahoraga's text was
+   covering the close button, making it impossible for him to close out."
+
+   Reproduced exactly. `.card` carries `aspect-ratio: 92/182`, which locks the
+   height to the width. On the BOARD that is harmless because the rules text is
+   hidden behind the flip face — but the dead pile shows the text inline, and
+   with `overflow: visible` a long desc simply paints outside the box and over
+   whatever is beneath it. Measured overflow past the card's own bottom edge:
+
+     Mahoraga 63px   Batman 66px   Superman 66px   Juggernaut 14px
+
+   Every card in the pile was doing it; it only became a TRAP on the bottom row,
+   where the spill lands on the Close button and eats the click. Which is why it
+   reads as a Mahoraga bug and is not one — he is just wordy enough to notice.
+
+   Clipping the text would hide rules on a screen whose entire job is reading
+   them, so the card grows instead. The PORTRAIT keeps the aspect ratio, so the
+   art still reads as a card; only the body extends. Same shape as the fix for
+   the floating-prompt trick face. align-self keeps a tall card from stretching
+   its whole flex row. */
+/* TWO class names in the selector, not one. The rule holding the height is
+   `.card.ally-card, .card.enemy-card` — specificity (0,2,0) — and every
+   dead-pile face carries one of those. A bare `.dead-pile-card` is (0,1,0) and
+   loses no matter how late it is authored; measured, the cards stayed at
+   exactly 277px and the 66px spill was untouched. */
+.card.dead-pile-card {
+  aspect-ratio: auto;
+  height: auto;
+  align-self: flex-start;
+}
+.card.dead-pile-card .card-portrait {
+  aspect-ratio: 3 / 4;
+  height: auto;
+}
+/* The Close button must never be something you have to fight for. It sits last
+   in the panel's normal flow, so anything spilling out of the grid above landed
+   on top of it — a stacking context of its own puts it back in front, whatever
+   a future card face does. */
+.dead-pile-panel > button {
+  position: relative;
+  z-index: 2;
+}
