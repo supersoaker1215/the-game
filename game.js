@@ -4734,7 +4734,19 @@ const Game = {
         return;
       }
     }
-    delete this.state._beforeCombatFired;
+    // THE FLAG IS **NOT** CLEARED HERE ANY MORE. It used to be deleted the
+    // moment the hooks finished, which made it a once-per-CALL guard rather
+    // than the once-per-COMBAT guard it is documented to be. resolveCombat is
+    // deeply re-entrant — every mid-combat prompt re-enters it (Iron Giant's
+    // sacrifice, the block-meter free trick, Time Stone, Kang) — and each
+    // re-entry found the flag gone and fired EVERY onBeforeCombat hook again.
+    // User: "for some reason jack sparrow had more than 1 parlay thats
+    // impossible." Measured across three re-entries: 0 -> 1 -> 2 enemies
+    // parlayed by one Jack Sparrow in one combat.
+    // Jack is simply the visible case, because Parlay leaves a badge sitting on
+    // the board. Han Solo's redirect and every other onBeforeCombat had the
+    // same double-fire with nothing on screen to show for it.
+    // Cleared in postCombat instead — the actual end of a combat.
     // If an async prompt from Before-Tricks (e.g. Man-Bat's lane choice) is still pending,
     // wait for it to resolve before starting combat. Otherwise combat captures cached
     // lane references and can land a hit on a card that has already moved out.
@@ -5007,6 +5019,10 @@ const Game = {
     // Flip the late-round flag so tricks played between now and the
     // next startRound get marked persistent. Cleared in startRound.
     this.state._combatFinishedThisRound = true;
+    // Re-arm the pre-combat hooks for the NEXT combat. This is the honest reset
+    // point — resolveCombat used to clear it as soon as the hooks had run,
+    // which let every mid-combat prompt re-entry fire them all over again.
+    delete this.state._beforeCombatFired;
     // Tick down destroyed-lane timers. Lanes are destroyed for 3 full rounds
     // (set via destroyLane() — Darkseid, Anti-Life Equation) and restore to
     // playable automatically when the counter hits 0. Tick cadence matches

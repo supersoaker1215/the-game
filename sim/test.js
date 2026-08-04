@@ -2823,6 +2823,64 @@ test('a blocked move does not grow Killer Moth', function () {
   assertEq(km.attack, a0, 'a frozen Moth cannot be moved and does not grow');
 });
 
+test('onBeforeCombat fires ONCE per combat, however often resolveCombat re-enters', function () {
+  // User: "for some reason jack sparrow had more than 1 parlay thats
+  // impossible." _beforeCombatFired was deleted the moment the hooks finished,
+  // making it a once-per-CALL guard rather than the once-per-COMBAT guard it is
+  // documented to be. resolveCombat is deeply re-entrant — every mid-combat
+  // prompt re-enters it — so each re-entry re-fired every hook.
+  var G = freshGame();
+  var fires = 0;
+  var probe = place(G, 'Bane', 'player', 5);
+  probe.onBeforeCombat = function () { fires++; };
+
+  function dispatch() {
+    // The exact block resolveCombat runs.
+    if (!G.state._beforeCombatFired) {
+      G.state._beforeCombatFired = true;
+      G.getAllCardsOnBoard().forEach(function (c) {
+        if (c.onBeforeCombat && c.currentHealth > 0) c.onBeforeCombat(G, c, G.findCardLane(c));
+      });
+    }
+  }
+  dispatch(); dispatch(); dispatch();
+  assertEq(fires, 1, 'three re-entries, one firing');
+
+  // postCombat is what re-arms it for the NEXT combat.
+  G.postCombat();
+  assertEq(!!G.state._beforeCombatFired, false, 'postCombat re-arms the hooks');
+  dispatch();
+  assertEq(fires, 2, 'the next combat fires them again');
+});
+
+test('Jack Sparrow parlays exactly one enemy per combat', function () {
+  // The player-visible half of the same bug: Parlay leaves a badge, so a
+  // double-fire was legible on the board where Han Solo's redirect was not.
+  var G = freshGame();
+  place(G, 'Jack Sparrow', 'player', 5);
+  [0, 1, 2].forEach(function (i) { place(G, 'Bane', 'ai', i); });
+  // Answer each prompt with a DIFFERENT lane — picking the same one every time
+  // masks the bug by re-parlaying the same card, which is how my first probe
+  // read a false clean.
+  var pick = 0, realLane = G.promptLaneChoice;
+  G.promptLaneChoice = function (o, lanes, t, b, cb) {
+    if (cb) cb(lanes[Math.min(pick++, lanes.length - 1)]);
+    return true;
+  };
+  function dispatch() {
+    if (!G.state._beforeCombatFired) {
+      G.state._beforeCombatFired = true;
+      G.getAllCardsOnBoard().forEach(function (c) {
+        if (c.onBeforeCombat && c.currentHealth > 0) c.onBeforeCombat(G, c, G.findCardLane(c));
+      });
+    }
+  }
+  try { dispatch(); dispatch(); dispatch(); }
+  finally { G.promptLaneChoice = realLane; }
+  var parlayed = [0, 1, 2].filter(function (i) { return G.state.lanes[i].ai._parlayedThisRound; }).length;
+  assertEq(parlayed, 1, 'exactly one enemy is held by Parlay');
+});
+
 test('Iron Giant is still never placeable, and the desc still says so', function () {
   // The gate itself is untouched by the draw work — this pins that.
   var G = igSetup();
