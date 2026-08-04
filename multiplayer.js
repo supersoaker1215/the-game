@@ -393,6 +393,14 @@ const Multiplayer = {
     //    pool is missing or empty), so dropping it cannot desync or strand a
     //    draw. Same fairness note as above: it was leaking the summon order.
     delete clone.summonDeck;
+    // 4. draft.history — the Back button's undo stack. draftUndo refuses to run
+    //    in multiplayer, so it is unusable on either client, and each entry
+    //    holds `pile: pile.slice()` — the remaining deck IN DRAW ORDER. That is
+    //    the same leak stubPile was added to close, arriving through a side
+    //    door. draftPick no longer records it online (see game.js), and this is
+    //    the belt-and-braces so a stale history from a solo match before the
+    //    room opened cannot ride out either.
+    if (clone.draft && clone.draft.history) delete clone.draft.history;
     if (Array.isArray(clone.log) && clone.log.length > 60) clone.log = clone.log.slice(-60);
     const fixRefs = (c) => {
       if (!c) return;

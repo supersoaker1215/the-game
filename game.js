@@ -2844,8 +2844,15 @@ const Game = {
     // Snapshot for the Back button — captures pre-pick state so draftUndo
     // can restore it verbatim (choices shown, piles, drafted lists, holding,
     // mulligan flag, AI's already-committed pick for this round).
-    if (!d.history) d.history = [];
-    d.history.push(this._snapshotDraftState());
+    // Only kept where the Back button can actually USE it. draftUndo refuses
+    // outright in multiplayer and hotseat, so online this was a growing pile of
+    // snapshots for a button that can never fire — and _snapshotDraftState
+    // stores `pile: pile.slice()`, the full remaining deck IN DRAW ORDER, which
+    // is exactly what stubPile exists to hide from the guest.
+    if (!this.isMultiplayer() && !this.isHotseat()) {
+      if (!d.history) d.history = [];
+      d.history.push(this._snapshotDraftState());
+    }
     // Pick from the right side's choices array, push to the right
     // drafted array, leftover goes to the shared holding pool.
     const choicesKey  = who === 'player' ? 'playerChoices' : 'aiChoices';
@@ -3042,7 +3049,14 @@ const Game = {
     if (d[mulliganKey]) return false;
     const choicesKey = who === 'player' ? 'playerChoices' : 'aiChoices';
     if (!d[choicesKey] || d[choicesKey].length === 0) return false;
-    const pile = d.phase === 'cards' ? this.getDrawPile('player') : this.getTrickPile('player');
+    // `who`, NOT a hardcoded 'player'. Every other key in this function is
+    // already per-side (mulliganKey, choicesKey, holdingKey) — the pile lookup
+    // was the one that was not, and in CUSTOM-DECK mode the piles ARE per-side.
+    // So a guest tapping Mulligan drew replacements out of the HOST's deck:
+    // cards the host built and the guest had never seen, with the host's pile
+    // permanently two cards lighter. Invisible in classic, where both sides
+    // share one pile and the two lookups return the same array.
+    const pile = d.phase === 'cards' ? this.getDrawPile(who) : this.getTrickPile(who);
     // Mulliganed choices go to HOLDING, not back into the pile. They used to
     // be unshifted back and reshuffled, which put them right back in
     // circulation — the OPPONENT could be dealt the two cards you just
@@ -10937,7 +10951,13 @@ const Game = {
         return true;
       }
       if (!this.history.length) return false;
-      p.undosUsed = (p.undosUsed | 0) + 1;
+      // NOT incremented here. `p` points at the CURRENT state, and the restore
+      // below does `this.state = snap` — a clone captured BEFORE this line ran.
+      // So the counter was written and then immediately thrown away, and the
+      // "one undo per player per match" cap never held at all: measured four
+      // consecutive undos with undosUsed reading 0 after every one.
+      // Stamped onto the RESTORED state instead, after the swap.
+      this._pendingUndoSeat = owner;
       // fall through to the shared restore below
     } else {
       if (!this.isPlayerTurn()) return false; // safety: undo is a player-turn action
@@ -10951,6 +10971,15 @@ const Game = {
     this._stackClear('undo'); // queued deaths closure over pre-undo card objects
     const snap = this.history.pop();
     this.state = snap;
+    // Charge the undo to the RESTORED state. Incrementing before the swap wrote
+    // the counter onto an object that this line then discards, which is why the
+    // one-per-match cap never held. Done here, the count is part of the state
+    // that gets broadcast, so the guest sees their own icon disappear too.
+    if (this._pendingUndoSeat) {
+      const seat = this.state[this._pendingUndoSeat];
+      if (seat) seat.undosUsed = (seat.undosUsed | 0) + 1;
+      this._pendingUndoSeat = null;
+    }
     // The restored snapshot holds a fresh set of card OBJECTS — reindex so
     // findCard resolves ids to the post-undo instances, not the pre-undo
     // ones (same duplicate-Ahsoka class the prompt/stack purges guard).

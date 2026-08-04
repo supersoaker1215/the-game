@@ -2881,6 +2881,53 @@ test('Jack Sparrow parlays exactly one enemy per combat', function () {
   assertEq(parlayed, 1, 'exactly one enemy is held by Parlay');
 });
 
+test('the one-undo-per-match cap actually holds online', function () {
+  // Shipped this morning and it never worked: the counter was incremented on
+  // the CURRENT state, then `this.state = snap` replaced that object with a
+  // clone captured before the increment. Measured four consecutive undos with
+  // undosUsed reading 0 after every one.
+  var G = freshGame();
+  var realMP = G.isMultiplayer;
+  G.isMultiplayer = function () { return true; };
+  G.mp = { role: 'host', you: 'player' };
+  var results = [];
+  try {
+    for (var i = 0; i < 3; i++) {
+      G.snapshot();
+      G.state.player.currency = 5 + i;
+      results.push({ ok: G.undo('player'), used: G.state.player.undosUsed | 0 });
+    }
+  } finally { G.isMultiplayer = realMP; G.mp = null; }
+  assertEq(results[0].ok, true, 'the first undo is allowed');
+  assertEq(results[0].used, 1, 'and it is CHARGED — this is what was lost in the restore');
+  assertEq(results[1].ok, false, 'the second is refused');
+  assertEq(results[2].ok, false, 'and stays refused');
+});
+
+test('a draft mulligan draws from the mulliganing side\'s own pile', function () {
+  // Custom-deck only. Every other key in draftMulligan is per-side; the pile
+  // lookup was hardcoded to 'player', so a guest's mulligan pulled from the
+  // HOST's deck. Invisible in classic, where both sides share one pile.
+  var G = freshGame();
+  G.state.mode = { deck: 'deckbuilder', players: '1v1' };
+  // Distinct per-side piles so the source is unambiguous.
+  G.state.player.drawPile = [];
+  G.state.ai.drawPile = [];
+  for (var i = 0; i < 6; i++) {
+    G.state.player.drawPile.push(Object.assign({}, cardByName('Bane')));
+    G.state.ai.drawPile.push(Object.assign({}, cardByName('Hela')));
+  }
+  var hostBefore = G.state.player.drawPile.length;
+  var guestBefore = G.state.ai.drawPile.length;
+  G.state.draft = {
+    phase: 'cards', aiChoices: [Object.assign({}, cardByName('Juggernaut'))],
+    aiHolding: [], playerChoices: [], playerHolding: []
+  };
+  G.draftMulligan('ai');
+  assertEq(G.state.player.drawPile.length, hostBefore, "the HOST's pile is untouched");
+  assertEq(G.state.ai.drawPile.length < guestBefore, true, "the guest drew from their OWN pile");
+});
+
 test('Iron Giant is still never placeable, and the desc still says so', function () {
   // The gate itself is untouched by the draw work — this pins that.
   var G = igSetup();
