@@ -2639,6 +2639,60 @@ test('Magneto never moves a card that died before the move landed', function () 
   assertEq(moves > 0, true, 'control: a living card is still moved');
 });
 
+test('Magneto offers the last move instead of forcing it, but only at one option', function () {
+  // Owner's call: auto-resolve is the problem, not the mandate. With exactly
+  // one candidate the picker used to be skipped entirely (promptCardChoice
+  // shows no tray for a single-option list), so the player was moved with no
+  // say. With 2+ candidates it stays mandatory, because then it is a decision.
+  function titlesShownWith(nCandidates) {
+    var G = freshGame();
+    for (var i = 0; i < G.LANE_COUNT; i++) { G.state.lanes[i].player = null; G.state.lanes[i].ai = null; }
+    var mag = place(G, 'Magneto', 'player', 5);
+    var names = ['Bane', 'Juggernaut', 'Hela'];
+    for (var k = 0; k < nCandidates; k++) place(G, names[k], 'ai', k);
+    var seen = [];
+    var rc = G.promptCardChoice, rl = G.promptLaneChoice;
+    G.promptCardChoice = function (o, opts, t, b, cb) {
+      seen.push((opts || []).map(function (c) { return c.name; }));
+      if (cb) cb((opts || [])[0]);   // always take the first offered
+      return true;
+    };
+    G.promptLaneChoice = function (o, lanes, t, b, cb) { if (cb) cb(lanes[0]); return true; };
+    try { CARD_ABILITIES['Magneto'].onPlay(G, mag, 5); }
+    finally { G.promptCardChoice = rc; G.promptLaneChoice = rl; }
+    return seen;
+  }
+
+  var one = titlesShownWith(1);
+  assertEq(one.length > 0, true, 'a picker IS shown for the single candidate');
+  assertEq(one[0].indexOf('Skip') > -1, true, 'and it carries a Skip option');
+
+  // CONTROL — with two candidates the real card tray is shown, no Skip.
+  var two = titlesShownWith(2);
+  assertEq(two[0].indexOf('Skip'), -1, 'two candidates: no Skip, the move stays mandatory');
+  assertEq(two[0].length, 2, 'and the tray lists the real cards');
+});
+
+test('choosing Skip on Magneto leaves the board alone', function () {
+  var G = freshGame();
+  for (var i = 0; i < G.LANE_COUNT; i++) { G.state.lanes[i].player = null; G.state.lanes[i].ai = null; }
+  var mag = place(G, 'Magneto', 'player', 5);
+  var lone = place(G, 'Bane', 'ai', 0);
+  var moves = 0, rm = G.moveCard;
+  G.moveCard = function () { moves++; return rm.apply(G, arguments); };
+  var rc = G.promptCardChoice, rl = G.promptLaneChoice;
+  G.promptCardChoice = function (o, opts, t, b, cb) {
+    var skip = (opts || []).find(function (c) { return c.id === 'mag_skip'; });
+    if (cb) cb(skip || (opts || [])[0]);
+    return true;
+  };
+  G.promptLaneChoice = function (o, lanes, t, b, cb) { if (cb) cb(lanes[0]); return true; };
+  try { CARD_ABILITIES['Magneto'].onPlay(G, mag, 5); }
+  finally { G.moveCard = rm; G.promptCardChoice = rc; G.promptLaneChoice = rl; }
+  assertEq(moves, 0, 'nothing was moved');
+  assertEq(G.findCardLane(lone), 0, 'and the lone card stayed put');
+});
+
 test('Iron Giant is still never placeable, and the desc still says so', function () {
   // The gate itself is untouched by the draw work — this pins that.
   var G = igSetup();

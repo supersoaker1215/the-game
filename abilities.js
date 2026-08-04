@@ -3096,6 +3096,30 @@ const CARD_ABILITIES = {
         const pool = candidates();
         if (!pool.length) { G.applyMagnetoDebuffs(); return; }
         if (Game.isHuman(self.owner)) {
+          // ONE CANDIDATE IS NOT A CHOICE, AND IT WAS BEING TAKEN FOR YOU.
+          // promptCardChoice skips the tray entirely for a single-option list,
+          // so once Magneto's own aura thinned the board — which it does, since
+          // every move re-runs it and can kill what it shoves into an even lane
+          // — the last move resolved with no say at all. Offer it instead.
+          // Deliberately ONLY at 1: with two or more real options the move
+          // stays mandatory, because then it IS a decision.
+          if (pool.length === 1) {
+            const only = pool[0];
+            G.promptCardChoice(self.owner, [
+              { name: `Move ${only.name}`, desc: `Relocate ${only.name} to another lane.`, id: 'mag_move' },
+              { name: 'Skip', desc: 'Leave the board where it stands.', id: 'mag_skip' },
+            ], 'Magneto — Move a Card',
+              `${only.name} is the only card left that can be moved (${moved.length + 1} of ${MOVE_COUNT}).`,
+              (pick) => {
+                if (!pick || pick.id === 'mag_skip') { G.applyMagnetoDebuffs(); return; }
+                const lanes = openLanesFor(only);
+                if (!lanes.length) { G.applyMagnetoDebuffs(); return; }
+                G.promptLaneChoice(self.owner, lanes, `Magneto — Move ${only.name}`,
+                  `Choose a new lane for ${only.name}`, (to) => finishMove(only, to), only.owner);
+              },
+              cards => cards[0]);
+            return;
+          }
           G.promptCardChoice(self.owner, pool, "Magneto — Move a Card",
             `Choose any card to relocate (${moved.length + 1} of ${MOVE_COUNT})`,
             (target) => {
