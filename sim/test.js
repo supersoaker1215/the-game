@@ -2736,6 +2736,49 @@ test("Joker's protection does NOT stop a contested bonus attack", function () {
   assertEq(hits[0], 'Anakin Skywalker->Bane', 'and it struck the blocker, not the hero');
 });
 
+test('per-match seat hygiene runs for BOTH classic and custom-deck matches', function () {
+  // Owner asked whether custom-deck multiplayer runs exactly like regular
+  // multiplayer. Both flavours enter through the same startMultiplayerMatch and
+  // differ only in the startMatch opts — so the per-match reset has to be
+  // mode-blind. Probing it turned up three fields that leaked in BOTH modes.
+  function residueAfter(opts) {
+    var G = freshGame();
+    ['player', 'ai'].forEach(function (sd) {
+      var s = G.state[sd];
+      s.redrawsUsed = 3; s.undosUsed = 1;
+      s.maxHandSize = 9; s.maxTrickHandSize = 5;
+      s.forcedLane = 2; s.magnetoForcedLanes = [1, 2];
+      s._igSpentThisCombat = true;
+    });
+    G.startMatch(opts);
+    var p = G.state.player, a = G.state.ai;
+    return {
+      redraw: p.redrawsUsed + a.redrawsUsed,
+      undos: p.undosUsed + a.undosUsed,
+      hand: p.maxHandSize + a.maxHandSize,
+      tricks: p.maxTrickHandSize + a.maxTrickHandSize,
+      forced: (p.forcedLane == null ? 0 : 1) + (a.forcedLane == null ? 0 : 1),
+      magneto: (p.magnetoForcedLanes ? 1 : 0) + (a.magnetoForcedLanes ? 1 : 0),
+      igSpent: (p._igSpentThisCombat ? 1 : 0) + (a._igSpentThisCombat ? 1 : 0)
+    };
+  }
+  var deck = { cards: ['Bane', 'Juggernaut', 'Hela', 'Revan'], tricks: ['Smoke Pellet'] };
+  var modes = [
+    ['classic', { players: '1v1', deck: 'classic' }],
+    ['custom-deck', { players: '1v1', deck: 'deckbuilder', withDraft: true, customDeck: deck, aiDeck: deck }]
+  ];
+  modes.forEach(function (m) {
+    var r = residueAfter(m[1]);
+    assertEq(r.redraw, 0, m[0] + ': redraw counters reset');
+    assertEq(r.undos, 0, m[0] + ': undo counters reset');
+    assertEq(r.hand, 14, m[0] + ': max hand size back to 7 each');
+    assertEq(r.tricks, 6, m[0] + ': max trick hand back to 3 each');
+    assertEq(r.forced, 0, m[0] + ': no forced-lane residue');
+    assertEq(r.magneto, 0, m[0] + ': no Magneto queue residue');
+    assertEq(r.igSpent, 0, m[0] + ": Iron Giant's save is recharged");
+  });
+});
+
 test('Iron Giant is still never placeable, and the desc still says so', function () {
   // The gate itself is untouched by the draw work — this pins that.
   var G = igSetup();

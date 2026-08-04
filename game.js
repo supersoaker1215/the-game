@@ -2381,6 +2381,22 @@ const Game = {
       // started your next one holding nine cards.
       seat.maxHandSize = 7;
       seat.maxTrickHandSize = 3;
+      // Iron Giant's once-per-combat save. postCombat clears it, but a match
+      // that ENDS mid-combat never reaches postCombat — so a spent save leaked
+      // into the next match and silently cost you the first Iron Giant of it.
+      // My own field, my own leak, one day old: exactly the shape of the
+      // redraw-counter bug two lines above.
+      delete seat._igSpentThisCombat;
+      // SEAT HYGIENE, moved here from startMultiplayerMatch. Forced-lane
+      // residue (Moder's forcedLane, the retired Magneto queue) was only being
+      // scrubbed when an MP match started, so a solo match or a second match
+      // inherited it. Measured: both classic and deckbuilder still carried
+      // forcedLane = 2 after startMatch. Harmless TODAY only because
+      // moderCompulsionLane now validates against a living Moder — but relying
+      // on a downstream validator to neutralise upstream residue is how this
+      // class keeps coming back. Scrubbed at the one door every match enters.
+      seat.forcedLane = null;
+      delete seat.magnetoForcedLanes;
     });
     // Seed the match RNG so EVERY match is reproducible from its seed
     // (replay + fuzz). startSeededRun sets _seedLocked to keep its explicit
