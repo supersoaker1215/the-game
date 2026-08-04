@@ -3760,10 +3760,14 @@ const Game = {
     const opp = this.opponent(owner);
     const mpGuestPlay = this.isMultiplayer() && this.mp.role === 'host' && owner !== 'player';
     let moderLane = -1;
-    if (this.state[owner].forcedLane != null) {
-      const fl = this.state[owner].forcedLane;
-      const ln = this.state.lanes[fl];
-      if (mpGuestPlay || (ln && !ln.destroyed && !ln[owner])) moderLane = fl;
+    // moderCompulsionLane, not the raw flag — a compulsion whose Moder has left
+    // the board silently is not a claim, it is residue. Checked even on the
+    // mpGuestPlay path, which otherwise trusts the stamp outright: that is the
+    // path where residue previously narrowed a guest's lane choice to one.
+    const moderFl = this.moderCompulsionLane(owner);
+    if (moderFl >= 0) {
+      const ln = this.state.lanes[moderFl];
+      if (mpGuestPlay || (ln && !ln.destroyed && !ln[owner])) moderLane = moderFl;
     }
     let bwlLane = -1;
     if (this.state[owner].nextCardStolen) {
@@ -8329,6 +8333,33 @@ const Game = {
   // guest the lock was read in the HOST's frame and landed on the wrong side.
   // isCardKind, not a name check, so a Martian-Manhunter copy of Grievous
   // strangles the meter too — which is what the card should do.
+  // MODER'S COMPULSION — VALIDATED AGAINST A LIVING MODER, not trusted.
+  // Unlike Yoda's shield this genuinely IS a pending one-shot ("your next card
+  // is pulled into my lane"), so it cannot simply be derived from the board —
+  // there is nothing on the board that represents "pending". What it CAN do is
+  // stop taking the stamp's word for it.
+  // state[owner].forcedLane was set in Moder's onPlay and cleared only in his
+  // onDeath, so every silent exit (Super Soldier Serum's killCardSilent,
+  // devour-to-void, a bounce to hand) left the opponent compelled by a Moder
+  // who is no longer there. Stale forced-lane residue is not hypothetical: it
+  // is the exact class behind the long-standing MP guest-placement bug, where
+  // leftover residue collapsed the guest's lane choice to one and marched their
+  // cards into lanes 1, 2, 3 with no picker.
+  // Returns the lane the compulsion still points at, or -1 if it is dead.
+  moderCompulsionLane(owner) {
+    const p = this.state && this.state[owner];
+    if (!p || p.forcedLane == null) return -1;
+    const fl = p.forcedLane;
+    if (fl < 0 || fl >= this.LANE_COUNT) return -1;
+    const lane = this.state.lanes[fl];
+    if (!lane || lane.destroyed) return -1;
+    // The compeller stands in that lane on the OPPOSING side. isCardKind so a
+    // Martian Manhunter copy of Moder compels too.
+    const compeller = lane[this.opponent(owner)];
+    if (!compeller || compeller.currentHealth <= 0 || !this.isCardKind(compeller, 'Moder')) return -1;
+    return fl;
+  },
+
   grievousLocksBlockFor(owner) {
     if (!this.state || !this.state.lanes) return false;
     const opp = this.opponent(owner);

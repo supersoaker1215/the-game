@@ -2542,6 +2542,52 @@ test('environments never enter the dead pile', function () {
     'control: a normal card is still archived');
 });
 
+test("Moder's compulsion dies with Moder, even on a silent exit", function () {
+  // Last of the stamped-state leaks. forcedLane was set in Moder's onPlay and
+  // cleared only in his onDeath, so a silent removal (Super Soldier Serum's
+  // killCardSilent, devour, bounce) left the opponent compelled by a Moder who
+  // was no longer on the board. Stale forced-lane residue is the exact class
+  // behind the old MP guest-placement bug.
+  var G = freshGame();
+  var moder = place(G, 'Moder', 'player', 2);
+  CARD_ABILITIES['Moder'].onPlay(G, moder, 2);
+  assertEq(G.state.ai.forcedLane, 2, 'control: the stamp is set');
+  assertEq(G.moderCompulsionLane('ai'), 2, 'control: and the compulsion is real');
+
+  G.killCardSilent(moder);        // exactly what the Serum does
+  assertEq(G.state.ai.forcedLane, 2, 'the raw stamp is STILL there — that is the leak');
+  assertEq(G.moderCompulsionLane('ai'), -1, 'but the compulsion is correctly dead');
+  assertEq(G._nextEnemyCardClaimant('ai'), null, 'so Moder no longer claims the next card');
+});
+
+test('a dead-but-uncleaned Moder does not compel either', function () {
+  var G = freshGame();
+  var moder = place(G, 'Moder', 'player', 3);
+  CARD_ABILITIES['Moder'].onPlay(G, moder, 3);
+  assertEq(G.moderCompulsionLane('ai'), 3, 'control');
+  moder.currentHealth = 0;
+  assertEq(G.moderCompulsionLane('ai'), -1, 'a corpse compels nothing');
+});
+
+test("a living Moder still pulls the next enemy card into his lane", function () {
+  // The control that matters most: the leak fix must not disarm the card.
+  var G = freshGame();
+  var moder = place(G, 'Moder', 'player', 4);
+  CARD_ABILITIES['Moder'].onPlay(G, moder, 4);
+  assertEq(G._nextEnemyCardClaimant('ai'), 'moder', 'Moder claims the next enemy card');
+  assertEq(G.moderCompulsionLane('ai'), 4, 'and it points at his lane');
+  // Asserting through playCard would drag in phase/energy gating that has
+  // nothing to do with this fix; the claimant IS the mechanism the pull reads.
+});
+
+test('a destroyed lane kills the compulsion too', function () {
+  var G = freshGame();
+  var moder = place(G, 'Moder', 'player', 1);
+  CARD_ABILITIES['Moder'].onPlay(G, moder, 1);
+  G.state.lanes[1].destroyed = true;
+  assertEq(G.moderCompulsionLane('ai'), -1, 'nothing can be pulled into a destroyed lane');
+});
+
 test('Iron Giant is still never placeable, and the desc still says so', function () {
   // The gate itself is untouched by the draw work — this pins that.
   var G = igSetup();

@@ -16103,11 +16103,16 @@ const UI = {
     // setter exists, so it could only paint phantom lock glyphs from stale state.)
     const _effectiveForcedLane = (seat) => {
       const p = s[seat]; if (!p) return null;
-      if (p.forcedLane != null) {
-        // Only report the Moder lock if the forced lane is still open —
-        // if the seat already has a card there the lock can't fire anyway.
-        const fl = s.lanes[p.forcedLane];
-        if (fl && !fl.destroyed && !fl[seat]) return p.forcedLane;
+      // Ask the engine whether the compulsion is still REAL — a stamped
+      // forcedLane outlives a Moder who left the board silently, and painting a
+      // lock glyph for a compeller who is not there is the visible half of that
+      // residue. moderCompulsionLane checks a living Moder still stands there.
+      const live = (Game.moderCompulsionLane ? Game.moderCompulsionLane(seat) : (p.forcedLane != null ? p.forcedLane : -1));
+      if (live >= 0) {
+        // Only report the lock if the forced lane is still open — if the seat
+        // already has a card there the lock can't fire anyway.
+        const fl = s.lanes[live];
+        if (fl && !fl.destroyed && !fl[seat]) return live;
       }
       return null;
     };

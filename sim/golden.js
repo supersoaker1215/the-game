@@ -157,6 +157,12 @@ gold('RG-3b Feared card takes no bonus attack', function () {
 gold('RG-3c Moder lower lane wins the intercept; BWL stays armed', function () {
   reset();
   place(card({ name: 'The Batman Who Laughs', owner: 'ai' }), 4, 'ai'); // BWL lane 4
+  // A REAL Moder in the forced lane. The fixture used to set forcedLane alone,
+  // which stopped being sufficient once the compulsion started being validated
+  // against a living Moder — a stamp with no Moder behind it is residue, not a
+  // claim. Placing him keeps this test about the LANE TIE-BREAK, which is what
+  // it is for.
+  place(card({ name: 'Moder', owner: 'ai' }), 1, 'ai');
   Game.state.player.forcedLane = 1;        // Moder forces the player into lane 1
   Game.state.player.nextCardStolen = true; // BWL armed against the player
   eq('moder wins (1 < 4)', Game._nextEnemyCardClaimant('player'), 'moder');
@@ -167,6 +173,7 @@ gold('RG-3c Moder lower lane wins the intercept; BWL stays armed', function () {
 gold('RG-3d BWL lower lane wins the intercept; Moder stays armed', function () {
   reset();
   place(card({ name: 'The Batman Who Laughs', owner: 'ai' }), 0, 'ai'); // BWL lane 0
+  place(card({ name: 'Moder', owner: 'ai' }), 3, 'ai');   // real Moder, see RG-3c
   Game.state.player.forcedLane = 3;        // Moder lane 3
   Game.state.player.nextCardStolen = true;
   eq('bwl wins (0 < 3)', Game._nextEnemyCardClaimant('player'), 'bwl');
@@ -178,6 +185,7 @@ gold('RG-3e Moder cannot claim into an occupied lane; BWL takes it', function ()
   reset();
   place(card({ name: 'Blocker', owner: 'player' }), 1, 'player'); // lane 1 occupied
   place(card({ name: 'The Batman Who Laughs', owner: 'ai' }), 4, 'ai');
+  place(card({ name: 'Moder', owner: 'ai' }), 1, 'ai');   // real Moder, see RG-3c
   Game.state.player.forcedLane = 1;        // Moder can't pull in — lane full
   Game.state.player.nextCardStolen = true;
   eq('bwl claims (moder blocked)', Game._nextEnemyCardClaimant('player'), 'bwl');
