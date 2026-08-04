@@ -5427,7 +5427,14 @@ body.hit-pause .ai-hand * {
   box-shadow: 0 0 6px rgba(155,89,182,0.90), 0 0 12px rgba(155,89,182,0.65);
   z-index: 3;
 }
-.draft-card .trick-desc {
+/* READABLE TRICK RULES — the size a trick's text is set at when the text is
+   the thing being chosen. Two surfaces qualify and they share one block: the
+   draft picker, and the floating prompts (block-meter free trick, Time Stone
+   react). Both ask "do you want this trick?", which is unanswerable from the
+   art, so both print the rules ON the card at reading size rather than at the
+   9px the tray/board tiles use. Change it here and both move together. */
+.draft-card .trick-desc,
+.fp-trick-preview .trick-card .trick-desc {
   font-family: 'Inter', 'Segoe UI', system-ui, sans-serif;
   font-size: 12px; color: var(--text-hi, #f5fbff);
   margin-top: 10px; line-height: 1.6;
@@ -5435,7 +5442,8 @@ body.hit-pause .ai-hand * {
   padding: 0 6px;
   text-shadow: 0 0 4px rgba(155,89,182,0.25);
 }
-.draft-card .trick-desc b {
+.draft-card .trick-desc b,
+.fp-trick-preview .trick-card .trick-desc b {
   color: #d7b3e6 !important;
   font-weight: 600;
   letter-spacing: 0.5px;
@@ -11577,6 +11585,11 @@ body.turn-combat .board .lane.lane-active {
 .fp-header {
   text-align: center; margin-bottom: 12px;
   padding-bottom: 10px;
+  /* Reserve the peek button's gutter (right: 12px + 32px wide) on BOTH sides,
+     so a long title centres in the space that is actually free instead of
+     running underneath the ×. Mirrored rather than right-only because padding
+     on one side alone would shove the title off-centre. */
+  padding-left: 44px; padding-right: 44px;
   border-bottom: 1px solid rgba(var(--theme-rgb, 79,195,247),0.18);
 }
 .fp-label {
@@ -11593,26 +11606,16 @@ body.turn-combat .board .lane.lane-active {
 }
 .fp-body { display: flex; gap: 18px; align-items: stretch; }
 .fp-trick-preview {
-  flex: 0 0 160px;
-  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px;
+  /* Widened with the card inside it (was 160px for a 150px card). The gap that
+     used to separate the card from its detached rules panel is gone with the
+     panel — there is only one child now. */
+  flex: 0 0 200px;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
 }
-/* Readable rules panel under the free-trick art (block-meter draw, Time Stone
-   react). The trick card itself hides its text, so this is the only place the
-   player can read what the trick does before Play/Keep. Purple-tinted to match
-   the trick palette. */
-.fp-trick-rules {
-  width: 100%;
-  max-width: 190px;
-  font-size: 12px;
-  line-height: 1.36;
-  color: var(--text-body, #f0f6fb);
-  text-align: center;
-  background: rgba(22, 13, 33, 0.6);
-  border: 1px solid rgba(158, 120, 255, 0.38);
-  border-radius: 6px;
-  padding: 7px 10px;
-  box-shadow: inset 0 0 12px rgba(158, 120, 255, 0.08);
-}
+/* The detached .fp-trick-rules panel that used to sit under the art is GONE.
+   The rules live on the card now (see _fpTrickCardHTML) — one object, not a
+   card plus a box repeating what the card should have said. Its typography is
+   shared with the draft picker further up, so both surfaces read identically. */
 /* The block-trigger / Time Stone modals embed an actual `.trick-card`
    element so it inherits ALL the in-hand chrome (diamond cost pip,
    purple corner brackets, centered name banner with diamond divider,
@@ -11620,15 +11623,25 @@ body.turn-combat .board .lane.lane-active {
    to the current in-hand look." Only size overrides here — everything
    else is the canonical in-hand styling cascading through. */
 .fp-trick-preview .trick-card.fp-tricky {
-  width: 150px;
-  min-height: 180px;
-  /* Tight padding matches the tray's trick cards — the preview is the
-     full-art card now (portrait + name overlay), not the old text list. */
-  padding: 6px 8px;
+  /* Wider than the old 150px because the rules now sit ON the card and need a
+     line long enough to read — at 150px a sentence broke into a ribbon. Still
+     narrower than the draft's 220px; this is a prompt, not a whole screen. */
+  width: 190px;
+  padding: 8px 10px 12px;
   display: flex; flex-direction: column;
+  /* Height follows the text. min-height keeps a one-line trick from looking
+     stunted next to the two buttons beside it. */
+  min-height: 180px;
   /* Disable hover lift inside the modal — the modal itself handles
      hover-to-solid; we don't want the trick card jumping around. */
   pointer-events: none;
+}
+/* The art holds a fixed portrait shape so the card's height is driven by how
+   much text the trick has, not by the art stretching to absorb the slack. */
+.fp-trick-preview .trick-card.fp-tricky .card-portrait {
+  flex: 0 0 auto;
+  aspect-ratio: 3 / 4;
+  height: auto;
 }
 .fp-choices { flex: 1; display: flex; flex-direction: column; gap: 10px; justify-content: center; }
 .fp-btn {

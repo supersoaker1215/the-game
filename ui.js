@@ -15312,7 +15312,6 @@ const UI = {
         </button>
         <div class="fp-header">
           <span class="fp-label">Block Meter Triggered</span>
-          <span class="fp-sub">You drew a free Trick — view the board before deciding.</span>
         </div>
         <div class="fp-body">
           <div class="fp-trick-preview">
@@ -15369,20 +15368,18 @@ const UI = {
   },
   // Thin alias — the floating-prompt trick face is the canonical trick with a
   // fp-tricky hook class. Kept so its callers don't churn.
-  // flip-host: the floating prompt has its OWN Play/Skip buttons, so the trick
-  // face itself is free to be a read surface — tap it to turn it over. This is
-  // the surface where reading matters most: the whole prompt is "do you want to
-  // play this trick", and you cannot answer that without its rules text.
   _fpTrickCardHTML(trick) {
-    // The full-art trick card hides its rules text (same as a board card / a
-    // face-down flip card), and inside these prompts it also carries
-    // `pointer-events:none`, so there was no way to read what the free trick
-    // actually does before choosing Play/Keep. User: "i want the trick
-    // description, on this block meter draw of tricks cards." Show the rules as
-    // a readable panel beneath the card — the old spec-sheet look.
-    const rules = this.formatDesc((trick && trick.desc) || '') || '';
-    return this.makeTrickEl(trick, { extraClass: 'fp-tricky flip-host' })
-      + (rules ? `<div class="fp-trick-rules">${rules}</div>` : '');
+    // A prompt trick is chosen BY its text: the entire question is "do you want
+    // to play this?", and that is unanswerable without the rules. So this
+    // surface takes the SAME exclusion the draft takes — see the .flip-host
+    // block in style.css, whose own comment says a card chosen by its text must
+    // not hide that text behind a flip.
+    //
+    // It used to do both and commit to neither: flip-host hid the rules on the
+    // card, then a detached .fp-trick-rules box was bolted underneath printing
+    // the very same sentence. Two elements, one fact, and a seam between them.
+    // Now the rules ride ON the card, exactly as they do in the draft picker.
+    return this.makeTrickEl(trick, { extraClass: 'fp-tricky' });
   },
 
   // ===================== JUMP OFFER =====================
