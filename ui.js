@@ -15459,14 +15459,31 @@ const UI = {
     if (!offer) return;
     // In multiplayer the host stores the card in the 'ai' hand (guest seat);
     // only search the player hand on single-player or the guest's own view.
-    const card = s.player.hand.find(c => c.id === offer.cardId)
-      || (Game.isMultiplayer() && Game.mp && Game.mp.role === 'host'
-          ? (s.ai.hand || []).find(c => c.id === offer.cardId)
-          : null);
-    if (!card) {
-      // Card no longer in hand (somehow played already) — clear and resume
+    let jumpSeat = 'player';
+    let card = s.player.hand.find(c => c.id === offer.cardId);
+    if (!card && Game.isMultiplayer() && Game.mp && Game.mp.role === 'host') {
+      card = (s.ai.hand || []).find(c => c.id === offer.cardId);
+      if (card) jumpSeat = 'ai';
+    }
+    // Tear the prompt down and let combat carry on. The old !card branch left
+    // any modal from the previous frame on screen — render() only removes it
+    // on the other branch at the call site.
+    const dropOffer = (why) => {
+      if (why) Game.log(`  [JUMP] ${why}`);
       s.pendingJumpOffer = null;
+      const dead = document.getElementById('jump-offer-modal');
+      if (dead) dead.remove();
       if (typeof Game.resumeCombatIfWaiting === 'function') Game.resumeCombatIfWaiting();
+    };
+    if (!card) { dropOffer(); return; }   // no longer in hand
+    // RE-VALIDATE with the same predicate execution uses. The flag was armed
+    // when the trigger fired, and the board can move before the player answers
+    // — a lane they owned, a lane Darkseid collapsed. Arming is now guarded
+    // too, so this is belt-and-braces for that window only.
+    if (Game.canJumpNow && !Game.canJumpNow(jumpSeat, card)) {
+      card.jumpReady = false;
+      card.jumpLane = undefined;
+      dropOffer(`${card.name} has nowhere to land — jump window closed.`);
       return;
     }
     const stale = document.getElementById('jump-offer-modal');

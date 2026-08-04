@@ -2288,6 +2288,63 @@ test('LONE WOLF still fires on a summon into an empty board', function () {
   assertEq(c.maxHealth, def.health + 1, 'alone on the board → +1 HP');
 });
 
+test('Michael Myers does not arm a jump into a lane he cannot land in', function () {
+  // User: "if michael cannot jump there shouldnt be an option to jump, if the
+  // lane is contesed the popup shouldnt occur." The offer was armed on a
+  // strictly weaker condition than execution required, so a lane you already
+  // held produced a prompt whose PLAY FREE was a guaranteed no-op.
+  function armsInto(occupyOwnLane) {
+    var G = freshGame();
+    var mm = G.createCardInstance(cardByName('Michael Myers'), 'player');
+    G.state.player.hand.push(mm);
+    if (occupyOwnLane) place(G, 'Bane', 'player', 3);   // our side of lane 4 taken
+    // An enemy plays something cheaper in lane 4.
+    G.checkJumpConditions('cardPlayed', { owner: 'ai', laneIdx: 3, cost: 1, isEnvironment: false });
+    return { ready: !!mm.jumpReady, lane: mm.jumpLane };
+  }
+  // CONTROL — an open lane must still arm, or the test below passes for the
+  // wrong reason by simply having broken the mechanic.
+  var open = armsInto(false);
+  assertEq(open.ready, true, 'control: an OPEN lane still arms the jump');
+  assertEq(open.lane, 3, 'control: locked to the triggering lane');
+
+  var contested = armsInto(true);
+  assertEq(contested.ready, false, 'a lane we already occupy must NOT arm the jump');
+});
+
+test('a destroyed lane does not arm a jump either', function () {
+  var G = freshGame();
+  var mm = G.createCardInstance(cardByName('Michael Myers'), 'player');
+  G.state.player.hand.push(mm);
+  G.state.lanes[3].destroyed = true;
+  G.checkJumpConditions('cardPlayed', { owner: 'ai', laneIdx: 3, cost: 1, isEnvironment: false });
+  assertEq(!!mm.jumpReady, false, 'a destroyed lane cannot be jumped into');
+});
+
+test('jumpTargetLane agrees with what playJumpCard will actually accept', function () {
+  // The whole point of the fix: ONE predicate, so arming can never promise
+  // something execution refuses.
+  var G = freshGame();
+  var mm = G.createCardInstance(cardByName('Michael Myers'), 'player');
+  G.state.player.hand.push(mm);
+  assertEq(G.jumpTargetLane('player', mm, 2), 2, 'an empty, intact lane is legal');
+  place(G, 'Bane', 'player', 2);
+  assertEq(G.jumpTargetLane('player', mm, 2), -1, 'occupied by us → illegal');
+  G.state.lanes[4].destroyed = true;
+  assertEq(G.jumpTargetLane('player', mm, 4), -1, 'destroyed → illegal');
+  assertEq(G.jumpTargetLane('player', mm, 99), -1, 'out of range → illegal');
+  // Free-lane jumper (no locked lane) falls back to any open lane.
+  var gf = G.createCardInstance(cardByName('Ghostface'), 'player');
+  assertEq(G.jumpTargetLane('player', gf) >= 0, true, 'free-lane jumper finds an open lane');
+  for (var i = 0; i < G.LANE_COUNT; i++) {
+    // Skip the destroyed lane — putting a body in one builds a board state the
+    // engine's own cleanup invariant rejects ("occupies DESTROYED lane").
+    if (G.state.lanes[i].destroyed) continue;
+    if (!G.state.lanes[i].player) G.state.lanes[i].player = G.createCardInstance(cardByName('Bane'), 'player');
+  }
+  assertEq(G.jumpTargetLane('player', gf), -1, 'full board → free-lane jumper is illegal too');
+});
+
 test('Iron Giant is still never placeable, and the desc still says so', function () {
   // The gate itself is untouched by the draw work — this pins that.
   var G = igSetup();

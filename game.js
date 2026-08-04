@@ -3670,6 +3670,16 @@ const Game = {
     // If Phase 3 left any player card jump-ready (Ghostface, Freddy Fazbear,
     // etc.), offer the jump modal before combat.
     if (this.isHuman('player') && !this.state.pendingJumpOffer) {
+      // A jump armed EARLIER this round can have gone stale — the player filled
+      // the locked lane during their own phase, or it was destroyed. Drop the
+      // dead ones rather than re-offering a choice that can only fail.
+      this.state.player.hand.forEach(c => {
+        if (c.jumpReady && !this.canJumpNow('player', c)) {
+          this.log(`  [JUMP] ${c.name}'s target lane is no longer open — jump expired.`);
+          c.jumpReady = false;
+          c.jumpLane = undefined;
+        }
+      });
       const readyCard = this.state.player.hand.find(c => c.jumpReady);
       if (readyCard) this.state.pendingJumpOffer = { cardId: readyCard.id };
     }
@@ -6684,6 +6694,10 @@ const Game = {
       if (e.statsEnteredRound !== thisRound) continue;
       const eCost = (e.baseCost != null ? e.baseCost : e.cost);
       if (eCost < myCost) {
+        // Our OWN slot in that lane has to be free — Myers lands opposite the
+        // enemy, not on top of an ally. `continue`, not `return`: a later lane
+        // may still qualify when this one is contested.
+        if (this.jumpTargetLane(owner, card, i) < 0) continue;
         card.jumpReady = true;
         card.jumpLane = i;
         this.log(`  [JUMP] Michael Myers senses weakness in lane ${i + 1}! Free play available.`);
@@ -10397,6 +10411,38 @@ const Game = {
 
   // ===================== JUMP MECHANIC =====================
 
+  // CANONICAL JUMP LEGALITY — the ONE predicate that arming, the offer modal,
+  // the hand glow and execution all consult. Returns the lane the card would
+  // land in, or -1 if the jump cannot legally happen right now.
+  //
+  // The offer used to be armed on a strictly WEAKER condition than execution
+  // required: Michael Myers armed on "an enemy played a cheaper card in lane N"
+  // and checked nothing about lane N on HIS OWN side, while playJumpCard
+  // requires that slot to be empty and the lane not destroyed. Any board where
+  // you already held that lane produced a JUMP! modal whose PLAY FREE was a
+  // guaranteed no-op. User: "if michael cannot jump there shouldnt be an option
+  // to jump, if the lane is contesed the popup shouldnt occur."
+  //
+  // Locked-lane jumpers (Michael Myers, Jason) need THAT lane free on their own
+  // side; free-lane jumpers (Ghostface, Stripe, Freddy) need any open lane.
+  jumpTargetLane(owner, card, candidateLane) {
+    if (!card || !this.state || !this.state.lanes) return -1;
+    if (card._neverPlayable) return -1;            // playCardFree rejects these
+    if (this.findCardLane(card) >= 0) return -1;   // already on the board
+    const l = (candidateLane !== undefined) ? candidateLane : card.jumpLane;
+    if (l !== undefined && l !== null) {
+      if (l < 0 || l >= this.LANE_COUNT) return -1;
+      const lane = this.state.lanes[l];
+      if (!lane || lane[owner] || lane.destroyed) return -1;
+      return l;
+    }
+    const open = this.getOpenLanes(owner);
+    return open.length ? open[0] : -1;
+  },
+  canJumpNow(owner, card, candidateLane) {
+    return this.jumpTargetLane(owner, card, candidateLane) >= 0;
+  },
+
   // Check jump conditions after game events. trigger: 'trickPlayed', 'cardPlayed', 'allyDied'
   checkJumpConditions(trigger, data) {
     ['player', 'ai'].forEach(owner => {
@@ -10408,19 +10454,21 @@ const Game = {
       let playerJumpNowReady = null;
       this.state[owner].hand.forEach(card => {
         if (card.jumpReady) return; // Already glowing
-        if (card.name === 'Ghostface' && trigger === 'trickPlayed' && data.owner !== owner) {
+        if (card.name === 'Ghostface' && trigger === 'trickPlayed' && data.owner !== owner
+            && this.canJumpNow(owner, card)) {
           card.jumpReady = true;
           this.log(`  [JUMP] Ghostface senses a trick! Free play available.`);
           if (this.isHuman(owner)) playerJumpNowReady = card;
         }
-        if (card.name === 'Michael Myers' && trigger === 'cardPlayed' && !data.isEnvironment && data.owner !== owner && data.cost < card.cost) {
+        if (card.name === 'Michael Myers' && trigger === 'cardPlayed' && !data.isEnvironment && data.owner !== owner && data.cost < card.cost
+            && this.canJumpNow(owner, card, data.laneIdx)) {
           card.jumpReady = true;
           // Lock MM to the lane directly in front of the enemy card that triggered the jump
           card.jumpLane = data.laneIdx;
           this.log(`  [JUMP] Michael Myers senses weakness in lane ${data.laneIdx + 1}! Free play available.`);
           if (this.isHuman(owner)) playerJumpNowReady = card;
         }
-        if (this.isCardKind(card, 'Stripe') && trigger === 'heroDamaged') {
+        if (this.isCardKind(card, 'Stripe') && trigger === 'heroDamaged' && this.canJumpNow(owner, card)) {
           // "Either player's hero takes damage" — deliberately no owner
           // filter: your face or theirs, Stripe smells blood either way.
           card.jumpReady = true;
@@ -10429,8 +10477,10 @@ const Game = {
         }
         if (card.name === 'Jason Voorhees' && trigger === 'allyDied' && data.owner === owner) {
           const tgtLane = (typeof data.laneIdx === 'number') ? data.laneIdx : undefined;
-          // Don't offer jump into a destroyed lane (e.g. Anti-Life Equation / Darkseid Collapse)
-          if (tgtLane !== undefined && this.state.lanes[tgtLane] && this.state.lanes[tgtLane].destroyed) return;
+          // Don't offer a jump that cannot legally land — a destroyed lane
+          // (Anti-Life Equation / Darkseid Collapse), a lane our own side has
+          // since refilled, or a completely full board. Was destroyed-only.
+          if (!this.canJumpNow(owner, card, tgtLane)) return;
           card.jumpReady = true;
           card.jumpLane = tgtLane;
           const laneStr = card.jumpLane !== undefined ? ` in lane ${card.jumpLane + 1}` : '';
