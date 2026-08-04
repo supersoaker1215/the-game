@@ -2118,6 +2118,43 @@ test('a failing Iron Giant draw cannot cost the Giant AND the ally', function ()
   assertEq(G.state.ai.hand.indexOf(ig), -1, 'the Giant is still spent exactly once');
 });
 
+test('Iron Giant sacrifices at most ONCE per combat, even holding a second copy', function () {
+  // Regression, user-reported: "he doesnt keep sacrificing himself".
+  // The draw payoff fed itself — sacrifice draws a card, that card is your
+  // SECOND Iron Giant, next ally death offers him straight back. Measured at
+  // 3 sacrifices in one combat off a stacked draw pile before the gate.
+  var G = freshGame();
+  // Draw pile topped with MORE Giants — the deckbuilder/roguelite case.
+  G.state.drawPile = [
+    Object.assign({}, cardByName('Ant-Man')),
+    Object.assign({}, cardByName('Iron Giant')),
+    Object.assign({}, cardByName('Iron Giant'))
+  ];
+  G.state.ai.hand.push(G.createCardInstance(cardByName('Iron Giant'), 'ai'));
+  var allies = [0, 1, 2].map(function (i) {
+    return place(G, 'Hela', 'ai', i);       // cost 5, clears the AI worth gate
+  });
+  place(G, 'Juggernaut', 'player', 0);
+  var saves = 0, realBlast = G._ironGiantBlast;
+  G._ironGiantBlast = function () { saves++; return realBlast.apply(G, arguments); };
+  try {
+    allies.forEach(function (a, i) { G._ironGiantIntercept(a, i, null); });
+  } finally { G._ironGiantBlast = realBlast; }
+  assertEq(saves, 1, 'exactly one sacrifice per combat, however many Giants get drawn');
+  assertEq(G.state.ai._igSpentThisCombat, true, 'the per-seat gate is armed');
+  // The gate is per SEAT, so the opponent still gets their own save.
+  assertEq(!!G.state.player._igSpentThisCombat, false, 'the other side keeps its own save');
+});
+
+test('the Iron Giant save recharges for the next combat', function () {
+  var G = freshGame();
+  G.state.ai._igSpentThisCombat = true;
+  G.state.player._igSpentThisCombat = true;
+  G.postCombat();
+  assertEq(!!G.state.ai._igSpentThisCombat, false, 'AI save recharges after combat');
+  assertEq(!!G.state.player._igSpentThisCombat, false, 'player save recharges after combat');
+});
+
 test('Iron Giant is still never placeable, and the desc still says so', function () {
   // The gate itself is untouched by the draw work — this pins that.
   var G = igSetup();

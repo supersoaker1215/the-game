@@ -681,6 +681,12 @@ const Game = {
       wrapBroadcast('startRound');
       wrapBroadcast('resolveLanes');
       wrapBroadcast('resumeCombatIfWaiting');
+      // The host resolves its own redraw picker through cardChoicePick's
+      // localOnly branch, which never reaches resolveActivePrompt — and that
+      // was the only thing broadcasting the host's redraw. Without this the
+      // guest would not see the host's new hand or spent energy until the
+      // host's next action.
+      wrapBroadcast('redrawCard');
     }
     // Both seats are humans now; the existing isHuman flag governs
     // whether ability prompts raise modals or auto-pick.
@@ -4929,10 +4935,18 @@ const Game = {
       }
       // Iron Giant's rescue shield is scoped to the combat that triggered it.
       delete c._igSavedThisCombat;
+      // (the once-per-combat sacrifice gate is cleared per SIDE below — it
+      //  lives on the seat, not the card)
       if (c._recurringBT) c.beforeTricksFired = false;
       if (c.tauntTurns > 0 && !c.permanentTaunt) c.tauntTurns--;
       if (c.tauntTurns === 0 && c.tauntOnlyLowestAttack) c.tauntOnlyLowestAttack = false;
       if (c.invincibleTurns > 0) c.invincibleTurns--;
+    });
+    // Each side's Iron Giant save recharges for the next combat. Per SEAT, not
+    // per card, because the whole point is that drawing a fresh Giant mid-fight
+    // must not hand you a second save in the same combat.
+    ['player', 'ai'].forEach(sd => {
+      if (this.state[sd]) delete this.state[sd]._igSpentThisCombat;
     });
     // Flip the late-round flag so tricks played between now and the
     // next startRound get marked persistent. Cleared in startRound.
@@ -8052,6 +8066,10 @@ const Game = {
       if (!card || card.isEnvironment || !card.owner) return false;
       if (this.state.gameOver) return false;
       if (card._igOffered) return false; // decline re-entry — real death proceeds
+      // Must mirror the once-per-combat gate in _ironGiantIntercept, or a death
+      // that CANNOT be intercepted still gets its derez + death sound
+      // suppressed, and the card dies in silence.
+      if (this.state[card.owner] && this.state[card.owner]._igSpentThisCombat) return false;
       const hand = (this.state[card.owner] && this.state[card.owner].hand) || [];
       return hand.some(c => c.name === 'Iron Giant');
     } catch (e) { return false; }
@@ -8072,6 +8090,14 @@ const Game = {
       // offer on its NEXT death.
       if (card._igOffered) { delete card._igOffered; return false; }
       const owner = card.owner;
+      // ONE sacrifice per side per combat. Without this the payoff feeds
+      // itself: the sacrifice draws a card, that card can be your SECOND Iron
+      // Giant, and the next ally death offers him straight back — measured at
+      // 3 sacrifices in a single combat off one stacked draw pile. From the
+      // player's seat that reads as the Giant refusing to stay dead.
+      // Scoped per side, so both players still get their own save in the same
+      // combat. Cleared alongside _igSavedThisCombat in the post-combat sweep.
+      if (this.state[owner] && this.state[owner]._igSpentThisCombat) return false;
       const hand = (this.state[owner] && this.state[owner].hand) || [];
       const ig = hand.find(c => c.name === 'Iron Giant');
       if (!ig) return false;
@@ -8096,6 +8122,9 @@ const Game = {
         // that killed it — otherwise the still-pending swings from this same
         // round immediately re-kill it and the sacrifice buys nothing.
         card._igSavedThisCombat = true;
+        // Burn this side's one save for the combat — see the gate at the top
+        // of _ironGiantIntercept.
+        if (this.state[owner]) this.state[owner]._igSpentThisCombat = true;
         this.log(`[IRON GIANT] Iron Giant gives himself — ${card.name} survives at ${restoreHp} HP!`);
         if (typeof UI !== 'undefined' && UI.sfx && UI.sfx.playCardSfx) {
           try { UI.sfx.playCardSfx('Iron Giant', 'ability'); } catch (e) {}

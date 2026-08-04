@@ -21119,7 +21119,17 @@ const UI = {
         this.render();
       },
       null,
-      { forced: hand.length === 1 });
+      // localOnly is MANDATORY here. "Which card do you want to bin?" is a
+      // purely client-side question — the host never armed this prompt, so a
+      // guest forwarding the answer as a promptResolve is talking about a
+      // prompt that does not exist on the other end. The host finds no
+      // pendingCardChoice, drops the message, and its next broadcast wipes the
+      // guest's picker: no energy spent, no card swapped, no error. Resolved
+      // locally instead, the callback runs and redrawCard forwards its own
+      // {t:'redraw'} message, which the host DOES understand.
+      // It looked shipped because forced:true auto-resolves locally, so a
+      // one-card hand worked on the guest — and every real hand did not.
+      { forced: hand.length === 1, localOnly: true });
   },
 
   onCardClick(card) {
