@@ -7541,7 +7541,15 @@ const UI = {
           { startTrim: 0, endTrim: 6, noOriginNode: true, mine: up }
         );
         const hp = (heroSide === 'player' ? Game.state.player.health : Game.state.ai.health) | 0;
-        this._forecastHeroBadge(orb, hp, hp - (card.attack | 0));
+        // Raw card.attack missed Critical and Yoda's combined-force strike.
+        // _cardEffectiveAtk is what resolveUncontestedLane uses for a face hit,
+        // so this matches the resolver. Deliberately NOT _computeIncomingDamage:
+        // the face path skips the etch bonus and Palpatine on purpose.
+        let face = (Game._cardEffectiveAtk ? Game._cardEffectiveAtk(card) : (card.attack | 0)) | 0;
+        if (Game.yodaShieldCount && Game.yodaShieldCount(heroSide) > 0 && face > 0) {
+          face = Math.ceil(face / 2);   // damagePlayer halves for the shield
+        }
+        this._forecastHeroBadge(orb, hp, hp - face);
       }
     }
   },
@@ -19522,7 +19530,15 @@ const UI = {
     // own allies (no face damage). Mind-controlled → swings for the
     // opponent (also no face damage in your direction).
     if (me.isStunned || me.isFrozen || me.isFeared || me.isMindControlled) return 0;
-    return me.attack || 0;
+    // Same crit blindness the hover pill had — this number drives the lane
+    // strip's face-damage readout AND the lane shading, so a Critical attacker
+    // under-reported in both.
+    let face = (Game._cardEffectiveAtk ? Game._cardEffectiveAtk(me) : (me.attack || 0)) | 0;
+    const victim = side === 'player' ? 'ai' : 'player';
+    if (Game.yodaShieldCount && Game.yodaShieldCount(victim) > 0 && face > 0) {
+      face = Math.ceil(face / 2);
+    }
+    return face;
   },
 
   laneForecastVerdict(s, laneIdx) {

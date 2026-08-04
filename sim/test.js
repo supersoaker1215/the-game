@@ -2435,6 +2435,85 @@ test('a Martian Manhunter copy of Grievous also locks the meter', function () {
   assertEq(G.grievousLocksBlockFor('player'), false, 'and a dead copy does not');
 });
 
+test('the combat forecast counts Critical (and every other attacker modifier)', function () {
+  // User: an "8 -> 5" HP-after pill on a card a CRITICAL attacker was about to
+  // hit for 6. predictCombatGlobal hand-rolled `raw - armor` off card.attack,
+  // making it a THIRD copy of the damage maths that knew about armor and
+  // nothing else.
+  function predictedDmgOn(setup) {
+    var G = freshGame();
+    var atk = place(G, 'Bane', 'ai', 0);
+    var def = place(G, 'Hela', 'player', 0);
+    atk.attack = 3;
+    def.currentHealth = 20; def.maxHealth = 20;   // survive, so we read damage not death
+    if (setup) setup(G, atk, def);
+    var pred = G.predictCombatGlobal();
+    var e = pred && pred.byId && pred.byId.get(def.id);
+    return e ? e.dmgIn : null;
+  }
+  // CONTROL — plain 3 ATK must still predict 3, or a broken predictor would
+  // make the crit assertion pass for the wrong reason.
+  assertEq(predictedDmgOn(null), 3, 'control: a plain 3-ATK swing predicts 3');
+  assertEq(predictedDmgOn(function (G, atk) { atk._criticalThisRound = true; }), 6,
+    'CRITICAL doubles it — this is the reported bug');
+  assertEq(predictedDmgOn(function (G, atk) { atk._yodaCombinedAtk = 9; }), 9,
+    "Yoda's combined-force strike overrides base ATK");
+  assertEq(predictedDmgOn(function (G, atk, def) { def.armorValue = 1; }), 2,
+    'armor still subtracts (the one modifier it always had)');
+  assertEq(predictedDmgOn(function (G, atk, def) { def.armorValue = 1; atk.ignoresArmor = true; }), 3,
+    'ignoresArmor now respected too');
+});
+
+test("the forecast honours Yoda's shield and Palpatine's frozen-double", function () {
+  function dmg(setup) {
+    var G = freshGame();
+    var atk = place(G, 'Bane', 'ai', 0);
+    var def = place(G, 'Hela', 'player', 0);
+    atk.attack = 4;
+    def.currentHealth = 30; def.maxHealth = 30;
+    if (setup) setup(G, atk, def);
+    var e = G.predictCombatGlobal().byId.get(def.id);
+    return e ? e.dmgIn : null;
+  }
+  assertEq(dmg(null), 4, 'control');
+  assertEq(dmg(function (G) {
+    var y = G.createCardInstance(cardByName('Yoda'), 'player');
+    G.state.lanes[4].player = y;
+  }), 2, "the defender's Yoda halves it");
+  assertEq(dmg(function (G, atk, def) {
+    def.isFrozen = true;
+    var p = G.createCardInstance(cardByName('Emperor Palpatine'), 'ai');
+    p.passive = 'doubleFrozenDamage';
+    G.state.lanes[4].ai = p;
+  }), 8, 'Palpatine doubles damage to a frozen target');
+});
+
+test('predicting damage must not write to the combat log', function () {
+  // predictCombatGlobal runs on EVERY render. Routing it through the resolver's
+  // helper without silencing it would spray phantom "[CRITICAL] CRITICAL HIT!"
+  // lines into the log for fights that have not happened.
+  var G = freshGame();
+  var atk = place(G, 'Bane', 'ai', 0);
+  var def = place(G, 'Hela', 'player', 0);
+  atk.attack = 3; atk._criticalThisRound = true;
+  var lines = 0, real = G.log;
+  G.log = function () { lines++; return real.apply(G, arguments); };
+  try { G.predictCombatGlobal(); } finally { G.log = real; }
+  assertEq(lines, 0, 'the predictor is silent');
+
+  // ...and the RESOLVER still logs, so silencing did not mute real combat.
+  var G2 = freshGame();
+  var a2 = place(G2, 'Bane', 'ai', 0);
+  var d2 = place(G2, 'Hela', 'player', 0);
+  a2.attack = 3; a2._criticalThisRound = true;
+  var said = [];
+  var real2 = G2.log;
+  G2.log = function (m) { said.push(String(m)); return real2.apply(G2, arguments); };
+  try { G2._computeIncomingDamage(a2, d2); } finally { G2.log = real2; }
+  assertEq(said.some(function (m) { return m.indexOf('CRITICAL') > -1; }), true,
+    'real combat still narrates the crit');
+});
+
 test('Iron Giant is still never placeable, and the desc still says so', function () {
   // The gate itself is untouched by the draw work — this pins that.
   var G = igSetup();

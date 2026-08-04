@@ -5738,31 +5738,40 @@ const Game = {
     if (card._criticalThisRound) atk *= 2;
     return atk;
   },
-  _computeIncomingDamage(attacker, target) {
-    let dmg = attacker.attack;
+  // opts.silent — compute WITHOUT logging. The predictor calls this on every
+  // render; without the switch it would flood the combat log with phantom
+  // "[CRITICAL] ... CRITICAL HIT!" lines for fights that have not happened.
+  // Making the canonical helper quiet-capable is the alternative to letting the
+  // predictor keep its own copy of the maths, which is what caused this bug.
+  _computeIncomingDamage(attacker, target, opts) {
+    const quiet = !!(opts && opts.silent);
+    const say = (m) => { if (!quiet) this.log(m); };
+    // `| 0` because the resolver runs _coerceCombatStats first and the
+    // PREDICTOR does not — a NaN attack would silently make `dies` read false.
+    let dmg = attacker.attack | 0;
     const etchBonus = this._getEtchAttackBonus(attacker);
     if (etchBonus > 0) {
       const tag = (attacker.hasBerserker && attacker.currentHealth < attacker.maxHealth)
         ? 'BERSERKER' : 'ZEALOT';
-      this.log(`  [${tag}] ${attacker.name} +${etchBonus} ATK (${dmg} → ${dmg + etchBonus})`);
+      say(`  [${tag}] ${attacker.name} +${etchBonus} ATK (${dmg} → ${dmg + etchBonus})`);
       dmg += etchBonus;
     }
     // Yoda combined-force strike — both chosen allies deal combined ATK
     if (attacker._yodaCombinedAtk) {
       const combined = attacker._yodaCombinedAtk;
-      this.log(`  [YODA] ${attacker.name} strikes with combined Force! (${dmg} → ${combined})`);
+      say(`  [YODA] ${attacker.name} strikes with combined Force! (${dmg} → ${combined})`);
       dmg = combined;
     }
     // Han Solo Critical — double damage for this round
     if (attacker._criticalThisRound) {
       const crit = dmg * 2;
-      this.log(`  [CRITICAL] ${attacker.name} CRITICAL HIT! (${dmg} → ${crit})`);
+      say(`  [CRITICAL] ${attacker.name} CRITICAL HIT! (${dmg} → ${crit})`);
       dmg = crit;
     }
     // Yoda shield — target's side takes half combat damage (rounded up)
     if (this.yodaShieldCount(target.owner) > 0 && dmg > 0) {
       const halved = Math.ceil(dmg / 2);
-      this.log(`  [YODA SHIELD] ${target.name} takes half damage (${dmg} → ${halved})`);
+      say(`  [YODA SHIELD] ${target.name} takes half damage (${dmg} → ${halved})`);
       dmg = halved;
     }
     if (target.isFrozen) {
@@ -5771,7 +5780,7 @@ const Game = {
       );
       if (hasDoubleFrozen) {
         const doubled = dmg * 2;
-        this.log(`  [PALPATINE] ${target.name} is frozen — ${attacker.name}'s damage doubled (${dmg} → ${doubled})`);
+        say(`  [PALPATINE] ${target.name} is frozen — ${attacker.name}'s damage doubled (${dmg} → ${doubled})`);
         dmg = doubled;
       }
     }
@@ -11120,14 +11129,35 @@ const Game = {
     // resolver's applySplash hits specific lanes directly). Baking redirect into
     // applyHit wrongly bounced SPLASH onto taunters and picked taunters the
     // resolver would already have killed with an uncontested swing this pass.
-    const applyHit = (targetCard, raw, attackerIgnoresEvade) => {
-      if (!targetCard || raw <= 0) return 0;
+    // Takes the ATTACKER, not a pre-computed number. This function used to
+    // hand-roll `raw - armor` off a caller's `card.attack | 0`, making it the
+    // THIRD copy of the damage maths in the file — and the copy that had
+    // drifted furthest. It knew about armor and nothing else, so the forecast
+    // silently ignored Critical, the Berserker/Zealot etch bonus, Yoda's
+    // combined-force strike, Yoda's half-damage shield and Palpatine's
+    // frozen-double. User: an "8 → 5" pill on a card a Critical attacker was
+    // about to hit for 6.
+    // Swing damage now goes through the resolver's own _computeIncomingDamage
+    // (silent), so predictor and resolver cannot disagree again.
+    // flatRaw is for SPLASH, which the resolver routes through dealDamage — it
+    // halves for Yoda shield but applies no attacker-side multipliers.
+    const applyHit = (targetCard, attacker, flatRaw) => {
+      if (!targetCard || !attacker) return 0;
       const final = snap.get(targetCard.id);
       if (!final || final.hp <= 0) return 0;
+      if (final.ref.isFaceDown) return 0;      // applyCombatDamage bails on these
       if (final.ref.invincibleTurns > 0 || final.ref.hasDamageImmunity) return 0;
       const canDodge = !final.ref.isStunned && !final.ref.isFrozen;
-      if (canDodge && final.evade > 0 && !attackerIgnoresEvade) { final.evade--; return 0; }
-      const landed = Math.max(0, raw - (final.ref.armorValue | 0));
+      if (canDodge && final.evade > 0 && !attacker.ignoresEvade) { final.evade--; return 0; }
+      let raw;
+      if (flatRaw != null) {
+        raw = flatRaw | 0;
+        if (this.yodaShieldCount(final.ref.owner) > 0 && raw > 0) raw = Math.ceil(raw / 2);
+      } else {
+        raw = this._computeIncomingDamage(attacker, final.ref, { silent: true }) | 0;
+      }
+      if (raw <= 0) return 0;
+      const landed = attacker.ignoresArmor ? raw : Math.max(0, raw - (final.ref.armorValue | 0));
       final.hp -= landed;
       final.dmgIn += landed;
       return landed;
@@ -11195,12 +11225,10 @@ const Game = {
       // that dies in the exchange still deals full; targets read the CURRENT
       // snapshot, so a taunter already killed by an earlier lane is skipped and
       // the swing falls through to the front card.
-      const pAtk = pCanAttack ? (p.attack | 0) : 0;
-      const aAtk = aCanAttack ? (a.attack | 0) : 0;
       const pTgt = pCanAttack ? resolveTarget('player', i) : null;
       const aTgt = aCanAttack ? resolveTarget('ai', i) : null;
-      if (pTgt) applyHit(pTgt, pAtk, !!p.ignoresEvade);
-      if (aTgt) applyHit(aTgt, aAtk, !!a.ignoresEvade);
+      if (pTgt) applyHit(pTgt, p);
+      if (aTgt) applyHit(aTgt, a);
 
       // FEAR TURNS THE SWING INWARD. canSwingForward() is false for a feared
       // card, so the two branches above correctly predict it dealing nothing to
@@ -11219,7 +11247,7 @@ const Game = {
         if (!c.isFeared) return;
         if (c.isStunned || c.isFrozen) return;   // too locked to swing at all
         if ((c.attack | 0) <= 0) return;
-        applyHit(c, c.attack | 0, !!c.ignoresEvade);
+        applyHit(c, c);
       };
       selfHit(p, pSnap);
       selfHit(a, aSnap);
@@ -11243,7 +11271,6 @@ const Game = {
       const splashCone = (attacker, could) => {
         const s = attacker ? (attacker.splashRange | 0) : 0;
         if (!could || s <= 0) return;
-        const iev = !!attacker.ignoresEvade;
         const foe = attacker.owner === 'player' ? 'ai' : 'player';
         // Splash goes through dealDamage in the resolver, which taunt-redirects
         // enemy damage to the defending side's taunter — so EACH cone hit that
@@ -11252,7 +11279,7 @@ const Game = {
         [i - 1, i + 1].forEach(li => {
           if (li < 0 || li >= this.LANE_COUNT) return;
           const ln = this.state.lanes[li];
-          if (ln && !ln.destroyed && ln[foe]) applyHit(taunt || ln[foe], s, iev);
+          if (ln && !ln.destroyed && ln[foe]) applyHit(taunt || ln[foe], attacker, s);
         });
       };
       splashCone(p, pCanAttack);

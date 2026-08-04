@@ -65,6 +65,17 @@ function mk(o) {
   c.ignoresEvade = !!o.ignoresEvade;
   if (o.taunt) c.tauntTurns = o.taunt;
   if (o.invincible) c.invincibleTurns = o.invincible;
+  // ATTACKER-SIDE DAMAGE MODIFIERS. These were absent, and their absence is
+  // precisely why 2000 random games never caught the predictor ignoring
+  // Critical: the harness only ever generated boards whose damage was
+  // `attack - armor`, which is the one formula the broken predictor got right.
+  // A differential harness can only find a disagreement it can express.
+  c._criticalThisRound = !!o.crit;
+  c.ignoresArmor = !!o.ignoresArmor;
+  if (o.frozen) c.isFrozen = true;
+  if (o.combinedAtk) c._yodaCombinedAtk = o.combinedAtk | 0;
+  if (o.yodaShield) c.passive = 'yodaShield';
+  if (o.palpatine) c.passive = 'doubleFrozenDamage';
   return c;
 }
 function place(c, lane) { Game.state.lanes[lane][c.owner] = c; return c; }
@@ -205,6 +216,17 @@ function randomBoard() {
           bullseye: rnd() < 0.15,
           ignoresEvade: rnd() < 0.10,
           taunt: (rnd() < 0.10) ? (1 + ri(2)) : 0,
+          // The attacker-side modifiers the harness could not previously
+          // express. Without these every generated board's damage was
+          // `attack - armor` — the one formula the broken predictor computed
+          // correctly — so 2000 games found nothing. Rates are deliberately
+          // low so ordinary boards still dominate the sample.
+          crit: rnd() < 0.12,
+          ignoresArmor: rnd() < 0.08,
+          frozen: rnd() < 0.10,
+          combinedAtk: (rnd() < 0.05) ? (1 + ri(12)) : 0,
+          yodaShield: rnd() < 0.06,
+          palpatine: rnd() < 0.06,
         }), i);
       }
     });
