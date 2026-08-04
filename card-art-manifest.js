@@ -170,6 +170,9 @@ window.CARD_ART_OVERRIDES = {
     'Obi-Wan|Obi-Wan 2.jpg': '100% 84%',
     'Obi-Wan|Obi-Wan.png': '60% 50%',
     'The Grinch|The Grinch 2.jpg': '50% 24%',
+    // Godzilla (2026-08-04) — default center crop clipped the top of his head;
+    // pull the focal to the top so the full roaring head sits in frame.
+    'Godzilla|Godzilla.jpg': '50% 0%',
   },
   focalMenu: {   // "name|file" -> "X% Y%"   menu-hero crop focal
     'Darth Maul|Darth Maul.jpg': '50% 50%',
