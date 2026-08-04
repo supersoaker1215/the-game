@@ -1093,7 +1093,13 @@ const UI = {
     const g = (id) => document.getElementById(id);
     this.settings.difficulty  = g('setting-difficulty').value;
     this.settings.aiSpeed     = g('setting-ai-speed').value;
-    this.settings.roundRecap  = g('setting-round-recap').checked;
+    // The CRT-scanlines, Round-recap and Track-card-stats ROWS were removed from
+    // the settings panel (owner: "remove these"), so their inputs no longer
+    // exist. These two were the only UNGUARDED reads of the trio — left as-is
+    // they would throw on null and take the whole save/load with them. The
+    // features keep the value each toggle was sitting at, so nothing changes
+    // for the player except one less thing to read.
+    if (this.settings.roundRecap === undefined) this.settings.roundRecap = true;
     this.settings.tooltips    = g('setting-tooltips').checked;
     const telegraphEl = g('setting-telegraph');
     if (telegraphEl) this.settings.attackTelegraph = telegraphEl.checked;
@@ -1252,7 +1258,7 @@ const UI = {
     const g = (id) => document.getElementById(id);
     g('setting-difficulty').value = this.settings.difficulty;
     g('setting-ai-speed').value   = this.settings.aiSpeed;
-    g('setting-round-recap').checked = this.settings.roundRecap;
+    if (this.settings.roundRecap === undefined) this.settings.roundRecap = true;
     g('setting-tooltips').checked   = this.settings.tooltips;
     const telegraphElLoad = g('setting-telegraph');
     // Default ON when the key is absent (older saved settings predate it).

@@ -679,10 +679,6 @@
           <input type="checkbox" id="setting-tooltips" checked>
         </div>
         <div class="settings-row">
-          <label for="setting-crt" title="Subtle CRT scanline overlay across the screen. Adds Tron-monitor texture. Toggle off if it strains your eyes.">CRT scanlines</label>
-          <input type="checkbox" id="setting-crt">
-        </div>
-        <div class="settings-row">
           <label for="setting-graphics" title="Reduced drops the 3D card tilt, camera parallax and cursor trail. Use it if card art or names show up blank on the board, or flicker when you move the mouse.">Graphics</label>
           <select id="setting-graphics">
             <option value="auto">Auto (detect)</option>
@@ -770,22 +766,6 @@
             <option value="instant">Instant</option>
           </select>
         </div>
-        <div class="settings-row">
-          <label for="setting-round-recap">Round recap modal</label>
-          <input type="checkbox" id="setting-round-recap" checked>
-        </div>
-        <div class="settings-row">
-          <label for="setting-track-stats" title="Tracks per-card win rate / play rate / impact locally (never leaves this browser). Powers the Stats screen.">Track card stats</label>
-          <input type="checkbox" id="setting-track-stats" checked>
-        </div>
-      </div>
-
-      <div class="settings-group">
-        <div class="settings-group-title">Help</div>
-        <div class="settings-row">
-          <label title="Full rules reference + every keyword explained.">Rules &amp; keywords</label>
-          <button type="button" class="btn btn-secondary settings-help-btn" onclick="UI.closeSettings(); UI.toggleCheatSheet();">Open</button>
-        </div>
       </div>
 
       <!-- Export/Import backup row removed per user request. The
@@ -821,7 +801,7 @@
   <script src="peerjs.min.js"></script>
   <script src="multiplayer.js?v=31"></script>
   <script src="card-art-manifest.js?v=55"></script>
-  <script src="ui.js?v=1118"></script>
+  <script src="ui.js?v=1119"></script>
   <script src="tutorial.js?v=7"></script>
   <script src="logger.js?v=5"></script>
   <!-- Always-on crash capture. Hooks window.onerror +
