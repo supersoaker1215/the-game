@@ -5003,6 +5003,10 @@ const UI = {
   // backwards — user: "the flip effect should be in mostly all areas besides
   // draft".
   FLIPPABLE_SELECTOR: '.player-hand-section .hand-cards .card, .trick-cards .trick-card, .flip-host',
+  // One source for the hand-guardian (Iron Giant) hint. It lived as a verbatim
+  // duplicate in two places — the select-time toast and the rejected-lane
+  // toast — so rewording one surface silently desynchronised the other.
+  HAND_GUARD_HINT: 'Leaves your hand only to save an ally — never takes the field',
   // The element carrying the rules text on each of those. Tricks use
   // .trick-desc rather than .card-desc, which is the only structural
   // difference between the two surfaces.
@@ -19026,10 +19030,21 @@ const UI = {
 
         // Always-on affordability indicator — shows whether the card can be
         // cast right now regardless of whether we're in a playable phase.
-        if (afford && hasOpen && !batBlocked) el.classList.add('afford');
+        if (afford && hasOpen && !batBlocked && !card._neverPlayable) el.classList.add('afford');
         else el.classList.add('unafford');
 
-        if (batBlocked) {
+        // HAND GUARDIAN (Iron Giant). The one card that can never be placed —
+        // so he must never wear the green playable light or carry a select
+        // handler. He was rendering with `afford playable` and a live onclick,
+        // i.e. the UI said YES as loudly as it can about a card whose own text
+        // says he never takes the field.
+        // No title and no tap toast, per the rule recorded on the branches
+        // below: the reason belongs on a genuine play ATTEMPT, not on a read.
+        // Reading still works — the delegated flip listener turns the card over
+        // independently of el.onclick, on both mouse and touch.
+        if (card._neverPlayable) {
+          el.classList.add('unplayable', 'hand-guard');
+        } else if (batBlocked) {
           el.classList.add('unplayable');
           el.title = 'Blocked by Batman — card is locked this turn.';
           // NO TOAST ON TAP — see the matching note on the affordability branch
@@ -20649,6 +20664,12 @@ const UI = {
       const id = parseInt(cardEl.getAttribute('data-card-id'), 10);
       const s = Game.state;
       const card = s && s.player && s.player.hand && s.player.hand.find(c => c.id === id);
+      // Hand guardians (Iron Giant) are not draggable. Refusing HERE covers
+      // both installers at once — touchstart and mousedown share this closure —
+      // so the card never lifts. Letting the gesture run to completion and
+      // failing only at the drop was the most physical "yes" in the game,
+      // attached to the one card that can never be placed.
+      if (card && card._neverPlayable) return null;
       return card ? { card, cardEl } : null;
     };
     const laneEls = () => [...document.querySelectorAll('.board > .lane')];
@@ -21167,10 +21188,11 @@ const UI = {
     // authoritative {t:'playCard', cardId, lane} that the host validates and
     // places. Removing the host-armed picker removes the broadcast/timeout
     // window that used to auto-drop the guest's card into lane 1.
-    // Hand-guardians (Iron Giant): selectable to read, never placeable.
-    // Say so on select — otherwise the dead lane clicks look broken.
+    // Hand-guardians (Iron Giant): readable, never placeable. This toast is now
+    // a BACKSTOP — the hand renderer refuses to wire onCardClick for a
+    // _neverPlayable card, so selection normally cannot happen at all.
     if (!wasSelected && card && card._neverPlayable && this.showAITrickToast) {
-      this.showAITrickToast(card.name, 'Guards from your hand — cannot be played to the field', 'info');
+      this.showAITrickToast(card.name, this.HAND_GUARD_HINT, 'info');
     }
     this.render();
   },
@@ -21621,7 +21643,7 @@ const UI = {
     const cost = (typeof Game.getCardCost === 'function') ? Game.getCardCost('player', card) : (card.cost || 0);
     const cardEl = document.querySelector(`.player-hand-section .card[data-card-id="${card.id}"]`);
     if (card._neverPlayable) {
-      if (this.showAITrickToast) this.showAITrickToast(card.name, 'Guards from your hand — cannot be played to the field', 'info');
+      if (this.showAITrickToast) this.showAITrickToast(card.name, this.HAND_GUARD_HINT, 'info');
       return;
     }
     if (cost > s.player.currency) { this.flashUnaffordable(cost, cardEl); return; }

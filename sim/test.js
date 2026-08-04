@@ -2007,6 +2007,135 @@ test('Obi-Wan suppression is respected the same way as Gojo', function () {
 });
 
 // ============================================================
+// ---- IRON GIANT: sacrifice draws a card ---------------------
+// ============================================================
+// Driven on the 'ai' seat throughout. The PLAYER seat routes through
+// promptCardChoice with no aiPicker, and the shim then picks uniformly at
+// random — a player-seat test would be a literal coin flip. state.ai.isHuman is
+// false, so the AI branch decides deterministically.
+// The AI branch also carries a worth gate (victim cost >= 4, OR 3+ enemies), so
+// every victim below is cost >= 4 on purpose.
+function igSetup() {
+  var G = freshGame();
+  // freshGame's draw pile is EMPTY — Game.init() leaves state.drawPile at
+  // length 0. Without seeding it, the draw is a silent no-op and a test
+  // asserting "hand grew" would fail even with the feature working, while a
+  // test asserting "no crash" would pass for the wrong reason.
+  G.state.drawPile = [ Object.assign({}, cardByName('Ant-Man')) ];
+  return G;
+}
+
+test('Iron Giant sacrifice draws a card (and the control case does not)', function () {
+  // CONTROL FIRST. If a declined sacrifice also drew, the test below would
+  // pass for the wrong reason.
+  var G0 = igSetup();
+  var victim0 = place(G0, 'Hela', 'ai', 0);
+  place(G0, 'Juggernaut', 'player', 0);
+  var before0 = G0.state.ai.hand.length;         // no Iron Giant in hand
+  G0._ironGiantIntercept(victim0, 0, null);
+  assertEq(G0.state.ai.hand.length, before0, 'control: no Giant in hand, so no draw');
+
+  var G = igSetup();
+  var victim = place(G, 'Hela', 'ai', 0);
+  place(G, 'Juggernaut', 'player', 0);
+  var ig = G.createCardInstance(cardByName('Iron Giant'), 'ai');
+  G.state.ai.hand.push(ig);
+  var before = G.state.ai.hand.length;
+  var intercepted = G._ironGiantIntercept(victim, 0, null);
+  assertEq(intercepted, true, 'the intercept should fire for a cost-5 victim');
+  assertEq(victim._igSavedThisCombat, true, 'the ally is actually saved');
+  // -1 Giant spent, +1 card drawn => net unchanged. Assert BOTH legs so a
+  // no-op draw (net -1) and a no-op sacrifice (net +1) each fail distinctly.
+  assertEq(G.state.ai.hand.indexOf(ig), -1, 'the Giant left the hand');
+  assertEq(G.state.ai.hand.length, before, 'one card drawn to replace the spent Giant');
+  assertEq(G.state.ai.discardPile.indexOf(ig) > -1, true, 'the Giant went to the discard pile');
+});
+
+test('Lex Luthor stops the Iron Giant sacrifice draw', function () {
+  // The MECHANISM, not the outcome. Counting addToHand calls proves nothing —
+  // drawCards calls addToHand internally, so the count is 1 either way. What
+  // actually distinguishes the two doors is the Lex Luthor block, which lives
+  // ONLY inside drawCards. Put Lex on the far side and the draw must vanish;
+  // had the sacrifice reached for addToHand it would sail straight past him,
+  // which is exactly the leak this repo has shipped three times.
+  var G = igSetup();
+  var victim = place(G, 'Hela', 'ai', 0);
+  var lex = place(G, 'Lex Luthor', 'player', 0);   // opponent of the 'ai' seat
+  lex.passive = 'preventDraw';
+  var ig = G.createCardInstance(cardByName('Iron Giant'), 'ai');
+  G.state.ai.hand.push(ig);
+  var before = G.state.ai.hand.length;
+  var drawCalls = 0, realDraw = G.drawCards;
+  G.drawCards = function () { drawCalls++; return realDraw.apply(G, arguments); };
+  try { G._ironGiantIntercept(victim, 0, null); }
+  finally { G.drawCards = realDraw; }
+  assertEq(drawCalls, 1, 'the sacrifice must still go knock on the drawCards door');
+  assertEq(victim._igSavedThisCombat, true, 'the save itself is unaffected by Lex');
+  // Giant spent, nothing drawn to replace him.
+  assertEq(G.state.ai.hand.length, before - 1, 'Lex Luthor blocks the replacement card');
+});
+
+test('Iron Giant draws BEFORE the blast, so the cascade cannot land on top of it', function () {
+  // Ordering is the whole point: _ironGiantBlast damages the enemy line, and a
+  // lethal hit re-enters handleDeath inline, which can arm the OTHER player's
+  // Iron Giant prompt mid-cascade. Drawing after that puts the card behind
+  // someone else's modal. Outcome alone cannot tell the two orders apart, so
+  // record the sequence.
+  var G = igSetup();
+  var victim = place(G, 'Hela', 'ai', 0);
+  place(G, 'Juggernaut', 'player', 0);
+  G.state.ai.hand.push(G.createCardInstance(cardByName('Iron Giant'), 'ai'));
+  var seq = [];
+  var realDraw = G.drawCards, realBlast = G._ironGiantBlast;
+  G.drawCards = function () { seq.push('draw'); return realDraw.apply(G, arguments); };
+  G._ironGiantBlast = function () { seq.push('blast'); return realBlast.apply(G, arguments); };
+  try { G._ironGiantIntercept(victim, 0, null); }
+  finally { G.drawCards = realDraw; G._ironGiantBlast = realBlast; }
+  assertEq(seq.join(','), 'draw,blast', 'the draw must resolve before the blast cascade');
+});
+
+test('a failing Iron Giant draw cannot cost the Giant AND the ally', function () {
+  // The whole intercept sits inside one try/catch that returns false on throw.
+  // By the time the draw runs, the ally is already restored and the Giant is
+  // already spent — so a throw escaping the draw would fall through into the
+  // normal death path on a restored card: Giant consumed, ally dead anyway.
+  // The draw therefore carries its own local try/catch.
+  var G = igSetup();
+  var victim = place(G, 'Hela', 'ai', 0);
+  place(G, 'Juggernaut', 'player', 0);
+  var ig = G.createCardInstance(cardByName('Iron Giant'), 'ai');
+  G.state.ai.hand.push(ig);
+  var realDraw = G.drawCards;
+  // A plain Error, deliberately: run-tests.sh greps stdout for TypeError /
+  // ReferenceError and fails the suite on a match, so the forced failure must
+  // not print one of those words.
+  G.drawCards = function () { throw new Error('forced draw failure'); };
+  var intercepted;
+  try { intercepted = G._ironGiantIntercept(victim, 0, null); }
+  finally { G.drawCards = realDraw; }
+  assertEq(intercepted, true, 'a broken draw must not abort the intercept');
+  assertEq(victim._igSavedThisCombat, true, 'the ally stays saved even if the draw throws');
+  assertEq(G.state.ai.hand.indexOf(ig), -1, 'the Giant is still spent exactly once');
+});
+
+test('Iron Giant is still never placeable, and the desc still says so', function () {
+  // The gate itself is untouched by the draw work — this pins that.
+  var G = igSetup();
+  var ig = G.createCardInstance(cardByName('Iron Giant'), 'player');
+  assertEq(ig._neverPlayable, true, 'the never-playable flag survives createCardInstance');
+  G.state.player.hand.push(ig);
+  assertEq(G.playCard('player', ig, 0), false, 'playCard must refuse him');
+  assertEq(G.state.lanes[0].player, null, 'and nothing lands in the lane');
+  var desc = cardByName('Iron Giant').desc;
+  assertEq(desc.indexOf('Leaves your hand only to save an ally') === 0, true,
+    'the desc opens with the conditional gate, not a flat refusal');
+  assertEq(desc.indexOf('Draw a card') > -1, true, 'the desc advertises the draw');
+  // Capital D is load-bearing: the keyword regex is case-SENSITIVE, so a
+  // lowercase "draw" would render without the keyword chip and tooltip.
+  assertEq(desc.indexOf('draw a card') === -1, true, 'Draw is capitalised so the keyword chip renders');
+});
+
+// ============================================================
 // ---- RUNNER ------------------------------------------------
 // ============================================================
 

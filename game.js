@@ -3940,7 +3940,7 @@ const Game = {
     // by _ironGiantIntercept in handleDeath. Rejecting here covers every
     // entry point at once: UI lane clicks, AI plan queues, MP forwards.
     if (card && card._neverPlayable) {
-      this.log(`[GUARD] ${card.name} can't be played onto the field — he guards from your hand.`);
+      this.log(`[GUARD] ${card.name} never takes the field — he leaves your hand only to save an ally.`);
       return false;
     }
     // Multiplayer guest: forward to host instead of executing locally.
@@ -4196,7 +4196,7 @@ const Game = {
     // enforced this but the jump / free-play path did not, so he still reached
     // the board (the fuzzer caught him there). Same guard, every placement path.
     if (card && card._neverPlayable) {
-      this.log(`[GUARD] ${card.name} can't be played onto the field — he guards from your hand.`);
+      this.log(`[GUARD] ${card.name} never takes the field — he leaves your hand only to save an ally.`);
       return false;
     }
     // Multiplayer guest: forward the free-play action and let the host run it.
@@ -8100,6 +8100,31 @@ const Game = {
         if (typeof UI !== 'undefined' && UI.sfx && UI.sfx.playCardSfx) {
           try { UI.sfx.playCardSfx('Iron Giant', 'ability'); } catch (e) {}
         }
+        // When Sacrificed: draw a card. Fires HERE, before the blast:
+        //  • the Giant is already spliced out of hand into the discard pile
+        //    above, so the draw can never re-find him;
+        //  • the rescued ally is already restored and shielded;
+        //  • _ironGiantBlast damages the OPPONENT's line, and a lethal hit
+        //    re-enters handleDeath inline — which can arm the OPPONENT's own
+        //    Iron Giant prompt mid-cascade. Drawing after that would land the
+        //    card behind another player's modal.
+        // drawCards, never addToHand — addToHand carries no Lex Luthor check,
+        // and bypassing it is the trap this repo has hit three times.
+        // Its own try/catch: the whole intercept is wrapped in a single
+        // try/catch that returns false on throw, and by this point the ally is
+        // restored and the Giant is spent — a throw escaping here would consume
+        // the Giant AND let the ally die anyway.
+        try {
+          const handBefore = this.state[owner].hand.length;
+          this.drawCards(owner, 1);
+          // drawCards always returns undefined (empty pile, hand cap and the
+          // Lex block all bare-return), so measure the delta — the house idiom.
+          const drew = this.state[owner].hand.length - handBefore;
+          if (drew > 0) {
+            this.log(`  [IRON GIANT] The sacrifice pays it forward — draw 1.`);
+            this._creditChain(ig, 'statsCardAdvantage', drew);
+          }
+        } catch (e) { console.error('[IRON GIANT] sacrifice draw failed:', e); }
         this._ironGiantBlast(owner, ig);
       };
       const doDecline = () => {
@@ -8118,7 +8143,7 @@ const Game = {
         return true;
       }
       this.promptCardChoice(owner, [
-        { name: 'Sacrifice Iron Giant', desc: `Iron Giant gives himself — ${card.name} survives at ${restoreHp} HP, and all enemies take 1 damage.`, id: 'ig_save' },
+        { name: 'Sacrifice Iron Giant', desc: `Iron Giant gives himself — ${card.name} survives at ${restoreHp} HP, all enemies take 1 damage, and you draw a card.`, id: 'ig_save' },
         { name: `Let ${card.name} Die`, desc: 'Keep Iron Giant in your hand.', id: 'ig_decline' },
       ], 'Iron Giant — Sacrifice?',
         `${card.name} is about to be destroyed. Sacrifice Iron Giant from your hand to save it?`,
