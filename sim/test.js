@@ -174,15 +174,35 @@ test('Redraw swaps the card, spends energy, and does not change hand size', func
   assertEq(G.state.player.redrawsUsed, 1, 'counter increments');
 });
 
-test('Redraw is refused outside the trick phase', function () {
+test('Redraw is allowed in ANY of your own phases, and refused outside your turn', function () {
+  // Was trick-phase-only; the owner widened it to "anytime". What still has to
+  // hold is that it is YOUR turn — combat and the opponent's phases stay shut,
+  // because the host owns the deck and a redraw landing mid-combat would mutate
+  // a hand the resolver is already walking.
+  function reasonIn(phase) {
+    var G = freshGame();
+    G.state.phase = phase;
+    G.state.player.currency = 8;
+    G.state.player.hand = [G.createCardInstance(cardByName('Bane'), 'player')];
+    G.getDrawPile('player').push(cardByName('Hawkeye'));
+    return G.redrawBlockedReason('player');
+  }
+  assertEq(reasonIn('player-cards'), null, 'allowed in the cards phase');
+  assertEq(reasonIn('player-tricks'), null, 'allowed in the trick phase');
+  assertEq(reasonIn('player-cards-tricks'), null, 'allowed in the combined phase');
+  assertEq(reasonIn('combat'), 'Only on your turn', 'refused during combat');
+  assertEq(reasonIn('ai-cards'), 'Only on your turn', "refused on the opponent's turn");
+  assertEq(reasonIn('ai-tricks'), 'Only on your turn', "refused on the opponent's trick phase");
+
+  // And a refused redraw must still cost nothing.
   var G = freshGame();
-  G.state.phase = 'player-cards';
+  G.state.phase = 'combat';
   G.state.player.currency = 8;
   G.state.player.hand = [G.createCardInstance(cardByName('Bane'), 'player')];
   G.getDrawPile('player').push(cardByName('Hawkeye'));
-  assertEq(G.redrawBlockedReason('player'), 'Trick phase only', 'blocked in the cards phase');
-  assertEq(G.redrawCard('player', G.state.player.hand[0]), false, 'and refuses to run');
+  assertEq(G.redrawCard('player', G.state.player.hand[0]), false, 'refuses to run during combat');
   assertEq(G.state.player.currency, 8, 'no energy spent on a refused redraw');
+  assertEq(G.state.player.hand.length, 1, 'and no card binned');
 });
 
 test('Redraw is refused when it cannot be afforded', function () {

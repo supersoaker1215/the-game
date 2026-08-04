@@ -827,7 +827,7 @@ const Game = {
   // Resolve the card/trick instance a command refers to, from the actor's own
   // hand. Accepts a pre-resolved object (local UI has it) or an id (the wire).
   // ---- REDRAW ------------------------------------------------------------
-  // Trick phase only: bin a card from hand and draw its replacement. The cost
+  // Any of your own phases: bin a card from hand and draw its replacement. The cost
   // DOUBLES each time and the counter is per MATCH, never per turn — with
   // energy capped at 8 that is 2, then 4, then 8, so the third redraw costs a
   // whole turn and a fourth is impossible. Redraw is meant to be the button you
@@ -840,17 +840,36 @@ const Game = {
   // Every reason a redraw can be refused, in one place, so the UI can grey the
   // control for the SAME reason the engine would reject it. Returns null when
   // the redraw is legal.
+  // Does the redraw CONTROL exist at all right now (as opposed to existing but
+  // being unaffordable)? ANY of your own phases — cards, tricks, or the
+  // combined one. It was trick-phase-only until the owner widened it: "the
+  // redraw can happen anytime not just during the trick phase". There was never
+  // a rules reason for the restriction; the doubling cost is what balances it.
+  //
+  // Still your OWN turn only. Combat and the opponent's phases stay shut — the
+  // host owns the deck, and a redraw landing mid-combat-resolution would mutate
+  // a hand the resolver is already walking.
+  //
+  // Split into its own predicate because the BUTTON needs exactly this question
+  // and nothing else. It used to re-implement the regex, and its comment
+  // claimed it "can never disagree with what the engine would actually allow" —
+  // which stopped being true the moment the engine widened and the duplicate
+  // did not: the control stayed hidden in the cards phase the engine now
+  // permitted. One source, so that comment is true again.
+  redrawPhaseOk(owner) {
+    const s = this.state;
+    if (!s || s.gameOver) return false;
+    return owner === 'player'
+      ? /^player-(cards|tricks|cards-tricks)$/.test(s.phase || '')
+      : /^ai-(cards|tricks|cards-tricks)$/.test(s.phase || '');
+  },
+
   redrawBlockedReason(owner) {
     const s = this.state;
     if (!s || s.gameOver) return 'Not now';
     const p = s[owner];
     if (!p) return 'Not now';
-    // Trick phase only. Both trick phases count — 'player-cards-tricks' is the
-    // combined phase some modes use.
-    const inTricks = owner === 'player'
-      ? /^(player-tricks|player-cards-tricks)$/.test(s.phase || '')
-      : /^(ai-tricks|ai-cards-tricks)$/.test(s.phase || '');
-    if (!inTricks) return 'Trick phase only';
+    if (!this.redrawPhaseOk(owner)) return 'Only on your turn';
     if (!p.hand || !p.hand.length) return 'No cards to redraw';
     if (!this.getDrawPile(owner).length) return 'Draw pile empty';
     // Lex Luthor stops draws, and a redraw IS a draw. Checking here means the

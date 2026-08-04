@@ -19379,15 +19379,17 @@ const UI = {
       btnU.style.opacity = '';
     }
 
-    // REDRAW — trick phase only. The button is SHOWN whenever the phase is
-    // right and only DISABLED for the other reasons, so the escalating cost
+    // REDRAW — any of your own phases. The button is SHOWN whenever the phase
+    // is right and only DISABLED for the other reasons, so the escalating cost
     // stays visible instead of the control vanishing when you cannot afford it:
     // knowing the next one costs 8 is exactly the information you plan around.
-    // Its label and its disabled state both come from the engine
-    // (getRedrawCost / redrawBlockedReason), so the button can never disagree
-    // with what the engine would actually allow.
-    if (btnR && Game.isPlayerTurn() && !abilityPending
-        && /^(player-tricks|player-cards-tricks)$/.test(s.phase || '')) {
+    // Visibility, label and disabled state ALL come from the engine
+    // (redrawPhaseOk / getRedrawCost / redrawBlockedReason), so the button
+    // cannot disagree with what the engine would actually allow. It used to
+    // carry its own copy of the phase regex, and when the engine widened to
+    // "anytime" the copy did not — the control stayed hidden in the very phase
+    // the engine had just opened.
+    if (btnR && !abilityPending && Game.redrawPhaseOk('player')) {
       const cost = Game.getRedrawCost('player');
       const blocked = Game.redrawBlockedReason('player');
       // The deck, with an undo arc WOVEN through it: the arc is drawn in two
