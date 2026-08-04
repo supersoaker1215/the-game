@@ -3060,7 +3060,32 @@ const CARD_ABILITIES = {
         return best;
       };
       const finishMove = (target, to) => {
-        G.moveCard(target, G.findCardLane(target), to);
+        // RE-VALIDATE AT THE MOMENT OF THE MOVE. The pool is filtered for
+        // currentHealth > 0 when the picker opens, but each completed move runs
+        // moveCard -> applyMagnetoDebuffs -> recomputeAuras, and Magneto's own
+        // parity aura can KILL an enemy it pushes into an even lane. Between
+        // choosing a card and the move landing there are two separate player
+        // interactions, so the target can die in between — and the sim cannot
+        // show this, because its shim resolves prompts synchronously.
+        // Without the check, moveCard is handed a corpse whose findCardLane is
+        // already -1. User: "magneto is forced to move a person he killed with
+        // his passive."
+        const from = G.findCardLane(target);
+        if (!target || target.currentHealth <= 0 || from < 0) {
+          G.log(`  [MAGNETO] ${target && target.name ? target.name : 'That card'} is already gone — the pull finds nothing.`);
+          moved.push(target);   // consume the slot so step() can't loop on it
+          step();
+          return;
+        }
+        // The destination can also have been taken or destroyed while choosing.
+        const destLane = G.state.lanes[to];
+        if (!destLane || destLane.destroyed || destLane[target.owner]) {
+          G.log(`  [MAGNETO] Lane ${to + 1} is no longer free — ${target.name} stays put.`);
+          moved.push(target);
+          step();
+          return;
+        }
+        G.moveCard(target, from, to);
         if (typeof UI !== 'undefined' && UI._fxMagnetoHurl) { try { UI._fxMagnetoHurl(self, target, to, target.owner); } catch (e) {} }
         G.log(`Magneto hurls ${target.name} into lane ${to + 1}!`);
         moved.push(target);

@@ -2588,6 +2588,57 @@ test('a destroyed lane kills the compulsion too', function () {
   assertEq(G.moderCompulsionLane('ai'), -1, 'nothing can be pulled into a destroyed lane');
 });
 
+test('Magneto never moves a card that died before the move landed', function () {
+  // User: "magneto is forced to move a person he killed with his passive."
+  // Each completed move runs moveCard -> recomputeAuras, and Magneto's parity
+  // aura can kill an enemy it pushes into an even lane. The picker filters
+  // living cards when it OPENS, but choosing a card and choosing its lane are
+  // two separate interactions and the target can die in between.
+  var G = freshGame();
+  for (var i = 0; i < G.LANE_COUNT; i++) { G.state.lanes[i].player = null; G.state.lanes[i].ai = null; }
+  var mag = place(G, 'Magneto', 'player', 5);
+  var frail = place(G, 'Ant-Man', 'ai', 0);
+  frail.currentHealth = 1; frail.maxHealth = 1;
+  place(G, 'Bane', 'ai', 2);
+
+  var movedDead = false;
+  var realMove = G.moveCard;
+  G.moveCard = function (card, from, to) {
+    if (!card || card.currentHealth <= 0) movedDead = true;
+    return realMove.apply(G, arguments);
+  };
+  // Kill the chosen target in the gap between the card pick and the lane pick —
+  // the window the guard exists for, and the one the synchronous shim cannot
+  // produce on its own.
+  var realCard = G.promptCardChoice, realLane = G.promptLaneChoice;
+  G.promptCardChoice = function (o, opts, t, b, cb) {
+    var pick = (opts || []).find(function (c) { return c.name === 'Ant-Man'; }) || (opts || [])[0];
+    if (pick && pick.name === 'Ant-Man') pick.currentHealth = 0;   // dies mid-decision
+    if (cb) cb(pick);
+    return true;
+  };
+  G.promptLaneChoice = function (o, lanes, t, b, cb) { if (cb) cb(lanes[0]); return true; };
+  try { CARD_ABILITIES['Magneto'].onPlay(G, mag, 5); }
+  finally { G.moveCard = realMove; G.promptCardChoice = realCard; G.promptLaneChoice = realLane; }
+
+  assertEq(movedDead, false, 'moveCard was never handed a corpse');
+
+  // CONTROL — a living target still gets moved, or this passes by having
+  // simply broken Magneto.
+  var G2 = freshGame();
+  for (var j = 0; j < G2.LANE_COUNT; j++) { G2.state.lanes[j].player = null; G2.state.lanes[j].ai = null; }
+  var mag2 = place(G2, 'Magneto', 'player', 5);
+  var victim = place(G2, 'Bane', 'ai', 0);
+  var moves = 0, rm2 = G2.moveCard;
+  G2.moveCard = function () { moves++; return rm2.apply(G2, arguments); };
+  var rc2 = G2.promptCardChoice, rl2 = G2.promptLaneChoice;
+  G2.promptCardChoice = function (o, opts, t, b, cb) { if (cb) cb((opts || [])[0]); return true; };
+  G2.promptLaneChoice = function (o, lanes, t, b, cb) { if (cb) cb(lanes[0]); return true; };
+  try { CARD_ABILITIES['Magneto'].onPlay(G2, mag2, 5); }
+  finally { G2.moveCard = rm2; G2.promptCardChoice = rc2; G2.promptLaneChoice = rl2; }
+  assertEq(moves > 0, true, 'control: a living card is still moved');
+});
+
 test('Iron Giant is still never placeable, and the desc still says so', function () {
   // The gate itself is untouched by the draw work — this pins that.
   var G = igSetup();
