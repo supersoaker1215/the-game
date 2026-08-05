@@ -311,7 +311,7 @@ const CARD_DEFS = [
     desc: "When Played: Choose to sacrifice an ally — either deal damage to an enemy equal to that ally's cost, or destroy an enemy with cost ≤ that ally's cost. (Skip if you'd rather not.)" },
   { name: "Hulk", cost: 6, attack: 4, health: 6, type: "hero",
     abilities: [],
-    desc: "When Played: Deal 2 damage to all enemies. While Active: Splash equals Hulk's ATK. When Damaged: Add (+1/+1)." },
+    desc: "When Played: Deal 2 damage to all enemies. While Active: Splash equals Hulk's ATK. When Damaged: Add (+2/+2)." },
   { name: "Magneto", cost: 6, attack: 3, health: 5, type: "villain",
     abilities: [],
     desc: "When Played: Move 2 cards to empty lanes — allies or enemies. While Active: Remove (−1/−1) from enemies in even lanes. Add (+1/+1) to allies in odd lanes." },

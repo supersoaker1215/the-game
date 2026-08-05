@@ -3021,9 +3021,9 @@ const CARD_ABILITIES = {
       // swing and spamming "Hulk rages!" on top of the kill line.
       // Mirrors Bane's same-shaped guard.
       if (self.currentHealth <= 0) return;
-      G.buffCard(self, 1, 1);
+      G.buffCard(self, 2, 2);
       self.splashRange = self.attack;
-      G.log(`Hulk rages! +1/+1, Splash now ${self.splashRange}`);
+      G.log(`Hulk rages! +2/+2, Splash now ${self.splashRange}`);
     }
   },
   "Magneto": {
