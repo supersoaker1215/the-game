@@ -4942,9 +4942,7 @@ const Game = {
       const opp = this.opponent(c.owner);
       // Redirect path — the card's own onBeforeAttack consumes _hanRedirectLane,
       // fires the cross-lane shot, and sets _skipNormalAttack itself.
-      if (c.onBeforeAttack) {
-        try { c.onBeforeAttack(this, c); } catch (e) { console.error(e); }
-      }
+      if (!this._runBeforeAttack(c)) continue;   // burned to death before swinging
       if (c._skipNormalAttack) { this.cleanupDead(); continue; }   // redirect already fired
       // Own-lane path — strike the opposite card now, before it can swing back.
       const enemy = this.state.lanes[lane][opp];
@@ -5398,16 +5396,20 @@ const Game = {
       // either main swing lands. The order (player first, then AI) only
       // matters for async prompts queued by the hook — actual damage from
       // the main swing is applied in Step 2, simultaneously.
+      // Dying in STEP 1 — to your OWN pre-attack step, i.e. Burning — is not
+      // the same as dying in Step 2. Step 2 is simultaneous by design, so a
+      // card killed by the opposing swing still lands its own; that stays.
+      // But a card the burn killed BEFORE the exchange never swings at all.
       const fireBeforeAttacks = (next) => {
         const firePlayer = () => {
-          if (pWouldSwing && pCard.onBeforeAttack && pCard.currentHealth > 0) {
-            pCard.onBeforeAttack(this, pCard);
+          if (pWouldSwing && pCard.currentHealth > 0) {
+            this._runBeforeAttack(pCard);
           }
           this.whenPromptCleared(fireAI);
         };
         const fireAI = () => {
-          if (aWouldSwing && aCard.onBeforeAttack && aCard.currentHealth > 0) {
-            aCard.onBeforeAttack(this, aCard);
+          if (aWouldSwing && aCard.currentHealth > 0) {
+            this._runBeforeAttack(aCard);
           }
           this.whenPromptCleared(next);
         };
@@ -5420,8 +5422,8 @@ const Game = {
       // just eats the swing harmlessly. But the attacker's swing still
       // FIRED, counting for stats and any triggers tied to attacking.
       const applyBothDamages = () => {
-        const pSwings = pWouldSwing && !pCard._skipNormalAttack;
-        const aSwings = aWouldSwing && !aCard._skipNormalAttack;
+        const pSwings = pWouldSwing && pAlive() && !pCard._skipNormalAttack;
+        const aSwings = aWouldSwing && aAlive() && !aCard._skipNormalAttack;
         delete pCard._skipNormalAttack;
         delete aCard._skipNormalAttack;
 
@@ -6112,8 +6114,7 @@ const Game = {
       this.getMindControlTarget(card, controller, (target) => {
         const canSwing = !card.isStunned && !card.isFrozen
           && (card.attack || 0) > 0 && card.currentHealth > 0;
-        if (canSwing) {
-          if (card.onBeforeAttack) card.onBeforeAttack(this, card);
+        if (canSwing && this._runBeforeAttack(card)) {
           if (target && target.currentHealth > 0) {
             this.log(`[LANE ${laneIdx + 1}] [MIND CTRL] ${card.name} attacks ${target.name}!`);
             this.applyCombatDamage(card, target);
@@ -6141,7 +6142,7 @@ const Game = {
 
     // Feared card attacks itself even when uncontested
     if (card.isFeared) {
-      if (card.onBeforeAttack) card.onBeforeAttack(this, card);
+      if (!this._runBeforeAttack(card)) return;   // burn resolved first
       this.log(`[LANE ${laneIdx + 1}] ${card.name} is FEARED and attacks itself!`);
       this.applyCombatDamage(card, card);
       this.cleanupDead();
@@ -6158,7 +6159,10 @@ const Game = {
     // Check if a taunter redirects this uncontested card
     const tauntTarget = this.getAttackTarget(side, laneIdx);
     if (tauntTarget && tauntTarget.currentHealth > 0) {
-      if (card.onBeforeAttack) card.onBeforeAttack(this, card);
+      if (!this._runBeforeAttack(card)) {
+        this.whenPromptCleared(() => { if (advanceCallback) advanceCallback(); });
+        return true;
+      }
       if (card._skipNormalAttack) {
         delete card._skipNormalAttack;
         this.whenPromptCleared(() => { this.cleanupDead(); if (advanceCallback) advanceCallback(); });
@@ -6174,7 +6178,10 @@ const Game = {
       return;
     }
 
-    if (card.onBeforeAttack) card.onBeforeAttack(this, card);
+    if (!this._runBeforeAttack(card)) {
+      this.whenPromptCleared(() => { if (advanceCallback) advanceCallback(); });
+      return true;
+    }
     if (card._skipNormalAttack) {
       delete card._skipNormalAttack;
       this.whenPromptCleared(() => { this.cleanupDead(); if (advanceCallback) advanceCallback(); });
@@ -8432,6 +8439,32 @@ const Game = {
   // leave a living Yoda on the board. It is also correct on an MP guest: the
   // board rides the wire and the perspective flip swaps the lanes, whereas a
   // seat-keyed counter had to be flipped separately to stay on the right side.
+  // PRE-ATTACK HOOK, THEN RESOLVE, THEN THE SWING.
+  // Fires a card's onBeforeAttack and processes anything it killed BEFORE the
+  // attack continues. Returns false when the attacker did not survive its own
+  // pre-attack step, and the caller must then abort the swing.
+  //
+  // Boiler Room installs the Burning tick in onBeforeAttack — "Burning enemies
+  // take 1 damage before they attack" — but the damage was never resolved, so
+  // a card the burn had just killed still landed its full hit. Measured: a
+  // 1 HP / 6 ATK burning attacker died to its own burn (0 HP, off the board)
+  // and took the hero from 30 to 24 anyway. User: "burning needs to hit first
+  // resolve then the attack."
+  //
+  // One helper rather than seven guards, because there are seven call sites and
+  // the next one added would have been the eighth to forget.
+  _runBeforeAttack(card) {
+    if (!card) return false;
+    if (card.onBeforeAttack) {
+      try { card.onBeforeAttack(this, card); } catch (e) { console.error(e); }
+    }
+    if (card.currentHealth <= 0) {
+      this.cleanupDead();
+      return false;   // died to its own pre-attack step — no swing
+    }
+    return true;
+  },
+
   yodaShieldCount(owner) {
     if (!this.state || !this.state.lanes) return 0;
     let n = 0;

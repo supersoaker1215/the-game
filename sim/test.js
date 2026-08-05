@@ -2988,6 +2988,67 @@ test("a guest's undo cannot pop the host's snapshot", function () {
   } finally { G.isMultiplayer = realMP; G.mp = null; }
 });
 
+test('a card killed by its own Burning does not get to attack', function () {
+  // User: "burning needs to hit first resolve then the attack."
+  // Boiler Room installs the burn tick in onBeforeAttack — "Burning enemies
+  // take 1 damage before they attack" — but the damage was never RESOLVED, so
+  // a card the burn had just killed still landed its full swing.
+  function heroDamage(burning) {
+    var G = freshGame();
+    G.state.phase = 'combat';
+    var burner = place(G, 'Bane', 'ai', 2);
+    burner.currentHealth = 1; burner.maxHealth = 1; burner.attack = 6;
+    burner.isBurning = !!burning;
+    burner.onBeforeAttack = function (G2, self) {
+      if (self.isBurning && self.currentHealth > 0) G2.dealDamage(self, 1, null);
+    };
+    var before = G.state.player.health;
+    G.resolveUncontestedLane(2, 'ai');
+    return { dealt: before - G.state.player.health, hp: burner.currentHealth };
+  }
+  // CONTROL — the same 1 HP attacker, NOT burning, must still hit for 6.
+  // Without this the assertion below would pass if I had simply broken attacks.
+  var control = heroDamage(false);
+  assertEq(control.dealt, 6, 'control: an unburned attacker still swings');
+
+  var burned = heroDamage(true);
+  assertEq(burned.hp <= 0, true, 'the burn killed it');
+  assertEq(burned.dealt, 0, 'and a corpse deals no damage');
+});
+
+test('Burning that does NOT kill still lets the attack through', function () {
+  // The other half: burn resolving first must not cancel a swing the card
+  // survived. Otherwise "resolve first" quietly becomes "burning disarms".
+  var G = freshGame();
+  G.state.phase = 'combat';
+  var burner = place(G, 'Bane', 'ai', 2);
+  burner.currentHealth = 5; burner.maxHealth = 5; burner.attack = 4;
+  burner.isBurning = true;
+  // Inert the reaction on purpose. Bane's "While Active: Add (+1/+1) when
+  // damaged" fires ON THE BURN TICK, so he heals back to 5 AND swings for 5
+  // instead of 4 — correct behaviour, but it makes every number in this test
+  // about Bane rather than about burn ordering. Two of my earlier assertions
+  // today were wrong for exactly this reason.
+  burner.onDamaged = null;
+  burner.passive = null;
+  burner.onBeforeAttack = function (G2, self) {
+    if (self.isBurning && self.currentHealth > 0) G2.dealDamage(self, 1, null);
+  };
+  // Spy on the tick rather than reading HP afterwards. Bane's own "While
+  // Active: Add (+1/+1) when damaged" heals him straight back, so his health
+  // reads 5 both before and after and says nothing about whether burn fired —
+  // the same reactive passive that made a 4-ATK swing measure as 3 in the
+  // Joker test earlier today.
+  var burnTicks = 0;
+  var realDeal = G.dealDamage;
+  G.dealDamage = function (t, n) { if (t === burner && n === 1) burnTicks++; return realDeal.apply(G, arguments); };
+  var before = G.state.player.health;
+  try { G.resolveUncontestedLane(2, 'ai'); }
+  finally { G.dealDamage = realDeal; }
+  assertEq(burnTicks, 1, 'it took its burn tick');
+  assertEq(before - G.state.player.health, 4, 'and still swung for full');
+});
+
 test('Iron Giant is still never placeable, and the desc still says so', function () {
   // The gate itself is untouched by the draw work — this pins that.
   var G = igSetup();
