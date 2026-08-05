@@ -8696,42 +8696,67 @@ const UI = {
       if (from) this._fxDrawBeam(from, to, { color: '#cfd8e6', core: '#ffffff', thickness: 7 });
     });
   },
-  // Thanos snap: a doomed card crumbles to ash and drifts away. Clones the
-  // card into a detached ghost (so the engine's card removal on the next
-  // render can't cut the dissolve short — same trick _fxImplode uses), erodes
-  // it with an animated mask, and lets a cloud of ash motes rise off the body.
-  // Call this on each snapped card BEFORE killCard removes it. One-shot,
-  // self-removing, reduced-motion gated.
+  // Thanos snap: a doomed card crumbles to ash and blows away. Clones the card
+  // into a detached ghost (so the engine's card removal on the next render
+  // can't cut the dissolve short — same trick _fxImplode uses) that erodes,
+  // desaturates and drifts up, throws off a dense cloud of ash motes, and pops
+  // a soft dust puff so the disintegration reads instantly — distinct from a
+  // normal death fade. Call on each snapped card BEFORE killCard removes it.
+  // If the element can't be located (rare paint-timing race), fall back to a
+  // burst at the card's lane slot so SOMETHING dusts. One-shot, self-removing,
+  // reduced-motion gated.
   _fxThanosDust(card) {
     if (this._reducedMotion() || !card) return;
-    const el = this._fxCardElById(card.id);
+    let el = this._fxCardElById(card.id);
+    // Fallback: locate the lane slot holding this card so a summon/paint race
+    // still produces a dust burst at the right spot.
+    if (!el && typeof Game !== 'undefined' && Game.findCardLane) {
+      const li = Game.findCardLane(card);
+      if (li != null && li >= 0) {
+        const slot = document.querySelector('#board .lane:nth-child(' + (li + 1) + ') .card-slot')
+          || document.querySelectorAll('#board .card-slot')[li];
+        if (slot) el = slot;
+      }
+    }
     if (!el) return;
     const r = el.getBoundingClientRect();
     if (!r || r.width === 0) return;
     const layer = this._fxLayer();
-    const ghost = el.cloneNode(true);
-    ghost.removeAttribute('data-card-id');
-    ghost.classList.add('fx-thanos-dust');
-    ghost.style.cssText =
-      'position:fixed;left:' + r.left + 'px;top:' + r.top + 'px;width:' + r.width + 'px;height:' + r.height + 'px;';
-    layer.appendChild(ghost);
-    // Ash motes lifting off the body, biased upward with a little drift.
-    const n = 20;
+    // Cloned ghost — only when we actually have the card element (a slot clone
+    // would be an empty box). The motes/puff fire either way.
+    if (el.classList && el.classList.contains('card')) {
+      const ghost = el.cloneNode(true);
+      ghost.removeAttribute('data-card-id');
+      ghost.classList.add('fx-thanos-dust');
+      ghost.style.cssText =
+        'position:fixed;left:' + r.left + 'px;top:' + r.top + 'px;width:' + r.width + 'px;height:' + r.height + 'px;';
+      layer.appendChild(ghost);
+      setTimeout(() => ghost.remove(), 1400);
+    }
+    // Soft expanding dust puff behind the motes.
+    const cx = r.left + r.width / 2, cy = r.top + r.height / 2;
+    const puff = document.createElement('div');
+    puff.className = 'fx-dust-cloud';
+    puff.style.cssText =
+      'left:' + cx + 'px;top:' + cy + 'px;width:' + (r.width * 1.25) + 'px;height:' + (r.height * 0.9) + 'px;';
+    layer.appendChild(puff);
+    setTimeout(() => puff.remove(), 1200);
+    // Dense ash burst — the unmistakable "dusting". Motes stream up-and-out.
+    const n = 34;
     for (let i = 0; i < n; i++) {
       const mote = document.createElement('div');
       mote.className = 'fx-dust-mote';
       const mx = r.left + Math.random() * r.width;
-      const my = r.top + r.height * (0.15 + Math.random() * 0.75);
-      const rise = 44 + Math.random() * 78;
-      const drift = (Math.random() - 0.5) * 54;
-      const sz = 2 + Math.random() * 3;
+      const my = r.top + r.height * (0.1 + Math.random() * 0.85);
+      const rise = 60 + Math.random() * 120;
+      const drift = (Math.random() - 0.5) * 95;
+      const sz = 2 + Math.random() * 4.5;
       mote.style.cssText =
         'left:' + mx.toFixed(0) + 'px;top:' + my.toFixed(0) + 'px;width:' + sz.toFixed(1) + 'px;height:' + sz.toFixed(1) + 'px;' +
-        '--dx:' + drift.toFixed(0) + 'px;--dy:' + (-rise).toFixed(0) + 'px;animation-delay:' + (Math.random() * 280).toFixed(0) + 'ms;';
+        '--dx:' + drift.toFixed(0) + 'px;--dy:' + (-rise).toFixed(0) + 'px;animation-delay:' + (Math.random() * 360).toFixed(0) + 'ms;';
       layer.appendChild(mote);
-      setTimeout(() => mote.remove(), 1500);
+      setTimeout(() => mote.remove(), 1650);
     }
-    setTimeout(() => ghost.remove(), 1250);
   },
 
   // ===================== DAMAGE MAGNITUDE TIER =====================
