@@ -8576,6 +8576,27 @@ const UI = {
     this._fxWhenPainted(self, (el) => this._fxRing(el, { color: '#4caf3a' }));
     this._screenShake('heavy');
   },
+  // Hulk rage: getting hit only makes him madder. When he's damaged he
+  // swells with gamma fury — a pump-up on his card, twin green shockwave
+  // rings, debris flung upward, and a shake. Fired from onDamaged after the
+  // +2/+2 lands. One-shot, self-removing, reduced-motion gated.
+  _fxHulkRage(self) {
+    if (this._reducedMotion() || !self) return;
+    const el = this._fxCardElById(self.id);
+    if (!el) return;
+    const c = this._fxCenter(el);
+    // Gamma pump-up on the card itself.
+    el.classList.remove('fx-hulk-rage');
+    void el.offsetWidth;
+    el.classList.add('fx-hulk-rage');
+    setTimeout(() => el.classList.remove('fx-hulk-rage'), 620);
+    // Twin expanding gamma shockwaves.
+    this._fxRing(el, { color: '#5ed84a' });
+    setTimeout(() => this._fxRing(el, { color: '#8ef07a' }), 110);
+    // A burst of green debris flung upward.
+    if (c) this._fxSparks(c, { color: '#b6ff8f', glow: '#3fae2f', count: 12, angle: -Math.PI / 2, cone: 2.0, spread: 70, size: 3 });
+    this._screenShake('light');
+  },
   // Gojo: Hollow Purple implodes each doomed enemy into a violet singularity.
   _fxHollowPurple(sourceCard, victimCard) {
     if (this._reducedMotion() || !victimCard) return;
