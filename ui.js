@@ -1590,7 +1590,10 @@ const UI = {
       'Wolverine':        { hover: { src: 'audio/cards/wolverine-hover.mp3', maxDur: 79 } },
       // Godzilla hover: ~65s of the King-of-the-Monsters theme — the roar-and-
       // brass build that scores his arrival. maxDur lets the full phrase play.
-      'Godzilla':         { hover: { src: 'audio/cards/godzilla-hover.mp3', maxDur: 65 } },
+      // Godzilla play: ~10s atomic roar. fullDuration so it isn't clipped by
+      // the 5s on-play cap (he's cost-7, not a 10, so he needs the flag) — the
+      // roar tails off on its own, no hard cut.
+      'Godzilla':         { hover: { src: 'audio/cards/godzilla-hover.mp3', maxDur: 65 }, play: { src: 'audio/cards/godzilla-play.mp3', fullDuration: true } },
       // The Flash hover: 67 s of Junkie XL's "At the Speed of
       // Force" (Justice League / The Flash motif), 1:35 → 2:42 —
       // the percussive run sequence that scores Barry's speed-
