@@ -4945,6 +4945,8 @@ const CARD_ABILITIES = {
       if (!enemies.length) { G.log('Godzilla roars — but there is nothing to burn.'); return; }
       enemies.forEach(e => AB._ignite(G, e));
       G.log(`Godzilla unleashes atomic fire — ${enemies.length} enemy card${enemies.length === 1 ? '' : 's'} set ablaze!`);
+      // Cinematic: a sweep of fire breath from Godzilla's maw to every enemy.
+      if (typeof UI !== 'undefined' && UI._fxGodzillaFire) { try { UI._fxGodzillaFire(self, enemies); } catch (e) {} }
     },
   },
   "Freddy Krueger": {

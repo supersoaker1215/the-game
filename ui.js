@@ -7885,6 +7885,75 @@ const UI = {
     });
   },
 
+  // Godzilla atomic breath: a fan of fire streams from his maw out to every
+  // enemy card, a roar recoil on his own card, a board-wide heat wash, and a
+  // shake. Fired from Godzilla's onPlay; the per-card catch-fire flare is left
+  // to the ability's _fxBurnIgnite so each card ignites as the breath lands.
+  // One-shot, reduced-motion gated, every element self-removes.
+  _fxGodzillaFire(sourceCard, enemyCards) {
+    if (this._reducedMotion() || !sourceCard || !enemyCards || !enemyCards.length) return;
+    // Capture each target's on-screen centre NOW — before the post-play render
+    // or the burn damage repaints and moves anything.
+    const targets = enemyCards
+      .map(c => this._fxCenter(this._fxCardElById(c.id)))
+      .filter(Boolean);
+    if (!targets.length) return;
+    this._fxWhenPainted(sourceCard, (srcEl) => {
+      const r = srcEl.getBoundingClientRect();
+      if (!r || r.width === 0) return;
+      // Origin = Godzilla's maw: high on his portrait (his head is framed near
+      // the top of the card), a touch in from the very edge.
+      const from = { x: r.left + r.width * 0.5, y: r.top + r.height * 0.17 };
+
+      // Roar recoil + jaw glow on his own card, a heat wash over the board,
+      // and a shake as the breath erupts.
+      srcEl.classList.remove('fx-godzilla-roar');
+      void srcEl.offsetWidth;
+      srcEl.classList.add('fx-godzilla-roar');
+      setTimeout(() => srcEl.classList.remove('fx-godzilla-roar'), 900);
+      this._fxGodzillaHeatWash();
+      this._screenShake('medium');
+
+      // Fan the streams out, staggered, so it reads as a sweeping breath
+      // rather than one simultaneous flash.
+      targets.forEach((to, i) => {
+        setTimeout(() => {
+          this._fxFireStream(from, to);
+          // Bright inner lance + muzzle/impact bursts in fire colours.
+          this._fxDrawBeam(from, to, { color: '#ff7a18', core: '#ffe6a0', thickness: 6, impact: 1.1 });
+          this._fxSparks(to, { color: '#ffd27a', glow: '#ff5a1e', count: 12, spread: 66, size: 3 });
+        }, i * 70);
+      });
+    });
+  },
+
+  // The fat, flickering body of one breath stream — a blurred flame gradient
+  // that grows from maw to target, layered under the bright _fxDrawBeam lance.
+  _fxFireStream(from, to) {
+    if (!from || !to || this._reducedMotion()) return;
+    const layer = this._fxLayer();
+    const dx = to.x - from.x, dy = to.y - from.y;
+    const len = Math.hypot(dx, dy);
+    const ang = Math.atan2(dy, dx) * 180 / Math.PI;
+    const thickness = Math.max(20, Math.min(46, len * 0.12));
+    const stream = document.createElement('div');
+    stream.className = 'fx-godzilla-fire';
+    stream.style.cssText =
+      'left:' + from.x + 'px;top:' + (from.y - thickness / 2) + 'px;' +
+      'width:' + len + 'px;height:' + thickness + 'px;--gz-ang:' + ang + 'deg;';
+    layer.appendChild(stream);
+    setTimeout(() => stream.remove(), 620);
+  },
+
+  _fxGodzillaHeatWash() {
+    if (this._reducedMotion()) return;
+    const layer = this._fxLayer();
+    const wash = document.createElement('div');
+    wash.className = 'fx-godzilla-heat';
+    layer.appendChild(wash);
+    setTimeout(() => wash.remove(), 720);
+  },
+
   // Galactus devour: void singularity on the devoured card.
   _fxDevour(card) {
     if (this._reducedMotion() || !card) return;
