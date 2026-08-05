@@ -8597,6 +8597,87 @@ const UI = {
     if (c) this._fxSparks(c, { color: '#b6ff8f', glow: '#3fae2f', count: 12, angle: -Math.PI / 2, cone: 2.0, spread: 70, size: 3 });
     this._screenShake('light');
   },
+  // Spider-Man: a web THWIPs from Spidey to the enemy he freezes, then a web
+  // net splats over the target. Fired from onPlay right after the freeze
+  // lands. One-shot, self-removing, reduced-motion gated.
+  _fxSpiderWeb(sourceCard, targetCard) {
+    if (this._reducedMotion() || !targetCard) return;
+    const toEl = this._fxCardElById(targetCard.id);
+    const to = this._fxCenter(toEl);
+    if (!to) return;
+    const sz = toEl ? Math.max(toEl.getBoundingClientRect().width * 1.15, 72) : 92;
+    // The strand fires from Spidey once he's painted; the net splats a beat
+    // later so it reads as "shot → stuck".
+    this._fxWhenPainted(sourceCard, (srcEl) => {
+      const from = this._fxCenter(srcEl);
+      if (from) this._fxWebStrand(from, to);
+      srcEl.classList.remove('fx-spider-thwip');
+      void srcEl.offsetWidth;
+      srcEl.classList.add('fx-spider-thwip');
+      setTimeout(() => srcEl.classList.remove('fx-spider-thwip'), 420);
+    });
+    setTimeout(() => this._fxWebSplat(to, sz), 130);
+  },
+  // A single web strand: a lightly-sagging line that draws on from maw to
+  // target. Two stacked strokes (soft halo + bright core) read as silk.
+  _fxWebStrand(from, to) {
+    if (!from || !to || this._reducedMotion()) return;
+    const layer = this._fxLayer();
+    const dx = to.x - from.x, dy = to.y - from.y;
+    const len = Math.hypot(dx, dy) || 1;
+    const px = -dy / len, py = dx / len;
+    const sag = Math.min(24, len * 0.07);
+    const mx = from.x + dx * 0.5 + px * sag, my = from.y + dy * 0.5 + py * sag + 8;
+    const d = 'M ' + from.x.toFixed(1) + ' ' + from.y.toFixed(1) +
+              ' Q ' + mx.toFixed(1) + ' ' + my.toFixed(1) + ' ' + to.x.toFixed(1) + ' ' + to.y.toFixed(1);
+    const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    svg.setAttribute('class', 'fx-spider-strand');
+    svg.style.filter = 'drop-shadow(0 0 4px rgba(190,225,255,0.8))';
+    svg.innerHTML =
+      '<path d="' + d + '" fill="none" stroke="rgba(255,255,255,0.32)" stroke-width="5" stroke-linecap="round" pathLength="1" class="fx-web-draw"></path>' +
+      '<path d="' + d + '" fill="none" stroke="#eaf6ff" stroke-width="1.8" stroke-linecap="round" pathLength="1" class="fx-web-draw"></path>';
+    layer.appendChild(svg);
+    setTimeout(() => svg.remove(), 540);
+  },
+  // A classic radial spider web (spokes + catenary rings) that splats over a
+  // point and fades. `size` = on-screen diameter in px.
+  _fxWebSplat(point, size) {
+    if (!point || this._reducedMotion()) return;
+    const layer = this._fxLayer();
+    const R = 46, spokes = 9, rings = 4, sag = 0.16;
+    const pts = [];
+    let g = '';
+    for (let s = 0; s < spokes; s++) {
+      const a = (s / spokes) * Math.PI * 2 - Math.PI / 2;
+      const p = [Math.cos(a), Math.sin(a)];
+      pts.push(p);
+      g += '<line x1="0" y1="0" x2="' + (p[0] * R).toFixed(1) + '" y2="' + (p[1] * R).toFixed(1) + '"/>';
+    }
+    for (let r = 1; r <= rings; r++) {
+      const rr = R * (r / rings) * 0.95;
+      let d = '';
+      for (let s = 0; s <= spokes; s++) {
+        const p = pts[s % spokes];
+        const x = p[0] * rr, y = p[1] * rr;
+        if (s === 0) { d += 'M ' + x.toFixed(1) + ' ' + y.toFixed(1) + ' '; continue; }
+        const prev = pts[(s - 1) % spokes];
+        // Control point: midpoint of the two spoke hits, pulled toward centre
+        // so each segment bows in like real web silk.
+        const cx = (prev[0] + p[0]) / 2 * rr * (1 - sag);
+        const cy = (prev[1] + p[1]) / 2 * rr * (1 - sag);
+        d += 'Q ' + cx.toFixed(1) + ' ' + cy.toFixed(1) + ' ' + x.toFixed(1) + ' ' + y.toFixed(1) + ' ';
+      }
+      g += '<path d="' + d + '" fill="none"/>';
+    }
+    const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    svg.setAttribute('class', 'fx-spider-web');
+    svg.setAttribute('viewBox', '-50 -50 100 100');
+    svg.innerHTML = g;
+    const w = size, h = size;
+    svg.style.cssText = 'left:' + (point.x - w / 2) + 'px;top:' + (point.y - h / 2) + 'px;width:' + w + 'px;height:' + h + 'px;';
+    layer.appendChild(svg);
+    setTimeout(() => svg.remove(), 780);
+  },
   // Gojo: Hollow Purple implodes each doomed enemy into a violet singularity.
   _fxHollowPurple(sourceCard, victimCard) {
     if (this._reducedMotion() || !victimCard) return;
@@ -8614,6 +8695,43 @@ const UI = {
       const from = this._fxCenter(srcEl);
       if (from) this._fxDrawBeam(from, to, { color: '#cfd8e6', core: '#ffffff', thickness: 7 });
     });
+  },
+  // Thanos snap: a doomed card crumbles to ash and drifts away. Clones the
+  // card into a detached ghost (so the engine's card removal on the next
+  // render can't cut the dissolve short — same trick _fxImplode uses), erodes
+  // it with an animated mask, and lets a cloud of ash motes rise off the body.
+  // Call this on each snapped card BEFORE killCard removes it. One-shot,
+  // self-removing, reduced-motion gated.
+  _fxThanosDust(card) {
+    if (this._reducedMotion() || !card) return;
+    const el = this._fxCardElById(card.id);
+    if (!el) return;
+    const r = el.getBoundingClientRect();
+    if (!r || r.width === 0) return;
+    const layer = this._fxLayer();
+    const ghost = el.cloneNode(true);
+    ghost.removeAttribute('data-card-id');
+    ghost.classList.add('fx-thanos-dust');
+    ghost.style.cssText =
+      'position:fixed;left:' + r.left + 'px;top:' + r.top + 'px;width:' + r.width + 'px;height:' + r.height + 'px;';
+    layer.appendChild(ghost);
+    // Ash motes lifting off the body, biased upward with a little drift.
+    const n = 20;
+    for (let i = 0; i < n; i++) {
+      const mote = document.createElement('div');
+      mote.className = 'fx-dust-mote';
+      const mx = r.left + Math.random() * r.width;
+      const my = r.top + r.height * (0.15 + Math.random() * 0.75);
+      const rise = 44 + Math.random() * 78;
+      const drift = (Math.random() - 0.5) * 54;
+      const sz = 2 + Math.random() * 3;
+      mote.style.cssText =
+        'left:' + mx.toFixed(0) + 'px;top:' + my.toFixed(0) + 'px;width:' + sz.toFixed(1) + 'px;height:' + sz.toFixed(1) + 'px;' +
+        '--dx:' + drift.toFixed(0) + 'px;--dy:' + (-rise).toFixed(0) + 'px;animation-delay:' + (Math.random() * 280).toFixed(0) + 'ms;';
+      layer.appendChild(mote);
+      setTimeout(() => mote.remove(), 1500);
+    }
+    setTimeout(() => ghost.remove(), 1250);
   },
 
   // ===================== DAMAGE MAGNITUDE TIER =====================

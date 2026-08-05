@@ -2717,6 +2717,7 @@ const CARD_ABILITIES = {
         G.promptCardChoice(self.owner, enemies, "Spider-Man — Freeze", `Choose enemy to Freeze ${freezeN}`, (t) => {
           G.freezeCard(t, self, freezeN); G.log(`Spider-Man freezes ${t.name} for ${freezeN}!`);
           if (typeof UI !== 'undefined' && UI.sfx) UI.sfx.playCardSfx('Spider-Man', 'ability', self);
+          if (typeof UI !== 'undefined' && UI._fxSpiderWeb) { try { UI._fxSpiderWeb(self, t); } catch (e) {} }
         }, _aiThreatPicker);
       }
     },
@@ -4381,7 +4382,12 @@ const CARD_ABILITIES = {
           rolled.add(r);
           const opp = G.opponent(self.owner);
           const e = G.state.lanes[r][opp];
-          if (e) { G.killCard(e, self); killed++; G.log(`Thanos snaps lane ${r + 1}: ${e.name} destroyed!`); }
+          if (e) {
+            // Dust the card away before it's removed, so the clone captures
+            // the live portrait (killCard sweeps the element on next render).
+            if (typeof UI !== 'undefined' && UI._fxThanosDust) { try { UI._fxThanosDust(e); } catch (err) {} }
+            G.killCard(e, self); killed++; G.log(`Thanos snaps lane ${r + 1}: ${e.name} destroyed!`);
+          }
         }
       }
       G.log(`Thanos snaps! Lanes ${[...rolled].map(n => n + 1).sort().join(', ')} — ${killed} enemies erased!`);

@@ -31876,6 +31876,94 @@ body.round-tick .board::after {
   .card.fx-hulk-rage { animation: none; }
 }
 
+/* --- Spider-Man web-shot (onPlay freeze) --- */
+/* A strand THWIPs to the target, then a radial web net splats over it. */
+.fx-spider-strand {
+  position: fixed;
+  left: 0; top: 0;
+  width: 100vw; height: 100vh;
+  overflow: visible;
+  pointer-events: none;
+}
+.fx-web-draw {
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+  animation: webDraw 220ms ease-out forwards;
+}
+@keyframes webDraw { to { stroke-dashoffset: 0; } }
+
+.fx-spider-web {
+  position: fixed;
+  pointer-events: none;
+  overflow: visible;
+  transform-origin: 50% 50%;
+  filter: drop-shadow(0 0 5px rgba(190, 225, 255, 0.7));
+  animation: webSplat 780ms cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+.fx-spider-web line, .fx-spider-web path {
+  stroke: rgba(238, 247, 255, 0.92);
+  stroke-width: 1.4;
+  vector-effect: non-scaling-stroke;
+}
+@keyframes webSplat {
+  0%   { opacity: 0;    transform: scale(0.2) rotate(-12deg); }
+  35%  { opacity: 1;    transform: scale(1.05) rotate(0deg); }
+  72%  { opacity: 0.95; transform: scale(1); }
+  100% { opacity: 0;    transform: scale(1); }
+}
+
+/* Spidey's own card recoils with the thwip. */
+.card.fx-spider-thwip { animation: spiderThwip 420ms ease-out; z-index: 30; }
+@keyframes spiderThwip {
+  0%   { transform: none; }
+  25%  { transform: translateY(-4px) scale(1.05); }
+  55%  { transform: translateY(1px) scale(0.99); }
+  100% { transform: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .fx-spider-strand, .fx-web-draw, .fx-spider-web, .card.fx-spider-thwip { animation: none; }
+}
+
+/* --- Thanos snap (cards dust away) --- */
+/* A cloned ghost of the doomed card erodes via an animated diagonal mask
+   while drifting up, sepia-tinting and blurring — the disintegration look —
+   with a cloud of ash motes rising off the body. */
+.fx-thanos-dust {
+  pointer-events: none;
+  transform-origin: center bottom;
+  -webkit-mask-image: linear-gradient(202deg, #000 0%, #000 58%, rgba(0,0,0,0) 80%);
+          mask-image: linear-gradient(202deg, #000 0%, #000 58%, rgba(0,0,0,0) 80%);
+  -webkit-mask-size: 270% 270%;   mask-size: 270% 270%;
+  -webkit-mask-position: 0% 0%;   mask-position: 0% 0%;
+  animation: thanosDust 1150ms ease-in forwards;
+  will-change: mask-position, opacity, transform, filter;
+}
+@keyframes thanosDust {
+  0%   { opacity: 1; transform: translateY(0) scale(1) skewX(0deg);
+         -webkit-mask-position: 0% 0%; mask-position: 0% 0%; filter: none; }
+  28%  { opacity: 0.96; filter: brightness(0.88) sepia(0.3); }
+  100% { opacity: 0; transform: translateY(-48px) scale(1.03) skewX(7deg);
+         -webkit-mask-position: 100% 100%; mask-position: 100% 100%;
+         filter: brightness(0.58) sepia(0.65) blur(1.6px); }
+}
+.fx-dust-mote {
+  position: fixed;
+  border-radius: 50%;
+  background: radial-gradient(circle, #d8c3a0 0%, #8a7256 60%, transparent 75%);
+  pointer-events: none;
+  opacity: 0;
+  animation: dustMote 1150ms ease-out forwards;
+  will-change: transform, opacity;
+}
+@keyframes dustMote {
+  0%   { opacity: 0; transform: translate(0, 0) scale(1); }
+  20%  { opacity: 0.9; }
+  100% { opacity: 0; transform: translate(var(--dx), var(--dy)) scale(0.4); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .fx-thanos-dust, .fx-dust-mote { animation: none; }
+}
+
 /* --- void IMPLODE (Galactus devour) --- */
 .sig-void-ring {
   position: fixed;
