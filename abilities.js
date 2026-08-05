@@ -4901,11 +4901,15 @@ const CARD_ABILITIES = {
     },
   },
   "Godzilla": {
-    // Atomic breath — every enemy card catches fire. The burn uses the same
-    // "take damage before attacking" model as Boiler Room, but on a decaying
-    // schedule held per-card: 3 this turn, then 1 for each of the next 2
-    // rounds. onBeforeAttack shifts one value off the queue per attack, so a
-    // card only burns on the rounds it actually swings — matching Boiler Room.
+    // Atomic breath — every enemy card catches fire on a decaying schedule held
+    // per-card: 3 this turn, then 1 for each of the next 2 rounds. The tick runs
+    // on onBeforeCombat (not onBeforeAttack) so it fires for EVERY burning enemy
+    // at the very start of combat — before any lane resolves — regardless of
+    // whether that card has a swing this round. onBeforeAttack only fires for
+    // cards that actually attack (a valid target + able to swing), which meant a
+    // burning card with no swing never took its tick, and a card could get its
+    // attack in before the burn landed. onBeforeCombat guarantees "burn before
+    // anyone attacks": a card the burn kills is dead before the swing check.
     _ignite(G, card) {
       if (!card || card.isEnvironment || card.currentHealth <= 0) return;
       // Refresh the schedule (a second Godzilla, or a re-play, re-stokes it).
@@ -4917,13 +4921,13 @@ const CARD_ABILITIES = {
       }
       if (card._godzillaBurnHooked) return;
       card._godzillaBurnHooked = true;
-      const origAttack = card.onBeforeAttack || null;
-      card.onBeforeAttack = function(G, self) {
+      const origCombat = card.onBeforeCombat || null;
+      card.onBeforeCombat = function(G, self, laneIdx) {
         const q = self._godzillaBurn;
         if (q && q.length && self.currentHealth > 0) {
           const dmg = q.shift();
           G.dealDamage(self, dmg, null);
-          G.log(`[BURN] ${self.name} takes ${dmg} burn damage before attacking! (Godzilla)`);
+          G.log(`[BURN] ${self.name} takes ${dmg} burn damage before combat! (Godzilla)`);
           // Fire out — clear the flame unless a Boiler Room is on the board
           // keeping its own burn alive on this card (shared isBurning flag).
           if (!q.length) {
@@ -4932,7 +4936,7 @@ const CARD_ABILITIES = {
             if (!anyBoiler) self.isBurning = false;
           }
         }
-        if (origAttack) origAttack.call(this, G, self);
+        if (origCombat) origCombat.call(this, G, self, laneIdx);
       };
     },
     onPlay(G, self, lane) {
