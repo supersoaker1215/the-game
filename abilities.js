@@ -1639,6 +1639,7 @@ const CARD_ABILITIES = {
   // ==================== COST 4 ====================
   "Anti-Venom": {
     onPlay(G, self, lane) {
+      if (typeof UI !== 'undefined' && UI._fxAntiVenomHeal) { try { UI._fxAntiVenomHeal(self); } catch (e) {} }
       // Roguelite Text+ override — _antivenomHeal scales heal amount.
       const heal = self._antivenomHeal || 4;
       G.healPlayer(self.owner, heal, self);
@@ -1668,6 +1669,7 @@ const CARD_ABILITIES = {
   },
   "Black Panther": {
     onPlay(G, self, lane) {
+      if (typeof UI !== 'undefined' && UI._fxBlackPantherKinetic) { try { UI._fxBlackPantherKinetic(self); } catch (e) {} }
       const hand = G.state[self.owner].hand;
       // Roguelite Text+ override — _blackPantherFreeThreshold raises the
       // ceiling for free-cast picks. Default 3 (classic); Text+ raises
@@ -1795,6 +1797,7 @@ const CARD_ABILITIES = {
     // onPlay Taunt removed per balance pass. Deadpool now has no onPlay;
     // his kit is purely the onDeath face-down card swap.
     onDeath(G, self, lane) {
+      if (typeof UI !== 'undefined' && UI._fxDeadpoolChaos) { try { UI._fxDeadpoolChaos(self); } catch (e) {} }
       // 2v2: choose whose hand to raid. The alias is held across the whole
       // face-down pick + trade-back chain (see withChosenOpponent), so the
       // steal and the give-back both land on the chosen player.
@@ -1959,6 +1962,7 @@ const CARD_ABILITIES = {
         }
         self.currentHealth = self.maxHealth;
         G.placeInLane(self.owner, self, lane);
+        if (typeof UI !== 'undefined' && UI._fxJasonRevive) { try { UI._fxJasonRevive(self); } catch (e) {} }
         // Revive bypasses Game.playCard, so the registry-based play cue
         // wouldn't auto-fire here — call it explicitly so the ki-ki-ki /
         // ma-ma-ma sting lands on resurrection too.
@@ -1971,6 +1975,7 @@ const CARD_ABILITIES = {
   },
   "Paul Atreides": {
     onPlay(G, self, lane) {
+      if (typeof UI !== 'undefined' && UI._fxPaulVision) { try { UI._fxPaulVision(self); } catch (e) {} }
       // Peeks the OWNER's pile (Classic = shared, Deckbuilder = personal).
       // (Internally still uses the "kang" prompt keys — the mechanic didn't change.)
       const pile = G.getDrawPile(self.owner);
@@ -2038,6 +2043,7 @@ const CARD_ABILITIES = {
     onPlay(G, self, lane) {
       const allDead = [...G.state.player.deadPile, ...G.state.ai.deadPile];
       if (!allDead.length) return;
+      if (typeof UI !== 'undefined' && UI._fxMartianShift) { try { UI._fxMartianShift(self); } catch (e) {} }
       const dead = allDead[Math.floor(Game.rng() * allDead.length)];
 
       // Copy string abilities (but keep Evade 1)
@@ -2183,6 +2189,7 @@ const CARD_ABILITIES = {
       if (enemies.length) {
         G.promptCardChoice(self.owner, enemies, "Predator — Strike", `Choose enemy to deal ${dmg} damage`, (t) => {
           if (typeof UI !== 'undefined' && UI.sfx) UI.sfx.playCardSfx('Predator', 'ability', self);
+          if (typeof UI !== 'undefined' && UI._fxPredatorPlasma) { try { UI._fxPredatorPlasma(self, t); } catch (e) {} }
           G.dealDamage(t, dmg);
           G.log(`Predator strikes ${t.name} for ${dmg}!`);
           if (t.currentHealth <= 0) CARD_ABILITIES.Predator._claimTrophy(G, self);
@@ -2358,7 +2365,10 @@ const CARD_ABILITIES = {
       // Roguelite Text+ ("Adamantium") can raise the kill ceiling via
       // self._wolverineKillThreshold; classic mode falls back to 7.
       const threshold = (self && self._wolverineKillThreshold) || 7;
-      if (attacker && (attacker.baseCost || attacker.cost) <= threshold) { G.killCard(attacker, self); G.log(`Wolverine slays ${attacker.name}!`); }
+      if (attacker && (attacker.baseCost || attacker.cost) <= threshold) {
+        if (typeof UI !== 'undefined' && UI._fxWolverineClaws) { try { UI._fxWolverineClaws(self, attacker); } catch (e) {} }
+        G.killCard(attacker, self); G.log(`Wolverine slays ${attacker.name}!`);
+      }
     },
     onDeath(G, self, lane) {
       if (self.reviveCharges > 0) {
@@ -2376,6 +2386,7 @@ const CARD_ABILITIES = {
         // bodies in the same match.
         self.onDamaged = null;
         G.placeInLane(self.owner, self, lane);
+        if (typeof UI !== 'undefined' && UI._fxWolverineRage) { try { UI._fxWolverineRage(self); } catch (e) {} }
         G.log(`Wolverine revives as 6/5 Overdrive! Berserker rage spent — no retaliation. (Revive ${self.reviveCharges} left)`);
         return true;
       }
@@ -2388,6 +2399,7 @@ const CARD_ABILITIES = {
       const freezeN = self._wwStunSize || 1;
       const e = G.state.lanes[lane] ? G.state.lanes[lane][G.opponent(self.owner)] : null;
       if (e) { G.freezeCard(e, self, freezeN); }
+      if (typeof UI !== 'undefined' && UI._fxWonderWomanLasso) { try { UI._fxWonderWomanLasso(self, e); } catch (err) {} }
       // _wonderWomanBlockGain scales the block meter add. Default 2
       // (classic); Text+ bumps to 4.
       const blockGain = self._wonderWomanBlockGain || 2;
@@ -2932,6 +2944,7 @@ const CARD_ABILITIES = {
         const aiBonus = self._homelanderDmgBonus || 0;
         const dmg = (trade.ally.baseCost || trade.ally.cost) + aiBonus;
         G.killCard(trade.ally);
+        if (typeof UI !== 'undefined' && UI._fxHomelanderLaser) { try { UI._fxHomelanderLaser(self, trade.enemy); } catch (e) {} }
         if (trade.mode === 'destroy') {
           G.killCard(trade.enemy, self);
           G.log(`Homelander sacrifices ${trade.ally.name} — destroys ${trade.enemy.name} (cost ≤ ${dmg})!`);
@@ -2998,12 +3011,14 @@ const CARD_ABILITIES = {
             (modeChoice) => {
               if (modeChoice._hlMode === 'destroy') {
                 G.promptCardChoice(self.owner, validDestroyTargets, "Homelander — Destroy", `Destroy which enemy (cost ≤ ${dmg})?`, (target) => {
+                  if (typeof UI !== 'undefined' && UI._fxHomelanderLaser) { try { UI._fxHomelanderLaser(self, target); } catch (e) {} }
                   G.killCard(target, self);
                   G.log(`Homelander sacrifices ${victim.name} — destroys ${target.name}!`);
                 }, cards => cards.slice().sort((a, b) => AI.threatScore(b) - AI.threatScore(a))[0]);
                 return;
               }
               G.promptCardChoice(self.owner, enemies, "Homelander — Damage", `Deal ${dmg} damage to which enemy?`, (target) => {
+                if (typeof UI !== 'undefined' && UI._fxHomelanderLaser) { try { UI._fxHomelanderLaser(self, target); } catch (e) {} }
                 G.dealDamage(target, dmg);
                 G.log(`Homelander sacrifices ${victim.name} — ${dmg} damage to ${target.name}!`);
               }, cards => {

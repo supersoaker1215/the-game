@@ -9291,6 +9291,149 @@ const UI = {
     });
   },
 
+  // =============== 4-cost character cast FX ===============
+
+  // Anti-Venom — white healing symbiote: pale tendrils lash out and a
+  // restorative pulse washes over him as he heals.
+  _fxAntiVenomHeal(self) {
+    if (this._reducedMotion() || !self) return;
+    this._fxWhenPainted(self, (el) => {
+      const c = this._fxCenter(el);
+      if (!c) return;
+      for (let i = 0; i < 4; i++) {
+        const a = -Math.PI / 2 + (i - 1.5) * 0.5;
+        const to = { x: c.x + Math.cos(a) * 100, y: c.y + Math.sin(a) * 100 };
+        this._fxTendril(c, to, { color: '#e8f0ff', glow: '#9fe8c0', bow: 16 });
+      }
+      this._fxRing(el, { color: '#7fe6b0', contract: true });
+      this._fxSparks(c, { color: '#d6ffe6', glow: '#3ad980', count: 8, angle: -Math.PI / 2, cone: 1.8, spread: 46, size: 2.4 });
+    });
+  },
+
+  // Black Panther — a Vibranium kinetic discharge: stored energy releases in a
+  // violet shockwave.
+  _fxBlackPantherKinetic(self) {
+    if (this._reducedMotion() || !self) return;
+    this._fxWhenPainted(self, (el) => {
+      this._fxRing(el, { color: '#a24bff' });
+      const c = this._fxCenter(el);
+      if (c) {
+        this._fxImpact(c, { color: '#8a5bff', core: '#e0d4ff', size: 0.9 });
+        this._fxSparks(c, { color: '#c9b0ff', glow: '#7a3bff', count: 12, spread: 60, size: 2.6 });
+      }
+    });
+  },
+
+  // Deadpool — chaotic regeneration: a red katana slash and a spray of
+  // red-white sparks as his final trick fires.
+  _fxDeadpoolChaos(self) {
+    if (this._reducedMotion() || !self) return;
+    const el = this._fxCardElById(self.id);
+    if (!el) return;
+    this._fxSlash(el, { count: 2, color: '#ff5252', angle: -32 });
+    const c = this._fxCenter(el);
+    if (c) this._fxSparks(c, { color: '#ffd0d0', glow: '#c1121f', count: 12, spread: 60, size: 2.8 });
+    this._screenShake('light');
+  },
+
+  // Jason Voorhees — he rises again: a dark-red horror pulse and a machete rake.
+  _fxJasonRevive(self) {
+    if (this._reducedMotion() || !self) return;
+    const el = this._fxCardElById(self.id);
+    if (!el) return;
+    this._fxSlash(el, { count: 1, color: '#ff5a5a', angle: 34 });
+    this._fxRing(el, { color: '#8a1220' });
+    const c = this._fxCenter(el);
+    if (c) this._fxSparks(c, { color: '#ff9a9a', glow: '#8a1220', count: 10, spread: 54, size: 2.6 });
+    this._screenShake('medium');
+  },
+
+  // Paul Atreides — prescience: a golden-blue spice vision swirls as he reads
+  // the futures.
+  _fxPaulVision(self) {
+    if (this._reducedMotion() || !self) return;
+    this._fxWhenPainted(self, (el) => {
+      this._fxRing(el, { color: '#e8b24a' });
+      const c = this._fxCenter(el);
+      if (!c) return;
+      this._fxSparks(c, { color: '#ffe0a0', glow: '#d98f2e', count: 9, spread: 56, size: 2.4 });
+      this._fxSparks(c, { color: '#bcdcff', glow: '#4a86c8', count: 7, spread: 62, size: 2.2 });
+    });
+  },
+
+  // Martian Manhunter — a green Martian phase-shift as he adopts a fallen kit.
+  _fxMartianShift(self) {
+    if (this._reducedMotion() || !self) return;
+    this._fxWhenPainted(self, (el) => {
+      el.classList.remove('fx-iw-shimmer'); void el.offsetWidth; el.classList.add('fx-iw-shimmer');
+      setTimeout(() => el.classList.remove('fx-iw-shimmer'), 620);
+      this._fxRing(el, { color: '#3ad980' });
+      const c = this._fxCenter(el);
+      if (c) this._fxSparks(c, { color: '#a8ffce', glow: '#1fbf6a', count: 11, spread: 58, size: 2.6 });
+    });
+  },
+
+  // Predator — a shoulder-cannon plasma bolt: a red tri-laser paint, then a
+  // green plasma lance to the target.
+  _fxPredatorPlasma(self, targetCard) {
+    if (this._reducedMotion() || !targetCard) return;
+    const to = this._fxCenter(this._fxCardElById(targetCard.id));
+    if (!to) return;
+    this._fxImpact(to, { color: '#ff2d2d', core: '#ffd0d0', size: 0.55 });
+    this._fxWhenPainted(self, (srcEl) => {
+      const from = this._fxCenter(srcEl);
+      if (from) this._fxDrawBeam(from, to, { color: '#7fff5a', core: '#e6ffcf', thickness: 5, impact: 1.2 });
+    });
+  },
+
+  // Wolverine — SNIKT: three adamantium claws rake the attacker he retaliates on.
+  _fxWolverineClaws(self, targetCard) {
+    if (this._reducedMotion() || !targetCard) return;
+    const el = this._fxCardElById(targetCard.id);
+    if (!el) return;
+    this._fxSlash(el, { count: 3, color: '#dfe8f0', angle: 28 });
+    const c = this._fxCenter(el);
+    if (c) this._fxSparks(c, { color: '#ffffff', glow: '#9fb4c8', count: 9, spread: 46, size: 2.4 });
+    this._screenShake('light');
+  },
+
+  // Wolverine — berserker rage on revive: a yellow-and-blue fury burst.
+  _fxWolverineRage(self) {
+    if (this._reducedMotion() || !self) return;
+    const el = this._fxCardElById(self.id);
+    if (!el) return;
+    this._fxRing(el, { color: '#ffd23a' });
+    const c = this._fxCenter(el);
+    if (c) this._fxSparks(c, { color: '#fff0a0', glow: '#3a6cff', count: 12, spread: 60, size: 2.8 });
+    this._screenShake('medium');
+  },
+
+  // Wonder Woman — the Lasso of Truth whips out in gold to the frozen enemy.
+  _fxWonderWomanLasso(self, targetCard) {
+    if (this._reducedMotion() || !self) return;
+    const to = targetCard ? this._fxCenter(this._fxCardElById(targetCard.id)) : null;
+    this._fxWhenPainted(self, (srcEl) => {
+      const from = this._fxCenter(srcEl);
+      if (from && to) this._fxTendril(from, to, { color: '#8a5a12', glow: '#ffd23a', bow: 26 });
+      this._fxRing(srcEl, { color: '#ffd23a' });
+      if (to) this._fxSparks(to, { color: '#fff0b0', glow: '#e0a020', count: 9, spread: 48, size: 2.6 });
+    });
+  },
+
+  // Homelander — heat vision: twin red eye-beams lance the target.
+  _fxHomelanderLaser(self, targetCard) {
+    if (this._reducedMotion() || !targetCard) return;
+    const to = this._fxCenter(this._fxCardElById(targetCard.id));
+    if (!to) return;
+    this._fxWhenPainted(self, (srcEl) => {
+      const from = this._fxCenter(srcEl);
+      if (!from) return;
+      this._fxDrawBeam({ x: from.x - 10, y: from.y }, to, { color: '#ff2d2d', core: '#ffffff', thickness: 4, impact: 1.2 });
+      this._fxDrawBeam({ x: from.x + 10, y: from.y }, to, { color: '#ff2d2d', core: '#ffffff', thickness: 4 });
+      this._screenShake('light');
+    });
+  },
+
   // ===================== DAMAGE MAGNITUDE TIER =====================
   // One shared classifier that maps a hit's magnitude to a feedback
   // intensity tier, and one parameter table that every feedback
