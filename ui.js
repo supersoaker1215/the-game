@@ -8404,6 +8404,17 @@ const UI = {
     surge.style.cssText = 'left:' + r.left + 'px;top:' + r.top + 'px;width:' + r.width + 'px;height:' + r.height + 'px;';
     layer.appendChild(surge);
     setTimeout(() => surge.remove(), 780);
+    // Empower each hand card in turn — a purple-gold keyword-charge flare rolls
+    // down the hand so you SEE every card getting a new keyword.
+    const cards = hand.querySelectorAll('.card');
+    cards.forEach((cardEl, i) => {
+      setTimeout(() => {
+        cardEl.classList.remove('fx-empower-pulse'); void cardEl.offsetWidth; cardEl.classList.add('fx-empower-pulse');
+        setTimeout(() => cardEl.classList.remove('fx-empower-pulse'), 620);
+        const c = this._fxCenter(cardEl);
+        if (c) this._fxSparks(c, { color: '#e9c6ff', glow: '#a24bff', count: 6, angle: -Math.PI / 2, cone: 1.6, spread: 40, size: 2.2 });
+      }, 100 + i * 75);
+    });
   },
 
   // Dr. Manhattan: a cold quantum stream flows into the hero HP orb.
@@ -8499,7 +8510,16 @@ const UI = {
   // Mace Windu: Vaapad — an amethyst saber flourish erupts over Mace.
   _fxVaapad(self) {
     if (this._reducedMotion() || !self) return;
-    this._fxWhenPainted(self, (el) => this._fxSlashEl(el, { blade: '#a855f7', core: '#f3e8ff', angle: -38 }));
+    this._fxWhenPainted(self, (el) => {
+      // Vaapad — a flurry of violet strikes.
+      [-42, -8, 26].forEach((a, i) => setTimeout(() => this._fxSlashEl(el, { blade: '#a855f7', core: '#f3e8ff', angle: a }), i * 90));
+      // The debuff reaches the ENEMY's hand (hidden, up-screen): a violet
+      // energy wave sweeps across into their side.
+      const from = this._fxCenter(el);
+      const to = { x: (typeof window !== 'undefined' ? window.innerWidth : 1200) * 0.5, y: 56 };
+      if (from) this._fxDrawBeam(from, to, { color: '#a855f7', core: '#f3e8ff', thickness: 5 });
+      if (from) this._fxSparks(to, { color: '#e9c6ff', glow: '#7a1fa2', count: 10, spread: 60, size: 2.6 });
+    });
     this._screenShake('light');
   },
   // General Grievous: a whirling cyclone of four trophy lightsabers.
@@ -8716,6 +8736,23 @@ const UI = {
       const from = this._fxCenter(srcEl);
       if (from) this._fxDrawBeam(from, to, { color: '#cfd8e6', core: '#ffffff', thickness: 7 });
     });
+    // The Power-Cosmic tax — a silver-chrome wave sweeps across the enemy side
+    // (their cards cost 1 more while the Surfer stands).
+    this._fxCosmicSweep();
+  },
+  // A silver Power-Cosmic light-wave sweeping over the enemy half of the board.
+  _fxCosmicSweep() {
+    if (this._reducedMotion()) return;
+    const board = document.querySelector('#board');
+    if (!board) return;
+    const br = board.getBoundingClientRect();
+    if (!br || !br.width) return;
+    const layer = this._fxLayer();
+    const sweep = document.createElement('div');
+    sweep.className = 'fx-cosmic-sweep';
+    sweep.style.cssText = 'left:' + br.left + 'px;top:' + br.top + 'px;width:' + br.width + 'px;height:' + (br.height * 0.5) + 'px;';
+    layer.appendChild(sweep);
+    setTimeout(() => sweep.remove(), 900);
   },
   // Thanos snap: a doomed card crumbles to ash and blows away. Clones the card
   // into a detached ghost (so the engine's card removal on the next render
