@@ -8912,6 +8912,195 @@ const UI = {
     });
   },
 
+  // =============== 2-cost character cast FX ===============
+
+  // A generic bright blade-slash across a card (1+ diagonal strokes). Shared by
+  // Gamora / Ghostface / Nightwing, each with its own colour + angle.
+  _fxSlash(el, opts) {
+    if (!el || this._reducedMotion()) return;
+    opts = opts || {};
+    const r = el.getBoundingClientRect();
+    if (!r || !r.width) return;
+    const layer = this._fxLayer();
+    const n = opts.count || 1, color = opts.color || '#fff2d2', ang = (opts.angle != null ? opts.angle : 26);
+    const wrap = document.createElement('div');
+    wrap.className = 'fx-slash';
+    wrap.style.cssText =
+      'left:' + r.left + 'px;top:' + r.top + 'px;width:' + r.width + 'px;height:' + r.height + 'px;' +
+      '--slash-ang:' + ang + 'deg;--slash-c:' + color + ';';
+    let inner = '';
+    for (let i = 0; i < n; i++) inner += '<i style="top:' + (32 + i * 24) + '%;animation-delay:' + (i * 80) + 'ms"></i>';
+    wrap.innerHTML = inner;
+    layer.appendChild(wrap);
+    setTimeout(() => wrap.remove(), 520);
+  },
+
+  // Xenomorph — acid-blood burst on death: a spray of corrosive green globs
+  // that arc out and drip down, over a green splash flash.
+  _fxXenomorphAcid(self) {
+    if (this._reducedMotion() || !self) return;
+    const el = this._fxCardElById(self.id);
+    const r = el ? el.getBoundingClientRect() : null;
+    const pt = (r && r.width) ? { x: r.left + r.width / 2, y: r.top + r.height / 2 } : null;
+    if (!pt) return;
+    const layer = this._fxLayer();
+    this._fxImpact(pt, { color: '#7fff5a', core: '#e6ffcf', size: 1.1 });
+    for (let i = 0; i < 20; i++) {
+      const g = document.createElement('div');
+      g.className = 'fx-acid-glob';
+      const a = Math.random() * Math.PI * 2, d = 28 + Math.random() * 66, sz = 3 + Math.random() * 4;
+      g.style.cssText =
+        'left:' + pt.x.toFixed(0) + 'px;top:' + pt.y.toFixed(0) + 'px;width:' + sz.toFixed(1) + 'px;height:' + sz.toFixed(1) + 'px;' +
+        '--gx:' + (Math.cos(a) * d).toFixed(0) + 'px;--gy:' + (Math.sin(a) * d + 34).toFixed(0) + 'px;animation-delay:' + (Math.random() * 120).toFixed(0) + 'ms;';
+      layer.appendChild(g);
+      setTimeout(() => g.remove(), 840);
+    }
+    this._screenShake('light');
+  },
+
+  // Bane — Venom injection: a green surge pulses through him, then a toxic
+  // tendril saps the target's strength (its ATK/evade stripped).
+  _fxBaneVenom(self, targetCard) {
+    if (this._reducedMotion() || !self) return;
+    const tgtEl = targetCard ? this._fxCardElById(targetCard.id) : null;
+    const to = tgtEl ? this._fxCenter(tgtEl) : null;
+    if (tgtEl) this._fxRing(tgtEl, { color: '#57d957', contract: true });
+    this._fxWhenPainted(self, (el) => {
+      this._fxRing(el, { color: '#2fbf4f' });
+      const from = this._fxCenter(el);
+      if (from && to) this._fxTendril(from, to, { color: '#124d12', glow: '#57ff57', bow: 24 });
+      if (to) this._fxSparks(to, { color: '#8dff8d', glow: '#2fbf4f', count: 8, spread: 42, size: 2.4 });
+    });
+  },
+
+  // Dr. Strange — a golden Agamotto rune mandala spins open as he peers ahead.
+  _fxStrangePortal(self) {
+    if (this._reducedMotion() || !self) return;
+    this._fxWhenPainted(self, (el) => {
+      const c = this._fxCenter(el);
+      if (!c) return;
+      const layer = this._fxLayer();
+      [1, 0.64].forEach((scale, i) => {
+        const rune = document.createElement('div');
+        rune.className = 'fx-strange-rune';
+        rune.style.cssText = 'left:' + c.x + 'px;top:' + c.y + 'px;--rscale:' + scale + ';--rspin:' + (i ? -1 : 1) + ';animation-delay:' + (i * 90) + 'ms;';
+        layer.appendChild(rune);
+        setTimeout(() => rune.remove(), 780);
+      });
+      this._fxSparks(c, { color: '#ffd27a', glow: '#ff8a1e', count: 10, spread: 54, size: 2.4 });
+    });
+  },
+
+  // Gamora — a clean blade execution: a green-white slash rakes the doomed
+  // enemy and it falls apart.
+  _fxGamoraBlade(self, victimCard) {
+    if (this._reducedMotion() || !victimCard) return;
+    const el = this._fxCardElById(victimCard.id);
+    if (el) this._fxSlash(el, { count: 1, color: '#d6ffe6', angle: 34 });
+    const to = this._fxCenter(el);
+    if (to) this._fxSparks(to, { color: '#c9ffdd', glow: '#3ad980', count: 9, spread: 48, size: 2.6 });
+    this._screenShake('light');
+  },
+
+  // Ghostface — a quick knife-slash streak and an eerie phantom flicker as a
+  // second killer steps out of the shadows.
+  _fxGhostfaceSlash(self) {
+    if (this._reducedMotion() || !self) return;
+    this._fxWhenPainted(self, (el) => {
+      this._fxSlash(el, { count: 1, color: '#eef2ff', angle: -40 });
+      el.classList.remove('fx-ghost-flicker'); void el.offsetWidth; el.classList.add('fx-ghost-flicker');
+      setTimeout(() => el.classList.remove('fx-ghost-flicker'), 620);
+    });
+  },
+
+  // Human Torch — Flame On! He combusts and hurls a fireball at the blast target.
+  _fxHumanTorchFlame(self, targetCard) {
+    if (this._reducedMotion() || !self) return;
+    const to = targetCard ? this._fxCenter(this._fxCardElById(targetCard.id)) : null;
+    this._fxWhenPainted(self, (el) => {
+      el.classList.remove('fx-torch-ignite'); void el.offsetWidth; el.classList.add('fx-torch-ignite');
+      setTimeout(() => el.classList.remove('fx-torch-ignite'), 640);
+      const from = this._fxCenter(el);
+      if (from) this._fxSparks(from, { color: '#ffd27a', glow: '#ff5a1e', count: 12, spread: 60, size: 3 });
+      if (from && to) {
+        this._fxDrawBeam(from, to, { color: '#ff7a18', core: '#ffe6a0', thickness: 7, impact: 1.2 });
+        this._fxSparks(to, { color: '#ffd27a', glow: '#ff5a1e', count: 10, spread: 62, size: 3 });
+      }
+    });
+  },
+
+  // Nightwing — twin escrima strikes flash blue across the weakened enemy.
+  _fxNightwingStrike(self, targetCard) {
+    if (this._reducedMotion() || !targetCard) return;
+    const el = this._fxCardElById(targetCard.id);
+    const to = this._fxCenter(el);
+    if (el) this._fxSlash(el, { count: 2, color: '#9bd3ff', angle: 22 });
+    this._fxWhenPainted(self, (srcEl) => {
+      const from = this._fxCenter(srcEl);
+      if (from && to) this._fxDrawBolt(from, to, { color: '#9bd3ff', glow: '#2f7fff' });
+    });
+  },
+
+  // Peacemaker — one clean shot: muzzle flash, a bright tracer, the target drops.
+  _fxPeacemakerShot(self, victimCard) {
+    if (this._reducedMotion() || !victimCard) return;
+    const to = this._fxCenter(this._fxCardElById(victimCard.id));
+    if (!to) return;
+    this._fxWhenPainted(self, (srcEl) => {
+      const from = this._fxCenter(srcEl);
+      if (!from) return;
+      this._fxImpact(from, { color: '#ffd27a', core: '#ffffff', size: 0.5 });
+      this._fxDrawBeam(from, to, { color: '#fff2c8', core: '#ffffff', thickness: 3, impact: 1.1 });
+      this._screenShake('light');
+    });
+  },
+
+  // Rocket Raccoon — a heavy blaster bolt with a big muzzle flash and kick.
+  _fxRocketBlast(self, targetCard) {
+    if (this._reducedMotion() || !targetCard) return;
+    const to = this._fxCenter(this._fxCardElById(targetCard.id));
+    if (!to) return;
+    this._fxWhenPainted(self, (srcEl) => {
+      const from = this._fxCenter(srcEl);
+      if (!from) return;
+      const ang = Math.atan2(to.y - from.y, to.x - from.x);
+      this._fxImpact(from, { color: '#ff7a2e', core: '#ffe6a0', size: 0.7 });
+      this._fxSparks(from, { color: '#ffe0a0', glow: '#ff7a2e', count: 6, angle: ang, cone: 0.9, spread: 40, size: 2.6 });
+      this._fxDrawBeam(from, to, { color: '#ff8a2e', core: '#fff0c8', thickness: 6, impact: 1.3 });
+      this._screenShake('medium');
+    });
+  },
+
+  // The Flash — a Speed-Force dash: a lightning blur streaks across him and a
+  // bolt arcs to the frozen enemy.
+  _fxFlashDash(self, targetCard) {
+    if (this._reducedMotion() || !self) return;
+    const to = targetCard ? this._fxCenter(this._fxCardElById(targetCard.id)) : null;
+    this._fxWhenPainted(self, (el) => {
+      el.classList.remove('fx-flash-dash'); void el.offsetWidth; el.classList.add('fx-flash-dash');
+      setTimeout(() => el.classList.remove('fx-flash-dash'), 560);
+      const from = this._fxCenter(el);
+      if (from && to) this._fxDrawBolt(from, to, { color: '#ffe45a', glow: '#ffae00' });
+      if (from) this._fxSparks(from, { color: '#fff2a0', glow: '#ffae00', count: 9, spread: 56, size: 2.4 });
+    });
+  },
+
+  // Symbiote Spider-Man — black symbiote tendrils lash out in a fan and a green
+  // heal pulse washes over him.
+  _fxSymbioteSurge(self) {
+    if (this._reducedMotion() || !self) return;
+    this._fxWhenPainted(self, (el) => {
+      const c = this._fxCenter(el);
+      if (!c) return;
+      for (let i = 0; i < 5; i++) {
+        const ang = -Math.PI / 2 + (i - 2) * 0.5;
+        const to = { x: c.x + Math.cos(ang) * 120, y: c.y + Math.sin(ang) * 120 };
+        this._fxTendril(c, to, { color: '#0b0b0b', glow: '#c1121f', bow: 18 });
+      }
+      this._fxRing(el, { color: '#3ad980', contract: true });
+    });
+  },
+
   // ===================== DAMAGE MAGNITUDE TIER =====================
   // One shared classifier that maps a hit's magnitude to a feedback
   // intensity tier, and one parameter table that every feedback

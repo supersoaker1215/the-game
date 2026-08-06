@@ -637,6 +637,7 @@ const CARD_ABILITIES = {
     onDeath(G, self, lane) {
       // Splash radius also scales with tier. Common = 1 (listed), boss
       // tiers get a wider blast.
+      if (typeof UI !== 'undefined' && UI._fxXenomorphAcid) { try { UI._fxXenomorphAcid(self); } catch (e) {} }
       const splash = G.rarityValue(self, { common: 1, rare: 1, special: 2, legendary: 3 });
       G.splashDamage(lane, self.owner, splash, self);
       G.log(`Xenomorph explodes for Splash ${splash}!`);
@@ -667,6 +668,7 @@ const CARD_ABILITIES = {
           G.debuffCard(e, 1, 1, true, self);
           e.evadeCharges = 0;
           G.log(`Bane strips ${e.name}: -1/-1 & all evades removed!`);
+          if (typeof UI !== 'undefined' && UI._fxBaneVenom) { try { UI._fxBaneVenom(self, e); } catch (er) {} }
         }, _aiThreatPicker);
       }
     },
@@ -729,6 +731,7 @@ const CARD_ABILITIES = {
         G.log(isRl
           ? "Dr. Strange peers into the future! Next turn, scry your top 3 — pick 1, the rest sink to the bottom."
           : "Dr. Strange peers into the future! Next turn, choose 1 of 2 top cards — the other goes to your enemy.");
+        if (typeof UI !== 'undefined' && UI._fxStrangePortal) { try { UI._fxStrangePortal(self); } catch (e) {} }
         refreshAura(G, self);
       },
       onTurnStart(G, self) { refreshAura(G, self); },
@@ -756,6 +759,7 @@ const CARD_ABILITIES = {
       const targets = G.getEnemiesOf(self.owner).filter(c => c.currentHealth <= threshold && G.canEffectLand(c, 'destroy', { owner: self.owner, source: self }));
       if (targets.length) {
         G.promptCardChoice(self.owner, targets, "Gamora — Execute", `Choose enemy with ${threshold} or less HP to destroy`, (t) => {
+          if (typeof UI !== 'undefined' && UI._fxGamoraBlade) { try { UI._fxGamoraBlade(self, t); } catch (e) {} }
           G.log(`Gamora executes ${t.name}!`); G.killCard(t, self);
         }, _aiThreatPicker);
       }
@@ -770,6 +774,7 @@ const CARD_ABILITIES = {
   },
   "Ghostface": {
     onPlay(G, self, lane) {
+      if (typeof UI !== 'undefined' && UI._fxGhostfaceSlash) { try { UI._fxGhostfaceSlash(self); } catch (e) {} }
       // Roguelite Text+ ("Mass Hysteria") swaps the classic (2/1)
       // Bullseye summon for a personal-power upgrade: Overdrive + Evade
       // 3 (set in apply) plus +1/+1 per card in hand on play. Apply
@@ -813,6 +818,7 @@ const CARD_ABILITIES = {
       const enemies = G.getEnemiesOf(self.owner).filter(t => G.canEffectLand(t, 'damage', { owner: self.owner, source: self }));
       if (enemies.length) {
         G.promptCardChoice(self.owner, enemies, "Human Torch — Blast", `Choose enemy to deal ${blast} damage`, (t) => {
+          if (typeof UI !== 'undefined' && UI._fxHumanTorchFlame) { try { UI._fxHumanTorchFlame(self, t); } catch (e) {} }
           G.dealDamage(t, blast); G.log(`Human Torch blasts ${t.name} for ${blast}!`);
         }, cards => _aiKillPicker(cards, blast));
       }
@@ -864,6 +870,7 @@ const CARD_ABILITIES = {
       const enemies = G.getEnemiesOf(self.owner).filter(t => (t.attack || 0) > 0 && G.canEffectLand(t, 'debuff', { owner: self.owner, source: self }));
       if (enemies.length) {
         G.promptCardChoice(self.owner, enemies, "Nightwing — Weaken", `Choose enemy to remove ${debuff} Attack from`, (t) => {
+          if (typeof UI !== 'undefined' && UI._fxNightwingStrike) { try { UI._fxNightwingStrike(self, t); } catch (e) {} }
           G.debuffCard(t, debuff, 0, false, self); G.log(`Nightwing weakens ${t.name} by ${debuff} ATK!`);
         }, _aiThreatPicker);
       }
@@ -878,6 +885,7 @@ const CARD_ABILITIES = {
       const targets = G.getEnemiesOf(self.owner).filter(c => c.attack <= threshold && G.canEffectLand(c, 'destroy', { owner: self.owner, source: self }));
       if (targets.length) {
         G.promptCardChoice(self.owner, targets, "Peacemaker — Eliminate", `Choose enemy with ${threshold} or less ATK to destroy`, (t) => {
+          if (typeof UI !== 'undefined' && UI._fxPeacemakerShot) { try { UI._fxPeacemakerShot(self, t); } catch (e) {} }
           G.log(`Peacemaker eliminates ${t.name}!`); G.killCard(t, self);
         }, _aiThreatPicker);
       }
@@ -894,6 +902,7 @@ const CARD_ABILITIES = {
       const enemies = G.getEnemiesOf(self.owner).filter(t => G.canEffectLand(t, 'damage', { owner: self.owner, source: self }));
       if (enemies.length) {
         G.promptCardChoice(self.owner, enemies, "Rocket Raccoon — Blast", `Choose enemy to deal ${dmg} damage`, (t) => {
+          if (typeof UI !== 'undefined' && UI._fxRocketBlast) { try { UI._fxRocketBlast(self, t); } catch (e) {} }
           G.dealDamage(t, dmg, self); G.log(`Rocket Raccoon blasts ${t.name} for ${dmg}!`);
         }, cards => _aiKillPicker(cards, dmg));
       }
@@ -910,6 +919,7 @@ const CARD_ABILITIES = {
       // Text+ true (freeze all adj). User direction: Speed Force scaling
       // — the Flash literally moves twice.
       const freezeAll = !!self._flashFreezeAll;
+      if (typeof UI !== 'undefined' && UI._fxFlashDash) { try { UI._fxFlashDash(self, adj[0] || null); } catch (e) {} }
       const freezeTarget = () => {
         if (freezeAll && adj.length) {
           adj.forEach(e => G.freezeCard(e, self));
@@ -1532,6 +1542,7 @@ const CARD_ABILITIES = {
   },
   "Symbiote Spider-Man": {
     onPlay(G, self, lane) {
+      if (typeof UI !== 'undefined' && UI._fxSymbioteSurge) { try { UI._fxSymbioteSurge(self); } catch (e) {} }
       // Each card shuffles back to its OWNER's pile — in Deckbuilder this
       // is their personal deck, in Classic it's the shared pile (same ref).
       const shuffleBack = (card, ownerKey) => {
