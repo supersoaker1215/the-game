@@ -9434,6 +9434,81 @@ const UI = {
     });
   },
 
+  // =============== 5-cost character cast FX ===============
+
+  // Davy Jones — the deep answers: briny tentacles rise in a fan and a teal
+  // sea-burst churns as he calls the Kraken.
+  _fxDavyKraken(self) {
+    if (this._reducedMotion() || !self) return;
+    this._fxWhenPainted(self, (el) => {
+      const c = this._fxCenter(el);
+      if (!c) return;
+      for (let i = 0; i < 5; i++) {
+        const a = -Math.PI / 2 + (i - 2) * 0.5;
+        const to = { x: c.x + Math.cos(a) * 120, y: c.y + Math.sin(a) * 120 };
+        this._fxTendril(c, to, { color: '#08201e', glow: '#2fd6c0', bow: 22 });
+      }
+      this._fxImpact(c, { color: '#2fd6c0', core: '#d6fff6', size: 1.0 });
+      this._fxSparks(c, { color: '#9ff0e0', glow: '#1a8f80', count: 10, spread: 58, size: 2.6 });
+    });
+  },
+
+  // Captain America — a shield snaps onto the ally: a red-white-blue guard ring
+  // and a patriotic spark.
+  _fxCapShield(self, allyCard) {
+    if (this._reducedMotion() || !allyCard) return;
+    const ael = this._fxCardElById(allyCard.id);
+    if (!ael) return;
+    this._fxRing(ael, { color: '#3a6cff', contract: true });
+    const c = this._fxCenter(ael);
+    if (c) {
+      this._fxImpact(c, { color: '#3a6cff', core: '#ffffff', size: 0.9 });
+      this._fxSparks(c, { color: '#ffffff', glow: '#ff3b3b', count: 8, spread: 46, size: 2.4 });
+    }
+  },
+
+  // Iron Man — a repulsor beam finishes off each damaged enemy in the sweep.
+  _fxIronManRepulsor(self, targetCard) {
+    if (this._reducedMotion() || !targetCard) return;
+    const to = this._fxCenter(this._fxCardElById(targetCard.id));
+    if (!to) return;
+    this._fxWhenPainted(self, (srcEl) => {
+      const from = this._fxCenter(srcEl);
+      if (from) this._fxDrawBeam(from, to, { color: '#57d6ff', core: '#ffffff', thickness: 5, impact: 1.2 });
+    });
+  },
+
+  // The Batman Who Laughs — a sinister hex coils out: black tendrils and a
+  // blood-red ring set the intercept trap.
+  _fxBWLHex(self) {
+    if (this._reducedMotion() || !self) return;
+    this._fxWhenPainted(self, (el) => {
+      const c = this._fxCenter(el);
+      if (!c) return;
+      for (let i = 0; i < 4; i++) {
+        const a = -Math.PI / 2 + (i - 1.5) * 0.55;
+        const to = { x: c.x + Math.cos(a) * 105, y: c.y + Math.sin(a) * 105 };
+        this._fxTendril(c, to, { color: '#0a0a0a', glow: '#e01030', bow: 18 });
+      }
+      this._fxRing(el, { color: '#e01030' });
+      this._fxSparks(c, { color: '#ff5a6e', glow: '#a00018', count: 10, spread: 56, size: 2.6 });
+    });
+  },
+
+  // Revan — a violet Force current flows to the chosen ally, blessing it with
+  // a second life.
+  _fxRevanForce(self, allyCard) {
+    if (this._reducedMotion() || !self) return;
+    const ael = allyCard ? this._fxCardElById(allyCard.id) : null;
+    const to = this._fxCenter(ael);
+    if (ael) this._fxRing(ael, { color: '#b06bff', contract: true });
+    this._fxWhenPainted(self, (srcEl) => {
+      const from = this._fxCenter(srcEl);
+      if (from && to) this._fxDrawBeam(from, to, { color: '#a24bff', core: '#e9d4ff', thickness: 5 });
+      if (to) this._fxSparks(to, { color: '#d8c8ff', glow: '#7a3bff', count: 9, spread: 48, size: 2.6 });
+    });
+  },
+
   // ===================== DAMAGE MAGNITUDE TIER =====================
   // One shared classifier that maps a hit's magnitude to a feedback
   // intensity tier, and one parameter table that every feedback

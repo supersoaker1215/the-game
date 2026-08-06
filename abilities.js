@@ -2455,6 +2455,7 @@ const CARD_ABILITIES = {
       // is functionally the same, just rebranded to Davy Jones.)
       const atkBump = self._aquamanCreatureAtkBump || 0;
       const hpBump  = self._aquamanCreatureHpBump  || 0;
+      if (typeof UI !== 'undefined' && UI._fxDavyKraken) { try { UI._fxDavyKraken(self); } catch (e) {} }
       G.summonCardChoice(self.owner, "The Kraken", 4, 5 + atkBump, 3 + hpBump, []);
     }
   },
@@ -2474,6 +2475,7 @@ const CARD_ABILITIES = {
       const grant = (a) => {
         a.invincibleTurns = Math.max(a.invincibleTurns || 0, 1);
         G.log(`Captain America shields ${a.name} — Invincible for 1 turn!`);
+        if (typeof UI !== 'undefined' && UI._fxCapShield) { try { UI._fxCapShield(self, a); } catch (e) {} }
       };
       if (allies.length) {
         G.promptCardChoice(self.owner, allies, "Captain America — Shield", "Choose an ally to grant Invincible 1", grant,
@@ -2491,6 +2493,7 @@ const CARD_ABILITIES = {
       G.getEnemiesOf(self.owner)
         .filter(e => e.currentHealth < e.maxHealth && (e.baseCost || e.cost) <= maxCost)
         .forEach(t => {
+          if (typeof UI !== 'undefined' && UI._fxIronManRepulsor) { try { UI._fxIronManRepulsor(self, t); } catch (e) {} }
           G.log(`Iron Man finishes off ${t.name}!`); G.killCard(t, self);
         });
     }
@@ -2794,6 +2797,7 @@ const CARD_ABILITIES = {
       // schema-compatible, but it no longer gates new plays.
       G.state[G.opponent(self.owner)].nextCardStolen = true;
       G.log("Batman Who Laughs lurks... next enemy card will be intercepted!");
+      if (typeof UI !== 'undefined' && UI._fxBWLHex) { try { UI._fxBWLHex(self); } catch (e) {} }
     }
   },
 
@@ -3881,6 +3885,7 @@ const CARD_ABILITIES = {
         a.reviveCharges = (a.reviveCharges || 0) + 1;
         a.canRevive = true;
         G.log(`Revan grants ${a.name} Revive 1! (${a.reviveCharges} charge${a.reviveCharges === 1 ? '' : 's'})`);
+        if (typeof UI !== 'undefined' && UI._fxRevanForce) { try { UI._fxRevanForce(self, a); } catch (e) {} }
       };
       if (!allies.length) {
         G.log("Revan finds no other allies to empower.");
