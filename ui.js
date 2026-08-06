@@ -18372,8 +18372,9 @@ const UI = {
     // and burn already stack.
     const dmgImmuneHtml = (card.hasDamageImmunity && onBoard)
       ? '<div class="card-dmg-immune" aria-hidden="true"></div>' : '';
-    const evadeHtml = (card.evadeCharges > 0 && onBoard)
-      ? '<div class="card-evade" aria-hidden="true"></div>' : '';
+    // Evade portrait overlay removed per user request — the green shimmer on
+    // the art read as noise; the Evade badge already communicates the state.
+    const evadeHtml = '';
     const armorHtml = (card.armorValue > 0 && onBoard)
       ? '<div class="card-armor" aria-hidden="true"></div>' : '';
     const criticalHtml = (card._criticalThisRound && onBoard)
