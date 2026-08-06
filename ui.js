@@ -9101,6 +9101,196 @@ const UI = {
     });
   },
 
+  // =============== 3-cost character cast FX ===============
+
+  // Resolve an on-screen point for an enemy in a lane — the card centre if one
+  // is there, else the lane slot centre. Used by lane-targeted casts.
+  _fxLanePoint(lane, owner) {
+    if (typeof Game === 'undefined' || lane == null || lane < 0) return null;
+    const opp = Game.opponent(owner);
+    const e = Game.state.lanes[lane] && Game.state.lanes[lane][opp];
+    if (e) { const c = this._fxCenter(this._fxCardElById(e.id)); if (c) return c; }
+    const slots = document.querySelectorAll('#board .card-slot');
+    const slot = slots[lane];
+    if (slot) { const r = slot.getBoundingClientRect(); if (r.width) return { x: r.left + r.width / 2, y: r.top + r.height / 2 }; }
+    return null;
+  },
+
+  // Deathstroke — a mercenary assassination: an orange blade-rake and a clean
+  // tracer drop the target.
+  _fxDeathstrokeKill(self, victimCard) {
+    if (this._reducedMotion() || !victimCard) return;
+    const el = this._fxCardElById(victimCard.id);
+    const to = this._fxCenter(el);
+    if (el) this._fxSlash(el, { count: 1, color: '#ffb14d', angle: 30 });
+    this._fxWhenPainted(self, (srcEl) => {
+      const from = this._fxCenter(srcEl);
+      if (from && to) this._fxDrawBeam(from, to, { color: '#ff9d2e', core: '#fff0c8', thickness: 3, impact: 1.1 });
+    });
+    this._screenShake('light');
+  },
+
+  // Green Goblin — pumpkin bombs lobbed onto both adjacent lanes, bursting green.
+  _fxGoblinBombs(self, lane, owner) {
+    if (this._reducedMotion() || typeof Game === 'undefined') return;
+    [lane - 1, lane + 1].forEach((li, i) => {
+      if (li < 0 || li >= Game.LANE_COUNT) return;
+      const pt = this._fxLanePoint(li, owner);
+      if (!pt) return;
+      setTimeout(() => {
+        this._fxImpact(pt, { color: '#7fff5a', core: '#e6ffcf', size: 1.2 });
+        this._fxSparks(pt, { color: '#b6ff8f', glow: '#3fae2f', count: 12, spread: 64, size: 3 });
+      }, i * 120);
+    });
+    this._screenShake('light');
+  },
+
+  // Groot — protective bark: green-brown guard rings snap around adjacent allies.
+  _fxGrootGuard(self, lane, owner) {
+    if (this._reducedMotion() || typeof Game === 'undefined') return;
+    [lane - 1, lane + 1].forEach((li) => {
+      if (li < 0 || li >= Game.LANE_COUNT) return;
+      const a = Game.state.lanes[li] && Game.state.lanes[li][owner];
+      if (a) { const el = this._fxCardElById(a.id); if (el) this._fxRing(el, { color: '#8ec06a' }); }
+    });
+    this._fxWhenPainted(self, (el) => {
+      this._fxRing(el, { color: '#5a8a3a' });
+      const c = this._fxCenter(el);
+      if (c) this._fxSparks(c, { color: '#c8e6a0', glow: '#5a8a3a', count: 8, angle: -Math.PI / 2, cone: 1.8, spread: 48, size: 2.6 });
+    });
+  },
+
+  // Loki — green Asgardian sorcery swirls up as he charges the Block Meter.
+  _fxLokiMagic(self) {
+    if (this._reducedMotion() || !self) return;
+    this._fxWhenPainted(self, (el) => {
+      this._fxRing(el, { color: '#3ad980' });
+      const c = this._fxCenter(el);
+      if (c) this._fxSparks(c, { color: '#8dffbf', glow: '#1fbf6a', count: 12, angle: -Math.PI / 2, cone: 1.9, spread: 64, size: 2.6 });
+    });
+  },
+
+  // Moder — a dark serpent coil drags the lane and a null-burst silences it.
+  _fxModerCoil(self, lane, owner) {
+    if (this._reducedMotion() || !self) return;
+    const to = this._fxLanePoint(lane, owner);
+    this._fxWhenPainted(self, (el) => {
+      const from = this._fxCenter(el);
+      if (from && to) this._fxTendril(from, to, { color: '#160f2b', glow: '#8a5bff', bow: 30 });
+      if (to) this._fxImpact(to, { color: '#8a5bff', core: '#e0d4ff', size: 1.0 });
+    });
+  },
+
+  // Red Skull — a Cosmic-Cube red energy surge empowering a card in hand.
+  _fxRedSkullCube(self) {
+    if (this._reducedMotion() || !self) return;
+    this._fxWhenPainted(self, (el) => {
+      const c = this._fxCenter(el);
+      if (!c) return;
+      this._fxImpact(c, { color: '#ff3b3b', core: '#ffd0d0', size: 1.0 });
+      this._fxSparks(c, { color: '#ffb0b0', glow: '#ff2d2d', count: 12, spread: 60, size: 2.8 });
+      this._fxRing(el, { color: '#ff3b3b' });
+    });
+  },
+
+  // Scarlet Witch — chaos magic: a crimson hex glyph spins out of her hands and
+  // a hex tendril links to the enemy she mirrors.
+  _fxScarletHex(self, targetCard) {
+    if (this._reducedMotion() || !self) return;
+    const to = targetCard ? this._fxCenter(this._fxCardElById(targetCard.id)) : null;
+    this._fxWhenPainted(self, (el) => {
+      const c = this._fxCenter(el);
+      if (!c) return;
+      const layer = this._fxLayer();
+      [1, 0.6].forEach((scale, i) => {
+        const hex = document.createElement('div');
+        hex.className = 'fx-scarlet-hex';
+        hex.style.cssText = 'left:' + c.x + 'px;top:' + c.y + 'px;--hscale:' + scale + ';--hspin:' + (i ? -1 : 1) + ';animation-delay:' + (i * 80) + 'ms;';
+        layer.appendChild(hex);
+        setTimeout(() => hex.remove(), 840);
+      });
+      this._fxSparks(c, { color: '#ff6b6b', glow: '#d1112f', count: 12, spread: 58, size: 2.6 });
+      if (to) this._fxTendril(c, to, { color: '#7a0016', glow: '#ff3b5c', bow: 22 });
+    });
+  },
+
+  // Solomon Grundy — grave mist and a purple soul-flare as he crawls back for a
+  // Dead-Pile card.
+  _fxGrundyGrave(self) {
+    if (this._reducedMotion() || !self) return;
+    const el = this._fxCardElById(self.id);
+    const r = el ? el.getBoundingClientRect() : null;
+    const pt = (r && r.width) ? { x: r.left + r.width / 2, y: r.top + r.height / 2 } : null;
+    if (!pt) return;
+    this._fxImpact(pt, { color: '#9b8bbf', core: '#e0d6f0', size: 1.0 });
+    this._fxSparks(pt, { color: '#c9bfe0', glow: '#6b4f9e', count: 16, angle: -Math.PI / 2, cone: 2.2, spread: 72, size: 3 });
+    this._screenShake('light');
+  },
+
+  // Star-Lord — an outlaw rally: a warm energy stream lifts the buffed ally.
+  _fxStarLordRally(self, allyCard) {
+    if (this._reducedMotion() || !self) return;
+    const ael = allyCard ? this._fxCardElById(allyCard.id) : null;
+    const to = this._fxCenter(ael);
+    if (to) this._fxSparks(to, { color: '#ffd27a', glow: '#ff8a1e', count: 10, angle: -Math.PI / 2, cone: 1.6, spread: 56, size: 2.6 });
+    this._fxWhenPainted(self, (srcEl) => {
+      const from = this._fxCenter(srcEl);
+      if (from && to) this._fxDrawBeam(from, to, { color: '#ffb14d', core: '#fff0c8', thickness: 5 });
+    });
+  },
+
+  // Winter Soldier — a cold, clean sniper shot from his metal arm.
+  _fxWinterShot(self, victimCard) {
+    if (this._reducedMotion() || !victimCard) return;
+    const to = this._fxCenter(this._fxCardElById(victimCard.id));
+    if (!to) return;
+    this._fxWhenPainted(self, (srcEl) => {
+      const from = this._fxCenter(srcEl);
+      if (!from) return;
+      this._fxImpact(from, { color: '#9bd3ff', core: '#ffffff', size: 0.5 });
+      this._fxDrawBeam(from, to, { color: '#cfe6ff', core: '#ffffff', thickness: 3, impact: 1.1 });
+      this._screenShake('light');
+    });
+  },
+
+  // Optimus Prime — a blue command pulse orders an ally to strike.
+  _fxOptimusCommand(self, allyCard) {
+    if (this._reducedMotion() || !allyCard) return;
+    const ael = this._fxCardElById(allyCard.id);
+    const to = this._fxCenter(ael);
+    if (ael) this._fxRing(ael, { color: '#3a86ff' });
+    this._fxWhenPainted(self, (srcEl) => {
+      const from = this._fxCenter(srcEl);
+      if (from && to) this._fxDrawBeam(from, to, { color: '#3a86ff', core: '#cfe0ff', thickness: 5 });
+    });
+  },
+
+  // Raven — Soul-Self: a dark raven of energy bursts out in a fan of wings,
+  // wiping the enemy's Block Meter and thawing her allies.
+  _fxRavenSoul(self) {
+    if (this._reducedMotion() || !self) return;
+    this._fxWhenPainted(self, (el) => {
+      const c = this._fxCenter(el);
+      if (!c) return;
+      for (let i = 0; i < 6; i++) {
+        const a = -Math.PI / 2 + (i - 2.5) * 0.42;
+        const to = { x: c.x + Math.cos(a) * 110, y: c.y + Math.sin(a) * 110 };
+        this._fxTendril(c, to, { color: '#0c0a18', glow: '#7a3bff', bow: 16 });
+      }
+      this._fxImpact(c, { color: '#7a3bff', core: '#d8c8ff', size: 1.1 });
+    });
+  },
+
+  // The Grinch — a sneaky green grab: a swipe and a mischievous green sparkle.
+  _fxGrinchGrab(self) {
+    if (this._reducedMotion() || !self) return;
+    this._fxWhenPainted(self, (el) => {
+      this._fxSlash(el, { count: 1, color: '#8ef07a', angle: -28 });
+      const c = this._fxCenter(el);
+      if (c) this._fxSparks(c, { color: '#b6ff8f', glow: '#2fae2f', count: 10, spread: 54, size: 2.6 });
+    });
+  },
+
   // ===================== DAMAGE MAGNITUDE TIER =====================
   // One shared classifier that maps a hit's magnitude to a feedback
   // intensity tier, and one parameter table that every feedback

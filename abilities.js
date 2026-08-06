@@ -1002,6 +1002,7 @@ const CARD_ABILITIES = {
       const targets = G.getEnemiesOf(self.owner).filter(c => c.currentHealth <= threshold && G.canEffectLand(c, 'destroy', { owner: self.owner, source: self }));
       if (targets.length) {
         G.promptCardChoice(self.owner, targets, "Deathstroke — Assassinate", `Choose enemy with ${threshold} or less HP to destroy`, (t) => {
+          if (typeof UI !== 'undefined' && UI._fxDeathstrokeKill) { try { UI._fxDeathstrokeKill(self, t); } catch (e) {} }
           G.log(`Deathstroke assassinates ${t.name}!`); G.killCard(t, self);
         }, _aiThreatPicker);
       }
@@ -1136,6 +1137,7 @@ const CARD_ABILITIES = {
       // pumpkin-bomb splash. Default 0 (classic 1+2); Text+ sets to 1
       // so the bombs hit for 2+3 (one extra damage on each splash).
       const boost = self._goblinBombBoost || 0;
+      if (typeof UI !== 'undefined' && UI._fxGoblinBombs) { try { UI._fxGoblinBombs(self, lane, self.owner); } catch (e) {} }
       G.splashDamage(lane, self.owner, 1 + boost, self);
       G.splashDamage(lane, self.owner, 2 + boost, self);
       G.log(`Green Goblin throws pumpkin bombs! Splash ${1 + boost} then Splash ${2 + boost}!`);
@@ -1200,6 +1202,7 @@ const CARD_ABILITIES = {
       G.log(includeSelf
         ? "Groot protects himself AND adjacent allies for 1 turn!"
         : "Groot protects adjacent allies for 1 turn!");
+      if (typeof UI !== 'undefined' && UI._fxGrootGuard) { try { UI._fxGrootGuard(self, lane, own); } catch (e) {} }
     }
   },
   "Jigsaw": {
@@ -1305,6 +1308,7 @@ const CARD_ABILITIES = {
       const fillAmt = Math.floor(Game.BLOCK_MAX * fillPct);
       G.state[self.owner].blockMeter = Math.min(Game.BLOCK_MAX, G.state[self.owner].blockMeter + fillAmt);
       G.log(`Loki fills the Block Meter by ${fillAmt}!`);
+      if (typeof UI !== 'undefined' && UI._fxLokiMagic) { try { UI._fxLokiMagic(self); } catch (e) {} }
       if (allyEvade !== 'none') {
         const allies = G.getAlliesOf(self.owner).filter(a => a.id !== self.id);
         const targets = allyEvade === 'all' ? allies : (allies.length ? [allies[Math.floor(Game.rng() * allies.length)]] : []);
@@ -1380,6 +1384,7 @@ const CARD_ABILITIES = {
         G.state[opp].forcedLane = lane;
         self._moderStripPending = (self._moderStripCount || 1);
         G.log(`Moder compels the next enemy card into lane ${lane + 1}!`);
+        if (typeof UI !== 'undefined' && UI._fxModerCoil) { try { UI._fxModerCoil(self, lane, self.owner); } catch (e) {} }
       },
       onDeath(G, self) {
         const opp = G.opponent(self.owner);
@@ -1433,6 +1438,7 @@ const CARD_ABILITIES = {
         const pick = pool[Math.floor(G.rng() * pool.length)];
         G.buffCard(pick, empower, empower);
         G.log(`Red Skull empowers ${pick.name} in hand +${empower}/+${empower}!`);
+        if (typeof UI !== 'undefined' && UI._fxRedSkullCube) { try { UI._fxRedSkullCube(self); } catch (e) {} }
       } else {
         G.log(`Red Skull has no card in hand to empower.`);
       }
@@ -1474,10 +1480,12 @@ const CARD_ABILITIES = {
         self.copiesOpposite = false;
         G.log(`Scarlet Witch finds nothing to copy — defaults to ${3 + bonus}/${4 + bonus}.`);
       }
+      if (typeof UI !== 'undefined' && UI._fxScarletHex) { try { UI._fxScarletHex(self, (enemy && enemy.currentHealth > 0) ? enemy : null); } catch (e) {} }
     }
   },
   "Solomon Grundy": {
     onDeath(G, self, lane) {
+      if (typeof UI !== 'undefined' && UI._fxGrundyGrave) { try { UI._fxGrundyGrave(self); } catch (e) {} }
       // Roguelite Text+ ("Born on Monday") replaces the dead-pile draw
       // with a revive-and-grow loop. _grundyReviveBuff is the per-revive
       // ATK/HP gain; reviveCharges (set in apply) gates how many times
@@ -1534,6 +1542,7 @@ const CARD_ABILITIES = {
       const grant = (a) => {
         G.buffCard(a, buff, buff);
         G.log(`Star-Lord buffs ${a.name} +${buff}/+${buff}!`);
+        if (typeof UI !== 'undefined' && UI._fxStarLordRally) { try { UI._fxStarLordRally(self, a); } catch (e) {} }
       };
       if (allies.length) {
         G.promptCardChoice(self.owner, allies, "Star-Lord — Buff", `Choose ally to give +${buff}/+${buff}`, grant);
@@ -1614,6 +1623,7 @@ const CARD_ABILITIES = {
       const targets = G.getEnemiesOf(self.owner).filter(c => c.attack <= threshold && G.canEffectLand(c, 'destroy', { owner: self.owner, source: self }));
       if (targets.length) {
         G.promptCardChoice(self.owner, targets, "Winter Soldier — Eliminate", `Choose enemy with ${threshold} or less ATK to destroy`, (t) => {
+          if (typeof UI !== 'undefined' && UI._fxWinterShot) { try { UI._fxWinterShot(self, t); } catch (e) {} }
           G.log(`Winter Soldier eliminates ${t.name}!`); G.killCard(t, self);
         }, _aiThreatPicker);
       }
@@ -2120,6 +2130,7 @@ const CARD_ABILITIES = {
           }
         };
         const doAttack = (ally) => {
+          if (typeof UI !== 'undefined' && UI._fxOptimusCommand) { try { UI._fxOptimusCommand(self, ally); } catch (e) {} }
           const opp = G.opponent(self.owner);
           let targets = [];
           const oppLane = G.state.lanes[lane][opp];
@@ -2201,6 +2212,7 @@ const CARD_ABILITIES = {
   },
   "Raven": {
     onPlay(G, self, lane) {
+      if (typeof UI !== 'undefined' && UI._fxRavenSoul) { try { UI._fxRavenSoul(self); } catch (e) {} }
       const opp = G.opponent(self.owner);
       // Capture the opp's meter BEFORE zeroing so the Text+ steal path
       // can transfer it to the player. _ravenStealsBlock = true sets
@@ -2227,6 +2239,7 @@ const CARD_ABILITIES = {
   },
   "The Grinch": {
     onPlay(G, self, lane) {
+      if (typeof UI !== 'undefined' && UI._fxGrinchGrab) { try { UI._fxGrinchGrab(self); } catch (e) {} }
       // 2v2: the Grinch's owner picks WHICH opponent gets robbed; that player
       // then picks which trick to give up. Alias is held across both prompts.
       G.withChosenOpponent(self.owner, 'The Grinch — whose tricks?', (opp) => {
