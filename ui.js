@@ -8780,14 +8780,21 @@ const UI = {
     const r = el.getBoundingClientRect();
     if (!r || r.width === 0) return;
     const layer = this._fxLayer();
-    // Cloned ghost — only when we actually have the card element (a slot clone
-    // would be an empty box). The motes/puff fire either way.
-    if (el.classList && el.classList.contains('card')) {
-      const ghost = el.cloneNode(true);
-      ghost.removeAttribute('data-card-id');
-      ghost.classList.add('fx-thanos-dust');
+    // Ghost = a PLAIN div carrying the card's portrait as a background image —
+    // NOT a cloneNode of the whole card. Cloning dragged the card's own CSS
+    // (transforms, z-index, nested overlays) onto the ghost, which mis-sized
+    // and mis-positioned it or left it invisible in the live board — the
+    // reason the dissolve "didn't work". A bare div with transform:none and
+    // the portrait bitmap dissolves cleanly and reliably.
+    const portrait = el.querySelector && el.querySelector('.card-portrait');
+    if (portrait) {
+      const bg = getComputedStyle(portrait).backgroundImage;
+      const ghost = document.createElement('div');
+      ghost.className = 'fx-thanos-dust';
       ghost.style.cssText =
-        'position:fixed;left:' + r.left + 'px;top:' + r.top + 'px;width:' + r.width + 'px;height:' + r.height + 'px;';
+        'position:fixed;transform:none;left:' + r.left + 'px;top:' + r.top + 'px;width:' + r.width + 'px;height:' + r.height + 'px;' +
+        'border-radius:10px;background-size:cover;background-position:center;';
+      if (bg && bg !== 'none') ghost.style.backgroundImage = bg;
       layer.appendChild(ghost);
       setTimeout(() => ghost.remove(), 1400);
     }
