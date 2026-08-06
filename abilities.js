@@ -95,6 +95,7 @@ const CARD_ABILITIES = {
   // ==================== COST 1 ====================
   "Ant-Man": {
     onPlay(G, self, lane) {
+      if (typeof UI !== 'undefined' && UI._fxAntManPym) { try { UI._fxAntManPym(self); } catch (e) {} }
       const afterSummon = () => {
         // Roguelite Text+ override — _antManKillThreshold raises the
         // pick window. Default 1 (classic ≤1 ATK or ≤1 HP); Text+
@@ -255,7 +256,10 @@ const CARD_ABILITIES = {
           if (t && t.currentHealth > 0 && !t.isFrozen) targets.push(t);
         }
         if (!targets.length) return;
-        targets.forEach(t => G.freezeCard(t, self));
+        targets.forEach(t => {
+          G.freezeCard(t, self);
+          if (typeof UI !== 'undefined' && UI._fxWidowBite) { try { UI._fxWidowBite(self, t); } catch (e) {} }
+        });
         G.log(`Black Widow's web freezes ${targets.length} enemies in splash radius!`);
         return;
       }
@@ -274,6 +278,7 @@ const CARD_ABILITIES = {
         if (frozen >= freezes || !remaining.length) return;
         G.promptCardChoice(self.owner, remaining, "Black Widow — Freeze", `Choose adjacent enemy to freeze (${frozen + 1}/${freezes})`, (t) => {
           G.freezeCard(t, self);
+          if (typeof UI !== 'undefined' && UI._fxWidowBite) { try { UI._fxWidowBite(self, t); } catch (e) {} }
           frozen++;
           if (frozen < freezes) pickNext();
         }, undefined, { forced: remaining.length <= (freezes - frozen) });
@@ -401,6 +406,7 @@ const CARD_ABILITIES = {
       G.drawCards(self.owner, n);
       G.drawCards(G.opponent(self.owner), n);
       G.log(`Harley Quinn makes everyone draw ${n}!`);
+      if (typeof UI !== 'undefined' && UI._fxHarleyChaos) { try { UI._fxHarleyChaos(self); } catch (e) {} }
       // First ATK roll happens immediately on play — startRound's
       // sweep handles subsequent rerolls via the Crazy trait.
       G.rerollCrazyInsane(self);
@@ -488,6 +494,7 @@ const CARD_ABILITIES = {
         (target) => {
           if (G.mindControlCard(target, self, () => { target.mindControlTarget = null; })) {
             G.log(`Gorilla Grodd seizes ${target.name}'s mind!`);
+            if (typeof UI !== 'undefined' && UI._fxGroddMindControl) { try { UI._fxGroddMindControl(self, target); } catch (e) {} }
           }
         },
         cards => cards.slice().sort((a, b) => (b.baseCost || b.cost) - (a.baseCost || a.cost))[0]);
@@ -500,6 +507,7 @@ const CARD_ABILITIES = {
       const splash = self._hawkeyeSplash
         ? self._hawkeyeSplash
         : G.rarityValue(self, { common: 1, rare: 1, special: 2, legendary: 2 });
+      if (typeof UI !== 'undefined' && UI._fxHawkeyeVolley) { try { UI._fxHawkeyeVolley(self, lane, self.owner); } catch (e) {} }
       G.splashDamage(lane, self.owner, splash, self);
       G.log(`Hawkeye splashes adjacent enemies for ${splash}!`);
     },
@@ -553,6 +561,7 @@ const CARD_ABILITIES = {
         if (right) targets.push(right);
       }
       targets.forEach(t => G.freezeCard(t, self, freezeN));
+      if (typeof UI !== 'undefined' && UI._fxFreezeRay) { try { UI._fxFreezeRay(self, targets); } catch (e) {} }
       G.state[self.owner].healthFrozen = hpHits;
       G.state[self.owner]._healthFrozenBy = self;
       const who = Game.isHuman(self.owner) ? 'your' : 'its';
@@ -685,6 +694,7 @@ const CARD_ABILITIES = {
       G.addNextTurnCurrency(owner, n);
       G.addNextTurnCurrency(opp, -n);
       G.log(`Catwoman steals ${n} energy from the enemy next turn!`);
+      if (typeof UI !== 'undefined' && UI._fxCatwomanSteal) { try { UI._fxCatwomanSteal(self); } catch (e) {} }
       // v3 — credit Catwoman with the energy swing (gain N self, deny N enemy).
       G._creditChain(self, 'statsDiscountValue', n * 2);
     }
@@ -819,6 +829,7 @@ const CARD_ABILITIES = {
       const evadeN = self._iwEvadeAmount || 1;
       const allies = G.getAlliesOf(self.owner).filter(a => a.id !== self.id);
       const grant = (a) => {
+        if (typeof UI !== 'undefined' && UI._fxInvisibleWomanField) { try { UI._fxInvisibleWomanField(self, a); } catch (e) {} }
         if (invincN > 0) {
           // Permanent stat bump (no temp-buff turns) so the +3/+3 sticks
           // beyond the Invincibility window — matches the Yoda /

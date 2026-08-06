@@ -8759,6 +8759,159 @@ const UI = {
     }
   },
 
+  // =============== 1-cost character cast FX ===============
+  // Each reuses the signature-FX primitives; wired from the card's onPlay so
+  // the little bodies get a moment. All one-shot, self-removing, reduced-motion
+  // gated (the primitives gate themselves too).
+
+  // Ant-Man: a Pym-particle size-punch — his card snaps small then bursts big
+  // with a blue shock ring and sparks.
+  _fxAntManPym(self) {
+    if (this._reducedMotion() || !self) return;
+    this._fxWhenPainted(self, (el) => {
+      el.classList.remove('fx-antman-pym'); void el.offsetWidth; el.classList.add('fx-antman-pym');
+      setTimeout(() => el.classList.remove('fx-antman-pym'), 560);
+      this._fxRing(el, { color: '#4aa3ff' });
+      const c = this._fxCenter(el);
+      if (c) this._fxSparks(c, { color: '#cfe6ff', glow: '#4aa3ff', count: 10, spread: 54, size: 2.6 });
+    });
+  },
+  // Black Widow: a "Widow's Bite" — a crackling blue zap from Widow to each
+  // frozen enemy (the freeze frost itself fires from freezeCard).
+  _fxWidowBite(self, targetCard) {
+    if (this._reducedMotion() || !self || !targetCard) return;
+    const to = this._fxCenter(this._fxCardElById(targetCard.id));
+    if (!to) return;
+    this._fxWhenPainted(self, (srcEl) => {
+      const from = this._fxCenter(srcEl);
+      if (from) this._fxDrawBolt(from, to, { color: '#9be0ff', glow: '#2f7fff' });
+    });
+  },
+  // Harley Quinn: chaos confetti — her card wobbles and flings a burst of
+  // spinning pink/green diamonds (playing-card pips) as everyone draws.
+  _fxHarleyChaos(self) {
+    if (this._reducedMotion() || !self) return;
+    this._fxWhenPainted(self, (el) => {
+      el.classList.remove('fx-harley-wobble'); void el.offsetWidth; el.classList.add('fx-harley-wobble');
+      setTimeout(() => el.classList.remove('fx-harley-wobble'), 560);
+      const c = this._fxCenter(el);
+      if (!c) return;
+      const layer = this._fxLayer();
+      const colors = ['#ff4da6', '#ff2d8e', '#5be089', '#28d66a', '#ffffff'];
+      for (let i = 0; i < 16; i++) {
+        const conf = document.createElement('div');
+        conf.className = 'fx-harley-confetti';
+        const ang = -Math.PI / 2 + (Math.random() - 0.5) * 2.6;   // fan upward
+        const dist = 40 + Math.random() * 70;
+        const sz = 5 + Math.random() * 6;
+        conf.style.cssText =
+          'left:' + c.x.toFixed(0) + 'px;top:' + c.y.toFixed(0) + 'px;' +
+          'width:' + sz.toFixed(1) + 'px;height:' + sz.toFixed(1) + 'px;' +
+          'background:' + colors[i % colors.length] + ';' +
+          '--cx:' + (Math.cos(ang) * dist).toFixed(0) + 'px;--cy:' + (Math.sin(ang) * dist).toFixed(0) + 'px;' +
+          '--cr:' + ((Math.random() * 2 - 1) * 540).toFixed(0) + 'deg;' +
+          'animation-delay:' + (Math.random() * 90).toFixed(0) + 'ms;';
+        layer.appendChild(conf);
+        setTimeout(() => conf.remove(), 900);
+      }
+    });
+  },
+  // Gorilla Grodd: a psychic seize — a violet beam from Grodd to the target,
+  // a contracting psi-ring clamping the victim's mind, and a pulse on Grodd.
+  _fxGroddMindControl(self, targetCard) {
+    if (this._reducedMotion() || !self || !targetCard) return;
+    const tgtEl = this._fxCardElById(targetCard.id);
+    const to = this._fxCenter(tgtEl);
+    // Telepathic ripple — three concentric psi-rings pulse OUT of the victim's
+    // head as Grodd seizes the mind. Custom, staggered.
+    if (to) {
+      const layer = this._fxLayer();
+      for (let i = 0; i < 3; i++) {
+        setTimeout(() => {
+          const ring = document.createElement('div');
+          ring.className = 'fx-psi-ripple';
+          ring.style.cssText = 'left:' + to.x.toFixed(0) + 'px;top:' + to.y.toFixed(0) + 'px;';
+          layer.appendChild(ring);
+          setTimeout(() => ring.remove(), 720);
+        }, i * 130);
+      }
+    }
+    if (tgtEl) this._fxRing(tgtEl, { color: '#b06bff', contract: true });
+    this._fxWhenPainted(self, (srcEl) => {
+      const from = this._fxCenter(srcEl);
+      if (from && to) this._fxDrawBeam(from, to, { color: '#a24bff', core: '#e9d4ff', thickness: 6 });
+      this._fxRing(srcEl, { color: '#b06bff' });
+    });
+  },
+  // Hawkeye: a trick-arrow volley — thin fast bolts from Hawkeye to each
+  // adjacent enemy he splashes.
+  _fxHawkeyeVolley(self, lane, owner) {
+    if (this._reducedMotion() || !self || typeof Game === 'undefined') return;
+    const opp = Game.opponent(owner);
+    const targets = [];
+    [lane - 1, lane + 1].forEach((li) => {
+      if (li < 0 || li >= Game.LANE_COUNT) return;
+      const e = Game.state.lanes[li] && Game.state.lanes[li][opp];
+      if (e && e.currentHealth > 0) { const c = this._fxCenter(this._fxCardElById(e.id)); if (c) targets.push(c); }
+    });
+    if (!targets.length) return;
+    this._fxWhenPainted(self, (srcEl) => {
+      const from = this._fxCenter(srcEl);
+      if (!from) return;
+      targets.forEach((to, i) => setTimeout(() => {
+        this._fxDrawBolt(from, to, { color: '#ffe08a', glow: '#ff9d2e' });
+      }, i * 90));
+    });
+  },
+  // Mr. Freeze: a cryo-ray — a cyan beam to each frozen enemy (frost lands from
+  // freezeCard) plus a frost shield ring on Freeze himself for the HP freeze.
+  _fxFreezeRay(self, targetCards) {
+    if (this._reducedMotion() || !self) return;
+    const tos = (targetCards || [])
+      .map(t => this._fxCenter(this._fxCardElById(t.id)))
+      .filter(Boolean);
+    this._fxWhenPainted(self, (srcEl) => {
+      const from = this._fxCenter(srcEl);
+      if (from) tos.forEach(to => this._fxDrawBeam(from, to, { color: '#8fe6ff', core: '#ffffff', thickness: 5 }));
+      this._fxRing(srcEl, { color: '#8fe6ff', contract: true });
+    });
+  },
+  // Catwoman: a quick claw-swipe across her card and a spray of stolen-energy
+  // motes lifting off her as she lightens the enemy's purse.
+  _fxCatwomanSteal(self) {
+    if (this._reducedMotion() || !self) return;
+    this._fxWhenPainted(self, (el) => {
+      const r = el.getBoundingClientRect();
+      if (!r || r.width === 0) return;
+      const layer = this._fxLayer();
+      const slash = document.createElement('div');
+      slash.className = 'fx-catwoman-swipe';
+      slash.style.cssText = 'left:' + r.left + 'px;top:' + r.top + 'px;width:' + r.width + 'px;height:' + r.height + 'px;';
+      slash.innerHTML = '<i></i><i></i><i></i>';
+      layer.appendChild(slash);
+      setTimeout(() => slash.remove(), 520);
+      const c = this._fxCenter(el);
+      if (c) this._fxSparks({ x: c.x, y: c.y }, { color: '#ffcf6b', glow: '#ff9d2e', count: 10, angle: -Math.PI / 2, cone: 1.6, spread: 66, size: 2.8 });
+    });
+  },
+  // Invisible Woman: a force-field bubble snaps around the shielded ally, and
+  // Sue herself shimmers half-invisible as she casts.
+  _fxInvisibleWomanField(self, allyCard) {
+    if (this._reducedMotion() || !self) return;
+    if (allyCard) {
+      const ael = this._fxCardElById(allyCard.id);
+      if (ael) {
+        this._fxRing(ael, { color: '#6fd0ff', contract: true });
+        ael.classList.remove('fx-iw-shimmer'); void ael.offsetWidth; ael.classList.add('fx-iw-shimmer');
+        setTimeout(() => ael.classList.remove('fx-iw-shimmer'), 620);
+      }
+    }
+    this._fxWhenPainted(self, (el) => {
+      el.classList.remove('fx-iw-shimmer'); void el.offsetWidth; el.classList.add('fx-iw-shimmer');
+      setTimeout(() => el.classList.remove('fx-iw-shimmer'), 620);
+    });
+  },
+
   // ===================== DAMAGE MAGNITUDE TIER =====================
   // One shared classifier that maps a hit's magnitude to a feedback
   // intensity tier, and one parameter table that every feedback
