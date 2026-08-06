@@ -3774,13 +3774,17 @@ const CARD_ABILITIES = {
   },
   "Emperor Palpatine": {
     onPlay(G, self, lane) {
-      G.runPlayerChain(self, (target) => G.freezeCardUnresistible(target, self),
-        "Palpatine — Chain Freeze", "freeze", 3);
+      G.runPlayerChain(self, (target) => {
+        G.freezeCardUnresistible(target, self);
+        if (typeof UI !== 'undefined' && UI._fxPalpatineLightning) { try { UI._fxPalpatineLightning(self, target); } catch (e) {} }
+      }, "Palpatine — Chain Freeze", "freeze", 3);
     },
     passive: "doubleFrozenDamage",
     onDeath(G, self, lane) {
-      G.runPlayerChain(self, (target) => G.freezeCardUnresistible(target, self),
-        "Palpatine's Final Act — Chain Freeze", "freeze", 3);
+      G.runPlayerChain(self, (target) => {
+        G.freezeCardUnresistible(target, self);
+        if (typeof UI !== 'undefined' && UI._fxPalpatineLightning) { try { UI._fxPalpatineLightning(self, target); } catch (e) {} }
+      }, "Palpatine's Final Act — Chain Freeze", "freeze", 3);
     }
   },
   "Luke Skywalker": {
@@ -4219,6 +4223,12 @@ const CARD_ABILITIES = {
     onPlay(G, self, lane) {
       const opp = G.opponent(self.owner);
       const destroyLane = (i) => {
+        // Omega Beams — fire from Darkseid's eyes at the doomed enemy BEFORE
+        // the lane collapses and the cards are swept.
+        if (typeof UI !== 'undefined' && UI._fxOmegaBeam) {
+          const victim = G.state.lanes[i][opp];
+          if (victim) { try { UI._fxOmegaBeam(self, victim); } catch (e) {} }
+        }
         // Collapse first so Jason's allyDied trigger sees lane.destroyed = true
         G.destroyLane(i, 2);
         // Pass self as source — killCard's guard `card.owner !== source.owner`

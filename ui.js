@@ -7868,6 +7868,23 @@ const UI = {
     if (srcEl) { srcEl.classList.add('fx-eye-glow'); setTimeout(() => srcEl.classList.remove('fx-eye-glow'), 500); }
   },
 
+  // Emperor Palpatine — UNLIMITED POWER: forked violet-white Force lightning
+  // leaps from his hands to each enemy in the freeze chain.
+  _fxPalpatineLightning(self, targetCard) {
+    if (this._reducedMotion() || !targetCard) return;
+    const to = this._fxCenter(this._fxCardElById(targetCard.id));
+    if (!to) return;
+    this._fxWhenPainted(self, (srcEl) => {
+      const from = this._fxCenter(srcEl);
+      if (from) {
+        this._fxDrawBolt(from, to, { color: '#e6b3ff', glow: '#8a2be2' });
+        this._fxDrawBolt(from, to, { color: '#ffffff', glow: '#b06bff' });
+      }
+      this._fxSparks(to, { color: '#e9c6ff', glow: '#8a2be2', count: 8, spread: 44, size: 2.4 });
+    });
+    this._screenShake('light');
+  },
+
   // Superman heat vision: twin red/white beams to the blast target.
   // Capture the TARGET now (it exists and isn't damaged yet), then draw
   // once the freshly-played SOURCE is painted (_fxWhenPainted defers a
