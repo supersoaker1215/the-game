@@ -1744,6 +1744,7 @@ const CARD_ABILITIES = {
     onDeath(G, self, lane) {
       // Skip the summon if the lane itself was destroyed (Anti-Life Equation / Darkseid Collapse).
       if (G.state.lanes[lane] && G.state.lanes[lane].destroyed) return;
+      if (typeof UI !== 'undefined' && UI._fxGhostRiderHellfire) { try { UI._fxGhostRiderHellfire(self); } catch (e) {} }
       // Classic: random card pulled from your hand and summoned in
       // Cyborg's slot. Roguelite Text+ ("Replication") sets
       // _cyborgChooseFromHand so the human player gets to PICK which
@@ -3235,8 +3236,11 @@ const CARD_ABILITIES = {
         // swing reads current attack, so it needs the pre-zero value.
         G._simulatePhantomSwing(self, e);
         e._obiWanAttackZeroed = e.attack;
+        if (typeof UI !== 'undefined' && UI._fxObiOneWithForce) { try { UI._fxObiOneWithForce(self, e); } catch (err) {} }
         e.attack = 0;
         G.log(`Obi-Wan's final lesson — ${e.name} cannot attack for the rest of this combat phase!`);
+      } else if (typeof UI !== 'undefined' && UI._fxObiOneWithForce) {
+        try { UI._fxObiOneWithForce(self, null); } catch (err) {}
       }
     }
   },
@@ -4132,7 +4136,7 @@ const CARD_ABILITIES = {
       // left the opponent's Block Meter strangled for the rest of the match.
       const opp = G.opponent(self.owner);
       G.log(`General Grievous strangles ${G.seatPossessive(opp)} Block Meter — no more block charges while he stands!`);
-      if (typeof UI !== 'undefined' && UI._fxSaberFlurry) { try { UI._fxSaberFlurry(self); } catch (e) {} }
+      if (typeof UI !== 'undefined' && UI._fxGrievousSabers) { try { UI._fxGrievousSabers(self); } catch (e) {} }
     },
     onDeath(G, self) {
       // Nothing to unwind — the lock is off the moment no living Grievous is

@@ -8570,10 +8570,31 @@ const UI = {
     }
     this._screenShake('light');
   },
-  // Hulk: a green ground-shatter shockwave ruptures across the enemy lanes.
+  // Hulk SMASH: he rears up and pounds the ground, a green ground-shatter
+  // shockwave ruptures out of him, and every enemy the sweep hits gets a
+  // rolling gamma impact + debris. Fired from his onPlay (2 dmg to all enemies).
   _fxHulkSmash(self) {
     if (this._reducedMotion() || !self) return;
-    this._fxWhenPainted(self, (el) => this._fxRing(el, { color: '#4caf3a' }));
+    // Impact every enemy currently on the board — read straight from the DOM so
+    // enemies about to die in the sweep still get hit (their element is still
+    // painted from the last render).
+    const enemyEls = document.querySelectorAll('.board .card.enemy-card[data-card-id]');
+    enemyEls.forEach((eEl, i) => {
+      const p = this._fxCenter(eEl);
+      if (!p) return;
+      setTimeout(() => {
+        this._fxImpact(p, { color: '#5ed84a', core: '#e6ffcf', size: 1.05 });
+        this._fxSparks(p, { color: '#b6ff8f', glow: '#3fae2f', count: 9, spread: 54, size: 2.8 });
+      }, 130 + i * 55);
+    });
+    this._fxWhenPainted(self, (el) => {
+      // The pound itself — rear back and slam down with a gamma flash.
+      el.classList.remove('fx-hulk-slam'); void el.offsetWidth; el.classList.add('fx-hulk-slam');
+      setTimeout(() => el.classList.remove('fx-hulk-slam'), 640);
+      this._fxRing(el, { color: '#4caf3a' });
+      const c = this._fxCenter(el);
+      if (c) this._fxSparks(c, { color: '#c8e6a0', glow: '#3a8a2a', count: 12, spread: 66, size: 3.2 });
+    });
     this._screenShake('heavy');
   },
   // Hulk rage: getting hit only makes him madder. When he's damaged he
@@ -9507,6 +9528,61 @@ const UI = {
       if (from && to) this._fxDrawBeam(from, to, { color: '#a24bff', core: '#e9d4ff', thickness: 5 });
       if (to) this._fxSparks(to, { color: '#d8c8ff', glow: '#7a3bff', count: 9, spread: 48, size: 2.6 });
     });
+  },
+
+  // =============== 6-cost character cast FX ===============
+
+  // Obi-Wan — "You can't win, Darth." He becomes one with the Force: a blue
+  // spectral fade on himself and a disarming pulse strips the enemy opposite.
+  _fxObiOneWithForce(self, targetCard) {
+    if (this._reducedMotion() || !self) return;
+    const el = this._fxCardElById(self.id);
+    const from = this._fxCenter(el);
+    const tel = targetCard ? this._fxCardElById(targetCard.id) : null;
+    const to = this._fxCenter(tel);
+    if (el) {
+      el.classList.remove('fx-iw-shimmer'); void el.offsetWidth; el.classList.add('fx-iw-shimmer');
+      setTimeout(() => el.classList.remove('fx-iw-shimmer'), 620);
+    }
+    if (tel) this._fxRing(tel, { color: '#6fd0ff', contract: true });
+    if (from && to) this._fxDrawBeam(from, to, { color: '#9bd3ff', core: '#eaf6ff', thickness: 4 });
+    if (to) this._fxSparks(to, { color: '#cfeaff', glow: '#4aa3ff', count: 8, spread: 46, size: 2.4 });
+  },
+
+  // General Grievous — a whirling four-lightsaber flourish as he takes the
+  // field, with a shower of mechanical sparks.
+  _fxGrievousSabers(self) {
+    if (this._reducedMotion() || !self) return;
+    this._fxWhenPainted(self, (el) => {
+      const c = this._fxCenter(el);
+      if (!c) return;
+      const layer = this._fxLayer();
+      const spin = document.createElement('div');
+      spin.className = 'fx-grievous-sabers';
+      spin.style.cssText = 'left:' + c.x + 'px;top:' + c.y + 'px;';
+      const cols = ['#4aa3ff', '#4caf3a', '#4aa3ff', '#4caf3a'];
+      let inner = '';
+      for (let i = 0; i < 4; i++) inner += '<i style="--sang:' + (i * 90) + 'deg;--scol:' + cols[i] + '"></i>';
+      spin.innerHTML = inner;
+      layer.appendChild(spin);
+      setTimeout(() => spin.remove(), 720);
+      this._fxSparks(c, { color: '#cfe6ff', glow: '#8fb4d8', count: 10, spread: 58, size: 2.4 });
+    });
+  },
+
+  // Ghost Rider — his last act: a hellfire eruption bursts from his lane as a
+  // soul is dragged up from his hand.
+  _fxGhostRiderHellfire(self) {
+    if (this._reducedMotion() || !self) return;
+    const el = this._fxCardElById(self.id);
+    if (!el) return;
+    this._fxRing(el, { color: '#ff5a1e' });
+    const c = this._fxCenter(el);
+    if (c) {
+      this._fxImpact(c, { color: '#ff5a1e', core: '#ffd27a', size: 1.1 });
+      this._fxSparks(c, { color: '#ffd27a', glow: '#ff3b0a', count: 14, angle: -Math.PI / 2, cone: 2.2, spread: 72, size: 3 });
+    }
+    this._screenShake('medium');
   },
 
   // ===================== DAMAGE MAGNITUDE TIER =====================
