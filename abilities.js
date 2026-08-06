@@ -4105,11 +4105,12 @@ const CARD_ABILITIES = {
     // `_maulSawTricks` flag could track triggers for cooldown but
     // we just buff straight on each event.
     onPlay(G, self, lane) {
-      // Draw a trick — find the next trick in the deck or pool.
-      // drawTrickCards isn't exposed publicly the same way as
-      // drawCards; fall through to direct trick-hand population
-      // by drawing from trickDrawPile.
-      const tdraw = G.state.trickDrawPile || [];
+      if (typeof UI !== 'undefined' && UI._fxMaulSaber) { try { UI._fxMaulSaber(self); } catch (e) {} }
+      // Draw a trick from THIS owner's trick pile. Must use getTrickPile(owner)
+      // — reading state.trickDrawPile directly is empty in Deckbuilder mode
+      // (the real pile is per-player there), so Maul's draw silently did
+      // nothing for saved-deck games.
+      const tdraw = G.getTrickPile(self.owner) || [];
       if (!tdraw.length) {
         G.log(`Darth Maul finds no Tricks to draw.`);
         return;

@@ -8551,6 +8551,18 @@ const UI = {
     });
     this._screenShake('medium');
   },
+  // Darth Maul — a spinning double-bladed red saber: twin crimson slashes
+  // scissor across him, with a red-sith spark burst.
+  _fxMaulSaber(self) {
+    if (this._reducedMotion() || !self) return;
+    this._fxWhenPainted(self, (el) => {
+      this._fxSlashEl(el, { blade: '#ff2020', core: '#ffd0d0', angle: -40 });
+      setTimeout(() => this._fxSlashEl(el, { blade: '#ff2020', core: '#ffd0d0', angle: 40 }), 110);
+      const c = this._fxCenter(el);
+      if (c) this._fxSparks(c, { color: '#ffb0b0', glow: '#ff2020', count: 10, spread: 56, size: 2.6 });
+    });
+    this._screenShake('light');
+  },
   // Gorr: the All-Black necrosword — a black shadow-slash + oily smoke.
   _fxNecrosword(self) {
     if (this._reducedMotion() || !self) return;
@@ -9733,7 +9745,7 @@ const UI = {
       }
       if (ev.type === 'legendary') {
         const lEl = this.board && this.board.querySelector(`.card-slot .card[data-card-id="${ev.cardId}"]`);
-        this.fxLegendaryEntrance(lEl, ev.owner);
+        this.fxLegendaryEntrance(lEl, ev.owner, ev.cardId);
         continue;
       }
       if (ev.type === 'envReveal') {
@@ -18838,21 +18850,17 @@ const UI = {
   // The engine gates who gets this (cost >= 10 AND not skipAutoUntrickable, so
   // Doomsday is excluded); here we just play the full-screen accent flash +
   // a heavier card arrival on top of the standard titan shake.
-  fxLegendaryEntrance(cardEl, owner) {
+  fxLegendaryEntrance(cardEl, owner, cardId) {
     if (this._reducedMotion && this._reducedMotion()) return;
+    const ally = owner !== 'ai';
+    const c1 = ally ? '#ffd23a' : '#ff3b3b';   // gold for your titan, red for theirs
+    const c2 = ally ? '#fff0b0' : '#ffd0d0';
     // Full-screen accent flash — colored to the arriving side.
     const flash = document.createElement('div');
-    flash.className = 'fx-legendary-flash fx-legendary-' + (owner === 'ai' ? 'enemy' : 'ally');
+    flash.className = 'fx-legendary-flash fx-legendary-' + (ally ? 'ally' : 'enemy');
     document.body.appendChild(flash);
     setTimeout(() => flash.remove(), 950);
-    // Heavier drop on the card itself (a beat bigger than titan-arrival).
-    if (cardEl) {
-      cardEl.classList.remove('legendary-arrival');
-      void cardEl.offsetWidth;
-      cardEl.classList.add('legendary-arrival');
-      setTimeout(() => cardEl.classList.remove('legendary-arrival'), 1200);
-    }
-    // A firmer board shake than the titan tremor.
+    // A firm board shake + a brief hit-pause so the arrival lands with weight.
     const ga = document.getElementById('game-area');
     if (ga) {
       ga.classList.remove('titan-shake');
@@ -18860,6 +18868,41 @@ const UI = {
       ga.classList.add('titan-shake');
       setTimeout(() => ga.classList.remove('titan-shake'), 460);
     }
+    if (this._hitPauseFreeze) this._hitPauseFreeze(130);
+    // Card-anchored cinematics. The FX event can flush a frame BEFORE the card
+    // paints, so retry via rAF if the element isn't there yet — this is why the
+    // entrance "didn't fire" (cardEl was null and everything anchored to it was
+    // skipped).
+    const raf = (typeof window !== 'undefined' && window.requestAnimationFrame)
+      ? window.requestAnimationFrame.bind(window) : (f) => setTimeout(f, 16);
+    const run = (el) => {
+      if (!el) return;
+      // Heavier drop on the card.
+      el.classList.remove('legendary-arrival');
+      void el.offsetWidth;
+      el.classList.add('legendary-arrival');
+      setTimeout(() => el.classList.remove('legendary-arrival'), 1200);
+      const r = el.getBoundingClientRect();
+      if (!r || !r.width) return;
+      const cx = r.left + r.width / 2, cy = r.top + r.height / 2;
+      const layer = this._fxLayer();
+      // A beam of light erupts up behind the arriving titan.
+      const pillar = document.createElement('div');
+      pillar.className = 'fx-legendary-pillar';
+      pillar.style.cssText = 'left:' + cx + 'px;top:' + cy + 'px;height:' + Math.max(r.height * 2.4, 260) + 'px;--lc:' + c1 + ';';
+      layer.appendChild(pillar);
+      setTimeout(() => pillar.remove(), 900);
+      // Shockwave ring + a bright ground impact + a wide debris burst.
+      if (this._fxRing) this._fxRing(el, { color: c1 });
+      if (this._fxImpact) this._fxImpact({ x: cx, y: cy }, { color: c1, core: c2, size: 1.5 });
+      if (this._fxSparks) this._fxSparks({ x: cx, y: cy }, { color: c2, glow: c1, count: 18, spread: 96, size: 3.2 });
+    };
+    const findEl = () => (this.board && cardId != null)
+      ? this.board.querySelector('.card-slot .card[data-card-id="' + cardId + '"]')
+      : cardEl;
+    const el0 = cardEl || findEl();
+    if (el0) run(el0);
+    else raf(() => raf(() => run(findEl())));
   },
 
   // ===================== FACE-DAMAGE VIGNETTE =====================
