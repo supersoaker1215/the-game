@@ -7879,17 +7879,22 @@ const UI = {
   // leaps from his hands to each enemy in the freeze chain.
   _fxPalpatineLightning(self, targetCard) {
     if (this._reducedMotion() || !targetCard) return;
-    const to = this._fxCenter(this._fxCardElById(targetCard.id));
+    const tgtEl = this._fxCardElById(targetCard.id);
+    const to = this._fxCenter(tgtEl);
     if (!to) return;
     this._fxWhenPainted(self, (srcEl) => {
       const from = this._fxCenter(srcEl);
       if (from) {
         this._fxDrawBolt(from, to, { color: '#e6b3ff', glow: '#8a2be2' });
         this._fxDrawBolt(from, to, { color: '#ffffff', glow: '#b06bff' });
+        this._fxDrawBolt(from, to, { color: '#f3d9ff', glow: '#8a2be2' });
       }
-      this._fxSparks(to, { color: '#e9c6ff', glow: '#8a2be2', count: 8, spread: 44, size: 2.4 });
+      // The bolt storm caves in — a violet ring constricts + a white-hot burst.
+      if (tgtEl) this._fxRing(tgtEl, { color: '#b06bff', contract: true });
+      this._fxImpact(to, { color: '#c98cff', core: '#ffffff', size: 1.0 });
+      this._fxSparks(to, { color: '#e9c6ff', glow: '#8a2be2', count: 12, spread: 60, size: 2.6 });
     });
-    this._screenShake('light');
+    this._screenShake('medium');
   },
 
   // Superman heat vision: twin red/white beams to the blast target.
@@ -8310,6 +8315,11 @@ const UI = {
         if (from) this._fxDrawBeam(from, to, { color: opts.blade || '#3aa0ff', core: opts.core || '#eaf4ff', thickness: opts.thickness || 4 });
       });
     }
+    // A small flash + spark scatter where the blade bites.
+    if (to) {
+      this._fxImpact(to, { color: opts.blade || '#3aa0ff', core: opts.core || '#eaf4ff', size: 0.85 });
+      this._fxSparks(to, { color: opts.core || '#eaf4ff', glow: opts.blade || '#3aa0ff', count: 9, spread: 56, size: 2.4 });
+    }
     this._screenShake('light');
   },
 
@@ -8384,6 +8394,9 @@ const UI = {
     const s = seq | 0;
     setTimeout(() => {
       this._fxDrawBolt(null, to, { color: '#cfeaff', glow: '#4aa3ff' });
+      // A hammer-blow flash + a splash of embers on top of the bolt's own hit.
+      this._fxImpact(to, { color: '#9bd4ff', core: '#ffffff', size: 1.15 });
+      this._fxSparks(to, { color: '#eaf6ff', glow: '#4aa3ff', count: 10, spread: 66, size: 2.8 });
       if (s === 0) this._screenShake('medium');
     }, s * 70);
   },
@@ -8399,6 +8412,8 @@ const UI = {
       const from = this._fxCenter(srcEl);
       if (from) this._fxTendril(from, to, { color: '#c1121f', glow: '#ff2d2d', bow: 18 });
     });
+    // The grip crushes — a dark-red choke burst as it seizes the throat.
+    if (to) this._fxSparks(to, { color: '#ff6a6a', glow: '#c1121f', count: 8, spread: 46, size: 2.3 });
     this._screenShake('light');
   },
 
@@ -8457,9 +8472,17 @@ const UI = {
   _fxForceChannel(a1, a2) {
     if (this._reducedMotion() || !a1 || !a2) return;
     const draw = () => {
-      const p1 = this._fxCenter(this._fxCardElById(a1.id));
-      const p2 = this._fxCenter(this._fxCardElById(a2.id));
-      if (p1 && p2) { this._fxTendril(p1, p2, { color: '#7bf27a', glow: '#8bf24e', bow: 12 }); return true; }
+      const e1 = this._fxCardElById(a1.id), e2 = this._fxCardElById(a2.id);
+      const p1 = this._fxCenter(e1), p2 = this._fxCenter(e2);
+      if (p1 && p2) {
+        this._fxTendril(p1, p2, { color: '#7bf27a', glow: '#8bf24e', bow: 12 });
+        // A serene green pulse blooms on each bound ally + a soft spark drift.
+        if (e1) this._fxRing(e1, { color: '#7bf27a' });
+        if (e2) this._fxRing(e2, { color: '#7bf27a' });
+        this._fxSparks(p1, { color: '#c8ffca', glow: '#8bf24e', count: 8, spread: 50, size: 2.2 });
+        this._fxSparks(p2, { color: '#c8ffca', glow: '#8bf24e', count: 8, spread: 50, size: 2.2 });
+        return true;
+      }
       return false;
     };
     if (draw()) return;
