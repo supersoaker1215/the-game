@@ -10063,6 +10063,13 @@ const Game = {
       const target = this.state.lanes[lane][opp];
       if (!target || target.currentHealth <= 0) { if (callback) callback(); return; }
 
+      // Lightsaber throw — the blade spins out to the chain's first target
+      // (works for both human-picked and AI-picked starts). Guarded + wrapped
+      // so it stays a no-op in the headless sim.
+      if (typeof UI !== 'undefined' && UI._fxSaberThrow && vader) {
+        try { UI._fxSaberThrow(vader, target); } catch (e) {}
+      }
+
       const dealt = this.dealChainDamage(target, startDmg, "VADER CHAIN");
       this.cleanupDead();
 

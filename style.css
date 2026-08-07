@@ -32591,8 +32591,30 @@ body.round-tick .board::after {
   100% { opacity: 0; background-position: -30% 0; }
 }
 
+/* Darth Vader — thrown lightsaber: a crimson blade that spins out to its mark
+   and boomerangs back. --sig-dx/--sig-dy = the outbound vector to the target. */
+.sig-saber-throw {
+  position: fixed;
+  width: 58px; height: 6px;
+  margin: -3px 0 0 -29px;
+  pointer-events: none;
+  border-radius: 3px;
+  background: linear-gradient(90deg, rgba(255, 45, 45, 0) 0%, #ff2d2d 16%, #fff 50%, #ff2d2d 84%, rgba(255, 45, 45, 0) 100%);
+  box-shadow: 0 0 10px 2px #ff2d2d, 0 0 24px 7px rgba(255, 45, 45, 0.5);
+  animation: sigSaberThrow 760ms cubic-bezier(0.4, 0, 0.2, 1) forwards;
+}
+@keyframes sigSaberThrow {
+  0%   { opacity: 0; transform: translate(0, 0) rotate(0deg); }
+  10%  { opacity: 1; }
+  /* Outbound arrival at the target — held for a beat as it strikes. */
+  47%  { opacity: 1; transform: translate(var(--sig-dx, 0), var(--sig-dy, 0)) rotate(540deg); }
+  53%  { opacity: 1; transform: translate(var(--sig-dx, 0), var(--sig-dy, 0)) rotate(570deg); }
+  /* Boomerangs back to Vader's hand, still spinning. */
+  100% { opacity: 0; transform: translate(0, 0) rotate(1080deg); }
+}
+
 @media (prefers-reduced-motion: reduce) {
-  .sig-saber, .sig-projectile, .sig-proj-spark, .sig-flame, .sig-ring, .sig-celestial {
+  .sig-saber, .sig-projectile, .sig-proj-spark, .sig-flame, .sig-ring, .sig-celestial, .sig-saber-throw {
     animation: none !important;
     opacity: 0 !important;
   }

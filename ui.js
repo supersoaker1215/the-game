@@ -8376,6 +8376,39 @@ const UI = {
     this._screenShake('light');
   },
 
+  // Darth Vader: hurls his crimson lightsaber — the blade spins out to the
+  // struck enemy, flares on impact (slash + sparks), then boomerangs back to
+  // his hand. Fired at the start of the 7-damage chain (the 'throw' beat).
+  _fxSaberThrow(sourceCard, targetCard) {
+    if (this._reducedMotion() || !targetCard) return;
+    const tgtEl = this._fxCardElById(targetCard.id);
+    const to = this._fxCenter(tgtEl);
+    if (!to) return;
+    // Vader may have just been played this render — wait for his card to paint
+    // so the throw launches from his actual board slot, not a stale rect.
+    this._fxWhenPainted(sourceCard, (srcEl) => {
+      const from = this._fxCenter(srcEl);
+      if (!from) return;
+      const layer = this._fxLayer();
+      const dx = to.x - from.x, dy = to.y - from.y;
+      const saber = document.createElement('div');
+      saber.className = 'sig-saber-throw';
+      saber.style.cssText =
+        'left:' + from.x + 'px;top:' + from.y + 'px;' +
+        '--sig-dx:' + dx + 'px;--sig-dy:' + dy + 'px;';
+      layer.appendChild(saber);
+      // Impact timed to the blade's outbound arrival (~47% of the 760ms flight).
+      setTimeout(() => {
+        this._fxSlashEl(tgtEl, { blade: '#ff2d2d', core: '#ffd0d0', angle: -34 });
+        this._fxSparks(to, { count: 12, color: '#ff5a4a', glow: '#ff2d2d', spread: 60 });
+        this._fxImpact(to, { color: '#ff8a7a', core: '#ffffff', size: 1 });
+        this._screenShake('light');
+      }, 356);
+      // Full flight = out + boomerang back + fade.
+      setTimeout(() => saber.remove(), 800);
+    });
+  },
+
   // Yoda: serene green Force channel binding the two chosen allies. Either
   // endpoint may be freshly-played Yoda, so re-query both past render's rAF.
   _fxForceChannel(a1, a2) {
