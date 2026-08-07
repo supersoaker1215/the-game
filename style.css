@@ -32605,12 +32605,18 @@ body.round-tick .board::after {
 }
 @keyframes sigSaberThrow {
   0%   { opacity: 0; transform: translate(0, 0) rotate(0deg); }
-  10%  { opacity: 1; }
+  10%  { opacity: var(--sig-trail-op, 1); }
   /* Outbound arrival at the target — held for a beat as it strikes. */
-  47%  { opacity: 1; transform: translate(var(--sig-dx, 0), var(--sig-dy, 0)) rotate(540deg); }
-  53%  { opacity: 1; transform: translate(var(--sig-dx, 0), var(--sig-dy, 0)) rotate(570deg); }
+  47%  { opacity: var(--sig-trail-op, 1); transform: translate(var(--sig-dx, 0), var(--sig-dy, 0)) rotate(540deg); }
+  53%  { opacity: var(--sig-trail-op, 1); transform: translate(var(--sig-dx, 0), var(--sig-dy, 0)) rotate(570deg); }
   /* Boomerangs back to Vader's hand, still spinning. */
   100% { opacity: 0; transform: translate(0, 0) rotate(1080deg); }
+}
+/* Lagging afterimage copies — softer + slightly blurred so they read as a
+   crimson motion-trail behind the lead blade rather than three hard blades. */
+.sig-saber-throw.sig-saber-ghost {
+  filter: blur(1.5px);
+  box-shadow: 0 0 8px 1px #ff2d2d, 0 0 18px 5px rgba(255, 45, 45, 0.4);
 }
 
 @media (prefers-reduced-motion: reduce) {

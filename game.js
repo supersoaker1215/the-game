@@ -9660,7 +9660,7 @@ const Game = {
     // skipAutoUntrickable ("not a titan"), so he is deliberately EXCLUDED.
     // User: "doomsday is not a 10 cost card ... NOT DOOMSDAY."
     if (cost >= 10 && !card.skipAutoUntrickable) {
-      this.emitFX('legendary', { cardId: card.id, owner: card.owner });
+      this.emitFX('legendary', { cardId: card.id, owner: card.owner, name: card.name });
     }
   },
 

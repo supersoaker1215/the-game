@@ -4760,6 +4760,9 @@ const CARD_ABILITIES = {
       const fillSelfToMax = G.rarityValue(self, { common: false, rare: false, special: true, legendary: true });
       const drainAll = G.rarityValue(self, { common: false, rare: false, special: false, legendary: true });
       const opp = G.opponent(self.owner);
+      // Signature FX — a hellfire soul-siphon dragging the enemy Block Meter
+      // into Trigon (fires regardless of how much is actually stolen).
+      if (typeof UI !== 'undefined' && UI._fxTrigonSteal) { try { UI._fxTrigonSteal(self, opp); } catch (e) {} }
       const enemyMeter = G.state[opp].blockMeter || 0;
       const stolen = Math.floor(enemyMeter * stealPct);
       if (stolen > 0) {

@@ -7976,7 +7976,15 @@ const UI = {
     if (this._reducedMotion() || !card) return;
     const el = this._fxCardElById(card.id);
     if (!el) return;
+    const c = this._fxCenter(el);
+    // Cosmic void swallows the card — spiral implosion + a contracting void
+    // ring + scattered debris, then a bright collapse where it winks out.
     this._fxImplode(el, { color: '#b06bff' });
+    this._fxRing(el, { color: '#b06bff', contract: true });
+    if (c) {
+      this._fxSparks(c, { count: 14, color: '#e8d0ff', glow: '#b06bff', spread: 96, size: 3 });
+      setTimeout(() => this._fxImpact(c, { color: '#b06bff', core: '#f0e0ff', size: 0.9 }), 300);
+    }
     this._screenShake('medium');
   },
 
@@ -8098,10 +8106,17 @@ const UI = {
     this._fxWhenPainted(sourceCard, (srcEl) => {
       const from = this._fxCenter(srcEl);
       if (!from) return;
+      // A black symbiote mass wells up around Knull before it floods outward.
+      this._fxGasBurst(srcEl, { color: '#0a0a0a' });
+      this._fxRing(srcEl, { color: '#c1121f' });
       summonedCards.forEach((sc, i) => {
         setTimeout(() => {
-          const to = this._fxCenter(this._fxCardElById(sc.id));
-          if (to) this._fxTendril(from, to, { color: '#0a0a0a', glow: '#c1121f', bow: 26 });
+          const tgtEl = this._fxCardElById(sc.id);
+          const to = this._fxCenter(tgtEl);
+          if (!to) return;
+          this._fxTendril(from, to, { color: '#0a0a0a', glow: '#c1121f', bow: 26 });
+          // The living symbiote seizes each host — a red burst as it takes hold.
+          this._fxImpact(to, { color: '#ff2b4a', core: '#ffd0d8', size: 0.8 });
         }, i * 90);
       });
     });
@@ -8391,21 +8406,38 @@ const UI = {
       if (!from) return;
       const layer = this._fxLayer();
       const dx = to.x - from.x, dy = to.y - from.y;
-      const saber = document.createElement('div');
-      saber.className = 'sig-saber-throw';
-      saber.style.cssText =
-        'left:' + from.x + 'px;top:' + from.y + 'px;' +
-        '--sig-dx:' + dx + 'px;--sig-dy:' + dy + 'px;';
-      layer.appendChild(saber);
-      // Impact timed to the blade's outbound arrival (~47% of the 760ms flight).
+      // The lead blade + two lagging afterimages. Each trail runs the SAME
+      // flight animation but starts a hair later (animation-delay) so it sits
+      // BEHIND the leader on the path — a crimson motion-trail that follows on
+      // the way out and the boomerang back. Fainter + set behind via z-order.
+      const nodes = [];
+      const mk = (cls, delayMs, opacity) => {
+        const el = document.createElement('div');
+        el.className = 'sig-saber-throw' + (cls ? ' ' + cls : '');
+        el.style.cssText =
+          'left:' + from.x + 'px;top:' + from.y + 'px;' +
+          '--sig-dx:' + dx + 'px;--sig-dy:' + dy + 'px;' +
+          (delayMs ? 'animation-delay:' + delayMs + 'ms;' : '') +
+          (opacity != null ? '--sig-trail-op:' + opacity + ';' : '');
+        layer.appendChild(el);
+        nodes.push(el);
+      };
+      mk('sig-saber-ghost', 78, 0.28);   // farthest, faintest trail
+      mk('sig-saber-ghost', 40, 0.5);    // mid trail
+      mk('', 0, 1);                      // lead blade (drawn last = on top)
+      // Impact timed to the lead blade's outbound arrival (~47% of the flight).
       setTimeout(() => {
         this._fxSlashEl(tgtEl, { blade: '#ff2d2d', core: '#ffd0d0', angle: -34 });
+        // Debris KICK — heavy chips spat out the FAR side along the blade's
+        // travel line (angle = incoming direction), plus a tighter hot burst.
+        const travelAng = Math.atan2(dy, dx);
+        this._fxSparks(to, { count: 9, color: '#ffcaa0', glow: '#ff7a3a', spread: 82, size: 4, angle: travelAng, cone: 1.1 });
         this._fxSparks(to, { count: 12, color: '#ff5a4a', glow: '#ff2d2d', spread: 60 });
-        this._fxImpact(to, { color: '#ff8a7a', core: '#ffffff', size: 1 });
+        this._fxImpact(to, { color: '#ff8a7a', core: '#ffffff', size: 1.1 });
         this._screenShake('light');
       }, 356);
-      // Full flight = out + boomerang back + fade.
-      setTimeout(() => saber.remove(), 800);
+      // Full flight = out + boomerang back + fade (lead + longest trail delay).
+      setTimeout(() => nodes.forEach(n => n.remove()), 900);
     });
   },
 
@@ -8435,9 +8467,26 @@ const UI = {
     if (el) this._fxGasBurst(el, { color: '#5b4b8a' });
   },
 
-  // Anakin: a heavy blue saber power-strike with a dark-side rage edge.
+  // Anakin: a heavy dark-side saber power-strike — a beam lunges in, a
+  // cross-slash rends the target, and debris kicks out along the strike line.
   _fxSaberStrike(sourceCard, targetCard) {
-    this._fxSaberSlash(sourceCard, targetCard, { blade: '#2b8cff', core: '#eaf4ff', thickness: 6 });
+    if (this._reducedMotion() || !targetCard) return;
+    const tgtEl = this._fxCardElById(targetCard.id);
+    const to = this._fxCenter(tgtEl);
+    if (!to) return;
+    // Cross-slash — two blades scissor across the target.
+    this._fxSlashEl(tgtEl, { blade: '#2b8cff', core: '#eaf4ff', angle: -40 });
+    setTimeout(() => this._fxSlashEl(tgtEl, { blade: '#2b8cff', core: '#eaf4ff', angle: 38 }), 90);
+    this._fxWhenPainted(sourceCard, (srcEl) => {
+      const from = this._fxCenter(srcEl);
+      if (!from) return;
+      this._fxDrawBeam(from, to, { color: '#2b8cff', core: '#eaf4ff', thickness: 7 });
+      // Debris kicked out the far side along the strike direction.
+      const ang = Math.atan2(to.y - from.y, to.x - from.x);
+      this._fxSparks(to, { count: 12, color: '#cfe4ff', glow: '#2b8cff', spread: 82, size: 3.2, angle: ang, cone: 1.1 });
+    });
+    this._fxImpact(to, { color: '#8fc4ff', core: '#ffffff', size: 1.2 });
+    this._screenShake('medium');
   },
 
   // Apocalypse: celestial-tech transmutation surge over your visible hand.
@@ -8478,28 +8527,78 @@ const UI = {
     const to = { x: orbR.left + orbR.width / 2, y: orbR.top + orbR.height / 2 };
     this._fxWhenPainted(sourceCard, (srcEl) => {
       const from = this._fxCenter(srcEl);
-      if (from) this._fxDrawBeam(from, to, { color: '#3fd0ff', core: '#eaffff', thickness: 6 });
+      if (!from) return;
+      // Quantum bloom on Manhattan himself — nested blue rings ripple out.
+      this._fxRing(srcEl, { color: '#4dd0ff' });
+      setTimeout(() => this._fxRing(srcEl, { color: '#9be0ff' }), 130);
+      // A healing energy stream + a crackling bolt into the HP orb.
+      this._fxDrawBeam(from, to, { color: '#3fd0ff', core: '#eaffff', thickness: 6 });
+      this._fxDrawBolt(from, to, { color: '#eaffff', glow: '#4aa3ff' });
     });
+    // Bloom + sparks blossom at the HP orb as it heals.
+    this._fxImpact(to, { color: '#9be0ff', core: '#eaffff', size: 1.1 });
+    this._fxSparks(to, { count: 12, color: '#eaffff', glow: '#4dd0ff', spread: 72, size: 2.6 });
   },
 
-  // Dormammu: a Dark-Dimension flame streamer rips power FROM the enemy BACK to him.
+  // Dormammu: twin Dark-Dimension flame streamers rip power FROM the enemy
+  // BACK to him — embers tear off the victim, his core swells as it lands.
   _fxDrainSiphon(sourceCard, targetCard) {
     if (this._reducedMotion() || !sourceCard || !targetCard) return;
-    const from = this._fxCenter(this._fxCardElById(targetCard.id));
+    const tgtEl = this._fxCardElById(targetCard.id);
+    const from = this._fxCenter(tgtEl);
     const to = this._fxCenter(this._fxCardElById(sourceCard.id));
-    if (from && to) this._fxTendril(from, to, { color: '#c04bff', glow: '#ff6a00', bow: 30 });
+    if (!from || !to) return;
+    this._fxTendril(from, to, { color: '#c04bff', glow: '#ff6a00', bow: 30 });
+    setTimeout(() => this._fxTendril(from, to, { color: '#ff6a00', glow: '#c04bff', bow: -20 }), 70);
+    // Embers torn off the enemy, streaming toward Dormammu.
+    const ang = Math.atan2(to.y - from.y, to.x - from.x);
+    this._fxSparks(from, { count: 12, color: '#ffb15a', glow: '#c04bff', spread: 74, size: 2.8, angle: ang, cone: 1.0 });
+    if (tgtEl) this._fxRing(tgtEl, { color: '#ff6a00', contract: true });
+    setTimeout(() => this._fxImpact(to, { color: '#c04bff', core: '#ffd9a0', size: 1.0 }), 180);
+    this._screenShake('light');
   },
 
-  // Trigon: demonic hellfire erupts under every frozen enemy.
+  // Trigon: demonic hellfire erupts under every frozen enemy, each column
+  // throwing off a lick of rising embers.
   _fxHellfire(sourceCard, targets) {
     if (this._reducedMotion() || !targets || !targets.length) return;
     targets.forEach((t, i) => {
       setTimeout(() => {
         const el = t && this._fxCardElById(t.id);
-        if (el) this._fxFlameColumn(el);
+        if (!el) return;
+        this._fxFlameColumn(el);
+        const c = this._fxCenter(el);
+        if (c) this._fxSparks({ x: c.x, y: c.y + 10 }, { count: 9, color: '#ffb15a', glow: '#ff3b1a', spread: 70, size: 2.6, angle: -Math.PI / 2, cone: 1.2 });
       }, i * 70);
     });
     this._screenShake('heavy');
+  },
+
+  // Trigon: a hellfire soul-siphon that rips the Block Meter from the enemy and
+  // pours it into him — twin flame streamers from the foe's meter to Trigon, a
+  // red ring flaring on him, hellfire under his feet, rising embers. Falls back
+  // to a self-surge if the meter element can't be located.
+  _fxTrigonSteal(sourceCard, oppOwner) {
+    if (this._reducedMotion() || !sourceCard) return;
+    this._fxWhenPainted(sourceCard, (srcEl) => {
+      const to = this._fxCenter(srcEl);
+      if (!to) return;
+      const meterText = document.getElementById((oppOwner || 'ai') + '-block-text');
+      const meterEl = meterText ? meterText.closest('.block-circle') : null;
+      const from = meterEl ? this._fxCenter(meterEl) : null;
+      if (from) {
+        this._fxTendril(from, to, { color: '#ff3b1a', glow: '#ffb15a', bow: 28 });
+        setTimeout(() => this._fxTendril(from, to, { color: '#ffb15a', glow: '#ff3b1a', bow: -18 }), 70);
+        const ang = Math.atan2(to.y - from.y, to.x - from.x);
+        this._fxSparks(from, { count: 12, color: '#ffc27a', glow: '#ff3b1a', spread: 76, size: 2.8, angle: ang, cone: 1.0 });
+        this._fxRing(meterEl, { color: '#ff3b1a', contract: true });
+      }
+      // Trigon's hatred crests — a red ring + hellfire embers rise off him.
+      this._fxRing(srcEl, { color: '#ff3b1a' });
+      this._fxFlameColumn(srcEl);
+      setTimeout(() => this._fxImpact(to, { color: '#ff3b1a', core: '#ffc27a', size: 1.1 }), 180);
+    });
+    this._screenShake('medium');
   },
 
   // ====================== WAVE 4 (cost-6/7) ======================
@@ -9778,7 +9877,7 @@ const UI = {
       }
       if (ev.type === 'legendary') {
         const lEl = this.board && this.board.querySelector(`.card-slot .card[data-card-id="${ev.cardId}"]`);
-        this.fxLegendaryEntrance(lEl, ev.owner, ev.cardId);
+        this.fxLegendaryEntrance(lEl, ev.owner, ev.cardId, ev.name);
         continue;
       }
       if (ev.type === 'envReveal') {
@@ -18883,11 +18982,15 @@ const UI = {
   // The engine gates who gets this (cost >= 10 AND not skipAutoUntrickable, so
   // Doomsday is excluded); here we just play the full-screen accent flash +
   // a heavier card arrival on top of the standard titan shake.
-  fxLegendaryEntrance(cardEl, owner, cardId) {
+  fxLegendaryEntrance(cardEl, owner, cardId, name) {
     if (this._reducedMotion && this._reducedMotion()) return;
     const ally = owner !== 'ai';
-    const c1 = ally ? '#ffd23a' : '#ff3b3b';   // gold for your titan, red for theirs
-    const c2 = ally ? '#fff0b0' : '#ffd0d0';
+    // Per-titan theme colors the whole cinematic (pillar / ring / impact /
+    // debris) so each 10-cost reads as ITSELF, not a generic gold/red drop.
+    // Unknown names fall back to gold (your titan) / red (theirs).
+    const theme = this._titanTheme && this._titanTheme(name);
+    const c1 = theme ? theme.c1 : (ally ? '#ffd23a' : '#ff3b3b');
+    const c2 = theme ? theme.c2 : (ally ? '#fff0b0' : '#ffd0d0');
     // Full-screen accent flash — colored to the arriving side.
     const flash = document.createElement('div');
     flash.className = 'fx-legendary-flash fx-legendary-' + (ally ? 'ally' : 'enemy');
@@ -18929,6 +19032,8 @@ const UI = {
       if (this._fxRing) this._fxRing(el, { color: c1 });
       if (this._fxImpact) this._fxImpact({ x: cx, y: cy }, { color: c1, core: c2, size: 1.5 });
       if (this._fxSparks) this._fxSparks({ x: cx, y: cy }, { color: c2, glow: c1, count: 18, spread: 96, size: 3.2 });
+      // Character-themed signature layer on top of the base cinematic.
+      if (name && this._fxTitanSignature) this._fxTitanSignature(name, el, { cx, cy, r }, ally);
     };
     const findEl = () => (this.board && cardId != null)
       ? this.board.querySelector('.card-slot .card[data-card-id="' + cardId + '"]')
@@ -18936,6 +19041,84 @@ const UI = {
     const el0 = cardEl || findEl();
     if (el0) run(el0);
     else raf(() => raf(() => run(findEl())));
+  },
+
+  // Per-titan entrance palette — drives the base legendary cinematic AND the
+  // signature layer below so both speak the same character language.
+  _titanTheme(name) {
+    switch (name) {
+      case 'Galactus':         return { c1: '#b06bff', c2: '#e8d0ff' }; // cosmic violet
+      case 'Dr. Manhattan':    return { c1: '#4dd0ff', c2: '#eaffff' }; // quantum blue
+      case 'Knull':            return { c1: '#ff2b4a', c2: '#ffb0bc' }; // symbiote red / void
+      case 'Trigon':           return { c1: '#ff3b1a', c2: '#ffc27a' }; // hellfire
+      case 'Anakin Skywalker': return { c1: '#2b8cff', c2: '#eaf4ff' }; // dark-side saber blue
+      case 'Dormammu':         return { c1: '#c04bff', c2: '#ffb15a' }; // Dark Dimension flame
+      default: return null;
+    }
+  },
+
+  // Bespoke, character-themed entrance flourish for each 10-cost titan — the
+  // layer that lifts every titan drop to the Thanos/Vader bar. Composes the
+  // shared FX primitives; all one-shot, self-removing, reduced-motion gated
+  // (guarded by the caller). `geom` = { cx, cy, r } of the card.
+  _fxTitanSignature(name, el, geom, ally) {
+    if (this._reducedMotion() || !el || !geom) return;
+    const cx = geom.cx, cy = geom.cy, r = geom.r;
+    const center = { x: cx, y: cy };
+    switch (name) {
+      case 'Galactus': {
+        // World-eater: a cosmic void yawns open (contracting ring), a violet
+        // shockwave rolls out, and the power-cosmic washes the board.
+        this._fxRing(el, { color: '#b06bff', contract: true });
+        setTimeout(() => this._fxRing(el, { color: '#d8b0ff' }), 130);
+        this._fxCosmicSweep();
+        this._fxSparks(center, { count: 22, color: '#e8d0ff', glow: '#b06bff', spread: 124, size: 3.4 });
+        break;
+      }
+      case 'Dr. Manhattan': {
+        // Quantum bloom: nested blue rings ripple out + forked bolts crackle in.
+        this._fxRing(el, { color: '#4dd0ff' });
+        setTimeout(() => this._fxRing(el, { color: '#9be0ff' }), 130);
+        setTimeout(() => this._fxRing(el, { color: '#eaffff' }), 260);
+        this._fxDrawBolt(null, center, { color: '#eaffff', glow: '#4aa3ff' });
+        setTimeout(() => this._fxDrawBolt({ x: cx - r.width, y: cy - r.height }, center, { color: '#cfeaff', glow: '#4aa3ff' }), 90);
+        break;
+      }
+      case 'Knull': {
+        // God of Symbiotes: black tendrils erupt outward in a corona, red core burst.
+        this._fxGasBurst(el, { color: '#0a0a0a' });
+        const dirs = [[-1, -0.35], [1, -0.35], [-0.75, 0.55], [0.75, 0.55], [-0.15, -1], [0.15, 1]];
+        dirs.forEach((d, i) => setTimeout(() => {
+          this._fxTendril(center, { x: cx + d[0] * 150, y: cy + d[1] * 150 }, { color: '#070707', glow: '#ff2b4a', bow: 22 });
+        }, i * 45));
+        this._fxImpact(center, { color: '#ff2b4a', core: '#ffd0d8', size: 1.2 });
+        break;
+      }
+      case 'Trigon': {
+        // Demon lord: hellfire erupts under him with a red ring + rising embers.
+        this._fxFlameColumn(el);
+        this._fxRing(el, { color: '#ff3b1a' });
+        this._fxSparks({ x: cx, y: cy + r.height * 0.35 }, { count: 16, color: '#ffb15a', glow: '#ff3b1a', spread: 100, size: 3.2, angle: -Math.PI / 2, cone: 1.3 });
+        this._screenShake('heavy');
+        break;
+      }
+      case 'Anakin Skywalker': {
+        // The Chosen One: a blue saber ignites in a cross-slash + Force ring.
+        this._fxSlashEl(el, { blade: '#2b8cff', core: '#eaf4ff', angle: -40 });
+        setTimeout(() => this._fxSlashEl(el, { blade: '#2b8cff', core: '#eaf4ff', angle: 40 }), 110);
+        this._fxRing(el, { color: '#3aa0ff' });
+        this._fxSparks(center, { count: 14, color: '#eaf4ff', glow: '#2b8cff', spread: 90, size: 2.8 });
+        break;
+      }
+      case 'Dormammu': {
+        // Dark Dimension: swirling magenta flame + orange embers spiralling out.
+        this._fxGasBurst(el, { color: '#c04bff' });
+        this._fxRing(el, { color: '#ff6a00' });
+        setTimeout(() => this._fxRing(el, { color: '#c04bff' }), 140);
+        this._fxSparks(center, { count: 18, color: '#ffb15a', glow: '#c04bff', spread: 106, size: 3 });
+        break;
+      }
+    }
   },
 
   // ===================== FACE-DAMAGE VIGNETTE =====================
