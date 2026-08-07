@@ -7938,11 +7938,12 @@ const Game = {
       return;
     }
     if (this._trickBlocked(card)) return;
-    // Invincible / Damage Immunity are DAMAGE shields — they do NOT block stat
-    // debuffs. Invincible = damage/destroy shield; Immunity (immunityCharges)
-    // is the debuff shield. So a -ATK/-HP strip (Nightwing, Bear Trap, Silver
-    // Surfer, Bane, and Luke/Magneto auras — which reconcile through here) now
-    // lands on an Invincible card, exactly like stun/freeze/fear already do.
+    // Invincible / Damage Immunity are DAMAGE shields — they do NOT block the
+    // ATK portion of a stat debuff. Immunity (immunityCharges) is the debuff
+    // shield. So a -ATK strip (Nightwing, Bear Trap, Silver Surfer, Bane, and
+    // Luke/Magneto auras — which reconcile through here) always lands, exactly
+    // like stun/freeze/fear. For the HP portion: Invincible shields it, but
+    // Damage Immunity does NOT (see the CANONICAL SHIELD RULE below).
     // (User: "invincible is different than immunity — you can get debuffed with
     // invincible." Reverses the earlier "stat debuffs are damage in spirit" rule.)
     // Defensive coerce — see buffCard; stops NaN from surviving a round.
@@ -7958,15 +7959,20 @@ const Game = {
     const atkReduced = atk ? Math.min(atk, card.attack || 0) : 0;
     if (atk) card.attack = Math.max(0, card.attack - atk);
     if (hp) {
-      // CANONICAL SHIELD RULE (user, 2026-07-25): Invincible / Damage Immunity
-      // shields ALL HEALTH LOSS, but the ATK strip still lands ("you can get
-      // debuffed with Invincible"). So a shielded card hit by Pym Particles,
-      // a Bear Trap, or a hostile Magneto/Luke aura loses ATK and keeps its HP
-      // untouched — it can't be shrunk to 1 and it can't be killed. Fixing it
-      // HERE means every debuff source inherits the rule (Pym, Nightwing, Bane,
-      // Man-Bat, auras); recomputeAuras measures its landed delta off maxHealth,
-      // so a shielded target simply records no HP delta and stays consistent.
-      const hpShielded = card.invincibleTurns > 0 || card.hasDamageImmunity;
+      // CANONICAL SHIELD RULE (user, 2026-07-25; amended 2026-08-07): INVINCIBLE
+      // shields ALL HEALTH LOSS from a stat strip, but DAMAGE IMMUNITY does NOT.
+      // A stat debuff (Pym Particles shrinking, Bear Trap, Bane, Nightwing, the
+      // Magneto/Luke auras) is not damage — it removes size/HP directly — so a
+      // Damage-Immune card CAN be shrunk to 1 and CAN be shrunk into nothing and
+      // destroyed (user: "I played Pym Particles on a Damage-Immune character
+      // and he didn't die; the character should die"). Damage Immunity still
+      // blocks actual DAMAGE (dealDamage / applyCombatDamage) — only the
+      // stat-strip HP loss now lands. Invincible remains the total HP shield here
+      // ("you can get debuffed with Invincible" — ATK lands, HP stays). Fixing it
+      // HERE means every debuff source inherits the rule; recomputeAuras measures
+      // its landed delta off maxHealth, so an Invincible target records no HP
+      // delta and stays consistent.
+      const hpShielded = card.invincibleTurns > 0;
       if (hpShielded) {
         // Health untouched — no maxHealth/currentHealth change at all.
       } else if (allowKill) {
