@@ -38879,3 +38879,45 @@ body.low-fx .card-hollow-purple::after { animation: none !important; }
   position: relative;
   z-index: 2;
 }
+
+/* ============================================================
+   BADGE TEXT MUST NEVER CLIP ITS OWN WORD
+   ============================================================
+   The compact board/hand view lays badges out as a 3-across ICON grid, so each
+   pill is pinned to a fixed 1/3-card width: `flex: 0 0 calc((100% - gap*2)/3)`
+   with the strip clamped to 2 rows and `overflow: hidden`. That is correct while
+   only the GLYPH shows. But wherever the readable WORD is shown instead — the
+   "Always show" hand/board setting, and the hover-magnify clone — that same
+   1/3-width cell is far narrower than "Unresistible" / "Untrickable" /
+   "Invincible", so the centered word overflowed the cell and the strip's
+   overflow:hidden sliced it on BOTH sides (user: "the words are too long now").
+   Fix: any badge that is showing its word sizes to its CONTENT and the strip
+   drops its clamp, so long keywords wrap to new rows fully legible. The icon
+   grid (no word) is untouched. Appended last so it wins on source order over the
+   compact-view rules at equal specificity. */
+body.hand-text-always .card.ally-card .status-badge,
+body.hand-text-always .card.enemy-card .status-badge,
+body.hand-text-always .player-hand-section .hand-cards .card .status-badge,
+body.hand-text-always .trick-cards .trick-card .status-badge,
+.hover-magnify .card .status-badge,
+.hover-magnify .trick-card .status-badge {
+  flex: 0 0 auto;
+  width: auto;
+  max-width: 100%;
+  overflow: visible;
+}
+body.hand-text-always .card.ally-card .status-badges,
+body.hand-text-always .card.enemy-card .status-badges,
+body.hand-text-always .player-hand-section .hand-cards .card .status-badges,
+body.hand-text-always .trick-cards .trick-card .status-badges,
+.hover-magnify .card .status-badges,
+.hover-magnify .trick-card .status-badges {
+  max-height: none;
+  overflow: visible;
+}
+/* The magnify clone is the full readable card — always show the word, drop the
+   compact glyph, so a titan's five keywords read in full at 1.6x. */
+.hover-magnify .card .status-badge .sb-w,
+.hover-magnify .trick-card .status-badge .sb-w { display: inline; }
+.hover-magnify .card .status-badge .sb-i,
+.hover-magnify .trick-card .status-badge .sb-i { display: none; }
