@@ -19003,38 +19003,10 @@ const UI = {
       ga.classList.add('titan-shake');
       setTimeout(() => ga.classList.remove('titan-shake'), 340);
     }
-    // Themed 9-cost entrance flourish — a lighter cinematic than the 10-cost
-    // legendary (a themed light pillar + the character signature), so 9-costs
-    // read as themselves while true titans keep the grander legendary drop.
-    // 10-costs also emit 'titan' but are excluded here: _nineTitanTheme only
-    // matches the 9-cost names, so they never double up with fxLegendaryEntrance.
-    const nine = this._nineTitanTheme && this._nineTitanTheme(name);
-    if (nine && this._fxTitanSignature) {
-      const r = cardEl.getBoundingClientRect();
-      if (r && r.width) {
-        const cx = r.left + r.width / 2, cy = r.top + r.height / 2;
-        const ally = owner !== 'ai';
-        const layer = this._fxLayer();
-        const pillar = document.createElement('div');
-        pillar.className = 'fx-legendary-pillar';
-        pillar.style.cssText = 'left:' + cx + 'px;top:' + cy + 'px;height:' + Math.max(r.height * 2.0, 220) + 'px;--lc:' + nine.c1 + ';';
-        layer.appendChild(pillar);
-        setTimeout(() => pillar.remove(), 900);
-        this._fxTitanSignature(name, cardEl, { cx, cy, r }, ally);
-      }
-    }
-  },
-
-  // 9-cost entrance palette (Thanos deliberately omitted — his dust already
-  // carries him). Parallel to _titanTheme, kept separate so the 10-cost
-  // legendary path and the 9-cost titan path can't cross-trigger by name.
-  _nineTitanTheme(name) {
-    switch (name) {
-      case 'Batman':   return { c1: '#f5d442', c2: '#e8edf2' }; // bat-signal gold
-      case 'Darkseid': return { c1: '#ff2d2d', c2: '#ffd0d0' }; // Omega red
-      case 'Superman': return { c1: '#3a86ff', c2: '#ffffff' }; // hope blue
-      default: return null;
-    }
+    // NOTE: 9-costs get ONLY this shake as their entrance — no light pillar,
+    // no signature flourish. The cinematic entrance (pillar of light,
+    // full-screen flash) is reserved for genuine 10-cost titans via
+    // fxLegendaryEntrance (user: "the cool entrance is only for 10s").
   },
 
   // LEGENDARY entrance — a bigger, cinematic drop for genuine 10-cost titans.
@@ -19175,33 +19147,6 @@ const UI = {
         this._fxRing(el, { color: '#ff6a00' });
         setTimeout(() => this._fxRing(el, { color: '#c04bff' }), 140);
         this._fxSparks(center, { count: 18, color: '#ffb15a', glow: '#c04bff', spread: 106, size: 3 });
-        break;
-      }
-      // ---- 9-cost titans ----
-      case 'Batman': {
-        // Dark Knight: a shadow bat-swarm bursts out under a bat-signal ring,
-        // with spinning steel debris.
-        this._fxGasBurst(el, { color: '#2b2438' });
-        this._fxRing(el, { color: '#f5d442' });
-        this._fxSparks(center, { count: 16, color: '#e8edf2', glow: '#f5d442', spread: 106, size: 2.8 });
-        break;
-      }
-      case 'Darkseid': {
-        // Apokolips: twin Omega Beams sear down onto the field + a red ring.
-        this._fxDrawBeam({ x: cx - r.width, y: cy - r.height }, center, { color: '#ff2d2d', core: '#ffd0d0', thickness: 7 });
-        this._fxDrawBeam({ x: cx + r.width, y: cy - r.height }, center, { color: '#ff2d2d', core: '#ffd0d0', thickness: 7 });
-        this._fxRing(el, { color: '#ff2d2d' });
-        this._fxImpact(center, { color: '#ff6a5a', core: '#ffffff', size: 1.2 });
-        this._fxSparks(center, { count: 16, color: '#ffd0d0', glow: '#ff2d2d', spread: 112, size: 3 });
-        break;
-      }
-      case 'Superman': {
-        // Man of Steel: a blue hope-burst ring, red heat-vision flare, white bloom.
-        this._fxRing(el, { color: '#3a86ff' });
-        setTimeout(() => this._fxRing(el, { color: '#9bc4ff' }), 130);
-        this._fxDrawBeam({ x: cx - 11, y: cy }, { x: cx - r.width, y: cy }, { color: '#ff3b30', core: '#ffffff', thickness: 5 });
-        this._fxDrawBeam({ x: cx + 11, y: cy }, { x: cx + r.width, y: cy }, { color: '#ff3b30', core: '#ffffff', thickness: 5 });
-        this._fxSparks(center, { count: 16, color: '#ffffff', glow: '#3a86ff', spread: 108, size: 3 });
         break;
       }
     }
