@@ -7861,10 +7861,17 @@ const UI = {
     if (this._reducedMotion() || !sourceCard || !targetCard) return;
     const srcEl = this._fxCardElById(sourceCard.id);
     const from = this._fxCenter(srcEl);
-    const to = this._fxCenter(this._fxCardElById(targetCard.id));
+    const tgtEl = this._fxCardElById(targetCard.id);
+    const to = this._fxCenter(tgtEl);
     if (!from || !to) return;
-    this._fxDrawBeam(from, to, { color: '#ff2d2d', core: '#ffd0d0', thickness: 9 });
-    this._screenShake('light');
+    // Twin Omega Beams sear from Darkseid's eyes into the victim, then the
+    // impact caves in with a red ring + debris.
+    this._fxDrawBeam({ x: from.x - 10, y: from.y }, to, { color: '#ff2d2d', core: '#ffd0d0', thickness: 7 });
+    this._fxDrawBeam({ x: from.x + 10, y: from.y }, to, { color: '#ff2d2d', core: '#ffd0d0', thickness: 7 });
+    if (tgtEl) this._fxRing(tgtEl, { color: '#ff2d2d', contract: true });
+    this._fxImpact(to, { color: '#ff6a5a', core: '#ffffff', size: 1.1 });
+    this._fxSparks(to, { count: 12, color: '#ffd0d0', glow: '#ff2d2d', spread: 66, size: 2.8 });
+    this._screenShake('medium');
     if (srcEl) { srcEl.classList.add('fx-eye-glow'); setTimeout(() => srcEl.classList.remove('fx-eye-glow'), 500); }
   },
 
@@ -7898,7 +7905,11 @@ const UI = {
       if (!from) return;
       this._fxDrawBeam({ x: from.x - 11, y: from.y }, to, { color: '#ff3b30', core: '#ffffff', thickness: 5 });
       this._fxDrawBeam({ x: from.x + 11, y: from.y }, to, { color: '#ff3b30', core: '#ffffff', thickness: 5 });
-      this._screenShake('light');
+      // Molten burst where the twin beams converge.
+      this._fxImpact(to, { color: '#ff6a4a', core: '#ffffff', size: 1.1 });
+      this._fxSparks(to, { count: 12, color: '#ffd8b0', glow: '#ff3b30', spread: 64, size: 2.8 });
+      if (srcEl) { srcEl.classList.add('fx-eye-glow'); setTimeout(() => srcEl.classList.remove('fx-eye-glow'), 460); }
+      this._screenShake('medium');
     });
   },
 
@@ -8456,15 +8467,30 @@ const UI = {
     raf(() => raf(() => { draw(); }));
   },
 
-  // Batman: a spinning batarang cracks into a struck enemy.
+  // Batman: a spinning batarang cracks into a struck enemy — steel flash +
+  // debris + a light jolt as it lands.
   _fxBatarang(sourceCard, targetCard) {
-    this._fxProjectile(sourceCard, targetCard, { color: '#c9d1d9' });
+    if (this._reducedMotion() || !targetCard) return;
+    this._fxProjectile(sourceCard, targetCard, { color: '#e8edf2' });
+    const to = this._fxCenter(this._fxCardElById(targetCard.id));
+    if (!to) return;
+    // Crack on impact — timed to the batarang's arrival (~300ms flight).
+    setTimeout(() => {
+      this._fxImpact(to, { color: '#dfe7ef', core: '#ffffff', size: 0.85 });
+      this._fxSparks(to, { count: 9, color: '#eef3f8', glow: '#aab6c4', spread: 58, size: 2.6 });
+      this._screenShake('light');
+    }, 300);
   },
-  // Batman: a swirling shadow-bat swarm engulfs the feared enemy.
+  // Batman: a swirling shadow-bat swarm engulfs the feared enemy — dark gas,
+  // a constricting ring, and a scatter of bat-black motes.
   _fxFearBats(targetCard) {
     if (this._reducedMotion() || !targetCard) return;
     const el = this._fxCardElById(targetCard.id);
-    if (el) this._fxGasBurst(el, { color: '#5b4b8a' });
+    if (!el) return;
+    this._fxGasBurst(el, { color: '#3a3350' });
+    this._fxRing(el, { color: '#6b5b95', contract: true });
+    const c = this._fxCenter(el);
+    if (c) this._fxSparks(c, { count: 14, color: '#2b2438', glow: '#6b5b95', spread: 74, size: 3 });
   },
 
   // Anakin: a heavy dark-side saber power-strike — a beam lunges in, a
@@ -9872,7 +9898,7 @@ const UI = {
       // on every client including the MP guest (they ride state broadcasts).
       if (ev.type === 'titan') {
         const tEl = this.board && this.board.querySelector(`.card-slot .card[data-card-id="${ev.cardId}"]`);
-        if (tEl) this.fxTitanEntrance(tEl);
+        if (tEl) this.fxTitanEntrance(tEl, ev.owner, ev.cardId, ev.name);
         continue;
       }
       if (ev.type === 'legendary') {
@@ -18963,8 +18989,9 @@ const UI = {
   // the engine emits at every board-entrance choke point, and the events
   // ride MP state broadcasts, so the entrance plays identically in solo,
   // on the MP host, AND on the MP guest.
-  fxTitanEntrance(cardEl) {
+  fxTitanEntrance(cardEl, owner, cardId, name) {
     if (this._reducedMotion && this._reducedMotion()) return;
+    if (!cardEl) return;
     cardEl.classList.remove('titan-arrival');
     void cardEl.offsetWidth;
     cardEl.classList.add('titan-arrival');
@@ -18975,6 +19002,38 @@ const UI = {
       void ga.offsetWidth;
       ga.classList.add('titan-shake');
       setTimeout(() => ga.classList.remove('titan-shake'), 340);
+    }
+    // Themed 9-cost entrance flourish — a lighter cinematic than the 10-cost
+    // legendary (a themed light pillar + the character signature), so 9-costs
+    // read as themselves while true titans keep the grander legendary drop.
+    // 10-costs also emit 'titan' but are excluded here: _nineTitanTheme only
+    // matches the 9-cost names, so they never double up with fxLegendaryEntrance.
+    const nine = this._nineTitanTheme && this._nineTitanTheme(name);
+    if (nine && this._fxTitanSignature) {
+      const r = cardEl.getBoundingClientRect();
+      if (r && r.width) {
+        const cx = r.left + r.width / 2, cy = r.top + r.height / 2;
+        const ally = owner !== 'ai';
+        const layer = this._fxLayer();
+        const pillar = document.createElement('div');
+        pillar.className = 'fx-legendary-pillar';
+        pillar.style.cssText = 'left:' + cx + 'px;top:' + cy + 'px;height:' + Math.max(r.height * 2.0, 220) + 'px;--lc:' + nine.c1 + ';';
+        layer.appendChild(pillar);
+        setTimeout(() => pillar.remove(), 900);
+        this._fxTitanSignature(name, cardEl, { cx, cy, r }, ally);
+      }
+    }
+  },
+
+  // 9-cost entrance palette (Thanos deliberately omitted — his dust already
+  // carries him). Parallel to _titanTheme, kept separate so the 10-cost
+  // legendary path and the 9-cost titan path can't cross-trigger by name.
+  _nineTitanTheme(name) {
+    switch (name) {
+      case 'Batman':   return { c1: '#f5d442', c2: '#e8edf2' }; // bat-signal gold
+      case 'Darkseid': return { c1: '#ff2d2d', c2: '#ffd0d0' }; // Omega red
+      case 'Superman': return { c1: '#3a86ff', c2: '#ffffff' }; // hope blue
+      default: return null;
     }
   },
 
@@ -19116,6 +19175,33 @@ const UI = {
         this._fxRing(el, { color: '#ff6a00' });
         setTimeout(() => this._fxRing(el, { color: '#c04bff' }), 140);
         this._fxSparks(center, { count: 18, color: '#ffb15a', glow: '#c04bff', spread: 106, size: 3 });
+        break;
+      }
+      // ---- 9-cost titans ----
+      case 'Batman': {
+        // Dark Knight: a shadow bat-swarm bursts out under a bat-signal ring,
+        // with spinning steel debris.
+        this._fxGasBurst(el, { color: '#2b2438' });
+        this._fxRing(el, { color: '#f5d442' });
+        this._fxSparks(center, { count: 16, color: '#e8edf2', glow: '#f5d442', spread: 106, size: 2.8 });
+        break;
+      }
+      case 'Darkseid': {
+        // Apokolips: twin Omega Beams sear down onto the field + a red ring.
+        this._fxDrawBeam({ x: cx - r.width, y: cy - r.height }, center, { color: '#ff2d2d', core: '#ffd0d0', thickness: 7 });
+        this._fxDrawBeam({ x: cx + r.width, y: cy - r.height }, center, { color: '#ff2d2d', core: '#ffd0d0', thickness: 7 });
+        this._fxRing(el, { color: '#ff2d2d' });
+        this._fxImpact(center, { color: '#ff6a5a', core: '#ffffff', size: 1.2 });
+        this._fxSparks(center, { count: 16, color: '#ffd0d0', glow: '#ff2d2d', spread: 112, size: 3 });
+        break;
+      }
+      case 'Superman': {
+        // Man of Steel: a blue hope-burst ring, red heat-vision flare, white bloom.
+        this._fxRing(el, { color: '#3a86ff' });
+        setTimeout(() => this._fxRing(el, { color: '#9bc4ff' }), 130);
+        this._fxDrawBeam({ x: cx - 11, y: cy }, { x: cx - r.width, y: cy }, { color: '#ff3b30', core: '#ffffff', thickness: 5 });
+        this._fxDrawBeam({ x: cx + 11, y: cy }, { x: cx + r.width, y: cy }, { color: '#ff3b30', core: '#ffffff', thickness: 5 });
+        this._fxSparks(center, { count: 16, color: '#ffffff', glow: '#3a86ff', spread: 108, size: 3 });
         break;
       }
     }

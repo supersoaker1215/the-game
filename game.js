@@ -9652,7 +9652,7 @@ const Game = {
     if (!card || card.isEnvironment) return;
     const cost = card.baseCost || card.cost || 0;
     if (cost >= 9) {
-      this.emitFX('titan', { cardId: card.id, owner: card.owner });
+      this.emitFX('titan', { cardId: card.id, owner: card.owner, name: card.name });
     }
     // LEGENDARY entrance — genuine 10-cost titans ONLY. Gated on the SAME
     // authority as is10CostImmune: cost >= 10 AND not skipAutoUntrickable.
