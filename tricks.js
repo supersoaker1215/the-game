@@ -284,7 +284,12 @@ const TRICK_DEFS = [
       // at the start of drawPhase). Pass the source name so the prompt/log say
       // "Eye of Agamotto" instead of "Dr. Strange".
       G.state[owner].drStrangeReorder = "Eye of Agamotto";
-      G.state[owner].maxHandSize += 1;
+      // Guard the +1 so an unset maxHandSize can't become NaN (which would
+      // break the hand-full check outright). Falls back to the 7 default the
+      // rest of the engine uses, matching Mobius Chair's guarded bump.
+      const eyeCur = (typeof G.state[owner].maxHandSize === 'number' && isFinite(G.state[owner].maxHandSize))
+        ? G.state[owner].maxHandSize : 7;
+      G.state[owner].maxHandSize = eyeCur + 1;
       G.log(`Eye of Agamotto opens — foresight queued for next draw phase, max hand size → ${G.state[owner].maxHandSize}.`);
     }
   },
