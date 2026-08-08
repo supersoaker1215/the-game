@@ -19937,7 +19937,13 @@ const UI = {
     'Sacrifice':   { color: '#a93226', svg: '<svg viewBox="0 0 12 12"><path d="M6 1 L6 11 M3 4 L9 4 M4 8 L8 8" stroke="currentColor" stroke-width="1.2"/></svg>', tip: 'Destroy one of YOUR own cards as part of an effect.' },
     'Chain':       { color: '#9b59b6', svg: '<svg viewBox="0 0 12 12"><path d="M2 6 H4 M5 6 H7 M8 6 H10" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>', tip: 'Hits one target, then hops to an adjacent enemy for a follow-up effect.' },
     'Peek':        { color: '#7f8c8d', svg: '<svg viewBox="0 0 12 12"><circle cx="6" cy="6" r="4.5" stroke="currentColor" stroke-width="1.2" fill="none"/><circle cx="6" cy="6" r="1.5" fill="currentColor"/></svg>', tip: 'See the top of a deck without drawing.' },
-    'Devour':      { color: '#7d3c98', svg: '<svg viewBox="0 0 12 12"><path d="M2 4 L6 8 L10 4 M3 9 L9 9" stroke="currentColor" stroke-width="1.2" fill="none" stroke-linecap="round"/></svg>', tip: 'Consume a card permanently (often for stat gain on the eater).' },
+    // The "never fires" clause is the mechanic, not a footnote: a devoured card
+    // goes to the VOID, and devourCard deliberately skips handleDeath entirely,
+    // so no When Destroyed ability triggers. Owner: "keep the devour nullifies
+    // on death abilities and have that in the description of devour thats a cool
+    // mechanic." Stated on the KEYWORD so every surface that prints the word
+    // Devour inherits it — the two card descs stay clean.
+    'Devour':      { color: '#7d3c98', svg: '<svg viewBox="0 0 12 12"><path d="M2 4 L6 8 L10 4 M3 9 L9 9" stroke="currentColor" stroke-width="1.2" fill="none" stroke-linecap="round"/></svg>', tip: 'Consume a card permanently. It is voided rather than destroyed — it can never be revived, and its When Destroyed ability never fires.' },
     'Absorb':      { color: '#2980b9', svg: '<svg viewBox="0 0 12 12"><path d="M6 2 V10 M3 7 L6 10 L9 7" stroke="currentColor" stroke-width="1.4" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>', tip: 'Take incoming damage and convert it to your own gain (Block Meter, healing, etc.).' },
     'Regain':      { color: '#16a085', svg: '<svg viewBox="0 0 12 12"><path d="M3 6 A3 3 0 1 1 6 9 M5 8 L6 9 L7 8" stroke="currentColor" stroke-width="1.2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>', tip: 'Recover a charge or resource you previously spent.' },
     'Convert':     { color: '#1abc9c', svg: '<svg viewBox="0 0 12 12"><path d="M3 4 H9 L7 2 M9 8 H3 L5 10" stroke="currentColor" stroke-width="1.2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>', tip: 'Permanently flip an enemy to your team.' },
