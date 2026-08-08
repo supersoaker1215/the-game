@@ -8671,6 +8671,9 @@ const UI = {
         '</svg>';
       layer.appendChild(wheel);
       setTimeout(() => wheel.remove(), 760);
+      // The Wheel of Dharma locks in — a golden ring pulse + adaptation sparks.
+      this._fxRing(el, { color: '#d9a441' });
+      this._fxSparks(c, { count: 14, color: '#ffe6a0', glow: '#d9a441', spread: 94, size: 2.8 });
     });
     this._screenShake('medium');
   },
@@ -8695,6 +8698,9 @@ const UI = {
       spat.style.cssText = 'left:' + p.x + 'px;top:' + p.y + 'px;--sig-c:#c1121f;';
       layer.appendChild(spat);
       setTimeout(() => spat.remove(), 760);
+      // Bone-crunch impact + a gout of gore where he rips through each enemy.
+      this._fxImpact(p, { color: '#ff3b3b', core: '#ffd0d0', size: 0.9 });
+      this._fxSparks(p, { color: '#ff6a6a', glow: '#c1121f', count: 10, spread: 62, size: 2.8 });
     }, 120 + i * 40));
     this._screenShake('heavy');
   },
@@ -8717,8 +8723,10 @@ const UI = {
       const to = { x: (typeof window !== 'undefined' ? window.innerWidth : 1200) * 0.5, y: 56 };
       if (from) this._fxDrawBeam(from, to, { color: '#a855f7', core: '#f3e8ff', thickness: 5 });
       if (from) this._fxSparks(to, { color: '#e9c6ff', glow: '#7a1fa2', count: 10, spread: 60, size: 2.6 });
+      // The flurry lands — an amethyst burst flares over Mace as the last blow bites.
+      if (from) setTimeout(() => this._fxImpact(from, { color: '#a855f7', core: '#f3e8ff', size: 1.0 }), 180);
     });
-    this._screenShake('light');
+    this._screenShake('medium');
   },
   // General Grievous: a whirling cyclone of four trophy lightsabers.
   _fxSaberFlurry(self) {
@@ -8748,8 +8756,14 @@ const UI = {
   _fxNecrosword(self) {
     if (this._reducedMotion() || !self) return;
     this._fxWhenPainted(self, (el) => {
+      // All Black carves a cross-slash of living darkness, then a necrotic
+      // shroud + violet death-sparks bleed out of the wound.
       this._fxSlashEl(el, { blade: '#0a0a0a', core: '#7a1fa2', angle: -30 });
+      setTimeout(() => this._fxSlashEl(el, { blade: '#0a0a0a', core: '#7a1fa2', angle: 34 }), 90);
       this._fxGasBurst(el, { color: '#1a0a1a' });
+      this._fxRing(el, { color: '#7a1fa2', contract: true });
+      const c = this._fxCenter(el);
+      if (c) this._fxSparks(c, { count: 12, color: '#c98cff', glow: '#7a1fa2', spread: 84, size: 2.8 });
     });
     this._screenShake('medium');
   },
@@ -8762,8 +8776,14 @@ const UI = {
     this._fxWhenPainted(self, (el) => {
       this._fxGasBurst(el, { color: '#2fbf4f' });
       this._fxRing(el, { color: '#2fbf4f' });
+      // Latverian doom-magic swells — a sigil flash + emerald arcane sparks.
+      const c = this._fxCenter(el);
+      if (c) {
+        this._fxImpact(c, { color: '#2fbf4f', core: '#d6ffe0', size: 1.0 });
+        this._fxSparks(c, { count: 14, color: '#8affa0', glow: '#2fbf4f', spread: 90, size: 2.8 });
+      }
     });
-    this._screenShake('light');
+    this._screenShake('medium');
   },
   // Ultron: cold red robotic energy collapses inward to forge each replica.
   _fxUltronReplicate(replicas) {
@@ -8933,19 +8953,35 @@ const UI = {
   _fxHollowPurple(sourceCard, victimCard) {
     if (this._reducedMotion() || !victimCard) return;
     const el = this._fxCardElById(victimCard.id);
-    if (el) this._fxImplode(el, { color: '#b06bff' });
-    this._screenShake('medium');
+    if (!el) { this._screenShake('medium'); return; }
+    const c = this._fxCenter(el);
+    // Hollow Purple — Blue (attraction) + Red (repulsion) collide into a violet
+    // singularity that erases the target: implosion + twin contracting rings in
+    // blue then red, debris dragged in, and a blinding collapse flash.
+    this._fxImplode(el, { color: '#b06bff' });
+    this._fxRing(el, { color: '#3aa0ff', contract: true });
+    setTimeout(() => this._fxRing(el, { color: '#ff3b3b', contract: true }), 90);
+    if (c) {
+      this._fxSparks(c, { count: 18, color: '#e8d0ff', glow: '#b06bff', spread: 120, size: 3.2 });
+      setTimeout(() => this._fxImpact(c, { color: '#b06bff', core: '#ffffff', size: 1.5 }), 240);
+    }
+    this._screenShake('heavy');
   },
   // Silver Surfer: a chrome Power-Cosmic wave washes over the drained enemy.
   _fxCosmicWave(sourceCard, targetCard) {
     if (this._reducedMotion() || !targetCard) return;
-    const to = this._fxCenter(this._fxCardElById(targetCard.id));
     const tgtEl = this._fxCardElById(targetCard.id);
+    const to = this._fxCenter(tgtEl);
     if (tgtEl) this._fxRing(tgtEl, { color: '#cfd8e6', contract: true });
     if (to) this._fxWhenPainted(sourceCard, (srcEl) => {
       const from = this._fxCenter(srcEl);
       if (from) this._fxDrawBeam(from, to, { color: '#cfd8e6', core: '#ffffff', thickness: 7 });
     });
+    // A chrome burst where the Power-Cosmic breaks over the target.
+    if (to) {
+      this._fxImpact(to, { color: '#cfd8e6', core: '#ffffff', size: 1.0 });
+      this._fxSparks(to, { count: 12, color: '#ffffff', glow: '#cfd8e6', spread: 66, size: 2.6 });
+    }
     // The Power-Cosmic tax — a silver-chrome wave sweeps across the enemy side
     // (their cards cost 1 more while the Surfer stands).
     this._fxCosmicSweep();
