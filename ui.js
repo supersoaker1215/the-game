@@ -23324,51 +23324,84 @@ const UI = {
   // Deliberately conservative: it can only ever turn low-fx ON (never
   // off), it runs once per session, and it needs a clear majority of
   // slow frames so a single heavy combat animation can't trip it.
+  // ADAPTIVE FX PROBE — deliberately hard to trigger, and reversible.
+  //
+  // It used to sample 120 frames ONCE, starting the instant boot finished, and
+  // latch low-fx permanently if half of them missed 30fps. Boot is the single
+  // heaviest moment in the session — art decoding, audio arming, menu music,
+  // first render all land together — so it was measuring the worst two seconds
+  // a machine will ever have and condemning it for the rest of the session.
+  //
+  // That is what made animations appear on one client and not the other: the
+  // slower laptop and the phone latched low-fx in their first two seconds and
+  // never played another effect, while the desktop never tripped it. Same
+  // match, same code, different visuals. Owner: "sometimes animations happen on
+  // one computer and not on the other."
+  //
+  // Now: wait out the boot storm, sample only while a MATCH is actually being
+  // played, demand a much worse and much longer stretch before acting, and let
+  // the machine EARN IT BACK when it recovers.
   _startLowFxFrameProbe() {
     if (this._lowFxProbeRan) return;
     this._lowFxProbeRan = true;
-    if (this._lowFxActive) return;                       // already on, nothing to learn
     if ((this.settings.graphics || 'auto') !== 'auto') return;  // user made the call
 
-    const SAMPLES = 120;          // ~2s of real frames at 60fps
-    const SLOW_FRAME_MS = 34;     // slower than ~30fps
-    const STALL_MS = 250;         // above this it's a stall/throttle, not a frame rate
-    const SLOW_RATIO = 0.5;       // over half the sampled frames must be slow
+    const WARMUP_MS   = 8000;   // ignore boot entirely
+    const SAMPLES     = 600;    // ~10s of real frames, not ~2s
+    const SLOW_FRAME_MS = 50;   // under ~20fps, not under 30
+    const STALL_MS    = 250;    // still a stall, not a frame rate
+    const SLOW_RATIO  = 0.75;   // three quarters of frames, not half
+    const RECOVER_RATIO = 0.15; // and it can come back
 
     let n = 0, slow = 0, last = 0;
-
+    const bootAt = performance.now();
     const reset = () => { n = 0; slow = 0; last = 0; };
 
     const step = () => {
-      // A backgrounded tab throttles rAF to ~1Hz (and Chrome suspends it
-      // entirely when fully hidden). Those gaps are NOT a frame rate
-      // signal — counting them would falsely flag a perfectly good GPU
-      // just because the player alt-tabbed. Discard the window and wait.
+      // A backgrounded tab throttles rAF to ~1Hz. Those gaps are not a frame
+      // rate signal — discard the window and wait.
       if (document.hidden) { reset(); requestAnimationFrame(step); return; }
+      // Boot storm, and any moment that is not actual play. Menus, the draft
+      // and the deck builder animate heavily by design and are not what the
+      // in-match FX budget should be judged on.
+      if (performance.now() - bootAt < WARMUP_MS || !document.body.classList.contains('in-match')) {
+        reset(); requestAnimationFrame(step); return;
+      }
       const now = performance.now();
       if (last === 0) { last = now; requestAnimationFrame(step); return; }
       const dt = now - last;
       last = now;
-      // Outlier frames (GC pause, tab restore, a heavy one-off animation)
-      // are dropped rather than counted as slow.
       if (dt >= STALL_MS) { requestAnimationFrame(step); return; }
       if (dt > SLOW_FRAME_MS) slow++;
       n++;
       if (n < SAMPLES) { requestAnimationFrame(step); return; }
-      if (slow / n >= SLOW_RATIO) {
+      const ratio = slow / n;
+      if (!this._lowFxActive && ratio >= SLOW_RATIO) {
         this._lowFxReason = `sustained low frame rate (${slow}/${n} frames > ${SLOW_FRAME_MS}ms)`;
         this._setLowFx(true);
         this._announceLowFx();
+      } else if (this._lowFxActive && this._lowFxAuto && ratio <= RECOVER_RATIO) {
+        // EARNED IT BACK. The old probe was one-way, so a single bad stretch —
+        // a background tab spinning up, a heavy round — cost you every
+        // animation for the rest of the session with no way back short of a
+        // reload. Only ever reverses a probe-set low-fx, never the Settings one.
+        this._lowFxReason = null;
+        this._setLowFx(false);
       }
+      reset();                      // keep sampling for the whole session
+      requestAnimationFrame(step);
     };
-    // Restart the sampling window whenever the tab comes back, so the
-    // measurement always reflects a continuously-visible stretch.
     document.addEventListener('visibilitychange', reset);
     requestAnimationFrame(step);
   },
 
-  _setLowFx(on) {
+  _setLowFx(on, opts) {
     this._lowFxActive = !!on;
+    // Remember WHO turned it on. The probe may only ever reverse itself —
+    // a Settings choice of Reduced is the player's and stays until they change
+    // it. Without this the recovery branch could silently override them.
+    if (on) this._lowFxAuto = !(opts && opts.fromSettings);
+    else if (!(opts && opts.fromSettings)) this._lowFxAuto = false;
     document.body.classList.toggle('low-fx', !!on);
   },
 
@@ -23376,14 +23409,16 @@ const UI = {
   // Settings saves.
   applyGraphicsMode() {
     const mode = this.settings.graphics || 'auto';
+    // fromSettings marks these as the PLAYER's decision, so the probe's
+    // recovery branch can never quietly undo an explicit choice of Reduced.
     if (mode === 'low') {
       this._lowFxReason = 'forced in Settings';
-      this._setLowFx(true);
+      this._setLowFx(true, { fromSettings: true });
       return;
     }
     if (mode === 'high') {
       this._lowFxReason = 'disabled in Settings';
-      this._setLowFx(false);
+      this._setLowFx(false, { fromSettings: true });
       return;
     }
     const d = this._detectLowFx();
