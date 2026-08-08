@@ -1436,9 +1436,15 @@ const CARD_ABILITIES = {
       const pool = hand.filter(c => c && c.id !== self.id);
       if (pool.length) {
         const pick = pool[Math.floor(G.rng() * pool.length)];
+        const pickIdx = hand.indexOf(pick);
         G.buffCard(pick, empower, empower);
         G.log(`Red Skull empowers ${pick.name} in hand +${empower}/+${empower}!`);
         if (typeof UI !== 'undefined' && UI._fxRedSkullCube) { try { UI._fxRedSkullCube(self); } catch (e) {} }
+        // Cosmic-Cube GOLD flare on the exact hand card he empowered, so you
+        // can see which card was buffed (gold = buff, vs Freddy's red = hit).
+        if (typeof UI !== 'undefined' && UI._fxHandCardFlare) {
+          try { UI._fxHandCardFlare(self.owner, pick.id, pickIdx, { color: '#ffcc33', core: '#fff3c0' }); } catch (e) {}
+        }
       } else {
         G.log(`Red Skull has no card in hand to empower.`);
       }
@@ -3627,6 +3633,9 @@ const CARD_ABILITIES = {
       });
       G.log(`Mace Windu curses ${hand.length} card${hand.length === 1 ? '' : 's'} in the opponent's hand (-1/-1 each)!`);
       if (typeof UI !== 'undefined' && UI._fxVaapad) { try { UI._fxVaapad(self); } catch (e) {} }
+      // Purple curse haze rolls over the cursed hand (the enemy's whose cards
+      // just took -1/-1 — the player's own hand when the AI casts Mace).
+      if (typeof UI !== 'undefined' && UI._fxHandHaze) { try { UI._fxHandHaze(opp, { color: '#a24bff' }); } catch (e) {} }
       });
     },
     onAllyKilled(G, self) {
@@ -3662,7 +3671,8 @@ const CARD_ABILITIES = {
         G.applyAbilities(card);
         G.log(`[APOCALYPSE] ${card.name} permanently gains ${kw}.`);
       });
-      if (typeof UI !== 'undefined' && UI._fxCelestialSurge) { try { UI._fxCelestialSurge(self.owner); } catch (e) {} }
+      // Blue empower haze rolls over your whole hand as every card is charged.
+      if (typeof UI !== 'undefined' && UI._fxHandHaze) { try { UI._fxHandHaze(self.owner, { color: '#4aa3ff' }); } catch (e) {} }
     },
     onTurnStart(G, self) {
       if (self.currentHealth <= 0) return;

@@ -7290,6 +7290,21 @@ const UI = {
       target.style.position = 'relative';
       target.appendChild(marks);
       setTimeout(() => marks.remove(), 900);
+      // Blood-red damage flare on the exact card he slashed, so it's obvious
+      // WHO got hit even amid a full hand. (Detached in the fx layer, so it
+      // survives the re-render that rebuilds the card when its HP drops.)
+      const r = target.getBoundingClientRect();
+      if (r && r.width) {
+        const layer = this._fxLayer();
+        const puff = document.createElement('div');
+        puff.className = 'sig-card-haze';
+        puff.style.cssText = 'left:' + r.left + 'px;top:' + r.top + 'px;width:' + r.width + 'px;height:' + r.height + 'px;--sig-c:#ff2d2d;';
+        layer.appendChild(puff);
+        setTimeout(() => puff.remove(), 700);
+        const c = { x: r.left + r.width / 2, y: r.top + r.height / 2 };
+        this._fxImpact(c, { color: '#ff2d2d', core: '#ffd0d0', size: 1.05 });
+        this._fxSparks(c, { color: '#ff6a6a', glow: '#c1121f', count: 12, spread: 64, size: 2.8 });
+      }
     }
   },
 
@@ -8563,6 +8578,74 @@ const UI = {
         if (c) this._fxSparks(c, { color: '#e9c6ff', glow: '#a24bff', count: 6, angle: -Math.PI / 2, cone: 1.6, spread: 40, size: 2.2 });
       }, 100 + i * 75);
     });
+  },
+
+  // Colored HAZE that rolls over a whole hand for in-hand effects — a tinted
+  // veil fades in over the hand, and a per-card puff sweeps down the row so you
+  // SEE every card get touched. `owner` picks the hand (player = face-up hand
+  // at the bottom, ai = the face-down backs up top). opts.color tints it:
+  // Apocalypse empowers your hand (blue), Mace Windu curses the enemy's (purple).
+  _fxHandHaze(owner, opts) {
+    if (this._reducedMotion()) return;
+    opts = opts || {};
+    const color = opts.color || '#a24bff';
+    const isPlayer = owner === 'player';
+    const hand = isPlayer ? document.querySelector('.player-hand-section') : document.getElementById('ai-hand');
+    if (!hand) return;
+    const r = hand.getBoundingClientRect();
+    if (!r || r.width === 0) return;
+    const layer = this._fxLayer();
+    const haze = document.createElement('div');
+    haze.className = 'sig-hand-haze';
+    haze.style.cssText = 'left:' + r.left + 'px;top:' + r.top + 'px;width:' + r.width + 'px;height:' + r.height + 'px;--sig-c:' + color + ';';
+    layer.appendChild(haze);
+    setTimeout(() => haze.remove(), 900);
+    // Per-card puff, staggered so the haze visibly rolls across the hand.
+    const cards = isPlayer ? hand.querySelectorAll('.card') : hand.querySelectorAll('.card-back');
+    cards.forEach((cardEl, i) => {
+      setTimeout(() => {
+        const cr = cardEl.getBoundingClientRect();
+        if (!cr || cr.width === 0) return;
+        const puff = document.createElement('div');
+        puff.className = 'sig-card-haze';
+        puff.style.cssText = 'left:' + cr.left + 'px;top:' + cr.top + 'px;width:' + cr.width + 'px;height:' + cr.height + 'px;--sig-c:' + color + ';';
+        layer.appendChild(puff);
+        setTimeout(() => puff.remove(), 700);
+      }, 80 + i * 70);
+    });
+  },
+
+  // Flare a SINGLE card in a hand so you can see exactly which one an in-hand
+  // effect touched — Red Skull's gold empower, Freddy's red slash. Resolves the
+  // player's card by data-card-id (face-up) and the AI's by hand index (its
+  // face-down backs carry no id). A colored puff + ring + impact + a pulse land
+  // right on that card. opts: color, core.
+  _fxHandCardFlare(owner, cardId, handIdx, opts) {
+    if (this._reducedMotion()) return;
+    opts = opts || {};
+    const color = opts.color || '#ffcc33';
+    const isPlayer = owner === 'player';
+    let el = null;
+    if (isPlayer) {
+      el = (cardId != null) ? document.querySelector('.player-hand-section .card[data-card-id="' + cardId + '"]') : null;
+    } else {
+      const backs = document.querySelectorAll('#ai-hand .card-back');
+      el = (handIdx >= 0 && backs[handIdx]) ? backs[handIdx] : null;
+    }
+    if (!el) return;
+    const r = el.getBoundingClientRect();
+    if (!r || r.width === 0) return;
+    const layer = this._fxLayer();
+    const puff = document.createElement('div');
+    puff.className = 'sig-card-haze';
+    puff.style.cssText = 'left:' + r.left + 'px;top:' + r.top + 'px;width:' + r.width + 'px;height:' + r.height + 'px;--sig-c:' + color + ';';
+    layer.appendChild(puff);
+    setTimeout(() => puff.remove(), 700);
+    const c = { x: r.left + r.width / 2, y: r.top + r.height / 2 };
+    this._fxImpact(c, { color: color, core: opts.core || '#ffffff', size: 1.0 });
+    this._fxSparks(c, { color: opts.core || '#ffffff', glow: color, count: 12, spread: 62, size: 2.6 });
+    el.classList.remove('fx-empower-pulse'); void el.offsetWidth; el.classList.add('fx-empower-pulse');
+    setTimeout(() => el.classList.remove('fx-empower-pulse'), 620);
   },
 
   // Dr. Manhattan: a cold quantum stream flows into the hero HP orb.

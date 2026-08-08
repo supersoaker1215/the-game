@@ -38921,3 +38921,51 @@ body.hand-text-always .trick-cards .trick-card .status-badges,
 .hover-magnify .trick-card .status-badge .sb-w { display: inline; }
 .hover-magnify .card .status-badge .sb-i,
 .hover-magnify .trick-card .status-badge .sb-i { display: none; }
+
+/* ============================================================
+   IN-HAND EFFECT HAZE — a colored veil that rolls over a hand.
+   Apocalypse empowers your hand (blue), Mace Windu curses the enemy's
+   (purple). A tinted fog fades in over the whole hand; per-card puffs sweep
+   down the row so every touched card is visible. Driven by _fxHandHaze. */
+.sig-hand-haze {
+  position: fixed;
+  pointer-events: none;
+  z-index: 1100;
+  border-radius: 14px;
+  opacity: 0;
+  background: radial-gradient(ellipse at center,
+    color-mix(in srgb, var(--sig-c, #a24bff) 42%, transparent) 0%,
+    color-mix(in srgb, var(--sig-c, #a24bff) 14%, transparent) 55%,
+    transparent 74%);
+  box-shadow: inset 0 0 46px color-mix(in srgb, var(--sig-c, #a24bff) 42%, transparent);
+  filter: blur(3px);
+  animation: sigHandHaze 900ms ease-out forwards;
+}
+@keyframes sigHandHaze {
+  0%   { opacity: 0; }
+  30%  { opacity: 1; }
+  100% { opacity: 0; }
+}
+.sig-card-haze {
+  position: fixed;
+  pointer-events: none;
+  z-index: 1101;
+  border-radius: 8px;
+  opacity: 0;
+  mix-blend-mode: screen;
+  background: linear-gradient(180deg,
+    color-mix(in srgb, var(--sig-c, #a24bff) 55%, transparent) 0%,
+    color-mix(in srgb, var(--sig-c, #a24bff) 22%, transparent) 100%);
+  box-shadow:
+    0 0 16px 3px color-mix(in srgb, var(--sig-c, #a24bff) 60%, transparent),
+    inset 0 0 18px color-mix(in srgb, var(--sig-c, #a24bff) 42%, transparent);
+  animation: sigCardHaze 700ms ease-out forwards;
+}
+@keyframes sigCardHaze {
+  0%   { opacity: 0; transform: translateY(6px) scale(0.98); }
+  35%  { opacity: 1; transform: translateY(0) scale(1); }
+  100% { opacity: 0; transform: translateY(-4px) scale(1.02); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .sig-hand-haze, .sig-card-haze { animation: none !important; opacity: 0 !important; }
+}
