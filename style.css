@@ -35221,6 +35221,35 @@ body.low-fx .legendary-arrival { animation: none !important; }
   100% { opacity: 0; transform: translateX(-50%) scale(0.92); }
 }
 
+/* ---- MP taunts: 🔊 button + scrollable character-sound picker --------- */
+.taunt-btn { font-size: 14px; }
+/* The roster can be long, so the taunt picker is a scrollable NAME column
+   rather than the emote's single emoji row. */
+.taunt-picker {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 2px;
+  max-height: 240px;
+  overflow-y: auto;
+  min-width: 128px;
+  max-width: 190px;
+}
+.taunt-opt {
+  font-size: 14px;
+  text-align: left;
+  white-space: nowrap;
+  padding: 3px 8px;
+  border-radius: 5px;
+}
+.taunt-opt:hover {
+  transform: none;                      /* a scale on a list row looks jumpy */
+  background: rgba(var(--theme-rgb, 79, 195, 247), 0.18);
+  text-shadow: 0 0 10px rgba(var(--theme-rgb, 79, 195, 247), 0.9);
+}
+.taunt-empty { padding: 8px 10px; color: #8aa6bf; font-size: 12px; white-space: nowrap; }
+/* Taunt bubble carries a character NAME, not a big emoji — smaller type. */
+.emote-bubble.taunt-bubble { font-size: 13px; letter-spacing: 0.3px; }
+
 /* ---- Environment reveal (Snap location moment) ----------- */
 .env-reveal {
   position: absolute; inset: 0;

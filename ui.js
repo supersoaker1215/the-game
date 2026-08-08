@@ -19391,10 +19391,16 @@ const UI = {
     paint(aEl, s._avatars && s._avatars.ai, 'ai');
     // Emote trigger — multiplayer matches only.
     const eb = document.getElementById('emote-btn');
+    const tb = document.getElementById('taunt-btn');
+    const show = Game.isMultiplayer && Game.isMultiplayer() && !s.gameOver && !inDraft;
     if (eb) {
-      const show = Game.isMultiplayer && Game.isMultiplayer() && !s.gameOver && !inDraft;
       eb.style.display = show ? '' : 'none';
       if (show) this.installEmotes();
+    }
+    // Taunt button rides the same visibility rule as emotes (MP, in-match).
+    if (tb) {
+      tb.style.display = show ? '' : 'none';
+      if (!show) { const tp = document.getElementById('taunt-picker'); if (tp) tp.style.display = 'none'; }
     }
   },
 
@@ -19407,6 +19413,9 @@ const UI = {
     if (this._emotesBound || typeof Multiplayer === 'undefined') return;
     this._emotesBound = true;
     Multiplayer.on('emote', (m) => {
+      // The taunt channel rides the same symmetric 'emote' message with a
+      // kind:'taunt' + character name; play its hover sound on this client.
+      if (m && m.kind === 'taunt') { this.receiveTaunt(m.name); return; }
       this.showEmoteBubble('ai', m && m.id);
       if (this._haptic) this._haptic('cardPlay');
     });
@@ -19446,6 +19455,83 @@ const UI = {
     const b = document.createElement('div');
     b.className = 'emote-bubble';
     b.textContent = this.EMOTES[i] || this.EMOTES[0];
+    host.appendChild(b);
+    setTimeout(() => b.remove(), 2400);
+  },
+
+  // ===================== MP TAUNTS =====================
+  // Send a character's HOVER sound to the opponent as a taunt. Rides the same
+  // symmetric 'emote' channel (kind:'taunt', name). The roster is only the
+  // characters present in THIS match that actually have a hover cue — you taunt
+  // with what you drew. 3.5s cooldown (a hair longer than emotes: it's audio).
+  _matchTauntNames() {
+    const s = Game.state;
+    if (!s) return [];
+    const names = new Set();
+    const add = (arr) => { if (arr) arr.forEach(c => { if (c && c.name) names.add(c.name); }); };
+    add(s.player && s.player.hand);
+    add(s.player && s.player.deadPile);
+    // Per-owner draw pile if the engine exposes one (deckbuilder), else shared.
+    try { add(Game.getDrawPile ? Game.getDrawPile('player') : s.drawPile); } catch (e) { add(s.drawPile); }
+    // Both sides of the board — taunting with the enemy's own titan reads great.
+    for (let i = 0; i < Game.LANE_COUNT; i++) {
+      const ln = s.lanes && s.lanes[i];
+      if (!ln) continue;
+      if (ln.player && ln.player.name) names.add(ln.player.name);
+      if (ln.ai && ln.ai.name) names.add(ln.ai.name);
+    }
+    // Keep only names with a real hover cue in the SFX registry.
+    const reg = (this.sfx && this.sfx.CARD_SFX) || {};
+    return [...names].filter(n => reg[n] && reg[n].hover).sort((a, b) => a.localeCompare(b));
+  },
+  toggleTauntPicker() {
+    const pick = document.getElementById('taunt-picker');
+    if (!pick) return;
+    // Close the emote picker if it's open, so only one popup shows at a time.
+    const ep = document.getElementById('emote-picker'); if (ep) ep.style.display = 'none';
+    if (pick.style.display !== 'none') { pick.style.display = 'none'; return; }
+    const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    const names = this._matchTauntNames();
+    if (!names.length) {
+      pick.innerHTML = '<div class="taunt-empty">No taunt sounds yet</div>';
+    } else {
+      pick.innerHTML = names.map(n =>
+        `<button type="button" class="emote-opt taunt-opt" data-name="${esc(n)}" onclick="UI.sendTaunt(this.dataset.name)">${esc(n)}</button>`
+      ).join('');
+    }
+    pick.style.display = 'flex';
+  },
+  sendTaunt(name) {
+    const pick = document.getElementById('taunt-picker');
+    if (pick) pick.style.display = 'none';
+    if (!name) return;
+    if (this._tauntCooldownUntil && Date.now() < this._tauntCooldownUntil) return;
+    this._tauntCooldownUntil = Date.now() + 3500;
+    try { if (typeof Multiplayer !== 'undefined') Multiplayer.send({ t: 'emote', kind: 'taunt', name }); } catch (e) {}
+    // Play + show on your own side too, so you hear/see what you sent.
+    this._playTauntSound(name);
+    this.showTauntBubble('player', name);
+  },
+  receiveTaunt(name) {
+    this._playTauntSound(name);
+    this.showTauntBubble('ai', name);
+    if (this._haptic) this._haptic('cardPlay');
+  },
+  _playTauntSound(name) {
+    if (!name || !this.sfx) return;
+    try {
+      const played = this.sfx.playCardSfx ? this.sfx.playCardSfx(name, 'hover') : null;
+      if (!played && typeof this.sfx.play === 'function') this.sfx.play('cardHover');
+    } catch (e) {}
+  },
+  showTauntBubble(side, name) {
+    const host = document.getElementById(side === 'player' ? 'player-avatar' : 'ai-avatar');
+    if (!host) return;
+    const old = host.querySelector('.emote-bubble');
+    if (old) old.remove();
+    const b = document.createElement('div');
+    b.className = 'emote-bubble taunt-bubble';
+    b.textContent = '🔊 ' + String(name);
     host.appendChild(b);
     setTimeout(() => b.remove(), 2400);
   },

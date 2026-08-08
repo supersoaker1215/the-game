@@ -13,7 +13,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;700&display=swap">
-  <link rel="stylesheet" href="style.css?v=983">
+  <link rel="stylesheet" href="style.css?v=984">
   <script>
     // Lightweight error reporter (pre-Sentry) — capture runtime JS
     // errors + unhandled promise rejections to a localStorage ring
@@ -438,6 +438,11 @@
         <button type="button" id="emote-btn" class="emote-btn" style="display:none"
                 onclick="UI.toggleEmotePicker()" title="Send an emote" aria-label="Send an emote">☺</button>
         <div id="emote-picker" class="emote-picker" style="display:none"></div>
+        <!-- TAUNT — send a character's hover sound to the opponent (MP only).
+             Roster is built from cards in THIS match; see UI.toggleTauntPicker. -->
+        <button type="button" id="taunt-btn" class="emote-btn taunt-btn" style="display:none"
+                onclick="UI.toggleTauntPicker()" title="Send a taunt sound" aria-label="Send a taunt sound">🔊</button>
+        <div id="taunt-picker" class="emote-picker taunt-picker" style="display:none"></div>
         <div class="health-container">
           <div class="health-bar"><div class="health-fill player-hp" id="player-hp-fill" style="width:100%"></div></div>
           <div class="health-text player-color"><span id="player-health">30</span></div>
@@ -801,7 +806,7 @@
   <script src="peerjs.min.js"></script>
   <script src="multiplayer.js?v=32"></script>
   <script src="card-art-manifest.js?v=57"></script>
-  <script src="ui.js?v=1147"></script>
+  <script src="ui.js?v=1148"></script>
   <script src="tutorial.js?v=7"></script>
   <script src="logger.js?v=5"></script>
   <!-- Always-on crash capture. Hooks window.onerror +
