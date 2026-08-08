@@ -665,26 +665,73 @@ gold('RG-12 allowKill debuff cannot reduce or destroy an Invincible card', funct
   eq('mortal died', !(mortal.currentHealth > 0), true);
 });
 
-// RG-12b — Pym Particles (-3/-3, allowKill) vs Damage Immunity. User-reported:
-// a Damage-Immune card was still being shrunk. ATK strips, health untouched.
-gold('RG-12b Pym Particles strips ATK but not health (Damage Immunity)', function () {
+// RG-12b — Pym Particles (-3/-3, allowKill) vs Damage Immunity. AMENDED
+// 2026-08-07: Damage Immunity is a DAMAGE shield and no longer stops the health
+// half of a STAT STRIP, so a Damage-Immune card can be shrunk into nothing.
+// Invincible still shields it — RG-12b2 below is the control for that.
+gold('RG-12b Pym Particles shrinks a Damage-Immune card to death', function () {
   reset();
   var tgt = card({ name: 'Groot', owner: 'ai', attack: 3, health: 3, abilities: [] });
   tgt.hasDamageImmunity = true;
   Game.state.lanes[0].ai = tgt;
   Game.debuffCard(tgt, 3, 3, true, { name: 'Pym Particles' });
+  eq('atk stripped', tgt.attack, 0);
+  eq('health taken', tgt.currentHealth, 0);
+  eq('destroyed',    Game.state.lanes[0].ai === tgt, false);
+});
+
+// RG-12b2 — the control. INVINCIBLE still shields the health half, so the same
+// strip takes ATK and leaves the card standing. Without this the amendment above
+// could silently widen into "no shield stops a strip".
+gold('RG-12b2 Invincible still shields health from a stat strip', function () {
+  reset();
+  var tgt = card({ name: 'Groot', owner: 'ai', attack: 3, health: 3, abilities: [] });
+  tgt.invincibleTurns = 5;
+  Game.state.lanes[0].ai = tgt;
+  Game.debuffCard(tgt, 3, 3, true, { name: 'Pym Particles' });
   eq('atk stripped',   tgt.attack, 0);
   eq('curHp shielded', tgt.currentHealth, 3);
-  eq('maxHp shielded', tgt.maxHealth, 3);
   eq('alive on board', Game.state.lanes[0].ai === tgt, true);
 });
 
-// RG-12c — Jigsaw's Reverse Bear Trap now agrees with the debuff path: it no
-// longer whiffs entirely on a shielded card, it strips ATK and spares health.
-gold('RG-12c Bear Trap strips ATK, health shielded by Damage Immunity', function () {
+// RG-12c — Jigsaw's Reverse Bear Trap agrees with the debuff path. It had its
+// OWN hand-rolled copy of the shield rule, so when debuffCard was amended the
+// trap kept shielding Damage Immunity and the two disagreed: Pym Particles
+// destroyed a Damage-Immune card while a trap on the same card left it at full
+// health. Both now ask Game.statStripShieldsHp. Invincible is the shield here.
+// RG-12d — THE TEST THAT WOULD HAVE CAUGHT THE DRIFT. The two stat-strip paths
+// must reach the SAME verdict on the SAME shield. RG-12b and RG-12c each pass
+// on their own while quietly disagreeing, which is exactly what happened.
+gold('RG-12d trap and debuff agree on every shield', function () {
+  function viaDebuff(shield) {
+    reset();
+    var t = card({ name: 'Groot', owner: 'ai', attack: 3, health: 3, abilities: [] });
+    if (shield) t[shield] = (shield === 'invincibleTurns') ? 5 : true;
+    Game.state.lanes[0].ai = t;
+    Game.debuffCard(t, 3, 3, true, { name: 'Pym Particles' });
+    return t.currentHealth;
+  }
+  function viaTrap(shield) {
+    reset();
+    var t = card({ name: 'Groot', owner: 'ai', attack: 3, health: 3, abilities: [] });
+    if (shield) t[shield] = (shield === 'invincibleTurns') ? 5 : true;
+    Game.state.lanes[0].ai = t;
+    Game.state.lanes[0].trap = { placedBy: 'player', debuff: 3 };
+    Game.checkLaneTrap(t, 0);
+    return t.currentHealth;
+  }
+  eq('Damage Immunity agrees', viaDebuff('hasDamageImmunity'), viaTrap('hasDamageImmunity'));
+  eq('Invincible agrees',      viaDebuff('invincibleTurns'),   viaTrap('invincibleTurns'));
+  eq('no shield agrees',       viaDebuff(null),                viaTrap(null));
+  // And the amended rule itself: Damage Immunity does NOT save you, Invincible does.
+  eq('Damage Immunity pierced', viaDebuff('hasDamageImmunity'), 0);
+  eq('Invincible holds',        viaDebuff('invincibleTurns'),   3);
+});
+
+gold('RG-12c Bear Trap strips ATK, health shielded by Invincible', function () {
   reset();
   var tgt = card({ name: 'Flash', owner: 'ai', attack: 2, health: 1, abilities: [] });
-  tgt.hasDamageImmunity = true;
+  tgt.invincibleTurns = 5;
   Game.state.lanes[0].trap = { placedBy: 'player', debuff: 2 };
   Game.checkLaneTrap(tgt, 0);
   eq('atk stripped',   tgt.attack, 0);

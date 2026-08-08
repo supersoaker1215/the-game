@@ -7972,7 +7972,7 @@ const Game = {
       // HERE means every debuff source inherits the rule; recomputeAuras measures
       // its landed delta off maxHealth, so an Invincible target records no HP
       // delta and stays consistent.
-      const hpShielded = card.invincibleTurns > 0;
+      const hpShielded = this.statStripShieldsHp(card);
       if (hpShielded) {
         // Health untouched — no maxHealth/currentHealth change at all.
       } else if (allowKill) {
@@ -8469,6 +8469,22 @@ const Game = {
       return false;   // died to its own pre-attack step — no swing
     }
     return true;
+  },
+
+  // CANONICAL SHIELD RULE for the HEALTH half of a STAT STRIP.
+  // (user 2026-07-25, amended 2026-08-07.) INVINCIBLE shields it. DAMAGE
+  // IMMUNITY does NOT — it is a shield against DAMAGE, and a strip removes size
+  // directly rather than dealing damage, so a Damage-Immune card can be shrunk
+  // to 1 and shrunk into nothing. The ATK half always lands either way.
+  //
+  // ONE PREDICATE because there were two, and they drifted the moment one was
+  // amended. checkLaneTrap hand-rolled its own copy under a comment reading
+  // "matches debuffCard … Now all three agree" — and it stopped agreeing the
+  // instant debuffCard changed. Measured: Pym Particles destroyed a Damage-Immune
+  // card while a Bear Trap on the same card left it at full health. Same shield,
+  // same kind of effect, opposite outcomes.
+  statStripShieldsHp(card) {
+    return !!(card && card.invincibleTurns > 0);
   },
 
   yodaShieldCount(owner) {
@@ -9738,7 +9754,10 @@ const Game = {
     // Previously the trap was absorbed WHOLESALE (early return), which made the
     // same shield behave differently here than for Pym Particles / hostile auras
     // — the inconsistency the user reported. Now all three agree.
-    const hpShielded = card.invincibleTurns > 0 || card.hasDamageImmunity;
+    // Same predicate debuffCard uses. This block used to re-implement it, and
+    // re-implementing is why a Bear Trap kept shielding a Damage-Immune card
+    // after Pym Particles stopped.
+    const hpShielded = this.statStripShieldsHp(card);
     card.attack = Math.max(0, card.attack - debuff);
     if (!hpShielded) {
       card.maxHealth = Math.max(1, card.maxHealth - debuff);
