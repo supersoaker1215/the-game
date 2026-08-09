@@ -3130,6 +3130,33 @@ test('Juggernaut himself still resists Mind Control, and says so', function () {
     'and the resist is reported rather than silent');
 });
 
+test('Mind Control and Fear both stun — no moves, hunts or bonus attacks', function () {
+  // Owner: "when a character is mind controlled or feared they are stunned
+  // where they cant move/bonus attack etc." Fear already action-locked; MIND
+  // CONTROL did not, so a controlled card was free to move, hunt and spend a
+  // banked bonus attack while fighting for the other side.
+  var G = freshGame();
+  var feared = place(G, 'Bane', 'ai', 0);      feared.isFeared = true;
+  var mc     = place(G, 'Bane', 'ai', 1);      mc.isMindControlled = true;
+  var frozen = place(G, 'Bane', 'ai', 2);      frozen.isFrozen = true;
+  var clean  = place(G, 'Bane', 'ai', 3);
+  assertEq(G.isActionLocked(feared), true, 'feared is locked');
+  assertEq(G.isActionLocked(mc), true, 'mind-controlled is locked');
+  assertEq(G.isActionLocked(frozen), true, 'frozen is still locked');
+  // CONTROL — an unafflicted card must NOT be locked, or "everything is
+  // stunned" would pass this test while breaking the game.
+  assertEq(G.isActionLocked(clean), false, 'a clean card still acts');
+
+  // The lock has to actually stop a bonus attack, not just report true.
+  var atk = place(G, 'Bane', 'player', 5);
+  atk.attack = 4; atk.bonusAttack = 1; atk.isMindControlled = true;
+  var before = G.state.ai.health;
+  G.drainBonusAttacks(atk);
+  assertEq(G.state.ai.health, before, 'a mind-controlled card banks no bonus attack');
+
+  assertEq(G.actionLockLabel(mc), 'MIND CONTROLLED', 'and the log names the real cause');
+});
+
 test('Iron Giant is still never placeable, and the desc still says so', function () {
   // The gate itself is untouched by the draw work — this pins that.
   var G = igSetup();

@@ -9027,12 +9027,24 @@ const Game = {
   // and silently omitted fear. That is how a FEARED Han Solo could still pick a
   // different lane and shoot into it (user report). One predicate now, so a new
   // card with an extra-action hook inherits the rule instead of re-deriving it.
+  // STUNNED = cannot take EXTRA actions. Freeze, Fear and now Mind Control all
+  // produce it. Owner: "when a character is mind controlled or feared they are
+  // stunned where they cant move/bonus attack etc."
+  // Mind Control was the gap — a controlled card was still free to move, hunt
+  // and spend banked bonus attacks while fighting for the other side.
+  // Every caller of this is an EXTRA action (moves, hunts, bonus attacks,
+  // before-tricks repositioning). The mind-controlled card's own SWING is
+  // resolved elsewhere and checks isStunned/isFrozen directly, so it still
+  // attacks for its controller — which is the whole point of the card.
   isActionLocked(card) {
-    return !!(card && (card.isFrozen || card.isStunned || card.isFeared));
+    return !!(card && (card.isFrozen || card.isStunned || card.isFeared || card.isMindControlled));
   },
   // Which status to name in the "blocked" log line.
   actionLockLabel(card) {
-    return (card && card.isFeared) ? 'FEARED' : 'FROZEN';
+    if (!card) return 'FROZEN';
+    if (card.isFeared) return 'FEARED';
+    if (card.isMindControlled) return 'MIND CONTROLLED';
+    return 'FROZEN';
   },
   freezeCard(card, source, n) {
     if (!card) return;

@@ -20248,6 +20248,19 @@ const UI = {
     if (c.isStunned) {
       const n = c.stunnedTurns > 0 ? c.stunnedTurns : 1;
       t.push(badge('badge-stunned', `Stunned ${n}`, 'Stun'));
+    } else if (c.isFeared || c.isMindControlled) {
+      // STUNNED, shown for the two statuses that action-lock without saying so.
+      // Owner: "when a character is mind controlled or feared they are stunned
+      // where they cant move/bonus attack etc ... they should get a stunned
+      // icon like bullseye."
+      // Fear's badge explains that it attacks itself and Mind Control's that it
+      // fights for you; neither told you the card also cannot move, hunt or
+      // spend a banked bonus attack. Untimed on purpose — it lasts exactly as
+      // long as whichever status caused it, and a second countdown next to that
+      // status's own would be two numbers for one clock.
+      // Frozen is excluded: its own tip already reads "Can't attack, move, or
+      // make bonus attacks", so a Stunned badge beside it says nothing new.
+      t.push(badge('badge-stunned', 'Stunned', 'Stun'));
     }
     if (c.isFrozen) {
       const n = c.frozenTurns > 0 ? c.frozenTurns : 1;
@@ -20376,6 +20389,7 @@ const UI = {
     'Critical':    { color: '#ff69b4', svg: '<svg viewBox="0 0 12 12"><path d="M6 0.3 Q6.55 4.35 11.7 6 Q6.55 7.65 6 11.7 Q5.45 7.65 0.3 6 Q5.45 4.35 6 0.3Z" fill="currentColor"/></svg>', tip: 'Deals DOUBLE damage this round.' },
     'Burning':     { color: '#ff7a00', svg: '<svg viewBox="0 0 12 12"><path d="M6.6.5c.3 1.8-.5 2.8-1.4 3.8-1 1-2 2-2 3.4a3.4 3.4 0 0 0 6.8.1c0-1.4-.7-2.4-1.5-3.3-.4.5-.6 1-.6 1.7C6.9 4.6 6.4 2.6 6.6.5Z" fill="currentColor"/></svg>', tip: 'Takes damage at the start of each round until the fire goes out.' },
     'Freeze':      { color: '#85c1e9', svg: '<svg viewBox="0 0 12 12"><path d="M6 1 V11 M1.5 3.5 L10.5 8.5 M10.5 3.5 L1.5 8.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>', tip: 'Can\'t attack, move, or make bonus attacks while frozen.' },
+    'Stun':        { color: '#c9a227', svg: '<svg viewBox="0 0 12 12"><path d="M1.5 6 H8.5 M6 3.5 L8.8 6 L6 8.5" stroke="currentColor" stroke-width="1.2" fill="none" stroke-linecap="round" stroke-linejoin="round"/><path d="M2 10 L10 2" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>', tip: 'Cannot move, hunt, or make bonus attacks. Applied by Fear and Mind Control.' },
     'Fear':        { color: '#5a5a5a', svg: '<svg viewBox="0 0 12 12"><circle cx="4" cy="5" r="1" fill="currentColor"/><circle cx="8" cy="5" r="1" fill="currentColor"/><path d="M3 9 Q6 7 9 9" stroke="currentColor" stroke-width="1.2" fill="none"/></svg>', tip: 'Attacks itself instead of the enemy.' },
     'Parlay':      { color: '#d4ac6e', svg: '<svg viewBox="0 0 12 12"><path d="M3.5 1.5 V10.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/><path d="M3.5 2 H9.5 L8 4 L9.5 6 H3.5 Z" fill="currentColor"/></svg>', tip: 'Singled out by Jack Sparrow — this card cannot attack this round.' },
     'Steady':      { color: '#16a085', svg: '<svg viewBox="0 0 12 12"><circle cx="6" cy="6" r="2.5" stroke="currentColor" stroke-width="1.2" fill="none"/><path d="M3 6 H9 M6 3 V9" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>', tip: 'Cancels one Crazy reroll per charge — ATK stays at base for that turn.' },
@@ -21419,28 +21433,33 @@ const UI = {
       btnR.onclick = () => this.onRedrawClick();
     }
 
-    // Button text deliberately short ("Done") so the label fits entirely
-    // inside the banner's 1fr center cell between the block circle and the
-    // energy orb. Full phase name ("Cards", "Cards & Tricks", "Tricks") is
-    // already shown by the HUD pill at the top of the screen — the button's
-    // only job is to advance the turn. Longer labels caused the button to
-    // grow past the center cell and overlap the energy orb on narrower bars.
+    // NAMES THE PHASE IT ENDS. Owner: "instead of the button saying done it
+    // should say like 'end card phase' ... that might be too long then 'end
+    // trick phase' but you see the idea."
+    // "Done" told you an action was available but not WHICH phase you were
+    // leaving, so the two halves of your turn ended with an identical button.
+    // Two words, not three: the original comment here is a real warning — a
+    // long label grew past the centre cell and overlapped the energy orb on
+    // narrow bars — and "End Card Phase" is about half again as wide as what
+    // fits. "End Cards" / "End Tricks" carries the same meaning inside the
+    // space that exists. Measured at 1280 and at 380 before shipping.
+    // The combined phase ends BOTH halves, so it says End Turn.
     if (s.phase === 'player-cards') {
-      btnA.textContent = 'Done';
+      btnA.textContent = 'End Cards';
       btnA.className = 'btn btn-primary';
       btnA.onclick = abilityPending ? null : () => Game.endPhase1();
       btnA.style.display = 'inline-block';
       btnA.disabled = !!abilityPending;
       btnA.style.opacity = abilityPending ? '0.4' : '';
     } else if (s.phase === 'player-cards-tricks') {
-      btnA.textContent = 'Done';
+      btnA.textContent = 'End Turn';
       btnA.className = 'btn btn-primary';
       btnA.onclick = abilityPending ? null : () => Game.endPhase2();
       btnA.style.display = 'inline-block';
       btnA.disabled = !!abilityPending;
       btnA.style.opacity = abilityPending ? '0.4' : '';
     } else if (s.phase === 'player-tricks') {
-      btnA.textContent = 'Done';
+      btnA.textContent = 'End Tricks';
       btnA.className = 'btn btn-secondary';
       btnA.onclick = abilityPending ? null : () => Game.endPhase3();
       btnA.style.display = 'inline-block';
