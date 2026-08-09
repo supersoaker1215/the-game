@@ -11082,7 +11082,19 @@ const Game = {
       const beforeAtk = c.attack, beforeMax = c.maxHealth;
       if (dAtk > 0 || dHp > 0) this.buffCard(c, Math.max(0, dAtk), Math.max(0, dHp));
       if ((dAtk < 0 || dHp < 0) && c.currentHealth > 0) {
-        this.debuffCard(c, Math.max(0, -dAtk), Math.max(0, -dHp), w.hostile, w.src || { name: 'an aura' });
+        // allowKill = FALSE, always. A While-Active aura SHRINKS; it does not
+        // destroy. This whole function exists to RECONCILE — when Magneto or
+        // Luke leaves, the stats come straight back — so an aura that kills is
+        // a reversible effect causing a permanent loss, which it can never undo.
+        // It was passing `w.hostile` into the allowKill slot, so any hostile
+        // aura could finish a card off.
+        // Owner hit it as: Scarlet Witch enters opposite Doomsday, copies his
+        // CURRENT health, and Magneto's -1/-1 takes her straight to 0/0 — three
+        // energy for a card that died on arrival having done nothing. Their
+        // rule: "scarlet witch should be able to survive if she copies a card
+        // that has enough health", which only holds if the aura cannot finish
+        // her. Now it floors at 1 HP and she lives at whatever she copied.
+        this.debuffCard(c, Math.max(0, -dAtk), Math.max(0, -dHp), false, w.src || { name: 'an aura' });
       }
       const landedAtk = c.attack - beforeAtk;
       const landedHp = c.maxHealth - beforeMax;
