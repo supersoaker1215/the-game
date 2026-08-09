@@ -4236,6 +4236,59 @@ test('Avada Kedavra now stops at cost 6', function () {
   assertEq(cardByName('Voldemort').desc.indexOf('\u2264 6') > -1, true, 'the text says 6');
 });
 
+// A FROZEN CARD'S LANE STILL RESOLVES. Owner: "Gamora should not be frozen
+// forever — she was frozen by Spider-Man and after her attack lane the frozen
+// should disappear, it's still on her."
+//
+// The tick was hung off the card's SWING, and every reason a card cannot swing
+// (frozen, stunned, 0 ATK) returns before it — so the freeze was preventing the
+// very attack that was supposed to clear it and renewed itself forever. These
+// drive REAL COMBAT rather than calling the tick directly, which is exactly why
+// the earlier tests missed it: they asserted the helper, not the wiring.
+test('A frozen card thaws by its lane fighting, even though it cannot swing', function () {
+  var G = freshGame();
+  var gamora = place(G, 'Gamora', 'ai', 2);
+  G.freezeCard(gamora, place(G, 'Spider-Man', 'player', 5), 1);
+  assertEq(gamora.isFrozen, true, 'frozen to start');
+  assertEq(G.state.lanes[2].player, null, 'and her lane is uncontested');
+
+  G.resolveCombat();
+  assertEq(gamora.isFrozen, false, 'her lane resolved — she thaws');
+});
+
+test('A frozen card in a CONTESTED lane thaws too', function () {
+  var G = freshGame();
+  var gamora = place(G, 'Gamora', 'ai', 2);
+  var foe = place(G, 'Bane', 'player', 2);
+  foe.attack = 0;                       // nobody kills anybody; the lane still fights
+  gamora.currentHealth = 20; gamora.maxHealth = 20;
+  G.freezeCard(gamora, place(G, 'Spider-Man', 'player', 5), 1);
+  G.resolveCombat();
+  assertEq(gamora.isFrozen, false, 'thawed by the lane resolving');
+});
+
+test('A 0-ATK card still ticks — it cannot swing, but its lane fights', function () {
+  var G = freshGame();
+  var c = place(G, 'Gamora', 'ai', 3);
+  c.attack = 0;                          // never reaches the swing path
+  G.freezeCard(c, place(G, 'Spider-Man', 'player', 5), 1);
+  G.resolveCombat();
+  assertEq(c.isFrozen, false, 'a body that cannot attack is not frozen forever');
+});
+
+test('The lane tick fires exactly ONCE per lane, so Freeze 2 is not halved', function () {
+  var G = freshGame();
+  var c = place(G, 'Gamora', 'ai', 2);
+  c.currentHealth = 30; c.maxHealth = 30;
+  G.freezeCard(c, place(G, 'Spider-Man', 'player', 5), 2);
+  assertEq(c.frozenTurns, 2, 'Freeze 2 armed');
+  G.resolveCombat();
+  assertEq(c.frozenTurns, 1, 'one lane resolution spent exactly one');
+  assertEq(c.isFrozen, true, 'still frozen after the first');
+  G.resolveCombat();
+  assertEq(c.isFrozen, false, 'and clear after the second');
+});
+
 // ============================================================
 // ---- RUNNER ------------------------------------------------
 // ============================================================

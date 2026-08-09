@@ -5074,6 +5074,24 @@ const Game = {
       const p = lane.player;
       const a = lane.ai;
       const advance = () => {
+        // THE LANE HAS FOUGHT — tick the status clock for the cards that stood
+        // in it, exactly once, here.
+        //
+        // This lives at the LANE's completion rather than inside either card's
+        // swing, because "my lane resolved" and "I attacked" are different
+        // events and a status debuff runs on the first one. Hanging it off the
+        // swing meant every reason a card cannot attack was also a reason its
+        // status never expired: resolveUncontestedLane returns early for a
+        // frozen card, a stunned one, and one with 0 ATK, all BEFORE the tick.
+        // Owner: Gamora was frozen by Spider-Man and stayed frozen — the freeze
+        // was preventing the very attack that was supposed to clear it, so it
+        // renewed itself forever.
+        //
+        // `p` and `a` are the cards that STARTED the lane, so a body that died
+        // or was dragged out mid-resolution does not steal the tick from
+        // whoever replaced it.
+        this._tickStatusOnLaneResolve(p);
+        this._tickStatusOnLaneResolve(a);
         // If any prompt is pending (block trick, card/lane choice, etc.), pause combat
         this.whenPromptCleared(() => {
           UI.render();
@@ -5681,11 +5699,6 @@ const Game = {
         // a no-op since the card already acted).
         if (pCard) pCard._combatSwungThisRound = true;
         if (aCard) aCard._combatSwungThisRound = true;
-        // THIS LANE HAS NOW FOUGHT — the status clock for the cards standing in
-        // it ticks here, not at end of round. Both sides, whether or not they
-        // actually swung: a frozen card's lane still resolved.
-        this._tickStatusOnLaneResolve(pCard);
-        this._tickStatusOnLaneResolve(aCard);
 
         this.cleanupDead();
 
@@ -6375,7 +6388,6 @@ const Game = {
     // combat again." Pre-fix the contested path covered this (line
     // 2773), the uncontested path did not.
     card._combatSwungThisRound = true;
-    this._tickStatusOnLaneResolve(card);   // this lane has fought — see the helper
     const _hpLanded = this.damagePlayer(targetOwner, uncontestedDmg, card.isBullseye, card);
     // Only fire the on-face-damage hook (Sabertooth's grow) when HP actually
     // dropped — a fully blocked / frozen / absorbed hit must not count.
