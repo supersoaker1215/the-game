@@ -456,13 +456,13 @@ const TRICK_DEFS = [
     }
   },
   { name: "Pym Particles", cost: 2,
-    // Time Stone reads this flag FIRST. Pym Particles takes (−3/−3) off one of
+    // Time Stone reads this flag FIRST. Pym Particles takes (−2/−2) off one of
     // your cards and can destroy it outright, which is about as hostile as a
     // trick gets — but it was missing from the hardcoded name list in
     // _isHostileTrick, so the counter was never offered. Owner: "time stone did
     // not block pym particles or kryptonite".
     hostile: true,
-    desc: "Remove (−3/−3) from an enemy. This can destroy it.",
+    desc: "Remove (−2/−2) from an enemy. This can destroy it.",
     canPlay(G, owner) { return G.getEnemiesOf(owner).some(e => G.canTrickLand(e, 'debuff', owner)); },
     play(G, owner) {
       const enemies = G.getEnemiesOf(owner).filter(e => G.canTrickLand(e, 'debuff', owner));
@@ -471,7 +471,7 @@ const TRICK_DEFS = [
         // allowKill=true — shrinking a ≤3-HP enemy destroys it outright.
         // Without the flag, debuffCard floors HP at 1 (user: "Pym Particles
         // can kill an enemy; right now it leaves it at 1 health").
-        G.debuffCard(t, 3, 3, true, { name: 'Pym Particles' });
+        G.debuffCard(t, 2, 2, true, { name: 'Pym Particles' });
         if (t.currentHealth <= 0) G.log(`Pym Particles: ${t.name} shrinks into nothing — destroyed!`);
         else G.log(`Pym Particles: ${t.name} shrunk to ${t.attack}/${t.currentHealth}!`);
       }, cards => cards.sort((a, b) => (b.attack + b.maxHealth) - (a.attack + a.maxHealth))[0]);
@@ -591,7 +591,7 @@ const TRICK_DEFS = [
       }
     }
   },
-  { name: "Reality Stone", cost: 4,
+  { name: "Reality Stone", cost: 3,
     desc: "Permanently swap an ally's ATK and HP with an enemy's.",
     // Needs a live target — greys out in the tray + refused by playTrick otherwise.
     canPlay(G, owner) { return G.getAlliesOf(owner).some(a => G.canTrickLand(a, 'trick', owner)) && G.getEnemiesOf(owner).some(e => G.canTrickLand(e, 'debuff', owner)); },

@@ -3273,6 +3273,120 @@ test('Thanos DEVOURS on the snap — void pile, and no When Destroyed', function
     'the card text says Devour, capitalised so the keyword chip renders');
 });
 
+// OPTIONAL PROMPTS. "Stay put" used to be expressed by listing the card's own
+// lane among the choices — a square already covered by the card, so the click
+// hit the card. Owner: "it's hard right now to click their lane that they are
+// in to stay." The opt-out is its own control now.
+// The shim replaces promptLaneChoice/promptCardChoice with a synchronous
+// auto-pick, so these assert the MECHANISM — what the ability asks for, and
+// what the engine's resolve door does with a decline — rather than driving a
+// modal the headless harness never renders.
+function capturePrompt(G, kind) {
+  var seen = null;
+  var key = kind === 'lane' ? 'promptLaneChoice' : 'promptCardChoice';
+  var real = G[key];
+  G[key] = function (owner, list, title, desc, cb) {
+    var opts = kind === 'lane' ? arguments[8] : arguments[6];
+    seen = { owner: owner, list: list, title: title, callback: cb, options: opts || {} };
+  };
+  return { get: function () { return seen; }, restore: function () { G[key] = real; } };
+}
+
+test('A move prompt offers a real opt-out, not the card own lane', function () {
+  var G = freshGame();
+  G.state.player.isHuman = true;
+  var mb = place(G, 'Man-Bat', 'player', 2);
+  var enemy = place(G, 'Bane', 'ai', 3);
+  var eAtk = enemy.attack;
+  var cap = capturePrompt(G, 'lane');
+  try { CARD_ABILITIES['Man-Bat'].onBeforeTricks(G, mb, 2); } finally { cap.restore(); }
+  var p = cap.get();
+  assert(!!p, 'the prompt was raised');
+  assertEq(p.list.indexOf(2), -1, 'his OWN lane is no longer one of the lane choices');
+  assertEq(p.options.declineLabel, 'STAY PUT', 'and the opt-out is a labelled control instead');
+  assertEq(typeof p.options.onDecline, 'function', 'with something to run when it is taken');
+  p.options.onDecline();
+  assertEq(G.findCardLane(mb), 2, 'declining leaves him exactly where he was');
+  assertEq(enemy.attack, eAtk, 'and the arrival sting never fired');
+});
+
+test('The resolve door honours a decline, and refuses one that was never offered', function () {
+  var G = freshGame();
+  G.state.player.isHuman = true;
+  var picked = null, declined = false;
+  // MANDATORY prompt — no declineLabel.
+  G.state.pendingLaneChoice = { owner: 'player', lanes: [0, 1], title: 't', desc: 'd',
+    callback: function (l) { picked = l; } };
+  assertEq(G.resolveActivePrompt('lane', { decline: true }), false, 'the engine refuses the decline');
+  assert(!!G.state.pendingLaneChoice, 'and the mandatory prompt is still standing');
+  assertEq(picked, null, 'nothing was resolved behind the players back');
+
+  // OPTIONAL prompt — same shape plus the opt-out.
+  G.state.pendingLaneChoice = { owner: 'player', lanes: [0, 1], title: 't', desc: 'd',
+    callback: function (l) { picked = l; }, declineLabel: 'STAY PUT',
+    onDecline: function () { declined = true; } };
+  assertEq(G.resolveActivePrompt('lane', { decline: true }), true, 'this one resolves');
+  assertEq(declined, true, 'via the decline path');
+  assertEq(picked, null, 'and NOT via the pick callback');
+  assertEq(G.state.pendingLaneChoice, null, 'the slot is cleared, not left dangling');
+});
+
+test('Anti-Venom may move an ally — or no one', function () {
+  var G = freshGame();
+  G.state.player.isHuman = true;
+  var av = G.createCardInstance(cardByName('Anti-Venom'), 'player');
+  var ally = place(G, 'Bane', 'player', 4);
+  G.state.lanes[1].player = av; av.owner = 'player';
+  var cap = capturePrompt(G, 'card');
+  try { CARD_ABILITIES['Anti-Venom'].onPlay(G, av, 1); } finally { cap.restore(); }
+  var p = cap.get();
+  assert(!!p, 'the ally pick was raised');
+  assertEq(p.options.declineLabel, 'MOVE NO ONE', 'and it carries an opt-out');
+  p.options.onDecline();
+  assertEq(G.findCardLane(ally), 4, 'the ally stayed exactly where it was');
+  assertEq(cardByName('Anti-Venom').cost, 3, 'and he is a 3-cost now');
+  assertEq(cardByName('Anti-Venom').desc.indexOf('You may move an ally') > -1, true,
+    'with card text that says MAY, matching what the prompt actually does');
+});
+
+// Magneto/Luke auras are recorded per card and re-applied to every new arrival.
+// Copying a target's POST-aura numbers charged Scarlet Witch for the same aura
+// twice and killed her on entry.
+test('Scarlet Witch mirrors the body, not the body plus its aura', function () {
+  var G = freshGame();
+  place(G, 'Magneto', 'ai', 5);
+  var dd = place(G, 'Doomsday', 'ai', 1);   // lane index 1 = display lane 2 = even = Magneto debuffs it
+  var witch = G.createCardInstance(cardByName('Scarlet Witch'), 'player');
+  G.state.player.hand.push(witch);
+  G.state.player.currency = 20;
+  G.playCard('player', witch, 1);
+  var live = G.state.lanes[1].player;
+  assertEq(live, witch, 'she survives entry opposite a Magneto-debuffed enemy');
+  assert(witch.currentHealth > 0, 'and is not a 0-HP zombie');
+  // MIRROR: whatever the aura does to her, she lands on the target's stats.
+  assertEq(witch.attack, dd.attack, 'she ends on the targets exact ATK');
+  assertEq(witch.currentHealth, dd.currentHealth, 'and the targets exact HP');
+});
+
+test('The rebalanced costs and Pym numbers are what the text claims', function () {
+  var pym = TRICK_DEFS.find(function (t) { return t.name === 'Pym Particles'; });
+  var rs  = TRICK_DEFS.find(function (t) { return t.name === 'Reality Stone'; });
+  assertEq(rs.cost, 3, 'Reality Stone is 3');
+  assertEq(pym.desc.indexOf('(−2/−2)') > -1, true, 'Pym text says −2/−2');
+  // And the code agrees with the text — the pair that silently drifts.
+  var G = freshGame();
+  G.state.player.isHuman = true;
+  var target = place(G, 'Doomsday', 'ai', 0);
+  target.attack = 5; target.baseAttack = 5;
+  target.currentHealth = 5; target.maxHealth = 5;
+  G.state.player.currency = 20;
+  pym.play(G, 'player');
+  var cc = G.state.pendingCardChoice;
+  if (cc) G.resolveActivePrompt('card', { idx: cc.cards.indexOf(target) });
+  assertEq(target.attack, 3, 'and actually removes 2 ATK');
+  assertEq(target.currentHealth, 3, 'and 2 HP');
+});
+
 // ============================================================
 // ---- RUNNER ------------------------------------------------
 // ============================================================

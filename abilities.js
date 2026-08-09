@@ -331,14 +331,14 @@ const CARD_ABILITIES = {
       // move." Player can click Man-Bat's own lane to stay put — no move,
       // no sting.
       if (Game.isHuman(self.owner)) {
-        const choices = [lane, ...open];
-        G.promptLaneChoice(self.owner, choices, "Man-Bat — Move", "Choose a lane to move to (current = stay)", (to) => {
-          if (to === lane) {
-            G.log(`Man-Bat stays put in lane ${lane + 1}.`);
-            return;
-          }
+        // STAY is a BUTTON, not a lane (see promptLaneChoice options.declineLabel).
+        // The old affordance listed Man-Bat's own lane among the choices and
+        // asked the player to click it — but that square is covered by the card
+        // itself, so the click hit the card every time. Owner: "it's hard right
+        // now to click their lane that they are in to stay."
+        G.promptLaneChoice(self.owner, open, "Man-Bat — Move", "Choose a lane to move to", (to) => {
           G.moveCard(self, lane, to);
-        });
+        }, null, null, 0, { declineLabel: 'STAY PUT', onDecline: () => G.log(`Man-Bat stays put in lane ${lane + 1}.`) });
       } else {
         const to = open[Math.floor(Game.rng() * open.length)];
         G.moveCard(self, lane, to);
@@ -476,14 +476,14 @@ const CARD_ABILITIES = {
       const open = G.getOpenLanes(self.owner).filter(l => l !== lane);
       if (!open.length) return;
       if (Game.isHuman(self.owner)) {
-        const choices = [lane, ...open];
-        G.promptLaneChoice(self.owner, choices, "Jango Fett — Move", "Choose a lane to move to (current = stay)", (to) => {
-          if (to === lane) {
-            G.log(`Jango Fett holds his position in lane ${lane + 1}.`);
-            return;
-          }
+        // STAY is a BUTTON, not a lane (see promptLaneChoice options.declineLabel).
+        // The old affordance listed Jango Fett's own lane among the choices and
+        // asked the player to click it — but that square is covered by the card
+        // itself, so the click hit the card every time. Owner: "it's hard right
+        // now to click their lane that they are in to stay."
+        G.promptLaneChoice(self.owner, open, "Jango Fett — Move", "Choose a lane to move to", (to) => {
           G.moveCard(self, lane, to);
-        });
+        }, null, null, 0, { declineLabel: 'STAY PUT', onDecline: () => G.log(`Jango Fett holds his position in lane ${lane + 1}.`) });
       } else {
         const to = open[Math.floor(Game.rng() * open.length)];
         G.moveCard(self, lane, to);
@@ -1198,17 +1198,17 @@ const CARD_ABILITIES = {
       // Stay-option same as Man-Bat / Omni-Man — pick own lane to skip
       // the relocation. Splash also skips since it fires off the move.
       if (Game.isHuman(self.owner)) {
-        const choices = [lane, ...targetLanes];
-        G.promptLaneChoice(self.owner, choices, "Green Goblin — Move", "Choose a lane to move to (current = stay)", (to) => {
-          if (to === lane) {
-            G.log(`Green Goblin stays put in lane ${lane + 1}.`);
-            return;
-          }
+        // STAY is a BUTTON, not a lane (see promptLaneChoice options.declineLabel).
+        // The old affordance listed Green Goblin's own lane among the choices and
+        // asked the player to click it — but that square is covered by the card
+        // itself, so the click hit the card every time. Owner: "it's hard right
+        // now to click their lane that they are in to stay."
+        G.promptLaneChoice(self.owner, targetLanes, "Green Goblin — Move", "Choose a lane to move to", (to) => {
           G.moveCard(self, lane, to);
           G.splashDamage(to, self.owner, 1, self);
           const e = G.state.lanes[to][opp];
           G.log(`Green Goblin moves to face ${e ? e.name : 'enemy'} in lane ${to + 1} and splashes!`);
-        });
+        }, null, null, 0, { declineLabel: 'STAY PUT', onDecline: () => G.log(`Green Goblin stays put in lane ${lane + 1}.`) });
       } else {
         const to = targetLanes[Math.floor(Game.rng() * targetLanes.length)];
         G.moveCard(self, lane, to);
@@ -1500,8 +1500,29 @@ const CARD_ABILITIES = {
       // hex target — turns mirror into outright trade.
       const bonus = self._witchHexBonus || 0;
       if (enemy && enemy.currentHealth > 0) {
-        const adoptAtk = (enemy.attack || 0) + bonus;
-        const adoptHp  = (enemy.currentHealth || enemy.maxHealth || 1) + bonus;
+        // SHE ENDS AS AN EXACT MIRROR — AFTER the aura, not before it.
+        //
+        // A While Active aura (Magneto's parity, Luke's) lands on Scarlet Witch
+        // the instant she arrives, one step AFTER this hook. Copying her
+        // target's numbers and stopping meant the aura then moved her OFF the
+        // body she had just copied — and when the target is small and the aura
+        // is hostile, off the board entirely: opposite an enemy Magneto in an
+        // even lane, she copied a 1/1 Doomsday, took -1/-1, and died on entry
+        // without doing anything. Owner: "magneto was on the field and scarlet
+        // witch die on entry in front of doomsday", and the rule they asked
+        // for: "the on play happens first then the passives hit".
+        //
+        // So she copies the target OFFSET BY THE AURA SHE IS ABOUT TO RECEIVE,
+        // and lands on the target's exact stats once it does. Note the aura on
+        // HER is not the aura on her TARGET — they stand on opposite sides, so
+        // Magneto buffing him is the same Magneto debuffing her. Reading the
+        // recorded aura off the target would have got the sign backwards half
+        // the time; asking what SHE is due is the question that actually
+        // matters. auraWantFor shares the engine's own source scan, so any
+        // future aura is mirrored correctly without touching this card.
+        const incoming = G.auraWantFor ? G.auraWantFor(self) : { atk: 0, hp: 0 };
+        const adoptAtk = Math.max(0, (enemy.attack || 0) - incoming.atk) + bonus;
+        const adoptHp  = Math.max(1, (enemy.currentHealth || enemy.maxHealth || 1) - incoming.hp) + bonus;
         self.attack = adoptAtk;
         self.baseAttack = adoptAtk;
         self.currentHealth = adoptHp;
@@ -1690,16 +1711,20 @@ const CARD_ABILITIES = {
           const from = G.findCardLane(ally);
           if (from >= 0) {
             if (Game.isHuman(self.owner)) {
-              G.promptLaneChoice(self.owner, open, `Move ${ally.name}`, `Choose new lane for ${ally.name}`, (l) => {
+              G.promptLaneChoice(self.owner, open, `Move ${ally.name}`, `Choose a new lane for ${ally.name}`, (l) => {
                 G.moveCard(ally, from, l);
-              });
+              }, null, null, 0, { declineLabel: 'LEAVE THEM', onDecline: () => G.log(`${ally.name} holds position.`) });
             } else {
               G.moveCard(ally, from, open[0]);
             }
           }
         };
         if (Game.isHuman(self.owner)) {
-          G.promptCardChoice(self.owner, allies, "Anti-Venom — Move", "Choose ally to move", doMove);
+          // MAY move, not must — the card reads "you may move an ally", so the
+          // prompt carries its own opt-out instead of forcing a relocation the
+          // owner never wanted. Same door as Man-Bat's STAY PUT.
+          G.promptCardChoice(self.owner, allies, "Anti-Venom — Move", "Choose an ally to reposition", doMove, null,
+            { declineLabel: 'MOVE NO ONE', onDecline: () => G.log('Anti-Venom moves no one.') });
         } else {
           doMove(allies[0]);
         }
@@ -3631,14 +3656,14 @@ const CARD_ABILITIES = {
       // as Man-Bat. Player can pick Omni-Man's own lane to skip the
       // relocation entirely.
       if (Game.isHuman(self.owner)) {
-        const choices = [lane, ...open];
-        G.promptLaneChoice(self.owner, choices, "Omni-Man — Move", "Choose a lane to move to (current = stay)", (to) => {
-          if (to === lane) {
-            G.log(`Omni-Man stays put in lane ${lane + 1}.`);
-            return;
-          }
+        // STAY is a BUTTON, not a lane (see promptLaneChoice options.declineLabel).
+        // The old affordance listed Omni-Man's own lane among the choices and
+        // asked the player to click it — but that square is covered by the card
+        // itself, so the click hit the card every time. Owner: "it's hard right
+        // now to click their lane that they are in to stay."
+        G.promptLaneChoice(self.owner, open, "Omni-Man — Move", "Choose a lane to move to", (to) => {
           G.moveCard(self, lane, to);
-        });
+        }, null, null, 0, { declineLabel: 'STAY PUT', onDecline: () => G.log(`Omni-Man stays put in lane ${lane + 1}.`) });
       } else {
         const to = open[Math.floor(Game.rng() * open.length)];
         G.moveCard(self, lane, to);

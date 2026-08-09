@@ -10458,7 +10458,23 @@ const UI = {
     const title = opponentOwns ? `Waiting for ${_actorName}…`
       : cc ? cc.title : lc ? lc.title : '';
     const desc = opponentOwns ? '' : cc ? cc.desc : lc ? lc.desc : '';
-    banner.innerHTML = `${title}${desc ? `<div class="prompt-desc">${desc}</div>` : ''}<div class="prompt-timer" id="prompt-timer"></div>`;
+    // OPT-OUT BUTTON — an optional prompt ("move, or stay put") carries its own
+    // control instead of asking the player to click the lane their own card is
+    // already standing on. That click always landed on the card, never the lane.
+    const declinable = !opponentOwns && (
+      (cc && cc.declineLabel && Game.promptIsMine(cc, 'card')) ? { kind: 'card', label: cc.declineLabel } :
+      (lc && lc.declineLabel && Game.promptIsMine(lc, 'lane')) ? { kind: 'lane', label: lc.declineLabel } : null);
+    banner.innerHTML = `${title}${desc ? `<div class="prompt-desc">${desc}</div>` : ''}` +
+      (declinable ? `<div class="prompt-actions"><button type="button" class="prompt-decline" data-kind="${declinable.kind}">${declinable.label}</button></div>` : '') +
+      `<div class="prompt-timer" id="prompt-timer"></div>`;
+    if (declinable) {
+      // The banner normally ghosts to 15% on hover so it never hides the board.
+      // A banner you have to REACH INTO can't do that — you would be aiming at
+      // something that fades as you approach it.
+      banner.classList.add('prompt-banner--actionable');
+      const btn = banner.querySelector('.prompt-decline');
+      if (btn) btn.addEventListener('click', () => promptDeclinePick(declinable.kind));
+    }
     const turnHud = document.querySelector('.turn-hud');
     if (turnHud) turnHud.parentNode.insertBefore(banner, turnHud.nextSibling);
     // Re-anchor an active countdown to the new timer element
@@ -28094,6 +28110,33 @@ function laneChoicePick(laneIdx) {
   // Local resolve through the ownership-checked engine door — shares the
   // authority the render gates read (see Game.resolveActivePrompt).
   if (Game.resolveActivePrompt('lane', { laneIdx })) UI.render();
+}
+
+// The opt-out on an OPTIONAL prompt ("STAY PUT" / "DON'T MOVE ANYONE"). Routes
+// exactly like laneChoicePick/cardChoicePick — guest forwards to the host,
+// 2v2 forwards to the acting seat, everyone else resolves through the same
+// ownership-checked engine door — because a decline is a real resolution and
+// has to be as authoritative as a pick.
+function promptDeclinePick(kind) {
+  const s = Game.state;
+  const p = kind === 'lane' ? s.pendingLaneChoice : s.pendingCardChoice;
+  if (!p || !p.declineLabel) return;
+  if (Game.isMultiplayer() && Game.mp && Game.mp.role === 'guest') {
+    if (typeof Multiplayer !== 'undefined') Multiplayer.send({ t: 'promptResolve', choiceType: kind, decline: true });
+    return;
+  }
+  if (Game.isMultiplayer() && p.owner === 'ai') return;
+  if (Game.is2v2() && s.twoVTwo && s.twoVTwo.online) {
+    const actor = p._2v2ActingPlayer, you = s.twoVTwo.you;
+    if (actor && actor !== you) return;
+    if (actor && you !== 'p1') {
+      if (typeof Multiplayer4 !== 'undefined') {
+        Multiplayer4.send({ t: kind === 'lane' ? '2v2LaneChoiceResult' : '2v2CardChoiceResult', playerKey: you, decline: true });
+      }
+      return;
+    }
+  }
+  if (Game.resolveActivePrompt(kind, { decline: true })) UI.render();
 }
 
 function cardChoicePick(idx) {

@@ -1288,6 +1288,24 @@ const Game = {
     const prompt = this.state[slotKey];
     if (!prompt) return false;
     if (!this.promptIsMine(prompt, kind)) return false;
+    // DECLINE — the player took the prompt's explicit opt-out ("STAY PUT",
+    // "DON'T MOVE"). Only legal on a prompt that offered one, so a stray or
+    // tampered decline can't cancel a mandatory pick. Runs the same
+    // slot-clear / snapshot / record / resume sequence a normal pick does,
+    // because a declined prompt is just as finished as a resolved one — the
+    // only difference is which callback fires.
+    if (payload && payload.decline) {
+      if (!prompt.declineLabel) return false;
+      this._clearPromptTimeout();
+      this.state[slotKey] = null;
+      if (this.isPlayerTurn() || (this.isMultiplayer() && this.mp && this.mp.role === 'host'))
+        this.snapshot(prompt.owner);
+      this._recordCmd({ k: 'resolve', kind, payload: { decline: true } });
+      if (typeof prompt.onDecline === 'function') prompt.onDecline();
+      this.cleanupDead();
+      this.resumeCombatIfWaiting();
+      return true;
+    }
     let arg;
     if (kind === 'lane') {
       const laneIdx = (payload && payload.laneIdx);
@@ -1566,7 +1584,19 @@ const Game = {
           // Guest resolved an ability prompt (card or lane choice). Apply on
           // the authoritative host state so the result is canonical, then
           // broadcast so both clients see the outcome.
-          if (msg.choiceType === 'card') {
+          // A guest taking an OPTIONAL prompt's opt-out ("STAY PUT"). Same
+          // shape for both prompt kinds, and gated on the prompt actually
+          // having offered one — a decline can never cancel a mandatory pick.
+          if (msg.decline) {
+            const slot = msg.choiceType === 'lane' ? 'pendingLaneChoice' : 'pendingCardChoice';
+            const p = this.state[slot];
+            if (!p || p.owner !== actor || !p.declineLabel) break;
+            this._clearPromptTimeout();
+            this.state[slot] = null;
+            if (typeof p.onDecline === 'function') p.onDecline();
+            this.cleanupDead();
+            this.resumeCombatIfWaiting();
+          } else if (msg.choiceType === 'card') {
             const cc = this.state.pendingCardChoice;
             if (!cc) break;
             // The prompt must belong to the actor's seat. A stale guest resolve
@@ -9307,7 +9337,20 @@ const Game = {
     // options.forced — a predetermined lane pick (e.g. Jigsaw trapping every
     // open enemy lane): auto-place with no modal, same as the single-lane arm.
     const forcedLane = !!(options && options.forced);
-    if (this.isHuman(owner) && lanes.length > 1 && !forcedLane) {
+    // options.declineLabel — this pick is OPTIONAL, and the banner grows an
+    // explicit opt-out button carrying this label ("STAY PUT", "DON'T MOVE").
+    //
+    // Before this, "don't move" was expressed by listing the card's OWN lane
+    // among the choices and asking the player to click it. The lane is the one
+    // square already covered by the card, so the click lands on the card, not
+    // the lane — the owner could see the yellow highlight and had no reliable
+    // way to take it. An optional choice needs its own control, not a target
+    // that fights the board for the same pixels.
+    const declineLabel = (options && options.declineLabel) || null;
+    // A declinable prompt NEVER auto-resolves on a single option: "one lane
+    // available" and "you must move there" are different statements, and the
+    // whole point is that the player can refuse.
+    if (this.isHuman(owner) && (lanes.length > 1 || declineLabel) && !forcedLane) {
       // previewCard (optional) — synthetic card representing what lands
       //   in the chosen lane. Used for summon placement; UI renders
       //   makeDamagePreview against the lane's opposing enemy.
@@ -9320,7 +9363,7 @@ const Game = {
       //   enemies. User spec: "When you place a summon, [show] damage
       //   preview. Or when you're using a chain ability and selecting
       //   an enemy, [show] damage preview as well, for Vader and stuff."
-      this.state.pendingLaneChoice = { owner, lanes, title, desc, callback, targetSide: targetSide || owner, previewCard: previewCard || null, previewDamage: previewDamage || 0 };
+      this.state.pendingLaneChoice = { owner, lanes, title, desc, callback, targetSide: targetSide || owner, previewCard: previewCard || null, previewDamage: previewDamage || 0, declineLabel, onDecline: (options && options.onDecline) || null };
       // 2v2 online: if this choice belongs to a guest (non-host), annotate
       // it so the guest's client knows to show the modal. The host skips
       // rendering/timeout here — the broadcast in _apply2v2OnlineAction
@@ -9371,9 +9414,14 @@ const Game = {
         // Ownership check — never auto-resolve a prompt owned by the
         // other human in multiplayer; their client resolves it.
         if (this.isMultiplayer() && cur.owner !== this.mp.you) return;
-        const pick = cur.lanes[0];
         this.state.pendingLaneChoice = null;
-        callback(pick);
+        // An OPTIONAL pick times out into the opt-out, not into lanes[0]. The
+        // player who let the clock run did not ask to be moved somewhere.
+        if (cur.declineLabel) {
+          if (typeof cur.onDecline === 'function') cur.onDecline();
+        } else {
+          callback(cur.lanes[0]);
+        }
         this.resumeCombatIfWaiting();
         UI.render();
       });
@@ -9457,13 +9505,17 @@ const Game = {
     // GLOBAL hook, so no ability re-implements the skip. forcePrompt wins if
     // a caller explicitly wants the tray shown even for a forced pick.
     const forcedChoice = !forcePrompt && !!(options && options.forced);
-    if (this.isHuman(owner) && (cards.length > 1 || forcePrompt) && !forcedChoice) {
+    // options.declineLabel — see promptLaneChoice. An OPTIONAL target pick
+    // ("Anti-Venom MAY move an ally") gets an explicit opt-out button in the
+    // banner, and never auto-resolves just because one candidate is left.
+    const declineLabelC = (options && options.declineLabel) || null;
+    if (this.isHuman(owner) && (cards.length > 1 || forcePrompt || declineLabelC) && !forcedChoice) {
       // localOnly: a CLIENT-SIDE prompt the engine/host knows nothing about
       // (currently the Invisible Woman face-up/face-down question, asked before
       // the play is submitted). A guest must resolve these locally — forwarding
       // a promptResolve for a prompt the host never armed would be dropped and
       // the play would never happen. See cardChoicePick.
-      this.state.pendingCardChoice = { owner, cards, title, desc, callback, faceDown: !!(options && options.faceDown), inlineTray: !!(options && options.inlineTray), localOnly: !!(options && options.localOnly) };
+      this.state.pendingCardChoice = { owner, cards, title, desc, callback, faceDown: !!(options && options.faceDown), inlineTray: !!(options && options.inlineTray), localOnly: !!(options && options.localOnly), declineLabel: declineLabelC, onDecline: (options && options.onDecline) || null };
       // 2v2 online: route guest choices to the guest client (same as lane choice)
       const _cap = this._2v2CurrentActingPlayer;
       // Stamp the host (p1) too. Excluding p1 left every host-raised prompt
@@ -9505,10 +9557,17 @@ const Game = {
         if (this.isMultiplayer() && cur.owner !== this.mp.you) return;
         // Never use the AI picker in any multiplayer/2v2 context — all seats
         // are human; cards[0] is a neutral fallback when the timer expires.
+        this.state.pendingCardChoice = null;
+        // An OPTIONAL pick times out into the opt-out — see promptLaneChoice.
+        if (cur.declineLabel) {
+          if (typeof cur.onDecline === 'function') cur.onDecline();
+          this.resumeCombatIfWaiting();
+          UI.render();
+          return;
+        }
         const pick = (!this.isMultiplayer() && !this.is2v2() && aiPicker)
           ? aiPicker(cur.cards)
           : cur.cards[0];
-        this.state.pendingCardChoice = null;
         callback(pick);
         this.resumeCombatIfWaiting();
         UI.render();
@@ -11094,26 +11153,26 @@ const Game = {
     }
   },
 
-  _recomputeAurasPass() {
+  // WHO WANTS WHAT, from live sources only. Split out of the reconcile pass so
+  // a card can ASK what an aura is about to do to it without the aura landing
+  // (Scarlet Witch's hex needs the answer one instruction before it lands).
+  // One source scan, two readers — the alternative was a second copy of the
+  // Magneto/Luke rules, which is how these two drift apart.
+  //
+  // `hypothetical` is a card to treat as standing on the board even if it is
+  // not live yet: a card mid-entrance is 0 HP and would otherwise be invisible
+  // to the scan, and "what will this aura do to me" is exactly the question
+  // such a card needs answered.
+  _auraSources(hypothetical) {
     const s = this.state;
     const live = [];
     for (let i = 0; i < this.LANE_COUNT; i++) {
       const l = s.lanes[i];
       ['player', 'ai'].forEach(side => {
         const c = l && l[side];
-        if (c && c.currentHealth > 0 && !c.isEnvironment) live.push({ card: c, lane: i, side });
+        if (c && !c.isEnvironment && (c.currentHealth > 0 || c === hypothetical)) live.push({ card: c, lane: i, side });
       });
     }
-    // One-time migration of pre-recompute stamp flags (mid-match update or a
-    // resumed save): fold each legacy flag into the recorded aura state so
-    // the diff below doesn't double-apply on first contact.
-    live.forEach(({ card: c }) => {
-      if (c._magnetoDebuffed) { c._auraAtk = (c._auraAtk || 0) - 1; c._auraHp = (c._auraHp || 0) - 1; delete c._magnetoDebuffed; }
-      if (c._magnetoBuffed)   { c._auraAtk = (c._auraAtk || 0) + 1; c._auraHp = (c._auraHp || 0) + 1; delete c._magnetoBuffed; }
-      if (c._lukeBuff)        { c._auraAtk = (c._auraAtk || 0) + 1; c._auraHp = (c._auraHp || 0) + 1; delete c._lukeBuff; }
-      if (c._lukeDebuff)      { c._auraAtk = (c._auraAtk || 0) - 1; c._auraHp = (c._auraHp || 0) - 1; delete c._lukeDebuff; }
-    });
-    // Desired NET aura per card from every living source.
     const want = new Map(); // card -> {atk, hp, hostile, src}
     const add = (card, atk, hp, hostile, src) => {
       const w = want.get(card) || { atk: 0, hp: 0, hostile: false, src: null };
@@ -11144,6 +11203,30 @@ const Game = {
         });
       });
     });
+    return { live, want };
+  },
+
+  // The NET aura one card is due, as {atk, hp}. Pass a card that is not live
+  // yet and it is scanned as if it were standing where it stands.
+  auraWantFor(card) {
+    if (!card) return { atk: 0, hp: 0 };
+    const w = this._auraSources(card).want.get(card);
+    return { atk: (w && w.atk) || 0, hp: (w && w.hp) || 0 };
+  },
+
+  _recomputeAurasPass() {
+    const scan = this._auraSources();
+    const live = scan.live;
+    // One-time migration of pre-recompute stamp flags (mid-match update or a
+    // resumed save): fold each legacy flag into the recorded aura state so
+    // the diff below doesn't double-apply on first contact.
+    live.forEach(({ card: c }) => {
+      if (c._magnetoDebuffed) { c._auraAtk = (c._auraAtk || 0) - 1; c._auraHp = (c._auraHp || 0) - 1; delete c._magnetoDebuffed; }
+      if (c._magnetoBuffed)   { c._auraAtk = (c._auraAtk || 0) + 1; c._auraHp = (c._auraHp || 0) + 1; delete c._magnetoBuffed; }
+      if (c._lukeBuff)        { c._auraAtk = (c._auraAtk || 0) + 1; c._auraHp = (c._auraHp || 0) + 1; delete c._lukeBuff; }
+      if (c._lukeDebuff)      { c._auraAtk = (c._auraAtk || 0) - 1; c._auraHp = (c._auraHp || 0) - 1; delete c._lukeDebuff; }
+    });
+    const want = scan.want;
     // Reconcile: apply only the measured difference.
     live.forEach(({ card: c }) => {
       const w = want.get(c) || { atk: 0, hp: 0, hostile: false, src: null };
@@ -12827,7 +12910,9 @@ const Game = {
           this._2v2CurrentActingPlayer = pk;
           this.state.pendingLaneChoice = null;
           this._clearPromptTimeout();
-          if (lc.callback) lc.callback(msg.laneIdx);
+          if (msg.decline && lc.declineLabel) {
+            if (typeof lc.onDecline === 'function') lc.onDecline();
+          } else if (lc.callback) lc.callback(msg.laneIdx);
           this.cleanupDead();
           this.resumeCombatIfWaiting();
         }
@@ -12840,7 +12925,9 @@ const Game = {
           this.state.pendingCardChoice = null;
           this._clearPromptTimeout();
           const pick = cc.cards[msg.idx] || cc.cards[0];
-          if (cc.callback) cc.callback(pick);
+          if (msg.decline && cc.declineLabel) {
+            if (typeof cc.onDecline === 'function') cc.onDecline();
+          } else if (cc.callback) cc.callback(pick);
           this.cleanupDead();
           this.resumeCombatIfWaiting();
         }

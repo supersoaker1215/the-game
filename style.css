@@ -8676,6 +8676,43 @@ body.mobile-card-dragging .cursor-trail { display: none !important; }
   color: var(--text-mute, #b8c2cc);
   text-shadow: none;
 }
+/* A banner you have to reach INTO must not ghost away as you approach it —
+   see the :hover peek-through above. */
+@media (hover: hover) {
+  .prompt-banner--actionable:hover { opacity: 1; }
+}
+/* OPT-OUT BUTTON — the explicit "you don't have to" on an optional prompt.
+   Boxless: the letters are the control, exactly like .fp-btn. 44px of touch
+   target without drawing a 44px box. */
+.prompt-banner .prompt-actions {
+  margin-top: 6px;
+  display: flex; justify-content: center;
+}
+.prompt-banner .prompt-decline {
+  background: none; border: 0; border-radius: 0; box-shadow: none;
+  min-height: 44px; padding: 4px 16px;
+  cursor: pointer;
+  font-family: 'Rajdhani', sans-serif;
+  font-weight: 700; font-size: 14px;
+  letter-spacing: 2.5px; text-transform: uppercase;
+  color: #ffd77a;
+  text-shadow: 0 0 6px rgba(255,215,0,0.45);
+  transform-origin: center;
+  transition: transform 200ms ease, color 200ms ease, text-shadow 200ms ease;
+  -webkit-tap-highlight-color: transparent;
+}
+.prompt-banner .prompt-decline:hover,
+.prompt-banner .prompt-decline:focus-visible {
+  transform: scale(1.12);
+  color: #fff3c0;
+  text-shadow: 0 0 12px rgba(255,215,0,0.9), 0 0 24px rgba(255,215,0,0.45);
+}
+.prompt-banner .prompt-decline:focus-visible { outline: none; }
+@media (prefers-reduced-motion: reduce) {
+  .prompt-banner .prompt-decline { transition: color 200ms ease; }
+  .prompt-banner .prompt-decline:hover,
+  .prompt-banner .prompt-decline:focus-visible { transform: none; }
+}
 /* Live countdown — progress bar + seconds remaining until auto-pick */
 .prompt-banner .prompt-timer {
   margin-top: 8px;
