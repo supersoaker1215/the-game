@@ -478,6 +478,22 @@ const Game = {
     this._clearCombatWatchdog();
     this._bumpCombatProgress();
     this._watchdogTrips = 0; // fresh combat — reset the recovery-retry cap
+    // BACKGROUNDED TIME IS NOT STALLED TIME.
+    // The stall test is wall-clock (Date.now() - _combatProgressAt), but a
+    // hidden tab stops requestAnimationFrame outright and throttles timers to
+    // roughly once a minute — so combat legitimately pauses while the clock
+    // keeps running. Come back after a minute away and the very next tick
+    // measured a minute of "no progress" and force-ended a combat that was
+    // never broken. User: "the game gets stuck when ... i choose another tab,
+    // then go back to the game."
+    // Restarting the clock on the way back gives combat a full grace period to
+    // resume, and the tick itself refuses to judge a hidden tab at all.
+    if (!this._visWatchdogBound && typeof document !== 'undefined' && document.addEventListener) {
+      this._visWatchdogBound = true;
+      document.addEventListener('visibilitychange', () => {
+        if (!document.hidden) this._bumpCombatProgress();
+      });
+    }
     const gen = this._matchGen;
     this._combatWatchdogTimer = setInterval(() => {
       // Liveness: watch the WHOLE combat phase, not just while _inCombat is
@@ -499,6 +515,8 @@ const Game = {
         this._clearCombatWatchdog();
         return;
       }
+      // Never judge a hidden tab — see the visibilitychange note above.
+      if (typeof document !== 'undefined' && document.hidden) { this._bumpCombatProgress(); return; }
       if (Date.now() - (this._combatProgressAt || 0) < this._COMBAT_WATCHDOG_MS) return;
       // Stalled longer than any real prompt could last — recover.
       const s = this.state;
