@@ -15,6 +15,33 @@
 //     as a persistent attribute it belongs in the abilities array instead.
 // ============================================================
 
+// ============================================================
+// SUMMONED TOKENS — display-only rows for the codex.
+//
+// These bodies are conjured on the fly by abilities (summonCardChoice takes
+// name/cost/atk/hp directly) rather than stored in CARD_DEFS, so nothing else
+// in the game knows their names. This table exists so the encyclopedia can
+// still show them, and it lives HERE, with the rest of the card data, rather
+// than inside the codex renderer — a test has to be able to read it, and it
+// could not reach a constant declared inside a function.
+//
+// It MIRRORS the summonCardChoice() calls in abilities.js by hand, which is
+// the weak link: nothing connects the two, so a token added to an ability just
+// never appeared in the codex. Battle Droid went missing the day it was
+// written, and Doombot had been missing far longer — Dr. Doom conjuring a 5/5
+// the encyclopedia never admitted existed. sim/test.js reads every ability's
+// source for summon-name literals and fails if one is not listed here, so the
+// next omission is caught by the suite instead of by a player.
+// ============================================================
+const SUMMON_TOKEN_DEFS = [
+  { name: 'Ant',            cost: 1, attack: 1, health: 1, abilities: ['Bullseye'], desc: 'Token — summoned by Ant-Man.' },
+  { name: 'Battle Droid',   cost: 2, attack: 2, health: 1, abilities: [],           desc: 'Token — summoned by General Grievous.' },
+  { name: 'Doombot',        cost: 5, attack: 5, health: 5, abilities: [],           desc: 'Token — summoned by Dr. Doom.' },
+  { name: 'The Kraken',     cost: 4, attack: 5, health: 3, abilities: [],           desc: 'Token — summoned by Davy Jones.' },
+  { name: 'Undead Warrior', cost: 1, attack: 3, health: 1, abilities: [],           desc: 'Token — summoned by Hela.' },
+  { name: 'Parademon',      cost: 2, attack: 2, health: 1, abilities: [],           desc: 'Token — summoned by Darkseid.' },
+];
+
 const CARD_DEFS = [
   // ==================== COST 0 ====================
   { name: "Iron Giant", cost: 0, attack: 0, health: 0, type: "scifi",

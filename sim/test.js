@@ -3938,6 +3938,74 @@ test('The intended target still gets its OWN shields when nobody taunts', functi
   assertEq(target.evadeCharges, 0, 'charge spent');
 });
 
+// THE GUARD THAT SHOULD HAVE EXISTED. The codex's summoned-token rows mirror
+// the summonCardChoice() calls by hand, and nothing connected the two — so a
+// token added to an ability simply never showed up in the encyclopedia. Battle
+// Droid went missing the day it was written (owner: "battledroid isn't in the
+// codex of summons") and Doombot had been missing far longer.
+//
+// This reads the ABILITY SOURCE for summon-name literals and checks each one is
+// accounted for. It cannot be fooled by adding a row to the list — the list is
+// not the input, the code is.
+test('Every token an ability summons is listed for the codex', function () {
+  var listed = {};
+  (typeof SUMMON_TOKEN_DEFS !== 'undefined' ? SUMMON_TOKEN_DEFS : []).forEach(function (t) { listed[t.name] = t; });
+  var isCard = {};
+  CARD_DEFS.forEach(function (d) { isCard[d.name] = true; });
+
+  var found = {}, hooks = 0;
+  Object.keys(CARD_ABILITIES).forEach(function (cardName) {
+    var def = CARD_ABILITIES[cardName];
+    Object.keys(def).forEach(function (k) {
+      if (typeof def[k] !== 'function') return;
+      hooks++;
+      var src = def[k].toString();
+      // summonCardChoice(owner, "Name", cost, atk, hp, ...)
+      var re = /summonCardChoice\s*\(\s*[^,]+,\s*['"]([^'"]+)['"]/g, m;
+      while ((m = re.exec(src))) found[m[1]] = cardName;
+    });
+  });
+  // Sanity: if the scan finds nothing, the regex broke and this test is
+  // asserting nothing at all — which is worse than failing.
+  assert(hooks > 50, 'the scan actually walked the ability hooks (' + hooks + ')');
+  var names = Object.keys(found);
+  assert(names.length >= 6, 'the scan found summon calls (' + names.length + ')');
+
+  names.forEach(function (n) {
+    // A token is fine either way: a real CARD_DEF (Ghostface, Gremlin — they
+    // show in their own codex section) or a display row in SUMMON_TOKEN_DEFS.
+    assert(isCard[n] || listed[n],
+      '"' + n + '" is summoned by ' + found[n] + ' but appears nowhere in the codex');
+  });
+});
+
+test('The token rows match the stats the abilities actually summon', function () {
+  // A row that exists but lies is no better than a missing one.
+  var byName = {};
+  SUMMON_TOKEN_DEFS.forEach(function (t) { byName[t.name] = t; });
+  var checks = 0;
+  Object.keys(CARD_ABILITIES).forEach(function (cardName) {
+    var def = CARD_ABILITIES[cardName];
+    Object.keys(def).forEach(function (k) {
+      if (typeof def[k] !== 'function') return;
+      // Only literal-argument calls can be checked — a call whose stats come
+      // from a variable (Ant-Man's Text+ scaling) is skipped rather than
+      // guessed at.
+      var re = /summonCardChoice\s*\(\s*[^,]+,\s*['"]([^'"]+)['"]\s*,\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*,/g, m;
+      var src = def[k].toString();
+      while ((m = re.exec(src))) {
+        var row = byName[m[1]];
+        if (!row) continue;
+        checks++;
+        assertEq(row.cost, +m[2], m[1] + ' cost matches the summon call');
+        assertEq(row.attack, +m[3], m[1] + ' ATK matches');
+        assertEq(row.health, +m[4], m[1] + ' HP matches');
+      }
+    });
+  });
+  assert(checks >= 3, 'at least a few rows were actually compared (' + checks + ')');
+});
+
 // ============================================================
 // ---- RUNNER ------------------------------------------------
 // ============================================================

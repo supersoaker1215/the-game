@@ -13487,16 +13487,11 @@ const UI = {
     // shouldn't show up in the Classic encyclopedia.
     const isRL = (typeof Roguelite !== 'undefined' && Roguelite.isRogueliteOnlyName)
       ? (n) => Roguelite.isRogueliteOnlyName(n) : () => false;
-    // Summoned tokens (Ant, Kraken, Undead Warrior, Parademon) are built on the
-    // fly by abilities, not stored in CARD_DEFS — synthesize display-only rows so
-    // the Summons tab lists them alongside the _spawnOnly cards. Stats mirror the
-    // summonCard() calls in abilities.js; all four have art under audio/cards/art.
-    const SUMMON_TOKENS = [
-      { name: 'Ant',            cost: 1, attack: 1, health: 1, abilities: ['Bullseye'], desc: 'Token — summoned by Ant-Man.' },
-      { name: 'The Kraken',     cost: 4, attack: 5, health: 3, abilities: [],           desc: 'Token — summoned by Davy Jones.' },
-      { name: 'Undead Warrior', cost: 1, attack: 3, health: 1, abilities: [],           desc: 'Token — summoned by Hela.' },
-      { name: 'Parademon',      cost: 2, attack: 2, health: 1, abilities: [],           desc: 'Token — summoned by Darkseid.' },
-    ];
+    // Summoned-token rows come from SUMMON_TOKEN_DEFS in cards.js — one list,
+    // with the rest of the card data, guarded by a test that reads the actual
+    // summon calls. It used to be hand-maintained right here, which is how
+    // Battle Droid and Doombot ended up absent from the encyclopedia.
+    const SUMMON_TOKENS = (typeof SUMMON_TOKEN_DEFS !== 'undefined') ? SUMMON_TOKEN_DEFS : [];
     let rawPool;
     if (isTricks)                        rawPool = (typeof TRICK_DEFS !== 'undefined' ? TRICK_DEFS : []);
     else if (section === 'environments') rawPool = CARD_DEFS.filter(c => c.isEnvironment);
