@@ -407,7 +407,7 @@ const CARD_DEFS = [
     desc: "When Played: The opponent cannot play their highest-cost affordable card next turn. Fear 1 an enemy. Deal 2 damage to an enemy, then 2 damage to an enemy again." },
   { name: "Darkseid", cost: 9, attack: 6, health: 9, type: "villain",
     abilities: ["Immunity"],
-    desc: "When Played: Summon a (2/1) Parademon. Destroy up to 3 contested lanes for 3 rounds, destroying both cards in each. Darkseid's own lane is exempt. While Active: Darkseid splits his ATK among all enemies instead of striking one, and never hits the opponent's HP." },
+    desc: "When Played: Summon a (2/1) Parademon. Destroy up to 3 contested lanes for 2 rounds, destroying both cards in each. While Active: Darkseid splits his ATK among all enemies, and never hits the opponent's HP." },
   { name: "Superman", cost: 9, attack: 8, health: 8, type: "hero",
     abilities: ["Immunity", "Unresistible"],
     desc: "When Played: Do a bonus attack. Choose 2 enemies to Freeze 1. Deal 5 damage to an enemy." },
@@ -418,7 +418,7 @@ const CARD_DEFS = [
   // ==================== COST 10 ====================
   { name: "Anakin Skywalker", cost: 10, attack: 7, health: 9, type: "hero",
     abilities: ["Immunity", "Invincible 1", "Unresistible 1", "Draw 1"],
-    desc: "When Played: Deal 10 damage to an enemy (not other 10-cost cards). Start of Tricks (once): Move to an empty lane and make a bonus attack — the attack still happens if no lane is open. While Active: Make a bonus attack whenever an ally is destroyed." },
+    desc: "When Played: Deal 10 damage to an enemy. Start of Tricks (once): Can move to an empty lane and do a bonus attack. While Active: Do a bonus attack whenever an ally is destroyed." },
   { name: "Dormammu", cost: 10, attack: 3, health: 3, type: "villain",
     abilities: ["Immunity", "Invincible 1", "Unresistible 3", "Draw 1"],
     desc: "When Played: Gain foresight for 2 draw phases — peek at the top 2 cards and keep one; the other goes to the opponent. Start of Tricks (once): Drain 3 enemies (not other 10-cost cards), leaving each at (0/1) and adding their stats to Dormammu." },

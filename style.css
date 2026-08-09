@@ -8186,11 +8186,26 @@ body.mobile-card-dragging .cursor-trail { display: none !important; }
    Boxless per the house style: a bare glyph that grows + glows on hover, never a
    box. Muted state dims it and draws a diagonal slash with a pseudo-element —
    no second glyph, so it can't break on a font without a "muted note" char. */
-.hand-audio-toggle {
+/* THE HAND TOOLS CLUSTER — note + redraw, pinned to the left of the tricks row.
+   Absolutely positioned INSIDE .tricks-section (which is position:relative), so
+   the tricks themselves stay centred exactly where they were: this cluster is
+   laid over the empty space beside them and takes no part in their flow.
+   The tricks row holds at most 3 cards, so that space is empty at every hand
+   size — which is the whole point of the move. */
+.hand-tools {
   position: absolute;
   left: 14px;
-  top: 20px;
-  z-index: 3;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 4;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  pointer-events: none;          /* the gap between the two never eats a click */
+}
+.hand-tools > * { pointer-events: auto; }
+.hand-audio-toggle {
+  position: static;              /* was absolute over the hand — see .hand-tools */
   background: none;
   border: 0;
   padding: 0;
@@ -8236,7 +8251,8 @@ body.mobile-card-dragging .cursor-trail { display: none !important; }
 /* Narrow screens: the hand fills the width, so tuck the toggle up and in so it
    can never sit on top of the first card. */
 @media (max-width: 760px) {
-  .hand-audio-toggle { left: 2px; top: 6px; min-width: 34px; min-height: 34px; }
+  .hand-tools { left: 4px; gap: 2px; }
+  .hand-audio-toggle { min-width: 34px; min-height: 34px; }
   .hand-audio-toggle .hand-audio-icon { font-size: 16px; }
 }
 
@@ -38664,10 +38680,7 @@ body.low-fx .card-hollow-purple::after { animation: none !important; }
    Mirrors .hand-audio-toggle exactly — same absolute corner, same 44px touch
    target with no 44px box drawn, same resting opacity and grow-on-hover. */
 .hand-redraw-toggle {
-  position: absolute;
-  left: 14px;
-  top: 64px;
-  z-index: 3;
+  position: static;              /* was absolute over the hand — see .hand-tools */
   background: none;
   border: 0;
   padding: 0;

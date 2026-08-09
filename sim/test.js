@@ -4434,6 +4434,29 @@ test('Superman says what he does without explaining the rulebook', function () {
   assertEq(d.attack, 8, 'same body');
 });
 
+test("Darkseid's card text matches the lane collapse the engine actually runs", function () {
+  var d = cardByName('Darkseid');
+  assertEq(d.desc.indexOf('for 2 rounds') > -1, true, 'the text says 2 rounds');
+  assertEq(d.desc.indexOf('3 rounds'), -1, 'and no longer claims 3');
+  // The text was wrong, not the engine — destroyLane's default duration is 2,
+  // and Darkseid passes 2 explicitly. Pinning the DEFAULT keeps the card honest
+  // if that default ever moves.
+  var G = freshGame();
+  G.destroyLane(0);
+  assertEq(G.state.lanes[0].destroyedTurns, 2, 'a collapsed lane really lasts 2');
+  assertEq(d.desc.indexOf('own lane is exempt'), -1, 'the exemption aside is gone');
+});
+
+test('Anakin does bonus attacks, and leads with what he can do', function () {
+  var d = cardByName('Anakin Skywalker');
+  assertEq(d.desc.indexOf('Can move to an empty lane') > -1, true, 'the move line leads with Can move');
+  assertEq(d.desc.indexOf('make a bonus attack'), -1, 'no "make" anywhere');
+  assertEq(d.desc.indexOf('Make a bonus attack'), -1, 'nor capitalised');
+  assertEq((d.desc.match(/do a bonus attack/gi) || []).length, 2, 'both places say "do"');
+  assertEq(d.desc.indexOf('10-cost cards'), -1, 'the parenthetical aside is gone');
+  assertEq(d.desc.indexOf('if no lane is open'), -1, 'and the edge-case aside too');
+});
+
 // ============================================================
 // ---- RUNNER ------------------------------------------------
 // ============================================================
