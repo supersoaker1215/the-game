@@ -2416,60 +2416,84 @@ test("the enemy's Yoda does not shield YOUR side", function () {
 // enforcement, so the two tests that pinned it are gone with it — a test for a
 // deleted rule is a test that stops the rule from staying deleted. What
 // replaces them pins the card he is now.
-test('General Grievous is a 4-cost that brings a droid and an eye', function () {
+// Grievous's Block-Meter strangle was REMOVED on 2026-08-09 along with its
+// enforcement, and the board-wide Bullseye grant that briefly replaced it went
+// the same day. A test for a deleted rule is a test that stops the rule from
+// staying deleted, so both sets are gone; these pin the card he is now.
+test('General Grievous is a 4-cost duelist with Evade and Overdrive', function () {
   var def = cardByName('General Grievous');
   assertEq(def.cost, 4, 'costs 4');
-  // Body cut to 3/5 (owner, 2026-08-09) — a 4/7 that ALSO brought a droid and
-  // board-wide Bullseye was too much card for 4 energy.
   assertEq(def.attack, 3, '3 ATK');
   assertEq(def.health, 5, '5 HP');
-  assertEq(def.desc.indexOf('Block Meter'), -1, 'and says nothing about the Block Meter any more');
-  assertEq(def.desc.indexOf('Bullseye') > -1, true, 'the text names the keyword so its chip renders');
-  // The enforcement went with the text — an engine that still knows the rule
-  // is an engine that still applies it.
-  assertEq(typeof Game.grievousLocksBlockFor, 'undefined', 'the gate itself is gone from the engine');
+  assertEq(def.abilities.join(','), 'Evade 1,Overdrive', 'both keywords are on the card');
+  // Keywords render as badges — repeating them in the text is the house style
+  // violation that makes tiles unreadable.
+  assertEq(def.desc.indexOf('Evade'), -1, 'and are NOT repeated in the desc');
+  assertEq(def.desc.indexOf('Overdrive'), -1, 'either of them');
+  assertEq(def.desc.indexOf('Bullseye'), -1, 'the Bullseye grant is gone from the text');
+  assertEq(def.desc.indexOf('Block Meter'), -1, 'and so is the old passive');
+  assertEq(typeof Game.grievousLocksBlockFor, 'undefined', 'the old gate is still gone from the engine');
+
+  // The keywords have to actually LAND on the instance, not just print.
+  var G = freshGame();
+  var gr = place(G, 'General Grievous', 'player', 0);
+  assertEq(gr.evadeCharges, 1, 'Evade 1 resolved to a charge');
+  assertEq(gr.isOverdrive, true, 'Overdrive resolved to the flag');
 });
 
-test('Grievous summons a (2/1) Battle Droid and trains the board', function () {
+test('Grievous summons a (2/1) Battle Droid, and grants nobody Bullseye', function () {
   var G = freshGame();
   var ally = place(G, 'Bane', 'player', 3);
-  var enemy = place(G, 'Bane', 'ai', 4);
-  assertEq(!!ally.isBullseye, false, 'the ally starts without it');
-
   var gr = place(G, 'General Grievous', 'player', 0);
   CARD_ABILITIES['General Grievous'].onPlay(G, gr, 0);
 
-  assertEq(!!ally.isBullseye, true, 'the ally is trained');
-  // He trains his allies, NOT himself — the grant is what he gives the board.
-  assertEq(!!gr.isBullseye, false, 'Grievous himself does NOT get it');
-  assertEq(!!enemy.isBullseye, false, 'and neither does the enemy, obviously');
-
-  // The droid landed, and landed trained — it is summoned before the grant
-  // runs, which is the ordering the callback exists to guarantee.
   var droid = G.getAllCardsOf('player').find(function (c) { return c.name === 'Battle Droid'; });
   assert(!!droid, 'a Battle Droid is on the board');
-  assertEq(droid.attack, 2, 'a 2/1 — 2 ATK');
-  assertEq(droid.currentHealth, 1, 'and 1 HP');
-  assertEq(!!droid.isBullseye, true, 'and it was trained along with everyone else');
+  assertEq(droid.attack, 2, '2 ATK');
+  assertEq(droid.currentHealth, 1, '1 HP');
+  // The grant is gone — nobody should be picking up a keyword on his arrival.
+  assertEq(!!ally.isBullseye, false, 'the ally gets no Bullseye');
+  assertEq(!!gr.isBullseye, false, 'nor does Grievous');
+  assertEq(!!droid.isBullseye, false, 'nor the droid');
 });
 
-test('The Bullseye grant is a one-shot, not an aura', function () {
+test('Every Grievous kill hands (+1/+1) to a DIFFERENT ally', function () {
   var G = freshGame();
-  var early = place(G, 'Bane', 'player', 3);
   var gr = place(G, 'General Grievous', 'player', 0);
-  CARD_ABILITIES['General Grievous'].onPlay(G, gr, 0);
-  assertEq(!!early.isBullseye, true, 'whoever was already standing keeps it');
+  var a1 = place(G, 'Bane', 'player', 1);
+  var a2 = place(G, 'Catwoman', 'player', 2);
+  var grAtk = gr.attack, grHp = gr.currentHealth;
+  var before = (a1.attack + a1.currentHealth) + (a2.attack + a2.currentHealth);
 
-  // Played AFTER him — misses the grant. Deploy order is the cost of the
-  // effect, and an aura would erase that entirely.
-  var late = place(G, 'Catwoman', 'player', 5);
-  late.isBullseye = false;
-  assertEq(!!late.isBullseye, false, 'a card that arrives later is not trained');
+  CARD_ABILITIES['General Grievous'].onKill(G, gr);
+  var after = (a1.attack + a1.currentHealth) + (a2.attack + a2.currentHealth);
+  assertEq(after, before + 2, 'exactly one ally gained +1/+1');
+  assertEq(gr.attack, grAtk, 'and it was not Grievous — his ATK is untouched');
+  assertEq(gr.currentHealth, grHp, 'nor his HP');
 
-  // And it SURVIVES him — the grant is permanent, not a while-active lease.
-  gr.currentHealth = 0;
-  G.cleanupDead();
-  assertEq(!!early.isBullseye, true, 'the training outlives the trainer');
+  // It stacks: three more kills, three more points of stats on the board.
+  for (var i = 0; i < 3; i++) CARD_ABILITIES['General Grievous'].onKill(G, gr);
+  var after2 = (a1.attack + a1.currentHealth) + (a2.attack + a2.currentHealth);
+  assertEq(after2, before + 8, 'four kills, four buffs — it is permanent and repeatable');
+});
+
+test('A lone Grievous kill buffs nobody, rather than buffing himself', function () {
+  var G = freshGame();
+  var gr = place(G, 'General Grievous', 'player', 0);
+  var atk = gr.attack, hp = gr.currentHealth;
+  CARD_ABILITIES['General Grievous'].onKill(G, gr);
+  assertEq(gr.attack, atk, 'no self-buff when he is alone');
+  assertEq(gr.currentHealth, hp, 'none at all');
+
+  // Environments never fight, so a (+1/+1) on one is a stat nobody reads.
+  var G2 = freshGame();
+  var gr2 = place(G2, 'General Grievous', 'player', 0);
+  var env = place(G2, 'Boiler Room', 'player', 1);
+  env.isEnvironment = true;
+  var envAtk = env.attack;
+  CARD_ABILITIES['General Grievous'].onKill(G2, gr2);
+  assertEq(env.attack, envAtk, 'the environment is not a valid trophy holder');
+  assertEq(gr2.attack, atk, 'and he still does not buff himself as a fallback');
 });
 
 test('the combat forecast counts Critical (and every other attacker modifier)', function () {

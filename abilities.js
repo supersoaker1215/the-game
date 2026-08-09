@@ -4345,36 +4345,30 @@ const CARD_ABILITIES = {
     }
   },
   "General Grievous": {
-    // REDESIGNED 2026-08-09 (owner): the Block-Meter strangle is gone. He is a
-    // 4-cost now, and what he brings is bodies and aim — a droid escort, and
-    // his trophy-hunter's eye handed to everything already standing with him.
-    //
-    // The Bullseye grant is a ONE-SHOT On Play, not an aura: it lands on the
-    // cards on the board at the moment he arrives and stays with them if he
-    // dies. Anything played after him misses it, which is what makes the order
-    // you deploy in matter.
+    // REDESIGNED 2026-08-09 (owner), twice. The Block-Meter strangle is gone,
+    // and so is the board-wide Bullseye grant that briefly replaced it. He is a
+    // duelist now: Evade 1 and Overdrive on the body (both keywords, so they
+    // carry their own badges and stay out of the card text), a droid escort on
+    // arrival, and a trophy taken off every kill and handed to someone else.
     onPlay(G, self, lane) {
       if (typeof UI !== 'undefined' && UI._fxGrievousSabers) { try { UI._fxGrievousSabers(self); } catch (e) {} }
-      const grantAim = () => {
-        // HE TRAINS THEM; HE DOES NOT TRAIN HIMSELF (owner, 2026-08-09). The
-        // grant is what he gives the board, so excluding him is the whole point
-        // — a Grievous who also armed himself would be strictly better than one
-        // who did not, for free, and the card would stop being about the escort.
-        // Environments are excluded too: they never attack, so Bullseye would be
-        // a badge that means nothing on them.
-        const allies = G.getAllCardsOf(self.owner)
-          .filter(c => c.id !== self.id && c.currentHealth > 0 && !c.isEnvironment);
-        let n = 0;
-        allies.forEach(c => { if (!c.isBullseye) { c.isBullseye = true; n++; } });
-        G.log(n
-          ? `General Grievous trains ${n} ${n === 1 ? 'ally' : 'allies'} to strike true — Bullseye.`
-          : `General Grievous finds no one left to train.`);
-      };
-      // The droid lands FIRST so it is on the board in time to be trained —
-      // summonCardChoice is asynchronous when it prompts for a lane, so the
-      // grant has to run in its completion callback or it would fire before
-      // the droid exists and quietly skip it.
-      G.summonCardChoice(self.owner, 'Battle Droid', 2, 2, 1, [], grantAim);
+      G.summonCardChoice(self.owner, 'Battle Droid', 2, 2, 1, []);
+    },
+    // ANOTHER ALLY GETS THE TROPHY, NEVER HIM. Same principle as the Bullseye
+    // grant he used to have: what he does, he does for the board. A self-buff
+    // would also double up with Overdrive, which already pays him for killing.
+    // Environments are excluded — a (+1/+1) on a card that never fights is a
+    // stat nobody reads.
+    onKill(G, self) {
+      const allies = G.getAllCardsOf(self.owner)
+        .filter(c => c.id !== self.id && c.currentHealth > 0 && !c.isEnvironment);
+      if (!allies.length) {
+        G.log(`General Grievous claims a trophy — with no one left to give it to.`);
+        return;
+      }
+      const pick = allies[Math.floor(Game.rng() * allies.length)];
+      G.buffCard(pick, 1, 1);
+      G.log(`[GRIEVOUS] Another trophy — ${pick.name} takes (+1/+1) → ${pick.attack}/${pick.currentHealth}.`);
     }
   },
 
