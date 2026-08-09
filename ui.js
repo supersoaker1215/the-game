@@ -6204,6 +6204,23 @@ const UI = {
       }
     });
   },
+  // NETWORK-ARRIVING STATE MUST NOT WAIT ON requestAnimationFrame.
+  //
+  // render() queues through rAF, and rAF DOES NOT FIRE in a tab that is not
+  // visible. In a solo match that is harmless — nothing changes while you are
+  // not looking. In multiplayer the opposite is true: the other players keep
+  // playing, states keep arriving, and every one of them queues a render that
+  // never runs. The client sits on a screen from several turns ago, its inputs
+  // gated by a phase it can no longer see, which is what "I literally can't
+  // play a card" looks like from the inside. Four-player 2v2 makes it four
+  // times as likely that someone's tab is backgrounded at any moment.
+  //
+  // Reproduced in a live 4-client 2v2 here: a guest held full draft state
+  // (phase 2v2-draft, its two offered cards) while still displaying the
+  // pre-join lobby, and stayed there until a synchronous render was forced.
+  renderFromNetwork() {
+    this.renderSync();
+  },
   renderSync() {
     this._renderQueued = false;
     this._renderImpl();
@@ -14467,7 +14484,9 @@ const UI = {
           }
         }
       }
-      this.render();
+      // Same rAF trap as 2v2 — a 1v1 guest whose tab is not visible would sit
+      // on a stale board while the host plays on. See renderFromNetwork.
+      this.renderFromNetwork();
     });
   },
   _mpSetTab(t) { this._mpState.tab = t; this._mpRender(); },
@@ -28748,7 +28767,7 @@ function twov2OnlineCreate() {
     Game.state = state;
     // Same lane-count lockstep as the joiner handler below.
     if (state.lanes && state.lanes.length) Game.LANE_COUNT = state.lanes.length;
-    UI.render();
+    UI.renderFromNetwork();
   });
 
   Multiplayer4.on('error', ({ message }) => {
@@ -28817,7 +28836,7 @@ function twov2OnlineJoin() {
     // A team pick that landed while mine was half-made would leave my
     // highlight pointing at a player who has since moved. Drop it.
     UI._2v2TeamSel = null;
-    UI.render();
+    UI.renderFromNetwork();
   });
 
   Multiplayer4.on('playerJoined', ({ playerKey, name: pname }) => {
