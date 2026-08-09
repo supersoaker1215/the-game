@@ -8085,7 +8085,9 @@ const Game = {
   // General stat debuff: -atk ATK, -hp HP (ATK floors at 0, HP floors at 1).
   // Pass allowKill=true to let the HP drop to 0 and kill the card (used by
   // Magneto's aura so low-HP cards like Rocket can't survive -1/-2).
-  debuffCard(card, atk, hp, allowKill, source) {
+  // `opts.aura` marks a CONTINUOUS reconcile rather than a discrete event —
+  // see the Immunity block below.
+  debuffCard(card, atk, hp, allowKill, source, opts) {
     if (!card) return;
     // Same face-down rule as dealDamage / killCard. debuffCard does not route
     // through tryApplyDebuff (auras and direct stat strips call it straight),
@@ -8097,13 +8099,44 @@ const Game = {
     }
     if (this._trickBlocked(card)) return;
     // Invincible / Damage Immunity are DAMAGE shields — they do NOT block the
-    // ATK portion of a stat debuff. Immunity (immunityCharges) is the debuff
-    // shield. So a -ATK strip (Nightwing, Bear Trap, Silver Surfer, Bane, and
-    // Luke/Magneto auras — which reconcile through here) always lands, exactly
-    // like stun/freeze/fear. For the HP portion: Invincible shields it, but
-    // Damage Immunity does NOT (see the CANONICAL SHIELD RULE below).
+    // ATK portion of a stat debuff. For the HP portion: Invincible shields it,
+    // Damage Immunity does not (see the CANONICAL SHIELD RULE below).
     // (User: "invincible is different than immunity — you can get debuffed with
     // invincible." Reverses the earlier "stat debuffs are damage in spirit" rule.)
+    //
+    // IMMUNITY BLOCKS ALL DEBUFFS, STAT STRIPS INCLUDED (owner, 2026-08-08:
+    // "immunity description should say blocks all debuffs"). It could not say
+    // that before, because it was not true: Immunity was checked in
+    // tryApplyDebuff, which only ever sees the STATUS debuffs (Freeze, Fear,
+    // Stun, Mind Control). Stat strips — Bane, Nightwing, Bear Trap, Pym
+    // Particles, Silver Surfer, the Magneto/Luke auras — all call debuffCard
+    // directly and never touched immunityCharges, so the tooltip had to hedge
+    // with "Freeze, Fear, etc.". Checking it HERE, at the one door every stat
+    // debuff already goes through, is what makes the sentence true everywhere
+    // rather than card by card. Unresistible pierces it on the same terms
+    // tryApplyDebuff uses: the piercing charge is spent, the Immunity is not
+    // (it never got to block anything).
+    if ((atk > 0 || hp > 0) && card.immunityCharges > 0) {
+      if (source && source.unresistibleCharges > 0) {
+        source.unresistibleCharges--;
+        this.log(`  [UNRESISTIBLE] ${source.name} bypasses ${card.name}'s Immunity! (Immunity ${card.immunityCharges} untouched, Unresistible ${source.unresistibleCharges} remaining)`);
+      } else {
+        // An AURA is a standing condition, not an event, and recomputeAuras
+        // re-runs it many times a turn — charging it a charge per pass would
+        // strip Immunity 3 off a card in a single turn without a single card
+        // being played at it. A blocked aura simply does not land (and the
+        // measured-delta reconcile records that nothing landed, so it retries
+        // for free once the shield drops).
+        const isAura = !!(opts && opts.aura);
+        if (!card.permanentImmunity && !isAura) card.immunityCharges--;
+        this.log(card.permanentImmunity
+          ? `  [IMMUNITY] ${card.name} is permanently immune — the debuff does not land.`
+          : isAura
+            ? `  [IMMUNITY] ${card.name}'s Immunity turns aside the aura. (${card.immunityCharges} remaining)`
+            : `  [IMMUNITY] ${card.name}'s Immunity blocks ${source && source.name ? source.name + "'s " : ''}debuff! (${card.immunityCharges} remaining)`);
+        return;
+      }
+    }
     // Defensive coerce — see buffCard; stops NaN from surviving a round.
     if (typeof card.attack !== 'number' || !Number.isFinite(card.attack)) card.attack = card.baseAttack || 0;
     if (typeof card.currentHealth !== 'number' || !Number.isFinite(card.currentHealth)) card.currentHealth = card.baseHealth || 1;
@@ -8935,6 +8968,10 @@ const Game = {
     }
     if (this._trickBlocked(target)) return false;
     if (this.is10CostImmune(source, target)) { this.log(`  [IMMUNE] ${target.name} is immune to ${source.name}'s ${debuffName}!`); return false; }
+    // Doomsday's own Stun/Freeze lock, kept ALONGSIDE the Immunity he now rises
+    // with rather than replaced by it: real Immunity yields to Unresistible,
+    // and "cannot be stopped" has to hold even against that. Immunity covers
+    // everything else he used to eat (stat strips, Fear, Mind Control).
     if (target._doomsdayRevived && (debuffName === 'Stun' || debuffName === 'Freeze')) {
       this.log(`  [DOOMSDAY] ${target.name} is permanently immune to ${debuffName}!`);
       return false;
@@ -8973,8 +9010,12 @@ const Game = {
         this.log(`  [UNRESISTIBLE] ${source.name} bypasses ${target.name}'s Immunity! ${debuffName} lands! (Immunity ${target.immunityCharges} untouched, Unresistible ${source.unresistibleCharges} remaining)`);
         return true;
       }
-      target.immunityCharges--;
-      this.log(`  [IMMUNITY] ${target.name}'s Immunity blocks ${debuffName}! (${target.immunityCharges} remaining)`);
+      // permanentImmunity — a body that rises immune (Doomsday) does not spend
+      // charges; the shield IS the state, not a stack of uses.
+      if (!target.permanentImmunity) target.immunityCharges--;
+      this.log(target.permanentImmunity
+        ? `  [IMMUNITY] ${target.name} is permanently immune — ${debuffName} does not land.`
+        : `  [IMMUNITY] ${target.name}'s Immunity blocks ${debuffName}! (${target.immunityCharges} remaining)`);
       return false;
     }
     // No immunity — debuff lands normally, Unresistible NOT consumed
@@ -9004,8 +9045,10 @@ const Game = {
         // ran out of Unresistible could still lock down every immune target —
         // e.g. Palpatine (Unresistible 1) freezing two immune enemies back to
         // back. Now matches tryApplyDebuff: block == no effect.)
-        card.immunityCharges--;
-        this.log(`  [IMMUNITY] ${card.name}'s Immunity blocks the freeze! (${card.immunityCharges} remaining)`);
+        if (!card.permanentImmunity) card.immunityCharges--;
+        this.log(card.permanentImmunity
+          ? `  [IMMUNITY] ${card.name} is permanently immune — the freeze does not land.`
+          : `  [IMMUNITY] ${card.name}'s Immunity blocks the freeze! (${card.immunityCharges} remaining)`);
         return;
       }
     }
@@ -10437,7 +10480,7 @@ const Game = {
       desc: def.desc || '', owner,
       evadeCharges: 0, armorValue: 0, invincibleTurns: 0,
       splashRange: 0, tauntTurns: 0,
-      isOverdrive: false, isBullseye: false, immunityCharges: 0,
+      isOverdrive: false, isBullseye: false, immunityCharges: 0, permanentImmunity: false,
       unresistibleCharges: 0, hasHunt: false, hasDamageImmunity: false, isUntrickable: false,
       drawOnPlay: 0,
       isStunned: false, isFrozen: false, isFeared: false, isMindControlled: false,
@@ -11261,7 +11304,7 @@ const Game = {
       const beforeAtk = c.attack, beforeMax = c.maxHealth;
       if (dAtk > 0 || dHp > 0) this.buffCard(c, Math.max(0, dAtk), Math.max(0, dHp));
       if ((dAtk < 0 || dHp < 0) && c.currentHealth > 0) {
-        this.debuffCard(c, Math.max(0, -dAtk), Math.max(0, -dHp), w.hostile, w.src || { name: 'an aura' });
+        this.debuffCard(c, Math.max(0, -dAtk), Math.max(0, -dHp), w.hostile, w.src || { name: 'an aura' }, { aura: true });
       }
       const landedAtk = c.attack - beforeAtk;
       const landedHp = c.maxHealth - beforeMax;

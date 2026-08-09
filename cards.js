@@ -426,6 +426,6 @@ const CARD_DEFS = [
     // his revive differs from generic Revive (full HP + permanent
     // Freeze immunity, NOT played-anew).
     abilities: ["Revive 1", "Taunt 1"],
-    desc: "Add (+1/+1) each time you play a card, even before Doomsday is drawn. While in Hand: costs 1 less each time an ally is destroyed (min 0). When Destroyed: Revive once at full HP, permanently immune to Freeze." }
+    desc: "Add (+1/+1) each time you play a card, even before Doomsday is drawn. While in Hand: costs 1 less each time an ally is destroyed (min 0). When Destroyed: Revive once at full HP with permanent Immunity." }
 ];
 

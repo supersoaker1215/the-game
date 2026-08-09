@@ -1621,11 +1621,21 @@ const CARD_ABILITIES = {
       const doPlayerShuffle = (p, onDone) => {
         const hand = G.state[p].hand;
         if (hand.length <= 2) {
-          // 2 or fewer cards — shuffle all back automatically
+          // YOU DRAW WHAT YOU PUT BACK — never more. This branch used to draw a
+          // flat 2 no matter how many cards went back, so an EMPTY hand
+          // shuffled nothing and drew two free cards: the card's whole point is
+          // a wash (2 back, 2 up), and at 0 cards it became pure advantage for
+          // both sides. Owner: "when symbiote spiderman is played and i have 0
+          // cards it draws me 2 cards automatically, that shouldn't happen."
+          const back = hand.length;
           hand.splice(0).forEach(c => shuffleBack(c, p));
-          G.shuffle(G.getDrawPile(p));
-          G.drawCards(p, 2);
-          G.log(`Symbiote Spider-Man: ${p} shuffles ${hand.length === 0 ? 'all' : 'all'} cards back and draws 2!`);
+          if (back > 0) {
+            G.shuffle(G.getDrawPile(p));
+            G.drawCards(p, back);
+            G.log(`Symbiote Spider-Man: ${p} shuffles ${back} card${back === 1 ? '' : 's'} back and draws ${back}!`);
+          } else {
+            G.log(`Symbiote Spider-Man: ${p} has an empty hand — nothing to shuffle, nothing to draw.`);
+          }
           if (onDone) onDone();
           return;
         }
@@ -5212,7 +5222,17 @@ const CARD_ABILITIES = {
       // should be immune to."
       self.stunnedTurns = 0; self.isStunned = false;
       self.frozenTurns  = 0; self.isFrozen  = false;
-      G.log(`[DOOMSDAY] Cannot be stopped — Doomsday rises! Permanently immune to Stun and Freeze.`);
+      // He rises with IMMUNITY, the real keyword — not a Doomsday-shaped
+      // lookalike. The _doomsdayRevived guard only ever refused Stun and
+      // Freeze, so everything else a debuff can do (ATK/HP strip, Fear, Mind
+      // Control) still landed on the thing the log called unstoppable. Owner:
+      // "when doomsday revives give him immunity". Immunity is the game's
+      // existing answer to "blocks all debuffs", it shows the badge every
+      // surface already knows how to draw, and canEffectLand honours it
+      // without this card teaching anything new.
+      self.immunityCharges = Math.max(self.immunityCharges || 0, 1);
+      self.permanentImmunity = true;
+      G.log(`[DOOMSDAY] Cannot be stopped — Doomsday rises with Immunity. Debuffs simply do not land.`);
       if (typeof UI !== 'undefined' && UI._fxDoomsdayRise) { try { UI._fxDoomsdayRise(self); } catch (e) {} }
       return true; // prevent death
     }

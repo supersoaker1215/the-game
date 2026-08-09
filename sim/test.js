@@ -3387,6 +3387,88 @@ test('The rebalanced costs and Pym numbers are what the text claims', function (
   assertEq(target.currentHealth, 3, 'and 2 HP');
 });
 
+// Symbiote Spider-Man is a WASH — 2 back, 2 up. The small-hand branch drew a
+// flat 2 no matter how many went back, so an empty hand shuffled nothing and
+// drew two free cards.
+test('Symbiote Spider-Man draws only what you actually put back', function () {
+  var G = freshGame();
+  var sym = G.createCardInstance(cardByName('Symbiote Spider-Man'), 'player');
+  G.state.lanes[0].player = sym; sym.owner = 'player';
+  G.state.player.hand = [];      // the reported case: zero cards
+  G.state.ai.hand = [];
+  var pileBefore = G.getDrawPile('player').length;
+  CARD_ABILITIES['Symbiote Spider-Man'].onPlay(G, sym, 0);
+  assertEq(G.state.player.hand.length, 0, 'an empty hand draws NOTHING');
+  assertEq(G.state.ai.hand.length, 0, 'and neither does the opponents');
+  assertEq(G.getDrawPile('player').length, pileBefore, 'the pile is untouched too');
+
+  // One card in hand → one back, one up. Still a wash, not a windfall.
+  var G2 = freshGame();
+  var sym2 = G2.createCardInstance(cardByName('Symbiote Spider-Man'), 'player');
+  G2.state.lanes[0].player = sym2; sym2.owner = 'player';
+  G2.state.player.hand = [G2.createCardInstance(cardByName('Catwoman'), 'player')];
+  G2.state.ai.hand = [];
+  CARD_ABILITIES['Symbiote Spider-Man'].onPlay(G2, sym2, 0);
+  assertEq(G2.state.player.hand.length, 1, 'one back, one up — hand size unchanged');
+});
+
+test('Mother Box and Bat Signal hold their boss back until round 4', function () {
+  var mb = TRICK_DEFS.find(function (t) { return t.name === 'Mother Box'; });
+  var bs = TRICK_DEFS.find(function (t) { return t.name === 'Bat Signal'; });
+  assertEq(mb.desc.indexOf('From round 4') > -1, true, 'Mother Box text states the gate');
+  assertEq(bs.desc.indexOf('From round 4') > -1, true, 'Bat Signal text states the gate');
+
+  // The gate itself: capture the filter each trick hands the summon deck and
+  // ask it about the boss directly. That is the predicate under test — pulling
+  // random cards would only sample it.
+  function bossAllowed(trick, round, bossName) {
+    var G = freshGame();
+    G.state.round = round;
+    var seen = null;
+    var real = G.drawFromSummonDeck;
+    G.drawFromSummonDeck = function (fn) { seen = fn; return null; };
+    try { trick.play(G, 'player'); } finally { G.drawFromSummonDeck = real; }
+    return seen({ name: bossName, cost: 12, isDiscardEffect: false });
+  }
+  assertEq(bossAllowed(mb, 1, 'Darkseid'), false, 'round 1 cannot pull Darkseid');
+  assertEq(bossAllowed(mb, 3, 'Darkseid'), false, 'nor round 3');
+  assertEq(bossAllowed(mb, 4, 'Darkseid'), true,  'round 4 opens him up');
+  assertEq(bossAllowed(bs, 3, 'Batman'), false, 'Bat Signal is gated the same way');
+  assertEq(bossAllowed(bs, 4, 'Batman'), true,  'and opens at the same round');
+  // The cheap pool is untouched by the gate — the trick must still do its job.
+  var G = freshGame(); G.state.round = 1;
+  var seen = null, real = G.drawFromSummonDeck;
+  G.drawFromSummonDeck = function (fn) { seen = fn; return null; };
+  try { mb.play(G, 'player'); } finally { G.drawFromSummonDeck = real; }
+  assertEq(seen({ name: 'Catwoman', cost: 1, isDiscardEffect: false }), true,
+    'a 1-cost is still summonable on round 1');
+});
+
+test('Doomsday rises with real Immunity, and it does not tick down', function () {
+  var G = freshGame();
+  var dd = place(G, 'Doomsday', 'ai', 0);
+  var killer = place(G, 'Bane', 'player', 0);
+  dd.currentHealth = 0;
+  CARD_ABILITIES['Doomsday'].onDeath(G, dd, 0);
+  assert(dd.immunityCharges > 0, 'he carries the real keyword, not a lookalike');
+  assertEq(dd.permanentImmunity, true, 'and it is flagged permanent');
+  assertEq(dd.currentHealth, dd.maxHealth, 'back at full HP');
+
+  // A plain stat debuff — the class that used to land on him regardless.
+  var atk = dd.attack, hp = dd.currentHealth;
+  G.debuffCard(dd, 2, 2, true, killer);
+  assertEq(dd.attack, atk, 'the ATK strip does not land');
+  assertEq(dd.currentHealth, hp, 'nor the HP strip');
+  assertEq(dd.immunityCharges > 0, true, 'and the shield did not spend itself blocking it');
+
+  // Repeat: a permanent shield must not run out.
+  for (var i = 0; i < 5; i++) G.debuffCard(dd, 2, 2, true, killer);
+  assertEq(dd.attack, atk, 'still standing after six attempts');
+  assert(dd.immunityCharges > 0, 'and still immune');
+  assertEq(cardByName('Doomsday').desc.indexOf('permanent Immunity') > -1, true,
+    'the card text says Immunity, capitalised so the keyword chip renders');
+});
+
 // ============================================================
 // ---- RUNNER ------------------------------------------------
 // ============================================================

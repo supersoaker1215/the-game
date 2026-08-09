@@ -80,7 +80,7 @@ const TRICK_DEFS = [
     }
   },
   { name: "Bat Signal", cost: 1,
-    desc: "Summon a random card with cost ≤ 1, or Batman.",
+    desc: "Summon a random card with cost ≤ 1. From round 4, Batman can be pulled too.",
     play(G, owner) {
       // Pull from the SHARED summon deck (95-card reference pool) rather
       // than this player's drawPile so summoned cards can duplicate
@@ -93,7 +93,11 @@ const TRICK_DEFS = [
       // Signal only in the roguelite." Classic mode keeps the legendary
       // boss-card jackpot.
       const isRoguelite = !!(G.state.mode && G.state.mode._roguelite);
-      const d = G.drawFromSummonDeck(c => !c.isDiscardEffect && (c.cost <= 1 || (!isRoguelite && c.name === 'Batman')));
+      // ROUND GATE — the boss card is a late-game jackpot, not a turn-one one.
+      // Owner: "darkseid and batman can only be pulled from these cards on
+      // round 4 and above."
+      const bossOk = !isRoguelite && (G.state.round || 1) >= 4;
+      const d = G.drawFromSummonDeck(c => !c.isDiscardEffect && (c.cost <= 1 || (bossOk && c.name === 'Batman')));
       if (d) {
         G.summonCardChoice(owner, d.name, d.cost, d.attack, d.health, d.abilities || [], null, null, d);
         G.log(`Bat Signal summons ${d.name}!`);
@@ -223,7 +227,7 @@ const TRICK_DEFS = [
     }
   },
   { name: "Mother Box", cost: 1,
-    desc: "Summon a random card with cost ≤ 1, or Darkseid.",
+    desc: "Summon a random card with cost ≤ 1. From round 4, Darkseid can be pulled too.",
     play(G, owner) {
       // Pulls from the shared summon deck. Filter: cost ≤ 1 OR Darkseid,
       // no discard-effect cards. Same scope shift as Bat Signal — was
@@ -235,7 +239,9 @@ const TRICK_DEFS = [
       // Box / Bat Signal only in the roguelite." Classic mode keeps
       // the boss-card jackpot.
       const isRoguelite = !!(G.state.mode && G.state.mode._roguelite);
-      const d = G.drawFromSummonDeck(c => !c.isDiscardEffect && (c.cost <= 1 || (!isRoguelite && c.name === 'Darkseid')));
+      // Same round-4 gate as Bat Signal — see the note there.
+      const bossOk = !isRoguelite && (G.state.round || 1) >= 4;
+      const d = G.drawFromSummonDeck(c => !c.isDiscardEffect && (c.cost <= 1 || (bossOk && c.name === 'Darkseid')));
       if (d) {
         G.summonCardChoice(owner, d.name, d.cost, d.attack, d.health, d.abilities || [], null, null, d);
         G.log(`Mother Box summons ${d.name}!`);

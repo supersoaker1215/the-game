@@ -8655,16 +8655,12 @@ body.mobile-card-dragging .cursor-trail { display: none !important; }
 @media (hover: hover) {
   .prompt-banner:hover { opacity: 0.15; }
 }
-/* Small "Action Required" strip above the title */
-.prompt-banner::before {
-  content: '⚡ Action Required';
-  display: block;
-  font-size: 9px; letter-spacing: 2.5px; text-transform: uppercase;
-  color: #ffd77a;
-  opacity: 0.85;
-  margin-bottom: 3px;
-  font-weight: 600;
-}
+/* The "⚡ Action Required" strip that used to sit here is GONE. The banner only
+   ever appears when an action is required, so the line restated its own
+   existence — and the card name plus the instruction underneath already say
+   what to do, louder and more specifically. Owner struck it out on a
+   screenshot. The ::before rule is deleted rather than emptied so nothing
+   inherits a phantom box; the themed override below is kept harmless. */
 .prompt-banner .prompt-desc {
   display: block;
   margin-top: 4px;
@@ -17819,9 +17815,6 @@ body.theme-purple .board-section {
     0 0 24px var(--theme-glow-inner) !important;
   text-shadow: 0 0 8px var(--theme-glow-outer) !important;
   color: color-mix(in srgb, var(--theme-accent) 15%, #f5fbff) !important;
-}
-.prompt-banner::before {
-  color: color-mix(in srgb, var(--theme-accent) 35%, white) !important;
 }
 .prompt-banner .prompt-desc {
   color: color-mix(in srgb, var(--theme-accent) 20%, #cfe9fb) !important;

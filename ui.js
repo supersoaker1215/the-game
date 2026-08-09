@@ -7646,14 +7646,26 @@ const UI = {
     if (!info || (!info.targets.length && !info.hitsHero)) return;   // can't attack → nothing
     this._forecastForId = id;
     cardEl.classList.add('forecast-source');
-    const from = this._fxCenter(cardEl);
-    if (!from) { this._clearCombatForecast(); return; }
+    // ARROWS LEAVE THE CARD'S FACING EDGE, not its middle. Starting at the
+    // centre put the tail (and its origin node) ON TOP OF the portrait, so the
+    // arrow read as something laid over the card rather than something coming
+    // out of it — and it covered the art it was drawn across. Owner: "it should
+    // be coming out from the top of the card like luke not from the middle."
+    // The hero swing below already launched from the edge; this is that same
+    // treatment for every card-to-card arrow, so the two finally match.
+    const r0 = cardEl.getBoundingClientRect();
+    if (!r0 || r0.width === 0) { this._clearCombatForecast(); return; }
+    const up = cardEl.classList.contains('ally-card');
+    const from = { x: r0.left + r0.width / 2, y: up ? r0.top : r0.bottom };
+    // startTrim 0 lands the tail exactly on the edge; noOriginNode keeps that
+    // edge unbroken so the line reads as the card's own border extending out.
+    const edgeOpts = { mine: card.owner === 'player', startTrim: 0, noOriginNode: true };
     info.targets.forEach(t => {
       if (t.kind === 'self') { this._forecastBadge(cardEl, card); return; }   // feared → self
       const tEl = this._fxCardElById(t.card.id);
       const to = this._fxCenter(tEl);
       if (!to) return;
-      this._forecastArrow(from, to, t.kind, { mine: card.owner === 'player' });
+      this._forecastArrow(from, to, t.kind, edgeOpts);
       tEl.classList.add('forecast-target');
       this._forecastBadge(tEl, t.card);
     });
@@ -20222,7 +20234,8 @@ const UI = {
     // status debuffs (Freeze, Stun, Fear, etc.). Renamed display label
     // to "Status Immunity N" so the badge is unambiguous. Internal
     // keyword stays 'Immunity' for tooltip + class lookup.
-    if (c.immunityCharges > 0) b.push(badge('badge-immune', c.immunityCharges > 1 ? `Immunity ${c.immunityCharges}` : 'Immunity', 'Immunity'));
+    // A permanent immunity prints no count — there is nothing to count down.
+    if (c.immunityCharges > 0) b.push(badge('badge-immune', (c.immunityCharges > 1 && !c.permanentImmunity) ? `Immunity ${c.immunityCharges}` : 'Immunity', 'Immunity'));
     if (c.invincibleTurns > 0) b.push(badge('badge-invincible', `Invincible ${c.invincibleTurns}`, 'Invincible'));
     if (c.unresistibleCharges > 0) b.push(badge('badge-unresistible', c.unresistibleCharges > 1 ? `Unresistible ${c.unresistibleCharges}` : 'Unresistible', 'Unresistible'));
     if (c.tauntTurns > 0) b.push(badge('badge-taunt', `Taunt ${c.tauntTurns}`, 'Taunt'));
@@ -20387,7 +20400,7 @@ const UI = {
     'Armor':       { color: '#cdaa6e', svg: '<svg viewBox="0 0 12 12"><path d="M6 1 L10 3 V6 C10 9 6 11 6 11 C6 11 2 9 2 6 V3 Z" stroke="currentColor" stroke-width="1.2" fill="none"/></svg>', tip: 'Reduces incoming damage by N. Zero damage if fully absorbed.' },
     'Evade':       { color: '#2ecc71', svg: '<svg viewBox="0 0 12 12"><path d="M0.6 3.1H4.3" stroke="currentColor" stroke-width=".9" stroke-linecap="round" opacity=".55"/><circle cx="5.9" cy="3.1" r=".8" fill="currentColor"/><circle cx="4.3" cy="6.7" r="1.15" fill="currentColor"/><path d="M5.15 7.7q2.1 1.4 1.2 3.4" stroke="currentColor" stroke-width="1.35" fill="none" stroke-linecap="round"/></svg>', tip: 'Dodges the next N attacks completely.' },
     'Taunt':       { color: '#f39c12', svg: '<svg viewBox="0 0 12 12"><path d="M6 1 L6 7 M6 9 L6 11" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/><circle cx="6" cy="10" r="0.7" fill="currentColor"/></svg>', tip: 'Enemies must attack this card first.' },
-    'Immunity':    { color: '#9b59b6', svg: '<svg viewBox="0 0 12 12"><path d="M6 1.7c2.1 2.6 3.1 4 3.1 5.3a3.1 3.1 0 0 1-6.2 0c0-1.3 1-2.7 3.1-5.3Z" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.2"/><path d="M2 10.1 10 1.9" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.45"/></svg>', tip: 'Blocks N debuffs (Freeze, Fear, etc.)' },
+    'Immunity':    { color: '#9b59b6', svg: '<svg viewBox="0 0 12 12"><path d="M6 1.7c2.1 2.6 3.1 4 3.1 5.3a3.1 3.1 0 0 1-6.2 0c0-1.3 1-2.7 3.1-5.3Z" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.2"/><path d="M2 10.1 10 1.9" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.45"/></svg>', tip: 'Blocks all debuffs — Freeze, Fear, Stun, Mind Control, stat loss, every one of them. Each block spends a charge.' },
     // A PURPLE DOT, nothing else. Owner: "the indicator should be purple dot
     // icon." The previous glyph was a core with two converging arcs — legible at
     // the 22px inspect size it was drawn for, but the board tile renders badges
