@@ -8326,7 +8326,12 @@ const Game = {
         // Hela) must never see him — and this is a SACRIFICE, so nothing
         // that reacts to discards fires either.
         const idx = this.state[owner].hand.indexOf(ig);
-        if (idx > -1) this.state[owner].hand.splice(idx, 1);
+        // BELT AND BRACES. If the Giant has already left the hand, this save
+        // was claimed by another death and must not restore anything — the
+        // board-wipe bug restored several allies off one Giant precisely
+        // because a missing index was treated as "carry on".
+        if (idx < 0) { doDecline(); return; }
+        this.state[owner].hand.splice(idx, 1);
         this.state[owner].discardPile.push(ig);
         card.currentHealth = restoreHp;
         card._deathHandled = false;
@@ -8335,9 +8340,6 @@ const Game = {
         // that killed it — otherwise the still-pending swings from this same
         // round immediately re-kill it and the sacrifice buys nothing.
         card._igSavedThisCombat = true;
-        // Burn this side's one save for the combat — see the gate at the top
-        // of _ironGiantIntercept.
-        if (this.state[owner]) this.state[owner]._igSpentThisCombat = true;
         this.log(`[IRON GIANT] Iron Giant gives himself — ${card.name} survives at ${restoreHp} HP!`);
         if (typeof UI !== 'undefined' && UI.sfx && UI.sfx.playCardSfx) {
           try { UI.sfx.playCardSfx('Iron Giant', 'ability'); } catch (e) {}
@@ -8370,17 +8372,32 @@ const Game = {
         this._ironGiantBlast(owner, ig);
       };
       const doDecline = () => {
+        // Hand the save back — a decline is not a spend, and the next ally to
+        // die this combat should still be offered the Giant.
+        if (this.state[owner]) delete this.state[owner]._igSpentThisCombat;
         card._igOffered = true;
         card._deathHandled = false;
         const lane = this.findCardLane(card);
         this.handleDeath(card, lane >= 0 ? lane : laneIdx, killer);
       };
+      // CLAIM THE SAVE NOW, BEFORE ANYONE IS ASKED.
+      // This used to be set inside doSave, which for a human runs in the PROMPT
+      // CALLBACK — long after this function returns. A board wipe kills several
+      // allies in one cascade, so every death armed its own prompt while the
+      // flag was still clear, and one Giant saved all of them. User: "iron giant
+      // sacrificed for multiple people in a board wipe at the same time".
+      // Claiming here makes the very next death see the flag set, exactly as a
+      // sequential death already did. doDecline hands it back.
+      if (this.state[owner]) this.state[owner]._igSpentThisCombat = true;
       if (!this.isHuman(owner)) {
         // AI heuristic: spend the Giant on a valuable ally, or whenever
         // the board-wide 1-damage blast has a rich enemy line to sweep.
         const enemies = this.getEnemiesOf(owner).filter(e => e.currentHealth > 0 && !e.isEnvironment);
         const worth = ((card.baseCost || card.cost || 0) >= 4) || enemies.length >= 3;
-        if (!worth) return false; // death proceeds inline
+        if (!worth) {
+          if (this.state[owner]) delete this.state[owner]._igSpentThisCombat;
+          return false; // death proceeds inline, save unspent
+        }
         doSave();
         return true;
       }

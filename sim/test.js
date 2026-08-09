@@ -3072,6 +3072,64 @@ test('Time Stone counters every hostile trick, not just a hardcoded nine', funct
   assertEq(G._isHostileTrick(trickDef('Super Soldier Serum')), false, 'a buff is not hostile');
 });
 
+test('Juggernaut protects himself, not the whole enemy board', function () {
+  // User: "Juggernaut was on the field ... but there was also an open Gorilla
+  // Grodd that I could have done my mind control on". Grodd's On Play used to
+  // cancel ENTIRELY if any Juggernaut stood anywhere on the enemy side, so a
+  // board with one Juggernaut made the whole ability a silent no-op.
+  function offeredWith(juggernaut) {
+    var G = freshGame();
+    if (juggernaut) place(G, 'Juggernaut', 'ai', 0);
+    place(G, 'Gorilla Grodd', 'ai', 2);
+    var grodd = place(G, 'Gorilla Grodd', 'player', 5);
+    var offered = null;
+    var real = G.promptCardChoice;
+    G.promptCardChoice = function (o, opts, t, b, cb) {
+      if (/Mind Control/.test(t || '')) {
+        offered = (opts || []).map(function (c) { return c.name; });
+        var pick = (opts || []).filter(function (c) { return c.name === 'Gorilla Grodd'; })[0];
+        if (cb) cb(pick || opts[0]);
+      } else if (cb) cb(opts[0]);
+      return true;
+    };
+    try { CARD_ABILITIES['Gorilla Grodd'].onPlay(G, grodd, 5); }
+    finally { G.promptCardChoice = real; }
+    return { offered: offered, victim: G.state.lanes[2].ai };
+  }
+  // CONTROL — no Juggernaut, the target is offered and taken.
+  var clean = offeredWith(false);
+  assertEq(clean.offered.length, 1, 'control: one legal target offered');
+  assertEq(!!clean.victim.isMindControlled, true, 'control: and it is controlled');
+
+  var guarded = offeredWith(true);
+  assertEq(guarded.offered.length, 2, 'a Juggernaut on the board does not empty the list');
+  assertEq(!!guarded.victim.isMindControlled, true, 'the other enemy is still controllable');
+});
+
+test('Juggernaut himself still resists Mind Control, and says so', function () {
+  // The other half. Narrowing his protection must not delete it — he carries
+  // Immunity, and mindControlCard routes through tryApplyDebuff where Immunity
+  // is spent, which is why the board-wide cancel was redundant to begin with.
+  var G = freshGame();
+  var jug = place(G, 'Juggernaut', 'ai', 0);
+  var grodd = place(G, 'Gorilla Grodd', 'player', 5);
+  var lines = [], realLog = G.log;
+  G.log = function (m) { lines.push(String(m)); return realLog.apply(G, arguments); };
+  var realPrompt = G.promptCardChoice;
+  G.promptCardChoice = function (o, opts, t, b, cb) {
+    if (/Mind Control/.test(t || '')) {
+      var j = (opts || []).filter(function (c) { return c.name === 'Juggernaut'; })[0];
+      if (cb) cb(j || opts[0]);
+    } else if (cb) cb(opts[0]);
+    return true;
+  };
+  try { CARD_ABILITIES['Gorilla Grodd'].onPlay(G, grodd, 5); }
+  finally { G.promptCardChoice = realPrompt; G.log = realLog; }
+  assertEq(!!jug.isMindControlled, false, 'Juggernaut is not controlled');
+  assertEq(lines.some(function (l) { return /IMMUNITY/.test(l); }), true,
+    'and the resist is reported rather than silent');
+});
+
 test('Iron Giant is still never placeable, and the desc still says so', function () {
   // The gate itself is untouched by the draw work — this pins that.
   var G = igSetup();

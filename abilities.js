@@ -479,9 +479,19 @@ const CARD_ABILITIES = {
       const maxCost = self._groddMcCostMax
         ? self._groddMcCostMax
         : G.rarityValue(self, { common: 1, rare: 3, special: 5, legendary: 9 });
-      const enemySide = G.opponent(self.owner);
-      const jugg = G.getAllCardsOf(enemySide).find(c => c.name === 'Juggernaut');
-      if (jugg) { G.log(`Juggernaut blocks Gorilla Grodd's mind control!`); return; }
+      // JUGGERNAUT PROTECTS HIMSELF AND HIS NEIGHBOURS, NOT THE WHOLE BOARD.
+      // This used to be a board-wide cancel: one Juggernaut anywhere on the
+      // enemy side and Grodd's entire On Play did nothing, silently, even with
+      // other perfectly legal targets standing there. User: "Juggernaut was on
+      // the field ... but there was also an open Gorilla Grodd that I could have
+      // done my mind control on".
+      // His printed text only ever claimed "While Active: Adjacent allies gain
+      // Immunity 1", and he carries Immunity himself — and mindControlCard
+      // already routes through tryApplyDebuff, which is where Immunity is
+      // spent. So the protection was already handled by the normal machinery
+      // and this check was both redundant and wider than the card text.
+      // Now: every enemy under the cost gate is offered, and whoever actually
+      // holds Immunity resists when the control lands and says so.
       const eligible = G.getEnemiesOf(self.owner)
         .filter(e => (e.baseCost || e.cost) <= maxCost);
       if (!eligible.length) {
