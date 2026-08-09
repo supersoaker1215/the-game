@@ -12257,17 +12257,105 @@ const Game = {
   //   (then repeats)
   // Between each player's phase, a "pass the device" splash screen is shown.
 
+  // DEFAULT seating only — the fallback used before a lobby exists. The LIVE
+  // team of a player is state.twoVTwo.players[pk].team and nothing else; read
+  // it through _2v2TeamOf. This constant used to BE the answer, which is why
+  // rearranging teams desynced the engine from the lobby (see _2v2TeamOf).
   _2v2PlayerTeam: { p1: 'A', p2: 'A', p3: 'B', p4: 'B' },
   _2v2TeamSide:   { A: 'player', B: 'ai' },
+  _2v2SLOTS: ['p1', 'p2', 'p3', 'p4'],
+
+  // THE one answer to "whose team is this player on".
+  //
+  // There were two, and they disagreed. Card dealing already read the live
+  // twoVTwo.players[pk].team, while the turn engine read the static
+  // _2v2PlayerTeam above — so the instant teams were anything but the default
+  // seating (the LOCAL setup screen's "Random Teams" button has always written
+  // real assignments), a player was dealt cards for one side and took their
+  // turn for the other. Same bug class as every other duplicated predicate in
+  // this codebase: two copies that agree until one is edited.
+  _2v2TeamOf(pk) {
+    const tt = this.state && this.state.twoVTwo;
+    const p = tt && tt.players && tt.players[pk];
+    return (p && p.team) || this._2v2PlayerTeam[pk] || null;
+  },
+
+  // { A: [key, key], B: [key, key] } in seat order. The roster is what turns a
+  // team assignment into a turn order.
+  _2v2Roster() {
+    const out = { A: [], B: [] };
+    this._2v2SLOTS.forEach(pk => {
+      const t = this._2v2TeamOf(pk);
+      if (out[t]) out[t].push(pk);
+    });
+    return out;
+  },
+
+  // Exactly two a side. One predicate, read by the lobby's Start gate AND by
+  // the swap validator, so "startable" and "legal" can never drift apart.
+  _2v2TeamsBalanced() {
+    const r = this._2v2Roster();
+    return r.A.length === 2 && r.B.length === 2;
+  },
+
+  // The turn order is written in ROLES — A0/A1/B0/B1, "first and second player
+  // of each team" — and resolved against the live roster. Written out as slot
+  // names it looked like a fact about p1..p4; it was always a fact about the
+  // alternation between the two teams, and only coincided with the slots
+  // because the seating never changed. With the default seating these four
+  // patterns expand to exactly the old p1..p4 lists, character for character.
+  _2v2PhaseRolePatterns: [
+    ['A0-cards', 'B0-cards', 'A1-cards-tricks', 'B1-cards-tricks', 'A0-tricks', 'B0-tricks'],
+    ['A1-cards', 'B0-cards', 'B1-cards-tricks', 'A0-cards-tricks', 'A1-tricks', 'B0-tricks'],
+    ['B0-cards', 'B1-cards', 'A0-cards-tricks', 'A1-cards-tricks', 'B0-tricks', 'B1-tricks'],
+    ['B1-cards', 'A0-cards', 'B0-cards-tricks', 'A1-cards-tricks', 'B1-tricks', 'A0-tricks'],
+  ],
 
   _2v2ComputePhaseOrder(round) {
-    const patterns = [
-      ['p1-cards', 'p3-cards', 'p2-cards-tricks', 'p4-cards-tricks', 'p1-tricks', 'p3-tricks'],
-      ['p2-cards', 'p3-cards', 'p4-cards-tricks', 'p1-cards-tricks', 'p2-tricks', 'p3-tricks'],
-      ['p3-cards', 'p4-cards', 'p1-cards-tricks', 'p2-cards-tricks', 'p3-tricks', 'p4-tricks'],
-      ['p4-cards', 'p1-cards', 'p3-cards-tricks', 'p2-cards-tricks', 'p4-tricks', 'p1-tricks'],
-    ];
-    return patterns[(round - 1) % 4];
+    const roster = this._2v2Roster();
+    // An unbalanced roster can only exist mid-lobby, before the Start gate
+    // opens — fall back to default seating rather than emit a broken order.
+    const ok = roster.A.length === 2 && roster.B.length === 2;
+    const seat = ok ? roster : { A: ['p1', 'p2'], B: ['p3', 'p4'] };
+    return this._2v2PhaseRolePatterns[(round - 1) % 4].map(step => {
+      const dash = step.indexOf('-');
+      const role = step.slice(0, dash);           // 'A0' | 'A1' | 'B0' | 'B1'
+      return seat[role[0]][+role[1]] + step.slice(dash);
+    });
+  },
+
+  // Put `a` on `b`'s team and vice versa. A SWAP rather than a "set team"
+  // keeps the roster 2-2 by construction: there is no intermediate 3-1 state
+  // to guard against, no "that team is full" refusal to explain, and no way to
+  // strand the lobby in an unstartable shape. `byKey` is who asked — the host
+  // may rearrange anyone, and any player may swap themselves with anyone.
+  swap2v2Teams(a, b, byKey) {
+    const tt = this.state && this.state.twoVTwo;
+    if (!tt || !tt.players[a] || !tt.players[b] || a === b) return false;
+    // Lobby / setup only. Teams are load-bearing once cards are dealt.
+    if (tt.draft || (tt.round || 0) > 0) return false;
+    if (byKey && byKey !== 'p1' && byKey !== a && byKey !== b) return false;
+    const ta = this._2v2TeamOf(a), tb = this._2v2TeamOf(b);
+    if (ta === tb) return false;   // same team — nothing to exchange
+    tt.players[a].team = tb;
+    tt.players[b].team = ta;
+    return true;
+  },
+
+  // Host-only reshuffle. Deals the four seats out 2-2, so the result is always
+  // startable.
+  randomize2v2Teams(byKey) {
+    const tt = this.state && this.state.twoVTwo;
+    if (!tt) return false;
+    if (tt.draft || (tt.round || 0) > 0) return false;
+    if (byKey && byKey !== 'p1') return false;
+    const keys = this._2v2SLOTS.slice();
+    for (let i = keys.length - 1; i > 0; i--) {
+      const j = Math.floor(this.rng() * (i + 1));
+      const t = keys[i]; keys[i] = keys[j]; keys[j] = t;
+    }
+    keys.forEach((pk, i) => { tt.players[pk].team = i < 2 ? 'A' : 'B'; });
+    return true;
   },
 
   _2v2CanPlayCards(subPhase) {
@@ -12288,7 +12376,7 @@ const Game = {
 
   _2v2ActiveTeam() {
     const ap = this._2v2ActivePlayer();
-    return ap ? this._2v2PlayerTeam[ap] : null;
+    return ap ? this._2v2TeamOf(ap) : null;
   },
 
   _2v2ActiveSide() {
@@ -13008,6 +13096,12 @@ const Game = {
       case 'end2v2Phase':
         if (pk !== activeKey) break;
         this.end2v2Phase();
+        break;
+      case '2v2TeamSwap':
+        // Lobby team rearrangement from a guest. The host is authoritative:
+        // swap2v2Teams re-checks the phase AND the asker's permission here, so
+        // a client cannot rearrange a lobby it has no say in.
+        this.swap2v2Teams(msg.a, msg.b, pk);
         break;
       case 'req2v2State':
         // A joiner asking the host to (re)send state — its first push may

@@ -11127,7 +11127,15 @@ const UI = {
 
     const firstEl = document.getElementById('first-player-text');
     if (firstEl) firstEl.textContent =
-      `${tt.players.p1 ? tt.players.p1.name : 'Team A'} & ${tt.players.p2 ? tt.players.p2.name : 'P2'} vs ${tt.players.p3 ? tt.players.p3.name : 'Team B'} & ${tt.players.p4 ? tt.players.p4.name : 'P4'}`;
+      (() => {
+        // Names from the ROSTER, not from the seats — p1 and p2 are only
+        // teammates by default, and this line was the last place still saying
+        // otherwise after teams became pickable.
+        const r = Game._2v2Roster ? Game._2v2Roster() : { A: ['p1','p2'], B: ['p3','p4'] };
+        const nm = (k, f) => (tt.players[k] ? tt.players[k].name : f);
+        const side = (arr, f1, f2) => `${nm(arr[0], f1)} & ${nm(arr[1], f2)}`;
+        return `${side(r.A.length === 2 ? r.A : ['p1','p2'], 'Team A', 'P2')} vs ${side(r.B.length === 2 ? r.B : ['p3','p4'], 'Team B', 'P4')}`;
+      })();
 
     // --- Board, hand, tricks (standard polished render) ---
     this.renderRoundTrack(s);
@@ -11363,16 +11371,18 @@ const UI = {
         </div>
 
         <div class="setup2v2-teams">
-          <div class="setup2v2-team setup2v2-team-a">
-            <div class="setup2v2-team-label">Team A</div>
-            ${['p1','p2'].map(pk => `<div class="setup2v2-member">${tt.players[pk].name}</div>`).join('')}
-          </div>
-          <div class="setup2v2-vs">VS</div>
-          <div class="setup2v2-team setup2v2-team-b">
-            <div class="setup2v2-team-label">Team B</div>
-            ${['p3','p4'].map(pk => `<div class="setup2v2-member">${tt.players[pk].name}</div>`).join('')}
-          </div>
+          ${['A','B'].map((tm, ti) => `
+            ${ti ? '<div class="setup2v2-vs">VS</div>' : ''}
+            <div class="setup2v2-team setup2v2-team-${tm.toLowerCase()}">
+              <div class="setup2v2-team-label">Team ${tm}</div>
+              ${(Game._2v2Roster ? Game._2v2Roster()[tm] : (tm === 'A' ? ['p1','p2'] : ['p3','p4']))
+                .map(pk => `<div class="setup2v2-member ${UI._2v2TeamSel === pk ? 'is-teamsel' : ''}"
+                       onclick="twov2TeamTap('${pk}')" role="button" tabindex="0">${tt.players[pk].name}</div>`).join('')}
+            </div>`).join('')}
         </div>
+        <div class="setup2v2-hint">${UI._2v2TeamSel
+          ? 'Now tap a player on the other team to trade places'
+          : 'Tap two players to trade places'}</div>
 
         <div class="setup2v2-actions">
           <button type="button" class="setup2v2-btn" onclick="start2v2RandomTeams()">🎲 Random Teams</button>
@@ -11555,17 +11565,39 @@ const UI = {
     }
 
     // Waiting room — room code + player list, in the main-menu style.
+    //
+    // TEAM PICKING. Tap a player, tap someone on the other team, they trade
+    // places. A swap rather than a "join team A" button because there are
+    // exactly two seats a side: a swap can never leave the lobby 3-1, so there
+    // is no full-team refusal to explain and no unstartable shape to escape.
+    // The host may rearrange anyone; everyone else may trade themselves with
+    // anyone. The host is authoritative either way — a guest's tap is a
+    // request, and the lobby it gets back is the host's.
+    const sel = this._2v2TeamSel;
+    const canMove = (pk) => isHost || pk === tt.you;
     const playerRows = ['p1','p2','p3','p4'].map(pk => {
       const hasJoined = joined[pk];
       const name = hasJoined ? players[pk].name : (pk === 'p1' ? '(Host)' : 'Waiting…');
-      const teamLabel = pk === 'p1' || pk === 'p2' ? 'A' : 'B';
-      return `<div class="twov2-mm-prow ${hasJoined ? 'is-joined' : ''}">
+      const teamLabel = (players[pk] && players[pk].team) || '?';
+      // Selectable only once they are actually in the room — you cannot put an
+      // empty seat on a team.
+      const pickable = hasJoined && (canMove(pk) || (sel && canMove(sel)));
+      const isSel = sel === pk;
+      const isPartner = !!sel && !isSel && hasJoined && teamLabel !== ((players[sel] || {}).team);
+      return `<div class="twov2-mm-prow ${hasJoined ? 'is-joined' : ''} ${isSel ? 'is-teamsel' : ''} ${sel && isPartner && pickable ? 'is-swappable' : ''} ${pickable ? 'is-pickable' : ''} team-${teamLabel}"
+        ${pickable ? `onclick="twov2TeamTap('${pk}')" role="button" tabindex="0"` : ''}>
         <span class="twov2-mm-pslot">P${pk[1]}</span>
         <span class="twov2-mm-pname">${name}</span>
         <span class="twov2-mm-pteam">Team ${teamLabel}</span>
         <span class="twov2-mm-pcheck">${hasJoined ? '✓' : ''}</span>
       </div>`;
     }).join('');
+    const balanced = Game._2v2TeamsBalanced ? Game._2v2TeamsBalanced() : true;
+    const teamHint = sel
+      ? `<div class="twov2-mm-sub">Now tap someone on the other team to trade places</div>`
+      : (joinedCount === 4
+          ? `<div class="twov2-mm-sub">Tap ${isHost ? 'any two players' : 'yourself, then an opponent,'} to trade places</div>`
+          : '');
 
     el.innerHTML = `
       <div class="twov2-mm">
@@ -11580,8 +11612,14 @@ const UI = {
             : `<div class="twov2-mm-sub">Waiting for host to start…</div>`}
           ${errorHtml}
           <div class="twov2-mm-players">${playerRows}</div>
+          ${teamHint}
           ${isHost && joinedCount === 4
-            ? `<button type="button" class="twov2-mm-opt" onclick="twov2OnlineStart()"><span class="twov2-mm-ic">&#9655;</span>Start Match</button>`
+            ? `<button type="button" class="twov2-mm-opt" onclick="twov2TeamRandom()"><span class="twov2-mm-ic">&#9186;</span>Shuffle Teams</button>`
+            : ''}
+          ${isHost && joinedCount === 4
+            ? (balanced
+                ? `<button type="button" class="twov2-mm-opt" onclick="twov2OnlineStart()"><span class="twov2-mm-ic">&#9655;</span>Start Match</button>`
+                : `<div class="twov2-mm-sub">Teams must be two a side to start</div>`)
             : `<div class="twov2-mm-sub">${joinedCount}/4 players joined</div>`}
         </div>
       </div>`;
@@ -28621,10 +28659,16 @@ function twov2OnlineCreate() {
       tt.joinedPlayers = tt.joinedPlayers || {};
       tt.joinedPlayers[playerKey] = true;
     }
+    // Push the lobby to everyone already in it. Without this each client only
+    // ever knew about its OWN join, so guests stared at three "Waiting…" rows
+    // in a full room — and teams, which have to be agreed before the match
+    // starts, had no way to reach them at all.
+    twov2LobbyBroadcast();
     UI.render();
   });
 
   Multiplayer4.on('allPlayersReady', () => {
+    twov2LobbyBroadcast();
     UI.render();
   });
 
@@ -28685,9 +28729,14 @@ function twov2OnlineJoin() {
   });
 
   Multiplayer4.on('state', ({ state }) => {
-    // Joiner: full state replacement from host
-    UI._2v2GotState = true;
-    if (UI._2v2StateRetry) { clearInterval(UI._2v2StateRetry); UI._2v2StateRetry = null; }
+    // Joiner: full state replacement from host.
+    // The retry poll exists to rescue a lost MATCH state, and the host now
+    // pushes the LOBBY too — so only count a push that actually left the
+    // lobby, or a dropped start would leave the guest polling nothing.
+    if (state && state.phase !== '2v2-online-lobby') {
+      UI._2v2GotState = true;
+      if (UI._2v2StateRetry) { clearInterval(UI._2v2StateRetry); UI._2v2StateRetry = null; }
+    }
     const mySlot = Game.state.twoVTwo && Game.state.twoVTwo.you;
     Game.state = state;
     // Keep the engine's lane count in lockstep with the received board —
@@ -28698,6 +28747,9 @@ function twov2OnlineJoin() {
       // Preserve which slot we are
       if (mySlot) Game.state.twoVTwo.you = mySlot;
     }
+    // A team pick that landed while mine was half-made would leave my
+    // highlight pointing at a player who has since moved. Drop it.
+    UI._2v2TeamSel = null;
     UI.render();
   });
 
@@ -28724,6 +28776,63 @@ function twov2OnlineJoin() {
   });
 
   Multiplayer4.joinRoom(code, { name });
+}
+
+// Two taps make a swap: first names who is moving, second names who they trade
+// with. Selection is purely local — nothing is sent until there are two ends to
+// the exchange, so a half-finished pick can never desync anyone.
+UI._2v2TeamSel = null;
+
+function twov2TeamTap(pk) {
+  const tt = Game.state.twoVTwo;
+  if (!tt || !tt.players[pk]) return;
+  // LOCAL setup screen: the name inputs are live DOM, and a re-render throws
+  // away anything typed but not yet committed. Harvest them before the swap
+  // re-renders the panel, or arranging teams would silently wipe the names.
+  if (Game.state.phase === '2v2-team-setup') {
+    ['p1','p2','p3','p4'].forEach(k => {
+      const el = document.getElementById('2v2-name-' + k);
+      if (el && el.value.trim()) tt.players[k].name = el.value.trim();
+    });
+  }
+  const sel = UI._2v2TeamSel;
+  if (!sel) { UI._2v2TeamSel = pk; UI.render(); return; }
+  if (sel === pk) { UI._2v2TeamSel = null; UI.render(); return; }   // tap again to cancel
+  UI._2v2TeamSel = null;
+  // Local hot-seat has no host and no wire — resolve in place.
+  if (!tt.online) {
+    Game.swap2v2Teams(sel, pk, null);
+    UI.render();
+    return;
+  }
+  const isHost = tt.you === 'p1';
+  if (isHost) {
+    // Host owns the lobby: apply, then push it so everyone sees the same room.
+    if (Game.swap2v2Teams(sel, pk, 'p1')) twov2LobbyBroadcast();
+    UI.render();
+    return;
+  }
+  // Guest: ask. The host validates and the answer arrives as lobby state.
+  if (typeof Multiplayer4 !== 'undefined') {
+    Multiplayer4.send({ t: '2v2TeamSwap', playerKey: tt.you, a: sel, b: pk });
+  }
+  UI.render();
+}
+
+function twov2TeamRandom() {
+  const tt = Game.state.twoVTwo;
+  if (!tt || tt.you !== 'p1') return;
+  UI._2v2TeamSel = null;
+  if (Game.randomize2v2Teams('p1')) twov2LobbyBroadcast();
+  UI.render();
+}
+
+// The lobby had no state push at all — each client only ever knew about its own
+// join, which is why every guest's roster read "Waiting…" for the other three.
+// Teams have to be agreed on before the match starts, so the lobby needs the
+// same host-authoritative broadcast the match already uses.
+function twov2LobbyBroadcast() {
+  if (typeof Game._2v2OnlineBroadcast === 'function') Game._2v2OnlineBroadcast();
 }
 
 function twov2OnlineStart() {

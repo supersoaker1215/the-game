@@ -2798,6 +2798,29 @@ body.hit-pause .ai-hand * {
 .twov2-mm-players { margin: 16px 0 20px; max-width: 440px; display: flex; flex-direction: column; gap: 6px; }
 .twov2-mm-prow { display: flex; align-items: center; gap: 14px; padding: 10px 2px; border-bottom: 1px solid rgba(var(--theme-rgb,79,195,247),0.12); opacity: 0.45; transition: opacity 240ms; }
 .twov2-mm-prow.is-joined { opacity: 1; }
+/* Lobby team picking — see .setup2v2-member. A row you may move lights on
+   hover; the selected one holds the light; the rows it can trade with are
+   marked so the second tap is never a guess. */
+.twov2-mm-prow.is-pickable { cursor: pointer; -webkit-tap-highlight-color: transparent; }
+.twov2-mm-prow.is-pickable:hover .twov2-mm-pname,
+.twov2-mm-prow.is-pickable:focus-visible .twov2-mm-pname {
+  color: var(--text-hi, #f5fbff);
+  text-shadow: 0 0 8px rgba(var(--theme-rgb,79,195,247),0.5);
+}
+.twov2-mm-prow.is-pickable:focus-visible { outline: none; }
+.twov2-mm-prow.is-teamsel .twov2-mm-pname,
+.twov2-mm-prow.is-teamsel .twov2-mm-pteam {
+  color: #ffd77a;
+  text-shadow: 0 0 10px rgba(255,215,0,0.7);
+}
+.twov2-mm-prow.is-swappable .twov2-mm-pteam {
+  color: rgb(var(--theme-rgb,79,195,247));
+  text-shadow: 0 0 8px rgba(var(--theme-rgb,79,195,247),0.55);
+}
+@media (prefers-reduced-motion: reduce) {
+  .setup2v2-member { transition: color 180ms ease; }
+  .setup2v2-member.is-teamsel { transform: none; }
+}
 .twov2-mm-pslot { font-weight: 800; letter-spacing: 2px; color: rgb(var(--theme-rgb,79,195,247)); min-width: 30px; }
 .twov2-mm-pname { flex: 1; color: var(--text-body, #eaf4fb); font-size: 16px; font-weight: 600; }
 .twov2-mm-pteam { font-size: 11px; letter-spacing: 2px; text-transform: uppercase; color: rgba(159,207,237,0.5); }
@@ -32955,6 +32978,31 @@ body.round-tick .board::after {
   font-family: 'Rajdhani', sans-serif;
   font-size: 16px; font-weight: 700; letter-spacing: 4px;
   color: #566070; align-self: center; flex-shrink: 0;
+}
+/* TEAM PICKING — tap a name, tap another, they trade places. Boxless: the
+   selected name simply lights up and grows, same language as every other
+   control here. 44px of touch target without drawing a 44px box. */
+.setup2v2-member {
+  cursor: pointer;
+  min-height: 30px; display: flex; align-items: center;
+  transform-origin: left center;
+  transition: transform 180ms ease, color 180ms ease, text-shadow 180ms ease;
+  -webkit-tap-highlight-color: transparent;
+}
+.setup2v2-member:hover,
+.setup2v2-member:focus-visible {
+  color: var(--text-hi, #f5fbff);
+  text-shadow: 0 0 8px rgba(var(--theme-rgb,79,195,247),0.5);
+  outline: none;
+}
+.setup2v2-member.is-teamsel {
+  color: #ffd77a;
+  transform: scale(1.08);
+  text-shadow: 0 0 10px rgba(255,215,0,0.75);
+}
+.setup2v2-hint {
+  font-family: 'Inter', sans-serif; font-size: 11px;
+  color: var(--text-mute, #b8c2cc); opacity: 0.75; text-align: center;
 }
 .setup2v2-actions { display: flex; gap: 10px; }
 .setup2v2-btn {

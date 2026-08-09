@@ -3526,6 +3526,110 @@ test('Kryptonite and Pym Particles ignore Immunity outright', function () {
   assertEq(t3.immunityCharges, 0, 'and that one DOES spend the charge');
 });
 
+// ---- 2v2 TEAM SELECTION ------------------------------------
+function lobby2v2() {
+  Game.start2v2Match({ names: { p1: 'One', p2: 'Two', p3: 'Three', p4: 'Four' } });
+  return Game;
+}
+
+// The turn order used to be four hardcoded p1..p4 lists. Rewriting it in terms
+// of team ROLES must not move a single step under the default seating, or every
+// existing 2v2 match just changed shape.
+test('The default seating produces the exact turn order it always did', function () {
+  var G = lobby2v2();
+  var expected = [
+    ['p1-cards', 'p3-cards', 'p2-cards-tricks', 'p4-cards-tricks', 'p1-tricks', 'p3-tricks'],
+    ['p2-cards', 'p3-cards', 'p4-cards-tricks', 'p1-cards-tricks', 'p2-tricks', 'p3-tricks'],
+    ['p3-cards', 'p4-cards', 'p1-cards-tricks', 'p2-cards-tricks', 'p3-tricks', 'p4-tricks'],
+    ['p4-cards', 'p1-cards', 'p3-cards-tricks', 'p2-cards-tricks', 'p4-tricks', 'p1-tricks'],
+  ];
+  for (var r = 1; r <= 8; r++) {
+    assertEq(G._2v2ComputePhaseOrder(r).join('|'), expected[(r - 1) % 4].join('|'),
+      'round ' + r + ' is unchanged');
+  }
+});
+
+test('Rearranged teams move the turn order with them', function () {
+  var G = lobby2v2();
+  // Put p1 with p3, p2 with p4 — the shape the lobby now allows.
+  assertEq(G.swap2v2Teams('p2', 'p3', 'p1'), true, 'the swap is accepted');
+  assertEq(G._2v2TeamOf('p1'), 'A', 'p1 stays on A');
+  assertEq(G._2v2TeamOf('p3'), 'A', 'p3 joins him');
+  assertEq(G._2v2TeamOf('p2'), 'B', 'p2 goes across');
+  assertEq(G._2v2TeamOf('p4'), 'B', 'p4 stays on B');
+
+  // Round 1 is A0, B0, A1, B1, A0, B0 — which is now p1, p2, p3, p4.
+  assertEq(G._2v2ComputePhaseOrder(1).join('|'),
+    ['p1-cards', 'p2-cards', 'p3-cards-tricks', 'p4-cards-tricks', 'p1-tricks', 'p2-tricks'].join('|'),
+    'the order follows the teams, not the seats');
+
+  // And the order stays FAIR, which is the property that actually matters: the
+  // four card slots are two per team and one per player, every round. (Not
+  // strict A/B/A/B — rounds 2 and 4 have never alternated, they go A/B/B/A.
+  // Whatever the pattern is, rearranging teams must not skew it.)
+  for (var r = 1; r <= 8; r++) {
+    var cardSlots = G._2v2ComputePhaseOrder(r).slice(0, 4).map(function (sp) { return sp.split('-')[0]; });
+    var teams = cardSlots.map(function (pk) { return G._2v2TeamOf(pk); });
+    assertEq(teams.filter(function (t) { return t === 'A'; }).length, 2, 'round ' + r + ': A gets two card slots');
+    assertEq(teams.filter(function (t) { return t === 'B'; }).length, 2, 'round ' + r + ': B gets two');
+    assertEq(cardSlots.slice().sort().join(','), 'p1,p2,p3,p4', 'round ' + r + ': each player exactly once');
+  }
+});
+
+test('The engine and the lobby agree on whose team is whose', function () {
+  var G = lobby2v2();
+  G.swap2v2Teams('p2', 'p3', 'p1');
+  // This is the bug that already existed: card dealing read the live team while
+  // the turn engine read a static map, so a rearranged lobby dealt a player
+  // cards for one side and gave them a turn on the other.
+  G._2v2ComputePhaseOrder(1).forEach(function (sp) {
+    var pk = sp.split('-')[0];
+    assertEq(G._2v2TeamOf(pk), G.state.twoVTwo.players[pk].team,
+      pk + ': engine team matches lobby team');
+  });
+  G.state.twoVTwo.subPhaseIdx = 0;
+  G.state.twoVTwo.round = 1;
+  assertEq(G._2v2ActiveTeam(), G.state.twoVTwo.players[G._2v2ActivePlayer()].team,
+    'and the ACTIVE team is read from the same place');
+});
+
+test('A swap can never leave the lobby lopsided', function () {
+  var G = lobby2v2();
+  assertEq(G._2v2TeamsBalanced(), true, 'it starts two a side');
+  // Every legal swap, in sequence — the roster must stay 2-2 throughout.
+  [['p1','p3'], ['p2','p4'], ['p1','p2'], ['p3','p4'], ['p2','p3']].forEach(function (pair) {
+    G.swap2v2Teams(pair[0], pair[1], 'p1');
+    assertEq(G._2v2TeamsBalanced(), true, 'still two a side after ' + pair.join('/'));
+  });
+  // Same-team "swaps" are refused rather than silently doing nothing useful.
+  var r = G._2v2Roster();
+  assertEq(G.swap2v2Teams(r.A[0], r.A[1], 'p1'), false, 'two teammates cannot trade');
+  assertEq(G.swap2v2Teams('p1', 'p1', 'p1'), false, 'nor can a player trade with themselves');
+});
+
+test('Only the host, or a player moving themselves, may rearrange', function () {
+  var G = lobby2v2();
+  assertEq(G.swap2v2Teams('p2', 'p3', 'p4'), false, 'p4 cannot rearrange two other people');
+  assertEq(G.swap2v2Teams('p2', 'p3', 'p2'), true, 'but p2 can move themselves');
+  assertEq(G.swap2v2Teams('p1', 'p2', 'p1'), true, 'and the host can move anyone');
+
+  // Locked once the match is real — teams are load-bearing after the deal.
+  G.state.twoVTwo.round = 1;
+  var before = G._2v2TeamOf('p1');
+  assertEq(G.swap2v2Teams('p1', 'p3', 'p1'), false, 'refused mid-match');
+  assertEq(G._2v2TeamOf('p1'), before, 'and nothing moved');
+  assertEq(G.randomize2v2Teams('p1'), false, 'shuffle is locked too');
+});
+
+test('Shuffle deals a startable 2-2, and only the host may call it', function () {
+  var G = lobby2v2();
+  assertEq(G.randomize2v2Teams('p3'), false, 'a guest cannot shuffle the room');
+  for (var i = 0; i < 25; i++) {
+    assertEq(G.randomize2v2Teams('p1'), true, 'the host can');
+    assertEq(G._2v2TeamsBalanced(), true, 'and every shuffle is two a side');
+  }
+});
+
 // ============================================================
 // ---- RUNNER ------------------------------------------------
 // ============================================================
