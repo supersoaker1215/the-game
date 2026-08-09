@@ -38839,89 +38839,20 @@ body.low-fx .card-hollow-purple::after { animation: none !important; }
 }
 
 /* ============================================================
-   LANE NUMBER — THE SEAM (option 01)
+   LANE NUMBER — back to the disc
    ============================================================
-   The pip was a 22px bordered disc with a double glow halo, and six of them
-   sat in a row across the busiest strip of the board. Owner: "the middle art
-   direction looks a little weird not triple AAA polish" — then picked SEAM
-   from the five mocked directions: the number engraved INTO the centreline
-   rather than floating on a badge, no circles anywhere.
+   The seam treatment lived here: number engraved into the centreline, no
+   circle. It removed the chrome but left the number sitting in a HOLE in the
+   rule with nothing closing it, so the line read as broken rather than
+   deliberately interrupted. Owner: "these numbers needs a redesign it looks
+   incomplete", then "we had a circle for the lane number we can go back to
+   that."
+   Deleting the block is the whole revert — it only ever OVERRODE the original
+   disc rules (shape, halo, animation), never edited them, so the pip comes
+   back exactly as it was. Five other treatments were mocked and none beat the
+   circle, which is a fair result: it was the finished-looking one all along.
+   ============================================================ */
 
-   Authored LAST on purpose. Twenty-five separate rules touch .lane-number
-   across this file — occupancy colours, the active-lane pulse, the boot
-   reveal, theme overrides — and most of them add circle chrome. Editing all
-   twenty-five would leave the next one to be added drawing a disc again.
-   One block at the end owns the SHAPE; the colour story above still owns the
-   colour, which is why the red / theme / purple occupancy signal survives.
-
-   Scoped to `.lane .lane-sep` so the 2v2 lane-PICKER buttons, which reuse the
-   same class name for a completely different control, are untouched. */
-.lane .lane-sep .lane-number {
-  /* No disc. The black background is doing the real work: it punches a gap in
-     the ::before rule so the line reads as broken FOR the number and closed
-     again either side of it. */
-  width: auto;
-  height: auto;
-  min-width: 0;
-  padding: 0 9px;
-  border: 0;
-  border-radius: 0;
-  box-shadow: none;
-  background: #000;
-  font-weight: 600;
-  font-size: 11px;
-  letter-spacing: 2.5px;
-  /* The glow moves from the box to the glyph — same neon language, a fraction
-     of the visual weight. currentColor keeps it keyed to the occupancy colour
-     the rules above already resolved. */
-  text-shadow: 0 0 8px currentColor;
-  /* tronCirclePulse has to die here, not just be overridden. It ANIMATES
-     box-shadow on a 3s infinite loop, and an animated value beats a normal
-     declaration — so `box-shadow: none` above was losing to it and a ghost
-     halo stayed on screen with no circle left to belong to. Measured: computed
-     box-shadow was still rgba(255,255,255,0.3) 0 0 4px / 0 0 8px.
-     It is named for the circle it used to pulse. With the circle gone it is
-     six infinite animations lighting nothing, which the battery diet says
-     should not exist either. */
-  animation: none;
-}
-/* Occupancy tints: colour only now, since the box that used to carry them is
-   gone. Kept quieter than the line itself — the line is the signal, the number
-   is a label. */
-.lane.occ-ai .lane-sep .lane-number      { color: #ff8a7a; }
-.lane.occ-player .lane-sep .lane-number  { color: color-mix(in srgb, rgb(var(--theme-rgb, 79,195,247)) 80%, white); }
-.lane.occ-both .lane-sep .lane-number    { color: #d98cff; }
-/* THE OCCUPANCY HALOS CARRY !important, so a plain declaration cannot beat them
-   no matter how late it is authored — which is why the halo survived on exactly
-   the OCCUPIED lanes and nowhere else, the classic "comes back sometimes" shape.
-   Matched in kind rather than out-specified, because these are the same author
-   fighting itself and the honest fix is to say so once, loudly, in one place. */
-.lane .lane-sep .lane-number,
-.lane.occ-ai .lane-sep .lane-number,
-.lane.occ-player .lane-sep .lane-number,
-.lane.occ-both .lane-sep .lane-number {
-  box-shadow: none !important;
-  border: 0 !important;
-  border-radius: 0 !important;
-  width: auto !important;
-  height: auto !important;
-}
-.lane .lane-sep:not(.lane-active) .lane-number { opacity: 0.72; }
-/* The active lane still pulses — that is information (which lane is resolving),
-   not decoration, so it survives the trim. It pulses the GLYPH now instead of a
-   disc, and the shape overrides above already stripped the halo it used to
-   carry with it. */
-.lane .lane-sep.lane-active .lane-number {
-  border: 0;
-  box-shadow: none;
-  background: #000;
-  opacity: 1;
-  /* Re-asserted because the `animation: none` above is later in the file and
-     equally specific, so it would otherwise swallow the active-lane pulse too.
-     laneActivePulse is opacity-only, so it costs nothing and cannot bring the
-     halo back. */
-  animation: laneActivePulse 1.2s ease-in-out infinite;
-}
 
 /* ============================================================
    DEAD PILE — CARDS GROW TO FIT THEIR OWN RULES TEXT
