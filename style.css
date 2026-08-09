@@ -11894,6 +11894,35 @@ body.turn-combat .board .lane.lane-active {
   line-height: 1.45; text-align: center;
   margin-top: 4px;
 }
+/* ACTION TILE — no portrait, no stats, so its text is the tile. Shown front
+   side up rather than behind the flip every other tray tile uses (see
+   isActionTile). The name sits above it as a heading; nothing is hidden. */
+.choice-tray .choice-action { display: flex; flex-direction: column; }
+.choice-tray .choice-action .card-portrait {
+  /* The portrait box keeps a card's 360/472 aspect ratio, which on an artless
+     tile is 190px of nothing between the name and the text. Collapse it to
+     just the name. */
+  flex: 0 0 auto;
+  aspect-ratio: auto;
+  min-height: 0; height: auto;
+  background: none;
+  padding: 16px 8px 2px;
+}
+.choice-tray .choice-action .card-name-overlay {
+  position: static;
+  background: none;
+  padding: 0;
+}
+.choice-tray .choice-action .card-desc {
+  visibility: visible; opacity: 1;
+  position: static;
+  transform: none;
+  flex: 1 1 auto;
+  display: flex; align-items: center; justify-content: center;
+  padding: 4px 12px 14px;
+  color: var(--text-mute, #b8c2cc);
+  font-size: 11px; line-height: 1.45;
+}
 .choice-tray .choice-facedown {
   width: 150px; height: 190px;
   background: repeating-linear-gradient(45deg, #1a1a2e, #1a1a2e 10px, #16213e 10px, #16213e 20px);

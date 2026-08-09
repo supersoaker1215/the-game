@@ -8037,6 +8037,39 @@ const UI = {
     this._screenShake('medium');
   },
 
+  // VOLDEMORT — one wand, three curses, three unmistakable colours. The killing
+  // curse is the flat green bolt everyone knows; Crucio is a red ring that
+  // crushes inward on the victim; Imperio is a slow violet beam that takes hold
+  // rather than strikes. Built entirely from the existing FX primitives — a new
+  // card should not need new drawing code — and gated on reduced-motion like
+  // every other signature cast.
+  _fxVoldemortCurse(self, targetCard, curseId) {
+    if (this._reducedMotion() || !targetCard) return;
+    const tgtEl = this._fxCardElById(targetCard.id);
+    const to = this._fxCenter(tgtEl);
+    if (!to) return;
+    const kit = curseId === 'ak'
+      ? { bolt: '#39ff5e', glow: '#0b8f2a', core: '#eaffef', shake: 'medium' }
+      : curseId === 'cr'
+      ? { bolt: '#ff3b3b', glow: '#8f0b0b', core: '#ffe3e3', shake: 'medium' }
+      : { bolt: '#b06bff', glow: '#4a1d8a', core: '#f0e3ff', shake: 'light' };
+    this._fxWhenPainted(self, (srcEl) => {
+      const from = this._fxCenter(srcEl);
+      if (!from) return;
+      if (curseId === 'im') {
+        // Imperio does not strike — it reaches. A single held beam.
+        this._fxDrawBeam(from, to, { color: kit.bolt, core: kit.core, thickness: 6 });
+      } else {
+        this._fxDrawBolt(from, to, { color: kit.bolt, glow: kit.glow });
+        this._fxDrawBolt(from, to, { color: kit.core, glow: kit.bolt });
+      }
+      if (tgtEl) this._fxRing(tgtEl, { color: kit.bolt, contract: true });
+      this._fxImpact(to, { color: kit.bolt, core: kit.core, size: curseId === 'ak' ? 1.1 : 0.9 });
+      this._fxSparks(to, { color: kit.bolt, glow: kit.glow, count: curseId === 'ak' ? 14 : 9, spread: 55, size: 2.4 });
+    });
+    this._screenShake(kit.shake);
+  },
+
   // Superman heat vision: twin red/white beams to the blast target.
   // Capture the TARGET now (it exists and isn't damaged yet), then draw
   // once the freshly-played SOURCE is painted (_fxWhenPainted defers a
@@ -10698,16 +10731,31 @@ const UI = {
       // real card/trick's art via `_artName` while keeping their action label
       // as the overlay text. Tricks get purple chrome via .choice-trick.
       const artName = card._artName || card.name;
-      const trayArtPath = artName ? this.getCardArtPath(artName) : null;
+      // AN ACTION TILE READS ITS OWN TEXT, FRONT SIDE UP.
+      // Tray tiles are flip-hosts: art at rest, rules on the back. That is
+      // right for a CARD, where the portrait is what you recognise it by. A
+      // pure action tile — no portrait, no stats, a name and a sentence — has
+      // nothing on its front worth protecting, so hiding the sentence behind a
+      // flip asked the player to turn over three blank rectangles to find out
+      // what they were choosing between. Voldemort's three curses made it
+      // obvious; Invisible Woman's face-up/face-down options had it all along.
+      //
+      // "Has art" cannot be the test: getCardArtPath happily synthesises
+      // `<Name>.png` for a name no file exists for, so every action tile looked
+      // like it had a portrait (and requested a 404). A tile is an ACTION when
+      // its name belongs to no real card and no real trick.
+      const isTrickName = typeof TRICK_DEFS !== 'undefined' && artName &&
+        TRICK_DEFS.some(td => td.name === artName);
+      const isActionTile = !isRealCard && !isTrickName && !stats;
+      const trayArtPath = (artName && !isActionTile) ? this.getCardArtPath(artName) : null;
       const safeTrayUrl = trayArtPath ? trayArtPath.replace(/'/g, '%27') : '';
       const trayPortraitStyle = safeTrayUrl ? `--portrait-bg:url('${safeTrayUrl}')${this._artFocalCard(artName)}` : '';
       const portraitHtml = `<div class="card-portrait" style="${trayPortraitStyle}"><div class="card-name-overlay"><span class="cn-text">${card.name || 'Unknown'}</span></div></div>`;
       const costHtml = card.cost !== undefined ? `<span class="card-cost">${card.cost}</span>` : '';
-      const isTrickFace = !!card._isTrick ||
-        (typeof TRICK_DEFS !== 'undefined' && artName && TRICK_DEFS.some(td => td.name === artName));
+      const isTrickFace = !!card._isTrick || isTrickName;
       return `
         <div class="choice-opt">
-          <div class="choice-card card flip-host ${costClass}${isTrickFace ? ' choice-trick' : ''}" data-idx="${idx}">
+          <div class="choice-card card ${isActionTile ? 'choice-action' : 'flip-host'} ${costClass}${isTrickFace ? ' choice-trick' : ''}" data-idx="${idx}">
             ${costHtml}
             ${typeSigil}
             ${portraitHtml}

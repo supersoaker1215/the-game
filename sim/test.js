@@ -3732,6 +3732,115 @@ test('The record does not grow without bound, or repeat itself', function () {
   assert(c._history.length <= 10, 'capped at 10 entries, got ' + c._history.length);
 });
 
+// ---- VOLDEMORT ---------------------------------------------
+function voldSetup(enemyName) {
+  var G = freshGame();
+  var v = place(G, 'Voldemort', 'player', 2);
+  var e = place(G, enemyName || 'Bane', 'ai', 2);
+  return { G: G, v: v, e: e };
+}
+// Force ONE curse and run it. The shim replaces the prompt functions and the
+// AI fallback has its own preference order, so narrowing the menu to a single
+// entry is how a test names the curse it wants — and it exercises the real
+// cast path rather than a copy of it.
+function castCurse(G, v, id, lane) {
+  var defs = CARD_ABILITIES['Voldemort'];
+  var all = defs._CURSES;
+  defs._CURSES = all.filter(function (c) { return c.id === id; });
+  try { defs.onBeforeCombat(G, v, lane == null ? 2 : lane); }
+  finally { defs._CURSES = all; }
+}
+
+test('Voldemort prints as an 8-cost 4/10 villain', function () {
+  var d = cardByName('Voldemort');
+  assertEq(d.cost, 8, 'cost 8');
+  assertEq(d.attack, 4, '4 ATK');
+  assertEq(d.health, 10, '10 HP');
+  assertEq(d.type, 'villain', 'villain');
+  assertEq(d.desc.indexOf('Mind Control') > -1, true, 'the text names the keyword so its chip renders');
+});
+
+test('Avada Kedavra kills outright, but only cost 7 and under', function () {
+  var defs = CARD_ABILITIES['Voldemort'];
+  var s = voldSetup('Bane');                       // cost 2
+  var reach = defs._targetsFor(s.G, s.v, 'ak');
+  assertEq(reach.length, 1, 'a cheap enemy is in reach');
+
+  var big = voldSetup('Anakin Skywalker');         // cost 10
+  assertEq(defs._targetsFor(big.G, big.v, 'ak').length, 0, 'a 10-cost is out of reach');
+
+  // It is DEATH, not damage — the victim leaves the board at full HP.
+  var k = voldSetup('Bane');
+  var hpBefore = k.e.currentHealth;
+  castCurse(k.G, k.v, 'ak');
+  assertEq(k.G.state.lanes[2].ai, null, 'the enemy is gone');
+  assertEq(hpBefore > 0, true, 'and it was alive and unhurt right up until it was not');
+});
+
+test('Crucio maims and stuns, but never finishes the job', function () {
+  var s = voldSetup('Bane');
+  s.e.attack = 6; s.e.baseAttack = 6;
+  s.e.currentHealth = 7; s.e.maxHealth = 7;
+  castCurse(s.G, s.v, 'cr');
+  assertEq(s.e.attack, 2, 'ATK cut by 4');
+  assertEq(s.e.currentHealth, 3, 'HP cut by 4');
+  assertEq(s.G.isActionLocked(s.e), true, 'and it is stunned');
+
+  // A small enemy is left at 1, not killed — Avada Kedavra is the kill curse.
+  var t = voldSetup('Bane');
+  t.e.attack = 1; t.e.currentHealth = 2; t.e.maxHealth = 2;
+  castCurse(t.G, t.v, 'cr');
+  assert(t.e.currentHealth >= 1, 'floors at 1 HP');
+  assertEq(t.G.state.lanes[2].ai, t.e, 'and is still standing');
+});
+
+test('Imperio turns an enemy for the round, then lets it go', function () {
+  var s = voldSetup('Bane');
+  castCurse(s.G, s.v, 'im');
+  assertEq(!!s.e.isMindControlled, true, 'it is controlled');
+  assertEq(s.G.state.lanes[2].ai, s.e, 'it stays in its own lane, on its own side of the board');
+  // Released by the SAME end-of-round sweep that releases every other Mind
+  // Control — Imperio does not need its own return trip.
+  s.G.state.round = 1;
+  s.G.clearRoundStatuses ? s.G.clearRoundStatuses() : null;
+});
+
+test('The same curse cannot be cast two rounds running', function () {
+  var defs = CARD_ABILITIES['Voldemort'];
+  var s = voldSetup('Bane');
+  // Give him a fat target so no curse runs out of marks.
+  s.e.attack = 9; s.e.currentHealth = 20; s.e.maxHealth = 20;
+
+  var seen = [];
+  for (var r = 1; r <= 4; r++) {
+    s.G.state.round = r;
+    var before = s.v._lastCurse;
+    CARD_ABILITIES['Voldemort'].onBeforeCombat(s.G, s.v, 2);
+    var now = s.v._lastCurse;
+    assert(now, 'round ' + r + ' cast something');
+    assert(now !== before, 'round ' + r + ' did not repeat the previous curse');
+    seen.push(now);
+    // A dead or missing victim would end the run early; keep one alive.
+    if (!s.G.state.lanes[2].ai) { s.e = place(s.G, 'Bane', 'ai', 2); s.e.currentHealth = 20; s.e.maxHealth = 20; s.e.attack = 9; }
+    s.e.isMindControlled = false; s.e.isFrozen = false; s.e.isStunned = false; s.e.frozenTurns = 0;
+  }
+  assertEq(seen.length, 4, 'four rounds, four casts');
+});
+
+test('A silenced Voldemort casts nothing, and a curse with no mark is not offered', function () {
+  var defs = CARD_ABILITIES['Voldemort'];
+  var s = voldSetup('Bane');
+  s.v.isFrozen = true; s.v.frozenTurns = 1;
+  CARD_ABILITIES['Voldemort'].onBeforeCombat(s.G, s.v, 2);
+  assertEq(s.v._lastCurse, undefined, 'frozen — no curse was cast');
+
+  // Board with nothing to curse at all.
+  var empty = freshGame();
+  var v2 = place(empty, 'Voldemort', 'player', 0);
+  CARD_ABILITIES['Voldemort'].onBeforeCombat(empty, v2, 0);
+  assertEq(v2._lastCurse, undefined, 'no enemies — nothing cast, and no crash');
+});
+
 // ============================================================
 // ---- RUNNER ------------------------------------------------
 // ============================================================

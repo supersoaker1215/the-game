@@ -4007,6 +4007,118 @@ const CARD_ABILITIES = {
         "Choose an ally to give Revive 1", grant);
     }
   },
+  "Voldemort": {
+    // THE UNFORGIVABLE CURSES. Before every combat while he stands, Voldemort
+    // casts one of three — and never the same one twice running, so the round
+    // he kills is a round he cannot stun, and the round he stuns is a round he
+    // cannot take a body. The rotation IS the card: each curse is strong enough
+    // to be a whole turn's play, and being denied last round's answer is what
+    // keeps him from being three cards at once.
+    //
+    // Every curse routes through the engine's existing door for its effect —
+    // killCard, debuffCard + stunCard, mindControlCard — so each one inherits
+    // the rules that already govern it: Invincible refuses the kill, Immunity
+    // refuses Crucio and Imperio unless the caster is Unresistible, Juggernaut
+    // shrugs the mind control, and a card taken by Imperio is released by the
+    // same end-of-round sweep that releases every other Mind Control. Nothing
+    // here re-implements any of that.
+    _CURSES: [
+      { id: 'ak', name: 'Avada Kedavra', desc: 'Destroy an enemy with cost \u2264 7. No damage — death.' },
+      { id: 'cr', name: 'Crucio',        desc: 'An enemy takes (\u22124/\u22124) permanently and is Stunned this round.' },
+      { id: 'im', name: 'Imperio',       desc: 'Mind Control an enemy for this round.' },
+    ],
+
+    // Which enemies a given curse can actually reach. A curse with no legal
+    // target is not offered at all — being shown a choice that cannot resolve
+    // is worse than being shown two choices.
+    _targetsFor(G, self, curseId) {
+      const owner = self.owner;
+      return G.getEnemiesOf(owner).filter(e => {
+        if (!e || e.currentHealth <= 0) return false;
+        if (curseId === 'ak') {
+          const cost = (e.baseCost != null ? e.baseCost : e.cost) || 0;
+          return cost <= 7 && G.canEffectLand(e, 'destroy', { owner, source: self });
+        }
+        // Crucio and Imperio are debuffs; the debuff gate is what decides.
+        return G.canEffectLand(e, 'debuff', { owner, source: self });
+      });
+    },
+
+    onBeforeCombat(G, self, lane) {
+      if (self.currentHealth <= 0) return;
+      // A silenced Dark Lord casts nothing — same lock every other
+      // before-combat caster honours.
+      if (Game.isActionLocked(self)) {
+        G.log(`  [SKIP] ${self.name} is ${G.actionLockLabel(self)} — no curse this round.`);
+        return;
+      }
+      const defs = CARD_ABILITIES['Voldemort'];
+      // ROTATION: last round's curse is off the table. Stored per instance, so
+      // two Voldemorts rotate independently and a revived one starts clean.
+      const available = defs._CURSES
+        .filter(c => c.id !== self._lastCurse)
+        .filter(c => defs._targetsFor(G, self, c.id).length > 0);
+      if (!available.length) {
+        G.log(`[VOLDEMORT] No curse can find a mark this round.`);
+        return;
+      }
+
+      const cast = (curse) => {
+        const targets = defs._targetsFor(G, self, curse.id);
+        if (!targets.length) return;
+        // Spending the rotation on CAST, not on offer — a curse that fizzles
+        // for want of a target must not lock itself out of next round too.
+        self._lastCurse = curse.id;
+        const strike = (t) => {
+          if (typeof UI !== 'undefined' && UI._fxVoldemortCurse) {
+            try { UI._fxVoldemortCurse(self, t, curse.id); } catch (e) {}
+          }
+          if (curse.id === 'ak') {
+            G.log(`[VOLDEMORT] Avada Kedavra — ${t.name} falls.`);
+            G.killCard(t, self);
+          } else if (curse.id === 'cr') {
+            G.log(`[VOLDEMORT] Crucio — ${t.name} writhes.`);
+            // allowKill FALSE — Crucio tortures, it does not kill. Avada
+            // Kedavra is the curse that kills, and letting Crucio finish small
+            // cards too would collapse the two into one choice. Floors at 1 HP
+            // like every other non-lethal strip.
+            G.debuffCard(t, 4, 4, false, self);
+            if (t.currentHealth > 0) G.stunCard(t, self, 1);
+          } else {
+            G.mindControlCard(t, self, () => {
+              G.log(`[VOLDEMORT] Imperio — ${t.name} turns on its own.`);
+            });
+          }
+        };
+        if (Game.isHuman(self.owner)) {
+          G.promptCardChoice(self.owner, targets,
+            `${curse.name} — Choose a Victim`, curse.desc, strike,
+            _aiThreatPicker, { forced: targets.length === 1 });
+        } else {
+          strike(_aiThreatPicker ? _aiThreatPicker(targets) : targets[0]);
+        }
+      };
+
+      if (Game.isHuman(self.owner)) {
+        // The curse menu is a real prompt, not a local question: in
+        // multiplayer the host has to know which curse was cast.
+        G.promptCardChoice(self.owner, available.map(c => ({ id: c.id, name: c.name, desc: c.desc })),
+          'Voldemort — Unforgivable Curse',
+          self._lastCurse ? 'Choose a curse. Last round\u2019s curse cannot be repeated.' : 'Choose a curse.',
+          (pick) => {
+            const curse = defs._CURSES.find(c => c.id === (pick && pick.id));
+            if (curse) cast(curse);
+          },
+          // AI fallback if the prompt times out: take the kill if it is on the
+          // table, otherwise the mind control, otherwise the maiming.
+          (opts) => opts.find(o => o.id === 'ak') || opts.find(o => o.id === 'im') || opts[0],
+          { forced: available.length === 1 });
+      } else {
+        const pick = available.find(c => c.id === 'ak') || available.find(c => c.id === 'im') || available[0];
+        cast(pick);
+      }
+    }
+  },
   "Jack Sparrow": {
     // Parlay, renegotiated (user direction): instead of a one-shot
     // "all uncontested enemies can't attack this round" on play, Jack
