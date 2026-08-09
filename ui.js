@@ -2645,6 +2645,19 @@ const UI = {
     // Volume is tied to the sfxVolume master, scaled to ~7% peak so
     // it sits well behind every other game sound.
     arenaHumStart() {
+      // RETIRED. Owner: "get rid of the constant hum."
+      // This was a procedural drone running for the entire match — a detuned
+      // 55 Hz sub-pad, a 165 Hz mid, a 4.4 kHz shimmer and a 0.13 Hz LFO — and
+      // unlike every other sound in the game it never stopped. Something always
+      // playing is the one thing you cannot un-hear, and it sat under the card
+      // SFX and the music the whole time.
+      // Killed HERE rather than at the call site so it stays dead no matter who
+      // calls it, and arenaHumStop keeps working for anything already running
+      // when this ships. The generator below is left intact and unreachable —
+      // restoring it is deleting this return.
+      return;
+      /* eslint-disable no-unreachable */
+      // eslint-disable-next-line no-unreachable
       if (!this._init()) return;
       if (this._arenaHum) return; // already running
       if (!UI.settings || UI.settings.sfxVolume === 0) return;
@@ -2693,6 +2706,7 @@ const UI = {
       // Start everything together
       subA.start(now); subB.start(now); mid.start(now); sh.start(now); lfo.start(now);
       this._arenaHum = { bus, subA, subB, mid, sh, lfo };
+      /* eslint-enable no-unreachable */
     },
 
     arenaHumStop() {
