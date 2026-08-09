@@ -20510,7 +20510,7 @@ const UI = {
     // IS the meaning: Gojo is charging.
     // Tip corrected too — it still described the old opposite-parity rule.
     'Hollow Purple': { color: '#a855f7', svg: '<svg viewBox="0 0 12 12"><circle cx="6" cy="6" r="4.2" fill="currentColor"/></svg>', tip: 'Two cursed energies collide. After Gojo&apos;s lane fights 2 combats, every enemy in 3 random lanes is destroyed.' },
-    'Invincible':  { color: '#ecf0f1', svg: '<svg viewBox="0 0 12 12"><path d="M6 1 L7.5 5 L11 5 L8 7.5 L9 11 L6 9 L3 11 L4 7.5 L1 5 L4.5 5 Z" fill="currentColor"/></svg>', tip: 'Cannot die for N turns. Lethal hits are absorbed.' },
+    'Invincible':  { color: '#ecf0f1', svg: '<svg viewBox="0 0 12 12"><path d="M6 1 L7.5 5 L11 5 L8 7.5 L9 11 L6 9 L3 11 L4 7.5 L1 5 L4.5 5 Z" fill="currentColor"/></svg>', tip: 'A round-based buff — cannot die for N rounds, ticking down at the end of each one. Lethal hits are absorbed. (Status debuffs run on a different clock: they last until that card\u2019s lane fights again.)' },
     'Unresistible':{ color: '#ff4757', svg: '<svg viewBox="0 0 12 12"><path d="M7.9 0.7 3.3 6.3h2.5L4.6 11.3 9 5.2H6.5Z" fill="currentColor"/></svg>', tip: 'Bypasses Immunity when applying debuffs.' },
     'Untrickable': { color: '#95a5a6', svg: '<svg viewBox="0 0 12 12"><circle cx="6" cy="6" r="4.5" stroke="currentColor" stroke-width="1.2" fill="none"/><path d="M3 9 L9 3" stroke="currentColor" stroke-width="1.2"/></svg>', tip: 'Cannot be targeted by Tricks.' },
     // A four-point sparkle with a pinched waist — the crit-burst read, in the
