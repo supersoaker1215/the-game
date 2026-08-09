@@ -137,7 +137,7 @@ const CARD_DEFS = [
   { name: "Rocket Raccoon", cost: 2, attack: 2, health: 1, type: "hero",
     abilities: [],
     desc: "When Played: Deal 4 damage to an enemy." },
-  { name: "Sandman", cost: 2, attack: 3, health: 3, type: "villain",
+  { name: "Sandman", cost: 1, attack: 3, health: 3, type: "villain",
     abilities: [],
     desc: "While Active: Enemy Tricks cost 1 more Energy." },
   { name: "The Flash", cost: 2, attack: 2, health: 1, type: "hero",
@@ -425,7 +425,7 @@ const CARD_DEFS = [
     // same contract as Jason/Grundy/Drax; the desc text stays because
     // his revive differs from generic Revive (full HP + permanent
     // Freeze immunity, NOT played-anew).
-    abilities: ["Revive 1"],
+    abilities: ["Revive 1", "Taunt 1"],
     desc: "Add (+1/+1) each time you play a card, even before Doomsday is drawn. While in Hand: costs 1 less each time an ally is destroyed (min 0). When Destroyed: Revive once at full HP, permanently immune to Freeze." }
 ];
 
