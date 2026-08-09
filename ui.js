@@ -6480,7 +6480,7 @@ const UI = {
     // needs to read (which cards were devoured from each side).
     if (s._gorrBanner && s._gorrBanner.at !== this._gorrBannerShown) {
       this._gorrBannerShown = s._gorrBanner.at;
-      this.showPhaseBanner(s._gorrBanner.text, { duration: 4200 });
+      this.showPhaseBanner(this._gorrBannerText(s._gorrBanner), { duration: 4200 });
     }
 
     // Health
@@ -19578,6 +19578,29 @@ const UI = {
       || (document.getElementById('emote-picker') || {}).style && document.getElementById('emote-picker').style.display === 'flex'
       || (document.getElementById('taunt-picker') || {}).style && document.getElementById('taunt-picker').style.display === 'flex');
     document.body.classList.toggle('clb-emote-open', !!open);
+  },
+
+  // Gorr's devour banner, worded on the CLIENT so each side reads it from its
+  // own seat and an online match names the real players. Game.seatLabel gives
+  // "You" for the local seat and the opponent's MP name (state._mpNames) for
+  // the far seat, falling back to "AI" in a solo match. Legacy `.text` banners
+  // (a state broadcast in flight across this upgrade) still render as-is.
+  _gorrBannerText(b) {
+    if (!b) return '';
+    if (b.text) return b.text;                       // pre-upgrade payload
+    // ONLINE: name both real players (user: "it says AI lost and you lost —
+    // I want it to read the names of the actual players"). state._mpNames holds
+    // both seats and is already perspective-flipped for the guest, so each side
+    // labels the seats correctly. SOLO falls back to seatLabel's You / AI.
+    const mp = (Game.isMultiplayer && Game.isMultiplayer() && Game.state && Game.state._mpNames) || null;
+    const label = (seat) => {
+      if (mp && mp[seat]) return mp[seat];
+      return Game.seatLabel ? Game.seatLabel(seat) : (seat === 'player' ? 'You' : 'AI');
+    };
+    const parts = [];
+    if (b.player) parts.push(`${label('player')} lost: ${b.player.name} (cost ${b.player.cost})`);
+    if (b.ai)     parts.push(`${label('ai')} lost: ${b.ai.name} (cost ${b.ai.cost})`);
+    return `Gorr devoured — ${parts.join(' · ')}`;
   },
 
   // ===================== MP TAUNTS =====================

@@ -3469,12 +3469,19 @@ const CARD_ABILITIES = {
           G._creditChain(self, 'statsCardAdvantage', 1);
         }
       });
-      // Stash a banner payload for the UI so the player sees exactly which cards died.
-      const parts = [];
-      if (killed.player) parts.push(`You lost: ${killed.player.name} (cost ${killed.player.cost})`);
-      if (killed.ai) parts.push(`AI lost: ${killed.ai.name} (cost ${killed.ai.cost})`);
-      if (parts.length) {
-        G.state._gorrBanner = { text: `Gorr devoured — ${parts.join(' · ')}`, at: Date.now() };
+      // Stash a banner payload for the UI so the player sees exactly which cards
+      // died. STRUCTURED PER SEAT, not a baked sentence: the wording is built on
+      // each client at render time from Game.seatLabel, so (a) an online match
+      // names the actual players instead of "You lost / AI lost", and (b) the
+      // GUEST reads it in ITS OWN perspective — a host-baked "You lost" would
+      // have named the host's card on the guest's screen. _mpFlipPerspective
+      // swaps the two seat keys for the guest.
+      if (killed.player || killed.ai) {
+        G.state._gorrBanner = {
+          player: killed.player ? { name: killed.player.name, cost: killed.player.cost } : null,
+          ai:     killed.ai     ? { name: killed.ai.name,     cost: killed.ai.cost     } : null,
+          at: Date.now()
+        };
         if (typeof UI !== 'undefined' && UI.render) UI.render();
       }
       // Pull from the shared summon deck. With duplicates now allowed

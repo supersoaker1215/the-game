@@ -1727,6 +1727,13 @@ const Game = {
         }
       });
     }
+    // Gorr's devour banner is stored per SEAT ({player, ai}) so each client can
+    // word it from its own perspective — swap the two seats for the guest, or
+    // the guest would read the host's loss as its own.
+    if (state._gorrBanner) {
+      const gb = state._gorrBanner;
+      const tmp = gb.player; gb.player = gb.ai; gb.ai = tmp;
+    }
     // Top-level turn/winner labels follow the swap.
     if (state.currentTurn === 'player') state.currentTurn = 'ai';
     else if (state.currentTurn === 'ai') state.currentTurn = 'player';
