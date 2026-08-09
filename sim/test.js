@@ -2412,29 +2412,59 @@ test("the enemy's Yoda does not shield YOUR side", function () {
   assertEq(G.yodaShieldCount('player'), 0, 'ours is not');
 });
 
-test("Grievous's Block Meter lock stops when he leaves the board", function () {
-  // Same class as the Yoda shield, found by sweeping for the pattern. Worse
-  // online: _grievousActiveFor was a TOP-LEVEL seat-keyed object, and unlike
-  // the seat blobs the MP perspective flip never swapped it — so a guest read
-  // the lock in the host's frame and applied it to the wrong side.
-  var G = freshGame();
-  var gr = place(G, 'General Grievous', 'ai', 0);
-  if (CARD_ABILITIES['General Grievous'].onPlay) CARD_ABILITIES['General Grievous'].onPlay(G, gr, 0);
-  assertEq(G.grievousLocksBlockFor('player'), true, "control: the player's meter is strangled");
-  assertEq(G.grievousLocksBlockFor('ai'), false, 'and his own side is not');
-
-  G.killCardSilent(gr);          // exactly what Super Soldier Serum does
-  assertEq(G.grievousLocksBlockFor('player'), false, 'lock lifts the moment he is off the board');
+// Grievous's Block-Meter strangle was REMOVED on 2026-08-09 along with its
+// enforcement, so the two tests that pinned it are gone with it — a test for a
+// deleted rule is a test that stops the rule from staying deleted. What
+// replaces them pins the card he is now.
+test('General Grievous is a 4-cost that brings a droid and an eye', function () {
+  var def = cardByName('General Grievous');
+  assertEq(def.cost, 4, 'costs 4');
+  assertEq(def.desc.indexOf('Block Meter'), -1, 'and says nothing about the Block Meter any more');
+  assertEq(def.desc.indexOf('Bullseye') > -1, true, 'the text names the keyword so its chip renders');
+  // The enforcement went with the text — an engine that still knows the rule
+  // is an engine that still applies it.
+  assertEq(typeof Game.grievousLocksBlockFor, 'undefined', 'the gate itself is gone from the engine');
 });
 
-test('a Martian Manhunter copy of Grievous also locks the meter', function () {
-  // isCardKind, not a name equality check — a copy should do what the card does.
+test('Grievous summons a (2/1) Battle Droid and trains the board', function () {
   var G = freshGame();
-  var fake = place(G, 'Bane', 'ai', 0);
-  fake._copiedFrom = 'General Grievous';
-  assertEq(G.grievousLocksBlockFor('player'), true, 'a copy strangles the meter too');
-  fake.currentHealth = 0;
-  assertEq(G.grievousLocksBlockFor('player'), false, 'and a dead copy does not');
+  var ally = place(G, 'Bane', 'player', 3);
+  var enemy = place(G, 'Bane', 'ai', 4);
+  assertEq(!!ally.isBullseye, false, 'the ally starts without it');
+
+  var gr = place(G, 'General Grievous', 'player', 0);
+  CARD_ABILITIES['General Grievous'].onPlay(G, gr, 0);
+
+  assertEq(!!ally.isBullseye, true, 'the ally is trained');
+  assertEq(!!gr.isBullseye, true, 'and so is Grievous himself — he is on the board too');
+  assertEq(!!enemy.isBullseye, false, 'the ENEMY is not, obviously');
+
+  // The droid landed, and landed trained — it is summoned before the grant
+  // runs, which is the ordering the callback exists to guarantee.
+  var droid = G.getAllCardsOf('player').find(function (c) { return c.name === 'Battle Droid'; });
+  assert(!!droid, 'a Battle Droid is on the board');
+  assertEq(droid.attack, 2, 'a 2/1 — 2 ATK');
+  assertEq(droid.currentHealth, 1, 'and 1 HP');
+  assertEq(!!droid.isBullseye, true, 'and it was trained along with everyone else');
+});
+
+test('The Bullseye grant is a one-shot, not an aura', function () {
+  var G = freshGame();
+  var early = place(G, 'Bane', 'player', 3);
+  var gr = place(G, 'General Grievous', 'player', 0);
+  CARD_ABILITIES['General Grievous'].onPlay(G, gr, 0);
+  assertEq(!!early.isBullseye, true, 'whoever was already standing keeps it');
+
+  // Played AFTER him — misses the grant. Deploy order is the cost of the
+  // effect, and an aura would erase that entirely.
+  var late = place(G, 'Catwoman', 'player', 5);
+  late.isBullseye = false;
+  assertEq(!!late.isBullseye, false, 'a card that arrives later is not trained');
+
+  // And it SURVIVES him — the grant is permanent, not a while-active lease.
+  gr.currentHealth = 0;
+  G.cleanupDead();
+  assertEq(!!early.isBullseye, true, 'the training outlives the trainer');
 });
 
 test('the combat forecast counts Critical (and every other attacker modifier)', function () {

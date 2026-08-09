@@ -6472,16 +6472,11 @@ const Game = {
         isBullseye = true;
       }
     }
-    // General Grievous passive — while he's alive on the OPPOSING
-    // board, the victim's Block Meter doesn't charge from face hits.
-    // The lock is derived from the board by grievousLocksBlockFor; it used
-    // to be a state counter set/cleared in his
-    // onPlay / onDeath hooks. User direction 2026-05-19: "the
-    // opposing player cannot charge block when hit for as long
-    // as Grievous is alive." Bullseye-skip path doesn't run this
-    // either since Grievous's gate is broader than Bullseye.
-    const grievousGate = this.grievousLocksBlockFor(owner);
-    if (!isBullseye && !grievousGate) {
+    // (General Grievous's Block-Meter strangle used to gate this too. The
+    // passive was removed from the card on 2026-08-09, and its ENFORCEMENT was
+    // removed with it — a "removed" rule that is still wired into the engine
+    // is just an invisible rule.)
+    if (!isBullseye) {
       const roll = 1 + Math.floor(this.rng() * 3);
       p.blockMeter += roll;
       this.log(`  [BLOCK METER] ${who} roll d3=${roll} → meter ${p.blockMeter}/${this.BLOCK_MAX}`);
@@ -8879,16 +8874,6 @@ const Game = {
     const compeller = lane[this.opponent(owner)];
     if (!compeller || compeller.currentHealth <= 0 || !this.isCardKind(compeller, 'Moder')) return -1;
     return fl;
-  },
-
-  grievousLocksBlockFor(owner) {
-    if (!this.state || !this.state.lanes) return false;
-    const opp = this.opponent(owner);
-    for (let i = 0; i < this.LANE_COUNT; i++) {
-      const c = this.state.lanes[i] && this.state.lanes[i][opp];
-      if (c && c.currentHealth > 0 && this.isCardKind(c, 'General Grievous')) return true;
-    }
-    return false;
   },
 
   // True when a revive/resurrection cannot fire because the death lane is

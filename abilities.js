@@ -4345,28 +4345,32 @@ const CARD_ABILITIES = {
     }
   },
   "General Grievous": {
-    // 2026-05-26 — passive: while Grievous is alive on either board, the
-    // OPPOSING player cannot charge their Block Meter from face damage.
-    // damagePlayer asks Game.grievousLocksBlockFor(victim), which reads the
-    // BOARD. It used to read a state._grievousActiveFor counter stamped here
-    // and unwound in onDeath, which leaked on every silent exit.
+    // REDESIGNED 2026-08-09 (owner): the Block-Meter strangle is gone. He is a
+    // 4-cost now, and what he brings is bodies and aim — a droid escort, and
+    // his trophy-hunter's eye handed to everything already standing with him.
+    //
+    // The Bullseye grant is a ONE-SHOT On Play, not an aura: it lands on the
+    // cards on the board at the moment he arrives and stays with them if he
+    // dies. Anything played after him misses it, which is what makes the order
+    // you deploy in matter.
     onPlay(G, self, lane) {
-      // NOTHING STAMPED — Game.grievousLocksBlockFor reads the board. The old
-      // counter had to be unwound in onDeath, so every silent exit (Super
-      // Soldier Serum's killCardSilent, devour-to-void, bounce, lane collapse)
-      // left the opponent's Block Meter strangled for the rest of the match.
-      const opp = G.opponent(self.owner);
-      G.log(`General Grievous strangles ${G.seatPossessive(opp)} Block Meter — no more block charges while he stands!`);
       if (typeof UI !== 'undefined' && UI._fxGrievousSabers) { try { UI._fxGrievousSabers(self); } catch (e) {} }
-    },
-    onDeath(G, self) {
-      // Nothing to unwind — the lock is off the moment no living Grievous is
-      // on the board. Log only when this was the LAST one; grievousLocksBlockFor
-      // filters on currentHealth, so a dying self is already excluded.
-      const opp = G.opponent(self.owner);
-      if (!G.grievousLocksBlockFor(opp)) {
-        G.log(`Grievous falls — ${G.seatPossessive(opp)} Block Meter recharges normally.`);
-      }
+      const grantAim = () => {
+        // Grievous included — he is one of your cards on the board. Environments
+        // are not: they never attack, so Bullseye would be a badge that means
+        // nothing on them.
+        const allies = G.getAllCardsOf(self.owner).filter(c => c.currentHealth > 0 && !c.isEnvironment);
+        let n = 0;
+        allies.forEach(c => { if (!c.isBullseye) { c.isBullseye = true; n++; } });
+        G.log(n
+          ? `General Grievous trains ${n} ${n === 1 ? 'ally' : 'allies'} to strike true — Bullseye.`
+          : `General Grievous finds no one left to train.`);
+      };
+      // The droid lands FIRST so it is on the board in time to be trained —
+      // summonCardChoice is asynchronous when it prompts for a lane, so the
+      // grant has to run in its completion callback or it would fire before
+      // the droid exists and quietly skip it.
+      G.summonCardChoice(self.owner, 'Battle Droid', 2, 2, 1, [], grantAim);
     }
   },
 
