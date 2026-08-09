@@ -10999,16 +10999,41 @@ const UI = {
     const mulliganAttr     = mulliganUsed ? ' disabled' : '';
     const mulliganLabel    = mulliganUsed ? 'Mulligan Used' : 'Mulligan';
 
+    // SAME CONTROL ROW AS THE 1v1 DRAFT (owner: "copy the draft and make it the
+    // same"). The 2v2 draft is the same activity — read two offers, take one —
+    // so it gets the same controls, in the same order, from the same classes.
+    //
+    // BACK is deliberately absent: 1v1's draft is sequential and can rewind the
+    // last pick, but 2v2 online is SIMULTANEOUS — three other people are
+    // picking against the same pool at the same time, and un-picking would have
+    // to un-deal their offers too. Adding it would change the game, which is
+    // exactly what was asked not to happen.
     html +=   `<div class="draft-hud-actions">`;
     html +=     `<button type="button" class="draft-quit-btn" onclick="twov2OnlineLeave()" title="Leave game">`;
     html +=       `<span class="mulligan-icon">&#8592;</span><span class="mulligan-label">Leave</span>`;
     html +=     `</button>`;
-    if (isMyPick) {
-      html += `<button type="button" class="draft-mulligan-btn${mulliganDisabled}" onclick="twov2OnlineDraftMulligan()"${mulliganAttr}>`;
-      html +=   `<span class="mulligan-icon">&#x21BB;</span>`;
-      html +=   `<span class="mulligan-label">${mulliganLabel}</span>`;
-      html += `</button>`;
-    }
+    // Hand-audio privacy — draft cards have per-card hover cues, so someone
+    // beside you (or on the call) can hear which offers you are weighing. In
+    // 2v2 there are three other people listening, so it matters MORE here than
+    // in 1v1. Same setting, same persisted key, same [data-hand-audio-toggle]
+    // hook that keeps every surface in sync.
+    const _ha2 = !!(this.settings && this.settings.handAudioPrivacy);
+    html +=     `<button type="button" class="draft-audio-btn${_ha2 ? ' is-muted' : ''}"`;
+    html +=       ` data-hand-audio-toggle aria-pressed="${_ha2 ? 'true' : 'false'}"`;
+    html +=       ` onclick="UI.toggleHandAudioPrivacy()"`;
+    html +=       ` title="${_ha2 ? 'Hand sounds hidden — per-card hover cues are replaced with one generic blip' : 'Hide hand sounds — stop per-card hover cues from revealing your picks'}">`;
+    html +=       `<span class="mulligan-icon">&#9834;</span>`;
+    html +=       `<span class="mulligan-label">${_ha2 ? 'Sounds Hidden' : 'Hide Sounds'}</span>`;
+    html +=     `</button>`;
+    // The mulligan button is shown whether or not it is still yours to spend —
+    // hiding it once locked in (the old `if (isMyPick)`) meant the row silently
+    // changed shape mid-draft and you could not see that you still had one.
+    html +=     `<button type="button" class="draft-mulligan-btn${mulliganDisabled}"`;
+    html +=       ` onclick="twov2OnlineDraftMulligan()"${(mulliganAttr || (!isMyPick ? ' disabled' : ''))}`;
+    html +=       ` title="One mulligan per player, per phase — redraws your own two offers">`;
+    html +=       `<span class="mulligan-icon">&#x21BB;</span>`;
+    html +=       `<span class="mulligan-label">${mulliganLabel}</span>`;
+    html +=     `</button>`;
     html +=   `</div>`;
     html += `</div>`;
     html += `<div class="draft-choices">`;

@@ -4391,6 +4391,32 @@ test('A jump offer owner flips for the guest, like every other prompt', function
   assertEq(st2.pendingJumpOffer.owner, undefined, 'an unstamped offer stays unstamped');
 });
 
+// ONE MULLIGAN PER PLAYER, PER PHASE — owner reported it reading as spent when
+// they had not used one. The ENGINE is correct (this pins that), so the symptom
+// was display/sync, which is the rAF-gated render fixed alongside this.
+test('The 2v2 draft mulligan is one per player, per phase', function () {
+  Game.start2v2Match({ names: { p1: 'A', p2: 'B', p3: 'C', p4: 'D' } });
+  Game.state.twoVTwo.online = true;
+  Game.confirm2v2Teams(null, null);
+  var d = Game.state.twoVTwo.draft;
+  assertEq(!!d.simultaneous, true, 'online drafts are simultaneous');
+  assertEq(JSON.stringify(d.mulliganUsed), '{}', 'nobody has spent one yet');
+
+  assertEq(Game._2v2DraftMulligan('p2'), true, 'p2 spends theirs');
+  assertEq(!!d.mulliganUsed.p2, true, 'and it is recorded against p2');
+  // The bug shape being guarded: one player spending it must not spend it for
+  // anyone else.
+  assertEq(!!d.mulliganUsed.p1, false, "p1's is untouched");
+  assertEq(!!d.mulliganUsed.p3, false, "p3's is untouched");
+  assertEq(!!d.mulliganUsed.p4, false, "p4's is untouched");
+  assertEq(Game._2v2DraftMulligan('p1'), true, 'and p1 can still spend theirs');
+  assertEq(Game._2v2DraftMulligan('p2'), false, 'p2 cannot spend a second');
+
+  // The two phases keep separate ledgers, so the cards-phase spend does not
+  // eat the tricks-phase one.
+  assertEq(JSON.stringify(d.trickMulliganUsed), '{}', 'the tricks ledger is its own');
+});
+
 // ============================================================
 // ---- RUNNER ------------------------------------------------
 // ============================================================
