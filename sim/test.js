@@ -3849,14 +3849,16 @@ test('Avada Kedavra kills outright, but only cost 7 and under', function () {
   assertEq(hpBefore > 0, true, 'and it was alive and unhurt right up until it was not');
 });
 
-test('Crucio maims and stuns, but never finishes the job', function () {
+test('Crucio maims but does not stun, and never finishes the job', function () {
   var s = voldSetup('Bane');
   s.e.attack = 6; s.e.baseAttack = 6;
   s.e.currentHealth = 7; s.e.maxHealth = 7;
   castCurse(s.G, s.v, 'cr');
   assertEq(s.e.attack, 2, 'ATK cut by 4');
   assertEq(s.e.currentHealth, 3, 'HP cut by 4');
-  assertEq(s.G.isActionLocked(s.e), true, 'and it is stunned');
+  // Stun rider removed (owner, 2026-08-09) — a (-4/-4) that ALSO took the
+  // card's turn left Imperio with nothing of its own to offer.
+  assertEq(s.G.isActionLocked(s.e), false, 'and it is NOT stunned');
 
   // A small enemy is left at 1, not killed — Avada Kedavra is the kill curse.
   var t = voldSetup('Bane');
@@ -3877,26 +3879,44 @@ test('Imperio turns an enemy for the round, then lets it go', function () {
   s.G.clearRoundStatuses ? s.G.clearRoundStatuses() : null;
 });
 
-test('The same curse cannot be cast two rounds running', function () {
+test('Each curse can be cast only once, ever', function () {
   var defs = CARD_ABILITIES['Voldemort'];
   var s = voldSetup('Bane');
-  // Give him a fat target so no curse runs out of marks.
-  s.e.attack = 9; s.e.currentHealth = 20; s.e.maxHealth = 20;
+  // A fat target so no curse ever runs out of marks — the limit under test is
+  // the ONCE rule, not target availability.
+  s.e.attack = 9; s.e.currentHealth = 40; s.e.maxHealth = 40;
 
-  var seen = [];
-  for (var r = 1; r <= 4; r++) {
+  for (var r = 1; r <= 3; r++) {
     s.G.state.round = r;
-    var before = s.v._lastCurse;
-    CARD_ABILITIES['Voldemort'].onBeforeCombat(s.G, s.v, 2);
-    var now = s.v._lastCurse;
-    assert(now, 'round ' + r + ' cast something');
-    assert(now !== before, 'round ' + r + ' did not repeat the previous curse');
-    seen.push(now);
-    // A dead or missing victim would end the run early; keep one alive.
-    if (!s.G.state.lanes[2].ai) { s.e = place(s.G, 'Bane', 'ai', 2); s.e.currentHealth = 20; s.e.maxHealth = 20; s.e.attack = 9; }
+    var beforeCount = (s.v._usedCurses || []).length;
+    defs.onBeforeCombat(s.G, s.v, 2);
+    var after = (s.v._usedCurses || []).length;
+    assertEq(after, beforeCount + 1, 'round ' + r + ' spent exactly one curse');
+    // Keep a live victim and clear the status so the next round has a mark.
+    if (!s.G.state.lanes[2].ai) { s.e = place(s.G, 'Bane', 'ai', 2); }
+    s.e.currentHealth = 40; s.e.maxHealth = 40; s.e.attack = 9;
     s.e.isMindControlled = false; s.e.isFrozen = false; s.e.isStunned = false; s.e.frozenTurns = 0;
   }
-  assertEq(seen.length, 4, 'four rounds, four casts');
+  assertEq(s.v._usedCurses.length, 3, 'all three are spent after three rounds');
+  assertEq(s.v._usedCurses.slice().sort().join(','), 'ak,cr,im', 'and they were three DIFFERENT curses');
+
+  // Round four: nothing left to cast, and no crash reaching for it.
+  s.G.state.round = 4;
+  defs.onBeforeCombat(s.G, s.v, 2);
+  assertEq(s.v._usedCurses.length, 3, 'a fourth round adds nothing');
+});
+
+test('A curse that finds no mark does not burn its one use', function () {
+  var defs = CARD_ABILITIES['Voldemort'];
+  var G = freshGame();
+  var v = place(G, 'Voldemort', 'player', 2);
+  // Empty enemy board — nothing to curse at all.
+  defs.onBeforeCombat(G, v, 2);
+  assertEq((v._usedCurses || []).length, 0, 'nothing was spent on an empty board');
+  // Now give him a target: all three are still available.
+  place(G, 'Bane', 'ai', 2);
+  defs.onBeforeCombat(G, v, 2);
+  assertEq(v._usedCurses.length, 1, 'and the first real cast spends exactly one');
 });
 
 test('A silenced Voldemort casts nothing, and a curse with no mark is not offered', function () {
@@ -4135,6 +4155,85 @@ test('Knull rolls 2-9, never a 1-cost', function () {
   // The other filters are untouched — a 0-ATK body is still not a summon.
   assertEq(seen({ name: 'x', cost: 5, attack: 0, health: 3, isDiscardEffect: false }), false,
     '0-ATK cards are still excluded');
+});
+
+// ---- 2026-08-09 CARD PASS ----------------------------------
+test('Draw 1 lands on Wonder Woman, Scarlet Witch and Padme; Groot loses it', function () {
+  // Draw 1 is a KEYWORD — the badge and the drawOnPlay effect both come from
+  // the abilities array, so the array is what these assert. A desc mention
+  // would print the words and draw nothing.
+  ['Wonder Woman', 'Scarlet Witch', 'Padme Amidala'].forEach(function (n) {
+    assertEq(cardByName(n).abilities.indexOf('Draw 1') > -1, true, n + ' has Draw 1');
+    assertEq(cardByName(n).desc.indexOf('Draw'), -1, n + ' does not repeat it in the text');
+  });
+  var groot = cardByName('Groot');
+  assertEq(groot.abilities.indexOf('Draw 1'), -1, 'Groot lost Draw 1');
+  assertEq(groot.attack, 4, 'and is a 4/4 — 4 ATK');
+  assertEq(groot.health, 4, '4 HP');
+  assertEq(groot.abilities.indexOf('Armor 1') > -1, true, 'Armor 1 survived the edit');
+
+  // The keyword has to REACH the instance, not just print on the def.
+  var G = freshGame();
+  var ww = G.createCardInstance(cardByName('Wonder Woman'), 'player');
+  assertEq(ww.drawOnPlay, 1, 'Wonder Woman actually draws on play');
+  var gr = G.createCardInstance(cardByName('Groot'), 'player');
+  assertEq(gr.drawOnPlay, 0, 'and Groot no longer does');
+});
+
+test('Freddy only wakes on TWO or more wasted energy', function () {
+  assertEq(Game.FREDDY_WASTE_THRESHOLD, 2, 'the threshold is a named constant');
+  function ended(withEnergy) {
+    var G = freshGame();
+    var fz = G.createCardInstance(cardByName('Freddy Fazbear'), 'player');
+    G.state.player.hand.push(fz);
+    G.state.ai.currency = withEnergy;      // the AI ended holding this much
+    G._checkFreddyFazbear('ai');
+    return !!fz.jumpReady;
+  }
+  assertEq(ended(0), false, '0 wasted — asleep');
+  assertEq(ended(1), false, '1 wasted is normal play, not a mistake — still asleep');
+  assertEq(ended(2), true,  '2 wakes him');
+  assertEq(ended(5), true,  'and so does more');
+  assertEq(cardByName('Freddy Fazbear').desc.indexOf('2 or more') > -1, true,
+    'the card text states the threshold');
+});
+
+test('Apocalypse raises a 1-cost body on play', function () {
+  var G = freshGame();
+  var ap = place(G, 'Apocalypse', 'player', 0);
+  // The gate under test is the FILTER handed to the summon deck.
+  var seen = null, real = G.drawFromSummonDeck;
+  G.drawFromSummonDeck = function (fn) { seen = fn; return null; };
+  try { CARD_ABILITIES['Apocalypse'].onPlay(G, ap, 0); } finally { G.drawFromSummonDeck = real; }
+  assert(!!seen, 'a pull was attempted');
+  var probe = function (cost, atk) { return seen({ name: 'x', cost: cost, attack: atk, health: 2, isDiscardEffect: false }); };
+  assertEq(probe(1, 2), true, 'a 1-cost with ATK qualifies');
+  assertEq(probe(2, 2), false, 'a 2-cost does not');
+  assertEq(probe(0, 2), false, 'nor a 0-cost');
+  assertEq(probe(1, 0), false, 'nor a 1-cost that cannot fight');
+  assertEq(cardByName('Apocalypse').desc.indexOf('random 1-cost') > -1, true, 'the text says so');
+});
+
+test('Doomsday rises Untrickable as well as Immune', function () {
+  var G = freshGame();
+  var dd = place(G, 'Doomsday', 'ai', 0);
+  assertEq(!!dd.isUntrickable, false, 'not before he falls');
+  dd.currentHealth = 0;
+  CARD_ABILITIES['Doomsday'].onDeath(G, dd, 0);
+  assertEq(dd.isUntrickable, true, 'he rises untrickable');
+  // Which is a REAL refusal, not just a flag: enemy tricks cannot land.
+  assertEq(G.canTrickLand(dd, 'trick', 'player'), false, 'an enemy trick is refused');
+  assertEq(cardByName('Doomsday').desc.indexOf('Untrickable') > -1, true, 'and the text says so');
+});
+
+test('Avada Kedavra now stops at cost 6', function () {
+  var defs = CARD_ABILITIES['Voldemort'];
+  var six = voldSetup('Apocalypse');   // cost 7 in the defs — just out of reach
+  assertEq(cardByName('Apocalypse').cost, 7, 'control: Apocalypse is a 7');
+  assertEq(defs._targetsFor(six.G, six.v, 'ak').length, 0, 'a 7-cost is out of reach now');
+  var ok = voldSetup('Bane');
+  assertEq(defs._targetsFor(ok.G, ok.v, 'ak').length, 1, 'a cheap body is still fair game');
+  assertEq(cardByName('Voldemort').desc.indexOf('\u2264 6') > -1, true, 'the text says 6');
 });
 
 // ============================================================

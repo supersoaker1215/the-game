@@ -3723,8 +3723,16 @@ const Game = {
   // OPPONENT's waste — when the phase-ender banks unspent energy, it's the OTHER
   // side's Freddy that wakes: the hand copy offers its free deploy, the board copy
   // arms the round-start drain. (Previously both keyed on his own owner's energy.)
+  // FREDDY_WASTE_THRESHOLD — how much unspent energy counts as waste worth
+  // waking him. Raised from "any at all" to 2 (owner, 2026-08-09): ending a
+  // turn one energy short of anything playable is normal, not a mistake, and a
+  // 5-cost free deploy should not be the price of it. ONE constant, read by the
+  // jump offer and the board passive together, so the card's two halves can
+  // never disagree about what waste is.
+  FREDDY_WASTE_THRESHOLD: 2,
+
   _checkFreddyFazbear(ender) {
-    if (!this.state[ender] || this.state[ender].currency <= 0) return;
+    if (!this.state[ender] || this.state[ender].currency < this.FREDDY_WASTE_THRESHOLD) return;
     const owner = this.opponent(ender);
     // Jump: Freddy in the OPPONENT's hand → offer free play
     const inHand = this.state[owner].hand.find(c => c.name === 'Freddy Fazbear');

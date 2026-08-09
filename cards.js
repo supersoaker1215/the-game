@@ -132,7 +132,7 @@ const CARD_DEFS = [
     desc: "When Played: Next draw phase, keep 1 of the top 2 cards as your draw. The other becomes the opponent's draw. While Active: Adjacent allies gain Untrickable." },
   { name: "Freddy Fazbear", cost: 5, attack: 3, health: 3, type: "villain",
     abilities: [],
-    desc: "Jump: When the opponent ends their turn with unspent Energy, play for free. While Active: Each time the opponent ends a turn with unspent Energy, they lose 1 Energy at the start of the next round." },
+    desc: "Jump: When the opponent ends their turn with 2 or more unspent Energy, play for free. While Active: Each time the opponent ends a turn with 2 or more unspent Energy, they lose 1 Energy at the start of the next round." },
   { name: "Freddy Krueger", cost: 2, attack: 1, health: 4, type: "villain",
     _spawnOnly: true,
     abilities: [],
@@ -190,8 +190,8 @@ const CARD_DEFS = [
   { name: "Green Goblin", cost: 3, attack: 3, health: 3, type: "villain",
     abilities: [],
     desc: "When Played: Splash 1, then Splash 2. Start of Tricks: Move to an empty lane opposite an enemy and Splash 1." },
-  { name: "Groot", cost: 3, attack: 3, health: 3, type: "hero",
-    abilities: ["Armor 1", "Draw 1"],
+  { name: "Groot", cost: 3, attack: 4, health: 4, type: "hero",
+    abilities: ["Armor 1"],
     desc: "When Played: Give adjacent allies Damage Immunity for 1 turn." },
   { name: "Jigsaw", cost: 2, attack: 0, health: 0, type: "villain",
     abilities: [],
@@ -204,13 +204,13 @@ const CARD_DEFS = [
     desc: "When Played: The opponent's next card is forced into this lane. That card loses all abilities and keywords." },
   { name: "Padme Amidala", cost: 3, attack: 2, health: 3, type: "hero",
     rarity: 3,
-    abilities: [],
+    abilities: ["Draw 1"],
     desc: "Each Turn: Add (+1/+1) to all other allies." },
   { name: "Red Skull", cost: 3, attack: 1, health: 4, type: "villain",
     abilities: [],
     desc: "When Played: Give a random card in your hand (+2/+2). While Active: Your cards can be played during the Trick Phase." },
   { name: "Scarlet Witch", cost: 3, attack: 0, health: 0, type: "hero",
-    abilities: [],
+    abilities: ["Draw 1"],
     copiesOpposite: true,
     desc: "When Played: Copy the ATK and HP of the enemy opposite. If there is no enemy opposite, become (3/4)." },
   { name: "Solomon Grundy", cost: 3, attack: 3, health: 6, type: "villain",
@@ -281,7 +281,7 @@ const CARD_DEFS = [
     abilities: ["Revive 1"],
     desc: "When Damaged: Destroy the card that dealt the damage if its cost is ≤ 7. When Destroyed: Revive as (6/5) with Overdrive — the retaliation is lost." },
   { name: "Wonder Woman", cost: 4, attack: 3, health: 3, type: "hero",
-    abilities: ["Armor 1", "Unresistible"],
+    abilities: ["Armor 1", "Unresistible", "Draw 1"],
     desc: "When Played: Freeze 1 the enemy opposite. Add 2 to your Block Meter. While Active: When Wonder Woman's attack lands on an enemy card, deal (ATK−1) to each consecutive enemy in a chosen direction." },
 
   // ==================== COST 5 ====================
@@ -381,7 +381,7 @@ const CARD_DEFS = [
   // ==================== COST 8 ====================
   { name: "Apocalypse", cost: 7, attack: 5, health: 6, type: "villain",
     abilities: [],
-    desc: "When Played: Give each card in your hand (not 10-cost cards) a random keyword — Armor 1, Evade 1, Bullseye, or Overdrive. Each Turn: Permanently remove 1 ATK from 2 random enemies." },
+    desc: "When Played: Summon a random 1-cost card in any lane. Give each card in your hand (not 10-cost cards) a random keyword — Armor 1, Evade 1, Bullseye, or Overdrive. Each Turn: Permanently remove 1 ATK from 2 random enemies." },
   { name: "Darth Vader", cost: 8, attack: 6, health: 7, type: "villain",
     abilities: ["Armor 1", "Unresistible 1"],
     desc: "When Played: Move an enemy to an empty lane. Fear 1 an enemy. Deal 7 damage to a chosen enemy, then pick one direction — the chain runs through adjacent enemies for 1 less damage each step." },
@@ -393,7 +393,7 @@ const CARD_DEFS = [
     desc: "When Played: Mind Control 1 an enemy. While Active: Add (+1/+1) to your other allies. Remove (−1/−1) from all enemies." },
   { name: "Voldemort", cost: 8, attack: 4, health: 10, type: "villain",
     abilities: [],
-    desc: "While Active: Before each combat, cast an Unforgivable Curse on an enemy — Avada Kedavra destroys one with cost \u2264 7, Crucio deals (\u22124/\u22124) permanently and Stuns it, Imperio Mind Controls it. The same curse cannot be cast two rounds in a row." },
+    desc: "While Active: Before each combat, cast an Unforgivable Curse on an enemy — Avada Kedavra destroys one with cost \u2264 6, Crucio deals (\u22124/\u22124) permanently, Imperio Mind Controls it. Each curse can only be cast once." },
   { name: "Thor", cost: 8, attack: 7, health: 7, type: "hero",
     abilities: ["Splash 5", "Unresistible"],
     desc: "When Played: Freeze 1 an enemy. Deal 5 damage to the enemy opposite and both adjacent enemies. Start of Tricks: Freeze 1 a random unfrozen enemy." },
@@ -456,6 +456,6 @@ const CARD_DEFS = [
     // his revive differs from generic Revive (full HP + permanent
     // Freeze immunity, NOT played-anew).
     abilities: ["Revive 1", "Taunt 1"],
-    desc: "Add (+1/+1) each time you play a card, even before Doomsday is drawn. While in Hand: costs 1 less each time an ally is destroyed (min 0). When Destroyed: Revive once at full HP with permanent Immunity." }
+    desc: "Add (+1/+1) each time you play a card, even before Doomsday is drawn. While in Hand: costs 1 less each time an ally is destroyed (min 0). When Destroyed: Revive once at full HP with permanent Immunity and Untrickable." }
 ];
 

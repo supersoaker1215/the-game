@@ -3748,6 +3748,18 @@ const CARD_ABILITIES = {
   // ==================== COST 8 ====================
   "Apocalypse": {
     onPlay(G, self, lane) {
+      // A HORSEMAN ARRIVES FIRST (owner, 2026-08-09). Pulled from the shared
+      // summon deck rather than a fixed token, so the body is a real 1-cost
+      // card with its own abilities — same lottery Bat Signal and Mother Box
+      // draw from, same exclusions (no discard-effect cards, nothing with 0
+      // ATK, which would be a body that cannot fight).
+      const horseman = G.drawFromSummonDeck(c =>
+        !c.isDiscardEffect && (c.cost || 0) === 1 && (c.attack || 0) > 0);
+      if (horseman) {
+        G.summonCardChoice(self.owner, horseman.name, horseman.cost, horseman.attack,
+                           horseman.health, horseman.abilities || [], null, null, horseman);
+        G.log(`Apocalypse raises ${horseman.name}!`);
+      }
       const KEYWORDS = ["Armor 1", "Evade 1", "Bullseye", "Overdrive"];
       // 10-cost titans don't get handouts — same exemption logic as
       // auto-Untrickable, so Doomsday (skipAutoUntrickable) still
@@ -4023,8 +4035,8 @@ const CARD_ABILITIES = {
     // same end-of-round sweep that releases every other Mind Control. Nothing
     // here re-implements any of that.
     _CURSES: [
-      { id: 'ak', name: 'Avada Kedavra', desc: 'Destroy an enemy with cost \u2264 7. No damage — death.' },
-      { id: 'cr', name: 'Crucio',        desc: 'An enemy takes (\u22124/\u22124) permanently and is Stunned this round.' },
+      { id: 'ak', name: 'Avada Kedavra', desc: 'Destroy an enemy with cost \u2264 6. No damage — death.' },
+      { id: 'cr', name: 'Crucio',        desc: 'An enemy takes (\u22124/\u22124) permanently.' },
       { id: 'im', name: 'Imperio',       desc: 'Mind Control an enemy for this round.' },
     ],
 
@@ -4037,7 +4049,7 @@ const CARD_ABILITIES = {
         if (!e || e.currentHealth <= 0) return false;
         if (curseId === 'ak') {
           const cost = (e.baseCost != null ? e.baseCost : e.cost) || 0;
-          return cost <= 7 && G.canEffectLand(e, 'destroy', { owner, source: self });
+          return cost <= 6 && G.canEffectLand(e, 'destroy', { owner, source: self });
         }
         // Crucio and Imperio are debuffs; the debuff gate is what decides.
         return G.canEffectLand(e, 'debuff', { owner, source: self });
@@ -4053,22 +4065,28 @@ const CARD_ABILITIES = {
         return;
       }
       const defs = CARD_ABILITIES['Voldemort'];
-      // ROTATION: last round's curse is off the table. Stored per instance, so
-      // two Voldemorts rotate independently and a revived one starts clean.
+      // ONCE EACH, EVER (owner, 2026-08-09). Stronger than the rotation it
+      // replaces: he casts at most three times in a whole game, so every choice
+      // spends a curse permanently and the last round he matters is the round
+      // his third one goes. Stored per instance, so two Voldemorts have their
+      // own three and a revived one starts clean.
+      const used = self._usedCurses || (self._usedCurses = []);
       const available = defs._CURSES
-        .filter(c => c.id !== self._lastCurse)
+        .filter(c => used.indexOf(c.id) === -1)
         .filter(c => defs._targetsFor(G, self, c.id).length > 0);
       if (!available.length) {
-        G.log(`[VOLDEMORT] No curse can find a mark this round.`);
+        G.log(used.length >= defs._CURSES.length
+          ? `[VOLDEMORT] All three curses are spent.`
+          : `[VOLDEMORT] No remaining curse can find a mark this round.`);
         return;
       }
 
       const cast = (curse) => {
         const targets = defs._targetsFor(G, self, curse.id);
         if (!targets.length) return;
-        // Spending the rotation on CAST, not on offer — a curse that fizzles
-        // for want of a target must not lock itself out of next round too.
-        self._lastCurse = curse.id;
+        // Spent on CAST, not on offer — a curse that fizzles for want of a
+        // target must not burn its one use.
+        if (used.indexOf(curse.id) === -1) used.push(curse.id);
         const strike = (t) => {
           if (typeof UI !== 'undefined' && UI._fxVoldemortCurse) {
             try { UI._fxVoldemortCurse(self, t, curse.id); } catch (e) {}
@@ -4082,8 +4100,10 @@ const CARD_ABILITIES = {
             // Kedavra is the curse that kills, and letting Crucio finish small
             // cards too would collapse the two into one choice. Floors at 1 HP
             // like every other non-lethal strip.
+            // The Stun rider was removed (owner, 2026-08-09): a (-4/-4) that
+            // ALSO took the card's turn was doing two curses' work, which left
+            // Imperio with nothing of its own to offer.
             G.debuffCard(t, 4, 4, false, self);
-            if (t.currentHealth > 0) G.stunCard(t, self, 1);
           } else {
             G.mindControlCard(t, self, () => {
               G.log(`[VOLDEMORT] Imperio — ${t.name} turns on its own.`);
@@ -4104,7 +4124,7 @@ const CARD_ABILITIES = {
         // multiplayer the host has to know which curse was cast.
         G.promptCardChoice(self.owner, available.map(c => ({ id: c.id, name: c.name, desc: c.desc })),
           'Voldemort — Unforgivable Curse',
-          self._lastCurse ? 'Choose a curse. Last round\u2019s curse cannot be repeated.' : 'Choose a curse.',
+          used.length ? `Choose a curse. ${defs._CURSES.length - used.length} left — each can only be cast once.` : 'Choose a curse. Each can only be cast once.',
           (pick) => {
             const curse = defs._CURSES.find(c => c.id === (pick && pick.id));
             if (curse) cast(curse);
@@ -5344,6 +5364,12 @@ const CARD_ABILITIES = {
       // without this card teaching anything new.
       self.immunityCharges = Math.max(self.immunityCharges || 0, 1);
       self.permanentImmunity = true;
+      // UNTRICKABLE TOO (owner, 2026-08-09). Immunity refuses status debuffs;
+      // Untrickable refuses enemy TRICKS outright, which is the other half of
+      // "cannot be stopped" — without it a Phantom Zone or an Anti-Life still
+      // removed the thing the log calls unstoppable. skipAutoUntrickable stays
+      // set, so this is a flag he EARNS by rising, not one his cost hands him.
+      self.isUntrickable = true;
       G.log(`[DOOMSDAY] Cannot be stopped — Doomsday rises with Immunity. Debuffs simply do not land.`);
       if (typeof UI !== 'undefined' && UI._fxDoomsdayRise) { try { UI._fxDoomsdayRise(self); } catch (e) {} }
       return true; // prevent death
