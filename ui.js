@@ -5446,8 +5446,11 @@ const UI = {
       this[key] = function (...args) {
         const top = self._sigFxDepth === 0;
         // Host-only emit, outermost call only, and never from a preview sim.
-        if (top && typeof Game !== 'undefined' && Game.isMultiplayer && Game.isMultiplayer()
-            && Game.mp && Game.mp.role === 'host' && Game.state && !Game.state._silentSim) {
+        // onlineRelayRole covers BOTH online modes — 1v1 (mp.role) and 2v2
+        // (twoVTwo.you === 'p1'). Keying on mp.role alone meant a 2v2 room
+        // relayed nothing and the other three players saw no signature FX.
+        if (top && typeof Game !== 'undefined' && Game.onlineRelayRole
+            && Game.onlineRelayRole() === 'host' && Game.state && !Game.state._silentSim) {
           const payload = [];
           let ok = true;
           for (const a of args) { const s = serialize(a); if (s === undefined) { ok = false; break; } payload.push(s); }
@@ -10163,7 +10166,9 @@ const UI = {
       // guest replays these — the host already ran the animation live when its
       // engine called the function, so replaying would double-fire it.
       if (ev.type === 'sig') {
-        if (Game.mp && Game.mp.role === 'guest') this._replaySigFx(ev);
+        // Replay on any non-host online client — 1v1 guest AND the three
+        // non-host seats of a 2v2 room. The host already animated live.
+        if (Game.onlineRelayRole && Game.onlineRelayRole() === 'guest') this._replaySigFx(ev);
         continue;
       }
       if (ev.type === 'titan') {
@@ -19530,7 +19535,10 @@ const UI = {
     // Emote trigger — multiplayer matches only.
     const eb = document.getElementById('emote-btn');
     const tb = document.getElementById('taunt-btn');
-    const show = Game.isMultiplayer && Game.isMultiplayer() && !s.gameOver && !inDraft;
+    // isOnline() covers BOTH online modes. Gating on isMultiplayer() alone
+    // (1v1-only, keyed on mp.role) meant the emote and taunt buttons never
+    // appeared for any of the four players in a 2v2 online room.
+    const show = Game.isOnline && Game.isOnline() && !s.gameOver && !inDraft;
     if (eb) {
       eb.style.display = show ? '' : 'none';
       if (show) this.installEmotes();
@@ -19547,27 +19555,54 @@ const UI = {
   // either side sends {t:'emote', id}; the receiver pops the bubble on the
   // OPPONENT's avatar chip, the sender sees it on their own. 2.5s cooldown.
   EMOTES: ['😄', '😡', '🤯', 'GG'],
+  // The two online modes ride DIFFERENT transports: 1v1 on Multiplayer, 2v2 on
+  // Multiplayer4. Emotes and taunts are cosmetic and identical in both, so they
+  // resolve the live transport instead of hard-coding the 1v1 one — otherwise
+  // every emote/taunt sent from a 2v2 room went nowhere.
+  _emoteTransports() {
+    const out = [];
+    if (typeof Multiplayer !== 'undefined' && Multiplayer) out.push(Multiplayer);
+    if (typeof Multiplayer4 !== 'undefined' && Multiplayer4) out.push(Multiplayer4);
+    return out;
+  },
+  _emoteSend(msg) {
+    // Send on the transport that matches the mode we're actually in.
+    try {
+      if (Game.is2v2Online && Game.is2v2Online()) {
+        if (typeof Multiplayer4 !== 'undefined') Multiplayer4.send(msg);
+        return;
+      }
+      if (typeof Multiplayer !== 'undefined') Multiplayer.send(msg);
+    } catch (e) {}
+  },
   installEmotes() {
-    if (this._emotesBound || typeof Multiplayer === 'undefined') return;
+    if (this._emotesBound) return;
+    const transports = this._emoteTransports();
+    if (!transports.length) return;
     this._emotesBound = true;
-    Multiplayer.on('emote', (m) => {
+    // Subscribe on BOTH transports — only the live one ever fires, and binding
+    // both means a room created after this ran still delivers.
+    transports.forEach(T => T.on('emote', (m) => {
       // The taunt channel rides the same symmetric 'emote' message with a
       // kind:'taunt' + character name; play its hover sound on this client.
       if (m && m.kind === 'taunt') { this.receiveTaunt(m.name); return; }
       this.showEmoteBubble('ai', m && m.id);
       if (this._haptic) this._haptic('cardPlay');
-    });
+    }));
     // Host → guest rejection notices (Game._mpNotifyGuest). Before this, a host
     // rejection was invisible on the guest: the card just refused to move and
     // nothing explained why. Surfaced through the same toast the solo game
     // already uses for "can't play that", so the grammar matches.
-    Multiplayer.on('notice', (m) => {
-      if (!m) return;
-      if (this.showAITrickToast) {
-        try { this.showAITrickToast(m.title || 'Not played', m.msg || '', 'error'); } catch (e) {}
-      }
-      if (this._haptic) this._haptic('hit');
-    });
+    // 1v1 only — the 2v2 transport has no 'notice' channel.
+    if (typeof Multiplayer !== 'undefined') {
+      Multiplayer.on('notice', (m) => {
+        if (!m) return;
+        if (this.showAITrickToast) {
+          try { this.showAITrickToast(m.title || 'Not played', m.msg || '', 'error'); } catch (e) {}
+        }
+        if (this._haptic) this._haptic('hit');
+      });
+    }
   },
   toggleEmotePicker() {
     const pick = document.getElementById('emote-picker');
@@ -19585,7 +19620,7 @@ const UI = {
     if (pick) pick.style.display = 'none';
     if (this._emoteCooldownUntil && Date.now() < this._emoteCooldownUntil) return;
     this._emoteCooldownUntil = Date.now() + 2500;
-    try { if (typeof Multiplayer !== 'undefined') Multiplayer.send({ t: 'emote', id: i }); } catch (e) {}
+    this._emoteSend({ t: 'emote', id: i });
     this.showEmoteBubble('player', i);
   },
   showEmoteBubble(side, i) {
@@ -19651,8 +19686,13 @@ const UI = {
     // I only want you to be able to taunt cards you have in hand." So the
     // roster is your live hand — not the board, dead pile or draw pile — which
     // also makes a taunt a small tell about what you're holding, by design.
+    // Game.localHand() resolves the LOCAL seat's hand in either mode — 1v1
+    // keeps it on state.player, while 2v2 keeps a hand per player under
+    // twoVTwo.players[you]. Reading state.player.hand directly gave a 2v2
+    // player the wrong list (their team SIDE's, not their own).
     const names = new Set();
-    ((s.player && s.player.hand) || []).forEach(c => { if (c && c.name) names.add(c.name); });
+    (Game.localHand ? Game.localHand() : ((s.player && s.player.hand) || []))
+      .forEach(c => { if (c && c.name) names.add(c.name); });
     // Keep only names with a real hover cue in the SFX registry.
     const reg = (this.sfx && this.sfx.CARD_SFX) || {};
     return [...names].filter(n => reg[n] && reg[n].hover).sort((a, b) => a.localeCompare(b));
@@ -19685,7 +19725,7 @@ const UI = {
     if (!name) return;
     if (this._tauntCooldownUntil && Date.now() < this._tauntCooldownUntil) return;
     this._tauntCooldownUntil = Date.now() + 3500;
-    try { if (typeof Multiplayer !== 'undefined') Multiplayer.send({ t: 'emote', kind: 'taunt', name }); } catch (e) {}
+    this._emoteSend({ t: 'emote', kind: 'taunt', name });
     // Play + show on your own side too, so you hear/see what you sent.
     this._playTauntSound(name);
     this.showTauntBubble('player', name);

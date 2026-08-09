@@ -1308,6 +1308,15 @@ const Multiplayer4 = {
       return;
     }
     switch (msg.t) {
+      // Cosmetic emote / taunt, symmetric: any of the four seats can send and
+      // every other seat shows it. Deliberately NOT a game action — it must
+      // never reach the engine. Without this case the 2v2 transport dropped
+      // emotes on the floor (unknown types hit `default`), so the whole
+      // emote + taunt feature was silently dead in a 2v2 room even though the
+      // buttons and handlers already existed.
+      case 'emote':
+        this._emit('emote', msg);
+        break;
       case 'roomCreated':
         this._room = msg.code;
         this._you = msg.you;

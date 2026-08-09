@@ -416,6 +416,39 @@ const Game = {
   // also applies its own inputs locally (no round-trip needed).
   mp: { role: null, you: null, opp: null },
   isMultiplayer() { return !!(this.mp && this.mp.role); },
+  // ---- ONLINE ACROSS BOTH MODES ----
+  // `isMultiplayer()` is 1v1-ONLY: it keys on this.mp.role, which the 2v2 path
+  // never sets (2v2 online runs on Multiplayer4 + state.twoVTwo.online, with p1
+  // as host). Anything presentational that should behave the same in both
+  // online modes — the FX relay, the emote/taunt controls — must ask THESE
+  // instead, or it silently no-ops for all four players in a 2v2 room.
+  is2v2Online() {
+    return !!(this.is2v2 && this.is2v2() && this.state && this.state.twoVTwo && this.state.twoVTwo.online);
+  },
+  isOnline() { return this.isMultiplayer() || this.is2v2Online(); },
+  // 'host'   — this client's engine RESOLVES the game and owns the FX stream
+  // 'guest'  — this client only receives state and must REPLAY relayed FX
+  // null     — offline / solo, nothing to relay
+  onlineRelayRole() {
+    if (this.isMultiplayer()) return this.mp.role === 'host' ? 'host' : 'guest';
+    if (this.is2v2Online()) {
+      const tt = this.state.twoVTwo;
+      return (tt && tt.you === 'p1') ? 'host' : 'guest';
+    }
+    return null;
+  },
+  // The LOCAL player's own hand, whichever mode we're in. 1v1 (and 1v1 online,
+  // where the guest's state is perspective-flipped) keeps it on state.player;
+  // 2v2 keeps a hand PER PLAYER under twoVTwo.players[you].
+  localHand() {
+    const s = this.state;
+    if (!s) return [];
+    if (this.is2v2 && this.is2v2() && s.twoVTwo) {
+      const me = s.twoVTwo.players && s.twoVTwo.players[s.twoVTwo.you];
+      return (me && me.hand) || [];
+    }
+    return (s.player && s.player.hand) || [];
+  },
   // Monotonic match id — bumped on every startMatch and on quit-to-menu.
   // Combat/AI/game-over timers capture it and bail if it changed, so an
   // abandoned match's setTimeouts can't resume over the menu (or double-run
