@@ -5093,6 +5093,25 @@ body.hit-pause .ai-hand * {
   min-height: 320px;
   padding: 8px 8px 10px;
 }
+/* ONE RULES-TEXT SPEC FOR THE WHOLE DRAFT PICKER.
+   Cards and tricks sit side by side on this screen and were set in two
+   different voices: cards in JetBrains Mono 9px with a green trigger label,
+   tricks in Inter 12px plain white with none. Same screen, same decision,
+   two typefaces — which is what read as "the tricks look unblended compared to
+   the cards" (owner, 2026-08-09).
+   The values live here as custom properties and BOTH .card-desc and
+   .trick-desc consume them, so the two faces cannot drift apart again. Purple
+   vs green on the trigger word is the ONE difference kept on purpose: it is
+   how you tell a trick from a card at a glance. */
+.draft-card {
+  --draft-rules-font: 'JetBrains Mono', 'SFMono-Regular', ui-monospace, monospace;
+  --draft-rules-size: 9px;
+  --draft-rules-lh: 1.45;
+  --draft-rules-ls: 0.20px;
+  --draft-rules-weight: 500;
+  --draft-trigger-size: 10px;
+  --draft-trigger-ls: 0.65px;
+}
 .card.draft-card .card-cost,
 .draft-card.trick-draft .card-cost {
   width: 32px; height: 32px;
@@ -5117,13 +5136,16 @@ body.hit-pause .ai-hand * {
   padding: 14px 8px 6px;
 }
 .card.draft-card .card-desc {
-  font-size: 11px;
-  letter-spacing: 0.20px;
+  font-family: var(--draft-rules-font);
+  font-size: var(--draft-rules-size);
+  line-height: var(--draft-rules-lh);
+  letter-spacing: var(--draft-rules-ls);
+  font-weight: var(--draft-rules-weight);
   padding-bottom: 38px;
 }
 .card.draft-card .card-desc b {
-  font-size: 10px;
-  letter-spacing: 0.65px;
+  font-size: var(--draft-trigger-size);
+  letter-spacing: var(--draft-trigger-ls);
 }
 .card.draft-card .status-badge {
   font-size: 10px;
@@ -5138,7 +5160,11 @@ body.hit-pause .ai-hand * {
 .draft-card.trick-draft {
   width: 220px;
   min-height: 200px;
-  padding: 14px 14px 18px;
+  /* Matches .card.draft-card exactly. At 14px the trick's art sat in a
+     visibly thicker frame than the card beside it — 190px of portrait against
+     the card's 202px — which read as a different object before you had read a
+     word of either. */
+  padding: 8px 8px 10px;
 }
 .draft-card,
 .draft-card.cost-0, .draft-card.cost-1, .draft-card.cost-2, .draft-card.cost-3 {
@@ -5456,21 +5482,37 @@ body.hit-pause .ai-hand * {
    react). Both ask "do you want this trick?", which is unanswerable from the
    art, so both print the rules ON the card at reading size rather than at the
    9px the tray/board tiles use. Change it here and both move together. */
+/* TRICK RULES = CARD RULES, in purple. Both surfaces that print a trick's text
+   at reading size (the draft picker, and the floating prompts) take the draft
+   picker's rules spec above rather than a second one of their own — see the
+   token block on .draft-card. The floating prompt names the tokens too so it
+   does not depend on being inside a .draft-card. */
 .draft-card .trick-desc,
 .fp-trick-preview .trick-card .trick-desc {
-  font-family: 'Inter', 'Segoe UI', system-ui, sans-serif;
-  font-size: 12px; color: var(--text-hi, #f5fbff);
-  margin-top: 10px; line-height: 1.6;
-  font-style: normal; letter-spacing: 0.15px; font-weight: 400;
-  padding: 0 6px;
+  --draft-rules-font: 'JetBrains Mono', 'SFMono-Regular', ui-monospace, monospace;
+  --draft-rules-size: 9px;
+  --draft-rules-lh: 1.45;
+  --draft-rules-ls: 0.20px;
+  --draft-rules-weight: 500;
+  --draft-trigger-size: 10px;
+  --draft-trigger-ls: 0.65px;
+  font-family: var(--draft-rules-font);
+  font-size: var(--draft-rules-size);
+  line-height: var(--draft-rules-lh);
+  letter-spacing: var(--draft-rules-ls);
+  font-weight: var(--draft-rules-weight);
+  font-style: normal;
+  color: rgba(215, 179, 230, 0.94);
+  margin-top: 4px;
+  padding: 4px 0 0;
   text-shadow: 0 0 4px rgba(155,89,182,0.25);
 }
 .draft-card .trick-desc b,
 .fp-trick-preview .trick-card .trick-desc b {
   color: #d7b3e6 !important;
-  font-weight: 600;
-  letter-spacing: 0.5px;
-  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: var(--draft-trigger-ls);
+  font-size: var(--draft-trigger-size);
   text-transform: uppercase;
   text-shadow: 0 0 4px rgba(155,89,182,0.75), 0 0 10px rgba(155,89,182,0.40);
 }
