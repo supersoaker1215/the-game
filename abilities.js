@@ -3434,13 +3434,24 @@ const CARD_ABILITIES = {
       const opp = G.opponent(self.owner);
       const gojoLane = G.findCardLane(self);
       if (gojoLane < 0) return;
-      const gojoLaneNum = gojoLane + 1;
-      const isEven = gojoLaneNum % 2 === 0;
-      const targetParity = isEven ? 'odd' : 'even';
-      G.log(`Gojo activates Hollow Purple! Destroying all enemies in ${targetParity} lanes!`);
-      for (let i = 0; i < Game.LANE_COUNT; i++) {
-        const laneIsEven = (i + 1) % 2 === 0;
-        if (laneIsEven === isEven) continue;
+      // THREE RANDOM LANES. Was opposite-parity, which is also exactly three
+      // lanes (1/3/5 or 2/4/6) — so this keeps the reach identical and only
+      // makes WHICH three unpredictable. Owner: "have gojo when he purples
+      // destroy 3 random lanes."
+      // Parity was learnable: put your board on Gojo's own parity and Hollow
+      // Purple hit nothing. Random cannot be dodged by placement, which is the
+      // point of a card that erases things.
+      // G.rng(), never Math.random — the match seed drives replay and fuzz, and
+      // an unseeded call desyncs host and guest into different results.
+      const LANES = [];
+      for (let i = 0; i < Game.LANE_COUNT; i++) LANES.push(i);
+      for (let i = LANES.length - 1; i > 0; i--) {
+        const j = Math.floor(G.rng() * (i + 1));
+        const t = LANES[i]; LANES[i] = LANES[j]; LANES[j] = t;
+      }
+      const picked = LANES.slice(0, 3).sort((a, b) => a - b);
+      G.log(`Gojo activates Hollow Purple! Erasing lanes ${picked.map(i => i + 1).join(', ')}!`);
+      for (const i of picked) {
         const e = G.state.lanes[i][opp];
         if (e && e.currentHealth > 0) {
           if (typeof UI !== 'undefined' && UI._fxHollowPurple) { try { UI._fxHollowPurple(self, e); } catch (er) {} }

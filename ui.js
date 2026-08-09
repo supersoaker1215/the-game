@@ -19959,10 +19959,10 @@ const UI = {
         }
       }
     }
-    if (card.name === 'Gojo' && card._gojoCombats !== undefined && !card._gojoFired) {
-      const left = 2 - card._gojoCombats;
-      lines.push({ text: `Hollow Purple: ${left === 2 ? 'next turn' : 'this turn'}`, cls: 'card-active-gojo' });
-    }
+    // The PENDING warning is the badge now (badge-hollow-purple, counting down
+    // 2 -> 1 in the status row). This line said the same thing twice on the same
+    // card. The FIRED line below stays: once it is spent there is no badge, and
+    // "this Gojo has already gone off" is still worth knowing.
     if (card.name === 'Gojo' && card._gojoFired) {
       lines.push({ text: 'Hollow Purple activated', cls: 'card-active-gojo' });
     }
@@ -20109,6 +20109,17 @@ const UI = {
     // passing the whole sentence "Critical — deals double damage this round",
     // which matches no entry, so Critical was the one status with no glyph and
     // no hover explanation. The description belongs in KEYWORD_DATA.tip.
+    // HOLLOW PURPLE — the charge is a STATUS, so it belongs in the status row
+    // with Frozen and Burning, not only as a line of body text and a background
+    // overlay. Owner: "the hollow purple warning is a status icon on front of
+    // his card." The count is turns REMAINING, so it reads like every other
+    // countdown badge: 2 when it lands, 1 the round before it goes off.
+    // 'Hollow Purple' is an existing KEYWORD_DATA entry, so it brings its own
+    // glyph and tooltip — the same source the in-text chip uses.
+    if (c._gojoCombats !== undefined && !c._gojoFired) {
+      const hpLeft = Math.max(1, 2 - (c._gojoCombats | 0));
+      t.push(badge('badge-hollow-purple', `Hollow Purple ${hpLeft}`, 'Hollow Purple'));
+    }
     if (c._criticalThisRound) t.push(badge('badge-critical', 'Critical', 'Critical'));
     if (c.isBurning) t.push(badge('badge-burning', 'Burning', 'Burning'));
     if (c.isStunned) {

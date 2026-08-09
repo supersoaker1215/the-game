@@ -7063,6 +7063,10 @@ body.hit-pause .ai-hand * {
 }
 .badge-stunned    { color: var(--kw-stun); }
 .badge-frozen     { color: var(--kw-freeze); }
+/* Hollow Purple charge — Gojo's countdown, in the same purple the keyword chip
+   and the card overlay already use, so the badge, the in-text chip and the
+   background effect all read as one thing. */
+.badge-hollow-purple { color: #a855f7; }
 .badge-invincible { color: var(--kw-invincible); }
 .badge-taunt      { color: var(--kw-taunt); }
 .badge-dmg-immune { color: var(--kw-dmg-immune); }

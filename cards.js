@@ -328,7 +328,7 @@ const CARD_DEFS = [
     desc: "When Played: Return a card from your Dead Pile (cost ≤ 9) to your hand with its cost permanently reduced by 3. Summon a (5/5) Doombot." },
   { name: "Gojo", cost: 7, attack: 6, health: 6, type: "hero",
     abilities: ["Immunity", "Invincible 1"],
-    desc: "When Played: Move an enemy to an empty lane. Remove all ATK from the enemy opposite and both adjacent enemies for 1 turn. After Gojo's lane fights 2 combats: Destroy all enemies in the opposite-parity lanes." },
+    desc: "When Played: Move an enemy to an empty lane. Remove all ATK from the enemy opposite and both adjacent enemies for 1 turn. After Gojo's lane fights 2 combats: Destroy all enemies in 3 random lanes." },
   { name: "Gorr", cost: 7, attack: 4, health: 8, type: "villain",
     abilities: ["Evade 1", "Immunity"],
     desc: "When Played: Devour the highest-cost card from each player's hand. Summon a random card (cost 2-9) in any lane." },
