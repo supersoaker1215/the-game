@@ -8313,6 +8313,51 @@ const Game = {
     }
   },
 
+  // THE SHIELD GAUNTLET, in one place: Invincible, Damage Immunity, 10-cost
+  // immunity, then Evade. Returns true when the damage was fully absorbed and
+  // the caller should stop.
+  //
+  // It exists because dealDamage needs to ask this question TWICE — once of the
+  // intended target, and again of a taunter that intercepts on its behalf — and
+  // the second copy was written by hand with Evade missing from it.
+  //
+  // FX note: every branch emits as well as logs. The ability path used to
+  // return in silence while the COMBAT path emitted for the same situations,
+  // so spending a trick on a shielded enemy produced a screen identical to the
+  // one before it — the player could not tell "blocked" from "did nothing".
+  _absorbsDamage(card, amount, source) {
+    // Invincible / Immunity first (free, before any amount reduction).
+    const pre = this._classifyAbsorb(card, false);
+    if (pre === 'invincible') {
+      this.log(`  [INVINCIBLE] ${card.name} blocks ${amount} damage${source ? ` from ${source.name}` : ''}!`);
+      this.emitDmg(card.id, 0, 'block');
+      this._creditAbsorb(card, 'Invincible', amount);
+      return true;
+    }
+    if (pre === 'immunity') {
+      this.log(`  [DMG IMMUNE] ${card.name} ignores ${amount} damage${source ? ` from ${source.name}` : ''}!`);
+      this.emitDmg(card.id, 0, 'block');
+      this._creditAbsorb(card, 'Invincible', amount);
+      return true;
+    }
+    if (this.is10CostImmune(source, card)) {
+      this.log(`  [IMMUNE] ${card.name} is immune to ${source.name}'s ability!`);
+      this.emitDmg(card.id, 0, 'block');
+      return true;
+    }
+    // Evade last — same shared classifier, eligible only when not
+    // stunned/frozen.
+    if (this._classifyAbsorb(card, !card.isStunned && !card.isFrozen) === 'evade') {
+      card.evadeCharges--;
+      this.log(`  [EVADE] ${card.name} dodges ${amount} damage! (${card.evadeCharges} charges left)`);
+      this.emitDmg(card.id, 0, 'evade');
+      this._creditAbsorb(card, 'Evade', amount);
+      if (card.onEvade) card.onEvade(this, card);
+      return true;
+    }
+    return false;
+  },
+
   dealDamage(card, amount, source) {
     if (!card || card.currentHealth <= 0) return;
     if (card.isEnvironment) return;
@@ -8332,43 +8377,14 @@ const Game = {
     // nothing defensively.
     // Invincible / Immunity first (free, before any amount reduction) via the
     // shared classifier; canEvade=false so this only catches those two.
-    const preAbsorb = this._classifyAbsorb(card, false);
-    // FX ON THE ABILITY PATH. Every branch below used to log() and return in
-    // silence, while the COMBAT path (applyCombatDamage) emitted for the very
-    // same situations. That asymmetry is why spending a trick on a shielded
-    // enemy produced a screen identical to the one before it — the player
-    // could not tell "blocked" from "did nothing". Same emit, same types.
-    if (preAbsorb === 'invincible') {
-      this.log(`  [INVINCIBLE] ${card.name} blocks ${amount} damage${source ? ` from ${source.name}` : ''}!`);
-      this.emitDmg(card.id, 0, 'block');
-      this._creditAbsorb(card, 'Invincible', amount);
-      return;
-    }
-    if (preAbsorb === 'immunity') {
-      this.log(`  [DMG IMMUNE] ${card.name} ignores ${amount} damage${source ? ` from ${source.name}` : ''}!`);
-      this.emitDmg(card.id, 0, 'block');
-      this._creditAbsorb(card, 'Invincible', amount);
-      return;
-    }
-    if (this.is10CostImmune(source, card)) {
-      this.log(`  [IMMUNE] ${card.name} is immune to ${source.name}'s ability!`);
-      this.emitDmg(card.id, 0, 'block');
-      return;
-    }
+    // Whoever ends up eating this hit gets the FULL shield check — see
+    // _absorbsDamage. Run once for the intended target here, and again for a
+    // taunter that steps in front of it below.
+    if (this._absorbsDamage(card, amount, source)) return;
     // Yoda shield — allies take half damage (rounded up) while Yoda is active
     if (this.yodaShieldCount(card.owner) > 0) {
       amount = Math.ceil(amount / 2);
       if (amount <= 0) return;
-    }
-    // Evade last (after Invincible/Immunity already returned above) — same
-    // shared classifier, evade-eligible only when not stunned/frozen.
-    if (this._classifyAbsorb(card, !card.isStunned && !card.isFrozen) === 'evade') {
-      card.evadeCharges--;
-      this.log(`  [EVADE] ${card.name} dodges ${amount} damage! (${card.evadeCharges} charges left)`);
-      this.emitDmg(card.id, 0, 'evade');
-      this._creditAbsorb(card, 'Evade', amount);
-      if (card.onEvade) card.onEvade(this, card);
-      return;
     }
     // Taunt intercept — taunter ate the hit, so the prevention here is
     // "amount that would have hit the original target." We credit the
@@ -8388,20 +8404,23 @@ const Game = {
     if (taunter) {
       this.log(`  [TAUNT] ${taunter.name} intercepts damage meant for ${card.name}!`);
       card = taunter;
-      if (card.invincibleTurns > 0) {
-        this._creditAbsorb(card, 'Redirect', amount);
-        this._creditAbsorb(card, 'Invincible', amount);  // bonus — taunter ALSO blocked it
-        return;
-      }
-      if (card.hasDamageImmunity) {
-        this._creditAbsorb(card, 'Redirect', amount);
-        this._creditAbsorb(card, 'Invincible', amount);
-        return;
-      }
-      // Plain redirect — taunter takes the hit on its own HP. Credit
-      // 'Redirect' for the SHIFTED damage; if armor reduces it further
-      // below, that armor portion gets its own credit too.
+      // Credit the SHIFTED damage first — stepping in front of it is the
+      // taunter's contribution whether or not it then shrugs the hit.
       this._creditAbsorb(card, 'Redirect', amount);
+      // THE TAUNTER GETS ITS OWN SHIELDS — ALL OF THEM.
+      //
+      // This used to hand-roll two of the three checks: Invincible and Damage
+      // Immunity were re-tested on the taunter, and EVADE was simply left out.
+      // So a Taunt+Evade body (Star-Lord) stepped in front of a hit it should
+      // have dodged and died with its Evade charge still sitting at 1. Owner
+      // reported it twice: "star lord had an evade and should have evaded the
+      // bonus attack, why did he die?"
+      //
+      // The shields were already written once, correctly, for the intended
+      // target — re-running that one gauntlet is what makes the intercepting
+      // card and the intercepted card obey the same rules. Rewriting a subset
+      // by hand is exactly how the third one goes missing.
+      if (this._absorbsDamage(card, amount, source)) return;
     }
     if (card.armorValue > 0 && amount <= card.armorValue) {
       this.log(`  [ARMOR] ${card.name}'s Armor ${card.armorValue} absorbs all ${amount} damage${source ? ` from ${source.name}` : ''}!`);

@@ -3841,6 +3841,68 @@ test('A silenced Voldemort casts nothing, and a curse with no mark is not offere
   assertEq(v2._lastCurse, undefined, 'no enemies — nothing cast, and no crash');
 });
 
+// A card that steps in FRONT of a hit still gets its own shields. The taunt
+// intercept re-tested Invincible and Damage Immunity on the taunter by hand and
+// left Evade out, so a Taunt+Evade body died to a hit it should have dodged
+// with its charge untouched. Owner: "star lord had an evade and should have
+// evaded the bonus attack, why did he die?"
+function tauntSetup() {
+  var G = freshGame();
+  var taunter = place(G, 'Star-Lord', 'player', 0);
+  taunter.tauntTurns = 3;
+  var ally = place(G, 'Black Panther', 'player', 1);
+  var enemy = place(G, 'Gamora', 'ai', 1);
+  return { G: G, taunter: taunter, ally: ally, enemy: enemy };
+}
+
+test('A taunter with Evade dodges the hit it intercepted', function () {
+  var s = tauntSetup();
+  s.taunter.evadeCharges = 1;
+  var hp = s.taunter.currentHealth, allyHp = s.ally.currentHealth;
+  s.G.dealDamage(s.ally, 99, s.enemy);
+  assertEq(s.taunter.currentHealth, hp, 'the taunter took nothing');
+  assertEq(s.taunter.evadeCharges, 0, 'and the dodge SPENT the charge — it was really used');
+  assertEq(s.ally.currentHealth, allyHp, 'the protected ally is still untouched');
+
+  // Out of charges, the next one lands — Evade is a charge, not a state.
+  s.G.dealDamage(s.ally, 2, s.enemy);
+  assert(s.taunter.currentHealth < hp, 'the second hit gets through');
+});
+
+test('A taunter with Invincible still blocks, and Armor still reduces', function () {
+  var inv = tauntSetup();
+  inv.taunter.invincibleTurns = 1;
+  var hp = inv.taunter.currentHealth;
+  inv.G.dealDamage(inv.ally, 99, inv.enemy);
+  assertEq(inv.taunter.currentHealth, hp, 'Invincible on the taunter is unchanged by the refactor');
+
+  var arm = tauntSetup();
+  arm.taunter.armorValue = 5;
+  var hp2 = arm.taunter.currentHealth;
+  arm.G.dealDamage(arm.ally, 3, arm.enemy);
+  assertEq(arm.taunter.currentHealth, hp2, 'Armor still absorbs a small hit after the redirect');
+});
+
+test('A taunter with no shields still eats it — the fix is not a blanket immunity', function () {
+  var s = tauntSetup();
+  s.taunter.evadeCharges = 0;
+  var hp = s.taunter.currentHealth, allyHp = s.ally.currentHealth;
+  s.G.dealDamage(s.ally, 2, s.enemy);
+  assert(s.taunter.currentHealth < hp, 'the taunter took the hit');
+  assertEq(s.ally.currentHealth, allyHp, 'and the ally was spared, which is the whole point of Taunt');
+});
+
+test('The intended target still gets its OWN shields when nobody taunts', function () {
+  var G = freshGame();
+  var target = place(G, 'Black Panther', 'player', 1);
+  target.evadeCharges = 1;
+  var enemy = place(G, 'Gamora', 'ai', 1);
+  var hp = target.currentHealth;
+  G.dealDamage(target, 99, enemy);
+  assertEq(target.currentHealth, hp, 'dodged');
+  assertEq(target.evadeCharges, 0, 'charge spent');
+});
+
 // ============================================================
 // ---- RUNNER ------------------------------------------------
 // ============================================================
