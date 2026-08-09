@@ -3049,6 +3049,29 @@ test('Burning that does NOT kill still lets the attack through', function () {
   assertEq(before - G.state.player.health, 4, 'and still swung for full');
 });
 
+test('Time Stone counters every hostile trick, not just a hardcoded nine', function () {
+  // User: "time stone did not block pym particles or kryptonite". Pym Particles
+  // takes (-3/-3) off one of your cards and can destroy it outright, but it was
+  // missing from the name list in _isHostileTrick, so no counter was ever
+  // offered. The list is the real defect — a new harmful trick defaults to NOT
+  // counterable and nothing reports it.
+  var G = freshGame();
+  function trickDef(name) {
+    var t = (typeof TRICK_DEFS !== 'undefined' ? TRICK_DEFS : []).find(function (d) { return d.name === name; });
+    if (!t) throw new Error('no such trick: ' + name);
+    return t;
+  }
+  assertEq(G._isHostileTrick(trickDef('Pym Particles')), true, 'Pym Particles is hostile');
+  assertEq(G._isHostileTrick(trickDef("Joker's Playing Card")), true, "Joker's Playing Card is hostile");
+  // Still-covered originals, so the flag work did not displace the list.
+  assertEq(G._isHostileTrick(trickDef('Kryptonite')), true, 'Kryptonite still hostile');
+  assertEq(G._isHostileTrick(trickDef('Batarangs')), true, 'Batarangs still hostile');
+  // CONTROL — a friendly trick must NOT arm the counter, or Time Stone would
+  // interrupt on every buff the opponent plays.
+  assertEq(G._isHostileTrick(trickDef('Time Stone')), false, 'Time Stone is not itself hostile');
+  assertEq(G._isHostileTrick(trickDef('Super Soldier Serum')), false, 'a buff is not hostile');
+});
+
 test('Iron Giant is still never placeable, and the desc still says so', function () {
   // The gate itself is untouched by the draw work — this pins that.
   var G = igSetup();

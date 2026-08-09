@@ -4615,10 +4615,15 @@ const Game = {
     if (!trick) return false;
     if (trick.hostile === true) return true;
     if (trick.hostile === false) return false;
-    // Explicit whitelist of tricks that harm player cards when played
-    // by the AI. All other tricks (buffs / summons / peeks) don't
-    // trigger Time Stone's counter prompt — spec: "whenever an enemy
-    // plays a trick … that would negatively effect [your cards]".
+    // LEGACY FALLBACK. The `hostile` flag on the trick DEF above is the real
+    // source now — put it there when adding a trick, and this list never needs
+    // touching. A hardcoded roster of names in the engine is a list that goes
+    // stale silently: every new harmful trick defaults to NOT counterable, and
+    // nothing fails to tell you. Pym Particles sat off it, so Time Stone never
+    // offered against a trick that can destroy your card outright.
+    // Kept only because the nine below have no flag of their own yet.
+    // Spec: "whenever an enemy plays a trick … that would negatively effect
+    // [your cards]".
     const HOSTILE_TRICKS = new Set([
       'Batarangs',       // direct damage
       'Kryptonite',      // -3 ATK from enemy

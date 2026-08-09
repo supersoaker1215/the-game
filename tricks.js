@@ -456,6 +456,12 @@ const TRICK_DEFS = [
     }
   },
   { name: "Pym Particles", cost: 2,
+    // Time Stone reads this flag FIRST. Pym Particles takes (−3/−3) off one of
+    // your cards and can destroy it outright, which is about as hostile as a
+    // trick gets — but it was missing from the hardcoded name list in
+    // _isHostileTrick, so the counter was never offered. Owner: "time stone did
+    // not block pym particles or kryptonite".
+    hostile: true,
     desc: "Remove (−3/−3) from an enemy. This can destroy it.",
     canPlay(G, owner) { return G.getEnemiesOf(owner).some(e => G.canTrickLand(e, 'debuff', owner)); },
     play(G, owner) {
@@ -630,6 +636,10 @@ const TRICK_DEFS = [
   },
   // Cost 5
   { name: "Joker's Playing Card", cost: 4,
+    // Deals no damage, but shuts your uncontested attackers out of a whole
+    // round — squarely "negatively affects your cards", which is the stated
+    // bar for a Time Stone counter.
+    hostile: true,
     desc: "Choose 3 lanes. Uncontested enemies in those lanes cannot attack this round.",
     play(G, owner) {
       const PICKS = 3;
