@@ -5218,30 +5218,14 @@ const Game = {
       // once. The `_debuffDelayedClear` flag is set by tryApplyDebuff;
       // here we consume the flag instead of the debuff, leaving the
       // status to clear naturally after next round's combat.
-      if (c._debuffDelayedClear) {
-        // Late-applied debuff — preserve full count for next round.
-        delete c._debuffDelayedClear;
-      } else {
-        // DECREMENT counters; sync booleans from counters. A Frozen 2
-        // card ticks to Frozen 1 here, NOT to Frozen 0 — that's
-        // what makes stacking actually mean "lasts longer."
-        c.stunnedTurns = Math.max(0, (c.stunnedTurns || (c.isStunned ? 1 : 0)) - 1);
-        c.isStunned    = c.stunnedTurns > 0;
-        const _wasFrozen = c.isFrozen;
-        c.frozenTurns  = Math.max(0, (c.frozenTurns  || (c.isFrozen  ? 1 : 0)) - 1);
-        c.isFrozen     = c.frozenTurns > 0;
-        // Thawed this tick — crack the ice off. Guarded UI call (no-op in sim).
-        if (_wasFrozen && !c.isFrozen && typeof UI !== 'undefined' && UI._fxThaw) {
-          try { UI._fxThaw(c); } catch (e) {}
-        }
-        c.fearedTurns  = Math.max(0, (c.fearedTurns  || (c.isFeared  ? 1 : 0)) - 1);
-        c.isFeared     = c.fearedTurns > 0;
-        // Mind-control isn't stacked (single binary state) — clear
-        // both the flag and the target. Same for damageImmuneTurn.
-        c.isMindControlled = false;
-        c.mindControlTarget = null;
-        c.damageImmuneTurn = false;
-      }
+      // STATUS DEBUFFS ARE NO LONGER ON THIS CLOCK. Mind Control, Fear, Freeze
+      // and Stun now tick when the afflicted card's own LANE resolves combat
+      // (see _tickStatusOnLaneResolve), so decrementing them here as well would
+      // burn each status twice and halve every duration. _debuffDelayedClear
+      // existed only to compensate for this round-based clock and no longer
+      // gates anything — the flag is consumed so nothing inherits a stale one.
+      delete c._debuffDelayedClear;
+      c.damageImmuneTurn = false;
       // Iron Giant's rescue shield is scoped to the combat that triggered it.
       delete c._igSavedThisCombat;
       // (the once-per-combat sacrifice gate is cleared per SIDE below — it
@@ -5689,6 +5673,11 @@ const Game = {
         // a no-op since the card already acted).
         if (pCard) pCard._combatSwungThisRound = true;
         if (aCard) aCard._combatSwungThisRound = true;
+        // THIS LANE HAS NOW FOUGHT — the status clock for the cards standing in
+        // it ticks here, not at end of round. Both sides, whether or not they
+        // actually swung: a frozen card's lane still resolved.
+        this._tickStatusOnLaneResolve(pCard);
+        this._tickStatusOnLaneResolve(aCard);
 
         this.cleanupDead();
 
@@ -6378,6 +6367,7 @@ const Game = {
     // combat again." Pre-fix the contested path covered this (line
     // 2773), the uncontested path did not.
     card._combatSwungThisRound = true;
+    this._tickStatusOnLaneResolve(card);   // this lane has fought — see the helper
     const _hpLanded = this.damagePlayer(targetOwner, uncontestedDmg, card.isBullseye, card);
     // Only fire the on-face-damage hook (Sabertooth's grow) when HP actually
     // dropped — a fully blocked / frozen / absorbed hit must not count.
@@ -8192,9 +8182,7 @@ const Game = {
   // General stat debuff: -atk ATK, -hp HP (ATK floors at 0, HP floors at 1).
   // Pass allowKill=true to let the HP drop to 0 and kill the card (used by
   // Magneto's aura so low-HP cards like Rocket can't survive -1/-2).
-  // `opts.aura` marks a CONTINUOUS reconcile rather than a discrete event —
-  // see the Immunity block below.
-  debuffCard(card, atk, hp, allowKill, source, opts) {
+  debuffCard(card, atk, hp, allowKill, source) {
     if (!card) return;
     // Same face-down rule as dealDamage / killCard. debuffCard does not route
     // through tryApplyDebuff (auras and direct stat strips call it straight),
@@ -8211,47 +8199,17 @@ const Game = {
     // (User: "invincible is different than immunity — you can get debuffed with
     // invincible." Reverses the earlier "stat debuffs are damage in spirit" rule.)
     //
-    // IMMUNITY BLOCKS ALL DEBUFFS, STAT STRIPS INCLUDED (owner, 2026-08-08:
-    // "immunity description should say blocks all debuffs"). It could not say
-    // that before, because it was not true: Immunity was checked in
-    // tryApplyDebuff, which only ever sees the STATUS debuffs (Freeze, Fear,
-    // Stun, Mind Control). Stat strips — Bane, Nightwing, Bear Trap, Pym
-    // Particles, Silver Surfer, the Magneto/Luke auras — all call debuffCard
-    // directly and never touched immunityCharges, so the tooltip had to hedge
-    // with "Freeze, Fear, etc.". Checking it HERE, at the one door every stat
-    // debuff already goes through, is what makes the sentence true everywhere
-    // rather than card by card. Unresistible pierces it on the same terms
-    // tryApplyDebuff uses: the piercing charge is spent, the Immunity is not
-    // (it never got to block anything).
-    // opts.ignoresImmunity — a RAW-MATERIAL debuff that is not resisted, it is
-    // just physics: Kryptonite poisons, Pym Particles shrink. Owner, 2026-08-08:
-    // "not like kryptonite, that should always go through immunity or pym
-    // particles, but mind control can't — only if it has unresistible." So the
-    // pierce is a property of the SOURCE, declared per effect, and everything
-    // that does not declare it still has to buy its way through with
-    // Unresistible. Note this does NOT spend a charge either: Immunity never
-    // got to block anything, so there is nothing to spend.
-    if ((atk > 0 || hp > 0) && card.immunityCharges > 0 && !(opts && opts.ignoresImmunity)) {
-      if (source && source.unresistibleCharges > 0) {
-        source.unresistibleCharges--;
-        this.log(`  [UNRESISTIBLE] ${source.name} bypasses ${card.name}'s Immunity! (Immunity ${card.immunityCharges} untouched, Unresistible ${source.unresistibleCharges} remaining)`);
-      } else {
-        // An AURA is a standing condition, not an event, and recomputeAuras
-        // re-runs it many times a turn — charging it a charge per pass would
-        // strip Immunity 3 off a card in a single turn without a single card
-        // being played at it. A blocked aura simply does not land (and the
-        // measured-delta reconcile records that nothing landed, so it retries
-        // for free once the shield drops).
-        const isAura = !!(opts && opts.aura);
-        if (!card.permanentImmunity && !isAura) card.immunityCharges--;
-        this.log(card.permanentImmunity
-          ? `  [IMMUNITY] ${card.name} is permanently immune — the debuff does not land.`
-          : isAura
-            ? `  [IMMUNITY] ${card.name}'s Immunity turns aside the aura. (${card.immunityCharges} remaining)`
-            : `  [IMMUNITY] ${card.name}'s Immunity blocks ${source && source.name ? source.name + "'s " : ''}debuff! (${card.immunityCharges} remaining)`);
-        return;
-      }
-    }
+    // A STAT CHANGE IS NOT A DEBUFF, so Immunity does not look at this door.
+    //
+    // It briefly did (2026-08-08), on the reading that "blocks all debuffs"
+    // ought to cover stat strips too. Owner drew the line differently the next
+    // day and the line is a better one: a DEBUFF is a status — Mind Control,
+    // Fear, Freeze, Stun — and those are what Immunity refuses, in
+    // tryApplyDebuff. Nightwing, Pym Particles, Kryptonite, Silver Surfer and
+    // the Magneto/Luke auras change SIZE, and size is not a condition you can
+    // be immune to. That also retires the per-effect ignoresImmunity escape
+    // hatch Kryptonite and Pym needed while the broader rule was in force —
+    // with the category drawn correctly, nothing has to be excepted from it.
     // Defensive coerce — see buffCard; stops NaN from surviving a round.
     if (typeof card.attack !== 'number' || !Number.isFinite(card.attack)) card.attack = card.baseAttack || 0;
     if (typeof card.currentHealth !== 'number' || !Number.isFinite(card.currentHealth)) card.currentHealth = card.baseHealth || 1;
@@ -9267,6 +9225,40 @@ const Game = {
   // every `? 'STUNNED' : 'FROZEN'` log shows FROZEN.
   stunCard(card, source, n) {
     return this.freezeCard(card, source, n);
+  },
+
+  // ===================== STATUS DEBUFFS LAST UNTIL YOUR LANE FIGHTS =====
+  // A status debuff (Mind Control, Fear, Freeze, Stun) runs until the AFFLICTED
+  // CARD'S LANE RESOLVES COMBAT again — not until some global end-of-round
+  // tick. Owner, 2026-08-09: "Iron Man attacks in lane 4, the enemy blocks, he
+  // plays Fear Toxin on Iron Man — that debuff lasts until the next time his
+  // lane resolves."
+  //
+  // The old model decremented every card's counters once per round, which meant
+  // the SAME debuff was worth a full turn or nothing at all depending on
+  // whether the victim's lane had already fought when it landed. There was a
+  // whole compensating mechanism for that (_debuffDelayedClear, stamped by
+  // tryApplyDebuff off _combatSwungThisRound) — a patch for a clock that was
+  // measuring the wrong thing. Tying the duration to the victim's own lane
+  // makes it worth exactly one turn of that card's combat, always, and the
+  // compensator is no longer needed.
+  //
+  // Counters are KEPT, so "Freeze 2" still means something: it now reads as
+  // two lane resolutions rather than two rounds. Mind Control stays binary.
+  _tickStatusOnLaneResolve(card) {
+    if (!card) return;
+    card.stunnedTurns = Math.max(0, (card.stunnedTurns || (card.isStunned ? 1 : 0)) - 1);
+    card.isStunned    = card.stunnedTurns > 0;
+    const wasFrozen   = card.isFrozen;
+    card.frozenTurns  = Math.max(0, (card.frozenTurns || (card.isFrozen ? 1 : 0)) - 1);
+    card.isFrozen     = card.frozenTurns > 0;
+    if (wasFrozen && !card.isFrozen && typeof UI !== 'undefined' && UI._fxThaw) {
+      try { UI._fxThaw(card); } catch (e) {}
+    }
+    card.fearedTurns  = Math.max(0, (card.fearedTurns || (card.isFeared ? 1 : 0)) - 1);
+    card.isFeared     = card.fearedTurns > 0;
+    card.isMindControlled = false;
+    card.mindControlTarget = null;
   },
 
   // CANONICAL "can this card take an EXTRA action?" predicate.
@@ -11459,7 +11451,7 @@ const Game = {
       const beforeAtk = c.attack, beforeMax = c.maxHealth;
       if (dAtk > 0 || dHp > 0) this.buffCard(c, Math.max(0, dAtk), Math.max(0, dHp));
       if ((dAtk < 0 || dHp < 0) && c.currentHealth > 0) {
-        this.debuffCard(c, Math.max(0, -dAtk), Math.max(0, -dHp), w.hostile, w.src || { name: 'an aura' }, { aura: true });
+        this.debuffCard(c, Math.max(0, -dAtk), Math.max(0, -dHp), w.hostile, w.src || { name: 'an aura' });
       }
       const landedAtk = c.attack - beforeAtk;
       const landedHp = c.maxHealth - beforeMax;

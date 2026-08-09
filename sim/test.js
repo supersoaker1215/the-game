@@ -3513,17 +3513,17 @@ test('Doomsday rises with real Immunity, and it does not tick down', function ()
   assertEq(dd.permanentImmunity, true, 'and it is flagged permanent');
   assertEq(dd.currentHealth, dd.maxHealth, 'back at full HP');
 
-  // A plain stat debuff — the class that used to land on him regardless.
-  var atk = dd.attack, hp = dd.currentHealth;
-  G.debuffCard(dd, 2, 2, true, killer);
-  assertEq(dd.attack, atk, 'the ATK strip does not land');
-  assertEq(dd.currentHealth, hp, 'nor the HP strip');
-  assertEq(dd.immunityCharges > 0, true, 'and the shield did not spend itself blocking it');
+  // STATUS debuffs bounce off him — that is what Immunity is for. (Stat
+  // strips are NOT debuffs and land normally; see the category test above.)
+  G.mindControlCard(dd, killer);
+  assertEq(!!dd.isMindControlled, false, 'Mind Control does not land');
+  G.freezeCard(dd, killer, 1);
+  assertEq(!!dd.isFrozen, false, 'nor Freeze');
 
   // Repeat: a permanent shield must not run out.
-  for (var i = 0; i < 5; i++) G.debuffCard(dd, 2, 2, true, killer);
-  assertEq(dd.attack, atk, 'still standing after six attempts');
-  assert(dd.immunityCharges > 0, 'and still immune');
+  for (var i = 0; i < 5; i++) G.mindControlCard(dd, killer);
+  assertEq(!!dd.isMindControlled, false, 'still refused after six attempts');
+  assert(dd.immunityCharges > 0, 'and still immune — the shield never spends down');
   assertEq(cardByName('Doomsday').desc.indexOf('permanent Immunity') > -1, true,
     'the card text says Immunity, capitalised so the keyword chip renders');
 });
@@ -3547,7 +3547,10 @@ test('Immunity blocks Mind Control, and Unresistible is what buys through', func
   assertEq(caster.unresistibleCharges, 0, 'the piercing charge is what gets spent');
 });
 
-test('Kryptonite and Pym Particles ignore Immunity outright', function () {
+test('A stat change is not a debuff, so Immunity never touches it', function () {
+  // Owner drew this line on 2026-08-09: "anything that affects stats is not a
+  // debuff. Immunity does not block Nightwing, Pym Particles, Kryptonite,
+  // Silver Surfer." So these land through a full shield and spend none of it.
   var kryp = TRICK_DEFS.find(function (t) { return t.name === 'Kryptonite'; });
   var pym  = TRICK_DEFS.find(function (t) { return t.name === 'Pym Particles'; });
 
@@ -3559,8 +3562,8 @@ test('Kryptonite and Pym Particles ignore Immunity outright', function () {
   kryp.play(G, 'player');
   var cc = G.state.pendingCardChoice;
   if (cc) G.resolveActivePrompt('card', { idx: cc.cards.indexOf(t) });
-  assertEq(t.attack, 3, 'Kryptonite lands through the shield');
-  assertEq(t.immunityCharges, 3, 'and burns no charge — it was never blocked');
+  assertEq(t.attack, 3, 'Kryptonite lands');
+  assertEq(t.immunityCharges, 3, 'and spends no charge — there was nothing to block');
 
   var G2 = freshGame();
   G2.state.player.isHuman = true;
@@ -3570,19 +3573,29 @@ test('Kryptonite and Pym Particles ignore Immunity outright', function () {
   pym.play(G2, 'player');
   var cc2 = G2.state.pendingCardChoice;
   if (cc2) G2.resolveActivePrompt('card', { idx: cc2.cards.indexOf(t2) });
-  assertEq(t2.attack, 4, 'Pym lands through the shield too');
-  assertEq(t2.currentHealth, 4, 'both halves of it');
-  assertEq(t2.immunityCharges, 3, 'and burns no charge either');
+  assertEq(t2.attack, 4, 'Pym lands');
+  assertEq(t2.currentHealth, 4, 'both halves');
+  assertEq(t2.immunityCharges, 3, 'and spends no charge either');
 
-  // CONTROL — an ordinary stat strip must still be refused, or "everything
-  // pierces" would pass this file while gutting the keyword.
+  // A generic strip (a Nightwing / aura-class effect) behaves identically —
+  // the point is the CATEGORY, not a per-card exception list.
   var G3 = freshGame();
   var t3 = place(G3, 'Bane', 'ai', 0);
   t3.immunityCharges = 1;
   var atk = t3.attack;
   G3.debuffCard(t3, 2, 2, true, { name: 'Nightwing' });
-  assertEq(t3.attack, atk, 'a plain debuff is still blocked');
-  assertEq(t3.immunityCharges, 0, 'and that one DOES spend the charge');
+  assert(t3.attack < atk, 'a plain stat strip lands through Immunity too');
+  assertEq(t3.immunityCharges, 1, 'charge untouched');
+
+  // CONTROL — the STATUS debuffs are still blocked, or Immunity would mean
+  // nothing at all.
+  var G4 = freshGame();
+  var t4 = place(G4, 'Bane', 'ai', 0);
+  t4.immunityCharges = 1;
+  var caster = place(G4, 'Gorilla Grodd', 'player', 0);
+  G4.mindControlCard(t4, caster);
+  assertEq(!!t4.isMindControlled, false, 'Mind Control is still refused');
+  assertEq(t4.immunityCharges, 0, 'and THAT is what spends the charge');
 });
 
 // ---- 2v2 TEAM SELECTION ------------------------------------
@@ -4028,6 +4041,100 @@ test('The token rows match the stats the abilities actually summon', function ()
     });
   });
   assert(checks >= 3, 'at least a few rows were actually compared (' + checks + ')');
+});
+
+// ---- STATUS DEBUFFS LAST UNTIL YOUR LANE FIGHTS ------------
+// Owner, 2026-08-09: "Iron Man attacks in lane 4, the enemy blocks, he plays
+// Fear Toxin on Iron Man — that debuff lasts until the next time his lane
+// resolves." The clock moved off the global end-of-round tick and onto the
+// victim's own lane.
+test('A status clears when the afflicted card LANE resolves, not at end of round', function () {
+  var G = freshGame();
+  var c = place(G, 'Bane', 'player', 2);
+  G.freezeCard(c, place(G, 'Bane', 'ai', 5), 1);
+  assertEq(c.isFrozen, true, 'frozen to start');
+
+  // The end-of-round sweep must NOT touch it any more — that was the old clock.
+  G.postCombat();
+  assertEq(c.isFrozen, true, 'a round passing on its own does not thaw it');
+
+  // Its lane fighting is what clears it.
+  G._tickStatusOnLaneResolve(c);
+  assertEq(c.isFrozen, false, 'its lane resolved — thawed');
+});
+
+test('The count survives as LANE resolutions, so Freeze 2 still lasts longer', function () {
+  var G = freshGame();
+  var c = place(G, 'Bane', 'player', 2);
+  var src = place(G, 'Bane', 'ai', 5);
+  G.freezeCard(c, src, 2);
+  assertEq(c.frozenTurns, 2, 'Freeze 2 armed');
+  G._tickStatusOnLaneResolve(c);
+  assertEq(c.isFrozen, true, 'one lane resolution is not enough');
+  assertEq(c.frozenTurns, 1, 'it ticked down by one');
+  G._tickStatusOnLaneResolve(c);
+  assertEq(c.isFrozen, false, 'the second clears it');
+});
+
+test('A debuff landed after the lane fought survives to next round', function () {
+  // The exact scenario reported: the lane resolves, the blocker plays Fear
+  // Toxin on the card that just swung, and it must still be afflicted when
+  // that lane comes round again — not wiped by a sweep it never lived through.
+  var G = freshGame();
+  var c = place(G, 'Iron Man', 'player', 3);
+  var enemy = place(G, 'Bane', 'ai', 3);
+  G._tickStatusOnLaneResolve(c);            // lane 4 fights
+  G.freezeCard(c, enemy, 1);                // ...then the trick lands
+  assertEq(c.isFrozen, true, 'afflicted after its lane already fought');
+  G.postCombat();
+  assertEq(c.isFrozen, true, 'and the round ending does NOT consume it');
+  G._tickStatusOnLaneResolve(c);            // next round, lane 4 fights again
+  assertEq(c.isFrozen, false, 'it is spent by the lane it was meant to affect');
+});
+
+test('All four statuses are on the lane clock, and nothing else is', function () {
+  var G = freshGame();
+  var c = place(G, 'Bane', 'player', 0);
+  // Set directly rather than via the appliers: stunCard ALIASES freezeCard
+  // (Stun was merged into Freeze globally), so applying both through the API
+  // stacks one status to 2 instead of arming two.
+  c.isFrozen = true; c.frozenTurns = 1;
+  c.isStunned = true; c.stunnedTurns = 1;
+  c.isFeared = true; c.fearedTurns = 1;
+  c.isMindControlled = true;
+  // Taunt and Invincible are NOT status debuffs — Invincible is a round-based
+  // buff (owner, 2026-08-09) and stays on the end-of-round tick with Taunt.
+  c.tauntTurns = 2; c.invincibleTurns = 2;
+
+  G._tickStatusOnLaneResolve(c);
+  assertEq(c.isFrozen, false, 'freeze cleared');
+  assertEq(c.isStunned, false, 'stun cleared');
+  assertEq(c.isFeared, false, 'fear cleared');
+  assertEq(c.isMindControlled, false, 'mind control cleared');
+  assertEq(c.tauntTurns, 2, 'taunt is untouched by the lane clock');
+  assertEq(c.invincibleTurns, 2, 'and so is invincible');
+});
+
+test('Knull rolls 2-9, never a 1-cost', function () {
+  var def = cardByName('Knull');
+  assertEq(def.desc.indexOf('cost 2-9') > -1, true, 'the text states the range');
+
+  // The gate under test is the FILTER Knull hands the summon deck — sampling
+  // random pulls would only ever probe it.
+  var G = freshGame();
+  var k = place(G, 'Knull', 'player', 0);
+  var seen = null, real = G.drawFromSummonDeck;
+  G.drawFromSummonDeck = function (fn) { seen = fn; return null; };
+  try { CARD_ABILITIES['Knull'].onPlay(G, k, 0); } finally { G.drawFromSummonDeck = real; }
+  assert(!!seen, 'the filter was handed over');
+  var probe = function (cost) { return seen({ name: 'x', cost: cost, attack: 2, health: 2, isDiscardEffect: false }); };
+  assertEq(probe(1), false, 'a 1-cost is out of the pool now');
+  assertEq(probe(2), true, '2 is the new floor');
+  assertEq(probe(9), true, '9 is still the ceiling');
+  assertEq(probe(10), false, 'and a 10-cost titan stays out');
+  // The other filters are untouched — a 0-ATK body is still not a summon.
+  assertEq(seen({ name: 'x', cost: 5, attack: 0, health: 3, isDiscardEffect: false }), false,
+    '0-ATK cards are still excluded');
 });
 
 // ============================================================

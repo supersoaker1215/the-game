@@ -2532,7 +2532,7 @@ const CARD_ABILITIES = {
       const atkBump = self._aquamanCreatureAtkBump || 0;
       const hpBump  = self._aquamanCreatureHpBump  || 0;
       if (typeof UI !== 'undefined' && UI._fxDavyKraken) { try { UI._fxDavyKraken(self); } catch (e) {} }
-      G.summonCardChoice(self.owner, "The Kraken", 4, 5 + atkBump, 3 + hpBump, []);
+      G.summonCardChoice(self.owner, "The Kraken", 4, 5 + atkBump, 6 + hpBump, []);
     }
   },
   "Captain America": {
@@ -4940,11 +4940,14 @@ const CARD_ABILITIES = {
   },
   "Knull": {
     onPlay(G, self, lane) {
+      // Floor raised 1 -> 2 (owner, 2026-08-09): a 10-cost lottery that could
+      // roll a 1-cost body in every empty lane was paying out chaff on the
+      // most expensive card in the game.
       // Roguelite Text+ override — _knullCostFloor raises the minimum
-      // cost of the random pull pool. Default 1 (classic); Text+ sets
-      // to 4 so the lottery skips the cheap chaff and only pulls
-      // mid-or-higher cost cards (Wonder Woman, Carnage, Doom, etc.).
-      const minCost = self._knullCostFloor || 1;
+      // cost of the random pull pool further. Default 2 (classic); Text+ sets
+      // to 4 so the lottery skips the mid tier as well and only pulls
+      // high-cost cards (Wonder Woman, Carnage, Doom, etc.).
+      const minCost = self._knullCostFloor || 2;
       // _knullCostCeiling raises the upper bound from 9 to 10 with Text+
       // ("God of Symbiotes") so the lottery can roll 10-cost titans.
       const maxCost = self._knullCostCeiling || 9;

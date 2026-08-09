@@ -134,7 +134,7 @@ const TRICK_DEFS = [
     }
   },
   { name: "Kryptonite", cost: 1,
-    desc: "Remove 3 ATK from an enemy — Immunity does not stop it. If the enemy is Superman, remove all his ATK.",
+    desc: "Remove 3 ATK from an enemy. If the enemy is Superman, remove all his ATK.",
     // Needs a live target — greys out in the tray + refused by playTrick otherwise.
     canPlay(G, owner) { return G.getEnemiesOf(owner).some(e => G.canTrickLand(e, 'debuff', owner)); },
     play(G, owner) {
@@ -142,8 +142,7 @@ const TRICK_DEFS = [
       if (enemies.length) {
         G.promptCardChoice(owner, enemies, "Kryptonite — Weaken", "Choose enemy to weaken", (t) => {
           const r = t.name === "Superman" ? t.attack : 3;
-          // Pierces Immunity by design — see debuffCard's ignoresImmunity note.
-          G.debuffCard(t, r, 0, false, { name: 'Kryptonite' }, { ignoresImmunity: true });
+          G.debuffCard(t, r, 0, false, { name: 'Kryptonite' });
           G.log(`Kryptonite: ${t.name} -${r} ATK!`);
         }, cards => cards.sort((a, b) => b.attack - a.attack)[0]);
       }
@@ -469,7 +468,7 @@ const TRICK_DEFS = [
     // _isHostileTrick, so the counter was never offered. Owner: "time stone did
     // not block pym particles or kryptonite".
     hostile: true,
-    desc: "Remove (−2/−2) from an enemy — Immunity does not stop it. This can destroy it.",
+    desc: "Remove (−2/−2) from an enemy. This can destroy it.",
     canPlay(G, owner) { return G.getEnemiesOf(owner).some(e => G.canTrickLand(e, 'debuff', owner)); },
     play(G, owner) {
       const enemies = G.getEnemiesOf(owner).filter(e => G.canTrickLand(e, 'debuff', owner));
@@ -478,8 +477,7 @@ const TRICK_DEFS = [
         // allowKill=true — shrinking a ≤3-HP enemy destroys it outright.
         // Without the flag, debuffCard floors HP at 1 (user: "Pym Particles
         // can kill an enemy; right now it leaves it at 1 health").
-        // Pierces Immunity by design — see debuffCard's ignoresImmunity note.
-        G.debuffCard(t, 2, 2, true, { name: 'Pym Particles' }, { ignoresImmunity: true });
+        G.debuffCard(t, 2, 2, true, { name: 'Pym Particles' });
         if (t.currentHealth <= 0) G.log(`Pym Particles: ${t.name} shrinks into nothing — destroyed!`);
         else G.log(`Pym Particles: ${t.name} shrunk to ${t.attack}/${t.currentHealth}!`);
       }, cards => cards.sort((a, b) => (b.attack + b.maxHealth) - (a.attack + a.maxHealth))[0]);

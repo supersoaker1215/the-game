@@ -37,7 +37,7 @@ const SUMMON_TOKEN_DEFS = [
   { name: 'Ant',            cost: 1, attack: 1, health: 1, abilities: ['Bullseye'], desc: 'Token — summoned by Ant-Man.' },
   { name: 'Battle Droid',   cost: 2, attack: 2, health: 1, abilities: [],           desc: 'Token — summoned by General Grievous.' },
   { name: 'Doombot',        cost: 5, attack: 5, health: 5, abilities: [],           desc: 'Token — summoned by Dr. Doom.' },
-  { name: 'The Kraken',     cost: 4, attack: 5, health: 3, abilities: [],           desc: 'Token — summoned by Davy Jones.' },
+  { name: 'The Kraken',     cost: 4, attack: 5, health: 6, abilities: [],           desc: 'Token — summoned by Davy Jones.' },
   { name: 'Undead Warrior', cost: 1, attack: 3, health: 1, abilities: [],           desc: 'Token — summoned by Hela.' },
   { name: 'Parademon',      cost: 2, attack: 2, health: 1, abilities: [],           desc: 'Token — summoned by Darkseid.' },
 ];
@@ -287,7 +287,7 @@ const CARD_DEFS = [
   // ==================== COST 5 ====================
   { name: "Davy Jones", cost: 5, attack: 3, health: 6, type: "villain",
     abilities: [],
-    desc: "When Played: Summon The Kraken (5/3) in any lane." },
+    desc: "When Played: Summon The Kraken (5/6) in any lane." },
   { name: "Jack Sparrow", cost: 5, attack: 3, health: 5, type: "hero",
     abilities: [],
     desc: "While Active: Before each combat, choose an enemy in an uncontested lane (no ally opposite). It cannot attack this round." },
@@ -430,7 +430,7 @@ const CARD_DEFS = [
     desc: "Start of Tricks (once): Devour 2 enemies. Each Turn: Devour 1 enemy with ≤ 4 ATK. Cannot devour other 10-cost cards." },
   { name: "Knull", cost: 10, attack: 7, health: 7, type: "villain",
     abilities: ["Immunity", "Invincible 1"],
-    desc: "When Played: Summon a random card (cost 1-9) in each of your empty lanes." },
+    desc: "When Played: Summon a random card (cost 2-9) in each of your empty lanes." },
   { name: "Trigon", cost: 10, attack: 9, health: 8, type: "villain",
     abilities: ["Immunity", "Invincible 1", "Unresistible 3", "Draw 1"],
     desc: "When Played: Steal the opponent's Block Meter. Start of Tricks (once): Freeze 1 all enemies (not other 10-cost cards). While Active: Destroy another random enemy (not other 10-cost cards) when Trigon destroys an enemy." },
