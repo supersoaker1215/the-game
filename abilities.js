@@ -2136,7 +2136,7 @@ const CARD_ABILITIES = {
         // (user report: Manhunter-as-Ivy charmed once then never again —
         // the once-per-round machinery wasn't copied).
         ['onPlay_SKIP', 'onDeath', 'onDamaged', 'onKill', 'onBeforeTricks',
-         'onBeforeAttack', 'onBeforeCombat', 'onEndOfTurn', 'onAnyCardPlayed',
+         'onBeforeAttack', 'onBeforeCombat', 'onLaneCombat', 'onEndOfTurn', 'onAnyCardPlayed',
          'onAnyTrickPlayed', 'onAllyKilled', 'onEnemyKilled', 'onEvade',
          'onDamagePlayer', 'onTurnStart', 'onMoved', 'onDiscard',
          'onLaneResolved'].forEach(k => {
@@ -4056,10 +4056,16 @@ const CARD_ABILITIES = {
       });
     },
 
-    onBeforeCombat(G, self, lane) {
+    // onLaneCombat, not onBeforeCombat: the curse fires when HIS lane comes up,
+    // not at the top of the attack phase (owner, 2026-08-09). It matters — by
+    // the time a late lane fights, the earlier ones have resolved, and a curse
+    // aimed at a board four lanes ago is aimed at a board that no longer
+    // exists. Casting in sequence also lets him answer what he can actually
+    // see, which is the whole point of a once-each choice.
+    onLaneCombat(G, self, lane) {
       if (self.currentHealth <= 0) return;
       // A silenced Dark Lord casts nothing — same lock every other
-      // before-combat caster honours.
+      // pre-combat caster honours.
       if (Game.isActionLocked(self)) {
         G.log(`  [SKIP] ${self.name} is ${G.actionLockLabel(self)} — no curse this round.`);
         return;

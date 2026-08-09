@@ -393,7 +393,7 @@ const CARD_DEFS = [
     desc: "When Played: Mind Control 1 an enemy. While Active: Add (+1/+1) to your other allies. Remove (−1/−1) from all enemies." },
   { name: "Voldemort", cost: 8, attack: 4, health: 10, type: "villain",
     abilities: [],
-    desc: "While Active: Before each combat, cast an Unforgivable Curse on an enemy — Avada Kedavra destroys one with cost \u2264 6, Crucio deals (\u22124/\u22124) permanently, Imperio Mind Controls it. Each curse can only be cast once." },
+    desc: "While Active: When his lane fights, cast an Unforgivable Curse on an enemy — Avada Kedavra destroys one with cost \u2264 6, Crucio deals (\u22124/\u22124) permanently, Imperio Mind Controls it. Each curse can only be cast once." },
   { name: "Thor", cost: 8, attack: 7, health: 7, type: "hero",
     abilities: ["Splash 5", "Unresistible"],
     desc: "When Played: Freeze 1 an enemy. Deal 5 damage to the enemy opposite and both adjacent enemies. Start of Tricks: Freeze 1 a random unfrozen enemy." },

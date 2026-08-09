@@ -1929,6 +1929,19 @@ const Game = {
     if (state.pendingKangChoice) {
       state.pendingKangChoice.owner = flipSeat(state.pendingKangChoice.owner);
     }
+    // THE ONE THAT WAS MISSING. Five pending prompts were flipped here and the
+    // jump offer was not, so its `owner` reached the guest still written in the
+    // HOST's frame. Both clients then read it backwards: the seat holding the
+    // card was told "opponent deciding whether to play free" and given a
+    // waiting spinner, while the seat that did NOT own it got the buttons.
+    // Owner: "in multiplayer I couldn't have Stripe jump out of hand — it was
+    // asking the opponent, that is not correct."
+    //
+    // Every jump card lands here: Stripe, Jason, Ghostface, Michael Myers,
+    // Freddy Fazbear. Stripe is simply the one that came up.
+    if (state.pendingJumpOffer && state.pendingJumpOffer.owner) {
+      state.pendingJumpOffer.owner = flipSeat(state.pendingJumpOffer.owner);
+    }
     if (state._mpNames) {
       const t = state._mpNames.player;
       state._mpNames.player = state._mpNames.ai;
@@ -4403,7 +4416,7 @@ const Game = {
         onEndOfTurn: card.onEndOfTurn, onAnyCardPlayed: card.onAnyCardPlayed, onAllyKilled: card.onAllyKilled,
         onEnemyKilled: card.onEnemyKilled,
         onEvade: card.onEvade, onDamagePlayer: card.onDamagePlayer, onTurnStart: card.onTurnStart,
-        onLaneResolved: card.onLaneResolved,
+        onLaneResolved: card.onLaneResolved, onLaneCombat: card.onLaneCombat,
         passive: card.passive
       };
       card.onPlay = null; card.onDeath = null; card.onDamaged = null;
@@ -4411,7 +4424,7 @@ const Game = {
       card.onEndOfTurn = null; card.onAnyCardPlayed = null; card.onAllyKilled = null;
       card.onEnemyKilled = null;
       card.onEvade = null; card.onDamagePlayer = null; card.onTurnStart = null;
-      card.onLaneResolved = null;
+      card.onLaneResolved = null; card.onLaneCombat = null;
       card.passive = null;
       delete card._playFaceDown;
       this.log(`[PLAY] ${who} play a card face down in lane ${laneIdx + 1} for ${cost} energy`);
@@ -4977,6 +4990,7 @@ const Game = {
     // picked up by the hasPendingPrompt guard below on the next call.
     if (!this.state._beforeCombatFired) {
       this.state._beforeCombatFired = true;
+      this.state._laneHookFired = {};   // onLaneCombat is once per lane per round
       this.getAllCardsOnBoard().forEach(c => {
         if (c.onBeforeCombat && c.currentHealth > 0) {
           try { c.onBeforeCombat(this, c, this.findCardLane(c)); } catch (e) { console.error(e); }
@@ -5073,6 +5087,38 @@ const Game = {
       const lane = this.state.lanes[i];
       const p = lane.player;
       const a = lane.ai;
+
+      // ===== onLaneCombat — "MY lane is fighting now" =====
+      // Distinct from onBeforeCombat, which fires for every card on the board
+      // at the top of the phase, before lane 1 has swung. A card whose ability
+      // is meant to read the board as its own lane comes up needs THIS instead:
+      // by the time lane 5 fights, lanes 1-4 have already resolved and the
+      // board is a different board. Owner, on Voldemort: "his passive should
+      // fire when his lane is attacking, not at the beginning of the attack
+      // phase."
+      //
+      // Fires once per lane per round, for both sides, BEFORE the exchange —
+      // and a hook that opens a prompt parks the lane until it is answered, so
+      // a choice made here still lands in time to change the fight it precedes.
+      if (!this.state._laneHookFired) this.state._laneHookFired = {};
+      const _laneHookKey = i + ':' + (this.state.round || 0);
+      const _runLaneHooks = () => {
+        if (this.state._laneHookFired[_laneHookKey]) return false;
+        this.state._laneHookFired[_laneHookKey] = true;
+        [p, a].forEach(c => {
+          if (c && c.currentHealth > 0 && typeof c.onLaneCombat === 'function') {
+            try { c.onLaneCombat(this, c, i); } catch (e) { console.error('[onLaneCombat]', e); }
+          }
+        });
+        return this.hasPendingPrompt();
+      };
+      if (_runLaneHooks()) {
+        // A hook asked a question — hold this lane until it is answered, then
+        // come back to the SAME lane and fight it.
+        this.whenPromptCleared(() => { UI.render(); resolveLane(i); });
+        return;
+      }
+
       const advance = () => {
         // THE LANE HAS FOUGHT — tick the status clock for the cards that stood
         // in it, exactly once, here.
@@ -10713,6 +10759,11 @@ const Game = {
       onAnyCardPlayed: def.onAnyCardPlayed || null, onTurnStart: def.onTurnStart || null,
       onBeforeTricks: def.onBeforeTricks || null, onEndOfTurn: def.onEndOfTurn || null,
       onBeforeCombat: def.onBeforeCombat || null,
+      // onLaneCombat — "my lane is fighting now" (see the lane dispatcher).
+      // This whitelist is the ONLY way a hook reaches a card instance: a hook
+      // a card defines but this list omits is silently dropped, and the card
+      // just quietly does nothing.
+      onLaneCombat: def.onLaneCombat || null,
       onMoved: def.onMoved || null,
       onLaneResolved: def.onLaneResolved || null,
       // onAnyTrickPlayed — fires for every trick played by either

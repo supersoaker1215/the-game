@@ -3819,7 +3819,7 @@ function castCurse(G, v, id, lane) {
   var defs = CARD_ABILITIES['Voldemort'];
   var all = defs._CURSES;
   defs._CURSES = all.filter(function (c) { return c.id === id; });
-  try { defs.onBeforeCombat(G, v, lane == null ? 2 : lane); }
+  try { defs.onLaneCombat(G, v, lane == null ? 2 : lane); }
   finally { defs._CURSES = all; }
 }
 
@@ -3889,7 +3889,7 @@ test('Each curse can be cast only once, ever', function () {
   for (var r = 1; r <= 3; r++) {
     s.G.state.round = r;
     var beforeCount = (s.v._usedCurses || []).length;
-    defs.onBeforeCombat(s.G, s.v, 2);
+    defs.onLaneCombat(s.G, s.v, 2);
     var after = (s.v._usedCurses || []).length;
     assertEq(after, beforeCount + 1, 'round ' + r + ' spent exactly one curse');
     // Keep a live victim and clear the status so the next round has a mark.
@@ -3902,7 +3902,7 @@ test('Each curse can be cast only once, ever', function () {
 
   // Round four: nothing left to cast, and no crash reaching for it.
   s.G.state.round = 4;
-  defs.onBeforeCombat(s.G, s.v, 2);
+  defs.onLaneCombat(s.G, s.v, 2);
   assertEq(s.v._usedCurses.length, 3, 'a fourth round adds nothing');
 });
 
@@ -3911,11 +3911,11 @@ test('A curse that finds no mark does not burn its one use', function () {
   var G = freshGame();
   var v = place(G, 'Voldemort', 'player', 2);
   // Empty enemy board — nothing to curse at all.
-  defs.onBeforeCombat(G, v, 2);
+  defs.onLaneCombat(G, v, 2);
   assertEq((v._usedCurses || []).length, 0, 'nothing was spent on an empty board');
   // Now give him a target: all three are still available.
   place(G, 'Bane', 'ai', 2);
-  defs.onBeforeCombat(G, v, 2);
+  defs.onLaneCombat(G, v, 2);
   assertEq(v._usedCurses.length, 1, 'and the first real cast spends exactly one');
 });
 
@@ -3923,13 +3923,13 @@ test('A silenced Voldemort casts nothing, and a curse with no mark is not offere
   var defs = CARD_ABILITIES['Voldemort'];
   var s = voldSetup('Bane');
   s.v.isFrozen = true; s.v.frozenTurns = 1;
-  CARD_ABILITIES['Voldemort'].onBeforeCombat(s.G, s.v, 2);
+  CARD_ABILITIES['Voldemort'].onLaneCombat(s.G, s.v, 2);
   assertEq(s.v._lastCurse, undefined, 'frozen — no curse was cast');
 
   // Board with nothing to curse at all.
   var empty = freshGame();
   var v2 = place(empty, 'Voldemort', 'player', 0);
-  CARD_ABILITIES['Voldemort'].onBeforeCombat(empty, v2, 0);
+  CARD_ABILITIES['Voldemort'].onLaneCombat(empty, v2, 0);
   assertEq(v2._lastCurse, undefined, 'no enemies — nothing cast, and no crash');
 });
 
@@ -4323,6 +4323,72 @@ test('Freeze, Stun, Fear and Mind Control ALL clear when the lane fights', funct
     assertEq(statusSurvivesCombat(c[1], c[2], false), false, c[0] + ' clears in an uncontested lane');
     assertEq(statusSurvivesCombat(c[1], c[2], true),  false, c[0] + ' clears in a contested lane');
   });
+});
+
+// onLaneCombat fires as THAT LANE comes up, not at the top of the phase.
+// Owner, on Voldemort: "his passive should fire when his lane is attacking,
+// not at the beginning of the attack phase."
+test('onLaneCombat fires in lane order, not all at once up front', function () {
+  var G = freshGame();
+  var fired = [];
+  // Probes in lanes 1 and 5. If the hook fired at the top of the phase they
+  // would both run before any lane logged; in lane order, lane 1's probe runs,
+  // then lane 1 fights, then lane 5's.
+  [0, 4].forEach(function (i) {
+    var c = place(G, 'Bane', 'player', i);
+    c.currentHealth = 40; c.maxHealth = 40;
+    c.onLaneCombat = function (g, self, lane) { fired.push('hook' + (lane + 1)); };
+    var e = place(G, 'Bane', 'ai', i);
+    e.currentHealth = 40; e.maxHealth = 40;
+  });
+  // Record lane starts through the same channel as the hooks, so the ordering
+  // is one array rather than two clocks that have to be reconciled.
+  var realResolveLaneCombat = G.resolveLaneCombat;
+  var realUncontested = G.resolveUncontestedLane;
+  G.resolveLaneCombat = function (i) { fired.push('lane' + (i + 1)); return realResolveLaneCombat.apply(G, arguments); };
+  G.resolveUncontestedLane = function (i) { fired.push('lane' + (i + 1)); return realUncontested.apply(G, arguments); };
+  try { G.resolveCombat(); }
+  finally { G.resolveLaneCombat = realResolveLaneCombat; G.resolveUncontestedLane = realUncontested; }
+
+  // Every hook must sit immediately before its own lane, never after it.
+  assertEq(fired.indexOf('hook1') < fired.indexOf('lane1'), true, 'lane 1 hook precedes lane 1');
+  assertEq(fired.indexOf('hook5') < fired.indexOf('lane5'), true, 'lane 5 hook precedes lane 5');
+  // THE POINT: lane 5's hook runs AFTER lane 1 has already fought.
+  assertEq(fired.indexOf('lane1') < fired.indexOf('hook5'), true,
+    'lane 5 hook runs after lane 1 resolved, not up front with it');
+});
+
+test('onLaneCombat actually reaches a card instance', function () {
+  // The instance hook whitelist in createCardInstance is the only way a hook
+  // reaches a card — a hook the list omits is silently dropped and the card
+  // just quietly does nothing. That is exactly what happened when this hook
+  // was introduced.
+  var G = freshGame();
+  var v = G.createCardInstance(cardByName('Voldemort'), 'player');
+  assertEq(typeof v.onLaneCombat, 'function', 'Voldemort carries the hook');
+  assertEq(v.onBeforeCombat, null, 'and no longer uses the phase-wide one');
+  assertEq(cardByName('Voldemort').desc.indexOf('When his lane fights') > -1, true,
+    'the card text says when it happens');
+});
+
+// The jump offer is a pending prompt like any other, and the guest's state is
+// seat-flipped — so its owner has to flip with the rest of them.
+test('A jump offer owner flips for the guest, like every other prompt', function () {
+  var G = freshGame();
+  var st = { lanes: [], player: { hand: [] }, ai: { hand: [] },
+             pendingJumpOffer: { cardId: 7, owner: 'ai' } };
+  G._mpFlipPerspective(st);
+  assertEq(st.pendingJumpOffer.owner, 'player',
+    "the host's 'ai' reads as the guest's own seat");
+  // And it survives a round trip unchanged, which is what makes it a flip
+  // rather than a one-way stamp.
+  G._mpFlipPerspective(st);
+  assertEq(st.pendingJumpOffer.owner, 'ai', 'flipping back restores it');
+
+  // An offer with no owner must not gain one out of thin air.
+  var st2 = { lanes: [], player: { hand: [] }, ai: { hand: [] }, pendingJumpOffer: { cardId: 7 } };
+  G._mpFlipPerspective(st2);
+  assertEq(st2.pendingJumpOffer.owner, undefined, 'an unstamped offer stays unstamped');
 });
 
 // ============================================================
