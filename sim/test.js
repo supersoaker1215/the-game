@@ -3630,6 +3630,108 @@ test('Shuffle deals a startable 2-2, and only the host may call it', function ()
   }
 });
 
+// A temporary "remove all ATK" has to give back WHAT IT TOOK, not restore a
+// photograph taken before it landed. Owner: Magneto 3 base, Adamantium to 5,
+// Gojo zeroes him, Power Stone puts him at 2 — and the restore snapped him back
+// to 5 instead of 7, silently refunding the Power Stone to nobody.
+test('ATK suppression gives back what it took, not a stale snapshot', function () {
+  var G = freshGame();
+  var mag = place(G, 'Magneto', 'player', 2);
+  mag.attack = 3; mag.baseAttack = 3;
+
+  G.buffCard(mag, 2, 0);                                        // Adamantium
+  assertEq(mag.attack, 5, 'buffed to 5');
+  G._suppressAttack(mag, '_gojoAttackZeroed', '_gojoZeroedBy', 999);
+  assertEq(mag.attack, 0, 'nullified');
+  G.buffCard(mag, 2, 0);                                        // Power Stone, while at 0
+  assertEq(mag.attack, 2, 'the buff lands on the zeroed body');
+  G._restoreSuppressedAttack(mag, '_gojoAttackZeroed', '_gojoZeroedBy', 999);
+  assertEq(mag.attack, 7, 'restore ADDS BACK the 5 it took — 2 + 5, not a snap to 5');
+  assertEq(mag._gojoAttackZeroed, undefined, 'and the stamp is cleared');
+});
+
+test('Only the suppressor that took the ATK gives it back', function () {
+  var G = freshGame();
+  var c = place(G, 'Bane', 'player', 0);
+  c.attack = 4;
+  G._suppressAttack(c, '_gojoAttackZeroed', '_gojoZeroedBy', 111);
+  // A DIFFERENT Gojo's end-of-turn must not collect someone else's suppression.
+  assertEq(G._restoreSuppressedAttack(c, '_gojoAttackZeroed', '_gojoZeroedBy', 222), false, 'wrong owner is refused');
+  assertEq(c.attack, 0, 'so the card stays nullified');
+  assertEq(G._restoreSuppressedAttack(c, '_gojoAttackZeroed', '_gojoZeroedBy', 111), true, 'the right one collects');
+  assertEq(c.attack, 4, 'and gets the 4 back');
+  // Double-restore must not pay twice.
+  assertEq(G._restoreSuppressedAttack(c, '_gojoAttackZeroed', '_gojoZeroedBy', 111), false, 'no second payout');
+  assertEq(c.attack, 4, 'attack unchanged');
+});
+
+test('Writing through a suppression still lands the card on that value', function () {
+  var G = freshGame();
+  var c = place(G, 'Bane', 'player', 0);
+  c.attack = 4;
+  G._suppressAttack(c, '_gojoAttackZeroed', '_gojoZeroedBy', 1);
+  G.buffCard(c, 3, 0);                       // live attack is now 3
+  G.setTrueAttack(c, 9);                     // "your real attack is 9"
+  G._restoreSuppressedAttack(c, '_gojoAttackZeroed', '_gojoZeroedBy', 1);
+  assertEq(c.attack, 9, 'the card ends on the value that was written, not 9 + leftovers');
+});
+
+// ---- CARD DOSSIER ------------------------------------------
+test('A card records where it came from and what was done to it', function () {
+  var G = freshGame();
+  G.state.round = 1;
+  var mag = G.createCardInstance(cardByName('Magneto'), 'player');
+  G.addToHand('player', mag);
+  G.state.lanes[0].player = mag; mag.owner = 'player';
+
+  G.state.round = 4;
+  G.state._activeTrickName = 'Adamantium';
+  G.buffCard(mag, 2, 0);
+  G.state._activeTrickName = null;
+
+  G.state.round = 6;
+  G.state._activeTrickName = 'Power Stone';
+  G.debuffCard(mag, 1, 1, false, { name: 'Power Stone' });
+  G.state._activeTrickName = null;
+
+  var h = mag._history || [];
+  assertEq(h.length, 3, 'three entries: the draw and two tricks');
+  assertEq(h[0].r, 1, 'the arrival is stamped with the round it happened');
+  assertEq(h[1].r, 4, 'and so is each trick');
+  assertEq(h[1].t.indexOf('Adamantium') > -1, true, 'the trick is named');
+  assertEq(h[2].t.indexOf('Power Stone') > -1, true, 'both of them');
+  // An untouched card carries no record at all — the back stays clean.
+  var plain = place(G, 'Bane', 'ai', 3);
+  assertEq(plain._history, undefined, 'nothing happened, nothing recorded');
+});
+
+test('The record is credited to the ABILITY when no trick is resolving', function () {
+  var G = freshGame();
+  G.state.round = 3;
+  var hela = place(G, 'Hela', 'player', 0);
+  var pulled = G.createCardInstance(cardByName('Bane'), 'player');
+  // addToHand takes an explicit source — the door Hela / Grundy / a BWL steal
+  // all pass through.
+  G.addToHand('player', pulled, hela);
+  assertEq((pulled._history[0] || {}).t, 'Drawn by Hela', 'named after the card that pulled it');
+  assertEq(pulled._history[0].r, 3, 'on the round it happened');
+});
+
+test('The record does not grow without bound, or repeat itself', function () {
+  var G = freshGame();
+  var c = place(G, 'Bane', 'player', 0);
+  c.attack = 50; c.currentHealth = 50; c.maxHealth = 50;
+  G.state.round = 2;
+  G.state._activeTrickName = 'An Aura';
+  // The same effect reconciling over and over in one round is ONE line.
+  for (var i = 0; i < 5; i++) G.buffCard(c, 1, 1);
+  assertEq(c._history.length, 1, 'repeats in the same round collapse');
+  // And the whole thing is capped, so it can never bloat an MP broadcast.
+  for (var r = 3; r < 40; r++) { G.state.round = r; G.buffCard(c, 1, 1); }
+  G.state._activeTrickName = null;
+  assert(c._history.length <= 10, 'capped at 10 entries, got ' + c._history.length);
+});
+
 // ============================================================
 // ---- RUNNER ------------------------------------------------
 // ============================================================

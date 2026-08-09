@@ -4750,9 +4750,11 @@ const Game = {
       // throws, so a broken trick can't leave the game in trick-mode.
       this.state._inTrick = true;
       this.state._trickOwner = owner;
+      this.state._activeTrickName = trick.name;   // dossier attribution
       try { trick.play(this, owner); } catch (e) { console.error(e); }
       this.state._inTrick = false;
       this.state._trickOwner = null;
+      this.state._activeTrickName = null;
     }
     this.cleanupDead();
     // Check jump conditions — a trick was played
@@ -5194,10 +5196,8 @@ const Game = {
 
     // Restore any attack stats Obi-Wan zeroed for the duration of this combat phase
     this.getAllCardsOnBoard().forEach(c => {
-      if (c._obiWanAttackZeroed !== undefined) {
-        c.attack = c._obiWanAttackZeroed;
-        delete c._obiWanAttackZeroed;
-      }
+      // Gives back what it took — see _restoreSuppressedAttack.
+      this._restoreSuppressedAttack(c, '_obiWanAttackZeroed');
     });
 
     this.getAllCardsOnBoard().forEach(c => {
@@ -6554,9 +6554,11 @@ const Game = {
               }
               this.state._inTrick = true;
               this.state._trickOwner = owner;
+              this.state._activeTrickName = trick.name;
               try { trick.play(this, owner); } catch (e) { console.error(e); }
               this.state._inTrick = false;
               this.state._trickOwner = null;
+              this.state._activeTrickName = null;
             } else {
               this.addToTrickHand(owner, trick);
               this.log(`  [BLOCK TRICK] ${this.seatLabel(owner)} keeps ${trick.name} in hand`);
@@ -6954,6 +6956,11 @@ const Game = {
       try { card._unstripModer(); } catch (e) { console.error('[unstripModer]', e); }
     }
     p.hand.push(card);
+    // DOSSIER: where this card came from. addToHand is the single door every
+    // hand gain passes through — deck draw, Hela's resurrect, Grundy's death
+    // pull, a Batman Who Laughs steal — so one line here credits them all.
+    const via = (source && source.name) || this._actingSourceName();
+    this.noteCardEvent(card, via ? `Drawn by ${via}` : 'Drawn');
     // Card advantage — if a specific source card caused this hand gain
     // (Hela resurrect, Grundy onDeath, Dr. Doom revive, BWL steal, etc.),
     // credit it with +1 advantage. Deck-draws credit via drawCards path.
@@ -7701,6 +7708,40 @@ const Game = {
   // Stack (not single slot) supports nested hooks: Cyborg.onDeath fires
   // during mid-play of whatever killed Cyborg; its summon should credit
   // Cyborg, not the killer.
+  // ===================== CARD DOSSIER =====================
+  // A short, per-instance history printed on the back of the card, Snap-style:
+  // what round it arrived, where it came from, and every trick that has been
+  // played on it since. Owner: "on the back of the card i'd like a tracker of
+  // what tricks were played on that card, what round they were drawn, and where
+  // they were drawn from — like from the dead pile, from Hela, or just on round
+  // 9, or by Harley Quinn."
+  //
+  // Attribution is AMBIENT rather than passed down through forty call sites:
+  // _currentSummonSource already names the card whose hook is running, and
+  // _activeTrickName names the trick resolving right now. One seam each, so a
+  // new card or trick is credited without being taught to.
+  noteCardEvent(card, text) {
+    if (!card || !text || !card._isCardInstance) return;
+    const r = (this.state && this.state.round) || 0;
+    if (!card._history) card._history = [];
+    const last = card._history[card._history.length - 1];
+    // Same thing, same round = one line. Auras and multi-hit tricks reconcile
+    // repeatedly and would otherwise write the same sentence a dozen times.
+    if (last && last.r === r && last.t === text) return;
+    card._history.push({ r: r, t: text });
+    // A dossier is a summary, not a log — and it rides every MP broadcast.
+    if (card._history.length > 10) card._history.shift();
+  },
+
+  // "Who is doing this right now", for attribution. Trick wins over card: a
+  // trick played BY a card on the board is still the trick's doing.
+  _actingSourceName() {
+    const s = this.state;
+    if (s && s._activeTrickName) return s._activeTrickName;
+    const src = this._currentSummonSource && this._currentSummonSource();
+    return (src && src.name) || null;
+  },
+
   _pushSummonSource(card) {
     if (!this._summonSourceStack) this._summonSourceStack = [];
     this._summonSourceStack.push(card || null);
@@ -7844,8 +7885,11 @@ const Game = {
     if (typeof card.attack !== 'number' || !Number.isFinite(card.attack)) card.attack = card.baseAttack || 0;
     if (typeof card.currentHealth !== 'number' || !Number.isFinite(card.currentHealth)) card.currentHealth = card.baseHealth || 1;
     if (typeof card.maxHealth !== 'number' || !Number.isFinite(card.maxHealth)) card.maxHealth = card.baseHealth || 1;
-    if (typeof atk === 'number' && Number.isFinite(atk) && atk) card.attack += atk;
-    if (typeof hp  === 'number' && Number.isFinite(hp)  && hp)  { card.currentHealth += hp; card.maxHealth += hp; }
+    const a = (typeof atk === 'number' && Number.isFinite(atk)) ? atk : 0;
+    const h = (typeof hp  === 'number' && Number.isFinite(hp))  ? hp  : 0;
+    if (a) card.attack += a;
+    if (h) { card.currentHealth += h; card.maxHealth += h; }
+    if (a || h) this._noteEffectOn(card, `+${a}/+${h}`);
     // Splash-tracks-ATK cards (Hulk) keep splashRange live on ANY stat change.
     if (card._splashTracksAtk) card.splashRange = Math.max(0, card.attack | 0);
   },
@@ -8110,6 +8154,46 @@ const Game = {
     return false;
   },
 
+  // ===================== TEMPORARY ATK SUPPRESSION =====================
+  // "Remove all ATK until end of turn" (Gojo's cone, Obi-Wan's stare) has to
+  // GIVE BACK WHAT IT TOOK, not restore a photograph of the card taken before
+  // it landed.
+  //
+  // Both effects used to stamp the old attack and, on expiry, assign it
+  // straight back — so anything that happened to the card in between was
+  // erased. Owner's report: Magneto at 3 base, Adamantium takes him to 5, Gojo
+  // zeroes him, Power Stone puts him at 2 — and when the suppression lifted he
+  // snapped back to 5, the photograph, instead of 7. The Power Stone was
+  // silently refunded to nobody.
+  //
+  // Recording the AMOUNT REMOVED and adding it back makes the effect
+  // composable: whatever else lands while the card is suppressed keeps its
+  // effect, and the suppression returns exactly its own contribution. Two
+  // copies of the broken version existed; there is one correct copy now.
+  _suppressAttack(card, amountKey, byKey, sourceId) {
+    if (!card || card[amountKey] !== undefined) return false;
+    card[amountKey] = card.attack || 0;      // what this effect is taking
+    if (byKey && sourceId != null) card[byKey] = sourceId;
+    card.attack = 0;
+    return true;
+  },
+  _restoreSuppressedAttack(card, amountKey, byKey, sourceId) {
+    if (!card || card[amountKey] === undefined) return false;
+    if (byKey && sourceId != null && card[byKey] !== sourceId) return false;
+    card.attack = Math.max(0, (card.attack || 0) + card[amountKey]);
+    delete card[amountKey];
+    if (byKey) delete card[byKey];
+    return true;
+  },
+
+  // DOSSIER: credit whatever is resolving right now for touching this card.
+  // Hung on the stat doors rather than on each of the sixty tricks, so a trick
+  // that buffs, strips or freezes is recorded without knowing this exists.
+  _noteEffectOn(card, verb) {
+    const via = this._actingSourceName();
+    if (via) this.noteCardEvent(card, `${via} — ${verb}`);
+  },
+
   // General stat debuff: -atk ATK, -hp HP (ATK floors at 0, HP floors at 1).
   // Pass allowKill=true to let the HP drop to 0 and kill the card (used by
   // Magneto's aura so low-HP cards like Rocket can't survive -1/-2).
@@ -8185,6 +8269,7 @@ const Game = {
     // ACTUALLY removed, so a -3 on a 1-ATK card only counts as -1.
     const atkReduced = atk ? Math.min(atk, card.attack || 0) : 0;
     if (atk) card.attack = Math.max(0, card.attack - atk);
+    if (atk || hp) this._noteEffectOn(card, `\u2212${atk || 0}/\u2212${hp || 0}`);
     if (hp) {
       // CANONICAL SHIELD RULE (user, 2026-07-25; amended 2026-08-07): INVINCIBLE
       // shields ALL HEALTH LOSS from a stat strip, but DAMAGE IMMUNITY does NOT.
@@ -9025,6 +9110,7 @@ const Game = {
     // would make the debuff useless since the target already acted).
     const landed = () => {
       applyFn();
+      this._noteEffectOn(target, debuffName);   // dossier
       if (this.state && this.state._combatFinishedThisRound) {
         target._debuffDelayedClear = true;
       } else if (target && target._combatSwungThisRound) {
@@ -10701,9 +10787,17 @@ const Game = {
   // Returns true if the LIVE stat changed, so callers can log accurately.
   setTrueAttack(card, value) {
     if (!card || typeof value !== 'number' || !Number.isFinite(value)) return false;
+    // The stamp records the AMOUNT the suppressor will hand back, not a
+    // photograph of the old attack (see _restoreSuppressedAttack), so writing
+    // through a suppression means "make the card end up at `value` once it
+    // lifts" — i.e. value minus whatever the live stat already holds.
     let suppressed = false;
-    if (card._gojoAttackZeroed   !== undefined) { card._gojoAttackZeroed   = value; suppressed = true; }
-    if (card._obiWanAttackZeroed !== undefined) { card._obiWanAttackZeroed = value; suppressed = true; }
+    if (card._gojoAttackZeroed !== undefined) {
+      card._gojoAttackZeroed = Math.max(0, value - (card.attack || 0)); suppressed = true;
+    }
+    if (card._obiWanAttackZeroed !== undefined) {
+      card._obiWanAttackZeroed = Math.max(0, value - (card.attack || 0)); suppressed = true;
+    }
     if (suppressed) return false;   // the suppressor owns the live stat
     card.attack = value;
     return true;

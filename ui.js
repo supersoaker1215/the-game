@@ -19058,9 +19058,14 @@ const UI = {
     // must reflect the card's current effective state regardless of
     // whether Moder wiped its original kit.
     if (card._moderStripped) el.classList.add('moder-stripped');
+    // THE DOSSIER — printed under the rules text on the card's flip side, so
+    // turning a card over answers "where did this come from and what has been
+    // done to it" without reading back through the battle log. Live instances
+    // only: a codex or draft preview has no history to tell.
+    const dossierHtml = this._cardDossierHTML(card);
     const descHtml = card._moderStripped
-      ? `<div class="card-desc desc-stripped">⛔ Abilities Stripped</div>`
-      : `<div class="card-desc">${this.formatDesc(card.desc)}</div>`;
+      ? `<div class="card-desc desc-stripped">⛔ Abilities Stripped${dossierHtml}</div>`
+      : `<div class="card-desc">${this.formatDesc(card.desc)}${dossierHtml}</div>`;
     // Badge source: live instance badges by default; a caller with a CURATED
     // printed list (roguelite's stripped keywords + Text+/Curse) passes
     // opts.badgesHTML to override — the def-vs-instance badge switch, in one place.
@@ -20093,6 +20098,21 @@ const UI = {
   // Path to the custom card-back artwork. If the file is missing the <img>
   // removes itself and the inline SVG pattern below shows through instead, so
   // the game never renders a broken image.
+  // The card's own record, rendered under its rules text on the flip side.
+  // Newest LAST, the way a log reads. Rounds are printed rather than counted
+  // so "R1 drawn, R4 Adamantium, R6 Gojo" tells the whole story at a glance.
+  _cardDossierHTML(card) {
+    const h = card && card._history;
+    if (!h || !h.length) return '';
+    const esc = (t) => String(t).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    // Only the last few — the card is a card, not a scroll. The engine already
+    // caps the stored history; this caps what a small tile has room to print.
+    const rows = h.slice(-6).map(e =>
+      `<li><span class="dossier-round">R${e.r || '–'}</span><span class="dossier-text">${esc(e.t)}</span></li>`
+    ).join('');
+    return `<div class="card-dossier"><div class="dossier-title">Record</div><ul class="dossier-list">${rows}</ul></div>`;
+  },
+
   CARD_BACK_SRC: 'audio/cards/art/card-back.png?v=1',
 
   makeFaceDownEl() {

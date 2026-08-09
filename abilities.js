@@ -3310,9 +3310,8 @@ const CARD_ABILITIES = {
         // Credit Obi-Wan with prevented damage BEFORE zeroing — phantom
         // swing reads current attack, so it needs the pre-zero value.
         G._simulatePhantomSwing(self, e);
-        e._obiWanAttackZeroed = e.attack;
+        G._suppressAttack(e, '_obiWanAttackZeroed');
         if (typeof UI !== 'undefined' && UI._fxObiOneWithForce) { try { UI._fxObiOneWithForce(self, e); } catch (err) {} }
-        e.attack = 0;
         G.log(`Obi-Wan's final lesson — ${e.name} cannot attack for the rest of this combat phase!`);
       } else if (typeof UI !== 'undefined' && UI._fxObiOneWithForce) {
         try { UI._fxObiOneWithForce(self, null); } catch (err) {}
@@ -3446,9 +3445,7 @@ const CARD_ABILITIES = {
             if (e && e.currentHealth > 0 && e._gojoAttackZeroed === undefined) {
               // Credit prevention BEFORE zeroing (phantom swing uses current atk).
               G._simulatePhantomSwing(self, e);
-              e._gojoAttackZeroed = e.attack;
-              e._gojoZeroedBy = self.id;
-              e.attack = 0;
+              G._suppressAttack(e, '_gojoAttackZeroed', '_gojoZeroedBy', self.id);
               G.log(`Gojo nullifies ${e.name}'s attack in lane ${l + 1}!`);
             }
           }
@@ -3464,11 +3461,9 @@ const CARD_ABILITIES = {
       // Restore attacks zeroed by THIS Gojo instance. After restore, the effect
       // never re-applies — the cone only fires from onPlay.
       G.getAllCardsOnBoard().forEach(c => {
-        if (c._gojoAttackZeroed !== undefined && c._gojoZeroedBy === self.id) {
-          c.attack = c._gojoAttackZeroed;
-          delete c._gojoAttackZeroed;
-          delete c._gojoZeroedBy;
-        }
+        // Gives back what it took, so a buff that landed while the card was
+        // nullified survives the restore — see _restoreSuppressedAttack.
+        G._restoreSuppressedAttack(c, '_gojoAttackZeroed', '_gojoZeroedBy', self.id);
       });
     },
     // Hollow Purple — fires the moment Gojo's OWN lane finishes combat on his
