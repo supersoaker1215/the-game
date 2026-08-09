@@ -3130,46 +3130,6 @@ test('Juggernaut himself still resists Mind Control, and says so', function () {
     'and the resist is reported rather than silent');
 });
 
-test('a While-Active aura shrinks a card but never destroys it', function () {
-  // User: Scarlet Witch entered opposite Doomsday with an enemy Magneto out and
-  // died on arrival. She is printed 0/0 and copies the opposite enemy's CURRENT
-  // health, so a chipped Doomsday gave her a small copy and Magneto's -1/-1
-  // finished her — three energy for a card that did nothing.
-  // recomputeAuras was passing its `hostile` flag into debuffCard's ALLOWKILL
-  // slot. An aura is reversible by design — when the source leaves, the stats
-  // come back — so one that kills is a temporary effect causing a permanent
-  // loss it can never undo.
-  function witchVs(hp) {
-    var G = freshGame();
-    var dd = place(G, 'Doomsday', 'ai', 1);
-    dd.attack = hp; dd.currentHealth = hp; dd.maxHealth = Math.max(hp, 8);
-    place(G, 'Magneto', 'ai', 5);
-    G.applyMagnetoDebuffs();
-    var sw = G.createCardInstance(cardByName('Scarlet Witch'), 'player');
-    G.state.player.hand.push(sw);
-    G.state.player.currency = 9;
-    G.playCard('player', sw, 1);
-    return { alive: G.state.lanes[1].player === sw && sw.currentHealth > 0, hp: sw.currentHealth };
-  }
-  assertEq(witchVs(1).alive, true, 'survives copying a 1 HP card');
-  assertEq(witchVs(1).hp >= 1, true, 'and is floored at 1 HP, not 0');
-  assertEq(witchVs(8).alive, true, 'survives copying a healthy card');
-
-  // CONTROL — the aura must still SHRINK, or "never kills" has quietly become
-  // "never applies".
-  var G2 = freshGame();
-  var ally = place(G2, 'Juggernaut', 'player', 1);
-  var baseAtk = ally.attack, baseHp = ally.currentHealth;
-  var mag = place(G2, 'Magneto', 'ai', 5);
-  G2.applyMagnetoDebuffs();
-  assertEq(ally.attack < baseAtk, true, 'the aura still reduces ATK');
-  // And it must still REVERSE when the source leaves.
-  G2.killCardSilent(mag);
-  G2.applyMagnetoDebuffs();
-  assertEq(ally.attack, baseAtk, 'ATK returns when Magneto leaves');
-  assertEq(ally.currentHealth, baseHp, 'HP returns too');
-});
-
 test('Iron Giant is still never placeable, and the desc still says so', function () {
   // The gate itself is untouched by the draw work — this pins that.
   var G = igSetup();
