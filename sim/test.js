@@ -4417,6 +4417,23 @@ test('The 2v2 draft mulligan is one per player, per phase', function () {
   assertEq(JSON.stringify(d.trickMulliganUsed), '{}', 'the tricks ledger is its own');
 });
 
+test('Superman says what he does without explaining the rulebook', function () {
+  // Owner, 2026-08-09: "do you see how much less text that needs —
+  // overexplaining leads to burnout." The old line spelled out the bonus-attack
+  // RULE ("strike the enemy opposite immediately, or the opponent's HP if that
+  // lane is empty") on a card that merely USES it. The rule belongs to the
+  // mechanic, not to every card that references it.
+  var d = cardByName('Superman');
+  assertEq(d.desc.indexOf('bonus attack') > -1, true, 'it names the mechanic');
+  assertEq(d.desc.indexOf('lane is empty'), -1, 'and stops re-teaching it');
+  assertEq(d.desc.length < 100, true, 'the whole line fits in one breath (' + d.desc.length + ' chars)');
+  // The EFFECTS are untouched — this was a wording pass, not a balance one.
+  assertEq(d.desc.indexOf('Freeze 1') > -1, true, 'still freezes 2 enemies');
+  assertEq(d.desc.indexOf('5 damage') > -1, true, 'still deals 5');
+  assertEq(d.cost, 9, 'same cost');
+  assertEq(d.attack, 8, 'same body');
+});
+
 // ============================================================
 // ---- RUNNER ------------------------------------------------
 // ============================================================

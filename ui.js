@@ -7824,10 +7824,29 @@ const UI = {
     const raf = (typeof window !== 'undefined' && window.requestAnimationFrame)
       ? window.requestAnimationFrame.bind(window)
       : (f) => setTimeout(f, 16);
-    raf(() => raf(() => {
+    // rAF STARVATION FALLBACK. A browser stops serving animation frames to a
+    // tab that is not visible, so on a client whose window is backgrounded the
+    // double-rAF above never runs and the cast silently never animates. That is
+    // most of "the animations are hit and miss, especially if you're not the
+    // host": a relayed signature FX lands on a guest that is not being looked
+    // at, waits for a frame that is not coming, and is gone by the time the tab
+    // is fronted again.
+    //
+    // A timer keeps running when rAF does not, so both are armed and whichever
+    // arrives first wins — `done` makes it exactly once either way. 120ms is
+    // comfortably past the render that paints the card, and short enough that a
+    // hidden tab still resolves rather than hanging on the callback.
+    let done = false;
+    const fire = () => {
+      if (done) return;
       const e2 = this._fxCardElById(sourceCard.id);
-      if (e2) cb(e2);
-    }));
+      if (!e2) return;          // still not painted — let the other path retry
+      done = true;
+      cb(e2);
+    };
+    raf(() => raf(fire));
+    setTimeout(fire, 120);
+    setTimeout(fire, 400);      // last chance on a slow/just-restored client
   },
 
   // Jagged electric arc between two viewport points. `from` null → the

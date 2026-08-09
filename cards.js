@@ -410,7 +410,7 @@ const CARD_DEFS = [
     desc: "When Played: Summon a (2/1) Parademon. Destroy up to 3 contested lanes for 3 rounds, destroying both cards in each. Darkseid's own lane is exempt. While Active: Darkseid splits his ATK among all enemies instead of striking one, and never hits the opponent's HP." },
   { name: "Superman", cost: 9, attack: 8, health: 8, type: "hero",
     abilities: ["Immunity", "Unresistible"],
-    desc: "When Played: Strike the enemy opposite immediately, or the opponent's HP if that lane is empty. Choose 2 enemies to Freeze 1. Deal 5 damage to an enemy." },
+    desc: "When Played: Do a bonus attack. Choose 2 enemies to Freeze 1. Deal 5 damage to an enemy." },
   { name: "Thanos", cost: 9, attack: 6, health: 9, type: "villain",
     abilities: [],
     desc: "Can be played during the Trick Phase. When Played: Devour enemies in 3 random lanes (no duplicates)." },
