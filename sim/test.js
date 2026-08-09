@@ -4289,6 +4289,42 @@ test('The lane tick fires exactly ONCE per lane, so Freeze 2 is not halved', fun
   assertEq(c.isFrozen, false, 'and clear after the second');
 });
 
+// EVERY status, not just Freeze. Owner: "that's the same for mind control,
+// fear etc." They share one tick, but sharing it is not proof — Mind Control in
+// particular takes a DIFFERENT route through the lane dispatcher (it returns
+// early expecting an async resolve), so each one is driven through real combat
+// here rather than argued from the helper they have in common.
+function statusSurvivesCombat(apply, read, contested) {
+  var G = freshGame();
+  var victim = place(G, 'Gamora', 'ai', 2);
+  victim.currentHealth = 30; victim.maxHealth = 30;
+  // A teammate, so a feared / mind-controlled card has something to turn on.
+  var buddy = place(G, 'Bane', 'ai', 4);
+  buddy.currentHealth = 30; buddy.maxHealth = 30;
+  var src = place(G, 'Spider-Man', 'player', 5);
+  if (contested) {
+    var foe = place(G, 'Bane', 'player', 2);
+    foe.attack = 0;                       // the lane fights; nobody dies
+  }
+  apply(G, victim, src);
+  assertEq(read(victim), true, 'armed');
+  G.resolveCombat();
+  return read(victim);
+}
+
+test('Freeze, Stun, Fear and Mind Control ALL clear when the lane fights', function () {
+  var cases = [
+    ['Freeze',       function (G, v, s) { G.freezeCard(v, s, 1); },                function (v) { return !!v.isFrozen; }],
+    ['Stun',         function (G, v, s) { G.stunCard(v, s, 1); },                  function (v) { return !!(v.isStunned || v.isFrozen); }],
+    ['Fear',         function (G, v)    { v.isFeared = true; v.fearedTurns = 1; }, function (v) { return !!v.isFeared; }],
+    ['Mind Control', function (G, v)    { v.isMindControlled = true; },            function (v) { return !!v.isMindControlled; }],
+  ];
+  cases.forEach(function (c) {
+    assertEq(statusSurvivesCombat(c[1], c[2], false), false, c[0] + ' clears in an uncontested lane');
+    assertEq(statusSurvivesCombat(c[1], c[2], true),  false, c[0] + ' clears in a contested lane');
+  });
+});
+
 // ============================================================
 // ---- RUNNER ------------------------------------------------
 // ============================================================
