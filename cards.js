@@ -187,7 +187,7 @@ const CARD_DEFS = [
     copiesOpposite: true,
     desc: "When Played: Copy the ATK and HP of the enemy opposite. If there is no enemy opposite, become (3/4)." },
   { name: "Solomon Grundy", cost: 3, attack: 3, health: 6, type: "villain",
-    abilities: [],
+    abilities: ["Dead Draw 1"],
     desc: "When Destroyed: Draw a random card from the shared Dead Pile to your hand." },
   { name: "Star-Lord", cost: 3, attack: 2, health: 2, type: "hero",
     abilities: ["Taunt 1", "Evade 1"],
@@ -230,7 +230,7 @@ const CARD_DEFS = [
     abilities: [],
     desc: "When Played: Look at the top 2 cards of the draw pile and keep one — its cost drops by 2 permanently. The other goes back on the pile. If the kept card costs ≤ 2, you may play it for free. This replaces your draw this round." },
   { name: "Martian Manhunter", cost: 4, attack: 4, health: 4, type: "hero",
-    abilities: ["Evade 1"],
+    abilities: ["Evade 1", "Dead Draw 1"],
     desc: "When Played: Copy all abilities from a random card in either Dead Pile, then fire its When Played effect." },
   { name: "Optimus Prime", cost: 3, attack: 4, health: 4, type: "hero",
     abilities: ["Armor 1"],
@@ -304,7 +304,7 @@ const CARD_DEFS = [
 
   // ==================== COST 6 ====================
   { name: "Hela", cost: 6, attack: 5, health: 6, type: "villain",
-    abilities: [],
+    abilities: ["Dead Draw 1"],
     desc: "When Played: Summon 2 (3/1) Undead Warriors. Draw a random card from the shared Dead Pile." },
   { name: "Homelander", cost: 4, attack: 4, health: 5, type: "villain",
     abilities: [],
@@ -324,7 +324,7 @@ const CARD_DEFS = [
 
   // ==================== COST 7 ====================
   { name: "Dr. Doom", cost: 7, attack: 5, health: 5, type: "villain",
-    abilities: [],
+    abilities: ["Dead Draw 1"],
     desc: "When Played: Return a card from your Dead Pile (cost ≤ 9) to your hand with its cost permanently reduced by 3. Summon a (5/5) Doombot." },
   { name: "Gojo", cost: 7, attack: 6, health: 6, type: "hero",
     abilities: ["Immunity", "Invincible 1"],
