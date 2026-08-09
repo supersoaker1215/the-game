@@ -1246,8 +1246,12 @@ const Game = {
       case 'blockTrick':return prompt._btOwner || 'player';
       case 'timeStone': return prompt.defender || 'player';
       case 'jump': {
-        // Jump has no owner field — the owner is whichever side's hand holds
-        // the offered card. Matches the render gate's hand-membership infer.
+        // Prefer the owner stamped when the offer was raised. Hand-membership
+        // inference stays as the fallback for offers created before that stamp
+        // existed (or restored from an older snapshot) — but it is only a
+        // fallback now, because its own last resort is 'player', which silently
+        // handed a guest's jump to the host and left the prompt unanswerable.
+        if (prompt.owner === 'player' || prompt.owner === 'ai') return prompt.owner;
         const id = prompt.cardId;
         if ((this.state.player && this.state.player.hand || []).some(c => c.id === id)) return 'player';
         if ((this.state.ai && this.state.ai.hand || []).some(c => c.id === id)) return 'ai';
@@ -2143,6 +2147,18 @@ const Game = {
   // dead transport — cards never land and the AI never moves until reload.
   resetMultiplayer() {
     this.mp = { role: null, you: null, opp: null };
+    // TEAR DOWN THE TRANSPORT, not just the seat flags. Returning to the menu
+    // after a match (goToMainMenu → here) used to leave the live PeerJS peer
+    // and data connection open: the host's fixed signaling id (clb-game-<CODE>)
+    // stayed registered on the cloud and the old data channel + its handlers
+    // lingered. Starting a SECOND match then stacked a new peer on top of a
+    // half-dead one, and connecting silently failed. (User: "after playing a
+    // 1v1 it stopped letting us connect to play another.") Closing both
+    // transports here frees the peer so the next create/join starts clean.
+    // Guarded + try/caught: harmless in solo, and a close error must never
+    // block the return to menu. leave() no-ops when no transport is bound.
+    try { if (typeof Multiplayer  !== 'undefined' && Multiplayer.leave)  Multiplayer.leave();  } catch (e) {}
+    try { if (typeof Multiplayer4 !== 'undefined' && Multiplayer4.leave) Multiplayer4.leave(); } catch (e) {}
   },
   goToMainMenu() {
     this.resetMultiplayer();
@@ -3716,8 +3732,14 @@ const Game = {
       inHand.jumpReady = true;
       this.log(`  [JUMP] Freddy Fazbear senses the opponent's ${this.state[ender].currency} unspent energy — free play available!`);
       if (this.isHuman(owner) && !this.state.pendingJumpOffer) {
-        this.state.pendingJumpOffer = { cardId: inHand.id };
+        // Stamp the owner (see _promptOwnerSeat) — Freddy's jump belongs to the
+        // seat holding him, which here is the NON-ending side, i.e. commonly
+        // the guest. Without the stamp the prompt defaulted to the host.
+        this.state.pendingJumpOffer = { cardId: inHand.id, owner };
         if (typeof UI !== 'undefined') UI.render();
+        if (this.isMultiplayer && this.isMultiplayer() && this.mp && this.mp.role === 'host') {
+          this._mpBroadcast(true);
+        }
       } else if (!this.isHuman(owner)) {
         const open = this.getOpenLanes(owner);
         inHand.jumpReady = false;
@@ -3879,20 +3901,26 @@ const Game = {
     this._checkFreddyFazbear(this.state.firstPlayer);
     // If Phase 3 left any player card jump-ready (Ghostface, Freddy Fazbear,
     // etc.), offer the jump modal before combat.
-    if (this.isHuman('player') && !this.state.pendingJumpOffer) {
+    // BOTH human seats, not just 'player'. In 1v1 online the guest sits in the
+    // 'ai' seat, so scanning only 'player' meant a guest who armed a jump during
+    // the phases was never offered it before combat — their Ghostface / Freddy
+    // simply went quiet. isHuman is false for the AI in solo, so solo behavior
+    // is unchanged (the AI auto-plays its jumps further down).
+    ['player', 'ai'].forEach(seat => {
+      if (!this.isHuman(seat) || this.state.pendingJumpOffer) return;
       // A jump armed EARLIER this round can have gone stale — the player filled
       // the locked lane during their own phase, or it was destroyed. Drop the
       // dead ones rather than re-offering a choice that can only fail.
-      this.state.player.hand.forEach(c => {
-        if (c.jumpReady && !this.canJumpNow('player', c)) {
+      (this.state[seat].hand || []).forEach(c => {
+        if (c.jumpReady && !this.canJumpNow(seat, c)) {
           this.log(`  [JUMP] ${c.name}'s target lane is no longer open — jump expired.`);
           c.jumpReady = false;
           c.jumpLane = undefined;
         }
       });
-      const readyCard = this.state.player.hand.find(c => c.jumpReady);
-      if (readyCard) this.state.pendingJumpOffer = { cardId: readyCard.id };
-    }
+      const readyCard = (this.state[seat].hand || []).find(c => c.jumpReady);
+      if (readyCard) this.state.pendingJumpOffer = { cardId: readyCard.id, owner: seat };
+    });
     this.state.phase = 'combat';
     this.state.activePlayer = null;
     UI.render();
@@ -11068,22 +11096,43 @@ const Game = {
         // Shim sets __HEADLESS_SIM; browser leaves it undefined.
         const inBrowser = typeof __HEADLESS_SIM === 'undefined';
         if (inBrowser) {
-          this.state.pendingJumpOffer = { cardId: playerJumpNowReady.id };
+          // Stamp the OWNER on the offer. _promptOwnerSeat could only infer it
+          // from hand membership, and its fallback is 'player' — so the instant
+          // the offered card is not found in a hand (it moved, or the guest's
+          // copy lagged), the prompt was handed to the host regardless of whose
+          // jump it actually was, and the real owner could never answer it.
+          this.state.pendingJumpOffer = { cardId: playerJumpNowReady.id, owner };
           if (typeof UI !== 'undefined' && UI.render) UI.render();
+          // THE FREEZE. checkJumpConditions is not one of the wrapBroadcast
+          // methods, so a jump offer raised HERE — mid-combat, which is exactly
+          // when Jason triggers ("when an ally is destroyed") — never reached
+          // the guest. The host then parked its combat timeline in
+          // whenPromptCleared waiting for a choice that the guest was never
+          // shown and could not make: both clients sat there forever. Push the
+          // state immediately so the owner actually sees the modal.
+          // (User: "every time Jason Voorhees jumps out in 1v1 multiplayer the
+          // game freezes.")
+          if (this.isMultiplayer && this.isMultiplayer() && this.mp && this.mp.role === 'host') {
+            this._mpBroadcast(true);   // immediate — combat is already parked
+          }
         } else if (this.state._inCombat) {
           // Headless sim: no UI to resolve the modal → combat would stall
           // forever in whenPromptCleared. Auto-play the jump into the first
           // open lane (or clear the flag if no valid target).
+          // Uses the jump's real OWNER, not a hardcoded 'player' — an 'ai'-side
+          // jump was being auto-played onto the player's board and tested
+          // against the player's lanes.
           const card = playerJumpNowReady;
+          const jOwner = card.owner || owner || 'player';
           const tgt = card.jumpLane !== undefined
             ? card.jumpLane
-            : (this.getOpenLanes('player')[0] !== undefined ? this.getOpenLanes('player')[0] : -1);
+            : (this.getOpenLanes(jOwner)[0] !== undefined ? this.getOpenLanes(jOwner)[0] : -1);
           const validLane = tgt >= 0 && tgt < this.LANE_COUNT
-            && !this.state.lanes[tgt].player
+            && !this.state.lanes[tgt][jOwner]
             && !this.state.lanes[tgt].destroyed;
           card.jumpReady = false;
           card.jumpLane = undefined;
-          if (validLane) this.playCardFree('player', card, tgt);
+          if (validLane) this.playCardFree(jOwner, card, tgt);
         }
       }
       // AI-controlled seats auto-play jump-ready cards immediately (humans
