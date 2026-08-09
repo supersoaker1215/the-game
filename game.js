@@ -844,10 +844,17 @@ const Game = {
     const tt = this.state.twoVTwo;
     if (!tt) return false;
     const you = tt.you;
-    if (this._2v2ActivePlayer && this._2v2ActivePlayer() !== you) return false; // not your sub-turn
     const isHost = (you === 'p1');
     const ap = tt.players[you];
     if (!ap) return false;
+    // JUMP IS NOT TURN-GATED — deliberately checked BEFORE the sub-turn gate
+    // below. A jump is a free deploy the moment its condition is met, and the
+    // horror cards exist precisely to land DURING combat (Jason answering an
+    // ally's death, Ghostface on a kill). 1v1's playJumpCard has no turn check
+    // either. Gating it on your own sub-turn would keep the card dead for most
+    // of the round; `card.jumpReady` is the real authority and is checked here.
+    if (type === 'playJump') return this._submit2v2Jump(you, isHost, ap, p);
+    if (this._2v2ActivePlayer && this._2v2ActivePlayer() !== you) return false; // not your sub-turn
     if (type === 'playCard') {
       const wantId = p.card ? p.card.id : p.cardId;
       const idx = (ap.hand || []).findIndex(c => c.id === wantId);
@@ -872,7 +879,30 @@ const Game = {
       }
       return true;
     }
-    return false; // playJump / playCardFree not routed for 2v2 yet
+    return false; // playCardFree not routed for 2v2 yet
+  },
+
+  // JUMP CARDS WERE DEAD IN 2v2 ONLINE. The horror cards (Jason, Michael Myers,
+  // Ghostface) glow in hand when their condition is met and the UI submits
+  // {type:'playJump'}, but _submitCommand2v2 used to `return false` for that
+  // type — so the click did nothing at all and a jump could never be deployed
+  // in a 2v2 room. A jump costs no energy and does not end a sub-turn, so it
+  // needs only the acting player's own hand plus the usual side bridge.
+  _submit2v2Jump(you, isHost, ap, p) {
+    const wantId = p.card ? p.card.id : p.cardId;
+    const card = (ap.hand || []).find(c => c.id === wantId);
+    if (!card || !card.jumpReady) return false;
+    const side = this._2v2TeamSide[ap.team];
+    if (isHost) {
+      this._2v2CurrentActingPlayer = you;
+      this._2v2WithSideBridge(() => this.playJumpCard(side, card));
+      this._2v2StampPendingActor();
+      if (!this.state.pendingLaneChoice && !this.state.pendingCardChoice) this._2v2CurrentActingPlayer = null;
+      this._2v2OnlineBroadcast();
+    } else if (typeof Multiplayer4 !== 'undefined') {
+      Multiplayer4.send({ t: 'play2v2Jump', playerKey: you, cardId: wantId });
+    }
+    return true;
   },
 
   // Resolve the card/trick instance a command refers to, from the actor's own
@@ -12758,6 +12788,20 @@ const Game = {
         this._2v2CurrentActingPlayer = pk;
         this._2v2OnlinePlayTrick(pk, msg.trickIdx);
         break;
+      case 'play2v2Jump': {
+        // NOT gated on activeKey — a jump is a free deploy the moment its
+        // condition is met, and the horror cards are built to land DURING
+        // combat, i.e. outside the sender's own sub-phase. card.jumpReady is
+        // the real authority and is re-checked host-side here, so a client
+        // cannot fake a jump with a card that isn't actually ready.
+        const jap = this.state.twoVTwo && this.state.twoVTwo.players[pk];
+        const jcard = jap && (jap.hand || []).find(c => c.id === msg.cardId);
+        if (!jcard || !jcard.jumpReady) break;
+        this._2v2CurrentActingPlayer = pk;
+        this._2v2WithSideBridge(() => this.playJumpCard(this._2v2TeamSide[jap.team], jcard));
+        this._2v2StampPendingActor();
+        break;
+      }
       case 'end2v2Phase':
         if (pk !== activeKey) break;
         this.end2v2Phase();
