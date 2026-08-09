@@ -1693,6 +1693,10 @@ const UI = {
       'Darth Maul':       { hover: { src: 'audio/cards/darth-maul-hover.mp3?v=2', maxDur: 126 } },
       'Padme Amidala':    { hover: { src: 'audio/cards/padme-amidala-hover.mp3', maxDur: 106 } },
       'General Grievous': { hover: { src: 'audio/cards/general-grievous-hover.mp3?v=3', maxDur: 50 }, kill: { src: 'audio/cards/general-grievous-kill.mp3', maxDur: 3 } },
+      // maxDur 3 — the house cap for a play sting (hover beds run long, casts
+      // do not). If the source runs longer it is trimmed at playback rather
+      // than talking over the turn that follows it.
+      'Voldemort':        { play: { src: 'audio/cards/voldemort-play.mp3', maxDur: 3 } },
       // Obi-Wan hover: 86s of John Williams' "The Immolation Scene" (0:00 →
       // 1:26 of the source) — the Mustafar-duel elegy. 0.6s fade-in / 2s
       // fade-out baked; maxDur 86 = full clip. ?v=2 busts the old cached file.
