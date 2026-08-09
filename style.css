@@ -35247,6 +35247,11 @@ body.low-fx .legendary-arrival { animation: none !important; }
   text-shadow: 0 0 10px rgba(var(--theme-rgb, 79, 195, 247), 0.9);
 }
 .taunt-empty { padding: 8px 10px; color: #8aa6bf; font-size: 12px; white-space: nowrap; }
+/* Corner preview toggle steps aside while an emote/taunt bubble or picker is
+   up — it is fixed at the same top-left corner as the AI avatar's bubble, in a
+   HIGHER stacking context, so it painted straight over the opponent's emote.
+   Toggled by UI._syncCornerToggle. */
+body.clb-emote-open .viewport-toggle { display: none !important; }
 /* Taunt bubble carries a character NAME, not a big emoji — smaller type. */
 .emote-bubble.taunt-bubble { font-size: 13px; letter-spacing: 0.3px; }
 

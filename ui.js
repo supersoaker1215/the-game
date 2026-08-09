@@ -3543,7 +3543,14 @@ const UI = {
       // you keep the tactile feedback and lose the information leak — and the
       // rest of the game stays at full volume. play/death/kill/spawn are NOT
       // gated: by then the card is face-up on the board and already public.
-      if (event === 'hover' && UI.settings && UI.settings.handAudioPrivacy) return null;
+      // A TAUNT is not a hand leak. The privacy setting exists so browsing your
+      // own hand doesn't announce what you hold — but a taunt is a deliberate
+      // broadcast of a character's theme to the opponent, so it must play even
+      // with privacy on. `cardOrCost === 'taunt'` is the opt-out flag passed by
+      // UI._playTauntSound. (User: "the taunt system for play sounds doesn't
+      // work either" — with hand-audio privacy on every taunt returned null.)
+      const _isTaunt = cardOrCost === 'taunt';
+      if (event === 'hover' && !_isTaunt && UI.settings && UI.settings.handAudioPrivacy) return null;
       // FACE-DOWN PRIVACY — a card played face-down (Invisible Woman's cloak, a
       // hidden Deadpool steal, etc.) is NOT public: only a card BACK shows on
       // the board. But its identifying play/spawn theme would announce exactly
@@ -4098,6 +4105,7 @@ const UI = {
     this._deckbuilderOverlay   = document.getElementById('deckbuilder-overlay');
     this._gameAreaEl           = document.getElementById('game-area');
     this.installKeywordTooltips();
+    this.installFxBridge();
     this.installKeyboardShortcuts();
     this.installMobileCardDrag();
     this.installHandCardFlip();
@@ -5381,6 +5389,93 @@ const UI = {
   },
 
   // ===================== KEYWORD TOOLTIPS =====================
+  // ===================== MP FX BRIDGE (guest replay) =====================
+  // THE PROBLEM. Signature animations are invoked DIRECTLY from abilities.js /
+  // game.js (`UI._fxSaberThrow(self, t)` and ~117 more). Those call sites run
+  // inside the engine, and in multiplayer the engine only runs on the HOST —
+  // the guest just receives serialized state (acceptMultiplayerState replaces
+  // this.state; it never executes an onPlay). So every per-card signature FX
+  // fired for the host and NOTHING fired for the guest. Only the handful of
+  // effects already routed through the emitFX event stream (titan/legendary
+  // entrances, damage floats, env reveals) reached both sides.
+  //
+  // THE FIX, WITHOUT TOUCHING 118 CALL SITES. Wrap each `_fx*` entry point once
+  // at boot. The wrapper runs the real function locally (host + solo behave
+  // exactly as before) and, on the host, also emits a `sig` FX event carrying
+  // the function name and its arguments. `sig` events ride the normal state
+  // broadcast, and the GUEST replays them in showDamageFloats — so the guest
+  // sees the same animation the host just played.
+  //
+  // RE-ENTRANCY. Many FX compose others (_fxSaberSlash calls _fxSlashEl and
+  // _fxDrawBeam). Only the OUTERMOST call emits — replaying it on the guest
+  // reproduces the whole nested effect, and without the depth guard every
+  // primitive would emit its own redundant event.
+  //
+  // ARGUMENTS. Card objects cross the wire as {__c:id} and are resolved back
+  // through Game.findCard on the guest. A DOM element can't be serialized, so
+  // any call taking one is simply not emitted (those are internal primitives,
+  // never the entry points abilities use). Seat strings are flipped for the
+  // guest in _mpFlipPerspective, next to the existing ev.owner flip.
+  _sigFxDepth: 0,
+  installFxBridge() {
+    if (this._fxBridgeInstalled) return;
+    this._fxBridgeInstalled = true;
+    const self = this;
+    const serialize = (a) => {
+      if (a == null) return a;
+      const t = typeof a;
+      if (t === 'string' || t === 'number' || t === 'boolean') return a;
+      if (Array.isArray(a)) {
+        const out = [];
+        for (const v of a) { const s = serialize(v); if (s === undefined) return undefined; out.push(s); }
+        return out;
+      }
+      if (t === 'object') {
+        if (a.nodeType) return undefined;                 // DOM node — can't cross the wire
+        if (a.id != null && a._isCardInstance) return { __c: a.id };
+        if (a.id != null && a.name) return { __c: a.id };  // card-shaped (summon tokens)
+        // A plain options bag ({color:'#fff'}) is safe to send as-is.
+        try { return JSON.parse(JSON.stringify(a)); } catch (e) { return undefined; }
+      }
+      return undefined;                                    // functions etc.
+    };
+    Object.keys(this).forEach((key) => {
+      if (key.indexOf('_fx') !== 0) return;
+      const fn = this[key];
+      if (typeof fn !== 'function') return;
+      this[key] = function (...args) {
+        const top = self._sigFxDepth === 0;
+        // Host-only emit, outermost call only, and never from a preview sim.
+        if (top && typeof Game !== 'undefined' && Game.isMultiplayer && Game.isMultiplayer()
+            && Game.mp && Game.mp.role === 'host' && Game.state && !Game.state._silentSim) {
+          const payload = [];
+          let ok = true;
+          for (const a of args) { const s = serialize(a); if (s === undefined) { ok = false; break; } payload.push(s); }
+          if (ok) { try { Game.emitFX('sig', { fn: key, args: payload }); } catch (e) {} }
+        }
+        self._sigFxDepth++;
+        try { return fn.apply(self, args); }
+        finally { self._sigFxDepth--; }
+      };
+    });
+  },
+  // Guest side: turn a `sig` event back into a real animation call.
+  _replaySigFx(ev) {
+    if (!ev || !ev.fn) return;
+    const fn = this[ev.fn];
+    if (typeof fn !== 'function') return;
+    const revive = (a) => {
+      if (a == null || typeof a !== 'object') return a;
+      if (Array.isArray(a)) return a.map(revive);
+      if (a.__c != null) return (Game.findCard ? Game.findCard(a.__c) : null);
+      return a;
+    };
+    const args = (ev.args || []).map(revive);
+    // A card that already left the board resolves to null — the FX functions
+    // all guard their inputs, so a stale reference is a no-op, not a throw.
+    try { fn.apply(this, args); } catch (e) {}
+  },
+
   installKeywordTooltips() {
     if (!this.tooltipEl) return;
     // NOTE: this used to `return` here on any coarse pointer, which killed the
@@ -10038,6 +10133,13 @@ const UI = {
     for (const ev of events) {
       // ---- FX-stream board events (System 3/3) — engine-emitted, replayed
       // on every client including the MP guest (they ride state broadcasts).
+      // Signature FX relayed from the host (see installFxBridge). ONLY the
+      // guest replays these — the host already ran the animation live when its
+      // engine called the function, so replaying would double-fire it.
+      if (ev.type === 'sig') {
+        if (Game.mp && Game.mp.role === 'guest') this._replaySigFx(ev);
+        continue;
+      }
       if (ev.type === 'titan') {
         const tEl = this.board && this.board.querySelector(`.card-slot .card[data-card-id="${ev.cardId}"]`);
         if (tEl) this.fxTitanEntrance(tEl, ev.owner, ev.cardId, ev.name);
@@ -19434,10 +19536,13 @@ const UI = {
   toggleEmotePicker() {
     const pick = document.getElementById('emote-picker');
     if (!pick) return;
-    if (pick.style.display !== 'none') { pick.style.display = 'none'; return; }
+    if (pick.style.display !== 'none') { pick.style.display = 'none'; this._syncCornerToggle(); return; }
+    // Close the taunt picker so only one popup is open at a time.
+    const tp = document.getElementById('taunt-picker'); if (tp) tp.style.display = 'none';
     pick.innerHTML = this.EMOTES.map((e, i) =>
       `<button type="button" class="emote-opt" onclick="UI.sendEmote(${i})">${e}</button>`).join('');
     pick.style.display = 'flex';
+    this._syncCornerToggle();
   },
   sendEmote(i) {
     const pick = document.getElementById('emote-picker');
@@ -19456,7 +19561,23 @@ const UI = {
     b.className = 'emote-bubble';
     b.textContent = this.EMOTES[i] || this.EMOTES[0];
     host.appendChild(b);
-    setTimeout(() => b.remove(), 2400);
+    this._syncCornerToggle();
+    setTimeout(() => { b.remove(); this._syncCornerToggle(); }, 2400);
+  },
+
+  // The mobile/web preview toggle is `position:fixed` at the top-left corner
+  // with z-index 600, and the AI avatar's emote bubble sits in that same
+  // corner inside a LOWER stacking context — so the toggle painted over every
+  // emote the opponent sent (user: "when you emote the mobile symbol covers
+  // the emote"). Raising the bubble's z-index can't win across stacking
+  // contexts, so instead the corner toggle steps aside for as long as any
+  // bubble or picker is on screen. It's a dev affordance; the emote is the
+  // thing the player actually wants to see.
+  _syncCornerToggle() {
+    const open = !!(document.querySelector('.emote-bubble')
+      || (document.getElementById('emote-picker') || {}).style && document.getElementById('emote-picker').style.display === 'flex'
+      || (document.getElementById('taunt-picker') || {}).style && document.getElementById('taunt-picker').style.display === 'flex');
+    document.body.classList.toggle('clb-emote-open', !!open);
   },
 
   // ===================== MP TAUNTS =====================
@@ -19489,7 +19610,7 @@ const UI = {
     if (!pick) return;
     // Close the emote picker if it's open, so only one popup shows at a time.
     const ep = document.getElementById('emote-picker'); if (ep) ep.style.display = 'none';
-    if (pick.style.display !== 'none') { pick.style.display = 'none'; return; }
+    if (pick.style.display !== 'none') { pick.style.display = 'none'; this._syncCornerToggle(); return; }
     const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
     const names = this._matchTauntNames();
     if (!names.length) {
@@ -19500,10 +19621,12 @@ const UI = {
       ).join('');
     }
     pick.style.display = 'flex';
+    this._syncCornerToggle();
   },
   sendTaunt(name) {
     const pick = document.getElementById('taunt-picker');
     if (pick) pick.style.display = 'none';
+    this._syncCornerToggle();
     if (!name) return;
     if (this._tauntCooldownUntil && Date.now() < this._tauntCooldownUntil) return;
     this._tauntCooldownUntil = Date.now() + 3500;
@@ -19520,7 +19643,9 @@ const UI = {
   _playTauntSound(name) {
     if (!name || !this.sfx) return;
     try {
-      const played = this.sfx.playCardSfx ? this.sfx.playCardSfx(name, 'hover') : null;
+      // 'taunt' flag → playCardSfx bypasses the hand-audio-privacy gate, which
+      // otherwise nulls every hover cue and left taunts silent.
+      const played = this.sfx.playCardSfx ? this.sfx.playCardSfx(name, 'hover', 'taunt') : null;
       if (!played && typeof this.sfx.play === 'function') this.sfx.play('cardHover');
     } catch (e) {}
   },
@@ -19533,7 +19658,8 @@ const UI = {
     b.className = 'emote-bubble taunt-bubble';
     b.textContent = '🔊 ' + String(name);
     host.appendChild(b);
-    setTimeout(() => b.remove(), 2400);
+    this._syncCornerToggle();
+    setTimeout(() => { b.remove(); this._syncCornerToggle(); }, 2400);
   },
 
   // ===================== ENVIRONMENT REVEAL =====================

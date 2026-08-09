@@ -1716,6 +1716,15 @@ const Game = {
       state._fx.events.forEach(ev => {
         if (ev.owner === 'player') ev.owner = 'ai';
         else if (ev.owner === 'ai') ev.owner = 'player';
+        // Relayed signature-FX args (UI.installFxBridge) carry seat strings of
+        // their own — e.g. _fxHandHaze('player') or _fxCelestialSurge('player')
+        // mean the HOST's hand. Flip them too, or the guest would haze its own
+        // hand when the opponent's was the one affected. Card refs travel as
+        // {__c:id} and need no flip; ids are seat-independent.
+        if (ev.type === 'sig' && Array.isArray(ev.args)) {
+          ev.args = ev.args.map(a =>
+            a === 'player' ? 'ai' : (a === 'ai' ? 'player' : a));
+        }
       });
     }
     // Top-level turn/winner labels follow the swap.
