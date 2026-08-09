@@ -3468,11 +3468,17 @@ const CARD_ABILITIES = {
       // the OPPONENT'S hand (skips your own). Default false (classic
       // hits both); Text+ true makes the play purely punitive.
       const enemyOnly = !!self._gorrEnemyOnly;
-      const sides = enemyOnly ? [G.opponent(self.owner)] : ['player', 'ai'];
       const killed = { player: null, ai: null };
       if (typeof UI !== 'undefined' && UI._fxNecrosword) { try { UI._fxNecrosword(self); } catch (e) {} }
-      sides.forEach(p => {
-        const hand = G.state[p].hand;
+      // 2v2: the side proxy only ever holds the ACTIVE player's hand, so
+      // reading G.state[opponentSide].hand devoured from a stale/foreign list
+      // (usually empty) instead of a real opponent. withChosenOpponent aliases
+      // one chosen enemy PLAYER's hand onto that proxy for the duration, which
+      // is how every other hand-reaching card (Mace Windu, Freddy, Deadpool,
+      // The Grinch, Lasso of Truth) already stays correct in 2v2. In 1v1 it
+      // resolves instantly to the only opponent, so behavior there is unchanged.
+      const devourFrom = (p) => {
+        const hand = (G.state[p] && G.state[p].hand) || [];
         if (!hand.length) return;
         // Find the highest-cost card without permanently re-sorting the hand.
         let idx = 0;
@@ -3489,7 +3495,13 @@ const CARD_ABILITIES = {
         if (p !== self.owner) {
           G._creditChain(self, 'statsCardAdvantage', 1);
         }
-      });
+      };
+      // Your own hand is the ACTIVE player's, already aliased on your side —
+      // safe to read directly. The enemy hand goes through the 2v2 bridge.
+      if (!enemyOnly) devourFrom(self.owner);
+      G.withChosenOpponent(self.owner, 'Gorr — whose hand?', (opp) => {
+        devourFrom(opp);
+      }, { autoPick: true });
       // Stash a banner payload for the UI so the player sees exactly which cards
       // died. STRUCTURED PER SEAT, not a baked sentence: the wording is built on
       // each client at render time from Game.seatLabel, so (a) an online match

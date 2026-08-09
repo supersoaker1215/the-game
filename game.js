@@ -12186,6 +12186,24 @@ const Game = {
     s[side].blockMeter = tt.teams[ap.team].blockMeter;
     // Dead pile is shared per team
     s[side].deadPile  = tt.teams[ap.team].deadPile;
+    // ---- THE OPPOSING SIDE TOO ----
+    // Only the ACTIVE player's side used to be synced, which is fine for the
+    // reference types (hand / deadPile are assigned by reference, so any
+    // mutation writes straight through to the player/team object). It is NOT
+    // fine for the PRIMITIVES: an on-play effect that changes the ENEMY team's
+    // health or block meter during a card/trick phase wrote to a stale number
+    // on s[opp] that nothing ever read back, so the change was silently
+    // discarded. Trigon's Block-Meter steal and any on-play hit to the enemy
+    // hero are the visible cases. Combat already syncs both teams
+    // (_2v2ResolveCombat); the card/trick phases now do the same.
+    const foeTeam = ap.team === 'A' ? 'B' : 'A';
+    const foeSide = this._2v2TeamSide[foeTeam];
+    if (s[foeSide] && tt.teams[foeTeam]) {
+      s[foeSide].health    = tt.teams[foeTeam].health;
+      s[foeSide].maxHealth = tt.teams[foeTeam].maxHealth;
+      s[foeSide].blockMeter = tt.teams[foeTeam].blockMeter;
+      s[foeSide].deadPile  = tt.teams[foeTeam].deadPile;
+    }
   },
 
   _2v2ReadBackActivePlayer() {
@@ -12204,6 +12222,17 @@ const Game = {
     tt.teams[ap.team].health    = s[side].health;
     tt.teams[ap.team].blockMeter = s[side].blockMeter;
     tt.teams[ap.team].deadPile  = s[side].deadPile;
+    // ...and the OPPOSING team's primitives, for the same reason the sync
+    // above now covers both sides: an on-play effect that damaged the enemy
+    // hero or stole their Block Meter mutated s[foeSide] and nothing carried
+    // it home, so the effect vanished the moment the sub-phase ended.
+    const foeTeam = ap.team === 'A' ? 'B' : 'A';
+    const foeSide = this._2v2TeamSide[foeTeam];
+    if (s[foeSide] && tt.teams[foeTeam]) {
+      tt.teams[foeTeam].health    = s[foeSide].health;
+      tt.teams[foeTeam].blockMeter = s[foeSide].blockMeter;
+      tt.teams[foeTeam].deadPile  = s[foeSide].deadPile;
+    }
   },
 
   end2v2Phase() {
