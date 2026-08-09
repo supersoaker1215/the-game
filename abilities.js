@@ -357,12 +357,36 @@ const CARD_ABILITIES = {
     // himself and rode every other one for free.
     // Fires on ENEMY-caused moves too, deliberately: shoving him around is the
     // thing he feeds on.
+    // ...but only for GROUND HE HAS NOT COVERED. He starts 0/1 and keeps a
+    // tally of every lane he has stood in (the "counter on the back of his
+    // card"); reaching a NEW lane is worth +1/+1, and being shuttled back to
+    // somewhere he has already been is worth nothing. Without the tally he was
+    // a 1-cost infinite engine: bounce him 1→2→1→2 forever and he outgrows
+    // anything in the game. Six lanes is therefore his hard ceiling — 5/6 if he
+    // walks the whole board.
+    // The lane he was PLAYED into counts as visited (seeded in onPlay), so the
+    // very first flutter is his first buff, not his second.
+    _mothVisited(self) {
+      if (!Array.isArray(self._mothLanes)) self._mothLanes = [];
+      return self._mothLanes;
+    },
+    onPlay(G, self, lane) {
+      // Seed the tally with his landing lane — he has "been" there now.
+      CARD_ABILITIES['Killer Moth']._mothVisited(self);
+      if (self._mothLanes.indexOf(lane) === -1) self._mothLanes.push(lane);
+    },
     // Permanent self-buff (self-buffs never expire — see CLAUDE.md).
     onMoved(G, self, to) {
+      const seen = CARD_ABILITIES['Killer Moth']._mothVisited(self);
+      if (seen.indexOf(to) > -1) {
+        G.log(`[KILLER MOTH] Back over lane ${to + 1} — already flown, no growth.`);
+        return;
+      }
+      seen.push(to);
       self.attack = (self.attack || 0) + 1;
       self.maxHealth = (self.maxHealth || 0) + 1;
       self.currentHealth = (self.currentHealth || 0) + 1;
-      G.log(`[KILLER MOTH] Carried to lane ${to + 1} and grows to ${self.attack}/${self.currentHealth}.`);
+      G.log(`[KILLER MOTH] New ground in lane ${to + 1} — grows to ${self.attack}/${self.currentHealth} (${seen.length}/${G.LANE_COUNT} lanes flown).`);
     },
     onBeforeTricks(G, self, lane) {
       // Stun / freeze grounds him — no flutter and no growth this round.
@@ -4506,7 +4530,12 @@ const CARD_ABILITIES = {
             // Dust the card away before it's removed, so the clone captures
             // the live portrait (killCard sweeps the element on next render).
             if (typeof UI !== 'undefined' && UI._fxThanosDust) { try { UI._fxThanosDust(e); } catch (err) {} }
-            G.killCard(e, self); killed++; G.log(`Thanos snaps lane ${r + 1}: ${e.name} destroyed!`);
+            // DEVOUR, not destroy (user, 2026-08-08): the snap erases you from
+            // existence — void pile, no dead pile, no When Destroyed trigger,
+            // no revive. devourCard is the canonical door for that, so the
+            // snap inherits every rule devour already has (Invincible refuses
+            // it, Damage Immunity does not, kill credit still lands).
+            G.devourCard(e, self); killed++; G.log(`Thanos snaps lane ${r + 1}: ${e.name} erased from existence!`);
           }
         }
       }

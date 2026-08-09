@@ -4119,8 +4119,11 @@ const Game = {
         this.state.lanes[from][opp] = null;
         this.state.lanes[laneIdx][opp] = c;
         this.log(`[HUNT] ${c.name} hunts ${card.name} to lane ${laneIdx + 1}!`);
-        this.checkLaneTrap(c, laneIdx);
+        // ENTRANCE-THEN-TRAP (see checkLaneTrap) — the hunter finishes arriving
+        // before the trap snaps, so a hunter that grows on arrival is bitten at
+        // its real size.
         if (c.onMoved) c.onMoved(this, c, laneIdx);
+        this._trapOnSettle(c, laneIdx);
       }
     });
   },
@@ -4323,7 +4326,6 @@ const Game = {
     }
 
     this.log(`[PLAY] ${who} play ${card.name} (${card.attack}/${card.currentHealth}) in lane ${laneIdx + 1} for ${cost} energy`);
-    this.checkLaneTrap(card, laneIdx);
 
     // Lone wolf: +1/+1 when played with no other allies on the board (environments don't count)
     const otherAllies = this.getAllCardsOf(owner).filter(c => c.id !== card.id && c.currentHealth > 0 && !c.isEnvironment);
@@ -4366,6 +4368,9 @@ const Game = {
     this._resolveFreezeOnPlay(card);
     this._resolveMindControlOnPlay(card);
     this._resolveMarkOnPlay(card);
+    // ENTRANCE-THEN-TRAP (see checkLaneTrap) — the whole entrance package
+    // resolves first, THEN the lane's trap snaps on the finished card.
+    this._trapOnSettle(card, laneIdx);
     this.cleanupDead();
     // Apply Magneto debuffs to newly placed cards
     this.applyMagnetoDebuffs();
@@ -4462,7 +4467,6 @@ const Game = {
     }
     if (card.statsEnteredRound == null) card.statsEnteredRound = this.state.round || 1;
     this.log(`[FREE PLAY] ${card.name} in lane ${laneIdx + 1}`);
-    this.checkLaneTrap(card, laneIdx);
 
     // Trigger "While Active" buffs from allies (e.g. Black Panther +1/+1)
     this.broadcastHook('onAnyCardPlayed', card, [card]);
@@ -4492,6 +4496,8 @@ const Game = {
     this._resolveFreezeOnPlay(card);
     this._resolveMindControlOnPlay(card);
     this._resolveMarkOnPlay(card);
+    // ENTRANCE-THEN-TRAP (see checkLaneTrap) — same order as playCard.
+    this._trapOnSettle(card, laneIdx);
     this.cleanupDead();
     this._scaleDoomsdayOnOwnerPlay(owner);
   },
@@ -9823,8 +9829,11 @@ const Game = {
     this.state.lanes[from][card.owner] = null;
     this.state.lanes[to][card.owner] = card;
     this.log(`  [MOVE] ${card.name} moves from lane ${from + 1} to lane ${to + 1}`);
-    this.checkLaneTrap(card, to);
+    // ENTRANCE-THEN-TRAP (see checkLaneTrap) — onMoved first, trap second.
+    // Killer Moth arrives at 0/1 and grows on arrival; trapping him mid-step
+    // killed him before the growth he moved for ever landed.
     if (card.onMoved) card.onMoved(this, card, to);
+    this._trapOnSettle(card, to);
     // Magneto's parity aura is positional — reconcile after EVERY move, not
     // just the ones Magneto's own On Play makes. Without this, a card that
     // changed lane parity via Man-Bat's flight / Gojo / Bifrost / a hunt
@@ -9842,6 +9851,31 @@ const Game = {
   // Reverse Bear Trap (placed by Jigsaw): when an enemy of the trap-placer enters
   // the lane, the card immediately loses -1/-1 and the trap is consumed.
   // Call this after placing a card into a lane via any mechanism.
+  // ============ ENTRANCE-THEN-TRAP (canonical order, user 2026-08-08) ============
+  // A lane trap punishes THE CARD THAT ARRIVED — and the card that arrived is
+  // the card AFTER its entrance resolves, not the half-built thing that was
+  // sitting in the slot for one instruction.
+  //
+  // Every entrance used to snap the trap the moment the card touched the slot,
+  // before onPlay / onMoved ran. That killed any card whose entrance is what
+  // gives it its body: Scarlet Witch enters 0/0 and copies the enemy opposite
+  // in onPlay, so a Bear Trap took her from 0/0 to 0/0-and-dead before she ever
+  // became the 3/4 she was mirroring. User: "she should be a 3/4 then get hit by
+  // the trap." Killer Moth (0/1, grows on arrival) had the same shape.
+  //
+  // Two guards make the late fire correct rather than merely later:
+  //   • the card must still BE in that lane — an entrance that relocates it
+  //     (Green Goblin, a hunt) must not drag the origin lane's trap along, and
+  //     moveCard already fires the destination lane's trap on the way in;
+  //   • the card must still be alive — an entrance that kills it (or a death
+  //     the entrance triggered) means there is nothing left to bite.
+  _trapOnSettle(card, laneIdx) {
+    if (!card || card.currentHealth <= 0) return;
+    const lane = this.state.lanes[laneIdx];
+    if (!lane || lane[card.owner] !== card) return;
+    this.checkLaneTrap(card, laneIdx);
+  },
+
   checkLaneTrap(card, laneIdx) {
     if (!card || laneIdx < 0 || laneIdx >= this.LANE_COUNT) return;
     const lane = this.state.lanes[laneIdx];

@@ -89,9 +89,9 @@ const CARD_DEFS = [
   { name: "Gizmo", cost: 2, attack: 1, health: 1, type: "villain",
     abilities: [],
     desc: "When Damaged (once): Summon a (2/2) Gremlin in any open lane. Add Stripe to your hand. Fires even if the hit destroys Gizmo." },
-  { name: "Killer Moth", cost: 1, attack: 1, health: 1, type: "villain",
+  { name: "Killer Moth", cost: 1, attack: 0, health: 1, type: "villain",
     abilities: [],
-    desc: "Start of Tricks: Move to a random empty lane. Gains (+1/+1) permanently each time he moves, however he is moved." },
+    desc: "Start of Tricks: Move to a random empty lane. Gains (+1/+1) permanently the first time he reaches each lane, however he is moved. Returning to a lane he has already visited grants nothing." },
   { name: "Gremlin", cost: 2, attack: 2, health: 2, type: "villain",
     _spawnOnly: true,
     abilities: [],
@@ -383,7 +383,7 @@ const CARD_DEFS = [
     desc: "When Played: Strike the enemy opposite immediately, or the opponent's HP if that lane is empty. Choose 2 enemies to Freeze 1. Deal 5 damage to an enemy." },
   { name: "Thanos", cost: 9, attack: 6, health: 9, type: "villain",
     abilities: [],
-    desc: "Can be played during the Trick Phase. When Played: Destroy enemies in 3 random lanes (no duplicates)." },
+    desc: "Can be played during the Trick Phase. When Played: Devour enemies in 3 random lanes (no duplicates)." },
 
   // ==================== COST 10 ====================
   { name: "Anakin Skywalker", cost: 10, attack: 7, health: 9, type: "hero",

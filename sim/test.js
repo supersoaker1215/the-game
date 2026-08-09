@@ -137,9 +137,11 @@ test('Killer Moth boxed in does NOT grow', function () {
   assertEq(G.findCardLane(moth), 0, 'and he stayed put');
 });
 
-test('Killer Moth starts as a 1/1', function () {
+// 0/1 as of 2026-08-08 — he has to EARN his first point of attack by flying
+// somewhere new. (Superseded the old 1/1 pin; see the new-ground test below.)
+test('Killer Moth starts as a 0/1', function () {
   var def = cardByName('Killer Moth');
-  assertEq(def.attack, 1, 'base ATK 1');
+  assertEq(def.attack, 0, 'base ATK 0');
   assertEq(def.health, 1, 'base HP 1');
 });
 
@@ -3172,6 +3174,103 @@ test('Iron Giant is still never placeable, and the desc still says so', function
   // Capital D is load-bearing: the keyword regex is case-SENSITIVE, so a
   // lowercase "draw" would render without the keyword chip and tooltip.
   assertEq(desc.indexOf('draw a card') === -1, true, 'Draw is capitalised so the keyword chip renders');
+});
+
+// ENTRANCE-THEN-TRAP. Scarlet Witch enters 0/0 and BECOMES her hex target in
+// onPlay, so a trap that fired on arrival killed a card that had no body yet.
+// User: "she should be a 3/4 then get hit by the trap."
+test('Scarlet Witch copies FIRST, then the trap bites the copied body', function () {
+  var G = freshGame();
+  var target = place(G, 'Bane', 'ai', 2);
+  target.attack = 3; target.baseAttack = 3;
+  target.currentHealth = 4; target.maxHealth = 4; target.baseHealth = 4;
+  G.state.lanes[2].trap = { placedBy: 'ai', debuff: 1 };
+  var witch = G.createCardInstance(cardByName('Scarlet Witch'), 'player');
+  G.state.player.hand.push(witch);
+  G.state.player.currency = 20;
+  G.playCard('player', witch, 2);
+  // She must be ALIVE and standing — the whole bug was that she was neither.
+  assertEq(G.state.lanes[2].player, witch, 'she survives the trap and holds the lane');
+  assert(witch.currentHealth > 0, 'and she is not a 0-HP zombie');
+  // 3/4 copied, then -1/-1 from the trap.
+  assertEq(witch.attack, 2, 'copied 3 ATK, trap took 1');
+  assertEq(witch.currentHealth, 3, 'copied 4 HP, trap took 1');
+  assertEq(G.state.lanes[2].trap, null, 'and the trap was genuinely spent, not skipped');
+});
+
+// The same ordering rule on the MOVE door, which is a separate call site and so
+// a separate way to reintroduce the bug.
+test('A trap on the destination lane fires AFTER onMoved, not before', function () {
+  var G = freshGame();
+  var moth = place(G, 'Killer Moth', 'player', 0);
+  moth._mothLanes = [0];
+  G.state.lanes[3].trap = { placedBy: 'ai', debuff: 1 };
+  G.moveCard(moth, 0, 3);
+  // 0/1 → grows to 1/2 on arrival → trap takes it to 0/1. Alive either way you
+  // count it; under the old order the trap hit 0/1 and killed him outright.
+  assertEq(G.state.lanes[3].player, moth, 'he lands and stays');
+  assert(moth.currentHealth > 0, 'the growth beat the trap');
+});
+
+// An entrance that RELOCATES the card must not drag the origin lane's trap
+// along — the guard that makes the late trap correct rather than merely later.
+test('A card that leaves during its own entrance does not eat the old lane trap', function () {
+  var G = freshGame();
+  var bait = place(G, 'Bane', 'player', 1);
+  G.state.lanes[1].trap = { placedBy: 'ai', debuff: 1 };
+  // Simulate the entrance moving him out before the trap resolves.
+  G.state.lanes[1].player = null;
+  G.state.lanes[4].player = bait;
+  var atkBefore = bait.attack;
+  G._trapOnSettle(bait, 1);
+  assertEq(bait.attack, atkBefore, 'no debuff — he is not in that lane any more');
+  assert(G.state.lanes[1].trap !== null, 'and the trap is still armed for whoever does step in');
+});
+
+test('Killer Moth starts 0/1 and only pays for NEW ground', function () {
+  var G = freshGame();
+  assertEq(cardByName('Killer Moth').attack, 0, 'base ATK is 0');
+  assertEq(cardByName('Killer Moth').health, 1, 'base HP is 1');
+  var moth = place(G, 'Killer Moth', 'player', 1);
+  CARD_ABILITIES['Killer Moth'].onPlay(G, moth, 1);
+  assertEq(moth.attack, 0, 'landing in lane 1 is not itself a buff');
+
+  G.moveCard(moth, 1, 3);                       // NEW lane
+  assertEq(moth.attack, 1, 'lane 3 is new — +1 ATK');
+  assertEq(moth.currentHealth, 2, 'and +1 HP');
+
+  G.moveCard(moth, 3, 1);                       // back to a VISITED lane
+  assertEq(moth.attack, 1, 'lane 1 already flown — no growth');
+  assertEq(moth.currentHealth, 2, 'HP unchanged too');
+
+  G.moveCard(moth, 1, 3);                       // and lane 3 is spent as well
+  assertEq(moth.attack, 1, 'bouncing between two known lanes is worth nothing');
+
+  G.moveCard(moth, 3, 5);                       // one more new lane
+  assertEq(moth.attack, 2, 'lane 5 is new — the engine still works forwards');
+  assertEq(moth._mothLanes.length, 3, 'the tally holds exactly the lanes he has flown');
+});
+
+test('Thanos DEVOURS on the snap — void pile, and no When Destroyed', function () {
+  var G = freshGame();
+  // Solomon Grundy has a When Destroyed. Devour must swallow it.
+  var victim = place(G, 'Solomon Grundy', 'ai', 0);
+  var deadBefore = G.state.ai.deadPile.length;
+  var voidBefore = (G.state.voidPile || []).length;
+  var thanos = G.createCardInstance(cardByName('Thanos'), 'player');
+  G.state.player.hand.push(thanos);
+  G.state.player.currency = 20;
+  // Walk the roll across lanes 0,1,2 so lane 0 is guaranteed hit. A constant
+  // stub would spin forever — the snap rerolls until it has N DISTINCT lanes.
+  var realRng = Game.rng, n = 0;
+  Game.rng = function () { return (n++ % Game.LANE_COUNT) / Game.LANE_COUNT; };
+  try { G.playCard('player', thanos, 3); } finally { Game.rng = realRng; }
+
+  assertEq(G.state.lanes[0].ai, null, 'the victim is gone from the board');
+  assertEq(G.state.ai.deadPile.length, deadBefore, 'and NOT in the dead pile — devour voids');
+  assert((G.state.voidPile || []).length > voidBefore, 'it landed in the void pile instead');
+  assertEq(cardByName('Thanos').desc.indexOf('Devour') > -1, true,
+    'the card text says Devour, capitalised so the keyword chip renders');
 });
 
 // ============================================================
