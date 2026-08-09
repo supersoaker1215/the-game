@@ -23094,8 +23094,10 @@ const UI = {
     // tapping a card on the board (user: "if I tap on a card in hand it
     // should go to this screen just like if I tap the card on board").
     // Exception: a PLAYABLE discard-effect card still tap-plays below.
-    if (window.matchMedia && window.matchMedia('(hover: none)').matches &&
-        !(card.isDiscardEffect && this.canPlayerPlayCards(s))) {
+    // The discard exception that used to live in this condition is gone with
+    // the branch below — on touch a discard now opens the inspect view on tap
+    // and plays on drag, which is the rule every other card already follows.
+    if (window.matchMedia && window.matchMedia('(hover: none)').matches) {
       if (s.selectedCard) { s.selectedCard = null; this.render(); }
       this.openCardInspect(card);
       return;
@@ -23110,12 +23112,16 @@ const UI = {
         !Game.getAllCardsOf('player').some(c => c.passive === 'allowCardsInTricksPhase')) {
       return;
     }
-    if (card.isDiscardEffect) {
-      // Discard-effect cards play the instant they're clicked — gate this
-      // real play on the short stagger, and shake (never silently swallow).
-      if (this._playStaggerBlocked(card)) return;
-      Game.submitCommand({ type: 'playCard', payload: { card, lane: 0 } }); this.render(); return;
-    }
+    // DISCARD-EFFECT CARDS ARE PLAYED BY DRAGGING, LIKE EVERY OTHER CARD.
+    // They used to fire the instant they were clicked, which made them the one
+    // card type you could not read before committing: a click is a READ
+    // everywhere else in the hand — it turns the card over — and here it spent
+    // the card instead. Owner: "when discards are clicked they are played, they
+    // should be flipped to view and dragged like a normal card."
+    // Nothing needed adding for the drag: both drop handlers already treat a
+    // discard as lane-less — over the board it fires, back over the hand it
+    // cancels — so removing this branch is the whole fix. Falling through means
+    // a click now flips it, exactly like its neighbours.
     // Can't-afford feedback — shake the energy orb + pop a toast when
     // the player tries to select a card they don't have energy for.
     // Still allows selection (so they can see details) but signals it
