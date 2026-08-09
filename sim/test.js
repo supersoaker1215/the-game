@@ -2440,8 +2440,9 @@ test('Grievous summons a (2/1) Battle Droid and trains the board', function () {
   CARD_ABILITIES['General Grievous'].onPlay(G, gr, 0);
 
   assertEq(!!ally.isBullseye, true, 'the ally is trained');
-  assertEq(!!gr.isBullseye, true, 'and so is Grievous himself — he is on the board too');
-  assertEq(!!enemy.isBullseye, false, 'the ENEMY is not, obviously');
+  // He trains his allies, NOT himself — the grant is what he gives the board.
+  assertEq(!!gr.isBullseye, false, 'Grievous himself does NOT get it');
+  assertEq(!!enemy.isBullseye, false, 'and neither does the enemy, obviously');
 
   // The droid landed, and landed trained — it is summoned before the grant
   // runs, which is the ordering the callback exists to guarantee.

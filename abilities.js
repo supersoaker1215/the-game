@@ -4356,10 +4356,14 @@ const CARD_ABILITIES = {
     onPlay(G, self, lane) {
       if (typeof UI !== 'undefined' && UI._fxGrievousSabers) { try { UI._fxGrievousSabers(self); } catch (e) {} }
       const grantAim = () => {
-        // Grievous included — he is one of your cards on the board. Environments
-        // are not: they never attack, so Bullseye would be a badge that means
-        // nothing on them.
-        const allies = G.getAllCardsOf(self.owner).filter(c => c.currentHealth > 0 && !c.isEnvironment);
+        // HE TRAINS THEM; HE DOES NOT TRAIN HIMSELF (owner, 2026-08-09). The
+        // grant is what he gives the board, so excluding him is the whole point
+        // — a Grievous who also armed himself would be strictly better than one
+        // who did not, for free, and the card would stop being about the escort.
+        // Environments are excluded too: they never attack, so Bullseye would be
+        // a badge that means nothing on them.
+        const allies = G.getAllCardsOf(self.owner)
+          .filter(c => c.id !== self.id && c.currentHealth > 0 && !c.isEnvironment);
         let n = 0;
         allies.forEach(c => { if (!c.isBullseye) { c.isBullseye = true; n++; } });
         G.log(n

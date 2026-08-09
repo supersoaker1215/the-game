@@ -296,7 +296,7 @@ const CARD_DEFS = [
     desc: "When Played: Intercept the next card the enemy plays. Keep it in your hand or destroy it to add (+2/+2). Environments are not intercepted." },
   { name: "General Grievous", cost: 4, attack: 3, health: 5, type: "villain",
     abilities: [],
-    desc: "When Played: Summon a (2/1) Battle Droid in any lane. Your cards on the board gain Bullseye." },
+    desc: "When Played: Summon a (2/1) Battle Droid in any lane. Your other cards on the board gain Bullseye." },
   { name: "Gargantua", cost: 2, attack: 0, health: 1, type: "environment",
     isEnvironment: true,
     abilities: [],
