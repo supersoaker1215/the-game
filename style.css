@@ -35256,6 +35256,57 @@ body.low-fx .legendary-arrival { animation: none !important; }
    HIGHER stacking context, so it painted straight over the opponent's emote.
    Toggled by UI._syncCornerToggle. */
 body.clb-emote-open .viewport-toggle { display: none !important; }
+
+/* ============================================================
+   MOBILE: FIT-TO-WIDTH HAND + TRICK ROWS, EVEN VERTICAL RHYTHM
+   ============================================================
+   Reference the user supplied (PvZ Heroes on a phone): every zone reads as its
+   own band, nothing is clipped, and the hand sits as ONE tidy row across the
+   bottom. Ours broke that in two measurable ways at 414x896:
+
+     • The hand row was fixed at 92px per card with `min-width: max-content` on
+       the track, so five cards needed 476px inside a 414px viewport — the last
+       card was sliced by the screen edge and the row silently became a
+       horizontal scroller. A hand you cannot see is the single most "unclean"
+       thing on the screen.
+     • The two trick cards rendered 168px tall — over half the height of the
+       whole six-lane board (286px) — so the bottom of the screen was dominated
+       by the smallest-stakes row.
+
+   Fix: both rows now SHARE the width instead of demanding it. `flex: 1 1 0`
+   with a max-width keeps the old 92px look whenever the cards genuinely fit,
+   and shrinks them evenly toward a legibility floor when they don't. Below the
+   floor the row still scrolls, so a 7-card hand degrades gracefully instead of
+   clipping. Nothing here changes the desktop layout — it is scoped to the same
+   phone container query the rest of the mobile rules use. */
+@container (max-width: 520px) {
+  /* The track must be allowed to shrink; `min-width: max-content` (set in the
+     earlier mobile blocks) is what forced the overflow in the first place. */
+  .player-hand-section .hand-cards,
+  .tricks-section .trick-cards { min-width: 0; }
+
+  .player-hand-section .hand-cards .card,
+  .player-hand-section .hand-cards .hand-card-wrapper {
+    flex: 1 1 0;
+    width: auto;
+    /* Floor chosen so even a FULL hand fits without clipping: at 414px the
+       track is 398px, minus 6 gaps (24px) leaves 374px / 7 cards = 53.4px. */
+    min-width: 52px;
+    max-width: 92px;      /* never larger than the tuned size */
+  }
+  /* Tricks match the hand's scale so the two bottom rows read as one system
+     rather than two different card sizes stacked on top of each other. */
+  .tricks-section .trick-cards > *,
+  .tricks-section .trick-cards .trick-card {
+    flex: 1 1 0;
+    width: auto;
+    min-width: 58px;
+    max-width: 92px;
+  }
+  /* Even gutters top and bottom so the bands breathe equally. */
+  .player-hand-section { padding: 6px 8px; }
+  .tricks-section      { padding: 6px 8px; }
+}
 /* Taunt bubble carries a character NAME, not a big emoji — smaller type. */
 .emote-bubble.taunt-bubble { font-size: 13px; letter-spacing: 0.3px; }
 

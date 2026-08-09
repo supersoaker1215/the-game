@@ -19611,19 +19611,12 @@ const UI = {
   _matchTauntNames() {
     const s = Game.state;
     if (!s) return [];
+    // CARDS IN YOUR HAND ONLY. User: "you added every single hover in the game,
+    // I only want you to be able to taunt cards you have in hand." So the
+    // roster is your live hand — not the board, dead pile or draw pile — which
+    // also makes a taunt a small tell about what you're holding, by design.
     const names = new Set();
-    const add = (arr) => { if (arr) arr.forEach(c => { if (c && c.name) names.add(c.name); }); };
-    add(s.player && s.player.hand);
-    add(s.player && s.player.deadPile);
-    // Per-owner draw pile if the engine exposes one (deckbuilder), else shared.
-    try { add(Game.getDrawPile ? Game.getDrawPile('player') : s.drawPile); } catch (e) { add(s.drawPile); }
-    // Both sides of the board — taunting with the enemy's own titan reads great.
-    for (let i = 0; i < Game.LANE_COUNT; i++) {
-      const ln = s.lanes && s.lanes[i];
-      if (!ln) continue;
-      if (ln.player && ln.player.name) names.add(ln.player.name);
-      if (ln.ai && ln.ai.name) names.add(ln.ai.name);
-    }
+    ((s.player && s.player.hand) || []).forEach(c => { if (c && c.name) names.add(c.name); });
     // Keep only names with a real hover cue in the SFX registry.
     const reg = (this.sfx && this.sfx.CARD_SFX) || {};
     return [...names].filter(n => reg[n] && reg[n].hover).sort((a, b) => a.localeCompare(b));
@@ -19631,6 +19624,9 @@ const UI = {
   toggleTauntPicker() {
     const pick = document.getElementById('taunt-picker');
     if (!pick) return;
+    // Tapping 🔊 while a taunt is sounding ENDS it (and doesn't open the
+    // picker) — the one-tap "shut it off" the user asked for.
+    if (this._tauntAudio) { this.stopTaunt(); pick.style.display = 'none'; this._syncCornerToggle(); return; }
     // Close the emote picker if it's open, so only one popup shows at a time.
     const ep = document.getElementById('emote-picker'); if (ep) ep.style.display = 'none';
     if (pick.style.display !== 'none') { pick.style.display = 'none'; this._syncCornerToggle(); return; }
@@ -19663,14 +19659,51 @@ const UI = {
     this.showTauntBubble('ai', name);
     if (this._haptic) this._haptic('cardPlay');
   },
+  // A hover clip runs its FULL length (8s+ for some characters) because the
+  // hover cue is meant to play while you keep the cursor on a card. As a taunt
+  // that's far too long and there was no way to cut it off. So a taunt now:
+  //   • auto-stops after TAUNT_MAX_MS with a short fade (no abrupt cut),
+  //   • is stopped by the NEXT taunt, so they never overlap or queue up, and
+  //   • can be ended on demand — tap the 🔊 button while one is playing, or
+  //     call UI.stopTaunt().
+  // (User: "I want the hover for the taunt to be able to be ended and not play
+  // the whole hover.")
+  TAUNT_MAX_MS: 3500,
   _playTauntSound(name) {
     if (!name || !this.sfx) return;
+    this.stopTaunt();                       // never stack two taunts
     try {
       // 'taunt' flag → playCardSfx bypasses the hand-audio-privacy gate, which
       // otherwise nulls every hover cue and left taunts silent.
       const played = this.sfx.playCardSfx ? this.sfx.playCardSfx(name, 'hover', 'taunt') : null;
-      if (!played && typeof this.sfx.play === 'function') this.sfx.play('cardHover');
+      if (!played) { if (typeof this.sfx.play === 'function') this.sfx.play('cardHover'); return; }
+      this._tauntAudio = played;
+      this._tauntTimer = setTimeout(() => this.stopTaunt(), this.TAUNT_MAX_MS);
     } catch (e) {}
+  },
+  stopTaunt() {
+    if (this._tauntTimer) { clearTimeout(this._tauntTimer); this._tauntTimer = null; }
+    const a = this._tauntAudio;
+    this._tauntAudio = null;
+    if (!a) return;
+    // Short fade so the cut isn't a click, then pause.
+    try {
+      const startVol = (typeof a.volume === 'number') ? a.volume : 1;
+      const steps = 6, stepMs = 40;
+      let i = 0;
+      const tick = () => {
+        i++;
+        try {
+          a.volume = Math.max(0, startVol * (1 - i / steps));
+          if (i >= steps) { a.pause(); try { a.currentTime = 0; } catch (e) {} a.volume = startVol; }
+          else setTimeout(tick, stepMs);
+        } catch (e) { try { a.pause(); } catch (e2) {} }
+      };
+      setTimeout(tick, stepMs);
+    } catch (e) { try { a.pause(); } catch (e2) {} }
+    // Restore the music level the hover cue ducked (playCardSfx calls
+    // duckMusic() for every hover; restoreMusic is its counterpart).
+    try { if (this.sfx && typeof this.sfx.restoreMusic === 'function') this.sfx.restoreMusic(); } catch (e) {}
   },
   showTauntBubble(side, name) {
     const host = document.getElementById(side === 'player' ? 'player-avatar' : 'ai-avatar');
