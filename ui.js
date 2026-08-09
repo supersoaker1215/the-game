@@ -7390,7 +7390,8 @@ const UI = {
       // survives the re-render that rebuilds the card when its HP drops.)
       const r = target.getBoundingClientRect();
       if (r && r.width) {
-        const layer = this._fxLayer();
+        // Hand layer — the cast layer paints under the hand (see _fxHandLayer).
+        const layer = this._fxHandLayer();
         const puff = document.createElement('div');
         puff.className = 'sig-card-haze';
         puff.style.cssText = 'left:' + r.left + 'px;top:' + r.top + 'px;width:' + r.width + 'px;height:' + r.height + 'px;--sig-c:#ff2d2d;';
@@ -8680,6 +8681,22 @@ const UI = {
   // SEE every card get touched. `owner` picks the hand (player = face-up hand
   // at the bottom, ai = the face-down backs up top). opts.color tints it:
   // Apocalypse empowers your hand (blue), Mace Windu curses the enemy's (purple).
+  // HAND FX NEED THEIR OWN LAYER. #signature-fx-layer is z-index 200, but the
+  // hand sits at z-index 220 (300 on mobile) — so anything drawn into the cast
+  // layer for a hand effect painted BEHIND the cards and was invisible. The
+  // child's own z-index can't rescue it: the fx layer is its stacking context.
+  // This layer sits above the hand and below the emote/taunt popups (900+).
+  // (User: "mace windu and apocalypse hand animations don't work" — they were
+  // firing correctly the whole time, just underneath the hand.)
+  _fxHandLayer() {
+    let l = document.getElementById('hand-fx-layer');
+    if (!l) {
+      l = document.createElement('div');
+      l.id = 'hand-fx-layer';
+      document.body.appendChild(l);
+    }
+    return l;
+  },
   _fxHandHaze(owner, opts) {
     if (this._reducedMotion()) return;
     opts = opts || {};
@@ -8689,7 +8706,14 @@ const UI = {
     if (!hand) return;
     const r = hand.getBoundingClientRect();
     if (!r || r.width === 0) return;
-    const layer = this._fxLayer();
+    // The OPPONENT's hand renders as a small face-down strip, so a haze alone
+    // is too subtle to read — add a burst over it so the curse is unmissable.
+    if (!isPlayer) {
+      const c = { x: r.left + r.width / 2, y: r.top + r.height / 2 };
+      this._fxImpact(c, { color: color, core: '#ffffff', size: 1.1 });
+      this._fxSparks(c, { count: 14, color: '#ffffff', glow: color, spread: 78, size: 2.8 });
+    }
+    const layer = this._fxHandLayer();
     const haze = document.createElement('div');
     haze.className = 'sig-hand-haze';
     haze.style.cssText = 'left:' + r.left + 'px;top:' + r.top + 'px;width:' + r.width + 'px;height:' + r.height + 'px;--sig-c:' + color + ';';
@@ -8730,7 +8754,9 @@ const UI = {
     if (!el) return;
     const r = el.getBoundingClientRect();
     if (!r || r.width === 0) return;
-    const layer = this._fxLayer();
+    // Hand layer, not the cast layer — see _fxHandLayer: the cast layer sits
+    // UNDER the hand, so a flare drawn there is hidden by the card it marks.
+    const layer = this._fxHandLayer();
     const puff = document.createElement('div');
     puff.className = 'sig-card-haze';
     puff.style.cssText = 'left:' + r.left + 'px;top:' + r.top + 'px;width:' + r.width + 'px;height:' + r.height + 'px;--sig-c:' + color + ';';

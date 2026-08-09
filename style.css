@@ -39016,6 +39016,18 @@ body.hand-text-always .trick-cards .trick-card .status-badges,
    Apocalypse empowers your hand (blue), Mace Windu curses the enemy's
    (purple). A tinted fog fades in over the whole hand; per-card puffs sweep
    down the row so every touched card is visible. Driven by _fxHandHaze. */
+/* Hand-effect overlay. MUST out-rank the hand itself (.player-hand-section is
+   z-index 220, and 300 in the mobile block) — the shared cast layer
+   #signature-fx-layer is only z-index 200, so every hand effect drawn there
+   was painted UNDERNEATH the cards it was meant to mark and read as "the
+   animation doesn't work". Kept below the emote/taunt popups (900+). */
+#hand-fx-layer {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 520;
+  overflow: visible;
+}
 .sig-hand-haze {
   position: fixed;
   pointer-events: none;
