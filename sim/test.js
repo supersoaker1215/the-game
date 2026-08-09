@@ -2419,6 +2419,10 @@ test("the enemy's Yoda does not shield YOUR side", function () {
 test('General Grievous is a 4-cost that brings a droid and an eye', function () {
   var def = cardByName('General Grievous');
   assertEq(def.cost, 4, 'costs 4');
+  // Body cut to 3/5 (owner, 2026-08-09) — a 4/7 that ALSO brought a droid and
+  // board-wide Bullseye was too much card for 4 energy.
+  assertEq(def.attack, 3, '3 ATK');
+  assertEq(def.health, 5, '5 HP');
   assertEq(def.desc.indexOf('Block Meter'), -1, 'and says nothing about the Block Meter any more');
   assertEq(def.desc.indexOf('Bullseye') > -1, true, 'the text names the keyword so its chip renders');
   // The enforcement went with the text — an engine that still knows the rule
