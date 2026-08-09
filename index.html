@@ -130,22 +130,16 @@
     </div>
   </div>
 
-  <!-- WEB ↔ MOBILE PREVIEW TOGGLE — only useful on desktop. Lets a
-       developer/user see the layout in phone shape without resizing
-       the browser. Hidden on real phone-sized viewports. The active
-       choice persists in localStorage so reloads keep the preference. -->
-  <button type="button"
-          class="viewport-toggle"
-          id="viewport-toggle"
-          onclick="UI.toggleViewportMode()"
-          title="Toggle Web / Mobile preview"
-          aria-label="Toggle Web / Mobile preview">
-    <!-- Default icon: phone outline (gets swapped to monitor when in mobile mode) -->
-    <svg id="viewport-toggle-icon" viewBox="0 0 24 24">
-      <rect x="6" y="2" width="12" height="20" rx="2"/>
-      <line x1="11" y1="18" x2="13" y2="18"/>
-    </svg>
-  </button>
+  <!-- WEB ↔ MOBILE PREVIEW TOGGLE — REMOVED (user: "for laptops you can just
+       get rid of the mobile screen button, we don't need it"). It was a dev
+       affordance for previewing the phone layout without resizing the browser,
+       and it sat in the top-left corner where it painted over the opponent's
+       emote bubble. A real phone gets the mobile layout from the responsive
+       CSS, so nothing player-facing depended on it. UI.toggleViewportMode /
+       _applyViewportMode are kept (all their DOM lookups are null-guarded) and
+       initViewportMode now forces web mode, so anyone whose browser had
+       'mobile' saved from before can't be stranded in the phone frame with no
+       button to leave it. -->
 
   <!-- MAIN MENU OVERLAY (phase 4a) — game's actual landing page. PLAY
        routes to the mode picker, the other buttons route to their own

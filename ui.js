@@ -13854,6 +13854,16 @@ const UI = {
     if (btn && btn.parentNode === document.body) {
       document.documentElement.appendChild(btn);
     }
+    // The toggle BUTTON is gone (see index.html), so a browser that still has
+    // 'mobile' saved from a previous build would boot into the 390px phone
+    // frame with no control to escape it. Force web mode and clear the key —
+    // a real phone gets the mobile layout from the responsive CSS, not from
+    // this preview class.
+    if (!btn) {
+      try { localStorage.removeItem(this._VIEWPORT_KEY); } catch (e) {}
+      this._applyViewportMode('web');
+      return;
+    }
     const saved = localStorage.getItem(this._VIEWPORT_KEY) || 'web';
     this._applyViewportMode(saved);
   },
