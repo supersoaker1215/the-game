@@ -3469,6 +3469,63 @@ test('Doomsday rises with real Immunity, and it does not tick down', function ()
     'the card text says Immunity, capitalised so the keyword chip renders');
 });
 
+// Immunity blocks every debuff — with two DECLARED exceptions and one bought
+// one. Owner: "not like kryptonite, that should always go through immunity or
+// pym particles, but mind control can't — only if it has unresistible."
+test('Immunity blocks Mind Control, and Unresistible is what buys through', function () {
+  var G = freshGame();
+  var t = place(G, 'Bane', 'ai', 0);
+  t.immunityCharges = 2;
+  var caster = place(G, 'Gorilla Grodd', 'player', 0);
+  G.mindControlCard(t, caster);
+  assertEq(!!t.isMindControlled, false, 'the shield refuses it');
+  assertEq(t.immunityCharges, 1, 'and spends exactly one charge doing so');
+
+  caster.unresistibleCharges = 1;
+  G.mindControlCard(t, caster);
+  assertEq(!!t.isMindControlled, true, 'Unresistible pierces');
+  assertEq(t.immunityCharges, 1, 'without touching the Immunity it went around');
+  assertEq(caster.unresistibleCharges, 0, 'the piercing charge is what gets spent');
+});
+
+test('Kryptonite and Pym Particles ignore Immunity outright', function () {
+  var kryp = TRICK_DEFS.find(function (t) { return t.name === 'Kryptonite'; });
+  var pym  = TRICK_DEFS.find(function (t) { return t.name === 'Pym Particles'; });
+
+  var G = freshGame();
+  G.state.player.isHuman = true;
+  var t = place(G, 'Doomsday', 'ai', 0);
+  t.attack = 6; t.baseAttack = 6; t.currentHealth = 6; t.maxHealth = 6;
+  t.immunityCharges = 3;
+  kryp.play(G, 'player');
+  var cc = G.state.pendingCardChoice;
+  if (cc) G.resolveActivePrompt('card', { idx: cc.cards.indexOf(t) });
+  assertEq(t.attack, 3, 'Kryptonite lands through the shield');
+  assertEq(t.immunityCharges, 3, 'and burns no charge — it was never blocked');
+
+  var G2 = freshGame();
+  G2.state.player.isHuman = true;
+  var t2 = place(G2, 'Doomsday', 'ai', 0);
+  t2.attack = 6; t2.baseAttack = 6; t2.currentHealth = 6; t2.maxHealth = 6;
+  t2.immunityCharges = 3;
+  pym.play(G2, 'player');
+  var cc2 = G2.state.pendingCardChoice;
+  if (cc2) G2.resolveActivePrompt('card', { idx: cc2.cards.indexOf(t2) });
+  assertEq(t2.attack, 4, 'Pym lands through the shield too');
+  assertEq(t2.currentHealth, 4, 'both halves of it');
+  assertEq(t2.immunityCharges, 3, 'and burns no charge either');
+
+  // CONTROL — an ordinary stat strip must still be refused, or "everything
+  // pierces" would pass this file while gutting the keyword.
+  var G3 = freshGame();
+  var t3 = place(G3, 'Bane', 'ai', 0);
+  t3.immunityCharges = 1;
+  var atk = t3.attack;
+  G3.debuffCard(t3, 2, 2, true, { name: 'Nightwing' });
+  assertEq(t3.attack, atk, 'a plain debuff is still blocked');
+  assertEq(t3.immunityCharges, 0, 'and that one DOES spend the charge');
+});
+
 // ============================================================
 // ---- RUNNER ------------------------------------------------
 // ============================================================

@@ -8116,7 +8116,15 @@ const Game = {
     // rather than card by card. Unresistible pierces it on the same terms
     // tryApplyDebuff uses: the piercing charge is spent, the Immunity is not
     // (it never got to block anything).
-    if ((atk > 0 || hp > 0) && card.immunityCharges > 0) {
+    // opts.ignoresImmunity — a RAW-MATERIAL debuff that is not resisted, it is
+    // just physics: Kryptonite poisons, Pym Particles shrink. Owner, 2026-08-08:
+    // "not like kryptonite, that should always go through immunity or pym
+    // particles, but mind control can't — only if it has unresistible." So the
+    // pierce is a property of the SOURCE, declared per effect, and everything
+    // that does not declare it still has to buy its way through with
+    // Unresistible. Note this does NOT spend a charge either: Immunity never
+    // got to block anything, so there is nothing to spend.
+    if ((atk > 0 || hp > 0) && card.immunityCharges > 0 && !(opts && opts.ignoresImmunity)) {
       if (source && source.unresistibleCharges > 0) {
         source.unresistibleCharges--;
         this.log(`  [UNRESISTIBLE] ${source.name} bypasses ${card.name}'s Immunity! (Immunity ${card.immunityCharges} untouched, Unresistible ${source.unresistibleCharges} remaining)`);
