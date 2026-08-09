@@ -4563,6 +4563,10 @@ const Game = {
   },
 
   getTrickCost(owner, trick) {
+    // A 2v2 block-meter trick is FREE for its holder (see the block branch in
+    // damagePlayer). Checked first and returned immediately so no later
+    // modifier — Sandman's tax included — can put a price back on it.
+    if (trick && trick._blockFree) return 0;
     let cost = trick.cost;
     const opp = this.opponent(owner);
     // Each Sandman adds his rarity-scaled tax to the enemy's trick cost.
@@ -4685,6 +4689,10 @@ const Game = {
       this.snapshot(owner);
     this.state[owner].currency -= cost;
     if (this.state._stats && this.state._stats[owner]) this.state._stats[owner].energySpent += cost;
+    // Spend the 2v2 block-meter freebie the moment it is used, so a trick that
+    // somehow returns to a hand (a bounce, an undo restoring an older copy) is
+    // not free forever.
+    if (trick._blockFree) delete trick._blockFree;
     const idx = this.state[owner].trickHand.indexOf(trick);
     if (idx > -1) this.state[owner].trickHand.splice(idx, 1);
     // Move to played trick pile
@@ -6467,8 +6475,20 @@ const Game = {
             .forEach(pk => {
               if (tt.trickDrawPile.length > 0) {
                 const def = tt.trickDrawPile.pop();
-                tt.players[pk].trickHand.push({ ...def, id: nextCardId++ });
-                this.log(`  [BLOCK DRAW] ${tt.players[pk].name} draws: ${def.name}`);
+                // FREE TO PLAY, IF THEY CHOOSE. 1v1 offers the blocker an
+                // immediate "play it free or keep it" modal; 2v2 fills a TEAM
+                // meter, so both teammates draw — but the trick used to land at
+                // full price, quietly making the 2v2 block reward strictly
+                // worse than the 1v1 one. Two simultaneous modals on two
+                // different clients is the wrong shape for that choice, so the
+                // free play is carried on the card instead: _blockFree makes
+                // getTrickCost return 0, and the flag is spent the first time
+                // the trick is actually played. Each teammate keeps full
+                // agency — play it free whenever their trick phase comes, or
+                // never play it at all. (User: "both players get a free trick
+                // to play if they choose.")
+                tt.players[pk].trickHand.push({ ...def, id: nextCardId++, _blockFree: true });
+                this.log(`  [BLOCK DRAW] ${tt.players[pk].name} draws: ${def.name} (free to play)`);
               }
             });
           return;
