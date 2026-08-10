@@ -4412,6 +4412,23 @@ test('Dead Draw reaches the live instance, not just the printed def', function (
   var tip = readFile('./ui.js');
   assert(tip.indexOf('The Dead Pile is <b>shared</b>') > -1, 'the tooltip says shared');
   assert(tip.indexOf('the pull is <b>random</b>') > -1, 'and random');
+
+  // ...and ONLY the cards that actually behave that way carry it. Dr. Doom
+  // picks a card he chooses from HIS OWN pile, and Martian Manhunter copies
+  // abilities rather than drawing — neither matches "shared" or "random", so
+  // the badge on them was a keyword promising something the card does not do.
+  // Both descriptions already spell their effect out in full, so nothing is
+  // lost by dropping it. (Owner call, 2026-08-10.)
+  ['Dr. Doom', 'Martian Manhunter'].forEach(function (n) {
+    assertEq(cardByName(n).abilities.indexOf('Dead Draw 1'), -1,
+      n + ' no longer prints Dead Draw');
+    assertEq(G.createCardInstance(cardByName(n), 'player').hasDeadDraw, 0,
+      n + "'s instance does not carry it either");
+    assert(cardByName(n).desc.indexOf('Dead Pile') > -1,
+      n + ' still explains its dead-pile effect in the text');
+  });
+  assertEq(cardByName('Martian Manhunter').abilities.indexOf('Evade 1') > -1, true,
+    'and Evade 1 survived the edit');
 });
 
 test('Freddy only wakes on TWO or more wasted energy', function () {

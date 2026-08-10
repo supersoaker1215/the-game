@@ -257,7 +257,7 @@ const CARD_DEFS = [
     abilities: [],
     desc: "When Played: Look at the top 2 cards of the draw pile and keep one — its cost drops by 2. If the kept card costs ≤ 2, you may play it for free." },
   { name: "Martian Manhunter", cost: 4, attack: 4, health: 4, type: "hero",
-    abilities: ["Evade 1", "Dead Draw 1"],
+    abilities: ["Evade 1"],
     desc: "When Played: Copy all abilities from a random card in either Dead Pile, then fire its When Played effect." },
   { name: "Optimus Prime", cost: 3, attack: 4, health: 4, type: "hero",
     abilities: ["Armor 1"],
@@ -351,7 +351,7 @@ const CARD_DEFS = [
 
   // ==================== COST 7 ====================
   { name: "Dr. Doom", cost: 7, attack: 5, health: 5, type: "villain",
-    abilities: ["Dead Draw 1"],
+    abilities: [],
     desc: "When Played: Return a card from your Dead Pile (cost ≤ 9) to your hand with its cost permanently reduced by 3. Summon a (5/5) Doombot." },
   { name: "Gojo", cost: 7, attack: 6, health: 6, type: "hero",
     abilities: ["Immunity", "Invincible 1"],
