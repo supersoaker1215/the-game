@@ -39549,3 +39549,79 @@ body.hand-text-always .trick-cards .trick-card .status-badges,
    word take the glyph's colour instead of printing grey next to it. */
 .rl-map-legend .rl-legend-pill { color: currentColor; }
 .rl-map-legend .rl-legend-pill span { color: inherit; }
+
+/* ============================================================
+   IN-MATCH HUD CLUSTER — LOG + HINT + SETTINGS (2026-08-10)
+   Owner: "can we put the settings and hint bar stay locked by the
+   battle log, make it look symmetrical."
+
+   The three top-bar controls had drifted into three unrelated
+   coordinate systems: the battle log was anchored to the CENTRE
+   (left: calc(50% + 300px), tracking the round pill), while the hint
+   and the cog were pinned to the right EDGE (right: 68px / 14px).
+   So the gap between log and hint was whatever the window happened
+   to be that second — the wider the screen, the further apart they
+   drifted — and they were three different sizes and two different
+   shapes on top of it (30px square, two 44px circles).
+
+   One anchor, one size, one shape, one gap. Every button is placed
+   as anchor + n*(size + gap), so the row is even by construction
+   rather than by three hand-tuned offsets that can disagree.
+
+   IN-MATCH ONLY. The cog is the one control that also exists on the
+   menu, codex and deck-builder, where it belongs in the corner on
+   its own — body.in-match is the same gate .cheat-help-toggle
+   already uses to show itself at all.
+   ============================================================ */
+body.in-match {
+  --hudc-size: 36px;   /* visual size; the global 44px hit-target block
+                          still gives all three a real touch area */
+  --hudc-gap:  10px;
+  --hudc-top:  12px;
+  --hudc-left: calc(50% + 300px);   /* just right of the round pill */
+  --hudc-step: calc(var(--hudc-size) + var(--hudc-gap));
+}
+body.in-match .log-drawer-toggle,
+body.in-match .cheat-help-toggle,
+body.in-match .settings-cog {
+  position: fixed !important;
+  top: var(--hudc-top) !important;
+  right: auto !important;
+  width: var(--hudc-size) !important;
+  height: var(--hudc-size) !important;
+  border-radius: 50% !important;   /* the log was a rounded square — the
+                                      other two are circles, and circles win:
+                                      the cog and hint are the pair the player
+                                      already knows by shape */
+  transform: none !important;
+  display: flex; align-items: center; justify-content: center;
+}
+body.in-match .log-drawer-toggle  { left: var(--hudc-left) !important; }
+body.in-match .cheat-help-toggle  { left: calc(var(--hudc-left) + var(--hudc-step)) !important; }
+body.in-match .settings-cog       { left: calc(var(--hudc-left) + 2 * var(--hudc-step)) !important; }
+
+/* Matching chrome so the trio reads as ONE control, not one control and
+   two visitors. The log had a flatter, dimmer treatment than the other
+   two; levelled onto the hint/cog look. */
+body.in-match .log-drawer-toggle {
+  background: #000 !important;
+  border: 1px solid var(--theme-accent-bright) !important;
+  color: color-mix(in srgb, var(--theme-accent) 55%, white) !important;
+  box-shadow:
+    0 0 7px var(--theme-glow-outer),
+    0 0 14px var(--theme-glow-inner),
+    inset 0 0 0 1px var(--theme-accent-dim) !important;
+}
+/* Glyphs sit on one optical size across the three. */
+body.in-match .log-drawer-toggle svg { width: 17px; height: 17px; }
+body.in-match .cheat-help-toggle,
+body.in-match .settings-cog { font-size: 17px !important; }
+
+/* Narrow windows: the centre anchor would run the cluster off the right
+   edge, so fall back to the corner and let the row flow leftward from it.
+   Same size/shape/gap — only the anchor changes. */
+@media (max-width: 900px) {
+  body.in-match {
+    --hudc-left: calc(100vw - (3 * var(--hudc-size) + 2 * var(--hudc-gap)) - 12px);
+  }
+}
