@@ -20871,6 +20871,13 @@ const UI = {
       ['Untrickable',                  'untrickable'],
       ['Swarm(?:s|ed|ing)?',           'swarm'],
       ['Charm(?:s|ed|ing)?',           'charm'],
+      // Crazy / Insane were the only two statuses that printed as a badge on the
+      // card front but stayed plain grey prose in the body text — so Joker's
+      // "Give Crazy to the highest-ATK enemy" gave you no way to find out what
+      // Crazy does. Both already had full KEYWORD_DATA entries (color, glyph,
+      // tip); they were simply never listed here.
+      ['Crazy',                        'crazy'],
+      ['Insane',                       'insane'],
       ['Energy',                       'energy'],
       // Mechanic verbs (newly covered)
       ['Summon(?:s|ed|ing)?',          'summon'],
@@ -20902,7 +20909,8 @@ const UI = {
       'overdrive':'Overdrive', 'splash':'Splash', 'taunt':'Taunt',
       'hunt':'Hunt', 'immune':'Immunity', 'invincible':'Invincible',
       'unresistible':'Unresistible', 'untrickable':'Untrickable',
-      'swarm':'Swarm', 'charm':'Charm', 'energy':'Energy', 'summon':'Summon',
+      'swarm':'Swarm', 'charm':'Charm', 'crazy':'Crazy', 'insane':'Insane',
+      'energy':'Energy', 'summon':'Summon',
       'jump':'Jump', 'destroy':'Destroy', 'sacrifice':'Sacrifice',
       'draw':'Draw', 'chain':'Chain', 'peek':'Peek',
       'devour':'Devour', 'absorb':'Absorb', 'regain':'Regain',

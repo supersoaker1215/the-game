@@ -10474,7 +10474,11 @@ const Game = {
   // Generic directional auto-chain. Player picks left or right, then chain continues
   // automatically until damage runs out or is negated (evade/invincible/armor/dmg immune).
   // damageReducePerStep: 0 for constant-damage chains (Cap, WW), 1 for Vader.
-  autoChainDamage(owner, startLane, damage, damageReducePerStep, callback, label) {
+  // maxSteps caps how many consecutive enemies the chain walks. Omitted =
+  // unlimited (Vader's chain keeps running until the damage decays to 0).
+  // Wonder Woman passes 1: she still picks a DIRECTION, but the lasso only
+  // ever catches the one enemy next to her.
+  autoChainDamage(owner, startLane, damage, damageReducePerStep, callback, label, maxSteps) {
     const opp = this.opponent(owner);
     const canLeft = startLane - 1 >= 0 && this.state.lanes[startLane - 1][opp] &&
                     this.state.lanes[startLane - 1][opp].currentHealth > 0;
@@ -10484,7 +10488,7 @@ const Game = {
     if (!canLeft && !canRight) { if (callback) callback(); return; }
 
     const doChain = (direction) => {
-      this._chainInDirection(owner, startLane, direction, damage, damageReducePerStep, callback, label);
+      this._chainInDirection(owner, startLane, direction, damage, damageReducePerStep, callback, label, maxSteps);
     };
 
     if (canLeft && canRight) {
@@ -10513,10 +10517,11 @@ const Game = {
   },
 
   // Internal: chain in a fixed direction from fromLane, hitting each consecutive enemy.
-  _chainInDirection(owner, fromLane, direction, damage, damageReducePerStep, callback, label) {
+  _chainInDirection(owner, fromLane, direction, damage, damageReducePerStep, callback, label, stepsLeft) {
     const opp = this.opponent(owner);
     const nextLane = fromLane + direction;
     if (nextLane < 0 || nextLane >= this.LANE_COUNT || damage <= 0) { if (callback) callback(); return; }
+    if (stepsLeft !== undefined && stepsLeft <= 0) { if (callback) callback(); return; }
 
     const target = this.state.lanes[nextLane][opp];
     if (!target || target.currentHealth <= 0) { if (callback) callback(); return; }
@@ -10529,7 +10534,8 @@ const Game = {
     const nextDmg = damage - damageReducePerStep;
     if (nextDmg <= 0) { if (callback) callback(); return; }
 
-    this._chainInDirection(owner, nextLane, direction, nextDmg, damageReducePerStep, callback, label);
+    this._chainInDirection(owner, nextLane, direction, nextDmg, damageReducePerStep, callback, label,
+      stepsLeft === undefined ? undefined : stepsLeft - 1);
   },
 
   // Start Vader's chain. Player picks starting target, then direction for auto-chain.

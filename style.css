@@ -145,6 +145,11 @@
   --kw-burn:           #ff7a00;   /* orange */
   --kw-charm:          #d7b3e6;   /* purple */
   --kw-energy:         #ffe066;   /* gold */
+  /* Crazy / Insane are STATUSES, so the in-text word must read as one. Hexes are
+     copied from .badge-crazy / .badge-insane so the word in the sentence and the
+     chip on the card front are the same color. */
+  --kw-crazy:          #ff4fb0;   /* hot pink — matches .badge-crazy */
+  --kw-insane:         #c77dff;   /* violet — matches .badge-insane */
   /* New mechanic verbs */
   --kw-swarm:          #7ee8a5;   /* green — Gremlin brood */
   --kw-summon:         #7ee8a5;   /* green */
@@ -328,6 +333,8 @@ summary:focus-visible,
 /* Fear keeps its inky look — dark color + white halo, distinct from other kws */
 .kw-fear         { color: var(--kw-fear); text-shadow: 0 0 6px rgba(255,255,255,0.55), 0 1px 2px rgba(0,0,0,0.85); }
 .kw-charm        { color: var(--kw-charm); }
+.kw-crazy        { color: var(--kw-crazy); }
+.kw-insane       { color: var(--kw-insane); }
 .kw-energy       { color: var(--kw-energy); }
 .kw-swarm        { color: var(--kw-swarm); }
 .kw-summon       { color: var(--kw-summon); }

@@ -279,10 +279,10 @@ const CARD_DEFS = [
     desc: "When Played: Freeze 1 an enemy. Start of Tricks (once): Heal yourself for 1 per ally on the board." },
   { name: "Wolverine", cost: 4, attack: 2, health: 2, type: "hero",
     abilities: ["Revive 1"],
-    desc: "When Damaged: Destroy the card that dealt the damage if its cost is ≤ 7. When Destroyed: Revive as (6/5) with Overdrive." },
+    desc: "When Damaged: Destroy the card that dealt the damage if its cost is ≤ 7. When Destroyed: Revive as (6/5) with Overdrive — When Damaged is removed." },
   { name: "Wonder Woman", cost: 4, attack: 3, health: 3, type: "hero",
     abilities: ["Armor 1", "Unresistible", "Draw 1"],
-    desc: "When Played: Freeze 1 the enemy opposite. Add 2 to your Block Meter. While Active: When Wonder Woman's attack lands on an enemy card, deal (ATK−1) to each consecutive enemy in a chosen direction." },
+    desc: "When Played: Freeze 1 the enemy opposite. Add 2 to your Block Meter. While Active: When Wonder Woman's attack lands on an enemy card, deal (ATK−1) to 1 chained enemy." },
 
   // ==================== COST 5 ====================
   { name: "Davy Jones", cost: 5, attack: 3, health: 6, type: "villain",
@@ -302,7 +302,7 @@ const CARD_DEFS = [
     desc: "Can be played during the Trick Phase. When Played: Destroy all hurt enemies with cost ≤ 8." },
   { name: "Joker", cost: 5, attack: 0, health: 5, type: "villain",
     abilities: ["Insane"],
-    desc: "When Played: Fear 1 an enemy with cost ≤ 4. While Active: Give Crazy to the highest-ATK enemy — its ATK rerolls 1-4 each round. Only one enemy is Crazy at a time." },
+    desc: "When Played: Fear 1 an enemy with cost ≤ 4. While Active: Give Crazy to the highest-ATK enemy. Only one enemy is Crazy at a time." },
   { name: "Lex Luthor", cost: 5, attack: 2, health: 6, type: "villain",
     abilities: [],
     desc: "While Active: The opponent cannot draw cards or do bonus attacks." },

@@ -4189,6 +4189,65 @@ test('Draw 1 lands on Wonder Woman, Scarlet Witch and Padme; Groot loses it', fu
   assertEq(gr.drawOnPlay, 0, 'and Groot no longer does');
 });
 
+test("Wonder Woman's lasso chains exactly ONE enemy", function () {
+  // Was: every consecutive enemy in the chosen direction. Now: the first one
+  // only. Three bodies in a row so a runaway chain is unmistakable — assert the
+  // MECHANISM (who took damage), not just WW's own state.
+  var G = freshGame();
+  var ww = place(G, 'Wonder Woman', 'player', 2);
+  var front = place(G, 'Groot', 'ai', 2);
+  var next1 = place(G, 'Groot', 'ai', 3);
+  var next2 = place(G, 'Groot', 'ai', 4);
+  [front, next1, next2].forEach(function (c) { c.currentHealth = c.maxHealth = 30; });
+  ww.attack = 5;
+  var hp1 = next1.currentHealth, hp2 = next2.currentHealth;
+  G.autoChainDamage('player', 2, ww.attack - 1, 0, null, 'LASSO CHAIN', 1);
+  assert(next1.currentHealth < hp1, 'the adjacent enemy takes the chain');
+  assertEq(next2.currentHealth, hp2, 'the one BEYOND it is untouched');
+
+  // Vader shares autoChainDamage — no cap means he still walks the whole run.
+  next1.currentHealth = hp1; next2.currentHealth = hp2;
+  G.autoChainDamage('player', 2, 6, 1, null, 'VADER CHAIN');
+  assert(next2.currentHealth < hp2, 'an uncapped chain still reaches the far enemy');
+
+  assert(cardByName('Wonder Woman').desc.indexOf('1 chained enemy') > -1,
+    'and the card text says one');
+});
+
+test('Crazy and Insane highlight in body text like every other status', function () {
+  // Both already had full KEYWORD_DATA (color + glyph + tip) but were missing
+  // from the desc highlighter's keyword list, so Joker's "Give Crazy to..." was
+  // grey prose with no tooltip. THREE lists have to agree for a keyword to work
+  // in body text — this is a duplicated-predicate guard, so it reads ui.js as
+  // source (UI can't load headless: it needs a DOM).
+  var src = readFile('./ui.js');
+  ['Crazy', 'Insane'].forEach(function (k) {
+    assert(src.indexOf("'" + k + "':") > -1, k + ' has a KEYWORD_DATA entry');
+    assert(src.indexOf("'" + k.toLowerCase() + "':'" + k + "'") > -1,
+      k + ' is in kwLookup (supplies data-kw, hence the tooltip)');
+    assert(new RegExp("\\['" + k + "',\\s").test(src), k + ' is in kwMap (does the highlighting)');
+  });
+  var css = readFile('./style.css');
+  ['crazy', 'insane'].forEach(function (k) {
+    assert(css.indexOf('.kw-' + k) > -1, '.kw-' + k + ' has a color rule');
+    assert(css.indexOf('--kw-' + k + ':') > -1, '--kw-' + k + ' is a real token');
+  });
+  assert(cardByName('Joker').desc.indexOf('Crazy') > -1, 'and Joker still says the word');
+});
+
+test('Wolverine says the When Damaged effect is lost on revive', function () {
+  // The engine nulls self.onDamaged in onDeath; the text has to admit it.
+  var d = cardByName('Wolverine').desc;
+  assert(d.indexOf('When Damaged is removed') > -1, 'the revive line names the loss');
+  var G = freshGame();
+  var w = place(G, 'Wolverine', 'player', 1);
+  assert(typeof w.onDamaged === 'function', 'the hook is live before dying');
+  var lane = G.findCardLane(w);
+  w.currentHealth = 0;
+  if (CARD_ABILITIES.Wolverine.onDeath) CARD_ABILITIES.Wolverine.onDeath(G, w, lane);
+  assertEq(w.onDamaged, null, 'and gone after the revive');
+});
+
 test('Freddy only wakes on TWO or more wasted energy', function () {
   assertEq(Game.FREDDY_WASTE_THRESHOLD, 2, 'the threshold is a named constant');
   function ended(withEnergy) {
@@ -4564,7 +4623,7 @@ test('The 2026-08-09 wording batch stuck', function () {
     ['Wolverine',   ['retaliation is lost']],
     ['Iron Man',    ['damaged enemies']],
     ['Jack Sparrow',['no ally opposite']],
-    ['Joker',       ['recovers when Joker dies', 'Start of Tricks']],
+    ['Joker',       ['recovers when Joker dies', 'Start of Tricks', 'rerolls 1-4']],
     ['Lex Luthor',  ['make bonus attacks', 'Tricks can still be drawn']],
     ['Doomsday',    ['(min 0)', 'permanent Immunity']],
     ['Batman',      ['then 2 damage to an enemy again']],
@@ -4577,7 +4636,7 @@ test('The 2026-08-09 wording batch stuck', function () {
     ['Wolverine',   ['Revive as (6/5)', 'Overdrive']],
     ['Iron Man',    ['hurt enemies', '≤ 8']],
     ['Jack Sparrow',['uncontested lane', 'cannot attack']],
-    ['Joker',       ['While Active', 'Crazy', 'rerolls 1-4']],
+    ['Joker',       ['While Active', 'Crazy']],
     ['Lex Luthor',  ['cannot draw cards', 'do bonus attacks']],
     ['Doomsday',    ['costs 1 less', 'Immunity and Untrickable']],
     ['Batman',      ['Throw Batarangs', 'Fear 1']],

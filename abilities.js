@@ -2515,8 +2515,11 @@ const CARD_ABILITIES = {
         both.forEach(t => G.dealDamage(t, chainDmg, self));
         return;
       }
+      // ONE chained enemy, not the whole consecutive run (owner call). She still
+      // picks left or right when both sides have a body — the direction is the
+      // decision, the chain just stops after the first one.
       G.log(`Wonder Woman's lasso chains — ${chainDmg} chain damage!`);
-      G.autoChainDamage(self.owner, myLane, chainDmg, 0, null, "LASSO CHAIN");
+      G.autoChainDamage(self.owner, myLane, chainDmg, 0, null, "LASSO CHAIN", 1);
     }
   },
 
