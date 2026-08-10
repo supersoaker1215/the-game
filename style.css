@@ -39412,3 +39412,140 @@ body.hand-text-always .trick-cards .trick-card .status-badges,
 /* Reserve the strip so the art/name never rides under it, and keep the
    chip clear of the cost badge and rarity pip on either side. */
 .card:has(> .card-xp-chip) .card-portrait { margin-top: 0; }
+
+/* ============================================================
+   ONE PICK SCREEN FOR EVERY CHOICE (2026-08-10)
+   Owner: "for paul i want the same pick section screen that's
+   shared between all choices in the game — foresee, invis, paul,
+   grinch, BWL etc."
+
+   The tray renderer was ALREADY shared — every branch of it appends
+   the same pickBtn(). What was not shared was the LAYOUT. Options
+   are a column of [tile, PICK], stacked at their natural height, so
+   a prompt whose options differ in height (Paul's Knull is tall with
+   rules text, his Spawn is short) put the two PICK buttons at two
+   different baselines — and on a tall option the button was pushed
+   past the bottom of the panel and out of sight entirely, which is
+   why Paul's prompt looked like it had no way to choose.
+
+   Two rules fix it for every prompt at once, rather than per-card.
+   ============================================================ */
+
+/* 1. PICK SITS ON A SHARED BASELINE. .choice-tray-cards already
+      stretches every .choice-opt to the tallest one; margin-top:auto
+      then drops each button to the bottom of its own equal-height
+      cell, so the row of PICKs is a straight line no matter how the
+      tiles above them differ. The tiles keep their natural size —
+      stretching a real card face would distort the art. */
+.choice-tray .choice-opt > .choice-pick-btn { margin-top: auto; }
+
+/* 2. THE PANEL CAN NEVER PUSH THE COMMIT OUT OF VIEW. A prompt whose
+      options are full-height card faces could grow taller than the
+      viewport, and the panel had no ceiling — so the thing you have
+      to click to continue was the first thing to go off-screen.
+      Bounded and scrollable, with the header pinned so you can still
+      read what you are choosing while you scroll. */
+.choice-tray-panel {
+  max-height: 88vh;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+.choice-tray-header {
+  position: sticky; top: 0; z-index: 2;
+  background: rgba(6,10,18,0.97);
+}
+
+/* 3. ACTION-TILE TEXT: NO GREY, AND ACTUALLY CENTRED.
+      The body text on an action tile (Invisible Woman's face-up /
+      face-down, Grinch's keep-or-discard, Voldemort's curses) was
+      var(--text-mute) — #9caab4, a flat grey with no theme in it at
+      all, on a screen where every other word glows. And the block
+      only LOOKED centred: .card-desc centres its child but carried
+      4px top / 14px bottom padding, so the 10px difference pushed
+      the text 5px above the middle of the tile.
+      Owner: "the text is grey and not centered." */
+.choice-tray .choice-action .card-desc {
+  color: color-mix(in srgb, rgb(var(--theme-rgb, 79,195,247)) 22%, #eaf4ff);
+  padding: 8px 12px;
+  text-shadow: 0 0 10px rgba(var(--theme-rgb, 79,195,247), 0.28);
+}
+/* The tile's own heading picks up the same glow the panel title has, so
+   the two tiles read as buttons rather than as inert labels. */
+.choice-tray .choice-action .cn-text {
+  color: #fff;
+  text-shadow:
+    0 0 10px rgba(var(--theme-rgb, 79,195,247), 0.75),
+    0 0 20px rgba(var(--theme-rgb, 79,195,247), 0.35);
+}
+
+/* ============================================================
+   ROGUELITE HUD — ONE HUE PER CHANNEL (2026-08-10)
+   Owner: "there should be no gray. Letters like menu, HP, gold,
+   deck, tricks, relics, they all should have the neon highlights.
+   I mean, not all blues, so it doesn't get washed out."
+
+   Two problems, one cause. The labels were rgba(220,235,250,0.65) —
+   a desaturated near-white that reads as grey against pure black —
+   and every value in the row was the same --theme-accent-bright, so
+   six different readouts said the same colour and the eye had to
+   read the words to tell them apart. Six channels, six hues: you
+   can now find gold or HP by colour alone.
+
+   Deck / Tricks / Relics had NO distinguishing class of their own
+   (all three were bare `.rl-hud-pill.rl-hud-btn`), so this pass
+   added rl-hud-deck / -tricks / -relics in roguelite.js rather than
+   colouring by :nth-child, which would silently repaint the wrong
+   pill the day a seventh readout is inserted.
+   ============================================================ */
+.rl-hud {
+  /* Per-pill hue, read by the shared label/value/glyph rules below. */
+  --rlc: rgb(var(--theme-rgb, 79,195,247));
+}
+.rl-hud .rl-hud-menu   { --rlc: #8fd6ff; }  /* the way out — cool, quiet */
+.rl-hud .rl-hud-hp     { --rlc: #ff6b7a; }  /* vitals — the one that means danger */
+.rl-hud .rl-hud-gold   { --rlc: #ffc247; }  /* currency — amber, same as shop prices */
+.rl-hud .rl-hud-deck   { --rlc: #4fc3f7; }  /* cards — the game's card blue */
+.rl-hud .rl-hud-tricks { --rlc: #c77dff; }  /* tricks are purple everywhere else */
+.rl-hud .rl-hud-relics { --rlc: #3fe0c0; }  /* relics — teal, nothing else uses it */
+
+/* NO GREY ANYWHERE IN THE ROW. Label, value and glyph all take the
+   channel hue; the label sits a touch dimmer than the value so the
+   number still leads, but it is the same colour rather than a
+   washed-out neutral. */
+.rl-hud .rl-hud-pill .rl-hud-label {
+  color: color-mix(in srgb, var(--rlc) 72%, white);
+  text-shadow: 0 0 8px color-mix(in srgb, var(--rlc) 55%, transparent);
+}
+.rl-hud .rl-hud-pill .rl-hud-value {
+  color: #fff;
+  text-shadow:
+    0 0 6px var(--rlc),
+    0 0 14px color-mix(in srgb, var(--rlc) 55%, transparent);
+}
+.rl-hud .rl-hud-pill .rl-hud-sep { color: var(--rlc); opacity: 0.6; }
+.rl-hud .rl-hud-pill .rl-hud-glyph {
+  color: var(--rlc);
+  filter:
+    drop-shadow(0 0 4px color-mix(in srgb, var(--rlc) 75%, transparent))
+    drop-shadow(0 0 9px color-mix(in srgb, var(--rlc) 35%, transparent));
+}
+/* The HP meter tracks its own channel instead of the global theme, so a
+   run at 3 HP reads red at a glance rather than the same blue as DECK. */
+.rl-hud .rl-hud-hp .rl-hud-bar { border-color: color-mix(in srgb, var(--rlc) 45%, transparent); }
+.rl-hud .rl-hud-hp .rl-hud-bar-fill {
+  background: linear-gradient(90deg, var(--rlc), color-mix(in srgb, var(--rlc) 60%, white));
+  box-shadow: 0 0 8px var(--rlc);
+}
+/* Hover glows in the pill's OWN colour — the boxless scale from the
+   restyle pass stays, it just stops being blue for all six. */
+.rl-hud .rl-hud-pill.rl-hud-btn:hover {
+  color: #fff;
+  text-shadow: 0 0 12px var(--rlc), 0 0 22px color-mix(in srgb, var(--rlc) 45%, transparent);
+}
+.rl-hud .rl-hud-pill.rl-hud-btn:hover .rl-hud-label { color: #fff; }
+
+/* The map legend is the same problem one row down — seven node types
+   that all have a meaning already encoded in their own colour. Let the
+   word take the glyph's colour instead of printing grey next to it. */
+.rl-map-legend .rl-legend-pill { color: currentColor; }
+.rl-map-legend .rl-legend-pill span { color: inherit; }

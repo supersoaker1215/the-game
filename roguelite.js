@@ -4122,9 +4122,11 @@ const Roguelite = {
     // Confirm before nuking an in-progress save. The Continue Run
     // button on the main menu is the safe path; clicking the regular
     // Roguelite button after a save exists would silently overwrite.
-    if (this.hasSavedRun() && typeof confirm === 'function') {
-      const ok = confirm('You have a saved run in progress. Start a new run anyway? (Your save will be overwritten when you reach the map.)');
-      if (!ok) return;
+    if (this.hasSavedRun()) {
+      UI.confirmModal('You have a saved run in progress. Start a new run anyway? Your save will be overwritten when you reach the map.',
+        { title: 'Overwrite Save', okText: 'New Run', danger: true })
+        .then((ok) => { if (ok) this._renderAscensionPicker(); });
+      return;
     }
     // Show ascension picker first so the player can up the difficulty
     // before committing to relic / card / boon picks.
@@ -4184,21 +4186,31 @@ const Roguelite = {
       }
     } catch (e) {}
   },
+  // Two gates before a Daily can start, and both used to be native confirm()
+  // calls — which this app shell answers `false` to instantly without drawing
+  // anything, so a player who had already attempted today, or who had a run
+  // saved, could not start a Daily at all. Chained as promises now: each gate
+  // only asks if it applies, and the real work lives in _doEnterDailyRun.
   enterDailyRun() {
     const status = this.dailyStatus();
+    const savedGate = () => {
+      if (!this.hasSavedRun()) { this._doEnterDailyRun(); return; }
+      UI.confirmModal('You have a saved run in progress. Start the Daily Run anyway? Your save will be overwritten when you reach the map.',
+        { title: 'Overwrite Save', okText: 'Start Daily', danger: true })
+        .then((ok) => { if (ok) this._doEnterDailyRun(); });
+    };
     if (status && status.attempted) {
-      // Already played today. Show a friendly confirm before letting
-      // the player blow past the lockout (they can if they want, but
-      // see the warning so they know the rules).
-      if (typeof confirm === 'function') {
-        const proceed = confirm('You already started today\'s Daily Run. Play it again anyway? (Your previous attempt counts as the official one.)');
-        if (!proceed) return;
-      }
+      // Already played today. Warn before letting the player blow past the
+      // lockout — they can if they want, but they see the rule first.
+      UI.confirmModal("You already started today's Daily Run. Play it again anyway? Your previous attempt counts as the official one.",
+        { title: 'Daily Already Played', okText: 'Play Again' })
+        .then((proceed) => { if (proceed) savedGate(); });
+      return;
     }
-    if (this.hasSavedRun() && typeof confirm === 'function') {
-      const ok = confirm('You have a saved run in progress. Start the Daily Run anyway? (Your save will be overwritten when you reach the map.)');
-      if (!ok) return;
-    }
+    savedGate();
+  },
+
+  _doEnterDailyRun() {
     // Hijack Math.random with a deterministic stream derived from
     // today's date so the starter relic / card pools are identical
     // for every player on the same day. Restored after the rolls.
@@ -5950,12 +5962,25 @@ const Roguelite = {
     this._closeModal();
     // Only confirm when there's an active run to lose; pre-run picks
     // can return to main menu directly without a prompt.
+    // UI.confirmModal, NOT the native confirm(). The app shell suppresses
+    // native dialogs — window.confirm returns false INSTANTLY without ever
+    // drawing anything — so the old `if (!ok) return;` made this button a
+    // no-op and the Menu on the run map could not be opened at all. User:
+    // "i can't select the menu on the roguelite screen." Every other screen
+    // in the game was already on the themed modal; roguelite.js was the one
+    // file the sweep missed.
     if (Game.state.roguelite) {
-      const ok = (typeof confirm === 'function')
-        ? confirm('Abandon this run? Your deck, relics, and progress will be lost.')
-        : true;
-      if (!ok) return;
+      UI.confirmModal('Abandon this run? Your deck, relics, and progress will be lost.',
+        { title: 'Abandon Run', okText: 'Abandon', danger: true })
+        .then((ok) => { if (ok) this._doAbandon(); });
+      return;
     }
+    this._doAbandon();
+  },
+
+  // The actual teardown, split out so the confirm path and the
+  // nothing-to-lose path share one implementation.
+  _doAbandon() {
     Game.state.roguelite = null;
     Game.state.phase = 'main-menu';
     Game.state._boonRoll = null;
@@ -6305,19 +6330,19 @@ const Roguelite = {
           <span class="rl-hud-label">GOLD</span>
           <span class="rl-hud-value">${run.gold}</span>
         </div>
-        <button type="button" class="rl-hud-pill rl-hud-btn tron-fx tron-fx-breathe" onclick="Roguelite.openDeckViewer()" title="View deck">
+        <button type="button" class="rl-hud-pill rl-hud-btn rl-hud-deck tron-fx tron-fx-breathe" onclick="Roguelite.openDeckViewer()" title="View deck">
           <svg class="rl-hud-glyph" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="4" width="10" height="14" rx="1"/><rect x="9" y="6" width="10" height="14" rx="1" stroke-opacity="0.55"/></svg>
           <span class="rl-hud-label">DECK</span>
           <span class="rl-hud-value">${run.deck.length}</span>
           <span class="tron-sweep" aria-hidden="true"></span>
         </button>
-        <button type="button" class="rl-hud-pill rl-hud-btn tron-fx tron-fx-breathe" onclick="Roguelite.openTrickViewer()" title="View tricks">
+        <button type="button" class="rl-hud-pill rl-hud-btn rl-hud-tricks tron-fx tron-fx-breathe" onclick="Roguelite.openTrickViewer()" title="View tricks">
           <svg class="rl-hud-glyph" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12 L20 12 M12 4 L12 20"/><circle cx="12" cy="12" r="3"/></svg>
           <span class="rl-hud-label">TRICKS</span>
           <span class="rl-hud-value">${run.tricks.length}</span>
           <span class="tron-sweep" aria-hidden="true"></span>
         </button>
-        <button type="button" class="rl-hud-pill rl-hud-btn tron-fx tron-fx-breathe ${this._relicPulseRecent(run) ? 'rl-hud-relic-pulse' : ''}" onclick="Roguelite.openRelicViewer()" title="View relics">
+        <button type="button" class="rl-hud-pill rl-hud-btn rl-hud-relics tron-fx tron-fx-breathe ${this._relicPulseRecent(run) ? 'rl-hud-relic-pulse' : ''}" onclick="Roguelite.openRelicViewer()" title="View relics">
           <svg class="rl-hud-glyph" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 L20 8 L17 19 L7 19 L4 8 Z"/><circle cx="12" cy="11" r="2"/></svg>
           <span class="rl-hud-label">RELICS</span>
           <span class="rl-hud-value">${run.relics.length}</span>
