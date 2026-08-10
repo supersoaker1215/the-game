@@ -3915,6 +3915,79 @@ test('Each curse can be cast only once, ever', function () {
   assertEq(s.v._usedCurses.length, 3, 'a fourth round adds nothing');
 });
 
+test('Voldemort casts through REAL combat, once per round, never a repeat', function () {
+  // Every other Voldemort test calls defs.onLaneCombat() by hand, which proves
+  // the curse logic and proves NOTHING about whether the lane dispatcher ever
+  // reaches it. "Make sure he chooses a curse each time he attacks" is a
+  // question about the dispatcher, so this one drives resolveCombat().
+  var G = freshGame();
+  var v = place(G, 'Voldemort', 'player', 2);
+  var e = place(G, 'Bane', 'ai', 2);
+  // Fat and toothless: he must survive three rounds and always have a mark.
+  e.attack = 0; e.currentHealth = e.maxHealth = 60;
+  v.currentHealth = v.maxHealth = 60;
+
+  var castPerRound = [];
+  for (var r = 1; r <= 3; r++) {
+    G.state.round = r;
+    var before = (v._usedCurses || []).length;
+    G.resolveCombat();
+    var after = (v._usedCurses || []).length;
+    castPerRound.push(after - before);
+    // Keep a living, unafflicted mark for the next round.
+    if (!G.state.lanes[2].ai || G.state.lanes[2].ai.currentHealth <= 0) {
+      e = place(G, 'Bane', 'ai', 2);
+    } else { e = G.state.lanes[2].ai; }
+    e.attack = 0; e.currentHealth = e.maxHealth = 60;
+    e.isMindControlled = false; e.isFrozen = false; e.isStunned = false; e.frozenTurns = 0;
+    v.currentHealth = v.maxHealth = 60;
+    v.isFrozen = false; v.isStunned = false; v.frozenTurns = 0;
+  }
+  assertEq(castPerRound.join(','), '1,1,1', 'exactly one curse in each of three real combats');
+  assertEq(v._usedCurses.slice().sort().join(','), 'ak,cr,im',
+    'and they were three DIFFERENT curses — a spent one is never offered again');
+
+  // Round four: all three spent, so the fight resolves with nothing cast.
+  G.state.round = 4;
+  G.resolveCombat();
+  assertEq(v._usedCurses.length, 3, 'a fourth combat adds nothing and does not crash');
+
+  // UNCONTESTED lane too. The dispatcher reads lane.player/lane.ai before the
+  // contested/uncontested split, but "each time he attacks" includes the
+  // rounds nothing stands in front of him, so assert it rather than infer it.
+  var G2 = freshGame();
+  var v2 = place(G2, 'Voldemort', 'player', 0);      // lane 0: nobody opposite
+  var mark = place(G2, 'Bane', 'ai', 3);             // a mark in a FAR lane
+  mark.attack = 0; mark.currentHealth = mark.maxHealth = 60;
+  G2.resolveCombat();
+  assertEq((v2._usedCurses || []).length, 1, 'he curses on a round he is unblocked');
+});
+
+test('A spent curse is filtered out of the menu, not just refused on cast', function () {
+  // The user-visible half of the once-each rule: after Crucio, the prompt is
+  // down to two options. Asserting the OFFER list, not the outcome.
+  var defs = CARD_ABILITIES['Voldemort'];
+  var G = freshGame();
+  var v = place(G, 'Voldemort', 'player', 2);
+  var e = place(G, 'Bane', 'ai', 2);
+  e.attack = 0; e.currentHealth = e.maxHealth = 60;
+
+  function offered() {
+    var used = v._usedCurses || [];
+    return defs._CURSES
+      .filter(function (c) { return used.indexOf(c.id) === -1; })
+      .filter(function (c) { return defs._targetsFor(G, v, c.id).length > 0; })
+      .map(function (c) { return c.id; });
+  }
+  assertEq(offered().join(','), 'ak,cr,im', 'all three on the table to start');
+  v._usedCurses = ['cr'];
+  var left = offered();
+  assertEq(left.indexOf('cr'), -1, 'Crucio is gone once it has been cast');
+  assertEq(left.length, 2, 'and exactly two remain to choose from');
+  v._usedCurses = ['cr', 'ak'];
+  assertEq(offered().join(','), 'im', 'then one');
+});
+
 test('A curse that finds no mark does not burn its one use', function () {
   var defs = CARD_ABILITIES['Voldemort'];
   var G = freshGame();

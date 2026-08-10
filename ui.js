@@ -1696,7 +1696,15 @@ const UI = {
       // maxDur 3 — the house cap for a play sting (hover beds run long, casts
       // do not). If the source runs longer it is trimmed at playback rather
       // than talking over the turn that follows it.
-      'Voldemort':        { play: { src: 'audio/cards/voldemort-play.mp3', maxDur: 3 } },
+      // THE FULL 8.9s LINE, and fullDuration so nothing touches it. Two separate
+      // cuts were stacked here: the import pipeline had trimmed the source to
+      // 3.0s (the standard play-clip cap), and the registry's `maxDur: 3` then
+      // armed the engine's 1s programmatic cap-fade over the last third of what
+      // survived. Re-encoded from the 8.93s original at -20 LUFS with a 0.2s
+      // tail (click guard only, not a fade), and fullDuration keeps the engine
+      // off it. Owner: "his when played is being cut, let it play all the way
+      // through." This is a deliberate exception to the ~3s play-clip rule.
+      'Voldemort':        { play: { src: 'audio/cards/voldemort-play.mp3', fullDuration: true } },
       // Obi-Wan hover: 86s of John Williams' "The Immolation Scene" (0:00 →
       // 1:26 of the source) — the Mustafar-duel elegy. 0.6s fade-in / 2s
       // fade-out baked; maxDur 86 = full clip. ?v=2 busts the old cached file.
@@ -3232,7 +3240,7 @@ const UI = {
     // pass) so browsers refetch instead of serving stale cached bytes.
     // Only applied when the src doesn't already carry its own `?v=...`
     // override (so individually-bumped entries like Thanos's stay intact).
-    _CARD_AUDIO_VERSION: 11,
+    _CARD_AUDIO_VERSION: 12,
     _bustCache(src) {
       if (typeof src !== 'string' || src.indexOf('?') !== -1) return src;
       return src + '?cv=' + this._CARD_AUDIO_VERSION;

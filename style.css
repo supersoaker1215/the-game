@@ -39205,3 +39205,210 @@ body.hand-text-always .trick-cards .trick-card .status-badges,
 @media (prefers-reduced-motion: reduce) {
   .sig-hand-haze, .sig-card-haze { animation: none !important; opacity: 0 !important; }
 }
+
+/* ============================================================
+   ROGUELITE STYLE CONTINUITY PASS (2026-08-10)
+   Owner: "retouch the roguelite mode and update it to match the
+   current aesthetic of the game."
+
+   The roguelite screens were built before the glow-text language
+   landed and never got the sweep, so they were the last place in
+   the game still wearing the look that language replaced: gradient
+   -filled pills, 1px white-ish borders, and — on the pickers —
+   .mm-option-rl painting a literal blue box on top of the main
+   menu's boxless .mm-option. Every rule below is a KILL, not a new
+   invention: the surfaces end up matching .mm-option, .md-back and
+   the codex, which are the reference.
+
+   Scoped by CONTAINER wherever a container exists, per the lesson
+   in the glow-text block above — a rule that needs a class name
+   pasted into four lists is a rule that gets broken again.
+   ============================================================ */
+
+/* ---- 1. Pickers: .mm-option-rl stops repainting the box --------
+   .mm-option is already the canonical boxless row. The -rl variant
+   existed only to add a gradient, a border and two shadows on top,
+   which is the exact "blue box" the language forbids. Killing the
+   chrome leaves the icon + label + sub, which is what the main menu
+   shows, and the theme glow now lives entirely in the TEXT. */
+.mm-option-rl,
+.mm-option-rl:hover {
+  background: none !important;
+  border: none !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+}
+.mm-option-rl::before { display: none !important; }   /* left accent bar */
+.mm-option-rl > .tron-sweep { display: none !important; }
+.mm-option-rl.tron-fx-breathe { animation: none !important; }
+.mm-option-rl {
+  transition: transform 150ms var(--ease-spring, ease), color 200ms, text-shadow 200ms;
+  transform-origin: left center;
+}
+.mm-option-rl:hover { transform: scale(1.04); }
+.mm-option-rl:active { transform: scale(1.01); }
+.mm-option-rl:hover .mm-option-label {
+  color: #fff;
+  text-shadow:
+    0 0 12px rgba(var(--theme-rgb, 79,195,247), 0.85),
+    0 0 22px rgba(var(--theme-rgb, 79,195,247), 0.40);
+}
+.mm-option-rl:hover .rl-mm-glyph {
+  filter:
+    drop-shadow(0 0 6px rgba(var(--theme-rgb, 79,195,247), 0.85))
+    drop-shadow(0 0 14px rgba(var(--theme-rgb, 79,195,247), 0.40));
+}
+
+/* ---- 2. RELIC / CARD / BOON step strip -------------------------
+   Three rounded grey pills for a read-only progress indicator is
+   three boxes the player never clicks. Reduced to spaced caps:
+   dim = not there yet, glowing = you are here, faint = done. */
+.rl-pick-step,
+.rl-pick-step-active,
+.rl-pick-step-done {
+  background: none !important;
+  border: none !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  padding: 6px 10px;
+  letter-spacing: 3px;
+}
+.rl-pick-step-active {
+  color: #fff;
+  text-shadow:
+    0 0 10px rgba(var(--theme-rgb, 79,195,247), 0.85),
+    0 0 20px rgba(var(--theme-rgb, 79,195,247), 0.40);
+}
+
+/* ---- 3. Ascension rows / event choices -------------------------
+   .rl-event-choice carried the worst offender in the mode: a solid
+   #0f1219 fill behind a 1px white border, i.e. a grey box on black.
+   The Ascension screen is a LIST — it should read like the main
+   menu's list, and the current tier should glow rather than sit in
+   a highlighted rectangle. */
+.rl-event-choices { padding-left: 8px; padding-right: 8px; }
+.rl-event-choice,
+.rl-event-choice:hover:not([disabled]) {
+  background: none !important;
+  border: none !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+}
+.rl-event-choice {
+  padding: 11px 12px;
+  transform-origin: left center;
+  transition: transform 150ms var(--ease-spring, ease), color 200ms, text-shadow 200ms, opacity 200ms;
+  color: rgba(220,225,235,0.72);
+}
+.rl-event-choice:hover:not([disabled]) {
+  transform: scale(1.03);
+  color: #fff;
+  text-shadow:
+    0 0 12px rgba(var(--theme-rgb, 79,195,247), 0.85),
+    0 0 22px rgba(var(--theme-rgb, 79,195,247), 0.40);
+}
+.rl-event-choice:active:not([disabled]) { transform: scale(1.005); }
+/* The tier you are currently on: brighter at rest, no rectangle. */
+.rl-event-choice.rl-asc-cur { color: #fff; }
+.rl-event-choice.rl-asc-cur .rl-levelup-name {
+  text-shadow:
+    0 0 10px rgba(var(--theme-rgb, 79,195,247), 0.75),
+    0 0 20px rgba(var(--theme-rgb, 79,195,247), 0.35);
+}
+/* Daily run keeps its gold identity — as text colour, not a border. */
+.rl-event-choice.rl-asc-daily,
+.rl-event-choice.rl-asc-daily:hover { border-color: transparent !important; }
+.rl-event-choice.rl-asc-daily .rl-levelup-name { color: #ffd77a; }
+.rl-event-choice.rl-asc-daily:hover .rl-levelup-name {
+  color: #fff;
+  text-shadow: 0 0 12px rgba(255,215,122,0.85), 0 0 22px rgba(255,215,122,0.40);
+}
+
+/* ---- 4. Run HUD ------------------------------------------------
+   Six gradient-filled bordered pills across the top of every map
+   screen. Five of them are READOUTS (HP / gold / deck / tricks /
+   relics) — a number and a label need no container. The two that
+   are buttons get the scale+glow instead of a box. Container-scoped
+   on .rl-hud so a seventh pill added later is boxless for free. */
+.rl-hud .rl-hud-pill,
+.rl-hud .rl-hud-pill:hover {
+  background: none !important;
+  border: none !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+}
+.rl-hud .rl-hud-pill > .tron-sweep { display: none !important; }
+.rl-hud .rl-hud-pill.tron-fx-breathe { animation: none !important; }
+.rl-hud .rl-hud-pill { padding: 8px 10px; }
+.rl-hud .rl-hud-pill.rl-hud-btn {
+  transition: transform 150ms var(--ease-spring, ease), color 200ms, text-shadow 200ms;
+}
+.rl-hud .rl-hud-pill.rl-hud-btn:hover {
+  transform: scale(1.12);
+  color: #fff;
+  text-shadow:
+    0 0 12px rgba(var(--theme-rgb, 79,195,247), 0.85),
+    0 0 22px rgba(var(--theme-rgb, 79,195,247), 0.40);
+}
+.rl-hud .rl-hud-pill.rl-hud-btn:active { transform: scale(1.02); }
+/* The HP meter is the one bar worth keeping — it encodes a value a
+   number alone doesn't (how close to dead), so it stays. */
+
+/* ---- 5. Map legend --------------------------------------------- */
+.rl-map-legend .rl-legend-pill {
+  background: none !important;
+  border: none !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  padding: 4px 8px;
+}
+
+/* ---- 6. Panels: one rim, not a bloom ---------------------------
+   .rl-panel and .rl-modal-panel stacked two and three outer glows,
+   so the roguelite shell floated in a cyan halo while the codex and
+   draft screens sit behind a single hairline rim. Same border, one
+   shadow. Interior was already #000 and stays that way. */
+.rl-panel {
+  box-shadow: 0 0 18px rgba(var(--theme-rgb, 79,195,247), 0.16);
+}
+.rl-modal-panel {
+  box-shadow: 0 0 18px rgba(var(--theme-rgb, 79,195,247), 0.16);
+}
+
+/* ---- 7. Map viewport ------------------------------------------
+   NOT a centring fix: the map is a 1700px scrolling column and the
+   space under the entry row is the rest of the run, so it is doing
+   its job. What it did wear was a grey box — rgba(0,0,0,0.45) over
+   a 6%-white hairline — sitting inside a panel that is already pure
+   black. Interior goes back to #000 with no rule around it. */
+.rl-map-panel .rl-map-svg-wrap {
+  background: #000 !important;
+  border-color: transparent !important;
+}
+
+/* ---- 8. Mastery chip gets out of the stat row -------------------
+   The roguelite XP chip (`0/30`) was absolutely positioned bottom-
+   centre, which is the same band the ATK and HP orbs occupy — and on
+   a narrow card the three of them collide. It was ALSO sitting on top
+   of the last line of rules text, because .card-desc ran to 11px off
+   the bottom and had no idea the chip was coming.
+
+   Both are the same mistake: the chip was parked in the busiest strip
+   of the card. Moved to the top edge instead, centred in the gap the
+   cost badge (top-left) and rarity pip (top-right) leave open, where
+   nothing else is ever drawn. It reads as a header on the art rather
+   than a third stat, and the whole bottom of the card goes back to
+   the description and the orbs.
+
+   Keyed on :has() rather than a roguelite wrapper class because the
+   chip renders in the run pickers, the deck grid AND the in-run hand
+   — a wrapper-scoped rule would have to be pasted into all three, and
+   the glow-text lesson above is that a rule needing four edit sites
+   is a rule that gets broken. */
+.card > .card-xp-chip {
+  top: 6px;
+  bottom: auto;
+}
+/* Reserve the strip so the art/name never rides under it, and keep the
+   chip clear of the cost badge and rarity pip on either side. */
+.card:has(> .card-xp-chip) .card-portrait { margin-top: 0; }
