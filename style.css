@@ -39630,3 +39630,59 @@ body.in-match .settings-cog { font-size: 17px !important; }
     --hudc-left: calc(100vw - (3 * var(--hudc-size) + 2 * var(--hudc-gap)) - 12px);
   }
 }
+
+/* ============================================================
+   THE STATUS STRIP STAYS PUT (2026-08-10)
+   Owner: "it moves with the board — i don't want this, it should
+   stay."
+
+   The three top-bar controls were already fixed to the viewport
+   after the last pass, but .turn-hud — the strip that carries the
+   round pill, DECK and TRICKS, i.e. the thing those buttons belong
+   to — is a static block inside #game-area. So the moment the board
+   scrolled, the bar slid away underneath and left the buttons
+   hovering alone over the lanes with nothing around them. Half the
+   row was pinned and half of it was not.
+
+   Sticky rather than fixed ON PURPOSE: #game-area carries
+   perspective: 1500px, which hijacks position:fixed for anything
+   inside it (the same trap that had the log button pinned to the
+   BOARD instead of the screen). position:sticky resolves against
+   the scroll container instead, so it survives inside the camera
+   transform where fixed would not. The strip keeps its place in the
+   flow — nothing below it jumps up by the bar's height the way it
+   would if this were fixed.
+   ============================================================ */
+/* THE SCROLLPORT HAS TO BE THE THING THAT ACTUALLY SCROLLS.
+   <body> IS the .in-match element, and it already declares
+   overflow-y:auto — so it is the scroll container `position:sticky`
+   binds to. But its height was left to grow with its content
+   (measured 1031px against a 600px viewport), so body itself never
+   scrolled: the DOCUMENT did, sliding the whole body — sticky bar
+   and all — up past the top. Sticky can't hold against a scroll
+   happening outside its own scrollport, which is why the bar still
+   went to y = -116 with position:sticky correctly applied.
+   Capping body to the viewport makes it the real scroller, so the
+   board scrolls INSIDE it and the sticky strip has something to
+   stick to. */
+body.in-match {
+  height: 100dvh;
+  max-height: 100dvh;
+}
+body.in-match .turn-hud {
+  /* !important because `#game-area > *` sets position:relative on every direct
+     child, and an ID selector (1-0-1) outranks this rule's two classes (0-2-1)
+     no matter how it is written. Measured: without this the computed position
+     stayed `relative` and the bar scrolled away exactly as before. */
+  position: sticky !important;
+  top: 0;
+  /* !important here for the SAME reason as position: `#game-area > *` also
+     sets z-index:1, and at z-index 1 the .board (a later sibling in the same
+     stacking context) painted straight over the stuck bar — it measured as
+     present at y=0 and was invisible on screen. */
+  z-index: 120 !important;
+  /* The strip is see-through by design (a texture over rgba black), and a
+     see-through bar with the board sliding under it reads as a smear. Opaque
+     only while it is doing the sticky job. */
+  background-color: #000 !important;
+}
