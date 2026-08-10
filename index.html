@@ -13,7 +13,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;700&display=swap">
-  <link rel="stylesheet" href="style.css?v=1006">
+  <link rel="stylesheet" href="style.css?v=1007">
   <script>
     // Lightweight error reporter (pre-Sentry) — capture runtime JS
     // errors + unhandled promise rejections to a localStorage ring
@@ -564,22 +564,8 @@
     <!-- SETTINGS MODAL — moved OUTSIDE #game-area (below) so it still
          opens during the draft phase when #game-area is display:none. -->
 
-    <!-- LOG (drawer — collapsible right-edge panel)
-         Toggle button is rendered inline with the HUD pill now (below
-         the round-track) so it sits with the rest of the HUD chrome
-         instead of floating by the settings cog. Icon is a Tron
-         data-stream SVG, not an emoji. -->
-    <button class="log-drawer-toggle" onclick="UI.toggleLogDrawer()" title="Toggle battle log" aria-label="Battle log">
-      <svg class="log-toggle-svg" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-        <path d="M4 5h12M4 9h16M4 13h12M4 17h16"/>
-        <circle cx="20" cy="5" r="1.2" fill="currentColor" stroke="none"/>
-        <circle cx="20" cy="13" r="1.2" fill="currentColor" stroke="none"/>
-      </svg>
-    </button>
-    <div id="log-section" class="log-section log-drawer collapsed">
-      <div class="section-label">Battle Log <button class="log-close" onclick="UI.toggleLogDrawer()" title="Close">&#10005;</button></div>
-      <div id="game-log" class="game-log"></div>
-    </div>
+    <!-- LOG (drawer — collapsible right-edge panel). The TOGGLE BUTTON was
+         moved out to body level — see it next to the settings cog below. -->
 
     <!-- DEAD PILE PEEK POPOVER -->
     <div id="dead-peek" class="dead-peek" style="display:none"></div>
@@ -657,6 +643,30 @@
 
   <!-- SETTINGS MODAL — lives outside #game-area so it can open from the
        draft screen (where game-area is display:none) as well as in-game. -->
+  <!-- The drawer PANEL follows its button out of #game-area for the same
+       reason: it is position:fixed with viewport-intent coordinates
+       (top:80px; right:0; bottom:80px), which the camera transform was
+       resolving against the board instead. -->
+  <div id="log-section" class="log-section log-drawer collapsed">
+    <div class="section-label">Battle Log <button class="log-close" onclick="UI.toggleLogDrawer()" title="Close">&#10005;</button></div>
+    <div id="game-log" class="game-log"></div>
+  </div>
+  <!-- BATTLE LOG TOGGLE — body level, for the SAME reason the ? below says:
+       #game-area carries a camera transform (perspective: 1500px), and a
+       perspective ancestor becomes the containing block for position:fixed.
+       This button lived inside #game-area, so "fixed" pinned it to the BOARD
+       rather than the viewport and it slid out of the top bar whenever the
+       board moved (measured at y = -104 while the cog sat at y = 12). The ?
+       had already been moved out for this exact reason; the log never was.
+       All three top-bar controls now share one containing block, which is
+       what lets the HUD-cluster geometry hold. -->
+  <button class="log-drawer-toggle" onclick="UI.toggleLogDrawer()" title="Toggle battle log" aria-label="Battle log">
+    <svg class="log-toggle-svg" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M4 5h12M4 9h16M4 13h12M4 17h16"/>
+      <circle cx="20" cy="5" r="1.2" fill="currentColor" stroke="none"/>
+      <circle cx="20" cy="13" r="1.2" fill="currentColor" stroke="none"/>
+    </svg>
+  </button>
   <button class="settings-cog" title="Settings" aria-label="Open settings" onclick="UI.openSettings()">&#9881;</button>
   <!-- IN-MATCH HELP — docked beside the settings cog (same Tron chrome).
        Lives at BODY level like the cog: #game-area carries a camera transform,

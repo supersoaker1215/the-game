@@ -39596,7 +39596,12 @@ body.in-match .settings-cog {
   transform: none !important;
   display: flex; align-items: center; justify-content: center;
 }
-body.in-match .log-drawer-toggle  { left: var(--hudc-left) !important; }
+/* The toggle used to be hidden outside a match simply by living inside
+   #game-area (display:none between matches). Now that it is at body level
+   it needs the same explicit gate the hint button uses, or it would float
+   over the menu, codex and deck builder. */
+.log-drawer-toggle { display: none; }
+body.in-match .log-drawer-toggle  { display: flex; left: var(--hudc-left) !important; }
 body.in-match .cheat-help-toggle  { left: calc(var(--hudc-left) + var(--hudc-step)) !important; }
 body.in-match .settings-cog       { left: calc(var(--hudc-left) + 2 * var(--hudc-step)) !important; }
 
