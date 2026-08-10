@@ -4248,6 +4248,99 @@ test('Wolverine says the When Damaged effect is lost on revive', function () {
   assertEq(w.onDamaged, null, 'and gone after the revive');
 });
 
+// ---- 2026-08-10 ORDERING + SPLASH RULING -------------------
+test('On Play resolves BEFORE passives — Peacemaker kills a 2-ATK Xenomorph', function () {
+  // The reported case verbatim: Xenomorph sitting at 2 ATK, Peacemaker played,
+  // "it doesn't grow first, the On Play effect happens first". Before the fix
+  // the aura ping ran ahead of onPlay, so Xenomorph's While-Active growth took
+  // him to 3 ATK and Peacemaker's "destroy an enemy with ≤ 2 ATK" found no
+  // legal target.
+  var G = freshGame();
+  var xeno = place(G, 'Xenomorph', 'ai', 2);
+  xeno.attack = 2; xeno.currentHealth = 5; xeno.maxHealth = 5;
+  var pm = G.createCardInstance(cardByName('Peacemaker'), 'player');
+  G.state.player.hand.push(pm);
+  G.state.player.currency = 20;
+  G.playCard('player', pm, 2);
+  assert(xeno.currentHealth <= 0 || G.state.lanes[2].ai !== xeno,
+    'Xenomorph was still 2 ATK when Peacemaker looked, so he dies');
+});
+
+test('the arrival aura ping still fires — it only MOVED, it was not dropped', function () {
+  // The ordering flip must not drop onAnyCardPlayed, and the same Xenomorph
+  // proves it from the other side: with nothing for the played card's On Play
+  // to contest, his While-Active growth must still land.
+  var G = freshGame();
+  var xeno = place(G, 'Xenomorph', 'player', 2);
+  var atkBefore = xeno.attack;
+  var body = G.createCardInstance(cardByName('Groot'), 'player');
+  G.state.player.hand.push(body);
+  G.state.player.currency = 20;
+  G.playCard('player', body, 4);
+  assert(xeno.attack > atkBefore, 'Xenomorph still grew off the new arrival');
+});
+
+test('Splash does not answer to ATK — a 0-ATK splasher still splashes', function () {
+  // Owner ruling: "if a card has 0 attack like doc ock and he still has splash
+  // 2, the splash 2 still fires". Drive real combat, not applySplash directly —
+  // the bug was in the GATE (pCanAttack required attack > 0), so calling the
+  // splash helper by hand would have passed either way.
+  function run(contested) {
+    var G = freshGame();
+    var ock = place(G, 'Dr. Octopus', 'player', 2);
+    ock.splashRange = 2;
+    ock.attack = 0;                       // stripped by Gojo / Nightwing / etc.
+    var adj = place(G, 'Gorilla Grodd', 'ai', 3);   // no Armor — it would eat a point
+    adj.currentHealth = adj.maxHealth = 20;
+    if (contested) {
+      var front = place(G, 'Gorilla Grodd', 'ai', 2);
+      front.currentHealth = front.maxHealth = 20;
+      front.attack = 0;                   // keep the trade from killing Ock
+    }
+    var before = adj.currentHealth;
+    G.resolveCombat();
+    return before - adj.currentHealth;
+  }
+  assertEq(run(true), 2, 'contested lane: the adjacent enemy takes Splash 2');
+  assertEq(run(false), 2, 'uncontested lane: same');
+});
+
+test('Hulk is not an exception — his splash follows his ATK because it IS his ATK', function () {
+  // The one card the owner carved out. He needs no special case in the gate:
+  // _splashTracksAtk drives splashRange FROM attack, so zeroing his ATK zeroes
+  // the splash and the same rule produces the right answer.
+  var G = freshGame();
+  var hulk = G.createCardInstance(cardByName('Hulk'), 'player');
+  G.state.player.hand.push(hulk);
+  G.state.player.currency = 20;
+  G.playCard('player', hulk, 2);          // the flag is set by his On Play
+  assert(!!hulk._splashTracksAtk, 'Hulk tracks ATK for splash');
+  assertEq(hulk.splashRange, hulk.attack, 'and his splash equals his ATK');
+  hulk.attack = 0;
+  G.buffCard(hulk, 0, 0);                 // any stat touch re-syncs splashRange
+  assertEq(hulk.splashRange, 0, 'no ATK, no splash — for Hulk specifically');
+});
+
+test('Dead Draw reaches the live instance, not just the printed def', function () {
+  // Hela and Grundy had the keyword on the DEF (so the codex drew the green
+  // glyph) but createCardInstance had no case for it, and the in-hand / board
+  // badge row reads the INSTANCE. Two lists, one keyword.
+  var G = freshGame();
+  ['Hela', 'Solomon Grundy'].forEach(function (n) {
+    assert(cardByName(n).abilities.indexOf('Dead Draw 1') > -1, n + ' prints the keyword');
+    var inst = G.createCardInstance(cardByName(n), 'player');
+    assertEq(inst.hasDeadDraw, 1, n + "'s instance carries it too");
+  });
+  // And both really do pull at random from BOTH piles, which is what the
+  // keyword's description now claims.
+  var src = readFile('./abilities.js');
+  assert(src.indexOf('...G.state.player.deadPile, ...G.state.ai.deadPile') > -1,
+    'Hela merges both dead piles before rolling');
+  var tip = readFile('./ui.js');
+  assert(tip.indexOf('The Dead Pile is <b>shared</b>') > -1, 'the tooltip says shared');
+  assert(tip.indexOf('the pull is <b>random</b>') > -1, 'and random');
+});
+
 test('Freddy only wakes on TWO or more wasted energy', function () {
   assertEq(Game.FREDDY_WASTE_THRESHOLD, 2, 'the threshold is a named constant');
   function ended(withEnergy) {

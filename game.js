@@ -4446,16 +4446,25 @@ const Game = {
     // Activate "While Active" passives immediately
     if (card.passive === 'faceDownOption') this.state[owner].faceDownAvailable = true;
 
-    this.broadcastHook('onAnyCardPlayed', card, [card]);
-    this.getAllCardsOf(owner).forEach(c => {
-      if (c.passive === 'cardPlayedBuff' && c.id !== card.id) { const n = c._bpAuraSize || 1; this.buffCard(card, n, n); }
-    });
-
     // Hunt mechanic — extracted to _resolveHuntChase. Frozen/stunned
     // hunters can't move; direct-lane assignment fires onMoved post-jump.
     this._resolveHuntChase(opp, card, laneIdx);
 
+    // ON PLAY RESOLVES BEFORE PASSIVES. Owner ruling 2026-08-10: "on plays fire
+    // first before passives — so if Xenomorph has 2 attack and Peacemaker is
+    // played, Xenomorph dies because of 2 or less attack; it doesn't grow
+    // first, the On Play effect happens first." The aura ping used to run
+    // above this line, so every While-Active reaction to a card ENTERING
+    // (Xenomorph's growth, Black Panther's +1/+1) got to move the goalposts
+    // before the entering card's own When Played even looked at the board.
+    // The auras still fire on the very next line, so a summoned body that
+    // should die to Luke's -1/-1 aura still dies — it just dies after the
+    // summoner's On Play finished, not before it started.
     this._runHook(card, 'onPlay', this, card, laneIdx);
+    this.broadcastHook('onAnyCardPlayed', card, [card]);
+    this.getAllCardsOf(owner).forEach(c => {
+      if (c.passive === 'cardPlayedBuff' && c.id !== card.id) { const n = c._bpAuraSize || 1; this.buffCard(card, n, n); }
+    });
     // Draw-on-play trait — resolves after onPlay. Zeroing drawOnPlay removes the badge from the board display.
     if (card.drawOnPlay > 0) {
       const n = card.drawOnPlay;
@@ -4577,6 +4586,9 @@ const Game = {
     if (card.statsEnteredRound == null) card.statsEnteredRound = this.state.round || 1;
     this.log(`[FREE PLAY] ${card.name} in lane ${laneIdx + 1}`);
 
+    // ON PLAY FIRST, THEN THE PASSIVES — same ordering as playCard, so a free /
+    // jump play resolves identically to a paid one.
+    this._runHook(card, 'onPlay', this, card, laneIdx);
     // Trigger "While Active" buffs from allies (e.g. Black Panther +1/+1)
     this.broadcastHook('onAnyCardPlayed', card, [card]);
     this.getAllCardsOf(owner).forEach(c => {
@@ -4586,8 +4598,6 @@ const Game = {
         this.log(`  [BUFF] ${c.name} gives ${card.name} +${n}/+${n}`);
       }
     });
-
-    this._runHook(card, 'onPlay', this, card, laneIdx);
     // Draw-on-play — free/jump plays honor Draw N exactly like playCard
     // (user report: jumped Ahsoka's Draw 1 never fired).
     if (card.drawOnPlay > 0) {
@@ -5588,6 +5598,12 @@ const Game = {
     // front of Doomsday still attacked and was killed.
     const pCanAttack = pCard.currentHealth > 0 && !pCard.isStunned && !pCard.isFrozen && !pCard.isFaceDown && pCard.attack > 0;
     const aCanAttack = aCard.currentHealth > 0 && !aCard.isStunned && !aCard.isFrozen && !aCard.isFaceDown && aCard.attack > 0;
+    // SPLASH IS NOT A RIDER ON THE ATTACK. Same pre-swing snapshot as
+    // pCanAttack/aCanAttack (so a splasher that dies in the trade still
+    // splashes), minus the "ATK > 0" term — see CombatEngine.canSplash for the
+    // ruling and why Hulk follows this rule instead of excepting it.
+    const pCanSplash = CombatEngine.canSplash(pCard);
+    const aCanSplash = CombatEngine.canSplash(aCard);
 
     if (!pCanAttack && pCard.currentHealth > 0 && pCard.attack > 0)
       this.log(`  ${pCard.name} is ${pCard.isStunned ? 'STUNNED' : 'FROZEN'} — can't attack or dodge!`);
@@ -5732,8 +5748,11 @@ const Game = {
         // Suppress splash for mind-controlled or feared cards — their
         // attack is redirected to their own side, so splash must not
         // radiate outward onto the opposing team.
-        if (pCard.splashRange > 0 && pCanAttack && !pCard.isMindControlled && !pCard.isFeared) this.applySplash(pCard, laneIdx);
-        if (aCard.splashRange > 0 && aCanAttack && !aCard.isMindControlled && !aCard.isFeared) this.applySplash(aCard, laneIdx);
+        // pCanSplash, NOT pCanAttack — the two differ only in the ATK>0 term,
+        // which splash does not answer to (Dr. Octopus stripped to 0 ATK still
+        // splashes 2). Fear / mind control are already folded into canSplash.
+        if (pCard.splashRange > 0 && pCanSplash) this.applySplash(pCard, laneIdx);
+        if (aCard.splashRange > 0 && aCanSplash) this.applySplash(aCard, laneIdx);
 
         // Per-card "has swung this round" marker. Set after THIS card
         // resolves combat so any debuff landed AFTER this point (e.g.
@@ -6362,11 +6381,21 @@ const Game = {
       return;
     }
 
-    if (card.attack <= 0) return;
     if (card.isStunned || card.isFrozen) return;
     // Parlay — Jack Sparrow singled this card out before combat
     if (card._parlayedThisRound) {
       this.log(`[LANE ${laneIdx + 1}] ${card.name} held by Parlay — cannot attack this round!`);
+      return;
+    }
+    // 0 ATK means no face damage — but the SPLASH still goes off. This used to
+    // be the first line of the function, so a Dr. Octopus stripped to 0 ATK
+    // stopped splashing entirely. Splash isn't a rider on the attack; the only
+    // card whose splash follows its ATK is Hulk, and his _splashTracksAtk has
+    // already zeroed splashRange by the time we get here, so he needs no
+    // special case. Everything above this line (stun / freeze / Parlay) DOES
+    // cancel the splash, because those cancel the strike itself.
+    if (card.attack <= 0) {
+      if (card.splashRange > 0 && CombatEngine.canSplash(card)) this.applySplash(card, laneIdx);
       return;
     }
 
@@ -10054,13 +10083,9 @@ const Game = {
           this.log(`  [LONE WOLF] ${card.name} enters alone — +1/+1!`);
         }
       }
-      // Aura ping — fires for tokens too so existing while-active auras
-      // (Luke's debuff, Captain America's squad buff, etc.) hit them.
-      this.broadcastHook('onAnyCardPlayed', card, [card]);
-      this.getAllCardsOf(owner).forEach(c => {
-        if (c.passive === 'cardPlayedBuff' && c.id !== card.id) { const n = c._bpAuraSize || 1; this.buffCard(card, n, n); }
-      });
-      // onPlay still only fires for real-card summons.
+      // onPlay still only fires for real-card summons — and it runs BEFORE the
+      // aura ping below (owner ruling: On Play resolves before passives), so a
+      // summoned card's When Played sees the board as it was when it landed.
       if (sourceDef) {
         // SUMMON CASCADE DEPTH — a summoned card's own On Play (Hela raising
         // Undead Warriors) runs INSIDE the summoner's loop (Knull filling every
@@ -10099,6 +10124,14 @@ const Game = {
         this._resolveMindControlOnPlay(card);
         this._resolveMarkOnPlay(card);
       }
+      // Aura ping — fires for tokens too so existing while-active auras
+      // (Luke's debuff, Captain America's squad buff, etc.) hit them. This sits
+      // AFTER onPlay now; a token that should die to Luke's -1/-1 still dies,
+      // it just dies once the summoner's own effect has finished.
+      this.broadcastHook('onAnyCardPlayed', card, [card]);
+      this.getAllCardsOf(owner).forEach(c => {
+        if (c.passive === 'cardPlayedBuff' && c.id !== card.id) { const n = c._bpAuraSize || 1; this.buffCard(card, n, n); }
+      });
       this.cleanupDead();
       this.applyMagnetoDebuffs();
     });
@@ -10672,6 +10705,7 @@ const Game = {
       splashRange: 0, tauntTurns: 0,
       isOverdrive: false, isBullseye: false, immunityCharges: 0, permanentImmunity: false,
       unresistibleCharges: 0, hasHunt: false, hasDamageImmunity: false, isUntrickable: false,
+      hasDeadDraw: 0,
       drawOnPlay: 0,
       isStunned: false, isFrozen: false, isFeared: false, isMindControlled: false,
         // Counter representation — drives stacking. Booleans above are
@@ -11044,6 +11078,14 @@ const Game = {
         case 'Revive': card.reviveCharges = Math.max(card.reviveCharges, n || 1); break;
         case 'Untrickable': card.isUntrickable = true; card.permanentUntrickable = true; break;
         case 'Damage': if (parts[1] === 'Immunity') card.hasDamageImmunity = true; break;
+        // "Dead Draw N" splits to name='Dead', which had no case — so the
+        // keyword printed a badge in the codex (formatAbilityBadges reads the
+        // DEF's abilities array) but never reached the live instance, and the
+        // in-hand / on-board tile read the INSTANCE. Hela and Solomon Grundy
+        // therefore showed the green dead-pile glyph everywhere except the
+        // place you actually play them. Same two-list split as 'Damage
+        // Immunity', handled the same way.
+        case 'Dead': if (parts[1] === 'Draw') card.hasDeadDraw = Math.max(card.hasDeadDraw || 0, n || 1); break;
         case 'Draw': card.drawOnPlay = Math.max(card.drawOnPlay || 0, n || 1); break;
         case 'Fear': card.hasFear = Math.max(card.hasFear || 0, n || 1); break; // When Played: Fear N the highest-ATK enemy
         case 'Crazy':  card.isCrazy  = true; break; // ATK re-rolls 1-4 each turn + onPlay
@@ -12009,8 +12051,10 @@ const Game = {
       // stun/freeze/fear/mind-control gate, so those cards still don't splash
       // (matches the predictor's prior approximation); +ATK>0 (a 0-ATK card
       // never swings — resolveLaneCombat:4664).
-      const pCanAttack = !!(pSnap && pSnap.hp > 0 && canHitEnemy(p) && (p.attack | 0) > 0);
-      const aCanAttack = !!(aSnap && aSnap.hp > 0 && canHitEnemy(a) && (a.attack | 0) > 0);
+      const pCanSplash = !!(pSnap && pSnap.hp > 0 && canHitEnemy(p));
+      const aCanSplash = !!(aSnap && aSnap.hp > 0 && canHitEnemy(a));
+      const pCanAttack = pCanSplash && (p.attack | 0) > 0;
+      const aCanAttack = aCanSplash && (a.attack | 0) > 0;
 
       // Front swing — routed through the SAME taunt-aware targeting the resolver
       // uses (getAttackTarget). Each side swings independently at its resolved
@@ -12076,8 +12120,12 @@ const Game = {
           if (ln && !ln.destroyed && ln[foe]) applyHit(taunt || ln[foe], attacker, s);
         });
       };
-      splashCone(p, pCanAttack);
-      splashCone(a, aCanAttack);
+      // NOT pCanAttack — the resolver gates splash on canSplash, which drops
+      // the ATK>0 term. Forecasting off pCanAttack made a 0-ATK splasher's
+      // adjacent damage vanish from the preview while it still landed in the
+      // real fight.
+      splashCone(p, pCanSplash);
+      splashCone(a, aCanSplash);
     }
 
     // Build the result map keyed by card id.

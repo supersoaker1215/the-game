@@ -138,6 +138,28 @@ const CombatEngine = {
   },
 
   /**
+   * Splash is NOT a rider on the attack. Owner ruling 2026-08-10: "if a card
+   * has 0 attack like doc ock and he still has splash 2, the splash 2 still
+   * fires — that's not dependent on the attack. The only card that is is Hulk
+   * because his splash is the same as his attack." Hulk isn't an exception to
+   * this rule, he's an instance of it: `_splashTracksAtk` drives his
+   * splashRange FROM his ATK, so zeroing his ATK zeroes his splashRange and
+   * this predicate returns true over a splashRange of 0.
+   *
+   * Everything that stops a swing outright still stops the splash — stun,
+   * freeze, fear and mind control all redirect or cancel the strike, and
+   * splash is part of that strike. Only the "ATK > 0" term is dropped.
+   *
+   * The health/face-down terms read the PRE-swing snapshot at every call
+   * site: a splasher that dies in the exchange it started still splashes.
+   * @param {CardLike|null|undefined} c
+   * @returns {boolean}
+   */
+  canSplash(c) {
+    return !!c && (c.currentHealth | 0) > 0 && !c.isFaceDown && CombatEngine.canSwingForward(c);
+  },
+
+  /**
    * Pure armor math. Side effects (logging, _creditAbsorb, emitDmg)
    * stay in the caller.
    * @param {number} raw         Raw incoming damage.
