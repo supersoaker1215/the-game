@@ -4464,6 +4464,75 @@ test('Anakin does bonus attacks, and leads with what he can do', function () {
   assertEq(d.desc.indexOf('if no lane is open'), -1, 'and the edge-case aside too');
 });
 
+// ---- CARD TEXT: SAY IT ONCE --------------------------------
+// Owner has been pruning restated rules card by card. These pin the batch so a
+// later edit cannot quietly put the boilerplate back.
+test('Cards no longer restate rules that belong to their keywords', function () {
+  var gone = [
+    ['Hawkeye',         ['immediately', ' also ']],
+    ['Invisible Woman', ['for 1 turn']],
+    ['Killer Moth',     ['permanently', 'however he is moved']],
+    ['Man-Bat',         ['or stay put']],
+    // JUMP already means "play for free" — the keyword owns that rule.
+    ['Ghostface',       ['play for free']],
+    ['Michael Myers',   ['play for free']],
+    ['Jason Voorhees',  ['play for free']],
+    ['Gizmo',           ['Fires even if']],
+    ['Black Panther',   ['for free, or skip']],
+    ['Deadpool',        ['face-down']],
+    ['Han Solo',        ['at the start of combat', 'Before each combat', 'or stay']],
+    ['Homelander',      ['Skip if you']],
+    ['Paul Atreides',   ['permanently', 'goes back on the pile', 'replaces your draw']],
+  ];
+  gone.forEach(function (row) {
+    var d = cardByName(row[0]).desc;
+    row[1].forEach(function (phrase) {
+      assertEq(d.indexOf(phrase), -1, row[0] + ' no longer says "' + phrase + '"');
+    });
+  });
+});
+
+test('The trimmed cards still say what they actually do', function () {
+  // A trim that deletes the EFFECT is worse than the verbosity it removed.
+  var kept = [
+    ['Hawkeye',         ['Splash 1', 'removes 1 ATK']],
+    ['Invisible Woman', ['Evade 1', 'face-down']],
+    ['Man-Bat',         ['Can move to an empty lane', '(−1/−1)']],
+    ['Michael Myers',   ['costing less than Michael Myers', 'lane opposite it']],
+    ['Jason Voorhees',  ['When an ally is destroyed', 'into its lane', '(3/4)']],
+    ['Gizmo',           ['(2/2) Gremlin', 'Add Stripe']],
+    ['Black Panther',   ['base cost ≤ 3', '(+1/+1)']],
+    ['Deadpool',        ["Steal a card from the enemy's hand"]],
+    ['Han Solo',        ['before other lanes', 'Critical']],
+    ['Homelander',      ['sacrifice an ally', "cost ≤ that ally's cost"]],
+    ['Paul Atreides',   ['top 2 cards', 'cost drops by 2', 'play it for free']],
+  ];
+  kept.forEach(function (row) {
+    var d = cardByName(row[0]).desc;
+    row[1].forEach(function (phrase) {
+      assertEq(d.indexOf(phrase) > -1, true, row[0] + ' still says "' + phrase + '"');
+    });
+  });
+});
+
+test("Gizmo keeps its (once) — that limit is real, not boilerplate", function () {
+  // The owner struck "(once)" along with the reassurance clause, but the guard
+  // exists: _gizmoTriggered blocks every summon after the first. Deleting the
+  // word would have made the card understate a real restriction, which is the
+  // same failure as overstating one.
+  assertEq(cardByName('Gizmo').desc.indexOf('(once)') > -1, true, 'the text keeps it');
+  var G = freshGame();
+  var giz = place(G, 'Gizmo', 'player', 0);
+  giz.currentHealth = 20; giz.maxHealth = 20;
+  var enemy = place(G, 'Bane', 'ai', 0);
+  var handBefore = G.state.player.hand.length;
+  G.dealDamage(giz, 1, enemy);
+  var afterFirst = G.state.player.hand.length;
+  G.dealDamage(giz, 1, enemy);
+  assertEq(G.state.player.hand.length, afterFirst, 'the second hit adds nothing more');
+  assert(afterFirst > handBefore, 'and the first one really did fire');
+});
+
 // ============================================================
 // ---- RUNNER ------------------------------------------------
 // ============================================================
