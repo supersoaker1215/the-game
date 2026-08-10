@@ -3531,7 +3531,9 @@ test('Doomsday rises with real Immunity, and it does not tick down', function ()
   for (var i = 0; i < 5; i++) G.mindControlCard(dd, killer);
   assertEq(!!dd.isMindControlled, false, 'still refused after six attempts');
   assert(dd.immunityCharges > 0, 'and still immune — the shield never spends down');
-  assertEq(cardByName('Doomsday').desc.indexOf('permanent Immunity') > -1, true,
+  // "permanent" was dropped in the 2026-08-09 wording pass — the word the
+  // keyword chip needs is Immunity, and permanence is behaviour, not text.
+  assertEq(cardByName('Doomsday').desc.indexOf('Immunity') > -1, true,
     'the card text says Immunity, capitalised so the keyword chip renders');
 });
 
@@ -4531,6 +4533,62 @@ test("Gizmo keeps its (once) — that limit is real, not boilerplate", function 
   G.dealDamage(giz, 1, enemy);
   assertEq(G.state.player.hand.length, afterFirst, 'the second hit adds nothing more');
   assert(afterFirst > handBefore, 'and the first one really did fire');
+});
+
+// A 10-COST NEVER TOUCHES ANOTHER 10-COST. Owner: "it's a given that no 10
+// abilities affect other 10s." It is a rule of the TIER, enforced once in
+// is10CostImmune, so no card carries it in its text any more.
+test('No card restates the tens-cannot-touch-tens rule', function () {
+  CARD_DEFS.concat(TRICK_DEFS).forEach(function (d) {
+    if (!d.desc) return;
+    assertEq(d.desc.indexOf('10-cost'), -1, (d.name || '?') + ' should not mention 10-cost');
+  });
+});
+
+test('And the rule is real, so removing the text costs nothing', function () {
+  // If this ever fails, the descriptions above became a lie and the rule needs
+  // to go BACK on the cards rather than the text staying silent.
+  var G = freshGame();
+  var titanA = place(G, 'Knull', 'player', 0);        // cost 10
+  var titanB = place(G, 'Trigon', 'ai', 0);           // cost 10
+  var normal = place(G, 'Bane', 'ai', 1);             // cost 2
+  assertEq(G.is10CostImmune(titanA, titanB), true, 'a ten is immune to another ten');
+  assertEq(G.is10CostImmune(titanA, normal), false, 'but not to an ordinary card');
+  // Doomsday prints at 12 and is deliberately NOT a titan for this rule.
+  var dd = place(G, 'Doomsday', 'ai', 2);
+  assertEq(G.is10CostImmune(titanA, dd), false, 'Doomsday is exempt in both directions');
+});
+
+test('The 2026-08-09 wording batch stuck', function () {
+  var gone = [
+    ['Wolverine',   ['retaliation is lost']],
+    ['Iron Man',    ['damaged enemies']],
+    ['Jack Sparrow',['no ally opposite']],
+    ['Joker',       ['recovers when Joker dies', 'Start of Tricks']],
+    ['Lex Luthor',  ['make bonus attacks', 'Tricks can still be drawn']],
+    ['Doomsday',    ['(min 0)', 'permanent Immunity']],
+    ['Batman',      ['then 2 damage to an enemy again']],
+  ];
+  gone.forEach(function (r) {
+    var d = cardByName(r[0]).desc;
+    r[1].forEach(function (ph) { assertEq(d.indexOf(ph), -1, r[0] + ' dropped "' + ph + '"'); });
+  });
+  var kept = [
+    ['Wolverine',   ['Revive as (6/5)', 'Overdrive']],
+    ['Iron Man',    ['hurt enemies', '≤ 8']],
+    ['Jack Sparrow',['uncontested lane', 'cannot attack']],
+    ['Joker',       ['While Active', 'Crazy', 'rerolls 1-4']],
+    ['Lex Luthor',  ['cannot draw cards', 'do bonus attacks']],
+    ['Doomsday',    ['costs 1 less', 'Immunity and Untrickable']],
+    ['Batman',      ['Throw Batarangs', 'Fear 1']],
+  ];
+  kept.forEach(function (r) {
+    var d = cardByName(r[0]).desc;
+    r[1].forEach(function (ph) { assertEq(d.indexOf(ph) > -1, true, r[0] + ' still says "' + ph + '"'); });
+  });
+  // Batman names a REAL trick — if Batarangs is ever renamed, this catches it.
+  assert(TRICK_DEFS.some(function (t) { return t.name === 'Batarangs'; }),
+    'Batarangs exists as a trick for Batman to name');
 });
 
 // ============================================================

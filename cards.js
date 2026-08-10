@@ -279,7 +279,7 @@ const CARD_DEFS = [
     desc: "When Played: Freeze 1 an enemy. Start of Tricks (once): Heal yourself for 1 per ally on the board." },
   { name: "Wolverine", cost: 4, attack: 2, health: 2, type: "hero",
     abilities: ["Revive 1"],
-    desc: "When Damaged: Destroy the card that dealt the damage if its cost is ≤ 7. When Destroyed: Revive as (6/5) with Overdrive — the retaliation is lost." },
+    desc: "When Damaged: Destroy the card that dealt the damage if its cost is ≤ 7. When Destroyed: Revive as (6/5) with Overdrive." },
   { name: "Wonder Woman", cost: 4, attack: 3, health: 3, type: "hero",
     abilities: ["Armor 1", "Unresistible", "Draw 1"],
     desc: "When Played: Freeze 1 the enemy opposite. Add 2 to your Block Meter. While Active: When Wonder Woman's attack lands on an enemy card, deal (ATK−1) to each consecutive enemy in a chosen direction." },
@@ -290,7 +290,7 @@ const CARD_DEFS = [
     desc: "When Played: Summon The Kraken (5/6) in any lane." },
   { name: "Jack Sparrow", cost: 5, attack: 3, health: 5, type: "hero",
     abilities: [],
-    desc: "While Active: Before each combat, choose an enemy in an uncontested lane (no ally opposite). It cannot attack this round." },
+    desc: "While Active: Before each combat, choose an enemy in an uncontested lane. It cannot attack this round." },
   { name: "Han Solo", cost: 4, attack: 3, health: 4, type: "hero",
     abilities: [],
     desc: "First Strike: Han Solo attacks before other lanes. Choose any enemy lane for him to attack instead of his own. Each Turn: Each ally has a 50% chance to gain Critical — double damage for the round." },
@@ -299,13 +299,13 @@ const CARD_DEFS = [
     desc: "When Played: Give an ally Invincible 1. While Active: All cards in your hand cost 1 less Energy." },
   { name: "Iron Man", cost: 5, attack: 4, health: 5, type: "hero",
     abilities: ["Armor 1"],
-    desc: "Can be played during the Trick Phase. When Played: Destroy all damaged enemies with cost ≤ 8." },
+    desc: "Can be played during the Trick Phase. When Played: Destroy all hurt enemies with cost ≤ 8." },
   { name: "Joker", cost: 5, attack: 0, health: 5, type: "villain",
     abilities: ["Insane"],
-    desc: "When Played: Fear 1 an enemy with cost ≤ 4. Start of Tricks: Give Crazy to the highest-ATK enemy — its ATK rerolls 1-4 each round. Only one enemy is Crazy at a time, and it recovers when Joker dies." },
+    desc: "When Played: Fear 1 an enemy with cost ≤ 4. While Active: Give Crazy to the highest-ATK enemy — its ATK rerolls 1-4 each round. Only one enemy is Crazy at a time." },
   { name: "Lex Luthor", cost: 5, attack: 2, health: 6, type: "villain",
     abilities: [],
-    desc: "While Active: The opponent cannot draw cards or make bonus attacks. (Tricks can still be drawn.)" },
+    desc: "While Active: The opponent cannot draw cards or do bonus attacks." },
   { name: "Michael Myers", cost: 3, attack: 3, health: 4, type: "villain",
     abilities: ["Overdrive"],
     desc: "Jump: When the enemy plays a card costing less than Michael Myers — into the lane opposite it." },
@@ -381,7 +381,7 @@ const CARD_DEFS = [
   // ==================== COST 8 ====================
   { name: "Apocalypse", cost: 7, attack: 5, health: 6, type: "villain",
     abilities: [],
-    desc: "When Played: Summon a random 1-cost card in any lane. Give each card in your hand (not 10-cost cards) a random keyword — Armor 1, Evade 1, Bullseye, or Overdrive. Each Turn: Permanently remove 1 ATK from 2 random enemies." },
+    desc: "When Played: Summon a random 1-cost card in any lane. Give each card in your hand a random keyword — Armor 1, Evade 1, Bullseye, or Overdrive. Each Turn: Permanently remove 1 ATK from 2 random enemies." },
   { name: "Darth Vader", cost: 8, attack: 6, health: 7, type: "villain",
     abilities: ["Armor 1", "Unresistible 1"],
     desc: "When Played: Move an enemy to an empty lane. Fear 1 an enemy. Deal 7 damage to a chosen enemy, then pick one direction — the chain runs through adjacent enemies for 1 less damage each step." },
@@ -404,7 +404,7 @@ const CARD_DEFS = [
   // ==================== COST 9 ====================
   { name: "Batman", cost: 9, attack: 7, health: 5, type: "hero",
     abilities: ["Evade 2", "Unresistible"],
-    desc: "When Played: The opponent cannot play their highest-cost affordable card next turn. Fear 1 an enemy. Deal 2 damage to an enemy, then 2 damage to an enemy again." },
+    desc: "When Played: The opponent cannot play their highest-cost affordable card next turn. Fear 1 an enemy. Throw Batarangs." },
   { name: "Darkseid", cost: 9, attack: 6, health: 9, type: "villain",
     abilities: ["Immunity"],
     desc: "When Played: Summon a (2/1) Parademon. Destroy up to 3 contested lanes for 2 rounds, destroying both cards in each. While Active: Darkseid splits his ATK among all enemies, and never hits the opponent's HP." },
@@ -421,19 +421,19 @@ const CARD_DEFS = [
     desc: "When Played: Deal 10 damage to an enemy. Start of Tricks (once): Can move to an empty lane and do a bonus attack. While Active: Do a bonus attack whenever an ally is destroyed." },
   { name: "Dormammu", cost: 10, attack: 3, health: 3, type: "villain",
     abilities: ["Immunity", "Invincible 1", "Unresistible 3", "Draw 1"],
-    desc: "When Played: Gain foresight for 2 draw phases — peek at the top 2 cards and keep one; the other goes to the opponent. Start of Tricks (once): Drain 3 enemies (not other 10-cost cards), leaving each at (0/1) and adding their stats to Dormammu." },
+    desc: "When Played: Gain foresight for 2 draw phases — peek at the top 2 cards and keep one; the other goes to the opponent. Start of Tricks (once): Drain 3 enemies, leaving each at (0/1) and adding their stats to Dormammu." },
   { name: "Dr. Manhattan", cost: 10, attack: 8, health: 10, type: "hero",
     abilities: ["Immunity", "Invincible 1", "Taunt 1", "Draw 1"],
-    desc: "When Played: Heal yourself for 5. Each Turn: Add 2 Energy. While Active: His Taunt does not pull other 10-cost cards." },
+    desc: "When Played: Heal yourself for 5. Each Turn: Add 2 Energy." },
   { name: "Galactus", cost: 10, attack: 9, health: 11, type: "villain",
     abilities: ["Immunity", "Invincible 1", "Unresistible", "Draw 1"],
-    desc: "Start of Tricks (once): Devour 2 enemies. Each Turn: Devour 1 enemy with ≤ 4 ATK. Cannot devour other 10-cost cards." },
+    desc: "Start of Tricks (once): Devour 2 enemies. Each Turn: Devour 1 enemy with ≤ 4 ATK." },
   { name: "Knull", cost: 10, attack: 7, health: 7, type: "villain",
     abilities: ["Immunity", "Invincible 1"],
     desc: "When Played: Summon a random card (cost 2-9) in each of your empty lanes." },
   { name: "Trigon", cost: 10, attack: 9, health: 8, type: "villain",
     abilities: ["Immunity", "Invincible 1", "Unresistible 3", "Draw 1"],
-    desc: "When Played: Steal the opponent's Block Meter. Start of Tricks (once): Freeze 1 all enemies (not other 10-cost cards). While Active: Destroy another random enemy (not other 10-cost cards) when Trigon destroys an enemy." },
+    desc: "When Played: Steal the opponent's Block Meter. Start of Tricks (once): Freeze 1 all enemies. While Active: Destroy another random enemy when Trigon destroys an enemy." },
   { name: "Doomsday", cost: 12, attack: 1, health: 1, type: "villain",
     // Doomsday is NOT a titan. He prints at 12 only because he starts as a 1/1
     // that scales up while his cost scales DOWN (min 0) — the printed number is
@@ -456,6 +456,6 @@ const CARD_DEFS = [
     // his revive differs from generic Revive (full HP + permanent
     // Freeze immunity, NOT played-anew).
     abilities: ["Revive 1", "Taunt 1"],
-    desc: "Add (+1/+1) each time you play a card, even before Doomsday is drawn. While in Hand: costs 1 less each time an ally is destroyed (min 0). When Destroyed: Revive once at full HP with permanent Immunity and Untrickable." }
+    desc: "Add (+1/+1) each time you play a card, even before Doomsday is drawn. While in Hand: costs 1 less each time an ally is destroyed. When Destroyed: Revive once at full HP with Immunity and Untrickable." }
 ];
 
