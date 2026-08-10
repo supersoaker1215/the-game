@@ -3229,6 +3229,13 @@ test('Iron Giant is still never placeable, and the desc still says so', function
   var desc = cardByName('Iron Giant').desc;
   assertEq(desc.indexOf('Leaves your hand only to save an ally') === 0, true,
     'the desc opens with the conditional gate, not a flat refusal');
+  // The HOW of the save (remaining HP, minimum 1, no more damage this combat) is
+  // the rescue mechanic's own rule and is no longer spelled out here — same
+  // over-explaining pass as Superman, Darkseid and Anakin. The behaviour is
+  // unchanged and still covered by the sacrifice tests above.
+  assertEq(desc.indexOf('minimum 1'), -1, 'the HP-floor aside is gone');
+  assertEq(desc.indexOf('no more damage this combat'), -1, 'and the damage-immunity aside');
+  assert(desc.length < 200, 'the whole card fits in three short sentences (' + desc.length + ')');
   assertEq(desc.indexOf('Draw a card') > -1, true, 'the desc advertises the draw');
   // Capital D is load-bearing: the keyword regex is case-SENSITIVE, so a
   // lowercase "draw" would render without the keyword chip and tooltip.

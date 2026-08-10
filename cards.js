@@ -52,7 +52,7 @@ const CARD_DEFS = [
     // gates make sure this card is never played. The actual draw lives in
     // _ironGiantIntercept's doSave.
     abilities: ["Draw 1"],
-    desc: "Leaves your hand only to save an ally. While in Hand: When an ally would be destroyed, you may sacrifice Iron Giant to save it — it survives with its remaining HP (minimum 1) and takes no more damage this combat. When Sacrificed: Deal 1 damage to all enemies. Draw a card." },
+    desc: "Leaves your hand only to save an ally. While in Hand: When an ally would be destroyed, you may sacrifice Iron Giant to save it. When Sacrificed: Deal 1 damage to all enemies. Draw a card." },
   // ==================== COST 1 ====================
   { name: "Ant-Man", cost: 1, attack: 2, health: 1, type: "hero",
     abilities: [],
