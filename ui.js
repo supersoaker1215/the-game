@@ -6458,6 +6458,12 @@ const UI = {
     // body.in-match mirrors game-area visibility — gates body-level in-match
     // chrome (the ? help button docked beside the settings cog).
     document.body.classList.toggle('in-match', _gameAreaShown);
+    // The build badge is a DEV readout, not part of the game — it belongs on
+    // the main menu (where you go to check what you are running and to tap it
+    // for a cache-clearing reload) and nowhere else. There was no positive
+    // main-menu marker on <body>, only the negative `in-match`, so this adds
+    // one rather than inferring "menu" from the absence of everything else.
+    document.body.classList.toggle('on-main-menu', !!isMainMenu);
 
     if (isMainMenu)    { this.renderMainMenu(s); return; }
     if (isModeSelect)  { this.renderModeSelect(s); return; }
@@ -17939,7 +17945,47 @@ const UI = {
     // cap in a row with room to spare. 200 lets them actually take the space.
     // It is a CEILING, not a target — the measured value wins below it, so a
     // short window still shrinks exactly as before.
-    const w = Math.max(86, Math.min(200, avail * 92 / 182));
+    let w = Math.max(86, Math.min(200, avail * 92 / 182));
+
+    // AND IT HAS TO FIT ACROSS, NOT JUST DOWN. Height was the only bound
+    // before, so a big hand at the 200px ceiling ran off the side — and
+    // document.scrollWidth reports NO overflow for it, because body clips on
+    // x, so the cards were simply cut off with nothing complaining. Owner:
+    // "make sure you can fit 7 cards and 3 tricks without a horizontal
+    // scroll."
+    //
+    // Everything below is measured, not assumed: gaps, paddings and the
+    // tools block all come from the live layout, so changing any of them in
+    // CSS cannot silently invalidate this.
+    const cards = row.querySelectorAll('.hand-card-wrapper').length;
+    if (cards) {
+      const tricksSec = document.querySelector('.tricks-section');
+      const trickEls = document.querySelectorAll('.trick-card');
+      const m = trickEls.length;
+      const px = (el, ...props) => { const c = getComputedStyle(el);
+        return props.reduce((sum, pr) => sum + (parseFloat(c[pr]) || 0), 0); };
+      const handGap = parseFloat(getComputedStyle(row.querySelector('.hand-cards') || row).gap) || 0;
+      const handPad = px(row, 'paddingLeft', 'paddingRight');
+      // Fixed width the tricks column spends on anything that is NOT a trick
+      // card: the music/redraw tools, the flex gaps, its own padding.
+      let trickFixed = 0, trickGap = 0, trickRatio = 0;
+      if (tricksSec && m) {
+        const tw0 = trickEls[0].getBoundingClientRect().width || 1;
+        trickGap = parseFloat(getComputedStyle(trickEls[0].parentElement).gap) || 0;
+        trickFixed = tricksSec.getBoundingClientRect().width
+                   - (m * tw0 + (m - 1) * trickGap);
+        // A trick card's width is a linear function of the hand card's (both
+        // ride the same 0..1 position on their ranges), so its contribution
+        // scales with w and has to be part of the solve, not a constant.
+        trickRatio = (190 - 88) / (200 - 86);
+      }
+      const fixed = handPad + handGap * (cards - 1)
+                  + trickFixed + trickGap * Math.max(0, m - 1)
+                  + m * (88 - trickRatio * 86);
+      const perCard = cards + m * trickRatio;
+      const byWidth = (window.innerWidth - fixed - 8) / perCard;   // 8px slack
+      w = Math.max(86, Math.min(w, byWidth));
+    }
     area.style.setProperty('--hand-card-w', w.toFixed(1) + 'px');
     // Tricks ride the same 0..1 position on that range so the two groups stay
     // in proportion instead of one outgrowing the other.

@@ -39803,3 +39803,10 @@ body.in-match #game-area > .tricks-section > .hand-tools { order: -1; }
    margin. Cards still centre inside it, so a short card is not stretched — it
    just sits in a stable box. */
 .draft-choices { min-height: 530px; align-items: center; }
+
+/* Build badge: main menu only. It is a dev readout (and the cache-clearing
+   reload tap target), so it belongs where you go to check what you are
+   running — not sitting over the hand for a whole match. Inline styles on the
+   element set everything else, so display is all this needs to own. */
+#clb-build-badge { display: none; }
+body.on-main-menu #clb-build-badge { display: block; }
