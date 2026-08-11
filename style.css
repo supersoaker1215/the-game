@@ -39710,11 +39710,13 @@ body.in-match .turn-hud {
    Result: 1349 -> 1177, a 172px saving with the board untouched.
    ============================================================ */
 
-/* Hand cards: 140 -> 86 wide, so 277 -> 170 tall. */
-body.in-match .player-hand-section .hand-cards .card { width: 86px; }
-/* Trick cards: 132 -> 88 wide. Their height is content-driven rather than
-   aspect-driven, so this buys less (201 -> ~150) — the text still has to fit. */
-body.in-match .trick-card { width: 88px; }
+/* Hand and trick card size is now MEASURED, not fixed — UI._fitHandToViewport
+   solves it from the height left over after every other row, between the 86px
+   that guarantees a fit on a short window and the 140px the card was
+   originally drawn at. The fallbacks are the safe (smallest) end, so if the
+   script has not run yet the layout still fits. */
+body.in-match .player-hand-section .hand-cards .card { width: var(--hand-card-w, 86px); }
+body.in-match .trick-card { width: var(--trick-card-w, 88px); }
 
 /* The two rows carried 12px top and bottom each; 5px is still a visible
    gutter between the player bar, the hand and the tricks. */

@@ -6232,6 +6232,11 @@ const UI = {
   renderSync() {
     this._renderQueued = false;
     this._renderImpl();
+    // Runs AFTER the DOM is written — it measures the laid-out rows. Every
+    // render, because the rows around the hand change height as the board
+    // fills and the forecast strip comes and goes.
+    this._safe ? this._safe('fitHand', () => this._fitHandToViewport())
+               : this._fitHandToViewport();
     if (window.PerfOverlay && window.PerfOverlay.tickRender) {
       window.PerfOverlay.tickRender();
     }
@@ -7775,6 +7780,9 @@ const UI = {
     // the window, and never blocks the scroll itself.
     window.addEventListener('scroll', schedule, { capture: true, passive: true });
     window.addEventListener('resize', schedule, { passive: true });
+    // Hand size is a function of viewport height, so it re-solves on resize as
+    // well as on render — dragging the window changes nothing in game state.
+    window.addEventListener('resize', () => { try { UI._fitHandToViewport(); } catch (e) {} }, { passive: true });
 
     // FOLLOW THE CARD WHILE IT MOVES. Scroll and resize were handled; the card
     // ITSELF moving was not. The hover magnify scales it, a play or move
@@ -17828,6 +17836,44 @@ const UI = {
   // board pass throws partway through (now survivable, see _safe), the stale
   // Map full of detached nodes outlives the failed pass and the NEXT render's
   // makeCardElCached() can hand back elements from the aborted one.
+  // THE HAND GROWS INTO WHATEVER HEIGHT IS LEFT OVER.
+  //
+  // Folding tricks into the hand row freed ~161px, and on a normal window that
+  // slack was just black space under the cards. Rather than pick a bigger fixed
+  // size — which would re-break the fit on a short window, the whole problem
+  // this pass was solving — the hand card is sized from the space that actually
+  // remains, between the 86px that guarantees a fit and the 140px it was
+  // originally drawn at.
+  //
+  // Computed from EVERYTHING EXCEPT the hand row, never from the total. Sizing
+  // off the total would oscillate: a bigger card grows the row, which shrinks
+  // the slack, which shrinks the card. The other rows don't move when the hand
+  // resizes, so measuring them is stable.
+  //
+  // Width is the lever, not height: a hand card is `aspect-ratio: 92/182`, so
+  // setting width keeps the tile exactly in shape and only changes its scale.
+  _fitHandToViewport() {
+    const area = document.getElementById('game-area');
+    const row = document.querySelector('.player-hand-section');
+    if (!area || !row) return;
+    const card = row.querySelector('.hand-card-wrapper');
+    const rowH = row.getBoundingClientRect().height;
+    if (!rowH) return;
+    // Chrome the row spends on padding rather than on the card itself.
+    const cardH = card ? card.getBoundingClientRect().height : rowH;
+    const rowChrome = Math.max(0, rowH - cardH);
+    // Everything that is NOT the hand row keeps its height when the hand grows.
+    const others = area.scrollHeight - rowH;
+    const avail = window.innerHeight - others - rowChrome;
+    // 86..140 wide == 170..277 tall, the two ends established by this pass:
+    // 86 is the width that made the match fit, 140 is the original card.
+    const w = Math.max(86, Math.min(140, avail * 92 / 182));
+    area.style.setProperty('--hand-card-w', w.toFixed(1) + 'px');
+    // Tricks ride the same scale so the two groups stay in proportion.
+    const t = (w - 86) / (140 - 86);
+    area.style.setProperty('--trick-card-w', (88 + t * (132 - 88)).toFixed(1) + 'px');
+  },
+
   renderBoard(s) {
     try {
       this._renderBoardImpl(s);
