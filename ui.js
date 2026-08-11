@@ -17859,17 +17859,27 @@ const UI = {
   _fitDraftToViewport() {
     const panel = document.querySelector('.draft-panel');
     if (!panel || !panel.querySelector('.draft-card')) return;
-    panel.style.transform = '';
+    // NEVER clear the transform to take the measurement. The first version did
+    // (`panel.style.transform = ''` then measure), which meant every early
+    // return below left the panel UNSCALED — and one of them fires routinely:
+    // a hidden tab reports a 0x0 box, so switching away and back dropped the
+    // zoom and the draft snapped to 61% of the window. Divide the measured box
+    // by the scale already on it instead. Nothing is mutated until the new
+    // value is known, and re-running is idempotent.
+    const prev = parseFloat(panel.dataset.draftScale || '1') || 1;
     const r = panel.getBoundingClientRect();
     if (!r.width || !r.height) return;
+    // The panel's own size, with any existing zoom divided back out.
+    const baseW = r.width / prev, baseH = r.height / prev;
     // 4% of each axis kept clear so the panel never sits flush to the window.
-    const k = Math.min((window.innerWidth * 0.96) / r.width,
-                       (window.innerHeight * 0.96) / r.height);
+    const k = Math.min((window.innerWidth * 0.96) / baseW,
+                       (window.innerHeight * 0.96) / baseH);
     // Never shrink — a small window keeps the panel at its authored size and
     // scrolls, which is what it did before. 1.8 stops it ballooning on a very
     // large monitor, where a 3x draft card would read as a poster.
     const scale = Math.max(1, Math.min(1.8, k));
     panel.style.transformOrigin = 'center center';
+    panel.dataset.draftScale = String(scale);
     panel.style.transform = scale > 1.001 ? `scale(${scale.toFixed(3)})` : '';
   },
 

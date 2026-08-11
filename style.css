@@ -39790,3 +39790,16 @@ body.in-match #game-area > .tricks-section > .hand-tools { order: -1; }
 /* The draft card keeps its authored 220px — the panel is ZOOMED as a whole by
    UI._fitDraftToViewport instead, so the rules text scales with it. Growing the
    card's width alone left the 9px type unchanged and just added whitespace. */
+
+/* The draft card row holds ONE height for every round.
+   A draft card's height is content-driven — its rules text — so a wordy pair
+   (Trigon / Thanos, 521px) made the panel 733px tall while a terse one
+   (Silver Surfer / Gorr) made it 621. Two consequences, both bad: the panel
+   grew and shrank between picks so the cards jumped under the cursor, and the
+   zoom in UI._fitDraftToViewport is solved from the panel's height, so on a
+   window where height is the binding constraint the whole screen would zoom
+   by a different amount every round.
+   530px is the tallest row measured across 40 draft rolls (521) plus a small
+   margin. Cards still centre inside it, so a short card is not stretched — it
+   just sits in a stable box. */
+.draft-choices { min-height: 530px; align-items: center; }
