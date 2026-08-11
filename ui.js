@@ -11090,16 +11090,7 @@ const UI = {
     html += `</div>`; // draft-choices
 
     if (ap) {
-      const renderDraftedRow = (list, isTrick) => {
-        if (!list.length) return '';
-        const baseTag = isTrick ? 'drafted-tag drafted-tag-trick' : 'drafted-tag';
-        const listCls = isTrick ? 'drafted-list drafted-list-trick' : 'drafted-list';
-        const label = isTrick ? 'Tricks:' : 'Cards:';
-        let row = `<div class="${listCls}"><strong>${label}</strong> `;
-        row += list.map(c => `<span class="${baseTag} cost-${c.cost}">${c.name} (${c.cost})</span>`).join(' ');
-        row += `</div>`;
-        return row;
-      };
+      const renderDraftedRow = (list, isTrick) => this._draftedRowHTML(list, isTrick);
       html += renderDraftedRow(ap.hand.map(c => ({ name: c.name, cost: c.cost })), false);
       if (!isCards) {
         html += renderDraftedRow(ap.trickHand.map(t => ({ name: t.name, cost: t.cost })), true);
@@ -16981,7 +16972,6 @@ const UI = {
     html +=     `<span class="draft-hud-pips">${pips.join('')}</span>`;
     html +=     `<span class="draft-hud-counter">Pick <em>${round}</em> / ${total}</span>`;
     html +=   `</div>`;
-    html +=   `<div class="draft-hud-sub">Choose one — the other goes to the holding zone</div>`;
     html +=   `<div class="draft-hud-actions">`;
     // Back-to-menu — early exit out of a draft. Confirms first so an
     // accidental click doesn't wipe picks already made.
@@ -17063,16 +17053,7 @@ const UI = {
     // class mirrors the card rarity-pip palette (green/cyan/silver/gold for
     // cards, purple/silver/gold for tricks) so the drafted list reads the same
     // rarity signal as the in-game pip strip.
-    const renderDraftedRow = (list, isTrick) => {
-      if (!list.length) return '';
-      const baseTag = isTrick ? 'drafted-tag drafted-tag-trick' : 'drafted-tag';
-      const listCls = isTrick ? 'drafted-list drafted-list-trick' : 'drafted-list';
-      const label = isTrick ? 'Tricks:' : 'Cards:';
-      let row = `<div class="${listCls}"><strong>${label}</strong> `;
-      row += list.map(c => `<span class="${baseTag} cost-${c.cost}">${c.name} (${c.cost})</span>`).join(' ');
-      row += `</div>`;
-      return row;
-    };
+    const renderDraftedRow = (list, isTrick) => this._draftedRowHTML(list, isTrick);
     html += renderDraftedRow(d.playerDrafted, false);
     if (!isCards) html += renderDraftedRow(d.playerTrickDrafted, true);
     html += `</div>`;
@@ -17082,6 +17063,29 @@ const UI = {
     // renderer is reached via render() returning early, so the
     // bottom-of-render applyTronFx() never runs for the draft path.
     if (this.applyTronFx) this.applyTronFx();
+  },
+
+  // THE DRAFTED-SO-FAR ROW, for every draft surface.
+  // This was two byte-identical copies — one in the 1v1 draft renderer, one in
+  // the 2v2 one — so sorting the row would have reordered half the game and
+  // left the other half in pick order. One method, both call sites.
+  //
+  // SORTED BY COST, cheapest first (owner: "have the cards be in order based on
+  // cost 1-10 left to right"). Pick order tells you nothing once the draft is
+  // over; cost order lets you read your curve at a glance. Sorts a COPY —
+  // `list` is live game state (d.playerDrafted), and undo walks it backwards,
+  // so reordering it in place would rewind the wrong pick. Ties keep pick order
+  // because Array.prototype.sort is stable.
+  _draftedRowHTML(list, isTrick) {
+    if (!list || !list.length) return '';
+    const baseTag = isTrick ? 'drafted-tag drafted-tag-trick' : 'drafted-tag';
+    const listCls = isTrick ? 'drafted-list drafted-list-trick' : 'drafted-list';
+    const label = isTrick ? 'Tricks:' : 'Cards:';
+    const ordered = list.slice().sort((a, b) => (a.cost | 0) - (b.cost | 0));
+    let row = `<div class="${listCls}"><strong>${label}</strong> `;
+    row += ordered.map(c => `<span class="${baseTag} cost-${c.cost}">${c.name} (${c.cost})</span>`).join(' ');
+    row += `</div>`;
+    return row;
   },
 
   // ===================== BLOCK TRICK CHOICE =====================
