@@ -39686,3 +39686,50 @@ body.in-match .turn-hud {
      only while it is doing the sticky job. */
   background-color: #000 !important;
 }
+
+/* ============================================================
+   TRIM THE MATCH CHROME (2026-08-10)
+   Owner picked this over rebuilding the board's sizing: cut the
+   rows around the board rather than make the board itself elastic.
+
+   Measured at 1440x820 with a full hand and 3 tricks, the in-match
+   column was 1349px:
+     turn-hud 53 | enemy bar 64 | BOARD 610 | forecast 32
+     player bar 64 | hand 302 | tricks 224
+   The hand and tricks rows were 526px of that — 39% of the screen
+   spent on two rows of cards, because a HAND card was rendering at
+   the same 140x277 as a BOARD card. It doesn't need to be: the
+   board tile is the one you read at a glance across six lanes,
+   while a hand card is right in front of you and already magnifies
+   on hover and flips to its rules face on click.
+
+   Shrinking the hand card's WIDTH is the safe lever — height comes
+   from `aspect-ratio: 92/182`, so the tile stays exactly in shape
+   and only gets smaller. No new geometry, no squashing.
+
+   Result: 1349 -> 1177, a 172px saving with the board untouched.
+   ============================================================ */
+
+/* Hand cards: 140 -> 86 wide, so 277 -> 170 tall. */
+body.in-match .player-hand-section .hand-cards .card { width: 86px; }
+/* Trick cards: 132 -> 88 wide. Their height is content-driven rather than
+   aspect-driven, so this buys less (201 -> ~150) — the text still has to fit. */
+body.in-match .trick-card { width: 88px; }
+
+/* The two rows carried 12px top and bottom each; 5px is still a visible
+   gutter between the player bar, the hand and the tricks. */
+body.in-match .player-hand-section,
+body.in-match .tricks-section {
+  padding-top: 5px;
+  padding-bottom: 5px;
+}
+body.in-match .info-bar { padding-top: 4px; padding-bottom: 4px; }
+body.in-match .turn-hud { padding-top: 5px; padding-bottom: 5px; }
+body.in-match .lane-forecast-strip { padding-top: 2px; padding-bottom: 2px; }
+
+/* WHERE THIS LANDS. 1349 -> 1155 with a full hand and 3 tricks, i.e. the
+   match now fits any window at least ~1155px tall instead of needing 1349.
+   It is NOT a fit at every size: the board is still a fixed 610px (the whole
+   point of taking this route rather than rebuilding its sizing), so a short
+   laptop window will still scroll. The remaining lever is the board itself —
+   see the reverted experiment and its notes for why that needs its own pass. */
