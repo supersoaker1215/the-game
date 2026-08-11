@@ -17839,39 +17839,38 @@ const UI = {
   // board pass throws partway through (now survivable, see _safe), the stale
   // Map full of detached nodes outlives the failed pass and the NEXT render's
   // makeCardElCached() can hand back elements from the aborted one.
-  // THE DRAFT CARDS GROW INTO THE SCREEN TOO.
+  // THE DRAFT PANEL ZOOMS TO FILL THE SCREEN.
   //
-  // `.card.draft-card` was a hard 220px wide, chosen for some window that is
-  // not the one you are on: on a 1150px-tall screen that left ~400px of black
-  // above and below a 500px card. Same treatment as the hand — measure what is
-  // actually free and scale into it, rather than pick a second fixed number
-  // that is wrong on a different screen.
+  // First attempt at this grew the CARD (220 -> 340 wide). It made the tiles
+  // bigger and the screen no fuller, because a draft card's type sizes are
+  // fixed (--draft-rules-size: 9px and friends) — a wider card is the same 9px
+  // rules text in a bigger box, i.e. more whitespace, not more readable. The
+  // ask was "zoom in", and a width change is not a zoom.
   //
-  // Bounded on BOTH axes. Height alone would let two cards grow until they
-  // collided horizontally, so the width the row can afford is computed as well
-  // and the smaller of the two wins.
+  // A transform IS a zoom: art, text, borders and spacing all scale together,
+  // so the panel reads exactly as designed, just larger. Safe here in a way it
+  // would not be on the board — the draft screen has no position:fixed
+  // children whose containing block a transform would hijack (the settings cog
+  // lives outside .draft-panel), and nothing inside it is measured in viewport
+  // units.
+  //
+  // Measured at scale 1 every time. Reading the box while it is already scaled
+  // would feed the previous zoom back in and compound on every render.
   _fitDraftToViewport() {
     const panel = document.querySelector('.draft-panel');
-    const row = panel && panel.querySelector('.draft-choices');
-    const cards = row ? [...row.querySelectorAll('.draft-card')] : [];
-    if (!panel || !row || !cards.length) return;
-    const cardR = cards[0].getBoundingClientRect();
-    if (!cardR.height) return;
-    // The card's own height:width ratio, read live rather than assumed — a
-    // draft card's height is content-driven (rules text), not the board tile's
-    // 182/92, and it differs between a wordy card and a bare one.
-    const ratio = cardR.height / cardR.width;
-    // Everything in the panel that is not the card row: title, pips, controls.
-    const chrome = panel.getBoundingClientRect().height - cardR.height;
-    // Leave a margin so the panel never sits flush against the window edges.
-    const availH = window.innerHeight - chrome - 80;
-    const byHeight = availH / ratio;
-    // Width the row can afford: the gap between cards plus the panel's padding.
-    const gap = parseFloat(getComputedStyle(row).gap) || 48;
-    const rowChrome = gap * (cards.length - 1) + 80;
-    const byWidth = (Math.min(panel.getBoundingClientRect().width, window.innerWidth) - rowChrome) / cards.length;
-    const w = Math.max(220, Math.min(340, byHeight, byWidth));
-    panel.style.setProperty('--draft-card-w', w.toFixed(1) + 'px');
+    if (!panel || !panel.querySelector('.draft-card')) return;
+    panel.style.transform = '';
+    const r = panel.getBoundingClientRect();
+    if (!r.width || !r.height) return;
+    // 4% of each axis kept clear so the panel never sits flush to the window.
+    const k = Math.min((window.innerWidth * 0.96) / r.width,
+                       (window.innerHeight * 0.96) / r.height);
+    // Never shrink — a small window keeps the panel at its authored size and
+    // scrolls, which is what it did before. 1.8 stops it ballooning on a very
+    // large monitor, where a 3x draft card would read as a poster.
+    const scale = Math.max(1, Math.min(1.8, k));
+    panel.style.transformOrigin = 'center center';
+    panel.style.transform = scale > 1.001 ? `scale(${scale.toFixed(3)})` : '';
   },
 
   // THE HAND GROWS INTO WHATEVER HEIGHT IS LEFT OVER.

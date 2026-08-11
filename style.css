@@ -39787,9 +39787,6 @@ body.in-match #game-area > .tricks-section {
    the two rows merged that now falls out of the flex order for free. */
 body.in-match #game-area > .tricks-section > .hand-tools { order: -1; }
 
-/* Draft cards size to the screen, same as the hand. The 220px fallback is the
-   old fixed value, so nothing shrinks if the script has not run yet.
-   !important because the rule it replaces is itself `width: 220px !important`
-   — without matching that, the var resolved correctly on the element and the
-   computed width stayed 220px anyway. */
-.card.draft-card { width: var(--draft-card-w, 220px) !important; }
+/* The draft card keeps its authored 220px — the panel is ZOOMED as a whole by
+   UI._fitDraftToViewport instead, so the rules text scales with it. Growing the
+   card's width alone left the 9px type unchanged and just added whitespace. */
