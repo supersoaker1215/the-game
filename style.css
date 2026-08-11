@@ -39786,3 +39786,10 @@ body.in-match #game-area > .tricks-section {
    owner asked for them earlier ("so they don't ever get covered") — with
    the two rows merged that now falls out of the flex order for free. */
 body.in-match #game-area > .tricks-section > .hand-tools { order: -1; }
+
+/* Draft cards size to the screen, same as the hand. The 220px fallback is the
+   old fixed value, so nothing shrinks if the script has not run yet.
+   !important because the rule it replaces is itself `width: 220px !important`
+   — without matching that, the var resolved correctly on the element and the
+   computed width stayed 220px anyway. */
+.card.draft-card { width: var(--draft-card-w, 220px) !important; }

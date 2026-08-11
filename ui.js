@@ -6237,6 +6237,8 @@ const UI = {
     // fills and the forecast strip comes and goes.
     this._safe ? this._safe('fitHand', () => this._fitHandToViewport())
                : this._fitHandToViewport();
+    this._safe ? this._safe('fitDraft', () => this._fitDraftToViewport())
+               : this._fitDraftToViewport();
     if (window.PerfOverlay && window.PerfOverlay.tickRender) {
       window.PerfOverlay.tickRender();
     }
@@ -7783,6 +7785,7 @@ const UI = {
     // Hand size is a function of viewport height, so it re-solves on resize as
     // well as on render — dragging the window changes nothing in game state.
     window.addEventListener('resize', () => { try { UI._fitHandToViewport(); } catch (e) {} }, { passive: true });
+    window.addEventListener('resize', () => { try { UI._fitDraftToViewport(); } catch (e) {} }, { passive: true });
 
     // FOLLOW THE CARD WHILE IT MOVES. Scroll and resize were handled; the card
     // ITSELF moving was not. The hover magnify scales it, a play or move
@@ -17836,6 +17839,41 @@ const UI = {
   // board pass throws partway through (now survivable, see _safe), the stale
   // Map full of detached nodes outlives the failed pass and the NEXT render's
   // makeCardElCached() can hand back elements from the aborted one.
+  // THE DRAFT CARDS GROW INTO THE SCREEN TOO.
+  //
+  // `.card.draft-card` was a hard 220px wide, chosen for some window that is
+  // not the one you are on: on a 1150px-tall screen that left ~400px of black
+  // above and below a 500px card. Same treatment as the hand — measure what is
+  // actually free and scale into it, rather than pick a second fixed number
+  // that is wrong on a different screen.
+  //
+  // Bounded on BOTH axes. Height alone would let two cards grow until they
+  // collided horizontally, so the width the row can afford is computed as well
+  // and the smaller of the two wins.
+  _fitDraftToViewport() {
+    const panel = document.querySelector('.draft-panel');
+    const row = panel && panel.querySelector('.draft-choices');
+    const cards = row ? [...row.querySelectorAll('.draft-card')] : [];
+    if (!panel || !row || !cards.length) return;
+    const cardR = cards[0].getBoundingClientRect();
+    if (!cardR.height) return;
+    // The card's own height:width ratio, read live rather than assumed — a
+    // draft card's height is content-driven (rules text), not the board tile's
+    // 182/92, and it differs between a wordy card and a bare one.
+    const ratio = cardR.height / cardR.width;
+    // Everything in the panel that is not the card row: title, pips, controls.
+    const chrome = panel.getBoundingClientRect().height - cardR.height;
+    // Leave a margin so the panel never sits flush against the window edges.
+    const availH = window.innerHeight - chrome - 80;
+    const byHeight = availH / ratio;
+    // Width the row can afford: the gap between cards plus the panel's padding.
+    const gap = parseFloat(getComputedStyle(row).gap) || 48;
+    const rowChrome = gap * (cards.length - 1) + 80;
+    const byWidth = (Math.min(panel.getBoundingClientRect().width, window.innerWidth) - rowChrome) / cards.length;
+    const w = Math.max(220, Math.min(340, byHeight, byWidth));
+    panel.style.setProperty('--draft-card-w', w.toFixed(1) + 'px');
+  },
+
   // THE HAND GROWS INTO WHATEVER HEIGHT IS LEFT OVER.
   //
   // Folding tricks into the hand row freed ~161px, and on a normal window that
