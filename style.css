@@ -39733,3 +39733,54 @@ body.in-match .lane-forecast-strip { padding-top: 2px; padding-bottom: 2px; }
    point of taking this route rather than rebuilding its sizing), so a short
    laptop window will still scroll. The remaining lever is the board itself —
    see the reverted experiment and its notes for why that needs its own pass. */
+
+/* ============================================================
+   HAND AND TRICKS SHARE ONE ROW (2026-08-10)
+   Owner: "make the hand and tricks one row."
+
+   They were two stacked full-width rows, 181px + 161px, and the
+   tricks row was mostly empty air — three narrow cards spread
+   across 1408px. Folding them side by side reclaims the SHORTER
+   row outright: the in-match column drops 1155 -> 994px, so the
+   match now fits any window from ~994px tall rather than ~1155.
+   That is the single biggest saving available without touching
+   the board's 610px.
+
+   DONE AS A GRID, NOT A DOM CHANGE. The two sections stay exactly
+   where they are in the markup, so every renderer, drag handler
+   and selector that targets .hand-cards or .trick-cards keeps
+   working untouched — this is purely where the boxes land.
+   #game-area becomes a 2-column grid whose every other child
+   spans both columns, so only these two sit beside each other.
+   ============================================================ */
+body.in-match #game-area {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  /* Rows size to content — without this the grid stretches them to fill
+     the body's 100dvh and the saving disappears into padding. */
+  align-content: start;
+}
+/* Everything except the two hand rows keeps the full width it had as a
+   block child. Authored as a blanket span so a row added later is
+   full-width by default and cannot accidentally land in column 2. */
+body.in-match #game-area > * { grid-column: 1 / -1; }
+body.in-match #game-area > .player-hand-section {
+  grid-column: 1;
+  min-width: 0;   /* lets the hand shrink instead of pushing tricks off */
+}
+body.in-match #game-area > .tricks-section {
+  grid-column: 2;
+  /* Tricks take only what they need; the hand gets the rest. */
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding-right: 14px;
+  /* A hairline on the left so the two groups read as separate zones —
+     a trick is not a card you drop in a lane, and side by side they
+     need to say so. */
+  border-left: 1px solid rgba(var(--theme-rgb, 79,195,247), 0.22);
+}
+/* The music / redraw tools sit LEFT of the tricks, which is where the
+   owner asked for them earlier ("so they don't ever get covered") — with
+   the two rows merged that now falls out of the flex order for free. */
+body.in-match #game-area > .tricks-section > .hand-tools { order: -1; }
