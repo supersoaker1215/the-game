@@ -5022,8 +5022,18 @@ const UI = {
       // (or tap off) to turn back, drag to play — instead of a second, hidden
       // model. Long-press inspect still works and is now suppressed below so it
       // cannot flip the card behind its own modal.
+      // ON TOUCH THE FLIP IS THE WRONG SURFACE. A phone taps a hand/trick card
+      // to open the FULL-SCREEN inspect (onCardClick → openCardInspect,
+      // onTrickClick → showCardInspect) and taps off to dismiss — the same
+      // "tap to read big, click to the side to close" the user asked for. The
+      // small in-place flip is a DESKTOP affordance (hover-capable pointers).
+      // Running BOTH on touch turned the card over BEHIND its own inspect modal
+      // and left it face-down after the modal closed. So on `(hover: none)` we
+      // let the card's own onclick open the big modal and do nothing here.
+      const touch = window.matchMedia && window.matchMedia('(hover: none)').matches;
       const cardEl = e.target.closest && e.target.closest(this.FLIPPABLE_SELECTOR);
-      if (cardEl) { this.toggleHandCardFlip(cardEl); return; }
+      if (cardEl) { if (!touch) this.toggleHandCardFlip(cardEl); return; }
+      if (touch) return;   // no in-place flip to dismiss on touch
       // CLICKED OFF THE CARD. User: "the only way to unclick is to play the card
       // or leave it backwards — if you click off the card it should deselect and
       // flip back." Before this the only exits were clicking the same card again,
