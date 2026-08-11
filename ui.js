@@ -6235,10 +6235,6 @@ const UI = {
     // Runs AFTER the DOM is written — it measures the laid-out rows. Every
     // render, because the rows around the hand change height as the board
     // fills and the forecast strip comes and goes.
-    this._safe ? this._safe('fitHand', () => this._fitHandToViewport())
-               : this._fitHandToViewport();
-    this._safe ? this._safe('fitDraft', () => this._fitDraftToViewport())
-               : this._fitDraftToViewport();
     if (window.PerfOverlay && window.PerfOverlay.tickRender) {
       window.PerfOverlay.tickRender();
     }
@@ -6767,6 +6763,11 @@ const UI = {
       else this._clearCombatForecast();
       this._forecastSilent = false;
     }
+    // Hand sizing goes at the END of the renderer that writes the board, for
+    // the same reason the draft's zoom does: render() calls _renderImpl()
+    // directly, so anything hanging off renderSync only ran on the network
+    // paths and never in normal play.
+    if (this._fitHandToViewport) this._fitHandToViewport();
   },
 
   // ===================== RISK / REWARD SIGNALING =====================
@@ -17074,6 +17075,15 @@ const UI = {
     // renderer is reached via render() returning early, so the
     // bottom-of-render applyTronFx() never runs for the draft path.
     if (this.applyTronFx) this.applyTronFx();
+    // ZOOM HAS TO BE SOLVED HERE, not in renderSync. Two things route around
+    // that: render() calls _renderImpl() DIRECTLY (renderSync is only used by
+    // the network paths), and _renderImpl early-returns into renderDraft for
+    // the draft phase. So a hook hanging off renderSync ran when I called it
+    // by hand in the console and never once in normal play — the panel was
+    // measured, scaled, and then rebuilt unscaled by the very next render.
+    // Hanging it off the renderer that writes the markup means it cannot be
+    // routed around: whatever draws the draft also sizes it.
+    if (this._fitDraftToViewport) this._fitDraftToViewport();
   },
 
   // THE DRAFTED-SO-FAR ROW, for every draft surface.
