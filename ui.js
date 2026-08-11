@@ -6773,6 +6773,11 @@ const UI = {
     // the same reason the draft's zoom does: render() calls _renderImpl()
     // directly, so anything hanging off renderSync only ran on the network
     // paths and never in normal play.
+    // The board solve is chained off the END of the hand's refinement pass, not
+    // called here — the hand's final height is part of the board's `others`,
+    // and calling both here solved the board against the hand's FIRST-pass
+    // size (measured: content 19px over the viewport, because the hand then
+    // grew from 137 to 200 underneath it).
     if (this._fitHandToViewport) this._fitHandToViewport();
   },
 
@@ -7793,6 +7798,7 @@ const UI = {
     // well as on render — dragging the window changes nothing in game state.
     window.addEventListener('resize', () => { try { UI._fitHandToViewport(); } catch (e) {} }, { passive: true });
     window.addEventListener('resize', () => { try { UI._fitDraftToViewport(); } catch (e) {} }, { passive: true });
+    window.addEventListener('resize', () => { try { UI._fitBoardToViewport(); } catch (e) {} }, { passive: true });
 
     // FOLLOW THE CARD WHILE IT MOVES. Scroll and resize were handled; the card
     // ITSELF moving was not. The hover magnify scales it, a play or move
@@ -17899,6 +17905,84 @@ const UI = {
     panel.style.transform = scale > 1.001 ? `scale(${scale.toFixed(3)})` : '';
   },
 
+  // THE BOARD TAKES WHATEVER HEIGHT IS STILL FREE.
+  //
+  // Everything else on the screen is now sized to fit, which left ~170px of
+  // black under the hand doing nothing. The board is the natural thing to
+  // spend it on — it is the part you actually look at.
+  //
+  // I backed out of an earlier attempt at this because a CSS-only version is
+  // circular: a board card is `aspect-ratio: 92/182`, so its height comes from
+  // its width, and giving it `height:100%` makes it contribute no width during
+  // intrinsic sizing — flex collapsed the lane and the card painted wider than
+  // the lane holding it. Measuring the laid-out box sidesteps that entirely,
+  // which is the same thing that made the hand solve work.
+  //
+  // ONE VARIABLE DRIVES THE WHOLE CHAIN. --board-card-w feeds the card, the
+  // slot and the lane through CSS calc, with the +14/+20 offsets taken from
+  // the authored 140/154/160 triple. Three independent widths is what let the
+  // card drift out of its lane before.
+  _fitBoardToViewport() {
+    const area = document.getElementById('game-area');
+    const section = document.querySelector('.board-section');
+    const board = document.querySelector('.board');
+    const lane = board && board.querySelector('.lane');
+    const slot = lane && lane.querySelector('.card-slot');
+    if (!area || !section || !board || !lane || !slot) return;
+    const boardH = section.getBoundingClientRect().height;
+    if (!boardH) return;
+    const num = (el, ...p) => { const c = getComputedStyle(el);
+      return p.reduce((t, k) => t + (parseFloat(c[k]) || 0), 0); };
+
+    // HEIGHT BOUND. `others` is every row that is not the board; it does not
+    // move when the board resizes, so it is a stable base (the same reason the
+    // hand solve reads everything except its own row).
+    const others = area.scrollHeight - boardH;
+    // -12px of headroom. Two reasons, both measured rather than guessed:
+    // sub-pixel rounding across two slot heights, and the fact that the hand
+    // and the board are competing for the SAME leftover height — the hand
+    // solves first, the board takes the remainder, and the hand's deferred
+    // second pass then re-reads a board that has grown. The pair converges
+    // (hand 187 / board 158) but landed 1px over the viewport without this.
+    // The board yields the pixels because the hand has a hard floor it must
+    // not go under to stay readable.
+    const avail = window.innerHeight - others - 12;
+    if (avail <= 0) return;
+    // Board chrome is MEASURED as (board height - the two card heights), not
+    // predicted from padding. Adding up lane padding + slot padding + borders
+    // came out 29px short of the real 673px board — the lane carries more than
+    // its own box model (inter-slot gap, the lane-number divider), and any
+    // enumeration of that is a list that goes stale the next time the lane
+    // gains a part. This subtraction cannot be wrong by construction.
+    const liveCard = slot.querySelector('.card');
+    const liveCardH = liveCard ? liveCard.getBoundingClientRect().height
+                               : (num(slot, 'paddingTop', 'paddingBottom') ? 0 : 0);
+    const chrome = liveCardH ? (boardH - 2 * liveCardH)
+                             : (num(lane, 'paddingTop', 'paddingBottom')
+                                + 2 * num(slot, 'paddingTop', 'paddingBottom'));
+    const cardH = (avail - chrome) / 2;
+    let w = cardH * 92 / 182;
+
+    // WIDTH BOUND. Six lanes plus gaps and padding have to fit across, or the
+    // board clips exactly the way the hand did — and body's overflow-x:hidden
+    // means nothing would report it.
+    const lanes = board.querySelectorAll('.lane').length || 6;
+    const laneChrome = lane.getBoundingClientRect().width - 140;  // authored 160 vs 140 card
+    const across = window.innerWidth
+                 - num(board, 'paddingLeft', 'paddingRight')
+                 - num(section, 'paddingLeft', 'paddingRight')
+                 - (parseFloat(getComputedStyle(board).gap) || 0) * (lanes - 1)
+                 - 8;
+    w = Math.min(w, across / lanes - laneChrome);
+
+    // 140 is the authored card width — the floor, so this can only ever GROW
+    // the board. 260 stops a very tall window turning six lanes into murals.
+    w = Math.max(140, Math.min(260, w));
+    // Whole pixels: at one decimal the value flickered 155.9 / 156.2 between
+    // renders on identical input, which is rounding noise, not a resize.
+    area.style.setProperty('--board-card-w', Math.floor(w) + 'px');
+  },
+
   // THE HAND GROWS INTO WHATEVER HEIGHT IS LEFT OVER.
   //
   // Folding tricks into the hand row freed ~161px, and on a normal window that
@@ -17936,7 +18020,26 @@ const UI = {
     const rcs = getComputedStyle(row);
     const rowChrome = (parseFloat(rcs.paddingTop) || 0) + (parseFloat(rcs.paddingBottom) || 0);
     // Everything that is NOT the hand row keeps its height when the hand grows.
-    const others = area.scrollHeight - rowH;
+    let others = area.scrollHeight - rowH;
+
+    // ...EXCEPT THE BOARD, which is also sized from the leftover height. Left
+    // coupled, the two chased each other every render — the hand shrank
+    // because the board had grown, the board grew because the hand had shrunk,
+    // and it diverged rather than settled (measured hand 137 -> 128 -> 120 on
+    // three consecutive renders). Breaking it needs one of them to stop
+    // reacting, so the hand is solved against the board's FLOOR — a constant —
+    // and the board then takes whatever is genuinely left above that floor.
+    // Dependency now runs one way: hand, then board.
+    const bSlot = document.querySelector('.card-slot');
+    const bLane = document.querySelector('.lane');
+    const bSec = document.querySelector('.board-section');
+    if (bSlot && bLane && bSec) {
+      const n = (el, ...p) => { const c = getComputedStyle(el);
+        return p.reduce((t, k) => t + (parseFloat(c[k]) || 0), 0); };
+      const floorH = 2 * (140 * 182 / 92 + n(bSlot, 'paddingTop', 'paddingBottom'))
+                   + n(bLane, 'paddingTop', 'paddingBottom');
+      others = others - bSec.getBoundingClientRect().height + floorH;
+    }
     const avail = window.innerHeight - others - rowChrome;
     // 86 is the floor that made the match fit on a short window. The ceiling
     // was 140 (the card's original authored width) and that turned out to be
@@ -17986,7 +18089,7 @@ const UI = {
       const byWidth = (window.innerWidth - fixed - 8) / perCard;   // 8px slack
       w = Math.max(86, Math.min(w, byWidth));
     }
-    area.style.setProperty('--hand-card-w', w.toFixed(1) + 'px');
+    area.style.setProperty('--hand-card-w', Math.floor(w) + 'px');
     // Tricks ride the same 0..1 position on that range so the two groups stay
     // in proportion instead of one outgrowing the other.
     const t = (w - 86) / (200 - 86);
@@ -18000,7 +18103,17 @@ const UI = {
     // not fire in a hidden tab, and the timeout is the guarantee.
     if (!_pass) {
       let done = false;
-      const again = () => { if (done) return; done = true; this._fitHandToViewport(1); };
+      const again = () => { if (done) return; done = true;
+        this._fitHandToViewport(1);
+        // Board LAST, on the settled hand — twice, for the same reason the
+        // hand needs two passes: the first solve changes the board's own
+        // height, so `others` (which is derived from it) is only exact on the
+        // re-read. One pass left the column 14px over the viewport.
+        if (this._fitBoardToViewport) {
+          this._fitBoardToViewport();
+          this._fitBoardToViewport();
+        }
+      };
       requestAnimationFrame(again);
       setTimeout(again, 60);
     }

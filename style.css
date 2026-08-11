@@ -39810,3 +39810,22 @@ body.in-match #game-area > .tricks-section > .hand-tools { order: -1; }
    element set everything else, so display is all this needs to own. */
 #clb-build-badge { display: none; }
 body.on-main-menu #clb-build-badge { display: block; }
+
+/* BOARD SIZE FROM ONE VARIABLE.
+   --board-card-w is measured by UI._fitBoardToViewport from the height left
+   over after every other row. The card, its slot and the lane all derive from
+   it, because three independently authored widths (140 / 154 / 160) is what
+   let the card drift out of its lane the first time I tried this. The offsets
+   below ARE that authored triple: slot = card + 14, lane = card + 20.
+   Fallback is the authored 140px, so nothing moves if the script has not run. */
+body.in-match .card-slot > .card { width: var(--board-card-w, 140px) !important; }
+body.in-match .card-slot {
+  width: calc(var(--board-card-w, 140px) + 14px);
+  /* Height follows the card's 92/182 aspect plus the slot's own 6+4 padding —
+     the same derivation the authored rule used, just no longer pinned to 140. */
+  min-height: calc(var(--board-card-w, 140px) * 182 / 92 + 10px);
+}
+body.in-match .lane {
+  width: calc(var(--board-card-w, 140px) + 20px);
+  min-width: calc(var(--board-card-w, 140px) + 20px);
+}
