@@ -4039,7 +4039,7 @@ const CARD_ABILITIES = {
     // here re-implements any of that.
     _CURSES: [
       { id: 'ak', name: 'Avada Kedavra', desc: 'Destroy an enemy with cost \u2264 6. No damage — death.' },
-      { id: 'cr', name: 'Crucio',        desc: 'An enemy takes (\u22124/\u22124) permanently.' },
+      { id: 'cr', name: 'Crucio',        desc: 'An enemy takes (\u22124/\u22124) permanently. This can destroy it.' },
       { id: 'im', name: 'Imperio',       desc: 'Mind Control an enemy for this round.' },
     ],
 
@@ -4105,14 +4105,14 @@ const CARD_ABILITIES = {
             G.killCard(t, self);
           } else if (curse.id === 'cr') {
             G.log(`[VOLDEMORT] Crucio — ${t.name} writhes.`);
-            // allowKill FALSE — Crucio tortures, it does not kill. Avada
-            // Kedavra is the curse that kills, and letting Crucio finish small
-            // cards too would collapse the two into one choice. Floors at 1 HP
-            // like every other non-lethal strip.
+            // allowKill TRUE (owner, 2026-08-11): "I want Crucio to be able to
+            // kill the enemy if it has 4 or less health and not leave them at
+            // 1." So the (-4/-4) now finishes a small card outright instead of
+            // flooring its HP at 1 — same allowKill path Pym Particles uses.
             // The Stun rider was removed (owner, 2026-08-09): a (-4/-4) that
             // ALSO took the card's turn was doing two curses' work, which left
             // Imperio with nothing of its own to offer.
-            G.debuffCard(t, 4, 4, false, self);
+            G.debuffCard(t, 4, 4, true, self);
           } else {
             G.mindControlCard(t, self, () => {
               G.log(`[VOLDEMORT] Imperio — ${t.name} turns on its own.`);

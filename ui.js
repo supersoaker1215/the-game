@@ -8130,24 +8130,24 @@ const UI = {
     const tgtEl = this._fxCardElById(targetCard.id);
     const to = this._fxCenter(tgtEl);
     if (!to) return;
+    // Three curses, three colours of LIGHTNING (owner, 2026-08-11): Avada
+    // Kedavra green, Crucio red, Imperio yellow. Imperio used to be a violet
+    // HELD BEAM; it now strikes as yellow lightning like the other two so the
+    // three read as one family, each told apart by colour alone.
     const kit = curseId === 'ak'
       ? { bolt: '#39ff5e', glow: '#0b8f2a', core: '#eaffef', shake: 'medium' }
       : curseId === 'cr'
       ? { bolt: '#ff3b3b', glow: '#8f0b0b', core: '#ffe3e3', shake: 'medium' }
-      : { bolt: '#b06bff', glow: '#4a1d8a', core: '#f0e3ff', shake: 'light' };
+      : { bolt: '#ffd633', glow: '#b38600', core: '#fff6cc', shake: 'medium' };
     this._fxWhenPainted(self, (srcEl) => {
       const from = this._fxCenter(srcEl);
       if (!from) return;
-      if (curseId === 'im') {
-        // Imperio does not strike — it reaches. A single held beam.
-        this._fxDrawBeam(from, to, { color: kit.bolt, core: kit.core, thickness: 6 });
-      } else {
-        this._fxDrawBolt(from, to, { color: kit.bolt, glow: kit.glow });
-        this._fxDrawBolt(from, to, { color: kit.core, glow: kit.bolt });
-      }
+      // A forked strike + a white-hot inner bolt — same shape for all three.
+      this._fxDrawBolt(from, to, { color: kit.bolt, glow: kit.glow });
+      this._fxDrawBolt(from, to, { color: kit.core, glow: kit.bolt });
       if (tgtEl) this._fxRing(tgtEl, { color: kit.bolt, contract: true });
-      this._fxImpact(to, { color: kit.bolt, core: kit.core, size: curseId === 'ak' ? 1.1 : 0.9 });
-      this._fxSparks(to, { color: kit.bolt, glow: kit.glow, count: curseId === 'ak' ? 14 : 9, spread: 55, size: 2.4 });
+      this._fxImpact(to, { color: kit.bolt, core: kit.core, size: curseId === 'ak' ? 1.1 : 0.95 });
+      this._fxSparks(to, { color: kit.bolt, glow: kit.glow, count: curseId === 'ak' ? 14 : 11, spread: 55, size: 2.4 });
     });
     this._screenShake(kit.shake);
   },
@@ -10835,9 +10835,21 @@ const UI = {
       const portraitHtml = `<div class="card-portrait" style="${trayPortraitStyle}"><div class="card-name-overlay"><span class="cn-text">${card.name || 'Unknown'}</span></div></div>`;
       const costHtml = card.cost !== undefined ? `<span class="card-cost">${card.cost}</span>` : '';
       const isTrickFace = !!card._isTrick || isTrickName;
+      // VOLDEMORT'S CURSES — each option tile wears its curse's own colour of
+      // lightning so the three read apart at a glance and match the bolt that
+      // fires when it resolves (owner: Avada Kedavra green, Crucio red, Imperio
+      // yellow). Keyed on the option id the ability passes through ('ak'/'cr'/
+      // 'im'), so no other picker is affected.
+      const CURSE_COLORS = { ak: '#39ff5e', cr: '#ff3b3b', im: '#ffd633' };
+      const curseColor = CURSE_COLORS[card.id];
+      const curseClass = curseColor ? ` curse-opt curse-${card.id}` : '';
+      const curseBolt = curseColor
+        ? `<svg class="curse-bolt" viewBox="0 0 24 40" aria-hidden="true" style="--curse-c:${curseColor}"><path d="M13 0 L2 23 L10 23 L7 40 L22 15 L13 15 Z"/></svg>`
+        : '';
       return `
         <div class="choice-opt">
-          <div class="choice-card card ${isActionTile ? 'choice-action' : 'flip-host'} ${costClass}${isTrickFace ? ' choice-trick' : ''}" data-idx="${idx}">
+          <div class="choice-card card ${isActionTile ? 'choice-action' : 'flip-host'} ${costClass}${isTrickFace ? ' choice-trick' : ''}${curseClass}" data-idx="${idx}">
+            ${curseBolt}
             ${costHtml}
             ${typeSigil}
             ${portraitHtml}

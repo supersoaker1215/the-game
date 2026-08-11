@@ -39829,3 +39829,61 @@ body.in-match .lane {
   width: calc(var(--board-card-w, 140px) + 20px);
   min-width: calc(var(--board-card-w, 140px) + 20px);
 }
+
+/* ============================================================
+   VOLDEMORT — UNFORGIVABLE CURSE PICKER: per-curse LIGHTNING
+   ============================================================
+   Each curse option carries its own colour of lightning so the three read
+   apart at a glance and match the bolt that fires on resolve — Avada Kedavra
+   green, Crucio red, Imperio yellow. --curse-c is set inline per tile. */
+.choice-card.curse-opt {
+  border: 1.5px solid var(--curse-c, #39ff5e) !important;
+  box-shadow:
+    0 0 14px color-mix(in srgb, var(--curse-c, #39ff5e) 50%, transparent),
+    inset 0 0 22px color-mix(in srgb, var(--curse-c, #39ff5e) 20%, transparent) !important;
+  animation: curseTileGlow 1.5s ease-in-out infinite;
+  position: relative;
+}
+@keyframes curseTileGlow {
+  0%, 100% { box-shadow: 0 0 12px color-mix(in srgb, var(--curse-c,#39ff5e) 45%, transparent), inset 0 0 20px color-mix(in srgb, var(--curse-c,#39ff5e) 18%, transparent); }
+  50%      { box-shadow: 0 0 22px color-mix(in srgb, var(--curse-c,#39ff5e) 75%, transparent), inset 0 0 26px color-mix(in srgb, var(--curse-c,#39ff5e) 30%, transparent); }
+}
+/* The bolt glyph flickers like a live arc in the tile's top-right. */
+.choice-card.curse-opt .curse-bolt {
+  position: absolute;
+  top: 8px; right: 8px;
+  width: 16px; height: 27px;
+  fill: var(--curse-c, #39ff5e);
+  filter:
+    drop-shadow(0 0 3px var(--curse-c, #39ff5e))
+    drop-shadow(0 0 7px var(--curse-c, #39ff5e));
+  animation: curseBoltFlicker 1.15s steps(1, end) infinite;
+  pointer-events: none;
+  z-index: 4;
+}
+@keyframes curseBoltFlicker {
+  0%, 44%, 100% { opacity: 1; }
+  48%           { opacity: 0.3; }
+  52%           { opacity: 1; }
+  68%           { opacity: 0.55; }
+  74%           { opacity: 1; }
+}
+/* Tint the curse name in its own colour so the label matches the arc. */
+.choice-card.curse-opt .card-name-overlay .cn-text {
+  color: var(--curse-c, #39ff5e);
+  text-shadow: 0 0 6px color-mix(in srgb, var(--curse-c, #39ff5e) 70%, transparent);
+}
+@media (prefers-reduced-motion: reduce) {
+  .choice-card.curse-opt { animation: none; }
+  .choice-card.curse-opt .curse-bolt { animation: none; }
+}
+
+/* HAND TOOLS relocated into the bottom bar (♪ + redraw), next to the energy.
+   .hand-tools was absolutely positioned for its old home over the tricks; in a
+   bar cell it must flow inline instead. */
+.bar-cell.bar-tools { display: flex; align-items: center; justify-content: center; }
+.bar-cell.bar-tools .hand-tools {
+  position: static;
+  left: auto; top: auto; transform: none;
+  z-index: auto;
+}

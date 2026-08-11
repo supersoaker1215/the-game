@@ -13,7 +13,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;700&display=swap">
-  <link rel="stylesheet" href="style.css?v=1021">
+  <link rel="stylesheet" href="style.css?v=1022">
   <script>
     // Lightweight error reporter (pre-Sentry) — capture runtime JS
     // errors + unhandled promise rejections to a localStorage ring
@@ -453,6 +453,22 @@
         <button id="btn-action" class="btn btn-primary" style="display:none">Done</button>
         <button id="btn-new-game" class="btn btn-danger" onclick="newGame()" style="display:none">New Game</button>
       </div>
+      <!-- HAND TOOLS — the ♪ hand-audio-privacy toggle + the redraw button.
+           Moved here from over the tricks (owner) so they sit with the rest of
+           the HUD, right next to the energy. Same IDs + handlers. -->
+      <div class="bar-cell bar-tools">
+        <div class="hand-tools">
+          <button type="button"
+                  id="hand-audio-toggle"
+                  class="hand-audio-toggle"
+                  data-hand-audio-toggle
+                  onclick="UI.toggleHandAudioPrivacy()"
+                  title="Hide hand sounds — replace per-card hover cues with one generic blip"
+                  aria-label="Hide hand sounds"
+                  aria-pressed="false"><span class="hand-audio-icon" aria-hidden="true">♪</span></button>
+          <button type="button" id="btn-redraw" class="hand-redraw-toggle" style="display:none"></button>
+        </div>
+      </div>
       <div class="bar-cell bar-energy">
         <div class="energy-display" id="player-energy-display"></div>
       </div>
@@ -466,31 +482,12 @@
       <div id="player-hand" class="hand-cards"></div>
     </div>
 
-    <!-- TRICKS (below cards) -->
-    <!-- The two hand controls live HERE, not over the hand. They used to be
-         absolutely positioned at the head of the hand row, where a wide hand
-         slides straight underneath them — the first card sat behind the note and
-         the redraw glyph (owner: "move these buttons so they don't ever get
-         covered"). The tricks row holds at most 3 centred cards, so the space to
-         its left is empty at every hand size and every board state. Same
-         controls, same handlers, same IDs — only the address changed. -->
+    <!-- TRICKS (below cards) — the ♪ + redraw controls used to live here, to the
+         left of the trick cards. Owner moved them into the bottom bar next to the
+         energy (see .bar-cell.bar-tools above) so they read as HUD controls, not
+         as something floating over the tricks. Same IDs/handlers — only the
+         address changed. -->
     <div class="tricks-section">
-      <div class="hand-tools">
-        <!-- HAND-AUDIO PRIVACY TOGGLE — every card has its own hover sound, which
-             tells anyone next to you (or on the call) what's in your hand. This is
-             the same setting as "Hide hand sounds" in the settings panel, surfaced
-             where it's actually needed: one tap, next to the board. The two stay
-             in sync in both directions. -->
-        <button type="button"
-                id="hand-audio-toggle"
-                class="hand-audio-toggle"
-                data-hand-audio-toggle
-                onclick="UI.toggleHandAudioPrivacy()"
-                title="Hide hand sounds — replace per-card hover cues with one generic blip"
-                aria-label="Hide hand sounds"
-                aria-pressed="false"><span class="hand-audio-icon" aria-hidden="true">♪</span></button>
-        <button type="button" id="btn-redraw" class="hand-redraw-toggle" style="display:none"></button>
-      </div>
       <div id="player-tricks" class="trick-cards"></div>
     </div>
 
@@ -803,7 +800,7 @@
 
   <script src="cards.js?v=217"></script>
   <script src="tricks.js?v=78"></script>
-  <script src="abilities.js?v=364"></script>
+  <script src="abilities.js?v=365"></script>
   <!-- Combat-rule helpers shared by resolver + predictor (Phase 1
        extraction). Loaded BEFORE game.js so Game.* methods can
        forward to it. See engine/combat.js header. -->
@@ -819,7 +816,7 @@
   <script src="peerjs.min.js"></script>
   <script src="multiplayer.js?v=35"></script>
   <script src="card-art-manifest.js?v=57"></script>
-  <script src="ui.js?v=1197"></script>
+  <script src="ui.js?v=1198"></script>
   <script src="tutorial.js?v=7"></script>
   <script src="logger.js?v=5"></script>
   <!-- Always-on crash capture. Hooks window.onerror +
