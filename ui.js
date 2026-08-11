@@ -17909,26 +17909,55 @@ const UI = {
   //
   // Width is the lever, not height: a hand card is `aspect-ratio: 92/182`, so
   // setting width keeps the tile exactly in shape and only changes its scale.
-  _fitHandToViewport() {
+  // _pass is internal: the solve is a one-step fixed point, because `others`
+  // is derived from the CURRENT row height and the row height is what the
+  // solve changes. One pass lands close (measured 178px), the second lands on
+  // the answer (200px) and every pass after that is identical. Running it
+  // twice here means the player never sees the intermediate size — without it
+  // the first paint of a hand was visibly smaller than the second.
+  _fitHandToViewport(_pass) {
     const area = document.getElementById('game-area');
     const row = document.querySelector('.player-hand-section');
     if (!area || !row) return;
-    const card = row.querySelector('.hand-card-wrapper');
     const rowH = row.getBoundingClientRect().height;
     if (!rowH) return;
     // Chrome the row spends on padding rather than on the card itself.
-    const cardH = card ? card.getBoundingClientRect().height : rowH;
-    const rowChrome = Math.max(0, rowH - cardH);
+    // Read from the section's own padding, NOT as (rowH - cardH). The tricks
+    // column shares this grid row, so when tricks are taller than the hand
+    // that subtraction charges their extra height to "chrome" and the hand is
+    // handed far less room than it has — which is why the solve kept landing
+    // at 177.8px when 200 fit.
+    const rcs = getComputedStyle(row);
+    const rowChrome = (parseFloat(rcs.paddingTop) || 0) + (parseFloat(rcs.paddingBottom) || 0);
     // Everything that is NOT the hand row keeps its height when the hand grows.
     const others = area.scrollHeight - rowH;
     const avail = window.innerHeight - others - rowChrome;
-    // 86..140 wide == 170..277 tall, the two ends established by this pass:
-    // 86 is the width that made the match fit, 140 is the original card.
-    const w = Math.max(86, Math.min(140, avail * 92 / 182));
+    // 86 is the floor that made the match fit on a short window. The ceiling
+    // was 140 (the card's original authored width) and that turned out to be
+    // the wrong stop: once the tricks row folded into the hand row there was
+    // still ~165px of black under a maxed-out hand, so the cards sat at their
+    // cap in a row with room to spare. 200 lets them actually take the space.
+    // It is a CEILING, not a target — the measured value wins below it, so a
+    // short window still shrinks exactly as before.
+    const w = Math.max(86, Math.min(200, avail * 92 / 182));
     area.style.setProperty('--hand-card-w', w.toFixed(1) + 'px');
-    // Tricks ride the same scale so the two groups stay in proportion.
-    const t = (w - 86) / (140 - 86);
-    area.style.setProperty('--trick-card-w', (88 + t * (132 - 88)).toFixed(1) + 'px');
+    // Tricks ride the same 0..1 position on that range so the two groups stay
+    // in proportion instead of one outgrowing the other.
+    const t = (w - 86) / (200 - 86);
+    area.style.setProperty('--trick-card-w', (88 + t * (190 - 88)).toFixed(1) + 'px');
+    // The refinement pass has to run AFTER a paint, not synchronously. Setting
+    // the custom property does not apply to layout in time for a same-tick
+    // re-measure, so a synchronous second call read the old row height and
+    // changed nothing (measured: stuck at 177.8px, while the identical call
+    // one frame later produced 200px).
+    // rAF + a timeout, the same double-signal `_fxWhenPainted` uses: rAF does
+    // not fire in a hidden tab, and the timeout is the guarantee.
+    if (!_pass) {
+      let done = false;
+      const again = () => { if (done) return; done = true; this._fitHandToViewport(1); };
+      requestAnimationFrame(again);
+      setTimeout(again, 60);
+    }
   },
 
   renderBoard(s) {
