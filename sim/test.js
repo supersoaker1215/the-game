@@ -3858,7 +3858,7 @@ test('Avada Kedavra kills outright, but only cost 7 and under', function () {
   assertEq(hpBefore > 0, true, 'and it was alive and unhurt right up until it was not');
 });
 
-test('Crucio maims but does not stun, and never finishes the job', function () {
+test('Crucio maims without stunning, and CAN finish a small enemy', function () {
   var s = voldSetup('Bane');
   s.e.attack = 6; s.e.baseAttack = 6;
   s.e.currentHealth = 7; s.e.maxHealth = 7;
@@ -3869,12 +3869,26 @@ test('Crucio maims but does not stun, and never finishes the job', function () {
   // card's turn left Imperio with nothing of its own to offer.
   assertEq(s.G.isActionLocked(s.e), false, 'and it is NOT stunned');
 
-  // A small enemy is left at 1, not killed — Avada Kedavra is the kill curse.
+  // CRUCIO KILLS as of 2026-08-11 (owner, via debuffCard allowKill false ->
+  // true). This assertion used to read the other way — "floors at 1 HP,
+  // Avada Kedavra is the kill curse" — and it is inverted here rather than
+  // deleted, so the suite still pins which of the two rules is live.
   var t = voldSetup('Bane');
-  t.e.attack = 1; t.e.currentHealth = 2; t.e.maxHealth = 2;
+  t.e.attack = 1; t.e.currentHealth = 4; t.e.maxHealth = 4;
   castCurse(t.G, t.v, 'cr');
-  assert(t.e.currentHealth >= 1, 'floors at 1 HP');
-  assertEq(t.G.state.lanes[2].ai, t.e, 'and is still standing');
+  assert(t.e.currentHealth <= 0 || t.G.state.lanes[2].ai !== t.e,
+    'a 4-HP enemy is destroyed outright');
+
+  // ...but it is still a (-4/-4), not a nuke: a bigger body survives.
+  var u = voldSetup('Bane');
+  u.e.attack = 5; u.e.currentHealth = 6; u.e.maxHealth = 6;
+  castCurse(u.G, u.v, 'cr');
+  assertEq(u.e.currentHealth, 2, 'a 6-HP enemy lives at 2');
+  assertEq(u.G.state.lanes[2].ai, u.e, 'and is still standing');
+
+  // The card text has to say so, or the kill is a hidden rule.
+  assert(CARD_ABILITIES.Voldemort._CURSES.find(function (c) { return c.id === 'cr'; })
+    .desc.indexOf('destroy') > -1, 'and the curse text warns that it can destroy');
 });
 
 test('Imperio turns an enemy for the round, then lets it go', function () {

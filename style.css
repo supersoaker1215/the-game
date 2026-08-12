@@ -39782,10 +39782,10 @@ body.in-match #game-area > .tricks-section {
      need to say so. */
   border-left: 1px solid rgba(var(--theme-rgb, 79,195,247), 0.22);
 }
-/* The music / redraw tools sit LEFT of the tricks, which is where the
-   owner asked for them earlier ("so they don't ever get covered") — with
-   the two rows merged that now falls out of the flex order for free. */
-body.in-match #game-area > .tricks-section > .hand-tools { order: -1; }
+/* (The music / redraw tools used to be ordered left of the tricks here. They
+   now live in the player bar's energy cell — see the .hand-tools block — so
+   the rule that positioned them inside .tricks-section matched nothing and is
+   gone rather than left to look load-bearing.) */
 
 /* The draft card keeps its authored 220px — the panel is ZOOMED as a whole by
    UI._fitDraftToViewport instead, so the rules text scales with it. Growing the
