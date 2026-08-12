@@ -13,7 +13,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;700&display=swap">
-  <link rel="stylesheet" href="style.css?v=1025">
+  <link rel="stylesheet" href="style.css?v=1026">
   <script>
     // Lightweight error reporter (pre-Sentry) — capture runtime JS
     // errors + unhandled promise rejections to a localStorage ring
@@ -187,6 +187,25 @@
       </div>
 
       <div class="tutorial-section">
+        <div class="tutorial-section-title">Order of Play</div>
+        <p><strong>When Played fires before anything reacts to it.</strong> Play Peacemaker into a 2-ATK Xenomorph and Peacemaker's "destroy an enemy with &le; 2 ATK" resolves first — the Xenomorph is still a 2 when it is checked, so it dies. It does not get to grow out of range first.</p>
+        <p>Auras and While Active effects land immediately afterwards, so a body summoned into a lane still takes the -1/-1 it was always going to take.</p>
+      </div>
+
+      <div class="tutorial-section">
+        <div class="tutorial-section-title">Splash</div>
+        <p><span class="kw kw-splash">Splash N</span> hits both adjacent enemy lanes for N — never the card directly in front, which already ate the main swing.</p>
+        <p><strong>Splash is not tied to Attack.</strong> Strip Dr. Octopus to 0 ATK and his Splash 2 still goes off. The one exception is Hulk, whose splash <em>is</em> his ATK — zero him out and there is nothing to splash.</p>
+        <p>Freeze, Stun, Fear and Mind Control do stop it: they cancel the strike, and splash is part of the strike.</p>
+      </div>
+
+      <div class="tutorial-section">
+        <div class="tutorial-section-title">The Dead Pile</div>
+        <p>Destroyed cards go to a <strong>shared</strong> dead pile — yours and your opponent's together. Cards with <span class="kw kw-draw">Dead Draw</span> (Hela, Solomon Grundy) pull from it <strong>at random</strong>, so you can just as easily raise something the enemy lost.</p>
+        <p>Tricks never go there. Once played, a trick is gone for the rest of the match.</p>
+      </div>
+
+      <div class="tutorial-section">
         <div class="tutorial-section-title">Block Meter</div>
         <p>When you take damage, your <span class="kw kw-block">Block Meter</span> fills. At <span class="kw kw-block">8/8</span> the meter <strong>triggers during the next Tricks phase</strong>: a free <span class="kw tut-tricks">Trick</span> is added to your hand and the next incoming damage is fully absorbed. The meter resets when consumed.</p>
       </div>
@@ -212,10 +231,8 @@
         <div class="tutorial-section-title">Chain Attacks</div>
         <p>Some cards chain their damage across consecutive enemies:</p>
         <ul>
-          <li><span class="kw kw-destroy">Wonder Woman's Lasso</span> — her chain hits the enemy in her lane + one lane left/right, reducing damage by 1 per step.</li>
-          <li><span class="kw kw-destroy">Captain America's Shield</span> — bounces for 3, 2, 1 down the line if the lane's main hit lands.</li>
+          <li><span class="kw kw-destroy">Wonder Woman's Lasso</span> — when her swing lands on a card, one more enemy takes (ATK&minus;1). You pick left or right; it stops after that one.</li>
           <li><span class="kw kw-destroy">Darth Vader's Choke</span> — 7 damage to any enemy, then 6, 5, 4, … in a direction you pick.</li>
-          <li><span class="kw kw-destroy">Trigon</span> — chain-freezes consecutive enemies when played.</li>
         </ul>
         <p>If <span class="kw kw-armor">Armor</span> fully absorbs a chain hit, the chain <strong>stops there</strong>. Plan around it — a 2-Armor wall blocks low-damage chains entirely.</p>
       </div>
@@ -231,7 +248,8 @@
           <li><strong>Insane</strong> — Joker's intrinsic state. He rolls ATK 2-7 every turn — Fear and Steady can't suppress it.</li>
           <li><strong>Charmed</strong> — Poison Ivy charms a random ally. The charmed card's ATK is "loaned" to Ivy for the round; the charmed card swings normally on its own lane.</li>
         </ul>
-        <p>Etches let you mitigate or apply status. <strong>Steady</strong> (rare etch) cancels Crazy rerolls per charge. <span class="kw kw-immunity">Immunity</span> negates incoming debuffs.</p>
+        <p><strong>How long a debuff lasts:</strong> Freeze, Fear, Stun and Mind Control hold until that card's lane fights again — Fear Toxin an enemy in lane 4 and it is stuck until lane 4 next resolves.</p>
+        <p>Etches let you mitigate or apply status. <strong>Steady</strong> (rare etch) cancels Crazy rerolls per charge.</p>
       </div>
 
       <div class="tutorial-section">
@@ -239,8 +257,8 @@
         <p>Some cards have <strong>Jump</strong> conditions that let them enter the board FOR FREE when a specific trigger fires:</p>
         <ul>
           <li><strong>Ghostface</strong> jumps in after an enemy trick fires.</li>
-          <li><strong>Michael Myers</strong> jumps to lock onto the next enemy ≤ cost 4 played.</li>
-          <li><strong>Jason Voorhees</strong> jumps into an open lane when an ally dies.</li>
+          <li><strong>Michael Myers</strong> jumps when the enemy plays a card cheaper than him — into the lane opposite it.</li>
+          <li><strong>Jason Voorhees</strong> jumps into a dead ally's lane the moment it falls.</li>
         </ul>
         <p>When your jump trigger fires, a popup asks which lane you want the card to enter — declining keeps the card in hand for later.</p>
       </div>
@@ -251,7 +269,7 @@
           <li><span class="kw kw-evade">Evade N</span> — dodges the next N attacks (consumes one charge per evade).</li>
           <li><span class="kw kw-armor">Armor N</span> — subtracts N from every incoming damage instance.</li>
           <li><span class="kw kw-invincible">Invincible N</span> — negates all damage for N turns.</li>
-          <li><span class="kw kw-immunity">Immunity N</span> — negates N incoming debuffs (Freeze/Fear/Mind Control).</li>
+          <li><span class="kw kw-immunity">Immunity N</span> — negates N incoming <em>status</em> debuffs (Freeze, Fear, Stun, Mind Control). It does <strong>not</strong> stop stat changes: Kryptonite, Pym Particles, Nightwing and Silver Surfer land through it.</li>
           <li><span class="kw kw-untrickable">Untrickable</span> — automatic on every 10-cost card; tricks simply don't affect them.</li>
           <li><span class="kw kw-unresistible">Unresistible</span> — bypasses one Immunity charge; consumed when it fires.</li>
         </ul>
