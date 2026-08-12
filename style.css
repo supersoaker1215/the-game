@@ -39919,3 +39919,20 @@ body.in-match .lane {
   position: fixed;
   z-index: 600 !important;
 }
+
+/* Asleep — Freddy Krueger's hand-lock. Indigo, distinct from Freeze's cyan and
+   Stun's amber, because it is a different kind of "cannot act": the card is not
+   on the board at all, it is dreaming in your hand. */
+:root { --kw-asleep: #8f9bff; }
+.kw-asleep { color: var(--kw-asleep); }
+.badge-asleep { color: var(--kw-asleep); }
+/* A slow drift on the Z's — sleep breathing, much calmer than the Crazy
+   glitch. Honours the reduced-motion / low-fx opt-outs like every other
+   status animation. */
+@keyframes sleepDrift { 0%,100% { opacity: 0.75; } 50% { opacity: 1; } }
+.badge-asleep { animation: sleepDrift 2.4s ease-in-out infinite; }
+body.low-fx .badge-asleep { animation: none; }
+@media (prefers-reduced-motion: reduce) { .badge-asleep { animation: none; } }
+/* The hand card itself reads as dimmed while it cannot be played. */
+.hand-card-wrapper .card.card-asleep,
+.card.card-asleep { opacity: 0.62; filter: saturate(0.55); }

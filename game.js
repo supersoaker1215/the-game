@@ -3325,6 +3325,13 @@ const Game = {
     // Invariant-report dedup is per-round — fresh round, fresh eyes.
     this._invariantSeen = null;
     this.state.round++;
+    // WAKE THE SLEEPING, both sides, once per round. A card Freddy slashed
+    // during round N is locked for round N+1 and playable again in N+2, which
+    // is exactly "cannot be played on the opponent's next turn, then wakes".
+    // Here rather than in postCombat so it lands after the round the lock was
+    // meant to cover, not during it.
+    this.tickSleep('player');
+    this.tickSleep('ai');
     const r = this.state.round;
     // Sanitize all living cards — heal any currentHealth/maxHealth/attack
     // that drifted to NaN/undefined over the previous round. Belt-and-
@@ -4251,6 +4258,14 @@ const Game = {
       this.log(`[GUARD] ${card.name} never takes the field — he leaves your hand only to save an ally.`);
       return false;
     }
+    // SLEEPING (Freddy Krueger). A card he slashed but did not kill cannot be
+    // played on its owner's next turn. Refused at the SAME choke points as the
+    // Iron Giant guard so every entry path is covered at once — lane clicks,
+    // AI plan queues, MP forwards and free/jump plays.
+    if (card && card.sleepTurns > 0) {
+      this.log(`[ASLEEP] ${card.name} is still dreaming — it cannot be played this turn.`);
+      return false;
+    }
     // Multiplayer guest: forward to host instead of executing locally.
     // Host applies the action and broadcasts the new state. We return
     // true so the UI's selectedCard state still advances optimistically;
@@ -4517,6 +4532,14 @@ const Game = {
     // the board (the fuzzer caught him there). Same guard, every placement path.
     if (card && card._neverPlayable) {
       this.log(`[GUARD] ${card.name} never takes the field — he leaves your hand only to save an ally.`);
+      return false;
+    }
+    // SLEEPING (Freddy Krueger). A card he slashed but did not kill cannot be
+    // played on its owner's next turn. Refused at the SAME choke points as the
+    // Iron Giant guard so every entry path is covered at once — lane clicks,
+    // AI plan queues, MP forwards and free/jump plays.
+    if (card && card.sleepTurns > 0) {
+      this.log(`[ASLEEP] ${card.name} is still dreaming — it cannot be played this turn.`);
       return false;
     }
     // Multiplayer guest: forward the free-play action and let the host run it.
@@ -9340,6 +9363,22 @@ const Game = {
   //
   // Counters are KEPT, so "Freeze 2" still means something: it now reads as
   // two lane resolutions rather than two rounds. Mind Control stays binary.
+  // WAKE THE SLEEPING. Run once for the side whose turn just ended, so a card
+  // Freddy slashed misses exactly ONE of its owner's turns and is playable
+  // again on the next. Hand-only by design: sleep is a hand-lock.
+  tickSleep(owner) {
+    const hand = (this.state[owner] && this.state[owner].hand) || [];
+    hand.forEach(c => {
+      if (!c || !(c.sleepTurns > 0)) return;
+      c.sleepTurns -= 1;
+      if (c.sleepTurns <= 0) {
+        c.sleepTurns = 0;
+        c.isAsleep = false;
+        this.log(`  [AWAKE] ${c.name} wakes up.`);
+      }
+    });
+  },
+
   _tickStatusOnLaneResolve(card) {
     if (!card) return;
     card.stunnedTurns = Math.max(0, (card.stunnedTurns || (card.isStunned ? 1 : 0)) - 1);

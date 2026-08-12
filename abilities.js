@@ -1356,10 +1356,22 @@ const CARD_ABILITIES = {
   "Moder": (() => {
     // Fields that get nulled / zeroed on strip. Listed once so the strip
     // and restore paths can't drift.
-    const STRIP_FIELDS = [
+    // EVERY hook createCardInstance can assign. Six were missing —
+    // onBeforeCombat, onLaneCombat, onLaneResolved, onAnyTrickPlayed,
+    // onDiscard, onMoved — so "strips ALL abilities" quietly meant "strips 13
+    // of 19". Reported case: Jack Sparrow played into Moder kept firing Parlay
+    // every combat, because Parlay lives on onBeforeCombat. Voldemort's curses
+    // (onLaneCombat) had the same hole. sim/test.js now fails if game.js gains
+    // a hook that is not listed here.
+    const STRIP_HOOKS = [
       'onPlay', 'onDeath', 'onDamaged', 'onKill', 'onBeforeTricks',
       'onBeforeAttack', 'onEndOfTurn', 'onAnyCardPlayed', 'onAllyKilled', 'onEnemyKilled',
       'onEvade', 'onDamagePlayer', 'onTurnStart', 'passive',
+      'onBeforeCombat', 'onLaneCombat', 'onLaneResolved', 'onAnyTrickPlayed',
+      'onDiscard', 'onMoved',
+    ];
+    const STRIP_FIELDS = [
+      ...STRIP_HOOKS,
       'evadeCharges', 'armorValue', 'isOverdrive', 'isBullseye',
       'immunityCharges', 'hasHunt', 'hasDamageImmunity',
       'unresistibleCharges', 'splashRange', 'invincibleTurns', 'tauntTurns',
@@ -1378,12 +1390,12 @@ const CARD_ABILITIES = {
         backup._permanentUntrickable = !!card.permanentUntrickable;
         card._moderBackup = backup;
       }
-      card.onPlay = null; card.onDeath = null; card.onDamaged = null;
-      card.onKill = null; card.onBeforeTricks = null; card.onBeforeAttack = null;
-      card.onEndOfTurn = null; card.onAnyCardPlayed = null; card.onAllyKilled = null;
-      card.onEnemyKilled = null;
-      card.onEvade = null; card.onDamagePlayer = null; card.onTurnStart = null;
-      card.passive = null;
+      // Driven from STRIP_HOOKS rather than hand-written. The old code listed
+      // the same hooks a SECOND time here, and that copy is the one that fell
+      // behind — the array above already carried the comment "listed once so
+      // the strip and restore paths can't drift" while the drift was six lines
+      // below it.
+      for (const h of STRIP_HOOKS) card[h] = null;
       card.evadeCharges = 0; card.armorValue = 0; card.isOverdrive = false;
       card.isBullseye = false; card.immunityCharges = 0; card.hasHunt = false;
       card.hasDamageImmunity = false; card.unresistibleCharges = 0;
@@ -5167,6 +5179,22 @@ const CARD_ABILITIES = {
             `Freddy Krueger — Move ${allyInLane.name}`,
             `Freddy needs this lane. Move ${allyInLane.name} to another lane.`,
             (targetLane) => {
+              // RE-CHECK ON RESOLVE, not just on arm. The ally was alive when
+              // this prompt opened, but a prompt is answered LATER — and the
+              // effect that spawned Freddy can still be killing things in the
+              // meantime. Reported case: Boiler Room's lane held Sabertooth and
+              // Nightwing, Soul Stone killed BOTH, Freddy rose off Sabertooth's
+              // death while Nightwing was still standing, and by the time the
+              // player picked a lane Nightwing was dead — so this callback
+              // placed a corpse back on the board and resurrected him.
+              const stillThere = allyInLane
+                && allyInLane.currentHealth > 0
+                && lane[owner] === allyInLane;
+              if (!stillThere) {
+                G.log(`  [DISPLACE SKIPPED] ${allyInLane ? allyInLane.name : 'the ally'} did not survive to be moved.`);
+                finishSpawn(1, 4);
+                return;
+              }
               lane[owner] = null;
               G.state.lanes[targetLane][owner] = allyInLane;
               G.log(`  [DISPLACED] ${allyInLane.name} moved to lane ${targetLane + 1} to make room for Freddy.`);
@@ -5308,6 +5336,22 @@ const CARD_ABILITIES = {
       if (destroyed) {
         if (handIdx >= 0) hand.splice(handIdx, 1);
         G.log(`[FREDDY] ${t.name} was destroyed before it could be played!`);
+      } else if (!t.isAsleep) {
+        // SURVIVED THE SLASH -> IT SLEEPS. Locked out of its owner's next turn
+        // (Game.playCard refuses sleepTurns > 0) and woken by Game.tickSleep at
+        // the following round's start.
+        // The !t.isAsleep guard is the spec's "cannot become Sleeping again
+        // from the same attack" — and it also stops Freddy farming the same
+        // card for +1/+1 every round while it sits in hand unplayable.
+        t.isAsleep = true;
+        t.sleepTurns = 1;
+        // Permanent and stacking, through buffCard so every surface that
+        // renders stats picks it up the same way it does any other buff.
+        G.buffCard(self, 1, 1);
+        G.log(`[FREDDY] ${t.name} falls asleep — Freddy grows to ${self.attack}/${self.currentHealth}.`);
+        if (typeof UI !== 'undefined' && UI.emitFX) {
+          try { G.emitFX('sleep', { cardId: t.id, owner: opp, name: t.name }); } catch (e) {}
+        }
       }
       if (typeof UI !== 'undefined' && UI._freddyHandSlash) {
         setTimeout(() => UI._freddyHandSlash(t.name, dmg, t.id, handIdx, opp, destroyed), 60);

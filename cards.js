@@ -136,7 +136,7 @@ const CARD_DEFS = [
   { name: "Freddy Krueger", cost: 2, attack: 1, health: 4, type: "villain",
     _spawnOnly: true,
     abilities: [],
-    desc: "While Active: Attacks a random card in the enemy's hand instead of the enemy opposite. Hand cards reduced to 0 HP are destroyed." },
+    desc: "While Active: Attacks a random card in the enemy's hand instead of the enemy opposite. A hand card reduced to 0 HP is destroyed; one that survives falls Asleep and Freddy gains (+1/+1) permanently. A Sleeping card cannot be played on its owner's next turn." },
   { name: "Gamora", cost: 2, attack: 2, health: 3, type: "hero",
     abilities: [],
     desc: "When Played: Destroy an enemy with ≤ 2 HP. While Active: Add (+1/+1) when destroying an enemy." },

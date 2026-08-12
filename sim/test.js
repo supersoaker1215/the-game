@@ -4477,6 +4477,143 @@ test('Doomsday rises with Taunt re-armed, not just Immunity and Untrickable', fu
   });
 });
 
+test("Moder strips EVERY hook the engine can dispatch, not most of them", function () {
+  // The drift guard. Moder's list had 13 of the engine's 19 hooks, so six
+  // abilities survived a full ability strip — including Jack Sparrow's Parlay
+  // (onBeforeCombat), the reported bug. Reads both lists from source so adding
+  // a hook to createCardInstance without adding it to Moder fails HERE rather
+  // than in someone's match.
+  var gsrc = readFile('./game.js');
+  var asrc = readFile('./abilities.js');
+  var engineHooks = {};
+  var re = /(on[A-Z][A-Za-z]*)\s*:\s*def\./g, m;
+  while ((m = re.exec(gsrc))) engineHooks[m[1]] = true;
+  var names = Object.keys(engineHooks);
+  assert(names.length >= 15, 'found the hook table in game.js (' + names.length + ' hooks)');
+
+  var block = asrc.slice(asrc.indexOf('const STRIP_HOOKS'), asrc.indexOf('const STRIP_FIELDS'));
+  var missing = names.filter(function (h) { return block.indexOf("'" + h + "'") === -1; });
+  assertEq(missing.join(','), '', 'every engine hook is in Moder STRIP_HOOKS');
+});
+
+test('Moder shuts off Jack Sparrow Parlay, not just his stats', function () {
+  // Reported: "Jack Sparrow was played into Moder, his abilities were stripped
+  // but his Parlay was still going off." Parlay runs on onBeforeCombat, which
+  // the strip list did not carry.
+  var G = freshGame();
+  var jack = place(G, 'Jack Sparrow', 'player', 2);
+  assert(typeof jack.onBeforeCombat === 'function', 'Parlay is live before the strip');
+
+  // Drive the REAL path: the strip lives in a closure, applied by Moder's
+  // onAnyCardPlayed when a card is played directly into her lane.
+  var moder = CARD_ABILITIES['Moder'];
+  var m = place(G, 'Moder', 'ai', 2);
+  m._moderStripPending = 1;
+  moder.onAnyCardPlayed(G, m, jack);
+  assertEq(jack.onBeforeCombat, null, 'Parlay is gone after the strip');
+  assertEq(jack.onPlay, null, 'and so is everything else it already covered');
+});
+
+function freddySetup() {
+  var G = freshGame();
+  var f = place(G, 'Freddy Krueger', 'player', 2);
+  f.attack = 2;
+  G.state.ai.hand = ['Groot', 'Bane'].map(function (n) {
+    return G.createCardInstance(cardByName(n), 'ai');
+  });
+  return { G: G, f: f };
+}
+
+test('Freddy: a hand card that SURVIVES the slash falls asleep and feeds him', function () {
+  var s = freddySetup();
+  var target = s.G.state.ai.hand[0];
+  target.currentHealth = target.maxHealth = 20;   // survives comfortably
+  s.G.state.ai.hand.length = 1;                   // one target, no rng ambiguity
+  var atk0 = s.f.attack, hp0 = s.f.currentHealth;
+
+  CARD_ABILITIES['Freddy Krueger'].onBeforeAttack(s.G, s.f);
+
+  assertEq(target.isAsleep, true, 'the survivor is Asleep');
+  assert(target.sleepTurns > 0, 'and carries a sleep counter');
+  assertEq(s.f.attack, atk0 + 1, 'Freddy gains +1 ATK');
+  assertEq(s.f.currentHealth, hp0 + 1, 'and +1 HP');
+  assertEq(s.G.state.ai.hand.length, 1, 'a survivor stays in hand');
+});
+
+test('Freddy: a hand card reduced to 0 is destroyed, and does NOT sleep', function () {
+  var s = freddySetup();
+  var target = s.G.state.ai.hand[0];
+  target.currentHealth = 1;                        // dies to a 2-ATK slash
+  s.G.state.ai.hand.length = 1;
+  var atk0 = s.f.attack;
+
+  CARD_ABILITIES['Freddy Krueger'].onBeforeAttack(s.G, s.f);
+
+  assertEq(s.G.state.ai.hand.length, 0, 'destroyed cards leave the hand');
+  assertEq(target.isAsleep, undefined, 'a destroyed card never falls asleep');
+  assertEq(s.f.attack, atk0, 'and Freddy gains nothing from a kill');
+});
+
+test('Freddy: an already-Asleep card cannot be re-slept for more stacks', function () {
+  // Spec point 7, and the balance reason for it: without the guard Freddy
+  // farms the same unplayable card for +1/+1 every single round.
+  var s = freddySetup();
+  var target = s.G.state.ai.hand[0];
+  target.currentHealth = target.maxHealth = 40;
+  s.G.state.ai.hand.length = 1;
+
+  CARD_ABILITIES['Freddy Krueger'].onBeforeAttack(s.G, s.f);
+  var atkAfterFirst = s.f.attack;
+  assertEq(target.isAsleep, true, 'asleep after the first slash');
+
+  CARD_ABILITIES['Freddy Krueger'].onBeforeAttack(s.G, s.f);
+  assertEq(s.f.attack, atkAfterFirst, 'a second slash on a sleeper adds no stack');
+});
+
+test('Freddy: a Sleeping card cannot be played, and wakes a round later', function () {
+  var s = freddySetup();
+  var target = s.G.state.ai.hand[0];
+  target.currentHealth = target.maxHealth = 20;
+  s.G.state.ai.hand.length = 1;
+  CARD_ABILITIES['Freddy Krueger'].onBeforeAttack(s.G, s.f);
+  assertEq(target.isAsleep, true, 'asleep');
+
+  // The engine must REFUSE it — assert the gate, not just the flag.
+  s.G.state.ai.currency = 20;
+  assertEq(s.G.playCard('ai', target, 0), false, 'playCard refuses a sleeping card');
+  assertEq(s.G.state.lanes[0].ai, null, 'and it never reached the board');
+
+  s.G.tickSleep('ai');
+  assertEq(target.isAsleep, false, 'it wakes on the next round');
+  assertEq(target.sleepTurns, 0, 'counter cleared');
+  assertEq(s.G.playCard('ai', target, 0), true, 'and is playable again');
+});
+
+test('Freddy rising from Boiler Room never resurrects a dead ally', function () {
+  // Reported: Boiler Room lane held Sabertooth + Nightwing, Soul Stone killed
+  // BOTH, Freddy rose off Sabertooth's death, and the "move your ally" prompt
+  // — armed while Nightwing still stood — put a corpse back on the board when
+  // it finally resolved. The guard has to be on RESOLVE, not on arm.
+  var G = freshGame();
+  var ally = place(G, 'Nightwing', 'player', 3);
+  var openLanes = [];
+  var captured = null;
+  G.promptLaneChoice = function (owner, lanes, title, desc, cb) { captured = cb; };
+
+  CARD_ABILITIES['Boiler Room']._spawnFreddy(G, 'player', 3);
+  assert(typeof captured === 'function', 'the move prompt was armed while the ally lived');
+
+  // The ally dies before the player answers.
+  ally.currentHealth = 0;
+  G.state.lanes[3].player = null;
+
+  captured(5);   // answer the prompt now
+  assert(!G.state.lanes[5].player || G.state.lanes[5].player.currentHealth > 0,
+    'a dead ally is NOT placed into the chosen lane');
+  assertEq(G.state.lanes[3].player && G.state.lanes[3].player.name, 'Freddy Krueger',
+    'and Freddy still rises');
+});
+
 test('Freddy only wakes on TWO or more wasted energy', function () {
   assertEq(Game.FREDDY_WASTE_THRESHOLD, 2, 'the threshold is a named constant');
   function ended(withEnergy) {

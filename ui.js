@@ -18028,10 +18028,27 @@ const UI = {
     const num = (el, ...p) => { const c = getComputedStyle(el);
       return p.reduce((t, k) => t + (parseFloat(c[k]) || 0), 0); };
 
-    // HEIGHT BOUND. `others` is every row that is not the board; it does not
-    // move when the board resizes, so it is a stable base (the same reason the
-    // hand solve reads everything except its own row).
-    const others = area.scrollHeight - boardH;
+    // HEIGHT BOUND — and it must NOT depend on the hand's CURRENT height.
+    //
+    // Solved against the live hand row, the board re-sized every time the hand
+    // changed: play a card, the row shrinks, the board grows; draw one and it
+    // snaps back. Owner: "sometimes the board gets all large and then goes back
+    // to normal ... it looks weird." The arithmetic was right and the INPUT was
+    // wrong — a board that resizes mid-turn is worse than a board with a little
+    // dead space under it.
+    //
+    // So the hand is charged at its CEILING (a 200px card, the largest it is
+    // ever allowed to be) rather than at whatever it happens to be this render.
+    // Board size becomes a pure function of the viewport: constant for a given
+    // window, however many cards are in hand.
+    const handRow = document.querySelector('.player-hand-section');
+    let others = area.scrollHeight - boardH;
+    if (handRow) {
+      const hcs = getComputedStyle(handRow);
+      const handMax = 200 * 182 / 92
+                    + (parseFloat(hcs.paddingTop) || 0) + (parseFloat(hcs.paddingBottom) || 0);
+      others = others - handRow.getBoundingClientRect().height + handMax;
+    }
     // -12px of headroom. Two reasons, both measured rather than guessed:
     // sub-pixel rounding across two slot heights, and the fact that the hand
     // and the board are competing for the SAME leftover height — the hand
@@ -19443,6 +19460,9 @@ const UI = {
     else if (card.armorValue > 0) el.classList.add('status-armor');
     else if (card.evadeCharges > 0) el.classList.add('status-evade');
     if (card.isBurning) el.classList.add('status-burning');
+    // Asleep dims the tile so an unplayable hand card reads as unplayable at a
+    // glance, not only via its badge.
+    if (card.isAsleep || card.sleepTurns > 0) el.classList.add('card-asleep');
     if (card._criticalThisRound) el.classList.add('status-critical');
 
     // Poison Ivy charmed glow (additive, doesn't replace status glow).
@@ -20844,6 +20864,14 @@ const UI = {
     }
     if (c._criticalThisRound) t.push(badge('badge-critical', 'Critical', 'Critical'));
     if (c.isBurning) t.push(badge('badge-burning', 'Burning', 'Burning'));
+    // ASLEEP — Freddy's hand-lock. A transient, so it leads the strip with the
+    // other countdowns rather than sitting behind the permanent keywords: it
+    // changes what you can play THIS turn, which is exactly what the cap-eats-
+    // from-the-end ordering above is protecting.
+    if (c.isAsleep || c.sleepTurns > 0) {
+      const n = c.sleepTurns > 1 ? c.sleepTurns : 0;
+      t.push(badge('badge-asleep', n ? `Asleep ${n}` : 'Asleep', 'Asleep'));
+    }
     if (c.isStunned) {
       const n = c.stunnedTurns > 0 ? c.stunnedTurns : 1;
       t.push(badge('badge-stunned', `Stunned ${n}`, 'Stun'));
@@ -21037,6 +21065,7 @@ const UI = {
 
     // Chaos ATK-reroll traits (Joker / Harley). Colors match the
     // .badge-crazy / .badge-insane chrome in style.css.
+    'Asleep':     { color: '#8f9bff', svg: '<svg viewBox="0 0 12 12"><text x="1" y="5.6" font-family="Rajdhani,sans-serif" font-size="5.4" font-weight="700" fill="currentColor">z</text><text x="4.6" y="9.2" font-family="Rajdhani,sans-serif" font-size="4.2" font-weight="700" fill="currentColor">z</text><text x="7.6" y="11.6" font-family="Rajdhani,sans-serif" font-size="3.2" font-weight="700" fill="currentColor">z</text></svg>', tip: 'Freddy Krueger slashed this card in your hand and it survived. It <b>cannot be played on your next turn</b>, then wakes. Each card put to sleep gives Freddy a permanent <b>(+1/+1)</b>.' },
     'Crazy':      { color: '#ff4fb0', svg: '<svg viewBox="0 0 12 12"><path fill="currentColor" fill-rule="evenodd" d="M6 .6a5.4 5.4 0 1 0 0 10.8A5.4 5.4 0 0 0 6 .6ZM3.1 3.35h1.9v2.3H3.1Zm3.9 0h1.9v2.3H7Zm-4.15 3.6h6.3a3.15 3.15 0 0 1-6.3 0Z"/></svg>', tip: 'ATK re-rolls randomly between <b>1–4</b> at the start of every round (never the same roll twice in a row). Suppressed while Feared.' },
     'Insane':     { color: '#c77dff', svg: '<svg viewBox="0 0 12 12"><path d="M1 6 Q2 1 4 4 Q6 7 8 2 Q10 -1 11 5 M1 10 Q3 6 5 9 Q7 12 9 7 Q10 5 11 9" stroke="currentColor" stroke-width="1.2" fill="none" stroke-linecap="round"/></svg>', tip: 'ATK re-rolls randomly between <b>2–7</b> at the start of every round (never the same roll twice in a row). Not even Fear can stop it.' },
 
@@ -21097,6 +21126,7 @@ const UI = {
     'Parlay': 'badge-parlay',
     'Drain': 'badge-debuff',
     'Draw': 'badge-draw',
+    'Asleep': 'badge-asleep',
     'Crazy':  'badge-crazy',
     'Insane': 'badge-insane',
     // Roguelite etch keywords (tooltips wired via KEYWORD_DATA)
@@ -21278,6 +21308,7 @@ const UI = {
       // "Give Crazy to the highest-ATK enemy" gave you no way to find out what
       // Crazy does. Both already had full KEYWORD_DATA entries (color, glyph,
       // tip); they were simply never listed here.
+      ['Asleep|Sleeping',              'asleep'],
       ['Crazy',                        'crazy'],
       ['Insane',                       'insane'],
       ['Energy',                       'energy'],
@@ -21311,7 +21342,7 @@ const UI = {
       'overdrive':'Overdrive', 'splash':'Splash', 'taunt':'Taunt',
       'hunt':'Hunt', 'immune':'Immunity', 'invincible':'Invincible',
       'unresistible':'Unresistible', 'untrickable':'Untrickable',
-      'swarm':'Swarm', 'charm':'Charm', 'crazy':'Crazy', 'insane':'Insane',
+      'swarm':'Swarm', 'charm':'Charm', 'crazy':'Crazy', 'insane':'Insane', 'asleep':'Asleep',
       'energy':'Energy', 'summon':'Summon',
       'jump':'Jump', 'destroy':'Destroy', 'sacrifice':'Sacrifice',
       'draw':'Draw', 'chain':'Chain', 'peek':'Peek',
