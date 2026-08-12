@@ -10107,15 +10107,32 @@ const Game = {
       // duplicate "Evade 1" text appearing under the Ant. Empty desc
       // keeps the token's body clean — badges only.
       def = { name, cost, attack, health, abilities, type: 'neutral', desc: '' };
-      // A TOKEN MAY HAVE HOOKS. This branch built a pure-data def, so
+      // A NAMED TOKEN MAY HAVE HOOKS. This branch built a pure-data def, so
       // createCardInstance's hook whitelist read `undefined` for every one of
       // them and a CARD_ABILITIES entry named after a token was silently
       // inert — you could write it, it would never run. Battle Droid's
       // grow-on-revive is the first token that needs one. Merged here, at the
       // single door every token walks through, rather than by handing tokens a
       // sourceDef (which would also clear `_isToken` and put them in the dead
-      // pile). No-op for the six existing tokens: none has an entry.
-      const tokenAb = (typeof CARD_ABILITIES !== 'undefined') ? CARD_ABILITIES[name] : null;
+      // pile).
+      //
+      // GATED ON SUMMON_TOKEN_DEFS, and that gate is the whole rule. This
+      // branch serves two different things that both arrive without a
+      // sourceDef:
+      //   1. real TOKENS (Battle Droid, Ant, Doombot…) — bodies that exist
+      //      only as summons, and whose abilities live in CARD_ABILITIES
+      //   2. COPIES of real cards summoned as plain bodies — Ultron's
+      //      replication, Ghostface's, Gremlin swarm
+      // For (2) the hookless def IS the mechanic. Ultron reads "Copies don't
+      // trigger this effect", and nothing enforced that except this branch
+      // producing a body with no onDeath. Merging by bare name gave every
+      // replica Ultron's own onDeath, so each copy replicated on death and the
+      // board filled with Ultrons (owner's screenshot: four of them, and
+      // climbing). Only names that ARE tokens get their abilities back.
+      const isNamedToken = (typeof SUMMON_TOKEN_DEFS !== 'undefined')
+        && SUMMON_TOKEN_DEFS.some(t => t.name === name);
+      const tokenAb = (isNamedToken && typeof CARD_ABILITIES !== 'undefined')
+        ? CARD_ABILITIES[name] : null;
       if (tokenAb) {
         def = Object.assign({}, tokenAb, def);
         // …and let it keep its text. The empty-desc rule above exists to stop

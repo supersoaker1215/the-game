@@ -5330,6 +5330,54 @@ test('The Mind Control prompt quotes EFFECTIVE attack, so Critical shows', funct
   assertEq(G._cardEffectiveAtk(c), 8, 'and that helper is what the prompt reads');
 });
 
+test('Ultron replicates ONCE — his copies do not replicate again', function () {
+  // "Copies don't trigger this effect" is printed on the card, and for years
+  // the only thing enforcing it was summonCard's token branch producing a body
+  // with no hooks. Giving named tokens their CARD_ABILITIES back (for Battle
+  // Droid) handed every replica Ultron's own onDeath, and the board filled
+  // with Ultrons — four and climbing in the owner's screenshot.
+  var G = freshGame();
+  function ultrons() {
+    return G.getAllCardsOf('ai').filter(function (c) { return c.name === 'Ultron'; });
+  }
+  var u = place(G, 'Ultron', 'ai', 0);
+  u.currentHealth = 0;
+  G.handleDeath(u, 0, null);
+  G.cleanupDead();
+  var copies = ultrons();
+  assertEq(copies.length, 2, 'the ORIGINAL replicates into two copies');
+  copies.forEach(function (c) {
+    assertEq(typeof c.onDeath, 'object', 'a copy carries no onDeath (null)');
+  });
+  copies.forEach(function (c) {
+    var l = G.findCardLane(c);
+    c.currentHealth = 0;
+    G.handleDeath(c, l, null);
+  });
+  G.cleanupDead();
+  assertEq(ultrons().length, 0, 'and killing the copies spawns nothing — the chain ends');
+});
+
+test('Only NAMED TOKENS inherit abilities; copies of real cards stay dumb bodies', function () {
+  // The gate that makes the test above true. Both arrive at summonCard without
+  // a sourceDef; only the ones that exist as tokens may carry hooks.
+  var G = freshGame();
+  G.summonCard('player', 0, 'Battle Droid', 2, 1, 1, ['Revive 2']);
+  var droid = G.state.lanes[0].player;
+  assertEq(droid.name, 'Battle Droid', 'the token landed');
+  assertEq(typeof droid.onRevive, 'function', 'a real token keeps its ability');
+
+  G.summonCard('player', 1, 'Ultron', 6, 5, 3, []);
+  var copy = G.state.lanes[1].player;
+  assertEq(copy.name, 'Ultron', 'the copy landed');
+  assertEq(typeof copy.onDeath, 'object', 'a copy of a real card gets no hooks');
+  // The distinction is membership in SUMMON_TOKEN_DEFS, not the presence of a
+  // CARD_ABILITIES entry — Ultron has one, and must still be refused.
+  assert(!!CARD_ABILITIES['Ultron'], 'Ultron does have a CARD_ABILITIES entry');
+  assertEq(SUMMON_TOKEN_DEFS.some(function (t) { return t.name === 'Ultron'; }), false,
+    'but he is not a token, which is what the gate reads');
+});
+
 // ============================================================
 // ---- RUNNER ------------------------------------------------
 // ============================================================
