@@ -26636,37 +26636,19 @@ const UI = {
     if (!def) return;
     const isTrick = !!(typeof TRICK_DEFS !== 'undefined' && TRICK_DEFS.find(t => t.name === name));
 
-    // Non-trick cards: fall through to the legacy ci-panel path (rarely hit
-    // now that board cards use openCardInspect, but keep as a safe fallback).
+    // Non-trick cards go to THE inspect, the same one every other surface
+    // opens. This used to build a `.ci-panel` by hand — a second, art-less
+    // card renderer that printed the DEF's stats instead of the live card's,
+    // laid its name/stats/description out differently from every other
+    // inspect, and rendered in document flow (owner's screenshot: a Mr. Freeze
+    // panel hanging off the bottom of the screen under the hand). It was
+    // labelled a "safe fallback", but a fallback that looks like a different
+    // game is not safe — and it fired for any card element whose id is not in
+    // the local hand: the dead pile, the discard row, anything detached.
+    // _synthFace routes the def through createCardInstance, so the card
+    // arrives with real badges and real keyword parsing.
     if (!isTrick) {
-      const stats = `<div class="ci-stats">
-        <span class="ci-atk">${def.attack}</span>
-        <span class="ci-slash">/</span>
-        <span class="ci-hp">${def.health}</span>
-      </div>`;
-      const badges = def.abilities && def.abilities.length
-        ? `<div class="ci-badges">${this.formatAbilityBadges(def.abilities)}</div>` : '';
-      const desc = def.desc ? `<div class="ci-desc">${this.formatDesc(def.desc)}</div>` : '';
-      const modal = document.createElement('div');
-      modal.id = 'card-inspect-modal';
-      modal.className = 'card-inspect-modal';
-      modal.innerHTML = `
-        <div class="ci-backdrop"></div>
-        <div class="ci-panel ${this.getCostClass(def.cost || 0)}">
-          <span class="card-cost">${def.cost || 0}</span>
-          <div class="ci-name">${def.name}</div>
-          ${badges}${stats}${desc}
-          <button type="button" class="ci-close" aria-label="Close">×</button>
-        </div>`;
-      document.body.appendChild(modal);
-      const close = () => {
-        modal.remove();
-        if (this.sfx && typeof this.sfx._stopHover === 'function') this.sfx._stopHover();
-      };
-      modal.querySelector('.ci-backdrop').addEventListener('click', close);
-      modal.querySelector('.ci-close').addEventListener('click', close);
-      const onKey = (e) => { if (e.key === 'Escape') { close(); document.removeEventListener('keydown', onKey); } };
-      document.addEventListener('keydown', onKey);
+      if (this.openCardInspect) this.openCardInspect(this._synthFace(def, {}));
       return;
     }
 

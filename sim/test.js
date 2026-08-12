@@ -2430,7 +2430,7 @@ test('General Grievous is a 4-cost duelist with Evade and Overdrive', function (
   var def = cardByName('General Grievous');
   assertEq(def.cost, 4, 'costs 4');
   assertEq(def.attack, 3, '3 ATK');
-  assertEq(def.health, 5, '5 HP');
+  assertEq(def.health, 4, '4 HP');
   assertEq(def.abilities.join(','), 'Evade 1,Overdrive', 'both keywords are on the card');
   // Keywords render as badges — repeating them in the text is the house style
   // violation that makes tiles unreadable.
@@ -2447,7 +2447,7 @@ test('General Grievous is a 4-cost duelist with Evade and Overdrive', function (
   assertEq(gr.isOverdrive, true, 'Overdrive resolved to the flag');
 });
 
-test('Grievous summons a (2/1) Battle Droid, and grants nobody Bullseye', function () {
+test('Grievous summons a (1/1) Battle Droid, and grants nobody Bullseye', function () {
   var G = freshGame();
   var ally = place(G, 'Bane', 'player', 3);
   var gr = place(G, 'General Grievous', 'player', 0);
@@ -2455,8 +2455,12 @@ test('Grievous summons a (2/1) Battle Droid, and grants nobody Bullseye', functi
 
   var droid = G.getAllCardsOf('player').find(function (c) { return c.name === 'Battle Droid'; });
   assert(!!droid, 'a Battle Droid is on the board');
-  assertEq(droid.attack, 2, '2 ATK');
+  assertEq(droid.attack, 1, '1 ATK');
   assertEq(droid.currentHealth, 1, '1 HP');
+  // The printed text has to agree with what actually lands — these two drifted
+  // apart the moment the droid's stats changed.
+  assertEq(cardByName('General Grievous').desc.indexOf('(1/1) Battle Droid') > -1, true,
+    'and his card text names the same body');
   // The grant is gone — nobody should be picking up a keyword on his arrival.
   assertEq(!!ally.isBullseye, false, 'the ally gets no Bullseye');
   assertEq(!!gr.isBullseye, false, 'nor does Grievous');
@@ -5248,6 +5252,7 @@ test('A Battle Droid comes back bigger, twice, then stays dead', function () {
   var droid = place(G, 'Battle Droid', 'player', 1);
   G.applyAbilities(droid);
   assertEq(droid.reviveCharges, 2, 'starts with two lives');
+  assertEq(droid.attack, 1, 'and starts at 1 ATK');
   var atk = droid.attack, hp = droid.maxHealth;
 
   droid.currentHealth = 0;
@@ -5277,7 +5282,7 @@ test('onRevive is not onPlay — it does not fire on the original summon', funct
   var gr = place(G, 'General Grievous', 'player', 0);
   CARD_ABILITIES['General Grievous'].onPlay(G, gr, 0);
   var droid = G.getAllCardsOf('player').find(function (c) { return c.name === 'Battle Droid'; });
-  assertEq(droid.attack, 2, 'summoned at its printed 2 ATK, ungrown');
+  assertEq(droid.attack, 1, 'summoned at its printed 1 ATK, ungrown');
   assertEq(droid.maxHealth, 1, 'and its printed 1 HP');
 });
 

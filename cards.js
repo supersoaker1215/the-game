@@ -35,7 +35,7 @@
 // ============================================================
 const SUMMON_TOKEN_DEFS = [
   { name: 'Ant',            cost: 1, attack: 1, health: 1, abilities: ['Bullseye'], desc: 'Token — summoned by Ant-Man.' },
-  { name: 'Battle Droid',   cost: 2, attack: 2, health: 1, abilities: ['Revive 2'], desc: 'When Revived: Add (+1/+1) permanently. Token — summoned by General Grievous.' },
+  { name: 'Battle Droid',   cost: 2, attack: 1, health: 1, abilities: ['Revive 2'], desc: 'When Revived: Add (+1/+1) permanently. Token — summoned by General Grievous.' },
   { name: 'Doombot',        cost: 5, attack: 5, health: 5, abilities: [],           desc: 'Token — summoned by Dr. Doom.' },
   { name: 'The Kraken',     cost: 4, attack: 5, health: 6, abilities: [],           desc: 'Token — summoned by Davy Jones.' },
   { name: 'Undead Warrior', cost: 1, attack: 3, health: 1, abilities: [],           desc: 'Token — summoned by Hela.' },
@@ -329,9 +329,9 @@ const CARD_DEFS = [
   { name: "The Batman Who Laughs", cost: 5, attack: 3, health: 3, type: "villain",
     abilities: [],
     desc: "When Played: Intercept the next card the enemy plays. Keep it in your hand or destroy it to add (+2/+2). Environments are not intercepted." },
-  { name: "General Grievous", cost: 4, attack: 3, health: 5, type: "villain",
+  { name: "General Grievous", cost: 4, attack: 3, health: 4, type: "villain",
     abilities: ["Evade 1", "Overdrive"],
-    desc: "When Played: Summon a (2/1) Battle Droid in any lane. On Kill: A random other ally gains (+1/+1) permanently." },
+    desc: "When Played: Summon a (1/1) Battle Droid in any lane. On Kill: A random other ally gains (+1/+1) permanently." },
   { name: "Gargantua", cost: 2, attack: 0, health: 1, type: "environment",
     isEnvironment: true,
     abilities: [],

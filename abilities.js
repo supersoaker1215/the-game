@@ -4438,7 +4438,7 @@ const CARD_ABILITIES = {
     // arrival, and a trophy taken off every kill and handed to someone else.
     onPlay(G, self, lane) {
       if (typeof UI !== 'undefined' && UI._fxGrievousSabers) { try { UI._fxGrievousSabers(self); } catch (e) {} }
-      G.summonCardChoice(self.owner, 'Battle Droid', 2, 2, 1, ['Revive 2']);
+      G.summonCardChoice(self.owner, 'Battle Droid', 2, 1, 1, ['Revive 2']);
     },
     // ANOTHER ALLY GETS THE TROPHY, NEVER HIM. Same principle as the Bullseye
     // grant he used to have: what he does, he does for the board. A self-buff
