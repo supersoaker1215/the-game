@@ -5295,6 +5295,36 @@ test('A revive blocked by a destroyed lane grants no growth', function () {
   assertEq(droid.reviveCharges, 2, 'and no charge was spent');
 });
 
+test('The Mind Control prompt quotes EFFECTIVE attack, so Critical shows', function () {
+  // Reported from a screenshot: a mind-controlled Red Hulk carrying Critical
+  // offered "(4 ATK)" and then hit for 8. You choose the target FROM that
+  // number, so it was the one figure on the prompt that had to be right.
+  function promptFor(crit) {
+    var G = freshGame();
+    var rh = place(G, 'Red Hulk', 'ai', 1);
+    rh.attack = 4;
+    rh._criticalThisRound = crit;
+    rh.isMindControlled = true;
+    place(G, 'Hela', 'ai', 0);
+    place(G, 'Han Solo', 'ai', 2);
+    G.state.player.isHuman = true;
+    var seen = null;
+    var real = G.promptCardChoice;
+    G.promptCardChoice = function (o, cards, title, desc) { seen = desc; };
+    try { G.getMindControlTarget(rh, 'player', function () {}); }
+    finally { G.promptCardChoice = real; }
+    return seen;
+  }
+  assert(promptFor(false).indexOf('(4 ATK)') > -1, 'plain: quotes printed attack');
+  assert(promptFor(true).indexOf('(8 ATK)') > -1, 'Critical: quotes the DOUBLED attack');
+  // Pinned to the resolver's own helper, so the prompt cannot drift from the
+  // swing again the next time something modifies effective attack.
+  var G = freshGame();
+  var c = place(G, 'Red Hulk', 'ai', 1);
+  c.attack = 4; c._criticalThisRound = true;
+  assertEq(G._cardEffectiveAtk(c), 8, 'and that helper is what the prompt reads');
+});
+
 // ============================================================
 // ---- RUNNER ------------------------------------------------
 // ============================================================

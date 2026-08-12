@@ -5618,7 +5618,14 @@ const Game = {
           ? (AI.threatScore(b) - AI.threatScore(a))
           : (b.currentHealth || 0) - (a.currentHealth || 0)))[0];
       this.promptCardChoice(controller, allies, `Mind Control — ${card.name}`,
-        `Choose which of ${this.seatPossessive(card.owner)} cards ${card.name} (${card.attack} ATK) attacks`,
+        // EFFECTIVE attack, not printed attack. This read `card.attack`, so a
+        // mind-controlled Red Hulk carrying CRITICAL offered "(4 ATK)" and then
+        // hit for 8 — the one number the prompt exists to give you was the
+        // wrong one, and you pick your target from it. _cardEffectiveAtk is the
+        // same helper the resolver reports uncontested damage with, so the
+        // prompt and the swing now read from one place (it covers Critical's
+        // doubling and Yoda's combined strike).
+        `Choose which of ${this.seatPossessive(card.owner)} cards ${card.name} (${this._cardEffectiveAtk(card)} ATK) attacks`,
         (pick) => { callback(pick); },
         threatPicker);
     } else {

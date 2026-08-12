@@ -8768,16 +8768,23 @@ body.mobile-card-dragging .cursor-trail { display: none !important; }
    what to do, louder and more specifically. Owner struck it out on a
    screenshot. The ::before rule is deleted rather than emptied so nothing
    inherits a phantom box; the themed override below is kept harmless. */
+/* THE INSTRUCTION IS NOT A FOOTNOTE. This line carries the only thing the
+   banner is actually asking you to do — which card, which lane, how much
+   damage — and it was set in muted grey with the glow explicitly turned off,
+   so the loudest thing on the banner was the title restating the card's name.
+   Owner: "no grey text, i want neon highlighted." Now it lights up in the
+   banner's own accent (gold by default, theme accent when themed) so it reads
+   as part of the neon chrome instead of as small print under it. */
 .prompt-banner .prompt-desc {
   display: block;
   margin-top: 4px;
   font-family: 'Inter', sans-serif;
-  font-weight: 400;
+  font-weight: 600;
   font-size: 12px;
   letter-spacing: 0.2px;
   text-transform: none;
-  color: var(--text-mute, #b8c2cc);
-  text-shadow: none;
+  color: #ffe9a8;
+  text-shadow: 0 0 9px rgba(255, 215, 0, 0.55);
 }
 /* A banner you have to reach INTO must not ghost away as you approach it —
    see the :hover peek-through above. */
@@ -11597,6 +11604,15 @@ body.turn-combat .board .lane.lane-active {
   color: var(--text-mute, #b8c2cc);
   line-height: 1.45;
 }
+/* Neon, in the toast's OWN kind-accent (--toast-accent is already set per kind
+   a few rules down: trick purple, error red, info cyan…), so the line that
+   names the target reads as chrome rather than as small print. Mixed toward
+   white because a raw accent at 12px is unreadable for the darker kinds. */
+.ai-trick-toast .ai-trick-desc {
+  color: color-mix(in srgb, rgb(var(--toast-accent, 79, 195, 247)) 55%, #ffffff);
+  font-weight: 500;
+  text-shadow: 0 0 8px rgba(var(--toast-accent, 79, 195, 247), 0.55);
+}
 .ai-trick-toast .ai-trick-desc b {
   color: var(--text-hi, #f5fbff);
   font-weight: 600;
@@ -11748,7 +11764,12 @@ body.turn-combat .board .lane.lane-active {
 }
 .fp-sub {
   display: block; margin-top: 4px;
-  font-size: 12px; color: #8aa0b0;
+  font-size: 12px; font-weight: 500;
+  /* Was #8aa0b0 — a flat grey. This line states the actual decision ("Enemy is
+     about to play X. Freeze time to undo it?"), so it gets the panel's theme
+     accent and a glow like the rest of the neon chrome. */
+  color: color-mix(in srgb, rgb(var(--theme-rgb, 79, 195, 247)) 55%, #ffffff);
+  text-shadow: 0 0 8px rgba(var(--theme-rgb, 79, 195, 247), 0.45);
 }
 .fp-body { display: flex; gap: 18px; align-items: stretch; }
 .fp-trick-preview {
@@ -17952,8 +17973,14 @@ body.theme-purple .board-section {
   text-shadow: 0 0 8px var(--theme-glow-outer) !important;
   color: color-mix(in srgb, var(--theme-accent) 15%, #f5fbff) !important;
 }
+/* Themed banner — same "the instruction is neon" rule as the base above. Was
+   20% accent into a pale blue, which is a grey by the time it lands on black.
+   65% keeps the accent's hue unmistakable while the white lift keeps small
+   text legible on every hero theme (a raw accent at 12px goes muddy on the
+   darker ones). */
 .prompt-banner .prompt-desc {
-  color: color-mix(in srgb, var(--theme-accent) 20%, #cfe9fb) !important;
+  color: color-mix(in srgb, var(--theme-accent) 65%, #ffffff) !important;
+  text-shadow: 0 0 9px var(--theme-glow-outer) !important;
 }
 .choice-tray-panel {
   border-color: var(--theme-accent-edge) !important;
@@ -37649,7 +37676,9 @@ body.hand-text-always .player-hand-section .hand-cards .card.face-flipped .card-
 .ai-trick-toast .ai-trick-desc {
   margin-top: 5px;
   font-size: 11.5px;
-  color: var(--text-mute, #b8c2cc);
+  /* Matches the neon rule above — this duplicate comes later in the sheet, so
+     leaving it grey would silently undo it. */
+  color: color-mix(in srgb, rgb(var(--toast-accent, 79, 195, 247)) 55%, #ffffff);
 }
 
 /* Kind = colour. Only the accent changes; the shell above is identical, which

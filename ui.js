@@ -17649,6 +17649,15 @@ const UI = {
             </button>
           </div>
         </div>`;
+    // No subtitle on YOUR OWN jump offer. It read "Play this card FREE from
+    // your hand before combat continues" directly under a header that says
+    // JUMP! and above a button that says PLAY FREE — three restatements of one
+    // idea, and the only one written in grey. Owner struck it out on a
+    // screenshot. The opponent-side line stays: "they are still deciding" is
+    // information you cannot get from anywhere else on screen.
+    const subLine = opponentJump
+      ? '<span class="fp-sub">Opponent deciding whether to play free…</span>'
+      : '';
     modal.innerHTML = `
       <div class="floating-prompt-backdrop"></div>
       <div class="floating-prompt-panel">
@@ -17657,7 +17666,7 @@ const UI = {
         </button>
         <div class="fp-header">
           <span class="fp-label">${card.name} — Jump!</span>
-          <span class="fp-sub">${opponentJump ? 'Opponent deciding whether to play free…' : 'Play this card FREE from your hand before combat continues.'}</span>
+          ${subLine}
         </div>
         ${bodyHtml}
       </div>`;
