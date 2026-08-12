@@ -6552,8 +6552,32 @@ const UI = {
     // numbers the fight is moving. It unfolds again when combat ends.
     // Keyed on Game.isInCombat() so it agrees with the watchdog about when
     // combat is live, including 2v2's separate phase name.
-    document.body.classList.toggle('combat-zoom',
-      !!(Game.isInCombat && Game.isInCombat()));
+    const _inCombat = !!(Game.isInCombat && Game.isInCombat());
+    // ...BUT the fight pauses mid-combat for prompts the player has to answer,
+    // and several of those are about the HAND — Deadpool's trade, a block-meter
+    // free trick (you want to see how many cards you're holding), a jump-card
+    // offer, a Batman-Who-Laughs keep/destroy, a Time Stone / Kang reaction, or
+    // any card pick. Those all raise one of the pending flags below, so while
+    // one is up we drop OUT of the watch-the-fight zoom back to the normal view
+    // (hand unfolded); it re-zooms automatically on the next render once the
+    // prompt resolves and combat resumes. (Owner: "when the board zooms, at the
+    // times you need to see your hand — Deadpool trade, drawing a trick — zoom
+    // back out and then back in.")
+    // Card/lane picks are gated on promptIsMine so the AI's own fast
+    // auto-resolves in solo can't flash the zoom off for a frame; block-trick /
+    // jump / kang / Time-Stone offers are only ever raised for a human, so they
+    // need no such guard. AI-action delays (_pendingAIActions) are deliberately
+    // excluded — nobody is reading the hand while the AI resolves.
+    const _mine = (p, kind) => p && (!Game.promptIsMine || Game.promptIsMine(p, kind));
+    const _combatPrompt = _inCombat && (
+      _mine(s.pendingCardChoice, 'card') ||
+      _mine(s.pendingLaneChoice, 'lane') ||
+      s.pendingBlockTrick ||
+      s.pendingKangChoice ||
+      s.pendingJumpOffer ||
+      s.pendingTimeStoneIntercept
+    );
+    document.body.classList.toggle('combat-zoom', _inCombat && !_combatPrompt);
 
     if (isMainMenu)    { this.renderMainMenu(s); return; }
     if (isModeSelect)  { this.renderModeSelect(s); return; }
