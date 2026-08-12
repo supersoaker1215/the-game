@@ -64,6 +64,12 @@ function freshGame() {
 
 function cardByName(name) {
   var def = (typeof CARD_DEFS !== 'undefined' ? CARD_DEFS.find(function (d) { return d.name === name; }) : null);
+  // Summon tokens (Battle Droid, Ant, Doombot, …) are a separate list — they
+  // are not draftable, so they are not in CARD_DEFS, but a test still has to
+  // be able to build one.
+  if (!def && typeof SUMMON_TOKEN_DEFS !== 'undefined') {
+    def = SUMMON_TOKEN_DEFS.find(function (d) { return d.name === name; });
+  }
   if (!def) throw new Error('Unknown card: ' + name);
   return def;
 }
@@ -4598,16 +4604,23 @@ test('Freddy rising from Boiler Room never resurrects a dead ally', function () 
   var ally = place(G, 'Nightwing', 'player', 3);
   var openLanes = [];
   var captured = null;
-  G.promptLaneChoice = function (owner, lanes, title, desc, cb) { captured = cb; };
+  // RESTORED IN `finally`. This stub swallows the callback instead of
+  // resolving it, which is the point of the test — but leaving it installed
+  // silently broke every later test whose effect prompts for a lane (the
+  // prompt was armed and then dropped, so the effect just never happened).
+  var realLane = G.promptLaneChoice;
+  try {
+    G.promptLaneChoice = function (owner, lanes, title, desc, cb) { captured = cb; };
 
-  CARD_ABILITIES['Boiler Room']._spawnFreddy(G, 'player', 3);
-  assert(typeof captured === 'function', 'the move prompt was armed while the ally lived');
+    CARD_ABILITIES['Boiler Room']._spawnFreddy(G, 'player', 3);
+    assert(typeof captured === 'function', 'the move prompt was armed while the ally lived');
 
-  // The ally dies before the player answers.
-  ally.currentHealth = 0;
-  G.state.lanes[3].player = null;
+    // The ally dies before the player answers.
+    ally.currentHealth = 0;
+    G.state.lanes[3].player = null;
 
-  captured(5);   // answer the prompt now
+    captured(5);   // answer the prompt now
+  } finally { G.promptLaneChoice = realLane; }
   assert(!G.state.lanes[5].player || G.state.lanes[5].player.currentHealth > 0,
     'a dead ally is NOT placed into the chosen lane');
   assertEq(G.state.lanes[3].player && G.state.lanes[3].player.name, 'Freddy Krueger',
@@ -5210,6 +5223,76 @@ test('Spinosaurus is spawn-only and never enters a draftable pool', function () 
   // Wetlands is the opposite — it MUST be draftable or the pair is unreachable.
   assertEq(!!cardByName('Wetlands')._spawnOnly, false, 'Wetlands is draftable');
   assertEq(cardByName('Wetlands').isEnvironment, true, 'and is an environment');
+});
+
+// ============================================================
+// ---- BATTLE DROID (Revive 2, grows on each revive) ---------
+// ============================================================
+
+test('Grievous summons a Battle Droid that actually carries Revive 2', function () {
+  var G = freshGame();
+  var gr = place(G, 'General Grievous', 'player', 0);
+  CARD_ABILITIES['General Grievous'].onPlay(G, gr, 0);
+  var droid = G.getAllCardsOf('player').find(function (c) { return c.name === 'Battle Droid'; });
+  assert(!!droid, 'a Battle Droid was summoned');
+  assertEq(droid.reviveCharges, 2, 'the Revive 2 keyword reached the live token');
+  // The token branch of summonCard built a pure-data def, so a CARD_ABILITIES
+  // entry named after a token used to be inert — writable but never wired.
+  assertEq(typeof droid.onRevive, 'function', 'and so did its onRevive hook');
+  assertEq(droid._isToken, true, 'still a token — it must not enter the dead pile');
+  assert(droid.desc.indexOf('+1/+1') > -1, 'and it keeps the text the badge cannot say');
+});
+
+test('A Battle Droid comes back bigger, twice, then stays dead', function () {
+  var G = freshGame();
+  var droid = place(G, 'Battle Droid', 'player', 1);
+  G.applyAbilities(droid);
+  assertEq(droid.reviveCharges, 2, 'starts with two lives');
+  var atk = droid.attack, hp = droid.maxHealth;
+
+  droid.currentHealth = 0;
+  G.handleDeath(droid, 1, null);
+  assertEq(droid.reviveCharges, 1, 'spent one charge');
+  assertEq(droid.attack, atk + 1, 'came back with +1 ATK');
+  assertEq(droid.maxHealth, hp + 1, 'and +1 max HP');
+  assertEq(droid.currentHealth, hp + 1, 'at full health');
+
+  droid.currentHealth = 0;
+  G.handleDeath(droid, 1, null);
+  assertEq(droid.reviveCharges, 0, 'spent the second charge');
+  // The growth must STACK. applyAbilities re-runs on every revive; if it ever
+  // rebuilt stats from the printed def this would silently read atk+1.
+  assertEq(droid.attack, atk + 2, 'the growth stacked rather than resetting');
+  assertEq(droid.maxHealth, hp + 2, 'on both stats');
+
+  droid.currentHealth = 0;
+  G.handleDeath(droid, 1, null);
+  assertEq(droid.currentHealth, 0, 'out of charges — it stays down');
+});
+
+test('onRevive is not onPlay — it does not fire on the original summon', function () {
+  // The revive path re-fires onPlay, which is exactly why onRevive has to be
+  // its own hook: a card cannot tell a revival from its arrival inside onPlay.
+  var G = freshGame();
+  var gr = place(G, 'General Grievous', 'player', 0);
+  CARD_ABILITIES['General Grievous'].onPlay(G, gr, 0);
+  var droid = G.getAllCardsOf('player').find(function (c) { return c.name === 'Battle Droid'; });
+  assertEq(droid.attack, 2, 'summoned at its printed 2 ATK, ungrown');
+  assertEq(droid.maxHealth, 1, 'and its printed 1 HP');
+});
+
+test('A revive blocked by a destroyed lane grants no growth', function () {
+  // reviveCharges is checked before the void guard, so "did it grow?" is the
+  // cheapest proof the hook fired only on a revive that really happened.
+  var G = freshGame();
+  var droid = place(G, 'Battle Droid', 'player', 2);
+  G.applyAbilities(droid);
+  var atk = droid.attack;
+  G.state.lanes[2].destroyed = true;
+  droid.currentHealth = 0;
+  G.handleDeath(droid, 2, null);
+  assertEq(droid.attack, atk, 'the void claimed it — no revive, no (+1/+1)');
+  assertEq(droid.reviveCharges, 2, 'and no charge was spent');
 });
 
 // ============================================================

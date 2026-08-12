@@ -4456,6 +4456,7 @@ const Game = {
         onEvade: card.onEvade, onDamagePlayer: card.onDamagePlayer, onTurnStart: card.onTurnStart,
         onLaneResolved: card.onLaneResolved, onLaneCombat: card.onLaneCombat,
         onAnyCardDamaged: card.onAnyCardDamaged, onBlockMeterFired: card.onBlockMeterFired,
+        onRevive: card.onRevive,
         passive: card.passive
       };
       card.onPlay = null; card.onDeath = null; card.onDamaged = null;
@@ -4466,7 +4467,7 @@ const Game = {
       // A hidden card reacts to nothing — a face-down Spinosaurus must not
       // tick his Hunt Meter from the shadows, which would leak that he is
       // there the moment the badge moved.
-      card.onAnyCardDamaged = null; card.onBlockMeterFired = null;
+      card.onAnyCardDamaged = null; card.onBlockMeterFired = null; card.onRevive = null;
       card.onLaneResolved = null; card.onLaneCombat = null;
       card.passive = null;
       delete card._playFaceDown;
@@ -4966,6 +4967,7 @@ const Game = {
           card.onEnemyKilled = orig.onEnemyKilled;
           card.onEvade = orig.onEvade; card.onDamagePlayer = orig.onDamagePlayer; card.onTurnStart = orig.onTurnStart;
           card.onAnyCardDamaged = orig.onAnyCardDamaged; card.onBlockMeterFired = orig.onBlockMeterFired;
+          card.onRevive = orig.onRevive;
           card.onLaneResolved = orig.onLaneResolved;
           card.passive = orig.passive;
           delete card._faceDownOriginals;
@@ -7331,6 +7333,13 @@ const Game = {
           if (actuallyDrawn > 0) this._creditChain(card, 'statsCardAdvantage', actuallyDrawn);
           this.log(`${card.name} draws ${n} card${n > 1 ? 's' : ''}.`);
         }
+        // onRevive — "I just came back", AFTER the re-played On Play and the
+        // draw, so a card that grows on revive grows on top of a fully
+        // re-resolved arrival. Distinct from onPlay on purpose: the revive
+        // path re-fires onPlay, so a card cannot tell a revival from its
+        // original summon there. `chargesLeft` is passed so an ability can
+        // scale with how many lives it has spent.
+        try { this._runHook(card, 'onRevive', this, card, reviveLane, chargesLeft); } catch (e) {}
       }
       return;
       } // !reviveBlocked — blocked revives fall through to normal death
@@ -10091,6 +10100,22 @@ const Game = {
       // duplicate "Evade 1" text appearing under the Ant. Empty desc
       // keeps the token's body clean — badges only.
       def = { name, cost, attack, health, abilities, type: 'neutral', desc: '' };
+      // A TOKEN MAY HAVE HOOKS. This branch built a pure-data def, so
+      // createCardInstance's hook whitelist read `undefined` for every one of
+      // them and a CARD_ABILITIES entry named after a token was silently
+      // inert — you could write it, it would never run. Battle Droid's
+      // grow-on-revive is the first token that needs one. Merged here, at the
+      // single door every token walks through, rather than by handing tokens a
+      // sourceDef (which would also clear `_isToken` and put them in the dead
+      // pile). No-op for the six existing tokens: none has an entry.
+      const tokenAb = (typeof CARD_ABILITIES !== 'undefined') ? CARD_ABILITIES[name] : null;
+      if (tokenAb) {
+        def = Object.assign({}, tokenAb, def);
+        // …and let it keep its text. The empty-desc rule above exists to stop
+        // the badge row being repeated in prose; a token with a real ability
+        // has something to say that no badge covers.
+        if (tokenAb.tokenDesc) def.desc = tokenAb.tokenDesc;
+      }
     }
 
     const card = this.createCardInstance(def, owner);
@@ -10962,6 +10987,10 @@ const Game = {
       // fired for both sides from _notifyBlockMeterFired. Wetlands drains its
       // Power on it.
       onBlockMeterFired: def.onBlockMeterFired || null,
+      // onRevive — fired after a Revive charge brings this card back and its
+      // On Play has re-resolved. onPlay cannot serve: the revive re-fires it,
+      // so it cannot distinguish a revival from the original arrival.
+      onRevive: def.onRevive || null,
       onMoved: def.onMoved || null,
       onLaneResolved: def.onLaneResolved || null,
       // onAnyTrickPlayed — fires for every trick played by either

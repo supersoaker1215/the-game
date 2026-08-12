@@ -35,7 +35,7 @@
 // ============================================================
 const SUMMON_TOKEN_DEFS = [
   { name: 'Ant',            cost: 1, attack: 1, health: 1, abilities: ['Bullseye'], desc: 'Token — summoned by Ant-Man.' },
-  { name: 'Battle Droid',   cost: 2, attack: 2, health: 1, abilities: [],           desc: 'Token — summoned by General Grievous.' },
+  { name: 'Battle Droid',   cost: 2, attack: 2, health: 1, abilities: ['Revive 2'], desc: 'When Revived: Add (+1/+1) permanently. Token — summoned by General Grievous.' },
   { name: 'Doombot',        cost: 5, attack: 5, health: 5, abilities: [],           desc: 'Token — summoned by Dr. Doom.' },
   { name: 'The Kraken',     cost: 4, attack: 5, health: 6, abilities: [],           desc: 'Token — summoned by Davy Jones.' },
   { name: 'Undead Warrior', cost: 1, attack: 3, health: 1, abilities: [],           desc: 'Token — summoned by Hela.' },

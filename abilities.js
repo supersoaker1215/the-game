@@ -1369,7 +1369,7 @@ const CARD_ABILITIES = {
       'onEvade', 'onDamagePlayer', 'onTurnStart', 'passive',
       'onBeforeCombat', 'onLaneCombat', 'onLaneResolved', 'onAnyTrickPlayed',
       'onDiscard', 'onMoved',
-      'onAnyCardDamaged', 'onBlockMeterFired',
+      'onAnyCardDamaged', 'onBlockMeterFired', 'onRevive',
     ];
     const STRIP_FIELDS = [
       ...STRIP_HOOKS,
@@ -4407,6 +4407,29 @@ const CARD_ABILITIES = {
       G.log(`Darth Maul fuels his rage with ${trick.name} — +2/+0! (now ${self.attack}/${self.currentHealth})`);
     }
   },
+  // Grievous's escort. The FIRST token with an entry here — until now a
+  // CARD_ABILITIES entry named after a token was inert, because summonCard's
+  // token branch built a pure-data def with no hooks on it (fixed at that
+  // branch, so any future token inherits the same way).
+  //
+  // `tokenDesc` — the text the SUMMONED body carries. Tokens normally ship an
+  // empty desc so the badge row is not duplicated in prose, but "grows when it
+  // comes back" is not a keyword and the Revive 2 badge cannot say it. It is a
+  // separate key from `desc` on purpose: the merge below copies this object
+  // onto the SUMMON_TOKEN_DEFS entry, and a `desc` here would overwrite the
+  // codex entry's own line (which also names who summons it).
+  "Battle Droid": {
+    tokenDesc: 'When Revived: Add (+1/+1) permanently.',
+    onRevive(G, self) {
+      // Self-buff, so permanent by the buff-duration rule — and it must be,
+      // since the whole point is a droid that comes back bigger each time.
+      // applyAbilities re-runs on revive but only re-parses keywords into
+      // flags; it never rewrites attack/maxHealth, so this survives the
+      // second death too.
+      G.buffCard(self, 1, 1);
+      G.log(`  [BATTLE DROID] Reassembled, and better — now ${self.attack}/${self.currentHealth}.`);
+    },
+  },
   "General Grievous": {
     // REDESIGNED 2026-08-09 (owner), twice. The Block-Meter strangle is gone,
     // and so is the board-wide Bullseye grant that briefly replaced it. He is a
@@ -4415,7 +4438,7 @@ const CARD_ABILITIES = {
     // arrival, and a trophy taken off every kill and handed to someone else.
     onPlay(G, self, lane) {
       if (typeof UI !== 'undefined' && UI._fxGrievousSabers) { try { UI._fxGrievousSabers(self); } catch (e) {} }
-      G.summonCardChoice(self.owner, 'Battle Droid', 2, 2, 1, []);
+      G.summonCardChoice(self.owner, 'Battle Droid', 2, 2, 1, ['Revive 2']);
     },
     // ANOTHER ALLY GETS THE TROPHY, NEVER HIM. Same principle as the Bullseye
     // grant he used to have: what he does, he does for the board. A self-buff
@@ -6056,3 +6079,16 @@ CARD_DEFS.forEach(card => {
   const ab = CARD_ABILITIES[card.name];
   if (ab) Object.assign(card, ab);
 });
+
+// …and into the SUMMON TOKEN defs, on the same terms. These are a separate
+// list because tokens are not draftable, but they are still card definitions
+// and anything built from one (the codex entry, a test instance) must carry
+// the same hooks a drafted card would. Battle Droid's grow-on-revive was the
+// first token ability, and without this it existed only on the instance
+// summonCard happens to build — the def itself was inert.
+if (typeof SUMMON_TOKEN_DEFS !== 'undefined') {
+  SUMMON_TOKEN_DEFS.forEach(tok => {
+    const ab = CARD_ABILITIES[tok.name];
+    if (ab) Object.assign(tok, ab);
+  });
+}
