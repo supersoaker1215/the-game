@@ -23411,6 +23411,55 @@ const UI = {
     };
     const clearHi = () => document.querySelectorAll('.lane.drag-over').forEach(l => l.classList.remove('drag-over'));
 
+    // The top edge of the hand area (cards + trick tray). A release ABOVE this
+    // line is an unambiguous "play" gesture — anywhere over the board or the
+    // health bar counts — and only a release back DOWN into the hand cancels.
+    // Zero-height (hidden) elements are skipped so a collapsed row can't drag
+    // the boundary to y=0 and make everything read as "over the hand".
+    //
+    // This replaces the old trick-drop test that measured only the trick tray's
+    // own top: depending on layout that left a thin live strip up by the health
+    // bar as the only place a trick would fire, which is exactly the "it only
+    // works on the health bar" report.
+    const handTopBoundary = () => {
+      let top = Infinity;
+      const consider = (el) => {
+        if (!el || !el.getBoundingClientRect) return;
+        const r = el.getBoundingClientRect();
+        if (r.height > 0) top = Math.min(top, r.top);
+      };
+      consider(document.querySelector('.player-hand-section'));
+      consider(this.playerTricks);
+      consider(this.playerHand);
+      return top;
+    };
+    const aboveHand = (y) => y != null && y < handTopBoundary() - 8;
+
+    // Nearest lane to an x coordinate — prefers a lane THIS card can actually
+    // enter (open, not destroyed; any non-destroyed lane for an environment),
+    // and only falls back to the closest lane overall so a genuinely blocked
+    // drop still lands somewhere and explains itself through onLaneClick's
+    // reject flash. This is the "drag is too picky" fix: a release cleanly above
+    // the hand no longer has to be pixel-aligned over a lane column — between
+    // lanes, or a hair off, snaps to the closest playable lane instead of
+    // bouncing the card back to hand.
+    const nearestLaneByX = (x, card) => {
+      const els = laneEls();
+      if (!els.length || x == null) return null;
+      const open = [], all = [];
+      els.forEach((el, idx) => {
+        const r = el.getBoundingClientRect();
+        const dist = Math.abs(x - (r.left + r.width / 2));
+        all.push({ idx, dist });
+        const L = Game.state.lanes[idx];
+        const ok = L && !L.destroyed && (card && card.isEnvironment ? true : !L.player);
+        if (ok) open.push({ idx, dist });
+      });
+      const pool = open.length ? open : all;
+      pool.sort((a, b) => a.dist - b.dist);
+      return pool[0].idx;
+    };
+
     // Trick-tray version of cardFromEl — resolves a .trick-card element back
     // to its live trick object via data-trick-id (set in renderPlayerTricks).
     const trickFromEl = (el) => {
@@ -23535,30 +23584,31 @@ const UI = {
       d = null;
       if (!wasDrag) return;   // it was a tap → the element's own onclick inspects
       if (card && card.isDiscardEffect) {
-        // Lane-less, like a trick: released anywhere over the board it fires,
-        // released back over the hand it cancels. laneIdxUnder is not consulted
-        // because a discard effect never occupies a lane — the engine takes
-        // lane 0 as a placeholder, exactly as the tap path already passes it.
-        const b = this.board && this.board.getBoundingClientRect();
-        const overBoard = !!(t && b && t.clientX >= b.left && t.clientX <= b.right
-                                    && t.clientY >= b.top  && t.clientY <= b.bottom);
-        if (overBoard) Game.submitCommand({ type: 'playCard', payload: { card, lane: 0 } });
+        // Lane-less, like a trick: released anywhere ABOVE the hand it fires,
+        // released back down into the hand it cancels. laneIdxUnder is not
+        // consulted because a discard effect never occupies a lane — the engine
+        // takes lane 0 as a placeholder, exactly as the tap path already passes.
+        // Using the hand boundary (not the board rect) means a release on the
+        // health bar or just above the board fires too, matching tricks.
+        if (t && aboveHand(t.clientY)) Game.submitCommand({ type: 'playCard', payload: { card, lane: 0 } });
         Game.state.selectedCard = null;
         this.render();
       } else if (card) {
-        const i = t ? laneIdxUnder(t.clientX, t.clientY) : null;
+        let i = t ? laneIdxUnder(t.clientX, t.clientY) : null;
+        // Forgiving drop: the finger/cursor came down clear of the hand (over
+        // the board or the bar) but not squarely on a lane column — between
+        // lanes, or a hair above the board. Snap to the nearest playable lane
+        // instead of bouncing the card back to hand.
+        if (i == null && t && aboveHand(t.clientY)) i = nearestLaneByX(t.clientX, card);
         if (i != null && Game.state.selectedCard === card) {
           this.onLaneClick(i);
         } else if (Game.state.selectedCard === card) {
-          Game.state.selectedCard = null; this.render();   // dropped off-board → cancel
+          Game.state.selectedCard = null; this.render();   // dropped into hand → cancel
         }
       } else if (trick) {
-        // Tricks are lane-less: dropping anywhere CLEAR of the trick tray
-        // plays it; dropping back on the tray cancels (change of heart).
-        const tray = this.playerTricks;
-        const trayR = tray && tray.getBoundingClientRect ? tray.getBoundingClientRect() : null;
-        const onTray = t && trayR && t.clientY >= trayR.top - 8;
-        if (t && !onTray) {
+        // Tricks are lane-less: releasing anywhere ABOVE the hand plays it;
+        // releasing back down into the hand/tray cancels (change of heart).
+        if (t && aboveHand(t.clientY)) {
           const cost = Game.getTrickCost('player', trick);
           if (Game.state.player.currency >= cost) {
             Game.state.selectedTrick = null;

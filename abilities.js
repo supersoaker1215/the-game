@@ -1429,6 +1429,18 @@ const CARD_ABILITIES = {
         // round it lands.
         G.state[opp].forcedLane = lane;
         self._moderStripPending = (self._moderStripCount || 1);
+        // Expose the strip so the engine can neutralize the forced card the
+        // instant it is PULLED into Moder's lane — before its When Played
+        // fires. Deferring to onAnyCardPlayed (post-onPlay) let the forced
+        // card resolve its whole entrance first: it kept its When Played, and
+        // if that onPlay damaged Moder (e.g. Hulk) it killed him before the
+        // strip broadcast ever ran, so nothing got stripped at all. The card
+        // is meant to "lose all abilities and keywords" — including its When
+        // Played — so game.js calls this at redirect time. Stamped on Game
+        // (not state) so it survives serialization; the closure carries strip.
+        if (G && typeof G._moderStripCard !== 'function') {
+          G._moderStripCard = (target) => strip(target, G);
+        }
         G.log(`Moder compels the next enemy card into lane ${lane + 1}!`);
         if (typeof UI !== 'undefined' && UI._fxModerCoil) { try { UI._fxModerCoil(self, lane, self.owner); } catch (e) {} }
       },

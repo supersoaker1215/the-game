@@ -4046,6 +4046,21 @@ const Game = {
     return null;
   },
 
+  // Strip a card the moment Moder pulls it into his lane — BEFORE its onPlay
+  // fires. flLane is Moder's lane; the compeller stands on the side opposite
+  // the arriving card. Guarded so it only fires once per forced arrival and
+  // only while Moder still has a pending strip. The onAnyCardPlayed hook stays
+  // as a safety net (it no-ops on an already-stripped card).
+  _moderStripOnArrival(card, flLane, owner) {
+    if (!card || !flLane || card._moderStripped) return;
+    if (typeof this._moderStripCard !== 'function') return;
+    const moder = flLane[this.opponent(owner)];
+    if (!moder || !this.isCardKind(moder, 'Moder')) return;
+    if (!(moder._moderStripPending > 0)) return;
+    this._moderStripCard(card);
+    moder._moderStripPending -= 1;
+  },
+
   // Moder + Magneto can pre-empt the player's chosen lane. Returns the
   // (possibly redirected) laneIdx. Discard-effect cards bypass both
   // mechanics entirely. Idempotent — clears the forced-lane state once
@@ -4072,17 +4087,25 @@ const Game = {
     // lane is full or BWL takes priority.
     if (this.state[owner].forcedLane != null && this._nextEnemyCardClaimant(owner) === 'moder') {
       const fl = this.state[owner].forcedLane;
+      const flLane = this.state.lanes[fl];
       if (mpGuestPlay) {
         // Guest is UI-locked to the forced lane — their pick IS fl. Claim it.
+        // Don't override laneIdx (see note above: avoids a UI-lock/server race).
         this.state[owner].forcedLane = null;
         this._nextCardClaimed = true;
+        this._moderStripOnArrival(card, flLane, owner);
       } else {
-        const flLane = this.state.lanes[fl];
         if (flLane && !flLane.destroyed && !flLane[owner]) {
           laneIdx = fl;
           this.log(`[MODER] ${card.name} is pulled into lane ${fl + 1} by Moder!`);
           this.state[owner].forcedLane = null;
           this._nextCardClaimed = true;
+          // Strip NOW, before the card's onPlay runs (playCard/playCardFree
+          // fire onPlay only after this redirect returns). Stripping here is
+          // what makes "loses all abilities and keywords" also cancel the
+          // forced card's When Played, and it can't be pre-empted by an
+          // onPlay that would have killed Moder first.
+          this._moderStripOnArrival(card, flLane, owner);
         }
         // else: Moder's lane is full → leave forcedLane armed (warning persists).
       }
