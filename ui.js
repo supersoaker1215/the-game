@@ -3593,6 +3593,51 @@ const UI = {
       }
       // Resolve file: card-specific first, else global default.
       const reg = this.CARD_SFX[name] || {};
+
+      // THE DEFAULT "WHEN PLAYED" CUE IS THE CARD'S OWN HOVER THEME.
+      // Owner: "the default when-played sound for cards is just their specific
+      // hover from wherever it last stopped — so if I play Thanos, there's no
+      // unique when-played sound, the default would be his hover for like 3.5
+      // seconds."
+      //
+      // Only a handful of cards have a bespoke `play` clip; everything else
+      // fell through to a procedural blip that says nothing about WHICH card
+      // landed. Its hover theme already does — and every card that has one is
+      // already carrying the asset, so this costs nothing to ship.
+      //
+      // RESUMED, not restarted. `hover: true` puts this on the same clone the
+      // hover system uses, so it picks up from wherever browsing the card left
+      // off and the theme keeps advancing across plays rather than replaying
+      // its first three seconds forever.
+      //
+      // NOT capped with maxDur: that path's cap-fade rewinds currentTime to 0,
+      // which would destroy the very position this is built to preserve. The
+      // 3.5s stop is scheduled here through the hover system's own
+      // pause-preserving fade instead.
+      //
+      // Placed AFTER both privacy gates above on purpose. Hover privacy does
+      // not apply — the card is face-up on the board by now, so this leaks
+      // nothing — and a face-down play has already returned with the generic
+      // blip before reaching this line.
+      if ((event === 'play' || event === 'spawn') && !reg[event] && reg.hover) {
+        const hoverRes = this._resolveSfxEntry(reg.hover);
+        if (hoverRes && hoverRes.src) {
+          const hOpts = { ...(hoverRes.opts || {}) };
+          hOpts.hover = true;          // resume-from-pause clone selection
+          hOpts.fullDuration = true;   // no cap-fade — see above
+          delete hOpts.maxDur;
+          hOpts.fadeIn = 200;
+          hOpts.category = 'play';     // marquee gain tier, not hover's
+          const el = this._playSample(hoverRes.src, hOpts);
+          if (el) {
+            const PLAY_HOVER_MS = 3500, TAIL_MS = 700;
+            setTimeout(() => { try { this._fadeToPauseAtPosition(el, TAIL_MS); } catch (e) {} },
+                       Math.max(0, PLAY_HOVER_MS - TAIL_MS));
+          }
+          return el;
+        }
+      }
+
       const fileEntry = reg[event] ?? this.DEFAULT_CARD_SFX[event];
       if (!fileEntry) {
         // Procedural fallback so every card still has audio feedback
