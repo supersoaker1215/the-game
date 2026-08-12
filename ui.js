@@ -20363,13 +20363,14 @@ const UI = {
     if (this._tauntCooldownUntil && Date.now() < this._tauntCooldownUntil) return;
     this._tauntCooldownUntil = Date.now() + 3500;
     this._emoteSend({ t: 'emote', kind: 'taunt', name });
-    // Play + show on your own side too, so you hear/see what you sent.
+    // SOUND ONLY — no name bubble on either side (owner: "when I play a taunt
+    // sound I don't want the name of the character to appear, just the sound to
+    // fire"). The whole point is the audio; naming the card also leaked which
+    // card you were taunting with.
     this._playTauntSound(name);
-    this.showTauntBubble('player', name);
   },
   receiveTaunt(name) {
     this._playTauntSound(name);
-    this.showTauntBubble('ai', name);
     if (this._haptic) this._haptic('cardPlay');
   },
   // A hover clip runs its FULL length (8s+ for some characters) because the
