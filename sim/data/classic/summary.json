@@ -1,7 +1,7 @@
 {
-  "games": 3000,
-  "playerWins": 1519,
-  "aiWins": 1481,
+  "games": 5000,
+  "playerWins": 2478,
+  "aiWins": 2522,
   "draws": 0,
-  "avgRounds": 11.175333333333333
+  "avgRounds": 10.581
 }

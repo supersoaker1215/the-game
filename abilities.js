@@ -1369,11 +1369,12 @@ const CARD_ABILITIES = {
       'onEvade', 'onDamagePlayer', 'onTurnStart', 'passive',
       'onBeforeCombat', 'onLaneCombat', 'onLaneResolved', 'onAnyTrickPlayed',
       'onDiscard', 'onMoved',
+      'onAnyCardDamaged', 'onBlockMeterFired',
     ];
     const STRIP_FIELDS = [
       ...STRIP_HOOKS,
       'evadeCharges', 'armorValue', 'isOverdrive', 'isBullseye',
-      'immunityCharges', 'hasHunt', 'hasDamageImmunity',
+      'immunityCharges', 'hasHunt', 'hasHuntMeter', 'hasDamageImmunity',
       'unresistibleCharges', 'splashRange', 'invincibleTurns', 'tauntTurns',
       'isUntrickable',
     ];
@@ -1416,6 +1417,15 @@ const CARD_ABILITIES = {
       G.log(`Moder strips all abilities from ${card.name}!`);
     };
     return {
+      // Exposed so the ENGINE can run the strip at lane-entry time. It used to
+      // fire only from onAnyCardPlayed, which broadcasts AFTER the arriving
+      // card's own onPlay — so a card played into Moder's lane got its When
+      // Played off before losing its abilities, and if that On Play killed
+      // Moder (Human Torch's splash + blast did exactly this) she was off the
+      // board by the time the broadcast reached her and never stripped at all.
+      // Moder's compulsion is a lane trap; it belongs on lane entry, next to
+      // Bear Trap, not in the post-play broadcast.
+      _strip: (card, G) => strip(card, G),
       onPlay(G, self, lane) {
         const opp = G.opponent(self.owner);
         // Force opponent's next card into Moder's lane. Do NOT strip anyone
@@ -5703,6 +5713,253 @@ const CARD_ABILITIES = {
       const l = (self._envLane !== undefined) ? self._envLane : laneIdx;
       const lane = G.state.lanes[l];
       if (lane && lane._env) lane._env[self.owner] = null;
+    },
+  },
+
+  // ===================== WETLANDS / SPINOSAURUS =====================
+  // The third habitat environment, and the one that does NOT consume itself.
+  // Boiler Room and Sewers are replaced by what they birth; Wetlands stays on
+  // the board underneath Spinosaurus and drains away only when he dies — so
+  // the lane keeps reading "this is his water" for as long as he is standing.
+  //
+  // Its clock is the BLOCK METER, not a card entering or dying: every time
+  // either side's meter fills and eats a hit, the swamp loses 1 Power. Three
+  // blocks — from anyone — and the water breaks.
+  "Wetlands": {
+    START_POWER: 3,
+    _power(self) {
+      if (self._wetPower === undefined || self._wetPower === null) self._wetPower = CARD_ABILITIES['Wetlands'].START_POWER;
+      return self._wetPower;
+    },
+    onPlay(G, self, lane) {
+      CARD_ABILITIES['Wetlands']._power(self);
+      G.log(`Wetlands floods lane ${lane + 1} — 3 Power. Every Block Meter that fires drains it.`);
+    },
+    onBlockMeterFired(G, self) {
+      if (self._wetReleased) return;
+      const laneIdx = G.findCardLane(self);
+      if (laneIdx < 0) return;
+      const AB = CARD_ABILITIES['Wetlands'];
+      self._wetPower = Math.max(0, AB._power(self) - 1);
+      G.log(`[WETLANDS] A Block Meter fires — the water stirs. Power ${self._wetPower}/${AB.START_POWER}.`);
+      if (typeof UI !== 'undefined' && UI._fxWetlandsRipple) {
+        try { UI._fxWetlandsRipple(laneIdx, self.owner, self._wetPower); } catch (e) {}
+      }
+      if (self._wetPower <= 0) {
+        // Latch BEFORE releasing: _release can prompt (ally displacement), and
+        // a second block resolving against the still-standing habitat while
+        // that prompt is open would release a second Spinosaurus.
+        self._wetReleased = true;
+        AB._release(G, self.owner, laneIdx, self);
+      }
+    },
+    // Self-heal: the habitat is supposed to outlive the release and die WITH
+    // Spinosaurus, which his onDeath handles. But a Spinosaurus can leave the
+    // board without dying — Phantom Zone bounces him to a hand, Devour voids
+    // him past handleDeath entirely — and either way onDeath never fires, so
+    // the drained habitat would sit in the lane forever with nothing in it.
+    // Reconcile from the live board each round instead of trusting the exit.
+    onTurnStart(G, self) {
+      if (!self._wetReleased) return;
+      const laneIdx = G.findCardLane(self);
+      if (laneIdx < 0) return;
+      const spino = G.getAllCardsOf(self.owner)
+        .some(c => c.name === 'Spinosaurus' && c.currentHealth > 0);
+      if (spino) return;
+      const lane = G.state.lanes[laneIdx];
+      if (lane._env && lane._env[self.owner] === self) lane._env[self.owner] = null;
+      G.log(`  [WETLANDS] No Spinosaurus remains — the wetlands drain away.`);
+    },
+    _release(G, owner, laneIdx, habitat) {
+      const lane = G.state.lanes[laneIdx];
+      const opp = G.opponent(owner);
+      const def = (typeof CARD_DEFS !== 'undefined')
+        ? CARD_DEFS.find(d => d.name === 'Spinosaurus') : null;
+
+      // The enemy standing in this lane is taken the instant he surfaces.
+      // Routed through canEffectLand so Invincible / Damage Immunity refuse it
+      // like any other instant-destroy (shield canon) rather than this being a
+      // second, quieter kill path that ignores them.
+      const enemy = lane[opp];
+      if (enemy && enemy.currentHealth > 0) {
+        if (G.canEffectLand(enemy, 'destroy', { owner, source: habitat })) {
+          G.log(`  [WETLANDS] Spinosaurus takes ${enemy.name} in lane ${laneIdx + 1}!`);
+          G.killCard(enemy, habitat);
+        } else {
+          G.log(`  [WETLANDS] ${enemy.name} survives the jaws — the strike can't land.`);
+        }
+      }
+
+      const allyInLane = lane[owner];
+
+      const finishSpawn = (atk, hp) => {
+        // Clear a DEAD occupant first — handleDeath defers slot clearing to
+        // cleanupDead (and can merely QUEUE the death when another is already
+        // resolving), so the absorbed card is still standing here and
+        // summonCard would see an occupied lane and bail. Same trap Sewers hit.
+        if (lane[owner] && lane[owner].currentHealth <= 0) lane[owner] = null;
+        const before = G.state.lanes[laneIdx][owner];
+        G.summonCard(owner, laneIdx, 'Spinosaurus', 5, atk, hp, [], def);
+        const spino = G.state.lanes[laneIdx][owner];
+        // Only stamp stats if a NEW Spinosaurus actually landed. Writing
+        // unconditionally is how Sewers once handed Pennywise's stats to the
+        // card that was already standing there.
+        if (!spino || spino === before || spino.name !== 'Spinosaurus') {
+          G.log(`  [WETLANDS] Spinosaurus can't surface in lane ${laneIdx + 1} — the lane is still occupied.`);
+          return;
+        }
+        spino._habitatLane = laneIdx;
+        // summonCard ignores atk/hp when sourceDef is provided; set directly.
+        spino.attack = atk;
+        spino.currentHealth = hp;
+        spino.maxHealth = hp;
+        // The habitat STAYS. Unlike Boiler Room / Sewers / Open Water, the env
+        // slot is NOT cleared here — Spinosaurus's onDeath is what drains it.
+        G.log(`Spinosaurus is released into lane ${laneIdx + 1}!`);
+        if (typeof UI !== 'undefined' && UI._spinosaurusRelease) {
+          setTimeout(() => UI._spinosaurusRelease(laneIdx, owner), 60);
+        }
+      };
+
+      if (allyInLane && allyInLane.currentHealth > 0) {
+        const openLanes = G.getOpenLanes(owner).filter(l => l !== laneIdx);
+        if (openLanes.length > 0) {
+          G.promptLaneChoice(owner, openLanes,
+            `Spinosaurus — Move ${allyInLane.name}`,
+            `Spinosaurus surfaces here. Move ${allyInLane.name} to another lane.`,
+            (targetLane) => {
+              // RE-CHECK ON RESOLVE. The ally was alive when this prompt armed,
+              // but a prompt is answered LATER and the kill above can still be
+              // cascading — placing a corpse back on the board resurrects it.
+              const stillThere = allyInLane
+                && allyInLane.currentHealth > 0
+                && lane[owner] === allyInLane;
+              if (!stillThere) {
+                G.log(`  [DISPLACE SKIPPED] ${allyInLane ? allyInLane.name : 'the ally'} did not survive to be moved.`);
+                finishSpawn(4, 6);
+                return;
+              }
+              lane[owner] = null;
+              G.state.lanes[targetLane][owner] = allyInLane;
+              G.log(`  [DISPLACED] ${allyInLane.name} moved to lane ${targetLane + 1} to make room for Spinosaurus.`);
+              G.checkLaneTrap(allyInLane, targetLane);
+              if (allyInLane.onMoved) allyInLane.onMoved(G, allyInLane, targetLane);
+              finishSpawn(4, 6);
+            }
+          );
+        } else {
+          const extraAtk = allyInLane.attack;
+          const extraHp  = allyInLane.currentHealth;
+          G.log(`  [ABSORB] Spinosaurus absorbs ${allyInLane.name} (+${extraAtk}/+${extraHp})!`);
+          // Absorbed = genuinely dead. Zero it BEFORE handleDeath so nothing
+          // downstream can read it as alive, then free the slot ourselves
+          // (handleDeath does not reliably clear it — see the note above).
+          allyInLane.currentHealth = 0;
+          G.handleDeath(allyInLane, laneIdx, null);
+          if (lane[owner] === allyInLane) lane[owner] = null;
+          finishSpawn(4 + extraAtk, 6 + extraHp);
+        }
+      } else {
+        finishSpawn(4, 6);
+      }
+    },
+  },
+
+  "Spinosaurus": {
+    METER_MAX: 3,
+    // HUNT — not the `Hunt` keyword (which chases a card the moment it is
+    // played). This is a start-of-round stalk toward wherever the opponent
+    // last committed a card, read off the seat's _lastPlayedLane. moveCard
+    // owns every guard that matters (frozen/feared, destroyed lane, face
+    // down, occupied destination), so this only decides WHERE.
+    onTurnStart(G, self) {
+      if (self.currentHealth <= 0) return;
+      const opp = G.opponent(self.owner);
+      const target = G.state[opp] ? G.state[opp]._lastPlayedLane : null;
+      if (target === undefined || target === null) return;
+      const from = G.findCardLane(self);
+      if (from < 0 || from === target) return;
+      const dest = G.state.lanes[target];
+      if (!dest || dest.destroyed) return;
+      if (dest[self.owner] && dest[self.owner].currentHealth > 0) {
+        G.log(`[HUNT] Spinosaurus stalks lane ${target + 1} but an ally holds it.`);
+        return;
+      }
+      G.moveCard(self, from, target);
+      if (G.findCardLane(self) === target) {
+        G.log(`[HUNT] Spinosaurus stalks to lane ${target + 1} — the opponent's last play.`);
+        if (typeof UI !== 'undefined' && UI._fxSpinoStalk) {
+          try { UI._fxSpinoStalk(self, from, target); } catch (e) {}
+        }
+      }
+    },
+    // HUNT METER — every damage instance anywhere on the field, from the one
+    // post-damage notifier. Its OWN rampage is excluded: the sweep hits every
+    // occupied lane, which is 3-6 damage instances in a single swing, so
+    // counting them would refill the meter to full the moment it emptied and
+    // the card would rampage every round forever — a meter that is always
+    // full is not a meter. Ordinary combat swings still feed it.
+    onAnyCardDamaged(G, self) {
+      if (self.currentHealth <= 0) return;
+      if (self._spinoRampaging) return;
+      if (self._spinoArmed) return;              // already at max, waiting on combat
+      const AB = CARD_ABILITIES['Spinosaurus'];
+      self._spinoMeter = (self._spinoMeter | 0) + 1;
+      if (self._spinoMeter >= AB.METER_MAX) {
+        self._spinoMeter = AB.METER_MAX;
+        self._spinoArmed = true;
+        G.log(`[HUNT METER] Spinosaurus is at ${AB.METER_MAX}/${AB.METER_MAX} — he strikes every lane this round.`);
+      }
+    },
+    // onBeforeCombat, not onBeforeAttack: this fires for EVERY card on the
+    // board before ANY lane resolves, which is both "simultaneously" and the
+    // only hook that still runs when Spinosaurus's own lane is uncontested.
+    // onBeforeAttack only fires for cards that have a target to swing at.
+    onBeforeCombat(G, self) {
+      if (!self._spinoArmed || self.currentHealth <= 0) return;
+      if (G.isActionLocked(self)) {
+        // Stays armed — he could not act, so the meter is not spent.
+        G.log(`  [HUNT METER BLOCKED] Spinosaurus is ${G.actionLockLabel(self)} — the rampage waits.`);
+        return;
+      }
+      self._spinoArmed = false;
+      self._spinoMeter = 0;
+      const opp = G.opponent(self.owner);
+      const targets = [];
+      for (let i = 0; i < G.LANE_COUNT; i++) {
+        const e = G.state.lanes[i][opp];
+        if (e && e.currentHealth > 0) targets.push(e);
+      }
+      if (!targets.length) {
+        G.log(`[HUNT METER] Spinosaurus rampages — but every lane is empty.`);
+        return;
+      }
+      G.log(`[HUNT METER] Spinosaurus rampages — striking ${targets.length} lane${targets.length === 1 ? '' : 's'} at once!`);
+      if (typeof UI !== 'undefined' && UI._spinosaurusRampage) {
+        try { UI._spinosaurusRampage(self, targets); } catch (e) {}
+      }
+      self._spinoRampaging = true;
+      targets.forEach(e => {
+        if (self.currentHealth <= 0 || e.currentHealth <= 0) return;
+        G.applyCombatDamage(self, e);
+      });
+      self._spinoRampaging = false;
+      G.cleanupDead();
+      // He spent his swing on the sweep — no second hit when his lane resolves.
+      self._skipNormalAttack = true;
+    },
+    onDeath(G, self, laneIdx) {
+      // The habitat goes with him, in the same beat.
+      const l = (self._habitatLane !== undefined) ? self._habitatLane : laneIdx;
+      const lane = G.state.lanes[l];
+      const env = lane && lane._env && lane._env[self.owner];
+      if (env && env.name === 'Wetlands') {
+        lane._env[self.owner] = null;
+        G.log(`  [WETLANDS] Spinosaurus falls — the wetlands drain away with him.`);
+        if (typeof UI !== 'undefined' && UI._fxWetlandsDrain) {
+          try { UI._fxWetlandsDrain(l, self.owner); } catch (e) {}
+        }
+      }
     },
   },
 

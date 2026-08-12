@@ -134,6 +134,13 @@
   --kw-unresistible:   #d7b3e6;   /* purple */
   --kw-taunt:          #ffe066;   /* gold */
   --kw-hunt:           #ff8a7a;   /* red */
+  /* Spinosaurus / Wetlands. Deliberately NOT --kw-hunt's red: the Hunt Meter
+     sits next to Hunt in the same badge row and a shared color would read as
+     one keyword with a stray number. Swamp green/lime is its own family, and
+     the habitat's teal is its quieter half. */
+  --kw-hunt-meter:     #c0f052;   /* lime */
+  --kw-habitat:        #4fd6a0;   /* swamp teal */
+  --kw-spawn-only:     #8e9aa8;   /* slate — provenance, not power */
   --kw-revive:         #d7b3e6;   /* purple — distinct from --kw-evade green so a Wolverine REVIVE 1 badge can't be misread as EVADE 1 (user feedback). Purple also reads as "supernatural / cheat-death" which fits the resurrection mechanic semantically. */
   --kw-dmg-immune:     #d7b3e6;   /* purple */
   --kw-untrickable:    #e8eef6;   /* silver */
@@ -7156,6 +7163,18 @@ body.hit-pause .ai-hand * {
 .badge-splash     { color: var(--kw-splash); }
 .badge-immune     { color: var(--kw-immune); }
 .badge-hunt       { color: var(--kw-hunt); }
+.badge-hunt-meter { color: var(--kw-hunt-meter); }
+/* Meter at max — it discharges the next time combat starts, so it pulses like
+   the other "about to happen" badges (Critical, Burning) rather than sitting
+   still at a number you have to compare against 3 yourself. */
+.badge-hunt-meter-full { animation: hunt-meter-full 0.75s ease-in-out infinite alternate; font-weight: 700; }
+@keyframes hunt-meter-full {
+  from { opacity: 1;    text-shadow: 0 0 4px rgba(192,240,82,0.9); }
+  to   { opacity: 0.72; text-shadow: 0 0 11px rgba(143,220,79,0.7); }
+}
+.badge-habitat-power { color: var(--kw-habitat); }
+.badge-habitat-open  { color: var(--kw-hunt-meter); font-weight: 700; }
+.badge-spawn-only    { color: var(--kw-spawn-only); }
 .badge-revive     { color: var(--kw-revive); }
 .badge-unresistible{ color: var(--kw-unresistible); }
 .badge-debuff     { color: var(--kw-drain); }
@@ -31679,6 +31698,210 @@ body.round-tick .board::after {
       rgba(0, 100, 40, 0.08) 50%,
       rgba(0, 140, 50, 0.14) 100%);
   border: 1px solid rgba(0, 200, 80, 0.28);
+}
+
+/* Wetlands — standing-water teal/green tint */
+.lane-env-bg.env-wetlands {
+  background:
+    linear-gradient(180deg,
+      rgba(0, 120, 110, 0.16) 0%,
+      rgba(10, 70, 55, 0.09) 50%,
+      rgba(0, 140, 95, 0.15) 100%);
+  border: 1px solid rgba(60, 210, 160, 0.30);
+}
+
+/* =====================================================================
+   WETLANDS / SPINOSAURUS — the release
+   Three beats: the surface breaks, the sail rises, the animal lands.
+   Every animation here is a one-shot with a JS-side removal timer — no loops
+   at all, so nothing here can sit on the board burning battery.
+   ===================================================================== */
+
+/* Beat 0 — a single ring per Power lost. */
+@keyframes wetlandsRipple {
+  0%   { transform: translate(-50%, -50%) scale(0.15); opacity: 0.75; }
+  100% { transform: translate(-50%, -50%) scale(1.9);  opacity: 0;    }
+}
+.wetlands-ripple {
+  position: absolute;
+  left: 50%;
+  top: 62%;
+  width: 82%;
+  aspect-ratio: 2 / 1;
+  border: 2px solid rgba(120, 240, 200, 0.75);
+  border-radius: 50%;
+  pointer-events: none;
+  animation: wetlandsRipple 0.85s ease-out forwards;
+}
+
+/* Beat 1 — the surface breaks: three rings, staggered. */
+@keyframes wetlandsBreakRing {
+  0%   { transform: translate(-50%, -50%) scale(0.1); opacity: 0; }
+  15%  { opacity: 0.9; }
+  100% { transform: translate(-50%, -50%) scale(2.3); opacity: 0; }
+}
+.wetlands-break {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+.wetlands-break::before,
+.wetlands-break::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 66%;
+  width: 78%;
+  aspect-ratio: 2 / 1;
+  border: 2px solid rgba(150, 255, 215, 0.8);
+  border-radius: 50%;
+  animation: wetlandsBreakRing 1.15s ease-out forwards;
+}
+.wetlands-break::after { animation-delay: 0.28s; border-color: rgba(90, 220, 175, 0.65); }
+
+/* A lane-shaped stage inside #signature-fx-layer (position:fixed, z-index 200),
+   positioned at the lane's screen rect by JS. It lives OUTSIDE the board on
+   purpose — renderBoard deletes every lane child except the slots, the
+   separator and the env background, so FX parked in the lane die on the next
+   render. It also clips: `.lane` is overflow:visible (the Pennywise balloon
+   rises past its top edge, Freddy's slash marks bleed), and the sail must not
+   show the half of itself that is meant to be underwater. */
+.lane-fx-stage {
+  position: fixed;
+  overflow: hidden;
+  pointer-events: none;
+  border-radius: 2px;
+}
+
+/* The waterline itself — opaque enough to hide the card that has already been
+   summoned underneath it, and cleared on the reveal beat. */
+.wetlands-surface {
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(180deg,
+      rgba(4, 26, 24, 0.90) 0%,
+      rgba(6, 38, 33, 0.95) 45%,
+      rgba(3, 20, 18, 0.97) 100%);
+  transition: opacity 0.45s ease-out;
+}
+.spino-release-stage.spino-release-clearing .wetlands-surface,
+.spino-release-stage.spino-release-clearing .spino-sail { opacity: 0; }
+.spino-release-stage.spino-release-clearing .spino-sail { transition: opacity 0.35s ease-out; }
+
+/* Beat 2 — THE SAIL. Rises slowly out of the bottom of the lane, clipped so
+   the lower half stays "submerged", and drifts a little as it climbs. */
+@keyframes spinoSailRise {
+  0%   { transform: translate(-50%, 74%) scaleY(0.35); opacity: 0;    filter: blur(2.5px); }
+  22%  {                                                opacity: 0.85; }
+  70%  { transform: translate(-50%, 16%) scaleY(1);     opacity: 0.95; filter: blur(0.6px); }
+  100% { transform: translate(-50%,  6%) scaleY(1.06);  opacity: 1;    filter: blur(0); }
+}
+/* Sized close to the viewBox's own 2:1 so the spines stay spines. The first
+   pass was 96%x62% of a tall lane — a ~1:3 box for a 2:1 drawing, which
+   stretched every peak flat into one dome. */
+.spino-sail {
+  position: absolute;
+  left: 50%;
+  bottom: 0;
+  width: 94%;
+  height: 30%;
+  transform: translate(-50%, 74%);
+  pointer-events: none;
+  animation: spinoSailRise 1.3s cubic-bezier(0.22, 0.72, 0.3, 1) forwards;
+}
+.spino-sail svg { width: 100%; height: 100%; display: block; }
+/* A near-black silhouette on near-black water is nothing — measured: the first
+   pass at 0.34 rim alpha did not read at all against the Wetlands art. The
+   RIM is what makes a silhouette legible here, so it carries the weight, with
+   a wet highlight along the spines and a dark halo to lift the body off the
+   background. */
+.spino-sail svg path {
+  fill: rgba(3, 14, 12, 0.97);
+  stroke: rgba(165, 255, 220, 0.85);
+  stroke-width: 1.7;
+  stroke-linejoin: round;
+  filter:
+    drop-shadow(0 -3px 14px rgba(90, 245, 190, 0.6))
+    drop-shadow(0 4px 16px rgba(0, 0, 0, 0.85));
+}
+
+/* Beat 3 — spray on landing. */
+@keyframes wetlandsSprayFade {
+  0%   { opacity: 0.85; transform: scale(0.9); }
+  100% { opacity: 0;    transform: scale(1.25); }
+}
+.wetlands-spray {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(circle at 30% 72%, rgba(190, 255, 230, 0.55) 0%, transparent 42%),
+    radial-gradient(circle at 68% 64%, rgba(140, 240, 205, 0.45) 0%, transparent 38%),
+    radial-gradient(circle at 50% 80%, rgba(220, 255, 245, 0.50) 0%, transparent 36%);
+  animation: wetlandsSprayFade 0.9s ease-out forwards;
+}
+
+/* Beat 3 — the animal itself. */
+@keyframes spinoReveal {
+  0%   { transform: scale(1.5) translateY(-16%); opacity: 0;
+         filter: brightness(2.4) contrast(1.4) drop-shadow(0 0 26px rgba(90, 235, 180, 0.9)); }
+  45%  { transform: scale(1.12) translateY(2%);  opacity: 1;
+         filter: brightness(1.35) drop-shadow(0 0 18px rgba(90, 235, 180, 0.7)); }
+  70%  { transform: scale(0.97) translateY(0);   opacity: 1; }
+  100% { transform: scale(1)    translateY(0);   opacity: 1; filter: none; }
+}
+.card.spino-reveal {
+  animation: spinoReveal 0.78s cubic-bezier(0.1, 0.78, 0.3, 1) forwards !important;
+}
+
+/* The habitat drains when he dies. */
+@keyframes wetlandsDrain {
+  0%   { opacity: 0.75; transform: scaleY(1);    }
+  100% { opacity: 0;    transform: scaleY(0.02); }
+}
+.wetlands-drain {
+  position: absolute;
+  inset: 0;
+  transform-origin: 50% 100%;
+  pointer-events: none;
+  background: linear-gradient(180deg, transparent 0%, rgba(20, 90, 70, 0.55) 55%, rgba(60, 200, 155, 0.5) 100%);
+  animation: wetlandsDrain 0.95s ease-in forwards;
+}
+
+/* Start-of-round stalk — a wake sliding across the lane he moves into. */
+@keyframes spinoWake {
+  0%   { transform: translateX(-115%) scaleX(0.6); opacity: 0;   }
+  25%  { opacity: 0.85; }
+  100% { transform: translateX(115%)  scaleX(1);   opacity: 0;   }
+}
+.spino-wake {
+  position: absolute;
+  left: 0;
+  top: 58%;
+  width: 100%;
+  height: 14%;
+  pointer-events: none;
+  background: linear-gradient(90deg, transparent 0%, rgba(140, 245, 200, 0.55) 45%, rgba(200, 255, 235, 0.75) 55%, transparent 100%);
+  filter: blur(1.5px);
+  animation: spinoWake 1s ease-in-out forwards;
+}
+.spino-wake.spino-wake-rev { animation-direction: reverse; }
+
+/* Hunt Meter discharge — one heavy lunge on the card itself. */
+@keyframes spinoRampage {
+  0%   { transform: scale(1)    rotate(0deg);   filter: none; }
+  20%  { transform: scale(1.16) rotate(-3deg);  filter: brightness(1.5) drop-shadow(0 0 16px rgba(192, 240, 82, 0.85)); }
+  55%  { transform: scale(1.08) rotate(2.5deg); filter: brightness(1.25) drop-shadow(0 0 12px rgba(143, 220, 79, 0.7)); }
+  100% { transform: scale(1)    rotate(0deg);   filter: none; }
+}
+.card.spino-rampage {
+  animation: spinoRampage 0.65s cubic-bezier(0.2, 0.8, 0.3, 1) forwards !important;
+  z-index: 40;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .spino-sail, .wetlands-break, .spino-wake, .lane-fx-stage { display: none; }
 }
 
 /* Environment cards in hand — no stat orbs, distinct border so they

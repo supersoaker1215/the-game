@@ -5017,6 +5017,202 @@ test('The 2026-08-09 wording batch stuck', function () {
 });
 
 // ============================================================
+// ---- WETLANDS / SPINOSAURUS --------------------------------
+// ============================================================
+// An environment lives in the lane's `_env` sub-slot, NOT the combat slot —
+// place() puts cards in the combat slot, which would make findCardLane report
+// the right lane for the wrong reason and let an ally and the habitat fight
+// over one slot. Every habitat test needs the real slot.
+function placeEnv(G, name, owner, lane) {
+  var card = G.createCardInstance(cardByName(name), owner);
+  card.isEnvironment = true;
+  if (!G.state.lanes[lane]._env) G.state.lanes[lane]._env = { player: null, ai: null };
+  G.state.lanes[lane]._env[owner] = card;
+  return card;
+}
+
+test('Wetlands drains on EITHER side\'s Block Meter, not just its owner\'s', function () {
+  var G = freshGame();
+  var wet = placeEnv(G, 'Wetlands', 'player', 2);
+  CARD_ABILITIES['Wetlands'].onPlay(G, wet, 2);
+  assertEq(wet._wetPower, 3, 'starts at 3 Power');
+  // The blocker argument is who blocked; the drain must ignore it entirely.
+  G._notifyBlockMeterFired('ai');
+  assertEq(wet._wetPower, 2, 'an ENEMY block drained it');
+  G._notifyBlockMeterFired('player');
+  assertEq(wet._wetPower, 1, 'and so does its owner\'s');
+  assertEq(!!wet._wetReleased, false, 'not released at 1');
+});
+
+test('Wetlands at 0 Power releases Spinosaurus and takes the enemy in the lane', function () {
+  var G = freshGame();
+  var wet = placeEnv(G, 'Wetlands', 'player', 2);
+  CARD_ABILITIES['Wetlands'].onPlay(G, wet, 2);
+  var prey = place(G, 'Sabertooth', 'ai', 2);
+  G._notifyBlockMeterFired('ai');
+  G._notifyBlockMeterFired('ai');
+  G._notifyBlockMeterFired('ai');
+  assertEq(wet._wetPower, 0, 'drained to 0');
+  assertEq(wet._wetReleased, true, 'and latched as released');
+  assert(prey.currentHealth <= 0, 'the enemy standing in the lane is destroyed');
+  var spino = G.state.lanes[2].player;
+  assert(!!spino && spino.name === 'Spinosaurus', 'Spinosaurus surfaced in the lane');
+  assertEq(spino.attack, 4, 'at printed 4 ATK');
+  assertEq(spino.currentHealth, 6, 'and 6 HP');
+  // THE HABITAT STAYS. This is the one thing that separates Wetlands from
+  // Boiler Room / Sewers / Open Water, all of which clear their own env slot
+  // on spawn — so it is the assertion most likely to regress if someone
+  // "fixes" Wetlands to match its siblings.
+  assertEq(G.state.lanes[2]._env.player, wet, 'the habitat is still in the lane');
+});
+
+test('A further Block Meter never releases a SECOND Spinosaurus', function () {
+  var G = freshGame();
+  var wet = placeEnv(G, 'Wetlands', 'player', 1);
+  CARD_ABILITIES['Wetlands'].onPlay(G, wet, 1);
+  for (var i = 0; i < 6; i++) G._notifyBlockMeterFired('ai');
+  assertEq(wet._wetPower, 0, 'Power floors at 0 rather than going negative');
+  var spinos = G.getAllCardsOf('player').filter(function (c) { return c.name === 'Spinosaurus'; });
+  assertEq(spinos.length, 1, 'exactly one Spinosaurus, however many blocks fire');
+});
+
+test('An ally with no open lane is absorbed; Spinosaurus adds its stats', function () {
+  var G = freshGame();
+  var wet = placeEnv(G, 'Wetlands', 'player', 0);
+  CARD_ABILITIES['Wetlands'].onPlay(G, wet, 0);
+  // Fill every lane on the player's side so there is nowhere to displace to.
+  var ally = place(G, 'Sabertooth', 'player', 0);   // 2/3
+  for (var l = 1; l < G.LANE_COUNT; l++) place(G, 'Sabertooth', 'player', l);
+  var atk = ally.attack, hp = ally.currentHealth;
+  G._notifyBlockMeterFired('player');
+  G._notifyBlockMeterFired('player');
+  G._notifyBlockMeterFired('player');
+  var spino = G.state.lanes[0].player;
+  assert(!!spino && spino.name === 'Spinosaurus', 'Spinosaurus took the lane');
+  assertEq(spino.attack, 4 + atk, 'absorbed the ally\'s ATK');
+  assertEq(spino.currentHealth, 6 + hp, 'and its remaining HP');
+});
+
+test('Spinosaurus stalks to the lane the opponent last played into', function () {
+  var G = freshGame();
+  var spino = place(G, 'Spinosaurus', 'player', 0);
+  G.state.ai._lastPlayedLane = 4;
+  CARD_ABILITIES['Spinosaurus'].onTurnStart(G, spino);
+  assertEq(G.findCardLane(spino), 4, 'moved to the opponent\'s last play');
+  // An ally already holding that lane is not evicted by a stalk.
+  var G2 = freshGame();
+  var sp2 = place(G2, 'Spinosaurus', 'player', 0);
+  place(G2, 'Sabertooth', 'player', 3);
+  G2.state.ai._lastPlayedLane = 3;
+  CARD_ABILITIES['Spinosaurus'].onTurnStart(G2, sp2);
+  assertEq(G2.findCardLane(sp2), 0, 'stayed put — the lane is taken');
+});
+
+test('The Hunt Meter fills on damage to ANY card, and arms at 3', function () {
+  var G = freshGame();
+  var spino = place(G, 'Spinosaurus', 'player', 0);
+  assertEq(spino.hasHuntMeter, true, 'the printed keyword reached the instance');
+  // ...and it must NOT have picked up the vanilla Hunt keyword off the shared
+  // first word. Two different mechanics; one would move him twice a round.
+  assertEq(!!spino.hasHunt, false, 'Hunt Meter is not Hunt');
+  var victim = place(G, 'Sabertooth', 'ai', 3);
+  G.dealDamage(victim, 1, null);
+  assertEq(spino._spinoMeter, 1, 'an enemy taking damage fills it');
+  var ally = place(G, 'Bane', 'player', 4);
+  G.dealDamage(ally, 1, null);
+  assertEq(spino._spinoMeter, 2, 'so does an ALLY taking damage');
+  G.dealDamage(victim, 1, null);
+  assertEq(spino._spinoMeter, 3, 'reaches max');
+  assertEq(spino._spinoArmed, true, 'and arms');
+  G.dealDamage(victim, 1, null);
+  assertEq(spino._spinoMeter, 3, 'further damage does not overfill it');
+});
+
+test('An armed Spinosaurus strikes every occupied lane and skips his own swing', function () {
+  var G = freshGame();
+  var spino = place(G, 'Spinosaurus', 'player', 0);
+  spino._spinoArmed = true;
+  spino._spinoMeter = 3;
+  var e0 = place(G, 'Sabertooth', 'ai', 0);   // 2/3
+  var e3 = place(G, 'Sabertooth', 'ai', 3);
+  var e5 = place(G, 'Sabertooth', 'ai', 5);
+  var hp0 = e0.currentHealth, hp3 = e3.currentHealth, hp5 = e5.currentHealth;
+  CARD_ABILITIES['Spinosaurus'].onBeforeCombat(G, spino);
+  assert(e0.currentHealth < hp0, 'his own lane was hit');
+  assert(e3.currentHealth < hp3, 'a lane he is not in was hit');
+  assert(e5.currentHealth < hp5, 'and the far lane too');
+  assertEq(spino._skipNormalAttack, true, 'the sweep IS his attack — no second swing');
+  assertEq(spino._spinoMeter, 0, 'meter reset');
+  assertEq(spino._spinoArmed, false, 'and disarmed');
+});
+
+test('The rampage does not refill the meter it just spent', function () {
+  // Six lanes of damage in one beat would re-arm it instantly and the card
+  // would rampage every round forever — a meter that is always full is not a
+  // meter. Ordinary combat damage still feeds it (covered above).
+  var G = freshGame();
+  var spino = place(G, 'Spinosaurus', 'player', 0);
+  spino._spinoArmed = true;
+  for (var l = 0; l < G.LANE_COUNT; l++) place(G, 'Sabertooth', 'ai', l);
+  CARD_ABILITIES['Spinosaurus'].onBeforeCombat(G, spino);
+  assertEq(spino._spinoMeter, 0, 'still empty after mauling six lanes');
+  assertEq(!!spino._spinoArmed, false, 'and still disarmed');
+});
+
+test('A frozen Spinosaurus keeps his charge instead of wasting it', function () {
+  var G = freshGame();
+  var spino = place(G, 'Spinosaurus', 'player', 0);
+  spino._spinoArmed = true;
+  spino._spinoMeter = 3;
+  spino.isFrozen = true;
+  var enemy = place(G, 'Sabertooth', 'ai', 0);
+  var hp = enemy.currentHealth;
+  CARD_ABILITIES['Spinosaurus'].onBeforeCombat(G, spino);
+  assertEq(enemy.currentHealth, hp, 'no rampage while action-locked');
+  assertEq(spino._spinoArmed, true, 'the charge is held, not burned');
+});
+
+test('The habitat drains the moment Spinosaurus dies', function () {
+  var G = freshGame();
+  var wet = placeEnv(G, 'Wetlands', 'player', 2);
+  CARD_ABILITIES['Wetlands'].onPlay(G, wet, 2);
+  G._notifyBlockMeterFired('ai');
+  G._notifyBlockMeterFired('ai');
+  G._notifyBlockMeterFired('ai');
+  var spino = G.state.lanes[2].player;
+  assert(!!spino && spino.name === 'Spinosaurus', 'released');
+  assertEq(G.state.lanes[2]._env.player, wet, 'habitat present while he lives');
+  spino.currentHealth = 0;
+  CARD_ABILITIES['Spinosaurus'].onDeath(G, spino, 2);
+  assertEq(G.state.lanes[2]._env.player, null, 'habitat goes with him');
+});
+
+test('A drained habitat cleans itself up when Spinosaurus leaves without dying', function () {
+  // Phantom Zone bounces him to a hand and Devour voids him past handleDeath —
+  // neither fires onDeath, so the habitat would otherwise sit there forever.
+  var G = freshGame();
+  var wet = placeEnv(G, 'Wetlands', 'player', 2);
+  CARD_ABILITIES['Wetlands'].onPlay(G, wet, 2);
+  G._notifyBlockMeterFired('ai');
+  G._notifyBlockMeterFired('ai');
+  G._notifyBlockMeterFired('ai');
+  G.state.lanes[2].player = null;              // bounced away, no death
+  CARD_ABILITIES['Wetlands'].onTurnStart(G, wet);
+  assertEq(G.state.lanes[2]._env.player, null, 'the water drains on its own');
+});
+
+test('Spinosaurus is spawn-only and never enters a draftable pool', function () {
+  var def = cardByName('Spinosaurus');
+  assertEq(def._spawnOnly, true, 'flagged spawn-only');
+  var pool = CARD_DEFS.filter(function (d) { return !d._spawnOnly; });
+  assertEq(pool.some(function (d) { return d.name === 'Spinosaurus'; }), false,
+    'excluded from the draftable pool');
+  // Wetlands is the opposite — it MUST be draftable or the pair is unreachable.
+  assertEq(!!cardByName('Wetlands')._spawnOnly, false, 'Wetlands is draftable');
+  assertEq(cardByName('Wetlands').isEnvironment, true, 'and is an environment');
+});
+
+// ============================================================
 // ---- RUNNER ------------------------------------------------
 // ============================================================
 

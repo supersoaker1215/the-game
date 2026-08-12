@@ -104,6 +104,10 @@ const CARD_DEFS = [
     isEnvironment: true,
     abilities: [],
     desc: "While Active: The first card destroyed in this lane turns Open Water into a (4/4) Jaws on your side. An ally in that lane moves to an empty lane — with no empty lane it is destroyed and Jaws adds its stats." },
+  { name: "Wetlands", cost: 2, attack: 0, health: 1, type: "environment",
+    isEnvironment: true,
+    abilities: [],
+    desc: "While Active: Each time either player's Block Meter fires, this lane loses 1 Power. At 0, Spinosaurus is released here, destroying the enemy in this lane. An ally there moves to an empty lane — with no empty lane it is destroyed and Spinosaurus adds its stats. The habitat remains until Spinosaurus dies." },
   { name: "Bane", cost: 2, attack: 2, health: 3, type: "villain",
     abilities: ["Overdrive"],
     desc: "When Played: An enemy takes (−1/−1) and loses all Evade. While Active: Add (+1/+1) when damaged." },
@@ -285,6 +289,10 @@ const CARD_DEFS = [
     desc: "When Played: Freeze 1 the enemy opposite. Add 2 to your Block Meter. While Active: When Wonder Woman's attack lands on an enemy card, deal (ATK−1) to 1 chained enemy." },
 
   // ==================== COST 5 ====================
+  { name: "Spinosaurus", cost: 5, attack: 4, health: 6, type: "scifi",
+    _spawnOnly: true,
+    abilities: ["Spawn Only", "Hunt Meter"],
+    desc: "While Active: At the start of each round, moves to the lane where the opponent last played a card. Each time any card takes damage the Hunt Meter fills by 1 — at 3, Spinosaurus strikes every occupied lane at once, then resets." },
   { name: "Davy Jones", cost: 5, attack: 3, health: 6, type: "villain",
     abilities: [],
     desc: "When Played: Summon The Kraken (5/6) in any lane." },

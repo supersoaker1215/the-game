@@ -4455,6 +4455,7 @@ const Game = {
         onEnemyKilled: card.onEnemyKilled,
         onEvade: card.onEvade, onDamagePlayer: card.onDamagePlayer, onTurnStart: card.onTurnStart,
         onLaneResolved: card.onLaneResolved, onLaneCombat: card.onLaneCombat,
+        onAnyCardDamaged: card.onAnyCardDamaged, onBlockMeterFired: card.onBlockMeterFired,
         passive: card.passive
       };
       card.onPlay = null; card.onDeath = null; card.onDamaged = null;
@@ -4462,6 +4463,10 @@ const Game = {
       card.onEndOfTurn = null; card.onAnyCardPlayed = null; card.onAllyKilled = null;
       card.onEnemyKilled = null;
       card.onEvade = null; card.onDamagePlayer = null; card.onTurnStart = null;
+      // A hidden card reacts to nothing — a face-down Spinosaurus must not
+      // tick his Hunt Meter from the shadows, which would leak that he is
+      // there the moment the badge moved.
+      card.onAnyCardDamaged = null; card.onBlockMeterFired = null;
       card.onLaneResolved = null; card.onLaneCombat = null;
       card.passive = null;
       delete card._playFaceDown;
@@ -4483,6 +4488,15 @@ const Game = {
 
     // Activate "While Active" passives immediately
     if (card.passive === 'faceDownOption') this.state[owner].faceDownAvailable = true;
+
+    // WHERE THIS SIDE LAST PLAYED. One recorded fact, read by anything that
+    // needs to stalk a player's most recent commitment (Spinosaurus's
+    // start-of-round move). Recorded here rather than derived at read time
+    // because "most recently played" is not recoverable from board state — a
+    // card can move, die, or be bounced and the lane it was PLAYED into is
+    // gone. Survives on the seat, so it rides MP broadcasts like any other
+    // seat field, and environments count: they are cards you played.
+    this.state[owner]._lastPlayedLane = laneIdx;
 
     // Hunt mechanic — extracted to _resolveHuntChase. Frozen/stunned
     // hunters can't move; direct-lane assignment fires onMoved post-jump.
@@ -4951,6 +4965,7 @@ const Game = {
           card.onEndOfTurn = orig.onEndOfTurn; card.onAnyCardPlayed = orig.onAnyCardPlayed; card.onAllyKilled = orig.onAllyKilled;
           card.onEnemyKilled = orig.onEnemyKilled;
           card.onEvade = orig.onEvade; card.onDamagePlayer = orig.onDamagePlayer; card.onTurnStart = orig.onTurnStart;
+          card.onAnyCardDamaged = orig.onAnyCardDamaged; card.onBlockMeterFired = orig.onBlockMeterFired;
           card.onLaneResolved = orig.onLaneResolved;
           card.passive = orig.passive;
           delete card._faceDownOriginals;
@@ -6330,7 +6345,7 @@ const Game = {
     }
     this._creditChain(attacker, 'statsEnemyDamage', dmg);
     if (dmg > 0) this._resolveLifesteal(attacker, dmg);
-    if (target.onDamaged) target.onDamaged(this, target, attacker, dmg);
+    this._afterDamage(target, attacker, dmg);
 
     if (target.currentHealth <= 0) {
       // Master's Apprentice (Yoda) — overkill trample. currentHealth is now
@@ -6586,7 +6601,7 @@ const Game = {
       mahoraga.statsHpTaken = (mahoraga.statsHpTaken || 0) + dmg;
       this.emitDmg(mahoraga.id, dmg, 'hit', undefined, undefined, mahoraga.currentHealth <= 0);
       this.log(`  [HIT] ${mahoraga.name} takes ${dmg} → ${Math.max(0, mahoraga.currentHealth)}/${mahoraga.maxHealth} HP`);
-      if (mahoraga.onDamaged) mahoraga.onDamaged(this, mahoraga, source, dmg);
+      this._afterDamage(mahoraga, source, dmg);
       if (mahoraga.currentHealth <= 0) {
         const lane = this.findCardLane(mahoraga);
         if (lane >= 0) this.handleDeath(mahoraga, lane, source || null);
@@ -6620,6 +6635,9 @@ const Game = {
         }
         this.log(`  [BLOCKED!] ${amount} damage fully blocked! Meter reset to 0`);
         this.emitDmg(null, amount, 'blocked', owner);
+        // A Block Meter just fired — the one moment "either player used their
+        // Block Meter" is true, on both the 1v1 and 2v2 paths below.
+        this._notifyBlockMeterFired(owner);
         // 2v2: both teammates draw a trick directly from the shared 2v2 trick pile
         if (this.is2v2()) {
           const tt = this.state.twoVTwo;
@@ -8560,7 +8578,7 @@ const Game = {
     if (actual > 0 && source && source.id != null && source.owner !== card.owner) {
       this._resolveLifesteal(source, actual);
     }
-    if (card.onDamaged) card.onDamaged(this, card, source, actual);
+    this._afterDamage(card, source, actual);
     if (card.currentHealth <= 0) {
       // Credit the source with this kill — ability/splash/trick damage
       // that finishes off a card should count toward `statsKills` just
@@ -10320,7 +10338,31 @@ const Game = {
     this.checkLaneTrap(card, laneIdx);
   },
 
+  // MODER'S COMPULSION IS A LANE TRAP. Runs at entry, before the arriving
+  // card's onPlay, so the card it drags in loses its kit BEFORE that kit can
+  // fire. It used to hang off onAnyCardPlayed, which broadcasts AFTER onPlay —
+  // and once On Play was moved ahead of the passives (the Peacemaker /
+  // Xenomorph ruling) that meant the arriving card always got its When Played
+  // off first. Worse, if that On Play killed Moder — Human Torch's arrival
+  // splash plus his blast does exactly that to a 2/1 — she was off the board
+  // by the time the broadcast reached her and never stripped anything.
+  _applyModerLaneStrip(card, laneIdx) {
+    if (!card || card._moderStripped) return;
+    const lane = this.state.lanes[laneIdx];
+    if (!lane) return;
+    const moder = lane[this.opponent(card.owner)];
+    if (!moder || moder.name !== 'Moder' || moder.currentHealth <= 0) return;
+    if (!(moder._moderStripPending > 0)) return;
+    const ab = (typeof CARD_ABILITIES !== 'undefined') && CARD_ABILITIES['Moder'];
+    if (!ab || !ab._strip) return;
+    ab._strip(card, this);
+    moder._moderStripPending -= 1;
+  },
+
   checkLaneTrap(card, laneIdx) {
+    // Moder first: a card dragged into her lane loses its abilities before
+    // anything else in the entry sequence gets to read them.
+    this._applyModerLaneStrip(card, laneIdx);
     if (!card || laneIdx < 0 || laneIdx >= this.LANE_COUNT) return;
     const lane = this.state.lanes[laneIdx];
     if (!lane || !lane.trap || lane.trap.placedBy === card.owner) return;
@@ -10368,6 +10410,38 @@ const Game = {
         this.log(`  [HAWKEYE] ${e.name} loses ${taken} ATK from splash! (now ${e.attack})`);
         this._creditChain(hawkeye, 'statsDebuffValue', taken);
       }
+    });
+  },
+
+  // THE one Block-Meter-fired notification, for effects that count blocks
+  // rather than damage. `blocker` is the side whose meter emptied. Same shape
+  // as _afterDamage: one call site in dealDamage, listeners declare
+  // onBlockMeterFired and are found here — no card reaches into the meter.
+  _notifyBlockMeterFired(blocker) {
+    this.getAllCardsOnBoard().forEach(c => {
+      if (!c.onBlockMeterFired || c.currentHealth <= 0) return;
+      try { c.onBlockMeterFired(this, c, blocker); } catch (e) { console.error(e); }
+    });
+  },
+
+  // THE one post-damage notification. Every path that actually reduces a
+  // card's HP funnels through here, so "a card took damage" has a single
+  // definition instead of four independent `if (x.onDamaged) x.onDamaged(...)`
+  // lines that drifted apart. Two things fire, in this order:
+  //   1. the damaged card's own onDamaged (retaliation: Wolverine, Thorns…)
+  //   2. onAnyCardDamaged on every OTHER live card (board-wide listeners)
+  // Adding a board-wide damage reaction means writing onAnyCardDamaged on the
+  // card — never a fifth call site. Deliberately synchronous rather than
+  // routed through broadcastHook: this fires once per damage instance (many
+  // times inside one combat), and queueing each one on THE STACK would push a
+  // counter tick through the same machinery that linearizes deaths.
+  _afterDamage(card, source, amount) {
+    if (!card) return;
+    if (card.onDamaged) card.onDamaged(this, card, source, amount);
+    if (!(amount > 0)) return;
+    this.getAllCardsOnBoard().forEach(c => {
+      if (!c.onAnyCardDamaged || c.currentHealth <= 0) return;
+      try { c.onAnyCardDamaged(this, c, card, amount, source); } catch (e) { console.error(e); }
     });
   },
 
@@ -10455,7 +10529,7 @@ const Game = {
     }
     card.currentHealth -= amount;
     this.log(`  [${tag}] ${card.name} takes ${amount} → ${Math.max(0, card.currentHealth)} HP`);
-    if (card.onDamaged) card.onDamaged(this, card, null, amount);
+    this._afterDamage(card, null, amount);
     return true;
   },
 
@@ -10779,7 +10853,8 @@ const Game = {
       evadeCharges: 0, armorValue: 0, invincibleTurns: 0,
       splashRange: 0, tauntTurns: 0,
       isOverdrive: false, isBullseye: false, immunityCharges: 0, permanentImmunity: false,
-      unresistibleCharges: 0, hasHunt: false, hasDamageImmunity: false, isUntrickable: false,
+      unresistibleCharges: 0, hasHunt: false, hasHuntMeter: false, isSpawnOnly: false,
+      hasDamageImmunity: false, isUntrickable: false,
       hasDeadDraw: 0,
       drawOnPlay: 0,
       isStunned: false, isFrozen: false, isFeared: false, isMindControlled: false,
@@ -10879,6 +10954,14 @@ const Game = {
       // a card defines but this list omits is silently dropped, and the card
       // just quietly does nothing.
       onLaneCombat: def.onLaneCombat || null,
+      // onAnyCardDamaged — "something on the board just took damage", fired for
+      // every live card from the ONE post-damage notifier (_afterDamage).
+      // Spinosaurus's Hunt Meter rides it.
+      onAnyCardDamaged: def.onAnyCardDamaged || null,
+      // onBlockMeterFired — "a Block Meter just emptied and blocked a hit",
+      // fired for both sides from _notifyBlockMeterFired. Wetlands drains its
+      // Power on it.
+      onBlockMeterFired: def.onBlockMeterFired || null,
       onMoved: def.onMoved || null,
       onLaneResolved: def.onLaneResolved || null,
       // onAnyTrickPlayed — fires for every trick played by either
@@ -11149,7 +11232,20 @@ const Game = {
         case 'Bullseye': card.isBullseye = true; break;
         case 'Immunity': card.immunityCharges = Math.max(card.immunityCharges, n || 1); break;
         case 'Unresistible': card.unresistibleCharges = Math.max(card.unresistibleCharges, n || 1); break;
-        case 'Hunt': card.hasHunt = true; break;
+        // "Hunt Meter" (Spinosaurus) splits to name='Hunt' — same two-word
+        // collision as 'Damage Immunity' / 'Dead Draw', and a live one: left
+        // unguarded it handed Spinosaurus the vanilla Hunt keyword too, so he
+        // would chase every enemy play AND take his start-of-round stalk. They
+        // are different mechanics that happen to share a first word.
+        case 'Hunt':
+          if (parts[1] === 'Meter') card.hasHuntMeter = true;
+          else card.hasHunt = true;
+          break;
+        // Printed marker for cards that can never be drafted or drawn — they
+        // enter play only through their spawner (Spinosaurus ← Wetlands). The
+        // engine gate is the def's `_spawnOnly`; this is the badge that tells
+        // the player why the card is not in any deck.
+        case 'Spawn': if (parts[1] === 'Only') card.isSpawnOnly = true; break;
         case 'Revive': card.reviveCharges = Math.max(card.reviveCharges, n || 1); break;
         case 'Untrickable': card.isUntrickable = true; card.permanentUntrickable = true; break;
         case 'Damage': if (parts[1] === 'Immunity') card.hasDamageImmunity = true; break;

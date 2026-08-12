@@ -13,7 +13,7 @@ const UI = {
   // cached PNGs (which don't have built-in cache busters since they're
   // referenced via background-image url() and not the index.html
   // version-suffix system). Bump this every time you regen art.
-  _CARD_ART_VERSION: 81,
+  _CARD_ART_VERSION: 82,
 
   // Per-card background-position overrides. Default is "center center".
   // Use when an image crops poorly at the default — e.g. a head gets cut
@@ -1704,7 +1704,9 @@ const UI = {
       // tail (click guard only, not a fade), and fullDuration keeps the engine
       // off it. Owner: "his when played is being cut, let it play all the way
       // through." This is a deliberate exception to the ~3s play-clip rule.
-      'Voldemort':        { play: { src: 'audio/cards/voldemort-play.mp3', fullDuration: true } },
+      // Voldemort hover: 65s. Full clip — the hover rule caps play/attack/death
+      // clips, not hovers.
+      'Voldemort':        { hover: { src: 'audio/cards/voldemort-hover.mp3', maxDur: 66 }, play: { src: 'audio/cards/voldemort-play.mp3', fullDuration: true } },
       // Obi-Wan hover: 86s of John Williams' "The Immolation Scene" (0:00 →
       // 1:26 of the source) — the Mustafar-duel elegy. 0.6s fade-in / 2s
       // fade-out baked; maxDur 86 = full clip. ?v=2 busts the old cached file.
@@ -1741,6 +1743,11 @@ const UI = {
       'Jaws':             { spawn: { src: 'audio/cards/jaws-spawn.mp3?v=2', maxDur: 10 }, play: { src: 'audio/cards/jaws-spawn.mp3?v=2', maxDur: 10 } },
       'Boiler Room':      { hover: { src: 'audio/cards/boiler-room-hover.mp3', maxDur: 25 } },
       'Sewers':           { hover: { src: 'audio/cards/sewers-hover.mp3', maxDur: 15 } },
+      // Wetlands hover: 10.9s of swamp ambience — full clip, hovers are not
+      // capped. Spinosaurus play (2.6s) doubles as his `spawn` cue, since the
+      // only way he reaches the board is Wetlands releasing him.
+      'Wetlands':         { hover: { src: 'audio/cards/wetlands-hover.mp3', maxDur: 11 } },
+      'Spinosaurus':      { spawn: { src: 'audio/cards/spinosaurus-play.mp3', maxDur: 3 }, play: { src: 'audio/cards/spinosaurus-play.mp3', maxDur: 3 } },
       'Open Water':       { hover: { src: 'audio/cards/open-water-hover.mp3' } },
       'Gargantua':        { hover: { src: 'audio/cards/gargantua-hover.mp3' } },
       'Ultron':           { hover: { src: 'audio/cards/ultron-hover.mp3', maxDur: 29 } },
@@ -7581,6 +7588,185 @@ const UI = {
         this._fxSparks(c, { color: '#ff6a6a', glow: '#c1121f', count: 12, spread: 64, size: 2.8 });
       }
     }
+  },
+
+  // An environment's lane label. Name alone for most of them; a habitat that
+  // is counting down toward releasing something prints the count, because a
+  // number that decides when the lane explodes should not live only behind a
+  // click-to-inspect. Reads the card's own counter — no parallel bookkeeping.
+  _envLabelText(env) {
+    if (!env) return '';
+    if (typeof Game !== 'undefined' && Game.isCardKind && Game.isCardKind(env, 'Wetlands')) {
+      if (env._wetReleased) return `${env.name} · OPEN`;
+      const AB = (typeof CARD_ABILITIES !== 'undefined') ? CARD_ABILITIES['Wetlands'] : null;
+      const start = AB ? AB.START_POWER : 3;
+      const pwr = (env._wetPower === undefined || env._wetPower === null) ? start : env._wetPower;
+      return `${env.name} · ${pwr}`;
+    }
+    return env.name;
+  },
+
+  // Wetlands loses a Power — a single ring spreading across the lane's water.
+  // Small on purpose: this fires up to three times a match and is a countdown
+  // tick, not an event. The release below is the event.
+  _fxWetlandsRipple(laneIdx) {
+    if (this._reducedMotion && this._reducedMotion()) return;
+    const stage = this._fxLaneStage(laneIdx, 'wetlands-ripple-stage');
+    if (!stage) return;
+    const ring = document.createElement('div');
+    ring.className = 'wetlands-ripple';
+    stage.appendChild(ring);
+    setTimeout(() => stage.remove(), 900);
+  },
+
+  // The habitat drains when Spinosaurus dies.
+  _fxWetlandsDrain(laneIdx) {
+    const stage = this._fxLaneStage(laneIdx, 'wetlands-drain-stage');
+    if (!stage) return;
+    const drain = document.createElement('div');
+    drain.className = 'wetlands-drain';
+    stage.appendChild(drain);
+    setTimeout(() => stage.remove(), 1000);
+  },
+
+  // A lane-shaped, lane-CLIPPED stage in the body-level FX layer.
+  //
+  // NOT a child of the lane, and that is the whole point. renderBoard's lane
+  // rebuild removes every child except the two slots, the separator and the
+  // env background, and rewrites the lane's className — so an FX node parked
+  // in the lane, and any class put on the lane to drive it, are both deleted
+  // by the very next render. Measured: the sail and the `spino-emerging` hide
+  // were gone before the first screenshot, because summoning Spinosaurus
+  // itself triggers a render. Same failure family as the cancelled combat
+  // lunge; the fix is to stop depending on board-owned DOM.
+  //
+  // #signature-fx-layer is position:fixed and untouched by any render, so the
+  // stage is placed at the lane's screen rect instead. It also paints ABOVE
+  // the board (z-index 200), which is what lets an opaque water panel cover
+  // the card during the emergence without touching the card element at all.
+  //
+  // Clipping matters too: `.lane` is overflow:visible (several existing FX
+  // rely on that), so an unclipped sail hung 33px below the waterline showing
+  // the body that is supposed to be underwater.
+  _fxLaneStage(laneIdx, cls) {
+    const laneEl = document.querySelectorAll('.board > .lane')[laneIdx];
+    if (!laneEl) return null;
+    const r = laneEl.getBoundingClientRect();
+    if (!r || !r.width) return null;
+    const stage = document.createElement('div');
+    stage.className = 'lane-fx-stage ' + (cls || '');
+    stage.style.cssText = `left:${r.left}px;top:${r.top}px;width:${r.width}px;height:${r.height}px;`;
+    this._fxLayer().appendChild(stage);
+    return stage;
+  },
+
+  // Start-of-round stalk — a wake sliding from the old lane to the new one.
+  _fxSpinoStalk(self, from, to) {
+    if (this._reducedMotion && this._reducedMotion()) return;
+    const stage = this._fxLaneStage(to, 'spino-wake-stage');
+    if (!stage) return;
+    const wake = document.createElement('div');
+    wake.className = 'spino-wake' + (to < from ? ' spino-wake-rev' : '');
+    stage.appendChild(wake);
+    setTimeout(() => stage.remove(), 1100);
+  },
+
+  // THE RELEASE. Three beats, in the order the water gives them up:
+  //   1. ~0.0s  the surface breaks — rings spreading from the lane centre
+  //   2. ~0.2s  the SAIL rises: a spined silhouette climbing out of the water,
+  //             slow, its lower half still under the surface
+  //   3. ~1.35s full reveal — the water clears, screen shake, spray, and the
+  //             card slams in
+  // Beat 2 is the point of the whole effect, so it gets the most time.
+  //
+  // The entire build runs on a body-level stage that covers the lane, INCLUDING
+  // an opaque water panel. That panel is what hides the newly-summoned card
+  // through beats 1-2 — the earlier version hid it with a class on the lane,
+  // which the next renderBoard deleted along with the sail itself.
+  _spinosaurusRelease(laneIdx, owner) {
+    if (this.sfx) this.sfx.playCardSfx('Spinosaurus', 'spawn');
+    const slotSel = owner === 'player' ? '.player-slot .card' : '.ai-slot .card';
+    const cardNow = () => {
+      const laneEl = document.querySelectorAll('.board > .lane')[laneIdx];
+      return laneEl ? laneEl.querySelector(slotSel) : null;
+    };
+    const slam = () => {
+      // Re-queried, never cached: the card element is rebuilt by the diff
+      // renderer during the sequence. `spino-reveal` is in
+      // _FX_TRANSIENT_CLASSES so it survives once applied.
+      const cardEl = cardNow();
+      if (!cardEl) return;
+      cardEl.classList.remove('spino-reveal');
+      void cardEl.offsetWidth;
+      cardEl.classList.add('spino-reveal');
+      setTimeout(() => cardEl.classList.remove('spino-reveal'), 800);
+    };
+
+    // Reduced motion still gets the reveal, just not the 1.4s build.
+    if (this._reducedMotion && this._reducedMotion()) { slam(); return; }
+
+    const stage = this._fxLaneStage(laneIdx, 'spino-release-stage');
+    if (!stage) { slam(); return; }
+
+    // The water surface — opaque enough to cover the card underneath.
+    const water = document.createElement('div');
+    water.className = 'wetlands-surface';
+    stage.appendChild(water);
+
+    // Beat 1 — the surface breaks.
+    const rings = document.createElement('div');
+    rings.className = 'wetlands-break';
+    stage.appendChild(rings);
+
+    // Beat 2 — the sail. A SPINED ridge, not a dome: the first pass was one
+    // smooth curve, which stretched into a featureless arch and read as a
+    // leaf. Peaks rise toward the middle so the shape has a crest, and the
+    // trailing edge runs long and low into the tail.
+    const sail = document.createElement('div');
+    sail.className = 'spino-sail';
+    sail.innerHTML = '<svg viewBox="0 0 120 60" preserveAspectRatio="none" aria-hidden="true">'
+      + '<path d="M1 60 C6 52 11 44 17 39 L21 26 L26 36 L31 18 L37 32 L43 11 L50 28'
+      + ' L57 6 L64 26 L71 9 L78 29 L85 16 L91 33 L97 25 C104 34 110 46 119 60 Z"/>'
+      + '</svg>';
+    stage.appendChild(sail);
+
+    // Beat 3 — the water clears and he lands.
+    setTimeout(() => {
+      this._screenShake('heavy');
+      stage.classList.add('spino-release-clearing');
+      const spray = document.createElement('div');
+      spray.className = 'wetlands-spray';
+      stage.appendChild(spray);
+      slam();
+      setTimeout(() => stage.remove(), 950);
+    }, 1350);
+  },
+
+  // Hunt Meter discharge — one lunge, then a strike flash on every lane he
+  // hits. Fired before any lane resolves, which is what "simultaneously"
+  // looks like on screen.
+  _spinosaurusRampage(self, targets) {
+    this._screenShake('heavy');
+    const srcEl = this._fxCardElById(self.id);
+    if (srcEl) {
+      srcEl.classList.remove('spino-rampage');
+      void srcEl.offsetWidth;
+      srcEl.classList.add('spino-rampage');
+      setTimeout(() => srcEl.classList.remove('spino-rampage'), 700);
+    }
+    const from = this._fxCenter(srcEl);
+    (targets || []).forEach((t, i) => {
+      setTimeout(() => {
+        const el = this._fxCardElById(t.id);
+        const to = this._fxCenter(el);
+        if (!to) return;
+        if (from && this._fxDrawBolt) {
+          try { this._fxDrawBolt(from, to, { color: '#c0f052', glow: '#4fd6a0', width: 3 }); } catch (e) {}
+        }
+        if (this._fxImpact) this._fxImpact(to, { color: '#c0f052', core: '#f2ffd0', size: 1.1 });
+        if (this._fxSparks) this._fxSparks(to, { color: '#8fdc4f', glow: '#2f7d3f', count: 10, spread: 58, size: 2.6 });
+      }, 40 * i);
+    });
   },
 
   _pennywiseJumpscare(laneIdx, owner) {
@@ -17678,7 +17864,14 @@ const UI = {
     // hold off until the entrance finishes. With card-enter dying early, the
     // ambient animation was also starting early, on top of a half-played
     // entrance — a second source of the same visual stutter.
-    'card-enter', 'card-landing'
+    'card-enter', 'card-landing',
+    // SPINOSAURUS. Both are applied imperatively at exactly the moments the
+    // card's snapshot busts — the release paints a brand-new card into the
+    // lane, and the rampage changes six enemies' HP in one beat — so without
+    // the exemption the diff would cancel them the same way it cancelled the
+    // lunge. Self-removing: spino-reveal at 800ms and spino-rampage at 700ms,
+    // both on setTimeouts in _spinosaurusRelease / _spinosaurusRampage.
+    'spino-reveal', 'spino-rampage'
   ],
 
   // Snapshot of every card-state field that affects the rendered visual.
@@ -17736,6 +17929,11 @@ const UI = {
       ur: card.unresistibleCharges | 0, dr: card.drawOnPlay | 0,
       bs: !!card.isBullseye, od: !!card.isOverdrive,
       hu: !!card.hasHunt, rev: card.reviveCharges | 0,
+      // Spinosaurus's Hunt Meter and Wetlands' Power both print live counts in
+      // the status row. Without them here the badge would keep showing the
+      // count it had when the card was last rebuilt for some OTHER reason.
+      hm: card._spinoMeter | 0, hma: !!card._spinoArmed,
+      wp: (card._wetPower == null ? -1 : card._wetPower | 0), wr: !!card._wetReleased,
       pl: !!card._parlayedThisRound,
       cr: !!card.isCrazy, ins: !!card.isInsane,
       fd: !!card.isFaceDown, jr: !!card.jumpReady,
@@ -18552,12 +18750,14 @@ const UI = {
         let envLabelPl = el.querySelector(':scope > .env-bg-label-player');
         if (envAi) {
           if (!envLabelAi) { envLabelAi = document.createElement('div'); envLabelAi.className = 'env-bg-label env-bg-label-ai'; el.appendChild(envLabelAi); }
-          if (envLabelAi.textContent !== envAi.name) envLabelAi.textContent = envAi.name;
+          const txtAi = this._envLabelText(envAi);
+          if (envLabelAi.textContent !== txtAi) envLabelAi.textContent = txtAi;
           envLabelAi.onclick = (e) => { UI.openCardInspect(envAi); e.stopPropagation(); };
         } else if (envLabelAi) { envLabelAi.remove(); }
         if (envPl) {
           if (!envLabelPl) { envLabelPl = document.createElement('div'); envLabelPl.className = 'env-bg-label env-bg-label-player'; el.appendChild(envLabelPl); }
-          if (envLabelPl.textContent !== envPl.name) envLabelPl.textContent = envPl.name;
+          const txtPl = this._envLabelText(envPl);
+          if (envLabelPl.textContent !== txtPl) envLabelPl.textContent = txtPl;
           envLabelPl.onclick = (e) => { UI.openCardInspect(envPl); e.stopPropagation(); };
         } else if (envLabelPl) { envLabelPl.remove(); }
       }
@@ -20875,6 +21075,10 @@ const UI = {
     if (c.unresistibleCharges > 0) b.push(badge('badge-unresistible', c.unresistibleCharges > 1 ? `Unresistible ${c.unresistibleCharges}` : 'Unresistible', 'Unresistible'));
     if (c.tauntTurns > 0) b.push(badge('badge-taunt', `Taunt ${c.tauntTurns}`, 'Taunt'));
     if (c.hasHunt) b.push(badge('badge-hunt', 'Hunt', 'Hunt'));
+    // SPAWN ONLY — a printed fact about where the card comes from, so it sits
+    // with the permanent keywords. Tells you why it is in no deck you can
+    // draft, which is otherwise only discoverable by never seeing it.
+    if (c.isSpawnOnly) b.push(badge('badge-spawn-only', 'Spawn Only', 'Spawn Only'));
     if (c.reviveCharges > 0) b.push(badge('badge-revive', `Revive ${c.reviveCharges}`, 'Revive'));
     if (c.hasDamageImmunity) b.push(badge('badge-dmg-immune', 'DmgImmune', 'Damage Immunity'));
     if (c.isUntrickable) b.push(badge('badge-untrickable', 'Untrickable', 'Untrickable'));
@@ -20896,6 +21100,27 @@ const UI = {
     const t = [];
     // Stack-aware status badges — counters drive these.
     if (c._mastersApprentice) t.push(badge('badge-apprentice', 'Masters Guidance', "Master's Guidance"));
+    // HUNT METER — Spinosaurus's charge, 0→3. Shown from 0 (not only once it
+    // has ticked) because the number IS the card: "how close is the rampage"
+    // is the only question you ask about him, and a badge that appears only
+    // after the first hit reads like a status someone applied to him.
+    if (c.hasHuntMeter) {
+      const max = (typeof CARD_ABILITIES !== 'undefined' && CARD_ABILITIES['Spinosaurus'])
+        ? CARD_ABILITIES['Spinosaurus'].METER_MAX : 3;
+      const filled = c._spinoArmed ? max : Math.min(max, c._spinoMeter | 0);
+      t.push(badge('badge-hunt-meter' + (c._spinoArmed ? ' badge-hunt-meter-full' : ''), `Hunt Meter ${filled}`, 'Hunt Meter'));
+    }
+    // HABITAT POWER — Wetlands' countdown to the release. Same reasoning as
+    // the Hunt Meter: the number is the whole card. Falls back to the ability's
+    // own START_POWER so a Wetlands still in hand prints its starting charge
+    // rather than nothing (the counter is only stamped on play).
+    if (typeof Game !== 'undefined' && Game.isCardKind && Game.isCardKind(c, 'Wetlands')) {
+      const AB = (typeof CARD_ABILITIES !== 'undefined') ? CARD_ABILITIES['Wetlands'] : null;
+      const start = AB ? AB.START_POWER : 3;
+      const pwr = (c._wetPower === undefined || c._wetPower === null) ? start : c._wetPower;
+      if (c._wetReleased) t.push(badge('badge-habitat-power badge-habitat-open', 'Released', 'Habitat Power'));
+      else t.push(badge('badge-habitat-power', `Power ${pwr}`, 'Habitat Power'));
+    }
     // Third arg is the CANONICAL KEYWORD, not prose — it is the KEYWORD_DATA
     // lookup key, and it supplies both the icon and the tooltip. This was
     // passing the whole sentence "Critical — deals double damage this round",
@@ -21044,6 +21269,15 @@ const UI = {
     'Bullseye':    { color: '#e8eef5', svg: '<svg viewBox="0 0 12 12"><circle cx="6" cy="6" r="5" stroke="currentColor" stroke-width="1" fill="none"/><circle cx="6" cy="6" r="2.5" stroke="currentColor" stroke-width="1" fill="none"/><circle cx="6" cy="6" r="0.8" fill="currentColor"/></svg>', tip: 'Damage bypasses Block Meter.' },
     'Overdrive':   { color: '#e67e22', svg: '<svg viewBox="0 0 12 12"><path d="M2.1 2.5 5.7 6l-3.6 3.5" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"/><path d="M6.8 2.5 10.4 6l-3.6 3.5" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"/></svg>', tip: 'Attacks again after killing an enemy.' },
     'Hunt':        { color: '#ff6b35', svg: '<svg viewBox="0 0 12 12"><circle cx="6" cy="6" r="4.5" stroke="currentColor" stroke-width="1" fill="none"/><path d="M6 1 V4 M6 8 V11 M1 6 H4 M8 6 H11" stroke="currentColor" stroke-width="1.2"/></svg>', tip: 'Seeks out any enemy played in an uncontested lane.' },
+    // Spinosaurus's charge — three concentric bite-marks closing on a core, so
+    // it reads as "something is filling up" and not as another targeting
+    // reticle (Hunt and Mark already own the ring-with-a-dot shape).
+    'Hunt Meter':  { color: '#c0f052', svg: '<svg viewBox="0 0 12 12"><rect x="1" y="4.2" width="10" height="3.6" rx="1.2" stroke="currentColor" stroke-width="1.1" fill="none"/><rect x="2.2" y="5.3" width="2.1" height="1.4" fill="currentColor"/><rect x="4.95" y="5.3" width="2.1" height="1.4" fill="currentColor"/><rect x="7.7" y="5.3" width="2.1" height="1.4" fill="currentColor"/></svg>', tip: 'Fills by 1 each time <b>any</b> card on the field takes damage. At <b>3</b>, Spinosaurus attacks every occupied lane at once instead of his own, then resets to 0. His own rampage does not refill it.' },
+    // Wetlands' countdown — a water line with a rising spine breaking it.
+    'Habitat Power': { color: '#4fd6a0', svg: '<svg viewBox="0 0 12 12"><path d="M0.8 8.4q1.3-1 2.6 0t2.6 0q1.3-1 2.6 0t2.6 0" stroke="currentColor" stroke-width="1.1" fill="none" stroke-linecap="round"/><path d="M2.6 6.6 4 3.4l1.4 3.2M6.6 6.6 8 2.2l1.4 4.4" stroke="currentColor" stroke-width="1.1" fill="none" stroke-linejoin="round"/></svg>', tip: 'The habitat\'s charge. Each time <b>either</b> player\'s Block Meter fires it drops by 1. At <b>0</b> the water breaks and what the habitat holds is released.' },
+    // Not a combat keyword — a provenance mark. Crossed-out card outline with
+    // a summon spark, i.e. "not from a deck."
+    'Spawn Only':  { color: '#8e9aa8', svg: '<svg viewBox="0 0 12 12"><rect x="2.4" y="1.4" width="7.2" height="9.2" rx="1" stroke="currentColor" stroke-width="1.1" fill="none"/><path d="M1.4 10.6 10.6 1.4" stroke="currentColor" stroke-width="1.25" stroke-linecap="round"/></svg>', tip: 'Never drafted, drawn or shuffled into a deck — this card enters play only when its spawner releases it. Spinosaurus comes from <b>Wetlands</b>. It can still be moved by effects that bounce a card to a hand (e.g. Phantom Zone), and is playable from there at its printed cost.' },
     'Splash':      { color: '#1abc9c', svg: '<svg viewBox="0 0 12 12"><circle cx="6" cy="6" r="1.85" fill="currentColor"/><path d="M0.9 6h1.7M9.4 6h1.7M2.5 2.5l1.2 1.2M8.3 8.3l1.2 1.2M9.5 2.5 8.3 3.7M3.7 8.3 2.5 9.5" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.1"/></svg>', tip: 'Damages adjacent enemies as well.' },
     'Armor':       { color: '#cdaa6e', svg: '<svg viewBox="0 0 12 12"><path d="M6 1 L10 3 V6 C10 9 6 11 6 11 C6 11 2 9 2 6 V3 Z" stroke="currentColor" stroke-width="1.2" fill="none"/></svg>', tip: 'Reduces incoming damage by N. Zero damage if fully absorbed.' },
     'Evade':       { color: '#2ecc71', svg: '<svg viewBox="0 0 12 12"><path d="M0.6 3.1H4.3" stroke="currentColor" stroke-width=".9" stroke-linecap="round" opacity=".55"/><circle cx="5.9" cy="3.1" r=".8" fill="currentColor"/><circle cx="4.3" cy="6.7" r="1.15" fill="currentColor"/><path d="M5.15 7.7q2.1 1.4 1.2 3.4" stroke="currentColor" stroke-width="1.35" fill="none" stroke-linecap="round"/></svg>', tip: 'Dodges the next N attacks completely.' },
@@ -21168,6 +21402,9 @@ const UI = {
     'Unresistible': 'badge-unresistible',
     'Taunt': 'badge-taunt',
     'Hunt': 'badge-hunt',
+    'Hunt Meter': 'badge-hunt-meter',
+    'Habitat Power': 'badge-habitat-power',
+    'Spawn Only': 'badge-spawn-only',
     'Revive': 'badge-revive',
     'Damage Immunity': 'badge-dmg-immune',
     'Untrickable': 'badge-untrickable',
