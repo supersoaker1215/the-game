@@ -5032,8 +5032,14 @@ const UI = {
       // let the card's own onclick open the big modal and do nothing here.
       const touch = window.matchMedia && window.matchMedia('(hover: none)').matches;
       const cardEl = e.target.closest && e.target.closest(this.FLIPPABLE_SELECTOR);
-      if (cardEl) { if (!touch) this.toggleHandCardFlip(cardEl); return; }
-      if (touch) return;   // no in-place flip to dismiss on touch
+      // BIG INSPECT ON CLICK, NOT THE TINY IN-PLACE FLIP. Owner: "right now it's
+      // flip to view and the text is small — I want to click the card to read it
+      // and have it get big, like a board card." So a tap/click on a hand card
+      // or trick opens the same full-size modal a board card opens (readable
+      // stats + full rules), dismissed by clicking off it. Drag-to-play is
+      // untouched — a drag never fires this click — so playing still works.
+      if (cardEl) { this._inspectHandCardEl(cardEl); return; }
+      if (touch) return;   // nothing else to dismiss on touch
       // CLICKED OFF THE CARD. User: "the only way to unclick is to play the card
       // or leave it backwards — if you click off the card it should deselect and
       // flip back." Before this the only exits were clicking the same card again,
@@ -5045,6 +5051,27 @@ const UI = {
     document.addEventListener('keydown', (e) => {
       if (e.key === 'Escape') this.dismissHandCardFlip(null);
     });
+  },
+
+  // Open the FULL-SIZE inspect for a hand card / trick element — the same big,
+  // readable modal a board card opens. A real card resolves to its LIVE
+  // instance (current stats, buffs) and routes through openCardInspect; a trick
+  // (or anything we can't resolve to a live card) falls to showCardInspect,
+  // which builds the trick modal by name. Board-card taps still go through
+  // showCardInspect directly elsewhere.
+  _inspectHandCardEl(cardEl) {
+    if (!cardEl) return;
+    const isTrick = !!cardEl.dataset.trickId;
+    const id = cardEl.dataset.cardId || cardEl.dataset.trickId;
+    const P = (typeof Game !== 'undefined' && Game.state) ? Game.state.player : null;
+    if (!isTrick && id != null) {
+      const hand = (Game.localHand ? Game.localHand() : (P && P.hand)) || [];
+      const inst = hand.find(c => String(c.id) === String(id));
+      if (inst && this.openCardInspect) { this.openCardInspect(inst); return; }
+    }
+    // Tricks + fallback: the name-based dispatcher (opens the trick inspect).
+    if (this.showCardInspect) { this.showCardInspect(cardEl); return; }
+    this.toggleHandCardFlip(cardEl);
   },
 
   // Every surface that flips. Tricks are in the list because they now carry the

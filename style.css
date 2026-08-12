@@ -39881,9 +39881,41 @@ body.in-match .lane {
 /* HAND TOOLS relocated into the bottom bar (♪ + redraw), next to the energy.
    .hand-tools was absolutely positioned for its old home over the tricks; in a
    bar cell it must flow inline instead. */
-.bar-cell.bar-tools { display: flex; align-items: center; justify-content: center; }
-.bar-cell.bar-tools .hand-tools {
+/* ENERGY CELL holds the ♪ + redraw tools ALONGSIDE the energy number, so the
+   player's energy sits on the same bar as the music symbol (owner), matching
+   the AI. .hand-tools was absolutely positioned for its old home over the
+   tricks; in the bar it must flow inline. Only the PLAYER bar has tools, so the
+   player energy column is widened to fit both — the AI bar keeps the shared
+   64px energy column. */
+.bar-cell.bar-energy { display: flex; align-items: center; justify-content: center; gap: 8px; }
+.bar-cell.bar-energy .hand-tools {
   position: static;
   left: auto; top: auto; transform: none;
   z-index: auto;
+}
+.info-bar.player-bar { grid-template-columns: 220px 64px 1fr 150px 96px; }
+
+/* HAND + TRICKS AS ONE CENTERED GROUP (desktop). The bottom grid row used to be
+   `1fr auto`, so the hand cards sat in a wide 1fr column and the tricks were
+   stranded in an auto column pinned to the far right — a big gap between them
+   (owner: "have the tricks next to the cards, just at the end"). Four columns —
+   [1fr spacer][hand][tricks][1fr spacer] — centre the hand+tricks group with
+   the tricks right after the last card, while the board/bars keep spanning
+   1 / -1 so they stay full width. Scoped above the phone breakpoint; the mobile
+   fit-to-width layout is untouched. */
+@media (min-width: 521px) {
+  body.in-match #game-area { grid-template-columns: 1fr auto auto 1fr; }
+  body.in-match #game-area > .player-hand-section { grid-column: 2; }
+  body.in-match #game-area > .tricks-section { grid-column: 3; }
+}
+
+/* HUD CONTROLS STAY ABOVE THE BOARD ON SCROLL. The battle-log, help (?) and
+   settings buttons are position:fixed at body level (outside #game-area's
+   camera transform). Help/settings already sit at z-index 500; the log toggle
+   sat lower (125) and could be crossed by board chrome when a short viewport
+   scrolls. Pin all three at the same high layer so they always clip over the
+   board (owner). */
+.log-drawer-toggle, .cheat-help-toggle, .settings-cog {
+  position: fixed;
+  z-index: 600 !important;
 }
