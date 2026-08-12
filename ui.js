@@ -6546,6 +6546,14 @@ const UI = {
     // main-menu marker on <body>, only the negative `in-match`, so this adds
     // one rather than inferring "menu" from the absence of everything else.
     document.body.classList.toggle('on-main-menu', !!isMainMenu);
+    // COMBAT ZOOM. During the fight the hand is not actionable, so it folds
+    // away and the board takes the whole screen — you watch the lanes trade,
+    // with your HP / block / energy bar still on screen because those are the
+    // numbers the fight is moving. It unfolds again when combat ends.
+    // Keyed on Game.isInCombat() so it agrees with the watchdog about when
+    // combat is live, including 2v2's separate phase name.
+    document.body.classList.toggle('combat-zoom',
+      !!(Game.isInCombat && Game.isInCombat()));
 
     if (isMainMenu)    { this.renderMainMenu(s); return; }
     if (isModeSelect)  { this.renderModeSelect(s); return; }
@@ -18042,11 +18050,16 @@ const UI = {
     // Board size becomes a pure function of the viewport: constant for a given
     // window, however many cards are in hand.
     const handRow = document.querySelector('.player-hand-section');
+    const zoomed = document.body.classList.contains('combat-zoom');
     let others = area.scrollHeight - boardH;
     if (handRow) {
       const hcs = getComputedStyle(handRow);
-      const handMax = 200 * 182 / 92
-                    + (parseFloat(hcs.paddingTop) || 0) + (parseFloat(hcs.paddingBottom) || 0);
+      // Charged at the CEILING out of combat (so the board never resizes as
+      // cards leave your hand) and at ZERO during it (so the folded-away row
+      // hands its height to the board instead of leaving a gap).
+      const handMax = zoomed ? 0
+        : 200 * 182 / 92
+          + (parseFloat(hcs.paddingTop) || 0) + (parseFloat(hcs.paddingBottom) || 0);
       others = others - handRow.getBoundingClientRect().height + handMax;
     }
     // -12px of headroom. Two reasons, both measured rather than guessed:
@@ -18065,12 +18078,19 @@ const UI = {
     // its own box model (inter-slot gap, the lane-number divider), and any
     // enumeration of that is a list that goes stale the next time the lane
     // gains a part. This subtraction cannot be wrong by construction.
-    const liveCard = slot.querySelector('.card');
-    const liveCardH = liveCard ? liveCard.getBoundingClientRect().height
-                               : (num(slot, 'paddingTop', 'paddingBottom') ? 0 : 0);
-    const chrome = liveCardH ? (boardH - 2 * liveCardH)
-                             : (num(lane, 'paddingTop', 'paddingBottom')
-                                + 2 * num(slot, 'paddingTop', 'paddingBottom'));
+    // Measure the chrome off ANY lane that actually holds a card — the first
+    // lane is usually empty, and reading it made cardH 0, which collapsed
+    // `boardH - 2*cardH` into "the whole board is chrome".
+    let liveCardH = 0;
+    board.querySelectorAll('.card-slot > .card').forEach(c => {
+      if (!liveCardH) liveCardH = c.getBoundingClientRect().height;
+    });
+    // 29px is the measured remainder the box model does not explain (inter-slot
+    // gap + the lane-number divider); see the commit that introduced this.
+    const chrome = liveCardH
+      ? (boardH - 2 * liveCardH)
+      : (num(lane, 'paddingTop', 'paddingBottom')
+         + 2 * num(slot, 'paddingTop', 'paddingBottom') + 29);
     const cardH = (avail - chrome) / 2;
     let w = cardH * 92 / 182;
 
@@ -18078,7 +18098,12 @@ const UI = {
     // board clips exactly the way the hand did — and body's overflow-x:hidden
     // means nothing would report it.
     const lanes = board.querySelectorAll('.lane').length || 6;
-    const laneChrome = lane.getBoundingClientRect().width - 140;  // authored 160 vs 140 card
+    // CONSTANT 20, not measured. The CSS is `lane = card + 20px`, so measuring
+    // (laneWidth - 140) fed the variable back into its own solve: at card 156
+    // it read 36, at card 224 it read 104, and the width bound swung with it —
+    // the value ping-ponged 156 -> 224 -> 156 forever instead of settling.
+    // The offset is authored, so it is known, not observed.
+    const laneChrome = 20;
     const across = window.innerWidth
                  - num(board, 'paddingLeft', 'paddingRight')
                  - num(section, 'paddingLeft', 'paddingRight')
