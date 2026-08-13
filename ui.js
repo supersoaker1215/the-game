@@ -1741,6 +1741,14 @@ const UI = {
       'Freddy Krueger':   { spawn: { src: 'audio/cards/freddy-krueger-spawn.m4a', maxDur: 5.5 }, play: { src: 'audio/cards/freddy-krueger-spawn.m4a', maxDur: 5.5 } },
       'Pennywise':        { hover: { src: 'audio/cards/pennywise-hover.mp3', maxDur: 100 }, spawn: { src: 'audio/cards/pennywise-spawn.mp3', maxDur: 8.5 }, play: { src: 'audio/cards/pennywise-spawn.mp3', maxDur: 8.5 } },
       'Jaws':             { spawn: { src: 'audio/cards/jaws-spawn.mp3?v=2', maxDur: 10 }, play: { src: 'audio/cards/jaws-spawn.mp3?v=2', maxDur: 10 } },
+      // Battle Droid's "roger roger" (2.5s) — fires when General Grievous
+      // summons him in (see summonCard's spawn-cue hook). `play` mirrors it so
+      // any future direct play of the token still has audio.
+      'Battle Droid':     { spawn: { src: 'audio/cards/battle-droid-spawn.mp3', maxDur: 4 }, play: { src: 'audio/cards/battle-droid-spawn.mp3', maxDur: 4 }, death: { src: 'audio/cards/battle-droid-death.mp3', maxDur: 3 } },
+      'Mace Windu':       { play: { src: 'audio/cards/mace-windu-play.mp3', maxDur: 6 } },
+      // Darkseid — sample 'play' cue overrides his procedural one (CARD_SFX
+      // wins over CARD_PROCEDURAL); hover/attack/death stay synthesized there.
+      'Darkseid':         { play: { src: 'audio/cards/darkseid-play.mp3', maxDur: 5 } },
       'Boiler Room':      { hover: { src: 'audio/cards/boiler-room-hover.mp3', maxDur: 25 } },
       'Sewers':           { hover: { src: 'audio/cards/sewers-hover.mp3', maxDur: 15 } },
       // Wetlands hover: 10.9s of swamp ambience — full clip, hovers are not

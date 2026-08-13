@@ -10192,6 +10192,15 @@ const Game = {
     this._emitEntranceFX(card);
     card.statsEnteredRound = this.state.round || 1;
     this.log(`  [SUMMON] ${name} (${card.attack}/${card.currentHealth}) in lane ${laneIdx + 1}`);
+    // Spawn cue for tokens that carry their own arrival sound. Fired HERE, at
+    // the moment of placement, so it lands in every summon path (AI, human
+    // single/multi-lane pick, cascade) exactly when the body appears. Kept to
+    // an explicit allowlist rather than "any card with a spawn entry" because
+    // Freddy / Pennywise / Jaws / Spinosaurus already fire their spawn cue from
+    // their own jumpscare FX — a blanket call here would double them up.
+    if (name === 'Battle Droid' && typeof UI !== 'undefined' && UI.sfx && UI.sfx.playCardSfx) {
+      try { UI.sfx.playCardSfx('Battle Droid', 'spawn', card); } catch (e) {}
+    }
     this.checkLaneTrap(card, laneIdx);
 
     // Persistent auras (Luke's -1/-1, Magneto, etc.) need to fire on EVERY
