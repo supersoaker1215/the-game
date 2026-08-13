@@ -4631,6 +4631,70 @@ test('Freddy rising from Boiler Room never resurrects a dead ally', function () 
     'and Freddy still rises');
 });
 
+test('Moder strips a card BEFORE its On Play can fire', function () {
+  // Reported: Moder summoned off Paul Atreides, opponent played Human Torch
+  // into her lane, no strip. Two causes, both from moving On Play ahead of the
+  // passives: the arriving card fired its When Played first, and Human Torch's
+  // arrival splash + blast KILLED the 2/1 Moder, so the onAnyCardPlayed
+  // broadcast that used to carry the strip never reached her. The strip is now
+  // a lane-entry effect, like a trap.
+  var G = freshGame();
+  var moder = G.createCardInstance(cardByName('Moder'), 'player');
+  G.state.player.hand = [moder]; G.state.player.currency = 20;
+  G.playCard('player', moder, 0);
+  var moderHp = moder.currentHealth;
+
+  var neighbour = place(G, 'Groot', 'player', 1);
+  var nHp = neighbour.currentHealth;
+
+  var torch = G.createCardInstance(cardByName('Human Torch'), 'ai');
+  G.state.ai.hand = [torch]; G.state.ai.currency = 20;
+  G.playCard('ai', torch, 0);
+
+  assertEq(!!torch._moderStripped, true, 'the arriving card is stripped');
+  assertEq(torch.onPlay, null, 'and its On Play is gone');
+  assertEq(neighbour.currentHealth, nHp, 'so its arrival splash never landed');
+  assert(moder.currentHealth === moderHp && moder.currentHealth > 0,
+    'and Moder survives to have done it');
+});
+
+test('Magneto never offers a dead card to move', function () {
+  // Reported: the picker listed The Grinch at 1/0. getAlliesOf/getEnemiesOf
+  // read the lane slots and do NOT filter the dead, so anything killed earlier
+  // in the same resolution — Magneto's own parity aura does exactly this —
+  // could still be offered.
+  var G = freshGame();
+  var mag = place(G, 'Magneto', 'player', 2);
+  var live = place(G, 'Groot', 'ai', 0);
+  var corpse = place(G, 'The Grinch', 'ai', 1);
+  corpse.currentHealth = 0;                     // dead but not yet swept
+
+  // freshGame() hands back the Game SINGLETON, so a stub installed here leaks
+  // into every later test unless it is put back. (It did: this override broke
+  // the status-clearing test two files down before the restore was added.)
+  var realPrompt = G.promptCardChoice;
+  var realHuman = G.isHuman;
+  var offered = null;
+  G.isHuman = function () { return true; };
+  G.promptCardChoice = function (owner, cards) { offered = cards; };
+  try {
+    var ab = CARD_ABILITIES['Magneto'];
+    (ab.onBeforeTricks || ab.onPlay).call(ab, G, mag, 2);
+  } finally {
+    G.promptCardChoice = realPrompt;
+    G.isHuman = realHuman;
+  }
+
+  assert(offered !== null, 'Magneto opened a move picker');
+  // Two shapes: the normal tray lists the cards themselves, and the
+  // one-candidate branch offers a synthetic "Move <name>" / "Skip" pair. Match
+  // on the text either way so the test asserts WHO is offered, not which
+  // branch happened to run.
+  var blob = offered.map(function (c) { return c.name; }).join(' | ');
+  assertEq(blob.indexOf('Grinch'), -1, 'the corpse is NOT offered: ' + blob);
+  assert(blob.indexOf('Groot') > -1, 'the living enemy still is: ' + blob);
+});
+
 test('Freddy only wakes on TWO or more wasted energy', function () {
   assertEq(Game.FREDDY_WASTE_THRESHOLD, 2, 'the threshold is a named constant');
   function ended(withEnergy) {

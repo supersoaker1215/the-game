@@ -4427,6 +4427,10 @@ const Game = {
       if (card.statsEnteredRound == null) card.statsEnteredRound = this.state.round || 1;
       this.state[owner].discount = 0;
       this.log(`[PLAY] ${who} place ${card.name} in lane ${laneIdx + 1} for ${cost} energy`);
+    // MODER STRIPS BEFORE ON PLAY. Must sit here rather than in
+    // checkLaneTrap: that runs from _trapOnSettle, which is deliberately
+    // AFTER onPlay (the entrance-then-trap ordering Scarlet Witch needs).
+    this._applyModerLaneStrip(card, laneIdx);
       this._runHook(card, 'onPlay', this, card, laneIdx);
       this.broadcastHook('onAnyCardPlayed', card, [card]);
       this.checkJumpConditions('cardPlayed', { owner, cost: card.baseCost || card.cost, laneIdx, isEnvironment: true });
@@ -4513,6 +4517,10 @@ const Game = {
     // The auras still fire on the very next line, so a summoned body that
     // should die to Luke's -1/-1 aura still dies — it just dies after the
     // summoner's On Play finished, not before it started.
+    // MODER STRIPS BEFORE ON PLAY. Must sit here rather than in
+    // checkLaneTrap: that runs from _trapOnSettle, which is deliberately
+    // AFTER onPlay (the entrance-then-trap ordering Scarlet Witch needs).
+    this._applyModerLaneStrip(card, laneIdx);
     this._runHook(card, 'onPlay', this, card, laneIdx);
     this.broadcastHook('onAnyCardPlayed', card, [card]);
     this.getAllCardsOf(owner).forEach(c => {
@@ -4649,6 +4657,10 @@ const Game = {
 
     // ON PLAY FIRST, THEN THE PASSIVES — same ordering as playCard, so a free /
     // jump play resolves identically to a paid one.
+    // MODER STRIPS BEFORE ON PLAY. Must sit here rather than in
+    // checkLaneTrap: that runs from _trapOnSettle, which is deliberately
+    // AFTER onPlay (the entrance-then-trap ordering Scarlet Witch needs).
+    this._applyModerLaneStrip(card, laneIdx);
     this._runHook(card, 'onPlay', this, card, laneIdx);
     // Trigger "While Active" buffs from allies (e.g. Black Panther +1/+1)
     this.broadcastHook('onAnyCardPlayed', card, [card]);
@@ -10249,6 +10261,10 @@ const Game = {
         // total summons."
         this._summonCascadeDepth = (this._summonCascadeDepth || 0) + 1;
         try {
+    // MODER STRIPS BEFORE ON PLAY. Must sit here rather than in
+    // checkLaneTrap: that runs from _trapOnSettle, which is deliberately
+    // AFTER onPlay (the entrance-then-trap ordering Scarlet Witch needs).
+    this._applyModerLaneStrip(card, laneIdx);
           this._runHook(card, 'onPlay', this, card, laneIdx);
         } finally {
           this._summonCascadeDepth = Math.max(0, (this._summonCascadeDepth || 1) - 1);
@@ -10418,9 +10434,6 @@ const Game = {
   },
 
   checkLaneTrap(card, laneIdx) {
-    // Moder first: a card dragged into her lane loses its abilities before
-    // anything else in the entry sequence gets to read them.
-    this._applyModerLaneStrip(card, laneIdx);
     if (!card || laneIdx < 0 || laneIdx >= this.LANE_COUNT) return;
     const lane = this.state.lanes[laneIdx];
     if (!lane || !lane.trap || lane.trap.placedBy === card.owner) return;

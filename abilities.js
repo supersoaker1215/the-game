@@ -3227,7 +3227,15 @@ const CARD_ABILITIES = {
       // Any living combat card except Magneto himself that can actually move
       // (not frozen/stunned) and has an open lane on its own side to slide into.
       const candidates = () => [...G.getAlliesOf(self.owner), ...G.getEnemiesOf(self.owner)]
-        .filter(c => c && c !== self && c.currentHealth > 0 && !c.isFrozen && !c.isStunned
+        // findCardLane >= 0 as well as HP > 0: getAlliesOf/getEnemiesOf read
+        // the lane slots and do NOT filter the dead, so a card killed earlier
+        // in this same resolution — Magneto's own parity aura does this, and
+        // so does anything that ran before cleanupDead — could still be listed
+        // and OFFERED. finishMove already refuses to move a corpse, but the
+        // player was being shown one as a choice. User: "magneto shouldn't
+        // move dead cards like the grinch."
+        .filter(c => c && c !== self && c.currentHealth > 0 && G.findCardLane(c) >= 0
+                     && !c.isFrozen && !c.isStunned
                      && !moved.includes(c) && openLanesFor(c).length > 0);
       // AI: shove an enemy into an even lane (-1/-1) or pull an ally into an odd
       // lane (+1/+1); prefer acting on the beefiest card available.
@@ -3311,6 +3319,13 @@ const CARD_ABILITIES = {
           G.promptCardChoice(self.owner, pool, "Magneto — Move a Card",
             `Choose any card to relocate (${moved.length + 1} of ${MOVE_COUNT})`,
             (target) => {
+              // Re-check on RESOLVE, not just when the tray opened — there are
+              // two separate interactions between picking a card and the move
+              // landing, and the target can die in between.
+              if (!target || target.currentHealth <= 0 || G.findCardLane(target) < 0) {
+                G.log(`  [MAGNETO] ${target && target.name ? target.name : 'That card'} is already gone — choosing again.`);
+                step(); return;
+              }
               const lanes = openLanesFor(target);
               if (!lanes.length) { step(); return; }
               G.promptLaneChoice(self.owner, lanes, `Magneto — Move ${target.name}`,
