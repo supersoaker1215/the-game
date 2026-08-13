@@ -5358,40 +5358,69 @@ const CARD_ABILITIES = {
     },
   },
   "Freddy Krueger": {
-    onBeforeAttack(G, self) {
-      // autoPick: this fires on EVERY attack, so it picks an enemy hand on its
-      // own rather than prompting "whose hand?" each swing mid-combat.
-      G.withChosenOpponent(self.owner, 'Freddy Krueger', (opp) => {
+    // Freddy never swings at the card across from him — his war is fought in
+    // the enemy's dreams (their hand), on a TWO-ROUND CYCLE:
+    //   • ATTACK round — slash ONE random non-trick hand card for his ATK.
+    //     0 HP → destroyed; survives → falls Asleep + Freddy gains +1/+1.
+    //   • OFF round — HALF the non-trick hand (rounded down) each loses 1 HP.
+    // Tricks are NEVER targeted: they live in trickHand, not hand, and
+    // _hauntTargets guards on the character-card shape on top of that.
+    //
+    // Living valid hand targets — character cards only.
+    _hauntTargets(G, opp) {
       const hand = (G.state[opp] && G.state[opp].hand) || [];
-      const targets = hand.filter(c => (c.currentHealth !== undefined ? c.currentHealth : (c.health || 0)) > 0);
-      if (!targets.length) { self._skipNormalAttack = true; return; }
+      return hand.filter(c => c && !c.isTrick && c.attack !== undefined &&
+        (c.currentHealth !== undefined ? c.currentHealth : (c.health || 0)) > 0);
+    },
+    onBeforeAttack(G, self) {
+      // He makes NO normal swing, ever — set the skip up front so every path
+      // below (including an empty enemy hand) leaves the lane enemy untouched.
+      self._skipNormalAttack = true;
+      // autoPick: fires mid-combat, so it resolves "whose hand?" itself rather
+      // than prompting each swing.
+      G.withChosenOpponent(self.owner, 'Freddy Krueger', (opp) => {
+        const AB = CARD_ABILITIES['Freddy Krueger'];
+        // Two-round cycle — first active round is an attack round, then it
+        // alternates. Counter advances every round he acts.
+        const n = self._freddyCycle || 0;
+        const attackRound = (n % 2) === 0;
+        self._freddyCycle = n + 1;
+        const targets = AB._hauntTargets(G, opp);
+        if (!targets.length) return;
+        if (attackRound) AB._attackRound(G, self, opp, targets);
+        else AB._offRound(G, self, opp, targets);
+      }, { autoPick: true });
+    },
+    // Mark a hand card for the freddy-hand-slash paint flash. Direct DOM class
+    // manipulation is lost because UI.render() rebuilds the element on an HP
+    // change, so the flag rides on the card and the renderer reapplies it.
+    _flashSlash(t) {
+      t._freddySlashing = true;
+      setTimeout(() => { t._freddySlashing = false; }, 900);
+    },
+    _attackRound(G, self, opp, targets) {
+      const hand = G.state[opp].hand;
       const t = targets[Math.floor(Game.rng() * targets.length)];
       let dmg = self.attack || 1;
       if (G.yodaShieldCount(opp) > 0) dmg = Math.ceil(dmg / 2);
       const curHp = t.currentHealth !== undefined ? t.currentHealth : (t.health || 0);
       t.currentHealth = Math.max(0, curHp - dmg);
-      G.log(`[FREDDY] Freddy slashes ${t.name} in the enemy's hand for ${dmg}!`);
-      // Flag the card so the render system applies freddy-hand-slash during
-      // the next paint. Direct DOM class manipulation was lost immediately
-      // because UI.render() rebuilds the element when currentHealth changes.
-      t._freddySlashing = true;
-      setTimeout(() => { t._freddySlashing = false; }, 900);
+      G.log(`[FREDDY] Freddy stalks ${t.name} in the enemy's hand for ${dmg}!`);
+      CARD_ABILITIES['Freddy Krueger']._flashSlash(t);
       const handIdx = hand.indexOf(t);
       const destroyed = t.currentHealth <= 0;
       if (destroyed) {
         if (handIdx >= 0) hand.splice(handIdx, 1);
-        G.log(`[FREDDY] ${t.name} was destroyed before it could be played!`);
+        G.log(`[FREDDY] ${t.name} is slain in its sleep — destroyed before it could be played!`);
       } else if (!t.isAsleep) {
-        // SURVIVED THE SLASH -> IT SLEEPS. Locked out of its owner's next turn
-        // (Game.playCard refuses sleepTurns > 0) and woken by Game.tickSleep at
-        // the following round's start.
-        // The !t.isAsleep guard is the spec's "cannot become Sleeping again
-        // from the same attack" — and it also stops Freddy farming the same
-        // card for +1/+1 every round while it sits in hand unplayable.
+        // SURVIVED → IT SLEEPS. Locked out of its owner's next turn
+        // (Game.playCard refuses sleepTurns > 0), woken by Game.tickSleep at
+        // the following round's start. The !isAsleep guard stops Freddy
+        // farming the same unplayable card for +1/+1 every round.
         t.isAsleep = true;
         t.sleepTurns = 1;
-        // Permanent and stacking, through buffCard so every surface that
-        // renders stats picks it up the same way it does any other buff.
+        // Permanent, stacking, through buffCard so every stat surface renders
+        // it like any other buff.
         G.buffCard(self, 1, 1);
         G.log(`[FREDDY] ${t.name} falls asleep — Freddy grows to ${self.attack}/${self.currentHealth}.`);
         if (typeof UI !== 'undefined' && UI.emitFX) {
@@ -5401,8 +5430,35 @@ const CARD_ABILITIES = {
       if (typeof UI !== 'undefined' && UI._freddyHandSlash) {
         setTimeout(() => UI._freddyHandSlash(t.name, dmg, t.id, handIdx, opp, destroyed), 60);
       }
-      self._skipNormalAttack = true;
-      }, { autoPick: true });
+    },
+    _offRound(G, self, opp, targets) {
+      const hand = G.state[opp].hand;
+      const count = Math.floor(targets.length / 2);
+      if (count <= 0) {
+        G.log(`[FREDDY] Freddy haunts the enemy's dreams — too few cards to grip this round.`);
+        return;
+      }
+      // Random HALF (rounded down) of the non-trick hand each lose 1 HP.
+      const pool = targets.slice();
+      for (let i = pool.length - 1; i > 0; i--) {
+        const j = Math.floor(Game.rng() * (i + 1));
+        [pool[i], pool[j]] = [pool[j], pool[i]];
+      }
+      G.log(`[FREDDY] Freddy haunts ${count} card${count === 1 ? '' : 's'} in the enemy's hand — each loses 1 HP.`);
+      pool.slice(0, count).forEach(t => {
+        const curHp = t.currentHealth !== undefined ? t.currentHealth : (t.health || 0);
+        t.currentHealth = Math.max(0, curHp - 1);
+        CARD_ABILITIES['Freddy Krueger']._flashSlash(t);
+        const handIdx = hand.indexOf(t);
+        const destroyed = t.currentHealth <= 0;
+        if (destroyed && handIdx >= 0) {
+          hand.splice(handIdx, 1);
+          G.log(`[FREDDY] ${t.name} withers away in the enemy's hand!`);
+        }
+        if (typeof UI !== 'undefined' && UI._freddyHandSlash) {
+          setTimeout(() => UI._freddyHandSlash(t.name, 1, t.id, handIdx, opp, destroyed), 60);
+        }
+      });
     },
     onDeath(G, self, laneIdx) {
       // Clear burning from all enemies when Freddy dies
@@ -5749,14 +5805,14 @@ const CARD_ABILITIES = {
   // either side's meter fills and eats a hit, the swamp loses 1 Power. Three
   // blocks — from anyone — and the water breaks.
   "Wetlands": {
-    START_POWER: 3,
+    START_POWER: 1,
     _power(self) {
       if (self._wetPower === undefined || self._wetPower === null) self._wetPower = CARD_ABILITIES['Wetlands'].START_POWER;
       return self._wetPower;
     },
     onPlay(G, self, lane) {
       CARD_ABILITIES['Wetlands']._power(self);
-      G.log(`Wetlands floods lane ${lane + 1} — 3 Power. Every Block Meter that fires drains it.`);
+      G.log(`Wetlands floods lane ${lane + 1} — ${CARD_ABILITIES['Wetlands'].START_POWER} Power. Every Block Meter that fires drains it.`);
     },
     onBlockMeterFired(G, self) {
       if (self._wetReleased) return;
