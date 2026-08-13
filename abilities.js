@@ -5961,9 +5961,6 @@ const CARD_ABILITIES = {
     // owns every guard that matters (frozen/feared, destroyed lane, face
     // down, occupied destination), so this only decides WHERE.
     onTurnStart(G, self) {
-      // New round — re-open the Hunt Meter to ONE more tick. See onAnyCardDamaged
-      // for why the fill is capped per round.
-      self._spinoTickedThisRound = false;
       if (self.currentHealth <= 0) return;
       const opp = G.opponent(self.owner);
       const target = G.state[opp] ? G.state[opp]._lastPlayedLane : null;
@@ -5990,19 +5987,17 @@ const CARD_ABILITIES = {
     // counting them would refill the meter to full the moment it emptied and
     // the card would rampage every round forever — a meter that is always
     // full is not a meter. Ordinary combat swings still feed it.
-    onAnyCardDamaged(G, self) {
+    onAnyCardDamaged(G, self, damaged) {
       if (self.currentHealth <= 0) return;
       if (self._spinoRampaging) return;
       if (self._spinoArmed) return;              // already at max, waiting on combat
-      // ONE tick per round. "+1 per damage instance" reads fine on paper, but a
-      // single combat round on a full board throws 3-6 damage events, so the
-      // meter slammed to max the instant any fight happened and sat pinned at
-      // 3/3 forever — it rampaged every round and stopped being a meter at all
-      // (user: "the hunt meter is broken, he's constantly at 3"). Charging it
-      // once per round makes it a real ~3-round build toward the rampage. The
-      // flag resets in onTurnStart.
-      if (self._spinoTickedThisRound) return;
-      self._spinoTickedThisRound = true;
+      // ONLY ALLY damage feeds the meter, and EVERY instance does (no per-round
+      // cap) — the more his own side is bloodied, the closer he is to rampaging.
+      // User spec: "every time an ally card is damaged the hunt should grow by
+      // 1." Counting the whole board maxed it instantly (a full-board combat is
+      // 3-6 hits); restricting to allies makes it a real revenge meter that
+      // only fills when Spinosaurus's team actually takes hits.
+      if (!damaged || damaged.owner !== self.owner) return;
       const AB = CARD_ABILITIES['Spinosaurus'];
       self._spinoMeter = (self._spinoMeter | 0) + 1;
       if (self._spinoMeter >= AB.METER_MAX) {
