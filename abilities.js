@@ -2707,7 +2707,16 @@ const CARD_ABILITIES = {
         .filter(e => e.currentHealth > 0 && !e.isEnvironment
           && !e.isFeared && !((e.fearedTurns || 0) > 0));
       if (!enemies.length) return;
-      const top = enemies.slice().sort((a, b) => (b.attack || 0) - (a.attack || 0))[0];
+      // Rank by EFFECTIVE attack, not current. A card that already carries
+      // Joker's Crazy has its ATK suppressed to a 1-4 roll, so ranking on the
+      // live value let a genuinely weaker enemy outscore the real top threat and
+      // steal the stamp every round (user: "Manhattan has 9 ATK — the highest —
+      // but Crazy jumped off him onto Luke"). For the current Crazy target we
+      // read its pre-Crazy snapshot so it's compared at true strength; everyone
+      // else uses their live ATK.
+      const effAtk = (c) => (c.isCrazy && c._preCrazyAttack != null)
+        ? c._preCrazyAttack : (c.attack || 0);
+      const top = enemies.slice().sort((a, b) => effAtk(b) - effAtk(a))[0];
       if (!top) return;
       if (top.isCrazy) return; // already the stamped target — sweep rerolls it
       // EXCLUSIVE stamp — exactly ONE enemy carries Joker's Crazy. The old
@@ -5952,6 +5961,9 @@ const CARD_ABILITIES = {
     // owns every guard that matters (frozen/feared, destroyed lane, face
     // down, occupied destination), so this only decides WHERE.
     onTurnStart(G, self) {
+      // New round — re-open the Hunt Meter to ONE more tick. See onAnyCardDamaged
+      // for why the fill is capped per round.
+      self._spinoTickedThisRound = false;
       if (self.currentHealth <= 0) return;
       const opp = G.opponent(self.owner);
       const target = G.state[opp] ? G.state[opp]._lastPlayedLane : null;
@@ -5982,6 +5994,15 @@ const CARD_ABILITIES = {
       if (self.currentHealth <= 0) return;
       if (self._spinoRampaging) return;
       if (self._spinoArmed) return;              // already at max, waiting on combat
+      // ONE tick per round. "+1 per damage instance" reads fine on paper, but a
+      // single combat round on a full board throws 3-6 damage events, so the
+      // meter slammed to max the instant any fight happened and sat pinned at
+      // 3/3 forever — it rampaged every round and stopped being a meter at all
+      // (user: "the hunt meter is broken, he's constantly at 3"). Charging it
+      // once per round makes it a real ~3-round build toward the rampage. The
+      // flag resets in onTurnStart.
+      if (self._spinoTickedThisRound) return;
+      self._spinoTickedThisRound = true;
       const AB = CARD_ABILITIES['Spinosaurus'];
       self._spinoMeter = (self._spinoMeter | 0) + 1;
       if (self._spinoMeter >= AB.METER_MAX) {

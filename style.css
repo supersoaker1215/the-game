@@ -31371,6 +31371,28 @@ body.round-tick .board::after {
   60%  { transform: scale(1.04); opacity: 1; }
   100% { transform: scale(1.00); }
 }
+/* TAP-TO-PLAY button inside the card inspect view — the non-drag way to play.
+   Player-green, sized to sit under the rarity ribbon as the modal's call to
+   action. pointer-events explicit because the modal stops click-through. */
+.card-inspect-play-btn {
+  pointer-events: auto;
+  margin-top: 2px;
+  padding: 11px 26px;
+  font-family: 'Rajdhani', sans-serif;
+  font-weight: 700;
+  font-size: 16px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #071a0e;
+  background: linear-gradient(180deg, #52e08a 0%, #2fbf6a 100%);
+  border: 1px solid #7bffb0;
+  border-radius: 10px;
+  cursor: pointer;
+  box-shadow: 0 3px 14px rgba(47,191,106,0.45), inset 0 1px 0 rgba(255,255,255,0.35);
+  transition: transform 90ms ease, box-shadow 160ms ease, filter 120ms ease;
+}
+.card-inspect-play-btn:hover { filter: brightness(1.08); box-shadow: 0 4px 20px rgba(47,191,106,0.6), inset 0 1px 0 rgba(255,255,255,0.4); }
+.card-inspect-play-btn:active { transform: translateY(1px) scale(0.98); }
 /* Bigger card inside the modal — the same .card markup as on
    board, but resized via `zoom` so the LAYOUT BOX scales with the
    visual. `transform: scale()` made the layout box stay 1× and the

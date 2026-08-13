@@ -419,6 +419,23 @@ const UI = {
     return zoom;
   },
 
+  // Can the inspected card be played RIGHT NOW from the player's hand? Gates the
+  // tap-to-play button in the inspect view. Mirrors onCardClick's play gates so
+  // the button only appears when a lane tap (or discard) would actually land.
+  _inspectCardPlayable(card) {
+    const s = Game.state;
+    if (!card || !s || !s.player) return false;
+    if (card._neverPlayable) return false;                       // Iron Giant — never placeable
+    if (!(s.player.hand || []).some(c => c && c.id === card.id)) return false;  // must be a hand card
+    if (!this.canPlayerPlayCards || !this.canPlayerPlayCards(s)) return false;
+    // Trick phase: only trick-phase-playable cards (or Red Skull's passive).
+    if (s.phase === 'player-tricks' && !card.trickPhasePlayable &&
+        !(Game.getAllCardsOf && Game.getAllCardsOf('player').some(c => c.passive === 'allowCardsInTricksPhase'))) {
+      return false;
+    }
+    return true;
+  },
+
   openCardInspect(card) {
     if (!card) return;
     this.closeCardInspect();   // dismiss any open inspect first
@@ -462,6 +479,36 @@ const UI = {
     ribbon.className = `card-inspect-rarity rarity-tier-${rarity.tier}`;
     ribbon.textContent = rarity.label;
     modal.appendChild(ribbon);
+    // TAP-TO-PLAY. Not everyone drags — so a hand card you're inspecting gets a
+    // Play button right in the view. Tapping it keeps the card SELECTED and
+    // drops you back on the board with its open lanes lit, so a second tap on a
+    // lane places it (a discard-effect fires immediately — it needs no lane).
+    // Tap-to-view is untouched; the play option simply does NOT vanish when you
+    // dismiss the view — the card stays selected and the lanes stay tappable.
+    // (User: "add a tap-to-play system too, keep tap-to-view; the option to
+    // play shouldn't go away when you go out.")
+    if (this._inspectCardPlayable(card)) {
+      const playBtn = document.createElement('button');
+      playBtn.type = 'button';
+      playBtn.className = 'card-inspect-play-btn';
+      playBtn.textContent = card.isDiscardEffect ? 'Play' : 'Play — tap a lane';
+      playBtn.onclick = (e) => {
+        e.stopPropagation();
+        this.closeCardInspect();
+        const s = Game.state;
+        if (card.isDiscardEffect) {
+          // Lane-less: fires for its discard effect (engine takes lane 0 as a
+          // placeholder, exactly as the tap/drag paths already do).
+          Game.submitCommand({ type: 'playCard', payload: { card, lane: 0 } });
+          s.selectedCard = null;
+        } else {
+          // Select it — the board renders its open lanes as onLaneClick targets.
+          s.selectedCard = card;
+        }
+        this.render();
+      };
+      modal.appendChild(playBtn);
+    }
     // Close X removed — user direction: backdrop tap + Escape are
     // enough, and the visible X read as overkill clutter against
     // the painted card. The whole backdrop is the dismiss target.
