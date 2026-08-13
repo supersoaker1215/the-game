@@ -436,6 +436,19 @@ const UI = {
     return true;
   },
 
+  // Can the inspected TRICK be played right now from the player's trick hand?
+  // Gates the tap-to-play button in the trick inspect. Mirrors the drag-play
+  // gate in installMobileCardDrag (tricks phase, or any player phase for an
+  // `anytime` trick).
+  _inspectTrickPlayable(trick) {
+    const s = Game.state;
+    if (!trick || !s || !s.player) return false;
+    if (!(s.player.trickHand || []).some(t => t && t.id === trick.id)) return false;
+    const playerActive = s.phase && s.phase.startsWith('player-') && !s.gameOver;
+    const canTricks = this.canPlayerPlayTricks && this.canPlayerPlayTricks(s);
+    return !!(canTricks || (trick.anytime && playerActive));
+  },
+
   openCardInspect(card) {
     if (!card) return;
     this.closeCardInspect();   // dismiss any open inspect first
@@ -26737,7 +26750,34 @@ const UI = {
       if (this.sfx && typeof this.sfx._stopHover === 'function') this.sfx._stopHover();
     };
     backdrop.addEventListener('click', (e) => { if (e.target === backdrop) close(); });
-    backdrop.querySelector('.trick-inspect-modal').addEventListener('click', (e) => e.stopPropagation());
+    const modalEl = backdrop.querySelector('.trick-inspect-modal');
+    modalEl.addEventListener('click', (e) => e.stopPropagation());
+    // TAP-TO-PLAY for tricks — the same non-drag play path cards got. Resolve
+    // the LIVE trick instance (this modal is built from the def by name) and,
+    // if it's playable now, drop a Play button in. Tricks are lane-less, so it
+    // plays immediately — no lane tap needed. Unaffordable flashes instead.
+    const trickId = cardEl.dataset.trickId;
+    const liveTrick = trickId != null
+      ? (Game.state.player.trickHand || []).find(t => String(t.id) === String(trickId))
+      : null;
+    if (liveTrick && this._inspectTrickPlayable(liveTrick)) {
+      const playBtn = document.createElement('button');
+      playBtn.type = 'button';
+      playBtn.className = 'card-inspect-play-btn';
+      playBtn.style.cssText = 'display:block; margin:6px auto 14px;';
+      playBtn.textContent = 'Play';
+      playBtn.onclick = (e) => {
+        e.stopPropagation();
+        const s = Game.state;
+        const cost = Game.getTrickCost ? Game.getTrickCost('player', liveTrick) : (liveTrick.cost || 0);
+        if (s.player.currency < cost) { this.flashUnaffordable(cost, null); return; }
+        close();
+        s.selectedTrick = null;
+        Game.submitCommand({ type: 'playTrick', payload: { trick: liveTrick } });
+        this.render();
+      };
+      modalEl.appendChild(playBtn);
+    }
     const onKey = (e) => { if (e.key === 'Escape') { close(); document.removeEventListener('keydown', onKey); } };
     document.addEventListener('keydown', onKey);
   },
