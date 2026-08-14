@@ -851,11 +851,14 @@ const Roguelite = {
       special:   'Can be played during the Trick Phase. WHEN PLAYED: Destroy enemies in 4 random lanes.',
       legendary: 'Can be played during the Trick Phase. WHEN PLAYED: Destroy enemies in 5 random lanes.',
     },
+    // The pull is a WHEN DESTROYED payoff now, not part of her entrance — see
+    // Hela's onDeath in abilities.js. These tier strings are the roguelite
+    // readout of the same ability, so they move with it or they lie.
     'Hela': {
-      common:    'WHEN PLAYED: Summon 1 Undead Warrior (1/3, Bullseye). Pull 1 random card from any Dead Pile to your hand.',
-      rare:      'WHEN PLAYED: Summon 2 Undead Warriors (1/3, Bullseye). Pull 1 random card from any Dead Pile to your hand.',
-      special:   'WHEN PLAYED: Summon 2 Undead Warriors (1/3, Bullseye). Pull 2 random cards from any Dead Pile to your hand.',
-      legendary: 'WHEN PLAYED: Summon 3 Undead Warriors (1/3, Bullseye). Pull 2 random cards from any Dead Pile to your hand.',
+      common:    'WHEN PLAYED: Summon 1 Undead Warrior (1/3, Bullseye). WHEN DESTROYED: Pull 1 random card from any Dead Pile to your hand.',
+      rare:      'WHEN PLAYED: Summon 2 Undead Warriors (1/3, Bullseye). WHEN DESTROYED: Pull 1 random card from any Dead Pile to your hand.',
+      special:   'WHEN PLAYED: Summon 2 Undead Warriors (1/3, Bullseye). WHEN DESTROYED: Pull 2 random cards from any Dead Pile to your hand.',
+      legendary: 'WHEN PLAYED: Summon 3 Undead Warriors (1/3, Bullseye). WHEN DESTROYED: Pull 2 random cards from any Dead Pile to your hand.',
     },
     'Iron Man': {
       common:    'Can be played during the Trick Phase. WHEN PLAYED: Destroy any damaged enemy with cost ≤ 5.',

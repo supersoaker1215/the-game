@@ -5565,6 +5565,45 @@ test("Freddy Fazbear's jump does not also bill for the waste that summoned him",
   assertEq(G.state.player.currency, before2 - 1, 'and then he drains 1, as printed');
 });
 
+test("Hela's dead-pile draw is a WHEN DESTROYED payoff, like Grundy's", function () {
+  // Owner: "make hela's draw just like solomon grundy when she dies." It used
+  // to fire off her On Play, so a Hela who never left the board still paid out.
+  // Both halves are asserted: the entrance must NOT draw, and the death must.
+  var G = freshGame();
+  G.state.phase = 'player-cards';
+  G.state.player.currency = 20;
+  // Something to pull, on BOTH sides — the pile is shared, same as Grundy's.
+  G.state.player.deadPile = [cardByName('Hawkeye')];
+  G.state.ai.deadPile     = [cardByName('Ant-Man')];
+  var hela = G.createCardInstance(cardByName('Hela'), 'player');
+  G.state.player.hand.push(hela);
+
+  var handBefore = G.state.player.hand.length;
+  G.playCard('player', hela, 0);
+  // She leaves hand as she is played; the warriors are summoned, nothing drawn.
+  var deadAfterPlay = G.state.player.deadPile.length + G.state.ai.deadPile.length;
+  var handAfterPlay = G.state.player.hand.length;
+  assertEq(deadAfterPlay, 2, 'her ENTRANCE must not touch the dead pile any more');
+  assertEq(handAfterPlay, handBefore - 1, 'and must not add a card to hand (only Hela left it)');
+
+  // Now kill her.
+  G.killCard(hela, null);
+  G.cleanupDead();
+  var deadAfterDeath = G.state.player.deadPile.length + G.state.ai.deadPile.length;
+  var handAfterDeath = G.state.player.hand.length;
+  assert(handAfterDeath > handAfterPlay, 'her DEATH draws — this is the whole change');
+  assert(deadAfterDeath < deadAfterPlay + 1, 'and the card came out of a dead pile');
+
+  // Same trigger as Grundy: both must own an onDeath and neither an onPlay draw.
+  assertEq(typeof CARD_ABILITIES['Hela'].onDeath, 'function', 'Hela has a When Destroyed hook');
+  assertEq(typeof CARD_ABILITIES['Solomon Grundy'].onDeath, 'function', 'as does Grundy');
+
+  // And the printed text has to say so, or the card lies about itself.
+  var desc = cardByName('Hela').desc;
+  assert(/When Destroyed:/.test(desc), 'her text names the When Destroyed trigger');
+  assert(/Dead Pile/.test(desc), 'and still names the Dead Pile');
+});
+
 // ============================================================
 // ---- RUNNER ------------------------------------------------
 // ============================================================

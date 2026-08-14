@@ -343,7 +343,7 @@ const CARD_DEFS = [
   // ==================== COST 6 ====================
   { name: "Hela", cost: 6, attack: 5, health: 6, type: "villain",
     abilities: ["Dead Draw 1"],
-    desc: "When Played: Summon 2 (3/1) Undead Warriors. Draw a random card from the shared Dead Pile." },
+    desc: "When Played: Summon 2 (3/1) Undead Warriors. When Destroyed: Draw a random card from the shared Dead Pile to your hand." },
   { name: "Homelander", cost: 4, attack: 4, health: 5, type: "villain",
     abilities: [],
     desc: "When Played: Choose to sacrifice an ally — either deal damage to an enemy equal to that ally's cost, or destroy an enemy with cost ≤ that ally's cost." },

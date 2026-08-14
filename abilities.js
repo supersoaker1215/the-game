@@ -2932,27 +2932,6 @@ const CARD_ABILITIES = {
       //   special   → 2 zombies, 2 dead-pile draws
       //   legendary → 3 zombies, 2 dead-pile draws
       const zombies = G.rarityValue(self, { common: 1, rare: 2, special: 2, legendary: 3 });
-      const pulls   = G.rarityValue(self, { common: 1, rare: 1, special: 2, legendary: 2 });
-      const drawFromDead = (n) => {
-        // Lex Luthor blocks dead-pile draws too — this hands the card over with
-        // addToHand(), which never consults the drawCards() guard.
-        if (!G.canDrawToHand(self.owner, 'Hela')) return;
-        for (let i = 0; i < n; i++) {
-          const allDead = [...G.state.player.deadPile, ...G.state.ai.deadPile];
-          if (!allDead.length) break;
-          const idx = Math.floor(Game.rng() * allDead.length);
-          let card;
-          if (idx < G.state.player.deadPile.length) {
-            card = G.state.player.deadPile.splice(idx, 1)[0];
-          } else {
-            card = G.state.ai.deadPile.splice(idx - G.state.player.deadPile.length, 1)[0];
-          }
-          const drawn = G.createCardInstance(card, self.owner);
-          drawn._drawnBy = self;
-          G.addToHand(self.owner, drawn, self);
-          G.log(`Hela draws ${card.name} from the dead pile!`);
-        }
-      };
       // User spec: "if there's only two open spaces, I shouldn't have
       // to place the warriors. They should be placed for me." When
       // open-lane count is ≤ zombies-to-summon, every choice is
@@ -2975,7 +2954,6 @@ const CARD_ABILITIES = {
           if (G.state.lanes[openLanes[i]]) _helaWarriors.push(G.state.lanes[openLanes[i]][self.owner]);
         }
         if (typeof UI !== 'undefined' && UI._fxHelaRaise) { try { UI._fxHelaRaise(self, _helaWarriors); } catch (e) {} }
-        drawFromDead(pulls);
         return;
       }
       // More open lanes than warriors → meaningful placement
@@ -2985,12 +2963,35 @@ const CARD_ABILITIES = {
         summonCount++;
         if (summonCount < zombies) {
           G.summonCardChoice(self.owner, "Undead Warrior", 1, 3, 1, [], doSummon);
-        } else {
-          drawFromDead(pulls);
         }
       };
       if (typeof UI !== 'undefined' && UI._fxHelaRaise) { try { UI._fxHelaRaise(self, []); } catch (e) {} }
       G.summonCardChoice(self.owner, "Undead Warrior", 1, 3, 1, [], doSummon);
+    },
+    // WHEN DESTROYED — the dead-pile draw, moved here from her On Play.
+    // Owner: "make hela's draw just like solomon grundy when she dies." Built
+    // to match Grundy's onDeath deliberately: the same shared pile (both sides'
+    // dead piles concatenated), the same canDrawToHand gate so Lex Luthor
+    // blocks it — addToHand bypasses the drawCards() guard, which is why the
+    // check has to be explicit — and the same one-card-per-pull loop. Her count
+    // still scales with rarity, which is the one thing she keeps over Grundy's
+    // flat 1.
+    onDeath(G, self, lane) {
+      const pulls = G.rarityValue(self, { common: 1, rare: 1, special: 2, legendary: 2 });
+      if (!G.canDrawToHand(self.owner, 'Hela')) return;
+      for (let i = 0; i < pulls; i++) {
+        const pDead = G.state.player.deadPile || [];
+        const aDead = G.state.ai.deadPile || [];
+        if (!pDead.length && !aDead.length) break;
+        const idx = Math.floor(Game.rng() * (pDead.length + aDead.length));
+        const card = idx < pDead.length
+          ? pDead.splice(idx, 1)[0]
+          : aDead.splice(idx - pDead.length, 1)[0];
+        const drawn = G.createCardInstance(card, self.owner);
+        drawn._drawnBy = self;
+        G.addToHand(self.owner, drawn, self);
+        G.log(`Hela's death draws ${card.name} from the dead pile!`);
+      }
     }
   },
   "Homelander": {
