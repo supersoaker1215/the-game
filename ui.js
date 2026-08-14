@@ -1816,7 +1816,7 @@ const UI = {
       // through." This is a deliberate exception to the ~3s play-clip rule.
       // Voldemort hover: 65s. Full clip — the hover rule caps play/attack/death
       // clips, not hovers.
-      'Voldemort':        { hover: { src: 'audio/cards/voldemort-hover.mp3', maxDur: 66 }, play: { src: 'audio/cards/voldemort-play.mp3', fullDuration: true } },
+      'Voldemort':        { hover: { src: 'audio/cards/voldemort-hover.mp3', maxDur: 66 }, play: { src: 'audio/cards/voldemort-play.mp3', fullDuration: true, gain: 2.5 } },
       // Obi-Wan hover: 86s of John Williams' "The Immolation Scene" (0:00 →
       // 1:26 of the source) — the Mustafar-duel elegy. 0.6s fade-in / 2s
       // fade-out baked; maxDur 86 = full clip. ?v=2 busts the old cached file.
