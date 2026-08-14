@@ -81,6 +81,11 @@ const TRICK_DEFS = [
   },
   { name: "Seismic Charge", cost: 2,
     desc: "Deal 2 damage to an enemy and every enemy in the lanes beside it.",
+    // The seismic-charge cue fires on DETONATION (inside the target callback),
+    // not the instant the trick is played — so with multiple targets it lands
+    // when you actually pick, in sync with the blast. deferPlaySfx tells the
+    // generic playTrick sound-hook to stay quiet for this trick (see ui.js).
+    deferPlaySfx: true,
     canPlay(G, owner) {
       return G.getEnemiesOf(owner).some(e => G.canTrickLand(e, 'damage', owner));
     },
@@ -90,6 +95,10 @@ const TRICK_DEFS = [
       G.promptCardChoice(owner, pool, "Seismic Charge — Detonate",
         "Deal 2 damage to an enemy and both cards beside it",
         (t) => {
+          // Detonation cue — fires now that the target is locked in.
+          if (typeof UI !== 'undefined' && UI.sfx && UI.sfx.playTrickSfx) {
+            try { UI.sfx.playTrickSfx('Seismic Charge', 'play'); } catch (e) {}
+          }
           const lane = G.findCardLane(t);
           // Center target, then splash the enemy cards in the adjacent lanes.
           // Adjacent damage goes through dealDamage, so Damage Immunity /

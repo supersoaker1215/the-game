@@ -4783,7 +4783,10 @@ const UI = {
       const origT = Game.playTrick.bind(Game);
       Game.playTrick = (owner, trick, ...rest) => {
         const r = origT(owner, trick, ...rest);
-        if (r && trick && trick.name) this.sfx.playTrickSfx(trick.name, 'play');
+        // deferPlaySfx tricks (Seismic Charge) fire their own cue AFTER the
+        // target is chosen — here play() only ARMS the prompt and returns, so a
+        // cue now would sound before the blast lands. They play it themselves.
+        if (r && trick && trick.name && !trick.deferPlaySfx) this.sfx.playTrickSfx(trick.name, 'play');
         return r;
       };
     }
