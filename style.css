@@ -40398,3 +40398,78 @@ body.low-fx .tricks-section { transition: none !important; }
 /* Tricks magnify the same way and sit hard against the right edge, so the
    last one needs the same treatment. */
 .tricks-section .trick-card:last-child { transform-origin: right bottom; }
+
+/* ============================================================
+   DISMISS CONTROLS GO RED — and the × is centred by geometry
+   ============================================================
+   Owner: "the x needs to be red tron themed and centered. the skip needs to
+   be red tron themed."
+
+   THE CENTRING. Two problems with one cause: the × was a typed '×' character,
+   so it carried the font's own ink offset inside its em box and sat high in
+   the 32px circle. The standing fix was `margin-top: -2px` on the glyph — a
+   hand nudge that is only correct for one font at one size, and which drifts
+   the moment either changes. Drawn as two hairlines the cross is centred BY
+   CONSTRUCTION: a square box centred by the parent's existing flex, with each
+   bar pinned to that box's own centre line. It also stops being a typographic
+   character and starts being neon strokes, which is the point.
+
+   THE COLOUR. rgb(231,76,60) with #ff8a7a ink is not a new red — it is exactly
+   what .btn-danger already uses, so "dismiss / decline" reads the same
+   everywhere rather than gaining a second, slightly different red.
+   ============================================================ */
+.peek-toggle {
+  border-color: rgba(231,76,60,0.95);
+  color: #ff8a7a;
+  box-shadow:
+    0 0 8px  rgba(231,76,60,0.35),
+    0 0 18px rgba(231,76,60,0.14);
+}
+.peek-toggle:hover {
+  border-color: rgba(231,76,60,1);
+  box-shadow:
+    0 0 14px rgba(231,76,60,0.70),
+    0 0 30px rgba(231,76,60,0.30);
+}
+.peek-toggle-glyph {
+  position: relative;
+  display: block;
+  width: 13px;
+  height: 13px;
+  margin: 0;        /* kills the -2px nudge this replaces */
+  font-size: 0;     /* the typed × is replaced by the strokes below */
+  line-height: 0;
+  pointer-events: none;
+}
+.peek-toggle-glyph::before,
+.peek-toggle-glyph::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  /* Half the bar's own height, so the stroke's centre IS the box's centre.
+     No transform in the vertical, so the rotate below cannot interact with
+     the centring. */
+  top: calc(50% - 0.5px);
+  height: 1px;
+  background: currentColor;
+  box-shadow: 0 0 6px currentColor;
+}
+.peek-toggle-glyph::before { transform: rotate(45deg); }
+.peek-toggle-glyph::after  { transform: rotate(-45deg); }
+
+/* SKIP / KEEP — the decline half of a floating prompt. .fp-btn-primary
+   already claims player-green for the confirming choice; this gives the
+   other option the matching danger red, so the pair reads at a glance
+   without either one needing a box. */
+.fp-btn-secondary .fp-btn-title {
+  color: #ff8a7a;
+  text-shadow: 0 0 6px rgba(231,76,60,0.55);
+}
+.fp-btn-secondary:hover .fp-btn-title,
+.fp-btn-secondary:focus-visible .fp-btn-title {
+  color: color-mix(in srgb, #ff8a7a 80%, white);
+  text-shadow:
+    0 0 12px rgba(231,76,60,0.90),
+    0 0 24px rgba(231,76,60,0.45);
+}

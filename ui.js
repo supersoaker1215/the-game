@@ -656,6 +656,10 @@ const UI = {
     aiPacing: 'animated',
     // SFX master volume (0..1). 0 silences everything. Procedural, no files.
     sfxVolume: 0.55,
+    // Which cue fires when you select a card. One of:
+    // soft | pulse | glass | lift | off. Replaces a fixed 880Hz sine pip that
+    // was too shrill to hear on every tap — see the 'select' case in the synth.
+    selectSfx: 'soft',
     // Music bed level (0..1), independent of SFX — drives the menu loop +
     // match intro. SFX slider at 0 still mutes everything (master kill).
     musicVolume: 0.55,
@@ -1154,6 +1158,18 @@ const UI = {
     if (box) box.checked = on;
   },
 
+  // Audition a card-select cue the moment it is picked. Picking a sound you
+  // cannot hear until you close the panel and tap a card is not a choice, it
+  // is a guess — so the value is committed to settings first, then the synth's
+  // own 'select' case is fired, which means the preview is BY DEFINITION the
+  // same code path the game will use rather than a second copy of it.
+  previewSelectSfx(value) {
+    this.settings.selectSfx = value;
+    if (value !== 'off' && this.sfx && this.sfx.play) {
+      try { this.sfx.play('select'); } catch (e) {}
+    }
+  },
+
   saveSettings() {
     const g = (id) => document.getElementById(id);
     this.settings.difficulty  = g('setting-difficulty').value;
@@ -1191,6 +1207,8 @@ const UI = {
       this.settings.musicVolume = parseInt(musicVolEl.value, 10) / 100;
       if (this.sfx) this.sfx.setMusicVolume();
     }
+    const selectSfxEl = g('setting-select-sfx');
+    if (selectSfxEl) this.settings.selectSfx = selectSfxEl.value;
     const handPrivSaveEl = g('setting-hand-audio-privacy');
     if (handPrivSaveEl) {
       this.settings.handAudioPrivacy = handPrivSaveEl.checked;
@@ -1367,6 +1385,8 @@ const UI = {
     }
     const menuMusicEl = g('setting-menu-music');
     if (menuMusicEl) menuMusicEl.checked = this.settings.menuMusic !== false;
+    const selectSfxLoadEl = g('setting-select-sfx');
+    if (selectSfxLoadEl) selectSfxLoadEl.value = this.settings.selectSfx || 'soft';
     const handPrivEl = g('setting-hand-audio-privacy');
     if (handPrivEl) handPrivEl.checked = !!this.settings.handAudioPrivacy;
     // Paint the in-hand quick toggle from the saved value on boot.
@@ -4001,9 +4021,38 @@ const UI = {
           this._tone({ type: 'sawtooth', freq: 130, freqEnd: 55, dur: 0.12, gain: 0.2, release: 0.18 });
           this._noise({ dur: 0.14, gain: 0.15, highpass: 120, lowpass: 1600 });
           break;
-        case 'select':
-          this._tone({ type: 'sine', freq: 880, dur: 0.035, gain: 0.08, release: 0.05 });
+        case 'select': {
+          // WAS a bare 880Hz sine pip. 880 is the top of the range the ear is
+          // most sensitive to, it was a pure tone with no harmonics to soften
+          // it, and it fires on EVERY card tap — so it read as a shrill beep
+          // rather than a tick. Owner: "the high pitched sound when you select
+          // a card get rid of and give me new sound options."
+          //
+          // Four alternatives, all pitched well below the old pip and shaped
+          // so repeated taps layer instead of stacking into a whine. Picked in
+          // Settings > Audio; 'soft' is the new default.
+          const v = (UI.settings && UI.settings.selectSfx) || 'soft';
+          if (v === 'off') break;
+          if (v === 'pulse') {
+            // Two low blips a beat apart — reads as "picked up".
+            this._tone({ type: 'sine', freq: 260, dur: 0.032, gain: 0.075, release: 0.05 });
+            this._tone({ type: 'sine', freq: 340, dur: 0.032, gain: 0.06,  release: 0.05, delay: 0.045 });
+          } else if (v === 'glass') {
+            // Mid sine with a filtered tick on top — tactile, still not shrill.
+            this._tone({ type: 'sine', freq: 520, dur: 0.04, gain: 0.06, release: 0.08 });
+            this._noise({ dur: 0.03, gain: 0.035, highpass: 1200, lowpass: 4000 });
+          } else if (v === 'lift') {
+            // No tone at all — filtered noise only, the sound of a card being
+            // slid off a stack.
+            this._noise({ dur: 0.06, gain: 0.06, highpass: 700, lowpass: 5200 });
+          } else {
+            // 'soft' — a low triangle that falls slightly. Triangle rather than
+            // sine so it has a little harmonic body and does not sit as a pure
+            // sustained pitch.
+            this._tone({ type: 'triangle', freq: 300, freqEnd: 240, dur: 0.045, gain: 0.075, release: 0.07 });
+          }
           break;
+        }
         case 'uiHover':
           // Tron-style digital hover blip — triangle wave with a quick
           // upward sweep + sine harmonic shimmer for a clean synthetic
@@ -13174,7 +13223,7 @@ const UI = {
     return [
       // ---- UI ----
       proc('uiHover',   'UI',     'UI hover',          'Tron-digital hover blip — triangle sweep + sine shimmer. Fires on menu/HUD button hover.'),
-      proc('select',    'UI',     'Select tick',       'Short sine click. Fires on selection toggle.'),
+      proc('select',    'UI',     'Select tick',       'Player-chosen: soft tick / double pulse / glass tap / card lift / silent (Settings > Audio). Fires on selection toggle.'),
       proc('cardHover', 'UI',     'Card hover (default)', 'Deeper Tron blip used as the fallback for any card / trick without a registered hover file.'),
       proc('modalOpen', 'UI',     'Modal open',        'Soft swoosh-in — rising sine + faint noise puff.'),
       proc('modalClose','UI',     'Modal close',       'Snap-out — falling sine + tiny click.'),

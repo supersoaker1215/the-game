@@ -13,7 +13,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;700&display=swap">
-  <link rel="stylesheet" href="style.css?v=1038">
+  <link rel="stylesheet" href="style.css?v=1039">
   <script>
     // Lightweight error reporter (pre-Sentry) — capture runtime JS
     // errors + unhandled promise rejections to a localStorage ring
@@ -769,6 +769,16 @@
           <input type="checkbox" id="setting-menu-music" checked>
         </div>
         <div class="settings-row">
+          <label for="setting-select-sfx" title="The cue that fires when you select a card. Changing this plays a preview.">Card select sound</label>
+          <select id="setting-select-sfx" onchange="UI.previewSelectSfx(this.value)">
+            <option value="soft">Soft tick</option>
+            <option value="pulse">Double pulse</option>
+            <option value="glass">Glass tap</option>
+            <option value="lift">Card lift</option>
+            <option value="off">Silent</option>
+          </select>
+        </div>
+        <div class="settings-row">
           <label for="setting-hand-audio-privacy" title="Every card has its own hover sound, which tells anyone sitting next to you what is in your hand. Turn this on to replace hand hover cues with one generic blip — the rest of the game stays at full volume.">Hide hand sounds</label>
           <input type="checkbox" id="setting-hand-audio-privacy">
         </div>
@@ -834,7 +844,7 @@
   <script src="peerjs.min.js"></script>
   <script src="multiplayer.js?v=35"></script>
   <script src="card-art-manifest.js?v=57"></script>
-  <script src="ui.js?v=1218"></script>
+  <script src="ui.js?v=1219"></script>
   <script src="tutorial.js?v=7"></script>
   <script src="logger.js?v=5"></script>
   <!-- Always-on crash capture. Hooks window.onerror +
