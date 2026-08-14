@@ -46,8 +46,16 @@ window.CARD_ART_VARIANTS = {
   // ── Silver Surfer chrome / cosmic portrait additions (2026-05-26) ──
   'Silver Surfer':       ['Silver Surfer 3.png',      'Silver Surfer 2.png',     'Silver Surfer.png'],
   'Galactus':            ['Galactus 2.png',           'Galactus.png'],
-  'Scarlet Witch':       ['Scarlet Witch 2.png',      'Scarlet Witch.png'],
+  'Scarlet Witch':       ['Scarlet Witch 3.png',      'Scarlet Witch 2.png',     'Scarlet Witch.png'],
   'Deathstroke':         ['Deathstroke 2.png',        'Deathstroke.png'],
+  // ── 2026-08-14 art drop. New portrait FIRST so it is the default; the
+  //    previous art stays in the list rather than being deleted, so the
+  //    name-click cycle can still reach it and nothing is lost if one of
+  //    these reads worse in-match than it does full-size.
+  'Black Widow':         ['Black Widow 2.png',        'Black Widow.png'],
+  'Yoda':                ['Yoda 2.png',               'Yoda.png'],
+  'General Grievous':    ['General Grievous 2.png',   'General Grievous.png'],
+  'Gamora':              ['Gamora 2.png',             'Gamora.png'],
   // ── Single-art entries (webp) ──
   'Pennywise':           ['Pennywise 2.jpg',          'Pennywise.png'],
   'Freddy Krueger':      ['Freddy Krueger 2.png'],
