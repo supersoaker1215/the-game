@@ -4455,36 +4455,39 @@ test('Dead Draw reaches the live instance, not just the printed def', function (
     'and Evade 1 survived the edit');
 });
 
-test('Doomsday rises with Taunt re-armed, not just Immunity and Untrickable', function () {
-  // Taunt 1 is PRINTED on the def, so it arms once when he lands — but
-  // tauntTurns is a countdown that ticks off every round, so by the round he
-  // finally dies it is 0 and the old revive brought back a Doomsday who pulled
-  // nothing. Drive the decay, THEN the revive, or the test proves nothing.
+test('Doomsday rises with Immunity and Untrickable — and NOT with Taunt', function () {
+  // Reversed 2026-08-14: the revive briefly re-armed Taunt, on the reasoning
+  // that Taunt 1 is printed on the def and tauntTurns decays to 0 long before
+  // he dies. Owner struck "and Taunt" off the revive line — that decay IS the
+  // intended shape. Taunt is his ARRIVAL keyword, spent once; the revive does
+  // not refresh it.
   var G = freshGame();
   var d = place(G, 'Doomsday', 'player', 2);
-  assertEq(d.tauntTurns, 1, 'the printed keyword armed on arrival');
+  assertEq(d.tauntTurns, 1, 'the printed keyword still arms on arrival');
 
-  // Age him: run the round-end tick until Taunt has genuinely expired.
+  // Age him so Taunt has genuinely expired before he dies — otherwise a
+  // still-live counter would mask whether the revive re-armed it.
   for (var r = 0; r < 3 && d.tauntTurns > 0; r++) {
     G.state.round = r + 1;
     if (G.postCombat) G.postCombat();
   }
-  assertEq(d.tauntTurns, 0, 'and it really does decay to nothing');
+  assertEq(d.tauntTurns, 0, 'and it decays to nothing, as it should');
 
   var lane = G.findCardLane(d);
   d.currentHealth = 0;
   var prevented = CARD_ABILITIES.Doomsday.onDeath(G, d, lane);
-  assertEq(prevented, true, 'the revive fired');
-  assert(d.tauntTurns >= 1, 'Taunt is re-armed by the revive');
-  assert(d.immunityCharges >= 1, 'alongside Immunity');
+  assertEq(prevented, true, 'the revive still fires');
+  assertEq(d.tauntTurns | 0, 0, 'but Taunt is NOT re-armed — this is the change');
+  assert(d.immunityCharges >= 1, 'Immunity still comes back');
   assertEq(d.isUntrickable, true, 'and Untrickable');
   assertEq(d.currentHealth, d.maxHealth, 'at full HP');
 
-  // The text has to admit all three, since only two were named before.
+  // The printed text must match the two he actually gets, and must not
+  // promise the third.
   var desc = cardByName('Doomsday').desc;
-  ['Immunity', 'Untrickable', 'Taunt'].forEach(function (w) {
-    assert(desc.indexOf(w) > -1, 'the revive line names ' + w);
-  });
+  assert(desc.indexOf('Immunity') > -1, 'the revive line names Immunity');
+  assert(desc.indexOf('Untrickable') > -1, 'and Untrickable');
+  assert(!/Untrickable and Taunt/.test(desc), 'and no longer promises Taunt on revive');
 });
 
 test("Moder strips EVERY hook the engine can dispatch, not most of them", function () {
@@ -5085,7 +5088,7 @@ test('The 2026-08-09 wording batch stuck', function () {
     ['Jack Sparrow',['uncontested lane', 'cannot attack']],
     ['Joker',       ['While Active', 'Crazy']],
     ['Lex Luthor',  ['cannot draw cards', 'do bonus attacks']],
-    ['Doomsday',    ['costs 1 less', 'Immunity, Untrickable and Taunt']],
+    ['Doomsday',    ['costs 1 less', 'Immunity and Untrickable']],
     ['Batman',      ['Throw Batarangs', 'Fear 1']],
   ];
   kept.forEach(function (r) {

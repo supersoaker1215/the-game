@@ -5584,16 +5584,14 @@ const CARD_ABILITIES = {
       // removed the thing the log calls unstoppable. skipAutoUntrickable stays
       // set, so this is a flag he EARNS by rising, not one his cost hands him.
       self.isUntrickable = true;
-      // AND HIS TAUNT COMES BACK. Taunt 1 is a printed keyword on the def, so
-      // applyKeywordAbilities arms it once when he lands — but tauntTurns is a
-      // COUNTDOWN that ticks off every round (game.js postCombat), so by the
-      // round he finally dies it has long since hit 0 and the revive brought
-      // back a Doomsday who no longer pulled anything. User: "when doomsday
-      // revives he doesnt get taunt 1." Re-armed here with the other two
-      // things he earns by rising, so the body that comes back is the body the
-      // card advertises.
-      self.tauntTurns = Math.max(self.tauntTurns || 0, 1);
-      G.log(`[DOOMSDAY] Cannot be stopped — Doomsday rises with Immunity, Untrickable and Taunt.`);
+      // NO TAUNT ON THE REVIVE. Reversed 2026-08-14 (owner struck "and Taunt"
+      // off the revive line on a screenshot). It was briefly re-armed here on
+      // the reasoning that Taunt 1 is printed on the def and tauntTurns decays
+      // to 0 long before he dies — but that IS the intended shape: Taunt is his
+      // arrival keyword, spent once, not something the revive refreshes. The
+      // printed "Taunt 1" keyword stays on the def and still arms when he
+      // lands; it simply does not come back with him.
+      G.log(`[DOOMSDAY] Cannot be stopped — Doomsday rises with Immunity and Untrickable.`);
       if (typeof UI !== 'undefined' && UI._fxDoomsdayRise) { try { UI._fxDoomsdayRise(self); } catch (e) {} }
       return true; // prevent death
     }
