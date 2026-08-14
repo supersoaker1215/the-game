@@ -39879,7 +39879,24 @@ body.in-match {
   --hudc-size: 36px;   /* visual size; the global 44px hit-target block
                           still gives all three a real touch area */
   --hudc-gap:  10px;
-  --hudc-top:  12px;
+  /* The HUD strip's vertical padding, and the round pill's height. Both are
+     tokens rather than literals because --hudc-top below is DERIVED from them
+     — see there. --hud-pad-y also drives .turn-hud's own padding further down
+     this file, so the two can never disagree. */
+  --hud-pad-y:   5px;
+  --hud-pill-h:  36px;
+  /* WAS A HAND-TUNED 12px, which is exactly what the comment above this block
+     says the cluster is meant to avoid. It put the three buttons 7px below the
+     round pill (button centres at y=30 against the pill's y=23) and ran their
+     bottom edge to 48px against the HUD strip's own 47px, so they bled down
+     into the info bar underneath. Owner: "these are not even with the round
+     pill and bleed down."
+     Derived instead: start at the strip's content top, then correct by half
+     the difference in height between the pill and a button. The two centre
+     lines coincide by construction, and stay coincident if either size is
+     ever retuned. With both at 36px the correction is zero and this is simply
+     the strip's padding. */
+  --hudc-top: calc(var(--hud-pad-y) + (var(--hud-pill-h) - var(--hudc-size)) / 2);
   --hudc-left: calc(50% + 300px);   /* just right of the round pill */
   --hudc-step: calc(var(--hudc-size) + var(--hudc-gap));
 }
@@ -40028,7 +40045,15 @@ body.in-match .tricks-section {
   padding-bottom: 5px;
 }
 body.in-match .info-bar { padding-top: 4px; padding-bottom: 4px; }
-body.in-match .turn-hud { padding-top: 5px; padding-bottom: 5px; }
+/* Tokenised, not a literal: --hudc-top is derived from this value so the
+   top-right button cluster lines up with the round pill. Change the strip's
+   padding here and the buttons follow. */
+body.in-match .turn-hud { padding-top: var(--hud-pad-y); padding-bottom: var(--hud-pad-y); }
+/* Pins the pill's height so the cluster has something real to centre against
+   — it was purely content-derived, which made the two rows' agreement a
+   coincidence rather than a relationship. 36px is its measured height, so this
+   changes nothing on its own. */
+body.in-match .hud-pill-main { min-height: var(--hud-pill-h); }
 body.in-match .lane-forecast-strip { padding-top: 2px; padding-bottom: 2px; }
 
 /* WHERE THIS LANDS. 1349 -> 1155 with a full hand and 3 tricks, i.e. the
