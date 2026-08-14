@@ -5310,8 +5310,26 @@ const UI = {
     // reading gesture — clearing it mid-prompt would cancel a choice the player
     // is in the middle of making (and enemy-side targeting legitimately clicks
     // an ai-slot, which is no longer exempt above).
-    const promptArmed = !!(s && (s.pendingCardChoice || s.pendingLaneChoice));
-    if (!onPlayTarget && !promptArmed && s && s.selectedCard) {
+    // Ask the ENGINE what is armed rather than checking two slots by hand — a
+    // queued arm (_promptQueue) counts too, and a prompt kind added later is
+    // covered without this line knowing about it.
+    const promptArmed = (typeof Game !== 'undefined' && Game._anyPromptArmed)
+      ? Game._anyPromptArmed()
+      : !!(s && (s.pendingCardChoice || s.pendingLaneChoice));
+    // EXEMPT BY OUTCOME, NOT BY SELECTOR. The rule above says "a click on your
+    // own slot IS the play, so do not cancel it" — but a click on a slot that
+    // could not accept the card is not a play at all, and the exemption still
+    // fired, leaving the card lit with nothing having happened. Owner: "when i
+    // select a card sometimes they stay highlighted in hand i dont want that."
+    // Narrowing the selector again would just move the hole: whether a click
+    // was a play is not a fact about which element was hit, it is a fact about
+    // whether anything CHANGED. The slot handler has already run by the time
+    // this document listener fires, so the card still sitting in hand with
+    // nothing pending means the click did nothing — and a click that did
+    // nothing should deselect like any other.
+    const stillInHand = !!(s && s.selectedCard && s.player && s.player.hand &&
+                           s.player.hand.indexOf(s.selectedCard) >= 0);
+    if (!promptArmed && s && s.selectedCard && (!onPlayTarget || stillInHand)) {
       s.selectedCard = null;
       this.render();
     }

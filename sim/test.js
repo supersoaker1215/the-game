@@ -5442,6 +5442,88 @@ test('Only NAMED TOKENS inherit abilities; copies of real cards stay dumb bodies
     'but he is not a token, which is what the gate reads');
 });
 
+test('undo steps back TO the decision, re-arming the prompt instead of stranding you', function () {
+  // Play Ant-Man, pick a lane for the Ant, undo. The Ant used to vanish with NO
+  // prompt to place it again — the decision was gone and unrepeatable. Owner:
+  // "i should have a prompt to spawn the ant since that was the last decision i
+  // had to make, if i undo again i despawn ant man."
+  //
+  // Asserts the MECHANISM, not just the outcome: the sim shim resolves prompts
+  // synchronously, so an outcome-only check would pass either way. What matters
+  // is that a prompt slot is ARMED again after the undo, and that the callback
+  // behind it is a fresh one (re-run), never the restored closure — the rule in
+  // undo()'s purge that this must not break.
+  var G = freshGame();
+  G.state.phase = 'player-cards-tricks';
+  var antman = G.createCardInstance(cardByName('Ant-Man'), 'player');
+  G.state.player.hand.push(antman);
+  G.state.player.currency = 20;
+
+  // Hold the summon prompt open instead of letting the shim answer it, so the
+  // state under test is "question asked, not yet answered".
+  var armed = [];
+  var realLane = G.promptLaneChoice;
+  G.promptLaneChoice = function (owner, lanes, title, desc, cb, opts) {
+    G.state.pendingLaneChoice = { owner: owner, lanes: lanes, title: title, callback: cb };
+    armed.push(title);
+    return true;
+  };
+  var beforeHistory, afterPlay, afterUndo1, afterUndo2;
+  try {
+    beforeHistory = G.history.length;
+    G.playCard('player', antman, 0);
+    afterPlay = {
+      onBoard: G.state.lanes[0].player === antman,
+      prompted: armed.length,
+      history: G.history.length
+    };
+    // Answer it — this is the decision we will then take back.
+    var slot = G.state.pendingLaneChoice;
+    G.state.pendingLaneChoice = null;
+    var lane = slot.lanes[1] != null ? slot.lanes[1] : slot.lanes[0];
+    slot.callback(lane);
+    var antAfter = null;
+    for (var i = 0; i < G.state.lanes.length; i++) {
+      var c = G.state.lanes[i].player;
+      if (c && c !== antman && c.name === 'Ant') antAfter = c;
+    }
+    armed.length = 0;
+    G.undo('player');
+    var antStill = null;
+    for (var j = 0; j < G.state.lanes.length; j++) {
+      var d = G.state.lanes[j].player;
+      if (d && d !== antman && d.name === 'Ant') antStill = d;
+    }
+    afterUndo1 = {
+      antGone: !antStill,
+      antmanStillOnBoard: !!(G.state.lanes[0].player && G.state.lanes[0].player.name === 'Ant-Man'),
+      promptArmedAgain: !!G.state.pendingLaneChoice,
+      reArmed: armed.length,
+      antWasSummoned: !!antAfter
+    };
+    // A second undo takes the card itself back — the prompt on screen means
+    // "cancel the play", so it must not just re-ask.
+    G.undo('player');
+    afterUndo2 = {
+      laneEmpty: !G.state.lanes[0].player,
+      backInHand: G.state.player.hand.indexOf(antman) >= 0 ||
+                  G.state.player.hand.some(function (h) { return h.name === 'Ant-Man'; })
+    };
+  } finally {
+    G.promptLaneChoice = realLane;
+  }
+
+  assertEq(afterPlay.onBoard, true, 'Ant-Man is on the board after the play');
+  assertEq(afterPlay.prompted, 1, 'and his On Play asked where the Ant goes');
+  assertEq(afterUndo1.antWasSummoned, true, 'the Ant really was summoned before the undo');
+  assertEq(afterUndo1.antGone, true, 'undo removes the Ant');
+  assertEq(afterUndo1.antmanStillOnBoard, true, 'but Ant-Man himself stays — one step, not two');
+  assertEq(afterUndo1.reArmed, 1, 'the ability RE-RAN, which is what arms a fresh prompt');
+  assertEq(afterUndo1.promptArmedAgain, true, 'so the decision is on offer again');
+  assertEq(afterUndo2.laneEmpty, true, 'a second undo clears the lane');
+  assertEq(afterUndo2.backInHand, true, 'and puts Ant-Man back in hand');
+});
+
 // ============================================================
 // ---- RUNNER ------------------------------------------------
 // ============================================================
@@ -5460,6 +5542,7 @@ for (var i = 0; i < __tests.length; i++) {
 }
 
 console.log('');
+
 console.log('=== ' + __passed + ' passed, ' + __failed + ' failed ===');
 if (__failed > 0) {
   console.log('');

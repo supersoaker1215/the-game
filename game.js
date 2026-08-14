@@ -1326,7 +1326,13 @@ const Game = {
     // armed prompt (its callback is a live closure; undoing to it replays the
     // original timeline's objects → the duplicate-Ahsoka class).
     this.state[slotKey] = null;
-    if (this.isPlayerTurn() || (this.isMultiplayer() && this.mp && this.mp.role === 'host'))
+    // NOT while an ability chain is live. The entry this would push is the
+    // slot-cleared, callback-not-yet-run state — effect undone, prompt gone,
+    // no way to answer again. That stranded step is exactly what
+    // _runOnPlayWithUndoPoint replaces, and its entry already sits below this
+    // one; pushing here would just bury it.
+    if (!(this.state && this.state._abilityChainCard) &&
+        (this.isPlayerTurn() || (this.isMultiplayer() && this.mp && this.mp.role === 'host')))
       this.snapshot(prompt.owner);
     // Replay recording — capture the prompt resolution (kind + validated
     // payload) before the callback runs, so a replay resolves it identically.
@@ -1334,6 +1340,10 @@ const Game = {
     if (prompt.callback) prompt.callback(arg);
     this.cleanupDead();
     this.resumeCombatIfWaiting();
+    // Chain over once nothing else is waiting — later prompts get their own
+    // undo points again.
+    if (this.state && this.state._abilityChainCard && !this._anyPromptArmed())
+      this.state._abilityChainCard = null;
     return true;
   },
 
@@ -4431,7 +4441,7 @@ const Game = {
     // checkLaneTrap: that runs from _trapOnSettle, which is deliberately
     // AFTER onPlay (the entrance-then-trap ordering Scarlet Witch needs).
     this._applyModerLaneStrip(card, laneIdx);
-      this._runHook(card, 'onPlay', this, card, laneIdx);
+      this._runOnPlayWithUndoPoint(card, laneIdx);
       this.broadcastHook('onAnyCardPlayed', card, [card]);
       this.checkJumpConditions('cardPlayed', { owner, cost: card.baseCost || card.cost, laneIdx, isEnvironment: true });
       this.applyMagnetoDebuffs();
@@ -4521,7 +4531,7 @@ const Game = {
     // checkLaneTrap: that runs from _trapOnSettle, which is deliberately
     // AFTER onPlay (the entrance-then-trap ordering Scarlet Witch needs).
     this._applyModerLaneStrip(card, laneIdx);
-    this._runHook(card, 'onPlay', this, card, laneIdx);
+    this._runOnPlayWithUndoPoint(card, laneIdx);
     this.broadcastHook('onAnyCardPlayed', card, [card]);
     this.getAllCardsOf(owner).forEach(c => {
       if (c.passive === 'cardPlayedBuff' && c.id !== card.id) { const n = c._bpAuraSize || 1; this.buffCard(card, n, n); }
@@ -4661,7 +4671,7 @@ const Game = {
     // checkLaneTrap: that runs from _trapOnSettle, which is deliberately
     // AFTER onPlay (the entrance-then-trap ordering Scarlet Witch needs).
     this._applyModerLaneStrip(card, laneIdx);
-    this._runHook(card, 'onPlay', this, card, laneIdx);
+    this._runOnPlayWithUndoPoint(card, laneIdx);
     // Trigger "While Active" buffs from allies (e.g. Black Panther +1/+1)
     this.broadcastHook('onAnyCardPlayed', card, [card]);
     this.getAllCardsOf(owner).forEach(c => {
@@ -11894,6 +11904,60 @@ const Game = {
     this.history.push(clone);
   },
 
+  // Is any decision currently waiting on the player?
+  _anyPromptArmed() {
+    const s = this.state;
+    if (!s) return false;
+    return !!(s.pendingLaneChoice || s.pendingCardChoice || s.pendingKangChoice ||
+              s.pendingBlockTrick || s.pendingJumpOffer || s.pendingTimeStoneIntercept ||
+              (this._promptQueue && this._promptQueue.length));
+  },
+
+  // ===================== ABILITY UNDO POINT =====================
+  //
+  // Undo used to strand you between two states. Play Ant-Man, pick a lane for
+  // the Ant, undo — the Ant vanished but no prompt came back, so the decision
+  // you had just made was gone with no way to make it again. Owner: "i should
+  // have a prompt to spawn the ant since that was the last decision i had to
+  // make, if i undo again i despawn ant man."
+  //
+  // The cause is upstream in resolveActivePrompt, and it is deliberate: it
+  // nulls the prompt slot BEFORE it snapshots, because a snapshot that
+  // captures an armed prompt carries a callback closing over the ORIGINAL
+  // timeline's card objects — restoring it and resolving it replays foreign
+  // objects into the restored state (the duplicate-Ahsoka class). That rule
+  // is right and stays. A captured prompt can never be restored.
+  //
+  // So the undo point is moved instead of the rule being broken: snapshot
+  // BEFORE the ability runs, and on undo RE-RUN the ability. The restored
+  // state holds no prompt at all, and the prompt that reappears is armed
+  // fresh, closing over the post-undo objects — correct by construction
+  // rather than by careful copying.
+  //
+  // Only kept when the ability actually asked something. A card that just
+  // does its thing on play must not cost two undos to take back.
+  _runOnPlayWithUndoPoint(card, laneIdx) {
+    // Online undo is capped at one action and history holds a single entry,
+    // so an extra ability-level entry would evict the play itself. The plain
+    // hook keeps online behaviour exactly as it was.
+    if (this.isMultiplayer() || this._suppressAbilityUndoPoint ||
+        !this.isPlayerTurn() || !this.state || this.state.gameOver) {
+      this._runHook(card, 'onPlay', this, card, laneIdx);
+      return;
+    }
+    const pre = this.cloneStateDeep(this.state);
+    pre._undoSeat = card.owner || 'player';
+    pre._undoRearm = { cardId: card.id, laneIdx };
+    this._runHook(card, 'onPlay', this, card, laneIdx);
+    if (!this._anyPromptArmed()) return;   // nothing was asked — no extra step
+    if (this.history.length >= this.HISTORY_LIMIT) this.history.shift();
+    this.history.push(pre);
+    // Marks the chain as live so resolveActivePrompt does not ALSO push its
+    // own promptless snapshot on top of this one — that entry is the stranded
+    // state this whole mechanism exists to stop landing on.
+    this.state._abilityChainCard = card.id;
+  },
+
   // Restore the most recent snapshot. Returns true if anything was restored.
   // seat defaults to the local player; the host passes the requesting seat when
   // it is honouring a guest's forwarded undo.
@@ -11939,9 +12003,18 @@ const Game = {
     // Abuse prevention — cancel any live prompt timer + deadline before the
     // restore so a stale timer from the snapshot can't linger.
     this._clearPromptTimeout();
+    // Read BEFORE the queue is cleared. If a question is on screen right now,
+    // undo has to mean "cancel this play", not "ask me the same thing again" —
+    // re-arming the prompt the player is already looking at would make the
+    // button look broken. So an ability point popped in that situation is
+    // discarded and the play itself is taken back instead.
+    const wasPromptArmed = this._anyPromptArmed();
     this._promptQueue = [];   // queued arms closure over pre-undo card objects
     this._stackClear('undo'); // queued deaths closure over pre-undo card objects
-    const snap = this.history.pop();
+    let snap = this.history.pop();
+    if (wasPromptArmed && snap && snap._undoRearm && this.history.length) {
+      snap = this.history.pop();
+    }
     this.state = snap;
     // Charge the undo to the RESTORED state. Incrementing before the swap wrote
     // the counter onto an object that this line then discards, which is why the
@@ -11970,6 +12043,26 @@ const Game = {
     this.state.pendingJumpOffer = null;
     this.state.pendingTimeStoneIntercept = null;
     delete this.state._combatContinuation;
+    // RE-ARM BY RE-RUNNING, NEVER BY RESTORING. The purge above is absolute —
+    // a captured prompt closes over the pre-undo objects and can never be
+    // brought back. What CAN be brought back is the ability itself: this
+    // snapshot was taken before the hook ran, so running it again on the
+    // restored state arms the same question with fresh closures over the
+    // post-undo objects. See _runOnPlayWithUndoPoint.
+    const rearm = snap && snap._undoRearm;
+    this.state._abilityChainCard = null;
+    if (rearm && !wasPromptArmed) {
+      const c = this.findCard ? this.findCard(rearm.cardId) : null;
+      if (c && c.currentHealth > 0) {
+        // Suppressed so the re-run does not push ANOTHER ability undo point:
+        // the one that got us here was just popped, and the next undo must
+        // take the card back to hand rather than re-arming forever.
+        this._suppressAbilityUndoPoint = true;
+        try { this._runHook(c, 'onPlay', this, c, rearm.laneIdx); }
+        catch (e) { this.log('[UNDO] Could not re-arm ' + (c.name || 'ability')); }
+        finally { this._suppressAbilityUndoPoint = false; }
+      }
+    }
     this.log('[UNDO] Reverted to previous action');
     UI.render();
     return true;
