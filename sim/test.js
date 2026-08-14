@@ -5643,6 +5643,58 @@ test("Droideka's overcharge shows on his ATK orb, not just in the damage", funct
     'and effAtk comes from Game._cardEffectiveAtk — the same helper combat uses');
 });
 
+test("Ghost Rider PLAYS the card from hand, so its On Play fires like any other", function () {
+  // Owner: "he summoned luke and his on play mind control did not go off …
+  // that's literally his ability, just make that he plays a card from hand in
+  // his place so it goes normally."
+  //
+  // He used to splice the card out of hand and rebuild it through summonCard,
+  // which fires onPlay only as a special case of its own. Reproduced: with a
+  // prompt ALREADY ARMED at the moment he died — the normal mid-combat state —
+  // Luke landed with his Mind Control silently gone. Not applied, not queued.
+  //
+  // Both conditions are asserted, because the no-prompt case passed even with
+  // the bug present: a test that only covered it would have proved nothing.
+  function run(promptBusy) {
+    var G = freshGame();
+    var gr = G.createCardInstance(cardByName('Ghost Rider'), 'player');
+    G.state.lanes[2].player = gr; gr.owner = 'player';
+    G.state.player.hand = [G.createCardInstance(cardByName('Luke Skywalker'), 'player')];
+    var foe = G.createCardInstance(cardByName('Hawkeye'), 'ai');
+    G.state.lanes[0].ai = foe; foe.owner = 'ai';
+    if (promptBusy) {
+      G.state.pendingCardChoice = { owner: 'player', cards: [foe], title: 'busy',
+                                    desc: '', callback: function () {} };
+    }
+    gr.currentHealth = 0;
+    G.handleDeath(gr, 2, null);
+    G.cleanupDead();
+    var luke = null;
+    for (var i = 0; i < G.state.lanes.length; i++) {
+      var c = G.state.lanes[i].player;
+      if (c && c.name === 'Luke Skywalker') luke = c;
+    }
+    return { luke: !!luke, hand: G.state.player.hand.length, mc: !!foe.isMindControlled };
+  }
+
+  var quiet = run(false), busy = run(true);
+  assertEq(quiet.luke, true, 'the card reaches the board on a quiet board');
+  assertEq(quiet.mc,   true, 'and its On Play resolves');
+  assertEq(busy.luke,  true, 'it reaches the board with a prompt already armed too');
+  assertEq(busy.mc,    true, 'and its On Play STILL resolves — this is the bug');
+  assertEq(busy.hand,  0,    'and it left hand exactly once (playCardFree owns the removal)');
+
+  // The mechanism, not just the outcome: he must go through the shared free-play
+  // door. Routing back to summonCard would reintroduce the whole class.
+  var src = readFile('abilities.js');
+  var i = src.indexOf('"Ghost Rider"');
+  var body = src.slice(i, i + 4200);
+  assert(/playCardFree\(self\.owner, card, targetLane\)/.test(body),
+    'Ghost Rider plays the card through playCardFree');
+  assertEq(/G\.summonCard\(/.test(body), false,
+    'and no longer rebuilds it through summonCard');
+});
+
 // ============================================================
 // ---- RUNNER ------------------------------------------------
 // ============================================================

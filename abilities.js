@@ -1875,18 +1875,29 @@ const CARD_ABILITIES = {
       const summonChoice = (card) => {
         const targetLane = pickTargetLane();
         if (targetLane < 0) return;
-        const handIdx = hand.indexOf(card);
-        if (handIdx >= 0) hand.splice(handIdx, 1);
-        const def = (typeof CARD_DEFS !== 'undefined' && CARD_DEFS.find(d => d.name === card.name)) || card;
-        G.log(`Ghost Rider's last act: summoning ${card.name} from your hand!`);
-        G.summonCard(
-          self.owner, targetLane, card.name,
-          card.baseCost || card.cost,
-          card.attack,
-          card.maxHealth || card.health,
-          card.abilities || [],
-          def
-        );
+        G.log(`Ghost Rider's last act: playing ${card.name} from your hand!`);
+        // PLAYED, NOT SUMMONED. Owner: "that's literally his ability — just make
+        // that he plays a card from hand in his place so it goes normally."
+        //
+        // This used to splice the card out of hand by index and rebuild it
+        // through summonCard with a looked-up def. summonCard fires onPlay only
+        // as a special case of its own, and reproducibly failed to: with a
+        // prompt already armed at the moment Ghost Rider died — the normal
+        // mid-combat state — a Luke Skywalker played this way landed with his
+        // Mind Control silently gone. Not applied, not even queued.
+        //
+        // playCardFree is the door every other free play already walks through
+        // (jumps, Mother Box, Boiler Room), so the card now gets the SAME
+        // treatment as any other play: onPlay via _runOnPlayWithUndoPoint,
+        // the Moder lane strip, the aura ping, trap settling, entrance FX.
+        // It also owns the hand removal, which is why the manual splice is
+        // gone — doing both would have dropped the card twice.
+        //
+        // Its guards come along too, and that is a gain rather than a cost:
+        // Iron Giant can no longer be forced onto the field, an already-placed
+        // card cannot be dealt into a second lane, and a sleeping card stays
+        // asleep. summonCard enforced none of those.
+        G.playCardFree(self.owner, card, targetLane);
       };
       if (self._cyborgChooseFromHand && Game.isHuman(self.owner)) {
         G.promptCardChoice(self.owner, eligible,
