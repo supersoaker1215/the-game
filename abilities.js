@@ -4454,6 +4454,41 @@ const CARD_ABILITIES = {
       G.log(`  [BATTLE DROID] Reassembled, and better — now ${self.attack}/${self.currentHealth}.`);
     },
   },
+  "Droideka": {
+    // Two-mode cycle keyed off rounds SPENT ON THE FIELD, not the global round
+    // number — his first round is always shields-up regardless of when he lands.
+    //   odd count  → shields UP: Damage Immunity, takes no damage.
+    //   even count → shields DOWN: no immunity, triple ATK when he attacks.
+    // _computeIncomingDamage reads _droidekaTriple to x3 his swing.
+    _apply(G, self) {
+      const shieldsUp = (self._droidekaRound % 2) === 1;
+      self.hasDamageImmunity = shieldsUp;
+      self._droidekaTriple = !shieldsUp;
+      if (shieldsUp) {
+        G.log(`Droideka's shields snap up — it takes no damage this round.`);
+      } else {
+        G.log(`Droideka drops its shields and overcharges — triple ATK this round.`);
+      }
+      if (typeof UI !== 'undefined' && UI._fxDroidekaShield) {
+        try { UI._fxDroidekaShield(self, shieldsUp); } catch (e) {}
+      }
+    },
+    onPlay(G, self) {
+      self._droidekaRound = 1;   // first round on the field = odd = shields up
+      CARD_ABILITIES['Droideka']._apply(G, self);
+    },
+    onTurnStart(G, self) {
+      if (self.currentHealth <= 0) return;
+      self._droidekaRound = (self._droidekaRound || 0) + 1;
+      CARD_ABILITIES['Droideka']._apply(G, self);
+    },
+    onBeforeAttack(G, self) {
+      // Blaster fire cue on every swing. Guarded — no-op in the headless sim.
+      if (typeof UI !== 'undefined' && UI.sfx && UI.sfx.playCardSfx) {
+        try { UI.sfx.playCardSfx('Droideka', 'attack', self); } catch (e) {}
+      }
+    },
+  },
   "General Grievous": {
     // REDESIGNED 2026-08-09 (owner), twice. The Block-Meter strangle is gone,
     // and so is the board-wide Bullseye grant that briefly replaced it. He is a

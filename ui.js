@@ -1806,6 +1806,8 @@ const UI = {
       // any future direct play of the token still has audio.
       'Battle Droid':     { spawn: { src: 'audio/cards/battle-droid-spawn.mp3', maxDur: 4 }, play: { src: 'audio/cards/battle-droid-spawn.mp3', maxDur: 4 }, death: { src: 'audio/cards/battle-droid-death.mp3', maxDur: 3 } },
       'Mace Windu':       { play: { src: 'audio/cards/mace-windu-play.mp3', maxDur: 6 } },
+      // Droideka's blaster fire — played from his onBeforeAttack (see ability).
+      'Droideka':         { attack: { src: 'audio/cards/droideka-attack.mp3', maxDur: 2.5 } },
       // Darkseid — sample 'play' cue overrides his procedural one (CARD_SFX
       // wins over CARD_PROCEDURAL); hover/attack/death stay synthesized there.
       'Darkseid':         { play: { src: 'audio/cards/darkseid-play.mp3', maxDur: 5 } },
@@ -3634,7 +3636,10 @@ const UI = {
       //   • spawn     — fires when a card enters play via code (e.g. Freddy
       //     Krueger nightmare trigger, Pennywise rising from the Sewers).
       //     Same cap/fade settings as play; NOT auto-fired by playCard.
-      const ALLOWED = { hover: 1, play: 1, death: 1, ability: 1, kill: 1, spawn: 1 };
+      //   • attack    — fires when a card swings in combat. NOT auto-fired by
+      //     the engine; an ability calls it from onBeforeAttack (Droideka's
+      //     blaster fire). Same cap/fade profile as play.
+      const ALLOWED = { hover: 1, play: 1, death: 1, ability: 1, kill: 1, spawn: 1, attack: 1 };
       if (!ALLOWED[event]) return null;
       // HAND-AUDIO PRIVACY (user, 2026-07-25): every card has its OWN hover cue,
       // so browsing your hand tells anyone sitting beside you exactly what you
@@ -21187,6 +21192,10 @@ const UI = {
       const filled = c._spinoArmed ? max : Math.min(max, c._spinoMeter | 0);
       t.push(badge('badge-hunt-meter' + (c._spinoArmed ? ' badge-hunt-meter-full' : ''), `Hunt Meter ${filled}`, 'Hunt Meter'));
     }
+    // DROIDEKA overcharge — shields-down (even) rounds, when he deals triple
+    // ATK. Shields-UP rounds already show the DmgImmune badge from
+    // hasDamageImmunity above, so only the attack mode needs its own marker.
+    if (c._droidekaTriple) t.push(badge('badge-critical', 'Overcharge', ''));
     // HABITAT POWER — Wetlands' countdown to the release. Same reasoning as
     // the Hunt Meter: the number is the whole card. Falls back to the ability's
     // own START_POWER so a Wetlands still in hand prints its starting charge

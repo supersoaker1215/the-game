@@ -6174,6 +6174,7 @@ const Game = {
   _cardEffectiveAtk(card) {
     let atk = (card._yodaCombinedAtk != null) ? card._yodaCombinedAtk : card.attack;
     if (card._criticalThisRound) atk *= 2;
+    if (card._droidekaTriple) atk *= 3;   // Droideka shields-down overcharge
     return atk;
   },
   // opts.silent — compute WITHOUT logging. The predictor calls this on every
@@ -6205,6 +6206,12 @@ const Game = {
       const crit = dmg * 2;
       say(`  [CRITICAL] ${attacker.name} CRITICAL HIT! (${dmg} → ${crit})`);
       dmg = crit;
+    }
+    // Droideka overcharge — triple damage on its shields-down (even) rounds
+    if (attacker._droidekaTriple) {
+      const tripled = dmg * 3;
+      say(`  [DROIDEKA] ${attacker.name} overcharges — triple damage! (${dmg} → ${tripled})`);
+      dmg = tripled;
     }
     // Yoda shield — target's side takes half combat damage (rounded up)
     if (this.yodaShieldCount(target.owner) > 0 && dmg > 0) {
