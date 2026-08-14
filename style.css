@@ -31239,15 +31239,39 @@ body.round-tick .board::after {
 }
 #btn-undo.btn:hover { color: var(--text-hi, #e6edf4); }
 #btn-undo .undo-arrow { width: 13px; height: 13px; flex: none; }
-#btn-action.btn-primary {
+/* Scoped to the ID alone, NOT #btn-action.btn-primary. It was written that way
+   once and the box came back in the trick phase, because the JS swaps this
+   button's variant class per phase — 'End Cards'/'End Turn' render .btn-primary
+   but 'End Tricks' renders .btn-secondary, so the .btn-primary-scoped override
+   stopped matching and the glow painted again. Same mistake, same shape, as the
+   DONE underline documented below: the button does not carry any one variant
+   class in every phase, so anything that de-boxes it has to key off the ID. */
+#btn-action {
   outline: none;
   animation: none;
-  /* !important is required, not lazy: one of the .btn-primary rules declares
-     its glow with !important, and an important CLASS declaration beats a
-     plain ID one. This is the last vestige of the box — a rectangular halo
-     tracing the button's edges. The word keeps its own text-shadow, which is
-     what the main menu's options glow with. */
+  /* !important is required, not lazy: the .btn-primary AND .btn-secondary rules
+     both declare their glow with !important, and an important CLASS declaration
+     beats a plain ID one. This is the last vestige of the box — a rectangular
+     halo tracing the button's edges. The word keeps its own text-shadow, which
+     is what the main menu's options glow with. */
   box-shadow: none !important;
+  /* Same reason: .btn-secondary sets border-color with !important. The base ID
+     rule's `border: 0` already zeroes the width so colour alone can't draw, but
+     pinning both here means no future variant class can reintroduce an edge. */
+  background: transparent !important;
+  border: 0 !important;
+  /* And the word itself. .btn-secondary repaints colour + text-shadow with
+     !important too, which left 'End Tricks' a washed blue-white against 'End
+     Turn's clean theme cyan. One button, one look, in every phase. */
+  color: rgba(var(--theme-rgb, 79,195,247), 0.95) !important;
+  text-shadow: 0 0 10px rgba(var(--theme-rgb, 79,195,247), 0.45) !important;
+}
+#btn-action:hover,
+#btn-action:focus-visible {
+  color: #fff !important;
+  text-shadow:
+    0 0 14px rgba(var(--theme-rgb, 79,195,247), 0.85),
+    0 0 4px  rgba(var(--theme-rgb, 79,195,247), 0.6) !important;
 }
 #btn-action > .tron-sweep { display: none; }
 /* And the underline. It is a 2px bar pinned to the button's bottom edge with
