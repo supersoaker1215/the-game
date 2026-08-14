@@ -18421,6 +18421,15 @@ const UI = {
     // Whole pixels: at one decimal the value flickered 155.9 / 156.2 between
     // renders on identical input, which is rounding noise, not a resize.
     area.style.setProperty('--board-card-w', Math.floor(w) + 'px');
+    // The lanes just moved, so anything pinned to them is now stale. The
+    // forecast strip measured its cells during the render pass, which runs
+    // BEFORE this solve — that is why its cells were sized to the pre-fit lane
+    // width and drifted off-centre on a settled board. Re-align from here, the
+    // point where lane geometry is actually final. Deferred a frame so the new
+    // custom property has been laid out before anything reads a lane box.
+    requestAnimationFrame(() => {
+      try { this.alignLaneForecastStrip(true); } catch (e) {}
+    });
   },
 
   // THE HAND GROWS INTO WHATEVER HEIGHT IS LEFT OVER.
@@ -22659,30 +22668,81 @@ const UI = {
     // "the lane preview is not under the lanes" — caused by an earlier
     // version that skipped sizing on content changes too, leaving new
     // cells at default flex sizing → justify-content shifted the row.
-    requestAnimationFrame(() => {
+    requestAnimationFrame(() => this.alignLaneForecastStrip(htmlChanged));
+  },
+
+  // Pin the forecast cells over the lanes. Split out of
+  // renderLaneForecastStrip and made callable because the render pass is NOT
+  // the last thing that moves the lanes: _fitBoardToViewport solves and writes
+  // --board-card-w afterwards, so the strip measured the PRE-fit lane width
+  // and nothing ever re-measured it. That is how cells ended up 185px wide
+  // against 160px lanes on a settled board. Anything that resizes lanes must
+  // call this when it is done.
+  alignLaneForecastStrip(force) {
+    const strip = document.getElementById('lane-forecast-strip');
+    if (!strip || strip.style.display === 'none') return;
+    {
       const board = document.getElementById('board');
-      const firstLane = board && board.querySelector('.lane');
-      if (!board || !firstLane) return;
-      const laneRect = firstLane.getBoundingClientRect();
+      const lanes = board ? board.querySelectorAll('.lane') : null;
+      if (!board || !lanes || !lanes.length) return;
+      const htmlChanged = !!force;
       const boardRect = board.getBoundingClientRect();
-      const w = laneRect.width;
+      const w = lanes[0].getBoundingClientRect().width;
       const lastSize = this._laneStripLastSize;
-      const sizeUnchanged = lastSize && lastSize.w === w && lastSize.bw === boardRect.width;
+      const sizeUnchanged = lastSize && lastSize.w === w
+        && lastSize.bw === boardRect.width && lastSize.bx === boardRect.left;
       if (sizeUnchanged && !htmlChanged) return;
-      this._laneStripLastSize = { w, bw: boardRect.width };
-      strip.style.maxWidth = boardRect.width + 'px';
-      strip.style.marginLeft = 'auto';
-      strip.style.marginRight = 'auto';
-      // Match each cell's flex sizing to the actual lane width (px).
-      // Set min/max to the same value so flex-shrink can't compress
-      // them at narrow viewports.
-      strip.querySelectorAll('.lf-cell').forEach(cell => {
-        cell.style.width = w + 'px';
-        cell.style.minWidth = w + 'px';
-        cell.style.maxWidth = w + 'px';
-        cell.style.flex = '0 0 ' + w + 'px';
+      this._laneStripLastSize = { w, bw: boardRect.width, bx: boardRect.left };
+      // ALIGN TO THE REAL LANE BOXES, NOT A RECONSTRUCTION OF THEM.
+      //
+      // This used to size every cell to lane 1's width, lay them out as a
+      // centered flex row with a hardcoded 4px gap, and cap the row at the
+      // board's width. That only lines up if the strip's gap exactly equals
+      // the board's lane gap AND the lanes carry no margin — and they do, so
+      // 6 cells + 5 four-px gaps came out WIDER than the lane row. A centered
+      // overflow spills equally both ways, which is the off-centre drift:
+      // every cell sits progressively further from its lane the further it is
+      // from the middle, left cells pushed left and right cells pushed right.
+      //
+      // Reconstructing a layout from one sample plus assumed spacing is the
+      // bug. Each cell now reads the left edge and width of ITS OWN lane and
+      // is absolutely positioned there, so alignment is exact by construction
+      // and survives any future change to lane gap, margin or board padding
+      // without this code knowing about it.
+      const cellEls = strip.querySelectorAll('.lf-cell');
+      if (!cellEls.length) return;
+      // Pass 1: drop the pinning so the row lays out naturally and reports
+      // the height it wants. Absolute children give the strip no height of
+      // its own, so it has to be captured while they are still in flow.
+      cellEls.forEach(cell => {
+        cell.style.position = '';
+        cell.style.left = cell.style.top = cell.style.bottom = '';
+        cell.style.width = cell.style.minWidth = cell.style.maxWidth = '';
+        cell.style.flex = '';
       });
-    });
+      strip.style.height = '';
+      strip.style.maxWidth = '';
+      strip.style.marginLeft = strip.style.marginRight = '';
+      const naturalH = strip.getBoundingClientRect().height;
+      // Pass 2: freeze that height, then pin each cell over its lane. The
+      // containing block for an absolute child is the PADDING box, so the
+      // strip's own padding has to be added back by hand.
+      strip.style.height = naturalH + 'px';
+      const cs = getComputedStyle(strip);
+      const padT = parseFloat(cs.paddingTop) || 0;
+      const padB = parseFloat(cs.paddingBottom) || 0;
+      const stripRect = strip.getBoundingClientRect();
+      cellEls.forEach((cell, i) => {
+        const lane = lanes[i];
+        if (!lane) return;
+        const r = lane.getBoundingClientRect();
+        cell.style.position = 'absolute';
+        cell.style.top = padT + 'px';
+        cell.style.bottom = padB + 'px';
+        cell.style.left = (r.left - stripRect.left) + 'px';
+        cell.style.width = r.width + 'px';
+      });
+    }
   },
 
   // ===================== LOG =====================

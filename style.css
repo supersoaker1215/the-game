@@ -12468,10 +12468,14 @@ body.turn-combat .board .lane.lane-active {
    aligned with thier repective lanes." */
 .lane-forecast-strip {
   display: flex;
-  /* Centered just like .board so the 6 cells line up under the
-     6 lanes regardless of viewport width. */
+  /* Positioning context for the cells. renderLaneForecastStrip pins each cell
+     absolutely over its own lane's measured box — see the comment there for
+     why reconstructing the row from one lane width plus an assumed gap put the
+     cells off-centre. The flex/gap/justify below only govern the brief first
+     measurement pass (cells in flow, to read the row's natural height); once
+     pinned, the children are absolute and none of it applies. */
+  position: relative;
   justify-content: center;
-  /* Match the board's lane gap exactly — 4px between adjacent cells. */
   gap: 4px;
   padding: 4px 0;
   background: linear-gradient(180deg, rgba(8,14,22,0.55) 0%, rgba(8,14,22,0.85) 100%);
