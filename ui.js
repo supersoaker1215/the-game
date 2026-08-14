@@ -1998,6 +1998,9 @@ const UI = {
       'Batarangs': {
         play: 'audio/cards/batarangs-play.mp3'
       },
+      'Seismic Charge': {
+        play: 'audio/cards/seismic-charge-play.mp3'
+      },
       'Time Stone': {
         hover: 'audio/cards/time-stone-hover.mp3',
         play:  'audio/cards/time-stone-play.mp3'

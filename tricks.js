@@ -79,6 +79,34 @@ const TRICK_DEFS = [
       strike1();
     }
   },
+  { name: "Seismic Charge", cost: 2,
+    desc: "Deal 2 damage to an enemy and every enemy in the lanes beside it.",
+    canPlay(G, owner) {
+      return G.getEnemiesOf(owner).some(e => G.canTrickLand(e, 'damage', owner));
+    },
+    play(G, owner) {
+      const pool = G.getEnemiesOf(owner).filter(e => G.canTrickLand(e, 'damage', owner));
+      if (!pool.length) return;
+      G.promptCardChoice(owner, pool, "Seismic Charge — Detonate",
+        "Deal 2 damage to an enemy and both cards beside it",
+        (t) => {
+          const lane = G.findCardLane(t);
+          // Center target, then splash the enemy cards in the adjacent lanes.
+          // Adjacent damage goes through dealDamage, so Damage Immunity /
+          // Invincible on a neighbor still shrug it like any other splash.
+          G.dealDamage(t, 2);
+          G.getAdjacentEnemiesInContext(lane, owner).forEach(e => G.dealDamage(e, 2));
+          G.log(`Seismic Charge detonates on ${t.name} — 2 damage to it and its neighbors!`);
+        },
+        // AI picker: detonate where it catches the most cards; tie-break on the
+        // lowest-HP center so the blast is most likely to kill.
+        cards => cards.slice().sort((a, b) => {
+          const na = G.getAdjacentEnemiesInContext(G.findCardLane(a), owner).length;
+          const nb = G.getAdjacentEnemiesInContext(G.findCardLane(b), owner).length;
+          return (nb - na) || (a.currentHealth - b.currentHealth);
+        })[0]);
+    }
+  },
   { name: "Bat Signal", cost: 1,
     desc: "Summon a random card with cost ≤ 1. From round 4, Batman can be pulled too.",
     play(G, owner) {
