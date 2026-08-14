@@ -31399,28 +31399,95 @@ body.round-tick .board::after {
   60%  { transform: scale(1.04); opacity: 1; }
   100% { transform: scale(1.00); }
 }
-/* TAP-TO-PLAY button inside the card inspect view — the non-drag way to play.
-   Player-green, sized to sit under the rarity ribbon as the modal's call to
-   action. pointer-events explicit because the modal stops click-through. */
-.card-inspect-play-btn {
-  pointer-events: auto;
-  margin-top: 2px;
-  padding: 11px 26px;
+/* ============================================================
+   TRON RETICLE BUTTON — the reusable form of the in-match action
+   ============================================================
+   A targeting reticle instead of a button: no fill, no border, no radius —
+   four corner brackets that FRAME the word without enclosing it, and open
+   outward on hover while the word brightens. Grow and glow, never a filled
+   box. This is the same language #btn-action (End Turn / End Tricks) speaks;
+   it lives as a class here so the next primary action joins a list instead of
+   hand-copying eight background gradients and drifting.
+
+   Colour comes from --rtc (r,g,b triplet), defaulting to the active theme, so
+   a caller can carry a semantic accent — green for "play" — while keeping the
+   form identical.
+
+   NOTE: #btn-action is the other instance of this pattern and is NOT yet
+   converted. It carries .tron-fx, an overflow:hidden that exists solely to
+   park a .tron-sweep child, and several tuned overrides; folding it in is a
+   separate change that deserves its own verification rather than a drive-by.
+   ============================================================ */
+.tron-reticle-btn {
+  position: relative;
+  --rtc: var(--theme-rgb, 79,195,247);
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  padding: 11px 30px;
+  min-height: 44px;           /* the mobile pass's touch target */
   font-family: 'Rajdhani', sans-serif;
   font-weight: 700;
   font-size: 16px;
-  letter-spacing: 0.06em;
+  letter-spacing: 1.8px;
+  text-indent: 1.8px;         /* letter-spacing pads the right edge only */
   text-transform: uppercase;
-  color: #071a0e;
-  background: linear-gradient(180deg, #52e08a 0%, #2fbf6a 100%);
-  border: 1px solid #7bffb0;
-  border-radius: 10px;
   cursor: pointer;
-  box-shadow: 0 3px 14px rgba(47,191,106,0.45), inset 0 1px 0 rgba(255,255,255,0.35);
-  transition: transform 90ms ease, box-shadow 160ms ease, filter 120ms ease;
+  color: rgba(var(--rtc), 0.95);
+  text-shadow: 0 0 10px rgba(var(--rtc), 0.45);
+  transition: color 0.18s, text-shadow 0.18s, transform 0.15s var(--ease-spring, ease);
 }
-.card-inspect-play-btn:hover { filter: brightness(1.08); box-shadow: 0 4px 20px rgba(47,191,106,0.6), inset 0 1px 0 rgba(255,255,255,0.4); }
-.card-inspect-play-btn:active { transform: translateY(1px) scale(0.98); }
+/* Eight hairlines, two per corner, drawn as background gradients so the whole
+   frame is one element and one paint. */
+.tron-reticle-btn::before {
+  content: '';
+  position: absolute;
+  inset: 4px;
+  pointer-events: none;
+  --c: rgba(var(--rtc), 0.9);
+  background:
+    linear-gradient(90deg,  var(--c) 0 100%) 0    0    / 15px 1px no-repeat,
+    linear-gradient(180deg, var(--c) 0 100%) 0    0    / 1px 15px no-repeat,
+    linear-gradient(90deg,  var(--c) 0 100%) 100% 0    / 15px 1px no-repeat,
+    linear-gradient(180deg, var(--c) 0 100%) 100% 0    / 1px 15px no-repeat,
+    linear-gradient(90deg,  var(--c) 0 100%) 0    100% / 15px 1px no-repeat,
+    linear-gradient(180deg, var(--c) 0 100%) 0    100% / 1px 15px no-repeat,
+    linear-gradient(90deg,  var(--c) 0 100%) 100% 100% / 15px 1px no-repeat,
+    linear-gradient(180deg, var(--c) 0 100%) 100% 100% / 1px 15px no-repeat;
+  filter: drop-shadow(0 0 5px rgba(var(--rtc), 0.55));
+  transition: inset 0.18s var(--ease-spring, ease), opacity 0.18s;
+}
+.tron-reticle-btn:hover,
+.tron-reticle-btn:focus-visible {
+  color: #fff;
+  text-shadow: 0 0 14px rgba(var(--rtc), 0.85), 0 0 4px rgba(var(--rtc), 0.6);
+}
+.tron-reticle-btn:hover::before,
+.tron-reticle-btn:focus-visible::before { inset: 1px; }
+.tron-reticle-btn:active { transform: scale(0.97); }
+.tron-reticle-btn:active::before { inset: 6px; }
+@media (prefers-reduced-motion: reduce) {
+  .tron-reticle-btn, .tron-reticle-btn::before { transition: none; }
+}
+
+/* TAP-TO-PLAY button inside the card inspect view — the non-drag way to play.
+   WAS a glossy filled pill: green gradient, 10px radius, 1px light border, a
+   drop shadow and an inset white highlight. Next to a card whose own frame is
+   pure neon-on-black it read as a control borrowed from another application —
+   the same "filled rounded box" this project has removed everywhere else.
+   Owner: "i like this but needs to be tron themed."
+
+   Same placement, same prominence, same green; the FORM is now the reticle.
+   Green is kept deliberately rather than swapped for theme cyan: it is the
+   palette's existing confirm/win colour (it matches .lf-cell.lf-win), and it
+   is what separates "commit this play" from every other themed control on
+   screen. pointer-events explicit because the modal stops click-through. */
+.card-inspect-play-btn {
+  pointer-events: auto;
+  margin-top: 2px;
+  --rtc: 110,245,139;
+}
 /* Bigger card inside the modal — the same .card markup as on
    board, but resized via `zoom` so the LAYOUT BOX scales with the
    visual. `transform: scale()` made the layout box stay 1× and the

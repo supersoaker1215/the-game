@@ -503,7 +503,12 @@ const UI = {
     if (this._inspectCardPlayable(card)) {
       const playBtn = document.createElement('button');
       playBtn.type = 'button';
-      playBtn.className = 'card-inspect-play-btn';
+      // .tron-reticle-btn carries the form (corner brackets, no fill);
+      // .card-inspect-play-btn only carries this surface's placement + accent.
+      // Both the card and the trick inspect paths build their own button, so
+      // any restyle has to land on both — hence the shared class rather than
+      // two copies of the look.
+      playBtn.className = 'card-inspect-play-btn tron-reticle-btn';
       playBtn.textContent = card.isDiscardEffect ? 'Play' : 'Play — tap a lane';
       playBtn.onclick = (e) => {
         e.stopPropagation();
@@ -26916,7 +26921,12 @@ const UI = {
     if (liveTrick && this._inspectTrickPlayable(liveTrick)) {
       const playBtn = document.createElement('button');
       playBtn.type = 'button';
-      playBtn.className = 'card-inspect-play-btn';
+      // .tron-reticle-btn carries the form (corner brackets, no fill);
+      // .card-inspect-play-btn only carries this surface's placement + accent.
+      // Both the card and the trick inspect paths build their own button, so
+      // any restyle has to land on both — hence the shared class rather than
+      // two copies of the look.
+      playBtn.className = 'card-inspect-play-btn tron-reticle-btn';
       playBtn.style.cssText = 'display:block; margin:6px auto 14px;';
       playBtn.textContent = 'Play';
       playBtn.onclick = (e) => {
