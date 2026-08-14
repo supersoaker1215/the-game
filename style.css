@@ -40254,3 +40254,27 @@ body.in-match .tricks-section {
 }
 body.low-fx .player-hand-section,
 body.low-fx .tricks-section { transition: none !important; }
+
+/* ============================================================
+   EDGE HAND CARDS GROW INWARD (2026-08-10)
+   Owner: "the left and right cards are getting cut off."
+
+   The hover enlarge is `.hand-card-wrapper:hover { scale(1.6) }` about
+   a centred origin, so a magnified card reaches ~30% of its width past
+   each side. For the first and last card in the row that lands outside
+   the viewport, and <body> carries `overflow-x: hidden` — so it is not
+   scrolled to, it is simply sliced off.
+
+   Pinning the origin to the outer edge makes those two grow inward
+   instead. Chosen over padding the row: the width solver in
+   UI._fitHandToViewport reads .player-hand-section's padding to decide
+   how many cards fit, so reserving ~60px a side there would have made
+   every card smaller on every hand just to protect the two ends.
+   Vertical origin stays `bottom` on both so the lift still rises from
+   the hand baseline exactly as it does for every other card.
+   ============================================================ */
+.hand-card-wrapper:first-child { transform-origin: left bottom; }
+.hand-card-wrapper:last-child  { transform-origin: right bottom; }
+/* Tricks magnify the same way and sit hard against the right edge, so the
+   last one needs the same treatment. */
+.tricks-section .trick-card:last-child { transform-origin: right bottom; }
