@@ -60,6 +60,11 @@ window.CARD_ART_VARIANTS = {
   // picker is rendered. Adding him here is what makes the new portrait
   // reachable AND leaves the original one cycle-click away.
   'Ultron':              ['Ultron 2.png',             'Ultron.png'],
+  // Invisible Woman and Sandman were in the same position as Ultron above:
+  // one art file each, so no manifest entry and no variant picker. New
+  // portrait leads, original stays one cycle-click behind it.
+  'Invisible Woman':     ['Invisible Woman 2.png',    'Invisible Woman.png'],
+  'Sandman':             ['Sandman 2.png',            'Sandman.png'],
   // ── Single-art entries (webp) ──
   'Pennywise':           ['Pennywise 2.jpg',          'Pennywise.png'],
   'Freddy Krueger':      ['Freddy Krueger 2.png'],
