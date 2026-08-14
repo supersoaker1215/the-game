@@ -40332,48 +40332,18 @@ body.low-fx .badge-asleep { animation: none; }
 .card.card-asleep { opacity: 0.62; filter: saturate(0.55); }
 
 /* ============================================================
-   COMBAT ZOOM (2026-08-10)
-   Owner: "once the combat phase starts the board zooms so you see
-   all the lanes and not the hand, but you do see your health and
-   block meter, and once combat ends it zooms back out."
+   COMBAT ZOOM — REMOVED (2026-08-14)
+   Owner: "can you remove the zoom in for the combat phase."
 
-   The hand is not actionable mid-combat, so it folds away and the
-   board claims the height. What stays is the player bar — HP, block
-   meter and energy — because those are the numbers the fight is
-   actually moving, and watching them tick is the point of watching.
+   It folded .player-hand-section / .tricks-section away during combat
+   (max-height 0 + opacity 0) so the board could claim the height, and
+   unfolded them when the fight ended. Deleted rather than disabled, and
+   that includes the transition + `max-height: 900px` ceiling those rows
+   carried: both existed ONLY to animate this fold, so leaving them would
+   have left a latent height cap on the hand row for no reason. The body
+   class and the zero-height branch in UI._fitBoardToViewport went with
+   them. The hand is now a fixed part of the layout for the whole round.
    ============================================================ */
-body.in-match.combat-zoom .player-hand-section,
-body.in-match.combat-zoom .tricks-section {
-  /* Collapsed, not display:none — a height/opacity fold animates, and it
-     keeps the grid row in place so nothing below jumps. */
-  max-height: 0;
-  opacity: 0;
-  padding-top: 0;
-  padding-bottom: 0;
-  overflow: hidden;
-  pointer-events: none;
-}
-/* The fold, and the board growing into it, share one duration so they read as
-   a single movement rather than two things happening near each other. */
-body.in-match .player-hand-section,
-body.in-match .tricks-section {
-  transition: max-height 420ms var(--ease-out-soft, cubic-bezier(0.22,1,0.36,1)),
-              opacity 300ms ease,
-              padding 420ms var(--ease-out-soft, cubic-bezier(0.22,1,0.36,1));
-  max-height: 900px;   /* a ceiling to animate FROM; never binds in practice */
-}
-/* THE BOARD ITSELF IS NOT TRANSITIONED, on purpose. Easing the lane/card
-   widths looked right and broke the solve: UI._fitBoardToViewport measures the
-   laid-out board, and a second corrective pass landed mid-animation, so the
-   value oscillated 156 -> 224 -> 156 instead of settling. You cannot measure a
-   box that is still moving. The hand fold is the movement the eye follows; the
-   board resizing underneath it inside that same 420ms reads as one gesture. */
-@media (prefers-reduced-motion: reduce) {
-  body.in-match .player-hand-section,
-  body.in-match .tricks-section { transition: none; }
-}
-body.low-fx .player-hand-section,
-body.low-fx .tricks-section { transition: none !important; }
 
 /* ============================================================
    EDGE HAND CARDS GROW INWARD (2026-08-10)

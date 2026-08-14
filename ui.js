@@ -6723,38 +6723,13 @@ const UI = {
     // main-menu marker on <body>, only the negative `in-match`, so this adds
     // one rather than inferring "menu" from the absence of everything else.
     document.body.classList.toggle('on-main-menu', !!isMainMenu);
-    // COMBAT ZOOM. During the fight the hand is not actionable, so it folds
-    // away and the board takes the whole screen — you watch the lanes trade,
-    // with your HP / block / energy bar still on screen because those are the
-    // numbers the fight is moving. It unfolds again when combat ends.
-    // Keyed on Game.isInCombat() so it agrees with the watchdog about when
-    // combat is live, including 2v2's separate phase name.
-    const _inCombat = !!(Game.isInCombat && Game.isInCombat());
-    // ...BUT the fight pauses mid-combat for prompts the player has to answer,
-    // and several of those are about the HAND — Deadpool's trade, a block-meter
-    // free trick (you want to see how many cards you're holding), a jump-card
-    // offer, a Batman-Who-Laughs keep/destroy, a Time Stone / Kang reaction, or
-    // any card pick. Those all raise one of the pending flags below, so while
-    // one is up we drop OUT of the watch-the-fight zoom back to the normal view
-    // (hand unfolded); it re-zooms automatically on the next render once the
-    // prompt resolves and combat resumes. (Owner: "when the board zooms, at the
-    // times you need to see your hand — Deadpool trade, drawing a trick — zoom
-    // back out and then back in.")
-    // Card/lane picks are gated on promptIsMine so the AI's own fast
-    // auto-resolves in solo can't flash the zoom off for a frame; block-trick /
-    // jump / kang / Time-Stone offers are only ever raised for a human, so they
-    // need no such guard. AI-action delays (_pendingAIActions) are deliberately
-    // excluded — nobody is reading the hand while the AI resolves.
-    const _mine = (p, kind) => p && (!Game.promptIsMine || Game.promptIsMine(p, kind));
-    const _combatPrompt = _inCombat && (
-      _mine(s.pendingCardChoice, 'card') ||
-      _mine(s.pendingLaneChoice, 'lane') ||
-      s.pendingBlockTrick ||
-      s.pendingKangChoice ||
-      s.pendingJumpOffer ||
-      s.pendingTimeStoneIntercept
-    );
-    document.body.classList.toggle('combat-zoom', _inCombat && !_combatPrompt);
+    // COMBAT ZOOM — REMOVED (owner: "can you remove the zoom in for the combat
+    // phase"). During combat the hand and tricks used to fold away so the board
+    // could claim the height, unfolding again when the fight ended. The whole
+    // mechanism is gone rather than left switched off: the body class, the CSS
+    // fold, and the branch in _fitBoardToViewport that charged the hand at zero
+    // height while it was collapsed. The hand now stays put for the whole
+    // round, so the board is one size from start to finish.
 
     if (isMainMenu)    { this.renderMainMenu(s); return; }
     if (isModeSelect)  { this.renderModeSelect(s); return; }
@@ -18451,15 +18426,13 @@ const UI = {
     // Board size becomes a pure function of the viewport: constant for a given
     // window, however many cards are in hand.
     const handRow = document.querySelector('.player-hand-section');
-    const zoomed = document.body.classList.contains('combat-zoom');
     let others = area.scrollHeight - boardH;
     if (handRow) {
       const hcs = getComputedStyle(handRow);
-      // Charged at the CEILING out of combat (so the board never resizes as
-      // cards leave your hand) and at ZERO during it (so the folded-away row
-      // hands its height to the board instead of leaving a gap).
-      const handMax = zoomed ? 0
-        : 200 * 182 / 92
+      // Charged at the CEILING, always. The combat-zoom branch that charged it
+      // at ZERO while the row was folded away went with the zoom itself — the
+      // row no longer collapses, so there is no second case.
+      const handMax = 200 * 182 / 92
           + (parseFloat(hcs.paddingTop) || 0) + (parseFloat(hcs.paddingBottom) || 0);
       others = others - handRow.getBoundingClientRect().height + handMax;
     }
