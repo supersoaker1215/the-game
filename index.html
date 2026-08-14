@@ -779,6 +779,16 @@
           </select>
         </div>
         <div class="settings-row">
+          <label for="setting-round-sfx" title="The cue that marks a round change. Changing this plays a preview.">Round change sound</label>
+          <select id="setting-round-sfx" onchange="UI.previewRoundSfx(this.value)">
+            <option value="swell">Low swell</option>
+            <option value="pulse">Two-note pulse</option>
+            <option value="chime">Soft chime</option>
+            <option value="deep">Deep sub</option>
+            <option value="off">Silent</option>
+          </select>
+        </div>
+        <div class="settings-row">
           <label for="setting-hand-audio-privacy" title="Every card has its own hover sound, which tells anyone sitting next to you what is in your hand. Turn this on to replace hand hover cues with one generic blip — the rest of the game stays at full volume.">Hide hand sounds</label>
           <input type="checkbox" id="setting-hand-audio-privacy">
         </div>
@@ -835,7 +845,7 @@
   <script src="engine/combat.js?v=3"></script>
   <!-- (game.js / ui.js / roguelite.js cache bumps follow) -->
   <script src="decks.js?v=6"></script>
-  <script src="game.js?v=522"></script>
+  <script src="game.js?v=523"></script>
   <script src="ai.js?v=53"></script>
   <script src="roguelite.js?v=124"></script>
   <!-- PeerJS for WebRTC peer-to-peer multiplayer. Uses the public
@@ -844,7 +854,7 @@
   <script src="peerjs.min.js"></script>
   <script src="multiplayer.js?v=35"></script>
   <script src="card-art-manifest.js?v=57"></script>
-  <script src="ui.js?v=1220"></script>
+  <script src="ui.js?v=1221"></script>
   <script src="tutorial.js?v=7"></script>
   <script src="logger.js?v=5"></script>
   <!-- Always-on crash capture. Hooks window.onerror +

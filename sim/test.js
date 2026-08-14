@@ -5524,6 +5524,47 @@ test('undo steps back TO the decision, re-arming the prompt instead of stranding
   assertEq(afterUndo2.backInHand, true, 'and puts Ant-Man back in hand');
 });
 
+test("Freddy Fazbear's jump does not also bill for the waste that summoned him", function () {
+  // He jumped out of the AI's hand because the player banked 2+ energy — correct
+  // — and then drained an energy at the start of the next round off that SAME
+  // end-of-turn. One trigger cashed twice: deployed him for free AND charged for
+  // it. Owner: "he took away my energy the next round, his ability doesn't fire
+  // the round he is played."
+  var G = freshGame();
+  G.state.phase = 'player-cards';
+  G.state.player.currency = 4;              // the waste that wakes him
+  G.state.ai.currency = 0;
+  var freddy = G.createCardInstance(cardByName('Freddy Fazbear'), 'ai');
+  G.state.ai.hand.push(freddy);
+  // AI seat so the jump lands immediately (a human's would arm a prompt).
+  var realHuman = G.isHuman;
+  G.isHuman = function (seat) { return seat === 'player'; };
+  try {
+    G._checkFreddyFazbear('player');
+  } finally { G.isHuman = realHuman; }
+
+  var onBoard = null;
+  for (var i = 0; i < G.state.lanes.length; i++) {
+    if (G.state.lanes[i].ai && G.state.lanes[i].ai.name === 'Freddy Fazbear') onBoard = G.state.lanes[i].ai;
+  }
+  assert(!!onBoard, 'he still jumps in off the banked energy — that part was right');
+  assertEq(!!onBoard._triggerNextRound, false,
+    'but the turn that DEPLOYED him must not also arm his drain');
+
+  // And the round he was played does not cost the player anything.
+  var before = G.state.player.currency;
+  G._runHook(onBoard, 'onTurnStart', G, onBoard);
+  assertEq(G.state.player.currency, before, 'so no energy is taken the round he lands');
+
+  // While-Active still works: a LATER qualifying end-of-turn arms him normally.
+  G.state.player.currency = 3;
+  G._checkFreddyFazbear('player');
+  assertEq(!!onBoard._triggerNextRound, true, 'a later end-of-turn does arm him');
+  var before2 = G.state.player.currency;
+  G._runHook(onBoard, 'onTurnStart', G, onBoard);
+  assertEq(G.state.player.currency, before2 - 1, 'and then he drains 1, as printed');
+});
+
 // ============================================================
 // ---- RUNNER ------------------------------------------------
 // ============================================================

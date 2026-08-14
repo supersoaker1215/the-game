@@ -660,6 +660,11 @@ const UI = {
     // soft | pulse | glass | lift | off. Replaces a fixed 880Hz sine pip that
     // was too shrill to hear on every tap — see the 'select' case in the synth.
     selectSfx: 'soft',
+    // Which cue marks a round change (both the start swell and its mirror at
+    // the end). One of: swell | pulse | chime | deep | off. Replaces a
+    // 220->440Hz sweep that was the shrillest thing in the match and fired
+    // every round — see audio._roundCue.
+    roundSfx: 'swell',
     // Music bed level (0..1), independent of SFX — drives the menu loop +
     // match intro. SFX slider at 0 still mutes everything (master kill).
     musicVolume: 0.55,
@@ -1170,6 +1175,16 @@ const UI = {
     }
   },
 
+  // Same contract as previewSelectSfx: commit first, then fire the cue through
+  // the audio object's OWN roundStart, so the preview is the real thing rather
+  // than a copy of it that can drift.
+  previewRoundSfx(value) {
+    this.settings.roundSfx = value;
+    if (value !== 'off' && this.audio && this.audio.roundStart) {
+      try { this.audio.roundStart(); } catch (e) {}
+    }
+  },
+
   saveSettings() {
     const g = (id) => document.getElementById(id);
     this.settings.difficulty  = g('setting-difficulty').value;
@@ -1209,6 +1224,8 @@ const UI = {
     }
     const selectSfxEl = g('setting-select-sfx');
     if (selectSfxEl) this.settings.selectSfx = selectSfxEl.value;
+    const roundSfxEl = g('setting-round-sfx');
+    if (roundSfxEl) this.settings.roundSfx = roundSfxEl.value;
     const handPrivSaveEl = g('setting-hand-audio-privacy');
     if (handPrivSaveEl) {
       this.settings.handAudioPrivacy = handPrivSaveEl.checked;
@@ -1387,6 +1404,8 @@ const UI = {
     if (menuMusicEl) menuMusicEl.checked = this.settings.menuMusic !== false;
     const selectSfxLoadEl = g('setting-select-sfx');
     if (selectSfxLoadEl) selectSfxLoadEl.value = this.settings.selectSfx || 'soft';
+    const roundSfxLoadEl = g('setting-round-sfx');
+    if (roundSfxLoadEl) roundSfxLoadEl.value = this.settings.roundSfx || 'swell';
     const handPrivEl = g('setting-hand-audio-privacy');
     if (handPrivEl) handPrivEl.checked = !!this.settings.handAudioPrivacy;
     // Paint the in-hand quick toggle from the saved value on boot.
@@ -24794,14 +24813,43 @@ const UI = {
     },
 
     // ---- PHASE / ROUND TRANSITIONS ----
-    roundStart() {
-      // Rising tone — energy entering the round
-      this.voice({ freq: 220, endFreq: 440, dur: 0.40, type: 'triangle', gain: 0.06, exp: true });
+    // ---- ROUND CHANGE ----
+    // WAS a 220→440Hz triangle sweep over a full 0.40s (and its mirror on the
+    // way out). It topped out at the most sensitive part of the ear's range and
+    // held long enough to sing rather than tick, so the loudest, whiniest thing
+    // in the match was the one cue that fires every single round. Owner, after
+    // I first went looking in the wrong place: "its the change round audio."
+    //
+    // Four alternatives, all pitched WELL below the old peak and shorter, plus
+    // silent. Picked in Settings > Audio. Start and end share one setting and
+    // one shape — they are the same event heard from two sides — so they can
+    // never drift into sounding like different cards.
+    _roundCue(dir) {
+      const v = (UI.settings && UI.settings.roundSfx) || 'swell';
+      if (v === 'off') return;
+      const up = dir === 'start';
+      const pair = (lo, hi) => up ? [lo, hi] : [hi, lo];
+      if (v === 'pulse') {
+        const p = pair(147, 196);
+        this.melody([
+          { freq: p[0], dur: 0.075, type: 'triangle', gain: 0.055, gap: 0.085 },
+          { freq: p[1], dur: 0.075, type: 'triangle', gain: 0.045 }
+        ]);
+      } else if (v === 'chime') {
+        // A soft fifth rather than a slide — reads as a marker, not a siren.
+        this.chord([196, 294], { dur: 0.22, type: 'triangle', gain: 0.032 });
+      } else if (v === 'deep') {
+        // Near the bottom of hearing: felt more than heard.
+        const p = pair(82, 110);
+        this.voice({ freq: p[0], endFreq: p[1], dur: 0.34, type: 'sine', gain: 0.07, exp: true });
+      } else {
+        // 'swell' — the old shape, an octave and a half down and shorter.
+        const p = pair(110, 165);
+        this.voice({ freq: p[0], endFreq: p[1], dur: 0.30, type: 'triangle', gain: 0.05, exp: true });
+      }
     },
-    roundEnd() {
-      // Descending tone — energy settling
-      this.voice({ freq: 440, endFreq: 220, dur: 0.40, type: 'triangle', gain: 0.05, exp: true });
-    },
+    roundStart() { this._roundCue('start'); },
+    roundEnd()   { this._roundCue('end'); },
     phaseChange() {
       // Subtle UI bleep
       this.voice({ freq: 660, dur: 0.06, type: 'sine', gain: 0.04 });

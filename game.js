@@ -3764,6 +3764,22 @@ const Game = {
   _checkFreddyFazbear(ender) {
     if (!this.state[ender] || this.state[ender].currency < this.FREDDY_WASTE_THRESHOLD) return;
     const owner = this.opponent(ender);
+    // WHO WAS ALREADY STANDING — captured BEFORE the jump below can put a new
+    // Freddy on the board. His passive is "While Active: each time the opponent
+    // ends a turn with 2+ unspent Energy…", and a Freddy who was still in hand
+    // when that turn ended was not active for it: the waste is what SUMMONED
+    // him, not something he witnessed. Read after the jump (as it was), the
+    // list included the body that had just landed, so one end-of-turn both
+    // deployed him for free AND charged the opponent an Energy for it — the
+    // same trigger cashed twice. Owner: "he took away my energy the next round,
+    // his ability doesn't fire the round he is played."
+    //
+    // Only the AI path could hit this: a human's jump arms pendingJumpOffer and
+    // lands later, so his Freddy was still in hand at this line either way. The
+    // capture makes both seats behave the same by construction instead of by
+    // one of them happening to be asynchronous.
+    const alreadyActive = this.getAlliesOf(owner)
+      .filter(c => this.isCardKind(c, 'Freddy Fazbear') && c.currentHealth > 0);
     // Jump: Freddy in the OPPONENT's hand → offer free play
     const inHand = this.state[owner].hand.find(c => c.name === 'Freddy Fazbear');
     if (inHand && !inHand.jumpReady) {
@@ -3787,9 +3803,9 @@ const Game = {
     // Passive: Freddy on the OPPONENT's board → arm the round-start drain.
     // isCardKind + forEach: a Manhunter copy drains too, and two Freddys
     // both arm (audit fix — the old name-keyed find() missed copies).
-    this.getAlliesOf(owner)
-      .filter(c => this.isCardKind(c, 'Freddy Fazbear') && c.currentHealth > 0)
-      .forEach(c => { c._triggerNextRound = true; });
+    // Armed from the PRE-JUMP list (see above) so the body this same
+    // end-of-turn just deployed for free does not also bill for it.
+    alreadyActive.forEach(c => { if (c.currentHealth > 0) c._triggerNextRound = true; });
   },
 
   endPhase1() {
