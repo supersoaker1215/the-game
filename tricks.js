@@ -444,6 +444,32 @@ const TRICK_DEFS = [
       }
     }
   },
+  { name: "Bacta Tank", cost: 3,
+    desc: "Fully heal an ally to max HP. It takes no damage for the rest of this round.",
+    // Needs a live ally — greys out in the tray + refused by playTrick otherwise.
+    canPlay(G, owner) { return G.getAlliesOf(owner).some(x => G.canTrickLand(x, 'trick', owner)); },
+    play(G, owner) {
+      const a = G.getAlliesOf(owner).filter(x => G.canTrickLand(x, 'trick', owner));
+      if (!a.length) return;
+      const submerge = (t) => {
+        t.currentHealth = t.maxHealth;
+        // Damage Immunity for the REST of this round. grantTempBuff(duration 1)
+        // sets the flag now and reverts it at postCombat's expireGrantedBuffs,
+        // so it shields through this round's combat and then clears.
+        G.grantTempBuff(t, { hasDamageImmunity: true }, 1);
+        G.log(`Bacta Tank: ${t.name} is fully healed and takes no damage this round!`);
+      };
+      // AI picks the most-wounded ally (falls back to the highest-cost body).
+      const pickBest = cards => cards.slice().sort((x, y) =>
+        ((y.maxHealth - y.currentHealth) - (x.maxHealth - x.currentHealth)) || (y.cost - x.cost))[0];
+      if (Game.isHuman(owner)) {
+        G.promptCardChoice(owner, a, "Bacta Tank — Submerge",
+          "Choose an ally to fully heal and shield this round", submerge, pickBest);
+      } else {
+        submerge(pickBest(a));
+      }
+    }
+  },
   { name: "Super Soldier Serum", cost: 3,
     desc: "Transform an ally into a random card that costs exactly 1 more.",
     // The "leap" — transforming the ally always produces a card that
