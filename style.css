@@ -40196,7 +40196,26 @@ body.in-match #game-area > .tricks-section {
    530px is the tallest row measured across 40 draft rolls (521) plus a small
    margin. Cards still centre inside it, so a short card is not stretched — it
    just sits in a stable box. */
-.draft-choices { min-height: 530px; align-items: center; }
+.draft-choices { min-height: 530px; }
+/* THE TWO CARDS MATCH EACH OTHER. Owner: "even though the texts will be longer
+   on some cards in the draft, i'd like them to be the same height, they just
+   match each other." Measured before: Lex Luthor 463.4px against Iron Giant
+   583.1px, centred, so neither the tops nor the bottoms lined up — the pair
+   read as two loose objects rather than one choice.
+
+   BOTH declarations are required and they do different jobs:
+   • align-items: stretch  — the cards fill the flex LINE instead of centring
+     inside it, which is what equalises them.
+   • align-content: center — makes the line HUG its content. Without it the
+     single line grows to fill the container (the min-height above leaves ~60px
+     of slack), and stretch then inflated both cards to 642.9px — equal, but
+     each carrying dead space. With it they land on 583.1px: exactly the taller
+     card, nothing added.
+
+   The min-height stays. It is not about the cards — it keeps the PANEL a
+   stable size between picks so the row does not jump under the cursor and
+   UI._fitDraftToViewport does not solve a different zoom every round. */
+.draft-choices { align-items: stretch; align-content: center; }
 
 /* Build badge: main menu only. It is a dev readout (and the cache-clearing
    reload tap target), so it belongs where you go to check what you are
