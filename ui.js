@@ -1841,7 +1841,12 @@ const UI = {
       // ?v=3 busts the old cached play file.
       'Superman':         { hover: { src: 'audio/cards/superman-hover.mp3?v=7', maxDur: 75 }, play: { src: 'audio/cards/superman-play.mp3?v=7', fullDuration: true } },
       // The Grinch hover: 43s clip. maxDur 44 lets the full phrase play.
-      'The Grinch':       { hover: { src: 'audio/cards/the-grinch-hover.mp3', maxDur: 44, gain: 1.5 } },
+      // maxDur tracks the FILE. The clip was replaced with a 65s cut (2:10-3:15
+      // of the source); the old 44 was sized to the old 43.4s file and would
+      // now cut the new one off two thirds of the way through. ?v=2 because the
+      // filename did not change — without it a cached client keeps serving the
+      // old audio and the maxDur bump silently does nothing.
+      'The Grinch':       { hover: { src: 'audio/cards/the-grinch-hover.mp3?v=2', maxDur: 66, gain: 1.5 } },
       'Green Goblin':     { hover: { src: 'audio/cards/green-goblin-hover.mp3', maxDur: 24 } },
       'Dr. Octopus':      { play: { src: 'audio/cards/dr-octopus-play.mp3?v=2', maxDur: 5 } },
       'Sandman':          { hover: { src: 'audio/cards/sandman-hover.mp3', maxDur: 194, gain: 1.5 }, death: { src: 'audio/cards/sandman-death.m4a', fullDuration: true, gain: 3.0 } },
