@@ -18418,6 +18418,36 @@ const UI = {
     // 140 is the authored card width — the floor, so this can only ever GROW
     // the board. 260 stops a very tall window turning six lanes into murals.
     w = Math.max(140, Math.min(260, w));
+    // ...EXCEPT that a floor which the solve is not allowed to go under is a
+    // guarantee of overflow, not a guarantee of readability. Measured on a
+    // 987px window: the solve wanted 78.7px, got clamped up to 140, and the
+    // match ran 19px past the viewport — the board could not shrink, so the
+    // page scrolled. Owner: "i want the board non scrollable, should the lanes
+    // be a tad smaller to fit the top."
+    //
+    // The clamp is not simply wrong, though, which is why it is still here: the
+    // solve is deliberately PESSIMISTIC. It charges the hand at its 200px
+    // ceiling so the board cannot resize as cards leave your hand (see above),
+    // and the hand in turn solves against the board's FLOOR. Each models the
+    // other at an extreme, so the pair reserves far more height than the two
+    // rows actually occupy — remove the floor and the board would collapse to
+    // the 78.7px the pessimistic budget "proves" it deserves, wasting half the
+    // window.
+    //
+    // So rather than make the prediction more elaborate, correct it against the
+    // one number that cannot be wrong: whether the page actually overflows.
+    // _trimBoardToFit measures the real overflow after layout and feeds a trim
+    // back through here. Prediction gets the board close; measurement closes
+    // the last few pixels.
+    // 100 is the hard minimum, not 140. It is a readability floor rather than
+    // an authored size — a 100px board card is still wider than a hand card at
+    // its own 86px floor. It only ever binds on a short window, where the
+    // alternative is a scrollbar. NOTE the limit: below roughly an 840px
+    // viewport even a fully-trimmed board cannot absorb the overflow, because
+    // the fixed chrome (HUD + both info bars + the forecast strip ≈ 203px) and
+    // the hand row at its floor (≈185px) are together larger than what is left.
+    // At that point the chrome has to give, not the lanes.
+    w = Math.max(100, w - (this._boardTrim || 0));
     // Whole pixels: at one decimal the value flickered 155.9 / 156.2 between
     // renders on identical input, which is rounding noise, not a resize.
     area.style.setProperty('--board-card-w', Math.floor(w) + 'px');
@@ -18428,8 +18458,62 @@ const UI = {
     // point where lane geometry is actually final. Deferred a frame so the new
     // custom property has been laid out before anything reads a lane box.
     requestAnimationFrame(() => {
+      try { this._trimBoardToFit(); } catch (e) {}
       try { this.alignLaneForecastStrip(true); } catch (e) {}
     });
+  },
+
+  // MEASURE THE OVERFLOW, DO NOT PREDICT IT.
+  //
+  // Reads the one fact the height model cannot get wrong — does the document
+  // actually run past the viewport — and converts it into a width trim the
+  // board solve applies next pass. A lane stacks TWO cards, and card height is
+  // width * 182/92, so one pixel of card width is 2*182/92 ≈ 3.96px of board
+  // height: to shed `over` px, trim over*92/364 px of width.
+  //
+  // Converges instead of oscillating because the trim only responds to a real
+  // measured overflow, is capped, and gives pixels back one at a time and only
+  // when there is genuine slack — so it cannot trade places with itself frame
+  // after frame. The re-entry guard stops the fit it triggers from recursing.
+  _trimBoardToFit() {
+    if (this._inBoardTrim) return;
+    const area = document.getElementById('game-area');
+    if (!area || !document.body.classList.contains('in-match')) return;
+    // NOT document.body.scrollHeight. body is pinned to 100dvh, so scrollHeight
+    // never reports LESS than the viewport — it can say "you overflow by 19px"
+    // but never "you have 108px spare". Measured against it, the trim wound up
+    // to its cap during the noisy first frames of a match and then had no
+    // signal to unwind with: the board sat at its 110px minimum on a window
+    // with room for far more. The bottom edge of the last in-flow section is
+    // signed in both directions, which is what a corrector needs.
+    let bottom = 0;
+    for (const el of area.children) {
+      const cs = getComputedStyle(el);
+      if (cs.display === 'none' || cs.position === 'fixed' || cs.position === 'absolute') continue;
+      const r = el.getBoundingClientRect();
+      if (r.height > 0 && r.bottom > bottom) bottom = r.bottom;
+    }
+    if (!bottom) return;
+    const over = bottom - document.documentElement.clientHeight;
+    // One pixel of card width is 2*182/92 ≈ 3.96px of board height.
+    const PX = 364 / 92;
+    const before = this._boardTrim || 0;
+    let trim = before;
+    if (over > 0) {
+      // 60 is the cap: 140 - 60 = 80, already under the 110 hard minimum the
+      // solve enforces, so the trim can never outrun the floor and spin.
+      trim = Math.min(60, trim + Math.ceil(over / PX));
+    } else if (over < -PX && trim > 0) {
+      // Room to spare: give it back, but always leave one trim-pixel of slack
+      // unclaimed so returning it cannot re-create the overflow that would
+      // immediately take it away again. That deadband is what stops this
+      // trading places with itself frame after frame.
+      trim = Math.max(0, trim - Math.floor((-over - PX) / PX));
+    }
+    if (trim === before) return;
+    this._boardTrim = trim;
+    this._inBoardTrim = true;
+    try { this._fitBoardToViewport(); } finally { this._inBoardTrim = false; }
   },
 
   // THE HAND GROWS INTO WHATEVER HEIGHT IS LEFT OVER.
