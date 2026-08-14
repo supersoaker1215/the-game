@@ -20068,7 +20068,26 @@ const UI = {
     // game then preserves in hand.
     const hideAllStats = !!card.copiesOpposite && inHand;
     const hideAtk = inHand && (card.copiesOpposite || card.isCrazy || card.isInsane);
-    const atkCell = hideAtk ? '?' : card.attack;
+    // THE ORB MUST PRINT WHAT HE ACTUALLY HITS FOR. It read card.attack, the
+    // raw stat, so a Droideka on his shields-down round showed 3 while swinging
+    // for 9 — the card contradicted the damage. Owner: "for droideka make sure
+    // his triple attack reflects on his card damage stats."
+    //
+    // Routed through Game._cardEffectiveAtk rather than special-casing Droideka
+    // here: that helper is what combat and the lane forecast already resolve
+    // damage with, so this orb now agrees with them by construction, and Han
+    // Solo's Critical (x2) and Yoda's combined-force mark — which had exactly
+    // the same silent mismatch — are fixed by the same line.
+    //
+    // Board only. These are round-scoped board states; a card in hand has no
+    // Droideka round, no Critical and no Yoda mark, and calling the helper on a
+    // raw CARD_DEF from a Foresee picker would read undefined flags anyway.
+    const rawAtk = card.attack;
+    const effAtk = (!inHand && typeof Game !== 'undefined' && Game._cardEffectiveAtk && card.attack != null)
+      ? Game._cardEffectiveAtk(card)
+      : rawAtk;
+    const atkBoosted = effAtk !== rawAtk && Number.isFinite(effAtk);
+    const atkCell = hideAtk ? '?' : (atkBoosted ? effAtk : rawAtk);
     // HP fallback: a live card instance carries currentHealth (a number, and
     // legitimately 0 when damaged — which must still print "0"). A raw
     // CARD_DEF has no currentHealth, only `health`. Foresee / Scry pickers
@@ -20083,8 +20102,15 @@ const UI = {
       : (card.currentHealth != null ? card.currentHealth
          : (card.health != null ? card.health
             : (card.maxHealth != null ? card.maxHealth : 0)));
+    // An overcharged orb reads differently from a buffed one on purpose: a buff
+    // is a permanent stat change, this is a round-scoped multiplier that will
+    // drop back. Appended after atkCls so it wins where both apply.
+    const atkOverCls = atkBoosted ? ' stat-overcharged' : '';
+    const atkOverTip = atkBoosted
+      ? ` title="${rawAtk} ATK, boosted to ${effAtk} this round"`
+      : '';
     const statOrbs = (card.isDiscardEffect || card.isEnvironment) ? '' : `
-      <span class="stat-circle stat-atk${atkCls}"${atkTip}>${atkCell}</span>
+      <span class="stat-circle stat-atk${atkCls}${atkOverCls}"${atkOverTip || atkTip}>${atkCell}</span>
       <span class="stat-circle stat-hp${hpCls}"${hpTip}>${hpCell}</span>`;
 
     // Moder strips abilities — show a clean, obvious "no abilities" state

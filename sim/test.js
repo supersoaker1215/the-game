@@ -5607,6 +5607,42 @@ test("Hela's dead-pile draw is a WHEN DESTROYED payoff, like Grundy's", function
   assert(/Dead Pile/.test(desc), 'and still names the Dead Pile');
 });
 
+test("Droideka's overcharge shows on his ATK orb, not just in the damage", function () {
+  // Owner: "for droideka make sure his triple attack reflects on his card
+  // damage stats." The orb printed card.attack — the raw stat — so on his
+  // shields-down round he showed 3 while swinging for 9. The card contradicted
+  // the damage it was about to deal.
+  //
+  // Asserts against the CANONICAL helper, which is what combat and the lane
+  // forecast already resolve damage with; if the orb and that helper ever
+  // disagree again this fails regardless of which one moved.
+  var G = freshGame();
+  var d = place(G, 'Droideka', 'player', 2);
+
+  // Round 1 on the field = shields UP = no multiplier.
+  CARD_ABILITIES['Droideka'].onPlay(G, d, 2);
+  assertEq(!!d._droidekaTriple, false, 'shields up on his first round');
+  assertEq(G._cardEffectiveAtk(d), d.attack, 'so effective ATK is just his ATK');
+
+  // Round 2 = shields DOWN = triple.
+  CARD_ABILITIES['Droideka'].onTurnStart(G, d);
+  assertEq(!!d._droidekaTriple, true, 'shields drop on the next round');
+  assertEq(G._cardEffectiveAtk(d), d.attack * 3, 'and the engine swings for triple');
+
+  // Guard the SOURCE relationship: makeCardEl must route the orb through
+  // _cardEffectiveAtk, not card.attack. Reading the source keeps this honest
+  // in a harness with no DOM.
+  var src = readFile('ui.js');
+  var i = src.indexOf('const atkCell = hideAtk');
+  assert(i > -1, 'the ATK orb assignment still exists');
+  var line = src.slice(i, i + 220);
+  assert(/atkBoosted \? effAtk/.test(line),
+    'the orb prints the effective value when a multiplier is live');
+  var j = src.indexOf('const effAtk =');
+  assert(j > -1 && /_cardEffectiveAtk/.test(src.slice(j, j + 260)),
+    'and effAtk comes from Game._cardEffectiveAtk — the same helper combat uses');
+});
+
 // ============================================================
 // ---- RUNNER ------------------------------------------------
 // ============================================================

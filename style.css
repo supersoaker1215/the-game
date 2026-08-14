@@ -40462,3 +40462,19 @@ body.low-fx .badge-asleep { animation: none; }
     0 0 12px rgba(231,76,60,0.90),
     0 0 24px rgba(231,76,60,0.45);
 }
+
+/* ============================================================
+   OVERCHARGED ATK ORB (2026-08-14)
+   ============================================================
+   A round-scoped ATK multiplier — Droideka's shields-down triple, Han Solo's
+   Critical, Yoda's combined-force mark — now prints its EFFECTIVE value on the
+   orb instead of the raw stat (see makeCardEl). It needs to look different
+   from .stat-buffed: a buff is a permanent stat change, this will drop back
+   next round, and reading a temporary spike as permanent is how you misplan a
+   trade. Amber rather than green says "hot right now", not "grew". */
+.stat-circle.stat-atk.stat-overcharged {
+  color: #ffcf6a !important;
+  border-color: rgba(255, 176, 60, 0.85) !important;
+  box-shadow: 0 0 7px rgba(255, 176, 60, 0.55), inset 0 0 6px rgba(255, 176, 60, 0.20) !important;
+  text-shadow: 0 0 6px rgba(255, 176, 60, 0.75);
+}

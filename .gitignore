@@ -9,3 +9,6 @@ dist/
 
 # Local backup of full-res card art before the smart resize (kept out of deploy)
 art-originals/
+
+# Local design prototype — not shipped
+proto-metal.html
