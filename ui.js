@@ -1170,8 +1170,14 @@ const UI = {
   // same code path the game will use rather than a second copy of it.
   previewSelectSfx(value) {
     this.settings.selectSfx = value;
-    if (value !== 'off' && this.sfx && this.sfx.play) {
-      try { this.sfx.play('select'); } catch (e) {}
+    // Through _playSelectCue — the SAME entry point a card selection uses —
+    // not straight into one engine. Calling sfx.play('select') directly is
+    // what hid the real bug: the preview sounded correct while the game went
+    // on playing the other engine's 880Hz pip, so the setting appeared to work
+    // everywhere except where it mattered. A preview that does not travel the
+    // production path is not a preview.
+    if (value !== 'off') {
+      try { this._playSelectCue(); } catch (e) {}
     }
   },
 
@@ -24681,7 +24687,26 @@ const UI = {
     // ---- UI: clicks, rejection, selection ----
     // (kept minimal volumes — UI audio should support, never lead)
     click()  { this.voice({ freq: 2400, dur: 0.04, type: 'sine',   gain: 0.05 }); },
-    select() { this.voice({ freq: 880,  dur: 0.08, type: 'sine',   gain: 0.07 }); },
+    // DELEGATED, NOT DUPLICATED. This project has TWO audio engines, and both
+    // owned a 'select' cue: the sfx synth's switch case, and an 880Hz sine
+    // right here. Card selection goes through _playSelectCue -> audio.select,
+    // i.e. THIS one — so retuning the other engine's case changed nothing
+    // audible and only the settings preview moved. Owner: "the sound when
+    // selecting a card is still the same."
+    //
+    // Rather than paste the four variants here as well (a third place to keep
+    // in sync, and this engine has no noise source so 'glass' and 'lift' could
+    // not be reproduced faithfully anyway), forward to the one implementation.
+    // The picker in Settings then governs the cue wherever it is triggered
+    // from, which is what a setting is supposed to mean.
+    select() {
+      const ui = this._ui || (typeof UI !== 'undefined' ? UI : null);
+      if (ui && ui.sfx && ui.sfx.play) { try { ui.sfx.play('select'); return; } catch (e) {} }
+      // Fallback only if that engine is unavailable — pitched at the 'soft'
+      // default rather than the old 880Hz pip, so the failure mode is quiet
+      // too.
+      this.voice({ freq: 300, endFreq: 240, dur: 0.045, type: 'triangle', gain: 0.07 });
+    },
     reject() {
       // Descending two-tone bleep. Square wave for the "rude" timbre.
       this.voice({ freq: 220, dur: 0.10, type: 'square', gain: 0.09 });
