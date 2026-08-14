@@ -27,7 +27,7 @@
 window.CARD_ART_VARIANTS = {
   // ── Variant-2 promoted (user-picked defaults, 2026-05-18) ──
   'Darth Vader':         ['Darth Vader 2.png',        'Darth Vader.png'],
-  'Dr. Doom':            ['Dr. Doom 2.png',           'Dr. Doom.png'],
+  'Dr. Doom':            ['Dr. Doom 3.png',           'Dr. Doom 2.png',          'Dr. Doom.png'],
   'Dr. Strange':         ['Dr. Strange 2.png',        'Dr. Strange.png'],
   'Emperor Palpatine':   ['Emperor Palpatine 2.png'],
   'Hulk':                ['Hulk 2.png',               'Hulk.png'],
@@ -56,13 +56,17 @@ window.CARD_ART_VARIANTS = {
   'Yoda':                ['Yoda 2.png',               'Yoda.png'],
   'General Grievous':    ['General Grievous 2.png',   'General Grievous.png'],
   'Gamora':              ['Gamora 2.png',             'Gamora.png'],
+  // Ultron had no manifest entry at all — a single art file means no variant
+  // picker is rendered. Adding him here is what makes the new portrait
+  // reachable AND leaves the original one cycle-click away.
+  'Ultron':              ['Ultron 2.png',             'Ultron.png'],
   // ── Single-art entries (webp) ──
   'Pennywise':           ['Pennywise 2.jpg',          'Pennywise.png'],
   'Freddy Krueger':      ['Freddy Krueger 2.png'],
   'Black Panther':       ['Black Panther.png',        'Black Panther 2.png'],
   // ── Variant-1 default kept (user kept original) ──
   'Anakin Skywalker':    ['Anakin Skywalker 2.png',   'Anakin Skywalker.png'],
-  'Batman':              ['Batman.png',               'Batman 2.png'],
+  'Batman':              ['Batman 3.png',             'Batman.png',              'Batman 2.png'],
   'Venom':               ['Venom.png',                'Venom 2.png'],
   'Wolverine':           ['Wolverine.png'],
   // ── New art additions ──
