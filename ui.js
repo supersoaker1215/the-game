@@ -1840,13 +1840,18 @@ const UI = {
       // — the fanfare hits on entrance. 0.03s fade-in / 0.6s fade-out baked.
       // ?v=3 busts the old cached play file.
       'Superman':         { hover: { src: 'audio/cards/superman-hover.mp3?v=7', maxDur: 75 }, play: { src: 'audio/cards/superman-play.mp3?v=7', fullDuration: true } },
-      // The Grinch hover: 43s clip. maxDur 44 lets the full phrase play.
-      // maxDur tracks the FILE. The clip was replaced with a 65s cut (2:10-3:15
-      // of the source); the old 44 was sized to the old 43.4s file and would
-      // now cut the new one off two thirds of the way through. ?v=2 because the
-      // filename did not change — without it a cached client keeps serving the
-      // old audio and the maxDur bump silently does nothing.
+      // The Grinch hover: 65s clip (2:10-3:15 of the source). maxDur tracks the
+      // FILE — it was 44, sized to the previous 43.4s clip, which would have cut
+      // this one off two thirds of the way through. ?v=2 because the filename
+      // did not change; without it a cached client keeps serving the old audio
+      // and the maxDur bump silently does nothing.
       'The Grinch':       { hover: { src: 'audio/cards/the-grinch-hover.mp3?v=2', maxDur: 66, gain: 1.5 } },
+      // Gamora hover: 89s clip (0:42-2:11 of the source). New filename, so the
+      // global ?cv= stamp handles cache-busting and no per-entry ?v= is needed.
+      // No gain override: measured -14.3 dB mean / 0.0 dB peak, already louder
+      // than Green Goblin below, which plays at the default 1.0. Boosting a
+      // clip that peaks at full scale only feeds the master limiter.
+      'Gamora':           { hover: { src: 'audio/cards/gamora-hover.mp3', maxDur: 90 } },
       'Green Goblin':     { hover: { src: 'audio/cards/green-goblin-hover.mp3', maxDur: 24 } },
       'Dr. Octopus':      { play: { src: 'audio/cards/dr-octopus-play.mp3?v=2', maxDur: 5 } },
       'Sandman':          { hover: { src: 'audio/cards/sandman-hover.mp3', maxDur: 194, gain: 1.5 }, death: { src: 'audio/cards/sandman-death.m4a', fullDuration: true, gain: 3.0 } },
