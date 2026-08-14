@@ -6049,60 +6049,39 @@ const CARD_ABILITIES = {
     // full is not a meter. Ordinary combat swings still feed it.
     onAnyCardDamaged(G, self, damaged) {
       if (self.currentHealth <= 0) return;
-      if (self._spinoRampaging) return;
-      if (self._spinoArmed) return;              // already at max, waiting on combat
-      // ONLY ALLY damage feeds the meter, and EVERY instance does (no per-round
-      // cap) — the more his own side is bloodied, the closer he is to rampaging.
-      // User spec: "every time an ally card is damaged the hunt should grow by
-      // 1." Counting the whole board maxed it instantly (a full-board combat is
-      // 3-6 hits); restricting to allies makes it a real revenge meter that
-      // only fills when Spinosaurus's team actually takes hits.
-      if (!damaged || damaged.owner !== self.owner) return;
+      if (self._spinoHuntSpent) return;          // meter already cashed in
+      // ENEMY damage feeds the meter. Owner spec 2026-08-14: "hunt meter goes
+      // up each time an enemy is damaged." It previously counted ALLY damage —
+      // a revenge meter — which is the opposite reading, so the trigger is
+      // inverted rather than widened. Every instance counts, no per-round cap.
+      if (!damaged || damaged.owner === self.owner) return;
       const AB = CARD_ABILITIES['Spinosaurus'];
       self._spinoMeter = (self._spinoMeter | 0) + 1;
       if (self._spinoMeter >= AB.METER_MAX) {
-        self._spinoMeter = AB.METER_MAX;
-        self._spinoArmed = true;
-        G.log(`[HUNT METER] Spinosaurus is at ${AB.METER_MAX}/${AB.METER_MAX} — he strikes every lane this round.`);
+        // THE METER IS SPENT, NOT RESET. It used to cap, arm, fire a
+        // whole-board rampage and refill forever. Now it pays out ONCE and
+        // stops existing: the counter is cleared, the badge stops rendering
+        // (_spinoHuntSpent gates it), and Overdrive is granted permanently.
+        // Owner: "when hunt meter gains 3 remove hunt meter and permanently
+        // gain overdrive."
+        self._spinoMeter = 0;
+        self._spinoHuntSpent = true;
+        self._spinoArmed = false;
+        self.hasHuntMeter = false;
+        self.isOverdrive = true;                 // the real keyword, not a lookalike
+        G.log(`[HUNT METER] Spinosaurus completes the hunt — the meter is spent and he gains Overdrive permanently!`);
+        if (typeof UI !== 'undefined' && UI._spinosaurusRampage) {
+          try { UI._spinosaurusRampage(self, []); } catch (e) {}
+        }
       }
     },
-    // onBeforeCombat, not onBeforeAttack: this fires for EVERY card on the
-    // board before ANY lane resolves, which is both "simultaneously" and the
-    // only hook that still runs when Spinosaurus's own lane is uncontested.
-    // onBeforeAttack only fires for cards that have a target to swing at.
-    onBeforeCombat(G, self) {
-      if (!self._spinoArmed || self.currentHealth <= 0) return;
-      if (G.isActionLocked(self)) {
-        // Stays armed — he could not act, so the meter is not spent.
-        G.log(`  [HUNT METER BLOCKED] Spinosaurus is ${G.actionLockLabel(self)} — the rampage waits.`);
-        return;
-      }
-      self._spinoArmed = false;
-      self._spinoMeter = 0;
-      const opp = G.opponent(self.owner);
-      const targets = [];
-      for (let i = 0; i < G.LANE_COUNT; i++) {
-        const e = G.state.lanes[i][opp];
-        if (e && e.currentHealth > 0) targets.push(e);
-      }
-      if (!targets.length) {
-        G.log(`[HUNT METER] Spinosaurus rampages — but every lane is empty.`);
-        return;
-      }
-      G.log(`[HUNT METER] Spinosaurus rampages — striking ${targets.length} lane${targets.length === 1 ? '' : 's'} at once!`);
-      if (typeof UI !== 'undefined' && UI._spinosaurusRampage) {
-        try { UI._spinosaurusRampage(self, targets); } catch (e) {}
-      }
-      self._spinoRampaging = true;
-      targets.forEach(e => {
-        if (self.currentHealth <= 0 || e.currentHealth <= 0) return;
-        G.applyCombatDamage(self, e);
-      });
-      self._spinoRampaging = false;
-      G.cleanupDead();
-      // He spent his swing on the sweep — no second hit when his lane resolves.
-      self._skipNormalAttack = true;
-    },
+    // THE RAMPAGE IS GONE. onBeforeCombat used to fire a whole-board sweep the
+    // moment the meter armed, then reset it to refill. The meter now pays out
+    // once as permanent Overdrive (see onAnyCardDamaged), so nothing ever sets
+    // _spinoArmed and this hook could only ever be dead code. Deleted rather
+    // than left guarded: a hook that can never fire is a trap for the next
+    // person reading the card, and _skipNormalAttack with it — he no longer
+    // spends his swing on anything.
     onDeath(G, self, laneIdx) {
       // The habitat goes with him, in the same beat.
       const l = (self._habitatLane !== undefined) ? self._habitatLane : laneIdx;

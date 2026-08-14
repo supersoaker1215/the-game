@@ -291,8 +291,12 @@ const CARD_DEFS = [
   // ==================== COST 5 ====================
   { name: "Spinosaurus", cost: 5, attack: 4, health: 6, type: "scifi",
     _spawnOnly: true,
-    abilities: ["Spawn Only", "Hunt Meter"],
-    desc: "While Active: At the start of each round, moves to the lane where the opponent last played a card. Each time an ally is damaged the Hunt Meter fills by 1 — at 3, Spinosaurus strikes every occupied lane at once, then resets." },
+    // "Spawn Only" dropped from the BADGE list only — _spawnOnly above is the
+    // engine gate and still keeps him out of every draft and draw pile. Owner
+    // struck the badge off a screenshot: he is only ever spawned by Sewers, so
+    // the chip stated something the player can never act on.
+    abilities: ["Hunt Meter"],
+    desc: "While Active: At the start of each round, moves to the lane where the opponent last played a card. Each time an enemy is damaged the Hunt Meter fills by 1 — at 3, the Hunt Meter is spent and Spinosaurus permanently gains Overdrive." },
   { name: "Davy Jones", cost: 5, attack: 3, health: 6, type: "villain",
     abilities: [],
     desc: "When Played: Summon The Kraken (5/6) in any lane." },

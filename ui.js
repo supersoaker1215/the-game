@@ -18102,7 +18102,10 @@ const UI = {
       // Spinosaurus's Hunt Meter and Wetlands' Power both print live counts in
       // the status row. Without them here the badge would keep showing the
       // count it had when the card was last rebuilt for some OTHER reason.
-      hm: card._spinoMeter | 0, hma: !!card._spinoArmed,
+      // hms (spent) replaces the old armed flag: the meter no longer arms, it
+      // cashes out once. Without it in the snapshot the badge would linger,
+      // because the count returning to 0 looks identical to "never filled".
+      hm: card._spinoMeter | 0, hms: !!card._spinoHuntSpent, ovd: !!card.isOverdrive,
       wp: (card._wetPower == null ? -1 : card._wetPower | 0), wr: !!card._wetReleased,
       pl: !!card._parlayedThisRound,
       cr: !!card.isCrazy, ins: !!card.isInsane,
@@ -21391,11 +21394,15 @@ const UI = {
     // has ticked) because the number IS the card: "how close is the rampage"
     // is the only question you ask about him, and a badge that appears only
     // after the first hit reads like a status someone applied to him.
-    if (c.hasHuntMeter) {
+    // ...and it stops rendering once the meter is SPENT. The hunt pays out once
+    // as permanent Overdrive and then no longer exists, so a chip still reading
+    // "Hunt Meter 0" would advertise a mechanic the card no longer has. The
+    // Overdrive badge takes its place from the keyword flag it now carries.
+    if (c.hasHuntMeter && !c._spinoHuntSpent) {
       const max = (typeof CARD_ABILITIES !== 'undefined' && CARD_ABILITIES['Spinosaurus'])
         ? CARD_ABILITIES['Spinosaurus'].METER_MAX : 3;
-      const filled = c._spinoArmed ? max : Math.min(max, c._spinoMeter | 0);
-      t.push(badge('badge-hunt-meter' + (c._spinoArmed ? ' badge-hunt-meter-full' : ''), `Hunt Meter ${filled}`, 'Hunt Meter'));
+      const filled = Math.min(max, c._spinoMeter | 0);
+      t.push(badge('badge-hunt-meter', `Hunt Meter ${filled}`, 'Hunt Meter'));
     }
     // DROIDEKA overcharge — shields-down (even) rounds, when he deals triple
     // ATK. Shields-UP rounds already show the DmgImmune badge from

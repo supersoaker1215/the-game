@@ -5192,68 +5192,54 @@ test('Spinosaurus stalks to the lane the opponent last played into', function ()
   assertEq(G2.findCardLane(sp2), 0, 'stayed put — the lane is taken');
 });
 
-test('The Hunt Meter fills on damage to ANY card, and arms at 3', function () {
+test('The Hunt Meter fills on ENEMY damage only', function () {
+  // Owner spec 2026-08-14: "hunt meter goes up each time an enemy is damaged."
+  // It previously counted ALLY damage — a revenge meter — which is the opposite
+  // reading, so the trigger was inverted rather than widened. Both directions
+  // are asserted; testing only the enemy side would pass with the old rule too.
   var G = freshGame();
   var spino = place(G, 'Spinosaurus', 'player', 0);
   assertEq(spino.hasHuntMeter, true, 'the printed keyword reached the instance');
   // ...and it must NOT have picked up the vanilla Hunt keyword off the shared
   // first word. Two different mechanics; one would move him twice a round.
   assertEq(!!spino.hasHunt, false, 'Hunt Meter is not Hunt');
-  var victim = place(G, 'Sabertooth', 'ai', 3);
-  G.dealDamage(victim, 1, null);
+
+  var enemy = place(G, 'Sabertooth', 'ai', 3);
+  G.dealDamage(enemy, 1, null);
   assertEq(spino._spinoMeter, 1, 'an enemy taking damage fills it');
+
   var ally = place(G, 'Bane', 'player', 4);
   G.dealDamage(ally, 1, null);
-  assertEq(spino._spinoMeter, 2, 'so does an ALLY taking damage');
-  G.dealDamage(victim, 1, null);
-  assertEq(spino._spinoMeter, 3, 'reaches max');
-  assertEq(spino._spinoArmed, true, 'and arms');
-  G.dealDamage(victim, 1, null);
-  assertEq(spino._spinoMeter, 3, 'further damage does not overfill it');
+  assertEq(spino._spinoMeter, 1, 'an ALLY taking damage does NOT — this is the change');
 });
 
-test('An armed Spinosaurus strikes every occupied lane and skips his own swing', function () {
+test('At 3 the Hunt Meter is spent for permanent Overdrive', function () {
+  // Owner: "when hunt meter gains 3 remove hunt meter and permanently gain
+  // overdrive." It used to cap, arm, sweep every lane and refill forever.
   var G = freshGame();
   var spino = place(G, 'Spinosaurus', 'player', 0);
-  spino._spinoArmed = true;
-  spino._spinoMeter = 3;
-  var e0 = place(G, 'Sabertooth', 'ai', 0);   // 2/3
-  var e3 = place(G, 'Sabertooth', 'ai', 3);
-  var e5 = place(G, 'Sabertooth', 'ai', 5);
-  var hp0 = e0.currentHealth, hp3 = e3.currentHealth, hp5 = e5.currentHealth;
-  CARD_ABILITIES['Spinosaurus'].onBeforeCombat(G, spino);
-  assert(e0.currentHealth < hp0, 'his own lane was hit');
-  assert(e3.currentHealth < hp3, 'a lane he is not in was hit');
-  assert(e5.currentHealth < hp5, 'and the far lane too');
-  assertEq(spino._skipNormalAttack, true, 'the sweep IS his attack — no second swing');
-  assertEq(spino._spinoMeter, 0, 'meter reset');
-  assertEq(spino._spinoArmed, false, 'and disarmed');
-});
+  var enemy = place(G, 'Sabertooth', 'ai', 3);
+  assertEq(!!spino.isOverdrive, false, 'he does not start with Overdrive');
 
-test('The rampage does not refill the meter it just spent', function () {
-  // Six lanes of damage in one beat would re-arm it instantly and the card
-  // would rampage every round forever — a meter that is always full is not a
-  // meter. Ordinary combat damage still feeds it (covered above).
-  var G = freshGame();
-  var spino = place(G, 'Spinosaurus', 'player', 0);
-  spino._spinoArmed = true;
-  for (var l = 0; l < G.LANE_COUNT; l++) place(G, 'Sabertooth', 'ai', l);
-  CARD_ABILITIES['Spinosaurus'].onBeforeCombat(G, spino);
-  assertEq(spino._spinoMeter, 0, 'still empty after mauling six lanes');
-  assertEq(!!spino._spinoArmed, false, 'and still disarmed');
-});
+  G.dealDamage(enemy, 1, null);
+  G.dealDamage(enemy, 1, null);
+  assertEq(!!spino.isOverdrive, false, 'still nothing at 2');
+  assertEq(spino._spinoMeter, 2, 'and the meter is tracking');
 
-test('A frozen Spinosaurus keeps his charge instead of wasting it', function () {
-  var G = freshGame();
-  var spino = place(G, 'Spinosaurus', 'player', 0);
-  spino._spinoArmed = true;
-  spino._spinoMeter = 3;
-  spino.isFrozen = true;
-  var enemy = place(G, 'Sabertooth', 'ai', 0);
-  var hp = enemy.currentHealth;
-  CARD_ABILITIES['Spinosaurus'].onBeforeCombat(G, spino);
-  assertEq(enemy.currentHealth, hp, 'no rampage while action-locked');
-  assertEq(spino._spinoArmed, true, 'the charge is held, not burned');
+  G.dealDamage(enemy, 1, null);
+  assertEq(!!spino.isOverdrive, true, 'the third fills it and grants Overdrive');
+  assertEq(!!spino._spinoHuntSpent, true, 'the meter is marked spent');
+  assertEq(spino._spinoMeter, 0, 'and cleared, not left sitting at max');
+  assertEq(!!spino.hasHuntMeter, false, 'so the badge stops rendering');
+
+  // PERMANENT: more damage must not re-arm it or double-grant.
+  G.dealDamage(enemy, 1, null);
+  assertEq(spino._spinoMeter, 0, 'further enemy damage does not refill a spent meter');
+  assertEq(!!spino.isOverdrive, true, 'and Overdrive stays');
+
+  // The rampage is gone with the mechanic, not merely disabled.
+  assertEq(typeof CARD_ABILITIES['Spinosaurus'].onBeforeCombat, 'undefined',
+    'the whole-board rampage hook is removed');
 });
 
 test('The habitat drains the moment Spinosaurus dies', function () {
