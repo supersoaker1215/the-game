@@ -5682,6 +5682,53 @@ test("Ghost Rider PLAYS the card from hand, so its On Play fires like any other"
     'and no longer rebuilds it through summonCard');
 });
 
+test("Godzilla's Burning is a decaying counter that ticks on ITS OWN lane", function () {
+  // Owner: "burning 3 so they take 3 damage then next turn it goes to burning 2
+  // they take 2 damage next turn burning 1 … they take burning damage right
+  // before their lane not at the beginning of the attack phase."
+  //
+  // Two separate claims, both asserted: the SEQUENCE (3/2/1, not the old
+  // 3/1/1 queue) and the TIMING (onLaneCombat, not onBeforeCombat).
+  var G = freshGame();
+  var victim = place(G, 'Sabertooth', 'ai', 2);
+  victim.currentHealth = 20; victim.maxHealth = 20;   // survive the whole burn
+  CARD_ABILITIES['Godzilla']._ignite(G, victim);
+
+  assertEq(victim.burnStacks, 3, 'ignites at Burning 3');
+  assertEq(!!victim.isBurning, true, 'and reads as burning');
+
+  // THE TIMING. The tick must hang off onLaneCombat — the "my lane is fighting
+  // now" hook — and NOT off onBeforeCombat, which fires for the whole board
+  // before lane 1 has swung.
+  assertEq(typeof victim.onLaneCombat, 'function', 'the burn ticks on its own lane');
+
+  var hp = victim.currentHealth;
+  victim.onLaneCombat(G, victim, 2);
+  assertEq(victim.currentHealth, hp - 3, 'Burning 3 deals 3');
+  assertEq(victim.burnStacks, 2, 'and decays to 2');
+
+  hp = victim.currentHealth;
+  victim.onLaneCombat(G, victim, 2);
+  assertEq(victim.currentHealth, hp - 2, 'Burning 2 deals 2 — not 1, which was the old queue');
+  assertEq(victim.burnStacks, 1, 'and decays to 1');
+
+  hp = victim.currentHealth;
+  victim.onLaneCombat(G, victim, 2);
+  assertEq(victim.currentHealth, hp - 1, 'Burning 1 deals 1');
+  assertEq(victim.burnStacks, 0, 'and the counter empties');
+  assertEq(!!victim.isBurning, false, 'the fire goes out');
+
+  // Spent means spent — a fourth lane fight must not deal a phantom tick.
+  hp = victim.currentHealth;
+  victim.onLaneCombat(G, victim, 2);
+  assertEq(victim.currentHealth, hp, 'a burnt-out card takes no further burn');
+
+  // And the printed text has to describe the counter, not the old schedule.
+  var desc = cardByName('Godzilla').desc;
+  assert(/Burning 3/.test(desc), 'the card names the starting number');
+  assertEq(/before attacking/.test(desc), false, 'and drops the old phase-start wording');
+});
+
 // ============================================================
 // ---- RUNNER ------------------------------------------------
 // ============================================================

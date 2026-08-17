@@ -395,7 +395,7 @@ const CARD_DEFS = [
     desc: "When Played: Remove (−1/−1) from every card in the opponent's hand, permanently. While Active: Add (+0/+2) when an ally is destroyed. Add (+2/+0) when any enemy is destroyed." },
   { name: "Godzilla", cost: 7, attack: 5, health: 8, type: "scifi",
     abilities: [],
-    desc: "When Played: Every enemy card catches fire — they take 3 burn damage before attacking this turn. Any that survive keep burning for 2 more rounds, taking 1 burn damage before attacking each round." },
+    desc: "When Played: Every enemy card catches fire with Burning 3. A burning card takes damage equal to its Burning number right before its lane fights, then the number drops by 1 — 3, then 2, then 1, then the fire goes out." },
   { name: "Revan", cost: 5, attack: 4, health: 6, type: "villain",
     abilities: [],
     desc: "When Played: Give another ally with cost ≤ 9 Revive 1. It comes back as if newly played — abilities reset and its When Played fires again." },

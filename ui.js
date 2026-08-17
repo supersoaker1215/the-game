@@ -18112,7 +18112,10 @@ const UI = {
       fd: !!card.isFaceDown, jr: !!card.jumpReady,
       ut: !!card.isUntrickable,
       fks: !!card._freddySlashing,
-      crit: !!card._criticalThisRound, burn: !!card.isBurning,
+      // burnStacks rides the snapshot too — without it the badge would keep
+      // printing the count it had when the card was last rebuilt for some other
+      // reason, and the number decaying 3->2->1 is the whole point of it.
+      crit: !!card._criticalThisRound, burn: !!card.isBurning, bstk: card.burnStacks | 0,
       ma: !!card._mastersApprentice,
       brl: card._bullseyeRoundsLeft | 0, ds: card._debuffStacks | 0,
       // Predictor + projected XP fields — keep last so they're visible
@@ -21436,7 +21439,15 @@ const UI = {
       t.push(badge('badge-hollow-purple', `Hollow Purple ${hpLeft}`, 'Hollow Purple'));
     }
     if (c._criticalThisRound) t.push(badge('badge-critical', 'Critical', 'Critical'));
-    if (c.isBurning) t.push(badge('badge-burning', 'Burning', 'Burning'));
+    // Burning carries its COUNT, because the count is the damage: Burning 3
+    // deals 3 next time this lane fights, then decays to 2, then 1. A bare
+    // flame told you that you were on fire but not how badly, which is the only
+    // part you can actually plan around. Boiler Room's burn has no counter of
+    // its own, so it still renders the plain badge.
+    if (c.isBurning) {
+      const n = c.burnStacks | 0;
+      t.push(badge('badge-burning', n > 0 ? `Burning ${n}` : 'Burning', 'Burning'));
+    }
     // ASLEEP — Freddy's hand-lock. A transient, so it leads the strip with the
     // other countdowns rather than sitting behind the permanent keywords: it
     // changes what you can play THIS turn, which is exactly what the cap-eats-

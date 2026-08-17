@@ -5380,19 +5380,28 @@ const CARD_ABILITIES = {
     },
   },
   "Godzilla": {
-    // Atomic breath — every enemy card catches fire on a decaying schedule held
-    // per-card: 3 this turn, then 1 for each of the next 2 rounds. The tick runs
-    // on onBeforeCombat (not onBeforeAttack) so it fires for EVERY burning enemy
-    // at the very start of combat — before any lane resolves — regardless of
-    // whether that card has a swing this round. onBeforeAttack only fires for
-    // cards that actually attack (a valid target + able to swing), which meant a
-    // burning card with no swing never took its tick, and a card could get its
-    // attack in before the burn landed. onBeforeCombat guarantees "burn before
-    // anyone attacks": a card the burn kills is dead before the swing check.
+    // ATOMIC BREATH — a decaying burn held as a COUNTER, not a queue.
+    //
+    // The number IS the damage: Burning 3 deals 3 and decays to Burning 2,
+    // which deals 2 and decays to Burning 1, which deals 1 and goes out. Owner:
+    // "burning 3 so they take 3 damage then next turn it goes to burning 2 they
+    // take 2 damage next turn burning 1." The old shape was a [3,1,1] queue —
+    // three ticks, but 3/1/1 rather than 3/2/1, and with no number to show.
+    //
+    // TIMING: it ticks on onLaneCombat, so a card burns immediately BEFORE ITS
+    // OWN LANE fights — not at the top of the phase with every other lane.
+    // Owner: "they take burning damage right before their lane not at the
+    // beginning of the attack phase." That is the same hook and the same
+    // reasoning Voldemort already uses; onBeforeCombat (the previous home) fires
+    // for the whole board before lane 1 has swung, which is exactly what was
+    // wrong. onBeforeAttack is NOT an option: it only fires for cards that
+    // actually swing, so a burning card with no target would never tick.
+    BURN_START: 3,
     _ignite(G, card) {
       if (!card || card.isEnvironment || card.currentHealth <= 0) return;
-      // Refresh the schedule (a second Godzilla, or a re-play, re-stokes it).
-      card._godzillaBurn = [3, 1, 1];
+      const AB = CARD_ABILITIES['Godzilla'];
+      // Re-stoking refreshes to full — a second Godzilla, or a re-play.
+      card.burnStacks = AB.BURN_START;
       const _wasBurning = card.isBurning;
       card.isBurning = true;
       if (!_wasBurning && typeof UI !== 'undefined' && UI._fxBurnIgnite) {
@@ -5400,22 +5409,23 @@ const CARD_ABILITIES = {
       }
       if (card._godzillaBurnHooked) return;
       card._godzillaBurnHooked = true;
-      const origCombat = card.onBeforeCombat || null;
-      card.onBeforeCombat = function(G, self, laneIdx) {
-        const q = self._godzillaBurn;
-        if (q && q.length && self.currentHealth > 0) {
-          const dmg = q.shift();
-          G.dealDamage(self, dmg, null);
-          G.log(`[BURN] ${self.name} takes ${dmg} burn damage before combat! (Godzilla)`);
-          // Fire out — clear the flame unless a Boiler Room is on the board
-          // keeping its own burn alive on this card (shared isBurning flag).
-          if (!q.length) {
+      const origLane = card.onLaneCombat || null;
+      card.onLaneCombat = function (G, self, laneIdx) {
+        const n = self.burnStacks | 0;
+        if (n > 0 && self.currentHealth > 0) {
+          G.dealDamage(self, n, null);
+          G.log(`[BURN] ${self.name} takes ${n} burn damage as its lane ignites! (Godzilla)`);
+          self.burnStacks = n - 1;
+          if (self.burnStacks <= 0) {
+            // Fire out — but the flame flag is SHARED with Boiler Room, so it
+            // only clears if no Boiler Room is keeping its own burn alive.
+            self.burnStacks = 0;
             const anyBoiler = ['player', 'ai'].some(o =>
               G.getAllCardsOf(o).some(c => c.name === 'Boiler Room'));
             if (!anyBoiler) self.isBurning = false;
           }
         }
-        if (origCombat) origCombat.call(this, G, self, laneIdx);
+        if (origLane) origLane.call(this, G, self, laneIdx);
       };
     },
     onPlay(G, self, lane) {
@@ -5424,7 +5434,6 @@ const CARD_ABILITIES = {
       if (!enemies.length) { G.log('Godzilla roars — but there is nothing to burn.'); return; }
       enemies.forEach(e => AB._ignite(G, e));
       G.log(`Godzilla unleashes atomic fire — ${enemies.length} enemy card${enemies.length === 1 ? '' : 's'} set ablaze!`);
-      // Cinematic: a sweep of fire breath from Godzilla's maw to every enemy.
       if (typeof UI !== 'undefined' && UI._fxGodzillaFire) { try { UI._fxGodzillaFire(self, enemies); } catch (e) {} }
     },
   },
