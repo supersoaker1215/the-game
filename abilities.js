@@ -6015,32 +6015,13 @@ const CARD_ABILITIES = {
 
   "Spinosaurus": {
     METER_MAX: 3,
-    // HUNT — not the `Hunt` keyword (which chases a card the moment it is
-    // played). This is a start-of-round stalk toward wherever the opponent
-    // last committed a card, read off the seat's _lastPlayedLane. moveCard
-    // owns every guard that matters (frozen/feared, destroyed lane, face
-    // down, occupied destination), so this only decides WHERE.
-    onTurnStart(G, self) {
-      if (self.currentHealth <= 0) return;
-      const opp = G.opponent(self.owner);
-      const target = G.state[opp] ? G.state[opp]._lastPlayedLane : null;
-      if (target === undefined || target === null) return;
-      const from = G.findCardLane(self);
-      if (from < 0 || from === target) return;
-      const dest = G.state.lanes[target];
-      if (!dest || dest.destroyed) return;
-      if (dest[self.owner] && dest[self.owner].currentHealth > 0) {
-        G.log(`[HUNT] Spinosaurus stalks lane ${target + 1} but an ally holds it.`);
-        return;
-      }
-      G.moveCard(self, from, target);
-      if (G.findCardLane(self) === target) {
-        G.log(`[HUNT] Spinosaurus stalks to lane ${target + 1} — the opponent's last play.`);
-        if (typeof UI !== 'undefined' && UI._fxSpinoStalk) {
-          try { UI._fxSpinoStalk(self, from, target); } catch (e) {}
-        }
-      }
-    },
+    // THE START-OF-ROUND STALK IS GONE. He carried a bespoke onTurnStart that
+    // walked him toward the opponent's last-played lane — a second, private
+    // movement mechanic that happened to be called "Hunt" while not being the
+    // Hunt keyword. Owner: "just add Hunt like jason and jango to spino, that
+    // easy." He now prints the real `Hunt` keyword instead, so he chases through
+    // the same _resolveHuntChase path Jason and Jango already use, and there is
+    // one movement rule on this card rather than two that share a name.
     // HUNT METER — every damage instance anywhere on the field, from the one
     // post-damage notifier. Its OWN rampage is excluded: the sweep hits every
     // occupied lane, which is 3-6 damage instances in a single swing, so

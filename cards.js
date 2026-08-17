@@ -231,7 +231,10 @@ const CARD_DEFS = [
     desc: "When Played: Destroy an enemy with ≤ 3 ATK. On Kill: Add (+1/+1)." },
 
   // ==================== COST 4 ====================
-  { name: "Pennywise", cost: 4, attack: 3, health: 5, type: "villain",
+  // 3/5 -> 2/7 (owner, 2026-08-14): less swing, far harder to remove, which
+  // suits a card whose whole value is surviving long enough for the 3-round
+  // Block-Meter bypass to pay out.
+  { name: "Pennywise", cost: 4, attack: 2, health: 7, type: "villain",
     _spawnOnly: true,
     abilities: [],
     desc: "When Played: For 3 rounds, all your damage to the enemy player bypasses their Block Meter. (Spawned only by Sewers.)" },
@@ -295,8 +298,12 @@ const CARD_DEFS = [
     // engine gate and still keeps him out of every draft and draw pile. Owner
     // struck the badge off a screenshot: he is only ever spawned by Sewers, so
     // the chip stated something the player can never act on.
-    abilities: ["Hunt Meter"],
-    desc: "While Active: At the start of each round, moves to the lane where the opponent last played a card. Each time an enemy is damaged the Hunt Meter fills by 1 — at 3, the Hunt Meter is spent and Spinosaurus permanently gains Overdrive." },
+    // Hunt is the REAL keyword now, the same one Jason and Jango print — it
+    // routes through _resolveHuntChase like theirs. It replaces a bespoke
+    // start-of-round stalk that shared the name but was a separate mechanic;
+    // "Hunt" and "Hunt Meter" parse as two independent entries, so both land.
+    abilities: ["Hunt", "Hunt Meter"],
+    desc: "While Active: Each time an enemy is damaged the Hunt Meter fills by 1 — at 3, the Hunt Meter is spent and Spinosaurus permanently gains Overdrive." },
   { name: "Davy Jones", cost: 5, attack: 3, health: 6, type: "villain",
     abilities: [],
     desc: "When Played: Summon The Kraken (5/6) in any lane." },

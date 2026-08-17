@@ -5177,19 +5177,20 @@ test('An ally with no open lane is absorbed; Spinosaurus adds its stats', functi
   assertEq(spino.currentHealth, 6 + hp, 'and its remaining HP');
 });
 
-test('Spinosaurus stalks to the lane the opponent last played into', function () {
+test('Spinosaurus hunts with the real keyword, like Jason and Jango', function () {
+  // He used to carry a bespoke start-of-round stalk toward the opponent's
+  // last-played lane — a second movement mechanic that shared the name "Hunt"
+  // without being the Hunt keyword. Owner: "just add Hunt like jason and jango
+  // to spino, that easy." One movement rule on the card now, not two.
   var G = freshGame();
   var spino = place(G, 'Spinosaurus', 'player', 0);
-  G.state.ai._lastPlayedLane = 4;
-  CARD_ABILITIES['Spinosaurus'].onTurnStart(G, spino);
-  assertEq(G.findCardLane(spino), 4, 'moved to the opponent\'s last play');
-  // An ally already holding that lane is not evicted by a stalk.
-  var G2 = freshGame();
-  var sp2 = place(G2, 'Spinosaurus', 'player', 0);
-  place(G2, 'Sabertooth', 'player', 3);
-  G2.state.ai._lastPlayedLane = 3;
-  CARD_ABILITIES['Spinosaurus'].onTurnStart(G2, sp2);
-  assertEq(G2.findCardLane(sp2), 0, 'stayed put — the lane is taken');
+  assertEq(spino.hasHunt, true, 'the real Hunt keyword reached the instance');
+  assertEq(spino.hasHuntMeter, true, 'and Hunt Meter still does — they parse independently');
+  assertEq(typeof CARD_ABILITIES['Spinosaurus'].onTurnStart, 'undefined',
+    'the bespoke stalk hook is gone, not merely unused');
+  // The printed text must not still promise the stalk.
+  var desc = cardByName('Spinosaurus').desc;
+  assertEq(/moves to the lane/.test(desc), false, 'and the card no longer describes it');
 });
 
 test('The Hunt Meter fills on ENEMY damage only', function () {
@@ -5202,7 +5203,7 @@ test('The Hunt Meter fills on ENEMY damage only', function () {
   assertEq(spino.hasHuntMeter, true, 'the printed keyword reached the instance');
   // ...and it must NOT have picked up the vanilla Hunt keyword off the shared
   // first word. Two different mechanics; one would move him twice a round.
-  assertEq(!!spino.hasHunt, false, 'Hunt Meter is not Hunt');
+  assertEq(!!spino.hasHunt, true, 'he now prints the real Hunt keyword alongside the meter');
 
   var enemy = place(G, 'Sabertooth', 'ai', 3);
   G.dealDamage(enemy, 1, null);
