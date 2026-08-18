@@ -5730,6 +5730,44 @@ test("Godzilla's Burning is a decaying counter that ticks on ITS OWN lane", func
 });
 
 // ============================================================
+test("A full trick hand makes the Grinch's steal a no-op, not a shredder", function () {
+  // Owner: "i had 3 tricks already in hand, the enemy had 1, i chose to steal
+  // the trick, it didn't let me … that decision needs to be made automatically
+  // because i can't steal the trick, my trick hand is full, so the grinch
+  // should go on the board with triple stats."
+  //
+  // The old behaviour was worse than a refusal: keep() called addToTrickHand,
+  // which DISCARDS on a full hand, so the victim lost the trick, the Grinch's
+  // owner never got it, and the Grinch did not triple. Three losses at once.
+  var G = freshGame();
+
+  // Fill the player's trick hand to the cap, and give the AI exactly one trick.
+  var cap = G.state.player.maxTrickHandSize;
+  G.state.player.trickHand = [];
+  for (var i = 0; i < cap; i++) G.addToTrickHand('player', { name: 'Filler ' + i, cost: 1 });
+  assertEq(G.state.player.trickHand.length, cap, 'hand starts full');
+
+  G.state.ai.trickHand = [{ name: 'Bacta Tank', cost: 3, id: 90001 }];
+
+  var grinch = place(G, 'The Grinch', 'player', 0);
+  var baseAtk = grinch.attack, baseHp = grinch.currentHealth;
+  CARD_ABILITIES['The Grinch'].onPlay(G, grinch, 0);
+
+  // 1. NO PROMPT. A pick with one reachable outcome resolves itself.
+  assertEq(!!G.state.pendingCardChoice, false, 'no keep-or-give-back prompt is armed');
+
+  // 2. THE TRICK SURVIVES, with its owner. This is the part that used to
+  //    silently destroy it.
+  assertEq(G.state.ai.trickHand.length, 1, 'the victim still holds their trick');
+  assertEq(G.state.ai.trickHand[0].name, 'Bacta Tank', 'and it is the same trick');
+  assertEq(G.state.player.trickHand.length, cap, 'the full hand did not overflow');
+
+  // 3. THE GRINCH TRIPLES — the outcome the owner asked for.
+  assertEq(grinch.attack, baseAtk * 3, 'attack triples');
+  assertEq(grinch.currentHealth, baseHp * 3, 'health triples');
+  assertEq(grinch.maxHealth, baseHp * 3, 'and max health tracks it');
+});
+
 // ---- RUNNER ------------------------------------------------
 // ============================================================
 

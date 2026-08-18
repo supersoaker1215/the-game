@@ -2378,6 +2378,26 @@ const CARD_ABILITIES = {
         G.log(`The Grinch finds nothing to steal — stats tripled! ${self.attack}/${self.currentHealth}`);
         return;
       }
+      // A FULL TRICK HAND IS THE SAME AS NOTHING TO STEAL.
+      // User report: "i had 3 tricks already in hand, the enemy had 1, i chose
+      // to steal the trick, it didn't let me." What actually happened is worse
+      // than "didn't let me": keep() called addToTrickHand, which returns false
+      // and DISCARDS when the hand is at maxTrickHandSize — so the opponent
+      // lost the trick, the Grinch's owner never received it, and the Grinch
+      // did not triple either. The trick was destroyed by a prompt that had no
+      // valid outcome.
+      // With a full hand, "keep" is unreachable, so the pick has exactly one
+      // outcome — and a one-outcome pick auto-resolves rather than being asked
+      // (the same forced-choice rule Galactus and the PICK-N abilities follow).
+      // Both prompts are skipped: whichever trick the opponent picked would be
+      // handed straight back, so the steal is a no-op and only the triple
+      // remains. Checked against the OWNER's hand, not the victim's.
+      const gp = G.state[self.owner];
+      if (gp.trickHand.length >= gp.maxTrickHandSize) {
+        self.attack *= 3; self.currentHealth *= 3; self.maxHealth *= 3;
+        G.log(`The Grinch's trick hand is full (${gp.maxTrickHandSize}) — nothing he can carry off, stats tripled! ${self.attack}/${self.currentHealth}`);
+        return;
+      }
       // Two choices in sequence, each gated on a different seat's isHuman:
       //   1. OPP picks which trick to give up (human → prompt; AI → lowest cost)
       //   2. Grinch OWNER picks keep-or-give-back (human → prompt; AI → threshold)
@@ -2398,7 +2418,12 @@ const CARD_ABILITIES = {
           // negative (refund), but a trick can't have a sub-zero cost
           // in the engine. Negative bumps still floor the trick to 0.
           chosen.cost = Math.max(0, (chosen.cost || 0) + keepBump);
-          G.addToTrickHand(self.owner, chosen);
+          // addToTrickHand DISCARDS and returns false on a full hand. Never let
+          // that silently destroy the trick — hand it back and take the triple
+          // instead. The early return above covers the normal case; this covers
+          // the AI-owner branch and any hand that fills between check and
+          // resolve (a queued prompt can resolve much later than it armed).
+          if (!G.addToTrickHand(self.owner, chosen)) { giveBack(); return; }
           const label = keepBump > 0 ? ` (cost +${keepBump})`
             : keepBump < 0 ? ` (cost ${keepBump} → ${chosen.cost})`
             : ' (free!)';
