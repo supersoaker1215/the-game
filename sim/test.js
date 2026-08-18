@@ -5882,6 +5882,104 @@ test("Bacta Tank costs 2", function () {
   assertEq(bacta.cost, 2, 'Bacta Tank is a 2-cost trick');
 });
 
+test("Jigsaw places two rooms instead of Bear Traps", function () {
+  // Owner: "jigsaw now makes 2 environments." The traps are gone entirely;
+  // the relocate step stays.
+  var G = freshGame();
+  var jig = cardByName('Jigsaw');
+  assertEq(/Bear Trap/.test(jig.desc), false, 'the card no longer mentions Bear Traps');
+  assert(/The Bathroom/.test(jig.desc) && /The Reveal/.test(jig.desc),
+    'and it names both rooms');
+
+  // Both rooms exist as environments, and neither can be drafted — they are
+  // Jigsaw's alone, like Pennywise belongs to the Sewers.
+  ['The Bathroom', 'The Reveal'].forEach(function (n) {
+    var def = cardByName(n);
+    assert(!!def, n + ' is a real card def');
+    assertEq(def.type, 'environment', n + ' is an environment');
+    assertEq(!!def.isEnvironment, true, n + ' carries isEnvironment');
+    assertEq(!!def._spawnOnly, true, n + ' is spawn-only, never drafted');
+  });
+
+  // Placement seats the room in the lane's environment sub-slot.
+  CARD_ABILITIES['Jigsaw']._placeRoom(G, 'player', 3, 'The Bathroom');
+  var room = G.state.lanes[3]._env && G.state.lanes[3]._env.player;
+  assert(!!room, 'the room is seated in the env sub-slot');
+  assertEq(room.name, 'The Bathroom', 'and it is the room asked for');
+});
+
+test("The Bathroom chains the first enemy in — it can never leave", function () {
+  var G = freshGame();
+  var room = CARD_ABILITIES['Jigsaw']._placeRoom(G, 'player', 2, 'The Bathroom');
+
+  // An enemy walks in.
+  var victim = place(G, 'Sabertooth', 'ai', 2);
+  var atk0 = victim.attack, hp0 = victim.currentHealth;
+  CARD_ABILITIES['The Bathroom'].onAnyCardPlayed(G, room);
+
+  assertEq(victim.attack, atk0 - 2, 'it takes -2 ATK');
+  assertEq(victim.currentHealth, hp0 - 2, 'and -2 HP');
+
+  // THE CHAIN, tested through moveCard — the choke point every mover uses.
+  // Asserting the flag alone would pass even if nothing read it.
+  G.moveCard(victim, 2, 4);
+  assertEq(G.state.lanes[2].ai, victim, 'it is still in the bathroom');
+  assertEq(G.state.lanes[4].ai, null, 'and did not arrive anywhere else');
+
+  // ONE victim only — the room does not keep chaining.
+  var atk1 = victim.attack;
+  CARD_ABILITIES['The Bathroom'].onAnyCardPlayed(G, room);
+  assertEq(victim.attack, atk1, 'the room only triggers once');
+});
+
+test("The Reveal raises a body that dies in its lane, as a (1/1)", function () {
+  var G = freshGame();
+  var room = CARD_ABILITIES['Jigsaw']._placeRoom(G, 'player', 1, 'The Reveal');
+
+  // An enemy stands in the lane; our side of it is empty so a body can rise.
+  var victim = place(G, 'Sabertooth', 'ai', 1);
+  CARD_ABILITIES['The Reveal'].onAnyCardPlayed(G, room);
+  assertEq(!!victim._revealHooked, true, 'the occupant is hooked');
+
+  // Give the room's owner another ally somewhere else. Without one, LONE WOLF
+  // (+1/+1 to a summon entering with no allies) fires on the body and it stands
+  // up as a 2/2 — a real rule, not a bug, but it would hide whether the room
+  // actually raises a (1/1). Both cases are asserted; this one isolates the room.
+  place(G, 'Nightwing', 'player', 5);
+
+  var name = victim.name;
+  victim.currentHealth = 0;
+  G.handleDeath(victim, 1, null);
+
+  var risen = G.state.lanes[1].player;
+  assert(!!risen, 'a body gets up');
+  assertEq(risen.name, name, 'it is the card that died');
+  assertEq(risen.owner, 'player', 'and it rises on the room owner side');
+  assertEq(risen.attack, 1, 'as a 1 ATK');
+  assertEq(risen.currentHealth, 1, 'and 1 HP body');
+
+  // SPENT. One body only — otherwise the room re-hooks what it just raised and
+  // a death cascade loops forever (this hung the full-match suite once).
+  assertEq(!!room._revealSpent, true, 'the room is spent after one rise');
+  assertEq(G.state.lanes[1]._env.player, null, 'and its lane slot is cleared');
+});
+
+test("A body raised alone still gets Lone Wolf — the room does not bypass it", function () {
+  // The other half of the case above, pinned deliberately rather than left as a
+  // surprise: with no other ally on the board the risen body is a 2/2, because
+  // Lone Wolf applies to it like any other summon.
+  var G = freshGame();
+  var room = CARD_ABILITIES['Jigsaw']._placeRoom(G, 'player', 1, 'The Reveal');
+  var victim = place(G, 'Sabertooth', 'ai', 1);
+  CARD_ABILITIES['The Reveal'].onAnyCardPlayed(G, room);
+  victim.currentHealth = 0;
+  G.handleDeath(victim, 1, null);
+  var risen = G.state.lanes[1].player;
+  assert(!!risen, 'a body gets up');
+  assertEq(risen.attack, 2, 'Lone Wolf takes the lone body to 2 ATK');
+  assertEq(risen.currentHealth, 2, 'and 2 HP');
+});
+
 // ---- RUNNER ------------------------------------------------
 // ============================================================
 

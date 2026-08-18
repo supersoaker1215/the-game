@@ -1249,6 +1249,33 @@ const CARD_ABILITIES = {
   },
   "Jigsaw": {
     isDiscardEffect: true,
+    // Environments are normally placed by playCard, which inlines the slot
+    // handling. Nothing exposes it, so this mirrors that block: clear whatever
+    // occupies the sub-slot on EITHER side (a live env left dangling keeps
+    // receiving broadcasts — the replaced-Boiler-Room bug), seat the new room,
+    // announce it, and run its own On Play so it can arm itself.
+    _placeRoom(G, owner, laneIdx, name) {
+      const def = (typeof CARD_DEFS !== 'undefined')
+        ? CARD_DEFS.find(d => d.name === name) : null;
+      if (!def) return null;
+      const lane = G.state.lanes[laneIdx];
+      if (!lane._env) lane._env = {};
+      [owner, G.opponent(owner)].forEach(side => {
+        const existing = lane._env[side];
+        if (existing) {
+          existing.currentHealth = 0;
+          G.handleDeath(existing, laneIdx, null);
+          lane._env[side] = null;
+        }
+      });
+      const room = G.createCardInstance(def, owner);
+      lane._env[owner] = room;
+      if (room.statsEnteredRound == null) room.statsEnteredRound = G.state.round || 1;
+      G.emitFX('envReveal', { lane: laneIdx, owner, name });
+      G.log(`[JIGSAW] ${name} opens in lane ${laneIdx + 1}.`);
+      if (room.onPlay) room.onPlay(G, room, laneIdx);
+      return room;
+    },
     onDiscard(G, owner, self) {
       const opp = G.opponent(owner);
 
@@ -1297,47 +1324,42 @@ const CARD_ABILITIES = {
           cards => cards.slice().sort((a, b) => b.attack - a.attack)[0]);
       };
 
-      // Step 1: Place up to 3 Reverse Bear Traps in open enemy lanes.
-      // Roguelite Text+ override — _jigsawTrapCount scales the trap
-      // count. Default 3 (classic); Text+ to 5 so a fresh Jigsaw can
-      // mine the entire enemy side.
-      const trapCount = (self && self._jigsawTrapCount) || 2;
-      const placeTrapStep = (remaining) => {
-        // Only lanes that are empty on the enemy side AND not already trapped qualify.
+      // ROOMS, NOT TRAPS. Owner: "jigsaw now makes 2 environments." The two
+      // rooms replace the Bear Traps entirely; the relocate step below is kept.
+      // Placed into lanes that are EMPTY ON THE ENEMY SIDE — the same lane test
+      // the traps used, and the same one the rooms need, since both only mean
+      // anything to a card that walks in afterwards.
+      const ROOMS = ['The Bathroom', 'The Reveal'];
+      const placeRoomStep = (idx) => {
+        if (idx >= ROOMS.length) { moveEnemyStep(); return; }
+        const name = ROOMS[idx];
         const open = [];
         for (let i = 0; i < G.LANE_COUNT; i++) {
           const l = G.state.lanes[i];
-          if (!l.destroyed && !l[opp] && !l.trap) open.push(i);
+          if (l.destroyed || l[opp]) continue;
+          // Never stack a room on top of the one just placed.
+          if (l._env && l._env[owner]) continue;
+          open.push(i);
         }
-        if (remaining <= 0) { moveEnemyStep(); return; }
-        if (open.length === 0) {
-          G.log(`Jigsaw — no empty enemy lanes, ${remaining} bear trap${remaining === 1 ? '' : 's'} wasted.`);
+        if (!open.length) {
+          G.log(`Jigsaw has no empty enemy lane left — ${name} goes unused.`);
           moveEnemyStep();
           return;
         }
-        // Trap N of 3 wording — user feedback: "Jigsaw is only placing
-        // two traps for me." The previous "(3 remaining)" / "(2
-        // remaining)" / "(1 remaining)" wording was ambiguous —
-        // "remaining" reads to some users as "already placed" so they
-        // stop after seeing "1 remaining" thinking the chain is over.
-        // "Trap N of 3" makes it unambiguous which step you're on.
-        const stepNumber = trapCount - remaining + 1;
         G.promptLaneChoice(owner, open,
-          `Jigsaw — Set Bear Trap`,
-          `Choose an enemy lane to set Bear Trap ${stepNumber} of ${trapCount}`,
+          `Jigsaw — ${name}`,
+          `Choose an enemy lane for ${name} (${idx + 1} of ${ROOMS.length})`,
           (lane) => {
-            const debuff = (self && self._jigsawTrapDebuff) || 2;
-            G.state.lanes[lane].trap = { placedBy: owner, debuff };
-            G.log(`[BEAR TRAP ${stepNumber}/${trapCount}] Jigsaw sets a Reverse Bear Trap in lane ${lane + 1}!`);
-            placeTrapStep(remaining - 1);
+            CARD_ABILITIES['Jigsaw']._placeRoom(G, owner, lane, name);
+            placeRoomStep(idx + 1);
           },
-          // Auto-place when forced: every open enemy lane gets trapped anyway
-          // (open <= traps remaining) so which order can't matter — no modal.
-          opp, null, 0, { forced: open.length <= remaining });
+          // One reachable outcome resolves itself — the same forced-choice rule
+          // the traps already used, and the rest of the game follows.
+          opp, null, 0, { forced: open.length <= (ROOMS.length - idx) });
       };
 
-      G.log(`Jigsaw's game begins — set ${trapCount} trap${trapCount === 1 ? '' : 's'}, then drag an enemy.`);
-      placeTrapStep(trapCount);
+      G.log(`Jigsaw's game begins — two rooms, then drag someone into one.`);
+      placeRoomStep(0);
     }
   },
   "Loki": {
@@ -5800,6 +5822,145 @@ const CARD_ABILITIES = {
       const lane = G.state.lanes[l];
       if (lane && lane._env) lane._env[self.owner] = null;
     },
+  },
+  // ============================================================
+  // JIGSAW'S TWO ROOMS — placed by his discard, never drafted.
+  // ============================================================
+  "The Bathroom": {
+    // "First enemy to enter" uses the SEWERS pattern: record who is standing
+    // opposite when the room lands, then watch for a DIFFERENT card showing up.
+    // Reusing the established idiom rather than inventing a second definition of
+    // "entered" is what keeps the two rooms consistent with Sewers and Open
+    // Water instead of subtly disagreeing about what an arrival is.
+    onPlay(G, self, lane) {
+      const opp = G.opponent(self.owner);
+      const existing = G.state.lanes[lane][opp];
+      self._bathroomTracked = (existing && existing.currentHealth > 0) ? existing.id : null;
+    },
+    _chain(G, self, victim, laneIdx) {
+      self._bathroomTriggered = true;
+      // (−2/−2) applied with the CANONICAL shield rule — the same
+      // statStripShieldsHp predicate checkLaneTrap and debuffCard use, so
+      // Invincible / Damage Immunity blocks the health loss while the ATK strip
+      // still lands. Re-implementing that rule is exactly how the Bear Trap
+      // once ended up shielding a card that Pym Particles did not.
+      const D = 2;
+      const hpShielded = G.statStripShieldsHp(victim);
+      victim.attack = Math.max(0, victim.attack - D);
+      if (!hpShielded) {
+        victim.maxHealth = Math.max(1, victim.maxHealth - D);
+        victim.currentHealth = Math.max(0, victim.currentHealth - D);
+      }
+      // THE CHAIN. Read by moveCard, the single choke point every mover in the
+      // game goes through (Bifrost, Gojo, Ahsoka's swap, a hunt, Jigsaw's own
+      // drag), so "can never leave this lane" holds against all of them rather
+      // than only against the ones remembered here.
+      victim._chainedToLane = laneIdx;
+      G.log(hpShielded
+        ? `  [THE BATHROOM] ${victim.name} wakes up chained! −${D} ATK — health shielded → ${victim.attack}/${victim.currentHealth}`
+        : `  [THE BATHROOM] ${victim.name} wakes up chained! −${D}/−${D} → ${victim.attack}/${victim.currentHealth}`);
+      G.log(`  [THE BATHROOM] ${victim.name} can never leave lane ${laneIdx + 1}.`);
+      // A chain that drops the victim to 0 is lethal — route through the
+      // canonical death path so it cannot sit as a 0-HP zombie. Same reasoning
+      // (and same bug class) as checkLaneTrap.
+      if (victim.currentHealth <= 0) G.handleDeath(victim, laneIdx, null);
+    },
+    onAnyCardPlayed(G, self) {
+      if (self._bathroomTriggered) return;
+      const laneIdx = G.findCardLane(self);
+      if (laneIdx < 0) return;
+      const opp = G.opponent(self.owner);
+      const enemy = G.state.lanes[laneIdx][opp];
+      const enemyId = (enemy && enemy.currentHealth > 0) ? enemy.id : null;
+      if (enemyId && enemyId !== self._bathroomTracked) {
+        CARD_ABILITIES['The Bathroom']._chain(G, self, enemy, laneIdx);
+      } else {
+        self._bathroomTracked = enemyId;
+      }
+    },
+  },
+  "The Reveal": {
+    // "When a card dies in this lane, it rises on YOUR side as a (1/1)."
+    // Implemented by hooking the occupants' onDeath, the same way Boiler Room
+    // hooks its victims for the Freddy spawn — including the death-PREVENTION
+    // protocol (a truthy return means the death was cancelled), so a card saved
+    // by a revive does not also rise here off a death that never happened.
+    _hookOccupants(G, self) {
+      if (self._revealSpent) return;
+      const laneIdx = G.findCardLane(self);
+      if (laneIdx < 0) return;
+      const lane = G.state.lanes[laneIdx];
+      const AB = CARD_ABILITIES['The Reveal'];
+      ['player', 'ai'].forEach(side => {
+        const c = lane[side];
+        if (!c || c.isEnvironment || c.currentHealth <= 0 || c._revealHooked) return;
+        c._revealHooked = true;
+        const orig = c.onDeath || null;
+        c.onDeath = function (G2, dead, dLane) {
+          const prevented = orig ? orig.call(this, G2, dead, dLane) : false;
+          if (prevented) return true;
+          AB._rise(G2, self, dead, (dLane != null && dLane >= 0) ? dLane : laneIdx);
+        };
+      });
+    },
+    _rise(G, self, dead, laneIdx) {
+      // ONE BODY, THEN THE ROOM IS SPENT. This is not a tidiness rule, it is
+      // the difference between a card and an infinite loop: _rise summons into
+      // the lane, the summon broadcasts onAnyCardPlayed, that re-hooks the body
+      // it just raised, and if that body dies in the same cascade it rises
+      // again — forever. The full-match tests hung on exactly that. Sewers and
+      // Open Water are one-shot transformations for the same reason.
+      // Set BEFORE the summon, so the broadcast it triggers already sees a
+      // spent room rather than racing it.
+      if (self._revealSpent) return;
+      // The room has to still be standing — Jigsaw's rooms can be replaced or
+      // cleared, and a dead room must not keep raising bodies.
+      const here = G.findCardLane(self);
+      if (here < 0 || here !== laneIdx) return;
+      self._revealSpent = true;
+      const owner = self.owner;
+      const lane = G.state.lanes[laneIdx];
+      // Clear a dead occupant of OUR side first — handleDeath defers slot
+      // clearing to cleanupDead, so the corpse is still in the slot here and
+      // summonCard would see the lane as occupied and bail. Sewers had exactly
+      // this bug ("Pennywise never destroyed the card that was there").
+      if (lane[owner] && lane[owner].currentHealth <= 0) lane[owner] = null;
+      if (lane[owner]) {
+        G.log(`  [THE REVEAL] ${dead.name} twitches — but lane ${laneIdx + 1} is already taken.`);
+        return;
+      }
+      const realDef = (typeof CARD_DEFS !== 'undefined')
+        ? CARD_DEFS.find(d => d.name === dead.name) : null;
+      // Summon from a def COPY carrying the (1/1), rather than summoning the
+      // real card and stamping the stats afterwards. Stamping looked right —
+      // the body read 1/1 the instant it rose — and was then reverted to the
+      // def's base stats later in the same death cascade, which re-derives from
+      // the def. Handing the summon the stats up front means there is nothing
+      // to re-derive back to. Spread, never JSON: a JSON clone of a def strips
+      // its ability hooks.
+      const def = realDef ? Object.assign({}, realDef, { attack: 1, health: 1 }) : null;
+      const before = lane[owner];
+      G.summonCard(owner, laneIdx, dead.name, dead.cost || 0, 1, 1, [], def);
+      const risen = G.state.lanes[laneIdx][owner];
+      if (!risen || risen === before) {
+        G.log(`  [THE REVEAL] ${dead.name} does not get up.`);
+        return;
+      }
+      // NOTE: no post-summon stat stamp. The def copy above is what sets the
+      // (1/1); a stamp here would run BEFORE summonCard's arrival step drains,
+      // so it could not be what holds anyway. And the body may legitimately
+      // leave this method at more than (1/1) — Lone Wolf gives +1/+1 to a
+      // summon that enters with no other allies, which is a real rule and
+      // applies to a body that gets up alone just as it does to any summon.
+      // The room is used up — clear the sub-slot so the board shows it is done,
+      // the way Sewers hands its lane over to Pennywise.
+      if (lane._env && lane._env[owner] === self) lane._env[owner] = null;
+      G.log(`[THE REVEAL] ${dead.name} gets up in lane ${laneIdx + 1} — a (1/1) on your side. The room is spent.`);
+      if (typeof UI !== 'undefined' && UI.emitFX) { try { G.emitFX('envReveal', { lane: laneIdx, owner, name: 'The Reveal' }); } catch (e) {} }
+    },
+    onPlay(G, self) { CARD_ABILITIES['The Reveal']._hookOccupants(G, self); },
+    onAnyCardPlayed(G, self) { CARD_ABILITIES['The Reveal']._hookOccupants(G, self); },
+    onTurnStart(G, self) { CARD_ABILITIES['The Reveal']._hookOccupants(G, self); },
   },
   "Sewers": {
     _spawnPennywise(G, owner, laneIdx) {

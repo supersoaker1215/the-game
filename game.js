@@ -10396,6 +10396,16 @@ const Game = {
       this.log(`  [MOVE BLOCKED] ${card.name} is ${this.actionLockLabel(card)} — can't move.`);
       return;
     }
+    // THE BATHROOM'S CHAIN. Sits here, in moveCard, because this is the single
+    // choke point every mover in the game funnels through — Bifrost, Gojo's
+    // displace, Ahsoka's swap, a hunt, Killer Moth's flutter, Jigsaw's own
+    // drag. Guarding the movers individually would mean finding all of them
+    // and would silently miss the next one added; guarding the choke point
+    // means "can never leave this lane" is true by construction.
+    if (card._chainedToLane != null && card._chainedToLane === from) {
+      this.log(`  [CHAINED] ${card.name} is chained in lane ${from + 1} — it can't leave.`);
+      return;
+    }
     // A hidden card cannot be relocated either — Gojo, Jigsaw, Darth Vader and
     // Bifrost could all drag a face-down card out of its lane, which both
     // breaks the "immune until revealed" promise and leaks information about
