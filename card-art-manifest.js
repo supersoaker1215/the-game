@@ -26,28 +26,28 @@
 
 window.CARD_ART_VARIANTS = {
   // ── Variant-2 promoted (user-picked defaults, 2026-05-18) ──
-  'Darth Vader':         ['Darth Vader 2.png',        'Darth Vader.png'],
-  'Dr. Doom':            ['Dr. Doom 3.png',           'Dr. Doom 2.png',          'Dr. Doom.png'],
-  'Dr. Strange':         ['Dr. Strange 2.png',        'Dr. Strange.png'],
+  'Darth Vader':         ['Darth Vader 2.png'],
+  'Dr. Doom':            ['Dr. Doom 3.png', 'Dr. Doom.png'],
+  'Dr. Strange':         ['Dr. Strange 2.png'],
   'Emperor Palpatine':   ['Emperor Palpatine 2.png'],
-  'Hulk':                ['Hulk 2.png',               'Hulk.png'],
-  'Iron Man':            ['Iron Man 2.png',           'Iron Man.png',              'Iron Man 3.png'],
-  'Jason Voorhees':      ['Jason Voorhees 3.png',     'Jason Voorhees 2.png',      'Jason Voorhees.png'],
-  'Omni-Man':            ['Omni-Man 2.png',           'Omni-Man.png'],
+  'Hulk':                ['Hulk 2.png'],
+  'Iron Man':            ['Iron Man 2.png', 'Iron Man 3.png'],
+  'Jason Voorhees':      ['Jason Voorhees 3.png', 'Jason Voorhees 2.png'],
+  'Omni-Man':            ['Omni-Man 2.png'],
   'Bane':                ['Bane 2.jpg',               'Bane.png'],
-  'Spider-Man':          ['Spider-Man 3.jpg',         'Spider-Man 2.png',      'Spider-Man.png'],
-  'Superman':            ['Superman 3.jpg',           'Superman 2.png',        'Superman.png'],
-  'Symbiote Spider-Man': ['Symbiote Spider-Man 3.jpg','Symbiote Spider-Man 2.png','Symbiote Spider-Man.png'],
-  'The Flash':           ['The Flash 2.png',          'The Flash.png'],
+  'Spider-Man':          ['Spider-Man 3.jpg', 'Spider-Man 2.png'],
+  'Superman':            ['Superman 3.jpg', 'Superman.png'],
+  'Symbiote Spider-Man': ['Symbiote Spider-Man 3.jpg', 'Symbiote Spider-Man 2.png'],
+  'The Flash':           ['The Flash 2.png'],
   // ── Variant-2 promoted in second pass (2026-05-18 follow-up) ──
   'Ahsoka':              ['Ahsoka 2.png'],
   'Homelander':          ['Homelander.png',           'Homelander 2.jpg'],
   'Xenomorph':           ['Xenomorph 2.png',          'Xenomorph.png'],
   // ── Silver Surfer chrome / cosmic portrait additions (2026-05-26) ──
-  'Silver Surfer':       ['Silver Surfer 3.png',      'Silver Surfer 2.png',     'Silver Surfer.png'],
-  'Galactus':            ['Galactus 2.png',           'Galactus.png'],
-  'Scarlet Witch':       ['Scarlet Witch 3.png',      'Scarlet Witch 2.png',     'Scarlet Witch.png'],
-  'Deathstroke':         ['Deathstroke 2.png',        'Deathstroke.png'],
+  'Silver Surfer':       ['Silver Surfer 3.png', 'Silver Surfer.png'],
+  'Galactus':            ['Galactus 2.png'],
+  'Scarlet Witch':       ['Scarlet Witch 3.png', 'Scarlet Witch 2.png'],
+  'Deathstroke':         ['Deathstroke 2.png'],
   // ── 2026-08-14 art drop. New portrait FIRST so it is the default; the
   //    previous art stays in the list rather than being deleted, so the
   //    name-click cycle can still reach it and nothing is lost if one of
@@ -55,7 +55,7 @@ window.CARD_ART_VARIANTS = {
   'Black Widow':         ['Black Widow 2.png',        'Black Widow.png'],
   'Yoda':                ['Yoda 2.png',               'Yoda.png'],
   'General Grievous':    ['General Grievous 2.png',   'General Grievous.png'],
-  'Gamora':              ['Gamora 2.png',             'Gamora.png'],
+  'Gamora':              ['Gamora 2.png'],
   // Ultron had no manifest entry at all — a single art file means no variant
   // picker is rendered. Adding him here is what makes the new portrait
   // reachable AND leaves the original one cycle-click away.
@@ -63,15 +63,15 @@ window.CARD_ART_VARIANTS = {
   // Invisible Woman and Sandman were in the same position as Ultron above:
   // one art file each, so no manifest entry and no variant picker. New
   // portrait leads, original stays one cycle-click behind it.
-  'Invisible Woman':     ['Invisible Woman 2.png',    'Invisible Woman.png'],
-  'Sandman':             ['Sandman 2.png',            'Sandman.png'],
+  'Invisible Woman':     ['Invisible Woman 2.png'],
+  'Sandman':             ['Sandman 2.png'],
   // ── Single-art entries (webp) ──
-  'Pennywise':           ['Pennywise 2.jpg',          'Pennywise.png'],
+  'Pennywise':           ['Pennywise 2.jpg'],
   'Freddy Krueger':      ['Freddy Krueger 2.png'],
   'Black Panther':       ['Black Panther.png',        'Black Panther 2.png'],
   // ── Variant-1 default kept (user kept original) ──
   'Anakin Skywalker':    ['Anakin Skywalker 2.png',   'Anakin Skywalker.png'],
-  'Batman':              ['Batman 3.png',             'Batman.png',              'Batman 2.png'],
+  'Batman':              ['Batman.png', 'Batman 2.png'],
   'Venom':               ['Venom.png',                'Venom 2.png'],
   'Wolverine':           ['Wolverine.png'],
   // ── New art additions ──
@@ -80,7 +80,7 @@ window.CARD_ART_VARIANTS = {
   'Padme Amidala':       ['Padme Amidala.png'],
   'Luke Skywalker':      ['Luke Skywalker.png',       'Luke Skywalker 2.jpg'],
   // ── New portraits (2026-06-15) ──
-  'Joker':               ['Joker 2.jpg',             'Joker.png'],
+  'Joker':               ['Joker 2.jpg'],
   'Carnage':             ['Carnage.png'],
   'Ghost Rider':         ['Ghost Rider.jpg'],
   'Rocket Raccoon':      ['Rocket Raccoon.png'],
@@ -88,25 +88,25 @@ window.CARD_ART_VARIANTS = {
   'Jack Sparrow':        ['Jack Sparrow.jpg'],
   // Michael Myers — new fiery portrait as the primary (menu hero + in-game
   // default); original kept as a gallery variant.
-  'Michael Myers':       ['Michael Myers 2.jpg',     'Michael Myers.png'],
+  'Michael Myers':       ['Michael Myers 2.jpg'],
   'Captain America':     ['Captain America 2.jpg',   'Captain America.png'],
   // New horror portraits (2026-07-13) — new art as the primary, originals kept.
-  'Ghostface':           ['Ghostface 2.jpg',         'Ghostface.png'],
-  'Jigsaw':              ['Jigsaw 3.jpg',            'Jigsaw 2.jpg',            'Jigsaw.png'],
+  'Ghostface':           ['Ghostface 2.jpg'],
+  'Jigsaw':              ['Jigsaw 3.jpg'],
   // New character portraits (2026-07-14) — new art as the primary, originals kept.
-  'Red Skull':           ['Red Skull 2.jpg',         'Red Skull.png'],
+  'Red Skull':           ['Red Skull 2.jpg'],
   'Martian Manhunter':   ['Martian Manhunter 2.jpg'],
-  'Loki':                ['Loki 2.jpg',              'Loki.png'],
-  'Predator':            ['Predator 2.jpg',          'Predator.png'],
-  'Hela':                ['Hela 2.jpg',              'Hela.png'],
-  'Optimus Prime':       ['Optimus Prime 2.jpg',     'Optimus Prime.png'],
+  'Loki':                ['Loki 2.jpg'],
+  'Predator':            ['Predator 2.jpg'],
+  'Hela':                ['Hela 2.jpg'],
+  'Optimus Prime':       ['Optimus Prime 2.jpg'],
   // Doomsday — new portrait as primary; artist signature cropped off the
   // bottom strip (card frames the head/torso, so nothing important is lost).
-  'Doomsday':            ['Doomsday 2.jpg',          'Doomsday.png'],
-  'Sabertooth':          ['Sabertooth 2.jpg',        'Sabertooth.png'],
+  'Doomsday':            ['Doomsday 2.jpg'],
+  'Sabertooth':          ['Sabertooth 2.jpg'],
   'The Batman Who Laughs': ['The Batman Who Laughs 2.jpg', 'The Batman Who Laughs.png'],
-  'Obi-Wan':             ['Obi-Wan 2.jpg',           'Obi-Wan.png'],
-  'The Grinch':          ['The Grinch 2.jpg',        'The Grinch.png'],
+  'Obi-Wan':             ['Obi-Wan 2.jpg'],
+  'The Grinch':          ['The Grinch 2.jpg'],
   // Gremlins set (2026-07-15) — Stripe's art is a jpg, so it needs a manifest
   // entry (default lookup assumes <Name>.png). Gizmo/Gremlin resolve as pngs.
   'Stripe':              ['Stripe.jpg'],
@@ -174,7 +174,6 @@ window.CARD_ART_OVERRIDES = {
     'Groot|Groot.png': '50% 65%',
     'Hela|Hela.png': '50% 46%',
     'Iron Man|Iron Man 2.png': '50% 41%',
-    // New character portraits (2026-07-14)
     'Red Skull|Red Skull 2.jpg': '50% 8%',
     'Martian Manhunter|Martian Manhunter 2.jpg': '50% 8%',
     'Loki|Loki 2.jpg': '50% 40%',
@@ -187,9 +186,9 @@ window.CARD_ART_OVERRIDES = {
     'Obi-Wan|Obi-Wan 2.jpg': '100% 84%',
     'Obi-Wan|Obi-Wan.png': '60% 50%',
     'The Grinch|The Grinch 2.jpg': '50% 24%',
-    // Godzilla (2026-08-04) — default center crop clipped the top of his head;
-    // pull the focal to the top so the full roaring head sits in frame.
     'Godzilla|Godzilla.jpg': '50% 0%',
+    'Yoda|Yoda 2.png': '50% 50%',
+    'Homelander|Homelander 2.jpg': '57.5% 60%',
   },
   focalMenu: {   // "name|file" -> "X% Y%"   menu-hero crop focal
     'Darth Maul|Darth Maul.jpg': '50% 50%',
@@ -223,7 +222,6 @@ window.CARD_ART_OVERRIDES = {
     'Iron Man|Iron Man 3.png': '50% 31%',
     'Mr. Freeze|Mr. Freeze.png': '50% 0%',
     'Padme Amidala|Padme Amidala.png': '50% 0%',
-    // New character portraits (2026-07-14)
     'Red Skull|Red Skull 2.jpg': '50% 6%',
     'Martian Manhunter|Martian Manhunter 2.jpg': '50% 10%',
     'Loki|Loki 2.jpg': '50% 32%',
@@ -235,6 +233,10 @@ window.CARD_ART_OVERRIDES = {
     'The Batman Who Laughs|The Batman Who Laughs 2.jpg': '50% 45%',
     'Obi-Wan|Obi-Wan 2.jpg': '100% 74%',
     'The Grinch|The Grinch 2.jpg': '50% 26%',
+    'Yoda|Yoda 2.png': '50% 0%',
+    'Godzilla|Godzilla.jpg': '40% 0%',
+    'Homelander|Homelander 2.jpg': '50% 60%',
+    'Iron Giant|Iron Giant.jpg': '73% 30%',
   },
   zoomCard:  {   // "name|file" -> scale (1 = cover, e.g. 1.3)
     'Darth Maul|Darth Maul.jpg': 1.6,
@@ -248,6 +250,8 @@ window.CARD_ART_OVERRIDES = {
     'Obi-Wan|Obi-Wan 2.jpg': 1.15,
     'Optimus Prime|Optimus Prime 2.jpg': 1.1,
     'The Grinch|The Grinch 2.jpg': 1.25,
+    'Batman|Batman 2.png': 0.95,
+    'Homelander|Homelander 2.jpg': 1.3,
   },
   zoomMenu:  {   // "name|file" -> scale
     'Darth Maul|Darth Maul.jpg': 1.6,
@@ -258,5 +262,7 @@ window.CARD_ART_OVERRIDES = {
     'Obi-Wan|Obi-Wan 2.jpg': 1.1,
     'Optimus Prime|Optimus Prime 2.jpg': 1.1,
     'The Grinch|The Grinch 2.jpg': 1.15,
+    'Yoda|Yoda 2.png': 1.05,
+    'Godzilla|Godzilla.jpg': 1.05,
   },
 };
