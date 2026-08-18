@@ -5980,6 +5980,55 @@ test("A body raised alone still gets Lone Wolf — the room does not bypass it",
   assertEq(risen.currentHealth, 2, 'and 2 HP');
 });
 
+test("A card's On Play can ground a hunter before it chases", function () {
+  // Owner: "on plays happen 1st always — so when spiderman is played his stun
+  // hits martian manhunter 1st, then the hunt passive fires, he is frozen,
+  // can't move." MM hunted anyway.
+  //
+  // The isActionLocked guard inside _resolveHuntChase was already correct; the
+  // call simply ran ABOVE the On Play block, so the hunter chased before the
+  // freeze existed. This is the same ruling that moved the aura ping below the
+  // On Play — Hunt is a passive reaction to a card entering, and it was missed.
+  var G = freshGame();
+  // playCard refuses for a human seat in the harness — same convention the
+  // other playCard tests here use.
+  G.state.player.isHuman = false; G.state.ai.isHuman = false;
+
+  // A hunter sitting far from the action.
+  var hunter = place(G, 'Martian Manhunter', 'ai', 0);
+  hunter.hasHunt = true;
+
+  // The card being played freezes the hunter in its own On Play.
+  var bait = G.createCardInstance(cardByName('Nightwing'), 'player');
+  G.state.player.hand = [bait];
+  G.state.player.currency = 99;   // energy is spent from .currency
+  bait.onPlay = function (G2) { G2.freezeCard(hunter, 1); };
+
+  G.playCard('player', bait, 4);
+
+  assertEq(!!G.isActionLocked(hunter), true, 'the On Play froze the hunter');
+  assertEq(G.state.lanes[0].ai, hunter, 'so the hunter never left its lane');
+  assertEq(G.state.lanes[4].ai, null, 'and did not arrive in the played lane');
+});
+
+test("An UNfrozen hunter still chases — the fix did not just disable Hunt", function () {
+  // The control. Without this, the test above would pass just as well if the
+  // move had broken hunting outright.
+  var G = freshGame();
+  G.state.player.isHuman = false; G.state.ai.isHuman = false;
+  var hunter = place(G, 'Martian Manhunter', 'ai', 0);
+  hunter.hasHunt = true;
+
+  var bait = G.createCardInstance(cardByName('Nightwing'), 'player');
+  G.state.player.hand = [bait];
+  G.state.player.currency = 99;   // energy is spent from .currency
+
+  G.playCard('player', bait, 4);
+
+  assertEq(G.state.lanes[4].ai, hunter, 'the hunter chases into the played lane');
+  assertEq(G.state.lanes[0].ai, null, 'and leaves the lane it came from');
+});
+
 // ---- RUNNER ------------------------------------------------
 // ============================================================
 

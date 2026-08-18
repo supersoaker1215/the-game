@@ -4529,10 +4529,6 @@ const Game = {
     // seat field, and environments count: they are cards you played.
     this.state[owner]._lastPlayedLane = laneIdx;
 
-    // Hunt mechanic — extracted to _resolveHuntChase. Frozen/stunned
-    // hunters can't move; direct-lane assignment fires onMoved post-jump.
-    this._resolveHuntChase(opp, card, laneIdx);
-
     // ON PLAY RESOLVES BEFORE PASSIVES. Owner ruling 2026-08-10: "on plays fire
     // first before passives — so if Xenomorph has 2 attack and Peacemaker is
     // played, Xenomorph dies because of 2 or less attack; it doesn't grow
@@ -4573,6 +4569,17 @@ const Game = {
     this._resolveFreezeOnPlay(card);
     this._resolveMindControlOnPlay(card);
     this._resolveMarkOnPlay(card);
+    // HUNT IS A PASSIVE, SO IT RESOLVES AFTER THE ON PLAY — same ruling as the
+    // aura ping directly above ("on plays fire first before passives"). This
+    // call used to sit ABOVE the On Play block, which meant a hunter chased the
+    // arriving card BEFORE that card's When Played could stop it. Owner report:
+    // Spider-Man is played, his On Play freezes Martian Manhunter, and MM hunted
+    // anyway — the isActionLocked guard inside _resolveHuntChase was already
+    // correct, it was simply being asked before the freeze existed. Moving the
+    // call is the fix; the guard needed nothing.
+    // Sits after the status etches too, so a freeze applied by ANY part of the
+    // entrance package grounds the hunter, not just one card's hook.
+    this._resolveHuntChase(opp, card, laneIdx);
     // ENTRANCE-THEN-TRAP (see checkLaneTrap) — the whole entrance package
     // resolves first, THEN the lane's trap snaps on the finished card.
     this._trapOnSettle(card, laneIdx);

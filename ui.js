@@ -21444,9 +21444,23 @@ const UI = {
     // badge cannot drift from the rule. isCardKind, not a name check, so copies
     // (Martian Manhunter) carry their own tracker.
     if (typeof Game !== 'undefined' && Game.isCardKind && Game.isCardKind(c, 'Killer Moth')) {
-      const flown = Array.isArray(c._mothLanes) ? c._mothLanes.length : 0;
+      const lanes = Array.isArray(c._mothLanes) ? c._mothLanes : [];
+      const flown = lanes.length;
       const maxLanes = (typeof Game.LANE_COUNT === 'number') ? Game.LANE_COUNT : 6;
-      t.push(badge('badge-lanes-flown', `Lanes Flown ${flown}`, 'Lanes Flown'));
+      // THE LANE NUMBERS, NOT THE COUNT. Owner: "i want the lane numbers he has
+      // entered not the total so i can keep track — if he's been in lane 1,3,5
+      // it should say 1,3,5." A bare count told you how much he had grown; the
+      // list tells you where he can still grow, which is the only thing you act
+      // on when deciding whether moving him is worth anything.
+      // Sorted and 1-based, because the tally stores arrival ORDER and 0-based
+      // indices — neither of which is what the lane pips on the board say.
+      // Handed to _badgeHTML directly rather than through the `badge` helper:
+      // that helper splits a trailing integer off the label, and "1,3,5" is not
+      // one, so the whole string would land in .sb-w — the element the phone
+      // board HIDES when it swaps the word for the icon. Passing it as the
+      // number keeps it visible everywhere.
+      const list = lanes.slice().sort((a, b) => a - b).map(n => n + 1).join(',');
+      t.push(this._badgeHTML('badge-lanes-flown', 'Lanes Flown', list || '—', 'Lanes Flown'));
       // At full board he can never grow again — flag it so the chip stops
       // reading like a meter that still has somewhere to go.
       if (flown >= maxLanes) t.push(badge('badge-lanes-flown-full', 'Grounded', ''));
@@ -21626,7 +21640,7 @@ const UI = {
     // Spinosaurus's charge — three concentric bite-marks closing on a core, so
     // it reads as "something is filling up" and not as another targeting
     // reticle (Hunt and Mark already own the ring-with-a-dot shape).
-    'Lanes Flown': { color: '#b39ddb', svg: '<svg viewBox="0 0 12 12"><path d="M1.4 8.6c1.6 0 1.6-3.2 3.2-3.2s1.6 3.2 3.2 3.2 1.6-3.2 2.8-3.2" stroke="currentColor" stroke-width="1.2" fill="none" stroke-linecap="round"/><circle cx="1.4" cy="8.6" r="1" fill="currentColor"/><circle cx="10.6" cy="5.4" r="1" fill="currentColor"/></svg>', tip: 'How many different lanes he has stood in. Reaching a <b>new</b> lane grows him (+1/+1); returning to one he has already flown grants nothing.' },
+    'Lanes Flown': { color: '#b39ddb', svg: '<svg viewBox="0 0 12 12"><path d="M1.4 8.6c1.6 0 1.6-3.2 3.2-3.2s1.6 3.2 3.2 3.2 1.6-3.2 2.8-3.2" stroke="currentColor" stroke-width="1.2" fill="none" stroke-linecap="round"/><circle cx="1.4" cy="8.6" r="1" fill="currentColor"/><circle cx="10.6" cy="5.4" r="1" fill="currentColor"/></svg>', tip: 'The lanes he has already stood in. Reaching a lane <b>not</b> on this list grows him (+1/+1); returning to one that is grants nothing.' },
     'Hunt Meter':  { color: '#c0f052', svg: '<svg viewBox="0 0 12 12"><rect x="1" y="4.2" width="10" height="3.6" rx="1.2" stroke="currentColor" stroke-width="1.1" fill="none"/><rect x="2.2" y="5.3" width="2.1" height="1.4" fill="currentColor"/><rect x="4.95" y="5.3" width="2.1" height="1.4" fill="currentColor"/><rect x="7.7" y="5.3" width="2.1" height="1.4" fill="currentColor"/></svg>', tip: 'Fills by 1 each time an <b>ally</b> is damaged. At <b>3</b>, Spinosaurus attacks every occupied lane at once instead of his own, then resets to 0. His own rampage does not refill it.' },
     // Wetlands' countdown — a water line with a rising spine breaking it.
     'Habitat Power': { color: '#4fd6a0', svg: '<svg viewBox="0 0 12 12"><path d="M0.8 8.4q1.3-1 2.6 0t2.6 0q1.3-1 2.6 0t2.6 0" stroke="currentColor" stroke-width="1.1" fill="none" stroke-linecap="round"/><path d="M2.6 6.6 4 3.4l1.4 3.2M6.6 6.6 8 2.2l1.4 4.4" stroke="currentColor" stroke-width="1.1" fill="none" stroke-linejoin="round"/></svg>', tip: 'The habitat\'s charge. Each time <b>either</b> player\'s Block Meter fires it drops by 1. At <b>0</b> the water breaks and what the habitat holds is released.' },
