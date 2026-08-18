@@ -5611,13 +5611,26 @@ test("Droideka's overcharge shows on his ATK orb, not just in the damage", funct
 
   // Round 1 on the field = shields UP = no multiplier.
   CARD_ABILITIES['Droideka'].onPlay(G, d, 2);
-  assertEq(!!d._droidekaTriple, false, 'shields up on his first round');
+  assertEq(!!d._droidekaOvercharge, false, 'shields up on his first round');
   assertEq(G._cardEffectiveAtk(d), d.attack, 'so effective ATK is just his ATK');
 
-  // Round 2 = shields DOWN = triple.
+  // Round 2 = shields DOWN = overcharged.
   CARD_ABILITIES['Droideka'].onTurnStart(G, d);
-  assertEq(!!d._droidekaTriple, true, 'shields drop on the next round');
-  assertEq(G._cardEffectiveAtk(d), d.attack * 3, 'and the engine swings for triple');
+  assertEq(!!d._droidekaOvercharge, true, 'shields drop on the next round');
+  var MULT = CARD_ABILITIES['Droideka'].ATK_MULT;
+  assertEq(MULT, 2, 'the overcharge is DOUBLE (owner call), not triple');
+  assertEq(G._cardEffectiveAtk(d), d.attack * MULT, 'and the orb reads the multiplied ATK');
+
+  // ONE MULTIPLIER, TWO READERS. The orb (_cardEffectiveAtk) and the damage
+  // (_computeIncomingDamage) used to hold separate literal 3s, so the card
+  // could show one number and hit for another. Assert they agree by MEASURING
+  // both, not by reading the constant twice — that is the failure this guards.
+  var target = place(G, 'Sabertooth', 'ai', 2);
+  target.currentHealth = 99; target.maxHealth = 99;
+  var dealt = G._computeIncomingDamage(d, target, { silent: true });
+  assertEq(dealt, G._cardEffectiveAtk(d),
+    'the damage dealt equals the ATK printed on the orb');
+  assertEq(dealt, d.attack * MULT, 'and both are the base ATK times the shared multiplier');
 
   // Guard the SOURCE relationship: makeCardEl must route the orb through
   // _cardEffectiveAtk, not card.attack. Reading the source keeps this honest
@@ -5860,6 +5873,13 @@ test("Boiler Room burns with the shared Burning, at the same 1 per turn", functi
   assertEq(/take 1 damage before they attack/.test(env.desc), false,
     'the private-rule sentence is gone from the card');
   assert(/Burning/.test(env.desc), 'but it still names the keyword');
+});
+
+test("Bacta Tank costs 2", function () {
+  // Owner: "bacta should be a 2 cost."
+  var bacta = TRICK_DEFS.find(function (t) { return t.name === 'Bacta Tank'; });
+  assert(!!bacta, 'the trick still exists');
+  assertEq(bacta.cost, 2, 'Bacta Tank is a 2-cost trick');
 });
 
 // ---- RUNNER ------------------------------------------------

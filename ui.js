@@ -21454,7 +21454,7 @@ const UI = {
     // DROIDEKA overcharge — shields-down (even) rounds, when he deals triple
     // ATK. Shields-UP rounds already show the DmgImmune badge from
     // hasDamageImmunity above, so only the attack mode needs its own marker.
-    if (c._droidekaTriple) t.push(badge('badge-critical', 'Overcharge', ''));
+    if (c._droidekaOvercharge) t.push(badge('badge-critical', 'Overcharge', ''));
     // HABITAT POWER — Wetlands' countdown to the release. Same reasoning as
     // the Hunt Meter: the number is the whole card. Falls back to the ability's
     // own START_POWER so a Wetlands still in hand prints its starting charge

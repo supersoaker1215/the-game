@@ -345,7 +345,7 @@ const CARD_DEFS = [
     desc: "When Played: Summon a (1/1) Battle Droid in any lane. On Kill: A random other ally gains (+1/+1) permanently." },
   { name: "Droideka", cost: 4, attack: 3, health: 4, type: "scifi",
     abilities: [],
-    desc: "While Active: Alternates every round. Shields up (1st round on the field, 3rd, 5th…): Damage Immunity — takes no damage from any source. Shields down (2nd round, 4th…): deals triple his ATK when he attacks." },
+    desc: "While Active: Alternates every round. Shields up (1st round on the field, 3rd, 5th…): Damage Immunity — takes no damage from any source. Shields down (2nd round, 4th…): deals double his ATK when he attacks." },
   { name: "Gargantua", cost: 2, attack: 0, health: 1, type: "environment",
     isEnvironment: true,
     abilities: [],

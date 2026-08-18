@@ -6197,10 +6197,18 @@ const Game = {
   // etch bonus → Palpatine frozen-double. Logs each step.
   // Effective ATK for a card, accounting for Yoda's combined-force mark
   // and Han Solo's Critical. Used for both contested and uncontested paths.
+  // Droideka's overcharge multiplier, read from the ability that owns the rule.
+  // Both _cardEffectiveAtk (the ATK orb) and _computeIncomingDamage (the actual
+  // damage) go through here, so the number shown and the number dealt are the
+  // same number rather than two literals that have to be edited in step.
+  _droidekaMult() {
+    const AB = (typeof CARD_ABILITIES !== 'undefined') ? CARD_ABILITIES['Droideka'] : null;
+    return (AB && AB.ATK_MULT) || 2;
+  },
   _cardEffectiveAtk(card) {
     let atk = (card._yodaCombinedAtk != null) ? card._yodaCombinedAtk : card.attack;
     if (card._criticalThisRound) atk *= 2;
-    if (card._droidekaTriple) atk *= 3;   // Droideka shields-down overcharge
+    if (card._droidekaOvercharge) atk *= this._droidekaMult();   // shields-down overcharge
     return atk;
   },
   // opts.silent — compute WITHOUT logging. The predictor calls this on every
@@ -6233,11 +6241,12 @@ const Game = {
       say(`  [CRITICAL] ${attacker.name} CRITICAL HIT! (${dmg} → ${crit})`);
       dmg = crit;
     }
-    // Droideka overcharge — triple damage on its shields-down (even) rounds
-    if (attacker._droidekaTriple) {
-      const tripled = dmg * 3;
-      say(`  [DROIDEKA] ${attacker.name} overcharges — triple damage! (${dmg} → ${tripled})`);
-      dmg = tripled;
+    // Droideka overcharge — multiplied damage on its shields-down (even) rounds
+    if (attacker._droidekaOvercharge) {
+      const mult = this._droidekaMult();
+      const boosted = dmg * mult;
+      say(`  [DROIDEKA] ${attacker.name} overcharges — x${mult} damage! (${dmg} → ${boosted})`);
+      dmg = boosted;
     }
     // Yoda shield — target's side takes half combat damage (rounded up)
     if (this.yodaShieldCount(target.owner) > 0 && dmg > 0) {

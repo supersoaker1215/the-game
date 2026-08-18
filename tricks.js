@@ -444,7 +444,7 @@ const TRICK_DEFS = [
       }
     }
   },
-  { name: "Bacta Tank", cost: 3,
+  { name: "Bacta Tank", cost: 2,
     desc: "Fully heal an ally to max HP. It takes no damage for the rest of this round.",
     // Needs a live ally — greys out in the tray + refused by playTrick otherwise.
     canPlay(G, owner) { return G.getAlliesOf(owner).some(x => G.canTrickLand(x, 'trick', owner)); },

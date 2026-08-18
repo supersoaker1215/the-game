@@ -4503,16 +4503,23 @@ const CARD_ABILITIES = {
     // Two-mode cycle keyed off rounds SPENT ON THE FIELD, not the global round
     // number — his first round is always shields-up regardless of when he lands.
     //   odd count  → shields UP: Damage Immunity, takes no damage.
-    //   even count → shields DOWN: no immunity, triple ATK when he attacks.
-    // _computeIncomingDamage reads _droidekaTriple to x3 his swing.
+    //   even count → shields DOWN: no immunity, overcharged ATK when he attacks.
+    // THE MULTIPLIER LIVES HERE AND NOWHERE ELSE. It used to be written as a
+    // literal 3 in two separate places — _cardEffectiveAtk (which paints the
+    // ATK orb) and _computeIncomingDamage (which deals the damage) — so the
+    // number the card showed and the number it hit for were two independent
+    // copies of the same rule, free to drift. Owner asked for double instead of
+    // triple; both readers now take it from here.
+    ATK_MULT: 2,
     _apply(G, self) {
       const shieldsUp = (self._droidekaRound % 2) === 1;
+      const mult = CARD_ABILITIES['Droideka'].ATK_MULT;
       self.hasDamageImmunity = shieldsUp;
-      self._droidekaTriple = !shieldsUp;
+      self._droidekaOvercharge = !shieldsUp;
       if (shieldsUp) {
         G.log(`Droideka's shields snap up — it takes no damage this round.`);
       } else {
-        G.log(`Droideka drops its shields and overcharges — triple ATK this round.`);
+        G.log(`Droideka drops its shields and overcharges — x${mult} ATK this round.`);
       }
       if (typeof UI !== 'undefined' && UI._fxDroidekaShield) {
         try { UI._fxDroidekaShield(self, shieldsUp); } catch (e) {}
