@@ -12638,6 +12638,23 @@ const UI = {
           </div>
         </div>${botbarHTML}`;
       }
+      // Tools — the dev shelf, one level down. Same in-shell swap as Solo
+      // Match, so the hero art and the music keep playing across the change.
+      if (sub === 'tools') {
+        return `
+        <div class="mm-header">
+          <h1 class="mm-title">the game</h1>
+        </div>
+        <button type="button" class="mm-subback" onclick="UI.mmBack()" aria-label="Back to main menu">&larr; Menu</button>
+        <div class="mm-section">
+          <div class="mm-section-label">Tools</div>
+          <div class="mm-grid mm-grid-section">
+            ${btn('mm-audio',   'Audio Audit',  'Per-card audio coverage + inline splicer',         SVG.settings, "UI.openAudioAudit()")}
+            ${btn('mm-gallery', 'Gallery Audit','Browse, crop + delete card art',                   SVG.decks,    "UI.openGalleryAudit()")}
+            ${btn('mm-sandbox', 'Sandbox',      'Free-play with unlimited energy + spawn any card', SVG.settings, "UI.startSandbox()")}
+          </div>
+        </div>${botbarHTML}`;
+      }
       // Multiplayer — networked play, rendered in-shell (all online modes,
       // incl. 2v2 Online, live here so Solo Match stays same-device only).
       // Pass the menu's own btn()/SVG so the MP options are REAL .mm-option
@@ -12673,14 +12690,7 @@ const UI = {
             ${btn('mm-decks',   'My Decks',     'Build, edit, copy, or play your decks',                  SVG.decks,    "Game.goToMyDecks()")}
             ${btn('mm-encyc',   'Codex',        'Every card and trick in the game',                       SVG.decks,    "UI.openEncyclopedia()")}
             ${btn('mm-stats',   'Stats',        'Card win rates and balance trends',                      SVG.stats,    "Game.goToStats()")}
-          </div>
-        </div>
-        <div class="mm-section mm-tier-3">
-          <div class="mm-section-label">Tools</div>
-          <div class="mm-grid mm-grid-section">
-            ${btn('mm-audio',   'Audio Audit',  'Per-card audio coverage + inline splicer',               SVG.settings, "UI.openAudioAudit()")}
-            ${btn('mm-gallery', 'Gallery Audit','Browse + delete card art',                               SVG.decks,    "UI.openGalleryAudit()")}
-            ${btn('mm-sandbox', 'Sandbox',      'Free-play with unlimited energy + spawn any card',       SVG.settings, "UI.startSandbox()")}
+            ${btn('mm-tools',   'Tools',        'Audio Audit, Gallery Audit + Sandbox',                   SVG.settings, "UI.mmShowSub('tools')")}
           </div>
         </div>${botbarHTML}`;
     };

@@ -40607,8 +40607,16 @@ body.low-fx .badge-asleep { animation: none; }
    the house rule is boxless grow+glow text, and a panel that started
    drawing containers to show rank would be solving it the one way this
    game has explicitly ruled out. Tier 1 is what ships you into a match;
-   tier 2 is reference you open on purpose; tier 3 is workshop equipment
-   that must stay reachable and stop competing. */
+   tier 2 is reference you open on purpose.
+
+   The three dev tools were briefly a dimmed third tier here. They are now a
+   single TOOLS row in Library that opens its own in-shell submenu (the same
+   swap Solo Match and Multiplayer use, so the hero art and music carry
+   across). Owner's call, and the better one: a dimmed row is still a row —
+   it still takes vertical space and still has to be read past. Folding three
+   into one takes the home screen from ten options to eight and leaves the
+   dev shelf exactly one click away. Its former tier-3 block is deleted
+   rather than left behind, since nothing carries that class any more. */
 
 /* TIER 1 — PLAY. The reason the screen exists. */
 .mm-section.mm-tier-1 .mm-option-label { font-size: 19px; letter-spacing: 3.4px; }
@@ -40618,22 +40626,6 @@ body.low-fx .badge-asleep { animation: none; }
 .mm-section.mm-tier-2 .mm-option-label { font-size: 15px; letter-spacing: 2.8px; opacity: 0.88; }
 .mm-section.mm-tier-2 .mm-option-sub   { font-size: 10.5px; opacity: 0.85; }
 
-/* TIER 3 — TOOLS. Reachable, never competing. Dimmed rather than hidden:
-   these are used often enough that burying them behind a disclosure would
-   trade one annoyance for another. Hover restores them to full strength so
-   the moment you actually want one, it behaves like every other row. */
-.mm-section.mm-tier-3 { margin-top: 2px; }
-.mm-section.mm-tier-3 .mm-section-label { font-size: 10px; letter-spacing: 3.2px; opacity: 0.6; }
-.mm-section.mm-tier-3 .mm-option-label  { font-size: 12.5px; letter-spacing: 2.2px; opacity: 0.6; }
-.mm-section.mm-tier-3 .mm-option-sub    { font-size: 9.5px; opacity: 0.5; }
-.mm-section.mm-tier-3 .mm-option-icon   { opacity: 0.55; }
-.mm-section.mm-tier-3 .mm-grid-section  { gap: 5px; }
-.mm-section.mm-tier-3 .mm-option:hover .mm-option-label,
-.mm-section.mm-tier-3 .mm-option:hover .mm-option-sub,
-.mm-section.mm-tier-3 .mm-option:hover .mm-option-icon,
-.mm-section.mm-tier-3 .mm-option:focus-visible .mm-option-label,
-.mm-section.mm-tier-3 .mm-option:focus-visible .mm-option-sub,
-.mm-section.mm-tier-3 .mm-option:focus-visible .mm-option-icon { opacity: 1; }
 
 /* SOLO MATCH LEADS ITS OWN TIER. One clear first move, so the eye lands
    before it starts reading. A hair above its siblings — enough to rank,
