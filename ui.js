@@ -12650,7 +12650,7 @@ const UI = {
         <div class="mm-header">
           <h1 class="mm-title">the game</h1>
         </div>
-        <div class="mm-section">
+        <div class="mm-section mm-tier-1">
           <div class="mm-section-label">Play</div>
           <div class="mm-grid mm-grid-section">
             ${btn('mm-play',    'Solo Match',   'Play against the AI',                                    SVG.play,     "UI.mmShowSub('solo')")}
@@ -12667,15 +12667,20 @@ const UI = {
             ${btn('mm-tutorial','Tutorial',     'Guided walkthrough — play a scripted round',              helpSVG,      "Tutorial.start()")}
           </div>
         </div>
-        <div class="mm-section">
+        <div class="mm-section mm-tier-2">
           <div class="mm-section-label">Library</div>
           <div class="mm-grid mm-grid-section">
             ${btn('mm-decks',   'My Decks',     'Build, edit, copy, or play your decks',                  SVG.decks,    "Game.goToMyDecks()")}
             ${btn('mm-encyc',   'Codex',        'Every card and trick in the game',                       SVG.decks,    "UI.openEncyclopedia()")}
             ${btn('mm-stats',   'Stats',        'Card win rates and balance trends',                      SVG.stats,    "Game.goToStats()")}
-            ${btn('mm-audio',   'Audio Audit',  'Per-card audio coverage + inline splicer · dev',          SVG.settings, "UI.openAudioAudit()")}
-            ${btn('mm-gallery', 'Gallery Audit','Browse + delete card art · dev',                          SVG.decks,    "UI.openGalleryAudit()")}
-            ${btn('mm-sandbox', 'Sandbox',      'Free-play with unlimited energy + spawn any card · dev', SVG.settings, "UI.startSandbox()")}
+          </div>
+        </div>
+        <div class="mm-section mm-tier-3">
+          <div class="mm-section-label">Tools</div>
+          <div class="mm-grid mm-grid-section">
+            ${btn('mm-audio',   'Audio Audit',  'Per-card audio coverage + inline splicer',               SVG.settings, "UI.openAudioAudit()")}
+            ${btn('mm-gallery', 'Gallery Audit','Browse + delete card art',                               SVG.decks,    "UI.openGalleryAudit()")}
+            ${btn('mm-sandbox', 'Sandbox',      'Free-play with unlimited energy + spawn any card',       SVG.settings, "UI.startSandbox()")}
           </div>
         </div>${botbarHTML}`;
     };
