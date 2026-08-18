@@ -11429,8 +11429,10 @@ const UI = {
     // Trick clicks → local trick handler
     const tricksEl = document.getElementById('player-tricks');
     if (tricksEl) {
-      tricksEl.querySelectorAll('.trick-card').forEach((el, idx) => {
-        if (el.onclick) el.onclick = (e) => { e.stopPropagation(); twov2PlayTrick(idx); };
+      tricksEl.querySelectorAll('.trick-card').forEach((el) => {
+        if (!el.onclick) return;
+        const idx = this._trickIndexFromEl(el);
+        el.onclick = (e) => { e.stopPropagation(); if (idx >= 0) twov2PlayTrick(idx); };
       });
     }
   },
@@ -11881,9 +11883,10 @@ const UI = {
   _apply2v2OnlineTrickClicks(ap, canPlay) {
     const tricksEl = document.getElementById('player-tricks');
     if (!tricksEl) return;
-    tricksEl.querySelectorAll('.trick-card').forEach((el, idx) => {
+    tricksEl.querySelectorAll('.trick-card').forEach((el) => {
       if (!canPlay) { el.onclick = null; return; }
-      el.onclick = (e) => { e.stopPropagation(); twov2OnlineTrick(idx); };
+      const idx = this._trickIndexFromEl(el, ap && ap.trickHand);
+      el.onclick = (e) => { e.stopPropagation(); if (idx >= 0) twov2OnlineTrick(idx); };
     });
   },
 
@@ -22495,6 +22498,22 @@ const UI = {
     }
   },
 
+  // Which trick in the REAL trickHand a tray element represents.
+  //
+  // The tray is now sorted by cost, so DOM position no longer equals the index
+  // in s.player.trickHand — and both 2v2 click paths used to re-wire with
+  // forEach((el, idx)) => playTrick(idx), i.e. exactly that assumption. Left
+  // alone, clicking the left-hand trick would have played whichever trick
+  // happened to sit first in the array. Resolving by the data-trick-id the
+  // renderer already stamps makes the wiring independent of display order, so
+  // any future re-sort is free.
+  _trickIndexFromEl(el, list) {
+    const id = el && el.getAttribute && el.getAttribute('data-trick-id');
+    if (id == null) return -1;
+    const arr = list || (Game.state && Game.state.player && Game.state.player.trickHand) || [];
+    return arr.findIndex(t => t && String(t.id) === String(id));
+  },
+
   renderPlayerTricks(s) {
     this.playerTricks.innerHTML = '';
     const canTrick = this.canPlayerPlayTricks(s);
@@ -22502,7 +22521,18 @@ const UI = {
     // Clear stale selection if the trick is no longer in hand
     if (s.selectedTrick && !s.player.trickHand.includes(s.selectedTrick)) s.selectedTrick = null;
 
-    s.player.trickHand.forEach(trick => {
+    // CHEAPEST LEFT, PRICIEST RIGHT — same rule as the draft offers and the
+    // hand. Owner: "tricks need to be ordered lowest to highest as well, left
+    // low right high cost." Sorted on a COPY: the array itself is game state,
+    // and the 2v2 click paths index into it, so reordering the real thing would
+    // change which trick a play resolves to. Stable on ties via the index
+    // tiebreak, so equal-cost tricks do not shuffle between renders.
+    const _trickOrder = s.player.trickHand
+      .map((t, i) => ({ t, i }))
+      .sort((a, b) => ((Game.getTrickCost('player', a.t) | 0) - (Game.getTrickCost('player', b.t) | 0)) || (a.i - b.i))
+      .map(e => e.t);
+
+    _trickOrder.forEach(trick => {
       const el = document.createElement('div');
       el.className = 'trick-card';
       if (trick.name) el.setAttribute('data-trick-name', trick.name);
