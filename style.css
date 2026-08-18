@@ -40811,3 +40811,39 @@ body.low-fx .badge-asleep { animation: none; }
    the tooltip says what to do about it. */
 .gal-num.is-dead { opacity: 0.38; }
 .gal-num.is-dead input { border-style: dashed; }
+
+/* ============================================================
+   DRAFT — WHO OPENS ROUND 1 (2026-08-18)
+   ============================================================
+   The coin flip is resolved at match start, so who leads round 1 is already
+   decided while you are still drafting — it was simply never surfaced. It is
+   not trivia: going second means you play into a board that already has a card
+   in it (a cheap early body gains value), and going first means your On Play
+   resolves before theirs. Drafting without it is drafting blind to half the
+   opening.
+
+   Boxless, per the house rule — a rule above and glow text, no container.
+   Colour carries the answer so it reads before the sentence does: theme accent
+   when it is you, warm amber when it is not. */
+.draft-first {
+  display: flex; align-items: baseline; justify-content: center; gap: 8px;
+  margin: 6px 0 2px; padding-top: 6px;
+  border-top: 1px solid rgba(var(--theme-rgb, 79,195,247), 0.16);
+}
+.draft-first-label {
+  font: 700 9px/1 'Rajdhani', sans-serif; letter-spacing: 3px;
+  text-transform: uppercase; opacity: 0.6;
+  color: color-mix(in srgb, rgb(var(--theme-rgb, 79,195,247)) 60%, white);
+}
+.draft-first-who {
+  font: 700 13px/1 'Rajdhani', sans-serif; letter-spacing: 2.4px;
+  text-transform: uppercase;
+}
+.draft-first.is-mine .draft-first-who {
+  color: color-mix(in srgb, rgb(var(--theme-rgb, 79,195,247)) 30%, #eaf4ff);
+  text-shadow: 0 0 10px rgba(var(--theme-rgb, 79,195,247), 0.55);
+}
+.draft-first.is-theirs .draft-first-who {
+  color: #ffcf8a;
+  text-shadow: 0 0 10px rgba(255, 176, 92, 0.45);
+}

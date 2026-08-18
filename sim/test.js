@@ -6029,6 +6029,45 @@ test("An UNfrozen hunter still chases — the fix did not just disable Hunt", fu
   assertEq(G.state.lanes[0].ai, null, 'and leaves the lane it came from');
 });
 
+test("firstPlayerForRound is the one rule the draft screen and startRound share", function () {
+  // Owner: "on the draft screen display who is playing 1st on turn 1."
+  // The lead is derivable for ANY round from the single coin flip, which is
+  // what lets the draft answer it before a round exists. The value of pulling
+  // it into a helper is that the screen and the engine cannot drift apart —
+  // so this test checks the helper AND that startRound agrees with it.
+  var G = freshGame();
+  G.state.oddPlayer = 'player';
+  assertEq(G.firstPlayerForRound(1), 'player', 'odd rounds go to oddPlayer');
+  assertEq(G.firstPlayerForRound(2), 'ai', 'even rounds alternate');
+  assertEq(G.firstPlayerForRound(3), 'player', 'and alternate back');
+
+  G.state.oddPlayer = 'ai';
+  assertEq(G.firstPlayerForRound(1), 'ai', 'follows the flip, not a fixed seat');
+  assertEq(G.firstPlayerForRound(2), 'player', 'still alternates');
+
+  // Not yet flipped — null, so the draft can simply print nothing rather than
+  // guessing a seat and being wrong half the time.
+  G.state.oddPlayer = null;
+  assertEq(G.firstPlayerForRound(1), null, 'no answer before the coin flip');
+
+  // THE AGREEMENT. startRound must land on what the helper promised, or the
+  // draft screen becomes a liar.
+  // NOTE startRound() takes NO argument — it increments state.round itself.
+  // Passing one is silently ignored, which is how the first draft of this test
+  // managed to assert against the wrong round and "fail" a correct helper.
+  G.state.oddPlayer = 'ai';
+  G.state.round = 0;
+  var promised = G.firstPlayerForRound(1);
+  G.startRound();
+  assertEq(G.state.round, 1, 'startRound advanced to round 1');
+  assertEq(G.state.firstPlayer, promised, 'startRound honours the promise');
+
+  var promised2 = G.firstPlayerForRound(2);
+  G.startRound();
+  assertEq(G.state.round, 2, 'and on to round 2');
+  assertEq(G.state.firstPlayer, promised2, 'and again on the alternating round');
+});
+
 // ---- RUNNER ------------------------------------------------
 // ============================================================
 

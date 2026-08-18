@@ -17762,6 +17762,28 @@ const UI = {
     html +=     `<span class="draft-hud-pips">${pips.join('')}</span>`;
     html +=     `<span class="draft-hud-counter">Pick <em>${round}</em> / ${total}</span>`;
     html +=   `</div>`;
+    // WHO OPENS ROUND 1. The coin flip resolves at match start, so this is
+    // already decided while you are still drafting — it was just never shown.
+    // It is not trivia: going second means you play into a board that already
+    // has a card in it, so a cheap early body is worth more; going first means
+    // your On Play resolves before theirs. Drafting without it is drafting
+    // blind to half the opening.
+    // Read through Game.firstPlayerForRound so this and the round-start code
+    // cannot disagree — re-deriving it from oddPlayer here is exactly the kind
+    // of second copy that drifts.
+    // NOT added to the 2v2 online draft: that screen seats four players in two
+    // teams, so "who goes first" is a different question there and deserves its
+    // own answer rather than this one reworded.
+    const _fp1 = (Game.firstPlayerForRound) ? Game.firstPlayerForRound(1) : null;
+    if (_fp1) {
+      const mine = _fp1 === 'player';
+      const nm = (s._mpNames && s._mpNames[_fp1]) ? s._mpNames[_fp1]
+               : (Game.seatLabel ? Game.seatLabel(_fp1) : (mine ? 'You' : 'AI'));
+      html +=   `<div class="draft-first ${mine ? 'is-mine' : 'is-theirs'}">`;
+      html +=     `<span class="draft-first-label">Round 1</span>`;
+      html +=     `<span class="draft-first-who">${nm} ${mine ? 'go' : 'goes'} first</span>`;
+      html +=   `</div>`;
+    }
     html +=   `<div class="draft-hud-actions">`;
     // Back-to-menu — early exit out of a draft. Confirms first so an
     // accidental click doesn't wipe picks already made.

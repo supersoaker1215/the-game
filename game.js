@@ -3374,13 +3374,12 @@ const Game = {
       player: this.state.player.health,
       ai:     this.state.ai.health
     });
-    const isOdd = r % 2 === 1;
     // Flash override — if someone used Flash's "choose first next turn", honor it.
     if (this.state._nextFirstPlayer === 'player' || this.state._nextFirstPlayer === 'ai') {
       this.state.firstPlayer = this.state._nextFirstPlayer;
       delete this.state._nextFirstPlayer;
     } else {
-      this.state.firstPlayer = isOdd ? this.state.oddPlayer : this.opponent(this.state.oddPlayer);
+      this.state.firstPlayer = this.firstPlayerForRound(r);
     }
     // Reset per-round stat trackers so the end-of-round recap reflects only this round.
     this.state._roundStats = {
@@ -7232,6 +7231,20 @@ const Game = {
         return;
       }
     }
+  },
+  // WHO OPENS ROUND r. The coin flip picks oddPlayer once at match start and
+  // the lead alternates from there, so this is derivable for ANY round —
+  // including before a round has begun, which is what lets the draft screen
+  // tell you who opens round 1 while you are still picking cards.
+  // Extracted rather than copied: startRound used to hold this expression
+  // inline, and a second copy in the UI would be one more pair of predicates
+  // free to disagree. Deliberately does NOT consult _nextFirstPlayer (Flash's
+  // "choose who goes first next turn") — that is an override applied at the
+  // moment the round starts, not a property of the schedule.
+  firstPlayerForRound(r) {
+    const odd = this.state && this.state.oddPlayer;
+    if (odd !== 'player' && odd !== 'ai') return null;   // not flipped yet
+    return (r % 2 === 1) ? odd : this.opponent(odd);
   },
   addToTrickHand(owner, trick) {
     const p = this.state[owner];
