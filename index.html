@@ -852,7 +852,7 @@
        0.peerjs.com signaling cloud — no server needed on our side.
        Served locally so the game works on restricted networks that block CDNs. -->
   <script src="peerjs.min.js"></script>
-  <script src="multiplayer.js?v=35"></script>
+  <script src="multiplayer.js?v=36"></script>
   <script src="card-art-manifest.js?v=60"></script>
   <script src="ui.js?v=1238"></script>
   <script src="tutorial.js?v=7"></script>
@@ -873,11 +873,19 @@
       try {
         var out = {};
         document.querySelectorAll('script[src]').forEach(function (s) {
-          var m = s.getAttribute('src').match(/(ui|game|multiplayer)\.js\?v=(\d+)/);
+          var m = s.getAttribute('src').match(/(ui|game|multiplayer|cards|abilities)\.js\?v=(\d+)/);
           if (m) out[m[1]] = m[2];
         });
+        // cards + abilities are ON the badge deliberately. They carry every
+        // card's TEXT and every card's RULES — the two things that change most
+        // and the two things a player actually notices going stale ("his text
+        // doesn't say Burning, and the debuff doesn't land"). With only
+        // ui/game/mp shown, a client could be current on all three and still be
+        // running last week's card behaviour, with nothing on screen to say so.
         var el = document.getElementById('clb-build-badge');
-        if (el) el.textContent = 'build ui' + (out.ui || '?') + ' · g' + (out.game || '?') + ' · mp' + (out.multiplayer || '?');
+        if (el) el.textContent = 'build ui' + (out.ui || '?') + ' · g' + (out.game || '?')
+          + ' · c' + (out.cards || '?') + ' · a' + (out.abilities || '?')
+          + ' · mp' + (out.multiplayer || '?');
       } catch (e) {}
     })();
   </script>

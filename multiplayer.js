@@ -724,14 +724,19 @@ function _buildIceConfig() {
 //   • Both sides see opponentJoined / opponentLeft / state events
 
 // Build stamp for the version handshake — derived from the ?v= params the
-// page actually loaded game.js/ui.js/multiplayer.js with, so it updates on
-// every deploy with zero maintenance. Two clients on the same deploy always
-// agree; a stale-cached client disagrees and both get warned.
+// page actually loaded its scripts with, so it updates on every deploy with
+// zero maintenance. Two clients on the same deploy always agree; a
+// stale-cached client disagrees and both get warned.
+// cards.js and abilities.js are IN the stamp: they hold every card's text and
+// every card's rules, so two clients could match on game/ui/multiplayer and
+// still resolve the same card differently — which is a desync the handshake
+// existed to catch and was silently blind to. First letters stay unique
+// (g/u/m/c/a), so the compact stamp format is unchanged.
 function _clbBuildStamp() {
   try {
     const parts = [];
     document.querySelectorAll('script[src]').forEach(s => {
-      const m = s.getAttribute('src').match(/(game|ui|multiplayer)\.js\?v=(\d+)/);
+      const m = s.getAttribute('src').match(/(game|ui|multiplayer|cards|abilities)\.js\?v=(\d+)/);
       if (m) parts.push(m[1][0] + m[2]);
     });
     return parts.sort().join('-') || null;
