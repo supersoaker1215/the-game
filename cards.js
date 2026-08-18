@@ -90,7 +90,7 @@ const CARD_DEFS = [
   { name: "Boiler Room", cost: 1, attack: 0, health: 1, type: "environment",
     isEnvironment: true,
     abilities: [],
-    desc: "While Active: Enemies in this lane gain Burning, and each turn Burning spreads to adjacent enemies. Burning enemies take 1 damage before they attack. When a Burning enemy is destroyed, Freddy Krueger spawns in this lane, replacing Boiler Room, and Burning ends. If an ally is present, choose a lane to move them — if no open lanes exist, the ally is consumed and Freddy absorbs their stats." },
+    desc: "While Active: Enemies in this lane gain Burning, and each turn Burning spreads to adjacent enemies. When a Burning enemy is destroyed, Freddy Krueger spawns in this lane, replacing Boiler Room, and Burning ends. If an ally is present, choose a lane to move them — if no open lanes exist, the ally is consumed and Freddy absorbs their stats." },
   { name: "Xenomorph", cost: 2, attack: 0, health: 1, type: "villain",
     abilities: [],
     desc: "While Active: Add (+1/+1) each time any other card enters the board. When Destroyed: Splash 1." },

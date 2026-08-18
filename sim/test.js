@@ -3061,9 +3061,12 @@ test("a guest's undo cannot pop the host's snapshot", function () {
 
 test('a card killed by its own Burning does not get to attack', function () {
   // User: "burning needs to hit first resolve then the attack."
-  // Boiler Room installs the burn tick in onBeforeAttack — "Burning enemies
-  // take 1 damage before they attack" — but the damage was never RESOLVED, so
-  // a card the burn had just killed still landed its full swing.
+  // The burn tick's damage was never RESOLVED before the swing, so a card the
+  // burn had just killed still landed its full attack. The hook below is a
+  // hand-rolled stand-in for a pre-attack tick, NOT Boiler Room's — Boiler Room
+  // has since moved onto the shared decaying Burning, which ticks on
+  // onLaneCombat. What is under test here is the resolution ordering, which is
+  // why this test is unaffected by that move.
   function heroDamage(burning) {
     var G = freshGame();
     G.state.phase = 'combat';
@@ -5811,6 +5814,52 @@ test("Re-igniting takes the higher Burning number, never a downgrade", function 
   victim.burnStacks = 1;
   CARD_ABILITIES['Godzilla']._ignite(G, victim, 2);
   assertEq(victim.burnStacks, 2, 'a stronger source re-stokes');
+});
+
+test("Boiler Room burns with the shared Burning, at the same 1 per turn", function () {
+  // Owner picked unification: Boiler Room used to run a private version of the
+  // status (flat 1 on onBeforeAttack, forever, no decay), so one printed word
+  // meant two different rules. Now it ignites at Burning 1 through the same
+  // applier Godzilla and Human Torch use. This test pins BOTH halves: the
+  // private rule is gone, and the damage per turn did not change.
+  var G = freshGame();
+  var boiler = place(G, 'Boiler Room', 'player', 1);
+  var victim = place(G, 'Sabertooth', 'ai', 1);
+  victim.currentHealth = 20; victim.maxHealth = 20;
+
+  CARD_ABILITIES['Boiler Room']._markBurning(victim, boiler);
+
+  // 1. THE SHARED STATUS, not a private one.
+  assertEq(victim.burnStacks, 1, 'ignites at Burning 1');
+  assertEq(!!victim.isBurning, true, 'and reads as burning');
+  assertEq(typeof victim.onLaneCombat, 'function', 'it ticks on its own lane');
+  assertEq(!!victim._brAttackHooked, false, 'the private onBeforeAttack tick is gone');
+
+  // 2. ONE DAMAGE, then the counter is spent.
+  var hp = victim.currentHealth;
+  victim.onLaneCombat(G, victim, 1);
+  assertEq(victim.currentHealth, hp - 1, 'the tick deals 1 — the old amount');
+  assertEq(victim.burnStacks, 0, 'and the counter empties');
+  assertEq(!!victim.isBurning, true, 'but the fire stays lit while the Boiler Room stands');
+
+  // 3. THE RE-STOKE is what keeps it at 1 per turn. Without it a decaying
+  //    counter would tick once and quietly stop, silently nerfing the card.
+  CARD_ABILITIES['Boiler Room'].onTurnStart(G, boiler);
+  assertEq(victim.burnStacks, 1, 'each turn re-stokes the burn back to 1');
+  hp = victim.currentHealth;
+  victim.onLaneCombat(G, victim, 1);
+  assertEq(victim.currentHealth, hp - 1, 'so the second turn deals 1 again');
+
+  // 4. And a stronger source in the lane is not dragged down to 1.
+  CARD_ABILITIES['Godzilla']._ignite(G, victim, 3);
+  CARD_ABILITIES['Boiler Room'].onTurnStart(G, boiler);
+  assertEq(victim.burnStacks, 3, "the re-stoke never downgrades a bigger burn");
+
+  // 5. The card no longer explains the status itself — the keyword does.
+  var env = cardByName('Boiler Room');
+  assertEq(/take 1 damage before they attack/.test(env.desc), false,
+    'the private-rule sentence is gone from the card');
+  assert(/Burning/.test(env.desc), 'but it still names the keyword');
 });
 
 // ---- RUNNER ------------------------------------------------

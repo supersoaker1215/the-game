@@ -5249,15 +5249,22 @@ const CARD_ABILITIES = {
     }
   },
   "Boiler Room": {
+    // BOILER ROOM BURNS WITH THE SAME BURNING AS EVERYONE ELSE.
+    // It used to run its own private version of the status: a flat 1 damage on
+    // onBeforeAttack, forever, no decay. That made one printed word mean two
+    // different rules depending on who applied it, which is why the card had to
+    // spend a sentence explaining itself. Now it goes through the shared
+    // applier at Burning 1, so the keyword's tooltip is true here too and the
+    // sentence could be dropped.
+    // Damage per turn is unchanged (see the re-stoke in onTurnStart). The one
+    // behavioural difference, accepted deliberately: it ticks before the card's
+    // LANE fights rather than before that card ATTACKS, so a burning card with
+    // no one to swing at now still burns.
     _markBurning(card, boilerRoom) {
       if (!card || card.isEnvironment) return;
-      const _wasBurning = card.isBurning;
-      card.isBurning = true;
-      // Ignite one-shot the instant a card catches (not on every re-mark).
-      // Guarded UI call — no-op in the headless sim, same pattern as Freeze.
-      if (!_wasBurning && typeof UI !== 'undefined' && UI._fxBurnIgnite) {
-        try { UI._fxBurnIgnite(card); } catch (e) {}
-      }
+      // isBurning, the ignite one-shot FX and the decaying counter all live in
+      // _ignite. Its first arg (G) is unused, hence null.
+      CARD_ABILITIES['Godzilla']._ignite(null, card, 1);
       // Add the Freddy spawn onDeath hook independently of isBurning so
       // a card pre-marked by another source (Knull, Freddy Krueger passive)
       // still triggers the spawn when it dies in the Boiler Room's lane.
@@ -5278,18 +5285,6 @@ const CARD_ABILITIES = {
               AB._spawnFreddy(G, boilerRoom.owner, brLane);
             }
           }
-        };
-      }
-      // Pre-attack burn tick — deal 1 damage to this card before it swings.
-      if (!card._brAttackHooked) {
-        card._brAttackHooked = true;
-        const origAttack = card.onBeforeAttack || null;
-        card.onBeforeAttack = function(G, self) {
-          if (self.isBurning && self.currentHealth > 0) {
-            G.dealDamage(self, 1, null);
-            G.log(`[BURN] ${self.name} takes 1 burn damage before attacking!`);
-          }
-          if (origAttack) origAttack.call(this, G, self);
         };
       }
     },
@@ -5403,6 +5398,18 @@ const CARD_ABILITIES = {
       toBurn.forEach(c => {
         AB._markBurning(c, self);
         G.log(`[BURN] Boiler Room spreads — ${c.name} in lane ${G.findCardLane(c) + 1} is now burning!`);
+      });
+
+      // RE-STOKE. Boiler Room never re-marks a card it has already lit (the
+      // spread pass above deliberately skips anything already burning, and
+      // onAnyCardPlayed skips anything already hooked), which was harmless
+      // while the burn was a permanent flat hook. A decaying counter would
+      // instead tick once and go out. Re-stoking every currently-burning enemy
+      // back to 1 each turn is what keeps the damage at the old 1-per-turn.
+      // _ignite takes the HIGHER number, so a Godzilla's Burning 3 sitting in
+      // this lane is not dragged down to 1.
+      G.getAllCardsOf(opp).forEach(c => {
+        if (c.isBurning && c.currentHealth > 0) CARD_ABILITIES['Godzilla']._ignite(null, c, 1);
       });
     },
     onDeath(G, self) {
