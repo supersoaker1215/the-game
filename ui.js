@@ -21432,6 +21432,25 @@ const UI = {
       const filled = Math.min(max, c._spinoMeter | 0);
       t.push(badge('badge-hunt-meter', `Hunt Meter ${filled}`, 'Hunt Meter'));
     }
+    // LANES FLOWN — Killer Moth's tally, 1→6. Owner: "i would like the number
+    // of the lane visited displayed on the front of killer moth's card as a
+    // tracker."
+    // The tally already existed and already drove the card (a new lane is
+    // +1/+1, a repeat is nothing) but lived only in `_mothLanes` and the battle
+    // log, so the one number that decides whether moving him is worth anything
+    // was invisible on the board. Same reasoning as the Hunt Meter: when a
+    // number IS the card, it belongs on the front.
+    // Read from `_mothLanes` — the array the ability itself mutates — so the
+    // badge cannot drift from the rule. isCardKind, not a name check, so copies
+    // (Martian Manhunter) carry their own tracker.
+    if (typeof Game !== 'undefined' && Game.isCardKind && Game.isCardKind(c, 'Killer Moth')) {
+      const flown = Array.isArray(c._mothLanes) ? c._mothLanes.length : 0;
+      const maxLanes = (typeof Game.LANE_COUNT === 'number') ? Game.LANE_COUNT : 6;
+      t.push(badge('badge-lanes-flown', `Lanes Flown ${flown}`, 'Lanes Flown'));
+      // At full board he can never grow again — flag it so the chip stops
+      // reading like a meter that still has somewhere to go.
+      if (flown >= maxLanes) t.push(badge('badge-lanes-flown-full', 'Grounded', ''));
+    }
     // DROIDEKA overcharge — shields-down (even) rounds, when he deals triple
     // ATK. Shields-UP rounds already show the DmgImmune badge from
     // hasDamageImmunity above, so only the attack mode needs its own marker.
@@ -21467,8 +21486,9 @@ const UI = {
     // Burning carries its COUNT, because the count is the damage: Burning 3
     // deals 3 next time this lane fights, then decays to 2, then 1. A bare
     // flame told you that you were on fire but not how badly, which is the only
-    // part you can actually plan around. Boiler Room's burn has no counter of
-    // its own, so it still renders the plain badge.
+    // part you can actually plan around. Every source carries a count now that
+    // Boiler Room ignites through the shared applier (at 1); the countless
+    // branch is kept only for a card flagged burning by some other means.
     if (c.isBurning) {
       const n = c.burnStacks | 0;
       t.push(badge('badge-burning', n > 0 ? `Burning ${n}` : 'Burning', 'Burning'));
@@ -21606,6 +21626,7 @@ const UI = {
     // Spinosaurus's charge — three concentric bite-marks closing on a core, so
     // it reads as "something is filling up" and not as another targeting
     // reticle (Hunt and Mark already own the ring-with-a-dot shape).
+    'Lanes Flown': { color: '#b39ddb', svg: '<svg viewBox="0 0 12 12"><path d="M1.4 8.6c1.6 0 1.6-3.2 3.2-3.2s1.6 3.2 3.2 3.2 1.6-3.2 2.8-3.2" stroke="currentColor" stroke-width="1.2" fill="none" stroke-linecap="round"/><circle cx="1.4" cy="8.6" r="1" fill="currentColor"/><circle cx="10.6" cy="5.4" r="1" fill="currentColor"/></svg>', tip: 'How many different lanes he has stood in. Reaching a <b>new</b> lane grows him (+1/+1); returning to one he has already flown grants nothing.' },
     'Hunt Meter':  { color: '#c0f052', svg: '<svg viewBox="0 0 12 12"><rect x="1" y="4.2" width="10" height="3.6" rx="1.2" stroke="currentColor" stroke-width="1.1" fill="none"/><rect x="2.2" y="5.3" width="2.1" height="1.4" fill="currentColor"/><rect x="4.95" y="5.3" width="2.1" height="1.4" fill="currentColor"/><rect x="7.7" y="5.3" width="2.1" height="1.4" fill="currentColor"/></svg>', tip: 'Fills by 1 each time an <b>ally</b> is damaged. At <b>3</b>, Spinosaurus attacks every occupied lane at once instead of his own, then resets to 0. His own rampage does not refill it.' },
     // Wetlands' countdown — a water line with a rising spine breaking it.
     'Habitat Power': { color: '#4fd6a0', svg: '<svg viewBox="0 0 12 12"><path d="M0.8 8.4q1.3-1 2.6 0t2.6 0q1.3-1 2.6 0t2.6 0" stroke="currentColor" stroke-width="1.1" fill="none" stroke-linecap="round"/><path d="M2.6 6.6 4 3.4l1.4 3.2M6.6 6.6 8 2.2l1.4 4.4" stroke="currentColor" stroke-width="1.1" fill="none" stroke-linejoin="round"/></svg>', tip: 'The habitat\'s charge. Each time <b>either</b> player\'s Block Meter fires it drops by 1. At <b>0</b> the water breaks and what the habitat holds is released.' },

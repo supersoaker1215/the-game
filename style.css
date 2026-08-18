@@ -150,6 +150,7 @@
   --kw-freeze:         #7fd0ff;   /* blue */
   --kw-fear:           #e8eef6;   /* silver */
   --kw-burn:           #ff7a00;   /* orange */
+  --kw-lanes-flown:    #b39ddb;   /* moth-wing lilac */
   --kw-charm:          #d7b3e6;   /* purple */
   --kw-energy:         #ffe066;   /* gold */
   /* Crazy / Insane are STATUSES, so the in-text word must read as one. Hexes are
@@ -7165,6 +7166,9 @@ body.hit-pause .ai-hand * {
 .badge-immune     { color: var(--kw-immune); }
 .badge-hunt       { color: var(--kw-hunt); }
 .badge-hunt-meter { color: var(--kw-hunt-meter); }
+.badge-lanes-flown { color: var(--kw-lanes-flown); }
+/* Board full — he can never grow again, so the chip reads as spent, not live. */
+.badge-lanes-flown-full { color: var(--kw-lanes-flown); opacity: 0.72; font-weight: 700; }
 /* Meter at max — it discharges the next time combat starts, so it pulses like
    the other "about to happen" badges (Critical, Burning) rather than sitting
    still at a number you have to compare against 3 yourself. */
