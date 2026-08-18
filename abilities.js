@@ -858,7 +858,7 @@ const CARD_ABILITIES = {
       G.log(`Human Torch ignites on arrival — Splash ${arrival}!`);
       const enemies = G.getEnemiesOf(self.owner).filter(t => G.canEffectLand(t, 'damage', { owner: self.owner, source: self }));
       if (enemies.length) {
-        G.promptCardChoice(self.owner, enemies, "Human Torch — Blast", `Choose enemy to set Burning ${blast}`, (t) => {
+        G.promptCardChoice(self.owner, enemies, "Human Torch — Blast", `Choose enemy to apply Burning ${blast}`, (t) => {
           if (typeof UI !== 'undefined' && UI._fxHumanTorchFlame) { try { UI._fxHumanTorchFlame(self, t); } catch (e) {} }
           CARD_ABILITIES['Godzilla']._ignite(G, t, blast);
           G.log(`Human Torch sets ${t.name} ablaze — Burning ${t.burnStacks}!`);
