@@ -841,9 +841,16 @@ const CARD_ABILITIES = {
         try { UI.sfx.playCardSfx('Human Torch', 'ability', self); } catch (e) {}
       }
       // Roguelite Text+ override — _humanTorchBlast scales the targeted
-      // damage. Default 2 (classic); Text+ raises to 4 so the directed
-      // blast can finish mid-cost bodies on its own.
+      // burn. Default 2 (classic); Text+ raises to 4.
+      // Owner: "for human torch have apply 2 burning to an enemy instead of
+      // 2 damage." It is no longer a lump of damage — it sets the target
+      // alight at Burning N, so it ticks N, N-1, … down to 0 on that card's
+      // own lane, through the shared applier every Burning source uses.
       const blast = self._humanTorchBlast || 2;
+      // Total damage the burn will eventually deal — N + (N-1) + … + 1.
+      // The AI's kill-picker needs the TOTAL, not the first tick, or it would
+      // pass over a target the burn actually finishes.
+      const blastTotal = (blast * (blast + 1)) / 2;
       // _humanTorchArrivalSplash scales the splash on entry. Default 1
       // (classic); Text+ raises to 3.
       const arrival = self._humanTorchArrivalSplash || 1;
@@ -851,10 +858,11 @@ const CARD_ABILITIES = {
       G.log(`Human Torch ignites on arrival — Splash ${arrival}!`);
       const enemies = G.getEnemiesOf(self.owner).filter(t => G.canEffectLand(t, 'damage', { owner: self.owner, source: self }));
       if (enemies.length) {
-        G.promptCardChoice(self.owner, enemies, "Human Torch — Blast", `Choose enemy to deal ${blast} damage`, (t) => {
+        G.promptCardChoice(self.owner, enemies, "Human Torch — Blast", `Choose enemy to set Burning ${blast}`, (t) => {
           if (typeof UI !== 'undefined' && UI._fxHumanTorchFlame) { try { UI._fxHumanTorchFlame(self, t); } catch (e) {} }
-          G.dealDamage(t, blast); G.log(`Human Torch blasts ${t.name} for ${blast}!`);
-        }, cards => _aiKillPicker(cards, blast));
+          CARD_ABILITIES['Godzilla']._ignite(G, t, blast);
+          G.log(`Human Torch sets ${t.name} ablaze — Burning ${t.burnStacks}!`);
+        }, cards => _aiKillPicker(cards, blastTotal));
       }
     }
   },
@@ -5422,11 +5430,22 @@ const CARD_ABILITIES = {
     // wrong. onBeforeAttack is NOT an option: it only fires for cards that
     // actually swing, so a burning card with no target would never tick.
     BURN_START: 3,
-    _ignite(G, card) {
+    // THE SHARED BURNING APPLIER. It lives under Godzilla for historical
+    // reasons (he was the first source) but every card that sets a card
+    // alight goes through here, so Burning means exactly one thing no matter
+    // who lit the match — the same reason the keyword's tooltip can now carry
+    // the rule instead of each card reprinting it.
+    // `stacks` is the starting number; omit it for Godzilla's own 3.
+    // NOTE: the outer G is unused — the only G referenced below belongs to the
+    // onLaneCombat hook, which takes its own. Callers without one may pass null.
+    _ignite(G, card, stacks) {
       if (!card || card.isEnvironment || card.currentHealth <= 0) return;
       const AB = CARD_ABILITIES['Godzilla'];
-      // Re-stoking refreshes to full — a second Godzilla, or a re-play.
-      card.burnStacks = AB.BURN_START;
+      const n = stacks || AB.BURN_START;
+      // Re-stoking takes the HIGHER number, it does not overwrite. A second
+      // Godzilla still refreshes to 3 (max(3,3)), but a Human Torch's Burning 2
+      // must never downgrade a card already burning at 3.
+      card.burnStacks = Math.max(card.burnStacks | 0, n);
       const _wasBurning = card.isBurning;
       card.isBurning = true;
       if (!_wasBurning && typeof UI !== 'undefined' && UI._fxBurnIgnite) {
@@ -5439,7 +5458,7 @@ const CARD_ABILITIES = {
         const n = self.burnStacks | 0;
         if (n > 0 && self.currentHealth > 0) {
           G.dealDamage(self, n, null);
-          G.log(`[BURN] ${self.name} takes ${n} burn damage as its lane ignites! (Godzilla)`);
+          G.log(`[BURN] ${self.name} takes ${n} burn damage as its lane ignites!`);
           self.burnStacks = n - 1;
           if (self.burnStacks <= 0) {
             // Fire out — but the flame flag is SHARED with Boiler Room, so it

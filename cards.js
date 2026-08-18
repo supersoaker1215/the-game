@@ -149,7 +149,7 @@ const CARD_DEFS = [
     desc: "Jump: When the enemy plays a Trick. When Played: Summon a (2/1) Ghostface with Bullseye in any lane." },
   { name: "Human Torch", cost: 2, attack: 2, health: 3, type: "hero",
     abilities: [],
-    desc: "When Played: Splash 1. Deal 2 damage to an enemy." },
+    desc: "When Played: Splash 1. Set an enemy Burning 2." },
   { name: "Invisible Woman", cost: 1, attack: 1, health: 1, type: "hero",
     abilities: ["Evade 1"],
     desc: "When Played: Give an ally Evade 1. While Active: You can play cards face-down. A face-down card can't be targeted or damaged, and its abilities fire when it reveals before Tricks." },

@@ -5768,6 +5768,51 @@ test("A full trick hand makes the Grinch's steal a no-op, not a shredder", funct
   assertEq(grinch.maxHealth, baseHp * 3, 'and max health tracks it');
 });
 
+test("Human Torch sets Burning 2 instead of dealing 2 flat damage", function () {
+  // Owner: "for human torch have apply 2 burning to an enemy instead of 2 damage."
+  var G = freshGame();
+  var torch = cardByName('Human Torch');
+  var victim = place(G, 'Sabertooth', 'ai', 3);
+  victim.currentHealth = 20; victim.maxHealth = 20;
+
+  var hpBefore = victim.currentHealth;
+  // Resolve the blast directly on the chosen target — the prompt path just
+  // picks who; the effect is what is under test.
+  CARD_ABILITIES['Godzilla']._ignite(G, victim, 2);
+
+  // NOT damage on application. The old behaviour took 2 HP the instant it hit.
+  assertEq(victim.currentHealth, hpBefore, 'applying Burning deals no immediate damage');
+  assertEq(victim.burnStacks, 2, 'the target is set to Burning 2');
+  assertEq(!!victim.isBurning, true, 'and reads as burning');
+
+  // 2 then 1 then out — the same decay every Burning source shares.
+  victim.onLaneCombat(G, victim, 3);
+  assertEq(victim.currentHealth, hpBefore - 2, 'first tick deals 2');
+  assertEq(victim.burnStacks, 1, 'and decays to 1');
+  victim.onLaneCombat(G, victim, 3);
+  assertEq(victim.currentHealth, hpBefore - 3, 'second tick deals 1 — 3 total');
+  assertEq(victim.burnStacks, 0, 'the counter empties');
+
+  assert(/Burning 2/.test(torch.desc), 'the card names the Burning number');
+  assertEq(/Deal 2 damage/.test(torch.desc), false, 'and drops the flat-damage wording');
+});
+
+test("Re-igniting takes the higher Burning number, never a downgrade", function () {
+  // A Human Torch's Burning 2 must not put out part of a Godzilla's Burning 3.
+  var G = freshGame();
+  var victim = place(G, 'Sabertooth', 'ai', 1);
+  victim.currentHealth = 30; victim.maxHealth = 30;
+
+  CARD_ABILITIES['Godzilla']._ignite(G, victim);        // 3
+  CARD_ABILITIES['Godzilla']._ignite(G, victim, 2);     // weaker source
+  assertEq(victim.burnStacks, 3, 'the weaker source does not downgrade the burn');
+
+  // And the stronger source still refreshes upward.
+  victim.burnStacks = 1;
+  CARD_ABILITIES['Godzilla']._ignite(G, victim, 2);
+  assertEq(victim.burnStacks, 2, 'a stronger source re-stokes');
+});
+
 // ---- RUNNER ------------------------------------------------
 // ============================================================
 
