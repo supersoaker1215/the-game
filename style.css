@@ -40478,3 +40478,49 @@ body.low-fx .badge-asleep { animation: none; }
   box-shadow: 0 0 7px rgba(255, 176, 60, 0.55), inset 0 0 6px rgba(255, 176, 60, 0.20) !important;
   text-shadow: 0 0 6px rgba(255, 176, 60, 0.75);
 }
+
+/* ============================================================
+   PICK TRAY — ICON BADGES + CENTRED TILE TEXT (2026-08-14)
+   ============================================================
+   Owner: "the text isn't centered and the cards should have the icons not the
+   descriptions of bullseye, evade etc."
+
+   THE BADGES were never a renderer problem. getStatusBadges and
+   formatAbilityBadges both already emit icon + word + count through _badgeHTML;
+   the BOARD and HAND then hide the word at tile size, and the tray simply never
+   inherited that rule. So the identical card printed glyphs in the lane and
+   "EVADE 1 / BULLSEYE" as words three inches away in the picker. Hiding the
+   word here is the same treatment, applied to the surface that was missed —
+   not a second badge style.
+
+   The .sb-noicon exception is load-bearing: a badge with no icon has nothing
+   BUT its word, so blanket-hiding would leave an empty chip. Those keep their
+   text, exactly as the hand does. */
+.choice-tray .status-badge:not(.sb-noicon) .sb-w { display: none; }
+/* AND THE ICON HAS TO BE TURNED ON, which is the half that would have been
+   missed. `.status-badge .sb-i { display: none }` is the GLOBAL default and
+   every surface opts in individually — board, hand, tricks, ally/enemy. The
+   tray never did, so hiding the word alone would have left a chip showing its
+   NUMBER and nothing else: strictly worse than the words it replaced. Caught
+   by checking the icon's computed display rather than only the thing I set.
+   Sizing copied from the hand's opt-in so the glyphs match the cards below. */
+.choice-tray .status-badge .sb-i {
+  display: inline-flex;
+  width: var(--sb-i); height: var(--sb-i);
+}
+.choice-tray .status-badge .sb-n { font-size: var(--sb-num); font-weight: 700; margin-left: 0; }
+/* Same reasoning as the hand: a keyword with no glyph keeps its word rather
+   than rendering as an empty chip. */
+.choice-tray .status-badge.sb-noicon .sb-w { display: inline; font-size: 8px; }
+
+/* THE TEXT. The desc box was already a centred flex container, which centres
+   the BLOCK but says nothing about the lines inside it — so a two-line
+   sentence stayed ragged-left within a perfectly centred box. text-align is
+   the property that was actually missing, on the tile's name as well as its
+   body. */
+.choice-tray .choice-action .card-desc,
+.choice-tray .choice-action .card-name-overlay,
+.choice-tray .choice-action .cn-text {
+  text-align: center;
+}
+.choice-tray .choice-action .card-desc { justify-content: center; }
