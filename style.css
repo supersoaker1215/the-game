@@ -40631,3 +40631,82 @@ body.low-fx .badge-asleep { animation: none; }
    before it starts reading. A hair above its siblings — enough to rank,
    not enough to look like a different component. */
 #mm-play .mm-option-label { font-size: 21px; letter-spacing: 4px; }
+
+/* ============================================================
+   MENU PARALLAX — PLANES AT DIFFERENT DEPTHS (2026-08-18)
+   ============================================================
+   The scene already moved: mmHeroDrift runs a 34s Ken Burns on the hero. But
+   every layer moved TOGETHER, so it read as an animated poster rather than a
+   set. Depth is not more motion — it is planes travelling at different rates
+   relative to one another. Each plane takes the same pointer signal
+   (--mm-par-x / --mm-par-y) at its own depth.
+
+   `translate`, NEVER `transform`. The hero already owns its transform:
+   mmHeroDrift animates it forever and mmHeroRezIn plays on entry. Setting
+   transform here would clobber both — the drift would freeze the instant the
+   pointer moved. `translate` is a separate longhand that COMPOSES with
+   transform rather than replacing it, so the drift keeps running underneath.
+
+   The intensity multiply happens in JS, and that is a simplification, not a
+   fix. While building this the planes appeared not to move at all, and the
+   first suspicion was that holding clamp() in an untyped custom property broke
+   the surrounding calc. That was WRONG and it was checked rather than assumed:
+   an isolated element with `--k: clamp(0.35, calc(0.18*3.2), 1.3)` used as a
+   multiplier computes to exactly the same -5.76px as a plain 0.576. The real
+   reason nothing appeared to move was the measurement — computed style was
+   read two frames into the 420ms ease below, while the value was still near
+   its start. Scaling in JS is kept because one finished number is simpler to
+   reason about than a nested calc, not because the nested calc was broken.
+
+   @property registers the two inputs as real <number>s so the transition
+   below INTERPOLATES them. Untyped custom properties animate discretely —
+   they would snap to rest on pointerleave rather than easing back.
+
+   Travel is deliberately tiny (10px at the deepest). Parallax announces itself
+   the moment it is legible as an effect; at this size it reads as the scene
+   having depth, not as the menu reacting to you. Type moves AGAINST the art:
+   opposed travel separates two planes far more strongly than equal travel in
+   the same direction, which is what buys legible depth from a few pixels.
+
+   Planes are the ones the scene ACTUALLY builds — mm-tron-grid, mm-hero,
+   mm-scrim, mm-panel, mm-title. THIS was the genuine defect in the first pass:
+   it also drove .mm-shard and .mm-hero-reflect, and the current
+   _menuSceneHTML never emits either. Those selectors still carry styling
+   further up this file (a fractured-mirror treatment that is no longer built),
+   which is exactly why they looked like live layers. Two of five planes were
+   animating nothing. */
+@property --mm-par-x { syntax: '<number>'; inherits: true; initial-value: 0; }
+@property --mm-par-y { syntax: '<number>'; inherits: true; initial-value: 0; }
+
+.mm-mw3 .mm-tron-grid,
+.mm-mw3 .mm-hero,
+.mm-mw3 .mm-scrim,
+.mm-mw3 .mm-panel,
+.mm-mw3 .mm-title {
+  /* Ease back to rest on pointerleave; short enough not to read as lag. */
+  transition: translate 420ms cubic-bezier(.2,.7,.2,1);
+  will-change: translate;
+}
+/* Deepest plane — the hero itself. */
+.mm-mw3 .mm-hero {
+  translate: calc(var(--mm-par-x) * 10px) calc(var(--mm-par-y) * 6px);
+}
+/* The grid sits behind everything and barely moves — a far wall. */
+.mm-mw3 .mm-tron-grid {
+  translate: calc(var(--mm-par-x) * 4px) calc(var(--mm-par-y) * 2.5px);
+}
+/* The scrim rides just in front of the art so the falloff slides across it. */
+.mm-mw3 .mm-scrim {
+  translate: calc(var(--mm-par-x) * 7px) calc(var(--mm-par-y) * 4px);
+}
+/* Type is the front plane and travels the OTHER way. */
+.mm-mw3 .mm-panel {
+  translate: calc(var(--mm-par-x) * -4px) calc(var(--mm-par-y) * -2.5px);
+}
+.mm-mw3 .mm-title {
+  translate: calc(var(--mm-par-x) * -3px) calc(var(--mm-par-y) * -2px);
+}
+@media (prefers-reduced-motion: reduce) {
+  .mm-mw3 .mm-tron-grid, .mm-mw3 .mm-hero, .mm-mw3 .mm-scrim,
+  .mm-mw3 .mm-panel, .mm-mw3 .mm-title { translate: none; transition: none; }
+}

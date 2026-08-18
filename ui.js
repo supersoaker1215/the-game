@@ -12706,8 +12706,64 @@ const UI = {
     if (_flowOn) {
       try { this._updateMenuSideArt(this.sfx && this.sfx._music && this.sfx._music.currentSrc); } catch (e) {}
     }
+    // Depth. Installed after the scene exists so it can find its planes.
+    if (_flowOn) { try { this._installMenuParallax(el); } catch (e) {} }
     // Scroll the picker so the starred default (if any) is visible on load.
     try { requestAnimationFrame(() => this._markDefaultRow()); } catch (e) {}
+  },
+
+  // ===================== MENU PARALLAX =====================
+  // The scene already MOVED — a 34s Ken Burns drift on the hero — but every
+  // layer moved as one, which is why it read as an animated poster rather than
+  // a set. Depth on screen does not come from more motion, it comes from planes
+  // travelling at DIFFERENT rates against each other. This pushes each plane by
+  // a few pixels off the pointer, at its own depth.
+  //
+  // WHY THE `translate` PROPERTY AND NOT `transform`. The hero already owns its
+  // transform: mmHeroDrift animates it forever, mmHeroRezIn on entry, and the
+  // shards carry static offsets that create the fracture. Writing transform
+  // here would clobber all three — the drift would stop dead the first time the
+  // pointer moved. `translate` is a separate longhand that composes with
+  // transform instead of replacing it, so every existing animation keeps
+  // running underneath and this only adds to it.
+  //
+  // Scaled by --menu-flow-intensity so the Settings slider that already governs
+  // the rest of the scene governs this too, rather than adding a second knob
+  // for the same idea. Pointer-only: a touch screen has no hover position to
+  // read, so phones simply never arm it.
+  _installMenuParallax(el) {
+    if (!el || el._mmParallaxOn) return;
+    if (typeof window === 'undefined' || !window.matchMedia) return;
+    // Respect the OS setting and skip devices with no real pointer.
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    if (!window.matchMedia('(hover: hover) and (pointer: fine)').matches) return;
+    el._mmParallaxOn = true;
+    let raf = 0, tx = 0, ty = 0;
+    // Strength is folded in here so CSS receives one finished number instead of
+    // a nested calc. (Checked, not assumed: holding the clamp in an untyped
+    // custom property and multiplying by it computes correctly — that was a
+    // wrong suspicion while debugging. This is for legibility only.)
+    const k = Math.max(0.35, Math.min(1.3, (this.settings.menuFlowIntensity ?? 0.18) * 3.2));
+    const apply = () => {
+      raf = 0;
+      el.style.setProperty('--mm-par-x', (tx * k).toFixed(4));
+      el.style.setProperty('--mm-par-y', (ty * k).toFixed(4));
+    };
+    const onMove = (e) => {
+      const r = el.getBoundingClientRect();
+      if (!r.width || !r.height) return;
+      // -1..1 from centre, clamped — a pointer leaving the window mid-drag
+      // must not push the planes past their intended travel.
+      tx = Math.max(-1, Math.min(1, ((e.clientX - r.left) / r.width) * 2 - 1));
+      ty = Math.max(-1, Math.min(1, ((e.clientY - r.top) / r.height) * 2 - 1));
+      if (!raf) raf = requestAnimationFrame(apply);
+    };
+    const onLeave = () => { tx = 0; ty = 0; if (!raf) raf = requestAnimationFrame(apply); };
+    el.addEventListener('pointermove', onMove, { passive: true });
+    el.addEventListener('pointerleave', onLeave, { passive: true });
+    // Park the planes when the tab is hidden — same reasoning as the existing
+    // rAF pause: a backgrounded menu should not hold a queued frame.
+    document.addEventListener('visibilitychange', () => { if (document.hidden) onLeave(); });
   },
 
   // In-place main-menu submenu swap. Re-renders ONLY the .mm-panel left list
