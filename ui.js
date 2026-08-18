@@ -11573,8 +11573,7 @@ const UI = {
       html +=   `<div class="draft-waiting-sub">${waitSub}</div>`;
       html += `</div>`;
     } else {
-      myChoices.forEach((c, i) => {
-        if (!c) return;
+      this._draftOfferOrder(myChoices).forEach(({ c, i }) => {
         if (isCards) {
           // Same one renderer as classic draft — only the pick fn differs.
           html += this._draftCardHTML(c, i, 'twov2OnlineDraftPick');
@@ -17523,7 +17522,7 @@ const UI = {
       html += `</div>`;
     }
 
-    choices.forEach((c, i) => {
+    this._draftOfferOrder(choices).forEach(({ c, i }) => {
       if (isCards) {
         // Same "?" rule the in-hand renderer uses — Scarlet Witch hides
         // both stats (copies-opposite); Joker / Harley hide just ATK
@@ -19872,6 +19871,29 @@ const UI = {
   // here, so a draft card is byte-identical to the same card in hand/board
   // (and identical between the two draft modes). Only the pick-callback name
   // differs. Returns an outerHTML string (the draft grids concatenate strings).
+  // DRAFT OFFER ORDER — cheaper card left, pricier card right, always.
+  //
+  // Owner: "when drafting always put the higher cost card on the right side,
+  // same for tricks." The offers arrive in whatever order the engine rolled
+  // them, so the expensive one landed on either side at random and the pair
+  // read differently every pick.
+  //
+  // Returns {c, i} pairs, and the `i` is the ORIGINAL index — this is the whole
+  // reason the helper exists rather than a bare .sort() at each call site. That
+  // index is the engine's pick id (draftPick(i)), so sorting the array alone
+  // would leave the left card calling the right card's pick and silently hand
+  // you the wrong draft. Sorting a COPY and carrying the index keeps display
+  // order and pick identity independent.
+  //
+  // Stable on ties: equal costs keep their rolled order, so a same-cost pair
+  // does not shuffle between renders.
+  _draftOfferOrder(choices) {
+    return (choices || [])
+      .map((c, i) => ({ c, i }))
+      .filter(e => e.c)
+      .sort((a, b) => ((a.c.cost | 0) - (b.c.cost | 0)) || (a.i - b.i));
+  },
+
   _draftCardHTML(c, i, pickFn) {
     const face = this._synthFace(c, {});
     const el = this.makeCardEl(face, true, 'player', {
