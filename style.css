@@ -40710,3 +40710,104 @@ body.low-fx .badge-asleep { animation: none; }
   .mm-mw3 .mm-tron-grid, .mm-mw3 .mm-hero, .mm-mw3 .mm-scrim,
   .mm-mw3 .mm-panel, .mm-mw3 .mm-title { translate: none; transition: none; }
 }
+
+/* ============================================================
+   GALLERY AUDIT — PRECISION FRAMING TOOLS (2026-08-18)
+   ============================================================
+   The crop controls were two 0-100 range sliders and ±10% zoom buttons. One
+   slider step moved a 898px plate by roughly 9px, the current value was never
+   shown, and you were pushing abstract numbers while looking at a picture.
+   The stage is now the control: drag the art, scroll to zoom, arrow-nudge for
+   the last half percent. */
+.gal-crop { position: relative; cursor: grab; outline: none; }
+.gal-crop.is-dragging { cursor: grabbing; }
+.gal-crop:focus-visible {
+  box-shadow: 0 0 0 2px rgba(var(--theme-rgb, 79,195,247), 0.9);
+}
+/* AUTO — no focal saved, so this variant is riding the global fallback rather
+   than being framed. The point is to make an invisible backlog countable. */
+.gal-auto {
+  position: absolute; top: 4px; right: 4px; z-index: 4;
+  font: 700 8px/1 ui-monospace, Menlo, monospace; letter-spacing: 0.5px;
+  padding: 2px 4px; border-radius: 3px; pointer-events: none;
+  color: #ffcf6b; background: rgba(0,0,0,0.72); border: 1px solid rgba(255,207,107,0.5);
+}
+/* Rule-of-thirds + centre cross. Off by default — a permanent grid competes
+   with the very composition it is meant to help you judge. */
+.gal-guides { position: absolute; inset: 0; z-index: 3; pointer-events: none; opacity: 0; }
+.gal-show-guides .gal-guides { opacity: 1; }
+.gal-guides::before, .gal-guides::after {
+  content: ''; position: absolute; inset: 0;
+  background-repeat: no-repeat;
+}
+.gal-guides::before {
+  background-image:
+    linear-gradient(to right, rgba(255,255,255,0.34) 0 1px, transparent 1px),
+    linear-gradient(to right, rgba(255,255,255,0.34) 0 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(255,255,255,0.34) 0 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(255,255,255,0.34) 0 1px, transparent 1px);
+  background-size: 100% 100%;
+  background-position: 33.333% 0, 66.666% 0, 0 33.333%, 0 66.666%;
+}
+/* Centre cross, brighter — the reference you actually align a face to. */
+.gal-guides::after {
+  background-image:
+    linear-gradient(to right, rgba(var(--theme-rgb,79,195,247),0.75) 0 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(var(--theme-rgb,79,195,247),0.75) 0 1px, transparent 1px);
+  background-size: 100% 100%;
+  background-position: 50% 0, 0 50%;
+}
+/* THE TYPE ZONE — menu crops only. The menu hero is right-anchored and its
+   left edge dissolves beneath the menu list, so a face parked in the left
+   third of a menu crop ends up behind the buttons. This is the one guide a
+   general image editor could not give you, because it encodes where THIS
+   game's chrome sits. On by default for that reason. */
+.gal-safe {
+  position: absolute; left: 0; top: 0; bottom: 0; width: 34%; z-index: 3;
+  pointer-events: none; opacity: 0;
+  background: repeating-linear-gradient(135deg,
+    rgba(255,90,90,0.16) 0 6px, rgba(255,90,90,0.05) 6px 12px);
+  border-right: 1px dashed rgba(255,120,120,0.55);
+}
+.gal-show-safe .gal-safe { opacity: 1; }
+.gal-safe span {
+  position: absolute; left: 3px; bottom: 3px;
+  font: 700 7px/1 ui-monospace, Menlo, monospace; letter-spacing: 0.6px;
+  color: rgba(255,150,150,0.9);
+}
+/* Numeric fields — the exact value, and somewhere to type one. */
+.gal-num-row { display: flex; gap: 6px; margin-top: 5px; }
+.gal-num {
+  display: flex; align-items: center; gap: 3px; flex: 1;
+  font: 600 9px/1 'Rajdhani', sans-serif; letter-spacing: 1px;
+  color: color-mix(in srgb, rgb(var(--theme-rgb, 79,195,247)) 60%, white);
+}
+.gal-num input, .gal-zoom-num {
+  width: 100%; min-width: 0; background: #000;
+  border: 1px solid rgba(var(--theme-rgb, 79,195,247), 0.35);
+  border-radius: 3px; padding: 2px 3px;
+  font: 600 10px/1.2 ui-monospace, Menlo, monospace;
+  color: #eaf4ff; font-variant-numeric: tabular-nums;
+}
+.gal-zoom-num { width: 42px; text-align: right; }
+.gal-num input:focus, .gal-zoom-num:focus {
+  outline: none; border-color: rgba(var(--theme-rgb, 79,195,247), 0.9);
+}
+.gal-zoom-pct { font: 600 9px/1 ui-monospace, monospace; opacity: 0.7; }
+.gal-crop-btns { display: flex; gap: 5px; margin-top: 5px; }
+.gal-crop-btns .gal-reset { flex: 1; }
+.gal-chk {
+  display: inline-flex; align-items: center; gap: 5px;
+  font: 600 10px/1 'Rajdhani', sans-serif; letter-spacing: 1.5px;
+  text-transform: uppercase; white-space: nowrap;
+  color: color-mix(in srgb, rgb(var(--theme-rgb, 79,195,247)) 62%, white);
+}
+.gal-hint {
+  font: 500 9px/1 ui-monospace, Menlo, monospace; letter-spacing: 0.3px;
+  opacity: 0.55; white-space: nowrap;
+}
+/* An axis with no overflow has no range — the number is inert until you zoom
+   in. Dimmed rather than removed: the field still shows the stored value, and
+   the tooltip says what to do about it. */
+.gal-num.is-dead { opacity: 0.38; }
+.gal-num.is-dead input { border-style: dashed; }

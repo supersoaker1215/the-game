@@ -12929,6 +12929,14 @@ const UI = {
     this.renderGalleryAudit();
     const ov = document.getElementById('gallery-audit-overlay');
     if (ov) ov.style.display = 'flex';
+    // Delegated, so it survives every re-render of the grid beneath it.
+    try { this._galleryInstallTools(ov); } catch (e) {}
+    // The Type-zone box renders CHECKED, but a checkbox's default state never
+    // fires onchange — so the overlay class it drives has to be set here or the
+    // guide is invisible until you toggle it off and on again.
+    if (ov) ov.classList.add('gal-show-safe');
+    // Needs the art decoded to know its natural size, so it runs after paint.
+    try { requestAnimationFrame(() => this._galleryMarkRanges(ov)); } catch (e) {}
     document.body.classList.add('clb-toggle-hidden');
   },
   closeGalleryAudit() {
@@ -12940,6 +12948,7 @@ const UI = {
     if (!this._galleryAudit) this._galleryAudit = {};
     this._galleryAudit.query = q || '';
     this.renderGalleryAudit();
+    try { requestAnimationFrame(() => this._galleryMarkRanges(document.getElementById('gallery-audit-overlay'))); } catch (e) {}
   },
   _galleryDeleteArt(name, file) {
     this.confirmModal(`Delete this art variant?\n\n${file}`,
@@ -12975,6 +12984,186 @@ const UI = {
     const prev = document.getElementById(pid);
     if (prev) prev.style.backgroundPosition = pos;
     this._setArtFocal(name, file, kind, pos);
+  },
+  // ===================== GALLERY AUDIT — PRECISION TOOLS =====================
+  // The framing controls were two 0-100 sliders and ±10% zoom buttons. On a
+  // 898px-wide plate one slider step is ~9px, the value was never shown, and
+  // you were pushing abstract numbers while looking at a picture. Everything
+  // below exists to close that gap: you manipulate the IMAGE, and the numbers
+  // follow.
+
+  // Current focal as numbers, from the same source of truth the renderer reads.
+  _galFocalXY(name, file, kind) {
+    const cur = this._artFocalMap(kind)[name + '|' + file]
+      || this._artFocalFor(name, file, kind) || '50% 50%';
+    const p = String(cur).replace(/center/gi, '50%').trim().split(/\s+/);
+    let x = parseFloat(p[0]), y = parseFloat(p[1] != null ? p[1] : p[0]);
+    if (!isFinite(x)) x = 50;
+    if (!isFinite(y)) y = 50;
+    return { x, y };
+  },
+  // Write a focal and refresh the stage + both number fields in place. No
+  // re-render: a rebuild mid-drag would drop the pointer capture and the
+  // number field would lose focus on every keystroke.
+  _galApplyFocal(name, file, kind, x, y, pid) {
+    x = Math.max(0, Math.min(100, x));
+    y = Math.max(0, Math.min(100, y));
+    const pos = `${Math.round(x * 10) / 10}% ${Math.round(y * 10) / 10}%`;
+    const stage = document.getElementById(pid);
+    if (stage) {
+      stage.style.backgroundPosition = pos;
+      stage.classList.remove('is-auto');
+      const chip = stage.querySelector('.gal-auto');
+      if (chip) chip.remove();
+      const row = stage.parentElement && stage.parentElement.querySelector('.gal-num-row');
+      if (row) {
+        const ins = row.querySelectorAll('input');
+        if (ins[0] && document.activeElement !== ins[0]) ins[0].value = Math.round(x * 10) / 10;
+        if (ins[1] && document.activeElement !== ins[1]) ins[1].value = Math.round(y * 10) / 10;
+      }
+    }
+    this._setArtFocal(name, file, kind, pos);
+  },
+  _gallerySetFocal(name, file, kind, axis, val, pid) {
+    const f = this._galFocalXY(name, file, kind);
+    const v = parseFloat(val);
+    if (!isFinite(v)) return;
+    if (axis === 'both') this._galApplyFocal(name, file, kind, v, v, pid);
+    else if (axis === 'x') this._galApplyFocal(name, file, kind, v, f.y, pid);
+    else this._galApplyFocal(name, file, kind, f.x, v, pid);
+  },
+  _gallerySetZoom(name, file, kind, pct, pid) {
+    const z = Math.max(0.5, Math.min(3, (parseFloat(pct) || 100) / 100));
+    this._setArtZoom(name, file, kind, z);
+    const stage = document.getElementById(pid);
+    if (stage) stage.style.backgroundSize = (Math.abs(z - 1) < 0.001) ? 'cover' : (Math.round(z * 100) + '%');
+    const n = document.getElementById(pid + '-zn');
+    if (n && document.activeElement !== n) n.value = Math.round(z * 100);
+    // Zoom changes the overflow, so it can revive a dead axis (or kill one).
+    try { this._galleryMarkRanges(document.getElementById('gallery-audit-overlay')); } catch (e) {}
+  },
+
+  // ---- TRUE 1:1 DRAG ----------------------------------------------------
+  // background-position percentages are NOT a pixel offset: 0%..100% maps the
+  // image's OVERFLOW past the frame, so how far the art travels per percent
+  // depends on the image's own dimensions and the current zoom. Dragging by a
+  // fixed percent-per-pixel would therefore feel different on every card —
+  // fast on a wide plate, sluggish on a tall one.
+  // So the overflow is computed for real (cover scale → rendered size → the
+  // part hanging outside the frame) and the delta converted through it. The
+  // art then tracks the cursor exactly, on every image, at every zoom.
+  _galOverflow(stage) {
+    const img = stage.closest('.gal-thumb') && stage.closest('.gal-thumb').querySelector('.gal-full');
+    const nw = (img && img.naturalWidth) || 0, nh = (img && img.naturalHeight) || 0;
+    const cw = stage.clientWidth, ch = stage.clientHeight;
+    if (!nw || !nh || !cw || !ch) return null;
+    // Match the CSS: `cover` unless an explicit zoom % is set.
+    const bs = getComputedStyle(stage).backgroundSize;
+    let scale = Math.max(cw / nw, ch / nh);
+    const pct = /^([\d.]+)%/.exec(bs);
+    if (pct) scale = Math.max(cw / nw, ch / nh) * (parseFloat(pct[1]) / 100);
+    return { x: Math.max(0, nw * scale - cw), y: Math.max(0, nh * scale - ch) };
+  },
+  _galleryInstallTools(ov) {
+    if (!ov || ov._galToolsOn) return;
+    ov._galToolsOn = true;
+    const stageOf = (t) => (t && t.closest) ? t.closest('.gal-crop') : null;
+
+    ov.addEventListener('pointerdown', (e) => {
+      const stage = stageOf(e.target);
+      if (!stage || e.button !== 0) return;
+      e.preventDefault();
+      stage.focus({ preventScroll: true });
+      const name = stage.dataset.name, file = stage.dataset.file, kind = stage.dataset.kind;
+      const start = this._galFocalXY(name, file, kind);
+      const ov0 = this._galOverflow(stage);
+      const sx = e.clientX, sy = e.clientY;
+      // GUARDED, and this is not defensive noise: setPointerCapture throws
+      // (NotFoundError) whenever the id is not an active pointer. Unguarded it
+      // sat ABOVE the listener registration below, so the throw skipped it
+      // entirely and the drag died silently — no error surfaced, the image just
+      // refused to move. Capture is an enhancement (it keeps the drag alive
+      // past the frame edge), never a prerequisite.
+      try { stage.setPointerCapture(e.pointerId); } catch (err) { /* drag still works */ }
+      stage.classList.add('is-dragging');
+      const move = (ev) => {
+        if (!ov0) return;
+        // Drag RIGHT should reveal what is to the LEFT, so the percentage
+        // moves opposite the cursor — the image follows the hand.
+        const dx = ov0.x ? -((ev.clientX - sx) / ov0.x) * 100 : 0;
+        const dy = ov0.y ? -((ev.clientY - sy) / ov0.y) * 100 : 0;
+        this._galApplyFocal(name, file, kind, start.x + dx, start.y + dy, stage.id);
+      };
+      const up = () => {
+        stage.classList.remove('is-dragging');
+        stage.removeEventListener('pointermove', move);
+        stage.removeEventListener('pointerup', up);
+        stage.removeEventListener('pointercancel', up);
+      };
+      stage.addEventListener('pointermove', move);
+      stage.addEventListener('pointerup', up);
+      stage.addEventListener('pointercancel', up);
+    });
+
+    // Wheel = zoom, the way every image editor behaves. Non-passive so the
+    // page does not scroll out from under the crop you are working on.
+    ov.addEventListener('wheel', (e) => {
+      const stage = stageOf(e.target);
+      if (!stage) return;
+      e.preventDefault();
+      const step = e.shiftKey ? 0.01 : 0.05;
+      this._galleryZoom(stage.dataset.name, stage.dataset.file, stage.dataset.kind,
+        e.deltaY < 0 ? step : -step, stage.id);
+    }, { passive: false });
+
+    // Arrow keys nudge. 1% coarse, 0.1% with Shift — the fine step is the
+    // whole point: sub-percent is where "almost right" gets fixed, and a
+    // slider could not express it at all.
+    ov.addEventListener('keydown', (e) => {
+      const stage = stageOf(e.target);
+      if (!stage) return;
+      const k = e.key;
+      if (k !== 'ArrowLeft' && k !== 'ArrowRight' && k !== 'ArrowUp' && k !== 'ArrowDown') return;
+      e.preventDefault();
+      const d = e.shiftKey ? 0.1 : 1;
+      const f = this._galFocalXY(stage.dataset.name, stage.dataset.file, stage.dataset.kind);
+      const nx = f.x + (k === 'ArrowRight' ? d : k === 'ArrowLeft' ? -d : 0);
+      const ny = f.y + (k === 'ArrowDown' ? d : k === 'ArrowUp' ? -d : 0);
+      this._galApplyFocal(stage.dataset.name, stage.dataset.file, stage.dataset.kind, nx, ny, stage.id);
+    });
+  },
+  // AXIS RANGE. background-position percentages address the image's OVERFLOW,
+  // so an axis with no overflow has no range: the value can be anything and
+  // nothing moves. That is not hypothetical — a portrait plate in the portrait
+  // menu frame lands at exactly zero horizontal overflow, which means the old
+  // X slider was a silent no-op on those images and gave no hint why. Each
+  // field is now marked dead when its axis has no room, with the fix implied
+  // (zoom in and it comes back).
+  _galleryMarkRanges(ov) {
+    if (!ov) return;
+    ov.querySelectorAll('.gal-crop').forEach(stage => {
+      const o = this._galOverflow(stage);
+      const row = stage.parentElement && stage.parentElement.querySelector('.gal-num-row');
+      if (!o || !row) return;
+      const labels = row.querySelectorAll('.gal-num');
+      const mark = (el, has) => {
+        if (!el) return;
+        el.classList.toggle('is-dead', !has);
+        el.title = has ? '' : 'No range on this axis at the current zoom — zoom in to pan here';
+      };
+      mark(labels[0], o.x > 0.5);
+      mark(labels[1], o.y > 0.5);
+    });
+  },
+  // Guides + type-safe overlay are display-only, so they are a body-level
+  // class rather than per-stage state — nothing to re-render, nothing to save.
+  _galleryToggleGuides(on) {
+    const ov = document.getElementById('gallery-audit-overlay');
+    if (ov) ov.classList.toggle('gal-show-guides', !!on);
+  },
+  _galleryToggleSafe(on) {
+    const ov = document.getElementById('gallery-audit-overlay');
+    if (ov) ov.classList.toggle('gal-show-safe', !!on);
   },
   _galleryResetCrop(name, file, kind) {
     this._setArtFocal(name, file, kind, '');   // clear focal → default framing
@@ -13103,16 +13292,44 @@ const UI = {
           const z = this._artZoomFor(name, file, kind);
           const fp = parseFocal(focal);
           const pid = `gcrop-${kind}-${ni}-${idx}`;
+          // AUTO = no focal saved for this variant, so it is riding the global
+          // fallback rather than being framed. Surfacing it turns an invisible
+          // backlog (37 of 58 menu heroes at the time of writing) into a list
+          // you can actually work down.
+          const isAuto = !focal;
+          // The menu's type column. The hero plate is right-anchored and its
+          // left edge dissolves under the menu list, so anything in the left
+          // third of a MENU crop is sitting behind the buttons. Card crops have
+          // no such zone — their text sits below the art, not on it.
+          const safeZone = (kind === 'menu')
+            ? `<div class="gal-safe" aria-hidden="true"><span>TYPE</span></div>` : '';
           return `<div class="gal-crop-area">
-            <div class="gal-crop gal-crop-${kind}" id="${pid}" style="width:${cw}px;height:${CROP_H}px;background-image:url('${url}');background-position:${focal || '50% 50%'};background-size:${size}"><span class="gal-tag">${label}</span></div>
-            <label class="gal-slider">X <input type="range" min="0" max="100" value="${fp.x}" oninput="UI._galleryCrop('${jsName}','${jsFile}','${kind}','x',this.value,'${pid}')"></label>
-            <label class="gal-slider">Y <input type="range" min="0" max="100" value="${fp.y}" oninput="UI._galleryCrop('${jsName}','${jsFile}','${kind}','y',this.value,'${pid}')"></label>
-            <div class="gal-zoom-row">
-              <button type="button" class="gal-zbtn" title="Zoom out" onclick="UI._galleryZoom('${jsName}','${jsFile}','${kind}',-0.1,'${pid}')">−</button>
-              <span class="gal-zoom-val" id="${pid}-z">${Math.round(z * 100)}%</span>
-              <button type="button" class="gal-zbtn" title="Zoom in" onclick="UI._galleryZoom('${jsName}','${jsFile}','${kind}',0.1,'${pid}')">+</button>
+            <div class="gal-crop gal-crop-${kind}${isAuto ? ' is-auto' : ''}" id="${pid}" tabindex="0"
+                 data-name="${jsName}" data-file="${jsFile}" data-kind="${kind}"
+                 title="Drag to reposition · scroll to zoom · arrow keys to nudge (Shift = fine)"
+                 style="width:${cw}px;height:${CROP_H}px;background-image:url('${url}');background-position:${focal || '50% 50%'};background-size:${size}">
+              <span class="gal-tag">${label}</span>
+              ${isAuto ? '<span class="gal-auto">AUTO</span>' : ''}
+              <div class="gal-guides" aria-hidden="true"></div>
+              ${safeZone}
             </div>
-            <button type="button" class="gal-reset" onclick="UI._galleryResetCrop('${jsName}','${jsFile}','${kind}')">Reset ${kind}</button>
+            <div class="gal-num-row">
+              <label class="gal-num">X <input type="number" step="0.5" min="0" max="100" value="${fp.x}"
+                onchange="UI._gallerySetFocal('${jsName}','${jsFile}','${kind}','x',this.value,'${pid}')"></label>
+              <label class="gal-num">Y <input type="number" step="0.5" min="0" max="100" value="${fp.y}"
+                onchange="UI._gallerySetFocal('${jsName}','${jsFile}','${kind}','y',this.value,'${pid}')"></label>
+            </div>
+            <div class="gal-zoom-row">
+              <button type="button" class="gal-zbtn" title="Zoom out" onclick="UI._galleryZoom('${jsName}','${jsFile}','${kind}',-0.05,'${pid}')">−</button>
+              <input class="gal-zoom-num" type="number" step="1" min="50" max="300" value="${Math.round(z * 100)}" id="${pid}-zn"
+                onchange="UI._gallerySetZoom('${jsName}','${jsFile}','${kind}',this.value,'${pid}')">
+              <span class="gal-zoom-pct">%</span>
+              <button type="button" class="gal-zbtn" title="Zoom in" onclick="UI._galleryZoom('${jsName}','${jsFile}','${kind}',0.05,'${pid}')">+</button>
+            </div>
+            <div class="gal-crop-btns">
+              <button type="button" class="gal-reset" title="Centre the focal point" onclick="UI._gallerySetFocal('${jsName}','${jsFile}','${kind}','both','50','${pid}')">Centre</button>
+              <button type="button" class="gal-reset" onclick="UI._galleryResetCrop('${jsName}','${jsFile}','${kind}')">Reset</button>
+            </div>
           </div>`;
         };
         return `<figure class="gal-thumb">
@@ -13154,6 +13371,9 @@ const UI = {
           <input class="aa-search" type="search" placeholder="Filter by card name…"
             value="${(f.query || '').replace(/"/g, '&quot;')}"
             oninput="UI._galleryAuditSetQuery(this.value)">
+          <label class="gal-chk"><input type="checkbox" onchange="UI._galleryToggleGuides(this.checked)"> Guides</label>
+          <label class="gal-chk"><input type="checkbox" checked onchange="UI._galleryToggleSafe(this.checked)"> Type zone</label>
+          <span class="gal-hint">drag to frame · scroll = zoom · arrows nudge (⇧ fine)</span>
         </div>
         <div class="gal-note">Edits save on this device instantly · <b>Publish to repo</b> copies them for me to commit worldwide · Delete only hides art (Restore brings it back).</div>
         <div class="gal-grid">${tiles || '<div class="aa-empty">No matches.</div>'}</div>
