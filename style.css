@@ -337,6 +337,7 @@ summary:focus-visible,
 .kw-drain        { color: var(--kw-drain); }
 .kw-stun         { color: var(--kw-stun); }
 .kw-freeze       { color: var(--kw-freeze); }
+.kw-burning      { color: var(--kw-burn); text-shadow: 0 0 7px rgba(255,122,0,0.5); }
 /* Fear keeps its inky look — dark color + white halo, distinct from other kws */
 .kw-fear         { color: var(--kw-fear); text-shadow: 0 0 6px rgba(255,255,255,0.55), 0 1px 2px rgba(0,0,0,0.85); }
 .kw-charm        { color: var(--kw-charm); }
@@ -40524,3 +40525,62 @@ body.low-fx .badge-asleep { animation: none; }
   text-align: center;
 }
 .choice-tray .choice-action .card-desc { justify-content: center; }
+
+/* ============================================================
+   PICK TRAY — ACTION TILE TEXT, ACTUALLY CENTRED (2026-08-14)
+   ============================================================
+   Owner, twice: "the text isn't centered" / "for the picker in general it's
+   still off center."
+
+   WHY THE EARLIER FIXES DID NOT TAKE. Two reasons, and both matter:
+
+   1. THE RULE I EDITED WAS LOSING. There are four rules matching this tile's
+      .card-desc (≈11971, 11996, 12021, 39836). The one carrying the padding is
+      the LAST one, so edits to the earlier block were overridden and looked
+      like they had done nothing. Measured proof: computed padding read
+      `8px 12px` — line 39836's value — not the `4px 12px 14px` written at
+      12021. This block is appended at the END for that reason, deliberately,
+      rather than being slotted next to its siblings where it would lose again.
+
+   2. text-align CANNOT CENTRE A FLEX ITEM. .card-desc is display:flex and was
+      itself perfectly centred — measured offset from the tile's centre: 0. But
+      formatDesc wraps the sentence in a .cd-row, which is therefore a flex
+      ITEM, shrink-to-fit at 73px inside a 122px content box, and it sat 24px
+      right of centre. Every text-align in the chain was already `center` and
+      none of them could move it, because the box being mis-positioned is laid
+      out by flex, not by text flow.
+
+   The fix addresses that mechanism: make the row fill the line so its centred
+   text is genuinely centred, and pin the flex axes so it cannot drift again. */
+.choice-tray .choice-action .card-desc {
+  display: flex;
+  align-items: center;      /* vertical */
+  justify-content: center;  /* horizontal, for the item itself */
+  text-align: center;
+}
+.choice-tray .choice-action .card-desc > *,
+.choice-tray .choice-action .card-desc .cd-row {
+  flex: 1 1 100%;
+  width: 100%;
+  display: block;
+  text-align: center;
+}
+.choice-tray .choice-action .card-desc .cd-eff {
+  display: block;
+  width: 100%;
+  text-align: center;
+}
+
+/* THE ACTUAL CAUSE OF THE OFF-CENTRE PICK-TRAY TEXT.
+   `.card .card-desc::before` is a decorative hairline (height:1px; margin:0 20%)
+   meant to draw a rule ABOVE the body copy — which it does correctly wherever
+   .card-desc is a block. On the tray tile .card-desc is display:flex, so that
+   pseudo becomes a FLEX ITEM sitting on the same line as the text. Its 20% side
+   margins are 24.4px each against the 122px content box, so it consumed 48.8px
+   of the line and squeezed the sentence into the remaining 73.2px, flush right.
+   48.8 + 73.2 = 122 exactly — that is the whole 24.4px offset, and no amount of
+   text-align or justify-content could ever have moved it, because the text was
+   not mis-aligned: it was being crowded by an invisible sibling.
+   The divider is not merely misplaced here, it is meaningless — a 1px-tall,
+   0px-wide sliver in a row. Remove it from this one surface. */
+.choice-tray .choice-action .card-desc::before { display: none; }

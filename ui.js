@@ -21636,7 +21636,7 @@ const UI = {
     // burst-plus-chevron by rasterising all three at 10/14/20/34px — the other
     // two turned to mud below 14.
     'Critical':    { color: '#ff69b4', svg: '<svg viewBox="0 0 12 12"><path d="M6 0.3 Q6.55 4.35 11.7 6 Q6.55 7.65 6 11.7 Q5.45 7.65 0.3 6 Q5.45 4.35 6 0.3Z" fill="currentColor"/></svg>', tip: 'Deals DOUBLE damage this round.' },
-    'Burning':     { color: '#ff7a00', svg: '<svg viewBox="0 0 12 12"><path d="M6.6.5c.3 1.8-.5 2.8-1.4 3.8-1 1-2 2-2 3.4a3.4 3.4 0 0 0 6.8.1c0-1.4-.7-2.4-1.5-3.3-.4.5-.6 1-.6 1.7C6.9 4.6 6.4 2.6 6.6.5Z" fill="currentColor"/></svg>', tip: 'Takes damage at the start of each round until the fire goes out.' },
+    'Burning':     { color: '#ff7a00', svg: '<svg viewBox="0 0 12 12"><path d="M6.6.5c.3 1.8-.5 2.8-1.4 3.8-1 1-2 2-2 3.4a3.4 3.4 0 0 0 6.8.1c0-1.4-.7-2.4-1.5-3.3-.4.5-.6 1-.6 1.7C6.9 4.6 6.4 2.6 6.6.5Z" fill="currentColor"/></svg>', tip: 'Takes damage equal to its Burning number right before its lane fights, then the number drops by 1. At 0 the fire goes out.' },
     'Freeze':      { color: '#85c1e9', svg: '<svg viewBox="0 0 12 12"><path d="M6 1 V11 M1.5 3.5 L10.5 8.5 M10.5 3.5 L1.5 8.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>', tip: 'Can\'t attack, move, or make bonus attacks while frozen.' },
     'Stun':        { color: '#c9a227', svg: '<svg viewBox="0 0 12 12"><path d="M1.5 6 H8.5 M6 3.5 L8.8 6 L6 8.5" stroke="currentColor" stroke-width="1.2" fill="none" stroke-linecap="round" stroke-linejoin="round"/><path d="M2 10 L10 2" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>', tip: 'Cannot move, hunt, or make bonus attacks. Applied by Fear and Mind Control.' },
     'Fear':        { color: '#5a5a5a', svg: '<svg viewBox="0 0 12 12"><circle cx="4" cy="5" r="1" fill="currentColor"/><circle cx="8" cy="5" r="1" fill="currentColor"/><path d="M3 9 Q6 7 9 9" stroke="currentColor" stroke-width="1.2" fill="none"/></svg>', tip: 'Attacks itself instead of the enemy.' },
@@ -21908,6 +21908,11 @@ const UI = {
       ['Block Meter',                  'block'],
       // Traits (single-word with optional plural/tense variants)
       ['Freeze(?:s|n)?|Frozen',        'freeze'],
+      // Burning was printing as a live badge on the card front but staying plain
+      // grey prose in the body copy, so Godzilla's "Burning 3" had no color and no
+      // hover explanation. Trailing scalar is handled by the shared `(\\s+\\d+)?`
+      // below, so "Burning 3" highlights as ONE pill including the number.
+      ['Burn(?:ing|s|ed|t)?',           'burning'],
       ['Fear(?:ed)?',                  'fear'],
       ['Drain(?:s|ed|ing)?',           'drain'],
       ['Revive(?:s|d)?',               'revive'],
@@ -21958,7 +21963,7 @@ const UI = {
       'stone-mind':'Mind Stone',   'stone-reality':'Reality Stone',
       'dmg-immune':'Damage Immunity', 'mind-ctrl':'Mind Control',
       'block':'Block Meter', 'stun':'Stun', 'freeze':'Freeze',
-      'fear':'Fear', 'drain':'Drain', 'revive':'Revive',
+      'fear':'Fear', 'drain':'Drain', 'revive':'Revive', 'burning':'Burning',
       'armor':'Armor', 'evade':'Evade', 'bullseye':'Bullseye',
       'overdrive':'Overdrive', 'splash':'Splash', 'taunt':'Taunt',
       'hunt':'Hunt', 'immune':'Immunity', 'invincible':'Invincible',
