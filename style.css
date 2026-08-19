@@ -40847,3 +40847,72 @@ body.low-fx .badge-asleep { animation: none; }
   color: #ffcf8a;
   text-shadow: 0 0 10px rgba(255, 176, 92, 0.45);
 }
+
+/* ============================================================
+   KILLER MOTH — THE LANE LIST IS THE WHOLE BADGE (2026-08-18)
+   ============================================================
+   Owner, pointing at the board chip: "this should just say 1,5 — that's all I
+   want, a list of the lanes he's been in."
+
+   It rendered "1," because every board badge is pinned to a third of the row:
+   `flex: 0 0 calc((100% - gap*2)/3)` with `min-width: 0`, so exactly three fit
+   per row on every card. That is deliberate and right for a GLYPH — the note
+   above it explains that min-width:0 is what makes the third bind instead of
+   merely intending to. Measured here: the badge held 33.7px against a 44px
+   content width, so the last character was sliced by the strip's
+   overflow:hidden.
+
+   This file already documents the same class of exception — "any badge that is
+   showing its WORD sizes to its CONTENT" — for keywords like Unresistible that
+   cannot fit a third. A lane list is that case in a harder form: its width is
+   not merely long, it GROWS, from "1" to "1,2,3,4,5,6". So it opts out of the
+   grid and sizes to content, and min-width goes back to auto, which is the half
+   that actually stops the slicing.
+
+   The glyph is dropped here too. An icon earns its place on a badge whose word
+   it replaces — Armor, Evade and Burning all read as "icon + amount". This
+   badge's content is a LIST rather than an amount, so the glyph is 16px spent
+   restating what the tooltip already says on hover, taken straight out of the
+   list it was meant to label.
+
+   Board only. In hand and in the codex there is room for the label, and a bare
+   "1,5" with nothing beside it would be a riddle. */
+/* KEEP THE GRID. Two attempts to resize this cell both failed in ways worth
+   recording: `flex: 0 0 auto` collapsed the badge to zero WIDTH (it vanished
+   from the board), and `flex: 0 0 100%` fixed the width but collapsed its
+   HEIGHT to zero. The 3-across layout is load-bearing in ways that are not
+   visible from the one rule that declares it, so the badge stays in its cell
+   and the fix is to stop spending that cell on things the list does not need.
+   Dropping the glyph alone returns ~16px of a 33.7px cell — enough for "1,5"
+   with room to spare, which is the case the owner was looking at. */
+/* One correction to the note above: `flex: 0 0 100%` was NOT the thing that
+   collapsed the height — the `height: auto` shipped alongside it was. The base
+   rule sets an explicit height (var(--sb-i) * 1.42) and overriding it to auto
+   in a centred flex row zeroed the box. Keeping the declared height and taking
+   only the full-row basis gives the list a whole row at its normal height,
+   which is the one shape that can hold six lanes on a 114px card. */
+.board .card .status-badge.badge-lanes-flown {
+  flex: 0 0 100%;
+  max-width: 100%;
+}
+.board .card .status-badge.badge-lanes-flown .sb-i,
+.board .card .status-badge.badge-lanes-flown .sb-w { display: none; }
+.board .card .status-badge.badge-lanes-flown .sb-n {
+  font-size: var(--sb-num);
+  font-weight: 700;
+  letter-spacing: 0.2px;
+  font-variant-numeric: tabular-nums;
+}
+/* The list is the one badge whose width GROWS — from "1" to "1,2,3,4,5,6" —
+   so past a point the type has to give. Two tiers, both measured against the
+   109px row rather than guessed: three lanes overflow by only 3px, six lanes
+   by 66px. The count is classified in JS (ui.js) because CSS cannot measure
+   its own content. */
+.board .card .status-badge.badge-lanes-flown.lf-mid .sb-n {
+  font-size: calc(var(--sb-num) * 0.82);
+  letter-spacing: 0;
+}
+.board .card .status-badge.badge-lanes-flown.lf-long .sb-n {
+  font-size: calc(var(--sb-num) * 0.40);
+  letter-spacing: 0;
+}

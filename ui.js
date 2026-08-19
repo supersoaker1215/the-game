@@ -21773,10 +21773,17 @@ const UI = {
       // board HIDES when it swaps the word for the icon. Passing it as the
       // number keeps it visible everywhere.
       const list = lanes.slice().sort((a, b) => a - b).map(n => n + 1).join(',');
-      t.push(this._badgeHTML('badge-lanes-flown', 'Lanes Flown', list || '—', 'Lanes Flown'));
-      // At full board he can never grow again — flag it so the chip stops
-      // reading like a meter that still has somewhere to go.
-      if (flown >= maxLanes) t.push(badge('badge-lanes-flown-full', 'Grounded', ''));
+      // A long list needs smaller type — CSS cannot measure its own content, so
+      // the length decision is made here where the array is. Four or more lanes
+      // is where "1,2,3,4" stops fitting a 114px card at full size.
+      const lfCls = 'badge-lanes-flown'
+        + (flown >= 4 ? ' lf-long' : flown === 3 ? ' lf-mid' : '');
+      t.push(this._badgeHTML(lfCls, 'Lanes Flown', list || '—', 'Lanes Flown'));
+      // NO SEPARATE "GROUNDED" CHIP. Owner: "that's all i want, a list of the
+      // lanes he's been in." A full list IS grounded — every lane is on it, so
+      // a second badge saying so is the same fact twice, and on a 114px board
+      // card the space it took came straight out of the list it was annotating.
+      void maxLanes;
     }
     // DROIDEKA overcharge — shields-down (even) rounds, when he deals triple
     // ATK. Shields-UP rounds already show the DmgImmune badge from
