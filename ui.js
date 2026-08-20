@@ -9933,6 +9933,24 @@ const UI = {
   },
   // Harley Quinn: chaos confetti — her card wobbles and flings a burst of
   // spinning pink/green diamonds (playing-card pips) as everyone draws.
+  // Poison Ivy — the charmed ally is wreathed in a green pheromone bloom and a
+  // vine draws its strength back to Ivy. Card-ref args (self, ally) so it
+  // relays to the MP guest, which rebuilds it from its own DOM.
+  _fxIvyCharm(self, allyCard) {
+    if (this._reducedMotion() || !self) return;
+    const ael = allyCard ? this._fxCardElById(allyCard.id) : null;
+    const from = this._fxCenter(ael);
+    if (ael) {
+      this._fxRing(ael, { color: '#54d66a' });
+      if (from) this._fxSparks(from, { color: '#9dffb0', glow: '#2ea043', count: 9, angle: -Math.PI / 2, cone: 1.9, spread: 54, size: 2.6 });
+    }
+    this._fxWhenPainted(self, (srcEl) => {
+      const to = this._fxCenter(srcEl);
+      if (from && to) this._fxTendril(from, to, { color: '#1f7a34', glow: '#7bf29a', bow: 26 });
+      this._fxRing(srcEl, { color: '#54d66a', contract: true });
+      if (to) this._fxSparks(to, { color: '#9dffb0', glow: '#2ea043', count: 8, spread: 46, size: 2.4 });
+    });
+  },
   _fxHarleyChaos(self) {
     if (this._reducedMotion() || !self) return;
     this._fxWhenPainted(self, (el) => {

@@ -177,6 +177,8 @@ const CARD_ABILITIES = {
       // report: "the charm status badge isn't on any ally card for ivy
       // so I can't tell who she's gaining attack from."
       pick._charmedByIvy = self.id;
+      // Pheromone bloom on the charmed ally + a vine drawing its strength to Ivy.
+      if (typeof UI !== 'undefined' && UI._fxIvyCharm) { try { UI._fxIvyCharm(self, pick); } catch (e) {} }
       const bonus = pick.attack || 0;
       if (bonus > 0) {
         // Temp buff, auto-expires after 1 turn. Re-charming on the
