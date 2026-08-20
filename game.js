@@ -9688,10 +9688,36 @@ const Game = {
   // WAKE THE SLEEPING. Run once for the side whose turn just ended, so a card
   // Freddy slashed misses exactly ONE of its owner's turns and is playable
   // again on the next. Hand-only by design: sleep is a hand-lock.
+  // IS THIS CARD ASLEEP? sleepTurns is the ONE source of truth; isAsleep is a
+  // display flag that follows it.
+  // They used to be read differently by different layers — playCard refused on
+  // `sleepTurns > 0` while the renderer dimmed and badged on
+  // `isAsleep || sleepTurns > 0`. Any card that ended up with isAsleep set and
+  // sleepTurns at 0 therefore looked permanently asleep while the engine
+  // considered it awake, which is exactly the shape of "Yoda has been asleep
+  // for 3 turns and Freddy died a long time ago". One predicate, so the two can
+  // no longer disagree about the same card.
+  isCardAsleep(card) {
+    return !!card && (card.sleepTurns | 0) > 0;
+  },
   tickSleep(owner) {
     const hand = (this.state[owner] && this.state[owner].hand) || [];
     hand.forEach(c => {
-      if (!c || !(c.sleepTurns > 0)) return;
+      if (!c) return;
+      // SELF-HEALING, and this is the half that matters. The old guard was
+      // `if (!(c.sleepTurns > 0)) return;` — so a card whose counter was
+      // already 0 (or undefined, or NaN) was SKIPPED, and its stale isAsleep
+      // flag could never be cleared by anything. A status with no path back out
+      // is a trap, not a timer. Now the flag is reconciled to the counter on
+      // every tick whether or not there was anything to decrement.
+      if (!(c.sleepTurns > 0)) {
+        if (c.isAsleep) {
+          c.isAsleep = false;
+          this.log(`  [AWAKE] ${c.name} was flagged asleep with no turns left — cleared.`);
+        }
+        c.sleepTurns = 0;
+        return;
+      }
       c.sleepTurns -= 1;
       if (c.sleepTurns <= 0) {
         c.sleepTurns = 0;

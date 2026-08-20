@@ -20772,7 +20772,11 @@ const UI = {
     if (card.isBurning) el.classList.add('status-burning');
     // Asleep dims the tile so an unplayable hand card reads as unplayable at a
     // glance, not only via its badge.
-    if (card.isAsleep || card.sleepTurns > 0) el.classList.add('card-asleep');
+    // Through the engine's predicate, not a second copy of it — see
+    // Game.isCardAsleep. Reading `isAsleep || sleepTurns > 0` here is what let
+    // the tile stay dimmed on a card the engine was happy to play.
+    if (typeof Game !== 'undefined' && Game.isCardAsleep
+          ? Game.isCardAsleep(card) : (card.sleepTurns | 0) > 0) el.classList.add('card-asleep');
     if (card._criticalThisRound) el.classList.add('status-critical');
 
     // Poison Ivy charmed glow (additive, doesn't replace status glow).
@@ -22374,7 +22378,8 @@ const UI = {
     // other countdowns rather than sitting behind the permanent keywords: it
     // changes what you can play THIS turn, which is exactly what the cap-eats-
     // from-the-end ordering above is protecting.
-    if (c.isAsleep || c.sleepTurns > 0) {
+    if (typeof Game !== 'undefined' && Game.isCardAsleep
+          ? Game.isCardAsleep(c) : (c.sleepTurns | 0) > 0) {
       const n = c.sleepTurns > 1 ? c.sleepTurns : 0;
       t.push(badge('badge-asleep', n ? `Asleep ${n}` : 'Asleep', 'Asleep'));
     }

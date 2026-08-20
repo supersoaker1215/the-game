@@ -6332,6 +6332,47 @@ test("A chain whose start cannot change the outcome does not ask", function () {
   assertEq(G._chainStartIsForced(pal, MAX), false, 'a run longer than the cap still asks');
 });
 
+test("A card flagged asleep with no turns left cannot stay asleep forever", function () {
+  // Owner: "freddy is keeping cards asleep way longer than intended — yoda has
+  // been asleep for 3 turns and freddy died a long time ago."
+  //
+  // Freddy is the only thing that sets sleep, and he sets both fields together,
+  // so a LONG timer is not reachable. A STUCK one was: tickSleep skipped any
+  // card whose counter was not > 0, so a stale isAsleep flag had no path out,
+  // and the renderer dimmed and badged on that flag while the engine allowed
+  // the play. Permanently-asleep-looking, which is what a player sees as
+  // "asleep for 3 turns".
+  var G = freshGame();
+  var yoda = G.createCardInstance(cardByName('Yoda'), 'player');
+  G.state.player.hand = [yoda];
+
+  // ONE PREDICATE. The engine and the renderer must agree on this card.
+  yoda.isAsleep = true; yoda.sleepTurns = 0;      // the trap state
+  assertEq(G.isCardAsleep(yoda), false, 'no turns left means awake, flag or not');
+
+  // AND THE TICK HEALS IT rather than skipping past it forever.
+  G.state.round = 0;
+  G.startRound();
+  assertEq(!!yoda.isAsleep, false, 'the stale flag is cleared');
+  assertEq(yoda.sleepTurns | 0, 0, 'and the counter stays at zero');
+
+  // The normal path still behaves: one round of sleep, then awake.
+  yoda.isAsleep = true; yoda.sleepTurns = 1;
+  assertEq(G.isCardAsleep(yoda), true, 'a real sleep still reads as asleep');
+  G.startRound();
+  assertEq(G.isCardAsleep(yoda), false, 'and wakes on the next round');
+  assertEq(!!yoda.isAsleep, false, 'with the display flag cleared too');
+
+  // A dead Freddy cannot re-apply it — he sleeps cards from onBeforeAttack,
+  // which only runs for a card that actually swings.
+  var freddy = place(G, 'Freddy Krueger', 'ai', 2);
+  freddy.currentHealth = 0;
+  G.handleDeath(freddy, 2, null);
+  G.cleanupDead();
+  G.startRound();
+  assertEq(G.isCardAsleep(yoda), false, 'still awake with Freddy gone');
+});
+
 // ---- RUNNER ------------------------------------------------
 // ============================================================
 
