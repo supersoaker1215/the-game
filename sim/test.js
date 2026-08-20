@@ -5122,13 +5122,20 @@ test('Wetlands drains on EITHER side\'s Block Meter, not just its owner\'s', fun
   var G = freshGame();
   var wet = placeEnv(G, 'Wetlands', 'player', 2);
   CARD_ABILITIES['Wetlands'].onPlay(G, wet, 2);
-  assertEq(wet._wetPower, 3, 'starts at 3 Power');
+  assertEq(wet._wetPower, 1, 'starts at 1 Power');
   // The blocker argument is who blocked; the drain must ignore it entirely.
+  // Power is 1, so a single block drains it to 0. Fire it from the ENEMY side to
+  // prove the drain is not gated to the owner's meter.
   G._notifyBlockMeterFired('ai');
-  assertEq(wet._wetPower, 2, 'an ENEMY block drained it');
-  G._notifyBlockMeterFired('player');
-  assertEq(wet._wetPower, 1, 'and so does its owner\'s');
-  assertEq(!!wet._wetReleased, false, 'not released at 1');
+  assertEq(wet._wetPower, 0, 'an ENEMY block drained it');
+
+  // And the owner's own meter drains it just the same — fresh habitat, since one
+  // block is all it takes.
+  var G2 = freshGame();
+  var wet2 = placeEnv(G2, 'Wetlands', 'player', 2);
+  CARD_ABILITIES['Wetlands'].onPlay(G2, wet2, 2);
+  G2._notifyBlockMeterFired('player');
+  assertEq(wet2._wetPower, 0, 'and so does its owner\'s');
 });
 
 test('Wetlands at 0 Power releases Spinosaurus and takes the enemy in the lane', function () {

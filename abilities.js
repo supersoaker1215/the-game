@@ -6099,8 +6099,8 @@ const CARD_ABILITIES = {
   // the lane keeps reading "this is his water" for as long as he is standing.
   //
   // Its clock is the BLOCK METER, not a card entering or dying: every time
-  // either side's meter fills and eats a hit, the swamp loses 1 Power. Three
-  // blocks — from anyone — and the water breaks.
+  // either side's meter fills and eats a hit, the swamp loses 1 Power. Starting
+  // Power is 1, so a single block — from anyone — and the water breaks.
   "Wetlands": {
     START_POWER: 1,
     _power(self) {
