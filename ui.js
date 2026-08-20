@@ -13,7 +13,7 @@ const UI = {
   // cached PNGs (which don't have built-in cache busters since they're
   // referenced via background-image url() and not the index.html
   // version-suffix system). Bump this every time you regen art.
-  _CARD_ART_VERSION: 88,
+  _CARD_ART_VERSION: 89,
 
   // Per-card background-position overrides. Default is "center center".
   // Use when an image crops poorly at the default — e.g. a head gets cut
@@ -1754,6 +1754,7 @@ const UI = {
       'Symbiote Spider-Man': { play: { src: 'audio/cards/symbiote-spider-man-play.mp3', maxDur: 5.0 } },
       'Jango Fett':       { attack: 'audio/cards/jango-fett-attack.mp3', death: 'audio/cards/jango-fett-death.mp3' },
       'Jason Voorhees':   { play: { src: 'audio/cards/jason-play.mp3', maxDur: 5.0 } },
+      'Art the Clown':    { play: { src: 'audio/cards/art-the-clown-play.mp3', maxDur: 5.0 } },
       'Knull':            { hover: { src: 'audio/cards/knull-hover.mp3' }, play: { src: 'audio/cards/knull-play.mp3', fullDuration: true, gain: 4.5 } },
       'Galactus':         { hover: { src: 'audio/cards/galactus-hover.mp3' }, play: { src: 'audio/cards/galactus-play.mp3', maxDur: 5.0 } },
       'Dormammu':         { hover: { src: 'audio/cards/dormammu-hover.mp3' }, play: { src: 'audio/cards/dormammu-play.mp3', fullDuration: true } },
@@ -10295,6 +10296,61 @@ const UI = {
     });
   },
 
+  // Art the Clown — one animation per weapon, played on the enemy card he hits.
+  // Each pairs the shared spark/impact primitives with a themed emoji glyph so
+  // the swing reads instantly: ✂ snip, 🔨 smash, ⚰ scythe arc, 🪚 saw, 🩸 bleed.
+  _fxArtWeapon(weapon, el) {
+    if (!el || (this._reducedMotion && this._reducedMotion())) return;
+    const c = this._fxCenter ? this._fxCenter(el) : null;
+    if (!c) return;
+    const layer = this._fxLayer ? this._fxLayer() : null;
+    // Themed glyph that flies across / stamps the card.
+    const glyph = (emoji, cls, ms) => {
+      if (!layer) return;
+      const g = document.createElement('div');
+      g.className = 'fx-art-weapon ' + cls;
+      g.textContent = emoji;
+      g.style.cssText = 'left:' + c.x + 'px;top:' + c.y + 'px;';
+      layer.appendChild(g);
+      setTimeout(() => g.remove(), ms || 720);
+    };
+    // A short hit-shake on the struck card itself.
+    const shake = (cls) => {
+      el.classList.remove('fx-art-hit', 'fx-art-hit-heavy');
+      void el.offsetWidth;
+      el.classList.add(cls);
+      setTimeout(() => el.classList.remove(cls), 620);
+    };
+    switch (weapon) {
+      case 'scissors':
+        glyph('✂', 'fx-art-scissors', 720);
+        if (this._fxSparks) this._fxSparks(c, { color: '#dfe7ee', glow: '#9fb3c8', count: 10, spread: 46, size: 2.2 });
+        if (this._fxRing) this._fxRing(el, { color: '#cfd8e3' });
+        shake('fx-art-hit');
+        break;
+      case 'sledgehammer':
+        glyph('🔨', 'fx-art-sledge', 640);
+        if (this._fxImpact) this._fxImpact(c, { color: '#c96a2a', core: '#ffe0b0', size: 1.35 });
+        if (this._fxSparks) this._fxSparks(c, { color: '#e8b27a', glow: '#8a4a1e', count: 16, spread: 74, size: 3.0 });
+        shake('fx-art-hit-heavy');
+        break;
+      case 'scythe':
+        glyph('⚰', 'fx-art-scythe', 700);
+        if (this._fxSparks) this._fxSparks(c, { color: '#b8ffd9', glow: '#20c56a', count: 14, angle: -Math.PI / 4, cone: 0.6, spread: 80, size: 2.8 });
+        if (this._fxRing) this._fxRing(el, { color: '#3ad17e' });
+        shake('fx-art-hit');
+        break;
+      case 'hacksaw':
+        glyph('🪚', 'fx-art-hacksaw', 760);
+        if (this._fxSparks) this._fxSparks(c, { color: '#ff5470', glow: '#b3122f', count: 12, spread: 60, size: 2.6 });
+        shake('fx-art-hit');
+        break;
+      case 'bleedTick':
+        glyph('🩸', 'fx-art-bleed', 820);
+        if (this._fxSparks) this._fxSparks(c, { color: '#e0244d', glow: '#7a0d22', count: 8, angle: Math.PI / 2, cone: 0.7, spread: 40, size: 2.4 });
+        break;
+    }
+  },
   // Red Skull — a Cosmic-Cube red energy surge empowering a card in hand.
   _fxRedSkullCube(self) {
     if (this._reducedMotion() || !self) return;
@@ -10779,6 +10835,11 @@ const UI = {
       }
       if (ev.type === 'envReveal') {
         this.fxEnvReveal(ev.lane, ev.name);
+        continue;
+      }
+      if (ev.type === 'artWeapon') {
+        const wEl = document.querySelector(`[data-card-id="${ev.cardId}"]`);
+        if (wEl) this._fxArtWeapon(ev.weapon, wEl);
         continue;
       }
       if (ev.type === 'blockDrain') {
@@ -21658,7 +21719,7 @@ const UI = {
     'Raven':'cosmic', 'Paul Atreides':'cosmic', 'Dormammu':'cosmic',
     'Venom':'symbiote', 'Carnage':'symbiote', 'Symbiote Spider-Man':'symbiote',
     'Anti-Venom':'symbiote', 'Knull':'symbiote',
-    'Ghostface':'slasher', 'Jason Voorhees':'slasher',
+    'Ghostface':'slasher', 'Jason Voorhees':'slasher', 'Art the Clown':'slasher',
     'Michael Myers':'slasher', 'Predator':'slasher', 'Freddy Krueger':'slasher',
     'Pennywise':'slasher', 'Freddy Fazbear':'slasher', 'Jaws':'slasher',
     'Thanos':'titan', 'Hulk':'titan', 'Red Hulk':'titan',
@@ -21880,6 +21941,12 @@ const UI = {
       const n = c.burnStacks | 0;
       t.push(badge('badge-burning', n > 0 ? `Burning ${n}` : 'Burning', 'Burning'));
     }
+    // BLEED — Art the Clown's Hacksaw. The count is rounds of bleeding LEFT, so
+    // it reads like the other countdowns: 2 when the saw bites, 1 after the
+    // first tick. A transient, so it leads with Frozen / Burning.
+    if (c._bleedRounds > 0) {
+      t.push(badge('badge-bleed', `Bleed ${c._bleedRounds}`, 'Bleed'));
+    }
     // ASLEEP — Freddy's hand-lock. A transient, so it leads the strip with the
     // other countdowns rather than sitting behind the permanent keywords: it
     // changes what you can play THIS turn, which is exactly what the cap-eats-
@@ -22001,6 +22068,9 @@ const UI = {
   // Central keyword data: color, inline SVG icon (12px), and a one-line tooltip.
   // Icons are tiny geometric shapes — no heavy filters, render once per card.
   KEYWORD_DATA: {
+    // A blood drop — Art the Clown's Hacksaw wound. Filled teardrop with a
+    // glint, in a deep crimson so it reads as blood at 10px board size.
+    'Bleed': { color: '#e0244d', svg: '<svg viewBox="0 0 12 12"><path d="M6 1.2c2 2.6 3.2 4.2 3.2 5.9a3.2 3.2 0 0 1-6.4 0c0-1.7 1.2-3.3 3.2-5.9Z" fill="currentColor"/><path d="M4.6 6.5c0 1 .5 1.7 1.3 2" stroke="#fff" stroke-width="0.7" fill="none" stroke-linecap="round" opacity="0.65"/></svg>', tip: 'Takes this much damage at the start of each of the next rounds, then the wound closes.' },
     'Damage Immunity': { color: '#d35400', svg: '<svg viewBox="0 0 12 12"><path d="M6 1 L11 3 V6 C11 9 6 11 6 11 C6 11 1 9 1 6 V3 Z M4 6 L8 6 M6 4 L6 8" stroke="currentColor" stroke-width="1.2" fill="none" stroke-linejoin="round"/></svg>', tip: 'Cannot take any damage.' },
     // A BRAIN. Owner: "the mind control icon should be a brain." The old glyph
     // was a circle with an S-curve inside it, which read as a generic token.

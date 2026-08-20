@@ -1401,6 +1401,205 @@ const CARD_ABILITIES = {
       }
     }
   },
+  "Art the Clown": {
+    // Jump ("enemy has more cards on the field") lives in
+    // Game.checkJumpConditions under the 'beforeTricks' trigger, fired at the
+    // start of the trick phase after both sides finish playing cards.
+    //
+    // The bag: four weapons, each used at most once until all four are spent,
+    // then Art is a plain body forever. The choice fires ONCE per round — on
+    // play (his first swing) and every round after via onBeforeTricks. Both
+    // funnel through _step, which the per-round guard makes idempotent so the
+    // play-round's own onBeforeTricks pass can't hand out a second weapon.
+    _recurringBT: true,
+    // key drives logic; icon is the "cool symbol" shown on the choice tile and
+    // in the swing animation; the strip fields make each weapon render as a
+    // real option card in the picker tray.
+    WEAPONS: [
+      { key: 'scissors',     name: '✂ Scissors',     icon: '✂', desc: 'Permanently strip one keyword or badge from an enemy.' },
+      { key: 'sledgehammer', name: '🔨 Sledgehammer', icon: '🔨', desc: "Deal double Art's current ATK to one enemy." },
+      { key: 'scythe',       name: '⚰ Scythe',        icon: '⚰', desc: "Permanently halve one enemy's ATK and HP (rounded down)." },
+      { key: 'hacksaw',      name: '🪚 Hacksaw',       icon: '🪚', desc: 'An enemy bleeds 2 at the start of each of the next 2 rounds.' },
+    ],
+    onPlay(G, self, lane) { CARD_ABILITIES['Art the Clown']._step(G, self); },
+    onBeforeTricks(G, self, lane) { CARD_ABILITIES['Art the Clown']._step(G, self); },
+    // Turn Art into a stats-only body: drop every hook so no prompt ever fires
+    // again, exactly as the card text promises once the bag is empty.
+    _exhaust(G, self) {
+      self._artExhausted = true;
+      self.onPlay = null; self.onBeforeTricks = null; self._recurringBT = false;
+      G.log(`[ART] The bag is empty — Art the Clown is just a body now (${self.attack}/${self.currentHealth}).`);
+    },
+    _step(G, self) {
+      const AB = CARD_ABILITIES['Art the Clown'];
+      if (self._artExhausted) return;
+      if (!self._artWeaponsUsed) self._artWeaponsUsed = [];
+      // If the bag emptied on a prior swing, become a body and stop.
+      if (self._artWeaponsUsed.length >= AB.WEAPONS.length) { AB._exhaust(G, self); return; }
+      // One swing per round. Guard BEFORE anything else so the play-round's
+      // later onBeforeTricks pass is a no-op.
+      const round = G.state.round || 1;
+      if (self._artWeaponRound === round) return;
+      const owner = self.owner;
+      // Only weapons that both remain in the bag AND have a legal target this
+      // round are offered — so "no weapon twice" can never strand Art on a
+      // weapon with nothing to hit.
+      const remaining = AB.WEAPONS.filter(w => self._artWeaponsUsed.indexOf(w.key) < 0);
+      const enemies = G.getEnemiesOf(owner).filter(e => e.currentHealth > 0);
+      const hasKeyworded = enemies.some(e => AB._strippable(e).length > 0);
+      const usable = remaining.filter(w => w.key === 'scissors' ? hasKeyworded : enemies.length > 0);
+      if (!usable.length) {
+        // Nothing to hit — Art waits, no weapon spent.
+        if (enemies.length) G.log(`[ART] No keyword left to cut — Art holds the scissors for later.`);
+        else G.log(`[ART] No enemy on the field — Art keeps his tools in the bag.`);
+        return;
+      }
+      self._artWeaponRound = round;
+      // Build the picker tiles. Synthetic option cards (like the Upkeep prompt)
+      // — the _artWeaponKey marker is what the callback reads.
+      const tiles = usable.map(w => ({
+        _artWeaponKey: w.key, name: w.name, cost: 0, attack: 0, health: 1,
+        type: 'horror', desc: w.desc,
+      }));
+      G.promptCardChoice(owner, tiles,
+        'Art the Clown — Pick a Weapon',
+        `Choose one (${self._artWeaponsUsed.length + 1} of ${AB.WEAPONS.length}). Each can be used only once until all four are spent.`,
+        (picked) => { AB._resolve(G, self, picked && picked._artWeaponKey); },
+        // AI heuristic: a lethal Sledgehammer first, then Scythe on the biggest
+        // threat, then Scissors on a keyworded enemy, else Hacksaw.
+        (tilesList) => AB._aiPick(G, self, tilesList));
+    },
+    _aiPick(G, self, tiles) {
+      const owner = self.owner;
+      const enemies = G.getEnemiesOf(owner).filter(e => e.currentHealth > 0);
+      const has = (k) => tiles.find(t => t._artWeaponKey === k);
+      const atk = G._cardEffectiveAtk ? G._cardEffectiveAtk(self) : self.attack;
+      // Sledgehammer if it one-shots something.
+      if (has('sledgehammer') && enemies.some(e => (e.currentHealth <= atk * 2))) return has('sledgehammer');
+      // Scythe on the biggest body.
+      if (has('scythe') && enemies.some(e => (e.attack + e.currentHealth) >= 6)) return has('scythe');
+      // Scissors if an enemy carries a keyword worth removing.
+      if (has('scissors')) return has('scissors');
+      if (has('sledgehammer')) return has('sledgehammer');
+      if (has('hacksaw')) return has('hacksaw');
+      return tiles[0];
+    },
+    _resolve(G, self, key) {
+      const AB = CARD_ABILITIES['Art the Clown'];
+      if (!key) return;
+      const owner = self.owner;
+      const spend = () => {
+        self._artWeaponsUsed.push(key);
+        if (self._artWeaponsUsed.length >= AB.WEAPONS.length) AB._exhaust(G, self);
+      };
+      const fx = (targetId) => {
+        if (targetId != null) { try { G.emitFX('artWeapon', { weapon: key, cardId: targetId, owner }); } catch (e) {} }
+      };
+      const pickEnemy = (title, filter, cb) => {
+        const enemies = G.getEnemiesOf(owner).filter(e => e.currentHealth > 0 && (filter ? filter(e) : true));
+        if (!enemies.length) { G.log(`[ART] ${title} — no valid target.`); return; }
+        G.promptCardChoice(owner, enemies, `Art the Clown — ${title}`, 'Choose an enemy card.',
+          (picked) => cb(picked),
+          // AI: highest ATK+HP threat (scissors picks the most-keyworded).
+          (list) => (key === 'scissors'
+            ? list.slice().sort((a, b) => AB._strippable(b).length - AB._strippable(a).length)[0]
+            : list.slice().sort((a, b) => (b.attack + b.currentHealth) - (a.attack + a.currentHealth))[0]));
+      };
+
+      if (key === 'sledgehammer') {
+        const dmg = 2 * (G._cardEffectiveAtk ? G._cardEffectiveAtk(self) : self.attack);
+        pickEnemy('Sledgehammer', null, (t) => {
+          G.log(`[ART] Sledgehammer! ${self.name} smashes ${t.name} for ${dmg}.`);
+          fx(t.id);
+          G.dealDamage(t, dmg, self);
+          G.cleanupDead();
+          spend();
+        });
+      } else if (key === 'scythe') {
+        pickEnemy('Scythe', null, (t) => {
+          const na = Math.floor((t.attack || 0) / 2);
+          const nh = Math.floor((t.currentHealth || 0) / 2);
+          const nm = Math.max(1, Math.floor((t.maxHealth || t.currentHealth || 1) / 2));
+          t.attack = Math.max(0, na);
+          t.maxHealth = nm;
+          t.currentHealth = nh;
+          G.log(`[ART] Scythe! ${t.name} is cut down to ${t.attack}/${t.currentHealth}.`);
+          fx(t.id);
+          const lane = G.findCardLane(t);
+          if (t.currentHealth <= 0 && lane >= 0) G.handleDeath(t, lane, self);
+          G.cleanupDead();
+          spend();
+        });
+      } else if (key === 'hacksaw') {
+        pickEnemy('Hacksaw', null, (t) => {
+          t._bleedRounds = 2;
+          t._bleedAmount = 2;
+          t._bleedSourceOwner = owner;
+          G.log(`[ART] Hacksaw! ${t.name} will bleed 2 at the start of each of the next 2 rounds.`);
+          fx(t.id);
+          if (typeof UI !== 'undefined' && UI.render) UI.render();
+          spend();
+        });
+      } else if (key === 'scissors') {
+        pickEnemy('Scissors', (e) => AB._strippable(e).length > 0, (t) => {
+          const opts = AB._strippable(t);
+          if (!opts.length) { G.log(`[ART] Scissors — ${t.name} has nothing left to cut.`); return; }
+          // Second prompt: WHICH keyword. Synthetic tiles again.
+          const kwTiles = opts.map(ab => ({ _artKw: ab, name: ab, cost: 0, attack: 0, health: 1, type: 'horror', desc: `Permanently remove ${ab}.` }));
+          G.promptCardChoice(owner, kwTiles, `Art the Clown — Scissors on ${t.name}`,
+            'Choose a keyword or badge to cut away for good.',
+            (pk) => {
+              const ab = pk && pk._artKw;
+              if (!ab) return;
+              AB._stripKeyword(G, t, ab);
+              G.log(`[ART] Scissors! ${ab} is cut from ${t.name} — gone for good.`);
+              fx(t.id);
+              G.cleanupDead();
+              spend();
+            },
+            (list) => list[0]);
+        });
+      }
+    },
+    // The enemy's removable keywords/badges — the entries in its abilities list
+    // that map to a live parsed flag (so cutting one actually changes the card).
+    _strippable(card) {
+      return (card.abilities || []).filter(ab => CARD_ABILITIES['Art the Clown']._kwField(ab) != null);
+    },
+    // Maps a keyword string ("Evade 2", "Damage Immunity") to the instance field
+    // it set in Game.applyAbilities, plus the "removed" value. Mirrors that
+    // switch — the single source of truth for what a keyword becomes on a card.
+    _kwField(ab) {
+      const parts = String(ab).split(' ');
+      const w = parts[0];
+      const M = {
+        Armor: ['armorValue', 0], Evade: ['evadeCharges', 0], Taunt: ['tauntTurns', 0],
+        Invincible: ['invincibleTurns', 0], Splash: ['splashRange', 0], Overdrive: ['isOverdrive', false],
+        Bullseye: ['isBullseye', false], Immunity: ['immunityCharges', 0], Unresistible: ['unresistibleCharges', 0],
+        Revive: ['reviveCharges', 0], Untrickable: ['isUntrickable', false], Draw: ['drawOnPlay', 0],
+        Fear: ['hasFear', 0], Crazy: ['isCrazy', false], Insane: ['isInsane', false],
+      };
+      if (w === 'Hunt') return parts[1] === 'Meter' ? ['hasHuntMeter', false] : ['hasHunt', false];
+      if (w === 'Damage') return parts[1] === 'Immunity' ? ['hasDamageImmunity', false] : null;
+      if (w === 'Dead') return parts[1] === 'Draw' ? ['hasDeadDraw', 0] : null;
+      if (w === 'Spawn') return parts[1] === 'Only' ? ['isSpawnOnly', false] : null;
+      return M[w] || null;
+    },
+    _stripKeyword(G, card, ab) {
+      const AB = CARD_ABILITIES['Art the Clown'];
+      // Drop the chosen string from the printed abilities list (so the badge
+      // and the def-derived text both lose it)...
+      const idx = (card.abilities || []).indexOf(ab);
+      if (idx >= 0) card.abilities.splice(idx, 1);
+      // ...and clear the live flag it drove in Game.applyAbilities.
+      const f = AB._kwField(ab);
+      if (f) {
+        card[f[0]] = f[1];
+        // Untrickable also carries a "permanent" latch set by applyAbilities.
+        if (f[0] === 'isUntrickable') card.permanentUntrickable = false;
+      }
+    },
+  },
   "Loki": {
     onPlay(G, self, lane) {
       // Block-meter fill % scales with tier. Common: 50%, Rare: 100%

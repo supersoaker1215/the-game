@@ -3353,6 +3353,18 @@ const Game = {
         }
       }
     });
+    // Art the Clown's Hacksaw bleed — ticks at the START of each round for as
+    // long as the wound lasts. Snapshot the board first: dealDamage → death can
+    // mutate lane contents mid-iteration.
+    this.getAllCardsOnBoard().filter(c => c && c._bleedRounds > 0 && c.currentHealth > 0).forEach(c => {
+      const amt = c._bleedAmount || 2;
+      this.log(`  [BLEED] ${c.name} bleeds for ${amt}.`);
+      try { this.emitFX('artWeapon', { weapon: 'bleedTick', cardId: c.id, owner: c._bleedSourceOwner }); } catch (e) {}
+      this.dealDamage(c, amt, null);
+      c._bleedRounds--;
+      if (c._bleedRounds <= 0) { c._bleedRounds = 0; delete c._bleedAmount; delete c._bleedSourceOwner; }
+    });
+    this.cleanupDead();
     const r = this.state.round;
     // Sanitize all living cards — heal any currentHealth/maxHealth/attack
     // that drifted to NaN/undefined over the previous round. Belt-and-
@@ -3883,6 +3895,11 @@ const Game = {
         // Run "Before Tricks" effects for all cards on board
         this.runBeforeTricks();
         this.cleanupDead();
+
+        // Trick-phase-boundary jumps (Art the Clown): both sides are done
+        // playing cards, so the "enemy has more cards on the field" count is
+        // final. Human offers surface as pendingJumpOffer; the AI auto-plays.
+        this.checkJumpConditions('beforeTricks', {});
 
         const fp = this.state.firstPlayer;
         this.state.activePlayer = fp;
@@ -11609,6 +11626,19 @@ const Game = {
           card.jumpReady = true;
           this.log(`  [JUMP] Stripe smells blood! Free play available.`);
           if (this.isHuman(owner)) playerJumpNowReady = card;
+        }
+        if (card.name === 'Art the Clown' && trigger === 'beforeTricks' && this.canJumpNow(owner, card)) {
+          // "Enemy has more cards on the field than you" — counted after both
+          // sides have finished playing cards this round (this trigger fires at
+          // the trick-phase boundary). Environments are scenery, not bodies, so
+          // they don't count toward either side's total.
+          const mine = this.getAllCardsOf(owner).filter(c => !c.isEnvironment).length;
+          const theirs = this.getAllCardsOf(opp).filter(c => !c.isEnvironment).length;
+          if (theirs > mine) {
+            card.jumpReady = true;
+            this.log(`  [JUMP] Art the Clown grins at the crowd (${theirs} vs ${mine})! Free play available.`);
+            if (this.isHuman(owner)) playerJumpNowReady = card;
+          }
         }
         if (card.name === 'Jason Voorhees' && trigger === 'allyDied' && data.owner === owner) {
           const tgtLane = (typeof data.laneIdx === 'number') ? data.laneIdx : undefined;

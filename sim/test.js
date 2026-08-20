@@ -6001,6 +6001,98 @@ test("Brainiac's foresight ticks down and expires at round start", function () {
   assertEq(G.state.player._brainiacScanRounds, 0, 'and it fades after the second');
 });
 
+// ---- Art the Clown ----------------------------------------------------------
+// Weapon effects are tested through _resolve with exactly ONE enemy on the
+// board, so the target prompt auto-resolves (single valid target) instead of
+// stalling on a modal.
+function artOnBoard(G, lane) {
+  var art = G.createCardInstance(cardByName('Art the Clown'), 'player');
+  art._artWeaponsUsed = [];
+  G.state.lanes[lane == null ? 0 : lane].player = art;
+  return art;
+}
+
+test("Art the Clown — Sledgehammer deals double his ATK", function () {
+  var G = freshGame();
+  var art = artOnBoard(G, 0);
+  art.attack = 3;
+  var foe = place(G, 'Sabertooth', 'ai', 2);   // a beefy body
+  foe.currentHealth = 10; foe.maxHealth = 10;
+  CARD_ABILITIES['Art the Clown']._resolve(G, art, 'sledgehammer');
+  assertEq(foe.currentHealth, 4, '10 HP minus double 3 ATK = 4');
+  assert(art._artWeaponsUsed.indexOf('sledgehammer') > -1, 'the weapon is spent');
+});
+
+test("Art the Clown — Scythe halves an enemy's ATK and HP (rounded down)", function () {
+  var G = freshGame();
+  var art = artOnBoard(G, 0);
+  var foe = place(G, 'Sabertooth', 'ai', 2);
+  foe.attack = 5; foe.currentHealth = 7; foe.maxHealth = 7;
+  CARD_ABILITIES['Art the Clown']._resolve(G, art, 'scythe');
+  assertEq(foe.attack, 2, '5 → 2');
+  assertEq(foe.currentHealth, 3, '7 → 3');
+});
+
+test("Art the Clown — Scissors strips a keyword and clears its flag", function () {
+  var G = freshGame();
+  var art = artOnBoard(G, 0);
+  var foe = place(G, 'Sabertooth', 'ai', 2);
+  foe.abilities = ['Evade 2']; G.applyAbilities(foe);
+  assertEq(foe.evadeCharges, 2, 'starts with Evade 2');
+  CARD_ABILITIES['Art the Clown']._resolve(G, art, 'scissors');
+  assertEq(foe.evadeCharges, 0, 'Evade is cut to 0');
+  assert(foe.abilities.indexOf('Evade 2') < 0, 'and gone from the printed list');
+});
+
+test("Art the Clown — Hacksaw bleeds 2 at the start of each of the next 2 rounds", function () {
+  var G = freshGame();
+  var art = artOnBoard(G, 0);
+  var foe = place(G, 'Sabertooth', 'ai', 2);
+  foe.currentHealth = 9; foe.maxHealth = 9;
+  CARD_ABILITIES['Art the Clown']._resolve(G, art, 'hacksaw');
+  assertEq(foe._bleedRounds, 2, 'wound set for two rounds');
+  G.startRound();
+  assertEq(foe.currentHealth, 7, 'first tick: -2');
+  assertEq(foe._bleedRounds, 1, 'one round of bleed left');
+  G.startRound();
+  assertEq(foe.currentHealth, 5, 'second tick: -2');
+  assertEq(foe._bleedRounds, 0, 'wound closed');
+  G.startRound();
+  assertEq(foe.currentHealth, 5, 'no third tick');
+});
+
+test("Art the Clown — no weapon twice, then he becomes stats-only", function () {
+  var G = freshGame();
+  var art = artOnBoard(G, 0);
+  art._artWeaponsUsed = ['scissors', 'sledgehammer', 'scythe'];
+  place(G, 'Sabertooth', 'ai', 2);
+  CARD_ABILITIES['Art the Clown']._resolve(G, art, 'hacksaw');
+  assertEq(art._artWeaponsUsed.length, 4, 'all four used');
+  assertEq(!!art._artExhausted, true, 'the bag is empty');
+  assertEq(art.onPlay, null, 'onPlay hook dropped');
+  assertEq(art.onBeforeTricks, null, 'onBeforeTricks hook dropped');
+});
+
+test("Art the Clown — Jump arms when the enemy has more cards on the field", function () {
+  var G = freshGame();
+  var art = G.createCardInstance(cardByName('Art the Clown'), 'player');
+  G.state.player.hand = [art];
+  // Enemy: 2 bodies. Player: none on board (Art is in hand). 2 > 0 → jump.
+  place(G, 'Sabertooth', 'ai', 1);
+  place(G, 'Sabertooth', 'ai', 3);
+  G.checkJumpConditions('beforeTricks', {});
+  assertEq(!!art.jumpReady, true, 'Art is jump-ready');
+
+  // Even board — no jump.
+  var G2 = freshGame();
+  var art2 = G2.createCardInstance(cardByName('Art the Clown'), 'player');
+  G2.state.player.hand = [art2];
+  place(G2, 'Sabertooth', 'ai', 1);
+  place(G2, 'Sabertooth', 'player', 3);
+  G2.checkJumpConditions('beforeTricks', {});
+  assertEq(!!art2.jumpReady, false, '1 vs 1 does not arm the jump');
+});
+
 test("A body raised alone still gets Lone Wolf — the room does not bypass it", function () {
   // The other half of the case above, pinned deliberately rather than left as a
   // surprise: with no other ally on the board the risen body is a 2/2, because
