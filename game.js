@@ -6726,6 +6726,13 @@ const Game = {
     if (p.healthFrozen) {
       const remaining = (typeof p.healthFrozen === 'number' ? p.healthFrozen : 1) - 1;
       p.healthFrozen = remaining > 0 ? remaining : false;
+      // 2v2: keep the team's frozen count in step so the frozen bar clears when
+      // the last hit is spent (combat writes to the proxy; the team is truth).
+      if (this.is2v2 && this.is2v2() && this.state.twoVTwo) {
+        const _tm = owner === 'player' ? 'A' : 'B';
+        const _t = this.state.twoVTwo.teams[_tm];
+        if (_t) _t.healthFrozen = p.healthFrozen;
+      }
       if (p._healthFrozenBy) {
         this._creditAbsorb(p._healthFrozenBy, 'Shield', amount);
         if (!p.healthFrozen) p._healthFrozenBy = null;
@@ -13605,6 +13612,15 @@ const Game = {
     tt.round = (tt.round || 0) + 1;
     tt.subPhaseIdx = 0;
     tt._beforeTricksRan = false;   // re-arm the before-tricks pass for this round
+    // Clear the post-combat marker the moment the new round's card phase begins.
+    // The combat watchdog stays armed while this flag is set (it guards the whole
+    // 2v2 post-combat window); left true into the card/trick phases, a human who
+    // takes longer than the watchdog window to act trips it, and its post-combat
+    // branch force-advances the round — repeatedly, flying through rounds. 1v1's
+    // startRound clears it here for the same reason.
+    this.state._combatFinishedThisRound = false;
+    this.state._inCombat = false;
+    delete this.state._beforeCombatFired;
 
     // Grant energy for this round (round number)
     const energy = tt.round;
@@ -13838,6 +13854,10 @@ const Game = {
     s.ai.maxHealth = tt.teams.B.maxHealth;
     s.ai.blockMeter = tt.teams.B.blockMeter;
     s.ai.deadPile  = tt.teams.B.deadPile;
+    // Mr. Freeze health-bar freeze — carry the team's frozen-hit count into the
+    // combat proxy so damagePlayer negates hits (and the frozen-bar shows).
+    s.player.healthFrozen = tt.teams.A.healthFrozen || false;
+    s.ai.healthFrozen     = tt.teams.B.healthFrozen || false;
 
     s.phase = '2v2-combat';
     if (typeof UI !== 'undefined' && UI.render) UI.render();

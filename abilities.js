@@ -600,6 +600,14 @@ const CARD_ABILITIES = {
       if (typeof UI !== 'undefined' && UI._fxFreezeRay) { try { UI._fxFreezeRay(self, targets); } catch (e) {} }
       G.state[self.owner].healthFrozen = hpHits;
       G.state[self.owner]._healthFrozenBy = self;
+      // 2v2: the side proxy is discarded when the sub-phase unbridges, so
+      // persist the freeze on the team (like team health) — combat sync and
+      // the board render read it back from there for the frozen-bar animation.
+      if (G.is2v2 && G.is2v2() && G.state.twoVTwo) {
+        const _tm = self.owner === 'player' ? 'A' : 'B';
+        const _t = G.state.twoVTwo.teams[_tm];
+        if (_t) { _t.healthFrozen = hpHits; }
+      }
       const who = Game.isHuman(self.owner) ? 'your' : 'its';
       const list = targets.length ? targets.map(t => t.name).join(', ') + ' and ' : '';
       G.log(`Mr. Freeze freezes ${list}${who} health bar (${hpHits} hits)!`);

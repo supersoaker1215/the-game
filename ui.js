@@ -12122,6 +12122,13 @@ const UI = {
       `${Math.max(0, (myTeamData.health / (myTeamData.maxHealth || 30)) * 100)}%`;
     document.getElementById('ai-hp-fill').style.width =
       `${Math.max(0, (oppTeamData.health / (oppTeamData.maxHealth || 30)) * 100)}%`;
+    // Mr. Freeze frozen health bar — same animation as 1v1. myTeam always maps
+    // to the bottom (player) bar, oppTeam to the top (ai) bar, so the flip is
+    // already handled by the team mapping above.
+    const _pFrz = document.getElementById('player-hp-fill').closest('.health-container');
+    const _aFrz = document.getElementById('ai-hp-fill').closest('.health-container');
+    if (_pFrz) _pFrz.classList.toggle('hp-frozen', !!myTeamData.healthFrozen);
+    if (_aFrz) _aFrz.classList.toggle('hp-frozen', !!oppTeamData.healthFrozen);
 
     // --- HUD: Block circles ---
     const blockMax = Game.BLOCK_MAX || 8;
