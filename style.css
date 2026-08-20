@@ -40916,3 +40916,101 @@ body.low-fx .badge-asleep { animation: none; }
   font-size: calc(var(--sb-num) * 0.40);
   letter-spacing: 0;
 }
+
+/* ============================================================
+   BRAINIAC FORESIGHT STRIP
+   Lives in the AI banner (.ai-bar), positioned just under it so it
+   never disturbs the bar's flex row. Shown only while the human's
+   _brainiacScanRounds > 0; UI._renderBrainiacScan fills / clears it.
+   ============================================================ */
+.brainiac-scan {
+  display: none;
+}
+.brainiac-scan.is-active {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 8px;
+  z-index: 6;
+  padding: 3px 8px 3px 6px;
+  border-radius: 8px;
+  background: rgba(18, 10, 28, 0.92);
+  border: 1px solid rgba(215, 179, 230, 0.55);   /* --palette-purple, dimmed */
+  box-shadow: 0 0 10px rgba(140, 90, 200, 0.35), inset 0 0 6px rgba(126, 232, 165, 0.10);
+  font-size: 11px;
+  line-height: 1;
+  pointer-events: auto;
+  animation: brainiac-scan-in 220ms ease-out;
+}
+@keyframes brainiac-scan-in {
+  from { opacity: 0; transform: translateY(-4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.brainiac-scan-eye {
+  font-size: 12px;
+  filter: drop-shadow(0 0 4px rgba(126, 232, 165, 0.7));
+}
+.brainiac-scan-empty {
+  color: var(--palette-purple);
+  opacity: 0.8;
+  font-style: italic;
+}
+.brainiac-scan-card {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 2px 6px 2px 3px;
+  border-radius: 6px;
+  background: rgba(126, 232, 165, 0.08);
+  border: 1px solid rgba(126, 232, 165, 0.22);
+}
+.brainiac-scan-order {
+  font-size: 9px;
+  font-weight: 700;
+  color: #120a1c;
+  background: var(--palette-purple);
+  border-radius: 50%;
+  width: 13px;
+  height: 13px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.brainiac-scan-art {
+  width: 18px;
+  height: 24px;
+  border-radius: 3px;
+  background-size: cover;
+  background-position: 50% 25%;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.5);
+}
+.brainiac-scan-name {
+  color: #eafff2;
+  font-weight: 600;
+  max-width: 130px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.brainiac-scan-cost {
+  font-size: 10px;
+  font-weight: 700;
+  color: #ffd27a;                                /* energy gold */
+  background: rgba(0, 0, 0, 0.35);
+  border-radius: 4px;
+  padding: 1px 4px;
+}
+.brainiac-scan-pulse {
+  animation: brainiac-scan-pulse 640ms ease-out;
+}
+@keyframes brainiac-scan-pulse {
+  0%   { box-shadow: 0 0 0 0 rgba(126, 232, 165, 0.55), 0 0 10px rgba(140, 90, 200, 0.35); }
+  70%  { box-shadow: 0 0 0 8px rgba(126, 232, 165, 0), 0 0 18px rgba(140, 90, 200, 0.6); }
+  100% { box-shadow: 0 0 0 0 rgba(126, 232, 165, 0), 0 0 10px rgba(140, 90, 200, 0.35); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .brainiac-scan.is-active { animation: none; }
+  .brainiac-scan-pulse { animation: none; }
+}

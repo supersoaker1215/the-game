@@ -13,7 +13,7 @@ const UI = {
   // cached PNGs (which don't have built-in cache busters since they're
   // referenced via background-image url() and not the index.html
   // version-suffix system). Bump this every time you regen art.
-  _CARD_ART_VERSION: 85,
+  _CARD_ART_VERSION: 86,
 
   // Per-card background-position overrides. Default is "center center".
   // Use when an image crops poorly at the default — e.g. a head gets cut
@@ -6932,6 +6932,10 @@ const UI = {
       isDeckbuilder ? s.player.trickDrawPile.length : s.trickDrawPile.length;
     document.getElementById('player-dead-count').textContent = s.player.deadPile.length;
     document.getElementById('ai-dead-count').textContent = s.ai.deadPile.length;
+    // Brainiac foresight strip — only the HUMAN player's scan is surfaced (the
+    // AI keeps its own reads private). Live-read the top of the opponent's pile
+    // each render so reorders/shuffles stay honest.
+    this._renderBrainiacScan(s);
     // Trick history badges — count of tricks each side has played
     // this match. Both sides visible so both players can count what's
     // been used vs. what's still in the opponent's deck.
@@ -20719,6 +20723,55 @@ const UI = {
   // pure theater, never blocks input.
   _trickRevealQueue: [],
   _trickRevealActive: false,
+  // Brainiac foresight strip — renders the opponent's next draws into
+  // #brainiac-scan while the human player's scan is active, or clears it.
+  _renderBrainiacScan(s) {
+    const el = document.getElementById('brainiac-scan');
+    if (!el) return;
+    const active = s && s.player && s.player._brainiacScanRounds > 0;
+    if (!active) {
+      if (el.childElementCount) el.innerHTML = '';
+      el.classList.remove('is-active');
+      return;
+    }
+    // Live-read the top of the OPPONENT's pile (classic shares one pile;
+    // deckbuilder returns the AI's own). Pile is popped from the end, so the
+    // next draws are the last entries, shown next-first.
+    const opp = (typeof Game !== 'undefined' && Game.opponent) ? Game.opponent('player') : 'ai';
+    const pile = (typeof Game !== 'undefined' && Game.getDrawPile) ? (Game.getDrawPile(opp) || []) : [];
+    const upcoming = [];
+    for (let i = pile.length - 1; i >= 0 && upcoming.length < 2; i--) {
+      if (pile[i] && pile[i].name) upcoming.push(pile[i]);
+    }
+    const esc = (t) => String(t == null ? '' : t).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    let html = '<span class="brainiac-scan-eye" aria-hidden="true">👁</span>';
+    if (!upcoming.length) {
+      html += '<span class="brainiac-scan-empty">Deck empty</span>';
+    } else {
+      html += upcoming.map((c, idx) => {
+        const art = this.getCardArtPath ? this.getCardArtPath(c.name) : '';
+        const cost = (c.cost != null ? c.cost : (c.baseCost != null ? c.baseCost : ''));
+        return `<span class="brainiac-scan-card" title="${esc(c.name)}">`
+          + `<span class="brainiac-scan-order">${idx + 1}</span>`
+          + (art ? `<span class="brainiac-scan-art" style="background-image:url('${esc(art)}')"></span>` : '')
+          + `<span class="brainiac-scan-name">${esc(c.name)}</span>`
+          + (cost !== '' ? `<span class="brainiac-scan-cost">${esc(cost)}</span>` : '')
+          + `</span>`;
+      }).join('');
+    }
+    el.innerHTML = html;
+    el.classList.add('is-active');
+  },
+  // Immediate "ping" when the human discards Brainiac — a brief pulse on the
+  // strip so the reveal reads as a deliberate event, not a silent HUD change.
+  _fxBrainiacScan(upcoming) {
+    const el = document.getElementById('brainiac-scan');
+    if (!el) return;
+    el.classList.remove('brainiac-scan-pulse');
+    // Force reflow so re-adding the class restarts the animation.
+    void el.offsetWidth;
+    el.classList.add('brainiac-scan-pulse');
+  },
   // `mine` — true when the LOCAL player cast it ("You play a Trick");
   // false/omitted for the opponent's plays. User direction: the reveal
   // fires for BOTH sides ("I played Eye of Agamotto and the new trick

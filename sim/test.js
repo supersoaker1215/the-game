@@ -5971,6 +5971,36 @@ test("The Reveal raises a body that dies in its lane, as a (1/1)", function () {
   assertEq(G.state.lanes[1]._env.player, null, 'and its lane slot is cleared');
 });
 
+test("Brainiac is discard-only and reveals the opponent's next 2 draws", function () {
+  var G = freshGame();
+  var brain = G.createCardInstance(cardByName('Brainiac'), 'player');
+  assertEq(!!brain.isDiscardEffect, true, 'Brainiac is a discard effect (never seated in a lane)');
+
+  // Seed the shared/opponent draw pile. Draws pop from the END, so the NEXT
+  // draw is the last element pushed.
+  var pile = G.getDrawPile('ai');
+  pile.length = 0;
+  pile.push(cardByName('Hawkeye'));   // drawn 2nd
+  pile.push(cardByName('Bane'));      // drawn 1st (top)
+
+  var upcoming = CARD_ABILITIES['Brainiac']._upcoming(G, 'player', 2);
+  assertEq(upcoming.length, 2, 'sees two cards');
+  assertEq(upcoming[0].name, 'Bane', 'next draw first');
+  assertEq(upcoming[1].name, 'Hawkeye', 'then the one after');
+
+  CARD_ABILITIES['Brainiac'].onDiscard(G, 'player', brain);
+  assertEq(G.state.player._brainiacScanRounds, 2, 'scan lasts two rounds');
+});
+
+test("Brainiac's foresight ticks down and expires at round start", function () {
+  var G = freshGame();
+  G.state.player._brainiacScanRounds = 2;
+  G.startRound();
+  assertEq(G.state.player._brainiacScanRounds, 1, 'one round spent');
+  G.startRound();
+  assertEq(G.state.player._brainiacScanRounds, 0, 'and it fades after the second');
+});
+
 test("A body raised alone still gets Lone Wolf — the room does not bypass it", function () {
   // The other half of the case above, pinned deliberately rather than left as a
   // surprise: with no other ally on the board the risen body is a 2/2, because

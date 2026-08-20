@@ -75,6 +75,9 @@ window.CARD_ART_VARIANTS = {
   'Venom':               ['Venom.png',                'Venom 2.png'],
   'Wolverine':           ['Wolverine.png'],
   // ── New art additions ──
+  // Green Lantern had no manifest entry (single art = no picker). Original
+  // stays the default; the new variant is one name-click cycle behind it.
+  'Green Lantern':       ['Green Lantern.png',        'Green Lantern 2.png'],
   'Han Solo':            ['Han Solo.jpg'],
   'Darth Maul':          ['Darth Maul.jpg'],
   'Padme Amidala':       ['Padme Amidala.png'],

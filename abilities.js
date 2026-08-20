@@ -1362,6 +1362,45 @@ const CARD_ABILITIES = {
       placeRoomStep(0);
     }
   },
+  "Brainiac": {
+    // Discard-only, like Mr. Fantastic and Jigsaw — 0/0, isDiscardEffect keeps
+    // playCard from ever seating it in a lane. Its whole payload is the scry.
+    isDiscardEffect: true,
+    // Peek the opponent's next N draws. The draw pile is popped from the END
+    // (drawCards → drawPile.pop()), so the "next" cards are the last entries,
+    // read back-to-front. Classic shares one pile (getDrawPile returns it for
+    // either side); Deckbuilder returns the opponent's own pile — both are
+    // "what the opponent is about to draw", which is all this needs.
+    _upcoming(G, owner, n) {
+      const opp = G.opponent(owner);
+      const pile = G.getDrawPile(opp) || [];
+      const out = [];
+      for (let i = pile.length - 1; i >= 0 && out.length < n; i--) {
+        const c = pile[i];
+        if (c && c.name) out.push(c);
+      }
+      return out;
+    },
+    onDiscard(G, owner, self) {
+      const COUNT = 2;
+      // The reveal is a LIVE scan, not a snapshot: the UI re-reads the top of
+      // the pile every render (so reorders / shuffles stay honest). Store only
+      // how long it lasts — two rounds, ticked down in startRound.
+      G.state[owner]._brainiacScanRounds = Math.max(G.state[owner]._brainiacScanRounds || 0, COUNT);
+      const upcoming = CARD_ABILITIES['Brainiac']._upcoming(G, owner, COUNT);
+      const who = G.seatPossessive ? G.seatPossessive(G.opponent(owner)) : "the opponent's";
+      if (!upcoming.length) {
+        G.log(`[BRAINIAC] ${who} draw pile is empty — nothing to foresee (yet).`);
+      } else {
+        G.log(`[BRAINIAC] Foreseeing ${who} next ${upcoming.length} draw${upcoming.length === 1 ? '' : 's'}: ${upcoming.map(c => c.name).join(', ')}.`);
+      }
+      // Surface it immediately to the human when THEY are the one scrying. The
+      // persistent strip (UI.render) is the lasting reveal; this is the "ping".
+      if (owner === 'player' && typeof UI !== 'undefined' && UI._fxBrainiacScan) {
+        try { UI._fxBrainiacScan(upcoming); } catch (e) {}
+      }
+    }
+  },
   "Loki": {
     onPlay(G, self, lane) {
       // Block-meter fill % scales with tier. Common: 50%, Rare: 100%

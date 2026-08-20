@@ -3342,6 +3342,17 @@ const Game = {
     // meant to cover, not during it.
     this.tickSleep('player');
     this.tickSleep('ai');
+    // Brainiac's foresight expires — one round of scan spent per side each
+    // round it's active. Two draws revealed ≈ two rounds of visibility.
+    ['player', 'ai'].forEach(o => {
+      if (this.state[o]._brainiacScanRounds > 0) {
+        this.state[o]._brainiacScanRounds--;
+        if (this.state[o]._brainiacScanRounds <= 0) {
+          this.state[o]._brainiacScanRounds = 0;
+          this.log(`[BRAINIAC] ${this.seatLabel(o)}'s foresight fades.`);
+        }
+      }
+    });
     const r = this.state.round;
     // Sanitize all living cards — heal any currentHealth/maxHealth/attack
     // that drifted to NaN/undefined over the previous round. Belt-and-
