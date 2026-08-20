@@ -10360,31 +10360,50 @@ const UI = {
       el.classList.add(cls);
       setTimeout(() => el.classList.remove(cls), 620);
     };
+    const at = (ms, fn) => setTimeout(fn, ms);
     switch (weapon) {
       case 'scissors':
+        // Blades fly in and close; two quick snips cross the card as the cut.
         glyph('scissors', 'fx-art-scissors', 720);
-        if (this._fxSparks) this._fxSparks(c, { color: '#dfe7ee', glow: '#9fb3c8', count: 10, spread: 46, size: 2.2 });
-        if (this._fxRing) this._fxRing(el, { color: '#38e6ff' });
-        shake('fx-art-hit');
+        if (this._fxSlashEl) {
+          at(190, () => this._fxSlashEl(el, { blade: '#8fe9ff', core: '#eaffff', angle: -7 }));
+          at(310, () => this._fxSlashEl(el, { blade: '#8fe9ff', core: '#eaffff', angle: 7 }));
+        }
+        if (this._fxSparks) at(250, () => this._fxSparks(c, { color: '#dfe7ee', glow: '#9fb3c8', count: 10, spread: 46, size: 2.2 }));
+        at(250, () => shake('fx-art-hit'));
         break;
       case 'sledgehammer':
+        // Drops from above; impact, sparks, shake and a light screen jolt all
+        // land together on the ~350ms slam frame, not at the top of the swing.
         glyph('sledgehammer', 'fx-art-sledge', 640);
-        if (this._fxImpact) this._fxImpact(c, { color: '#38e6ff', core: '#d6faff', size: 1.35 });
-        if (this._fxSparks) this._fxSparks(c, { color: '#9fe9ff', glow: '#0f9bd6', count: 16, spread: 74, size: 3.0 });
-        shake('fx-art-hit-heavy');
+        at(330, () => {
+          if (this._fxImpact) this._fxImpact(c, { color: '#38e6ff', core: '#d6faff', size: 1.5 });
+          if (this._fxSparks) this._fxSparks(c, { color: '#9fe9ff', glow: '#0f9bd6', count: 18, spread: 84, size: 3.3 });
+          if (this._screenShake) this._screenShake('light');
+          shake('fx-art-hit-heavy');
+        });
         break;
       case 'scythe':
+        // One sweeping arc; a clean diagonal cut flashes along its path.
         glyph('scythe', 'fx-art-scythe', 700);
-        if (this._fxSparks) this._fxSparks(c, { color: '#b8f4ff', glow: '#17b6e6', count: 14, angle: -Math.PI / 4, cone: 0.6, spread: 80, size: 2.8 });
-        if (this._fxRing) this._fxRing(el, { color: '#38e6ff' });
-        shake('fx-art-hit');
+        at(300, () => {
+          if (this._fxSlashEl) this._fxSlashEl(el, { blade: '#38e6ff', core: '#eaffff', angle: 42 });
+          if (this._fxSparks) this._fxSparks(c, { color: '#b8f4ff', glow: '#17b6e6', count: 14, angle: -Math.PI / 4, cone: 0.6, spread: 80, size: 2.8 });
+          shake('fx-art-hit');
+        });
         break;
       case 'hacksaw':
+        // Saws back and forth; two red cuts open the wound as it drags → bleed.
         glyph('hacksaw', 'fx-art-hacksaw', 760);
-        if (this._fxSparks) this._fxSparks(c, { color: '#9fe9ff', glow: '#0f9bd6', count: 12, spread: 60, size: 2.6 });
-        shake('fx-art-hit');
+        if (this._fxSlashEl) {
+          at(150, () => this._fxSlashEl(el, { blade: '#ff5470', core: '#ffd6dd', angle: 6 }));
+          at(380, () => this._fxSlashEl(el, { blade: '#ff5470', core: '#ffd6dd', angle: -3 }));
+        }
+        if (this._fxSparks) at(260, () => this._fxSparks(c, { color: '#ff5470', glow: '#b3122f', count: 12, spread: 60, size: 2.6 }));
+        at(220, () => shake('fx-art-hit'));
         break;
       case 'bleedTick':
+        // A bead of blood wells up and falls — small, red, no shake.
         glyph('bleed', 'fx-art-bleed', 820);
         if (this._fxSparks) this._fxSparks(c, { color: '#e0244d', glow: '#7a0d22', count: 8, angle: Math.PI / 2, cone: 0.7, spread: 40, size: 2.4 });
         break;
