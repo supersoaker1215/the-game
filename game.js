@@ -10061,15 +10061,20 @@ const Game = {
       // picks an ally, THEN asks for a lane) was never stamped at all. The
       // resolve guards already handle actor==='p1' correctly — the host falls
       // through to local resolution, guests bail — so stamping p1 is safe.
-      if (this.is2v2() && this.state.twoVTwo && this.state.twoVTwo.online && _cap) {
+      // `_cap` can be stale/unset when a prompt is raised from a deferred
+      // callback deep inside AI play — fall back to the seat currently being
+      // driven so an AI seat's prompt is never mistaken for a human's (that
+      // stranded the round: the AI finished but a target prompt sat forever).
+      const _actor = _cap || this._2v2AIDriving;
+      if (this.is2v2() && this.state.twoVTwo && this.state.twoVTwo.online && _actor) {
         // An AI filler seat has no remote client to answer — the driving
         // authority resolves it here with a sensible auto-pick (first open lane).
-        if (this._2v2SeatIsAI(_cap) && this._2v2IsAIAuthority()) {
+        if (this._2v2SeatIsAI(_actor) && this._2v2IsAIAuthority()) {
           this.state.pendingLaneChoice = null;
           callback(lanes[0]);
           return;
         }
-        this.state.pendingLaneChoice._2v2ActingPlayer = _cap;
+        this.state.pendingLaneChoice._2v2ActingPlayer = _actor;
         return;
       }
       // 1v1 online: a lane choice owned by the guest seat ('ai') must be
@@ -10217,16 +10222,19 @@ const Game = {
       // picks an ally, THEN asks for a lane) was never stamped at all. The
       // resolve guards already handle actor==='p1' correctly — the host falls
       // through to local resolution, guests bail — so stamping p1 is safe.
-      if (this.is2v2() && this.state.twoVTwo && this.state.twoVTwo.online && _cap) {
+      // See promptLaneChoice: fall back to the seat being driven so a prompt
+      // raised from a deferred callback during AI play never strands the round.
+      const _actor = _cap || this._2v2AIDriving;
+      if (this.is2v2() && this.state.twoVTwo && this.state.twoVTwo.online && _actor) {
         // AI filler seat: no remote client — the driving authority auto-picks
         // via the ability's own aiPicker (falls back to the first candidate).
-        if (this._2v2SeatIsAI(_cap) && this._2v2IsAIAuthority()) {
+        if (this._2v2SeatIsAI(_actor) && this._2v2IsAIAuthority()) {
           const pick = (typeof aiPicker === 'function') ? aiPicker(cards) : cards[0];
           this.state.pendingCardChoice = null;
           callback(pick);
           return;
         }
-        this.state.pendingCardChoice._2v2ActingPlayer = _cap;
+        this.state.pendingCardChoice._2v2ActingPlayer = _actor;
         return;
       }
       // 1v1 online: a card/target choice owned by the guest seat ('ai')
@@ -13534,12 +13542,26 @@ const Game = {
     this._2v2AIDriving = activeKey;
     const side = this._2v2ActiveSide();
     this._2v2CurrentActingPlayer = activeKey;
+    const watchGen = (this._2v2AIWatchGen = (this._2v2AIWatchGen || 0) + 1);
+    let finished = false;
     const finish = () => {
+      if (finished) return;   // watchdog + real completion can't both advance
+      finished = true;
       this._2v2AIDriving = null;
       this._2v2CurrentActingPlayer = null;
       // Mirror the human path: end2v2Phase reads the seat back and advances.
       try { this.end2v2Phase(); } catch (e) { console.error('[2v2 AI] end phase threw', e); }
     };
+    // WATCHDOG — if an AI seat's turn hangs (a play callback that never fires,
+    // an ability prompt that somehow stalls), force the phase to end so the
+    // round can never freeze on an AI. Only fires if THIS drive is still the
+    // active one after the timeout.
+    this._schedule(() => {
+      if (!finished && this._2v2AIDriving === activeKey && this._2v2AIWatchGen === watchGen) {
+        console.warn('[2v2 AI] watchdog forced phase end for', activeKey);
+        finish();
+      }
+    }, 12000);
     const run = () => {
       try {
         if (typeof AI === 'undefined') { finish(); return; }
