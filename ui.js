@@ -10174,6 +10174,35 @@ const UI = {
       setTimeout(() => el.classList.remove('fx-ghost-flicker'), 620);
     });
   },
+  // Carnage — a red-symbiote frenzy: tendrils lash out to every enemy and feed
+  // back into Carnage as he heals. Enemies recomputed on each client from
+  // self.owner, so the MP guest rebuilds it from its own board.
+  _fxCarnageFrenzy(self) {
+    if (this._reducedMotion() || !self) return;
+    const enemies = (typeof Game !== 'undefined' && Game.getEnemiesOf)
+      ? Game.getEnemiesOf(self.owner).filter(e => e.currentHealth > 0) : [];
+    const froms = enemies.map(e => this._fxCenter(this._fxCardElById(e.id))).filter(Boolean);
+    this._fxWhenPainted(self, (el) => {
+      el.classList.remove('fx-carnage-frenzy'); void el.offsetWidth; el.classList.add('fx-carnage-frenzy');
+      setTimeout(() => el.classList.remove('fx-carnage-frenzy'), 700);
+      this._fxRing(el, { color: '#e01e1e' });
+      const to = this._fxCenter(el);
+      froms.forEach((from, i) => setTimeout(() => { if (to) this._fxTendril(from, to, { color: '#5c0a0a', glow: '#ff3b3b', bow: 22 }); }, i * 70));
+      if (to) this._fxSparks(to, { color: '#ff6b6b', glow: '#c81e1e', count: 12, angle: -Math.PI / 2, cone: 1.9, spread: 60, size: 2.8 });
+    });
+  },
+  // Michael Myers — the stalk: a cold steel knife-glint slashes across him and
+  // he darkens into shadow as he steps in (normal play or jump).
+  _fxMyersStalk(self) {
+    if (this._reducedMotion() || !self) return;
+    this._fxWhenPainted(self, (el) => {
+      el.classList.remove('fx-myers-stalk'); void el.offsetWidth; el.classList.add('fx-myers-stalk');
+      setTimeout(() => el.classList.remove('fx-myers-stalk'), 720);
+      this._fxSlash(el, { count: 1, color: '#dfe8f0', angle: -52 });
+      const c = this._fxCenter(el);
+      if (c) this._fxSparks(c, { color: '#cfd8e3', glow: '#8fa0b3', count: 6, spread: 38, size: 2.2 });
+    });
+  },
 
   // Human Torch — Flame On! He combusts and hurls a fireball at the blast target.
   _fxHumanTorchFlame(self, targetCard) {

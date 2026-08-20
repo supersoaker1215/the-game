@@ -1034,6 +1034,7 @@ const CARD_ABILITIES = {
         G.healPlayer(self.owner, amount, self);
         G.log(`Carnage heals you for ${amount}!`);
         self.carnageHealed = true;
+        if (typeof UI !== 'undefined' && UI._fxCarnageFrenzy) { try { UI._fxCarnageFrenzy(self); } catch (e) {} }
       }
     }
   },
@@ -2607,6 +2608,7 @@ const CARD_ABILITIES = {
         G.buffCard(self, buff, buff);
         G.log(`Michael Myers stalks alone — +${buff}/+${buff}!`);
       }
+      if (typeof UI !== 'undefined' && UI._fxMyersStalk) { try { UI._fxMyersStalk(self); } catch (e) {} }
     },
     onDeath(G, self) { self.jumpReady = false; self.jumpLane = undefined; }
   },

@@ -41229,3 +41229,18 @@ body.low-fx .badge-asleep { animation: none; }
 @media (prefers-reduced-motion: reduce) {
   .fx-art-weapon, .fx-art-hit, .fx-art-hit-heavy { animation: none; }
 }
+
+/* Carnage frenzy — red-symbiote glow pulse as he feeds and heals. */
+.fx-carnage-frenzy { animation: fx-carnage-frenzy 0.7s ease-out; }
+@keyframes fx-carnage-frenzy {
+  0%   { filter: none; }
+  30%  { filter: drop-shadow(0 0 10px rgba(224,30,30,0.9)) saturate(1.45); }
+  100% { filter: none; }
+}
+/* Michael Myers stalk — the card darkens into cold shadow as he steps in. */
+.fx-myers-stalk { animation: fx-myers-stalk 0.72s ease-out; }
+@keyframes fx-myers-stalk {
+  0%   { filter: none; }
+  40%  { filter: brightness(0.68) contrast(1.2) drop-shadow(0 0 8px rgba(150,170,190,0.7)); }
+  100% { filter: none; }
+}
