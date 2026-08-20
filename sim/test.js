@@ -2651,6 +2651,44 @@ test("a living Moder still pulls the next enemy card into his lane", function ()
   // nothing to do with this fix; the claimant IS the mechanism the pull reads.
 });
 
+test("Moder's compulsion FIZZLES on the next card when his lane is blocked — no lurking ambush", function () {
+  // 1v1 report: a Moder standing in front of an occupied lane lurked for turns,
+  // then yanked a totally different card in and stripped it. The compel is a
+  // one-shot on the opponent's NEXT card — if Moder's lane can't take it, it
+  // fizzles instead of persisting to ambush a later card.
+  var G = freshGame();
+  var moder = place(G, 'Moder', 'player', 4);
+  place(G, 'King Shark', 'ai', 4);            // "in front of some other card"
+  CARD_ABILITIES['Moder'].onPlay(G, moder, 4);
+  assertEq(G.state.ai.forcedLane, 4, 'compel armed');
+
+  // The AI's next card lands elsewhere (blocked lane) → fizzle.
+  var next = G.createCardInstance(cardByName('Sabertooth'), 'ai');
+  var lane1 = G._redirectForForcedLane('ai', next, 0);
+  assertEq(lane1, 0, 'the next card stays where it was played');
+  assertEq(G.state.ai.forcedLane, null, 'the compel is spent, not left armed');
+  assertEq(!!next._moderStripped, false, 'and the card keeps its abilities');
+  assertEq(moder._moderStripPending, 0, 'the pending charge is consumed');
+
+  // Later, with the lane free, a big card must NOT be grabbed by the dead compel.
+  G.state.lanes[4].ai = null;
+  var gz = G.createCardInstance(cardByName('Godzilla'), 'ai');
+  var lane2 = G._redirectForForcedLane('ai', gz, 5);
+  assertEq(lane2, 5, 'a later card is not yanked into Moder\'s lane');
+  assertEq(!!gz._moderStripped, false, 'and keeps its abilities');
+});
+
+test("Moder still pulls + strips the next card when his lane IS free", function () {
+  // The control: the fizzle fix must not disarm a Moder whose lane can take the card.
+  var G = freshGame();
+  var moder = place(G, 'Moder', 'player', 3);
+  CARD_ABILITIES['Moder'].onPlay(G, moder, 3);
+  var next = G.createCardInstance(cardByName('Godzilla'), 'ai');
+  var lane = G._redirectForForcedLane('ai', next, 1);   // chose lane 1; Moder's lane 3 is free
+  assertEq(lane, 3, 'the next card is pulled into Moder\'s lane');
+  assertEq(!!next._moderStripped, true, 'and loses its abilities');
+});
+
 test('a destroyed lane kills the compulsion too', function () {
   var G = freshGame();
   var moder = place(G, 'Moder', 'player', 1);

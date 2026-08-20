@@ -4142,11 +4142,28 @@ const Game = {
       const fl = this.state[owner].forcedLane;
       const flLane = this.state.lanes[fl];
       if (mpGuestPlay) {
-        // Guest is UI-locked to the forced lane — their pick IS fl. Claim it.
-        // Don't override laneIdx (see note above: avoids a UI-lock/server race).
+        // 1v1 MP: the guest's UI locks them to the forced lane ONLY when that
+        // lane can take the card, so in the normal case their msg.lane IS fl —
+        // trust it (don't override laneIdx, to avoid a UI-lock/server race). But
+        // when Moder's lane is occupied/destroyed the guest is NOT locked and
+        // plays elsewhere (laneIdx !== fl). This branch used to strip regardless
+        // of where the guest actually played — so a Moder standing in front of
+        // an occupied lane stripped the guest's next card wherever it landed
+        // (user's 1v1-MP report: "Moder was in front of another card, I played
+        // Godzilla into a different lane and he still lost his abilities"). Only
+        // strip when the guest genuinely played into Moder's free lane; else the
+        // one-shot compel fizzles.
         this.state[owner].forcedLane = null;
-        this._nextCardClaimed = true;
-        this._moderStripOnArrival(card, flLane, owner);
+        if (laneIdx === fl && flLane && !flLane.destroyed) {
+          this._nextCardClaimed = true;
+          this._moderStripOnArrival(card, flLane, owner);
+        } else {
+          const staleModer = flLane ? flLane[this.opponent(owner)] : null;
+          if (staleModer && this.isCardKind(staleModer, 'Moder') && staleModer._moderStripPending > 0) {
+            staleModer._moderStripPending -= 1;
+          }
+          this.log(`[MODER] ${card.name} was not pulled into lane ${fl + 1} — Moder's compulsion fizzles.`);
+        }
       } else {
         if (flLane && !flLane.destroyed && !flLane[owner]) {
           laneIdx = fl;
@@ -4159,8 +4176,44 @@ const Game = {
           // forced card's When Played, and it can't be pre-empted by an
           // onPlay that would have killed Moder first.
           this._moderStripOnArrival(card, flLane, owner);
+        } else {
+          // MODER'S LANE CAN'T TAKE THE CARD (occupied or destroyed). The compel
+          // is a "next card" ONE-SHOT — it must be spent on THIS card whether or
+          // not the pull lands, never left armed to ambush a later card once the
+          // lane clears. Previously it persisted, so a Moder played in front of
+          // an occupied lane would lurk for turns and then yank a totally
+          // different card in and strip it (user: "Moder was in front of some
+          // other card, I played Godzilla into another lane and he STILL lost
+          // his abilities" — a stale compel from earlier grabbed Godzilla).
+          // Fizzle: consume the compel and one pending charge; the card plays
+          // where its owner put it, keeping every ability.
+          const staleModer = flLane ? flLane[this.opponent(owner)] : null;
+          if (staleModer && this.isCardKind(staleModer, 'Moder') && staleModer._moderStripPending > 0) {
+            staleModer._moderStripPending -= 1;
+          }
+          this.state[owner].forcedLane = null;
+          this.log(`[MODER] ${card.name} can't be pulled into lane ${fl + 1} — Moder's compulsion fizzles.`);
         }
-        // else: Moder's lane is full → leave forcedLane armed (warning persists).
+      }
+    }
+    // MODER ONE-SHOT FIZZLE. The claimant pass above only counts Moder when his
+    // lane is FREE (see _nextEnemyCardClaimant), so a Moder whose lane is
+    // occupied/destroyed never entered the block and left `forcedLane` armed —
+    // which is exactly the lurking-compel bug: it waited across turns and then
+    // yanked a totally different card in and stripped it once the lane cleared
+    // (user, 1v1 MP: "Moder was in front of some other card, I played Godzilla
+    // into another lane and he STILL lost his abilities"). The compel is a
+    // "next card" one-shot, so a real combat card played while Moder can't pull
+    // SPENDS it. (Env/discard plays returned early above and never reach here.)
+    // Skip only when Batman Who Laughs is set to steal this card instead — then
+    // Moder rightly waits for the opponent's next card.
+    if (this.state[owner].forcedLane != null && !this._nextCardClaimed && !this.state[owner].nextCardStolen) {
+      const fzLane = this.state.lanes[this.state[owner].forcedLane];
+      const fzModer = fzLane ? fzLane[this.opponent(owner)] : null;
+      if (fzModer && this.isCardKind(fzModer, 'Moder')) {
+        if (fzModer._moderStripPending > 0) fzModer._moderStripPending -= 1;
+        this.log(`[MODER] ${card.name} couldn't be pulled into lane ${this.state[owner].forcedLane + 1} — Moder's compulsion fizzles.`);
+        this.state[owner].forcedLane = null;
       }
     }
     // Old-Magneto forced-lane queue: the reader lived here until 2026-07-15.
