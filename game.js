@@ -911,7 +911,7 @@ const Game = {
     const side = this._2v2TeamSide[ap.team];
     if (isHost) {
       this._2v2CurrentActingPlayer = you;
-      this._2v2WithSideBridge(() => this.playJumpCard(side, card));
+      this._2v2WithJumperBridge(you, () => this.playJumpCard(side, card));
       this._2v2StampPendingActor();
       if (!this.state.pendingLaneChoice && !this.state.pendingCardChoice) this._2v2CurrentActingPlayer = null;
       this._2v2OnlineBroadcast();
@@ -11826,7 +11826,109 @@ const Game = {
   },
 
   // Check jump conditions after game events. trigger: 'trickPlayed', 'cardPlayed', 'allyDied'
+  // Per-card jump-condition check, shared by 1v1 and 2v2. Arms card.jumpReady
+  // (+ jumpLane) and logs when a condition fires; returns true if it armed.
+  // `owner` is the SIDE the card would land on ('player'|'ai') — a team side in
+  // 2v2 — and `opp` its opponent side.
+  _armJumpForCard(card, owner, opp, trigger, data) {
+    if (card.jumpReady) return false;
+    if (card.name === 'Ghostface' && trigger === 'trickPlayed' && data.owner !== owner
+        && this.canJumpNow(owner, card)) {
+      card.jumpReady = true;
+      this.log(`  [JUMP] Ghostface senses a trick! Free play available.`);
+      return true;
+    }
+    if (card.name === 'Michael Myers' && trigger === 'cardPlayed' && !data.isEnvironment && data.owner !== owner && data.cost < card.cost
+        && this.canJumpNow(owner, card, data.laneIdx)) {
+      card.jumpReady = true;
+      card.jumpLane = data.laneIdx;
+      this.log(`  [JUMP] Michael Myers senses weakness in lane ${data.laneIdx + 1}! Free play available.`);
+      return true;
+    }
+    if (this.isCardKind(card, 'Stripe') && trigger === 'heroDamaged' && this.canJumpNow(owner, card)) {
+      card.jumpReady = true;
+      this.log(`  [JUMP] Stripe smells blood! Free play available.`);
+      return true;
+    }
+    if (card.name === 'Art the Clown' && trigger === 'beforeTricks' && this.canJumpNow(owner, card)) {
+      const mine = this.getAllCardsOf(owner).filter(c => !c.isEnvironment).length;
+      const theirs = this.getAllCardsOf(opp).filter(c => !c.isEnvironment).length;
+      if (theirs > mine) {
+        card.jumpReady = true;
+        this.log(`  [JUMP] Art the Clown grins at the crowd (${theirs} vs ${mine})! Free play available.`);
+        return true;
+      }
+      return false;
+    }
+    if (card.name === 'Jason Voorhees' && trigger === 'allyDied' && data.owner === owner) {
+      const tgtLane = (typeof data.laneIdx === 'number') ? data.laneIdx : undefined;
+      if (!this.canJumpNow(owner, card, tgtLane)) return false;
+      card.jumpReady = true;
+      card.jumpLane = tgtLane;
+      const laneStr = card.jumpLane !== undefined ? ` in lane ${card.jumpLane + 1}` : '';
+      this.log(`  [JUMP] Jason Voorhees rises to avenge${laneStr}! Free play available.`);
+      return true;
+    }
+    return false;
+  },
+
+  // 2v2 jump scan: hands live per-SEAT (tt.players[pk].hand), and the trigger's
+  // owner is a team side, so scan every seat's hand against its team side. A
+  // human seat's armed jump surfaces as a pendingJumpOffer stamped with the
+  // seat (so only that client answers it); an AI seat's is auto-played by the
+  // host. This is why jumps (Ghostface on an enemy trick, etc.) were dead in
+  // 2v2 — the 1v1 scan only ever looked at state.player/ai.hand.
+  _checkJumpConditions2v2(trigger, data) {
+    const tt = this.state.twoVTwo;
+    if (!tt || !tt.players) return;
+    const isAuthority = !this._2v2IsAIAuthority || this._2v2IsAIAuthority();
+    let humanOffer = null;
+    this._2v2SLOTS.forEach(pk => {
+      const p = tt.players[pk];
+      if (!p || !Array.isArray(p.hand)) return;
+      const side = this._2v2TeamSide[p.team];
+      const opp = this.opponent(side);
+      p.hand.forEach(card => {
+        if (!this._armJumpForCard(card, side, opp, trigger, data)) return;
+        if (p.isAI) {
+          // Host authority auto-plays the AI seat's jump the moment it arms.
+          if (isAuthority) this._2v2AutoPlayJump(pk, card);
+        } else if (!humanOffer) {
+          humanOffer = { card, seat: pk, side };
+        }
+      });
+    });
+    // Only the authority (host) arms the shared offer + broadcasts it; each
+    // client's renderJumpOfferChoice then shows buttons only for its own seat.
+    if (humanOffer && !this.state.pendingJumpOffer && isAuthority) {
+      // `seat` drives the card lookup; `_2v2ActingPlayer` is what promptIsMine
+      // reads to gate the buttons to the owning seat only.
+      this.state.pendingJumpOffer = {
+        cardId: humanOffer.card.id, owner: humanOffer.side,
+        seat: humanOffer.seat, _2v2ActingPlayer: humanOffer.seat,
+      };
+      if (typeof UI !== 'undefined' && UI.render) UI.render();
+      this._2v2OnlineBroadcast();
+    }
+  },
+
+  // Host auto-plays an AI seat's jump-ready card into its team's board.
+  _2v2AutoPlayJump(pk, card) {
+    const tt = this.state.twoVTwo;
+    const p = tt && tt.players[pk];
+    if (!p) return;
+    const side = this._2v2TeamSide[p.team];
+    this._2v2CurrentActingPlayer = pk;
+    this._2v2WithJumperBridge(pk, () => this.playJumpCard(side, card));
+    this._2v2StampPendingActor();
+    if (!this.state.pendingLaneChoice && !this.state.pendingCardChoice) this._2v2CurrentActingPlayer = null;
+    this._2v2OnlineBroadcast();
+  },
+
   checkJumpConditions(trigger, data) {
+    if (this.is2v2 && this.is2v2() && this.state.twoVTwo && this.state.twoVTwo.online) {
+      return this._checkJumpConditions2v2(trigger, data);
+    }
     ['player', 'ai'].forEach(owner => {
       const opp = this.opponent(owner);
       // Track if a PLAYER-side jump just became available during this call
@@ -11835,52 +11937,8 @@ const Game = {
       // rolling past the window.
       let playerJumpNowReady = null;
       this.state[owner].hand.forEach(card => {
-        if (card.jumpReady) return; // Already glowing
-        if (card.name === 'Ghostface' && trigger === 'trickPlayed' && data.owner !== owner
-            && this.canJumpNow(owner, card)) {
-          card.jumpReady = true;
-          this.log(`  [JUMP] Ghostface senses a trick! Free play available.`);
-          if (this.isHuman(owner)) playerJumpNowReady = card;
-        }
-        if (card.name === 'Michael Myers' && trigger === 'cardPlayed' && !data.isEnvironment && data.owner !== owner && data.cost < card.cost
-            && this.canJumpNow(owner, card, data.laneIdx)) {
-          card.jumpReady = true;
-          // Lock MM to the lane directly in front of the enemy card that triggered the jump
-          card.jumpLane = data.laneIdx;
-          this.log(`  [JUMP] Michael Myers senses weakness in lane ${data.laneIdx + 1}! Free play available.`);
-          if (this.isHuman(owner)) playerJumpNowReady = card;
-        }
-        if (this.isCardKind(card, 'Stripe') && trigger === 'heroDamaged' && this.canJumpNow(owner, card)) {
-          // "Either player's hero takes damage" — deliberately no owner
-          // filter: your face or theirs, Stripe smells blood either way.
-          card.jumpReady = true;
-          this.log(`  [JUMP] Stripe smells blood! Free play available.`);
-          if (this.isHuman(owner)) playerJumpNowReady = card;
-        }
-        if (card.name === 'Art the Clown' && trigger === 'beforeTricks' && this.canJumpNow(owner, card)) {
-          // "Enemy has more cards on the field than you" — counted after both
-          // sides have finished playing cards this round (this trigger fires at
-          // the trick-phase boundary). Environments are scenery, not bodies, so
-          // they don't count toward either side's total.
-          const mine = this.getAllCardsOf(owner).filter(c => !c.isEnvironment).length;
-          const theirs = this.getAllCardsOf(opp).filter(c => !c.isEnvironment).length;
-          if (theirs > mine) {
-            card.jumpReady = true;
-            this.log(`  [JUMP] Art the Clown grins at the crowd (${theirs} vs ${mine})! Free play available.`);
-            if (this.isHuman(owner)) playerJumpNowReady = card;
-          }
-        }
-        if (card.name === 'Jason Voorhees' && trigger === 'allyDied' && data.owner === owner) {
-          const tgtLane = (typeof data.laneIdx === 'number') ? data.laneIdx : undefined;
-          // Don't offer a jump that cannot legally land — a destroyed lane
-          // (Anti-Life Equation / Darkseid Collapse), a lane our own side has
-          // since refilled, or a completely full board. Was destroyed-only.
-          if (!this.canJumpNow(owner, card, tgtLane)) return;
-          card.jumpReady = true;
-          card.jumpLane = tgtLane;
-          const laneStr = card.jumpLane !== undefined ? ` in lane ${card.jumpLane + 1}` : '';
-          this.log(`  [JUMP] Jason Voorhees rises to avenge${laneStr}! Free play available.`);
-          if (this.isHuman(owner)) playerJumpNowReady = card;
+        if (this._armJumpForCard(card, owner, opp, trigger, data) && this.isHuman(owner)) {
+          playerJumpNowReady = card;
         }
       });
       // A human-owned jump became ready — surface the "play free / skip"
@@ -11963,6 +12021,14 @@ const Game = {
   },
 
   // Play a jump card for free from hand. Does NOT consume energy and does NOT end the player's turn.
+  // True when the seat currently acting in 2v2 online is an AI fill — used to
+  // auto-resolve choices (lane picks, etc.) that would otherwise prompt.
+  _2v2ActingIsAI() {
+    const tt = this.state && this.state.twoVTwo;
+    const pk = this._2v2CurrentActingPlayer;
+    return !!(tt && tt.online && pk && tt.players[pk] && tt.players[pk].isAI);
+  },
+
   playJumpCard(owner, card) {
     if (!card.jumpReady) return;
     // Guest: forward to host so the host runs promptLaneChoice authoritatively.
@@ -12010,11 +12076,15 @@ const Game = {
       return;
     }
 
-    // Generic jump (Ghostface, Jason Voorhees) — let player pick any open lane
+    // Generic jump (Ghostface, Jason Voorhees) — let player pick any open lane.
+    // In 2v2 BOTH sides are "human", so isHuman(owner) can't tell a real player
+    // from an AI-filled seat; an AI seat must auto-place, never open a lane
+    // prompt no one can answer. _2v2ActingIsAI reads the acting seat's flag.
     card.jumpReady = false;
     const open = this.getOpenLanes(owner);
     if (!open.length) return;
-    if (this.isHuman(owner) && open.length > 1) {
+    const shouldPrompt = this.isHuman(owner) && open.length > 1 && !this._2v2ActingIsAI();
+    if (shouldPrompt) {
       this.promptLaneChoice(owner, open, `Jump: ${card.name}`, `Choose lane for ${card.name} (FREE)`, (lane) => {
         this.playCardFree(owner, card, lane);
         UI.render();
@@ -14135,8 +14205,20 @@ const Game = {
         const jcard = jap && (jap.hand || []).find(c => c.id === msg.cardId);
         if (!jcard || !jcard.jumpReady) break;
         this._2v2CurrentActingPlayer = pk;
-        this._2v2WithSideBridge(() => this.playJumpCard(this._2v2TeamSide[jap.team], jcard));
+        this._2v2WithJumperBridge(pk, () => this.playJumpCard(this._2v2TeamSide[jap.team], jcard));
         this._2v2StampPendingActor();
+        break;
+      }
+      case 'skip2v2Jump': {
+        // A seat declined its jump offer — clear the card's readiness and the
+        // shared offer, then re-broadcast so the window closes for everyone.
+        const sap = this.state.twoVTwo && this.state.twoVTwo.players[pk];
+        const scard = sap && (sap.hand || []).find(c => c.id === msg.cardId);
+        if (scard) { scard.jumpReady = false; scard.jumpLane = undefined; }
+        if (this.state.pendingJumpOffer && this.state.pendingJumpOffer.cardId === msg.cardId) {
+          this.state.pendingJumpOffer = null;
+        }
+        this._2v2OnlineBroadcast();
         break;
       }
       case 'end2v2Phase':
@@ -14279,6 +14361,47 @@ const Game = {
       s.drawPile = savedDraw;
       s.trickDrawPile = savedTrickDraw;
       this._2v2ReadBackActivePlayer();
+    };
+    let out, threw = true;
+    try { out = fn(); threw = false; }
+    finally {
+      if (!threw && this.hasPendingPrompt && this.hasPendingPrompt()) this.whenPromptCleared(unbridge);
+      else unbridge();
+    }
+    return out;
+  },
+
+  // Like _2v2WithSideBridge, but for a JUMP — which is played by a seat that is
+  // usually NOT the active player (Ghostface answers the ENEMY's trick, during
+  // the enemy's turn). The active-player bridge would point state[side].hand at
+  // the wrong seat, so the freed card landed on the board but was never spliced
+  // from the jumper's real hand (it stayed duplicated in hand). This points the
+  // side proxy at the JUMPER's own arrays so the splice writes through.
+  _2v2WithJumperBridge(pk, fn) {
+    const s = this.state, tt = s.twoVTwo;
+    const p = tt && tt.players[pk];
+    if (!p) return fn();
+    const side = this._2v2TeamSide[p.team];
+    const saved = {
+      hand: s[side].hand, trick: s[side].trickHand, cur: s[side].currency,
+      hp: s[side].health, mhp: s[side].maxHealth, bm: s[side].blockMeter, dead: s[side].deadPile,
+      draw: s.drawPile, trickDraw: s.trickDrawPile,
+    };
+    s[side].hand = p.hand;                       // by reference — splices write through
+    s[side].trickHand = p.trickHand;
+    s[side].currency = p.energy - (p.usedEnergy || 0);
+    s[side].health = tt.teams[p.team].health;
+    s[side].maxHealth = tt.teams[p.team].maxHealth;
+    s[side].blockMeter = tt.teams[p.team].blockMeter;
+    s[side].deadPile = tt.teams[p.team].deadPile;
+    s.drawPile = tt.drawPile; s.trickDrawPile = tt.trickDrawPile;
+    const unbridge = () => {
+      tt.teams[p.team].health = s[side].health;
+      tt.teams[p.team].blockMeter = s[side].blockMeter;
+      tt.drawPile = s.drawPile; tt.trickDrawPile = s.trickDrawPile;
+      s[side].hand = saved.hand; s[side].trickHand = saved.trick; s[side].currency = saved.cur;
+      s[side].health = saved.hp; s[side].maxHealth = saved.mhp; s[side].blockMeter = saved.bm; s[side].deadPile = saved.dead;
+      s.drawPile = saved.draw; s.trickDrawPile = saved.trickDraw;
     };
     let out, threw = true;
     try { out = fn(); threw = false; }

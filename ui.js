@@ -18534,10 +18534,20 @@ const UI = {
     // In multiplayer the host stores the card in the 'ai' hand (guest seat);
     // only search the player hand on single-player or the guest's own view.
     let jumpSeat = 'player';
-    let card = s.player.hand.find(c => c.id === offer.cardId);
-    if (!card && Game.isMultiplayer() && Game.mp && Game.mp.role === 'host') {
-      card = (s.ai.hand || []).find(c => c.id === offer.cardId);
-      if (card) jumpSeat = 'ai';
+    let card = null;
+    const tt2 = s.twoVTwo;
+    if (tt2 && tt2.online) {
+      // 2v2: the jump card lives in a specific SEAT's hand; the offer names it.
+      const seatKey = offer.seat;
+      const seatP = seatKey && tt2.players[seatKey];
+      card = seatP && (seatP.hand || []).find(c => c.id === offer.cardId);
+      jumpSeat = seatP ? Game._2v2TeamSide[seatP.team] : 'player';
+    } else {
+      card = s.player.hand.find(c => c.id === offer.cardId);
+      if (!card && Game.isMultiplayer() && Game.mp && Game.mp.role === 'host') {
+        card = (s.ai.hand || []).find(c => c.id === offer.cardId);
+        if (card) jumpSeat = 'ai';
+      }
     }
     // Tear the prompt down and let combat carry on. The old !card branch left
     // any modal from the previous frame on screen — render() only removes it
@@ -30423,6 +30433,19 @@ function jumpOfferPlay() {
   const s = Game.state;
   const offer = s.pendingJumpOffer;
   if (!offer) return;
+  // 2v2 online: the card lives in the owning seat's hand; submitCommand's
+  // playJump arm forks host-vs-guest (Multiplayer4). Clear the local offer.
+  const tt = s.twoVTwo;
+  if (tt && tt.online) {
+    const seatKey = offer.seat || tt.you;
+    const seatP = tt.players[seatKey];
+    const card = seatP && (seatP.hand || []).find(c => c.id === offer.cardId);
+    s.pendingJumpOffer = null;
+    if (card && card.jumpReady) Game.submitCommand({ type: 'playJump', payload: { card } });
+    Game.resumeCombatIfWaiting();
+    UI.render();
+    return;
+  }
   // Guest: let the host apply the jump so state stays authoritative.
   if (Game.isMultiplayer() && Game.mp && Game.mp.role === 'guest') {
     if (typeof Multiplayer !== 'undefined') Multiplayer.send({ t: 'promptResolve', choiceType: 'jumpPlay', cardId: offer.cardId });
@@ -30443,6 +30466,21 @@ function jumpOfferSkip() {
   const s = Game.state;
   const offer = s.pendingJumpOffer;
   if (!offer) return;
+  // 2v2 online: clear jumpReady on the owning seat's card and drop the offer;
+  // the host clears it authoritatively (a guest tells the host to).
+  const tt = s.twoVTwo;
+  if (tt && tt.online) {
+    const seatKey = offer.seat || tt.you;
+    const seatP = tt.players[seatKey];
+    const card = seatP && (seatP.hand || []).find(c => c.id === offer.cardId);
+    if (card) { card.jumpReady = false; card.jumpLane = undefined; }
+    s.pendingJumpOffer = null;
+    if (tt.you === 'p1') { Game._2v2OnlineBroadcast(); }
+    else if (typeof Multiplayer4 !== 'undefined') { Multiplayer4.send({ t: 'skip2v2Jump', playerKey: tt.you, cardId: offer.cardId }); }
+    Game.resumeCombatIfWaiting();
+    UI.render();
+    return;
+  }
   // Guest: let the host apply the skip so state stays authoritative.
   if (Game.isMultiplayer() && Game.mp && Game.mp.role === 'guest') {
     if (typeof Multiplayer !== 'undefined') Multiplayer.send({ t: 'promptResolve', choiceType: 'jumpSkip', cardId: offer.cardId });
