@@ -2195,7 +2195,9 @@ const CARD_ABILITIES = {
       // 2v2: choose whose hand to raid. The alias is held across the whole
       // face-down pick + trade-back chain (see withChosenOpponent), so the
       // steal and the give-back both land on the chosen player.
-      G.withChosenOpponent(self.owner, "Deadpool — whose hand?", (opp) => {
+      const deadpoolOwnerSeat = G._2v2CurrentActingPlayer || (G._2v2ActivePlayer && G._2v2ActivePlayer());
+      const dpIs2v2 = !!(G.state.twoVTwo && G.state.twoVTwo.online);
+      G.withChosenOpponent(self.owner, "Deadpool — whose hand?", (opp, victimKey) => {
       const enemyHand = G.state[opp].hand;
       if (!enemyHand.length) {
         G.log("Deadpool's final trick fails — the enemy has no cards in hand!");
@@ -2226,10 +2228,9 @@ const CARD_ABILITIES = {
           try { UI.showAITrickToast("Deadpool's Final Trick", desc, 'trick'); } catch (e) {}
         }
       };
-      G.promptCardChoice(self.owner, faceDownDeck,
-        "Deadpool's Final Trick",
-        "Pick a face-down card from the enemy's hand to steal",
-        (stolen) => {
+      const onStolen = (stolen) => {
+          // Back to the OWNER for the trade-back decision (2v2 routing).
+          if (dpIs2v2) G._2v2CurrentActingPlayer = deadpoolOwnerSeat;
           const idx = G.state[opp].hand.indexOf(stolen);
           if (idx >= 0) G.state[opp].hand.splice(idx, 1);
           stolen.owner = self.owner;
@@ -2262,9 +2263,21 @@ const CARD_ABILITIES = {
               showVictimToast(stolen.name, given.name);
             },
             cards => cards.slice().sort((a, b) => (a.baseCost || a.cost) - (b.baseCost || b.cost))[0]);
-        },
-        cards => cards[Math.floor(Game.rng() * cards.length)],
-        { faceDown: true });
+      };
+      // Step 1: WHO decides which card leaves the victim's hand.
+      const stealPicker = cards => cards[Math.floor(Game.rng() * cards.length)];
+      if (dpIs2v2 && victimKey) {
+        // 2v2: the VICTIM chooses which of their OWN cards to give up (face-up),
+        // routed to their seat — the Deadpool owner no longer picks for them.
+        G._2v2CurrentActingPlayer = victimKey;
+        G.promptCardChoice(opp, [...enemyHand], "Deadpool — Give Up a Card",
+          "Deadpool is raiding your hand! Choose a card to give up", onStolen, stealPicker);
+        G._2v2CurrentActingPlayer = deadpoolOwnerSeat;
+      } else {
+        // 1v1 / solo: Deadpool's owner blind-picks a face-down card (unchanged).
+        G.promptCardChoice(self.owner, faceDownDeck, "Deadpool's Final Trick",
+          "Pick a face-down card from the enemy's hand to steal", onStolen, stealPicker, { faceDown: true });
+      }
       });
     }
   },
@@ -2645,7 +2658,10 @@ const CARD_ABILITIES = {
       if (typeof UI !== 'undefined' && UI._fxGrinchGrab) { try { UI._fxGrinchGrab(self); } catch (e) {} }
       // 2v2: the Grinch's owner picks WHICH opponent gets robbed; that player
       // then picks which trick to give up. Alias is held across both prompts.
-      G.withChosenOpponent(self.owner, 'The Grinch — whose tricks?', (opp) => {
+      // grinchOwnerSeat is the acting seat when the Grinch was played — the
+      // keep/give-back choice belongs to it; the trick pick belongs to the victim.
+      const grinchOwnerSeat = G._2v2CurrentActingPlayer || (G._2v2ActivePlayer && G._2v2ActivePlayer());
+      G.withChosenOpponent(self.owner, 'The Grinch — whose tricks?', (opp, victimKey) => {
       const th = G.state[opp].trickHand;
       if (!th.length) {
         // No tricks to steal — triple stats
@@ -2677,6 +2693,9 @@ const CARD_ABILITIES = {
       //   1. OPP picks which trick to give up (human → prompt; AI → lowest cost)
       //   2. Grinch OWNER picks keep-or-give-back (human → prompt; AI → threshold)
       const resolveGrinchChoice = (chosen) => {
+        // Back to the OWNER for the keep/give-back decision (the victim only
+        // chose which trick to surrender).
+        if (G.state.twoVTwo && G.state.twoVTwo.online) G._2v2CurrentActingPlayer = grinchOwnerSeat;
         // Remove the EXACT object that was chosen, not the first same-named
         // one — decks can hold 2 copies of a trick (COPY_MAX=2), and a
         // name-based findIndex would splice the wrong copy when they differ in
@@ -2713,6 +2732,8 @@ const CARD_ABILITIES = {
           // Human Grinch owner picks keep-or-giveback via modal
           G.state.pendingCardChoice = {
             owner: self.owner,
+            // 2v2: this keep/give-back choice belongs to the Grinch's owner seat.
+            _2v2ActingPlayer: (G.state.twoVTwo && G.state.twoVTwo.online) ? grinchOwnerSeat : undefined,
             cards: [
               // _artName paints the stolen trick's real card face on the tile
               // (purple trick chrome via the tray's TRICK_DEFS check); cost gem
@@ -2737,13 +2758,17 @@ const CARD_ABILITIES = {
           if (chosen.cost >= 2) keep(); else giveBack();
         }
       };
+      // The VICTIM chooses which trick to give up — in 2v2 route the prompt to
+      // THEIR seat so the Grinch's owner can't pick for them (an AI victim
+      // auto-resolves via the lowest-cost picker). Stamp the acting player to
+      // the victim for the duration of arming this prompt.
+      if (G.state.twoVTwo && G.state.twoVTwo.online && victimKey) G._2v2CurrentActingPlayer = victimKey;
+      const lowestCost = (list) => [...list].sort((a, b) => a.cost - b.cost)[0];
       if (Game.isHuman(opp)) {
-        // Human opp picks which trick to give up
-        G.promptCardChoice(opp, [...th], "The Grinch — Steal", "The Grinch is stealing! Choose a trick to give up", resolveGrinchChoice);
+        G.promptCardChoice(opp, [...th], "The Grinch — Steal", "The Grinch is stealing! Choose a trick to give up", resolveGrinchChoice, lowestCost);
       } else {
-        // AI opp auto-picks lowest cost to minimize value lost
-        const sorted = [...th].sort((a, b) => a.cost - b.cost);
-        resolveGrinchChoice(sorted[0]);
+        // Solo AI opp auto-picks lowest cost to minimize value lost
+        resolveGrinchChoice(lowestCost([...th]));
       }
       });
     }
