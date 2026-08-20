@@ -12269,6 +12269,12 @@ const UI = {
     if (s.pendingBlockTrick) { this.renderBlockTrickChoice(s); }
     else { const bt = document.getElementById('block-trick-modal'); if (bt) bt.remove(); }
 
+    // Jump offer (Ghostface / Jason / Michael Myers / Art / Stripe) — the 1v1
+    // render owns it elsewhere; the 2v2 board returned first, so a Jason that
+    // armed mid-combat never showed its Play/Skip modal. Surface it here.
+    if (s.pendingJumpOffer) { this.renderJumpOfferChoice(s); }
+    else { const jm = document.getElementById('jump-offer-modal'); if (jm) jm.remove(); }
+
     this.applyTronFx();
     this._applyMotionEffects();
 
