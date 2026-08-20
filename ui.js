@@ -12255,6 +12255,10 @@ const UI = {
     // Waiting banner overlay when it's not the local player's turn
     this._update2v2WaitingBanner(isMyTurn, activeAp && activeAp.name);
 
+    // Per-player card/trick counts: the two enemies on the top bar, your ally
+    // on the bottom bar, each with their name — so you can track hand sizes.
+    this._render2v2RosterCounts(s, tt);
+
     this.applyTronFx();
     this._applyMotionEffects();
 
@@ -12379,6 +12383,52 @@ const UI = {
       ga.appendChild(banner);
     }
     banner.textContent = `⏳ Waiting for ${activeName || 'opponent'}…`;
+  },
+
+  // Per-player card + trick counts for 2v2 online. The two ENEMY players sit on
+  // the top (ai) bar with their names; your ALLY sits on the bottom (player) bar
+  // near your hand. Live hand sizes so you can track what each player is holding.
+  _render2v2RosterCounts(s, tt) {
+    if (!tt || !tt.you || !tt.players) { this._clear2v2RosterStrip('twov2-roster-top'); this._clear2v2RosterStrip('twov2-roster-bottom'); return; }
+    const esc = (t) => String(t == null ? '' : t).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    const me = tt.you;
+    const myTeam = tt.players[me] && tt.players[me].team;
+    if (!myTeam) return;
+    const chip = (pk, isMe) => {
+      const p = tt.players[pk]; if (!p) return '';
+      const cards = (p.hand || []).length;
+      const tricks = (p.trickHand || []).length;
+      const active = (Game._2v2ActivePlayer && Game._2v2ActivePlayer() === pk);
+      return `<div class="rc-chip${active ? ' rc-active' : ''}${isMe ? ' rc-me' : ''}">`
+        + `<span class="rc-name">${esc(p.name || pk)}${isMe ? ' <em>(you)</em>' : ''}</span>`
+        + `<span class="rc-stat rc-cards" title="Cards in hand"><i class="rc-ic">🂠</i>${cards}</span>`
+        + `<span class="rc-stat rc-tricks" title="Tricks in hand"><i class="rc-ic">✦</i>${tricks}</span>`
+        + `</div>`;
+    };
+    const order = ['p1', 'p2', 'p3', 'p4'];
+    const enemies = order.filter(pk => tt.players[pk] && tt.players[pk].team !== myTeam);
+    const ally = order.find(pk => pk !== me && tt.players[pk] && tt.players[pk].team === myTeam);
+    // Top strip — the two enemies.
+    this._paint2v2RosterStrip('twov2-roster-top', '.info-bar.ai-bar', enemies.map(pk => chip(pk, false)).join(''), 'rc-enemy');
+    // Bottom strip — your ally (name + counts) beside your hand.
+    this._paint2v2RosterStrip('twov2-roster-bottom', '.info-bar.player-bar', ally ? chip(ally, false) : '', 'rc-ally');
+  },
+  _paint2v2RosterStrip(id, anchorSel, innerHTML, extraCls) {
+    if (!innerHTML) { this._clear2v2RosterStrip(id); return; }
+    let strip = document.getElementById(id);
+    if (!strip) {
+      strip = document.createElement('div');
+      strip.id = id;
+      strip.className = 'twov2-roster-strip ' + extraCls;
+      const anchor = document.querySelector(anchorSel);
+      if (anchor) anchor.appendChild(strip); else document.body.appendChild(strip);
+    }
+    strip.innerHTML = innerHTML;
+    strip.style.display = 'flex';
+  },
+  _clear2v2RosterStrip(id) {
+    const strip = document.getElementById(id);
+    if (strip) { strip.innerHTML = ''; strip.style.display = 'none'; }
   },
 
   // ===================== 2v2 MODE RENDERING =====================

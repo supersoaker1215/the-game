@@ -41428,3 +41428,35 @@ body.low-fx .badge-asleep { animation: none; }
   .twov2-tracker { width: 150px; }
   .twov2-tk-name { font-size: 11px; }
 }
+
+/* ============================================================
+   2v2 ROSTER COUNTS — per-player card + trick totals. Two enemies on the
+   top (ai) bar, your ally on the bottom (player) bar, each with a name.
+   ============================================================ */
+.info-bar.ai-bar, .info-bar.player-bar { position: relative; }
+.twov2-roster-strip {
+  position: absolute; left: 50%; transform: translateX(-50%);
+  display: flex; gap: 8px; z-index: 7; pointer-events: none; white-space: nowrap;
+}
+.twov2-roster-strip.rc-enemy { top: calc(100% + 3px); }
+.twov2-roster-strip.rc-ally  { bottom: calc(100% + 3px); }
+.rc-chip {
+  display: flex; align-items: center; gap: 7px;
+  padding: 3px 9px; border-radius: 999px;
+  font-size: 11px; line-height: 1;
+  background: rgba(12,12,18,0.92);
+  border: 1px solid rgba(255,255,255,0.14);
+}
+.rc-enemy .rc-chip { border-color: rgba(224,64,64,0.5);  box-shadow: 0 0 8px rgba(224,64,64,0.18); }
+.rc-ally  .rc-chip { border-color: rgba(64,200,120,0.5); box-shadow: 0 0 8px rgba(64,200,120,0.18); }
+.rc-chip.rc-active { border-color: #ffd24a; box-shadow: 0 0 10px rgba(255,210,74,0.5); }
+.rc-name {
+  font-weight: 700; letter-spacing: 0.02em; color: #e8edf3;
+  max-width: 130px; overflow: hidden; text-overflow: ellipsis;
+}
+.rc-name em { font-style: normal; opacity: 0.6; font-weight: 500; }
+.rc-stat { display: inline-flex; align-items: center; gap: 3px; }
+.rc-cards  { color: #9fd0ff; }
+.rc-tricks { color: #a6f0c0; }
+.rc-ic { font-style: normal; opacity: 0.85; }
+@media (max-width: 900px) { .rc-name { max-width: 84px; } .rc-chip { font-size: 10px; padding: 2px 7px; gap: 5px; } }
