@@ -3667,40 +3667,53 @@ function lobby2v2() {
 // The turn order used to be four hardcoded p1..p4 lists. Rewriting it in terms
 // of team ROLES must not move a single step under the default seating, or every
 // existing 2v2 match just changed shape.
-test('The default seating produces the exact turn order it always did', function () {
+test('The default seating produces the canonical p1->p4 rotation, alternating teams', function () {
   var G = lobby2v2();
+  // Default seating is A = p1,p3 · B = p2,p4, so the team-interleave reads out
+  // as the seat order p1,p2,p3,p4, rotating the start by one each round.
   var expected = [
-    ['p1-cards', 'p3-cards', 'p2-cards-tricks', 'p4-cards-tricks', 'p1-tricks', 'p3-tricks'],
+    ['p1-cards', 'p2-cards', 'p3-cards-tricks', 'p4-cards-tricks', 'p1-tricks', 'p2-tricks'],
     ['p2-cards', 'p3-cards', 'p4-cards-tricks', 'p1-cards-tricks', 'p2-tricks', 'p3-tricks'],
     ['p3-cards', 'p4-cards', 'p1-cards-tricks', 'p2-cards-tricks', 'p3-tricks', 'p4-tricks'],
-    ['p4-cards', 'p1-cards', 'p3-cards-tricks', 'p2-cards-tricks', 'p4-tricks', 'p1-tricks'],
+    ['p4-cards', 'p1-cards', 'p2-cards-tricks', 'p3-cards-tricks', 'p4-tricks', 'p1-tricks'],
   ];
   for (var r = 1; r <= 8; r++) {
     assertEq(G._2v2ComputePhaseOrder(r).join('|'), expected[(r - 1) % 4].join('|'),
-      'round ' + r + ' is unchanged');
+      'round ' + r + ' matches the canonical rotation');
+    // And no two consecutive turns are ever the same team — the property the
+    // whole scheme exists to guarantee.
+    var teams = G._2v2ComputePhaseOrder(r).map(function (sp) { return G._2v2TeamOf(sp.split('-')[0]); });
+    for (var i = 1; i < teams.length; i++) {
+      assert(teams[i] !== teams[i - 1], 'round ' + r + ': step ' + (i + 1) + ' switches teams (no back-to-back)');
+    }
   }
 });
 
-test('Rearranged teams move the turn order with them', function () {
+test('Rearranged teams still alternate and stay fair', function () {
   var G = lobby2v2();
-  // Put p1 with p3, p2 with p4 — the shape the lobby now allows.
+  // Move p2 and p3 across so the teams become A = p1,p2 · B = p3,p4 — a
+  // non-default arrangement. The order must move with the teams AND still never
+  // put two same-team turns back to back.
   assertEq(G.swap2v2Teams('p2', 'p3', 'p1'), true, 'the swap is accepted');
   assertEq(G._2v2TeamOf('p1'), 'A', 'p1 stays on A');
-  assertEq(G._2v2TeamOf('p3'), 'A', 'p3 joins him');
-  assertEq(G._2v2TeamOf('p2'), 'B', 'p2 goes across');
+  assertEq(G._2v2TeamOf('p2'), 'A', 'p2 joins him');
+  assertEq(G._2v2TeamOf('p3'), 'B', 'p3 goes across');
   assertEq(G._2v2TeamOf('p4'), 'B', 'p4 stays on B');
 
-  // Round 1 is A0, B0, A1, B1, A0, B0 — which is now p1, p2, p3, p4.
+  // Team-interleave with A=[p1,p2], B=[p3,p4] → cycle p1,p3,p2,p4.
   assertEq(G._2v2ComputePhaseOrder(1).join('|'),
-    ['p1-cards', 'p2-cards', 'p3-cards-tricks', 'p4-cards-tricks', 'p1-tricks', 'p2-tricks'].join('|'),
+    ['p1-cards', 'p3-cards', 'p2-cards-tricks', 'p4-cards-tricks', 'p1-tricks', 'p3-tricks'].join('|'),
     'the order follows the teams, not the seats');
 
-  // And the order stays FAIR, which is the property that actually matters: the
-  // four card slots are two per team and one per player, every round. (Not
-  // strict A/B/A/B — rounds 2 and 4 have never alternated, they go A/B/B/A.
-  // Whatever the pattern is, rearranging teams must not skew it.)
+  // Every round: strict team alternation, two card slots per team, each player
+  // in the card slots exactly once.
   for (var r = 1; r <= 8; r++) {
-    var cardSlots = G._2v2ComputePhaseOrder(r).slice(0, 4).map(function (sp) { return sp.split('-')[0]; });
+    var order = G._2v2ComputePhaseOrder(r);
+    var teamsAll = order.map(function (sp) { return G._2v2TeamOf(sp.split('-')[0]); });
+    for (var i = 1; i < teamsAll.length; i++) {
+      assert(teamsAll[i] !== teamsAll[i - 1], 'round ' + r + ': no back-to-back same team');
+    }
+    var cardSlots = order.slice(0, 4).map(function (sp) { return sp.split('-')[0]; });
     var teams = cardSlots.map(function (pk) { return G._2v2TeamOf(pk); });
     assertEq(teams.filter(function (t) { return t === 'A'; }).length, 2, 'round ' + r + ': A gets two card slots');
     assertEq(teams.filter(function (t) { return t === 'B'; }).length, 2, 'round ' + r + ': B gets two');
@@ -3743,7 +3756,8 @@ test('Only the host, or a player moving themselves, may rearrange', function () 
   var G = lobby2v2();
   assertEq(G.swap2v2Teams('p2', 'p3', 'p4'), false, 'p4 cannot rearrange two other people');
   assertEq(G.swap2v2Teams('p2', 'p3', 'p2'), true, 'but p2 can move themselves');
-  assertEq(G.swap2v2Teams('p1', 'p2', 'p1'), true, 'and the host can move anyone');
+  // After that swap teams are A = p1,p2 · B = p3,p4; p1 and p3 are cross-team.
+  assertEq(G.swap2v2Teams('p1', 'p3', 'p1'), true, 'and the host can move anyone');
 
   // Locked once the match is real — teams are load-bearing after the deal.
   G.state.twoVTwo.round = 1;

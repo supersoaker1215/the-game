@@ -13106,7 +13106,7 @@ const Game = {
   // team of a player is state.twoVTwo.players[pk].team and nothing else; read
   // it through _2v2TeamOf. This constant used to BE the answer, which is why
   // rearranging teams desynced the engine from the lobby (see _2v2TeamOf).
-  _2v2PlayerTeam: { p1: 'A', p2: 'A', p3: 'B', p4: 'B' },
+  _2v2PlayerTeam: { p1: 'A', p2: 'B', p3: 'A', p4: 'B' },
   _2v2TeamSide:   { A: 'player', B: 'ai' },
   _2v2SLOTS: ['p1', 'p2', 'p3', 'p4'],
 
@@ -13159,14 +13159,39 @@ const Game = {
   _2v2ComputePhaseOrder(round) {
     const roster = this._2v2Roster();
     // An unbalanced roster can only exist mid-lobby, before the Start gate
-    // opens — fall back to default seating rather than emit a broken order.
+    // opens — fall back to the default alternating seating.
     const ok = roster.A.length === 2 && roster.B.length === 2;
-    const seat = ok ? roster : { A: ['p1', 'p2'], B: ['p3', 'p4'] };
-    return this._2v2PhaseRolePatterns[(round - 1) % 4].map(step => {
-      const dash = step.indexOf('-');
-      const role = step.slice(0, dash);           // 'A0' | 'A1' | 'B0' | 'B1'
-      return seat[role[0]][+role[1]] + step.slice(dash);
-    });
+    const A = ok ? roster.A : ['p1', 'p3'];
+    const B = ok ? roster.B : ['p2', 'p4'];
+    // INTERLEAVE THE TWO TEAMS so consecutive turns can never be the same side —
+    // A's first player, B's first, A's second, B's second. A round is a rotation
+    // of that 4-cycle: the first two play CARDS (then TRICKS at the end), the
+    // middle two play CARDS + TRICKS together, and the start advances by one
+    // seat each round so leading the turn rotates fairly. With the default
+    // seating (A = p1,p3 · B = p2,p4) this reads out as the canonical
+    // p1,p2,p3,p4 order the game was designed around:
+    //   R1: p1 cards, p2 cards, p3 both, p4 both, p1 tricks, p2 tricks
+    //   R2: p2 cards, p3 cards, p4 both, p1 both, p2 tricks, p3 tricks  … and so on.
+    const cycle = [A[0], B[0], A[1], B[1]];
+    // A one-off "who goes first" override (e.g. The Flash) rotates the cycle to
+    // start on the chosen seat for THIS round only; otherwise it advances by
+    // round. Stored as a seat key; we find its slot in the cycle.
+    const tt = this.state && this.state.twoVTwo;
+    let start = ((round - 1) % 4 + 4) % 4;
+    const override = tt && tt._2v2FirstOverride;
+    if (override && override.round === round) {
+      const si = cycle.indexOf(override.seat);
+      if (si >= 0) start = si;
+    }
+    const at = (k) => cycle[(start + k) % 4];
+    return [
+      at(0) + '-cards',
+      at(1) + '-cards',
+      at(2) + '-cards-tricks',
+      at(3) + '-cards-tricks',
+      at(0) + '-tricks',
+      at(1) + '-tricks',
+    ];
   },
 
   // Put `a` on `b`'s team and vice versa. A SWAP rather than a "set team"
@@ -13254,8 +13279,8 @@ const Game = {
     s.twoVTwo = {
       players: {
         p1: { name: names.p1, team: 'A', hand: [], trickHand: [], energy: 0, usedEnergy: 0 },
-        p2: { name: names.p2, team: 'A', hand: [], trickHand: [], energy: 0, usedEnergy: 0 },
-        p3: { name: names.p3, team: 'B', hand: [], trickHand: [], energy: 0, usedEnergy: 0 },
+        p2: { name: names.p2, team: 'B', hand: [], trickHand: [], energy: 0, usedEnergy: 0 },
+        p3: { name: names.p3, team: 'A', hand: [], trickHand: [], energy: 0, usedEnergy: 0 },
         p4: { name: names.p4, team: 'B', hand: [], trickHand: [], energy: 0, usedEnergy: 0 },
       },
       teams: {
@@ -13607,8 +13632,8 @@ const Game = {
     this.state.twoVTwo = {
       players: {
         p1: { name: 'Player 1', team: 'A', hand: [], trickHand: [], energy: 0, usedEnergy: 0 },
-        p2: { name: 'Player 2', team: 'A', hand: [], trickHand: [], energy: 0, usedEnergy: 0 },
-        p3: { name: 'Player 3', team: 'B', hand: [], trickHand: [], energy: 0, usedEnergy: 0 },
+        p2: { name: 'Player 2', team: 'B', hand: [], trickHand: [], energy: 0, usedEnergy: 0 },
+        p3: { name: 'Player 3', team: 'A', hand: [], trickHand: [], energy: 0, usedEnergy: 0 },
         p4: { name: 'Player 4', team: 'B', hand: [], trickHand: [], energy: 0, usedEnergy: 0 },
       },
       teams: {
@@ -13947,8 +13972,8 @@ const Game = {
     s.twoVTwo = {
       players: {
         p1: { name: 'Player 1', team: 'A', hand: [], trickHand: [], energy: 0, usedEnergy: 0 },
-        p2: { name: 'Player 2', team: 'A', hand: [], trickHand: [], energy: 0, usedEnergy: 0 },
-        p3: { name: 'Player 3', team: 'B', hand: [], trickHand: [], energy: 0, usedEnergy: 0 },
+        p2: { name: 'Player 2', team: 'B', hand: [], trickHand: [], energy: 0, usedEnergy: 0 },
+        p3: { name: 'Player 3', team: 'A', hand: [], trickHand: [], energy: 0, usedEnergy: 0 },
         p4: { name: 'Player 4', team: 'B', hand: [], trickHand: [], energy: 0, usedEnergy: 0 },
       },
       teams: {
