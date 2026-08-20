@@ -8884,6 +8884,51 @@ const UI = {
     if (this._reducedMotion() || !card) return;
     this._fxWhenPainted(card, (el) => this._fxRevive(el));
   },
+  // ---- Shared TRICK FX ------------------------------------------------------
+  // Tricks had no board FX at all. These four themeable helpers cover the common
+  // shapes; each trick passes its own colour so e.g. Kryptonite reads green and
+  // Power Stone reads purple. All take a card ref, so the FX bridge relays them
+  // to the 1v1 guest (who never runs trick.play locally).
+  _fxTrickStrike(card, color, glow) {
+    if (this._reducedMotion() || !card) return;
+    const el = this._fxCardElById(card.id);
+    const c = this._fxCenter(el);
+    if (!c) return;
+    this._fxImpact(c, { color: glow || color || '#ff5a2e', core: '#fff0d0', size: 0.9 });
+    this._fxSparks(c, { color: color || '#ffd27a', glow: glow || '#ff5a2e', count: 12, spread: 58, size: 2.6 });
+    if (el) this._fxRing(el, { color: color || '#ff5a2e' });
+  },
+  _fxTrickBuff(card, color, glow) {
+    if (this._reducedMotion() || !card) return;
+    const el = this._fxCardElById(card.id);
+    if (!el) return;
+    el.style.setProperty('--tfx', glow || color || '#3ad17e');
+    this._fxRing(el, { color: color || '#3ad17e' });
+    el.classList.remove('fx-trick-buff'); void el.offsetWidth; el.classList.add('fx-trick-buff');
+    setTimeout(() => el.classList.remove('fx-trick-buff'), 640);
+    const c = this._fxCenter(el);
+    if (c) this._fxSparks(c, { color: color || '#b8ffd9', glow: glow || '#2fbf4f', count: 10, angle: -Math.PI / 2, cone: 1.9, spread: 52, size: 2.6 });
+  },
+  _fxTrickDebuff(card, color, glow) {
+    if (this._reducedMotion() || !card) return;
+    const el = this._fxCardElById(card.id);
+    if (!el) return;
+    el.style.setProperty('--tfx', glow || color || '#c0392b');
+    this._fxRing(el, { color: color || '#c0392b', contract: true });
+    el.classList.remove('fx-trick-debuff'); void el.offsetWidth; el.classList.add('fx-trick-debuff');
+    setTimeout(() => el.classList.remove('fx-trick-debuff'), 640);
+    const c = this._fxCenter(el);
+    if (c) this._fxSparks(c, { color: color || '#ff9a8a', glow: glow || '#a01a0a', count: 9, angle: Math.PI / 2, cone: 1.4, spread: 44, size: 2.4 });
+  },
+  _fxTrickBurst(card, color, glow) {
+    if (this._reducedMotion() || !card) return;
+    const el = this._fxCardElById(card.id);
+    if (!el) return;
+    if (this._fxImplode) this._fxImplode(el, { color: color || '#8a5bff' });
+    this._fxRing(el, { color: color || '#8a5bff', contract: true });
+    const c = this._fxCenter(el);
+    if (c) this._fxSparks(c, { color: glow || '#d0b0ff', glow: color || '#8a5bff', count: 12, spread: 70, size: 2.8 });
+  },
   // Open Water — a wall of water erupts as Jaws surfaces. Fired on the Jaws
   // card the instant it's summoned, alongside the jumpscare.
   _fxWaterSurge(card) {

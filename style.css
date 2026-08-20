@@ -41338,3 +41338,17 @@ body.low-fx .badge-asleep { animation: none; }
   60%  { transform: translate(-2px,0); }
   100% { filter: none; transform: translate(0,0); }
 }
+
+/* Shared trick FX — themeable buff/debuff card pulses (color via --tfx). */
+.fx-trick-buff { animation: fx-trick-buff 0.64s ease-out; }
+@keyframes fx-trick-buff {
+  0%   { filter: none; }
+  35%  { filter: drop-shadow(0 0 11px var(--tfx, #3ad17e)) brightness(1.12); }
+  100% { filter: none; }
+}
+.fx-trick-debuff { animation: fx-trick-debuff 0.64s ease-out; }
+@keyframes fx-trick-debuff {
+  0%   { filter: none; }
+  35%  { filter: drop-shadow(0 0 9px var(--tfx, #c0392b)) brightness(0.85) saturate(0.82); }
+  100% { filter: none; }
+}

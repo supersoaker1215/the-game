@@ -63,6 +63,7 @@ const TRICK_DEFS = [
         const pool = trickable();
         if (!pool.length) return;
         G.promptCardChoice(owner, pool, "Batarangs — Strike 2", "Deal 2 damage to which enemy?", (t) => {
+          if (typeof UI !== 'undefined' && UI._fxTrickStrike) { try { UI._fxTrickStrike(t, '#cfd8e3', '#7f95ad'); } catch (e) {} }
           G.dealDamage(t, 2);
           G.log(`Batarang strike 2: hits ${t.name} for 2!`);
         }, pickLow);
@@ -71,6 +72,7 @@ const TRICK_DEFS = [
         const pool = trickable();
         if (!pool.length) return;
         G.promptCardChoice(owner, pool, "Batarangs — Strike 1", "Deal 2 damage to which enemy?", (t) => {
+          if (typeof UI !== 'undefined' && UI._fxTrickStrike) { try { UI._fxTrickStrike(t, '#cfd8e3', '#7f95ad'); } catch (e) {} }
           G.dealDamage(t, 2);
           G.log(`Batarang strike 1: hits ${t.name} for 2!`);
           strike2();
@@ -103,6 +105,13 @@ const TRICK_DEFS = [
           // Center target, then splash the enemy cards in the adjacent lanes.
           // Adjacent damage goes through dealDamage, so Damage Immunity /
           // Invincible on a neighbor still shrug it like any other splash.
+          if (typeof UI !== 'undefined' && UI._fxTrickStrike) {
+            try {
+              UI._fxTrickStrike(t, '#ffb15a', '#e0631a');
+              G.getAdjacentEnemiesInContext(lane, owner).forEach(e => UI._fxTrickStrike(e, '#ffb15a', '#e0631a'));
+              if (UI._screenShake) UI._screenShake('medium');
+            } catch (e) {}
+          }
           G.dealDamage(t, 2);
           G.getAdjacentEnemiesInContext(lane, owner).forEach(e => G.dealDamage(e, 2));
           G.log(`Seismic Charge detonates on ${t.name} — 2 damage to it and its neighbors!`);
@@ -153,6 +162,7 @@ const TRICK_DEFS = [
       if (a.length && o.length) {
         const doMove = (ally) => {
           const from = G.findCardLane(ally);
+          if (typeof UI !== 'undefined' && UI._fxTrickBuff) { try { UI._fxTrickBuff(ally, '#7ad0ff', '#b06bff'); } catch (e) {} }
           if (Game.isHuman(owner)) {
             G.promptLaneChoice(owner, o, `Move ${ally.name}`, `Choose lane for ${ally.name}`, (l) => {
               G.moveCard(ally, from, l);
@@ -179,6 +189,7 @@ const TRICK_DEFS = [
       if (enemies.length) {
         G.promptCardChoice(owner, enemies, "Kryptonite — Weaken", "Choose enemy to weaken", (t) => {
           const r = t.name === "Superman" ? t.attack : 3;
+          if (typeof UI !== 'undefined' && UI._fxTrickDebuff) { try { UI._fxTrickDebuff(t, '#4fe07a', '#1f9a3a'); } catch (e) {} }
           G.debuffCard(t, r, 0, false, { name: 'Kryptonite' });
           G.log(`Kryptonite: ${t.name} -${r} ATK!`);
         }, cards => cards.sort((a, b) => b.attack - a.attack)[0]);
@@ -293,12 +304,12 @@ const TRICK_DEFS = [
       const a = G.getAlliesOf(owner).filter(x => G.canTrickLand(x, 'trick', owner));
       if (Game.isHuman(owner) && a.length) {
         G.promptCardChoice(owner, a, "Smoke Pellet — Buff", "Choose ally to give Evade +1/+1", (t) => {
-          t.evadeCharges += 1; G.buffCard(t, 1, 1);
+          if (typeof UI!=='undefined'&&UI._fxTrickBuff){try{UI._fxTrickBuff(t,'#c8ccd0','#7a8088');}catch(e){}} t.evadeCharges += 1; G.buffCard(t, 1, 1);
           G.log(`Smoke Pellet buffs ${t.name}!`);
         });
       } else if (a.length) {
         const t = a.sort((x, y) => y.cost - x.cost)[0];
-        t.evadeCharges += 1; G.buffCard(t, 1, 1);
+        if (typeof UI!=='undefined'&&UI._fxTrickBuff){try{UI._fxTrickBuff(t,'#c8ccd0','#7a8088');}catch(e){}} t.evadeCharges += 1; G.buffCard(t, 1, 1);
         G.log(`Smoke Pellet buffs ${t.name}!`);
       }
     }
@@ -312,11 +323,11 @@ const TRICK_DEFS = [
       const a = G.getAlliesOf(owner).filter(x => G.canTrickLand(x, 'trick', owner));
       if (Game.isHuman(owner) && a.length) {
         G.promptCardChoice(owner, a, "Adamantium — Buff", "Choose ally to give +2/+2", (t) => {
-          G.buffCard(t, 2, 2); G.log(`Adamantium buffs ${t.name}!`);
+          if (typeof UI!=='undefined'&&UI._fxTrickBuff){try{UI._fxTrickBuff(t,'#dfe7ee','#9fb3c8');}catch(e){}} G.buffCard(t, 2, 2); G.log(`Adamantium buffs ${t.name}!`);
         });
       } else if (a.length) {
         const t = a.sort((x, y) => y.cost - x.cost)[0];
-        G.buffCard(t, 2, 2); G.log(`Adamantium buffs ${t.name}!`);
+        if (typeof UI!=='undefined'&&UI._fxTrickBuff){try{UI._fxTrickBuff(t,'#dfe7ee','#9fb3c8');}catch(e){}} G.buffCard(t, 2, 2); G.log(`Adamantium buffs ${t.name}!`);
       }
     }
   },
@@ -375,11 +386,11 @@ const TRICK_DEFS = [
       const a = G.getAlliesOf(owner).filter(x => G.canTrickLand(x, 'trick', owner));
       if (Game.isHuman(owner) && a.length) {
         G.promptCardChoice(owner, a, "Power Stone — Empower", "Choose ally to give +2 ATK", (t) => {
-          G.buffCard(t, 2, 0); G.log(`Power Stone: ${t.name} +2 ATK!`);
+          if (typeof UI!=='undefined'&&UI._fxTrickBuff){try{UI._fxTrickBuff(t,'#c07bff','#7a2ec8');}catch(e){}} G.buffCard(t, 2, 0); G.log(`Power Stone: ${t.name} +2 ATK!`);
         });
       } else if (a.length) {
         const t = a.sort((x, y) => y.cost - x.cost)[0];
-        G.buffCard(t, 2, 0); G.log(`Power Stone: ${t.name} +2 ATK!`);
+        if (typeof UI!=='undefined'&&UI._fxTrickBuff){try{UI._fxTrickBuff(t,'#c07bff','#7a2ec8');}catch(e){}} G.buffCard(t, 2, 0); G.log(`Power Stone: ${t.name} +2 ATK!`);
       }
     }
   },
@@ -389,7 +400,7 @@ const TRICK_DEFS = [
     canPlay(G, owner) { return G.getEnemiesOf(owner).some(e => (e.attack || 0) <= 2 && G.canTrickLand(e, 'destroy', owner)); },
     play(G, owner) {
       G.getEnemiesOf(owner).filter(e => e.attack <= 2 && G.canTrickLand(e, 'destroy', owner)).forEach(t => {
-        G.log(`Darkhold destroys ${t.name}!`); G.killCard(t);
+        if (typeof UI!=='undefined'&&UI._fxTrickBurst){try{UI._fxTrickBurst(t,'#7a1020','#ff3b5a');}catch(e){}} G.log(`Darkhold destroys ${t.name}!`); G.killCard(t);
       });
     }
   },
@@ -406,7 +417,7 @@ const TRICK_DEFS = [
     // Needs a live target — greys out in the tray + refused by playTrick otherwise.
     canPlay(G, owner) { return G.getAlliesOf(owner).some(x => G.canTrickLand(x, 'trick', owner)); },
     play(G, owner) {
-      G.getAlliesOf(owner).filter(x => G.canTrickLand(x, 'trick', owner)).forEach(a => { G.buffCard(a, 1, 1); });
+      G.getAlliesOf(owner).filter(x => G.canTrickLand(x, 'trick', owner)).forEach(a => { if (typeof UI!=='undefined'&&UI._fxTrickBuff){try{UI._fxTrickBuff(a,'#8fe6ff','#2f9fd6');}catch(e){}} G.buffCard(a, 1, 1); });
       G.log("Vibranium +1/+1 all allies!");
     }
   },
@@ -423,6 +434,7 @@ const TRICK_DEFS = [
         // Synthetic Unresistible source — bypasses Immunity once via the central debuff handler.
         const source = { name: 'Fear Toxin', unresistibleCharges: 1 };
         G.promptCardChoice(owner, enemies, "Fear Toxin — Fear", "Choose enemy to fear", (t) => {
+          if (typeof UI !== 'undefined' && UI._fxFearGas) { try { UI._fxFearGas(t); } catch (e) {} }
           G.fearCard(t, source); G.log(`Fear Toxin terrifies ${t.name}!`);
         }, cards => cards.sort((a, b) => b.attack - a.attack)[0]);
       }
@@ -436,11 +448,11 @@ const TRICK_DEFS = [
       const a = G.getAlliesOf(owner).filter(x => G.canTrickLand(x, 'trick', owner));
       if (Game.isHuman(owner) && a.length) {
         G.promptCardChoice(owner, a, "Nth Metal — Invincible", "Choose ally to make invincible", (t) => {
-          t.invincibleTurns += 1; G.log(`Nth Metal: ${t.name} invincible!`);
+          if (typeof UI!=='undefined'&&UI._fxTrickBuff){try{UI._fxTrickBuff(t,'#ffe07a','#c8962e');}catch(e){}} t.invincibleTurns += 1; G.log(`Nth Metal: ${t.name} invincible!`);
         });
       } else if (a.length) {
         const t = a.sort((x, y) => y.cost - x.cost)[0];
-        t.invincibleTurns += 1; G.log(`Nth Metal: ${t.name} invincible!`);
+        if (typeof UI!=='undefined'&&UI._fxTrickBuff){try{UI._fxTrickBuff(t,'#ffe07a','#c8962e');}catch(e){}} t.invincibleTurns += 1; G.log(`Nth Metal: ${t.name} invincible!`);
       }
     }
   },
@@ -452,6 +464,7 @@ const TRICK_DEFS = [
       const a = G.getAlliesOf(owner).filter(x => G.canTrickLand(x, 'trick', owner));
       if (!a.length) return;
       const submerge = (t) => {
+        if (typeof UI !== 'undefined' && UI._fxTrickBuff) { try { UI._fxTrickBuff(t, '#5affc8', '#1fbf7a'); } catch (e) {} }
         t.currentHealth = t.maxHealth;
         // Damage Immunity for the REST of this round. grantTempBuff(duration 1)
         // sets the flag now and reverts it at postCombat's expireGrantedBuffs,
@@ -513,6 +526,7 @@ const TRICK_DEFS = [
             return;
           }
           const l = G.findCardLane(t);
+          if (typeof UI !== 'undefined' && UI._fxTrickBuff) { try { UI._fxTrickBuff(t, '#ff6b6b', '#c81e1e'); } catch (e) {} }
           G.killCardSilent(t);
           G.summonCard(owner, l, d.name, d.cost, d.attack, d.health, d.abilities || [], d);
           G.log(`Serum LEAPS ${t.name} (${baseCost}-cost) → ${d.name} (${targetCost}-cost)!`);
@@ -540,6 +554,7 @@ const TRICK_DEFS = [
         // allowKill=true — shrinking a ≤3-HP enemy destroys it outright.
         // Without the flag, debuffCard floors HP at 1 (user: "Pym Particles
         // can kill an enemy; right now it leaves it at 1 health").
+        if (typeof UI !== 'undefined' && UI._fxTrickDebuff) { try { UI._fxTrickDebuff(t, '#ff9a3a', '#c8501a'); } catch (e) {} }
         G.debuffCard(t, 2, 2, true, { name: 'Pym Particles' });
         if (t.currentHealth <= 0) G.log(`Pym Particles: ${t.name} shrinks into nothing — destroyed!`);
         else G.log(`Pym Particles: ${t.name} shrunk to ${t.attack}/${t.currentHealth}!`);
@@ -556,6 +571,7 @@ const TRICK_DEFS = [
       if (enemies.length) {
         G.promptCardChoice(owner, enemies, "Phantom Zone — Bounce", "Choose enemy to bounce back to hand", (t) => {
           const l = G.findCardLane(t);
+          if (typeof UI !== 'undefined' && UI._fxTrickBurst) { try { UI._fxTrickBurst(t, '#4a6bff', '#bcd0ff'); } catch (e) {} }
           G.removeFromLane(t, l);
           // Create a fresh instance so the bounced card returns to hand at
           // base stats — no accumulated buffs, debuffs, or status effects.
@@ -589,6 +605,7 @@ const TRICK_DEFS = [
           if (enemies.length) {
             G.promptCardChoice(owner, enemies, "Soul Stone — Destroy Enemy", `Choose enemy within 4 base cost of ${al.name} (cost ${baseCostAl})`, (en) => {
               G.log(`Soul Stone: ${al.name} + ${en.name}!`);
+              if (typeof UI !== 'undefined' && UI._fxTrickBurst) { try { UI._fxTrickBurst(al, '#e8801a', '#ffd9a0'); UI._fxTrickBurst(en, '#e8801a', '#ffd9a0'); } catch (e) {} }
               G.killCard(al); G.killCard(en);
             }, cards => cards.sort((x, y) => y.cost - x.cost)[0]);
           }
@@ -624,6 +641,7 @@ const TRICK_DEFS = [
       }
       const collapse = (i) => {
         // Collapse first so Jason's allyDied trigger sees lane.destroyed = true
+        if (typeof UI !== 'undefined' && UI._fxTrickBurst) { try { UI._fxTrickBurst(G.state.lanes[i][owner], '#7a1a9a', '#e0a0ff'); UI._fxTrickBurst(G.state.lanes[i][opp], '#7a1a9a', '#e0a0ff'); } catch (e) {} }
         G.destroyLane(i, 2);
         G.killCard(G.state.lanes[i][owner]);
         G.killCard(G.state.lanes[i][opp]);
@@ -654,6 +672,7 @@ const TRICK_DEFS = [
         G.promptCardChoice(owner, enemies, "Mind Stone — Control", "Choose enemy to mind control", (t) => {
           G.tryApplyDebuff(source, t, 'Mind Control', () => {
             t.isMindControlled = true;
+            if (typeof UI !== 'undefined' && UI._fxTrickDebuff) { try { UI._fxTrickDebuff(t, '#f1c40f', '#b8860b'); } catch (e) {} }
             G.log(`Mind Stone controls ${t.name}!`);
           });
         }, cards => cards[0]);
@@ -691,6 +710,7 @@ const TRICK_DEFS = [
                   );
                 }
               });
+              if (typeof UI !== 'undefined' && UI._fxTrickStrike) { try { UI._fxTrickStrike(al, '#ff2d55', '#a00d2a'); UI._fxTrickStrike(en, '#ff2d55', '#a00d2a'); } catch (e) {} }
               G.log(`Reality Stone permanently swaps ${al.name} and ${en.name}!`);
             }, cards => cards.sort((a, b) => b.attack - a.attack)[0]);
           }
@@ -726,7 +746,11 @@ const TRICK_DEFS = [
         }
         return out;
       };
-      const claim = (i) => { G.state.lanes[i].protected = owner; };
+      const claim = (i) => {
+        G.state.lanes[i].protected = owner;
+        const foe = G.state.lanes[i] && G.state.lanes[i][opp];
+        if (foe && foe.currentHealth > 0 && typeof UI !== 'undefined' && UI._fxTrickDebuff) { try { UI._fxTrickDebuff(foe, '#39ff5e', '#0f8a2a'); } catch (e) {} }
+      };
 
       if (!Game.isHuman(owner)) {
         // Protect where it actually saves face damage first: a lane holding an
