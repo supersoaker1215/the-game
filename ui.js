@@ -12038,8 +12038,7 @@ const UI = {
         <span class="twov2-tk-round">R${round}</span>
         <span class="twov2-tk-toggle">${collapsed ? '▸' : '▾'}</span>
       </div>
-      <div class="twov2-tk-row">${chips}</div>
-      <div class="twov2-tk-foot">Then lanes fight · order rotates next round</div>`;
+      <div class="twov2-tk-row">${chips}</div>`;
   },
 
   _render2v2OnlineBoard(s) {

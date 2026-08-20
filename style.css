@@ -41381,25 +41381,51 @@ body.low-fx .badge-asleep { animation: none; }
 .twov2-tk-head {
   display: flex; align-items: center; gap: 6px; cursor: pointer; padding-bottom: 8px;
 }
-.twov2-tk-title { font-size: 10.5px; letter-spacing: 0.08em; text-transform: uppercase; color: #bfe4ff; font-weight: 700; flex: 1; }
+.twov2-tk-title {
+  font-size: 10.5px; letter-spacing: 0.08em; text-transform: uppercase;
+  font-weight: 700; flex: 1;
+  color: var(--theme-accent-bright, #cfefff);
+  text-shadow: 0 0 8px rgba(var(--theme-rgb, 79,195,247), 0.75),
+               0 0 18px rgba(var(--theme-rgb, 79,195,247), 0.35);
+}
 .twov2-tk-round { font-size: 10px; font-weight: 700; color: #0a0e16; background: #4fc3f7; padding: 1px 6px; border-radius: 5px; }
-.twov2-tk-toggle { font-size: 12px; color: #8fb8d8; }
+.twov2-tk-toggle {
+  font-size: 12px;
+  color: rgb(var(--theme-rgb, 79,195,247));
+  text-shadow: 0 0 7px rgba(var(--theme-rgb, 79,195,247), 0.6);
+}
 .twov2-tk-row { display: flex; flex-direction: column; gap: 5px; }
-.twov2-tk-foot { font-size: 9px; color: #6f7d8c; margin-top: 7px; text-align: center; letter-spacing: 0.01em; line-height: 1.3; }
 .twov2-tracker.is-collapsed { width: auto; }
 .twov2-tracker.is-collapsed .twov2-tk-head { padding-bottom: 0; }
 .twov2-tracker.is-collapsed .twov2-tk-round { display: none; }
-.twov2-tracker.is-collapsed .twov2-tk-row,
-.twov2-tracker.is-collapsed .twov2-tk-foot { display: none; }
+.twov2-tracker.is-collapsed .twov2-tk-row { display: none; }
 
 .twov2-tk-chip {
   position: relative; display: flex; align-items: center; gap: 8px;
   padding: 6px 9px 6px 7px; border-radius: 8px;
   border: 1px solid rgba(255,255,255,0.08);
-  border-left: 3px solid var(--tkc, #8a94a0);
+  border-left: 3px solid var(--tkc, rgb(var(--theme-rgb, 79,195,247)));
   background: rgba(255,255,255,0.03); transition: transform 160ms, background 160ms, opacity 160ms;
 }
-.twov2-tk-chip.is-done { opacity: 0.42; }
+/* DONE, NOT GREYED OUT. opacity:0.42 on near-white text over a black panel
+   computes to a flat grey, which is the one thing the owner asked not to see
+   here. A finished turn now keeps its player's hue and simply stops glowing —
+   the difference between "spent" and "active" is carried by the glow and the
+   fill, not by draining the colour out of it. */
+.twov2-tk-chip.is-done {
+  opacity: 1;
+  background: transparent;
+  border-left-color: color-mix(in srgb, var(--tkc, rgb(var(--theme-rgb, 79,195,247))) 50%, transparent);
+}
+.twov2-tk-chip.is-done .twov2-tk-name,
+.twov2-tk-chip.is-done .twov2-tk-play {
+  color: color-mix(in srgb, var(--tkc, rgb(var(--theme-rgb, 79,195,247))) 62%, #eaf4ff);
+  text-shadow: none;
+}
+.twov2-tk-chip.is-done .twov2-tk-ord {
+  background: color-mix(in srgb, var(--tkc, rgb(var(--theme-rgb, 79,195,247))) 60%, transparent);
+  color: #eaf4ff;
+}
 .twov2-tk-chip.is-next { opacity: 0.9; }
 .twov2-tk-chip.is-now {
   background: color-mix(in srgb, var(--tkc, #4fc3f7) 24%, rgba(10,14,22,0.9));
@@ -41407,17 +41433,30 @@ body.low-fx .badge-asleep { animation: none; }
   box-shadow: 0 0 12px color-mix(in srgb, var(--tkc, #4fc3f7) 55%, transparent);
   transform: scale(1.03);
 }
-.twov2-tk-chip.is-you { outline: 1px dashed rgba(255,255,255,0.45); outline-offset: 1px; }
+.twov2-tk-chip.is-you {
+  outline: 1px dashed rgba(var(--theme-rgb, 79,195,247), 0.65);
+  outline-offset: 1px;
+}
 .twov2-tk-ord {
   flex: 0 0 auto; width: 18px; height: 18px; border-radius: 50%;
   display: flex; align-items: center; justify-content: center;
   font-size: 10px; font-weight: 700; color: #0a0e16;
-  background: var(--tkc, #8a94a0);
+  background: var(--tkc, rgb(var(--theme-rgb, 79,195,247)));
 }
 .twov2-tk-body { display: flex; flex-direction: column; line-height: 1.2; min-width: 0; flex: 1; }
-.twov2-tk-name { font-size: 12px; font-weight: 600; color: #eaf4ff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.twov2-tk-name {
+  font-size: 12px; font-weight: 600; color: #eaf4ff;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  text-shadow: 0 0 7px rgba(var(--theme-rgb, 79,195,247), 0.4);
+}
 .twov2-tk-name b { color: #ffe08a; font-weight: 700; }
-.twov2-tk-play { font-size: 9px; letter-spacing: 0.02em; color: #9fb3c8; text-transform: uppercase; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.twov2-tk-play {
+  font-size: 9px; letter-spacing: 0.06em; text-transform: uppercase;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  font-weight: 600;
+  color: color-mix(in srgb, rgb(var(--theme-rgb, 79,195,247)) 78%, #eaf4ff);
+  text-shadow: 0 0 6px rgba(var(--theme-rgb, 79,195,247), 0.45);
+}
 .twov2-tk-now {
   position: absolute; top: -6px; right: -4px; font-size: 8px; font-weight: 800; letter-spacing: 0.04em;
   color: #0a0e16; background: var(--tkc, #4fc3f7); padding: 1px 5px; border-radius: 4px;
