@@ -12265,6 +12265,10 @@ const UI = {
       this.showPhaseBanner(this._gorrBannerText(s._gorrBanner), { duration: 4200 });
     }
 
+    // Block-meter free-trick offer (same — the 1v1 render owns it elsewhere).
+    if (s.pendingBlockTrick) { this.renderBlockTrickChoice(s); }
+    else { const bt = document.getElementById('block-trick-modal'); if (bt) bt.remove(); }
+
     this.applyTronFx();
     this._applyMotionEffects();
 
@@ -18428,9 +18432,11 @@ const UI = {
 
   renderBlockTrickChoice(s) {
     const trick = s.pendingBlockTrick;
-    // In multiplayer, only the player whose block triggered it sees the modal.
-    // After _mpFlipPerspective, _btOwner === 'player' means this client's block.
-    if (Game.isMultiplayer && Game.isMultiplayer()) {
+    // In multiplayer (1v1 or 2v2), only the seat whose offer this is sees the
+    // modal — others get "waiting". promptIsMine reads _btOwner (1v1) or
+    // _2v2ActingPlayer (2v2 online).
+    const _mpBlock = (Game.isMultiplayer && Game.isMultiplayer()) || (s.twoVTwo && s.twoVTwo.online);
+    if (_mpBlock) {
       if (trick && !Game.promptIsMine(trick, 'blockTrick')) {
         const stale = document.getElementById('block-trick-modal');
         if (stale) stale.remove();
@@ -30418,6 +30424,16 @@ function blockTrickPlay() {
   const s = Game.state;
   const trick = s.pendingBlockTrick;
   if (!trick) return;
+  // 2v2 online: resolve on the owning seat (host applies; guest forwards).
+  const tt = s.twoVTwo;
+  if (tt && tt.online) {
+    if (!Game.promptIsMine(trick, 'blockTrick')) return;
+    const seat = trick._2v2Seat || trick._2v2ActingPlayer || tt.you;
+    if (tt.you === 'p1') { Game._2v2ResolveBlockTrick(seat, trick, true); }
+    else { if (typeof Multiplayer4 !== 'undefined') Multiplayer4.send({ t: 'resolve2v2BlockTrick', playerKey: tt.you, play: true }); s.pendingBlockTrick = null; }
+    UI.render();
+    return;
+  }
   // Guest: send to host for authoritative resolution on the correct seat.
   if (Game.isMultiplayer && Game.isMultiplayer() && Game.mp && Game.mp.role === 'guest') {
     if (typeof Multiplayer !== 'undefined') Multiplayer.send({ t: 'promptResolve', choiceType: 'blockTrick', play: true });
@@ -30448,6 +30464,16 @@ function blockTrickKeep() {
   const s = Game.state;
   const trick = s.pendingBlockTrick;
   if (!trick) return;
+  // 2v2 online: kept trick goes to the seat's hand at its original cost.
+  const tt = s.twoVTwo;
+  if (tt && tt.online) {
+    if (!Game.promptIsMine(trick, 'blockTrick')) return;
+    const seat = trick._2v2Seat || trick._2v2ActingPlayer || tt.you;
+    if (tt.you === 'p1') { Game._2v2ResolveBlockTrick(seat, trick, false); }
+    else { if (typeof Multiplayer4 !== 'undefined') Multiplayer4.send({ t: 'resolve2v2BlockTrick', playerKey: tt.you, play: false }); s.pendingBlockTrick = null; }
+    UI.render();
+    return;
+  }
   // Guest: send to host for authoritative resolution on the correct seat.
   if (Game.isMultiplayer && Game.isMultiplayer() && Game.mp && Game.mp.role === 'guest') {
     if (typeof Multiplayer !== 'undefined') Multiplayer.send({ t: 'promptResolve', choiceType: 'blockTrick', play: false });

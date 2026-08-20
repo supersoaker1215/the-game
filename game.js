@@ -6809,7 +6809,28 @@ const Game = {
         // A Block Meter just fired — the one moment "either player used their
         // Block Meter" is true, on both the 1v1 and 2v2 paths below.
         this._notifyBlockMeterFired(owner);
-        // 2v2: both teammates draw a trick directly from the shared 2v2 trick pile
+        // 2v2: the team earns a free trick for EACH teammate. Offer them
+        // immediately (mid-combat), IN ORDER — the seat that played cards+tricks
+        // this round first, then the seat that plays tricks right before combat.
+        // Each teammate plays it free or, if they decline, keeps it in hand at
+        // its ORIGINAL cost. (Online-only: local pass-and-play keeps the old
+        // draw-to-hand behavior since two live modals don't fit one device.)
+        if (this.is2v2() && this.state.twoVTwo && this.state.twoVTwo.online) {
+          const tt = this.state.twoVTwo;
+          const team = owner === 'player' ? 'A' : 'B';
+          const queue = [];
+          this._2v2BlockTrickOrder(team).forEach(pk => {
+            if (tt.trickDrawPile.length > 0) {
+              const def = tt.trickDrawPile.pop();
+              queue.push({ seat: pk, trick: { ...def, id: nextCardId++ } });
+              this.log(`  [BLOCK DRAW] ${tt.players[pk].name} earns ${def.name}.`);
+            }
+          });
+          this.state._2v2BlockQueue = queue;
+          this._2v2NextBlockTrick();
+          return;
+        }
+        // 2v2 local pass-and-play: both teammates draw the trick to hand (free).
         if (this.is2v2()) {
           const tt = this.state.twoVTwo;
           const team = owner === 'player' ? 'A' : 'B';
@@ -12042,6 +12063,89 @@ const Game = {
     return !!(tt && tt.online && pk && tt.players[pk] && tt.players[pk].isAI);
   },
 
+  // Order a team's two seats for the block-meter free trick: the seat that
+  // played CARDS+TRICKS this round first, then the seat that plays TRICKS right
+  // before combat. Read off the round's phase order (a seat whose step is
+  // '<pk>-cards-tricks' is the former).
+  _2v2BlockTrickOrder(team) {
+    const tt = this.state && this.state.twoVTwo;
+    if (!tt) return [];
+    const seats = this._2v2SLOTS.filter(pk => tt.players[pk] && tt.players[pk].team === team);
+    const order = this._2v2ComputePhaseOrder(tt.round || 1);
+    const isCardsTricks = (pk) => order.some(s => s === pk + '-cards-tricks');
+    return seats.slice().sort((a, b) => (isCardsTricks(b) ? 1 : 0) - (isCardsTricks(a) ? 1 : 0));
+  },
+
+  // Offer the next queued block trick to its seat (human → modal stamped to the
+  // seat; AI → auto play/keep), or resume combat when the queue is empty. This
+  // is what sequences the two teammates' offers and keeps combat paused between.
+  _2v2NextBlockTrick() {
+    const q = this.state._2v2BlockQueue;
+    if (!q || !q.length) {
+      this.state._2v2BlockQueue = null;
+      this.resumeCombatIfWaiting();
+      return;
+    }
+    const { seat, trick } = q.shift();
+    const tt = this.state.twoVTwo;
+    const p = tt && tt.players[seat];
+    if (!p) { this._2v2NextBlockTrick(); return; }
+    const side = this._2v2TeamSide[p.team];
+    if (p.isAI && (!this._2v2IsAIAuthority || this._2v2IsAIAuthority())) {
+      // AI: play free if the team has bodies on the board, else keep at cost.
+      if (this.getAllCardsOf(side).length > 0 && typeof trick.play === 'function') {
+        this.log(`  [BLOCK TRICK] ${p.name} plays ${trick.name} for free!`);
+        p.playedTrickPile = p.playedTrickPile || [];
+        p.playedTrickPile.push({ name: trick.name, cost: trick.cost });
+        this._2v2CurrentActingPlayer = seat;
+        this.state._inTrick = true; this.state._trickOwner = side; this.state._activeTrickName = trick.name;
+        this._2v2WithJumperBridge(seat, () => { try { trick.play(this, side); } catch (e) { console.error(e); } });
+        this.state._inTrick = false; this.state._trickOwner = null; this.state._activeTrickName = null;
+        this.cleanupDead();
+      } else {
+        p.trickHand.push({ ...trick });   // no _blockFree — full cost later
+        this.log(`  [BLOCK TRICK] ${p.name} keeps ${trick.name} (costs ${trick.cost}).`);
+      }
+      if (tt.online) this._2v2OnlineBroadcast();
+      // Any prompt the AI's trick raised must resolve before the next offer.
+      if (this.hasPendingPrompt && this.hasPendingPrompt()) this.whenPromptCleared(() => this._2v2NextBlockTrick());
+      else this._2v2NextBlockTrick();
+      return;
+    }
+    // Human seat: raise the block-trick modal, routed to that seat.
+    this.state.pendingBlockTrick = { ...trick, _btOwner: side, _2v2ActingPlayer: seat, _2v2Seat: seat };
+    if (tt.online) this._2v2OnlineBroadcast();
+    if (typeof UI !== 'undefined' && UI.render) UI.render();
+  },
+
+  // Host-authoritative resolution of one seat's block-trick choice, then advance
+  // the queue. play=true fires it free; play=false keeps it in hand at cost.
+  _2v2ResolveBlockTrick(seat, trick, play) {
+    const s = this.state, tt = s.twoVTwo;
+    const p = tt && tt.players[seat];
+    s.pendingBlockTrick = null;
+    if (p && trick) {
+      const side = this._2v2TeamSide[p.team];
+      if (play && typeof trick.play === 'function') {
+        p.playedTrickPile = p.playedTrickPile || [];
+        p.playedTrickPile.push({ name: trick.name, cost: trick.cost });
+        this.log(`  [BLOCK TRICK] ${p.name} plays ${trick.name} for free!`);
+        if (typeof UI !== 'undefined' && UI.showTrickReveal) { try { UI.showTrickReveal(trick.name, trick.desc || '', trick.cost, seat === tt.you); } catch (e) {} }
+        this._2v2CurrentActingPlayer = seat;
+        this.state._inTrick = true; this.state._trickOwner = side; this.state._activeTrickName = trick.name;
+        this._2v2WithJumperBridge(seat, () => { try { trick.play(this, side); } catch (e) { console.error(e); } });
+        this.state._inTrick = false; this.state._trickOwner = null; this.state._activeTrickName = null;
+        this.cleanupDead();
+      } else {
+        p.trickHand.push({ ...trick });   // declined — kept in hand at original cost
+        this.log(`  [BLOCK TRICK] ${p.name} keeps ${trick.name} (costs ${trick.cost}).`);
+      }
+    }
+    if (tt && tt.online) this._2v2OnlineBroadcast();
+    if (this.hasPendingPrompt && this.hasPendingPrompt()) this.whenPromptCleared(() => this._2v2NextBlockTrick());
+    else this._2v2NextBlockTrick();
+  },
+
   // Permanently raise the acting 2v2 seat's max hand size (Mobius Chair / Eye of
   // Agamotto). The side proxy's maxHandSize is temporary and unbridged after the
   // play, so the bump has to land on the seat object to survive to the draw
@@ -14260,6 +14364,15 @@ const Game = {
         this._2v2CurrentActingPlayer = pk;
         this._2v2WithJumperBridge(pk, () => this.playJumpCard(this._2v2TeamSide[jap.team], jcard));
         this._2v2StampPendingActor();
+        break;
+      }
+      case 'resolve2v2BlockTrick': {
+        // A seat answered its block-trick offer. Only resolve if the pending
+        // offer actually belongs to that seat.
+        const bt = this.state.pendingBlockTrick;
+        if (bt && (bt._2v2Seat === pk || bt._2v2ActingPlayer === pk)) {
+          this._2v2ResolveBlockTrick(pk, bt, !!msg.play);
+        }
         break;
       }
       case 'skip2v2Jump': {
