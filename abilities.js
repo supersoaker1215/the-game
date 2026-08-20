@@ -3121,6 +3121,7 @@ const CARD_ABILITIES = {
           delete t._faceDownOriginals;
         }
         G.log(`Professor X converts ${t.name} to your team!`);
+        if (typeof UI !== 'undefined' && UI._fxProfessorX) { try { UI._fxProfessorX(t); } catch (e) {} }
         const open = G.getOpenLanes(owner);
         if (!open.length) return;
         G.promptLaneChoice(owner, open, `Place ${t.name}`, `Choose a lane for ${t.name}`, (l) => {
@@ -4539,6 +4540,7 @@ const CARD_ABILITIES = {
         const target = G.state.lanes[i][opp];
         if (!target) return;
         target._parlayedThisRound = true;
+        if (typeof UI !== 'undefined' && UI._fxParlay) { try { UI._fxParlay(target); } catch (e) {} }
         G.log(`[JACK SPARROW] Parlay! ${target.name} in lane ${i + 1} cannot attack this round.`);
       };
       if (Game.isHuman(self.owner)) {
@@ -5886,6 +5888,7 @@ const CARD_ABILITIES = {
         const before = G.state[opp].currency;
         G.state[opp].currency = Math.max(0, before - 1);
         G.log(`[FREDDY FAZBEAR] Drains 1 Energy from the opponent! (${before} → ${G.state[opp].currency})`);
+        if (typeof UI !== 'undefined' && UI._fxFazbearGlitch) { try { UI._fxFazbearGlitch(self); } catch (e) {} }
       }
     },
   },

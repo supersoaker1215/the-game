@@ -41273,3 +41273,27 @@ body.low-fx .badge-asleep { animation: none; }
   40%  { filter: drop-shadow(0 0 11px rgba(255,90,46,0.9)) saturate(1.3) brightness(1.1); }
   100% { filter: none; }
 }
+
+/* Professor X — violet mind-seizure flash as the enemy turns. */
+.fx-profx-convert { animation: fx-profx-convert 0.8s ease-out; }
+@keyframes fx-profx-convert {
+  0%   { filter: none; }
+  45%  { filter: drop-shadow(0 0 12px rgba(162,75,255,0.9)) hue-rotate(-10deg); }
+  100% { filter: none; }
+}
+/* Jack Sparrow — gold spectral hold on the parlayed enemy. */
+.fx-parlay-hold { animation: fx-parlay-hold 0.7s ease-out; }
+@keyframes fx-parlay-hold {
+  0%   { filter: none; }
+  40%  { filter: drop-shadow(0 0 9px rgba(232,192,90,0.85)) sepia(0.3); }
+  100% { filter: none; }
+}
+/* Freddy Fazbear — animatronic red glitch. */
+.fx-fazbear-glitch { animation: fx-fazbear-glitch 0.3s steps(2) 2; }
+@keyframes fx-fazbear-glitch {
+  0%   { transform: translate(0,0); filter: none; }
+  25%  { transform: translate(-2px,1px); filter: hue-rotate(-20deg) brightness(1.1); }
+  50%  { transform: translate(2px,-1px); }
+  75%  { transform: translate(-1px,0); filter: contrast(1.3); }
+  100% { transform: translate(0,0); filter: none; }
+}

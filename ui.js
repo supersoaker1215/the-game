@@ -10250,6 +10250,52 @@ const UI = {
       }
     });
   },
+  // Professor X — a telepathic seizure: violet psi-rings pulse out of the
+  // enemy's head as its mind is turned and it flips to your side.
+  _fxProfessorX(targetCard) {
+    if (this._reducedMotion() || !targetCard) return;
+    const el = this._fxCardElById(targetCard.id);
+    const to = this._fxCenter(el);
+    if (!to) return;
+    const layer = this._fxLayer();
+    for (let i = 0; i < 4; i++) {
+      setTimeout(() => {
+        const ring = document.createElement('div');
+        ring.className = 'fx-psi-ripple';
+        ring.style.cssText = 'left:' + to.x.toFixed(0) + 'px;top:' + to.y.toFixed(0) + 'px;';
+        layer.appendChild(ring);
+        setTimeout(() => ring.remove(), 720);
+      }, i * 120);
+    }
+    if (el) {
+      this._fxRing(el, { color: '#e0b0ff', contract: true });
+      el.classList.remove('fx-profx-convert'); void el.offsetWidth; el.classList.add('fx-profx-convert');
+      setTimeout(() => el.classList.remove('fx-profx-convert'), 800);
+    }
+    this._fxSparks(to, { color: '#efd6ff', glow: '#a24bff', count: 12, spread: 56, size: 2.6 });
+  },
+  // Jack Sparrow — parlay: a gold spectral shimmer holds the enemy in place so
+  // it can't attack this round.
+  _fxParlay(targetCard) {
+    if (this._reducedMotion() || !targetCard) return;
+    const el = this._fxCardElById(targetCard.id);
+    if (!el) return;
+    this._fxRing(el, { color: '#e8c05a' });
+    el.classList.remove('fx-parlay-hold'); void el.offsetWidth; el.classList.add('fx-parlay-hold');
+    setTimeout(() => el.classList.remove('fx-parlay-hold'), 700);
+    const c = this._fxCenter(el);
+    if (c) this._fxSparks(c, { color: '#ffe9a8', glow: '#c8962e', count: 9, spread: 48, size: 2.4 });
+  },
+  // Freddy Fazbear — the animatronic glitches red as it drains a stray Energy.
+  _fxFazbearGlitch(self) {
+    if (this._reducedMotion() || !self) return;
+    this._fxWhenPainted(self, (el) => {
+      el.classList.remove('fx-fazbear-glitch'); void el.offsetWidth; el.classList.add('fx-fazbear-glitch');
+      setTimeout(() => el.classList.remove('fx-fazbear-glitch'), 620);
+      const c = this._fxCenter(el);
+      if (c) this._fxSparks(c, { color: '#ff6b6b', glow: '#7a0d22', count: 8, spread: 46, size: 2.4 });
+    });
+  },
 
   // Human Torch — Flame On! He combusts and hurls a fireball at the blast target.
   _fxHumanTorchFlame(self, targetCard) {
