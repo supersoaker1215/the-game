@@ -2728,7 +2728,11 @@ const CARD_ABILITIES = {
           self.attack *= 3; self.currentHealth *= 3; self.maxHealth *= 3;
           G.log(`The Grinch gives back ${chosen.name} — stats tripled! ${self.attack}/${self.currentHealth}`);
         };
-        if (Game.isHuman(self.owner)) {
+        // In 2v2 both sides read as "human", so an AI-owned Grinch would enter
+        // the modal branch and strand on this DIRECT prompt (no aiPicker to
+        // auto-resolve it). Treat an AI owner seat as non-human here.
+        const grinchOwnerIsAI = !!(G.state.twoVTwo && G.state.twoVTwo.online && grinchOwnerSeat && G._2v2SeatIsAI(grinchOwnerSeat));
+        if (Game.isHuman(self.owner) && !grinchOwnerIsAI) {
           // Human Grinch owner picks keep-or-giveback via modal
           G.state.pendingCardChoice = {
             owner: self.owner,
