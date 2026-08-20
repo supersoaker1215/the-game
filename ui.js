@@ -6624,6 +6624,10 @@ const UI = {
     if (s.pendingHotseatPass) { this._renderHotseatPass(s); return; }
     this._removeHotseatPass();
 
+    // Turn-order tracker is a 2v2-game-only overlay — hide it by default each
+    // render; the 2v2 board re-shows it below. Keeps it off every other screen.
+    { const _tk = document.getElementById('twov2-turn-tracker'); if (_tk) _tk.style.display = 'none'; }
+
     // Prefetch art for the player's hand so iOS has images cached before the
     // CSS background-image rule fires. Only pays the preload cost when the hand
     // contents actually change (card ids/names differ from the last preload).
@@ -11983,6 +11987,61 @@ const UI = {
   // (card art, animations, health bars, energy orbs) with 8 lanes.
   // Temporarily patches s.player/s.phase so all standard render sub-
   // functions work correctly, then restores them after the render.
+  // Turn-order tracker overlay for 2v2 — reads the engine's own phase order
+  // (Game._2v2ComputePhaseOrder) so it can never drift from the real turn flow.
+  // Renders the six sub-turns of the current round in order, with each seat's
+  // ACTUAL name, what they may play, who is up NOW, and who comes before/after.
+  _render2v2TurnTracker(s, tt) {
+    let el = document.getElementById('twov2-turn-tracker');
+    if (!el) {
+      el = document.createElement('div');
+      el.id = 'twov2-turn-tracker';
+      el.className = 'twov2-tracker';
+      document.body.appendChild(el);
+    }
+    if (!tt || !tt.round || !Game._2v2ComputePhaseOrder) { el.style.display = 'none'; return; }
+    const round = tt.round || 1;
+    const order = Game._2v2ComputePhaseOrder(round) || [];
+    if (!order.length) { el.style.display = 'none'; return; }
+    const idx = tt.subPhaseIdx | 0;
+    const myKey = tt.you || null;
+    const esc = (t) => String(t == null ? '' : t).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    const teamColor = (team) => team === 'A' ? '#4fc3f7' : team === 'B' ? '#ff7a6b' : '#8a94a0';
+    const playLabel = (step) => {
+      const c = step.indexOf('cards') >= 0, t = step.indexOf('tricks') >= 0;
+      return (c && t) ? 'Cards + Tricks' : c ? 'Cards' : t ? 'Tricks' : '—';
+    };
+    const collapsed = !!this._2v2TrackerCollapsed;
+    const chips = order.map((step, i) => {
+      const pk = step.split('-')[0];
+      const p = (tt.players && tt.players[pk]) || {};
+      const name = p.name || ('Player ' + (pk[1] || '?'));
+      const team = p.team || '';
+      const state = i < idx ? 'done' : (i === idx ? 'now' : 'next');
+      const you = !!myKey && pk === myKey;
+      // Team is conveyed by the colour of the order pip, so the play line stays
+      // just the phase label and never truncates in the narrow rail.
+      return `<div class="twov2-tk-chip is-${state}${you ? ' is-you' : ''}" style="--tkc:${teamColor(team)}" title="${esc(name)} — ${playLabel(step)}${team ? ' (Team ' + team + ')' : ''}">
+        <span class="twov2-tk-ord">${i + 1}</span>
+        <span class="twov2-tk-body">
+          <span class="twov2-tk-name">${esc(name)}${you ? ' <b>(you)</b>' : ''}</span>
+          <span class="twov2-tk-play">${playLabel(step)}</span>
+        </span>
+        ${i === idx ? '<span class="twov2-tk-now">NOW</span>' : ''}
+      </div>`;
+    }).join('');
+    el.style.display = '';
+    el.classList.toggle('is-collapsed', collapsed);
+    el.innerHTML = `
+      <div class="twov2-tk-head" onclick="UI._2v2TrackerCollapsed=!UI._2v2TrackerCollapsed;UI.render&&UI.render()" title="Click to ${collapsed ? 'expand' : 'collapse'}">
+        <span class="twov2-tk-title">Turn Order</span>
+        <span class="twov2-tk-round">R${round}</span>
+        <span class="twov2-tk-toggle">${collapsed ? '▸' : '▾'}</span>
+      </div>
+      <div class="twov2-tk-row">${chips}</div>
+      <div class="twov2-tk-foot">Then lanes fight · order rotates next round</div>`;
+  },
+
   _render2v2OnlineBoard(s) {
     const tt = s.twoVTwo;
     if (!tt || !tt.you) return;
@@ -12167,6 +12226,9 @@ const UI = {
     // them to onCardClick which uses Game.playCard — wrong for 2v2).
     this._apply2v2OnlineHandClicks(ap, canCards);
     this._apply2v2OnlineTrickClicks(ap, canTricks);
+
+    // Turn-order tracker — who's up, who's next, and what each may play.
+    this._render2v2TurnTracker(s, tt);
 
     // Lane-select strip shown when a card is selected
     this._render2v2OnlineLaneSelect(s, ap, mySide, canCards);
