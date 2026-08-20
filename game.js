@@ -7567,8 +7567,27 @@ const Game = {
       // charm-derived ATK, etc. all evaporate.
       abilities: (Array.isArray(card.baseAbilities) ? card.baseAbilities.slice() : (card.abilities || [])),
       type: card.type,
-      desc: card.desc, onPlay: card.onPlay, onDeath: card.onDeath,
-      onDamaged: card.onDamaged, onKill: card.onKill, passive: card.passive,
+      desc: card.desc, passive: card.passive,
+      // FULL HOOK SET, not just the four it used to carry (onPlay/onDeath/
+      // onDamaged/onKill). A revive from this archive (Lazarus Pit, Hela,
+      // Solomon Grundy, Cyborg's onDeath) rebuilds the card from these fields
+      // via createCardInstance — and every hook NOT listed here came back null,
+      // silently killing abilities that live in the other hooks. Dormammu's
+      // whole drain is onBeforeTricks, so a revived Dormammu just stood there
+      // (user: "got Dormammu back from Lazarus Pit, his ability never fired").
+      // The dying instance already has every hook wired from createCardInstance,
+      // so copy them straight across. (Summoned COPIES never enter the dead
+      // pile, so the deliberate hookless-copy rule in summonCard is untouched.)
+      onPlay: card.onPlay, onDeath: card.onDeath, onDamaged: card.onDamaged,
+      onKill: card.onKill, onEvade: card.onEvade, onAllyKilled: card.onAllyKilled,
+      onEnemyKilled: card.onEnemyKilled, onBeforeAttack: card.onBeforeAttack,
+      onDamagePlayer: card.onDamagePlayer, onAnyCardPlayed: card.onAnyCardPlayed,
+      onTurnStart: card.onTurnStart, onBeforeTricks: card.onBeforeTricks,
+      onEndOfTurn: card.onEndOfTurn, onBeforeCombat: card.onBeforeCombat,
+      onLaneCombat: card.onLaneCombat, onAnyCardDamaged: card.onAnyCardDamaged,
+      onBlockMeterFired: card.onBlockMeterFired, onRevive: card.onRevive,
+      onMoved: card.onMoved, onLaneResolved: card.onLaneResolved,
+      onAnyTrickPlayed: card.onAnyTrickPlayed, _recurringBT: card._recurringBT,
       // Preserve roguelite run metadata so XP attribution can find this
       // dead card's deckCard-of-record + the deck-reshuffle-into-draw
       // path can reconstruct the run instance with all etches/relics
@@ -10536,7 +10555,27 @@ const Game = {
   checkLaneTrap(card, laneIdx) {
     if (!card || laneIdx < 0 || laneIdx >= this.LANE_COUNT) return;
     const lane = this.state.lanes[laneIdx];
-    if (!lane || !lane.trap || lane.trap.placedBy === card.owner) return;
+    if (!lane) return;
+    // JIGSAW'S ROOMS react to a card ENTERING their lane by ANY means — played,
+    // dragged (Jigsaw's own relocate), Bifrost/Gojo-moved, hunted. Their trigger
+    // logic lives in onAnyCardPlayed (which re-reads the lane and reacts to
+    // whatever is standing there), but a MOVE never fired that broadcast — so an
+    // enemy dragged INTO The Bathroom sat there un-chained and a body moved onto
+    // The Reveal was never hooked to rise. This is Jigsaw's whole combo ("place
+    // rooms, then drag someone into one"), so it has to fire here at the single
+    // lane-entry choke point every mover passes through. Poke the room(s) in
+    // this lane; their once-only guards make the double-fire with the play-path
+    // broadcast harmless. Runs BEFORE the trap early-return so a lane with a room
+    // but no Bear Trap still reacts.
+    if (lane._env) {
+      ['player', 'ai'].forEach(side => {
+        const room = lane._env[side];
+        if (room && room.currentHealth > 0 && room.onAnyCardPlayed) {
+          try { room.onAnyCardPlayed(this, room); } catch (e) {}
+        }
+      });
+    }
+    if (!lane.trap || lane.trap.placedBy === card.owner) return;
     // Trap-set Text+ ("Game Master") stamps a custom debuff on each
     // trap; default is the classic 1 (so -1/-1).
     const debuff = (lane.trap && lane.trap.debuff) || 1;

@@ -41022,6 +41022,110 @@ body.low-fx .badge-asleep { animation: none; }
   .brainiac-scan-pulse { animation: none; }
 }
 
+/* Brainiac center-screen reveal — the prominent "here's what's coming" moment
+   thrown the instant the human discards Brainiac. */
+.brainiac-reveal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: radial-gradient(ellipse at center, rgba(40, 16, 60, 0.55), rgba(4, 2, 8, 0.82));
+  animation: brainiac-reveal-fade 0.28s ease-out;
+  cursor: pointer;
+}
+.brainiac-reveal-overlay.is-leaving { animation: brainiac-reveal-fade 0.3s ease-in reverse; }
+@keyframes brainiac-reveal-fade { from { opacity: 0; } to { opacity: 1; } }
+.brainiac-reveal-inner { text-align: center; }
+.brainiac-reveal-title {
+  font-size: 26px;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  color: #d7f7e6;
+  text-shadow: 0 0 14px rgba(126, 232, 165, 0.6), 0 0 26px rgba(140, 90, 200, 0.5);
+}
+.brainiac-reveal-eye { filter: drop-shadow(0 0 8px rgba(126, 232, 165, 0.9)); }
+.brainiac-reveal-sub {
+  margin-top: 4px;
+  font-size: 13px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: rgba(215, 179, 230, 0.85);
+}
+.brainiac-reveal-cards {
+  margin-top: 20px;
+  display: flex;
+  gap: 22px;
+  justify-content: center;
+}
+.brainiac-reveal-card {
+  position: relative;
+  width: 150px;
+  border-radius: 12px;
+  overflow: hidden;
+  background: rgba(18, 10, 28, 0.95);
+  border: 1px solid rgba(215, 179, 230, 0.6);
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.6), 0 0 18px rgba(140, 90, 200, 0.4);
+  animation: brainiac-reveal-card-in 0.42s cubic-bezier(.2,.9,.3,1) both;
+  animation-delay: calc(var(--i, 0) * 0.11s + 0.06s);
+}
+@keyframes brainiac-reveal-card-in {
+  from { opacity: 0; transform: translateY(16px) scale(0.9) rotateX(18deg); }
+  to   { opacity: 1; transform: translateY(0) scale(1) rotateX(0); }
+}
+.brainiac-reveal-art {
+  width: 100%;
+  height: 200px;
+  background-size: cover;
+  background-position: 50% 22%;
+  background-color: #0c0713;
+}
+.brainiac-reveal-name {
+  padding: 8px 6px 10px;
+  font-size: 13px;
+  font-weight: 700;
+  color: #eafff2;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.brainiac-reveal-order {
+  position: absolute;
+  top: 6px;
+  left: 6px;
+  z-index: 2;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: rgba(140, 90, 200, 0.92);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 20px;
+  text-align: center;
+  box-shadow: 0 0 0 1px rgba(0,0,0,0.4);
+}
+.brainiac-reveal-cost {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  z-index: 2;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 5px;
+  border-radius: 6px;
+  background: rgba(0, 0, 0, 0.6);
+  color: #ffd27a;
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 20px;
+  text-align: center;
+}
+@media (prefers-reduced-motion: reduce) {
+  .brainiac-reveal-overlay, .brainiac-reveal-card { animation: none; }
+}
+
 /* ============================================================
    ART THE CLOWN — WEAPON FX
    Themed glyphs (spawned by UI._fxArtWeapon into the FX layer) plus a

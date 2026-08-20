@@ -6093,6 +6093,46 @@ test("Art the Clown — Jump arms when the enemy has more cards on the field", f
   assertEq(!!art2.jumpReady, false, '1 vs 1 does not arm the jump');
 });
 
+test("The Bathroom chains an enemy DRAGGED into its lane, not only one played", function () {
+  // The Jigsaw combo: place a room, then drag an enemy into it. A drag never
+  // fired onAnyCardPlayed, so the room did nothing — the reported bug. The entry
+  // choke point (checkLaneTrap, which every move/drag/summon passes through) now
+  // pokes the room.
+  var G = freshGame();
+  CARD_ABILITIES['Jigsaw']._placeRoom(G, 'player', 3, 'The Bathroom');
+  var foe = place(G, 'King Shark', 'ai', 3);   // 3/3 arrives opposite the room
+  var a0 = foe.attack, h0 = foe.currentHealth;
+  G.checkLaneTrap(foe, 3);                       // the drag/move entry point
+  assertEq(foe.attack, a0 - 2, 'the dragged enemy loses 2 ATK');
+  assertEq(foe.currentHealth, h0 - 2, 'and 2 HP');
+  assertEq(foe._chainedToLane, 3, 'and is chained to the lane');
+});
+
+test("The Reveal hooks a body dragged in, which rises on your side on death", function () {
+  var G = freshGame();
+  CARD_ABILITIES['Jigsaw']._placeRoom(G, 'player', 4, 'The Reveal');
+  var foe = place(G, 'King Shark', 'ai', 4);
+  G.checkLaneTrap(foe, 4);                       // entry poke installs the hook
+  assert(!!foe._revealHooked, 'the entering body is hooked by The Reveal');
+  foe.currentHealth = 0; G.handleDeath(foe, 4, null); G.cleanupDead();
+  var risen = G.state.lanes[4].player;
+  assert(risen && risen.owner === 'player', 'the dead body rises on your side');
+  assertEq(risen.name, 'King Shark', 'as the same card it was');
+});
+
+test("A card revived from the dead pile keeps ALL its hooks (Dormammu's drain)", function () {
+  // The dead-pile archive used to copy only onPlay/onDeath/onDamaged/onKill, so
+  // a revived Dormammu lost his drain (onBeforeTricks) and just stood there.
+  var G = freshGame();
+  var dorm = place(G, 'Dormammu', 'player', 5);
+  dorm.currentHealth = 0; G.handleDeath(dorm, 5, null);
+  var archive = G.state.player.deadPile[0];
+  assert('onBeforeTricks' in archive, 'the archive carries onBeforeTricks');
+  var revived = G.createCardInstance(archive, 'player');
+  assertEq(typeof revived.onBeforeTricks, 'function', 'and the revived card has it');
+  assertEq(typeof revived.onPlay, 'function', 'onPlay too');
+});
+
 test("A body raised alone still gets Lone Wolf — the room does not bypass it", function () {
   // The other half of the case above, pinned deliberately rather than left as a
   // surprise: with no other ally on the board the risen body is a 2/2, because

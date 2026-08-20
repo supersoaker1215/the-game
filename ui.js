@@ -20823,15 +20823,47 @@ const UI = {
     el.innerHTML = html;
     el.classList.add('is-active');
   },
-  // Immediate "ping" when the human discards Brainiac — a brief pulse on the
-  // strip so the reveal reads as a deliberate event, not a silent HUD change.
+  // Immediate reveal when the human discards Brainiac. The small HUD strip is
+  // easy to miss (user: "I didn't see who he drew at all"), so the discard now
+  // throws a prominent center-screen card reveal of the opponent's next draws —
+  // the strip then lingers as the persistent reference for the next 2 rounds.
   _fxBrainiacScan(upcoming) {
     const el = document.getElementById('brainiac-scan');
-    if (!el) return;
-    el.classList.remove('brainiac-scan-pulse');
-    // Force reflow so re-adding the class restarts the animation.
-    void el.offsetWidth;
-    el.classList.add('brainiac-scan-pulse');
+    if (el) {
+      el.classList.remove('brainiac-scan-pulse');
+      void el.offsetWidth;   // reflow so the pulse restarts
+      el.classList.add('brainiac-scan-pulse');
+    }
+    if (this._reducedMotion && this._reducedMotion()) return;
+    if (!upcoming || !upcoming.length) return;
+    // Tear down any previous reveal still on screen.
+    const prev = document.getElementById('brainiac-reveal');
+    if (prev) prev.remove();
+    const esc = (t) => String(t == null ? '' : t).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    const overlay = document.createElement('div');
+    overlay.id = 'brainiac-reveal';
+    overlay.className = 'brainiac-reveal-overlay';
+    const cards = upcoming.map((c, idx) => {
+      const art = this.getCardArtPath ? this.getCardArtPath(c.name) : '';
+      const cost = (c.cost != null ? c.cost : (c.baseCost != null ? c.baseCost : ''));
+      return `<div class="brainiac-reveal-card" style="--i:${idx}">`
+        + `<span class="brainiac-reveal-order">${idx + 1}</span>`
+        + (cost !== '' ? `<span class="brainiac-reveal-cost">${esc(cost)}</span>` : '')
+        + (art ? `<div class="brainiac-reveal-art" style="background-image:url('${esc(art)}')"></div>` : '<div class="brainiac-reveal-art"></div>')
+        + `<div class="brainiac-reveal-name">${esc(c.name)}</div>`
+        + `</div>`;
+    }).join('');
+    overlay.innerHTML = `<div class="brainiac-reveal-inner">`
+      + `<div class="brainiac-reveal-title"><span class="brainiac-reveal-eye">👁</span> BRAINIAC FORESEES</div>`
+      + `<div class="brainiac-reveal-sub">The opponent's next draw${upcoming.length === 1 ? '' : 's'}</div>`
+      + `<div class="brainiac-reveal-cards">${cards}</div></div>`;
+    document.body.appendChild(overlay);
+    // Click to dismiss early; otherwise auto-fade.
+    const kill = () => { overlay.classList.add('is-leaving'); setTimeout(() => overlay.remove(), 320); };
+    overlay.addEventListener('click', kill);
+    clearTimeout(this._brainiacRevealT);
+    this._brainiacRevealT = setTimeout(kill, 2600);
+    if (this.sfx && this.sfx.play) { try { this.sfx.play('modalOpen'); } catch (e) {} }
   },
   // `mine` — true when the LOCAL player cast it ("You play a Trick");
   // false/omitted for the opponent's plays. User direction: the reveal
