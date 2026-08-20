@@ -2296,6 +2296,7 @@ const CARD_ABILITIES = {
         const grant = dmg + bonus;
         G.addNextTurnCurrency(self.owner, grant);
         G.log(`Green Lantern channels ${dmg} damage into +${grant} energy next round${bonus > 0 ? ` (+${bonus} bonus)` : ''}!`);
+        if (typeof UI !== 'undefined' && UI._fxGreenLantern) { try { UI._fxGreenLantern(self); } catch (e) {} }
       }
     },
     // If Green Lantern dies during combat (e.g. takes lethal damage AFTER
@@ -4563,6 +4564,7 @@ const CARD_ABILITIES = {
       // Game._resolveFirstStrikes(). User: "han solo attacks first no matter
       // what lane he is in, so start of combat he attacks first."
       self.attacksFirst = true;
+      if (typeof UI !== 'undefined' && UI._fxHanBlaster) { try { UI._fxHanBlaster(self); } catch (e) {} }
     },
     onBeforeCombat(G, self, lane) {
       if (Game.isActionLocked(self)) return;

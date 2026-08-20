@@ -41244,3 +41244,32 @@ body.low-fx .badge-asleep { animation: none; }
   40%  { filter: brightness(0.68) contrast(1.2) drop-shadow(0 0 8px rgba(150,170,190,0.7)); }
   100% { filter: none; }
 }
+
+/* Green Lantern — emerald willpower flare as the ring channels energy. */
+.fx-lantern-glow { animation: fx-lantern-glow 0.7s ease-out; }
+@keyframes fx-lantern-glow {
+  0%   { filter: none; }
+  35%  { filter: drop-shadow(0 0 12px rgba(47,227,107,0.9)) brightness(1.15); }
+  100% { filter: none; }
+}
+/* Han Solo — blaster recoil kick. */
+.fx-han-recoil { animation: fx-han-recoil 0.38s ease-out; }
+@keyframes fx-han-recoil {
+  0%   { transform: translate(0,0); }
+  30%  { transform: translate(-5px,1px) rotate(-2deg); }
+  100% { transform: translate(0,0); }
+}
+
+/* Droideka — deflector shield (blue) vs. blaster overcharge (red-hot). */
+.fx-droideka-shield { animation: fx-droideka-shield 0.7s ease-out; }
+@keyframes fx-droideka-shield {
+  0%   { filter: none; }
+  40%  { filter: drop-shadow(0 0 11px rgba(74,163,255,0.9)) brightness(1.1); }
+  100% { filter: none; }
+}
+.fx-droideka-overcharge { animation: fx-droideka-overcharge 0.7s ease-out; }
+@keyframes fx-droideka-overcharge {
+  0%   { filter: none; }
+  40%  { filter: drop-shadow(0 0 11px rgba(255,90,46,0.9)) saturate(1.3) brightness(1.1); }
+  100% { filter: none; }
+}

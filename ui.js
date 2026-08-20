@@ -10203,6 +10203,53 @@ const UI = {
       if (c) this._fxSparks(c, { color: '#cfd8e3', glow: '#8fa0b3', count: 6, spread: 38, size: 2.2 });
     });
   },
+  // Green Lantern — his ring flares emerald willpower as it channels the
+  // round's damage into energy.
+  _fxGreenLantern(self) {
+    if (this._reducedMotion() || !self) return;
+    this._fxWhenPainted(self, (el) => {
+      this._fxRing(el, { color: '#2fe36b' });
+      el.classList.remove('fx-lantern-glow'); void el.offsetWidth; el.classList.add('fx-lantern-glow');
+      setTimeout(() => el.classList.remove('fx-lantern-glow'), 700);
+      const c = this._fxCenter(el);
+      if (c) this._fxSparks(c, { color: '#8dffb0', glow: '#17c04a', count: 12, spread: 58, size: 2.8 });
+    });
+  },
+  // Han Solo — draws first: a blaster muzzle-flash, a bolt streaking off, and a
+  // quick recoil on the card.
+  _fxHanBlaster(self) {
+    if (this._reducedMotion() || !self) return;
+    this._fxWhenPainted(self, (el) => {
+      const from = this._fxCenter(el);
+      if (!from) return;
+      this._fxImpact(from, { color: '#ff5a2e', core: '#ffe6a0', size: 0.6 });
+      this._fxDrawBeam(from, { x: from.x + 170, y: from.y - 26 }, { color: '#ff5a2e', core: '#fff0c8', thickness: 4, impact: 0.8 });
+      this._fxSparks(from, { color: '#ffd27a', glow: '#ff5a2e', count: 8, spread: 44, size: 2.6 });
+      el.classList.remove('fx-han-recoil'); void el.offsetWidth; el.classList.add('fx-han-recoil');
+      setTimeout(() => el.classList.remove('fx-han-recoil'), 380);
+    });
+  },
+  // Droideka — shields UP: a blue deflector snaps around him (Damage Immunity).
+  // Shields DOWN: the twin blasters overcharge red-hot (triple ATK). The
+  // ability called this for ages but the method never existed, so the shield
+  // toggle was silent — this restores it. `shieldsUp` picks the mode.
+  _fxDroidekaShield(self, shieldsUp) {
+    if (this._reducedMotion() || !self) return;
+    this._fxWhenPainted(self, (el) => {
+      const c = this._fxCenter(el);
+      if (shieldsUp) {
+        this._fxRing(el, { color: '#4aa3ff', contract: true });
+        el.classList.remove('fx-droideka-shield'); void el.offsetWidth; el.classList.add('fx-droideka-shield');
+        setTimeout(() => el.classList.remove('fx-droideka-shield'), 700);
+        if (c) this._fxSparks(c, { color: '#bfe4ff', glow: '#2f7fff', count: 10, spread: 52, size: 2.4 });
+      } else {
+        this._fxRing(el, { color: '#ff5a2e' });
+        el.classList.remove('fx-droideka-overcharge'); void el.offsetWidth; el.classList.add('fx-droideka-overcharge');
+        setTimeout(() => el.classList.remove('fx-droideka-overcharge'), 700);
+        if (c) this._fxSparks(c, { color: '#ffd27a', glow: '#ff3b0a', count: 12, spread: 60, size: 2.8 });
+      }
+    });
+  },
 
   // Human Torch — Flame On! He combusts and hurls a fireball at the blast target.
   _fxHumanTorchFlame(self, targetCard) {
