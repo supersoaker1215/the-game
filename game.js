@@ -12042,6 +12042,21 @@ const Game = {
     return !!(tt && tt.online && pk && tt.players[pk] && tt.players[pk].isAI);
   },
 
+  // Permanently raise the acting 2v2 seat's max hand size (Mobius Chair / Eye of
+  // Agamotto). The side proxy's maxHandSize is temporary and unbridged after the
+  // play, so the bump has to land on the seat object to survive to the draw
+  // phase (which reads p.maxHandSize). No-op outside 2v2 online.
+  _2v2BumpHandSize() {
+    const tt = this.state && this.state.twoVTwo;
+    if (!tt || !tt.online) return;
+    const seat = this._2v2CurrentActingPlayer || (this._2v2ActivePlayer && this._2v2ActivePlayer());
+    const p = seat && tt.players[seat];
+    if (p) {
+      p.maxHandSize = (p.maxHandSize || 7) + 1;
+      this.log(`  [2v2] ${p.name}'s max hand size is now ${p.maxHandSize}.`);
+    }
+  },
+
   playJumpCard(owner, card) {
     if (!card.jumpReady) return;
     // Guest: forward to host so the host runs promptLaneChoice authoritatively.
@@ -13746,7 +13761,11 @@ const Game = {
     ['p1', 'p2', 'p3', 'p4'].forEach(pk => {
       const p = tt.players[pk];
       const side = this._2v2TeamSide[p.team];
-      if (tt.drawPile.length > 0) {
+      // Per-player hand cap — 7, or 8 for a seat that played Mobius Chair /
+      // Eye of Agamotto (which bump p.maxHandSize). A full hand skips the draw
+      // rather than overfilling (this used to be uncapped in 2v2).
+      const cap = p.maxHandSize || 7;
+      if (tt.drawPile.length > 0 && (p.hand || []).length < cap) {
         const def = tt.drawPile.pop();
         if (def) p.hand.push(this.createCardInstance(def, side));
       }

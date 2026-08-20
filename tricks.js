@@ -344,6 +344,7 @@ const TRICK_DEFS = [
       const eyeCur = (typeof G.state[owner].maxHandSize === 'number' && isFinite(G.state[owner].maxHandSize))
         ? G.state[owner].maxHandSize : 7;
       G.state[owner].maxHandSize = eyeCur + 1;
+      if (G._2v2BumpHandSize) G._2v2BumpHandSize();
       G.log(`Eye of Agamotto opens — foresight queued for next draw phase, max hand size → ${G.state[owner].maxHandSize}.`);
     }
   },
@@ -359,6 +360,7 @@ const TRICK_DEFS = [
       const p = G.state[owner];
       if (p) {
         p.maxHandSize = (p.maxHandSize | 0) + 1;
+        if (G._2v2BumpHandSize) G._2v2BumpHandSize();
         G.log(`Mobius Chair: ${G.seatPossessive(owner)} max hand size is now ${p.maxHandSize}.`);
       }
       const pile = G.getDrawPile(owner);
