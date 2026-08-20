@@ -8884,6 +8884,22 @@ const UI = {
     if (this._reducedMotion() || !card) return;
     this._fxWhenPainted(card, (el) => this._fxRevive(el));
   },
+  // Doomsday — the entrance: he slams down in a burst of rock and bone-shards
+  // with a dust shockwave and a heavy quake. Distinct from his revive (Rise).
+  _fxDoomsdayEntrance(self) {
+    if (this._reducedMotion() || !self) return;
+    this._fxWhenPainted(self, (el) => {
+      el.classList.remove('fx-doomsday-slam'); void el.offsetWidth; el.classList.add('fx-doomsday-slam');
+      setTimeout(() => el.classList.remove('fx-doomsday-slam'), 720);
+      this._fxRing(el, { color: '#b8a06a' });
+      const c = this._fxCenter(el);
+      if (c) {
+        this._fxImpact(c, { color: '#9a8752', core: '#e8dcc0', size: 1.4 });
+        this._fxSparks(c, { color: '#d8c89a', glow: '#6a5a34', count: 18, spread: 84, size: 3.2 });
+      }
+      this._screenShake('heavy');
+    });
+  },
 
   // ====================== FREEZE FX ======================
   // Fired from Game.freezeCard the instant a freeze LANDS. A burst of frost

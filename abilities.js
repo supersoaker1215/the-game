@@ -5894,6 +5894,10 @@ const CARD_ABILITIES = {
   },
   "Doomsday": {
     passive: 'doomsdayScaling',
+    onPlay(G, self, lane) {
+      // A monstrous entrance — the thing that killed Superman lands hard.
+      if (typeof UI !== 'undefined' && UI._fxDoomsdayEntrance) { try { UI._fxDoomsdayEntrance(self); } catch (e) {} }
+    },
     // Doomsday starts at cost 12 but scales DOWN — he shouldn't be
     // auto-Untrickable just because of his starting cost. The immunity
     // is earned via his revive, not by being a titan.
