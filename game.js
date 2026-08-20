@@ -9203,6 +9203,69 @@ const Game = {
   // Player picks a starting enemy (any enemy on board); then repeatedly picks a direction
   // (left/right/stop) — chain continues only into consecutive occupied enemy lanes.
   // AI uses getChainedEnemies (starting from source lane) for equivalent behavior.
+  // Does the STARTING pick of a chain actually change anything?
+  // A chain that reaches the same cards no matter where it starts is a prompt
+  // with one outcome, and the engine already has a rule for those: options.forced
+  // auto-resolves them (its own comment names "a chain freeze whose direction is
+  // already locked" as the case). The direction step opted in long ago; the start
+  // step never did, so Palpatine kept asking which of two adjacent enemies to
+  // freeze when the answer was always "both".
+  //
+  // Decided by SIMULATION, not by a shortcut like "only two enemies". Counting
+  // enemies would be wrong in both directions: three enemies in an unbroken run
+  // are also all-or-nothing, while two enemies split by a gap are a real choice
+  // because the chain cannot cross it. So this walks every candidate start —
+  // including both branches of a fork — and asks whether they all land on the
+  // same set of cards.
+  _chainStartIsForced(source, maxTargets) {
+    const opp = this.opponent(source.owner);
+    const enemies = this.getEnemiesOf(source.owner).filter(e => e.currentHealth > 0);
+    if (enemies.length <= 1) return true;
+    // Mirrors chainFrom()'s extend(): the next not-yet-hit enemy in an unbroken
+    // run of occupied lanes. Kept in step with it deliberately — if the real
+    // walk changes, this must change with it or the two will disagree about
+    // what "the same outcome" means.
+    const walk = (startLane, startId, step) => {
+      const got = new Set([startId]);
+      let cur = startLane;
+      while (!(maxTargets && got.size >= maxTargets)) {
+        let idx = cur, found = null;
+        while (idx + step >= 0 && idx + step < this.LANE_COUNT) {
+          const e = this.state.lanes[idx + step][opp];
+          if (!e || e.currentHealth <= 0) break;
+          idx += step;
+          if (!got.has(e.id)) { found = { idx, card: e }; break; }
+        }
+        if (!found) break;
+        got.add(found.card.id);
+        cur = found.idx;
+      }
+      return [...got].sort().join(',');
+    };
+    // Is there a live enemy immediately that way? Only a direction the chain can
+    // actually take is a branch — counting an unavailable one as an outcome is
+    // what made a lane-0 start look like a fork when the board simply ends there.
+    const canGo = (lane, step) => {
+      const i = lane + step;
+      if (i < 0 || i >= this.LANE_COUNT) return false;
+      const e = this.state.lanes[i][opp];
+      return !!(e && e.currentHealth > 0);
+    };
+    const seen = new Set();
+    for (const e of enemies) {
+      const lane = this.findCardLane(e);
+      if (lane < 0) continue;
+      const L = canGo(lane, -1), R = canGo(lane, 1);
+      // A genuine fork is the only case with two reachable outcomes. With one
+      // way open the chain auto-walks it, and with none the start IS the chain.
+      if (L && R) { seen.add(walk(lane, e.id, -1)); seen.add(walk(lane, e.id, 1)); }
+      else if (L) seen.add(walk(lane, e.id, -1));
+      else if (R) seen.add(walk(lane, e.id, 1));
+      else seen.add(String(e.id));
+      if (seen.size > 1) return false;
+    }
+    return seen.size <= 1;
+  },
   runPlayerChain(source, applyFn, title, verb, maxTargets) {
     const owner = source.owner;
     const opp = this.opponent(owner);
@@ -9293,7 +9356,10 @@ const Game = {
       // neither side chainable → the start was the whole chain
     };
 
-    // Step 1: prompt for starting enemy
+    // Step 1: prompt for starting enemy — unless every start lands on the same
+    // cards, in which case there is nothing to decide and the global
+    // forced-choice hook resolves it without a tray.
+    const startForced = this._chainStartIsForced(source, maxTargets);
     this.promptCardChoice(owner, enemies, title,
       `Choose a starting enemy — chain ${verb} spreads from there.`,
       (start) => {
@@ -9301,7 +9367,7 @@ const Game = {
         if (startLane < 0) return;
         applyAndLog(start);
         chainFrom(startLane);
-      }, cards => cards[0]);
+      }, cards => cards[0], { forced: startForced });
   },
 
   // Get enemies reachable by chaining through consecutive occupied lanes

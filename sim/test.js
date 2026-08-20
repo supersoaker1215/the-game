@@ -6275,6 +6275,49 @@ test("firstPlayerForRound is the one rule the draft screen and startRound share"
   assertEq(G.state.firstPlayer, promised2, 'and again on the alternating round');
 });
 
+test("A chain whose start cannot change the outcome does not ask", function () {
+  // Owner: "when there's only targets next to each other like this, because it
+  // doesn't matter where i start the chain it will end the same."
+  //
+  // Decided by SIMULATION rather than an enemy count, and these cases are why:
+  // three in a row are also all-or-nothing, while TWO split by a gap are a real
+  // choice because a chain cannot cross empty ground.
+  var G = freshGame();
+  var pal = place(G, 'Emperor Palpatine', 'player', 0);
+  var MAX = 3;
+
+  function enemiesAt(lanes) {
+    for (var i = 0; i < G.LANE_COUNT; i++) G.state.lanes[i].ai = null;
+    lanes.forEach(function (l) { place(G, 'Sabertooth', 'ai', l); });
+  }
+
+  // ONE enemy — nothing to pick.
+  enemiesAt([2]);
+  assertEq(G._chainStartIsForced(pal, MAX), true, 'a single enemy is forced');
+
+  // TWO ADJACENT — the reported case. Start either end, both freeze.
+  enemiesAt([0, 1]);
+  assertEq(G._chainStartIsForced(pal, MAX), true, 'two adjacent enemies are forced');
+
+  // THREE ADJACENT still ASKS, and the reason is the one-way rule: the chain
+  // locks direction after the first step, so starting in the MIDDLE reaches
+  // only two cards while starting at either end reaches all three. That is a
+  // real decision, and it is exactly what a count-based shortcut ("two or three
+  // in a row, just auto-pick") would have silently taken away from the player.
+  enemiesAt([1, 2, 3]);
+  assertEq(G._chainStartIsForced(pal, MAX), false, 'a middle start reaches fewer, so it asks');
+
+  // TWO WITH A GAP — a genuine choice: the chain cannot jump lane 2, so
+  // starting at 1 freezes one card and starting at 3 freezes the other.
+  enemiesAt([0, 2]);
+  assertEq(G._chainStartIsForced(pal, MAX), false, 'a gap makes the start matter');
+
+  // FOUR ADJACENT against a cap of 3 — now the end you start from decides
+  // WHICH three get frozen, so it must still ask.
+  enemiesAt([0, 1, 2, 3]);
+  assertEq(G._chainStartIsForced(pal, MAX), false, 'a run longer than the cap still asks');
+});
+
 // ---- RUNNER ------------------------------------------------
 // ============================================================
 
