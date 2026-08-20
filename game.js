@@ -701,6 +701,10 @@ const Game = {
   // no further changes.
   startMultiplayerHost(opts) {
     this.mp = { role: 'host', you: 'player', opp: 'ai' };
+    // Remember how this match was started so a Rematch can spin up an identical
+    // one (same deck mode / custom decks) over the SAME connection — no rejoin,
+    // no new code. rematchOnline() re-invokes startMultiplayerHost with these.
+    this._mpStartOpts = opts || null;
     // Subscribe to inbound action messages from the guest. Idempotent
     // — only register once even if startMultiplayerHost runs twice.
     if (!this._mpActionBound && typeof Multiplayer !== 'undefined') {
@@ -796,6 +800,19 @@ const Game = {
       };
     }
     this._mpBroadcast();
+  },
+
+  // 1v1 online Rematch. Stay in the same room over the live connection: the
+  // host re-runs its match setup (a brand-new draft) and its broadcast delivers
+  // the fresh state to the guest; the guest just asks the host to do it. No new
+  // room code, no rejoin.
+  rematchOnline() {
+    if (!this.isMultiplayer || !this.isMultiplayer()) return;
+    if (this.mp.role === 'host') {
+      this.startMultiplayerHost(this._mpStartOpts);
+    } else if (typeof Multiplayer !== 'undefined' && Multiplayer.send) {
+      Multiplayer.send({ t: 'rematch' });
+    }
   },
 
   // ===================== COMMAND PIPELINE (Step 1) =====================
@@ -1372,6 +1389,10 @@ const Game = {
   // the host's session.
   _mpApplyAction(msg, actor) {
     if (!msg || !this.isMultiplayer() || this.mp.role !== 'host') return;
+    // Guest asked for a rematch — the host is authoritative, so it re-runs the
+    // match setup (fresh draft) and its broadcast carries the new state to the
+    // guest, whose game-over overlay clears when the fresh state lands.
+    if (msg.t === 'rematch') { this.rematchOnline(); return; }
     try {
       const findCardById = (id) => {
         const p = this.state[actor];
@@ -14383,6 +14404,68 @@ const Game = {
     this._2v2StartDraft();
   },
 
+  // 2v2 online Rematch. p1 (the authority) rebuilds a fresh match from the SAME
+  // roster over the live room and re-enters the draft; its broadcast carries
+  // every seat into the new game. Any other seat just asks p1 to do it. No new
+  // code, no rejoin.
+  rematch2v2Online() {
+    const tt = this.state && this.state.twoVTwo;
+    if (!tt || !tt.online) return;
+    if (tt.you === 'p1') { this._2v2Rematch(); }
+    else if (typeof Multiplayer4 !== 'undefined' && Multiplayer4.send) {
+      Multiplayer4.send({ t: 'rematch', playerKey: tt.you });
+    }
+  },
+
+  // Host-only: rebuild the 2v2 online match from the current roster (seat
+  // names / teams / AI fillers, the room, and `you` all preserved) and start a
+  // fresh draft. A full init() wipe first clears gameOver, the board, and every
+  // per-player/team residue so nothing leaks from the finished match.
+  _2v2Rematch() {
+    const old = this.state && this.state.twoVTwo;
+    if (!old || !old.online || old.you !== 'p1') return;
+    const roster = {};
+    this._2v2SLOTS.forEach(pk => {
+      const p = old.players[pk] || {};
+      roster[pk] = { name: p.name, team: p.team, isAI: !!p.isAI };
+    });
+    const you = old.you;
+    const joined = Object.assign({}, old.joinedPlayers);
+    // init() rebuilds a clean state and drops LANE_COUNT to 6 — re-expand to 8.
+    this.init();
+    this.LANE_COUNT = this.LANE_COUNT_2V2;
+    this.state.lanes = Array.from({ length: this.LANE_COUNT }, () => ({
+      player: null, ai: null, _env: null, destroyed: false, destroyedTurns: 0, protected: null, trap: null,
+    }));
+    const s = this.state;
+    s.phase = '2v2-online-lobby';
+    s.mode = { players: '2v2', deck: 'classic', online: true };
+    const players = {};
+    this._2v2SLOTS.forEach(pk => {
+      players[pk] = {
+        name: roster[pk].name, team: roster[pk].team, isAI: roster[pk].isAI,
+        hand: [], trickHand: [], energy: 0, usedEnergy: 0,
+      };
+    });
+    s.twoVTwo = {
+      players,
+      teams: {
+        A: { health: 30, maxHealth: 30, blockMeter: 0, deadPile: [] },
+        B: { health: 30, maxHealth: 30, blockMeter: 0, deadPile: [] },
+      },
+      subPhaseIdx: 0, round: 0, drawPile: [], trickDrawPile: [],
+      online: true, you, joinedPlayers: joined,
+    };
+    s.player.health = s.player.maxHealth = 30;
+    s.ai.health     = s.ai.maxHealth     = 30;
+    s.player.isHuman = true;
+    s.ai.isHuman     = true;
+    // Straight into the draft — occupancy is already satisfied (same seats).
+    this._2v2StartDraft();
+    this._2v2OnlineBroadcast();
+    if (typeof UI !== 'undefined' && UI.render) UI.render();
+  },
+
   // Distinct call-signs for AI fillers so teammates/opponents can tell them
   // apart. The 🤖 prefix marks a seat as bot-controlled everywhere its name
   // renders (lobby, pass banner, dossier).
@@ -14432,6 +14515,8 @@ const Game = {
   _apply2v2OnlineAction(msg) {
     const pk = msg.playerKey;
     if (!pk) return;
+    // A seat asked for a rematch — p1 rebuilds the match and broadcasts.
+    if (msg.t === 'rematch') { this._2v2Rematch(); return; }
     const activeKey = this._2v2ActivePlayer();
     const draftActive = !!(this.state.twoVTwo && this.state.twoVTwo.draft);
     switch (msg.t) {

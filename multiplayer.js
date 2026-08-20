@@ -120,7 +120,7 @@ const Multiplayer = {
   _GAME_ACTION_TYPES: new Set([
     'playCard', 'playCardFree', 'playJump', 'playTrick', 'doneTurn', 'mulligan',
     'draftPick', 'draftMulligan', 'promptResolve', 'bwlChoice', 'forfeit',
-    'reqLaneChoice', 'reqState', 'undo', 'redraw'
+    'reqLaneChoice', 'reqState', 'undo', 'redraw', 'rematch'
   ]),
   _handleServerMsg(msg) {
     if (!msg || typeof msg !== 'object') return;
@@ -1304,7 +1304,7 @@ const Multiplayer4 = {
   _GAME_ACTION_TYPES: new Set([
     'play2v2Card', 'play2v2Trick', 'play2v2Jump', 'end2v2Phase', '2v2DraftPick', 'start2v2',
     'req2v2LaneChoice', '2v2LaneChoiceResult', '2v2CardChoiceResult', '2v2DraftMulligan',
-    'req2v2State', '2v2TeamSwap'
+    'req2v2State', '2v2TeamSwap', 'rematch'
   ]),
   _handleMsg(msg) {
     if (!msg || typeof msg !== 'object') return;

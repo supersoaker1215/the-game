@@ -23641,6 +23641,25 @@ const UI = {
     if (btnU) btnU.style.display = 'none';
     if (btnR) btnR.style.display = 'none';
 
+    // A fresh match started (rematch) while the game-over overlay was still up —
+    // clear it so the new draft/board shows. Covers the online follower whose
+    // overlay was open when the authority's fresh state arrived AND the local
+    // initiator after their own re-draft.
+    if (!s.gameOver) {
+      const _go = document.getElementById('game-over-overlay');
+      if (_go && _go.style.display === 'flex') {
+        _go.style.display = 'none';
+        _go.className = 'game-over-overlay';
+        this._peekedModal = null;
+        if (this.stopVictoryConfetti) this.stopVictoryConfetti();
+        const _pill = document.getElementById('peek-restore');
+        if (_pill) _pill.style.display = 'none';
+        clearTimeout(this._rematchResetTimer);
+        const _rb = document.getElementById('game-over-rematch-btn');
+        if (_rb) { _rb.disabled = false; if (_rb.dataset.rematchLabel) _rb.textContent = _rb.dataset.rematchLabel; }
+      }
+    }
+
     if (s.gameOver) {
       this.showGameOverScreen(s.winner);
       return;
@@ -24255,12 +24274,16 @@ const UI = {
       overlay.style.display = 'none';
       return;
     }
-    // Rematch is single-player only for now: it spins up a fresh LOCAL
-    // vs-AI draft, which would desync a networked opponent. Hide the button
-    // in multiplayer (the roguelite path suppresses it above the same way);
-    // Main Menu remains the clean exit.
+    // Rematch is available everywhere except roguelite (handled above). Online
+    // 1v1 and 2v2 now stay in the SAME room: the authority (host / p1) re-runs
+    // the draft over the live connection and its broadcast carries the peer(s)
+    // into the new game — no rejoin, no new code. rematch() routes each mode.
     const rematchBtn = document.getElementById('game-over-rematch-btn');
-    if (rematchBtn) rematchBtn.style.display = (Game.isMultiplayer && Game.isMultiplayer()) ? 'none' : '';
+    if (rematchBtn) {
+      rematchBtn.style.display = '';
+      rematchBtn.disabled = false;   // clear any "Rematch…" pending state
+      if (rematchBtn.dataset.rematchLabel) rematchBtn.textContent = rematchBtn.dataset.rematchLabel;
+    }
     // Make sure the floating restore pill is hidden whenever the
     // overlay opens (handles re-entry after the user toggled away).
     const peekPill = document.getElementById('peek-restore');
@@ -30405,14 +30428,46 @@ function newGame() {
   UI._pruneMatchState();
   Game.init();
 }
+// Online rematch feedback — the seat that clicks Rematch may be waiting on the
+// authority (a guest, or a non-p1 in 2v2) to rebuild and broadcast. Give the
+// button a pressed "Rematch…" state so the click reads as registered; it's
+// reset the moment the fresh state clears the overlay (render's !gameOver
+// guard) or if the button is re-shown.
+UI._markRematchPending = function () {
+  const btn = document.getElementById('game-over-rematch-btn');
+  if (!btn) return;
+  btn.disabled = true;
+  btn.dataset.rematchLabel = btn.dataset.rematchLabel || btn.textContent;
+  btn.textContent = 'Rematch…';
+  // Safety reset — if no fresh state arrives (peer gone), re-enable so the
+  // player can retry or use Main Menu instead of a dead button.
+  clearTimeout(UI._rematchResetTimer);
+  UI._rematchResetTimer = setTimeout(() => {
+    btn.disabled = false;
+    if (btn.dataset.rematchLabel) btn.textContent = btn.dataset.rematchLabel;
+  }, 6000);
+};
+
 // Rematch — spin up a fresh match with the same mode + custom deck that
 // just ended. Lets the player hit "Rematch" without bouncing through
 // the main menu and mode picker. Captured at showGameOverScreen time
 // because Game.init() nukes state.mode.
 function rematch() {
-  // Guard: multiplayer has no local rematch — a fresh vs-AI draft would
-  // desync the peer. Bounce to the menu instead (button is hidden in MP too).
-  if (Game.isMultiplayer && Game.isMultiplayer()) { Game.goToMainMenu(); return; }
+  // Online 1v1 — stay in the same room: the host re-runs the draft and its
+  // broadcast carries the guest in; the guest just asks the host. The overlay
+  // clears when the fresh state renders (see the !gameOver guard in render()).
+  if (Game.isMultiplayer && Game.isMultiplayer()) {
+    UI._markRematchPending();
+    Game.rematchOnline();
+    return;
+  }
+  // Online 2v2 — same room: p1 rebuilds the match; other seats ask p1.
+  const _tt = Game.state && Game.state.twoVTwo;
+  if (_tt && _tt.online) {
+    UI._markRematchPending();
+    Game.rematch2v2Online();
+    return;
+  }
   const cfg = UI._lastMatchConfig;
   const overlay = document.getElementById('game-over-overlay');
   if (overlay) { overlay.style.display = 'none'; overlay.className = 'game-over-overlay'; }
