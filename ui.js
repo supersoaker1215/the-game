@@ -12408,10 +12408,13 @@ const UI = {
     const order = ['p1', 'p2', 'p3', 'p4'];
     const enemies = order.filter(pk => tt.players[pk] && tt.players[pk].team !== myTeam);
     const ally = order.find(pk => pk !== me && tt.players[pk] && tt.players[pk].team === myTeam);
-    // Top strip — the two enemies.
-    this._paint2v2RosterStrip('twov2-roster-top', '.info-bar.ai-bar', enemies.map(pk => chip(pk, false)).join(''), 'rc-enemy');
-    // Bottom strip — your ally (name + counts) beside your hand.
-    this._paint2v2RosterStrip('twov2-roster-bottom', '.info-bar.player-bar', ally ? chip(ally, false) : '', 'rc-ally');
+    // The enemies go in the TOP bar's centre cell (the space that shows the
+    // mini-hand in 1v1); the ally goes on the PLAYER bar. Hide the 1v1 mini-hand
+    // in 2v2 so the chips own that space.
+    const aiMini = document.querySelector('.info-bar.ai-bar #ai-hand');
+    if (aiMini) aiMini.style.display = 'none';
+    this._paint2v2RosterStrip('twov2-roster-top', '.info-bar.ai-bar .bar-center', enemies.map(pk => chip(pk, false)).join(''), 'rc-enemy');
+    this._paint2v2RosterStrip('twov2-roster-bottom', '.info-bar.player-bar .bar-center', ally ? chip(ally, false) : '', 'rc-ally');
   },
   _paint2v2RosterStrip(id, anchorSel, innerHTML, extraCls) {
     if (!innerHTML) { this._clear2v2RosterStrip(id); return; }

@@ -41433,13 +41433,12 @@ body.low-fx .badge-asleep { animation: none; }
    2v2 ROSTER COUNTS — per-player card + trick totals. Two enemies on the
    top (ai) bar, your ally on the bottom (player) bar, each with a name.
    ============================================================ */
-.info-bar.ai-bar, .info-bar.player-bar { position: relative; }
-.twov2-roster-strip {
-  position: absolute; left: 50%; transform: translateX(-50%);
-  display: flex; gap: 8px; z-index: 7; pointer-events: none; white-space: nowrap;
-}
-.twov2-roster-strip.rc-enemy { top: calc(100% + 3px); }
-.twov2-roster-strip.rc-ally  { bottom: calc(100% + 3px); }
+.info-bar .bar-center { position: relative; }
+.twov2-roster-strip { display: flex; gap: 12px; z-index: 7; pointer-events: none; white-space: nowrap; align-items: center; }
+/* Enemies fill the top bar's centre cell (the 1v1 mini-hand space). */
+.twov2-roster-strip.rc-enemy { width: 100%; height: 100%; justify-content: center; }
+/* Ally sits on the left of the player bar's centre cell, clear of the Done button. */
+.twov2-roster-strip.rc-ally  { position: absolute; left: 6px; top: 50%; transform: translateY(-50%); }
 .rc-chip {
   display: flex; align-items: center; gap: 7px;
   padding: 3px 9px; border-radius: 999px;
@@ -41448,15 +41447,22 @@ body.low-fx .badge-asleep { animation: none; }
   border: 1px solid rgba(255,255,255,0.14);
 }
 .rc-enemy .rc-chip { border-color: rgba(224,64,64,0.5);  box-shadow: 0 0 8px rgba(224,64,64,0.18); }
-.rc-ally  .rc-chip { border-color: rgba(64,200,120,0.5); box-shadow: 0 0 8px rgba(64,200,120,0.18); }
+.rc-ally  .rc-chip { border-color: rgba(74,163,255,0.5); box-shadow: 0 0 8px rgba(74,163,255,0.18); }
 .rc-chip.rc-active { border-color: #ffd24a; box-shadow: 0 0 10px rgba(255,210,74,0.5); }
 .rc-name {
   font-weight: 700; letter-spacing: 0.02em; color: #e8edf3;
   max-width: 130px; overflow: hidden; text-overflow: ellipsis;
 }
 .rc-name em { font-style: normal; opacity: 0.6; font-weight: 500; }
-.rc-stat { display: inline-flex; align-items: center; gap: 3px; }
-.rc-cards  { color: #9fd0ff; }
-.rc-tricks { color: #a6f0c0; }
-.rc-ic { font-style: normal; opacity: 0.85; }
+/* Each stat is an outlined mini-pill — cards RED for enemies / BLUE for your
+   ally, tricks PURPLE for both, matching the 1v1 colour language. */
+.rc-stat {
+  display: inline-flex; align-items: center; gap: 3px;
+  padding: 1px 6px; border-radius: 6px; font-weight: 700;
+  border: 1px solid transparent;
+}
+.rc-enemy .rc-cards { color: #ff7a7a; border-color: rgba(224,64,64,0.7);  background: rgba(224,64,64,0.10); }
+.rc-ally  .rc-cards { color: #7cbcff; border-color: rgba(74,163,255,0.7); background: rgba(74,163,255,0.10); }
+.rc-tricks          { color: #d7b3e6; border-color: rgba(215,179,230,0.6); background: rgba(215,179,230,0.10); }
+.rc-ic { font-style: normal; opacity: 0.9; }
 @media (max-width: 900px) { .rc-name { max-width: 84px; } .rc-chip { font-size: 10px; padding: 2px 7px; gap: 5px; } }
