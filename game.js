@@ -13406,22 +13406,30 @@ const Game = {
     const run = () => {
       try {
         if (typeof AI === 'undefined') { finish(); return; }
+        // A sub-phase can allow cards, tricks, or BOTH (the middle 'cards-tricks'
+        // seats). The old if/else-if let a cards-tricks seat play cards and then
+        // skip its whole trick phase. Chain them: cards first (if allowed), then
+        // the trick phase (deploys + tricks), then finish.
+        const doTricks = () => {
+          if (this._2v2CanPlayTricks(subPhase)) {
+            const deployThenTricks = () => {
+              if (AI.playTricks) AI.playTricks(side, () => this._schedule(finish, 250));
+              else this._schedule(finish, 250);
+            };
+            if (AI.playTrickPhaseCards) AI.playTrickPhaseCards(side, deployThenTricks);
+            else deployThenTricks();
+          } else {
+            this._schedule(finish, 250);
+          }
+        };
         if (this._2v2CanPlayCards(subPhase) && AI.playCards) {
-          AI.playCards(side, () => this._schedule(finish, 500));
-        } else if (this._2v2CanPlayTricks(subPhase)) {
-          // Red Skull-style tricks-phase card deploys, then tricks.
-          const deployThenTricks = () => {
-            if (AI.playTricks) AI.playTricks(side, () => this._schedule(finish, 500));
-            else finish();
-          };
-          if (AI.playTrickPhaseCards) AI.playTrickPhaseCards(side, deployThenTricks);
-          else deployThenTricks();
+          AI.playCards(side, () => doTricks());
         } else {
-          finish();
+          doTricks();
         }
       } catch (e) { console.error('[2v2 AI] drive threw', e); finish(); }
     };
-    this._schedule(run, 900);
+    this._schedule(run, 500);
   },
 
   _2v2SyncActivePlayer() {
