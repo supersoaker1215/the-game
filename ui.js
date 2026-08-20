@@ -29737,6 +29737,8 @@ const UI = {
 
   // (N) Round-start big banner
   showRoundBanner(round) {
+    if (this._roundBannerShown === round) return;   // announce each round once
+    this._roundBannerShown = round;
     const el = document.getElementById('round-banner');
     if (!el) return;
     el.textContent = 'Round ' + round;

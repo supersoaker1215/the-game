@@ -13604,6 +13604,7 @@ const Game = {
     const tt = s.twoVTwo;
     tt.round = (tt.round || 0) + 1;
     tt.subPhaseIdx = 0;
+    tt._beforeTricksRan = false;   // re-arm the before-tricks pass for this round
 
     // Grant energy for this round (round number)
     const energy = tt.round;
@@ -13624,6 +13625,25 @@ const Game = {
       // All 6 sub-phases done — resolve combat
       this._2v2ResolveCombat();
       return;
+    }
+
+    // BEFORE-TRICKS BOUNDARY. Fire runBeforeTricks (Galactus, Man-Bat, etc.)
+    // exactly once per round, right before the FIRST trick-only turn — that
+    // step IS the start of the trick phase (the user's model). Any prompts it
+    // raises resolve (routed to each card's owner seat) before the turn starts.
+    if (!tt._beforeTricksRan) {
+      const order = this._2v2ComputePhaseOrder(tt.round || 1);
+      const ci = tt.subPhaseIdx || 0;
+      const typ = (st) => st ? st.split('-').slice(1).join('-') : '';   // 'cards' | 'cards-tricks' | 'tricks'
+      if (typ(order[ci]) === 'tricks' && typ(order[ci - 1]) !== 'tricks') {
+        tt._beforeTricksRan = true;
+        this.runBeforeTricks();
+        this.cleanupDead();
+        if (this.hasPendingPrompt && this.hasPendingPrompt()) {
+          this.whenPromptCleared(() => this._2v2StartSubPhase());   // re-enter after prompts, then start the turn
+          return;
+        }
+      }
     }
 
     const playerName = tt.players[activeKey].name;
@@ -13822,19 +13842,11 @@ const Game = {
     s.phase = '2v2-combat';
     if (typeof UI !== 'undefined' && UI.render) UI.render();
 
-    // BEFORE-TRICKS HOOKS. 2v2 used to skip runBeforeTricks entirely, so every
-    // "before the trick phase" ability was dead here — Galactus never devoured,
-    // Spinosaurus never rampaged, Man-Bat never moved, etc. Fire them now, let
-    // any prompts they raise resolve (routed to the card's owner seat inside
-    // runBeforeTricks), THEN start combat.
-    this.runBeforeTricks();
-    this.cleanupDead();
-    this.whenPromptCleared(() => {
-      // Run standard combat. Its lanes resolve on ASYNC timers, so the
-      // read-back + next-round handoff can NOT happen here — it lives in
-      // _2v2PostCombat, invoked by postCombat() when combat truly finishes.
-      setTimeout(() => { this.resolveCombat(); }, 300);
-    });
+    // (Before-tricks hooks already fired at the trick-phase boundary — see
+    // _2v2StartSubPhase, right before the first trick-only turn.)
+    // Run standard combat. Its lanes resolve on ASYNC timers, so the read-back
+    // + next-round handoff lives in _2v2PostCombat (via postCombat()).
+    setTimeout(() => { this.resolveCombat(); }, 300);
   },
 
   // Combat finished (called from postCombat) — read team results back from
@@ -13854,29 +13866,93 @@ const Game = {
   },
 
   _2v2DrawPhase() {
-    const s = this.state;
-    const tt = s.twoVTwo;
+    const tt = this.state.twoVTwo;
+    // Round banner, like 1v1 — announce the upcoming round right after combat,
+    // before anyone draws. (Guests catch it via the round-change check in the
+    // 2v2 board render when the broadcast lands.)
+    if (typeof UI !== 'undefined' && UI.showRoundBanner) { try { UI.showRoundBanner((tt.round || 0) + 1); } catch (e) {} }
+    // Resolve a queued foresight (Eye of Agamotto / Dr. Strange / Dormammu)
+    // BEFORE the normal draws — the card's owner peeks the top N cards and hands
+    // each to a player, who receives it in place of a random draw.
+    const fSeat = this._2v2SLOTS.find(pk => tt.players[pk] && tt.players[pk]._2v2Foresight);
+    if (fSeat) { this._2v2ResolveForesight(fSeat, () => this._2v2DoDraws()); return; }
+    this._2v2DoDraws();
+  },
 
-    // Each player draws exactly ONE card per round — matching 1v1's draw
-    // phase (baseDraw = 1, no per-round trick). This used to hand out 2 cards
-    // AND a trick every round, which flooded hands and handed out free tricks
-    // no other mode grants (tricks come from the draft + the block meter).
-    // User report: "we drew a trick and a card when it should only be a card."
+  _2v2DoDraws() {
+    const tt = this.state.twoVTwo;
+    // Each player draws exactly ONE card per round (baseDraw = 1). A seat that
+    // received a foresight-handed card this phase skips its random draw.
     ['p1', 'p2', 'p3', 'p4'].forEach(pk => {
       const p = tt.players[pk];
+      if (p._2v2GotForesightCard) { delete p._2v2GotForesightCard; return; }
       const side = this._2v2TeamSide[p.team];
       // Per-player hand cap — 7, or 8 for a seat that played Mobius Chair /
-      // Eye of Agamotto (which bump p.maxHandSize). A full hand skips the draw
-      // rather than overfilling (this used to be uncapped in 2v2).
+      // Eye of Agamotto (which bump p.maxHandSize).
       const cap = p.maxHandSize || 7;
       if (tt.drawPile.length > 0 && (p.hand || []).length < cap) {
         const def = tt.drawPile.pop();
         if (def) p.hand.push(this.createCardInstance(def, side));
       }
     });
-
-    // Start next round
     this.start2v2Round();
+  },
+
+  // Foresight for 2v2: the owner peeks the top N cards of the shared draw pile
+  // and hands each to a player (routed to the owner's seat; an AI owner
+  // auto-assigns). Recipients get that card instead of a random draw. Eye of
+  // Agamotto / Dr. Strange peek 2; Dormammu peeks 4 (whole-round distribution).
+  _2v2ResolveForesight(seat, onDone) {
+    const tt = this.state.twoVTwo;
+    const fp = tt.players[seat];
+    const fs = fp && fp._2v2Foresight;
+    if (fp) delete fp._2v2Foresight;
+    const n = fs ? Math.min(fs.count, tt.drawPile.length) : 0;
+    if (n <= 0) { onDone(); return; }
+    const peeked = tt.drawPile.slice(-n).reverse();   // top-of-pile (drawn from the end) first
+    const ownerSide = this._2v2TeamSide[fp.team];
+    this._2v2CurrentActingPlayer = seat;
+    const assigned = [];   // [{ pk, def }]
+    const finalize = () => {
+      tt.drawPile = tt.drawPile.filter(c => peeked.indexOf(c) < 0);   // remove handed cards
+      assigned.forEach(({ pk, def }) => {
+        const p = tt.players[pk];
+        const cap = p.maxHandSize || 7;
+        if ((p.hand || []).length < cap) p.hand.push(this.createCardInstance(def, this._2v2TeamSide[p.team]));
+        p._2v2GotForesightCard = true;
+        this.log(`  [FORESIGHT] ${fs.source}: ${def.name} → ${p.name}.`);
+      });
+      if (tt.online) this._2v2OnlineBroadcast();
+      onDone();
+    };
+    const assignNext = (i) => {
+      if (i >= peeked.length) { finalize(); return; }
+      const def = peeked[i];
+      const taken = new Set(assigned.map(a => a.pk));
+      const recipients = this._2v2SLOTS.filter(pk => tt.players[pk] && !taken.has(pk));
+      if (!recipients.length) { finalize(); return; }
+      const tiles = recipients.map(pk => ({
+        name: tt.players[pk].name || pk, _playerKey: pk, _isPlayerTile: true,
+        desc: `Team ${tt.players[pk].team} · ${(tt.players[pk].hand || []).length} cards`,
+      }));
+      this.promptCardChoice(ownerSide, tiles,
+        `${fs.source} — Give “${def.name}”`,
+        `You peeked ${def.name} (cost ${def.cost != null ? def.cost : '?'}). Choose who receives it.`,
+        (pick) => { if (pick && pick._playerKey) assigned.push({ pk: pick._playerKey, def }); assignNext(i + 1); },
+        (list) => list[0]);
+    };
+    assignNext(0);
+  },
+
+  // Queue a foresight for the acting 2v2 seat (Eye/Strange = 2, Dormammu = 4).
+  _2v2QueueForesight(count, source) {
+    const tt = this.state && this.state.twoVTwo;
+    if (!tt || !tt.online) return;
+    const seat = this._2v2CurrentActingPlayer || (this._2v2ActivePlayer && this._2v2ActivePlayer());
+    if (seat && tt.players[seat]) {
+      tt.players[seat]._2v2Foresight = { count, source };
+      this.log(`  [2v2] ${tt.players[seat].name}'s ${source} — foresight (peek ${count}) queued for the next draw phase.`);
+    }
   },
 
   // Check if 2v2 is active
@@ -14531,6 +14607,17 @@ const Game = {
     let out, threw = true;
     try { out = fn(); threw = false; }
     finally {
+      // COMMIT THE ENERGY SPEND IMMEDIATELY. Cost is deducted synchronously
+      // inside fn() (playCard/playTrick), but the full read-back is deferred
+      // while an on-play prompt is open — so the next play re-synced FULL energy
+      // and cards were free (user: "played multiple 7-cost cards on turn 7 and
+      // the energy never drained"). Writing usedEnergy here, before the defer,
+      // closes that window; the deferred read-back re-writes the same value.
+      if (!threw) {
+        const _ak = this._2v2ActivePlayer && this._2v2ActivePlayer();
+        const _ap = _ak && tt.players[_ak];
+        if (_ap) { const _sd = this._2v2TeamSide[_ap.team]; _ap.usedEnergy = Math.max(0, _ap.energy - s[_sd].currency); }
+      }
       if (!threw && this.hasPendingPrompt && this.hasPendingPrompt()) this.whenPromptCleared(unbridge);
       else unbridge();
     }

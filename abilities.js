@@ -763,6 +763,7 @@ const CARD_ABILITIES = {
     return {
       onPlay(G, self, lane) {
         G.state[self.owner].drStrangeReorder = true;
+        if (G._2v2QueueForesight) G._2v2QueueForesight(2, "Dr. Strange");
         const isRl = !!(G.state.mode && G.state.mode._roguelite);
         G.log(isRl
           ? "Dr. Strange peers into the future! Next turn, scry your top 3 — pick 1, the rest sink to the bottom."
@@ -5326,6 +5327,8 @@ const CARD_ABILITIES = {
       // Foresight (Dr. Strange reorder) for 2 turns
       G.state[self.owner].drStrangeReorder = "Dormammu";
       G.state[self.owner]._dormammuForesight = 2;
+      // 2v2: Dormammu peeks 4 and distributes them across the whole draw phase.
+      if (G._2v2QueueForesight) G._2v2QueueForesight(4, "Dormammu");
       G.log("Dormammu grants foresight for the next 2 draw phases!");
     },
     onBeforeTricks(G, self, lane) {

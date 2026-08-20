@@ -345,6 +345,8 @@ const TRICK_DEFS = [
         ? G.state[owner].maxHandSize : 7;
       G.state[owner].maxHandSize = eyeCur + 1;
       if (G._2v2BumpHandSize) G._2v2BumpHandSize();
+      // 2v2: peek the top 2 next-draw cards and hand each to a player.
+      if (G._2v2QueueForesight) G._2v2QueueForesight(2, "Eye of Agamotto");
       G.log(`Eye of Agamotto opens — foresight queued for next draw phase, max hand size → ${G.state[owner].maxHandSize}.`);
     }
   },
