@@ -41308,3 +41308,33 @@ body.low-fx .badge-asleep { animation: none; }
   75%  { transform: translate(-2px,1px); }
   100% { transform: translate(0,0); }
 }
+
+/* Open Water — Jaws surfaces in a wall of water. */
+.fx-water-surge { animation: fx-water-surge 0.76s ease-out; }
+@keyframes fx-water-surge {
+  0%   { filter: none; transform: translateY(6px); }
+  30%  { filter: drop-shadow(0 0 10px rgba(79,200,255,0.85)) brightness(1.1); transform: translateY(0); }
+  100% { filter: none; transform: translateY(0); }
+}
+/* Gargantua — accretion motes spiralling into the gravity well. */
+.fx-gargantua-mote {
+  position: fixed; width: 5px; height: 5px; border-radius: 50%;
+  background: radial-gradient(circle, #fff2c8, #e08a2a);
+  box-shadow: 0 0 6px #f0b45a; transform: translate(-50%,-50%);
+  pointer-events: none; z-index: 39;
+  animation: fx-gargantua-mote 0.8s cubic-bezier(.4,0,.7,1) forwards;
+}
+@keyframes fx-gargantua-mote {
+  0%   { opacity: 0; transform: translate(calc(-50% + var(--gx)), calc(-50% + var(--gy))) rotate(0) scale(1.2); }
+  25%  { opacity: 1; }
+  100% { opacity: 0; transform: translate(-50%,-50%) rotate(var(--gr)) scale(0.2); }
+}
+/* The Bathroom — rusty iron-chain clamp jolt. */
+.fx-bathroom-chain { animation: fx-bathroom-chain 0.72s ease-out; }
+@keyframes fx-bathroom-chain {
+  0%   { filter: none; transform: translate(0,0); }
+  20%  { transform: translate(-3px,0); }
+  40%  { transform: translate(3px,0); filter: sepia(0.4) drop-shadow(0 0 8px rgba(150,160,170,0.8)); }
+  60%  { transform: translate(-2px,0); }
+  100% { filter: none; transform: translate(0,0); }
+}

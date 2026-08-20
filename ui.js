@@ -8884,6 +8884,53 @@ const UI = {
     if (this._reducedMotion() || !card) return;
     this._fxWhenPainted(card, (el) => this._fxRevive(el));
   },
+  // Open Water — a wall of water erupts as Jaws surfaces. Fired on the Jaws
+  // card the instant it's summoned, alongside the jumpscare.
+  _fxWaterSurge(card) {
+    if (this._reducedMotion() || !card) return;
+    this._fxWhenPainted(card, (el) => {
+      const c = this._fxCenter(el);
+      this._fxRing(el, { color: '#4fc8ff' });
+      el.classList.remove('fx-water-surge'); void el.offsetWidth; el.classList.add('fx-water-surge');
+      setTimeout(() => el.classList.remove('fx-water-surge'), 760);
+      if (c) this._fxSparks(c, { color: '#dff4ff', glow: '#2f9fe0', count: 16, angle: -Math.PI / 2, cone: 2.0, spread: 70, size: 2.8 });
+    });
+  },
+  // Gargantua — a gravity well: an accretion vortex contracts over the
+  // environment and motes spiral inward as it drags the enemy line closer.
+  _fxGargantuaPull(self) {
+    if (this._reducedMotion() || !self) return;
+    this._fxWhenPainted(self, (el) => {
+      const c = this._fxCenter(el);
+      if (!c) return;
+      const layer = this._fxLayer();
+      this._fxRing(el, { color: '#f0b45a', contract: true });
+      this._fxRing(el, { color: '#8fbfff', contract: true });
+      for (let i = 0; i < 18; i++) {
+        const p = document.createElement('div');
+        p.className = 'fx-gargantua-mote';
+        const a = Math.random() * Math.PI * 2, d = 60 + Math.random() * 70;
+        p.style.cssText = 'left:' + c.x.toFixed(0) + 'px;top:' + c.y.toFixed(0) + 'px;'
+          + '--gx:' + (Math.cos(a) * d).toFixed(0) + 'px;--gy:' + (Math.sin(a) * d).toFixed(0) + 'px;'
+          + '--gr:' + ((Math.random() * 2 - 1) * 120).toFixed(0) + 'deg;animation-delay:' + (Math.random() * 140).toFixed(0) + 'ms;';
+        layer.appendChild(p);
+        setTimeout(() => p.remove(), 820);
+      }
+      setTimeout(() => this._fxImpact(c, { color: '#ffd98a', core: '#fff6e0', size: 1.0 }), 260);
+    });
+  },
+  // The Bathroom — a reverse bear-trap clamp: iron chains snap around the victim
+  // in a rusty jolt as it's locked to the lane.
+  _fxBathroomChain(victimCard) {
+    if (this._reducedMotion() || !victimCard) return;
+    const el = this._fxCardElById(victimCard.id);
+    if (!el) return;
+    this._fxRing(el, { color: '#9aa4ad' });
+    el.classList.remove('fx-bathroom-chain'); void el.offsetWidth; el.classList.add('fx-bathroom-chain');
+    setTimeout(() => el.classList.remove('fx-bathroom-chain'), 720);
+    const c = this._fxCenter(el);
+    if (c) this._fxSparks(c, { color: '#c8ccd0', glow: '#5a6068', count: 10, spread: 48, size: 2.4 });
+  },
   // Doomsday — the entrance: he slams down in a burst of rock and bone-shards
   // with a dust shockwave and a heavy quake. Distinct from his revive (Rise).
   _fxDoomsdayEntrance(self) {

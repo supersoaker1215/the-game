@@ -6008,6 +6008,7 @@ const CARD_ABILITIES = {
           jaws.maxHealth = hp;
         }
         G.log(`Jaws rises from the Open Water in lane ${laneIdx + 1}!`);
+        if (typeof UI !== 'undefined' && UI._fxWaterSurge) { try { UI._fxWaterSurge(jaws); } catch (e) {} }
         if (typeof UI !== 'undefined' && UI._jawsJumpscare) {
           setTimeout(() => UI._jawsJumpscare(laneIdx, owner), 60);
         }
@@ -6109,6 +6110,7 @@ const CARD_ABILITIES = {
       // drag), so "can never leave this lane" holds against all of them rather
       // than only against the ones remembered here.
       victim._chainedToLane = laneIdx;
+      if (typeof UI !== 'undefined' && UI._fxBathroomChain) { try { UI._fxBathroomChain(victim); } catch (e) {} }
       G.log(hpShielded
         ? `  [THE BATHROOM] ${victim.name} wakes up chained! −${D} ATK — health shielded → ${victim.attack}/${victim.currentHealth}`
         : `  [THE BATHROOM] ${victim.name} wakes up chained! −${D}/−${D} → ${victim.attack}/${victim.currentHealth}`);
@@ -6587,6 +6589,8 @@ const CARD_ABILITIES = {
         const c = G.state.lanes[i][opp];
         if (c && c.currentHealth > 0 && !c.isEnvironment) targets.push({ card: c, origLane: i });
       }
+      // Gravity-well vortex over Gargantua as the pull begins.
+      if (targets.length && typeof UI !== 'undefined' && UI._fxGargantuaPull) { try { UI._fxGargantuaPull(self); } catch (e) {} }
 
       // Pull closest enemies first to chain moves without cascading conflicts.
       targets.sort((a, b) => {
