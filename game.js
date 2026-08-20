@@ -6876,6 +6876,15 @@ const Game = {
     // blow that overkilled the defender. Caught by the invariant
     // sweep in sim/test.js.
     p.health = Math.max(0, p.health - amount);
+    // 2v2: the team HUD reads tt.teams[team].health, but combat lands on the
+    // state.player/ai proxy — so a hit only appeared next round when
+    // _2v2PostCombat synced them. Mirror the live value into the team now so
+    // every hit shows immediately. owner is the team SIDE ('player'|'ai');
+    // _2v2TeamSide maps A→player, B→ai, so invert it here.
+    if (this.is2v2 && this.is2v2() && this.state.twoVTwo && this.state.twoVTwo.teams) {
+      const _tm = owner === 'player' ? 'A' : 'B';
+      if (this.state.twoVTwo.teams[_tm]) this.state.twoVTwo.teams[_tm].health = p.health;
+    }
     this.emitDmg(null, amount, 'hpHit', owner);
     // Stripe's jump trigger — face damage landed on EITHER hero. Fired
     // here (post-floor, damage actually applied) so blocked/absorbed
@@ -9833,6 +9842,12 @@ const Game = {
     const before = this.state[owner].health;
     const maxHP = this.state[owner].maxHealth;
     this.state[owner].health = Math.min(maxHP, this.state[owner].health + amount);
+    // 2v2: mirror the live team health so a heal shows this instant, not next
+    // round (see damagePlayer). owner is the side; A→player, B→ai.
+    if (this.is2v2 && this.is2v2() && this.state.twoVTwo && this.state.twoVTwo.teams) {
+      const _tm = owner === 'player' ? 'A' : 'B';
+      if (this.state.twoVTwo.teams[_tm]) this.state.twoVTwo.teams[_tm].health = this.state[owner].health;
+    }
     const healed = this.state[owner].health - before;
     if (healed > 0) {
       this.log(`  [HEAL] ${this.seatVerb(owner, 'heal', 'heals')} ${healed} → ${this.state[owner].health}/${maxHP} HP`);
