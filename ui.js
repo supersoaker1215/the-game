@@ -12258,6 +12258,13 @@ const UI = {
     // on the bottom bar, each with their name — so you can track hand sizes.
     this._render2v2RosterCounts(s, tt);
 
+    // Gorr's "what everyone lost" banner (the 1v1 render shows it on its own
+    // path; the 2v2 board returns before reaching that, so surface it here too).
+    if (s._gorrBanner && s._gorrBanner.at !== this._gorrBannerShown) {
+      this._gorrBannerShown = s._gorrBanner.at;
+      this.showPhaseBanner(this._gorrBannerText(s._gorrBanner), { duration: 4200 });
+    }
+
     this.applyTronFx();
     this._applyMotionEffects();
 
@@ -21754,6 +21761,14 @@ const UI = {
   _gorrBannerText(b) {
     if (!b) return '';
     if (b.text) return b.text;                       // pre-upgrade payload
+    // 2v2: per-seat losses, named by the actual players.
+    if (b.bySeat) {
+      const tt = Game.state && Game.state.twoVTwo;
+      const parts = ['p1', 'p2', 'p3', 'p4']
+        .filter(pk => b.bySeat[pk])
+        .map(pk => `${(tt && tt.players[pk] && tt.players[pk].name) || pk} lost: ${b.bySeat[pk].name} (cost ${b.bySeat[pk].cost})`);
+      return `Gorr devoured — ${parts.join(' · ')}`;
+    }
     // ONLINE: name both real players (user: "it says AI lost and you lost —
     // I want it to read the names of the actual players"). state._mpNames holds
     // both seats and is already perspective-flipped for the guest, so each side

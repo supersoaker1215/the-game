@@ -1985,8 +1985,14 @@ const CARD_ABILITIES = {
         G.healPlayer(self.owner, 2, self);
         G.log("Symbiote Spider-Man heals you for 2!");
       };
+      const symIn2v2 = !!(G.is2v2 && G.is2v2() && G.state.twoVTwo && G.state.twoVTwo.online);
       if (skipSelf) {
         doPlayerShuffle(opp, finish);
+      } else if (symIn2v2) {
+        // 2v2: the enemy side proxy doesn't hold a real opponent's hand, so only
+        // the OWNER cycles their own cards — the redraw the player expects —
+        // without shuffling a stale/foreign hand.
+        doPlayerShuffle(self.owner, finish);
       } else {
         doPlayerShuffle(self.owner, () => doPlayerShuffle(opp, finish));
       }
@@ -3927,6 +3933,33 @@ const CARD_ABILITIES = {
       const enemyOnly = !!self._gorrEnemyOnly;
       const killed = { player: null, ai: null };
       if (typeof UI !== 'undefined' && UI._fxNecrosword) { try { UI._fxNecrosword(self); } catch (e) {} }
+      // 2v2: the God-Butcher hits the WHOLE table — every one of the four seats
+      // loses their highest-cost card (not just the enemy's), then Gorr summons.
+      // A per-seat banner shows exactly what everyone lost.
+      if (G.is2v2 && G.is2v2() && G.state.twoVTwo) {
+        const tt = G.state.twoVTwo;
+        const ownerSeat = self._2v2PlayedBy || G._2v2CurrentActingPlayer || (G._2v2ActivePlayer && G._2v2ActivePlayer());
+        const ownerTeam = ownerSeat && tt.players[ownerSeat] ? tt.players[ownerSeat].team : null;
+        const bySeat = {};
+        G._2v2SLOTS.forEach(pk => {
+          const p = tt.players[pk];
+          if (!p || !Array.isArray(p.hand) || !p.hand.length) return;
+          if (enemyOnly && ownerTeam && p.team === ownerTeam) return;   // Text+ punitive variant
+          let idx = 0;
+          for (let i = 1; i < p.hand.length; i++) if ((p.hand[i].cost || 0) > (p.hand[idx].cost || 0)) idx = i;
+          const [devoured] = p.hand.splice(idx, 1);
+          bySeat[pk] = { name: devoured.name, cost: devoured.cost };
+          G.state.voidPile.push({ name: devoured.name, cost: devoured.cost });
+          G.log(`Gorr devours ${devoured.name} (cost ${devoured.cost}) from ${p.name}'s hand!`);
+        });
+        if (Object.keys(bySeat).length) {
+          G.state._gorrBanner = { bySeat, at: Date.now() };
+          if (typeof UI !== 'undefined' && UI.render) UI.render();
+        }
+        const dd = G.drawFromSummonDeck(c => !c.isDiscardEffect && c.cost >= 2 && c.cost <= 9 && (c.attack || 0) > 0);
+        if (dd) G.summonCardChoice(self.owner, dd.name, dd.cost, dd.attack, dd.health, dd.abilities || [], null, null, dd);
+        return;
+      }
       // 2v2: the side proxy only ever holds the ACTIVE player's hand, so
       // reading G.state[opponentSide].hand devoured from a stale/foreign list
       // (usually empty) instead of a real opponent. withChosenOpponent aliases
@@ -5154,9 +5187,14 @@ const CARD_ABILITIES = {
       // Lanes destroyed scales with tier: 2 / 3 / 4 / 5.
       // Roguelite Text+ ("Reality Snap") — _thanosLanes pins the count
       // at a fixed value (4) regardless of rarity.
+      // 2v2: the snap always erases HALF the board (4 of 8 lanes), per owner
+      // request — the "half of all life" fantasy scaled to the bigger arena.
+      const is2v2Thanos = !!(G.is2v2 && G.is2v2());
       const numRolls = self._thanosLanes
         ? self._thanosLanes
-        : G.rarityValue(self, { common: 2, rare: 3, special: 4, legendary: 5 });
+        : is2v2Thanos
+          ? Math.floor(Game.LANE_COUNT / 2)
+          : G.rarityValue(self, { common: 2, rare: 3, special: 4, legendary: 5 });
       const rolled = new Set();
       let killed = 0;
       const maxLanes = Game.LANE_COUNT;

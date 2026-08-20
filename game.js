@@ -3980,6 +3980,11 @@ const Game = {
       const laneNow = this.findCardLane(c);
       if (laneNow < 0 || c.currentHealth <= 0 || c.beforeTricksFired) { step(); return; }
       c.beforeTricksFired = true;
+      // 2v2: a before-tricks hook that prompts (Galactus devour, Man-Bat move)
+      // must offer the choice to the seat that PLAYED the card — stamp it as
+      // the acting player so the prompt routes there (AI seats auto-resolve).
+      const _tt = this.state.twoVTwo;
+      if (_tt && _tt.online && c._2v2PlayedBy) this._2v2CurrentActingPlayer = c._2v2PlayedBy;
       try { c.onBeforeTricks(this, c, laneNow); } catch (e) { console.error(e); }
       if (this.hasPendingPrompt()) this.whenPromptCleared(step);
       else step();
@@ -13698,12 +13703,19 @@ const Game = {
     s.phase = '2v2-combat';
     if (typeof UI !== 'undefined' && UI.render) UI.render();
 
-    // Run standard combat. Its lanes resolve on ASYNC timers, so the
-    // read-back + next-round handoff can NOT happen here — it lives in
-    // _2v2PostCombat, invoked by postCombat() when combat truly finishes.
-    // (The old +300ms read-back here captured pre-damage health AND let
-    // postCombat's 1v1 drawPhase/startRound chain stomp the 2v2 flow.)
-    setTimeout(() => { this.resolveCombat(); }, 300);
+    // BEFORE-TRICKS HOOKS. 2v2 used to skip runBeforeTricks entirely, so every
+    // "before the trick phase" ability was dead here — Galactus never devoured,
+    // Spinosaurus never rampaged, Man-Bat never moved, etc. Fire them now, let
+    // any prompts they raise resolve (routed to the card's owner seat inside
+    // runBeforeTricks), THEN start combat.
+    this.runBeforeTricks();
+    this.cleanupDead();
+    this.whenPromptCleared(() => {
+      // Run standard combat. Its lanes resolve on ASYNC timers, so the
+      // read-back + next-round handoff can NOT happen here — it lives in
+      // _2v2PostCombat, invoked by postCombat() when combat truly finishes.
+      setTimeout(() => { this.resolveCombat(); }, 300);
+    });
   },
 
   // Combat finished (called from postCombat) — read team results back from
@@ -14466,6 +14478,9 @@ const Game = {
     // worked in 2v2 online). Pass 0 as the placeholder lane, exactly as the 1v1
     // tap/drag paths do; the discard branch ignores it.
     const lane = card.isDiscardEffect ? 0 : laneIdx;
+    // Remember WHICH seat played this card so its later before-tricks hook
+    // (Galactus, Man-Bat, etc.) can route its prompt back to that player.
+    card._2v2PlayedBy = playerKey;
     this._2v2WithSideBridge(() => this.playCard(side, card, lane));
     // Stamp any prompt the play raised with the acting player so the right
     // client resolves it (and the others can't).
