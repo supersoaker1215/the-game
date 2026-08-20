@@ -10005,6 +10005,13 @@ const Game = {
       // resolve guards already handle actor==='p1' correctly — the host falls
       // through to local resolution, guests bail — so stamping p1 is safe.
       if (this.is2v2() && this.state.twoVTwo && this.state.twoVTwo.online && _cap) {
+        // An AI filler seat has no remote client to answer — the driving
+        // authority resolves it here with a sensible auto-pick (first open lane).
+        if (this._2v2SeatIsAI(_cap) && this._2v2IsAIAuthority()) {
+          this.state.pendingLaneChoice = null;
+          callback(lanes[0]);
+          return;
+        }
         this.state.pendingLaneChoice._2v2ActingPlayer = _cap;
         return;
       }
@@ -10154,6 +10161,14 @@ const Game = {
       // resolve guards already handle actor==='p1' correctly — the host falls
       // through to local resolution, guests bail — so stamping p1 is safe.
       if (this.is2v2() && this.state.twoVTwo && this.state.twoVTwo.online && _cap) {
+        // AI filler seat: no remote client — the driving authority auto-picks
+        // via the ability's own aiPicker (falls back to the first candidate).
+        if (this._2v2SeatIsAI(_cap) && this._2v2IsAIAuthority()) {
+          const pick = (typeof aiPicker === 'function') ? aiPicker(cards) : cards[0];
+          this.state.pendingCardChoice = null;
+          callback(pick);
+          return;
+        }
         this.state.pendingCardChoice._2v2ActingPlayer = _cap;
         return;
       }
@@ -13348,6 +13363,50 @@ const Game = {
     }
 
     if (typeof UI !== 'undefined' && UI.render) UI.render();
+
+    // AI FILLER SEATS. If the active seat is bot-controlled, the authority
+    // (host online / the single local device) plays it automatically and then
+    // advances — no human input, no waiting on a remote client that isn't there.
+    // Real seats fall through and wait for their player as before, so a full
+    // 4-human lobby never triggers this path.
+    if (tt.players[activeKey] && tt.players[activeKey].isAI && this._2v2IsAIAuthority()) {
+      this._2v2DriveAISeat(activeKey, subPhase);
+    }
+  },
+
+  // Host/local drives one AI seat's sub-phase via the shared AI, then ends the
+  // sub-phase exactly as a human's "Done" would. A short delay makes the turn
+  // legible instead of instant.
+  _2v2DriveAISeat(activeKey, subPhase) {
+    if (this._2v2AIDriving) return;   // one at a time — guards re-entrancy
+    this._2v2AIDriving = activeKey;
+    const side = this._2v2ActiveSide();
+    this._2v2CurrentActingPlayer = activeKey;
+    const finish = () => {
+      this._2v2AIDriving = null;
+      this._2v2CurrentActingPlayer = null;
+      // Mirror the human path: end2v2Phase reads the seat back and advances.
+      try { this.end2v2Phase(); } catch (e) { console.error('[2v2 AI] end phase threw', e); }
+    };
+    const run = () => {
+      try {
+        if (typeof AI === 'undefined') { finish(); return; }
+        if (this._2v2CanPlayCards(subPhase) && AI.playCards) {
+          AI.playCards(side, () => this._schedule(finish, 500));
+        } else if (this._2v2CanPlayTricks(subPhase)) {
+          // Red Skull-style tricks-phase card deploys, then tricks.
+          const deployThenTricks = () => {
+            if (AI.playTricks) AI.playTricks(side, () => this._schedule(finish, 500));
+            else finish();
+          };
+          if (AI.playTrickPhaseCards) AI.playTrickPhaseCards(side, deployThenTricks);
+          else deployThenTricks();
+        } else {
+          finish();
+        }
+      } catch (e) { console.error('[2v2 AI] drive threw', e); finish(); }
+    };
+    this._schedule(run, 900);
   },
 
   _2v2SyncActivePlayer() {
@@ -13666,11 +13725,33 @@ const Game = {
       d.choicesByPlayer = {};
       ['p1', 'p2', 'p3', 'p4'].forEach(pk => { d.choicesByPlayer[pk] = this._2v2DealTwo(isCards, taken); });
       d.picked = { p1: false, p2: false, p3: false, p4: false };
+      // AI fillers pick for themselves the moment offers are dealt (host/local
+      // authority only). Deferred so it never recurses through _2v2DraftPick's
+      // round-advance, which re-enters this method.
+      if (this._2v2SLOTS.some(pk => this._2v2SeatIsAI(pk)) && this._2v2IsAIAuthority()) {
+        this._schedule(() => this._2v2DraftAIPicks(), 450);
+      }
       return;
     }
 
     // Sequential (local pass-and-play): one shared offer for the current picker.
     d.choices = this._2v2DealTwo(isCards, this._2v2TakenSet(isCards, null));
+  },
+
+  // Host/local: auto-pick this round's offers for every AI seat still pending.
+  // A light heuristic — take the pricier card (roughly stronger), first trick.
+  _2v2DraftAIPicks() {
+    const tt = this.state && this.state.twoVTwo;
+    if (!tt || !tt.draft || !tt.draft.simultaneous || !this._2v2IsAIAuthority()) return;
+    const d = tt.draft;
+    this._2v2SLOTS.forEach(pk => {
+      if (!this._2v2SeatIsAI(pk) || (d.picked && d.picked[pk])) return;
+      const offers = (d.choicesByPlayer && d.choicesByPlayer[pk]) || [];
+      if (offers.length < 2) return;
+      let idx = 0;
+      if (d.phase === 'cards') idx = ((offers[1].cost || 0) > (offers[0].cost || 0)) ? 1 : 0;
+      this._2v2DraftPick(idx, pk);
+    });
   },
 
   _2v2DraftPick(index, playerKey) {
@@ -13866,12 +13947,72 @@ const Game = {
     if (typeof UI !== 'undefined' && UI.render) UI.render();
   },
 
-  // Host: start online match once all players have joined
+  // Host: start online match once every seat is filled — a real join OR a
+  // host-added AI filler. AI seats let a short-handed lobby (1-3 real players)
+  // still run a full 2v2; with 4 real players no seat is AI and the AI never
+  // touches the match.
   start2v2OnlineMatch() {
     const s = this.state;
     const tt = s.twoVTwo;
-    tt.joinedPlayers = { p1: true, p2: true, p3: true, p4: true };
+    if (!tt) return;
+    for (const pk of this._2v2SLOTS) {
+      const occupied = tt.joinedPlayers[pk] || (tt.players[pk] && tt.players[pk].isAI);
+      if (!occupied) {
+        this._2v2OnlineError = 'Every seat must be filled — add an AI to any empty seat.';
+        if (typeof UI !== 'undefined' && UI.render) UI.render();
+        return;
+      }
+    }
+    // AI seats count as "joined" for occupancy so downstream checks pass; the
+    // isAI flag is what actually routes control to the host.
+    this._2v2SLOTS.forEach(pk => { if (tt.players[pk] && tt.players[pk].isAI) tt.joinedPlayers[pk] = true; });
+    this._2v2OnlineError = null;
     this._2v2StartDraft();
+  },
+
+  // Distinct call-signs for AI fillers so teammates/opponents can tell them
+  // apart. The 🤖 prefix marks a seat as bot-controlled everywhere its name
+  // renders (lobby, pass banner, dossier).
+  _2v2AI_NAMES: ['Vega', 'Cortex', 'Nyx', 'Rook', 'Echo', 'Onyx', 'Halcyon', 'Sable'],
+  _2v2NextAIName() {
+    const tt = this.state.twoVTwo;
+    const used = new Set(this._2v2SLOTS.map(pk => tt.players[pk] && tt.players[pk].name).filter(Boolean));
+    const pick = this._2v2AI_NAMES.find(n => !used.has('🤖 ' + n)) || this._2v2AI_NAMES[0];
+    return '🤖 ' + pick;
+  },
+  // Host, lobby only: fill an empty seat with an AI (or free it again).
+  add2v2AI(pk) {
+    const tt = this.state && this.state.twoVTwo;
+    if (!tt || !tt.online || tt.you !== 'p1') return;      // host only
+    if ((tt.round || 0) > 0 || tt.draft) return;           // lobby only
+    if (this._2v2SLOTS.indexOf(pk) < 0) return;
+    if (tt.joinedPlayers[pk]) return;                       // a real player holds this seat
+    tt.players[pk].isAI = true;
+    tt.players[pk].name = this._2v2NextAIName();
+    this._2v2OnlineError = null;
+    if (tt.online) this._2v2OnlineBroadcast();
+    if (typeof UI !== 'undefined' && UI.render) UI.render();
+  },
+  remove2v2AI(pk) {
+    const tt = this.state && this.state.twoVTwo;
+    if (!tt || !tt.online || tt.you !== 'p1') return;
+    if ((tt.round || 0) > 0 || tt.draft) return;
+    if (!tt.players[pk] || !tt.players[pk].isAI) return;
+    tt.players[pk].isAI = false;
+    tt.players[pk].name = 'Player ' + pk[1];
+    if (tt.online) this._2v2OnlineBroadcast();
+    if (typeof UI !== 'undefined' && UI.render) UI.render();
+  },
+  // True when THIS client is the authority that drives AI seats: the host in an
+  // online room, or the single device in local play.
+  _2v2IsAIAuthority() {
+    const tt = this.state && this.state.twoVTwo;
+    if (!tt) return false;
+    return !tt.online || tt.you === 'p1';
+  },
+  _2v2SeatIsAI(pk) {
+    const tt = this.state && this.state.twoVTwo;
+    return !!(tt && tt.players[pk] && tt.players[pk].isAI);
   },
 
   // Apply an action received from a joiner (host only)

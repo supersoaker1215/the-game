@@ -12514,7 +12514,11 @@ const UI = {
     const code = this._2v2OnlineRoomCode || '';
     const players = tt ? tt.players : {};
     const joined = tt ? (tt.joinedPlayers || {}) : {};
+    const players0 = tt ? tt.players : {};
+    const isAISeat = (pk) => !!(players0[pk] && players0[pk].isAI);
+    const isOccupied = (pk) => !!(joined[pk] || isAISeat(pk));
     const joinedCount = Object.values(joined).filter(Boolean).length;
+    const occupiedCount = ['p1','p2','p3','p4'].filter(isOccupied).length;
 
     const errorHtml = this._2v2OnlineError
       ? `<div class="setup2v2-error">${this._2v2OnlineError}</div>` : '';
@@ -12566,27 +12570,39 @@ const UI = {
     const canMove = (pk) => isHost || pk === tt.you;
     const playerRows = ['p1','p2','p3','p4'].map(pk => {
       const hasJoined = joined[pk];
-      const name = hasJoined ? players[pk].name : (pk === 'p1' ? '(Host)' : 'Waiting…');
+      const isAI = isAISeat(pk);
+      const occupied = hasJoined || isAI;
+      const name = hasJoined ? players[pk].name
+        : (isAI ? players[pk].name : (pk === 'p1' ? '(Host)' : 'Empty'));
       const teamLabel = (players[pk] && players[pk].team) || '?';
-      // Selectable only once they are actually in the room — you cannot put an
-      // empty seat on a team.
-      const pickable = hasJoined && (canMove(pk) || (sel && canMove(sel)));
+      // Occupied seats (real OR AI) can be moved between teams so the host can
+      // balance a mixed lobby; an empty seat still can't join a team.
+      const pickable = occupied && (canMove(pk) || (sel && canMove(sel)));
       const isSel = sel === pk;
-      const isPartner = !!sel && !isSel && hasJoined && teamLabel !== ((players[sel] || {}).team);
-      return `<div class="twov2-mm-prow ${hasJoined ? 'is-joined' : ''} ${isSel ? 'is-teamsel' : ''} ${sel && isPartner && pickable ? 'is-swappable' : ''} ${pickable ? 'is-pickable' : ''} team-${teamLabel}"
+      const isPartner = !!sel && !isSel && occupied && teamLabel !== ((players[sel] || {}).team);
+      // Host-only per-seat AI control: fill an empty seat, or free an AI one.
+      const aiCtrl = isHost && !hasJoined
+        ? (isAI
+            ? `<button type="button" class="twov2-mm-aibtn is-remove" onclick="event.stopPropagation();Game.remove2v2AI('${pk}')">Remove</button>`
+            : `<button type="button" class="twov2-mm-aibtn" onclick="event.stopPropagation();Game.add2v2AI('${pk}')">+ Add AI</button>`)
+        : '';
+      return `<div class="twov2-mm-prow ${occupied ? 'is-joined' : ''} ${isAI ? 'is-ai' : ''} ${isSel ? 'is-teamsel' : ''} ${sel && isPartner && pickable ? 'is-swappable' : ''} ${pickable ? 'is-pickable' : ''} team-${teamLabel}"
         ${pickable ? `onclick="twov2TeamTap('${pk}')" role="button" tabindex="0"` : ''}>
         <span class="twov2-mm-pslot">P${pk[1]}</span>
         <span class="twov2-mm-pname">${name}</span>
         <span class="twov2-mm-pteam">Team ${teamLabel}</span>
-        <span class="twov2-mm-pcheck">${hasJoined ? '✓' : ''}</span>
+        ${aiCtrl}
+        <span class="twov2-mm-pcheck">${hasJoined ? '✓' : (isAI ? '🤖' : '')}</span>
       </div>`;
     }).join('');
     const balanced = Game._2v2TeamsBalanced ? Game._2v2TeamsBalanced() : true;
     const teamHint = sel
       ? `<div class="twov2-mm-sub">Now tap someone on the other team to trade places</div>`
-      : (joinedCount === 4
-          ? `<div class="twov2-mm-sub">Tap ${isHost ? 'any two players' : 'yourself, then an opponent,'} to trade places</div>`
-          : '');
+      : (occupiedCount === 4
+          ? `<div class="twov2-mm-sub">Tap ${isHost ? 'any two seats' : 'yourself, then an opponent,'} to trade places</div>`
+          : (isHost
+              ? `<div class="twov2-mm-sub">Waiting for players — or fill empty seats with AI to start now.</div>`
+              : ''));
 
     el.innerHTML = `
       <div class="twov2-mm">
@@ -12602,14 +12618,14 @@ const UI = {
           ${errorHtml}
           <div class="twov2-mm-players">${playerRows}</div>
           ${teamHint}
-          ${isHost && joinedCount === 4
+          ${isHost && occupiedCount === 4
             ? `<button type="button" class="twov2-mm-opt" onclick="twov2TeamRandom()"><span class="twov2-mm-ic">&#9186;</span>Shuffle Teams</button>`
             : ''}
-          ${isHost && joinedCount === 4
+          ${isHost && occupiedCount === 4
             ? (balanced
                 ? `<button type="button" class="twov2-mm-opt" onclick="twov2OnlineStart()"><span class="twov2-mm-ic">&#9655;</span>Start Match</button>`
                 : `<div class="twov2-mm-sub">Teams must be two a side to start</div>`)
-            : `<div class="twov2-mm-sub">${joinedCount}/4 players joined</div>`}
+            : `<div class="twov2-mm-sub">${joinedCount} joined · ${occupiedCount}/4 seats filled${isHost ? ' (add AI to fill the rest)' : ''}</div>`}
         </div>
       </div>`;
   },

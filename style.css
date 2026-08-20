@@ -2814,6 +2814,19 @@ body.hit-pause .ai-hand * {
 .twov2-mm-players { margin: 16px 0 20px; max-width: 440px; display: flex; flex-direction: column; gap: 6px; }
 .twov2-mm-prow { display: flex; align-items: center; gap: 14px; padding: 10px 2px; border-bottom: 1px solid rgba(var(--theme-rgb,79,195,247),0.12); opacity: 0.45; transition: opacity 240ms; }
 .twov2-mm-prow.is-joined { opacity: 1; }
+/* AI filler seat — a distinct violet tint so bot seats read apart from humans. */
+.twov2-mm-prow.is-ai { opacity: 1; }
+.twov2-mm-prow.is-ai .twov2-mm-pname { color: #c9a9ff; }
+/* Host per-seat AI control button (Add AI / Remove). */
+.twov2-mm-aibtn {
+  margin-left: auto; padding: 3px 10px; font-size: 12px; font-weight: 600;
+  letter-spacing: 0.04em; color: #bfe4ff; background: rgba(79,195,247,0.10);
+  border: 1px solid rgba(79,195,247,0.5); border-radius: 6px; cursor: pointer;
+  transition: background 160ms, color 160ms;
+}
+.twov2-mm-aibtn:hover { background: rgba(79,195,247,0.22); color: #f5fbff; }
+.twov2-mm-aibtn.is-remove { color: #ffb0b0; border-color: rgba(255,120,120,0.5); background: rgba(255,90,90,0.08); }
+.twov2-mm-aibtn.is-remove:hover { background: rgba(255,90,90,0.20); color: #fff; }
 /* Lobby team picking — see .setup2v2-member. A row you may move lights on
    hover; the selected one holds the light; the rows it can trade with are
    marked so the second tap is never a guess. */
