@@ -24870,7 +24870,33 @@ const UI = {
 
   // ===================== INTERACTION =====================
 
+  // True when 2v2-online AND it's the local seat's turn AND the sub-phase
+  // allows this action. Lets the shared 1v1 hand/drag code work in 2v2, where
+  // s.phase is a '2v2-p*' string the plain gates below don't recognise.
+  _2v2LocalCanPlay(kind) {
+    const tt = Game.state && Game.state.twoVTwo;
+    if (!tt || !tt.online || !tt.you) return false;
+    if (Game._2v2ActivePlayer && Game._2v2ActivePlayer() !== tt.you) return false;
+    const sp = Game._2v2SubPhase && Game._2v2SubPhase();
+    return kind === 'tricks' ? !!Game._2v2CanPlayTricks(sp) : !!Game._2v2CanPlayCards(sp);
+  },
+  // The local seat's live player object in 2v2 online — the hand/trickHand the
+  // drag + hand code must read (s.player is restored to a stale value after the
+  // 2v2 board renders). null outside 2v2 online.
+  _2v2LocalSeatData() {
+    const tt = Game.state && Game.state.twoVTwo;
+    return (tt && tt.online && tt.you && tt.players[tt.you]) ? tt.players[tt.you] : null;
+  },
+  // The lane slot the local seat's cards occupy ('player' | 'ai'), from their
+  // team. Team B renders flipped to the bottom, but the lane DATA keeps its
+  // real side, so openness checks must use this rather than assuming 'player'.
+  _2v2LocalSide() {
+    const seat = this._2v2LocalSeatData();
+    if (!seat) return null;
+    return (Game._2v2TeamSide && Game._2v2TeamSide[seat.team]) || 'player';
+  },
   canPlayerPlayCards(s) {
+    if (this._2v2LocalCanPlay('cards')) return true;
     if (s.phase === 'player-cards' || s.phase === 'player-cards-tricks') return true;
     if (s.phase === 'player-tricks' &&
         Game.getAllCardsOf('player').some(c => c.passive === 'allowCardsInTricksPhase')) {
@@ -24903,6 +24929,7 @@ const UI = {
   },
 
   canPlayerPlayTricks(s) {
+    if (this._2v2LocalCanPlay('tricks')) return true;
     return s.phase === 'player-tricks' || s.phase === 'player-cards-tricks';
   },
 
@@ -24937,7 +24964,11 @@ const UI = {
       if (!cardEl) return null;
       const id = parseInt(cardEl.getAttribute('data-card-id'), 10);
       const s = Game.state;
-      const card = s && s.player && s.player.hand && s.player.hand.find(c => c.id === id);
+      // 2v2 online restores s.player after the board renders, so read the
+      // local seat's live hand instead. Falls back to s.player for 1v1/solo.
+      const seat2v2 = UI._2v2LocalSeatData && UI._2v2LocalSeatData();
+      const hand = seat2v2 ? seat2v2.hand : (s && s.player && s.player.hand);
+      const card = hand && hand.find(c => c.id === id);
       // Hand guardians (Iron Giant) are not draggable. Refusing HERE covers
       // both installers at once — touchstart and mousedown share this closure —
       // so the card never lifts. Letting the gesture run to completion and
@@ -25002,12 +25033,15 @@ const UI = {
       const els = laneEls();
       if (!els.length || x == null) return null;
       const open = [], all = [];
+      // In 2v2 the local seat may play on the 'ai' slot (team B), so test the
+      // real side rather than assuming 'player'.
+      const side = (UI._2v2LocalSide && UI._2v2LocalSide()) || 'player';
       els.forEach((el, idx) => {
         const r = el.getBoundingClientRect();
         const dist = Math.abs(x - (r.left + r.width / 2));
         all.push({ idx, dist });
         const L = Game.state.lanes[idx];
-        const ok = L && !L.destroyed && (card && card.isEnvironment ? true : !L.player);
+        const ok = L && !L.destroyed && (card && card.isEnvironment ? true : !L[side]);
         if (ok) open.push({ idx, dist });
       });
       const pool = open.length ? open : all;
@@ -25022,7 +25056,9 @@ const UI = {
       if (!tEl) return null;
       const id = parseInt(tEl.getAttribute('data-trick-id'), 10);
       const s = Game.state;
-      const trick = s && s.player && (s.player.trickHand || []).find(tk => tk.id === id);
+      const seat2v2 = UI._2v2LocalSeatData && UI._2v2LocalSeatData();
+      const trickList = seat2v2 ? (seat2v2.trickHand || []) : (s && s.player && (s.player.trickHand || []));
+      const trick = trickList && trickList.find(tk => tk.id === id);
       return trick ? { trick, cardEl: tEl } : null;
     };
 

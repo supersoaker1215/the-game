@@ -859,8 +859,24 @@ const Game = {
       const wantId = p.card ? p.card.id : p.cardId;
       const idx = (ap.hand || []).findIndex(c => c.id === wantId);
       if (idx < 0) return false;
-      // 2v2 playCard = the lane-REQUEST path (lane is chosen by the ensuing
-      // lane prompt), so payload.lane is intentionally ignored here.
+      const card = ap.hand[idx];
+      // A LANE supplied by the caller (a drag drop or a lane click) places the
+      // card THERE in one gesture — the same as 1v1. Discards never take a lane
+      // and fire immediately. Only a bare tap with no lane falls back to the
+      // lane-REQUEST prompt (highlight open lanes, then tap one).
+      const hasLane = (typeof p.lane === 'number' && p.lane >= 0);
+      if (card.isDiscardEffect || hasLane) {
+        const lane = card.isDiscardEffect ? null : p.lane;
+        if (isHost) {
+          this._2v2CurrentActingPlayer = you;
+          this._2v2OnlinePlayCard(you, idx, lane);
+          if (!this.state.pendingLaneChoice && !this.state.pendingCardChoice) this._2v2CurrentActingPlayer = null;
+          this._2v2OnlineBroadcast();
+        } else if (typeof Multiplayer4 !== 'undefined') {
+          Multiplayer4.send({ t: 'play2v2Card', playerKey: you, cardIdx: idx, laneIdx: lane });
+        }
+        return true;
+      }
       if (isHost) { this._2v2RequestLaneChoice(you, idx); this._2v2OnlineBroadcast(); }
       else if (typeof Multiplayer4 !== 'undefined') { Multiplayer4.send({ t: 'req2v2LaneChoice', playerKey: you, cardIdx: idx }); }
       return true;
@@ -14273,7 +14289,13 @@ const Game = {
     const card = ap.hand[cardIdx];
     if (!card) return;
     const side = this._2v2TeamSide[ap.team];
-    this._2v2WithSideBridge(() => this.playCard(side, card, laneIdx));
+    // Discard-effect cards take no lane, but playCard still indexes
+    // state.lanes[laneIdx] before its discard branch — a null laneIdx makes that
+    // lookup undefined and the whole play bails (this is why discards never
+    // worked in 2v2 online). Pass 0 as the placeholder lane, exactly as the 1v1
+    // tap/drag paths do; the discard branch ignores it.
+    const lane = card.isDiscardEffect ? 0 : laneIdx;
+    this._2v2WithSideBridge(() => this.playCard(side, card, lane));
     // Stamp any prompt the play raised with the acting player so the right
     // client resolves it (and the others can't).
     this._2v2StampPendingActor();
