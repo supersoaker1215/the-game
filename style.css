@@ -41135,13 +41135,41 @@ body.low-fx .badge-asleep { animation: none; }
 .fx-art-weapon {
   position: absolute;
   transform: translate(-50%, -50%);
-  font-size: 40px;
-  line-height: 1;
+  width: 52px;
+  height: 52px;
+  line-height: 0;
   pointer-events: none;
   z-index: 40;
-  filter: drop-shadow(0 2px 4px rgba(0,0,0,0.6));
   will-change: transform, opacity;
 }
+.fx-art-weapon svg { width: 100%; height: 100%; }
+.fx-art-bleed { width: 38px; height: 38px; }
+
+/* NEON weapon glyphs (Art the Clown) — a glowing cyan tube like a neon sign,
+   shared by the weapon-choice tiles and the swing FX. Geometry lives in the
+   SVGs; stroke, color and glow are all here. */
+.wneon { display: block; width: 100%; height: 100%; overflow: visible; color: #38e6ff;
+  filter: drop-shadow(0 0 2px currentColor) drop-shadow(0 0 5px rgba(56,230,255,0.9)) drop-shadow(0 0 11px rgba(56,230,255,0.5));
+  animation: wneon-flicker 3.2s ease-in-out infinite; }
+.wneon * { fill: none; stroke: currentColor; stroke-width: 2.6; stroke-linecap: round; stroke-linejoin: round; }
+.wneon-blood { color: #ff2d55;
+  filter: drop-shadow(0 0 2px currentColor) drop-shadow(0 0 5px rgba(255,45,85,0.9)) drop-shadow(0 0 11px rgba(255,45,85,0.5)); }
+.wneon-blood * { fill: rgba(255,45,85,0.12); }
+@keyframes wneon-flicker {
+  0%, 100% { opacity: 1; }
+  92% { opacity: 1; }
+  94% { opacity: 0.72; }
+  96% { opacity: 1; }
+  97% { opacity: 0.85; }
+  98% { opacity: 1; }
+}
+/* Weapon-choice tile: the neon glyph replaces the portrait, name + rules below. */
+.art-weapon-neon { display: flex; align-items: center; justify-content: center; width: 100%; padding: 12px 4px 2px; }
+.art-weapon-neon .wneon { width: 58px; height: 58px; }
+.choice-card.art-weapon-opt { text-align: center; align-items: center; }
+.art-weapon-name { font-size: 13px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase;
+  color: #bfefff; text-shadow: 0 0 6px rgba(56,230,255,0.5); margin: 2px 0 4px; }
+@media (prefers-reduced-motion: reduce) { .wneon { animation: none; } }
 /* Scissors — a quick snip: rotate in, close, fade. */
 .fx-art-scissors { animation: fx-art-scissors 0.72s cubic-bezier(.3,.8,.3,1) forwards; }
 @keyframes fx-art-scissors {

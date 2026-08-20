@@ -276,7 +276,7 @@ const CARD_DEFS = [
   { name: "Art the Clown", cost: 4, attack: 3, health: 4, type: "horror",
     abilities: [],
     _recurringBT: true,
-    desc: "Jump: At the start of the Trick Phase, if the enemy has more cards on the field than you, play for free. When Played: Pull a weapon from the bag. Each round choose one — no weapon twice until all 4 are used, then Art is stats-only. ✂ Scissors: permanently strip a keyword from an enemy. 🔨 Sledgehammer: deal double Art's ATK to an enemy. ⚰ Scythe: permanently halve an enemy's ATK and HP. 🪚 Hacksaw: an enemy bleeds 2 at the start of each of the next 2 rounds." },
+    desc: "Jump: At the start of the Trick Phase, if the enemy has more cards on the field than you, play for free. When Played: Pull a weapon from the bag. Each round choose one — no weapon twice until all 4 are used, then Art is stats-only. Scissors: permanently strip a keyword from an enemy. Sledgehammer: deal double Art's ATK to an enemy. Scythe: permanently halve an enemy's ATK and HP. Hacksaw: an enemy bleeds 2 at the start of each of the next 2 rounds." },
   { name: "Paul Atreides", cost: 4, attack: 2, health: 1, type: "villain",
     abilities: [],
     desc: "When Played: Look at the top 2 cards of the draw pile and keep one — its cost drops by 2. If the kept card costs ≤ 2, you may play it for free." },

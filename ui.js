@@ -5753,10 +5753,27 @@ const UI = {
         // relayed nothing and the other three players saw no signature FX.
         if (top && typeof Game !== 'undefined' && Game.onlineRelayRole
             && Game.onlineRelayRole() === 'host' && Game.state && !Game.state._silentSim) {
-          const payload = [];
-          let ok = true;
-          for (const a of args) { const s = serialize(a); if (s === undefined) { ok = false; break; } payload.push(s); }
-          if (ok) { try { Game.emitFX('sig', { fn: key, args: payload }); } catch (e) {} }
+          // NEVER RELAY A VIEWPORT-POINT PRIMITIVE. Low-level helpers
+          // (_fxImpact, _fxSparks, _fxDrawBeam, _fxTendril, _fxFireStream…) take
+          // a {x,y} point in the HOST's viewport frame. Those coordinates are
+          // meaningless on the guest (different window, and the board is
+          // mirrored), and — because they're often fired from a deferred
+          // setTimeout/rAF inside a top-level cast, escaping the _sigFxDepth
+          // guard — relaying them made the guest replay each piece TWICE: once
+          // by rebuilding it from the top-level card FX (correct, positioned
+          // from the guest's own DOM) and once from the stray point-sig (at the
+          // wrong spot). That is the "fires, then randomly fires again" glitch.
+          // The guest reconstructs these primitives itself when it replays the
+          // top-level, card-referencing signature FX, so drop them here.
+          const isPoint = (a) => a && typeof a === 'object' && !Array.isArray(a)
+            && typeof a.x === 'number' && typeof a.y === 'number'
+            && a.id == null && a.name == null && !a._isCardInstance;
+          if (!args.some(isPoint)) {
+            const payload = [];
+            let ok = true;
+            for (const a of args) { const s = serialize(a); if (s === undefined) { ok = false; break; } payload.push(s); }
+            if (ok) { try { Game.emitFX('sig', { fn: key, args: payload }); } catch (e) {} }
+          }
         }
         self._sigFxDepth++;
         try { return fn.apply(self, args); }
@@ -8340,7 +8357,19 @@ const UI = {
       const e2 = this._fxCardElById(sourceCard.id);
       if (!e2) return;          // still not painted — let the other path retry
       done = true;
-      cb(e2);
+      // DEPTH GUARD ACROSS THE DEFERRAL. This body runs a frame/timeout later,
+      // by which point the relayed top-level _fx* method that scheduled it has
+      // already returned and _sigFxDepth is back to 0. Without re-entering the
+      // guard, every nested _fx* call inside cb whose args serialize (a point,
+      // an options bag) emits its OWN 'sig' — and the guest then plays that
+      // piece TWICE: once from replaying the top-level method (which rebuilds
+      // it) and once from the stray nested sig. That is the "animation fires,
+      // then randomly fires again" double-vision (Godzilla's atomic breath and
+      // every other _fxWhenPainted-based cast). Treat the deferred body as still
+      // inside the top-level call, exactly like the synchronous part.
+      this._sigFxDepth++;
+      try { cb(e2); }
+      finally { this._sigFxDepth--; }
     };
     raf(() => raf(fire));
     setTimeout(fire, 120);
@@ -10296,25 +10325,35 @@ const UI = {
     });
   },
 
-  // Art the Clown — one animation per weapon, played on the enemy card he hits.
-  // Each pairs the shared spark/impact primitives with a themed emoji glyph so
-  // the swing reads instantly: ✂ snip, 🔨 smash, ⚰ scythe arc, 🪚 saw, 🩸 bleed.
+  // Art the Clown — hand-drawn NEON line-art for each weapon (cyan tube like a
+  // neon sign), used both on the weapon-choice tiles and as the flying glyph in
+  // the swing animation. Stroke/color/glow all come from CSS (.wneon) so these
+  // stay pure geometry. `bleed` is the red drop for the Hacksaw tick.
+  ART_WEAPON_ICONS: {
+    scissors: '<svg class="wneon" viewBox="0 0 64 64" aria-hidden="true"><circle cx="23" cy="21" r="8"/><circle cx="41" cy="21" r="8"/><path d="M29 26 L51 55"/><path d="M35 26 L13 55"/><path d="M17 15 q-5 -3 -8 0"/></svg>',
+    sledgehammer: '<svg class="wneon" viewBox="0 0 64 64" aria-hidden="true"><rect x="8" y="11" width="24" height="14" rx="2.5"/><path d="M20 25 L49 51"/><path d="M46 48 l6 6"/></svg>',
+    scythe: '<svg class="wneon" viewBox="0 0 64 64" aria-hidden="true"><path d="M12 55 L47 19"/><path d="M47 19 C33 7 14 12 11 31"/></svg>',
+    hacksaw: '<svg class="wneon" viewBox="0 0 64 64" aria-hidden="true"><path d="M13 44 V20 a4 4 0 0 1 4 -4 H47 a4 4 0 0 1 4 4 V44"/><path d="M13 44 l3.5 4 l3.5 -4 l3.5 4 l3.5 -4 l3.5 4 l3.5 -4 l3.5 4 l3.5 -4 l3.5 4 l3.5 -4"/></svg>',
+    bleed: '<svg class="wneon wneon-blood" viewBox="0 0 64 64" aria-hidden="true"><path d="M32 8 C44 26 50 34 50 42 a18 18 0 0 1 -36 0 C14 34 20 26 32 8 Z"/></svg>',
+  },
+  // Played on the enemy card Art hits. The neon glyph flies in / stamps while
+  // the shared spark & impact primitives sell the blow, plus a hit-shake.
   _fxArtWeapon(weapon, el) {
     if (!el || (this._reducedMotion && this._reducedMotion())) return;
     const c = this._fxCenter ? this._fxCenter(el) : null;
     if (!c) return;
     const layer = this._fxLayer ? this._fxLayer() : null;
-    // Themed glyph that flies across / stamps the card.
-    const glyph = (emoji, cls, ms) => {
+    const glyph = (iconKey, cls, ms) => {
       if (!layer) return;
+      const svg = this.ART_WEAPON_ICONS[iconKey];
+      if (!svg) return;
       const g = document.createElement('div');
       g.className = 'fx-art-weapon ' + cls;
-      g.textContent = emoji;
+      g.innerHTML = svg;
       g.style.cssText = 'left:' + c.x + 'px;top:' + c.y + 'px;';
       layer.appendChild(g);
       setTimeout(() => g.remove(), ms || 720);
     };
-    // A short hit-shake on the struck card itself.
     const shake = (cls) => {
       el.classList.remove('fx-art-hit', 'fx-art-hit-heavy');
       void el.offsetWidth;
@@ -10323,30 +10362,30 @@ const UI = {
     };
     switch (weapon) {
       case 'scissors':
-        glyph('✂', 'fx-art-scissors', 720);
+        glyph('scissors', 'fx-art-scissors', 720);
         if (this._fxSparks) this._fxSparks(c, { color: '#dfe7ee', glow: '#9fb3c8', count: 10, spread: 46, size: 2.2 });
-        if (this._fxRing) this._fxRing(el, { color: '#cfd8e3' });
+        if (this._fxRing) this._fxRing(el, { color: '#38e6ff' });
         shake('fx-art-hit');
         break;
       case 'sledgehammer':
-        glyph('🔨', 'fx-art-sledge', 640);
-        if (this._fxImpact) this._fxImpact(c, { color: '#c96a2a', core: '#ffe0b0', size: 1.35 });
-        if (this._fxSparks) this._fxSparks(c, { color: '#e8b27a', glow: '#8a4a1e', count: 16, spread: 74, size: 3.0 });
+        glyph('sledgehammer', 'fx-art-sledge', 640);
+        if (this._fxImpact) this._fxImpact(c, { color: '#38e6ff', core: '#d6faff', size: 1.35 });
+        if (this._fxSparks) this._fxSparks(c, { color: '#9fe9ff', glow: '#0f9bd6', count: 16, spread: 74, size: 3.0 });
         shake('fx-art-hit-heavy');
         break;
       case 'scythe':
-        glyph('⚰', 'fx-art-scythe', 700);
-        if (this._fxSparks) this._fxSparks(c, { color: '#b8ffd9', glow: '#20c56a', count: 14, angle: -Math.PI / 4, cone: 0.6, spread: 80, size: 2.8 });
-        if (this._fxRing) this._fxRing(el, { color: '#3ad17e' });
+        glyph('scythe', 'fx-art-scythe', 700);
+        if (this._fxSparks) this._fxSparks(c, { color: '#b8f4ff', glow: '#17b6e6', count: 14, angle: -Math.PI / 4, cone: 0.6, spread: 80, size: 2.8 });
+        if (this._fxRing) this._fxRing(el, { color: '#38e6ff' });
         shake('fx-art-hit');
         break;
       case 'hacksaw':
-        glyph('🪚', 'fx-art-hacksaw', 760);
-        if (this._fxSparks) this._fxSparks(c, { color: '#ff5470', glow: '#b3122f', count: 12, spread: 60, size: 2.6 });
+        glyph('hacksaw', 'fx-art-hacksaw', 760);
+        if (this._fxSparks) this._fxSparks(c, { color: '#9fe9ff', glow: '#0f9bd6', count: 12, spread: 60, size: 2.6 });
         shake('fx-art-hit');
         break;
       case 'bleedTick':
-        glyph('🩸', 'fx-art-bleed', 820);
+        glyph('bleed', 'fx-art-bleed', 820);
         if (this._fxSparks) this._fxSparks(c, { color: '#e0244d', glow: '#7a0d22', count: 8, angle: Math.PI / 2, cone: 0.7, spread: 40, size: 2.4 });
         break;
     }
@@ -11362,13 +11401,20 @@ const UI = {
       const curseBolt = curseColor
         ? `<svg class="curse-bolt" viewBox="0 0 24 40" aria-hidden="true" style="--curse-c:${curseColor}"><path d="M13 0 L2 23 L10 23 L7 40 L22 15 L13 15 Z"/></svg>`
         : '';
+      // Art the Clown's weapon tiles — a big cyan-neon glyph of the weapon in
+      // place of a portrait (keyed on _artWeaponKey the ability stamps on each
+      // option), same pattern as the Voldemort curse bolt above.
+      const weaponIcon = (card._artWeaponKey && this.ART_WEAPON_ICONS[card._artWeaponKey])
+        ? `<div class="art-weapon-neon">${this.ART_WEAPON_ICONS[card._artWeaponKey]}</div>` : '';
+      const weaponClass = card._artWeaponKey ? ' art-weapon-opt' : '';
       return `
         <div class="choice-opt">
-          <div class="choice-card card ${isActionTile ? 'choice-action' : 'flip-host'} ${costClass}${isTrickFace ? ' choice-trick' : ''}${curseClass}" data-idx="${idx}">
+          <div class="choice-card card ${isActionTile ? 'choice-action' : 'flip-host'} ${costClass}${isTrickFace ? ' choice-trick' : ''}${curseClass}${weaponClass}" data-idx="${idx}">
             ${curseBolt}
+            ${weaponIcon}
             ${costHtml}
             ${typeSigil}
-            ${portraitHtml}
+            ${weaponIcon ? `<div class="art-weapon-name">${card.name || ''}</div>` : portraitHtml}
             <div class="card-desc">${this.formatDesc(card.desc)}</div>
             ${stats}
           </div>

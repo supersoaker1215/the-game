@@ -1416,10 +1416,10 @@ const CARD_ABILITIES = {
     // in the swing animation; the strip fields make each weapon render as a
     // real option card in the picker tray.
     WEAPONS: [
-      { key: 'scissors',     name: '✂ Scissors',     icon: '✂', desc: 'Permanently strip one keyword or badge from an enemy.' },
-      { key: 'sledgehammer', name: '🔨 Sledgehammer', icon: '🔨', desc: "Deal double Art's current ATK to one enemy." },
-      { key: 'scythe',       name: '⚰ Scythe',        icon: '⚰', desc: "Permanently halve one enemy's ATK and HP (rounded down)." },
-      { key: 'hacksaw',      name: '🪚 Hacksaw',       icon: '🪚', desc: 'An enemy bleeds 2 at the start of each of the next 2 rounds.' },
+      { key: 'scissors',     name: 'Scissors',     desc: 'Permanently strip one keyword or badge from an enemy.' },
+      { key: 'sledgehammer', name: 'Sledgehammer', desc: "Deal double Art's current ATK to one enemy." },
+      { key: 'scythe',       name: 'Scythe',        desc: "Permanently halve one enemy's ATK and HP (rounded down)." },
+      { key: 'hacksaw',      name: 'Hacksaw',       desc: 'An enemy bleeds 2 at the start of each of the next 2 rounds.' },
     ],
     onPlay(G, self, lane) { CARD_ABILITIES['Art the Clown']._step(G, self); },
     onBeforeTricks(G, self, lane) { CARD_ABILITIES['Art the Clown']._step(G, self); },
@@ -1457,9 +1457,11 @@ const CARD_ABILITIES = {
       self._artWeaponRound = round;
       // Build the picker tiles. Synthetic option cards (like the Upkeep prompt)
       // — the _artWeaponKey marker is what the callback reads.
+      // No attack/health fields — that keeps them ACTION tiles (not "real
+      // cards"), so the picker renders the neon weapon glyph instead of a 0/1
+      // card face. See UI's choice-tile builder (_artWeaponKey branch).
       const tiles = usable.map(w => ({
-        _artWeaponKey: w.key, name: w.name, cost: 0, attack: 0, health: 1,
-        type: 'horror', desc: w.desc,
+        _artWeaponKey: w.key, name: w.name, cost: 0, type: 'horror', desc: w.desc,
       }));
       G.promptCardChoice(owner, tiles,
         'Art the Clown — Pick a Weapon',
@@ -1545,7 +1547,7 @@ const CARD_ABILITIES = {
           const opts = AB._strippable(t);
           if (!opts.length) { G.log(`[ART] Scissors — ${t.name} has nothing left to cut.`); return; }
           // Second prompt: WHICH keyword. Synthetic tiles again.
-          const kwTiles = opts.map(ab => ({ _artKw: ab, name: ab, cost: 0, attack: 0, health: 1, type: 'horror', desc: `Permanently remove ${ab}.` }));
+          const kwTiles = opts.map(ab => ({ _artKw: ab, name: ab, cost: 0, type: 'horror', desc: `Permanently remove ${ab}.` }));
           G.promptCardChoice(owner, kwTiles, `Art the Clown — Scissors on ${t.name}`,
             'Choose a keyword or badge to cut away for good.',
             (pk) => {
