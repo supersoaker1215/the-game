@@ -600,7 +600,15 @@ const TRICK_DEFS = [
           // a hand to 8 — caught by the sim/test.js invariant sweep.
           // If the target's hand is full, addToHand logs and returns
           // false; the card is lost (same semantics as any cap-hit).
+          // 2v2: return the card to its EXACT owner seat (the player who
+          // played it), not just their team's side proxy — briefly point the
+          // hand-router at that seat while addToHand runs, then restore.
+          const _dpTt = G.state.twoVTwo, _savedActor = G._2v2CurrentActingPlayer;
+          if (_dpTt && _dpTt.online && t._2v2PlayedBy && _dpTt.players[t._2v2PlayedBy]) {
+            G._2v2CurrentActingPlayer = t._2v2PlayedBy;
+          }
           G.addToHand(t.owner, fresh);
+          if (_dpTt && _dpTt.online) G._2v2CurrentActingPlayer = _savedActor;
           G.log(`Phantom Zone bounces ${t.name}!`);
         }, cards => cards.sort((a, b) => b.cost - a.cost)[0]);
       }
