@@ -11119,6 +11119,19 @@ const UI = {
   // flinching before it's struck. Splash / trick / ability hits carry no
   // attackerId (no lunge) and stay immediate.
   _COMBAT_IMPACT_MS: 175,
+  // 2v2: FX events carry the ABSOLUTE side ('player'=Team A, 'ai'=Team B), but
+  // the board renders the VIEWER's team on the 'player' bars and the enemy on
+  // the 'ai' bars (Team B sees the board flipped). Map an event's absolute owner
+  // to the viewer-relative side so a hit flashes the correct health bar.
+  // _fx2v2MySide is set each render by _render2v2OnlineBoard; no-op in 1v1.
+  _fxDomSide(owner) {
+    const tt = Game.state && Game.state.twoVTwo;
+    if (tt && tt.online && this._fx2v2MySide) {
+      return owner === this._fx2v2MySide ? 'player' : 'ai';
+    }
+    return owner;
+  },
+
   showDamageFloats() {
     const events = Game.flushDmg();
     for (const ev of events) {
@@ -11188,16 +11201,19 @@ const UI = {
         continue;
       }
       if (ev.type === 'hpHit') {
+        // 2v2: map the absolute owner ('player'=Team A / 'ai'=Team B) to the
+        // viewer-relative bar so a hit flashes the correct side (no-op in 1v1).
+        const dside = this._fxDomSide(ev.owner);
         if (ev.amount > 0) this.sfx.play('hpHit');
         // Face-damage vignette — red pulse from the hurt side's edge.
-        if (ev.amount > 0) this.fxFaceDamage(ev.owner);
+        if (ev.amount > 0) this.fxFaceDamage(dside);
         // Flash the HP bar
-        const fill = document.getElementById(ev.owner === 'player' ? 'player-hp-fill' : 'ai-hp-fill');
+        const fill = document.getElementById(dside === 'player' ? 'player-hp-fill' : 'ai-hp-fill');
         if (fill) { fill.classList.add('hp-flash'); setTimeout(() => fill.classList.remove('hp-flash'), 500); }
         // (j) HP depletion shards
-        this.spawnHpShards(ev.owner, ev.amount || 0);
+        this.spawnHpShards(dside, ev.amount || 0);
         // Shake the HP number itself — localized hit feedback
-        const hpText = document.getElementById(ev.owner === 'player' ? 'player-health' : 'ai-health');
+        const hpText = document.getElementById(dside === 'player' ? 'player-health' : 'ai-health');
         if (hpText && ev.amount > 0) {
           hpText.classList.remove('hp-shake');
           void hpText.offsetWidth; // force reflow so the animation replays
@@ -11208,7 +11224,7 @@ const UI = {
         // max HP OR ≥10 raw damage (catches both early-game small-bar
         // chip and late-game massive blasts). Light = ≤2 damage (chip).
         if (ev.amount > 0) {
-          const maxHp = ev.owner === 'player'
+          const maxHp = dside === 'player'
             ? (Game.state.player && Game.state.player.maxHealth) || 30
             : (Game.state.ai && Game.state.ai.maxHealth) || 30;
           const heavy = ev.amount >= 10 || ev.amount >= maxHp * 0.30;
@@ -11227,7 +11243,7 @@ const UI = {
           // Pro polish: leading-edge brightness pulse on the bar itself
           // when damage lands. Reads as the bar "registering" the hit
           // alongside the floater + width drop.
-          this.pulseHpEdge(ev.owner);
+          this.pulseHpEdge(dside);
         }
         continue;
       }
@@ -12314,6 +12330,15 @@ const UI = {
 
     this.applyTronFx();
     this._applyMotionEffects();
+
+    // Combat FX — the 2v2 board returns before the 1v1 render reaches
+    // showDamageFloats(), so the engine-emitted FX stream (hp-bar hit flash +
+    // shake + shards + floating damage, card hits, screen shake) never drained
+    // and 2v2 combat played silently. Drain it here. _fx2v2MySide tells the
+    // hp-bar branch which absolute side is "my team" so the flash lands on the
+    // right bar for both teams (Team B's board is flipped).
+    this._fx2v2MySide = mySide;
+    this.showDamageFloats();
 
     // Restore patched state
     s.player.hand      = save.playerHand;
