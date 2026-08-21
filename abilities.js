@@ -1932,7 +1932,17 @@ const CARD_ABILITIES = {
       // Each card shuffles back to its OWNER's pile — in Deckbuilder this
       // is their personal deck, in Classic it's the shared pile (same ref).
       const shuffleBack = (card, ownerKey) => {
-        G.getDrawPile(ownerKey).push({ name: card.name, cost: card.baseCost || card.cost, attack: card.attack, health: card.maxHealth, abilities: card.abilities, type: card.type, desc: card.desc });
+        // GUARDED. This was an unguarded .push() on whatever getDrawPile
+        // returned, so a missing pile threw from inside the per-seat chain
+        // below — and one seat throwing there stops every seat after it, which
+        // reads as "only one of us redrew". A card that cannot be shuffled back
+        // should cost that seat its cycle, never the rest of the table's.
+        const pile = G.getDrawPile(ownerKey);
+        if (!Array.isArray(pile)) {
+          G.log(`  [SSM] No draw pile for ${ownerKey} — ${card.name} stays put.`);
+          return;
+        }
+        pile.push({ name: card.name, cost: card.baseCost || card.cost, attack: card.attack, health: card.maxHealth, abilities: card.abilities, type: card.type, desc: card.desc });
       };
       const doPlayerShuffle = (p, onDone) => {
         const hand = G.state[p].hand;
@@ -2053,10 +2063,17 @@ const CARD_ABILITIES = {
           .filter((k, i, a) => k && tt.players[k] && a.indexOf(k) === i);
         const run = (i) => {
           if (i >= order.length) { finish(); return; }
-          seatShuffle(order[i], () => {
+          const next = () => {
             if (G.hasPendingPrompt && G.hasPendingPrompt()) G.whenPromptCleared(() => run(i + 1));
             else run(i + 1);
-          });
+          };
+          // ONE SEAT'S FAILURE MUST NOT END THE TABLE'S TURN. The chain is
+          // sequential so human pick prompts never collide, which also means a
+          // throw part-way through silently strands every seat that had not gone
+          // yet — the shape of "the enemy played Symbiote and only my teammate
+          // redrew". Caught per seat so the cycle always reaches all four.
+          try { seatShuffle(order[i], next); }
+          catch (e) { console.error('[SSM] seat', order[i], 'failed to cycle', e); next(); }
         };
         run(0);
       } else {
