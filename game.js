@@ -4004,8 +4004,10 @@ const Game = {
       // 2v2: a before-tricks hook that prompts (Galactus devour, Man-Bat move)
       // must offer the choice to the seat that PLAYED the card — stamp it as
       // the acting player so the prompt routes there (AI seats auto-resolve).
-      const _tt = this.state.twoVTwo;
-      if (_tt && _tt.online && c._2v2PlayedBy) this._2v2CurrentActingPlayer = c._2v2PlayedBy;
+      // _2v2ActFor uses the card's _2v2PlayedBy, or a seat on its team when the
+      // card carries none (AI-played cards never get tagged), so the prompt is
+      // never left unstamped to default to the host.
+      this._2v2ActFor(c);
       try { c.onBeforeTricks(this, c, laneNow); } catch (e) { console.error(e); }
       if (this.hasPendingPrompt()) this.whenPromptCleared(step);
       else step();
@@ -4283,6 +4285,18 @@ const Game = {
     if (!bwlAlive) {
       this.addToHand(opp, card, bwl);
       this.log(`  [BWL] ${card.name} is kept — Batman Who Laughs is gone.`);
+      this.resumeCombatIfWaiting();
+      if (typeof UI !== 'undefined' && UI.render) UI.render();
+      return;
+    }
+    // 2v2 has no render or resolution path for the keep/destroy modal — arming
+    // it there just stalls the turn for the full 30s auto-pick window before
+    // keeping anyway. Auto-keep immediately: same outcome (a free stolen card,
+    // the sensible default), no dead wait. Destroy-for-buff is unavailable in
+    // 2v2, exactly as it silently was before (the modal never showed).
+    if (this.is2v2()) {
+      this.addToHand(opp, card, bwl);
+      this.log(`  [BWL] ${card.name} is kept.`);
       this.resumeCombatIfWaiting();
       if (typeof UI !== 'undefined' && UI.render) UI.render();
       return;
@@ -4956,7 +4970,14 @@ const Game = {
     // so in multiplayer the modal broadcast ungated to BOTH clients and the
     // guest's own Time Stone could never react at all.
     const tsDefender = this.opponent(owner);
+    // 2v2 has NO render or resolution path for the reactive Time Stone modal,
+    // and `isHuman(side)` is true for BOTH teams there (so it armed even for an
+    // all-AI defending team). Armed-but-unresolvable + no auto-timeout = a
+    // permanent freeze (the #1 stall found in 2v2 self-play). Skip the reactive
+    // intercept entirely in 2v2 — the AI never used it anyway (in 1v1 the AI
+    // seat isn't human, so it never armed for an AI defender there either).
     if (!trick._timeStoneChecked && this.isHuman(tsDefender)
+        && !this.is2v2()
         && !this.state.pendingTimeStoneIntercept
         && this._seatHasTimeStone(tsDefender) && this._isHostileTrick(trick)
         && trick.name !== 'Time Stone') {
@@ -9975,6 +9996,21 @@ const Game = {
     if (seat) this._2v2CurrentActingPlayer = seat;
   },
 
+  // 2v2 online: given an owner SIDE ('player'=Team A, 'ai'=Team B), return a
+  // seat on that team to own an otherwise-orphaned prompt — preferring an AI
+  // seat (the host auto-resolves it) over a human seat. The last-resort fallback
+  // for prompts raised with no acting-seat context (before-tricks/combat/death
+  // hooks on cards that carry no _2v2PlayedBy, e.g. AI-played cards); it keeps
+  // the prompt on the RIGHT TEAM instead of defaulting to the host, who might
+  // otherwise answer the enemy team's decision. No-op outside 2v2 online.
+  _2v2SeatForSide(side) {
+    const tt = this.state && this.state.twoVTwo;
+    if (!tt || !tt.online || !side) return null;
+    const team = side === 'player' ? 'A' : 'B';
+    return this._2v2SLOTS.find(pk => tt.players[pk] && tt.players[pk].team === team && tt.players[pk].isAI)
+        || this._2v2SLOTS.find(pk => tt.players[pk] && tt.players[pk].team === team) || null;
+  },
+
   mindControlCard(card, source, onApply) {
     if (!card) return false;
     return this.tryApplyDebuff(source, card, 'Mind Control', () => {
@@ -10196,7 +10232,9 @@ const Game = {
       // callback deep inside AI play — fall back to the seat currently being
       // driven so an AI seat's prompt is never mistaken for a human's (that
       // stranded the round: the AI finished but a target prompt sat forever).
-      const _actor = _cap || this._2v2AIDriving;
+      // Last resort: derive a seat from the prompt's OWNER team (before-tricks /
+      // combat / death hooks raise prompts with neither cap nor driving set).
+      const _actor = _cap || this._2v2AIDriving || this._2v2SeatForSide(owner);
       if (this.is2v2() && this.state.twoVTwo && this.state.twoVTwo.online && _actor) {
         // An AI filler seat has no remote client to answer — the driving
         // authority resolves it here with a sensible auto-pick (first open lane).
@@ -10354,8 +10392,10 @@ const Game = {
       // resolve guards already handle actor==='p1' correctly — the host falls
       // through to local resolution, guests bail — so stamping p1 is safe.
       // See promptLaneChoice: fall back to the seat being driven so a prompt
-      // raised from a deferred callback during AI play never strands the round.
-      const _actor = _cap || this._2v2AIDriving;
+      // raised from a deferred callback during AI play never strands the round,
+      // then to a seat on the owner's team so an orphaned before-tricks/combat/
+      // death prompt lands on the right team instead of defaulting to the host.
+      const _actor = _cap || this._2v2AIDriving || this._2v2SeatForSide(owner);
       if (this.is2v2() && this.state.twoVTwo && this.state.twoVTwo.online && _actor) {
         // AI filler seat: no remote client — the driving authority auto-picks
         // via the ability's own aiPicker (falls back to the first candidate).
