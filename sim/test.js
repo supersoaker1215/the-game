@@ -6478,6 +6478,64 @@ test("Crazy cannot outlive the Joker who stamped it", function () {
   assertEq(!!v.isCrazy, true, 'Crazy survives while its Joker is alive');
 });
 
+test("2v2: an orphaned prompt goes to a HUMAN seat, never a bot", function () {
+  // Owner, emphatically: "MAKE SURE THEY CAN NEVER PLAY FOR ANOTHER HUMAN."
+  //
+  // The seat fallback used to prefer an AI seat on purpose — the host
+  // auto-resolves those — which turned "no seat is obviously acting" into "a bot
+  // decides for a human". That is what a player experiences as their cards being
+  // played for them: an Iron Giant sacrificing itself with no prompt, a Superman
+  // whose targets were picked for them, a Ghost Rider whose teleport resolved
+  // out of a teammate's hand.
+  function lobby(teamA, teamB) {
+    var G = freshGame();
+    G.state.twoVTwo = { online: true, players: {
+      p1: { team: 'A', isAI: teamA[0], name: 'p1' },
+      p2: { team: 'A', isAI: teamA[1], name: 'p2' },
+      p3: { team: 'B', isAI: teamB[0], name: 'p3' },
+      p4: { team: 'B', isAI: teamB[1], name: 'p4' } } };
+    return G;
+  }
+
+  // A human sharing a team with a bot fill-in must own the prompt.
+  var G1 = lobby([false, true], [true, true]);
+  assertEq(G1._2v2SeatForSide('player'), 'p1', 'the human seat owns it, not the bot');
+
+  // Even when the bot occupies the earlier slot.
+  var G2 = lobby([true, false], [true, true]);
+  assertEq(G2._2v2SeatForSide('player'), 'p2', 'slot order does not hand it to the bot');
+
+  // An all-bot team still resolves — the AI branch is the last resort, not the
+  // first choice, so nothing strands.
+  var G3 = lobby([true, true], [true, true]);
+  assertEq(G3._2v2SeatForSide('ai'), 'p3', 'an all-bot team still gets a seat');
+
+  // And the enemy team's prompt never crosses over.
+  var G4 = lobby([false, true], [false, true]);
+  assertEq(G4._2v2SeatForSide('ai'), 'p3', 'Team B prompts stay on Team B');
+});
+
+test("2v2: a played card always records who played it", function () {
+  // _2v2PlayedBy was only stamped when a seat was ALREADY acting, so a card
+  // played while that was null recorded no owner — and every prompt it raised
+  // later fell through to the team-derived fallback instead of staying with the
+  // player who played it.
+  var G = freshGame();
+  G.state.player.isHuman = false; G.state.ai.isHuman = false;
+  G.state.twoVTwo = { online: true, players: {
+    p1: { team: 'A', isAI: false }, p2: { team: 'A', isAI: true },
+    p3: { team: 'B', isAI: true },  p4: { team: 'B', isAI: true } } };
+  G._2v2CurrentActingPlayer = null;          // nothing acting
+  G._2v2ActivePlayer = function () { return 'p1'; };
+
+  var c = G.createCardInstance(cardByName('Superman'), 'player');
+  G.state.player.hand = [c];
+  G.state.player.currency = 99;
+  G.playCard('player', c, 0);
+
+  assertEq(c._2v2PlayedBy, 'p1', 'the card knows which seat played it');
+});
+
 // ---- RUNNER ------------------------------------------------
 // ============================================================
 

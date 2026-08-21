@@ -4482,9 +4482,16 @@ const Game = {
     // _2v2OnlinePlayCard; AI-driven seats call playCard directly and never did,
     // so their cards fell back to team-derivation. Tagging here (idempotent —
     // skipped when already set) makes every seat's plays route precisely.
-    if (card && this.state.twoVTwo && this.state.twoVTwo.online
-        && !card._2v2PlayedBy && this._2v2CurrentActingPlayer) {
-      card._2v2PlayedBy = this._2v2CurrentActingPlayer;
+    if (card && this.state.twoVTwo && this.state.twoVTwo.online && !card._2v2PlayedBy) {
+      // UNCONDITIONAL. This used to require _2v2CurrentActingPlayer to already
+      // be set, so a card played when it happened to be null recorded no owner
+      // at all — and every prompt that card raised later fell through to the
+      // team-derived fallback. Falling back to the active seat means a card
+      // always knows who played it, which is what keeps its prompts with that
+      // player instead of being derived (or auto-resolved) later.
+      const _by = this._2v2CurrentActingPlayer
+        || (this._2v2ActivePlayer && this._2v2ActivePlayer()) || null;
+      if (_by) card._2v2PlayedBy = _by;
     }
     // Multiplayer guest: forward to host instead of executing locally.
     // Host applies the action and broadcasts the new state. We return
@@ -4796,9 +4803,16 @@ const Game = {
     // Ghost Rider playing Darkseid from hand, a jump, Mother Box, etc.) so its
     // onPlay AND later hooks route their prompts to that player instead of an
     // auto-resolving AI seat. Same idempotent tag as playCard.
-    if (card && this.state.twoVTwo && this.state.twoVTwo.online
-        && !card._2v2PlayedBy && this._2v2CurrentActingPlayer) {
-      card._2v2PlayedBy = this._2v2CurrentActingPlayer;
+    if (card && this.state.twoVTwo && this.state.twoVTwo.online && !card._2v2PlayedBy) {
+      // UNCONDITIONAL. This used to require _2v2CurrentActingPlayer to already
+      // be set, so a card played when it happened to be null recorded no owner
+      // at all — and every prompt that card raised later fell through to the
+      // team-derived fallback. Falling back to the active seat means a card
+      // always knows who played it, which is what keeps its prompts with that
+      // player instead of being derived (or auto-resolved) later.
+      const _by = this._2v2CurrentActingPlayer
+        || (this._2v2ActivePlayer && this._2v2ActivePlayer()) || null;
+      if (_by) card._2v2PlayedBy = _by;
     }
     // Multiplayer guest: forward the free-play action and let the host run it.
     // _silentSim guard — see playCard: a preview sim must place locally on
@@ -10062,25 +10076,37 @@ const Game = {
       // damage on — give that player the prompt, not just auto do it."
       const cur = this._2v2CurrentActingPlayer;
       if (cur && tt.players[cur] && tt.players[cur].team === team) return;
-      seat = this._2v2SLOTS.find(pk => tt.players[pk] && tt.players[pk].team === team && tt.players[pk].isAI)
-          || this._2v2SLOTS.find(pk => tt.players[pk] && tt.players[pk].team === team) || null;
+      // HUMAN FIRST — see _2v2SeatForSide. Deriving an AI seat here auto-resolves
+      // a decision that belongs to a person, which is the bug this whole pass
+      // exists to kill.
+      const onTeam = pk => tt.players[pk] && tt.players[pk].team === team;
+      seat = this._2v2SLOTS.find(pk => onTeam(pk) && !tt.players[pk].isAI)
+          || this._2v2SLOTS.find(pk => onTeam(pk)) || null;
     }
     if (seat) this._2v2CurrentActingPlayer = seat;
   },
 
   // 2v2 online: given an owner SIDE ('player'=Team A, 'ai'=Team B), return a
-  // seat on that team to own an otherwise-orphaned prompt — preferring an AI
-  // seat (the host auto-resolves it) over a human seat. The last-resort fallback
-  // for prompts raised with no acting-seat context (before-tricks/combat/death
-  // hooks on cards that carry no _2v2PlayedBy, e.g. AI-played cards); it keeps
-  // the prompt on the RIGHT TEAM instead of defaulting to the host, who might
-  // otherwise answer the enemy team's decision. No-op outside 2v2 online.
+  // seat on that team to own an otherwise-orphaned prompt. The last-resort
+  // fallback for prompts raised with no acting-seat context (before-tricks /
+  // combat / death hooks on cards carrying no _2v2PlayedBy).
+  //
+  // A HUMAN SEAT IS PREFERRED, AND THAT IS THE WHOLE POINT. This used to prefer
+  // an AI seat because the host auto-resolves those — which quietly turned
+  // "nobody is obviously acting" into "a bot decides on a human's behalf". That
+  // is what a player experiences as their cards being played for them: an Iron
+  // Giant sacrificing itself with no prompt, a Superman whose targets were
+  // chosen for you, a Ghost Rider whose teleport resolved out of a teammate's
+  // hand. Owner, emphatically: an AI must never play for another human.
+  // Preferring a human costs nothing when the team has none — the AI branch is
+  // still there as the true last resort.
   _2v2SeatForSide(side) {
     const tt = this.state && this.state.twoVTwo;
     if (!tt || !tt.online || !side) return null;
     const team = side === 'player' ? 'A' : 'B';
-    return this._2v2SLOTS.find(pk => tt.players[pk] && tt.players[pk].team === team && tt.players[pk].isAI)
-        || this._2v2SLOTS.find(pk => tt.players[pk] && tt.players[pk].team === team) || null;
+    const onTeam = pk => tt.players[pk] && tt.players[pk].team === team;
+    return this._2v2SLOTS.find(pk => onTeam(pk) && !tt.players[pk].isAI)
+        || this._2v2SLOTS.find(pk => onTeam(pk)) || null;
   },
 
   // 2v2: pick the player object a hand-gain (addToHand / drawCards) should land
