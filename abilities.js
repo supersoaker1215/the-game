@@ -1998,10 +1998,67 @@ const CARD_ABILITIES = {
       if (skipSelf) {
         doPlayerShuffle(opp, finish);
       } else if (symIn2v2) {
-        // 2v2: the enemy side proxy doesn't hold a real opponent's hand, so only
-        // the OWNER cycles their own cards — the redraw the player expects —
-        // without shuffling a stale/foreign hand.
-        doPlayerShuffle(self.owner, finish);
+        // 2v2: EVERY player cycles 2 of their own cards (like 1v1's "both
+        // players redraw", extended to all four seats). doPlayerShuffle reads
+        // the SIDE proxy — wrong in a 2-seats-per-side game — so shuffle each
+        // seat's REAL hand, routed to that seat (humans get the pick prompt on
+        // their own client; AI seats auto-cycle their 2 lowest-cost cards).
+        const tt = G.state.twoVTwo;
+        const seatShuffle = (seatKey, onDone) => {
+          const sp = tt.players[seatKey];
+          if (!sp) { onDone && onDone(); return; }
+          const seatSide = G._2v2TeamSide[sp.team];
+          const hand = sp.hand || [];
+          const back = Math.min(2, hand.length);
+          // Route this seat's prompt + shuffled-back draws to the seat itself.
+          G._2v2CurrentActingPlayer = seatKey;
+          const finalizeDraw = () => {
+            if (back > 0) {
+              G.shuffle(G.getDrawPile(seatSide));
+              G._2v2CurrentActingPlayer = seatKey;   // re-assert before the draw routes
+              G.drawCards(seatSide, back);
+              G.log(`Symbiote Spider-Man: ${sp.name} shuffles ${back} card${back === 1 ? '' : 's'} back and draws ${back}!`);
+            } else {
+              G.log(`Symbiote Spider-Man: ${sp.name} has an empty hand — nothing to cycle.`);
+            }
+            onDone && onDone();
+          };
+          const lowest = (cards) => cards.slice().sort((a, b) => (a.cost || 0) - (b.cost || 0))[0];
+          if (sp.isAI || hand.length <= 2) {
+            // AI seat, or a hand small enough that the pick is forced: auto-cycle.
+            for (let i = 0; i < back; i++) {
+              const c = lowest(hand); if (!c) break;
+              const idx = hand.findIndex(x => x.id === c.id);
+              if (idx >= 0) { shuffleBack(hand[idx], seatSide); hand.splice(idx, 1); }
+            }
+            finalizeDraw();
+          } else {
+            G.promptCardChoice(seatSide, [...hand], "Symbiote Spider-Man — Shuffle",
+              "Choose 1st card to shuffle back into the deck (pick 2 total)", (c1) => {
+                const i1 = hand.findIndex(c => c.id === c1.id);
+                if (i1 >= 0) { shuffleBack(hand[i1], seatSide); hand.splice(i1, 1); }
+                G._2v2CurrentActingPlayer = seatKey;
+                G.promptCardChoice(seatSide, [...hand], "Symbiote Spider-Man — Shuffle",
+                  "Choose 2nd card to shuffle back into the deck", (c2) => {
+                    const i2 = hand.findIndex(c => c.id === c2.id);
+                    if (i2 >= 0) { shuffleBack(hand[i2], seatSide); hand.splice(i2, 1); }
+                    finalizeDraw();
+                  }, lowest);
+              }, lowest);
+          }
+        };
+        // Owner first, then the rest — chained so human pick prompts never
+        // collide (one seat resolves before the next is offered).
+        const order = [self._2v2PlayedBy, 'p1', 'p2', 'p3', 'p4']
+          .filter((k, i, a) => k && tt.players[k] && a.indexOf(k) === i);
+        const run = (i) => {
+          if (i >= order.length) { finish(); return; }
+          seatShuffle(order[i], () => {
+            if (G.hasPendingPrompt && G.hasPendingPrompt()) G.whenPromptCleared(() => run(i + 1));
+            else run(i + 1);
+          });
+        };
+        run(0);
       } else {
         doPlayerShuffle(self.owner, () => doPlayerShuffle(opp, finish));
       }
