@@ -5413,6 +5413,18 @@ const Game = {
       UI.render();
       // Broadcast active-lane highlight to guest so they see which lane is fighting.
       if (this.isMultiplayer && this.isMultiplayer() && this.mp.role === 'host') this._mpBroadcast();
+      // 2v2 online: push the active-lane state to all guests so combat advances
+      // lane by lane on their screens too. The prior guest-only FX pacing
+      // (c0d4c71) spread the FX out but still worked off a SINGLE end-of-combat
+      // snapshot, so the board itself still jumped straight to the aftermath.
+      // Broadcasting per lane (here and after each lane resolves below) gives the
+      // guest genuine lane-by-lane board updates, and — critically — delivers a
+      // block-meter free-trick offer raised mid-combat to the guest immediately,
+      // instead of burying it in the lump end-of-combat push. (User: "it played
+      // badly for the guest"; "we blocked and … the trick never loaded.")
+      if (this._2v2IsAIAuthority && this._2v2IsAIAuthority() && this.state.twoVTwo && this.state.twoVTwo.online) {
+        this._2v2OnlineBroadcast();
+      }
 
       const lane = this.state.lanes[i];
       const p = lane.player;
@@ -5474,6 +5486,11 @@ const Game = {
           UI.render();
           // Broadcast resolved lane result to guest before moving on.
           if (this.isMultiplayer && this.isMultiplayer() && this.mp.role === 'host') this._mpBroadcast();
+          // 2v2 online: push the resolved lane so guests watch the aftermath
+          // before the next lane lights up (twin of the pre-lane push above).
+          if (this._2v2IsAIAuthority && this._2v2IsAIAuthority() && this.state.twoVTwo && this.state.twoVTwo.online) {
+            this._2v2OnlineBroadcast();
+          }
           this._schedule(() => resolveLane(i + 1), this.COMBAT_LANE_DELAY);
         });
       };
@@ -12657,7 +12674,10 @@ const Game = {
       else this._2v2NextBlockTrick();
       return;
     }
-    // Human seat: raise the block-trick modal, routed to that seat.
+    // Human seat: raise the block-trick modal, routed to that seat. Stamp the
+    // acting seat too so any prompt the trick raises when played (and the FX
+    // reveal) resolve to this player, and so the offer is unambiguously owned.
+    this._2v2CurrentActingPlayer = seat;
     this.state.pendingBlockTrick = { ...trick, _btOwner: side, _2v2ActingPlayer: seat, _2v2Seat: seat };
     if (tt.online) this._2v2OnlineBroadcast();
     if (typeof UI !== 'undefined' && UI.render) UI.render();
