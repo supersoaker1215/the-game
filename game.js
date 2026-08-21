@@ -186,6 +186,17 @@ const Game = {
     // the host until the 45s watchdog nulled it.
     this._pushOnlineState();
   },
+  // Defer a PASSIVE cleanup (a hand-bridge un-bridge) until the current prompt
+  // chain clears. Runs `fn` now if nothing is pending. Unlike whenPromptCleared
+  // these are NOT beat-drivers — they never advance combat and never raise a
+  // prompt — so they ride a SEPARATE list that resumeCombatIfWaiting drains
+  // ahead of the combat continuation, instead of clogging the continuation stack
+  // (where a popped passive restore would strand the resume beneath it).
+  _deferRestore(fn) {
+    if (!this.hasPendingPrompt()) { fn(); return; }
+    if (!this.state._deferredRestores) this.state._deferredRestores = [];
+    this.state._deferredRestores.push(fn);
+  },
   // Called by UI when any prompt is resolved — fires stored continuation
   // ===================== PROMPT QUEUE =====================
   // The engine has ONE slot per prompt kind (pendingCardChoice /
@@ -241,6 +252,21 @@ const Game = {
     // resolve re-enters here and continues it.
     this.resolveStack();
     if (this.hasPendingPrompt()) return;
+    // Fire deferred PASSIVE restores (hand-bridge un-bridges) that were waiting
+    // on the prompt chain to clear. These are cleanup, NOT beat-drivers, so they
+    // must NOT sit on the combat continuation stack: a passive restore popped
+    // from that stack doesn't re-enter here, so it stranded the resume-combat
+    // continuation beneath it — combat stalled and the watchdog skipped the rest
+    // of the phase. (User: "we just blocked because of harley quinn and played
+    // our tricks and now it stalls and will skip the rest of this combat.") Drain
+    // them ALL, LIFO (innermost bridge first), before the combat continuation.
+    const restores = this.state._deferredRestores;
+    if (restores && restores.length) {
+      while (restores.length) {
+        const r = restores.pop();
+        try { r(); } catch (e) { console.error('[resumeCombatIfWaiting] deferred restore threw:', e); }
+      }
+    }
     // Pop the MOST-RECENTLY parked continuation (LIFO) — see whenPromptCleared.
     // Firing exactly one preserves the old single-slot cadence: the fired
     // continuation drives the next beat (a lane's setTimeout, the next block
@@ -655,6 +681,7 @@ const Game = {
     if (s.ai) s.ai.stolenByBWL = null;
     delete s._combatContinuation;
     s._combatContStack = [];
+    s._deferredRestores = [];
     this._clearPromptTimeout();
     if (s._inCombat) {
       // Mid-combat stall — force to the normal end-of-combat path. Imperfect
@@ -8411,7 +8438,7 @@ const Game = {
     let out, threw = true;
     try { out = fn(); threw = false; }
     finally {
-      if (!threw && this.hasPendingPrompt && this.hasPendingPrompt()) this.whenPromptCleared(restore);
+      if (!threw && this.hasPendingPrompt && this.hasPendingPrompt()) this._deferRestore(restore);
       else restore();
     }
     return out;
@@ -8653,7 +8680,7 @@ const Game = {
         // before the player picks, and the steal would then splice the wrong
         // hand. Hold the alias for exactly as long as the effect's prompt
         // chain is live.
-        if (!threw && this.hasPendingPrompt && this.hasPendingPrompt()) this.whenPromptCleared(restore);
+        if (!threw && this.hasPendingPrompt && this.hasPendingPrompt()) this._deferRestore(restore);
         else restore();
       }
     };
@@ -13218,6 +13245,7 @@ const Game = {
     this.state.pendingTimeStoneIntercept = null;
     delete this.state._combatContinuation;
     this.state._combatContStack = [];
+    this.state._deferredRestores = [];
     // RE-ARM BY RE-RUNNING, NEVER BY RESTORING. The purge above is absolute —
     // a captured prompt closes over the pre-undo objects and can never be
     // brought back. What CAN be brought back is the ability itself: this
@@ -15473,7 +15501,7 @@ const Game = {
         const _ap = _ak && tt.players[_ak];
         if (_ap) { const _sd = this._2v2TeamSide[_ap.team]; _ap.usedEnergy = Math.max(0, _ap.energy - s[_sd].currency); }
       }
-      if (!threw && this.hasPendingPrompt && this.hasPendingPrompt()) this.whenPromptCleared(unbridge);
+      if (!threw && this.hasPendingPrompt && this.hasPendingPrompt()) this._deferRestore(unbridge);
       else unbridge();
     }
     return out;
@@ -15514,7 +15542,7 @@ const Game = {
     let out, threw = true;
     try { out = fn(); threw = false; }
     finally {
-      if (!threw && this.hasPendingPrompt && this.hasPendingPrompt()) this.whenPromptCleared(unbridge);
+      if (!threw && this.hasPendingPrompt && this.hasPendingPrompt()) this._deferRestore(unbridge);
       else unbridge();
     }
     return out;
