@@ -10173,7 +10173,19 @@ const Game = {
     }
   },
 
-  addNextTurnCurrency(owner, n) { this.state[owner].nextTurnCurrency += n; },
+  addNextTurnCurrency(owner, n) {
+    // 2v2: bank the bonus on the SEAT that earned it (Power Battery, Green
+    // Lantern), not the shared side proxy — start2v2Round consumes it per seat
+    // so only that player gets the extra energy, not their teammate. (User:
+    // "I played Power Battery, next round I still had 7, should've had 9, and
+    // only me not my teammate.")
+    const tt = this.state && this.state.twoVTwo;
+    if (tt && tt.online) {
+      const seat = this._2v2CurrentActingPlayer;
+      if (seat && tt.players[seat]) { tt.players[seat].nextTurnCurrency = (tt.players[seat].nextTurnCurrency || 0) + n; return; }
+    }
+    this.state[owner].nextTurnCurrency += n;
+  },
 
   // For player: show lane choice UI. For AI: auto-pick best lane.
   // callback(laneIdx) is called once the lane is chosen.
@@ -13859,9 +13871,17 @@ const Game = {
     this.state._inCombat = false;
     delete this.state._beforeCombatFired;
 
-    // Grant energy for this round (round number)
+    // Grant energy for this round (round number) PLUS any carried-over
+    // next-turn energy that seat banked (Power Battery, Green Lantern) — per
+    // SEAT, so a bonus one player earned never leaks to their teammate. The
+    // bucket is consumed here so it can't stack across rounds.
     const energy = tt.round;
-    Object.values(tt.players).forEach(p => { p.energy = energy; p.usedEnergy = 0; });
+    Object.values(tt.players).forEach(p => {
+      const bonus = p.nextTurnCurrency || 0;
+      p.energy = energy + bonus;
+      p.usedEnergy = 0;
+      p.nextTurnCurrency = 0;
+    });
 
     this.log(`=== 2v2 Round ${tt.round} begins ===`);
     this._2v2StartSubPhase();
