@@ -41549,3 +41549,41 @@ body.low-fx .badge-asleep { animation: none; }
 .rc-tricks          { color: #d7b3e6; border-color: rgba(215,179,230,0.6); background: rgba(215,179,230,0.10); }
 .rc-ic { font-style: normal; opacity: 0.9; }
 @media (max-width: 900px) { .rc-name { max-width: 84px; } .rc-chip { font-size: 10px; padding: 2px 7px; gap: 5px; } }
+
+/* ============================================================
+   EMOTE + TAUNT BUTTONS — NEON, NOT DIMMED (2026-08-20)
+   ============================================================
+   Owner: "make these neon highlighted symbols."
+
+   .emote-btn sat at rgba(207,232,247,0.55) — a pale blue held at 55% opacity,
+   which over the black HUD computes to grey. .taunt-btn only overrode
+   font-size, so it inherited exactly the same wash. Both read as disabled
+   chrome next to a HUD that glows everywhere else.
+
+   Colour comes from --theme-rgb rather than a fixed hex, so they track the
+   active accent like the rest of the chrome. Full opacity with the glow doing
+   the work, instead of a bright colour dimmed down — that is what separates a
+   lit sign from a faded one.
+
+   Appended at the end deliberately: the original rules live ~35778 and would
+   otherwise win on source order at equal specificity. */
+.emote-btn,
+.taunt-btn {
+  color: rgb(var(--theme-rgb, 79, 195, 247));
+  opacity: 1;
+  text-shadow:
+    0 0 6px rgba(var(--theme-rgb, 79, 195, 247), 0.85),
+    0 0 14px rgba(var(--theme-rgb, 79, 195, 247), 0.45);
+}
+/* Hover stays a clear step ABOVE the resting state — now that resting is lit,
+   going to plain white would read as a step down. */
+.emote-btn:hover,
+.taunt-btn:hover,
+.emote-btn:focus-visible,
+.taunt-btn:focus-visible {
+  color: var(--theme-accent-bright, #eaf4ff);
+  transform: scale(1.25);
+  text-shadow:
+    0 0 10px rgba(var(--theme-rgb, 79, 195, 247), 1),
+    0 0 22px rgba(var(--theme-rgb, 79, 195, 247), 0.6);
+}
