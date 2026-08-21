@@ -2214,6 +2214,19 @@ const CARD_ABILITIES = {
       const dpIs2v2 = !!(G.state.twoVTwo && G.state.twoVTwo.online);
       G.withChosenOpponent(self.owner, "Deadpool — whose hand?", (opp, victimKey) => {
       const enemyHand = G.state[opp].hand;
+      // 2v2: the give-back must read/splice the DEADPOOL OWNER's own seat hand,
+      // not state[self.owner].hand — during combat that side proxy is bound to
+      // whichever teammate synced last, so the "trade back" was checking (and
+      // giving from) the wrong hand, and often bailed with "nothing to trade
+      // back". (User: "clicked the person to trade with, never got to choose the
+      // face-down card, and wasn't given a choice to give anything back.")
+      const ownerHand = () => {
+        const dtt = G.state.twoVTwo;
+        if (dpIs2v2 && deadpoolOwnerSeat && dtt && dtt.players[deadpoolOwnerSeat]) {
+          return dtt.players[deadpoolOwnerSeat].hand;
+        }
+        return G.state[self.owner].hand;
+      };
       if (!enemyHand.length) {
         G.log("Deadpool's final trick fails — the enemy has no cards in hand!");
         return;
@@ -2232,7 +2245,7 @@ const CARD_ABILITIES = {
       // Roguelite Text+ ("no give-back") turns Deadpool into a pure thief, and
       // a thief owes nothing — that mode skips this requirement.
       const _dpSkipGiveBack = !!self._deadpoolNoGiveBack;
-      if (!_dpSkipGiveBack && !G.state[self.owner].hand.length) {
+      if (!_dpSkipGiveBack && !ownerHand().length) {
         G.log("Deadpool's final trick fails — he has nothing to trade back!");
         return;
       }
@@ -2278,7 +2291,7 @@ const CARD_ABILITIES = {
 
           // Step 2: Player picks a card from their own hand to give to the enemy.
           // Exclude the just-stolen card so the player can't immediately give it back.
-          const myHand = G.state[self.owner].hand.filter(c => c.id !== stolen.id);
+          const myHand = ownerHand().filter(c => c.id !== stolen.id);
           if (!myHand.length) {
             G.log("Deadpool has no cards to give in return.");
             showVictimToast(stolen.name, null);
@@ -2288,8 +2301,9 @@ const CARD_ABILITIES = {
             "Deadpool's Trade",
             "Choose a card from your hand to give to the enemy",
             (given) => {
-              const gIdx = G.state[self.owner].hand.indexOf(given);
-              if (gIdx >= 0) G.state[self.owner].hand.splice(gIdx, 1);
+              const gHand = ownerHand();
+              const gIdx = gHand.indexOf(given);
+              if (gIdx >= 0) gHand.splice(gIdx, 1);
               given.owner = opp;
               G.addToHand(opp, given);
               G.log(`Deadpool slips ${given.name} into the enemy's hand!`);

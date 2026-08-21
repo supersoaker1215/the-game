@@ -4774,6 +4774,14 @@ const Game = {
       this.log(`[ASLEEP] ${card.name} is still dreaming — it cannot be played this turn.`);
       return false;
     }
+    // 2v2 online: tag the free-played card with the acting seat (the summoner —
+    // Ghost Rider playing Darkseid from hand, a jump, Mother Box, etc.) so its
+    // onPlay AND later hooks route their prompts to that player instead of an
+    // auto-resolving AI seat. Same idempotent tag as playCard.
+    if (card && this.state.twoVTwo && this.state.twoVTwo.online
+        && !card._2v2PlayedBy && this._2v2CurrentActingPlayer) {
+      card._2v2PlayedBy = this._2v2CurrentActingPlayer;
+    }
     // Multiplayer guest: forward the free-play action and let the host run it.
     // _silentSim guard — see playCard: a preview sim must place locally on
     // the clone, never forward a network play.
@@ -10013,6 +10021,16 @@ const Game = {
     let seat = card._2v2PlayedBy || null;
     if (!seat && card.owner) {
       const team = card.owner === 'player' ? 'A' : 'B';
+      // A card with no _2v2PlayedBy is a summoned/token card (Ghost Rider
+      // playing Darkseid from hand, a spawned minion, a resurrected card…). If a
+      // seat on this card's team is ALREADY acting, keep it — that's the summoner,
+      // and the summoned card's onPlay prompt belongs to that player, not to an
+      // auto-resolving AI seat. Only when nobody on the team is acting do we
+      // derive one (preferring an AI seat, which auto-resolves). User: "my
+      // Darkseid got teleported and I never got the prompt on who to split my
+      // damage on — give that player the prompt, not just auto do it."
+      const cur = this._2v2CurrentActingPlayer;
+      if (cur && tt.players[cur] && tt.players[cur].team === team) return;
       seat = this._2v2SLOTS.find(pk => tt.players[pk] && tt.players[pk].team === team && tt.players[pk].isAI)
           || this._2v2SLOTS.find(pk => tt.players[pk] && tt.players[pk].team === team) || null;
     }
@@ -12347,6 +12365,13 @@ const Game = {
     const p = seat && tt.players[seat];
     if (p) {
       p.maxHandSize = (p.maxHandSize || 7) + 1;
+      // Mirror onto the acting side proxy so the SAME play's own addToHand (the
+      // Mobius Chair scry, the Eye foresight) sees the raised cap during this
+      // bridged turn — without a second, team-wide bump on state[side] that
+      // would read back to nobody yet log "both allies" and stack. Only THIS
+      // seat's cap actually persists (maxHandSize isn't shared across the team).
+      const side = this._2v2TeamSide[p.team];
+      if (side && this.state[side]) this.state[side].maxHandSize = p.maxHandSize;
       this.log(`  [2v2] ${p.name}'s max hand size is now ${p.maxHandSize}.`);
     }
   },

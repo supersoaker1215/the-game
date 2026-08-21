@@ -338,13 +338,17 @@ const TRICK_DEFS = [
       // at the start of drawPhase). Pass the source name so the prompt/log say
       // "Eye of Agamotto" instead of "Dr. Strange".
       G.state[owner].drStrangeReorder = "Eye of Agamotto";
-      // Guard the +1 so an unset maxHandSize can't become NaN (which would
-      // break the hand-full check outright). Falls back to the 7 default the
-      // rest of the engine uses, matching Mobius Chair's guarded bump.
-      const eyeCur = (typeof G.state[owner].maxHandSize === 'number' && isFinite(G.state[owner].maxHandSize))
-        ? G.state[owner].maxHandSize : 7;
-      G.state[owner].maxHandSize = eyeCur + 1;
-      if (G._2v2BumpHandSize) G._2v2BumpHandSize();
+      // 2v2: bump only the acting seat (see Mobius Chair). In 1v1, bump the
+      // player proxy directly. Guard the +1 so an unset maxHandSize can't become
+      // NaN (which would break the hand-full check outright).
+      const eyeIn2v2 = !!(G.is2v2 && G.is2v2() && G.state.twoVTwo && G.state.twoVTwo.online);
+      if (eyeIn2v2) {
+        if (G._2v2BumpHandSize) G._2v2BumpHandSize();
+      } else {
+        const eyeCur = (typeof G.state[owner].maxHandSize === 'number' && isFinite(G.state[owner].maxHandSize))
+          ? G.state[owner].maxHandSize : 7;
+        G.state[owner].maxHandSize = eyeCur + 1;
+      }
       // 2v2: peek the top 2 next-draw cards and hand each to a player.
       if (G._2v2QueueForesight) G._2v2QueueForesight(2, "Eye of Agamotto");
       G.log(`Eye of Agamotto opens — foresight queued for next draw phase, max hand size → ${G.state[owner].maxHandSize}.`);
@@ -359,11 +363,21 @@ const TRICK_DEFS = [
       // to show you three cards, take your pick, charge you 2 Energy and hand
       // you nothing. Raising the cap up front is what makes the card it gives
       // you actually fit.
-      const p = G.state[owner];
-      if (p) {
-        p.maxHandSize = (p.maxHandSize | 0) + 1;
+      // 2v2: bump ONLY the acting seat (via _2v2BumpHandSize), which also mirrors
+      // the raised cap onto the side proxy for this play's own scry. The direct
+      // state[owner] bump below is the 1v1 path — in 2v2 it would bump the shared
+      // team proxy and log "both allies … now 9" (stacking), which is exactly the
+      // bug. (User: "if I play Mobius Chair only MY max hand size should increase,
+      // not both allies.") Same split for Eye of Agamotto above.
+      const mobiusIn2v2 = !!(G.is2v2 && G.is2v2() && G.state.twoVTwo && G.state.twoVTwo.online);
+      if (mobiusIn2v2) {
         if (G._2v2BumpHandSize) G._2v2BumpHandSize();
-        G.log(`Mobius Chair: ${G.seatPossessive(owner)} max hand size is now ${p.maxHandSize}.`);
+      } else {
+        const p = G.state[owner];
+        if (p) {
+          p.maxHandSize = (p.maxHandSize | 0) + 1;
+          G.log(`Mobius Chair: ${G.seatPossessive(owner)} max hand size is now ${p.maxHandSize}.`);
+        }
       }
       const pile = G.getDrawPile(owner);
       if (!pile.length) { G.log(`Mobius Chair finds nothing — draw pile empty!`); return; }
