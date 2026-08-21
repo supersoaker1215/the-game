@@ -676,6 +676,9 @@ const TRICK_DEFS = [
         G.promptCardChoice(owner, enemies, "Mind Stone — Control", "Choose enemy to mind control", (t) => {
           G.tryApplyDebuff(source, t, 'Mind Control', () => {
             t.isMindControlled = true;
+            // Route the combat target prompt to the seat that played Mind Stone
+            // (2v2 online) — see Game._stampMcSeat / getMindControlTarget.
+            if (G._stampMcSeat) G._stampMcSeat(t, source);
             if (typeof UI !== 'undefined' && UI._fxTrickDebuff) { try { UI._fxTrickDebuff(t, '#f1c40f', '#b8860b'); } catch (e) {} }
             G.log(`Mind Stone controls ${t.name}!`);
           });

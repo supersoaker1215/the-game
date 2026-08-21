@@ -11972,6 +11972,50 @@ body.turn-combat .board .lane.lane-active {
   font-size: 11px; color: #8aa0b0;
   font-family: 'Inter', sans-serif;
 }
+/* PEEK STRIP — the full set of peeked cards shown above the recipient tiles for
+   the 2v2 foresight prompts (Dr. Strange / Eye of Agamotto / Dormammu), so the
+   owner hands them out knowing every card at once. The card currently being
+   assigned glows; ones already handed out are dimmed and tagged with the
+   recipient. See UI.renderInlineChoiceFallback + Game._2v2ResolveForesight. */
+.choice-peek-strip {
+  display: flex; gap: 10px; justify-content: center; flex-wrap: wrap;
+  margin: -2px 0 14px;
+}
+.peek-chip {
+  position: relative; width: 96px;
+  border: 1px solid rgba(var(--theme-rgb, 79,195,247),0.35);
+  border-radius: 8px; padding: 6px 6px 7px;
+  background: rgba(8,14,22,0.85);
+  display: flex; flex-direction: column; align-items: center; gap: 4px;
+  transition: opacity .18s, border-color .18s, box-shadow .18s;
+}
+.peek-chip-art {
+  width: 82px; height: 82px; border-radius: 6px;
+  background-image: var(--portrait-bg, none);
+  background-size: var(--portrait-size, cover);
+  background-position: var(--portrait-pos, center top);
+  background-color: rgba(255,255,255,0.04);
+}
+.peek-chip-name {
+  font-family: 'Rajdhani', sans-serif; font-weight: 700;
+  font-size: 11px; letter-spacing: .5px; text-transform: uppercase;
+  color: var(--text-hi, #f5fbff); text-align: center; line-height: 1.1;
+}
+.peek-chip-stats {
+  font-family: 'Rajdhani', sans-serif; font-weight: 700; font-size: 11px;
+  color: #cfe2ef; letter-spacing: 1px;
+}
+.peek-chip-to {
+  font-family: 'Inter', sans-serif; font-size: 9.5px; letter-spacing: .3px;
+  color: #7fd4a0; text-align: center;
+}
+.peek-chip-now { color: var(--currency, #ffb347); }
+.peek-chip .card-cost { top: 2px; left: 2px; }
+.peek-chip-active {
+  border-color: var(--currency, #ffb347);
+  box-shadow: 0 0 12px rgba(255,179,71,0.45);
+}
+.peek-chip-done { opacity: 0.5; }
 .choice-tray-cards {
   display: flex; gap: 14px; justify-content: center; align-items: stretch;
   flex-wrap: wrap;

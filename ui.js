@@ -11692,6 +11692,35 @@ const UI = {
           ${pickBtn(idx)}
         </div>`;
     }).join('');
+    // PEEK STRIP — for the 2v2 foresight prompts (Dr. Strange / Eye of Agamotto /
+    // Dormammu) the owner must see EVERY peeked card at once while handing them
+    // out, not one at a time. Render the whole peeked set above the recipient
+    // tiles, highlight the card being assigned right now, and label any already
+    // handed to a player. See Game._2v2ResolveForesight.
+    let peekHtml = '';
+    const ps = cc.peekStrip;
+    if (ps && Array.isArray(ps.defs) && ps.defs.length) {
+      const chips = ps.defs.map((d, i) => {
+        const active = i === ps.activeIndex;
+        const to = ps.assignedNames && ps.assignedNames[i];
+        const costC = this.getCostClass(d.cost || 0);
+        const stat = (d.attack != null && d.health != null)
+          ? `<span class="peek-chip-stats">${d.attack}/${d.health}</span>` : '';
+        const artPath = this.getCardArtPath(d.name);
+        const safe = artPath ? artPath.replace(/'/g, '%27') : '';
+        const bg = safe ? `--portrait-bg:url('${safe}')${this._artFocalCard(d.name)}` : '';
+        const tag = to ? `<span class="peek-chip-to">→ ${to}</span>`
+          : (active ? `<span class="peek-chip-to peek-chip-now">handing out now</span>` : '');
+        return `<div class="peek-chip ${costC}${active ? ' peek-chip-active' : ''}${to ? ' peek-chip-done' : ''}">
+            ${d.cost != null ? `<span class="card-cost">${d.cost}</span>` : ''}
+            <div class="peek-chip-art" style="${bg}"></div>
+            <div class="peek-chip-name">${d.name}</div>
+            ${stat}
+            ${tag}
+          </div>`;
+      }).join('');
+      peekHtml = `<div class="choice-peek-strip">${chips}</div>`;
+    }
     tray.innerHTML = `
       <div class="choice-tray-backdrop"></div>
       <div class="choice-tray-panel">
@@ -11699,6 +11728,7 @@ const UI = {
           <span class="choice-tray-title">${title}</span>
           ${desc ? `<span class="choice-tray-desc">${desc}</span>` : ''}
         </div>
+        ${peekHtml}
         <div class="choice-tray-cards">${cardsHtml}</div>
       </div>`;
     document.body.appendChild(tray);

@@ -5233,6 +5233,7 @@ const Game = {
       this.state._laneHookFired = {};   // onLaneCombat is once per lane per round
       this.getAllCardsOnBoard().forEach(c => {
         if (c.onBeforeCombat && c.currentHealth > 0) {
+          this._2v2ActFor(c);
           try { c.onBeforeCombat(this, c, this.findCardLane(c)); } catch (e) { console.error(e); }
         }
       });
@@ -5347,6 +5348,7 @@ const Game = {
         this.state._laneHookFired[_laneHookKey] = true;
         [p, a].forEach(c => {
           if (c && c.currentHealth > 0 && typeof c.onLaneCombat === 'function') {
+            this._2v2ActFor(c);
             try { c.onLaneCombat(this, c, i); } catch (e) { console.error('[onLaneCombat]', e); }
           }
         });
@@ -5761,6 +5763,12 @@ const Game = {
     // the swing whiffs (combat code falls through to its null-target
     // path and the MC'd card does nothing this round).
     if (!allies.length) { callback(null); return; }
+    // 2v2 online: the target prompt belongs to the seat that CAST the mind
+    // control, not the host. Combat runs with no acting seat set, so stamp it
+    // from the tag recorded when MC was applied — promptCardChoice then routes
+    // the prompt to that client (an AI-held seat auto-picks via threatPicker).
+    const _tt2v2 = this.state && this.state.twoVTwo;
+    if (_tt2v2 && _tt2v2.online && card._mcSeat) this._2v2CurrentActingPlayer = card._mcSeat;
     if (this.isHuman(controller)) {
       // ALWAYS prompt the human controller — even when only 1 ally
       // remains. User report: "I mind controlled Gojo to attack Iron
@@ -5963,9 +5971,11 @@ const Game = {
         // retroactively buff a corpse. Mutual-kill scenario (both die
         // simultaneously) correctly produces zero onKill fires.
         if (pKilled && pCard.onKill && pCard.currentHealth > 0) {
+          this._2v2ActFor(pCard);
           try { pCard.onKill(this, pCard); } catch (e) { console.error(e); }
         }
         if (aKilled && aCard.onKill && aCard.currentHealth > 0) {
+          this._2v2ActFor(aCard);
           try { aCard.onKill(this, aCard); } catch (e) { console.error(e); }
         }
 
@@ -6021,9 +6031,11 @@ const Game = {
         // mid-combat instead of at end-of-round, so enemies in opposite-parity
         // lanes die before they get to swing in their own lanes.
         if (pCard.currentHealth > 0 && pCard.onLaneResolved) {
+          this._2v2ActFor(pCard);
           try { pCard.onLaneResolved(this, pCard, laneIdx); } catch (e) { console.error(e); }
         }
         if (aCard.currentHealth > 0 && aCard.onLaneResolved) {
+          this._2v2ActFor(aCard);
           try { aCard.onLaneResolved(this, aCard, laneIdx); } catch (e) { console.error(e); }
         }
         this.cleanupDead();
@@ -6428,7 +6440,7 @@ const Game = {
     // Tag the dying card with its killer so handleDeath can fire kill audio
     // even though cleanupDead passes null for the killer argument.
     target._killedBy = attacker;
-    if (attacker.onKill && !(opts && opts.deferOnKill)) attacker.onKill(this, attacker);
+    if (attacker.onKill && !(opts && opts.deferOnKill)) { this._2v2ActFor(attacker); attacker.onKill(this, attacker); }
     // Thorns can still chip the attacker even after target died — the
     // hit landed, and the victim's last-gasp bramble retaliates.
     this._resolveThorns(target, attacker);
@@ -6512,7 +6524,7 @@ const Game = {
       if (typeof UI !== 'undefined' && UI._fxEvadeDodge) {
         try { UI._fxEvadeDodge(target); } catch (e) {}
       }
-      if (target.onEvade) target.onEvade(this, target);
+      if (target.onEvade) { this._2v2ActFor(target); target.onEvade(this, target); }
       return false;
     }
 
@@ -6719,10 +6731,11 @@ const Game = {
     const _hpLanded = this.damagePlayer(targetOwner, uncontestedDmg, card.isBullseye, card);
     // Only fire the on-face-damage hook (Sabertooth's grow) when HP actually
     // dropped — a fully blocked / frozen / absorbed hit must not count.
-    if (_hpLanded > 0 && card.onDamagePlayer) card.onDamagePlayer(this, card);
+    if (_hpLanded > 0 && card.onDamagePlayer) { this._2v2ActFor(card); card.onDamagePlayer(this, card); }
     if (card.splashRange > 0) this.applySplash(card, laneIdx);
     // Uncontested survivor fires onLaneResolved same as a contested winner.
     if (card.currentHealth > 0 && card.onLaneResolved) {
+      this._2v2ActFor(card);
       try { card.onLaneResolved(this, card, laneIdx); } catch (e) { console.error(e); }
     }
     this.cleanupDead();
@@ -6827,6 +6840,16 @@ const Game = {
       this.log(`  [BLOCK METER] ${who} roll d3=${roll} → meter ${p.blockMeter}/${this.BLOCK_MAX}`);
       if (p.blockMeter >= this.BLOCK_MAX) {
         p.blockMeter = 0;
+        // 2v2: the HUD reads the TEAM meter (tt.teams[team].blockMeter), but the
+        // reset above only clears the combat proxy — the team value isn't synced
+        // back until postCombat, so a block mid-combat left the on-screen meter
+        // sitting full until the round ended. Write the reset through to the team
+        // now so it empties the instant the block fires. (User: "I blocked and
+        // got my trick but my block never emptied.")
+        if (this.is2v2 && this.is2v2() && this.state.twoVTwo) {
+          const _bt = owner === 'player' ? 'A' : 'B';
+          if (this.state.twoVTwo.teams[_bt]) this.state.twoVTwo.teams[_bt].blockMeter = 0;
+        }
         blockedByMeter = true;
         // Track block-meter trigger for the victory-screen stats panel.
         if (this.state._stats && this.state._stats[owner]) {
@@ -7639,9 +7662,9 @@ const Game = {
       // checks, bonus-attack drain) but skip the deadPile push and the
       // passive-cleanup branches (Magneto / faceDownOption) since
       // tokens don't carry those passives.
-      if (killer && killer.onKill) killer.onKill(this, killer);
+      if (killer && killer.onKill) { this._2v2ActFor(killer); killer.onKill(this, killer); }
       const livingAllies = this.getAllCardsOf(card.owner);
-      livingAllies.forEach(a => { if (a.onAllyKilled) a.onAllyKilled(this, a); });
+      livingAllies.forEach(a => { if (a.onAllyKilled) { this._2v2ActFor(a); a.onAllyKilled(this, a); } });
       const livingEnemiesT = this.getAllCardsOf(this.opponent(card.owner));
       livingEnemiesT.forEach(a => { if (a.onEnemyKilled) a.onEnemyKilled(this, a); });
       this._scaleDoomsdayInHands(card.owner);
@@ -8172,6 +8195,10 @@ const Game = {
   // manual call sites used previously so ability bugs don't crash.
   _runHook(card, hookName, ...args) {
     if (!card || typeof card[hookName] !== 'function') return undefined;
+    // 2v2 online: route any prompt this hook raises to the card's owner. During
+    // a play phase this is a no-op (the acting seat already owns the card); it
+    // matters for onDeath firing in combat, where no seat is otherwise acting.
+    this._2v2ActFor(card);
     this._pushSummonSource(card);
     let result;
     try {
@@ -8733,7 +8760,7 @@ const Game = {
       this.log(`  [EVADE] ${card.name} dodges ${amount} damage! (${card.evadeCharges} charges left)`);
       this.emitDmg(card.id, 0, 'evade');
       this._creditAbsorb(card, 'Evade', amount);
-      if (card.onEvade) card.onEvade(this, card);
+      if (card.onEvade) { this._2v2ActFor(card); card.onEvade(this, card); }
       return true;
     }
     return false;
@@ -9191,6 +9218,7 @@ const Game = {
   _runBeforeAttack(card) {
     if (!card) return false;
     if (card.onBeforeAttack) {
+      this._2v2ActFor(card);
       try { card.onBeforeAttack(this, card); } catch (e) { console.error(e); }
     }
     if (card.currentHealth <= 0) {
@@ -9906,10 +9934,59 @@ const Game = {
   // step; it tryApplyDebuff-guards for Immunity automatically. `onApply`
   // runs after the flag flips, so Grodd can still set mindControlTarget
   // or any other per-source side effects.
+  // 2v2 online: tag a mind-controlled card with the SEAT that cast the control,
+  // so its combat target prompt goes to that player. The casting seat is the
+  // one acting when the effect fires (_2v2CurrentActingPlayer) or, failing that,
+  // the seat that played the source card (_2v2PlayedBy). Falls back to the first
+  // seat on the controlling team so the prompt at least never lands on the wrong
+  // team's host. No-op outside 2v2 online.
+  _stampMcSeat(card, source) {
+    const tt = this.state && this.state.twoVTwo;
+    if (!tt || !tt.online || !card) return;
+    let seat = this._2v2CurrentActingPlayer || (source && source._2v2PlayedBy) || null;
+    if (!seat) {
+      // controller side = opponent of the controlled card's owner.
+      const ctrlSide = this.opponent(card.owner);
+      const ctrlTeam = ctrlSide === 'player' ? 'A' : 'B';
+      seat = this._2v2SLOTS.find(pk => tt.players[pk] && tt.players[pk].team === ctrlTeam) || null;
+    }
+    card._mcSeat = seat;
+  },
+
+  // 2v2 online: before a card's COMBAT hook fires (onKill, onDeath, onDamaged,
+  // onLaneResolved, …), stamp the acting seat to that card's owner, so any
+  // prompt the hook raises routes to the player who owns the card instead of
+  // defaulting to the host. Combat runs with no per-seat phase, so without this
+  // every hook-raised prompt is unstamped and `promptIsMine` treats it as
+  // everyone's — i.e. the host answers it. Same precedent as the onBeforeTricks
+  // stamp in the before-tricks pass. `_2v2PlayedBy` is set on every card played
+  // from hand; a summoned token with none falls back to a seat on its own team
+  // (preferring an AI seat, which auto-resolves, over stranding the prompt).
+  // No-op outside 2v2 online.
+  _2v2ActFor(card) {
+    const tt = this.state && this.state.twoVTwo;
+    if (!tt || !tt.online || !card) return;
+    let seat = card._2v2PlayedBy || null;
+    if (!seat && card.owner) {
+      const team = card.owner === 'player' ? 'A' : 'B';
+      seat = this._2v2SLOTS.find(pk => tt.players[pk] && tt.players[pk].team === team && tt.players[pk].isAI)
+          || this._2v2SLOTS.find(pk => tt.players[pk] && tt.players[pk].team === team) || null;
+    }
+    if (seat) this._2v2CurrentActingPlayer = seat;
+  },
+
   mindControlCard(card, source, onApply) {
     if (!card) return false;
     return this.tryApplyDebuff(source, card, 'Mind Control', () => {
       card.isMindControlled = true;
+      // 2v2 online: remember WHICH seat cast this mind control so the
+      // target-selection prompt raised in combat routes to that player — not
+      // whoever happens to be the host. The controller is a team SIDE at combat
+      // time; only the seat is enough to pick the right client. See
+      // getMindControlTarget. (User: "I should not be getting the prompt to
+      // choose where his mind control goes … it should go to the player who
+      // played the card / mind stone.")
+      this._stampMcSeat(card, source);
       // Phantom swing — credit the source with the damage the target
       // would have dealt this round. MC is strictly better than freeze
       // (the card ALSO hits the controller's enemies), but that bonus
@@ -10263,7 +10340,7 @@ const Game = {
       // the play is submitted). A guest must resolve these locally — forwarding
       // a promptResolve for a prompt the host never armed would be dropped and
       // the play would never happen. See cardChoicePick.
-      this.state.pendingCardChoice = { owner, cards, title, desc, callback, faceDown: !!(options && options.faceDown), inlineTray: !!(options && options.inlineTray), localOnly: !!(options && options.localOnly), declineLabel: declineLabelC, onDecline: (options && options.onDecline) || null };
+      this.state.pendingCardChoice = { owner, cards, title, desc, callback, faceDown: !!(options && options.faceDown), inlineTray: !!(options && options.inlineTray), localOnly: !!(options && options.localOnly), declineLabel: declineLabelC, onDecline: (options && options.onDecline) || null, peekStrip: (options && options.peekStrip) || null };
       // 2v2 online: route guest choices to the guest client (same as lane choice)
       const _cap = this._2v2CurrentActingPlayer;
       // Stamp the host (p1) too. Excluding p1 left every host-raised prompt
@@ -10900,7 +10977,7 @@ const Game = {
   // counter tick through the same machinery that linearizes deaths.
   _afterDamage(card, source, amount) {
     if (!card) return;
-    if (card.onDamaged) card.onDamaged(this, card, source, amount);
+    if (card.onDamaged) { this._2v2ActFor(card); card.onDamaged(this, card, source, amount); }
     if (!(amount > 0)) return;
     this.getAllCardsOnBoard().forEach(c => {
       if (!c.onAnyCardDamaged || c.currentHealth <= 0) return;
@@ -13953,6 +14030,35 @@ const Game = {
     const peeked = tt.drawPile.slice(-n).reverse();   // top-of-pile (drawn from the end) first
     const ownerSide = this._2v2TeamSide[fp.team];
     this._2v2CurrentActingPlayer = seat;
+
+    // RECIPIENTS = the players who draw first this UPCOMING round, in turn order.
+    // The peek happens in the draw phase before the next round starts, so the
+    // relevant turn order is round tt.round + 1 (start2v2Round bumps the counter
+    // AFTER draws). Dr. Strange / Eye of Agamotto peek 2 → the two cards go to
+    // the first and second drawers. Dormammu peeks 4 → all four seats, in order.
+    // (User: "for dormammu he sees all four cards and hands them out
+    // accordingly"; Strange/Eye: "whoever is drawing first and second".)
+    const order = this._2v2ComputePhaseOrder((tt.round || 0) + 1);
+    const orderedSeats = [];
+    order.forEach(sp => {                       // 'pX-cards' / 'pX-cards-tricks' / 'pX-tricks'
+      const pk = sp.split('-')[0];
+      if (tt.players[pk] && orderedSeats.indexOf(pk) < 0) orderedSeats.push(pk);
+    });
+    const recipientCount = (fs.count <= 2) ? 2 : 4;
+    const recipientSeats = orderedSeats.slice(0, recipientCount);
+
+    // Ordinal label for the recipient tiles — "draws 1st", "draws 2nd", …
+    const ord = (i) => (['1st', '2nd', '3rd', '4th'][i] || `${i + 1}th`);
+
+    // Shared peek strip shown above the recipient tiles so the owner sees EVERY
+    // peeked card the whole time and hands them out knowing all of them, rather
+    // than one card at a time. Plain data so it survives the 2v2 online sync.
+    const stripDefs = peeked.map(def => ({
+      name: def.name, cost: (def.cost != null ? def.cost : null),
+      attack: (def.attack != null ? def.attack : null),
+      health: (def.health != null ? def.health : null),
+    }));
+
     const assigned = [];   // [{ pk, def }]
     const finalize = () => {
       tt.drawPile = tt.drawPile.filter(c => peeked.indexOf(c) < 0);   // remove handed cards
@@ -13970,17 +14076,26 @@ const Game = {
       if (i >= peeked.length) { finalize(); return; }
       const def = peeked[i];
       const taken = new Set(assigned.map(a => a.pk));
-      const recipients = this._2v2SLOTS.filter(pk => tt.players[pk] && !taken.has(pk));
+      const recipients = recipientSeats.filter(pk => tt.players[pk] && !taken.has(pk));
       if (!recipients.length) { finalize(); return; }
       const tiles = recipients.map(pk => ({
         name: tt.players[pk].name || pk, _playerKey: pk, _isPlayerTile: true,
-        desc: `Team ${tt.players[pk].team} · ${(tt.players[pk].hand || []).length} cards`,
+        desc: `Team ${tt.players[pk].team} · draws ${ord(orderedSeats.indexOf(pk))} · ${(tt.players[pk].hand || []).length} cards`,
       }));
+      // Strip marks which card is being handed out now and where the rest landed.
+      const peekStrip = {
+        defs: stripDefs,
+        activeIndex: i,
+        assignedNames: assigned.reduce((m, a) => {
+          m[peeked.indexOf(a.def)] = (tt.players[a.pk].name || a.pk); return m;
+        }, {}),
+      };
       this.promptCardChoice(ownerSide, tiles,
         `${fs.source} — Give “${def.name}”`,
-        `You peeked ${def.name} (cost ${def.cost != null ? def.cost : '?'}). Choose who receives it.`,
+        `You peeked the top ${peeked.length}. Choose who receives ${def.name} (cost ${def.cost != null ? def.cost : '?'}).`,
         (pick) => { if (pick && pick._playerKey) assigned.push({ pk: pick._playerKey, def }); assignNext(i + 1); },
-        (list) => list[0]);
+        (list) => list[0],
+        { peekStrip });
     };
     assignNext(0);
   },
