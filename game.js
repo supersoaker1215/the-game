@@ -5048,6 +5048,14 @@ const Game = {
       if (UI.showTrickReveal) UI.showTrickReveal(trick.name, trick.desc || '', trick.cost, owner === 'player');
       else if (owner === 'ai' && UI.showAITrickToast) UI.showAITrickToast(trick.name, trick.desc || '');
     }
+    // 2v2 online: the 3 guests don't run playTrick, so relay the center-screen
+    // reveal + trick sound over the FX stream (drained by every client). The
+    // seat lets each guest decide if the play was theirs; the host already
+    // showed it live above and skips the replay (see showDamageFloats). 1v1
+    // guests keep their playedTrickPile-diff reveal, so only emit in 2v2.
+    if (this.state.twoVTwo && this.state.twoVTwo.online && this.emitFX) {
+      try { this.emitFX('trickReveal', { name: trick.name, desc: trick.desc || '', cost: trick.cost, seat: this._2v2CurrentActingPlayer || null }); } catch (e) {}
+    }
     if (trick.play) {
       // Flag the trick-execution window so _trickBlocked can gate effects
       // targeting Untrickable cards (including every 10-cost titan, which
@@ -12339,6 +12347,8 @@ const Game = {
         p.playedTrickPile.push({ name: trick.name, cost: trick.cost });
         this.log(`  [BLOCK TRICK] ${p.name} plays ${trick.name} for free!`);
         if (typeof UI !== 'undefined' && UI.showTrickReveal) { try { UI.showTrickReveal(trick.name, trick.desc || '', trick.cost, seat === tt.you); } catch (e) {} }
+        // Relay the block-trick reveal to the 3 guests too (see playTrick).
+        if (tt.online && this.emitFX) { try { this.emitFX('trickReveal', { name: trick.name, desc: trick.desc || '', cost: trick.cost, seat }); } catch (e) {} }
         this._2v2CurrentActingPlayer = seat;
         this.state._inTrick = true; this.state._trickOwner = side; this.state._activeTrickName = trick.name;
         this._2v2WithJumperBridge(seat, () => { try { trick.play(this, side); } catch (e) { console.error(e); } });

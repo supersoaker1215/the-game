@@ -11132,6 +11132,31 @@ const UI = {
     return owner;
   },
 
+  // 2v2 guest: the three non-host seats never run the engine, so the card-play
+  // and card-death sounds the host fires live never reach them. Diff the board
+  // between the old and incoming broadcast by card id and fire the matching SFX
+  // (id-based, so a card that just MOVED lanes stays silent). Mirrors the 1v1
+  // guest lane-diff in _mpInit. Called before the state swap on the joiner path.
+  _relay2v2CardSounds(oldState, newState) {
+    try {
+      if (!oldState || !newState || !this.sfx || !this.sfx.playCardSfx) return;
+      const idsOf = (st) => {
+        const m = {};
+        (st.lanes || []).forEach(l => ['player', 'ai'].forEach(s => {
+          const c = l && l[s]; if (c && c.id != null) m[c.id] = c;
+        }));
+        return m;
+      };
+      const before = idsOf(oldState), after = idsOf(newState);
+      for (const id in after) if (!(id in before)) {
+        const c = after[id]; try { this.sfx.playCardSfx(c.name, 'play', c); } catch (e) {}
+      }
+      for (const id in before) if (!(id in after)) {
+        const c = before[id]; try { this.sfx.playCardSfx(c.name, 'death', null); } catch (e) {}
+      }
+    } catch (e) {}
+  },
+
   showDamageFloats() {
     const events = Game.flushDmg();
     for (const ev of events) {
@@ -11144,6 +11169,21 @@ const UI = {
         // Replay on any non-host online client — 1v1 guest AND the three
         // non-host seats of a 2v2 room. The host already animated live.
         if (Game.onlineRelayRole && Game.onlineRelayRole() === 'guest') this._replaySigFx(ev);
+        continue;
+      }
+      // 2v2 trick reveal relayed from the host (see Game.playTrick). Guests
+      // don't run the engine, so this FX event is their only reveal trigger;
+      // the host already showed it live and must not double-fire. `mine` is
+      // computed against the guest's own seat so their own plays read as "you".
+      if (ev.type === 'trickReveal') {
+        if (Game.onlineRelayRole && Game.onlineRelayRole() === 'guest') {
+          const tt = Game.state && Game.state.twoVTwo;
+          const mine = !!(tt && ev.seat && ev.seat === tt.you);
+          try { if (this.sfx && this.sfx.playTrickSfx) this.sfx.playTrickSfx(ev.name, 'play'); } catch (e) {}
+          if (ev.name !== 'Time Stone' && this.showTrickReveal) {
+            try { this.showTrickReveal(ev.name, ev.desc || '', ev.cost, mine); } catch (e) {}
+          }
+        }
         continue;
       }
       if (ev.type === 'titan') {
@@ -31334,6 +31374,9 @@ function twov2OnlineJoin() {
       if (UI._2v2StateRetry) { clearInterval(UI._2v2StateRetry); UI._2v2StateRetry = null; }
     }
     const mySlot = Game.state.twoVTwo && Game.state.twoVTwo.you;
+    // Fire card play/death SFX from the board diff BEFORE swapping in the new
+    // state (guests don't run the engine that would play them live).
+    UI._relay2v2CardSounds(Game.state, state);
     Game.state = state;
     // Keep the engine's lane count in lockstep with the received board —
     // 2v2 runs 8 lanes and any joiner whose local LANE_COUNT still says 6
