@@ -4451,6 +4451,16 @@ const Game = {
       this.log(`[ASLEEP] ${card.name} is still dreaming — it cannot be played this turn.`);
       return false;
     }
+    // 2v2 online: tag the card with the seat playing it so its LATER hooks
+    // (before-tricks move/devour, combat onKill/onDeath, Iron Giant) route their
+    // prompts back to that exact seat. Human plays already tag this in
+    // _2v2OnlinePlayCard; AI-driven seats call playCard directly and never did,
+    // so their cards fell back to team-derivation. Tagging here (idempotent —
+    // skipped when already set) makes every seat's plays route precisely.
+    if (card && this.state.twoVTwo && this.state.twoVTwo.online
+        && !card._2v2PlayedBy && this._2v2CurrentActingPlayer) {
+      card._2v2PlayedBy = this._2v2CurrentActingPlayer;
+    }
     // Multiplayer guest: forward to host instead of executing locally.
     // Host applies the action and broadcasts the new state. We return
     // true so the UI's selectedCard state still advances optimistically;
