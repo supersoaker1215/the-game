@@ -2813,6 +2813,13 @@ const Game = {
     if (this.state.mode && this.state.mode.deck === 'deckbuilder') {
       return this.state[owner].drawPile;
     }
+    // 2v2 shares one pile (tt.drawPile). During a bridged play state.drawPile IS
+    // that array, but COMBAT never bridges — so a combat draw (draw-on-kill,
+    // Iron Giant's sacrifice draw) read a stale/empty state.drawPile and silently
+    // drew nothing. Always go straight to the shared pile in 2v2.
+    if (this.state.twoVTwo && this.state.twoVTwo.online) {
+      return this.state.twoVTwo.drawPile;
+    }
     return this.state.drawPile;
   },
   getTrickPile(owner) {
@@ -7127,7 +7134,10 @@ const Game = {
   },
 
   drawCards(owner, count) {
-    const p = this.state[owner];
+    // 2v2 combat: measure the cap against — and read discount state from — the
+    // OWNING seat's hand, not whichever teammate the side proxy is bound to. The
+    // drawn card itself lands via addToHand below, which routes the same way.
+    const p = this._2v2HandTarget(owner);
     const opp = this.opponent(owner);
     const who = this.seatLabel(owner);
 
@@ -7152,7 +7162,7 @@ const Game = {
 
     const drawn = [];
     for (let i = 0; i < count; i++) {
-      if (p.hand.length >= p.maxHandSize) {
+      if (p.hand.length >= (p.maxHandSize != null ? p.maxHandSize : 7)) {
         // Auto-discard floor — if the next-to-draw is a discard-only
         // card (Mr. Fantastic / Catwoman / Jigsaw / Professor X), fire
         // its effect for FREE instead of silently losing the card to
@@ -7368,9 +7378,12 @@ const Game = {
   // Centralized hand/trick gainers — respect max hand (7) / max trick (3) caps.
   // Return true if added, false if the hand was full (card/trick silently discarded).
   addToHand(owner, card, source) {
-    const p = this.state[owner];
-    if (p.hand.length >= p.maxHandSize) {
-      this.log(`  [HAND FULL] ${this.seatPossessive(owner)} hand is full (${p.maxHandSize}) — ${card && card.name ? card.name : 'card'} discarded.`);
+    // 2v2 combat: land the card in the OWNING seat's hand, not whichever
+    // teammate the side proxy happens to be bound to (see _2v2HandTarget).
+    const p = this._2v2HandTarget(owner);
+    const cap = (p.maxHandSize != null ? p.maxHandSize : 7);
+    if (p.hand.length >= cap) {
+      this.log(`  [HAND FULL] ${this.seatPossessive(owner)} hand is full (${cap}) — ${card && card.name ? card.name : 'card'} discarded.`);
       return false;
     }
     // Bug fix: Moder-stripped cards that bounce back to hand (Phantom
@@ -10019,6 +10032,28 @@ const Game = {
     const team = side === 'player' ? 'A' : 'B';
     return this._2v2SLOTS.find(pk => tt.players[pk] && tt.players[pk].team === team && tt.players[pk].isAI)
         || this._2v2SLOTS.find(pk => tt.players[pk] && tt.players[pk].team === team) || null;
+  },
+
+  // 2v2: pick the player object a hand-gain (addToHand / drawCards) should land
+  // on. During a normal turn the side proxy's hand IS the acting seat's hand
+  // (bridged), so this returns the side proxy unchanged. During COMBAT nothing
+  // bridges hands, so state[owner].hand is stuck on whichever teammate synced
+  // last — a card drawn/resurrected by a combat hook (Hela, draw-on-kill) would
+  // land in the WRONG teammate's hand. _2v2ActFor stamps _2v2CurrentActingPlayer
+  // to the triggering card's owner before every combat hook, so route the gain
+  // to that seat when its hand is a DIFFERENT array than the side proxy's (i.e.
+  // we're in combat) and it's on the owner's team. Otherwise unchanged.
+  _2v2HandTarget(owner) {
+    const side = this.state[owner];
+    const tt = this.state && this.state.twoVTwo;
+    if (!tt || !tt.online) return side;
+    const seat = this._2v2CurrentActingPlayer;
+    if (seat && tt.players[seat]
+        && this._2v2TeamSide[tt.players[seat].team] === owner
+        && tt.players[seat].hand !== (side && side.hand)) {
+      return tt.players[seat];
+    }
+    return side;
   },
 
   mindControlCard(card, source, onApply) {

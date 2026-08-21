@@ -2432,7 +2432,12 @@ const CARD_ABILITIES = {
       }
       const card1 = pile.pop();
       const card2 = pile.pop();
-      if (Game.isHuman(self.owner)) {
+      // 2v2 has no render/resolution path for this keep-one modal (the board
+      // returns before the shared Kang render), and isHuman(side) is true for
+      // BOTH teams there — so it armed the prompt + a 30s auto-pick even for an
+      // AI seat, stalling the turn. Auto-pick immediately in 2v2 (keep the
+      // higher-cost card — exactly what the timeout would have chosen).
+      if (Game.isHuman(self.owner) && !G.is2v2()) {
         G.state.pendingKangChoice = { owner: self.owner, cards: [card1, card2], kangCard: self };
         // A silent forecast sim (previewPlacement clones the state and runs
         // onPlay to preview a placement) must NOT drive the UI or arm a real
