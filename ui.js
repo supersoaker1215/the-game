@@ -426,6 +426,21 @@ const UI = {
     const s = Game.state;
     if (!card || !s || !s.player) return false;
     if (card._neverPlayable) return false;                       // Iron Giant — never placeable
+    // 2v2 FIRST. This read s.player.hand and 1v1 phase names, so in a 2v2 room
+    // the button never appeared — the card lives in the SEAT's hand, not the
+    // side proxy. Now that tap opens the inspect rather than playing outright,
+    // that button is the only way to commit, so this gate has to know the mode.
+    const _tt = s.twoVTwo;
+    if (_tt && _tt.online) {
+      const seat = _tt.players && _tt.players[_tt.you];
+      if (!seat || !(seat.hand || []).some(c => c && c.id === card.id)) return false;
+      if (Game._2v2ActivePlayer && Game._2v2ActivePlayer() !== _tt.you) return false;
+      const sp = Game._2v2SubPhase && Game._2v2SubPhase();
+      const side = (this._2v2LocalSide && this._2v2LocalSide()) || 'player';
+      if (!Game._2v2CanPlayCardNow || !Game._2v2CanPlayCardNow(sp, card, side)) return false;
+      const left = (seat.energy || 0) - (seat.usedEnergy || 0);
+      return left >= (card.cost || 0);
+    }
     if (!(s.player.hand || []).some(c => c && c.id === card.id)) return false;  // must be a hand card
     if (!this.canPlayerPlayCards || !this.canPlayerPlayCards(s)) return false;
     // Trick phase: only trick-phase-playable cards (or Red Skull's passive).
@@ -514,7 +529,14 @@ const UI = {
         e.stopPropagation();
         this.closeCardInspect();
         const s = Game.state;
-        if (card.isDiscardEffect) {
+        const _tt2 = s.twoVTwo;
+        if (_tt2 && _tt2.online && !card.isDiscardEffect) {
+          // 2v2 online: submit through the same door the tap used to call, so
+          // the lane choice and host/guest fork behave exactly as before — the
+          // only thing that changed is that a read now happens first.
+          Game.submitCommand({ type: 'playCard', payload: { card } });
+          s.selectedCard = null;
+        } else if (card.isDiscardEffect) {
           // Lane-less: fires for its discard effect (engine takes lane 0 as a
           // placeholder, exactly as the tap/drag paths already do).
           Game.submitCommand({ type: 'playCard', payload: { card, lane: 0 } });
@@ -12491,9 +12513,18 @@ const UI = {
           UI._2v2SelectedCardIdx = UI._2v2SelectedCardIdx === apIdx ? null : apIdx;
           UI.render();
         } else {
-          // Online 2v2 card play flows through the SAME door a 1v1 player uses;
-          // submitCommand's 2v2 arm does the host-vs-guest fork.
-          Game.submitCommand({ type: 'playCard', payload: { card: ap.hand[apIdx] } });
+          // TAP READS, IT DOES NOT PLAY. This submitted the play on the very
+          // first tap, so a 2v2 card could never be picked up and read — the
+          // one thing a click does everywhere else in the game. Owner, twice:
+          // "when i tap on a card it automatically plays it in 2v2, that
+          // shouldn't happen" and "i want it how it works in 1v1 where if i tap
+          // it i can read the card and then i have the prompt at the bottom to
+          // play it if i choose."
+          // The inspect view IS that prompt — it carries a Play button gated by
+          // _inspectCardPlayable — so the play still goes through the same door
+          // (submitCommand), just one deliberate step later. Drag still plays
+          // directly, untouched.
+          UI.openCardInspect(ap.hand[apIdx]);
         }
       };
     });
