@@ -178,7 +178,13 @@ const Game = {
     // card/lane choice from onKill/onDamaged hooks, etc.) and can resolve it.
     // Without this, any mid-combat prompt set inside resolveLaneCombat is never
     // pushed to the guest, so the guest never sends promptResolve, and combat hangs.
-    if (this.isMultiplayer && this.isMultiplayer() && this.mp.role === 'host') this._mpBroadcast();
+    // Through the shared door: the 1v1-only gate that used to be here is
+    // structurally false in a 2v2 room, so this push — written precisely so a
+    // mid-combat prompt reaches the client that must answer it — never fired
+    // there. That is why a 2v2 guest could not answer a Mind Control target
+    // raised during combat: the prompt was stamped for their seat and stayed on
+    // the host until the 45s watchdog nulled it.
+    this._pushOnlineState();
   },
   // Called by UI when any prompt is resolved — fires stored continuation
   // ===================== PROMPT QUEUE =====================
@@ -5446,20 +5452,17 @@ const Game = {
 
       this.state._activeLane = i;
       UI.render();
-      // Broadcast active-lane highlight to guest so they see which lane is fighting.
-      if (this.isMultiplayer && this.isMultiplayer() && this.mp.role === 'host') this._mpBroadcast();
-      // 2v2 online: push the active-lane state to all guests so combat advances
-      // lane by lane on their screens too. The prior guest-only FX pacing
-      // (c0d4c71) spread the FX out but still worked off a SINGLE end-of-combat
-      // snapshot, so the board itself still jumped straight to the aftermath.
-      // Broadcasting per lane (here and after each lane resolves below) gives the
-      // guest genuine lane-by-lane board updates, and — critically — delivers a
-      // block-meter free-trick offer raised mid-combat to the guest immediately,
-      // instead of burying it in the lump end-of-combat push. (User: "it played
-      // badly for the guest"; "we blocked and … the trick never loaded.")
-      if (this._2v2IsAIAuthority && this._2v2IsAIAuthority() && this.state.twoVTwo && this.state.twoVTwo.online) {
-        this._2v2OnlineBroadcast();
-      }
+// Push the active-lane state so remote clients advance lane by lane
+      // rather than jumping to the aftermath. The earlier guest-side FX pacing
+      // spread the animation out but still worked off a SINGLE end-of-combat
+      // snapshot, so the board itself still jumped. This also delivers a
+      // block-meter free-trick offer raised mid-combat immediately, instead of
+      // burying it in the lump end-of-combat push. (Ryan: "it played badly for
+      // the guest"; "we blocked and the trick never loaded.")
+      // Through _pushOnlineState so 1v1 and 2v2 share one door, and SILENT
+      // because UI.render() ran one line above — a second diff-render here
+      // strips transient FX classes mid-animation.
+      this._pushOnlineState({ silent: true });
 
       const lane = this.state.lanes[i];
       const p = lane.player;
@@ -5519,13 +5522,9 @@ const Game = {
         // If any prompt is pending (block trick, card/lane choice, etc.), pause combat
         this.whenPromptCleared(() => {
           UI.render();
-          // Broadcast resolved lane result to guest before moving on.
-          if (this.isMultiplayer && this.isMultiplayer() && this.mp.role === 'host') this._mpBroadcast();
-          // 2v2 online: push the resolved lane so guests watch the aftermath
-          // before the next lane lights up (twin of the pre-lane push above).
-          if (this._2v2IsAIAuthority && this._2v2IsAIAuthority() && this.state.twoVTwo && this.state.twoVTwo.online) {
-            this._2v2OnlineBroadcast();
-          }
+// Push the resolved lane so guests watch the aftermath before the
+          // next lane lights up — twin of the pre-lane push above.
+          this._pushOnlineState({ silent: true });
           this._schedule(() => resolveLane(i + 1), this.COMBAT_LANE_DELAY);
         });
       };
@@ -10328,6 +10327,21 @@ const Game = {
     this._2v2CurrentActingPlayer = prev;
   },
 
+  // Is this seat on that side's team? The prompt stamp derives an acting seat
+  // from _2v2CurrentActingPlayer, a MUTABLE GLOBAL — and nothing checked the
+  // seat it produced was even on the team that owns the decision. When the AI
+  // watchdog fires it nulls the driving seat and advances the phase while the
+  // AI's own step() loop is still in flight, so the global has already moved on
+  // to the NEXT seat. The AI's next prompt then gets stamped to whoever that
+  // is. Owner: "the AI played kryptonite and i got to select which of MY cards
+  // to play it on." The card's data was right — owner is the caster, the target
+  // list is the victim's board — only the audience was wrong.
+  _2v2SeatOnSide(seat, side) {
+    const tt = this.state && this.state.twoVTwo;
+    if (!tt || !seat || !tt.players[seat] || !this._2v2TeamSide) return false;
+    return this._2v2TeamSide[tt.players[seat].team] === side;
+  },
+
   _2v2SeatForSide(side) {
     const tt = this.state && this.state.twoVTwo;
     if (!tt || !tt.online || !side) return null;
@@ -10625,7 +10639,12 @@ const Game = {
       // stranded the round: the AI finished but a target prompt sat forever).
       // Last resort: derive a seat from the prompt's OWNER team (before-tricks /
       // combat / death hooks raise prompts with neither cap nor driving set).
-      const _actor = _cap || this._2v2AIDriving || this._2v2SeatForSide(owner);
+      // VALIDATED against the owning team. A stale global must never make a
+      // prompt land on the opposing side — derive a correct seat instead.
+      let _actor = _cap || this._2v2AIDriving || this._2v2SeatForSide(owner);
+      if (_actor && !this._2v2SeatOnSide(_actor, owner)) {
+        _actor = this._2v2SeatForSide(owner);
+      }
       if (this.is2v2() && this.state.twoVTwo && this.state.twoVTwo.online && _actor) {
         // An AI filler seat has no remote client to answer — the driving
         // authority resolves it here with a sensible auto-pick (first open lane).
@@ -10635,6 +10654,10 @@ const Game = {
           return;
         }
         this.state.pendingLaneChoice._2v2ActingPlayer = _actor;
+        // DELIVER IT. Stamping alone left the prompt on the host; the seat that
+        // must answer never saw it.
+        if (typeof UI !== 'undefined' && UI.render) UI.render();
+        this._pushOnlineState({ silent: true });
         return;
       }
       // 1v1 online: a lane choice owned by the guest seat ('ai') must be
@@ -10786,7 +10809,12 @@ const Game = {
       // raised from a deferred callback during AI play never strands the round,
       // then to a seat on the owner's team so an orphaned before-tricks/combat/
       // death prompt lands on the right team instead of defaulting to the host.
-      const _actor = _cap || this._2v2AIDriving || this._2v2SeatForSide(owner);
+      // VALIDATED against the owning team. A stale global must never make a
+      // prompt land on the opposing side — derive a correct seat instead.
+      let _actor = _cap || this._2v2AIDriving || this._2v2SeatForSide(owner);
+      if (_actor && !this._2v2SeatOnSide(_actor, owner)) {
+        _actor = this._2v2SeatForSide(owner);
+      }
       if (this.is2v2() && this.state.twoVTwo && this.state.twoVTwo.online && _actor) {
         // AI filler seat: no remote client — the driving authority auto-picks
         // via the ability's own aiPicker (falls back to the first candidate).
@@ -10797,6 +10825,8 @@ const Game = {
           return;
         }
         this.state.pendingCardChoice._2v2ActingPlayer = _actor;
+        if (typeof UI !== 'undefined' && UI.render) UI.render();
+        this._pushOnlineState({ silent: true });
         return;
       }
       // 1v1 online: a card/target choice owned by the guest seat ('ai')
@@ -14392,6 +14422,10 @@ const Game = {
       this._2v2CurrentActingPlayer = null;
       // Mirror the human path: end2v2Phase reads the seat back and advances.
       try { this.end2v2Phase(); } catch (e) { console.error('[2v2 AI] end phase threw', e); }
+      // …and push it. An AI-owned final sub-phase advanced the round with no
+      // action boundary behind it, leaving every guest on a stale snapshot with
+      // nothing to move them forward.
+      this._pushOnlineState({ silent: true });
     };
     // WATCHDOG — if an AI seat's turn hangs (a play callback that never fires,
     // an ability prompt that somehow stalls), force the phase to end so the
@@ -14542,6 +14576,12 @@ const Game = {
 
     s.phase = '2v2-combat';
     if (typeof UI !== 'undefined' && UI.render) UI.render();
+    // TELL THE OTHER CLIENTS COMBAT STARTED. Nothing here pushed, and combat
+    // then runs from a bare setTimeout outside every action boundary that
+    // normally broadcasts — so a guest's last snapshot was whatever the
+    // previous action carried, and the whole battle arrived at once in
+    // _2v2PostCombat. Silent: the render above already ran.
+    this._pushOnlineState({ silent: true });
 
     // (Before-tricks hooks already fired at the trick-phase boundary — see
     // _2v2StartSubPhase, right before the first trick-only turn.)
@@ -15538,7 +15578,32 @@ const Game = {
   },
 
   // Host broadcasts current state to all joiners via Multiplayer4
-  _2v2OnlineBroadcast() {
+  // ONE PUSH DOOR for both online modes.
+  // Delivery to a remote client was implemented only in 1v1 primitives:
+  // _mpBroadcast behind isMultiplayer(), which keys on this.mp.role — a value
+  // 2v2 NEVER sets, because a 2v2 room runs on Multiplayer4 + twoVTwo.online.
+  // So every push point written for exactly this purpose silently no-ops in a
+  // 2v2 room: whenPromptCleared, the active-lane push and the resolved-lane
+  // push. 2v2 delivery ended up 100% manual at action boundaries, and combat
+  // runs from a bare setTimeout outside all of them — which is why a guest sees
+  // no lane-by-lane combat and never receives a prompt raised during it.
+  // opts.silent skips the render: the combat push sites already render one line
+  // above, and a second diff-render there strips transient FX classes.
+  _pushOnlineState(opts) {
+    const silent = !!(opts && opts.silent);
+    const tt = this.state && this.state.twoVTwo;
+    if (tt && tt.online) {
+      // Host only — p1 owns the authoritative state in a 2v2 room.
+      if (tt.you !== 'p1') return;
+      this._2v2OnlineBroadcast({ silent: silent });
+      return;
+    }
+    if (this.isMultiplayer && this.isMultiplayer() && this.mp && this.mp.role === 'host') {
+      this._mpBroadcast();
+    }
+  },
+
+  _2v2OnlineBroadcast(opts) {
     // Never let a serialize/send failure abort the host's own turn. A throw
     // here used to leave the host playing on while every guest froze on a
     // stale state (the broadcast never reached them). serializeState is now
@@ -15555,7 +15620,7 @@ const Game = {
         if (typeof window !== 'undefined' && window.__clbErrors) window.__clbErrors.report('2v2-broadcast', e);
       }
     }
-    if (typeof UI !== 'undefined' && UI.render) UI.render();
+    if (!(opts && opts.silent) && typeof UI !== 'undefined' && UI.render) UI.render();
   },
 
   // Called from team setup UI once player names (and optionally team assignments) are set
