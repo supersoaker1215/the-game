@@ -19856,7 +19856,9 @@ const UI = {
     const isMyCardChoice = Game.promptIsMine(cc, 'card');
     const isMyLaneChoice = Game.promptIsMine(lc, 'lane');
     const targetCardIds = new Set();
-    if (cc && isMyCardChoice) cc.cards.forEach(c => { if (c.id !== undefined) targetCardIds.add(c.id); });
+    // inlineTray prompts show the choices in the tray, not by lighting up the
+    // board/hand — skip the target highlight for them (see the hand version).
+    if (cc && isMyCardChoice && !cc.inlineTray) cc.cards.forEach(c => { if (c.id !== undefined) targetCardIds.add(c.id); });
     const lcTargetSide = (lc && isMyLaneChoice) ? (lc.targetSide || lc.owner) : null;
     // ABILITY TARGET PREVIEW — when a card is SELECTED in hand (and no pick
     // prompt is currently open) glow the enemies its onPlay ability could hit,
@@ -23330,7 +23332,11 @@ const UI = {
     // choice was pending (MP guest placement), crashing the whole hand render.
     const isMyLaneChoice = Game.promptIsMine(lc, 'lane');
     const targetHandIds = new Set();
-    if (cc && isMyHandChoice) cc.cards.forEach(c => { if (c.id !== undefined) targetHandIds.add(c.id); });
+    // inlineTray prompts (Symbiote Spider-Man shuffle, etc.) present every option
+    // as a full card in the floating tray, so the hand-card highlight is
+    // redundant noise — the user reads and picks from the tray, not the hand.
+    // (User: "not highlight the hand cards.")
+    if (cc && isMyHandChoice && !cc.inlineTray) cc.cards.forEach(c => { if (c.id !== undefined) targetHandIds.add(c.id); });
     // Guest debug: log when any hand card gets a non-standard onclick (cardChoicePick or jumpCard)
     // Open browser console (F12) and filter for [GUEST HAND] to diagnose instant-placement bugs.
     if (Game.isMultiplayer() && Game.mp && Game.mp.role === 'guest' && (cc || (s.player.hand||[]).some(c => c.jumpReady))) {
