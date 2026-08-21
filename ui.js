@@ -12177,16 +12177,27 @@ const UI = {
     if (_aFrz) _aFrz.classList.toggle('hp-frozen', !!oppTeamData.healthFrozen);
 
     // --- HUD: Block circles ---
+    // Read the LIVE combat-proxy meter, not tt.teams[..].blockMeter. The team
+    // value is only synced back at end-of-phase / postCombat, so a meter that
+    // filled mid-combat (a hit's d3 roll) or mid-turn (Loki, Two-Face Coin,
+    // Trigon's steal) sat at its old value on screen until the round ended. The
+    // proxies (s.player = Team A, s.ai = Team B) hold the live value the instant
+    // it changes — for the host AND, via the state broadcast, for every guest.
+    // (User: "the block meter doesn't load instantly... make it change the
+    // second you take damage or an ability changes it.")
+    const oppSide = Game._2v2TeamSide[oppTeam];
+    const myBlockLive  = (s[mySide]  && s[mySide].blockMeter  != null) ? s[mySide].blockMeter  : myTeamData.blockMeter;
+    const oppBlockLive = (s[oppSide] && s[oppSide].blockMeter != null) ? s[oppSide].blockMeter : oppTeamData.blockMeter;
     const blockMax = Game.BLOCK_MAX || 8;
-    [['player', myTeamData], ['ai', oppTeamData]].forEach(([side, team]) => {
+    [['player', myBlockLive], ['ai', oppBlockLive]].forEach(([side, meter]) => {
       const textEl = document.getElementById(`${side}-block-text`);
       if (!textEl) return;
-      textEl.textContent = `${team.blockMeter}/${blockMax}`;
+      textEl.textContent = `${meter}/${blockMax}`;
       const circle = textEl.closest('.block-circle');
       if (circle) {
         circle.style.setProperty('--fill',
-          Math.max(0, Math.min(100, (team.blockMeter / blockMax) * 100)) + '%');
-        circle.classList.toggle('full', team.blockMeter >= blockMax);
+          Math.max(0, Math.min(100, (meter / blockMax) * 100)) + '%');
+        circle.classList.toggle('full', meter >= blockMax);
       }
     });
 
