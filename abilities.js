@@ -429,8 +429,14 @@ const CARD_ABILITIES = {
     onPlay(G, self, lane) {
       // Roguelite Text+ override — _harleyDraw scales the draw amount.
       const n = self._harleyDraw || 1;
-      G.drawCards(self.owner, n);
-      G.drawCards(G.opponent(self.owner), n);
+      // "BOTH PLAYERS DRAW" MEANS EVERY PLAYER. drawCards takes a SIDE, and in
+      // 2v2 a side is a team of two whose proxy is bound to whichever seat is
+      // acting — so this drew one card per TEAM and quietly skipped both
+      // teammates. forEachSeatOnSide routes the draw to each real seat in turn,
+      // and collapses to exactly the old behaviour in 1v1, where a side IS a
+      // player.
+      G.forEachSeatOnSide(self.owner, () => G.drawCards(self.owner, n));
+      G.forEachSeatOnSide(G.opponent(self.owner), () => G.drawCards(G.opponent(self.owner), n));
       G.log(`Harley Quinn makes everyone draw ${n}!`);
       if (typeof UI !== 'undefined' && UI._fxHarleyChaos) { try { UI._fxHarleyChaos(self); } catch (e) {} }
       // First ATK roll happens immediately on play — startRound's

@@ -10118,6 +10118,61 @@ const Game = {
   // hand. Owner, emphatically: an AI must never play for another human.
   // Preferring a human costs nothing when the team has none — the AI branch is
   // still there as the true last resort.
+  // ============================================================
+  // A SIDE IS NOT A PLAYER IN 2v2
+  // ============================================================
+  // state['player'] / state['ai'] are SIDES. In 1v1 a side is one person, so an
+  // effect written against state[side].hand is correct. In 2v2 a side is a TEAM
+  // OF TWO and state[side] is a bridged proxy for whichever seat is currently
+  // acting — so the exact same code silently touches one teammate and misses
+  // the other. That is one root cause behind "only my teammate redrew", and it
+  // applies to every hand-wide, energy-wide or draw-wide effect in the game,
+  // not just the card that happened to surface it.
+  //
+  // seatStatesOnSide returns the real per-player states to operate on: the side
+  // proxy itself in 1v1, both seats in 2v2. Written once here so a card can ask
+  // the question instead of each one re-deriving it inline and getting it
+  // subtly different.
+  seatStatesOnSide(side) {
+    const tt = this.state && this.state.twoVTwo;
+    if (!tt || !tt.online || !this._2v2SLOTS || !this._2v2TeamSide) return [this.state[side]];
+    const team = (this._2v2TeamSide.A === side) ? 'A' : 'B';
+    const seats = this._2v2SLOTS.filter(pk => tt.players[pk] && tt.players[pk].team === team);
+    if (!seats.length) return [this.state[side]];
+    return seats.map(pk => tt.players[pk]);
+  },
+  // The seat KEYS for a side ('p1'…'p4'), or [null] in 1v1 where there is no
+  // seat concept. Pairs with seatStatesOnSide by index.
+  seatKeysOnSide(side) {
+    const tt = this.state && this.state.twoVTwo;
+    if (!tt || !tt.online || !this._2v2SLOTS || !this._2v2TeamSide) return [null];
+    const team = (this._2v2TeamSide.A === side) ? 'A' : 'B';
+    const seats = this._2v2SLOTS.filter(pk => tt.players[pk] && tt.players[pk].team === team);
+    return seats.length ? seats : [null];
+  },
+  // Run fn once per real player on a side, with hand reads/writes ROUTED to
+  // that seat for the duration — drawCards and addToHand both resolve through
+  // _2v2HandTarget, which reads _2v2CurrentActingPlayer, so without this a
+  // per-seat loop would still pile every draw onto whichever seat was acting.
+  // fn(playerState, side, seatKey). The previous acting seat is restored, and a
+  // throw on one seat never stops the others — a side-wide effect that dies
+  // half way is exactly how one teammate gets skipped.
+  forEachSeatOnSide(side, fn) {
+    const states = this.seatStatesOnSide(side);
+    const keys = this.seatKeysOnSide(side);
+    const prev = this._2v2CurrentActingPlayer;
+    states.forEach((ps, i) => {
+      const key = keys[i] || null;
+      try {
+        if (key) this._2v2CurrentActingPlayer = key;
+        fn(ps, side, key);
+      } catch (e) {
+        console.error('[forEachSeatOnSide]', side, key, e);
+      }
+    });
+    this._2v2CurrentActingPlayer = prev;
+  },
+
   _2v2SeatForSide(side) {
     const tt = this.state && this.state.twoVTwo;
     if (!tt || !tt.online || !side) return null;

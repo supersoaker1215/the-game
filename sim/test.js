@@ -6621,6 +6621,58 @@ test("Devour still counts as an ally dying — Ahsoka bonus-attacks", function (
   assertEq(G.state.ai.deadPile.indexOf(ally1), -1, 'and not into the dead pile');
 });
 
+test("A side is not a player: side-wide effects reach BOTH teammates", function () {
+  // Owner: "all these changes in 2v2 need to affect everyone."
+  //
+  // state['player'] / state['ai'] are SIDES. In 1v1 a side is one person, so an
+  // effect written against the side is correct. In 2v2 a side is a TEAM OF TWO
+  // and the side proxy is bound to whichever seat is acting — so identical code
+  // touches one teammate and silently misses the other. Harley Quinn's "both
+  // players draw" drew once per TEAM.
+  function twoVtwo(G) {
+    G.state.mode = { deck: 'classic', players: '2v2' };
+    G.state.twoVTwo = { online: true, drawPile: [], players: {
+      p1: { team: 'A', isAI: true, name: 'P1', hand: [] },
+      p2: { team: 'A', isAI: true, name: 'P2', hand: [] },
+      p3: { team: 'B', isAI: true, name: 'P3', hand: [] },
+      p4: { team: 'B', isAI: true, name: 'P4', hand: [] } } };
+    for (var i = 0; i < 60; i++) {
+      G.state.twoVTwo.drawPile.push({ name: 'Gizmo', cost: 2, attack: 1, health: 1,
+        abilities: [], type: 'neutral', desc: '' });
+    }
+    return G;
+  }
+
+  // THE HELPER resolves a side to its real players.
+  var G = twoVtwo(freshGame());
+  assertEq(G.seatStatesOnSide('player').length, 2, 'a 2v2 side is two players');
+  assertEq(G.seatKeysOnSide('player').join(','), 'p1,p2', 'and names both seats');
+  assertEq(G.seatKeysOnSide('ai').join(','), 'p3,p4', 'per team, not per side proxy');
+
+  // 2v2 — every seat draws.
+  var hq = G.createCardInstance(cardByName('Harley Quinn'), 'player');
+  G.state.lanes[0].player = hq;
+  CARD_ABILITIES['Harley Quinn'].onPlay(G, hq, 0);
+  ['p1', 'p2', 'p3', 'p4'].forEach(function (k) {
+    assertEq(G.state.twoVTwo.players[k].hand.length, 1, k + ' drew');
+  });
+
+  // 1v1 — a side IS a player, so nothing changes and nobody draws twice.
+  var S = freshGame();
+  S.state.player.isHuman = false; S.state.ai.isHuman = false;
+  for (var j = 0; j < 40; j++) {
+    S.state.drawPile.push({ name: 'Gizmo', cost: 2, attack: 1, health: 1,
+      abilities: [], type: 'neutral', desc: '' });
+  }
+  S.state.player.hand = []; S.state.ai.hand = [];
+  assertEq(S.seatStatesOnSide('player').length, 1, 'a 1v1 side is one player');
+  var hq2 = S.createCardInstance(cardByName('Harley Quinn'), 'player');
+  S.state.lanes[0].player = hq2;
+  CARD_ABILITIES['Harley Quinn'].onPlay(S, hq2, 0);
+  assertEq(S.state.player.hand.length, 1, '1v1 owner draws exactly one');
+  assertEq(S.state.ai.hand.length, 1, '1v1 opponent draws exactly one');
+});
+
 // ---- RUNNER ------------------------------------------------
 // ============================================================
 
