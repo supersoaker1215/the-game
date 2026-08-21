@@ -3132,18 +3132,17 @@ const CARD_ABILITIES = {
       // logic shipped). Restoration also clears the per-roll memory
       // so a future re-Crazy (different Joker enters play later)
       // starts fresh.
-      G.getAllCardsOnBoard().forEach(c => {
+      // EVERYWHERE, not just the board. This swept getAllCardsOnBoard(), so a
+      // victim that happened to be off-board at the instant Joker died — in the
+      // dead pile, mid-revive, bounced to hand — kept the stamp with nothing
+      // alive left to clear it. Mahoraga hit this constantly because dying and
+      // coming back IS his card.
+      G._allCardsAnywhere().forEach(c => {
         if (c._crazyAppliedBy) {
-          c.isCrazy = false;
-          delete c._crazyAppliedBy;
-          const restoreTo = (c._preCrazyAttack != null) ? c._preCrazyAttack : (c.baseAttack || c.attack);
           const wasAtk = c.attack;
-          if (G.setTrueAttack(c, restoreTo)) {
-            G.log(`  [CRAZY] ${c.name} is no longer Crazy — ATK restored ${wasAtk} → ${restoreTo}.`);
-          } else {
-            G.log(`  [CRAZY] ${c.name} is no longer Crazy — Joker is gone.`);
-          }
-          delete c._preCrazyAttack;
+          const restoreTo = (c._preCrazyAttack != null) ? c._preCrazyAttack : (c.baseAttack || c.attack);
+          G._stripStampedCrazy(c);
+          G.log(`  [CRAZY] ${c.name} is no longer Crazy — ATK restored ${wasAtk} → ${restoreTo}.`);
           delete c._lastCrazyRoll;
         }
       });

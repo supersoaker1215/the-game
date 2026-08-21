@@ -6425,6 +6425,59 @@ test("Deadpool's trade needs both halves — no give-back, no steal", function (
   assertEq(t4.G.state.ai.hand.length, 0, 'and the enemy loses it');
 });
 
+test("Crazy cannot outlive the Joker who stamped it", function () {
+  // Owner: "joker died long ago, why is crazy still applied" — on Mahoraga.
+  //
+  // Joker's onDeath DID strip the stamp, but only from getAllCardsOnBoard().
+  // A victim that was off-board at that instant kept it with nothing alive
+  // left to ever clear it. Mahoraga hits this more than anything else because
+  // dying and coming back IS his card.
+  function stamped(where) {
+    var G = freshGame();
+    G.state.player.isHuman = false; G.state.ai.isHuman = false;
+    var joker = place(G, 'Joker', 'player', 0);
+    var m = place(G, 'Mahoraga', 'ai', 1);
+    G.applyCrazyToCard(m);
+    assertEq(!!m.isCrazy, true, 'stamped to begin with');
+    if (where === 'deadpile') { G.state.lanes[1].ai = null; G.state.ai.deadPile.push(m); }
+    if (where === 'nowhere')  { G.state.lanes[1].ai = null; }
+    return { G: G, joker: joker, m: m };
+  }
+
+  // ON THE BOARD — the case that already worked.
+  var a = stamped('board');
+  a.joker.currentHealth = 0; a.G.handleDeath(a.joker, 0, null); a.G.cleanupDead();
+  assertEq(!!a.m.isCrazy, false, 'a board victim is cleared on Joker death');
+
+  // IN THE DEAD PILE — mid-revive, which is exactly Mahoraga's kit.
+  var b = stamped('deadpile');
+  var restoreTo = b.m._preCrazyAttack;
+  b.joker.currentHealth = 0; b.G.handleDeath(b.joker, 0, null); b.G.cleanupDead();
+  assertEq(!!b.m.isCrazy, false, 'a dead-pile victim is cleared too');
+  assertEq(b.m.attack, restoreTo, 'and its pre-Crazy ATK comes back');
+
+  // UNREACHABLE at the moment of death, back on the board afterwards. Nothing
+  // could have swept it, so the per-round reconcile is what saves it.
+  var c = stamped('nowhere');
+  c.joker.currentHealth = 0; c.G.handleDeath(c.joker, 0, null); c.G.cleanupDead();
+  c.G.state.lanes[1].ai = c.m;
+  c.G.state.round = 0;
+  c.G.startRound();
+  assertEq(!!c.m.isCrazy, false, 'the round reconcile heals a stranded stamp');
+  assertEq(!!c.m._crazyAppliedBy, false, 'and drops the marker with it');
+
+  // CONTROL — a LIVING Joker must keep his stamp. Without this the test would
+  // pass just as well if Crazy had been broken outright.
+  var d = freshGame();
+  d.state.player.isHuman = false; d.state.ai.isHuman = false;
+  place(d, 'Joker', 'player', 0);
+  var v = place(d, 'Sabertooth', 'ai', 1);
+  d.applyCrazyToCard(v);
+  d.state.round = 0;
+  d.startRound();
+  assertEq(!!v.isCrazy, true, 'Crazy survives while its Joker is alive');
+});
+
 // ---- RUNNER ------------------------------------------------
 // ============================================================
 

@@ -3386,6 +3386,10 @@ const Game = {
     // meant to cover, not during it.
     this.tickSleep('player');
     this.tickSleep('ai');
+    // Crazy is a While-Active aura — reconcile it to whether a Joker is
+    // actually in play, so a stamp left on an off-board card cannot outlive
+    // its source.
+    this.recomputeCrazy();
     // Brainiac's foresight expires — one round of scan spent per side each
     // round it's active. Two draws revealed ≈ two rounds of visibility.
     ['player', 'ai'].forEach(o => {
@@ -11754,6 +11758,56 @@ const Game = {
     return true;
   },
 
+  // Every card anywhere it can hold state — board, both hands, both dead piles.
+  // A status stamped by a While-Active source has to be reachable wherever the
+  // victim happens to be standing when the source leaves, and the board alone
+  // is not that set.
+  _allCardsAnywhere() {
+    const out = [];
+    try { out.push(...this.getAllCardsOnBoard()); } catch (e) {}
+    ['player', 'ai'].forEach(o => {
+      const p = this.state && this.state[o];
+      if (!p) return;
+      [p.hand, p.deadPile].forEach(list => {
+        if (Array.isArray(list)) out.push(...list);
+      });
+    });
+    return out;
+  },
+  // Undo one Joker stamp: drop the flag and put the ATK back to whatever it was
+  // before the Crazy roll pinned it. Extracted so the death hook and the
+  // reconcile below cannot drift into two different ideas of "no longer Crazy".
+  _stripStampedCrazy(c) {
+    if (!c || !c._crazyAppliedBy) return false;
+    c.isCrazy = false;
+    delete c._crazyAppliedBy;
+    const restoreTo = (c._preCrazyAttack != null) ? c._preCrazyAttack : (c.baseAttack || c.attack);
+    this.setTrueAttack(c, restoreTo);
+    delete c._preCrazyAttack;
+    c._lastCrazyRoll = null;
+    return true;
+  },
+  // CRAZY IS A WHILE-ACTIVE AURA, so it is reconciled from whether a Joker is
+  // actually alive rather than stamped on and unwound by hand — the same rule
+  // recomputeAuras follows for Magneto and Luke.
+  // Joker's onDeath already stripped the stamp, but only from cards ON THE
+  // BOARD. Anything off-board at that instant kept it with nothing left alive
+  // to ever clear it, and Mahoraga is the card most likely to be off-board:
+  // his whole kit is dying and coming back. Reported as "Joker died long ago,
+  // why is Crazy still applied".
+  // Runs every round, so the state heals itself no matter which path stranded
+  // it — including any future one.
+  recomputeCrazy() {
+    const jokerAlive = this._allCardsAnywhere().some(c =>
+      c && c.currentHealth > 0 && this.findCardLane(c) >= 0 &&
+      (this.isCardKind ? this.isCardKind(c, 'Joker') : c.name === 'Joker'));
+    if (jokerAlive) return;
+    this._allCardsAnywhere().forEach(c => {
+      if (this._stripStampedCrazy(c)) {
+        this.log(`  [CRAZY] ${c.name} is no longer Crazy — no Joker is in play.`);
+      }
+    });
+  },
   applyCrazyToCard(card) {
     if (!card || card.isCrazy || card.currentHealth <= 0) return;
     // Feared cards can't ALSO be Crazy. User direction (cross-mode):
