@@ -6755,6 +6755,154 @@ test("2v2 runs the per-round upkeep 1v1 does (onTurnStart, sleep, Crazy)", funct
   assertEq(!!v.isCrazy, false, 'and reconciled away with no Joker in play');
 });
 
+// ============================================================
+// 2v2 PARITY HARNESS
+// ============================================================
+// WHY THIS EXISTS. 2v2 is a FORK of the 1v1 flow, not a mode of it — ~40
+// _2v2* functions shadow a 1v1 equivalent, and start2v2Round is a hand-copy of
+// startRound. A fork does not inherit fixes, so every improvement to 1v1 can
+// silently fail to reach 2v2, and nothing catches it because 2v2 had almost no
+// automated coverage at all. That is not a theory: in one day, one missing
+// upkeep call had disabled onTurnStart (Droideka, Gargantua, Boiler Room,
+// Apocalypse), tickSleep and the Crazy reconcile in 2v2 while all of them
+// worked perfectly in 1v1.
+//
+// Fixing those one at a time treats instances. This treats the CLASS: run the
+// same scenario in both modes and assert the same outcome. A drift bug then
+// fails here instead of in a live match.
+//
+// Adding a check is three functions — build the board, do the thing, measure
+// something comparable — and the harness runs it twice.
+
+// A 4-seat online room, with the seat plumbing every 2v2 path expects. Written
+// once here because it had been hand-rolled in four separate tests already,
+// each slightly different, which is its own drift risk.
+function twoVtwoRoom(opts) {
+  var o = opts || {};
+  var G = freshGame();
+  G.state.player.isHuman = false; G.state.ai.isHuman = false;
+  G.state.mode = { deck: 'classic', players: '2v2' };
+  G.state.twoVTwo = {
+    online: true, you: 'p1', round: 0, subPhaseIdx: 0, drawPile: [],
+    teams: { A: { health: 30, maxHealth: 30, deadPile: [], blockMeter: 0 },
+             B: { health: 30, maxHealth: 30, deadPile: [], blockMeter: 0 } },
+    players: {
+      p1: { team: 'A', isAI: o.p1AI !== false, name: 'P1', hand: [], trickHand: [], energy: 0, usedEnergy: 0 },
+      p2: { team: 'A', isAI: true,  name: 'P2', hand: [], trickHand: [], energy: 0, usedEnergy: 0 },
+      p3: { team: 'B', isAI: true,  name: 'P3', hand: [], trickHand: [], energy: 0, usedEnergy: 0 },
+      p4: { team: 'B', isAI: true,  name: 'P4', hand: [], trickHand: [], energy: 0, usedEnergy: 0 }
+    }
+  };
+  for (var i = 0; i < 60; i++) {
+    G.state.twoVTwo.drawPile.push({ name: 'Gizmo', cost: 2, attack: 1, health: 1,
+      abilities: [], type: 'neutral', desc: '' });
+  }
+  // Stop after the round upkeep — a parity check is about the UPKEEP, not about
+  // driving six sub-phases of AI turns.
+  G._2v2StartSubPhase = function () {};
+  return G;
+}
+
+// A 1v1 game stocked the same way, so a scenario can be written once.
+function oneVoneGame() {
+  var G = freshGame();
+  G.state.player.isHuman = false; G.state.ai.isHuman = false;
+  for (var i = 0; i < 60; i++) {
+    G.state.drawPile.push({ name: 'Gizmo', cost: 2, attack: 1, health: 1,
+      abilities: [], type: 'neutral', desc: '' });
+  }
+  G.state.player.hand = []; G.state.ai.hand = [];
+  return G;
+}
+
+// Advance one round in whichever mode this game is. THE point of the harness:
+// a scenario should never name startRound or start2v2Round, because "which
+// round function" is exactly the fork under test.
+function advanceRound(G) {
+  var tt = G.state && G.state.twoVTwo;
+  if (tt && tt.online) { G.start2v2Round(); return; }
+  G.startRound();
+}
+
+// The local seat's hand, in either mode — 1v1 has one hand per side, 2v2 has
+// one per seat and the side proxy points at only one of them.
+function handOf(G, side) {
+  var tt = G.state && G.state.twoVTwo;
+  if (!tt || !tt.online) return G.state[side].hand;
+  var team = side === 'player' ? 'A' : 'B';
+  var keys = Object.keys(tt.players).filter(function (k) { return tt.players[k].team === team; });
+  return tt.players[keys[0]].hand;
+}
+
+// Run one scenario in BOTH modes and require the same measured outcome.
+// `measure` must return something comparable — a string or number, never an
+// object — so a mismatch reports what actually differed.
+function parity(label, scenario) {
+  test('PARITY · ' + label, function () {
+    var solo = oneVoneGame();
+    scenario.build(solo, 'player');
+    scenario.act(solo, 'player');
+    var a = String(scenario.measure(solo, 'player'));
+
+    var duo = twoVtwoRoom();
+    scenario.build(duo, 'player');
+    scenario.act(duo, 'player');
+    var b = String(scenario.measure(duo, 'player'));
+
+    assertEq(b, a, label + ' — 2v2 must match 1v1 (1v1=' + a + ', 2v2=' + b + ')');
+  });
+}
+
+// ---- SEEDED FROM REAL DRIFT BUGS ---------------------------------
+// Each of these failed in 2v2 and passed in 1v1 before today.
+
+parity('onTurnStart fires every round (Droideka cycles)', {
+  build: function (G, side) {
+    var d = G.createCardInstance(cardByName('Droideka'), side);
+    G.state.lanes[0][side] = d;
+    CARD_ABILITIES['Droideka'].onPlay(G, d, 0);
+    G._pd = d;
+  },
+  act: function (G) { advanceRound(G); },
+  measure: function (G) { return 'overcharge=' + !!G._pd._droidekaOvercharge; }
+});
+
+parity('sleep wears off after a round', {
+  build: function (G, side) {
+    var y = G.createCardInstance(cardByName('Yoda'), side);
+    y.isAsleep = true; y.sleepTurns = 1;
+    var h = handOf(G, side);
+    h.length = 0; h.push(y);
+    G.state[side].hand = h;
+    G._py = y;
+  },
+  act: function (G) { advanceRound(G); },
+  measure: function (G) { return 'asleep=' + !!G._py.isAsleep; }
+});
+
+parity('a Crazy stamp with no Joker in play reconciles away', {
+  build: function (G, side) {
+    var v = G.createCardInstance(cardByName('Sabertooth'), G.opponent(side));
+    G.state.lanes[1][G.opponent(side)] = v;
+    G.applyCrazyToCard(v);
+    G._pv = v;
+  },
+  act: function (G) { advanceRound(G); },
+  measure: function (G) { return 'crazy=' + !!G._pv.isCrazy; }
+});
+
+parity('Magneto/aura reconcile runs each round', {
+  build: function (G, side) {
+    var m = G.createCardInstance(cardByName('Magneto'), side);
+    G.state.lanes[0][side] = m;
+    var ally = G.createCardInstance(cardByName('Sabertooth'), side);
+    G.state.lanes[2][side] = ally;
+    G._pa = ally;
+  },
+  act: function (G) { advanceRound(G); },
+  measure: function (G) { return 'atk=' + G._pa.attack + ',hp=' + G._pa.maxHealth; }
+});
+
 // ---- RUNNER ------------------------------------------------
 // ============================================================
 
