@@ -90,7 +90,30 @@ for (var __i = 0; __i < __SIM_FILES.length; __i++) {
   //    After the callback fires, call resumeCombatIfWaiting — the real UI click-handlers
   //    do this and without it `whenPromptCleared` continuations never fire, so combat
   //    can hang after an onPlay prompt that was parked via `state._combatContinuation`.
+  // ---- PROMPT OWNERSHIP LOG -------------------------------------------
+  // The shim REPLACES the real prompt system, which is what makes headless
+  // testing possible — but it also means pendingCardChoice is never set, so no
+  // test could ever observe WHO a prompt was routed to. That is a structural
+  // blind spot, not an oversight in any one test: the entire prompt-ownership
+  // bug class (an Iron Giant sacrificing itself unasked, a Superman whose
+  // targets were chosen for someone else, an AI seat answering for a human)
+  // was invisible to every fuzz run and every unit test by construction.
+  // Recording each prompt's owner and routed seat here costs nothing, changes
+  // no behaviour, and lets a harness assert on routing for the first time.
+  Game._simPromptLog = [];
+  Game._simNotePrompt = function (kind, owner, title) {
+    var tt = Game.state && Game.state.twoVTwo;
+    Game._simPromptLog.push({
+      kind: kind,
+      owner: owner,
+      title: String(title || ''),
+      seat: Game._2v2CurrentActingPlayer || null,
+      in2v2: !!(tt && tt.online),
+      phase: Game.state && Game.state.phase
+    });
+  };
   Game.promptCardChoice = function (owner, cards, title, desc, callback, aiPicker) {
+    Game._simNotePrompt('card', owner, title);
     // MIRROR THE ENGINE: dead cards are never offered. The real
     // Game.promptCardChoice filters them out, so a shim that did not was
     // letting the sim spend abilities on corpses — silently degrading every
@@ -114,6 +137,7 @@ for (var __i = 0; __i < __SIM_FILES.length; __i++) {
     Game.resumeCombatIfWaiting();
   };
   Game.promptLaneChoice = function (owner, lanes, title, desc, callback) {
+    Game._simNotePrompt('lane', owner, title);
     if (!lanes || !lanes.length) return;
     // Random pick — matches the `const to = open[Math.floor(Math.random()*open.length)]`
     // pattern the real abilities use for AI-owned cards. Previously picking

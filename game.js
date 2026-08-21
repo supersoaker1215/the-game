@@ -10756,6 +10756,17 @@ const Game = {
         stunnedTurns: 0, frozenTurns: 0, fearedTurns: 0
       };
       this.applyAbilities(previewCard);
+      // EVERY 2v2 PROMPT NEEDS AN OWNING SEAT. An unstamped one falls through
+      // to team-derivation, which is the path that used to hand a human's
+      // decision to a bot. This one arrives unstamped when the summon has no
+      // acting seat (a summon raised outside a seat's own turn), and it is rare
+      // — the fuzzer's prompt-ownership log caught it at roughly 1 in 1,945
+      // prompts across 40 games, which is exactly why it survived live play.
+      // _2v2SeatForSide prefers a HUMAN on the owning team.
+      if (!this._2v2CurrentActingPlayer && this._2v2SeatForSide) {
+        const _seat = this._2v2SeatForSide(owner);
+        if (_seat) this._2v2CurrentActingPlayer = _seat;
+      }
       this.promptLaneChoice(owner, open, `Place ${name}`, `Choose a lane for ${name} (${attack}/${health})`, (lane) => {
         this.summonCard(owner, lane, name, cost, attack, health, abilities, sourceDef);
         if (onComplete) onComplete();

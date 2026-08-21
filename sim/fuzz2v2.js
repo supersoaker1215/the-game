@@ -27,6 +27,30 @@ console.error = function () {
 var KEYS = ['p1', 'p2', 'p3', 'p4'];
 function rnd(n) { return Math.floor(Math.random() * n); }
 
+// ---- PROMPT OWNERSHIP ----------------------------------------------------
+// The fuzzer used to resolve every prompt WITHOUT asking who was supposed to
+// answer it, which is exactly why a whole class of live bugs sailed through a
+// clean run: a prompt routed to the wrong seat still got resolved here, so it
+// looked identical to a correct one. In a real match that difference is a
+// player watching their Iron Giant sacrifice itself, or an AI seat silently
+// answering a human's decision.
+// The invariant: in a 2v2 room, every prompt must carry an owning SEAT. An
+// unstamped prompt is not merely untidy — it falls through to team-derivation,
+// which is where "the AI played for me" comes from.
+var unownedPrompts = 0, promptsSeen = 0;
+function notePromptOwner(kind) {
+  var tt = Game.state && Game.state.twoVTwo;
+  if (!tt || !tt.online) return;
+  promptsSeen++;
+  var seat = Game._2v2CurrentActingPlayer;
+  if (!seat || !tt.players[seat]) {
+    unownedPrompts++;
+    if (unownedPrompts <= 5) {
+      errors.push('[UNOWNED PROMPT] ' + kind + ' raised with no owning seat (phase ' + Game.state.phase + ')');
+    }
+  }
+}
+
 // Resolve any pending prompt so a human-seat 2v2 game can advance.
 function drainPrompts(ctx, budget) {
   var n = 0;
@@ -36,6 +60,7 @@ function drainPrompts(ctx, budget) {
       var cc = s.pendingCardChoice;
       var cards = cc.cards || [];
       if (!cards.length) { s.pendingCardChoice = null; continue; }
+      notePromptOwner('cardChoice:' + (cc.title || '?'));
       var pick = cards[rnd(cards.length)];
       s.pendingCardChoice = null;
       try { if (cc.callback) cc.callback(pick); }
@@ -46,6 +71,7 @@ function drainPrompts(ctx, budget) {
       var lc = s.pendingLaneChoice;
       var lanes = lc.lanes || [];
       if (!lanes.length) { s.pendingLaneChoice = null; continue; }
+      notePromptOwner('laneChoice:' + (lc.title || '?'));
       var lane = lanes[rnd(lanes.length)];
       s.pendingLaneChoice = null;
       try { if (lc.callback) lc.callback(lane); }
@@ -183,6 +209,20 @@ for (var g = 0; g < GAMES; g++) {
 console.error = _origErr;
 print('=== 2v2 FUZZ: ' + GAMES + ' games, avg ' + (totalRounds / GAMES).toFixed(1) + ' rounds ===');
 print('distinct cards/tricks exercised: ' + Object.keys(coverage).length);
+// Read the SHIM's prompt log, not pendingCardChoice — the shim replaces the
+// prompt system, so a pending prompt never exists here. This is the only place
+// routing becomes observable headlessly.
+(function () {
+  var log = (Game._simPromptLog || []).filter(function (p) { return p.in2v2; });
+  var unowned = log.filter(function (p) { return !p.seat; });
+  print('prompts raised in 2v2: ' + log.length + ', WITHOUT an owning seat: ' + unowned.length);
+  var byTitle = {};
+  unowned.forEach(function (p) { byTitle[p.title] = (byTitle[p.title] || 0) + 1; });
+  Object.keys(byTitle).sort(function (a, b) { return byTitle[b] - byTitle[a]; })
+    .slice(0, 12).forEach(function (t) {
+      print('   unowned x' + byTitle[t] + '  ' + (t || '(untitled)'));
+    });
+})();
 print('games with invariant violations: ' + gamesWithBad + '/' + GAMES);
 var bk = Object.keys(allBad).sort(function (a, b) { return allBad[b] - allBad[a]; });
 if (bk.length) { print('--- INVARIANT VIOLATIONS ---'); bk.slice(0, 25).forEach(function (k) { print('  ' + allBad[k] + 'x  ' + k); }); }
