@@ -9898,7 +9898,12 @@ const Game = {
     return !!card && (card.sleepTurns | 0) > 0;
   },
   tickSleep(owner) {
-    const hand = (this.state[owner] && this.state[owner].hand) || [];
+    // Through _2v2HandTarget, so a per-seat loop actually reaches each seat's
+    // own hand. Reading state[owner].hand directly meant 2v2 only ever ticked
+    // whichever teammate the side proxy happened to be bound to — and since
+    // start2v2Round never called this at all, sleep simply never wore off there.
+    const _sp = this._2v2HandTarget ? this._2v2HandTarget(owner) : this.state[owner];
+    const hand = (_sp && _sp.hand) || (this.state[owner] && this.state[owner].hand) || [];
     hand.forEach(c => {
       if (!c) return;
       // SELF-HEALING, and this is the half that matters. The old guard was
@@ -14051,6 +14056,34 @@ const Game = {
       p.usedEnergy = 0;
       p.nextTurnCurrency = 0;
     });
+
+    // ============================================================
+    // THE PER-ROUND WORK 1v1 DOES AND 2v2 WAS SKIPPING ENTIRELY
+    // ============================================================
+    // 2v2 runs start2v2Round instead of startRound, and this half was never
+    // ported. Nothing here is mode-specific — it is the per-round upkeep every
+    // card depends on — so its absence silently disabled a whole class of
+    // abilities in 2v2 while they worked perfectly in 1v1:
+    //   • onTurnStart never fired, so Droideka never left shields-up (the
+    //     reported bug), Gargantua never pulled, Boiler Room never spread and
+    //     Apocalypse's each-turn strip never ran.
+    //   • tickSleep never ran, so a card Freddy put to sleep stayed asleep for
+    //     the rest of the match.
+    //   • recomputeCrazy never ran, so a Joker stamp outlived its Joker.
+    //   • Crazy/Insane never rerolled and Magneto's parity aura never
+    //     reconciled.
+    // Sleep is ticked PER SEAT: a 2v2 side is two hands, and the side proxy
+    // only ever points at one of them.
+    ['player', 'ai'].forEach(side => {
+      if (this.forEachSeatOnSide) this.forEachSeatOnSide(side, () => this.tickSleep(side));
+      else this.tickSleep(side);
+    });
+    if (this.recomputeCrazy) this.recomputeCrazy();
+    this.getAllCardsOnBoard().forEach(c => {
+      if (c.onTurnStart) { this._2v2ActFor(c); c.onTurnStart(this, c); }
+    });
+    this.getAllCardsOnBoard().forEach(c => this.rerollCrazyInsane(c));
+    if (this.applyMagnetoDebuffs) this.applyMagnetoDebuffs();
 
     this.log(`=== 2v2 Round ${tt.round} begins ===`);
     this._2v2StartSubPhase();

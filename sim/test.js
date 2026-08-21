@@ -6704,6 +6704,57 @@ test("2v2: a trick-phase card (Iron Man) is playable on a tricks turn", function
   assertEq(G._2v2CanPlayCardNow('p1-tricks', hulk, 'player'), true, 'Red Skull unlocks the hand');
 });
 
+test("2v2 runs the per-round upkeep 1v1 does (onTurnStart, sleep, Crazy)", function () {
+  // Owner: "Droideka isn't going between shield-up and shield-down, it is
+  // always shield-up."
+  //
+  // 2v2 runs start2v2Round instead of startRound, and the per-round upkeep half
+  // was never ported. None of it is mode-specific, so its absence silently
+  // disabled a whole CLASS of abilities in 2v2 while they worked in 1v1 —
+  // Droideka was just the one noticed.
+  function room() {
+    var G = freshGame();
+    G.state.mode = { deck: 'classic', players: '2v2' };
+    G.state.twoVTwo = { online: true, you: 'p1', round: 0, subPhaseIdx: 0, drawPile: [],
+      teams: { A: { health: 30, maxHealth: 30, deadPile: [] },
+               B: { health: 30, maxHealth: 30, deadPile: [] } },
+      players: { p1: { team: 'A', isAI: true, hand: [], energy: 0, usedEnergy: 0 },
+                 p2: { team: 'A', isAI: true, hand: [], energy: 0, usedEnergy: 0 },
+                 p3: { team: 'B', isAI: true, hand: [], energy: 0, usedEnergy: 0 },
+                 p4: { team: 'B', isAI: true, hand: [], energy: 0, usedEnergy: 0 } } };
+    G._2v2StartSubPhase = function () {};   // stop after the upkeep
+    return G;
+  }
+
+  // ONTURNSTART — Droideka's two-mode cycle needs it every round.
+  var G = room();
+  var d = G.createCardInstance(cardByName('Droideka'), 'player');
+  G.state.lanes[0].player = d;
+  CARD_ABILITIES['Droideka'].onPlay(G, d, 0);
+  assertEq(!!d.hasDamageImmunity, true, 'starts shields UP');
+  G.start2v2Round();
+  assertEq(!!d._droidekaOvercharge, true, 'flips to shields DOWN next round');
+  G.start2v2Round();
+  assertEq(!!d.hasDamageImmunity, true, 'and back UP again');
+
+  // TICKSLEEP — a card Freddy slept stayed asleep for the whole match in 2v2.
+  var G2 = room();
+  var y = G2.createCardInstance(cardByName('Yoda'), 'player');
+  y.isAsleep = true; y.sleepTurns = 1;
+  G2.state.twoVTwo.players.p1.hand = [y];
+  G2.state.player.hand = G2.state.twoVTwo.players.p1.hand;
+  G2.start2v2Round();
+  assertEq(!!y.isAsleep, false, 'sleep wears off in 2v2 too');
+
+  // RECOMPUTECRAZY — a Joker stamp must not outlive its Joker here either.
+  var G3 = room();
+  var v = place(G3, 'Sabertooth', 'ai', 1);
+  G3.applyCrazyToCard(v);
+  assertEq(!!v.isCrazy, true, 'stamped');
+  G3.start2v2Round();          // no Joker on the board at all
+  assertEq(!!v.isCrazy, false, 'and reconciled away with no Joker in play');
+});
+
 // ---- RUNNER ------------------------------------------------
 // ============================================================
 
