@@ -25183,6 +25183,18 @@ const UI = {
   // and click handler must therefore check this per card so the
   // visual playable/unplayable state matches the click rules.
   canPlayThisCardNow(s, card) {
+    // 2v2 FIRST. This gate only ever knew 1v1 phase names, so in a 2v2 room it
+    // could not authorise anything — including the one card whose whole ability
+    // is being playable during a trick turn. canPlayerPlayCards already had a
+    // 2v2 branch; this per-card twin was missed, which is why the hand looked
+    // right and the card still refused.
+    const tt2 = Game.state && Game.state.twoVTwo;
+    if (tt2 && tt2.online) {
+      const sp = Game._2v2SubPhase && Game._2v2SubPhase();
+      if (Game._2v2ActivePlayer && Game._2v2ActivePlayer() !== tt2.you) return false;
+      return !!(Game._2v2CanPlayCardNow
+        && Game._2v2CanPlayCardNow(sp, card, this._2v2LocalSide && this._2v2LocalSide()));
+    }
     if (s.phase === 'player-cards' || s.phase === 'player-cards-tricks') return true;
     if (s.phase === 'player-tricks') {
       // Red Skull passive on board unlocks the entire hand for the

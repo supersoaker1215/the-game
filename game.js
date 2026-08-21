@@ -13885,6 +13885,22 @@ const Game = {
     return !!subPhase && subPhase.includes('cards');
   },
 
+  // CAN THIS CARD BE PLAYED RIGHT NOW? Cards normally need a 'cards' sub-phase,
+  // but two things override that during a TRICKS turn, exactly as in 1v1:
+  //   • the card is trickPhasePlayable (Iron Man, Thanos) — that IS the card
+  //   • Red Skull's aura unlocks the whole hand
+  // 1v1 encodes this against phase === 'player-tricks'. 2v2 runs its own phase
+  // names, so that gate never matched and 2v2 inherited the restriction with
+  // none of the exception — Iron Man's entire ability was unusable there.
+  // Owner: "i cant play iron man on my trick phase in 2v2."
+  _2v2CanPlayCardNow(subPhase, card, side) {
+    if (this._2v2CanPlayCards(subPhase)) return true;
+    if (!this._2v2CanPlayTricks(subPhase)) return false;
+    if (card && card.trickPhasePlayable) return true;
+    return this.getAllCardsOf(side || 'player')
+      .some(c => c.passive === 'allowCardsInTricksPhase');
+  },
+
   _2v2CanPlayTricks(subPhase) {
     return !!subPhase && subPhase.includes('tricks');
   },

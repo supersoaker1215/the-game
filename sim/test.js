@@ -6673,6 +6673,37 @@ test("A side is not a player: side-wide effects reach BOTH teammates", function 
   assertEq(S.state.ai.hand.length, 1, '1v1 opponent draws exactly one');
 });
 
+test("2v2: a trick-phase card (Iron Man) is playable on a tricks turn", function () {
+  // Owner: "i cant play iron man on my trick phase in 2v2."
+  //
+  // 1v1 encodes the exception against phase === 'player-tricks'. 2v2 runs its
+  // own phase names, so that gate never matched and 2v2 inherited the
+  // restriction with none of the exception — the one card whose entire ability
+  // is being playable during a trick turn could never be played on one.
+  var G = freshGame();
+  G.state.twoVTwo = { online: true, you: 'p1', players: {
+    p1: { team: 'A', isAI: false, hand: [] }, p2: { team: 'A', isAI: true, hand: [] },
+    p3: { team: 'B', isAI: true, hand: [] },  p4: { team: 'B', isAI: true, hand: [] } } };
+
+  var iron = G.createCardInstance(cardByName('Iron Man'), 'player');
+  var hulk = G.createCardInstance(cardByName('Hulk'), 'player');
+  assertEq(!!iron.trickPhasePlayable, true, 'Iron Man carries the flag');
+
+  // TRICKS-ONLY turn: the flagged card yes, an ordinary card no.
+  assertEq(G._2v2CanPlayCardNow('p1-tricks', iron, 'player'), true, 'Iron Man plays on a tricks turn');
+  assertEq(G._2v2CanPlayCardNow('p1-tricks', hulk, 'player'), false, 'but the rest of the hand does not');
+
+  // CARDS turn: everything, as before.
+  assertEq(G._2v2CanPlayCardNow('p1-cards', iron, 'player'), true, 'cards turn allows Iron Man');
+  assertEq(G._2v2CanPlayCardNow('p1-cards', hulk, 'player'), true, 'and allows ordinary cards');
+
+  // RED SKULL unlocks the whole hand on a tricks turn — the other half of the
+  // 1v1 rule, which must not be lost in the port.
+  var skull = place(G, 'Red Skull', 'player', 0);
+  skull.passive = 'allowCardsInTricksPhase';
+  assertEq(G._2v2CanPlayCardNow('p1-tricks', hulk, 'player'), true, 'Red Skull unlocks the hand');
+});
+
 // ---- RUNNER ------------------------------------------------
 // ============================================================
 
