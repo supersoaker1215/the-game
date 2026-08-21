@@ -60,6 +60,21 @@ const Game = {
     // 'armor'|'hpHit', consumed by UI.showDamageFloats.
     this.emitFX(type, { cardId, amount, owner, attackerId, lethal: !!lethal });
   },
+  // ONE Art-the-Clown Hacksaw bleed tick on a card: blood FX + damage + decrement
+  // the remaining rounds, clearing the wound when it runs out. Extracted so the
+  // FIRST tick can fire the instant Art picks his target (see Art the Clown's
+  // hacksaw branch) and so BOTH round-start paths (1v1 startRound and 2v2
+  // start2v2Round, which used to skip it entirely) share one implementation.
+  // Caller runs cleanupDead() after — this can kill the card.
+  tickBleed(c) {
+    if (!c || !(c._bleedRounds > 0) || c.currentHealth <= 0) return;
+    const amt = c._bleedAmount || 2;
+    this.log(`  [BLEED] ${c.name} bleeds for ${amt}.`);
+    try { this.emitFX('artWeapon', { weapon: 'bleedTick', cardId: c.id, owner: c._bleedSourceOwner }); } catch (e) {}
+    this.dealDamage(c, amt, null);
+    c._bleedRounds--;
+    if (c._bleedRounds <= 0) { c._bleedRounds = 0; delete c._bleedAmount; delete c._bleedSourceOwner; }
+  },
   _fxCursor: null,
   _fxMid: null,
   flushDmg() {
@@ -3434,14 +3449,7 @@ const Game = {
     // Art the Clown's Hacksaw bleed — ticks at the START of each round for as
     // long as the wound lasts. Snapshot the board first: dealDamage → death can
     // mutate lane contents mid-iteration.
-    this.getAllCardsOnBoard().filter(c => c && c._bleedRounds > 0 && c.currentHealth > 0).forEach(c => {
-      const amt = c._bleedAmount || 2;
-      this.log(`  [BLEED] ${c.name} bleeds for ${amt}.`);
-      try { this.emitFX('artWeapon', { weapon: 'bleedTick', cardId: c.id, owner: c._bleedSourceOwner }); } catch (e) {}
-      this.dealDamage(c, amt, null);
-      c._bleedRounds--;
-      if (c._bleedRounds <= 0) { c._bleedRounds = 0; delete c._bleedAmount; delete c._bleedSourceOwner; }
-    });
+    this.getAllCardsOnBoard().filter(c => c && c._bleedRounds > 0 && c.currentHealth > 0).forEach(c => this.tickBleed(c));
     this.cleanupDead();
     const r = this.state.round;
     // Sanitize all living cards — heal any currentHealth/maxHealth/attack
@@ -14282,6 +14290,10 @@ const Game = {
     });
     this.getAllCardsOnBoard().forEach(c => this.rerollCrazyInsane(c));
     if (this.applyMagnetoDebuffs) this.applyMagnetoDebuffs();
+    // Art the Clown's Hacksaw bleed ticks at each round start — 2v2 skipped it,
+    // so the remaining wound never bled here (the first tick now fires on choice).
+    this.getAllCardsOnBoard().filter(c => c && c._bleedRounds > 0 && c.currentHealth > 0).forEach(c => this.tickBleed(c));
+    this.cleanupDead();
 
     this.log(`=== 2v2 Round ${tt.round} begins ===`);
     this._2v2StartSubPhase();

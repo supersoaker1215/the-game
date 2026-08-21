@@ -1503,7 +1503,7 @@ const CARD_ABILITIES = {
       { key: 'scissors',     name: 'Scissors',     desc: 'Permanently strip one keyword or badge from an enemy.' },
       { key: 'sledgehammer', name: 'Sledgehammer', desc: "Deal double Art's current ATK to one enemy." },
       { key: 'scythe',       name: 'Scythe',        desc: "Permanently halve one enemy's ATK and HP (rounded down)." },
-      { key: 'hacksaw',      name: 'Hacksaw',       desc: 'An enemy bleeds 2 at the start of each of the next 2 rounds.' },
+      { key: 'hacksaw',      name: 'Hacksaw',       desc: 'An enemy bleeds 2 immediately, then 2 more at the start of next round.' },
     ],
     onPlay(G, self, lane) { CARD_ABILITIES['Art the Clown']._step(G, self); },
     onBeforeTricks(G, self, lane) { CARD_ABILITIES['Art the Clown']._step(G, self); },
@@ -1618,11 +1618,19 @@ const CARD_ABILITIES = {
         });
       } else if (key === 'hacksaw') {
         pickEnemy('Hacksaw', null, (t) => {
+          // Badge lands immediately (driven by _bleedRounds) AND the wound bleeds
+          // NOW rather than waiting for the next round start. (User: "instead of
+          // the start of the next round the bleeding effect happens i want the
+          // badge to happen and effect to happen as soon as he chooses who to
+          // hacksaw.") First tick fires here; tickBleed decrements it to one
+          // remaining tick, which bleeds at the next round start.
           t._bleedRounds = 2;
           t._bleedAmount = 2;
           t._bleedSourceOwner = owner;
-          G.log(`[ART] Hacksaw! ${t.name} will bleed 2 at the start of each of the next 2 rounds.`);
           fx(t.id);
+          G.tickBleed(t);            // immediate blood FX + 2 damage, → 1 round left
+          G.cleanupDead();
+          G.log(`[ART] Hacksaw! ${t.name} bleeds 2 now, and again at the start of the next round.`);
           if (typeof UI !== 'undefined' && UI.render) UI.render();
           spend();
         });
