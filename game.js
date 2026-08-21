@@ -139,10 +139,26 @@ const Game = {
       (this.state.ai && this.state.ai.stolenByBWL)
     );
   },
-  // Run `fn` now if no prompt is pending, otherwise defer until prompt resolves
+  // Run `fn` now if no prompt is pending, otherwise defer until prompt resolves.
+  //
+  // STACK, NOT A SINGLE SLOT. `_combatContinuation` used to be one field, so a
+  // SECOND park while the first was still waiting silently overwrote it — and
+  // the first continuation was lost forever. The block-meter flow hits this
+  // exactly: combat parks its "resume lane i+1" continuation when a block trick
+  // is offered mid-combat, then the trick a player picks raises its OWN prompt
+  // (a target choice, etc.), whose resolution parks "_2v2NextBlockTrick" on top
+  // — clobbering the resume-combat continuation. The trick chain finishes but
+  // combat never restarts. (User: "after someone blocks and the tricks are
+  // played the combat freezes.") A LIFO stack nests correctly: the inner
+  // block-trick continuation fires first, and when the whole block-trick chain
+  // drains it re-enters resumeCombatIfWaiting, which then pops the outer
+  // resume-combat continuation. Legacy `_combatContinuation` is kept mirrored
+  // for the watchdog's `parked` readout and old save states.
   whenPromptCleared(fn) {
     if (!this.hasPendingPrompt()) { fn(); return; }
-    this.state._combatContinuation = fn;
+    if (!this.state._combatContStack) this.state._combatContStack = [];
+    this.state._combatContStack.push(fn);
+    this.state._combatContinuation = fn;   // mirror latest for watchdog/back-compat
     // In multiplayer, broadcast so the guest sees the pending prompt (block trick,
     // card/lane choice from onKill/onDamaged hooks, etc.) and can resolve it.
     // Without this, any mid-combat prompt set inside resolveLaneCombat is never
@@ -204,10 +220,20 @@ const Game = {
     // resolve re-enters here and continues it.
     this.resolveStack();
     if (this.hasPendingPrompt()) return;
-    const cont = this.state._combatContinuation;
+    // Pop the MOST-RECENTLY parked continuation (LIFO) — see whenPromptCleared.
+    // Firing exactly one preserves the old single-slot cadence: the fired
+    // continuation drives the next beat (a lane's setTimeout, the next block
+    // offer) and re-enters here to pop the one below it when its own chain
+    // drains. Fall back to the legacy single field for any state that predates
+    // the stack.
+    const stack = this.state._combatContStack;
+    let cont = null;
+    if (stack && stack.length) cont = stack.pop();
+    else if (this.state._combatContinuation) { cont = this.state._combatContinuation; }
+    // Keep the mirror in sync with the top of the stack for the watchdog readout.
+    this.state._combatContinuation = (stack && stack.length) ? stack[stack.length - 1] : null;
     if (cont) {
       this._bumpCombatProgress(); // watchdog: a park just resolved
-      delete this.state._combatContinuation;
       // Guard the continuation: a throw here used to halt the combat
       // timeline outright (no scheduler above it), freezing the board with
       // no recovery. Log and let the watchdog force-end if it can't proceed.
@@ -607,6 +633,7 @@ const Game = {
     if (s.player) s.player.stolenByBWL = null;
     if (s.ai) s.ai.stolenByBWL = null;
     delete s._combatContinuation;
+    s._combatContStack = [];
     this._clearPromptTimeout();
     if (s._inCombat) {
       // Mid-combat stall — force to the normal end-of-combat path. Imperfect
@@ -12660,6 +12687,13 @@ const Game = {
         p.playedTrickPile = p.playedTrickPile || [];
         p.playedTrickPile.push({ name: trick.name, cost: trick.cost });
         this._2v2CurrentActingPlayer = seat;
+        // Reveal an AI teammate's block trick to EVERYONE too — the human
+        // resolve path (_2v2ResolveBlockTrick) already emits this, but the AI
+        // path didn't, so a bot-filled seat's free trick played silently.
+        // (User: "after blocking and if someone plays a trick i want that to
+        // show up for everyone to see what trick was played.")
+        if (typeof UI !== 'undefined' && UI.showTrickReveal) { try { UI.showTrickReveal(trick.name, trick.desc || '', trick.cost, seat === tt.you); } catch (e) {} }
+        if (tt.online && this.emitFX) { try { this.emitFX('trickReveal', { name: trick.name, desc: trick.desc || '', cost: trick.cost, seat }); } catch (e) {} }
         this.state._inTrick = true; this.state._trickOwner = side; this.state._activeTrickName = trick.name;
         this._2v2WithJumperBridge(seat, () => { try { trick.play(this, side); } catch (e) { console.error(e); } });
         this.state._inTrick = false; this.state._trickOwner = null; this.state._activeTrickName = null;
@@ -13145,6 +13179,7 @@ const Game = {
     this.state.pendingJumpOffer = null;
     this.state.pendingTimeStoneIntercept = null;
     delete this.state._combatContinuation;
+    this.state._combatContStack = [];
     // RE-ARM BY RE-RUNNING, NEVER BY RESTORING. The purge above is absolute —
     // a captured prompt closes over the pre-undo objects and can never be
     // brought back. What CAN be brought back is the ability itself: this
