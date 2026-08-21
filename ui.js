@@ -25823,6 +25823,27 @@ const UI = {
       { forced: hand.length === 1, localOnly: true });
   },
 
+  // Dismiss every end-of-match / end-of-round panel. Called when a rematch
+  // rebuilds the game.
+  // The STATE resets correctly on rematch — _2v2Rematch runs a full init() and
+  // gives every seat empty hands — but these panels are DOM, so init() never
+  // touched them and they simply stayed on screen over the fresh match. Owner:
+  // "i pressed rematch and when we got back into the game after the draft, the
+  // last round summary match menu thing was still there — you have to quit all
+  // the way back out to start a new game."
+  // Also clears the peek state, or a panel hidden via the peek toggle leaves
+  // its "Show Result" affordance floating with nothing behind it.
+  closeMatchOverlays() {
+    ['game-over-overlay', 'round-summary-overlay'].forEach(id => {
+      const el = document.getElementById(id);
+      if (!el) return;
+      el.style.display = 'none';
+      el.classList.remove('open', 'peeked');
+    });
+    try { document.body.classList.remove('modal-peeked'); } catch (e) {}
+    try { if (this._peekRestore) this._peekRestore = null; } catch (e) {}
+  },
+
   onCardClick(card) {
     const s = Game.state;
     // PURE-TOUCH HAND (no hover-capable pointer): a tap must never toggle a

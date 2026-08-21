@@ -807,6 +807,9 @@ const Game = {
   // the fresh state to the guest; the guest just asks the host to do it. No new
   // room code, no rejoin.
   rematchOnline() {
+    // Clear the result / recap panels before rebuilding — they are DOM and
+    // survive the state reset otherwise.
+    if (typeof UI !== 'undefined' && UI.closeMatchOverlays) { try { UI.closeMatchOverlays(); } catch (e) {} }
     if (!this.isMultiplayer || !this.isMultiplayer()) return;
     if (this.mp.role === 'host') {
       this.startMultiplayerHost(this._mpStartOpts);
@@ -14908,6 +14911,9 @@ const Game = {
   rematch2v2Online() {
     const tt = this.state && this.state.twoVTwo;
     if (!tt || !tt.online) return;
+    // Every seat clears its own panels, not just the host — a guest pressing
+    // rematch is the case that was reported.
+    if (typeof UI !== 'undefined' && UI.closeMatchOverlays) { try { UI.closeMatchOverlays(); } catch (e) {} }
     if (tt.you === 'p1') { this._2v2Rematch(); }
     else if (typeof Multiplayer4 !== 'undefined' && Multiplayer4.send) {
       Multiplayer4.send({ t: 'rematch', playerKey: tt.you });
@@ -14921,6 +14927,7 @@ const Game = {
   _2v2Rematch() {
     const old = this.state && this.state.twoVTwo;
     if (!old || !old.online || old.you !== 'p1') return;
+    if (typeof UI !== 'undefined' && UI.closeMatchOverlays) { try { UI.closeMatchOverlays(); } catch (e) {} }
     const roster = {};
     this._2v2SLOTS.forEach(pk => {
       const p = old.players[pk] || {};
