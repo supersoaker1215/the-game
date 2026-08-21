@@ -3986,9 +3986,23 @@ const Game = {
     // hook synchronously, so two Man-Bats armed two lane prompts into the
     // single pendingLaneChoice slot — the second overwrote the first and
     // only one bat ever moved (user: "when there are 2 Man-Bats on the
-    // field I could only move 1"). Order stays lane 1→6, so the
-    // lower-lane bat prompts first — deterministic and readable.
-    const queue = this.getAllCardsOnBoard().filter(c => c.onBeforeTricks && !c.beforeTricksFired);
+    // field I could only move 1").
+    // ORDER (user spec): resolve by lane 1→8, and when BOTH cards in a lane
+    // have a before-tricks ability, the HIGHER-COST one fires first. (Plain
+    // getAllCardsOnBoard() is lane-ordered but always player-before-ai, which
+    // ignored cost.) Ties keep player-before-ai for determinism.
+    const _btCost = (c) => (c && c.cost != null ? c.cost : (c && c.baseCost) || 0);
+    const queue = [];
+    for (let i = 0; i < this.LANE_COUNT; i++) {
+      const l = this.state.lanes[i];
+      if (!l) continue;
+      const inLane = [];
+      const consider = (c) => { if (c && c.currentHealth > 0 && c.onBeforeTricks && !c.beforeTricksFired) inLane.push(c); };
+      consider(l.player); consider(l.ai);
+      if (l._env) { consider(l._env.player); consider(l._env.ai); }
+      inLane.sort((a, b) => _btCost(b) - _btCost(a));
+      queue.push(...inLane);
+    }
     const finish = () => {
       // Drain bonus attacks queued during this pass (Anakin's fires NOW,
       // not at end of round — drainBonusAttacks is idempotent) and sweep
