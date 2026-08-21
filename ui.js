@@ -12064,7 +12064,8 @@ const UI = {
       const firstSeat = (Game._2v2ComputePhaseOrder(1)[0] || '').split('-')[0];
       if (firstSeat && tt.players[firstSeat]) {
         const firstName = firstSeat === myKey ? 'You' : (tt.players[firstSeat].name || firstSeat);
-        html += `<div class="draft-hud-sub draft-first-player">⚡ ${firstName} play first this game</div>`;
+        const verb = firstSeat === myKey ? 'play' : 'plays';
+        html += `<div class="draft-hud-sub draft-first-player">⚡ ${firstName} ${verb} first this game</div>`;
       }
     } catch (e) {}
     const mulliganKey = isCards ? 'mulliganUsed' : 'trickMulliganUsed';
