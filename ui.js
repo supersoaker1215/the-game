@@ -6839,7 +6839,7 @@ const UI = {
     // needs to read (which cards were devoured from each side).
     if (s._gorrBanner && s._gorrBanner.at !== this._gorrBannerShown) {
       this._gorrBannerShown = s._gorrBanner.at;
-      this.showPhaseBanner(this._gorrBannerText(s._gorrBanner), { duration: 4200 });
+      this.showPhaseBanner(this._gorrBannerText(s._gorrBanner), { duration: 7500 });
     }
 
     // Health
@@ -12326,7 +12326,7 @@ const UI = {
     // path; the 2v2 board returns before reaching that, so surface it here too).
     if (s._gorrBanner && s._gorrBanner.at !== this._gorrBannerShown) {
       this._gorrBannerShown = s._gorrBanner.at;
-      this.showPhaseBanner(this._gorrBannerText(s._gorrBanner), { duration: 4200 });
+      this.showPhaseBanner(this._gorrBannerText(s._gorrBanner), { duration: 7500 });
     }
 
     // Block-meter free-trick offer (same — the 1v1 render owns it elsewhere).
