@@ -2883,7 +2883,7 @@ const CARD_ABILITIES = {
         // Solo AI opp auto-picks lowest cost to minimize value lost
         resolveGrinchChoice(lowestCost([...th]));
       }
-      });
+      }, { showTricks: true });
     }
   },
   "Venom": {

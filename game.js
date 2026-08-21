@@ -8517,8 +8517,13 @@ const Game = {
     // Only one living enemy seat — no point asking.
     if (enemyKeys.length === 1) { bridge(enemyKeys[0]); return; }
 
+    // Effects that raid the TRICK hand (The Grinch) show trick counts, not
+    // card-in-hand counts, so the picker reflects what's actually being stolen.
+    const _pile = (k) => (opts && opts.showTricks) ? (tt.players[k].trickHand || []) : (tt.players[k].hand || []);
+    const _label = (opts && opts.showTricks) ? 'tricks' : 'cards in hand';
+
     if (opts && opts.autoPick) {
-      const withCards = enemyKeys.filter(k => ((tt.players[k].hand || []).length > 0));
+      const withCards = enemyKeys.filter(k => (_pile(k).length > 0));
       const poolKeys = withCards.length ? withCards : enemyKeys;
       bridge(poolKeys[Math.floor(this.rng() * poolKeys.length)]);
       return;
@@ -8526,7 +8531,7 @@ const Game = {
 
     const tiles = enemyKeys.map(k => ({
       name: tt.players[k].name || k,
-      desc: `Team ${tt.players[k].team} · ${(tt.players[k].hand || []).length} cards in hand`,
+      desc: `Team ${tt.players[k].team} · ${_pile(k).length} ${_label}`,
       _playerKey: k,
       _isPlayerTile: true,
     }));
