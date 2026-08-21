@@ -11157,6 +11157,31 @@ const UI = {
     } catch (e) {}
   },
 
+  // Relayed-FX playback queue. Events arriving in one batch are spread over
+  // time so a whole combat does not resolve visually in a single frame; events
+  // arriving alone play immediately, so nothing outside combat feels laggy.
+  _SIG_FX_STEP_MS: 420,
+  _queueSigFx(ev) {
+    if (!this._sigFxQueue) this._sigFxQueue = [];
+    this._sigFxQueue.push(ev);
+    if (this._sigFxDraining) return;
+    this._sigFxDraining = true;
+    // LET THE WHOLE BATCH LAND BEFORE PACING IT. A first pass drained
+    // synchronously on the first push, so with five events pushed in one loop
+    // the queue was EMPTY again by the time the second push looked at it —
+    // every event found an idle drain and played instantly, which is precisely
+    // the behaviour this exists to stop. Measured: five events, all at offset
+    // 0ms. Deferring the first step by a tick lets every event arriving in this
+    // frame queue up first, and costs a lone event nothing perceptible.
+    setTimeout(() => this._sigFxDrainStep(), 0);
+  },
+  _sigFxDrainStep() {
+    const next = this._sigFxQueue && this._sigFxQueue.shift();
+    if (!next) { this._sigFxDraining = false; return; }
+    try { this._replaySigFx(next); } catch (e) { /* one bad effect must not stall the rest */ }
+    if (!this._sigFxQueue.length) { this._sigFxDraining = false; return; }
+    setTimeout(() => this._sigFxDrainStep(), this._SIG_FX_STEP_MS);
+  },
   showDamageFloats() {
     const events = Game.flushDmg();
     for (const ev of events) {
@@ -11168,7 +11193,18 @@ const UI = {
       if (ev.type === 'sig') {
         // Replay on any non-host online client — 1v1 guest AND the three
         // non-host seats of a 2v2 room. The host already animated live.
-        if (Game.onlineRelayRole && Game.onlineRelayRole() === 'guest') this._replaySigFx(ev);
+        // PACED, NOT DUMPED. The host resolves combat over several seconds on
+        // async timers but broadcasts ONCE, in _2v2PostCombat, after the whole
+        // battle is over. So the guest receives one snapshot carrying every
+        // queued FX event at once — and firing them all in a single frame is
+        // why combat "just skips" for the guest while the host watches it lane
+        // by lane. Owner: "the host sees the lane by lane attacks fine but it
+        // just skips for me."
+        // Spacing them out here is deliberately the GUEST-SIDE half of the fix:
+        // it changes playback timing only, and cannot touch host combat or any
+        // game state. A single relayed effect still plays instantly — the delay
+        // only appears once a batch arrives, which is exactly the combat case.
+        if (Game.onlineRelayRole && Game.onlineRelayRole() === 'guest') this._queueSigFx(ev);
         continue;
       }
       // 2v2 trick reveal relayed from the host (see Game.playTrick). Guests
