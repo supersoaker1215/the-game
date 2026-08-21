@@ -82,7 +82,7 @@ const TRICK_DEFS = [
     }
   },
   { name: "Seismic Charge", cost: 2,
-    desc: "Deal 2 damage to an enemy and every enemy in the lanes beside it.",
+    desc: "Deal 3 damage to an enemy, 2 to enemies one lane away, and 1 to enemies two lanes away.",
     // The seismic-charge cue fires on DETONATION (inside the target callback),
     // not the instant the trick is played — so with multiple targets it lands
     // when you actually pick, in sync with the blast. deferPlaySfx tells the
@@ -94,8 +94,30 @@ const TRICK_DEFS = [
     play(G, owner) {
       const pool = G.getEnemiesOf(owner).filter(e => G.canTrickLand(e, 'damage', owner));
       if (!pool.length) return;
+      // BLAST FALLOFF, by distance from the epicentre. Owner: "3 damage on the
+      // lane it's played on, 2 to lanes next door, 1 to lanes two away."
+      // Index IS the distance, so the shape of the blast is the shape of this
+      // array — adding a 4th ring later means adding a number, nothing else.
+      const SEISMIC_FALLOFF = [3, 2, 1];
+      // Every enemy the blast reaches, paired with what it takes. Walks outward
+      // from the epicentre lane rather than reusing getAdjacentEnemiesInContext,
+      // which only knows about immediate neighbours and would silently cap the
+      // blast at one ring.
+      const seismicTargets = (laneIdx) => {
+        const opp = G.opponent(owner);
+        const hits = [];
+        for (let d = 0; d < SEISMIC_FALLOFF.length; d++) {
+          const lanes = d === 0 ? [laneIdx] : [laneIdx - d, laneIdx + d];
+          lanes.forEach(l => {
+            if (l < 0 || l >= G.LANE_COUNT) return;
+            const e = G.state.lanes[l][opp];
+            if (e && e.currentHealth > 0) hits.push({ card: e, dmg: SEISMIC_FALLOFF[d] });
+          });
+        }
+        return hits;
+      };
       G.promptCardChoice(owner, pool, "Seismic Charge — Detonate",
-        "Deal 2 damage to an enemy and both cards beside it",
+        "Deal 3 damage to an enemy, 2 one lane out, 1 two lanes out",
         (t) => {
           // Detonation cue — fires now that the target is locked in.
           if (typeof UI !== 'undefined' && UI.sfx && UI.sfx.playTrickSfx) {
@@ -105,23 +127,27 @@ const TRICK_DEFS = [
           // Center target, then splash the enemy cards in the adjacent lanes.
           // Adjacent damage goes through dealDamage, so Damage Immunity /
           // Invincible on a neighbor still shrug it like any other splash.
+          const hits = seismicTargets(lane);
           if (typeof UI !== 'undefined' && UI._fxTrickStrike) {
             try {
-              UI._fxTrickStrike(t, '#ffb15a', '#e0631a');
-              G.getAdjacentEnemiesInContext(lane, owner).forEach(e => UI._fxTrickStrike(e, '#ffb15a', '#e0631a'));
+              hits.forEach(h => UI._fxTrickStrike(h.card, '#ffb15a', '#e0631a'));
               if (UI._screenShake) UI._screenShake('medium');
             } catch (e) {}
           }
-          G.dealDamage(t, 2);
-          G.getAdjacentEnemiesInContext(lane, owner).forEach(e => G.dealDamage(e, 2));
-          G.log(`Seismic Charge detonates on ${t.name} — 2 damage to it and its neighbors!`);
+          // Damage every ring through dealDamage, so Damage Immunity /
+          // Invincible on any card in the blast shrugs it like any other hit.
+          hits.forEach(h => G.dealDamage(h.card, h.dmg));
+          G.log(`Seismic Charge detonates on ${t.name} — ${hits.map(h => `${h.card.name} ${h.dmg}`).join(', ')}!`);
         },
         // AI picker: detonate where it catches the most cards; tie-break on the
         // lowest-HP center so the blast is most likely to kill.
+        // AI picker: detonate where the blast does the most TOTAL damage, not
+        // where it merely touches the most cards — a ring-1 hit is worth twice a
+        // ring-2 one now, so counting bodies would pick the wrong epicentre.
         cards => cards.slice().sort((a, b) => {
-          const na = G.getAdjacentEnemiesInContext(G.findCardLane(a), owner).length;
-          const nb = G.getAdjacentEnemiesInContext(G.findCardLane(b), owner).length;
-          return (nb - na) || (a.currentHealth - b.currentHealth);
+          const tot = (c) => seismicTargets(G.findCardLane(c))
+            .reduce((n, h) => n + Math.min(h.dmg, h.card.currentHealth), 0);
+          return (tot(b) - tot(a)) || (a.currentHealth - b.currentHealth);
         })[0]);
     }
   },

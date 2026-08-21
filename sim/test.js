@@ -6536,6 +6536,57 @@ test("2v2: a played card always records who played it", function () {
   assertEq(c._2v2PlayedBy, 'p1', 'the card knows which seat played it');
 });
 
+test("Seismic Charge falls off 3 / 2 / 1 from the lane it lands on", function () {
+  // Owner: "played on an enemy in lane 3 — lane 3 takes 3, lanes 2 and 4 take
+  // 2, lanes 1 and 5 take 1."
+  var G = freshGame();
+  G.state.player.isHuman = false; G.state.ai.isHuman = false;
+  var e = [];
+  for (var i = 0; i < 6; i++) {
+    var c = G.createCardInstance(cardByName('Sabertooth'), 'ai');
+    c.currentHealth = 20; c.maxHealth = 20;
+    G.state.lanes[i].ai = c;
+    e.push(c);
+  }
+  var trick = TRICK_DEFS.find(function (t) { return t.name === 'Seismic Charge'; });
+  var real = G.promptCardChoice;
+  G.promptCardChoice = function (o, cards, ti, de, cb) { cb(e[2]); };  // epicentre lane 3
+  try { trick.play(G, 'player'); } finally { G.promptCardChoice = real; }
+
+  var took = e.map(function (c) { return 20 - c.currentHealth; });
+  assertEq(took.join(','), '1,2,3,2,1,0', 'the blast falls off by distance');
+
+  // The far lane is genuinely OUT of range, not merely undamaged by luck —
+  // three lanes away is past the last ring.
+  assertEq(took[5], 0, 'three lanes out takes nothing');
+
+  // And the printed text matches what it does.
+  assert(/3 damage/.test(trick.desc), 'the card names the epicentre damage');
+  assertEq(/Deal 2 damage to an enemy and every enemy/.test(trick.desc), false,
+    'and drops the old flat-2 wording');
+});
+
+test("Seismic Charge at the board edge loses the rings that fall off it", function () {
+  // Lane 1 has no left side, so half the blast simply has nowhere to go —
+  // worth pinning so an edge detonation is never quietly re-centred.
+  var G = freshGame();
+  G.state.player.isHuman = false; G.state.ai.isHuman = false;
+  var e = [];
+  for (var i = 0; i < 6; i++) {
+    var c = G.createCardInstance(cardByName('Sabertooth'), 'ai');
+    c.currentHealth = 20; c.maxHealth = 20;
+    G.state.lanes[i].ai = c;
+    e.push(c);
+  }
+  var trick = TRICK_DEFS.find(function (t) { return t.name === 'Seismic Charge'; });
+  var real = G.promptCardChoice;
+  G.promptCardChoice = function (o, cards, ti, de, cb) { cb(e[0]); };  // epicentre lane 1
+  try { trick.play(G, 'player'); } finally { G.promptCardChoice = real; }
+
+  var took = e.map(function (c) { return 20 - c.currentHealth; });
+  assertEq(took.join(','), '3,2,1,0,0,0', 'the blast only spreads inward from the edge');
+});
+
 // ---- RUNNER ------------------------------------------------
 // ============================================================
 
