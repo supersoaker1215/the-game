@@ -6373,6 +6373,58 @@ test("A card flagged asleep with no turns left cannot stay asleep forever", func
   assertEq(G.isCardAsleep(yoda), false, 'still awake with Freddy gone');
 });
 
+test("Deadpool's trade needs both halves — no give-back, no steal", function () {
+  // Owner: "if deadpool doesn't have a card to trade — like the hand is empty —
+  // his ability shouldn't fire."
+  //
+  // The give-back WAS guarded, but only after the steal had already resolved:
+  // you picked a face-down card, it entered your hand, and only then did the
+  // log admit there was nothing to give back. A trade with one half missing is
+  // a free steal, and you had to sit through a blind pick to discover it.
+  function board(ownerHand, enemyHand) {
+    var G = freshGame();
+    G.state.player.isHuman = false; G.state.ai.isHuman = false;
+    var dp = place(G, 'Deadpool', 'player', 0);
+    G.state.player.hand = ownerHand.map(function (n) {
+      return G.createCardInstance(cardByName(n), 'player');
+    });
+    G.state.ai.hand = enemyHand.map(function (n) {
+      return G.createCardInstance(cardByName(n), 'ai');
+    });
+    return { G: G, dp: dp };
+  }
+
+  // NOTHING TO TRADE BACK → the ability does not fire at all.
+  var t1 = board([], ['Hulk']);
+  CARD_ABILITIES['Deadpool'].onDeath(t1.G, t1.dp, 0);
+  assertEq(t1.G.state.ai.hand.length, 1, 'the enemy keeps their card');
+  assertEq(t1.G.state.ai.hand[0].name, 'Hulk', 'and it is the same card');
+  assertEq(t1.G.state.player.hand.length, 0, 'and nothing is stolen into an empty hand');
+  assertEq(!!t1.G.state.pendingCardChoice, false, 'no blind pick is raised');
+
+  // NOTHING TO STEAL → also does not fire (this half was already guarded).
+  var t2 = board(['Gizmo'], []);
+  CARD_ABILITIES['Deadpool'].onDeath(t2.G, t2.dp, 0);
+  assertEq(t2.G.state.player.hand.length, 1, 'the owner keeps their own card');
+  assertEq(!!t2.G.state.pendingCardChoice, false, 'and no prompt is raised');
+
+  // CONTROL — with both hands stocked the trade still happens. Without this the
+  // test above would pass just as well if Deadpool had been broken outright.
+  var t3 = board(['Gizmo'], ['Hulk']);
+  CARD_ABILITIES['Deadpool'].onDeath(t3.G, t3.dp, 0);
+  var ownerNames = t3.G.state.player.hand.map(function (c) { return c.name; });
+  var enemyNames = t3.G.state.ai.hand.map(function (c) { return c.name; });
+  assertEq(ownerNames.join(','), 'Hulk', 'the owner ends up holding the stolen card');
+  assertEq(enemyNames.join(','), 'Gizmo', 'and the enemy ends up holding the traded one');
+
+  // PURE THIEF (roguelite Text+) owes nothing, so an empty hand does not stop it.
+  var t4 = board([], ['Hulk']);
+  t4.dp._deadpoolNoGiveBack = true;
+  CARD_ABILITIES['Deadpool'].onDeath(t4.G, t4.dp, 0);
+  assertEq(t4.G.state.player.hand.length, 1, 'the no-give-back variant still steals');
+  assertEq(t4.G.state.ai.hand.length, 0, 'and the enemy loses it');
+});
+
 // ---- RUNNER ------------------------------------------------
 // ============================================================
 

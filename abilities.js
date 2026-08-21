@@ -2218,6 +2218,24 @@ const CARD_ABILITIES = {
         G.log("Deadpool's final trick fails — the enemy has no cards in hand!");
         return;
       }
+      // BOTH HALVES OR NEITHER. Owner: "if deadpool doesn't have a card to
+      // trade — like the hand is empty — his ability shouldn't fire."
+      // The give-back was already guarded, but only AFTER the steal had
+      // resolved: you picked a face-down card, it moved into your hand, and
+      // only then did the log say there was nothing to give in return. That
+      // turned a TRADE into a free steal whenever your hand was empty, and it
+      // made you sit through a blind pick to find out.
+      // Checked here, before any prompt is raised, so the ability simply does
+      // not fire. Reads the owner's hand as it stands now — the stolen card
+      // joins that hand and is then excluded from the give-back, so having a
+      // card to trade means having one BEFORE the steal.
+      // Roguelite Text+ ("no give-back") turns Deadpool into a pure thief, and
+      // a thief owes nothing — that mode skips this requirement.
+      const _dpSkipGiveBack = !!self._deadpoolNoGiveBack;
+      if (!_dpSkipGiveBack && !G.state[self.owner].hand.length) {
+        G.log("Deadpool's final trick fails — he has nothing to trade back!");
+        return;
+      }
       // Step 1: Show enemy hand face-down, shuffled so the player can't
       // infer which card is which from positional hints.
       const faceDownDeck = enemyHand.slice();
@@ -2228,7 +2246,7 @@ const CARD_ABILITIES = {
       // Roguelite Text+ override — _deadpoolNoGiveBack skips the trade
       // step entirely. Default false (classic — give one back); Text+
       // true makes Deadpool a pure card thief: steal one, no return.
-      const skipGiveBack = !!self._deadpoolNoGiveBack;
+      const skipGiveBack = _dpSkipGiveBack;
       // When AI's Deadpool dies, the AI auto-picks both cards in
       // the trade — the player sees their hand silently change. To
       // make the swap legible, fire a single AI-trick toast with
