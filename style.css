@@ -41587,3 +41587,28 @@ body.low-fx .badge-asleep { animation: none; }
     0 0 10px rgba(var(--theme-rgb, 79, 195, 247), 1),
     0 0 22px rgba(var(--theme-rgb, 79, 195, 247), 0.6);
 }
+
+/* The taunt glyph is DRAWN, not an emoji. 🔊 is rendered by the OS as
+   full-colour photoreal art — a literal speaker cabinet on macOS — which sat
+   beside a stroked ☺ and read as a product photo dropped into a neon HUD.
+   Owner: "should not be a real amp, just neon lines like the smiley face."
+   An inline stroked SVG inherits currentColor, so it takes the same accent and
+   the same hover as its text sibling. text-shadow does not apply to SVG
+   geometry, so the glow is drop-shadow — same look, the filter that works on
+   strokes. */
+.emote-btn .emote-svg {
+  width: 1em; height: 1em;
+  display: block;
+  filter:
+    drop-shadow(0 0 4px rgba(var(--theme-rgb, 79, 195, 247), 0.85))
+    drop-shadow(0 0 9px rgba(var(--theme-rgb, 79, 195, 247), 0.45));
+}
+.emote-btn:hover .emote-svg,
+.emote-btn:focus-visible .emote-svg {
+  filter:
+    drop-shadow(0 0 6px rgba(var(--theme-rgb, 79, 195, 247), 1))
+    drop-shadow(0 0 14px rgba(var(--theme-rgb, 79, 195, 247), 0.6));
+}
+/* The button centres a glyph; an SVG child needs the box to say so. */
+.emote-btn { display: inline-flex; align-items: center; justify-content: center; }
+.taunt-btn { font-size: 17px; }
