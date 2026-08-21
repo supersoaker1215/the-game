@@ -6260,8 +6260,18 @@ const UI = {
     // Round-start current sweep — fire once per round by watching s.round.
     // Adds body.round-transition for ~1s; CSS animates a vertical sweep
     // across .board-section::before using the theme accent.
-    if (this._lastRound !== s.round && s.round >= 1 && !s.phase.startsWith('draft')) {
-      this._lastRound = s.round;
+    // THE ROUND NUMBER LIVES SOMEWHERE ELSE IN 2v2. This watched s.round, but a
+    // 2v2 room keeps its round on state.twoVTwo.round — s.round is only patched
+    // during the host's board render and restored straight after. So on a GUEST
+    // s.round never advances, and every round-change flourish hanging off this
+    // one condition silently never fired: the big ROUND N banner, the sweep,
+    // the CRT scan, the round-badge tick and the energy-orb spin.
+    // Owner: "the big round change is not there anymore." It was not removed —
+    // it was never reaching the guest at all.
+    const _tt = s.twoVTwo;
+    const _round = (_tt && _tt.online) ? (_tt.round || 0) : s.round;
+    if (this._lastRound !== _round && _round >= 1 && !s.phase.startsWith('draft')) {
+      this._lastRound = _round;
       document.body.classList.add('round-transition');
       clearTimeout(this._roundTransitionTimer);
       this._roundTransitionTimer = setTimeout(() => document.body.classList.remove('round-transition'), 1000);
@@ -6285,8 +6295,9 @@ const UI = {
         rn.classList.add('round-tick');
         setTimeout(() => rn.classList.remove('round-tick'), 560);
       }
-      // (N) Big centered ROUND N banner
-      this.showRoundBanner(s.round);
+      // (N) Big centered ROUND N banner — the round we actually detected, not
+      // s.round, which is stale on a 2v2 guest.
+      this.showRoundBanner(_round);
       // (F) Currency orb spin
       this.spinEnergyOrbs();
       // (AAA) Round-tick — fires the centerline gradient sweep
@@ -12563,11 +12574,22 @@ const UI = {
       const p = tt.players[pk]; if (!p) return '';
       const cards = (p.hand || []).length;
       const tricks = (p.trickHand || []).length;
+      // ENERGY, PER SEAT. Owner: "since everyone has their own energy i want an
+      // energy tracker for each person too, so you can see how much they spent
+      // and left over." Shown as left/total, which carries BOTH facts in one
+      // glyph — 5/8 is "five left, three spent" without a second number to
+      // read. Energy is genuinely per-seat in 2v2 (start2v2Round grants it to
+      // each player object), so this is real per-player state, not a share of
+      // a team pool.
+      const eTotal = p.energy || 0;
+      const eSpent = p.usedEnergy || 0;
+      const eLeft = Math.max(0, eTotal - eSpent);
       const active = (Game._2v2ActivePlayer && Game._2v2ActivePlayer() === pk);
       return `<div class="rc-chip${active ? ' rc-active' : ''}${isMe ? ' rc-me' : ''}">`
         + `<span class="rc-name">${esc(p.name || pk)}${isMe ? ' <em>(you)</em>' : ''}</span>`
         + `<span class="rc-stat rc-cards" title="Cards in hand"><i class="rc-ic">🂠</i>${cards}</span>`
         + `<span class="rc-stat rc-tricks" title="Tricks in hand"><i class="rc-ic">✦</i>${tricks}</span>`
+        + `<span class="rc-stat rc-energy" title="Energy left of this round's total — ${eSpent} spent of ${eTotal}"><i class="rc-ic">&#9670;</i>${eLeft}/${eTotal}</span>`
         + `</div>`;
     };
     const order = ['p1', 'p2', 'p3', 'p4'];

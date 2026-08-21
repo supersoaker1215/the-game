@@ -41612,3 +41612,13 @@ body.low-fx .badge-asleep { animation: none; }
 /* The button centres a glyph; an SVG child needs the box to say so. */
 .emote-btn { display: inline-flex; align-items: center; justify-content: center; }
 .taunt-btn { font-size: 17px; }
+
+/* Per-seat energy on the 2v2 roster chips. Everyone banks and spends their own
+   energy in 2v2, so "how much has that player got left" is live tactical
+   information the chips were not carrying. left/total says both at once. */
+.rc-stat.rc-energy {
+  color: rgb(var(--theme-rgb, 79, 195, 247));
+  text-shadow: 0 0 6px rgba(var(--theme-rgb, 79, 195, 247), 0.55);
+  font-variant-numeric: tabular-nums;
+}
+.rc-stat.rc-energy .rc-ic { opacity: 0.9; }
