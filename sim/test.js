@@ -6853,6 +6853,38 @@ function parity(label, scenario) {
   });
 }
 
+// A SECOND SHAPE OF CHECK, for the side-vs-player class.
+// parity() compares 1v1 against 2v2 and demands the SAME value — right for the
+// round upkeep, wrong here. A side-wide effect SHOULD hit more players in 2v2
+// (four seats, not two), so equality would be the wrong assertion entirely.
+// What must hold instead is that NOBODY IS SKIPPED: an effect written against a
+// side has to reach every real player on it, because state[side] is a proxy
+// bound to one seat and quietly misses the teammate. That is the exact shape of
+// "the enemy played Symbiote and only my teammate redrew".
+function everySeatAffected(label, scenario) {
+  test('PARITY · every seat · ' + label, function () {
+    var G = twoVtwoRoom();
+    scenario.build(G);
+    // BASELINE AFTER BUILD, BEFORE ACT — and that ordering is the whole
+    // validity of this check. Snapshotting before build() meant every scenario
+    // "passed" simply because building the board put cards in hands, whether or
+    // not act() did anything at all. Caught by reverting a fix and watching the
+    // check pass anyway: a test that cannot fail is worse than no test, because
+    // it is believed.
+    var before = {};
+    ['p1', 'p2', 'p3', 'p4'].forEach(function (k) {
+      before[k] = scenario.snapshot(G, k);
+    });
+    scenario.act(G);
+    var missed = [];
+    (scenario.seats || ['p1', 'p2', 'p3', 'p4']).forEach(function (k) {
+      if (String(scenario.snapshot(G, k)) === String(before[k])) missed.push(k);
+    });
+    assertEq(missed.join(',') || 'none', 'none',
+      label + ' — these seats were skipped: ' + (missed.join(',') || 'none'));
+  });
+}
+
 // ---- SEEDED FROM REAL DRIFT BUGS ---------------------------------
 // Each of these failed in 2v2 and passed in 1v1 before today.
 
@@ -6901,6 +6933,74 @@ parity('Magneto/aura reconcile runs each round', {
   },
   act: function (G) { advanceRound(G); },
   measure: function (G) { return 'atk=' + G._pa.attack + ',hp=' + G._pa.maxHealth; }
+});
+
+// ---- THE SIDE-vs-PLAYER CLASS ------------------------------------
+// Cards whose printed text promises EVERY player. Each of these is a place a
+// side-keyed effect can silently reach one teammate and stop.
+
+everySeatAffected('Harley Quinn — both players draw', {
+  snapshot: function (G, k) { return G.state.twoVTwo.players[k].hand.length; },
+  build: function (G) {
+    var hq = G.createCardInstance(cardByName('Harley Quinn'), 'player');
+    G.state.lanes[0].player = hq;
+    G._hq = hq;
+  },
+  act: function (G) { CARD_ABILITIES['Harley Quinn'].onPlay(G, G._hq, 0); }
+});
+
+everySeatAffected('Symbiote Spider-Man — everyone cycles two', {
+  snapshot: function (G, k) {
+    return G.state.twoVTwo.players[k].hand.map(function (c) { return c.name; }).join(',');
+  },
+  build: function (G) {
+    // Every seat needs a hand with something in it to cycle.
+    var stock = ['Gizmo', 'Hulk', 'Thor', 'Batman'];
+    ['p1', 'p2', 'p3', 'p4'].forEach(function (k) {
+      var side = G.state.twoVTwo.players[k].team === 'A' ? 'player' : 'ai';
+      G.state.twoVTwo.players[k].hand = stock.map(function (n) {
+        return G.createCardInstance(cardByName(n), side);
+      });
+    });
+    var ssm = G.createCardInstance(cardByName('Symbiote Spider-Man'), 'player');
+    ssm._2v2PlayedBy = 'p1';
+    G.state.lanes[0].player = ssm;
+    G._ssm = ssm;
+  },
+  act: function (G) { CARD_ABILITIES['Symbiote Spider-Man'].onPlay(G, G._ssm, 0); }
+});
+
+everySeatAffected('every seat gets its round energy', {
+  snapshot: function (G, k) { return G.state.twoVTwo.players[k].energy; },
+  build: function () {},
+  act: function (G) { advanceRound(G); }
+});
+
+everySeatAffected("Doomsday's in-hand discount reaches both teammates", {
+  // Found by auditing card text against behaviour: Doomsday's discount IS
+  // implemented, but against state[side].hand — the proxy bound to one seat —
+  // so a Doomsday in the other teammate's hand silently cost full price.
+  seats: ['p1', 'p2'],
+  snapshot: function (G, k) {
+    var d = G.state.twoVTwo.players[k].hand[0];
+    return d ? d.cost : 'none';
+  },
+  build: function (G) {
+    ['p1', 'p2'].forEach(function (k) {
+      var d = G.createCardInstance(cardByName('Doomsday'), 'player');
+      d.passive = 'doomsdayScaling';
+      G.state.twoVTwo.players[k].hand = [d];
+    });
+    // An ally on Team A to die.
+    var ally = G.createCardInstance(cardByName('Sabertooth'), 'player');
+    G.state.lanes[3].player = ally;
+    G._ally = ally;
+  },
+  act: function (G) {
+    G._ally.currentHealth = 0;
+    G.handleDeath(G._ally, 3, null);
+    G.cleanupDead();
+  }
 });
 
 // ---- RUNNER ------------------------------------------------

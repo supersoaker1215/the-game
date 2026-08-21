@@ -7896,16 +7896,26 @@ const Game = {
   // Ally death: cost drops by 1 for any Doomsday the same owner has in hand.
   // Draw-pile Doomsday is unaffected by deaths — stats only grow on card plays.
   _scaleDoomsdayInHands(deadOwner) {
+    // PER SEAT, not per side. This read state[side].hand — the proxy bound to
+    // whichever seat is acting — so in 2v2 a Doomsday sitting in the OTHER
+    // teammate's hand never got its discount and quietly cost full price all
+    // game. Same side-vs-player trap as Symbiote and Harley, found by auditing
+    // which cards promise a hand effect against how they actually reach one.
+    // seatStatesOnSide collapses to the side proxy in 1v1, so nothing changes
+    // there.
     for (const side of ['player', 'ai']) {
-      const hand = this.state[side] && this.state[side].hand;
-      if (!hand) continue;
-      hand.forEach(c => {
-        if (c.passive !== 'doomsdayScaling') return;
-        if (c.owner === deadOwner) {
-          c.cost = Math.max(0, (c.cost || 0) - 1);
-          this.log(`[DOOMSDAY] Ally fell — cost drops to ${c.cost}`);
-        }
-      });
+      const seats = this.seatStatesOnSide ? this.seatStatesOnSide(side) : [this.state[side]];
+      for (const seat of seats) {
+        const hand = seat && seat.hand;
+        if (!hand) continue;
+        hand.forEach(c => {
+          if (c.passive !== 'doomsdayScaling') return;
+          if (c.owner === deadOwner) {
+            c.cost = Math.max(0, (c.cost || 0) - 1);
+            this.log(`[DOOMSDAY] Ally fell — cost drops to ${c.cost}`);
+          }
+        });
+      }
     }
   },
 
