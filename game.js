@@ -3949,6 +3949,54 @@ const Game = {
     alreadyActive.forEach(c => { if (c.currentHealth > 0) c._triggerNextRound = true; });
   },
 
+  // 2v2 Freddy Fazbear. Energy is per-SEAT and there are TWO enemies, so the
+  // 1v1 state[ender]/state[opp] shape doesn't apply. Called once at the combat
+  // boundary. For each team, look at the two OPPOSING seats' final unspent
+  // Energy: if the biggest waster left 2+, the team's Freddy wakes — a hand copy
+  // offers its free deploy to its holder seat, and every board copy arms the
+  // round-start drain, remembering WHICH enemy seat to bite (the biggest waster,
+  // "drain from whoever left more"). (User: "for freddy fazbear he should get
+  // the prompt for 2v2 if either of the opponents left 2 or more energy … and he
+  // should drain from whoever left more.")
+  _checkFreddyFazbear2v2() {
+    const tt = this.state && this.state.twoVTwo;
+    if (!tt || !tt.players) return;
+    const isAuthority = !this._2v2IsAIAuthority || this._2v2IsAIAuthority();
+    const leftoverOf = (pk) => Math.max(0, (tt.players[pk].energy || 0) - (tt.players[pk].usedEnergy || 0));
+    ['A', 'B'].forEach(team => {
+      const side = this._2v2TeamSide[team];
+      const enemyTeam = team === 'A' ? 'B' : 'A';
+      const enemySeats = this._2v2SLOTS.filter(pk => tt.players[pk] && tt.players[pk].team === enemyTeam);
+      // Whoever wasted the MOST decides both whether Freddy wakes and who he bites.
+      let target = null, best = -1;
+      enemySeats.forEach(pk => { const lo = leftoverOf(pk); if (lo > best) { best = lo; target = pk; } });
+      if (!target || best < this.FREDDY_WASTE_THRESHOLD) return;
+      // Board copies wake and remember the biggest waster for the round-start drain.
+      this.getAlliesOf(side)
+        .filter(c => this.isCardKind(c, 'Freddy Fazbear') && c.currentHealth > 0)
+        .forEach(c => { c._triggerNextRound = true; c._freddyDrainSeat = target; });
+      // Jump: a hand copy on this team offers a free deploy to its holder seat.
+      const holders = this._2v2SLOTS.filter(pk => tt.players[pk] && tt.players[pk].team === team);
+      for (const pk of holders) {
+        const p = tt.players[pk];
+        const inHand = (p.hand || []).find(c => c.name === 'Freddy Fazbear' && !c.jumpReady);
+        if (!inHand) continue;
+        if (p.isAI) {
+          inHand.jumpReady = true;
+          this.log(`  [JUMP] Freddy Fazbear senses ${tt.players[target].name}'s ${best} wasted Energy!`);
+          if (isAuthority) this._2v2AutoPlayJump(pk, inHand);
+        } else if (!this.state.pendingJumpOffer && isAuthority) {
+          inHand.jumpReady = true;
+          this.log(`  [JUMP] Freddy Fazbear senses ${tt.players[target].name}'s ${best} wasted Energy — free play available!`);
+          this.state.pendingJumpOffer = { cardId: inHand.id, owner: side, seat: pk, _2v2ActingPlayer: pk };
+        }
+        break;   // one hand copy per team
+      }
+    });
+    if (tt.online && isAuthority) this._2v2OnlineBroadcast();
+    if (typeof UI !== 'undefined' && UI.render) UI.render();
+  },
+
   endPhase1() {
     // Guest forwards Done to the host — host is authoritative on the
     // engine. Without this, the guest's local engine would advance
@@ -14299,6 +14347,7 @@ const Game = {
     tt.round = (tt.round || 0) + 1;
     tt.subPhaseIdx = 0;
     tt._beforeTricksRan = false;   // re-arm the before-tricks pass for this round
+    tt._freddyChecked = false;     // re-arm Freddy Fazbear's combat-boundary waste check
     // Clear the post-combat marker the moment the new round's card phase begins.
     // The combat watchdog stays armed while this flag is set (it guards the whole
     // 2v2 post-combat window); left true into the card/trick phases, a human who
@@ -14365,6 +14414,20 @@ const Game = {
     const activeTeam = this._2v2ActiveTeam();
 
     if (!subPhase || !activeKey) {
+      // All 6 sub-phases done. Freddy Fazbear feeds on the enemy team's WASTED
+      // Energy — evaluated here, at the combat boundary, because that is the
+      // moment every seat's final unspent Energy is known (a seat that "left"
+      // 2 after cards may spend it in a later trick turn, so only now is the
+      // waste real). Fires ONCE per round; a human jump offer pauses the
+      // boundary until the holder answers, then re-enters straight to combat.
+      if (!tt._freddyChecked) {
+        tt._freddyChecked = true;
+        try { this._checkFreddyFazbear2v2(); } catch (e) { console.error('[FREDDY 2v2]', e); }
+        if (this.hasPendingPrompt && this.hasPendingPrompt()) {
+          this.whenPromptCleared(() => this._2v2StartSubPhase());
+          return;
+        }
+      }
       // All 6 sub-phases done — resolve combat
       this._2v2ResolveCombat();
       return;
@@ -14381,6 +14444,16 @@ const Game = {
       if (typ(order[ci]) === 'tricks' && typ(order[ci - 1]) !== 'tricks') {
         tt._beforeTricksRan = true;
         this.runBeforeTricks();
+        this.cleanupDead();
+        // Trick-boundary jumps (Art the Clown: "jump when the enemy has more
+        // cards on the field"). The 1v1 flow fires this right after
+        // runBeforeTricks; the 2v2 flow never did, so Art's jump could never
+        // arm in 2v2. Human seats surface a pendingJumpOffer (routed to the
+        // owning seat), AI seats auto-play — both counted by hasPendingPrompt
+        // below so the turn waits for the choice. (User: "in 2v2 the opponent
+        // had more cards than us and my art the clown didnt get the prompt to
+        // jump.")
+        this.checkJumpConditions('beforeTricks', {});
         this.cleanupDead();
         if (this.hasPendingPrompt && this.hasPendingPrompt()) {
           this.whenPromptCleared(() => this._2v2StartSubPhase());   // re-enter after prompts, then start the turn
@@ -15532,11 +15605,24 @@ const Game = {
     s[side].deadPile = tt.teams[p.team].deadPile;
     s.drawPile = tt.drawPile; s.trickDrawPile = tt.trickDrawPile;
     const unbridge = () => {
+      // CARRY THE BLOCK-METER DELTA. This bridge runs during COMBAT for a
+      // block-earned free trick (Two-Face Coin, etc.), and there the combat
+      // PROXY s[side].blockMeter is the live, authoritative copy — postCombat
+      // syncs proxy→team. Blindly restoring the proxy to saved.bm discarded any
+      // fill the trick made (it only reached the team), and postCombat then
+      // clobbered the team back from the untouched proxy — so the fill vanished.
+      // Restore saved.bm PLUS whatever the trick added, so the live proxy shows
+      // the fill too. Outside combat saved.bm equals the team value, so this is
+      // identical to the old restore. (User: "he played the two face coin and
+      // the ability to fill the block meter never fired.")
+      const bmDelta = (s[side].blockMeter || 0) - (tt.teams[p.team].blockMeter || 0);
       tt.teams[p.team].health = s[side].health;
       tt.teams[p.team].blockMeter = s[side].blockMeter;
       tt.drawPile = s.drawPile; tt.trickDrawPile = s.trickDrawPile;
       s[side].hand = saved.hand; s[side].trickHand = saved.trick; s[side].currency = saved.cur;
-      s[side].health = saved.hp; s[side].maxHealth = saved.mhp; s[side].blockMeter = saved.bm; s[side].deadPile = saved.dead;
+      s[side].health = saved.hp; s[side].maxHealth = saved.mhp;
+      s[side].blockMeter = Math.max(0, Math.min(this.BLOCK_MAX || 8, (saved.bm || 0) + bmDelta));
+      s[side].deadPile = saved.dead;
       s.drawPile = saved.draw; s.trickDrawPile = saved.trickDraw;
     };
     let out, threw = true;

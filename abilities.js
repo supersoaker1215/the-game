@@ -3815,8 +3815,15 @@ const CARD_ABILITIES = {
         // his passive."
         const from = G.findCardLane(target);
         if (!target || target.currentHealth <= 0 || from < 0) {
-          G.log(`  [MAGNETO] ${target && target.name ? target.name : 'That card'} is already gone — the pull finds nothing.`);
-          moved.push(target);   // consume the slot so step() can't loop on it
+          // The target died before the move landed — Magneto's OWN parity aura
+          // does this when a prior move shoves an enemy into an even lane. Do
+          // NOT count it: re-run step() to offer another LIVING card so Magneto
+          // still gets his full two moves. candidates() already excludes the
+          // dead (currentHealth > 0), so it can never be re-offered — no loop,
+          // no consumed slot. (User: "if you kill an enemy card because of his
+          // lane manipulation the game makes you waste a move on a dead
+          // character … so he doesnt waste his 2 moves.")
+          G.log(`  [MAGNETO] ${target && target.name ? target.name : 'That card'} is already gone — Magneto reaches for another.`);
           step();
           return;
         }
@@ -6149,6 +6156,22 @@ const CARD_ABILITIES = {
     onTurnStart(G, self) {
       if (!self._triggerNextRound) return;
       self._triggerNextRound = false;
+      // 2v2: bite the specific enemy SEAT that wasted the most Energy last round
+      // (captured when Freddy woke). Energy is per-seat there, so drain that
+      // seat's freshly-granted Energy directly. (User: "drain from whoever left
+      // more.")
+      const tt = G.state && G.state.twoVTwo;
+      if (tt && tt.players && self._freddyDrainSeat && tt.players[self._freddyDrainSeat]) {
+        const seat = tt.players[self._freddyDrainSeat];
+        self._freddyDrainSeat = null;
+        if ((seat.energy || 0) > 0) {
+          const before = seat.energy;
+          seat.energy = Math.max(0, before - 1);
+          G.log(`[FREDDY FAZBEAR] Drains 1 Energy from ${seat.name}! (${before} → ${seat.energy})`);
+          if (typeof UI !== 'undefined' && UI._fxFazbearGlitch) { try { UI._fxFazbearGlitch(self); } catch (e) {} }
+        }
+        return;
+      }
       const opp = G.opponent(self.owner);
       // Drain only — the opponent loses 1, Freddy's side gains NOTHING
       // (user direction: "no gain, like Catwoman").
