@@ -5857,7 +5857,18 @@ const Game = {
     // from the tag recorded when MC was applied — promptCardChoice then routes
     // the prompt to that client (an AI-held seat auto-picks via threatPicker).
     const _tt2v2 = this.state && this.state.twoVTwo;
-    if (_tt2v2 && _tt2v2.online && card._mcSeat) this._2v2CurrentActingPlayer = card._mcSeat;
+    if (_tt2v2 && _tt2v2.online) {
+      // The MC targeting prompt belongs to the seat that CAST the mind control,
+      // NEVER the victim's owner. Combat stamps _2v2CurrentActingPlayer to
+      // whichever card's hook is firing — for a mind-controlled card that is the
+      // VICTIM (on the controller's ENEMY team), so leaving the stamp as-is made
+      // the victim's owner (often the host) answer the enemy's MC pick. User:
+      // "I'm still getting the prompt on who to mind control when it isn't my
+      // card." Override to the recorded caster seat, or — if MC came in through a
+      // path that never tagged one — any seat on the controller's team, so the
+      // prompt can never land on the victim's side.
+      this._2v2CurrentActingPlayer = card._mcSeat || this._2v2SeatForSide(controller) || null;
+    }
     if (this.isHuman(controller)) {
       // ALWAYS prompt the human controller — even when only 1 ally
       // remains. User report: "I mind controlled Gojo to attack Iron
@@ -8304,6 +8315,57 @@ const Game = {
     // a play phase this is a no-op (the acting seat already owns the card); it
     // matters for onDeath firing in combat, where no seat is otherwise acting.
     this._2v2ActFor(card);
+    // 2v2 online COMBAT: no seat's hand is bridged onto the side proxy during
+    // combat, so a hook that reads/writes state[owner].hand (Ghost Rider /
+    // Cyborg playing a card from hand, a draw-on-kill, a bounce-to-hand) hits
+    // whichever teammate synced last — usually the ALLY's. User: "I played
+    // Ghost Rider, and when he died, he teleported someone out of my ally's
+    // hand, not mine." Bridge the OWNING seat's hand for the hook's duration so
+    // it operates on the right player's hand. Detected the same way
+    // _2v2HandTarget detects combat (seat's hand array differs from the side
+    // proxy's); a no-op during play phases (already bridged) and in 1v1.
+    const _hbSeat = this._2v2SeatNeedingHandBridge(card);
+    if (_hbSeat) {
+      return this._2v2WithSeatHands(_hbSeat, () => this._runHookBody(card, hookName, ...args));
+    }
+    return this._runHookBody(card, hookName, ...args);
+  },
+  // 2v2 online: the seat whose hand should be bridged for a combat hook on
+  // `card`, or null when no bridge is needed (1v1, play phase, or the seat's
+  // hand already IS the side proxy's). Mirrors _2v2HandTarget's detection.
+  _2v2SeatNeedingHandBridge(card) {
+    const tt = this.state && this.state.twoVTwo;
+    if (!tt || !tt.online || !card) return null;
+    const seatKey = this._2v2CurrentActingPlayer;
+    const seat = seatKey && tt.players[seatKey];
+    if (!seat) return null;
+    const side = this._2v2TeamSide[seat.team];
+    if (this.state[side] && seat.hand !== this.state[side].hand) return seatKey;
+    return null;
+  },
+  // Bridge ONLY hand + trickHand (not health/currency/piles — combat owns those)
+  // for the duration of fn, deferring the un-bridge until any prompt chain the
+  // hook raised has cleared (same rule as _2v2WithJumperBridge).
+  _2v2WithSeatHands(seatKey, fn) {
+    const tt = this.state && this.state.twoVTwo;
+    const p = tt && tt.players[seatKey];
+    if (!p) return fn();
+    const side = this._2v2TeamSide[p.team];
+    const proxy = this.state[side];
+    if (!proxy) return fn();
+    const savedHand = proxy.hand, savedTricks = proxy.trickHand;
+    proxy.hand = p.hand;
+    proxy.trickHand = p.trickHand;
+    const restore = () => { proxy.hand = savedHand; proxy.trickHand = savedTricks; };
+    let out, threw = true;
+    try { out = fn(); threw = false; }
+    finally {
+      if (!threw && this.hasPendingPrompt && this.hasPendingPrompt()) this.whenPromptCleared(restore);
+      else restore();
+    }
+    return out;
+  },
+  _runHookBody(card, hookName, ...args) {
     this._pushSummonSource(card);
     let result;
     try {
@@ -9131,6 +9193,29 @@ const Game = {
       // offer on its NEXT death.
       if (card._igOffered) { delete card._igOffered; return false; }
       const owner = card.owner;
+      // 2v2 online: Iron Giant may sit in the dying ally's TEAMMATE's hand, but
+      // this intercept reads state[owner].hand (the side proxy = whichever
+      // teammate synced last). So the sacrifice prompt went to the wrong player
+      // — or auto-fired with no prompt at all. (User: "I had Iron Giant in my
+      // hand, and I wasn't given the prompt to sacrifice him, and he
+      // automatically did so; maybe the prompt went elsewhere.") Resolve the
+      // seat that actually HOLDS Iron Giant, stamp it (so the prompt routes
+      // there) and bridge its hand onto the side proxy for the intercept's whole
+      // prompt chain, so every state[owner].hand read/splice/draw below hits the
+      // right player's hand. Re-enter once, guarded, with the bridge live.
+      const _igTT = this.state && this.state.twoVTwo;
+      if (_igTT && _igTT.online && !this._igBridging) {
+        const team = owner === 'player' ? 'A' : 'B';
+        const igSeatKey = this._2v2SLOTS.find(pk => _igTT.players[pk]
+          && _igTT.players[pk].team === team
+          && (_igTT.players[pk].hand || []).some(c => c.name === 'Iron Giant'));
+        if (!igSeatKey) return false;   // no Iron Giant on this team — no save
+        this._2v2CurrentActingPlayer = igSeatKey;
+        this._igBridging = true;
+        try {
+          return this._2v2WithSeatHands(igSeatKey, () => this._ironGiantIntercept(card, laneIdx, killer));
+        } finally { this._igBridging = false; }
+      }
       // ONE sacrifice per side per combat. Without this the payoff feeds
       // itself: the sacrifice draws a card, that card can be your SECOND Iron
       // Giant, and the next ally death offers him straight back — measured at
@@ -10294,18 +10379,49 @@ const Game = {
     }
   },
 
-  addNextTurnCurrency(owner, n) {
+  addNextTurnCurrency(owner, n, seatKey) {
     // 2v2: bank the bonus on the SEAT that earned it (Power Battery, Green
     // Lantern), not the shared side proxy — start2v2Round consumes it per seat
     // so only that player gets the extra energy, not their teammate. (User:
     // "I played Power Battery, next round I still had 7, should've had 9, and
     // only me not my teammate.")
+    //
+    // seatKey (optional) names the EXACT seat to credit/debit, overriding the
+    // acting-seat default. Required for cross-team effects: Catwoman gains on
+    // her caster AND debits a CHOSEN enemy seat — without an explicit seat both
+    // calls banked on _2v2CurrentActingPlayer (the caster), so +n then −n netted
+    // to zero and the steal did nothing. (User: "Catwoman's Steal doesn't work.")
     const tt = this.state && this.state.twoVTwo;
     if (tt && tt.online) {
-      const seat = this._2v2CurrentActingPlayer;
+      const seat = seatKey || this._2v2CurrentActingPlayer;
       if (seat && tt.players[seat]) { tt.players[seat].nextTurnCurrency = (tt.players[seat].nextTurnCurrency || 0) + n; return; }
     }
     this.state[owner].nextTurnCurrency += n;
+  },
+
+  // 2v2 online: prompt the acting player to choose an enemy SEAT (a whole
+  // player, not a card/hand), then invoke cb(seatKey). For effects that target
+  // a player rather than a card — energy steal (Catwoman), peek-at-draws
+  // (Brainiac). Auto-resolves when only one enemy seat exists. Outside 2v2
+  // online, cb(null) fires so the caller runs its 1v1 path.
+  _2v2ChooseEnemySeat(owner, title, desc, cb) {
+    const tt = this.state && this.state.twoVTwo;
+    if (!this.is2v2() || !tt || !tt.online || !tt.players) { cb(null); return; }
+    const actingKey = this._2v2CurrentActingPlayer || this._2v2ActivePlayer();
+    const myTeam = tt.players[actingKey] ? tt.players[actingKey].team : null;
+    const enemyKeys = this._2v2SLOTS.filter(k => tt.players[k] && tt.players[k].team && tt.players[k].team !== myTeam);
+    if (!enemyKeys.length) { cb(null); return; }
+    if (enemyKeys.length === 1) { cb(enemyKeys[0]); return; }
+    const tiles = enemyKeys.map(k => ({
+      name: tt.players[k].name || k,
+      desc: `Team ${tt.players[k].team}`,
+      _playerKey: k, _isPlayerTile: true,
+    }));
+    this.promptCardChoice(owner, tiles, title || 'Choose an opponent',
+      desc || 'Which opponent should this target?',
+      (picked) => { if (picked && picked._playerKey) cb(picked._playerKey); },
+      (cards) => cards[Math.floor(this.rng() * cards.length)],
+      { inlineTray: true });
   },
 
   // For player: show lane choice UI. For AI: auto-pick best lane.
@@ -13859,7 +13975,10 @@ const Game = {
     // start on the chosen seat for THIS round only; otherwise it advances by
     // round. Stored as a seat key; we find its slot in the cycle.
     const tt = this.state && this.state.twoVTwo;
-    let start = ((round - 1) % 4 + 4) % 4;
+    // Per-game start offset (set at draft) rotates which seat opens the match so
+    // p1 no longer always leads; the round-by-round advance is layered on top.
+    const gameOffset = (tt && typeof tt._2v2StartOffset === 'number') ? tt._2v2StartOffset : 0;
+    let start = ((round - 1 + gameOffset) % 4 + 4) % 4;
     const override = tt && tt._2v2FirstOverride;
     if (override && override.round === round) {
       const si = cycle.indexOf(override.seat);
@@ -14172,7 +14291,8 @@ const Game = {
     // advances — no human input, no waiting on a remote client that isn't there.
     // Real seats fall through and wait for their player as before, so a full
     // 4-human lobby never triggers this path.
-    if (tt.players[activeKey] && tt.players[activeKey].isAI && this._2v2IsAIAuthority()) {
+    if (tt.players[activeKey] && tt.players[activeKey].isAI
+        && !tt.players[activeKey]._realHuman && this._2v2IsAIAuthority()) {
       this._2v2DriveAISeat(activeKey, subPhase);
     }
   },
@@ -14181,6 +14301,17 @@ const Game = {
   // sub-phase exactly as a human's "Done" would. A short delay makes the turn
   // legible instead of instant.
   _2v2DriveAISeat(activeKey, subPhase) {
+    // HARD SAFETY GATE — an AI filler must NEVER play for a seat a real person
+    // controls. `_realHuman` is stamped the moment a human claims a seat and is
+    // never cleared for the life of the match, so even if `isAI` were somehow
+    // flipped by a bug the drive still refuses. (User: "MAKE SURE THEY CAN NEVER
+    // PLAY FOR ANOTHER HUMAN.")
+    const _tt0 = this.state && this.state.twoVTwo;
+    const _seat0 = _tt0 && _tt0.players[activeKey];
+    if (!_seat0 || !_seat0.isAI || _seat0._realHuman) {
+      console.warn('[2v2 AI] refusing to drive non-AI/human-held seat', activeKey);
+      return;
+    }
     if (this._2v2AIDriving) return;   // one at a time — guards re-entrancy
     this._2v2AIDriving = activeKey;
     const side = this._2v2ActiveSide();
@@ -14543,6 +14674,13 @@ const Game = {
   _2v2StartDraft() {
     const s = this.state;
     const tt = s.twoVTwo;
+    // RANDOMIZE WHO LEADS THIS GAME. The turn cycle is [A0,B0,A1,B1] and the
+    // round-1 start was always index 0 (p1), so p1 always led every match. Roll a
+    // per-game offset (0-3) so any of the four seats can open the game, then the
+    // rest follow in the usual interleave — matching 1v1's random first player.
+    // (User: "shuffle up who plays first for each game … and on the draft screen
+    // have it say who is playing first for this game, as it does in 1v1.")
+    tt._2v2StartOffset = Math.floor(this.rng() * 4);
     // _spawnOnly cards (Gremlin, Freddy Krueger, Jaws, …) are summon tokens —
     // they enter play ONLY through the trigger that spawns them, never by
     // being drafted or drawn. 1v1 already filtered them out of its deck build
@@ -14931,7 +15069,7 @@ const Game = {
     const roster = {};
     this._2v2SLOTS.forEach(pk => {
       const p = old.players[pk] || {};
-      roster[pk] = { name: p.name, team: p.team, isAI: !!p.isAI };
+      roster[pk] = { name: p.name, team: p.team, isAI: !!p.isAI, _realHuman: !!p._realHuman };
     });
     const you = old.you;
     const joined = Object.assign({}, old.joinedPlayers);
@@ -14948,6 +15086,7 @@ const Game = {
     this._2v2SLOTS.forEach(pk => {
       players[pk] = {
         name: roster[pk].name, team: roster[pk].team, isAI: roster[pk].isAI,
+        _realHuman: roster[pk]._realHuman,
         hand: [], trickHand: [], energy: 0, usedEnergy: 0,
       };
     });

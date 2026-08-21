@@ -12056,6 +12056,17 @@ const UI = {
       ? `Choose one ${isCards ? 'card' : 'trick'} for your hand`
       : (sim ? `Waiting for ${stillOut.join(', ')}…` : `Waiting for ${picker.name} to choose…`);
     html +=   `<div class="draft-hud-sub">${subText}</div>`;
+    // WHO LEADS THIS GAME — mirror the 1v1 draft's first-player callout. The
+    // opener is randomized per match (_2v2StartOffset), so surface it here so
+    // everyone knows the turn order before the match starts. (User: "on the
+    // draft screen have it say who is playing first for this game.")
+    try {
+      const firstSeat = (Game._2v2ComputePhaseOrder(1)[0] || '').split('-')[0];
+      if (firstSeat && tt.players[firstSeat]) {
+        const firstName = firstSeat === myKey ? 'You' : (tt.players[firstSeat].name || firstSeat);
+        html += `<div class="draft-hud-sub draft-first-player">⚡ ${firstName} play first this game</div>`;
+      }
+    } catch (e) {}
     const mulliganKey = isCards ? 'mulliganUsed' : 'trickMulliganUsed';
     const mulliganUsed = !!(d[mulliganKey] && d[mulliganKey][pickerKey]);
     const mulliganDisabled = mulliganUsed ? ' mulligan-used' : '';
@@ -31405,6 +31416,11 @@ function twov2OnlineCreate() {
       tt.players.p1.name = name;
       tt.joinedPlayers = tt.joinedPlayers || {};
       tt.joinedPlayers.p1 = true;
+      // A REAL person holds this seat — mark it so the AI-filler drive can never
+      // play for it, even if isAI were ever flipped by a bug. (User: "MAKE SURE
+      // THEY CAN NEVER PLAY FOR ANOTHER HUMAN.")
+      tt.players.p1._realHuman = true;
+      tt.players.p1.isAI = false;
     }
     UI._2v2OnlineRoomCode = code;
     UI.render();
@@ -31416,6 +31432,8 @@ function twov2OnlineCreate() {
       tt.players[playerKey].name = pname || playerKey;
       tt.joinedPlayers = tt.joinedPlayers || {};
       tt.joinedPlayers[playerKey] = true;
+      tt.players[playerKey]._realHuman = true;
+      tt.players[playerKey].isAI = false;
     }
     // Push the lobby to everyone already in it. Without this each client only
     // ever knew about its OWN join, so guests stared at three "Waiting…" rows
@@ -31471,6 +31489,8 @@ function twov2OnlineJoin() {
       tt.players[you].name = name;
       tt.joinedPlayers = tt.joinedPlayers || {};
       tt.joinedPlayers[you] = true;
+      tt.players[you]._realHuman = true;
+      tt.players[you].isAI = false;
     }
     UI._2v2OnlineRoomCode = c;
     UI.render();
@@ -31520,6 +31540,8 @@ function twov2OnlineJoin() {
       tt.players[playerKey].name = pname || playerKey;
       tt.joinedPlayers = tt.joinedPlayers || {};
       tt.joinedPlayers[playerKey] = true;
+      tt.players[playerKey]._realHuman = true;
+      tt.players[playerKey].isAI = false;
     }
     UI.render();
   });

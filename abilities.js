@@ -743,12 +743,28 @@ const CARD_ABILITIES = {
       if (!owner) return;
       const n = (self && self._catwomanSteal) || 1;
       const opp = G.opponent(owner);
-      G.addNextTurnCurrency(owner, n);
-      G.addNextTurnCurrency(opp, -n);
-      G.log(`Catwoman steals ${n} energy from the enemy next turn!`);
-      if (typeof UI !== 'undefined' && UI._fxCatwomanSteal) { try { UI._fxCatwomanSteal(self); } catch (e) {} }
-      // v3 — credit Catwoman with the energy swing (gain N self, deny N enemy).
-      G._creditChain(self, 'statsDiscountValue', n * 2);
+      const tt = G.state && G.state.twoVTwo;
+      // Capture the caster's seat NOW — a 2v2 enemy-seat prompt resolves in a
+      // later callback, by which point _2v2CurrentActingPlayer may be cleared.
+      const casterSeat = (tt && tt.online) ? G._2v2CurrentActingPlayer : null;
+      const finish = (enemySeat) => {
+        G.addNextTurnCurrency(owner, n, casterSeat);     // caster gains n
+        G.addNextTurnCurrency(opp, -n, enemySeat);       // chosen enemy loses n
+        G.log(`Catwoman steals ${n} energy from the enemy next turn!`);
+        if (typeof UI !== 'undefined' && UI._fxCatwomanSteal) { try { UI._fxCatwomanSteal(self); } catch (e) {} }
+        // v3 — credit Catwoman with the energy swing (gain N self, deny N enemy).
+        G._creditChain(self, 'statsDiscountValue', n * 2);
+      };
+      // 2v2: Catwoman's owner CHOOSES which enemy player to steal from (user:
+      // "she should get to choose which enemy to steal from and then give it to
+      // the player who placed her"). 1v1 has one opponent — resolve immediately.
+      if (tt && tt.online) {
+        G._2v2ChooseEnemySeat(owner, 'Catwoman — Steal',
+          `Choose an enemy to steal ${n} energy from next turn`,
+          (enemySeat) => finish(enemySeat));
+      } else {
+        finish(null);
+      }
     }
   },
   "Dr. Strange": (() => {
@@ -998,6 +1014,42 @@ const CARD_ABILITIES = {
         G.log(`[FLASH] ${G.seatVerb(who, 'go', 'goes')} first next turn.`);
       };
       const chooseFirst = () => {
+        // 2v2 online: "first player" is one of FOUR seats, not a side. Offer the
+        // whole table and rotate NEXT round's turn cycle to start on the picked
+        // seat via _2v2FirstOverride (honored by _2v2ComputePhaseOrder). It sets
+        // only who plays the NEXT turn first — the other three follow in the
+        // usual interleave. (User: "it should give me a prompt for all 4 players
+        // about who I want to go first … and the turn would follow suit"; "it's
+        // just the next card played, not the next card for each player.")
+        const tt = G.state && G.state.twoVTwo;
+        if (tt && tt.online) {
+          const nextRound = (tt.round || 0) + 1;
+          const myTeam = self.owner === 'player' ? 'A' : 'B';
+          const actingSeat = G._2v2CurrentActingPlayer;
+          if (Game.isHuman(self.owner) && !G._2v2ActingIsAI()) {
+            const tiles = G._2v2SLOTS
+              .filter(pk => tt.players[pk] && tt.players[pk].team)
+              .map(pk => ({
+                name: (pk === tt.you ? 'You' : (tt.players[pk].name || pk)),
+                desc: `Team ${tt.players[pk].team}${pk === actingSeat ? ' · this is you' : ''}`,
+                _seat: pk, _isPlayerTile: true,
+              }));
+            G.promptCardChoice(self.owner, tiles, 'The Flash — First Player',
+              'Choose who plays first next turn',
+              (pick) => {
+                if (pick && pick._seat) {
+                  tt._2v2FirstOverride = { round: nextRound, seat: pick._seat };
+                  G.log(`[FLASH] ${tt.players[pick._seat].name || pick._seat} plays first next turn.`);
+                }
+              },
+              (cards) => cards[0], { inlineTray: true });
+          } else {
+            // AI-held Flash: put its own team ahead next turn.
+            const mySeat = actingSeat || G._2v2SLOTS.find(pk => tt.players[pk] && tt.players[pk].team === myTeam);
+            if (mySeat) { tt._2v2FirstOverride = { round: nextRound, seat: mySeat }; }
+          }
+          return;
+        }
         if (Game.isHuman(self.owner)) {
           const youOpt = { name: 'You go first', desc: 'Play first next round', _who: self.owner };
           const aiOpt  = { name: 'Opponent goes first', desc: 'Let the opponent lead next round', _who: G.opponent(self.owner) };
@@ -1401,21 +1453,35 @@ const CARD_ABILITIES = {
     },
     onDiscard(G, owner, self) {
       const COUNT = 2;
-      // The reveal is a LIVE scan, not a snapshot: the UI re-reads the top of
-      // the pile every render (so reorders / shuffles stay honest). Store only
-      // how long it lasts — two rounds, ticked down in startRound.
-      G.state[owner]._brainiacScanRounds = Math.max(G.state[owner]._brainiacScanRounds || 0, COUNT);
-      const upcoming = CARD_ABILITIES['Brainiac']._upcoming(G, owner, COUNT);
-      const who = G.seatPossessive ? G.seatPossessive(G.opponent(owner)) : "the opponent's";
-      if (!upcoming.length) {
-        G.log(`[BRAINIAC] ${who} draw pile is empty — nothing to foresee (yet).`);
+      const reveal = (targetName) => {
+        // The reveal is a LIVE scan, not a snapshot: the UI re-reads the top of
+        // the pile every render (so reorders / shuffles stay honest). Store only
+        // how long it lasts — two rounds, ticked down in startRound.
+        G.state[owner]._brainiacScanRounds = Math.max(G.state[owner]._brainiacScanRounds || 0, COUNT);
+        const upcoming = CARD_ABILITIES['Brainiac']._upcoming(G, owner, COUNT);
+        const who = targetName ? `${targetName}'s` : (G.seatPossessive ? G.seatPossessive(G.opponent(owner)) : "the opponent's");
+        if (!upcoming.length) {
+          G.log(`[BRAINIAC] ${who} draw pile is empty — nothing to foresee (yet).`);
+        } else {
+          G.log(`[BRAINIAC] Foreseeing ${who} next ${upcoming.length} draw${upcoming.length === 1 ? '' : 's'}: ${upcoming.map(c => c.name).join(', ')}.`);
+        }
+        // Surface it immediately to the human when THEY are the one scrying. The
+        // persistent strip (UI.render) is the lasting reveal; this is the "ping".
+        if (owner === 'player' && typeof UI !== 'undefined' && UI._fxBrainiacScan) {
+          try { UI._fxBrainiacScan(upcoming); } catch (e) {}
+        }
+      };
+      // 2v2: the Brainiac player CHOOSES which enemy player to foresee (user:
+      // "in 2v2 he should see the next 2 draws for a chosen enemy player"). The
+      // shared 2v2 draw pile IS what that player is about to draw from, so the
+      // top-N scan reads the same cards; the pick names whose draws you're eyeing.
+      const tt = G.state && G.state.twoVTwo;
+      if (tt && tt.online && G._2v2ChooseEnemySeat) {
+        G._2v2ChooseEnemySeat(owner, 'Brainiac — Foresee',
+          'Choose an enemy to foresee their next 2 draws',
+          (seat) => reveal(seat && tt.players[seat] ? (tt.players[seat].name || seat) : null));
       } else {
-        G.log(`[BRAINIAC] Foreseeing ${who} next ${upcoming.length} draw${upcoming.length === 1 ? '' : 's'}: ${upcoming.map(c => c.name).join(', ')}.`);
-      }
-      // Surface it immediately to the human when THEY are the one scrying. The
-      // persistent strip (UI.render) is the lasting reveal; this is the "ping".
-      if (owner === 'player' && typeof UI !== 'undefined' && UI._fxBrainiacScan) {
-        try { UI._fxBrainiacScan(upcoming); } catch (e) {}
+        reveal(null);
       }
     }
   },
