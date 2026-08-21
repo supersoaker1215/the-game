@@ -9652,6 +9652,24 @@ const Game = {
       this.removeFromLane(card, l);
       this.state.voidPile.push({ name: card.name, cost: card.cost });
       this.log(`  [DEVOUR] ${card.name} is devoured to the void!`);
+      // AN ALLY IS STILL GONE. Devour deliberately skips handleDeath (void
+      // pile, not dead pile) — which is right for the VICTIM, since the void is
+      // exactly the promise that it can never come back, so its own onDeath
+      // must not fire and hand it a revive. But skipping handleDeath also threw
+      // away every reaction from the cards still standing, and those have
+      // nothing to do with the victim returning. Owner: "ahsoka didn't bonus
+      // attack when galactus devoured 2 allies."
+      // Mirrors handleDeath's own broadcast, in the same order and after the
+      // card has left the lane, so the ally list cannot include the card that
+      // was just eaten. drainBonusAttacks is the third step for a reason: it is
+      // what actually SPENDS what onAllyKilled just banked, which is why
+      // Ahsoka swings immediately rather than sitting on a stored attack.
+      const _devourAllies = this.getAllCardsOf(card.owner);
+      _devourAllies.forEach(a => { if (a.onAllyKilled) { this._2v2ActFor(a); a.onAllyKilled(this, a); } });
+      this.getAllCardsOf(this.opponent(card.owner))
+        .forEach(a => { if (a.onEnemyKilled) a.onEnemyKilled(this, a); });
+      _devourAllies.forEach(a => this.drainBonusAttacks(a));
+      this.checkJumpConditions('allyDied', { owner: card.owner, laneIdx: l });
     }
   },
 

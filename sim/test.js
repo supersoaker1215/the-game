@@ -6587,6 +6587,40 @@ test("Seismic Charge at the board edge loses the rings that fall off it", functi
   assertEq(took.join(','), '3,2,1,0,0,0', 'the blast only spreads inward from the edge');
 });
 
+test("Devour still counts as an ally dying — Ahsoka bonus-attacks", function () {
+  // Owner: "ahsoka didn't bonus attack when galactus devoured 2 allies."
+  //
+  // devourCard deliberately skips handleDeath (void pile, not dead pile). That
+  // is RIGHT for the victim — the void is the promise it can never come back,
+  // so its own onDeath must not fire and hand it a revive. But it also threw
+  // away every reaction from the cards still standing, which have nothing to do
+  // with the victim returning.
+  var G = freshGame();
+  G.state.player.isHuman = false; G.state.ai.isHuman = false;
+  var ahsoka   = place(G, 'Ahsoka', 'ai', 0);
+  var ally1    = place(G, 'Sabertooth', 'ai', 1);
+  var ally2    = place(G, 'Sabertooth', 'ai', 2);
+  var galactus = place(G, 'Galactus', 'player', 3);
+  // Something opposite Ahsoka for a bonus swing to land on.
+  var victim = place(G, 'Sabertooth', 'player', 0);
+  victim.currentHealth = 40; victim.maxHealth = 40;
+
+  var grants = 0;
+  var realGrant = ahsoka.onAllyKilled;
+  ahsoka.onAllyKilled = function (g, self) { grants++; return realGrant.call(this, g, self); };
+
+  var hp0 = victim.currentHealth;
+  G.devourCard(ally1, galactus);
+  G.devourCard(ally2, galactus);
+
+  assertEq(grants, 2, 'one ally-death reaction per devoured ally');
+  assert(victim.currentHealth < hp0, 'and she actually swung, not just banked it');
+
+  // The victims are VOIDED, not merely dead — that half must not regress.
+  assertEq(G.state.voidPile.length, 2, 'both devoured cards went to the void');
+  assertEq(G.state.ai.deadPile.indexOf(ally1), -1, 'and not into the dead pile');
+});
+
 // ---- RUNNER ------------------------------------------------
 // ============================================================
 
