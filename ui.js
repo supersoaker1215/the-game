@@ -12642,14 +12642,11 @@ const UI = {
       const p = tt.players[pk]; if (!p) return '';
       const cards = (p.hand || []).length;
       const tricks = (p.trickHand || []).length;
-      // ENERGY, PER SEAT. Owner: "since everyone has their own energy i want an
-      // energy tracker for each person too … how much energy they have at the
-      // end using the same energy symbol." Show the LEFTOVER on the diamond
-      // glyph (spent/total in the tooltip). Energy is genuinely per-seat in 2v2
-      // (start2v2Round grants it to each player object).
-      const eTotal = p.energy || 0;
-      const eSpent = p.usedEnergy || 0;
-      const eLeft = Math.max(0, eTotal - eSpent);
+      // Energy already lives on the main HUD diamond, so it's dropped from the
+      // chip — the freed room goes to LARGER card/trick backs, easier to read at
+      // a glance. (Owner: "that energy diamond doesnt need to be there any more
+      // but you can increase the size of the enemy hands so its easier to see,
+      // fill up all that empty space.")
       const active = (Game._2v2ActivePlayer && Game._2v2ActivePlayer() === pk);
       let backs = '';
       for (let i = 0; i < cards; i++)  backs += `<span class="rc-back rc-back-card">${cardBackSVG}</span>`;
@@ -12658,7 +12655,6 @@ const UI = {
       return `<div class="rc-chip rc-chip-hand${active ? ' rc-active' : ''}${isMe ? ' rc-me' : ''}">`
         + `<span class="rc-name">${esc(p.name || pk)}${isMe ? ' <em>(you)</em>' : ''}</span>`
         + `<span class="rc-hand" title="${cards} card${cards === 1 ? '' : 's'}, ${tricks} trick${tricks === 1 ? '' : 's'} in hand">${backs}</span>`
-        + `<span class="rc-stat rc-energy" title="${eLeft} Energy left of ${eTotal} (${eSpent} spent)"><i class="rc-ic">&#9670;</i>${eLeft}</span>`
         + `</div>`;
     };
     const order = ['p1', 'p2', 'p3', 'p4'];

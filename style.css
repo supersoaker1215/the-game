@@ -41554,10 +41554,11 @@ body.low-fx .badge-asleep { animation: none; }
    trick look instead of whats in 2v2 right now but the players name next to the
    cards and then how much energy they have at the end using the same energy
    symbol.") */
-.rc-chip-hand { gap: 8px; padding: 3px 9px; }
-.rc-hand { display: inline-flex; align-items: center; gap: 2px; }
-.rc-back { display: inline-block; width: 11px; height: 16px; border-radius: 2px;
-  border: 1px solid currentColor; overflow: hidden; opacity: 0.92; flex: 0 0 auto; }
+.rc-chip-hand { gap: 10px; padding: 4px 11px; }
+.rc-hand { display: inline-flex; align-items: center; gap: 3px; }
+/* Bigger card-backs — fill the top bar so hand sizes read at a glance. */
+.rc-back { display: inline-block; width: 20px; height: 29px; border-radius: 3px;
+  border: 1px solid currentColor; overflow: hidden; opacity: 0.95; flex: 0 0 auto; }
 .rc-back svg { width: 100%; height: 100%; display: block; }
 /* Cards tint to the side's colour (enemy red / ally blue); tricks purple — the
    same colour language as the 1v1 hand and the count-pills above. */
@@ -41566,7 +41567,7 @@ body.low-fx .badge-asleep { animation: none; }
 .rc-back-trick { color: #b98fd0; }
 .rc-empty { opacity: 0.4; font-weight: 700; padding: 0 4px; }
 @media (max-width: 900px) { .rc-name { max-width: 84px; } .rc-chip { font-size: 10px; padding: 2px 7px; gap: 5px; }
-  .rc-back { width: 9px; height: 13px; } }
+  .rc-back { width: 15px; height: 22px; } }
 
 /* ============================================================
    EMOTE + TAUNT BUTTONS — NEON, NOT DIMMED (2026-08-20)
