@@ -3608,8 +3608,8 @@ body.hit-pause .ai-hand * {
 }
 .stats-table tr.cost-4 .stats-name-text, .stats-table tr.cost-5 .stats-name-text,
 .stats-table tr.cost-6 .stats-name-text {
-  color: color-mix(in srgb, rgb(var(--theme-rgb, 79,195,247)) 70%, white);
-  text-shadow: 0 0 4px rgba(var(--theme-rgb, 79,195,247), 0.95), 0 0 10px rgba(var(--theme-rgb, 79,195,247), 0.45);
+  color: color-mix(in srgb, rgb(79,195,247) 70%, white);
+  text-shadow: 0 0 4px rgba(79,195,247, 0.95), 0 0 10px rgba(79,195,247, 0.45);
 }
 .stats-table tr.cost-7 .stats-name-text, .stats-table tr.cost-8 .stats-name-text {
   color: color-mix(in srgb, rgb(var(--theme-rgb, 79,195,247)) 8%, white);
@@ -3684,7 +3684,7 @@ body.hit-pause .ai-hand * {
 .stats-table tr.cost-4 .stats-cost,
 .stats-table tr.cost-5 .stats-cost,
 .stats-table tr.cost-6 .stats-cost {
-  color: color-mix(in srgb, rgb(var(--theme-rgb, 79,195,247)) 75%, white);            /* cyan */
+  color: color-mix(in srgb, rgb(79,195,247) 75%, white);            /* cyan */
 }
 .stats-table tr.cost-7 .stats-cost,
 .stats-table tr.cost-8 .stats-cost {
@@ -3975,8 +3975,8 @@ body.hit-pause .ai-hand * {
 .db-grid-item.cost-6 .db-grid-name {
   color: #9adcff;
   text-shadow:
-    0 0 4px rgba(var(--theme-rgb, 79,195,247),0.95),
-    0 0 10px rgba(var(--theme-rgb, 79,195,247),0.45);
+    0 0 4px rgba(79,195,247,0.95),
+    0 0 10px rgba(79,195,247,0.45);
 }
 .db-grid-item.cost-7 .db-grid-name, .db-grid-item.cost-8 .db-grid-name {
   color: var(--text-body, #f4f8fd);
@@ -3999,7 +3999,7 @@ body.hit-pause .ai-hand * {
 .db-deck-row.cost-4 .db-deck-name, .db-deck-row.cost-5 .db-deck-name,
 .db-deck-row.cost-6 .db-deck-name {
   color: #9adcff;
-  text-shadow: 0 0 4px rgba(var(--theme-rgb, 79,195,247),0.75);
+  text-shadow: 0 0 4px rgba(79,195,247,0.75);
 }
 .db-deck-row.cost-7 .db-deck-name, .db-deck-row.cost-8 .db-deck-name {
   color: var(--text-body, #f4f8fd);
@@ -4089,11 +4089,11 @@ body.hit-pause .ai-hand * {
   text-shadow: 0 0 4px rgba(46,204,113,0.85), 0 0 10px rgba(46,204,113,0.40);
 }
 .db-grid-item.cost-4, .db-grid-item.cost-5, .db-grid-item.cost-6 {
-  border-color: rgba(var(--theme-rgb, 79,195,247),0.60);
+  border-color: rgba(79,195,247,0.60);
 }
 .db-grid-item.cost-4 .db-grid-cost, .db-grid-item.cost-5 .db-grid-cost, .db-grid-item.cost-6 .db-grid-cost {
   color: #9adcff;
-  text-shadow: 0 0 4px rgba(var(--theme-rgb, 79,195,247),0.85), 0 0 10px rgba(var(--theme-rgb, 79,195,247),0.40);
+  text-shadow: 0 0 4px rgba(79,195,247,0.85), 0 0 10px rgba(79,195,247,0.40);
 }
 .db-grid-item.cost-7, .db-grid-item.cost-8 {
   border-color: rgba(240,245,250,0.70);
@@ -5595,9 +5595,9 @@ body.hit-pause .ai-hand * {
 /* Cards: cost 4-6 → cyan uncommon */
 .drafted-tag.cost-4,  .drafted-tag.cost-5,  .drafted-tag.cost-6 {
   color: #7fd0ff;
-  border-color: rgba(var(--theme-rgb, 79,195,247),0.95);
-  box-shadow: 0 0 8px rgba(var(--theme-rgb, 79,195,247),0.35), 0 0 16px rgba(var(--theme-rgb, 79,195,247),0.15);
-  text-shadow: 0 0 4px rgba(var(--theme-rgb, 79,195,247),0.55);
+  border-color: rgba(79,195,247,0.95);
+  box-shadow: 0 0 8px rgba(79,195,247,0.35), 0 0 16px rgba(79,195,247,0.15);
+  text-shadow: 0 0 4px rgba(79,195,247,0.55);
 }
 /* Cards: cost 7-8 → silver rare */
 .drafted-tag.cost-7,  .drafted-tag.cost-8 {
@@ -6213,9 +6213,9 @@ body.hit-pause .ai-hand * {
 .card.hand-card.cost-4 .card-name, .card.hand-card.cost-5 .card-name, .card.hand-card.cost-6 .card-name {
   color: #9adcff;
   text-shadow:
-    0 0 4px rgba(var(--theme-rgb, 79,195,247),1),
-    0 0 12px rgba(var(--theme-rgb, 79,195,247),0.6),
-    0 0 20px rgba(var(--theme-rgb, 79,195,247),0.30),
+    0 0 4px rgba(79,195,247,1),
+    0 0 12px rgba(79,195,247,0.6),
+    0 0 20px rgba(79,195,247,0.30),
     0 1px 2px rgba(0,0,0,0.95);
 }
 .card.hand-card.cost-7 .card-name, .card.hand-card.cost-8 .card-name {
@@ -6282,8 +6282,8 @@ body.hit-pause .ai-hand * {
   box-shadow: 0 0 4px rgba(46,204,113,0.95), 0 0 10px rgba(46,204,113,0.55);
 }
 .cost-4 .rarity-strip .rpip, .cost-5 .rarity-strip .rpip, .cost-6 .rarity-strip .rpip {
-  background: rgba(var(--theme-rgb, 79,195,247),1);
-  box-shadow: 0 0 4px rgba(var(--theme-rgb, 79,195,247),0.95), 0 0 10px rgba(var(--theme-rgb, 79,195,247),0.55);
+  background: rgba(79,195,247,1);
+  box-shadow: 0 0 4px rgba(79,195,247,0.95), 0 0 10px rgba(79,195,247,0.55);
 }
 .cost-7 .rarity-strip .rpip, .cost-8 .rarity-strip .rpip {
   background: rgba(235,242,250,1);
@@ -6652,7 +6652,7 @@ body.hit-pause .ai-hand * {
 .cost-4 .card-trick-passive, .cost-5 .card-trick-passive,
 .cost-6 .card-trick-passive {
   color: #7fd0ff;
-  text-shadow: 0 0 4px rgba(var(--theme-rgb, 79,195,247),0.70), 0 0 8px rgba(var(--theme-rgb, 79,195,247),0.35);
+  text-shadow: 0 0 4px rgba(79,195,247,0.70), 0 0 8px rgba(79,195,247,0.35);
 }
 .cost-7 .card-trick-passive, .cost-8 .card-trick-passive {
   color: var(--text-dim, #dbe6ef);
@@ -6675,7 +6675,7 @@ body.hit-pause .ai-hand * {
 .card.hand-card.cost-5 .card-desc b,
 .card.hand-card.cost-6 .card-desc b {
   color: #9adcff !important;
-  text-shadow: 0 0 4px rgba(var(--theme-rgb, 79,195,247),0.80), 0 0 8px rgba(var(--theme-rgb, 79,195,247),0.40);
+  text-shadow: 0 0 4px rgba(79,195,247,0.80), 0 0 8px rgba(79,195,247,0.40);
 }
 .card.hand-card.cost-7 .card-desc b,
 .card.hand-card.cost-8 .card-desc b {
@@ -10813,9 +10813,9 @@ body.turn-combat .board .lane.lane-active {
 .recap-tl-pill.cost-4, .recap-tl-pill.cost-5, .recap-tl-pill.cost-6 {
   /* Uncommon — cyan */
   color: #7fd0ff;
-  border-color: rgba(var(--theme-rgb, 79,195,247), 0.90);
-  box-shadow: 0 0 8px rgba(var(--theme-rgb, 79,195,247), 0.35), 0 0 18px rgba(var(--theme-rgb, 79,195,247), 0.15);
-  text-shadow: 0 0 4px rgba(var(--theme-rgb, 79,195,247), 0.55);
+  border-color: rgba(79,195,247, 0.90);
+  box-shadow: 0 0 8px rgba(79,195,247, 0.35), 0 0 18px rgba(79,195,247, 0.15);
+  text-shadow: 0 0 4px rgba(79,195,247, 0.55);
 }
 .recap-tl-pill.cost-7, .recap-tl-pill.cost-8 {
   /* Rare — silver */
@@ -18715,8 +18715,8 @@ body.phase-menu .kb-hints { display: none; }
 }
 .cost-4 .rarity-strip .rpip, .cost-5 .rarity-strip .rpip,
 .cost-6 .rarity-strip .rpip {
-  background: rgba(var(--theme-rgb, 79,195,247),1) !important;
-  box-shadow: 0 0 4px rgba(var(--theme-rgb, 79,195,247),0.95), 0 0 10px rgba(var(--theme-rgb, 79,195,247),0.55) !important;
+  background: rgba(79,195,247,1) !important;
+  box-shadow: 0 0 4px rgba(79,195,247,0.95), 0 0 10px rgba(79,195,247,0.55) !important;
 }
 .cost-7 .rarity-strip .rpip, .cost-8 .rarity-strip .rpip {
   background: rgba(235,242,250,1) !important;
@@ -23628,14 +23628,14 @@ body.killing-blow-cinema::after {
     inset 0 0 0 1px rgba(46,204,113,0.10) !important;
 }
 .go-mvp-card.cost-4, .go-mvp-card.cost-5, .go-mvp-card.cost-6 {
-  border: 1px solid rgba(var(--theme-rgb, 79,195,247),0.95) !important;
+  border: 1px solid rgba(79,195,247,0.95) !important;
   background:
-    linear-gradient(180deg, rgba(var(--theme-rgb, 79,195,247),0.06) 0%, rgba(var(--theme-rgb, 79,195,247),0) 45%),
+    linear-gradient(180deg, rgba(79,195,247,0.06) 0%, rgba(79,195,247,0) 45%),
     #060a12 !important;
   box-shadow:
-    0 0 10px rgba(var(--theme-rgb, 79,195,247),0.45),
-    0 0 20px rgba(var(--theme-rgb, 79,195,247),0.18),
-    inset 0 0 0 1px rgba(var(--theme-rgb, 79,195,247),0.10) !important;
+    0 0 10px rgba(79,195,247,0.45),
+    0 0 20px rgba(79,195,247,0.18),
+    inset 0 0 0 1px rgba(79,195,247,0.10) !important;
 }
 .go-mvp-card.cost-7, .go-mvp-card.cost-8 {
   border: 1px solid rgba(240,245,250,0.95) !important;
