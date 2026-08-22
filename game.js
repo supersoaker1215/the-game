@@ -7777,6 +7777,12 @@ const Game = {
       });
     } catch (e) { console.error(e); }
     if (card.onDeath) {
+      // 2v2: route the dying card's onDeath (and any prompt/draw/steal it
+      // raises) to the SEAT that owns it, by default. Combat hooks already do
+      // this; onDeath did not, which is why per-card fixes kept being needed
+      // (Ghost Rider teleporting from the wrong hand, Deadpool stealing for the
+      // wrong seat). Doing it here fixes the whole class at once. No-op in 1v1.
+      this._2v2ActFor(card);
       const prevented = this._runHook(card, 'onDeath', this, card, laneIdx);
       if (prevented) {
         // Card survived (e.g. resurrection) — clear the guard so future deaths are processed
@@ -8005,11 +8011,16 @@ const Game = {
       statsLeftRound: card.statsLeftRound,
       owner: card.owner,
     });
-    if (killer && killer.onKill) killer.onKill(this, killer);
+    // 2v2: each death-adjacent hook routes to ITS OWN card's seat (the killer's
+    // onKill to the killer's owner, each ally's onAllyKilled to that ally's
+    // owner). The token branch above already does this; the normal-card branch
+    // did not, so a hook that drew/stole/prompted here landed on whatever seat
+    // last acted. Match the token branch. No-op in 1v1.
+    if (killer && killer.onKill) { this._2v2ActFor(killer); killer.onKill(this, killer); }
     const livingAllies = this.getAllCardsOf(card.owner);
-    livingAllies.forEach(a => { if (a.onAllyKilled) a.onAllyKilled(this, a); });
+    livingAllies.forEach(a => { if (a.onAllyKilled) { this._2v2ActFor(a); a.onAllyKilled(this, a); } });
     const livingEnemies = this.getAllCardsOf(this.opponent(card.owner));
-    livingEnemies.forEach(a => { if (a.onEnemyKilled) a.onEnemyKilled(this, a); });
+    livingEnemies.forEach(a => { if (a.onEnemyKilled) { this._2v2ActFor(a); a.onEnemyKilled(this, a); } });
     this._scaleDoomsdayInHands(card.owner);
     // Drain bonus attacks immediately on every death — combat or
     // trick-triggered. User spec: "Anakin and bonus attacks in general
