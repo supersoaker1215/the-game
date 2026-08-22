@@ -5607,16 +5607,32 @@ const Game = {
           this._schedule(() => resolveLane(i + 1), this.COMBAT_LANE_DELAY);
         });
       };
-      if (p && a) {
-        this.log(`[LANE ${i + 1}] ${p.name} (${p.attack}/${p.currentHealth}) vs ${a.name} (${a.attack}/${a.currentHealth})`);
+      // A CARD KILLED BY BURN/BLEED IS GONE BEFORE THE LANE FIGHTS.
+      // `p` and `a` were captured BEFORE _runLaneHooks, and onLaneCombat is
+      // exactly where Burning and Bleed tick. A card the tick kills was still a
+      // live object reference here — 0 HP, but non-null — so `p && a` read as
+      // CONTESTED and the survivor traded with a corpse instead of walking
+      // through. Owner: "if a card is burning 2 in lane 2 with 2 health they
+      // should die during lane 2 and the card opposite should hit the enemy
+      // healthbar."
+      // Deaths are resolved first, then the lane is re-read from LIVE cards.
+      // p and a are deliberately left alone: `advance` uses them for
+      // _tickStatusOnLaneResolve, which is documented to run on the cards that
+      // STARTED the lane so a body that died mid-resolution cannot steal the
+      // tick from whoever replaced it.
+      this.cleanupDead();
+      const pLive = (p && p.currentHealth > 0) ? p : null;
+      const aLive = (a && a.currentHealth > 0) ? a : null;
+      if (pLive && aLive) {
+        this.log(`[LANE ${i + 1}] ${pLive.name} (${pLive.attack}/${pLive.currentHealth}) vs ${aLive.name} (${aLive.attack}/${aLive.currentHealth})`);
         this.resolveLaneCombat(i, advance);
         return; // advance called by resolveLaneCombat when done
-      } else if (p) {
+      } else if (pLive) {
         const async = this.resolveUncontestedLane(i, 'player', advance);
-        if (p.isMindControlled || async) return; // async prompt
-      } else if (a) {
+        if (pLive.isMindControlled || async) return; // async prompt
+      } else if (aLive) {
         const async = this.resolveUncontestedLane(i, 'ai', advance);
-        if (a.isMindControlled || async) return; // async prompt
+        if (aLive.isMindControlled || async) return; // async prompt
       }
       advance();
     };

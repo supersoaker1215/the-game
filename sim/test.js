@@ -7003,6 +7003,42 @@ everySeatAffected("Doomsday's in-hand discount reaches both teammates", {
   }
 });
 
+test("Burn/bleed kills BEFORE the lane fights, so the survivor hits the healthbar", function () {
+  // Owner: "if a card is burning 2 in lane 2 with 2 health they should die
+  // during lane 2 and the card opposite should hit the enemy healthbar."
+  //
+  // p and a are captured BEFORE the onLaneCombat hooks, and that hook is
+  // exactly where Burning and Bleed tick. A card the tick killed was still a
+  // live OBJECT reference — 0 HP but non-null — so `p && a` read as CONTESTED
+  // and the survivor traded with a corpse instead of walking through.
+  function lane(victimHp, burn) {
+    var G = freshGame();
+    G.state.phase = 'combat';
+    G.state.player.isHuman = false; G.state.ai.isHuman = false;
+    var victim = place(G, 'Sabertooth', 'ai', 1);
+    victim.currentHealth = victimHp; victim.maxHealth = victimHp;
+    CARD_ABILITIES['Godzilla']._ignite(G, victim, burn);
+    var mine = place(G, 'Sabertooth', 'player', 1);
+    mine.attack = 3; mine.currentHealth = 9; mine.maxHealth = 9;
+    var before = G.state.ai.health;
+    G.resolveCombat();
+    return { G: G, victim: victim, mine: mine, dealt: before - G.state.ai.health };
+  }
+
+  // THE REPORTED CASE — burn 2 kills a 2 HP card, lane is now uncontested.
+  var dead = lane(2, 2);
+  assertEq(dead.victim.currentHealth <= 0, true, 'the burn killed it');
+  assertEq(dead.dealt, 3, 'and our card hit the healthbar unopposed');
+
+  // CONTROL — a card that SURVIVES its burn still trades normally. Without
+  // this, the test above would pass just as well if every lane had been made
+  // uncontested.
+  var alive = lane(9, 2);
+  assertEq(alive.victim.currentHealth > 0, true, 'it survived the burn');
+  assertEq(alive.dealt, 0, 'so the lane was contested and the healthbar was untouched');
+  assert(alive.mine.currentHealth < 9, 'and our card took the trade');
+});
+
 // ---- RUNNER ------------------------------------------------
 // ============================================================
 
