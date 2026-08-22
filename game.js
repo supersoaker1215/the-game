@@ -5345,6 +5345,10 @@ const Game = {
           delete card._faceDownOriginals;
           card.isFaceDown = false;
           this.log(`[REVEAL] ${card.name} is revealed in lane ${i + 1}!`);
+          // 2v2: route the revealed card's onPlay (and any prompt it raises)
+          // back to the SEAT that played it, so an Invisible Woman teammate's
+          // face-down card asks ITS owner, not the host. No-op in 1v1/solo.
+          this._2v2ActFor(card);
           this._runHook(card, 'onPlay', this, card, i);
           // Fire draw-on-play / cantrip that were suppressed while face-down.
           if (card.drawOnPlay > 0) {
@@ -14443,22 +14447,29 @@ const Game = {
       const typ = (st) => st ? st.split('-').slice(1).join('-') : '';   // 'cards' | 'cards-tricks' | 'tricks'
       if (typ(order[ci]) === 'tricks' && typ(order[ci - 1]) !== 'tricks') {
         tt._beforeTricksRan = true;
-        this.runBeforeTricks();
+        // Reveal face-down cards (Invisible Woman's stealth deploy) FIRST, by
+        // lane order — each card's onPlay routed to its owning seat. Same order
+        // the 1v1 endPhase2 uses, and like 1v1 the before-tricks pass must WAIT
+        // for any reveal prompt to clear before it runs (else its own prompt
+        // would collide in the single slot). (Owner: "when she is played both of
+        // her allies … play their cards face up or face down and then they
+        // reveal by lane order right before the trick phase.")
+        this.revealFaceDownCards();
         this.cleanupDead();
-        // Trick-boundary jumps (Art the Clown: "jump when the enemy has more
-        // cards on the field"). The 1v1 flow fires this right after
-        // runBeforeTricks; the 2v2 flow never did, so Art's jump could never
-        // arm in 2v2. Human seats surface a pendingJumpOffer (routed to the
-        // owning seat), AI seats auto-play — both counted by hasPendingPrompt
-        // below so the turn waits for the choice. (User: "in 2v2 the opponent
-        // had more cards than us and my art the clown didnt get the prompt to
-        // jump.")
-        this.checkJumpConditions('beforeTricks', {});
-        this.cleanupDead();
-        if (this.hasPendingPrompt && this.hasPendingPrompt()) {
-          this.whenPromptCleared(() => this._2v2StartSubPhase());   // re-enter after prompts, then start the turn
-          return;
-        }
+        // The rest of the boundary: before-tricks hooks (Galactus, Man-Bat…),
+        // then the Art-the-Clown trick-boundary jump check. Deferred behind any
+        // reveal prompt, then re-enters to start the trick turn.
+        const afterReveal = () => {
+          this.runBeforeTricks();
+          this.cleanupDead();
+          this.checkJumpConditions('beforeTricks', {});
+          this.cleanupDead();
+          if (this.hasPendingPrompt && this.hasPendingPrompt()) this.whenPromptCleared(() => this._2v2StartSubPhase());
+          else this._2v2StartSubPhase();
+        };
+        if (this.hasPendingPrompt && this.hasPendingPrompt()) this.whenPromptCleared(afterReveal);
+        else afterReveal();
+        return;
       }
     }
 
@@ -15374,7 +15385,7 @@ const Game = {
       case 'play2v2Card':
         if (pk !== activeKey) break;
         this._2v2CurrentActingPlayer = pk; // track who triggered any ability prompts
-        this._2v2OnlinePlayCard(pk, msg.cardIdx, msg.laneIdx);
+        this._2v2OnlinePlayCard(pk, msg.cardIdx, msg.laneIdx, msg.faceDown);
         break;
       case 'req2v2LaneChoice':
         this._2v2RequestLaneChoice(pk, msg.cardIdx);
@@ -15652,7 +15663,18 @@ const Game = {
   //     Doomsday scaling, cleanupDead, face-down plays, stats/energy credit
   // Delegating means 2v2 inherits all of it — and every future 1v1 fix — for
   // free, instead of the two paths drifting further apart.
-  _2v2OnlinePlayCard(playerKey, cardIdx, laneIdx) {
+  // True when SEAT pk's team has a live faceDownOption carrier (Invisible
+  // Woman) on the board — so that seat may play a card face-down. Both seats on
+  // her team get the option, not just her owner. (Owner: "both of her allies
+  // have the option to either play their cards face up or face down.")
+  _2v2TeamCanFaceDown(pk) {
+    const tt = this.state && this.state.twoVTwo;
+    if (!tt || !tt.players[pk]) return false;
+    const side = this._2v2TeamSide[tt.players[pk].team];
+    return this.getAllCardsOf(side).some(c => c.passive === 'faceDownOption' && c.currentHealth > 0);
+  },
+
+  _2v2OnlinePlayCard(playerKey, cardIdx, laneIdx, faceDown) {
     const s = this.state, tt = s.twoVTwo;
     if (!tt) return;
     const ap = tt.players[playerKey];
@@ -15660,6 +15682,11 @@ const Game = {
     const card = ap.hand[cardIdx];
     if (!card) return;
     const side = this._2v2TeamSide[ap.team];
+    // Invisible Woman stealth deploy — only honoured while her passive is live
+    // on the seat's team, and never on discard-effect cards (they take no lane).
+    if (faceDown && !card.isDiscardEffect && this._2v2TeamCanFaceDown(playerKey)) {
+      card._playFaceDown = true;
+    }
     // Discard-effect cards take no lane, but playCard still indexes
     // state.lanes[laneIdx] before its discard branch — a null laneIdx makes that
     // lookup undefined and the whole play bails (this is why discards never

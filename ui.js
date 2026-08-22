@@ -31659,23 +31659,49 @@ function twov2OnlinePlaceCard(laneIdx) {
   twov2OnlinePlayCard(idx, laneIdx);
 }
 
-// Online card/trick play — joiner sends action to host; host applies directly
+// Online card/trick play — joiner sends action to host; host applies directly.
 function twov2OnlinePlayCard(cardIdx, laneIdx) {
   const tt = Game.state.twoVTwo;
   if (!tt) return;
   const you = tt.you;
   if (Game._2v2ActivePlayer() !== you) return;
-  const isHost = you === 'p1';
-  if (isHost) {
-    Game._2v2CurrentActingPlayer = 'p1'; // so promptLaneChoice/CardChoice knows it's the host
-    Game._2v2OnlinePlayCard(you, cardIdx, laneIdx);
-    if (!Game.state.pendingLaneChoice && !Game.state.pendingCardChoice) Game._2v2CurrentActingPlayer = null;
-    Game._2v2OnlineBroadcast();
-  } else {
-    Multiplayer4.send({ t: 'play2v2Card', playerKey: you, cardIdx, laneIdx });
+  const card = tt.players[you] && (tt.players[you].hand || [])[cardIdx];
+
+  // The play itself — host applies directly, guest forwards. faceDown rides the
+  // wire so the host stealth-deploys it on the right seat.
+  const doPlay = (faceDown) => {
+    const isHost = you === 'p1';
+    if (isHost) {
+      Game._2v2CurrentActingPlayer = 'p1'; // so promptLaneChoice/CardChoice knows it's the host
+      Game._2v2OnlinePlayCard(you, cardIdx, laneIdx, faceDown);
+      if (!Game.state.pendingLaneChoice && !Game.state.pendingCardChoice) Game._2v2CurrentActingPlayer = null;
+      Game._2v2OnlineBroadcast();
+    } else {
+      Multiplayer4.send({ t: 'play2v2Card', playerKey: you, cardIdx, laneIdx, faceDown: !!faceDown });
+    }
+    UI._2v2SelectedCardIdx = null;
+    UI.render();
+  };
+
+  // Invisible Woman stealth deploy — if the seat's team has her live, offer
+  // face-up / face-down before committing. Local, binary choice; the answer
+  // rides the play action. (Owner: "both of her allies have the option to
+  // either play their cards face up or face down.")
+  if (card && !card.isDiscardEffect && Game._2v2TeamCanFaceDown && Game._2v2TeamCanFaceDown(you)) {
+    const faceUp   = { name: 'Play Face Up',   desc: 'Play normally — all abilities activate', id: 'faceup_opt' };
+    const faceDown = { name: 'Play Face Down', desc: 'Hidden until it reveals before the trick phase', id: 'facedown_opt' };
+    Game._2v2CurrentActingPlayer = you;   // route the local prompt to this seat only
+    const side = Game._2v2TeamSide[tt.players[you].team];
+    Game.promptCardChoice(side, [faceUp, faceDown],
+      'Invisible Woman — Stealth Deploy',
+      `Play ${card.name} face up or face down?`,
+      (choice) => { doPlay(choice && choice.id === 'facedown_opt'); },
+      null,
+      { localOnly: true, forcePrompt: true });
+    UI.render();
+    return;
   }
-  UI._2v2SelectedCardIdx = null;
-  UI.render();
+  doPlay(false);
 }
 
 function twov2OnlineTrick(trickIdx) {
