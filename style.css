@@ -1,4 +1,18 @@
 /* ============================================================
+   MOTION CURVES — the Tron feel is PRECISE, not bouncy.
+   Before this, 283 of 291 transitions ran on the browser default
+   `ease`, which is soft and generic; only 8 used a real curve.
+   Everything mechanical settles with --ease-snap: a fast start and
+   a long, exact deceleration, so elements arrive rather than drift.
+   `linear` is deliberately preserved wherever it was written — that
+   is spinners, sweeps and progress, which must not accelerate.
+   ============================================================ */
+:root {
+  --ease-snap:  cubic-bezier(0.2, 0, 0, 1);      /* default: decisive arrival   */
+  --ease-exit:  cubic-bezier(0.4, 0, 1, 1);      /* leaving the screen          */
+  --ease-glide: cubic-bezier(0.4, 0, 0.2, 1);    /* long, calm moves            */
+}
+/* ============================================================
    CARD LANE BATTLE — Professional TCG Theme
    ============================================================ */
 :root {
@@ -253,10 +267,7 @@
      the standard feel pull `transition: var(--ix-transition)`
      and apply the hover/active transforms below. */
   --ix-transition:
-    background 150ms cubic-bezier(0.2, 0, 0, 1),
-    border-color 150ms cubic-bezier(0.2, 0, 0, 1),
-    box-shadow 150ms cubic-bezier(0.2, 0, 0, 1),
-    transform 90ms cubic-bezier(0.2, 0, 0, 1);
+    background 150ms cubic-bezier(0.2, 0, 0, 1), border-color 150ms cubic-bezier(0.2, 0, 0, 1), box-shadow 150ms cubic-bezier(0.2, 0, 0, 1), transform 90ms cubic-bezier(0.2, 0, 0, 1);
   --ix-hover-translate:  translateY(-1px);
   --ix-active-translate: translateY(1px);
 }
@@ -314,7 +325,7 @@ summary:focus-visible,
 .kw[data-kw],
 .status-badge[data-kw] {
   cursor: help;
-  transition: text-shadow 0.15s ease, filter 0.15s ease;
+  transition: text-shadow 0.15s var(--ease-snap), filter 0.15s var(--ease-snap);
 }
 .kw[data-kw]:hover,
 .status-badge[data-kw]:hover {
@@ -544,7 +555,7 @@ html:has(body.preview-mobile) {
     0 0 12px var(--theme-glow-outer, rgba(79,195,247,0.65)),
     0 0 24px var(--theme-glow-inner, rgba(79,195,247,0.30)),
     inset 0 0 0 1px var(--theme-wash-08, rgba(79,195,247,0.22));
-  transition: transform 0.2s, box-shadow 240ms, color 0.2s, background 0.2s, border-color 0.2s;
+  transition: transform 0.2s var(--ease-snap), box-shadow 240ms var(--ease-snap), color 0.2s var(--ease-snap), background 0.2s var(--ease-snap), border-color 0.2s var(--ease-snap);
 }
 .viewport-toggle:hover {
   border-color: var(--theme-accent-bright, rgba(79,195,247,1));
@@ -630,7 +641,7 @@ body::after {
   background: #000;
   overflow: hidden;
   opacity: 1;
-  transition: opacity 560ms var(--ease-out-soft, ease);
+  transition: opacity 560ms var(--ease-out-soft, var(--ease-snap));
 }
 .round-swap-ghost-out { opacity: 0; }
 
@@ -639,7 +650,7 @@ body::after {
   position: fixed; top: 0; left: 0; right: 0; bottom: 0;
   display: flex; align-items: center; justify-content: center;
   z-index: 500; pointer-events: none;
-  opacity: 0; transition: opacity 0.3s;
+  opacity: 0; transition: opacity 0.3s var(--ease-snap);
 }
 .phase-banner.active { opacity: 1; }
 /* Phase banner — black pill with unified white glow. Matches HUD + lane pips. */
@@ -651,7 +662,7 @@ body::after {
   position: relative; padding: 14px 36px;
   background: #000000;
   border: 1px solid rgba(255,255,255,0.90);
-  border-radius: 6px;
+  border-radius: 4px;
   box-shadow:
     0 0 12px rgba(255,255,255,0.35),
     0 0 24px rgba(255,255,255,0.15);
@@ -697,7 +708,7 @@ body::after {
   box-shadow:
     0 0 12px rgba(255,255,255,0.35),
     0 0 24px rgba(255,255,255,0.15);
-  transition: border-color 0.3s, box-shadow 0.3s;
+  transition: border-color 0.3s var(--ease-snap), box-shadow 0.3s var(--ease-snap);
 }
 /* HUD pill outline — tints by who went FIRST this round (round initiative).
    Blue = player opened, red = AI opened. The phase label INSIDE the pill
@@ -734,7 +745,7 @@ body.round-first-ai .hud-pill-main {
   letter-spacing: 2px;
   text-transform: uppercase;
   text-shadow: 0 0 6px rgba(255,215,0,0.35);
-  transition: color 0.3s, text-shadow 0.3s;
+  transition: color 0.3s var(--ease-snap), text-shadow 0.3s var(--ease-snap);
 }
 /* Label hue follows the round-opener too — same colour system as the
    badge itself so the whole "ROUND N" unit reads as one signal. */
@@ -765,7 +776,7 @@ body.round-first-ai     .hud-round {
     0 0 12px rgba(var(--theme-rgb, 79,195,247), 0.45);
   line-height: 1;
   font-variant-numeric: tabular-nums;
-  transition: color 0.3s, text-shadow 0.3s;
+  transition: color 0.3s var(--ease-snap), text-shadow 0.3s var(--ease-snap);
 }
 .hud-round #round-num::before {
   content: '';
@@ -778,7 +789,7 @@ body.round-first-ai     .hud-round {
     0 0 10px rgba(var(--theme-rgb, 79,195,247), 0.70),
     0 0 22px rgba(var(--theme-rgb, 79,195,247), 0.32);
   z-index: -1;
-  transition: border-color 0.3s, box-shadow 0.3s;
+  transition: border-color 0.3s var(--ease-snap), box-shadow 0.3s var(--ease-snap);
 }
 /* Round badge — repaint by round opener. Same Tron double-ring spec as the
    gold default, just the hue changes to signal initiative. */
@@ -816,7 +827,7 @@ body.round-first-ai .hud-round #round-num::before {
      text segments inside the pill read as one typographic family. */
   letter-spacing: 1.4px; text-transform: uppercase;
   text-shadow: 0 0 6px rgba(255,255,255,0.25);
-  transition: color 0.3s, text-shadow 0.3s;
+  transition: color 0.3s var(--ease-snap), text-shadow 0.3s var(--ease-snap);
 }
 /* ============================================================
    FOCAL-HIERARCHY POLISH (Tier 3 polish-pass)
@@ -888,7 +899,7 @@ body::after {
   pointer-events: none;
   z-index: 90;
   opacity: 0;
-  transition: opacity 240ms ease;
+  transition: opacity 240ms var(--ease-snap);
 }
 /* Top edge = AI/enemy turn glow → --enemy-rgb (red default; flips
    when player picks red theme). Bottom edge = player turn glow →
@@ -947,11 +958,11 @@ body.turn-combat::before { background: linear-gradient(to bottom, rgba(255,215,0
   font-size: 13px; font-weight: 700;
   letter-spacing: 0;
   font-variant-numeric: tabular-nums;
-  border-radius: 3px;
+  border-radius: 2px;
   background: #000000;
   /* Default (overridden by hud-count-deck/tricks below). */
   border: 1px solid rgba(255,255,255,0.55);
-  transition: border-color 0.3s, box-shadow 0.3s, color 0.3s;
+  transition: border-color 0.3s var(--ease-snap), box-shadow 0.3s var(--ease-snap), color 0.3s var(--ease-snap);
 }
 .hud-count-deck { color: rgb(var(--theme-rgb, 79,195,247)); }
 .hud-count-deck b {
@@ -1044,7 +1055,7 @@ body.turn-combat::before { background: linear-gradient(to bottom, rgba(255,215,0
 .ai-hand-mini .card-back {
   width: 20px; height: 30px;
   background: #000000;
-  border-radius: 3px;
+  border-radius: 2px;
   border: 1px solid rgba(231,76,60,0.95);
   color: rgba(231,76,60,0.85);
   display: flex; align-items: center; justify-content: center;
@@ -1083,7 +1094,7 @@ body.turn-combat::before { background: linear-gradient(to bottom, rgba(255,215,0
      signal now, so it does not need selling. The .full state below keeps its
      glow, because there the bloom IS the event. */
   box-shadow: none;
-  transition: border-color 240ms, box-shadow 240ms, background 240ms;
+  transition: border-color 240ms var(--ease-snap), box-shadow 240ms var(--ease-snap), background 240ms var(--ease-snap);
   display: flex; align-items: center; justify-content: center;
 }
 /* Punches the middle out so the conic paints a RING, not a pie. */
@@ -1271,7 +1282,7 @@ body.turn-combat::before { background: linear-gradient(to bottom, rgba(255,215,0
 /* Frozen HP shield (Mr. Freeze) */
 .health-container.hp-frozen {
   padding: 4px 10px;
-  border-radius: 18px;
+  border-radius: 12px;
   background:
     linear-gradient(135deg, rgba(133,193,233,0.12), rgba(174,214,241,0.05)),
     repeating-linear-gradient(45deg, rgba(174,214,241,0.08) 0 4px, transparent 4px 8px);
@@ -1320,7 +1331,7 @@ body.turn-combat::before { background: linear-gradient(to bottom, rgba(255,215,0
 /* HP bars — black light channel with a colored fill that glows */
 .health-bar {
   width: 160px; height: 16px; background: #000000;
-  border-radius: 3px; overflow: hidden;
+  border-radius: 2px; overflow: hidden;
   border: 1px solid rgba(255,255,255,0.30);
   position: relative;
 }
@@ -1454,11 +1465,11 @@ body.hit-pause .ai-hand * {
 .block-container { display: flex; align-items: center; gap: 6px; }
 .block-bar {
   width: 100px; height: 14px; background: #1a1a2a;
-  border-radius: 7px; overflow: hidden; border: 1px solid #2980b9;
+  border-radius: 8px; overflow: hidden; border: 1px solid #2980b9;
   box-shadow: inset 0 1px 4px rgba(0,0,0,0.4);
 }
 .block-fill {
-  height: 100%; transition: width 0.4s ease; border-radius: 6px;
+  height: 100%; transition: width 0.4s var(--ease-snap); border-radius: 4px;
   background: linear-gradient(90deg, #2980b9, #3498db);
   box-shadow: inset 0 1px 0 rgba(255,255,255,0.2);
 }
@@ -1469,7 +1480,7 @@ body.hit-pause .ai-hand * {
 .energy-orb {
   width: 14px; height: 14px; border-radius: 50%;
   border: 2px solid #e67e22;
-  transition: background 240ms, box-shadow 240ms;
+  transition: background 240ms var(--ease-snap), box-shadow 240ms var(--ease-snap);
 }
 .energy-orb.filled {
   background: radial-gradient(circle at 35% 35%, #ffd700, #f39c12);
@@ -1582,7 +1593,7 @@ body.hit-pause .ai-hand * {
   font-family: 'Rajdhani', sans-serif;
   font-weight: 700;
   box-shadow: 0 0 12px rgba(231,76,60,0.55), 0 0 24px rgba(231,76,60,0.25);
-  transition: background 0.2s, border-color 0.2s, box-shadow 0.2s, color 0.2s, transform 0.15s;
+  transition: background 0.2s var(--ease-snap), border-color 0.2s var(--ease-snap), box-shadow 0.2s var(--ease-snap), color 0.2s var(--ease-snap), transform 0.15s var(--ease-snap);
 }
 .pile-badge.dead-pile:hover {
   background: rgba(231,76,60,0.14); color: #ffd0ca;
@@ -1616,7 +1627,7 @@ body.hit-pause .ai-hand * {
   font-family: 'Rajdhani', sans-serif;
   font-weight: 700;
   box-shadow: 0 0 12px rgba(155,89,182,0.45), 0 0 24px rgba(155,89,182,0.18);
-  transition: background 0.2s, border-color 0.2s, box-shadow 0.2s, color 0.2s, transform 0.15s;
+  transition: background 0.2s var(--ease-snap), border-color 0.2s var(--ease-snap), box-shadow 0.2s var(--ease-snap), color 0.2s var(--ease-snap), transform 0.15s var(--ease-snap);
   margin-right: 6px;
 }
 .pile-badge.tricks-history:hover {
@@ -1710,7 +1721,7 @@ body.hit-pause .ai-hand * {
   cursor: pointer;
   color: var(--text-hi, #f5fbff);
   font-family: 'Rajdhani', sans-serif;
-  transition: border-color 0.2s, box-shadow 0.2s, transform 0.15s, opacity 0.2s;
+  transition: border-color 0.2s var(--ease-snap), box-shadow 0.2s var(--ease-snap), transform 0.15s var(--ease-snap), opacity 0.2s var(--ease-snap);
   box-shadow:
     0 0 10px rgba(var(--theme-rgb, 79,195,247), 0.22),
     inset 0 0 0 1px rgba(var(--theme-rgb, 79,195,247), 0.06);
@@ -1838,7 +1849,7 @@ body.hit-pause .ai-hand * {
      the darken keeps it behind the panel. scale(1.08) hides the blur's soft
      edge bleeding past the mask. */
   filter: blur(2.5px) saturate(1.2) brightness(0.86);
-  transition: opacity 0.9s ease;
+  transition: opacity 0.9s var(--ease-snap);
   animation: mmSideDrift 26s ease-in-out infinite alternate;
   will-change: transform, opacity;
 }
@@ -2081,7 +2092,7 @@ body.hit-pause .ai-hand * {
   font-family: 'Rajdhani', sans-serif;
   display: flex; align-items: center; gap: 16px;
   text-align: left;
-  transition: border-color 0.2s, box-shadow 0.2s, transform 0.15s, background 0.2s, padding-left 0.2s;
+  transition: border-color 0.2s var(--ease-snap), box-shadow 0.2s var(--ease-snap), transform 0.15s var(--ease-snap), background 0.2s var(--ease-snap), padding-left 0.2s var(--ease-snap);
   box-shadow:
     0 0 10px rgba(var(--theme-rgb, 79,195,247), 0.18),
     inset 0 0 0 1px rgba(var(--theme-rgb, 79,195,247), 0.05);
@@ -2096,7 +2107,7 @@ body.hit-pause .ai-hand * {
   width: 2px;
   background: rgba(var(--theme-rgb, 79,195,247), 0.60);
   box-shadow: 0 0 6px rgba(var(--theme-rgb, 79,195,247), 0.55);
-  transition: width 0.2s, background 0.2s, box-shadow 0.2s, top 0.2s, bottom 0.2s;
+  transition: width 0.2s var(--ease-snap), background 0.2s var(--ease-snap), box-shadow 0.2s var(--ease-snap), top 0.2s var(--ease-snap), bottom 0.2s var(--ease-snap);
 }
 .mm-option:hover {
   transform: translateY(-1px);
@@ -2137,7 +2148,7 @@ body.hit-pause .ai-hand * {
   filter:
     drop-shadow(0 0 4px rgba(var(--theme-rgb, 79,195,247), 0.75))
     drop-shadow(0 0 10px rgba(var(--theme-rgb, 79,195,247), 0.35));
-  transition: transform 0.2s, filter 240ms;
+  transition: transform 0.2s var(--ease-snap), filter 240ms var(--ease-snap);
 }
 .mm-option:hover .mm-svg {
   color: color-mix(in srgb, rgb(var(--theme-rgb, 79,195,247)) 50%, white);
@@ -2229,7 +2240,7 @@ body.hit-pause .ai-hand * {
   background-repeat: no-repeat;
   opacity: 0;
   filter: contrast(1.1) saturate(1.14) brightness(0.9);
-  transition: opacity 0.9s ease, filter 0.3s ease;
+  transition: opacity 0.9s var(--ease-snap), filter 0.3s var(--ease-snap);
   animation: mmHeroDrift 34s ease-in-out infinite alternate;
   will-change: transform, opacity;
 }
@@ -2431,7 +2442,7 @@ body.hit-pause .ai-hand * {
   font-size: clamp(18px, 1.7vw, 30px);
   letter-spacing: 2.5px;
   display: inline-block; transform-origin: left center;
-  transition: transform 200ms ease, color 200ms ease, text-shadow 200ms ease;
+  transition: transform 200ms var(--ease-snap), color 200ms var(--ease-snap), text-shadow 200ms var(--ease-snap);
 }
 .mm-mw3 .mm-section-label { font-size: clamp(11px, 1vw, 17px); }
 
@@ -2530,7 +2541,7 @@ body.hit-pause .ai-hand * {
   font-family: 'Rajdhani', sans-serif; font-size: clamp(12px, 1vw, 17px); font-weight: 700;
   letter-spacing: 2.5px; text-transform: uppercase; cursor: pointer;
   transform-origin: left center;
-  transition: color 200ms, text-shadow 200ms, transform 150ms var(--ease-spring, ease);
+  transition: color 200ms var(--ease-snap), text-shadow 200ms var(--ease-snap), transform 150ms var(--ease-spring, var(--ease-snap));
 }
 .mm-mw3 .mm-subback:hover {
   color: #fff; transform: scale(1.12);
@@ -2564,7 +2575,7 @@ body.hit-pause .ai-hand * {
   font-size: 11px; font-weight: 700; letter-spacing: 2.5px;
   color: color-mix(in srgb, rgb(var(--theme-rgb,79,195,247)) 72%, white);
   text-shadow: 0 0 8px rgba(var(--theme-rgb,79,195,247),0.5);
-  transition: color 240ms, text-shadow 240ms, transform 0.12s;
+  transition: color 240ms var(--ease-snap), text-shadow 240ms var(--ease-snap), transform 0.12s var(--ease-snap);
   pointer-events: auto; cursor: pointer;   /* click → random hero */
 }
 .mm-mw3 .mm-nowplaying:hover {
@@ -2575,7 +2586,7 @@ body.hit-pause .ai-hand * {
 .mm-mw3 .mm-pin-hero {
   font-size: 13px; line-height: 1;
   color: color-mix(in srgb, rgb(var(--theme-rgb,79,195,247)) 55%, white);
-  opacity: 0.6; transition: color 0.2s, opacity 0.2s, text-shadow 0.2s, transform 0.12s;
+  opacity: 0.6; transition: color 0.2s var(--ease-snap), opacity 0.2s var(--ease-snap), text-shadow 0.2s var(--ease-snap), transform 0.12s var(--ease-snap);
   pointer-events: auto; cursor: pointer;
 }
 .mm-mw3 .mm-pin-hero:hover { opacity: 1; color: #fff; text-shadow: 0 0 10px rgba(var(--theme-rgb,79,195,247),0.85); }
@@ -2637,7 +2648,7 @@ body.hit-pause .ai-hand * {
   font-family: 'Rajdhani', sans-serif; text-transform: uppercase;
   font-size: 11px; font-weight: 600; letter-spacing: 1.8px; line-height: 1.4;
   color: color-mix(in srgb, rgb(var(--theme-rgb,79,195,247)) 55%, white);
-  opacity: 0.5; transition: opacity 150ms, color 150ms, text-shadow 150ms, transform 0.1s;
+  opacity: 0.5; transition: opacity 150ms var(--ease-snap), color 150ms var(--ease-snap), text-shadow 150ms var(--ease-snap), transform 0.1s var(--ease-snap);
 }
 .mm-mw3 .mm-heropick-row:hover {
   opacity: 1; color: #fff; transform: translateX(2px);
@@ -2673,7 +2684,7 @@ body.hit-pause .ai-hand * {
   border-bottom: 1px solid rgba(var(--theme-rgb,79,195,247),0.35);
   color: var(--text-body, #eaf4fb); font-family: 'Rajdhani', sans-serif; font-size: 16px;
   font-weight: 600; letter-spacing: 0.5px; padding: 3px 2px; outline: none;
-  transition: border-color 0.2s;
+  transition: border-color 0.2s var(--ease-snap);
 }
 .mm-mw3 .mp-name-min:focus { border-bottom-color: rgb(var(--theme-rgb,79,195,247)); }
 .mm-mw3 .mp-name-min::placeholder { color: rgba(159,207,237,0.35); }
@@ -2683,7 +2694,7 @@ body.hit-pause .ai-hand * {
   font-family: 'Rajdhani', sans-serif; text-transform: uppercase;
   font-size: 14px; font-weight: 700; letter-spacing: 3px;
   color: color-mix(in srgb, rgb(var(--theme-rgb,79,195,247)) 72%, #dcebf8);
-  cursor: pointer; transition: transform 150ms, color 0.2s, text-shadow 0.2s;
+  cursor: pointer; transition: transform 150ms var(--ease-snap), color 0.2s var(--ease-snap), text-shadow 0.2s var(--ease-snap);
   text-shadow: 0 0 6px rgba(var(--theme-rgb,79,195,247),0.35);
 }
 .mm-mw3 .mp-glow-go:hover {
@@ -2751,7 +2762,7 @@ body.hit-pause .ai-hand * {
   font-family: 'Rajdhani', sans-serif; text-transform: uppercase;
   font-size: 12px; font-weight: 700; letter-spacing: 3px;
   color: color-mix(in srgb, rgb(var(--theme-rgb,79,195,247)) 70%, #dcebf8);
-  transition: color 0.2s, transform 150ms;
+  transition: color 0.2s var(--ease-snap), transform 150ms var(--ease-snap);
 }
 .twov2-mm-back:hover { color: #fff; transform: translateX(-3px); text-shadow: 0 0 10px rgba(var(--theme-rgb,79,195,247),0.8); }
 .twov2-mm-title {
@@ -2774,7 +2785,7 @@ body.hit-pause .ai-hand * {
   flex: 1; min-width: 0; background: transparent; border: none;
   border-bottom: 1px solid rgba(var(--theme-rgb,79,195,247),0.35);
   color: var(--text-body, #eaf4fb); font-family: 'Rajdhani', sans-serif; font-size: 16px; font-weight: 600;
-  padding: 3px 2px; outline: none; transition: border-color 0.2s;
+  padding: 3px 2px; outline: none; transition: border-color 0.2s var(--ease-snap);
 }
 .twov2-mm .twov2-mm-nameinput:focus { border-bottom-color: rgb(var(--theme-rgb,79,195,247)); }
 .twov2-mm .twov2-mm-nameinput::placeholder { color: rgba(159,207,237,0.35); }
@@ -2784,7 +2795,7 @@ body.hit-pause .ai-hand * {
   font-size: 20px; font-weight: 700; letter-spacing: 3px;
   color: color-mix(in srgb, rgb(var(--theme-rgb,79,195,247)) 72%, #dcebf8);
   text-shadow: 0 0 8px rgba(var(--theme-rgb,79,195,247),0.35);
-  transition: transform 150ms, color 0.2s, text-shadow 0.2s;
+  transition: transform 150ms var(--ease-snap), color 0.2s var(--ease-snap), text-shadow 0.2s var(--ease-snap);
 }
 .twov2-mm-opt:hover { color: #fff; transform: scale(1.06); transform-origin: left center; text-shadow: 0 0 14px rgba(var(--theme-rgb,79,195,247),0.9), 0 0 26px rgba(var(--theme-rgb,79,195,247),0.5); }
 .twov2-mm-ic { font-size: 16px; opacity: 0.85; }
@@ -2803,7 +2814,7 @@ body.hit-pause .ai-hand * {
   text-transform: uppercase; font-size: 16px; font-weight: 700; letter-spacing: 3px;
   color: color-mix(in srgb, rgb(var(--theme-rgb,79,195,247)) 72%, #dcebf8);
   text-shadow: 0 0 6px rgba(var(--theme-rgb,79,195,247),0.35);
-  transition: transform 150ms, color 0.2s, text-shadow 0.2s;
+  transition: transform 150ms var(--ease-snap), color 0.2s var(--ease-snap), text-shadow 0.2s var(--ease-snap);
 }
 .twov2-mm-go:hover { color: #fff; transform: scale(1.08); text-shadow: 0 0 12px rgba(var(--theme-rgb,79,195,247),0.9); }
 .twov2-mm-codebig {
@@ -2812,7 +2823,7 @@ body.hit-pause .ai-hand * {
   margin: 10px 0 2px; cursor: pointer;
 }
 .twov2-mm-players { margin: 16px 0 20px; max-width: 440px; display: flex; flex-direction: column; gap: 6px; }
-.twov2-mm-prow { display: flex; align-items: center; gap: 14px; padding: 10px 2px; border-bottom: 1px solid rgba(var(--theme-rgb,79,195,247),0.12); opacity: 0.45; transition: opacity 240ms; }
+.twov2-mm-prow { display: flex; align-items: center; gap: 14px; padding: 10px 2px; border-bottom: 1px solid rgba(var(--theme-rgb,79,195,247),0.12); opacity: 0.45; transition: opacity 240ms var(--ease-snap); }
 .twov2-mm-prow.is-joined { opacity: 1; }
 /* AI filler seat — a distinct violet tint so bot seats read apart from humans. */
 .twov2-mm-prow.is-ai { opacity: 1; }
@@ -2821,8 +2832,8 @@ body.hit-pause .ai-hand * {
 .twov2-mm-aibtn {
   margin-left: auto; padding: 3px 10px; font-size: 12px; font-weight: 600;
   letter-spacing: 0.04em; color: #bfe4ff; background: rgba(79,195,247,0.10);
-  border: 1px solid rgba(79,195,247,0.5); border-radius: 6px; cursor: pointer;
-  transition: background 160ms, color 160ms;
+  border: 1px solid rgba(79,195,247,0.5); border-radius: 4px; cursor: pointer;
+  transition: background 160ms var(--ease-snap), color 160ms var(--ease-snap);
 }
 .twov2-mm-aibtn:hover { background: rgba(79,195,247,0.22); color: #f5fbff; }
 .twov2-mm-aibtn.is-remove { color: #ffb0b0; border-color: rgba(255,120,120,0.5); background: rgba(255,90,90,0.08); }
@@ -2847,7 +2858,7 @@ body.hit-pause .ai-hand * {
   text-shadow: 0 0 8px rgba(var(--theme-rgb,79,195,247),0.55);
 }
 @media (prefers-reduced-motion: reduce) {
-  .setup2v2-member { transition: color 180ms ease; }
+  .setup2v2-member { transition: color 180ms var(--ease-snap); }
   .setup2v2-member.is-teamsel { transform: none; }
 }
 .twov2-mm-pslot { font-weight: 800; letter-spacing: 2px; color: rgb(var(--theme-rgb,79,195,247)); min-width: 30px; }
@@ -2915,12 +2926,12 @@ body.hit-pause .ai-hand * {
   border: 1px solid rgba(var(--theme-rgb, 79,195,247), 0.55);
   color: color-mix(in srgb, rgb(var(--theme-rgb, 79,195,247)) 65%, white);
   padding: 6px 12px;
-  border-radius: 3px;
+  border-radius: 2px;
   font-family: 'Rajdhani', sans-serif;
   font-size: 10px; font-weight: 700;
   letter-spacing: 2px; text-transform: uppercase;
   cursor: pointer;
-  transition: border-color 0.15s, box-shadow 0.15s;
+  transition: border-color 0.15s var(--ease-snap), box-shadow 0.15s var(--ease-snap);
   z-index: 20;  /* above panel content but contained within the panel */
 }
 /* Each host panel must establish a positioning context for its back
@@ -2981,13 +2992,13 @@ body.hit-pause .ai-hand * {
   border: 1px solid rgba(46,204,113,0.85);
   color: #8ef2ad;
   padding: 10px 24px;
-  border-radius: 3px;
+  border-radius: 2px;
   font-family: inherit;
   font-size: 11px; font-weight: 700;
   letter-spacing: 2px; text-transform: uppercase;
   cursor: pointer;
   box-shadow: 0 0 10px rgba(46,204,113,0.35);
-  transition: border-color 0.15s, box-shadow 0.15s, color 0.15s;
+  transition: border-color 0.15s var(--ease-snap), box-shadow 0.15s var(--ease-snap), color 0.15s var(--ease-snap);
 }
 .md-new-btn:hover {
   border-color: rgba(46,204,113,1);
@@ -3024,7 +3035,7 @@ body.hit-pause .ai-hand * {
   font-size: 9px; font-weight: 800;
   letter-spacing: 2px;
   padding: 3px 8px;
-  border-radius: 3px;
+  border-radius: 2px;
   border: 1px solid transparent;
 }
 .md-badge-ready {
@@ -3083,9 +3094,9 @@ body.hit-pause .ai-hand * {
   font-family: inherit;
   font-size: 9px; font-weight: 700;
   letter-spacing: 1.2px; text-transform: uppercase;
-  border-radius: 3px;
+  border-radius: 2px;
   cursor: pointer;
-  transition: all 0.15s;
+  transition: all 0.15s var(--ease-snap);
   min-width: 58px;
 }
 .md-action-btn:hover { border-color: rgba(var(--theme-rgb, 79,195,247),1); box-shadow: 0 0 8px rgba(var(--theme-rgb, 79,195,247),0.40); }
@@ -3221,9 +3232,9 @@ body.hit-pause .ai-hand * {
   font-family: inherit;
   font-size: 10px; font-weight: 700;
   letter-spacing: 2px; text-transform: uppercase;
-  border-radius: 3px;
+  border-radius: 2px;
   cursor: pointer;
-  transition: all 0.15s;
+  transition: all 0.15s var(--ease-snap);
 }
 .stats-source-btn:hover { border-color: rgba(var(--theme-rgb, 79,195,247), 0.85); color: color-mix(in srgb, rgb(var(--theme-rgb, 79,195,247)) 35%, white); }
 .stats-source-active {
@@ -3247,9 +3258,9 @@ body.hit-pause .ai-hand * {
   font-family: inherit;
   font-size: 11px; font-weight: 700;
   letter-spacing: 2.5px; text-transform: uppercase;
-  border-radius: 3px;
+  border-radius: 2px;
   cursor: pointer;
-  transition: all 0.15s;
+  transition: all 0.15s var(--ease-snap);
 }
 .stats-view-btn:hover { border-color: rgba(var(--theme-rgb, 79,195,247), 0.85); color: color-mix(in srgb, rgb(var(--theme-rgb, 79,195,247)) 35%, white); }
 .stats-view-active {
@@ -3292,7 +3303,7 @@ body.hit-pause .ai-hand * {
   letter-spacing: 2.5px; text-transform: uppercase;
   cursor: pointer;
   text-align: left;
-  transition: background 0.15s, color 0.15s;
+  transition: background 0.15s var(--ease-snap), color 0.15s var(--ease-snap);
 }
 .ai-weights-toggle:hover { background: rgba(var(--theme-rgb, 79,195,247), 0.04); color: color-mix(in srgb, rgb(var(--theme-rgb, 79,195,247)) 50%, white); }
 .ai-weights-caret {
@@ -3332,7 +3343,7 @@ body.hit-pause .ai-hand * {
   align-items: baseline;
   padding: 4px 8px;
   background: rgba(var(--theme-rgb, 79,195,247), 0.04);
-  border-radius: 3px;
+  border-radius: 2px;
   font-family: 'Rajdhani', sans-serif;
   font-size: 11px;
   cursor: help;
@@ -3364,9 +3375,9 @@ body.hit-pause .ai-hand * {
   font-family: inherit;
   font-size: 10px; font-weight: 700;
   letter-spacing: 1.5px; text-transform: uppercase;
-  border-radius: 3px;
+  border-radius: 2px;
   cursor: pointer;
-  transition: all 0.15s;
+  transition: all 0.15s var(--ease-snap);
 }
 .stats-export-btn:hover, .stats-reload-btn:hover { border-color: rgba(var(--theme-rgb, 79,195,247), 1); box-shadow: 0 0 10px rgba(var(--theme-rgb, 79,195,247), 0.40); }
 .stats-reset-btn { border-color: rgba(231,76,60,0.55); color: #f1948a; }
@@ -3397,7 +3408,7 @@ body.hit-pause .ai-hand * {
 .stats-flag-item {
   background: rgba(255,255,255,0.03);
   padding: 4px 10px;
-  border-radius: 3px;
+  border-radius: 2px;
   border: 1px solid rgba(255,255,255,0.12);
   color: color-mix(in srgb, rgb(var(--theme-rgb, 79,195,247)) 10%, white);
   letter-spacing: 0.5px;
@@ -3419,7 +3430,7 @@ body.hit-pause .ai-hand * {
 .stats-hist-panel {
   background: rgba(0,0,0,0.55);
   border: 1px solid rgba(var(--theme-rgb, 79,195,247), 0.25);
-  border-radius: 6px;
+  border-radius: 4px;
   padding: 12px 14px;
   margin: 12px 0;
 }
@@ -3500,10 +3511,10 @@ body.hit-pause .ai-hand * {
   align-items: center;
   padding: 4px 8px;
   background: rgba(0,0,0,0.45);
-  border-radius: 3px;
+  border-radius: 2px;
   font: 11px ui-monospace, Menlo, monospace;
   cursor: pointer;
-  transition: background 80ms;
+  transition: background 80ms var(--ease-snap);
 }
 .stats-hist-mover:hover { background: rgba(var(--theme-rgb, 79,195,247), 0.10); }
 .stats-hist-mover-name { color: color-mix(in srgb, rgb(var(--theme-rgb, 79,195,247)) 30%, white); font-weight: 600; }
@@ -3593,7 +3604,7 @@ body.hit-pause .ai-hand * {
 }
 .stats-table th:hover { color: color-mix(in srgb, rgb(var(--theme-rgb, 79,195,247)) 50%, white); }
 .stats-table th.stats-sort-active { color: color-mix(in srgb, rgb(var(--theme-rgb, 79,195,247)) 50%, white); text-shadow: 0 0 6px rgba(var(--theme-rgb, 79,195,247), 0.55); }
-.stats-table tr { transition: background 0.1s; }
+.stats-table tr { transition: background 0.1s var(--ease-snap); }
 .stats-table tbody tr:hover { background: rgba(var(--theme-rgb, 79,195,247), 0.04); cursor: pointer; }
 .stats-table td { color: color-mix(in srgb, rgb(var(--theme-rgb, 79,195,247)) 10%, white); letter-spacing: 0.3px; font-variant-numeric: tabular-nums; }
 .stats-table .stats-card-name { font-weight: 700; letter-spacing: 0.8px; }
@@ -3747,7 +3758,7 @@ body.hit-pause .ai-hand * {
   display: flex; justify-content: space-between;
   padding: 6px 10px;
   background: rgba(var(--theme-rgb, 79,195,247), 0.05);
-  border-radius: 3px;
+  border-radius: 2px;
   border: 1px solid rgba(var(--theme-rgb, 79,195,247), 0.18);
 }
 .stats-detail-label {
@@ -3805,21 +3816,21 @@ body.hit-pause .ai-hand * {
 }
 .db-back {
   background: #000; border: 1px solid rgba(var(--theme-rgb, 79,195,247), 0.60);
-  color: color-mix(in srgb, rgb(var(--theme-rgb, 79,195,247)) 65%, white); padding: 6px 14px; border-radius: 3px;
+  color: color-mix(in srgb, rgb(var(--theme-rgb, 79,195,247)) 65%, white); padding: 6px 14px; border-radius: 2px;
   font-family: inherit; font-size: 11px; font-weight: 700;
   letter-spacing: 2px; text-transform: uppercase;
   cursor: pointer;
-  transition: border-color 0.15s, box-shadow 0.15s, color 0.15s;
+  transition: border-color 0.15s var(--ease-snap), box-shadow 0.15s var(--ease-snap), color 0.15s var(--ease-snap);
 }
 .db-back:hover { border-color: rgba(var(--theme-rgb, 79,195,247),1); color: color-mix(in srgb, rgb(var(--theme-rgb, 79,195,247)) 50%, white); box-shadow: 0 0 10px rgba(var(--theme-rgb, 79,195,247),0.45); }
 .db-presets { display: flex; gap: 8px; justify-self: end; }
 .db-preset {
   background: #000; border: 1px solid rgba(155,89,182,0.55);
-  color: #d7b3e6; padding: 6px 12px; border-radius: 3px;
+  color: #d7b3e6; padding: 6px 12px; border-radius: 2px;
   font-family: inherit; font-size: 10px; font-weight: 700;
   letter-spacing: 2px; text-transform: uppercase;
   cursor: pointer;
-  transition: border-color 0.15s, box-shadow 0.15s, color 0.15s;
+  transition: border-color 0.15s var(--ease-snap), box-shadow 0.15s var(--ease-snap), color 0.15s var(--ease-snap);
 }
 .db-preset:hover { border-color: rgba(155,89,182,1); color: var(--text-dim, #ecd3f6); box-shadow: 0 0 10px rgba(155,89,182,0.45); }
 .db-preset-active {
@@ -3848,11 +3859,11 @@ body.hit-pause .ai-hand * {
 .db-tabs { display: flex; gap: 6px; margin-bottom: 10px; }
 .db-tab {
   background: #000; border: 1px solid rgba(var(--theme-rgb, 79,195,247), 0.40);
-  color: #8fc8ee; padding: 8px 20px; border-radius: 3px;
+  color: #8fc8ee; padding: 8px 20px; border-radius: 2px;
   font-family: inherit; font-size: 11px; font-weight: 700;
   letter-spacing: 2px; text-transform: uppercase;
   cursor: pointer;
-  transition: all 0.15s;
+  transition: all 0.15s var(--ease-snap);
 }
 .db-tab:hover { border-color: rgba(var(--theme-rgb, 79,195,247),0.80); color: color-mix(in srgb, rgb(var(--theme-rgb, 79,195,247)) 35%, white); }
 .db-filter-active {
@@ -3863,11 +3874,11 @@ body.hit-pause .ai-hand * {
 .db-cost-row { display: flex; gap: 4px; margin-bottom: 12px; flex-wrap: wrap; }
 .db-cost-chip {
   background: #000; border: 1px solid rgba(255,255,255,0.25);
-  color: var(--text-mute, #a0aab5); padding: 4px 10px; border-radius: 3px;
+  color: var(--text-mute, #a0aab5); padding: 4px 10px; border-radius: 2px;
   font-family: inherit; font-size: 10px; font-weight: 700;
   letter-spacing: 1px; text-transform: uppercase;
   cursor: pointer;
-  transition: all 0.15s;
+  transition: all 0.15s var(--ease-snap);
 }
 .db-cost-chip:hover { border-color: rgba(255,255,255,0.55); color: var(--text-body, #e8f5ff); }
 .db-cost-active {
@@ -3886,7 +3897,7 @@ body.hit-pause .ai-hand * {
   align-content: start;
 }
 .db-grid::-webkit-scrollbar { width: 6px; }
-.db-grid::-webkit-scrollbar-thumb { background: rgba(var(--theme-rgb, 79,195,247), 0.30); border-radius: 3px; }
+.db-grid::-webkit-scrollbar-thumb { background: rgba(var(--theme-rgb, 79,195,247), 0.30); border-radius: 2px; }
 .db-grid-item {
   background: #000;
   border: 1px solid rgba(255,255,255,0.20);
@@ -3906,7 +3917,7 @@ body.hit-pause .ai-hand * {
   gap: 4px;
   min-height: 72px;
   overflow: hidden;
-  transition: border-color 0.15s, box-shadow 0.15s, transform 0.1s;
+  transition: border-color 0.15s var(--ease-snap), box-shadow 0.15s var(--ease-snap), transform 0.1s var(--ease-snap);
 }
 .db-grid-main {
   flex: 0 0 auto;
@@ -4063,7 +4074,7 @@ body.hit-pause .ai-hand * {
   padding: 2px 6px;
   background: rgba(var(--theme-rgb, 79,195,247), 0.15);
   border: 1px solid rgba(var(--theme-rgb, 79,195,247), 0.50);
-  border-radius: 10px;
+  border-radius: 8px;
   z-index: 2;
 }
 .db-grid-count-max {
@@ -4115,10 +4126,10 @@ body.hit-pause .ai-hand * {
 .db-meter {
   background: #000;
   border: 1px solid rgba(255,255,255,0.35);
-  border-radius: 3px;
+  border-radius: 2px;
   padding: 10px 14px;
   display: flex; align-items: baseline; gap: 10px;
-  transition: border-color 0.2s, box-shadow 0.2s, color 0.2s;
+  transition: border-color 0.2s var(--ease-snap), box-shadow 0.2s var(--ease-snap), color 0.2s var(--ease-snap);
 }
 .db-meter-label {
   font-size: 10px; font-weight: 700;
@@ -4165,7 +4176,7 @@ body.hit-pause .ai-hand * {
   padding-right: 4px;
 }
 .db-deck-list::-webkit-scrollbar { width: 6px; }
-.db-deck-list::-webkit-scrollbar-thumb { background: rgba(var(--theme-rgb, 79,195,247), 0.30); border-radius: 3px; }
+.db-deck-list::-webkit-scrollbar-thumb { background: rgba(var(--theme-rgb, 79,195,247), 0.30); border-radius: 2px; }
 .db-deck-empty {
   color: var(--text-faint, #667078); font-size: 11px; font-style: italic;
   padding: 6px 4px;
@@ -4173,14 +4184,14 @@ body.hit-pause .ai-hand * {
 .db-deck-row {
   background: #000;
   border: 1px solid rgba(255,255,255,0.18);
-  border-radius: 3px;
+  border-radius: 2px;
   padding: 6px 10px;
   display: grid;
   grid-template-columns: 22px 1fr auto auto;
   gap: 8px;
   align-items: center;
   cursor: pointer;
-  transition: border-color 0.15s, background 0.15s;
+  transition: border-color 0.15s var(--ease-snap), background 0.15s var(--ease-snap);
 }
 .db-deck-row:hover {
   border-color: rgba(231,76,60,0.80);
@@ -4219,7 +4230,7 @@ body.hit-pause .ai-hand * {
   padding: 2px 8px;
   background: rgba(var(--theme-rgb, 79,195,247), 0.15);
   border: 1px solid rgba(var(--theme-rgb, 79,195,247), 0.50);
-  border-radius: 10px;
+  border-radius: 8px;
 }
 .db-deck-count-max {
   color: #ffe066;
@@ -4253,7 +4264,7 @@ body.hit-pause .ai-hand * {
   padding: 8px 10px;
   font-family: inherit;
   font-size: 12px;
-  border-radius: 3px;
+  border-radius: 2px;
   letter-spacing: 0.5px;
   width: 160px;
 }
@@ -4398,7 +4409,7 @@ body.hit-pause .ai-hand * {
   background: rgba(0,0,0,0.65);
   border: 1px solid var(--theme-accent-edge, rgba(79,195,247,0.30));
   border-radius: 4px;
-  transition: border-color 0.15s, box-shadow 0.15s;
+  transition: border-color 0.15s var(--ease-snap), box-shadow 0.15s var(--ease-snap);
 }
 .mh-row:hover { border-color: var(--theme-accent-bright, rgba(79,195,247,0.80)); }
 .mh-row.mh-win    { border-left: 3px solid rgba(46,204,113,0.85); }
@@ -4446,8 +4457,8 @@ body.hit-pause .ai-hand * {
   font-family: 'Rajdhani', sans-serif;
   font-size: 11px; font-weight: 700;
   letter-spacing: 2px; text-transform: uppercase;
-  border-radius: 3px; cursor: pointer;
-  transition: all 0.15s;
+  border-radius: 2px; cursor: pointer;
+  transition: all 0.15s var(--ease-snap);
 }
 .mh-clear-btn:hover {
   border-color: rgba(231,76,60,1);
@@ -4493,7 +4504,7 @@ body.hit-pause .ai-hand * {
   font-size: 11px; font-weight: 700;
   letter-spacing: 3px; text-transform: uppercase;
   cursor: pointer;
-  transition: background 0.15s, color 0.15s;
+  transition: background 0.15s var(--ease-snap), color 0.15s var(--ease-snap);
 }
 .mp-tab:hover { color: var(--text-hi, #f5fbff); background: rgba(var(--theme-rgb, 79,195,247),0.08); }
 .mp-tab-active {
@@ -4522,9 +4533,9 @@ body.hit-pause .ai-hand * {
   font-family: 'Rajdhani', sans-serif;
   font-size: 13px; font-weight: 700;
   letter-spacing: 3px; text-transform: uppercase;
-  border-radius: 3px; cursor: pointer;
+  border-radius: 2px; cursor: pointer;
   box-shadow: 0 0 10px rgba(46,204,113,0.40);
-  transition: all 0.15s;
+  transition: all 0.15s var(--ease-snap);
 }
 .mp-cta:hover {
   border-color: rgba(46,204,113,1);
@@ -4539,8 +4550,8 @@ body.hit-pause .ai-hand * {
   font-family: 'Rajdhani', sans-serif;
   font-size: 11px; font-weight: 700;
   letter-spacing: 2px; text-transform: uppercase;
-  border-radius: 3px; cursor: pointer;
-  transition: all 0.15s;
+  border-radius: 2px; cursor: pointer;
+  transition: all 0.15s var(--ease-snap);
 }
 .mp-leave:hover {
   border-color: rgba(231,76,60,1);
@@ -4569,14 +4580,14 @@ body.hit-pause .ai-hand * {
   padding: 16px 20px;
   background: rgba(0,0,0,0.85);
   border: 1px solid var(--theme-accent-ring, rgba(79,195,247,0.55));
-  border-radius: 3px;
+  border-radius: 2px;
   color: var(--text-hi, #f5fbff);
   font-family: 'Rajdhani', sans-serif;
   font-size: 32px; font-weight: 800;
   letter-spacing: 8px; text-transform: uppercase;
   text-align: center;
   outline: none;
-  transition: border-color 0.15s, box-shadow 0.15s;
+  transition: border-color 0.15s var(--ease-snap), box-shadow 0.15s var(--ease-snap);
 }
 .mp-code-input:focus {
   border-color: var(--theme-accent-bright, #4fc3f7);
@@ -4594,12 +4605,12 @@ body.hit-pause .ai-hand * {
   width: 220px; padding: 10px 14px;
   background: rgba(0,0,0,0.7);
   border: 1px solid var(--theme-accent-ring, rgba(79,195,247,0.45));
-  border-radius: 3px;
+  border-radius: 2px;
   color: var(--text-hi, #f5fbff);
   font-family: 'Rajdhani', sans-serif;
   font-size: 16px; font-weight: 600; letter-spacing: 1px;
   text-align: center; outline: none;
-  transition: border-color 0.15s, box-shadow 0.15s;
+  transition: border-color 0.15s var(--ease-snap), box-shadow 0.15s var(--ease-snap);
 }
 .mp-name-input:focus {
   border-color: var(--theme-accent-bright, #4fc3f7);
@@ -4629,7 +4640,7 @@ body.hit-pause .ai-hand * {
   border-radius: 4px;
   cursor: pointer;
   user-select: all;
-  transition: border-color 0.15s, transform 0.15s;
+  transition: border-color 0.15s var(--ease-snap), transform 0.15s var(--ease-snap);
 }
 .mp-code-display:hover { border-color: var(--theme-accent-bright, #4fc3f7); }
 .mp-code-display.mp-code-copied {
@@ -4699,9 +4710,9 @@ body.hit-pause .ai-hand * {
   font-family: inherit;
   font-size: 11px; font-weight: 700;
   letter-spacing: 2px; text-transform: uppercase;
-  border-radius: 3px;
+  border-radius: 2px;
   cursor: pointer;
-  transition: all 0.15s;
+  transition: all 0.15s var(--ease-snap);
 }
 .db-save-btn:hover, .db-load-btn:hover {
   border-color: rgba(var(--theme-rgb, 79,195,247), 1);
@@ -4802,7 +4813,7 @@ body.hit-pause .ai-hand * {
   border: 1px solid rgba(255,255,255,0.55);
   background: transparent;
   box-shadow: inset 0 0 4px rgba(255,255,255,0.15);
-  transition: transform 0.2s, box-shadow 0.2s;
+  transition: transform 0.2s var(--ease-snap), box-shadow 0.2s var(--ease-snap);
 }
 .draft-pip.pip-done {
   background: #ffffff;
@@ -4877,7 +4888,7 @@ body.hit-pause .ai-hand * {
     0 0 10px rgba(255,255,255,0.45),
     0 0 22px rgba(255,255,255,0.20),
     inset 0 0 8px rgba(255,255,255,0.08);
-  transition: transform 0.15s, box-shadow 240ms, background 240ms;
+  transition: transform 0.15s var(--ease-snap), box-shadow 240ms var(--ease-snap), background 240ms var(--ease-snap);
   animation: draftMulliganPulse 2s ease-in-out infinite;
 }
 /* Settings button on the draft screen — white chrome to match the Mulligan
@@ -4903,7 +4914,7 @@ body.hit-pause .ai-hand * {
     0 0 10px rgba(255,255,255,0.45),
     0 0 22px rgba(255,255,255,0.20),
     inset 0 0 8px rgba(255,255,255,0.08);
-  transition: transform 0.15s, box-shadow 240ms, background 240ms;
+  transition: transform 0.15s var(--ease-snap), box-shadow 240ms var(--ease-snap), background 240ms var(--ease-snap);
 }
 /* Quit-to-menu is a softer tint (red border) so the eye knows it's a
    destructive-ish action without overpowering the primary draft choices. */
@@ -4946,7 +4957,7 @@ body.hit-pause .ai-hand * {
 .draft-mulligan-btn .mulligan-icon {
   display: inline-block;
   font-size: 16px; line-height: 1;
-  transition: transform 0.3s;
+  transition: transform 0.3s var(--ease-snap);
 }
 .draft-mulligan-btn:hover .mulligan-icon {
   transform: rotate(-90deg);
@@ -5113,7 +5124,7 @@ body.hit-pause .ai-hand * {
    why we anchor on the chained class for the override. */
 .draft-card {
   cursor: pointer;
-  transition: transform 0.2s, box-shadow 0.2s, border-color 0.2s;
+  transition: transform 0.2s var(--ease-snap), box-shadow 0.2s var(--ease-snap), border-color 0.2s var(--ease-snap);
   position: relative;
   color: var(--text-body, #e6eef5);
 }
@@ -5235,14 +5246,14 @@ body.hit-pause .ai-hand * {
 /* Inner hairline — Tron double-edge */
 .draft-card::before {
   content: ''; position: absolute; inset: 4px;
-  border-radius: 3px;
+  border-radius: 2px;
   border: 1px solid rgba(var(--theme-rgb, 79,195,247),0.12);
   pointer-events: none;
 }
 /* Corner brackets */
 .draft-card::after {
   content: ''; position: absolute; inset: 0;
-  pointer-events: none; border-radius: 6px;
+  pointer-events: none; border-radius: 4px;
   background:
     linear-gradient(var(--tron-edge), var(--tron-edge)) top    left   / 12px 1px no-repeat,
     linear-gradient(var(--tron-edge), var(--tron-edge)) top    left   / 1px 12px no-repeat,
@@ -5398,7 +5409,7 @@ body.hit-pause .ai-hand * {
     linear-gradient(180deg, rgba(155,89,182,0.06) 0%, rgba(155,89,182,0) 45%),
     #060a12 !important;
   border: 1px solid rgba(155,89,182,0.70) !important;
-  border-radius: 6px;
+  border-radius: 4px;
   min-height: 200px;
   box-shadow:
     0 0 10px rgba(155,89,182,0.30),
@@ -5407,13 +5418,13 @@ body.hit-pause .ai-hand * {
 }
 .draft-card.trick-draft::before {
   content: ''; position: absolute; inset: 4px;
-  border-radius: 3px;
+  border-radius: 2px;
   border: 1px solid rgba(155,89,182,0.14);
   background: none;
   pointer-events: none;
 }
 .draft-card.trick-draft::after {
-  content: ''; position: absolute; inset: 0; border-radius: 6px;
+  content: ''; position: absolute; inset: 0; border-radius: 4px;
   pointer-events: none;
   background:
     linear-gradient(rgba(155,89,182,0.65), rgba(155,89,182,0.65)) top    left   / 12px 1px no-repeat,
@@ -5461,7 +5472,7 @@ body.hit-pause .ai-hand * {
 .draft-card.cost-2 .card-type-sigil,
 .draft-card.cost-3 .card-type-sigil {
   color: #7fd0ff;
-  text-shadow: 0 0 8px rgba(var(--theme-rgb, 79,195,247),0.85);
+  text-shadow: 0 0 8px rgba(79,195,247,0.85);
 }
 /* Cost 4-6 — green uncommon */
 .draft-card.cost-4 .card-type-sigil,
@@ -5764,7 +5775,7 @@ body.hit-pause .ai-hand * {
   box-shadow:
     0 0 12px rgba(255,255,255,0.10),
     0 0 24px rgba(255,255,255,0.05);
-  transition: border-color 240ms, box-shadow 240ms;
+  transition: border-color 240ms var(--ease-snap), box-shadow 240ms var(--ease-snap);
 }
 .lane:hover {
   /* Hover tints the whole vertical line in the player's theme accent, but
@@ -5892,7 +5903,7 @@ body.hit-pause .ai-hand * {
   padding: 2px 8px; border-radius: 999px;
   background: rgba(10,20,32,0.45);
   border: 1px solid var(--tron-dim);
-  transition: color 240ms, background 240ms, border-color 240ms, box-shadow 240ms;
+  transition: color 240ms var(--ease-snap), background 240ms var(--ease-snap), border-color 240ms var(--ease-snap), box-shadow 240ms var(--ease-snap);
   position: relative;
 }
 .lane-label.lane-active {
@@ -5916,7 +5927,7 @@ body.hit-pause .ai-hand * {
   display: inline-flex; align-items: center; gap: 4px;
   font-family: 'Rajdhani', sans-serif;
   font-size: 9px; font-weight: 700; letter-spacing: 1.2px;
-  padding: 2px 8px; border-radius: 10px;
+  padding: 2px 8px; border-radius: 8px;
   background: #000000;
   border: 1px solid rgba(255,215,0,0.95);
   color: #ffd77a;
@@ -6022,11 +6033,11 @@ body.hit-pause .ai-hand * {
      show the full 3:4 portrait painting without cropping any figure
      content. Lane width was also bumped 140 → 160 so the card still
      has 10px of side margin for corner-orb clearance. */
-  width: 140px; min-height: 130px; border-radius: 5px; padding: 6px;
+  width: 140px; min-height: 130px; border-radius: 4px; padding: 6px;
   position: relative;
   background: #000000;
   border: 1px solid rgba(255,255,255,0.40);
-  transition: transform 0.2s, box-shadow 0.2s, border-color 0.2s;
+  transition: transform 0.2s var(--ease-snap), box-shadow 0.2s var(--ease-snap), border-color 0.2s var(--ease-snap);
   box-shadow: 0 0 12px rgba(255,255,255,0.10), 0 0 24px rgba(255,255,255,0.05);
   overflow: visible;
   /* Perf: tell the browser this card's layout/style is independent —
@@ -6177,7 +6188,7 @@ body.hit-pause .ai-hand * {
   font-size: 12px; font-weight: 700; text-align: center;
   line-height: 1.15; letter-spacing: 1.2px; text-transform: uppercase;
   min-height: 22px; display: flex; align-items: center; justify-content: center;
-  transition: color 0.15s, text-shadow 0.15s;
+  transition: color 0.15s var(--ease-snap), text-shadow 0.15s var(--ease-snap);
 }
 
 /* ===========================================================================
@@ -6271,7 +6282,7 @@ body.hit-pause .ai-hand * {
 .card .rarity-strip .rpip {
   width: 5px;
   height: 5px;
-  border-radius: 1px;
+  border-radius: 2px;
 }
 /* Pip colors apply to BOTH hand/board cards and draft cards — the cost class
    on the outer element is enough to scope; no `.card` requirement.
@@ -6339,7 +6350,7 @@ body.hit-pause .ai-hand * {
 .draft-card .rarity-strip .rpip {
   width: 7px;
   height: 7px;
-  border-radius: 1.5px;
+  border-radius: 2px;
 }
 
 /* ---- TRICK rarity pips ----
@@ -6361,11 +6372,11 @@ body.hit-pause .ai-hand * {
    purple/silver/gold trick palette below stays trick-specific. */
 .trick-card .rarity-strip .rpip {
   width: 5px; height: 5px;
-  border-radius: 1px;
+  border-radius: 2px;
 }
 .draft-card.trick-draft .rarity-strip .rpip,
 .fp-trick-preview .rarity-strip .rpip {
-  border-radius: 1px;
+  border-radius: 2px;
 }
 /* Override the cost-based card pip palette that would otherwise apply to
    draft tricks via `.cost-N` — the trick palette takes precedence. */
@@ -7302,7 +7313,7 @@ body.hit-pause .ai-hand * {
 .card.hand-card.playable:hover,
 .card.hand-card:hover {
   transform: none !important;
-  transition: box-shadow 0.2s, border-color 0.2s;
+  transition: box-shadow 0.2s var(--ease-snap), border-color 0.2s var(--ease-snap);
 }
 .card.hand-card.playable.selected:hover {
   transform: none !important;
@@ -7794,7 +7805,7 @@ body.hit-pause .ai-hand * {
 /* Real card stays hidden the entire duration of the flight (matches
    the new 850ms ghost duration). The 0.05s opacity transition
    prevents a one-frame double-render during the swap. */
-.card-flying { opacity: 0; transition: opacity 0.05s; }
+.card-flying { opacity: 0; transition: opacity 0.05s var(--ease-snap); }
 
 /* B4 — Death ghost (when a card vanishes from the board we stamp its
    ex-position with a ghost for a dissolve + red-shatter effect). */
@@ -7945,7 +7956,7 @@ body.hit-pause .ai-hand * {
   z-index: 1200;
   pointer-events: none;
   transform-origin: 0 0;
-  transition: opacity 0.15s;
+  transition: opacity 0.15s var(--ease-snap);
 }
 .hover-magnify .card,
 .hover-magnify .trick-card {
@@ -8035,7 +8046,7 @@ body.mobile-card-dragging .cursor-trail { display: none !important; }
      multiple hits in the same lane don't stack on each other. */
   --dx: 0px;
   transform: translateX(calc(-50% + var(--dx)));
-  padding: 3px 12px; border-radius: 14px;
+  padding: 3px 12px; border-radius: 12px;
   background: #000000;
   border: 1.5px solid;
   font-family: 'Rajdhani', sans-serif;
@@ -8151,7 +8162,7 @@ body.mobile-card-dragging .cursor-trail { display: none !important; }
 
 /* Player hand card — refined hover lift */
 .player-hand-section .hand-cards .card {
-  transition: transform 200ms ease-out, box-shadow 200ms ease-out, filter 200ms ease-out;
+  transition: transform 200ms var(--ease-snap), box-shadow 200ms var(--ease-snap), filter 200ms var(--ease-snap);
   /* will-change removed — persistent on every hand card, it's the MDN
      antipattern (a hint meant to be transient, not a permanent rule on many
      elements). :hover below promotes just the card being interacted with. */
@@ -8284,7 +8295,7 @@ body.mobile-card-dragging .cursor-trail { display: none !important; }
   opacity: 0.85;
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
-  transition: opacity 150ms ease, transform 150ms ease, color 150ms ease;
+  transition: opacity 150ms var(--ease-snap), transform 150ms var(--ease-snap), color 150ms var(--ease-snap);
 }
 .hand-audio-toggle .hand-audio-icon {
   position: relative;
@@ -8336,7 +8347,7 @@ body.mobile-card-dragging .cursor-trail { display: none !important; }
 .hand-card-wrapper {
   --fan-rotate: 0deg;
   --fan-lift: 0px;
-  transition: transform 0.2s ease, z-index 0s;
+  transition: transform 0.2s var(--ease-snap), z-index 0s;
   position: relative;
   transform: translateY(var(--fan-lift)) rotate(var(--fan-rotate));
   transform-origin: 50% 0%;
@@ -8434,7 +8445,7 @@ body.mobile-card-dragging .cursor-trail { display: none !important; }
     0 0 12px rgba(155,89,182,0.50),
     0 0 24px rgba(155,89,182,0.22);
   transform-origin: center bottom;
-  transition: transform 240ms var(--ease-out-soft, cubic-bezier(0.22,1,0.36,1)), box-shadow 0.2s;
+  transition: transform 240ms var(--ease-out-soft, cubic-bezier(0.22, 1, 0.36, 1)), box-shadow 0.2s var(--ease-snap);
 }
 .trick-card.playable { cursor: pointer; }
 .trick-card:hover {
@@ -8457,7 +8468,7 @@ body.mobile-card-dragging .cursor-trail { display: none !important; }
   background-size: cover;
   background-position: center center;
   background-repeat: no-repeat;
-  border-radius: 3px;
+  border-radius: 2px;
 }
 /* Tricks now carry the SAME full-bleed .card-portrait as character cards
    (cover art + bottom name overlay — the old square `contain` art with black
@@ -8528,10 +8539,10 @@ body.mobile-card-dragging .cursor-trail { display: none !important; }
 /* ---- BUTTONS — unified spec: pure black + colored ring + 12/24px glow ---- */
 .actions { padding: 8px 16px; display: flex; gap: 10px; justify-content: center; }
 .btn {
-  padding: 10px 22px; border: 1px solid; border-radius: 6px;
+  padding: 10px 22px; border: 1px solid; border-radius: 4px;
   font-family: 'Rajdhani', sans-serif;
   font-size: 13px; font-weight: 700; cursor: pointer;
-  transition: transform 0.15s, box-shadow 0.2s, border-color 0.2s, color 0.2s;
+  transition: transform 0.15s var(--ease-snap), box-shadow 0.2s var(--ease-snap), border-color 0.2s var(--ease-snap), color 0.2s var(--ease-snap);
   text-transform: uppercase; letter-spacing: 1.8px;
   /* Compensate for trailing letter-spacing so the visual mass of the text
      sits centered inside the button box (letter-spacing adds 1.8px after
@@ -8592,7 +8603,7 @@ body.mobile-card-dragging .cursor-trail { display: none !important; }
   border-bottom: 1px solid rgba(255,255,255,0.02);
   border-left: 2px solid transparent;
   line-height: 1.35; position: relative;
-  transition: border-left-color 0.2s;
+  transition: border-left-color 0.2s var(--ease-snap);
 }
 .log-entry::before {
   content: '>'; position: absolute; left: 4px; top: 0;
@@ -8785,7 +8796,7 @@ body.mobile-card-dragging .cursor-trail { display: none !important; }
     0 0 12px rgba(255,215,0,0.60),
     0 0 24px rgba(255,215,0,0.25);
   animation: promptPulse 1.4s ease-in-out infinite;
-  transition: opacity 200ms ease;
+  transition: opacity 200ms var(--ease-snap);
 }
 /* Never buried: #game-area > * pins children to z-index 1 (ID specificity), so
    the raise needs the ID too. Above board chrome + hover-scaled cards, below
@@ -8843,7 +8854,7 @@ body.mobile-card-dragging .cursor-trail { display: none !important; }
   color: #ffd77a;
   text-shadow: 0 0 6px rgba(255,215,0,0.45);
   transform-origin: center;
-  transition: transform 200ms ease, color 200ms ease, text-shadow 200ms ease;
+  transition: transform 200ms var(--ease-snap), color 200ms var(--ease-snap), text-shadow 200ms var(--ease-snap);
   -webkit-tap-highlight-color: transparent;
 }
 .prompt-banner .prompt-decline:hover,
@@ -8854,7 +8865,7 @@ body.mobile-card-dragging .cursor-trail { display: none !important; }
 }
 .prompt-banner .prompt-decline:focus-visible { outline: none; }
 @media (prefers-reduced-motion: reduce) {
-  .prompt-banner .prompt-decline { transition: color 200ms ease; }
+  .prompt-banner .prompt-decline { transition: color 200ms var(--ease-snap); }
   .prompt-banner .prompt-decline:hover,
   .prompt-banner .prompt-decline:focus-visible { transform: none; }
 }
@@ -8911,7 +8922,7 @@ body.mobile-card-dragging .cursor-trail { display: none !important; }
   max-height: 82vh; overflow-y: auto;
   background: #000000;
   border: 1px solid rgba(231,76,60,0.95);
-  border-radius: 10px;
+  border-radius: 8px;
   box-shadow: 0 0 12px rgba(231,76,60,0.55), 0 0 24px rgba(231,76,60,0.25);
 }
 .dead-pile-panel h2 {
@@ -9012,7 +9023,7 @@ body.mobile-card-dragging .cursor-trail { display: none !important; }
   padding: 18px 24px 16px;
   background: rgba(0,0,0,0.95);
   border: 1px solid rgba(255,255,255,0.90);
-  border-radius: 10px;
+  border-radius: 8px;
   box-shadow: 0 0 12px rgba(255,255,255,0.35), 0 0 24px rgba(255,255,255,0.15);
   animation: gameOverSlideUp 0.55s var(--ease-spring, cubic-bezier(0.34,1.56,0.64,1.0)) 0.15s both;
   min-width: min(380px, 100%);
@@ -9027,7 +9038,7 @@ body.mobile-card-dragging .cursor-trail { display: none !important; }
      screen — having my mouse go off so that the preview is muted."
      Same UX as the block-trick modal. */
   opacity: 0.22;
-  transition: opacity 200ms ease, box-shadow 200ms ease, transform 200ms ease;
+  transition: opacity 200ms var(--ease-snap), box-shadow 200ms var(--ease-snap), transform 200ms var(--ease-snap);
 }
 .game-over-content:hover {
   opacity: 1;
@@ -9221,7 +9232,7 @@ body.mobile-card-dragging .cursor-trail { display: none !important; }
   font-weight: 700;
   letter-spacing: 2px;
   padding: 2px 8px;
-  border-radius: 3px;
+  border-radius: 2px;
   border: 1px solid currentColor;
 }
 .sotm-panel.sotm-side-player .sotm-side-tag { color: #7fd0ff; background: rgba(127,208,255,0.10); }
@@ -9329,7 +9340,7 @@ body.mobile-card-dragging .cursor-trail { display: none !important; }
   left: 0; top: 8%; bottom: 8%;
   width: 2px;
   background: currentColor;
-  border-radius: 1px;
+  border-radius: 2px;
   box-shadow: 0 0 5px currentColor, 0 0 10px currentColor;
   opacity: 0.85;
 }
@@ -9423,7 +9434,7 @@ body.mobile-card-dragging .cursor-trail { display: none !important; }
 }
 
 /* ---- CARD CHOICE OVERLAY ---- */
-.card-choice-card { cursor: pointer; transition: transform 0.2s, border-color 0.2s, box-shadow 0.2s; }
+.card-choice-card { cursor: pointer; transition: transform 0.2s var(--ease-snap), border-color 0.2s var(--ease-snap), box-shadow 0.2s var(--ease-snap); }
 .card-choice-card:hover {
   transform: translateY(-6px); border-color: #f39c12;
   box-shadow: 0 8px 28px rgba(243, 156, 18, 0.3);
@@ -9479,11 +9490,11 @@ body.mobile-card-dragging .cursor-trail { display: none !important; }
    ============================================================ */
 body.turn-combat .board .lane:not(.lane-active) {
   opacity: 0.45;
-  transition: opacity 240ms ease;
+  transition: opacity 240ms var(--ease-snap);
 }
 body.turn-combat .board .lane.lane-active {
   opacity: 1;
-  transition: opacity 240ms ease;
+  transition: opacity 240ms var(--ease-snap);
 }
 
 /* Mobile: hide the page scrollbar (the thin sidebar was ugly clutter, and on
@@ -9759,7 +9770,7 @@ body.turn-combat .board .lane.lane-active {
     letter-spacing: 0.5px;
     line-height: 1;
     height: 18px;
-    border-radius: 9px;
+    border-radius: 8px;
   }
   .pile-badge .pile-icon { width: 8px; height: 10px; }
   /* Mobile: surface opponent deck + tricks counts (hidden on desktop
@@ -9887,7 +9898,7 @@ body.turn-combat .board .lane.lane-active {
   /* SIM combat previews shrink to fit ONE narrow lane so they stop
      overlapping neighbours. Keep the one-word verdict + key number; drop the
      "SIM" tag and the verbose "N ATK + M Splash =" breakdown. */
-  .dmg-preview { min-width: 0 !important; max-width: 62px; padding: 2px 3px; font-size: 8px; bottom: 2px; border-radius: 3px; line-height: 1.15; }
+  .dmg-preview { min-width: 0 !important; max-width: 62px; padding: 2px 3px; font-size: 8px; bottom: 2px; border-radius: 2px; line-height: 1.15; }
   .dmg-preview .dp-sim-tag, .dmg-preview .dp-sub { display: none !important; }
   .dmg-preview .dp-verdict { font-size: 8px; letter-spacing: 0.2px; margin-bottom: 1px; }
   /* This box was clipping: user photo shows an undefended lane reading "DIRECT"
@@ -10483,7 +10494,7 @@ body.turn-combat .board .lane.lane-active {
      gets a green box instead of a green title in a blue one. */
   background: #000;
   border: 1px solid color-mix(in srgb, var(--kw-c, rgb(var(--theme-rgb, 79,195,247))) 55%, transparent);
-  border-radius: 6px;
+  border-radius: 4px;
   box-shadow:
     0 0 14px color-mix(in srgb, var(--kw-c, rgb(var(--theme-rgb, 79,195,247))) 26%, transparent),
     0 4px 14px rgba(0,0,0,0.6);
@@ -10591,7 +10602,7 @@ body.turn-combat .board .lane.lane-active {
   position: relative;
   background: #070b12;
   border: 1px solid rgba(var(--theme-rgb, 79,195,247), 0.55);
-  border-radius: 10px;
+  border-radius: 8px;
   box-shadow: 0 0 18px rgba(var(--theme-rgb, 79,195,247), 0.35);
   padding: 28px 34px 22px;
   max-width: 760px; width: calc(100% - 48px);
@@ -10629,8 +10640,8 @@ body.turn-combat .board .lane.lane-active {
   font-family: 'Rajdhani', sans-serif;
   font-size: 12px; font-weight: 600;
   letter-spacing: 1px;
-  border-radius: 3px;
-  transition: border-color 0.15s, box-shadow 0.15s;
+  border-radius: 2px;
+  transition: border-color 0.15s var(--ease-snap), box-shadow 0.15s var(--ease-snap);
   box-sizing: border-box;
 }
 .cheat-sheet-search::placeholder {
@@ -10680,7 +10691,7 @@ body.turn-combat .board .lane.lane-active {
   font-weight: 600;
   background: rgba(var(--theme-rgb, 79,195,247), 0.12);
   border: 1px solid rgba(var(--theme-rgb, 79,195,247), 0.55);
-  border-radius: 3px;
+  border-radius: 2px;
   color: var(--text-dim, #d8dee4);
   text-align: center;
   letter-spacing: 0.5px;
@@ -10848,7 +10859,7 @@ body.turn-combat .board .lane.lane-active {
 .recap-timeline-rail::-webkit-scrollbar { height: 6px; }
 .recap-timeline-rail::-webkit-scrollbar-thumb {
   background: rgba(var(--theme-rgb, 79,195,247), 0.35);
-  border-radius: 3px;
+  border-radius: 2px;
 }
 
 /* ============================================================
@@ -10987,7 +10998,7 @@ body.turn-combat .board .lane.lane-active {
     0 0 12px rgba(var(--theme-rgb, 79,195,247),0.65),
     0 0 24px rgba(var(--theme-rgb, 79,195,247),0.30),
     inset 0 0 0 1px rgba(var(--theme-rgb, 79,195,247),0.22);
-  transition: transform 0.2s, box-shadow 240ms, color 0.2s, background 0.2s;
+  transition: transform 0.2s var(--ease-snap), box-shadow 240ms var(--ease-snap), color 0.2s var(--ease-snap), background 0.2s var(--ease-snap);
 }
 /* Sync-from-GitHub button — sibling of the settings cog, sits
    52 px to its left (42 px button + 10 px gap). Same Tron-chrome
@@ -11013,7 +11024,7 @@ body.turn-combat .board .lane.lane-active {
     0 0 12px rgba(var(--theme-rgb, 79,195,247),0.65),
     0 0 24px rgba(var(--theme-rgb, 79,195,247),0.30),
     inset 0 0 0 1px rgba(var(--theme-rgb, 79,195,247),0.22);
-  transition: transform 0.4s cubic-bezier(.4,0,.2,1), box-shadow 240ms, color 0.2s, background 0.2s;
+  transition: transform 0.4s cubic-bezier(.4, 0, .2, 1), box-shadow 240ms var(--ease-snap), color 0.2s var(--ease-snap), background 0.2s var(--ease-snap);
 }
 .sync-btn:hover {
   transform: rotate(180deg) scale(1.06);
@@ -11126,7 +11137,7 @@ body.turn-combat .board .lane.lane-active {
     linear-gradient(90deg,
       rgba(var(--theme-rgb, 79,195,247), 0.24) 0 var(--sfx-pct, 55%),
       rgba(0,0,0,0.85) var(--sfx-pct, 55%) 100%);
-  border-radius: 3px;
+  border-radius: 2px;
   border: 1px solid rgba(var(--theme-rgb, 79,195,247), 0.95);
   box-shadow:
     0 0 12px rgba(var(--theme-rgb, 79,195,247), 0.55),
@@ -11140,7 +11151,7 @@ body.turn-combat .board .lane.lane-active {
   margin-top: -4px;
   background: rgba(var(--theme-rgb, 79,195,247), 1);
   border: none;
-  border-radius: 1px;
+  border-radius: 2px;
   box-shadow:
     0 0 6px rgba(var(--theme-rgb, 79,195,247), 0.95),
     0 0 14px rgba(var(--theme-rgb, 79,195,247), 0.55),
@@ -11151,7 +11162,7 @@ body.turn-combat .board .lane.lane-active {
 #setting-music-volume::-moz-range-track {
   height: 14px;
   background: rgba(0,0,0,0.85);
-  border-radius: 3px;
+  border-radius: 2px;
   border: 1px solid rgba(var(--theme-rgb, 79,195,247), 0.95);
 }
 #setting-sfx-volume::-moz-range-progress,
@@ -11165,7 +11176,7 @@ body.turn-combat .board .lane.lane-active {
   width: 4px; height: 22px;
   background: rgba(var(--theme-rgb, 79,195,247), 1);
   border: none;
-  border-radius: 1px;
+  border-radius: 2px;
   box-shadow:
     0 0 6px rgba(var(--theme-rgb, 79,195,247), 0.95),
     0 0 14px rgba(var(--theme-rgb, 79,195,247), 0.55);
@@ -11181,7 +11192,7 @@ body.turn-combat .board .lane.lane-active {
   padding: 10px 12px 6px;
   background: rgba(var(--theme-rgb, 79,195,247), 0.05);
   border: 1px solid rgba(var(--theme-rgb, 79,195,247), 0.22);
-  border-radius: 6px;
+  border-radius: 4px;
 }
 .db-curve-title {
   font-family: 'Rajdhani', sans-serif;
@@ -11214,7 +11225,7 @@ body.turn-combat .board .lane.lane-active {
     rgba(var(--theme-rgb, 79,195,247), 0.75),
     rgba(var(--theme-rgb, 79,195,247), 0.25));
   border-top: 1px solid rgba(var(--theme-rgb, 79,195,247), 0.9);
-  transition: height 200ms ease;
+  transition: height 200ms var(--ease-snap);
   min-height: 2px;
 }
 .db-curve-count {
@@ -11366,7 +11377,7 @@ body.turn-combat .board .lane.lane-active {
   padding: 10px 10px 4px;
   background: rgba(255,255,255,0.02);
   border: 1px solid rgba(255,255,255,0.08);
-  border-radius: 6px;
+  border-radius: 4px;
 }
 .go-hp-chart-title {
   font-family: 'Rajdhani', sans-serif;
@@ -11436,7 +11447,7 @@ body.turn-combat .board .lane.lane-active {
     0 0 10px rgba(231,76,60,0.35),
     0 0 22px rgba(231,76,60,0.15),
     inset 0 0 8px rgba(231,76,60,0.06);
-  transition: transform 0.15s, box-shadow 240ms, background 240ms;
+  transition: transform 0.15s var(--ease-snap), box-shadow 240ms var(--ease-snap), background 240ms var(--ease-snap);
 }
 .settings-quit-btn:hover {
   transform: translateY(-1px);
@@ -11466,9 +11477,9 @@ body.turn-combat .board .lane.lane-active {
   font-family: 'Rajdhani', sans-serif;
   font-size: 10px; font-weight: 700;
   letter-spacing: 2px; text-transform: uppercase;
-  border-radius: 3px;
+  border-radius: 2px;
   cursor: pointer;
-  transition: all 0.15s;
+  transition: all 0.15s var(--ease-snap);
 }
 .settings-backup-btn:hover {
   border-color: var(--theme-accent-bright, rgba(79,195,247,0.9));
@@ -11607,7 +11618,7 @@ body.turn-combat .board .lane.lane-active {
   border-radius: 8px;
   padding: 12px 18px;
   box-shadow: 0 6px 22px rgba(0,0,0,0.7), 0 0 18px rgba(155,89,182,0.45);
-  transition: transform 240ms ease-out, opacity 240ms ease-out;
+  transition: transform 240ms var(--ease-snap), opacity 240ms var(--ease-snap);
   pointer-events: none;
   text-align: center;
 }
@@ -11673,7 +11684,7 @@ body.turn-combat .board .lane.lane-active {
   cursor: pointer;
   position: relative;
   box-shadow: 0 0 18px rgba(243,156,18,0.85), 0 0 36px rgba(243,156,18,0.45);
-  border-radius: 10px;
+  border-radius: 8px;
   animation: mcTargetPulse 1.0s ease-in-out infinite;
   z-index: 2;
 }
@@ -11687,7 +11698,7 @@ body.turn-combat .board .lane.lane-active {
   background: rgba(8,14,22,0.95);
   border: 1px solid rgba(243,156,18,0.9);
   padding: 2px 8px;
-  border-radius: 10px;
+  border-radius: 8px;
   white-space: nowrap;
   pointer-events: none;
 }
@@ -11732,7 +11743,7 @@ body.turn-combat .board .lane.lane-active {
   position: relative;
   background: rgba(6,10,18,0.94);
   border: 1px solid var(--theme-accent, rgba(79,195,247,0.85));
-  border-radius: 10px;
+  border-radius: 8px;
   padding: 16px 20px;
   min-width: min(420px, 100%); max-width: 560px;
   /* Neon halo — a sharp outer ring + soft outer bloom in the player
@@ -11746,7 +11757,7 @@ body.turn-combat .board .lane.lane-active {
   font-family: 'Inter', 'Segoe UI', system-ui, sans-serif;
   animation: fpSlideIn 0.28s var(--ease-out-soft);
   opacity: 0.28;
-  transition: opacity 200ms ease, box-shadow 200ms ease, transform 200ms ease;
+  transition: opacity 200ms var(--ease-snap), box-shadow 200ms var(--ease-snap), transform 200ms var(--ease-snap);
 }
 .floating-prompt-panel:hover {
   opacity: 1;
@@ -11888,7 +11899,7 @@ body.turn-combat .board .lane.lane-active {
   font-weight: 700; font-size: 15px;
   letter-spacing: 2.5px; text-transform: uppercase;
   transform-origin: center;
-  transition: transform 200ms ease, color 200ms ease, text-shadow 200ms ease;
+  transition: transform 200ms var(--ease-snap), color 200ms var(--ease-snap), text-shadow 200ms var(--ease-snap);
   text-shadow: 0 0 6px rgba(var(--theme-rgb, 79,195,247),0.45);
 }
 .fp-btn:hover .fp-btn-title,
@@ -11914,7 +11925,7 @@ body.turn-combat .board .lane.lane-active {
 .fp-btn-waiting .fp-btn-title { font-weight: 600; opacity: 0.7; letter-spacing: 1.5px; }
 .fp-btn-waiting:hover .fp-btn-title { transform: none; color: inherit; }
 @media (prefers-reduced-motion: reduce) {
-  .fp-btn-title { transition: color 200ms ease, text-shadow 200ms ease; }
+  .fp-btn-title { transition: color 200ms var(--ease-snap), text-shadow 200ms var(--ease-snap); }
   .fp-btn:hover .fp-btn-title,
   .fp-btn:focus-visible .fp-btn-title { transform: none; }
 }
@@ -11947,7 +11958,7 @@ body.turn-combat .board .lane.lane-active {
   margin-bottom: 18px;
   background: rgba(6,10,18,0.97);
   border: 1px solid rgba(var(--theme-rgb, 79,195,247),0.55);
-  border-radius: 10px 10px 4px 4px;
+  border-radius: 8px 8px 4px 4px;
   padding: 14px 20px 18px;
   max-width: 90vw;
   box-shadow: 0 -8px 30px rgba(0,0,0,0.7), 0 0 22px rgba(var(--theme-rgb, 79,195,247),0.22);
@@ -11997,10 +12008,10 @@ body.turn-combat .board .lane.lane-active {
   border-radius: 8px; padding: 6px 6px 7px;
   background: rgba(8,14,22,0.85);
   display: flex; flex-direction: column; align-items: center; gap: 4px;
-  transition: opacity .18s, border-color .18s, box-shadow .18s;
+  transition: opacity .18s var(--ease-snap), border-color .18s var(--ease-snap), box-shadow .18s var(--ease-snap);
 }
 .peek-chip-art {
-  width: 82px; height: 82px; border-radius: 6px;
+  width: 82px; height: 82px; border-radius: 4px;
   background-image: var(--portrait-bg, none);
   background-size: var(--portrait-size, cover);
   background-position: var(--portrait-pos, center top);
@@ -12044,9 +12055,9 @@ body.turn-combat .board .lane.lane-active {
   cursor: pointer;
   color: var(--text-body, #e6eef5);
   box-shadow: 0 0 14px rgba(var(--theme-rgb, 79,195,247),0.25);
-  transition: transform 0.15s, border-color 0.15s, box-shadow 0.15s;
+  transition: transform 0.15s var(--ease-snap), border-color 0.15s var(--ease-snap), box-shadow 0.15s var(--ease-snap);
 }
-.choice-tray .choice-card .card-portrait { width: 100%; margin: 0 0 6px; border-radius: 6px 6px 0 0; }
+.choice-tray .choice-card .card-portrait { width: 100%; margin: 0 0 6px; border-radius: 4px 4px 0 0; }
 .choice-tray .choice-card .card-desc { padding: 0 8px; }
 /* Trick tiles in the tray (Grinch keep-or-discard, trick picks) — purple
    chrome + purple cost gem, matching the trick card language everywhere else. */
@@ -12171,10 +12182,10 @@ body.turn-combat .board .lane.lane-active {
   padding: 16px 18px 18px;
   background: rgba(10,16,24,0.85);
   border: 1px solid rgba(var(--theme-rgb,79,195,247),0.42);
-  border-radius: 9px;
+  border-radius: 8px;
   cursor: pointer;
   box-shadow: 0 0 12px rgba(var(--theme-rgb,79,195,247),0.12);
-  transition: transform 150ms var(--ease-spring, ease), border-color 150ms, box-shadow 150ms, background 150ms;
+  transition: transform 150ms var(--ease-spring, var(--ease-snap)), border-color 150ms var(--ease-snap), box-shadow 150ms var(--ease-snap), background 150ms var(--ease-snap);
 }
 .decision-modal .decision-choice:hover {
   transform: translateY(-3px) scale(1.03);
@@ -12439,7 +12450,7 @@ body.turn-combat .board .lane.lane-active {
 .lane-glyph {
   display: inline-flex; align-items: center; gap: 3px;
   padding: 1px 6px;
-  border-radius: 10px;
+  border-radius: 8px;
   background: rgba(8,14,22,0.8);
   border: 1px solid currentColor;
   color: var(--text-mute, #b8c2cc);
@@ -12465,14 +12476,14 @@ body.turn-combat .board .lane.lane-active {
 }
 .card-slot { position: relative; }
 /* Hover affordance — brighten empty glyph when its card-slot is a valid play target */
-.card-slot.playable .empty-lane-glyph { color: rgba(255,255,255,0.28); transition: color 0.2s; }
+.card-slot.playable .empty-lane-glyph { color: rgba(255,255,255,0.28); transition: color 0.2s var(--ease-snap); }
 .card-slot.playable:hover .empty-lane-glyph { color: rgba(255,255,255,0.85); }
 .card-slot.playable {
   outline: 1px dashed rgba(255,255,255,0.18);
   outline-offset: -3px;
   background: transparent;
   border-radius: 4px;
-  transition: background 0.2s, outline-color 0.2s, box-shadow 0.2s;
+  transition: background 0.2s var(--ease-snap), outline-color 0.2s var(--ease-snap), box-shadow 0.2s var(--ease-snap);
 }
 .card-slot.target-highlight {
   outline: 2px solid rgba(var(--theme-rgb, 79,195,247),0.75);
@@ -12593,7 +12604,7 @@ body.turn-combat .board .lane.lane-active {
   box-shadow:
     0 0 6px       rgba(var(--theme-rgb, 79,195,247), 0.22),
     inset 0 0 8px rgba(var(--theme-rgb, 79,195,247), 0.08);
-  transition: border-color 0.15s, background 0.15s, box-shadow 0.15s;
+  transition: border-color 0.15s var(--ease-snap), background 0.15s var(--ease-snap), box-shadow 0.15s var(--ease-snap);
   box-sizing: border-box;
 }
 .lane-forecast-strip .lf-verdict {
@@ -12700,7 +12711,7 @@ body.turn-combat .board .lane.lane-active {
   content: '';
   position: absolute;
   inset: -2px;
-  border-radius: 6px;
+  border-radius: 4px;
   pointer-events: none;
   border: 2px solid rgba(231, 76, 60, 0.85);
   box-shadow: 0 0 22px 2px rgba(231, 76, 60, 0.55), inset 0 0 16px rgba(231, 76, 60, 0.30);
@@ -12832,7 +12843,7 @@ body.turn-combat .board .lane.lane-active {
   background: #000000;
   padding: 1px 8px;
   border: 1px solid rgba(231,76,60,0.95);
-  border-radius: 9px;
+  border-radius: 8px;
   box-shadow: 0 0 12px rgba(231,76,60,0.45), 0 0 24px rgba(231,76,60,0.20);
   z-index: 5;
   white-space: nowrap;
@@ -12862,7 +12873,7 @@ body.turn-combat .board .lane.lane-active {
   display: inline-flex; align-items: center; justify-content: center;
   background: rgba(8, 14, 22, 0.92);
   border: 1px solid rgba(160, 200, 255, 0.55);
-  border-radius: 10px;
+  border-radius: 8px;
   font-family: 'Rajdhani', sans-serif; font-size: 9px; font-weight: 700;
   color: rgba(220, 240, 255, 0.95);
   letter-spacing: 0.3px;
@@ -12875,7 +12886,7 @@ body.turn-combat .board .lane.lane-active {
   position: absolute; left: 0; top: 0; bottom: 0;
   background: linear-gradient(90deg, rgba(80, 200, 255, 0.55), rgba(120, 220, 255, 0.85));
   z-index: 0;
-  border-radius: 10px 0 0 10px;
+  border-radius: 8px 0 0 8px;
 }
 .card-xp-text {
   position: relative; z-index: 1;
@@ -12908,7 +12919,7 @@ body.turn-combat .board .lane.lane-active {
   background: rgba(6,10,18,0.96);
   border-left: 1px solid rgba(var(--theme-rgb, 79,195,247),0.45);
   box-shadow: -4px 0 18px rgba(0,0,0,0.6);
-  transition: transform 240ms ease-in-out;
+  transition: transform 240ms var(--ease-snap);
   z-index: 230 !important;
   display: flex; flex-direction: column;
   padding: 10px 10px 10px;
@@ -12949,7 +12960,7 @@ body.turn-combat .board .lane.lane-active {
   color: #7fd0ff;
   font-size: 16px; cursor: pointer;
   display: flex; align-items: center; justify-content: center;
-  transition: background 0.15s, color 0.15s;
+  transition: background 0.15s var(--ease-snap), color 0.15s var(--ease-snap);
 }
 .log-drawer-toggle:hover { background: rgba(var(--theme-rgb, 79,195,247),0.18); color: var(--text-body, #f0f6fb); }
 
@@ -12976,7 +12987,7 @@ body.turn-combat .board .lane.lane-active {
     0 0 12px rgba(var(--theme-rgb, 79,195,247),0.65),
     0 0 24px rgba(var(--theme-rgb, 79,195,247),0.30),
     inset 0 0 0 1px rgba(var(--theme-rgb, 79,195,247),0.22);
-  transition: transform 0.2s, box-shadow 240ms, color 0.2s, background 0.2s;
+  transition: transform 0.2s var(--ease-snap), box-shadow 240ms var(--ease-snap), color 0.2s var(--ease-snap), background 0.2s var(--ease-snap);
 }
 body.in-match .cheat-help-toggle { display: flex; }
 .cheat-help-toggle:hover { background: rgba(var(--theme-rgb, 79,195,247),0.18); color: var(--text-body, #f0f6fb); transform: scale(1.06); }
@@ -13050,7 +13061,7 @@ body.in-match .cheat-help-toggle { display: flex; }
   position: fixed !important; z-index: 130 !important;
   background: rgba(8,14,22,0.96);
   border: 1px solid rgba(var(--theme-rgb, 79,195,247),0.45);
-  border-radius: 6px;
+  border-radius: 4px;
   padding: 8px 10px; min-width: 200px; max-width: 280px;
   font-family: 'Inter', sans-serif;
   font-size: 11px;
@@ -13100,7 +13111,7 @@ body.in-match .cheat-help-toggle { display: flex; }
   color: #667380;
   background: #000000;
   letter-spacing: 0.3px;
-  transition: color 0.2s, border-color 0.2s, box-shadow 0.2s;
+  transition: color 0.2s var(--ease-snap), border-color 0.2s var(--ease-snap), box-shadow 0.2s var(--ease-snap);
 }
 /* Round pips show WHO GOES FIRST that round via side-coded color:
    blue pip = player goes first, red pip = AI goes first.
@@ -13374,7 +13385,7 @@ body.in-match .cheat-help-toggle { display: flex; }
   width: 2px;
   background: rgba(var(--theme-rgb, 79,195,247),0.60);
   box-shadow: 0 0 6px rgba(var(--theme-rgb, 79,195,247),0.55);
-  transition: width 0.2s, background 0.2s, box-shadow 0.2s, top 0.2s, bottom 0.2s;
+  transition: width 0.2s var(--ease-snap), background 0.2s var(--ease-snap), box-shadow 0.2s var(--ease-snap), top 0.2s var(--ease-snap), bottom 0.2s var(--ease-snap);
   pointer-events: none;
 }
 .mode-option:hover {
@@ -13413,7 +13424,7 @@ body.in-match .cheat-help-toggle { display: flex; }
 }
 .settings-row select {
   cursor: pointer;
-  transition: border-color 0.15s, box-shadow 0.15s, color 0.15s;
+  transition: border-color 0.15s var(--ease-snap), box-shadow 0.15s var(--ease-snap), color 0.15s var(--ease-snap);
 }
 .settings-row select:hover {
   border-color: rgba(var(--theme-rgb, 79,195,247),0.70);
@@ -15686,11 +15697,7 @@ body.round-first-ai .hud-pill-main {
 .settings-cog, .log-drawer-toggle, .stats-source-btn, .stats-view-btn,
 .theme-swatch, .pile-badge {
   transition:
-    transform 150ms var(--ease-out-soft),
-    box-shadow 200ms var(--ease-out-soft),
-    border-color 150ms ease,
-    color 150ms ease,
-    background 200ms ease !important;
+    transform 150ms var(--ease-out-soft), box-shadow 200ms var(--ease-out-soft), border-color 150ms var(--ease-snap), color 150ms var(--ease-snap), background 200ms var(--ease-snap) !important;
 }
 .btn:active, .mm-option:active, .mode-option:active,
 .db-tab:active, .db-preset:active,
@@ -15740,9 +15747,7 @@ body.round-first-ai .hud-pill-main {
   padding: 0;
   position: relative;
   transition:
-    transform 150ms var(--ease-out-soft),
-    box-shadow 150ms ease,
-    border-width 150ms ease;
+    transform 150ms var(--ease-out-soft), box-shadow 150ms var(--ease-snap), border-width 150ms var(--ease-snap);
   box-shadow:
     0 0 4px color-mix(in srgb, currentColor 70%, transparent);
 }
@@ -16514,7 +16519,7 @@ body.boot-sequence .hand-card-wrapper:nth-child(8) { animation-delay: 1870ms; }
   background: currentColor;
   transform: translate(calc(-50% + var(--sx, 0)), calc(-50% + var(--sy, 0))) rotate(0deg);
   opacity: 0.95;
-  border-radius: 1px;
+  border-radius: 2px;
   box-shadow: 0 0 4px currentColor;
   animation: hitChipFall 600ms cubic-bezier(0.36, 0, 0.66, 1) forwards;
 }
@@ -16685,7 +16690,7 @@ body.kill-flash-ai::after {
     linear-gradient(180deg, var(--theme-wash-05, rgba(79,195,247,0.06)) 0%, rgba(0,0,0,0) 44%),
     #000;
   border: 1px solid var(--theme-accent-bright, #4fc3f7);
-  border-radius: 6px;
+  border-radius: 4px;
   box-shadow:
     0 0 30px var(--theme-glow-outer, rgba(79,195,247,0.55)),
     0 0 72px var(--theme-glow-inner, rgba(79,195,247,0.25)),
@@ -16793,7 +16798,7 @@ body.kill-flash-ai::after {
   line-height: 1;
   cursor: pointer;
   display: flex; align-items: center; justify-content: center;
-  transition: background 0.15s, color 0.15s, border-color 0.15s;
+  transition: background 0.15s var(--ease-snap), color 0.15s var(--ease-snap), border-color 0.15s var(--ease-snap);
 }
 .ci-close:hover {
   background: var(--theme-wash-08, rgba(79,195,247,0.10));
@@ -17021,7 +17026,7 @@ body::before {
   position: relative;
   background: linear-gradient(180deg, var(--theme-wash-05) 0%, rgba(0,0,0,0) 40%), #060a12;
   border: 1px solid var(--theme-accent-edge);
-  border-radius: 6px;
+  border-radius: 4px;
   padding: 22px 26px;
   min-width: 320px; max-width: 520px; max-height: 75vh;
   overflow-y: auto;
@@ -17080,7 +17085,7 @@ body::before {
 .deck-viewer-chip {
   font-size: 11px; font-weight: 700;
   letter-spacing: 0.8px; text-transform: uppercase;
-  padding: 3px 8px; border-radius: 3px;
+  padding: 3px 8px; border-radius: 2px;
   background: #000;
   border: 1px solid var(--theme-accent-edge);
   color: color-mix(in srgb, var(--theme-accent) 35%, #cfe9fb);
@@ -17094,11 +17099,7 @@ body::before {
   cursor: pointer;
   background: linear-gradient(180deg, var(--theme-wash-08) 0%, rgba(0,0,0,0) 45%), #000;
   transition:
-    transform 150ms var(--ease-out-soft),
-    border-color 150ms ease,
-    box-shadow 200ms ease,
-    background 200ms ease,
-    color 150ms ease;
+    transform 150ms var(--ease-out-soft), border-color 150ms var(--ease-snap), box-shadow 200ms var(--ease-snap), background 200ms var(--ease-snap), color 150ms var(--ease-snap);
 }
 .hud-count-deck b:hover,
 .hud-count-tricks b:hover {
@@ -17508,7 +17509,7 @@ body.theme-purple .board-section {
    frame. That snap is the jump. A transition couldn't be added without breaking
    the tilt, because both effects were competing for one `transform` property.
    THE FIX: put them on DIFFERENT elements. The wrapper owns lift+scale and can
-   therefore carry a real 240ms transition (same curve as .trick-card, so both
+   therefore carry a real 240ms transition (same curve as .trick-card var(--ease-snap), so both
    surfaces now grow identically); the card owns the rAF-driven tilt with no
    transition, exactly as before. Two elements, two transform properties, no
    fight. transform-origin stays center-bottom on both so it still grows UPWARD
@@ -17839,10 +17840,7 @@ body.theme-purple .board-section {
    needs card data + JS; this is the entry-level version that
    makes hover feel responsive without the full card read-out.) */
 .deck-viewer-chip {
-  transition: transform 150ms var(--ease-out-soft),
-              box-shadow 200ms ease,
-              border-color 150ms ease,
-              color 150ms ease;
+  transition: transform 150ms var(--ease-out-soft), box-shadow 200ms var(--ease-snap), border-color 150ms var(--ease-snap), color 150ms var(--ease-snap);
   cursor: help;
 }
 .deck-viewer-chip:hover {
@@ -18457,7 +18455,7 @@ input:focus-visible,
   color: color-mix(in srgb, var(--theme-accent) 30%, #8b949e);
   box-shadow: 0 0 6px var(--theme-glow-inner);
   opacity: 0.55;
-  transition: opacity 200ms ease;
+  transition: opacity 200ms var(--ease-snap);
   pointer-events: none;
 }
 .kb-hints:hover { opacity: 1; }
@@ -18568,7 +18566,7 @@ body.phase-menu .kb-hints { display: none; }
    the first time in a round, hints "this is interactive/checkable". */
 .energy-text:hover {
   transform: scale(1.06);
-  transition: transform 150ms var(--ease-out-soft), box-shadow 200ms ease;
+  transition: transform 150ms var(--ease-out-soft), box-shadow 200ms var(--ease-snap);
 }
 
 /* Health-text count-down roll — when HP changes we scale briefly
@@ -18813,7 +18811,7 @@ body.phase-menu .kb-hints { display: none; }
   left: calc(50% + 300px) !important;
   transform: translateX(0) !important;
   width: 30px; height: 30px;
-  border-radius: 6px;
+  border-radius: 4px;
   background: #000 !important;
   border: 1px solid var(--theme-accent-edge) !important;
   /* Tap target handled globally — see the 44px hit-target block. */
@@ -18822,7 +18820,7 @@ body.phase-menu .kb-hints { display: none; }
     0 0 7px var(--theme-glow-inner),
     inset 0 0 6px var(--theme-wash-08) !important;
   display: flex; align-items: center; justify-content: center;
-  transition: border-color 0.15s, box-shadow 0.2s, color 0.15s;
+  transition: border-color 0.15s var(--ease-snap), box-shadow 0.2s var(--ease-snap), color 0.15s var(--ease-snap);
 }
 .log-drawer-toggle:hover {
   background: var(--theme-wash-08) !important;
@@ -19075,7 +19073,7 @@ body.phase-menu .kb-hints { display: none; }
   padding: 8px 14px;
   background: #000;
   border: 1px solid var(--theme-accent-edge, rgba(79,195,247,0.35));
-  border-radius: 3px;
+  border-radius: 2px;
   min-width: 76px;
   box-shadow: inset 0 0 8px var(--theme-wash-08, rgba(79,195,247,0.05));
 }
@@ -19121,7 +19119,7 @@ body.phase-menu .kb-hints { display: none; }
   padding: 10px 14px;
   background: #000;
   border: 1px solid var(--theme-accent-edge, rgba(79,195,247,0.35));
-  border-radius: 3px;
+  border-radius: 2px;
   color: color-mix(in srgb, var(--theme-accent, rgb(79,195,247)) 35%, #8fa2b5);
   font-family: 'Rajdhani', sans-serif;
   font-size: 11px; font-weight: 800;
@@ -19195,8 +19193,8 @@ body.phase-menu .kb-hints { display: none; }
   font-family: 'Rajdhani', sans-serif;
   font-size: 12px; font-weight: 600;
   letter-spacing: 1px;
-  border-radius: 3px;
-  transition: border-color 0.15s, box-shadow 0.15s;
+  border-radius: 2px;
+  transition: border-color 0.15s var(--ease-snap), box-shadow 0.15s var(--ease-snap);
 }
 .db-search::placeholder {
   color: color-mix(in srgb, var(--theme-accent, rgb(79,195,247)) 25%, #7a8691);
@@ -19221,7 +19219,7 @@ body.phase-menu .kb-hints { display: none; }
   border-radius: 50%;
   cursor: pointer;
   display: flex; align-items: center; justify-content: center;
-  transition: background 0.15s, color 0.15s;
+  transition: background 0.15s var(--ease-snap), color 0.15s var(--ease-snap);
 }
 .db-search-clear:hover {
   background: var(--theme-wash-08, rgba(79,195,247,0.08));
@@ -19236,7 +19234,7 @@ body.phase-menu .kb-hints { display: none; }
   font-family: 'Rajdhani', sans-serif;
   font-size: 11px; font-weight: 700;
   letter-spacing: 1.5px;
-  border-radius: 3px;
+  border-radius: 2px;
   cursor: pointer;
 }
 .db-sort:focus {
@@ -19280,7 +19278,7 @@ body.phase-menu .kb-hints { display: none; }
   font-size: 12px;
   letter-spacing: 1px;
   border: 1px dashed var(--theme-accent-edge, rgba(79,195,247,0.25));
-  border-radius: 3px;
+  border-radius: 2px;
 }
 
 /* Deck heading — now a flex row with label + in-line count badge so
@@ -19298,7 +19296,7 @@ body.phase-menu .kb-hints { display: none; }
   font-variant-numeric: tabular-nums;
   padding: 2px 8px;
   border: 1px solid var(--theme-accent-edge, rgba(79,195,247,0.35));
-  border-radius: 10px;
+  border-radius: 8px;
   color: color-mix(in srgb, var(--theme-accent, rgb(79,195,247)) 35%, white);
   background: var(--theme-wash-05, rgba(79,195,247,0.05));
 }
@@ -19326,7 +19324,7 @@ body.phase-menu .kb-hints { display: none; }
   width: 0;
   background: var(--theme-accent-bright, #4fc3f7);
   box-shadow: 0 0 6px var(--theme-accent-bright, rgba(79,195,247,0.75));
-  transition: width 0.2s, top 0.2s, bottom 0.2s;
+  transition: width 0.2s var(--ease-snap), top 0.2s var(--ease-snap), bottom 0.2s var(--ease-snap);
   z-index: 1;
   pointer-events: none;
 }
@@ -19633,7 +19631,7 @@ body.phase-menu .kb-hints { display: none; }
   border: 1px solid rgba(255, 255, 255, 0.18);
   color: rgba(255, 255, 255, 0.72);
   font-size: 12px; font-weight: 600; letter-spacing: 0.06em;
-  cursor: pointer; transition: all 200ms ease;
+  cursor: pointer; transition: all 200ms var(--ease-snap);
 }
 .encyc-rl-toggle:hover {
   border-color: rgba(255, 200, 90, 0.55);
@@ -19642,7 +19640,7 @@ body.phase-menu .kb-hints { display: none; }
 .encyc-rl-toggle .encyc-rl-dot {
   width: 8px; height: 8px; border-radius: 50%;
   background: rgba(255, 255, 255, 0.32);
-  transition: background 200ms ease, box-shadow 200ms ease;
+  transition: background 200ms var(--ease-snap), box-shadow 200ms var(--ease-snap);
 }
 .encyc-rl-active {
   background: linear-gradient(135deg, rgba(255, 180, 60, 0.18), rgba(255, 120, 30, 0.10));
@@ -19931,7 +19929,7 @@ body.colorblind .ai-bar .health-container {
      dot "behind" the cost number on hover. With normal blending at
      lower opacity, the sheen still reads as a diagonal shine but
      doesn't punch through the diamond. */
-  transition: opacity 0.35s ease, background-position 0.9s var(--ease-out-soft);
+  transition: opacity 0.35s var(--ease-snap), background-position 0.9s var(--ease-out-soft);
   /* Pushed below the card-cost diamond (z-index 2) so the diamond's
      opaque black backdrop blocks the sheen from bleeding through. */
   z-index: 1;
@@ -19985,15 +19983,13 @@ body.colorblind .ai-bar .health-container {
     inset 0 0 0 1px rgba(255, 255, 255, 0.15) !important;
   filter: brightness(1.08);
   transition:
-    transform 200ms cubic-bezier(0.34, 1.56, 0.64, 1),
-    box-shadow 200ms ease,
-    filter 200ms ease;
+    transform 200ms cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 200ms var(--ease-snap), filter 200ms var(--ease-snap);
 }
 /* Dim other hand cards when one is selected — focus attention. */
 .hand-cards:has(.card.selected) .card.hand-card:not(.selected) {
   opacity: 0.55;
   filter: brightness(0.85);
-  transition: opacity 200ms ease, filter 200ms ease;
+  transition: opacity 200ms var(--ease-snap), filter 200ms var(--ease-snap);
 }
 
 /* ---- 4. Radial gradient board background ----
@@ -20306,7 +20302,7 @@ body {
   user-select: none;
   text-shadow:
     0 0 50px rgba(var(--theme-rgb, 79,195,247), 0.25);
-  transition: opacity 0.4s ease;
+  transition: opacity 0.4s var(--ease-snap);
 }
 .board { position: relative; }
 
@@ -20355,7 +20351,7 @@ body {
   transform: translateY(-50%);
   pointer-events: none;
   opacity: 0;
-  transition: opacity 0.2s ease;
+  transition: opacity 0.2s var(--ease-snap);
   z-index: 2;
 }
 body.ai-thinking .ai-thinking-ring { opacity: 1; }
@@ -20502,13 +20498,12 @@ body.ai-thinking .ai-thinking-ring { opacity: 1; }
 body.turn-combat .board .lane.lane-active {
   transform: scale(1.05);
   filter: brightness(1.12) saturate(1.08);
-  transition: transform 200ms var(--ease-out-soft),
-              filter 200ms ease;
+  transition: transform 200ms var(--ease-out-soft), filter 200ms var(--ease-snap);
   z-index: 3;
 }
 body.turn-combat .board .lane:not(.lane-active) {
   filter: brightness(0.75) saturate(0.85);
-  transition: filter 200ms ease;
+  transition: filter 200ms var(--ease-snap);
 }
 @media (prefers-reduced-motion: reduce) {
   body.turn-combat .board .lane.lane-active { transform: none !important; }
@@ -20761,7 +20756,7 @@ body.combat-anticipate .board {
   );
   background-size: 200% 200%;
   background-position: 100% 100%;
-  transition: opacity 0.35s ease, background-position 0.9s var(--ease-out-soft);
+  transition: opacity 0.35s var(--ease-snap), background-position 0.9s var(--ease-out-soft);
   z-index: 1;
 }
 .trick-card:hover::after {
@@ -20797,7 +20792,7 @@ body.combat-anticipate .board {
   background-size: 200% 200%, 100% 100% !important;
   background-position: 100% 100%, 0 0 !important;
   background-repeat: no-repeat, no-repeat !important;
-  transition: background-image 0.35s ease, background-position 0.9s var(--ease-out-soft) !important;
+  transition: background-image 0.35s var(--ease-snap), background-position 0.9s var(--ease-out-soft) !important;
 }
 .draft-card.trick-draft:hover {
   /* Sheen alphas bumped up — the card's near-black background
@@ -20841,7 +20836,7 @@ body.combat-anticipate .board {
   transform: scale(1.5) translateY(-6px)
              rotateX(calc(var(--tilt-y, 0) * -6deg))
              rotateY(calc(var(--tilt-x, 0) * 6deg));
-  transition: transform 90ms ease-out;
+  transition: transform 90ms var(--ease-snap);
   will-change: transform;
 }
 /* DRAFT trick cards are already picker-sized — no scale (was 1.5×, way too
@@ -20851,7 +20846,7 @@ body.combat-anticipate .board {
   transform: translateY(-8px)
              rotateX(calc(var(--tilt-y, 0) * -6deg))
              rotateY(calc(var(--tilt-x, 0) * 6deg));
-  transition: transform 90ms ease-out;
+  transition: transform 90ms var(--ease-snap);
   will-change: transform;
 }
 @media (prefers-reduced-motion: reduce) {
@@ -21192,20 +21187,14 @@ body.combat-anticipate .board {
      more "settled" than hover-in. ease-in on box-shadow makes
      the glow trail off rather than snap. */
   transition:
-    box-shadow   600ms var(--ease-pulse-organic),
-    outline-color 240ms var(--ease-out-soft),
-    filter        240ms var(--ease-out-soft),
-    transform     240ms var(--ease-out-soft);
+    box-shadow   600ms var(--ease-pulse-organic), outline-color 240ms var(--ease-out-soft), filter        240ms var(--ease-out-soft), transform     240ms var(--ease-out-soft);
 }
 .card:hover {
   /* Fast ramp-in when entering hover state — overrides the slow base
      transition specifically for box-shadow. The multi-layer shadow
      reads as light blooming outward from the card. */
   transition:
-    box-shadow   200ms var(--ease-out-soft),
-    outline-color 150ms var(--ease-out-soft),
-    filter        150ms var(--ease-out-soft),
-    transform     200ms var(--ease-out-soft);
+    box-shadow   200ms var(--ease-out-soft), outline-color 150ms var(--ease-out-soft), filter        150ms var(--ease-out-soft), transform     200ms var(--ease-out-soft);
   box-shadow:
     0 0 8px  rgba(127,208,255,0.55),
     0 0 18px rgba(var(--theme-rgb, 79,195,247),0.40),
@@ -21327,7 +21316,7 @@ body.combat-anticipate .board {
   cursor: pointer;
   display: flex; align-items: center; justify-content: center;
   z-index: 10;
-  transition: border-color 0.15s, box-shadow 0.15s, transform 0.12s;
+  transition: border-color 0.15s var(--ease-snap), box-shadow 0.15s var(--ease-snap), transform 0.12s var(--ease-snap);
   box-shadow:
     0 0 8px rgba(var(--theme-rgb, 79,195,247),0.30),
     0 0 18px rgba(var(--theme-rgb, 79,195,247),0.12);
@@ -21363,7 +21352,7 @@ body.combat-anticipate .board {
     0 0 14px rgba(var(--theme-rgb, 79,195,247),0.55),
     0 0 30px rgba(var(--theme-rgb, 79,195,247),0.25);
   text-shadow: 0 0 6px rgba(var(--theme-rgb, 79,195,247),0.65);
-  transition: border-color 0.15s, box-shadow 0.15s, transform 0.12s;
+  transition: border-color 0.15s var(--ease-snap), box-shadow 0.15s var(--ease-snap), transform 0.12s var(--ease-snap);
   display: inline-flex; align-items: center; gap: 6px;
   animation: gameOverRestorePulse 2.2s ease-in-out infinite;
 }
@@ -21405,9 +21394,7 @@ body.combat-anticipate .board {
   cursor: pointer;
   display: flex; align-items: center; justify-content: center;
   z-index: 12;
-  transition: border-color 0.15s var(--ease-out-soft, ease),
-              box-shadow 0.15s var(--ease-out-soft, ease),
-              transform 0.12s var(--ease-out-soft, ease);
+  transition: border-color 0.15s var(--ease-out-soft, var(--ease-snap)), box-shadow 0.15s var(--ease-out-soft, var(--ease-snap)), transform 0.12s var(--ease-out-soft, var(--ease-snap));
   box-shadow:
     0 0 8px rgba(var(--theme-rgb, 79,195,247),0.30),
     0 0 18px rgba(var(--theme-rgb, 79,195,247),0.12);
@@ -21447,9 +21434,7 @@ body.combat-anticipate .board {
     0 0 14px rgba(var(--theme-rgb, 79,195,247),0.55),
     0 0 30px rgba(var(--theme-rgb, 79,195,247),0.25);
   text-shadow: 0 0 6px rgba(var(--theme-rgb, 79,195,247),0.65);
-  transition: border-color 0.15s var(--ease-out-soft, ease),
-              box-shadow 0.15s var(--ease-out-soft, ease),
-              transform 0.12s var(--ease-out-soft, ease);
+  transition: border-color 0.15s var(--ease-out-soft, var(--ease-snap)), box-shadow 0.15s var(--ease-out-soft, var(--ease-snap)), transform 0.12s var(--ease-out-soft, var(--ease-snap));
   display: none; /* JS flips to inline-flex when active */
   align-items: center; gap: 8px;
   animation: peekRestorePulse 2.2s var(--ease-pulse-organic, ease-in-out) infinite;
@@ -21583,8 +21568,7 @@ body.combat-anticipate .board {
   transform: translateX(-100%);
   opacity: 1;
   transition:
-    transform var(--tron-fill-duration) var(--ease-out-soft),
-    opacity   var(--tron-decay-duration) var(--ease-out-soft);
+    transform var(--tron-fill-duration) var(--ease-out-soft), opacity   var(--tron-decay-duration) var(--ease-out-soft);
 }
 
 /* Hover fill — slide the sweep into place left-to-right. */
@@ -22374,7 +22358,7 @@ body.low-fx .tron-derez { display: none !important; }
     0 0 12px rgba(127,208,255,0.85),
     0 0 22px rgba(127,208,255,0.45);
   border-color: rgba(127,208,255,1);
-  transition: box-shadow 240ms ease-out, border-color 240ms ease-out;
+  transition: box-shadow 240ms var(--ease-snap), border-color 240ms var(--ease-snap);
 }
 
 /* === T4.2 BACKGROUND GRID PARALLAX — JS sets --grid-px-x/y on
@@ -22494,9 +22478,7 @@ body::after {
      Other properties (box-shadow, filter, outline) keep their
      existing transitions so hover-glow still ramps via CSS. */
   transition:
-    box-shadow   600ms var(--ease-pulse-organic),
-    outline-color 240ms var(--ease-out-soft),
-    filter        240ms var(--ease-out-soft);
+    box-shadow   600ms var(--ease-pulse-organic), outline-color 240ms var(--ease-out-soft), filter        240ms var(--ease-out-soft);
 }
 /* Disable the hand-card hover translateY(-8px) class behavior —
    the spring now owns transform. */
@@ -22990,7 +22972,7 @@ html {
   letter-spacing: 2px;
   color: #fff;
   background: rgba(231, 76, 60, 0.85);
-  border-radius: 3px;
+  border-radius: 2px;
   text-shadow: 0 0 4px rgba(0, 0, 0, 0.8);
   animation: lethalFlashIn 360ms var(--ease-out-expo);
 }
@@ -23090,8 +23072,7 @@ html {
   outline: 1px solid rgba(127, 208, 255, 0.85);
   outline-offset: 2px;
   filter: brightness(1.10);
-  transition: outline-color 150ms var(--ease-out-soft),
-              filter 150ms var(--ease-out-soft);
+  transition: outline-color 150ms var(--ease-out-soft), filter 150ms var(--ease-out-soft);
 }
 
 /* Disabled / unaffordable card — when energy < cost, the card
@@ -23390,7 +23371,7 @@ body.killing-blow-cinema::after {
   /* Tiny opacity transition so the light fades in/out smoothly when
      the cursor enters/leaves the board area. */
   opacity: var(--b-light, 0);
-  transition: opacity 320ms var(--ease-out-soft, ease);
+  transition: opacity 320ms var(--ease-out-soft, var(--ease-snap));
   /* FLICKER FIX (2026-07-24): user — "the art glitches whenever i move my
      mouse; when the mouse is still the art is fine." This cursor-light's
      gradient position updates on every mousemove (--bx/--by). It USED to carry
@@ -23496,7 +23477,7 @@ body.killing-blow-cinema::after {
     0 0 18px rgba(46, 204, 113, 0.30);
   cursor: pointer;
   z-index: 10000;
-  transition: background 0.15s, box-shadow 0.15s;
+  transition: background 0.15s var(--ease-snap), box-shadow 0.15s var(--ease-snap);
   /* Subtle pulse so the player notices it */
   animation: updateBannerPulse 2.4s ease-in-out infinite;
 }
@@ -23571,7 +23552,7 @@ body.killing-blow-cinema::after {
   padding: 10px;
   background: rgba(255,255,255,0.02);
   border: 1px solid rgba(255,255,255,0.10);
-  border-radius: 6px;
+  border-radius: 4px;
 }
 .go-mvp-empty { visibility: hidden; }
 .go-mvp-header {
@@ -23592,7 +23573,7 @@ body.killing-blow-cinema::after {
 .go-mvp-side-tag {
   font-size: 9px;
   padding: 1px 6px;
-  border-radius: 3px;
+  border-radius: 2px;
   border: 1px solid currentColor;
 }
 .go-mvp-side-you { color: rgb(var(--theme-rgb, 79,195,247)); }
@@ -23612,7 +23593,7 @@ body.killing-blow-cinema::after {
   display: flex;
   flex-direction: column;
 }
-.go-mvp-card .card-portrait { width: 100%; margin: 0; border-radius: 7px 7px 0 0; }
+.go-mvp-card .card-portrait { width: 100%; margin: 0; border-radius: 8px 8px 0 0; }
 .go-mvp-card .card-abilities { padding: 6px 6px 20px; margin: 0; justify-content: center; }
 /* Rarity-based borders + halo, mirroring .draft-card.cost-* so the
    MVP / runner-up cards advertise their tier. User feedback: "the MVP
@@ -23675,7 +23656,7 @@ body.killing-blow-cinema::after {
   display: flex; justify-content: space-between;
   padding: 2px 6px;
   background: rgba(255,255,255,0.03);
-  border-radius: 3px;
+  border-radius: 2px;
   letter-spacing: 0.5px;
 }
 .go-mvp-stat-k { color: rgba(220,225,235,0.65); text-transform: uppercase; font-size: 9px; }
@@ -23687,7 +23668,7 @@ body.killing-blow-cinema::after {
   padding: 8px 12px;
   background: rgba(255,255,255,0.03);
   border: 1px solid rgba(255,255,255,0.08);
-  border-radius: 5px;
+  border-radius: 4px;
 }
 .go-top5-title {
   font-family: 'Rajdhani', sans-serif;
@@ -23818,7 +23799,7 @@ body.killing-blow-cinema::after {
   padding: 18px 18px 16px;
   text-align: left;
   cursor: pointer;
-  transition: border-color 0.15s, box-shadow 0.15s, transform 0.15s;
+  transition: border-color 0.15s var(--ease-snap), box-shadow 0.15s var(--ease-snap), transform 0.15s var(--ease-snap);
   font-family: inherit;
   color: inherit;
 }
@@ -23902,7 +23883,7 @@ body.killing-blow-cinema::after {
 }
 .rl-hud-pill.rl-hud-btn {
   cursor: pointer;
-  transition: transform 0.15s, border-color 0.15s, box-shadow 0.15s;
+  transition: transform 0.15s var(--ease-snap), border-color 0.15s var(--ease-snap), box-shadow 0.15s var(--ease-snap);
 }
 .rl-hud-pill.rl-hud-btn:hover {
   transform: translateY(-1px);
@@ -23958,7 +23939,7 @@ body.killing-blow-cinema::after {
   font-size: 13px;
   background: rgba(255,255,255,0.04);
   border: 1px solid rgba(255,255,255,0.10);
-  border-radius: 3px;
+  border-radius: 2px;
   color: rgba(220,225,235,0.85);
 }
 /* Relic strip — sits just below HUD on map view. Now neon-themed
@@ -23974,7 +23955,7 @@ body.killing-blow-cinema::after {
   padding: 6px 14px;
   background: linear-gradient(180deg, rgba(255,255,255,0.05), rgba(0,0,0,0.50));
   border: 1px solid var(--theme-accent-edge, rgba(79,195,247,0.55));
-  border-radius: 18px;
+  border-radius: 12px;
   font-family: 'Rajdhani', sans-serif;
   font-size: 11px; letter-spacing: 1.6px;
   color: var(--theme-accent-bright, #d4ecff);
@@ -23985,7 +23966,7 @@ body.killing-blow-cinema::after {
     0 0 10px var(--theme-glow-outer, rgba(79,195,247,0.25)),
     inset 0 0 0 1px rgba(255,255,255,0.05);
   cursor: help;
-  transition: transform 0.15s, border-color 0.15s, box-shadow 0.15s, padding 0.15s;
+  transition: transform 0.15s var(--ease-snap), border-color 0.15s var(--ease-snap), box-shadow 0.15s var(--ease-snap), padding 0.15s var(--ease-snap);
 }
 .rl-relic-chip:hover {
   transform: translateY(-1px);
@@ -24082,10 +24063,10 @@ body.killing-blow-cinema::after {
   padding: 6px 16px;
   background: linear-gradient(180deg, rgba(255,255,255,0.04), rgba(0,0,0,0.50));
   border: 1px solid rgba(255,255,255,0.18);
-  border-radius: 16px;
+  border-radius: 12px;
   color: rgba(160,180,200,0.55);
   text-transform: uppercase;
-  transition: color 0.2s, border-color 0.2s, box-shadow 0.2s;
+  transition: color 0.2s var(--ease-snap), border-color 0.2s var(--ease-snap), box-shadow 0.2s var(--ease-snap);
 }
 .rl-pick-step-active {
   color: var(--theme-accent-bright, #d4ecff);
@@ -24122,7 +24103,7 @@ body.killing-blow-cinema::after {
   filter:
     drop-shadow(0 0 4px var(--theme-glow-outer, rgba(79,195,247,0.85)))
     drop-shadow(0 0 10px var(--theme-glow-inner, rgba(79,195,247,0.35)));
-  transition: transform 0.2s, filter 240ms;
+  transition: transform 0.2s var(--ease-snap), filter 240ms var(--ease-snap);
   text-shadow:
     0 0 6px var(--theme-glow-outer, rgba(79,195,247,0.85)),
     0 0 14px var(--theme-glow-inner, rgba(79,195,247,0.45));
@@ -24181,7 +24162,7 @@ body.killing-blow-cinema::after {
   cursor: pointer;
   padding: 4px;
   border-radius: var(--r-card);
-  transition: transform 200ms, filter 200ms;
+  transition: transform 200ms var(--ease-snap), filter 200ms var(--ease-snap);
   filter: drop-shadow(0 0 8px var(--theme-glow-outer, rgba(79,195,247,0.18)));
 }
 .rl-pick-cardslot-big {
@@ -24236,7 +24217,7 @@ body.killing-blow-cinema::after {
     linear-gradient(180deg, var(--theme-accent-edge, rgba(79,195,247,0.10)) 0%, rgba(0,0,0,0) 50%),
     #060a12;
   border: 1px solid var(--theme-accent-edge, rgba(79,195,247,0.55));
-  border-radius: 6px;
+  border-radius: 4px;
   box-shadow:
     0 0 16px var(--theme-glow-outer, rgba(79,195,247,0.35)),
     0 0 36px var(--theme-glow-inner, rgba(79,195,247,0.12)),
@@ -24244,7 +24225,7 @@ body.killing-blow-cinema::after {
     inset 0 0 0 1px rgba(255,255,255,0.04);
   display: flex; flex-direction: column; align-items: center;
   text-align: center;
-  transition: transform 200ms, box-shadow 200ms, border-color 200ms;
+  transition: transform 200ms var(--ease-snap), box-shadow 200ms var(--ease-snap), border-color 200ms var(--ease-snap);
   overflow: hidden;
 }
 .rl-relic-card-tron:hover {
@@ -24320,17 +24301,17 @@ body.killing-blow-cinema::after {
 .rl-mapnode .rl-mapnode-halo {
   fill: transparent;
   stroke: transparent;
-  transition: stroke 240ms, opacity 240ms;
+  transition: stroke 240ms var(--ease-snap), opacity 240ms var(--ease-snap);
 }
 .rl-mapnode .rl-mapnode-ring {
   fill: #060a12;
   stroke: rgba(255,255,255,0.20);
   stroke-width: 2;
-  transition: stroke 240ms, fill 240ms, stroke-width 240ms;
+  transition: stroke 240ms var(--ease-snap), fill 240ms var(--ease-snap), stroke-width 240ms var(--ease-snap);
 }
 .rl-mapnode .rl-mapnode-icon {
   color: rgba(220,235,250,0.55);
-  transition: color 240ms, filter 240ms;
+  transition: color 240ms var(--ease-snap), filter 240ms var(--ease-snap);
 }
 .rl-mapnode-legal { cursor: pointer; }
 .rl-mapnode-legal .rl-mapnode-ring {
@@ -24491,7 +24472,7 @@ body.killing-blow-cinema::after {
   text-transform: uppercase;
   text-align: left;
   cursor: pointer;
-  transition: transform 0.15s, border-color 0.15s, background 0.15s, box-shadow 0.15s;
+  transition: transform 0.15s var(--ease-snap), border-color 0.15s var(--ease-snap), background 0.15s var(--ease-snap), box-shadow 0.15s var(--ease-snap);
 }
 .rl-event-choice:hover:not([disabled]) {
   transform: translateY(-1px);
@@ -24585,7 +24566,7 @@ body.killing-blow-cinema::after {
   box-shadow:
     0 0 12px rgba(var(--theme-rgb, 79,195,247),0.20),
     inset 0 0 0 1px rgba(var(--theme-rgb, 79,195,247),0.06);
-  transition: border-color 0.2s, box-shadow 240ms, transform 0.15s, background 0.2s, padding-left 0.2s;
+  transition: border-color 0.2s var(--ease-snap), box-shadow 240ms var(--ease-snap), transform 0.15s var(--ease-snap), background 0.2s var(--ease-snap), padding-left 0.2s var(--ease-snap);
   animation: rl-rest-tile-in 0.55s var(--ease-out-soft) both;
 }
 .rl-rest-tile:nth-child(1) { animation-delay: 0.05s; }
@@ -24601,7 +24582,7 @@ body.killing-blow-cinema::after {
   width: 2px;
   background: rgba(var(--theme-rgb, 79,195,247),0.65);
   box-shadow: 0 0 6px rgba(var(--theme-rgb, 79,195,247),0.55);
-  transition: width 0.2s, background 0.2s, box-shadow 0.2s, top 0.2s, bottom 0.2s;
+  transition: width 0.2s var(--ease-snap), background 0.2s var(--ease-snap), box-shadow 0.2s var(--ease-snap), top 0.2s var(--ease-snap), bottom 0.2s var(--ease-snap);
 }
 .rl-rest-tile:hover {
   transform: translateY(-2px);
@@ -24756,7 +24737,7 @@ body.killing-blow-cinema::after {
   color: rgba(255,255,255,0.85);
   background: rgba(0,0,0,0.65);
   border: 1px solid var(--theme-accent-bright, rgba(79,195,247,0.65));
-  border-radius: 3px;
+  border-radius: 2px;
   text-shadow: 0 0 4px var(--theme-glow-outer, rgba(79,195,247,0.55));
   box-shadow: 0 0 6px var(--theme-glow-outer, rgba(79,195,247,0.30));
   pointer-events: none;
@@ -24784,7 +24765,7 @@ body.killing-blow-cinema::after {
   border-radius: 999px;
   color: var(--text-hi, #ffffff);
   cursor: help;
-  transition: transform 0.15s, box-shadow 0.2s;
+  transition: transform 0.15s var(--ease-snap), box-shadow 0.2s var(--ease-snap);
 }
 .rl-end-achievement:hover { transform: translateY(-1px); }
 .rl-end-achievement-glyph { font-size: 14px; }
@@ -25300,7 +25281,7 @@ body.killing-blow-cinema::after {
   box-shadow:
     0 0 10px rgba(var(--theme-rgb, 79,195,247),0.18),
     inset 0 0 0 1px rgba(var(--theme-rgb, 79,195,247),0.05);
-  transition: border-color 0.2s, box-shadow 240ms, transform 0.15s, background 0.2s, padding-left 0.2s;
+  transition: border-color 0.2s var(--ease-snap), box-shadow 240ms var(--ease-snap), transform 0.15s var(--ease-snap), background 0.2s var(--ease-snap), padding-left 0.2s var(--ease-snap);
   /* Angular corner notches — Tron HUD shape. Top-right and bottom-left
      are clipped at a small 45° to break the rectangular silhouette. */
   clip-path: polygon(
@@ -25336,7 +25317,7 @@ body.killing-blow-cinema::after {
   width: 2px;
   background: rgba(var(--theme-rgb, 79,195,247),0.60);
   box-shadow: 0 0 6px rgba(var(--theme-rgb, 79,195,247),0.55);
-  transition: width 0.2s, background 0.2s, box-shadow 0.2s, top 0.2s, bottom 0.2s;
+  transition: width 0.2s var(--ease-snap), background 0.2s var(--ease-snap), box-shadow 0.2s var(--ease-snap), top 0.2s var(--ease-snap), bottom 0.2s var(--ease-snap);
 }
 .rl-levelup-choice:hover {
   transform: translateY(-1px);
@@ -25526,7 +25507,7 @@ body.killing-blow-cinema::after {
   padding: 4px 16px;
   background: rgba(0,0,0,0.85);
   border: 1px solid var(--theme-accent-edge, rgba(79,195,247,0.45));
-  border-radius: 14px;
+  border-radius: 12px;
   box-shadow: inset 0 0 0 1px rgba(255,255,255,0.04);
 }
 
@@ -25547,12 +25528,12 @@ body.killing-blow-cinema::after {
     linear-gradient(180deg, var(--theme-accent-edge, rgba(79,195,247,0.06)) 0%, rgba(0,0,0,0) 50%),
     rgba(8,12,18,0.92);
   border: 1px solid var(--theme-accent-edge, rgba(79,195,247,0.45));
-  border-radius: 5px;
+  border-radius: 4px;
   font-family: 'Rajdhani', sans-serif;
   box-shadow:
     0 0 10px var(--theme-glow-outer, rgba(79,195,247,0.18)),
     inset 0 1px 0 var(--theme-accent-edge, rgba(79,195,247,0.18));
-  transition: transform 200ms, border-color 200ms, box-shadow 200ms;
+  transition: transform 200ms var(--ease-snap), border-color 200ms var(--ease-snap), box-shadow 200ms var(--ease-snap);
 }
 .rl-shop-slot:hover {
   transform: translateY(-2px);
@@ -25686,7 +25667,7 @@ body.killing-blow-cinema::after {
   box-shadow:
     0 0 8px var(--theme-glow-outer, rgba(79,195,247,0.30)),
     inset 0 0 0 1px rgba(255,255,255,0.05);
-  transition: background 200ms, color 200ms, box-shadow 200ms, transform 0.15s;
+  transition: background 200ms var(--ease-snap), color 200ms var(--ease-snap), box-shadow 200ms var(--ease-snap), transform 0.15s var(--ease-snap);
   position: relative;
   overflow: hidden;
 }
@@ -25743,7 +25724,7 @@ body.killing-blow-cinema::after {
   box-shadow:
     0 0 10px rgba(255,150,140,0.30),
     inset 0 0 0 1px rgba(255,255,255,0.04);
-  transition: background 200ms, color 200ms, box-shadow 200ms, transform 0.15s;
+  transition: background 200ms var(--ease-snap), color 200ms var(--ease-snap), box-shadow 200ms var(--ease-snap), transform 0.15s var(--ease-snap);
 }
 .rl-shop-leave:hover {
   background: linear-gradient(180deg, rgba(255,150,140,0.25), rgba(255,90,90,0.12));
@@ -25768,7 +25749,7 @@ body.killing-blow-cinema::after {
   cursor: pointer;
   font-family: 'Rajdhani', sans-serif;
   color: var(--text-dim, #cfd6df);
-  transition: border-color 0.15s, box-shadow 0.15s, transform 0.15s;
+  transition: border-color 0.15s var(--ease-snap), box-shadow 0.15s var(--ease-snap), transform 0.15s var(--ease-snap);
 }
 .rl-node-icon { font-size: 22px; line-height: 1; }
 .rl-node-label { font-size: 10px; letter-spacing: 1.5px; text-transform: uppercase; }
@@ -25815,7 +25796,7 @@ body.killing-blow-cinema::after {
   padding: 3px 8px;
   background: #000;
   border: 1px solid rgba(255,255,255,0.15);
-  border-radius: 3px;
+  border-radius: 2px;
   font-size: 11px; font-family: 'Rajdhani', sans-serif;
 }
 .rl-deck-card em { font-style: normal; opacity: 0.65; font-size: 9px; }
@@ -25838,7 +25819,7 @@ body.killing-blow-cinema::after {
   text-align: center;
   font-family: inherit;
   color: inherit;
-  transition: border-color 0.15s, box-shadow 0.15s, transform 0.15s;
+  transition: border-color 0.15s var(--ease-snap), box-shadow 0.15s var(--ease-snap), transform 0.15s var(--ease-snap);
 }
 .rl-reward-card:hover {
   border-color: rgba(var(--theme-rgb, 79,195,247),0.95);
@@ -25871,7 +25852,7 @@ body.killing-blow-cinema::after {
   border: 1px solid rgba(255,255,255,0.20);
   color: var(--text-dim, #cfd6df);
   padding: 6px 14px;
-  border-radius: 3px;
+  border-radius: 2px;
   font-family: 'Rajdhani', sans-serif;
   font-size: 11px; letter-spacing: 2px; text-transform: uppercase;
   cursor: pointer;
@@ -25986,7 +25967,7 @@ body.killing-blow-cinema::after {
   letter-spacing: 4px; text-transform: uppercase;
   fill: rgba(255,225,150,0.85);
 }
-.rl-mapnode { transition: opacity 0.15s; }
+.rl-mapnode { transition: opacity 0.15s var(--ease-snap); }
 .rl-mapnode:hover circle { stroke-width: 3; }
 .rl-map-hint {
   text-align: center;
@@ -26023,7 +26004,7 @@ body.killing-blow-cinema::after {
     linear-gradient(90deg, rgba(255,90,90,0.08) 0%, rgba(0,0,0,0) 70%),
     linear-gradient(180deg, rgba(255,255,255,0.04), rgba(0,0,0,0.55));
   border: 1px solid rgba(255,150,140,0.55);
-  border-radius: 5px;
+  border-radius: 4px;
   box-shadow:
     0 0 12px rgba(255,150,140,0.25),
     0 0 28px rgba(255,90,90,0.10),
@@ -26144,7 +26125,7 @@ body.killing-blow-cinema::after {
   padding: 6px 12px;
   background: linear-gradient(180deg, rgba(255,255,255,0.04), rgba(0,0,0,0.55));
   border: 1px solid rgba(255,255,255,0.18);
-  border-radius: 14px;
+  border-radius: 12px;
   font-size: 10px; letter-spacing: 2px;
   font-weight: 700;
 }
@@ -26166,11 +26147,11 @@ body.killing-blow-cinema::after {
   border: 1px solid rgba(255,255,255,0.20);
   color: rgba(220,225,235,0.85);
   padding: 4px 10px;
-  border-radius: 3px;
+  border-radius: 2px;
   font-family: 'Rajdhani', sans-serif;
   font-size: 11px; letter-spacing: 1.5px; text-transform: uppercase;
   cursor: pointer;
-  transition: border-color 0.15s, color 0.15s;
+  transition: border-color 0.15s var(--ease-snap), color 0.15s var(--ease-snap);
 }
 .rl-hud-deckbtn:hover {
   border-color: rgba(46,204,113,0.85);
@@ -26195,7 +26176,7 @@ body.killing-blow-cinema::after {
   cursor: pointer;
   font-family: inherit;
   color: inherit;
-  transition: transform 0.15s;
+  transition: transform 0.15s var(--ease-snap);
   position: relative;
 }
 .rl-reward-slot:hover { transform: translateY(-3px); }
@@ -26203,7 +26184,7 @@ body.killing-blow-cinema::after {
 .rl-reward-slot .card.hand-card {
   cursor: pointer;
   pointer-events: none;  /* clicks routed to the wrapping button */
-  transition: box-shadow 0.15s;
+  transition: box-shadow 0.15s var(--ease-snap);
 }
 .rl-reward-rarity {
   font-size: 11px; letter-spacing: 2px;
@@ -26476,7 +26457,7 @@ body.killing-blow-cinema::after {
   padding: 12px 8px 10px;
   background: transparent;
   border: 1px solid var(--tier-color);
-  border-radius: 5px;
+  border-radius: 4px;
 }
 .rl-deck-rarity {
   font-size: 10px; letter-spacing: 1.5px;
@@ -26489,7 +26470,7 @@ body.killing-blow-cinema::after {
   padding: 2px 6px;
   background: rgba(255,255,255,0.06);
   border: 1px solid rgba(255,255,255,0.20);
-  border-radius: 9px;
+  border-radius: 8px;
   font-size: 10px; letter-spacing: 0.5px;
   color: rgba(220,225,235,0.85);
 }
@@ -26972,7 +26953,7 @@ button.btn-secondary {
   border-radius: 4px;
   color: var(--theme-accent-bright, #d4ecff);
   cursor: pointer;
-  transition: transform 0.15s, border-color 0.2s, box-shadow 240ms, background 0.2s;
+  transition: transform 0.15s var(--ease-snap), border-color 0.2s var(--ease-snap), box-shadow 240ms var(--ease-snap), background 0.2s var(--ease-snap);
   box-shadow:
     0 0 10px var(--theme-glow-outer, rgba(79,195,247,0.18)),
     inset 0 0 0 1px rgba(255,255,255,0.04);
@@ -27008,12 +26989,12 @@ input[type="number"],
 textarea {
   background: rgba(0,0,0,0.65);
   border: 1px solid var(--theme-accent-edge, rgba(79,195,247,0.35));
-  border-radius: 3px;
+  border-radius: 2px;
   color: var(--text-hi, #f5fbff);
   font-family: 'Inter', 'Segoe UI', system-ui, sans-serif;
   font-size: 13px;
   padding: 8px 12px;
-  transition: border-color 0.2s, box-shadow 0.2s;
+  transition: border-color 0.2s var(--ease-snap), box-shadow 0.2s var(--ease-snap);
 }
 input[type="text"]:focus,
 input[type="search"]:focus,
@@ -27050,7 +27031,7 @@ button:disabled, button[disabled] {
   color: rgba(220,225,235,0.55);
   font-size: 22px; line-height: 1;
   cursor: pointer;
-  transition: color 0.2s, background 0.2s, border-color 0.2s, transform 0.15s;
+  transition: color 0.2s var(--ease-snap), background 0.2s var(--ease-snap), border-color 0.2s var(--ease-snap), transform 0.15s var(--ease-snap);
   display: flex; align-items: center; justify-content: center;
 }
 .rl-modal-close:hover,
@@ -27073,7 +27054,7 @@ button:disabled, button[disabled] {
   padding: 8px 10px; margin: 6px 0 10px;
   background: rgba(74,170,255,0.06);
   border: 1px solid rgba(74,170,255,0.2);
-  border-radius: 6px;
+  border-radius: 4px;
   font-size: 12px; color: #9cf;
 }
 .audio-audit-panel .aa-summary b { color: #cfe6ff; }
@@ -27085,7 +27066,7 @@ button:disabled, button[disabled] {
   color: #9cf;
   border: 1px solid rgba(74,170,255,0.3);
   padding: 6px 12px;
-  border-radius: 5px;
+  border-radius: 4px;
   font-family: inherit; font-size: 12px; cursor: pointer;
 }
 .audio-audit-panel .aa-tab:hover { background: rgba(74,170,255,0.18); }
@@ -27101,7 +27082,7 @@ button:disabled, button[disabled] {
   width: 240px; max-width: 100%;
   background: #0a0f15; color: var(--text-dim, #d8e8ff);
   border: 1px solid rgba(74,170,255,0.35);
-  border-radius: 5px; padding: 6px 10px;
+  border-radius: 4px; padding: 6px 10px;
   font-family: inherit; font-size: 12px;
 }
 .audio-audit-panel .aa-search:focus {
@@ -27123,7 +27104,7 @@ button:disabled, button[disabled] {
 /* Search = black field with a hairline (inputs keep a minimal affordance). */
 .gallery-audit-panel .aa-search {
   width: 240px; max-width: 100%; background: #000; color: var(--text-dim, #d8e8ff);
-  border: 1px solid rgba(var(--theme-rgb,79,195,247),0.30); border-radius: 5px; padding: 6px 10px;
+  border: 1px solid rgba(var(--theme-rgb,79,195,247),0.30); border-radius: 4px; padding: 6px 10px;
   font-family: inherit; font-size: 12px;
 }
 .gallery-audit-panel .aa-search:focus { outline: none; border-color: rgba(var(--theme-rgb,79,195,247),0.9); box-shadow: 0 0 8px rgba(var(--theme-rgb,79,195,247),0.35); }
@@ -27137,7 +27118,7 @@ button:disabled, button[disabled] {
   font-family: 'Rajdhani', sans-serif; font-size: 12px; font-weight: 700;
   letter-spacing: 2px; text-transform: uppercase;
   padding: 6px 8px; cursor: pointer;
-  transition: color 200ms, text-shadow 200ms, transform 150ms var(--ease-spring, ease);
+  transition: color 200ms var(--ease-snap), text-shadow 200ms var(--ease-snap), transform 150ms var(--ease-spring, var(--ease-snap));
 }
 .gal-restore { margin-left: auto; color: color-mix(in srgb, rgb(var(--theme-rgb,79,195,247)) 70%, white); }
 .gal-export { color: #8ef2ad; }
@@ -27169,7 +27150,7 @@ button:disabled, button[disabled] {
 }
 .gal-full-wrap {
   position: relative; width: 100%; height: 150px;
-  border-radius: 10px; border: none;
+  border-radius: 8px; border: none;
   background-color: #000; overflow: hidden;
 }
 .gal-full { width: 100%; height: 100%; object-fit: contain; display: block; }
@@ -27177,7 +27158,7 @@ button:disabled, button[disabled] {
 .gal-crop-area { width: 150px; display: flex; flex-direction: column; gap: 4px; }
 .gal-crop {
   position: relative; height: 150px; margin: 0 auto;
-  border-radius: 10px; border: none;
+  border-radius: 8px; border: none;
   background-color: #000; background-size: cover; background-repeat: no-repeat;
   overflow: hidden;
 }
@@ -27199,7 +27180,7 @@ button:disabled, button[disabled] {
   background: none; border: none; border-radius: 0; box-shadow: none;
   font-family: 'Rajdhani', sans-serif; font-weight: 700; cursor: pointer;
   color: color-mix(in srgb, rgb(var(--theme-rgb,79,195,247)) 65%, white);
-  transition: color 0.15s, text-shadow 0.15s, transform 0.12s var(--ease-spring, ease);
+  transition: color 0.15s var(--ease-snap), text-shadow 0.15s var(--ease-snap), transform 0.12s var(--ease-spring, var(--ease-snap));
 }
 .gal-move { width: 24px; height: 22px; font-size: 11px; padding: 0; }
 .gal-move:hover:not(:disabled) { background: none; color: #fff; transform: scale(1.2);
@@ -27265,7 +27246,7 @@ button:disabled, button[disabled] {
   letter-spacing: 2.5px; text-transform: uppercase;
   display: inline-flex; align-items: center;
   transform-origin: left center;
-  transition: transform 200ms ease, color 200ms ease, text-shadow 200ms ease;
+  transition: transform 200ms var(--ease-snap), color 200ms var(--ease-snap), text-shadow 200ms var(--ease-snap);
 }
 .gallery-audit-panel .encyc-close:hover,
 .audio-audit-panel .encyc-close:hover {
@@ -27281,7 +27262,7 @@ button:disabled, button[disabled] {
 .audio-audit-panel .aa-table-wrap {
   max-height: 60vh; overflow: auto;
   border: 1px solid rgba(74,170,255,0.2);
-  border-radius: 6px;
+  border-radius: 4px;
 }
 .audio-audit-panel .aa-table {
   width: 100%; border-collapse: collapse;
@@ -27334,7 +27315,7 @@ button:disabled, button[disabled] {
 .audio-audit-panel .aa-cell-splice {
   background: transparent; color: inherit;
   border: 1px solid currentColor;
-  border-radius: 3px;
+  border-radius: 2px;
   padding: 1px 6px; font-size: 11px; cursor: pointer;
   font-family: inherit;
   opacity: 0.8;
@@ -27388,7 +27369,7 @@ button:disabled, button[disabled] {
 }
 .audio-audit-panel .aa-sys-kind {
   font-size: 9px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase;
-  padding: 1px 6px; border-radius: 3px;
+  padding: 1px 6px; border-radius: 2px;
   font-family: var(--font-mono);
 }
 .audio-audit-panel .aa-sys-kind-proc {
@@ -27437,14 +27418,14 @@ button:disabled, button[disabled] {
   display: inline-block;
   background: rgba(74,170,255,0.18);
   color: #9cf;
-  padding: 1px 6px; border-radius: 3px;
+  padding: 1px 6px; border-radius: 2px;
   font-size: 11px; font-family: var(--font-mono);
   margin-left: 4px;
 }
 .aa-splicer-close {
   background: none; color: #9cf;
   border: 1px solid rgba(74,170,255,0.4);
-  border-radius: 3px;
+  border-radius: 2px;
   padding: 1px 8px; cursor: pointer; font-size: 14px;
 }
 .aa-splicer-close:hover { background: rgba(231,76,60,0.18); color: #fff; border-color: rgba(231,76,60,0.5); }
@@ -27467,7 +27448,7 @@ button:disabled, button[disabled] {
   width: 72px;
   background: #0a0f15; color: var(--text-dim, #d8e8ff);
   border: 1px solid rgba(74,170,255,0.35);
-  border-radius: 3px; padding: 3px 6px;
+  border-radius: 2px; padding: 3px 6px;
   font-family: var(--font-mono); font-size: 11px;
 }
 .aa-splicer-controls button {
@@ -27778,10 +27759,10 @@ body > .scanline-overlay {
   padding: 8px 16px;
   background: rgba(0,0,0,0.65);
   border: 1px solid var(--theme-accent-edge, rgba(79,195,247,0.35));
-  border-radius: 3px;
+  border-radius: 2px;
   color: rgba(180,200,220,0.65);
   cursor: pointer;
-  transition: border-color 0.2s, box-shadow 0.2s, color 0.2s, background 0.2s;
+  transition: border-color 0.2s var(--ease-snap), box-shadow 0.2s var(--ease-snap), color 0.2s var(--ease-snap), background 0.2s var(--ease-snap);
 }
 .db-tab:hover, .encyc-tab:hover, .stats-tab:hover, .mh-tab:hover {
   border-color: var(--theme-accent-bright, rgba(79,195,247,0.95));
@@ -27816,7 +27797,7 @@ body > .scanline-overlay {
 a, .tron-link {
   color: var(--theme-accent-bright, #7fd0ff);
   text-decoration: none;
-  transition: color 0.2s, text-shadow 0.2s;
+  transition: color 0.2s var(--ease-snap), text-shadow 0.2s var(--ease-snap);
 }
 a:hover, .tron-link:hover {
   color: var(--text-hi, #ffffff);
@@ -27837,14 +27818,14 @@ select {
     linear-gradient(45deg, transparent 50%, var(--theme-accent-bright, rgba(127,208,255,0.75)) 50%) calc(100% - 14px) calc(50% - 3px) / 6px 6px no-repeat,
     rgba(0,0,0,0.65);
   border: 1px solid var(--theme-accent-edge, rgba(79,195,247,0.45));
-  border-radius: 3px;
+  border-radius: 2px;
   color: var(--text-hi, #f5fbff);
   font-family: 'Rajdhani', sans-serif;
   font-size: 12px; font-weight: 600;
   letter-spacing: 1.2px; text-transform: uppercase;
   padding: 6px 28px 6px 12px;
   cursor: pointer;
-  transition: border-color 0.2s, box-shadow 0.2s;
+  transition: border-color 0.2s var(--ease-snap), box-shadow 0.2s var(--ease-snap);
 }
 select:hover {
   border-color: var(--theme-accent-bright, rgba(79,195,247,0.85));
@@ -27894,7 +27875,7 @@ input[type="range"]::-webkit-slider-thumb {
     0 0 6px var(--theme-glow-outer, rgba(79,195,247,0.85)),
     0 0 14px var(--theme-glow-inner, rgba(79,195,247,0.45));
   cursor: pointer;
-  transition: transform 0.15s, box-shadow 0.2s;
+  transition: transform 0.15s var(--ease-snap), box-shadow 0.2s var(--ease-snap);
 }
 input[type="range"]::-webkit-slider-thumb:hover {
   transform: scale(1.2);
@@ -27957,7 +27938,7 @@ input[type="number"]::-webkit-outer-spin-button {
   border: 1px solid var(--theme-accent-edge, rgba(79,195,247,0.45));
   border-radius: 999px;
   cursor: pointer;
-  transition: background 0.2s, border-color 0.2s;
+  transition: background 0.2s var(--ease-snap), border-color 0.2s var(--ease-snap);
 }
 .tron-toggle::after {
   content: "";
@@ -27965,7 +27946,7 @@ input[type="number"]::-webkit-outer-spin-button {
   border-radius: 50%;
   background: rgba(180,200,220,0.65);
   margin-left: 2px;
-  transition: transform 0.2s, background 0.2s, box-shadow 0.2s;
+  transition: transform 0.2s var(--ease-snap), background 0.2s var(--ease-snap), box-shadow 0.2s var(--ease-snap);
 }
 .tron-toggle.on {
   background: var(--theme-wash-15, rgba(79,195,247,0.18));
@@ -28072,7 +28053,7 @@ input[type="number"]::-webkit-outer-spin-button {
   gap: 6px;
   padding: 4px 10px 4px 4px;
   border: 1px solid rgba(var(--theme-rgb, 79,195,247),0.25);
-  border-radius: 14px;
+  border-radius: 12px;
   background: rgba(0,0,0,0.5);
   font-size: 12px;
   letter-spacing: 0.5px;
@@ -28116,7 +28097,7 @@ input[type="number"]::-webkit-outer-spin-button {
   cursor: pointer;
   border-radius: 4px;
   text-transform: uppercase;
-  transition: all 120ms ease;
+  transition: all 120ms var(--ease-snap);
   box-shadow:
     0 0 10px var(--theme-glow-inner, rgba(79,195,247,0.35)),
     0 0 22px var(--theme-glow-outer, rgba(79,195,247,0.18));
@@ -28144,7 +28125,7 @@ input[type="number"]::-webkit-outer-spin-button {
 .rl-end-rarity-pip {
   font-weight: 600;
   padding: 2px 8px;
-  border-radius: 10px;
+  border-radius: 8px;
   background: rgba(255,255,255,0.04);
 }
 .rl-end-rarity-pip.rl-curse {
@@ -28302,7 +28283,7 @@ input[type="number"]::-webkit-outer-spin-button {
 .rl-boss-intro-begin:active {
   transform: translateY(1px) scale(0.97) !important;
   filter: brightness(0.88) !important;
-  transition: transform 70ms ease-out, filter 70ms ease-out !important;
+  transition: transform 70ms var(--ease-snap), filter 70ms var(--ease-snap) !important;
 }
 
 /* ---- Status effect pulse (frozen / stunned / feared / mind-ctrl) ----
@@ -28870,7 +28851,7 @@ input[type="number"]::-webkit-outer-spin-button {
    read as theme-active when hovered, not just shifted up 1px. */
 .db-grid-item {
   border-color: rgba(var(--theme-rgb, 79,195,247), 0.25) !important;
-  transition: all 0.15s !important;
+  transition: all 0.15s var(--ease-snap) !important;
 }
 .db-grid-item:hover {
   transform: translateY(-2px) !important;
@@ -28884,7 +28865,7 @@ input[type="number"]::-webkit-outer-spin-button {
 .db-save-btn,
 .db-load-btn,
 .db-start-btn {
-  transition: transform 0.15s, box-shadow 0.15s, color 0.15s !important;
+  transition: transform 0.15s var(--ease-snap), box-shadow 0.15s var(--ease-snap), color 0.15s var(--ease-snap) !important;
 }
 .db-save-btn:hover,
 .db-load-btn:hover,
@@ -29404,7 +29385,7 @@ body.turn-player .hud-phase {
       rgba(0,0,0,0.18) 60%,
       rgba(0,0,0,0.32) 100%);
   pointer-events: none;
-  transition: opacity 0.3s ease;
+  transition: opacity 0.3s var(--ease-snap);
 }
 .lane[data-active="true"]::before,
 .state-combat .lane._activeLane::before {
@@ -29564,7 +29545,7 @@ body > .grid-bg {
   z-index: 50;
   background: rgba(var(--theme-rgb, 79,195,247), 0.18);
   border: 1px solid rgba(var(--theme-rgb, 79,195,247), 0.55);
-  border-radius: 5px;
+  border-radius: 4px;
   filter: blur(1px) drop-shadow(0 0 12px rgba(var(--theme-rgb, 79,195,247), 0.55));
   animation: playAfterimage 380ms ease-out forwards;
 }
@@ -30165,7 +30146,7 @@ body > .grid-bg {
       rgba(var(--enemy-r, 231), var(--enemy-g, 76), var(--enemy-b, 60), 0.30)
         calc(50% - (var(--player-dominance, 0) - var(--enemy-dominance, 0)) * 50%))
     calc((var(--player-dominance, 0) + var(--enemy-dominance, 0)) * 12%));
-  transition: border-image 800ms ease-out;
+  transition: border-image 800ms var(--ease-snap);
 }
 
 /* Reduced-motion users get the old flat 2D view. The 3D
@@ -30229,7 +30210,7 @@ body.low-fx .board-section .crt-scanlines { display: none; }
   width: 100%;
   background: #000;
   border: 1px solid rgba(var(--theme-rgb, 46, 204, 113), 0.85);
-  border-radius: 6px;
+  border-radius: 4px;
   box-shadow:
     0 0 12px rgba(var(--theme-rgb, 46, 204, 113), 0.45),
     0 0 24px rgba(var(--theme-rgb, 46, 204, 113), 0.18),
@@ -30268,8 +30249,8 @@ body.low-fx .board-section .crt-scanlines { display: none; }
   letter-spacing: 1px;
   padding: 8px 10px;
   cursor: pointer;
-  border-radius: 3px;
-  transition: background 120ms;
+  border-radius: 2px;
+  transition: background 120ms var(--ease-snap);
 }
 .sandbox-btn:hover {
   background: rgba(var(--theme-rgb, 46, 204, 113), 0.25);
@@ -30282,7 +30263,7 @@ body.low-fx .board-section .crt-scanlines { display: none; }
   color: var(--text-body, #f0f6fb);
   font-family: inherit;
   font-size: 13px;
-  border-radius: 3px;
+  border-radius: 2px;
 }
 .sandbox-search:focus {
   outline: none;
@@ -30302,9 +30283,9 @@ body.low-fx .board-section .crt-scanlines { display: none; }
   gap: 8px;
   align-items: center;
   padding: 6px 8px;
-  border-radius: 3px;
+  border-radius: 2px;
   cursor: pointer;
-  transition: background 100ms;
+  transition: background 100ms var(--ease-snap);
   border: 1px solid transparent;
 }
 .sb-row:hover {
@@ -30404,7 +30385,7 @@ body.low-fx .board-section .crt-scanlines { display: none; }
    ============================================================ */
 body.killcam .board {
   filter: saturate(0.78) brightness(1.04);
-  transition: filter 80ms ease-out;
+  transition: filter 80ms var(--ease-snap);
 }
 body.killcam .board::before {
   content: '';
@@ -30539,7 +30520,7 @@ body.combat-anticipate::after  { content: none !important; }
   text-transform: uppercase;
   letter-spacing: 0.08em;
   cursor: pointer;
-  transition: background 120ms ease;
+  transition: background 120ms var(--ease-snap);
 }
 .share-card-modal .scm-btn:hover {
   background: rgba(var(--theme-rgb, 79, 195, 247), 0.22);
@@ -30558,7 +30539,7 @@ body.combat-anticipate::after  { content: none !important; }
   letter-spacing: 0.08em;
   text-transform: uppercase;
   opacity: 0;
-  transition: opacity 200ms ease;
+  transition: opacity 200ms var(--ease-snap);
   height: 14px;
 }
 .share-card-modal .scm-toast.show { opacity: 1; }
@@ -30938,7 +30919,7 @@ body.combat-anticipate::after  { content: none !important; }
      takes the pointer, so the target is the letterforms and nothing else. */
   pointer-events: none;
   text-shadow: 0 1px 2px rgba(0, 0, 0, 0.85), 0 0 6px rgba(0, 0, 0, 0.55);
-  transition: color 0.15s ease, text-shadow 0.15s ease, box-shadow 0.15s ease;
+  transition: color 0.15s var(--ease-snap), text-shadow 0.15s var(--ease-snap), box-shadow 0.15s var(--ease-snap);
 }
 .card-portrait .card-name-overlay .cn-text {
   pointer-events: auto;
@@ -31262,7 +31243,7 @@ body.round-tick .board::after {
   min-height: 44px;
   color: rgba(var(--theme-rgb, 79,195,247), 0.95);
   text-shadow: 0 0 10px rgba(var(--theme-rgb, 79,195,247), 0.45);
-  transition: color 0.18s, text-shadow 0.18s, transform 0.15s var(--ease-spring, ease);
+  transition: color 0.18s var(--ease-snap), text-shadow 0.18s var(--ease-snap), transform 0.15s var(--ease-spring, var(--ease-snap));
 }
 /* The reticle. Eight hairlines, two per corner, drawn as background gradients
    so the whole frame is one element and one paint. */
@@ -31285,7 +31266,7 @@ body.round-tick .board::after {
     linear-gradient(90deg,  var(--c) 0 100%) 100% 100% / 15px 1px no-repeat,
     linear-gradient(180deg, var(--c) 0 100%) 100% 100% / 1px 15px no-repeat;
   filter: drop-shadow(0 0 5px rgba(var(--theme-rgb, 79,195,247), 0.55));
-  transition: inset 0.18s var(--ease-spring, ease), opacity 0.18s;
+  transition: inset 0.18s var(--ease-spring, var(--ease-snap)), opacity 0.18s var(--ease-snap);
 }
 /* Hover / focus: the reticle opens outward and the word brightens. Grow and
    glow, exactly like the menu's text buttons — never a fill, never a box. */
@@ -31318,7 +31299,7 @@ body.round-tick .board::after {
   font-family: var(--font-mono, ui-monospace, monospace);
   font-size: 10px; font-weight: 700; letter-spacing: 0.12em;
   color: var(--text-dim, #8d9cad);
-  transition: color 0.15s;
+  transition: color 0.15s var(--ease-snap);
 }
 #btn-undo.btn:hover { color: var(--text-hi, #e6edf4); }
 #btn-undo .undo-arrow { width: 13px; height: 13px; flex: none; }
@@ -31515,7 +31496,7 @@ body.round-tick .board::after {
   cursor: pointer;
   color: rgba(var(--rtc), 0.95);
   text-shadow: 0 0 10px rgba(var(--rtc), 0.45);
-  transition: color 0.18s, text-shadow 0.18s, transform 0.15s var(--ease-spring, ease);
+  transition: color 0.18s var(--ease-snap), text-shadow 0.18s var(--ease-snap), transform 0.15s var(--ease-spring, var(--ease-snap));
 }
 /* Eight hairlines, two per corner, drawn as background gradients so the whole
    frame is one element and one paint. */
@@ -31535,7 +31516,7 @@ body.round-tick .board::after {
     linear-gradient(90deg,  var(--c) 0 100%) 100% 100% / 15px 1px no-repeat,
     linear-gradient(180deg, var(--c) 0 100%) 100% 100% / 1px 15px no-repeat;
   filter: drop-shadow(0 0 5px rgba(var(--rtc), 0.55));
-  transition: inset 0.18s var(--ease-spring, ease), opacity 0.18s;
+  transition: inset 0.18s var(--ease-spring, var(--ease-snap)), opacity 0.18s var(--ease-snap);
 }
 .tron-reticle-btn:hover,
 .tron-reticle-btn:focus-visible {
@@ -31636,7 +31617,7 @@ body.round-tick .board::after {
   font-size: 14px;
   letter-spacing: 2.2px;
   text-transform: uppercase;
-  border-radius: 3px;
+  border-radius: 2px;
   color: #fff;
   text-shadow:
     0 0 6px currentColor,
@@ -31684,7 +31665,7 @@ body.round-tick .board::after {
   box-shadow:
     0 0 10px rgba(var(--theme-rgb, 79,195,247), 0.35),
     inset 0 0 8px rgba(var(--theme-rgb, 79,195,247), 0.15);
-  transition: transform 120ms ease-out, box-shadow 120ms ease-out;
+  transition: transform 120ms var(--ease-snap), box-shadow 120ms var(--ease-snap);
 }
 .card-inspect-close:hover {
   transform: scale(1.08);
@@ -31807,7 +31788,7 @@ body.round-tick .board::after {
 }
 .freddy-dark-overlay.freddy-flash-red {
   background: rgba(155, 0, 0, 0.68) !important;
-  transition: background 0.08s ease-in;
+  transition: background 0.08s var(--ease-exit);
 }
 @keyframes freddyDarkenIn {
   from { opacity: 0; }
@@ -32006,11 +31987,11 @@ body.round-tick .board::after {
       rgba(4, 26, 24, 0.90) 0%,
       rgba(6, 38, 33, 0.95) 45%,
       rgba(3, 20, 18, 0.97) 100%);
-  transition: opacity 0.45s ease-out;
+  transition: opacity 0.45s var(--ease-snap);
 }
 .spino-release-stage.spino-release-clearing .wetlands-surface,
 .spino-release-stage.spino-release-clearing .spino-sail { opacity: 0; }
-.spino-release-stage.spino-release-clearing .spino-sail { transition: opacity 0.35s ease-out; }
+.spino-release-stage.spino-release-clearing .spino-sail { transition: opacity 0.35s var(--ease-snap); }
 
 /* Beat 2 — THE SAIL. Rises slowly out of the bottom of the lane, clipped so
    the lower half stays "submerged", and drifts a little as it climbs. */
@@ -32155,7 +32136,7 @@ body.round-tick .board::after {
   white-space: nowrap;
   cursor: pointer;
   background: rgba(0, 0, 0, 0.55);
-  transition: background 0.15s;
+  transition: background 0.15s var(--ease-snap);
 }
 .env-bg-label:hover {
   background: rgba(0, 0, 0, 0.8);
@@ -32254,7 +32235,7 @@ body.round-tick .board::after {
 }
 .pennywise-overlay.pennywise-flash-red {
   background: rgba(160, 0, 0, 0.70) !important;
-  transition: background 0.08s ease-in;
+  transition: background 0.08s var(--ease-exit);
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -32302,12 +32283,12 @@ body.round-tick .board::after {
 /* struck target — soft red rim so the eye lands on what gets hit */
 .card.forecast-target {
   box-shadow: 0 0 0 2px rgba(255, 82, 82, 0.85), 0 0 16px 2px rgba(255, 82, 82, 0.5) !important;
-  border-radius: 10px;
+  border-radius: 8px;
 }
 /* the hovered attacker — a cyan lift marking the origin of the swing */
 .card.forecast-source {
   box-shadow: 0 0 0 2px rgba(90, 200, 255, 0.85), 0 0 18px 2px rgba(90, 200, 255, 0.5) !important;
-  border-radius: 10px;
+  border-radius: 8px;
 }
 
 /* cur → after pill, centered above each struck target (and the hero orb) */
@@ -32317,7 +32298,7 @@ body.round-tick .board::after {
   font: 700 12px/1.2 ui-monospace, Menlo, Consolas, monospace;
   letter-spacing: 0.3px;
   padding: 2px 8px;
-  border-radius: 6px;
+  border-radius: 4px;
   white-space: nowrap;
   pointer-events: none;
   background: rgba(6, 10, 18, 0.92);
@@ -33013,7 +32994,7 @@ body.round-tick .board::after {
 /* Ghost Rider Penance Stare — ashen wither (grayscales the card beneath) + soul-fire flicker */
 .sig-ashen {
   position: fixed;
-  border-radius: 10px;
+  border-radius: 8px;
   pointer-events: none;
   backdrop-filter: grayscale(1) brightness(0.55);
   -webkit-backdrop-filter: grayscale(1) brightness(0.55);
@@ -33045,7 +33026,7 @@ body.round-tick .board::after {
 }
 .sig-revive-flash {
   position: fixed;
-  border-radius: 10px;
+  border-radius: 8px;
   pointer-events: none;
   opacity: 0;
   background: radial-gradient(circle, rgba(160, 255, 160, 0.9) 0%, rgba(120, 255, 120, 0.3) 55%, transparent 75%);
@@ -33176,7 +33157,7 @@ body.round-tick .board::after {
 /* Apocalypse celestial-tech transmutation surge over the hand */
 .sig-celestial {
   position: fixed;
-  border-radius: 14px;
+  border-radius: 12px;
   pointer-events: none;
   opacity: 0;
   background: linear-gradient(120deg, transparent 0%, rgba(46, 198, 198, 0.18) 40%, rgba(74, 144, 194, 0.30) 50%, rgba(207, 216, 227, 0.22) 60%, transparent 100%);
@@ -33197,7 +33178,7 @@ body.round-tick .board::after {
   width: 58px; height: 6px;
   margin: -3px 0 0 -29px;
   pointer-events: none;
-  border-radius: 3px;
+  border-radius: 2px;
   background: linear-gradient(90deg, rgba(255, 45, 45, 0) 0%, #ff2d2d 16%, #fff 50%, #ff2d2d 84%, rgba(255, 45, 45, 0) 100%);
   box-shadow: 0 0 10px 2px #ff2d2d, 0 0 24px 7px rgba(255, 45, 45, 0.5);
   animation: sigSaberThrow 760ms cubic-bezier(0.4, 0, 0.2, 1) forwards;
@@ -33352,7 +33333,7 @@ body.round-tick .board::after {
   cursor: pointer;
   display: flex; align-items: center; justify-content: center;
   flex-shrink: 0;
-  transition: border-color 0.15s, color 0.15s;
+  transition: border-color 0.15s var(--ease-snap), color 0.15s var(--ease-snap);
 }
 .tut-btn-minimize:hover { border-color: var(--theme-accent-bright, #4fc3f7); color: #81d4fa; }
 .tut-callout.tut-minimized .tut-callout-body,
@@ -33386,23 +33367,23 @@ body.round-tick .board::after {
   background: none;
   border: 1px solid #334;
   color: #607a8a;
-  border-radius: 6px;
+  border-radius: 4px;
   padding: 6px 12px;
   font-size: 0.82em;
   cursor: pointer;
-  transition: color 0.15s, border-color 0.15s;
+  transition: color 0.15s var(--ease-snap), border-color 0.15s var(--ease-snap);
 }
 .tut-btn-skip:hover { color: #ccc; border-color: #556; }
 .tut-btn-next {
   background: var(--theme-accent-bright, #4fc3f7);
   border: none;
   color: #000;
-  border-radius: 6px;
+  border-radius: 4px;
   padding: 6px 14px;
   font-size: 0.88em;
   font-weight: 700;
   cursor: pointer;
-  transition: background 0.15s, transform 0.1s;
+  transition: background 0.15s var(--ease-snap), transform 0.1s var(--ease-snap);
 }
 .tut-btn-next:hover { background: #81d4fa; transform: translateY(-1px); }
 
@@ -33421,7 +33402,7 @@ body.round-tick .board::after {
 .tut-target-highlight {
   outline: 2.5px solid #ffd700 !important;
   outline-offset: 3px !important;
-  border-radius: 6px;
+  border-radius: 4px;
   position: relative;
   z-index: 9001 !important;
   animation: tut-pulse 1.6s ease-in-out infinite;
@@ -33476,11 +33457,11 @@ body.round-tick .board::after {
 .setup2v2-input {
   background: rgba(var(--theme-rgb, 79,195,247),0.04);
   border: 1px solid rgba(var(--theme-rgb, 79,195,247),0.40);
-  border-radius: 3px; padding: 8px 10px;
+  border-radius: 2px; padding: 8px 10px;
   color: var(--text-hi, #f5fbff);
   font-family: 'Rajdhani', sans-serif; font-size: 16px; font-weight: 600;
   outline: none; width: 100%; box-sizing: border-box;
-  transition: border-color 0.15s, box-shadow 0.15s;
+  transition: border-color 0.15s var(--ease-snap), box-shadow 0.15s var(--ease-snap);
 }
 .setup2v2-input:focus {
   border-color: rgba(var(--theme-rgb, 79,195,247),0.90);
@@ -33526,7 +33507,7 @@ body.round-tick .board::after {
   cursor: pointer;
   min-height: 30px; display: flex; align-items: center;
   transform-origin: left center;
-  transition: transform 180ms ease, color 180ms ease, text-shadow 180ms ease;
+  transition: transform 180ms var(--ease-snap), color 180ms var(--ease-snap), text-shadow 180ms var(--ease-snap);
   -webkit-tap-highlight-color: transparent;
 }
 .setup2v2-member:hover,
@@ -33555,7 +33536,7 @@ body.round-tick .board::after {
   font-size: 12px; font-weight: 700;
   letter-spacing: 2px; text-transform: uppercase;
   cursor: pointer;
-  transition: border-color 0.15s, box-shadow 0.15s, transform 0.1s;
+  transition: border-color 0.15s var(--ease-snap), box-shadow 0.15s var(--ease-snap), transform 0.1s var(--ease-snap);
 }
 .setup2v2-btn:hover {
   border-color: rgba(var(--theme-rgb, 79,195,247),1);
@@ -33571,7 +33552,7 @@ body.round-tick .board::after {
 .setup2v2-error {
   color: #f44336; font-size: .85rem; text-align: center;
   background: rgba(244,67,54,.08); border: 1px solid rgba(244,67,54,.3);
-  border-radius: 6px; padding: 8px 12px; margin-bottom: 8px;
+  border-radius: 4px; padding: 8px 12px; margin-bottom: 8px;
 }
 .setup2v2-online-form {
   display: flex; flex-direction: column; gap: 6px; width: 100%;
@@ -33606,7 +33587,7 @@ body.round-tick .board::after {
   display: flex; align-items: center; gap: 10px;
   background: rgba(255,255,255,.03); border: 1px solid rgba(255,255,255,.06);
   border-radius: 8px; padding: 8px 12px;
-  transition: border-color .2s;
+  transition: border-color .2s var(--ease-snap);
 }
 .setup2v2-lobby-player.setup2v2-lp-joined {
   border-color: rgba(var(--theme-rgb, 79,195,247),.3);
@@ -33630,7 +33611,7 @@ body.round-tick .board::after {
 .twov2-panel {
   background: #111720;
   border: 1.5px solid #2a3a50;
-  border-radius: 14px;
+  border-radius: 12px;
   padding: 32px 36px 28px;
   max-width: 500px;
   width: 94%;
@@ -33671,12 +33652,12 @@ body.round-tick .board::after {
 .twov2-name-input {
   background: #000;
   border: 1.5px solid #2a3a50;
-  border-radius: 6px;
+  border-radius: 4px;
   color: var(--text-dim, #e0e8f0);
   padding: 8px 10px;
   font-size: 0.95rem;
   outline: none;
-  transition: border-color 0.15s;
+  transition: border-color 0.15s var(--ease-snap);
 }
 .twov2-name-input:focus { border-color: var(--theme-accent-bright, #4fc3f7); }
 .twov2-team-assign {
@@ -33721,7 +33702,7 @@ body.round-tick .board::after {
   font-weight: 700;
   font-size: 0.95rem;
   cursor: pointer;
-  transition: opacity 0.15s, transform 0.1s;
+  transition: opacity 0.15s var(--ease-snap), transform 0.1s var(--ease-snap);
 }
 .twov2-btn:hover { opacity: 0.88; transform: translateY(-1px); }
 .twov2-btn-pri {
@@ -33814,7 +33795,7 @@ body.round-tick .board::after {
 .twov2-hb-team {
   flex: 1;
   border: 1.5px solid;
-  border-radius: 6px;
+  border-radius: 4px;
   padding: 6px 10px;
   text-align: center;
 }
@@ -33882,7 +33863,7 @@ body.round-tick .board::after {
 .twov2-lane-slot {
   width: 100%;
   min-height: 60px;
-  border-radius: 6px;
+  border-radius: 4px;
   border: 1.5px solid #1e2d3e;
   display: flex;
   flex-direction: column;
@@ -33911,7 +33892,7 @@ body.round-tick .board::after {
   width: 100%;
   height: 2px;
   background: #1e2d3e;
-  border-radius: 1px;
+  border-radius: 2px;
 }
 
 /* Active player bar */
@@ -33980,7 +33961,7 @@ body.round-tick .board::after {
   padding: 8px 10px;
   cursor: pointer;
   min-width: 80px;
-  transition: border-color 0.15s, background 0.15s;
+  transition: border-color 0.15s var(--ease-snap), background 0.15s var(--ease-snap);
   position: relative;
 }
 .twov2-card-play { border-color: var(--theme-accent-bright, #4fc3f7); }
@@ -34054,7 +34035,7 @@ body.round-tick .board::after {
   padding: 8px 12px;
   background: #1e2d3e;
   border: 1.5px solid var(--theme-accent-bright, #4fc3f7);
-  border-radius: 6px;
+  border-radius: 4px;
   color: var(--theme-accent-bright, #4fc3f7);
   font-weight: 700;
   cursor: pointer;
@@ -34066,7 +34047,7 @@ body.round-tick .board::after {
   background: none;
   border: 1px solid #556;
   color: #88a0b8;
-  border-radius: 6px;
+  border-radius: 4px;
   padding: 6px 14px;
   cursor: pointer;
   font-size: 0.85rem;
@@ -34080,7 +34061,7 @@ body.round-tick .board::after {
   background: var(--theme-accent-bright, #4fc3f7);
   color: #0a0d12;
   border: none;
-  border-radius: 10px;
+  border-radius: 8px;
   padding: 12px 28px;
   font-weight: 800;
   font-size: 1rem;
@@ -34117,7 +34098,7 @@ body.round-tick .board::after {
   cursor: pointer;
   width: 160px;
   text-align: center;
-  transition: background 0.15s, transform 0.1s;
+  transition: background 0.15s var(--ease-snap), transform 0.1s var(--ease-snap);
 }
 .twov2-draft-choice:hover { background: #0d1e30; transform: scale(1.04); }
 .twov2-dc-name { font-weight: 800; font-size: 1rem; margin-bottom: 6px; }
@@ -34142,7 +34123,7 @@ body.round-tick .board::after {
 .twov2-lobby-code-wrap {
   background: #000;
   border: 2px solid var(--theme-accent-bright, #4fc3f7);
-  border-radius: 10px;
+  border-radius: 8px;
   padding: 14px 28px;
   text-align: center;
   margin: 14px 0;
@@ -34220,7 +34201,7 @@ body.round-tick .board::after {
   font-size: 0.9rem;
   font-weight: 700;
   cursor: pointer;
-  transition: background 0.15s, border-color 0.15s;
+  transition: background 0.15s var(--ease-snap), border-color 0.15s var(--ease-snap);
 }
 .twov2-bls-btn:hover:not(:disabled) {
   background: rgba(var(--theme-rgb, 79,195,247),0.25);
@@ -34240,7 +34221,7 @@ body.round-tick .board::after {
   color: #ff8a7a;
   font-size: 0.85rem;
   cursor: pointer;
-  transition: background 0.15s;
+  transition: background 0.15s var(--ease-snap);
 }
 .twov2-bls-cancel:hover { background: rgba(231,76,60,0.18); }
 
@@ -34294,7 +34275,7 @@ body.round-tick .board::after {
   color: color-mix(in srgb, rgb(var(--theme-rgb, 79,195,247)) 78%, white);
   text-shadow: none;
   cursor: pointer;
-  transition: color 200ms, text-shadow 200ms, transform 150ms var(--ease-spring, ease), opacity 200ms;
+  transition: color 200ms var(--ease-snap), text-shadow 200ms var(--ease-snap), transform 150ms var(--ease-spring, var(--ease-snap)), opacity 200ms var(--ease-snap);
 }
 /* Back chips read left-to-right → grow from the left edge like ← MENU;
    centered rows (draft controls, game-over actions) grow from center. */
@@ -34412,7 +34393,7 @@ body.round-tick .board::after {
   text-transform: uppercase;
   cursor: pointer;
   padding: 8px 14px;
-  transition: transform 0.15s ease, color 0.2s ease, text-shadow 0.2s ease;
+  transition: transform 0.15s var(--ease-snap), color 0.2s var(--ease-snap), text-shadow 0.2s var(--ease-snap);
 }
 .draft-hud-actions button > .tron-sweep { display: none !important; }
 /* Grow + glow is the whole affordance — "just the text and it magnifies". */
@@ -34485,7 +34466,7 @@ body.round-tick .board::after {
    border + glow), so they're pixel-identical to a real card. They carry NO
    .choice-card class — the card's own cascade paints everything; the picker
    only adds a lift on hover. */
-.choice-tray .choice-real { cursor: pointer; transition: transform 0.15s; }
+.choice-tray .choice-real { cursor: pointer; transition: transform 0.15s var(--ease-snap); }
 .choice-tray .choice-real:hover { transform: translateY(-4px) scale(1.03); }
 .go-mvp-slot .card.go-mvp-real { margin: 8px auto 4px; cursor: default; }
 
@@ -34510,7 +34491,7 @@ body.round-tick .board::after {
   );
   background-size: 200% 200%;
   background-position: 100% 100%;
-  transition: opacity 0.35s ease, background-position 0.9s var(--ease-out-soft);
+  transition: opacity 0.35s var(--ease-snap), background-position 0.9s var(--ease-out-soft);
 }
 .trick-card:hover .card-portrait .pt-shine,
 .draft-card.trick-draft:hover .card-portrait .pt-shine {
@@ -34631,7 +34612,7 @@ body.round-tick .board::after {
 .trick-reveal-card {
   width: min(200px, 52vw);
   aspect-ratio: 5 / 7;
-  border-radius: 10px;
+  border-radius: 8px;
   position: relative;
   overflow: hidden;
   background:
@@ -34666,7 +34647,7 @@ body.round-tick .board::after {
   color: var(--text-dim, #e6d5f0);
   background: rgba(10, 2, 16, 0.85);
   border: 1px solid rgba(155, 89, 182, 0.9);
-  border-radius: 6px;
+  border-radius: 4px;
   z-index: 3;
 }
 .trick-reveal-card .tr-name {
@@ -35792,7 +35773,7 @@ body.low-fx .legendary-arrival { animation: none !important; }
   color: rgba(207, 232, 247, 0.55);
   font-size: 16px; line-height: 1;
   cursor: pointer;
-  transition: transform 150ms var(--ease-out-soft), color 150ms ease, text-shadow 150ms ease;
+  transition: transform 150ms var(--ease-out-soft), color 150ms var(--ease-snap), text-shadow 150ms var(--ease-snap);
 }
 .emote-btn:hover {
   color: #fff;
@@ -35815,7 +35796,7 @@ body.low-fx .legendary-arrival { animation: none !important; }
   font-family: 'Rajdhani', sans-serif; font-weight: 700; font-size: 20px;
   color: var(--text-body, #e8f4fb);
   cursor: pointer;
-  transition: transform 150ms var(--ease-out-soft), text-shadow 150ms ease;
+  transition: transform 150ms var(--ease-out-soft), text-shadow 150ms var(--ease-snap);
 }
 .emote-opt:hover {
   transform: scale(1.35);
@@ -35828,7 +35809,7 @@ body.low-fx .legendary-arrival { animation: none !important; }
   padding: 4px 10px;
   background: #000;
   border: 1px solid rgba(var(--theme-rgb, 79, 195, 247), 0.85);
-  border-radius: 10px;
+  border-radius: 8px;
   font-family: 'Rajdhani', sans-serif; font-weight: 700; font-size: 18px;
   color: #fff;
   white-space: nowrap;
@@ -35863,7 +35844,7 @@ body.low-fx .legendary-arrival { animation: none !important; }
   text-align: left;
   white-space: nowrap;
   padding: 3px 8px;
-  border-radius: 5px;
+  border-radius: 4px;
 }
 .taunt-opt:hover {
   transform: none;                      /* a scale on a list row looks jumpy */
@@ -36090,7 +36071,7 @@ body.clb-emote-open .viewport-toggle { display: none !important; }
 .mp-deck-pick select {
   background: rgba(6,12,22,0.85);
   border: 1px solid rgba(120,160,210,0.4);
-  border-radius: 5px; padding: 6px 8px;
+  border-radius: 4px; padding: 6px 8px;
   color: var(--text-dim, #dbe7f2); font-family: inherit; font-size: 13px; letter-spacing: 1px;
 }
 .mp-deck-pick .mp-deck-hint {
@@ -36102,7 +36083,7 @@ body.clb-emote-open .viewport-toggle { display: none !important; }
 /* "Build a deck" action inside the online deck picker — turns the empty /
    incomplete state into something the player can act on instead of a dead end. */
 .mp-deck-build {
-  background: none; border: 1px solid rgba(var(--theme-rgb, 79,195,247),0.5); border-radius: 5px;
+  background: none; border: 1px solid rgba(var(--theme-rgb, 79,195,247),0.5); border-radius: 4px;
   color: var(--theme-accent-bright, #4fc3f7); font-family: 'Rajdhani', sans-serif; font-size: 12px;
   letter-spacing: 1px; text-transform: uppercase; padding: 4px 10px; cursor: pointer;
 }
@@ -36120,7 +36101,7 @@ body.clb-emote-open .viewport-toggle { display: none !important; }
 .db-pick {
   position: relative;
   cursor: pointer;
-  transition: transform 0.12s ease, filter 0.12s ease;
+  transition: transform 0.12s var(--ease-snap), filter 0.12s var(--ease-snap);
 }
 .db-pick:hover { transform: translateY(-3px); }
 .db-pick .card, .db-pick .trick-card { pointer-events: none; }  /* wrapper owns the click */
@@ -36133,7 +36114,7 @@ body.clb-emote-open .viewport-toggle { display: none !important; }
 .db-pick-disabled:hover { transform: none; }
 .db-pick-count {
   position: absolute; top: 4px; right: 4px; z-index: 4;
-  min-width: 20px; padding: 1px 6px; border-radius: 9px;
+  min-width: 20px; padding: 1px 6px; border-radius: 8px;
   background: rgba(6,12,22,0.92); border: 1px solid rgba(var(--theme-rgb, 79,195,247),0.6);
   color: var(--theme-accent-bright, #4fc3f7); font-family: 'Rajdhani', sans-serif; font-weight: 700;
   font-size: 11px; letter-spacing: 0.5px; text-align: center;
@@ -36440,7 +36421,7 @@ body.low-fx .card-portrait {
   max-width: min(520px, 92vw);
   padding: 10px 16px;
   border: 1px solid rgba(127, 208, 255, 0.55);
-  border-radius: 6px;
+  border-radius: 4px;
   background: rgba(6, 12, 20, 0.96);
   color: #cfe9ff;
   font-size: 12px;
@@ -36448,7 +36429,7 @@ body.low-fx .card-portrait {
   text-align: center;
   pointer-events: none;
   opacity: 0;
-  transition: opacity 300ms ease-out, transform 300ms ease-out;
+  transition: opacity 300ms var(--ease-snap), transform 300ms var(--ease-snap);
 }
 .low-fx-notice.show {
   opacity: 1;
@@ -36471,7 +36452,7 @@ body.low-fx .card-portrait {
   margin: 0 0 10px;
   padding: 8px 14px;
   border: 1px solid rgba(var(--theme-rgb, 79,195,247), 0.45);
-  border-radius: 6px;
+  border-radius: 4px;
   background: rgba(10, 22, 36, 0.85);
   font-family: 'Rajdhani', sans-serif;
 }
@@ -36493,7 +36474,7 @@ body.low-fx .card-portrait {
   color: var(--text-body, #eaf6ff);
   background: rgba(6, 12, 22, 0.9);
   border: 1px solid rgba(var(--theme-rgb, 79,195,247), 0.6);
-  border-radius: 5px;
+  border-radius: 4px;
   padding: 3px 12px;
   cursor: pointer;
 }
@@ -36519,7 +36500,7 @@ body.low-fx .card-portrait {
 .db-mp-back {
   background: none;
   border: 1px solid rgba(120, 160, 210, 0.45);
-  border-radius: 5px;
+  border-radius: 4px;
   color: var(--text-dim, #cfe3f5);
   font-family: 'Rajdhani', sans-serif;
   font-size: 12px;
@@ -36582,7 +36563,7 @@ body.low-fx .card-portrait {
 .db-mp-ready {
   background: rgba(var(--theme-rgb, 79,195,247), 0.14);
   border: 1px solid rgba(var(--theme-rgb, 79,195,247), 0.65);
-  border-radius: 5px;
+  border-radius: 4px;
   color: var(--text-body, #eaf6ff);
   font-family: 'Rajdhani', sans-serif;
   font-size: 13px;
@@ -36641,20 +36622,17 @@ body.low-fx .card-portrait {
 .draft-card,
 .rl-pick-cardslot,
 .choice-tray .choice-card {
-  transition: transform var(--card-magnify-dur) var(--card-magnify-ease),
-              box-shadow 200ms ease,
-              border-color 200ms ease,
-              filter 200ms ease;
+  transition: transform var(--card-magnify-dur) var(--card-magnify-ease), box-shadow 200ms var(--ease-snap), border-color 200ms var(--ease-snap), filter 200ms var(--ease-snap);
 }
 /* .db-grid-item is deliberately NOT in that list. The deck-builder grid does not
    MAGNIFY — its hover is a 2px lift on a dense list of dozens of rows. Pushing a
    240ms grow-curve onto a 2px nudge makes the whole grid feel sluggish, so this
    contract covers surfaces that actually scale a card. (It also declares
-   `transition: all 0.15s !important`, which would need an !important war to
+   `transition: all 0.15s ` var(--ease-snap), which would need an  war to
    override — not worth starting for a change that would make it feel worse.) */
 /* Reduced motion / low-fx keep the snap — growth is the affordance, not the
    animation, so removing the tween must not remove the enlarge. */
-@media (prefers-reduced-motion: reduce) {
+@media (prefers-reduced-motion: reduce) !important{
   .card, .hand-card-wrapper, .hand-card-wrapper .card.hand-card, .trick-card,
   .draft-card, .rl-pick-cardslot, .choice-tray .choice-card {
     transition-duration: 0.01ms;
@@ -36686,25 +36664,7 @@ body.low-fx .card-portrait {
    sheet has accumulated EIGHT later blocks that re-apply a gradient wash
    (linear-gradient theme-wash at ~12333, 12351, 13147, 13880, 27611; radial
    at ~14191, 14509; plus the deck-builder's own at ~18079), and several that
-   re-assert `border-radius: 4px` and a different border colour. Source order
-   meant those always won, so panels kept drifting apart no matter what the
-   token said — which is exactly why the screens never looked like one product.
-
-   This block is deliberately LAST and deliberately uses !important. That is
-   normally a smell, and here it is the point: it makes the shell recipe the
-   single authority instead of the last edit to touch a panel. One texture
-   (pure #000 — the neon border and glow carry all the identity), one frame,
-   one radius, everywhere.
-
-   NOT included: padding. The responsive blocks legitimately tighten padding on
-   small screens, so forcing one value here would break phone layout. Desktop
-   padding is unified via --panel-pad / --panel-pad-dense at each panel's rule.
-   ============================================================ */
-/* .mm-panel is DELIBERATELY EXCLUDED. The main menu is not a bordered panel —
-   it is a hero composition: the panel is transparent ON PURPOSE so the
-   full-bleed character art (.mm-hero-img) reads through it. Forcing it to an
-   opaque #000 here painted over the artwork AND the option list, blacking out
-   the most-seen screen in the game. Caught by screenshotting after the change;
+   re-assert `border-radius: 4px` and a different border colour. Source order !important;
    the computed styles alone looked fine, which is exactly why a visual check is
    not optional for this kind of sweep. A hero screen differing from a panel
    screen is hierarchy, not inconsistency. */
@@ -36855,11 +36815,7 @@ body.low-fx .card-portrait {
 .lane .lane-sep::after,
 .lane .lane-number {
   transition:
-    background 420ms var(--ease-out-soft, ease),
-    background-color 420ms var(--ease-out-soft, ease),
-    border-color 420ms var(--ease-out-soft, ease),
-    box-shadow 420ms var(--ease-out-soft, ease),
-    color 420ms var(--ease-out-soft, ease);
+    background 420ms var(--ease-out-soft, var(--ease-snap)), background-color 420ms var(--ease-out-soft, var(--ease-snap)), border-color 420ms var(--ease-out-soft, var(--ease-snap)), box-shadow 420ms var(--ease-out-soft, var(--ease-snap)), color 420ms var(--ease-out-soft, var(--ease-snap));
 }
 @media (prefers-reduced-motion: reduce) {
   .lane .lane-sep::before,
@@ -37142,8 +37098,7 @@ body.low-fx .card-portrait {
   /* Opacity lands at the halfway point of the turn, so the face appears
      edge-on rather than fading in flat. */
   transition:
-    transform 240ms var(--ease-out-quart),
-    opacity 90ms linear 70ms;
+    transform 240ms var(--ease-out-quart), opacity 90ms linear 70ms;
 }
 /* The turn reads as one object rotating: the art swings out as the text swings
    in, rather than a black panel simply appearing on top of a static portrait. */
@@ -37837,7 +37792,7 @@ body.hand-text-always .player-hand-section .hand-cards .card.face-flipped .card-
   --toast-accent: 155, 89, 182;          /* trick purple, overridden per kind */
   background: #000;                       /* panel interiors are ALWAYS pure #000 */
   border: 1px solid rgba(var(--toast-accent), 0.85);
-  border-radius: 3px;                     /* squarer reads as machined, not soft */
+  border-radius: 2px;                     /* squarer reads as machined, not soft */
   padding: 13px 22px 14px;
   box-shadow:
     0 0 0 1px rgba(0,0,0,0.9),
@@ -38182,8 +38137,7 @@ body.low-fx .card-frost::after {
   /* Opacity lands halfway through the turn so the face arrives edge-on rather
      than fading in flat. */
   transition:
-    transform 240ms var(--ease-out-quart),
-    opacity 90ms linear 70ms;
+    transform 240ms var(--ease-out-quart), opacity 90ms linear 70ms;
 }
 /* The art swings out as the text swings in, so the turn reads as ONE object
    rotating rather than a black panel appearing over a static portrait. */
@@ -38244,7 +38198,7 @@ body.low-fx .card-frost::after {
   min-height: 44px;
   cursor: pointer;
   text-shadow: 0 0 8px rgba(var(--theme-rgb, 79,195,247),0.55);
-  transition: color 0.15s, text-shadow 0.15s, transform 0.15s, border-color 0.15s;
+  transition: color 0.15s var(--ease-snap), text-shadow 0.15s var(--ease-snap), transform 0.15s var(--ease-snap), border-color 0.15s var(--ease-snap);
 }
 .choice-tray .choice-pick-btn:hover,
 .choice-tray .choice-pick-btn:focus-visible {
@@ -39009,7 +38963,7 @@ body.low-fx .card-hollow-purple::after { animation: none !important; }
     linear-gradient(var(--b), var(--b)) left  bottom / 1px var(--len) no-repeat,
     linear-gradient(var(--b), var(--b)) right bottom / var(--len) 1px no-repeat,
     linear-gradient(var(--b), var(--b)) right bottom / 1px var(--len) no-repeat;
-  transition: background 0.2s ease, opacity 0.2s ease;
+  transition: background 0.2s var(--ease-snap), opacity 0.2s var(--ease-snap);
 }
 .card-slot.ai-slot .empty-lane-glyph:not(.lane-glyph-locked)::after {
   --b: rgba(255, 90, 74, 0.28);
@@ -39120,7 +39074,7 @@ body.low-fx .card-hollow-purple::after { animation: none !important; }
   background-image: linear-gradient(-45deg,
     rgba(var(--nrg-tint, 255,215,0), 0.50) 0 var(--nrg-fill),
     rgba(0,0,0,0) var(--nrg-fill) 100%);
-  transition: background-image 240ms var(--ease-out-soft, cubic-bezier(0.16,1,0.3,1));
+  transition: background-image 240ms var(--ease-out-soft, cubic-bezier(0.16, 1, 0.3, 1));
 }
 @media (prefers-reduced-motion: reduce) {
   .energy-text::before { transition: none; }
@@ -39148,7 +39102,7 @@ body.low-fx .card-hollow-purple::after { animation: none !important; }
   opacity: 0.85;
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
-  transition: opacity 150ms ease, transform 150ms ease, color 150ms ease;
+  transition: opacity 150ms var(--ease-snap), transform 150ms var(--ease-snap), color 150ms var(--ease-snap);
 }
 .hand-redraw-toggle .redraw-glyph {
   width: 23px; height: 23px; display: block;
@@ -39192,9 +39146,7 @@ body.low-fx .card-hollow-purple::after { animation: none !important; }
 }
 #btn-undo .undo-arrow {
   transition:
-    transform 180ms var(--ease-out-soft, cubic-bezier(0.22, 1, 0.36, 1)),
-    filter 180ms ease,
-    color 180ms ease;
+    transform 180ms var(--ease-out-soft, cubic-bezier(0.22, 1, 0.36, 1)), filter 180ms var(--ease-snap), color 180ms var(--ease-snap);
 }
 #btn-undo:hover .undo-arrow,
 #btn-undo:focus-visible .undo-arrow {
@@ -39615,7 +39567,7 @@ body.hand-text-always .trick-cards .trick-card .status-badges,
   position: fixed;
   pointer-events: none;
   z-index: 1100;
-  border-radius: 14px;
+  border-radius: 12px;
   opacity: 0;
   background: radial-gradient(ellipse at center,
     color-mix(in srgb, var(--sig-c, #a24bff) 42%, transparent) 0%,
@@ -39690,7 +39642,7 @@ body.hand-text-always .trick-cards .trick-card .status-badges,
 .mm-option-rl > .tron-sweep { display: none !important; }
 .mm-option-rl.tron-fx-breathe { animation: none !important; }
 .mm-option-rl {
-  transition: transform 150ms var(--ease-spring, ease), color 200ms, text-shadow 200ms;
+  transition: transform 150ms var(--ease-spring, var(--ease-snap)), color 200ms var(--ease-snap), text-shadow 200ms var(--ease-snap);
   transform-origin: left center;
 }
 .mm-option-rl:hover { transform: scale(1.04); }
@@ -39745,7 +39697,7 @@ body.hand-text-always .trick-cards .trick-card .status-badges,
 .rl-event-choice {
   padding: 11px 12px;
   transform-origin: left center;
-  transition: transform 150ms var(--ease-spring, ease), color 200ms, text-shadow 200ms, opacity 200ms;
+  transition: transform 150ms var(--ease-spring, var(--ease-snap)), color 200ms var(--ease-snap), text-shadow 200ms var(--ease-snap), opacity 200ms var(--ease-snap);
   color: rgba(220,225,235,0.72);
 }
 .rl-event-choice:hover:not([disabled]) {
@@ -39789,7 +39741,7 @@ body.hand-text-always .trick-cards .trick-card .status-badges,
 .rl-hud .rl-hud-pill.tron-fx-breathe { animation: none !important; }
 .rl-hud .rl-hud-pill { padding: 8px 10px; }
 .rl-hud .rl-hud-pill.rl-hud-btn {
-  transition: transform 150ms var(--ease-spring, ease), color 200ms, text-shadow 200ms;
+  transition: transform 150ms var(--ease-spring, var(--ease-snap)), color 200ms var(--ease-snap), text-shadow 200ms var(--ease-snap);
 }
 .rl-hud .rl-hud-pill.rl-hud-btn:hover {
   transform: scale(1.12);
@@ -40758,7 +40710,7 @@ body.low-fx .badge-asleep { animation: none; }
 .mm-mw3 .mm-panel,
 .mm-mw3 .mm-title {
   /* Ease back to rest on pointerleave; short enough not to read as lag. */
-  transition: translate 420ms cubic-bezier(.2,.7,.2,1);
+  transition: translate 420ms cubic-bezier(.2, .7, .2, 1);
   will-change: translate;
 }
 /* Deepest plane — the hero itself. */
@@ -40803,7 +40755,7 @@ body.low-fx .badge-asleep { animation: none; }
 .gal-auto {
   position: absolute; top: 4px; right: 4px; z-index: 4;
   font: 700 8px/1 ui-monospace, Menlo, monospace; letter-spacing: 0.5px;
-  padding: 2px 4px; border-radius: 3px; pointer-events: none;
+  padding: 2px 4px; border-radius: 2px; pointer-events: none;
   color: #ffcf6b; background: rgba(0,0,0,0.72); border: 1px solid rgba(255,207,107,0.5);
 }
 /* Rule-of-thirds + centre cross. Off by default — a permanent grid competes
@@ -40859,7 +40811,7 @@ body.low-fx .badge-asleep { animation: none; }
 .gal-num input, .gal-zoom-num {
   width: 100%; min-width: 0; background: #000;
   border: 1px solid rgba(var(--theme-rgb, 79,195,247), 0.35);
-  border-radius: 3px; padding: 2px 3px;
+  border-radius: 2px; padding: 2px 3px;
   font: 600 10px/1.2 ui-monospace, Menlo, monospace;
   color: #eaf4ff; font-variant-numeric: tabular-nums;
 }
@@ -41036,7 +40988,7 @@ body.low-fx .badge-asleep { animation: none; }
   align-items: center;
   gap: 5px;
   padding: 2px 6px 2px 3px;
-  border-radius: 6px;
+  border-radius: 4px;
   background: rgba(126, 232, 165, 0.08);
   border: 1px solid rgba(126, 232, 165, 0.22);
 }
@@ -41055,7 +41007,7 @@ body.low-fx .badge-asleep { animation: none; }
 .brainiac-scan-art {
   width: 18px;
   height: 24px;
-  border-radius: 3px;
+  border-radius: 2px;
   background-size: cover;
   background-position: 50% 25%;
   box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.5);
@@ -41181,7 +41133,7 @@ body.low-fx .badge-asleep { animation: none; }
   min-width: 20px;
   height: 20px;
   padding: 0 5px;
-  border-radius: 6px;
+  border-radius: 4px;
   background: rgba(0, 0, 0, 0.6);
   color: #ffd27a;
   font-size: 12px;
@@ -41442,7 +41394,7 @@ body.low-fx .badge-asleep { animation: none; }
   text-shadow: 0 0 8px rgba(var(--theme-rgb, 79,195,247), 0.75),
                0 0 18px rgba(var(--theme-rgb, 79,195,247), 0.35);
 }
-.twov2-tk-round { font-size: 10px; font-weight: 700; color: #0a0e16; background: #4fc3f7; padding: 1px 6px; border-radius: 5px; }
+.twov2-tk-round { font-size: 10px; font-weight: 700; color: #0a0e16; background: #4fc3f7; padding: 1px 6px; border-radius: 4px; }
 .twov2-tk-toggle {
   font-size: 12px;
   color: rgb(var(--theme-rgb, 79,195,247));
@@ -41459,7 +41411,7 @@ body.low-fx .badge-asleep { animation: none; }
   padding: 6px 9px 6px 7px; border-radius: 8px;
   border: 1px solid rgba(255,255,255,0.08);
   border-left: 3px solid var(--tkc, rgb(var(--theme-rgb, 79,195,247)));
-  background: rgba(255,255,255,0.03); transition: transform 160ms, background 160ms, opacity 160ms;
+  background: rgba(255,255,255,0.03); transition: transform 160ms var(--ease-snap), background 160ms var(--ease-snap), opacity 160ms var(--ease-snap);
 }
 /* DONE, NOT GREYED OUT. opacity:0.42 on near-white text over a black panel
    computes to a flat grey, which is the one thing the owner asked not to see
@@ -41551,7 +41503,7 @@ body.low-fx .badge-asleep { animation: none; }
    ally, tricks PURPLE for both, matching the 1v1 colour language. */
 .rc-stat {
   display: inline-flex; align-items: center; gap: 3px;
-  padding: 1px 6px; border-radius: 6px; font-weight: 700;
+  padding: 1px 6px; border-radius: 4px; font-weight: 700;
   border: 1px solid transparent;
 }
 .rc-enemy .rc-cards { color: #ff7a7a; border-color: rgba(224,64,64,0.7);  background: rgba(224,64,64,0.10); }
@@ -41572,7 +41524,7 @@ body.twov2-online-game .info-bar.ai-bar .bar-energy { display: none; }
 .rc-chip-hand { gap: 10px; padding: 4px 11px; }
 .rc-hand { display: inline-flex; align-items: center; gap: 3px; }
 /* Bigger card-backs — fill the top bar so hand sizes read at a glance. */
-.rc-back { display: inline-block; width: 20px; height: 29px; border-radius: 3px;
+.rc-back { display: inline-block; width: 20px; height: 29px; border-radius: 2px;
   border: 1px solid currentColor; overflow: hidden; opacity: 0.95; flex: 0 0 auto; }
 .rc-back svg { width: 100%; height: 100%; display: block; }
 /* Cards tint to the side's colour (enemy red / ally blue); tricks purple — the
