@@ -9398,6 +9398,22 @@ const Game = {
         if (typeof UI !== 'undefined' && UI.sfx && UI.sfx.playCardSfx) {
           try { UI.sfx.playCardSfx('Iron Giant', 'ability'); } catch (e) {}
         }
+        // Reveal the Iron Giant card itself — like a trick reveal — so both
+        // sides SEE the sacrifice, not just hear it. Shown live here (solo +
+        // online host), and relayed to guests via the FX stream below. (Owner:
+        // "along with the audio cue could the iron giant card show up like
+        // tricks do so people know what happened for both 2v2 and 1v1.")
+        const _igTT = this.state && this.state.twoVTwo;
+        const _igSeat = this._2v2CurrentActingPlayer || null;
+        let _igMine = (owner === 'player');
+        if (_igTT && _igTT.online && this._2v2TeamSide && _igTT.players[_igTT.you]) {
+          _igMine = (_igSeat && _igSeat === _igTT.you) ||
+                    (this._2v2TeamSide[_igTT.players[_igTT.you].team] === owner);
+        }
+        if (typeof UI !== 'undefined' && UI.showCardReveal) {
+          try { UI.showCardReveal('Iron Giant', `${card.name} survives — all enemies take 1.`, null, _igMine, 'Iron Giant Sacrificed!'); } catch (e) {}
+        }
+        if (this.emitFX) { try { this.emitFX('ironGiantSave', { owner, seat: _igSeat, saved: card.name }); } catch (e) {} }
         // When Sacrificed: draw a card. Fires HERE, before the blast:
         //  • the Giant is already spliced out of hand into the discard pile
         //    above, so the draw can never re-find him;

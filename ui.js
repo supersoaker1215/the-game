@@ -11255,6 +11255,26 @@ const UI = {
         }
         continue;
       }
+      // Iron Giant sacrifice reveal — guests only (the host already showed it
+      // live in doSave). Mirrors trickReveal: audio cue + the card reveal.
+      if (ev.type === 'ironGiantSave') {
+        if (Game.onlineRelayRole && Game.onlineRelayRole() === 'guest') {
+          const tt = Game.state && Game.state.twoVTwo;
+          let mine = false;
+          if (tt && tt.online) {
+            mine = (!!ev.seat && ev.seat === tt.you) ||
+                   !!(Game._2v2TeamSide && tt.players && tt.players[tt.you] &&
+                      Game._2v2TeamSide[tt.players[tt.you].team] === ev.owner);
+          } else {
+            mine = (ev.owner === 'player');
+          }
+          try { if (this.sfx && this.sfx.playCardSfx) this.sfx.playCardSfx('Iron Giant', 'ability'); } catch (e) {}
+          if (this.showCardReveal) {
+            try { this.showCardReveal('Iron Giant', (ev.saved ? ev.saved + ' survives — all enemies take 1.' : ''), null, mine, 'Iron Giant Sacrificed!'); } catch (e) {}
+          }
+        }
+        continue;
+      }
       if (ev.type === 'titan') {
         const tEl = this.board && this.board.querySelector(`.card-slot .card[data-card-id="${ev.cardId}"]`);
         if (tEl) this.fxTitanEntrance(tEl, ev.owner, ev.cardId, ev.name);
@@ -21577,6 +21597,20 @@ const UI = {
     this._trickRevealQueue.push({ name, desc: desc || '', cost, mine: !!mine });
     if (!this._trickRevealActive) this._nextTrickReveal();
   },
+  // Reveal a CARD the same way tricks are revealed — full art + a custom label —
+  // so a triggered card ability (Iron Giant's sacrifice, etc.) is legible to
+  // everyone, not just an audio cue. Rides the same queue/overlay as
+  // showTrickReveal; `label` replaces the "plays a Trick" line. (Owner: "along
+  // with the audio cue could the iron giant card show up like tricks do so
+  // people know what happened for both 2v2 and 1v1.")
+  showCardReveal(name, desc, cost, mine, label) {
+    if (this._reducedMotion && this._reducedMotion()) {
+      try { this.showAITrickToast(label || name, desc || ''); } catch (e) {}
+      return;
+    }
+    this._trickRevealQueue.push({ name, desc: desc || '', cost, mine: !!mine, label: label || '' });
+    if (!this._trickRevealActive) this._nextTrickReveal();
+  },
   _nextTrickReveal() {
     const item = this._trickRevealQueue.shift();
     if (!item) { this._trickRevealActive = false; return; }
@@ -21595,7 +21629,7 @@ const UI = {
         ${item.desc ? `<div class="tr-desc">${this.formatDesc ? this.formatDesc(item.desc) : String(item.desc).replace(/</g, '&lt;')}</div>` : ''}
         <i class="tr-sweep" aria-hidden="true"></i>
       </div>
-      <div class="tr-label">${item.mine ? 'You play a Trick' : this.oppName() + ' plays a Trick'}</div>`;
+      <div class="tr-label">${item.label ? String(item.label).replace(/</g, '&lt;') : (item.mine ? 'You play a Trick' : this.oppName() + ' plays a Trick')}</div>`;
     document.body.appendChild(wrap);
     // Hold, then exit + advance the queue. Hold doubled from 1050ms per
     // user feedback ("the new trick screen is too fast — double it").
