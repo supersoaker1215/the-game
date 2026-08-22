@@ -2468,7 +2468,14 @@ const CARD_ABILITIES = {
               G.log(`Deadpool slips ${given.name} into the enemy's hand!`);
               showVictimToast(stolen.name, given.name);
             },
-            cards => cards.slice().sort((a, b) => (a.baseCost || a.cost) - (b.baseCost || b.cost))[0]);
+            cards => cards.slice().sort((a, b) => (a.baseCost || a.cost) - (b.baseCost || b.cost))[0],
+            // Show the give-back as the full-card TRAY (same as the Symbiote
+            // Spider-Man redraw) so it is unmistakable and clickable — the plain
+            // hand-highlight was easy to miss, so the trade looked like it never
+            // offered. (Owner: "i could steal a card but i couldnt give one back
+            // … i want the same prompt to show up to give back as the symbiote
+            // spiderman redraw.")
+            { inlineTray: true });
       };
       // Step 1: DEADPOOL'S OWNER blind-picks a face-down card from the chosen
       // enemy's hand — the steal is random to them (the hand is shuffled and
