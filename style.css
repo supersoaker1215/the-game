@@ -7598,9 +7598,19 @@ body.hit-pause .ai-hand * {
 .card.hand-card.cost-1,
 .card.hand-card.cost-2,
 .card.hand-card.cost-3    { --card-edge: rgba(46,204,113,0.80); }
+/* COST TIER, NOT THEME. This was the ONE tier in the ramp bound to
+   --theme-rgb; green, white and gold are all fixed. So picking a gold-accented
+   menu hero recoloured cost 4-6 to gold — which not only lost the blue, it made
+   a mid-cost card read as the TOP tier, since gold is what 9-10 uses. Owner:
+   "why are 5/6 cost cards yellow? they should always be blue."
+   The cost ramp is information about the CARD (how expensive it is), so it must
+   not move with a cosmetic accent. Fixed to the same blue the draft-card ramp
+   already uses, so hand and draft finally agree — they disagreed before, and
+   the hand rule won on specificity even on the draft screen, which is why the
+   draft showed gold too. */
 .card.hand-card.cost-4,
 .card.hand-card.cost-5,
-.card.hand-card.cost-6    { --card-edge: rgba(var(--theme-rgb, 79,195,247),0.75); }
+.card.hand-card.cost-6    { --card-edge: rgba(79,195,247,0.75); }
 .card.hand-card.cost-7,
 .card.hand-card.cost-8    { --card-edge: rgba(240,245,250,0.85); }
 .card.hand-card.cost-9,
