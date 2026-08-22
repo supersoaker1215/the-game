@@ -395,6 +395,7 @@ summary:focus-visible,
    the number in desc reads as the same neon as the orb next to it. */
 .stat-num {
   font-weight: 700;
+  font-family: var(--font-mono);
   font-variant-numeric: tabular-nums;
 }
 .stat-num-atk {
@@ -768,7 +769,7 @@ body.round-first-ai     .hud-round {
      report: "the round-1 diamond shows green even though my theme
      is blue." Round-first overrides below repaint per opener. */
   color: var(--theme-accent-bright, rgb(var(--theme-rgb, 79,195,247)));
-  font-family: 'Rajdhani', sans-serif;
+  font-family: var(--font-mono);
   font-weight: 700; font-size: 13px;
   letter-spacing: 0;
   text-shadow:
@@ -954,7 +955,7 @@ body.turn-combat::before { background: linear-gradient(to bottom, rgba(255,215,0
 .hud-count b {
   display: inline-flex; align-items: center; justify-content: center;
   min-width: 26px; height: 20px; padding: 0 6px;
-  font-family: 'Rajdhani', sans-serif;
+  font-family: var(--font-mono);
   font-size: 13px; font-weight: 700;
   letter-spacing: 0;
   font-variant-numeric: tabular-nums;
@@ -1111,7 +1112,7 @@ body.turn-combat::before { background: linear-gradient(to bottom, rgba(255,215,0
 .block-circle-label { display: none; }
 .block-circle-value {
   position: relative; z-index: 2;
-  font-family: 'Rajdhani', sans-serif;
+  font-family: var(--font-mono);
   font-size: 12px; font-weight: 700; letter-spacing: 0.3px;
   color: var(--text-hi, #f5fbff);
   text-shadow: 0 0 6px rgba(255,255,255,0.35);
@@ -1401,6 +1402,7 @@ body.hit-pause .ai-hand * {
    counts from old → new value. Clean monospaced look so the digit
    width doesn't jitter as the number changes. */
 .stat-tickup {
+  font-family: var(--font-mono);
   font-variant-numeric: tabular-nums;
   display: inline-block;
 }
@@ -1502,7 +1504,7 @@ body.hit-pause .ai-hand * {
   background: transparent;
   border: none;
   color: #ffe066;
-  font-family: 'Rajdhani', sans-serif;
+  font-family: var(--font-mono);
   font-weight: 700; font-size: 18px;
   display: inline-flex; align-items: center; justify-content: center;
   text-shadow: 0 0 6px rgba(255,215,0,0.95), 0 0 14px rgba(255,215,0,0.55);
@@ -3071,6 +3073,7 @@ body.hit-pause .ai-hand * {
 }
 .md-deck-counts b {
   color: #ffe066; font-weight: 700;
+  font-family: var(--font-mono);
   font-variant-numeric: tabular-nums;
   margin-right: 3px;
 }
@@ -3203,6 +3206,7 @@ body.hit-pause .ai-hand * {
 .stats-summary-value {
   font-size: 22px; font-weight: 700;
   color: #ffe066;
+  font-family: var(--font-mono);
   font-variant-numeric: tabular-nums;
   letter-spacing: 0.3px;
   text-shadow: 0 0 6px rgba(255,215,0,0.45);
@@ -3358,6 +3362,7 @@ body.hit-pause .ai-hand * {
 .ai-weight-value {
   color: #ffe066;
   font-weight: 700;
+  font-family: var(--font-mono);
   font-variant-numeric: tabular-nums;
   text-shadow: 0 0 4px rgba(255,215,0,0.35);
   margin-left: 10px;
@@ -3606,7 +3611,8 @@ body.hit-pause .ai-hand * {
 .stats-table th.stats-sort-active { color: color-mix(in srgb, rgb(var(--theme-rgb, 79,195,247)) 50%, white); text-shadow: 0 0 6px rgba(var(--theme-rgb, 79,195,247), 0.55); }
 .stats-table tr { transition: background 0.1s var(--ease-snap); }
 .stats-table tbody tr:hover { background: rgba(var(--theme-rgb, 79,195,247), 0.04); cursor: pointer; }
-.stats-table td { color: color-mix(in srgb, rgb(var(--theme-rgb, 79,195,247)) 10%, white); letter-spacing: 0.3px; font-variant-numeric: tabular-nums; }
+.stats-table td { color: color-mix(in srgb, rgb(var(--theme-rgb, 79,195,247)) 10%, white); letter-spacing: 0.3px; font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums; }
 .stats-table .stats-card-name { font-weight: 700; letter-spacing: 0.8px; }
 /* Rarity-neon name coloring — matches .card .card-name and the deck
    builder so the stats table reads as the same visual family. Default
@@ -3640,7 +3646,7 @@ body.hit-pause .ai-hand * {
 .stats-atkhp {
   display: inline-flex; align-items: baseline; gap: 2px;
   margin-left: 10px;
-  font-family: 'Rajdhani', sans-serif;
+  font-family: var(--font-mono);
   font-size: 11px; font-weight: 700;
   font-variant-numeric: tabular-nums;
   letter-spacing: 0.3px;
@@ -3669,7 +3675,7 @@ body.hit-pause .ai-hand * {
   border: 1px solid currentColor;
   color: #ffe066;            /* default — overridden per-tier below */
   font-size: 11px; font-weight: 700;
-  font-family: 'Rajdhani', sans-serif;
+  font-family: var(--font-mono);
   font-variant-numeric: tabular-nums;
   margin-right: 8px;
   box-shadow:
@@ -3769,6 +3775,7 @@ body.hit-pause .ai-hand * {
 .stats-detail-value {
   color: color-mix(in srgb, rgb(var(--theme-rgb, 79,195,247)) 10%, white);
   font-weight: 700;
+  font-family: var(--font-mono);
   font-variant-numeric: tabular-nums;
 }
 
@@ -3951,7 +3958,7 @@ body.hit-pause .ai-hand * {
   border: none;
   display: flex; align-items: center; justify-content: center;
   font-size: 9px; font-weight: 700;
-  font-family: 'Rajdhani', sans-serif;
+  font-family: var(--font-mono);
   font-variant-numeric: tabular-nums;
   z-index: 2;
 }
@@ -4025,7 +4032,7 @@ body.hit-pause .ai-hand * {
    values even outside an actual stat orb. */
 .db-grid-stat-row {
   display: inline-flex; align-items: baseline; gap: 3px;
-  font-family: 'Rajdhani', sans-serif;
+  font-family: var(--font-mono);
   font-size: 12px; font-weight: 700;
   letter-spacing: 0.5px;
   font-variant-numeric: tabular-nums;
@@ -4138,6 +4145,7 @@ body.hit-pause .ai-hand * {
 }
 .db-meter-value {
   font-size: 18px; font-weight: 700;
+  font-family: var(--font-mono);
   font-variant-numeric: tabular-nums;
   color: var(--text-body, #e8f5ff);
   letter-spacing: 0.5px;
@@ -4201,6 +4209,7 @@ body.hit-pause .ai-hand * {
   text-align: center;
   font-size: 11px; font-weight: 700;
   color: var(--text-body, #e8f5ff);
+  font-family: var(--font-mono);
   font-variant-numeric: tabular-nums;
 }
 .db-deck-name {
@@ -4211,7 +4220,7 @@ body.hit-pause .ai-hand * {
 .db-deck-stats {
   display: inline-flex; align-items: baseline; gap: 2px;
   font-size: 11px; font-weight: 700;
-  font-family: 'Rajdhani', sans-serif;
+  font-family: var(--font-mono);
   font-variant-numeric: tabular-nums;
   letter-spacing: 0.3px;
 }
@@ -4375,6 +4384,7 @@ body.hit-pause .ai-hand * {
   letter-spacing: 0.5px;
 }
 .mh-arch-record {
+  font-family: var(--font-mono);
   font-variant-numeric: tabular-nums;
   color: #9ecfed;
   letter-spacing: 1px;
@@ -4382,6 +4392,7 @@ body.hit-pause .ai-hand * {
 .mh-arch-pct {
   font-weight: 700;
   font-size: 13px;
+  font-family: var(--font-mono);
   font-variant-numeric: tabular-nums;
   letter-spacing: 0.5px;
 }
@@ -6433,7 +6444,7 @@ body.hit-pause .ai-hand * {
   position: absolute; bottom: 5px;
   background: transparent;
   border: 0;
-  font-family: 'Rajdhani', sans-serif;
+  font-family: var(--font-mono);
   font-variant-numeric: tabular-nums;
   text-shadow: 0 0 4px rgba(0,0,0,0.95), 0 1px 2px rgba(0,0,0,0.85);
 }
@@ -8049,7 +8060,7 @@ body.mobile-card-dragging .cursor-trail { display: none !important; }
   padding: 3px 12px; border-radius: 12px;
   background: #000000;
   border: 1.5px solid;
-  font-family: 'Rajdhani', sans-serif;
+  font-family: var(--font-mono);
   font-size: 20px; font-weight: 700;
   letter-spacing: 1px;
   z-index: 100; pointer-events: none;
@@ -8484,7 +8495,7 @@ body.mobile-card-dragging .cursor-trail { display: none !important; }
   width: 22px; height: 22px; border-radius: 50%;
   background: #000000;
   color: #d7b3e6;
-  font-family: 'Rajdhani', sans-serif;
+  font-family: var(--font-mono);
   font-weight: 700; font-size: 12px;
   display: flex; align-items: center; justify-content: center;
   border: 1px solid rgba(155,89,182,0.95);
@@ -8893,7 +8904,7 @@ body.mobile-card-dragging .cursor-trail { display: none !important; }
   box-shadow: 0 0 8px rgba(255,215,0,0.75);
 }
 .prompt-banner .prompt-timer-text {
-  font-family: 'Rajdhani', sans-serif;
+  font-family: var(--font-mono);
   font-weight: 700; font-size: 12px;
   color: #ffd77a;
   letter-spacing: 1px;
@@ -8961,7 +8972,7 @@ body.mobile-card-dragging .cursor-trail { display: none !important; }
   border-bottom-color: rgba(var(--theme-rgb, 79,195,247),0.60);
 }
 .dead-pile-card .card-stats {
-  font-family: 'Rajdhani', sans-serif;
+  font-family: var(--font-mono);
   font-size: 12px; font-weight: 700; margin: 4px 0 2px;
   color: var(--text-dim, #cfd6df); letter-spacing: 0.8px;
   font-variant-numeric: tabular-nums;
@@ -8973,7 +8984,7 @@ body.mobile-card-dragging .cursor-trail { display: none !important; }
   width: 22px; height: 22px; border-radius: 50%;
   background: #000000;
   color: #ffd77a;
-  font-family: 'Rajdhani', sans-serif;
+  font-family: var(--font-mono);
   font-weight: 700; font-size: 12px;
   display: flex; align-items: center; justify-content: center;
   border: 1px solid rgba(255,215,0,0.95); z-index: 2;
@@ -9277,7 +9288,7 @@ body.mobile-card-dragging .cursor-trail { display: none !important; }
 }
 .sotm-headline-value {
   color: #ffd95c;
-  font-family: 'Rajdhani', sans-serif;
+  font-family: var(--font-mono);
   font-size: 28px;
   font-weight: 700;
   text-shadow: 0 0 8px rgba(255,217,92,0.45);
@@ -9300,6 +9311,7 @@ body.mobile-card-dragging .cursor-trail { display: none !important; }
   font-size: 16px;
   font-weight: 700;
   color: var(--text-body, #e8eef6);
+  font-family: var(--font-mono);
   font-variant-numeric: tabular-nums;
 }
 .sotm-impact {
@@ -9330,6 +9342,7 @@ body.mobile-card-dragging .cursor-trail { display: none !important; }
   padding-left: 8px;
   margin-left: 8px;
   position: relative;
+  font-family: var(--font-mono);
   font-variant-numeric: tabular-nums;
   font-weight: 700;
   letter-spacing: 0.4px;
@@ -10368,7 +10381,8 @@ body.turn-combat .board .lane.lane-active {
    ============================================================ */
 
 /* Stat circles use tabular numerals so 1↔10 doesn't jitter */
-.stat-circle { font-variant-numeric: tabular-nums; }
+.stat-circle { font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums; }
 
 /* Keyword pills — black-hole style: pure black bg, colored ring + glow.
    Miniature lane pips attached to cards — same visual DNA. */
@@ -10940,6 +10954,7 @@ body.turn-combat .board .lane.lane-active {
 }
 .lr-amt {
   font-size: 13px;
+  font-family: var(--font-mono);
   font-variant-numeric: tabular-nums;
   text-shadow: 0 0 6px currentColor;
 }
@@ -12625,7 +12640,7 @@ body.turn-combat .board .lane.lane-active {
    Both shown ALWAYS so the player can scan all 6 lanes and see who's
    taking direct face damage at a glance. Empty lanes show a dim "—". */
 .lane-forecast-strip .lf-face {
-  font-family: 'Rajdhani', sans-serif;
+  font-family: var(--font-mono);
   font-size: 11px;
   font-weight: 700;
   letter-spacing: 0.5px;
@@ -12792,6 +12807,7 @@ body.turn-combat .board .lane.lane-active {
 .dmg-preview .dp-nums {
   color: #f1948a;
   font-weight: 700;
+  font-family: var(--font-mono);
   font-variant-numeric: tabular-nums;
   text-shadow:
     0 0 4px rgba(231,76,60,1),
@@ -13091,7 +13107,8 @@ body.in-match .cheat-help-toggle { display: flex; }
   border: 1px solid rgba(243,156,18,0.6);
 }
 .dead-peek .peek-name { color: var(--text-body, #f5fbff); }
-.dead-peek .peek-stat { color: var(--text-faint, #7a8691); font-variant-numeric: tabular-nums; }
+.dead-peek .peek-stat { color: var(--text-faint, #7a8691); font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums; }
 
 /* Round track — horizontal pip strip at top of game area */
 .round-track {
@@ -15678,6 +15695,7 @@ body.round-first-ai .hud-pill-main {
 /* Stat circles — tighter numerals, slightly bolder, better tabular alignment. */
 .stat-circle {
   font-weight: 700 !important;
+  font-family: var(--font-mono);
   font-variant-numeric: tabular-nums;
   letter-spacing: 0;
 }
@@ -16719,6 +16737,7 @@ body.kill-flash-ai::after {
   font-size: 22px; font-weight: 700;
   margin-bottom: 14px;
   letter-spacing: 1px;
+  font-family: var(--font-mono);
   font-variant-numeric: tabular-nums;
 }
 .ci-atk   { color: #7ee8a5; text-shadow: 0 0 6px rgba(46,204,113,0.95), 0 0 14px rgba(46,204,113,0.50); }
@@ -18343,6 +18362,7 @@ input:focus-visible,
 }
 .deck-viewer-preview .dvp-stat {
   font-weight: 700;
+  font-family: var(--font-mono);
   font-variant-numeric: tabular-nums;
 }
 .deck-viewer-preview .dvp-stat-atk { color: #7ee8a5; }
@@ -19084,7 +19104,7 @@ body.phase-menu .kb-hints { display: none; }
   color: color-mix(in srgb, var(--theme-accent, rgb(79,195,247)) 35%, #88a0b8);
 }
 .db-meter-value {
-  font-family: 'Rajdhani', sans-serif;
+  font-family: var(--font-mono);
   font-size: 16px; font-weight: 700;
   font-variant-numeric: tabular-nums;
   letter-spacing: 1px;
@@ -19290,7 +19310,7 @@ body.phase-menu .kb-hints { display: none; }
 }
 .db-deck-heading-label { flex: 1 1 auto; }
 .db-deck-heading-count {
-  font-family: 'Rajdhani', sans-serif;
+  font-family: var(--font-mono);
   font-size: 11px; font-weight: 700;
   letter-spacing: 1.5px;
   font-variant-numeric: tabular-nums;
@@ -19360,7 +19380,7 @@ body.phase-menu .kb-hints { display: none; }
 }
 .db-start-hint {
   margin-left: 6px;
-  font-family: 'Rajdhani', sans-serif;
+  font-family: var(--font-mono);
   font-size: 10px; font-weight: 600;
   letter-spacing: 1.5px;
   font-variant-numeric: tabular-nums;
@@ -20716,7 +20736,7 @@ body.combat-anticipate .board {
   display: flex; align-items: center; justify-content: center;
   z-index: 3;
   text-shadow: 0 0 6px rgba(155,89,182,0.95), 0 0 12px rgba(155,89,182,0.45);
-  font-family: 'Rajdhani', sans-serif;
+  font-family: var(--font-mono);
   font-variant-numeric: tabular-nums;
   box-shadow: none !important;
   overflow: visible;
@@ -22681,6 +22701,7 @@ html {
   /* Tabular-nums alone isn't enough — some browsers without
      OpenType support fall back to proportional. Setting both
      properties belt-and-suspenders. */
+  font-family: var(--font-mono);
   font-variant-numeric: tabular-nums;
 }
 
@@ -23697,6 +23718,7 @@ body.killing-blow-cinema::after {
 .go-top5-score {
   font-weight: 700;
   color: var(--text-hi, #f5fbff);
+  font-family: var(--font-mono);
   font-variant-numeric: tabular-nums;
 }
 /* Side accent strip — left edge tinted by which side the card came from */
@@ -30295,6 +30317,7 @@ body.low-fx .board-section .crt-scanlines { display: none; }
 }
 .sb-stats {
   color: rgba(255, 255, 255, 0.55);
+  font-family: var(--font-mono);
   font-variant-numeric: tabular-nums;
   text-align: right;
 }
@@ -37065,7 +37088,7 @@ body.low-fx .card-portrait {
 .dossier-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 1px; }
 .dossier-list li { display: flex; gap: 6px; align-items: baseline; }
 .dossier-round {
-  font-family: 'Rajdhani', sans-serif;
+  font-family: var(--font-mono);
   font-size: 9px; font-weight: 700;
   color: rgba(var(--theme-rgb,79,195,247),0.9);
   font-variant-numeric: tabular-nums;
@@ -40800,7 +40823,8 @@ body.low-fx .badge-asleep { animation: none; }
   border: 1px solid rgba(var(--theme-rgb, 79,195,247), 0.35);
   border-radius: 2px; padding: 2px 3px;
   font: 600 10px/1.2 ui-monospace, Menlo, monospace;
-  color: #e8f5ff; font-variant-numeric: tabular-nums;
+  color: #e8f5ff; font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
 }
 .gal-zoom-num { width: 42px; text-align: right; }
 .gal-num input:focus, .gal-zoom-num:focus {
@@ -40914,6 +40938,7 @@ body.low-fx .badge-asleep { animation: none; }
   font-size: var(--sb-num);
   font-weight: 700;
   letter-spacing: 0.2px;
+  font-family: var(--font-mono);
   font-variant-numeric: tabular-nums;
 }
 /* The list is the one badge whose width GROWS — from "1" to "1,2,3,4,5,6" —
@@ -41592,6 +41617,7 @@ body.twov2-online-game .info-bar.ai-bar .bar-energy { display: none; }
 .rc-stat.rc-energy {
   color: rgb(var(--theme-rgb, 79, 195, 247));
   text-shadow: 0 0 6px rgba(var(--theme-rgb, 79, 195, 247), 0.55);
+  font-family: var(--font-mono);
   font-variant-numeric: tabular-nums;
 }
 .rc-stat.rc-energy .rc-ic { opacity: 0.9; }
