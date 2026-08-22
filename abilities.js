@@ -2364,8 +2364,13 @@ const CARD_ABILITIES = {
       // 2v2: choose whose hand to raid. The alias is held across the whole
       // face-down pick + trade-back chain (see withChosenOpponent), so the
       // steal and the give-back both land on the chosen player.
-      const deadpoolOwnerSeat = G._2v2CurrentActingPlayer || (G._2v2ActivePlayer && G._2v2ActivePlayer());
       const dpIs2v2 = !!(G.state.twoVTwo && G.state.twoVTwo.online);
+      // Anchor to DEADPOOL'S OWN seat (his _2v2PlayedBy), not whatever seat
+      // happens to be acting when he dies in combat — _2v2ActFor sets
+      // _2v2CurrentActingPlayer from the card, so the whole steal + give-back
+      // chain routes to the player who owns Deadpool.
+      if (dpIs2v2) G._2v2ActFor(self);
+      const deadpoolOwnerSeat = (dpIs2v2 && self._2v2PlayedBy) || G._2v2CurrentActingPlayer || (G._2v2ActivePlayer && G._2v2ActivePlayer());
       G.withChosenOpponent(self.owner, "Deadpool — whose hand?", (opp, victimKey) => {
       const enemyHand = G.state[opp].hand;
       // 2v2: the give-back must read/splice the DEADPOOL OWNER's own seat hand,
@@ -2465,20 +2470,18 @@ const CARD_ABILITIES = {
             },
             cards => cards.slice().sort((a, b) => (a.baseCost || a.cost) - (b.baseCost || b.cost))[0]);
       };
-      // Step 1: WHO decides which card leaves the victim's hand.
+      // Step 1: DEADPOOL'S OWNER blind-picks a face-down card from the chosen
+      // enemy's hand — the steal is random to them (the hand is shuffled and
+      // shown face-down). IDENTICAL in 1v1 and 2v2 per owner direction: "deadpool's
+      // selection should work the same in 2v2 as it does in 1v1 … steal a card
+      // from me and random just like 1v1 and then give me 1 back." In 2v2 the
+      // prompt is routed to the Deadpool OWNER's seat (an AI owner auto-picks at
+      // random via stealPicker); withChosenOpponent has already aliased the
+      // chosen victim's hand onto state[opp], so faceDownDeck IS the victim's.
       const stealPicker = cards => cards[Math.floor(Game.rng() * cards.length)];
-      if (dpIs2v2 && victimKey) {
-        // 2v2: the VICTIM chooses which of their OWN cards to give up (face-up),
-        // routed to their seat — the Deadpool owner no longer picks for them.
-        G._2v2CurrentActingPlayer = victimKey;
-        G.promptCardChoice(opp, [...enemyHand], "Deadpool — Give Up a Card",
-          "Deadpool is raiding your hand! Choose a card to give up", onStolen, stealPicker);
-        G._2v2CurrentActingPlayer = deadpoolOwnerSeat;
-      } else {
-        // 1v1 / solo: Deadpool's owner blind-picks a face-down card (unchanged).
-        G.promptCardChoice(self.owner, faceDownDeck, "Deadpool's Final Trick",
-          "Pick a face-down card from the enemy's hand to steal", onStolen, stealPicker, { faceDown: true });
-      }
+      if (dpIs2v2) G._2v2CurrentActingPlayer = deadpoolOwnerSeat;
+      G.promptCardChoice(self.owner, faceDownDeck, "Deadpool's Final Trick",
+        "Pick a face-down card from the enemy's hand to steal", onStolen, stealPicker, { faceDown: true });
       });
     }
   },
