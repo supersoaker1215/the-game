@@ -14740,6 +14740,13 @@ const Game = {
       const p = tt.players[pk];
       if (p._2v2GotForesightCard) { delete p._2v2GotForesightCard; return; }
       const side = this._2v2TeamSide[p.team];
+      // Lex Luthor on the ENEMY team blocks this whole team's draw — his
+      // canonical "opponent cannot draw cards." 1v1 honors it inside drawCards;
+      // the 2v2 draw phase drew straight from the pile and skipped it, so both
+      // teammates kept drawing past an enemy Lex. Gate every seat's draw on the
+      // same shared check. (User: "the enemy team had lex luthor on the field
+      // and me and my teammate still drew cards the next round.")
+      if (!this.canDrawToHand(side, 'round draw')) return;
       // Per-player hand cap — 7, or 8 for a seat that played Mobius Chair /
       // Eye of Agamotto (which bump p.maxHandSize).
       const cap = p.maxHandSize || 7;
