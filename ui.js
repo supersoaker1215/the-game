@@ -12613,26 +12613,32 @@ const UI = {
     const me = tt.you;
     const myTeam = tt.players[me] && tt.players[me].team;
     if (!myTeam) return;
+    // Mini face-down card-back — the SAME diamond-pattern look as the 1v1
+    // opponent mini-hand (renderAIHand). Owner wants each other player's hand
+    // shown as real card/trick backs (not a bare count), with their name beside
+    // it and their leftover Energy on the same diamond glyph as the main HUD.
+    const cardBackSVG = `<svg viewBox="0 0 20 30" preserveAspectRatio="none" aria-hidden="true"><defs><pattern id="rc-cb" x="0" y="0" width="8" height="8" patternUnits="userSpaceOnUse"><path d="M4 0 L8 4 L4 8 L0 4 Z" fill="none" stroke="currentColor" stroke-width="0.5" stroke-opacity="0.7"/></pattern></defs><rect width="20" height="30" fill="url(#rc-cb)"/></svg>`;
     const chip = (pk, isMe) => {
       const p = tt.players[pk]; if (!p) return '';
       const cards = (p.hand || []).length;
       const tricks = (p.trickHand || []).length;
       // ENERGY, PER SEAT. Owner: "since everyone has their own energy i want an
-      // energy tracker for each person too, so you can see how much they spent
-      // and left over." Shown as left/total, which carries BOTH facts in one
-      // glyph — 5/8 is "five left, three spent" without a second number to
-      // read. Energy is genuinely per-seat in 2v2 (start2v2Round grants it to
-      // each player object), so this is real per-player state, not a share of
-      // a team pool.
+      // energy tracker for each person too … how much energy they have at the
+      // end using the same energy symbol." Show the LEFTOVER on the diamond
+      // glyph (spent/total in the tooltip). Energy is genuinely per-seat in 2v2
+      // (start2v2Round grants it to each player object).
       const eTotal = p.energy || 0;
       const eSpent = p.usedEnergy || 0;
       const eLeft = Math.max(0, eTotal - eSpent);
       const active = (Game._2v2ActivePlayer && Game._2v2ActivePlayer() === pk);
-      return `<div class="rc-chip${active ? ' rc-active' : ''}${isMe ? ' rc-me' : ''}">`
+      let backs = '';
+      for (let i = 0; i < cards; i++)  backs += `<span class="rc-back rc-back-card">${cardBackSVG}</span>`;
+      for (let i = 0; i < tricks; i++) backs += `<span class="rc-back rc-back-trick">${cardBackSVG}</span>`;
+      if (!backs) backs = `<span class="rc-empty">—</span>`;
+      return `<div class="rc-chip rc-chip-hand${active ? ' rc-active' : ''}${isMe ? ' rc-me' : ''}">`
         + `<span class="rc-name">${esc(p.name || pk)}${isMe ? ' <em>(you)</em>' : ''}</span>`
-        + `<span class="rc-stat rc-cards" title="Cards in hand"><i class="rc-ic">🂠</i>${cards}</span>`
-        + `<span class="rc-stat rc-tricks" title="Tricks in hand"><i class="rc-ic">✦</i>${tricks}</span>`
-        + `<span class="rc-stat rc-energy" title="Energy left of this round's total — ${eSpent} spent of ${eTotal}"><i class="rc-ic">&#9670;</i>${eLeft}/${eTotal}</span>`
+        + `<span class="rc-hand" title="${cards} card${cards === 1 ? '' : 's'}, ${tricks} trick${tricks === 1 ? '' : 's'} in hand">${backs}</span>`
+        + `<span class="rc-stat rc-energy" title="${eLeft} Energy left of ${eTotal} (${eSpent} spent)"><i class="rc-ic">&#9670;</i>${eLeft}</span>`
         + `</div>`;
     };
     const order = ['p1', 'p2', 'p3', 'p4'];

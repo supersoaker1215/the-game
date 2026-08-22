@@ -41548,7 +41548,25 @@ body.low-fx .badge-asleep { animation: none; }
 .rc-ally  .rc-cards { color: #7cbcff; border-color: rgba(74,163,255,0.7); background: rgba(74,163,255,0.10); }
 .rc-tricks          { color: #d7b3e6; border-color: rgba(215,179,230,0.6); background: rgba(215,179,230,0.10); }
 .rc-ic { font-style: normal; opacity: 0.9; }
-@media (max-width: 900px) { .rc-name { max-width: 84px; } .rc-chip { font-size: 10px; padding: 2px 7px; gap: 5px; } }
+/* PER-PLAYER MINI-HAND — each other player's cards + tricks shown as the same
+   face-down card-backs the 1v1 opponent hand uses, with the name on the left
+   and leftover Energy (diamond) on the right. (Owner: "i want the 1v1 card and
+   trick look instead of whats in 2v2 right now but the players name next to the
+   cards and then how much energy they have at the end using the same energy
+   symbol.") */
+.rc-chip-hand { gap: 8px; padding: 3px 9px; }
+.rc-hand { display: inline-flex; align-items: center; gap: 2px; }
+.rc-back { display: inline-block; width: 11px; height: 16px; border-radius: 2px;
+  border: 1px solid currentColor; overflow: hidden; opacity: 0.92; flex: 0 0 auto; }
+.rc-back svg { width: 100%; height: 100%; display: block; }
+/* Cards tint to the side's colour (enemy red / ally blue); tricks purple — the
+   same colour language as the 1v1 hand and the count-pills above. */
+.rc-enemy .rc-back-card { color: #d85a5a; }
+.rc-ally  .rc-back-card { color: #5a9fe0; }
+.rc-back-trick { color: #b98fd0; }
+.rc-empty { opacity: 0.4; font-weight: 700; padding: 0 4px; }
+@media (max-width: 900px) { .rc-name { max-width: 84px; } .rc-chip { font-size: 10px; padding: 2px 7px; gap: 5px; }
+  .rc-back { width: 9px; height: 13px; } }
 
 /* ============================================================
    EMOTE + TAUNT BUTTONS — NEON, NOT DIMMED (2026-08-20)
