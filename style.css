@@ -41554,6 +41554,11 @@ body.low-fx .badge-asleep { animation: none; }
    trick look instead of whats in 2v2 right now but the players name next to the
    cards and then how much energy they have at the end using the same energy
    symbol.") */
+/* 2v2: the main ENEMY (top bar) energy diamond is redundant — each enemy's
+   energy sits on their roster chip now. Hide only the enemy one; the local
+   player keeps their own diamond on the bottom bar. (Owner: "the enemy energy
+   diamond is still and the personal energy diamonds are now gone — fix this.") */
+body.twov2-online-game .info-bar.ai-bar .bar-energy { display: none; }
 .rc-chip-hand { gap: 10px; padding: 4px 11px; }
 .rc-hand { display: inline-flex; align-items: center; gap: 3px; }
 /* Bigger card-backs — fill the top bar so hand sizes read at a glance. */

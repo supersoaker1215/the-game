@@ -6788,6 +6788,10 @@ const UI = {
     // body.in-match mirrors game-area visibility — gates body-level in-match
     // chrome (the ? help button docked beside the settings cog).
     document.body.classList.toggle('in-match', _gameAreaShown);
+    // body.twov2-online-game scopes 2v2-only HUD tweaks (e.g. hiding the
+    // redundant main ENEMY energy diamond — each enemy's energy is on their
+    // chip). A class, not inline style, so it auto-restores in 1v1/rematch.
+    document.body.classList.toggle('twov2-online-game', !!is2v2OnlineGame);
     // The build badge is a DEV readout, not part of the game — it belongs on
     // the main menu (where you go to check what you are running and to tap it
     // for a cache-clearing reload) and nowhere else. There was no positive
@@ -12642,11 +12646,12 @@ const UI = {
       const p = tt.players[pk]; if (!p) return '';
       const cards = (p.hand || []).length;
       const tricks = (p.trickHand || []).length;
-      // Energy already lives on the main HUD diamond, so it's dropped from the
-      // chip — the freed room goes to LARGER card/trick backs, easier to read at
-      // a glance. (Owner: "that energy diamond doesnt need to be there any more
-      // but you can increase the size of the enemy hands so its easier to see,
-      // fill up all that empty space.")
+      // PER-SEAT energy stays on each chip — this is the ONLY per-player energy
+      // readout (the redundant main enemy diamond is hidden in 2v2, see CSS).
+      // Show the LEFTOVER on the diamond glyph (spent/total in the tooltip).
+      const eTotal = p.energy || 0;
+      const eSpent = p.usedEnergy || 0;
+      const eLeft = Math.max(0, eTotal - eSpent);
       const active = (Game._2v2ActivePlayer && Game._2v2ActivePlayer() === pk);
       let backs = '';
       for (let i = 0; i < cards; i++)  backs += `<span class="rc-back rc-back-card">${cardBackSVG}</span>`;
@@ -12655,6 +12660,7 @@ const UI = {
       return `<div class="rc-chip rc-chip-hand${active ? ' rc-active' : ''}${isMe ? ' rc-me' : ''}">`
         + `<span class="rc-name">${esc(p.name || pk)}${isMe ? ' <em>(you)</em>' : ''}</span>`
         + `<span class="rc-hand" title="${cards} card${cards === 1 ? '' : 's'}, ${tricks} trick${tricks === 1 ? '' : 's'} in hand">${backs}</span>`
+        + `<span class="rc-stat rc-energy" title="${eLeft} Energy left of ${eTotal} (${eSpent} spent)"><i class="rc-ic">&#9670;</i>${eLeft}</span>`
         + `</div>`;
     };
     const order = ['p1', 'p2', 'p3', 'p4'];
