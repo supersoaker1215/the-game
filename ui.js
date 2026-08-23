@@ -11289,6 +11289,14 @@ const UI = {
         this.fxLegendaryEntrance(lEl, ev.owner, ev.cardId, ev.name);
         continue;
       }
+      // Status cue (Freeze / Fear / Mind Control) relayed from the host — guests
+      // only, the host already played it live at the engine call (_statusSfx).
+      if (ev.type === 'statusSfx') {
+        if (Game.onlineRelayRole && Game.onlineRelayRole() === 'guest') {
+          try { if (this.sfx && this.sfx.play && ev.sound) this.sfx.play(ev.sound); } catch (e) {}
+        }
+        continue;
+      }
       if (ev.type === 'envReveal') {
         this.fxEnvReveal(ev.lane, ev.name);
         continue;

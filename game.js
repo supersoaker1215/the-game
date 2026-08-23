@@ -60,6 +60,15 @@ const Game = {
     // 'armor'|'hpHit', consumed by UI.showDamageFloats.
     this.emitFX(type, { cardId, amount, owner, attackerId, lethal: !!lethal });
   },
+  // Status-application cue (Freeze / Fear / Mind Control). Plays LIVE for the
+  // host/solo AND rides the FX stream so the 2v2/1v1 GUESTS — who never run this
+  // engine line — hear it too. Without the relay these landed silently for
+  // everyone but the host. (Owner: guests get "missing sounds" — combat and
+  // status should play "like if they were the host.")
+  _statusSfx(name) {
+    if (typeof UI !== 'undefined' && UI.sfx && UI.sfx.play) { try { UI.sfx.play(name); } catch (e) {} }
+    try { this.emitFX('statusSfx', { sound: name }); } catch (e) {}
+  },
   // ONE Art-the-Clown Hacksaw bleed tick on a card: blood FX + damage + decrement
   // the remaining rounds, clearing the wound when it runs out. Extracted so the
   // FIRST tick can fire the instant Art picks his target (see Art the Clown's
@@ -10291,9 +10300,7 @@ const Game = {
       this.log(`  [FREEZE] ${card.name} is frozen (${total})!`);
       this._simulatePhantomSwing(source, card);
       this._creditChain(source, 'statsFreezesApplied', turns);
-      if (typeof UI !== 'undefined' && UI.sfx && UI.sfx.play) {
-        try { UI.sfx.play('statusFreeze'); } catch (e) {}
-      }
+      this._statusSfx('statusFreeze');
       if (typeof UI !== 'undefined' && UI._fxFreezeStrike) {
         try { UI._fxFreezeStrike(card); } catch (e) {}
       }
@@ -10332,9 +10339,7 @@ const Game = {
       this.log(`  [FEAR] ${card.name} is feared (${total})!`);
       this._simulatePhantomSwing(source, card);
       this._creditChain(source, 'statsFearsApplied', turns);
-      if (typeof UI !== 'undefined' && UI.sfx && UI.sfx.play) {
-        try { UI.sfx.play('statusFear'); } catch (e) {}
-      }
+      this._statusSfx('statusFear');
     });
   },
 
@@ -10533,9 +10538,7 @@ const Game = {
       // lives in the weighted-impact formula at display time, not here.
       this._simulatePhantomSwing(source, card);
       this._creditChain(source, 'statsMcApplied', 1);
-      if (typeof UI !== 'undefined' && UI.sfx && UI.sfx.play) {
-        try { UI.sfx.play('statusMindCtrl'); } catch (e) {}
-      }
+      this._statusSfx('statusMindCtrl');
       if (typeof onApply === 'function') onApply();
     });
   },
