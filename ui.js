@@ -19636,7 +19636,17 @@ const UI = {
     w = Math.max(100, w - (this._boardTrim || 0));
     // Whole pixels: at one decimal the value flickered 155.9 / 156.2 between
     // renders on identical input, which is rounding noise, not a resize.
-    area.style.setProperty('--board-card-w', Math.floor(w) + 'px');
+    const bw = Math.floor(w);
+    area.style.setProperty('--board-card-w', bw + 'px');
+    // ...and its height as a WHOLE pixel too. The slot derived its height in
+    // CSS as `--board-card-w * 182 / 92`, and that ratio is irrational for
+    // every board width except 92 itself: at the 8 widths the solver actually
+    // produces, 7 landed on a fraction (140px -> 286.9531px). A fractional
+    // slot height offsets every row stacked beneath it, and a 1px neon border
+    // on a half-pixel is not a 1px border — the rasteriser splits it into two
+    // 50%-opacity lines, so it draws twice as wide and half as bright. That is
+    // the physical reason the line work reads soft rather than sharp.
+    area.style.setProperty('--board-card-h', Math.round(bw * 182 / 92) + 'px');
     // The lanes just moved, so anything pinned to them is now stale. The
     // forecast strip measured its cells during the render pass, which runs
     // BEFORE this solve — that is why its cells were sized to the pre-fit lane

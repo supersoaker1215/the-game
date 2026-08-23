@@ -5997,7 +5997,7 @@ body.hit-pause .ai-hand * {
      Expressed as the actual chain so it cannot drift again: card width x the
      tile's aspect ratio, plus the slot's own 10px of vertical padding (6+4).
      Measured after: card 276.9px inside a 287px slot, nothing overflowing. */
-  min-height: calc(140px * 182 / 92 + 10px);
+  min-height: 287px;   /* 140 x 182/92 + 10 = 286.95 -> whole pixel */
   display: flex; justify-content: center; border-radius: 8px;
 }
 /* Card alignment within each slot: anchor each card TO THE SEP (AI bottom,
@@ -40277,7 +40277,7 @@ body.in-match .card-slot {
   width: calc(var(--board-card-w, 140px) + 14px);
   /* Height follows the card's 92/182 aspect plus the slot's own 6+4 padding —
      the same derivation the authored rule used, just no longer pinned to 140. */
-  min-height: calc(var(--board-card-w, 140px) * 182 / 92 + 10px);
+  min-height: calc(var(--board-card-h, 277px) + 10px);
 }
 body.in-match .lane {
   width: calc(var(--board-card-w, 140px) + 20px);

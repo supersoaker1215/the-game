@@ -13,7 +13,7 @@
 // refreshes code and leaves the assets alone.
 //   CODE_CACHE  — bumped on every deploy (that's the point: fresh code).
 //   ASSET_CACHE — bumped ONLY when the art/audio themselves change.
-const CACHE_VERSION = 'clb-v426-whole-pixel-type3212v2-prompt-delivery2v2-tap-to-read2v2-round-upkeep2v2-trickphase-card';
+const CACHE_VERSION = 'clb-v427-device-pixel-grid3212v2-prompt-delivery2v2-tap-to-read2v2-round-upkeep2v2-trickphase-card';
 const CODE_CACHE  = CACHE_VERSION;
 const ASSET_CACHE = 'clb-assets-v1';
 const APP_SHELL = [
