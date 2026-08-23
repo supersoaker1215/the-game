@@ -19210,6 +19210,7 @@ const UI = {
       // printing the count it had when the card was last rebuilt for some other
       // reason, and the number decaying 3->2->1 is the whole point of it.
       crit: !!card._criticalThisRound, burn: !!card.isBurning, bstk: card.burnStacks | 0,
+      chn: !!card._chained,
       ma: !!card._mastersApprentice,
       brl: card._bullseyeRoundsLeft | 0, ds: card._debuffStacks | 0,
       // Predictor + projected XP fields — keep last so they're visible
@@ -20108,7 +20109,26 @@ const UI = {
           envBg.className = `lane-env-bg ${safeClass}`;
           const artPath = this.getCardArtPath(primary.name);
           if (artPath) {
-            envBg.style.background = `linear-gradient(rgba(0,0,0,0.35), rgba(0,0,0,0.35)), url("${artPath}") center/cover no-repeat`;
+            // MATCH THE CARD, DO NOT RE-CROP. This was `center/cover`, and a
+            // lane is roughly 1:4.4 while the card's portrait is far squarer —
+            // so `cover` scaled a card-shaped image up until it covered the
+            // lane's HEIGHT and threw the sides away, leaving the narrow
+            // vertical slice the owner reported ("the card looks so good but
+            // it's cropped way too thin").
+            //   * `100% auto` fits the art to the lane's WIDTH, so the whole
+            //     picture is visible exactly as it is framed on the card
+            //     instead of a strip out of the middle of it.
+            //   * the focal point and zoom are read from the SAME source the
+            //     card face uses (_artFocalFor / _artSizeFor with the 'card'
+            //     context — the Gallery Audit overrides), so re-framing a card
+            //     in the gallery now moves its room on the board too, rather
+            //     than the two drifting apart.
+            const artFile = this.getCardArtVariant(primary.name);
+            const pos = this._artFocalFor(primary.name, artFile, 'card') || 'center';
+            const zoom = this._artSizeFor(primary.name, artFile, 'card');
+            const size = (zoom && zoom !== 'cover') ? zoom : '100% auto';
+            envBg.style.background =
+              `linear-gradient(rgba(0,0,0,0.35), rgba(0,0,0,0.35)), url("${artPath}") ${pos}/${size} no-repeat`;
           } else {
             envBg.style.background = '';
           }
@@ -22714,6 +22734,10 @@ const UI = {
       const hpLeft = Math.max(1, 2 - (c._gojoCombats | 0));
       t.push(badge('badge-hollow-purple', `Hollow Purple ${hpLeft}`, 'Hollow Purple'));
     }
+    // CHAINED — The Bathroom owns this body. A movement flag on its own was
+    // invisible: nothing on the card said why it could not be moved, so the
+    // rule only surfaced when a move silently failed.
+    if (c._chained) t.push(badge('badge-chained', 'Chained', 'Chained'));
     if (c._criticalThisRound) t.push(badge('badge-critical', 'Critical', 'Critical'));
     // Burning carries its COUNT, because the count is the damage: Burning 3
     // deals 3 next time this lane fights, then decays to 2, then 1. A bare
@@ -22856,6 +22880,10 @@ const UI = {
     // A blood drop — Art the Clown's Hacksaw wound. Filled teardrop with a
     // glint, in a deep crimson so it reads as blood at 10px board size.
     'Bleed': { color: '#e0244d', svg: '<svg viewBox="0 0 12 12"><path d="M6 1.2c2 2.6 3.2 4.2 3.2 5.9a3.2 3.2 0 0 1-6.4 0c0-1.7 1.2-3.3 3.2-5.9Z" fill="currentColor"/><path d="M4.6 6.5c0 1 .5 1.7 1.3 2" stroke="#fff" stroke-width="0.7" fill="none" stroke-linecap="round" opacity="0.65"/></svg>', tip: 'Takes this much damage at the start of each of the next rounds, then the wound closes.' },
+    // THE BATHROOM's chain. Two interlocking links as pure stroke — a
+    // rendered chain would be unreadable at the ~10px board size and the
+    // house rule for icons is neon line art, not real-world art.
+    'Chained': { color: '#a8b8c8', svg: '<svg viewBox="0 0 12 12"><rect x="0.9" y="4.1" width="6.2" height="3.8" rx="1.9" stroke="currentColor" stroke-width="1.15" fill="none"/><rect x="4.9" y="4.1" width="6.2" height="3.8" rx="1.9" stroke="currentColor" stroke-width="1.15" fill="none"/></svg>', tip: 'Held by <b>The Bathroom</b>. Took (−2/−2) on entering and can never leave this lane. When the second Chained card dies, the room drains away.' },
     'Damage Immunity': { color: '#d35400', svg: '<svg viewBox="0 0 12 12"><path d="M6 1 L11 3 V6 C11 9 6 11 6 11 C6 11 1 9 1 6 V3 Z M4 6 L8 6 M6 4 L6 8" stroke="currentColor" stroke-width="1.2" fill="none" stroke-linejoin="round"/></svg>', tip: 'Cannot take any damage.' },
     // A BRAIN. Owner: "the mind control icon should be a brain." The old glyph
     // was a circle with an S-curve inside it, which read as a generic token.

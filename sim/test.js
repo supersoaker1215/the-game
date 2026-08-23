@@ -5991,7 +5991,7 @@ test("The Bathroom chains the first enemy in — it can never leave", function (
   assertEq(victim.attack, atk1, 'the room only triggers once');
 });
 
-test("The Reveal raises a body that dies in its lane, as a (1/1)", function () {
+test("The Reveal raises an enemy body that dies in its lane, as a (2/2)", function () {
   var G = freshGame();
   var room = CARD_ABILITIES['Jigsaw']._placeRoom(G, 'player', 1, 'The Reveal');
 
@@ -6014,8 +6014,8 @@ test("The Reveal raises a body that dies in its lane, as a (1/1)", function () {
   assert(!!risen, 'a body gets up');
   assertEq(risen.name, name, 'it is the card that died');
   assertEq(risen.owner, 'player', 'and it rises on the room owner side');
-  assertEq(risen.attack, 1, 'as a 1 ATK');
-  assertEq(risen.currentHealth, 1, 'and 1 HP body');
+  assertEq(risen.attack, 2, 'as a 2 ATK');
+  assertEq(risen.currentHealth, 2, 'and 2 HP body');
 
   // SPENT. One body only — otherwise the room re-hooks what it just raised and
   // a death cascade loops forever (this hung the full-match suite once).
@@ -6187,8 +6187,8 @@ test("A card revived from the dead pile keeps ALL its hooks (Dormammu's drain)",
 
 test("A body raised alone still gets Lone Wolf — the room does not bypass it", function () {
   // The other half of the case above, pinned deliberately rather than left as a
-  // surprise: with no other ally on the board the risen body is a 2/2, because
-  // Lone Wolf applies to it like any other summon.
+  // surprise: with no other ally on the board the risen body is a 3/3 — the
+  // room's (2/2) plus Lone Wolf, which applies to it like any other summon.
   var G = freshGame();
   var room = CARD_ABILITIES['Jigsaw']._placeRoom(G, 'player', 1, 'The Reveal');
   var victim = place(G, 'Sabertooth', 'ai', 1);
@@ -6197,8 +6197,8 @@ test("A body raised alone still gets Lone Wolf — the room does not bypass it",
   G.handleDeath(victim, 1, null);
   var risen = G.state.lanes[1].player;
   assert(!!risen, 'a body gets up');
-  assertEq(risen.attack, 2, 'Lone Wolf takes the lone body to 2 ATK');
-  assertEq(risen.currentHealth, 2, 'and 2 HP');
+  assertEq(risen.attack, 3, 'Lone Wolf takes the lone (2/2) body to 3 ATK');
+  assertEq(risen.currentHealth, 3, 'and 3 HP');
 });
 
 test("A card's On Play can ground a hunter before it chases", function () {
@@ -7037,6 +7037,83 @@ test("Burn/bleed kills BEFORE the lane fights, so the survivor hits the healthba
   assertEq(alive.victim.currentHealth > 0, true, 'it survived the burn');
   assertEq(alive.dealt, 0, 'so the lane was contested and the healthbar was untouched');
   assert(alive.mine.currentHealth < 9, 'and our card took the trade');
+});
+
+test("The Bathroom chains TWO enemies, and only the second death drains it", function () {
+  // Owner: "the next 2 enemy cards lose (-2/-2) and have a chained icon ...
+  // once the 2nd enemy chained dies the bathroom disappears."
+  var G = freshGame();
+  var room = CARD_ABILITIES['Jigsaw']._placeRoom(G, 'player', 1, 'The Bathroom');
+  CARD_ABILITIES['The Bathroom'].onPlay(G, room, 1);
+  var AB = CARD_ABILITIES['The Bathroom'];
+
+  // FIRST enemy walks in.
+  var a = place(G, 'Sabertooth', 'ai', 1);
+  var aAtk = a.attack, aHp = a.currentHealth;
+  AB.onAnyCardPlayed(G, room);
+  assertEq(a.attack, Math.max(0, aAtk - 2), 'first victim loses 2 ATK');
+  assertEq(a.currentHealth, aHp - 2, 'and 2 HP');
+  assertEq(!!a._chained, true, 'and carries the Chained status');
+  assertEq(a._chainedToLane, 1, 'pinned to the lane it entered');
+
+  // The room is NOT spent after one — it owes a second body.
+  assert(!room._bathroomTriggered, 'still hungry after the first');
+
+  // AND IT MUST NOT RE-CHAIN THE BODY ALREADY STANDING THERE. The one-victim
+  // version was protected by its own spent-flag; holding two removes that
+  // protection, so every later card played re-read the same victim as a fresh
+  // arrival and hit it for another (−2/−2).
+  var atkAfterFirst = a.attack, hpAfterFirst = a.currentHealth;
+  AB.onAnyCardPlayed(G, room);
+  AB.onAnyCardPlayed(G, room);
+  assertEq(a.attack, atkAfterFirst, 'the chained body is not hit again');
+  assertEq(a.currentHealth, hpAfterFirst, 'nor loses more health');
+  assertEq((room._bathroomChained || []).length, 1, 'and is still only ONE victim');
+
+  // SECOND enemy takes the first one's place.
+  G.state.lanes[1].ai = null;
+  var b = place(G, 'Sabertooth', 'ai', 1);
+  var bAtk = b.attack, bHp = b.currentHealth;
+  AB.onAnyCardPlayed(G, room);
+  assertEq(b.attack, Math.max(0, bAtk - 2), 'second victim loses 2 ATK');
+  assertEq(b.currentHealth, bHp - 2, 'and 2 HP');
+  assertEq(!!b._chained, true, 'and is Chained too');
+  assertEq(!!room._bathroomTriggered, true, 'intake closes at two');
+
+  // FIRST chained body dies — the room must STAY, one chain still holds.
+  a.currentHealth = 0;
+  G.handleDeath(a, 1, null);
+  assertEq(G.state.lanes[1]._env && G.state.lanes[1]._env.player, room,
+    'the room survives the first death');
+
+  // SECOND chained body dies — now it drains.
+  b.currentHealth = 0;
+  G.handleDeath(b, 1, null);
+  assertEq(!!(G.state.lanes[1]._env && G.state.lanes[1]._env.player), false,
+    'the room drains away once the second Chained card dies');
+});
+
+test("The Reveal ignores an ALLY dying in its lane — enemy bodies only", function () {
+  // Owner: "the 1st ENEMY card to die in this lane rises on your side". It used
+  // to hook both sides, so your own dead was raised and the room spent on it.
+  var G = freshGame();
+  var room = CARD_ABILITIES['Jigsaw']._placeRoom(G, 'player', 1, 'The Reveal');
+  var ally = place(G, 'Sabertooth', 'player', 1);
+  CARD_ABILITIES['The Reveal'].onAnyCardPlayed(G, room);
+  assertEq(!!ally._revealHooked, false, 'an ally is never hooked');
+
+  ally.currentHealth = 0;
+  G.handleDeath(ally, 1, null);
+  assertEq(!!room._revealSpent, false, 'an ally death does not spend the room');
+
+  // An ENEMY death still works.
+  G.state.lanes[1].player = null;
+  var enemy = place(G, 'Sabertooth', 'ai', 1);
+  CARD_ABILITIES['The Reveal'].onAnyCardPlayed(G, room);
+  assertEq(!!enemy._revealHooked, true, 'the enemy IS hooked');
+  enemy.currentHealth = 0;
+  G.handleDeath(enemy, 1, null);
+  assert(!!G.state.lanes[1].player, 'and an enemy death raises a body');
 });
 
 // ---- RUNNER ------------------------------------------------

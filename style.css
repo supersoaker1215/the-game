@@ -7232,6 +7232,11 @@ body.hit-pause .ai-hand * {
   from { opacity: 1;    text-shadow: 0 0 4px rgba(224,36,77,0.85); }
   to   { opacity: 0.72; text-shadow: 0 0 9px rgba(224,36,77,0.55); }
 }
+/* CHAINED — The Bathroom's hold. Steel, and deliberately STATIC: the two
+   pulsing debuffs on the board are Bleed and Burning, which are counting
+   DOWN. A chain is not a countdown — it holds until the body dies — so a
+   pulse here would say 'this is about to expire', which is the opposite. */
+.badge-chained    { color: #a8b8c8; }
 .badge-parlay     { color: #d4ac6e; }
 .badge-apprentice { color: #8ede6d; }
 .badge-mind-ctrl  { color: var(--kw-mind-ctrl); }

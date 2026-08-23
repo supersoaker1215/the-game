@@ -6391,9 +6391,36 @@ const CARD_ABILITIES = {
       const opp = G.opponent(self.owner);
       const existing = G.state.lanes[lane][opp];
       self._bathroomTracked = (existing && existing.currentHealth > 0) ? existing.id : null;
+      // TWO victims, not one. The room holds the next 2 enemy cards, and it
+      // only drains away once the SECOND one dies — so the count of bodies
+      // still owed and the count already taken both have to survive on the
+      // room itself, not in a closure.
+      self._bathroomChained = [];
     },
     _chain(G, self, victim, laneIdx) {
-      self._bathroomTriggered = true;
+      // The room is spent for INTAKE once it holds two, but it stays on the
+      // board until the second body dies — those are different lifetimes and
+      // conflating them is what would make it vanish with a victim still
+      // chained inside it.
+      if (!self._bathroomChained) self._bathroomChained = [];
+      self._bathroomChained.push(victim.id);
+      if (self._bathroomChained.length >= 2) self._bathroomTriggered = true;
+      // THE CHAIN ICON. A visible status, not just an invisible movement flag —
+      // the owner has to be able to see which two cards the room owns.
+      victim._chained = true;
+      // Watch this body: when the SECOND chained card dies the room drains.
+      // Wraps onDeath the same way The Reveal hooks its occupants, including
+      // the death-PREVENTION protocol — a truthy return means the death was
+      // cancelled, so a card saved by a revive must not also count as drained.
+      if (!victim._bathroomDeathHooked) {
+        victim._bathroomDeathHooked = true;
+        const prior = victim.onDeath || null;
+        victim.onDeath = function (G2, dead, dLane) {
+          const prevented = prior ? prior.call(this, G2, dead, dLane) : false;
+          if (prevented) return true;
+          try { CARD_ABILITIES['The Bathroom']._drain(G2, self, dead); } catch (e) {}
+        };
+      }
       // (−2/−2) applied with the CANONICAL shield rule — the same
       // statStripShieldsHp predicate checkLaneTrap and debuffCard use, so
       // Invincible / Damage Immunity blocks the health loss while the ATK strip
@@ -6421,6 +6448,25 @@ const CARD_ABILITIES = {
       // (and same bug class) as checkLaneTrap.
       if (victim.currentHealth <= 0) G.handleDeath(victim, laneIdx, null);
     },
+    // THE ROOM DRAINS. Only the SECOND chained body ends it — the first dying
+    // leaves the room standing with one victim still owed, which is the whole
+    // point of a room that holds two.
+    _drain(G, self, dead) {
+      const held = self._bathroomChained || [];
+      if (!held.includes(dead.id)) return;
+      self._bathroomDead = (self._bathroomDead || 0) + 1;
+      if (self._bathroomDead < 2) {
+        G.log(`  [THE BATHROOM] ${dead.name} stops moving. One chain still holds.`);
+        return;
+      }
+      const laneIdx = G.findCardLane(self);
+      if (laneIdx < 0) return;
+      const lane = G.state.lanes[laneIdx];
+      // Clear the sub-slot the way The Reveal and Sewers hand their lane back.
+      if (lane._env && lane._env[self.owner] === self) lane._env[self.owner] = null;
+      G.log(`[THE BATHROOM] Both chains are empty. The room drains away.`);
+      if (typeof UI !== 'undefined' && UI.emitFX) { try { G.emitFX('envReveal', { lane: laneIdx, owner: self.owner, name: 'The Bathroom' }); } catch (e) {} }
+    },
     onAnyCardPlayed(G, self) {
       if (self._bathroomTriggered) return;
       const laneIdx = G.findCardLane(self);
@@ -6428,7 +6474,16 @@ const CARD_ABILITIES = {
       const opp = G.opponent(self.owner);
       const enemy = G.state.lanes[laneIdx][opp];
       const enemyId = (enemy && enemy.currentHealth > 0) ? enemy.id : null;
+      // ALREADY-CHAINED BODIES ARE NOT NEW ARRIVALS. The one-victim version
+      // could skip this: _chain set _bathroomTriggered, and the guard at the
+      // top of this method then blocked every later ping. Holding TWO means
+      // the flag no longer trips on the first, so without these two lines the
+      // victim standing in the lane reads as an unseen arrival on EVERY card
+      // played and takes (−2/−2) again, and again. Two guards on purpose —
+      // `_chained` also covers a body chained by some other room.
+      if (enemy && enemy._chained) { self._bathroomTracked = enemyId; return; }
       if (enemyId && enemyId !== self._bathroomTracked) {
+        self._bathroomTracked = enemyId;
         CARD_ABILITIES['The Bathroom']._chain(G, self, enemy, laneIdx);
       } else {
         self._bathroomTracked = enemyId;
@@ -6447,7 +6502,11 @@ const CARD_ABILITIES = {
       if (laneIdx < 0) return;
       const lane = G.state.lanes[laneIdx];
       const AB = CARD_ABILITIES['The Reveal'];
-      ['player', 'ai'].forEach(side => {
+      // ENEMY bodies only (owner spec: "the 1st enemy card to die in this
+      // lane"). This hooked BOTH sides, so the room would also raise one of
+      // your own dead — which reads as the room helping the wrong player and
+      // spends it on a body you did not want back.
+      [G.opponent(self.owner)].forEach(side => {
         const c = lane[side];
         if (!c || c.isEnvironment || c.currentHealth <= 0 || c._revealHooked) return;
         c._revealHooked = true;
@@ -6487,16 +6546,16 @@ const CARD_ABILITIES = {
       }
       const realDef = (typeof CARD_DEFS !== 'undefined')
         ? CARD_DEFS.find(d => d.name === dead.name) : null;
-      // Summon from a def COPY carrying the (1/1), rather than summoning the
+      // Summon from a def COPY carrying the (2/2), rather than summoning the
       // real card and stamping the stats afterwards. Stamping looked right —
       // the body read 1/1 the instant it rose — and was then reverted to the
       // def's base stats later in the same death cascade, which re-derives from
       // the def. Handing the summon the stats up front means there is nothing
       // to re-derive back to. Spread, never JSON: a JSON clone of a def strips
       // its ability hooks.
-      const def = realDef ? Object.assign({}, realDef, { attack: 1, health: 1 }) : null;
+      const def = realDef ? Object.assign({}, realDef, { attack: 2, health: 2 }) : null;
       const before = lane[owner];
-      G.summonCard(owner, laneIdx, dead.name, dead.cost || 0, 1, 1, [], def);
+      G.summonCard(owner, laneIdx, dead.name, dead.cost || 0, 2, 2, [], def);
       const risen = G.state.lanes[laneIdx][owner];
       if (!risen || risen === before) {
         G.log(`  [THE REVEAL] ${dead.name} does not get up.`);
@@ -6511,7 +6570,7 @@ const CARD_ABILITIES = {
       // The room is used up — clear the sub-slot so the board shows it is done,
       // the way Sewers hands its lane over to Pennywise.
       if (lane._env && lane._env[owner] === self) lane._env[owner] = null;
-      G.log(`[THE REVEAL] ${dead.name} gets up in lane ${laneIdx + 1} — a (1/1) on your side. The room is spent.`);
+      G.log(`[THE REVEAL] ${dead.name} gets up in lane ${laneIdx + 1} — a (2/2) on your side, played anew. The room is spent.`);
       if (typeof UI !== 'undefined' && UI.emitFX) { try { G.emitFX('envReveal', { lane: laneIdx, owner, name: 'The Reveal' }); } catch (e) {} }
     },
     onPlay(G, self) { CARD_ABILITIES['The Reveal']._hookOccupants(G, self); },
