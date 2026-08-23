@@ -11613,7 +11613,7 @@ const Game = {
     // logic lives in onAnyCardPlayed (which re-reads the lane and reacts to
     // whatever is standing there), but a MOVE never fired that broadcast — so an
     // enemy dragged INTO The Bathroom sat there un-chained and a body moved onto
-    // The Reveal was never hooked to rise. This is Jigsaw's whole combo ("place
+    // Game Over was never hooked to rise. This is Jigsaw's whole combo ("place
     // rooms, then drag someone into one"), so it has to fire here at the single
     // lane-entry choke point every mover passes through. Poke the room(s) in
     // this lane; their once-only guards make the double-fire with the play-path

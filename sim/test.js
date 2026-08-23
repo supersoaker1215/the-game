@@ -5947,12 +5947,12 @@ test("Jigsaw places two rooms instead of Bear Traps", function () {
   var G = freshGame();
   var jig = cardByName('Jigsaw');
   assertEq(/Bear Trap/.test(jig.desc), false, 'the card no longer mentions Bear Traps');
-  assert(/The Bathroom/.test(jig.desc) && /The Reveal/.test(jig.desc),
+  assert(/The Bathroom/.test(jig.desc) && /Game Over/.test(jig.desc),
     'and it names both rooms');
 
   // Both rooms exist as environments, and neither can be drafted — they are
   // Jigsaw's alone, like Pennywise belongs to the Sewers.
-  ['The Bathroom', 'The Reveal'].forEach(function (n) {
+  ['The Bathroom', 'Game Over'].forEach(function (n) {
     var def = cardByName(n);
     assert(!!def, n + ' is a real card def');
     assertEq(def.type, 'environment', n + ' is an environment');
@@ -5998,13 +5998,13 @@ test("The Bathroom chains the first enemy in — and moving costs it again", fun
   assertEq(victim.attack, atk1, 'the room does not re-chain it');
 });
 
-test("The Reveal raises an enemy body that dies in its lane, as a (2/2)", function () {
+test("Game Over raises an enemy body that dies in its lane, as a (2/2)", function () {
   var G = freshGame();
-  var room = CARD_ABILITIES['Jigsaw']._placeRoom(G, 'player', 1, 'The Reveal');
+  var room = CARD_ABILITIES['Jigsaw']._placeRoom(G, 'player', 1, 'Game Over');
 
   // An enemy stands in the lane; our side of it is empty so a body can rise.
   var victim = place(G, 'Sabertooth', 'ai', 1);
-  CARD_ABILITIES['The Reveal'].onAnyCardPlayed(G, room);
+  CARD_ABILITIES['Game Over'].onAnyCardPlayed(G, room);
   assertEq(!!victim._revealHooked, true, 'the occupant is hooked');
 
   // Give the room's owner another ally somewhere else. Without one, LONE WOLF
@@ -6167,12 +6167,12 @@ test("The Bathroom chains an enemy DRAGGED into its lane, not only one played", 
   assertEq(!!foe._chained, true, 'and carries the Chained status');
 });
 
-test("The Reveal hooks a body dragged in, which rises on your side on death", function () {
+test("Game Over hooks a body dragged in, which rises on your side on death", function () {
   var G = freshGame();
-  CARD_ABILITIES['Jigsaw']._placeRoom(G, 'player', 4, 'The Reveal');
+  CARD_ABILITIES['Jigsaw']._placeRoom(G, 'player', 4, 'Game Over');
   var foe = place(G, 'King Shark', 'ai', 4);
   G.checkLaneTrap(foe, 4);                       // entry poke installs the hook
-  assert(!!foe._revealHooked, 'the entering body is hooked by The Reveal');
+  assert(!!foe._revealHooked, 'the entering body is hooked by Game Over');
   foe.currentHealth = 0; G.handleDeath(foe, 4, null); G.cleanupDead();
   var risen = G.state.lanes[4].player;
   assert(risen && risen.owner === 'player', 'the dead body rises on your side');
@@ -6197,9 +6197,9 @@ test("A body raised alone still gets Lone Wolf — the room does not bypass it",
   // surprise: with no other ally on the board the risen body is a 3/3 — the
   // room's (2/2) plus Lone Wolf, which applies to it like any other summon.
   var G = freshGame();
-  var room = CARD_ABILITIES['Jigsaw']._placeRoom(G, 'player', 1, 'The Reveal');
+  var room = CARD_ABILITIES['Jigsaw']._placeRoom(G, 'player', 1, 'Game Over');
   var victim = place(G, 'Sabertooth', 'ai', 1);
-  CARD_ABILITIES['The Reveal'].onAnyCardPlayed(G, room);
+  CARD_ABILITIES['Game Over'].onAnyCardPlayed(G, room);
   victim.currentHealth = 0;
   G.handleDeath(victim, 1, null);
   var risen = G.state.lanes[1].player;
@@ -7100,13 +7100,13 @@ test("The Bathroom chains TWO enemies, and only the second death drains it", fun
     'the room drains away once the second Chained card dies');
 });
 
-test("The Reveal ignores an ALLY dying in its lane — enemy bodies only", function () {
+test("Game Over ignores an ALLY dying in its lane — enemy bodies only", function () {
   // Owner: "the 1st ENEMY card to die in this lane rises on your side". It used
   // to hook both sides, so your own dead was raised and the room spent on it.
   var G = freshGame();
-  var room = CARD_ABILITIES['Jigsaw']._placeRoom(G, 'player', 1, 'The Reveal');
+  var room = CARD_ABILITIES['Jigsaw']._placeRoom(G, 'player', 1, 'Game Over');
   var ally = place(G, 'Sabertooth', 'player', 1);
-  CARD_ABILITIES['The Reveal'].onAnyCardPlayed(G, room);
+  CARD_ABILITIES['Game Over'].onAnyCardPlayed(G, room);
   assertEq(!!ally._revealHooked, false, 'an ally is never hooked');
 
   ally.currentHealth = 0;
@@ -7116,22 +7116,22 @@ test("The Reveal ignores an ALLY dying in its lane — enemy bodies only", funct
   // An ENEMY death still works.
   G.state.lanes[1].player = null;
   var enemy = place(G, 'Sabertooth', 'ai', 1);
-  CARD_ABILITIES['The Reveal'].onAnyCardPlayed(G, room);
+  CARD_ABILITIES['Game Over'].onAnyCardPlayed(G, room);
   assertEq(!!enemy._revealHooked, true, 'the enemy IS hooked');
   enemy.currentHealth = 0;
   G.handleDeath(enemy, 1, null);
   assert(!!G.state.lanes[1].player, 'and an enemy death raises a body');
 });
 
-test("The Reveal moves an ally out of the way, like Sewers does", function () {
+test("Game Over moves an ally out of the way, like Sewers does", function () {
   // Owner: "for the reveal just like sewers an ally will move to make room."
   // It used to simply give up if your own card stood in the lane, which made
   // the room a coin-flip on board state instead of an effect you can plan for.
   var G = freshGame();
-  var room = CARD_ABILITIES['Jigsaw']._placeRoom(G, 'player', 1, 'The Reveal');
+  var room = CARD_ABILITIES['Jigsaw']._placeRoom(G, 'player', 1, 'Game Over');
   var enemy = place(G, 'Sabertooth', 'ai', 1);
   var ally  = place(G, 'Nightwing', 'player', 1);      // standing where the body wants to rise
-  CARD_ABILITIES['The Reveal'].onAnyCardPlayed(G, room);
+  CARD_ABILITIES['Game Over'].onAnyCardPlayed(G, room);
 
   enemy.currentHealth = 0;
   G.handleDeath(enemy, 1, null);
@@ -7145,15 +7145,15 @@ test("The Reveal moves an ally out of the way, like Sewers does", function () {
   assert(where >= 0 && where !== 1, 'and it now stands in a different lane');
 });
 
-test("The Reveal refuses to rise rather than kill your own card", function () {
+test("Game Over refuses to rise rather than kill your own card", function () {
   // Sewers ABSORBS the ally when there is nowhere to move it, because that
-  // feeds Pennywise's stats. The Reveal has no absorb rule, so with no open
+  // feeds Pennywise's stats. Game Over has no absorb rule, so with no open
   // lane it must decline — never destroy an ally to make space for itself.
   var G = freshGame();
-  var room = CARD_ABILITIES['Jigsaw']._placeRoom(G, 'player', 1, 'The Reveal');
+  var room = CARD_ABILITIES['Jigsaw']._placeRoom(G, 'player', 1, 'Game Over');
   var enemy = place(G, 'Sabertooth', 'ai', 1);
   var ally  = place(G, 'Nightwing', 'player', 1);
-  CARD_ABILITIES['The Reveal'].onAnyCardPlayed(G, room);
+  CARD_ABILITIES['Game Over'].onAnyCardPlayed(G, room);
   // fill every other lane on our side so there is nowhere to go
   for (var i = 0; i < G.LANE_COUNT; i++) if (i !== 1 && !G.state.lanes[i].player) place(G, 'Sabertooth', 'player', i);
 
@@ -7176,7 +7176,7 @@ test("An environment cannot cover another while a free lane remains", function (
   // EITHER SIDE counts: seating an env destroys whatever is in that lane on
   // BOTH sides, so placing "beside" an enemy room is still covering it.
   var G2 = freshGame();
-  CARD_ABILITIES['Jigsaw']._placeRoom(G2, 'ai', 3, 'The Reveal');
+  CARD_ABILITIES['Jigsaw']._placeRoom(G2, 'ai', 3, 'Game Over');
   assertEq(G2.canPlaceEnvironment('player', 3), false, 'an enemy environment blocks the lane too');
 });
 

@@ -13072,7 +13072,7 @@ const UI = {
                data-card-idx="${idx}" id="twov2-hcard-${idx}">
         <div class="twov2-hcard-cost">${card.cost}</div>
         <div class="twov2-hcard-name">${card.name}</div>
-        <div class="twov2-hcard-stats">${card.attack}<span style="color:#888">atk</span> ${card.currentHealth}<span style="color:#888">hp</span></div>
+        <div class="twov2-hcard-stats">${card.attack}<span style="opacity:.55">atk</span> ${card.currentHealth}<span style="opacity:.55">hp</span></div>
       </div>`;
     }).join('') || '<div class="twov2-hand-empty">No cards in hand</div>';
 
@@ -20146,7 +20146,7 @@ const UI = {
             // BOARD-ONLY FOCAL. A lane crops FAR harder than a card face does —
             // at these sizes the card shows ~72% of the picture's width but the
             // lane shows ~37% — so a subject that sits comfortably inside the
-            // card can land right on the lane's cut edge. The Reveal's figure
+            // card can land right on the lane's cut edge. Game Over's figure
             // is at x≈33% and was being sliced in half, which is why that lane
             // read as an anonymous green wash.
             // Deliberately NOT the shared focalCard map: that also drives the
@@ -20155,7 +20155,7 @@ const UI = {
             // Gallery Audit card focal when one has been set.
             const ENV_FOCAL = {
               'The Bathroom': '40% 50%',  // frames the tub and the blood pool
-              'The Reveal':   '33% 50%',  // centres the figure in the doorway
+              'Game Over':   '33% 50%',  // centres the figure in the doorway
             };
             const pos = this._artFocalFor(primary.name, artFile, 'card')
               || ENV_FOCAL[primary.name] || 'center';
@@ -31325,6 +31325,8 @@ function toggleDeadPile(owner) {
   const title = document.getElementById('dead-pile-title');
   const container = document.getElementById('dead-pile-cards');
   const pile = Game.state[owner].deadPile;
+  // Whose pile it is drives the panel's colour — see .pile-theirs.
+  overlay.classList.toggle('pile-theirs', owner !== 'player');
   title.textContent = (owner === 'player' ? 'Your' : UI.oppNamePoss()) + ' Dead Pile';
   // Ensure ranks are fresh — viewing the dead pile mid-match should
   // reflect the current MVP standings including cards in this pile.
@@ -31344,7 +31346,7 @@ function toggleDeadPile(owner) {
     });
     el.setAttribute('data-card-name', c.name);
     return el.outerHTML;
-  }).join('') : '<p style="color:#888">No cards have died yet.</p>';
+  }).join('') : '<p class="pile-empty">No cards have died yet.</p>';
   overlay.style.display = 'flex';
 }
 
@@ -31362,9 +31364,10 @@ function toggleTrickHistory(owner) {
   const title = document.getElementById('dead-pile-title');
   const container = document.getElementById('dead-pile-cards');
   const pile = (Game.state[owner] && Game.state[owner].playedTrickPile) || [];
+  overlay.classList.toggle('pile-theirs', owner !== 'player');
   title.textContent = (owner === 'player' ? 'Your' : "Opponent's") + ' Trick History';
   if (!pile.length) {
-    container.innerHTML = '<p style="color:#888">No tricks played yet.</p>';
+    container.innerHTML = '<p class="pile-empty">No tricks played yet.</p>';
   } else {
     // Reuse trick-card chrome (cost orb, name banner, rarity strip,
     // ability badges, desc) so the history reads exactly like the

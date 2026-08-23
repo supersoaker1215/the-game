@@ -8993,17 +8993,35 @@ body.mobile-card-dragging .cursor-trail { display: none !important; }
   text-align: center; max-width: 860px; width: 92%; padding: 24px 28px 20px;
   max-height: 82vh; overflow-y: auto;
   background: #000000;
-  border: 1px solid rgba(231,76,60,0.95);
+  /* THE PILE TAKES THE SIDE'S COLOUR. This chrome was hardcoded enemy red, but
+     the overlay serves BOTH piles — toggleDeadPile(owner) — so "Your Dead Pile"
+     was drawn in the opponent's colour. Owner: "I'm on white neon and the dead
+     pile is red, shouldn't be red."
+     Same convention as the info bars: your side follows the player accent, the
+     opponent's stays red. Defaults to yours, since that is the common case and
+     the safer wrong answer. */
+  border: 1px solid rgba(var(--pile-rgb), 0.95);
   border-radius: 8px;
-  box-shadow: 0 0 12px rgba(231,76,60,0.55), 0 0 24px rgba(231,76,60,0.25);
+  box-shadow: 0 0 12px rgba(var(--pile-rgb), 0.55), 0 0 24px rgba(var(--pile-rgb), 0.25);
 }
+.dead-pile-overlay { --pile-rgb: var(--player-r, 79), var(--player-g, 195), var(--player-b, 247); }
+.dead-pile-overlay.pile-theirs { --pile-rgb: var(--enemy-r, 231), var(--enemy-g, 76), var(--enemy-b, 60); }
 .dead-pile-panel h2 {
   font-family: 'Rajdhani', sans-serif;
-  color: #ff8a7a; font-size: 16px; font-weight: 700;
+  color: color-mix(in srgb, rgb(var(--pile-rgb)) 40%, #ffffff);
+  font-size: 16px; font-weight: 700;
   letter-spacing: 4px; text-transform: uppercase;
   margin-bottom: 18px; padding-bottom: 10px;
-  border-bottom: 1px solid rgba(231,76,60,0.35);
-  text-shadow: 0 0 8px rgba(231,76,60,0.55);
+  border-bottom: 1px solid rgba(var(--pile-rgb), 0.35);
+  text-shadow: 0 0 8px rgba(var(--pile-rgb), 0.55);
+}
+/* The empty-state line. Was an inline #888 — a flat mid grey, which is the
+   thing the owner has now flagged twice. Tinted bright instead, so it belongs
+   to the panel it sits in. */
+.dead-pile-panel .pile-empty {
+  color: color-mix(in srgb, rgb(var(--pile-rgb)) 26%, #ffffff);
+  font-size: 13px;
+  letter-spacing: 0.5px;
 }
 .dead-pile-cards { display: flex; gap: 12px; flex-wrap: wrap; justify-content: center; margin-bottom: 20px; }
 /* Dead-pile cards are now full canonical card faces (makeCardEl, greyed via

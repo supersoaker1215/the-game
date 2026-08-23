@@ -472,7 +472,7 @@ window.CARD_ART_GRADE = {
     "The Flash.png": 0.97,
     "The Grinch 2.jpg": 0.80,
     "The Grinch.png": 1.05,
-    "The Reveal.png": 1.30,
+    "Game Over.png": 1.30,
     "The Thing.png": 0.81,
     "Thor.png": 0.86,
     "Time Stone.png": 0.88,

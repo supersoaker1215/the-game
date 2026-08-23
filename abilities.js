@@ -1399,7 +1399,7 @@ const CARD_ABILITIES = {
       // Placed into lanes that are EMPTY ON THE ENEMY SIDE — the same lane test
       // the traps used, and the same one the rooms need, since both only mean
       // anything to a card that walks in afterwards.
-      const ROOMS = ['The Bathroom', 'The Reveal'];
+      const ROOMS = ['The Bathroom', 'Game Over'];
       const placeRoomStep = (idx) => {
         if (idx >= ROOMS.length) { moveEnemyStep(); return; }
         const name = ROOMS[idx];
@@ -6446,7 +6446,7 @@ const CARD_ABILITIES = {
       // the owner has to be able to see which two cards the room owns.
       victim._chained = true;
       // Watch this body: when the SECOND chained card dies the room drains.
-      // Wraps onDeath the same way The Reveal hooks its occupants, including
+      // Wraps onDeath the same way Game Over hooks its occupants, including
       // the death-PREVENTION protocol — a truthy return means the death was
       // cancelled, so a card saved by a revive must not also count as drained.
       if (!victim._bathroomDeathHooked) {
@@ -6497,7 +6497,7 @@ const CARD_ABILITIES = {
       const laneIdx = G.findCardLane(self);
       if (laneIdx < 0) return;
       const lane = G.state.lanes[laneIdx];
-      // Clear the sub-slot the way The Reveal and Sewers hand their lane back.
+      // Clear the sub-slot the way Game Over and Sewers hand their lane back.
       if (lane._env && lane._env[self.owner] === self) lane._env[self.owner] = null;
       G.log(`[THE BATHROOM] Both chains are empty. The room drains away.`);
       if (typeof UI !== 'undefined' && UI.emitFX) { try { G.emitFX('envReveal', { lane: laneIdx, owner: self.owner, name: 'The Bathroom' }); } catch (e) {} }
@@ -6525,7 +6525,7 @@ const CARD_ABILITIES = {
       }
     },
   },
-  "The Reveal": {
+  "Game Over": {
     // "When a card dies in this lane, it rises on YOUR side as a (1/1)."
     // Implemented by hooking the occupants' onDeath, the same way Boiler Room
     // hooks its victims for the Freddy spawn — including the death-PREVENTION
@@ -6536,7 +6536,7 @@ const CARD_ABILITIES = {
       const laneIdx = G.findCardLane(self);
       if (laneIdx < 0) return;
       const lane = G.state.lanes[laneIdx];
-      const AB = CARD_ABILITIES['The Reveal'];
+      const AB = CARD_ABILITIES['Game Over'];
       // ENEMY bodies only (owner spec: "the 1st enemy card to die in this
       // lane"). This hooked BOTH sides, so the room would also raise one of
       // your own dead — which reads as the room helping the wrong player and
@@ -6589,19 +6589,19 @@ const CARD_ABILITIES = {
       if (_ally && _ally.currentHealth > 0) {
         const openLanes = G.getOpenLanes(owner).filter(l => l !== laneIdx);
         if (!openLanes.length) {
-          // Nowhere to put them. The Reveal has no absorb rule the way Sewers
+          // Nowhere to put them. Game Over has no absorb rule the way Sewers
           // feeds Pennywise the body, so the rise is simply refused — it does
           // NOT kill your own card to make space.
-          G.log(`  [THE REVEAL] ${_riser.name} twitches — lane ${laneIdx + 1} is taken and there is nowhere to move ${_ally.name}.`);
+          G.log(`  [GAME OVER] ${_riser.name} twitches — lane ${laneIdx + 1} is taken and there is nowhere to move ${_ally.name}.`);
           return;
         }
         G.promptLaneChoice(owner, openLanes,
-          `The Reveal — Move ${_ally.name}`,
+          `Game Over — Move ${_ally.name}`,
           `${_riser.name} is getting up in lane ${laneIdx + 1}. Move ${_ally.name} to another lane.`,
           (targetLane) => {
             if (_ally.currentHealth <= 0) {
               if (lane[owner] === _ally) lane[owner] = null;
-              CARD_ABILITIES['The Reveal']._finishRise(G, self, _riser, laneIdx);
+              CARD_ABILITIES['Game Over']._finishRise(G, self, _riser, laneIdx);
               return;
             }
             lane[owner] = null;
@@ -6609,13 +6609,13 @@ const CARD_ABILITIES = {
             G.log(`  [DISPLACED] ${_ally.name} moved to lane ${targetLane + 1} to make room for ${_riser.name}.`);
             G.checkLaneTrap(_ally, targetLane);
             if (_ally.onMoved) _ally.onMoved(G, _ally, targetLane);
-            CARD_ABILITIES['The Reveal']._finishRise(G, self, _riser, laneIdx);
+            CARD_ABILITIES['Game Over']._finishRise(G, self, _riser, laneIdx);
           },
           null, null, null, { forced: openLanes.length <= 1 }
         );
         return;
       }
-      CARD_ABILITIES['The Reveal']._finishRise(G, self, dead, laneIdx);
+      CARD_ABILITIES['Game Over']._finishRise(G, self, dead, laneIdx);
     },
     // The summon itself, split out so both paths — an empty lane, and a lane
     // an ally has just vacated — land on exactly one body of code.
@@ -6624,7 +6624,7 @@ const CARD_ABILITIES = {
       const lane = G.state.lanes[laneIdx];
       if (lane[owner] && lane[owner].currentHealth <= 0) lane[owner] = null;
       if (lane[owner]) {
-        G.log(`  [THE REVEAL] ${dead.name} twitches — but lane ${laneIdx + 1} is already taken.`);
+        G.log(`  [GAME OVER] ${dead.name} twitches — but lane ${laneIdx + 1} is already taken.`);
         return;
       }
       const realDef = (typeof CARD_DEFS !== 'undefined')
@@ -6641,7 +6641,7 @@ const CARD_ABILITIES = {
       G.summonCard(owner, laneIdx, dead.name, dead.cost || 0, 2, 2, [], def);
       const risen = G.state.lanes[laneIdx][owner];
       if (!risen || risen === before) {
-        G.log(`  [THE REVEAL] ${dead.name} does not get up.`);
+        G.log(`  [GAME OVER] ${dead.name} does not get up.`);
         return;
       }
       // NOTE: no post-summon stat stamp. The def copy above is what sets the
@@ -6653,12 +6653,12 @@ const CARD_ABILITIES = {
       // The room is used up — clear the sub-slot so the board shows it is done,
       // the way Sewers hands its lane over to Pennywise.
       if (lane._env && lane._env[owner] === self) lane._env[owner] = null;
-      G.log(`[THE REVEAL] ${dead.name} gets up in lane ${laneIdx + 1} — a (2/2) on your side, played anew. The room is spent.`);
-      if (typeof UI !== 'undefined' && UI.emitFX) { try { G.emitFX('envReveal', { lane: laneIdx, owner, name: 'The Reveal' }); } catch (e) {} }
+      G.log(`[GAME OVER] ${dead.name} gets up in lane ${laneIdx + 1} — a (2/2) on your side, played anew. The room is spent.`);
+      if (typeof UI !== 'undefined' && UI.emitFX) { try { G.emitFX('envReveal', { lane: laneIdx, owner, name: 'Game Over' }); } catch (e) {} }
     },
-    onPlay(G, self) { CARD_ABILITIES['The Reveal']._hookOccupants(G, self); },
-    onAnyCardPlayed(G, self) { CARD_ABILITIES['The Reveal']._hookOccupants(G, self); },
-    onTurnStart(G, self) { CARD_ABILITIES['The Reveal']._hookOccupants(G, self); },
+    onPlay(G, self) { CARD_ABILITIES['Game Over']._hookOccupants(G, self); },
+    onAnyCardPlayed(G, self) { CARD_ABILITIES['Game Over']._hookOccupants(G, self); },
+    onTurnStart(G, self) { CARD_ABILITIES['Game Over']._hookOccupants(G, self); },
   },
   "Sewers": {
     _spawnPennywise(G, owner, laneIdx) {
