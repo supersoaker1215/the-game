@@ -20115,18 +20115,37 @@ const UI = {
             // lane's HEIGHT and threw the sides away, leaving the narrow
             // vertical slice the owner reported ("the card looks so good but
             // it's cropped way too thin").
-            //   * `100% auto` fits the art to the lane's WIDTH, so the whole
-            //     picture is visible exactly as it is framed on the card
-            //     instead of a strip out of the middle of it.
+            //   * It still COVERS, because the owner wants these rooms to fill
+            //     their lane like every other environment does — a fitted
+            //     picture left dark bands above and below and read as a
+            //     different kind of object on the board. Filling a 1:3.83 lane
+            //     with a 1:1.43 picture necessarily crops the sides; what can
+            //     be chosen is WHICH slice, which is what the focal point below
+            //     is for.
             //   * the focal point and zoom are read from the SAME source the
             //     card face uses (_artFocalFor / _artSizeFor with the 'card'
             //     context — the Gallery Audit overrides), so re-framing a card
             //     in the gallery now moves its room on the board too, rather
             //     than the two drifting apart.
             const artFile = this.getCardArtVariant(primary.name);
-            const pos = this._artFocalFor(primary.name, artFile, 'card') || 'center';
+            // BOARD-ONLY FOCAL. A lane crops FAR harder than a card face does —
+            // at these sizes the card shows ~72% of the picture's width but the
+            // lane shows ~37% — so a subject that sits comfortably inside the
+            // card can land right on the lane's cut edge. The Reveal's figure
+            // is at x≈33% and was being sliced in half, which is why that lane
+            // read as an anonymous green wash.
+            // Deliberately NOT the shared focalCard map: that also drives the
+            // CARD face, and the owner's point was that the cards already look
+            // right. This map moves the LANE crop only, and still defers to a
+            // Gallery Audit card focal when one has been set.
+            const ENV_FOCAL = {
+              'The Bathroom': '40% 50%',  // frames the tub and the blood pool
+              'The Reveal':   '33% 50%',  // centres the figure in the doorway
+            };
+            const pos = this._artFocalFor(primary.name, artFile, 'card')
+              || ENV_FOCAL[primary.name] || 'center';
             const zoom = this._artSizeFor(primary.name, artFile, 'card');
-            const size = (zoom && zoom !== 'cover') ? zoom : '100% auto';
+            const size = (zoom && zoom !== 'cover') ? zoom : 'cover';
             envBg.style.background =
               `linear-gradient(rgba(0,0,0,0.35), rgba(0,0,0,0.35)), url("${artPath}") ${pos}/${size} no-repeat`;
           } else {
