@@ -4854,6 +4854,10 @@ const CARD_ABILITIES = {
         const target = G.state.lanes[i][opp];
         if (!target) return;
         target._parlayedThisRound = true;
+        // Stamp the negotiator. A parlay is an ARRANGEMENT WITH JACK, so it has
+        // to end when he does — and with two Jacks possible on a board, clearing
+        // "any parlay" on one death would cancel the other one's too.
+        target._parlayedBy = self.id;
         if (typeof UI !== 'undefined' && UI._fxParlay) { try { UI._fxParlay(target); } catch (e) {} }
         G.log(`[JACK SPARROW] Parlay! ${target.name} in lane ${i + 1} cannot attack this round.`);
       };
@@ -4871,6 +4875,22 @@ const CARD_ABILITIES = {
         });
         parley(lanes[0]);
       }
+    },
+    // THE DEAL DIES WITH HIM. Ryan: "Jack Sparrow's parlay stays after he dies."
+    // onBeforeCombat already refuses to fire once he is down, but the flag he
+    // stamped EARLIER in the round outlived him — nothing cleared it until the
+    // next round start (game.js, "Clear Parlay"), so a dead Jack kept an enemy
+    // benched for the rest of the round and left a Parlay badge on it.
+    // Only HIS parlays are lifted, by id, so a second Jack keeps his own.
+    // Returns nothing: a truthy onDeath means "this death was PREVENTED".
+    onDeath(G, self) {
+      G.getAllCardsOnBoard().forEach(c => {
+        if (c && c._parlayedBy === self.id) {
+          delete c._parlayedThisRound;
+          delete c._parlayedBy;
+          G.log(`  [PARLAY] ${self.name} is gone — ${c.name} is released from the deal.`);
+        }
+      });
     }
   },
   "Han Solo": {

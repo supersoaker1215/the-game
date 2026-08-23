@@ -211,7 +211,13 @@ const CARD_DEFS = [
     abilities: [],
     desc: "When Discarded: Place The Bathroom and Game Over in empty enemy lanes. Then move an enemy to an empty lane." },
   { name: "Brainiac", cost: 2, attack: 0, health: 0, type: "villain",
-    abilities: [],
+    // "Draw 1" is carried for the BADGE, the same arrangement Iron Giant uses
+    // and for the same reason: his discard really does draw, and that should be
+    // readable on the tile. The keyword's own drawOnPlay effect is inert and
+    // always will be — it fires only on play paths, and he is isDiscardEffect,
+    // which playCard AND summonCard both refuse. The real draw lives in his
+    // onDiscard.
+    abilities: ["Draw 1"],
     desc: "When Discarded: Draw a card, then foresee an enemy's next 2 draws for 2 rounds (in 2v2, choose which enemy)." },
   { name: "Loki", cost: 3, attack: 2, health: 1, type: "villain",
     abilities: ["Evade 1"],

@@ -3691,7 +3691,7 @@ const Game = {
     this.state.lanes.forEach(l => l.protected = null);
     // Clear Parlay — one-round effect from Jack Sparrow (per-card flag;
     // legacy side-wide key deleted too for old saves)
-    this.getAllCardsOnBoard().forEach(c => { delete c._parlayedThisRound; });
+    this.getAllCardsOnBoard().forEach(c => { delete c._parlayedThisRound; delete c._parlayedBy; });
     delete this.state._parlayActive;
     // Resolve any upkeep prompts (e.g. Gargantua) before starting the phase.
     this._resolveUpkeepPrompts(() => this.startPhase1());

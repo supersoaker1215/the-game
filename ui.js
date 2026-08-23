@@ -13453,6 +13453,7 @@ const UI = {
           <div class="mm-section-label">Play</div>
           <div class="mm-grid mm-grid-section">
             ${btn('mm-play',    'Solo Match',   'Play against the AI',                                    SVG.play,     "UI.mmShowSub('solo')")}
+            ${btn('mm-multi',   'Multiplayer',  'Match a friend over the internet · beta',                SVG.multi,    "UI.openMultiplayer()")}
             ${(() => {
               // Consolidated Continue Run + Roguelite button — when a save
               // exists it reads "Continue last run" and resumes in place.
@@ -13462,7 +13463,6 @@ const UI = {
               }
               return btn('mm-rogue', 'Roguelite', 'Climb a 6-fight ladder — build your deck as you go · beta', SVG.play, "Roguelite.enterRun()");
             })()}
-            ${btn('mm-multi',   'Multiplayer',  'Match a friend over the internet · beta',                SVG.multi,    "UI.openMultiplayer()")}
             ${btn('mm-tutorial','Tutorial',     'Guided walkthrough — play a scripted round',              helpSVG,      "Tutorial.start()")}
           </div>
         </div>

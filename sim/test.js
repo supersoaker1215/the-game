@@ -7304,6 +7304,41 @@ test("_withSummonLoop nests — Knull summoning Hela must not clear the outer ma
   assertEq(seen.join(','), '1,2,1,0', 'a counter, not a boolean');
 });
 
+test("Jack Sparrow's Parlay ends when he dies", function () {
+  // Ryan: "Jack Sparrow's parlay stays after he dies."
+  // onBeforeCombat already refused to fire once he was down, but the flag it
+  // stamped EARLIER in the round outlived him — nothing cleared it until the
+  // next round started.
+  var G = freshGame();
+  var jack = place(G, 'Jack Sparrow', 'player', 0);
+  var foe  = place(G, 'Sabertooth', 'ai', 3);      // uncontested: no ally opposite
+  CARD_ABILITIES['Jack Sparrow'].onBeforeCombat(G, jack, 0);
+  assertEq(!!foe._parlayedThisRound, true, 'the enemy is parlayed');
+  assertEq(foe._parlayedBy, jack.id, 'and it records WHO parlayed it');
+
+  jack.currentHealth = 0;
+  G.handleDeath(jack, 0, null);
+  assertEq(!!foe._parlayedThisRound, false, 'the deal ends with him');
+  assertEq(foe._parlayedBy, undefined, 'and the stamp is cleared too');
+});
+
+test("One Jack dying does not cancel another Jack's Parlay", function () {
+  // Why the stamp is an id and not a boolean.
+  var G = freshGame();
+  var jackA = place(G, 'Jack Sparrow', 'player', 0);
+  var jackB = place(G, 'Jack Sparrow', 'player', 1);
+  var foeA = place(G, 'Sabertooth', 'ai', 3);
+  var foeB = place(G, 'Sabertooth', 'ai', 4);
+  // parley each one explicitly so the pairing is unambiguous
+  foeA._parlayedThisRound = true; foeA._parlayedBy = jackA.id;
+  foeB._parlayedThisRound = true; foeB._parlayedBy = jackB.id;
+
+  jackA.currentHealth = 0;
+  G.handleDeath(jackA, 0, null);
+  assertEq(!!foeA._parlayedThisRound, false, "the dead Jack's deal is off");
+  assertEq(!!foeB._parlayedThisRound, true, "the living Jack's deal stands");
+});
+
 // ---- RUNNER ------------------------------------------------
 // ============================================================
 
