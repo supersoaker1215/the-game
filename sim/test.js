@@ -7157,6 +7157,42 @@ test("The Reveal refuses to rise rather than kill your own card", function () {
   assertEq(G.state.lanes[1].player, ally, 'and it is still standing in its lane');
 });
 
+test("An environment cannot cover another while a free lane remains", function () {
+  // Owner: "a new rule is environments can't cover other environments unless
+  // all lanes have an environment and to place you need to cover."
+  var G = freshGame();
+  CARD_ABILITIES['Jigsaw']._placeRoom(G, 'player', 1, 'The Bathroom');
+  assertEq(G.canPlaceEnvironment('player', 1), false, 'the occupied lane is refused');
+  assertEq(G.canPlaceEnvironment('player', 0), true,  'an empty lane is fine');
+  assertEq(G.openEnvLanes('player').indexOf(1), -1,   'and it is not offered as a choice');
+
+  // EITHER SIDE counts: seating an env destroys whatever is in that lane on
+  // BOTH sides, so placing "beside" an enemy room is still covering it.
+  var G2 = freshGame();
+  CARD_ABILITIES['Jigsaw']._placeRoom(G2, 'ai', 3, 'The Reveal');
+  assertEq(G2.canPlaceEnvironment('player', 3), false, 'an enemy environment blocks the lane too');
+});
+
+test("...unless every lane holds one — then covering is the only move", function () {
+  var G = freshGame();
+  for (var i = 0; i < G.LANE_COUNT; i++) CARD_ABILITIES['Jigsaw']._placeRoom(G, 'player', i, 'The Bathroom');
+  for (var j = 0; j < G.LANE_COUNT; j++)
+    assertEq(G.canPlaceEnvironment('player', j), true, 'lane ' + (j + 1) + ' becomes legal once nothing is free');
+  assertEq(G.openEnvLanes('player').length, G.LANE_COUNT, 'every lane is offered');
+});
+
+test("A destroyed lane never blocks the cover rule", function () {
+  // A voided lane can hold nothing, so counting it as "free" would make
+  // covering permanently illegal — the rule would deadlock.
+  var G = freshGame();
+  for (var i = 0; i < G.LANE_COUNT; i++) {
+    if (i === 4) { G.state.lanes[i].destroyed = true; continue; }
+    CARD_ABILITIES['Jigsaw']._placeRoom(G, 'player', i, 'The Bathroom');
+  }
+  assertEq(G.canPlaceEnvironment('player', 4), false, 'you cannot place into the void');
+  assertEq(G.canPlaceEnvironment('player', 0), true,  'and the void does not block covering elsewhere');
+});
+
 // ---- RUNNER ------------------------------------------------
 // ============================================================
 

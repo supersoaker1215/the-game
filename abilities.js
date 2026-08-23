@@ -1407,6 +1407,12 @@ const CARD_ABILITIES = {
         for (let i = 0; i < G.LANE_COUNT; i++) {
           const l = G.state.lanes[i];
           if (l.destroyed || l[opp]) continue;
+          // The cover rule applies to Jigsaw's rooms like anything else: a
+          // room may only land on a lane that already holds an environment
+          // when no free lane is left. Placing the two rooms is sequential,
+          // so the first one seats and the second then sees that lane as
+          // taken — which is the intended reading, not a special case.
+          if (typeof G.canPlaceEnvironment === 'function' && !G.canPlaceEnvironment(owner, i)) continue;
           // Never stack a room on top of the one just placed.
           if (l._env && l._env[owner]) continue;
           open.push(i);

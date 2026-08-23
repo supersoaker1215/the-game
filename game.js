@@ -4787,8 +4787,14 @@ const Game = {
     }
 
     // Environments go to the _env sub-slot; normal cards go to the main combat slot.
-    // Envs can always be played (replacing an existing env); only regular cards block on the main slot.
+    // Regular cards block on an occupied main slot; environments block on
+    // covering another environment while a free lane still exists — see
+    // canPlaceEnvironment.
     if (!card.isEnvironment && lane[owner]) return false;
+    if (card.isEnvironment && !this.canPlaceEnvironment(owner, laneIdx)) {
+      this.log(`  [ENVIRONMENT] ${card.name} cannot cover another environment while an empty lane remains.`);
+      return false;
+    }
     const cost = this.getCardCost(owner, card);
     if (this.state[owner].currency < cost) return false;
 
@@ -12663,6 +12669,44 @@ const Game = {
     const out = [];
     if (l > 0 && this.state.lanes[l - 1][opp]) out.push(this.state.lanes[l - 1][opp]);
     if (l < this.LANE_COUNT - 1 && this.state.lanes[l + 1][opp]) out.push(this.state.lanes[l + 1][opp]);
+    return out;
+  },
+
+  // AN ENVIRONMENT CANNOT COVER ANOTHER — unless every lane already holds one.
+  // Owner: "a new rule is environments can't cover other environments unless
+  // all lanes have an environment and to place you need to cover."
+  //
+  // Before this, playCard's own comment said the quiet part out loud — "envs
+  // can always be played (replacing an existing env)" — so a room could be
+  // dropped straight onto a live one while five empty lanes sat next to it,
+  // and Jigsaw's rooms in particular were free to erase each other.
+  //
+  // A lane counts as taken if it holds an environment on EITHER side, because
+  // seating one destroys whatever is in that lane on both sides: placing
+  // "beside" an opposing environment is still covering it.
+  // Destroyed lanes are not candidates and are not counted as free — otherwise
+  // a voided lane would permanently block every legal cover.
+  //
+  // THE one definition. Every route into an env lane asks this: playCard's
+  // legality gate, the board's drop targets, Kang's free play, and Jigsaw.
+  canPlaceEnvironment(owner, laneIdx) {
+    const lanes = this.state.lanes;
+    const lane = lanes[laneIdx];
+    if (!lane || lane.destroyed) return false;
+    const held = (l) => !!(l && l._env && (l._env.player || l._env.ai));
+    if (!held(lane)) return true;                 // a free lane is always legal
+    for (let i = 0; i < this.LANE_COUNT; i++) {
+      const l = lanes[i];
+      if (!l || l.destroyed) continue;
+      if (!held(l)) return false;                 // somewhere free exists — go there
+    }
+    return true;                                  // nowhere free: covering is the only move
+  },
+
+  // The lanes an environment may legally be placed in, by the rule above.
+  openEnvLanes(owner) {
+    const out = [];
+    for (let i = 0; i < this.LANE_COUNT; i++) if (this.canPlaceEnvironment(owner, i)) out.push(i);
     return out;
   },
 

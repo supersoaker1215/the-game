@@ -20499,7 +20499,8 @@ const UI = {
         if (cardEl.parentNode !== pSlot) pSlot.appendChild(cardEl);
         // Environment placement on an occupied lane — the else-if chain below
         // never fires when plDisplayCard exists, so handle it here.
-        if (!lane.destroyed && canPlay && s.selectedCard && s.selectedCard.isEnvironment && !cc && !lc) {
+        if (!lane.destroyed && canPlay && s.selectedCard && s.selectedCard.isEnvironment && !cc && !lc
+            && Game.canPlaceEnvironment('player', i)) {
           const _envCost = (typeof Game.getCardCost === 'function') ? Game.getCardCost('player', s.selectedCard) : (s.selectedCard.cost || 0);
           if (_envCost <= s.player.currency) pSlot.classList.add('playable');
           pSlot.onclick = () => this.onLaneClick(i);
@@ -20518,7 +20519,8 @@ const UI = {
           const preview = this.makeDamagePreview(lc.previewCard, lane.ai, i);
           if (preview) pSlot.appendChild(preview);
         }
-      } else if (!lane.destroyed && canPlay && s.selectedCard && !s.selectedCard.isDiscardEffect && !cc && !lc && (!lane.player || s.selectedCard.isEnvironment)) {
+      } else if (!lane.destroyed && canPlay && s.selectedCard && !s.selectedCard.isDiscardEffect && !cc && !lc
+                 && (s.selectedCard.isEnvironment ? Game.canPlaceEnvironment('player', i) : !lane.player)) {
         // When a forced lane is active (Moder — roguelite solo boss), only that
         // lane is clickable. The old Magneto-queue fallback (magnetoForcedLanes[0])
         // was removed with the Magneto redesign — no setter exists anymore, so a
@@ -31259,7 +31261,7 @@ function kangChoicePick(idx) {
   if (card.cost <= 2) {
     // Environments can go in any non-destroyed lane; normal cards only go in open (empty) lanes.
     const open = card.isEnvironment
-      ? Game.state.lanes.map((l, i) => i).filter(i => !Game.state.lanes[i].destroyed)
+      ? Game.openEnvLanes(kc.owner)
       : Game.getOpenLanes(kc.owner);
     if (open.length && !card.isDiscardEffect) {
       Game.log(`  [KANG] ${card.name} costs ${card.cost} — bonus free play available!`);
