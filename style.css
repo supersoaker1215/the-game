@@ -41673,3 +41673,47 @@ body.twov2-online-game .info-bar.ai-bar .bar-energy { display: none; }
   font-variant-numeric: tabular-nums;
 }
 .rc-stat.rc-energy .rc-ic { opacity: 0.9; }
+
+
+/* ============================================================
+   STILLNESS — ambient motion is OPT-IN
+   ============================================================
+   Measured on a live board with nothing happening: THIRTY elements
+   were animating on an infinite loop. When everything breathes all
+   the time, motion stops meaning anything — so the moment something
+   actually happens it has no headroom left to announce itself. This
+   is the same rationing that was applied to light, moved into the
+   time domain.
+
+   THE LINE IS INFORMATION, NOT TASTE. Everything switched off below
+   is ambient: it tells you nothing about the game state. Everything
+   that MEANS something is deliberately left alone —
+     .card-slot.playable  targetRipple      "you can play here"
+     .card.selected       selectedCardPulse "you picked this up"
+     .status-badge        cardCrazyGlitch   a live status
+     .lane-sep.lane-active                  "this lane is resolving"
+   Those are the reason the board can afford to be still elsewhere.
+
+   NOT the same thing as body.low-fx, which already exists: that is a
+   PERFORMANCE switch driven by the Graphics setting, and conflating
+   "my machine is slow" with "I want a calm board" would mean neither
+   control could be trusted.
+
+   TO PUT IT ALL BACK: add `ambient-motion` to <body>. One class.
+   ============================================================ */
+
+/* Particles exist ONLY to drift — gameDrift fades them 0 -> 0.35 -> 0,
+   so freezing the animation would leave 12 inert dots sitting on the
+   board rather than a calmer board. They go entirely. */
+body:not(.ambient-motion) .game-particle { display: none !important; }
+
+/* Pulsing NUMBERS are the worst of these: a number that throbs is a
+   number you re-read. Card digits were just given a fixed-width face
+   so they would stop shifting; leaving the HUD counts pulsing spends
+   that back. */
+body:not(.ambient-motion) .hud-count b,
+body:not(.ambient-motion) .hud-round #round-num,
+body:not(.ambient-motion) .hud-pill-main { animation: none !important; }
+
+/* The scanline sweep. The lines themselves stay — only the drift stops. */
+body:not(.ambient-motion) .board-section .crt-scanlines { animation: none !important; }
