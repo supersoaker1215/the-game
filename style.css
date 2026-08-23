@@ -34712,7 +34712,10 @@ body.round-tick .board::after {
   text-align: center;
   font-family: 'Rajdhani', sans-serif; font-weight: 700;
   font-size: 16px; letter-spacing: 1.5px; text-transform: uppercase;
-  color: var(--text-body, #f2e8fa);
+  /* Same story one line up: --text-body is #e8eef6, a neutral, so the lavender
+     fallback here was dead too. Using it keeps the name and the description in
+     one family instead of a neutral title over a tinted body. */
+  color: #f2e8fa;
   background: linear-gradient(rgba(10,2,16,0), rgba(10,2,16,0.82) 30%, rgba(10,2,16,0.82) 70%, rgba(10,2,16,0));
   text-shadow: 0 0 10px rgba(155, 89, 182, 0.9);
   z-index: 2;
@@ -34723,7 +34726,14 @@ body.round-tick .board::after {
   overflow: hidden;
   padding: 6px 10px 8px;
   font-size: 11px; line-height: 1.35; text-align: center;
-  color: var(--text-mute, #cdbbd9);
+  /* NOT --text-mute. That token is rgb(156,170,180) — a desaturated blue-grey
+     at 168 luminance — so the rule's own lavender fallback never applied and
+     the trick's body text rendered grey on purple chrome. Owner: "no grey
+     text." The AI's version of this same panel had already been lifted to
+     --text-hi by a later rule; only the PLAYER's reveal was left behind.
+     Set to the lavender the rule always intended, which is both brighter and
+     tinted toward the trick's own colour rather than neutral. */
+  color: #e3d3f0;
   background: rgba(10, 2, 16, 0.88);
   border-top: 1px solid rgba(155, 89, 182, 0.35);
   z-index: 2;
