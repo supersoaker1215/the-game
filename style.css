@@ -6065,7 +6065,13 @@ body.hit-pause .ai-hand * {
   background: #000000;
   border: 1px solid rgba(255,255,255,0.40);
   transition: transform 0.2s var(--ease-snap), box-shadow 0.2s var(--ease-snap), border-color 0.2s var(--ease-snap);
-  box-shadow: 0 0 12px rgba(255,255,255,0.10), 0 0 24px rgba(255,255,255,0.05);
+  /* The fallback for a card rendered with no ally/enemy/hand/cost
+     modifier. It was flat white — achromatic and theme-blind — so on
+     any surface reaching this rule the card sat under grey fog while
+     every other card on screen was hued. Now the subtle tier, which
+     carries the core -> mid -> halo falloff and follows the theme.
+     First consumer of the glow tokens. */
+  box-shadow: var(--glow-subtle);
   overflow: visible;
   /* Perf: tell the browser this card's layout/style is independent —
      a single card's HP / state badge change doesn't recompute the
