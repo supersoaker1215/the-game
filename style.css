@@ -4899,6 +4899,24 @@ body.hit-pause .ai-hand * {
     0 0 14px rgba(255,255,255,0.45),
     0 0 22px rgba(var(--theme-rgb, 79,195,247),0.30);
 }
+/* WHO OPENS THE GAME — the 2v2 draft's first-player callout. Bigger and bright
+   yellow so it reads at a glance, matching the emphasis the 1v1 draft gives it.
+   (Owner: "make this prompt bigger and like the bright yellow like in 1v1.") */
+/* Scoped to .draft-panel .draft-hud so its specificity (0,4,0) OUTRANKS the
+   theme rules .draft-panel(:not(.draft-tricks)|.draft-tricks) .draft-hud-sub
+   (0,3,0), which set color + text-shadow !important — otherwise the callout
+   stayed theme-green instead of the bright yellow asked for. !important on top
+   so it also beats any equal-specificity latecomer. */
+.draft-panel .draft-hud .draft-hud-sub.draft-first-player {
+  font-size: 16px !important; letter-spacing: 2.4px; font-weight: 800 !important;
+  margin-top: 14px;
+  color: #ffe23a !important;
+  text-shadow:
+    0 0 8px rgba(255, 214, 40, 0.9),
+    0 0 18px rgba(255, 196, 0, 0.6),
+    0 0 30px rgba(255, 176, 0, 0.35) !important;
+}
+@media (max-width: 900px) { .draft-panel .draft-hud .draft-hud-sub.draft-first-player { font-size: 14px !important; } }
 
 /* Draft HUD actions row — Mulligan + Settings buttons side by side. */
 .draft-hud-actions {

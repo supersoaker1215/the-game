@@ -1064,12 +1064,38 @@ class WebRTC4Transport {
     if (msg && msg.t === 'joinRoom')   { this._openAsJoiner(msg); return; }
     // Game action — joiner sends to host; host echoes to self via dispatch
     if (this._isHost) {
+      // COSMETIC emote / taunt: the star topology means the host's own send
+      // would otherwise reach nobody but itself. The sender already rendered it
+      // locally (sendEmote/sendTaunt), so FAN it out to all three joiners
+      // instead of echoing to self — that's how a host taunt reaches the table.
+      // (Owner: "add the taunt system for all players … it plays on their
+      // devices.")
+      if (msg && msg.t === 'emote') {
+        Object.values(this._conns).forEach(conn => this._sendChunked(conn, msg));
+        return;
+      }
       this._dispatch(msg);
     } else if (this._hostConn && this._hostConn.open) {
       this._sendChunked(this._hostConn, msg);
     } else {
       this._sendQueue.push(msg);
     }
+  }
+
+  // Host received a message from joiner `fromSlot`. Dispatch it locally, and —
+  // for a COSMETIC emote/taunt — fan it to the OTHER joiners so all four
+  // players see/hear it (the sender already rendered it locally; the host
+  // renders it via _dispatch). Game actions are NOT fanned: those are
+  // host-authoritative and reach the other seats via the state broadcast.
+  _hostRelayAndDispatch(full, fromSlot) {
+    if (full && full.t === 'emote') {
+      Object.keys(this._conns).forEach(s => {
+        if (s !== fromSlot && this._conns[s]) {
+          try { this._sendChunked(this._conns[s], full); } catch (e) {}
+        }
+      });
+    }
+    this._dispatch({ ...full, _from: fromSlot });
   }
 
   // Split any message over the safe single-message size into ordered
@@ -1144,10 +1170,10 @@ class WebRTC4Transport {
       conn.on('data', (data) => {
         if (data && data.t === '__chunk') {
           const full = this._recvChunk(conn, data);
-          if (full && full.t) this._dispatch({ ...full, _from: slot });
+          if (full && full.t) this._hostRelayAndDispatch(full, slot);
           return;
         }
-        if (data && data.t) this._dispatch({ ...data, _from: slot });
+        if (data && data.t) this._hostRelayAndDispatch(data, slot);
       });
       conn.on('close', () => {
         delete this._conns[slot];
