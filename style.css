@@ -423,18 +423,26 @@ summary:focus-visible,
 }
 .stat-num-atk {
   color: var(--kw-stat-atk);
+  /* BLUR CAPPED TO THE LETTERFORM. These render at 8px, and the halo
+     was 18px — 2.25x the glyph it decorates, which is the difference
+     between lit type and fuzzy type and the single worst offender
+     measured on screen. The three-stop core -> mid -> halo shape is
+     KEPT (that is the house recipe); only the radii come down, so the
+     outer stop is now 1.0x the font size instead of 2.25x and the core
+     sits at 0.375x. Alphas are unchanged — tightening the falloff
+     raises perceived contrast on its own. */
   text-shadow:
-    0 0 4px rgba(46,204,113,0.95),
-    0 0 10px rgba(46,204,113,0.70),
-    0 0 18px rgba(46,204,113,0.35),
+    0 0 3px rgba(46,204,113,0.95),
+    0 0 5px rgba(46,204,113,0.70),
+    0 0 8px rgba(46,204,113,0.35),
     0 1px 2px rgba(0,0,0,0.85);
 }
 .stat-num-hp {
   color: var(--kw-stat-hp);
   text-shadow:
-    0 0 4px rgba(231,76,60,0.95),
-    0 0 10px rgba(231,76,60,0.75),
-    0 0 18px rgba(231,76,60,0.40),
+    0 0 3px rgba(231,76,60,0.95),
+    0 0 5px rgba(231,76,60,0.75),
+    0 0 8px rgba(231,76,60,0.40),
     0 1px 2px rgba(0,0,0,0.85);
 }
 * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -29290,9 +29298,12 @@ body.round-first-player .hud-round #round-num {
 }
 body.turn-player .hud-phase {
   color: rgb(var(--player-r, 79), var(--player-g, 195), var(--player-b, 247)) !important;
+  /* Blur capped to the letterform: .hud-phase renders at 12px and the
+     outer stop was 14px, so the halo was wider than the word it lit.
+     Now 5/9px — the falloff survives, the glyph stops drowning. */
   text-shadow:
-    0 0 6px rgba(var(--player-r, 79), var(--player-g, 195), var(--player-b, 247), 0.65),
-    0 0 14px rgba(var(--player-r, 79), var(--player-g, 195), var(--player-b, 247), 0.30) !important;
+    0 0 5px rgba(var(--player-r, 79), var(--player-g, 195), var(--player-b, 247), 0.65),
+    0 0 9px rgba(var(--player-r, 79), var(--player-g, 195), var(--player-b, 247), 0.30) !important;
 }
 
 /* Lane hover (player's own lane) — was hardcoded blue. Use
