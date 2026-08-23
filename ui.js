@@ -20172,21 +20172,37 @@ const UI = {
           envBg.remove();
         }
 
+        // WHERE THE ENVIRONMENT'S NAME GOES.
+        // The edge labels sit at the top and bottom of the lane, which is fine
+        // until BOTH combat slots are filled — then the name is printed over
+        // the cards fighting in front of it. Owner: "when a lane is contested
+        // put the name of the environment where the circle for the lane number
+        // is, just replace it." The centreline separator is the one strip in a
+        // contested lane that is guaranteed to be clear, because it is the gap
+        // the two cards are drawn either side of.
+        // Contested means two CARDS, deliberately — not the occ-both class,
+        // which counts an environment as occupying a side, so a lane holding
+        // only a room and one card would have qualified and moved the name for
+        // no reason.
+        const _contested = !!(lane.ai && lane.player);
+        const _sepEnv = _contested ? (envAi || envPl) : null;
+
         // Env labels as direct lane children so their z-index beats .card-slot.
         let envLabelAi = el.querySelector(':scope > .env-bg-label-ai');
         let envLabelPl = el.querySelector(':scope > .env-bg-label-player');
-        if (envAi) {
+        if (envAi && !_sepEnv) {
           if (!envLabelAi) { envLabelAi = document.createElement('div'); envLabelAi.className = 'env-bg-label env-bg-label-ai'; el.appendChild(envLabelAi); }
           const txtAi = this._envLabelText(envAi);
           if (envLabelAi.textContent !== txtAi) envLabelAi.textContent = txtAi;
           envLabelAi.onclick = (e) => { UI.openCardInspect(envAi); e.stopPropagation(); };
         } else if (envLabelAi) { envLabelAi.remove(); }
-        if (envPl) {
+        if (envPl && !_sepEnv) {
           if (!envLabelPl) { envLabelPl = document.createElement('div'); envLabelPl.className = 'env-bg-label env-bg-label-player'; el.appendChild(envLabelPl); }
           const txtPl = this._envLabelText(envPl);
           if (envLabelPl.textContent !== txtPl) envLabelPl.textContent = txtPl;
           envLabelPl.onclick = (e) => { UI.openCardInspect(envPl); e.stopPropagation(); };
         } else if (envLabelPl) { envLabelPl.remove(); }
+        el._sepEnvName = _sepEnv ? this._envLabelText(_sepEnv) : '';
       }
 
       // AI slot — reuse existing if cached lane already has one. Keeps
@@ -20411,6 +20427,20 @@ const UI = {
       if (!sep) {
         sep = document.createElement('div');
         sep.innerHTML = `<span class="lane-number">${i + 1}</span>`;
+      }
+      // Swap the number for the environment's name in a contested lane. The
+      // NODE is reused and only its text and one class change — rebuilding the
+      // span would restart tronCirclePulse, which is the exact reason the sep
+      // is cached rather than recreated (see the comment above).
+      {
+        const numEl = sep.querySelector(':scope > .lane-number');
+        if (numEl) {
+          const want = el._sepEnvName || String(i + 1);
+          if (numEl.textContent !== want) numEl.textContent = want;
+          numEl.classList.toggle('lane-number-env', !!el._sepEnvName);
+          if (el._sepEnvName) numEl.title = el._sepEnvName;
+          else numEl.removeAttribute('title');
+        }
       }
       const sepCls = 'lane-sep' + (s._activeLane === i ? ' lane-active' : '');
       if (sep.className !== sepCls) sep.className = sepCls;

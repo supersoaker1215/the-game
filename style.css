@@ -41777,3 +41777,40 @@ body:not(.ambient-motion) .board-section .crt-scanlines { animation: none !impor
    mistake above: it would replace the tints and status treatments rather than
    sit alongside them. */
 body.no-art-grade .card-portrait { --art-grade: 1 !important; }
+
+
+/* ============================================================
+   CONTESTED LANE — the separator carries the environment's name
+   ============================================================
+   In a contested lane the environment's edge labels are printed over
+   the two cards fighting in front of them, so the name moves to the
+   centreline instead, replacing the lane number. The centreline is the
+   one strip guaranteed to be clear in a contested lane — it is the gap
+   the cards are drawn either side of.
+
+   Same element as the number, so it keeps the per-occupancy pulse
+   (tronCirclePulse drives --lane-pulse-* from the lane's occupancy
+   class); only the box opens from a 22px circle into a pill. The
+   ellipsis is the backstop for a long name at a narrow lane width —
+   the full text is on the title attribute.
+   ============================================================ */
+.lane-number.lane-number-env {
+  width: auto;
+  min-width: 22px;
+  max-width: calc(100% - 10px);
+  height: 18px;
+  padding: 0 8px;
+  border-radius: 999px;
+  font-size: 8px;
+  letter-spacing: 1.2px;
+  text-transform: uppercase;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  /* inline-flex, NOT flex: as a block-level flex container the pill filled
+     the whole centreline and every name measured the same clamped width,
+     so a short name looked identical to a long one. */
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
