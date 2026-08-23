@@ -22320,23 +22320,60 @@ const UI = {
     return n ? (n + "'s") : "AI's";
   },
 
+  // ONE STAGE FOR ANNOUNCEMENTS.
+  // The round banner and the opponent-action toast were two independent
+  // systems with no knowledge of each other, so an AI trick landing on a
+  // round boundary drew both at once, stacked on top of each other. Owner:
+  // "see how this is overlapping, looks clunky — I want sleek, separate,
+  // smooth, not multiple things happening at once, one after another."
+  //
+  // Everything transient now queues through here and plays strictly in
+  // sequence with a beat between. Order is arrival order, which is also
+  // chronological: the trick happened, THEN the round turned.
+  //
+  // Each item is handed a `done` callback so it controls its own exit —
+  // durations differ (an error toast is 2.4s, a trick is 4s, the round
+  // banner 1.8s) and hard-coding one here would have flattened them. The
+  // fallback timer is a safety net only: if an item never reports back the
+  // stage still advances rather than wedging every later announcement.
+  _stage(fn, holdMs) {
+    this._stageQ = this._stageQ || [];
+    this._stageQ.push({ fn, holdMs: holdMs || 2000 });
+    if (this._stageBusy) return;
+    const GAP = 220;                       // the beat between two announcements
+    const step = () => {
+      if (!this._stageQ.length) { this._stageBusy = false; return; }
+      this._stageBusy = true;
+      const item = this._stageQ.shift();
+      let advanced = false;
+      const next = () => {
+        if (advanced) return;              // fn reported AND the net fired
+        advanced = true;
+        setTimeout(step, GAP);
+      };
+      try { item.fn(next); } catch (e) { next(); }
+      setTimeout(next, item.holdMs + 800); // safety net, never the primary path
+    };
+    step();
+  },
+
   showAITrickToast(name, desc, kind) {
     const toast = document.getElementById('ai-trick-toast');
     if (!toast) return;
     const nameEl = document.getElementById('ai-trick-name');
     const descEl = document.getElementById('ai-trick-desc');
     const labelEl = document.getElementById('ai-trick-label');
-    // Queue if one is already showing so consecutive AI actions don't overlap.
-    this._aiTrickQueue = this._aiTrickQueue || [];
-    this._aiTrickQueue.push({ name, desc, kind: kind || 'trick' });
-    if (this._aiTrickToastActive) return;
-    this._aiTrickToastActive = true;
-    const showNext = () => {
-      if (!this._aiTrickQueue.length) {
-        this._aiTrickToastActive = false;
-        return;
-      }
-      const { name, desc, kind } = this._aiTrickQueue.shift();
+    // This kept its OWN queue, which serialised these toasts against each
+    // other but not against the round banner — the collision the owner saw.
+    // Now every announcement shares UI._stage.
+    const KIND = {
+      discard: { label: () => UI.oppName() + ' played a Discard', cls: 'toast-kind-discard', ms: 4000 },
+      trick:   { label: () => UI.oppName() + ' played a Trick',   cls: 'toast-kind-trick',   ms: 4000 },
+      error:   { label: () => 'Cannot Play',                      cls: 'toast-kind-error',   ms: 2400 },
+      info:    { label: () => 'Notice',                           cls: 'toast-kind-info',    ms: 3000 },
+      system:  { label: () => 'System',                           cls: 'toast-kind-system',  ms: 2400 },
+    };
+    this._stage((stageDone) => {
       nameEl.textContent = name;
       descEl.innerHTML = this.formatDesc(desc) || '';
       // THE EYEBROW MUST MATCH THE MESSAGE. This had exactly two branches —
@@ -22345,13 +22382,6 @@ const UI = {
       // trick. Copying a deck code said the AI played a trick. And "Can't play
       // that" said it while wearing the purple trick chrome, which is why the
       // banner read as broken rather than as a warning.
-      const KIND = {
-        discard: { label: () => UI.oppName() + ' played a Discard', cls: 'toast-kind-discard', ms: 4000 },
-        trick:   { label: () => UI.oppName() + ' played a Trick',   cls: 'toast-kind-trick',   ms: 4000 },
-        error:   { label: () => 'Cannot Play',                      cls: 'toast-kind-error',   ms: 2400 },
-        info:    { label: () => 'Notice',                           cls: 'toast-kind-info',    ms: 3000 },
-        system:  { label: () => 'System',                           cls: 'toast-kind-system',  ms: 2400 },
-      };
       const k = KIND[kind] || KIND.trick;
       if (labelEl) labelEl.textContent = k.label();
       Object.values(KIND).forEach(v => toast.classList.remove(v.cls));
@@ -22370,12 +22400,11 @@ const UI = {
       this._aiTrickTimeout = setTimeout(() => {
         toast.classList.remove('active');
         setTimeout(() => {
-          if (!this._aiTrickQueue.length) toast.style.display = 'none';
-          showNext();
+          toast.style.display = 'none';
+          stageDone();
         }, 300);
       }, this._aiTrickHoldMs || 4000);
-    };
-    showNext();
+    }, (KIND[kind] || KIND.trick).ms + 300);
   },
 
   // ===================== ROUND TRACK =====================
@@ -30149,11 +30178,13 @@ const UI = {
     this._roundBannerShown = round;
     const el = document.getElementById('round-banner');
     if (!el) return;
-    el.textContent = 'Round ' + round;
-    el.classList.remove('active');
-    void el.offsetWidth;
-    el.classList.add('active');
-    setTimeout(() => el.classList.remove('active'), 1800);
+    this._stage((stageDone) => {
+      el.textContent = 'Round ' + round;
+      el.classList.remove('active');
+      void el.offsetWidth;
+      el.classList.add('active');
+      setTimeout(() => { el.classList.remove('active'); stageDone(); }, 1800);
+    }, 1800);
   },
 
   // (L) Main-menu ambient particles. Spawns 18 drifting dots once
