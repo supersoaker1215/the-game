@@ -96,6 +96,13 @@ const UI = {
     let s = '';
     if (pos) s += ';--portrait-pos:' + pos;
     if (size && size !== 'cover') s += ';--portrait-size:' + size;
+    // ART GRADE — the set was never graded as a set (see CARD_ART_GRADE in
+    // card-art-manifest.js). Emitted HERE, next to the focal and zoom, because
+    // this fragment is the single thing every portrait-building surface
+    // appends; adding it anywhere else would grade some screens and not others.
+    const g = (typeof window !== 'undefined' && window.CARD_ART_GRADE)
+      ? window.CARD_ART_GRADE[file] : null;
+    if (g && g !== 1) s += ';--art-grade:' + g;
     return s;
   },
   // Gallery Audit — manual ZOOM: a per-variant scale (1 = fit/cover) for the
