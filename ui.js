@@ -20203,6 +20203,7 @@ const UI = {
           envLabelPl.onclick = (e) => { UI.openCardInspect(envPl); e.stopPropagation(); };
         } else if (envLabelPl) { envLabelPl.remove(); }
         el._sepEnvName = _sepEnv ? this._envLabelText(_sepEnv) : '';
+        el._sepEnvCard = _sepEnv || null;
       }
 
       // AI slot — reuse existing if cached lane already has one. Keeps
@@ -20438,8 +20439,25 @@ const UI = {
           const want = el._sepEnvName || String(i + 1);
           if (numEl.textContent !== want) numEl.textContent = want;
           numEl.classList.toggle('lane-number-env', !!el._sepEnvName);
-          if (el._sepEnvName) numEl.title = el._sepEnvName;
-          else numEl.removeAttribute('title');
+          if (el._sepEnvName) {
+            numEl.title = el._sepEnvName;
+            // TAPPABLE. The edge labels already opened the card inspector, and
+            // moving the name to the centreline took that with it — the name
+            // is the only handle on an environment once cards cover the lane,
+            // so it has to keep behaving like one.
+            // Read el._sepEnvCard at CLICK time rather than capturing _sepEnv
+            // in the closure: this node survives across renders (it is cached
+            // so tronCirclePulse keeps its phase), so a captured reference
+            // would open whichever room happened to be there when the handler
+            // was first attached.
+            numEl.onclick = (e) => {
+              const env = el._sepEnvCard;
+              if (env) { UI.openCardInspect(env); e.stopPropagation(); }
+            };
+          } else {
+            numEl.removeAttribute('title');
+            numEl.onclick = null;      // a plain lane number is not interactive
+          }
         }
       }
       const sepCls = 'lane-sep' + (s._activeLane === i ? ' lane-active' : '');

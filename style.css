@@ -41813,4 +41813,19 @@ body.no-art-grade .card-portrait { --art-grade: 1 !important; }
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  /* It opens the environment's card, so it has to read as a control. The
+     house language is grow + glow, never a box — the pill outline is already
+     the number's, so hover only lifts and brightens. Fast-out / slow-in like
+     every other interactive surface: the base rule is the RETURN to rest.
+     No `cursor: pointer` — the game draws its own cursor and kills the native
+     one globally (`*, *::before, *::after { cursor: none !important }`), so a
+     pointer here would be a dead declaration. The lift IS the affordance. */
+  transition: transform var(--dur-out) var(--ease-exit),
+              filter var(--dur-out) var(--ease-exit);
+}
+.lane-number.lane-number-env:hover {
+  transform: scale(1.06);
+  filter: brightness(1.25);
+  transition: transform var(--dur-in) var(--ease-snap),
+              filter var(--dur-in) var(--ease-snap);
 }
