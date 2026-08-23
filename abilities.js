@@ -2610,6 +2610,42 @@ const CARD_ABILITIES = {
       }
       const card1 = pile.pop();
       const card2 = pile.pop();
+      // The "keep this one" resolution — shared by the AI auto-pick and the 2v2
+      // human choice below. `pick` is one of card1/card2; the other returns to
+      // the top of the deck.
+      const keepCard = (pick) => {
+        const other = pick === card1 ? card2 : card1;
+        pile.push(other);
+        const card = G._applyDoomsdayDrawScaling(G.createCardInstance(pick, self.owner), self.owner);
+        card.cost = Math.max(0, card.cost - 2);
+        G.addToHand(self.owner, card, self);
+        G.state[self.owner]._kangSkipDraw = true;
+        G.log(`Paul Atreides keeps ${card.name} (cost reduced to ${card.cost})`);
+        if (card.cost <= 2) {
+          const open = card.isEnvironment
+            ? G.state.lanes.map((l, i) => i).filter(i => !G.state.lanes[i].destroyed)
+            : G.getOpenLanes(self.owner);
+          if (open.length && !card.isDiscardEffect) {
+            G.playCardFree(self.owner, card, open[0]);
+          }
+        }
+      };
+      // 2v2 HUMAN: the special pendingKangChoice modal had no 2v2 render path,
+      // so Paul silently auto-kept the higher-cost card — the player never got
+      // to choose. Route through promptCardChoice's inlineTray instead, which
+      // has full 2v2 routing (stamped to the owning seat, rendered by
+      // renderInlineChoiceFallback, resolved via 2v2CardChoiceResult). (User: "i
+      // played paul atreides i never got a choice on the card i wanted.")
+      if (Game.isHuman(self.owner) && G.is2v2()) {
+        if (G.state && G.state._silentSim) { keepCard(card1.cost >= card2.cost ? card1 : card2); return; }
+        G.promptCardChoice(self.owner, [card1, card2],
+          'Paul Atreides — Foresee',
+          'Keep one card — the other returns to the top of the deck.',
+          (kept) => keepCard(kept),
+          cards => (cards[0].cost >= cards[1].cost ? cards[0] : cards[1]),
+          { inlineTray: true });
+        return;
+      }
       // 2v2 has no render/resolution path for this keep-one modal (the board
       // returns before the shared Kang render), and isHuman(side) is true for
       // BOTH teams there — so it armed the prompt + a 30s auto-pick even for an
@@ -2640,26 +2676,10 @@ const CARD_ABILITIES = {
           if (typeof kangChoicePick === 'function') { kangChoicePick(idx); }
         });
       } else {
-        const pick = card1.cost >= card2.cost ? card1 : card2;
-        const other = pick === card1 ? card2 : card1;
-        pile.push(other);
-        // Doomsday scales in the deck — apply his accumulated stats so the AI's
-        // Paul keep doesn't hand him over reset to base 1/1.
-        const card = G._applyDoomsdayDrawScaling(G.createCardInstance(pick, self.owner), self.owner);
-        card.cost = Math.max(0, card.cost - 2);
-        G.addToHand(self.owner, card, self);
-        // Kang's pick counts as this round's draw — skip the end-of-round draw.
-        G.state[self.owner]._kangSkipDraw = true;
-        G.log(`Paul Atreides keeps ${card.name} (cost reduced to ${card.cost})`);
-        if (card.cost <= 2) {
-          // Environments can go in any non-destroyed lane; normal cards need an open slot.
-          const open = card.isEnvironment
-            ? G.state.lanes.map((l, i) => i).filter(i => !G.state.lanes[i].destroyed)
-            : G.getOpenLanes(self.owner);
-          if (open.length && !card.isDiscardEffect) {
-            G.playCardFree(self.owner, card, open[0]);
-          }
-        }
+        // AI seat (or a side with no live human): keep the higher-cost card —
+        // exactly what the human timeout would have chosen. Doomsday deck-scaling
+        // is applied inside keepCard so the AI's Paul doesn't hand him over reset.
+        keepCard(card1.cost >= card2.cost ? card1 : card2);
       }
     }
   },
