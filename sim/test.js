@@ -5967,12 +5967,15 @@ test("Jigsaw places two rooms instead of Bear Traps", function () {
   assertEq(room.name, 'The Bathroom', 'and it is the room asked for');
 });
 
-test("The Bathroom chains the first enemy in — it can never leave", function () {
+test("The Bathroom chains the first enemy in — and moving costs it again", function () {
   var G = freshGame();
   var room = CARD_ABILITIES['Jigsaw']._placeRoom(G, 'player', 2, 'The Bathroom');
 
-  // An enemy walks in.
+  // An enemy walks in. Given stats that survive TWO tolls — base Sabertooth is
+  // 2/3, so entry alone leaves it 0/1 and the move would kill it, which is the
+  // lethal case covered by its own test rather than this one.
   var victim = place(G, 'Sabertooth', 'ai', 2);
+  victim.attack = 8; victim.maxHealth = 8; victim.currentHealth = 8;
   var atk0 = victim.attack, hp0 = victim.currentHealth;
   CARD_ABILITIES['The Bathroom'].onAnyCardPlayed(G, room);
 
@@ -5980,15 +5983,19 @@ test("The Bathroom chains the first enemy in — it can never leave", function (
   assertEq(victim.currentHealth, hp0 - 2, 'and -2 HP');
 
   // THE CHAIN, tested through moveCard — the choke point every mover uses.
-  // Asserting the flag alone would pass even if nothing read it.
+  // Asserting the flag alone would pass even if nothing read it. The chain is
+  // a TOLL now, not a lock: the move goes through and costs another (−2/−2).
+  var atkBefore = victim.attack, hpBefore = victim.currentHealth;
   G.moveCard(victim, 2, 4);
-  assertEq(G.state.lanes[2].ai, victim, 'it is still in the bathroom');
-  assertEq(G.state.lanes[4].ai, null, 'and did not arrive anywhere else');
+  assertEq(G.state.lanes[4].ai, victim, 'it CAN leave the bathroom now');
+  assertEq(G.state.lanes[2].ai, null, 'and really left the old lane');
+  assertEq(victim.attack, atkBefore - 2, 'the move cost 2 more ATK');
+  assertEq(victim.currentHealth, hpBefore - 2, 'and 2 more HP');
 
-  // ONE victim only — the room does not keep chaining.
+  // ONE victim only — the room does not keep chaining the same body.
   var atk1 = victim.attack;
   CARD_ABILITIES['The Bathroom'].onAnyCardPlayed(G, room);
-  assertEq(victim.attack, atk1, 'the room only triggers once');
+  assertEq(victim.attack, atk1, 'the room does not re-chain it');
 });
 
 test("The Reveal raises an enemy body that dies in its lane, as a (2/2)", function () {
@@ -6157,7 +6164,7 @@ test("The Bathroom chains an enemy DRAGGED into its lane, not only one played", 
   G.checkLaneTrap(foe, 3);                       // the drag/move entry point
   assertEq(foe.attack, a0 - 2, 'the dragged enemy loses 2 ATK');
   assertEq(foe.currentHealth, h0 - 2, 'and 2 HP');
-  assertEq(foe._chainedToLane, 3, 'and is chained to the lane');
+  assertEq(!!foe._chained, true, 'and carries the Chained status');
 });
 
 test("The Reveal hooks a body dragged in, which rises on your side on death", function () {
@@ -7054,7 +7061,7 @@ test("The Bathroom chains TWO enemies, and only the second death drains it", fun
   assertEq(a.attack, Math.max(0, aAtk - 2), 'first victim loses 2 ATK');
   assertEq(a.currentHealth, aHp - 2, 'and 2 HP');
   assertEq(!!a._chained, true, 'and carries the Chained status');
-  assertEq(a._chainedToLane, 1, 'pinned to the lane it entered');
+  assertEq(a._chainedToLane, undefined, 'no longer PINNED to the lane — the chain is a toll now');
 
   // The room is NOT spent after one — it owes a second body.
   assert(!room._bathroomTriggered, 'still hungry after the first');
@@ -7191,6 +7198,57 @@ test("A destroyed lane never blocks the cover rule", function () {
   }
   assertEq(G.canPlaceEnvironment('player', 4), false, 'you cannot place into the void');
   assertEq(G.canPlaceEnvironment('player', 0), true,  'and the void does not block covering elsewhere');
+});
+
+test("A Chained card CAN move — and pays (−2/−2) every time it does", function () {
+  // Owner: "I wanted the chained debuff to just say if moved lose (−2/−2)."
+  // It used to refuse the move outright.
+  var G = freshGame();
+  var room = CARD_ABILITIES['Jigsaw']._placeRoom(G, 'player', 1, 'The Bathroom');
+  CARD_ABILITIES['The Bathroom'].onPlay(G, room, 1);
+  var v = place(G, 'Sabertooth', 'ai', 1);
+  v.attack = 9; v.maxHealth = 9; v.currentHealth = 9;
+  CARD_ABILITIES['The Bathroom'].onAnyCardPlayed(G, room);
+  assertEq(v.attack, 7, 'entering cost 2 ATK');
+  assertEq(v.currentHealth, 7, 'and 2 HP');
+  assertEq(!!v._chained, true, 'and it is Chained');
+
+  G.moveCard(v, 1, 4);
+  assertEq(G.state.lanes[4].ai, v, 'the move is ALLOWED now');
+  assertEq(v.attack, 5, 'and the move cost another 2 ATK');
+  assertEq(v.currentHealth, 5, 'and 2 more HP');
+
+  // the ball is still attached — a second move costs again
+  G.moveCard(v, 4, 5);
+  assertEq(G.state.lanes[5].ai, v, 'it can move again');
+  assertEq(v.attack, 3, 'and pays again');
+  assertEq(v.currentHealth, 3, 'each time');
+});
+
+test("The chain toll respects the shield rule, and can be lethal", function () {
+  var G = freshGame();
+  var room = CARD_ABILITIES['Jigsaw']._placeRoom(G, 'player', 1, 'The Bathroom');
+  CARD_ABILITIES['The Bathroom'].onPlay(G, room, 1);
+  var v = place(G, 'Sabertooth', 'ai', 1);
+  v.attack = 9; v.maxHealth = 9; v.currentHealth = 9;
+  CARD_ABILITIES['The Bathroom'].onAnyCardPlayed(G, room);
+  // shielded: the ATK strip still lands, the health loss does not
+  v.invincibleTurns = 1;   // the field statStripShieldsHp actually reads
+  var hp = v.currentHealth;
+  G.moveCard(v, 1, 3);
+  assertEq(v.currentHealth, hp, 'Invincible blocks the health half of the toll');
+  assertEq(v.attack, 5, 'but the ATK strip still lands');
+
+  // lethal: a toll that empties the bar routes through the death path
+  var G2 = freshGame();
+  var r2 = CARD_ABILITIES['Jigsaw']._placeRoom(G2, 'player', 1, 'The Bathroom');
+  CARD_ABILITIES['The Bathroom'].onPlay(G2, r2, 1);
+  var w = place(G2, 'Sabertooth', 'ai', 1);
+  w.attack = 4; w.maxHealth = 4; w.currentHealth = 4;
+  CARD_ABILITIES['The Bathroom'].onAnyCardPlayed(G2, r2);   // -> 2/2
+  G2.moveCard(w, 1, 3);                                     // -> 0/0
+  assert(w.currentHealth <= 0, 'the toll can kill');
+  assertEq(G2.state.lanes[3].ai, null, 'and the body does not linger in the lane');
 });
 
 // ---- RUNNER ------------------------------------------------

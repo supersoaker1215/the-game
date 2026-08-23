@@ -6466,16 +6466,14 @@ const CARD_ABILITIES = {
         victim.maxHealth = Math.max(1, victim.maxHealth - D);
         victim.currentHealth = Math.max(0, victim.currentHealth - D);
       }
-      // THE CHAIN. Read by moveCard, the single choke point every mover in the
-      // game goes through (Bifrost, Gojo, Ahsoka's swap, a hunt, Jigsaw's own
-      // drag), so "can never leave this lane" holds against all of them rather
-      // than only against the ones remembered here.
-      victim._chainedToLane = laneIdx;
+      // The chain no longer PINS the victim — moveCard charges it (−2/−2) for
+      // every move instead. `_chained` is the whole status now; the old
+      // _chainedToLane pin is gone.
       if (typeof UI !== 'undefined' && UI._fxBathroomChain) { try { UI._fxBathroomChain(victim); } catch (e) {} }
       G.log(hpShielded
         ? `  [THE BATHROOM] ${victim.name} wakes up chained! −${D} ATK — health shielded → ${victim.attack}/${victim.currentHealth}`
         : `  [THE BATHROOM] ${victim.name} wakes up chained! −${D}/−${D} → ${victim.attack}/${victim.currentHealth}`);
-      G.log(`  [THE BATHROOM] ${victim.name} can never leave lane ${laneIdx + 1}.`);
+      G.log(`  [THE BATHROOM] ${victim.name} is Chained — moving costs another (−2/−2).`);
       // A chain that drops the victim to 0 is lethal — route through the
       // canonical death path so it cannot sit as a 0-HP zombie. Same reasoning
       // (and same bug class) as checkLaneTrap.

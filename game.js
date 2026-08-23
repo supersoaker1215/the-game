@@ -11500,16 +11500,6 @@ const Game = {
       this.log(`  [MOVE BLOCKED] ${card.name} is ${this.actionLockLabel(card)} — can't move.`);
       return;
     }
-    // THE BATHROOM'S CHAIN. Sits here, in moveCard, because this is the single
-    // choke point every mover in the game funnels through — Bifrost, Gojo's
-    // displace, Ahsoka's swap, a hunt, Killer Moth's flutter, Jigsaw's own
-    // drag. Guarding the movers individually would mean finding all of them
-    // and would silently miss the next one added; guarding the choke point
-    // means "can never leave this lane" is true by construction.
-    if (card._chainedToLane != null && card._chainedToLane === from) {
-      this.log(`  [CHAINED] ${card.name} is chained in lane ${from + 1} — it can't leave.`);
-      return;
-    }
     // A hidden card cannot be relocated either — Gojo, Jigsaw, Darth Vader and
     // Bifrost could all drag a face-down card out of its lane, which both
     // breaks the "immune until revealed" promise and leaks information about
@@ -11521,6 +11511,17 @@ const Game = {
     this.state.lanes[from][card.owner] = null;
     this.state.lanes[to][card.owner] = card;
     this.log(`  [MOVE] ${card.name} moves from lane ${from + 1} to lane ${to + 1}`);
+    // THE BATHROOM'S CHAIN — a toll on moving, not a lock. Owner: "I wanted
+    // the chained debuff to just say if moved lose (−2/−2)."
+    // It used to REFUSE the move outright. It sits here, in moveCard, because
+    // this is the single choke point every mover funnels through — Bifrost,
+    // Gojo's displace, Ahsoka's swap, a hunt, Killer Moth's flutter, Jigsaw's
+    // own drag. Taxing the movers individually would mean finding all of them
+    // and would silently miss the next one added; taxing the choke point makes
+    // "if moved" true by construction.
+    // Charged AFTER the move lands, so a move that was refused above for some
+    // other reason is never billed for.
+    if (card._chained) this._chargeChainToll(card, to);
     // ENTRANCE-THEN-TRAP (see checkLaneTrap) — onMoved first, trap second.
     // Killer Moth arrives at 0/1 and grows on arrival; trapping him mid-step
     // killed him before the growth he moved for ever landed.
@@ -12708,6 +12709,28 @@ const Game = {
     const out = [];
     for (let i = 0; i < this.LANE_COUNT; i++) if (this.canPlaceEnvironment(owner, i)) out.push(i);
     return out;
+  },
+
+  // The chain's price for moving. Uses the CANONICAL shield rule —
+  // statStripShieldsHp, the same predicate checkLaneTrap and debuffCard use —
+  // so Invincible / Damage Immunity blocks the health loss while the ATK strip
+  // still lands. Re-deriving that rule locally is exactly how the Bear Trap
+  // once ended up shielding a card that Pym Particles did not.
+  // The chain STAYS after the move: it is a ball being dragged, so a second
+  // move costs again.
+  _chargeChainToll(card, laneIdx) {
+    if (!card || card.currentHealth <= 0) return;
+    const D = 2;
+    const hpShielded = this.statStripShieldsHp(card);
+    card.attack = Math.max(0, card.attack - D);
+    if (!hpShielded) {
+      card.maxHealth = Math.max(1, card.maxHealth - D);
+      card.currentHealth = Math.max(0, card.currentHealth - D);
+    }
+    this.log(hpShielded
+      ? `  [CHAINED] ${card.name} drags the chain — −${D} ATK, health shielded → ${card.attack}/${card.currentHealth}`
+      : `  [CHAINED] ${card.name} drags the chain — −${D}/−${D} → ${card.attack}/${card.currentHealth}`);
+    if (card.currentHealth <= 0) this.handleDeath(card, laneIdx, null);
   },
 
   getOpenLanes(owner) {

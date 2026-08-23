@@ -108,7 +108,7 @@ const CARD_DEFS = [
     isEnvironment: true,
     _spawnOnly: true,
     abilities: [],
-    desc: "While Active: The next 2 enemy cards to enter this lane take (−2/−2) and are Chained — they can never leave. The room drains away when the second one dies. (Placed only by Jigsaw.)" },
+    desc: "While Active: The next 2 enemy cards to enter this lane take (−2/−2) and are Chained — if moved they lose (−2/−2). The room drains away when the second one dies. (Placed only by Jigsaw.)" },
   { name: "The Reveal", cost: 2, attack: 0, health: 1, type: "environment",
     isEnvironment: true,
     _spawnOnly: true,

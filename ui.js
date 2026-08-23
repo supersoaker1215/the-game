@@ -23008,7 +23008,16 @@ const UI = {
     // THE BATHROOM's chain. Two interlocking links as pure stroke — a
     // rendered chain would be unreadable at the ~10px board size and the
     // house rule for icons is neon line art, not real-world art.
-    'Chained': { color: '#a8b8c8', svg: '<svg viewBox="0 0 12 12"><rect x="0.9" y="4.1" width="6.2" height="3.8" rx="1.9" stroke="currentColor" stroke-width="1.15" fill="none"/><rect x="4.9" y="4.1" width="6.2" height="3.8" rx="1.9" stroke="currentColor" stroke-width="1.15" fill="none"/></svg>', tip: 'Held by <b>The Bathroom</b>. Took (−2/−2) on entering and can never leave this lane. When the second Chained card dies, the room drains away.' },
+    // A BALL AND CHAIN — owner-specified. Cuff ring, two links, then a
+    // solid ball: at the ~10px board size the SILHOUETTE has to do the
+    // work, and an open ring joined by a diagonal to a heavy filled disc
+    // is the only part of a ball-and-chain that survives that small. The
+    // links are drawn as rings rather than a plain line so it does not
+    // read as a lollipop. Line art, not rendered iron, per the icon rule.
+    // The ball is deliberately HEAVY (r=3 of a 12 box): compared side by
+    // side against a smaller one, the solid mass is what still reads as a
+    // ball-and-chain at 14px, where the thin strokes have nearly gone.
+    'Chained': { color: '#a8b8c8', svg: '<svg viewBox="0 0 12 12"><circle cx="2.4" cy="2.4" r="1.5" stroke="currentColor" stroke-width="1.15" fill="none"/><circle cx="4.5" cy="4.5" r="0.78" stroke="currentColor" stroke-width="0.8" fill="none"/><circle cx="6.1" cy="6.1" r="0.78" stroke="currentColor" stroke-width="0.8" fill="none"/><circle cx="8.7" cy="8.7" r="3" fill="currentColor"/></svg>', tip: 'If moved, loses <b>(−2/−2)</b>. Held by <b>The Bathroom</b> — when the second Chained card dies, the room drains away.' },
     'Damage Immunity': { color: '#d35400', svg: '<svg viewBox="0 0 12 12"><path d="M6 1 L11 3 V6 C11 9 6 11 6 11 C6 11 1 9 1 6 V3 Z M4 6 L8 6 M6 4 L6 8" stroke="currentColor" stroke-width="1.2" fill="none" stroke-linejoin="round"/></svg>', tip: 'Cannot take any damage.' },
     // A BRAIN. Owner: "the mind control icon should be a brain." The old glyph
     // was a circle with an S-curve inside it, which read as a generic token.
