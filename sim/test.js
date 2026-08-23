@@ -7366,6 +7366,47 @@ test("2v2 clears Parlay each round — it was permanent there", function () {
   assertEq(G.state.lanes[0].protected, null, 'and a one-round lane guard is lifted');
 });
 
+test("Every 2v2 play route broadcasts — not just the host's own tap", function () {
+  // Ryan: "the guest doesn't load what the host does until the host is done
+  // with their turn." Only ONE of the four routes into _2v2OnlinePlayCard was
+  // broadcasting; the remote handler, the trick case and the AI-seat driver
+  // applied the play and said nothing.
+  var G = twoVtwoRoom ? twoVtwoRoom({}) : null;
+  if (!G) { return; }
+  G.state.twoVTwo.online = true;
+  G.state.twoVTwo.you = 'p1';          // act as the host, the only broadcaster
+
+  var pushes = 0;
+  var real = G._2v2OnlineBroadcast;
+  G._2v2OnlineBroadcast = function () { pushes++; };
+
+  var pk = null, ap = null;
+  var keys = Object.keys(G.state.twoVTwo.players || {});
+  for (var i = 0; i < keys.length && !ap; i++) {
+    var cand = G.state.twoVTwo.players[keys[i]];
+    if (cand && cand.hand && cand.hand.length) { pk = keys[i]; ap = cand; }
+  }
+  if (!ap) { G._2v2OnlineBroadcast = real; return; }
+
+  var before = pushes;
+  G._2v2OnlinePlayCard(pk, 0, 0);
+  G._2v2OnlineBroadcast = real;
+  assert(pushes > before, 'playing a card pushes state to the guests');
+});
+
+test("...and the push is host-gated, so a guest never broadcasts", function () {
+  var G = twoVtwoRoom ? twoVtwoRoom({}) : null;
+  if (!G) { return; }
+  G.state.twoVTwo.online = true;
+  G.state.twoVTwo.you = 'p2';          // a GUEST
+  var pushes = 0;
+  var real = G._2v2OnlineBroadcast;
+  G._2v2OnlineBroadcast = function () { pushes++; };
+  G._pushOnlineState();
+  G._2v2OnlineBroadcast = real;
+  assertEq(pushes, 0, 'a guest calling the door broadcasts nothing');
+});
+
 // ---- RUNNER ------------------------------------------------
 // ============================================================
 

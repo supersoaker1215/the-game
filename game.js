@@ -1038,7 +1038,7 @@ const Game = {
           this._2v2CurrentActingPlayer = you;
           this._2v2OnlinePlayCard(you, idx, lane);
           if (!this.state.pendingLaneChoice && !this.state.pendingCardChoice) this._2v2CurrentActingPlayer = null;
-          this._2v2OnlineBroadcast();
+          // (the broadcast now happens inside _2v2OnlinePlayCard)
         } else if (typeof Multiplayer4 !== 'undefined') {
           Multiplayer4.send({ t: 'play2v2Card', playerKey: you, cardIdx: idx, laneIdx: lane });
         }
@@ -1056,7 +1056,7 @@ const Game = {
         this._2v2CurrentActingPlayer = 'p1';
         this._2v2OnlinePlayTrick(you, idx);
         if (!this.state.pendingLaneChoice && !this.state.pendingCardChoice) this._2v2CurrentActingPlayer = null;
-        this._2v2OnlineBroadcast();
+        // (the broadcast now happens inside _2v2OnlinePlayTrick)
       } else if (typeof Multiplayer4 !== 'undefined') {
         Multiplayer4.send({ t: 'play2v2Trick', playerKey: you, trickIdx: idx });
       }
@@ -15982,6 +15982,20 @@ const Game = {
     // Stamp any prompt the play raised with the acting player so the right
     // client resolves it (and the others can't).
     this._2v2StampPendingActor();
+    // PUSH FROM THE DOOR, NOT FROM THE CALLERS. Ryan: "the guest doesn't load
+    // what the host does until the host is done with their turn."
+    // Only ONE of the four routes into this function was broadcasting — the
+    // host's own local tap. The remote handler's play2v2Card case, the trick
+    // case beside it, and the AI-teammate seat driver all applied the play and
+    // then said nothing, so a guest saw an unchanged board until some LATER
+    // event (a prompt, combat, end of turn) happened to push. Broadcasting here
+    // means every play pushes exactly once no matter who routed it, and the
+    // next route added cannot forget.
+    // _pushOnlineState is host-gated internally (it returns unless tt.you is
+    // 'p1'), so this is inert on a guest and needs no caller-side check.
+    // AFTER the stamp, deliberately: the guest must receive the prompt's owner
+    // in the same state as the board that raised it.
+    this._pushOnlineState();
   },
 
   // Same delegation for tricks — playTrick() owns Time Stone intercept,
@@ -15998,6 +16012,7 @@ const Game = {
     const side = this._2v2TeamSide[ap.team];
     this._2v2WithSideBridge(() => this.playTrick(side, trick));
     this._2v2StampPendingActor();
+    this._pushOnlineState();   // same reasoning as _2v2OnlinePlayCard
   },
 
   // Host broadcasts current state to all joiners via Multiplayer4
