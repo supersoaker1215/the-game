@@ -1448,6 +1448,20 @@ const Game = {
     // Replay recording — capture the prompt resolution (kind + validated
     // payload) before the callback runs, so a replay resolves it identically.
     this._recordCmd({ k: 'resolve', kind, payload: (kind === 'lane') ? { laneIdx: arg } : { idx: payload.idx } });
+    // 2v2: RESTORE the acting seat from the prompt's own stamp before running
+    // the callback. A callback frequently raises a CHAINED prompt (Professor X
+    // picks a keyword then a target; Mind Stone picks an enemy then routes the
+    // combat target; Fear Toxin), and by resolve time _2v2CurrentActingPlayer is
+    // stale or null (combat clears it, async gaps drop it) — so the chained
+    // prompt derived a seat via _2v2SeatForSide, which prefers ANY human on the
+    // team and thus landed on the wrong teammate (or no one, stalling combat).
+    // The prompt was stamped with its owning seat when raised; inherit it so the
+    // whole chain stays on one player. (User: "my teammate played professor x
+    // and i got the prompt"; "mind control … the game seems to stall.")
+    if (this.is2v2 && this.is2v2() && this.state.twoVTwo && this.state.twoVTwo.online
+        && prompt._2v2ActingPlayer && this.state.twoVTwo.players[prompt._2v2ActingPlayer]) {
+      this._2v2CurrentActingPlayer = prompt._2v2ActingPlayer;
+    }
     if (prompt.callback) prompt.callback(arg);
     this.cleanupDead();
     this.resumeCombatIfWaiting();
@@ -8588,7 +8602,13 @@ const Game = {
     if (this.is2v2 && this.is2v2() && s.twoVTwo) {
       const tt = s.twoVTwo;
       const team = (owner === this._2v2TeamSide.A) ? 'A' : 'B';
-      const active = this._2v2ActivePlayer && this._2v2ActivePlayer();
+      // Prefer the EXACT acting seat (_2v2CurrentActingPlayer / the AI seat being
+      // driven) over the sub-phase seat — during a bridged action, an AI drive,
+      // or a chained prompt the sub-phase index can lag, which made a single
+      // seat's trick log as the whole TEAM ("Ryan & Cortex play Fear Toxin"),
+      // reading as if a teammate had played your card. Name the real actor.
+      const active = this._2v2CurrentActingPlayer || this._2v2AIDriving ||
+                     (this._2v2ActivePlayer && this._2v2ActivePlayer());
       if (active && tt.players[active] && tt.players[active].team === team) {
         if (tt.you && active === tt.you) return 'You';
         return tt.players[active].name || `Player ${active[1]}`;
