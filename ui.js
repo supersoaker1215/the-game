@@ -20172,36 +20172,24 @@ const UI = {
           envBg.remove();
         }
 
-        // WHERE THE ENVIRONMENT'S NAME GOES.
-        // The edge labels sit at the top and bottom of the lane, which is fine
-        // until BOTH combat slots are filled — then the name is printed over
-        // the cards fighting in front of it. Owner: "when a lane is contested
-        // put the name of the environment where the circle for the lane number
-        // is, just replace it." The centreline separator is the one strip in a
-        // contested lane that is guaranteed to be clear, because it is the gap
-        // the two cards are drawn either side of.
-        // Contested means two CARDS, deliberately — not the occ-both class,
-        // which counts an environment as occupying a side, so a lane holding
-        // only a room and one card would have qualified and moved the name for
-        // no reason.
-        const _contested = !!(lane.ai && lane.player);
-        const _sepEnv = _contested ? (envAi || envPl) : null;
-
-        // Env labels as direct lane children so their z-index beats .card-slot.
-        let envLabelAi = el.querySelector(':scope > .env-bg-label-ai');
-        let envLabelPl = el.querySelector(':scope > .env-bg-label-player');
-        if (envAi && !_sepEnv) {
-          if (!envLabelAi) { envLabelAi = document.createElement('div'); envLabelAi.className = 'env-bg-label env-bg-label-ai'; el.appendChild(envLabelAi); }
-          const txtAi = this._envLabelText(envAi);
-          if (envLabelAi.textContent !== txtAi) envLabelAi.textContent = txtAi;
-          envLabelAi.onclick = (e) => { UI.openCardInspect(envAi); e.stopPropagation(); };
-        } else if (envLabelAi) { envLabelAi.remove(); }
-        if (envPl && !_sepEnv) {
-          if (!envLabelPl) { envLabelPl = document.createElement('div'); envLabelPl.className = 'env-bg-label env-bg-label-player'; el.appendChild(envLabelPl); }
-          const txtPl = this._envLabelText(envPl);
-          if (envLabelPl.textContent !== txtPl) envLabelPl.textContent = txtPl;
-          envLabelPl.onclick = (e) => { UI.openCardInspect(envPl); e.stopPropagation(); };
-        } else if (envLabelPl) { envLabelPl.remove(); }
+        // THE ENVIRONMENT'S NAME ALWAYS SITS ON THE CENTRELINE.
+        // It began as a contested-lane special case — the edge labels were
+        // printed over the two cards fighting in front of them — but the owner
+        // wanted it everywhere: "even for lanes that are uncontested or just
+        // have 1 card I want the environment name in the middle, it looks
+        // better." It also reads better as a rule than as an exception: the
+        // name lives in ONE place regardless of what is standing in the lane,
+        // instead of jumping to the centre only when the lane happens to fill.
+        //
+        // That makes the top/bottom .env-bg-label pair unreachable, so they are
+        // no longer built — only removed, to clear any left over from a render
+        // before this change. Their click-to-inspect moved to the centreline
+        // pill along with the name.
+        const _sepEnv = envAi || envPl;
+        const _oldLabelAi = el.querySelector(':scope > .env-bg-label-ai');
+        const _oldLabelPl = el.querySelector(':scope > .env-bg-label-player');
+        if (_oldLabelAi) _oldLabelAi.remove();
+        if (_oldLabelPl) _oldLabelPl.remove();
         el._sepEnvName = _sepEnv ? this._envLabelText(_sepEnv) : '';
         el._sepEnvCard = _sepEnv || null;
       }

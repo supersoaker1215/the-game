@@ -32200,35 +32200,11 @@ body.round-tick .board::after {
 }
 .hand-card.env-card .stat-circle { display: none; }
 
-/* Labels — direct lane children, z-index 10 beats .card-slot (z-index 1) */
-.env-bg-label {
-  position: absolute;
-  left: 50%;
-  transform: translateX(-50%);
-  z-index: 10;
-  font-size: 8px;
-  font-weight: 700;
-  letter-spacing: 0.8px;
-  text-transform: uppercase;
-  padding: 2px 6px;
-  border-radius: 2px;
-  pointer-events: auto;
-  white-space: nowrap;
-  cursor: pointer;
-  background: rgba(0, 0, 0, 0.55);
-  transition: background 0.15s var(--ease-snap);
-}
-.env-bg-label:hover {
-  background: rgba(0, 0, 0, 0.8);
-}
-.env-bg-label-ai {
-  top: 4px;
-  color: rgba(255, 160, 100, 0.9);
-}
-.env-bg-label-player {
-  top: 4px;
-  color: rgba(100, 220, 140, 0.9);
-}
+/* The .env-bg-label pair that used to sit at the lane's top and bottom edges
+   is GONE — the environment's name now always lives on the centreline as
+   .lane-number-env. Their rules are deleted rather than left inert: nothing
+   builds those elements any more, so the CSS could only ever mislead the next
+   reader into thinking there were two places a name might appear. */
 
 /* =====================================================================
    PENNYWISE / SEWERS — balloon jumpscare entrance
