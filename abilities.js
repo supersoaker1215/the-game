@@ -6540,6 +6540,54 @@ const CARD_ABILITIES = {
       // summonCard would see the lane as occupied and bail. Sewers had exactly
       // this bug ("Pennywise never destroyed the card that was there").
       if (lane[owner] && lane[owner].currentHealth <= 0) lane[owner] = null;
+
+      // AN ALLY MOVES TO MAKE ROOM — the Sewers idiom, deliberately reused
+      // rather than re-derived. Owner: "for the reveal just like sewers an
+      // ally will move to make room." Previously the rise simply gave up if
+      // your own card was standing there, which made the room a coin-flip on
+      // board state rather than an effect you could plan around.
+      // Sewers' handling of the pending-prompt window is copied too: the ally
+      // can DIE while the lane choice is open (a death cascade keeps resolving
+      // underneath it), so the callback re-checks before moving it.
+      const _riser = dead;
+      const _ally = lane[owner];
+      if (_ally && _ally.currentHealth > 0) {
+        const openLanes = G.getOpenLanes(owner).filter(l => l !== laneIdx);
+        if (!openLanes.length) {
+          // Nowhere to put them. The Reveal has no absorb rule the way Sewers
+          // feeds Pennywise the body, so the rise is simply refused — it does
+          // NOT kill your own card to make space.
+          G.log(`  [THE REVEAL] ${_riser.name} twitches — lane ${laneIdx + 1} is taken and there is nowhere to move ${_ally.name}.`);
+          return;
+        }
+        G.promptLaneChoice(owner, openLanes,
+          `The Reveal — Move ${_ally.name}`,
+          `${_riser.name} is getting up in lane ${laneIdx + 1}. Move ${_ally.name} to another lane.`,
+          (targetLane) => {
+            if (_ally.currentHealth <= 0) {
+              if (lane[owner] === _ally) lane[owner] = null;
+              CARD_ABILITIES['The Reveal']._finishRise(G, self, _riser, laneIdx);
+              return;
+            }
+            lane[owner] = null;
+            G.state.lanes[targetLane][owner] = _ally;
+            G.log(`  [DISPLACED] ${_ally.name} moved to lane ${targetLane + 1} to make room for ${_riser.name}.`);
+            G.checkLaneTrap(_ally, targetLane);
+            if (_ally.onMoved) _ally.onMoved(G, _ally, targetLane);
+            CARD_ABILITIES['The Reveal']._finishRise(G, self, _riser, laneIdx);
+          },
+          null, null, null, { forced: openLanes.length <= 1 }
+        );
+        return;
+      }
+      CARD_ABILITIES['The Reveal']._finishRise(G, self, dead, laneIdx);
+    },
+    // The summon itself, split out so both paths — an empty lane, and a lane
+    // an ally has just vacated — land on exactly one body of code.
+    _finishRise(G, self, dead, laneIdx) {
+      const owner = self.owner;
+      const lane = G.state.lanes[laneIdx];
+      if (lane[owner] && lane[owner].currentHealth <= 0) lane[owner] = null;
       if (lane[owner]) {
         G.log(`  [THE REVEAL] ${dead.name} twitches — but lane ${laneIdx + 1} is already taken.`);
         return;

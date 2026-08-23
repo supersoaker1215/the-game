@@ -113,7 +113,7 @@ const CARD_DEFS = [
     isEnvironment: true,
     _spawnOnly: true,
     abilities: [],
-    desc: "While Active: The first enemy card to die in this lane rises on your side as a (2/2), played anew — abilities reset and its On Play fires again. The Reveal is then spent. (Placed only by Jigsaw.)" },
+    desc: "While Active: The first enemy card to die in this lane rises on your side as a (2/2), as if newly played — abilities reset and its On Play fires again. An ally in that lane moves to an empty lane to make room. The Reveal is then spent. (Placed only by Jigsaw.)" },
   { name: "Wetlands", cost: 3, attack: 0, health: 1, type: "environment",
     isEnvironment: true,
     abilities: [],

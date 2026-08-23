@@ -7116,6 +7116,47 @@ test("The Reveal ignores an ALLY dying in its lane — enemy bodies only", funct
   assert(!!G.state.lanes[1].player, 'and an enemy death raises a body');
 });
 
+test("The Reveal moves an ally out of the way, like Sewers does", function () {
+  // Owner: "for the reveal just like sewers an ally will move to make room."
+  // It used to simply give up if your own card stood in the lane, which made
+  // the room a coin-flip on board state instead of an effect you can plan for.
+  var G = freshGame();
+  var room = CARD_ABILITIES['Jigsaw']._placeRoom(G, 'player', 1, 'The Reveal');
+  var enemy = place(G, 'Sabertooth', 'ai', 1);
+  var ally  = place(G, 'Nightwing', 'player', 1);      // standing where the body wants to rise
+  CARD_ABILITIES['The Reveal'].onAnyCardPlayed(G, room);
+
+  enemy.currentHealth = 0;
+  G.handleDeath(enemy, 1, null);
+
+  var risen = G.state.lanes[1].player;
+  assert(!!risen, 'a body gets up');
+  assertEq(risen.name, 'Sabertooth', 'and it is the dead ENEMY that rose');
+  assert(ally.currentHealth > 0, 'the ally is alive — it was moved, not killed');
+  var where = -1;
+  for (var i = 0; i < G.LANE_COUNT; i++) if (G.state.lanes[i].player === ally) where = i;
+  assert(where >= 0 && where !== 1, 'and it now stands in a different lane');
+});
+
+test("The Reveal refuses to rise rather than kill your own card", function () {
+  // Sewers ABSORBS the ally when there is nowhere to move it, because that
+  // feeds Pennywise's stats. The Reveal has no absorb rule, so with no open
+  // lane it must decline — never destroy an ally to make space for itself.
+  var G = freshGame();
+  var room = CARD_ABILITIES['Jigsaw']._placeRoom(G, 'player', 1, 'The Reveal');
+  var enemy = place(G, 'Sabertooth', 'ai', 1);
+  var ally  = place(G, 'Nightwing', 'player', 1);
+  CARD_ABILITIES['The Reveal'].onAnyCardPlayed(G, room);
+  // fill every other lane on our side so there is nowhere to go
+  for (var i = 0; i < G.LANE_COUNT; i++) if (i !== 1 && !G.state.lanes[i].player) place(G, 'Sabertooth', 'player', i);
+
+  enemy.currentHealth = 0;
+  G.handleDeath(enemy, 1, null);
+
+  assert(ally.currentHealth > 0, 'the ally is NOT killed to make room');
+  assertEq(G.state.lanes[1].player, ally, 'and it is still standing in its lane');
+});
+
 // ---- RUNNER ------------------------------------------------
 // ============================================================
 
