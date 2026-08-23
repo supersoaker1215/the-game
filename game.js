@@ -655,6 +655,19 @@ const Game = {
       // log-spam forever.
       this._bumpCombatProgress();
       this._watchdogTrips = (this._watchdogTrips || 0) + 1;
+      // FIRST, try to UN-STICK a prompt combat is waiting on rather than skip
+      // the whole phase. A Mind Control target (or any card/lane choice) raised
+      // during combat that — after a full 45s — was never answered (mis-delivered
+      // to a seat that can't act, a race) leaves combat parked; force-ending
+      // SKIPS every remaining lane and jumps to the next turn. Auto-resolving the
+      // stuck prompt (its own aiPicker) lets combat CONTINUE instead. A human who
+      // wanted to choose had 45 seconds. (User: "when mind stone is played …
+      // combat stalls and then skips that combat phase and jumps to the next
+      // turn.") If it un-sticks something, skip the force-end this tick.
+      let _unstuck = false;
+      try { _unstuck = this._autoResolveStuckCombatPrompt(); }
+      catch (e) { console.error('[COMBAT WATCHDOG] auto-resolve threw:', e); }
+      if (_unstuck) return;
       try { this._forceEndStalledCombat(); }
       catch (e) { console.error('[COMBAT WATCHDOG] recovery threw:', e); }
       if (this._watchdogTrips >= 4) {
@@ -666,6 +679,56 @@ const Game = {
   _clearCombatWatchdog() {
     if (this._combatWatchdogTimer) { clearInterval(this._combatWatchdogTimer); this._combatWatchdogTimer = null; }
   },
+  // Watchdog recovery, step 1: if combat is parked on a prompt nobody answered
+  // in 45s, auto-resolve it (via the prompt's own aiPicker) and resume — so
+  // combat CONTINUES instead of the whole phase being skipped. Authority only
+  // (host/solo); a guest never owns the authoritative resolution. Returns true
+  // if it resolved something.
+  _autoResolveStuckCombatPrompt() {
+    const s = this.state;
+    if (!s) return false;
+    const isGuest = (this.isMultiplayer && this.isMultiplayer() && this.mp && this.mp.role === 'guest')
+      || !!(s.twoVTwo && s.twoVTwo.online && s.twoVTwo.you && s.twoVTwo.you !== 'p1');
+    if (isGuest) return false;
+    const resume = (label) => {
+      this.cleanupDead();
+      this.resumeCombatIfWaiting();
+      this.log('[COMBAT WATCHDOG] ' + label + ' — combat continues.');
+      if (this._pushOnlineState) { try { this._pushOnlineState(); } catch (e) {} }
+      else if (typeof UI !== 'undefined' && UI.render) UI.render();
+    };
+    const cc = s.pendingCardChoice;
+    if (cc && cc.cards && cc.cards.length) {
+      const pick = (typeof cc.aiPicker === 'function' && cc.aiPicker(cc.cards)) || cc.cards[0];
+      s.pendingCardChoice = null;
+      if (this._clearPromptTimeout) this._clearPromptTimeout();
+      try { if (cc.callback) cc.callback(pick); } catch (e) { console.error(e); }
+      resume('auto-resolved a stuck card choice');
+      return true;
+    }
+    const lc = s.pendingLaneChoice;
+    if (lc && lc.lanes && lc.lanes.length) {
+      const pick = (typeof lc.aiPicker === 'function' && lc.aiPicker(lc.lanes));
+      const lane = (pick != null) ? pick : lc.lanes[0];
+      s.pendingLaneChoice = null;
+      if (this._clearPromptTimeout) this._clearPromptTimeout();
+      try { if (lc.callback) lc.callback(lane); } catch (e) { console.error(e); }
+      resume('auto-resolved a stuck lane choice');
+      return true;
+    }
+    // A stuck block-trick offer: keep it (no free play auto-fired) and move on.
+    if (s.pendingBlockTrick) {
+      const bt = s.pendingBlockTrick;
+      s.pendingBlockTrick = null;
+      try {
+        if (this.is2v2 && this.is2v2() && bt._2v2Seat) this._2v2ResolveBlockTrick(bt._2v2Seat, bt, false);
+      } catch (e) { console.error(e); }
+      resume('auto-kept a stuck block trick');
+      return true;
+    }
+    return false;
+  },
+
   _forceEndStalledCombat() {
     const s = this.state;
     // 2v2 runs its own phase names ('2v2-combat', '2v2-p1-cards', …) and its
