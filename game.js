@@ -14592,6 +14592,20 @@ const Game = {
     const s = this.state;
     const tt = s.twoVTwo;
     tt.round = (tt.round || 0) + 1;
+    // KEEP state.round IN SYNC. 2v2 counts rounds on tt.round and never calls
+    // startRound, which is the ONLY place state.round is incremented — so in a
+    // 2v2 match state.round sat at 0 for the whole game. Anything asking the
+    // engine "what round is it" got 0 every time.
+    // Ryan: "Art the Clown's ability only fires the first time and never
+    // again." His once-per-round guard stores the round number of his last
+    // swing and refuses to swing again on the same number; with the round
+    // frozen at 0 that guard could never open after the first use, and it
+    // silenced all four of his weapons equally.
+    // Syncing here rather than teaching each caller which counter to read: the
+    // same freeze makes any other state.round-derived duration inert in 2v2
+    // (abilities.js has a lock length computed the same way), and a card should
+    // not have to know which mode it is in to ask what round it is.
+    s.round = tt.round;
     tt.subPhaseIdx = 0;
     tt._beforeTricksRan = false;   // re-arm the before-tricks pass for this round
     tt._freddyChecked = false;     // re-arm Freddy Fazbear's combat-boundary waste check
@@ -14644,6 +14658,24 @@ const Game = {
     });
     this.getAllCardsOnBoard().forEach(c => this.rerollCrazyInsane(c));
     if (this.applyMagnetoDebuffs) this.applyMagnetoDebuffs();
+    // THREE MORE PER-ROUND CLEARS 1v1 DOES AND 2v2 WAS STILL SKIPPING.
+    // startRound wipes these every round; this function back-ported most of the
+    // upkeep block but not these, so in 2v2 they were never reset at all:
+    //   * _parlayedThisRound — Jack Sparrow's lock is a ONE-ROUND effect, and
+    //     with nothing clearing it the parlayed enemy could never attack again
+    //     for the rest of the match, badge and all. Ryan reported the symptom
+    //     as "Jack Sparrow's parlay stays after he dies"; his death was only
+    //     the moment it became obvious, since in 2v2 it never expired anyway.
+    //   * _combatSwungThisRound — 1v1 clears it so a fresh-round debuff is not
+    //     mistakenly read as persistent.
+    //   * lane.protected — a lane guarded for ONE round stayed guarded forever.
+    this.getAllCardsOnBoard().forEach(c => {
+      delete c._parlayedThisRound;
+      delete c._parlayedBy;
+      delete c._combatSwungThisRound;
+    });
+    delete this.state._parlayActive;
+    this.state.lanes.forEach(l => l.protected = null);
     // Art the Clown's Hacksaw bleed ticks at each round start — 2v2 skipped it,
     // so the remaining wound never bled here (the first tick now fires on choice).
     this.getAllCardsOnBoard().filter(c => c && c._bleedRounds > 0 && c.currentHealth > 0).forEach(c => this.tickBleed(c));

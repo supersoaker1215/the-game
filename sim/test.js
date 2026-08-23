@@ -6103,18 +6103,23 @@ test("Art the Clown — Scissors strips a keyword and clears its flag", function
   assert(foe.abilities.indexOf('Evade 2') < 0, 'and gone from the printed list');
 });
 
-test("Art the Clown — Hacksaw bleeds 2 at the start of each of the next 2 rounds", function () {
+test("Art the Clown — Hacksaw bleeds 2 on the cut, then 2 more next round", function () {
+  // RETARGETED, not reverted. 79349d6 deliberately moved the FIRST tick to the
+  // moment the target is chosen — _resolve sets _bleedRounds = 2 and then calls
+  // tickBleed immediately, which deals 2 and decrements to 1. This test still
+  // asserted the pre-79349d6 contract (_bleedRounds === 2 straight after the
+  // cut) and had been the suite's one red test since.
+  // The TOTAL is unchanged at 4 — 2 on the cut plus 2 at the next round start —
+  // so this is a timing change, not a balance one.
   var G = freshGame();
   var art = artOnBoard(G, 0);
   var foe = place(G, 'Sabertooth', 'ai', 2);
   foe.currentHealth = 9; foe.maxHealth = 9;
   CARD_ABILITIES['Art the Clown']._resolve(G, art, 'hacksaw');
-  assertEq(foe._bleedRounds, 2, 'wound set for two rounds');
+  assertEq(foe.currentHealth, 7, 'the cut itself bleeds for 2');
+  assertEq(foe._bleedRounds, 1, 'leaving one round of wound');
   G.startRound();
-  assertEq(foe.currentHealth, 7, 'first tick: -2');
-  assertEq(foe._bleedRounds, 1, 'one round of bleed left');
-  G.startRound();
-  assertEq(foe.currentHealth, 5, 'second tick: -2');
+  assertEq(foe.currentHealth, 5, 'second tick at the next round: -2');
   assertEq(foe._bleedRounds, 0, 'wound closed');
   G.startRound();
   assertEq(foe.currentHealth, 5, 'no third tick');
@@ -7337,6 +7342,28 @@ test("One Jack dying does not cancel another Jack's Parlay", function () {
   G.handleDeath(jackA, 0, null);
   assertEq(!!foeA._parlayedThisRound, false, "the dead Jack's deal is off");
   assertEq(!!foeB._parlayedThisRound, true, "the living Jack's deal stands");
+});
+
+test("2v2 clears Parlay each round — it was permanent there", function () {
+  // The recon's real finding: start2v2Round back-ported most of the 1v1 upkeep
+  // block but not the Parlay sweep, so in 2v2 a parlayed enemy could never
+  // attack again for the whole match — Jack alive or dead.
+  var G = twoVtwoRoom ? twoVtwoRoom({}) : null;
+  if (!G) { return; }                      // harness unavailable — skip quietly
+  var victim = null;
+  for (var i = 0; i < G.LANE_COUNT && !victim; i++) victim = G.state.lanes[i].ai;
+  if (!victim) { victim = place(G, 'Sabertooth', 'ai', 0); }
+  victim._parlayedThisRound = true;
+  victim._parlayedBy = 999;
+  victim._combatSwungThisRound = true;
+  G.state.lanes[0].protected = 'player';
+
+  G.start2v2Round();
+
+  assertEq(!!victim._parlayedThisRound, false, 'the parlay expires with the round');
+  assertEq(victim._parlayedBy, undefined, 'and its stamp goes too');
+  assertEq(!!victim._combatSwungThisRound, false, 'combat-swung is reset');
+  assertEq(G.state.lanes[0].protected, null, 'and a one-round lane guard is lifted');
 });
 
 // ---- RUNNER ------------------------------------------------
