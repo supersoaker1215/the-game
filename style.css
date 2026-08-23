@@ -41603,6 +41603,17 @@ body.low-fx .badge-asleep { animation: none; }
    player keeps their own diamond on the bottom bar. (Owner: "the enemy energy
    diamond is still and the personal energy diamonds are now gone — fix this.") */
 body.twov2-online-game .info-bar.ai-bar .bar-energy { display: none; }
+/* 2v2 online runs an 8-lane board, ~75px taller than 1v1's 6 lanes, which
+   pushed the hand cards' bottom STAT row below the viewport — you had to scroll
+   to read attack/health. Reclaim that height from the board (its lanes still
+   render fine at 200px) and tighten the hand/tricks padding so the full card,
+   stats included, sits on-screen without scrolling — matching 1v1. Scoped to
+   2v2 online, so 1v1 is untouched. (Owner: "the stats for the cards are cut off
+   and i would need to scroll down … please fix that for 2v2.") */
+body.twov2-online-game .board { min-height: 200px; }
+body.twov2-online-game .board .lane { min-height: 0; }
+body.twov2-online-game .player-hand-section { padding-top: 6px; padding-bottom: 6px; }
+body.twov2-online-game .tricks-section { padding-top: 4px; padding-bottom: 4px; }
 .rc-chip-hand { gap: 10px; padding: 4px 11px; }
 .rc-hand { display: inline-flex; align-items: center; gap: 3px; }
 /* Bigger card-backs — fill the top bar so hand sizes read at a glance. */
