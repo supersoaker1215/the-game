@@ -4996,6 +4996,27 @@ const Game = {
       this.log(`[GUARD] ${card.name} never takes the field — he leaves your hand only to save an ally.`);
       return false;
     }
+    // Discard-effect cards (Brainiac, Mr. Fantastic, Power Battery…) resolve
+    // their effect and go to the DISCARD pile — they must NEVER be seated in a
+    // lane. playCard's paid branch handles this, but the free / jump / summon
+    // path did not: a free-played discard (Paul Atreides keeping a cost-2
+    // Brainiac reduces it to 0 and auto-plays it here) landed a 0/0 discard card
+    // ON THE BOARD. Resolve it the same way instead. (User: "make sure no
+    // discards can be played like this, this should not happen ever!")
+    if (card && card.isDiscardEffect) {
+      const idxD = this.state[owner].hand.indexOf(card);
+      if (idxD > -1) this.state[owner].hand.splice(idxD, 1);
+      this.state[owner].discardPile = this.state[owner].discardPile || [];
+      this.state[owner].discardPile.push({
+        name: card.name, cost: card.baseCost || card.cost, type: card.type,
+        abilities: card.abilities, desc: card.desc, isDiscardEffect: true, _sourceInstance: card,
+      });
+      this.log(`[DISCARD] ${this.seatLabel(owner)} discard ${card.name} for its effect (free).`);
+      this._2v2ActFor(card);
+      if (card.onDiscard) { try { card.onDiscard(this, owner, card); } catch (e) { console.error(e); } }
+      this.cleanupDead();
+      return true;
+    }
     // SLEEPING (Freddy Krueger). A card he slashed but did not kill cannot be
     // played on its owner's next turn. Refused at the SAME choke points as the
     // Iron Giant guard so every entry path is covered at once — lane clicks,

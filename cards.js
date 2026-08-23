@@ -212,7 +212,7 @@ const CARD_DEFS = [
     desc: "When Discarded: Place The Bathroom and The Reveal in empty enemy lanes. Then move an enemy to an empty lane." },
   { name: "Brainiac", cost: 2, attack: 0, health: 0, type: "villain",
     abilities: [],
-    desc: "When Discarded: See the next 2 cards the opponent will draw. Their next 2 draws stay revealed to you." },
+    desc: "When Discarded: Draw a card, then foresee an enemy's next 2 draws for 2 rounds (in 2v2, choose which enemy)." },
   { name: "Loki", cost: 3, attack: 2, health: 1, type: "villain",
     abilities: ["Evade 1"],
     desc: "When Played: Fill your Block Meter." },

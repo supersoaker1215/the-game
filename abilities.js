@@ -1453,6 +1453,10 @@ const CARD_ABILITIES = {
     },
     onDiscard(G, owner, self) {
       const COUNT = 2;
+      // NEW (owner direction): Brainiac draws a card when he's played, on top of
+      // the foresight. drawCards routes to the acting seat in 2v2 and respects
+      // the Lex Luthor block; a bare-return on empty pile / hand cap is fine.
+      try { G.drawCards(owner, 1); G.log('[BRAINIAC] Brainiac draws a card.'); } catch (e) {}
       const reveal = (targetName) => {
         // The reveal is a LIVE scan, not a snapshot: the UI re-reads the top of
         // the pile every render (so reorders / shuffles stay honest). Store only
@@ -1477,6 +1481,9 @@ const CARD_ABILITIES = {
       // top-N scan reads the same cards; the pick names whose draws you're eyeing.
       const tt = G.state && G.state.twoVTwo;
       if (tt && tt.online && G._2v2ChooseEnemySeat) {
+        // Route the "choose an enemy" prompt to BRAINIAC'S OWN seat only — not
+        // the whole table. (User: "in 2v2 [it prompts] all players.")
+        G._2v2ActFor(self);
         G._2v2ChooseEnemySeat(owner, 'Brainiac — Foresee',
           'Choose an enemy to foresee their next 2 draws',
           (seat) => reveal(seat && tt.players[seat] ? (tt.players[seat].name || seat) : null));

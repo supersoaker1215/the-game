@@ -21566,7 +21566,19 @@ const UI = {
   _renderBrainiacScan(s) {
     const el = document.getElementById('brainiac-scan');
     if (!el) return;
-    const active = s && s.player && s.player._brainiacScanRounds > 0;
+    // Which SIDE is THIS client's own team? 1v1: always 'player' (a guest's
+    // state is perspective-flipped, so 'player' is them). 2v2 is NOT flipped —
+    // 'player'=Team A, 'ai'=Team B on every client — so hardcoding 'player'
+    // made the ENEMY team's clients render the strip too, showing THEM their own
+    // upcoming draws. Gate on the local seat's actual side. (User: "in 1v1 it
+    // gives a prompt to the other player of the next 2 cards and in 2v2 to all
+    // players.")
+    let mySide = 'player';
+    const tt = s && s.twoVTwo;
+    if (tt && tt.online && tt.you && tt.players && tt.players[tt.you] && typeof Game !== 'undefined' && Game._2v2TeamSide) {
+      mySide = Game._2v2TeamSide[tt.players[tt.you].team];
+    }
+    const active = s && s[mySide] && s[mySide]._brainiacScanRounds > 0;
     if (!active) {
       if (el.childElementCount) el.innerHTML = '';
       el.classList.remove('is-active');
@@ -21575,7 +21587,7 @@ const UI = {
     // Live-read the top of the OPPONENT's pile (classic shares one pile;
     // deckbuilder returns the AI's own). Pile is popped from the end, so the
     // next draws are the last entries, shown next-first.
-    const opp = (typeof Game !== 'undefined' && Game.opponent) ? Game.opponent('player') : 'ai';
+    const opp = (typeof Game !== 'undefined' && Game.opponent) ? Game.opponent(mySide) : 'ai';
     const pile = (typeof Game !== 'undefined' && Game.getDrawPile) ? (Game.getDrawPile(opp) || []) : [];
     const upcoming = [];
     for (let i = pile.length - 1; i >= 0 && upcoming.length < 2; i--) {
