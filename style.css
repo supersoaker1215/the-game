@@ -250,16 +250,36 @@
      All three pull from --theme-rgb so the active Neon Theme
      drives them. Each tier composes outer glow + a faint inset
      ring for depth. */
+  /* CORE -> MID -> HALO. Each tier now opens with a TIGHT, PALE core
+     before the theme-hued falloff. That first stop is the whole point:
+     a real emitter overexposes toward white at the source and falls off
+     into the air around it, while a single same-hue alpha ramp reads as
+     coloured fuzz someone drew on. The pale value is 200,235,255 (and
+     127,208,255 at focal) rather than pure white so the light still
+     belongs to the palette instead of blowing out grey.
+
+     The recipe is not invented here — it is lifted from the .card:hover
+     bloom further down this file, which was already built this way and
+     is the best-looking glow in the project.
+
+     Radii are deliberately UNCHANGED from the previous definitions
+     (6/14, 10/22, 16/36). A wider halo is the amateur version of this
+     fix; the improvement is falloff SHAPE, not size. Mid and outer
+     alphas are trimmed slightly so total emitted light stays flat and
+     only its distribution changes. */
   --glow-subtle:
-    0 0 6px  rgba(var(--theme-rgb, 79,195,247), 0.18),
-    0 0 14px rgba(var(--theme-rgb, 79,195,247), 0.08);
+    0 0 2px  rgba(200,235,255, 0.18),
+    0 0 6px  rgba(var(--theme-rgb, 79,195,247), 0.16),
+    0 0 14px rgba(var(--theme-rgb, 79,195,247), 0.07);
   --glow-standard:
-    0 0 10px rgba(var(--theme-rgb, 79,195,247), 0.35),
-    0 0 22px rgba(var(--theme-rgb, 79,195,247), 0.14),
+    0 0 3px  rgba(200,235,255, 0.32),
+    0 0 10px rgba(var(--theme-rgb, 79,195,247), 0.32),
+    0 0 22px rgba(var(--theme-rgb, 79,195,247), 0.13),
     inset 0 0 0 1px rgba(var(--theme-rgb, 79,195,247), 0.10);
   --glow-focal:
-    0 0 16px rgba(var(--theme-rgb, 79,195,247), 0.65),
-    0 0 36px rgba(var(--theme-rgb, 79,195,247), 0.28),
+    0 0 5px  rgba(127,208,255, 0.52),
+    0 0 16px rgba(var(--theme-rgb, 79,195,247), 0.58),
+    0 0 36px rgba(var(--theme-rgb, 79,195,247), 0.26),
     inset 0 0 0 1px rgba(var(--theme-rgb, 79,195,247), 0.30);
 
   /* ----- Interactive state ramps -----
@@ -19972,21 +19992,14 @@ body.colorblind .ai-bar .health-container {
    duplicate generic-class selectors meant 5+ off-screen passes
    per frame. 4px is visually nearly identical (still reads as
    glassy) at a fraction of the cost. */
-.hud-strip,
-.top-hud,
-.game-hud,
-.player-bar,
-.ai-bar {
-  backdrop-filter: blur(4px) saturate(125%);
-  -webkit-backdrop-filter: blur(4px) saturate(125%);
-}
-/* If those class names don't match, target generic HUD siblings
-   (guards against layout drift). */
-#game-area > div[class*="hud"],
-#game-area > div[class*="bar"] {
-  backdrop-filter: blur(4px) saturate(125%);
-  -webkit-backdrop-filter: blur(4px) saturate(125%);
-}
+/* REMOVED — this blur was painting nothing. Measured in a live match:
+   behind .turn-hud and both .info-bars the backdrop samples opaque
+   rgb(0,0,0) at every point, and .turn-hud is itself opaque, so the
+   gaussian had only uniform black to convolve and returned uniform
+   black. That was 210,525 CSS px^2 of off-screen render pass per frame
+   for zero pixels of output. The @media (pointer: coarse) block above
+   already removed it on touch for exactly this cost; it was simply
+   never true that desktop was getting something for the money. */
 
 /* ---- 3. Card lift + rise when selected from hand ----
    When a hand card is clicked (enters `.selected` state), it rises
