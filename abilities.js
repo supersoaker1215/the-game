@@ -3538,10 +3538,13 @@ const CARD_ABILITIES = {
         // dropped — same outcome as the prompt path returning
         // early when no lanes remain.
         const _helaWarriors = [];
-        for (let i = 0; i < openLanes.length && i < zombies; i++) {
-          G.summonCard(self.owner, openLanes[i], "Undead Warrior", 1, 3, 1, []);
-          if (G.state.lanes[openLanes[i]]) _helaWarriors.push(G.state.lanes[openLanes[i]][self.owner]);
-        }
+        // Marked: several bodies into lanes chosen up front, synchronously.
+        G._withSummonLoop(() => {
+          for (let i = 0; i < openLanes.length && i < zombies; i++) {
+            G.summonCard(self.owner, openLanes[i], "Undead Warrior", 1, 3, 1, []);
+            if (G.state.lanes[openLanes[i]]) _helaWarriors.push(G.state.lanes[openLanes[i]][self.owner]);
+          }
+        });
         if (typeof UI !== 'undefined' && UI._fxHelaRaise) { try { UI._fxHelaRaise(self, _helaWarriors); } catch (e) {} }
         return;
       }
@@ -5738,7 +5741,8 @@ const CARD_ABILITIES = {
       const maxCost = self._knullCostCeiling || 9;
       G._suppressSummonSfx = true;
       const _knullSummoned = [];
-      G.getOpenLanes(self.owner).filter(l => l !== lane).forEach(l => {
+      // Marked: fills every open lane synchronously — see Game._withSummonLoop.
+      G._withSummonLoop(() => G.getOpenLanes(self.owner).filter(l => l !== lane).forEach(l => {
         // RE-CHECK LIVE: the open-lane list is a snapshot, but a summoned card's
         // own On Play can claim lanes mid-loop (Hela raising Undead Warriors).
         // Check BEFORE drawing so we don't burn a card out of the shared summon
@@ -5755,7 +5759,7 @@ const CARD_ABILITIES = {
           const sc = G.state.lanes[l] && G.state.lanes[l][self.owner];
           if (sc) _knullSummoned.push(sc);
         }
-      });
+      }));
       G._suppressSummonSfx = false;
       G.log("Knull fills the battlefield!");
       // Signature FX — black-and-red symbiote tendrils flood out to each summon.

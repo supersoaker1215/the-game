@@ -7251,6 +7251,59 @@ test("The chain toll respects the shield rule, and can be lethal", function () {
   assertEq(G2.state.lanes[3].ai, null, 'and the body does not linger in the lane');
 });
 
+test("A nested summon still lets a HUMAN pick the lane (Gorr -> Darkseid -> Parademon)", function () {
+  // Owner: "Darkseid's Parademon was auto-placed for me when he was summoned
+  // from Gorr — I should be able to pick where to summon the Parademon."
+  // The cascade guard fired on ANY nesting, but Gorr summons one card and is
+  // finished by the time that card's On Play runs, so nothing was racing.
+  var G = freshGame();
+  G.state.player.isHuman = true;
+  var self = { owner: 'player', name: 'Darkseid' };
+  // several open lanes, so there is a real choice to make
+  G._simPromptLog = [];
+  G._summonCascadeDepth = 1;          // as if summoned by Gorr
+  G._summonLoopDepth = 0;             // ...but nothing is mid-placement
+  var asked = 0;
+  var realPrompt = G.promptLaneChoice;
+  G.promptLaneChoice = function (owner, lanes, title, desc, cb) { asked++; cb(lanes[lanes.length - 1]); };
+  G.summonCardChoice('player', 'Parademon', 1, 2, 1, [], null, null);
+  G.promptLaneChoice = realPrompt;
+  G._summonCascadeDepth = 0;
+  assertEq(asked, 1, 'the player IS asked where it goes');
+  assertEq(G.state.lanes[0].player, null, 'and it did not silently take lane 1');
+});
+
+test("...but a placing LOOP still resolves nested summons synchronously", function () {
+  // Knull and Hela place several bodies into lanes chosen up front. Those loops
+  // do not wait, so a prompt there would hand the remaining lanes to the loop
+  // before the player answered — the reason the guard exists at all.
+  var G = freshGame();
+  G.state.player.isHuman = true;
+  var asked = 0;
+  var realPrompt = G.promptLaneChoice;
+  G.promptLaneChoice = function (owner, lanes, title, desc, cb) { asked++; cb(lanes[0]); };
+  G._summonCascadeDepth = 1;
+  G._withSummonLoop(function () {
+    G.summonCardChoice('player', 'Parademon', 1, 2, 1, [], null, null);
+  });
+  G.promptLaneChoice = realPrompt;
+  G._summonCascadeDepth = 0;
+  assertEq(asked, 0, 'no prompt while a placing loop is mid-flight');
+  assert(!!G.state.lanes[0].player, 'it took the lowest open lane instead');
+});
+
+test("_withSummonLoop nests — Knull summoning Hela must not clear the outer mark", function () {
+  var G = freshGame();
+  var seen = [];
+  G._withSummonLoop(function () {
+    seen.push(G._summonLoopDepth);
+    G._withSummonLoop(function () { seen.push(G._summonLoopDepth); });
+    seen.push(G._summonLoopDepth);   // the inner one finished; the OUTER still holds
+  });
+  seen.push(G._summonLoopDepth);
+  assertEq(seen.join(','), '1,2,1,0', 'a counter, not a boolean');
+});
+
 // ---- RUNNER ------------------------------------------------
 // ============================================================
 

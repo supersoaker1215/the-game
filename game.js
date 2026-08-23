@@ -11144,7 +11144,21 @@ const Game = {
     // remaining lane before these warriors claim theirs, silently dropping them.
     // Place immediately, lowest open lane first, and continue the chain inline
     // so the whole nested effect is done before the outer loop's next step.
-    if ((this._summonCascadeDepth || 0) > 0) {
+    // ...but ONLY while a summoner is actually still placing. The depth alone
+    // says "something summoned me", which was true of Gorr summoning a single
+    // card — and Gorr is finished by the time that card's On Play runs, so
+    // there was nothing left to race. Owner: "Darkseid's Parademon was
+    // auto-placed for me when he was summoned from Gorr — I should be able to
+    // pick where to summon the Parademon."
+    // The hazard is specifically a summoner placing MULTIPLE cards into lanes
+    // it has already chosen (Knull, Hela): those loops are synchronous, so a
+    // prompt would hand the remaining lanes to the loop before the player
+    // answered. Those two now mark themselves with _withSummonLoop, and only
+    // that mark suppresses a human's choice.
+    // An AI owner still takes this path at any depth: its deferral runs through
+    // _aiActionDelay, which has the same racing problem a prompt does.
+    const _placingLoop = (this._summonLoopDepth || 0) > 0;
+    if ((this._summonCascadeDepth || 0) > 0 && (!this.isHuman(owner) || _placingLoop)) {
       const lane = open[0];
       this.summonCard(owner, lane, name, cost, attack, health, abilities, sourceDef);
       if (onComplete) onComplete();
@@ -12731,6 +12745,18 @@ const Game = {
       ? `  [CHAINED] ${card.name} drags the chain — −${D} ATK, health shielded → ${card.attack}/${card.currentHealth}`
       : `  [CHAINED] ${card.name} drags the chain — −${D}/−${D} → ${card.attack}/${card.currentHealth}`);
     if (card.currentHealth <= 0) this.handleDeath(card, laneIdx, null);
+  },
+
+  // Marks a summoner that places SEVERAL cards into lanes it picked up front
+  // (Knull, Hela). summonCardChoice reads this: a nested summon must resolve
+  // synchronously while such a loop is mid-flight, because the loop will not
+  // wait for a prompt and would take the lanes out from under it.
+  // Deliberately a COUNTER, not a boolean — Knull can summon Hela, so these
+  // nest, and a boolean would clear the outer mark when the inner one finished.
+  _withSummonLoop(fn) {
+    this._summonLoopDepth = (this._summonLoopDepth || 0) + 1;
+    try { return fn(); }
+    finally { this._summonLoopDepth = Math.max(0, (this._summonLoopDepth || 1) - 1); }
   },
 
   getOpenLanes(owner) {
