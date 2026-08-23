@@ -10,7 +10,10 @@
 :root {
   --ease-snap:  cubic-bezier(0.2, 0, 0, 1);      /* default: decisive arrival   */
   --ease-exit:  cubic-bezier(0.4, 0, 1, 1);      /* leaving the screen          */
-  --ease-glide: cubic-bezier(0.4, 0, 0.2, 1);    /* long, calm moves            */
+  /* Durations for the asymmetry below. Arrival carries weight, release
+     is immediate — the 0.6x ratio is the standard fast-out figure. */
+  --dur-in:  200ms;   /* entering a state  */
+  --dur-out: 120ms;   /* leaving  a state  */
 }
 /* ============================================================
    CARD LANE BATTLE — Professional TCG Theme
@@ -15734,8 +15737,30 @@ body.round-first-ai .hud-pill-main {
 .md-new-btn, .md-action-btn,
 .settings-cog, .log-drawer-toggle, .stats-source-btn, .stats-view-btn,
 .theme-swatch, .pile-badge {
+  /* FAST-OUT / SLOW-IN. This rule is the RETURN TO REST, so it carries
+     the fast ramp; the :hover rule below carries the slow one. That
+     reads backwards until you remember which direction each plays.
+     Things should arrive with weight and let go immediately — the
+     asymmetry is what separates an engineered feel from a web page,
+     and it was the one half of the motion system never wired:
+     --ease-exit existed, documented "leaving the screen", and was used
+     TWICE, both times on `background 0.08s`, which is not an exit.
+     Only 11 of 299 transition rules varied timing on :hover, so every
+     interaction here was symmetric. */
   transition:
-    transform 150ms var(--ease-out-soft), box-shadow 200ms var(--ease-out-soft), border-color 150ms var(--ease-snap), color 150ms var(--ease-snap), background 200ms var(--ease-snap) !important;
+    transform var(--dur-out) var(--ease-exit), box-shadow var(--dur-out) var(--ease-exit), border-color var(--dur-out) var(--ease-exit), color var(--dur-out) var(--ease-exit), background var(--dur-out) var(--ease-exit) !important;
+}
+.btn:hover, .mm-option:hover, .mode-option:hover, .md-deck-card:hover,
+.db-tab:hover, .db-preset:hover,
+.db-save-btn:hover, .db-load-btn:hover, .db-start-btn:hover, .db-back:hover,
+.md-back:hover, .stats-back:hover, .mode-back:hover, .draft-menu-btn:hover,
+.draft-mulligan-btn:hover, .draft-settings-btn:hover, .draft-quit-btn:hover,
+.draft-undo-btn:hover, .md-new-btn:hover, .md-action-btn:hover,
+.settings-cog:hover, .log-drawer-toggle:hover, .stats-source-btn:hover,
+.stats-view-btn:hover, .theme-swatch:hover, .pile-badge:hover {
+  /* ENTRY: slower, with the decisive settle. */
+  transition:
+    transform var(--dur-in) var(--ease-snap), box-shadow var(--dur-in) var(--ease-snap), border-color var(--dur-in) var(--ease-snap), color var(--dur-in) var(--ease-snap), background var(--dur-in) var(--ease-snap) !important;
 }
 .btn:active, .mm-option:active, .mode-option:active,
 .db-tab:active, .db-preset:active,
