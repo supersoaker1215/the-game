@@ -13,7 +13,7 @@
 // refreshes code and leaves the assets alone.
 //   CODE_CACHE  — bumped on every deploy (that's the point: fresh code).
 //   ASSET_CACHE — bumped ONLY when the art/audio themselves change.
-const CACHE_VERSION = 'clb-v451-guest-block-trick';
+const CACHE_VERSION = 'clb-v452-card-chamfer';
 const CODE_CACHE  = CACHE_VERSION;
 const ASSET_CACHE = 'clb-assets-v1';
 const APP_SHELL = [

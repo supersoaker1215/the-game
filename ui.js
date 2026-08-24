@@ -21577,7 +21577,13 @@ const UI = {
       ? Math.min(1, card._gojoCombats | 0) : null;
     const hollowHtml = (hpCharge === null) ? ''
       : `<div class="card-hollow-purple hp-stage-${hpCharge}" aria-hidden="true"></div>`;
-    const portraitHtml = `<div class="card-portrait" style="${portraitStyle}"><div class="card-name-overlay"><span class="cn-text">${card.name || ''}</span></div>${frostHtml}${burnHtml}${tauntHtml}${fearHtml}${mindHtml}${invincibleHtml}${dmgImmuneHtml}${evadeHtml}${armorHtml}${criticalHtml}${hollowHtml}</div>`;
+    // THE CHAMFER IS NOW BASE CHROME, ON EVERY CARD. Owner: "for all cards I
+    // like the invincibility corners." It used to belong to the Invincible
+    // overlay alone; it is an element rather than a pseudo because
+    // .card-portrait's ::before and ::after are both already spoken for.
+    // Drawn FIRST so every status overlay still paints over it.
+    const chamferHtml = '<i class="card-chamfer" aria-hidden="true"></i>';
+    const portraitHtml = `<div class="card-portrait" style="${portraitStyle}">${chamferHtml}<div class="card-name-overlay"><span class="cn-text">${card.name || ''}</span></div>${frostHtml}${burnHtml}${tauntHtml}${fearHtml}${mindHtml}${invincibleHtml}${dmgImmuneHtml}${evadeHtml}${armorHtml}${criticalHtml}${hollowHtml}</div>`;
     // [ CARD DATA ] divider was removed per user feedback — read as
     // distracting, didn't add information beyond the visual gap that
     // already exists between the portrait and the desc text. The
