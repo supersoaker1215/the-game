@@ -13373,7 +13373,10 @@ const UI = {
     ov.innerHTML = `
       <div class="first-run-panel" role="dialog" aria-modal="true" aria-label="Welcome">
         <div class="first-run-title">New here?</div>
-        <div class="first-run-body">Take a 3-minute guided walkthrough — play a scripted round and learn the lanes, energy, and the Block Meter before you dive in.</div>
+        <!-- No body copy. It spent three lines explaining what the button below
+             it already says, and named three systems the walkthrough exists to
+             teach — a paragraph selling a decision that is one tap either way.
+             The title asks the question, the buttons answer it. -->
         <div class="first-run-actions">
           <button type="button" class="btn btn-primary" id="first-run-play">Take the walkthrough</button>
           <button type="button" class="btn" id="first-run-skip">Skip for now</button>
