@@ -41950,8 +41950,32 @@ body.no-art-grade .card-portrait { --art-grade: 1 !important; }
     justify-content: flex-start;
     width: 100%;
   }
-  .mm-mw3 .mm-section-label::before { display: none; }
-  .mm-mw3 .mm-section-label::after { flex: 1; width: auto; }
+  /* THE JOINT. Label and rule were two separate marks with a gap between them,
+     and the gap read as a missing piece rather than as spacing. (User: "i feel
+     a symbol is missing here to tie it together.")
+     A NODE at the junction — the rule now emerges FROM a point instead of just
+     starting somewhere. It is the same diamond the player reads all match as
+     the energy glyph (&#9670;, ui.js), so the menu speaks a shape they already
+     know rather than introducing a sixth marker.
+     SOLID, not outlined: at the real 11px size a hollow diamond's centre closes
+     up and it turns into a smudge — checked against ring and outline variants
+     at both 11px and 22px before choosing.
+     `order` is what puts it AFTER the text: ::before is the only free
+     pseudo-element (::after is the rule itself), and flex order re-sequences it
+     without needing a new element in the markup.
+     Landscape only — portrait keeps its symmetric flanked rules, where ::before
+     IS the left-hand rule and the label is already tied on both sides. */
+  .mm-mw3 .mm-section-label::before {
+    display: block;
+    content: '';
+    order: 1;
+    flex: 0 0 auto;
+    width: 0.5em; height: 0.5em;
+    background: rgb(var(--theme-rgb, 79,195,247));
+    transform: rotate(45deg);
+    box-shadow: 0 0 7px rgba(var(--theme-rgb, 79,195,247), 0.9);
+  }
+  .mm-mw3 .mm-section-label::after { order: 2; flex: 1; width: auto; }
   /* Back to hugging the column's left edge, where a back control belongs. */
   .mm-mw3 .mm-subback {
     display: flex;
