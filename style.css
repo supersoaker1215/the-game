@@ -38572,8 +38572,30 @@ body.low-fx .card-frost::after {
   max-height: calc(var(--sb-i) * 1.42);
   flex-wrap: nowrap;
 }
+/* FOUR ON TOP, THE REST CENTRED BENEATH. (User: "lets do 4 on top 1 in the
+   middle.") Two rows do not fit at the normal pill height — measured, a hand
+   card has 29.1px between the badge row and the ATK circle, and two rows at the
+   standard 1.42x box come to 37.2px. The GLYPH is what carries legibility and
+   it is --sb-i, so the box is what gives: 1.06x instead of 1.42x brings two
+   rows to 28.4px and keeps the icon full size. These pills have no background
+   or border, so tightening the box costs nothing visually — it is pure layout
+   height.
+   The row already centres its content, so a trailing fifth badge (or the +N
+   chip, since getStatusBadges caps the hand at five) lands under the middle of
+   the four above it. */
+.player-hand-section .hand-cards .card .status-badges:has(.status-badge:nth-child(4)) {
+  /* 1.0, not 1.06: at 1.06 the two rows cleared the ATK circle by a single
+     pixel, which is not a margin, it is a coincidence waiting for a different
+     font metric or zoom level. At 1.0 the box is exactly the glyph and the
+     pair clears by ~2px. These pills have no background or border, so a box
+     with no padding looks identical — it only costs layout height. */
+  --sb-h: var(--sb-i);
+  flex-wrap: wrap;
+  max-height: calc(var(--sb-h) * 2 + var(--sb-gap));
+}
 .player-hand-section .hand-cards .card .status-badges:has(.status-badge:nth-child(4)) .status-badge {
-  flex-basis: calc((100% - var(--sb-gap) * 4) / 5);
+  flex-basis: calc((100% - var(--sb-gap) * 3) / 4);
+  height: var(--sb-h);
 }
 
 /* THE OVERFLOW CHIP. Past eight there is no honest amount of shrinking left,
