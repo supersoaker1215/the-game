@@ -41850,12 +41850,13 @@ body.no-art-grade .card-portrait { --art-grade: 1 !important; }
    art rather than announce itself, and every status overlay paints on
    top of it.
    ============================================================ */
-.card-portrait > .card-chamfer {
+.card > .card-chamfer {
   position: absolute;
   inset: 0;
   pointer-events: none;
   border-radius: inherit;
-  z-index: 1;                 /* above the art, below every status overlay */
+  /* Above the portrait, because the card's TOP corners sit over it. */
+  z-index: 5;
   --p: rgba(255,255,255,0.24);
   background:
     linear-gradient(to bottom right, transparent calc(50% - 0.6px), var(--p) calc(50% - 0.6px),
@@ -41870,4 +41871,4 @@ body.no-art-grade .card-portrait { --art-grade: 1 !important; }
 /* An invincible card lights its own chamfer rather than drawing a second set
    on top — the seal below is what makes the state legible, and two overlapping
    corner treatments would just read as a heavier line. */
-.card-portrait:has(> .card-invincible) > .card-chamfer { --p: rgba(255,255,255,0.62); }
+.card:has(.card-invincible) > .card-chamfer { --p: rgba(255,255,255,0.62); }

@@ -21265,7 +21265,17 @@ const UI = {
       ? Game.getCardCost(card.owner, card)
       : card.cost;
     const costStyle = displayCost < baseCost ? 'color:#2ecc71' : displayCost > baseCost ? 'color:#e74c3c' : '';
-    const cornerIndicators = '';
+    // THE CHAMFER FRAMES THE CARD, NOT THE PORTRAIT. Owner: "for all cards I
+    // like the invincibility corners."
+    // First attempt put it on the portrait, which is where the Invincible
+    // overlay lives — and on a card whose portrait stops partway down (Batman,
+    // anything with a long rules box) that drew corner cuts at the card's top
+    // corners and then again in the MIDDLE of the card, with nothing at the
+    // bottom. The frame started and never closed, which is what "it's
+    // unfinished" was pointing at. On the card it marks four actual corners.
+    // Reusing cornerIndicators, an empty-string slot already sitting in the
+    // card body for exactly this kind of chrome.
+    const cornerIndicators = '<i class="card-chamfer" aria-hidden="true"></i>';
 
     // Buff/debuff classes on the stat orbs — compare current to the
     // card's stored base (baseAttack / baseHealth from createCardInstance).
@@ -21577,13 +21587,7 @@ const UI = {
       ? Math.min(1, card._gojoCombats | 0) : null;
     const hollowHtml = (hpCharge === null) ? ''
       : `<div class="card-hollow-purple hp-stage-${hpCharge}" aria-hidden="true"></div>`;
-    // THE CHAMFER IS NOW BASE CHROME, ON EVERY CARD. Owner: "for all cards I
-    // like the invincibility corners." It used to belong to the Invincible
-    // overlay alone; it is an element rather than a pseudo because
-    // .card-portrait's ::before and ::after are both already spoken for.
-    // Drawn FIRST so every status overlay still paints over it.
-    const chamferHtml = '<i class="card-chamfer" aria-hidden="true"></i>';
-    const portraitHtml = `<div class="card-portrait" style="${portraitStyle}">${chamferHtml}<div class="card-name-overlay"><span class="cn-text">${card.name || ''}</span></div>${frostHtml}${burnHtml}${tauntHtml}${fearHtml}${mindHtml}${invincibleHtml}${dmgImmuneHtml}${evadeHtml}${armorHtml}${criticalHtml}${hollowHtml}</div>`;
+    const portraitHtml = `<div class="card-portrait" style="${portraitStyle}"><div class="card-name-overlay"><span class="cn-text">${card.name || ''}</span></div>${frostHtml}${burnHtml}${tauntHtml}${fearHtml}${mindHtml}${invincibleHtml}${dmgImmuneHtml}${evadeHtml}${armorHtml}${criticalHtml}${hollowHtml}</div>`;
     // [ CARD DATA ] divider was removed per user feedback — read as
     // distracting, didn't add information beyond the visual gap that
     // already exists between the portrait and the desc text. The
