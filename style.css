@@ -38560,6 +38560,22 @@ body.low-fx .card-frost::after {
 .trick-cards .trick-card .status-badges:has(.status-badge:nth-child(7)) .status-badge {
   flex-basis: calc((100% - var(--sb-gap) * 3) / 4);
 }
+/* THE HAND TILE GETS ONE ROW, NOT TWO.
+   A hand card is 86-200px wide and only ~170px tall, and its stat circles sit
+   much closer to the badge row than a board tile's do. Measured at 1220px with
+   badges correctly sized: one row clears the ATK circle by 12px, two rows run
+   8px INTO it. There is no arrangement of two rows that fits, so the hand row
+   is capped to one and widened to five columns once it holds four or more.
+   getStatusBadges caps the hand at five and emits the +N chip past that, so a
+   busy card still reports what it is not showing rather than clipping it. */
+.player-hand-section .hand-cards .card .status-badges {
+  max-height: calc(var(--sb-i) * 1.42);
+  flex-wrap: nowrap;
+}
+.player-hand-section .hand-cards .card .status-badges:has(.status-badge:nth-child(4)) .status-badge {
+  flex-basis: calc((100% - var(--sb-gap) * 4) / 5);
+}
+
 /* THE OVERFLOW CHIP. Past eight there is no honest amount of shrinking left,
    so the row stops pretending: it shows what fits and says how many it is not
    showing, with the rest named in the tooltip. A count the player can see and
@@ -38623,9 +38639,23 @@ body.low-fx .card-frost::after {
 .trick-card { --sb-card: 132px; }
 @container (max-width: 520px) {
   .board .card { --sb-card: calc((100cqw - 14px) / 6 - 4px); }
-  .player-hand-section .hand-cards .card { --sb-card: 92px; }
-  .trick-cards .trick-card { --sb-card: 110px; }
 }
+
+/* THE HAND AND TRICK TILES SIZE THEMSELVES FROM THEIR OWN WIDTH.
+   These used to be flat numbers inside the phone-only container query — 92px
+   and 110px — which left every wider viewport falling back to the 140px board
+   default. Measured on a 1220px desktop: a hand card is 86px wide while its
+   badges were being sized for a 140px card, 63% too big, and Dr. Manhattan's
+   second badge row ran 31px INTO the ATK circle. The --sb-share system exists
+   precisely so a badge is a constant fraction of the tile it sits on; a
+   hard-coded pixel value opts that tile out of it.
+   --hand-card-w / --trick-card-w are written by UI._fitHandCards on the hand
+   area and range 86-200px with the window and the hand size, so reading them
+   is the only way this can be right at every width. Declared OUTSIDE the
+   container query so it holds everywhere, and the flat overrides are gone
+   rather than left to win on phones. */
+.player-hand-section .hand-cards .card { --sb-card: var(--hand-card-w, 86px); }
+.trick-cards .trick-card { --sb-card: var(--trick-card-w, 110px); }
 
 .card.ally-card .status-badge .sb-i,
 .card.enemy-card .status-badge .sb-i {

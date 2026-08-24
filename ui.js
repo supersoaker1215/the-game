@@ -21509,7 +21509,7 @@ const UI = {
     // Badge source: live instance badges by default; a caller with a CURATED
     // printed list (roguelite's stripped keywords + Text+/Curse) passes
     // opts.badgesHTML to override — the def-vs-instance badge switch, in one place.
-    const statusHtml = `<div class="status-badges">${opts.badgesHTML != null ? opts.badgesHTML : this.getStatusBadges(card)}</div>`;
+    const statusHtml = `<div class="status-badges">${opts.badgesHTML != null ? opts.badgesHTML : this.getStatusBadges(card, inHand)}</div>`;
     const activeHtml = card._moderStripped ? '' : this.getActiveAbilityText(card);
 
     // MVP STAR AND RARITY PIPS REMOVED — owner: "remove the rarity pips and
@@ -22820,7 +22820,10 @@ const UI = {
     return `<span class="status-badge ${cls}${icon ? '' : ' sb-noicon'}"${dataAttr}>`
       + `${icon}<i class="sb-w">${word}</i>${num ? `<i class="sb-n">${num}</i>` : ''}</span>`;
   },
-  getStatusBadges(c) {
+  // inHand — a hand tile has room for ONE row of badges, a board tile for two.
+  // Measured at 1220px: two rows on an 86px hand card run into the ATK circle,
+  // so the cap has to know which surface it is filling.
+  getStatusBadges(c, inHand) {
     const b = [];
     // Helper: build a status badge with the keyword tooltip wired in.
     // Stamps `data-kw="<canonical>"` so the same hover/click-to-pin
@@ -23146,7 +23149,10 @@ const UI = {
     const perms = b.slice().sort((x, y) => rank(x) - rank(y));
     const all = t.concat(perms);
 
-    const CAP = 8;                       // 4 columns x 2 rows
+    // Board: 4 columns x 2 rows. Hand: 5 columns x ONE row — see the hand
+    // block in style.css, which forces the single row so nothing can wrap down
+    // over the stat circles.
+    const CAP = inHand ? 5 : 8;
     if (all.length <= CAP) return all.join('');
     const shown = all.slice(0, CAP - 1); // leave the last slot for the chip
     const hidden = all.slice(CAP - 1);
