@@ -38916,19 +38916,36 @@ body.low-fx .card-hollow-purple::after { animation: none !important; }
    mmHeroDrift itself is left untouched; nothing else references it now, but
    redefining a shared keyframe to suit one caller is how the next surface
    inherits a surprise. */
-@keyframes mmHeroBreathe {
-  0%   { transform: scale(1.05) translate(0, -1.5%); }
-  100% { transform: scale(1.09) translate(-1.1%, -0.3%); }
+/* A PAN, NOT A BREATH. User: "i just want the art to move around the screen,
+   thats all, nothing fancy" — said after rejecting both a bigger zoom and a
+   layered ember/light-pass treatment. So: the picture itself travels, and
+   nothing is added on top of it.
+   FOUR POINTS, NOT TWO. A two-keyframe alternate can only slide up one line and
+   back down it, which reads as a pendulum. Four points let it wander — left,
+   down, right, home — so at no moment is the next position the one it just
+   came from. It ends where it starts, so `infinite` loops seamlessly with no
+   `alternate` and no visible turn-around.
+   THE SCALE IS THE TRAVEL BUDGET. scale(1.08) leaves 4% of overscan on each
+   side, and the path never asks for more than 2.6% — so the art can move this
+   much without the edge of the image ever entering the frame. Raising the
+   travel means raising the scale first; that is the constraint to respect, not
+   the numbers themselves. */
+@keyframes mmHeroPan {
+  0%   { transform: scale(1.08) translate(0,     -1.5%); }
+  25%  { transform: scale(1.08) translate(-2.6%, -2.6%); }
+  50%  { transform: scale(1.08) translate(-1.2%,  0.6%); }
+  75%  { transform: scale(1.08) translate(2.2%,  -0.6%); }
+  100% { transform: scale(1.08) translate(0,     -1.5%); }
 }
 .mm-mw3 .mm-hero-img {
-  animation: mmHeroBreathe 42s ease-in-out infinite alternate;
-  transform: scale(1.05) translate(0, -1.5%);
+  animation: mmHeroPan 60s ease-in-out infinite;
+  transform: scale(1.08) translate(0, -1.5%);
 }
 /* Reduced motion and the low-FX/battery path keep it pinned — the existing
    rules at 2292 and 36543 already target this element; this is the explicit
    partner for the new keyframe so neither can drift apart from the other. */
 @media (prefers-reduced-motion: reduce) {
-  .mm-mw3 .mm-hero-img { animation: none; transform: scale(1.05) translate(0, -1.5%); }
+  .mm-mw3 .mm-hero-img { animation: none; transform: scale(1.08) translate(0, -1.5%); }
 }
 body.low-fx .mm-mw3 .mm-hero-img { animation: none; }
 
