@@ -6542,14 +6542,22 @@ test("2v2: a played card always records who played it", function () {
     p1: { team: 'A', isAI: false }, p2: { team: 'A', isAI: true },
     p3: { team: 'B', isAI: true },  p4: { team: 'B', isAI: true } } };
   G._2v2CurrentActingPlayer = null;          // nothing acting
+  // SAVE/RESTORE. freshGame() hands back the one shared Game object, so a stub
+  // left installed here silently governs every 2v2 test that runs after this
+  // one — a permanently-'p1' active seat quietly defeats any later case whose
+  // whole point is that the seat MOVED.
+  var realActive = G._2v2ActivePlayer;
   G._2v2ActivePlayer = function () { return 'p1'; };
+  try {
+    var c = G.createCardInstance(cardByName('Superman'), 'player');
+    G.state.player.hand = [c];
+    G.state.player.currency = 99;
+    G.playCard('player', c, 0);
 
-  var c = G.createCardInstance(cardByName('Superman'), 'player');
-  G.state.player.hand = [c];
-  G.state.player.currency = 99;
-  G.playCard('player', c, 0);
-
-  assertEq(c._2v2PlayedBy, 'p1', 'the card knows which seat played it');
+    assertEq(c._2v2PlayedBy, 'p1', 'the card knows which seat played it');
+  } finally {
+    G._2v2ActivePlayer = realActive;
+  }
 });
 
 test("Seismic Charge falls off 3 / 2 / 1 from the lane it lands on", function () {
@@ -7436,6 +7444,109 @@ test("The two types that were dropped are registered", function () {
     'a guest can answer a Block-won trick');
   assertEq(Multiplayer4._GAME_ACTION_TYPES.has('skip2v2Jump'), true,
     'a guest can decline a jump');
+});
+
+// ---- 2v2 SEAT ISOLATION: A DEFERRED UN-BRIDGE MUST WRITE HOME TO ITS OWN SEAT
+// The side bridge points state[side].hand at the ACTIVE seat's array, and its
+// un-bridge is DEFERRED whenever the play left a prompt open. The read-back
+// used to ask "who is active?" again at that later moment — so if the phase had
+// advanced, it wrote the bridged seat's hand array into a DIFFERENT seat.
+// Both teammates then shared ONE array and a player saw their teammate's cards.
+// (User: "ryan is playing and dragging cards, i can see his hand ... i don't
+// want to see his hand or anybody else's hand but my own.")
+test("2v2: a deferred un-bridge never writes one seat's hand into another", function () {
+  // The shim's hasPendingPrompt DRAINS prompts, which makes the deferred path
+  // unreachable; swap in a faithful predicate for the length of this test.
+  var savedHPP = Game.hasPendingPrompt;
+  Game.hasPendingPrompt = function () {
+    var st = Game.state;
+    return !!(st && (st.pendingCardChoice || st.pendingLaneChoice));
+  };
+  try {
+    Game.start2v2Match({ names: { p1: 'Ryan', p2: 'Vega', p3: 'yomamma', p4: 'Cortex' } });
+    var s = Game.state, tt = s.twoVTwo;
+    tt.online = true; tt.you = 'p3';
+    ['p1', 'p2', 'p3', 'p4'].forEach(function (k) { tt.players[k].isAI = false; });
+    // PIN THE TEAMS. An earlier suite test swaps them, and this case only has
+    // teeth when the two seats share a SIDE — that is what makes a mis-targeted
+    // read-back land on a teammate's hand instead of harmlessly on the enemy's.
+    tt.players.p1.team = 'A'; tt.players.p3.team = 'A';
+    tt.players.p2.team = 'B'; tt.players.p4.team = 'B';
+
+    var mk = function (n) {
+      return Game.createCardInstance(CARD_DEFS.find(function (c) { return c.name === n; }), 'player');
+    };
+    tt.players.p1.hand = [mk('Loki')];
+    tt.players.p3.hand = [mk('Iron Man')];
+
+    tt.round = 1;
+    var order = Game._2v2ComputePhaseOrder(1);
+    var seatTo = function (pk) {
+      for (var i = 0; i < order.length; i++) {
+        if (order[i].indexOf(pk + '-') === 0) { tt.subPhaseIdx = i; return; }
+      }
+    };
+
+    seatTo('p1');
+    assertEq(Game._2v2ActivePlayer(), 'p1', 'p1 is the acting seat');
+    // p1 plays something whose onPlay leaves a prompt open — the un-bridge defers.
+    Game._2v2WithSideBridge(function () {
+      s.pendingCardChoice = { owner: 'player', cards: [{ name: 'x' }], title: 't', callback: function () {} };
+    });
+    assertEq((s._deferredRestores || []).length, 1, 'the un-bridge was deferred');
+
+    // The phase moves on while that prompt is still open (watchdog, block
+    // trick, combat) — then p1 finally answers and the restore fires LATE.
+    seatTo('p3');
+    s.pendingCardChoice = null;
+    Game.resumeCombatIfWaiting();
+
+    assertEq(tt.players.p1.hand === tt.players.p3.hand, false,
+      'the two teammates must not share one hand array');
+    assertEq(tt.players.p3.hand.map(function (c) { return c.name; }).join(','), 'Iron Man',
+      "yomamma still holds her OWN hand, not Ryan's");
+    assertEq(tt.players.p1.hand.map(function (c) { return c.name; }).join(','), 'Loki',
+      'Ryan still holds his own hand');
+  } finally {
+    Game.hasPendingPrompt = savedHPP;
+  }
+});
+
+// ---- 2v2 WIRE PRIVACY: A SEAT ONLY EVER RECEIVES ITS OWN HAND ---------
+test("2v2: the state sent to a seat carries no other seat's cards", function () {
+  Game.start2v2Match({ names: { p1: 'Ryan', p2: 'Vega', p3: 'yomamma', p4: 'Cortex' } });
+  var s = Game.state, tt = s.twoVTwo;
+  tt.online = true; tt.you = 'p1';
+  tt.players.p1.team = 'A'; tt.players.p3.team = 'A';
+  tt.players.p2.team = 'B'; tt.players.p4.team = 'B';
+
+  var mk = function (n) {
+    return Game.createCardInstance(CARD_DEFS.find(function (c) { return c.name === n; }), 'player');
+  };
+  tt.players.p1.hand = [mk('Loki'), mk('Droideka')];
+  tt.players.p3.hand = [mk('Iron Man')];
+  tt.players.p2.hand = [mk('Magneto'), mk('Knull')];
+  tt.players.p1.trickHand = [];
+  // The side proxy is pointed at the ACTIVE seat — during Ryan's turn that IS
+  // Ryan's hand, which is exactly what used to reach his teammate's client.
+  s.player.hand = tt.players.p1.hand;
+
+  var forP3 = Game._2v2RedactStateFor(s, 'p3');
+  var names = function (list) {
+    return (list || []).map(function (c) { return c && c.name; }).filter(Boolean).join(',');
+  };
+
+  assertEq(names(forP3.twoVTwo.players.p3.hand), 'Iron Man', 'p3 still gets her OWN hand in full');
+  assertEq(names(forP3.twoVTwo.players.p1.hand), '', "Ryan's cards are not in the payload p3 receives");
+  assertEq(names(forP3.twoVTwo.players.p2.hand), '', "nor an opponent's");
+  assertEq(forP3.twoVTwo.players.p1.hand.length, 2, 'but the COUNT survives — the strip still shows 2 backs');
+  assertEq(forP3.twoVTwo.players.p2.hand.length, 2, 'same for the enemy hand display');
+  assertEq(names(forP3.player.hand), 'Iron Man', "the side proxy shows the recipient's own hand, not the actor's");
+  assertEq(forP3.twoVTwo.you, 'p3', 'the payload is stamped for its recipient');
+
+  // ...and the host's own live state is untouched by building that view.
+  assertEq(names(tt.players.p1.hand), 'Loki,Droideka', 'redaction never mutates the authoritative state');
+  assertEq(names(s.player.hand), 'Loki,Droideka', 'the live side proxy is left alone too');
 });
 
 // ---- RUNNER ------------------------------------------------

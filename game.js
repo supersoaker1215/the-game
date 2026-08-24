@@ -14891,10 +14891,14 @@ const Game = {
     }
   },
 
-  _2v2ReadBackActivePlayer() {
+  // seatKey — the seat to write home to. Callers that run INLINE (end2v2Phase)
+  // pass nothing and get the active seat, as before. A DEFERRED caller must
+  // pass the seat its bridge opened on: by the time it fires, the active seat
+  // may have moved on, and writing there corrupts a different player's hand.
+  _2v2ReadBackActivePlayer(seatKey) {
     const s = this.state;
     const tt = s.twoVTwo;
-    const activeKey = this._2v2ActivePlayer();
+    const activeKey = (seatKey && tt && tt.players[seatKey]) ? seatKey : this._2v2ActivePlayer();
     if (!activeKey) return;
     const ap = tt.players[activeKey];
     const side = this._2v2TeamSide[ap.team];
@@ -15843,6 +15847,20 @@ const Game = {
   _2v2WithSideBridge(fn) {
     const s = this.state, tt = s.twoVTwo;
     this._2v2SyncActivePlayer();
+    // PIN THE SEAT THIS BRIDGE OPENED ON. The read-back used to ask
+    // _2v2ActivePlayer() again at un-bridge time — but the un-bridge is
+    // DEFERRED whenever fn() leaves a prompt open, and the active seat can
+    // advance while that prompt sits there (a watchdog forcing the phase on, a
+    // block-trick offer, combat starting). The late read-back then wrote the
+    // BRIDGED seat's arrays home to whoever happened to be active by then:
+    //   tt.players[next].hand = s[side].hand   // still the previous seat's array
+    // Both teammates ended up sharing ONE hand array, so a player literally saw
+    // and held their teammate's cards. (User: "ryan is playing and dragging
+    // cards, i can see his hand ... i don't want to see his hand or anybody
+    // else's hand but my own.")
+    // _2v2WithJumperBridge already binds to an explicit seat; this now does the
+    // same, so a deferred restore can never write home to the wrong seat.
+    const bridgedSeat = this._2v2ActivePlayer();
     const savedDraw = s.drawPile, savedTrickDraw = s.trickDrawPile;
     s.drawPile = tt.drawPile;
     s.trickDrawPile = tt.trickDrawPile;
@@ -15851,7 +15869,7 @@ const Game = {
       tt.trickDrawPile = s.trickDrawPile;
       s.drawPile = savedDraw;
       s.trickDrawPile = savedTrickDraw;
-      this._2v2ReadBackActivePlayer();
+      this._2v2ReadBackActivePlayer(bridgedSeat);
     };
     let out, threw = true;
     try { out = fn(); threw = false; }
@@ -15863,7 +15881,7 @@ const Game = {
       // the energy never drained"). Writing usedEnergy here, before the defer,
       // closes that window; the deferred read-back re-writes the same value.
       if (!threw) {
-        const _ak = this._2v2ActivePlayer && this._2v2ActivePlayer();
+        const _ak = bridgedSeat || (this._2v2ActivePlayer && this._2v2ActivePlayer());
         const _ap = _ak && tt.players[_ak];
         if (_ap) { const _sd = this._2v2TeamSide[_ap.team]; _ap.usedEnergy = Math.max(0, _ap.energy - s[_sd].currency); }
       }
@@ -16041,6 +16059,47 @@ const Game = {
     }
   },
 
+  // Build the copy of the state that ONE seat is allowed to see. Every other
+  // seat's hand and trick hand become {id} stubs: the COUNT survives (the
+  // teammate strip and the enemy hand display are card BACKS driven purely by
+  // .length) but the identities do not travel. Same technique, and the same
+  // reason, as the drawPile/summonDeck stubs in Multiplayer.serializeState —
+  // a card nobody is allowed to see should not be on the wire at all.
+  // (User: "i can see his hand ... i don't want to see his hand or anybody
+  // else's hand but my own.")
+  //
+  // Shallow rebuild, not a deep copy: only the containers whose contents differ
+  // per recipient are re-created, everything else is shared by reference. Each
+  // connection already re-stringifies the message it sends, so per-seat
+  // payloads cost no extra serialisation.
+  _2v2RedactStateFor(clone, seat) {
+    const tt = clone && clone.twoVTwo;
+    if (!tt || !tt.players || !seat || !tt.players[seat]) return clone;
+    const stub = (list) => Array.isArray(list)
+      ? list.map(c => (c && c.id != null) ? { id: c.id } : {})
+      : list;
+    const out = Object.assign({}, clone);
+    const players = {};
+    Object.keys(tt.players).forEach(pk => {
+      const p = tt.players[pk];
+      if (pk === seat) { players[pk] = p; return; }
+      players[pk] = Object.assign({}, p, { hand: stub(p.hand), trickHand: stub(p.trickHand) });
+    });
+    out.twoVTwo = Object.assign({}, tt, { players, you: seat });
+    // The side proxies carry whichever seat was ACTING when this state was
+    // serialised — during a teammate's turn that is literally their hand. Point
+    // the recipient's own side at their own arrays and stub the enemy side, so
+    // no read of state[side].hand can surface someone else's cards either.
+    const me = tt.players[seat];
+    const mySide = (this._2v2TeamSide && this._2v2TeamSide[me.team]) || 'player';
+    const oppSide = mySide === 'player' ? 'ai' : 'player';
+    if (out[mySide]) out[mySide] = Object.assign({}, out[mySide], { hand: me.hand, trickHand: me.trickHand });
+    if (out[oppSide]) out[oppSide] = Object.assign({}, out[oppSide], {
+      hand: stub(out[oppSide].hand), trickHand: stub(out[oppSide].trickHand),
+    });
+    return out;
+  },
+
   _2v2OnlineBroadcast(opts) {
     // Never let a serialize/send failure abort the host's own turn. A throw
     // here used to leave the host playing on while every guest froze on a
@@ -16052,7 +16111,7 @@ const Game = {
         const clone = (typeof Multiplayer !== 'undefined' && Multiplayer.serializeState)
           ? Multiplayer.serializeState(this.state)
           : JSON.parse(JSON.stringify(this.state));
-        Multiplayer4.broadcastState(clone);
+        Multiplayer4.broadcastState(clone, (c, seat) => this._2v2RedactStateFor(c, seat));
       } catch (e) {
         console.error('[2v2] state broadcast failed — guests will not see this update:', e);
         if (typeof window !== 'undefined' && window.__clbErrors) window.__clbErrors.report('2v2-broadcast', e);

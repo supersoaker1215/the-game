@@ -1223,10 +1223,22 @@ class WebRTC4Transport {
     this._peer.on('error', (err) => this._handlePeerError(err));
   }
 
-  // Host broadcasts state to all 3 joiners
-  broadcastState(stateClone) {
-    const msg = { t: 'state', state: stateClone };
-    Object.values(this._conns).forEach(conn => this._sendChunked(conn, msg));
+  // Host broadcasts state to all 3 joiners. Each connection is keyed by its
+  // seat, so when a redactor is supplied every joiner gets the copy built FOR
+  // that seat — which is what keeps one player's hand off the other players'
+  // wires. _sendChunked re-stringifies per connection either way, so the
+  // per-seat payloads cost nothing extra.
+  broadcastState(stateClone, redactFor) {
+    Object.keys(this._conns).forEach(slot => {
+      const conn = this._conns[slot];
+      if (!conn) return;
+      let payload = stateClone;
+      if (typeof redactFor === 'function') {
+        try { payload = redactFor(stateClone, slot) || stateClone; }
+        catch (e) { console.error('[2v2] redact failed for', slot, e); payload = stateClone; }
+      }
+      this._sendChunked(conn, { t: 'state', state: payload });
+    });
   }
 
   close() {
@@ -1293,9 +1305,11 @@ const Multiplayer4 = {
   send(action) { this._send(action); },
 
   // Host broadcasts current game state to all joiners
-  broadcastState(stateClone) {
+  // redactFor(stateClone, playerKey) -> the copy THAT seat may see. Optional;
+  // without it every connection gets the same payload, as before.
+  broadcastState(stateClone, redactFor) {
     if (this._transport && this._transport.broadcastState) {
-      this._transport.broadcastState(stateClone);
+      this._transport.broadcastState(stateClone, redactFor);
     }
   },
 
