@@ -6255,48 +6255,48 @@ body.hit-pause .ai-hand * {
      scales with the badge. */
   padding: 0 calc(var(--cost-size) * 0.17) calc(var(--cost-size) * 0.17) 0;
   z-index: 4;
-  text-shadow: 0 1px 0 rgba(255,255,255,0.34);
+  /* The one remaining light cue, and it earns its place: a single-pixel
+     catch on the digit's LOWER lip is what makes the glyph read as pressed
+     INTO the block rather than printed on it. Dropped from 0.34 to 0.20
+     alongside the gloss — enough to seat the digit, not enough to look wet. */
+  text-shadow: 0 1px 0 rgba(255,255,255,0.20);
   font-family: var(--font-mono);
   font-variant-numeric: tabular-nums;
 }
-/* The solid mass. Saturated neon first, sheen second — the first pass
-   put a white stop at 0% of a 135° ramp and the block came back milky,
-   because the outer corner IS most of a chamfered block's visible area,
-   so the white half of the ramp covered the part you actually look at.
-   Now the fill is flat neon and the specular is a small radial pinned to
-   the corner, which lights the block without bleaching it. Radius on the
-   outer corner only, in px so it tracks the card's 4px radius at any
-   --cost-size. */
+/* The solid mass. FLAT neon — one colour, no ramp, no specular.
+   It went through two wrong versions first, and both were the same
+   mistake in different clothes: trying to model a LIT SURFACE.
+     • a 135° white→neon ramp came back milky, because the outer corner
+       is most of a chamfered block's visible area, so the white half of
+       the ramp covered the part you actually look at;
+     • a small white radial pinned to the corner fixed the milkiness and
+       bought glossy instead — owner: "a little too glossy not neon tron."
+   Tron light is EMITTED, not reflected. An emissive surface has no
+   specular highlight and no shading gradient — it is one flat value with
+   the bloom happening OUTSIDE it, which is what the drop-shadows below
+   are for. Radius on the outer corner only, in px so it tracks the
+   card's 4px radius at any --cost-size. */
 .card-cost::before {
   content: '';
   position: absolute; inset: 0;
   border-radius: var(--cost-radius) 0 0 0;
-  background:
-    radial-gradient(120% 120% at 6% 6%,
-      rgba(255,255,255,0.42) 0%,
-      rgba(255,255,255,0.00) 46%),
-    linear-gradient(135deg,
-      rgba(var(--cost-neon), 1) 0%,
-      rgba(var(--cost-neon), 0.84) 100%);
+  background: rgb(var(--cost-neon));
   -webkit-mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100' preserveAspectRatio='none'><path fill='black' d='M0,0 L100,0 L100,56 L56,100 L0,100 Z'/></svg>") center/100% 100% no-repeat;
           mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100' preserveAspectRatio='none'><path fill='black' d='M0,0 L100,0 L100,56 L56,100 L0,100 Z'/></svg>") center/100% 100% no-repeat;
+  /* The bloom lives out here, not in the fill — that is the whole
+     difference between an emissive block and a shiny one. Carries a
+     little more weight now that the fill is flat. */
   filter:
-    drop-shadow(0 0 4px rgba(var(--cost-neon), 0.60))
-    drop-shadow(0 0 10px rgba(var(--cost-neon), 0.26));
+    drop-shadow(0 0 4px rgba(var(--cost-neon), 0.70))
+    drop-shadow(0 0 11px rgba(var(--cost-neon), 0.32));
   z-index: -2;
 }
-/* The cut edge. A single bright hairline along the chamfer only —
-   the two outer edges are already defined by the card's border, so
-   stroking the whole silhouette would double them. */
-.card-cost::after {
-  content: '';
-  position: absolute; inset: 0;
-  background: rgba(255,255,255,0.62);
-  -webkit-mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100' preserveAspectRatio='none'><path fill='none' stroke='black' stroke-width='5' d='M100,56 L56,100'/></svg>") center/100% 100% no-repeat;
-          mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100' preserveAspectRatio='none'><path fill='none' stroke='black' stroke-width='5' d='M100,56 L56,100'/></svg>") center/100% 100% no-repeat;
-  z-index: -1;
-  pointer-events: none;
-}
+/* NO CUT-EDGE HAIRLINE. There was a white line along the chamfer, on the
+   reading that a bevel catches light on its cut face. Owner: "the white
+   corner should just be the same color no white line." Same call as the
+   gloss above — a light-catching edge is a reflective-material cue, and
+   this block does not reflect anything. The chamfer is defined by where
+   the neon stops. */
 
 /* Per-context colour. These used to repaint the DIGIT; with the
    digit now being the engraved hole they repaint the WEDGE, which
@@ -17901,10 +17901,18 @@ body.theme-purple .board-section {
   transform: translateZ(18px);
 }
 .hand-card-wrapper:hover .card.hand-card .card-cost {
-  /* Cost has its own existing transform (rotate(45deg) for the
-     diamond shape). Append translateZ via a second declaration —
-     the browser composes transforms so both apply. */
-  transform: translateZ(24px);
+  /* THE CORNER STAYS WELDED. Every other content layer pops forward on
+     hover (translateZ under the card's `perspective: 800px`), and for an
+     INSET chip that reads as depth. The cost badge is not inset any more —
+     it is a corner, and its whole identity is being flush against the card's
+     two edges. Perspective scales a lifted child about the card's CENTRE, so
+     lifting a corner-anchored element pushes it diagonally OUTWARD: measured
+     at translateZ(40px) the badge sat 1.2px left and 3.1px ABOVE the card's
+     own border, visibly detached. Owner: "when it hovers it looks like its
+     off the line."
+     Zero depth is the fix, not a smaller depth — any lift at all moves it,
+     and there is no amount of drift that looks deliberate on a flush corner. */
+  transform: none;
 }
 .hand-card-wrapper .card.hand-card .card-desc,
 .hand-card-wrapper .card.hand-card .card-name-banner,
@@ -30151,9 +30159,9 @@ body > .grid-bg {
    4-24px depths. Bumping the deepest layers (cost orb, stat
    circles) pushes the "card holds a miniature 3D world" feel
    further — when tilted, you visibly see PAST the card body. */
-.hand-card-wrapper:hover .card.hand-card .card-cost {
-  transform: translateZ(40px) !important;
-}
+/* (The cost corner used to take translateZ(40px) here — the deepest layer of
+   all. It is welded to the card's edges now and takes no lift; see the
+   `transform: none` rule above for why zero and not merely less.) */
 .hand-card-wrapper:hover .card.hand-card .stat-circle {
   transform: translateZ(28px) !important;
 }
