@@ -34,6 +34,10 @@ load('./sim/shim.js');
 // don't need it), but the relic-hook regression below exercises every
 // relic def's hooks — load it explicitly here.
 load('./roguelite.js');
+// The 2v2 transport, loaded so the allowlist below can be checked against the
+// engine's own handler. Not in the shim's list because run.js / tune.js never
+// touch the wire.
+load('./multiplayer.js');
 
 // ---- Tiny assertion lib -------------------------------------
 var __tests = [], __passed = 0, __failed = 0, __failures = [];
@@ -7405,6 +7409,33 @@ test("...and the push is host-gated, so a guest never broadcasts", function () {
   G._pushOnlineState();
   G._2v2OnlineBroadcast = real;
   assertEq(pushes, 0, 'a guest calling the door broadcasts nothing');
+});
+
+test("Every 2v2 handler case is registered in the transport allowlist", function () {
+  // THE BUG THIS WOULD HAVE CAUGHT. Multiplayer4._GAME_ACTION_TYPES is an
+  // ALLOWLIST, not a router: a `case` in Game._apply2v2OnlineAction is dead
+  // unless its type is also named there, and the message is dropped silently
+  // with a successful-looking send. Two cases had drifted out —
+  // resolve2v2BlockTrick (a guest could not Keep or Play a trick won from a
+  // Block, and the whole match froze) and skip2v2Jump (same freeze, via the
+  // jump offer).
+  // toString is safe HERE specifically: the wrapping that makes it lie lives in
+  // ui.js, which the sim never loads.
+  if (typeof Multiplayer4 === 'undefined' || !Multiplayer4._GAME_ACTION_TYPES) return;
+  var src = Game._apply2v2OnlineAction.toString();
+  var cases = [], m, re = /case\s+'([^']+)'/g;
+  while ((m = re.exec(src)) !== null) cases.push(m[1]);
+  assert(cases.length > 5, 'found the handler cases (' + cases.length + ')');
+  var missing = cases.filter(function (c) { return !Multiplayer4._GAME_ACTION_TYPES.has(c); });
+  assertEq(missing.join(','), '', 'no handler case is unreachable from the wire');
+});
+
+test("The two types that were dropped are registered", function () {
+  if (typeof Multiplayer4 === 'undefined' || !Multiplayer4._GAME_ACTION_TYPES) return;
+  assertEq(Multiplayer4._GAME_ACTION_TYPES.has('resolve2v2BlockTrick'), true,
+    'a guest can answer a Block-won trick');
+  assertEq(Multiplayer4._GAME_ACTION_TYPES.has('skip2v2Jump'), true,
+    'a guest can decline a jump');
 });
 
 // ---- RUNNER ------------------------------------------------

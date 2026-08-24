@@ -1327,10 +1327,26 @@ const Multiplayer4 = {
     return s;
   },
 
+  // THIS IS AN ALLOWLIST, NOT A ROUTER — and it is only HALF of adding a 2v2
+  // message. A `case` in Game._apply2v2OnlineAction does nothing unless its
+  // type is also named here; without the entry the message is dropped before
+  // the engine ever sees it, silently, with conn.send() having returned fine.
+  // Two handler cases had drifted out of this set and were dead for guests:
+  //   resolve2v2BlockTrick — a guest winning a trick from a Block could not
+  //     Keep or Play it. The answer vanished, so the host's pendingBlockTrick
+  //     never cleared, hasPendingPrompt stayed true, and the combat
+  //     continuation parked by whenPromptCleared never ran: all four clients
+  //     froze until a 45s watchdog force-KEPT the trick. Reported as "I chose
+  //     to keep it but it never went into my hand and glitched out the game."
+  //   skip2v2Jump — a guest declining a jump froze the match by the same
+  //     mechanism, via pendingJumpOffer, which hasPendingPrompt also counts.
+  // Both host handlers already existed and were correct; they were simply
+  // unreachable from the wire.
   _GAME_ACTION_TYPES: new Set([
     'play2v2Card', 'play2v2Trick', 'play2v2Jump', 'end2v2Phase', '2v2DraftPick', 'start2v2',
     'req2v2LaneChoice', '2v2LaneChoiceResult', '2v2CardChoiceResult', '2v2DraftMulligan',
-    'req2v2State', '2v2TeamSwap', 'rematch'
+    'req2v2State', '2v2TeamSwap', 'rematch',
+    'resolve2v2BlockTrick', 'skip2v2Jump'
   ]),
   _handleMsg(msg) {
     if (!msg || typeof msg !== 'object') return;
@@ -1376,6 +1392,14 @@ const Multiplayer4 = {
       }
       case 'error':
         this._emit('error', msg);
+        break;
+      default:
+        // MAKE THE NEXT DRIFT LOUD. An unknown type used to fall out of this
+        // switch with no error, no log and a successful-looking send — which is
+        // why two dead handlers went unnoticed. Warn instead of throwing: a
+        // stray message must never take down a live match.
+        console.warn('[MP4] dropped unknown message type:', msg.t,
+          '— if this is a 2v2 action, add it to Multiplayer4._GAME_ACTION_TYPES');
         break;
     }
   },
