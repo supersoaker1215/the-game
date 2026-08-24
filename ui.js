@@ -21266,17 +21266,7 @@ const UI = {
       ? Game.getCardCost(card.owner, card)
       : card.cost;
     const costStyle = displayCost < baseCost ? 'color:#2ecc71' : displayCost > baseCost ? 'color:#e74c3c' : '';
-    // THE CHAMFER FRAMES THE CARD, NOT THE PORTRAIT. Owner: "for all cards I
-    // like the invincibility corners."
-    // First attempt put it on the portrait, which is where the Invincible
-    // overlay lives — and on a card whose portrait stops partway down (Batman,
-    // anything with a long rules box) that drew corner cuts at the card's top
-    // corners and then again in the MIDDLE of the card, with nothing at the
-    // bottom. The frame started and never closed, which is what "it's
-    // unfinished" was pointing at. On the card it marks four actual corners.
-    // Reusing cornerIndicators, an empty-string slot already sitting in the
-    // card body for exactly this kind of chrome.
-    const cornerIndicators = '<i class="card-chamfer" aria-hidden="true"></i>';
+    const cornerIndicators = '';
 
     // Buff/debuff classes on the stat orbs — compare current to the
     // card's stored base (baseAttack / baseHealth from createCardInstance).

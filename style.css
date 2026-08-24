@@ -35335,24 +35335,27 @@ body.low-fx .card-mind-ctrl::after { animation: none !important; }
   -webkit-mask-image: linear-gradient(180deg, #000 0%, #000 82%, rgba(0,0,0,0.5) 93%, rgba(0,0,0,0) 100%);
           mask-image: linear-gradient(180deg, #000 0%, #000 82%, rgba(0,0,0,0.5) 93%, rgba(0,0,0,0) 100%);
 }
-/* THE CORNERS MOVED OUT. They are .card-chamfer now, on every card, so the
-   aegis needs its own mark again — otherwise Invincible would look exactly
-   like every other card. Its replacement is a SEALED EDGE: an unbroken bright
-   line all the way round, doubled, with the outer line held slightly off the
-   inner one so it reads as a shell fitted over the card rather than a border.
-   That keeps it clear of the rest of the status vocabulary, which the block
-   above lays out — frost cuts diagonals, burn rises from the bottom, taunt
-   contracts in rings, fear gathers in the corners, mind control hangs
-   verticals. A continuous seal is the one edge treatment none of them uses,
-   and unlike taunt's rings it does not travel: it is fixed and only brightens. */
+/* Chamfered corner plates. Each is one tile carrying the diagonal that cuts
+   its own corner — the 50% isoline of a corner-to-corner gradient axis is the
+   opposite diagonal, which is exactly the cut we want.
+   These were briefly promoted to every card and then reverted: at hand-card
+   size the diagonals cut straight through the cost badge and both stat orbs.
+   They work HERE because the aegis is board-only, where the card is larger and
+   the corners are clear. */
 .card-invincible::before {
   content: "";
-  position: absolute; inset: 2px;
+  position: absolute; inset: 0;
   border-radius: inherit;
-  box-shadow:
-    inset 0 0 0 1px rgba(255,255,255,0.55),
-    0 0 0 1px rgba(226,240,248,0.30),
-    0 0 7px rgba(210,235,255,0.30);
+  --p: rgba(255,255,255,0.55);
+  background:
+    linear-gradient(to bottom right, transparent calc(50% - 0.6px), var(--p) calc(50% - 0.6px),
+                    var(--p) calc(50% + 0.6px), transparent calc(50% + 0.6px)) 0    0    / 24px 24px no-repeat,
+    linear-gradient(to bottom left,  transparent calc(50% - 0.6px), var(--p) calc(50% - 0.6px),
+                    var(--p) calc(50% + 0.6px), transparent calc(50% + 0.6px)) 100% 0    / 24px 24px no-repeat,
+    linear-gradient(to top right,    transparent calc(50% - 0.6px), var(--p) calc(50% - 0.6px),
+                    var(--p) calc(50% + 0.6px), transparent calc(50% + 0.6px)) 0    100% / 24px 24px no-repeat,
+    linear-gradient(to top left,     transparent calc(50% - 0.6px), var(--p) calc(50% - 0.6px),
+                    var(--p) calc(50% + 0.6px), transparent calc(50% + 0.6px)) 100% 100% / 24px 24px no-repeat;
 }
 /* ONE loop, opacity only — the shield holding, not pulsing at you. */
 .card-invincible::after {
@@ -41836,44 +41839,3 @@ body.no-art-grade .card-portrait { --art-grade: 1 !important; }
 }
 
 
-/* ============================================================
-   CARD CHAMFER — the corner cut, now on every card
-   ============================================================
-   Owner: "for all cards I like the invincibility corners." These four
-   diagonal plates were the Invincible overlay's signature; they are now
-   the card's own edge language, drawn on every portrait at rest.
-
-   Each tile carries the diagonal that cuts its own corner — the 50%
-   isoline of a corner-to-corner gradient axis is the opposite diagonal,
-   which is exactly the cut we want. Same construction the aegis used,
-   at a much lower alpha: as permanent chrome it has to sit under the
-   art rather than announce itself, and every status overlay paints on
-   top of it.
-   ============================================================ */
-.card > .card-chamfer {
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  border-radius: inherit;
-  /* Above the portrait, because the card's TOP corners sit over it. */
-  z-index: 5;
-  /* Owner picked the lit version as the default look, so the resting
-     alpha is the one the aegis used to raise it to. */
-  --p: rgba(255,255,255,0.62);
-  background:
-    linear-gradient(to bottom right, transparent calc(50% - 0.6px), var(--p) calc(50% - 0.6px),
-                    var(--p) calc(50% + 0.6px), transparent calc(50% + 0.6px)) 0    0    / 22px 22px no-repeat,
-    linear-gradient(to bottom left,  transparent calc(50% - 0.6px), var(--p) calc(50% - 0.6px),
-                    var(--p) calc(50% + 0.6px), transparent calc(50% + 0.6px)) 100% 0    / 22px 22px no-repeat,
-    linear-gradient(to top right,    transparent calc(50% - 0.6px), var(--p) calc(50% - 0.6px),
-                    var(--p) calc(50% + 0.6px), transparent calc(50% + 0.6px)) 0    100% / 22px 22px no-repeat,
-    linear-gradient(to top left,     transparent calc(50% - 0.6px), var(--p) calc(50% - 0.6px),
-                    var(--p) calc(50% + 0.6px), transparent calc(50% + 0.6px)) 100% 100% / 22px 22px no-repeat;
-}
-/* An invincible card lights its own chamfer rather than drawing a second set
-   on top — the seal below is what makes the state legible, and two overlapping
-   corner treatments would just read as a heavier line. */
-/* Invincible still has to out-read the default, which is now itself lit —
-   so it goes brighter again. The sealed portrait edge below is what
-   actually carries the state; this is the supporting half. */
-.card:has(.card-invincible) > .card-chamfer { --p: rgba(255,255,255,0.98); }
