@@ -16208,6 +16208,21 @@ const Game = {
   // above, and a second diff-render there strips transient FX classes.
   _pushOnlineState(opts) {
     const silent = !!(opts && opts.silent);
+    // A DRY RUN MUST NEVER TOUCH THE WIRE. previewPlacement/previewPlay deep-
+    // clone the state, stamp it _silentSim, then play the card AND RESOLVE
+    // COMBAT on that clone to build the drag-time forecast. Every push inside
+    // that chain was broadcasting the HYPOTHETICAL future to all three seats:
+    // guests watched combat events that had not happened (block-meter draws,
+    // free block tricks), the round/phase jumped so their client played its
+    // round-open sweep, and their hands were replaced by the simulated ones —
+    // which is how two teammates ended up holding the same cards.
+    // (User: "when the host tries to drag a card onto the field its crazy ...
+    // a bunch of other simulations occurred but never actually fired for the
+    // guest ... my teammate got my hand or we merged.")
+    // _mpBroadcast has carried exactly this guard, with exactly this comment,
+    // since the 1v1 version of the bug. The 2v2 door never got it — which is
+    // why 1v1 was fine and only 2v2 misbehaved.
+    if (this.state && this.state._silentSim) return;
     const tt = this.state && this.state.twoVTwo;
     if (tt && tt.online) {
       // Host only — p1 owns the authoritative state in a 2v2 room.
@@ -16262,6 +16277,9 @@ const Game = {
   },
 
   _2v2OnlineBroadcast(opts) {
+    // Same dry-run guard as _pushOnlineState — this is called directly from a
+    // dozen sites, so the door alone is not enough.
+    if (this.state && this.state._silentSim) return;
     // Never let a serialize/send failure abort the host's own turn. A throw
     // here used to leave the host playing on while every guest froze on a
     // stale state (the broadcast never reached them). serializeState is now

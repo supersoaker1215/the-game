@@ -12343,6 +12343,16 @@ const UI = {
       phase: s.phase, round: s.round,
     };
 
+    // TRY/FINALLY, NOT A BARE RESTORE. Everything below runs with the SIDE
+    // PROXY pointing at the LOCAL VIEWER's hand. If anything in the ~240 lines
+    // between here and the restore throws, the proxy is left aiming at the
+    // viewer's array for the rest of the match — and the very next
+    // _2v2ReadBackActivePlayer writes  tt.players[acting].hand = s[side].hand,
+    // i.e. copies the VIEWER's hand into whichever seat is acting. That is a
+    // second, independent route to two teammates sharing one hand. The restore
+    // is now unconditional. (User: "keep each players card contained to thier
+    // own hand its very simple.")
+    try {
     s.player.hand      = ap.hand;
     s.player.trickHand = ap.trickHand;
     s.player.currency  = ap.energy - ap.usedEnergy;
@@ -12579,7 +12589,8 @@ const UI = {
     this._fx2v2MySide = mySide;
     this.showDamageFloats();
 
-    // Restore patched state
+    } finally {
+    // Restore patched state — unconditional, see the try above.
     s.player.hand      = save.playerHand;
     s.player.trickHand = save.playerTricks;
     s.player.currency  = save.playerCurrency;
@@ -12589,6 +12600,7 @@ const UI = {
     s.ai.deadPile      = save.aiDeadPile;
     s.phase            = save.phase;
     s.round            = save.round;
+    }
   },
 
   // Re-wire hand card onclick handlers to 2v2 card-index selection.

@@ -7760,6 +7760,48 @@ test("a dead card keeps its provenance in the dead pile", function () {
   assertEq(entry._playedRound, 3, '...and when');
 });
 
+// ---- A DRY-RUN PREVIEW MUST NEVER REACH THE WIRE (2v2) -----------------
+// previewPlacement deep-clones the state, stamps it _silentSim, then plays the
+// card AND RESOLVES COMBAT on the clone to build the drag-time forecast. Every
+// push inside that chain was broadcasting the HYPOTHETICAL future to all three
+// seats. _mpBroadcast has carried this guard since the 1v1 version of the bug;
+// the 2v2 door never got it. (User: "when the host tries to drag a card onto
+// the field its crazy ... a bunch of other simulations occurred but never
+// actually fired for the guest ... my teammate got my hand or we merged.")
+test("2v2: a silent preview sim never broadcasts to the guests", function () {
+  Game.start2v2Match({ names: { p1: 'Ryan', p2: 'Vega', p3: 'yomamma', p4: 'Cortex' } });
+  var tt = Game.state.twoVTwo;
+  tt.online = true; tt.you = 'p1';           // we are the host: pushes are ours to make
+
+  if (typeof Multiplayer4 === 'undefined') return;
+  var sent = 0;
+  var realBroadcast = Multiplayer4.broadcastState;
+  Multiplayer4.broadcastState = function () { sent++; };
+  try {
+    // A real push reaches the wire.
+    Game.state._silentSim = false;
+    Game._pushOnlineState();
+    assertEq(sent, 1, 'a genuine push is broadcast');
+
+    // A dry run must not — not through the door...
+    Game.state._silentSim = true;
+    Game._pushOnlineState();
+    assertEq(sent, 1, 'a preview sim is NOT broadcast');
+
+    // ...nor through the direct call, which a dozen sites use.
+    Game._2v2OnlineBroadcast({ silent: true });
+    assertEq(sent, 1, 'and not via the direct broadcast either');
+
+    // Clearing the flag restores normal service.
+    Game.state._silentSim = false;
+    Game._pushOnlineState();
+    assertEq(sent, 2, 'the real play still broadcasts');
+  } finally {
+    Multiplayer4.broadcastState = realBroadcast;
+    Game.state._silentSim = false;
+  }
+});
+
 // ---- RUNNER ------------------------------------------------
 // ============================================================
 
