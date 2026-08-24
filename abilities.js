@@ -94,25 +94,33 @@ const CARD_ABILITIES = {
 
   // ==================== COST 1 ====================
   "Ant-Man": {
+    // DESTROY FIRST, THEN SUMMON. (User: "flip the order — destroy... then
+    // summon for ant man.") The summon opens a LANE PROMPT, so leading with it
+    // put a placement question in front of the player before the automatic
+    // half of the card had resolved: you picked a lane for the Ant, and only
+    // then found out what died. Killing first means the board the player is
+    // placing into is the board they will actually have.
     onPlay(G, self, lane) {
       if (typeof UI !== 'undefined' && UI._fxAntManPym) { try { UI._fxAntManPym(self); } catch (e) {} }
-      const afterSummon = () => {
-        // Roguelite Text+ override — _antManKillThreshold raises the
-        // pick window. Default 1 (classic ≤1 ATK or ≤1 HP); Text+
-        // bumps to 2 so 2/2 bodies are also valid targets.
-        const t = self._antManKillThreshold || 1;
-        const targets = G.getEnemiesOf(self.owner).filter(c => (c.attack <= t || c.currentHealth <= t) && G.canEffectLand(c, 'destroy', { owner: self.owner, source: self }));
-        if (targets.length) {
-          G.promptCardChoice(self.owner, targets, "Ant-Man — Destroy", `Choose an enemy to destroy (${t} ATK or ${t} HP)`, (target) => {
-            G.log(`[KILL] ${self.name} destroys ${target.name}!`); G.killCard(target, self);
-          }, _aiThreatPicker);
-        }
-      };
       // _antManAntAtk / _antManAntHp let Text+ bump the summoned Ant
       // beyond its 1/1 base. Default 1/1 (classic); Text+ sets 4/4.
-      const antAtk = self._antManAntAtk || 1;
-      const antHp  = self._antManAntHp  || 1;
-      G.summonCardChoice(self.owner, "Ant", 1, antAtk, antHp, ["Bullseye"], afterSummon);
+      const summonAnt = () => {
+        const antAtk = self._antManAntAtk || 1;
+        const antHp  = self._antManAntHp  || 1;
+        G.summonCardChoice(self.owner, "Ant", 1, antAtk, antHp, ["Bullseye"]);
+      };
+      // Roguelite Text+ override — _antManKillThreshold raises the
+      // pick window. Default 1 (classic ≤1 ATK or ≤1 HP); Text+
+      // bumps to 2 so 2/2 bodies are also valid targets.
+      const t = self._antManKillThreshold || 1;
+      const targets = G.getEnemiesOf(self.owner).filter(c => (c.attack <= t || c.currentHealth <= t) && G.canEffectLand(c, 'destroy', { owner: self.owner, source: self }));
+      if (!targets.length) { summonAnt(); return; }
+      G.promptCardChoice(self.owner, targets, "Ant-Man — Destroy", `Choose an enemy to destroy (${t} ATK or ${t} HP)`, (target) => {
+        G.log(`[KILL] ${self.name} destroys ${target.name}!`); G.killCard(target, self);
+        // Summon AFTER the kill resolves, so any death trigger it sets off has
+        // finished before the player is asked where the Ant goes.
+        summonAnt();
+      }, _aiThreatPicker);
     }
   },
   "Poison Ivy": {

@@ -7907,6 +7907,57 @@ test("Thanos: the roguelite tier ladder still lands on its old numbers", functio
   });
 });
 
+// ---- ANT-MAN DESTROYS BEFORE HE SUMMONS --------------------------------
+// (User: "flip the order — destroy... then summon for ant man.") The summon
+// opens a LANE prompt, so leading with it asked the player to place the Ant
+// before the automatic half of the card had resolved.
+test("Ant-Man destroys first, then summons the Ant", function () {
+  var G = freshGame();
+  G.state.player.isHuman = false; G.state.ai.isHuman = false;
+  // A DIFFERENT card as the victim: two instances of the same def in one fresh
+  // game share an id and trip the duplicate-id invariant — test noise, not a
+  // product bug, but noise that looks like one in the log.
+  var victim = G.createCardInstance(cardByName('Hawkeye'), 'ai');
+  victim.attack = 1; victim.currentHealth = 1;      // a legal ≤1/≤1 target
+  G.state.lanes[3].ai = victim;
+
+  var order = [];
+  var realKill = G.killCard, realSummon = G.summonCardChoice;
+  G.killCard = function (c, src) { order.push('destroy'); return realKill.call(G, c, src); };
+  G.summonCardChoice = function () { order.push('summon'); return realSummon.apply(G, arguments); };
+  try {
+    var am = G.createCardInstance(cardByName('Ant-Man'), 'player');
+    G.state.lanes[0].player = am;
+    cardByName('Ant-Man').onPlay(G, am, 0);
+  } finally {
+    G.killCard = realKill; G.summonCardChoice = realSummon;
+  }
+
+  assertEq(order.join(' → '), 'destroy → summon', 'the kill resolves before the placement prompt');
+  assertEq(G.state.lanes[3].ai, null, 'the enemy is gone');
+});
+
+test("Ant-Man still summons when there is nothing to destroy", function () {
+  var G = freshGame();
+  G.state.player.isHuman = false; G.state.ai.isHuman = false;
+  // No enemies at all — the destroy half simply has no target.
+  var summoned = 0;
+  var realSummon = G.summonCardChoice;
+  G.summonCardChoice = function () { summoned++; return realSummon.apply(G, arguments); };
+  try {
+    var am = G.createCardInstance(cardByName('Ant-Man'), 'player');
+    G.state.lanes[0].player = am;
+    cardByName('Ant-Man').onPlay(G, am, 0);
+  } finally { G.summonCardChoice = realSummon; }
+
+  assertEq(summoned, 1, 'the Ant is summoned even with no kill to make');
+  var ants = 0;
+  for (var i = 0; i < G.LANE_COUNT; i++) {
+    if (G.state.lanes[i].player && G.state.lanes[i].player.name === 'Ant') ants++;
+  }
+  assertEq(ants, 1, 'and it actually reaches the board');
+});
+
 // ---- RUNNER ------------------------------------------------
 // ============================================================
 

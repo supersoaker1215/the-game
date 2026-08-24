@@ -56,7 +56,7 @@ const CARD_DEFS = [
   // ==================== COST 1 ====================
   { name: "Ant-Man", cost: 1, attack: 2, health: 1, type: "hero",
     abilities: [],
-    desc: "When Played: Summon a (1/1) Ant with Bullseye in any lane. Destroy an enemy with ≤ 1 ATK or ≤ 1 HP." },
+    desc: "When Played: Destroy an enemy with ≤ 1 ATK or ≤ 1 HP. Summon a (1/1) Ant with Bullseye in any lane." },
   { name: "Poison Ivy", cost: 1, attack: 1, health: 3, type: "villain",
     abilities: [],
     desc: "Each Turn: Charm a random ally. Poison Ivy adds that ally's ATK for this turn. The bonus is lost if that ally is destroyed." },
