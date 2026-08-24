@@ -42071,10 +42071,10 @@ body.no-art-grade .card-portrait { --art-grade: 1 !important; }
      header / section / section / botbar, and a submenu runs header / button /
      section x3 / botbar — the button is a different element type, so the divs
      number identically. One ladder covers the menu and every submenu. */
-  .mm-mw3 .mm-panel .mm-section:nth-of-type(2) .mm-section-label { width: 100%; }
-  .mm-mw3 .mm-panel .mm-section:nth-of-type(3) .mm-section-label { width: 84%; }
-  .mm-mw3 .mm-panel .mm-section:nth-of-type(4) .mm-section-label { width: 70%; }
-  .mm-mw3 .mm-panel .mm-section:nth-of-type(5) .mm-section-label { width: 58%; }
+  .mm-mw3 .mm-panel .mm-section:nth-of-type(2) .mm-section-label { width: var(--mm-rule-field); }
+  .mm-mw3 .mm-panel .mm-section:nth-of-type(3) .mm-section-label { width: calc(var(--mm-rule-field) * 0.84); }
+  .mm-mw3 .mm-panel .mm-section:nth-of-type(4) .mm-section-label { width: calc(var(--mm-rule-field) * 0.70); }
+  .mm-mw3 .mm-panel .mm-section:nth-of-type(5) .mm-section-label { width: calc(var(--mm-rule-field) * 0.58); }
   /* The music block closes the ladder. Its flat border-top was a hard 1px line
      that stopped dead at the box edge while every rule above it dissolved —
      the one divider on the screen not speaking the same language. Redrawn as
@@ -42088,7 +42088,9 @@ body.no-art-grade .card-portrait { --art-grade: 1 !important; }
     position: absolute;
     top: 0; left: 0;
     height: 1px;
-    width: 82%;
+    /* Same field as the section rules above, so the whole ladder is measured
+       from one origin rather than this one being a percentage of its own box. */
+    width: calc(var(--mm-rule-field) * 0.58);
     background: linear-gradient(90deg,
       rgba(var(--theme-rgb, 79,195,247), 0.55) 0,
       rgba(var(--theme-rgb, 79,195,247), 0.35) 20%,
@@ -42120,8 +42122,20 @@ body.no-art-grade .card-portrait { --art-grade: 1 !important; }
   /* THE COLUMN, and its cap. min(760px,82vw) was sized for the centred layout
      where nothing sat beside it; as a left column it has to clear the art. */
   .mm-mw3 .mm-panel {
-    margin-left: clamp(34px, 6vw, 120px);
+    /* Held in a var because the rule-field below has to subtract it. Written
+       twice, these two drift apart the moment either is tuned. */
+    --mm-col-inset: clamp(34px, 6vw, 120px);
+    margin-left: var(--mm-col-inset);
     margin-right: auto;
     width: min(620px, 40vw);
+    /* THE RULES MUST STOP BEFORE THE ART. The panel is 40vw wide starting at
+       ~6vw, so its right edge lands around 46vw — while the hero begins at
+       38vw. The TEXT never noticed because it is short, but the dividers are
+       the longest things in the column and were running out over the picture:
+       measured, PLAY's rule crossed 97px past the hero's left edge and
+       LIBRARY's 19px. (User: "make sure the lines dont bleed into the art.")
+       Capping the field at 36vw leaves ~2vw of clearance before the art starts,
+       and min() means a narrow window still just uses the column width. */
+    --mm-rule-field: min(100%, calc(36vw - var(--mm-col-inset)));
   }
 }
