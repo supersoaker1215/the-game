@@ -4946,9 +4946,13 @@ const Game = {
       card.drawOnPlay = 0;
       // Snapshot pre-draw hand so we can credit only the cards that
       // actually entered hand (hand-cap / empty-pile can short the draw).
-      const before = this.state[owner].hand.length;
-      this.drawCards(owner, n);
-      const actuallyDrawn = this.state[owner].hand.length - before;
+      // Name the card, and measure against the hand the draw will ACTUALLY
+      // land in — reading the side proxy while the draw routed to a seat
+      // made this count nonsense. (Three copies of this block exist.)
+      const _tgt = this._2v2HandTarget ? this._2v2HandTarget(owner, card) : this.state[owner];
+      const before = _tgt.hand.length;
+      this.drawCards(owner, n, card);
+      const actuallyDrawn = _tgt.hand.length - before;
       if (actuallyDrawn > 0) this._creditChain(card, 'statsCardAdvantage', actuallyDrawn);
       this.log(`${card.name} draws ${n} card${n > 1 ? 's' : ''}.`);
     }
@@ -5139,9 +5143,13 @@ const Game = {
     if (card.drawOnPlay > 0) {
       const n = card.drawOnPlay;
       card.drawOnPlay = 0;
-      const before = this.state[owner].hand.length;
-      this.drawCards(owner, n);
-      const actuallyDrawn = this.state[owner].hand.length - before;
+      // Name the card, and measure against the hand the draw will ACTUALLY
+      // land in — reading the side proxy while the draw routed to a seat
+      // made this count nonsense. (Three copies of this block exist.)
+      const _tgt = this._2v2HandTarget ? this._2v2HandTarget(owner, card) : this.state[owner];
+      const before = _tgt.hand.length;
+      this.drawCards(owner, n, card);
+      const actuallyDrawn = _tgt.hand.length - before;
       if (actuallyDrawn > 0) this._creditChain(card, 'statsCardAdvantage', actuallyDrawn);
       this.log(`${card.name} draws ${n} card${n > 1 ? 's' : ''}.`);
     }
@@ -7469,11 +7477,11 @@ const Game = {
     });
   },
 
-  drawCards(owner, count) {
+  drawCards(owner, count, source) {
     // 2v2 combat: measure the cap against — and read discount state from — the
     // OWNING seat's hand, not whichever teammate the side proxy is bound to. The
     // drawn card itself lands via addToHand below, which routes the same way.
-    const p = this._2v2HandTarget(owner);
+    const p = this._2v2HandTarget(owner, source);
     const opp = this.opponent(owner);
     const who = this.seatLabel(owner);
 
@@ -7698,7 +7706,11 @@ const Game = {
       // Doomsday: set stats from the owner's card-play counter (shared helper —
       // same logic used by the Foresee / Scry paths so they can't drift).
       this._applyDoomsdayDrawScaling(card, owner);
-      if (!this.addToHand(owner, card)) break;
+      // Pass the SOURCE through. addToHand re-resolves the target hand on its
+      // own, so without this the routing decided two lines above was thrown
+      // away and the card landed on whichever seat the fallback chain picked —
+      // which is precisely how the teammate ended up holding the draw.
+      if (!this.addToHand(owner, card, null, source)) break;
       drawn.push(card.name);
     }
     if (drawn.length) {
@@ -7713,10 +7725,14 @@ const Game = {
 
   // Centralized hand/trick gainers — respect max hand (7) / max trick (3) caps.
   // Return true if added, false if the hand was full (card/trick silently discarded).
-  addToHand(owner, card, source) {
+  // routeSource — used ONLY to pick which seat's hand this lands in (2v2). Kept
+  // separate from `source`, which drives the dossier line and the card-advantage
+  // credit: a deck draw must still record as a plain "Drawn" and must not be
+  // credited twice (drawCards already credits it).
+  addToHand(owner, card, source, routeSource) {
     // 2v2 combat: land the card in the OWNING seat's hand, not whichever
     // teammate the side proxy happens to be bound to (see _2v2HandTarget).
-    const p = this._2v2HandTarget(owner);
+    const p = this._2v2HandTarget(owner, routeSource || source);
     const cap = (p.maxHandSize != null ? p.maxHandSize : 7);
     if (p.hand.length >= cap) {
       this.log(`  [HAND FULL] ${this.seatPossessive(owner)} hand is full (${cap}) — ${card && card.name ? card.name : 'card'} discarded.`);
@@ -10717,16 +10733,38 @@ const Game = {
   // to the triggering card's owner before every combat hook, so route the gain
   // to that seat when its hand is a DIFFERENT array than the side proxy's (i.e.
   // we're in combat) and it's on the owner's team. Otherwise unchanged.
-  _2v2HandTarget(owner) {
+  // `source` — the CARD causing the gain, when there is one. Pass it: it is the
+  // only signal that survives combat and any other moment when no seat is
+  // "acting", because the card itself remembers who played it.
+  //
+  // This was the ONLY acting-seat resolver in the file that read
+  // _2v2CurrentActingPlayer and stopped there — seatLabel and promptLaneChoice
+  // both fall through _2v2AIDriving and _2v2ActivePlayer() first. When that one
+  // global was null (which the battle log proves it was: the line above the
+  // draw printed the TEAM name "Player 1 & Ryan", seatLabel's last-resort form)
+  // this returned the SIDE PROXY, whose hand is whichever teammate synced last
+  // — so the card landed in the wrong player's hand. (User: "i played padme and
+  // my teammate drew king shark, it should go to me since i played the card
+  // that draws a card.")
+  _2v2HandTarget(owner, source) {
     const side = this.state[owner];
     const tt = this.state && this.state.twoVTwo;
-    if (!tt || !tt.online) return side;
-    const seat = this._2v2CurrentActingPlayer;
-    if (seat && tt.players[seat]
-        && this._2v2TeamSide[tt.players[seat].team] === owner
-        && tt.players[seat].hand !== (side && side.hand)) {
-      return tt.players[seat];
+    if (!tt || !tt.players) return side;
+    const onSide = (pk) => !!(pk && tt.players[pk]
+      && this._2v2TeamSide[tt.players[pk].team] === owner);
+    // 1. The seat that played the card causing this gain.
+    let seat = (source && (source._2v2PlayedBy || source._mcSeat)) || null;
+    if (!onSide(seat)) seat = null;
+    // 2. Otherwise the same chain every sibling resolver already uses.
+    if (!seat) {
+      seat = [this._2v2CurrentActingPlayer, this._2v2AIDriving,
+              (this._2v2ActivePlayer && this._2v2ActivePlayer())].find(onSide) || null;
     }
+    if (seat) return tt.players[seat];
+    // 3. Nothing resolved: derive a seat on the OWNER's side rather than write
+    //    into whatever array the proxy is stale on.
+    const derived = this._2v2SeatForSide(owner);
+    if (onSide(derived)) return tt.players[derived];
     return side;
   },
 
@@ -11592,9 +11630,13 @@ const Game = {
         if (card.drawOnPlay > 0) {
           const n = card.drawOnPlay;
           card.drawOnPlay = 0;
-          const before = this.state[owner].hand.length;
-          this.drawCards(owner, n);
-          const actuallyDrawn = this.state[owner].hand.length - before;
+          // Name the card, and measure against the hand the draw will ACTUALLY
+          // land in — reading the side proxy while the draw routed to a seat
+          // made this count nonsense. (Three copies of this block exist.)
+          const _tgt = this._2v2HandTarget ? this._2v2HandTarget(owner, card) : this.state[owner];
+          const before = _tgt.hand.length;
+          this.drawCards(owner, n, card);
+          const actuallyDrawn = _tgt.hand.length - before;
           if (actuallyDrawn > 0) this._creditChain(card, 'statsCardAdvantage', actuallyDrawn);
           this.log(`${card.name} draws ${n} card${n > 1 ? 's' : ''}.`);
         }
@@ -14172,10 +14214,20 @@ const Game = {
     const origState = this.state;
     const origSetTimeout = (typeof window !== 'undefined') ? window.setTimeout : null;
     const savedUI = {};
+    const _simSavedActor = this._2v2CurrentActingPlayer;
+    const _simSavedDriving = this._2v2AIDriving;
     let result = null;
     try {
       const clone = this.cloneStateDeep(origState);
       clone._silentSim = true;
+      // BELT AND BRACES: make the simulated state structurally incapable of
+      // networking, rather than trusting every wire door to check _silentSim.
+      // The 2v2 door forgot for a long time and shipped the whole hypothetical
+      // future — placement, combat, block draws, the next round — to every
+      // seat. A clone with no room and no role has nowhere to send anything, so
+      // a future door added without the guard still cannot leak.
+      if (clone.twoVTwo) clone.twoVTwo.online = false;
+      clone.mp = null;
       this.state = clone;
       // Stub UI so any render / animation / SFX call inside the
       // placement chain becomes a no-op. The const binding can't be
@@ -14282,6 +14334,13 @@ const Game = {
       result = null;
     } finally {
       this.state = origState;
+      // ENGINE-LEVEL FIELDS ARE NOT PART OF state, so restoring state alone
+      // leaves the sim's bookkeeping behind. _2v2CurrentActingPlayer is the one
+      // that matters: it decides which seat answers prompts and which seat's
+      // hand a draw lands in, and a preview was leaving it stamped most of the
+      // time. Snapshot and restore it around the whole simulation.
+      this._2v2CurrentActingPlayer = _simSavedActor;
+      this._2v2AIDriving = _simSavedDriving;
       if (typeof UI !== 'undefined') {
         for (const k in savedUI) {
           if (k === '_sfx') UI.sfx = savedUI[k];
@@ -14328,12 +14387,22 @@ const Game = {
     if (this.state.gameOver) return null;
     if (!this.cloneStateDeep) return null;
     const origState = this.state;
+    const _simSavedActor = this._2v2CurrentActingPlayer;
+    const _simSavedDriving = this._2v2AIDriving;
     const origUI = (typeof UI !== 'undefined') ? UI : null;
     const origSetTimeout = (typeof window !== 'undefined') ? window.setTimeout : null;
     let result = null;
     try {
       const clone = this.cloneStateDeep(origState);
       clone._silentSim = true;
+      // BELT AND BRACES: make the simulated state structurally incapable of
+      // networking, rather than trusting every wire door to check _silentSim.
+      // The 2v2 door forgot for a long time and shipped the whole hypothetical
+      // future — placement, combat, block draws, the next round — to every
+      // seat. A clone with no room and no role has nowhere to send anything, so
+      // a future door added without the guard still cannot leak.
+      if (clone.twoVTwo) clone.twoVTwo.online = false;
+      clone.mp = null;
       this.state = clone;
       // Stub UI methods in place for the duration of the sim. UI is a
       // top-level `const` so we can't replace the binding — instead we
@@ -14447,6 +14516,13 @@ const Game = {
       result = null;
     } finally {
       this.state = origState;
+      // ENGINE-LEVEL FIELDS ARE NOT PART OF state, so restoring state alone
+      // leaves the sim's bookkeeping behind. _2v2CurrentActingPlayer is the one
+      // that matters: it decides which seat answers prompts and which seat's
+      // hand a draw lands in, and a preview was leaving it stamped most of the
+      // time. Snapshot and restore it around the whole simulation.
+      this._2v2CurrentActingPlayer = _simSavedActor;
+      this._2v2AIDriving = _simSavedDriving;
       // Restore UI methods we mutated. Property assignments survive the
       // const binding intact.
       if (this._simSavedUI && typeof UI !== 'undefined') {
@@ -15064,9 +15140,29 @@ const Game = {
     const ap = tt.players[activeKey];
     const side = this._2v2TeamSide[ap.team];
 
-    // Read back any changes made by ability code
-    ap.hand      = s[side].hand;
-    ap.trickHand = s[side].trickHand;
+    // Read back any changes made by ability code.
+    //
+    // NEVER ADOPT AN ARRAY THAT BELONGS TO ANOTHER SEAT. This assignment
+    // exists to catch code that REPLACED the proxy's array (a filter, a
+    // splice-to-new), and while the proxy still holds this seat's own array it
+    // is a harmless identity write. But s[side].hand is a MOVING TARGET:
+    // _2v2SyncActivePlayer re-points it at the next seat on every sub-phase
+    // start, and the render re-points it at the local viewer. If the un-bridge
+    // was deferred (a prompt was open) and either of those moved it first,
+    // this line stamps the OTHER SEAT'S ARRAY onto the pinned seat — both
+    // seats then share one array, the pinned seat's own cards are gone, and
+    // each player can play from the other's hand. Pinning the seat KEY (done
+    // earlier) fixed which seat we write to, not WHAT we read.
+    //
+    // A genuinely replaced array belongs to no seat and is still adopted, so
+    // real edits survive; only the aliasing case is refused.
+    // (User: "my teammate got my hand or we merged, he now can play from my
+    // hand, like a person is removed from the game.")
+    const _foreign = (arr) => !!arr && this._2v2SLOTS.some(pk =>
+      pk !== activeKey && tt.players[pk] &&
+      (tt.players[pk].hand === arr || tt.players[pk].trickHand === arr));
+    if (!_foreign(s[side].hand))      ap.hand      = s[side].hand;
+    if (!_foreign(s[side].trickHand)) ap.trickHand = s[side].trickHand;
     ap.usedEnergy = ap.energy - s[side].currency;
     // Read back team state
     tt.teams[ap.team].health    = s[side].health;

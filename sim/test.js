@@ -7481,9 +7481,18 @@ test("2v2: a deferred un-bridge never writes one seat's hand into another", func
 
     tt.round = 1;
     var order = Game._2v2ComputePhaseOrder(1);
+    // MIRROR WHAT A REAL SUB-PHASE START DOES. _2v2StartSubPhase advances the
+    // index AND calls _2v2SyncActivePlayer(), which re-points the side proxy's
+    // hand at the NEW seat. Setting only the index made this test blind to the
+    // exact bug it was written for: the deferred read-back reads
+    // s[side].hand, and without the re-sync that array had never moved.
     var seatTo = function (pk) {
       for (var i = 0; i < order.length; i++) {
-        if (order[i].indexOf(pk + '-') === 0) { tt.subPhaseIdx = i; return; }
+        if (order[i].indexOf(pk + '-') === 0) {
+          tt.subPhaseIdx = i;
+          Game._2v2SyncActivePlayer();
+          return;
+        }
       }
     };
 
@@ -7800,6 +7809,45 @@ test("2v2: a silent preview sim never broadcasts to the guests", function () {
     Multiplayer4.broadcastState = realBroadcast;
     Game.state._silentSim = false;
   }
+});
+
+// ---- A DRAW GOES TO THE SEAT THAT PLAYED THE CARD ----------------------
+// "i played padme and my teammate drew king shark, it should go to me since i
+// played the card that draws a card." _2v2HandTarget was the only acting-seat
+// resolver that read _2v2CurrentActingPlayer and stopped there; with that
+// global null it returned the SIDE PROXY, whose hand is whichever teammate
+// synced last. The battle log proves the global WAS null: the line above the
+// draw printed seatLabel's last-resort team form, "Player 1 & Ryan".
+test("2v2: a card's draw lands on the seat that played it, not the teammate", function () {
+  Game.start2v2Match({ names: { p1: 'Player 1', p2: 'Vega', p3: 'Ryan', p4: 'Cortex' } });
+  var s = Game.state, tt = s.twoVTwo;
+  tt.online = true; tt.you = 'p1';
+  tt.players.p1.team = 'A'; tt.players.p3.team = 'A';
+  tt.players.p2.team = 'B'; tt.players.p4.team = 'B';
+
+  var mk = function (n, o) { return Game.createCardInstance(cardByName(n), o); };
+  tt.players.p1.hand = [];
+  tt.players.p3.hand = [];
+  // The side proxy is stale on the TEAMMATE — exactly the state the bug needs.
+  s.player.hand = tt.players.p1.hand;
+
+  // p3 (Ryan) played the drawing card. Nobody is "acting" any more.
+  var padme = mk('Padme Amidala', 'player');
+  padme._2v2PlayedBy = 'p3';
+  Game._2v2CurrentActingPlayer = null;
+  Game._2v2AIDriving = null;
+
+  var target = Game._2v2HandTarget('player', padme);
+  assertEq(target, tt.players.p3, 'the gain routes to the seat that played the card');
+  assert(target !== s.player, 'and NOT to the stale side proxy');
+
+  // ...and an actual draw lands there.
+  s.drawPile = [mk('King Shark', 'player')];
+  tt.drawPile = s.drawPile;
+  Game.drawCards('player', 1, padme);
+  assertEq(tt.players.p3.hand.length, 1, 'Ryan holds the card he drew');
+  assertEq(tt.players.p3.hand[0].name, 'King Shark', 'and it is the right card');
+  assertEq(tt.players.p1.hand.length, 0, 'his teammate got nothing');
 });
 
 // ---- RUNNER ------------------------------------------------
