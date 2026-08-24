@@ -15878,8 +15878,14 @@ const Game = {
   _2v2NextAIName() {
     const tt = this.state.twoVTwo;
     const used = new Set(this._2v2SLOTS.map(pk => tt.players[pk] && tt.players[pk].name).filter(Boolean));
-    const pick = this._2v2AI_NAMES.find(n => !used.has('🤖 ' + n)) || this._2v2AI_NAMES[0];
-    return '🤖 ' + pick;
+    // The name is now PLAIN TEXT. The bot mark is drawn by UI.seatNameHTML as a
+    // neon glyph, not baked into the string — an emoji in the name meant a
+    // full-colour system icon inside a Tron board, and it rode every broadcast
+    // as literal text. isAI on the seat is what says "bot"; the name just says
+    // who. (UI.seatNameHTML still strips the old prefix, so matches already in
+    // flight render correctly too.)
+    const pick = this._2v2AI_NAMES.find(n => !used.has(n) && !used.has('🤖 ' + n)) || this._2v2AI_NAMES[0];
+    return pick;
   },
   // Host, lobby only: fill an empty seat with an AI (or free it again).
   add2v2AI(pk) {

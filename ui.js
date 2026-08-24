@@ -12298,7 +12298,7 @@ const UI = {
       return `<div class="twov2-tk-chip is-${state}${you ? ' is-you' : ''}" style="--tkc:${teamColor(team)}" title="${esc(name)} — ${playLabel(step)}${team ? ' (Team ' + team + ')' : ''}">
         <span class="twov2-tk-ord">${i + 1}</span>
         <span class="twov2-tk-body">
-          <span class="twov2-tk-name">${esc(name)}${you ? ' <b>(you)</b>' : ''}</span>
+          <span class="twov2-tk-name">${UI.seatNameHTML(name, p.isAI)}${you ? ' <b>(you)</b>' : ''}</span>
           <span class="twov2-tk-play">${playLabel(step)}</span>
         </span>
         ${i === idx ? '<span class="twov2-tk-now">NOW</span>' : ''}
@@ -12767,7 +12767,7 @@ const UI = {
       for (let i = 0; i < tricks; i++) backs += `<span class="rc-back rc-back-trick">${cardBackSVG}</span>`;
       if (!backs) backs = `<span class="rc-empty">—</span>`;
       return `<div class="rc-chip rc-chip-hand${active ? ' rc-active' : ''}${isMe ? ' rc-me' : ''}">`
-        + `<span class="rc-name">${esc(p.name || pk)}${isMe ? ' <em>(you)</em>' : ''}</span>`
+        + `<span class="rc-name">${UI.seatNameHTML(p.name || pk, p.isAI)}${isMe ? ' <em>(you)</em>' : ''}</span>`
         + `<span class="rc-hand" title="${cards} card${cards === 1 ? '' : 's'}, ${tricks} trick${tricks === 1 ? '' : 's'} in hand">${backs}</span>`
         + `<span class="rc-stat rc-energy" title="${eLeft} Energy left of ${eTotal} (${eSpent} spent)"><i class="rc-ic">&#9670;</i>${eLeft}</span>`
         + `</div>`;
@@ -18847,6 +18847,29 @@ const UI = {
   // (codex, both drafts, floating prompt, trick history, keyword tooltip).
   // Returns an HTML string (every caller concatenates strings).
   // opts: {extraClass, onclick, descOverride}.
+  // ===================== SEAT NAME + BOT MARK =====================
+  // ONE renderer for a seat's name, so the turn-order rail and the seat strips
+  // can never drift. The 🤖 prefix used to be baked into the NAME STRING itself
+  // (_2v2NextAIName), which meant a system emoji — full-colour, rounded, from a
+  // completely different visual world — sat inside a Tron board. It also rode
+  // every broadcast as literal text, so it cannot simply be removed at the
+  // source: live matches already carry it. This strips it wherever it appears
+  // AND draws a stroke-only neon glyph in its place, inheriting the seat's hue
+  // via currentColor so it glows in the same colour as everything around it.
+  // (User: "i want the real robot emoji gone replaced by a neon tron like
+  // icon".)
+  BOT_ICON_SVG: '<svg class="bot-ic" viewBox="0 0 16 16" aria-hidden="true">'
+    + '<path d="M8 1.6v2.1"/><rect x="2.6" y="3.7" width="10.8" height="9" rx="2.5"/>'
+    + '<path d="M5.9 7.5v1.7M10.1 7.5v1.7"/></svg>',
+  seatNameHTML(name, isAI) {
+    const raw = String(name == null ? '' : name);
+    // Strip the legacy prefix (and any stray variation selector / space).
+    const clean = raw.replace(/\uD83E\uDD16\uFE0F?\s*/g, '').trim();
+    const bot = isAI || raw !== clean;
+    const esc = (t) => String(t).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    return (bot ? this.BOT_ICON_SVG : '') + esc(clean || raw);
+  },
+
   makeTrickEl(trick, opts) {
     opts = opts || {};
     // Tricks always take the mid art tier on mobile. Unlike cards there is no
