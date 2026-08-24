@@ -6562,9 +6562,53 @@ const UI = {
   renderFromNetwork() {
     this.renderSync();
   },
+  // SNAP EVERY CARD PORTRAIT TO WHOLE DEVICE PIXELS.
+  // .card-portrait sizes itself with aspect-ratio 360/472, so its height is
+  // its width x 1.3111 — a fraction for almost every width. Measured on a
+  // resting hand card: 110.1328px. The portrait's own top is clean, but every
+  // element below inherits that fraction, which put 25 of 26 pieces of the
+  // card off the device-pixel grid. At devicePixelRatio 2 a 1px border on a
+  // half-pixel is rasterised across two device pixels at half opacity each: it
+  // draws twice as wide and half as bright. That is the softness.
+  //
+  // WHY JAVASCRIPT AND NOT CSS. The height has to be rounded, and CSS round()
+  // needs the portrait's own width, which CSS cannot name: box-sizing is
+  // border-box and the padding differs per surface (a hand card measures 86
+  // wide with an 84 portrait, not the 6px the base rule declares), so deriving
+  // it from the card width would have stretched the art ~2.6%. .card can never
+  // take container-type either — all ten @container blocks in this sheet are
+  // unnamed and would re-bind to it.
+  //
+  // offsetWidth, deliberately: it is the LAYOUT width and ignores transforms,
+  // so the 1.05 scale on the actively-resolving combat lane cannot skew the
+  // target. Widths are read for every node BEFORE any height is written —
+  // interleaving them would thrash layout once per card.
+  // Covers every surface that builds a card through makeCardEl: board, hand,
+  // draft, codex, roguelite, deck builder, 2v2.
+  _snapPortraits() {
+    const step = 1 / (window.devicePixelRatio || 1);   // one device pixel, in CSS px
+    const nodes = document.querySelectorAll('.card-portrait');
+    if (!nodes.length) return;
+    const widths = new Array(nodes.length);
+    for (let i = 0; i < nodes.length; i++) widths[i] = nodes[i].offsetWidth;   // read pass
+    const cache = new Map();
+    for (let i = 0; i < nodes.length; i++) {                                    // write pass
+      const w = widths[i];
+      if (!w) continue;
+      let h = cache.get(w);
+      if (h === undefined) { h = Math.round((w * 472 / 360) / step) * step; cache.set(w, h); }
+      const px = h + 'px';
+      const el = nodes[i];
+      if (el.style.height !== px) { el.style.height = px; el.style.aspectRatio = 'auto'; }
+    }
+  },
+
   renderSync() {
     this._renderQueued = false;
     this._renderImpl();
+    // Portraits are snapped AFTER the DOM is written, so the widths read are
+    // the ones actually laid out.
+    try { this._snapPortraits(); } catch (e) {}
     // Runs AFTER the DOM is written — it measures the laid-out rows. Every
     // render, because the rows around the hand change height as the board
     // fills and the forecast strip comes and goes.
