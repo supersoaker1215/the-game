@@ -13089,7 +13089,7 @@ const UI = {
       : (occupiedCount === 4
           ? `<div class="twov2-mm-sub">Tap ${isHost ? 'any two seats' : 'yourself, then an opponent,'} to trade places</div>`
           : (isHost
-              ? `<div class="twov2-mm-sub">Waiting for players — or fill empty seats with AI to start now.</div>`
+              ? `<div class="twov2-mm-sub">Waiting for players…</div>`
               : ''));
 
     el.innerHTML = `
@@ -13115,7 +13115,7 @@ const UI = {
             ? (balanced
                 ? `<button type="button" class="twov2-mm-opt" onclick="twov2OnlineStart()"><span class="twov2-mm-ic">&#9655;</span>Start Match</button>`
                 : `<div class="twov2-mm-sub">Teams must be two a side to start</div>`)
-            : `<div class="twov2-mm-sub">${joinedCount} joined · ${occupiedCount}/4 seats filled${isHost ? ' (add AI to fill the rest)' : ''}</div>`}
+            : `<div class="twov2-mm-sub">${joinedCount} joined · ${occupiedCount}/4 seats filled</div>`}
         </div>
       </div>`;
   },

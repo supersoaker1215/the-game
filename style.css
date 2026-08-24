@@ -2878,15 +2878,43 @@ body.hit-pause .ai-hand * {
   text-shadow: 0 0 9px rgba(224,64,64,0.55);
 }
 /* Host per-seat AI control button (Add AI / Remove). */
+/* NEON, AND THEME-DRIVEN. This was a hard-coded #4fc3f7 wash with pale blue
+   text — a flat blue box that ignored the player's theme entirely and sat dead
+   next to a lobby where everything else is lit. Black interior, hue in the
+   edge and the text, exactly like every other control.
+   ADD stays the THEME colour on both teams while REMOVE stays red: these are
+   actions, not identity, and colouring "+ Add AI" red on a Team B row would
+   make it read as the destructive one sitting right beside it.
+   (User: "the add ai needs to be neon highlighted as well".) */
 .twov2-mm-aibtn {
-  margin-left: auto; padding: 3px 10px; font-size: 12px; font-weight: 600;
-  letter-spacing: 0.04em; color: #bfe4ff; background: rgba(79,195,247,0.10);
-  border: 1px solid rgba(79,195,247,0.5); border-radius: 4px; cursor: pointer;
-  transition: background 160ms var(--ease-snap), color 160ms var(--ease-snap);
+  margin-left: auto; padding: 3px 10px; font-size: 12px; font-weight: 700;
+  letter-spacing: 0.06em;
+  color: rgb(var(--theme-rgb, 79,195,247));
+  background: #000;
+  border: 1px solid rgba(var(--theme-rgb, 79,195,247), 0.6);
+  border-radius: 4px; cursor: pointer;
+  text-shadow: 0 0 8px rgba(var(--theme-rgb, 79,195,247), 0.65);
+  box-shadow: 0 0 10px rgba(var(--theme-rgb, 79,195,247), 0.20);
+  transition: color 160ms var(--ease-snap), border-color 160ms var(--ease-snap),
+              box-shadow 160ms var(--ease-snap);
 }
-.twov2-mm-aibtn:hover { background: rgba(79,195,247,0.22); color: #f5fbff; }
-.twov2-mm-aibtn.is-remove { color: #ffb5ad; border-color: rgba(255,120,120,0.5); background: rgba(255,90,90,0.08); }
-.twov2-mm-aibtn.is-remove:hover { background: rgba(255,90,90,0.20); color: #fff; }
+.twov2-mm-aibtn:hover {
+  color: #fff;
+  border-color: rgb(var(--theme-rgb, 79,195,247));
+  box-shadow: 0 0 18px rgba(var(--theme-rgb, 79,195,247), 0.55);
+}
+.twov2-mm-aibtn.is-remove {
+  color: #ff6b6b;
+  border-color: rgba(224,64,64,0.6);
+  background: #000;
+  text-shadow: 0 0 8px rgba(224,64,64,0.65);
+  box-shadow: 0 0 10px rgba(224,64,64,0.20);
+}
+.twov2-mm-aibtn.is-remove:hover {
+  color: #fff;
+  border-color: #ff6b6b;
+  box-shadow: 0 0 18px rgba(224,64,64,0.55);
+}
 /* Lobby team picking — see .setup2v2-member. A row you may move lights on
    hover; the selected one holds the light; the rows it can trade with are
    marked so the second tap is never a guess. */
@@ -2911,6 +2939,17 @@ body.hit-pause .ai-hand * {
   .setup2v2-member.is-teamsel { transform: none; }
 }
 .twov2-mm-pslot { font-weight: 700; letter-spacing: 2px; color: rgb(var(--theme-rgb,79,195,247)); min-width: 30px; }
+/* The slot number was the last thing on the row still painted one flat colour
+   regardless of side, so P2 and P4 read as neutral labels beside a red name and
+   a red team. The whole row now speaks with one voice. */
+.twov2-mm-prow.is-myteam .twov2-mm-pslot {
+  color: rgb(var(--theme-rgb, 79,195,247));
+  text-shadow: 0 0 8px rgba(var(--theme-rgb, 79,195,247), 0.6);
+}
+.twov2-mm-prow.is-foeteam .twov2-mm-pslot {
+  color: #ff6b6b;
+  text-shadow: 0 0 8px rgba(224,64,64,0.6);
+}
 .twov2-mm-pname { flex: 1; color: var(--text-body, #e8eef6); font-size: 16px; font-weight: 600; }
 /* NEON, AND IT MEANS SOMETHING. This was rgba(159,207,237,0.5) for every seat —
    a pale wash that reads as grey and says nothing about who you are fighting.
