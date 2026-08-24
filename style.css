@@ -2859,9 +2859,24 @@ body.hit-pause .ai-hand * {
 .twov2-mm-players { margin: 16px 0 20px; max-width: 440px; display: flex; flex-direction: column; gap: 6px; }
 .twov2-mm-prow { display: flex; align-items: center; gap: 14px; padding: 10px 2px; border-bottom: 1px solid rgba(var(--theme-rgb,79,195,247),0.12); opacity: 0.45; transition: opacity 240ms var(--ease-snap); }
 .twov2-mm-prow.is-joined { opacity: 1; }
-/* AI filler seat — a distinct violet tint so bot seats read apart from humans. */
 .twov2-mm-prow.is-ai { opacity: 1; }
-.twov2-mm-prow.is-ai .twov2-mm-pname { color: #c9a9ff; }
+/* THE NAME WEARS ITS TEAM'S COLOUR. AI seats used to be tinted violet (#c9a9ff)
+   to set bots apart from humans — but that put a third hue on a screen whose
+   whole job is "these two are with me, those two are against me", and it left
+   a name sitting in one colour beside its own team label in another. The neon
+   bot glyph already says which seats are machines, so the name is free to say
+   the thing that matters: same value as the team label, exactly.
+   (User: "the names should match the neon colors for the teams.")
+   Deliberately placed ABOVE the :hover / .is-teamsel rules below, which share
+   this specificity and must still win while you are picking seats. */
+.twov2-mm-prow.is-myteam .twov2-mm-pname {
+  color: rgb(var(--theme-rgb, 79,195,247));
+  text-shadow: 0 0 9px rgba(var(--theme-rgb, 79,195,247), 0.55);
+}
+.twov2-mm-prow.is-foeteam .twov2-mm-pname {
+  color: #ff6b6b;
+  text-shadow: 0 0 9px rgba(224,64,64,0.55);
+}
 /* Host per-seat AI control button (Add AI / Remove). */
 .twov2-mm-aibtn {
   margin-left: auto; padding: 3px 10px; font-size: 12px; font-weight: 600;

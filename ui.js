@@ -13101,7 +13101,9 @@ const UI = {
           <div class="twov2-mm-label">Online 2v2 · Lobby</div>
           ${isHost
             ? `<div class="twov2-mm-codebig" onclick="UI._2v2CopyCode && UI._2v2CopyCode()" title="Room code">${code}</div>
-               <div class="twov2-mm-sub">Share this code with your 3 teammates</div>`
+               ${occupiedCount < 4
+                  ? `<div class="twov2-mm-sub">Share this code — ${4 - occupiedCount} seat${4 - occupiedCount === 1 ? '' : 's'} still open</div>`
+                  : ''}`
             : `<div class="twov2-mm-sub">Waiting for host to start…</div>`}
           ${errorHtml}
           <div class="twov2-mm-players">${playerRows}</div>
