@@ -41984,47 +41984,46 @@ body.no-art-grade .card-portrait { --art-grade: 1 !important; }
        and here) and a seventh copy is the bug class, not a fix. */
     gap: 0;
   }
-  /* THE SOLDER POINT. The label and the rule were two marks with dead air
-     between them, and the dead air read as a missing piece rather than as
-     spacing. (User: "i feel a symbol is missing here to tie it together.")
-     The fix is not to fill the gap with an ornament — it is to give the line a
-     REASON to start where it starts. A trace on a Tron board leaves a solder
-     point, so the rule now emerges FROM a lit node instead of beginning in
-     mid-air. Same 45deg tap-point the project already draws in .hud-divider
-     (955), .mm-divider::after (2040) and .card-name-banner::after (6319);
-     nothing new is invented, and it is the same diamond the player reads all
-     match as the energy glyph (&#9670;, ui.js:11835).
-     SOLID, not hollow: at the 11px floor the core is 3.7px, and a 1px stroke
-     on that leaves a hole antialiasing closes. Every hollow diamond in this
-     codebase sits on a 16px+ target; every small node is solid + glow.
-     Core in em so it tracks the type, but the ring and glow stay in px so the
-     mark does not bulk up with it — that is what keeps a section header from
-     becoming a focal point at the 22px ceiling.
+  /* THE PLAY MARK. The label and the rule were two marks with dead air between
+     them, and the dead air read as a missing piece rather than as spacing.
+     (User: "i feel a symbol is missing here to tie it together" — then, shown a
+     diamond and a triangle side by side: "i want the play button not diamond.")
+     A triangle does something the diamond could not: it POINTS. The rule reads
+     as running out of it rather than merely touching it, which is the whole job
+     of a connector.
+     SOLID, where the option rows below use the OUTLINED &#9655;. That is
+     deliberate: the same glyph in the same weight on a heading and on the
+     clickable rows underneath would say the heading is a button too. Filled vs
+     hollow keeps them related without making the label look pressable.
+     SIZED BY AREA, NOT BY BOX. 0.44em/0.27em is ~0.119em2 of ink against the
+     diamond's 0.1156 — the two carry the same optical weight, which a 0.36em
+     triangle does not (0.079, visibly lighter). A triangle needs to be wider
+     than a diamond to weigh the same, not narrower.
+     drop-shadow, not box-shadow: the mark is drawn with borders on a zero-size
+     box, so box-shadow would trace the invisible rectangle instead of the
+     shape.
      `order` places it after the text: ::after IS the rule, so ::before is the
      only free pseudo-element, and flex order re-sequences it with no new
      element in the markup.
      Landscape only. Portrait keeps its symmetric flanking rules, where
-     ::before IS the left-hand hairline (38845) and the label is already tied
-     on both sides. */
+     ::before IS the left-hand hairline (38845) and the label is already tied on
+     both sides. */
   .mm-mw3 .mm-section-label::before {
     display: block;
     content: '';
     order: 1;
     flex: 0 0 auto;
-    /* 3.7px at the 11px floor, 7.5px at the 22px ceiling; the px floor is
-       insurance for any branch that drives the type below ~11.8px. */
-    width: max(4px, 0.34em);
-    height: max(4px, 0.34em);
-    /* THE JOINT, part 2: the word-to-node breath, in em so it scales with the
-       type the way a flat 12px did not. Rajdhani's 4px letter-spacing already
-       leaves trailing air after the final letter. */
+    width: 0; height: 0;
+    background: none;
+    transform: none;
+    border-left: 0.44em solid rgb(var(--theme-rgb, 79,195,247));
+    border-top: 0.27em solid transparent;
+    border-bottom: 0.27em solid transparent;
+    /* The word-to-mark breath, in em so it tracks the type the way a flat 12px
+       did not. Rajdhani's 4px letter-spacing already leaves trailing air. */
     margin-left: 0.7em;
-    transform: rotate(45deg);
-    background: rgb(var(--theme-rgb, 79,195,247));
-    box-shadow:
-      0 0 0 1px rgba(var(--theme-rgb, 79,195,247), 0.35),
-      0 0 6px  rgba(var(--theme-rgb, 79,195,247), 0.85),
-      0 0 14px rgba(var(--theme-rgb, 79,195,247), 0.40);
+    box-shadow: none;
+    filter: drop-shadow(0 0 5px rgba(var(--theme-rgb, 79,195,247), 0.9));
   }
   /* THE TRACE. 2px clears the node's 1px ring and no more, so the hairline runs
      INTO the point rather than near it. align-items:center on the row puts the
