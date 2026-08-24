@@ -2919,7 +2919,7 @@ const Roguelite = {
     'Anti-Venom': {
       id: 'antivenom-text', name: 'Cleanse',
       desc: 'Heals you for 6 (was 4).',
-      descOverride: 'When Played: Heal yourself for 6. Move an ally to another empty lane.',
+      descOverride: 'When Played: Heal yourself for 6. You may move a card to an empty lane — an ally gains (+1/+1), an enemy loses (−1/−1).',
       apply: c => { c._antivenomHeal = 6; },
     },
     'The Grinch': {

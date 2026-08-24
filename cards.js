@@ -263,7 +263,7 @@ const CARD_DEFS = [
     desc: "While Active: Ignores Armor and Evade. On Kill: Add (+0/+1) and heal to full. (Spawned by Open Water.)" },
   { name: "Anti-Venom", cost: 3, attack: 3, health: 5, type: "hero",
     abilities: [],
-    desc: "When Played: Heal yourself for 4. You may move an ally to an empty lane." },
+    desc: "When Played: Heal yourself for 4. You may move a card to an empty lane — an ally gains (+1/+1), an enemy loses (−1/−1)." },
   { name: "Black Panther", cost: 4, attack: 2, health: 3, type: "hero",
     abilities: ["Armor 1"],
     desc: "When Played: Play a card from your hand with base cost ≤ 3. While Active: Add (+1/+1) to each card you play." },

@@ -3408,7 +3408,12 @@ function capturePrompt(G, kind) {
   var real = G[key];
   G[key] = function (owner, list, title, desc, cb) {
     var opts = kind === 'lane' ? arguments[8] : arguments[6];
-    seen = { owner: owner, list: list, title: title, callback: cb, options: opts || {} };
+    // targetSide (lane prompts only) decides WHICH side's row the picker
+    // paints. A mover that relocates enemy cards has to point the picker at
+    // the enemy row or the player is choosing from lanes the card can't enter.
+    seen = { owner: owner, list: list, title: title, callback: cb,
+             targetSide: kind === 'lane' ? arguments[5] : undefined,
+             options: opts || {} };
   };
   return { get: function () { return seen; }, restore: function () { G[key] = real; } };
 }
@@ -3452,22 +3457,296 @@ test('The resolve door honours a decline, and refuses one that was never offered
   assertEq(G.state.pendingLaneChoice, null, 'the slot is cleared, not left dangling');
 });
 
-test('Anti-Venom may move an ally — or no one', function () {
+// ============================================================
+// ANTI-VENOM — the move is the payload (owner, 2026-08-24).
+// He heals 4 and may move ANY card to an empty lane: an ally gains
+// (+1/+1), an enemy loses (−1/−1). Every test below drives the real
+// two-step prompt chain (pick a card, then pick a lane) rather than
+// asserting on the outcome alone, because the outcome is reachable
+// through paths that should NOT pay out.
+// ============================================================
+
+// Captures BOTH halves of the chain at once so a test can walk pick →
+// lane → settle. capturePrompt only stubs one kind.
+function captureAntiVenom(G) {
+  var card = capturePrompt(G, 'card');
+  var lane = capturePrompt(G, 'lane');
+  return {
+    card: card, lane: lane,
+    restore: function () { lane.restore(); card.restore(); },
+    // Pick a target, then send it to `to`. Returns false if either half
+    // of the chain never opened.
+    move: function (target, to) {
+      var p = card.get();
+      if (!p) return false;
+      p.callback(target);
+      var l = lane.get();
+      if (!l) return false;
+      l.callback(to);
+      return true;
+    },
+  };
+}
+
+function antiVenomOnBoard(G, lane) {
+  var av = G.createCardInstance(cardByName('Anti-Venom'), 'player');
+  G.state.lanes[lane].player = av; av.owner = 'player';
+  return av;
+}
+
+test('Anti-Venom offers enemies too, not just allies', function () {
   var G = freshGame();
   G.state.player.isHuman = true;
-  var av = G.createCardInstance(cardByName('Anti-Venom'), 'player');
+  var av = antiVenomOnBoard(G, 1);
   var ally = place(G, 'Bane', 'player', 4);
-  G.state.lanes[1].player = av; av.owner = 'player';
+  var foe = place(G, 'Wolverine', 'ai', 0);
   var cap = capturePrompt(G, 'card');
   try { CARD_ABILITIES['Anti-Venom'].onPlay(G, av, 1); } finally { cap.restore(); }
   var p = cap.get();
-  assert(!!p, 'the ally pick was raised');
-  assertEq(p.options.declineLabel, 'MOVE NO ONE', 'and it carries an opt-out');
-  p.options.onDecline();
+  assert(!!p, 'the pick was raised');
+  assert(p.list.indexOf(ally) > -1, 'the ally is offered');
+  assert(p.list.indexOf(foe) > -1, 'and so is the enemy — the pool is both sides now');
+  assertEq(p.list.indexOf(av), -1, 'Anti-Venom himself is never a target');
+  assertEq(p.options.declineLabel, 'MOVE NO ONE', 'and the opt-out survived the rework');
+});
+
+test('Anti-Venom heals 4 whether or not anything moves', function () {
+  var G = freshGame();
+  G.state.player.isHuman = true;
+  G.state.player.health = 20;
+  var av = antiVenomOnBoard(G, 1);
+  var cap = capturePrompt(G, 'card');
+  // No other card on the board at all — the move half has nothing to do.
+  try { CARD_ABILITIES['Anti-Venom'].onPlay(G, av, 1); } finally { cap.restore(); }
+  assertEq(G.state.player.health, 24, 'the heal is unconditional');
+  assertEq(cap.get(), null, 'and no prompt is raised with nothing movable');
+});
+
+test('Anti-Venom moving an ALLY gives it (+1/+1)', function () {
+  var G = freshGame();
+  G.state.player.isHuman = true;
+  var av = antiVenomOnBoard(G, 1);
+  var ally = place(G, 'Bane', 'player', 4);
+  var atk = ally.attack, hp = ally.currentHealth, max = ally.maxHealth;
+  var cap = captureAntiVenom(G);
+  try {
+    CARD_ABILITIES['Anti-Venom'].onPlay(G, av, 1);
+    assertEq(cap.move(ally, 3), true, 'the chain opened both prompts');
+  } finally { cap.restore(); }
+  assertEq(G.findCardLane(ally), 3, 'the ally landed in the chosen lane');
+  assertEq(ally.attack, atk + 1, 'and gained +1 ATK');
+  assertEq(ally.currentHealth, hp + 1, 'and +1 current HP');
+  assertEq(ally.maxHealth, max + 1, 'with max HP raised too, so it is a real buff');
+});
+
+test('Anti-Venom moving an ENEMY takes (−1/−1)', function () {
+  var G = freshGame();
+  G.state.player.isHuman = true;
+  var av = antiVenomOnBoard(G, 1);
+  var foe = place(G, 'Bane', 'ai', 4);
+  var atk = foe.attack, hp = foe.currentHealth;
+  var cap = captureAntiVenom(G);
+  try {
+    CARD_ABILITIES['Anti-Venom'].onPlay(G, av, 1);
+    assertEq(cap.move(foe, 2), true, 'the chain opened both prompts');
+  } finally { cap.restore(); }
+  assertEq(G.findCardLane(foe), 2, 'the enemy was shoved into the chosen lane');
+  assertEq(foe.attack, atk - 1, 'and lost 1 ATK');
+  assertEq(foe.currentHealth, hp - 1, 'and 1 HP');
+});
+
+test('Anti-Venom shows the ENEMY lane row when moving an enemy', function () {
+  // The lane picker has to be pointed at the target's side, or the player is
+  // choosing from their own empty lanes for a card that cannot go there.
+  var G = freshGame();
+  G.state.player.isHuman = true;
+  var av = antiVenomOnBoard(G, 1);
+  var foe = place(G, 'Bane', 'ai', 4);
+  place(G, 'Wolverine', 'ai', 0);           // enemy lane 0 is taken
+  place(G, 'Wolverine', 'player', 2);       // OUR lane 2 is taken — irrelevant to the enemy
+  var cap = captureAntiVenom(G);
+  try {
+    CARD_ABILITIES['Anti-Venom'].onPlay(G, av, 1);
+    cap.card.get().callback(foe);
+  } finally { cap.restore(); }
+  var l = cap.lane.get();
+  assert(!!l, 'the lane prompt opened');
+  assertEq(l.targetSide, 'ai', 'and it is pointed at the ENEMY row, not our own');
+  assertEq(l.list.indexOf(0), -1, 'the lane the enemy side already holds is not offered');
+  assert(l.list.indexOf(2) > -1, 'but a lane WE hold still is — it is empty on their side');
+  assertEq(l.list.indexOf(4), -1, 'and never the lane it is standing in');
+});
+
+test('Anti-Venom backing out at the LANE step costs nothing', function () {
+  // Two prompts means two chances to change your mind. Picking a target and
+  // then finding no lane you like must leave the card — and its stats — alone.
+  var G = freshGame();
+  G.state.player.isHuman = true;
+  var av = antiVenomOnBoard(G, 1);
+  var foe = place(G, 'Bane', 'ai', 4);
+  var atk = foe.attack, hp = foe.currentHealth;
+  var cap = captureAntiVenom(G);
+  try {
+    CARD_ABILITIES['Anti-Venom'].onPlay(G, av, 1);
+    cap.card.get().callback(foe);
+  } finally { cap.restore(); }
+  var l = cap.lane.get();
+  assert(!!l, 'the lane prompt opened');
+  assertEq(l.options.declineLabel, 'LEAVE THEM', 'and it carries its own opt-out');
+  assertEq(typeof l.options.onDecline, 'function', 'with something to run when it is taken');
+  l.options.onDecline();
+  assertEq(G.findCardLane(foe), 4, 'the enemy stayed in its lane');
+  assertEq(foe.attack, atk, 'took no ATK loss');
+  assertEq(foe.currentHealth, hp, 'and no HP loss');
+});
+
+test('Anti-Venom (−1/−1) finishes a 1-HP enemy instead of flooring it', function () {
+  var G = freshGame();
+  G.state.player.isHuman = true;
+  var av = antiVenomOnBoard(G, 1);
+  var foe = place(G, 'Bane', 'ai', 4);
+  foe.currentHealth = 1; foe.maxHealth = 1;
+  var cap = captureAntiVenom(G);
+  try {
+    CARD_ABILITIES['Anti-Venom'].onPlay(G, av, 1);
+    cap.move(foe, 2);
+  } finally { cap.restore(); }
+  assert(foe.currentHealth <= 0, 'the enemy died to the strip (allowKill), not stuck at 1');
+  assertEq(G.state.lanes[2].ai, null, 'and cleanupDead cleared the slot it moved into');
+});
+
+test('Anti-Venom does not burn a card the arrival already killed', function () {
+  // moveCard fires the destination lane's trap on the way in, and a Bear Trap
+  // routes through killCard. Normally that pulls the corpse out of the lane and
+  // the "did it land?" check catches it — see the next test for the case where
+  // it does NOT.
+  var G = freshGame();
+  G.state.player.isHuman = true;
+  var av = antiVenomOnBoard(G, 1);
+  var foe = place(G, 'Bane', 'ai', 4);
+  foe.currentHealth = 1; foe.maxHealth = 1;
+  G.state.lanes[2].trap = { placedBy: 'player', debuff: 1 };
+  var burned = 0;
+  var realDebuff = G.debuffCard;
+  G.debuffCard = function (c) { if (c === foe) burned++; return realDebuff.apply(G, arguments); };
+  var cap = captureAntiVenom(G);
+  try {
+    CARD_ABILITIES['Anti-Venom'].onPlay(G, av, 1);
+    cap.move(foe, 2);
+  } finally { cap.restore(); G.debuffCard = realDebuff; }
+  assert(foe.currentHealth <= 0, 'the trap killed it on arrival');
+  assertEq(burned, 0, 'and the cure never touched the corpse');
+  assertEq(G.state.lanes[2].trap, null, 'the trap was genuinely spent');
+});
+
+test('Anti-Venom does not revive an ally whose death is mid-pause', function () {
+  // "Landed in the lane" is NOT the same as "alive". The Iron Giant save PAUSES
+  // a death on a prompt, and while that offer is standing the dying card sits in
+  // its lane at 0 HP. Anti-Venom's cure has to read the health, not just the
+  // slot — a (+1/+1) here would hand a 0-HP card 1 HP and un-kill it behind the
+  // prompt's back.
+  var G = freshGame();
+  G.state.player.isHuman = true;
+  var av = antiVenomOnBoard(G, 1);
+  var ally = place(G, 'Wolverine', 'player', 0);
+  ally.currentHealth = 1; ally.maxHealth = 1;
+  var atk = ally.attack;
+  G.state.lanes[2].trap = { placedBy: 'ai', debuff: 1 };
+  G.state.player.hand.push(G.createCardInstance(cardByName('Iron Giant'), 'player'));
+  var cured = 0;
+  var realBuff = G.buffCard;
+  G.buffCard = function (c) { if (c === ally) cured++; return realBuff.apply(G, arguments); };
+  var cap = captureAntiVenom(G);
+  try {
+    CARD_ABILITIES['Anti-Venom'].onPlay(G, av, 1);
+    cap.move(ally, 2);
+  } finally { cap.restore(); G.buffCard = realBuff; }
+  assertEq(G.state.lanes[2].player, ally, 'setup: the ally IS still standing in the lane it moved to');
+  assert(ally.currentHealth <= 0, 'setup: at 0 HP, with the Iron Giant offer holding its death open');
+  assertEq(cured, 0, 'so the cure was never applied to it');
+  assertEq(ally.attack, atk - 1, 'its ATK is what the trap left, with nothing added back');
+  assert(ally.currentHealth <= 0, 'and it is still dead — a (+1/+1) here would have un-killed it');
+});
+
+test('Anti-Venom pays nothing when the move is refused', function () {
+  // moveCard bails SILENTLY when the destination fills up. The stat swing hangs
+  // off the move landing, so a refused move must leave the target untouched.
+  var G = freshGame();
+  G.state.player.isHuman = true;
+  var av = antiVenomOnBoard(G, 1);
+  var ally = place(G, 'Bane', 'player', 4);
+  var atk = ally.attack, hp = ally.currentHealth;
+  var cap = captureAntiVenom(G);
+  try {
+    CARD_ABILITIES['Anti-Venom'].onPlay(G, av, 1);
+    cap.card.get().callback(ally);
+    // Lane 3 was open when the picker listed it; something takes it before the
+    // player answers the second prompt.
+    place(G, 'Wolverine', 'player', 3);
+    cap.lane.get().callback(3);
+  } finally { cap.restore(); }
+  assertEq(G.findCardLane(ally), 4, 'the ally never moved');
+  assertEq(ally.attack, atk, 'so it gained no ATK');
+  assertEq(ally.currentHealth, hp, 'and no HP — the payout is tied to the move, not the pick');
+});
+
+test('Anti-Venom never offers a card that cannot move', function () {
+  var G = freshGame();
+  G.state.player.isHuman = true;
+  var av = antiVenomOnBoard(G, 1);
+  var frozen = place(G, 'Bane', 'player', 4);
+  frozen.isFrozen = true;
+  var boxedIn = place(G, 'Wolverine', 'ai', 0);
+  for (var i = 0; i < G.LANE_COUNT; i++) {
+    if (i !== 0 && !G.state.lanes[i].ai) G.state.lanes[i].ai = place(G, 'Bane', 'ai', i);
+  }
+  var free = place(G, 'Wolverine', 'player', 2);
+  var cap = capturePrompt(G, 'card');
+  try { CARD_ABILITIES['Anti-Venom'].onPlay(G, av, 1); } finally { cap.restore(); }
+  var p = cap.get();
+  assert(!!p, 'the pick was raised');
+  assertEq(p.list.indexOf(frozen), -1, 'a frozen ally is not offered — moveCard would refuse it');
+  assertEq(p.list.indexOf(boxedIn), -1, 'nor an enemy whose own side has no empty lane left');
+  assert(p.list.indexOf(free) > -1, 'the one card that can actually move still is');
+});
+
+test('Anti-Venom declining moves no one and buffs no one', function () {
+  var G = freshGame();
+  G.state.player.isHuman = true;
+  var av = antiVenomOnBoard(G, 1);
+  var ally = place(G, 'Bane', 'player', 4);
+  var foe = place(G, 'Wolverine', 'ai', 0);
+  var atk = ally.attack, fAtk = foe.attack;
+  var cap = capturePrompt(G, 'card');
+  try { CARD_ABILITIES['Anti-Venom'].onPlay(G, av, 1); } finally { cap.restore(); }
+  cap.get().options.onDecline();
   assertEq(G.findCardLane(ally), 4, 'the ally stayed exactly where it was');
-  assertEq(cardByName('Anti-Venom').cost, 3, 'and he is a 3-cost now');
-  assertEq(cardByName('Anti-Venom').desc.indexOf('You may move an ally') > -1, true,
-    'with card text that says MAY, matching what the prompt actually does');
+  assertEq(ally.attack, atk, 'with no buff');
+  assertEq(foe.attack, fAtk, 'and the enemy took nothing either');
+});
+
+test('Anti-Venom AI reaches for the enemy it can finish', function () {
+  var G = freshGame();
+  G.state.player.isHuman = false;   // drive the non-prompt branch
+  var av = antiVenomOnBoard(G, 1);
+  var fatAlly = place(G, 'Bane', 'player', 4);
+  var bigFoe = place(G, 'Wolverine', 'ai', 0);
+  var doomedFoe = place(G, 'Bane', 'ai', 2);
+  doomedFoe.currentHealth = 1; doomedFoe.maxHealth = 1;
+  var allyAtk = fatAlly.attack;
+  CARD_ABILITIES['Anti-Venom'].onPlay(G, av, 1);
+  assert(doomedFoe.currentHealth <= 0, 'the AI took the kill');
+  assertEq(fatAlly.attack, allyAtk, 'and did not spend the move buffing its own card instead');
+  assertEq(bigFoe.currentHealth, bigFoe.maxHealth, 'nor on the enemy it could only scratch');
+});
+
+test('Anti-Venom card text matches what the ability does', function () {
+  var d = cardByName('Anti-Venom').desc;
+  assertEq(cardByName('Anti-Venom').cost, 3, 'he is still a 3-cost');
+  assert(d.indexOf('Heal yourself for 4') > -1, 'the heal is still printed');
+  assert(d.indexOf('You may move a card') > -1, 'MAY, matching the opt-out the prompt carries');
+  assert(d.indexOf('(+1/+1)') > -1, 'the ally half is printed');
+  assert(d.indexOf('(−1/−1)') > -1, 'and the enemy half, with a Unicode minus');
 });
 
 // Magneto/Luke auras are recorded per card and re-applied to every new arrival.

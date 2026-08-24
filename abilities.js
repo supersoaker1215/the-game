@@ -2211,32 +2211,131 @@ const CARD_ABILITIES = {
       // Roguelite Text+ override — _antivenomHeal scales heal amount.
       const heal = self._antivenomHeal || 4;
       G.healPlayer(self.owner, heal, self);
-      const allies = G.getAlliesOf(self.owner).filter(a => a.id !== self.id);
-      const open = G.getOpenLanes(self.owner);
-      if (allies.length && open.length) {
-        const doMove = (ally) => {
-          const from = G.findCardLane(ally);
-          if (from >= 0) {
-            if (Game.isHuman(self.owner)) {
-              G.promptLaneChoice(self.owner, open, `Move ${ally.name}`, `Choose a new lane for ${ally.name}`, (l) => {
-                G.moveCard(ally, from, l);
-              }, null, null, 0, { declineLabel: 'LEAVE THEM', onDecline: () => G.log(`${ally.name} holds position.`) });
-            } else {
-              G.moveCard(ally, from, open[0]);
-            }
-          }
-        };
-        if (Game.isHuman(self.owner)) {
-          // MAY move, not must — the card reads "you may move an ally", so the
-          // prompt carries its own opt-out instead of forcing a relocation the
-          // owner never wanted. Same door as Man-Bat's STAY PUT.
-          G.promptCardChoice(self.owner, allies, "Anti-Venom — Move", "Choose an ally to reposition", doMove, null,
-            { declineLabel: 'MOVE NO ONE', onDecline: () => G.log('Anti-Venom moves no one.') });
-        } else {
-          doMove(allies[0]);
+      G.log(`Anti-Venom heals you for ${heal}!`);
+
+      // THE CURE CUTS BOTH WAYS (owner, 2026-08-24: "move a card, if it's an
+      // ally gain (+1/+1), if it's an enemy lose (-1/-1)"). The relocation used
+      // to be a favour you did an ally and nothing more; now the move IS the
+      // payload, and it reaches both sides of the board.
+      //
+      // Two consequences worth stating, because both are load-bearing below:
+      //   • the pool is every card, not just allies — so the destination list
+      //     has to be computed PER TARGET, since a card can only slide into an
+      //     empty lane on its OWN side;
+      //   • the stat change hangs off the move LANDING, not off the pick.
+      //     moveCard refuses silently — occupied destination, voided lane,
+      //     frozen/feared, face-down — and a refused move must not pay out.
+      //     Man-Bat's arrival sting learned the same lesson the hard way.
+      // Roguelite Text+ hook — _antivenomShift scales both halves together.
+      const shift = self._antivenomShift || 1;
+
+      const openLanesFor = (c) => {
+        const from = G.findCardLane(c);
+        const out = [];
+        for (let i = 0; i < G.LANE_COUNT; i++) {
+          if (i !== from && !G.state.lanes[i][c.owner] && !G.state.lanes[i].destroyed) out.push(i);
         }
+        return out;
+      };
+
+      // getAlliesOf / getEnemiesOf read the lane slots and do NOT filter what
+      // moveCard would refuse, so every one of those doors is applied here
+      // instead — otherwise the tray offers picks that quietly do nothing.
+      const pool = [...G.getAlliesOf(self.owner), ...G.getEnemiesOf(self.owner)]
+        .filter(c => c && c !== self && c.currentHealth > 0 && G.findCardLane(c) >= 0
+                     && !c.isFaceDown && !G.isActionLocked(c)
+                     && openLanesFor(c).length > 0);
+      if (!pool.length) return;
+
+      const settle = (target, to) => {
+        if (!target) return;
+        const from = G.findCardLane(target);
+        if (target.currentHealth <= 0 || from < 0) return;
+        G.moveCard(target, from, to);
+        // READ THE BOARD BACK. moveCard returns nothing and bails silently on
+        // half a dozen conditions, several of which can become true between the
+        // pick and the move (the lane gets taken, the card gets frozen).
+        if (G.findCardLane(target) !== to) {
+          G.log(`Anti-Venom reaches for ${target.name}, but it holds its lane.`);
+          return;
+        }
+        // THE ARRIVAL CAN BE FATAL BY ITSELF. moveCard fires onMoved and then
+        // the destination lane's trap before it returns, and a Reverse Bear
+        // Trap routes through killCard — so the card we were about to cure or
+        // burn may already be a corpse standing in the slot. Nothing left to
+        // do to it, and debuffCard would happily kill it a second time.
+        if (target.currentHealth <= 0) return;
+        if (target.owner === self.owner) {
+          G.buffCard(target, shift, shift);
+          G.log(`Anti-Venom's cure strengthens ${target.name} (+${shift}/+${shift})`);
+        } else {
+          // allowKill=true — a printed (−N/−N) finishes a small card outright
+          // instead of flooring its HP at 1. Same canon as Bane, Man-Bat's
+          // sting and Voldemort's Crucio.
+          G.debuffCard(target, shift, shift, true, self);
+          G.log(`[DEBUFF] Anti-Venom's cure burns ${target.name} (−${shift}/−${shift})`);
+          G.cleanupDead();
+        }
+      };
+
+      // Burning an enemy is the stronger half — a (−1/−1) that finishes the
+      // target beats any repositioning, so lethal outranks everything and a
+      // friendly buff is the fallback. Invincible shields the HP half of a stat
+      // strip (see debuffCard), so an Invincible enemy is never "lethal".
+      const scoreFor = (c) => {
+        const power = (c.attack || 0) + (c.currentHealth || 0);
+        if (c.owner !== self.owner) {
+          const lethal = !G.statStripShieldsHp(c) && (c.currentHealth || 0) <= shift;
+          return (lethal ? 100 : 20) + power;
+        }
+        return power * 0.5;
+      };
+      const aiPickCard = (list) => (list || []).slice()
+        .sort((a, b) => scoreFor(b) - scoreFor(a))[0] || null;
+      // Lane choice is worth very little on its own (measured), so this stays
+      // deliberately cheap: shove an enemy where we already out-stat it, and
+      // put a buffed ally somewhere unopposed.
+      const aiLaneFor = (c) => {
+        const lanes = openLanesFor(c);
+        if (!lanes.length) return -1;
+        const opp = G.opponent(self.owner);
+        if (c.owner !== self.owner) {
+          const winnable = lanes.filter(l => {
+            const mine = G.state.lanes[l][self.owner];
+            return mine && mine.currentHealth > 0
+                   && (mine.attack || 0) >= (c.currentHealth || 0) - shift;
+          });
+          return winnable.length ? winnable[0] : lanes[0];
+        }
+        const unopposed = lanes.filter(l => !G.state.lanes[l][opp]);
+        return unopposed.length ? unopposed[0] : lanes[0];
+      };
+
+      if (Game.isHuman(self.owner)) {
+        // MAY move, not must — the opt-out predates this change and survives it:
+        // the stat swing is always upside, but the LANE it costs you need not be.
+        G.promptCardChoice(self.owner, pool, "Anti-Venom — Move",
+          "Move any card to an empty lane — an ally gains (+1/+1), an enemy loses (−1/−1)",
+          (target) => {
+            // Re-check on RESOLVE. There are two separate interactions between
+            // choosing a card and the move landing, and the target can die in
+            // between — the sim cannot show this, because its shim resolves
+            // prompts synchronously.
+            if (!target || target.currentHealth <= 0 || G.findCardLane(target) < 0) return;
+            const lanes = openLanesFor(target);
+            if (!lanes.length) return;
+            G.promptLaneChoice(self.owner, lanes, `Anti-Venom — Move ${target.name}`,
+              `Choose a new lane for ${target.name}`, (to) => settle(target, to),
+              target.owner, null, 0,
+              { declineLabel: 'LEAVE THEM', onDecline: () => G.log(`${target.name} holds position.`) });
+          },
+          aiPickCard,
+          { declineLabel: 'MOVE NO ONE', onDecline: () => G.log('Anti-Venom moves no one.') });
+      } else {
+        const target = aiPickCard(pool);
+        const to = target ? aiLaneFor(target) : -1;
+        if (target && to >= 0) settle(target, to);
       }
-      G.log("Anti-Venom heals you for 4!");
     }
   },
   "Black Panther": {
