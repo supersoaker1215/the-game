@@ -10892,6 +10892,35 @@ const Game = {
     this.state[owner].nextTurnCurrency += n;
   },
 
+  // WHICH SEAT DOES THIS BOARD CARD GENERATE FOR?
+  //
+  // Same question addNextTurnCurrency answers for a one-off grant, but asked at
+  // ROUND START, when no seat is acting and every "who is doing this right now"
+  // global is null — so it can only be answered from what the CARD carries.
+  //
+  // Order matters and both entries are load-bearing:
+  //   _mcSeat first — a mind-controlled generator pays whoever holds it NOW,
+  //     not the player who originally cast it;
+  //   _2v2PlayedBy / _playedSeat next — the seat stamped at placement, stable
+  //     for the card's whole life.
+  // Each candidate is validated against the card's CURRENT side before it is
+  // used, which is what makes a STALE _mcSeat harmless: when mind control ends
+  // the card returns to its own team, the stale seat fails the side check, and
+  // the search falls through to provenance instead of paying an opponent.
+  _2v2EnergySeatFor(card, side) {
+    const tt = this.state && this.state.twoVTwo;
+    if (!tt || !tt.players || !card) return null;
+    const candidates = [card._mcSeat, card._2v2PlayedBy, card._playedSeat];
+    for (let i = 0; i < candidates.length; i++) {
+      const seat = candidates[i];
+      if (seat && tt.players[seat] && this._2v2SeatOnSide(seat, side)) return seat;
+    }
+    // No usable provenance (a card summoned before stamping, or a legacy save).
+    // Any seat on the owning team beats the side proxy, which is read by nobody.
+    const team = (this._2v2TeamSide && this._2v2TeamSide.A === side) ? 'A' : 'B';
+    return this._2v2SLOTS.find(pk => tt.players[pk] && tt.players[pk].team === team) || null;
+  },
+
   // 2v2 online: prompt the acting player to choose an enemy SEAT (a whole
   // player, not a card/hand), then invoke cb(seatKey). For effects that target
   // a player rather than a card — energy steal (Catwoman), peek-at-draws
@@ -14866,6 +14895,37 @@ const Game = {
       p.energy = energy + bonus;
       p.usedEnergy = 0;
       p.nextTurnCurrency = 0;
+    });
+
+    // ---- PER-ROUND ENERGY PASSIVES ----------------------------------------
+    // "Each Turn: Add N Energy" — Dr. Manhattan (+2), Power Battery (+1), the
+    // +3 tier. 1v1's startRound sweeps these; this function never did, so every
+    // one of those cards was INERT for a whole 2v2 match. Manhattan is a
+    // 10-cost whose entire second half is this line, and it paid nothing.
+    //
+    // PER SEAT, by provenance — not per side. A 2v2 side is two players with
+    // two separate energy pools, and the grant belongs to whoever PLAYED the
+    // card. (User: "so the person who played manhattan should get 2 extra
+    // energy each turn in 2v2.") Crediting the side proxy would discard it
+    // outright; crediting "some seat on that team" would silently pay the
+    // teammate instead.
+    //
+    // Also zeroes the currencyOnDamage counter, for the same reason 1v1 does:
+    // a Green Lantern that died mid-combat never ran onEndOfTurn, so last
+    // round's tally would carry over and pay twice.
+    const PASSIVE_ENERGY = { extraCurrency: 1, extraCurrency2: 2, extraCurrency3: 3 };
+    ['player', 'ai'].forEach(side => {
+      this.getAllCardsOf(side).forEach(c => {
+        if (c.passive === 'currencyOnDamage') c._damageDealtThisTurn = 0;
+        const gain = PASSIVE_ENERGY[c.passive];
+        if (!gain) return;
+        const pk = this._2v2EnergySeatFor(c, side);
+        const seat = pk && tt.players[pk];
+        if (!seat) return;
+        seat.energy = (seat.energy || 0) + gain;
+        this._creditChain(c, 'statsEnergyGenerated', gain);
+        this.log(`  [ENERGY] ${c.name} grants ${seat.name || pk} +${gain} Energy`);
+      });
     });
 
     // ============================================================

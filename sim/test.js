@@ -7924,6 +7924,153 @@ test("2v2: Green Lantern's energy reaches the seat that played him", function ()
   assertEq(tt.players.p4.nextTurnCurrency, 0, 'the bucket is consumed, never stacking');
 });
 
+// ---- PER-ROUND ENERGY PASSIVES IN 2v2 ---------------------------------
+// "Each Turn: Add N Energy" (Dr. Manhattan +2, Power Battery +1) is swept in
+// 1v1's startRound. start2v2Round never ported that sweep, so every one of
+// those cards was inert for a whole 2v2 match — and once it IS swept, the
+// grant has to land on the seat that PLAYED the card, not the side proxy and
+// not whichever teammate happens to sort first.
+// (User: "so the person who played manhattan should get 2 extra energy each
+// turn in 2v2.")
+function fresh2v2(teams) {
+  Game.start2v2Match({ names: { p1: 'Ryan', p2: 'Vega', p3: 'Joe', p4: 'Cortex' } });
+  var tt = Game.state.twoVTwo;
+  tt.online = true; tt.you = 'p1';
+  tt.players.p1.team = 'A'; tt.players.p3.team = 'A';
+  tt.players.p2.team = 'B'; tt.players.p4.team = 'B';
+  ['p1','p2','p3','p4'].forEach(function (k) {
+    tt.players[k].nextTurnCurrency = 0; tt.players[k].energy = 0;
+  });
+  Game._2v2CurrentActingPlayer = null;
+  Game._2v2AIDriving = null;
+  return Game;
+}
+
+test("2v2: Dr. Manhattan's +2 goes to the seat that played him", function () {
+  var G = fresh2v2(), tt = G.state.twoVTwo;
+  // Cortex (p4) is the SECOND seat on team B, deliberately: a fix that merely
+  // picks "some seat on the right side" would credit p2 and look correct.
+  var dm = G.createCardInstance(cardByName('Dr. Manhattan'), 'ai');
+  dm._2v2PlayedBy = 'p4';
+  G.state.lanes[0].ai = dm;
+
+  tt.round = 5;
+  G.start2v2Round();
+  var r = tt.round;
+
+  assertEq(tt.players.p4.energy, r + 2, 'Cortex gets the round energy plus Manhattan\'s 2');
+  assertEq(tt.players.p2.energy, r, 'his teammate gets the plain round energy, not a share');
+  assertEq(tt.players.p1.energy, r, 'and the enemy team certainly does not');
+  assertEq(tt.players.p3.energy, r, 'nor the other enemy seat');
+});
+
+test("2v2: the energy passive fires EVERY round, not just once", function () {
+  var G = fresh2v2(), tt = G.state.twoVTwo;
+  var dm = G.createCardInstance(cardByName('Dr. Manhattan'), 'player');
+  dm._2v2PlayedBy = 'p3';
+  G.state.lanes[0].player = dm;
+  tt.round = 1;
+  G.start2v2Round();
+  assertEq(tt.players.p3.energy, tt.round + 2, 'first round after he lands');
+  G.start2v2Round();
+  assertEq(tt.players.p3.energy, tt.round + 2, 'and again the round after that');
+});
+
+test("2v2: every energy tier routes the same way, on its own seat", function () {
+  var G = fresh2v2(), tt = G.state.twoVTwo;
+  // Dr. Octopus is the real +1 card ("While Active: Add 1 extra Energy each
+  // round"); nothing ships extraCurrency3 today, so that tier is stamped on to
+  // pin the table itself rather than one card's spelling of it.
+  var doc = G.createCardInstance(cardByName('Dr. Octopus'), 'player');
+  doc._2v2PlayedBy = 'p3';
+  assertEq(doc.passive, 'extraCurrency', 'setup: Dr. Octopus really carries the +1 passive');
+  var big = G.createCardInstance(cardByName('Hawkeye'), 'player');
+  big.passive = 'extraCurrency3';
+  big._2v2PlayedBy = 'p1';
+  G.state.lanes[0].player = doc;
+  G.state.lanes[1].player = big;
+  tt.round = 2;
+  G.start2v2Round();
+  var r = tt.round;
+  assertEq(tt.players.p3.energy, r + 1, 'the +1 tier lands on its own seat');
+  assertEq(tt.players.p1.energy, r + 3, 'the +3 tier lands on its own seat');
+  assertEq(tt.players.p2.energy, r, 'and neither leaks to the other team');
+});
+
+test("2v2: two generators on the same team each pay their own player", function () {
+  var G = fresh2v2(), tt = G.state.twoVTwo;
+  var dm = G.createCardInstance(cardByName('Dr. Manhattan'), 'ai');
+  dm._2v2PlayedBy = 'p4';
+  var doc = G.createCardInstance(cardByName('Dr. Octopus'), 'ai');
+  doc._2v2PlayedBy = 'p2';
+  G.state.lanes[0].ai = dm;
+  G.state.lanes[1].ai = doc;
+  tt.round = 3;
+  G.start2v2Round();
+  var r = tt.round;
+  assertEq(tt.players.p4.energy, r + 2, 'Manhattan pays Cortex only');
+  assertEq(tt.players.p2.energy, r + 1, 'Dr. Octopus pays Vega only');
+});
+
+test("2v2: a mind-controlled generator pays its CURRENT controller", function () {
+  // The card changed sides. Its original owner must not keep collecting from
+  // it, and _2v2PlayedBy still names them — so the controller's seat has to win.
+  var G = fresh2v2(), tt = G.state.twoVTwo;
+  var dm = G.createCardInstance(cardByName('Dr. Manhattan'), 'ai');
+  dm._2v2PlayedBy = 'p1';                // played by team A originally
+  dm._mcSeat = 'p4';                     // now controlled by Cortex, team B
+  dm.owner = 'ai';
+  G.state.lanes[0].ai = dm;
+  tt.round = 3;
+  G.start2v2Round();
+  var r = tt.round;
+  assertEq(tt.players.p4.energy, r + 2, 'the controller collects');
+  assertEq(tt.players.p1.energy, r, 'the seat that played it does not');
+});
+
+test("2v2: a stale controller seat on the wrong side falls back to provenance", function () {
+  // Mind control ended: the card is back on team A but _mcSeat still names a
+  // team B seat. Crediting it would hand energy straight to the opponent.
+  var G = fresh2v2(), tt = G.state.twoVTwo;
+  var dm = G.createCardInstance(cardByName('Dr. Manhattan'), 'player');
+  dm._2v2PlayedBy = 'p3';
+  dm._mcSeat = 'p2';                     // stale — team B, card is on team A now
+  G.state.lanes[0].player = dm;
+  tt.round = 4;
+  G.start2v2Round();
+  var r = tt.round;
+  assertEq(tt.players.p2.energy, r, 'the enemy seat named by the stale flag gets nothing');
+  assertEq(tt.players.p3.energy, r + 2, 'and it falls through to who actually played it');
+});
+
+test("2v2: a generator with no provenance still pays its own side", function () {
+  var G = fresh2v2(), tt = G.state.twoVTwo;
+  var dm = G.createCardInstance(cardByName('Dr. Manhattan'), 'ai');
+  delete dm._2v2PlayedBy;                // e.g. summoned before stamping existed
+  G.state.lanes[0].ai = dm;
+  tt.round = 6;
+  G.start2v2Round();
+  var r = tt.round;
+  var teamB = tt.players.p2.energy + tt.players.p4.energy;
+  assertEq(teamB, r * 2 + 2, 'the 2 landed somewhere on the owning team');
+  assertEq(tt.players.p1.energy, r, 'and nowhere on the other one');
+  assertEq(tt.players.p3.energy, r, 'neither enemy seat');
+  assertEq(G.state.ai.nextTurnCurrency, 0, 'nothing stranded on the side proxy');
+});
+
+test("2v2: Green Lantern's per-round damage counter is cleared", function () {
+  // Same forEach in 1v1's startRound zeroes this; without it a counter from a
+  // round where GL died mid-combat carries into the next one and double-pays.
+  var G = fresh2v2(), tt = G.state.twoVTwo;
+  var gl = G.createCardInstance(cardByName('Green Lantern'), 'player');
+  gl._damageDealtThisTurn = 4;
+  gl._2v2PlayedBy = 'p1';
+  G.state.lanes[0].player = gl;
+  tt.round = 2;
+  G.start2v2Round();
+  assertEq(gl._damageDealtThisTurn, 0, 'the counter starts the round at zero');
+});
+
 test("2v2: an energy grant is never credited to the wrong team", function () {
   Game.start2v2Match({ names: { p1: 'Ryan', p2: 'Vega', p3: 'yomamma', p4: 'Cortex' } });
   var s = Game.state, tt = s.twoVTwo;
