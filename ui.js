@@ -13616,6 +13616,16 @@ const UI = {
   // for the same idea. Pointer-only: a touch screen has no hover position to
   // read, so phones simply never arm it.
   _installMenuParallax(el) {
+    // OFF. The menu used to lean with the cursor — five planes sliding on
+    // pointermove. The owner does not want the art or the screen reacting to
+    // the mouse at all: "i dont like when my mouse moved the art and screen
+    // move, get rid of that." The scene keeps its own slow drift instead (see
+    // mmHeroBreathe), which is motion the player watches rather than motion
+    // they cause.
+    // Left as an early return rather than deleting the body, so the CSS planes,
+    // the @property declarations and the settings knob it reads all stay
+    // internally consistent and this is one line to reverse.
+    if (true) return;
     if (!el || el._mmParallaxOn) return;
     if (typeof window === 'undefined' || !window.matchMedia) return;
     // Respect the OS setting and skip devices with no real pointer.
@@ -29173,6 +29183,12 @@ const UI = {
   // #9 — Parallax main menu. Mouse position drives body-level CSS vars
   // that each UI surface (mm-panel, body::before) reads for tiny offsets.
   installParallaxMenu() {
+    // OFF — same reason as _installMenuParallax. This is the SECOND cursor
+    // parallax on this screen: it drives --parallax-x/y on <body>, which moves
+    // .mm-panel (style.css:17195) and body::before (17199). Killing only the
+    // plane parallax would have left the menu still swimming under the pointer,
+    // which is exactly the complaint.
+    if (true) return;
     if (!this._hasFinePointer()) return;  // mouse-driven menu parallax; a tap would leave the bg shifted
     if (this.isLowFx()) return;           // mousemove repaint — off on low-capability GPUs
     let rafPending = false;

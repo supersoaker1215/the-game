@@ -38893,10 +38893,36 @@ body.low-fx .card-hollow-purple::after { animation: none !important; }
    rather than an accessibility fallback.
    The one-shot rez-in on .mm-hero is untouched — it plays once on load and
    settles, so it never switches anything. */
+/* THE ART BREATHES AGAIN — but it does not travel.
+   User: "bring back the art slowly moving on its own."
+   The drift was pinned off for a real reason, and that reason still stands:
+   mmHeroDrift ran scale 1.05 -> 1.11 with a 1.8%/3% slide, so over 34s the
+   framing arrived somewhere visibly DIFFERENT and the owner read it as the art
+   switching on them ("i want the one with the happy face all the time, not for
+   it to switch"). Restoring that keyframe would restore that complaint.
+   So this is a BREATH, not a Ken Burns: 1.05 -> 1.075 (2.5% of zoom against the
+   old 6%) and 0.5% of slide against 1.8%, over 42s. It starts and returns to
+   the exact pinned framing that was asked for, and at any moment in the cycle
+   the crop is close enough to that framing that there is no second look to
+   arrive at — you feel the movement without the picture changing.
+   mmHeroDrift itself is left untouched; nothing else references it now, but
+   redefining a shared keyframe to suit one caller is how the next surface
+   inherits a surprise. */
+@keyframes mmHeroBreathe {
+  0%   { transform: scale(1.05)  translate(0, -1.5%); }
+  100% { transform: scale(1.075) translate(-0.5%, -0.9%); }
+}
 .mm-mw3 .mm-hero-img {
-  animation: none;
+  animation: mmHeroBreathe 42s ease-in-out infinite alternate;
   transform: scale(1.05) translate(0, -1.5%);
 }
+/* Reduced motion and the low-FX/battery path keep it pinned — the existing
+   rules at 2292 and 36543 already target this element; this is the explicit
+   partner for the new keyframe so neither can drift apart from the other. */
+@media (prefers-reduced-motion: reduce) {
+  .mm-mw3 .mm-hero-img { animation: none; transform: scale(1.05) translate(0, -1.5%); }
+}
+body.low-fx .mm-mw3 .mm-hero-img { animation: none; }
 
 /* ============================================================
    MENU TYPE SCALE — the caps were sized for a 560px column
