@@ -21410,7 +21410,11 @@ const UI = {
     const displayCost = inHand && card.owner && Game.getCardCost
       ? Game.getCardCost(card.owner, card)
       : card.cost;
-    const costStyle = displayCost < baseCost ? 'color:#2ecc71' : displayCost > baseCost ? 'color:#e74c3c' : '';
+    // Discounted / inflated cost. This used to recolour the DIGIT, which the
+    // corner wedge can no longer carry — the digit is the engraved hole and has
+    // to stay dark to read as one. It repaints the WEDGE instead, so a cheapened
+    // card lights its whole corner green and an inflated one goes red.
+    const costStyle = displayCost < baseCost ? '--cost-neon:46,204,113' : displayCost > baseCost ? '--cost-neon:231,76,60' : '';
     const cornerIndicators = '';
 
     // Buff/debuff classes on the stat orbs — compare current to the

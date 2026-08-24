@@ -5292,14 +5292,12 @@ body.hit-pause .ai-hand * {
 }
 .card.draft-card .card-cost,
 .draft-card.trick-draft .card-cost {
-  width: 32px; height: 32px;
-  font-size: 16px;
-  top: 9px; left: 9px;
+  --cost-size: 34px;
 }
-/* Trick-draft padding is 14px (vs 8px on character draft cards), which left
-   the cost gem + rarity pips floating in the padding gutter ABOVE the art.
-   Nudge both INTO the painting like the character cards. */
-.draft-card.trick-draft .card-cost { top: 20px; left: 20px; }
+/* The old pip floated in the trick-draft padding gutter and had to be nudged
+   into the painting to look anchored. The corner wedge has the opposite
+   problem — it belongs ON the frame, so the nudge is gone and it sits flush
+   in the corner like every other surface. */
 .draft-card.trick-draft .rarity-strip { top: 20px; right: 21px; }
 .card.draft-card .stat-circle {
   width: 32px; height: 32px;
@@ -6191,94 +6189,136 @@ body.hit-pause .ai-hand * {
      legitimately overflow the box and need to render past edges. */
   contain: layout style;
 }
-/* Cost badge — black-hole style: pure black core + legendary-gold ring.
-   Glow matches the .energy-text orb spec so every cost pip on the board
-   reads as the same "legendary yellow" chrome as the player/AI energy
-   orbs and the 9/10-cost rarity tier. */
-/* Cost badge — corner-cut square anchored INSIDE the card's upper-
-   left corner. Etched-in (not plastered-on) look: translucent dark
-   well lets the painting + scanlines bleed through; the neon outline
-   is a separate SVG-mask layer so the rarity-tinted stroke follows
-   the chamfered shape exactly. Two pseudo-elements:
-     ::before  = filled silhouette (dark translucent fill)
-     ::after   = stroke-only outline (rarity-colored)
-   Both masked to the same chamfered-square SVG so they line up.
-   Digit text is debossed (dark below, faint catch-light above). */
+/* ============================================================
+   COST CORNER — a SOLID neon wedge welded into the card's
+   upper-left corner, with the energy cost cut out of it.
+   ------------------------------------------------------------
+   Replaces the old translucent chamfered pip. Owner direction:
+   "a solid neon highlit corner with their energy cost engraved
+   into the corner." Two things follow from that sentence:
+
+     SOLID — the block is opaque neon, flush to the card's own
+     border on both edges, so it reads as part of the frame the
+     card is built from rather than a sticker dropped on the art.
+
+     ENGRAVED — the digit is not ink on top of the block, it is
+     the HOLE in it. Digit colour is the card ground; the only
+     other paint is a one-pixel catch-light on the digit's lower
+     lip, which is the whole trick: light falling into a stamped
+     recess pools on the bottom edge. Colour it neon instead and
+     it instantly flips back to "printed on".
+
+   The silhouette is a square with the INNER corner chamfered off
+   (the two outer edges stay square against the card border) —
+   same 45° language as the card's corner brackets and the old
+   pip, so nothing else on the tile has to change.
+
+     ::before = the solid neon mass + its bloom
+     ::after  = the bright hairline riding the cut edge
+
+   The digit sits at ~42%/42%, not dead centre: a chamfered block
+   has its mass in the outer corner, so a centred digit reads as
+   sliding off the cut edge.
+   ============================================================ */
 .card-cost {
-  position: absolute; top: 6px; left: 6px;
-  width: 22px; height: 22px;
+  /* ONE knob per surface. Every size override downstream sets
+     --cost-size only; the digit follows it, so a bigger corner can
+     never come with a digit that stayed 12px. */
+  --cost-size: 26px;
+  /* The wedge colour. Defaults to the card's framing colour, which
+     is already the cost tier in hand / codex / draft (green → cyan →
+     silver → gold) and the side colour on board. Anything that used
+     to recolour the DIGIT now sets this instead. */
+  --cost-neon: var(--portrait-frame-rgb, 255,215,0);
+  /* The wedge sits INSIDE the card's 1px border, so its outer corner wants
+     the card's radius minus that border or a hairline of ground shows in the
+     corner. Cards are 4px, tricks are 5px — hence a knob rather than a
+     constant. */
+  --cost-radius: 3px;
+  position: absolute; top: 0; left: 0;
+  width: var(--cost-size); height: var(--cost-size);
+  box-sizing: border-box;
   background: transparent;
   border: none;
-  color: rgba(var(--portrait-frame-rgb, 255,215,0), 1);
-  font-weight: 700; font-size: 12px;
+  /* The hole, not the ink. Near-black with a hint of the card's
+     blue-black ground so it doesn't read as a printing void. */
+  color: #04070c;
+  font-weight: 700;
+  font-size: calc(var(--cost-size) * 0.5);
+  line-height: 1;
   display: flex; align-items: center; justify-content: center;
+  /* Pull the digit off the chamfer toward the solid outer corner.
+     NOT percentages: percentage padding on an absolutely-positioned box
+     resolves against the CONTAINING BLOCK's width — the whole 84px card,
+     not the 22px badge — so `17%` came out as 14.3px and shoved the digit
+     into the top-left corner. calc() off --cost-size is the only form that
+     scales with the badge. */
+  padding: 0 calc(var(--cost-size) * 0.17) calc(var(--cost-size) * 0.17) 0;
   z-index: 4;
-  text-shadow:
-    0 1px 0 rgba(0,0,0,0.95),
-    0 -0.5px 0 rgba(var(--portrait-frame-rgb, 255,215,0), 0.35),
-    0 0 4px rgba(var(--portrait-frame-rgb, 255,215,0), 0.35);
+  text-shadow: 0 1px 0 rgba(255,255,255,0.34);
   font-family: var(--font-mono);
   font-variant-numeric: tabular-nums;
 }
-/* Filled well — chamfered-square silhouette via SVG mask (smoother
-   edges than clip-path under sub-pixel rendering). Translucent dark
-   fill so the painting + scanlines below stay visible THROUGH the
-   shape — the strongest signal that the badge is part of the card
-   surface rather than sitting on top of it. */
+/* The solid mass. Saturated neon first, sheen second — the first pass
+   put a white stop at 0% of a 135° ramp and the block came back milky,
+   because the outer corner IS most of a chamfered block's visible area,
+   so the white half of the ramp covered the part you actually look at.
+   Now the fill is flat neon and the specular is a small radial pinned to
+   the corner, which lights the block without bleaching it. Radius on the
+   outer corner only, in px so it tracks the card's 4px radius at any
+   --cost-size. */
 .card-cost::before {
   content: '';
   position: absolute; inset: 0;
-  background: rgba(0, 8, 14, 0.62);
-  -webkit-mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100' preserveAspectRatio='none'><path fill='black' d='M16,0 L84,0 L100,16 L100,84 L84,100 L16,100 L0,84 L0,16 Z'/></svg>") center/100% 100% no-repeat;
-          mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100' preserveAspectRatio='none'><path fill='black' d='M16,0 L84,0 L100,16 L100,84 L84,100 L16,100 L0,84 L0,16 Z'/></svg>") center/100% 100% no-repeat;
-  filter: drop-shadow(0 0 3px rgba(var(--portrait-frame-rgb, 255,215,0), 0.45));
+  border-radius: var(--cost-radius) 0 0 0;
+  background:
+    radial-gradient(120% 120% at 6% 6%,
+      rgba(255,255,255,0.42) 0%,
+      rgba(255,255,255,0.00) 46%),
+    linear-gradient(135deg,
+      rgba(var(--cost-neon), 1) 0%,
+      rgba(var(--cost-neon), 0.84) 100%);
+  -webkit-mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100' preserveAspectRatio='none'><path fill='black' d='M0,0 L100,0 L100,56 L56,100 L0,100 Z'/></svg>") center/100% 100% no-repeat;
+          mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100' preserveAspectRatio='none'><path fill='black' d='M0,0 L100,0 L100,56 L56,100 L0,100 Z'/></svg>") center/100% 100% no-repeat;
+  filter:
+    drop-shadow(0 0 4px rgba(var(--cost-neon), 0.60))
+    drop-shadow(0 0 10px rgba(var(--cost-neon), 0.26));
   z-index: -2;
 }
-/* Stroke-only neon outline — rarity-tinted, follows the chamfered
-   silhouette exactly because the mask is the path's stroke. This is
-   what carries the "laser-cut into the card" reading. */
+/* The cut edge. A single bright hairline along the chamfer only —
+   the two outer edges are already defined by the card's border, so
+   stroking the whole silhouette would double them. */
 .card-cost::after {
   content: '';
   position: absolute; inset: 0;
-  background: rgba(var(--portrait-frame-rgb, 255,215,0), 0.95);
-  -webkit-mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100' preserveAspectRatio='none'><path fill='none' stroke='black' stroke-width='8' stroke-linejoin='round' d='M16,0 L84,0 L100,16 L100,84 L84,100 L16,100 L0,84 L0,16 Z'/></svg>") center/100% 100% no-repeat;
-          mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100' preserveAspectRatio='none'><path fill='none' stroke='black' stroke-width='8' stroke-linejoin='round' d='M16,0 L84,0 L100,16 L100,84 L84,100 L16,100 L0,84 L0,16 Z'/></svg>") center/100% 100% no-repeat;
+  background: rgba(255,255,255,0.62);
+  -webkit-mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100' preserveAspectRatio='none'><path fill='none' stroke='black' stroke-width='5' d='M100,56 L56,100'/></svg>") center/100% 100% no-repeat;
+          mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100' preserveAspectRatio='none'><path fill='none' stroke='black' stroke-width='5' d='M100,56 L56,100'/></svg>") center/100% 100% no-repeat;
   z-index: -1;
   pointer-events: none;
 }
 
-/* Per-context digit overrides — the etched shape (::before fill +
-   ::after outline) already paints via --portrait-frame-rgb, so we
-   only need to fine-tune the DIGIT's color + glow here. The shape's
-   neon outline auto-tints from the cascade. */
-.card.hand-card .card-cost {
-  color: rgba(var(--portrait-frame-rgb, 255,215,0), 1);
-  text-shadow:
-    0 1px 0 rgba(0,0,0,0.95),
-    0 -0.5px 0 rgba(var(--portrait-frame-rgb, 255,215,0), 0.40),
-    0 0 5px rgba(var(--portrait-frame-rgb, 255,215,0), 0.45);
-}
+/* Per-context colour. These used to repaint the DIGIT; with the
+   digit now being the engraved hole they repaint the WEDGE, which
+   is the same information carried by the part of the badge that
+   still has room to carry it. Hand / draft inherit the cost-tier
+   ramp; board cards take their side colour. */
+.card.hand-card .card-cost,
 .draft-card .card-cost {
-  color: rgba(var(--portrait-frame-rgb, 255,215,0), 1);
-  text-shadow:
-    0 1px 0 rgba(0,0,0,0.95),
-    0 -0.5px 0 rgba(var(--portrait-frame-rgb, 255,215,0), 0.40),
-    0 0 5px rgba(var(--portrait-frame-rgb, 255,215,0), 0.45);
+  --cost-neon: var(--portrait-frame-rgb, 255,215,0);
 }
+/* Hand tiles are 86px wide, not the 140px the base size was drawn for —
+   the same 26px block reads a third heavier there. Sized down so the
+   corner covers the same SHARE of the tile it does on board. */
+.player-hand-section .hand-cards .card .card-cost { --cost-size: 22px; }
 .card.ally-card .card-cost {
-  color: rgba(var(--portrait-frame-rgb, 79,195,247), 1);
-  text-shadow:
-    0 1px 0 rgba(0,0,0,0.95),
-    0 -0.5px 0 rgba(var(--portrait-frame-rgb, 79,195,247), 0.40),
-    0 0 5px rgba(var(--portrait-frame-rgb, 79,195,247), 0.45);
+  --cost-neon: var(--portrait-frame-rgb, 79,195,247);
 }
 .card.enemy-card .card-cost {
-  color: rgba(var(--portrait-frame-rgb, 231,76,60), 1);
-  text-shadow:
-    0 1px 0 rgba(0,0,0,0.95),
-    0 -0.5px 0 rgba(var(--portrait-frame-rgb, 231,76,60), 0.40),
-    0 0 5px rgba(var(--portrait-frame-rgb, 231,76,60), 0.45);
+  --cost-neon: var(--portrait-frame-rgb, 231,76,60);
 }
+/* Trick tiles round 1px harder than character cards. */
+.trick-card .card-cost { --cost-radius: 4px; }
 /* Type sigils on in-hand / on-board cards — mirror the trick sigil placement
    but with a different glyph+color per card kind (⚔ character / ♺ discard). */
 .card .card-type-sigil {
@@ -7389,11 +7429,7 @@ body.hit-pause .ai-hand * {
   text-shadow: 0 0 6px rgba(120,60,140,0.55) !important;
 }
 .card.hand-card.rl-curse .card-cost {
-  color: rgba(200,160,220,0.95) !important;
-  text-shadow: 0 0 6px rgba(120,60,140,0.55) !important;
-}
-.card.hand-card.rl-curse .card-cost::before {
-  border-color: rgba(120,60,140,0.95) !important;
+  --cost-neon: 168, 118, 200;
 }
 .card.hand-card.rl-curse .rarity-strip .rpip { background: rgba(120,60,140,0.85) !important; }
 .card.hand-card.rl-curse .card-name-banner::after {
@@ -9134,18 +9170,12 @@ body.mobile-card-dragging .cursor-trail { display: none !important; }
 }
 .dead-pile-card .card-stats .atk { color: #7ee8a5; text-shadow: 0 0 4px rgba(46,204,113,0.5); }
 .dead-pile-card .card-stats .hp  { color: #ff8a7a; text-shadow: 0 0 4px rgba(231,76,60,0.5); }
+/* Dead pile used to run its own gold ring hanging off the corner. It is the
+   same class on the same tile, so it takes the same wedge — only the colour
+   is pinned, because a card in the dead pile has no live side to inherit. */
 .dead-pile-card .card-cost {
-  position: absolute; top: -7px; left: -7px;
-  width: 22px; height: 22px; border-radius: 50%;
-  background: #000000;
-  color: #ffd77a;
-  font-family: var(--font-mono);
-  font-weight: 700; font-size: 12px;
-  display: flex; align-items: center; justify-content: center;
-  border: 1px solid rgba(255,215,0,0.95); z-index: 2;
-  box-shadow: 0 0 12px rgba(255,215,0,0.60), 0 0 24px rgba(255,215,0,0.25);
-  text-shadow: 0 0 6px rgba(255,215,0,0.55);
-  font-variant-numeric: tabular-nums;
+  --cost-size: 22px;
+  --cost-neon: 255, 215, 100;
 }
 .dead-pile-card .card-desc {
   font-family: 'Inter', sans-serif;
@@ -10010,7 +10040,7 @@ body.turn-combat .board .lane.lane-active {
   }
   .draft-card .card-name { font-size: 11px; letter-spacing: 0.6px; }
   .draft-card .card-desc { font-size: 10px; line-height: 1.3; }
-  .draft-card .card-cost { width: 18px; height: 18px; font-size: 11px; }
+  .draft-card .card-cost { --cost-size: 20px; }
   /* Pick counter + dot indicator + back-buttons row on draft */
   .draft-hud-row { gap: 8px; padding: 6px 2px 8px; }
   .draft-hud-label { font-size: 14px; letter-spacing: 4px; }
@@ -10123,7 +10153,7 @@ body.turn-combat .board .lane.lane-active {
   }
   .player-hand-section .hand-cards .card .card-name { font-size: 10px; letter-spacing: 0.3px; }
   .player-hand-section .hand-cards .card .card-desc { display: block; font-size: 8px; line-height: 1.15; }
-  .player-hand-section .hand-cards .card .card-cost { width: 22px; height: 22px; font-size: 12px; top: 4px; left: 4px; }
+  .player-hand-section .hand-cards .card .card-cost { --cost-size: 22px; }
   .player-hand-section .hand-cards .card .stat-circle { width: 18px; height: 18px; font-size: 11px; }
   .player-hand-section .hand-cards .card .stat-circle.stat-atk { bottom: 4px; left: 4px; }
   .player-hand-section .hand-cards .card .stat-circle.stat-hp  { bottom: 4px; right: 4px; }
@@ -10519,7 +10549,7 @@ body.turn-combat .board .lane.lane-active {
      Grow to 30×30 (font 15px) so the cost reads at the same weight as
      the stat orbs. User feedback: "the energy diamond is too small
      compared to the health/damage orbs". */
-  .draft-card .card-cost { width: 28px !important; height: 28px !important; font-size: 14px !important; top: 5px !important; left: 5px !important; }
+  .draft-card .card-cost { --cost-size: 28px !important; }
 }
 
 /* On pointer:coarse (touch-primary), expand tap targets for all
@@ -12201,7 +12231,6 @@ body.turn-combat .board .lane.lane-active {
   color: #7fcf9b; text-align: center;
 }
 .peek-chip-now { color: var(--currency, #ffb347); }
-.peek-chip .card-cost { top: 2px; left: 2px; }
 .peek-chip-active {
   border-color: var(--currency, #ffb347);
   box-shadow: 0 0 12px rgba(255,179,71,0.45);
@@ -16893,7 +16922,7 @@ body.kill-flash-ai::after {
   0%   { opacity: 0; transform: translateY(10px) scale(0.96); }
   100% { opacity: 1; transform: translateY(0)    scale(1); }
 }
-.ci-panel .card-cost { top: -10px; left: -10px; width: 26px; height: 26px; font-size: 14px; }
+.ci-panel .card-cost { --cost-size: 28px; }
 .ci-name {
   font-size: 20px; font-weight: 700;
   letter-spacing: 3px; text-transform: uppercase;
@@ -19957,8 +19986,7 @@ body.phase-menu .kb-hints { display: none; }
    octagon mask and rarity-tinted bold styling — just scaled to read
    correctly at codex card size. */
 .encyc-grid .card.hand-card.enc-card .card-cost {
-  width: 30px; height: 30px; font-size: 16px;
-  top: 8px; left: 8px;
+  --cost-size: 32px;
 }
 .encyc-grid .card.hand-card.enc-card .stat-circle {
   width: 30px; height: 30px; font-size: 14px;
@@ -26353,14 +26381,14 @@ body.killing-blow-cinema::after {
 
 /* Cost diamond (top-left). The ::before is the rotated black square
    with the tier-colored border. */
-.rl-tier-common .card.hand-card .card-cost { color: #5be39a !important; text-shadow: 0 0 6px rgba(46,204,113,0.95), 0 0 12px rgba(46,204,113,0.45) !important; }
-.rl-tier-rare .card.hand-card .card-cost { color: #7fd0ff !important; text-shadow: 0 0 6px rgba(var(--theme-rgb, 79,195,247),0.95), 0 0 12px rgba(var(--theme-rgb, 79,195,247),0.45) !important; }
-.rl-tier-special .card.hand-card .card-cost { color: var(--text-hi, #ffffff) !important; text-shadow: 0 0 6px rgba(240,245,250,1), 0 0 12px rgba(240,245,250,0.55) !important; }
-.rl-tier-legendary .card.hand-card .card-cost { color: #ffe066 !important; text-shadow: 0 0 6px rgba(255,215,0,0.95), 0 0 12px rgba(255,215,0,0.45) !important; }
-.rl-tier-common .card.hand-card .card-cost::before { border-color: rgba(46,204,113,1) !important; box-shadow: 0 0 12px rgba(46,204,113,0.75), 0 0 24px rgba(46,204,113,0.30) !important; }
-.rl-tier-rare .card.hand-card .card-cost::before { border-color: rgba(var(--theme-rgb, 79,195,247),1) !important; box-shadow: 0 0 12px rgba(var(--theme-rgb, 79,195,247),0.75), 0 0 24px rgba(var(--theme-rgb, 79,195,247),0.30) !important; }
-.rl-tier-special .card.hand-card .card-cost::before { border-color: rgba(240,245,250,1) !important; box-shadow: 0 0 12px rgba(240,245,250,0.75), 0 0 24px rgba(240,245,250,0.30) !important; }
-.rl-tier-legendary .card.hand-card .card-cost::before { border-color: rgba(255,215,0,1) !important; box-shadow: 0 0 12px rgba(255,215,0,0.75), 0 0 24px rgba(255,215,0,0.30) !important; }
+/* Roguelite tier used to tint the cost DIGIT (and put a border on a
+   pseudo-element that no longer has one). The digit is the engraved hole now,
+   so the tier paints the wedge instead — same information, on the part of the
+   badge that still carries colour. */
+.rl-tier-common .card.hand-card .card-cost    { --cost-neon: 46, 204, 113; }
+.rl-tier-rare .card.hand-card .card-cost      { --cost-neon: var(--theme-rgb, 79, 195, 247); }
+.rl-tier-special .card.hand-card .card-cost   { --cost-neon: 240, 245, 250; }
+.rl-tier-legendary .card.hand-card .card-cost { --cost-neon: 255, 215, 0; }
 
 /* Rarity-strip pips (top-right tier indicator). Render N pips matching
    the run rarity tier instead of the cost-based tier. */
@@ -26446,14 +26474,10 @@ body.killing-blow-cinema::after {
 .card.rl-tier-rare .card-name { color: #7fd0ff !important; text-shadow: 0 0 6px rgba(var(--theme-rgb, 79,195,247),0.55) !important; }
 .card.rl-tier-special .card-name { color: var(--text-body, #e8eef6) !important; text-shadow: 0 0 6px rgba(240,245,250,0.55) !important; }
 .card.rl-tier-legendary .card-name { color: #ffe066 !important; text-shadow: 0 0 6px rgba(255,215,0,0.55) !important; }
-.card.rl-tier-common .card-cost { color: #5be39a !important; text-shadow: 0 0 6px rgba(46,204,113,0.95), 0 0 12px rgba(46,204,113,0.45) !important; }
-.card.rl-tier-rare .card-cost { color: #7fd0ff !important; text-shadow: 0 0 6px rgba(var(--theme-rgb, 79,195,247),0.95), 0 0 12px rgba(var(--theme-rgb, 79,195,247),0.45) !important; }
-.card.rl-tier-special .card-cost { color: var(--text-body, #e8eef6) !important; text-shadow: 0 0 6px rgba(240,245,250,0.95), 0 0 12px rgba(240,245,250,0.45) !important; }
-.card.rl-tier-legendary .card-cost { color: #ffe066 !important; text-shadow: 0 0 6px rgba(255,215,0,0.95), 0 0 12px rgba(255,215,0,0.45) !important; }
-.card.rl-tier-common .card-cost::before { border-color: rgba(46,204,113,1) !important; box-shadow: 0 0 12px rgba(46,204,113,0.75), 0 0 24px rgba(46,204,113,0.30) !important; }
-.card.rl-tier-rare .card-cost::before { border-color: rgba(var(--theme-rgb, 79,195,247),1) !important; box-shadow: 0 0 12px rgba(var(--theme-rgb, 79,195,247),0.75), 0 0 24px rgba(var(--theme-rgb, 79,195,247),0.30) !important; }
-.card.rl-tier-special .card-cost::before { border-color: rgba(240,245,250,1) !important; box-shadow: 0 0 12px rgba(240,245,250,0.75), 0 0 24px rgba(240,245,250,0.30) !important; }
-.card.rl-tier-legendary .card-cost::before { border-color: rgba(255,215,0,1) !important; box-shadow: 0 0 12px rgba(255,215,0,0.75), 0 0 24px rgba(255,215,0,0.30) !important; }
+.card.rl-tier-common .card-cost    { --cost-neon: 46, 204, 113; }
+.card.rl-tier-rare .card-cost      { --cost-neon: var(--theme-rgb, 79, 195, 247); }
+.card.rl-tier-special .card-cost   { --cost-neon: 240, 245, 250; }
+.card.rl-tier-legendary .card-cost { --cost-neon: 255, 215, 0; }
 .card.rl-tier-common .rarity-strip .rpip { background: rgba(46,204,113,0.95) !important; box-shadow: 0 0 4px rgba(46,204,113,0.65) !important; }
 .card.rl-tier-rare .rarity-strip .rpip { background: rgba(var(--theme-rgb, 79,195,247),0.95) !important; box-shadow: 0 0 4px rgba(var(--theme-rgb, 79,195,247),0.65) !important; }
 .card.rl-tier-special .rarity-strip .rpip { background: rgba(240,245,250,0.95) !important; box-shadow: 0 0 4px rgba(240,245,250,0.65) !important; }
@@ -26509,32 +26533,12 @@ body.killing-blow-cinema::after {
   text-shadow: 0 0 6px var(--enemy-glow-outer) !important;
 }
 
-/* Cost diamond (number) — same side-color treatment. */
+/* Cost corner — same side-color treatment, applied to the wedge. */
 .board .card.ally-card[class*="rl-tier-"]:not(.rl-curse) .card-cost {
-  color: rgba(var(--player-r), var(--player-g), var(--player-b), 1) !important;
-  text-shadow:
-    0 0 6px var(--player-accent-bright),
-    0 0 12px var(--player-glow-outer) !important;
+  --cost-neon: var(--player-r), var(--player-g), var(--player-b);
 }
 .board .card.enemy-card[class*="rl-tier-"]:not(.rl-curse) .card-cost {
-  color: rgba(var(--enemy-r), var(--enemy-g), var(--enemy-b), 1) !important;
-  text-shadow:
-    0 0 6px var(--enemy-accent-bright),
-    0 0 12px var(--enemy-glow-outer) !important;
-}
-
-/* Cost diamond border (the rotated square frame). */
-.board .card.ally-card[class*="rl-tier-"]:not(.rl-curse) .card-cost::before {
-  border-color: var(--player-accent-bright) !important;
-  box-shadow:
-    0 0 12px var(--player-glow-outer),
-    0 0 24px var(--player-glow-inner) !important;
-}
-.board .card.enemy-card[class*="rl-tier-"]:not(.rl-curse) .card-cost::before {
-  border-color: var(--enemy-accent-bright) !important;
-  box-shadow:
-    0 0 12px var(--enemy-glow-outer),
-    0 0 24px var(--enemy-glow-inner) !important;
+  --cost-neon: var(--enemy-r), var(--enemy-g), var(--enemy-b);
 }
 
 /* Card-name banner underline — matches the side. */
@@ -37539,7 +37543,7 @@ body.hand-text-always .player-hand-section .hand-cards .card.face-flipped .card-
 }
 .card-drag-ghost .card-abilities.status-badges { font-size: 6px; gap: 1px; flex-wrap: wrap; max-width: 100%; }
 .card-drag-ghost .status-badge { padding: 1px 2px; font-size: 6px; letter-spacing: 0.1px; max-width: 100%; }
-.card-drag-ghost .card-cost { width: 18px; height: 18px; font-size: 11px; top: 2px; left: 2px; }
+.card-drag-ghost .card-cost { --cost-size: 20px; }
 .card-drag-ghost .stat-circle { width: 16px; height: 16px; font-size: 10px; }
 .card-drag-ghost .stat-circle.stat-atk { bottom: 2px; left: 2px; }
 .card-drag-ghost .stat-circle.stat-hp  { bottom: 2px; right: 2px; }
