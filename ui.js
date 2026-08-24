@@ -13016,6 +13016,11 @@ const UI = {
       // Pre-join — enter name + create/join, in the main-menu style
       // (boxless glow-text, left-aligned, pure black). Same input IDs +
       // handlers as before so twov2OnlineCreate/Join keep working.
+      // Pre-fill the name with the last one typed (persisted on create/join) so
+      // it doesn't have to be re-entered every visit.
+      let savedName = '';
+      try { savedName = localStorage.getItem('2v2PlayerName') || ''; } catch (e) {}
+      savedName = savedName.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').slice(0, 18);
       el.innerHTML = `
         <div class="twov2-mm">
           ${heroHtml}
@@ -13027,7 +13032,7 @@ const UI = {
             ${errorHtml}
             <div class="twov2-mm-namerow">
               <label class="twov2-mm-namelabel" for="2v2-online-name">Name</label>
-              <input class="twov2-mm-nameinput" id="2v2-online-name" type="text" maxlength="18" placeholder="Your name" autocomplete="off" />
+              <input class="twov2-mm-nameinput" id="2v2-online-name" type="text" maxlength="18" placeholder="Your name" autocomplete="off" value="${savedName}" />
             </div>
             <button type="button" class="twov2-mm-opt" onclick="twov2OnlineCreate()"><span class="twov2-mm-ic">&#9655;</span>Create Room <span class="twov2-mm-optsub">host</span></button>
             <div class="twov2-mm-joinrow">
@@ -31864,6 +31869,9 @@ UI._2v2OnlineError    = null;
 function twov2OnlineCreate() {
   const nameEl = document.getElementById('2v2-online-name');
   const name = nameEl ? (nameEl.value.trim() || 'Player 1') : 'Player 1';
+  // Remember the typed name so it pre-fills next time (owner: "i dont want to
+  // keep having to type it in"). Only persist a real entry, never the fallback.
+  if (nameEl && nameEl.value.trim()) { try { localStorage.setItem('2v2PlayerName', nameEl.value.trim()); } catch (e) {} }
 
   if (typeof WebRTC4Transport === 'undefined') {
     UI._2v2OnlineError = 'WebRTC not available in this browser.';
@@ -31937,6 +31945,8 @@ function twov2OnlineJoin() {
   const nameEl = document.getElementById('2v2-online-name');
   const codeEl = document.getElementById('2v2-online-code');
   const name = nameEl ? (nameEl.value.trim() || 'Player') : 'Player';
+  // Remember the typed name for next time (see twov2OnlineCreate).
+  if (nameEl && nameEl.value.trim()) { try { localStorage.setItem('2v2PlayerName', nameEl.value.trim()); } catch (e) {} }
   const code = codeEl ? (codeEl.value.trim().toUpperCase()) : '';
   if (!code || code.length !== 4) {
     UI._2v2OnlineError = 'Enter a 4-letter room code.';
