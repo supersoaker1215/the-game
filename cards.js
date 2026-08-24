@@ -458,7 +458,7 @@ const CARD_DEFS = [
     desc: "When Played: Do a bonus attack. Choose 2 enemies to Freeze 1. Deal 5 damage to an enemy." },
   { name: "Thanos", cost: 9, attack: 6, health: 9, type: "villain",
     abilities: [],
-    desc: "Can be played during the Trick Phase. When Played: Devour enemies in 3 random lanes (no duplicates)." },
+    desc: "Can be played during the Trick Phase. When Played: Devour enemies in half the lanes at random (no duplicates)." },
 
   // ==================== COST 10 ====================
   { name: "Anakin Skywalker", cost: 10, attack: 7, health: 9, type: "hero",

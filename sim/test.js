@@ -7850,6 +7850,63 @@ test("2v2: a card's draw lands on the seat that played it, not the teammate", fu
   assertEq(tt.players.p1.hand.length, 0, 'his teammate got nothing');
 });
 
+// ---- THANOS SNAPS HALF THE BOARD, WHATEVER THE BOARD IS ----------------
+// (User: "change thanos to devour enemies in half the total number of lanes —
+// same thing, but in 2v2 its 8 lanes so it works there as well.")
+test("Thanos devours half the lanes: 3 of 6 in 1v1", function () {
+  var G = freshGame();
+  G.state.player.isHuman = false; G.state.ai.isHuman = false;
+  assertEq(G.LANE_COUNT, 6, 'a 1v1 board is six lanes');
+  // Fill every enemy lane so the devour count equals the lane count rolled.
+  for (var i = 0; i < 6; i++) {
+    G.state.lanes[i].ai = G.createCardInstance(cardByName('Hawkeye'), 'ai');
+  }
+  var thanos = G.createCardInstance(cardByName('Thanos'), 'player');
+  G.state.lanes[0].player = thanos;
+  cardByName('Thanos').onPlay(G, thanos, 0);
+
+  var left = 0;
+  for (var j = 0; j < 6; j++) if (G.state.lanes[j].ai) left++;
+  assertEq(left, 3, 'three of the six enemies are erased');
+});
+
+test("Thanos devours half the lanes: 4 of 8 in 2v2", function () {
+  Game.start2v2Match({ names: { p1: 'A', p2: 'B', p3: 'C', p4: 'D' } });
+  var s = Game.state;
+  assertEq(Game.LANE_COUNT, 8, 'a 2v2 board is eight lanes');
+  for (var i = 0; i < 8; i++) {
+    s.lanes[i].ai = Game.createCardInstance(cardByName('Hawkeye'), 'ai');
+  }
+  var thanos = Game.createCardInstance(cardByName('Thanos'), 'player');
+  s.lanes[0].player = thanos;
+  cardByName('Thanos').onPlay(Game, thanos, 0);
+
+  var left = 0;
+  for (var j = 0; j < 8; j++) if (s.lanes[j].ai) left++;
+  assertEq(left, 4, 'four of the eight enemies are erased — half the bigger board');
+});
+
+test("Thanos: the roguelite tier ladder still lands on its old numbers", function () {
+  var G = freshGame();
+  G.state.player.isHuman = false; G.state.ai.isHuman = false;
+  // half(3) + offset. These are the values the flat 2/3/4/5 ladder produced,
+  // so upgrading a run's Thanos is worth exactly what it was worth before.
+  var expect = { rare: 3, special: 4, legendary: 5 };
+  Object.keys(expect).forEach(function (tier) {
+    for (var i = 0; i < 6; i++) {
+      G.state.lanes[i].ai = G.createCardInstance(cardByName('Hawkeye'), 'ai');
+    }
+    var t = G.createCardInstance(cardByName('Thanos'), 'player');
+    t._runRarity = tier;
+    G.state.lanes[0].player = t;
+    cardByName('Thanos').onPlay(G, t, 0);
+    var killed = 0;
+    for (var j = 0; j < 6; j++) if (!G.state.lanes[j].ai) killed++;
+    assertEq(killed, expect[tier], tier + ' Thanos erases ' + expect[tier]);
+    for (var k = 0; k < 6; k++) { G.state.lanes[k].ai = null; G.state.lanes[k].player = null; }
+  });
+});
+
 // ---- RUNNER ------------------------------------------------
 // ============================================================
 

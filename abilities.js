@@ -5458,17 +5458,27 @@ const CARD_ABILITIES = {
   "Thanos": {
     trickPhasePlayable: true,
     onPlay(G, self, lane) {
-      // Lanes destroyed scales with tier: 2 / 3 / 4 / 5.
-      // Roguelite Text+ ("Reality Snap") — _thanosLanes pins the count
-      // at a fixed value (4) regardless of rarity.
-      // 2v2: the snap always erases HALF the board (4 of 8 lanes), per owner
-      // request — the "half of all life" fantasy scaled to the bigger arena.
-      const is2v2Thanos = !!(G.is2v2 && G.is2v2());
+      // HALF THE BOARD, WHATEVER THE BOARD IS. The count derives from
+      // LANE_COUNT rather than being written down: 3 of 6 in 1v1, 4 of 8 in
+      // 2v2. (User: "change thanos to devour enemies in half the total number
+      // of lanes — same thing, but in 2v2 its 8 lanes so it works there as
+      // well.") That is the "half of all life" fantasy stated once instead of
+      // hard-coded per mode, and a future board size inherits it for free.
+      //
+      // This replaces a flat ladder (2/3/4/5 by tier) plus a separate 2v2
+      // branch. The roguelite ladder survives as an OFFSET above half, which
+      // is why every existing case lands on exactly the number it did before:
+      //   classic 1v1   half 3 + 0 = 3   (was 3, rarityValue defaults to rare)
+      //   classic 2v2   half 4 + 0 = 4   (was 4, via the old 2v2 branch)
+      //   rogue special half 3 + 1 = 4   (was 4)
+      //   rogue legend  half 3 + 2 = 5   (was 5)
+      // ...and 2v2 roguelite now scales off the bigger board instead of being
+      // pinned flat, which the old branch could not express.
+      // Roguelite Text+ ("Reality Snap") still pins an absolute count.
+      const halfBoard = Math.floor(G.LANE_COUNT / 2);
       const numRolls = self._thanosLanes
         ? self._thanosLanes
-        : is2v2Thanos
-          ? Math.floor(Game.LANE_COUNT / 2)
-          : G.rarityValue(self, { common: 2, rare: 3, special: 4, legendary: 5 });
+        : halfBoard + G.rarityValue(self, { common: 0, rare: 0, special: 1, legendary: 2 });
       const rolled = new Set();
       let killed = 0;
       const maxLanes = Game.LANE_COUNT;
