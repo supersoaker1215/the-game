@@ -12723,18 +12723,18 @@ const UI = {
 
   // Show a "Waiting for [name]…" banner overlaid at the bottom of game-area
   // when it is not the local player's turn in 2v2 online.
-  _update2v2WaitingBanner(isMyTurn, activeName) {
-    const ga = document.getElementById('game-area');
-    if (!ga) return;
-    let banner = document.getElementById('twov2-waiting-banner');
-    if (isMyTurn) { if (banner) banner.remove(); return; }
-    if (!banner) {
-      banner = document.createElement('div');
-      banner.id = 'twov2-waiting-banner';
-      banner.className = 'twov2-waiting-banner';
-      ga.appendChild(banner);
-    }
-    banner.textContent = `⏳ Waiting for ${activeName || 'opponent'}…`;
+  // REMOVED. This pinned a full-width gold bar to the bottom of the viewport,
+  // and on a tall board it sat below the fold — so all the player ever saw was
+  // a stray yellow line across the bottom of the screen. Whose turn it is was
+  // already being said twice, better, and in view: the header reads
+  // "<NAME> — TURN" and the turn-order rail marks that seat NOW. A third
+  // notice that cannot be read is not an indicator, it is a rule.
+  // (User: "there is this yellow line indicator on the bottom, get rid of that
+  // — i think its saying whose turn it is but i cant see it so just remove it.")
+  // Still removes any node left over from a previous build.
+  _update2v2WaitingBanner() {
+    const banner = document.getElementById('twov2-waiting-banner');
+    if (banner) banner.remove();
   },
 
   // Per-player card + trick counts for 2v2 online. The two ENEMY players sit on

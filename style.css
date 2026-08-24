@@ -8464,18 +8464,12 @@ body.mobile-card-dragging .cursor-trail { display: none !important; }
   flex-shrink: 0;
   animation: emptyHandPulse 3.2s ease-in-out infinite;
 }
-.empty-hand::after {
-  content: "";
-  position: absolute;
-  width: 8px; height: 8px;
-  border: 1.5px solid rgba(var(--theme-rgb, 79,195,247), 0.45);
-  background: rgba(0,0,0,0.6);
-  transform: rotate(45deg);
-  /* Anchored to the ::before's center via flex alignment — sits
-     inside the dashed card silhouette as a Tron-diamond marker. */
-  margin-left: -28px;
-  box-shadow: 0 0 6px rgba(var(--theme-rgb, 79,195,247), 0.35);
-}
+/* DIAMOND REMOVED. It was positioned absolutely and nudged into place with a
+   hard-coded margin-left:-28px, so it never actually sat in the middle of the
+   dashed slot — it floated between the slot and the label and read as
+   mis-centred at every width. The empty card silhouette says "nothing here"
+   on its own. (User: "the no cards / no tricks looks a little off, mis-centred
+   — just get rid of the diamond and have the empty card slot there.") */
 @keyframes emptyHandPulse {
   0%, 100% { opacity: 0.55; }
   50%      { opacity: 0.95; }
@@ -34300,23 +34294,7 @@ body.round-tick .board::after {
 .twov2-bls-cancel:hover { background: rgba(231,76,60,0.18); }
 
 /* Waiting banner repositioned for board mode (sits inside #game-area) */
-#twov2-waiting-banner {
-  position: fixed;
-  bottom: 0; left: 0; right: 0;
-  padding: 10px;
-  background: rgba(0,0,0,0.85);
-  border-top: 1px solid rgba(255,215,0,0.3);
-  text-align: center;
-  color: #ffd700;
-  font-family: 'Rajdhani', sans-serif;
-  font-size: 0.875rem;
-  font-weight: 700;
-  letter-spacing: 1px;
-  text-transform: uppercase;
-  z-index: 60;
-  pointer-events: none;
-  animation: pulse 1.5s ease-in-out infinite;
-}
+/* #twov2-waiting-banner removed — see UI._update2v2WaitingBanner. */
 
 /* ============================================================
    GLOW-TEXT BUTTON LANGUAGE — STYLE CONTINUITY PASS (2026-07-11)
@@ -41710,7 +41688,11 @@ body.twov2-online-game .tricks-section { padding-top: 4px; padding-bottom: 4px; 
    same colour language as the 1v1 hand and the count-pills above. */
 .rc-enemy .rc-back-card { color: #ff6b6b; }
 .rc-ally  .rc-back-card { color: #6fb4ff; }
-.rc-back-trick { color: #cf9ae8; }
+/* THE SAME PURPLE THE TRICK CARDS USE. These backs were a lighter lavender
+   (#cf9ae8) that read as a different colour sitting next to a real trick card,
+   whose border/glow is rgba(155,89,182,.95). One purple for tricks everywhere.
+   (User: "make the purple of the hands match that of the tricks.") */
+.rc-back-trick { color: #9b59b6; }
 .rc-empty { opacity: 0.4; font-weight: 700; padding: 0 4px; }
 /* NEON BOT MARK — replaces the 🤖 emoji that used to be baked into AI seat
    names. Stroke-only and currentColor, so it takes the hue of whatever names
