@@ -38593,111 +38593,6 @@ body.low-fx .card-frost::after {
 .card.ally-card .status-badge.sb-noicon,
 .card.enemy-card .status-badge.sb-noicon { display: none; }
 
-/* ============================================================
-   MAIN MENU: ONE LAYOUT, ALWAYS CENTERED, HERO BEHIND
-   ============================================================
-   User: "i want the menu to always look like this, no more left column text
-   menu with art on right, always like this, so i want the play and library
-   centered as well, and make sure the aspect ratio for the character art behind
-   doesnt change when making the screen bigger — just have it fade out to black
-   on both left and right and keep it centered."
-
-   WHY IT CHANGED SHAPE BY ITSELF. .mm-mw3 was already applied unconditionally,
-   so there was never a second layout being chosen — the ONE layout just read as
-   two different designs depending on the window. The hero was anchored
-   `right: 0` at `width: min(calc(100% - 14%), 86vh)`: on a tall/narrow window
-   the bleed term won and the art spread behind the list (the look being asked
-   for), while on a wide window the 86vh cap won and the same art collapsed into
-   a portrait column pinned to the right, leaving the text stranded in a left
-   column. Same rule, two identities.
-
-   THE ASPECT DRIFT HAS THE SAME ROOT. The art itself never distorted —
-   .mm-hero-img is background-size: cover, which crops rather than stretches.
-   What changed was the BOX: its height came from the viewport (top/bottom: 0)
-   while its width came from a min() that switched terms, so `cover` cropped a
-   different part of the figure at every window size. Deriving BOTH dimensions
-   from viewport HEIGHT fixes it by construction — at any width the box is the
-   same shape, so the crop is identical and the art simply has more black
-   around it.
-   ============================================================ */
-.mm-mw3 .mm-hero {
-  /* Centred by auto margins, NOT by transform: translateX(-50%). The rez-in
-     keyframes below already animate `transform`, and a centering transform
-     would be overwritten the moment that animation ran. */
-  left: 0; right: 0;
-  margin-inline: auto;
-  /* Width from vh, height from top/bottom — both viewport-height-derived, so the
-     box holds one shape at every window width. min(100%) lets it go full-bleed
-     on a phone, where there is no room to letterbox anyway. */
-  width: min(100%, 78vh);
-}
-/* Fade to black on BOTH sides now that the art is centred rather than
-   right-anchored — the old mask faded only the left edge, because the right
-   edge used to sit against the window. Vertical letterbox crop kept as-is. */
-.mm-mw3 .mm-hero {
-  -webkit-mask-image:
-    linear-gradient(to right, transparent 0%, #000 22%, #000 78%, transparent 100%),
-    linear-gradient(to bottom, transparent 0%, #000 11%, #000 86%, transparent 100%);
-  -webkit-mask-composite: source-in;
-          mask-image:
-    linear-gradient(to right, transparent 0%, #000 22%, #000 78%, transparent 100%),
-    linear-gradient(to bottom, transparent 0%, #000 11%, #000 86%, transparent 100%);
-          mask-composite: intersect;
-}
-/* The figure was pushed to 72% horizontally to sit in the right-hand column it
-   used to occupy. Centred box wants a centred subject. */
-.mm-mw3 .mm-hero-img { background-position: 50% 26%; }
-
-/* ---- The text column centres too, so the menu reads as one axis ---- */
-.mm-mw3 .mm-header { align-items: center; }
-.mm-mw3 .mm-title { text-align: center; }
-/* PLAY / LIBRARY. These are `width: fit-content` (so the hover hotspot is the
-   text, not the empty space beside it), which means auto side-margins are what
-   centres them — text-align alone would do nothing to a shrink-wrapped box. */
-.mm-mw3 .mm-section-label {
-  margin-left: auto;
-  margin-right: auto;
-  text-align: center;
-}
-/* The option rows stay a left-aligned BLOCK that is itself centred: centring
-   each row individually would ragged-edge the icons, since SOLO MATCH and
-   MULTIPLAYER are different lengths and their glyphs would no longer line up. */
-.mm-mw3 .mm-grid.mm-grid-section {
-  width: fit-content;
-  margin-inline: auto;
-}
-/* The submenu back control was the one panel child this sweep missed, so it kept
-   hugging the panel's left edge while everything above and below it moved to the
-   centre line — on a wide window that reads as a stray link in the screen corner.
-   `margin-inline: auto` alone cannot fix it: the button is inline-flex, and auto
-   side margins do nothing to an inline-level box. It has to become block-level
-   (flex) and shrink-wrapped first, exactly like PLAY / LIBRARY above.
-   The `margin` shorthand at the base rule also has to be cleared, not just
-   overridden on one side, or its 2px left offset survives and the button sits
-   2px off-centre. One selector covers both submenus — Solo and Multiplayer emit
-   the same .mm-subback element. */
-.mm-mw3 .mm-subback {
-  display: flex;
-  width: fit-content;
-  margin: 2px auto 16px;
-  /* Scale-on-hover grew rightward from the left edge, which was right for a
-     left-aligned control and wrong for a centred one. */
-  transform-origin: center;
-}
-
-/* THE LEFT COLUMN WAS ONE DECLARATION.
-   `.mm-mw3 .mm-panel { margin: 0 0 0 clamp(34px, 7vw, 120px) }` pinned the whole
-   text block to the left edge — that margin IS the "left column text menu with
-   art on the right" the user asked to be rid of. Everything inside it was
-   already centring correctly against the panel; the panel itself just was not
-   on the screen's centre line (measured: contents centred at x=350 in a 1000px
-   window, 150px left of centre).
-   The overlay is already `display: flex; justify-content: center`, so auto side
-   margins put the panel on the same axis as the hero behind it. */
-.mm-mw3 .mm-panel {
-  margin-left: auto;
-  margin-right: auto;
-}
 
 /* ============================================================
    EVERY SUBMENU SECTION CENTRES — GLOBAL RULE
@@ -41953,4 +41848,89 @@ body.no-art-grade .card-portrait { --art-grade: 1 !important; }
               filter var(--dur-in) var(--ease-snap);
 }
 
+/* ============================================================
+   MAIN MENU: TEXT LEFT, ART RIGHT — THE LOBBY'S SPLIT (LANDSCAPE ONLY)
+   ============================================================
+   User: "i want the main menu to look like this as well — left is where all
+   the text is and right is the art, it looks clean." ("this" = the online-2v2
+   lobby, which has run that split since it was built.)
 
+   THIS REVERSES AN EARLIER REQUEST, DELIBERATELY — and not by restoring the
+   old rule, because the old one was broken. Back then the hero was anchored
+   `right: 0` at `width: min(calc(100% - 14%), 86vh)`: on a tall window the
+   bleed term won and the art spread behind the list, on a wide window the 86vh
+   cap won and the art collapsed into a right column. Same rule, two identities,
+   changing shape as you resized — THAT was the complaint, and centring cured it
+   by deleting the split rather than fixing it.
+
+   This rebuilds it the way the LOBBY does, which never had the bug: the art is
+   a fixed SHARE of the width (no min() that can switch terms), masked so it
+   dissolves toward the text instead of ending on a seam. One identity at every
+   landscape width — the art just gets wider or narrower, and the crop never
+   changes because the box keeps its proportion.
+
+   GATED ON LANDSCAPE. A split needs horizontal room; on a phone there is none,
+   and the base rules above (centred list over full-bleed art) are still the
+   right answer. Everything here is scoped so portrait renders byte-for-byte as
+   it did before — checked at 375x812, where an ungated version squeezed the
+   column to 40vw and wrapped "SOLO MATCH" onto two lines.
+   ============================================================ */
+@media (min-aspect-ratio: 1/1) {
+  /* Right-hand column, matching .twov2-mm-hero: anchored right and sized as a
+     SHARE of the window, so it cannot swap identities the way the old min() did. */
+  .mm-mw3 .mm-hero {
+    left: auto; right: 0;
+    margin-inline: 0;
+    width: 62%;
+    /* Dissolve toward the TEXT, hard against the window on the right — the same
+       one-sided fade the lobby uses, so the art has no seam where the column
+       begins. Vertical letterbox crop kept. */
+    -webkit-mask-image:
+      linear-gradient(to right, transparent 0%, rgba(0,0,0,0.4) 26%, #000 60%),
+      linear-gradient(to bottom, transparent 0%, #000 11%, #000 86%, transparent 100%);
+    -webkit-mask-composite: source-in;
+            mask-image:
+      linear-gradient(to right, transparent 0%, rgba(0,0,0,0.4) 26%, #000 60%),
+      linear-gradient(to bottom, transparent 0%, #000 11%, #000 86%, transparent 100%);
+            mask-composite: intersect;
+  }
+  /* Subject sits right of centre again, since it occupies the right column. */
+  .mm-mw3 .mm-hero-img { background-position: 62% 26%; }
+
+  /* ---- The text column takes its own left axis ---- */
+  .mm-mw3 .mm-header { align-items: flex-start; }
+  .mm-mw3 .mm-title { text-align: left; }
+  .mm-mw3 .mm-panel .mm-section,
+  .mm-mw3 .mm-panel .mm-grid-section { margin-inline: 0; }
+  .mm-mw3 .mm-grid.mm-grid-section { width: fit-content; margin-inline: 0; }
+  /* PLAY / LIBRARY: the label leads and a single rule runs OUT to the column's
+     edge. Flanking it both sides was right on a centre line; against a left
+     column the leading rule pushes the word off the axis its own options sit on. */
+  .mm-mw3 .mm-section-label {
+    margin: 10px 0 6px;
+    justify-content: flex-start;
+    width: 100%;
+  }
+  .mm-mw3 .mm-section-label::before { display: none; }
+  .mm-mw3 .mm-section-label::after { flex: 1; width: auto; }
+  /* Back to hugging the column's left edge, where a back control belongs. */
+  .mm-mw3 .mm-subback {
+    display: flex;
+    width: fit-content;
+    margin: 2px 0 16px;
+    transform-origin: left center;
+  }
+  /* The music block and its inner lines follow the column — a left-aligned box
+     whose contents were still centred read as a third axis under a left menu. */
+  .mm-mw3 .mm-botbar { margin-inline: 0; }
+  .mm-mw3 .mm-npline { justify-content: flex-start; }
+  .mm-mw3 .mm-heropick-row { text-align: left; }
+
+  /* THE COLUMN, and its cap. min(760px,82vw) was sized for the centred layout
+     where nothing sat beside it; as a left column it has to clear the art. */
+  .mm-mw3 .mm-panel {
+    margin-left: clamp(34px, 6vw, 120px);
+    margin-right: auto;
+    width: min(620px, 40vw);
+  }
+}
