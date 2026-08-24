@@ -465,6 +465,23 @@ const UI = {
   _inspectTrickPlayable(trick) {
     const s = Game.state;
     if (!trick || !s || !s.player) return false;
+    // 2v2 FIRST — the same gap _inspectCardPlayable already closed for cards.
+    // A trick lives in the SEAT's trickHand, not the side proxy, and no 1v1
+    // phase name ever matches in a 2v2 room, so this returned false every time
+    // and the Play button simply never appeared. With tap now READING instead
+    // of playing, that button is the only non-drag way to commit.
+    const _tt = s.twoVTwo;
+    if (_tt && _tt.players) {
+      const meKey = _tt.online ? _tt.you : (Game._2v2ActivePlayer && Game._2v2ActivePlayer());
+      const seat = meKey && _tt.players[meKey];
+      if (!seat || !(seat.trickHand || []).some(t => t && t.id === trick.id)) return false;
+      if (Game._2v2ActivePlayer && Game._2v2ActivePlayer() !== meKey) return false;
+      const sp = Game._2v2SubPhase && Game._2v2SubPhase();
+      if (!Game._2v2CanPlayTricks || !Game._2v2CanPlayTricks(sp)) return false;
+      const side = (Game._2v2TeamSide && Game._2v2TeamSide[seat.team]) || 'player';
+      const cost = Game.getTrickCost ? Game.getTrickCost(side, trick) : (trick.cost || 0);
+      return ((seat.energy || 0) - (seat.usedEnergy || 0)) >= cost;
+    }
     if (!(s.player.trickHand || []).some(t => t && t.id === trick.id)) return false;
     const playerActive = s.phase && s.phase.startsWith('player-') && !s.gameOver;
     const canTricks = this.canPlayerPlayTricks && this.canPlayerPlayTricks(s);
@@ -12047,13 +12064,19 @@ const UI = {
       });
     }
 
-    // Trick clicks → local trick handler
+    // Trick clicks → READ, not play. Same fix and same reason as the online
+    // tray (_apply2v2OnlineTrickClicks): pass-and-play had the identical
+    // play-on-first-tap wiring. The inspect view's Play button commits via
+    // twov2PlayTrick, so nothing is lost — it just takes a deliberate second
+    // tap, exactly like a card.
     const tricksEl = document.getElementById('player-tricks');
     if (tricksEl) {
       tricksEl.querySelectorAll('.trick-card').forEach((el) => {
         if (!el.onclick) return;
-        const idx = this._trickIndexFromEl(el);
-        el.onclick = (e) => { e.stopPropagation(); if (idx >= 0) twov2PlayTrick(idx); };
+        el.onclick = (e) => {
+          e.stopPropagation();
+          if (UI.showCardInspect) UI.showCardInspect(el);
+        };
       });
     }
   },
@@ -12633,7 +12656,21 @@ const UI = {
     tricksEl.querySelectorAll('.trick-card').forEach((el) => {
       if (!canPlay) { el.onclick = null; return; }
       const idx = this._trickIndexFromEl(el, ap && ap.trickHand);
-      el.onclick = (e) => { e.stopPropagation(); if (idx >= 0) twov2OnlineTrick(idx); };
+      if (idx < 0) { el.onclick = null; return; }
+      // TAP READS, IT DOES NOT PLAY — the same contract hand cards were given
+      // one function above, and the same one 1v1 tricks already have. This
+      // fired the trick on the very first tap, so a 2v2 trick could never be
+      // turned over and read; stopPropagation then swallowed the click before
+      // the document-level read handler could see it either. (User: "in the
+      // trick if you tap to see the description it will automatically fire,
+      // that shouldnt happen. it will work the same as the cards: either drag
+      // or tap the button below the description to play.")
+      // The inspect view IS that button — _inspectTrickPlayable gates it and it
+      // commits through twov2OnlineTrick, the same door this used to call.
+      el.onclick = (e) => {
+        e.stopPropagation();
+        if (UI.showCardInspect) UI.showCardInspect(el);
+      };
     });
   },
 
@@ -22551,12 +22588,28 @@ const UI = {
   // Newest LAST, the way a log reads. Rounds are printed rather than counted
   // so "R1 drawn, R4 Adamantium, R6 Gojo" tells the whole story at a glance.
   _cardDossierHTML(card) {
-    const h = card && card._history;
-    if (!h || !h.length) return '';
+    const h = (card && card._history) || [];
     const esc = (t) => String(t).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    // WHO PLAYED IT, AND WHEN — always the first line, and deliberately NOT an
+    // entry in _history: that list is capped, so a busy card would push its own
+    // origin off the top. The name was frozen at play time (see
+    // Game._stampProvenance) precisely so it reads the same on every client.
+    // "You" is decided HERE, per client, from the seat that played it.
+    let lead = '';
+    if (card && card._playedRound != null && card._playedByName) {
+      const tt = Game.state && Game.state.twoVTwo;
+      let who = card._playedByName;
+      if (tt && tt.you && card._playedSeat && card._playedSeat === tt.you) who = 'You';
+      if (card._playedVia) who += ` (${card._playedVia})`;
+      lead = `<li><span class="dossier-round">R${card._playedRound}</span>` +
+             `<span class="dossier-text">Played by ${esc(who)}</span></li>`;
+    }
+    if (!lead && !h.length) return '';
     // Only the last few — the card is a card, not a scroll. The engine already
     // caps the stored history; this caps what a small tile has room to print.
-    const rows = h.slice(-6).map(e =>
+    // One fewer effect row when provenance is present, so the block's height
+    // is unchanged and the card-face auto-fit has nothing new to shrink.
+    const rows = lead + h.slice(lead ? -5 : -6).map(e =>
       `<li><span class="dossier-round">R${e.r || '–'}</span><span class="dossier-text">${esc(e.t)}</span></li>`
     ).join('');
     return `<div class="card-dossier"><div class="dossier-title">Record</div><ul class="dossier-list">${rows}</ul></div>`;
@@ -28664,8 +28717,15 @@ const UI = {
     // if it's playable now, drop a Play button in. Tricks are lane-less, so it
     // plays immediately — no lane tap needed. Unaffordable flashes instead.
     const trickId = cardEl.dataset.trickId;
+    // The live instance lives in the acting SEAT's trickHand in 2v2 — looking
+    // it up on the side proxy finds nothing there, which is half of why the
+    // Play button never showed in a 2v2 room.
+    const _ttI = Game.state.twoVTwo;
+    const _meKeyI = _ttI ? (_ttI.online ? _ttI.you : (Game._2v2ActivePlayer && Game._2v2ActivePlayer())) : null;
+    const _seatI = (_ttI && _ttI.players && _meKeyI) ? _ttI.players[_meKeyI] : null;
+    const _trickPool = _seatI ? (_seatI.trickHand || []) : (Game.state.player.trickHand || []);
     const liveTrick = trickId != null
-      ? (Game.state.player.trickHand || []).find(t => String(t.id) === String(trickId))
+      ? _trickPool.find(t => String(t.id) === String(trickId))
       : null;
     if (liveTrick && this._inspectTrickPlayable(liveTrick)) {
       const playBtn = document.createElement('button');
@@ -28681,6 +28741,21 @@ const UI = {
       playBtn.onclick = (e) => {
         e.stopPropagation();
         const s = Game.state;
+        // 2v2 commits through the mode's own door (host/guest fork for online,
+        // direct play for pass-and-play) — the same functions the tap used to
+        // call, now one deliberate step later.
+        if (_seatI) {
+          const idx = (_seatI.trickHand || []).findIndex(t => t && String(t.id) === String(liveTrick.id));
+          if (idx < 0) return;
+          const _side = (Game._2v2TeamSide && Game._2v2TeamSide[_seatI.team]) || 'player';
+          const _cost = Game.getTrickCost ? Game.getTrickCost(_side, liveTrick) : (liveTrick.cost || 0);
+          if (((_seatI.energy || 0) - (_seatI.usedEnergy || 0)) < _cost) { this.flashUnaffordable(_cost, null); return; }
+          close();
+          if (_ttI.online) { if (typeof twov2OnlineTrick === 'function') twov2OnlineTrick(idx); }
+          else if (typeof twov2PlayTrick === 'function') twov2PlayTrick(idx);
+          this.render();
+          return;
+        }
         const cost = Game.getTrickCost ? Game.getTrickCost('player', liveTrick) : (liveTrick.cost || 0);
         if (s.player.currency < cost) { this.flashUnaffordable(cost, null); return; }
         close();
@@ -31553,6 +31628,14 @@ function twov2PlaceCard(laneIdx) {
   // Place card
   if (!s.lanes[laneIdx]) return;
   s.lanes[laneIdx][side] = card;
+  // Pass-and-play places the card ITSELF instead of going through the engine,
+  // so nothing here was ever stamped — no owner, no entered-round, no record of
+  // who played it. Stamp the same three every engine path does, so local 2v2
+  // inherits provenance (and everything keyed off owner/round) like the rest.
+  card.owner = side;
+  if (card.statsEnteredRound == null) card.statsEnteredRound = s.round || 1;
+  card._2v2PlayedBy = card._2v2PlayedBy || activeKey;
+  if (Game._stampProvenance) Game._stampProvenance(card, side);
   ap.hand.splice(idx, 1);
   ap.usedEnergy = (ap.usedEnergy || 0) + cost;
 

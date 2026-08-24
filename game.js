@@ -4840,6 +4840,7 @@ const Game = {
       lane._env[owner] = card;
       this.emitFX('envReveal', { lane: laneIdx, owner, name: card.name });
       if (card.statsEnteredRound == null) card.statsEnteredRound = this.state.round || 1;
+      this._stampProvenance(card, owner);
       this.state[owner].discount = 0;
       this.log(`[PLAY] ${who} place ${card.name} in lane ${laneIdx + 1} for ${cost} energy`);
     // MODER STRIPS BEFORE ON PLAY. Must sit here rather than in
@@ -4862,6 +4863,7 @@ const Game = {
     lane[owner] = card;
     this._emitEntranceFX(card);
     if (card.statsEnteredRound == null) card.statsEnteredRound = this.state.round || 1;
+    this._stampProvenance(card, owner);
     this.state[owner].discount = 0;
 
     // Face-down play — suppress all abilities, hide from opponent
@@ -5111,6 +5113,7 @@ const Game = {
       this._emitEntranceFX(card);
     }
     if (card.statsEnteredRound == null) card.statsEnteredRound = this.state.round || 1;
+    this._stampProvenance(card, owner);
     this.log(`[FREE PLAY] ${card.name} in lane ${laneIdx + 1}`);
 
     // ON PLAY FIRST, THEN THE PASSIVES — same ordering as playCard, so a free /
@@ -5850,10 +5853,20 @@ const Game = {
     // the phase off 'combat' (~80ms later in the normal path, so it never trips
     // on a healthy round).
 
-    // End-of-turn effects
+    // End-of-turn effects. 2v2: stamp the acting seat to each card's OWNER
+    // seat first, exactly as every other combat hook does (_2v2ActFor). This
+    // sweep runs after combat, when no seat is acting — so without it any
+    // prompt an end-of-turn hook raises is unowned, and any per-seat grant it
+    // makes has no seat to land on. Restored afterwards: the stamp is scoped
+    // to the sweep, not left behind for whatever runs next.
+    const _prevActor = this._2v2CurrentActingPlayer;
     this.getAllCardsOnBoard().forEach(c => {
-      if (c.onEndOfTurn) { try { c.onEndOfTurn(this, c, this.findCardLane(c)); } catch (e) { console.error(e); } }
+      if (c.onEndOfTurn) {
+        try { this._2v2ActFor(c); c.onEndOfTurn(this, c, this.findCardLane(c)); }
+        catch (e) { console.error(e); }
+      }
     });
+    this._2v2CurrentActingPlayer = _prevActor;
     this.cleanupDead();
 
     // Restore any attack stats Obi-Wan zeroed for the duration of this combat phase
@@ -8555,6 +8568,70 @@ const Game = {
     if (card._history.length > 10) card._history.shift();
   },
 
+  // ===================== PROVENANCE: WHO PLAYED IT, WHEN =====================
+  // The card's RECORD block was an EFFECT log only ("R5 Star-Lord — +2/+2"):
+  // nothing anywhere recorded who actually PLAYED a card. This is the one
+  // stamp, called from every placement path, so all five modes inherit it.
+  // (User: "so in all game modes i want who played the card on what turn.")
+  //
+  // The NAME is resolved and frozen here rather than at render time, and that
+  // is deliberate:
+  //   • 1v1 online flips perspective per client (_mpFlipPerspective swaps
+  //     c.owner and _mpNames), so a stored SIDE would read as the wrong player
+  //     on the other machine. A resolved string needs no flip.
+  //   • It is history. Who played it does not change later, even if the card
+  //     is stolen, mind-controlled, or copied — all of which rewrite .owner.
+  // Never "You": the record rides every broadcast, and "You" would name a
+  // different person on each client. The renderer decides what to call the
+  // local player.
+  _2v2SeatOfPlay(card) {
+    const tt = this.state && this.state.twoVTwo;
+    if (!tt || !tt.players) return null;
+    // Deliberately NOT gated on tt.online — pass-and-play needs a seat too.
+    return (card && card._2v2PlayedBy)
+      || this._2v2CurrentActingPlayer
+      || this._2v2AIDriving
+      || (this._2v2ActivePlayer && this._2v2ActivePlayer())
+      || null;
+  },
+
+  // The stable, perspective-free name of whoever is playing for `owner`.
+  playerProperName(owner, seatKey) {
+    const s = this.state;
+    if (!s) return owner === 'player' ? 'Player' : 'AI';
+    const tt = s.twoVTwo;
+    if (this.is2v2 && this.is2v2() && tt && tt.players) {
+      const seat = seatKey || this._2v2SeatOfPlay(null);
+      const p = seat && tt.players[seat];
+      if (p) return p.name || ('Player ' + String(seat).slice(1));
+      const team = (owner === this._2v2TeamSide.A) ? 'A' : 'B';
+      const mates = this._2v2SLOTS
+        .filter(k => tt.players[k] && tt.players[k].team === team)
+        .map(k => tt.players[k].name || ('P' + k[1]));
+      return mates.length ? mates.join(' & ') : (owner === 'player' ? 'Player 1' : 'Player 2');
+    }
+    // 1v1 online: _mpNames is flipped per client, and 'player' is always the
+    // LOCAL side — so [owner] resolves to the same human on both machines.
+    if (this.isMultiplayer && this.isMultiplayer() && s._mpNames) {
+      return s._mpNames[owner] || (owner === 'player' ? 'Player 1' : 'Player 2');
+    }
+    return owner === 'player' ? 'You' : 'AI';
+  },
+
+  _stampProvenance(card, owner) {
+    if (!card || !card._isCardInstance) return;
+    const seat = this._2v2SeatOfPlay(card);
+    if (seat && !card._2v2PlayedBy) card._2v2PlayedBy = seat;
+    if (card._playedRound != null) return;          // idempotent — first placement wins
+    card._playedRound = (this.state && this.state.round) || 1;
+    card._playedByName = this.playerProperName(owner || card.owner, seat);
+    if (seat) card._playedSeat = seat;
+    // Summoned / free-played by another card or trick — name that source, so
+    // "Played by Ryan (Mother Box)" reads truthfully for a card no one drew.
+    const via = this._actingSourceName && this._actingSourceName();
+    if (via && via !== card.name) card._playedVia = via;
+  },
+
   // "Who is doing this right now", for attribution. Trick wins over card: a
   // trick played BY a card on the board is still the trick's doing.
   _actingSourceName() {
@@ -10691,7 +10768,17 @@ const Game = {
     }
   },
 
-  addNextTurnCurrency(owner, n, seatKey) {
+  // seatKeyOrSource: a seat key ('p3'), OR the SOURCE CARD that is granting —
+  // pass the card whenever the grant fires outside a play phase. Green
+  // Lantern harvests his damage in the END-OF-TURN sweep, when no seat is
+  // acting: the acting-seat default below was null, the whole 2v2 branch was
+  // skipped, and the grant landed on the SIDE PROXY — which start2v2Round
+  // never reads (it hands out `tt.round + p.nextTurnCurrency` per SEAT), so
+  // the energy was silently discarded every round. (User: "vega played green
+  // lantern and didnt receive any energy next round, vega played power
+  // battery so that worked on 1 side" — Power Battery is played ON a seat's
+  // turn, which is exactly why that half worked.)
+  addNextTurnCurrency(owner, n, seatKeyOrSource) {
     // 2v2: bank the bonus on the SEAT that earned it (Power Battery, Green
     // Lantern), not the shared side proxy — start2v2Round consumes it per seat
     // so only that player gets the extra energy, not their teammate. (User:
@@ -10704,9 +10791,33 @@ const Game = {
     // calls banked on _2v2CurrentActingPlayer (the caster), so +n then −n netted
     // to zero and the steal did nothing. (User: "Catwoman's Steal doesn't work.")
     const tt = this.state && this.state.twoVTwo;
-    if (tt && tt.online) {
-      const seat = seatKey || this._2v2CurrentActingPlayer;
-      if (seat && tt.players[seat]) { tt.players[seat].nextTurnCurrency = (tt.players[seat].nextTurnCurrency || 0) + n; return; }
+    // ALL 2v2, not just online. start2v2Round is shared by both, so a grant
+    // parked on the side proxy vanishes in local 2v2 too.
+    if (tt && tt.players) {
+      const bank = (pk) => {
+        tt.players[pk].nextTurnCurrency = (tt.players[pk].nextTurnCurrency || 0) + n;
+        return true;
+      };
+      let seat = null;
+      if (typeof seatKeyOrSource === 'string') seat = seatKeyOrSource;
+      else if (seatKeyOrSource && typeof seatKeyOrSource === 'object') {
+        // The seat that played the granting card — survives combat, when no
+        // seat is acting.
+        seat = seatKeyOrSource._2v2PlayedBy || seatKeyOrSource._mcSeat || null;
+      }
+      seat = seat || this._2v2CurrentActingPlayer || null;
+      // NEVER credit across teams. _2v2CurrentActingPlayer is a mutable global
+      // and can be left pointing at the other side; banking there would hand a
+      // player's energy to an opponent.
+      if (seat && tt.players[seat] && this._2v2SeatOnSide(seat, owner) && bank(seat)) return;
+      // No usable seat: prefer the seat whose sub-phase it is when that seat is
+      // on the owner's side, then any seat on that side. Anything is better
+      // than the side proxy, which is read by nobody.
+      const active = this._2v2ActivePlayer && this._2v2ActivePlayer();
+      if (active && tt.players[active] && this._2v2SeatOnSide(active, owner) && bank(active)) return;
+      const team = (this._2v2TeamSide && this._2v2TeamSide.A === owner) ? 'A' : 'B';
+      const fallback = this._2v2SLOTS.find(pk => tt.players[pk] && tt.players[pk].team === team);
+      if (fallback && bank(fallback)) return;
     }
     this.state[owner].nextTurnCurrency += n;
   },
@@ -11374,6 +11485,7 @@ const Game = {
     if (this.state._inCombat) card._enteredMidCombat = true;
     this._emitEntranceFX(card);
     card.statsEnteredRound = this.state.round || 1;
+    this._stampProvenance(card, owner);
     this.log(`  [SUMMON] ${name} (${card.attack}/${card.currentHealth}) in lane ${laneIdx + 1}`);
     // Spawn cue for tokens that carry their own arrival sound. Fired HERE, at
     // the moment of placement, so it lands in every summon path (AI, human
@@ -11504,6 +11616,12 @@ const Game = {
     // status-counter tick; it hasn't had a turn. Consumed in postCombat.
     if (this.state._inCombat) card._enteredMidCombat = true;
     this._emitEntranceFX(card);
+    // Revives, displacements and direct placements land here without ever
+    // touching playCard, so this is the one path that stamped NOTHING. The
+    // round is stamped too — a revived card that never had one would print
+    // "R–" in its record.
+    if (card.statsEnteredRound == null) card.statsEnteredRound = this.state.round || 1;
+    this._stampProvenance(card, owner);
     this.checkLaneTrap(card, laneIdx);
   },
 

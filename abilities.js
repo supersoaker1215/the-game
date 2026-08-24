@@ -2531,7 +2531,9 @@ const CARD_ABILITIES = {
         // Text+ to 2 so a 4-damage round becomes +6 energy next turn.
         const bonus = self._lanternEnergyBonus || 0;
         const grant = dmg + bonus;
-        G.addNextTurnCurrency(self.owner, grant);
+        // Pass SELF: this fires in the end-of-turn sweep, when no seat is
+        // acting, so the grant has to name the seat that played him.
+        G.addNextTurnCurrency(self.owner, grant, self);
         G.log(`Green Lantern channels ${dmg} damage into +${grant} energy next round${bonus > 0 ? ` (+${bonus} bonus)` : ''}!`);
         if (typeof UI !== 'undefined' && UI._fxGreenLantern) { try { UI._fxGreenLantern(self); } catch (e) {} }
       }
@@ -2548,7 +2550,7 @@ const CARD_ABILITIES = {
       const dmg = self._damageDealtThisTurn || 0;
       self._damageDealtThisTurn = 0;
       if (dmg > 0) {
-        G.addNextTurnCurrency(self.owner, dmg);
+        G.addNextTurnCurrency(self.owner, dmg, self);   // see onEndOfTurn
         G.log(`Green Lantern's last act: +${dmg} energy channeled to next round!`);
       }
     }

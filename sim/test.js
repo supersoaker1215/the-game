@@ -7594,6 +7594,125 @@ test("2v2: a prompt for a side goes to the seat whose sub-phase it is", function
   assertEq(Game._2v2SeatForSide('ai'), 'p4', 'and a real player on that side wins over a filler');
 });
 
+// ---- 2v2 ENERGY GRANTS MUST LAND ON A SEAT, NOT THE SIDE PROXY ---------
+// start2v2Round hands out `tt.round + p.nextTurnCurrency` PER SEAT and never
+// reads state[side].nextTurnCurrency — so a grant parked on the side proxy is
+// silently discarded. Green Lantern harvests in the end-of-turn sweep, when no
+// seat is acting, which is exactly when the old acting-seat default was null.
+// (User: "vega played green lantern and didnt receive any energy next round,
+// vega played power battery so that worked on 1 side.")
+test("2v2: Green Lantern's energy reaches the seat that played him", function () {
+  Game.start2v2Match({ names: { p1: 'Ryan', p2: 'Vega', p3: 'yomamma', p4: 'Cortex' } });
+  var s = Game.state, tt = s.twoVTwo;
+  tt.online = true; tt.you = 'p1';
+  tt.players.p1.team = 'A'; tt.players.p3.team = 'A';
+  tt.players.p2.team = 'B'; tt.players.p4.team = 'B';
+  ['p1', 'p2', 'p3', 'p4'].forEach(function (k) { tt.players[k].nextTurnCurrency = 0; });
+
+  // Cortex (p4, team B -> side 'ai') played Green Lantern, who dealt 3 damage.
+  // Deliberately the SECOND seat on that team: a fix that merely picks "some
+  // seat on the right side" would credit p2 and look correct, so the card has
+  // to carry the seat that actually played it.
+  var gl = Game.createCardInstance(cardByName('Green Lantern'), 'ai');
+  gl._2v2PlayedBy = 'p4';
+  gl._damageDealtThisTurn = 3;
+  s.lanes[0].ai = gl;
+
+  // The end-of-turn sweep runs with NOBODY acting - the whole point.
+  Game._2v2CurrentActingPlayer = null;
+  gl.onEndOfTurn(Game, gl, 0);
+
+  assertEq(tt.players.p4.nextTurnCurrency, 3, 'Cortex banks the 3 energy he earned');
+  assertEq(tt.players.p2.nextTurnCurrency, 0, 'his teammate gets none of it');
+  assertEq(tt.players.p1.nextTurnCurrency, 0, 'and the enemy team certainly does not');
+  assertEq(s.ai.nextTurnCurrency, 0, 'nothing is left stranded on the side proxy');
+
+  // ...and it actually becomes spendable energy at the top of the next round.
+  tt.round = 5;
+  Game.start2v2Round();          // this advances the round, so read it back
+  var r = tt.round;
+  assertEq(tt.players.p4.energy, r + 3, 'round energy PLUS the banked bonus');
+  assertEq(tt.players.p2.energy, r, 'teammate gets the plain round energy');
+  assertEq(tt.players.p4.nextTurnCurrency, 0, 'the bucket is consumed, never stacking');
+});
+
+test("2v2: an energy grant is never credited to the wrong team", function () {
+  Game.start2v2Match({ names: { p1: 'Ryan', p2: 'Vega', p3: 'yomamma', p4: 'Cortex' } });
+  var s = Game.state, tt = s.twoVTwo;
+  tt.online = true; tt.you = 'p1';
+  tt.players.p1.team = 'A'; tt.players.p3.team = 'A';
+  tt.players.p2.team = 'B'; tt.players.p4.team = 'B';
+  ['p1', 'p2', 'p3', 'p4'].forEach(function (k) { tt.players[k].nextTurnCurrency = 0; });
+
+  // A stale acting-seat global pointing at the OTHER side must not be trusted.
+  Game._2v2CurrentActingPlayer = 'p1';          // team A
+  Game.addNextTurnCurrency('ai', 4);            // ...granting to team B
+
+  assertEq(tt.players.p1.nextTurnCurrency, 0, 'the team A seat is not credited');
+  assertEq((tt.players.p2.nextTurnCurrency || 0) + (tt.players.p4.nextTurnCurrency || 0), 4,
+    'the energy lands on the side it was granted to');
+});
+
+// ---- PROVENANCE: WHO PLAYED THIS CARD, ON WHAT ROUND -------------------
+// The RECORD block was an EFFECT log only ("R5 Star-Lord - +2/+2"); nothing
+// recorded who PLAYED a card. (User: "so in all game modes i want who played
+// the card on what turn.")
+test("every placement path stamps who played the card and when", function () {
+  var G = freshGame();
+  G.state.player.isHuman = true; G.state.ai.isHuman = false;
+  G.state.round = 4;
+
+  // 1. playCard - the ordinary path.
+  var c = G.createCardInstance(cardByName('Hawkeye'), 'player');
+  G.state.player.hand = [c];
+  G.state.player.currency = 99;
+  G.playCard('player', c, 0);
+  assertEq(c._playedRound, 4, 'the round it was played');
+  assertEq(c._playedByName, 'You', 'solo: the local player');
+
+  // 2. playCardFree - abilities that play a card for you.
+  var f = G.createCardInstance(cardByName('Hawkeye'), 'ai');
+  G.playCardFree('ai', f, 1);
+  assertEq(f._playedRound, 4, 'a free play is still a play');
+  assertEq(f._playedByName, 'AI', 'and it belongs to whoever it was played for');
+
+  // 3. placeInLane - revives / displacements, the path that stamped NOTHING.
+  var p = G.createCardInstance(cardByName('Hawkeye'), 'player');
+  G.placeInLane('player', p, 2);
+  assertEq(p._playedRound, 4, 'a direct placement records its round');
+  assertEq(p.statsEnteredRound, 4, '...and its entered-round, which it also never set');
+  assertEq(p._playedByName, 'You', 'and its player');
+
+  // The stamp is HISTORY: it must survive the card changing hands.
+  p.owner = 'ai';
+  assertEq(p._playedByName, 'You', 'a stolen card still records who originally played it');
+});
+
+test("2v2: provenance names the SEAT that played it, not the team", function () {
+  Game.start2v2Match({ names: { p1: 'Ryan', p2: 'Vega', p3: 'yomamma', p4: 'Cortex' } });
+  var s = Game.state, tt = s.twoVTwo;
+  tt.online = true; tt.you = 'p3';
+  tt.players.p1.team = 'A'; tt.players.p3.team = 'A';
+  tt.players.p2.team = 'B'; tt.players.p4.team = 'B';
+  s.round = 6;
+
+  var c = Game.createCardInstance(cardByName('Hawkeye'), 'player');
+  c._2v2PlayedBy = 'p3';
+  Game._2v2CurrentActingPlayer = null;      // nothing acting - the card knows
+  Game._stampProvenance(c, 'player');
+
+  assertEq(c._playedByName, 'yomamma', 'the seat, not "Ryan & yomamma"');
+  assertEq(c._playedSeat, 'p3', 'and the seat key is kept for the "You" check');
+  assertEq(c._playedRound, 6, 'on the round it was played');
+
+  // A teammate's card must not be attributed to the seat merely acting now.
+  var t = Game.createCardInstance(cardByName('Hawkeye'), 'player');
+  t._2v2PlayedBy = 'p1';
+  Game._2v2CurrentActingPlayer = 'p3';
+  Game._stampProvenance(t, 'player');
+  assertEq(t._playedByName, 'Ryan', "the card's own seat wins over whoever is acting");
+});
+
 // ---- RUNNER ------------------------------------------------
 // ============================================================
 
