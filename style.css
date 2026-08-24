@@ -38532,6 +38532,44 @@ body.low-fx .card-frost::after {
   margin-left: 0;
   text-shadow: 0 0 2px #000, 0 0 2px #000, 0 0 calc(var(--sb-i) * 0.42) currentColor;
 }
+/* ============================================================
+   BUSY CARDS GET A FOURTH COLUMN
+   ============================================================
+   The row is 3 columns x 2 rows = SIX slots, then overflow:hidden. Measured on
+   a real board tile, Dr. Manhattan with Chained + Critical + Burning + Frozen +
+   Feared emits ELEVEN badges: six render and five are destroyed without a
+   trace — draw, immune, INVINCIBLE, taunt, untrickable. Losing "this card
+   cannot be damaged" is not a cosmetic problem; it is the one fact that decides
+   whether attacking it does anything.
+   Vertical space cannot grow — a third row runs into the ATK/HP corners
+   (measured: only 3px of clearance below two rows at the desktop board size).
+   So capacity grows sideways, and ONLY on the cards that need it: at seven or
+   more badges the row switches to four columns, taking 6 slots to 8 in exactly
+   the same height. 77% of cards never show more than one badge and are not
+   touched by this at all — the common card does not pay for the rare one.
+   :has() is what makes it count-aware without JS measuring anything. */
+.card.ally-card .status-badges:has(.status-badge:nth-child(7)),
+.card.enemy-card .status-badges:has(.status-badge:nth-child(7)),
+.player-hand-section .hand-cards .card .status-badges:has(.status-badge:nth-child(7)),
+.trick-cards .trick-card .status-badges:has(.status-badge:nth-child(7)) {
+  --sb-cols: 4;
+}
+.card.ally-card .status-badges:has(.status-badge:nth-child(7)) .status-badge,
+.card.enemy-card .status-badges:has(.status-badge:nth-child(7)) .status-badge,
+.player-hand-section .hand-cards .card .status-badges:has(.status-badge:nth-child(7)) .status-badge,
+.trick-cards .trick-card .status-badges:has(.status-badge:nth-child(7)) .status-badge {
+  flex-basis: calc((100% - var(--sb-gap) * 3) / 4);
+}
+/* THE OVERFLOW CHIP. Past eight there is no honest amount of shrinking left,
+   so the row stops pretending: it shows what fits and says how many it is not
+   showing, with the rest named in the tooltip. A count the player can see and
+   question beats a status that quietly ceased to exist. */
+.status-badge.badge-more {
+  color: var(--text-hi, #f5fbff);
+  opacity: 0.85;
+}
+.status-badge.badge-more .sb-n { display: none; }
+
 .card.ally-card .status-badge .sb-i,
 .card.enemy-card .status-badge .sb-i,
 .player-hand-section .hand-cards .card .status-badge .sb-i,

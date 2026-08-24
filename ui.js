@@ -23114,7 +23114,56 @@ const UI = {
       if (charmedId != null && charmedId === c.id) { charmed = true; break; }
     }
     if (charmed) t.push(badge('badge-charmed', 'Charmed', 'Charm'));
-    return t.concat(b).join('');
+
+    // ---- CAPACITY ----------------------------------------------------------
+    // The row is 3 columns x 2 rows, and 4 x 2 once it holds seven or more (see
+    // the :has() ladder in style.css) — so EIGHT slots, then overflow:hidden
+    // silently eats the rest. Measured on a live board tile: Dr. Manhattan with
+    // Chained + Critical + Burning + Frozen + Feared emitted ELEVEN badges, six
+    // rendered, and the five destroyed were draw, immune, INVINCIBLE, taunt and
+    // untrickable. Losing "this card cannot be damaged" is not cosmetic — it is
+    // the fact that decides whether attacking it does anything.
+    //
+    // Two changes, and neither disturbs the transients-lead rule above, which
+    // is right: a Frozen 2 that expires this turn does outrank an Immunity that
+    // is true forever.
+    //
+    // 1. BLOCKERS FIRST WITHIN THE PERMANENTS. That rule was too coarse in one
+    //    place: Invincible / Immunity / Damage Immunity / Untrickable are not
+    //    "look it up later" facts, they are "your play does nothing" facts, and
+    //    they were sitting behind economy keywords like Draw and Echo. Ordered
+    //    ahead of them, so if anything ends up behind the chip it is the
+    //    flavour, not the wall.
+    // 2. NOTHING VANISHES. Past capacity the row shows what fits and one +N
+    //    chip naming the rest in its tooltip. A count the player can see and
+    //    question beats a status that quietly ceased to exist.
+    const BLOCKERS = ['badge-invincible', 'badge-immune', 'badge-dmg-immune', 'badge-untrickable'];
+    const rank = (html) => {
+      const m = html.match(/badge-[a-z-]+/);
+      const i = m ? BLOCKERS.indexOf(m[0]) : -1;
+      return i < 0 ? BLOCKERS.length : i;
+    };
+    const perms = b.slice().sort((x, y) => rank(x) - rank(y));
+    const all = t.concat(perms);
+
+    const CAP = 8;                       // 4 columns x 2 rows
+    if (all.length <= CAP) return all.join('');
+    const shown = all.slice(0, CAP - 1); // leave the last slot for the chip
+    const hidden = all.slice(CAP - 1);
+    // Name the hidden ones from their own markup so the tooltip cannot drift
+    // out of step with what is actually being hidden.
+    const label = (html) => {
+      const w = html.match(/<i class="sb-w">([^<]*)<\/i>/);
+      if (w && w[1]) return w[1];
+      const m = html.match(/badge-([a-z-]+)/);
+      return m ? m[1].replace(/-/g, ' ') : '?';
+    };
+    const names = hidden.map(label).join(', ');
+    shown.push(
+      `<span class="status-badge badge-more" title="${names.replace(/"/g, '&quot;')}">`
+      + `<i class="sb-w">+${hidden.length}</i></span>`
+    );
+    return shown.join('');
   },
 
   // Strip leading intrinsic trait text from card descriptions — badges already show these
