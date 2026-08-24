@@ -10584,6 +10584,17 @@ const Game = {
     if (!tt || !tt.online || !side) return null;
     const team = side === 'player' ? 'A' : 'B';
     const onTeam = pk => tt.players[pk] && tt.players[pk].team === team;
+    // WHOSE SUB-PHASE IS IT? That seat is the one acting, so a prompt raised
+    // for its side belongs to it. This used to go straight to slot order and
+    // hand the prompt to the LOWEST-numbered human on the team — with two
+    // humans sharing a side (p1 + p3, the other two seats AI fillers) every
+    // prompt that reached this fallback landed on p1 no matter which of them
+    // was actually playing. p3 played the card and p1 answered for them.
+    // (User: "I played homelander, I never got a choice on who to kill, it
+    // auto decided in 2v2.") An AI seat's own sub-phase still resolves to that
+    // AI seat, which is what lets the AI authority auto-pick for it.
+    const active = this._2v2ActivePlayer && this._2v2ActivePlayer();
+    if (active && onTeam(active)) return active;
     return this._2v2SLOTS.find(pk => onTeam(pk) && !tt.players[pk].isAI)
         || this._2v2SLOTS.find(pk => onTeam(pk)) || null;
   },

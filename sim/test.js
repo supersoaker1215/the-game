@@ -7549,6 +7549,51 @@ test("2v2: the state sent to a seat carries no other seat's cards", function () 
   assertEq(names(s.player.hand), 'Loki,Droideka', 'the live side proxy is left alone too');
 });
 
+// ---- 2v2 PROMPT ROUTING: THE SEAT WHOSE TURN IT IS ANSWERS -------------
+// Two humans on one side (p1 + p3, the other two seats AI fillers) is the
+// normal shape of a 2-player 2v2 room. The side->seat fallback used to take the
+// lowest-numbered human on the team, so whichever of them was actually playing,
+// p1 got the prompt. (User: "I played homelander, I never got a choice on who
+// to kill, it auto decided in 2v2.")
+test("2v2: a prompt for a side goes to the seat whose sub-phase it is", function () {
+  Game.start2v2Match({ names: { p1: 'Ryan', p2: 'Vega', p3: 'yomamma', p4: 'Cortex' } });
+  var s = Game.state, tt = s.twoVTwo;
+  tt.online = true; tt.you = 'p3';
+  tt.players.p1.team = 'A'; tt.players.p3.team = 'A';
+  tt.players.p2.team = 'B'; tt.players.p4.team = 'B';
+  // The two fillers are AI, exactly as a 2-human room fills out.
+  tt.players.p1.isAI = false; tt.players.p3.isAI = false;
+  tt.players.p2.isAI = true;  tt.players.p4.isAI = true;
+
+  tt.round = 1;
+  var order = Game._2v2ComputePhaseOrder(1);
+  var seatTo = function (pk) {
+    for (var i = 0; i < order.length; i++) {
+      if (order[i].indexOf(pk + '-') === 0) { tt.subPhaseIdx = i; return; }
+    }
+  };
+
+  seatTo('p3');
+  assertEq(Game._2v2ActivePlayer(), 'p3', 'it is p3 (yomamma) acting');
+  assertEq(Game._2v2SeatForSide('player'), 'p3',
+    'her own prompt must stay with her, not fall to her teammate p1');
+
+  seatTo('p1');
+  assertEq(Game._2v2SeatForSide('player'), 'p1', "and Ryan's turn routes to Ryan");
+
+  // An AI filler's own sub-phase still resolves to that AI seat — that is what
+  // lets the AI authority auto-pick for it instead of asking a human.
+  seatTo('p2');
+  assertEq(Game._2v2SeatForSide('ai'), 'p2', 'an AI seat answers for itself on its turn');
+
+  // With nobody from that side acting, fall back as before — slot order, a real
+  // player ahead of an AI filler (team B here is all AI, so it is just order).
+  seatTo('p1');
+  assertEq(Game._2v2SeatForSide('ai'), 'p2', 'the unchanged fallback still applies');
+  tt.players.p4.isAI = false;
+  assertEq(Game._2v2SeatForSide('ai'), 'p4', 'and a real player on that side wins over a filler');
+});
+
 // ---- RUNNER ------------------------------------------------
 // ============================================================
 
