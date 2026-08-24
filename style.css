@@ -42031,6 +42031,44 @@ body.no-art-grade .card-portrait { --art-grade: 1 !important; }
      ramp is energy leaving a source and dissipating; the tail fade is unchanged.
      NOTE: this supersedes the base gradient at 38852 — one colour authority for
      this rule now lives here. */
+  /* THE LADDER. Each divider is shorter than the one above it, so their right
+     ends fall along a line that sweeps down and in — the top rule reaches
+     furthest into the art and each one after it stops sooner.
+     (User: "i want the lanes to get shorter as they go down, so the top line is
+     the longest and fades to black, then shorter and shorter.")
+     THE LENGTH IS SET ON THE LABEL, NOT THE RULE. The rule is flex:1, so
+     capping the RULE would make its end depend on the word in front of it —
+     which is exactly the accident this replaces: PLAY's rule was 431px and
+     LIBRARY's 402px purely because "Play" is the shorter word, so the ends
+     staggered the wrong way for no reason. Sizing the label fixes where each
+     row ENDS regardless of what it says.
+     nth-of-type(2) is the first .mm-section in BOTH layouts: the main menu runs
+     header / section / section / botbar, and a submenu runs header / button /
+     section x3 / botbar — the button is a different element type, so the divs
+     number identically. One ladder covers the menu and every submenu. */
+  .mm-mw3 .mm-panel .mm-section:nth-of-type(2) .mm-section-label { width: 100%; }
+  .mm-mw3 .mm-panel .mm-section:nth-of-type(3) .mm-section-label { width: 84%; }
+  .mm-mw3 .mm-panel .mm-section:nth-of-type(4) .mm-section-label { width: 70%; }
+  .mm-mw3 .mm-panel .mm-section:nth-of-type(5) .mm-section-label { width: 58%; }
+  /* The music block closes the ladder. Its flat border-top was a hard 1px line
+     that stopped dead at the box edge while every rule above it dissolved —
+     the one divider on the screen not speaking the same language. Redrawn as
+     the same fading gradient, and shortest of all. */
+  .mm-mw3 .mm-botbar {
+    border-top: none;
+    position: relative;
+  }
+  .mm-mw3 .mm-botbar::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0;
+    height: 1px;
+    width: 82%;
+    background: linear-gradient(90deg,
+      rgba(var(--theme-rgb, 79,195,247), 0.55) 0,
+      rgba(var(--theme-rgb, 79,195,247), 0.35) 20%,
+      transparent 100%);
+  }
   .mm-mw3 .mm-section-label::after {
     order: 2;
     flex: 1;
