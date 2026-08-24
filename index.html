@@ -74,6 +74,25 @@
           // past 'installed' to 'waiting', we won't see updatefound —
           // detect that case on registration so the banner still shows.
           if (reg.waiting && navigator.serviceWorker.controller) showBanner();
+
+          // AN OPEN TAB NEVER RE-CHECKS sw.js ON ITS OWN. register() checks
+          // once, at load; after that the browser only re-fetches the worker on
+          // a navigation or its own ~24h timer. So the one player who most
+          // needs the banner — someone sitting in the game while a new build
+          // ships — was the one who could never see it, and the only way to
+          // learn a build existed was the reload the banner exists to ask for.
+          // (User: "i dont see an update badge did you push anything or just
+          // talk" — everything HAD shipped; the tab just never looked.)
+          // Poll while the tab is visible, and check again the moment it comes
+          // back to the foreground. reg.update() is a conditional request
+          // (ETag / Last-Modified) so a no-change check costs a 304.
+          var checkForUpdate = function () {
+            if (document.hidden) return;          // don't poll a background tab
+            try { reg.update(); } catch (e) { /* offline, or update in flight */ }
+          };
+          setInterval(checkForUpdate, 60000);
+          document.addEventListener('visibilitychange', checkForUpdate);
+          window.addEventListener('focus', checkForUpdate);
         }).catch(function (e) {
           if (window.__clbErrors) window.__clbErrors.report('sw-register', e);
         });
