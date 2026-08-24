@@ -13050,6 +13050,11 @@ const UI = {
     // request, and the lobby it gets back is the host's.
     const sel = this._2v2TeamSel;
     const canMove = (pk) => isHost || pk === tt.you;
+    // WHICH TEAM IS MINE. The team label was one flat pale-blue for everybody,
+    // which told you nothing and read as grey — the lobby is the one screen
+    // where "who am I fighting" should be obvious before a card is dealt. Your
+    // side takes the theme neon, theirs takes enemy red, same as the board.
+    const myTeamLobby = (players[tt.you] && players[tt.you].team) || null;
     const playerRows = ['p1','p2','p3','p4'].map(pk => {
       const hasJoined = joined[pk];
       const isAI = isAISeat(pk);
@@ -13068,13 +13073,14 @@ const UI = {
             ? `<button type="button" class="twov2-mm-aibtn is-remove" onclick="event.stopPropagation();Game.remove2v2AI('${pk}')">Remove</button>`
             : `<button type="button" class="twov2-mm-aibtn" onclick="event.stopPropagation();Game.add2v2AI('${pk}')">+ Add AI</button>`)
         : '';
-      return `<div class="twov2-mm-prow ${occupied ? 'is-joined' : ''} ${isAI ? 'is-ai' : ''} ${isSel ? 'is-teamsel' : ''} ${sel && isPartner && pickable ? 'is-swappable' : ''} ${pickable ? 'is-pickable' : ''} team-${teamLabel}"
+      const sideCls = myTeamLobby ? (teamLabel === myTeamLobby ? 'is-myteam' : 'is-foeteam') : '';
+      return `<div class="twov2-mm-prow ${occupied ? 'is-joined' : ''} ${isAI ? 'is-ai' : ''} ${isSel ? 'is-teamsel' : ''} ${sel && isPartner && pickable ? 'is-swappable' : ''} ${pickable ? 'is-pickable' : ''} team-${teamLabel} ${sideCls}"
         ${pickable ? `onclick="twov2TeamTap('${pk}')" role="button" tabindex="0"` : ''}>
         <span class="twov2-mm-pslot">P${pk[1]}</span>
         <span class="twov2-mm-pname">${name}</span>
         <span class="twov2-mm-pteam">Team ${teamLabel}</span>
         ${aiCtrl}
-        <span class="twov2-mm-pcheck">${hasJoined ? '✓' : (isAI ? '🤖' : '')}</span>
+        <span class="twov2-mm-pcheck">${hasJoined ? '✓' : (isAI ? UI.BOT_ICON_SVG : '')}</span>
       </div>`;
     }).join('');
     const balanced = Game._2v2TeamsBalanced ? Game._2v2TeamsBalanced() : true;

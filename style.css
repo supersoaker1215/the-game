@@ -2804,9 +2804,14 @@ body.hit-pause .ai-hand * {
   color: rgb(var(--theme-rgb,79,195,247));
   border-left: 3px solid rgb(var(--theme-rgb,79,195,247)); padding-left: 10px; margin-bottom: 4px;
 }
+/* A 45% theme mix against #dcebf8 lands on pale blue-grey — technically tinted,
+   read as grey. Weighted to the hue and given a soft glow so every line on this
+   screen is lit. (User: "no grey text please.") */
 .twov2-mm-sub {
   font-size: 12px; letter-spacing: 1.5px; text-transform: uppercase;
-  color: color-mix(in srgb, rgb(var(--theme-rgb,79,195,247)) 45%, #dcebf8); margin: 6px 0 18px;
+  color: color-mix(in srgb, rgb(var(--theme-rgb,79,195,247)) 80%, #ffffff);
+  text-shadow: 0 0 8px rgba(var(--theme-rgb,79,195,247), 0.35);
+  margin: 6px 0 18px;
 }
 .twov2-mm-namerow { display: flex; align-items: baseline; gap: 10px; max-width: 320px; margin: 4px 0 20px; }
 .twov2-mm-namelabel { font-size: 10px; font-weight: 700; letter-spacing: 3px; text-transform: uppercase; color: color-mix(in srgb, rgb(var(--theme-rgb,79,195,247)) 55%, #dcebf8); }
@@ -2892,8 +2897,31 @@ body.hit-pause .ai-hand * {
 }
 .twov2-mm-pslot { font-weight: 700; letter-spacing: 2px; color: rgb(var(--theme-rgb,79,195,247)); min-width: 30px; }
 .twov2-mm-pname { flex: 1; color: var(--text-body, #e8eef6); font-size: 16px; font-weight: 600; }
-.twov2-mm-pteam { font-size: 11px; letter-spacing: 2px; text-transform: uppercase; color: rgba(159,207,237,0.5); }
-.twov2-mm-pcheck { color: #6ee7a8; font-weight: 700; }
+/* NEON, AND IT MEANS SOMETHING. This was rgba(159,207,237,0.5) for every seat —
+   a pale wash that reads as grey and says nothing about who you are fighting.
+   Your side glows in the theme colour, the other side burns enemy red, exactly
+   as they will on the board. (User: "have team A and B be neon highlighted, red
+   for enemy and whatever your neon highlight is for friendly".) */
+.twov2-mm-pteam {
+  font-size: 11px; letter-spacing: 2px; text-transform: uppercase; font-weight: 700;
+  color: rgb(var(--theme-rgb, 79,195,247));
+  text-shadow: 0 0 8px rgba(var(--theme-rgb, 79,195,247), 0.7);
+}
+.twov2-mm-prow.is-myteam .twov2-mm-pteam {
+  color: rgb(var(--theme-rgb, 79,195,247));
+  text-shadow: 0 0 8px rgba(var(--theme-rgb, 79,195,247), 0.75),
+               0 0 18px rgba(var(--theme-rgb, 79,195,247), 0.30);
+}
+.twov2-mm-prow.is-foeteam .twov2-mm-pteam {
+  color: #ff6b6b;
+  text-shadow: 0 0 8px rgba(224,64,64,0.75), 0 0 18px rgba(224,64,64,0.30);
+}
+.twov2-mm-pcheck { color: #6ee7a8; font-weight: 700; display: inline-flex; align-items: center; }
+/* Same neon glyph the board uses for an AI seat — the emoji here was the last
+   full-colour system icon left in the game. Takes the seat's side colour. */
+.twov2-mm-pcheck .bot-ic { width: 16px; height: 16px; }
+.twov2-mm-prow.is-myteam .twov2-mm-pcheck .bot-ic { color: rgb(var(--theme-rgb, 79,195,247)); }
+.twov2-mm-prow.is-foeteam .twov2-mm-pcheck .bot-ic { color: #ff6b6b; }
 /* PORTRAIT — keep the same left-list / seam / right-hero structure as desktop
    (matching the reference), just with the hero full-bleed behind and the seam
    pushed right so the list clears it. */
