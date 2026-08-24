@@ -6713,7 +6713,8 @@ const UI = {
     // includes both board and dead-pile cards so rankings reflect the
     // whole game, but the star only renders when the top card is still
     // on the board (dead cards don't render a makeCardEl on the lane).
-    this._mvpRanks = this.computeMvpRanks();
+    // this._mvpRanks — no longer computed per render; see makeCardEl. Its only
+    // reader was the MVP star, which the owner removed.
 
     const isMainMenu    = s.phase === 'main-menu';
     const isModeSelect  = s.phase === 'mode-select';
@@ -21376,51 +21377,16 @@ const UI = {
     const statusHtml = `<div class="status-badges">${opts.badgesHTML != null ? opts.badgesHTML : this.getStatusBadges(card)}</div>`;
     const activeHtml = card._moderStripped ? '' : this.getActiveAbilityText(card);
 
-    // Live MVP tracker — only the TOP TWO cards per side (by composite
-    // MVP score incl. summon-chain inheritance) carry a star pip. #1
-    // gets a gold star; #2 gets silver. Rankings are precomputed once
-    // per render in UI.computeMvpRanks and cached on this._mvpRanks so
-    // every card look-up is O(1). Hover reveals the score + breakdown.
-    const mvpScore = this.mvpScoreOf(card);
-    const sideRanks = this._mvpRanks && card.owner ? this._mvpRanks[card.owner] : null;
-    let mvpRankClass = '';
-    let mvpRankLabel = '';
-    if (!inHand && sideRanks && card.id != null && mvpScore > 0) {
-      if (card.id === sideRanks.firstId)       { mvpRankClass = 'mvp-gold';   mvpRankLabel = 'MVP #1'; }
-      else if (card.id === sideRanks.secondId) { mvpRankClass = 'mvp-silver'; mvpRankLabel = 'MVP #2'; }
-    }
-    let mvpStarSpan = '';
-    if (mvpRankClass) {
-      const tooltip = [
-        `${mvpRankLabel}: ${mvpScore}`,
-        `  Damage done: ${(card.statsHealthbarDamage || 0) + (card.statsEnemyDamage || 0)}`,
-        `  Damage absorbed: ${card.statsDamageAbsorbed || 0}`,
-        `  Energy generated: ${card.statsEnergyGenerated || 0}`,
-        `  Kills: ${card.statsKills || 0} (×5 = ${(card.statsKills || 0) * 5})`
-      ].join('&#10;');
-      mvpStarSpan = `<span class="card-mvp-star ${mvpRankClass}" title="${tooltip}" aria-label="${mvpRankLabel} score ${mvpScore}">`
-                  + `<svg viewBox="0 0 10 10" aria-hidden="true">`
-                  + `<polygon points="5,0.3 6.3,3.7 10,3.9 7,6.1 8.1,9.7 5,7.6 1.9,9.7 3,6.1 0,3.9 3.7,3.7"/>`
-                  + `</svg>`
-                  + `</span>`;
-    }
-
-    // Rarity pips — tiny neon squares in the top-right corner, 1-4 count
-    // encodes the rarity tier (common/uncommon/rare/legendary). The MVP
-    // star slots in as the leftmost element of this row when present.
-    //
-    // Roguelite cards key off their `_runRarity` directly (1 common,
-    // 2 rare, 3 special, 4 legendary). Classic-mode cards fall back
-    // to the cost-tier proxy. User direction: "these cards on board
-    // need to be neon-highlighted to designate their rarity — it's
-    // the number-of-rarity squares."
-    const _rarityCost = card.baseCost || card.cost || 0;
-    let _pipCount = _rarityCost <= 3 ? 1 : _rarityCost <= 6 ? 2 : _rarityCost <= 8 ? 3 : 4;
-    if (card._runRarity) {
-      const _rlPips = { common: 1, rare: 2, special: 3, legendary: 4 };
-      if (_rlPips[card._runRarity]) _pipCount = _rlPips[card._runRarity];
-    }
-    const rarityStrip = `<span class="rarity-strip" aria-hidden="true">${mvpStarSpan}${'<span class="rpip"></span>'.repeat(_pipCount)}</span>`;
+    // MVP STAR AND RARITY PIPS REMOVED — owner: "remove the rarity pips and
+    // star MVP gold/silver."
+    // The whole local block that built them is gone with them: it existed only
+    // to produce the strip, and once that is empty mvpStarSpan and _pipCount
+    // are read by nothing. UI.mvpScoreOf and UI.computeMvpRanks are LEFT
+    // DEFINED — the ranking is the owner's work and may want a home again — but
+    // the per-render call that populated this._mvpRanks is removed, because its
+    // only reader was this block and it sorted every card on the board on every
+    // single render to feed a star that no longer exists.
+    const rarityStrip = '';
 
     // Placeholder kept for template — mvp star is injected above inside
     // rarityStrip so the template slot that used to render it is empty.

@@ -41857,7 +41857,9 @@ body.no-art-grade .card-portrait { --art-grade: 1 !important; }
   border-radius: inherit;
   /* Above the portrait, because the card's TOP corners sit over it. */
   z-index: 5;
-  --p: rgba(255,255,255,0.24);
+  /* Owner picked the lit version as the default look, so the resting
+     alpha is the one the aegis used to raise it to. */
+  --p: rgba(255,255,255,0.62);
   background:
     linear-gradient(to bottom right, transparent calc(50% - 0.6px), var(--p) calc(50% - 0.6px),
                     var(--p) calc(50% + 0.6px), transparent calc(50% + 0.6px)) 0    0    / 22px 22px no-repeat,
@@ -41871,4 +41873,7 @@ body.no-art-grade .card-portrait { --art-grade: 1 !important; }
 /* An invincible card lights its own chamfer rather than drawing a second set
    on top — the seal below is what makes the state legible, and two overlapping
    corner treatments would just read as a heavier line. */
-.card:has(.card-invincible) > .card-chamfer { --p: rgba(255,255,255,0.62); }
+/* Invincible still has to out-read the default, which is now itself lit —
+   so it goes brighter again. The sealed portrait edge below is what
+   actually carries the state; this is the supporting half. */
+.card:has(.card-invincible) > .card-chamfer { --p: rgba(255,255,255,0.98); }
