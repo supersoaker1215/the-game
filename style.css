@@ -38900,17 +38900,25 @@ body.low-fx .card-hollow-purple::after { animation: none !important; }
    framing arrived somewhere visibly DIFFERENT and the owner read it as the art
    switching on them ("i want the one with the happy face all the time, not for
    it to switch"). Restoring that keyframe would restore that complaint.
-   So this is a BREATH, not a Ken Burns: 1.05 -> 1.075 (2.5% of zoom against the
-   old 6%) and 0.5% of slide against 1.8%, over 42s. It starts and returns to
-   the exact pinned framing that was asked for, and at any moment in the cycle
-   the crop is close enough to that framing that there is no second look to
-   arrive at — you feel the movement without the picture changing.
+   So this is a BREATH, not a Ken Burns. It starts and returns to the exact
+   pinned framing that was asked for, and at any moment in the cycle the crop
+   stays close enough to it that there is no second look to arrive at — you feel
+   the movement without the picture changing.
+   AMPLITUDE LADDER, so the next adjustment has the whole range in view:
+     old mmHeroDrift (rejected)             zoom 6.0%   slide 1.8% / 3.0%
+     first breath                           zoom 2.5%   slide 0.5% / 0.6%
+     now ("the art can move a little more") zoom 4.0%   slide 1.1% / 1.2%
+   Two thirds of the rejected zoom and under half its vertical slide, so there
+   is still headroom before the framing starts to travel again.
+   The 42s period is deliberately NOT shortened: more travel over the same long
+   cycle reads as more movement while staying slow, which is what was asked for.
+   Faster would read as restless.
    mmHeroDrift itself is left untouched; nothing else references it now, but
    redefining a shared keyframe to suit one caller is how the next surface
    inherits a surprise. */
 @keyframes mmHeroBreathe {
-  0%   { transform: scale(1.05)  translate(0, -1.5%); }
-  100% { transform: scale(1.075) translate(-0.5%, -0.9%); }
+  0%   { transform: scale(1.05) translate(0, -1.5%); }
+  100% { transform: scale(1.09) translate(-1.1%, -0.3%); }
 }
 .mm-mw3 .mm-hero-img {
   animation: mmHeroBreathe 42s ease-in-out infinite alternate;
