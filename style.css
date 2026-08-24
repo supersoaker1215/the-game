@@ -16930,52 +16930,16 @@ body.kill-flash-ai::after {
   border: 1px solid var(--theme-accent-edge, rgba(79,195,247,0.20));
 }
 
-/* Trick full-screen inspect — uses the same .card-inspect-backdrop overlay */
-.trick-inspect-modal {
-  position: relative;
-  width: 300px;
-  max-width: 92vw;
-  background: #000000;
-  border: 1px solid var(--theme-accent-bright, #4fc3f7);
-  border-radius: 8px;
-  overflow: hidden;
-  box-shadow:
-    0 0 40px var(--theme-glow-outer, rgba(79,195,247,0.50)),
-    0 0 80px var(--theme-glow-inner, rgba(79,195,247,0.20));
-  animation: ciPanelIn var(--panel-in-dur) var(--ease-out-soft, cubic-bezier(.18,1.04,.45,1.18)) both;
-  font-family: 'Rajdhani', sans-serif;
-}
-.ti-portrait {
-  width: 100%; height: 340px;
-  background-size: cover; background-position: center top;
-}
-.ti-cost {
-  position: absolute;
-  top: 10px; left: 10px;
-  width: 32px; height: 32px;
-  border-radius: 50%;
-  display: flex; align-items: center; justify-content: center;
-  font-size: 16px; font-weight: 700;
-  font-family: 'Rajdhani', sans-serif;
-  color: #fff;
-  background: var(--theme-accent-bright, #4fc3f7);
-  box-shadow: 0 0 10px var(--theme-glow-outer, rgba(79,195,247,0.70));
-}
-.ti-name {
-  font-size: 18px; font-weight: 700;
-  letter-spacing: 3px; text-transform: uppercase;
-  color: var(--text-hi, #f5fbff);
-  padding: 12px 16px 6px;
-  text-shadow:
-    0 0 8px var(--theme-accent-bright, rgba(79,195,247,0.85)),
-    0 0 18px var(--theme-glow-outer, rgba(79,195,247,0.40));
-}
-.ti-desc {
-  font-family: 'Inter', system-ui, sans-serif;
-  font-size: 13px; line-height: 1.55;
-  color: var(--text-dim, #d4ecff);
-  padding: 8px 16px 18px;
-}
+/* TRICK INSPECT — no bespoke box any more. The modal now carries BOTH
+   .card-inspect-modal and .trick-inspect-modal, and the trick tile itself is
+   rendered by makeTrickEl with .inspect-card, so it inherits the card
+   inspect's layout, zoom, ribbon gap and open animation.
+   What was here — a 300px bordered black panel plus .ti-portrait / .ti-cost /
+   .ti-name / .ti-desc — was a fourth card renderer with its own art box, cost
+   chip and text block, none of which matched the tile the player had just
+   tapped. Deleted rather than overridden: left in place its background, border
+   and overflow still painted a box around a card that is not supposed to be in
+   one. (User: "make the trick pop up look just like the cards.") */
 .ci-close {
   position: absolute; top: 6px; right: 8px;
   width: 30px; height: 30px;
@@ -31754,12 +31718,22 @@ body.round-tick .board::after {
 /* Description flows in the card body (below art + name), padded so the text
    doesn't kiss the border, and never clipped now that the card grows for it. */
 .card-inspect-modal .inspect-card .card-desc,
+.card-inspect-modal .inspect-card .trick-desc,
 .card-inspect-modal .inspect-card .card-active-text {
   position: static !important;
   height: auto !important;
   max-height: none !important;
   overflow: visible !important;
   padding: 4px 8px 8px !important;
+}
+/* A trick tile is .trick-card, not .card, so the aspect/height escape hatch
+   above (scoped to .inspect-card) reaches it, but its own fixed width does
+   not need overriding — makeTrickEl sizes it and the modal is width:fit-content
+   around whatever it gets. Hover lift is killed for the same reason it is on
+   cards: the tile is already zoomed. */
+.card-inspect-modal .inspect-card.trick-card:hover {
+  transform: none !important;
+  filter: none !important;
 }
 /* Hover effects DISABLED inside the inspect modal — the card is
    already zoomed 1.7× via `zoom`; any additional lift / scale

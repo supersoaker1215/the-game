@@ -23133,7 +23133,7 @@ const UI = {
     // The ball is deliberately HEAVY (r=3 of a 12 box): compared side by
     // side against a smaller one, the solid mass is what still reads as a
     // ball-and-chain at 14px, where the thin strokes have nearly gone.
-    'Chained': { color: '#a8b8c8', svg: '<svg viewBox="0 0 12 12"><circle cx="2.4" cy="2.4" r="1.5" stroke="currentColor" stroke-width="1.15" fill="none"/><circle cx="4.5" cy="4.5" r="0.78" stroke="currentColor" stroke-width="0.8" fill="none"/><circle cx="6.1" cy="6.1" r="0.78" stroke="currentColor" stroke-width="0.8" fill="none"/><circle cx="8.7" cy="8.7" r="3" fill="currentColor"/></svg>', tip: 'If moved, loses <b>(−2/−2)</b>. Held by <b>The Bathroom</b> — when the second Chained card dies, the room drains away.' },
+    'Chained': { color: '#a8b8c8', svg: '<svg viewBox="0 0 12 12"><circle cx="2.4" cy="2.4" r="1.5" stroke="currentColor" stroke-width="1.15" fill="none"/><circle cx="4.5" cy="4.5" r="0.78" stroke="currentColor" stroke-width="0.8" fill="none"/><circle cx="6.1" cy="6.1" r="0.78" stroke="currentColor" stroke-width="0.8" fill="none"/><circle cx="8.7" cy="8.7" r="3" fill="currentColor"/></svg>', tip: 'If moved, loses <b>(−2/−2)</b>.' },
     'Damage Immunity': { color: '#d35400', svg: '<svg viewBox="0 0 12 12"><path d="M6 1 L11 3 V6 C11 9 6 11 6 11 C6 11 1 9 1 6 V3 Z M4 6 L8 6 M6 4 L6 8" stroke="currentColor" stroke-width="1.2" fill="none" stroke-linejoin="round"/></svg>', tip: 'Cannot take any damage.' },
     // A BRAIN. Owner: "the mind control icon should be a brain." The old glyph
     // was a circle with an S-curve inside it, which read as a generic token.
@@ -28745,22 +28745,46 @@ const UI = {
       return;
     }
 
-    // Trick inspect — full-screen backdrop matching the card inspect style.
-    const artPath = this.getCardArtPath(name);
-    const safeUrl = artPath ? artPath.replace(/'/g, '%27') : '';
-    const portrait = safeUrl
-      ? `<div class="ti-portrait" style="background-image:url('${safeUrl}')"></div>` : '';
-    const desc = def.desc ? `<div class="ti-desc">${this.formatDesc(def.desc)}</div>` : '';
+    // TRICK INSPECT — THE SAME VIEW, WITH A TRICK IN IT.
+    // This used to hand-build a .trick-inspect-modal out of .ti-portrait /
+    // .ti-cost / .ti-name / .ti-desc: a fourth card renderer, with its own
+    // art box, its own cost chip and its own text block, none of which matched
+    // the tile the player had just tapped. That is precisely the second-renderer
+    // problem the comment above describes for CARDS — it was fixed there and
+    // left standing here, so a trick opened into a flat panel while a card
+    // opened into a real card. (User: "can you make the trick pop up look just
+    // like the cards? the text and energy look stale right now.")
+    // Now it reuses makeTrickEl — the canonical trick tile, the same one the
+    // hand, the draft and the codex render — inside the card inspect's own
+    // chrome, so the two views are the same view.
     const backdrop = document.createElement('div');
     backdrop.className = 'card-inspect-backdrop';
     backdrop.id = 'trick-inspect-backdrop';
-    backdrop.innerHTML = `
-      <div class="trick-inspect-modal" role="dialog" aria-label="${def.name}">
-        ${portrait}
-        <div class="ti-cost ${this.getCostClass(def.cost || 0)}">${def.cost || 0}</div>
-        <div class="ti-name">${def.name}</div>
-        ${desc}
-      </div>`;
+    // .card-inspect-modal, not a bespoke class: it carries the layout, the gap
+    // to the ribbon and the open animation the card inspect already has.
+    backdrop.innerHTML = `<div class="card-inspect-modal trick-inspect-modal" role="dialog" aria-label="${def.name}"></div>`;
+    const tModal = backdrop.firstElementChild;
+    const tileHost = document.createElement('div');
+    tileHost.innerHTML = this.makeTrickEl(def, { extraClass: 'inspect-card' });
+    const tile = tileHost.firstElementChild;
+    if (tile) {
+      // Same full-res swap the card inspect does: makeTrickEl serves the mid
+      // art tier, which would look soft blown up to modal size.
+      const p = tile.querySelector('.card-portrait');
+      const fullUrl = this.getCardArtPath(name, { full: true });
+      if (p && fullUrl) p.style.setProperty('--portrait-bg', `url('${fullUrl.replace(/'/g, '%27')}')`);
+      tModal.appendChild(tile);
+    }
+    // And the rarity ribbon, so a trick reports its tier like a card does —
+    // tricks have no printed rarity, so _cardRarityLabel derives it from cost,
+    // which is the same ladder getTrickRarityStrip already pips on the tile.
+    {
+      const r = this._cardRarityLabel(def);
+      const ribbon = document.createElement('div');
+      ribbon.className = `card-inspect-rarity rarity-tier-${r.tier}`;
+      ribbon.textContent = r.label;
+      tModal.appendChild(ribbon);
+    }
     document.body.appendChild(backdrop);
     if (this.sfx) {
       try {
