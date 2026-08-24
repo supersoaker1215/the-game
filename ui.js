@@ -21145,6 +21145,14 @@ const UI = {
     if (opts.rarity) face._runRarity = opts.rarity;
     if (opts.deckCardRef) face._runDeckCardRef = opts.deckCardRef;
     face._synthetic = true;
+    // Carry provenance across the synth. Dead-pile entries are archived plain
+    // objects, and the face is rebuilt from a def — createCardInstance drops
+    // anything not in its own field list, so without this a dead card's record
+    // is blank. A CARD_DEFS entry has none of these, so codex and draft faces
+    // stay exactly as they were.
+    ['_playedRound', '_playedByName', '_playedSeat', '_playedVia'].forEach(k => {
+      if (def && def[k] != null) face[k] = def[k];
+    });
     return face;
   },
 
@@ -22600,6 +22608,10 @@ const UI = {
       const tt = Game.state && Game.state.twoVTwo;
       let who = card._playedByName;
       if (tt && tt.you && card._playedSeat && card._playedSeat === tt.you) who = 'You';
+      // 1v1 online: _mpNames is flipped alongside the state, so _mpNames.player
+      // is always the LOCAL human on whichever client is reading.
+      else if (!tt && Game.isMultiplayer && Game.isMultiplayer() &&
+               Game.state._mpNames && who === Game.state._mpNames.player) who = 'You';
       if (card._playedVia) who += ` (${card._playedVia})`;
       lead = `<li><span class="dossier-round">R${card._playedRound}</span>` +
              `<span class="dossier-text">Played by ${esc(who)}</span></li>`;

@@ -7713,6 +7713,53 @@ test("2v2: provenance names the SEAT that played it, not the team", function () 
   assertEq(t._playedByName, 'Ryan', "the card's own seat wins over whoever is acting");
 });
 
+// A card the Batman Who Laughs INTERCEPTS never landed for the player who paid
+// for it — it goes to the thief's hand and is played later, by them. Its
+// provenance must not survive that steal, or the record credits the victim.
+test("an intercepted card is credited to the thief who replays it, not the victim", function () {
+  var G = freshGame();
+  G.state.player.isHuman = false; G.state.ai.isHuman = false;
+  G.state.round = 2;
+
+  var c = G.createCardInstance(cardByName('Hawkeye'), 'player');
+  G.state.player.hand = [c];
+  G.state.player.currency = 99;
+  G.playCard('player', c, 0);
+  assertEq(c._playedByName, 'You', 'played by its original owner first');
+
+  // Now the same instance is stolen out of the air. (BWL intercepts from HAND,
+  // so the card is off the board when the thief later plays it.)
+  G.state.lanes[0].player = null;
+  G._clearProvenance(c);
+  assertEq(c._playedRound, undefined, 'the steal wipes the stamp');
+  assertEq(c._playedByName, undefined, 'including the name');
+  assertEq(c._2v2PlayedBy, undefined, 'and the seat, which is stamped before the intercept runs');
+
+  // The thief plays it on a later round — that is the play the record should show.
+  c.owner = 'ai';
+  G.state.round = 5;
+  G.placeInLane('ai', c, 3);
+  assertEq(c._playedByName, 'AI', 'the record now names whoever actually played it');
+  assertEq(c._playedRound, 5, 'on the round THEY played it');
+});
+
+test("a dead card keeps its provenance in the dead pile", function () {
+  var G = freshGame();
+  G.state.player.isHuman = true; G.state.ai.isHuman = false;
+  G.state.round = 3;
+  var c = G.createCardInstance(cardByName('Hawkeye'), 'player');
+  G.state.player.hand = [c];
+  G.state.player.currency = 99;
+  G.playCard('player', c, 0);
+  G.killCard(c);
+  G.cleanupDead();
+
+  var entry = (G.state.player.deadPile || []).find(function (e) { return e && e.name === 'Hawkeye'; });
+  assert(!!entry, 'the card reached the dead pile');
+  assertEq(entry._playedByName, 'You', 'the archive carries who played it');
+  assertEq(entry._playedRound, 3, '...and when');
+});
+
 // ---- RUNNER ------------------------------------------------
 // ============================================================
 

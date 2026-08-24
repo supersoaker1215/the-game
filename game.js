@@ -4612,6 +4612,7 @@ const Game = {
     if (idx > -1) this.state[owner].hand.splice(idx, 1);
     this.state[owner].currency -= cost;
     card.owner = opp;
+    this._clearProvenance(card);   // the thief plays it now; see _clearProvenance
     this.log(`[STOLEN] ${card.name} is intercepted by Batman Who Laughs!`);
     const bwl = this.getAllCardsOf(opp).find(c => c.name === 'The Batman Who Laughs');
     // isHuman(opp), NOT `opp === 'player'`. The 'ai' seat is a REAL PERSON in
@@ -5071,6 +5072,7 @@ const Game = {
       const idx0 = this.state[owner].hand.indexOf(card);
       if (idx0 > -1) this.state[owner].hand.splice(idx0, 1);
       card.owner = opp;
+      this._clearProvenance(card);   // same as _resolveBwlIntercept
       this.log(`[STOLEN] ${card.name} is intercepted by Batman Who Laughs (via jump)!`);
       const bwl = this.getAllCardsOf(opp).find(c => c.name === 'The Batman Who Laughs');
       // Same isHuman gate as _resolveBwlIntercept — the jump path had the
@@ -8150,6 +8152,14 @@ const Game = {
       statsHealLeveraged: card.statsHealLeveraged || 0,
       statsKillTempo: card.statsKillTempo || 0,
       statsEnteredRound: card.statsEnteredRound,
+      // The dead pile is a field WHITELIST, so provenance has to be listed or a
+      // dead card's record goes blank. Scalars only: _history is capped per
+      // card but a full pile of them would partly undo the MP wire diet, and
+      // "who played it" is what was asked for.
+      _playedRound: card._playedRound,
+      _playedByName: card._playedByName,
+      _playedSeat: card._playedSeat,
+      _playedVia: card._playedVia,
       statsLeftRound: card.statsLeftRound,
       owner: card.owner,
     });
@@ -8610,12 +8620,34 @@ const Game = {
         .map(k => tt.players[k].name || ('P' + k[1]));
       return mates.length ? mates.join(' & ') : (owner === 'player' ? 'Player 1' : 'Player 2');
     }
+    // Roguelite: the opponent is a PERSONA with a name, not a generic "AI".
+    // Gated on _roguelite, never on aiDeck alone — a deckbuilder guest's deck
+    // also lands in mode.aiDeck in 1v1 online, and naming a human after their
+    // deck would be worse than saying nothing.
+    if (owner === 'ai' && s.mode && s.mode._roguelite && s.mode.aiDeck && s.mode.aiDeck.name) {
+      return s.mode.aiDeck.name;
+    }
     // 1v1 online: _mpNames is flipped per client, and 'player' is always the
     // LOCAL side — so [owner] resolves to the same human on both machines.
     if (this.isMultiplayer && this.isMultiplayer() && s._mpNames) {
       return s._mpNames[owner] || (owner === 'player' ? 'Player 1' : 'Player 2');
     }
     return owner === 'player' ? 'You' : 'AI';
+  },
+
+  // A card INTERCEPTED out of the air never landed for the player who paid for
+  // it — it goes to the thief's hand and is played later, by them. Its stamps
+  // must not survive that: _2v2PlayedBy is set before the intercept runs, so
+  // without this the thief's play re-uses the VICTIM's seat and the record
+  // reads "Played by <the person it was stolen from>". Cleared here rather
+  // than by moving the stamp, which is load-bearing for 2v2 prompt routing.
+  _clearProvenance(card) {
+    if (!card) return;
+    delete card._2v2PlayedBy;
+    delete card._playedRound;
+    delete card._playedByName;
+    delete card._playedSeat;
+    delete card._playedVia;
   },
 
   _stampProvenance(card, owner) {
