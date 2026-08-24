@@ -41949,33 +41949,73 @@ body.no-art-grade .card-portrait { --art-grade: 1 !important; }
     margin: 10px 0 6px;
     justify-content: flex-start;
     width: 100%;
+    /* THE JOINT, part 1. `gap` spaces EVERY flex item equally, so a node
+       dropped in inherits 12px from the word AND 12px from the rule — a
+       floating bead, not a connector. Spacing moves onto the node itself
+       below, so the rule can butt against it and read as leaving it.
+       Folded into this rule rather than added as a new block: this selector is
+       already written six times in this file (2412, 2476, 2482, 38836, 38926,
+       and here) and a seventh copy is the bug class, not a fix. */
+    gap: 0;
   }
-  /* THE JOINT. Label and rule were two separate marks with a gap between them,
-     and the gap read as a missing piece rather than as spacing. (User: "i feel
-     a symbol is missing here to tie it together.")
-     A NODE at the junction — the rule now emerges FROM a point instead of just
-     starting somewhere. It is the same diamond the player reads all match as
-     the energy glyph (&#9670;, ui.js), so the menu speaks a shape they already
-     know rather than introducing a sixth marker.
-     SOLID, not outlined: at the real 11px size a hollow diamond's centre closes
-     up and it turns into a smudge — checked against ring and outline variants
-     at both 11px and 22px before choosing.
-     `order` is what puts it AFTER the text: ::before is the only free
-     pseudo-element (::after is the rule itself), and flex order re-sequences it
-     without needing a new element in the markup.
-     Landscape only — portrait keeps its symmetric flanked rules, where ::before
-     IS the left-hand rule and the label is already tied on both sides. */
+  /* THE SOLDER POINT. The label and the rule were two marks with dead air
+     between them, and the dead air read as a missing piece rather than as
+     spacing. (User: "i feel a symbol is missing here to tie it together.")
+     The fix is not to fill the gap with an ornament — it is to give the line a
+     REASON to start where it starts. A trace on a Tron board leaves a solder
+     point, so the rule now emerges FROM a lit node instead of beginning in
+     mid-air. Same 45deg tap-point the project already draws in .hud-divider
+     (955), .mm-divider::after (2040) and .card-name-banner::after (6319);
+     nothing new is invented, and it is the same diamond the player reads all
+     match as the energy glyph (&#9670;, ui.js:11835).
+     SOLID, not hollow: at the 11px floor the core is 3.7px, and a 1px stroke
+     on that leaves a hole antialiasing closes. Every hollow diamond in this
+     codebase sits on a 16px+ target; every small node is solid + glow.
+     Core in em so it tracks the type, but the ring and glow stay in px so the
+     mark does not bulk up with it — that is what keeps a section header from
+     becoming a focal point at the 22px ceiling.
+     `order` places it after the text: ::after IS the rule, so ::before is the
+     only free pseudo-element, and flex order re-sequences it with no new
+     element in the markup.
+     Landscape only. Portrait keeps its symmetric flanking rules, where
+     ::before IS the left-hand hairline (38845) and the label is already tied
+     on both sides. */
   .mm-mw3 .mm-section-label::before {
     display: block;
     content: '';
     order: 1;
     flex: 0 0 auto;
-    width: 0.5em; height: 0.5em;
-    background: rgb(var(--theme-rgb, 79,195,247));
+    /* 3.7px at the 11px floor, 7.5px at the 22px ceiling; the px floor is
+       insurance for any branch that drives the type below ~11.8px. */
+    width: max(4px, 0.34em);
+    height: max(4px, 0.34em);
+    /* THE JOINT, part 2: the word-to-node breath, in em so it scales with the
+       type the way a flat 12px did not. Rajdhani's 4px letter-spacing already
+       leaves trailing air after the final letter. */
+    margin-left: 0.7em;
     transform: rotate(45deg);
-    box-shadow: 0 0 7px rgba(var(--theme-rgb, 79,195,247), 0.9);
+    background: rgb(var(--theme-rgb, 79,195,247));
+    box-shadow:
+      0 0 0 1px rgba(var(--theme-rgb, 79,195,247), 0.35),
+      0 0 6px  rgba(var(--theme-rgb, 79,195,247), 0.85),
+      0 0 14px rgba(var(--theme-rgb, 79,195,247), 0.40);
   }
-  .mm-mw3 .mm-section-label::after { order: 2; flex: 1; width: auto; }
+  /* THE TRACE. 2px clears the node's 1px ring and no more, so the hairline runs
+     INTO the point rather than near it. align-items:center on the row puts the
+     rotated square's vertices exactly on this 1px line's axis. The 0.85 -> 0.55
+     ramp is energy leaving a source and dissipating; the tail fade is unchanged.
+     NOTE: this supersedes the base gradient at 38852 — one colour authority for
+     this rule now lives here. */
+  .mm-mw3 .mm-section-label::after {
+    order: 2;
+    flex: 1;
+    width: auto;
+    margin-left: 2px;
+    background: linear-gradient(90deg,
+      rgba(var(--theme-rgb, 79,195,247), 0.85) 0,
+      rgba(var(--theme-rgb, 79,195,247), 0.55) 20%,
+      transparent 100%);
+  }
   /* Back to hugging the column's left edge, where a back control belongs. */
   .mm-mw3 .mm-subback {
     display: flex;
