@@ -41683,8 +41683,16 @@ body.low-fx .badge-asleep { animation: none; }
    coming from the EDGES (hairline + outer bloom + faint inner bloom), which is
    the same language the rest of the game uses. (User: "for the turn order
    popout there is no neon at all, that should all be neon.") */
+/* ANCHORED BOTTOM-RIGHT, BESIDE THE TRICKS. It used to sit centred on the
+   right edge (top: 50% + a translate), which put it across the middle of lanes
+   7 and 8 — the part of the board you are actually reading. Down here it lines
+   up with the hand band and fills space that was empty: measured at 1116x891
+   the trick row ends at x=831 and the rail starts at x=934, so they sit side by
+   side without touching. Owner: "place the turn order dropdown next to the
+   tricks."
+   Still draggable — this is only where it starts. */
 .twov2-tracker {
-  position: fixed; right: 6px; top: 50%; transform: translateY(-50%);
+  position: fixed; right: 6px; bottom: 6px; top: auto; transform: none;
   z-index: 60; width: 176px; max-height: 86vh; overflow-y: auto;
   background: #000;
   border: 1px solid rgba(var(--theme-rgb, 79,195,247), 0.55);

@@ -12614,6 +12614,12 @@ const UI = {
     const maxT = Math.max(4, (window.innerHeight || 0) - Math.max(h, 40) - 4);
     el.classList.add('is-placed');
     el.style.right = 'auto';
+    // ...and bottom. The default anchor is bottom-right now, so leaving that
+    // set while writing an explicit `top` would over-constrain a fixed box with
+    // auto height — the panel stretches to fill the gap between the two edges
+    // instead of hugging its chips. A placed panel is positioned by its top-left
+    // corner and nothing else.
+    el.style.bottom = 'auto';
     el.style.transform = 'none';
     el.style.left = Math.min(Math.max(g.left, 4), maxL) + 'px';
     el.style.top  = Math.min(Math.max(g.top, 4), maxT) + 'px';
@@ -12631,7 +12637,10 @@ const UI = {
   _2v2TrackerResetGeom(el) {
     this._2v2TrackerSaveGeom(null);
     el.classList.remove('is-placed');
-    ['left', 'top', 'right', 'transform', 'width', 'height', 'maxHeight']
+    // 'bottom' belongs in this list now that the default anchor uses it — the
+    // placed state sets it to 'auto', and a reset that left that inline would
+    // drop the panel back to wherever `top` last put it instead of the corner.
+    ['left', 'top', 'right', 'bottom', 'transform', 'width', 'height', 'maxHeight']
       .forEach(k => { el.style[k] = ''; });
   },
   _2v2TrackerMakeMovable(el) {
