@@ -56,6 +56,66 @@ const AI = {
     // after the sim is extended with onPlay / trick / chain effects.
     lookaheadMult: 0,
     lookaheadHpWeight: 3,
+    // ---- 2v2 TEAMPLAY (tunable like everything else) ----
+    // How hard to leave an open lane alone when a teammate still has a card
+    // turn this round and there is an unanswered enemy body to block instead.
+    teamReserveLane: 0,
+    // Bonus for answering a threat the TEAM has left unblocked — in 2v2 the
+    // damage lands on shared health, so an enemy nobody covered is the team's
+    // problem, not the seat's.
+    teamCoverUnblocked: 0,
+    // Penalty for piling a second body into a lane the team has already
+    // answered elsewhere while other lanes leak.
+    teamSpreadBias: 0,
+    // DIVISION OF LABOUR: how much harder to go after the scariest enemy while
+    // a partner still has a card turn coming — they are the one least likely to
+    // be answerable cheaply after me.
+    teamThreatPriority: 0,
+  },
+
+  // ===================== 2v2 TEAMPLAY =====================
+  // The 1v1 brain plays a SIDE. In 2v2 a side is two people who alternate with
+  // the enemy, hold separate hands and separate energy, and share one health
+  // bar — so the same board means different things depending on who still has
+  // a turn coming. This is the context the lane and trick logic consult so an
+  // AI seat plays like it has a partner instead of like it is alone.
+  // Returns null outside 2v2, and every consumer treats null as "1v1 rules".
+  _2v2Ctx(owner) {
+    const G = (typeof Game !== 'undefined') ? Game : null;
+    if (!G || !G.is2v2 || !G.is2v2()) return null;
+    const tt = G.state && G.state.twoVTwo;
+    if (!tt || !tt.players || !G._2v2ComputePhaseOrder) return null;
+    const seat = G._2v2CurrentActingPlayer || G._2v2AIDriving || (G._2v2ActivePlayer && G._2v2ActivePlayer());
+    const me = seat && tt.players[seat];
+    if (!me) return null;
+    const order = G._2v2ComputePhaseOrder(tt.round || 1) || [];
+    const idx = tt.subPhaseIdx || 0;
+    const laterTurns = order.slice(idx + 1);
+    const playsCards = (step, pk) => step.indexOf(pk + '-') === 0 && step.indexOf('cards') >= 0;
+    const teammate = Object.keys(tt.players).find(k => k !== seat && tt.players[k].team === me.team);
+    const enemies = Object.keys(tt.players).filter(k => tt.players[k].team !== me.team);
+    return {
+      seat, teammate,
+      // Does my partner still get to place a card after me this round?
+      teammateActsLater: !!teammate && laterTurns.some(st => playsCards(st, teammate)),
+      teammateCards: teammate ? (tt.players[teammate].hand || []).length : 0,
+      teammateEnergy: teammate ? Math.max(0, (tt.players[teammate].energy || 0) - (tt.players[teammate].usedEnergy || 0)) : 0,
+      // How many enemy card turns are still to come — a trick cast before
+      // those lands on a board that is about to change.
+      enemyCardTurnsLeft: enemies.reduce((n, pk) => n + laterTurns.filter(st => playsCards(st, pk)).length, 0),
+    };
+  },
+
+  // Enemy bodies this side has left uncontested — in 2v2 that damage lands on
+  // the health BOTH partners share, so covering one is a team play even when
+  // the trade looks even for the seat making it.
+  _2v2UnansweredLanes(owner) {
+    const G = Game, s = G.state, opp = G.opponent(owner), out = [];
+    for (let i = 0; i < G.LANE_COUNT; i++) {
+      const e = s.lanes[i][opp], mine = s.lanes[i][owner];
+      if (e && e.currentHealth > 0 && (!mine || mine.currentHealth <= 0)) out.push(i);
+    }
+    return out;
   },
 
   // ===================== DRAFT =====================
@@ -725,6 +785,9 @@ const AI = {
     }
     const hasTaunter = this.opponentHasTaunter(owner);
     const useLookahead = this.difficulty() !== 'easy' && this.WEIGHTS.lookaheadMult > 0;
+    // ---- 2v2: what does my partner still get to do? ----
+    const team = this._2v2Ctx(owner);
+    const leaks = team ? this._2v2UnansweredLanes(owner) : [];
 
     const scores = open.map(l => {
       const lane = s.lanes[l];
@@ -766,6 +829,19 @@ const AI = {
         // lane with tempo damage. (Keeps AI from feeding Peacemakers into
         // Flash's Invincible 2, Batarang into Invincible targets, etc.)
         if (unkillable && !iSurvive) score -= 8;
+        // ---- 2v2 ----
+        if (team) {
+          // Shared health means an enemy nobody covered is the TEAM's problem,
+          // not this seat's, so covering one is worth more than the 1v1
+          // trade maths alone says.
+          score += this.WEIGHTS.teamCoverUnblocked;
+          // DIVISION OF LABOUR. While my partner still has a card turn coming,
+          // I take the scariest thing on the board — it is the one they are
+          // least likely to be able to answer cheaply after me. When they have
+          // already played, this bias switches itself off and I take whatever
+          // is left.
+          if (team.teammateActsLater) score += threat * this.WEIGHTS.teamThreatPriority;
+        }
       } else {
         // Uncontested — uncontested damage matters, but taunter neutralizes it
         // unless we have splash or bullseye to bypass.
@@ -789,6 +865,21 @@ const AI = {
         if (alliedLanes.length) {
           const dist = Math.min(...alliedLanes.map(x => Math.abs(x - l)));
           score += Math.max(0, 1.5 - dist * 0.5);
+        }
+        // ---- 2v2 ----
+        if (team) {
+          // LEAVE THE EMPTY LANE FOR YOUR PARTNER. An open lane is the one
+          // placement they can still make after me; an unanswered enemy is
+          // damage on the health we share. While they have a card turn coming
+          // and something is leaking, taking the free lane is the worse half of
+          // that trade — so this only bites while BOTH are true.
+          if (team.teammateActsLater && leaks.length) score -= this.WEIGHTS.teamReserveLane;
+          // Clustering next to an ally is worth less on an eight-lane board
+          // that two players have to cover between them.
+          if (leaks.length > 1 && alliedLanes.length) {
+            const d2 = Math.min(...alliedLanes.map(x => Math.abs(x - l)));
+            if (d2 <= 1) score -= this.WEIGHTS.teamSpreadBias;
+          }
         }
         if ((card.splashRange || 0) >= 1 && (l === 0 || l === Game.LANE_COUNT - 1)) {
           score -= 0.5;

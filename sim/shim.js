@@ -107,7 +107,13 @@ for (var __i = 0; __i < __SIM_FILES.length; __i++) {
       kind: kind,
       owner: owner,
       title: String(title || ''),
-      seat: Game._2v2CurrentActingPlayer || null,
+      // SAME AUTHORITY THE ENGINE USES. This read only the acting-seat global,
+      // which the engine now restores when an ability finishes instead of
+      // leaving the last hook's seat behind — so a prompt raised after a hook
+      // chain reads null here while being perfectly well owned. Ask the owner
+      // stack first, exactly as promptCardChoice does.
+      seat: (typeof Game._2v2AbilityOwner === 'function' && Game._2v2AbilityOwner())
+            || Game._2v2CurrentActingPlayer || null,
       in2v2: !!(tt && tt.online),
       phase: Game.state && Game.state.phase
     });

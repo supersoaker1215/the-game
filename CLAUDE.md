@@ -75,6 +75,18 @@ that never ran). It uses `sim/shim-real.js`, which loads the same headless
 environment as `sim/shim.js` but leaves the engine's REAL prompt system in place
 — that is what makes prompt routing observable at all.
 
+**2v2 AI benchmark / tuner** — four AI seats, full matches, A/B on the teamplay
+weights (`AI.WEIGHTS.team*`, which are inert in 1v1 because `AI._2v2Ctx` returns
+null there, so nothing found here can move 1v1 balance):
+```bash
+$JSC sim/bench2v2.js -- --games 4800                      # A/B win rate, with a noise band
+$JSC sim/tune2v2.js  -- --generations 6 --pop 10 --games 300   # CEM over those four keys
+```
+Read the band before the number: at n=1200 anything inside 47–53% is noise, and
+a tuner "winner" scored over 300 games routinely evaporates at 4800 (one did —
+59.3% in the tuner, 49.3% confirmed). The teamplay weights currently ship at 0
+because nothing found so far beat the baseline at a sample size that could tell.
+
 **1v1 ↔ 2v2 parity** — the rule is "2v2 mirrors 1v1; only seat/energy/team
 plumbing differs". This enforces it: every card is played twice over the same
 board, hands and seed, with prompts resolved the same way, and the results are
