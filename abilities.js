@@ -3612,12 +3612,27 @@ const CARD_ABILITIES = {
           t.isFaceDown = false;
           delete t._faceDownOriginals;
         }
+        // THE CONVERT IS NOW YOURS — INCLUDING ITS PROMPTS. t still carried the
+        // provenance of the player who originally played it, so every choice it
+        // raised afterwards (Han Solo's "take the shot", any onPlay it re-runs)
+        // was routed by that stale stamp instead of to the person who converted
+        // it. (User: "i professor x'd han solo and my teammate got to take the
+        // shot not me.") Same move Batman Who Laughs already makes when it
+        // steals a card: wipe the old provenance, then stamp the new owner.
+        G._clearProvenance(t);
+        delete t._mcSeat;
+        const casterSeat = (self && self._2v2PlayedBy)
+          || (G._2v2SeatOwning ? G._2v2SeatOwning(self) : null);
+        if (casterSeat) t._2v2PlayedBy = casterSeat;
         G.log(`Professor X converts ${t.name} to your team!`);
         if (typeof UI !== 'undefined' && UI._fxProfessorX) { try { UI._fxProfessorX(t); } catch (e) {} }
         const open = G.getOpenLanes(owner);
         if (!open.length) return;
         G.promptLaneChoice(owner, open, `Place ${t.name}`, `Choose a lane for ${t.name}`, (l) => {
           G.state.lanes[l][owner] = t;
+          // Re-stamp the rest of the provenance now it has landed, so "played
+          // by" reads as the converter and not as a card with no history.
+          if (G._stampProvenance) G._stampProvenance(t, owner);
           G.log(`${t.name} joins your side in lane ${l + 1}!`);
           // Entering a lane by ANY mechanism must spring a waiting Bear Trap —
           // this direct assignment bypassed checkLaneTrap, so a converted card

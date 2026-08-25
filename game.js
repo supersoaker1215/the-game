@@ -10888,7 +10888,19 @@ const Game = {
   _2v2SeatOwning(card) {
     const tt = this.state && this.state.twoVTwo;
     if (!tt || !tt.online || !card) return null;
-    if (card._2v2PlayedBy && tt.players[card._2v2PlayedBy]) return card._2v2PlayedBy;
+    // A STAMP FROM THE OTHER TEAM IS A STALE STAMP. _2v2PlayedBy records who
+    // PLAYED the card, and a card can change hands mid-match (Professor X
+    // converts one, Batman Who Laughs intercepts one). If the stamp still names
+    // the seat it came from, every prompt the card raises afterwards is routed
+    // to an opponent — or bounced to a fallback that guesses a teammate.
+    // Checked against the side the card is on NOW, so a transferred card cannot
+    // keep answering to its old owner.
+    // _mcSeat is deliberately NOT checked this way: mind control is cross-team
+    // by definition — the controller sits opposite the card they are steering.
+    if (card._2v2PlayedBy && tt.players[card._2v2PlayedBy]
+        && (!card.owner || this._2v2TeamSide[tt.players[card._2v2PlayedBy].team] === card.owner)) {
+      return card._2v2PlayedBy;
+    }
     if (card._mcSeat && tt.players[card._mcSeat]) return card._mcSeat;
     // STILL IN SOMEONE'S HAND? Then it is THEIR card, and no team-wide guess is
     // needed. A card that has never been played carries no _2v2PlayedBy stamp,
@@ -10952,7 +10964,13 @@ const Game = {
   _2v2ActFor(card) {
     const tt = this.state && this.state.twoVTwo;
     if (!tt || !tt.online || !card) return;
+    // Same stale-stamp guard as _2v2SeatOwning — a converted or stolen card
+    // must not keep acting for the seat that used to own it.
     let seat = card._2v2PlayedBy || null;
+    if (seat && card.owner && tt.players[seat]
+        && this._2v2TeamSide[tt.players[seat].team] !== card.owner) {
+      seat = null;
+    }
     if (!seat && card.owner) {
       const team = card.owner === 'player' ? 'A' : 'B';
       // A card with no _2v2PlayedBy is a summoned/token card (Ghost Rider
