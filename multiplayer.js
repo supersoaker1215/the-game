@@ -229,6 +229,14 @@ const Multiplayer = {
       if (!c || !c.name) return;
       const def = cardDefs.find(d => d.name === c.name);
       if (def) {
+        // TEXT COMES BACK FROM THE DEF. serializeState drops `desc` from any
+        // card whose text still matches its definition and leaves `_d` behind
+        // to say so — that text is 15 KB of a 37 KB payload, re-sent to three
+        // players on every action, and every client already has all of it in
+        // CARD_DEFS. A card whose text was CHANGED at runtime (Martian
+        // Manhunter copying a corpse, a token with its own wording) keeps its
+        // desc on the wire and never carries the marker, so it is untouched.
+        if (c._d && c.desc === undefined) { c.desc = def.desc; delete c._d; }
         // Copy hooks from the merged def + abilities
         c.onPlay        = def.onPlay        || null;
         c.onDeath       = def.onDeath       || null;
@@ -351,6 +359,29 @@ const Multiplayer = {
       return value;
     });
     const clone = JSON.parse(json);
+    // DROP CARD TEXT THAT THE RECEIVER ALREADY HAS. Walk the clone and remove
+    // `desc` from every card whose text is still exactly its definition's,
+    // marking it `_d` so _rehydrateState can put it back. Runtime-modified text
+    // is left alone. Measured on a live 2v2 state: 15 KB of 37 KB.
+    (function stripDefText(root) {
+      const defs = (typeof CARD_DEFS !== 'undefined') ? CARD_DEFS : null;
+      if (!defs) return;
+      const byName = stripDefText._byName || (stripDefText._byName = (() => {
+        const m = new Map(); defs.forEach(d => m.set(d.name, d)); return m;
+      })());
+      const seen = new Set();
+      const walk = (o) => {
+        if (!o || typeof o !== 'object' || seen.has(o)) return;
+        seen.add(o);
+        if (Array.isArray(o)) { o.forEach(walk); return; }
+        if (typeof o.name === 'string' && typeof o.desc === 'string') {
+          const d = byName.get(o.name);
+          if (d && d.desc === o.desc) { delete o.desc; o._d = 1; }
+        }
+        for (const k in o) walk(o[k]);
+      };
+      walk(root);
+    })(clone);
     // selectedCard / selectedTrick are per-CLIENT UI state, not shared game
     // state. Broadcasting the host's selection leaks it into the guest's state,
     // where it's a card the guest doesn't hold — the guest's restore-selection

@@ -15377,6 +15377,12 @@ const Game = {
     const activeTeam = this._2v2ActiveTeam();
 
     if (!subPhase || !activeKey) {
+      // The boundary lock must not survive into combat. This branch returns
+      // BEFORE the turn-start line that clears it, so a round whose last
+      // sub-phase was the before-tricks boundary left _resolving set for good —
+      // and _2v2ActionsLocked then refused every play, every trick and every
+      // Done from every seat, for the rest of the match.
+      tt._resolving = false;
       // All 6 sub-phases done. Freddy Fazbear feeds on the enemy team's WASTED
       // Energy — evaluated here, at the combat boundary, because that is the
       // moment every seat's final unspent Energy is known (a seat that "left"
@@ -15416,6 +15422,7 @@ const Game = {
         // playing tricks cant play until after all of those go through.")
         // Cleared where the normal turn actually starts, below.
         tt._resolving = true;
+        tt._resolvingAt = Date.now();
         this._2v2OnlineBroadcast();
         // Reveal face-down cards (Invisible Woman's stealth deploy) FIRST, by
         // lane order — each card's onPlay routed to its owning seat. Same order
@@ -15445,6 +15452,7 @@ const Game = {
 
     // The boundary (if there was one) is done — hand control back to the table.
     tt._resolving = false;
+    tt._resolvingAt = 0;
 
     const playerName = tt.players[activeKey].name;
     this.log(`[2v2] ${playerName}'s turn — ${subPhase}`);
@@ -16435,7 +16443,17 @@ const Game = {
   _2v2ActionsLocked() {
     const tt = this.state && this.state.twoVTwo;
     if (!tt) return false;
-    if (tt._resolving) return true;
+    // A LOCK THAT CANNOT STICK. The boundary flag is cleared on every exit
+    // path now, but a lock is a thing that stops four people playing, so it
+    // also expires: 8 seconds is far longer than any ability chain and far
+    // shorter than a match. If it is still set after that, something failed to
+    // clear it and the right answer is to let people play, not to hold the
+    // table hostage to a flag.
+    if (tt._resolving) {
+      const at = tt._resolvingAt || 0;
+      if (at && Date.now() - at > 8000) { tt._resolving = false; tt._resolvingAt = 0; }
+      else return true;
+    }
     return !!(this.hasPendingPrompt && this.hasPendingPrompt());
   },
 
@@ -16896,7 +16914,22 @@ const Game = {
         trickHand: stub(p.trickHand),
       });
     });
-    out.twoVTwo = Object.assign({}, tt, { players, you: seat });
+    // THE DRAW PILES DO NOT TRAVEL. serializeState stubs state.drawPile and the
+    // per-side piles — but 2v2 keeps its own shared piles on twoVTwo, which it
+    // never knew about. So every action shipped 97 full card definitions to
+    // each of three players: 22 KB of a 60 KB payload, four times a round,
+    // which is most of what "it takes so long to load" actually is. It was also
+    // a fairness hole of exactly the kind the 1v1 stub exists to close — the
+    // entire draw ORDER was sitting in every guest's state.
+    // Guests render these as a COUNT and never draw from them (the host does,
+    // and the drawn card arrives in a hand), so length is the only thing that
+    // has to survive.
+    const stubPile = (pile) => Array.isArray(pile) ? pile.map(() => ({})) : pile;
+    out.twoVTwo = Object.assign({}, tt, {
+      players, you: seat,
+      drawPile: stubPile(tt.drawPile),
+      trickDrawPile: stubPile(tt.trickDrawPile),
+    });
     // The side proxies carry whichever seat was ACTING when this state was
     // serialised — during a teammate's turn that is literally their hand. Point
     // the recipient's own side at their own arrays and stub the enemy side, so
