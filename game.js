@@ -4145,7 +4145,7 @@ const Game = {
     const inHand = this.state[owner].hand.find(c => c.name === 'Freddy Fazbear');
     if (inHand && !inHand.jumpReady) {
       inHand.jumpReady = true;
-      this.log(`  [JUMP] Freddy Fazbear senses the opponent's ${this.state[ender].currency} unspent energy — free play available!`);
+      this._logJump(inHand, owner, `  [JUMP] Freddy Fazbear senses the opponent's ${this.state[ender].currency} unspent energy — free play available!`);
       if (this.isHuman(owner) && !this.state.pendingJumpOffer) {
         // Stamp the owner (see _promptOwnerSeat) — Freddy's jump belongs to the
         // seat holding him, which here is the NON-ending side, i.e. commonly
@@ -4203,11 +4203,11 @@ const Game = {
         if (!inHand) continue;
         if (p.isAI) {
           inHand.jumpReady = true;
-          this.log(`  [JUMP] Freddy Fazbear senses ${tt.players[target].name}'s ${best} wasted Energy!`);
+          this.logPrivate(pk, `  [JUMP] Freddy Fazbear senses ${tt.players[target].name}'s ${best} wasted Energy!`);
           if (isAuthority) this._2v2AutoPlayJump(pk, inHand);
         } else if (!this.state.pendingJumpOffer && isAuthority) {
           inHand.jumpReady = true;
-          this.log(`  [JUMP] Freddy Fazbear senses ${tt.players[target].name}'s ${best} wasted Energy — free play available!`);
+          this.logPrivate(pk, `  [JUMP] Freddy Fazbear senses ${tt.players[target].name}'s ${best} wasted Energy — free play available!`);
           this.state.pendingJumpOffer = { cardId: inHand.id, owner: side, seat: pk, _2v2ActingPlayer: pk };
         }
         break;   // one hand copy per team
@@ -4402,7 +4402,7 @@ const Game = {
       // dead ones rather than re-offering a choice that can only fail.
       (this.state[seat].hand || []).forEach(c => {
         if (c.jumpReady && !this.canJumpNow(seat, c)) {
-          this.log(`  [JUMP] ${c.name}'s target lane is no longer open — jump expired.`);
+          this._logJump(c, seat, `  [JUMP] ${c.name}'s target lane is no longer open — jump expired.`);
           c.jumpReady = false;
           c.jumpLane = undefined;
         }
@@ -6160,7 +6160,7 @@ const Game = {
     ['player', 'ai'].forEach(o => {
       this.state[o].hand.forEach(c => {
         if (c.jumpReady || c.jumpLane !== undefined) {
-          if (c.jumpReady) this.log(`  [JUMP] ${c.name}'s jump window closed — opportunity expired.`);
+          if (c.jumpReady) this._logJump(c, c.owner, `  [JUMP] ${c.name}'s jump window closed — opportunity expired.`);
           c.jumpReady = false;
           c.jumpLane = undefined;
         }
@@ -8757,6 +8757,45 @@ const Game = {
   // ===================== GAME API (for card effects) =====================
 
   log(m) { this.state.log.push(m); if (this.state.log.length > 300) this.state.log.shift(); },
+
+  // ---- PRIVATE LOG LINES ----
+  // A line only ONE seat may read. The battle log is a single shared array
+  // broadcast to every client, so anything written to it is public — which is
+  // how the jump lines gave the whole table the jumper's NAME the moment his
+  // condition armed ("[JUMP] Michael Myers senses weakness in lane 3!"), while
+  // the card was still sitting in its owner's hand. The host, holding the
+  // authoritative state, read it as plainly as the owner did.
+  // (User: "make sure when a character is jumping the host cant see who.")
+  // Tagged in-band with a control char rather than as a parallel channel: every
+  // path that copies, trims, serializes or replays the log keeps working
+  // untouched, and a line nobody claims is public exactly as before. The 2v2
+  // redactor DROPS foreign private lines so a guest never receives the bytes;
+  // renderLog filters them so a client holding full state (the host, or solo)
+  // never shows them.
+  logPrivate(seat, m) { this.log(seat ? ('\u0001' + seat + '\u0001' + m) : m); },
+  // Who may read this line? null = everyone.
+  logLineSeat(line) {
+    if (typeof line !== 'string' || line.charCodeAt(0) !== 1) return null;
+    const end = line.indexOf('\u0001', 1);
+    return end > 1 ? line.slice(1, end) : null;
+  },
+  logLineText(line) {
+    if (typeof line !== 'string' || line.charCodeAt(0) !== 1) return line;
+    const end = line.indexOf('\u0001', 1);
+    return end > 1 ? line.slice(end + 1) : line;
+  },
+  // A jump line belongs to whoever is HOLDING the card — the seat in 2v2, the
+  // side in 1v1. Resolved by looking for the card rather than by threading a
+  // seat through every call site, so no jump trigger can forget to pass it.
+  _logJump(card, owner, m) {
+    const tt = this.state && this.state.twoVTwo;
+    if (tt && tt.players && this.is2v2 && this.is2v2()) {
+      const holder = this._2v2SLOTS.find(pk => tt.players[pk]
+        && (tt.players[pk].hand || []).some(c => c === card));
+      return this.logPrivate(holder || null, m);
+    }
+    return this.logPrivate(owner || null, m);
+  },
 
   // MVP attribution — walk up the _summonedBy chain, crediting every
   // ancestor with `amount` on `field`. A cycle guard prevents infinite
@@ -13597,19 +13636,19 @@ const Game = {
     if (card.name === 'Ghostface' && trigger === 'trickPlayed' && data.owner !== owner
         && this.canJumpNow(owner, card)) {
       card.jumpReady = true;
-      this.log(`  [JUMP] Ghostface senses a trick! Free play available.`);
+      this._logJump(card, owner, `  [JUMP] Ghostface senses a trick! Free play available.`);
       return true;
     }
     if (card.name === 'Michael Myers' && trigger === 'cardPlayed' && !data.isEnvironment && data.owner !== owner && data.cost < card.cost
         && this.canJumpNow(owner, card, data.laneIdx)) {
       card.jumpReady = true;
       card.jumpLane = data.laneIdx;
-      this.log(`  [JUMP] Michael Myers senses weakness in lane ${data.laneIdx + 1}! Free play available.`);
+      this._logJump(card, owner, `  [JUMP] Michael Myers senses weakness in lane ${data.laneIdx + 1}! Free play available.`);
       return true;
     }
     if (this.isCardKind(card, 'Stripe') && trigger === 'heroDamaged' && this.canJumpNow(owner, card)) {
       card.jumpReady = true;
-      this.log(`  [JUMP] Stripe smells blood! Free play available.`);
+      this._logJump(card, owner, `  [JUMP] Stripe smells blood! Free play available.`);
       return true;
     }
     if (card.name === 'Art the Clown' && trigger === 'beforeTricks' && this.canJumpNow(owner, card)) {
@@ -13617,7 +13656,7 @@ const Game = {
       const theirs = this.getAllCardsOf(opp).filter(c => !c.isEnvironment).length;
       if (theirs > mine) {
         card.jumpReady = true;
-        this.log(`  [JUMP] Art the Clown grins at the crowd (${theirs} vs ${mine})! Free play available.`);
+        this._logJump(card, owner, `  [JUMP] Art the Clown grins at the crowd (${theirs} vs ${mine})! Free play available.`);
         return true;
       }
       return false;
@@ -13628,7 +13667,7 @@ const Game = {
       card.jumpReady = true;
       card.jumpLane = tgtLane;
       const laneStr = card.jumpLane !== undefined ? ` in lane ${card.jumpLane + 1}` : '';
-      this.log(`  [JUMP] Jason Voorhees rises to avenge${laneStr}! Free play available.`);
+      this._logJump(card, owner, `  [JUMP] Jason Voorhees rises to avenge${laneStr}! Free play available.`);
       return true;
     }
     return false;
@@ -13765,7 +13804,7 @@ const Game = {
             } else {
               card.jumpReady = false;
               card.jumpLane = undefined;
-              this.log(`  [JUMP] ${card.name}'s target lane is blocked — jump cancelled.`);
+              this._logJump(card, card.owner, `  [JUMP] ${card.name}'s target lane is blocked — jump cancelled.`);
               return;
             }
           } else {
@@ -13950,7 +13989,7 @@ const Game = {
       // Locked lane is blocked — clear flags but do not allow free play
       card.jumpReady = false;
       card.jumpLane = undefined;
-      this.log(`  [JUMP] ${card.name}'s target lane is blocked — jump cancelled.`);
+      this._logJump(card, card.owner, `  [JUMP] ${card.name}'s target lane is blocked — jump cancelled.`);
       UI.render();
       return;
     }
@@ -15657,6 +15696,10 @@ const Game = {
     // The boundary (if there was one) is done — hand control back to the table.
     tt._resolving = false;
     tt._resolvingAt = 0;
+    // …and anything a seat sent WHILE it was locked gets its turn now.
+    // whenPromptCleared covers the prompt half of the lock; this covers the
+    // resolving-boundary half, which no prompt ever clears.
+    if (this._2v2LockedQueue && this._2v2LockedQueue.length) this._2v2DrainLockedActions();
 
     const playerName = tt.players[activeKey].name;
     this.log(`[2v2] ${playerName}'s turn — ${subPhase}`);
@@ -16671,6 +16714,39 @@ const Game = {
     return !!(this.hasPendingPrompt && this.hasPendingPrompt());
   },
 
+  // AN ACTION THAT ARRIVES DURING A LOCK IS HELD, NOT THROWN AWAY.
+  // The host refuses actions while an ability chain is mid-resolution, and it
+  // used to answer that refusal by DROPPING the message and writing a [WAIT]
+  // line into a log the sender probably isn't reading. The sending client had
+  // already cleared its selection and played its animation, so from that
+  // player's chair the card simply never appeared and nothing said why — they
+  // click again, eventually. (User: "sometimes when i play a card it takes
+  // forever for it to show up on the board.")
+  // Held and replayed the moment the table frees up instead. The re-entry goes
+  // through the SAME door, so every check runs again on arrival — the sub-turn
+  // check included, which is what makes this safe: an action whose turn has
+  // passed while it waited is rejected then, exactly as it would have been.
+  _2v2QueueLockedAction(msg) {
+    if (!msg) return;
+    if (!this._2v2LockedQueue) this._2v2LockedQueue = [];
+    // A small cap and a staleness cut-off: a player mashing a dead button must
+    // not build a backlog that fires all at once when the lock lifts.
+    if (this._2v2LockedQueue.length >= 3) return;
+    this._2v2LockedQueue.push({ msg, at: Date.now() });
+    this.log(`  [WAIT] ${this._2v2SeatName(msg.playerKey)}'s action is queued — abilities are still resolving.`);
+    if (this.whenPromptCleared) this.whenPromptCleared(() => this._2v2DrainLockedActions());
+  },
+  _2v2DrainLockedActions() {
+    const q = this._2v2LockedQueue || [];
+    if (!q.length) return;
+    this._2v2LockedQueue = [];
+    q.forEach((e) => {
+      if (Date.now() - (e.at || 0) > 12000) return;          // too late to be what they meant
+      if (this._2v2ActionsLocked()) { this._2v2QueueLockedAction(e.msg); return; }
+      try { this._apply2v2OnlineAction(e.msg); } catch (err) { console.error('[2v2] queued action failed:', err); }
+    });
+  },
+
   // Apply an action received from a joiner (host only)
   _apply2v2OnlineAction(msg) {
     const pk = msg.playerKey;
@@ -16682,12 +16758,13 @@ const Game = {
     switch (msg.t) {
       case 'play2v2Card':
         if (pk !== activeKey) break;
-        if (this._2v2ActionsLocked()) { this.log(`  [WAIT] ${this._2v2SeatName(pk)} must wait — abilities are still resolving.`); break; }
+        if (this._2v2ActionsLocked()) { this._2v2QueueLockedAction(msg); break; }
         this._2v2CurrentActingPlayer = pk; // track who triggered any ability prompts
         this._2v2OnlinePlayCard(pk, msg.cardIdx, msg.laneIdx, msg.faceDown);
         break;
       case '2v2Redraw': {
         if (pk !== activeKey) break;
+        if (this._2v2ActionsLocked()) { this._2v2QueueLockedAction(msg); break; }
         const rSeat = this.state.twoVTwo && this.state.twoVTwo.players[pk];
         const rCard = rSeat && (rSeat.hand || []).find(c => c && c.id === msg.cardId);
         if (!rCard) break;
@@ -16700,7 +16777,7 @@ const Game = {
         break;
       case 'play2v2Trick':
         if (pk !== activeKey) break;
-        if (this._2v2ActionsLocked()) { this.log(`  [WAIT] ${this._2v2SeatName(pk)} must wait — abilities are still resolving.`); break; }
+        if (this._2v2ActionsLocked()) { this._2v2QueueLockedAction(msg); break; }
         this._2v2CurrentActingPlayer = pk;
         this._2v2OnlinePlayTrick(pk, msg.trickIdx);
         break;
@@ -17192,6 +17269,10 @@ const Game = {
         if (!l || (!(l.player && l.player.isFaceDown) && !(l.ai && l.ai.isFaceDown))) return l;
         return Object.assign({}, l, { player: hideFaceDown(l.player), ai: hideFaceDown(l.ai) });
       });
+    }
+    // Private log lines never leave the host for a seat that may not read them.
+    if (Array.isArray(out.log) && out.log.some(l => this.logLineSeat(l))) {
+      out.log = out.log.filter(l => { const o = this.logLineSeat(l); return !o || o === seat; });
     }
     out.twoVTwo = Object.assign({}, tt, {
       players, you: seat,

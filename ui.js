@@ -18477,7 +18477,10 @@ const UI = {
       const payload = {
         v: 1,
         summary: summary,
-        log: (s.log || []).slice(),
+        // Same filter the live drawer applies — a saved replay must not
+        // resurrect a line this client was never allowed to read, and it must
+        // not store the raw control-char tag either.
+        log: (s.log || []).filter(l => this._logLineMine(l)).map(l => Game.logLineText(l)),
         hpHistory: (s._hpHistory || []).slice()
       };
       localStorage.setItem(this._REPLAY_KEY, JSON.stringify(payload));
@@ -19379,7 +19382,11 @@ const UI = {
     // any modal from the previous frame on screen — render() only removes it
     // on the other branch at the call site.
     const dropOffer = (why) => {
-      if (why) Game.log(`  [JUMP] ${why}`);
+      // Private to the offer's owner, like every other jump line — this one
+      // names the card, and it runs on EVERY client (it is UI-side), so on the
+      // host it would otherwise write the guest's jumper straight into the
+      // host's own log.
+      if (why) Game.logPrivate(offer.seat || (Game.mp && Game.mp.you) || jumpSeat, `  [JUMP] ${why}`);
       s.pendingJumpOffer = null;
       const dead = document.getElementById('jump-offer-modal');
       if (dead) dead.remove();
@@ -19433,7 +19440,7 @@ const UI = {
           <span class="peek-toggle-glyph">×</span>
         </button>
         <div class="fp-header">
-          <span class="fp-label">${card.name} — Jump!</span>
+          <span class="fp-label">${opponentJump ? 'Jump!' : card.name + ' — Jump!'}</span>
           ${subLine}
         </div>
         ${bodyHtml}
@@ -25034,6 +25041,19 @@ const UI = {
 
   // ===================== LOG =====================
 
+  // Is this log line addressed to the person at THIS screen? Untagged lines are
+  // public. This is what keeps a private line off the host's screen: the host
+  // holds the authoritative state, so redaction cannot help there — the render
+  // has to decline to show it.
+  _logLineMine(line) {
+    const seat = Game.logLineSeat && Game.logLineSeat(line);
+    if (!seat) return true;
+    const tt = Game.state && Game.state.twoVTwo;
+    if (tt && Game.is2v2 && Game.is2v2()) return seat === tt.you;
+    if (Game.isMultiplayer && Game.isMultiplayer() && Game.mp && Game.mp.you) return seat === Game.mp.you;
+    return seat === 'player';
+  },
+
   renderLog(s) {
     // SKIP ENTIRELY WHILE CLOSED. The drawer ships collapsed (index.html:571,
     // translated fully off-screen by .log-drawer.collapsed) yet this function
@@ -25066,7 +25086,13 @@ const UI = {
     // regex passes over each. The drawer shows ~15 lines at a time; 80 gives
     // several screens of scroll-back for a fraction of the work.
     const LOG_TAIL = 80;
-    const visible = s.log.length > LOG_TAIL ? s.log.slice(-LOG_TAIL) : s.log;
+    // PRIVATE LINES FIRST, before the tail is taken — otherwise a run of
+    // another seat's hidden lines would eat into the 80 this client can see.
+    // A line nobody claims is public and passes straight through.
+    const readable = s.log.some(l => Game.logLineSeat && Game.logLineSeat(l))
+      ? s.log.filter(l => this._logLineMine(l)).map(l => Game.logLineText(l))
+      : s.log;
+    const visible = readable.length > LOG_TAIL ? readable.slice(-LOG_TAIL) : readable;
     const tagColors = {
       'HIT': '#e74c3c', 'KILLED': '#c0392b', 'DEAD': '#c0392b',
       'DAMAGE': '#e67e22', 'BLOCKED!': '#3498db', 'BLOCK METER': '#2980b9',

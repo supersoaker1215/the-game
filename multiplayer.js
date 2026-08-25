@@ -378,6 +378,26 @@ const Multiplayer = {
           const d = byName.get(o.name);
           if (d && d.desc === o.desc) { delete o.desc; o._d = 1; }
         }
+        // DROP THE FLAGS THAT ARE OFF. A card instance carries ~104 keys and
+        // about half of them are `false` or `null` at any moment — every
+        // ability flag the card does not have, every target it is not holding.
+        // They cost ~45% of the whole state payload and say nothing a missing
+        // key does not already say: the receiver replaces its state wholesale
+        // and reads all of these as booleans, so absent and false behave
+        // identically. Measured on a live 2v2 board: 38.6 KB -> 22.6 KB per
+        // push, per guest. (User: "sometimes when i play a card it takes
+        // forever for it to show up on the board.")
+        //
+        // CARD INSTANCES ONLY — id + name + numeric attack/currentHealth.
+        // Tricks are deliberately excluded: `trick.hostile === false` is a real
+        // check in the engine and an absent key would fail it. Zeroes are kept
+        // for the same class of reason (0 is arithmetic, not a flag), and
+        // rehydrateCard only copies FUNCTIONS back from the def, so a pruned
+        // key can never be resurrected with the definition's value.
+        if (o.id != null && typeof o.name === 'string'
+            && typeof o.attack === 'number' && typeof o.currentHealth === 'number') {
+          for (const k in o) { const v = o[k]; if (v === false || v === null) delete o[k]; }
+        }
         for (const k in o) walk(o[k]);
       };
       walk(root);
