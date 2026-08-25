@@ -6631,35 +6631,24 @@ body.hit-pause .ai-hand * {
   margin: 2px -2px 2px -2px; padding: 0 2px;
 }
 /* ============================================================
-   ATK / HP ORBS — SQUARE PLATE, CORNER TICKS
+   ATK / HP ORBS — NO BOX, THE GLOW CARRIES IT
    ============================================================
-   Owner picked box 12 off the shape sheet: a square plate with the frame
-   broken back to four corner ticks. It is the corner-bracket language he
-   liked in the boxless round, but kept as a BOX — which matters, because the
-   boxless version failed for a reason worth writing down: the dark plate is
-   what holds the numeral up over busy art, and a chip around a number reads
-   as A STAT where a bare numeral reads as annotation.
+   Owner: "i dont think there needs to be the red/green circle behind the
+   number just the glow for health/damage." So the coloured frame is gone —
+   the plate's mask, the four corner ticks, both ::after rules. Green and red
+   now live in exactly two places: the numeral, and the halo around it.
 
-   THE SHAPE LIVES IN TWO VARS. ATK and HP used to carry identical copies of
-   the fill mask and the stroke mask, each written twice for -webkit- — the
-   same path in four places, four more to keep in sync. Changing the badge
-   shape is now two lines, which is the whole reason the last three shape
-   experiments were painful.
+   WHAT STAYS, AND WHY IT IS NOT A BOX. A dark ground survives on ::before,
+   but as an EDGELESS radial scrim — no mask, no border, nothing with a
+   silhouette. It is there because of one measured fact: on the BOARD tile
+   the art runs to the card's edge and the orb overlaps it by its full height
+   (16px of 16px, measured). Hand and draft orbs sit on the card's black
+   body and overlap the art by zero, so the scrim is invisible there. It only
+   shows up where the number would otherwise be sitting on a painting.
 
-   The viewBox is 100x100 because the plate is square. Aspect matched, so one
-   stroke-width renders identically on the horizontal arms and the vertical
-   ones; mismatch it and preserveAspectRatio='none' scales the axes apart and
-   the corners come out lopsided (see the cost tab, which is width:auto and
-   therefore needs two pre-compensated paths instead).
-
-   stroke-width 10 of 100 puts the tick at 2.2px on the 22px base plate —
-   the card's own border is 2px, so the tick reads as the frame continuing
-   into the badge rather than as a second, competing weight. It scales with
-   the plate, so the draft tile's larger orb gets a proportionally larger
-   tick rather than a hairline. */
+   The text-shadow does double duty: two black layers for legibility, then
+   two coloured layers that ARE the health/damage signal. */
 .stat-circle {
-  --stat-fill: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100' preserveAspectRatio='none'><path fill='black' d='M0,0 L100,0 L100,100 L0,100 Z'/></svg>");
-  --stat-line: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100' preserveAspectRatio='none'><path fill='none' stroke='black' stroke-width='10' stroke-linejoin='miter' stroke-linecap='butt' d='M0,26 L0,0 L26,0 M74,0 L100,0 L100,26 M100,74 L100,100 L74,100 M26,100 L0,100 L0,74'/></svg>");
   width: 22px; height: 22px;
   display: flex; align-items: center; justify-content: center;
   font-size: 11px; font-weight: 700; z-index: 4;
@@ -6668,71 +6657,78 @@ body.hit-pause .ai-hand * {
   border: 0;
   font-family: var(--font-mono);
   font-variant-numeric: tabular-nums;
-  text-shadow: 0 0 4px rgba(0,0,0,0.95), 0 1px 2px rgba(0,0,0,0.85);
 }
-/* The plate — one rule for both sides; only the glow colour differs. */
+/* The scrim. Inset negative so the fade has room to reach zero before the
+   element's own edge — that is what keeps it from reading as a shape. */
 .stat-atk::before,
 .stat-hp::before {
   content: '';
-  position: absolute; inset: 0;
-  background: rgba(0, 8, 14, 0.62);
-  -webkit-mask: var(--stat-fill) center/100% 100% no-repeat;
-          mask: var(--stat-fill) center/100% 100% no-repeat;
+  position: absolute; inset: -3px;
+  background: radial-gradient(ellipse at 50% 52%,
+    rgba(0,6,12,0.86) 0%,
+    rgba(0,6,12,0.48) 46%,
+    rgba(0,6,12,0)    78%);
   z-index: -2;
-}
-/* The four corner ticks. */
-.stat-atk::after,
-.stat-hp::after {
-  content: '';
-  position: absolute; inset: 0;
-  -webkit-mask: var(--stat-line) center/100% 100% no-repeat;
-          mask: var(--stat-line) center/100% 100% no-repeat;
-  z-index: -1;
   pointer-events: none;
 }
 .stat-atk {
   left: 4px;
   color: #7ee8a5;
   text-shadow:
-    0 1px 0 rgba(0,0,0,0.95),
-    0 -0.5px 0 rgba(46,204,113,0.40),
-    0 0 4px rgba(46,204,113,0.50);
+    0 1px 2px rgba(0,0,0,0.95),
+    0 0 3px  rgba(0,0,0,0.90),
+    0 0 7px  rgba(46,204,113,0.95),
+    0 0 15px rgba(46,204,113,0.50);
 }
-.stat-atk::before { filter: drop-shadow(0 0 3px rgba(46,204,113,0.45)); }
-.stat-atk::after  { background: rgba(46,204,113,0.95); }
 .stat-hp {
   right: 4px;
   color: #f1948a;
   text-shadow:
-    0 1px 0 rgba(0,0,0,0.95),
-    0 -0.5px 0 rgba(231,76,60,0.40),
-    0 0 4px rgba(231,76,60,0.50);
+    0 1px 2px rgba(0,0,0,0.95),
+    0 0 3px  rgba(0,0,0,0.90),
+    0 0 7px  rgba(231,76,60,0.95),
+    0 0 15px rgba(231,76,60,0.50);
 }
-.stat-hp::before { filter: drop-shadow(0 0 3px rgba(231,76,60,0.45)); }
-.stat-hp::after  { background: rgba(231,76,60,0.95); }
-/* Buff / debuff indicators. */
-.stat-circle.stat-buffed,
-.stat-circle.stat-debuffed {
-  background: #000000;
-}
+/* Buff / debuff indicators. (The black backfill that used to re-ground the
+   orb is gone with the box — a flat black square behind a boxless numeral is
+   the box again. Buff and debuff read off the numeral's colour and halo.) */
+/* EVERY STATE KEEPS THE BLACK LAYERS. text-shadow is not additive — a state
+   rule replaces the whole stack, and with the box gone those first two black
+   layers are the only thing standing between the numeral and the board art
+   underneath it. Miss them and a debuffed stat disappears over a bright
+   painting, which is exactly what happened the first time round. */
 /* Buffed ATK — brighter green number with a stronger glow. */
 .stat-atk.stat-buffed {
   color: #a8f5c4;
-  text-shadow: 0 0 6px rgba(46,204,113,1), 0 0 14px rgba(46,204,113,0.75);
+  text-shadow:
+    0 1px 2px rgba(0,0,0,0.95),
+    0 0 3px  rgba(0,0,0,0.90),
+    0 0 7px  rgba(46,204,113,1),
+    0 0 16px rgba(46,204,113,0.75);
 }
 /* Buffed HP — brighter red-pink number with a stronger glow. */
 .stat-hp.stat-buffed {
   color: #ffb5ad;
-  text-shadow: 0 0 6px rgba(231,76,60,1), 0 0 14px rgba(231,76,60,0.75);
+  text-shadow:
+    0 1px 2px rgba(0,0,0,0.95),
+    0 0 3px  rgba(0,0,0,0.90),
+    0 0 7px  rgba(231,76,60,1),
+    0 0 16px rgba(231,76,60,0.75);
 }
-/* Debuffed stats — muted fill. */
+/* Debuffed stats — muted numeral, dimmer halo, same black floor. */
 .stat-atk.stat-debuffed {
   color: #5aa775;
-  text-shadow: 0 0 4px rgba(46,204,113,0.55);
+  text-shadow:
+    0 1px 2px rgba(0,0,0,0.95),
+    0 0 3px  rgba(0,0,0,0.90),
+    0 0 5px  rgba(46,204,113,0.55);
 }
 .stat-hp.stat-debuffed {
   color: #b07068;
-  text-shadow: 0 0 4px rgba(231,76,60,0.55);
+  text-shadow:
+    0 1px 2px rgba(0,0,0,0.95),
+    0 0 3px  rgba(0,0,0,0.90),
+    0 0 5px  rgba(231,76,60,0.55);
 }
 .card-abilities {
   font-family: 'Rajdhani', 'Segoe UI', system-ui, sans-serif;
@@ -26615,11 +26611,15 @@ body.killing-blow-cinema::after {
 /* Stat-roll indicators — when a rolled card's stats deviate from base,
    the orb gets a subtle up/down arrow color tint so the player can see
    at a glance "this Goon is +2 ATK" or "this Batman rolled low." */
+/* A rolled stat used to be flagged with an outline + inset glow around the
+   orb's box. No box — so it goes amber on the numeral, where the eye is. */
 .card.hand-card .stat-circle.stat-rolled-up {
-  outline: 1px solid rgba(255,225,150,0.85);
-  box-shadow:
-    0 0 8px rgba(255,225,150,0.55),
-    inset 0 0 4px rgba(255,225,150,0.45);
+  color: #ffe89b;
+  text-shadow:
+    0 1px 2px rgba(0,0,0,0.95),
+    0 0 3px  rgba(0,0,0,0.90),
+    0 0 7px  rgba(255,225,150,0.95),
+    0 0 15px rgba(255,215,0,0.55);
 }
 .card.hand-card .stat-circle.stat-rolled-up::after {
   content: '▲';
@@ -26631,7 +26631,6 @@ body.killing-blow-cinema::after {
   pointer-events: none;
 }
 .card.hand-card .stat-circle.stat-rolled-down {
-  outline: 1px solid rgba(231,76,60,0.55);
   opacity: 0.85;
 }
 .card.hand-card .stat-circle.stat-rolled-down::after {
@@ -30546,18 +30545,22 @@ body.low-fx .board-section .crt-scanlines { display: none; }
   color: #ff5b5b;
   animation: hpDamagedPulse 1.5s ease-in-out infinite;
 }
+/* Black floor first, same as every other stat state — a damaged card is the
+   one most likely to be sitting on the board, where the numeral is over art. */
 @keyframes hpDamagedPulse {
   0%, 100% {
     text-shadow:
-      0 0 4px rgba(231,76,60,0.55),
-      0 1px 2px rgba(0,0,0,0.85);
+      0 1px 2px rgba(0,0,0,0.95),
+      0 0 3px  rgba(0,0,0,0.90),
+      0 0 5px  rgba(231,76,60,0.55);
   }
   50% {
     color: #ff8a7a;
     text-shadow:
+      0 1px 2px rgba(0,0,0,0.95),
+      0 0 3px  rgba(0,0,0,0.90),
       0 0 10px rgba(231,76,60,0.95),
-      0 0 18px rgba(231,76,60,0.45),
-      0 1px 2px rgba(0,0,0,0.85);
+      0 0 18px rgba(231,76,60,0.45);
   }
 }
 @media (prefers-reduced-motion: reduce) {
@@ -40736,9 +40739,13 @@ body.low-fx .badge-asleep { animation: none; }
    trade. Amber rather than green says "hot right now", not "grew". */
 .stat-circle.stat-atk.stat-overcharged {
   color: #ffcf66 !important;
-  border-color: rgba(255, 176, 60, 0.85) !important;
-  box-shadow: 0 0 7px rgba(255, 176, 60, 0.55), inset 0 0 6px rgba(255, 176, 60, 0.20) !important;
-  text-shadow: 0 0 6px rgba(255, 176, 60, 0.75);
+  /* border-color / box-shadow dropped with the box — amber reads off the
+     numeral and its halo, same as every other state now. */
+  text-shadow:
+    0 1px 2px rgba(0,0,0,0.95),
+    0 0 3px  rgba(0,0,0,0.90),
+    0 0 8px  rgba(255,176,60,0.95),
+    0 0 16px rgba(255,176,60,0.55);
 }
 
 /* ============================================================
