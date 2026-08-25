@@ -7965,6 +7965,97 @@ function fresh2v2(teams) {
   return Game;
 }
 
+// ---- THE CARD-CHOICE WIRE HANDLER MUST CLEAR ITS SLOT -----------------
+// The host applies a guest's pick from the wire. The LANE branch nulls the slot
+// before running the callback; the CARD branch did not — so the effect landed
+// and the prompt stayed armed, and every seat sat on a tray that would not come
+// down. (Owner: "i played human torch 2v2 and this screen popped up now im
+// stuck here.")
+function armed2v2CardPrompt(G, seat, opts) {
+  var tt = G.state.twoVTwo;
+  var picked = null;
+  G.state.pendingCardChoice = {
+    owner: 'player',
+    cards: (opts && opts.cards) || [],
+    title: 'T', desc: 'D',
+    callback: function (c) { picked = c; if (opts && opts.then) opts.then(c); },
+    declineLabel: (opts && opts.declineLabel) || null,
+    onDecline: (opts && opts.onDecline) || null,
+    _2v2ActingPlayer: seat,
+    _seq: (opts && opts.seq != null) ? opts.seq : 7,
+  };
+  return { got: function () { return picked; } };
+}
+
+test("2v2: a guest's card pick takes the prompt DOWN, not just fires it", function () {
+  var G = fresh2v2();
+  var a = G.createCardInstance(cardByName('Jango Fett'), 'ai');
+  var b = G.createCardInstance(cardByName('Star-Lord'), 'ai');
+  var cap = armed2v2CardPrompt(G, 'p2', { cards: [a, b], seq: 7 });
+  G._apply2v2OnlineAction({ t: '2v2CardChoiceResult', playerKey: 'p2', idx: 1, cardId: b.id, seq: 7 });
+  assertEq(cap.got(), b, 'the callback ran on the card that was actually picked');
+  assertEq(G.state.pendingCardChoice, null, 'and the prompt came down — this is the freeze');
+});
+
+test("2v2: the pick is matched by identity, and a no-match leaves the prompt up", function () {
+  var G = fresh2v2();
+  var a = G.createCardInstance(cardByName('Jango Fett'), 'ai');
+  var b = G.createCardInstance(cardByName('Star-Lord'), 'ai');
+  var cap = armed2v2CardPrompt(G, 'p2', { cards: [a, b], seq: 7 });
+  // An id that is not on the list, and an index past the end.
+  G._apply2v2OnlineAction({ t: '2v2CardChoiceResult', playerKey: 'p2', idx: 99, cardId: 987654, seq: 7 });
+  assertEq(cap.got(), null, 'nothing was chosen');
+  assert(!!G.state.pendingCardChoice, 'and the prompt is deliberately still up to ask again');
+});
+
+test("2v2: an answer to a stale question neither fires nor clears", function () {
+  var G = fresh2v2();
+  var a = G.createCardInstance(cardByName('Jango Fett'), 'ai');
+  var cap = armed2v2CardPrompt(G, 'p2', { cards: [a], seq: 9 });
+  G._apply2v2OnlineAction({ t: '2v2CardChoiceResult', playerKey: 'p2', idx: 0, cardId: a.id, seq: 4 });
+  assertEq(cap.got(), null, 'the old answer did not resolve the new question');
+  assert(!!G.state.pendingCardChoice, 'and the live prompt is still standing');
+});
+
+test("2v2: another seat's answer cannot resolve your prompt", function () {
+  var G = fresh2v2();
+  var a = G.createCardInstance(cardByName('Jango Fett'), 'ai');
+  var cap = armed2v2CardPrompt(G, 'p2', { cards: [a], seq: 7 });
+  G._apply2v2OnlineAction({ t: '2v2CardChoiceResult', playerKey: 'p4', idx: 0, cardId: a.id, seq: 7 });
+  assertEq(cap.got(), null, 'p4 cannot answer p2 question');
+  assert(!!G.state.pendingCardChoice, 'and it stays up for the seat it belongs to');
+});
+
+test("2v2: a declined card prompt also comes down", function () {
+  var G = fresh2v2();
+  var a = G.createCardInstance(cardByName('Jango Fett'), 'ai');
+  var declined = false;
+  armed2v2CardPrompt(G, 'p2', { cards: [a], seq: 7, declineLabel: 'NO ONE',
+                                onDecline: function () { declined = true; } });
+  G._apply2v2OnlineAction({ t: '2v2CardChoiceResult', playerKey: 'p2', decline: true, seq: 7 });
+  assertEq(declined, true, 'the opt-out ran');
+  assertEq(G.state.pendingCardChoice, null, 'and the slot is clear, not left dangling');
+});
+
+test("2v2: the slot is already clear WHEN the callback runs, not after it", function () {
+  // Ordering, not just eventual state. A callback that raises a CHAINED prompt
+  // hits _promptBusy() — if the answered prompt were still sitting in the slot
+  // the chained one would be parked in the queue instead of shown, and no
+  // snapshot taken inside the callback may ever capture an armed prompt.
+  var G = fresh2v2();
+  var a = G.createCardInstance(cardByName('Jango Fett'), 'ai');
+  var b = G.createCardInstance(cardByName('Star-Lord'), 'ai');
+  var slotDuringCallback = 'never ran';
+  var busyDuringCallback = null;
+  armed2v2CardPrompt(G, 'p2', { cards: [a, b], seq: 7, then: function () {
+    slotDuringCallback = G.state.pendingCardChoice;
+    busyDuringCallback = G._promptBusy ? G._promptBusy() : null;
+  }});
+  G._apply2v2OnlineAction({ t: '2v2CardChoiceResult', playerKey: 'p2', idx: 0, cardId: a.id, seq: 7 });
+  assertEq(slotDuringCallback, null, 'the answered prompt was gone before its own callback ran');
+  assertEq(busyDuringCallback, false, 'so a chained prompt raised in there is shown, not queued');
+});
+
 test("2v2: Dr. Manhattan's +2 goes to the seat that played him", function () {
   var G = fresh2v2(), tt = G.state.twoVTwo;
   // Cortex (p4) is the SECOND seat on team B, deliberately: a fix that merely

@@ -406,6 +406,20 @@ const Voice = {
     return rows;
   },
 
+  // ONE GLYPH, TWO STATES. This was a pair of emoji (&#128266; / &#128263;),
+  // which the OS draws as a photoreal loudspeaker — a rendered object sitting
+  // in a UI made entirely of light. Owner: "the sound icon should be a neon
+  // highlight not a real amp." A stroked outline in currentColor takes the
+  // panel's neon and its glow for free, and the muted state is the same cone
+  // with the arcs swapped for a slash rather than a second picture.
+  SPEAKER_SVG:
+    '<svg class="vp-spk" viewBox="0 0 24 24" aria-hidden="true" focusable="false">'
+    + '<path class="vp-cone" d="M4 9.4h3.7L12.6 5v14L7.7 14.6H4z"/>'
+    + '<path class="vp-wave" d="M15.5 9.3a3.9 3.9 0 0 1 0 5.4"/>'
+    + '<path class="vp-wave vp-wave-far" d="M18.1 6.7a7.5 7.5 0 0 1 0 10.6"/>'
+    + '<path class="vp-slash" d="M5 5l14 14"/>'
+    + '</svg>',
+
   _paint() {
     const el = document.getElementById('voice-panel');
     if (!el) return;
@@ -423,7 +437,7 @@ const Voice = {
               data-act="${r.isMe ? 'mute-self' : 'mute-peer'}" data-peer="${r.id}"
               title="${r.isMe ? (r.muted ? 'Unmute your microphone' : 'Mute your microphone')
                               : (r.muted ? 'Unmute this player' : 'Mute this player')}">
-              ${r.muted ? '&#128263;' : '&#128266;'}
+              ${Voice.SPEAKER_SVG}
             </button>
           </div>`).join('')
         + `<button type="button" class="vp-btn vp-leave" data-act="leave">Leave voice</button>`

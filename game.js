@@ -17267,6 +17267,21 @@ const Game = {
             this.log(`  [PROMPT] Could not match ${this._2v2SeatName(pk)}'s pick — asking again.`);
             break;
           }
+          // CLEAR THE SLOT BEFORE THE CALLBACK — the three lines the lane twin
+          // above already does, and this branch did not. The pick fired and the
+          // prompt STAYED ARMED, so the tray never came down: the effect landed
+          // (the target really was set alight) while every seat kept staring at
+          // the same question, with the table frozen behind it. Owner: "i played
+          // human torch 2v2 and this screen popped up now im stuck here."
+          // Order matters twice over. AFTER the match above, because that reads
+          // cc.cards and the no-match path deliberately leaves the prompt up to
+          // ask again. BEFORE the callback, because a callback that raises a
+          // CHAINED prompt hits _promptBusy() while this slot is still full and
+          // gets queued instead of shown — and because no snapshot may ever
+          // capture an armed prompt.
+          this._2v2CurrentActingPlayer = pk;
+          this.state.pendingCardChoice = null;
+          this._clearPromptTimeout();
           if (msg.decline && cc.declineLabel) {
             if (typeof cc.onDecline === 'function') this._2v2WithSeatBound(pk, () => cc.onDecline());
           } else if (cc.callback) this._2v2WithSeatBound(pk, () => cc.callback(pick));

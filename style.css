@@ -42390,15 +42390,31 @@ body.no-art-grade .card-portrait { --art-grade: 1 !important; }
    PARTY VOICE CHAT PANEL (voice.js)
    Sits bottom-left, out of the lanes and clear of the turn-order rail on the
    right. Collapsed it is a single chip; open it lists everyone in the room.
+
+   TRON PASS (owner: "make the voice chat tron themed no grey text and the
+   sound icon should be a neon highlight not a real amp"). Three rules, the
+   same three the rest of the game already follows:
+     • the interior is PURE #000 — no navy, no wash, no backdrop blur. The
+       colour in this panel is the border, the glow and the type;
+     • NO GREY TEXT. Every secondary string is the theme hue at lower alpha,
+       so it reads as dimmer LIGHT rather than as dead pigment. The idle
+       speaker dot went the same way — it was slate #33455c;
+     • buttons are boxless grow+glow text, never a filled rectangle. LEAVE
+       was a red box; it is red LIGHT now.
    ============================================================ */
 .voice-panel {
   position: fixed; left: 12px; bottom: 12px; z-index: 6000;
   width: 208px; padding: 0; border-radius: 10px;
-  background: rgba(6, 10, 18, 0.92);
-  border: 1px solid rgba(74, 163, 255, 0.42);
-  box-shadow: 0 0 14px rgba(74, 163, 255, 0.18), inset 0 0 18px rgba(74, 163, 255, 0.06);
-  font-family: 'Rajdhani', system-ui, sans-serif; color: #cfe6ff;
-  backdrop-filter: blur(6px); overflow: hidden;
+  /* Pure black, deliberately. Anything translucent here picks up the board
+     behind it and the panel stops reading as its own surface. */
+  background: #000;
+  border: 1px solid rgba(var(--theme-rgb, 79,195,247), 0.55);
+  box-shadow:
+    0 0 14px rgba(var(--theme-rgb, 79,195,247), 0.22),
+    inset 0 0 22px rgba(var(--theme-rgb, 79,195,247), 0.05);
+  font-family: 'Rajdhani', system-ui, sans-serif;
+  color: rgba(var(--theme-rgb, 79,195,247), 0.92);
+  overflow: hidden;
 }
 .voice-panel.collapsed { width: auto; }
 .voice-panel.collapsed .vp-body { display: none; }
@@ -42407,33 +42423,59 @@ body.no-art-grade .card-portrait { --art-grade: 1 !important; }
   background: none; border: 0; cursor: pointer; padding: 7px 12px;
   color: inherit; font: 700 12px/1 'Rajdhani', system-ui, sans-serif;
   letter-spacing: 0.14em; text-transform: uppercase;
+  transition: color 140ms var(--ease-out-soft), text-shadow 140ms var(--ease-out-soft);
 }
-.vp-head:hover { background: rgba(74, 163, 255, 0.10); }
-.vp-off  { color: #7fa8d6; }
+/* No hover PLATE — the label lights instead. Same language as every other
+   text control in the game. */
+.vp-head:hover { color: rgba(var(--theme-rgb, 79,195,247), 1); }
+.vp-head:hover .vp-off {
+  color: rgba(var(--theme-rgb, 79,195,247), 1);
+  text-shadow: 0 0 9px rgba(var(--theme-rgb, 79,195,247), 0.65);
+}
+.vp-off  { color: rgba(var(--theme-rgb, 79,195,247), 0.80); }
 .vp-live { color: #37d67a; text-shadow: 0 0 8px rgba(55, 214, 122, 0.55); }
 .vp-live-hot { color: #6bff9f; text-shadow: 0 0 12px rgba(107, 255, 159, 0.9); }
 .vp-count {
-  margin-left: auto; font-size: 11px; color: #9fc6ee;
-  border: 1px solid rgba(74, 163, 255, 0.35); border-radius: 8px; padding: 0 6px;
+  margin-left: auto; font-size: 11px;
+  font-family: var(--font-mono); font-variant-numeric: tabular-nums;
+  color: rgba(var(--theme-rgb, 79,195,247), 0.95);
+  border: 1px solid rgba(var(--theme-rgb, 79,195,247), 0.45); border-radius: 8px;
+  padding: 0 6px;
+  text-shadow: 0 0 6px rgba(var(--theme-rgb, 79,195,247), 0.40);
 }
 .vp-body { padding: 4px 8px 9px; }
-.vp-blurb { font-size: 11.5px; color: #8fb4d8; line-height: 1.35; padding: 2px 4px 8px; }
+.vp-blurb {
+  font-size: 11.5px; line-height: 1.35; padding: 2px 4px 8px;
+  color: rgba(var(--theme-rgb, 79,195,247), 0.62);
+}
 .vp-err {
-  font-size: 11px; color: #ffb4b4; background: rgba(224, 64, 64, 0.12);
-  border: 1px solid rgba(224, 64, 64, 0.4); border-radius: 6px;
+  font-size: 11px; color: #ff9c9c; background: transparent;
+  border: 1px solid rgba(231, 76, 60, 0.45); border-radius: 6px;
   padding: 5px 7px; margin: 2px 0 7px; line-height: 1.3;
+  text-shadow: 0 0 7px rgba(231, 76, 60, 0.35);
 }
+/* BOXLESS. Grow + glow, no plate, no border — see the block comment above. */
 .vp-btn {
-  display: block; width: 100%; margin-top: 4px; padding: 7px 10px;
-  border-radius: 7px; cursor: pointer;
-  font: 700 12px/1 'Rajdhani', system-ui, sans-serif; letter-spacing: 0.1em;
+  display: block; width: 100%; margin-top: 6px; padding: 6px 4px;
+  background: none; border: 0; border-radius: 0; cursor: pointer;
+  font: 700 12px/1 'Rajdhani', system-ui, sans-serif; letter-spacing: 0.16em;
   text-transform: uppercase;
+  transition: color 150ms var(--ease-out-soft),
+              text-shadow 150ms var(--ease-out-soft),
+              transform 150ms var(--ease-out-soft),
+              letter-spacing 150ms var(--ease-out-soft);
 }
-.vp-join  { background: rgba(55, 214, 122, 0.16); border: 1px solid rgba(55, 214, 122, 0.6); color: #8affc0; }
-.vp-join:hover:not(:disabled) { background: rgba(55, 214, 122, 0.28); }
-.vp-join:disabled { opacity: 0.55; cursor: default; }
-.vp-leave { background: rgba(224, 64, 64, 0.14); border: 1px solid rgba(224, 64, 64, 0.5); color: #ff9c9c; }
-.vp-leave:hover { background: rgba(224, 64, 64, 0.26); }
+.vp-join  { color: rgba(55, 214, 122, 0.92); }
+.vp-join:hover:not(:disabled) {
+  color: #8affc0; transform: scale(1.05); letter-spacing: 0.20em;
+  text-shadow: 0 0 10px rgba(55, 214, 122, 0.85), 0 0 22px rgba(55, 214, 122, 0.35);
+}
+.vp-join:disabled { opacity: 0.5; cursor: default; }
+.vp-leave { color: rgba(231, 76, 60, 0.90); }
+.vp-leave:hover {
+  color: #ff9c9c; transform: scale(1.05); letter-spacing: 0.20em;
+  text-shadow: 0 0 10px rgba(231, 76, 60, 0.85), 0 0 22px rgba(231, 76, 60, 0.35);
+}
 .vp-row {
   display: flex; align-items: center; gap: 7px;
   padding: 4px 4px; border-radius: 6px;
@@ -42441,23 +42483,64 @@ body.no-art-grade .card-portrait { --art-grade: 1 !important; }
 }
 /* The dot is the whole "who is talking" answer — it lights only while that
    person's mic is actually carrying sound (RMS over a threshold), so nobody
-   has to announce themselves. */
+   has to announce themselves. Idle is the theme hue turned down, NOT slate:
+   a grey dot beside a lit one reads as broken rather than quiet. */
 .vp-dot {
   width: 8px; height: 8px; border-radius: 50%; flex: 0 0 auto;
-  background: #33455c; transition: background 90ms linear, box-shadow 90ms linear;
+  background: rgba(var(--theme-rgb, 79,195,247), 0.45);
+  transition: background 90ms linear, box-shadow 90ms linear;
 }
 .vp-speaking .vp-dot { background: #37d67a; box-shadow: 0 0 8px rgba(55, 214, 122, 0.95); }
 .vp-speaking { background: rgba(55, 214, 122, 0.08); }
 .vp-name {
   flex: 1 1 auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  color: var(--text-hi, #f2f8ff);
 }
-.vp-name em { font-style: normal; opacity: 0.55; font-size: 11px; }
+/* "(you)" — the theme hue, not opacity applied to white. Fading white gives
+   grey; fading a hue gives a quieter version of the same light. */
+.vp-name em {
+  font-style: normal; font-size: 11px;
+  color: rgba(var(--theme-rgb, 79,195,247), 0.72);
+}
 .vp-mute {
   background: none; border: 0; cursor: pointer; padding: 0 2px;
-  font-size: 13px; line-height: 1; opacity: 0.85; filter: saturate(0.4);
+  line-height: 0; display: inline-flex; align-items: center;
+  color: rgba(var(--theme-rgb, 79,195,247), 0.70);
+  transition: color 140ms var(--ease-out-soft), filter 140ms var(--ease-out-soft);
 }
-.vp-mute:hover { opacity: 1; }
-.vp-mute.is-muted { filter: none; opacity: 1; }
+.vp-mute:hover {
+  color: rgba(var(--theme-rgb, 79,195,247), 1);
+  filter: drop-shadow(0 0 6px rgba(var(--theme-rgb, 79,195,247), 0.75));
+}
+/* The glyph: stroked outline in currentColor, so it inherits the panel's neon
+   and every hover/muted colour change for free. */
+.vp-spk { width: 17px; height: 17px; display: block; overflow: visible; }
+.vp-spk .vp-cone {
+  fill: currentColor; stroke: currentColor; stroke-width: 1.1;
+  stroke-linejoin: round;
+}
+.vp-spk .vp-wave {
+  fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round;
+}
+.vp-spk .vp-wave-far { opacity: 0.6; }
+.vp-spk .vp-slash {
+  fill: none; stroke: currentColor; stroke-width: 1.9; stroke-linecap: round;
+  opacity: 0;                       /* only drawn in the muted state */
+}
+/* MUTED: the arcs go out, the slash comes on, the whole glyph turns red. One
+   shape carrying both states rather than two different pictures. */
+.vp-mute.is-muted { color: rgba(231, 76, 60, 0.95); }
+.vp-mute.is-muted:hover {
+  color: #ff9c9c;
+  filter: drop-shadow(0 0 6px rgba(231, 76, 60, 0.75));
+}
+.vp-mute.is-muted .vp-wave { opacity: 0; }
+.vp-mute.is-muted .vp-slash { opacity: 1; }
+/* Speaking: the mic glyph rides the same green the dot does. */
+.vp-speaking .vp-mute:not(.is-muted) {
+  color: #6bff9f;
+  filter: drop-shadow(0 0 7px rgba(55, 214, 122, 0.7));
+}
 @media (max-width: 700px) {
   .voice-panel { left: 8px; bottom: 8px; width: 176px; }
   .vp-head { padding: 6px 9px; font-size: 11px; }
