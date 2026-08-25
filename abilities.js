@@ -2109,6 +2109,17 @@ const CARD_ABILITIES = {
       if (typeof UI !== 'undefined' && UI._fxSymbioteSurge) { try { UI._fxSymbioteSurge(self); } catch (e) {} }
       // Each card shuffles back to its OWNER's pile — in Deckbuilder this
       // is their personal deck, in Classic it's the shared pile (same ref).
+      // HELD BACK UNTIL AFTER THE DRAW. These used to go into the draw pile
+      // immediately, and the very next line shuffled that pile and drew the
+      // replacements from it — so a card you had just chosen to get rid of
+      // could come straight back into your hand, which is the one outcome the
+      // effect exists to prevent. Measured: hand [Bane, Groot, Hawkeye, Thor]
+      // cycled to [Groot, Thor, Iron Giant, Bane]. (User: "you should not be
+      // able to get the same cards back that you choose to redraw.")
+      // Buffered here, inserted by flushShuffleBack AFTER the draw, then
+      // shuffled — so the returns are still randomised into the deck for later
+      // rounds and only THIS draw is protected.
+      const pendingBack = [];
       const shuffleBack = (card, ownerKey) => {
         // GUARDED. This was an unguarded .push() on whatever getDrawPile
         // returned, so a missing pile threw from inside the per-seat chain
@@ -2120,7 +2131,32 @@ const CARD_ABILITIES = {
           G.log(`  [SSM] No draw pile for ${ownerKey} — ${card.name} stays put.`);
           return;
         }
-        pile.push({ name: card.name, cost: card.baseCost || card.cost, attack: card.attack, health: card.maxHealth, abilities: card.abilities, type: card.type, desc: card.desc });
+        pendingBack.push({ ownerKey, def: { name: card.name, cost: card.baseCost || card.cost, attack: card.attack, health: card.maxHealth, abilities: card.abilities, type: card.type, desc: card.desc } });
+      };
+      // Draw the replacements from the deck as it stands — WITHOUT the cards
+      // just chosen — then put those back and shuffle. If the deck could not
+      // supply the full count (it ran dry), the returns go in first and the
+      // shortfall is drawn from them: the card still promises "N back, N up",
+      // and an empty deck must not turn that into "N back, nothing up". So a
+      // returned card can only ever come back when there was literally nothing
+      // else left to give.
+      const cycleDraw = (ownerKey, n, getHand) => {
+        if (n <= 0) { flushShuffleBack(); return; }
+        const before = (getHand() || []).length;
+        G.drawCards(ownerKey, n);
+        const got = (getHand() || []).length - before;
+        flushShuffleBack();
+        if (got < n) G.drawCards(ownerKey, n - got);
+      };
+      // Put the held cards into the deck and shuffle. Called AFTER the draw.
+      const flushShuffleBack = () => {
+        if (!pendingBack.length) return;
+        const piles = [];
+        pendingBack.splice(0, pendingBack.length).forEach(({ ownerKey, def }) => {
+          const pile = G.getDrawPile(ownerKey);
+          if (Array.isArray(pile)) { pile.push(def); if (piles.indexOf(pile) < 0) piles.push(pile); }
+        });
+        piles.forEach(pile => G.shuffle(pile));
       };
       const doPlayerShuffle = (p, onDone) => {
         const hand = G.state[p].hand;
@@ -2134,8 +2170,7 @@ const CARD_ABILITIES = {
           const back = hand.length;
           hand.splice(0).forEach(c => shuffleBack(c, p));
           if (back > 0) {
-            G.shuffle(G.getDrawPile(p));
-            G.drawCards(p, back);
+            cycleDraw(p, back, () => G.state[p].hand);
             G.log(`Symbiote Spider-Man: ${p} shuffles ${back} card${back === 1 ? '' : 's'} back and draws ${back}!`);
           } else {
             G.log(`Symbiote Spider-Man: ${p} has an empty hand — nothing to shuffle, nothing to draw.`);
@@ -2149,8 +2184,7 @@ const CARD_ABILITIES = {
           for (let i = 0; i < 2; i++) {
             shuffleBack(hand.shift(), p);
           }
-          G.shuffle(G.getDrawPile(p));
-          G.drawCards(p, 2);
+          cycleDraw(p, 2, () => G.state[p].hand);
           G.log(`Symbiote Spider-Man: ${p} shuffles 2 cards back and draws 2!`);
           if (onDone) onDone();
         } else {
@@ -2173,8 +2207,7 @@ const CARD_ABILITIES = {
               const idx2 = hand.findIndex(c => c.id === c2.id);
               if (idx2 >= 0) hand.splice(idx2, 1);
               shuffleBack(c2, p);
-              G.shuffle(G.getDrawPile(p));
-              G.drawCards(p, 2);
+              cycleDraw(p, 2, () => G.state[p].hand);
               G.log("Symbiote Spider-Man: You shuffle 2 cards back and draw 2!");
               if (onDone) onDone();
             }, null, { inlineTray: true });
@@ -2192,7 +2225,16 @@ const CARD_ABILITIES = {
         G.healPlayer(self.owner, 2, self);
         G.log("Symbiote Spider-Man heals you for 2!");
       };
-      const symIn2v2 = !!(G.is2v2 && G.is2v2() && G.state.twoVTwo && G.state.twoVTwo.online);
+      // ANY 2v2, not just an online one. The seat-aware branch below is what
+      // gives each of the four players their OWN hand to cycle and lets an AI
+      // seat auto-pick; the else-branch works on the SIDE proxy, which in a
+      // two-seats-per-side game is whichever teammate synced last, and asks
+      // isHuman(side) — true for a side holding any human — so a bot seat's
+      // shuffle raised a prompt nobody could answer and the table stopped.
+      // (User: "for the AI, when Symbiote Spider-Man is played, he never
+      // chooses a card and just stalls out.") Local 2v2 against bots is exactly
+      // that case, and it was excluded from the fix purely by the `online` test.
+      const symIn2v2 = !!(G.is2v2 && G.is2v2() && G.state.twoVTwo);
       if (skipSelf) {
         doPlayerShuffle(opp, finish);
       } else if (symIn2v2) {
@@ -2212,9 +2254,8 @@ const CARD_ABILITIES = {
           G._2v2CurrentActingPlayer = seatKey;
           const finalizeDraw = () => {
             if (back > 0) {
-              G.shuffle(G.getDrawPile(seatSide));
               G._2v2CurrentActingPlayer = seatKey;   // re-assert before the draw routes
-              G.drawCards(seatSide, back);
+              cycleDraw(seatSide, back, () => sp.hand);
               G.log(`Symbiote Spider-Man: ${sp.name} shuffles ${back} card${back === 1 ? '' : 's'} back and draws ${back}!`);
             } else {
               G.log(`Symbiote Spider-Man: ${sp.name} has an empty hand — nothing to cycle.`);

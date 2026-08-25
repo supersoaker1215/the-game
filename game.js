@@ -9150,6 +9150,31 @@ const Game = {
     // being set at runtime. Single-player keeps the per-seat flag (so the AI
     // seat stays non-human); 2v2 sets its own flags and does not use this.mp.
     if (this.isMultiplayer && this.isMultiplayer()) return true;
+    // 2v2: ASK THE SEAT, NOT THE SIDE. A side in 2v2 is a TEAM of two, and both
+    // sides are flagged human because both hold real people — so every ability
+    // that decides "prompt, or auto-resolve?" by asking isHuman(side) answered
+    // YES even when the seat actually taking the action was a bot. The prompt
+    // then went out to a player who could not answer it (it was not their card)
+    // and the table sat there. Symbiote Spider-Man is the clearest case: an AI
+    // seat plays him, the shuffle asks for a pick, and nobody ever picks.
+    // (User: "for the AI, when Symbiote Spider-Man is played, he never chooses
+    // a card and just stalls out.")
+    // The acting seat is whoever owns the ability right now; if that seat is on
+    // this side, its own isAI flag is the answer. With no seat resolved — a
+    // render, a passive sweep, anything outside an ability — fall back to "is
+    // there a human on this side at all", which is exactly what this returned
+    // before, so nothing outside an ability changes.
+    const tt2 = this.state && this.state.twoVTwo;
+    if (tt2 && tt2.players && this.is2v2 && this.is2v2()) {
+      const onSide = (pk) => !!(tt2.players[pk]
+        && this._2v2TeamSide[tt2.players[pk].team] === owner);
+      const pk = [this._2v2AbilityOwner && this._2v2AbilityOwner(),
+                  this._2v2CurrentActingPlayer,
+                  this._2v2AIDriving,
+                  this._2v2ActivePlayer && this._2v2ActivePlayer()].find(onSide);
+      if (pk) return !tt2.players[pk].isAI;
+      return this._2v2SLOTS.some(k => onSide(k) && !tt2.players[k].isAI);
+    }
     return !!(this.state[owner] && this.state[owner].isHuman);
   },
 
@@ -16390,7 +16415,19 @@ const Game = {
       // `taken` so nobody's offers collide, and clear the per-round picked map.
       const taken = this._2v2TakenSet(isCards, null);
       d.choicesByPlayer = {};
-      ['p1', 'p2', 'p3', 'p4'].forEach(pk => { d.choicesByPlayer[pk] = this._2v2DealTwo(isCards, taken); });
+      ['p1', 'p2', 'p3', 'p4'].forEach(pk => {
+        // Per-player view of `taken`: the shared set (so nobody's offers
+        // collide) PLUS the names this player mulliganed away earlier, which
+        // are theirs to never see again. Copied rather than mutated so one
+        // player's rejects do not vanish from everyone else's pool.
+        const rej = (d.rejectedBy && d.rejectedBy[pk]) || [];
+        const mine = rej.length ? new Set(taken) : taken;
+        rej.forEach(n2 => mine.add(n2));
+        d.choicesByPlayer[pk] = this._2v2DealTwo(isCards, mine);
+        // Anything dealt out of the per-player copy still has to be reserved
+        // globally, or two players could be offered the same card.
+        if (mine !== taken) (d.choicesByPlayer[pk] || []).forEach(c => { if (c && c.name) taken.add(c.name); });
+      });
       d.picked = { p1: false, p2: false, p3: false, p4: false };
       // AI fillers pick for themselves the moment offers are dealt (host/local
       // authority only). Deferred so it never recurses through _2v2DraftPick's
@@ -16569,7 +16606,23 @@ const Game = {
       if (d[mulliganKey][pk]) return false;
       const holding = isCards ? d.cardHolding : d.trickHolding;
       (d.choicesByPlayer[pk] || []).forEach(c => { if (c) holding.push(c); });
-      d.choicesByPlayer[pk] = this._2v2DealTwo(isCards, this._2v2TakenSet(isCards, pk));
+      // A CARD YOU THREW BACK NEVER COMES BACK TO YOU. Holding withholds the
+      // rejected offers from the pool, but _2v2DealTwo recycles holding into
+      // the pool the moment the pool runs dry — and in the trick draft (about
+      // 27 tricks, four players, two offers each) it runs dry routinely. So the
+      // very cards you mulliganed away came round again, which makes the
+      // mulligan feel broken. (User: "you should not be able to get the same
+      // cards back that you choose to redraw.")
+      // Recorded per player and folded into their `taken` set from here on, so
+      // the exclusion holds for this re-deal AND for every later round of the
+      // draft. Other players can still be offered them — one person passing on
+      // a card should not remove it from the table.
+      if (!d.rejectedBy) d.rejectedBy = {};
+      const _rej = (d.rejectedBy[pk] = d.rejectedBy[pk] || []);
+      (d.choicesByPlayer[pk] || []).forEach(c => { if (c && c.name && _rej.indexOf(c.name) < 0) _rej.push(c.name); });
+      const _taken = this._2v2TakenSet(isCards, pk);
+      _rej.forEach(n2 => _taken.add(n2));
+      d.choicesByPlayer[pk] = this._2v2DealTwo(isCards, _taken);
       d[mulliganKey][pk] = true;
       this.log(`[2v2 DRAFT] Mulligan used by ${pk}`);
       this._2v2OnlineBroadcast();
