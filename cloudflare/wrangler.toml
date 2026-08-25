@@ -1,0 +1,14 @@
+name = "card-lane-battle-stats"
+main = "worker.js"
+compatibility_date = "2024-12-01"
+
+# The one global leaderboard room.
+[[durable_objects.bindings]]
+name = "STATS_ROOM"
+class_name = "StatsRoom"
+
+# SQLite-backed Durable Object — this is the variant available on the Workers
+# free plan (the classic key-value DO backend requires a paid plan).
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["StatsRoom"]
