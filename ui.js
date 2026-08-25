@@ -32548,9 +32548,23 @@ function twov2PlaceCard(laneIdx) {
   if (!card) return;
   const side = Game._2v2TeamSide[ap.team];
 
-  // Check energy
+  // SUB-PHASE GATE. Pass-and-play places the card ITSELF instead of going
+  // through the engine, so it inherited neither of the two host doors that
+  // learned this rule — and the same argument applies to it: the hand being
+  // greyed out is a UI gate, not enforcement. A selection made on a CARDS turn
+  // and left standing is still sitting in UI._2v2SelectedCardIdx when the lane
+  // strip re-arms on the seat's TRICKS turn (it re-arms there now, because a
+  // seat holding Thanos must be able to reach him), and clicking a lane then
+  // seated the stale ordinary card. Measured: Hawkeye landed on a p1-tricks
+  // turn. Same predicate the two online doors use.
+  const _sub = Game._2v2SubPhase && Game._2v2SubPhase();
+  if (_sub && Game._2v2CanPlayCardNow && !Game._2v2CanPlayCardNow(_sub, card, side)) return;
+
+  // Check energy. getCardCost, not card.cost — an enemy Silver Surfer's tax is
+  // charged by the engine, so pricing off the printed cost here let a taxed
+  // card be placed for less than it actually costs.
   const energy = ap.energy - ap.usedEnergy;
-  const cost = card.cost || 0;
+  const cost = (typeof Game.getCardCost === 'function') ? Game.getCardCost(side, card) : (card.cost || 0);
   if (energy < cost) { return; }
 
   // Check lane not occupied
