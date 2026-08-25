@@ -10972,6 +10972,15 @@ const Game = {
       { inlineTray: true });
   },
 
+  // Battle-log helpers for the prompt-routing line above.
+  _promptLabel(title) { return '"' + String(title == null ? '?' : title) + '"'; },
+  _2v2SeatName(seat) {
+    const tt = this.state && this.state.twoVTwo;
+    const p = tt && tt.players && tt.players[seat];
+    if (!p) return String(seat || 'nobody');
+    return (p.name || seat) + (p.isAI ? ' [AI]' : '');
+  },
+
   // ===================== BRAINIAC'S SPY =====================
   // A LIVE window into ONE opponent's hand, held by ONE seat, for two rounds.
   // Not a snapshot and not a team-wide reveal: the person who played Brainiac
@@ -11238,9 +11247,11 @@ const Game = {
         // authority resolves it here with a sensible auto-pick (first open lane).
         if (this._2v2SeatIsAI(_actor) && this._2v2IsAIAuthority()) {
           this.state.pendingLaneChoice = null;
+          this.log(`  [PROMPT] ${this._promptLabel(title)} → auto-picked for ${this._2v2SeatName(_actor)} (AI seat): lane ${lanes[0] + 1}`);
           callback(lanes[0]);
           return;
         }
+        this.log(`  [PROMPT] ${this._promptLabel(title)} → ${this._2v2SeatName(_actor)}`);
         this.state.pendingLaneChoice._2v2ActingPlayer = _actor;
         // DELIVER IT. Stamping alone left the prompt on the host; the seat that
         // must answer never saw it.
@@ -11357,6 +11368,11 @@ const Game = {
       // upstream (e.g. chain ability with no enemies) doesn't strand
       // the engine waiting on a callback. Previously returned silently.
       console.warn('[promptCardChoice] no valid targets for', title, '(owner=' + owner + ') — unsticking combat');
+      // SAY SO IN THE BATTLE LOG. A targeting ability that finds nothing legal
+      // used to fail into console silence: on screen the card simply did
+      // nothing, with no way for the player to tell "no legal target" from "the
+      // ability is broken". Two separate reports of exactly that ambiguity.
+      this.log(`  [NO TARGET] ${String(title).replace(/\s*—.*$/, '')} found nothing it could legally hit.`);
       this.resumeCombatIfWaiting();
       return;
     }
@@ -11439,9 +11455,16 @@ const Game = {
         if (this._2v2SeatIsAI(_actor) && this._2v2IsAIAuthority()) {
           const pick = (typeof aiPicker === 'function') ? aiPicker(cards) : cards[0];
           this.state.pendingCardChoice = null;
+          this.log(`  [PROMPT] ${this._promptLabel(title)} → auto-picked for ${this._2v2SeatName(_actor)} (AI seat): ${pick && pick.name}`);
           callback(pick);
           return;
         }
+        // WHO WAS ASKED, ON THE RECORD. Every "my card did nothing" report in
+        // 2v2 has come down to a prompt that was raised for the wrong seat or
+        // answered by something other than a person, and none of it was visible
+        // after the fact. One line in the battle log makes the next one
+        // diagnosable from a screenshot instead of a re-enactment.
+        this.log(`  [PROMPT] ${this._promptLabel(title)} → ${this._2v2SeatName(_actor)}`);
         this.state.pendingCardChoice._2v2ActingPlayer = _actor;
         if (typeof UI !== 'undefined' && UI.render) UI.render();
         this._pushOnlineState({ silent: true });

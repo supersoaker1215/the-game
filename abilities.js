@@ -538,6 +538,9 @@ const CARD_ABILITIES = {
         G.log(`Gorilla Grodd finds no weak minds (no enemy with base cost ≤ ${maxCost}) to control.`);
         return;
       }
+      // Seat declared from the card itself — see promptCardChoice's note on
+      // options.seat. Grodd's own report ("mind control isnt working at all")
+      // is the same shape as every other prompt that reached the wrong client.
       G.promptCardChoice(self.owner, eligible,
         "Gorilla Grodd — Mind Control",
         `Choose an enemy with base cost ${maxCost} or less`,
@@ -547,7 +550,8 @@ const CARD_ABILITIES = {
             if (typeof UI !== 'undefined' && UI._fxGroddMindControl) { try { UI._fxGroddMindControl(self, target); } catch (e) {} }
           }
         },
-        cards => cards.slice().sort((a, b) => (b.baseCost || b.cost) - (a.baseCost || a.cost))[0]);
+        cards => cards.slice().sort((a, b) => (b.baseCost || b.cost) - (a.baseCost || a.cost))[0],
+        self._2v2PlayedBy ? { seat: self._2v2PlayedBy } : null);
     }
   },
   "Hawkeye": {
@@ -1127,12 +1131,27 @@ const CARD_ABILITIES = {
       // assassinate ceiling. Default 3 (classic); Text+ sets to 5 so
       // mid-tier targets are also one-shot-able.
       const threshold = self._deathstrokeKillThreshold || 3;
-      const targets = G.getEnemiesOf(self.owner).filter(c => c.currentHealth <= threshold && G.canEffectLand(c, 'destroy', { owner: self.owner, source: self }));
+      const enemies = G.getEnemiesOf(self.owner);
+      const targets = enemies.filter(c => c.currentHealth <= threshold && G.canEffectLand(c, 'destroy', { owner: self.owner, source: self }));
       if (targets.length) {
         G.promptCardChoice(self.owner, targets, "Deathstroke — Assassinate", `Choose enemy with ${threshold} or less HP to destroy`, (t) => {
           if (typeof UI !== 'undefined' && UI._fxDeathstrokeKill) { try { UI._fxDeathstrokeKill(self, t); } catch (e) {} }
           G.log(`Deathstroke assassinates ${t.name}!`); G.killCard(t, self);
-        }, _aiThreatPicker);
+        }, _aiThreatPicker, self._2v2PlayedBy ? { seat: self._2v2PlayedBy } : null);
+      } else {
+        // NEVER FAIL SILENTLY. This branch did not exist: with nothing legal to
+        // hit, Deathstroke landed and said nothing at all, which is
+        // indistinguishable from a broken ability — and that is exactly how it
+        // gets reported. Now the log says which of the two it was, and names
+        // the reason, so "he never got to kill any of them" is answerable.
+        const low = enemies.filter(c => c.currentHealth <= threshold);
+        if (!enemies.length) {
+          G.log(`[DEATHSTROKE] No enemy on the field — nobody to assassinate.`);
+        } else if (!low.length) {
+          G.log(`[DEATHSTROKE] No enemy at ${threshold} HP or less — the closest is ${Math.min.apply(null, enemies.map(c => c.currentHealth))} HP.`);
+        } else {
+          G.log(`[DEATHSTROKE] ${low.map(c => c.name).join(', ')} ${low.length === 1 ? 'is' : 'are'} in range but cannot be destroyed (invincible, hidden, or titan-immune).`);
+        }
       }
     },
     onKill(G, self) {
@@ -2219,7 +2238,14 @@ const CARD_ABILITIES = {
       // to whatever's in self._wsCostThreshold. Defaults to 3 so classic
       // mode is unchanged.
       const threshold = self._wsCostThreshold || 3;
-      const targets = G.getEnemiesOf(self.owner).filter(c => c.attack <= threshold && G.canEffectLand(c, 'destroy', { owner: self.owner, source: self }));
+      const wsEnemies = G.getEnemiesOf(self.owner);
+      const targets = wsEnemies.filter(c => c.attack <= threshold && G.canEffectLand(c, 'destroy', { owner: self.owner, source: self }));
+      if (!targets.length) {
+        // Same silent-no-op gap Deathstroke had — see the note there.
+        G.log(wsEnemies.length
+          ? `[WINTER SOLDIER] No enemy at ${threshold} ATK or less that he can destroy.`
+          : `[WINTER SOLDIER] No enemy on the field to eliminate.`);
+      }
       if (targets.length) {
         G.promptCardChoice(self.owner, targets, "Winter Soldier — Eliminate", `Choose enemy with ${threshold} or less ATK to destroy`, (t) => {
           if (typeof UI !== 'undefined' && UI._fxWinterShot) { try { UI._fxWinterShot(self, t); } catch (e) {} }
