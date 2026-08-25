@@ -4545,6 +4545,15 @@ const UI = {
     // installLongPressInspect instead.
     document.addEventListener('touchstart', () => { this._lastTouchMs = Date.now(); }, { passive: true });
 
+    // DID THE USER ACTUALLY POINT AT THIS, OR DID IT SLIDE UNDER THEM?
+    // A mouseover does not mean the cursor moved. Every render rebuilds the
+    // hand, so a card drawn into it lands under a stationary cursor and fires
+    // mouseover all by itself — and 280ms later the card announces its own
+    // identifying theme to the whole room. That is the draw leak: you never
+    // touched the mouse and everyone just heard which card you drew.
+    // Recording the last REAL movement lets the dwell callback tell the two
+    // apart. Passive listener, one timestamp, no work per event.
+    document.addEventListener('mousemove', () => { this.sfx._lastPointerMoveAt = Date.now(); }, { passive: true });
     document.addEventListener('mouseover', (e) => {
       const curr = getHoverTarget(e.target);
       if (!curr) return;
@@ -4591,6 +4600,9 @@ const UI = {
       if (this.sfx._currentHoverEl) this.sfx._stopHover(true);
       cancelPendingHover();
       this.sfx._currentHoverEl = curr;
+      // How stale was the cursor when this hover arrived? A real hover follows
+      // a movement by a few ms; a reflow-under-a-still-cursor has none.
+      this.sfx._hoverArmedMoveAge = now - (this.sfx._lastPointerMoveAt || 0);
       // Schedule the SFX to fire after the dwell timeout. If the user
       // leaves before the timer fires, mouseout cancels it.
       this.sfx._hoverDelayEl = curr;
@@ -4615,9 +4627,23 @@ const UI = {
         const sfx = this.sfx;
         if (sfx._postPlayHoverLockUntil && now < sfx._postPlayHoverLockUntil) return;
         if (sfx._postPlayHoverLockName === name && now < (sfx._postPlayHoverLockNameUntil || 0)) return;
+        // THE CARD CAME TO THE CURSOR, NOT THE OTHER WAY ROUND — say nothing
+        // that identifies it. Either the pointer had not moved for a beat when
+        // this hover armed (the card reflowed under it), or a card has just
+        // entered this hand (see _handGrewAt, set by renderPlayerHand, which
+        // covers a draw, a redraw, a steal, a Batman Who Laughs keep — every
+        // path that puts a new card in front of you). The generic blip still
+        // fires, so the surface stays tactile; only the tell is withheld.
+        // (User: "make sure sound cues and hover don't fire when cards are
+        // drawn so enemy players cant hear them.")
+        const STILL_CURSOR_MS = 150;
+        const armedStill = (sfx._hoverArmedMoveAge == null) || (sfx._hoverArmedMoveAge > STILL_CURSOR_MS);
+        const handJustGrew = now < ((this._handGrewAt || 0) + 1400);
         const isCard = curr.hasAttribute('data-card-name');
-        const audio = isCard ? this.sfx.playCardSfx(name, 'hover')
-                             : this.sfx.playTrickSfx(name, 'hover');
+        const audio = (armedStill || handJustGrew)
+          ? null
+          : (isCard ? this.sfx.playCardSfx(name, 'hover')
+                    : this.sfx.playTrickSfx(name, 'hover'));
         if (!audio) this.sfx.play('cardHover');
         this.sfx._currentHoverAudio = audio;
         // Track the source card NAME so _stopHover can keep the audio
@@ -7353,7 +7379,7 @@ const UI = {
       // FACE adjacent to this lane only if that adjacent lane is
       // empty (no blocker). Worst-case approximation.
       let splashFace = 0;
-      const splashRange = ai.splashRange || 0;
+      const splashRange = Game.effectiveSplash ? Game.effectiveSplash(ai) : (ai.splashRange || 0);
       if (splashRange > 0 && !playerInvincible) {
         const adjLanes = [i - 1, i + 1].filter(j => j >= 0 && j < 6);
         for (const j of adjLanes) {
@@ -19708,7 +19734,7 @@ const UI = {
       stB: !!card.isStunned, frB: !!card.isFrozen, feB: !!card.isFeared,
       mc: !!card.isMindControlled,
       iv: card.invincibleTurns | 0, av: card.armorValue | 0, ev: card.evadeCharges | 0,
-      tt: card.tauntTurns | 0,     sr: card.splashRange | 0,
+      tt: card.tauntTurns | 0,     sr: (Game.effectiveSplash ? Game.effectiveSplash(card) : card.splashRange) | 0,
       di: !!card.hasDamageImmunity, im: card.immunityCharges | 0,
       ur: card.unresistibleCharges | 0, dr: card.drawOnPlay | 0,
       bs: !!card.isBullseye, od: !!card.isOverdrive,
@@ -21266,7 +21292,7 @@ const UI = {
     // properly can we look into this na dchange it to the live
     // simulationn model".
     const { atk: myAtk, hp: myHp } = this.projectedStats(myCard, laneIdx);
-    const splash = myCard.splashRange || 0;
+    const splash = Game.effectiveSplash ? Game.effectiveSplash(myCard) : (myCard.splashRange || 0);
     const box = document.createElement('div');
     box.className = 'dmg-preview';
 
@@ -23248,7 +23274,10 @@ const UI = {
     // produced two stacked "Fear N" badges. User report: "why does
     // pennywise have two fear badges.")
     if (c.isOverdrive) b.push(badge('badge-overdrive', 'Overdrive', 'Overdrive'));
-    if (c.splashRange > 0) b.push(badge('badge-splash', `Splash ${c.splashRange}`, 'Splash'));
+    // Live value — see Game.effectiveSplash. Hulk's badge read a stored number
+    // that any direct attack change left behind.
+    const _sr = Game.effectiveSplash ? Game.effectiveSplash(c) : (c.splashRange || 0);
+    if (_sr > 0) b.push(badge('badge-splash', `Splash ${_sr}`, 'Splash'));
     // Red Hulk's reactive splash — see longer comment below in original.
     if (c.name === 'Red Hulk' && c.currentHealth > 0 && Game && Game.findCardLane) {
       const lane = Game.findCardLane(c);
@@ -24094,6 +24123,20 @@ const UI = {
     // produce visual collisions like the Peacemaker clip-off bug
     // (caught at commit 6924a86's revert).
     if (!this._handWrappers) this._handWrappers = new Map(); // id → wrapper
+
+    // DID A CARD JUST ARRIVE IN THIS HAND? Stamped here rather than plumbed
+    // through every draw path, because there are many (the round draw, a
+    // cantrip, a redraw, a Batman Who Laughs keep, a foresight hand-out) and
+    // they do not share a single door — 2v2's round draw does not even go
+    // through drawCards. What they DO share is that the hand gets longer and
+    // this function then rebuilds it. installCardSfx reads the stamp and
+    // withholds identifying hover audio for a beat afterwards, so a card
+    // reflowing under a resting cursor cannot announce itself to the room.
+    try {
+      const _hnow = ((this._2v2LocalSeatData && this._2v2LocalSeatData()) || s.player || {}).hand || [];
+      if (this._lastHandLen != null && _hnow.length > this._lastHandLen) this._handGrewAt = Date.now();
+      this._lastHandLen = _hnow.length;
+    } catch (e) {}
 
     // BWL intercept warning — toggle in-place rather than wipe + recreate.
     let warn = this.playerHand.querySelector(':scope > .bwl-intercept-warning');

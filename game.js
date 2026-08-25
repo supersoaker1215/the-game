@@ -7166,13 +7166,30 @@ const Game = {
     return false;
   },
 
+  // WHAT DOES THIS CARD'S SPLASH ACTUALLY HIT FOR, RIGHT NOW?
+  // Hulk's card reads "Splash equals Hulk's ATK", and that was kept true by
+  // re-syncing splashRange from three of his own hooks plus buffCard and
+  // debuffCard. But twenty-odd other places in the engine change a card's
+  // attack directly — temp buffs, aura recalcs, Magneto's lane debuff, a stat
+  // set during combat — and every one of them left the stored number behind.
+  // So the badge read "Splash 3" on a 7-ATK Hulk. (User: "hulks splash should
+  // equal his attack and it says 3?")
+  // Derived on read instead: a card that tracks ATK is never stale again, no
+  // matter which path moved its attack. splashRange stays maintained for
+  // everything else and for cards with a fixed splash.
+  effectiveSplash(card) {
+    if (!card) return 0;
+    if (card._splashTracksAtk) return Math.max(0, card.attack | 0);
+    return Math.max(0, card.splashRange | 0);
+  },
+
   applySplash(card, laneIdx) {
     // Splash X = hits the two ADJACENT enemy lanes for splashRange damage.
     // The enemy directly in front (same lane) is NOT splashed — it already ate
     // the normal attack, and the card text reads "adjacent enemies". User:
     // "i just want the splash to hit adjacent enemies not the card in front too."
     const opp = this.opponent(card.owner);
-    const splashDmg = card.splashRange;
+    const splashDmg = this.effectiveSplash(card);
     const splashed = [];
     // Adjacent lanes only — no front (same-lane) hit.
     [laneIdx - 1, laneIdx + 1].forEach(li => {

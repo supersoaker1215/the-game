@@ -100,7 +100,12 @@ const CombatEngine = {
       name: c.name,
       currentHealth: c.currentHealth | 0,
       attack: c.attack | 0,
-      splashRange: c.splashRange | 0,
+      // Live, not stored — a card whose splash tracks its ATK (Hulk) can have
+      // had its attack changed by any of the paths that do not re-sync the
+      // stored number, and the forecast must show what will actually land.
+      // See Game.effectiveSplash.
+      splashRange: (c._splashTracksAtk ? Math.max(0, c.attack | 0) : (c.splashRange | 0)),
+      _splashTracksAtk: !!c._splashTracksAtk,
       armorValue: c.armorValue | 0,
       evadeCharges: c.evadeCharges | 0,
       invincibleTurns: c.invincibleTurns | 0,
