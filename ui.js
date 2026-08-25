@@ -7039,6 +7039,7 @@ const UI = {
       const _redraw2v2 = () => {
         this._safe('redrawBtn', () => this._renderRedrawButton(false));
         this._safe('heartbeat', () => this._updateDangerHeartbeat(s));
+        this._safe('voice', () => { if (typeof Voice !== 'undefined') Voice.mount(); });
       };
       if (is2v2OnlineGame) { this._render2v2OnlineBoard(s); this.renderInlineChoiceFallback(s); _redraw2v2(); _fit2v2(); return; }
       if (is2v2LocalGame)  { this._render2v2LocalGame(s); this.renderInlineChoiceFallback(s); _redraw2v2(); _fit2v2(); return; }
@@ -7285,6 +7286,10 @@ const UI = {
     // The turn-order rail, for 1v1 online too. It reads the mode itself and
     // hides outside an online match, so this one call covers both.
     this._safe('turnTracker',             () => this._render2v2TurnTracker(s, s.twoVTwo));
+    // Party voice — mounts itself only in an online match and removes itself
+    // otherwise, so this one call covers 1v1 online, 2v2 online and every
+    // screen that is neither.
+    this._safe('voice',                   () => { if (typeof Voice !== 'undefined') Voice.mount(); });
     this._safe('renderLog',               () => this.renderLog(s));
     this._safe('showDamageFloats',        () => this.showDamageFloats());
     // RETRY the two that decide whether the player can still ACT. If one of

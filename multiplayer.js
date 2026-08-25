@@ -176,6 +176,12 @@ const Multiplayer = {
       case 'opponentLeft':
         this._emit('opponentLeft', msg);
         break;
+      // Party voice signalling — peer ids only, so each side can open a direct
+      // audio call. Never touches the engine. The actual speech travels as a
+      // WebRTC media stream, not through here.
+      case 'voice':
+        try { if (typeof Voice !== 'undefined') Voice.onMessage(msg); } catch (e) {}
+        break;
       case 'state': {
         // Rehydrate function references on every received state.
         // This is what makes the JSON-roundtripped engine usable
@@ -1145,7 +1151,10 @@ class WebRTC4Transport {
   // renders it via _dispatch). Game actions are NOT fanned: those are
   // host-authoritative and reach the other seats via the state broadcast.
   _hostRelayAndDispatch(full, fromSlot) {
-    if (full && full.t === 'emote') {
+    // 'voice' rides the same host relay as 'emote': in a star topology a guest
+    // can only speak to the host, so a voice hello has to be passed on before
+    // the other guests can learn that peer id and dial it.
+    if (full && (full.t === 'emote' || full.t === 'voice')) {
       Object.keys(this._conns).forEach(s => {
         if (s !== fromSlot && this._conns[s]) {
           try { this._sendChunked(this._conns[s], full); } catch (e) {}
@@ -1503,6 +1512,12 @@ const Multiplayer4 = {
       // buttons and handlers already existed.
       case 'emote':
         this._emit('emote', msg);
+        break;
+      // Party voice signalling (peer-id roster). Deliberately NOT a game
+      // action — it must never reach the engine. Handed straight to Voice,
+      // which uses it to learn who else is in the room and dial them.
+      case 'voice':
+        try { if (typeof Voice !== 'undefined') Voice.onMessage(msg); } catch (e) {}
         break;
       case 'roomCreated':
         this._room = msg.code;
