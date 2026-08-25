@@ -12471,8 +12471,14 @@ const UI = {
     const activeKey = Game._2v2ActivePlayer();
     const isMyTurn  = activeKey === myKey;
     const subPhase  = Game._2v2SubPhase();
-    const canCards  = isMyTurn && Game._2v2CanPlayCards(subPhase);
-    const canTricks = isMyTurn && Game._2v2CanPlayTricks(subPhase);
+    // LOCKED WHILE THE TABLE IS MID-RESOLUTION. The engine refuses these
+    // actions during the before-tricks boundary and while any prompt is still
+    // outstanding (Game._2v2ActionsLocked); the controls have to agree, or the
+    // player clicks a live-looking card and nothing happens — which reads as
+    // the game being broken rather than as "something is still resolving".
+    const _locked   = !!(Game._2v2ActionsLocked && Game._2v2ActionsLocked());
+    const canCards  = isMyTurn && !_locked && Game._2v2CanPlayCards(subPhase);
+    const canTricks = isMyTurn && !_locked && Game._2v2CanPlayTricks(subPhase);
 
     // Hide the 2v2 full-screen overlay (used by lobby/setup/local phases)
     const twov2El = document.getElementById('twoVTwo-overlay');
@@ -12684,7 +12690,7 @@ const UI = {
     if (btnNew) btnNew.style.display = 'none';
     if (btnU)   btnU.style.display   = 'none';
     if (btnA) {
-      if (isMyTurn && save.phase !== '2v2-combat') {
+      if (isMyTurn && !_locked && save.phase !== '2v2-combat') {
         btnA.textContent     = 'Done';
         btnA.className       = 'btn btn-primary';
         btnA.onclick         = () => twov2OnlineDone();

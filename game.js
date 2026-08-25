@@ -15216,6 +15216,17 @@ const Game = {
       const typ = (st) => st ? st.split('-').slice(1).join('-') : '';   // 'cards' | 'cards-tricks' | 'tricks'
       if (typ(order[ci]) === 'tricks' && typ(order[ci - 1]) !== 'tricks') {
         tt._beforeTricksRan = true;
+        // THE TABLE IS LOCKED UNTIL THIS BOUNDARY FINISHES. The pass already
+        // deferred the START of the trick turn behind its own prompts, but the
+        // sub-phase index has ALREADY advanced by the time we get here — so
+        // _2v2ActivePlayer() names the first trick player, their client reads it
+        // as their turn, and nothing stopped them playing a trick into a board
+        // that Galactus / Man-Bat / Art were still rearranging. (User: "when the
+        // before trick phase abilites have to happen make sure the next person
+        // playing tricks cant play until after all of those go through.")
+        // Cleared where the normal turn actually starts, below.
+        tt._resolving = true;
+        this._2v2OnlineBroadcast();
         // Reveal face-down cards (Invisible Woman's stealth deploy) FIRST, by
         // lane order — each card's onPlay routed to its owning seat. Same order
         // the 1v1 endPhase2 uses, and like 1v1 the before-tricks pass must WAIT
@@ -15241,6 +15252,9 @@ const Game = {
         return;
       }
     }
+
+    // The boundary (if there was one) is done — hand control back to the table.
+    tt._resolving = false;
 
     const playerName = tt.players[activeKey].name;
     this.log(`[2v2] ${playerName}'s turn — ${subPhase}`);
@@ -15441,6 +15455,9 @@ const Game = {
   end2v2Phase() {
     const s = this.state;
     const tt = s.twoVTwo;
+    // Never end a turn out from under an unresolved ability — see
+    // _2v2ActionsLocked. Applies to the host's own Done button too.
+    if (this._2v2ActionsLocked()) return;
 
     // Save any changes made during this sub-phase
     this._2v2ReadBackActivePlayer();
@@ -16186,6 +16203,20 @@ const Game = {
     return !!(tt && tt.players[pk] && tt.players[pk].isAI);
   },
 
+  // ARE 2v2 ACTIONS LOCKED RIGHT NOW? True while the before-tricks boundary is
+  // resolving, and true while ANY prompt is outstanding — a prompt means some
+  // seat still owes the table an answer, and letting the next player act on top
+  // of a board that is still being rearranged is how a turn gets "held up" in
+  // ways nobody can see. Deliberately NOT applied to jump offers or block
+  // tricks: those ARE prompts (hasPendingPrompt counts them), so gating them
+  // this way would deadlock the very answer that clears the lock.
+  _2v2ActionsLocked() {
+    const tt = this.state && this.state.twoVTwo;
+    if (!tt) return false;
+    if (tt._resolving) return true;
+    return !!(this.hasPendingPrompt && this.hasPendingPrompt());
+  },
+
   // Apply an action received from a joiner (host only)
   _apply2v2OnlineAction(msg) {
     const pk = msg.playerKey;
@@ -16197,6 +16228,7 @@ const Game = {
     switch (msg.t) {
       case 'play2v2Card':
         if (pk !== activeKey) break;
+        if (this._2v2ActionsLocked()) { this.log(`  [WAIT] ${this._2v2SeatName(pk)} must wait — abilities are still resolving.`); break; }
         this._2v2CurrentActingPlayer = pk; // track who triggered any ability prompts
         this._2v2OnlinePlayCard(pk, msg.cardIdx, msg.laneIdx, msg.faceDown);
         break;
@@ -16205,6 +16237,7 @@ const Game = {
         break;
       case 'play2v2Trick':
         if (pk !== activeKey) break;
+        if (this._2v2ActionsLocked()) { this.log(`  [WAIT] ${this._2v2SeatName(pk)} must wait — abilities are still resolving.`); break; }
         this._2v2CurrentActingPlayer = pk;
         this._2v2OnlinePlayTrick(pk, msg.trickIdx);
         break;
@@ -16245,6 +16278,7 @@ const Game = {
       }
       case 'end2v2Phase':
         if (pk !== activeKey) break;
+        if (this._2v2ActionsLocked()) { this.log(`  [WAIT] ${this._2v2SeatName(pk)} must wait — abilities are still resolving.`); break; }
         this.end2v2Phase();
         break;
       case '2v2TeamSwap':
@@ -16321,6 +16355,7 @@ const Game = {
     const pk = playerKey;
     if (!pk || cardIdx == null) return;
     if (pk !== this._2v2ActivePlayer()) return;                       // not your turn
+    if (this._2v2ActionsLocked()) return;   // before-tricks boundary / open prompt
     if (this.state.pendingLaneChoice || this.state.pendingCardChoice) return;  // already prompting
     const ap = this.state.twoVTwo && this.state.twoVTwo.players[pk];
     if (!ap) return;
@@ -16550,6 +16585,9 @@ const Game = {
   _2v2OnlinePlayTrick(playerKey, trickIdx) {
     const s = this.state, tt = s.twoVTwo;
     if (!tt) return;
+    // Same lock the wire door checks — the host plays through this function
+    // directly, so without it the rule would bind the guests and not the host.
+    if (this._2v2ActionsLocked()) return;
     const ap = tt.players[playerKey];
     if (!ap) return;
     const trick = ap.trickHand[trickIdx];

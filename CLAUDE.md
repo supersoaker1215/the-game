@@ -62,6 +62,19 @@ $JSC sim/run.js -- --games 5000 --stats --quiet
 ```
 Diff the new `sim/data/report.md` against the prior one. A card's win rate moving ≥3% (outside the ~±2.5% Wilson CI at n=200) is a real shift. High drafts × low plays means the AI is hoarding the card — usually a sign of an oppressive cost or a dead-in-hand condition.
 
+**2v2 ability audit** — plays EVERY card and EVERY trick in a 2v2 online room and
+reports anything that would hold the table up:
+```bash
+$JSC sim/audit2v2.js -- --verbose
+```
+Findings are `THREW` (hook raised an exception — the engine swallows these, so
+in a live game the card just does nothing), `STUCK` (the table was still locked
+after the card resolved), `UNOWNED` / `MISROUTED` (a 2v2 prompt with no owning
+seat, or answered by a seat on the wrong side), and `NOFIRE` (a declared hook
+that never ran). It uses `sim/shim-real.js`, which loads the same headless
+environment as `sim/shim.js` but leaves the engine's REAL prompt system in place
+— that is what makes prompt routing observable at all.
+
 **Bug fix verification** — run a small sanity batch first:
 ```bash
 $JSC sim/run.js -- --games 500 --quiet 2>&1 | grep -E "stuck|ERR|WARN"
