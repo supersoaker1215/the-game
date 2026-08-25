@@ -4396,6 +4396,7 @@ const UI = {
     this._gameAreaEl           = document.getElementById('game-area');
     this.installKeywordTooltips();
     this.installFxBridge();
+    this.installSfxBridge();
     this.installKeyboardShortcuts();
     this.installMobileCardDrag();
     this.installHandCardFlip();
@@ -5839,6 +5840,53 @@ const UI = {
       };
     });
   },
+  // ---- SOUND RELAY ----
+  // Guests never run the engine, so a sound an ABILITY fires only ever reaches
+  // the host's speakers. Card plays and deaths were already reconstructed on
+  // the guest by diffing the board (_relay2v2CardSounds) and status cues ride
+  // their own event, but the distinctive ones — Homelander's laser, Palpatine's
+  // lightning, a trick's own voice — were host-only. (User: "make sure sounds
+  // play for everyone as well.")
+  // Deliberately NOT the generic sfx.play(): that is the UI's own vocabulary,
+  // button clicks and hovers included, and the host's interface noise is not
+  // something to broadcast into three other rooms. Only the four calls that
+  // mean "a card or trick just did something" are relayed, and 'play'/'death'
+  // are skipped because the board diff already covers them — relaying those
+  // would double every card sound on the guest.
+  installSfxBridge() {
+    if (this._sfxBridgeInstalled) return;
+    if (!this.sfx) return;
+    this._sfxBridgeInstalled = true;
+    const self = this;
+    const RELAY = ['playCardSfx', 'playCardAbility', 'playEffectSfx', 'playTrickSfx'];
+    RELAY.forEach((key) => {
+      const fn = this.sfx[key];
+      if (typeof fn !== 'function') return;
+      this.sfx[key] = function (...args) {
+        const isHost = typeof Game !== 'undefined' && Game.onlineRelayRole
+                       && Game.onlineRelayRole() === 'host';
+        const kind = args[1];
+        const alreadyCovered = (key === 'playCardSfx' && (kind === 'play' || kind === 'death'));
+        if (isHost && !alreadyCovered && Game.state && !Game.state._silentSim && !self._sfxReplaying) {
+          // Only the primitives travel — a card argument would not survive, and
+          // none of these sounds need the object, just the name.
+          const payload = args.map(a => (a && typeof a === 'object') ? undefined : a);
+          try { Game.emitFX('sfx', { fn: key, args: payload }); } catch (e) {}
+        }
+        return fn.apply(self.sfx, args);
+      };
+    });
+  },
+  _replaySfx(ev) {
+    if (!ev || !ev.fn || !this.sfx) return;
+    const fn = this.sfx[ev.fn];
+    if (typeof fn !== 'function') return;
+    // Guard against the wrapper re-emitting what it just replayed.
+    this._sfxReplaying = true;
+    try { fn.apply(this.sfx, ev.args || []); } catch (e) {}
+    finally { this._sfxReplaying = false; }
+  },
+
   // Guest side: turn a `sig` event back into a real animation call.
   _replaySigFx(ev) {
     if (!ev || !ev.fn) return;
@@ -11383,6 +11431,10 @@ const UI = {
       }
       // Status cue (Freeze / Fear / Mind Control) relayed from the host — guests
       // only, the host already played it live at the engine call (_statusSfx).
+      if (ev.type === 'sfx') {
+        if (Game.onlineRelayRole && Game.onlineRelayRole() === 'guest') this._replaySfx(ev);
+        continue;
+      }
       if (ev.type === 'statusSfx') {
         if (Game.onlineRelayRole && Game.onlineRelayRole() === 'guest') {
           try { if (this.sfx && this.sfx.play && ev.sound) this.sfx.play(ev.sound); } catch (e) {}
