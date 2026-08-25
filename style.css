@@ -6315,15 +6315,22 @@ body.hit-pause .ai-hand * {
           mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100' preserveAspectRatio='none'><path fill='black' d='M0,0 L100,0 L78,100 L0,100 Z'/></svg>") center/100% 100% no-repeat;
   z-index: -2;
 }
-/* THE OUTLINE — the tab itself. Stroke-only, masked to the tab's own path, so
-   the neon traces the shape exactly instead of a box-shadow approximating it.
-   The bloom is on this layer, not the fill: the light comes off the EDGE. */
+/* THE OUTLINE — the tab's INNER edges only: the angled cut and the bottom run.
+   The top and left edges are deliberately NOT stroked, because the card's own
+   1px border is already sitting on exactly those two lines. Stroking them drew
+   a second line on top of the first and, since a stroke has no border-radius,
+   squared off the card's rounded corner — the little nub poking out past the
+   frame. (Owner: "there shouldnt be anything poking out, if anything it should
+   blend.") Letting the frame BE the tab's outer edge is the blend: the tab now
+   reads as a piece cut out of the card's own border rather than a sticker laid
+   over the corner.
+   The bloom stays on this layer — the light comes off the EDGE, not the fill. */
 .card-cost::after {
   content: '';
   position: absolute; inset: 0;
   background: rgb(var(--cost-neon));
-  -webkit-mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100' preserveAspectRatio='none'><path fill='none' stroke='black' stroke-width='7' stroke-linejoin='miter' d='M0,0 L100,0 L78,100 L0,100 Z'/></svg>") center/100% 100% no-repeat;
-          mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100' preserveAspectRatio='none'><path fill='none' stroke='black' stroke-width='7' stroke-linejoin='miter' d='M0,0 L100,0 L78,100 L0,100 Z'/></svg>") center/100% 100% no-repeat;
+  -webkit-mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100' preserveAspectRatio='none'><path fill='none' stroke='black' stroke-width='7' stroke-linejoin='miter' stroke-linecap='butt' d='M100,0 L78,100 L0,100'/></svg>") center/100% 100% no-repeat;
+          mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100' preserveAspectRatio='none'><path fill='none' stroke='black' stroke-width='7' stroke-linejoin='miter' stroke-linecap='butt' d='M100,0 L78,100 L0,100'/></svg>") center/100% 100% no-repeat;
   filter:
     drop-shadow(0 0 4px rgba(var(--cost-neon), 0.80))
     drop-shadow(0 0 10px rgba(var(--cost-neon), 0.35));
