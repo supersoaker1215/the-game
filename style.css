@@ -5266,11 +5266,32 @@ body.hit-pause .ai-hand * {
   position: relative;
   color: var(--text-body, #e8eef6);
 }
+/* EDGE-TO-EDGE ART, like the hand and the board. The picker inset the card by
+   8px on every side, so the portrait floated in a black mat while the same card
+   in hand runs its art clean to the border — two different objects for one card.
+   (Owner: "for draft cards make sure the art fills the card like the ones in
+   hand / on board.")
+   The padding does not disappear, it MOVES: the card box loses its side and top
+   inset so the portrait reaches the border, and the text block underneath takes
+   the gutter back so the rules copy is not touching the edge. Same shape the
+   in-match tile already uses — `padding: 0 0 30px`, art flush, text inset. */
 .card.draft-card {
   width: 220px !important;
   min-height: 320px;
-  padding: 8px 8px 10px;
+  padding: 0 0 10px;
 }
+/* The gutter the card box gave up. Everything BELOW the portrait carries it. */
+.card.draft-card .card-desc,
+.card.draft-card .status-badges,
+.card.draft-card .card-abilities,
+.card.draft-card .card-active-text { padding-left: 8px; padding-right: 8px; }
+/* The stat orbs are corner-anchored, so they follow the new edge rather than
+   the old inset one. */
+.card.draft-card .stat-circle.stat-atk { left: 8px; }
+.card.draft-card .stat-circle.stat-hp  { right: 8px; }
+/* The portrait now defines the card's top corners, so it has to round with it
+   or the art squares off the two rounded corners above it. */
+.card.draft-card .card-portrait { border-radius: 3px 3px 0 0; }
 /* ONE RULES-TEXT SPEC FOR THE WHOLE DRAFT PICKER.
    Cards and tricks sit side by side on this screen and were set in two
    different voices: cards in JetBrains Mono 9px with a green trigger label,
@@ -41758,6 +41779,84 @@ body.low-fx .badge-asleep { animation: none; }
 .twov2-tracker.is-collapsed .twov2-tk-round { display: none; }
 .twov2-tracker.is-collapsed .twov2-tk-row { display: none; }
 
+/* ---- COMPACT RAIL -------------------------------------------------------
+   It was 176px wide with 6px chips, and in the bottom-right corner that is a
+   quarter of the lower board. Owner: "the turn order block just needs to be
+   smaller to fit in the bottom right corner." Everything shrinks together —
+   width, chip padding, the ordinal, the two type sizes — so the proportions
+   hold and it just reads as the same rail, further away. */
+.twov2-tracker { width: 158px; padding: 6px 6px 7px; border-radius: 10px; }
+.twov2-tk-head { padding-bottom: 6px; gap: 5px; }
+.twov2-tk-title { font-size: 9px; letter-spacing: 0.06em; }
+.twov2-tk-round { font-size: 9px; padding: 0 4px; }
+.twov2-tk-row { gap: 3px; }
+/* SIZED TO THE LONGEST REAL STRINGS, not to a round number. Measured: the name
+   line needs 77px for "I luv Sy (you)" and the play line 68px for "Cards +
+   Tricks", and at the first pass (146px, 12px names) the body had 66px and cut
+   both. The chip pays for the new mic out of its own padding and ordinal rather
+   than out of the words. */
+.twov2-tk-chip { gap: 5px; padding: 5px 6px 5px 6px; }
+.twov2-tk-name { font-size: 11px; }
+.twov2-tk-ord { width: 15px; height: 15px; font-size: 9px; }
+
+
+/* ---- VOICE, INSIDE THE RAIL --------------------------------------------
+   One line at the foot: the state and the one control. The old free-floating
+   panel duplicated every name that is already listed above it. */
+.twov2-tk-voice {
+  display: flex; align-items: center; gap: 6px;
+  margin-top: 6px; padding-top: 6px;
+  border-top: 1px solid rgba(var(--theme-rgb, 79,195,247), 0.18);
+  font: 700 9px/1 'Rajdhani', system-ui, sans-serif;
+  letter-spacing: 0.10em; text-transform: uppercase;
+  color: rgba(var(--theme-rgb, 79,195,247), 0.75);
+}
+.twov2-tk-voice .tkv-label { flex: 1; }
+.twov2-tk-voice.is-live .tkv-label { color: #37d67a; text-shadow: 0 0 7px rgba(55,214,122,0.5); }
+.twov2-tk-voice .tkv-dot {
+  width: 6px; height: 6px; border-radius: 50%; background: #37d67a;
+  box-shadow: 0 0 7px rgba(55,214,122,0.9); flex: 0 0 auto;
+}
+.twov2-tk-voice .tkv-count {
+  font-family: var(--font-mono); font-variant-numeric: tabular-nums;
+  color: rgba(var(--theme-rgb, 79,195,247), 0.95);
+}
+/* Boxless, like every other text control. */
+.twov2-tk-voice .tkv-btn {
+  background: none; border: 0; padding: 0 1px; cursor: pointer;
+  font: 700 9px/1 'Rajdhani', system-ui, sans-serif;
+  letter-spacing: 0.10em; text-transform: uppercase;
+  transition: color 140ms var(--ease-out-soft), text-shadow 140ms var(--ease-out-soft);
+}
+.twov2-tk-voice .tkv-join  { color: rgba(55,214,122,0.92); }
+.twov2-tk-voice .tkv-join:hover:not(:disabled) { color: #8affc0; text-shadow: 0 0 9px rgba(55,214,122,0.8); }
+.twov2-tk-voice .tkv-join:disabled { opacity: 0.5; cursor: default; }
+.twov2-tk-voice .tkv-leave { color: rgba(231,76,60,0.9); }
+.twov2-tk-voice .tkv-leave:hover { color: #ff9c9c; text-shadow: 0 0 9px rgba(231,76,60,0.8); }
+.twov2-tracker.is-collapsed .twov2-tk-voice { display: none; }
+
+/* ---- THE MIC ON A SEAT --------------------------------------------------
+   Present only for someone actually in the call: no glyph means "not on
+   voice", which is a different fact from "on voice, silent". */
+.twov2-tk-mic { flex: 0 0 auto; line-height: 0; color: rgba(var(--theme-rgb, 79,195,247), 0.45); }
+.twov2-tk-mic .tkm { width: 12px; height: 12px; display: block; overflow: visible; }
+.twov2-tk-mic .tkm-body { fill: currentColor; }
+.twov2-tk-mic .tkm-arc, .twov2-tk-mic .tkm-stem {
+  fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round;
+}
+.twov2-tk-mic .tkm-slash {
+  fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; opacity: 0;
+}
+/* TALKING is the one state that has to read from across the table. */
+.twov2-tk-mic.is-talking {
+  color: #6bff9f;
+  filter: drop-shadow(0 0 6px rgba(55,214,122,0.9));
+}
+.twov2-tk-mic.is-muted { color: rgba(231,76,60,0.9); }
+.twov2-tk-mic.is-muted .tkm-arc, .twov2-tk-mic.is-muted .tkm-stem { opacity: 0.35; }
+.twov2-tk-mic.is-muted .tkm-slash { opacity: 1; }
+.twov2-tk-chip.is-talking { border-color: rgba(55,214,122,0.55); }
+
 .twov2-tk-chip {
   position: relative; display: flex; align-items: center; gap: 8px;
   padding: 6px 9px 6px 7px; border-radius: 8px;
@@ -41840,7 +41939,12 @@ body.low-fx .badge-asleep { animation: none; }
 }
 .twov2-tk-name b { color: #ffe08a; font-weight: 700; }
 .twov2-tk-play {
-  font-size: 9px; letter-spacing: 0.06em; text-transform: uppercase;
+  /* 0.02em, not 0.06: measured, "CARDS + TRICKS" needed 82px against 78 of
+     body, and 14 characters of tracking is exactly where those 4px were. The
+     label is a fixed vocabulary of three phrases, so it never needs the air a
+     variable string would — and an ellipsis on a three-word set is worse than
+     tight tracking on it. */
+  font-size: 9px; letter-spacing: 0.02em; text-transform: uppercase;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
   font-weight: 600;
   color: color-mix(in srgb, rgb(var(--theme-rgb, 79,195,247)) 78%, #e8f5ff);
@@ -41870,7 +41974,20 @@ body.low-fx .badge-asleep { animation: none; }
 /* Enemies fill the top bar's centre cell (the 1v1 mini-hand space). */
 .twov2-roster-strip.rc-enemy { width: 100%; height: 100%; justify-content: center; }
 /* Ally sits on the left of the player bar's centre cell, clear of the Done button. */
-.twov2-roster-strip.rc-ally  { position: absolute; left: 6px; top: 50%; transform: translateY(-50%); }
+/* CENTRED IN THE BAR, like the two enemy chips are in theirs. This was
+   `position: absolute; left: 6px` — pinned to the left of a cell that also
+   holds Undo and the End button, so the pill sat wherever those two happened to
+   end and drifted every time the End label changed length. It is a flex ITEM in
+   that cell (the absolute positioning never took, since the cell is not a
+   containing block), so the honest fix is to let flex centre it: take the
+   leftover width and centre the chip inside it.
+   (Owner: "the teammates hand pill needs to be centered.") */
+.twov2-roster-strip.rc-ally {
+  position: static;
+  flex: 1 1 auto;
+  min-width: 0;
+  justify-content: center;
+}
 /* Pure black interior, hue in the EDGES. The old white-alpha border on a
    near-black wash gave these chips no colour of their own, so a row of them
    read as grey furniture. Each side now carries its own light: enemy red, ally

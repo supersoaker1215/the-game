@@ -406,6 +406,29 @@ const Voice = {
     return rows;
   },
 
+  // WHO IS ON VOICE, KEYED BY 2v2 SEAT — for the turn-order rail, which already
+  // draws one row per seat and is therefore the honest place to say "this person
+  // is talking". _roster is keyed by seat already, so the join is direct and no
+  // name-matching guesswork is involved.
+  // Returns {} when voice is off, so the rail can ask unconditionally.
+  seatVoice() {
+    const out = {};
+    if (!this._active) return out;
+    try {
+      this._participants().forEach(r => {
+        if (r.seat) out[r.seat] = { speaking: !!r.speaking, muted: !!r.muted, connected: !!r.connected, isMe: !!r.isMe };
+      });
+    } catch (e) {}
+    return out;
+  },
+  // Compact state for the rail's own header: is voice live, and how many are in.
+  railState() {
+    if (!this._active) return { active: false, joining: !!this._joining, count: 0 };
+    let n = 0;
+    try { n = this._participants().filter(r => r.connected).length; } catch (e) { n = 0; }
+    return { active: true, joining: false, count: n };
+  },
+
   // ONE GLYPH, TWO STATES. This was a pair of emoji (&#128266; / &#128263;),
   // which the OS draws as a photoreal loudspeaker — a rendered object sitting
   // in a UI made entirely of light. Owner: "the sound icon should be a neon
@@ -476,6 +499,25 @@ const Voice = {
     });
     const head = el.querySelector('.vp-live');
     if (head) head.classList.toggle('vp-live-hot', !!this._speaking.me);
+    this._paintRailMics();
+  },
+  // The turn-order rail draws a mic per seat now, and speaking changes many
+  // times a second — so it gets the same treatment this panel does: touch only
+  // the glyphs, never re-render the rail (which would fight the drag handle and
+  // rebuild the chips under the player's cursor).
+  _paintRailMics() {
+    const rail = document.getElementById('twov2-turn-tracker');
+    if (!rail) return;
+    const by = this.seatVoice ? this.seatVoice() : {};
+    rail.querySelectorAll('.twov2-tk-chip').forEach(chip => {
+      const seat = chip.getAttribute('data-seat');
+      const v = seat && by[seat];
+      const mic = chip.querySelector('.twov2-tk-mic');
+      if (!mic) return;
+      mic.classList.toggle('is-talking', !!(v && v.speaking));
+      mic.classList.toggle('is-muted', !!(v && v.muted));
+      chip.classList.toggle('is-talking', !!(v && v.speaking));
+    });
   },
 };
 

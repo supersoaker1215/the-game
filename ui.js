@@ -12521,6 +12521,9 @@ const UI = {
           isAI: !!p.isAI,
           color: teamColor(p.team || ''),
           team: p.team || '',
+          // The seat key, so the painter can ask Voice who is talking without
+          // matching on display names (two players may share one).
+          seat: pk,
         };
       }),
     });
@@ -12556,17 +12559,45 @@ const UI = {
       this._2v2TrackerCollapsed = !!(narrow && !this._2v2TrackerGeom());
     }
     const collapsed = !!this._2v2TrackerCollapsed;
+    // VOICE LIVES HERE NOW. The rail already draws one row per seat, which makes
+    // it the honest place to say "this person is talking" — a separate panel in
+    // the other corner meant looking in two places to answer one question, and
+    // it had its own copy of everyone's name. Voice.seatVoice() is keyed by seat,
+    // so the join is direct. Returns {} when voice is off, so this costs nothing
+    // when nobody has joined. (Owner: "put the voice chat into the turn order box
+    // where you can see a microphone when someone is talking there.")
+    const vSeat = (typeof Voice !== 'undefined' && Voice.seatVoice) ? Voice.seatVoice() : {};
+    const vRail = (typeof Voice !== 'undefined' && Voice.railState) ? Voice.railState() : { active: false, count: 0 };
     const chips = rows.map((r, i) => {
       const state = i < idx ? 'done' : (i === idx ? 'now' : 'next');
-      return `<div class="twov2-tk-chip is-${state}${r.you ? ' is-you' : ''}" style="--tkc:${r.color}" title="${esc(r.name)} \u2014 ${playLabel(r.kind)}${r.team ? ' (Team ' + r.team + ')' : ''}">
+      const v = r.seat && vSeat[r.seat];
+      // The mic only appears for someone actually ON voice — an absent glyph
+      // says "not in the call", which is different from "in the call, silent".
+      const mic = v
+        ? `<span class="twov2-tk-mic${v.speaking ? ' is-talking' : ''}${v.muted ? ' is-muted' : ''}"
+             title="${esc(r.name)} ${v.muted ? 'is muted' : (v.speaking ? 'is talking' : 'is on voice')}">${UI.MIC_SVG}</span>`
+        : '';
+      return `<div class="twov2-tk-chip is-${state}${r.you ? ' is-you' : ''}${v && v.speaking ? ' is-talking' : ''}" data-seat="${esc(r.seat || '')}" style="--tkc:${r.color}" title="${esc(r.name)} \u2014 ${playLabel(r.kind)}${r.team ? ' (Team ' + r.team + ')' : ''}">
         <span class="twov2-tk-ord">${i + 1}</span>
         <span class="twov2-tk-body">
           <span class="twov2-tk-name">${UI.seatNameHTML(r.name, r.isAI)}${r.you ? ' <b>(you)</b>' : ''}</span>
           <span class="twov2-tk-play">${playLabel(r.kind)}</span>
         </span>
+        ${mic}
         ${i === idx ? '<span class="twov2-tk-now">NOW</span>' : ''}
       </div>`;
     }).join('');
+    // One line, at the foot of the rail: join, or leave plus the head-count.
+    const voiceRow = (typeof Voice === 'undefined') ? '' : (vRail.active
+      ? `<div class="twov2-tk-voice is-live">
+           <span class="tkv-dot"></span><span class="tkv-label">Voice</span>
+           <span class="tkv-count">${vRail.count}</span>
+           <button type="button" class="tkv-btn tkv-leave" data-voice="leave">Leave</button>
+         </div>`
+      : `<div class="twov2-tk-voice">
+           <span class="tkv-label">Voice</span>
+           <button type="button" class="tkv-btn tkv-join" data-voice="join"${vRail.joining ? ' disabled' : ''}>${vRail.joining ? 'Connecting…' : 'Join'}</button>
+         </div>`);
     el.style.display = '';
     el.classList.toggle('is-collapsed', collapsed);
     el.innerHTML = `
@@ -12576,7 +12607,17 @@ const UI = {
         <span class="twov2-tk-toggle">${collapsed ? '\u25b8' : '\u25be'}</span>
       </div>
       <div class="twov2-tk-row">${chips}</div>
+      ${voiceRow}
       <div class="twov2-tk-grip"></div>`;
+    el.querySelectorAll('[data-voice]').forEach(b => {
+      b.onclick = (ev) => {
+        // The head is a drag surface and a collapse toggle — neither should fire
+        // because someone reached for Join.
+        ev.stopPropagation();
+        if (typeof Voice === 'undefined') return;
+        if (b.getAttribute('data-voice') === 'join') Voice.join(); else Voice.leave();
+      };
+    });
     this._2v2TrackerMakeMovable(el);
     this._2v2TrackerApplyGeom(el);
   },
@@ -13295,6 +13336,13 @@ const UI = {
     // in 2v2 so the chips own that space.
     const aiMini = document.querySelector('.info-bar.ai-bar #ai-hand');
     if (aiMini) aiMini.style.display = 'none';
+    // The standalone voice panel is redundant in 2v2 — the turn rail carries the
+    // same roster with a mic per seat, and two lists of the same four names in
+    // opposite corners is one list too many. Hidden the same way the 1v1 mini-
+    // hand is, rather than by a body class that does not exist. 1v1 online keeps
+    // its panel: there is no seat rail there to fold into.
+    const vPanel = document.getElementById('voice-panel');
+    if (vPanel) vPanel.style.display = 'none';
     this._paint2v2RosterStrip('twov2-roster-top', '.info-bar.ai-bar .bar-center', enemies.map(pk => chip(pk, false)).join(''), 'rc-enemy');
     this._paint2v2RosterStrip('twov2-roster-bottom', '.info-bar.player-bar .bar-center', ally ? chip(ally, false) : '', 'rc-ally');
   },
@@ -19578,6 +19626,17 @@ const UI = {
   BOT_ICON_SVG: '<svg class="bot-ic" viewBox="0 0 16 16" aria-hidden="true">'
     + '<path d="M8 1.6v2.1"/><rect x="2.6" y="3.7" width="10.8" height="9" rx="2.5"/>'
     + '<path d="M5.9 7.5v1.7M10.1 7.5v1.7"/></svg>',
+  // A mic, stroked in currentColor so the chip's own colour and glow carry it —
+  // the same rule the voice panel's speaker glyph follows. Silent is an outline;
+  // talking lights it; muted crosses it out. One shape, three states.
+  MIC_SVG:
+    '<svg class="tkm" viewBox="0 0 24 24" aria-hidden="true" focusable="false">'
+    + '<rect class="tkm-body" x="9" y="3" width="6" height="11" rx="3"/>'
+    + '<path class="tkm-arc" d="M5.5 11.5a6.5 6.5 0 0 0 13 0"/>'
+    + '<path class="tkm-stem" d="M12 18v3"/>'
+    + '<path class="tkm-slash" d="M4.5 4.5l15 15"/>'
+    + '</svg>',
+
   seatNameHTML(name, isAI) {
     const raw = String(name == null ? '' : name);
     // Strip the legacy prefix (and any stray variation selector / space).
