@@ -1460,7 +1460,7 @@ const Multiplayer4 = {
     'play2v2Card', 'play2v2Trick', 'play2v2Jump', 'end2v2Phase', '2v2DraftPick', 'start2v2',
     'req2v2LaneChoice', '2v2LaneChoiceResult', '2v2CardChoiceResult', '2v2DraftMulligan',
     'req2v2State', '2v2TeamSwap', 'rematch',
-    'resolve2v2BlockTrick', 'skip2v2Jump'
+    'resolve2v2BlockTrick', 'skip2v2Jump', '2v2Redraw'
   ]),
   _handleMsg(msg) {
     if (!msg || typeof msg !== 'object') return;

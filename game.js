@@ -1129,7 +1129,25 @@ const Game = {
   // energy capped at 8 that is 2, then 4, then 8, so the third redraw costs a
   // whole turn and a fourth is impossible. Redraw is meant to be the button you
   // press when your hand is dead, not part of the turn loop.
-  getRedrawCost(owner) {
+  // WHICH SEAT IS THIS REDRAW ABOUT? In 1v1 the answer is the side, and these
+  // four functions keep working exactly as they did. In 2v2 the side is a
+  // shared proxy for a whole TEAM — redrawsUsed, the hand and the energy all
+  // live on the SEAT — so every one of them has to ask a seat instead. The
+  // button always asks about the person at this screen (tt.you); the host
+  // applying a guest's forwarded redraw passes that guest's seat explicitly.
+  // Returns null in 1v1/solo, which is what routes each function back to its
+  // original body.
+  _redrawSeat(seatKey) {
+    if (!this.is2v2 || !this.is2v2()) return null;
+    const tt = this.state && this.state.twoVTwo;
+    if (!tt || !tt.players) return null;
+    const pk = seatKey || tt.you;
+    return (pk && tt.players[pk]) ? pk : null;
+  },
+
+  getRedrawCost(owner, seatKey) {
+    const pk = this._redrawSeat(seatKey);
+    if (pk) return 2 * Math.pow(2, (this.state.twoVTwo.players[pk].redrawsUsed | 0));
     const used = (this.state[owner] && this.state[owner].redrawsUsed) | 0;
     return 2 * Math.pow(2, used);
   },
@@ -1153,17 +1171,40 @@ const Game = {
   // which stopped being true the moment the engine widened and the duplicate
   // did not: the control stayed hidden in the cards phase the engine now
   // permitted. One source, so that comment is true again.
-  redrawPhaseOk(owner) {
+  redrawPhaseOk(owner, seatKey) {
     const s = this.state;
     if (!s || s.gameOver) return false;
+    // 2v2: your own sub-turn, whichever of the three kinds it is. Being the
+    // active player IS that question — the phase-name regex below has no 2v2
+    // spelling to match against, which is why the control never appeared.
+    const pk = this._redrawSeat(seatKey);
+    if (pk) return !!(this._2v2ActivePlayer && this._2v2ActivePlayer() === pk);
     return owner === 'player'
       ? /^player-(cards|tricks|cards-tricks)$/.test(s.phase || '')
       : /^ai-(cards|tricks|cards-tricks)$/.test(s.phase || '');
   },
 
-  redrawBlockedReason(owner) {
+  redrawBlockedReason(owner, seatKey) {
     const s = this.state;
     if (!s || s.gameOver) return 'Not now';
+    const pk = this._redrawSeat(seatKey);
+    if (pk) {
+      const tt = s.twoVTwo, seat = tt.players[pk];
+      if (!this.redrawPhaseOk(owner, pk)) return 'Only on your turn';
+      if (!seat.hand || !seat.hand.length) return 'No cards to redraw';
+      // The 2v2 deck lives on tt, not on state.drawPile (the side proxy only
+      // holds it while a bridge is open), so getDrawPile would read an empty
+      // 1v1 pile here and refuse every redraw.
+      if (!(tt.drawPile || []).length) return 'Draw pile empty';
+      if (this._lexDrawRestriction(this._2v2TeamSide[seat.team]).blocked) return 'Lex Luthor blocks draws';
+      // An open prompt or a mid-resolution ability owns the table; a redraw
+      // landing in that window would draw from a pile another seat's effect is
+      // still walking. Same rule every other 2v2 action already answers to.
+      if (this._2v2ActionsLocked && this._2v2ActionsLocked()) return 'Abilities are resolving';
+      const cost2 = this.getRedrawCost(owner, pk);
+      if (((seat.energy | 0) - (seat.usedEnergy | 0)) < cost2) return `Needs ${cost2} Energy`;
+      return null;
+    }
     const p = s[owner];
     if (!p) return 'Not now';
     if (!this.redrawPhaseOk(owner)) return 'Only on your turn';
@@ -1179,7 +1220,9 @@ const Game = {
     return null;
   },
 
-  redrawCard(owner, card) {
+  redrawCard(owner, card, seatKey) {
+    const pk = this._redrawSeat(seatKey);
+    if (pk) return this._2v2RedrawCard(pk, card);
     const reason = this.redrawBlockedReason(owner);
     if (reason) { this.log(`[REDRAW] ${reason}.`); return false; }
     const p = this.state[owner];
@@ -1225,6 +1268,58 @@ const Game = {
     // once bypassed the Lex guard by calling addToHand directly, and a redraw
     // reaching into the pile itself would repeat it.
     this.drawCards(owner, 1);
+    return true;
+  },
+
+  // 2v2 redraw. Same deal as 1v1 — bin a card, draw a replacement, and the
+  // price doubles every time you use it (2, 4, 8, …) so it stays the button you
+  // press when your hand is dead rather than part of the turn loop. The counter
+  // is per SEAT, so your teammate's redraws never make yours more expensive.
+  // (User: "for 2v2 could you add in the redraw a card for 2 energy and that
+  // keeps doubling each time you use it like in 1v1?")
+  _2v2RedrawCard(seatKey, card) {
+    const tt = this.state && this.state.twoVTwo;
+    const seat = tt && tt.players[seatKey];
+    if (!seat || !card) return false;
+    // GUEST FORWARDS, HOST APPLIES — the same rule playCard and playTrick
+    // follow, and for the same reason: the host owns the deck, so a guest
+    // drawing locally would deal itself a card the host never dealt.
+    if (tt.online && tt.you !== 'p1' && seatKey === tt.you && !(this.state && this.state._silentSim)) {
+      if (typeof Multiplayer4 !== 'undefined' && Multiplayer4.send && card.id != null) {
+        Multiplayer4.send({ t: '2v2Redraw', playerKey: seatKey, cardId: card.id });
+      }
+      return true;
+    }
+    const reason = this.redrawBlockedReason(null, seatKey);
+    if (reason) { this.log(`[REDRAW] ${reason}.`); return false; }
+    // Resolve against the SEAT's own hand — a card id off the wire must never
+    // be trusted to be the object the host is holding.
+    const idx = (seat.hand || []).findIndex(c => c && c.id === card.id);
+    if (idx < 0) return false;
+    const live = seat.hand[idx];
+    const cost = this.getRedrawCost(null, seatKey);
+    const side = this._2v2TeamSide[seat.team];
+    // Inside the bridge: drawCards then pulls from the shared 2v2 pile (not the
+    // empty 1v1 one) and the spend + the new hand read back to this seat.
+    this._2v2WithSideBridge(() => {
+      const p = this.state[side];
+      p.currency -= cost;
+      if (this.state._stats && this.state._stats[side]) this.state._stats[side].energySpent += cost;
+      // Discard BEFORE drawing — drawCards refuses a hand already at max, so
+      // the other order spends the energy and hands back nothing.
+      const i2 = p.hand.indexOf(live);
+      if (i2 > -1) p.hand.splice(i2, 1);
+      p.discardPile.push({
+        name: live.name, cost: live.baseCost || live.cost,
+        type: live.type, abilities: live.abilities, desc: live.desc,
+        _sourceInstance: live,
+      });
+      this.drawCards(side, 1);
+    });
+    seat.redrawsUsed = (seat.redrawsUsed | 0) + 1;
+    this.log(`${seat.name || seatKey} redraws ${live.name} for ${cost} Energy (next redraw: ${this.getRedrawCost(null, seatKey)}).`);
+    if (typeof UI !== 'undefined' && UI.render) UI.render();
+    this._pushOnlineState();
     return true;
   },
 
@@ -4582,15 +4677,40 @@ const Game = {
       if (typeof UI !== 'undefined' && UI.render) UI.render();
       return;
     }
-    // 2v2 has no render or resolution path for the keep/destroy modal — arming
-    // it there just stalls the turn for the full 30s auto-pick window before
-    // keeping anyway. Auto-keep immediately: same outcome (a free stolen card,
-    // the sensible default), no dead wait. Destroy-for-buff is unavailable in
-    // 2v2, exactly as it silently was before (the modal never showed).
+    // 2v2 GETS THE REAL CHOICE. This used to auto-keep with a comment saying
+    // 2v2 "has no render or resolution path for the keep/destroy modal" — true
+    // of state.stolenByBWL, which is a bespoke modal only the 1v1 renderer
+    // knows about. It is NOT true of promptCardChoice, which by now routes to a
+    // named seat, renders on that seat's client, auto-picks for an AI and
+    // queues behind other prompts. So the choice is offered through the prompt
+    // system instead of a second modal, and the player who owns Batman Who
+    // Laughs — host or guest — is the one asked. (User, playing beside a guest
+    // who had just landed him: "he never got a prompt to keep or destroy.")
     if (this.is2v2()) {
-      this.addToHand(opp, card, bwl);
-      this.log(`  [BWL] ${card.name} is kept.`);
-      this.resumeCombatIfWaiting();
+      const _bwlSeat = this._2v2SeatOwning(bwl) || this._2v2SeatOwning(card) || null;
+      const _pick = (choice) => {
+        const destroy = !!(choice && choice.id === 'bwl_destroy');
+        const stillAlive = !!(bwl && bwl.currentHealth > 0 && this.findCardLane(bwl) >= 0);
+        if (destroy && stillAlive) {
+          this.buffCard(bwl, 2, 2);
+          this.log(`  [BWL] ${this.seatLabel(opp)} destroys ${card.name} — Batman Who Laughs gains +2/+2!`);
+        } else {
+          this.addToHand(opp, card, bwl);
+          this.log(`  [BWL] ${this.seatLabel(opp)} keeps ${card.name} in hand!`);
+        }
+        this.resumeCombatIfWaiting();
+        if (typeof UI !== 'undefined' && UI.render) UI.render();
+      };
+      this.promptCardChoice(opp, [
+        { name: `Keep ${card.name}`, desc: 'Take the intercepted card into your hand.', id: 'bwl_keep' },
+        { name: `Destroy ${card.name}`, desc: 'Batman Who Laughs gains +2/+2 instead.', id: 'bwl_destroy' },
+      ], 'Batman Who Laughs — Intercept',
+        `You intercepted ${card.name}. Keep it, or destroy it to grow Batman Who Laughs?`,
+        _pick,
+        // AI seats keep anything expensive and destroy the cheap stuff — the
+        // same rule the non-human branch above already applies.
+        () => ((card.baseCost || card.cost || 0) <= 3 ? 1 : 0),
+        { seat: _bwlSeat, inlineTray: true, forcePrompt: true });
       if (typeof UI !== 'undefined' && UI.render) UI.render();
       return;
     }
@@ -5534,6 +5654,17 @@ const Game = {
           delete card._faceDownOriginals;
           card.isFaceDown = false;
           this.log(`[REVEAL] ${card.name} is revealed in lane ${i + 1}!`);
+          // THE FLIP MAKES A SOUND. A card turning face up is the single most
+          // consequential beat of the round for the people who have been
+          // staring at a blank tile since the card phase, and it happened in
+          // silence. (User: "make sure the sound fires.") The card's own play
+          // cue is the right one — this IS the moment it arrives, as far as
+          // everyone but its owner is concerned — and it rides the sound relay,
+          // so all four seats hear it, not just the host.
+          if (typeof UI !== 'undefined' && UI.sfx && UI.sfx.playCardSfx) {
+            try { UI.sfx.playCardSfx(card.name, 'play', card); } catch (e) {}
+          }
+          if (this.emitFX) { try { this.emitFX('sfx', { fn: 'playCardSfx', args: [card.name, 'play'] }); } catch (e) {} }
           // 2v2: route the revealed card's onPlay (and any prompt it raises)
           // back to the SEAT that played it, so an Invisible Woman teammate's
           // face-down card asks ITS owner, not the host. No-op in 1v1/solo.
@@ -15334,7 +15465,6 @@ const Game = {
       }
     });
     tt._beforeTricksRan = false;   // re-arm the before-tricks pass for this round
-    tt._faceDownRevealed = false;  // …and the face-down flip (see _2v2StartSubPhase)
     tt._freddyChecked = false;     // re-arm Freddy Fazbear's combat-boundary waste check
     // Clear the post-combat marker the moment the new round's card phase begins.
     // The combat watchdog stays armed while this flag is set (it guards the whole
@@ -15474,39 +15604,6 @@ const Game = {
       // All 6 sub-phases done — resolve combat
       this._2v2ResolveCombat();
       return;
-    }
-
-    // FLIP BEFORE ANY TRICK IS PLAYED — not just before the trick-ONLY turns.
-    // The reveal used to ride along with the before-tricks boundary below, which
-    // fires ahead of the first tricks-only seat: positions 5 and 6 of the round.
-    // But the round's FIRST chance to play a trick is position 3, the first
-    // 'cards-tricks' seat — so two players took a whole trick turn against a
-    // board that still had face-down cards on it. In 1v1 the flip happens at
-    // the end of the card phase, before any trick exists; this is the same
-    // moment expressed in 2v2's six-step order. (User: "for invisible woman,
-    // make sure cards flip before the trick phase.")
-    // The before-tricks HOOKS stay where they are — that timing was decided
-    // separately and Galactus / Man-Bat / Art still fire at the trick-only
-    // boundary. This moves the FLIP only.
-    if (!tt._faceDownRevealed) {
-      const _ord = this._2v2ComputePhaseOrder(tt.round || 1);
-      const _cur = _ord[tt.subPhaseIdx || 0] || '';
-      if (_cur.indexOf('tricks') >= 0) {
-        tt._faceDownRevealed = true;
-        // Locked while it resolves: a revealed card's On Play can prompt, and
-        // nobody should act on a board that is still turning over.
-        tt._resolving = true;
-        tt._resolvingAt = Date.now();
-        this._2v2OnlineBroadcast();
-        this.revealFaceDownCards();
-        this.cleanupDead();
-        if (this.hasPendingPrompt && this.hasPendingPrompt()) {
-          this.whenPromptCleared(() => this._2v2StartSubPhase());
-        } else {
-          this._2v2StartSubPhase();
-        }
-        return;
-      }
     }
 
     // BEFORE-TRICKS BOUNDARY. Fire runBeforeTricks (Galactus, Man-Bat, etc.)
@@ -16589,6 +16686,15 @@ const Game = {
         this._2v2CurrentActingPlayer = pk; // track who triggered any ability prompts
         this._2v2OnlinePlayCard(pk, msg.cardIdx, msg.laneIdx, msg.faceDown);
         break;
+      case '2v2Redraw': {
+        if (pk !== activeKey) break;
+        const rSeat = this.state.twoVTwo && this.state.twoVTwo.players[pk];
+        const rCard = rSeat && (rSeat.hand || []).find(c => c && c.id === msg.cardId);
+        if (!rCard) break;
+        this._2v2CurrentActingPlayer = pk;
+        this._2v2RedrawCard(pk, rCard);
+        break;
+      }
       case 'req2v2LaneChoice':
         this._2v2RequestLaneChoice(pk, msg.cardIdx, !!msg.faceDown);
         break;
@@ -17058,7 +17164,35 @@ const Game = {
     // Guests render these as a COUNT and never draw from them (the host does,
     // and the drawn card arrives in a hand), so length is the only thing that
     // has to survive.
+    // A HIDDEN CARD IS HIDDEN FROM YOUR PARTNER TOO. The board travels in full,
+    // so a face-down card's real name, stats and art were sitting in every
+    // client's state — the tile drew a card back, but the identity was one
+    // inspect (or one console line) away. A teammate could simply look.
+    // (User: "dont allow my teammate to look at the hidden cards.")
+    // Blanked for every recipient except the seat that played it, so the owner
+    // still sees their own card and nobody else can read it. Kept as a card
+    // OBJECT with its id, health and owner intact: those drive the lane
+    // occupancy, the back tile and the death sweep, and none of them say what
+    // the card is.
+    const hideFaceDown = (c) => {
+      if (!c || !c.isFaceDown) return c;
+      if (c._2v2PlayedBy && c._2v2PlayedBy === seat) return c;
+      return {
+        id: c.id, owner: c.owner, isFaceDown: true, _hidden: true,
+        name: 'Hidden Card', cost: 0, attack: 0,
+        currentHealth: c.currentHealth, maxHealth: c.maxHealth,
+        abilities: [], baseAbilities: [], desc: '',
+      };
+    };
     const stubPile = (pile) => Array.isArray(pile) ? pile.map(() => ({})) : pile;
+    // Lanes are rebuilt only when they actually hold a hidden card, so a normal
+    // board costs nothing extra.
+    if (Array.isArray(out.lanes) && out.lanes.some(l => l && ((l.player && l.player.isFaceDown) || (l.ai && l.ai.isFaceDown)))) {
+      out.lanes = out.lanes.map(l => {
+        if (!l || (!(l.player && l.player.isFaceDown) && !(l.ai && l.ai.isFaceDown))) return l;
+        return Object.assign({}, l, { player: hideFaceDown(l.player), ai: hideFaceDown(l.ai) });
+      });
+    }
     out.twoVTwo = Object.assign({}, tt, {
       players, you: seat,
       drawPile: stubPile(tt.drawPile),

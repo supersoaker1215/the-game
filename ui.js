@@ -21032,10 +21032,17 @@ const UI = {
         }
         // Mirror of the AI-side default-onclick — tap your own board
         // card to open the inspect popup. cc / lc branches still
-        // override during targeting prompts. lane.player can't be
-        // face-down for the player's own side, so no face-down
-        // guard needed here.
-        cardEl.onclick = () => UI.openCardInspect(plDisplayCard);
+        // override during targeting prompts.
+        // THE FACE-DOWN GUARD IS NOT OPTIONAL ON THIS SIDE ANY MORE. In 1v1
+        // the player row only ever held YOUR cards, so a face-down tile here
+        // was always your own and inspecting it leaked nothing. In 2v2 this
+        // row is the whole TEAM, so your partner's hidden card sits in it —
+        // and tapping it opened the full card. (User: "dont allow my teammate
+        // to look at the hidden cards.") Only the seat that played it may
+        // look; for everyone else the tile is inert until it flips.
+        if (!plDisplayCard.isFaceDown || this._2v2MaySeeHidden(plDisplayCard)) {
+          cardEl.onclick = () => UI.openCardInspect(plDisplayCard);
+        }
         if (cc && targetCardIds.has(plDisplayCard.id)) {
           cardEl.classList.add('target-highlight');
           const idx = cc.cards.findIndex(c => c.id === plDisplayCard.id);
@@ -26035,6 +26042,18 @@ const UI = {
   // counted their OWN team's Surfer against them while ignoring the enemy's.
   // (User: "for silver surfer, any in-hand changes to stats or cost, make sure
   // they show up in guest and host hands.")
+  // May the person at this screen see what a face-down card actually is?
+  // Only its own player. Solo/1v1 keeps its old behaviour (there is nobody
+  // else on your side of the board), and the host is NOT special here — the
+  // host running the match is not a licence to read a hidden card.
+  _2v2MaySeeHidden(card) {
+    const tt = Game.state && Game.state.twoVTwo;
+    if (!tt || !(Game.is2v2 && Game.is2v2())) return true;
+    const seat = tt.you || null;
+    if (!seat) return false;
+    return !!(card && card._2v2PlayedBy === seat);
+  },
+
   _localCardCost(card) {
     if (!card) return 0;
     const side = (this._2v2LocalSide && this._2v2LocalSide()) || 'player';
@@ -26630,9 +26649,31 @@ const UI = {
     const s = Game.state;
     const blocked = Game.redrawBlockedReason('player');
     if (blocked) { this.toast ? this.toast(blocked) : null; return; }
-    const hand = (s.player.hand || []).slice();
+    // 2v2: your cards live in YOUR SEAT's hand, not the side proxy (which is
+    // whichever teammate the bridge last pointed at), and the pick has to be
+    // asked of your seat so the host's copy of the prompt cannot answer it.
+    const _tt = s.twoVTwo;
+    const _seat = (_tt && Game.is2v2 && Game.is2v2() && _tt.players) ? _tt.players[_tt.you] : null;
+    const _side = _seat ? (this._2v2LocalSide() || 'player') : 'player';
+    const hand = ((_seat ? _seat.hand : s.player.hand) || []).slice();
     if (!hand.length) return;
     const cost = Game.getRedrawCost('player');
+    if (_seat) {
+      Game.promptCardChoice(_side, hand, 'Redraw',
+        `Choose a card to bin and replace — ${cost} Energy`,
+        (card) => {
+          if (!card) return;
+          Game.redrawCard(_side, card, _tt.you);
+          this.render();
+        },
+        null,
+        // localOnly for the same reason 1v1 needs it: "which card do you want
+        // to bin" is a question only this client armed, so forwarding the
+        // ANSWER would name a prompt the host has never heard of. The answer
+        // travels as the redraw action itself instead.
+        { forced: hand.length === 1, localOnly: true, inlineTray: true, seat: _tt.you });
+      return;
+    }
     Game.promptCardChoice('player', hand, 'Redraw',
       `Choose a card to bin and replace — ${cost} Energy`,
       (card) => {
