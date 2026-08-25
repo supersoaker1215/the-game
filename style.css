@@ -6630,13 +6630,36 @@ body.hit-pause .ai-hand * {
   display: flex; justify-content: space-between; align-items: center;
   margin: 2px -2px 2px -2px; padding: 0 2px;
 }
-/* Stat orbs — moved INSIDE the card frame per user feedback. ATK is
-   now a TRIANGLE in the bottom-left (right-pointing — reads as a
-   "strike" arrow). HP is a HEART in the bottom-right (universal
-   visual for life). Both anchored 4px in from the card edge. The
-   number renders OVER the shape via a transparent backdrop on the
-   element + the shape drawn via clip-path. */
+/* ============================================================
+   ATK / HP ORBS — SQUARE PLATE, CORNER TICKS
+   ============================================================
+   Owner picked box 12 off the shape sheet: a square plate with the frame
+   broken back to four corner ticks. It is the corner-bracket language he
+   liked in the boxless round, but kept as a BOX — which matters, because the
+   boxless version failed for a reason worth writing down: the dark plate is
+   what holds the numeral up over busy art, and a chip around a number reads
+   as A STAT where a bare numeral reads as annotation.
+
+   THE SHAPE LIVES IN TWO VARS. ATK and HP used to carry identical copies of
+   the fill mask and the stroke mask, each written twice for -webkit- — the
+   same path in four places, four more to keep in sync. Changing the badge
+   shape is now two lines, which is the whole reason the last three shape
+   experiments were painful.
+
+   The viewBox is 100x100 because the plate is square. Aspect matched, so one
+   stroke-width renders identically on the horizontal arms and the vertical
+   ones; mismatch it and preserveAspectRatio='none' scales the axes apart and
+   the corners come out lopsided (see the cost tab, which is width:auto and
+   therefore needs two pre-compensated paths instead).
+
+   stroke-width 10 of 100 puts the tick at 2.2px on the 22px base plate —
+   the card's own border is 2px, so the tick reads as the frame continuing
+   into the badge rather than as a second, competing weight. It scales with
+   the plate, so the draft tile's larger orb gets a proportionally larger
+   tick rather than a hairline. */
 .stat-circle {
+  --stat-fill: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100' preserveAspectRatio='none'><path fill='black' d='M0,0 L100,0 L100,100 L0,100 Z'/></svg>");
+  --stat-line: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100' preserveAspectRatio='none'><path fill='none' stroke='black' stroke-width='10' stroke-linejoin='miter' stroke-linecap='butt' d='M0,26 L0,0 L26,0 M74,0 L100,0 L100,26 M100,74 L100,100 L74,100 M26,100 L0,100 L0,74'/></svg>");
   width: 22px; height: 22px;
   display: flex; align-items: center; justify-content: center;
   font-size: 11px; font-weight: 700; z-index: 4;
@@ -6647,7 +6670,26 @@ body.hit-pause .ai-hand * {
   font-variant-numeric: tabular-nums;
   text-shadow: 0 0 4px rgba(0,0,0,0.95), 0 1px 2px rgba(0,0,0,0.85);
 }
-/* ATK — chamfered-octagon badge (green). */
+/* The plate — one rule for both sides; only the glow colour differs. */
+.stat-atk::before,
+.stat-hp::before {
+  content: '';
+  position: absolute; inset: 0;
+  background: rgba(0, 8, 14, 0.62);
+  -webkit-mask: var(--stat-fill) center/100% 100% no-repeat;
+          mask: var(--stat-fill) center/100% 100% no-repeat;
+  z-index: -2;
+}
+/* The four corner ticks. */
+.stat-atk::after,
+.stat-hp::after {
+  content: '';
+  position: absolute; inset: 0;
+  -webkit-mask: var(--stat-line) center/100% 100% no-repeat;
+          mask: var(--stat-line) center/100% 100% no-repeat;
+  z-index: -1;
+  pointer-events: none;
+}
 .stat-atk {
   left: 4px;
   color: #7ee8a5;
@@ -6655,27 +6697,9 @@ body.hit-pause .ai-hand * {
     0 1px 0 rgba(0,0,0,0.95),
     0 -0.5px 0 rgba(46,204,113,0.40),
     0 0 4px rgba(46,204,113,0.50);
-  font-family: var(--font-mono);
 }
-.stat-atk::before {
-  content: '';
-  position: absolute; inset: 0;
-  background: rgba(0, 8, 14, 0.62);
-  -webkit-mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100' preserveAspectRatio='none'><path fill='black' d='M16,0 L84,0 L100,16 L100,84 L84,100 L16,100 L0,84 L0,16 Z'/></svg>") center/100% 100% no-repeat;
-          mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100' preserveAspectRatio='none'><path fill='black' d='M16,0 L84,0 L100,16 L100,84 L84,100 L16,100 L0,84 L0,16 Z'/></svg>") center/100% 100% no-repeat;
-  filter: drop-shadow(0 0 3px rgba(46,204,113,0.45));
-  z-index: -2;
-}
-.stat-atk::after {
-  content: '';
-  position: absolute; inset: 0;
-  background: rgba(46,204,113,0.95);
-  -webkit-mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100' preserveAspectRatio='none'><path fill='none' stroke='black' stroke-width='8' stroke-linejoin='round' d='M16,0 L84,0 L100,16 L100,84 L84,100 L16,100 L0,84 L0,16 Z'/></svg>") center/100% 100% no-repeat;
-          mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100' preserveAspectRatio='none'><path fill='none' stroke='black' stroke-width='8' stroke-linejoin='round' d='M16,0 L84,0 L100,16 L100,84 L84,100 L16,100 L0,84 L0,16 Z'/></svg>") center/100% 100% no-repeat;
-  z-index: -1;
-  pointer-events: none;
-}
-/* HP — chamfered-octagon badge (red). */
+.stat-atk::before { filter: drop-shadow(0 0 3px rgba(46,204,113,0.45)); }
+.stat-atk::after  { background: rgba(46,204,113,0.95); }
 .stat-hp {
   right: 4px;
   color: #f1948a;
@@ -6683,26 +6707,9 @@ body.hit-pause .ai-hand * {
     0 1px 0 rgba(0,0,0,0.95),
     0 -0.5px 0 rgba(231,76,60,0.40),
     0 0 4px rgba(231,76,60,0.50);
-  font-family: var(--font-mono);
 }
-.stat-hp::before {
-  content: '';
-  position: absolute; inset: 0;
-  background: rgba(0, 8, 14, 0.62);
-  -webkit-mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100' preserveAspectRatio='none'><path fill='black' d='M16,0 L84,0 L100,16 L100,84 L84,100 L16,100 L0,84 L0,16 Z'/></svg>") center/100% 100% no-repeat;
-          mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100' preserveAspectRatio='none'><path fill='black' d='M16,0 L84,0 L100,16 L100,84 L84,100 L16,100 L0,84 L0,16 Z'/></svg>") center/100% 100% no-repeat;
-  filter: drop-shadow(0 0 3px rgba(231,76,60,0.45));
-  z-index: -2;
-}
-.stat-hp::after {
-  content: '';
-  position: absolute; inset: 0;
-  background: rgba(231,76,60,0.95);
-  -webkit-mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100' preserveAspectRatio='none'><path fill='none' stroke='black' stroke-width='8' stroke-linejoin='round' d='M16,0 L84,0 L100,16 L100,84 L84,100 L16,100 L0,84 L0,16 Z'/></svg>") center/100% 100% no-repeat;
-          mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100' preserveAspectRatio='none'><path fill='none' stroke='black' stroke-width='8' stroke-linejoin='round' d='M16,0 L84,0 L100,16 L100,84 L84,100 L16,100 L0,84 L0,16 Z'/></svg>") center/100% 100% no-repeat;
-  z-index: -1;
-  pointer-events: none;
-}
+.stat-hp::before { filter: drop-shadow(0 0 3px rgba(231,76,60,0.45)); }
+.stat-hp::after  { background: rgba(231,76,60,0.95); }
 /* Buff / debuff indicators. */
 .stat-circle.stat-buffed,
 .stat-circle.stat-debuffed {
