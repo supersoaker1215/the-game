@@ -11895,13 +11895,30 @@ const UI = {
     // Filter to candidates that need the tray: skip the healthbar
     // marker (wired separately above) AND skip anything already
     // glowing in place.
+    // IN 2v2 THE TRAY IS THE ONLY WAY TO ANSWER. This filter exists because the
+    // 1v1 board renders a prompt's on-board options as clickable, glowing
+    // targets, so putting them in a tray as well would be duplicate UI. The 2v2
+    // board renderers do no such thing — they wire no cardChoicePick handler
+    // and paint no target-highlight anywhere (renderBoard has 16 of them;
+    // _render2v2OnlineBoard has none). So in 2v2 this filter removed the ONLY
+    // interactive copy of the option and the prompt became unanswerable: the
+    // banner named a choice with nothing on screen to click.
+    // That is why Deathstroke, Gorilla Grodd and Magneto each had to be given
+    // `inlineTray: true` by hand — three patches for one missing rule. Darkseid
+    // is the same bug: his Omega Beam picks its target from cards standing on
+    // the board, so the pick silently could not be made and the beam ran on the
+    // 30s auto-pick. (User: "he played darkseid and wasnt able to choose how
+    // much damage he wanted to split up and where.")
+    // Made a rule instead of a fourth patch, so the next board-target ability
+    // is answerable in 2v2 without anyone having to remember this.
+    const in2v2 = !!(Game.is2v2 && Game.is2v2());
     const unmatched = cc.cards.filter(c => {
       if (c.id === '_healthbar_mc') return false;
       // faceDown choices (Deadpool steal) must always show in the tray —
       // the enemy hand cards are in visibleIds but aren't visible to the
       // player, so skip the on-screen filter for face-down prompts.
       // inlineTray forces ALL choices into the tray regardless of board visibility.
-      if (!cc.faceDown && !cc.inlineTray && c.id !== undefined && visibleIds.has(c.id)) return false;
+      if (!in2v2 && !cc.faceDown && !cc.inlineTray && c.id !== undefined && visibleIds.has(c.id)) return false;
       return true;
     });
     if (!unmatched.length) return;
