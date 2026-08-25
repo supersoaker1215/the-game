@@ -426,7 +426,7 @@ const CARD_DEFS = [
   // ==================== COST 8 ====================
   { name: "Apocalypse", cost: 7, attack: 5, health: 6, type: "villain",
     abilities: [],
-    desc: "When Played: Summon a random 1-cost card in any lane. Give each card in your hand a random keyword — Armor 1, Evade 1, Bullseye, or Overdrive. Each Turn: Permanently remove 1 ATK from 2 random enemies." },
+    desc: "When Played: Summon a random 1-cost card in any lane. Give each card in one hand — yours, or in 2v2 a teammate's — a random keyword: Armor 1, Evade 1, Bullseye, or Overdrive. Each Turn: Permanently remove 1 ATK from 2 random enemies." },
   { name: "Darth Vader", cost: 8, attack: 6, health: 7, type: "villain",
     abilities: ["Armor 1", "Unresistible 1"],
     desc: "When Played: Move an enemy to an empty lane. Fear 1 an enemy. Deal 7 damage to a chosen enemy, then pick one direction — the chain runs through adjacent enemies for 1 less damage each step." },

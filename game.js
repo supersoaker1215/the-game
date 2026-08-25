@@ -10972,6 +10972,38 @@ const Game = {
       { inlineTray: true });
   },
 
+  // The ALLY counterpart of _2v2ChooseEnemySeat: "which of us gets this?".
+  // A team is two people with two separate hands, so a card that hands out a
+  // benefit has a real decision to make that simply does not exist in 1v1 —
+  // and doing it for both seats is a different, much stronger card than the one
+  // printed. (User, on Apocalypse: "make sure ... you can choose whos hand to
+  // buff, not both.") cb(null) outside 2v2 online, so the caller keeps its 1v1
+  // path unchanged; the caster's own seat is offered first.
+  _2v2ChooseAllySeat(owner, title, desc, cb, sourceCard) {
+    const tt = this.state && this.state.twoVTwo;
+    if (!this.is2v2() || !tt || !tt.online || !tt.players) { cb(null); return; }
+    const actingKey = (sourceCard && sourceCard._2v2PlayedBy)
+      || this._2v2CurrentActingPlayer || this._2v2ActivePlayer();
+    const myTeam = tt.players[actingKey] ? tt.players[actingKey].team : null;
+    if (!myTeam) { cb(null); return; }
+    // Caster first, then the teammate — the common answer is "me", and it
+    // should be the one your eye lands on.
+    const allyKeys = this._2v2SLOTS.filter(k => tt.players[k] && tt.players[k].team === myTeam)
+      .sort((a, b) => (a === actingKey ? -1 : b === actingKey ? 1 : 0));
+    if (!allyKeys.length) { cb(null); return; }
+    if (allyKeys.length === 1) { cb(allyKeys[0]); return; }
+    const tiles = allyKeys.map(k => ({
+      name: tt.players[k].name || k,
+      desc: (k === actingKey ? 'You' : 'Teammate') + ' · ' + ((tt.players[k].hand || []).length) + ' cards in hand',
+      _playerKey: k, _isPlayerTile: true,
+    }));
+    this.promptCardChoice(owner, tiles, title || 'Choose a teammate',
+      desc || 'Whose hand should this affect?',
+      (picked) => { if (picked && picked._playerKey) cb(picked._playerKey); },
+      (cards) => cards[0],
+      { inlineTray: true, seat: actingKey || null });
+  },
+
   // Battle-log helpers for the prompt-routing line above.
   _promptLabel(title) { return '"' + String(title == null ? '?' : title) + '"'; },
   _2v2SeatName(seat) {

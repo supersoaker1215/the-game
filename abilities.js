@@ -4631,24 +4631,41 @@ const CARD_ABILITIES = {
         G.log(`Apocalypse raises ${horseman.name}!`);
       }
       const KEYWORDS = ["Armor 1", "Evade 1", "Bullseye", "Overdrive"];
-      // 10-cost titans don't get handouts — same exemption logic as
-      // auto-Untrickable, so Doomsday (skipAutoUntrickable) still
-      // qualifies despite his 12 starting cost.
-      G.state[self.owner].hand.filter(card =>
-        // Environments are excluded outright — they never fight, so a combat
-        // keyword on one is noise. applyAbilities refuses them too, but doing
-        // it here as well keeps the phantom entry out of card.abilities and
-        // stops the log claiming a grant that never happened.
-        !card.isEnvironment &&
-        (card.skipAutoUntrickable || (card.baseCost || card.cost || 0) < 10)
-      ).forEach(card => {
-        const kw = KEYWORDS[Math.floor(Game.rng() * KEYWORDS.length)];
-        if (!card.abilities.includes(kw)) card.abilities.push(kw);
-        G.applyAbilities(card);
-        G.log(`[APOCALYPSE] ${card.name} permanently gains ${kw}.`);
-      });
-      // Blue empower haze rolls over your whole hand as every card is charged.
-      if (typeof UI !== 'undefined' && UI._fxHandHaze) { try { UI._fxHandHaze(self.owner, { color: '#4aa3ff' }); } catch (e) {} }
+      // WHOSE hand? In 1v1 there is only one answer. In 2v2 a team is two
+      // people holding two separate hands, so the empowerment is a real choice
+      // the caster gets to make — and handing it to BOTH seats would be a
+      // different, much stronger card than the one printed. (User: "make sure
+      // for apocalypse you can choose whos hand to buff, not both.")
+      // seatKey is null outside 2v2 online, where the side proxy IS your hand.
+      const empower = (seatKey) => {
+        const tt = G.state && G.state.twoVTwo;
+        const holder = (seatKey && tt && tt.players[seatKey]) ? tt.players[seatKey] : G.state[self.owner];
+        const whose = (seatKey && tt && tt.players[seatKey]) ? `${tt.players[seatKey].name || seatKey}'s` : 'your';
+        // 10-cost titans don't get handouts — same exemption logic as
+        // auto-Untrickable, so Doomsday (skipAutoUntrickable) still
+        // qualifies despite his 12 starting cost.
+        (holder.hand || []).filter(card =>
+          // Environments are excluded outright — they never fight, so a combat
+          // keyword on one is noise. applyAbilities refuses them too, but doing
+          // it here as well keeps the phantom entry out of card.abilities and
+          // stops the log claiming a grant that never happened.
+          !card.isEnvironment &&
+          (card.skipAutoUntrickable || (card.baseCost || card.cost || 0) < 10)
+        ).forEach(card => {
+          const kw = KEYWORDS[Math.floor(Game.rng() * KEYWORDS.length)];
+          if (!card.abilities.includes(kw)) card.abilities.push(kw);
+          G.applyAbilities(card);
+          G.log(`[APOCALYPSE] ${card.name} in ${whose} hand permanently gains ${kw}.`);
+        });
+        // Blue empower haze rolls over the empowered hand as it is charged.
+        if (typeof UI !== 'undefined' && UI._fxHandHaze) { try { UI._fxHandHaze(self.owner, { color: '#4aa3ff' }); } catch (e) {} }
+      };
+      if (G._2v2ChooseAllySeat) {
+        G._2v2ChooseAllySeat(self.owner, 'Apocalypse — Empower',
+          'Choose whose hand gains the keywords', (seat) => empower(seat), self);
+      } else {
+        empower(null);
+      }
     },
     onTurnStart(G, self) {
       if (self.currentHealth <= 0) return;
