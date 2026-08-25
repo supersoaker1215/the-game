@@ -31409,7 +31409,8 @@ function laneChoicePick(laneIdx) {
     const actor = lc._2v2ActingPlayer;
     const you = s.twoVTwo.you;
     if (actor && actor !== you) return; // not my choice to make
-    if (actor && you !== 'p1') {
+    // A guest never resolves locally, stamped or not — see cardChoicePick.
+    if (you !== 'p1') {
       // I'm the correct guest — send result to host for authoritative resolution
       if (typeof Multiplayer4 !== 'undefined') Multiplayer4.send({ t: '2v2LaneChoiceResult', playerKey: you, laneIdx });
       return;
@@ -31438,7 +31439,7 @@ function promptDeclinePick(kind) {
   if (Game.is2v2() && s.twoVTwo && s.twoVTwo.online) {
     const actor = p._2v2ActingPlayer, you = s.twoVTwo.you;
     if (actor && actor !== you) return;
-    if (actor && you !== 'p1') {
+    if (you !== 'p1') {   // a guest never resolves locally — see cardChoicePick
       if (typeof Multiplayer4 !== 'undefined') {
         Multiplayer4.send({ t: kind === 'lane' ? '2v2LaneChoiceResult' : '2v2CardChoiceResult', playerKey: you, decline: true });
       }
@@ -31475,7 +31476,12 @@ function cardChoicePick(idx) {
     const actor = cc._2v2ActingPlayer;
     const you = s.twoVTwo.you;
     if (actor && actor !== you) return; // not my choice to make
-    if (actor && you !== 'p1') {
+    // A GUEST NEVER RESOLVES LOCALLY, STAMPED OR NOT. The `actor &&` used to
+    // gate this: an unstamped prompt fell straight through to the local resolve
+    // below, which mutates only this client's display copy — the host never
+    // learned the answer, kept its own copy of the prompt armed, and the table
+    // froze on a prompt that looked, here, like it had been answered.
+    if (you !== 'p1') {
       if (typeof Multiplayer4 !== 'undefined') Multiplayer4.send({ t: '2v2CardChoiceResult', playerKey: you, idx });
       return;
     }

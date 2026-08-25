@@ -6139,6 +6139,11 @@ const Game = {
     // from the tag recorded when MC was applied — promptCardChoice then routes
     // the prompt to that client (an AI-held seat auto-picks via threatPicker).
     const _tt2v2 = this.state && this.state.twoVTwo;
+    // Carried to the prompt as options.seat below. Combat is the single place
+    // where the acting-seat global is least trustworthy — lanes resolve across
+    // async gaps — so the caster's seat is DECLARED on the prompt rather than
+    // read back off the global when the prompt is finally armed.
+    let _mcPromptSeat = null;
     if (_tt2v2 && _tt2v2.online) {
       // The MC targeting prompt belongs to the seat that CAST the mind control,
       // NEVER the victim's owner. Combat stamps _2v2CurrentActingPlayer to
@@ -6150,6 +6155,7 @@ const Game = {
       // path that never tagged one — any seat on the controller's team, so the
       // prompt can never land on the victim's side.
       this._2v2CurrentActingPlayer = card._mcSeat || this._2v2SeatForSide(controller) || null;
+      _mcPromptSeat = this._2v2CurrentActingPlayer;
     }
     if (this.isHuman(controller)) {
       // ALWAYS prompt the human controller — even when only 1 ally
@@ -6184,7 +6190,8 @@ const Game = {
         // doubling and Yoda's combined strike).
         `Choose which of ${this.seatPossessive(card.owner)} cards ${card.name} (${this._cardEffectiveAtk(card)} ATK) attacks`,
         (pick) => { callback(pick); },
-        threatPicker);
+        threatPicker,
+        _mcPromptSeat ? { seat: _mcPromptSeat } : null);
     } else {
       // AI controller — auto-pick highest-threat ally on victim's side.
       const threatPicker = (cards) => cards.slice().sort((a, b) =>
@@ -11097,11 +11104,14 @@ const Game = {
       // combat / death hooks raise prompts with neither cap nor driving set).
       // VALIDATED against the owning team. A stale global must never make a
       // prompt land on the opposing side — derive a correct seat instead.
-      let _actor = _cap || this._2v2AIDriving || this._2v2SeatForSide(owner);
+      // options.seat — the owning seat DECLARED by the caller; see the long note
+      // in promptCardChoice. Same hazard, same cure.
+      let _actor = (options && options.seat) || _cap || this._2v2AIDriving || this._2v2SeatForSide(owner);
       if (_actor && !this._2v2SeatOnSide(_actor, owner)) {
         _actor = this._2v2SeatForSide(owner);
       }
-      if (this.is2v2() && this.state.twoVTwo && this.state.twoVTwo.online && _actor) {
+      if (this.is2v2() && this.state.twoVTwo && this.state.twoVTwo.online) {
+        if (!_actor) _actor = 'p1';   // never unowned — see promptCardChoice
         // An AI filler seat has no remote client to answer — the driving
         // authority resolves it here with a sensible auto-pick (first open lane).
         if (this._2v2SeatIsAI(_actor) && this._2v2IsAIAuthority()) {
@@ -11242,7 +11252,28 @@ const Game = {
     // ("Anti-Venom MAY move an ally") gets an explicit opt-out button in the
     // banner, and never auto-resolves just because one candidate is left.
     const declineLabelC = (options && options.declineLabel) || null;
-    if (this.isHuman(owner) && (cards.length > 1 || forcePrompt || declineLabelC) && !forcedChoice) {
+    // options.seat — THE OWNING SEAT, DECLARED BY THE CALLER, NOT DERIVED HERE.
+    // Every other route to a seat in this function is a guess made from mutable
+    // globals (_2v2CurrentActingPlayer, _2v2AIDriving) or from the owning TEAM,
+    // and a guess is wrong exactly when a card prompts a seat that is not the
+    // one whose sub-phase it is. Symbiote Spider-Man does that four times in a
+    // row: it cycles ALL FOUR hands the moment it lands. When the guess missed,
+    // _2v2SeatForSide handed the prompt to "the first human on that team" — the
+    // teammate — and the wrong player answered for someone else's hand; when it
+    // missed harder the prompt went out unowned and the host's 30s timer picked
+    // a card for them. (User, as the guest: "it auto-clicked one of my cards for
+    // me, and i never received a prompt at all.") A declared seat cannot drift:
+    // it survives the deferral queue (which re-passes `options`) and every async
+    // gap between arming the prompt and answering it.
+    const _2v2Online = !!(this.is2v2 && this.is2v2() && this.state.twoVTwo && this.state.twoVTwo.online);
+    const _seatOpt = (options && options.seat) || null;
+    // A named HUMAN seat gets a real prompt even if isHuman(owner) says
+    // otherwise — the side proxy's isHuman flag describes a SIDE, and in 2v2 a
+    // side is two people. Falling through to the AI branch below is what picks
+    // a card with no prompt at all.
+    const _seatIsHuman = !!(_2v2Online && _seatOpt && this.state.twoVTwo.players[_seatOpt]
+                            && !this.state.twoVTwo.players[_seatOpt].isAI);
+    if ((this.isHuman(owner) || _seatIsHuman) && (cards.length > 1 || forcePrompt || declineLabelC) && !forcedChoice) {
       // localOnly: a CLIENT-SIDE prompt the engine/host knows nothing about
       // (currently the Invisible Woman face-up/face-down question, asked before
       // the play is submitted). A guest must resolve these locally — forwarding
@@ -11267,13 +11298,22 @@ const Game = {
       // death prompt lands on the right team instead of defaulting to the host.
       // VALIDATED against the owning team. A stale global must never make a
       // prompt land on the opposing side — derive a correct seat instead.
-      let _actor = _cap || this._2v2AIDriving || this._2v2SeatForSide(owner);
+      let _actor = _seatOpt || _cap || this._2v2AIDriving || this._2v2SeatForSide(owner);
       if (_actor && !this._2v2SeatOnSide(_actor, owner)) {
         _actor = this._2v2SeatForSide(owner);
       }
-      if (this.is2v2() && this.state.twoVTwo && this.state.twoVTwo.online && _actor) {
+      if (_2v2Online) {
+        // NEVER LEAVE A 2v2 PROMPT UNOWNED. An unstamped prompt reads as
+        // "belongs to whoever is looking" on all four clients, and — worse —
+        // fell past this block into the host's 30s auto-pick, which answered it
+        // with cards[0] for a player who was never shown it. The host owns
+        // anything that cannot be attributed, so a mis-derivation is a wrong
+        // audience at worst, never a card played by a timer.
+        if (!_actor) _actor = 'p1';
         // AI filler seat: no remote client — the driving authority auto-picks
         // via the ability's own aiPicker (falls back to the first candidate).
+        // A seat that was NAMED by the caller is never auto-picked here unless
+        // that seat is genuinely an AI filler.
         if (this._2v2SeatIsAI(_actor) && this._2v2IsAIAuthority()) {
           const pick = (typeof aiPicker === 'function') ? aiPicker(cards) : cards[0];
           this.state.pendingCardChoice = null;

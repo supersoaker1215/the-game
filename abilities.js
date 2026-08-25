@@ -1038,7 +1038,15 @@ const CARD_ABILITIES = {
             const tiles = G._2v2SLOTS
               .filter(pk => tt.players[pk] && tt.players[pk].team)
               .map(pk => ({
-                name: (pk === tt.you ? 'You' : (tt.players[pk].name || pk)),
+                // ALWAYS THE SEAT'S REAL NAME. This said "You" for `tt.you`,
+                // and `tt.you` on the machine that BUILDS these tiles is the
+                // host — so the tray went out with the host's own tile reading
+                // "You" to all four players, while the seat actually answering
+                // (actingSeat, below) was named normally. The picker disagreed
+                // with the turn-order panel sitting right next to it. (User:
+                // "the names were wrong here, fix this to match the names.")
+                // Which tile is yours is already said once, in the desc.
+                name: tt.players[pk].name || pk,
                 desc: `Team ${tt.players[pk].team}${pk === actingSeat ? ' · this is you' : ''}`,
                 _seat: pk, _isPlayerTile: true,
               }));
@@ -2144,6 +2152,14 @@ const CARD_ABILITIES = {
             }
             finalizeDraw();
           } else {
+            // { seat: seatKey } — NAME the seat instead of leaving the engine to
+            // infer it. This is the card that proves inference cannot work: the
+            // shuffle asks all four hands in turn, so three of the four prompts
+            // are raised for someone whose sub-phase it is NOT, and the engine's
+            // fallback ("the first human on that team") is then guaranteed to
+            // hand a player's own hand to their teammate. Owner, as the guest:
+            // "it auto-clicked one of my cards for me, and i never received a
+            // prompt at all."
             G.promptCardChoice(seatSide, [...hand], "Symbiote Spider-Man — Shuffle",
               "Choose 1st card to shuffle back into the deck (pick 2 total)", (c1) => {
                 const i1 = hand.findIndex(c => c.id === c1.id);
@@ -2154,8 +2170,8 @@ const CARD_ABILITIES = {
                     const i2 = hand.findIndex(c => c.id === c2.id);
                     if (i2 >= 0) { shuffleBack(hand[i2], seatSide); hand.splice(i2, 1); }
                     finalizeDraw();
-                  }, lowest);
-              }, lowest);
+                  }, lowest, { seat: seatKey });
+              }, lowest, { seat: seatKey });
           }
         };
         // Owner first, then the rest — chained so human pick prompts never
@@ -2595,7 +2611,9 @@ const CARD_ABILITIES = {
             // offered. (Owner: "i could steal a card but i couldnt give one back
             // … i want the same prompt to show up to give back as the symbiote
             // spiderman redraw.")
-            { inlineTray: true });
+            // seat — see promptCardChoice's note: the owning seat is DECLARED,
+            // not inferred from a global that any async gap can drop.
+            { inlineTray: true, seat: dpIs2v2 ? deadpoolOwnerSeat : null });
       };
       // Step 1: DEADPOOL'S OWNER blind-picks a face-down card from the chosen
       // enemy's hand — the steal is random to them (the hand is shuffled and
@@ -2608,7 +2626,8 @@ const CARD_ABILITIES = {
       const stealPicker = cards => cards[Math.floor(Game.rng() * cards.length)];
       if (dpIs2v2) G._2v2CurrentActingPlayer = deadpoolOwnerSeat;
       G.promptCardChoice(self.owner, faceDownDeck, "Deadpool's Final Trick",
-        "Pick a face-down card from the enemy's hand to steal", onStolen, stealPicker, { faceDown: true });
+        "Pick a face-down card from the enemy's hand to steal", onStolen, stealPicker,
+        { faceDown: true, seat: dpIs2v2 ? deadpoolOwnerSeat : null });
       });
     }
   },
@@ -3127,7 +3146,8 @@ const CARD_ABILITIES = {
       if (G.state.twoVTwo && G.state.twoVTwo.online && victimKey) G._2v2CurrentActingPlayer = victimKey;
       const lowestCost = (list) => [...list].sort((a, b) => a.cost - b.cost)[0];
       if (Game.isHuman(opp)) {
-        G.promptCardChoice(opp, [...th], "The Grinch — Steal", "The Grinch is stealing! Choose a trick to give up", resolveGrinchChoice, lowestCost);
+        G.promptCardChoice(opp, [...th], "The Grinch — Steal", "The Grinch is stealing! Choose a trick to give up",
+          resolveGrinchChoice, lowestCost, victimKey ? { seat: victimKey } : null);
       } else {
         // Solo AI opp auto-picks lowest cost to minimize value lost
         resolveGrinchChoice(lowestCost([...th]));
