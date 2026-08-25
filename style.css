@@ -40471,9 +40471,26 @@ body.in-match .card-slot {
      the same derivation the authored rule used, just no longer pinned to 140. */
   min-height: calc(var(--board-card-h, 277px) + 10px);
 }
+/* THE 20px IS NOW A VARIABLE, because on a phone it is the difference between
+   eight lanes fitting and eight lanes not existing. Per-lane padding is fixed
+   cost paid eight times over: at 20px it eats 160px of a 375px screen before a
+   single card is drawn. The solver in UI._fitBoardToViewport reads this same
+   property, so the two cannot disagree. */
+/* On :root, not body.in-match — the solver reads it before the match class is
+   necessarily settled, and an unresolved variable there silently falls back to
+   20px, which is the whole bug this replaces. */
+:root { --lane-chrome: 20px; }
 body.in-match .lane {
-  width: calc(var(--board-card-w, 140px) + 20px);
-  min-width: calc(var(--board-card-w, 140px) + 20px);
+  width: calc(var(--board-card-w, 140px) + var(--lane-chrome, 20px));
+  min-width: calc(var(--board-card-w, 140px) + var(--lane-chrome, 20px));
+}
+/* Narrow screens: shave the per-lane padding and the inter-lane gap so the
+   pixels go to the CARDS instead of the space between them. (User: "for mobile
+   and an Ipad make sure when playing 1v1 and 2v2 the lanes fit the size of the
+   screen.") */
+@media (max-width: 700px) {
+  :root { --lane-chrome: 8px; }
+  body.in-match .board { gap: 1px; }
 }
 
 /* ============================================================

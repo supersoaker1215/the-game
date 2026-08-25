@@ -16044,7 +16044,17 @@ const Game = {
   },
 
   // Host/local: auto-pick this round's offers for every AI seat still pending.
-  // A light heuristic — take the pricier card (roughly stronger), first trick.
+  //
+  // THIS USED TO BE A STUB — "take the pricier card, first trick" — while the
+  // real drafter sat in ai.js unused. Pricier is a coin-flip proxy for stronger
+  // and says nothing about the curve, and "first trick" is not a decision at
+  // all: an AI seat took whichever trick happened to be dealt on the left, all
+  // four rounds, every game. So every 2v2 bot walked in with a worse deck than
+  // the 1v1 bots draft, before a card was ever played.
+  // AI.pickDraftCard / pickDraftTrick are the CEM-tuned pickers the 1v1 draft
+  // has always used: card quality, the cost curve against what this seat has
+  // already taken, and trick utility. Per SEAT, with that seat's own drafted
+  // pile, because in 2v2 each of the four builds a separate deck.
   _2v2DraftAIPicks() {
     const tt = this.state && this.state.twoVTwo;
     if (!tt || !tt.draft || !tt.draft.simultaneous || !this._2v2IsAIAuthority()) return;
@@ -16053,10 +16063,32 @@ const Game = {
       if (!this._2v2SeatIsAI(pk) || (d.picked && d.picked[pk])) return;
       const offers = (d.choicesByPlayer && d.choicesByPlayer[pk]) || [];
       if (offers.length < 2) return;
-      let idx = 0;
-      if (d.phase === 'cards') idx = ((offers[1].cost || 0) > (offers[0].cost || 0)) ? 1 : 0;
-      this._2v2DraftPick(idx, pk);
+      this._2v2DraftPick(this._2v2AIDraftIndex(pk, offers, d.phase), pk);
     });
+  },
+
+  // Which of the two offers should AI seat `pk` take? Falls back to the old
+  // cost heuristic if ai.js is not loaded (headless tools, a stripped build).
+  _2v2AIDraftIndex(pk, offers, phase) {
+    const tt = this.state && this.state.twoVTwo;
+    const seat = tt && tt.players[pk];
+    const haveAI = (typeof AI !== 'undefined');
+    if (phase === 'cards') {
+      // 2v2 uses its own objective — see AI.pickDraftCard2v2.
+      const picker = (haveAI && AI.pickDraftCard2v2) ? AI.pickDraftCard2v2 : (haveAI && AI.pickDraftCard);
+      if (picker) {
+        const picked = picker.call(AI, offers, (seat && seat.hand) || []);
+        const i = offers.indexOf(picked);
+        if (i >= 0) return i;
+      }
+      return ((offers[1].cost || 0) > (offers[0].cost || 0)) ? 1 : 0;
+    }
+    if (haveAI && AI.pickDraftTrick) {
+      const picked = AI.pickDraftTrick(offers, (seat && seat.trickHand) || []);
+      const i = offers.indexOf(picked);
+      if (i >= 0) return i;
+    }
+    return 0;
   },
 
   _2v2DraftPick(index, playerKey) {

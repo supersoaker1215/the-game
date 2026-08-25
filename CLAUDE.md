@@ -75,6 +75,17 @@ that never ran). It uses `sim/shim-real.js`, which loads the same headless
 environment as `sim/shim.js` but leaves the engine's REAL prompt system in place
 — that is what makes prompt routing observable at all.
 
+**2v2 AI sensitivity probes** — before tuning a dimension, find out whether it
+is worth anything. `--cripple X` sabotages ONE of the control arm's decisions
+and measures what it costs them:
+```bash
+$JSC sim/bench2v2.js -- --games 2400 --draft none --cripple lanes
+```
+Measured (n=2400, band ±2): `lanes` (random lane choice) 49.9% — lane choice is
+worth nothing; `order` 57.2%; `blocks` 44.4% — the block planner was NEGATIVE;
+`tricks` 66.0%; `onecard` 75.0%. That is how the +5.5pp win was found, after
+five hand-designed heuristics measured as noise. Probe before you tune.
+
 **2v2 AI benchmark / tuner** — four AI seats, full matches, A/B on the teamplay
 weights (`AI.WEIGHTS.team*`, which are inert in 1v1 because `AI._2v2Ctx` returns
 null there, so nothing found here can move 1v1 balance):

@@ -71,6 +71,40 @@ const AI = {
     // a partner still has a card turn coming — they are the one least likely to
     // be answerable cheaply after me.
     teamThreatPriority: 0,
+    // Weight on the POST-COMBAT board simulation when placing in 2v2. The 1v1
+    // knob (lookaheadMult) ships at 0 because a clean A/B found it a wash
+    // there — but an eight-lane board that two players fill between them is a
+    // different question, so 2v2 gets its own knob to be measured on its own.
+    team2v2Lookahead: 0,
+    // ENERGY HELD BACK FOR A TRICK. Cards are played before tricks inside the
+    // same turn, so the card loop eats the whole pool and the trick phase finds
+    // nothing affordable — measured: 58% of the affordable tricks an AI seat
+    // held were never cast, and 2.1 tricks were still in hand when the game
+    // ended. This is the minimum evalTrick score that justifies holding its
+    // cost back from the card loop. 0 disables the reserve.
+    teamTrickReserveMin: 0,
+    // 1 = skip the defensive block planner in 2v2. THIS IS THE ONE THAT WORKED.
+    // Sensitivity probe: taking the planner AWAY from a seat made that seat
+    // BETTER by 5.6pp, and the change measured +4.3pp head to head over 4800
+    // games (54.3%, against a 48.6–51.4 no-difference band). It commits the
+    // best body to a trade a partner may already be covering, on an eight-lane
+    // board where an uncontested lane hits health both partners share — and it
+    // front-loads the card loop, which is what made play ORDER look like a 7pp
+    // decision in the same probe. Without it, order barely matters (53.6% vs
+    // 54.3% between cheapest-first and dearest-first) because nothing is
+    // stranding the good body any more.
+    teamSkipBlockPlan: 1,
+    // The minimum evalTrick score a 2v2 seat will cast at. playTricks starts
+    // its search at 0, so a trick the evaluator is merely unexcited about is
+    // held — and measured, NOT casting tricks costs a seat 16pp, which is the
+    // largest single dimension in the game after simply getting bodies down.
+    // Lower bar = cast more freely.
+    teamTrickBar: 0,
+    // Play order for 2v2 only ('' = inherit the 1v1 rule). Order is the single
+    // biggest decision the card loop makes — measured at 7pp between best and
+    // worst — so it is worth asking whether an eight-lane game with energy to
+    // spare wants a different one. '' | 'asc' | 'desc' | 'rand' | 'quality'.
+    team2v2PlayOrder: '',
   },
 
   // ===================== 2v2 TEAMPLAY =====================
@@ -98,6 +132,10 @@ const AI = {
       seat, teammate,
       // Does my partner still get to place a card after me this round?
       teammateActsLater: !!teammate && laterTurns.some(st => playsCards(st, teammate)),
+      // Do I still get a trick window this round? ('cards' seats take their
+      // tricks at the END of the round, so their energy has somewhere to go
+      // even though this turn is cards-only.)
+      iPlayTricksLater: laterTurns.some(st => st.indexOf(seat + '-') === 0 && st.indexOf('tricks') >= 0),
       teammateCards: teammate ? (tt.players[teammate].hand || []).length : 0,
       teammateEnergy: teammate ? Math.max(0, (tt.players[teammate].energy || 0) - (tt.players[teammate].usedEnergy || 0)) : 0,
       // How many enemy card turns are still to come — a trick cast before
@@ -198,6 +236,24 @@ const AI = {
 
   // Simple trick drafting — cheaper tricks are more flexible; prefer variety
   // and effects that name "destroy" / "draw" / "damage".
+  // 2v2 DRAFTS A DIFFERENT DECK. pickDraftCard optimises a COST CURVE, because
+  // in 1v1 energy is the binding constraint — you need cheap bodies for rounds
+  // 1-3 or the curve strands you. Measured in 2v2, energy is not the constraint
+  // at all: seats finish a card turn with 47.6% of their energy unspent and an
+  // affordable card in hand only a quarter of the time. What is scarce there is
+  // CARDS (one draw a round, four seats, eight lanes), so every pick should buy
+  // the most power per card and ignore the curve entirely.
+  pickDraftCard2v2(choices, drafted) {
+    if (!choices || !choices.length) return null;
+    if (choices.length === 1) return choices[0];
+    var best = null, bestScore = -Infinity;
+    for (var i = 0; i < choices.length; i++) {
+      var q = this.draftCardQuality(choices[i]);
+      if (q > bestScore) { bestScore = q; best = choices[i]; }
+    }
+    return best;
+  },
+
   pickDraftTrick(choices, drafted) {
     if (!choices || !choices.length) return null;
     if (choices.length === 1) return choices[0];
@@ -519,6 +575,36 @@ const AI = {
     const defensiveThreshold = diff === 'easy' ? this.WEIGHTS.defensiveThresholdEasy : diff === 'hard' ? this.WEIGHTS.defensiveThresholdHard : this.WEIGHTS.defensiveThresholdNormal;
     const defensive = incoming >= defensiveThreshold || farBehind;
 
+    // ---- ENERGY RESERVED FOR A TRICK (2v2) ----
+    // The card loop below spends down to zero, and the trick phase runs after
+    // it, in the same turn, out of the same pool. So a seat holding a good
+    // trick would play a marginal body instead and then find the trick
+    // unaffordable — 58% of affordable tricks were never cast, and seats
+    // finished games still holding them. If the best trick on this board is
+    // worth more than the marginal card, hold its cost back.
+    // Capped at 60% of the pool: a reserve that eats the whole turn is just a
+    // pass, and a body on the board beats a trick in hand.
+    let energyReserve = 0;
+    const _teamCtx = this._2v2Ctx(owner);
+    if (_teamCtx && this.WEIGHTS.teamTrickReserveMin > 0) {
+      const _sub = Game._2v2SubPhase && Game._2v2SubPhase();
+      const _trickWindow = (_sub && Game._2v2CanPlayTricks(_sub)) || _teamCtx.iPlayTricksLater;
+      if (_trickWindow) {
+        let bestCost = 0, bestScore = 0;
+        for (const t of (s[owner].trickHand || [])) {
+          if (t.reactive) continue;
+          const c = Game.getTrickCost(owner, t);
+          if (c > s[owner].currency) continue;
+          const sc = this.evalTrick(t, owner);
+          if (sc > bestScore) { bestScore = sc; bestCost = c; }
+        }
+        if (bestScore >= this.WEIGHTS.teamTrickReserveMin) {
+          energyReserve = Math.min(bestCost, Math.floor(s[owner].currency * 0.6));
+        }
+      }
+    }
+    const spendable = () => Math.max(0, s[owner].currency - energyReserve);
+
     // Plans get collected first, then executed one at a time through
     // _runAIQueue so the player can read each play before the next one
     // fires. Each entry re-checks affordability / open lanes at fire
@@ -527,15 +613,15 @@ const AI = {
 
     // Step 1: commit our best blockers to the biggest threats first.
     const committedIds = new Set();
-    if (diff !== 'easy') {
-      const blockPlan = this.planDefensiveBlocks(s[owner].hand.filter(c => !c._neverPlayable), s[owner].currency, owner);
+    if (diff !== 'easy' && !(_teamCtx && this.WEIGHTS.teamSkipBlockPlan)) {
+      const blockPlan = this.planDefensiveBlocks(s[owner].hand.filter(c => !c._neverPlayable), spendable(), owner);
       blockPlan.forEach(p => committedIds.add(p.cardId));
       for (const plan of blockPlan) {
         queue.push(() => {
           const card = s[owner].hand.find(c => c.id === plan.cardId);
           if (!card) return;
           const cost = Game.getCardCost(owner, card);
-          if (cost > s[owner].currency) return;
+          if (cost > spendable()) return;
           Game.playCard(owner, card, plan.lane);
         });
       }
@@ -563,9 +649,15 @@ const AI = {
     //   normal / hard -> 'desc' : commit the best body it can afford
     // WEIGHTS._playOrder still overrides, so sim/tune.js and A/B harnesses can
     // force any order regardless of tier.
-    const __ord = (this.WEIGHTS && this.WEIGHTS._playOrder)
+    const __ord = (_teamCtx && this.WEIGHTS.team2v2PlayOrder)
+                  || (this.WEIGHTS && this.WEIGHTS._playOrder)
                   || (diff === 'easy' ? 'asc' : 'desc');
-    if (__ord === 'rand') {
+    if (__ord === 'quality') {
+      // Energy is not the constraint in 2v2 (seats end a turn with ~48% of it
+      // unspent), so "the most expensive card I can afford" is a proxy for the
+      // wrong thing. Sort by the drafter's own quality measure instead.
+      remaining.sort((a, b) => this.draftCardQuality(b) - this.draftCardQuality(a));
+    } else if (__ord === 'rand') {
       for (let i = remaining.length - 1; i > 0; i--) {
         const j = Game.rngInt(i + 1);
         const t = remaining[i]; remaining[i] = remaining[j]; remaining[j] = t;
@@ -595,9 +687,9 @@ const AI = {
         // affordability + lane since the board moves between plays.
         const card = s[owner].hand.find(c => c.id === cardRef.id);
         if (!card) return;
-        if (s[owner].currency <= 0) return;
+        if (spendable() <= 0) return;
         const cost = Game.getCardCost(owner, card);
-        if (cost > s[owner].currency) return;
+        if (cost > spendable()) return;
         if (card.isDiscardEffect) { Game.playCard(owner, card, 0); return; }
         const lane = this.chooseLane(card, owner);
         if (lane < 0) return;
@@ -784,9 +876,10 @@ const AI = {
       return -1;
     }
     const hasTaunter = this.opponentHasTaunter(owner);
-    const useLookahead = this.difficulty() !== 'easy' && this.WEIGHTS.lookaheadMult > 0;
     // ---- 2v2: what does my partner still get to do? ----
     const team = this._2v2Ctx(owner);
+    const laMult = team ? this.WEIGHTS.team2v2Lookahead : this.WEIGHTS.lookaheadMult;
+    const useLookahead = this.difficulty() !== 'easy' && laMult > 0;
     const leaks = team ? this._2v2UnansweredLanes(owner) : [];
 
     const scores = open.map(l => {
@@ -1005,7 +1098,7 @@ const AI = {
       // heuristic above misses (e.g. splash reaching 3 enemies, freeing two
       // other lanes to push uncontested HP damage).
       if (useLookahead) {
-        score += this.WEIGHTS.lookaheadMult * this._lookaheadScore(card, l, owner);
+        score += laMult * this._lookaheadScore(card, l, owner);
       }
       return { lane: l, score };
     });
@@ -1322,7 +1415,8 @@ const AI = {
         });
         return;
       }
-      let best = null, bestScore = 0;
+      const _tt = this._2v2Ctx(owner);
+      let best = null, bestScore = _tt ? this.WEIGHTS.teamTrickBar : 0;
       for (const t of s[owner].trickHand) {
         const cost = Game.getTrickCost(owner, t);
         if (cost > s[owner].currency) continue;

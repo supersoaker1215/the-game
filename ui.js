@@ -6889,9 +6889,20 @@ const UI = {
       // Strange, Deadpool steal…) raised a banner but never drew the pick
       // cards. Render the tray here too — it self-gates on _2v2ActingPlayer,
       // so only the player who owns the choice sees it interactively.
-      if (is2v2OnlineGame) { this._render2v2OnlineBoard(s); this.renderInlineChoiceFallback(s); return; }
-      if (is2v2LocalGame)  { this._render2v2LocalGame(s); this.renderInlineChoiceFallback(s); return; }
-      this.render2v2(s); this.renderInlineChoiceFallback(s); return;
+      // FIT THE BOARD HERE TOO. The solvers that size the lanes and the hand to
+      // the viewport hang off the END of the 1v1 renderer — and every 2v2 path
+      // returns right here, ~300 lines before it. So 2v2 never solved at all:
+      // it rendered at the authored 140px lane width, which is 8 x 160 = 1280px
+      // of lanes plus gaps. On anything narrower than a desktop the outer lanes
+      // simply were not on the screen, and body's overflow-x: hidden meant
+      // nothing reported it. That is the whole of "the lanes don't fit on
+      // mobile and iPad" — the mode with MORE lanes was the one not being
+      // measured. (Chained through the hand solve, which is what the 1v1 path
+      // does, because the hand's settled height is an input to the board's.)
+      const _fit2v2 = () => { if (this._fitHandToViewport) this._fitHandToViewport(); };
+      if (is2v2OnlineGame) { this._render2v2OnlineBoard(s); this.renderInlineChoiceFallback(s); _fit2v2(); return; }
+      if (is2v2LocalGame)  { this._render2v2LocalGame(s); this.renderInlineChoiceFallback(s); _fit2v2(); return; }
+      this.render2v2(s); this.renderInlineChoiceFallback(s); _fit2v2(); return;
     }
     if (isRoguelite && typeof Roguelite !== 'undefined') {
       if (Roguelite.renderPhase(s)) return;
@@ -12292,6 +12303,14 @@ const UI = {
       const c = step.indexOf('cards') >= 0, t = step.indexOf('tricks') >= 0;
       return (c && t) ? 'Cards + Tricks' : c ? 'Cards' : t ? 'Tricks' : '—';
     };
+    // ON A PHONE IT STARTS FURLED. At 176px wide against a 375px screen the
+    // rail is half the board, and it is positioned over the lanes and the hand
+    // — the first thing a phone player would have to do is collapse it. Do it
+    // for them, once, and only when they have never placed it themselves.
+    if (this._2v2TrackerCollapsed === undefined) {
+      const narrow = (typeof window !== 'undefined' && window.innerWidth && window.innerWidth <= 700);
+      this._2v2TrackerCollapsed = !!(narrow && !this._2v2TrackerGeom());
+    }
     const collapsed = !!this._2v2TrackerCollapsed;
     const chips = order.map((step, i) => {
       const pk = step.split('-')[0];
@@ -19941,7 +19960,10 @@ const UI = {
     // it read 36, at card 224 it read 104, and the width bound swung with it —
     // the value ping-ponged 156 -> 224 -> 156 forever instead of settling.
     // The offset is authored, so it is known, not observed.
-    const laneChrome = 20;
+    // Read the authored value rather than hard-coding it — narrow screens shave
+    // it to 8px so eight lanes can fit, and a solver that still assumed 20
+    // would leave 96px of the board unused on exactly the screens that need it.
+    const laneChrome = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--lane-chrome')) || 20;
     const across = window.innerWidth
                  - num(board, 'paddingLeft', 'paddingRight')
                  - num(section, 'paddingLeft', 'paddingRight')
@@ -19982,6 +20004,22 @@ const UI = {
     // the hand row at its floor (≈185px) are together larger than what is left.
     // At that point the chrome has to give, not the lanes.
     w = Math.max(100, w - (this._boardTrim || 0));
+    // ...AND THE WIDTH BOUND OUTRANKS THE FLOOR. The floor above is a
+    // READABILITY minimum; the bound is a physical one — the lanes either fit
+    // across the viewport or they do not. Applying the floor last inverted that
+    // priority, and 2v2 is where it showed: eight lanes at the 100px floor
+    // measure 974px, so on a 768px iPad the board rendered from -103px to
+    // 871px and lanes 1 and 8 sat off both edges of the screen. Nothing
+    // reported it because body carries overflow-x: hidden — the lanes were not
+    // clipped, they were simply gone. (User: "for mobile and an Ipad make sure
+    // when playing 1v1 and 2v2 the lanes fit the size of the screen.")
+    // 36px is the hard stop, and it only ever binds on a phone showing eight
+    // lanes. A 36px card is small — but a lane you cannot see is one you cannot
+    // play, and tap-to-inspect is right there for reading it. Everything from a
+    // small tablet up lands far above this (iPad portrait solves to 73px for
+    // 2v2, 105px for 1v1).
+    const widthBound = across / lanes - laneChrome;
+    if (widthBound < w) w = Math.max(36, widthBound);
     // Whole pixels: at one decimal the value flickered 155.9 / 156.2 between
     // renders on identical input, which is rounding noise, not a resize.
     const bw = Math.floor(w);
