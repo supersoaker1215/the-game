@@ -6280,7 +6280,37 @@ body.hit-pause .ai-hand * {
   content: '';
   position: absolute; inset: 0;
   border-radius: var(--cost-radius) 0 0 0;
-  background: rgb(var(--cost-neon));
+  /* BRUSHED METAL, ROLLED IN THE TIER COLOUR. The block was one flat emissive
+     value — the right call while the brief was "tron light, not a shiny
+     object", and the wrong one now that the brief is a metal plate. (User:
+     "the cost badges for all the characters i want to be more metallic",
+     with brushed-anodised references — green, blue, steel, gold.)
+     Three layers, base last:
+       1. a fine vertical grain, one pixel on one pixel off, at very low alpha
+          — the brush marks, which are what stop a gradient reading as plastic;
+       2. the rolled highlight bands: light columns at ~14% / 48% / 84% with
+          darker troughs between them, exactly the banding in the references;
+       3. the tier colour itself.
+     The bands are blended, not painted: overlay/soft-light MODULATE the colour
+     underneath, so gold stays gold and the green stays green instead of every
+     tier washing toward grey — which is what a white-to-colour ramp did the
+     last time this was tried. The emissive bloom below is unchanged, so the
+     badge still belongs on a neon board; it now just has a surface. */
+  background:
+    repeating-linear-gradient(90deg,
+      rgba(255,255,255,0.11) 0 1px,
+      rgba(0,0,0,0.11) 1px 2px),
+    linear-gradient(90deg,
+      rgba(0,0,0,0.45) 0%,
+      rgba(255,255,255,0.38) 13%,
+      rgba(0,0,0,0.28) 29%,
+      rgba(255,255,255,0.62) 47%,
+      rgba(255,255,255,0.20) 57%,
+      rgba(0,0,0,0.34) 70%,
+      rgba(255,255,255,0.34) 86%,
+      rgba(0,0,0,0.46) 100%),
+    rgb(var(--cost-neon));
+  background-blend-mode: soft-light, overlay, normal;
   -webkit-mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100' preserveAspectRatio='none'><path fill='black' d='M0,0 L100,0 L100,56 L56,100 L0,100 Z'/></svg>") center/100% 100% no-repeat;
           mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100' preserveAspectRatio='none'><path fill='black' d='M0,0 L100,0 L100,56 L56,100 L0,100 Z'/></svg>") center/100% 100% no-repeat;
   /* The bloom lives out here, not in the fill — that is the whole
