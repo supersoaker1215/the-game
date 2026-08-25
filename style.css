@@ -6631,44 +6631,58 @@ body.hit-pause .ai-hand * {
   margin: 2px -2px 2px -2px; padding: 0 2px;
 }
 /* ============================================================
-   ATK / HP ORBS — NO BOX, THE GLOW CARRIES IT
+   ATK / HP ORBS — CORNER BRACKETS, NO PLATE
    ============================================================
-   Owner: "i dont think there needs to be the red/green circle behind the
-   number just the glow for health/damage." So the coloured frame is gone —
-   the plate's mask, the four corner ticks, both ::after rules. Green and red
-   now live in exactly two places: the numeral, and the halo around it.
+   Two owner notes, and they are not in conflict once you separate the two
+   things the badge was doing:
+     "i dont think there needs to be the red/green circle behind the number
+      just the glow for health/damage"   -> the FILLED plate goes,
+     "no i want the brackets"            -> the four corner ticks STAY.
+   So: brackets in green/red at the corners, a glow where the plate used to
+   be, and nothing with a solid silhouette.
 
-   WHAT STAYS, AND WHY IT IS NOT A BOX. A dark ground survives on ::before,
-   but as an EDGELESS radial scrim — no mask, no border, nothing with a
-   silhouette. It is there because of one measured fact: on the BOARD tile
-   the art runs to the card's edge and the orb overlaps it by its full height
-   (16px of 16px, measured). Hand and draft orbs sit on the card's black
-   body and overlap the art by zero, so the scrim is invisible there. It only
-   shows up where the number would otherwise be sitting on a painting.
+   THE GROUND IS ON THE ELEMENT, NOT A PSEUDO — and that placement is
+   load-bearing, not tidiness. There are three things to paint and only two
+   pseudo-elements, and ::after is already spoken for by the stat-roll arrows
+   (.stat-rolled-up/down::after, at (0,3,1)) which set content, top and right.
+   Put the brackets there and a rolled card gets a triangle instead of its
+   brackets, with the mask stretched over a box that is no longer inset:0.
+   The scrim needs no mask, so it is the one that can live on `background`.
+   Ground on the element, brackets on ::before, ::after left alone.
 
-   The text-shadow does double duty: two black layers for legibility, then
-   two coloured layers that ARE the health/damage signal. */
+   The scrim is an EDGELESS radial fade — no border, no silhouette. It earns
+   its place on one measured fact: on the BOARD tile the art runs to the
+   card's edge and the orb overlaps it by its full height (16px of 16px).
+   On hand and draft the overlap is ZERO — those orbs sit on the card's black
+   body — so the scrim is invisible exactly where you look at the card, and
+   only works where the numeral would otherwise sit on a painting.
+
+   viewBox is 100x100 because the badge is square: aspect matched, so one
+   stroke-width renders identically on the horizontal arms and the vertical
+   ones. stroke-width 10 of 100 = 2.2px on the 22px badge, against the card's
+   own 2px border — the bracket reads as the frame, not a competing weight. */
 .stat-circle {
+  --stat-line: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100' preserveAspectRatio='none'><path fill='none' stroke='black' stroke-width='10' stroke-linejoin='miter' stroke-linecap='butt' d='M0,26 L0,0 L26,0 M74,0 L100,0 L100,26 M100,74 L100,100 L74,100 M26,100 L0,100 L0,74'/></svg>");
   width: 22px; height: 22px;
   display: flex; align-items: center; justify-content: center;
   font-size: 11px; font-weight: 700; z-index: 4;
   position: absolute; bottom: 5px;
-  background: transparent;
+  background: radial-gradient(ellipse at 50% 52%,
+    rgba(0,6,12,0.86) 0%,
+    rgba(0,6,12,0.48) 46%,
+    rgba(0,6,12,0)    80%);
   border: 0;
   font-family: var(--font-mono);
   font-variant-numeric: tabular-nums;
 }
-/* The scrim. Inset negative so the fade has room to reach zero before the
-   element's own edge — that is what keeps it from reading as a shape. */
+/* The four corner brackets. */
 .stat-atk::before,
 .stat-hp::before {
   content: '';
-  position: absolute; inset: -3px;
-  background: radial-gradient(ellipse at 50% 52%,
-    rgba(0,6,12,0.86) 0%,
-    rgba(0,6,12,0.48) 46%,
-    rgba(0,6,12,0)    78%);
-  z-index: -2;
+  position: absolute; inset: 0;
+  -webkit-mask: var(--stat-line) center/100% 100% no-repeat;
+          mask: var(--stat-line) center/100% 100% no-repeat;
+  z-index: -1;
   pointer-events: none;
 }
 .stat-atk {
@@ -6680,6 +6694,10 @@ body.hit-pause .ai-hand * {
     0 0 7px  rgba(46,204,113,0.95),
     0 0 15px rgba(46,204,113,0.50);
 }
+.stat-atk::before {
+  background: rgba(46,204,113,0.95);
+  filter: drop-shadow(0 0 3px rgba(46,204,113,0.55));
+}
 .stat-hp {
   right: 4px;
   color: #f1948a;
@@ -6688,6 +6706,10 @@ body.hit-pause .ai-hand * {
     0 0 3px  rgba(0,0,0,0.90),
     0 0 7px  rgba(231,76,60,0.95),
     0 0 15px rgba(231,76,60,0.50);
+}
+.stat-hp::before {
+  background: rgba(231,76,60,0.95);
+  filter: drop-shadow(0 0 3px rgba(231,76,60,0.55));
 }
 /* Buff / debuff indicators. (The black backfill that used to re-ground the
    orb is gone with the box — a flat black square behind a boxless numeral is
