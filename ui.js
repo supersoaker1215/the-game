@@ -12341,10 +12341,16 @@ const UI = {
     html +=     `<span class="draft-hud-pips">${pips.join('')}</span>`;
     html +=     `<span class="draft-hud-counter">Pick <em>${round}</em> / ${total}</span>`;
     html +=   `</div>`;
+    // NOTHING ON YOUR OWN TURN. "Choose one card for your hand" restated what
+    // the header ("Your Pick"), the counter ("Pick 2 / 4") and two cards with
+    // nothing else to click already say three times over — it was a line of
+    // instructions above a screen that has one possible action. The WAITING
+    // states stay, because those genuinely carry information you cannot get
+    // from anywhere else on the screen: who the table is still waiting on.
     const subText = isMyPick
-      ? `Choose one ${isCards ? 'card' : 'trick'} for your hand`
+      ? ''
       : (sim ? `Waiting for ${stillOut.join(', ')}…` : `Waiting for ${picker.name} to choose…`);
-    html +=   `<div class="draft-hud-sub">${subText}</div>`;
+    if (subText) html += `<div class="draft-hud-sub">${subText}</div>`;
     // WHO LEADS THIS GAME — mirror the 1v1 draft's first-player callout. The
     // opener is randomized per match (_2v2StartOffset), so surface it here so
     // everyone knows the turn order before the match starts. (User: "on the
@@ -12354,7 +12360,11 @@ const UI = {
       if (firstSeat && tt.players[firstSeat]) {
         const firstName = firstSeat === myKey ? 'You' : (tt.players[firstSeat].name || firstSeat);
         const verb = firstSeat === myKey ? 'play' : 'plays';
-        html += `<div class="draft-hud-sub draft-first-player">⚡ ${firstName} ${verb} first this game</div>`;
+        // The bolt was a literal emoji, which the OS paints as a little yellow
+        // sticker — the same thing the robot glyph and the voice speaker were
+        // before they became drawn marks. Stroked in currentColor so it takes
+        // this line's amber and its glow instead of bringing its own.
+        html += `<div class="draft-hud-sub draft-first-player">${UI.BOLT_SVG} ${firstName} ${verb} first this game</div>`;
       }
     } catch (e) {}
     const mulliganKey = isCards ? 'mulliganUsed' : 'trickMulliganUsed';
@@ -19629,6 +19639,13 @@ const UI = {
   // A mic, stroked in currentColor so the chip's own colour and glow carry it —
   // the same rule the voice panel's speaker glyph follows. Silent is an outline;
   // talking lights it; muted crosses it out. One shape, three states.
+  // The "who opens" bolt. Emoji brought its own colour and its own drawing
+  // style; this one inherits both from the line it sits in.
+  BOLT_SVG:
+    '<svg class="dbolt" viewBox="0 0 24 24" aria-hidden="true" focusable="false">'
+    + '<path d="M13.6 2 5.2 13.4h5.3L9.6 22l8.6-11.6h-5.4z"/>'
+    + '</svg>',
+
   MIC_SVG:
     '<svg class="tkm" viewBox="0 0 24 24" aria-hidden="true" focusable="false">'
     + '<rect class="tkm-body" x="9" y="3" width="6" height="11" rx="3"/>'

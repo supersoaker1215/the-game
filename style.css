@@ -4998,6 +4998,13 @@ body.hit-pause .ai-hand * {
     0 0 18px rgba(255, 196, 0, 0.6),
     0 0 30px rgba(255, 176, 0, 0.35) !important;
 }
+/* The bolt is a drawn mark now, not an emoji sticker — it takes the line's
+   amber and its glow from currentColor rather than bringing its own palette. */
+.draft-first-player .dbolt {
+  width: 1em; height: 1em; vertical-align: -0.12em;
+  fill: currentColor; margin-right: 0.15em;
+  filter: drop-shadow(0 0 6px rgba(255, 214, 40, 0.85));
+}
 @media (max-width: 900px) { .draft-panel .draft-hud .draft-hud-sub.draft-first-player { font-size: 14px !important; } }
 
 /* Draft HUD actions row — Mulligan + Settings buttons side by side. */
@@ -6242,105 +6249,80 @@ body.hit-pause .ai-hand * {
    sliding off the cut edge.
    ============================================================ */
 .card-cost {
-  /* ONE knob per surface. Every size override downstream sets
-     --cost-size only; the digit follows it, so a bigger corner can
-     never come with a digit that stayed 12px. */
+  /* ONE knob per surface. Every size override downstream sets --cost-size only;
+     the tab's height, its padding and the digit all derive from it, so a bigger
+     corner can never come with a digit that stayed 12px. */
   --cost-size: 26px;
-  /* The wedge colour. Defaults to the card's framing colour, which
-     is already the cost tier in hand / codex / draft (green → cyan →
-     silver → gold) and the side colour on board. Anything that used
-     to recolour the DIGIT now sets this instead. */
+  /* The tab colour. Defaults to the card's framing colour, which is already the
+     cost tier in hand / codex / draft (green → cyan → silver → gold) and the
+     side colour on board. Anything that used to recolour the DIGIT sets this. */
   --cost-neon: var(--portrait-frame-rgb, 255,215,0);
-  /* The wedge sits INSIDE the card's 1px border, so its outer corner wants
-     the card's radius minus that border or a hairline of ground shows in the
-     corner. Cards are 4px, tricks are 5px — hence a knob rather than a
-     constant. */
   --cost-radius: 3px;
+  /* ============================================================
+     G + H — a HUD READOUT TAB. (Owner: "G and H for the cost corners is the
+     best.") H gave the silhouette: a short bar along the top edge with an
+     angled trailing cut, which reads as a data header rather than a gem.
+     G gave the treatment: hollow. A hairline stroke and a barely-there dark
+     fill, so the painting keeps running underneath and the number is drawn in
+     LIGHT instead of stamped out of a plate.
+     That is also the answer to "more digital, less metallic": a plate is an
+     object with a surface to catch light; an outline with a glow is a reading
+     projected onto the card.
+     Pure H is this minus the hollow (solid fill, dark digit); pure G is the
+     chamfered square instead of the tab — both one line from here.
+     ============================================================ */
   position: absolute; top: 0; left: 0;
-  width: var(--cost-size); height: var(--cost-size);
   box-sizing: border-box;
+  /* WIDTH FOLLOWS THE NUMBER. A tab is a label, not a square, and "10" needs
+     more room than "4" — a fixed box would either clip the two-digit costs or
+     leave the single digits swimming. */
+  width: auto; min-width: calc(var(--cost-size) * 0.92);
+  height: calc(var(--cost-size) * 0.66);
   background: transparent;
   border: none;
-  /* The hole, not the ink. Near-black with a hint of the card's
-     blue-black ground so it doesn't read as a printing void. */
-  color: #04070c;
+  /* Drawn in light, not cut out of a plate. */
+  color: rgb(var(--cost-neon));
   font-weight: 700;
-  font-size: calc(var(--cost-size) * 0.5);
+  font-size: calc(var(--cost-size) * 0.42);
   line-height: 1;
-  display: flex; align-items: center; justify-content: center;
-  /* Pull the digit off the chamfer toward the solid outer corner.
-     NOT percentages: percentage padding on an absolutely-positioned box
-     resolves against the CONTAINING BLOCK's width — the whole 84px card,
-     not the 22px badge — so `17%` came out as 14.3px and shoved the digit
-     into the top-left corner. calc() off --cost-size is the only form that
-     scales with the badge. */
-  padding: 0 calc(var(--cost-size) * 0.17) calc(var(--cost-size) * 0.17) 0;
+  display: flex; align-items: center; justify-content: flex-start;
+  /* Right padding is larger: the trailing edge is a 22° cut, so a digit centred
+     in the box would sit visually right-of-centre inside the actual shape. */
+  padding: 0 calc(var(--cost-size) * 0.30) 0 calc(var(--cost-size) * 0.18);
   z-index: 4;
-  /* The one remaining light cue, and it earns its place: a single-pixel
-     catch on the digit's LOWER lip is what makes the glyph read as pressed
-     INTO the block rather than printed on it. Dropped from 0.34 to 0.20
-     alongside the gloss — enough to seat the digit, not enough to look wet. */
-  text-shadow: 0 1px 0 rgba(255,255,255,0.20);
+  text-shadow:
+    0 0 6px rgba(var(--cost-neon), 0.85),
+    0 0 14px rgba(var(--cost-neon), 0.40),
+    0 1px 2px rgba(0,0,0,0.95);
   font-family: var(--font-mono);
   font-variant-numeric: tabular-nums;
 }
-/* The solid mass. FLAT neon — one colour, no ramp, no specular.
-   It went through two wrong versions first, and both were the same
-   mistake in different clothes: trying to model a LIT SURFACE.
-     • a 135° white→neon ramp came back milky, because the outer corner
-       is most of a chamfered block's visible area, so the white half of
-       the ramp covered the part you actually look at;
-     • a small white radial pinned to the corner fixed the milkiness and
-       bought glossy instead — owner: "a little too glossy not neon tron."
-   Tron light is EMITTED, not reflected. An emissive surface has no
-   specular highlight and no shading gradient — it is one flat value with
-   the bloom happening OUTSIDE it, which is what the drop-shadows below
-   are for. Radius on the outer corner only, in px so it tracks the
-   card's 4px radius at any --cost-size. */
+/* THE FILL — barely there. Just enough to keep a light digit legible over a
+   bright patch of painting, never enough to hide the art. This is the half of
+   G worth keeping: you can still see what is under the tab. */
 .card-cost::before {
   content: '';
   position: absolute; inset: 0;
   border-radius: var(--cost-radius) 0 0 0;
-  /* BRUSHED METAL, ROLLED IN THE TIER COLOUR. The block was one flat emissive
-     value — the right call while the brief was "tron light, not a shiny
-     object", and the wrong one now that the brief is a metal plate. (User:
-     "the cost badges for all the characters i want to be more metallic",
-     with brushed-anodised references — green, blue, steel, gold.)
-     Three layers, base last:
-       1. a fine vertical grain, one pixel on one pixel off, at very low alpha
-          — the brush marks, which are what stop a gradient reading as plastic;
-       2. the rolled highlight bands: light columns at ~14% / 48% / 84% with
-          darker troughs between them, exactly the banding in the references;
-       3. the tier colour itself.
-     The bands are blended, not painted: overlay/soft-light MODULATE the colour
-     underneath, so gold stays gold and the green stays green instead of every
-     tier washing toward grey — which is what a white-to-colour ramp did the
-     last time this was tried. The emissive bloom below is unchanged, so the
-     badge still belongs on a neon board; it now just has a surface. */
-  background:
-    repeating-linear-gradient(90deg,
-      rgba(255,255,255,0.11) 0 1px,
-      rgba(0,0,0,0.11) 1px 2px),
-    linear-gradient(90deg,
-      rgba(0,0,0,0.45) 0%,
-      rgba(255,255,255,0.38) 13%,
-      rgba(0,0,0,0.28) 29%,
-      rgba(255,255,255,0.62) 47%,
-      rgba(255,255,255,0.20) 57%,
-      rgba(0,0,0,0.34) 70%,
-      rgba(255,255,255,0.34) 86%,
-      rgba(0,0,0,0.46) 100%),
-    rgb(var(--cost-neon));
-  background-blend-mode: soft-light, overlay, normal;
-  -webkit-mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100' preserveAspectRatio='none'><path fill='black' d='M0,0 L100,0 L100,56 L56,100 L0,100 Z'/></svg>") center/100% 100% no-repeat;
-          mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100' preserveAspectRatio='none'><path fill='black' d='M0,0 L100,0 L100,56 L56,100 L0,100 Z'/></svg>") center/100% 100% no-repeat;
-  /* The bloom lives out here, not in the fill — that is the whole
-     difference between an emissive block and a shiny one. Carries a
-     little more weight now that the fill is flat. */
-  filter:
-    drop-shadow(0 0 4px rgba(var(--cost-neon), 0.70))
-    drop-shadow(0 0 11px rgba(var(--cost-neon), 0.32));
+  background: rgba(2, 6, 12, 0.52);
+  -webkit-mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100' preserveAspectRatio='none'><path fill='black' d='M0,0 L100,0 L78,100 L0,100 Z'/></svg>") center/100% 100% no-repeat;
+          mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100' preserveAspectRatio='none'><path fill='black' d='M0,0 L100,0 L78,100 L0,100 Z'/></svg>") center/100% 100% no-repeat;
   z-index: -2;
+}
+/* THE OUTLINE — the tab itself. Stroke-only, masked to the tab's own path, so
+   the neon traces the shape exactly instead of a box-shadow approximating it.
+   The bloom is on this layer, not the fill: the light comes off the EDGE. */
+.card-cost::after {
+  content: '';
+  position: absolute; inset: 0;
+  background: rgb(var(--cost-neon));
+  -webkit-mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100' preserveAspectRatio='none'><path fill='none' stroke='black' stroke-width='7' stroke-linejoin='miter' d='M0,0 L100,0 L78,100 L0,100 Z'/></svg>") center/100% 100% no-repeat;
+          mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100' preserveAspectRatio='none'><path fill='none' stroke='black' stroke-width='7' stroke-linejoin='miter' d='M0,0 L100,0 L78,100 L0,100 Z'/></svg>") center/100% 100% no-repeat;
+  filter:
+    drop-shadow(0 0 4px rgba(var(--cost-neon), 0.80))
+    drop-shadow(0 0 10px rgba(var(--cost-neon), 0.35));
+  z-index: -1;
+  pointer-events: none;
 }
 /* NO CUT-EDGE HAIRLINE. There was a white line along the chamfer, on the
    reading that a bevel catches light on its cut face. Owner: "the white
