@@ -38,6 +38,7 @@ const Voice = {
   _joining: false,
   _speaking: {},          // peerId -> bool
   _rafId: null,
+  _guardId: null,         // audibility guard (see _startAudibilityGuard)
 
   // ---- capability ----
   supported() {
@@ -135,6 +136,7 @@ const Voice = {
     this._stream = null;
     this._active = false; this._speaking = {};
     if (this._rafId) { cancelAnimationFrame(this._rafId); this._rafId = null; }
+    if (this._guardId) { clearInterval(this._guardId); this._guardId = null; }
     this._paint();
   },
 
@@ -265,6 +267,19 @@ const Voice = {
         a = document.createElement('audio');
         a.autoplay = true;
         a.dataset.voicePeer = id;
+        // OUTSIDE THE GAME MIXER, ON PURPOSE. Voices must stay audible when
+        // the music slider is at zero, when SFX are off and when hand-audio
+        // privacy is on — those settings are for the game's own sounds, and a
+        // player who turns the soundtrack down has not asked to stop hearing
+        // their friends. (User: "make sure you can still hear people if your
+        // music is down and your hand volume is off.")
+        // Nothing in the game touches these today: its audio lives in its own
+        // Audio() pools and there is no global sweep over <audio> elements.
+        // The marker + the re-assert in _startLevels make that a rule rather
+        // than a coincidence, so a future "mute everything" cannot take the
+        // room's voices with it.
+        a.dataset.voiceAudio = '1';
+        a.volume = 1;
         a.style.display = 'none';
         document.body.appendChild(a);
         this._audio[id] = a;
@@ -321,6 +336,32 @@ const Voice = {
       this._rafId = requestAnimationFrame(tick);
     };
     this._rafId = requestAnimationFrame(tick);
+    this._startAudibilityGuard();
+  },
+
+  // KEEPING THE VOICES AUDIBLE, ON A TIMER RATHER THAN A FRAME.
+  // Only a deliberate per-person mute may silence someone; anything else that
+  // turned them down (a global "mute everything" added later, a stray volume
+  // sweep) is undone here. Deliberately NOT part of the animation loop:
+  // requestAnimationFrame stops dead while the tab is hidden, which is exactly
+  // when a player has alt-tabbed and is relying on hearing the room. An
+  // interval keeps running, so the guarantee holds whether or not anyone is
+  // looking at the page.
+  _startAudibilityGuard() {
+    if (this._guardId) return;
+    this._guardId = setInterval(() => {
+      if (!this._active) return;
+      Object.keys(this._audio).forEach(id => {
+        const a = this._audio[id];
+        if (!a) return;
+        const want = !!this._peerMuted[id];
+        if (a.muted !== want) a.muted = want;
+        if (a.volume !== 1) a.volume = 1;
+        // A paused element is silent too — an autoplay policy or a stray
+        // pause() would otherwise take the room away with no way back.
+        if (a.paused && a.srcObject) { const p = a.play(); if (p && p.catch) p.catch(() => {}); }
+      });
+    }, 500);
   },
 
   // ---- UI ----
