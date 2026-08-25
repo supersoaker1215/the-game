@@ -5364,12 +5364,28 @@ body.hit-pause .ai-hand * {
 .draft-card.trick-draft {
   width: 220px;
   min-height: 200px;
-  /* Matches .card.draft-card exactly. At 14px the trick's art sat in a
-     visibly thicker frame than the card beside it — 190px of portrait against
-     the card's 202px — which read as a different object before you had read a
-     word of either. */
-  padding: 8px 8px 10px;
+  /* EDGE TO EDGE, same as .card.draft-card. The character cards lost their
+     8px inset a few commits ago and the tricks kept theirs, so the two pickers
+     were back to reading as different objects — 224px of portrait in a 244px
+     card, floating in a black mat, next to a card whose art runs clean to the
+     border. (Owner: "the tricks ... art should be full covering the card.")
+     Padding moves rather than disappears: the box gives up its top and side
+     inset, the copy underneath takes the gutter back. */
+  padding: 0 0 10px;
 }
+/* The gutter the box gave up. */
+.draft-card.trick-draft .trick-desc,
+.draft-card.trick-draft .trick-name,
+.draft-card.trick-draft .card-desc { padding-left: 8px; padding-right: 8px; }
+/* The portrait defines the card's top corners now, so it rounds with them. */
+.draft-card.trick-draft .card-portrait { border-radius: 3px 3px 0 0; }
+/* NO RARITY PIPS ON A TRICK. Rarity is draft/collection information about a
+   CHARACTER — it drives the cost-tier ramp, the frame colour and the codex.
+   A trick has none of that: every trick reads purple, the pip carried no tier
+   anyone could act on, and it sat as one or two unexplained dots in the corner
+   of the art. (Owner: "the tricks remove rarity pips.") Kept everywhere it
+   means something — character draft, codex, deck builder. */
+.draft-card.trick-draft .rarity-strip { display: none; }
 .draft-card,
 .draft-card.cost-0, .draft-card.cost-1, .draft-card.cost-2, .draft-card.cost-3 {
   background: #000 !important;
