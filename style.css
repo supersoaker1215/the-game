@@ -5294,10 +5294,8 @@ body.hit-pause .ai-hand * {
 .card.draft-card .card-active-text { padding-left: 8px; padding-right: 8px; }
 /* The stat orbs are corner-anchored, so they follow the new edge rather than
    the old inset one. */
-/* Draft tile — one knob. Position and height come off it now, so the
-   left/right/bottom nudges that used to live here (and again 30 lines down,
-   at a different specificity) are gone. */
-.card.draft-card .stat-circle { --stat-size: 35px; }
+.card.draft-card .stat-circle.stat-atk { left: 8px; }
+.card.draft-card .stat-circle.stat-hp  { right: 8px; }
 /* The portrait now defines the card's top corners, so it has to round with it
    or the art squares off the two rounded corners above it. */
 .card.draft-card .card-portrait { border-radius: 3px 3px 0 0; }
@@ -5324,6 +5322,13 @@ body.hit-pause .ai-hand * {
 .draft-card.trick-draft .card-cost {
   --cost-size: 34px;
 }
+.card.draft-card .stat-circle {
+  width: 32px; height: 32px;
+  font-size: 16px;
+  bottom: 8px;
+}
+.card.draft-card .stat-atk { left: 8px; }
+.card.draft-card .stat-hp  { right: 8px; }
 .card.draft-card .card-name-overlay {
   font-size: 14px;
   letter-spacing: 0.10em;
@@ -6625,102 +6630,84 @@ body.hit-pause .ai-hand * {
   display: flex; justify-content: space-between; align-items: center;
   margin: 2px -2px 2px -2px; padding: 0 2px;
 }
-/* ============================================================
-   ATK / HP READOUTS — THE BRACKET
-   ============================================================
-   Owner picked option C off the mockup sheet: no box at all. A right-angle
-   bracket opens toward the card interior, the numeral sits beside it on a soft
-   scrim, and the card's own frame supplies the outer two sides. Then: "i like
-   the brackets just make the bracket a little tighter closer to the number and
-   ship it at 10.5px."
-
-   ONE KNOB. --stat-size is a WIDTH; height, font, inset, padding and the
-   bracket all derive from it, exactly the way --cost-size drives the cost
-   corner. A surface that wants bigger orbs sets --stat-size and nothing else.
-   Six surfaces used to hard-code width + height + font + bottom + left/right
-   independently, which is why they had drifted into six different proportions.
-
-   WHY THE NUMERAL IS EDGE-ALIGNED AND NOT CENTRED. The bracket is anchored to
-   the badge box, so the gap between digit and bracket has to hold whether the
-   value is 7 or 12. Centring swings that gap by a whole digit width — a 1-digit
-   ATK would float a full character away from its own tick. ATK is flush right
-   (its bracket is up-and-right of the number), HP flush left. Constant gap at
-   every value, which is the whole point of "closer to the number".
-
-   WHY THE BRACKET IS ON ::before. ::after is spoken for by the stat-roll arrows
-   (.stat-rolled-up/down::after) at (0,3,1) specificity — it would have swapped
-   the bracket for a ▲ on exactly the cards that rolled.
-
-   The viewBox is 110x80 because the badge is 110/80 = 1.375 wide-to-tall. Match
-   them and one stroke-width renders the same thickness on the horizontal arm and
-   the vertical one; mismatch them and preserveAspectRatio='none' scales the two
-   axes differently and the corner comes out lopsided. */
+/* Stat orbs — moved INSIDE the card frame per user feedback. ATK is
+   now a TRIANGLE in the bottom-left (right-pointing — reads as a
+   "strike" arrow). HP is a HEART in the bottom-right (universal
+   visual for life). Both anchored 4px in from the card edge. The
+   number renders OVER the shape via a transparent backdrop on the
+   element + the shape drawn via clip-path. */
 .stat-circle {
-  --stat-size: 24px;
-  position: absolute;
-  bottom: calc(var(--stat-size) * 0.12);
-  box-sizing: border-box;
-  width: var(--stat-size);
-  height: calc(var(--stat-size) * 0.727);
-  display: flex; align-items: center;
-  font-size: calc(var(--stat-size) * 0.583);
-  font-weight: 700; z-index: 4;
+  width: 22px; height: 22px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 11px; font-weight: 700; z-index: 4;
+  position: absolute; bottom: 5px;
+  background: transparent;
+  border: 0;
   font-family: var(--font-mono);
   font-variant-numeric: tabular-nums;
-  letter-spacing: 0;
-  border: 0;
   text-shadow: 0 0 4px rgba(0,0,0,0.95), 0 1px 2px rgba(0,0,0,0.85);
 }
-/* The scrim. With the box gone the numeral sits straight on the painting, and
-   art is not reliably dark down there. Radial so it has no edge of its own —
-   offset toward the digit rather than centred, because the digit is not. */
-/* ATK — bracket opens up-and-right, numeral flush against it. */
+/* ATK — chamfered-octagon badge (green). */
 .stat-atk {
-  background: radial-gradient(ellipse at 68% 55%, rgba(0,6,12,0.82) 0%, rgba(0,6,12,0) 74%);
-  /* Just off the frame. At zero, a two-digit ATK ("12") put its leading glyph
-     1.7px inside a 2px border — legible, but reading as if it were leaning on
-     the frame. One twentieth of the knob buys the clearance back without
-     moving the number far enough to loosen the bracket. */
-  left: calc(var(--stat-size) * 0.05);
-  justify-content: flex-end;
-  padding-right: calc(var(--stat-size) * 0.147);
+  left: 4px;
   color: #7ee8a5;
   text-shadow:
     0 1px 0 rgba(0,0,0,0.95),
+    0 -0.5px 0 rgba(46,204,113,0.40),
     0 0 4px rgba(46,204,113,0.50);
+  font-family: var(--font-mono);
 }
 .stat-atk::before {
   content: '';
   position: absolute; inset: 0;
-  background: rgba(46,204,113,0.95);
-  -webkit-mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 110 80' preserveAspectRatio='none'><path fill='none' stroke='black' stroke-width='7.8' stroke-linecap='butt' stroke-linejoin='miter' d='M65,5 L105,5 L105,48'/></svg>") center/100% 100% no-repeat;
-          mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 110 80' preserveAspectRatio='none'><path fill='none' stroke='black' stroke-width='7.8' stroke-linecap='butt' stroke-linejoin='miter' d='M65,5 L105,5 L105,48'/></svg>") center/100% 100% no-repeat;
+  background: rgba(0, 8, 14, 0.62);
+  -webkit-mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100' preserveAspectRatio='none'><path fill='black' d='M16,0 L84,0 L100,16 L100,84 L84,100 L16,100 L0,84 L0,16 Z'/></svg>") center/100% 100% no-repeat;
+          mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100' preserveAspectRatio='none'><path fill='black' d='M16,0 L84,0 L100,16 L100,84 L84,100 L16,100 L0,84 L0,16 Z'/></svg>") center/100% 100% no-repeat;
   filter: drop-shadow(0 0 3px rgba(46,204,113,0.45));
+  z-index: -2;
+}
+.stat-atk::after {
+  content: '';
+  position: absolute; inset: 0;
+  background: rgba(46,204,113,0.95);
+  -webkit-mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100' preserveAspectRatio='none'><path fill='none' stroke='black' stroke-width='8' stroke-linejoin='round' d='M16,0 L84,0 L100,16 L100,84 L84,100 L16,100 L0,84 L0,16 Z'/></svg>") center/100% 100% no-repeat;
+          mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100' preserveAspectRatio='none'><path fill='none' stroke='black' stroke-width='8' stroke-linejoin='round' d='M16,0 L84,0 L100,16 L100,84 L84,100 L16,100 L0,84 L0,16 Z'/></svg>") center/100% 100% no-repeat;
+  z-index: -1;
   pointer-events: none;
 }
-/* HP — mirrored. */
+/* HP — chamfered-octagon badge (red). */
 .stat-hp {
-  background: radial-gradient(ellipse at 32% 55%, rgba(0,6,12,0.82) 0%, rgba(0,6,12,0) 74%);
-  right: calc(var(--stat-size) * 0.05);
-  justify-content: flex-start;
-  padding-left: calc(var(--stat-size) * 0.147);
+  right: 4px;
   color: #f1948a;
   text-shadow:
     0 1px 0 rgba(0,0,0,0.95),
+    0 -0.5px 0 rgba(231,76,60,0.40),
     0 0 4px rgba(231,76,60,0.50);
+  font-family: var(--font-mono);
 }
 .stat-hp::before {
   content: '';
   position: absolute; inset: 0;
-  background: rgba(231,76,60,0.95);
-  -webkit-mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 110 80' preserveAspectRatio='none'><path fill='none' stroke='black' stroke-width='7.8' stroke-linecap='butt' stroke-linejoin='miter' d='M45,5 L5,5 L5,48'/></svg>") center/100% 100% no-repeat;
-          mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 110 80' preserveAspectRatio='none'><path fill='none' stroke='black' stroke-width='7.8' stroke-linecap='butt' stroke-linejoin='miter' d='M45,5 L5,5 L5,48'/></svg>") center/100% 100% no-repeat;
+  background: rgba(0, 8, 14, 0.62);
+  -webkit-mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100' preserveAspectRatio='none'><path fill='black' d='M16,0 L84,0 L100,16 L100,84 L84,100 L16,100 L0,84 L0,16 Z'/></svg>") center/100% 100% no-repeat;
+          mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100' preserveAspectRatio='none'><path fill='black' d='M16,0 L84,0 L100,16 L100,84 L84,100 L16,100 L0,84 L0,16 Z'/></svg>") center/100% 100% no-repeat;
   filter: drop-shadow(0 0 3px rgba(231,76,60,0.45));
+  z-index: -2;
+}
+.stat-hp::after {
+  content: '';
+  position: absolute; inset: 0;
+  background: rgba(231,76,60,0.95);
+  -webkit-mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100' preserveAspectRatio='none'><path fill='none' stroke='black' stroke-width='8' stroke-linejoin='round' d='M16,0 L84,0 L100,16 L100,84 L84,100 L16,100 L0,84 L0,16 Z'/></svg>") center/100% 100% no-repeat;
+          mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100' preserveAspectRatio='none'><path fill='none' stroke='black' stroke-width='8' stroke-linejoin='round' d='M16,0 L84,0 L100,16 L100,84 L84,100 L16,100 L0,84 L0,16 Z'/></svg>") center/100% 100% no-repeat;
+  z-index: -1;
   pointer-events: none;
 }
-/* Buff / debuff indicators. (The old rule here painted `background: #000000`
-   to re-ground the orb's fill — there is no fill any longer, and a flat black
-   rectangle behind a boxless numeral is exactly the box we just removed.) */
+/* Buff / debuff indicators. */
+.stat-circle.stat-buffed,
+.stat-circle.stat-debuffed {
+  background: #000000;
+}
 /* Buffed ATK — brighter green number with a stronger glow. */
 .stat-atk.stat-buffed {
   color: #a8f5c4;
@@ -9902,7 +9889,9 @@ body.turn-combat .board .lane.lane-active {
      Still one tap-and-hold away in the inspect modal, like every other detail
      the board token defers. Desktop is untouched — there is room there. */
   .board .card .card-cost { display: none; }
-  .board .card .stat-circle { --stat-size: 22px; }
+  .board .card .stat-circle { width: 16px; height: 16px; font-size: 10px; }
+  .board .card .stat-circle.stat-atk { bottom: 2px; left: 2px; }
+  .board .card .stat-circle.stat-hp  { bottom: 2px; right: 2px; }
   /* RARITY PIPS: GONE from the phone board tile. Rarity is draft / collection
      information — it helps you choose a card, never fight with one. Scaled to
      0.6 it was 5 sub-pixel dots in the corner of the art that no one can count
@@ -10200,7 +10189,9 @@ body.turn-combat .board .lane.lane-active {
   .player-hand-section .hand-cards .card .card-name { font-size: 10px; letter-spacing: 0.3px; }
   .player-hand-section .hand-cards .card .card-desc { display: block; font-size: 8px; line-height: 1.15; }
   .player-hand-section .hand-cards .card .card-cost { --cost-size: 22px; }
-  .player-hand-section .hand-cards .card .stat-circle { --stat-size: 24px; }
+  .player-hand-section .hand-cards .card .stat-circle { width: 18px; height: 18px; font-size: 11px; }
+  .player-hand-section .hand-cards .card .stat-circle.stat-atk { bottom: 4px; left: 4px; }
+  .player-hand-section .hand-cards .card .stat-circle.stat-hp  { bottom: 4px; right: 4px; }
   .trick-cards { gap: 4px; }
   .trick-card { width: 110px; }
 
@@ -10600,7 +10591,7 @@ body.turn-combat .board .lane.lane-active {
    interactive keyword pills — sized for fingertips, not precise cursors. */
 @media (pointer: coarse) {
   .kw-pill { padding: 3px 10px; font-size: 13px; }
-  .stat-circle { --stat-size: 31px; }
+  .stat-circle { font-size: 14px; }
 }
 
 /* ============================================================
@@ -17941,14 +17932,8 @@ body.theme-purple .board-section {
 .hand-card-wrapper:hover .card.hand-card .status-badges {
   transform: translateZ(12px);
 }
-/* THE ORBS ARE WELDED TOO. Same geometry that un-stuck the cost corner: they
-   are flush to the card's edges now (left:0 / right:0, not the old 4px inset),
-   and perspective scales a lifted child about the card's CENTRE — so a lift
-   pushes a corner-anchored element diagonally OUTWARD. Measured at the 28px
-   lift the deeper rule used to apply, the orb sat ~2px past the card's own
-   border. Zero, not less, for the reason spelled out on .card-cost. */
 .hand-card-wrapper:hover .card.hand-card .stat-circle {
-  transform: none;
+  transform: translateZ(18px);
 }
 .hand-card-wrapper:hover .card.hand-card .card-cost {
   /* THE CORNER STAYS WELDED. Every other content layer pops forward on
@@ -20046,7 +20031,12 @@ body.phase-menu .kb-hints { display: none; }
 .encyc-grid .card.hand-card.enc-card .card-cost {
   --cost-size: 32px;
 }
-.encyc-grid .card.hand-card.enc-card .stat-circle { --stat-size: 31px; }
+.encyc-grid .card.hand-card.enc-card .stat-circle {
+  width: 30px; height: 30px; font-size: 14px;
+  bottom: 8px;
+}
+.encyc-grid .card.hand-card.enc-card .stat-atk { left: 8px; }
+.encyc-grid .card.hand-card.enc-card .stat-hp  { right: 8px; }
 .encyc-grid .card.hand-card.enc-card .card-desc b,
 .encyc-grid .card.hand-card.enc-card .card-desc .kw {
   /* Match the 11px codex body exactly — keyword highlights sit in-line, not
@@ -26618,15 +26608,11 @@ body.killing-blow-cinema::after {
 /* Stat-roll indicators — when a rolled card's stats deviate from base,
    the orb gets a subtle up/down arrow color tint so the player can see
    at a glance "this Goon is +2 ATK" or "this Batman rolled low." */
-/* A rolled stat used to be flagged with an outline + inset glow around the
-   orb's box. There is no box. The bracket carries it instead — same amber, on
-   the tick and the numeral, which is where the eye already is. */
 .card.hand-card .stat-circle.stat-rolled-up {
-  text-shadow: 0 1px 0 rgba(0,0,0,0.95), 0 0 6px rgba(255,225,150,0.85);
-}
-.card.hand-card .stat-circle.stat-rolled-up::before {
-  background: rgba(255,225,150,0.95);
-  filter: drop-shadow(0 0 4px rgba(255,215,0,0.65));
+  outline: 1px solid rgba(255,225,150,0.85);
+  box-shadow:
+    0 0 8px rgba(255,225,150,0.55),
+    inset 0 0 4px rgba(255,225,150,0.45);
 }
 .card.hand-card .stat-circle.stat-rolled-up::after {
   content: '▲';
@@ -26638,10 +26624,8 @@ body.killing-blow-cinema::after {
   pointer-events: none;
 }
 .card.hand-card .stat-circle.stat-rolled-down {
+  outline: 1px solid rgba(231,76,60,0.55);
   opacity: 0.85;
-}
-.card.hand-card .stat-circle.stat-rolled-down::before {
-  background: rgba(231,76,60,0.85);
 }
 .card.hand-card .stat-circle.stat-rolled-down::after {
   content: '▼';
@@ -30214,7 +30198,7 @@ body > .grid-bg {
    all. It is welded to the card's edges now and takes no lift; see the
    `transform: none` rule above for why zero and not merely less.) */
 .hand-card-wrapper:hover .card.hand-card .stat-circle {
-  transform: none !important;
+  transform: translateZ(28px) !important;
 }
 .hand-card-wrapper:hover .card.hand-card .status-badges {
   transform: translateZ(20px) !important;
@@ -37603,7 +37587,9 @@ body.hand-text-always .player-hand-section .hand-cards .card.face-flipped .card-
 .card-drag-ghost .card-abilities.status-badges { font-size: 6px; gap: 1px; flex-wrap: wrap; max-width: 100%; }
 .card-drag-ghost .status-badge { padding: 1px 2px; font-size: 6px; letter-spacing: 0.1px; max-width: 100%; }
 .card-drag-ghost .card-cost { --cost-size: 20px; }
-.card-drag-ghost .stat-circle { --stat-size: 22px; }
+.card-drag-ghost .stat-circle { width: 16px; height: 16px; font-size: 10px; }
+.card-drag-ghost .stat-circle.stat-atk { bottom: 2px; left: 2px; }
+.card-drag-ghost .stat-circle.stat-hp  { bottom: 2px; right: 2px; }
 .card-drag-ghost .rarity-strip { top: 3px; right: 3px; transform: scale(0.6); transform-origin: top right; }
 
 /* ============================================================
@@ -40743,13 +40729,9 @@ body.low-fx .badge-asleep { animation: none; }
    trade. Amber rather than green says "hot right now", not "grew". */
 .stat-circle.stat-atk.stat-overcharged {
   color: #ffcf66 !important;
-  /* border-color / box-shadow dropped with the orb's box — the amber now
-     reads off the numeral and its own bracket. */
-  text-shadow: 0 1px 0 rgba(0,0,0,0.95), 0 0 7px rgba(255, 176, 60, 0.85);
-}
-.stat-circle.stat-atk.stat-overcharged::before {
-  background: rgba(255, 176, 60, 0.95);
-  filter: drop-shadow(0 0 4px rgba(255, 176, 60, 0.60));
+  border-color: rgba(255, 176, 60, 0.85) !important;
+  box-shadow: 0 0 7px rgba(255, 176, 60, 0.55), inset 0 0 6px rgba(255, 176, 60, 0.20) !important;
+  text-shadow: 0 0 6px rgba(255, 176, 60, 0.75);
 }
 
 /* ============================================================
