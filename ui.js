@@ -5787,8 +5787,20 @@ const UI = {
       }
       return undefined;                                    // functions etc.
     };
+    // NOT EVERY ANIMATION IS NAMED _fx. The bridge relayed by PREFIX, so nine
+    // effects that abilities and tricks fire by their own names were host-only
+    // — including every jumpscare, which is the most memorable thing in the
+    // game and which three of four players in a 2v2 room never saw. (User:
+    // "make sure the animations also fire for the guests and all players.")
+    // Listed explicitly rather than renamed: these names are called from
+    // abilities.js, tricks.js and ui.js, and a rename is a wider edit with more
+    // ways to miss one than a list has.
+    const RELAY_ALSO = new Set([
+      '_freddyHandSlash', '_freddyJumpscare', '_jawsJumpscare', '_pennywiseJumpscare',
+      '_spinosaurusRampage', '_spinosaurusRelease', '_screenShake', 'flashLanes',
+    ]);
     Object.keys(this).forEach((key) => {
-      if (key.indexOf('_fx') !== 0) return;
+      if (key.indexOf('_fx') !== 0 && !RELAY_ALSO.has(key)) return;
       const fn = this[key];
       if (typeof fn !== 'function') return;
       this[key] = function (...args) {
