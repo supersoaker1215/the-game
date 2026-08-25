@@ -6807,6 +6807,42 @@ const UI = {
     out.withinBudget = out.fullRenderMs < 16.7;
     return out;
   },
+  // THE DANGER HEARTBEAT, FOR BOTH MODES. It used to sit inline in the 1v1
+  // render tail, which every 2v2 path returns before reaching — so the tensest
+  // moment of a 2v2 match was the one that played in silence. Same miss as the
+  // choice tray and the redraw button: anything living in that tail has to be
+  // called from the 2v2 path too.
+  // In 2v2 the health bar is the TEAM's, so "you and your teammate are low" IS
+  // one number — your team's — and the pulse covers both of you by reading it.
+  // (User: "could you add the same heartbeat sound when you and your teammate
+  // are low in 2v2.") Reading state.player.health there would have been the
+  // side proxy, which is whichever teammate synced last.
+  _updateDangerHeartbeat(s) {
+    if (!this.sfx || !this.sfx._dangerHeartbeatStart) return;
+    const stop = () => { try { this.sfx._dangerHeartbeatStop(); } catch (e) {} };
+    if (!s || s.gameOver) { stop(); return; }
+    let hp = null, max = null, inFight = false;
+    const tt = s.twoVTwo;
+    if (tt && Game.is2v2 && Game.is2v2() && tt.teams) {
+      const seat = tt.players && tt.you && tt.players[tt.you];
+      const team = seat && tt.teams[seat.team];
+      if (!team) { stop(); return; }
+      hp = team.health; max = team.maxHealth || 30;
+      // "In a fight" is asked of the MATCH, not of a phase name. The 2v2 board
+      // renderer rewrites s.phase to a 1v1 spelling partway through and puts it
+      // back afterwards, so matching on the string is a race with that swap.
+      // A started round with no draft on screen is the same question, asked of
+      // something that does not move.
+      inFight = (tt.round || 0) > 0 && !tt.draft;
+    } else {
+      hp = s.player && s.player.health; max = (s.player && s.player.maxHealth) || 30;
+      inFight = /cards|tricks|combat|fight|round/.test(s.phase || '');
+    }
+    const crit = hp != null && hp > 0 && (hp / (max || 30)) <= 0.30;
+    if (crit && inFight) { try { this.sfx._dangerHeartbeatStart(); } catch (e) {} }
+    else stop();
+  },
+
   _renderImpl() {
     const s = Game.state;
     if (!s) return;
@@ -7000,7 +7036,10 @@ const UI = {
       // control anywhere on a 2v2 screen. Same reason the choice tray had to be
       // called here. It hides itself when a redraw is not currently legal, so
       // calling it unconditionally is safe.
-      const _redraw2v2 = () => { this._safe('redrawBtn', () => this._renderRedrawButton(false)); };
+      const _redraw2v2 = () => {
+        this._safe('redrawBtn', () => this._renderRedrawButton(false));
+        this._safe('heartbeat', () => this._updateDangerHeartbeat(s));
+      };
       if (is2v2OnlineGame) { this._render2v2OnlineBoard(s); this.renderInlineChoiceFallback(s); _redraw2v2(); _fit2v2(); return; }
       if (is2v2LocalGame)  { this._render2v2LocalGame(s); this.renderInlineChoiceFallback(s); _redraw2v2(); _fit2v2(); return; }
       this.render2v2(s); this.renderInlineChoiceFallback(s); _redraw2v2(); _fit2v2(); return;
@@ -7085,12 +7124,7 @@ const UI = {
     // critical during an active fight, so the tensest moment is scored instead
     // of silent. Player-side only; stops the instant HP recovers, the match
     // ends, or we leave to a menu/draft screen. Idempotent start/stop.
-    if (this.sfx && this.sfx._dangerHeartbeatStart) {
-      const pCrit = s.player.health > 0 && (s.player.health / (s.player.maxHealth || 30)) <= 0.30;
-      const inFight = !s.gameOver && /cards|tricks|combat|fight|round/.test(s.phase || '');
-      if (pCrit && inFight) this.sfx._dangerHeartbeatStart();
-      else this.sfx._dangerHeartbeatStop();
-    }
+    this._updateDangerHeartbeat(s);
     // Frozen HP ring when Mr. Freeze shield is active
     const pHpCont = document.getElementById('player-hp-fill').closest('.health-container');
     const aHpCont = document.getElementById('ai-hp-fill').closest('.health-container');
