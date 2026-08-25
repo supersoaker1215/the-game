@@ -6033,6 +6033,9 @@ const Game = {
         proceed();
       }
     } else {
+      // Match over — push the final state so every other client learns it and
+      // can raise its own summary. See damagePlayer's game-over hook.
+      if (this._pushOnlineState) { try { this._pushOnlineState(); } catch (e) {} }
       UI.render();
     }
   },
@@ -7413,7 +7416,17 @@ const Game = {
       // where you killed them."
       this._pinFinalHpHistory();
       if (typeof this.finalizeStats === 'function') this.finalizeStats();
-      if (typeof UI !== 'undefined' && UI.showGameOverScreen) {
+      // THE OTHER CLIENTS HAVE TO BE TOLD THE MATCH ENDED. Nothing on either
+      // game-over path pushed the final state, so `gameOver` never left the
+      // authority: the host saw its summary from the direct call below, and
+      // every guest sat looking at a live board on a match that was over.
+      // (User, as the guest: "i never got the summary screen once the game
+      // ended.")
+      if (this._pushOnlineState) { try { this._pushOnlineState(); } catch (e) {} }
+      // 2v2 renders the overlay from its own board path, which knows which
+      // TEAM the viewer is on — winner is a SIDE, and Team B must not be shown
+      // the enemy's VICTORY screen. One path per mode, no double-open.
+      if (typeof UI !== 'undefined' && UI.showGameOverScreen && !(this.is2v2Online && this.is2v2Online())) {
         // Defer one tick so the killing-blow render has a chance to
         // paint the final HP before the overlay slides in.
         this._matchTimeout(() => UI.showGameOverScreen(this.state.winner), 60);

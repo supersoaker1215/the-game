@@ -12313,13 +12313,149 @@ const UI = {
     }).join('');
     el.style.display = '';
     el.classList.toggle('is-collapsed', collapsed);
+    // The head is the DRAG handle and the grip is the RESIZE handle — both are
+    // wired by delegation in _2v2TrackerMakeMovable, which survives this
+    // innerHTML rebuild. Collapse is a click on the head that never moved, so
+    // one gesture surface does both without a modifier or a second target.
     el.innerHTML = `
-      <div class="twov2-tk-head" onclick="UI._2v2TrackerCollapsed=!UI._2v2TrackerCollapsed;UI.render&&UI.render()" title="Click to ${collapsed ? 'expand' : 'collapse'}">
+      <div class="twov2-tk-head" title="Drag to move · click to ${collapsed ? 'expand' : 'collapse'} · double-click to reset">
         <span class="twov2-tk-title">Turn Order</span>
         <span class="twov2-tk-round">R${round}</span>
         <span class="twov2-tk-toggle">${collapsed ? '▸' : '▾'}</span>
       </div>
-      <div class="twov2-tk-row">${chips}</div>`;
+      <div class="twov2-tk-row">${chips}</div>
+      <div class="twov2-tk-grip"></div>`;
+    this._2v2TrackerMakeMovable(el);
+    this._2v2TrackerApplyGeom(el);
+  },
+
+  // ===================== TURN-ORDER PANEL: MOVE + RESIZE =====================
+  // The rail is pinned to the right edge at a fixed width, which on a narrow
+  // window sits on top of the last lanes — and a player could not move a board
+  // element out of their own way. (User: "make it so that you can move it
+  // wherever you want, and you can adjust the size of it so it's never blocking
+  // a lane for anyone.") Geometry is per-DEVICE (localStorage), never match
+  // state: where your panel sits is not something the other three seats inherit.
+  _2v2TrackerGeom() {
+    if (this.__tkGeom !== undefined) return this.__tkGeom;
+    let g = null;
+    try { g = JSON.parse(localStorage.getItem('tk2v2Geom') || 'null'); } catch (e) { g = null; }
+    this.__tkGeom = (g && typeof g.left === 'number' && typeof g.top === 'number') ? g : null;
+    return this.__tkGeom;
+  },
+  _2v2TrackerSaveGeom(g) {
+    this.__tkGeom = g;
+    try {
+      if (g) localStorage.setItem('tk2v2Geom', JSON.stringify(g));
+      else localStorage.removeItem('tk2v2Geom');
+    } catch (e) {}
+  },
+  // Re-applied on every render (the panel re-renders constantly) and re-CLAMPED
+  // each time, so a panel parked near the right edge of a wide window is still
+  // reachable after the window shrinks instead of stranded off-screen.
+  _2v2TrackerApplyGeom(el) {
+    const g = this._2v2TrackerGeom();
+    if (!g) return;
+    const w = g.w || el.offsetWidth || 176;
+    const h = g.h || el.offsetHeight || 0;
+    const maxL = Math.max(4, (window.innerWidth || 0) - w - 4);
+    const maxT = Math.max(4, (window.innerHeight || 0) - Math.max(h, 40) - 4);
+    el.classList.add('is-placed');
+    el.style.right = 'auto';
+    el.style.transform = 'none';
+    el.style.left = Math.min(Math.max(g.left, 4), maxL) + 'px';
+    el.style.top  = Math.min(Math.max(g.top, 4), maxT) + 'px';
+    if (g.w) el.style.width = g.w + 'px';
+    // A collapsed panel is just its header — holding the expanded height would
+    // leave a tall empty box, the opposite of getting out of the way.
+    if (g.h && !el.classList.contains('is-collapsed')) {
+      el.style.height = g.h + 'px';
+      el.style.maxHeight = 'none';
+    } else {
+      el.style.height = 'auto';
+      el.style.maxHeight = '';
+    }
+  },
+  _2v2TrackerResetGeom(el) {
+    this._2v2TrackerSaveGeom(null);
+    el.classList.remove('is-placed');
+    ['left', 'top', 'right', 'transform', 'width', 'height', 'maxHeight']
+      .forEach(k => { el.style[k] = ''; });
+  },
+  _2v2TrackerMakeMovable(el) {
+    if (el._tkWired) return;
+    el._tkWired = true;
+    const UIref = this;
+    let mode = null, sx = 0, sy = 0, sl = 0, st = 0, sw = 0, sh = 0, moved = false;
+    const hit = (e, sel) => e.target && e.target.closest && e.target.closest(sel);
+    el.addEventListener('pointerdown', (e) => {
+      const onGrip = hit(e, '.twov2-tk-grip');
+      const onHead = hit(e, '.twov2-tk-head');
+      if (!onGrip && !onHead) return;
+      mode = onGrip ? 'size' : 'move';
+      moved = false;
+      // Freeze the CURRENTLY rendered box as explicit geometry before the drag
+      // math starts — the default styling is right-anchored and
+      // transform-centred, and dragging that by deltas fights the anchor.
+      const r = el.getBoundingClientRect();
+      sx = e.clientX; sy = e.clientY;
+      sl = r.left; st = r.top; sw = r.width; sh = r.height;
+      el.classList.add('is-placed', mode === 'move' ? 'is-dragging' : 'is-sizing');
+      el.style.right = 'auto';
+      el.style.transform = 'none';
+      el.style.left = r.left + 'px';
+      el.style.top = r.top + 'px';
+      el.style.width = r.width + 'px';
+      try { el.setPointerCapture(e.pointerId); } catch (_) {}
+      e.preventDefault();
+    });
+    el.addEventListener('pointermove', (e) => {
+      if (!mode) return;
+      const dx = e.clientX - sx, dy = e.clientY - sy;
+      // A few pixels of travel is a click, not a drag — that slack is what lets
+      // the same handle still collapse the panel.
+      if (!moved && Math.abs(dx) + Math.abs(dy) < 4) return;
+      moved = true;
+      if (mode === 'move') {
+        const w = el.offsetWidth, h = el.offsetHeight;
+        el.style.left = Math.min(Math.max(sl + dx, 4), Math.max(4, window.innerWidth - w - 4)) + 'px';
+        el.style.top  = Math.min(Math.max(st + dy, 4), Math.max(4, window.innerHeight - h - 4)) + 'px';
+      } else {
+        el.style.width = Math.min(Math.max(sw + dx, 108), Math.max(108, window.innerWidth - sl - 6)) + 'px';
+        el.style.height = Math.min(Math.max(sh + dy, 56), Math.max(56, window.innerHeight - st - 6)) + 'px';
+        el.style.maxHeight = 'none';
+      }
+    });
+    const end = (e) => {
+      if (!mode) return;
+      const wasMove = (mode === 'move'), didMove = moved;
+      mode = null;
+      el.classList.remove('is-dragging', 'is-sizing');
+      try { el.releasePointerCapture(e.pointerId); } catch (_) {}
+      if (!didMove) {
+        // A click on the head that never travelled is the old collapse toggle.
+        if (wasMove) {
+          UIref._2v2TrackerCollapsed = !UIref._2v2TrackerCollapsed;
+          if (UIref.render) UIref.render();
+        }
+        return;
+      }
+      const r = el.getBoundingClientRect();
+      UIref._2v2TrackerSaveGeom({
+        left: Math.round(r.left), top: Math.round(r.top),
+        w: Math.round(r.width),
+        h: el.classList.contains('is-collapsed') ? 0 : Math.round(r.height),
+      });
+    };
+    el.addEventListener('pointerup', end);
+    el.addEventListener('pointercancel', end);
+    // Double-click the header to put it back where it started — the way out of
+    // a panel dragged somewhere useless.
+    el.addEventListener('dblclick', (e) => {
+      if (!hit(e, '.twov2-tk-head')) return;
+      UIref._2v2TrackerResetGeom(el);
+      if (UIref.render) UIref.render();
+    });
   },
 
   _render2v2OnlineBoard(s) {
@@ -12607,6 +12743,22 @@ const UI = {
     s.ai.deadPile      = save.aiDeadPile;
     s.phase            = save.phase;
     s.round            = save.round;
+    }
+
+    // MATCH END. The 2v2 board returns long before the 1v1 render tail reaches
+    // renderButtons(), and renderButtons is the only place a render opens the
+    // game-over overlay — so this path never showed a summary at all. The host
+    // still got one because damagePlayer called showGameOverScreen directly
+    // inside its own engine; a guest runs no engine, so it got nothing and sat
+    // on a live-looking board. (User, as the guest: "i never got the summary
+    // screen once the game ended.")
+    // The winner is translated to the VIEWER's team: the engine records a SIDE
+    // ('player'/'ai'), and both teams see their own side rendered at the
+    // bottom, so an untranslated winner shows one of the two teams the wrong
+    // screen. showGameOverScreen's own re-entry guard keeps repeated renders
+    // from re-opening it.
+    if (s.gameOver && this.showGameOverScreen) {
+      this.showGameOverScreen(s.winner === mySide ? 'player' : 'ai');
     }
   },
 

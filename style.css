@@ -41569,8 +41569,32 @@ body.low-fx .badge-asleep { animation: none; }
   font-family: inherit; pointer-events: auto; user-select: none;
 }
 .twov2-tk-head {
-  display: flex; align-items: center; gap: 6px; cursor: pointer; padding-bottom: 8px;
+  display: flex; align-items: center; gap: 6px; cursor: grab; padding-bottom: 8px;
+  /* The head and the grip are drag surfaces — the browser must not claim the
+     gesture for scrolling/panning first, or a touch drag never reaches us. */
+  touch-action: none;
 }
+.twov2-tracker.is-dragging .twov2-tk-head { cursor: grabbing; }
+/* Placed by the player: absolute geometry replaces the right-edge anchor, and
+   the chip list scrolls inside whatever height they gave it. */
+.twov2-tracker.is-placed { overflow-y: auto; }
+.twov2-tracker.is-dragging, .twov2-tracker.is-sizing {
+  box-shadow: 0 0 26px rgba(var(--theme-rgb, 79,195,247), 0.5),
+              0 10px 30px rgba(0,0,0,0.7),
+              inset 0 0 24px rgba(var(--theme-rgb, 79,195,247), 0.10);
+}
+/* RESIZE GRIP — two neon rules in the bottom-right corner. Sticks to the
+   panel's corner while the chip list scrolls under it. */
+.twov2-tk-grip {
+  position: sticky; float: right; clear: both;
+  bottom: 0; margin: 2px -4px -5px 0;
+  width: 14px; height: 14px; cursor: nwse-resize; touch-action: none;
+  background:
+    linear-gradient(135deg, transparent 0 46%, rgba(var(--theme-rgb, 79,195,247), 0.85) 46% 58%, transparent 58%),
+    linear-gradient(135deg, transparent 0 70%, rgba(var(--theme-rgb, 79,195,247), 0.55) 70% 82%, transparent 82%);
+  filter: drop-shadow(0 0 4px rgba(var(--theme-rgb, 79,195,247), 0.7));
+}
+.twov2-tracker.is-collapsed .twov2-tk-grip { display: none; }
 .twov2-tk-title {
   font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase;
   font-weight: 700; flex: 1;
