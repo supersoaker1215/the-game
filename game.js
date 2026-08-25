@@ -15916,7 +15916,17 @@ const Game = {
       assigned.forEach(({ pk, def }) => {
         const p = tt.players[pk];
         const cap = p.maxHandSize || 7;
-        if ((p.hand || []).length < cap) p.hand.push(this.createCardInstance(def, this._2v2TeamSide[p.team]));
+        const side = this._2v2TeamSide[p.team];
+        // LEX STOPS THIS TOO. A foresight card is handed to a seat IN PLACE OF
+        // its random draw — it is that seat's draw for the round, dealt from
+        // the top of the deck — and this pushed it straight into the hand with
+        // no check at all. So an Eye of Agamotto / Dr. Strange / Dormammu still
+        // fed cards to a team Lex Luthor was locking out. (User: "for lex
+        // luthor, both of the players on the enemy team should not be able to
+        // draw cards.") Same door every other deck-to-hand effect uses, so the
+        // refusal is logged in the same words.
+        if (!this.canDrawToHand(side, `${fs.source} foresight`)) { p._2v2GotForesightCard = true; return; }
+        if ((p.hand || []).length < cap) p.hand.push(this.createCardInstance(def, side));
         p._2v2GotForesightCard = true;
         this.log(`  [FORESIGHT] ${fs.source}: ${def.name} → ${p.name}.`);
       });
