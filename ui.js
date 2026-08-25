@@ -32512,6 +32512,8 @@ function twov2OnlineJoin() {
       tt.joinedPlayers[playerKey] = true;
       tt.players[playerKey]._realHuman = true;
       tt.players[playerKey].isAI = false;
+      // If a bot had been covering this seat since they dropped, stand it down.
+      if (Game._2v2SeatRejoined) { try { Game._2v2SeatRejoined(playerKey); } catch (e) {} }
     }
     // TELL THE ROOM. Only the host receives 'playerJoined' — the other seats
     // learn who is in the lobby exclusively from a state push. Without this,
@@ -32528,8 +32530,13 @@ function twov2OnlineJoin() {
     UI.render();
   });
 
-  Multiplayer4.on('playerLeft', () => {
-    UI._2v2OnlineError = 'A player disconnected.';
+  Multiplayer4.on('playerLeft', ({ playerKey } = {}) => {
+    // Say WHO, and keep the match alive — a bot covers the seat rather than the
+    // table sitting on a turn nobody can take. See Game._2v2SeatDropped.
+    const tt = Game.state && Game.state.twoVTwo;
+    const who = (tt && playerKey && tt.players[playerKey] && tt.players[playerKey].name) || 'A player';
+    UI._2v2OnlineError = `${who} disconnected.`;
+    if (playerKey && Game._2v2SeatDropped) { try { Game._2v2SeatDropped(playerKey); } catch (e) {} }
     UI.render();
   });
 

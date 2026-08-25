@@ -9998,6 +9998,23 @@ const Game = {
         doSave();
         return true;
       }
+      // THE PROMPT GOES TO WHOEVER HOLDS HIM. The bridge above already found
+      // that seat and stamped _2v2CurrentActingPlayer with it — but that is the
+      // LOWEST-precedence source promptCardChoice consults. This whole chain
+      // runs inside a death, so the ability-owner stack is usually holding the
+      // dying ally's controller, and that outranked the stamp: the teammate got
+      // asked to spend a card that was in someone else's hand. (User: "i had
+      // iron giant in my hand and my teammate got the choice to sacrifice him
+      // or not, i should get that choice since hes in my hand.")
+      // Named explicitly here, by OBJECT IDENTITY on the Giant being spent — so
+      // when both teammates hold one, the owner of the one actually leaving the
+      // hand is the one asked.
+      const _igSeat = (() => {
+        const _t = this.state && this.state.twoVTwo;
+        if (!_t || !_t.online || !_t.players) return null;
+        return this._2v2SLOTS.find(pk => _t.players[pk]
+          && (_t.players[pk].hand || []).some(c => c === ig)) || null;
+      })();
       this.promptCardChoice(owner, [
         { name: 'Sacrifice Iron Giant', desc: `Iron Giant gives himself — ${card.name} survives at ${restoreHp} HP, all enemies take 1 damage, and you draw a card.`, id: 'ig_save' },
         { name: `Let ${card.name} Die`, desc: 'Keep Iron Giant in your hand.', id: 'ig_decline' },
@@ -10006,7 +10023,8 @@ const Game = {
         (pick) => {
           if (pick && pick.id === 'ig_save') doSave();
           else doDecline();
-        });
+        },
+        null, _igSeat ? { seat: _igSeat, inlineTray: true } : undefined);
       return true;
     } catch (e) { console.error('[IRON GIANT] intercept error:', e); return false; }
   },
@@ -10885,6 +10903,14 @@ const Game = {
     if (!tt || !tt.online || !card) return null;
     if (card._2v2PlayedBy && tt.players[card._2v2PlayedBy]) return card._2v2PlayedBy;
     if (card._mcSeat && tt.players[card._mcSeat]) return card._mcSeat;
+    // STILL IN SOMEONE'S HAND? Then it is THEIR card, and no team-wide guess is
+    // needed. A card that has never been played carries no _2v2PlayedBy stamp,
+    // so this used to fall through to "first human on that team" — which is a
+    // coin flip between teammates, and the wrong half of it hands your card to
+    // your partner. (Iron Giant is the card that surfaced it.)
+    const _inHand = this._2v2SLOTS.find(pk => tt.players[pk]
+      && (tt.players[pk].hand || []).some(c => c === card));
+    if (_inHand) return _inHand;
     if (!card.owner) return null;
     const team = card.owner === 'player' ? 'A' : 'B';
     const onTeam = pk => tt.players[pk] && tt.players[pk].team === team;
@@ -11710,7 +11736,7 @@ const Game = {
       const _qSeat = (options && options.seat) || this._2v2AbilityOwner() || this._2v2CurrentActingPlayer || null;
       const _qOpts = _qSeat ? Object.assign({}, options || {}, { seat: _qSeat }) : options;
       this._promptQueue.push(() => this.promptCardChoice(owner,
-        (cards || []).filter(c => !c || c.currentHealth == null || c.currentHealth > 0),
+        (cards || []).filter(c => c && (c.currentHealth == null || c.currentHealth > 0)),
         title, desc, callback, aiPicker, _qOpts));
       return;
     }
@@ -11728,7 +11754,17 @@ const Game = {
     //
     // Placed BEFORE the empty check so a list that was entirely dead falls into
     // the unstick branch below rather than raising a prompt with no options.
-    cards = (cards || []).filter(c => !c || c.currentHealth == null || c.currentHealth > 0);
+    // `c &&`, NOT `!c ||`. The old spelling was written to let SYNTHETIC entries
+    // through (a Darkseid lane row or a Kang card def has no currentHealth) but
+    // what it literally says is "keep falsy entries", so a null that reached the
+    // list survived as a selectable option — and picking it called the ability
+    // back with null. Every callback that opens with `pick.name` throws there,
+    // which is a card doing nothing with an exception the engine swallows.
+    // Seen once as Knull (who free-plays other cards) throwing "null is not an
+    // object (evaluating 'a.name')" out of a card-choice callback.
+    // Synthetic entries still pass — that test is `currentHealth == null`, and
+    // it is unchanged.
+    cards = (cards || []).filter(c => c && (c.currentHealth == null || c.currentHealth > 0));
 
     if (!cards || !cards.length) {
       // No valid targets — log and unstick combat so an empty filter
@@ -15729,7 +15765,8 @@ const Game = {
     // Real seats fall through and wait for their player as before, so a full
     // 4-human lobby never triggers this path.
     if (tt.players[activeKey] && tt.players[activeKey].isAI
-        && !tt.players[activeKey]._realHuman && this._2v2IsAIAuthority()) {
+        && (!tt.players[activeKey]._realHuman || tt.players[activeKey]._dropped)
+        && this._2v2IsAIAuthority()) {
       this._2v2DriveAISeat(activeKey, subPhase);
     }
   },
@@ -15743,9 +15780,13 @@ const Game = {
     // never cleared for the life of the match, so even if `isAI` were somehow
     // flipped by a bug the drive still refuses. (User: "MAKE SURE THEY CAN NEVER
     // PLAY FOR ANOTHER HUMAN.")
+    // The one exception is a seat whose player is GONE — see _2v2SeatDropped.
+    // "Never play for another human" protects a human who can still act; a
+    // closed data channel means they cannot, and without the exception the
+    // other three sit on that seat's turn until somebody quits the match.
     const _tt0 = this.state && this.state.twoVTwo;
     const _seat0 = _tt0 && _tt0.players[activeKey];
-    if (!_seat0 || !_seat0.isAI || _seat0._realHuman) {
+    if (!_seat0 || !_seat0.isAI || (_seat0._realHuman && !_seat0._dropped)) {
       console.warn('[2v2 AI] refusing to drive non-AI/human-held seat', activeKey);
       return;
     }
@@ -16668,6 +16709,57 @@ const Game = {
     if (tt.online) this._2v2OnlineBroadcast();
     if (typeof UI !== 'undefined' && UI.render) UI.render();
   },
+  // A PLAYER'S CONNECTION DIED MID-MATCH. Until now the room learned this and
+  // did precisely nothing with it — a toast reading "A player disconnected."
+  // while the match stayed parked on that seat's turn forever, because a seat
+  // stamped _realHuman is never driven by a bot. The other three players had no
+  // move except to abandon the game.
+  // A bot covers the empty chair instead, and the seat is remembered as
+  // _dropped (never un-stamped as human) so the exception is exactly this one
+  // case: a channel that is provably closed. If they reconnect, the seat is
+  // handed straight back — see the playerJoined handler.
+  // Host only: it owns the authoritative state and it is the side that observes
+  // the close.
+  _2v2SeatDropped(pk) {
+    const tt = this.state && this.state.twoVTwo;
+    if (!tt || !tt.online || tt.you !== 'p1') return;
+    const p = pk && tt.players[pk];
+    if (!p || p._dropped) return;
+    if (tt.joinedPlayers) tt.joinedPlayers[pk] = false;
+    // In the LOBBY the seat simply opens again — no bot, nothing to continue.
+    if (!((tt.round || 0) > 0 || tt.draft)) {
+      p.isAI = false;
+      this._2v2OnlineBroadcast();
+      return;
+    }
+    p._dropped = true;
+    p.isAI = true;
+    this.log(`[2v2] ${p.name} disconnected — a bot is covering their seat so the match can continue.`);
+    this._2v2OnlineBroadcast();
+    // If the table is waiting on THEM right now, get it moving. Deferred a beat
+    // so the broadcast lands first and the other clients see why.
+    if (this._2v2ActivePlayer() === pk) {
+      const sub = this._2v2SubPhase();
+      this._schedule(() => {
+        if (this._2v2ActivePlayer() === pk && tt.players[pk] && tt.players[pk]._dropped) {
+          this._2v2DriveAISeat(pk, sub);
+        }
+      }, 600);
+    }
+  },
+
+  // They came back. Hand the seat over exactly as it was — the bot stops, the
+  // hand is untouched (it lived on the seat the whole time), and play resumes.
+  _2v2SeatRejoined(pk) {
+    const tt = this.state && this.state.twoVTwo;
+    const p = tt && pk && tt.players[pk];
+    if (!p) return;
+    if (p._dropped) this.log(`[2v2] ${p.name} reconnected — taking their seat back.`);
+    delete p._dropped;
+    p.isAI = false;
+    if (tt.joinedPlayers) tt.joinedPlayers[pk] = true;
+  },
+
   remove2v2AI(pk) {
     const tt = this.state && this.state.twoVTwo;
     if (!tt || !tt.online || tt.you !== 'p1') return;
