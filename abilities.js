@@ -4069,10 +4069,24 @@ const CARD_ABILITIES = {
         moved.push(target);
         step();
       };
+      // Declared once, used by every prompt below — see promptCardChoice's note
+      // on options.seat. Magneto chains card pick -> lane pick -> card pick, and
+      // a chain is exactly where a derived seat goes stale. (User: "my guest
+      // buddy played magneto and his move ability never even fired.")
+      const magOpts = self._2v2PlayedBy ? { seat: self._2v2PlayedBy } : null;
+      const magTray = Object.assign({ inlineTray: true }, magOpts || {});
       const step = () => {
         if (moved.length >= MOVE_COUNT) { G.applyMagnetoDebuffs(); return; }
         const pool = candidates();
-        if (!pool.length) { G.applyMagnetoDebuffs(); return; }
+        if (!pool.length) {
+          // Never silent: with nothing legal to move, say so, or a card that
+          // did exactly what it should reads as a card that did nothing.
+          G.log(moved.length
+            ? `  [MAGNETO] Nothing else can be moved — magnetism settles.`
+            : `  [MAGNETO] No card can be moved right now (every card is frozen, stunned, or has nowhere to slide).`);
+          G.applyMagnetoDebuffs();
+          return;
+        }
         if (Game.isHuman(self.owner)) {
           // ONE CANDIDATE IS NOT A CHOICE, AND IT WAS BEING TAKEN FOR YOU.
           // promptCardChoice skips the tray entirely for a single-option list,
@@ -4093,9 +4107,10 @@ const CARD_ABILITIES = {
                 const lanes = openLanesFor(only);
                 if (!lanes.length) { G.applyMagnetoDebuffs(); return; }
                 G.promptLaneChoice(self.owner, lanes, `Magneto — Move ${only.name}`,
-                  `Choose a new lane for ${only.name}`, (to) => finishMove(only, to), only.owner);
+                  `Choose a new lane for ${only.name}`, (to) => finishMove(only, to), only.owner,
+                  null, 0, magOpts);
               },
-              cards => cards[0]);
+              cards => cards[0], magTray);
             return;
           }
           G.promptCardChoice(self.owner, pool, "Magneto — Move a Card",
@@ -4111,9 +4126,10 @@ const CARD_ABILITIES = {
               const lanes = openLanesFor(target);
               if (!lanes.length) { step(); return; }
               G.promptLaneChoice(self.owner, lanes, `Magneto — Move ${target.name}`,
-                `Choose a new lane for ${target.name}`, (to) => finishMove(target, to), target.owner);
+                `Choose a new lane for ${target.name}`, (to) => finishMove(target, to), target.owner,
+                null, 0, magOpts);
             },
-            cards => { const p = aiPick(cards); return p ? p.card : cards[0]; });
+            cards => { const p = aiPick(cards); return p ? p.card : cards[0]; }, magTray);
         } else {
           const pick = aiPick(pool) || { card: pool[0], lane: openLanesFor(pool[0])[0] };
           finishMove(pick.card, pick.lane);

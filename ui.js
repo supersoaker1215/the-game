@@ -7055,7 +7055,7 @@ const UI = {
         s.phase === 'player-cards' || s.phase === 'player-cards-tricks' || s.phase === 'player-tricks'
       );
       const canAffordSomething = isPlayerTurn && (s.player.hand || []).some(c => {
-        const cost = (typeof Game.getCardCost === 'function') ? Game.getCardCost('player', c) : (c.cost || 0);
+        const cost = this._localCardCost(c);
         return cost <= s.player.currency;
       });
       pEnergyText.classList.toggle('can-play', !!canAffordSomething);
@@ -20907,7 +20907,7 @@ const UI = {
         // never fires when plDisplayCard exists, so handle it here.
         if (!lane.destroyed && canPlay && s.selectedCard && s.selectedCard.isEnvironment && !cc && !lc
             && Game.canPlaceEnvironment('player', i)) {
-          const _envCost = (typeof Game.getCardCost === 'function') ? Game.getCardCost('player', s.selectedCard) : (s.selectedCard.cost || 0);
+          const _envCost = this._localCardCost(s.selectedCard);
           if (_envCost <= s.player.currency) pSlot.classList.add('playable');
           pSlot.onclick = () => this.onLaneClick(i);
           cardEl.onclick = () => this.onLaneClick(i);
@@ -20958,7 +20958,7 @@ const UI = {
           // Only glow the lane as playable when the card is actually affordable
           // — otherwise the lit lane + preview invite a click that silently
           // fails. The click stays wired so a tap still shakes + explains.
-          const _cost = (typeof Game.getCardCost === 'function') ? Game.getCardCost('player', s.selectedCard) : (s.selectedCard.cost || 0);
+          const _cost = this._localCardCost(s.selectedCard);
           const _afford = _cost <= s.player.currency;
           if (_afford) {
             pSlot.classList.add('playable');
@@ -22669,7 +22669,7 @@ const UI = {
       const openLane = (s.lanes || []).some(l => l && !l.destroyed && !l.player);
       const inCardPhase = s.phase === 'player-cards' || s.phase === 'player-cards-tricks';
       const cardPlayable = inCardPhase && (s.player.hand || []).some(c =>
-        Game.getCardCost('player', c) <= s.player.currency
+        this._localCardCost(c) <= s.player.currency
         && (openLane || c.isEnvironment || c.isDiscardEffect));
       const inTrickPhase = s.phase !== 'player-cards';
       const trickPlayable = (s.player.trickHand || []).some(t => {
@@ -23985,8 +23985,8 @@ const UI = {
     // Display copy sorted low→high cost (stable by name on ties). Underlying
     // s.player.hand array is unchanged so game logic / abilities see unsorted order.
     const handDisplay = s.player.hand.slice().sort((a, b) => {
-      const ca = Game.getCardCost ? Game.getCardCost('player', a) : (a.cost || 0);
-      const cb = Game.getCardCost ? Game.getCardCost('player', b) : (b.cost || 0);
+      const ca = this._localCardCost(a);
+      const cb = this._localCardCost(b);
       if (ca !== cb) return ca - cb;
       return (a.name || '').localeCompare(b.name || '');
     });
@@ -24142,7 +24142,7 @@ const UI = {
         // click handler on top of the previous ones).
         el.onclick = () => cardChoicePick(idx);
       } else if (!hasPending) {
-        const cost = Game.getCardCost('player', card);
+        const cost = this._localCardCost(card);
         const afford = s.player.currency >= cost;
         const hasOpen = Game.getOpenLanes('player').length > 0 || card.isDiscardEffect || card.isEnvironment;
         const batBlocked = Game.isCardBatmanBlocked('player', card) && !card.isDiscardEffect;
@@ -24214,7 +24214,7 @@ const UI = {
         // affordability indicator must STAY live so the hand keeps
         // reading truthfully (the "always-on" contract above).
         el.classList.add('unplayable');
-        const pCost = Game.getCardCost('player', card);
+        const pCost = this._localCardCost(card);
         if (s.player.currency >= pCost) el.classList.add('afford');
         else el.classList.add('unafford');
       }
@@ -25869,6 +25869,18 @@ const UI = {
   // players" — the host charged the real price and the hand showed the base
   // one.) Null outside 2v2, so 1v1 (where the guest's state is
   // perspective-flipped and 'player' really is them) is unchanged.
+  // WHAT THIS CARD COSTS *ME* — the card twin of _localTrickCost, and the same
+  // bug: getCardCost reads state[owner].discount and finds enemy Silver Surfers
+  // by looking at the OPPONENT of the side it is given, and the UI passed a
+  // hardcoded 'player'. For a Team B player that read Team A's discount and
+  // counted their OWN team's Surfer against them while ignoring the enemy's.
+  // (User: "for silver surfer, any in-hand changes to stats or cost, make sure
+  // they show up in guest and host hands.")
+  _localCardCost(card) {
+    if (!card) return 0;
+    const side = (this._2v2LocalSide && this._2v2LocalSide()) || 'player';
+    return (typeof Game.getCardCost === 'function') ? Game.getCardCost(side, card) : (card.cost || 0);
+  },
   _localTrickCost(trick) {
     if (!trick) return 0;
     const side = (this._2v2LocalSide && this._2v2LocalSide()) || 'player';
@@ -26546,7 +26558,7 @@ const UI = {
     // the player tries to select a card they don't have energy for.
     // Still allows selection (so they can see details) but signals it
     // won't play. Only fires on the "pick" action, not on deselect.
-    const cost = (typeof Game.getCardCost === 'function') ? Game.getCardCost('player', card) : (card.cost || 0);
+    const cost = this._localCardCost(card);
     if (s.selectedCard !== card && cost > s.player.currency) {
       // Pass the clicked card element so we can shake it too — the
       // user is staring at the card they tried to play, so flashing
@@ -27076,7 +27088,7 @@ const UI = {
   // Feedback for a lane tap that didn't place a card. Mirrors the hand-card
   // "can't afford" grammar so a dead tap always explains itself.
   _flashRejectedLaneClick(card, s) {
-    const cost = (typeof Game.getCardCost === 'function') ? Game.getCardCost('player', card) : (card.cost || 0);
+    const cost = this._localCardCost(card);
     const cardEl = document.querySelector(`.player-hand-section .card[data-card-id="${card.id}"]`);
     if (card._neverPlayable) {
       if (this.showAITrickToast) this.showAITrickToast(card.name, this.HAND_GUARD_HINT, 'info');
