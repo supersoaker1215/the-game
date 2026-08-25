@@ -15321,6 +15321,7 @@ const Game = {
       }
     });
     tt._beforeTricksRan = false;   // re-arm the before-tricks pass for this round
+    tt._faceDownRevealed = false;  // …and the face-down flip (see _2v2StartSubPhase)
     tt._freddyChecked = false;     // re-arm Freddy Fazbear's combat-boundary waste check
     // Clear the post-combat marker the moment the new round's card phase begins.
     // The combat watchdog stays armed while this flag is set (it guards the whole
@@ -15460,6 +15461,39 @@ const Game = {
       // All 6 sub-phases done — resolve combat
       this._2v2ResolveCombat();
       return;
+    }
+
+    // FLIP BEFORE ANY TRICK IS PLAYED — not just before the trick-ONLY turns.
+    // The reveal used to ride along with the before-tricks boundary below, which
+    // fires ahead of the first tricks-only seat: positions 5 and 6 of the round.
+    // But the round's FIRST chance to play a trick is position 3, the first
+    // 'cards-tricks' seat — so two players took a whole trick turn against a
+    // board that still had face-down cards on it. In 1v1 the flip happens at
+    // the end of the card phase, before any trick exists; this is the same
+    // moment expressed in 2v2's six-step order. (User: "for invisible woman,
+    // make sure cards flip before the trick phase.")
+    // The before-tricks HOOKS stay where they are — that timing was decided
+    // separately and Galactus / Man-Bat / Art still fire at the trick-only
+    // boundary. This moves the FLIP only.
+    if (!tt._faceDownRevealed) {
+      const _ord = this._2v2ComputePhaseOrder(tt.round || 1);
+      const _cur = _ord[tt.subPhaseIdx || 0] || '';
+      if (_cur.indexOf('tricks') >= 0) {
+        tt._faceDownRevealed = true;
+        // Locked while it resolves: a revealed card's On Play can prompt, and
+        // nobody should act on a board that is still turning over.
+        tt._resolving = true;
+        tt._resolvingAt = Date.now();
+        this._2v2OnlineBroadcast();
+        this.revealFaceDownCards();
+        this.cleanupDead();
+        if (this.hasPendingPrompt && this.hasPendingPrompt()) {
+          this.whenPromptCleared(() => this._2v2StartSubPhase());
+        } else {
+          this._2v2StartSubPhase();
+        }
+        return;
+      }
     }
 
     // BEFORE-TRICKS BOUNDARY. Fire runBeforeTricks (Galactus, Man-Bat, etc.)
