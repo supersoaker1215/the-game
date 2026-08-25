@@ -11904,14 +11904,21 @@ const UI = {
       const weaponIcon = (card._artWeaponKey && this.ART_WEAPON_ICONS[card._artWeaponKey])
         ? `<div class="art-weapon-neon">${this.ART_WEAPON_ICONS[card._artWeaponKey]}</div>` : '';
       const weaponClass = card._artWeaponKey ? ' art-weapon-opt' : '';
+      // "Which player?" tiles (Eye of Agamotto, Dr. Strange, Dormammu, Deadpool,
+      // The Grinch…): the seat NAME is the whole decision, so render it big and
+      // glowing instead of buried in a small portrait overlay. (User: "make it
+      // larger and, like, glow so I can see the name easier.")
+      const playerClass = card._isPlayerTile ? ' choice-player' : '';
+      const playerNameHtml = card._isPlayerTile
+        ? `<div class="choice-player-name">${card.name || 'Player'}</div>` : '';
       return `
         <div class="choice-opt">
-          <div class="choice-card card ${isActionTile ? 'choice-action' : 'flip-host'} ${costClass}${isTrickFace ? ' choice-trick' : ''}${curseClass}${weaponClass}" data-idx="${idx}">
+          <div class="choice-card card ${isActionTile ? 'choice-action' : 'flip-host'} ${costClass}${isTrickFace ? ' choice-trick' : ''}${curseClass}${weaponClass}${playerClass}" data-idx="${idx}">
             ${curseBolt}
             ${weaponIcon}
             ${costHtml}
             ${typeSigil}
-            ${weaponIcon ? `<div class="art-weapon-name">${card.name || ''}</div>` : portraitHtml}
+            ${playerNameHtml || (weaponIcon ? `<div class="art-weapon-name">${card.name || ''}</div>` : portraitHtml)}
             <div class="card-desc">${this.formatDesc(card.desc)}</div>
             ${stats}
           </div>
@@ -12631,10 +12638,34 @@ const UI = {
     const isLocalSelect = (tt && !tt.online);
     const selectedId = (isLocalSelect && UI._2v2SelectedCardIdx != null && ap.hand[UI._2v2SelectedCardIdx])
       ? ap.hand[UI._2v2SelectedCardIdx].id : null;
+    // A PENDING PROMPT OWNS THE HAND, AND THIS PASS MUST NOT TAKE IT BACK.
+    // renderPlayerHand wires cardChoicePick onto exactly the hand cards a
+    // prompt is asking about; this rewire runs immediately after it and used to
+    // overwrite that handler unconditionally — nulled whenever it wasn't your
+    // sub-phase (or the card cost more than your energy), replaced with the
+    // inspect view when it was. So every "choose a card from your hand" prompt
+    // in 2v2 (Symbiote Spider-Man's shuffle) lit the cards gold and then did
+    // nothing when they were clicked, and because the chain runs one seat at a
+    // time, the whole table sat waiting on an answer that could not physically
+    // be given. It bit hardest on a seat prompted OUTSIDE its own turn, which
+    // is the normal case here: Symbiote cycles all four hands the moment it
+    // lands. (User, playing as the guest: "the game cant continue since i never
+    // got the prompt to reshuffle, also every player must do this.")
+    // Cards the prompt is NOT asking about stay inert while it is open — same
+    // rule renderPlayerHand applies in 1v1.
+    const _cc = Game.state.pendingCardChoice;
+    const _promptOpen = !!(_cc || Game.state.pendingLaneChoice);
+    const _promptCardIds = new Set();
+    if (_cc && Game.promptIsMine(_cc, 'card')) {
+      (_cc.cards || []).forEach(c => { if (c && c.id != null) _promptCardIds.add(String(c.id)); });
+    }
     handEl.querySelectorAll('.hand-card-wrapper .card[data-card-id]').forEach(cardEl => {
-      const cardId = parseInt(cardEl.getAttribute('data-card-id'), 10);
+      const rawId  = cardEl.getAttribute('data-card-id');
+      const cardId = parseInt(rawId, 10);
       const apIdx  = ap.hand.findIndex(c => c.id === cardId);
       cardEl.classList.toggle('selected', cardId === selectedId);
+      if (_promptCardIds.has(rawId)) return;              // the prompt's own handler stands
+      if (_promptOpen) { cardEl.onclick = null; return; } // hand is inert while a prompt is open
       if (apIdx < 0 || !canPlay) { cardEl.onclick = null; return; }
       const cost = ap.hand[apIdx].cost || 0;
       if (energy < cost) { cardEl.onclick = null; return; }
