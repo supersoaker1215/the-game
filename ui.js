@@ -12531,15 +12531,24 @@ const UI = {
   // that makes the rail a rail — the drag handle, the resize grip, the collapse
   // click, the saved geometry — lives here, so 1v1 inherits all of it by
   // construction rather than by a second copy that drifts.
+  // WHAT THIS TURN LETS YOU DO, in words — "Cards", "Tricks", "Cards + Tricks".
+  // Accepts a full sub-phase ('p1-cards-tricks') or a bare kind ('cards'), so
+  // the turn rail and the End button can read the SAME answer off the SAME
+  // authority instead of each spelling the rule out again. (The board header
+  // had its own copy that compared the full sub-phase against 'cards' and so
+  // never matched — every turn read "Turn".)
+  _2v2PhaseLabel(kind) {
+    const k = String(kind || '');
+    const c = k.indexOf('cards') >= 0, t = k.indexOf('tricks') >= 0;
+    return (c && t) ? 'Cards + Tricks' : c ? 'Cards' : t ? 'Tricks' : '\u2014';
+  },
+
   _paintTurnTracker(el, model) {
     const rows = (model && model.rows) || [];
     if (!rows.length) { el.style.display = 'none'; return; }
     const idx = model.idx | 0;
     const esc = (t) => String(t == null ? '' : t).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-    const playLabel = (kind) => {
-      const c = kind.indexOf('cards') >= 0, t = kind.indexOf('tricks') >= 0;
-      return (c && t) ? 'Cards + Tricks' : c ? 'Cards' : t ? 'Tricks' : '\u2014';
-    };
+    const playLabel = (kind) => this._2v2PhaseLabel(kind);
     // ON A PHONE IT STARTS FURLED — see _2v2TrackerGeom. At 176px against a
     // 375px screen the rail is half the board and sits over the lanes.
     if (this._2v2TrackerCollapsed === undefined) {
@@ -12850,15 +12859,19 @@ const UI = {
     // "Ryan — Cards only" / "Max — Tricks only" — so at a glance everyone
     // knows whose turn it is and whether they're playing cards or tricks.
     // (User: on my card turn make it say something like "Ryan card only".)
+    // THE SUB-PHASE IS THE AUTHORITY, not the phase STRING. save.phase is only
+    // rewritten by _2v2StartSubPhase, so any render that arrives before it —
+    // a post-combat repaint, an incoming broadcast, an undo restoring the
+    // PREVIOUS turn's value — showed "Combat" while it was plainly someone's
+    // card turn. When combat really is running there is no sub-phase at all,
+    // which is a fact about the round rather than a string someone remembered
+    // to update. (The old comparisons were dead anyway: subPhase is 'p1-cards',
+    // never 'cards', so every turn fell through to "Turn".)
     let phaseLabel;
-    if (save.phase === '2v2-combat') {
+    if (!subPhase) {
       phaseLabel = 'Combat';
     } else {
-      let sub;
-      if      (subPhase === 'cards')         sub = 'Cards only';
-      else if (subPhase === 'tricks')        sub = 'Tricks only';
-      else if (subPhase === 'cards-tricks')  sub = 'Cards & Tricks';
-      else                                   sub = 'Turn';
+      const sub = this._2v2PhaseLabel(subPhase);
       const who = activeAp ? activeAp.name : '';
       phaseLabel = who ? `${who} — ${sub}` : sub;
     }
@@ -12946,7 +12959,7 @@ const UI = {
       const _uSeat = tt && tt.you;
       const _uWhy = (Game.undo2v2BlockedReason && _uSeat) ? Game.undo2v2BlockedReason(_uSeat) : 'Not now';
       const _uMine = !!(Game._2v2ActivePlayer && _uSeat && Game._2v2ActivePlayer() === _uSeat);
-      if (_uMine && save.phase !== '2v2-combat') {
+      if (_uMine && subPhase) {   // same authority as the End button below
         btnU.textContent   = 'Undo';
         btnU.className     = 'btn btn-secondary';
         btnU.style.display = 'inline-block';
@@ -12958,9 +12971,28 @@ const UI = {
       }
     }
     if (btnA) {
-      if (isMyTurn && !_locked && save.phase !== '2v2-combat') {
-        btnA.textContent     = 'Done';
-        btnA.className       = 'btn btn-primary';
+      // ALWAYS THERE ON YOUR TURN. Passing without playing is a legal move, and
+      // this gated on save.phase !== '2v2-combat' — a stale string (see the
+      // header above), so the button vanished on exactly the turns where you
+      // most wanted it and came back the moment you played a card, because the
+      // play refreshed the string. Gated on the sub-phase now: during real
+      // combat there is no sub-phase, so _2v2ActivePlayer() is null and
+      // isMyTurn is already false — the string was never carrying its weight.
+      // (Owner: "i want to pass and not play a card in 2v2 but the button that
+      // says end cards doesnt pop up, it does once i play a card.")
+      if (isMyTurn && !_locked && subPhase) {
+        // NAMED FOR THE TURN, off the same formatter the rail prints, so
+        // "Cards + Tricks" on the rail and "End Cards + Tricks" on the button
+        // can never disagree.
+        // The verb is dropped on a narrow window. "End Cards + Tricks" measures
+        // 120px of text plus the shared bar button's side padding, against an
+        // actions cell that is 766px at 1400 but 153px at 755 — and the button
+        // carries `overflow: hidden`, so what does not fit is silently sliced
+        // off rather than wrapping. The phase name is the part that carries the
+        // information (it is what was asked for), so the verb is what goes.
+        const _wide = !(typeof window !== 'undefined' && window.innerWidth && window.innerWidth <= 900);
+        btnA.textContent     = (_wide ? 'End ' : '') + this._2v2PhaseLabel(subPhase);
+        btnA.className       = 'btn btn-primary twov2-end-btn';
         btnA.onclick         = () => twov2OnlineDone();
         btnA.style.display   = 'inline-block';
         btnA.disabled        = false;

@@ -1355,6 +1355,18 @@ const Game = {
     // this ran, so writing it on the pre-restore object would be thrown away
     // with it (the same trap the 1v1 undo counter fell into and documents).
     if (tt2.players[seatKey]) tt2.players[seatKey]._undoUsedThisMatch = true;
+    // RE-DERIVE THE PHASE STRING. The snapshot is taken at the TOP of
+    // _2v2StartSubPhase, before it writes s.phase — so the clone carries the
+    // PREVIOUS turn's phase, and restoring it hands the UI a value that was
+    // never true for the turn the player is now back at the start of. When the
+    // previous value was '2v2-combat' (an undo on the first turn after a round
+    // resolves) the board read that string and showed the combat header, hid
+    // the End button, and left the seat unable to pass. Owner: "when i pressed
+    // the undo button to undo the gizmo play now im stuck."
+    // The sub-phase survives the restore intact and is the real answer, so ask
+    // it rather than trusting what the snapshot happened to hold.
+    const _sub = this._2v2SubPhase && this._2v2SubPhase();
+    if (_sub) this.state.phase = '2v2-' + _sub;
     if (this.rebuildEntityIndex) this.rebuildEntityIndex();
     this.log(`[UNDO] ${seat.name || seatKey} takes back their turn.`);
     if (typeof UI !== 'undefined' && UI.render) UI.render();

@@ -7951,7 +7951,27 @@ test("2v2: Green Lantern's energy reaches the seat that played him", function ()
 // not whichever teammate happens to sort first.
 // (User: "so the person who played manhattan should get 2 extra energy each
 // turn in 2v2.")
+// PRISTINE COPIES OF ENGINE METHODS THE 2v2 HELPERS MONKEY-PATCH.
+// Two upkeep helpers below (`room()` and `twoVtwoGame()`) replace
+// Game._2v2StartSubPhase with a no-op so a parity check stops after the round
+// upkeep instead of driving six sub-phases of AI turns — and neither puts it
+// back. Game is a SINGLETON, so every test that ran afterwards silently got the
+// stub: a turn never really started, the undo snapshot was never taken, and an
+// undo test failed for a reason that had nothing to do with undo. Same trap a
+// stubbed _2v2ActivePlayer set earlier in this file's history.
+// Captured at load, before anything has had a chance to replace it.
+var _PRISTINE_2V2 = (typeof Game !== 'undefined') ? {
+  startSubPhase: Game._2v2StartSubPhase,
+  activePlayer:  Game._2v2ActivePlayer,
+} : null;
+
 function fresh2v2(teams) {
+  // Undo whatever an earlier test left patched on the singleton, so "fresh"
+  // means fresh.
+  if (_PRISTINE_2V2) {
+    Game._2v2StartSubPhase = _PRISTINE_2V2.startSubPhase;
+    Game._2v2ActivePlayer  = _PRISTINE_2V2.activePlayer;
+  }
   Game.start2v2Match({ names: { p1: 'Ryan', p2: 'Vega', p3: 'Joe', p4: 'Cortex' } });
   var tt = Game.state.twoVTwo;
   tt.online = true; tt.you = 'p1';
@@ -8054,6 +8074,58 @@ test("2v2: the slot is already clear WHEN the callback runs, not after it", func
   G._apply2v2OnlineAction({ t: '2v2CardChoiceResult', playerKey: 'p2', idx: 0, cardId: a.id, seq: 7 });
   assertEq(slotDuringCallback, null, 'the answered prompt was gone before its own callback ran');
   assertEq(busyDuringCallback, false, 'so a chained prompt raised in there is shown, not queued');
+});
+
+// ---- UNDO MUST NOT RESTORE A PHASE THAT WAS NEVER TRUE ------------------
+// The turn snapshot is taken at the TOP of _2v2StartSubPhase, before it writes
+// s.phase — so the clone carries the PREVIOUS turn's phase string. Restoring it
+// hands the UI a value that was never true for the turn the player is back at
+// the start of, and when that value is '2v2-combat' the board shows the combat
+// header, hides the End button and strands the seat.
+// (Owner: "when i pressed the undo button to undo the gizmo play now im stuck".)
+function seat2v2TurnStart(G, seat, phaseBefore) {
+  var tt = G.state.twoVTwo;
+  tt.round = 1;
+  var order = G._2v2ComputePhaseOrder(1);
+  tt.subPhaseIdx = order.findIndex(function (sp) { return sp.indexOf(seat + '-') === 0; });
+  G.state.phase = phaseBefore;
+  G._2v2StartSubPhase();
+  return G._2v2SubPhase();
+}
+
+test("2v2: undo leaves the phase matching the turn you are back at", function () {
+  var G = fresh2v2();
+  var tt = G.state.twoVTwo;
+  tt.players.p1.hand = [G.createCardInstance(cardByName('Gizmo'), 'player')];
+  tt.players.p1.energy = 8; tt.players.p1.usedEnergy = 0;
+  // The turn BEFORE this one was combat — the round-boundary case.
+  var sub = seat2v2TurnStart(G, 'p1', '2v2-combat');
+  assertEq(G._2v2ActivePlayer(), 'p1', 'setup: it is p1 turn');
+  assert(!!sub, 'setup: there IS a sub-phase');
+  G._2v2OnlinePlayCard('p1', 0, 2);
+  assert(!!G.state.lanes[2].player, 'setup: Gizmo is on the board');
+
+  assertEq(G._2v2UndoTurn('p1'), true, 'the undo went through');
+  assertEq(G.state.lanes[2].player, null, 'the card came off the board');
+  assertEq(G.state.twoVTwo.players.p1.hand.length, 1, 'and went back to hand');
+  assertEq(G._2v2SubPhase(), sub, 'the sub-phase is unchanged — same turn');
+  assertEq(G.state.phase, '2v2-' + sub,
+    'and the phase string matches it, instead of the combat it restored');
+});
+
+test("2v2: an undone card can be played again", function () {
+  var G = fresh2v2();
+  var tt = G.state.twoVTwo;
+  tt.players.p1.hand = [G.createCardInstance(cardByName('Gizmo'), 'player')];
+  tt.players.p1.energy = 8; tt.players.p1.usedEnergy = 0;
+  seat2v2TurnStart(G, 'p1', '2v2-combat');
+  G._2v2OnlinePlayCard('p1', 0, 2);
+  G._2v2UndoTurn('p1');
+  var tt2 = G.state.twoVTwo;
+  assertEq(tt2.players.p1.energy - tt2.players.p1.usedEnergy, 8, 'the energy came back too');
+  G._2v2OnlinePlayCard('p1', 0, 4);
+  assert(!!G.state.lanes[4].player, 'and the card goes down again, in a lane of your choosing');
+  assertEq(G.state.lanes[4].player.name, 'Gizmo', 'the same card');
 });
 
 test("2v2: Dr. Manhattan's +2 goes to the seat that played him", function () {

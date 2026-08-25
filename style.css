@@ -42386,6 +42386,30 @@ body.no-art-grade .card-portrait { --art-grade: 1 !important; }
 }
 
 
+/* ---- 2v2 End button: room for a label that names the sub-phase -----------
+   "End Cards + Tricks" is four times the width of the "Done" it replaced, and
+   the actions cell holds three things: Undo, this button, and the roster
+   counts. The roster is `flex: 0 1 auto` with the default `min-width: auto`,
+   so it REFUSES to shrink — every pixel of the squeeze landed on the button,
+   which has `min-width: 0` and `overflow: hidden` and was therefore sliced
+   down to bare padding (measured 60px wide holding 155px of content).
+
+   The button is the control you have to be able to press; the roster is a
+   readout. So the button stops shrinking and the roster starts.
+
+   Selector is ID+class deliberately: #btn-action sets the padding, and the
+   comment there records that "this ID rule is what every class-level attempt
+   was losing to". Nothing here is worth an !important. */
+#btn-action.twov2-end-btn {
+  padding-left: 14px;
+  padding-right: 14px;
+  flex: 0 0 auto;             /* never the one that gets crushed */
+}
+.actions-section .twov2-roster-bottom {
+  min-width: 0;               /* ...this is */
+  overflow: hidden;
+}
+
 /* ============================================================
    PARTY VOICE CHAT PANEL (voice.js)
    Sits bottom-left, out of the lanes and clear of the turn-order rail on the
