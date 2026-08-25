@@ -1560,6 +1560,32 @@ const CARD_ABILITIES = {
         if (localIsCaster && view && typeof UI !== 'undefined' && UI._fxBrainiacScan) {
           try { UI._fxBrainiacScan(view.hand, view.name); } catch (e) {}
         }
+        // ANNOUNCE IT. The scan itself is private — that is the point of the
+        // card — but a two-round window that nobody is told about is
+        // indistinguishable from nothing having happened, and Brainiac is a
+        // DISCARD card so there is no body left on the board to explain it
+        // either. Owner, watching a teammate cast it: "brainiac isnt working,
+        // ryan played him, i didnt see anything — there should be a pop up like
+        // jigsaw / a trick in the middle of the board to let people know."
+        // The reveal carries WHO and WHOSE HAND and nothing else. Every seat
+        // may know a scan is running; only the caster may read the cards.
+        const casterName = (tt && tt.online && caster && tt.players[caster] && tt.players[caster].name)
+          || (G.seatLabel ? G.seatLabel(owner) : 'Your side');
+        const victimName = (tt && tt.online && victimSeat && tt.players[victimSeat] && tt.players[victimSeat].name)
+          || (view ? view.name : 'the opponent');
+        const label = `${casterName} scans ${victimName}'s hand`;
+        const publicDesc = `Sees every card ${victimName} holds or draws for ${G.BRAINIAC_SPY_ROUNDS} rounds. Everything they draw arrives at (\u22121/\u22121).`;
+        if (typeof UI !== 'undefined' && UI.showCardReveal) {
+          try { UI.showCardReveal('Brainiac', publicDesc, self.cost, localIsCaster, label); } catch (e) {}
+        }
+        // ...and over the wire, because in 2v2 online the host runs every seat's
+        // abilities — the guests never execute this and would otherwise see
+        // nothing at all. Same channel the trick reveal and Iron Giant's save
+        // already ride.
+        if (G.emitFX) {
+          G.emitFX('brainiacScan', { name: 'Brainiac', desc: publicDesc, cost: self.cost,
+                                     seat: caster || null, label });
+        }
       };
       // 2v2: the caster picks WHOSE hand. Routed to Brainiac's own seat only —
       // not the whole table.
@@ -5181,10 +5207,19 @@ const CARD_ABILITIES = {
         G.log(`[JACK SPARROW] Parlay! ${target.name} in lane ${i + 1} cannot attack this round.`);
       };
       if (Game.isHuman(self.owner)) {
+        // NAME THE SEAT. This fires from resolveCombat's before-combat pass,
+        // which is the one moment in a 2v2 round when NO seat is taking a turn —
+        // so the acting-seat global the engine would otherwise infer from is
+        // exactly the thing that has drifted or been cleared, and the fallback
+        // ("the first human on that team") hands one player's decision to their
+        // teammate. Symbiote Spider-Man and Human Torch both needed this same
+        // stamp for the same reason; a combat-time prompt has to carry its own
+        // owner. The card knows who played it and that survives everything.
+        const _seat = self._2v2PlayedBy || self._mcSeat || null;
         G.promptLaneChoice(self.owner, lanes,
           'Jack Sparrow — Parlay',
           'Choose an enemy in an uncontested lane — they cannot attack this combat.',
-          parley, opp);
+          parley, opp, null, 0, _seat ? { seat: _seat } : undefined);
       } else {
         // AI: silence the biggest uncontested threat.
         lanes.sort((a, b) => {

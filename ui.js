@@ -11482,6 +11482,19 @@ const UI = {
         }
         continue;
       }
+      // Brainiac's scan — guests only (the caster's own client already showed it
+      // live). Everyone is told a scan is RUNNING and whose hand it reads; the
+      // cards themselves stay with the caster. Same shape as trickReveal.
+      if (ev.type === 'brainiacScan') {
+        if (Game.onlineRelayRole && Game.onlineRelayRole() === 'guest') {
+          const tt = Game.state && Game.state.twoVTwo;
+          const mine = !!(tt && ev.seat && ev.seat === tt.you);
+          if (this.showCardReveal) {
+            try { this.showCardReveal(ev.name || 'Brainiac', ev.desc || '', ev.cost, mine, ev.label || ''); } catch (e) {}
+          }
+        }
+        continue;
+      }
       // Iron Giant sacrifice reveal — guests only (the host already showed it
       // live in doSave). Mirrors trickReveal: audio cue + the card reveal.
       if (ev.type === 'ironGiantSave') {
