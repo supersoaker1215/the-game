@@ -6313,34 +6313,53 @@ test("Game Over raises an enemy body that dies in its lane, as a (2/2)", functio
   assertEq(G.state.lanes[1]._env.player, null, 'and its lane slot is cleared');
 });
 
-test("Brainiac is discard-only and reveals the opponent's next 2 draws", function () {
+test("Brainiac is discard-only and opens the opponent's HAND for two rounds", function () {
   var G = freshGame();
   var brain = G.createCardInstance(cardByName('Brainiac'), 'player');
   assertEq(!!brain.isDiscardEffect, true, 'Brainiac is a discard effect (never seated in a lane)');
 
-  // Seed the shared/opponent draw pile. Draws pop from the END, so the NEXT
-  // draw is the last element pushed.
-  var pile = G.getDrawPile('ai');
-  pile.length = 0;
-  pile.push(cardByName('Hawkeye'));   // drawn 2nd
-  pile.push(cardByName('Bane'));      // drawn 1st (top)
+  // He reads a HAND, not the top of the draw pile. (The old foresight version
+  // peeked two unowned cards off the deck; it was reworked because that told
+  // you nothing about what you were actually about to be hit with.)
+  G.state.ai.hand.length = 0;
+  G.state.ai.hand.push(G.createCardInstance(cardByName('Bane'), 'ai'));
+  G.state.ai.hand.push(G.createCardInstance(cardByName('Hawkeye'), 'ai'));
 
-  var upcoming = CARD_ABILITIES['Brainiac']._upcoming(G, 'player', 2);
-  assertEq(upcoming.length, 2, 'sees two cards');
-  assertEq(upcoming[0].name, 'Bane', 'next draw first');
-  assertEq(upcoming[1].name, 'Hawkeye', 'then the one after');
-
+  assertEq(G.brainiacSpiedHand(null, 'player'), null, 'nothing visible before he lands');
   CARD_ABILITIES['Brainiac'].onDiscard(G, 'player', brain);
-  assertEq(G.state.player._brainiacScanRounds, 2, 'scan lasts two rounds');
+
+  var view = G.brainiacSpiedHand(null, 'player');
+  assertEq(!!view, true, 'the enemy hand is now readable');
+  assertEq(view.rounds, G.BRAINIAC_SPY_ROUNDS, 'the window is BRAINIAC_SPY_ROUNDS long');
+  assertEq(view.hand.length, 2, 'both cards in that hand are visible');
+  assertEq(view.hand[0].name, 'Bane', 'and they are the real cards');
 });
 
-test("Brainiac's foresight ticks down and expires at round start", function () {
+test("Brainiac shaves 1 ATK off every card that lands in the watched hand", function () {
   var G = freshGame();
-  G.state.player._brainiacScanRounds = 2;
+  var card = G.createCardInstance(cardByName('Bane'), 'ai');
+  var before = card.attack;
+  // Not watched yet — the drain is a no-op.
+  assertEq(G.applyBrainiacDrain(card, null, 'ai'), false, 'no scan, no drain');
+  assertEq(card.attack, before, 'and the card is untouched');
+
+  G.setBrainiacSpy('player', null, 2, null);
+  var fresh = G.createCardInstance(cardByName('Bane'), 'ai');
+  assertEq(G.applyBrainiacDrain(fresh, null, 'ai'), true, 'a watched hand drains what lands in it');
+  assertEq(fresh.attack, Math.max(0, before - G.BRAINIAC_SPY_ATK_DRAIN), 'arrives at -1 ATK');
+  // Once only — a card cannot be shaved twice.
+  assertEq(G.applyBrainiacDrain(fresh, null, 'ai'), false, 'never drained twice');
+  assertEq(fresh.attack, Math.max(0, before - G.BRAINIAC_SPY_ATK_DRAIN), 'still just the one point');
+});
+
+test("Brainiac's window ticks down and expires at round start", function () {
+  var G = freshGame();
+  G.setBrainiacSpy('player', null, 2, null);
+  assertEq(G.state.player._brainiacSpy.rounds, 2, 'armed for two rounds');
   G.startRound();
-  assertEq(G.state.player._brainiacScanRounds, 1, 'one round spent');
+  assertEq(G.state.player._brainiacSpy.rounds, 1, 'one round spent');
   G.startRound();
-  assertEq(G.state.player._brainiacScanRounds, 0, 'and it fades after the second');
+  assertEq(!G.brainiacSpyOf(null, 'player'), true, 'and it is gone after the second');
 });
 
 // ---- Art the Clown ----------------------------------------------------------
