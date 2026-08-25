@@ -1155,9 +1155,40 @@ class WebRTC4Transport {
     });
     this._peer.on('connection', (conn) => {
       const slots = ['p2', 'p3', 'p4'];
-      const taken = Object.keys(this._conns);
-      const slot = slots.find(s => !taken.includes(s));
-      if (!slot) { conn.close(); return; }  // room full
+      // A SEAT IS HELD BY A LIVE CONNECTION, NOT BY AN ATTEMPT. The old line
+      // was `slots.find(s => !taken.includes(s))` against every key ever added
+      // — so any connection that arrived and then failed to finish its ICE
+      // handshake sat on a seat forever, and it never fires 'close' (it never
+      // opened), so nothing released it. One flaky attempt, or one player who
+      // reloaded, and the room was full at three. (User: "not all 4 of us can
+      // join only 3 of us.")
+      // Three rules, in order:
+      //   1. A peer that is already seated gets ITS OWN seat back — that is a
+      //      reconnect, not a fourth player.
+      //   2. A seat whose connection never opened inside 12s is dead; reclaim it.
+      //   3. Only then is the room genuinely full — and say so out loud.
+      let slot = slots.find(s => this._conns[s] && this._conns[s].peer === conn.peer);
+      if (slot) {
+        try { this._conns[slot].close(); } catch (e) {}
+        delete this._conns[slot];
+      } else {
+        const now = Date.now();
+        slots.forEach(s => {
+          const c = this._conns[s];
+          if (!c) return;
+          const stale = !c.open && (now - (c._claimedAt || 0) > 12000);
+          if (stale) { try { c.close(); } catch (e) {} delete this._conns[s]; }
+        });
+        slot = slots.find(s => !this._conns[s]);
+      }
+      if (!slot) {
+        // Say it rather than dropping the socket in silence — a joiner whose
+        // connection just vanished has no way to tell "full" from "broken".
+        try { conn.on('open', () => { try { conn.send({ t: 'error', message: 'Room is full — all four seats are taken.' }); } catch (e) {} setTimeout(() => { try { conn.close(); } catch (e2) {} }, 400); }); }
+        catch (e) { try { conn.close(); } catch (e2) {} }
+        return;
+      }
+      conn._claimedAt = Date.now();
       this._conns[slot] = conn;
       conn.on('open', () => {
         conn.send({ t: '_slotAssigned', slot });

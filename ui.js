@@ -32254,6 +32254,11 @@ function twov2OnlineJoin() {
       tt.players[playerKey]._realHuman = true;
       tt.players[playerKey].isAI = false;
     }
+    // TELL THE ROOM. Only the host receives 'playerJoined' — the other seats
+    // learn who is in the lobby exclusively from a state push. Without this,
+    // players 2 and 3 sat looking at a lobby that never showed player 4
+    // arriving, which is indistinguishable from player 4 failing to join.
+    try { Game._2v2OnlineBroadcast(); } catch (e) {}
     UI.render();
   });
 
