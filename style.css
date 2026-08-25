@@ -42805,14 +42805,25 @@ body.no-art-grade .card-portrait { --art-grade: 1 !important; }
    SHORTHAND and `!important` (the cost ramp at ~5388, the trick purple at 5579,
    the game-over MVP tiers at ~23867), and a shorthand carries a width. Editing
    each would mean keeping twenty copies of one number in step forever. This
-   sets the width alone, last in the file, so it wins on source order against
-   equal-specificity !important without touching a single colour.
+   sets the width alone, last in the file, without touching a single colour.
+
+   THE DOUBLED CLASS IS LOAD-BEARING — `.card.card`, not `.card`. Owner: "why
+   does blue look thicker than green?" Because it WAS: cost-1 measured 1px and
+   cost-6 measured 2px off the same override. The cost ramp writes the whole
+   shorthand at `.draft-card.cost-1` — TWO classes — while the 4/5/6 and 7/8
+   and 9/10 tiers only override `border-color`, ONE property. So a one-class
+   `!important` here lost the low tiers on specificity and won the high ones by
+   default, and the frame silently changed weight with the cost. Repeating the
+   class costs nothing and matches (0,2,0), which ties the tier rules and takes
+   it on source order. Deliberately NOT three classes: the 3- and 4-class border
+   rules in this file are CHILD elements (.trick-cost, .status-badge) that must
+   keep their own weights.
    box-sizing is border-box globally (line 448), so the extra pixel comes out of
    the padding box: no tile changes size and nothing downstream reflows.
    ============================================================ */
-.card,
-.draft-card,
-.trick-card { border-width: 2px !important; }
+.card.card,
+.draft-card.draft-card,
+.trick-card.trick-card { border-width: 2px !important; }
 
 /* ============================================================
    LEADERBOARD, INLINE IN TOOLS.
