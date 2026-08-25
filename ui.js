@@ -12887,7 +12887,28 @@ const UI = {
     const btnNew = document.getElementById('btn-new-game');
     const btnU   = document.getElementById('btn-undo');
     if (btnNew) btnNew.style.display = 'none';
-    if (btnU)   btnU.style.display   = 'none';
+    // ONE UNDO PER SEAT, PER TURN. This used to be hidden outright in 2v2 —
+    // there was no take-back at all for any of the four players. Shown whenever
+    // it is your turn so the affordance is predictable, and DISABLED (with the
+    // reason as its tooltip) rather than vanishing when it cannot be used, so
+    // "already used it" and "not your turn" read differently.
+    // The engine owns every one of those reasons (undo2v2BlockedReason), so the
+    // button cannot promise something the host would refuse.
+    if (btnU) {
+      const _uSeat = save.twoVTwo && save.twoVTwo.you;
+      const _uWhy = (Game.undo2v2BlockedReason && _uSeat) ? Game.undo2v2BlockedReason(_uSeat) : 'Not now';
+      const _uMine = !!(Game._2v2ActivePlayer && _uSeat && Game._2v2ActivePlayer() === _uSeat);
+      if (_uMine && save.phase !== '2v2-combat') {
+        btnU.textContent   = 'Undo';
+        btnU.className     = 'btn btn-secondary';
+        btnU.style.display = 'inline-block';
+        btnU.disabled      = !!_uWhy;
+        btnU.title         = _uWhy || 'Take back everything you did this turn (once per turn)';
+        btnU.onclick       = () => { if (Game._2v2UndoTurn) { Game._2v2UndoTurn(_uSeat); UI.render(); } };
+      } else {
+        btnU.style.display = 'none';
+      }
+    }
     if (btnA) {
       if (isMyTurn && !_locked && save.phase !== '2v2-combat') {
         btnA.textContent     = 'Done';
@@ -26176,6 +26197,26 @@ const UI = {
   },
   canPlayerPlayCards(s) {
     if (this._2v2LocalCanPlay('cards')) return true;
+    // 2v2 ON ITS OWN TERMS. The board renderer maps the sub-phase onto a 1v1
+    // phase name so this function keeps working — but the two escape hatches
+    // below then ask hardcoded 'player' questions, and in 2v2 'player' is one
+    // TEAM. For a Team B seat that read the ENEMY board for Red Skull and the
+    // enemy proxy's hand for a trick-phase card: their own Red Skull did not
+    // open their hand, and the opponent's would have. Both allies on the team
+    // holding him should be able to play during their trick turn — he sits on
+    // the shared team board, so one Red Skull covers both.
+    // (User: "if red skull is on the field both ally players should be able to
+    // play cards during the trick phase if able.")
+    // Delegated per card to canPlayThisCardNow, which already resolves the
+    // LOCAL side, so there is one authority for "can this be played now"
+    // instead of a second copy that has to be kept in step.
+    const tt2 = s && s.twoVTwo;
+    if (tt2 && tt2.online) {
+      if (!this._2v2LocalCanPlay('tricks')) return false;
+      const seat = this._2v2LocalSeatData();
+      const hand = (seat && seat.hand) || [];
+      return hand.some(c => this.canPlayThisCardNow(s, c));
+    }
     if (s.phase === 'player-cards' || s.phase === 'player-cards-tricks') return true;
     if (s.phase === 'player-tricks' &&
         Game.getAllCardsOf('player').some(c => c.passive === 'allowCardsInTricksPhase')) {

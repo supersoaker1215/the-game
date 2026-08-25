@@ -1323,6 +1323,54 @@ const Game = {
     return true;
   },
 
+  // Take back everything this seat has done on its own turn. Refused once the
+  // turn has moved on, once they have used it, or while anything is still
+  // resolving — an undo that lands mid-ability would rewind a board another
+  // card's callback is still walking.
+  _2v2UndoTurn(seatKey) {
+    const tt = this.state && this.state.twoVTwo;
+    const seat = tt && seatKey && tt.players[seatKey];
+    if (!seat) return false;
+    // GUEST FORWARDS, HOST APPLIES — same rule as every other action.
+    if (tt.online && tt.you !== 'p1' && seatKey === tt.you && !(this.state && this.state._silentSim)) {
+      if (typeof Multiplayer4 !== 'undefined' && Multiplayer4.send) {
+        Multiplayer4.send({ t: '2v2Undo', playerKey: seatKey });
+      }
+      return true;
+    }
+    const why = this.undo2v2BlockedReason(seatKey);
+    if (why) { this.log(`  [UNDO] ${why}.`); return false; }
+    const snap = tt._turnSnap.clone;
+    this._clearPromptTimeout();
+    this._promptQueue = [];
+    if (this._stackClear) this._stackClear('undo');
+    // Carry the live 2v2 wrapper forward: the clone's twoVTwo is the state at
+    // turn start, which is what we want, but the snapshot itself must not
+    // survive into the restored state as a snapshot of a snapshot.
+    this.state = snap;
+    const tt2 = this.state.twoVTwo;
+    tt2._turnSnap = null;
+    if (tt2.players[seatKey]) tt2.players[seatKey]._undoUsedThisTurn = true;
+    if (this.rebuildEntityIndex) this.rebuildEntityIndex();
+    this.log(`[UNDO] ${seat.name || seatKey} takes back their turn.`);
+    if (typeof UI !== 'undefined' && UI.render) UI.render();
+    this._pushOnlineState();
+    return true;
+  },
+
+  // Every reason an undo can be refused, in one place, so the button can grey
+  // itself for the SAME reason the engine would say no. null = allowed.
+  undo2v2BlockedReason(seatKey) {
+    const s = this.state, tt = s && s.twoVTwo;
+    if (!tt || !seatKey || !tt.players[seatKey]) return 'Not now';
+    if (s.gameOver) return 'Game over';
+    if (this._2v2ActivePlayer && this._2v2ActivePlayer() !== seatKey) return 'Only on your turn';
+    if (tt.players[seatKey]._undoUsedThisTurn) return 'Undo already used this turn';
+    if (!tt._turnSnap || tt._turnSnap.seat !== seatKey || !tt._turnSnap.clone) return 'Nothing to take back';
+    if (this._2v2ActionsLocked && this._2v2ActionsLocked()) return 'Abilities are still resolving';
+    return null;
+  },
+
   _cmdCard(actor, p) {
     if (p.card) return p.card;
     const hand = (this.state[actor] && this.state[actor].hand) || [];
@@ -15813,6 +15861,21 @@ const Game = {
     const playerName = tt.players[activeKey].name;
     this.log(`[2v2] ${playerName}'s turn — ${subPhase}`);
 
+    // ONE TAKE-BACK PER SEAT, PER TURN. Snapshotted here, at the exact moment
+    // this seat's turn opens, so an undo rewinds everything THEY did this turn
+    // and nothing anyone else did — 2v2 turns are strictly sequential, so the
+    // only actions between this point and the undo are their own.
+    // (User: "add that each player only gets 1 undo the whole turn if they make
+    // a mistake and want to change that.") Host/local authority only: the host
+    // owns the state, so a guest asks and receives the rewind in the next
+    // broadcast, exactly like playing a card.
+    if (this._2v2IsAIAuthority && this._2v2IsAIAuthority()) {
+      try {
+        tt._turnSnap = { seat: activeKey, clone: this.cloneStateDeep(this.state) };
+        tt.players[activeKey]._undoUsedThisTurn = false;
+      } catch (e) { tt._turnSnap = null; }
+    }
+
     // Sync the active player's hand/energy into state.player or state.ai
     // so existing UI/ability code can read it
     const side = this._2v2ActiveSide();
@@ -16963,6 +17026,11 @@ const Game = {
         this._2v2CurrentActingPlayer = pk; // track who triggered any ability prompts
         this._2v2OnlinePlayCard(pk, msg.cardIdx, msg.laneIdx, msg.faceDown);
         break;
+      case '2v2Undo': {
+        if (pk !== activeKey) break;
+        this._2v2UndoTurn(pk);
+        break;
+      }
       case '2v2Redraw': {
         if (pk !== activeKey) break;
         if (this._2v2ActionsLocked()) { this._2v2QueueLockedAction(msg); break; }
