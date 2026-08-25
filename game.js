@@ -7904,20 +7904,7 @@ const Game = {
       // per-draw rate; nextDrawDiscountCount tracks how many draws still
       // get the discount (Text+ sets it to 2 for the "next 2 draws"
       // upgrade; classic onDiscard sets it to 1).
-      if (p.nextDrawDiscount > 0 && (p.nextDrawDiscountCount || 0) > 0) {
-        const applied = Math.min(card.cost, p.nextDrawDiscount);
-        card.cost -= applied;
-        card._nextDrawDiscount = (card._nextDrawDiscount || 0) + applied;
-        this.log(`  [DISCOUNT] ${card.name} costs ${applied} less! Now costs ${card.cost}`);
-        if (p._nextDrawDiscountSource) {
-          this._creditChain(p._nextDrawDiscountSource, 'statsDiscountValue', applied);
-        }
-        p.nextDrawDiscountCount -= 1;
-        if (p.nextDrawDiscountCount <= 0) {
-          p.nextDrawDiscount = 0;
-          p._nextDrawDiscountSource = null;
-        }
-      }
+      this.applyDrawDiscount(card, p);
       // (Captain America discount is now applied LIVE in
       // Game.getCardCost — no mutation needed at draw time. This
       // means CA's discount tracks the LIVE board state: if CA
@@ -11439,6 +11426,32 @@ const Game = {
   // −1/0 on every card that reaches a watched hand while the window is open.
   // Stamped once per card (_brainiacDrained) so a card that leaves and returns
   // to hand cannot be shaved twice, and floored at 0 attack.
+  // MR. FANTASTIC'S CHEAPER DRAW, AS ONE FUNCTION. drawCards applies it inline,
+  // but 2v2's round draw and its foresight hand-outs build the card themselves
+  // and push it straight into a hand — bypassing drawCards entirely, exactly as
+  // they bypassed the Brainiac drain until that was duplicated here too. So the
+  // one draw the discount most obviously covers, the round draw, came in at
+  // full price. (User: "when i discarded mr fantastics the next cards didnt
+  // cost 1 less.") `holder` is the object the counter LIVES on: the seat in
+  // 2v2, the side in 1v1.
+  applyDrawDiscount(card, holder) {
+    if (!card || !holder) return false;
+    if (!(holder.nextDrawDiscount > 0) || !((holder.nextDrawDiscountCount || 0) > 0)) return false;
+    const applied = Math.min(card.cost, holder.nextDrawDiscount);
+    card.cost -= applied;
+    card._nextDrawDiscount = (card._nextDrawDiscount || 0) + applied;
+    this.log(`  [DISCOUNT] ${card.name} costs ${applied} less! Now costs ${card.cost}`);
+    if (holder._nextDrawDiscountSource) {
+      this._creditChain(holder._nextDrawDiscountSource, 'statsDiscountValue', applied);
+    }
+    holder.nextDrawDiscountCount -= 1;
+    if (holder.nextDrawDiscountCount <= 0) {
+      holder.nextDrawDiscount = 0;
+      holder._nextDrawDiscountSource = null;
+    }
+    return true;
+  },
+
   applyBrainiacDrain(card, recipientSeat, recipientSide) {
     if (!card || card._brainiacDrained) return false;
     const watcher = this._brainiacWatcherOf(recipientSeat, recipientSide);
@@ -16054,6 +16067,7 @@ const Game = {
           // too — otherwise the one draw that matters most (the round draw,
           // the whole reason the window is worth two rounds) slipped through.
           this.applyBrainiacDrain(drawn, pk, null);
+          this.applyDrawDiscount(drawn, p);
           p.hand.push(drawn);
         }
       }
@@ -16120,7 +16134,14 @@ const Game = {
         // draw cards.") Same door every other deck-to-hand effect uses, so the
         // refusal is logged in the same words.
         if (!this.canDrawToHand(side, `${fs.source} foresight`)) { p._2v2GotForesightCard = true; return; }
-        if ((p.hand || []).length < cap) p.hand.push(this.createCardInstance(def, side));
+        if ((p.hand || []).length < cap) {
+          const fCard = this.createCardInstance(def, side);
+          // A foresight card REPLACES this seat's round draw, so it is a draw
+          // and it carries both the scan and the discount.
+          this.applyBrainiacDrain(fCard, pk, null);
+          this.applyDrawDiscount(fCard, p);
+          p.hand.push(fCard);
+        }
         p._2v2GotForesightCard = true;
         this.log(`  [FORESIGHT] ${fs.source}: ${def.name} → ${p.name}.`);
       });

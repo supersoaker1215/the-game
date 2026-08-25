@@ -581,11 +581,21 @@ const CARD_ABILITIES = {
       // Per-draw rate is the max in flight (multi-Mr.F overlap is rare;
       // the larger discount wins). Count accumulates so back-to-back
       // discards still hand out their share of cheaper draws.
-      G.state[owner].nextDrawDiscount = Math.max(G.state[owner].nextDrawDiscount || 0, disc);
-      G.state[owner].nextDrawDiscountCount = (G.state[owner].nextDrawDiscountCount || 0) + count;
+      // WRITE IT WHERE drawCards READS IT. In 1v1 that is the side object and
+      // nothing changes. In 2v2 drawCards resolves a SEAT (_2v2HandTarget) —
+      // because a hand belongs to a person, not to a team — and it reads the
+      // discount off that same seat, while this wrote to the shared side proxy.
+      // So the discount was set somewhere nothing ever looked: the card drawn
+      // by his own "Draw 1" came in at full price, and so did the next one.
+      // (User: "when i discarded mr fantastics the next cards didnt cost 1
+      // less.") `self` is passed so the seat resolves to whoever played HIM,
+      // not to whoever happens to be acting.
+      const tgt = (G._2v2HandTarget ? G._2v2HandTarget(owner, self) : G.state[owner]) || G.state[owner];
+      tgt.nextDrawDiscount = Math.max(tgt.nextDrawDiscount || 0, disc);
+      tgt.nextDrawDiscountCount = (tgt.nextDrawDiscountCount || 0) + count;
       // Track the Mr. Fantastic instance that set this so drawCards can
       // credit him with actual `statsDiscountValue` at apply time.
-      if (self) G.state[owner]._nextDrawDiscountSource = self;
+      if (self) tgt._nextDrawDiscountSource = self;
       // "Draw 1" keyword effect — fire the actual draw. Done AFTER
       // setting the discount above so the drawn card itself benefits
       // from the cheaper-draw aura (the user's intent: discarding
