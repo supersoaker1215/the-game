@@ -1027,6 +1027,33 @@ const Game = {
       const idx = (ap.hand || []).findIndex(c => c.id === wantId);
       if (idx < 0) return false;
       const card = ap.hand[idx];
+      // INVISIBLE WOMAN'S STEALTH DEPLOY — asked HERE, on the live play path.
+      // The prompt existed only in twov2OnlinePlaceCard, which is the retired
+      // lane-STRIP flow that now runs for local pass-and-play only; online
+      // play goes through this door (inspect -> Play, a drag drop, or a lane
+      // click), so the choice was simply never offered and the card always
+      // landed face up. (User: "invisible woman play face down doesnt work.")
+      // Local question, answered before the action is committed, and the
+      // answer then rides the action to the host — which is exactly what
+      // localOnly is for.
+      if (p.faceDown === undefined && !card.isDiscardEffect
+          && this._2v2TeamCanFaceDown && this._2v2TeamCanFaceDown(you)
+          && typeof UI !== 'undefined') {
+        this._2v2CurrentActingPlayer = you;
+        const _fdSide = this._2v2TeamSide[ap.team];
+        this.promptCardChoice(_fdSide, [
+          { name: 'Play Face Up',   desc: 'Play normally — all abilities activate', id: 'faceup_opt' },
+          { name: 'Play Face Down', desc: 'Hidden until it reveals before the trick phase', id: 'facedown_opt' },
+        ], 'Invisible Woman — Stealth Deploy',
+          `Play ${card.name} face up or face down?`,
+          (choice) => {
+            const fd = !!(choice && choice.id === 'facedown_opt');
+            this._submitCommand2v2(type, Object.assign({}, p, { faceDown: fd }));
+          },
+          null, { localOnly: true, forcePrompt: true, inlineTray: true, seat: you });
+        if (typeof UI !== 'undefined' && UI.render) UI.render();
+        return true;
+      }
       // A LANE supplied by the caller (a drag drop or a lane click) places the
       // card THERE in one gesture — the same as 1v1. Discards never take a lane
       // and fire immediately. Only a bare tap with no lane falls back to the
@@ -1036,16 +1063,19 @@ const Game = {
         const lane = card.isDiscardEffect ? null : p.lane;
         if (isHost) {
           this._2v2CurrentActingPlayer = you;
-          this._2v2OnlinePlayCard(you, idx, lane);
+          this._2v2OnlinePlayCard(you, idx, lane, !!p.faceDown);
           if (!this.state.pendingLaneChoice && !this.state.pendingCardChoice) this._2v2CurrentActingPlayer = null;
           // (the broadcast now happens inside _2v2OnlinePlayCard)
         } else if (typeof Multiplayer4 !== 'undefined') {
-          Multiplayer4.send({ t: 'play2v2Card', playerKey: you, cardIdx: idx, laneIdx: lane });
+          Multiplayer4.send({ t: 'play2v2Card', playerKey: you, cardIdx: idx, laneIdx: lane, faceDown: !!p.faceDown });
         }
         return true;
       }
+      // The bare-tap path picks a lane first; remember the stealth answer so
+      // the placement that follows still honours it.
+      if (p.faceDown) { try { card._playFaceDown = true; } catch (e) {} }
       if (isHost) { this._2v2RequestLaneChoice(you, idx); this._2v2OnlineBroadcast(); }
-      else if (typeof Multiplayer4 !== 'undefined') { Multiplayer4.send({ t: 'req2v2LaneChoice', playerKey: you, cardIdx: idx }); }
+      else if (typeof Multiplayer4 !== 'undefined') { Multiplayer4.send({ t: 'req2v2LaneChoice', playerKey: you, cardIdx: idx, faceDown: !!p.faceDown }); }
       return true;
     }
     if (type === 'playTrick') {
@@ -11585,7 +11615,13 @@ const Game = {
           && !this._2v2SeatIsAI(_abilitySeat)) {
         _actor = _abilitySeat;
       }
-      if (_2v2Online) {
+      // A localOnly prompt is a question this client asks ITSELF before it
+      // commits an action (the Invisible Woman face-up/face-down choice). It
+      // must not be stamped and broadcast as a table prompt — that would park a
+      // pendingCardChoice on the other three clients that only one person can
+      // answer, and show them a "waiting for…" banner for a decision the host
+      // never armed.
+      if (_2v2Online && !(options && options.localOnly)) {
         // NEVER LEAVE A 2v2 PROMPT UNOWNED. An unstamped prompt reads as
         // "belongs to whoever is looking" on all four clients, and — worse —
         // fell past this block into the host's 30s auto-pick, which answered it
@@ -16473,7 +16509,7 @@ const Game = {
         this._2v2OnlinePlayCard(pk, msg.cardIdx, msg.laneIdx, msg.faceDown);
         break;
       case 'req2v2LaneChoice':
-        this._2v2RequestLaneChoice(pk, msg.cardIdx);
+        this._2v2RequestLaneChoice(pk, msg.cardIdx, !!msg.faceDown);
         break;
       case 'play2v2Trick':
         if (pk !== activeKey) break;
@@ -16591,7 +16627,7 @@ const Game = {
   // implementation, the host now runs this same method locally that guests
   // reach via the 'req2v2LaneChoice' message, so there is one code path to
   // keep correct instead of two.
-  _2v2RequestLaneChoice(playerKey, cardIdx) {
+  _2v2RequestLaneChoice(playerKey, cardIdx, faceDown) {
     const pk = playerKey;
     if (!pk || cardIdx == null) return;
     if (pk !== this._2v2ActivePlayer()) return;                       // not your turn
@@ -16606,20 +16642,20 @@ const Game = {
     // Discard-effect cards never take a lane — play them straight away.
     if (card.isDiscardEffect) {
       this._2v2CurrentActingPlayer = pk;
-      this._2v2OnlinePlayCard(pk, cardIdx, null);
+      this._2v2OnlinePlayCard(pk, cardIdx, null, !!faceDown);
       return;
     }
     const openLanes = this.getOpenLanes(side);
     if (!openLanes.length) return;
     this._2v2CurrentActingPlayer = pk;
     if (openLanes.length === 1) {
-      this._2v2OnlinePlayCard(pk, cardIdx, openLanes[0]);
+      this._2v2OnlinePlayCard(pk, cardIdx, openLanes[0], !!faceDown);
     } else {
       this.promptLaneChoice(
         side, openLanes,
         `Place ${card.name}`,
         `Choose a lane for ${card.name} (${card.attack}/${card.currentHealth || card.health})`,
-        (lane) => this._2v2OnlinePlayCard(pk, cardIdx, lane)
+        (lane) => this._2v2OnlinePlayCard(pk, cardIdx, lane, !!faceDown)
       );
     }
   },
