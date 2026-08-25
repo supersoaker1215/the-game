@@ -7210,6 +7210,9 @@ const UI = {
     this._safe('renderPlayerTricks',      () => this.renderPlayerTricks(s));
     this._safe('renderInlineChoiceFallback', () => this.renderInlineChoiceFallback(s));
     this._safe('renderButtons',           () => this.renderButtons(s));
+    // The turn-order rail, for 1v1 online too. It reads the mode itself and
+    // hides outside an online match, so this one call covers both.
+    this._safe('turnTracker',             () => this._render2v2TurnTracker(s, s.twoVTwo));
     this._safe('renderLog',               () => this.renderLog(s));
     this._safe('showDamageFloats',        () => this.showDamageFloats());
     // RETRY the two that decide whether the player can still ACT. If one of
@@ -12350,6 +12353,29 @@ const UI = {
   // (Game._2v2ComputePhaseOrder) so it can never drift from the real turn flow.
   // Renders the six sub-turns of the current round in order, with each seat's
   // ACTUAL name, what they may play, who is up NOW, and who comes before/after.
+  // 1v1's round is the same shape as 2v2's, three steps instead of six: the
+  // first player lays cards, the second answers with cards AND tricks, then the
+  // first player takes their tricks. Nothing showed that order, so a 1v1 player
+  // had to remember whose turn came next and whether their trick window was
+  // still ahead of them. (User: "could you add that turn order tracker for 1v1
+  // online as well.") Returns the same {steps, idx} shape the 2v2 order does,
+  // so the rail below renders, drags, resizes and collapses identically.
+  _1v1TrackerOrder(s) {
+    const fp = (s && s.firstPlayer) || 'player';
+    const sp = (typeof Game !== 'undefined' && Game.opponent) ? Game.opponent(fp) : (fp === 'player' ? 'ai' : 'player');
+    const steps = [
+      { side: fp, kind: 'cards' },
+      { side: sp, kind: 'cards-tricks' },
+      { side: fp, kind: 'tricks' },
+    ];
+    // NOW is read off the live phase name, which is exactly `${side}-${kind}`.
+    // Combat (and anything after it) leaves every step behind — the round is
+    // over and the rail reads as done rather than pointing at a stale turn.
+    let idx = steps.findIndex(st => s.phase === st.side + '-' + st.kind);
+    if (idx < 0) idx = /combat|draw/.test(s.phase || '') ? steps.length : 0;
+    return { steps, idx };
+  },
+
   _render2v2TurnTracker(s, tt) {
     let el = document.getElementById('twov2-turn-tracker');
     if (!el) {
@@ -12358,56 +12384,93 @@ const UI = {
       el.className = 'twov2-tracker';
       document.body.appendChild(el);
     }
-    if (!tt || !tt.round || !Game._2v2ComputePhaseOrder) { el.style.display = 'none'; return; }
+    // ---- 1v1 ONLINE: two seats, three steps, same rail ----
+    if (!tt || !tt.players) {
+      const online1v1 = Game.isMultiplayer && Game.isMultiplayer();
+      if (!online1v1 || !s || !/^(player|ai)-/.test(s.phase || '')) { el.style.display = 'none'; return; }
+      const o = this._1v1TrackerOrder(s);
+      return this._paintTurnTracker(el, {
+        round: s.round || 1,
+        idx: o.idx,
+        rows: o.steps.map(st => ({
+          // The opponent by NAME, not "AI" — this rail only shows in an online
+          // match, where the other seat is a person. oppName is the same source
+          // the trick reveal and the seat strips already use.
+          name: st.side === 'player'
+            ? 'You'
+            : (this.oppName ? this.oppName() : (Game.seatLabel ? Game.seatLabel('ai') : 'Opponent')),
+          kind: st.kind,
+          you: st.side === 'player',      // 1v1 state is seat-flipped, so 'player' IS me
+          isAI: false,
+          color: st.side === 'player' ? '#4fc3f7' : '#ff7a6b',
+        })),
+      });
+    }
+    if (!tt.round || !Game._2v2ComputePhaseOrder) { el.style.display = 'none'; return; }
     const round = tt.round || 1;
     const order = Game._2v2ComputePhaseOrder(round) || [];
     if (!order.length) { el.style.display = 'none'; return; }
     const idx = tt.subPhaseIdx | 0;
     const myKey = tt.you || null;
-    const esc = (t) => String(t == null ? '' : t).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
     const teamColor = (team) => team === 'A' ? '#4fc3f7' : team === 'B' ? '#ff7a6b' : '#8a94a0';
-    const playLabel = (step) => {
-      const c = step.indexOf('cards') >= 0, t = step.indexOf('tricks') >= 0;
-      return (c && t) ? 'Cards + Tricks' : c ? 'Cards' : t ? 'Tricks' : '—';
+    // Both modes describe their round as the same list of rows, so the rail is
+    // painted once (below) rather than twice.
+    return this._paintTurnTracker(el, {
+      round, idx,
+      rows: order.map((step) => {
+        const pk = step.split('-')[0];
+        const p = (tt.players && tt.players[pk]) || {};
+        return {
+          name: p.name || ('Player ' + (pk[1] || '?')),
+          kind: step.split('-').slice(1).join('-'),
+          you: !!myKey && pk === myKey,
+          isAI: !!p.isAI,
+          color: teamColor(p.team || ''),
+          team: p.team || '',
+        };
+      }),
+    });
+  },
+
+  // ONE PAINTER FOR BOTH MODES. rows = [{ name, kind, you, isAI, color, team }],
+  // idx = which row is NOW (rows.length means the round is done). Everything
+  // that makes the rail a rail — the drag handle, the resize grip, the collapse
+  // click, the saved geometry — lives here, so 1v1 inherits all of it by
+  // construction rather than by a second copy that drifts.
+  _paintTurnTracker(el, model) {
+    const rows = (model && model.rows) || [];
+    if (!rows.length) { el.style.display = 'none'; return; }
+    const idx = model.idx | 0;
+    const esc = (t) => String(t == null ? '' : t).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    const playLabel = (kind) => {
+      const c = kind.indexOf('cards') >= 0, t = kind.indexOf('tricks') >= 0;
+      return (c && t) ? 'Cards + Tricks' : c ? 'Cards' : t ? 'Tricks' : '\u2014';
     };
-    // ON A PHONE IT STARTS FURLED. At 176px wide against a 375px screen the
-    // rail is half the board, and it is positioned over the lanes and the hand
-    // — the first thing a phone player would have to do is collapse it. Do it
-    // for them, once, and only when they have never placed it themselves.
+    // ON A PHONE IT STARTS FURLED — see _2v2TrackerGeom. At 176px against a
+    // 375px screen the rail is half the board and sits over the lanes.
     if (this._2v2TrackerCollapsed === undefined) {
       const narrow = (typeof window !== 'undefined' && window.innerWidth && window.innerWidth <= 700);
       this._2v2TrackerCollapsed = !!(narrow && !this._2v2TrackerGeom());
     }
     const collapsed = !!this._2v2TrackerCollapsed;
-    const chips = order.map((step, i) => {
-      const pk = step.split('-')[0];
-      const p = (tt.players && tt.players[pk]) || {};
-      const name = p.name || ('Player ' + (pk[1] || '?'));
-      const team = p.team || '';
+    const chips = rows.map((r, i) => {
       const state = i < idx ? 'done' : (i === idx ? 'now' : 'next');
-      const you = !!myKey && pk === myKey;
-      // Team is conveyed by the colour of the order pip, so the play line stays
-      // just the phase label and never truncates in the narrow rail.
-      return `<div class="twov2-tk-chip is-${state}${you ? ' is-you' : ''}" style="--tkc:${teamColor(team)}" title="${esc(name)} — ${playLabel(step)}${team ? ' (Team ' + team + ')' : ''}">
+      return `<div class="twov2-tk-chip is-${state}${r.you ? ' is-you' : ''}" style="--tkc:${r.color}" title="${esc(r.name)} \u2014 ${playLabel(r.kind)}${r.team ? ' (Team ' + r.team + ')' : ''}">
         <span class="twov2-tk-ord">${i + 1}</span>
         <span class="twov2-tk-body">
-          <span class="twov2-tk-name">${UI.seatNameHTML(name, p.isAI)}${you ? ' <b>(you)</b>' : ''}</span>
-          <span class="twov2-tk-play">${playLabel(step)}</span>
+          <span class="twov2-tk-name">${UI.seatNameHTML(r.name, r.isAI)}${r.you ? ' <b>(you)</b>' : ''}</span>
+          <span class="twov2-tk-play">${playLabel(r.kind)}</span>
         </span>
         ${i === idx ? '<span class="twov2-tk-now">NOW</span>' : ''}
       </div>`;
     }).join('');
     el.style.display = '';
     el.classList.toggle('is-collapsed', collapsed);
-    // The head is the DRAG handle and the grip is the RESIZE handle — both are
-    // wired by delegation in _2v2TrackerMakeMovable, which survives this
-    // innerHTML rebuild. Collapse is a click on the head that never moved, so
-    // one gesture surface does both without a modifier or a second target.
     el.innerHTML = `
-      <div class="twov2-tk-head" title="Drag to move · click to ${collapsed ? 'expand' : 'collapse'} · double-click to reset">
+      <div class="twov2-tk-head" title="Drag to move \u00b7 click to ${collapsed ? 'expand' : 'collapse'} \u00b7 double-click to reset">
         <span class="twov2-tk-title">Turn Order</span>
-        <span class="twov2-tk-round">R${round}</span>
-        <span class="twov2-tk-toggle">${collapsed ? '▸' : '▾'}</span>
+        <span class="twov2-tk-round">R${model.round || 1}</span>
+        <span class="twov2-tk-toggle">${collapsed ? '\u25b8' : '\u25be'}</span>
       </div>
       <div class="twov2-tk-row">${chips}</div>
       <div class="twov2-tk-grip"></div>`;
