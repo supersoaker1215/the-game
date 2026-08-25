@@ -6285,10 +6285,16 @@ body.hit-pause .ai-hand * {
   font-weight: 700;
   font-size: calc(var(--cost-size) * 0.42);
   line-height: 1;
-  display: flex; align-items: center; justify-content: flex-start;
-  /* Right padding is larger: the trailing edge is a 22° cut, so a digit centred
-     in the box would sit visually right-of-centre inside the actual shape. */
-  padding: 0 calc(var(--cost-size) * 0.30) 0 calc(var(--cost-size) * 0.18);
+  display: flex; align-items: center; justify-content: center;
+  /* The cut still earns a right bias, but far less than the first pass gave it.
+     The tab is a trapezoid — full width along the top, 78% along the bottom —
+     so its own visual centre is the mean of those, ~44.5% of the width, not 50.
+     The first attempt combined a right bias with flex-start, which stacked two
+     nudges in the same direction and put the digit at 33%: 11 points left of
+     the shape's centre, which is exactly what reads as "not centred".
+     Centred in the content box now, with the padding difference alone carrying
+     the bias. (Owner: "i like just a little more centered.") */
+  padding: 0 calc(var(--cost-size) * 0.26) 0 calc(var(--cost-size) * 0.16);
   z-index: 4;
   text-shadow:
     0 0 6px rgba(var(--cost-neon), 0.85),
