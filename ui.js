@@ -6989,9 +6989,16 @@ const UI = {
       // measured. (Chained through the hand solve, which is what the 1v1 path
       // does, because the hand's settled height is an input to the board's.)
       const _fit2v2 = () => { if (this._fitHandToViewport) this._fitHandToViewport(); };
-      if (is2v2OnlineGame) { this._render2v2OnlineBoard(s); this.renderInlineChoiceFallback(s); _fit2v2(); return; }
-      if (is2v2LocalGame)  { this._render2v2LocalGame(s); this.renderInlineChoiceFallback(s); _fit2v2(); return; }
-      this.render2v2(s); this.renderInlineChoiceFallback(s); _fit2v2(); return;
+      // THE REDRAW BUTTON LIVES IN THE SHARED TAIL TOO. Every path below
+      // returns before renderButtons runs, which is why the 2-Energy doubling
+      // redraw — engine-complete and seat-aware for all four players — had no
+      // control anywhere on a 2v2 screen. Same reason the choice tray had to be
+      // called here. It hides itself when a redraw is not currently legal, so
+      // calling it unconditionally is safe.
+      const _redraw2v2 = () => { this._safe('redrawBtn', () => this._renderRedrawButton(false)); };
+      if (is2v2OnlineGame) { this._render2v2OnlineBoard(s); this.renderInlineChoiceFallback(s); _redraw2v2(); _fit2v2(); return; }
+      if (is2v2LocalGame)  { this._render2v2LocalGame(s); this.renderInlineChoiceFallback(s); _redraw2v2(); _fit2v2(); return; }
+      this.render2v2(s); this.renderInlineChoiceFallback(s); _redraw2v2(); _fit2v2(); return;
     }
     if (isRoguelite && typeof Roguelite !== 'undefined') {
       if (Roguelite.renderPhase(s)) return;
@@ -24692,6 +24699,55 @@ const UI = {
 
   // ===================== BUTTONS =====================
 
+  // THE REDRAW CONTROL, SHARED BY BOTH MODES. It used to live inline in
+  // renderButtons — and every 2v2 render path returns ~250 lines before
+  // renderButtons is ever called, so the button simply did not exist in a 2v2
+  // match no matter what the engine allowed. (User: "the 2 energy doubling to
+  // redraw a card like in 1v1 still isnt there for all players.") Same class of
+  // miss as the choice tray: the 2v2 renderers bail out of the shared tail, so
+  // anything living in that tail has to be called from the 2v2 path too.
+  // Everything it shows still comes from the engine (redrawPhaseOk /
+  // getRedrawCost / redrawBlockedReason), which is already seat-aware in 2v2,
+  // so the button cannot disagree with what a redraw would actually do.
+  _renderRedrawButton(abilityPending) {
+    const btnR = document.getElementById('btn-redraw');
+    if (!btnR) return;
+    // Hidden by default so a stale button never survives a mode change.
+    if (!(!abilityPending && Game.redrawPhaseOk('player'))) { btnR.style.display = 'none'; return; }
+
+      const cost = Game.getRedrawCost('player');
+      const blocked = Game.redrawBlockedReason('player');
+      // The deck, with an undo arc WOVEN through it: the arc is drawn in two
+      // segments either side of the cards, so it passes BEHIND the back card
+      // and IN FRONT of the front one. Both cards are outlined on a black fill
+      // rather than solid — a same-colour arrow drawn over a solid card is
+      // invisible, so the fill is what makes the weave legible at all. The
+      // black matches the hand strip it sits on.
+      btnR.innerHTML =
+        '<svg class="redraw-glyph" viewBox="0 0 24 24" aria-hidden="true">'
+        +   '<path d="M4.6 9.4A8.2 8.2 0 0 1 19.6 8.2" fill="none" stroke="currentColor" '
+        +     'stroke-width="1.7" stroke-linecap="round"/>'
+        +   '<rect x="12" y="6.4" width="6.4" height="8.4" rx="1" fill="#000" '
+        +     'stroke="currentColor" stroke-width="1.25" stroke-opacity="0.65"/>'
+        +   '<rect x="6.4" y="9.4" width="6.7" height="8.9" rx="1" fill="#000" '
+        +     'stroke="currentColor" stroke-width="1.45"/>'
+        +   '<path d="M19.6 8.2A8.2 8.2 0 0 1 8.9 19.8" fill="none" stroke="currentColor" '
+        +     'stroke-width="1.7" stroke-linecap="round"/>'
+        +   '<path d="M11.4 18.1 8.9 19.8l1.8 2.3" fill="none" stroke="currentColor" '
+        +     'stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>'
+        + '</svg>'
+        + '<span class="redraw-cost">' + cost + '</span>';
+      btnR.title = blocked ? blocked : ('Redraw a card — ' + cost + ' Energy');
+      btnR.setAttribute('aria-label', btnR.title);
+      btnR.className = 'hand-redraw-toggle';
+      btnR.style.display = 'flex';
+      btnR.disabled = !!blocked;
+      // No inline opacity — the :disabled rule owns how "unaffordable" looks.
+      // Setting it here as well meant two places decided the same thing, and the
+      // inline one (0.4) silently beat the stylesheet every time.
+      btnR.onclick = () => this.onRedrawClick();
+  },
+
   renderButtons(s) {
     const btnA = document.getElementById('btn-action');
     const btnNew = document.getElementById('btn-new-game');
@@ -24779,39 +24835,7 @@ const UI = {
     // carry its own copy of the phase regex, and when the engine widened to
     // "anytime" the copy did not — the control stayed hidden in the very phase
     // the engine had just opened.
-    if (btnR && !abilityPending && Game.redrawPhaseOk('player')) {
-      const cost = Game.getRedrawCost('player');
-      const blocked = Game.redrawBlockedReason('player');
-      // The deck, with an undo arc WOVEN through it: the arc is drawn in two
-      // segments either side of the cards, so it passes BEHIND the back card
-      // and IN FRONT of the front one. Both cards are outlined on a black fill
-      // rather than solid — a same-colour arrow drawn over a solid card is
-      // invisible, so the fill is what makes the weave legible at all. The
-      // black matches the hand strip it sits on.
-      btnR.innerHTML =
-        '<svg class="redraw-glyph" viewBox="0 0 24 24" aria-hidden="true">'
-        +   '<path d="M4.6 9.4A8.2 8.2 0 0 1 19.6 8.2" fill="none" stroke="currentColor" '
-        +     'stroke-width="1.7" stroke-linecap="round"/>'
-        +   '<rect x="12" y="6.4" width="6.4" height="8.4" rx="1" fill="#000" '
-        +     'stroke="currentColor" stroke-width="1.25" stroke-opacity="0.65"/>'
-        +   '<rect x="6.4" y="9.4" width="6.7" height="8.9" rx="1" fill="#000" '
-        +     'stroke="currentColor" stroke-width="1.45"/>'
-        +   '<path d="M19.6 8.2A8.2 8.2 0 0 1 8.9 19.8" fill="none" stroke="currentColor" '
-        +     'stroke-width="1.7" stroke-linecap="round"/>'
-        +   '<path d="M11.4 18.1 8.9 19.8l1.8 2.3" fill="none" stroke="currentColor" '
-        +     'stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>'
-        + '</svg>'
-        + '<span class="redraw-cost">' + cost + '</span>';
-      btnR.title = blocked ? blocked : ('Redraw a card — ' + cost + ' Energy');
-      btnR.setAttribute('aria-label', btnR.title);
-      btnR.className = 'hand-redraw-toggle';
-      btnR.style.display = 'flex';
-      btnR.disabled = !!blocked;
-      // No inline opacity — the :disabled rule owns how "unaffordable" looks.
-      // Setting it here as well meant two places decided the same thing, and the
-      // inline one (0.4) silently beat the stylesheet every time.
-      btnR.onclick = () => this.onRedrawClick();
-    }
+    this._renderRedrawButton(abilityPending);
 
     // NAMES THE PHASE IT ENDS. Owner: "instead of the button saying done it
     // should say like 'end card phase' ... that might be too long then 'end
