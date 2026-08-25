@@ -1960,7 +1960,17 @@ const CARD_ABILITIES = {
       // Text+ raises to 2 so Scarlet Witch comes in +2/+2 over her
       // hex target — turns mirror into outright trade.
       const bonus = self._witchHexBonus || 0;
-      if (enemy && enemy.currentHealth > 0) {
+      // A HIDDEN CARD CANNOT BE READ. Invisible Woman's promise is that a
+      // face-down card is unknown and untouchable until it reveals — every
+      // other path honours that (dealDamage, killCard, canEffectLand, every
+      // debuff), but the hex read its stats straight off the object. A
+      // face-down card is carrying its BASE numbers with an HP floor, so
+      // copying one produced nonsense: opposite a hidden Scarlet Witch, ours
+      // came in 0/1. (User: "scarlet witch was played with no one in front and
+      // she spawned in as a 0/1 instead of a 3/4" — from where they sat there
+      // WAS no one in front, only a card back.)
+      // Nothing to read means nothing to copy, so she takes her 3/4 default.
+      if (enemy && enemy.currentHealth > 0 && !enemy.isFaceDown) {
         // SHE ENDS AS AN EXACT MIRROR — AFTER the aura, not before it.
         //
         // A While Active aura (Magneto's parity, Luke's) lands on Scarlet Witch
@@ -2002,7 +2012,7 @@ const CARD_ABILITIES = {
         self.copiesOpposite = false;
         G.log(`Scarlet Witch finds nothing to copy — defaults to ${3 + bonus}/${4 + bonus}.`);
       }
-      if (typeof UI !== 'undefined' && UI._fxScarletHex) { try { UI._fxScarletHex(self, (enemy && enemy.currentHealth > 0) ? enemy : null); } catch (e) {} }
+      if (typeof UI !== 'undefined' && UI._fxScarletHex) { try { UI._fxScarletHex(self, (enemy && enemy.currentHealth > 0 && !enemy.isFaceDown) ? enemy : null); } catch (e) {} }
     }
   },
   "Solomon Grundy": {

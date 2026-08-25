@@ -71,10 +71,16 @@ function mkCard(name, side) {
 }
 
 // ---- resolve whatever the card asked for, checking WHO was asked -----------
-// Cards that prompt a seat OTHER than the caster on purpose. Symbiote asks all
-// four players to cycle their own hand, so three of its four prompts are
-// legitimately somebody else's.
-var PROMPTS_OTHERS = { 'Symbiote Spider-Man': 1, 'Symbiote Spider-Man (deferred)': 1 };
+// Prompts that legitimately belong to a seat OTHER than the caster, matched on
+// the PROMPT TITLE rather than the card under audit. Symbiote asks all four
+// players to cycle their own hand, so three of its four prompts are somebody
+// else's — and it can arrive under another card's name, because Paul Atreides
+// and Knull free-play whatever they draw. Matching on the audited card missed
+// that and reported the pass as a routing bug roughly one run in five.
+var PROMPT_TITLES_FOR_OTHERS = [/^Symbiote Spider-Man/];
+function promptMayTargetOthers(title) {
+  return PROMPT_TITLES_FOR_OTHERS.some(function (re) { return re.test(String(title || '')); });
+}
 
 function drainPrompts(cardName, casterSeat, casterTeam, casterSide) {
   var tt = Game.state.twoVTwo, guard = 0;
@@ -89,7 +95,7 @@ function drainPrompts(cardName, casterSeat, casterTeam, casterSide) {
     } else if (seat !== casterSeat && Game.state.twoVTwo.players[seat]
                && Game.state.twoVTwo.players[seat].isAI) {
       note(cardName, 'ANSWEREDBYAI', '"' + (p.title || '?') + '" → ' + seat + ' [AI] instead of the human who played the card');
-    } else if (casterSide && p.owner === casterSide && seat !== casterSeat && !PROMPTS_OTHERS[cardName]) {
+    } else if (casterSide && p.owner === casterSide && seat !== casterSeat && !promptMayTargetOthers(p.title)) {
       // THE ONE THAT MATTERS: a prompt on the CASTER's own side that somebody
       // else got to answer. The seat may be perfectly "valid" — the host, the
       // teammate — and still be the wrong person, because the card is not

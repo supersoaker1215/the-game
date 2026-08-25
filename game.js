@@ -4349,7 +4349,32 @@ const Game = {
     const start = this.state[owner].batmanBlocked;
     const until = this.state[owner].batmanBlockedUntil || start;
     if (!start || this.state.round < start || this.state.round > until) return false;
-    const hand = this.state[owner].hand;
+    // BOTH ENEMIES, EACH LOCKED ON THEIR OWN BEST CARD. The lock FLAG lives on
+    // the side, so it covers the whole enemy team correctly — but the locked
+    // COST was snapshotted once per round from state[owner].hand and
+    // .currency, and in 2v2 that side proxy is whichever teammate happened to
+    // be bridged at the time. So one cost, taken from one player's hand, was
+    // applied to both: the other enemy was locked out of a card they might not
+    // even hold, and their real best card walked through. (User: "i played
+    // batman and the opponent was able to play their highest cost card ... it
+    // should affect both enemy players not just one.")
+    // Resolve the SEAT that actually holds this card and snapshot against that
+    // seat's own hand and energy, cached on the seat. No-op in 1v1, where the
+    // side proxy IS the player.
+    const _tt = this.state.twoVTwo;
+    let holder = this.state[owner];
+    let holderCurrency = this.state[owner].currency || 0;
+    if (_tt && _tt.players) {
+      const seatKey = this._2v2SLOTS.find(pk => {
+        const p = _tt.players[pk];
+        return p && Array.isArray(p.hand) && p.hand.indexOf(card) >= 0;
+      });
+      if (seatKey) {
+        holder = _tt.players[seatKey];
+        holderCurrency = Math.max(0, (holder.energy || 0) - (holder.usedEnergy || 0));
+      }
+    }
+    const hand = holder.hand || [];
     if (!hand.length) return false;
     // Only lock the highest-cost card the opponent could actually play
     // this turn. Previously this locked the absolute highest cost in hand
@@ -4363,15 +4388,14 @@ const Game = {
     // e.g. round 9, hand [10,5,5]: block correctly locks 10s. Player plays a 4-cost on
     // round 9 and enters the Batman-lock round with 5 currency — without caching the
     // check would recalculate and lock the 5s instead.
-    if (this.state[owner].batmanBlockedCostRound !== this.state.round) {
-      const currency = this.state[owner].currency || 0;
-      const affordable = hand.filter(c => this.getCardCost(owner, c) <= currency);
-      this.state[owner].batmanBlockedCost = affordable.length
+    if (holder.batmanBlockedCostRound !== this.state.round) {
+      const affordable = hand.filter(c => this.getCardCost(owner, c) <= holderCurrency);
+      holder.batmanBlockedCost = affordable.length
         ? Math.max(...affordable.map(c => c.baseCost || c.cost))
         : null;
-      this.state[owner].batmanBlockedCostRound = this.state.round;
+      holder.batmanBlockedCostRound = this.state.round;
     }
-    const blockedCost = this.state[owner].batmanBlockedCost;
+    const blockedCost = holder.batmanBlockedCost;
     if (blockedCost == null) return false;
     return (card.baseCost || card.cost) === blockedCost;
   },
