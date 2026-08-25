@@ -14266,8 +14266,49 @@ const UI = {
           <div class="mm-option-sub">${sub}</div>
         </div>
       </button>`;
-    // (Profile chip removed — the home screen leads with the title + the
-    // music-synced mirror art instead of a name/record badge.)
+    // FEATURED ROW — one mode gets pulled out of the list and given a real
+    // panel: chamfered on the two opposite corners, outlined rather than
+    // filled. It is the one boxed thing on the screen, which is what makes it
+    // read as featured; every other row stays boxless glow-text.
+    const feature = (id, label, sub, icon, onClick) => `
+      <button type="button" class="mm-feature" id="${id}" onclick="${onClick}">
+        <span class="mm-feature-icon">${icon}</span>
+        <span class="mm-feature-text">
+          <span class="mm-feature-label">${label}</span>
+          <span class="mm-feature-sub">${sub}</span>
+        </span>
+      </button>`;
+    // Library rows carry a right-aligned counter. REAL numbers, not the
+    // mockup's placeholders — a menu that lies about how many decks you have
+    // is worse than one that says nothing.
+    const _deckCount = (() => {
+      try { return Object.keys(this._dbGetSavedDecks() || {}).length; } catch (e) { return 0; }
+    })();
+    const _codexCount = (() => {
+      try {
+        const c = (typeof CARD_DEFS !== 'undefined') ? CARD_DEFS.length : 0;
+        const t = (typeof TRICK_DEFS !== 'undefined') ? TRICK_DEFS.length : 0;
+        return c + t;
+      } catch (e) { return 0; }
+    })();
+    const metaBtn = (id, label, sub, icon, onClick, meta) =>
+      btn(id, label, sub, icon, onClick).replace(
+        '</div>\n        </div>\n      </button>',
+        `</div>\n        </div><span class="mm-option-meta">${meta}</span>\n      </button>`);
+    // Who is signed in. Initials come off the same settings.playerName the
+    // leaderboard uses, so the chip cannot drift from the name on the board.
+    const _pname = ((this.settings && this.settings.playerName) || 'YOU').trim().slice(0, 12) || 'YOU';
+    const _initials = _pname.split(/[\s._-]+/).filter(Boolean).slice(0, 2)
+      .map(w => w[0]).join('').toUpperCase() || _pname.slice(0, 2).toUpperCase();
+    const profileHTML = `
+      <button type="button" class="mm-profile-chip" onclick="UI.openSettings && UI.openSettings()"
+              title="Change your name in Settings">
+        <span class="mm-profile-av">${_initials}</span>
+        <span class="mm-profile-meta">
+          <span class="mm-profile-name">${_pname}</span>
+          <span class="mm-profile-record">Signed in</span>
+        </span>
+      </button>`;
     // Simple question-mark SVG for the tutorial option (no other icon
     // slot conveys "how to play"). Matches the other .mm-svg spec.
     const helpSVG = `<svg class="mm-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M9 9a3 3 0 1 1 4.5 2.6c-.9.5-1.5 1-1.5 2"/><line x1="12" y1="17" x2="12" y2="17.2"/></svg>`;
@@ -14286,6 +14327,7 @@ const UI = {
     // buildPanel (not the shell) so submenu swaps keep it.
     const botbarHTML = `
       <div class="mm-botbar">
+        <div class="mm-np-label">Now playing</div>
         <div class="mm-npline">
           <span class="mm-nowplaying" role="button" tabindex="0" title="Shuffle to a random hero"
                 onclick="UI.sfx.nextMenuTrack()"
@@ -14360,11 +14402,11 @@ const UI = {
         <div class="mm-header">
           <h1 class="mm-title">the game</h1>
         </div>
+        ${feature('mm-multi', 'Multiplayer', 'Play a friend online · beta', SVG.multi, "UI.openMultiplayer()")}
         <div class="mm-section mm-tier-1">
           <div class="mm-section-label">Play</div>
           <div class="mm-grid mm-grid-section">
             ${btn('mm-play',    'Solo Match',   'Play against the AI',                                    SVG.play,     "UI.mmShowSub('solo')")}
-            ${btn('mm-multi',   'Multiplayer',  'Match a friend over the internet · beta',                SVG.multi,    "UI.openMultiplayer()")}
             ${(() => {
               // Consolidated Continue Run + Roguelite button — when a save
               // exists it reads "Continue last run" and resumes in place.
@@ -14380,12 +14422,13 @@ const UI = {
         <div class="mm-section mm-tier-2">
           <div class="mm-section-label">Library</div>
           <div class="mm-grid mm-grid-section">
-            ${btn('mm-decks',   'My Decks',     'Build, edit, copy, or play your decks',                  SVG.decks,    "Game.goToMyDecks()")}
-            ${btn('mm-encyc',   'Codex',        'Every card and trick in the game',                       SVG.decks,    "UI.openEncyclopedia()")}
+            ${metaBtn('mm-decks', 'My Decks', 'Build, edit, copy, or play your decks', SVG.decks, "Game.goToMyDecks()", `${_deckCount} built`)}
+            ${metaBtn('mm-encyc', 'Codex',    'Every card and trick in the game',       SVG.decks, "UI.openEncyclopedia()", `${_codexCount} entries`)}
             ${btn('mm-stats',   'Stats',        'Card win rates and balance trends',                      SVG.stats,    "Game.goToStats()")}
             ${btn('mm-tools',   'Tools',        'Leaderboard, Audio Audit, Gallery Audit + Sandbox',      SVG.settings, "UI.mmShowSub('tools')")}
           </div>
-        </div>${botbarHTML}`;
+        </div>
+        ${profileHTML}${botbarHTML}`;
     };
     this._mmBuildPanel = buildPanel;   // reused by in-place submenu swaps (mmShowSub)
     const _flowOn = this.settings.menuFlow !== false;

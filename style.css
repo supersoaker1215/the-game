@@ -42826,3 +42826,206 @@ body.no-art-grade .card-portrait { --art-grade: 1 !important; }
               inset 0 0 20px rgba(var(--theme-rgb, 79,195,247), 0.05);
   backdrop-filter: none;
 }
+
+/* ============================================================
+   MAIN MENU — THE HUD LAYOUT (2026-08-25)
+   ============================================================
+   Owner supplied a canvas for the home screen and asked for it "with the art
+   how it is currently on the right", so .mm-sideart is deliberately untouched
+   below — this block restyles the LEFT column only.
+
+   Appended at the end of the file on purpose. The menu's existing rules span
+   ~2018-2200 and a dozen later override blocks; matching specificity against
+   all of them would mean guessing which one currently wins. Source order is
+   the one lever that always works, and it keeps the old rules readable as
+   history instead of shredding them.
+
+   The one boxed thing on this screen is the featured mode. Everything else
+   stays boxless glow-text, which is the standing rule — a panel around ONE
+   item is what makes it read as featured; a panel around all of them is the
+   blue box we keep removing. */
+
+/* ---- Title: name, then an angled rule that cuts away to the right ---- */
+.mm-panel .mm-title {
+  text-align: left;
+  letter-spacing: 6px;
+  text-indent: 0;
+  margin: 0 0 14px;
+}
+.mm-panel .mm-header {
+  align-items: flex-start;
+  position: relative;
+}
+/* The rule is a clipped block, not a border — a border cannot taper. The
+   polygon takes the last 42px down to a point so it reads as a circuit trace
+   leaving the title rather than a line that simply stops. */
+.mm-panel .mm-header::after {
+  content: "";
+  display: block;
+  width: 62%; height: 3px;
+  margin: 0 0 26px;
+  background: linear-gradient(90deg,
+    rgba(var(--theme-rgb, 79,195,247), 0.95) 0%,
+    rgba(var(--theme-rgb, 79,195,247), 0.75) 62%,
+    rgba(var(--theme-rgb, 79,195,247), 0.45) 100%);
+  clip-path: polygon(0 0, calc(100% - 42px) 0, 100% 100%, 0 100%);
+  box-shadow: 0 0 10px rgba(var(--theme-rgb, 79,195,247), 0.55);
+}
+
+/* ---- Featured mode — chamfered on the two opposite corners ---- */
+.mm-panel .mm-feature {
+  position: relative;
+  display: flex; align-items: center; gap: 20px;
+  width: 100%;
+  margin: 0 0 24px;
+  padding: 18px 24px;
+  cursor: pointer;
+  text-align: left;
+  background: linear-gradient(120deg,
+    rgba(var(--theme-rgb, 79,195,247), 0.10) 0%,
+    rgba(var(--theme-rgb, 79,195,247), 0.02) 46%,
+    rgba(0,0,0,0) 100%), #000;
+  border: 0;
+  /* top-left and bottom-right cut — the same 45-degree language as the
+     card frame's chamfer, so the menu and the cards read as one system. */
+  clip-path: polygon(26px 0, 100% 0, 100% calc(100% - 26px),
+                     calc(100% - 26px) 100%, 0 100%, 0 26px);
+  color: var(--text-hi, #f5fbff);
+  font-family: 'Rajdhani', sans-serif;
+  transition: transform 0.18s var(--ease-snap), filter 0.18s var(--ease-snap);
+}
+/* The outline is a second clipped layer sitting 1px inside the first. A
+   border cannot follow a clip-path, and box-shadow gets clipped away by it —
+   two stacked polygons is the only way to get a stroked chamfered box. */
+.mm-panel .mm-feature::before {
+  content: "";
+  position: absolute; inset: 0;
+  background: rgba(var(--theme-rgb, 79,195,247), 0.85);
+  clip-path: polygon(26px 0, 100% 0, 100% calc(100% - 26px),
+                     calc(100% - 26px) 100%, 0 100%, 0 26px);
+  z-index: 0;
+}
+.mm-panel .mm-feature::after {
+  content: "";
+  position: absolute; inset: 1.5px;
+  background: #000;
+  clip-path: polygon(25px 0, 100% 0, 100% calc(100% - 25px),
+                     calc(100% - 25px) 100%, 0 100%, 0 25px);
+  z-index: 1;
+}
+.mm-panel .mm-feature > * { position: relative; z-index: 2; }
+.mm-panel .mm-feature:hover { transform: translateX(3px); filter: brightness(1.15); }
+.mm-panel .mm-feature-icon {
+  color: rgb(var(--theme-rgb, 79,195,247));
+  display: flex; align-items: center;
+}
+.mm-panel .mm-feature-icon .mm-svg { width: 30px; height: 30px; }
+.mm-panel .mm-feature-text { display: flex; flex-direction: column; gap: 7px; }
+.mm-panel .mm-feature-label {
+  font-size: 27px; font-weight: 700; letter-spacing: 3px; text-transform: uppercase;
+  line-height: 1;
+  text-shadow: 0 0 12px rgba(var(--theme-rgb, 79,195,247), 0.55);
+}
+.mm-panel .mm-feature-sub {
+  font-family: var(--font-mono);
+  font-size: 11px; font-weight: 500; letter-spacing: 2.6px; text-transform: uppercase;
+  color: rgba(var(--theme-rgb, 79,195,247), 0.80);
+}
+
+/* ---- Section labels — "PLAY ╱" then a rule to the right ---- */
+.mm-panel .mm-section-label {
+  border-left: 0;
+  padding-left: 0;
+  margin: 0 0 18px;
+  display: flex; align-items: center; gap: 12px;
+  font-size: 11px; letter-spacing: 4.5px;
+  color: rgba(var(--theme-rgb, 79,195,247), 0.95);
+}
+.mm-panel .mm-section-label::before {
+  content: "╱";
+  font-size: 12px;
+  color: rgba(var(--theme-rgb, 79,195,247), 0.55);
+}
+.mm-panel .mm-section-label::after {
+  content: "";
+  flex: 1 1 auto; height: 1px;
+  background: linear-gradient(90deg,
+    rgba(var(--theme-rgb, 79,195,247), 0.32) 0%,
+    rgba(var(--theme-rgb, 79,195,247), 0) 100%);
+}
+
+/* ---- Rows — bigger, quieter, boxless ---- */
+/* The canvas is 1855px tall; a 900-1000px browser is the real target, so the
+   rhythm is compressed to keep the profile chip and Now Playing above the fold
+   rather than reproducing the mockup's spacing and pushing them off it. */
+.mm-panel .mm-grid-section { gap: 2px; }
+.mm-panel .mm-section { margin-bottom: 22px; }
+.mm-panel .mm-option {
+  padding: 10px 8px 10px 4px;
+  gap: 18px;
+  align-items: center;
+}
+.mm-panel .mm-option-label {
+  font-size: 23px; font-weight: 700; letter-spacing: 4.5px;
+}
+.mm-panel .mm-option-icon .mm-svg { width: 22px; height: 22px; }
+/* The one-line description is dead weight on a screen this size — the label
+   already says what the row does. Kept in the DOM for the submenus, which
+   genuinely need it, and hidden only on the main list. */
+.mm-panel .mm-tier-1 .mm-option-sub,
+.mm-panel .mm-tier-2 .mm-option-sub { display: none; }
+.mm-panel .mm-option-text { flex: 1 1 auto; min-width: 0; }
+.mm-panel .mm-option-meta {
+  margin-left: auto;
+  font-family: var(--font-mono);
+  font-size: 11px; font-weight: 600; letter-spacing: 2.2px; text-transform: uppercase;
+  color: rgba(var(--theme-rgb, 79,195,247), 0.50);
+  white-space: nowrap;
+}
+
+/* ---- Who is signed in ---- */
+.mm-panel .mm-profile-chip {
+  display: flex; align-items: center; gap: 18px;
+  margin: 4px 0 0; padding: 0;
+  background: none; border: 0; cursor: pointer;
+  text-align: left;
+}
+.mm-panel .mm-profile-av {
+  width: 58px; height: 58px;
+  display: grid; place-items: center;
+  font-family: 'Rajdhani', sans-serif;
+  font-size: 21px; font-weight: 700; letter-spacing: 2px;
+  color: rgb(var(--theme-rgb, 79,195,247));
+  background: rgba(var(--theme-rgb, 79,195,247), 0.09);
+  /* border-radius AND border both have to go: the base rule at ~1959 makes this
+     a 50% circle with a 1px border, and a clip-path cannot un-round a box that
+     has already been rounded — it just cuts the corners off a circle. The
+     outline moves to an inset shadow, which does follow the clip. */
+  border-radius: 0;
+  border: 0;
+  clip-path: polygon(0 0, calc(100% - 15px) 0, 100% 15px, 100% 100%, 15px 100%, 0 calc(100% - 15px));
+  box-shadow: inset 0 0 0 1px rgba(var(--theme-rgb, 79,195,247), 0.45);
+}
+.mm-panel .mm-profile-name {
+  font-family: 'Rajdhani', sans-serif;
+  font-size: 17px; font-weight: 700; letter-spacing: 3px; text-transform: uppercase;
+  color: var(--text-hi, #f5fbff);
+}
+.mm-panel .mm-profile-record {
+  font-family: var(--font-mono);
+  font-size: 10px; letter-spacing: 2.6px; text-transform: uppercase;
+  color: rgba(var(--theme-rgb, 79,195,247), 0.55);
+}
+
+/* ---- Now playing ---- */
+.mm-panel .mm-botbar {
+  margin-top: 20px;
+  padding-top: 18px;
+  border-top: 1px solid rgba(var(--theme-rgb, 79,195,247), 0.16);
+}
+.mm-panel .mm-np-label {
+  font-family: var(--font-mono);
+  font-size: 10px; letter-spacing: 3px; text-transform: uppercase;
+  color: rgba(var(--theme-rgb, 79,195,247), 0.42);
+  margin-bottom: 10px;
+}
