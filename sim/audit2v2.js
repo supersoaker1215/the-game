@@ -19,6 +19,10 @@
 // ============================================================
 load('./sim/shim-real.js');
 
+// Run against older builds too, so a fix can be shown to actually fix
+// something: the owner binder is a recent addition.
+if (typeof Game._2v2RunOwned !== 'function') Game._2v2RunOwned = function (c, fn) { return fn(); };
+
 var argv = (typeof arguments !== 'undefined') ? arguments : [];
 var VERBOSE = false;
 for (var i = 0; i < argv.length; i++) if (argv[i] === '--verbose') VERBOSE = true;
@@ -67,7 +71,12 @@ function mkCard(name, side) {
 }
 
 // ---- resolve whatever the card asked for, checking WHO was asked -----------
-function drainPrompts(cardName, casterSeat, casterTeam) {
+// Cards that prompt a seat OTHER than the caster on purpose. Symbiote asks all
+// four players to cycle their own hand, so three of its four prompts are
+// legitimately somebody else's.
+var PROMPTS_OTHERS = { 'Symbiote Spider-Man': 1, 'Symbiote Spider-Man (deferred)': 1 };
+
+function drainPrompts(cardName, casterSeat, casterTeam, casterSide) {
   var tt = Game.state.twoVTwo, guard = 0;
   while (guard++ < 40) {
     var s = Game.state;
@@ -77,6 +86,16 @@ function drainPrompts(cardName, casterSeat, casterTeam) {
     var seat = p._2v2ActingPlayer;
     if (!seat) {
       note(cardName, 'UNOWNED', '"' + (p.title || '?') + '"');
+    } else if (seat !== casterSeat && Game.state.twoVTwo.players[seat]
+               && Game.state.twoVTwo.players[seat].isAI) {
+      note(cardName, 'ANSWEREDBYAI', '"' + (p.title || '?') + '" → ' + seat + ' [AI] instead of the human who played the card');
+    } else if (casterSide && p.owner === casterSide && seat !== casterSeat && !PROMPTS_OTHERS[cardName]) {
+      // THE ONE THAT MATTERS: a prompt on the CASTER's own side that somebody
+      // else got to answer. The seat may be perfectly "valid" — the host, the
+      // teammate — and still be the wrong person, because the card is not
+      // theirs. (User: "the person who plays a card ... gets to use the ability
+      // and it never goes to the Host or an AI opponent.")
+      note(cardName, 'WRONGSEAT', '"' + (p.title || '?') + '" → ' + seat + ' instead of ' + casterSeat + ', who played it');
     } else if (p.owner && Game._2v2SeatOnSide && !Game._2v2SeatOnSide(seat, p.owner)) {
       // The prompt's OWNER is a side; the seat answering it must be on that
       // side. A prompt deliberately aimed at an enemy seat (Symbiote cycles
@@ -143,8 +162,18 @@ function auditCard(def) {
 
   var card = Game.createCardInstance(def, mySide);
   card._2v2PlayedBy = casterSeat;
-  Game._2v2CurrentActingPlayer = casterSeat;
-  Game._2v2ActivePlayer = function () { return casterSeat; };
+  // HOSTILE CONDITIONS, ON PURPOSE. The card is played by a HUMAN GUEST (p3),
+  // and then every signal the engine could lean on is set WRONG: the acting
+  // seat is cleared, an AI seat is marked as driving, and the "active" seat is
+  // an AI on the other team. If a prompt still finds p3, it found them because
+  // the card knows who played it — not because a global happened to be right.
+  // (User: "the person who played it gets to use the ability and it never goes
+  // to the Host or an AI opponent.")
+  tt.players.p2.isAI = true;
+  tt.players.p4.isAI = true;
+  Game._2v2CurrentActingPlayer = null;
+  Game._2v2AIDriving = 'p2';
+  Game._2v2ActivePlayer = function () { return 'p2'; };
 
   var hooks = [];
   ['onPlay', 'onDiscard', 'onBeforeTricks', 'onEndOfTurn', 'onDeath',
@@ -154,33 +183,61 @@ function auditCard(def) {
   });
 
   var fired = {};
+  // PASS 1 — the ordinary path, played through the hook runner so the ability
+  // owner is bound the way the engine binds it.
   try {
     if (card.isDiscardEffect) {
-      if (typeof card.onDiscard === 'function') { fired.onDiscard = 1; card.onDiscard(Game, mySide, card); }
+      if (typeof card.onDiscard === 'function') { fired.onDiscard = 1; Game._2v2RunOwned(card, function () { card.onDiscard(Game, mySide, card); }); }
     } else {
       var lane = 7;
       Game.state.lanes[lane][mySide] = card;
-      if (typeof card.onPlay === 'function') { fired.onPlay = 1; card.onPlay(Game, card, lane); }
+      if (typeof card.onPlay === 'function') { fired.onPlay = 1; Game._runHook(card, 'onPlay', Game, card, lane); }
     }
   } catch (e) {
     note(def.name, 'THREW', (e.message || e));
   }
-  drainPrompts(def.name, casterSeat, casterTeam);
+  drainPrompts(def.name, casterSeat, casterTeam, mySide);
+
+  // PASS 2 — THE DEFERRED ARM. The same card, but something is already holding
+  // the prompt slot when it plays, so its prompt goes into the queue and
+  // re-arms LATER — after the hook returned, with every global moved on to the
+  // AI seat whose turn it now is. This is the shape of "a guest played a card
+  // and the host got the prompt": the queue used to re-derive the seat from the
+  // owning TEAM at drain time, which lands on the first human on that team.
+  (function deferredPass() {
+    var card2 = Game.createCardInstance(def, mySide);
+    card2._2v2PlayedBy = casterSeat;
+    Game.state.pendingCardChoice = { owner: mySide, cards: [{ id: 999999, name: 'blocker', currentHealth: 1 }], title: 'blocker', callback: function () {} };
+    try {
+      if (card2.isDiscardEffect) {
+        if (typeof card2.onDiscard === 'function') Game._2v2RunOwned(card2, function () { card2.onDiscard(Game, mySide, card2); });
+      } else {
+        Game.state.lanes[6][mySide] = card2;
+        if (typeof card2.onPlay === 'function') Game._runHook(card2, 'onPlay', Game, card2, 6);
+      }
+    } catch (e) { /* pass 1 already reported anything that throws */ }
+    // release the blocker into a world where nothing remembers the caster
+    Game.state.pendingCardChoice = null;
+    Game._2v2CurrentActingPlayer = null;
+    Game._2v2AIDriving = 'p2';
+    try { Game.resumeCombatIfWaiting(); } catch (e) {}
+    drainPrompts(def.name + ' (deferred)', casterSeat, casterTeam, mySide);
+  })();
 
   // recurring hooks: they must survive a second round too
   try {
     if (typeof card.onBeforeTricks === 'function') {
       Game.state.round = 5; tt.round = 5;
       fired.onBeforeTricks = 1;
-      card.onBeforeTricks(Game, card, 7);
-      drainPrompts(def.name, casterSeat, casterTeam);
+      Game._runHook(card, 'onBeforeTricks', Game, card, 7);
+      drainPrompts(def.name, casterSeat, casterTeam, mySide);
     }
   } catch (e) { note(def.name, 'THREW', 'onBeforeTricks: ' + (e.message || e)); }
   try {
     if (typeof card.onEndOfTurn === 'function') {
       fired.onEndOfTurn = 1;
-      card.onEndOfTurn(Game, card);
-      drainPrompts(def.name, casterSeat, casterTeam);
+      Game._runHook(card, 'onEndOfTurn', Game, card, 7);
+      drainPrompts(def.name, casterSeat, casterTeam, mySide);
     }
   } catch (e) { note(def.name, 'THREW', 'onEndOfTurn: ' + (e.message || e)); }
   // The REACTIVE hooks — fired the way combat fires them, with the card on the
@@ -202,8 +259,8 @@ function auditCard(def) {
     if (typeof card[h] !== 'function') return;
     try {
       fired[h] = 1;
-      card[h].apply(null, pair[1]);
-      drainPrompts(def.name, casterSeat, casterTeam);
+      Game._runHook.apply(Game, [card, h].concat(pair[1]));
+      drainPrompts(def.name, casterSeat, casterTeam, mySide);
     } catch (e) { note(def.name, 'THREW', h + ': ' + (e.message || e)); }
   });
 
@@ -215,8 +272,8 @@ function auditCard(def) {
       var dLane = 7;
       Game.state.lanes[dLane][mySide] = card;
       fired.onDeath = 1;
-      card.onDeath(Game, card, dLane);
-      drainPrompts(def.name, casterSeat, casterTeam);
+      Game._runHook(card, 'onDeath', Game, card, dLane);
+      drainPrompts(def.name, casterSeat, casterTeam, mySide);
     }
   } catch (e) { note(def.name, 'THREW', 'onDeath: ' + (e.message || e)); }
 
@@ -241,7 +298,7 @@ function auditTrick(def) {
   Game._2v2ActivePlayer = function () { return casterSeat; };
   try { Game._2v2OnlinePlayTrick(casterSeat, 0); }
   catch (e) { note('TRICK ' + def.name, 'THREW', (e.message || e)); }
-  drainPrompts('TRICK ' + def.name, casterSeat, casterTeam);
+  drainPrompts('TRICK ' + def.name, casterSeat, casterTeam, mySide);
   assertNotHeldUp('TRICK ' + def.name);
 }
 
@@ -269,7 +326,7 @@ print('=== 2v2 ABILITY AUDIT ===');
 print('cards played: ' + stats.cards + '   tricks played: ' + stats.tricks + '   prompts raised: ' + stats.prompts);
 var byKind = {};
 findings.forEach(function (f) { (byKind[f.kind] = byKind[f.kind] || []).push(f); });
-var order = ['THREW', 'STUCK', 'UNOWNED', 'MISROUTED', 'NOFIRE'];
+var order = ['THREW', 'STUCK', 'UNOWNED', 'ANSWEREDBYAI', 'WRONGSEAT', 'MISROUTED', 'NOFIRE'];
 var total = 0;
 order.forEach(function (k) {
   var list = byKind[k] || [];

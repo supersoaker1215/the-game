@@ -1534,7 +1534,12 @@ const Game = {
         && prompt._2v2ActingPlayer && this.state.twoVTwo.players[prompt._2v2ActingPlayer]) {
       this._2v2CurrentActingPlayer = prompt._2v2ActingPlayer;
     }
-    if (prompt.callback) prompt.callback(arg);
+    if (prompt.callback) {
+      // The prompt's own stamp binds its resolution, so a CHAINED prompt raised
+      // from inside this callback inherits the same owner instead of deriving a
+      // fresh one from whatever global happens to be set.
+      this._2v2WithSeatBound(prompt._2v2ActingPlayer, () => prompt.callback(arg));
+    }
     this.cleanupDead();
     this.resumeCombatIfWaiting();
     // Chain over once nothing else is waiting — later prompts get their own
@@ -3681,7 +3686,7 @@ const Game = {
     });
 
     this.getAllCardsOnBoard().forEach(c => {
-      if (c.onTurnStart) c.onTurnStart(this, c);
+      if (c.onTurnStart) this._2v2RunOwned(c, () => c.onTurnStart(this, c));
     });
     // Per-round Crazy / Insane reroll — any card carrying either
     // trait re-randomizes its ATK at the top of every round. Joker /
@@ -4239,7 +4244,7 @@ const Game = {
       // card carries none (AI-played cards never get tagged), so the prompt is
       // never left unstamped to default to the host.
       this._2v2ActFor(c);
-      try { c.onBeforeTricks(this, c, laneNow); } catch (e) { console.error(e); }
+      try { this._2v2RunOwned(c, () => c.onBeforeTricks(this, c, laneNow)); } catch (e) { console.error(e); }
       if (this.hasPendingPrompt()) this.whenPromptCleared(step);
       else step();
     };
@@ -4777,7 +4782,7 @@ const Game = {
       this.log(`[DISCARD] ${who} discard ${card.name} for its effect`);
       // Pass the card instance into onDiscard so ability hooks can
       // self-reference (e.g. to set discount sources for stats credit).
-      if (card.onDiscard) card.onDiscard(this, owner, card);
+      if (card.onDiscard) this._2v2RunOwned(card, () => card.onDiscard(this, owner, card));
       this.state[owner].discount = 0;
       // Surface AI discard plays to the player via the same toast that
       // announces AI tricks — discards were previously invisible unless
@@ -5027,7 +5032,7 @@ const Game = {
       });
       this.log(`[DISCARD] ${this.seatLabel(owner)} discard ${card.name} for its effect (free).`);
       this._2v2ActFor(card);
-      if (card.onDiscard) { try { card.onDiscard(this, owner, card); } catch (e) { console.error(e); } }
+      if (card.onDiscard) { try { this._2v2RunOwned(card, () => card.onDiscard(this, owner, card)); } catch (e) { console.error(e); } }
       this.cleanupDead();
       return true;
     }
@@ -5873,7 +5878,7 @@ const Game = {
     const _prevActor = this._2v2CurrentActingPlayer;
     this.getAllCardsOnBoard().forEach(c => {
       if (c.onEndOfTurn) {
-        try { this._2v2ActFor(c); c.onEndOfTurn(this, c, this.findCardLane(c)); }
+        try { this._2v2RunOwned(c, () => c.onEndOfTurn(this, c, this.findCardLane(c))); }
         catch (e) { console.error(e); }
       }
     });
@@ -6365,11 +6370,11 @@ const Game = {
         // simultaneously) correctly produces zero onKill fires.
         if (pKilled && pCard.onKill && pCard.currentHealth > 0) {
           this._2v2ActFor(pCard);
-          try { pCard.onKill(this, pCard); } catch (e) { console.error(e); }
+          try { this._2v2RunOwned(pCard, () => pCard.onKill(this, pCard)); } catch (e) { console.error(e); }
         }
         if (aKilled && aCard.onKill && aCard.currentHealth > 0) {
           this._2v2ActFor(aCard);
-          try { aCard.onKill(this, aCard); } catch (e) { console.error(e); }
+          try { this._2v2RunOwned(aCard, () => aCard.onKill(this, aCard)); } catch (e) { console.error(e); }
         }
 
         stepFinish();
@@ -6833,7 +6838,7 @@ const Game = {
     // Tag the dying card with its killer so handleDeath can fire kill audio
     // even though cleanupDead passes null for the killer argument.
     target._killedBy = attacker;
-    if (attacker.onKill && !(opts && opts.deferOnKill)) { this._2v2ActFor(attacker); attacker.onKill(this, attacker); }
+    if (attacker.onKill && !(opts && opts.deferOnKill)) this._2v2RunOwned(attacker, () => attacker.onKill(this, attacker));
     // Thorns can still chip the attacker even after target died — the
     // hit landed, and the victim's last-gasp bramble retaliates.
     this._resolveThorns(target, attacker);
@@ -6917,7 +6922,7 @@ const Game = {
       if (typeof UI !== 'undefined' && UI._fxEvadeDodge) {
         try { UI._fxEvadeDodge(target); } catch (e) {}
       }
-      if (target.onEvade) { this._2v2ActFor(target); target.onEvade(this, target); }
+      if (target.onEvade) this._2v2RunOwned(target, () => target.onEvade(this, target));
       return false;
     }
 
@@ -7561,7 +7566,7 @@ const Game = {
               isDiscardEffect: true,
               _sourceInstance: card,
             });
-            if (card.onDiscard) card.onDiscard(this, owner, card);
+            if (card.onDiscard) this._2v2RunOwned(card, () => card.onDiscard(this, owner, card));
             continue;  // try the next draw — multi-stack discards keep firing
           }
         }
@@ -8090,9 +8095,9 @@ const Game = {
       // checks, bonus-attack drain) but skip the deadPile push and the
       // passive-cleanup branches (Magneto / faceDownOption) since
       // tokens don't carry those passives.
-      if (killer && killer.onKill) { this._2v2ActFor(killer); killer.onKill(this, killer); }
+      if (killer && killer.onKill) this._2v2RunOwned(killer, () => killer.onKill(this, killer));
       const livingAllies = this.getAllCardsOf(card.owner);
-      livingAllies.forEach(a => { if (a.onAllyKilled) { this._2v2ActFor(a); a.onAllyKilled(this, a); } });
+      livingAllies.forEach(a => { if (a.onAllyKilled) this._2v2RunOwned(a, () => a.onAllyKilled(this, a)); });
       const livingEnemiesT = this.getAllCardsOf(this.opponent(card.owner));
       livingEnemiesT.forEach(a => { if (a.onEnemyKilled) a.onEnemyKilled(this, a); });
       this._scaleDoomsdayInHands(card.owner);
@@ -8212,7 +8217,7 @@ const Game = {
     // last acted. Match the token branch. No-op in 1v1.
     if (killer && killer.onKill) { this._2v2ActFor(killer); killer.onKill(this, killer); }
     const livingAllies = this.getAllCardsOf(card.owner);
-    livingAllies.forEach(a => { if (a.onAllyKilled) { this._2v2ActFor(a); a.onAllyKilled(this, a); } });
+    livingAllies.forEach(a => { if (a.onAllyKilled) this._2v2RunOwned(a, () => a.onAllyKilled(this, a)); });
     const livingEnemies = this.getAllCardsOf(this.opponent(card.owner));
     livingEnemies.forEach(a => { if (a.onEnemyKilled) { this._2v2ActFor(a); a.onEnemyKilled(this, a); } });
     this._scaleDoomsdayInHands(card.owner);
@@ -8746,10 +8751,10 @@ const Game = {
     // _2v2HandTarget detects combat (seat's hand array differs from the side
     // proxy's); a no-op during play phases (already bridged) and in 1v1.
     const _hbSeat = this._2v2SeatNeedingHandBridge(card);
-    if (_hbSeat) {
-      return this._2v2WithSeatHands(_hbSeat, () => this._runHookBody(card, hookName, ...args));
-    }
-    return this._runHookBody(card, hookName, ...args);
+    return this._2v2RunOwned(card, () => {
+      if (_hbSeat) return this._2v2WithSeatHands(_hbSeat, () => this._runHookBody(card, hookName, ...args));
+      return this._runHookBody(card, hookName, ...args);
+    });
   },
   // 2v2 online: the seat whose hand should be bridged for a combat hook on
   // `card`, or null when no bridge is needed (1v1, play phase, or the seat's
@@ -9359,7 +9364,7 @@ const Game = {
       this.log(`  [EVADE] ${card.name} dodges ${amount} damage! (${card.evadeCharges} charges left)`);
       this.emitDmg(card.id, 0, 'evade');
       this._creditAbsorb(card, 'Evade', amount);
-      if (card.onEvade) { this._2v2ActFor(card); card.onEvade(this, card); }
+      if (card.onEvade) this._2v2RunOwned(card, () => card.onEvade(this, card));
       return true;
     }
     return false;
@@ -9857,7 +9862,7 @@ const Game = {
     if (!card) return false;
     if (card.onBeforeAttack) {
       this._2v2ActFor(card);
-      try { card.onBeforeAttack(this, card); } catch (e) { console.error(e); }
+      try { this._2v2RunOwned(card, () => card.onBeforeAttack(this, card)); } catch (e) { console.error(e); }
     }
     if (card.currentHealth <= 0) {
       this.cleanupDead();
@@ -10206,7 +10211,7 @@ const Game = {
       // what actually SPENDS what onAllyKilled just banked, which is why
       // Ahsoka swings immediately rather than sitting on a stored attack.
       const _devourAllies = this.getAllCardsOf(card.owner);
-      _devourAllies.forEach(a => { if (a.onAllyKilled) { this._2v2ActFor(a); a.onAllyKilled(this, a); } });
+      _devourAllies.forEach(a => { if (a.onAllyKilled) this._2v2RunOwned(a, () => a.onAllyKilled(this, a)); });
       this.getAllCardsOf(this.opponent(card.owner))
         .forEach(a => { if (a.onEnemyKilled) a.onEnemyKilled(this, a); });
       _devourAllies.forEach(a => this.drainBonusAttacks(a));
@@ -10620,6 +10625,81 @@ const Game = {
   // from hand; a summoned token with none falls back to a seat on its own team
   // (preferring an AI seat, which auto-resolves, over stranding the prompt).
   // No-op outside 2v2 online.
+  // ===================== WHOSE ABILITY IS THIS? =====================
+  // A STACK, BOUND FOR THE DURATION OF THE HOOK — not a global that anything
+  // can overwrite between the hook starting and the prompt being armed. Every
+  // 2v2 misrouting bug in this file has the same shape: an ability runs, an
+  // async gap opens (a chained prompt, a deferred summon, a combat beat), the
+  // acting-seat global moves on, and the prompt that finally arms derives a
+  // seat from the owning TEAM — landing on the host, on a teammate, or on an AI
+  // filler that answers it instantly. (User: "when the card that they played
+  // has an ability, that person gets to use the ability and never goes to the
+  // Host or an AI opponent.")
+  // The card knows who played it; this keeps that answer in scope for as long
+  // as the card is doing anything.
+  _2v2AbilityOwners: [],
+  _2v2AbilityOwner() {
+    const st = this._2v2AbilityOwners;
+    return (st && st.length) ? st[st.length - 1] : null;
+  },
+  // The seat a card's abilities belong to: what it recorded when it was played,
+  // else a human on its team (never an AI filler when a person is available).
+  _2v2SeatOwning(card) {
+    const tt = this.state && this.state.twoVTwo;
+    if (!tt || !tt.online || !card) return null;
+    if (card._2v2PlayedBy && tt.players[card._2v2PlayedBy]) return card._2v2PlayedBy;
+    if (card._mcSeat && tt.players[card._mcSeat]) return card._mcSeat;
+    if (!card.owner) return null;
+    const team = card.owner === 'player' ? 'A' : 'B';
+    const onTeam = pk => tt.players[pk] && tt.players[pk].team === team;
+    const cur = this._2v2CurrentActingPlayer;
+    if (cur && onTeam(cur)) return cur;
+    return this._2v2SLOTS.find(pk => onTeam(pk) && !tt.players[pk].isAI)
+        || this._2v2SLOTS.find(pk => onTeam(pk)) || null;
+  },
+  // Bind a SEAT as the ability owner for the duration of `fn`. A prompt's whole
+  // RESOLUTION runs through here too, not just the hook that raised it: an
+  // auto-resolved prompt (one legal target) runs its callback the instant it
+  // arms, and anything that callback raises would otherwise arm with no owner
+  // in scope at all — which is how a summoned card's placement prompt ended up
+  // on the host.
+  _2v2WithSeatBound(seat, fn) {
+    const tt = this.state && this.state.twoVTwo;
+    if (!seat || !tt || !tt.online || !tt.players || !tt.players[seat]) return fn();
+    if (!this._2v2AbilityOwners) this._2v2AbilityOwners = [];
+    this._2v2AbilityOwners.push(seat);
+    const prev = this._2v2CurrentActingPlayer;
+    this._2v2CurrentActingPlayer = seat;
+    try { return fn(); }
+    finally {
+      this._2v2AbilityOwners.pop();
+      this._2v2CurrentActingPlayer = prev;
+    }
+  },
+
+  // Run `fn` with `card`'s owning seat bound as the ability owner.
+  _2v2RunOwned(card, fn) {
+    const seat = this._2v2SeatOwning(card);
+    if (!seat) return fn();
+    if (!this._2v2AbilityOwners) this._2v2AbilityOwners = [];
+    this._2v2AbilityOwners.push(seat);
+    // PUT THE GLOBAL BACK. _2v2ActFor only ever SET it, so the last hook to run
+    // left its own seat behind — and hooks run inside other people's turns all
+    // the time. Batman is the clean example: strike 1 damages an enemy, that
+    // kill fires the ENEMY card's onDeath, which stamps the global to an enemy
+    // seat, and strike 2 — armed from inside strike 1's callback — then derived
+    // its seat from the owning team and landed on the host. Every chained
+    // prompt that follows a kill had the same hole. A stack that restores what
+    // it found closes it for all of them at once.
+    const prev = this._2v2CurrentActingPlayer;
+    this._2v2ActFor(card);   // keep the legacy global in step for older readers
+    try { return fn(); }
+    finally {
+      this._2v2AbilityOwners.pop();
+      this._2v2CurrentActingPlayer = prev;
+    }
+  },
+
   _2v2ActFor(card) {
     const tt = this.state && this.state.twoVTwo;
     if (!tt || !tt.online || !card) return;
@@ -11197,9 +11277,12 @@ const Game = {
     // placement into a lane that filled meanwhile) already validate on
     // resolve, same as the timeout auto-pick path.
     if (this._promptBusy()) {
+      // Same owner capture as promptCardChoice — see the note there.
+      const _qSeat = (options && options.seat) || this._2v2AbilityOwner() || this._2v2CurrentActingPlayer || null;
+      const _qOpts = _qSeat ? Object.assign({}, options || {}, { seat: _qSeat }) : options;
       this._promptQueue.push(() => this.promptLaneChoice(owner,
         (lanes || []).filter(i => this.state.lanes[i] && !this.state.lanes[i].destroyed),
-        title, desc, callback, targetSide, previewCard, previewDamage, options));
+        title, desc, callback, targetSide, previewCard, previewDamage, _qOpts));
       return;
     }
     // Destroyed lanes are never an option either — the same asymmetry the card
@@ -11269,9 +11352,16 @@ const Game = {
       // prompt land on the opposing side — derive a correct seat instead.
       // options.seat — the owning seat DECLARED by the caller; see the long note
       // in promptCardChoice. Same hazard, same cure.
-      let _actor = (options && options.seat) || _cap || this._2v2AIDriving || this._2v2SeatForSide(owner);
+      // Same order of authority, and the same human lock, as promptCardChoice.
+      const _laneSeatOpt = (options && options.seat) || null;
+      const _abilitySeat = this._2v2AbilityOwner();
+      let _actor = _laneSeatOpt || _abilitySeat || _cap || this._2v2AIDriving || this._2v2SeatForSide(owner);
       if (_actor && !this._2v2SeatOnSide(_actor, owner)) {
         _actor = this._2v2SeatForSide(owner);
+      }
+      if (!_laneSeatOpt && _abilitySeat && this._2v2SeatOnSide(_abilitySeat, owner)
+          && !this._2v2SeatIsAI(_abilitySeat)) {
+        _actor = _abilitySeat;
       }
       if (this.is2v2() && this.state.twoVTwo && this.state.twoVTwo.online) {
         if (!_actor) _actor = 'p1';   // never unowned — see promptCardChoice
@@ -11280,7 +11370,7 @@ const Game = {
         if (this._2v2SeatIsAI(_actor) && this._2v2IsAIAuthority()) {
           this.state.pendingLaneChoice = null;
           this.log(`  [PROMPT] ${this._promptLabel(title)} → auto-picked for ${this._2v2SeatName(_actor)} (AI seat): lane ${lanes[0] + 1}`);
-          callback(lanes[0]);
+          this._2v2WithSeatBound(_actor, () => callback(lanes[0]));
           return;
         }
         this.log(`  [PROMPT] ${this._promptLabel(title)} → ${this._2v2SeatName(_actor)}`);
@@ -11374,9 +11464,18 @@ const Game = {
     // died while waiting (entries WITHOUT currentHealth — synthetic choices
     // like Darkseid's lane list or Kang's defs — pass through untouched).
     if (this._promptBusy()) {
+      // CARRY THE OWNER INTO THE QUEUE. A deferred arm re-enters this function
+      // LATER — from resumeCombatIfWaiting, long after the hook that raised it
+      // returned — so by then the ability-owner stack has unwound and the
+      // acting-seat global has moved on, and the seat gets re-derived from the
+      // owning TEAM. That is the last place a guest's prompt could still be
+      // handed to the host or to an AI filler. Stamp who owns it NOW, while we
+      // still know, and the thunk carries it.
+      const _qSeat = (options && options.seat) || this._2v2AbilityOwner() || this._2v2CurrentActingPlayer || null;
+      const _qOpts = _qSeat ? Object.assign({}, options || {}, { seat: _qSeat }) : options;
       this._promptQueue.push(() => this.promptCardChoice(owner,
         (cards || []).filter(c => !c || c.currentHealth == null || c.currentHealth > 0),
-        title, desc, callback, aiPicker, options));
+        title, desc, callback, aiPicker, _qOpts));
       return;
     }
     // DEAD CARDS ARE NEVER AN OPTION. The queued path above has always dropped
@@ -11468,9 +11567,23 @@ const Game = {
       // death prompt lands on the right team instead of defaulting to the host.
       // VALIDATED against the owning team. A stale global must never make a
       // prompt land on the opposing side — derive a correct seat instead.
-      let _actor = _seatOpt || _cap || this._2v2AIDriving || this._2v2SeatForSide(owner);
+      // ORDER OF AUTHORITY: what the caller DECLARED, then whose ability is
+      // actually running, then the mutable globals, then the team fallback.
+      const _abilitySeat = this._2v2AbilityOwner();
+      let _actor = _seatOpt || _abilitySeat || _cap || this._2v2AIDriving || this._2v2SeatForSide(owner);
       if (_actor && !this._2v2SeatOnSide(_actor, owner)) {
         _actor = this._2v2SeatForSide(owner);
+      }
+      // A PERSON'S CARD IS ANSWERED BY THAT PERSON. If the ability being
+      // resolved belongs to a human seat on this prompt's own side, nothing
+      // downstream may move the prompt off them — not to the host, not to a
+      // teammate, and above all not to an AI filler, which would answer it
+      // instantly and silently. A caller that DECLARED a seat still wins: that
+      // is how a prompt deliberately aimed at an opponent (the Grinch's victim
+      // choosing which trick to surrender) keeps its target.
+      if (!_seatOpt && _abilitySeat && this._2v2SeatOnSide(_abilitySeat, owner)
+          && !this._2v2SeatIsAI(_abilitySeat)) {
+        _actor = _abilitySeat;
       }
       if (_2v2Online) {
         // NEVER LEAVE A 2v2 PROMPT UNOWNED. An unstamped prompt reads as
@@ -11488,7 +11601,7 @@ const Game = {
           const pick = (typeof aiPicker === 'function') ? aiPicker(cards) : cards[0];
           this.state.pendingCardChoice = null;
           this.log(`  [PROMPT] ${this._promptLabel(title)} → auto-picked for ${this._2v2SeatName(_actor)} (AI seat): ${pick && pick.name}`);
-          callback(pick);
+          this._2v2WithSeatBound(_actor, () => callback(pick));
           return;
         }
         // WHO WAS ASKED, ON THE RECORD. Every "my card did nothing" report in
@@ -11554,7 +11667,10 @@ const Game = {
         ? aiPicker(cards) : cards[0];
       const why = (cards.length === 1) ? 'only valid target' : 'choice is forced';
       this.log(`  [AUTO-TARGET] ${title.replace(/\s*—.*$/, '')} → ${target.name} (${why})`);
-      callback(target);
+      // Bound, because this callback runs RIGHT NOW and whatever it raises
+      // needs the same owner the prompt itself had — see _2v2WithSeatBound.
+      this._2v2WithSeatBound((options && options.seat) || this._2v2AbilityOwner() || this._2v2CurrentActingPlayer,
+        () => callback(target));
     } else {
       // AI auto-resolve. Show a toast naming the chosen target +
       // briefly highlight the target card so the player SEES which
@@ -11753,6 +11869,16 @@ const Game = {
     }
 
     const card = this.createCardInstance(def, owner);
+    // A SUMMONED CARD BELONGS TO WHOEVER SUMMONED IT. Without this it enters
+    // the board with no _2v2PlayedBy, so its own On Play — and the lane prompt
+    // that places it — fall back to "the first human on that team", i.e. the
+    // host. Professor X's Bane, Knull's volley, Gizmo's Gremlin: the summoner
+    // did the work and their teammate got the questions. The ability owner is
+    // the summoner by construction (we are inside their hook).
+    if (this.state.twoVTwo && this.state.twoVTwo.online && !card._2v2PlayedBy) {
+      const _sumSeat = this._2v2AbilityOwner() || this._2v2CurrentActingPlayer || null;
+      if (_sumSeat && this.state.twoVTwo.players[_sumSeat]) card._2v2PlayedBy = _sumSeat;
+    }
     // THE CALLER'S EXPLICIT STATS WIN OVER THE PRINTED DEF.
     // summonCard takes attack/health in its signature, but the sourceDef branch
     // above was quietly ignoring both — only the token branch (which bakes them
@@ -12072,7 +12198,7 @@ const Game = {
       ['player', 'ai'].forEach(side => {
         const room = lane._env[side];
         if (room && room.currentHealth > 0 && room.onAnyCardPlayed) {
-          try { room.onAnyCardPlayed(this, room); } catch (e) {}
+          try { this._2v2RunOwned(room, () => room.onAnyCardPlayed(this, room)); } catch (e) {}
         }
       });
     }
@@ -12148,7 +12274,7 @@ const Game = {
   // counter tick through the same machinery that linearizes deaths.
   _afterDamage(card, source, amount) {
     if (!card) return;
-    if (card.onDamaged) { this._2v2ActFor(card); card.onDamaged(this, card, source, amount); }
+    if (card.onDamaged) this._2v2RunOwned(card, () => card.onDamaged(this, card, source, amount));
     if (!(amount > 0)) return;
     this.getAllCardsOnBoard().forEach(c => {
       if (!c.onAnyCardDamaged || c.currentHealth <= 0) return;
@@ -15212,7 +15338,7 @@ const Game = {
     });
     if (this.recomputeCrazy) this.recomputeCrazy();
     this.getAllCardsOnBoard().forEach(c => {
-      if (c.onTurnStart) { this._2v2ActFor(c); c.onTurnStart(this, c); }
+      if (c.onTurnStart) this._2v2RunOwned(c, () => c.onTurnStart(this, c));
     });
     this.getAllCardsOnBoard().forEach(c => this.rerollCrazyInsane(c));
     if (this.applyMagnetoDebuffs) this.applyMagnetoDebuffs();
@@ -16373,8 +16499,8 @@ const Game = {
           this.state.pendingLaneChoice = null;
           this._clearPromptTimeout();
           if (msg.decline && lc.declineLabel) {
-            if (typeof lc.onDecline === 'function') lc.onDecline();
-          } else if (lc.callback) lc.callback(msg.laneIdx);
+            if (typeof lc.onDecline === 'function') this._2v2WithSeatBound(pk, () => lc.onDecline());
+          } else if (lc.callback) this._2v2WithSeatBound(pk, () => lc.callback(msg.laneIdx));
           this.cleanupDead();
           this.resumeCombatIfWaiting();
         }
@@ -16388,8 +16514,8 @@ const Game = {
           this._clearPromptTimeout();
           const pick = cc.cards[msg.idx] || cc.cards[0];
           if (msg.decline && cc.declineLabel) {
-            if (typeof cc.onDecline === 'function') cc.onDecline();
-          } else if (cc.callback) cc.callback(pick);
+            if (typeof cc.onDecline === 'function') this._2v2WithSeatBound(pk, () => cc.onDecline());
+          } else if (cc.callback) this._2v2WithSeatBound(pk, () => cc.callback(pick));
           this.cleanupDead();
           this.resumeCombatIfWaiting();
         }
