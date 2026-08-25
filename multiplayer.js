@@ -1218,19 +1218,31 @@ class WebRTC4Transport {
 
   _openAsJoiner(msg) {
     this._roomCode = msg.code;
+    this._joinTries = 0;
+    this._joinerReady = false;
     try {
       this._peer = new Peer({ debug: 1, config: _buildIceConfig() });
     } catch (e) {
       this._dispatchError('Peer init failed: ' + (e && e.message || e));
       return;
     }
-    this._peer.on('open', () => {
+    // RETRY, BECAUSE THE BROKER IS FLAKY. Signalling runs through PeerJS's free
+    // public cloud, and a connect that arrives before the host's ID has fully
+    // propagated comes back 'peer-unavailable' — which we then showed as
+    // "Couldn't find that room — check the code", as if the code were wrong.
+    // With four people joining the same room within a few seconds of each
+    // other, the LAST one in is the one that hits it, every time, which is
+    // exactly the shape of "only 3 of us can join". Three attempts, and we only
+    // believe the failure after the third.
+    const attempt = () => {
+      this._joinTries = (this._joinTries || 0) + 1;
       const conn = this._peer.connect(this._peerIdFor(msg.code), {
         serialization: 'json',    // JSON is more compatible than binary on iOS Safari
         metadata: { name: msg.name || 'Player' },
       });
       this._hostConn = conn;
       conn.on('open', () => {
+        this._joinerReady = true;
         this._sendQueue.forEach(m => this._sendChunked(conn, m));
         this._sendQueue = [];
       });
@@ -1250,8 +1262,26 @@ class WebRTC4Transport {
       });
       conn.on('close', () => this._dispatch({ t: 'playerLeft', playerKey: 'p1' }));
       conn.on('error', (err) => this._dispatchError('Conn error: ' + ((err && err.message) || err)));
+      // A connection that has not opened in 6s is not going to. Try again.
+      setTimeout(() => {
+        if (this._joinerReady || this._hostConn !== conn || conn.open) return;
+        if ((this._joinTries || 0) < 3) { try { conn.close(); } catch (e) {} attempt(); }
+        else this._dispatchError("Couldn't reach the host after 3 tries — ask them to re-share the code.");
+      }, 6000);
+    };
+    this._peer.on('open', () => attempt());
+    this._peer.on('error', (err) => {
+      // A lookup that lost the race with the host's registration is retryable;
+      // everything else is reported as before.
+      // <= 3, not < 3: a late error from attempt 2 can land AFTER attempt 3 has
+      // already been made, and reporting it then puts a failure banner over a
+      // connection that is about to succeed.
+      if (err && err.type === 'peer-unavailable' && !this._joinerReady && (this._joinTries || 0) <= 3) {
+        setTimeout(() => { if (!this._joinerReady) attempt(); }, 1600);
+        return;
+      }
+      this._handlePeerError(err);
     });
-    this._peer.on('error', (err) => this._handlePeerError(err));
   }
 
   // Host broadcasts state to all 3 joiners. Each connection is keyed by its
@@ -1317,6 +1347,14 @@ const Multiplayer4 = {
 
   init(transport) {
     if (this._transport) this.leave();
+    // DROP THE OLD LISTENERS. `on()` appends and nothing ever removed them, so
+    // a client that tried to JOIN (failed) and then CREATED a room kept the
+    // join flow's handlers registered on top of the create flow's. Both then
+    // ran for every message — two 'state' handlers, two 'playerJoined' — and
+    // the dead transport's errors surfaced in the live lobby, which is how a
+    // HOST ends up staring at a joiner's "couldn't find that room" banner over
+    // their own room code.
+    this._listeners = {};
     this._transport = transport;
     transport.onMessage((msg) => this._handleMsg(msg));
     transport.onClose(() => this._emit('playerLeft', {}));

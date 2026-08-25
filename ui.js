@@ -32115,6 +32115,10 @@ function twov2OnlineCreate() {
     UI.render(); return;
   }
 
+  // A banner from a PREVIOUS attempt must not survive into a fresh room — a
+  // stale "couldn't find that room" sitting over a working lobby is why this
+  // looked broken when it was not.
+  UI._2v2OnlineError = null;
   const transport = new WebRTC4Transport();
   Multiplayer4.init(transport);
 
@@ -32190,10 +32194,13 @@ function twov2OnlineJoin() {
     UI.render(); return;
   }
 
+  UI._2v2OnlineError = null;   // see twov2OnlineCreate
   const transport = new WebRTC4Transport();
   Multiplayer4.init(transport);
 
   Multiplayer4.on('roomJoined', ({ code: c, you }) => {
+    // We are IN. Clear anything a failed earlier attempt left on screen.
+    UI._2v2OnlineError = null;
     const tt = Game.state.twoVTwo;
     if (tt) {
       tt.you = you;
