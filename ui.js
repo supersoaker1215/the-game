@@ -3823,7 +3823,12 @@ const UI = {
           hOpts.category = 'play';     // marquee gain tier, not hover's
           const el = this._playSample(hoverRes.src, hOpts);
           if (el) {
-            const PLAY_HOVER_MS = 3500, TAIL_MS = 700;
+            // 2.5s of the card's own hover theme, tail included. (User: "make
+            // sure that when cards dont have when played, a 2.5 sec clip of
+            // their hover if they have any hover, and this is for environments
+            // too.") Environments reach this through the same playCard wrapper
+            // every other card uses, so one rule covers both.
+            const PLAY_HOVER_MS = 2500, TAIL_MS = 700;
             setTimeout(() => { try { this._fadeToPauseAtPosition(el, TAIL_MS); } catch (e) {} },
                        Math.max(0, PLAY_HOVER_MS - TAIL_MS));
           }
@@ -8052,7 +8057,7 @@ const UI = {
   // rely on that), so an unclipped sail hung 33px below the waterline showing
   // the body that is supposed to be underwater.
   _fxLaneStage(laneIdx, cls) {
-    const laneEl = document.querySelectorAll('.board > .lane')[laneIdx];
+    const laneEl = this.laneElAt(laneIdx);
     if (!laneEl) return null;
     const r = laneEl.getBoundingClientRect();
     if (!r || !r.width) return null;
@@ -8090,7 +8095,7 @@ const UI = {
     if (this.sfx) this.sfx.playCardSfx('Spinosaurus', 'spawn');
     const slotSel = owner === 'player' ? '.player-slot .card' : '.ai-slot .card';
     const cardNow = () => {
-      const laneEl = document.querySelectorAll('.board > .lane')[laneIdx];
+      const laneEl = this.laneElAt(laneIdx);
       return laneEl ? laneEl.querySelector(slotSel) : null;
     };
     const slam = () => {
@@ -20493,6 +20498,16 @@ const UI = {
         child.remove();
       }
     });
+    // AND DROP LANES THAT NO LONGER EXIST. The wipe above deliberately keeps
+    // cached lane subtrees attached so card animations stay continuous, but it
+    // never accounted for the lane COUNT changing — 8 in 2v2, 6 in 1v1. The
+    // extra lanes stayed in the DOM and, because the surviving lanes are
+    // re-appended (appendChild moves a node to the end), they sat in front of
+    // every real one. Anything reading the board positionally was then shifted
+    // by exactly that many lanes. Trim the cache and detach the orphans.
+    if (this._laneEls && this._laneEls.length > Game.LANE_COUNT) {
+      this._laneEls.splice(Game.LANE_COUNT).forEach(el => { if (el && el.remove) el.remove(); });
+    }
     const canPlay = this.canPlayerPlayCards(s);
     const cc = s.pendingCardChoice;
     const lc = s.pendingLaneChoice;
@@ -20623,6 +20638,17 @@ const UI = {
       // means truly unchanged lanes pay zero cost on re-render.
       const nextCls = `lane ${parityClass}${occClass}` + (lane.destroyed ? ' destroyed' : '') + (s._activeLane === i ? ' lane-active' : '') + pulseClass;
       if (el.className !== nextCls) el.className = nextCls;
+      // WHICH LANE THIS IS, WRITTEN ON THE ELEMENT. The drag hit-test used to
+      // ask for the element's POSITION among .board > .lane and treat that as
+      // the lane number. Position is not identity: the smart wipe deliberately
+      // leaves cached lane subtrees attached, lanes are re-appended each render
+      // (appendChild MOVES a node to the end), and _laneEls is never trimmed —
+      // so a board that once had more lanes keeps the extras attached at the
+      // FRONT, and every index the drag computed was shifted by however many
+      // were stranded. That is a card landing one lane over from where it was
+      // dropped. (User, in 1v1: "he tried placing a card in lane 2 but he went
+      // to lane 3.") Read the stamp instead and the answer cannot drift.
+      if (el.dataset.lane !== String(i)) el.dataset.lane = String(i);
       if (aiPulseActive && !this._aiPulseClearScheduled) {
         // Schedule a re-render once the pulse window expires so the
         // class drops cleanly. Single-shot — only schedule once per pulse.
@@ -22872,13 +22898,27 @@ const UI = {
     setTimeout(() => { b.remove(); this._syncCornerToggle(); }, 2400);
   },
 
+  // THE LANE ELEMENT FOR A LANE INDEX. Every caller used to index the node
+  // list positionally, which is only correct while the DOM order happens to
+  // match the lane numbering — and it does not after the lane count shrinks
+  // (8 in 2v2, 6 in 1v1), because the surviving lanes are re-appended and the
+  // stale ones strand at the front. Measured in the live page: DOM order went
+  // 6,7,0,1,2,3,4,5, so lane 1 sat at position 3. Read the stamp renderBoard
+  // writes; fall back to position only if a board predates it.
+  laneElAt(laneIdx) {
+    if (!this.board || laneIdx == null) return null;
+    const stamped = this.board.querySelector(`:scope > .lane[data-lane="${laneIdx}"]`);
+    if (stamped) return stamped;
+    return this.board.querySelectorAll(':scope > .lane')[laneIdx] || null;
+  },
+
   // ===================== ENVIRONMENT REVEAL =====================
   // Snap-location moment: when an environment lands in a lane, sweep the
   // lane and stamp its name for a beat. Fired from the FX event stream
   // ('envReveal' events) so it plays on every client.
   fxEnvReveal(laneIdx, name) {
     if (this._reducedMotion && this._reducedMotion()) return;
-    const laneEl = this.board.querySelectorAll(':scope > .lane')[laneIdx];
+    const laneEl = this.laneElAt(laneIdx);
     if (!laneEl) return;
     const old = laneEl.querySelector('.env-reveal');
     if (old) old.remove();
@@ -26324,6 +26364,12 @@ const UI = {
         if (lane) break;
       }
       if (!lane) return null;
+      // The lane's OWN index, not its position among siblings — see the stamp
+      // in renderBoard. Falls back to position only for a lane that predates
+      // the stamp (a board rendered before this frame), which cannot happen
+      // after one render but keeps the helper total.
+      const stamped = lane.dataset ? parseInt(lane.dataset.lane, 10) : NaN;
+      if (Number.isFinite(stamped)) return stamped;
       const i = laneEls().indexOf(lane);
       return i >= 0 ? i : null;
     };
@@ -26368,7 +26414,11 @@ const UI = {
       // In 2v2 the local seat may play on the 'ai' slot (team B), so test the
       // real side rather than assuming 'player'.
       const side = (UI._2v2LocalSide && UI._2v2LocalSide()) || 'player';
-      els.forEach((el, idx) => {
+      els.forEach((el, pos) => {
+        // Same rule as laneIdxUnder: identity comes from the stamp, never from
+        // the element's position in the list.
+        const stamped = el.dataset ? parseInt(el.dataset.lane, 10) : NaN;
+        const idx = Number.isFinite(stamped) ? stamped : pos;
         const r = el.getBoundingClientRect();
         const dist = Math.abs(x - (r.left + r.width / 2));
         all.push({ idx, dist });
@@ -26489,7 +26539,7 @@ const UI = {
       // play the moment they're dropped clear of the tray.
       if (d.card) {
         const i = laneIdxUnder(t.clientX, t.clientY);
-        if (i != null) { const l = laneEls()[i]; if (l) l.classList.add('drag-over'); }
+        if (i != null) { const l = UI.laneElAt(i); if (l) l.classList.add('drag-over'); }
       }
     }, { passive: false });
 
@@ -26643,7 +26693,7 @@ const UI = {
       clearHi();
       if (d.card) {
         const i = laneIdxUnder(e.clientX, e.clientY);
-        if (i != null) { const l = laneEls()[i]; if (l) l.classList.add('drag-over'); }
+        if (i != null) { const l = UI.laneElAt(i); if (l) l.classList.add('drag-over'); }
       }
     });
 
