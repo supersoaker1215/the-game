@@ -42716,11 +42716,14 @@ body.no-art-grade .card-portrait { --art-grade: 1 !important; }
    ============================================================ */
 .mm-lb-rail {
   position: absolute;
-  top: 50%;
-  right: 22px;
-  transform: translateY(-50%);
+  /* In the open gap just right of the menu column — not across the hero.
+     `left` clears the panel; the board grows downward from `top`. */
+  left: clamp(300px, 30%, 640px);
+  top: 44%;
+  right: auto;
+  transform: none;
   z-index: 7;
-  width: min(380px, 40vw);
+  width: min(400px, 30vw);
   max-height: 82vh;
   overflow: hidden;
   padding: 12px 12px 10px;

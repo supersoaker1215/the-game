@@ -14382,12 +14382,8 @@ const UI = {
             ${btn('mm-audio',   'Audio Audit',  'Per-card audio coverage + inline splicer',         SVG.settings, "UI.openAudioAudit()")}
             ${btn('mm-gallery', 'Gallery Audit','Browse, crop + delete card art',                   SVG.decks,    "UI.openGalleryAudit()")}
             ${btn('mm-sandbox', 'Sandbox',      'Free-play with unlimited energy + spawn any card', SVG.settings, "UI.startSandbox()")}
-            ${btn('mm-leaderboard', 'Leaderboard', 'W/L, win%, hours played, MVP card + your name',  SVG.stats,    "UI.openLeaderboard()")}
+            ${btn('mm-leaderboard', 'Leaderboard', 'Rename yourself + pick your favorite card',  SVG.stats,    "UI.openLeaderboard()")}
           </div>
-          <!-- The board itself, in the room it belongs to. Painted by
-               _renderMenuLeaderboard on every menu render; it finds this mount
-               only while Tools is open, which is exactly when it should draw. -->
-          <aside id="mm-lb-rail" class="mm-lb-rail mm-lb-inline" title="Click to set your name and favorite card"></aside>
         </div>${botbarHTML}`;
       }
       // Multiplayer — networked play, rendered in-shell (all online modes,
@@ -14437,13 +14433,13 @@ const UI = {
     el.innerHTML = `
       ${_flowOn ? this._menuSceneHTML() : ''}
       <div class="mm-scrim" aria-hidden="true"></div>
-      <div class="mm-panel">${buildPanel(this._mmSub || null)}</div>`;
-    // LEADERBOARD LIVES IN TOOLS NOW. It used to be an always-on rail pinned
-    // over the hero art, which put a table of numbers across the middle of the
-    // one full-bleed image on the screen — and it is a thing you go and LOOK at,
-    // not a readout you need while choosing a mode. (Owner: "leaderboard should
-    // be in the tools section.") The rail only paints when that submenu is open;
-    // this call is a no-op everywhere else because the mount point is gone.
+      <div class="mm-panel">${buildPanel(this._mmSub || null)}</div>
+      <aside id="mm-lb-rail" class="mm-lb-rail" title="Click to set your name and favorite card"></aside>`;
+    // ALWAYS-ON LEADERBOARD, back on the main menu. This mount is a sibling of
+    // the panel (not inside buildPanel), so a submenu swap — which only replaces
+    // .mm-panel — leaves it standing: visible on the root list AND every submenu.
+    // It sits in the open gap to the right of the menu column (see .mm-lb-rail),
+    // not across the hero. (Owner: "re add the leaderboard but right there.")
     try { this._renderMenuLeaderboard(); } catch (e) {}
     try { if (typeof Leaderboard !== 'undefined') Leaderboard.connect(); } catch (e) {}
     // Sync the full-bleed hero to whatever hover theme is already playing.
