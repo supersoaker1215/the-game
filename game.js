@@ -3557,11 +3557,12 @@ const Game = {
     // Brainiac's foresight expires — one round of scan spent per side each
     // round it's active. Two draws revealed ≈ two rounds of visibility.
     ['player', 'ai'].forEach(o => {
-      if (this.state[o]._brainiacScanRounds > 0) {
-        this.state[o]._brainiacScanRounds--;
-        if (this.state[o]._brainiacScanRounds <= 0) {
-          this.state[o]._brainiacScanRounds = 0;
-          this.log(`[BRAINIAC] ${this.seatLabel(o)}'s foresight fades.`);
+      const spy = this.state[o] && this.state[o]._brainiacSpy;
+      if (spy && spy.rounds > 0) {
+        spy.rounds--;
+        if (spy.rounds <= 0) {
+          this.state[o]._brainiacSpy = null;
+          this.log(`[BRAINIAC] ${this.seatLabel(o)}'s scan closes.`);
         }
       }
     });
@@ -7768,6 +7769,11 @@ const Game = {
       try { card._unstripModer(); } catch (e) { console.error('[unstripModer]', e); }
     }
     p.hand.push(card);
+    // BRAINIAC'S SCAN — a hand somebody is reading takes everything one attack
+    // weaker. addToHand is the single door every hand gain passes through, so
+    // one call here covers deck draws and effect gains alike. (The 2v2 ROUND
+    // draw pushes straight onto the seat's hand and is covered at that site.)
+    this.applyBrainiacDrain(card, this._2v2SeatOfPlayerObj(p), (p === this.state[owner]) ? owner : null);
     // DOSSIER: where this card came from. addToHand is the single door every
     // hand gain passes through — deck draw, Hela's resurrect, Grundy's death
     // pull, a Batman Who Laughs steal — so one line here credits them all.
@@ -10964,6 +10970,109 @@ const Game = {
       (picked) => { if (picked && picked._playerKey) cb(picked._playerKey); },
       (cards) => cards[Math.floor(this.rng() * cards.length)],
       { inlineTray: true });
+  },
+
+  // ===================== BRAINIAC'S SPY =====================
+  // A LIVE window into ONE opponent's hand, held by ONE seat, for two rounds.
+  // Not a snapshot and not a team-wide reveal: the person who played Brainiac
+  // names an enemy and then simply sees that hand — including every card drawn
+  // into it while the window is open — and nobody else sees anything, not even
+  // their own teammate. (User: "the person who played him will get a prompt of
+  // whos cards he wants to see for the next 2 rounds. Nobody else will see the
+  // cards ... when that player draws a card the person who played brainiac gets
+  // to see and constantly know what card he has.")
+  // In 1v1 the same window opens with no pick — there is only one opponent.
+  // Everything a watched hand receives while the window is open also arrives
+  // one attack weaker (see applyBrainiacDrain).
+  BRAINIAC_SPY_ROUNDS: 2,
+  BRAINIAC_SPY_ATK_DRAIN: 1,
+
+  // Arm the window. Returns the 2v2 seat holding it, or null in 1v1/local.
+  setBrainiacSpy(owner, victimSeat, rounds, sourceCard) {
+    const n = rounds || this.BRAINIAC_SPY_ROUNDS;
+    const tt = this.state && this.state.twoVTwo;
+    if (tt && tt.online && victimSeat && tt.players && tt.players[victimSeat]) {
+      // The card remembers who played it (_2v2PlayedBy); that beats any global.
+      const caster = (sourceCard && sourceCard._2v2PlayedBy)
+        || this._2v2CurrentActingPlayer
+        || this._2v2SeatForSide(owner);
+      if (caster && tt.players[caster]) {
+        tt.players[caster]._brainiacSpy = { seat: victimSeat, rounds: n };
+        return caster;
+      }
+    }
+    if (this.state[owner]) this.state[owner]._brainiacSpy = { rounds: n };
+    return null;
+  },
+
+  // The record a VIEWER holds, or null. Only ever their own — a client cannot
+  // ask this about somebody else's window.
+  brainiacSpyOf(viewerSeat, viewerSide) {
+    const tt = this.state && this.state.twoVTwo;
+    if (tt && tt.online) {
+      const p = viewerSeat && tt.players && tt.players[viewerSeat];
+      const spy = p && p._brainiacSpy;
+      return (spy && spy.rounds > 0 && spy.seat) ? spy : null;
+    }
+    const st = viewerSide && this.state[viewerSide];
+    const spy = st && st._brainiacSpy;
+    return (spy && spy.rounds > 0) ? spy : null;
+  },
+
+  // { hand, name, rounds } the viewer may currently read, or null. Read fresh
+  // every render — that is what makes the window live rather than a snapshot.
+  brainiacSpiedHand(viewerSeat, viewerSide) {
+    const spy = this.brainiacSpyOf(viewerSeat, viewerSide);
+    if (!spy) return null;
+    const tt = this.state && this.state.twoVTwo;
+    if (tt && tt.online) {
+      const v = tt.players[spy.seat];
+      if (!v) return null;
+      return { hand: v.hand || [], name: v.name || spy.seat, rounds: spy.rounds };
+    }
+    const opp = this.opponent(viewerSide);
+    return {
+      hand: (this.state[opp] && this.state[opp].hand) || [],
+      name: this.seatLabel(opp), rounds: spy.rounds,
+    };
+  },
+
+  // Who, if anyone, is watching this recipient right now — named for the log.
+  _brainiacWatcherOf(recipientSeat, recipientSide) {
+    const tt = this.state && this.state.twoVTwo;
+    if (tt && tt.online && recipientSeat && tt.players) {
+      const key = this._2v2SLOTS.find(pk => {
+        const spy = tt.players[pk] && tt.players[pk]._brainiacSpy;
+        return spy && spy.rounds > 0 && spy.seat === recipientSeat;
+      });
+      return key ? (tt.players[key].name || key) : null;
+    }
+    if (!recipientSide) return null;
+    const watcher = this.opponent(recipientSide);
+    const spy = this.state[watcher] && this.state[watcher]._brainiacSpy;
+    return (spy && spy.rounds > 0) ? this.seatLabel(watcher) : null;
+  },
+
+  // −1/0 on every card that reaches a watched hand while the window is open.
+  // Stamped once per card (_brainiacDrained) so a card that leaves and returns
+  // to hand cannot be shaved twice, and floored at 0 attack.
+  applyBrainiacDrain(card, recipientSeat, recipientSide) {
+    if (!card || card._brainiacDrained) return false;
+    const watcher = this._brainiacWatcherOf(recipientSeat, recipientSide);
+    if (!watcher) return false;
+    card._brainiacDrained = true;
+    const before = card.attack || 0;
+    card.attack = Math.max(0, before - this.BRAINIAC_SPY_ATK_DRAIN);
+    if (card.baseAttack != null) card.baseAttack = Math.max(0, card.baseAttack - this.BRAINIAC_SPY_ATK_DRAIN);
+    this.log(`  [BRAINIAC] ${card.name} is drawn under ${watcher}'s scan — ${before} → ${card.attack} ATK.`);
+    return true;
+  },
+
+  // The 2v2 seat key whose player object this is (identity, not name).
+  _2v2SeatOfPlayerObj(p) {
+    const tt = this.state && this.state.twoVTwo;
+    if (!tt || !tt.players || !p) return null;
+    return this._2v2SLOTS.find(pk => tt.players[pk] === p) || null;
   },
 
   // For player: show lane choice UI. For AI: auto-pick best lane.
@@ -14926,6 +15035,18 @@ const Game = {
     // not have to know which mode it is in to ask what round it is.
     s.round = tt.round;
     tt.subPhaseIdx = 0;
+    // Brainiac's window closes on its own clock — two full rounds from the one
+    // it opened in, per seat holding it.
+    this._2v2SLOTS.forEach(pk => {
+      const spy = tt.players[pk] && tt.players[pk]._brainiacSpy;
+      if (!spy || !(spy.rounds > 0)) return;
+      spy.rounds--;
+      if (spy.rounds <= 0) {
+        const victim = tt.players[spy.seat];
+        tt.players[pk]._brainiacSpy = null;
+        this.log(`[BRAINIAC] ${tt.players[pk].name || pk}'s scan of ${(victim && victim.name) || spy.seat} closes.`);
+      }
+    });
     tt._beforeTricksRan = false;   // re-arm the before-tricks pass for this round
     tt._freddyChecked = false;     // re-arm Freddy Fazbear's combat-boundary waste check
     // Clear the post-combat marker the moment the new round's card phase begins.
@@ -15401,7 +15522,14 @@ const Game = {
       const cap = p.maxHandSize || 7;
       if (tt.drawPile.length > 0 && (p.hand || []).length < cap) {
         const def = tt.drawPile.pop();
-        if (def) p.hand.push(this.createCardInstance(def, side));
+        if (def) {
+          const drawn = this.createCardInstance(def, side);
+          // This push bypasses addToHand, so the scan's −1/0 is applied here
+          // too — otherwise the one draw that matters most (the round draw,
+          // the whole reason the window is worth two rounds) slipped through.
+          this.applyBrainiacDrain(drawn, pk, null);
+          p.hand.push(drawn);
+        }
       }
     });
     this.start2v2Round();
@@ -16471,10 +16599,19 @@ const Game = {
       : list;
     const out = Object.assign({}, clone);
     const players = {};
+    // BRAINIAC'S ONE EXCEPTION. The recipient's own spy record names a seat
+    // whose HAND they are allowed to read — so that one hand travels intact to
+    // that one client, and stays stubbed for everyone else including the
+    // watcher's teammate. Tricks are never revealed; the card reads "cards".
+    const spy = tt.players[seat] && tt.players[seat]._brainiacSpy;
+    const spied = (spy && spy.rounds > 0 && spy.seat) ? spy.seat : null;
     Object.keys(tt.players).forEach(pk => {
       const p = tt.players[pk];
       if (pk === seat) { players[pk] = p; return; }
-      players[pk] = Object.assign({}, p, { hand: stub(p.hand), trickHand: stub(p.trickHand) });
+      players[pk] = Object.assign({}, p, {
+        hand: (pk === spied) ? p.hand : stub(p.hand),
+        trickHand: stub(p.trickHand),
+      });
     });
     out.twoVTwo = Object.assign({}, tt, { players, you: seat });
     // The side proxies carry whichever seat was ACTING when this state was

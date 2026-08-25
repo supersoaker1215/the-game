@@ -1456,61 +1456,52 @@ const CARD_ABILITIES = {
   },
   "Brainiac": {
     // Discard-only, like Mr. Fantastic and Jigsaw — 0/0, isDiscardEffect keeps
-    // playCard from ever seating it in a lane. Its whole payload is the scry.
+    // playCard from ever seating it in a lane. His whole payload is the scan.
     isDiscardEffect: true,
-    // Peek the opponent's next N draws. The draw pile is popped from the END
-    // (drawCards → drawPile.pop()), so the "next" cards are the last entries,
-    // read back-to-front. Classic shares one pile (getDrawPile returns it for
-    // either side); Deckbuilder returns the opponent's own pile — both are
-    // "what the opponent is about to draw", which is all this needs.
-    _upcoming(G, owner, n) {
-      const opp = G.opponent(owner);
-      const pile = G.getDrawPile(opp) || [];
-      const out = [];
-      for (let i = pile.length - 1; i >= 0 && out.length < n; i--) {
-        const c = pile[i];
-        if (c && c.name) out.push(c);
-      }
-      return out;
-    },
+    // WHAT HE DOES NOW: name one enemy PLAYER and read their HAND, live, for two
+    // rounds — every card in it and every card that arrives in it — and every
+    // card that arrives comes in at −1 ATK. He used to peek the top of the draw
+    // PILE instead: a two-card snapshot of cards nobody held yet, which told you
+    // nothing about what you were actually about to be hit with, and in 2v2 it
+    // surfaced to a whole SIDE rather than the one player who played him.
+    // (User: "the person who played him will get a prompt of whos cards he wants
+    // to see for the next 2 rounds ... and when that player draws a card the
+    // person who played brainiac gets to see and constantly know what card he
+    // has"; "cards that player drew for those 2 rounds they are visible lose
+    // 1/0.")
+    // The window itself lives in Game.setBrainiacSpy — the engine owns it
+    // because it has to survive the round loop, gate the redaction on the wire,
+    // and shave every card that lands in the watched hand.
     onDiscard(G, owner, self) {
-      const COUNT = 2;
-      // NEW (owner direction): Brainiac draws a card when he's played, on top of
-      // the foresight. drawCards routes to the acting seat in 2v2 and respects
-      // the Lex Luthor block; a bare-return on empty pile / hand cap is fine.
+      // He draws for himself on top of the scan.
       try { G.drawCards(owner, 1); G.log('[BRAINIAC] Brainiac draws a card.'); } catch (e) {}
-      const reveal = (targetName) => {
-        // The reveal is a LIVE scan, not a snapshot: the UI re-reads the top of
-        // the pile every render (so reorders / shuffles stay honest). Store only
-        // how long it lasts — two rounds, ticked down in startRound.
-        G.state[owner]._brainiacScanRounds = Math.max(G.state[owner]._brainiacScanRounds || 0, COUNT);
-        const upcoming = CARD_ABILITIES['Brainiac']._upcoming(G, owner, COUNT);
-        const who = targetName ? `${targetName}'s` : (G.seatPossessive ? G.seatPossessive(G.opponent(owner)) : "the opponent's");
-        if (!upcoming.length) {
-          G.log(`[BRAINIAC] ${who} draw pile is empty — nothing to foresee (yet).`);
-        } else {
-          G.log(`[BRAINIAC] Foreseeing ${who} next ${upcoming.length} draw${upcoming.length === 1 ? '' : 's'}: ${upcoming.map(c => c.name).join(', ')}.`);
-        }
-        // Surface it immediately to the human when THEY are the one scrying. The
-        // persistent strip (UI.render) is the lasting reveal; this is the "ping".
-        if (owner === 'player' && typeof UI !== 'undefined' && UI._fxBrainiacScan) {
-          try { UI._fxBrainiacScan(upcoming); } catch (e) {}
+      const tt = G.state && G.state.twoVTwo;
+      const arm = (victimSeat) => {
+        const caster = G.setBrainiacSpy(owner, victimSeat, G.BRAINIAC_SPY_ROUNDS, self);
+        const view = G.brainiacSpiedHand(caster, caster ? null : owner);
+        const who = view ? view.name : (G.seatPossessive ? G.seatPossessive(G.opponent(owner)) : 'the opponent');
+        G.log(`[BRAINIAC] Brainiac opens ${who}'s hand for ${G.BRAINIAC_SPY_ROUNDS} rounds — everything they draw arrives at −1 ATK.`);
+        // The centre-screen reveal is a PING for the person who cast it, so it
+        // fires only on that person's own client. In 2v2 online the host runs
+        // every seat's abilities, so gating on the side would have shown the
+        // host a guest's private read.
+        const localIsCaster = (tt && tt.online)
+          ? (!!caster && tt.you === caster)
+          : (owner === 'player');
+        if (localIsCaster && view && typeof UI !== 'undefined' && UI._fxBrainiacScan) {
+          try { UI._fxBrainiacScan(view.hand, view.name); } catch (e) {}
         }
       };
-      // 2v2: the Brainiac player CHOOSES which enemy player to foresee (user:
-      // "in 2v2 he should see the next 2 draws for a chosen enemy player"). The
-      // shared 2v2 draw pile IS what that player is about to draw from, so the
-      // top-N scan reads the same cards; the pick names whose draws you're eyeing.
-      const tt = G.state && G.state.twoVTwo;
+      // 2v2: the caster picks WHOSE hand. Routed to Brainiac's own seat only —
+      // not the whole table.
       if (tt && tt.online && G._2v2ChooseEnemySeat) {
-        // Route the "choose an enemy" prompt to BRAINIAC'S OWN seat only — not
-        // the whole table. (User: "in 2v2 [it prompts] all players.")
         G._2v2ActFor(self);
-        G._2v2ChooseEnemySeat(owner, 'Brainiac — Foresee',
-          'Choose an enemy to foresee their next 2 draws',
-          (seat) => reveal(seat && tt.players[seat] ? (tt.players[seat].name || seat) : null));
+        G._2v2ChooseEnemySeat(owner, 'Brainiac — Scan',
+          'Choose an enemy — you will see their hand for the next 2 rounds',
+          (seat) => arm(seat));
       } else {
-        reveal(null);
+        // 1v1: no pick, there is only one other player.
+        arm(null);
       }
     }
   },
@@ -1576,13 +1567,23 @@ const CARD_ABILITIES = {
       const tiles = usable.map(w => ({
         _artWeaponKey: w.key, name: w.name, cost: 0, type: 'horror', desc: w.desc,
       }));
+      // { seat } — Art's weapon choice belongs to the player who PLAYED him, and
+      // it is raised from the before-tricks pass, where no seat is acting and
+      // the seat "in play" is usually somebody on the other team. Left to the
+      // engine's own derivation it fell back to "the first human on Art's team"
+      // — the host — so a guest's Art was armed, every round, by their teammate.
+      // Same failure the Symbiote shuffle had; same cure. _2v2PlayedBy is
+      // stamped on every played card and is the only thing here that survives
+      // the round loop. (Null in 1v1, where the engine's own path is correct.)
+      const artSeat = self._2v2PlayedBy || null;
       G.promptCardChoice(owner, tiles,
         'Art the Clown — Pick a Weapon',
         `Choose one (${self._artWeaponsUsed.length + 1} of ${AB.WEAPONS.length}). Each can be used only once until all four are spent.`,
         (picked) => { AB._resolve(G, self, picked && picked._artWeaponKey); },
         // AI heuristic: a lethal Sledgehammer first, then Scythe on the biggest
         // threat, then Scissors on a keyworded enemy, else Hacksaw.
-        (tilesList) => AB._aiPick(G, self, tilesList));
+        (tilesList) => AB._aiPick(G, self, tilesList),
+        artSeat ? { seat: artSeat } : null);
     },
     _aiPick(G, self, tiles) {
       const owner = self.owner;
@@ -1613,12 +1614,16 @@ const CARD_ABILITIES = {
       const pickEnemy = (title, filter, cb) => {
         const enemies = G.getEnemiesOf(owner).filter(e => e.currentHealth > 0 && (filter ? filter(e) : true));
         if (!enemies.length) { G.log(`[ART] ${title} — no valid target.`); return; }
+        // Same declared seat as the weapon picker above — a chained prompt is
+        // raised from inside a callback, which is exactly where the engine's
+        // acting-seat global is least likely to still be right.
         G.promptCardChoice(owner, enemies, `Art the Clown — ${title}`, 'Choose an enemy card.',
           (picked) => cb(picked),
           // AI: highest ATK+HP threat (scissors picks the most-keyworded).
           (list) => (key === 'scissors'
             ? list.slice().sort((a, b) => AB._strippable(b).length - AB._strippable(a).length)[0]
-            : list.slice().sort((a, b) => (b.attack + b.currentHealth) - (a.attack + a.currentHealth))[0]));
+            : list.slice().sort((a, b) => (b.attack + b.currentHealth) - (a.attack + a.currentHealth))[0]),
+          self._2v2PlayedBy ? { seat: self._2v2PlayedBy } : null);
       };
 
       if (key === 'sledgehammer') {

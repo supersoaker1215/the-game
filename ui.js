@@ -21909,62 +21909,66 @@ const UI = {
   // pure theater, never blocks input.
   _trickRevealQueue: [],
   _trickRevealActive: false,
-  // Brainiac foresight strip — renders the opponent's next draws into
-  // #brainiac-scan while the human player's scan is active, or clears it.
+  // Brainiac scan strip — the watched player's HAND, live, for the one client
+  // holding the window. Re-read from state on every render, which is what makes
+  // it a window rather than a snapshot: a card the victim draws shows up here
+  // the moment the state carrying it lands. (User: "when that player draws a
+  // card the person who played brainiac gets to see and constantly know what
+  // card he has.")
+  // Ownership is decided by Game.brainiacSpiedHand, which only ever answers for
+  // the VIEWER's own record — a teammate's client asks and gets nothing, which
+  // is the "nobody else will see the cards" half of the card.
   _renderBrainiacScan(s) {
     const el = document.getElementById('brainiac-scan');
     if (!el) return;
-    // Which SIDE is THIS client's own team? 1v1: always 'player' (a guest's
-    // state is perspective-flipped, so 'player' is them). 2v2 is NOT flipped —
-    // 'player'=Team A, 'ai'=Team B on every client — so hardcoding 'player'
-    // made the ENEMY team's clients render the strip too, showing THEM their own
-    // upcoming draws. Gate on the local seat's actual side. (User: "in 1v1 it
-    // gives a prompt to the other player of the next 2 cards and in 2v2 to all
-    // players.")
-    let mySide = 'player';
+    // Which seat / side is this client? 2v2 is NOT perspective-flipped, so the
+    // local seat has to be read from tt.you rather than assumed to be 'player'.
+    let mySide = 'player', mySeat = null;
     const tt = s && s.twoVTwo;
-    if (tt && tt.online && tt.you && tt.players && tt.players[tt.you] && typeof Game !== 'undefined' && Game._2v2TeamSide) {
-      mySide = Game._2v2TeamSide[tt.players[tt.you].team];
+    if (tt && tt.online && tt.you && tt.players && tt.players[tt.you]) {
+      mySeat = tt.you;
+      if (typeof Game !== 'undefined' && Game._2v2TeamSide) {
+        mySide = Game._2v2TeamSide[tt.players[tt.you].team];
+      }
     }
-    const active = s && s[mySide] && s[mySide]._brainiacScanRounds > 0;
-    if (!active) {
+    const view = (typeof Game !== 'undefined' && Game.brainiacSpiedHand)
+      ? Game.brainiacSpiedHand(mySeat, mySeat ? null : mySide) : null;
+    if (!view) {
       if (el.childElementCount) el.innerHTML = '';
       el.classList.remove('is-active');
+      el.removeAttribute('title');
       return;
     }
-    // Live-read the top of the OPPONENT's pile (classic shares one pile;
-    // deckbuilder returns the AI's own). Pile is popped from the end, so the
-    // next draws are the last entries, shown next-first.
-    const opp = (typeof Game !== 'undefined' && Game.opponent) ? Game.opponent(mySide) : 'ai';
-    const pile = (typeof Game !== 'undefined' && Game.getDrawPile) ? (Game.getDrawPile(opp) || []) : [];
-    const upcoming = [];
-    for (let i = pile.length - 1; i >= 0 && upcoming.length < 2; i--) {
-      if (pile[i] && pile[i].name) upcoming.push(pile[i]);
-    }
     const esc = (t) => String(t == null ? '' : t).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
-    let html = '<span class="brainiac-scan-eye" aria-hidden="true">👁</span>';
-    if (!upcoming.length) {
-      html += '<span class="brainiac-scan-empty">Deck empty</span>';
+    const hand = (view.hand || []).filter(c => c && c.name);
+    let html = '<span class="brainiac-scan-eye" aria-hidden="true">👁</span>'
+      + `<span class="brainiac-scan-who">${esc(view.name)}</span>`;
+    if (!hand.length) {
+      html += '<span class="brainiac-scan-empty">Hand empty</span>';
     } else {
-      html += upcoming.map((c, idx) => {
+      html += hand.map((c) => {
         const art = this.getCardArtPath ? this.getCardArtPath(c.name) : '';
         const cost = (c.cost != null ? c.cost : (c.baseCost != null ? c.baseCost : ''));
-        return `<span class="brainiac-scan-card" title="${esc(c.name)}">`
-          + `<span class="brainiac-scan-order">${idx + 1}</span>`
+        // The shaved card is marked, so you can see WHICH ones came in under
+        // the scan rather than having to remember.
+        const drained = c._brainiacDrained ? ' is-drained' : '';
+        return `<span class="brainiac-scan-card${drained}" title="${esc(c.name)}${c._brainiacDrained ? ' — drawn under the scan (−1 ATK)' : ''}">`
           + (art ? `<span class="brainiac-scan-art" style="background-image:url('${esc(art)}')"></span>` : '')
           + `<span class="brainiac-scan-name">${esc(c.name)}</span>`
           + (cost !== '' ? `<span class="brainiac-scan-cost">${esc(cost)}</span>` : '')
           + `</span>`;
       }).join('');
     }
+    html += `<span class="brainiac-scan-rounds" title="Rounds left">${view.rounds}R</span>`;
     el.innerHTML = html;
+    el.title = `Brainiac: you can see ${view.name}'s hand for ${view.rounds} more round${view.rounds === 1 ? '' : 's'}.`;
     el.classList.add('is-active');
   },
   // Immediate reveal when the human discards Brainiac. The small HUD strip is
   // easy to miss (user: "I didn't see who he drew at all"), so the discard now
   // throws a prominent center-screen card reveal of the opponent's next draws —
   // the strip then lingers as the persistent reference for the next 2 rounds.
-  _fxBrainiacScan(upcoming) {
+  _fxBrainiacScan(upcoming, whoName) {
     const el = document.getElementById('brainiac-scan');
     if (el) {
       el.classList.remove('brainiac-scan-pulse');
@@ -21991,7 +21995,7 @@ const UI = {
         + `</div>`;
     }).join('');
     overlay.innerHTML = `<div class="brainiac-reveal-inner">`
-      + `<div class="brainiac-reveal-title"><span class="brainiac-reveal-eye">👁</span> BRAINIAC FORESEES</div>`
+      + `<div class="brainiac-reveal-title"><span class="brainiac-reveal-eye">👁</span> BRAINIAC SCANS${whoName ? ' \u00b7 ' + String(whoName).replace(/[<>&]/g, '') : ''}</div>`
       + `<div class="brainiac-reveal-sub">The opponent's next draw${upcoming.length === 1 ? '' : 's'}</div>`
       + `<div class="brainiac-reveal-cards">${cards}</div></div>`;
     document.body.appendChild(overlay);

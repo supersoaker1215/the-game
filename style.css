@@ -41166,6 +41166,29 @@ body.low-fx .badge-asleep { animation: none; }
   background: rgba(126, 232, 165, 0.08);
   border: 1px solid rgba(126, 232, 165, 0.22);
 }
+/* Whose hand this is, and how long the window stays open. The strip used to
+   show two numbered draw slots; it now shows a whole hand, so it needs to say
+   WHOSE and for how much longer. */
+.brainiac-scan-who {
+  font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase;
+  font-size: 9px; color: #e9d6f5;
+  text-shadow: 0 0 8px rgba(190, 130, 240, 0.75);
+  padding-right: 2px; border-right: 1px solid rgba(215, 179, 230, 0.35);
+  margin-right: 2px;
+}
+.brainiac-scan-rounds {
+  font-size: 9px; font-weight: 700; letter-spacing: 0.04em;
+  color: rgba(233, 214, 245, 0.85);
+  border: 1px solid rgba(215, 179, 230, 0.45);
+  border-radius: 4px; padding: 1px 4px; margin-left: 2px;
+}
+/* A card that arrived while the scan was open — it came in at -1 ATK, and the
+   watcher should be able to see which ones those are without remembering. */
+.brainiac-scan-card.is-drained {
+  border-color: rgba(126, 232, 165, 0.7);
+  box-shadow: 0 0 7px rgba(126, 232, 165, 0.35);
+}
+.brainiac-scan-card.is-drained .brainiac-scan-name { color: #cdf5dc; }
 .brainiac-scan-order {
   font-size: 9px;
   font-weight: 700;
@@ -41355,6 +41378,53 @@ body.low-fx .badge-asleep { animation: none; }
   96% { opacity: 1; }
   97% { opacity: 0.85; }
   98% { opacity: 1; }
+}
+/* ============================================================
+   "WHICH PLAYER?" TILES — The Grinch, Deadpool, Eye of Agamotto, Dormammu,
+   Brainiac's scan, The Flash's first-player pick. On these the seat NAME is the
+   entire decision; there is no portrait to read and no rules text that matters.
+   It was rendering as small unstyled text in the tile's top-left corner because
+   the markup for it shipped without any styling at all — so the one thing you
+   are choosing between was the least legible thing on the tile. (User: "can you
+   make the names for these type of prompts for all characters like in the
+   center and glow.") Centred, large, and lit, with the team line kept small
+   underneath it as the supporting detail it is.
+   ============================================================ */
+.choice-card.choice-player {
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  text-align: center;
+}
+.choice-player-name {
+  flex: 1 1 auto;
+  display: flex; align-items: center; justify-content: center;
+  width: 100%; padding: 14px 8px 8px;
+  font-size: 19px; font-weight: 800; letter-spacing: 0.05em; text-transform: uppercase;
+  line-height: 1.1; word-break: break-word;
+  color: #eaf8ff;
+  text-shadow: 0 0 8px rgba(var(--theme-rgb, 79,195,247), 0.95),
+               0 0 22px rgba(var(--theme-rgb, 79,195,247), 0.55),
+               0 0 40px rgba(var(--theme-rgb, 79,195,247), 0.28);
+  animation: choice-player-breathe 2.6s ease-in-out infinite;
+}
+.choice-card.choice-player .card-desc {
+  padding: 0 8px 8px; text-align: center;
+  font-size: 10px; letter-spacing: 0.04em; opacity: 0.75;
+}
+.choice-card.choice-player:hover .choice-player-name {
+  color: #fff;
+  text-shadow: 0 0 10px rgba(var(--theme-rgb, 79,195,247), 1),
+               0 0 28px rgba(var(--theme-rgb, 79,195,247), 0.7),
+               0 0 52px rgba(var(--theme-rgb, 79,195,247), 0.4);
+}
+@keyframes choice-player-breathe {
+  0%, 100% { filter: brightness(1); }
+  50%      { filter: brightness(1.18); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .choice-player-name { animation: none; }
+}
+@media (max-width: 820px) {
+  .choice-player-name { font-size: 15px; padding: 10px 6px 6px; }
 }
 /* Weapon-choice tile: the neon glyph replaces the portrait, name + rules below. */
 .art-weapon-neon { display: flex; align-items: center; justify-content: center; width: 100%; padding: 12px 4px 2px; }
