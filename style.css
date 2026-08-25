@@ -8206,6 +8206,15 @@ body.hit-pause .ai-hand * {
 /* ── Mobile drag-and-drop (installMobileCardDrag) ── */
 /* Floating clone that tracks the finger while dragging a hand card. */
 .card-drag-ghost {
+  /* THE GHOST MUST NEVER ANSWER A HIT-TEST. The drop resolver asks
+     document.elementFromPoint what is under the card and walks up to a .lane —
+     but the ghost tracks the pointer, so it sits exactly where that probe
+     looks, and it was returning ITSELF. closest('.board .lane') then found
+     nothing, the drop fell through to the cancel branch, and the card sprang
+     back for no visible reason. That is half of "sometimes it takes multiple
+     times to play a card"; the probe also steps upward by up to 120px, which
+     walks straight into the ghost's body. */
+  pointer-events: none !important;
   transition: none !important; animation: none !important;
   filter: drop-shadow(0 8px 18px rgba(0,0,0,0.65));
   transform-origin: 0 0;

@@ -402,6 +402,12 @@ const Multiplayer = {
       };
       walk(root);
     })(clone);
+    // THE UNDO SNAPSHOT NEVER GOES ON THE WIRE. It is a whole extra copy of
+    // the state, kept so the host can rewind one seat's turn, and only the host
+    // can ever apply it. Shipping it would roughly double every broadcast for
+    // something no guest can use; `twoVTwo._undoSnapSeat` travels instead and is
+    // all a client needs to light its Undo button.
+    if (clone.twoVTwo && clone.twoVTwo._turnSnap) clone.twoVTwo._turnSnap = null;
     // selectedCard / selectedTrick are per-CLIENT UI state, not shared game
     // state. Broadcasting the host's selection leaks it into the guest's state,
     // where it's a card the guest doesn't hold — the guest's restore-selection

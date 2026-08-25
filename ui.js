@@ -12900,7 +12900,11 @@ const UI = {
     // The engine owns every one of those reasons (undo2v2BlockedReason), so the
     // button cannot promise something the host would refuse.
     if (btnU) {
-      const _uSeat = save.twoVTwo && save.twoVTwo.you;
+      // `save` is a handful of stashed side-proxy fields — it has no twoVTwo on
+      // it, so this read was undefined every time and the button hid itself on
+      // every render. The live wrapper is `tt`, captured at the top of this
+      // renderer. (User: "the 1 undo per match isnt in 2v2 yet.")
+      const _uSeat = tt && tt.you;
       const _uWhy = (Game.undo2v2BlockedReason && _uSeat) ? Game.undo2v2BlockedReason(_uSeat) : 'Not now';
       const _uMine = !!(Game._2v2ActivePlayer && _uSeat && Game._2v2ActivePlayer() === _uSeat);
       if (_uMine && save.phase !== '2v2-combat') {
@@ -26549,7 +26553,48 @@ const UI = {
     const endAt = (px, py) => {
       if (!d) return;
       const wasDrag = d.moved, card = d.card, trick = d.trick, ghost = d.ghost;
-      const t = (px == null || py == null) ? null : { clientX: px, clientY: py };
+      // JUDGE THE DROP BY WHERE THE CARD IS, NOT WHERE THE FINGER IS.
+      // The ghost is drawn well above the fingertip (it is centred about 62% of
+      // a card height up), so a player who lines the CARD up with a lane is
+      // holding their finger somewhere below it — often still over the hand
+      // row. Testing the raw pointer therefore rejected drops that looked
+      // perfectly aimed, and the card sprang back; doing it again from a
+      // slightly higher grip worked, which is exactly the "sometimes it takes
+      // multiple times" feel. (User: "can you make the drag path to play cards
+      // a little easier" — and "same with tricks", which share this path.)
+      // The ghost is placed at `top = y - h * 0.62`, so its CENTRE sits about
+      // an eighth of a card above the finger and its bottom edge below it.
+      //   • hit point  = the ghost's centre — where the card looks like it is,
+      //     which is what the player is actually aiming with.
+      //   • clear point = whichever of the finger and that centre is HIGHER.
+      //     Taking the higher of the two means this test can only ever get more
+      //     forgiving than it was, never stricter; using the ghost's bottom
+      //     edge here would have demanded a taller lift than before, which is
+      //     the opposite of what was asked for.
+      // Both fall back to the pointer when there is no ghost.
+      let hitX = px, hitY = py, clearY = py;
+      if (ghost && ghost.getBoundingClientRect) {
+        const gr = ghost.getBoundingClientRect();
+        if (gr.width > 0 || gr.height > 0) {
+          hitX = gr.left + gr.width / 2;
+          hitY = gr.top + gr.height / 2;
+          clearY = (py == null) ? hitY : Math.min(py, hitY);
+        }
+      }
+      const t = (hitX == null || hitY == null) ? null : { clientX: hitX, clientY: hitY };
+      // IS THE CARD ITSELF OVER THE BOARD? A release where the card visibly
+      // overlaps the lanes is a play, whatever the finger is doing below it —
+      // this is the case the hand-line test alone kept rejecting, because on a
+      // short lift the finger is still down in the hand row while most of the
+      // card is already over the board.
+      let overBoard = false;
+      if (ghost && this.board && this.board.getBoundingClientRect) {
+        const gr = ghost.getBoundingClientRect();
+        const br = this.board.getBoundingClientRect();
+        overBoard = gr.bottom > br.top && gr.top < br.bottom
+                 && gr.right > br.left && gr.left < br.right;
+      }
+      const releasedClear = ((clearY != null) && aboveHand(clearY)) || overBoard;
       if (ghost) ghost.remove();
       clearHi();
       document.body.classList.remove('mobile-card-dragging');
@@ -26563,7 +26608,7 @@ const UI = {
         // takes lane 0 as a placeholder, exactly as the tap path already passes.
         // Using the hand boundary (not the board rect) means a release on the
         // health bar or just above the board fires too, matching tricks.
-        if (t && aboveHand(t.clientY)) Game.submitCommand({ type: 'playCard', payload: { card, lane: 0 } });
+        if (t && releasedClear) Game.submitCommand({ type: 'playCard', payload: { card, lane: 0 } });
         Game.state.selectedCard = null;
         this.render();
       } else if (card) {
@@ -26572,7 +26617,7 @@ const UI = {
         // the board or the bar) but not squarely on a lane column — between
         // lanes, or a hair above the board. Snap to the nearest playable lane
         // instead of bouncing the card back to hand.
-        if (i == null && t && aboveHand(t.clientY)) i = nearestLaneByX(t.clientX, card);
+        if (i == null && t && releasedClear) i = nearestLaneByX(t.clientX, card);
         if (i != null && Game.state.selectedCard === card) {
           this.onLaneClick(i);
         } else if (Game.state.selectedCard === card) {
@@ -26581,7 +26626,9 @@ const UI = {
       } else if (trick) {
         // Tricks are lane-less: releasing anywhere ABOVE the hand plays it;
         // releasing back down into the hand/tray cancels (change of heart).
-        if (t && aboveHand(t.clientY)) {
+        // Same clearance rule as cards — measured off the card's own bottom
+        // edge, not the fingertip below it. ("same with tricks.")
+        if (t && releasedClear) {
           const cost = UI._localTrickCost(trick);
           if (UI._localEnergy() >= cost) {
             Game.state.selectedTrick = null;

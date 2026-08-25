@@ -1350,6 +1350,7 @@ const Game = {
     this.state = snap;
     const tt2 = this.state.twoVTwo;
     tt2._turnSnap = null;
+    tt2._undoSnapSeat = null;
     // Spend the allowance on the RESTORED state — the clone was captured before
     // this ran, so writing it on the pre-restore object would be thrown away
     // with it (the same trap the 1v1 undo counter fell into and documents).
@@ -1369,7 +1370,14 @@ const Game = {
     if (s.gameOver) return 'Game over';
     if (this._2v2ActivePlayer && this._2v2ActivePlayer() !== seatKey) return 'Only on your turn';
     if (tt.players[seatKey]._undoUsedThisMatch) return 'Undo already used this match';
-    if (!tt._turnSnap || tt._turnSnap.seat !== seatKey || !tt._turnSnap.clone) return 'Nothing to take back';
+    // The guest never holds the clone — it is host-only and deliberately
+    // stripped from the wire — so availability is asked of the seat marker that
+    // does travel. The host additionally needs the real clone to apply it.
+    if (tt._undoSnapSeat !== seatKey) return 'Nothing to take back';
+    const _isHost = !tt.online || tt.you === 'p1';
+    if (_isHost && (!tt._turnSnap || tt._turnSnap.seat !== seatKey || !tt._turnSnap.clone)) {
+      return 'Nothing to take back';
+    }
     if (this._2v2ActionsLocked && this._2v2ActionsLocked()) return 'Abilities are still resolving';
     return null;
   },
@@ -15879,8 +15887,24 @@ const Game = {
     // broadcast, exactly like playing a card.
     if (this._2v2IsAIAuthority && this._2v2IsAIAuthority()) {
       try {
-        tt._turnSnap = { seat: activeKey, clone: this.cloneStateDeep(this.state) };
-      } catch (e) { tt._turnSnap = null; }
+        // DETACH THE OLD SNAPSHOT BEFORE CLONING. Without this each snapshot
+        // contains the previous one, which contains the one before it — the
+        // state grows by a whole extra copy of itself every sub-turn. Measured
+        // before the fix: the per-guest broadcast went 53 KB -> 97 -> 147 -> 196
+        // -> 246 -> 295 KB over six sub-turns and kept climbing for the rest of
+        // the match. Six levels of nesting after one round.
+        const _prev = tt._turnSnap;
+        tt._turnSnap = null;
+        let _clone = null;
+        try { _clone = this.cloneStateDeep(this.state); }
+        finally { tt._turnSnap = _prev; }
+        tt._turnSnap = _clone ? { seat: activeKey, clone: _clone } : null;
+        // The tiny half that DOES travel: which seat currently has a rewind
+        // point. The clone itself never leaves the host (see serializeState) —
+        // the host is the only thing that can apply an undo, so a guest only
+        // needs to know whether its button is live.
+        tt._undoSnapSeat = _clone ? activeKey : null;
+      } catch (e) { tt._turnSnap = null; tt._undoSnapSeat = null; }
     }
 
     // Sync the active player's hand/energy into state.player or state.ai
