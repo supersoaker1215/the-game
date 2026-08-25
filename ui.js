@@ -13219,7 +13219,7 @@ const UI = {
     // opponent mini-hand (renderAIHand). Owner wants each other player's hand
     // shown as real card/trick backs (not a bare count), with their name beside
     // it and their leftover Energy on the same diamond glyph as the main HUD.
-    const cardBackSVG = `<svg viewBox="0 0 20 30" preserveAspectRatio="none" aria-hidden="true"><defs><pattern id="rc-cb" x="0" y="0" width="8" height="8" patternUnits="userSpaceOnUse"><path d="M4 0 L8 4 L4 8 L0 4 Z" fill="none" stroke="currentColor" stroke-width="0.5" stroke-opacity="0.7"/></pattern></defs><rect width="20" height="30" fill="url(#rc-cb)"/></svg>`;
+    const cardBackSVG = `<svg viewBox="0 0 20 30" preserveAspectRatio="none" aria-hidden="true"><defs><pattern id="rc-cb" x="0" y="0" width="8" height="8" patternUnits="userSpaceOnUse"><path d="M4 0 L8 4 L4 8 L0 4 Z" fill="none" stroke="currentColor" stroke-width="0.6" stroke-opacity="0.95"/></pattern></defs><rect width="20" height="30" fill="url(#rc-cb)"/></svg>`;
     const chip = (pk, isMe) => {
       const p = tt.players[pk]; if (!p) return '';
       const cards = (p.hand || []).length;

@@ -41935,20 +41935,36 @@ body.twov2-online-game .tricks-section { padding-top: 4px; padding-bottom: 4px; 
 /* The backs were the flattest thing here: a muted stroke at 0.95 opacity with
    no light at all. Full opacity, and each one glows in its own colour so a
    fanned hand reads as a row of lit tiles. */
+/* A FILLED BODY, NOT JUST AN OUTLINE. These were a 1px border and a faint
+   inner glow around a nearly-transparent diamond lattice, so at 20x29 the only
+   coloured pixels were the outline — every strip read as the same dark red
+   smudge and you could not tell a card from a trick, or your side from theirs.
+   (User: "make the blue and red cards more blue and red and the purple tricks
+   more purple so you can tell which is which.") The tint is mixed from
+   currentColor, so each back still takes its own hue and one rule covers all
+   three. */
 .rc-back { display: inline-block; width: 20px; height: 29px; border-radius: 2px;
   border: 1px solid currentColor; overflow: hidden; opacity: 1; flex: 0 0 auto;
-  box-shadow: 0 0 6px color-mix(in srgb, currentColor 55%, transparent),
-              inset 0 0 6px color-mix(in srgb, currentColor 22%, transparent); }
+  background: color-mix(in srgb, currentColor 30%, #05070d);
+  box-shadow: 0 0 7px color-mix(in srgb, currentColor 60%, transparent),
+              inset 0 0 6px color-mix(in srgb, currentColor 30%, transparent); }
 .rc-back svg { width: 100%; height: 100%; display: block; }
 /* Cards tint to the side's colour (enemy red / ally blue); tricks purple — the
    same colour language as the 1v1 hand and the count-pills above. */
-.rc-enemy .rc-back-card { color: #ff6b6b; }
-.rc-ally  .rc-back-card { color: #6fb4ff; }
+/* Saturated, not tinted. #ff6b6b and #6fb4ff are both pale enough that at pip
+   size they drifted toward the same washed-out pink; these are unmistakably
+   red and blue against each other. */
+.rc-enemy .rc-back-card { color: #ff3a3a; }
+.rc-ally  .rc-back-card { color: #3f9bff; }
 /* THE SAME PURPLE THE TRICK CARDS USE. These backs were a lighter lavender
    (#cf9ae8) that read as a different colour sitting next to a real trick card,
    whose border/glow is rgba(155,89,182,.95). One purple for tricks everywhere.
    (User: "make the purple of the hands match that of the tricks.") */
 .rc-back-trick { color: #9b59b6; }
+/* The trick HUE is deliberately left exactly as it is — it is the same purple
+   the real trick cards use, which was itself an earlier request ("make the
+   purple of the hands match that of the tricks"). What makes it read as purple
+   now is the filled body above, not a different colour. */
 .rc-empty { opacity: 0.4; font-weight: 700; padding: 0 4px; }
 /* NEON BOT MARK — replaces the 🤖 emoji that used to be baked into AI seat
    names. Stroke-only and currentColor, so it takes the hue of whatever names
