@@ -9249,6 +9249,11 @@ const Game = {
   // General stat buff: +atk ATK, +hp HP (increases maxHealth and currentHealth)
   buffCard(card, atk, hp) {
     if (!card) return;
+    // A hidden card cannot be affected by anything, and that includes a
+    // friendly buff — its stats are unknowable until it flips, and a buff
+    // applied now would survive the reveal (which restores hooks, not stats)
+    // and silently change a card nobody was allowed to see.
+    if (card.isFaceDown) return;
     if (this._trickBlocked(card)) return;
     // Defensive: if the card's stats have already been corrupted to
     // NaN/undefined by some earlier bug (see sim/test.js invariant
@@ -12760,6 +12765,18 @@ const Game = {
   dealChainDamage(card, amount, label) {
     if (!card || card.currentHealth <= 0) return false;
     const tag = label || 'CHAIN';
+    // FACE-DOWN IMMUNITY. This applies damage directly instead of going
+    // through dealDamage, so it never saw the guard every other damage door
+    // has — a chain walked straight into a hidden card and killed it.
+    // (User: "vader's ability hit an upside down card, this should not happen;
+    // upside down cards should not take any damage or be affected by any
+    // ability or trick.") The chain STOPS there rather than passing through:
+    // the hidden card is an obstacle, the same as armor that fully absorbs.
+    // Reached by Vader, Captain America and Wonder Woman alike.
+    if (card.isFaceDown) {
+      this.log(`  [FACE DOWN] The ${tag.toLowerCase()} can't touch the hidden card — chain stops!`);
+      return false;
+    }
 
     // Shared absorb order (Invincible → Immunity → Evade). Chain evade ignores
     // Stunned/Frozen (pre-existing behavior), so canEvade = has-charges.
@@ -13448,6 +13465,8 @@ const Game = {
   // Example: G.grantTempBuff(ally, { attack: 2, maxHealth: 2, currentHealth: 2 }, 1, self)
   grantTempBuff(target, buffs, duration = 1, source) {
     if (!target || !buffs) return;
+    // Same rule as buffCard — nothing lands on a face-down card.
+    if (target.isFaceDown) return;
     if (this._trickBlocked(target)) return;
     if (!target._grantedBuffs) target._grantedBuffs = [];
     const sourceId = (source && source.id != null) ? source.id : null;
