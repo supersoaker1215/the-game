@@ -75,6 +75,19 @@ that never ran). It uses `sim/shim-real.js`, which loads the same headless
 environment as `sim/shim.js` but leaves the engine's REAL prompt system in place
 — that is what makes prompt routing observable at all.
 
+**1v1 ↔ 2v2 parity** — the rule is "2v2 mirrors 1v1; only seat/energy/team
+plumbing differs". This enforces it: every card is played twice over the same
+board, hands and seed, with prompts resolved the same way, and the results are
+diffed.
+```bash
+$JSC sim/parity2v2.js -- --verbose
+```
+Cards that are SUPPOSED to differ with four players are listed in the script's
+`EXPECTED` map with the reason; anything else lands under UNEXPECTED and is a
+regression. Re-seed points inside the harness matter — the two modes consume
+different amounts of RNG during setup, so the seed AND the summon deck are reset
+immediately before the card acts.
+
 **Bug fix verification** — run a small sanity batch first:
 ```bash
 $JSC sim/run.js -- --games 500 --quiet 2>&1 | grep -E "stuck|ERR|WARN"

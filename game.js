@@ -14821,6 +14821,19 @@ const Game = {
     ['B1-cards', 'A0-cards', 'B0-cards-tricks', 'A1-cards-tricks', 'B1-tricks', 'A0-tricks'],
   ],
 
+  // The interleaved seating a round rotates through: A's first, B's first,
+  // A's second, B's second. Pulled out of _2v2ComputePhaseOrder so the round
+  // loop can find a seat's slot in the SAME cycle the order is built from.
+  _2v2Cycle(A, B) {
+    if (!A || !B) {
+      const roster = this._2v2Roster();
+      const ok = roster.A.length === 2 && roster.B.length === 2;
+      A = ok ? roster.A : ['p1', 'p3'];
+      B = ok ? roster.B : ['p2', 'p4'];
+    }
+    return [A[0], B[0], A[1], B[1]];
+  },
+
   _2v2ComputePhaseOrder(round) {
     const roster = this._2v2Roster();
     // An unbalanced roster can only exist mid-lobby, before the Start gate
@@ -14837,7 +14850,7 @@ const Game = {
     // p1,p2,p3,p4 order the game was designed around:
     //   R1: p1 cards, p2 cards, p3 both, p4 both, p1 tricks, p2 tricks
     //   R2: p2 cards, p3 cards, p4 both, p1 both, p2 tricks, p3 tricks  … and so on.
-    const cycle = [A[0], B[0], A[1], B[1]];
+    const cycle = this._2v2Cycle(A, B);
     // A one-off "who goes first" override (e.g. The Flash) rotates the cycle to
     // start on the chosen seat for THIS round only; otherwise it advances by
     // round. Stored as a seat key; we find its slot in the cycle.
@@ -15057,6 +15070,25 @@ const Game = {
     // (abilities.js has a lock length computed the same way), and a card should
     // not have to know which mode it is in to ask what round it is.
     s.round = tt.round;
+    // THE FLASH MOVES THE ROTATION, HE DOES NOT LEND IT FOR ONE ROUND. The
+    // override used to apply to its own round and then vanish, so the round
+    // after it snapped back to the schedule as if the Flash had never been
+    // played — the seat he put first was first once, and then the order jumped.
+    // (User: "when you change and tell who picks first ... it should continue
+    // from there and not from how the order was before flash.")
+    // Converting it into the per-game start offset is what makes it continue:
+    // the offset is chosen so THIS round starts on the chosen seat, and the
+    // ordinary round-by-round advance then carries on from the new arrangement.
+    const _ov = tt._2v2FirstOverride;
+    if (_ov && _ov.round === tt.round) {
+      const _si = this._2v2Cycle().indexOf(_ov.seat);
+      if (_si >= 0) {
+        tt._2v2StartOffset = ((_si - (tt.round - 1)) % 4 + 4) % 4;
+        const _nm = (tt.players[_ov.seat] && tt.players[_ov.seat].name) || _ov.seat;
+        this.log(`[FLASH] ${_nm} leads from here — the turn order continues from this arrangement.`);
+      }
+      delete tt._2v2FirstOverride;
+    }
     tt.subPhaseIdx = 0;
     // Brainiac's window closes on its own clock — two full rounds from the one
     // it opened in, per seat holding it.
