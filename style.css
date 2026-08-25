@@ -5322,11 +5322,6 @@ body.hit-pause .ai-hand * {
 .draft-card.trick-draft .card-cost {
   --cost-size: 34px;
 }
-/* The old pip floated in the trick-draft padding gutter and had to be nudged
-   into the painting to look anchored. The corner wedge has the opposite
-   problem — it belongs ON the frame, so the nudge is gone and it sits flush
-   in the corner like every other surface. */
-.draft-card.trick-draft .rarity-strip { top: 20px; right: 21px; }
 .card.draft-card .stat-circle {
   width: 32px; height: 32px;
   font-size: 16px;
@@ -5379,13 +5374,6 @@ body.hit-pause .ai-hand * {
 .draft-card.trick-draft .card-desc { padding-left: 8px; padding-right: 8px; }
 /* The portrait defines the card's top corners now, so it rounds with them. */
 .draft-card.trick-draft .card-portrait { border-radius: 3px 3px 0 0; }
-/* NO RARITY PIPS ON A TRICK. Rarity is draft/collection information about a
-   CHARACTER — it drives the cost-tier ramp, the frame colour and the codex.
-   A trick has none of that: every trick reads purple, the pip carried no tier
-   anyone could act on, and it sat as one or two unexplained dots in the corner
-   of the art. (Owner: "the tricks remove rarity pips.") Kept everywhere it
-   means something — character draft, codex, deck builder. */
-.draft-card.trick-draft .rarity-strip { display: none; }
 .draft-card,
 .draft-card.cost-0, .draft-card.cost-1, .draft-card.cost-2, .draft-card.cost-3 {
   background: #000 !important;
@@ -5771,9 +5759,9 @@ body.hit-pause .ai-hand * {
 
 /* ---- Drafted tag rarity tiers ----
    Per-tag color mirrors the rarity-pip palette so the drafted list reads the
-   same rarity signal as the in-game card/trick chrome. Cards use the
-   green/cyan/silver/gold tier palette; tricks use the purple/silver/gold
-   trick-rarity palette. */
+   same rarity signal as the in-game card chrome. Cards use the
+   green/cyan/silver/gold tier palette. Tricks keep the purple/silver/gold
+   ladder HERE only — the pips that used to state it on the tile are gone. */
 
 /* Cards: cost 0-3 → green common */
 .drafted-tag.cost-0,  .drafted-tag.cost-1,
@@ -6625,56 +6613,6 @@ body.hit-pause .ai-hand * {
   border-radius: 2px;
 }
 
-/* ---- TRICK rarity pips ----
-   Tricks use their own palette (purple / silver / gold) and rotated pips
-   (diamonds, not squares). Count scales with cost:
-     cost ≤ 2  → 1 purple     cost 3  → 2 purple
-     cost 4    → 3 silver     cost ≥5 → 4 gold */
-.trick-card .rarity-strip {
-  position: absolute;
-  top: 6px; right: 7px;
-  display: inline-flex;
-  gap: 4px;
-  pointer-events: none;
-  z-index: 3;
-}
-/* Same SQUARE pips as character cards (was rotated 45° diamonds) — user:
-   "the rarity squares and the position should be the same as the cards".
-   Position already matches (.card .rarity-strip: top 6, right 7). Only the
-   purple/silver/gold trick palette below stays trick-specific. */
-.trick-card .rarity-strip .rpip {
-  width: 5px; height: 5px;
-  border-radius: 2px;
-}
-.draft-card.trick-draft .rarity-strip .rpip,
-.fp-trick-preview .rarity-strip .rpip {
-  border-radius: 2px;
-}
-/* Override the cost-based card pip palette that would otherwise apply to
-   draft tricks via `.cost-N` — the trick palette takes precedence. */
-.trick-rarity-purple .rpip,
-.cost-0.trick-draft .rarity-strip .rpip,
-.cost-1.trick-draft .rarity-strip .rpip,
-.cost-2.trick-draft .rarity-strip .rpip,
-.cost-3.trick-draft .rarity-strip .rpip {
-  background: rgba(155,89,182,1) !important;
-  box-shadow: 0 0 4px rgba(155,89,182,0.95), 0 0 10px rgba(155,89,182,0.55) !important;
-}
-.trick-rarity-silver .rpip,
-.cost-4.trick-draft .rarity-strip .rpip {
-  background: rgba(235,242,250,1) !important;
-  box-shadow: 0 0 4px rgba(240,245,250,1), 0 0 10px rgba(240,245,250,0.65) !important;
-}
-.trick-rarity-gold .rpip,
-.cost-5.trick-draft .rarity-strip .rpip,
-.cost-6.trick-draft .rarity-strip .rpip,
-.cost-7.trick-draft .rarity-strip .rpip,
-.cost-8.trick-draft .rarity-strip .rpip,
-.cost-9.trick-draft .rarity-strip .rpip,
-.cost-10.trick-draft .rarity-strip .rpip {
-  background: rgba(255,215,0,1) !important;
-  box-shadow: 0 0 4px rgba(255,215,0,1), 0 0 10px rgba(255,215,0,0.65) !important;
-}
 
 /* ---- HOVER — blue highlight on the card frame (no name-color change) ---- */
 .card.hand-card:hover,

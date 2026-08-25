@@ -19750,7 +19750,6 @@ const UI = {
     const desc = opts.descOverride != null ? opts.descOverride : (trick.desc || '');
     return `<div class="${cls}" data-trick-name="${trick.name}"${onclick}>
       <span class="card-cost">${trick.cost}</span>
-      ${this.getTrickRarityStrip(trick.cost || 0)}
       <div class="card-portrait" style="${portraitStyle}"><div class="card-name-overlay"><span class="cn-text">${trick.name}</span></div><i class="pt-shine" aria-hidden="true"></i></div>
       ${badges}
       <div class="trick-desc">${this.formatDesc(desc) || ''}</div>
@@ -24347,17 +24346,15 @@ const UI = {
     }).join('');
   },
 
-  // Trick rarity pips — mirrors the card rarity-strip pattern, but with its own
-  // palette (purple / silver / gold) and rotated pips (diamonds, not squares).
-  //   cost ≤ 2 → 1 purple pip
-  //   cost 3   → 2 purple pips
-  //   cost 4   → 3 silver pips
-  //   cost ≥ 5 → 4 gold pips
-  getTrickRarityStrip(cost) {
-    const pips = cost <= 2 ? 1 : cost === 3 ? 2 : cost === 4 ? 3 : 4;
-    const tier = cost <= 3 ? 'purple' : cost === 4 ? 'silver' : 'gold';
-    return `<span class="rarity-strip trick-rarity trick-rarity-${tier}">${'<span class="rpip"></span>'.repeat(pips)}</span>`;
-  },
+  // NO RARITY PIPS ON A TRICK. Rarity is draft/collection information about a
+  // CHARACTER — it drives the cost-tier ramp, the frame colour and the codex.
+  // A trick has none of that: every trick reads purple, the pip carried no tier
+  // anyone could act on, and it sat as one or two unexplained dots in the corner
+  // of the art. (Owner: "the tricks remove rarity pips", then again once the
+  // tray still had them.) Removed at the emitter, not per-surface, so the tray,
+  // draft, codex, history overlay and floating prompt all lose them together.
+  // A trick still reports its tier where that's the point — the inspect modal's
+  // rarity ribbon derives it from cost via _cardRarityLabel.
 
   stripTraitDesc(desc) {
     if (!desc) return '';
@@ -25113,7 +25110,6 @@ const UI = {
       const trickBadges = trick.abilities && trick.abilities.length
         ? `<div class="card-abilities status-badges">${this.formatAbilityBadges(trick.abilities)}</div>`
         : '';
-      const rarityStrip = this.getTrickRarityStrip(trick.cost || 0);
       // Same portrait wiring as character cards — full-bleed cover art with the
       // name overlaid on the bottom of the painting (no more square art with
       // black side bars). Focal crop comes from the same _artFocalCard path.
@@ -25122,7 +25118,6 @@ const UI = {
       const trickPortraitStyle = safeArtUrl ? `--portrait-bg:url('${safeArtUrl}')${UI._artFocalCard(trick.name)}` : '';
       el.innerHTML = `
         <span class="card-cost">${cost}</span>
-        ${rarityStrip}
         <div class="card-portrait" style="${trickPortraitStyle}"><div class="card-name-overlay"><span class="cn-text">${trick.name}</span></div><i class="pt-shine" aria-hidden="true"></i></div>
         ${trickBadges}
         <div class="trick-desc">${this.formatDesc(trick.desc)}</div>
@@ -29975,8 +29970,9 @@ const UI = {
       tModal.appendChild(tile);
     }
     // And the rarity ribbon, so a trick reports its tier like a card does —
-    // tricks have no printed rarity, so _cardRarityLabel derives it from cost,
-    // which is the same ladder getTrickRarityStrip already pips on the tile.
+    // tricks have no printed rarity, so _cardRarityLabel derives it from cost.
+    // This ribbon is now the ONLY place a trick's tier is stated; the corner
+    // pips it used to duplicate are gone.
     {
       const r = this._cardRarityLabel(def);
       const ribbon = document.createElement('div');
@@ -32781,7 +32777,6 @@ function toggleTrickHistory(owner) {
     const trickDefs = (typeof TRICK_DEFS !== 'undefined') ? TRICK_DEFS : [];
     container.innerHTML = pile.map((p) => {
       const def = trickDefs.find(t => t.name === p.name) || { name: p.name, cost: p.cost, desc: '', abilities: [] };
-      const rarity = UI.getTrickRarityStrip ? UI.getTrickRarityStrip(def.cost || 0) : '';
       const ab = (def.abilities && def.abilities.length)
         ? `<div class="card-abilities status-badges">${UI.formatAbilityBadges(def.abilities)}</div>` : '';
       return UI.makeTrickEl(def, { extraClass: 'history-trick' });
