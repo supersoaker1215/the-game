@@ -218,7 +218,7 @@ const CARD_DEFS = [
     // which playCard AND summonCard both refuse. The real draw lives in his
     // onDiscard.
     abilities: ["Draw 1"],
-    desc: "When Discarded: Draw a card, then see an enemy's hand for 2 rounds — including every card they draw, and each one they draw arrives at -1/-1 (in 2v2, choose which enemy). Only you can see it." },
+    desc: "When Discarded: Draw a card, then see an enemy's hand for 2 rounds — every card they draw arrives at -1/-1, and you steal it: your next draws come in at +1/+1, one for each card they lost. In 2v2, choose which enemy. Only you can see their hand." },
   { name: "Loki", cost: 3, attack: 2, health: 1, type: "villain",
     abilities: ["Evade 1"],
     desc: "When Played: Fill your Block Meter." },

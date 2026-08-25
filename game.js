@@ -8048,6 +8048,10 @@ const Game = {
     // one call here covers deck draws and effect gains alike. (The 2v2 ROUND
     // draw pushes straight onto the seat's hand and is covered at that site.)
     this.applyBrainiacDrain(card, this._2v2SeatOfPlayerObj(p), (p === this.state[owner]) ? owner : null);
+    // And the flip side: if THIS hand is a Brainiac caster's, pay a banked scan
+    // charge onto the card as +1/+1. Same single door, so deck draws and effect
+    // gains both collect it.
+    this.applyBrainiacHarvest(card, p);
     // DOSSIER: where this card came from. addToHand is the single door every
     // hand gain passes through — deck draw, Hela's resurrect, Grundy's death
     // pull, a Batman Who Laughs steal — so one line here credits them all.
@@ -11557,6 +11561,24 @@ const Game = {
     return (spy && spy.rounds > 0) ? this.seatLabel(watcher) : null;
   },
 
+  // The caster OBJECT watching this recipient — the seat player in 2v2, the side
+  // state in 1v1. This is the object the harvest counter lives on, so the +1/+1
+  // stripped off a watched card can be paid onto the caster's OWN next draw.
+  _brainiacWatcherHolder(recipientSeat, recipientSide) {
+    const tt = this.state && this.state.twoVTwo;
+    if (tt && tt.online && recipientSeat && tt.players) {
+      const key = this._2v2SLOTS.find(pk => {
+        const spy = tt.players[pk] && tt.players[pk]._brainiacSpy;
+        return spy && spy.rounds > 0 && spy.seat === recipientSeat;
+      });
+      return key ? tt.players[key] : null;
+    }
+    if (!recipientSide) return null;
+    const watcher = this.opponent(recipientSide);
+    const spy = this.state[watcher] && this.state[watcher]._brainiacSpy;
+    return (spy && spy.rounds > 0) ? this.state[watcher] : null;
+  },
+
   // −1/−1 on every card that reaches a watched hand while the window is open.
   // Stamped once per card (_brainiacDrained) so a card that leaves and returns
   // to hand cannot be shaved twice, and floored at 0 attack.
@@ -11600,6 +11622,32 @@ const Game = {
     if (typeof card.baseHealth === 'number') card.baseHealth = Math.max(1, card.baseHealth - this.BRAINIAC_SPY_HP_DRAIN);
     card.currentHealth = Math.max(1, hpBefore - this.BRAINIAC_SPY_HP_DRAIN);
     this.log(`  [BRAINIAC] ${card.name} is drawn under ${watcher}'s scan — ${before}/${hpBefore} → ${card.attack}/${card.currentHealth}.`);
+    // The stripped 1/1 doesn't vanish — it's banked on the CASTER, who pays it
+    // out as +1/+1 on their own next draw (see applyBrainiacHarvest). One charge
+    // per drained card. (User: "the 1/1 the opponents cards lose i want him to
+    // give that 1/1 buff to the next cards you draw.")
+    const holder = this._brainiacWatcherHolder(recipientSeat, recipientSide);
+    if (holder) holder._brainiacHarvest = (holder._brainiacHarvest || 0) + 1;
+    return true;
+  },
+
+  // Pay a banked scan charge onto a card the CASTER draws: +1/+1, one charge per
+  // card, floored nowhere (it's a buff). Stamped once (_brainiacBuffed) so a card
+  // that leaves and returns can't be paid twice. `holder` is the object the
+  // counter lives on — the seat in 2v2, the side in 1v1 — the same object
+  // applyBrainiacDrain credited.
+  applyBrainiacHarvest(card, holder) {
+    if (!card || !holder || card._brainiacBuffed) return false;
+    if (!(holder._brainiacHarvest > 0)) return false;
+    holder._brainiacHarvest -= 1;
+    card._brainiacBuffed = true;
+    const a = this.BRAINIAC_SPY_ATK_DRAIN, h = this.BRAINIAC_SPY_HP_DRAIN;
+    card.attack = (card.attack || 0) + a;
+    if (card.baseAttack != null) card.baseAttack += a;
+    if (typeof card.maxHealth === 'number') card.maxHealth += h;
+    if (typeof card.baseHealth === 'number') card.baseHealth += h;
+    card.currentHealth = (typeof card.currentHealth === 'number' ? card.currentHealth : (card.maxHealth || 1)) + h;
+    this.log(`  [BRAINIAC] ${card.name} arrives charged by the scan — +${a}/+${h}.`);
     return true;
   },
 
@@ -16259,6 +16307,7 @@ const Game = {
           // too — otherwise the one draw that matters most (the round draw,
           // the whole reason the window is worth two rounds) slipped through.
           this.applyBrainiacDrain(drawn, pk, null);
+          this.applyBrainiacHarvest(drawn, p);
           this.applyDrawDiscount(drawn, p);
           p.hand.push(drawn);
         }
@@ -16331,6 +16380,7 @@ const Game = {
           // A foresight card REPLACES this seat's round draw, so it is a draw
           // and it carries both the scan and the discount.
           this.applyBrainiacDrain(fCard, pk, null);
+          this.applyBrainiacHarvest(fCard, p);
           this.applyDrawDiscount(fCard, p);
           p.hand.push(fCard);
         }
