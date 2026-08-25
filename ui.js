@@ -26002,6 +26002,18 @@ const UI = {
   // The lane slot the local seat's cards occupy ('player' | 'ai'), from their
   // team. Team B renders flipped to the bottom, but the lane DATA keeps its
   // real side, so openness checks must use this rather than assuming 'player'.
+  // MY energy, right now. state.player.currency is the SIDE proxy, and after a
+  // 2v2 board render that proxy has been restored to whatever the engine left
+  // on it — not this seat's pool. Reading it in a drop handler is how a drag
+  // came to be refused for "not enough energy" while the tap path, which asks
+  // the seat, played the same card happily. (User: "the drag path for tricks
+  // doesnt work, the tap to play does.")
+  _localEnergy() {
+    const seat = this._2v2LocalSeatData && this._2v2LocalSeatData();
+    if (seat) return Math.max(0, (seat.energy || 0) - (seat.usedEnergy || 0));
+    const s = Game.state;
+    return (s && s.player && s.player.currency) || 0;
+  },
   _2v2LocalSide() {
     const seat = this._2v2LocalSeatData();
     if (!seat) return null;
@@ -26351,7 +26363,7 @@ const UI = {
         // releasing back down into the hand/tray cancels (change of heart).
         if (t && aboveHand(t.clientY)) {
           const cost = UI._localTrickCost(trick);
-          if (Game.state.player.currency >= cost) {
+          if (UI._localEnergy() >= cost) {
             Game.state.selectedTrick = null;
             Game.submitCommand({ type: 'playTrick', payload: { trick } });
           } else {
@@ -26770,7 +26782,7 @@ const UI = {
     }
     // Micro-toast that fades.
     if (this.showAITrickToast) {
-      this.showAITrickToast('Not enough energy', `Need ${cost} · have ${Game.state.player.currency}`, 'error');
+      this.showAITrickToast('Not enough energy', `Need ${cost} · have ${this._localEnergy()}`, 'error');
     }
     if (this._haptic) this._haptic('block');
     // Audio cue — synthesize a brief low-frequency thunk via Web

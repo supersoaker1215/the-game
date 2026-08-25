@@ -1083,7 +1083,10 @@ const Game = {
       const idx = (ap.trickHand || []).findIndex(t => t.id === wantId);
       if (idx < 0) return false;
       if (isHost) {
-        this._2v2CurrentActingPlayer = 'p1';
+        // `you`, not a hardcoded 'p1' — the host's seat is p1 today, but the
+        // actor a trick's prompts route to should come from the seat playing
+        // it, not from an assumption about which seat hosts.
+        this._2v2CurrentActingPlayer = you;
         this._2v2OnlinePlayTrick(you, idx);
         if (!this.state.pendingLaneChoice && !this.state.pendingCardChoice) this._2v2CurrentActingPlayer = null;
         // (the broadcast now happens inside _2v2OnlinePlayTrick)
@@ -6418,15 +6421,24 @@ const Game = {
           }
         }
 
-        // Fire deferred onKill hooks — only for killers who are STILL
-        // ALIVE after both swings. A dead card's onKill shouldn't
-        // retroactively buff a corpse. Mutual-kill scenario (both die
-        // simultaneously) correctly produces zero onKill fires.
-        if (pKilled && pCard.onKill && pCard.currentHealth > 0) {
+        // Fire deferred onKill hooks — by default only for killers who are
+        // STILL ALIVE after both swings, because most of these hooks buff the
+        // killer itself and raising a corpse's health would quietly un-kill it.
+        //
+        // `onKillWhenDead` is the opt-out, for a card whose on-kill payload
+        // belongs to somebody ELSE. Stripe is the case: his kill feeds the
+        // whole swarm and summons a Gremlin, and combat DEFERS onKill so both
+        // sides' swings land first — so the moment he traded, the kill that
+        // most looks like it should feed the swarm was the exact one that
+        // never did. (User: "for stripe in 2v2 his on kill ability never fired
+        // at all.") The card itself is then responsible for not buffing its own
+        // corpse; Stripe's hook checks that.
+        const _fires = (c, killed) => killed && c.onKill && (c.currentHealth > 0 || c.onKillWhenDead);
+        if (_fires(pCard, pKilled)) {
           this._2v2ActFor(pCard);
           try { this._2v2RunOwned(pCard, () => pCard.onKill(this, pCard)); } catch (e) { console.error(e); }
         }
-        if (aKilled && aCard.onKill && aCard.currentHealth > 0) {
+        if (_fires(aCard, aKilled)) {
           this._2v2ActFor(aCard);
           try { this._2v2RunOwned(aCard, () => aCard.onKill(this, aCard)); } catch (e) { console.error(e); }
         }
@@ -12876,6 +12888,7 @@ const Game = {
       canDiscard: def.canDiscard || null,
       _neverPlayable: !!def._neverPlayable, // Iron Giant — hand-guard only, never placeable
       trickPhasePlayable: def.trickPhasePlayable || false,
+      onKillWhenDead: !!def.onKillWhenDead,
       // Scarlet Witch: stats are unknown until she's placed. Her ATK/HP
       // copy the enemy directly opposite at play-time. While in hand
       // and on the draft, the renderer shows "?" instead of her base

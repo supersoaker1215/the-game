@@ -1228,6 +1228,9 @@ const CARD_ABILITIES = {
     },
   },
   "Stripe": {
+    // His kill feeds the SWARM, not just himself — so it still counts when he
+    // dies making it. See the deferred-onKill block in resolveLaneCombat.
+    onKillWhenDead: true,
     // Jump condition ("either player takes hero damage") lives in
     // Game.checkJumpConditions under the 'heroDamaged' trigger — fired
     // from damagePlayer when face damage actually lands.
@@ -1252,7 +1255,15 @@ const CARD_ABILITIES = {
       });
     },
     onKill(G, self) {
-      if (self.currentHealth <= 0) return;
+      // NO "ONLY IF HE SURVIVED" GUARD. Stripe was the only onKill in the game
+      // carrying one (ten others have none), and combat DEFERS onKill so both
+      // sides' simultaneous swings land first — so the moment Stripe traded,
+      // killing the enemy and dying to it in the same exchange, he was already
+      // dead when his own hook ran and it bailed. The kill that most looks like
+      // it should feed the swarm was the exact kill that never did. (User: "for
+      // stripe in 2v2 his on kill ability never fired at all.")
+      // The payload is the swarm's: the Gremlins grow and a new one arrives.
+      // Whether Stripe lived to see it is not the condition — the kill is.
       G.log(`[STRIPE] Stripe tears one down — the swarm feeds!`);
       // Kill feed: PERMANENT +1/+1 to every living friendly Gremlin AND
       // Stripe himself ("add 1/1 to all Gremlins, including Stripe").
@@ -1263,7 +1274,9 @@ const CARD_ABILITIES = {
       const brood = G.getAlliesOf(self.owner).filter(c =>
         c.name === 'Gremlin' && c.currentHealth > 0);
       brood.forEach(g => { g.attack += 1; g.maxHealth += 1; g.currentHealth += 1; });
-      self.attack += 1; self.maxHealth += 1; self.currentHealth += 1;
+      // …but a corpse does not grow. Buffing a dead Stripe's currentHealth
+      // above zero would quietly un-kill him on the next sweep.
+      if (self.currentHealth > 0) { self.attack += 1; self.maxHealth += 1; self.currentHealth += 1; }
       G.log(`  [STRIPE] Stripe${brood.length ? ` and ${brood.length} Gremlin${brood.length > 1 ? 's' : ''}` : ''} feed on the kill — +1/+1.`);
       const gremDef = (typeof CARD_DEFS !== 'undefined') ? CARD_DEFS.find(d => d.name === 'Gremlin') : null;
       G.summonCardChoice(self.owner, 'Gremlin', 2, 2, 3, [], null, null, gremDef);
