@@ -22674,7 +22674,7 @@ const UI = {
       const inTrickPhase = s.phase !== 'player-cards';
       const trickPlayable = (s.player.trickHand || []).some(t => {
         if (!t || t._timeStonedAtRound === s.round) return false;
-        if (s.player.currency < Game.getTrickCost('player', t)) return false;
+        if (s.player.currency < this._localTrickCost(t)) return false;
         if (t.canPlay) { try { if (!t.canPlay(Game, 'player')) return false; } catch (e) { } }
         return t.anytime ? true : inTrickPhase;
       });
@@ -24377,7 +24377,7 @@ const UI = {
     // tiebreak, so equal-cost tricks do not shuffle between renders.
     const _trickOrder = s.player.trickHand
       .map((t, i) => ({ t, i }))
-      .sort((a, b) => ((Game.getTrickCost('player', a.t) | 0) - (Game.getTrickCost('player', b.t) | 0)) || (a.i - b.i))
+      .sort((a, b) => ((this._localTrickCost(a.t) | 0) - (this._localTrickCost(b.t) | 0)) || (a.i - b.i))
       .map(e => e.t);
 
     _trickOrder.forEach(trick => {
@@ -24387,7 +24387,7 @@ const UI = {
       // Instance id — lets the mobile drag handler (installMobileCardDrag)
       // resolve the element back to THIS trick object, same as hand cards.
       if (trick.id != null) el.setAttribute('data-trick-id', trick.id);
-      const cost = Game.getTrickCost('player', trick);
+      const cost = this._localTrickCost(trick);
       const afford = s.player.currency >= cost;
 
       const trickBadges = trick.abilities && trick.abilities.length
@@ -25860,6 +25860,20 @@ const UI = {
     if (!seat) return null;
     return (Game._2v2TeamSide && Game._2v2TeamSide[seat.team]) || 'player';
   },
+  // WHAT THIS TRICK COSTS *ME*. Every display and affordability check used to
+  // ask Game.getTrickCost('player', trick) — hardcoded. getTrickCost reads the
+  // OPPONENT of the side it is given to find enemy Sandmen, so for a Team B
+  // player that asked the wrong question in both directions at once: it counted
+  // their OWN team's Sandman against them and ignored the enemy's entirely.
+  // (User: "sandmans is affecting but not showing up in hand to the enemy
+  // players" — the host charged the real price and the hand showed the base
+  // one.) Null outside 2v2, so 1v1 (where the guest's state is
+  // perspective-flipped and 'player' really is them) is unchanged.
+  _localTrickCost(trick) {
+    if (!trick) return 0;
+    const side = (this._2v2LocalSide && this._2v2LocalSide()) || 'player';
+    return Game.getTrickCost ? Game.getTrickCost(side, trick) : (trick.cost || 0);
+  },
   canPlayerPlayCards(s) {
     if (this._2v2LocalCanPlay('cards')) return true;
     if (s.phase === 'player-cards' || s.phase === 'player-cards-tricks') return true;
@@ -26177,7 +26191,7 @@ const UI = {
         // Tricks are lane-less: releasing anywhere ABOVE the hand plays it;
         // releasing back down into the hand/tray cancels (change of heart).
         if (t && aboveHand(t.clientY)) {
-          const cost = Game.getTrickCost('player', trick);
+          const cost = UI._localTrickCost(trick);
           if (Game.state.player.currency >= cost) {
             Game.state.selectedTrick = null;
             Game.submitCommand({ type: 'playTrick', payload: { trick } });
@@ -29143,7 +29157,7 @@ const UI = {
           this.render();
           return;
         }
-        const cost = Game.getTrickCost ? Game.getTrickCost('player', liveTrick) : (liveTrick.cost || 0);
+        const cost = this._localTrickCost(liveTrick);
         if (s.player.currency < cost) { this.flashUnaffordable(cost, null); return; }
         close();
         s.selectedTrick = null;
