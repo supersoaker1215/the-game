@@ -6216,7 +6216,14 @@ body.hit-pause .ai-hand * {
   width: 140px; min-height: 130px; border-radius: 4px; padding: 6px;
   position: relative;
   background: #000000;
-  border: 1px solid rgba(255,255,255,0.40);
+  /* 2px, option E. The frame is the only line on the tile that runs the whole
+     way round, so it is what gives the card an edge to sit inside rather than a
+     picture that fades out — at 1px against edge-to-edge art it read as a
+     hairline the art kept swallowing. Box-sizing is border-box globally (line
+     448), so the extra pixel comes out of the padding box: the card does not
+     grow, the art insets by one more pixel, and nothing downstream reflows.
+     The cost tab follows it — see --cost-radius / --cost-inset below. */
+  border: 2px solid rgba(255,255,255,0.40);
   transition: transform 0.2s var(--ease-snap), box-shadow 0.2s var(--ease-snap), border-color 0.2s var(--ease-snap);
   /* The fallback for a card rendered with no ally/enemy/hand/cost
      modifier. It was flat white — achromatic and theme-blind — so on
@@ -6333,20 +6340,39 @@ body.hit-pause .ai-hand * {
 }
 /* THE OUTLINE — the tab's INNER edges only: the angled cut and the bottom run.
    The top and left edges are deliberately NOT stroked, because the card's own
-   1px border is already sitting on exactly those two lines. Stroking them drew
-   a second line on top of the first and, since a stroke has no border-radius,
-   squared off the card's rounded corner — the little nub poking out past the
-   frame. (Owner: "there shouldnt be anything poking out, if anything it should
-   blend.") Letting the frame BE the tab's outer edge is the blend: the tab now
-   reads as a piece cut out of the card's own border rather than a sticker laid
-   over the corner.
+   1px border already sits on exactly those two lines. Stroking them drew a
+   second line on the first and, since a stroke has no border-radius, squared
+   off the card's rounded corner.
+
+   TWO PATHS, TWO WIDTHS — and that is not a style choice, it is arithmetic.
+   The mask is stretched with preserveAspectRatio: none, which scales X and Y
+   INDEPENDENTLY, and a stroke's thickness is measured perpendicular to its own
+   run. So the horizontal bottom edge is thinned by the HEIGHT factor while the
+   near-vertical cut is thinned by the wider one. Measured on the live tab
+   (35.8 x 25.7): one stroke-width of 7 rendered 1.8px along the bottom and
+   2.5px along the cut — a 1.39x difference from a single number, which is
+   exactly the "the bottom line should be thicker" the owner spotted.
+   Each run now carries its own pre-compensated width so both land on the same
+   rendered thickness. The compensation is a MEASURED constant, not a guess: the
+   tab's width/height ratio holds at 1.394 across both surfaces it is drawn on
+   (board tile 24.0x17.2, draft tile 35.8x25.7), so 10 on the cut and 13.9 on
+   the bottom land within 0.01px of each other on both. The bottom itself goes
+   1.8px -> 2.4px, a third heavier than before.
+   The bottom path starts at x=84 rather than 78 so its cap tucks under the
+   cut's, instead of leaving a notch where the two meet.
    The bloom stays on this layer — the light comes off the EDGE, not the fill. */
 .card-cost::after {
   content: '';
   position: absolute; inset: 0;
   background: rgb(var(--cost-neon));
-  -webkit-mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100' preserveAspectRatio='none'><path fill='none' stroke='black' stroke-width='7' stroke-linejoin='miter' stroke-linecap='butt' d='M100,0 L78,100 L0,100'/></svg>") center/100% 100% no-repeat;
-          mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100' preserveAspectRatio='none'><path fill='none' stroke='black' stroke-width='7' stroke-linejoin='miter' stroke-linecap='butt' d='M100,0 L78,100 L0,100'/></svg>") center/100% 100% no-repeat;
+  -webkit-mask:
+    url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100' preserveAspectRatio='none'><path fill='none' stroke='black' stroke-width='10' stroke-linecap='butt' d='M100,0 L78,100'/></svg>") center/100% 100% no-repeat,
+    url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100' preserveAspectRatio='none'><path fill='none' stroke='black' stroke-width='13.9' stroke-linecap='butt' d='M84,100 L0,100'/></svg>") center/100% 100% no-repeat;
+  -webkit-mask-composite: source-over;
+          mask:
+    url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100' preserveAspectRatio='none'><path fill='none' stroke='black' stroke-width='10' stroke-linecap='butt' d='M100,0 L78,100'/></svg>") center/100% 100% no-repeat,
+    url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100' preserveAspectRatio='none'><path fill='none' stroke='black' stroke-width='13.9' stroke-linecap='butt' d='M84,100 L0,100'/></svg>") center/100% 100% no-repeat;
+          mask-composite: add;
   filter:
     drop-shadow(0 0 4px rgba(var(--cost-neon), 0.80))
     drop-shadow(0 0 10px rgba(var(--cost-neon), 0.35));
@@ -42767,4 +42793,48 @@ body.no-art-grade .card-portrait { --art-grade: 1 !important; }
     top: auto; bottom: 10px; right: 10px; left: 10px;
     transform: none; width: auto; max-height: 40vh; overflow-y: auto;
   }
+}
+
+/* ============================================================
+   CARD FRAME WEIGHT — option E, 2px.
+   The frame is the only line on a tile that runs the whole way round, so it is
+   what gives the card an edge to sit inside rather than a picture that fades
+   out. At 1px, against art that now runs to the border on every surface, it
+   read as a hairline the art kept swallowing.
+   ONE rule rather than twenty: the tier colours are set with the `border`
+   SHORTHAND and `!important` (the cost ramp at ~5388, the trick purple at 5579,
+   the game-over MVP tiers at ~23867), and a shorthand carries a width. Editing
+   each would mean keeping twenty copies of one number in step forever. This
+   sets the width alone, last in the file, so it wins on source order against
+   equal-specificity !important without touching a single colour.
+   box-sizing is border-box globally (line 448), so the extra pixel comes out of
+   the padding box: no tile changes size and nothing downstream reflows.
+   ============================================================ */
+.card,
+.draft-card,
+.trick-card { border-width: 2px !important; }
+
+/* ============================================================
+   LEADERBOARD, INLINE IN TOOLS.
+   The rail was built to float over the hero art — absolute, vertically
+   centred, right-pinned, with a translucent navy plate and a blur. Dropped
+   into the Tools panel unchanged it sat ON TOP of Gallery Audit and Sandbox
+   and hid them. Inside a panel it is a block in the flow, not an overlay, so
+   the positioning comes off entirely.
+   The plate goes too: panel interiors are pure #000 in this game, and a navy
+   wash with a backdrop blur reads as a different surface pasted into the menu.
+   ============================================================ */
+.mm-lb-rail.mm-lb-inline {
+  position: static;
+  transform: none;
+  width: 100%;
+  max-width: 420px;
+  max-height: none;
+  margin: 18px 0 0;
+  background: #000;
+  border: 1px solid rgba(var(--theme-rgb, 79,195,247), 0.42);
+  border-radius: 10px;
+  box-shadow: 0 0 14px rgba(var(--theme-rgb, 79,195,247), 0.16),
+              inset 0 0 20px rgba(var(--theme-rgb, 79,195,247), 0.05);
+  backdrop-filter: none;
 }

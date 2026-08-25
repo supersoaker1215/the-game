@@ -14340,7 +14340,12 @@ const UI = {
             ${btn('mm-audio',   'Audio Audit',  'Per-card audio coverage + inline splicer',         SVG.settings, "UI.openAudioAudit()")}
             ${btn('mm-gallery', 'Gallery Audit','Browse, crop + delete card art',                   SVG.decks,    "UI.openGalleryAudit()")}
             ${btn('mm-sandbox', 'Sandbox',      'Free-play with unlimited energy + spawn any card', SVG.settings, "UI.startSandbox()")}
+            ${btn('mm-leaderboard', 'Leaderboard', 'W/L, win%, hours played, MVP card + your name',  SVG.stats,    "UI.openLeaderboard()")}
           </div>
+          <!-- The board itself, in the room it belongs to. Painted by
+               _renderMenuLeaderboard on every menu render; it finds this mount
+               only while Tools is open, which is exactly when it should draw. -->
+          <aside id="mm-lb-rail" class="mm-lb-rail mm-lb-inline" title="Click to set your name and favorite card"></aside>
         </div>${botbarHTML}`;
       }
       // Multiplayer — networked play, rendered in-shell (all online modes,
@@ -14378,7 +14383,7 @@ const UI = {
             ${btn('mm-decks',   'My Decks',     'Build, edit, copy, or play your decks',                  SVG.decks,    "Game.goToMyDecks()")}
             ${btn('mm-encyc',   'Codex',        'Every card and trick in the game',                       SVG.decks,    "UI.openEncyclopedia()")}
             ${btn('mm-stats',   'Stats',        'Card win rates and balance trends',                      SVG.stats,    "Game.goToStats()")}
-            ${btn('mm-tools',   'Tools',        'Audio Audit, Gallery Audit + Sandbox',                   SVG.settings, "UI.mmShowSub('tools')")}
+            ${btn('mm-tools',   'Tools',        'Leaderboard, Audio Audit, Gallery Audit + Sandbox',      SVG.settings, "UI.mmShowSub('tools')")}
           </div>
         </div>${botbarHTML}`;
     };
@@ -14389,10 +14394,13 @@ const UI = {
     el.innerHTML = `
       ${_flowOn ? this._menuSceneHTML() : ''}
       <div class="mm-scrim" aria-hidden="true"></div>
-      <div class="mm-panel">${buildPanel(this._mmSub || null)}</div>
-      <aside id="mm-lb-rail" class="mm-lb-rail" title="Click to set your name and favorite card"></aside>`;
-    // Always-visible leaderboard rail — populated now and refreshed whenever the
-    // server pushes a new board (Leaderboard._notify → UI._renderMenuLeaderboard).
+      <div class="mm-panel">${buildPanel(this._mmSub || null)}</div>`;
+    // LEADERBOARD LIVES IN TOOLS NOW. It used to be an always-on rail pinned
+    // over the hero art, which put a table of numbers across the middle of the
+    // one full-bleed image on the screen — and it is a thing you go and LOOK at,
+    // not a readout you need while choosing a mode. (Owner: "leaderboard should
+    // be in the tools section.") The rail only paints when that submenu is open;
+    // this call is a no-op everywhere else because the mount point is gone.
     try { this._renderMenuLeaderboard(); } catch (e) {}
     try { if (typeof Leaderboard !== 'undefined') Leaderboard.connect(); } catch (e) {}
     // Sync the full-bleed hero to whatever hover theme is already playing.
@@ -14483,6 +14491,13 @@ const UI = {
       return;
     }
     panel.innerHTML = this._mmBuildPanel(this._mmSub);
+    // The leaderboard's mount lives INSIDE the Tools panel, and this swap
+    // replaces the panel without re-running renderMainMenu — which is the one
+    // place that paints it. So a submenu that carries a live readout has to
+    // repaint it here, or Tools opens with an empty frame. (The rail is a no-op
+    // on every other submenu: it looks for a mount that is not there.)
+    try { this._renderMenuLeaderboard(); } catch (e) {}
+    try { if (sub === 'tools' && typeof Leaderboard !== 'undefined') Leaderboard.connect(); } catch (e) {}
     // Mark the panel as swapped (persistent) so the row fade-up entrance stays
     // suppressed — the letter flip is the only entrance on a swap. Without this,
     // removing .mm-flipping below would restart mmOptionIn and the list would
