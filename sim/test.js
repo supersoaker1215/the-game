@@ -8128,6 +8128,55 @@ test("2v2: an undone card can be played again", function () {
   assertEq(G.state.lanes[4].player.name, 'Gizmo', 'the same card');
 });
 
+// ---- A STALE AI-DRIVE LOCK MUST NOT FREEZE THE TABLE --------------------
+// _2v2AIDriving is an ENGINE field, so it survives an undo's whole-state swap
+// and a round rollover — while the watchdog that would clear it is a _schedule
+// callback that does not. The guard used to be a bare early return placed
+// BEFORE the watchdog is armed, so once the flag went stale no AI seat could
+// ever move again. (Owner: "the AIs got stuck ... dont let it stall the game
+// out again.")
+test("2v2: a fresh AI drive is still refused while one is genuinely running", function () {
+  var G = fresh2v2();
+  G._2v2AIDriving = 'p2';
+  G._2v2AIDrivingAt = Date.now();          // started just now — a real drive
+  G.state.twoVTwo.players.p4.isAI = true;
+  G._2v2DriveAISeat('p4', 'p4-cards');
+  assertEq(G._2v2AIDriving, 'p2', 'the running drive is not stomped by a second one');
+});
+
+test("2v2: a stale AI drive lock releases instead of freezing every AI seat", function () {
+  var G = fresh2v2();
+  G.state.twoVTwo.players.p4.isAI = true;
+  G._2v2AIDriving = 'p2';
+  G._2v2AIDrivingAt = Date.now() - 60000;  // a minute old — nothing is running
+  G._2v2DriveAISeat('p4', 'p4-cards');
+  assert(G._2v2AIDriving !== 'p2', 'the dead lock did not survive the next AI turn');
+});
+
+test("2v2: a drive lock with no timestamp at all is treated as dead", function () {
+  // A lock carried over from a build that never stamped one, or from a state
+  // restore. Missing evidence that it is alive is not evidence that it is.
+  var G = fresh2v2();
+  G.state.twoVTwo.players.p4.isAI = true;
+  G._2v2AIDriving = 'p2';
+  G._2v2AIDrivingAt = 0;
+  G._2v2DriveAISeat('p4', 'p4-cards');
+  assert(G._2v2AIDriving !== 'p2', 'it released rather than blocking forever');
+});
+
+test("2v2: undo releases the AI drive lock", function () {
+  var G = fresh2v2();
+  var tt = G.state.twoVTwo;
+  tt.players.p1.hand = [G.createCardInstance(cardByName('Gizmo'), 'player')];
+  tt.players.p1.energy = 8; tt.players.p1.usedEnergy = 0;
+  seat2v2TurnStart(G, 'p1', '2v2-combat');
+  G._2v2OnlinePlayCard('p1', 0, 2);
+  G._2v2AIDriving = 'p2';                  // a drive from the timeline being undone
+  G._2v2AIDrivingAt = Date.now();
+  assertEq(G._2v2UndoTurn('p1'), true, 'the undo went through');
+  assertEq(G._2v2AIDriving, null, 'and took the drive lock with it');
+});
+
 test("2v2: Dr. Manhattan's +2 goes to the seat that played him", function () {
   var G = fresh2v2(), tt = G.state.twoVTwo;
   // Cortex (p4) is the SECOND seat on team B, deliberately: a fix that merely

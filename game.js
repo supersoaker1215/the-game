@@ -1367,6 +1367,12 @@ const Game = {
     // it rather than trusting what the snapshot happened to hold.
     const _sub = this._2v2SubPhase && this._2v2SubPhase();
     if (_sub) this.state.phase = '2v2-' + _sub;
+    // The drive lock belongs to a timeline that no longer exists. It is an
+    // engine field, so the state swap above leaves it exactly where it was —
+    // and a lock left pointing at a turn that has been taken back is the one
+    // that never clears.
+    this._2v2AIDriving = null;
+    this._2v2AIDrivingAt = 0;
     if (this.rebuildEntityIndex) this.rebuildEntityIndex();
     this.log(`[UNDO] ${seat.name || seatKey} takes back their turn.`);
     if (typeof UI !== 'undefined' && UI.render) UI.render();
@@ -16147,8 +16153,31 @@ const Game = {
       console.warn('[2v2 AI] refusing to drive non-AI/human-held seat', activeKey);
       return;
     }
-    if (this._2v2AIDriving) return;   // one at a time — guards re-entrancy
+    // ONE AT A TIME — BUT NOT FOREVER. This was a bare `if (_2v2AIDriving)
+    // return;`, and that is a permanent table freeze waiting to happen: the
+    // flag is an ENGINE field, not part of state, so it survives an undo's
+    // whole-state swap and a round rollover, while the watchdog that would
+    // clear it is a _schedule callback that does not. Once the flag is stale
+    // every later call returns HERE — before the watchdog below is armed — so
+    // nothing is left that could ever clear it and no AI seat moves again for
+    // the rest of the match. (Owner: "the AIs got stuck ... dont let it stall
+    // the game out again.")
+    // Same answer _2v2ActionsLocked already gives for tt._resolving: a lock
+    // that stops four people playing has to expire. 15s is comfortably past
+    // the 12s watchdog, so a healthy drive is never interrupted, and a dead
+    // flag costs one pause instead of the match.
+    if (this._2v2AIDriving) {
+      // No stamp at all means the lock predates the stamping (a state restore,
+      // an older build) — that is the MOST suspicious case, not the safest, so
+      // it releases rather than blocking. Only a lock that can prove it is
+      // young holds.
+      const _since = this._2v2AIDrivingAt || 0;
+      if (_since && Date.now() - _since < 15000) return;
+      console.warn('[2v2 AI] stale drive lock from', this._2v2AIDriving, '— releasing');
+      this._2v2AIDriving = null;
+    }
     this._2v2AIDriving = activeKey;
+    this._2v2AIDrivingAt = Date.now();
     const side = this._2v2ActiveSide();
     this._2v2CurrentActingPlayer = activeKey;
     const watchGen = (this._2v2AIWatchGen = (this._2v2AIWatchGen || 0) + 1);
@@ -16157,6 +16186,7 @@ const Game = {
       if (finished) return;   // watchdog + real completion can't both advance
       finished = true;
       this._2v2AIDriving = null;
+      this._2v2AIDrivingAt = 0;
       this._2v2CurrentActingPlayer = null;
       // Mirror the human path: end2v2Phase reads the seat back and advances.
       try { this.end2v2Phase(); } catch (e) { console.error('[2v2 AI] end phase threw', e); }
