@@ -6641,21 +6641,25 @@ body.hit-pause .ai-hand * {
    So: brackets in green/red at the corners, a glow where the plate used to
    be, and nothing with a solid silhouette.
 
-   THE GROUND IS ON THE ELEMENT, NOT A PSEUDO — and that placement is
-   load-bearing, not tidiness. There are three things to paint and only two
-   pseudo-elements, and ::after is already spoken for by the stat-roll arrows
-   (.stat-rolled-up/down::after, at (0,3,1)) which set content, top and right.
-   Put the brackets there and a rolled card gets a triangle instead of its
-   brackets, with the mask stretched over a box that is no longer inset:0.
-   The scrim needs no mask, so it is the one that can live on `background`.
-   Ground on the element, brackets on ::before, ::after left alone.
+   NO GROUND BEHIND THE NUMBER. There was a radial scrim here for legibility.
+   Owner, with a zoomed screenshot: "that circle behind the number looks
+   weird" — and it did. The reasoning that put it there assumed the card body
+   is flat black, so an edgeless dark fade would be invisible on it. The body
+   is not flat: it carries a cost-tier colour wash
+   (linear-gradient(<tier> 12.6%, transparent 55%) — plainly gold on a cost-9
+   card), the page's CRT scanline overlay runs across everything, and the
+   rules block above has scanlines of its own. Against a NON-UNIFORM ground an
+   86%-opaque dark radial does not disappear, it punches a hole — which is
+   exactly the soft dark circle in the screenshot.
 
-   The scrim is an EDGELESS radial fade — no border, no silhouette. It earns
-   its place on one measured fact: on the BOARD tile the art runs to the
-   card's edge and the orb overlaps it by its full height (16px of 16px).
-   On hand and draft the overlap is ZERO — those orbs sit on the card's black
-   body — so the scrim is invisible exactly where you look at the card, and
-   only works where the numeral would otherwise sit on a painting.
+   Legibility is the text-shadow's job instead. Three black layers under the
+   two coloured ones, and being glyph-shaped they cannot read as a blob no
+   matter what is behind them. That also removes the reason the ground had to
+   live on `background`, though ::after stays free regardless — it belongs to
+   the stat-roll arrows (.stat-rolled-up/down::after at (0,3,1), which set
+   content, top and right). Put the brackets there and a rolled card would get
+   a triangle instead of its brackets, with the mask stretched over a box that
+   is no longer inset:0. Brackets on ::before, ::after untouched.
 
    viewBox is 100x100 because the badge is square: aspect matched, so one
    stroke-width renders identically on the horizontal arms and the vertical
@@ -6667,10 +6671,7 @@ body.hit-pause .ai-hand * {
   display: flex; align-items: center; justify-content: center;
   font-size: 11px; font-weight: 700; z-index: 4;
   position: absolute; bottom: 5px;
-  background: radial-gradient(ellipse at 50% 52%,
-    rgba(0,6,12,0.86) 0%,
-    rgba(0,6,12,0.48) 46%,
-    rgba(0,6,12,0)    80%);
+  background: transparent;
   border: 0;
   font-family: var(--font-mono);
   font-variant-numeric: tabular-nums;
@@ -6689,10 +6690,11 @@ body.hit-pause .ai-hand * {
   left: 4px;
   color: #7ee8a5;
   text-shadow:
-    0 1px 2px rgba(0,0,0,0.95),
-    0 0 3px  rgba(0,0,0,0.90),
-    0 0 7px  rgba(46,204,113,0.95),
-    0 0 15px rgba(46,204,113,0.50);
+    0 1px 2px rgba(0,0,0,1),
+    0 0 3px  rgba(0,0,0,0.95),
+    0 0 6px  rgba(0,0,0,0.80),
+    0 0 8px  rgba(46,204,113,0.95),
+    0 0 16px rgba(46,204,113,0.50);
 }
 .stat-atk::before {
   background: rgba(46,204,113,0.95);
@@ -6702,10 +6704,11 @@ body.hit-pause .ai-hand * {
   right: 4px;
   color: #f1948a;
   text-shadow:
-    0 1px 2px rgba(0,0,0,0.95),
-    0 0 3px  rgba(0,0,0,0.90),
-    0 0 7px  rgba(231,76,60,0.95),
-    0 0 15px rgba(231,76,60,0.50);
+    0 1px 2px rgba(0,0,0,1),
+    0 0 3px  rgba(0,0,0,0.95),
+    0 0 6px  rgba(0,0,0,0.80),
+    0 0 8px  rgba(231,76,60,0.95),
+    0 0 16px rgba(231,76,60,0.50);
 }
 .stat-hp::before {
   background: rgba(231,76,60,0.95);
