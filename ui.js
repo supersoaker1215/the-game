@@ -12887,7 +12887,7 @@ const UI = {
     const btnNew = document.getElementById('btn-new-game');
     const btnU   = document.getElementById('btn-undo');
     if (btnNew) btnNew.style.display = 'none';
-    // ONE UNDO PER SEAT, PER TURN. This used to be hidden outright in 2v2 —
+    // ONE UNDO PER SEAT, PER MATCH. This used to be hidden outright in 2v2 —
     // there was no take-back at all for any of the four players. Shown whenever
     // it is your turn so the affordance is predictable, and DISABLED (with the
     // reason as its tooltip) rather than vanishing when it cannot be used, so
@@ -12903,7 +12903,7 @@ const UI = {
         btnU.className     = 'btn btn-secondary';
         btnU.style.display = 'inline-block';
         btnU.disabled      = !!_uWhy;
-        btnU.title         = _uWhy || 'Take back everything you did this turn (once per turn)';
+        btnU.title         = _uWhy || 'Take back everything you did this turn (one undo per match)';
         btnU.onclick       = () => { if (Game._2v2UndoTurn) { Game._2v2UndoTurn(_uSeat); UI.render(); } };
       } else {
         btnU.style.display = 'none';

@@ -1350,7 +1350,10 @@ const Game = {
     this.state = snap;
     const tt2 = this.state.twoVTwo;
     tt2._turnSnap = null;
-    if (tt2.players[seatKey]) tt2.players[seatKey]._undoUsedThisTurn = true;
+    // Spend the allowance on the RESTORED state — the clone was captured before
+    // this ran, so writing it on the pre-restore object would be thrown away
+    // with it (the same trap the 1v1 undo counter fell into and documents).
+    if (tt2.players[seatKey]) tt2.players[seatKey]._undoUsedThisMatch = true;
     if (this.rebuildEntityIndex) this.rebuildEntityIndex();
     this.log(`[UNDO] ${seat.name || seatKey} takes back their turn.`);
     if (typeof UI !== 'undefined' && UI.render) UI.render();
@@ -1365,7 +1368,7 @@ const Game = {
     if (!tt || !seatKey || !tt.players[seatKey]) return 'Not now';
     if (s.gameOver) return 'Game over';
     if (this._2v2ActivePlayer && this._2v2ActivePlayer() !== seatKey) return 'Only on your turn';
-    if (tt.players[seatKey]._undoUsedThisTurn) return 'Undo already used this turn';
+    if (tt.players[seatKey]._undoUsedThisMatch) return 'Undo already used this match';
     if (!tt._turnSnap || tt._turnSnap.seat !== seatKey || !tt._turnSnap.clone) return 'Nothing to take back';
     if (this._2v2ActionsLocked && this._2v2ActionsLocked()) return 'Abilities are still resolving';
     return null;
@@ -2969,6 +2972,9 @@ const Game = {
       seat.discount = 0;
       seat.nextDrawDiscount = 0;
       seat.nextDrawDiscountCount = 0;
+      // One undo per match — so a NEW match has to hand it back. Same reason
+      // redrawsUsed is reset two lines up: start2v2Match can reuse a seat.
+      seat._undoUsedThisMatch = false;
       // Armed one-shots. A stale nextCardStolen meant the new match's first
       // card was intercepted by a Batman Who Laughs that is not on the board.
       seat.nextCardStolen = false;
@@ -15861,18 +15867,19 @@ const Game = {
     const playerName = tt.players[activeKey].name;
     this.log(`[2v2] ${playerName}'s turn — ${subPhase}`);
 
-    // ONE TAKE-BACK PER SEAT, PER TURN. Snapshotted here, at the exact moment
-    // this seat's turn opens, so an undo rewinds everything THEY did this turn
-    // and nothing anyone else did — 2v2 turns are strictly sequential, so the
-    // only actions between this point and the undo are their own.
-    // (User: "add that each player only gets 1 undo the whole turn if they make
-    // a mistake and want to change that.") Host/local authority only: the host
-    // owns the state, so a guest asks and receives the rewind in the next
+    // ONE TAKE-BACK PER SEAT, PER MATCH. The snapshot is taken at the exact
+    // moment this seat's turn opens, so the undo rewinds everything THEY did
+    // this turn and nothing anyone else did — 2v2 turns are strictly
+    // sequential, so the only actions between this point and the undo are
+    // their own. The SNAPSHOT is refreshed every turn (it is just "where your
+    // current turn began"); the ALLOWANCE is not — `_undoUsedThisMatch` is
+    // written once and never cleared until a new match, so each player gets
+    // exactly one take-back for the whole game. Host/local authority only: the
+    // host owns the state, so a guest asks and receives the rewind in the next
     // broadcast, exactly like playing a card.
     if (this._2v2IsAIAuthority && this._2v2IsAIAuthority()) {
       try {
         tt._turnSnap = { seat: activeKey, clone: this.cloneStateDeep(this.state) };
-        tt.players[activeKey]._undoUsedThisTurn = false;
       } catch (e) { tt._turnSnap = null; }
     }
 
