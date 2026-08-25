@@ -2010,11 +2010,17 @@ const Game = {
             // (prompt already closed, or a host-owned prompt now pending) must
             // not consume a prompt it doesn't own with a wrong index.
             if (cc.owner !== actor) break;
-            const idx = msg.idx;
-            if (idx == null || !cc.cards[idx]) break;
+            // Same identity-first resolution as the 2v2 door — the id names the
+            // card the player actually clicked, so a list that re-armed between
+            // the click and its arrival cannot redirect the answer.
+            if (msg.seq != null && cc._seq != null && msg.seq !== cc._seq) break;
+            let _pick = null;
+            if (msg.cardId != null) _pick = (cc.cards || []).find(c => c && c.id === msg.cardId) || null;
+            if (!_pick && msg.idx != null) _pick = cc.cards[msg.idx] || null;
+            if (!_pick) break;
             this._clearPromptTimeout();
             this.state.pendingCardChoice = null;
-            if (cc.callback) cc.callback(cc.cards[idx]);
+            if (cc.callback) cc.callback(_pick);
             this.cleanupDead();
             this.resumeCombatIfWaiting();
           } else if (msg.choiceType === 'lane') {
@@ -11955,7 +11961,14 @@ const Game = {
       // the play is submitted). A guest must resolve these locally — forwarding
       // a promptResolve for a prompt the host never armed would be dropped and
       // the play would never happen. See cardChoicePick.
-      this.state.pendingCardChoice = { owner, cards, title, desc, callback, faceDown: !!(options && options.faceDown), inlineTray: !!(options && options.inlineTray), localOnly: !!(options && options.localOnly), declineLabel: declineLabelC, onDecline: (options && options.onDecline) || null, peekStrip: (options && options.peekStrip) || null };
+      // _seq — WHICH PROMPT THIS IS. Chained abilities raise a second prompt
+      // from inside the first one's callback (Symbiote's two picks, Magneto's
+      // card -> lane -> card), so an answer that was in flight when the list
+      // changed used to be applied to the NEW prompt at the OLD index. The
+      // sequence number lets the host recognise a stale answer and ignore it
+      // instead of acting on it.
+      this._promptSeq = (this._promptSeq || 0) + 1;
+      this.state.pendingCardChoice = { owner, cards, title, desc, callback, _seq: this._promptSeq, faceDown: !!(options && options.faceDown), inlineTray: !!(options && options.inlineTray), localOnly: !!(options && options.localOnly), declineLabel: declineLabelC, onDecline: (options && options.onDecline) || null, peekStrip: (options && options.peekStrip) || null };
       // 2v2 online: route guest choices to the guest client (same as lane choice)
       const _cap = this._2v2CurrentActingPlayer;
       // Stamp the host (p1) too. Excluding p1 left every host-raised prompt
@@ -17159,10 +17172,26 @@ const Game = {
       case '2v2CardChoiceResult': {
         const cc = this.state.pendingCardChoice;
         if (cc && cc._2v2ActingPlayer === pk) {
-          this._2v2CurrentActingPlayer = pk;
-          this.state.pendingCardChoice = null;
-          this._clearPromptTimeout();
-          const pick = cc.cards[msg.idx] || cc.cards[0];
+          // AN ANSWER TO A DIFFERENT QUESTION IS NOT AN ANSWER. If the prompt
+          // has moved on since this was sent (a chain re-armed with a new list),
+          // drop it and leave the live prompt for the player to answer.
+          if (msg.seq != null && cc._seq != null && msg.seq !== cc._seq) break;
+          // RESOLVE BY IDENTITY, NOT POSITION. This was
+          //   cc.cards[msg.idx] || cc.cards[0]
+          // so any index that failed to resolve silently selected the FIRST
+          // option — the player picked one card and a different one was acted
+          // on, with nothing to say so. (User: "make sure it makes the choices
+          // i choose.") The card's own id is sent alongside the index and wins;
+          // the index is only a fallback for options that have no id (the
+          // synthetic amount/keep tiles). If neither resolves, nothing is
+          // chosen — the prompt stays up rather than guessing.
+          let pick = null;
+          if (msg.cardId != null) pick = (cc.cards || []).find(c => c && c.id === msg.cardId) || null;
+          if (!pick && msg.idx != null) pick = cc.cards[msg.idx] || null;
+          if (!pick && !msg.decline) {
+            this.log(`  [PROMPT] Could not match ${this._2v2SeatName(pk)}'s pick — asking again.`);
+            break;
+          }
           if (msg.decline && cc.declineLabel) {
             if (typeof cc.onDecline === 'function') this._2v2WithSeatBound(pk, () => cc.onDecline());
           } else if (cc.callback) this._2v2WithSeatBound(pk, () => cc.callback(pick));

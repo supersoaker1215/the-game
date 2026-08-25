@@ -32167,7 +32167,14 @@ function cardChoicePick(idx) {
   // (Invisible Woman's face-up/face-down). Forwarding one would be dropped by
   // the host and the pending action would never fire — resolve it here.
   if (Game.isMultiplayer() && Game.mp && Game.mp.role === 'guest' && !cc.localOnly) {
-    if (typeof Multiplayer !== 'undefined') Multiplayer.send({ t: 'promptResolve', choiceType: 'card', idx });
+    if (typeof Multiplayer !== 'undefined') {
+      const _p = cc.cards && cc.cards[idx];
+      Multiplayer.send({
+        t: 'promptResolve', choiceType: 'card', idx,
+        cardId: (_p && _p.id != null) ? _p.id : undefined,
+        seq: cc._seq,
+      });
+    }
     return;
   }
   if (cc.localOnly) {
@@ -32190,7 +32197,19 @@ function cardChoicePick(idx) {
     // learned the answer, kept its own copy of the prompt armed, and the table
     // froze on a prompt that looked, here, like it had been answered.
     if (you !== 'p1') {
-      if (typeof Multiplayer4 !== 'undefined') Multiplayer4.send({ t: '2v2CardChoiceResult', playerKey: you, idx });
+      if (typeof Multiplayer4 !== 'undefined') {
+        // SEND WHAT WAS PICKED, NOT JUST WHERE IT SAT. The host matches on the
+        // id first; the index is only a fallback for synthetic options that
+        // have none. `seq` names the prompt this answers, so an answer sent
+        // just as a chained ability re-armed the list cannot be applied to the
+        // question that replaced it.
+        const _picked = cc.cards && cc.cards[idx];
+        Multiplayer4.send({
+          t: '2v2CardChoiceResult', playerKey: you, idx,
+          cardId: (_picked && _picked.id != null) ? _picked.id : undefined,
+          seq: cc._seq,
+        });
+      }
       return;
     }
   }
