@@ -16638,6 +16638,10 @@ const Game = {
     const card = ap.hand[cardIdx];
     if (!card) return;
     const side = this._2v2TeamSide[ap.team];
+    // Same sub-phase rule as _2v2OnlinePlayCard — refuse before raising a lane
+    // prompt for a card that could not be seated anyway.
+    const _sub2 = this._2v2SubPhase && this._2v2SubPhase();
+    if (_sub2 && this._2v2CanPlayCardNow && !this._2v2CanPlayCardNow(_sub2, card, side)) return;
     if ((ap.energy - (ap.usedEnergy || 0)) < (card.cost || 0)) return; // can't afford
     // Discard-effect cards never take a lane — play them straight away.
     if (card.isDiscardEffect) {
@@ -16820,6 +16824,19 @@ const Game = {
     const card = ap.hand[cardIdx];
     if (!card) return;
     const side = this._2v2TeamSide[ap.team];
+    // THE HOST ENFORCES THE TRICK-PHASE RULE, not just the hand's grey-out.
+    // Cards need a 'cards' sub-phase; the exceptions are a trickPhasePlayable
+    // card (Iron Man, Thanos, or anything the Space Stone has granted it to)
+    // and Red Skull's aura. That was a UI-only gate, so the host would happily
+    // seat an ordinary card during a trick turn if a client asked it to.
+    // (User: "those 2 cards should be able to be played during the trick phase
+    // and if anyone ever uses the space stone" — the rule cuts both ways, and
+    // only the host can hold the line on it.)
+    const _sub = this._2v2SubPhase && this._2v2SubPhase();
+    if (_sub && this._2v2CanPlayCardNow && !this._2v2CanPlayCardNow(_sub, card, side)) {
+      this.log(`  [2v2] ${card.name} cannot be played during ${ap.name}'s trick turn.`);
+      return;
+    }
     // Invisible Woman stealth deploy — only honoured while her passive is live
     // on the seat's team, and never on discard-effect cards (they take no lane).
     if (faceDown && !card.isDiscardEffect && this._2v2TeamCanFaceDown(playerKey)) {

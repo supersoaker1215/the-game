@@ -446,7 +446,10 @@ const UI = {
       const side = (this._2v2LocalSide && this._2v2LocalSide()) || 'player';
       if (!Game._2v2CanPlayCardNow || !Game._2v2CanPlayCardNow(sp, card, side)) return false;
       const left = (seat.energy || 0) - (seat.usedEnergy || 0);
-      return left >= (card.cost || 0);
+      // getCardCost, not card.cost — an enemy Silver Surfer's tax is part of
+      // what this card costs ME, and the Play button must agree with the price
+      // the host will actually charge.
+      return left >= (this._localCardCost ? this._localCardCost(card) : (card.cost || 0));
     }
     if (!(s.player.hand || []).some(c => c && c.id === card.id)) return false;  // must be a hand card
     if (!this.canPlayerPlayCards || !this.canPlayerPlayCards(s)) return false;
@@ -12907,8 +12910,25 @@ const UI = {
       cardEl.classList.toggle('selected', cardId === selectedId);
       if (_promptCardIds.has(rawId)) return;              // the prompt's own handler stands
       if (_promptOpen) { cardEl.onclick = null; return; } // hand is inert while a prompt is open
-      if (apIdx < 0 || !canPlay) { cardEl.onclick = null; return; }
-      const cost = ap.hand[apIdx].cost || 0;
+      if (apIdx < 0) { cardEl.onclick = null; return; }
+      // PER CARD, NOT PER SUB-PHASE. `canPlay` is "can I play cards at all this
+      // sub-phase", which is FALSE on a tricks-only turn — so this stripped the
+      // click off every hand card during the trick phase, including the two
+      // whose entire ability is being playable in it. Iron Man and Thanos were
+      // rendered as playable by the hand renderer (which asks per card) and
+      // then had their handler removed one pass later, so they read as dead.
+      // (User: "my buddy was trying to play iron man and thanos during the
+      // trick phase in 2v2 and it wont let him drag and play.")
+      // canPlayThisCardNow is the same authority the renderer uses — it allows
+      // a trickPhasePlayable card, and Red Skull's aura, during a tricks turn.
+      const _liveCard = ap.hand[apIdx];
+      const _allowed = this.canPlayThisCardNow
+        ? this.canPlayThisCardNow(Game.state, _liveCard)
+        : canPlay;
+      if (!_allowed) { cardEl.onclick = null; return; }
+      const cost = (Game.getCardCost && this._2v2LocalSide)
+        ? Game.getCardCost(this._2v2LocalSide() || 'player', _liveCard)
+        : (_liveCard.cost || 0);
       if (energy < cost) { cardEl.onclick = null; return; }
       cardEl.onclick = (e) => {
         e.stopPropagation();
