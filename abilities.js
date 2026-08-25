@@ -2085,7 +2085,17 @@ const CARD_ABILITIES = {
           G.log(`Symbiote Spider-Man: ${p} shuffles 2 cards back and draws 2!`);
           if (onDone) onDone();
         } else {
-          // Human: picks each card via prompt
+          // Human: picks each card via prompt.
+          // inlineTray — THE WHOLE HAND, LAID OUT, WITH A PICK BUTTON UNDER EACH
+          // CARD. This used to light the cards up where they sat in the hand and
+          // ask you to tap one there: the cards are hand-sized, the rules text
+          // is unreadable at that scale, and a tap on a card is a READ
+          // everywhere else in the game, so committing a shuffle with the same
+          // gesture is a trap. The tray is the grammar Deadpool's give-back
+          // already uses — read the full face, then press Pick. (User: "instead
+          // of tapping the highlighted cards in your hand i want it more like a
+          // prompt that comes up and shows your whole hand and has the option to
+          // pick underneath like when you give a card with deadpool.")
           G.promptCardChoice(p, [...hand], "Symbiote Spider-Man — Shuffle", "Choose 1st card to shuffle back into the deck (pick 2 total)", (c1) => {
             const idx1 = hand.findIndex(c => c.id === c1.id);
             if (idx1 >= 0) hand.splice(idx1, 1);
@@ -2098,8 +2108,8 @@ const CARD_ABILITIES = {
               G.drawCards(p, 2);
               G.log("Symbiote Spider-Man: You shuffle 2 cards back and draw 2!");
               if (onDone) onDone();
-            });
-          });
+            }, null, { inlineTray: true });
+          }, null, { inlineTray: true });
         }
       };
       // Process owner first, then opponent, then heal
@@ -2170,8 +2180,8 @@ const CARD_ABILITIES = {
                     const i2 = hand.findIndex(c => c.id === c2.id);
                     if (i2 >= 0) { shuffleBack(hand[i2], seatSide); hand.splice(i2, 1); }
                     finalizeDraw();
-                  }, lowest, { seat: seatKey });
-              }, lowest, { seat: seatKey });
+                  }, lowest, { seat: seatKey, inlineTray: true });
+              }, lowest, { seat: seatKey, inlineTray: true });
           }
         };
         // Owner first, then the rest — chained so human pick prompts never
