@@ -1690,6 +1690,21 @@ const Game = {
       const idx = (payload && payload.idx);
       if (idx == null || !prompt.cards || !prompt.cards[idx]) return false;
       arg = prompt.cards[idx];
+      // Never resolve onto a corpse. A board target that died while the prompt
+      // was open is not a legal pick — drop it. If live targets remain, keep the
+      // prompt armed so the player picks one of those; if none remain, close and
+      // release. (Mirrors _pruneDeadPromptTargets for the click-before-sweep race.)
+      if (arg && arg.currentHealth != null && arg.currentHealth <= 0) {
+        prompt.cards = prompt.cards.filter(c => !c || c.currentHealth == null || c.currentHealth > 0);
+        if (prompt.cards.length === 0) {
+          this._clearPromptTimeout();
+          this.state[slotKey] = null;
+          this.cleanupDead();
+          this.resumeCombatIfWaiting();
+          return true;
+        }
+        return false;
+      }
     }
     this._clearPromptTimeout();
     // Null the slot BEFORE snapshotting — a snapshot must never capture an
@@ -2018,6 +2033,19 @@ const Game = {
             if (msg.cardId != null) _pick = (cc.cards || []).find(c => c && c.id === msg.cardId) || null;
             if (!_pick && msg.idx != null) _pick = cc.cards[msg.idx] || null;
             if (!_pick) break;
+            // Never resolve onto a corpse — a guest can click a stale target that
+            // died before the answer reached the host. Drop it; keep the prompt
+            // armed if live targets remain, else close and release.
+            if (_pick.currentHealth != null && _pick.currentHealth <= 0) {
+              cc.cards = (cc.cards || []).filter(c => !c || c.currentHealth == null || c.currentHealth > 0);
+              if (cc.cards.length === 0) {
+                this._clearPromptTimeout();
+                this.state.pendingCardChoice = null;
+                this.cleanupDead();
+                this.resumeCombatIfWaiting();
+              }
+              break;
+            }
             this._clearPromptTimeout();
             this.state.pendingCardChoice = null;
             if (cc.callback) cc.callback(_pick);
@@ -8711,7 +8739,41 @@ const Game = {
     // path that stranded it. Fixes the fuzz-found "X occupies DESTROYED lane"
     // limbo class at the source.
     this._evictAllVoidSurvivors();
+    // A card-choice prompt armed BEFORE this sweep may still be offering a card
+    // that just died here — prune those corpses so no effect resolves onto one.
+    this._pruneDeadPromptTargets();
     this.checkInvariants('cleanup');
+  },
+
+  // A card-choice prompt's target list is a SNAPSHOT taken when it was armed. A
+  // board card in it can die — and be swept off the board here in cleanupDead —
+  // while the prompt is still open: a multi-strike trick's own earlier hit, or
+  // any effect resolving between arming the prompt and answering it. The dead
+  // reference stays in cards[], so the tray keeps offering a corpse and picking
+  // it runs the effect on nothing; in 2v2 online that reads as "the card never
+  // leaves and the table stalls out." Drop every dead BOARD target
+  // (currentHealth <= 0) from the LIVE prompt; hand cards and synthetic option
+  // tiles (currentHealth == null) are left untouched. If nothing targetable is
+  // left, close the prompt and release the table rather than leaving a dead pick
+  // armed forever. Generic — one guard covers every card and trick that targets.
+  _pruneDeadPromptTargets() {
+    if (this._promptPruneReaping) return;
+    const cc = this.state && this.state.pendingCardChoice;
+    if (!cc || !Array.isArray(cc.cards)) return;
+    const live = cc.cards.filter(c => !c || c.currentHealth == null || c.currentHealth > 0);
+    if (live.length === cc.cards.length) return;   // nothing under the prompt died
+    if (live.length > 0) { cc.cards = live; return; }   // live targets remain — just drop the corpses
+    // Every target is gone. Close the prompt and resume, guarded so the resume
+    // path can't re-enter this sweep.
+    this._promptPruneReaping = true;
+    try {
+      this._clearPromptTimeout();
+      this.state.pendingCardChoice = null;
+      this.log(`  [NO TARGET] ${String(cc.title || 'Ability').replace(/\s*—.*$/, '')} lost every target — nothing left to hit.`);
+      this.resumeCombatIfWaiting();
+    } finally {
+      this._promptPruneReaping = false;
+    }
   },
 
   // ===================== INVARIANT SWEEP =====================
@@ -17265,6 +17327,20 @@ const Game = {
           if (!pick && msg.idx != null) pick = cc.cards[msg.idx] || null;
           if (!pick && !msg.decline) {
             this.log(`  [PROMPT] Could not match ${this._2v2SeatName(pk)}'s pick — asking again.`);
+            break;
+          }
+          // Never resolve onto a corpse — a seat can click a target that died on
+          // the board before its answer reached the host. Drop the dead pick;
+          // keep the prompt armed if live targets remain, else close and release.
+          // Runs BEFORE the slot-clear below so a "keep asking" outcome leaves the
+          // prompt up for a live pick.
+          if (pick && !msg.decline && pick.currentHealth != null && pick.currentHealth <= 0) {
+            cc.cards = (cc.cards || []).filter(c => !c || c.currentHealth == null || c.currentHealth > 0);
+            if (cc.cards.length === 0) {
+              this.state.pendingCardChoice = null;
+              this.cleanupDead();
+              this.resumeCombatIfWaiting();
+            }
             break;
           }
           // CLEAR THE SLOT BEFORE THE CALLBACK — the three lines the lane twin
