@@ -13834,6 +13834,178 @@ const UI = {
     });
   },
   alertModal(message, title) { return this._modalDialog({ title: title || 'Notice', message, okText: 'OK' }); },
+
+  // ===================== GLOBAL LEADERBOARD =====================
+  // A single overlay listing every player who has signed on to the shared
+  // stats server: wins/losses, hours played, the card they win the most with
+  // (MVP), and their chosen favorite card. Data comes from the Leaderboard
+  // client (leaderboard.js); this is pure rendering + the name / favorite
+  // controls. Degrades to "just your row" when the server isn't configured.
+
+  // Ask the player for their real name. Resolves to the trimmed string, or
+  // null if they cancelled. Reuses the app-modal chrome with an input.
+  _promptPlayerName(prefill) {
+    return new Promise((resolve) => {
+      const ov = document.createElement('div');
+      ov.className = 'app-modal-overlay';
+      ov.innerHTML = `
+        <div class="app-modal-panel" role="dialog" aria-modal="true" aria-label="Your name">
+          <div class="app-modal-title">Your name</div>
+          <div class="app-modal-body">This is how you show up on the leaderboard, so everyone knows who is who.</div>
+          <input type="text" class="lb-name-input" maxlength="24" placeholder="Type your name"
+                 style="width:100%;box-sizing:border-box;margin:10px 0 4px;padding:9px 11px;border-radius:8px;
+                        border:1px solid rgba(120,160,210,0.45);background:rgba(8,14,24,0.9);color:#e8eefc;
+                        font:600 15px/1.2 inherit;outline:none;">
+          <div class="app-modal-actions">
+            <button type="button" class="btn" data-act="cancel">Cancel</button>
+            <button type="button" class="btn btn-primary" data-act="ok">Save</button>
+          </div>
+        </div>`;
+      document.documentElement.appendChild(ov);
+      const input = ov.querySelector('.lb-name-input');
+      if (input && prefill) input.value = prefill;
+      const close = (val) => { try { ov.remove(); } catch (e) {} document.removeEventListener('keydown', onKey); resolve(val); };
+      ov.addEventListener('click', (e) => {
+        const act = e.target && e.target.getAttribute && e.target.getAttribute('data-act');
+        if (act === 'ok') close(input ? input.value : '');
+        else if (act === 'cancel') close(null);
+        else if (e.target === ov) close(null);
+      });
+      const onKey = (e) => {
+        if (e.key === 'Escape') { e.preventDefault(); close(null); }
+        else if (e.key === 'Enter') { e.preventDefault(); close(input ? input.value : ''); }
+      };
+      document.addEventListener('keydown', onKey);
+      try { input.focus(); } catch (e) {}
+    });
+  },
+
+  async openLeaderboard() {
+    if (typeof Leaderboard === 'undefined') { this.alertModal('Leaderboard is unavailable.'); return; }
+    Leaderboard.connect();
+    // Require a real name the first time in — that's the whole point of a
+    // shared board. Cancelling backs out without opening.
+    if (!Leaderboard.hasName()) {
+      const nm = await this._promptPlayerName('');
+      if (nm == null) return;
+      if (!Leaderboard.setName(nm)) { this.alertModal('Please enter a name.'); return; }
+    }
+    let ov = document.getElementById('leaderboard-overlay');
+    if (!ov) {
+      ov = document.createElement('div');
+      ov.id = 'leaderboard-overlay';
+      ov.className = 'app-modal-overlay';
+      document.documentElement.appendChild(ov);
+      ov.addEventListener('click', (e) => {
+        const act = e.target && e.target.getAttribute && e.target.getAttribute('data-act');
+        if (act === 'lb-close' || e.target === ov) this.closeLeaderboard();
+        else if (act === 'lb-rename') this._leaderboardRename();
+      });
+    }
+    this._leaderboardOpen = true;
+    this._renderLeaderboard();
+  },
+  closeLeaderboard() {
+    this._leaderboardOpen = false;
+    const ov = document.getElementById('leaderboard-overlay');
+    if (ov) ov.remove();
+  },
+  async _leaderboardRename() {
+    const nm = await this._promptPlayerName(Leaderboard.name());
+    if (nm == null) return;
+    Leaderboard.setName(nm);
+    this._renderLeaderboard();
+  },
+
+  _fmtHours(ms) {
+    const h = (ms || 0) / 3600000;
+    if (h < 0.1) return '<0.1h';
+    return (h < 10 ? h.toFixed(1) : Math.round(h)) + 'h';
+  },
+
+  _renderLeaderboard() {
+    if (!this._leaderboardOpen) return;
+    const ov = document.getElementById('leaderboard-overlay');
+    if (!ov || typeof Leaderboard === 'undefined') return;
+    const esc = (t) => String(t == null ? '' : t).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    const rows = Leaderboard.board();
+    const myId = Leaderboard.deviceId();
+    // If the server hasn't answered yet, at least show our own local mirror row.
+    const configured = Leaderboard.isConfigured();
+
+    const bodyRows = rows.length ? rows.map((r, i) => {
+      const total = (r.wins || 0) + (r.losses || 0);
+      const wr = total ? Math.round((r.wins / total) * 100) : 0;
+      const mine = r.id === myId ? ' lb-row-me' : '';
+      const fav = r.favorite ? esc(r.favorite) : '—';
+      const mvp = r.mvp ? `${esc(r.mvp)}` : '—';
+      return `<tr class="lb-row${mine}">
+        <td class="lb-rank">${i + 1}</td>
+        <td class="lb-name">${esc(r.name || 'Anonymous')}</td>
+        <td class="lb-wl">${r.wins || 0}<span class="lb-dim">/${r.losses || 0}</span></td>
+        <td class="lb-wr">${wr}%</td>
+        <td class="lb-hrs">${this._fmtHours(r.playMs)}</td>
+        <td class="lb-mvp">${mvp}</td>
+        <td class="lb-fav">${fav}</td>
+      </tr>`;
+    }).join('') : `<tr><td colspan="7" class="lb-empty">${configured ? 'No games recorded yet — play a match to appear here.' : 'Leaderboard server not set up yet. Your games are still tracked locally and will sync once it is deployed.'}</td></tr>`;
+
+    // Favorite-card picker — a searchable native select of every card.
+    const defs = (typeof CARD_DEFS !== 'undefined' ? CARD_DEFS.slice() : []).sort((a, b) => a.name.localeCompare(b.name));
+    const cur = Leaderboard.favorite();
+    const opts = ['<option value="">— pick your favorite card —</option>']
+      .concat(defs.map(d => `<option value="${esc(d.name)}"${d.name === cur ? ' selected' : ''}>${esc(d.name)}</option>`))
+      .join('');
+
+    ov.innerHTML = `
+      <style>
+        #leaderboard-overlay .lb-table td { padding:6px 8px; border-top:1px solid rgba(120,160,210,0.14); color:#dfe8f6; white-space:nowrap; }
+        #leaderboard-overlay .lb-table th { color:#9fb6d6; font-weight:700; border-bottom:1px solid rgba(120,160,210,0.3); }
+        #leaderboard-overlay .lb-name { font-weight:700; color:#eef4ff; }
+        #leaderboard-overlay .lb-mvp, #leaderboard-overlay .lb-fav { color:#ffcf6a; }
+        #leaderboard-overlay .lb-dim { color:#7f95ad; }
+        #leaderboard-overlay .lb-rank { color:#9fb6d6; }
+        #leaderboard-overlay .lb-row-me td { background:rgba(126,232,165,0.10); }
+        #leaderboard-overlay .lb-row-me .lb-name::after { content:' (you)'; color:#7ee8a5; font-weight:600; font-size:11px; }
+        #leaderboard-overlay .lb-empty { padding:22px 12px; text-align:center; color:#9fb6d6; white-space:normal; }
+      </style>
+      <div class="app-modal-panel lb-panel" role="dialog" aria-modal="true" aria-label="Leaderboard"
+           style="max-width:720px;width:94vw;display:flex;flex-direction:column;">
+        <div class="lb-head" style="display:flex;align-items:center;gap:10px;margin-bottom:8px;">
+          <div class="app-modal-title" style="flex:1;margin:0;">🏆 Leaderboard</div>
+          <button type="button" class="btn" data-act="lb-rename" title="Change your name">${esc(Leaderboard.name() || 'Set name')} ✎</button>
+          <button type="button" class="btn" data-act="lb-close">Close</button>
+        </div>
+        <div class="lb-scroll" style="border:1px solid rgba(120,160,210,0.25);border-radius:8px;">
+          <table class="lb-table" style="width:100%;border-collapse:collapse;font-size:13px;">
+            <thead>
+              <tr style="background:rgba(10,16,28,0.96);text-align:left;">
+                <th style="padding:7px 8px;">#</th>
+                <th style="padding:7px 8px;">Player</th>
+                <th style="padding:7px 8px;">W/L</th>
+                <th style="padding:7px 8px;">Win%</th>
+                <th style="padding:7px 8px;">Hours</th>
+                <th style="padding:7px 8px;">MVP card</th>
+                <th style="padding:7px 8px;">Favorite</th>
+              </tr>
+            </thead>
+            <tbody>${bodyRows}</tbody>
+          </table>
+        </div>
+        <div class="lb-foot" style="display:flex;align-items:center;gap:8px;margin-top:10px;">
+          <label style="font-size:12px;color:#9fb6d6;white-space:nowrap;">Your favorite card</label>
+          <select class="lb-fav-select" style="flex:1;padding:7px 9px;border-radius:8px;border:1px solid rgba(120,160,210,0.45);background:rgba(8,14,24,0.9);color:#e8eefc;font:600 13px/1.2 inherit;">
+            ${opts}
+          </select>
+        </div>
+        <div class="lb-note" style="font-size:11px;color:#7f95ad;margin-top:6px;">
+          MVP is the card you win the most with. ${configured ? '' : 'Server not deployed yet — see leaderboard.js.'}
+        </div>
+      </div>`;
+
+    const sel = ov.querySelector('.lb-fav-select');
+    if (sel) sel.onchange = () => { Leaderboard.setFavorite(sel.value); };
+  },
   confirmModal(message, opts) {
     opts = opts || {};
     return this._modalDialog({
@@ -14088,6 +14260,7 @@ const UI = {
             ${btn('mm-decks',   'My Decks',     'Build, edit, copy, or play your decks',                  SVG.decks,    "Game.goToMyDecks()")}
             ${btn('mm-encyc',   'Codex',        'Every card and trick in the game',                       SVG.decks,    "UI.openEncyclopedia()")}
             ${btn('mm-stats',   'Stats',        'Card win rates and balance trends',                      SVG.stats,    "Game.goToStats()")}
+            ${btn('mm-leaders', 'Leaderboard',  'Global wins, hours, and MVP cards for every player',     SVG.stats,    "UI.openLeaderboard()")}
             ${btn('mm-tools',   'Tools',        'Audio Audit, Gallery Audit + Sandbox',                   SVG.settings, "UI.mmShowSub('tools')")}
           </div>
         </div>${botbarHTML}`;
@@ -33076,3 +33249,8 @@ function twov2OnlineDraftPick(index) {
 // Auto-start
 UI.init();
 Game.init();
+
+// Start listening to the global leaderboard (no-op until CLB_STATS_URL is set
+// in index.html — see leaderboard.js). Wrapped so a missing client or blocked
+// socket never blocks boot.
+try { if (typeof Leaderboard !== 'undefined') Leaderboard.connect(); } catch (e) {}

@@ -2945,6 +2945,32 @@ const Game = {
     });
 
     UI._statsSet(store);
+
+    // GLOBAL LEADERBOARD — report this finished game from the LOCAL human's
+    // seat: their win/loss, the real cards they played (for the shared MVP
+    // tally), and how long the match ran (hours played). Guarded so headless
+    // sim and a page without the leaderboard client both no-op.
+    try {
+      if (typeof Leaderboard !== 'undefined' && Leaderboard.reportResult) {
+        // Which side is the person at THIS screen? 2v2 online reads the seat's
+        // team; 1v1 online reads the assigned side; everything else (vs-AI,
+        // hotseat) is the green 'player' seat.
+        let localSide = 'player';
+        const tt = s.twoVTwo;
+        if (tt && tt.online && tt.you && tt.players && tt.players[tt.you] && this._2v2TeamSide) {
+          localSide = this._2v2TeamSide[tt.players[tt.you].team] || 'player';
+        } else if (typeof Multiplayer !== 'undefined' && Multiplayer._you) {
+          localSide = Multiplayer._you;
+        }
+        const cards = [];
+        const seenCard = new Set();
+        (perSideInstances[localSide] || []).forEach(c => {
+          if (c && c.name && !seenCard.has(c.name)) { seenCard.add(c.name); cards.push(c.name); }
+        });
+        const ms = s._matchStartTs ? Math.max(0, Date.now() - s._matchStartTs) : 0;
+        Leaderboard.reportResult({ win: winner === localSide, cards, ms });
+      }
+    } catch (e) { /* leaderboard is best-effort — never let it break game-over */ }
   },
 
   // Start a match after the user picks a mode. Accepts either a mode string
@@ -2969,6 +2995,10 @@ const Game = {
     // (startMatch reuses this.state in place, so stale combat/AI callbacks
     // would otherwise run against the new board).
     this._matchGen++;
+    // Wall-clock stamp for the leaderboard's "hours played" — read once at
+    // game over in finalizeStats. Reset every match so a menu idle between
+    // games doesn't inflate the next game's length.
+    this.state._matchStartTs = Date.now();
     // PER-MATCH COUNTERS. makePlayer() runs only inside init(), and startMatch
     // deliberately REUSES this.state — so a factory default is applied exactly
     // once per page load, not once per match. Menu -> Play -> a second match

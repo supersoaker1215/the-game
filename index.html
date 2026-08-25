@@ -877,7 +877,14 @@
   <script src="peerjs.min.js"></script>
   <script src="multiplayer.js?v=47"></script>
   <script src="card-art-manifest.js?v=64"></script>
-  <script src="ui.js?v=1374"></script>
+  <!-- GLOBAL LEADERBOARD config. After deploying the stats server
+       (`cd partykit && npx partykit deploy`), paste the deployment URL here —
+       e.g. "https://card-lane-battle.<your-user>.partykit.dev". Leave empty to
+       keep the leaderboard in local-only mode (games still tracked, nothing
+       shared). Loaded BEFORE leaderboard.js so the client sees it on boot. -->
+  <script>window.CLB_STATS_URL = "";</script>
+  <script src="leaderboard.js?v=1"></script>
+  <script src="ui.js?v=1377"></script>
   <!-- Party voice chat. Loads after ui.js because it paints its own panel and
        reads Game/Multiplayer state; it asks for nothing until you press Join. -->
   <script src="voice.js?v=4"></script>
