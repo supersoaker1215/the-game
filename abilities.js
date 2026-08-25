@@ -551,7 +551,8 @@ const CARD_ABILITIES = {
           }
         },
         cards => cards.slice().sort((a, b) => (b.baseCost || b.cost) - (a.baseCost || a.cost))[0],
-        self._2v2PlayedBy ? { seat: self._2v2PlayedBy } : null);
+        // Same tray as Deathstroke, for the same reason — see the note there.
+        { inlineTray: true, seat: self._2v2PlayedBy || null });
     }
   },
   "Hawkeye": {
@@ -1137,7 +1138,18 @@ const CARD_ABILITIES = {
         G.promptCardChoice(self.owner, targets, "Deathstroke — Assassinate", `Choose enemy with ${threshold} or less HP to destroy`, (t) => {
           if (typeof UI !== 'undefined' && UI._fxDeathstrokeKill) { try { UI._fxDeathstrokeKill(self, t); } catch (e) {} }
           G.log(`Deathstroke assassinates ${t.name}!`); G.killCard(t, self);
-        }, _aiThreatPicker, self._2v2PlayedBy ? { seat: self._2v2PlayedBy } : null);
+          // inlineTray — PICK FROM A TRAY, NOT BY HITTING THE CARD ON THE BOARD.
+          // Reported twice as "he never got to kill any of them" / "isn't
+          // working at all". Every link in the board-click path checks out when
+          // driven directly (prompt raised and stamped to the right seat, the
+          // targets render highlighted and clickable on both team perspectives,
+          // the guest's index round-trips through the wire and the host kills
+          // the right card), so rather than keep guessing at the one link that
+          // can't be reproduced here, the choice now goes through the tray —
+          // its own DOM, its own buttons, the same grammar as the Symbiote
+          // shuffle and Deadpool's give-back. A board click is no longer the
+          // only way to answer.
+        }, _aiThreatPicker, { inlineTray: true, seat: self._2v2PlayedBy || null });
       } else {
         // NEVER FAIL SILENTLY. This branch did not exist: with nothing legal to
         // hit, Deathstroke landed and said nothing at all, which is
