@@ -5411,11 +5411,43 @@ body.hit-pause .ai-hand * {
     0 6px 18px rgba(0,0,0,0.55),
     inset 0 0 0 1px rgba(255,215,0,0.12) !important;
 }
-/* Inner hairline — Tron double-edge */
-.draft-card::before {
-  content: ''; position: absolute; inset: 4px;
+/* ---- INNER RING — the Tron double-edge ----
+   Owner, pointing at a trick in the draft: "see that faint purple line that
+   runs inside the border ... can i see it on the cards?" then "22% ... i want
+   it a little deeper into the art".
+
+   The card ALREADY had this ring, and had all along — same layer, same 2px
+   radius. Two things made it invisible, and neither was the geometry:
+     1. 0.12 alpha, against the trick's 0.18;
+     2. it was drawn in --theme-rgb, the BOARD's colour, not the card's own
+        rarity tier. So a gold card carried a faint BLUE hairline that read as
+        nothing at all, while the trick's purple ring matched its purple frame
+        and read as a deliberate inner edge.
+   Rarity colour + 22% is the whole fix. --rarity-rgb is the canonical tier
+   triplet (style.css ~30854) and it is what --portrait-frame-rgb already
+   derives from, so the ring now tracks the frame on every tier for free.
+
+   NOT an outline, which is what I reached for first and what made it look
+   square in the mockup: Chrome renders outline radius as
+   max(0, border-radius + outline-offset), so a 4px radius at -5px offset
+   clamps to ZERO and the corners come out sharp inside a rounded frame. A
+   pseudo-element carries its own border-radius and stays round.
+
+   AND THE CLASS IS DOUBLED FOR A REASON. `.card::before` (style.css ~7906)
+   sets `inset: 0; border-radius: inherit` at the same (0,1,1) specificity and
+   sits LATER in the file, so it was winning both properties — which is why
+   the card's ring has been pinned flush against the frame at inset 0 while
+   the trick's sat 4px in. The owner was not imagining the difference: "its a
+   little deeper into the art for the trick". `.draft-card.draft-card` is
+   (0,2,1) and takes its own geometry back. Three classes would be wrong here
+   — the trick's own rule is (0,2,1) and must still win on source order, which
+   it does, being 150 lines below this one.
+
+   inset 6px, not the trick's 4px — the "deeper" half of the ask. */
+.draft-card.draft-card::before {
+  content: ''; position: absolute; inset: 6px;
   border-radius: 2px;
-  border: 1px solid rgba(var(--theme-rgb, 79,195,247),0.12);
+  border: 1px solid rgba(var(--rarity-rgb, var(--theme-rgb, 79,195,247)), 0.22);
   pointer-events: none;
 }
 /* Corner brackets */
@@ -29498,11 +29530,18 @@ body.turn-player .hud-phase {
   --card-edge: rgba(var(--player-r, 79), var(--player-g, 195), var(--player-b, 247), 0.85) !important;
 }
 
-/* Draft card chrome — outer border ghost, name + desc text-shadow.
-   These read as the player's selection chrome, theme via theme-rgb. */
-.draft-card::before {
-  border-color: rgba(var(--theme-rgb, 79,195,247), 0.12) !important;
-}
+/* Draft card chrome — name + desc text-shadow. These read as the player's
+   selection chrome, theme via theme-rgb.
+
+   The inner ring used to be forced here too:
+     .draft-card::before { border-color: rgba(var(--theme-rgb),0.12) !important }
+   That `!important` is why the ring was a faint BLUE hairline on a gold card
+   and invisible in practice — it overrode the tier colour set at the rule's
+   own definition 24,000 lines up. Removed rather than re-pointed: the base
+   rule already says rarity at 22%, and a second declaration of the same
+   property is how the two drifted apart in the first place. The ring is
+   card chrome, not selection chrome — it should match the frame it sits
+   inside, which is the tier. */
 .draft-card .card-name {
   text-shadow: 0 0 8px rgba(var(--theme-rgb, 79,195,247), 0.50), 0 1px 3px rgba(0,0,0,0.95) !important;
 }
