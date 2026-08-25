@@ -42716,10 +42716,12 @@ body.no-art-grade .card-portrait { --art-grade: 1 !important; }
    ============================================================ */
 .mm-lb-rail {
   position: absolute;
-  /* In the open gap just right of the menu column — not across the hero.
-     `left` clears the panel; the board grows downward from `top`. */
+  /* In the open gap just right of the menu column — not across the hero, and
+     sitting LOW rather than vertically centered. `left` clears the panel;
+     pinned to the bottom so it stays down regardless of how many rows it has. */
   left: clamp(300px, 30%, 640px);
-  top: 44%;
+  top: auto;
+  bottom: 42px;
   right: auto;
   transform: none;
   z-index: 7;

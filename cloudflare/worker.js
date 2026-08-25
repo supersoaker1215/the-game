@@ -72,8 +72,11 @@ function mvpOf(rec) {
 
 // The public, render-ready board: sorted by wins desc, then win-rate, and
 // stripped of the internal cardWins map (only the derived MVP goes out).
+// OPT-IN ONLY: a player appears solely after they explicitly join (rec.joined).
+// A record can exist without being listed — e.g. a device that reported a game
+// so its opponent could be credited, but never added itself.
 function boardFrom(players) {
-  const rows = Object.keys(players).map(id => {
+  const rows = Object.keys(players).filter(id => players[id] && players[id].joined).map(id => {
     const r = players[id];
     const { mvp, mvpWins } = mvpOf(r);
     return {
@@ -155,6 +158,13 @@ export class StatsRoom {
     if (msg.t === 'hello') {
       const nm = clampStr(msg.name, MAX_NAME);
       if (nm) rec.name = nm;
+    } else if (msg.t === 'join') {
+      // Explicit opt-in — the ONLY thing that lists a player on the board.
+      const nm = clampStr(msg.name, MAX_NAME);
+      if (nm) rec.name = nm;
+      rec.joined = true;
+    } else if (msg.t === 'leave') {
+      rec.joined = false;   // hide again without wiping their history
     } else if (msg.t === 'favorite') {
       const nm = clampStr(msg.name, MAX_NAME);
       if (nm) rec.name = nm;

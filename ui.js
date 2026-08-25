@@ -13963,13 +13963,9 @@ const UI = {
   async openLeaderboard() {
     if (typeof Leaderboard === 'undefined') { this.alertModal('Leaderboard is unavailable.'); return; }
     Leaderboard.connect();
-    // Require a real name the first time in — that's the whole point of a
-    // shared board. Cancelling backs out without opening.
-    if (!Leaderboard.hasName()) {
-      const nm = await this._promptPlayerName('');
-      if (nm == null) return;
-      if (!Leaderboard.setName(nm)) { this.alertModal('Please enter a name.'); return; }
-    }
+    // Opt-in board: anyone may OPEN it to look, but you only appear after you
+    // deliberately add yourself (the Join button below). No forced name prompt
+    // on open — that used to list people the moment they peeked.
     let ov = document.getElementById('leaderboard-overlay');
     if (!ov) {
       ov = document.createElement('div');
@@ -13980,9 +13976,28 @@ const UI = {
         const act = e.target && e.target.getAttribute && e.target.getAttribute('data-act');
         if (act === 'lb-close' || e.target === ov) this.closeLeaderboard();
         else if (act === 'lb-rename') this._leaderboardRename();
+        else if (act === 'lb-join') this._leaderboardJoin();
+        else if (act === 'lb-leave') this._leaderboardLeave();
       });
     }
     this._leaderboardOpen = true;
+    this._renderLeaderboard();
+  },
+  // Explicit opt-in: prompt for a name if needed, then add this device to the
+  // shared board. Nothing appears on anyone's board until this runs.
+  async _leaderboardJoin() {
+    let nm = Leaderboard.name();
+    if (!nm) {
+      nm = await this._promptPlayerName('');
+      if (nm == null) return;
+    }
+    if (!Leaderboard.join(nm)) { this.alertModal('Please enter a name to join.'); return; }
+    this._renderLeaderboard();
+  },
+  async _leaderboardLeave() {
+    const ok = await this.confirmModal('Remove yourself from the leaderboard? Your stats are kept and reappear if you rejoin.');
+    if (!ok) return;
+    Leaderboard.leave();
     this._renderLeaderboard();
   },
   closeLeaderboard() {
@@ -14029,10 +14044,10 @@ const UI = {
         <td class="mm-lb-hrs">${this._fmtHours(r.playMs)}</td>
         <td class="mm-lb-mvp">${r.mvp ? esc(r.mvp) : '—'}</td>
       </tr>`;
-    }).join('') : `<tr><td colspan="6" class="mm-lb-empty">${configured ? 'No games yet — play an online match to appear.' : 'Local only until the leaderboard server is deployed.'}</td></tr>`;
+    }).join('') : `<tr><td colspan="6" class="mm-lb-empty">${configured ? (Leaderboard.hasJoined() ? 'No one on the board yet.' : 'No one has added themselves yet — tap “➕ Add me”.') : 'Local only until the leaderboard server is deployed.'}</td></tr>`;
 
     rail.innerHTML = `
-      <div class="mm-lb-title">🏆 Leaderboard <span class="mm-lb-edit">${Leaderboard.hasName() ? esc(Leaderboard.name()) + ' ✎' : 'Set name ✎'}</span></div>
+      <div class="mm-lb-title">🏆 Leaderboard <span class="mm-lb-edit">${Leaderboard.hasJoined() ? esc(Leaderboard.name()) + ' ✎' : '➕ Add me'}</span></div>
       <div class="mm-lb-tablewrap">
         <table class="mm-lb-table">
           <thead><tr><th>#</th><th>Player</th><th>W/L</th><th>Win%</th><th>Hrs</th><th>MVP</th></tr></thead>
@@ -14066,7 +14081,7 @@ const UI = {
         <td class="lb-mvp">${mvp}</td>
         <td class="lb-fav">${fav}</td>
       </tr>`;
-    }).join('') : `<tr><td colspan="7" class="lb-empty">${configured ? 'No games recorded yet — play a match to appear here.' : 'Leaderboard server not set up yet. Your games are still tracked locally and will sync once it is deployed.'}</td></tr>`;
+    }).join('') : `<tr><td colspan="7" class="lb-empty">${configured ? (Leaderboard.hasJoined() ? 'No one on the board yet — corroborated online games will show up here.' : 'Nobody has added themselves yet. Click “➕ Add me” above to be the first.') : 'Leaderboard server not set up yet. Your games are still tracked locally and will sync once it is deployed.'}</td></tr>`;
 
     // Favorite-card picker — a searchable native select of every card.
     const defs = (typeof CARD_DEFS !== 'undefined' ? CARD_DEFS.slice() : []).sort((a, b) => a.name.localeCompare(b.name));
@@ -14091,7 +14106,10 @@ const UI = {
            style="max-width:720px;width:94vw;display:flex;flex-direction:column;">
         <div class="lb-head" style="display:flex;align-items:center;gap:10px;margin-bottom:8px;">
           <div class="app-modal-title" style="flex:1;margin:0;">🏆 Leaderboard</div>
-          <button type="button" class="btn" data-act="lb-rename" title="Change your name">${esc(Leaderboard.name() || 'Set name')} ✎</button>
+          ${Leaderboard.hasJoined()
+            ? `<button type="button" class="btn" data-act="lb-rename" title="Change your name">${esc(Leaderboard.name() || 'Set name')} ✎</button>
+               <button type="button" class="btn" data-act="lb-leave" title="Remove yourself from the board">Leave</button>`
+            : `<button type="button" class="btn btn-primary" data-act="lb-join" title="Add yourself to the shared board">➕ Add me</button>`}
           <button type="button" class="btn" data-act="lb-close">Close</button>
         </div>
         <div class="lb-scroll" style="border:1px solid rgba(120,160,210,0.25);border-radius:8px;">
@@ -14117,7 +14135,7 @@ const UI = {
           </select>
         </div>
         <div class="lb-note" style="font-size:11px;color:#7f95ad;margin-top:6px;">
-          MVP is the card you win the most with. ${configured ? '' : 'Server not deployed yet — see leaderboard.js.'}
+          ${Leaderboard.hasJoined() ? 'You’re on the board.' : 'You’re not listed — click “➕ Add me” to appear.'} MVP is the card you win the most with. ${configured ? '' : 'Server not deployed yet — see leaderboard.js.'}
         </div>
       </div>`;
 
@@ -31748,7 +31766,12 @@ const UI = {
     this._customCursorInstalled = true;
     const main = document.createElement('div');
     main.className = 'custom-cursor hidden';
-    document.body.appendChild(main);
+    // Mount on <html>, NOT <body>. A fixed, html-level overlay (the leaderboard
+    // modal is appended to documentElement) sits above body's stacking context,
+    // so a body-mounted disc — even at z-index 10000 — gets painted over and the
+    // cursor "disappears" on that modal. As a child of <html> the disc shares the
+    // root stacking context with such overlays, so its z-index wins everywhere.
+    document.documentElement.appendChild(main);
 
     // --- Disc motion ---
     // The disc IS the cursor (the native one is `cursor: none`), so it must

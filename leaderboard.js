@@ -23,9 +23,10 @@
 // never throws into the game. The board simply doesn't update.
 
 const Leaderboard = {
-  _ID_KEY:   'clb_device_id',
-  _NAME_KEY: 'clb_player_name',
-  _FAV_KEY:  'clb_favorite_card',
+  _ID_KEY:     'clb_device_id',
+  _NAME_KEY:   'clb_player_name',
+  _FAV_KEY:    'clb_favorite_card',
+  _JOINED_KEY: 'clb_joined',
 
   _socket: null,
   _connected: false,
@@ -59,8 +60,31 @@ const Leaderboard = {
     const clean = String(n || '').replace(/[\u0000-\u001f\u007f]/g, '').trim().slice(0, 24);
     if (!clean) return false;
     this._lsSet(this._NAME_KEY, clean);
-    this._send({ t: 'hello', id: this.deviceId(), name: clean });
+    // Only touch the server if we're actually on the board. A rename before
+    // joining is purely local; once joined, push the new name via a join upsert.
+    if (this.hasJoined()) this._send({ t: 'join', id: this.deviceId(), name: clean });
     return true;
+  },
+
+  // ---- opt-in membership --------------------------------------------
+  // A player appears on the shared board ONLY after explicitly adding
+  // themselves. Merely having a name does nothing — that is the whole point of
+  // "they have to add themselves." join() records the choice locally and tells
+  // the server to list us; the server persists rec.joined so it sticks.
+  hasJoined() { return this._ls(this._JOINED_KEY) === '1'; },
+  join(n) {
+    if (n != null) {
+      const clean = String(n || '').replace(/[\u0000-\u001f\u007f]/g, '').trim().slice(0, 24);
+      if (clean) this._lsSet(this._NAME_KEY, clean);
+    }
+    if (!this.hasName()) return false;   // need a name to be listed
+    this._lsSet(this._JOINED_KEY, '1');
+    this._send({ t: 'join', id: this.deviceId(), name: this.name() });
+    return true;
+  },
+  leave() {
+    this._lsSet(this._JOINED_KEY, '0');
+    this._send({ t: 'leave', id: this.deviceId(), name: this.name() });
   },
   favorite() { return this._ls(this._FAV_KEY) || null; },
   setFavorite(card) {
@@ -87,8 +111,10 @@ const Leaderboard = {
     sock.onopen = () => {
       this._connected = true;
       this._retryMs = 2000;
-      // Announce ourselves so the server has our current name on file.
-      if (this.hasName()) { this._sendRaw({ t: 'hello', id: this.deviceId(), name: this.name() }); }
+      // Re-assert membership so the server lists us with our current name.
+      // Opt-in only: a player who never joined announces nothing and stays off
+      // the board, even if they have a local name.
+      if (this.hasJoined()) { this._sendRaw({ t: 'join', id: this.deviceId(), name: this.name() }); }
       this._sendRaw({ t: 'getBoard' });
     };
     sock.onmessage = (ev) => {
