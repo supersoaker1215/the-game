@@ -889,6 +889,17 @@ const CARD_ABILITIES = {
   },
   "Human Torch": {
     onPlay(G, self, lane) {
+      // CAPTURE THE ACTING SEAT NOW, before the arrival splash below. splashDamage
+      // fires other cards' onDamaged/onDeath hooks, and any of those can reassign
+      // G._2v2CurrentActingPlayer — so by the time the Burning prompt is raised
+      // the acting-seat global has drifted off Torch's owner, the prompt goes out
+      // unowned, and the online table stalls waiting on a pick nobody can make.
+      // (User: "played human torch ... was able to blast 2 enemys but is stuck
+      // and the game stalled.") Name the seat explicitly, like Symbiote Spider-Man.
+      const tt = G.state && G.state.twoVTwo;
+      const blastSeat = (tt && tt.online)
+        ? (self._2v2PlayedBy || G._2v2CurrentActingPlayer || (G._2v2ActivePlayer && G._2v2ActivePlayer()))
+        : null;
       // Flame-on cue — fire Human Torch's ability sound the instant he ignites
       // (registered in CARD_SFX; matches the Predator / Spider-Man pattern of
       // firing 'ability' from the card's own onPlay). Guarded so the headless
@@ -914,11 +925,15 @@ const CARD_ABILITIES = {
       G.log(`Human Torch ignites on arrival — Splash ${arrival}!`);
       const enemies = G.getEnemiesOf(self.owner).filter(t => G.canEffectLand(t, 'damage', { owner: self.owner, source: self }));
       if (enemies.length) {
+        // Re-assert the captured seat: the splash above may have moved the
+        // acting-seat global, and the { seat } option is what routes this prompt
+        // to Torch's own player instead of stranding the table.
+        if (blastSeat) G._2v2CurrentActingPlayer = blastSeat;
         G.promptCardChoice(self.owner, enemies, "Human Torch — Blast", `Choose enemy to apply Burning ${blast}`, (t) => {
           if (typeof UI !== 'undefined' && UI._fxHumanTorchFlame) { try { UI._fxHumanTorchFlame(self, t); } catch (e) {} }
           CARD_ABILITIES['Godzilla']._ignite(G, t, blast);
           G.log(`Human Torch sets ${t.name} ablaze — Burning ${t.burnStacks}!`);
-        }, cards => _aiKillPicker(cards, blastTotal));
+        }, cards => _aiKillPicker(cards, blastTotal), blastSeat ? { seat: blastSeat } : undefined);
       }
     }
   },
@@ -1534,7 +1549,7 @@ const CARD_ABILITIES = {
         const caster = G.setBrainiacSpy(owner, victimSeat, G.BRAINIAC_SPY_ROUNDS, self);
         const view = G.brainiacSpiedHand(caster, caster ? null : owner);
         const who = view ? view.name : (G.seatPossessive ? G.seatPossessive(G.opponent(owner)) : 'the opponent');
-        G.log(`[BRAINIAC] Brainiac opens ${who}'s hand for ${G.BRAINIAC_SPY_ROUNDS} rounds — everything they draw arrives at −1 ATK.`);
+        G.log(`[BRAINIAC] Brainiac opens ${who}'s hand for ${G.BRAINIAC_SPY_ROUNDS} rounds — everything they draw arrives at −1/−1.`);
         // The centre-screen reveal is a PING for the person who cast it, so it
         // fires only on that person's own client. In 2v2 online the host runs
         // every seat's abilities, so gating on the side would have shown the

@@ -11489,6 +11489,7 @@ const Game = {
   // one attack weaker (see applyBrainiacDrain).
   BRAINIAC_SPY_ROUNDS: 2,
   BRAINIAC_SPY_ATK_DRAIN: 1,
+  BRAINIAC_SPY_HP_DRAIN: 1,
 
   // Arm the window. Returns the 2v2 seat holding it, or null in 1v1/local.
   setBrainiacSpy(owner, victimSeat, rounds, sourceCard) {
@@ -11556,7 +11557,7 @@ const Game = {
     return (spy && spy.rounds > 0) ? this.seatLabel(watcher) : null;
   },
 
-  // −1/0 on every card that reaches a watched hand while the window is open.
+  // −1/−1 on every card that reaches a watched hand while the window is open.
   // Stamped once per card (_brainiacDrained) so a card that leaves and returns
   // to hand cannot be shaved twice, and floored at 0 attack.
   // MR. FANTASTIC'S CHEAPER DRAW, AS ONE FUNCTION. drawCards applies it inline,
@@ -11593,7 +11594,12 @@ const Game = {
     const before = card.attack || 0;
     card.attack = Math.max(0, before - this.BRAINIAC_SPY_ATK_DRAIN);
     if (card.baseAttack != null) card.baseAttack = Math.max(0, card.baseAttack - this.BRAINIAC_SPY_ATK_DRAIN);
-    this.log(`  [BRAINIAC] ${card.name} is drawn under ${watcher}'s scan — ${before} → ${card.attack} ATK.`);
+    // −1 HP too, but never below 1 so the scan can't kill a card in hand.
+    const hpBefore = (typeof card.currentHealth === 'number') ? card.currentHealth : (card.maxHealth || card.baseHealth || 1);
+    if (typeof card.maxHealth === 'number') card.maxHealth = Math.max(1, card.maxHealth - this.BRAINIAC_SPY_HP_DRAIN);
+    if (typeof card.baseHealth === 'number') card.baseHealth = Math.max(1, card.baseHealth - this.BRAINIAC_SPY_HP_DRAIN);
+    card.currentHealth = Math.max(1, hpBefore - this.BRAINIAC_SPY_HP_DRAIN);
+    this.log(`  [BRAINIAC] ${card.name} is drawn under ${watcher}'s scan — ${before}/${hpBefore} → ${card.attack}/${card.currentHealth}.`);
     return true;
   },
 

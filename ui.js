@@ -22282,8 +22282,14 @@ const UI = {
       if (el.childElementCount) el.innerHTML = '';
       el.classList.remove('is-active');
       el.removeAttribute('title');
+      el.onclick = null;
       return;
     }
+    // Click the strip to reopen the big, legible reveal of the watched hand —
+    // so the read "stays revealed": the caster can bring it back any time
+    // instead of having to remember it. (User: "they never stay revealed to me
+    // so i forgot most of them.")
+    el.onclick = () => this._brainiacReopen();
     const esc = (t) => String(t == null ? '' : t).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
     const hand = (view.hand || []).filter(c => c && c.name);
     let html = '<span class="brainiac-scan-eye" aria-hidden="true">👁</span>'
@@ -22297,7 +22303,7 @@ const UI = {
         // The shaved card is marked, so you can see WHICH ones came in under
         // the scan rather than having to remember.
         const drained = c._brainiacDrained ? ' is-drained' : '';
-        return `<span class="brainiac-scan-card${drained}" title="${esc(c.name)}${c._brainiacDrained ? ' — drawn under the scan (−1 ATK)' : ''}">`
+        return `<span class="brainiac-scan-card${drained}" title="${esc(c.name)}${c._brainiacDrained ? ' — drawn under the scan (−1/−1)' : ''}">`
           + (art ? `<span class="brainiac-scan-art" style="background-image:url('${esc(art)}')"></span>` : '')
           + `<span class="brainiac-scan-name">${esc(c.name)}</span>`
           + (cost !== '' ? `<span class="brainiac-scan-cost">${esc(cost)}</span>` : '')
@@ -22306,21 +22312,43 @@ const UI = {
     }
     html += `<span class="brainiac-scan-rounds" title="Rounds left">${view.rounds}R</span>`;
     el.innerHTML = html;
-    el.title = `Brainiac: you can see ${view.name}'s hand for ${view.rounds} more round${view.rounds === 1 ? '' : 's'}.`;
+    el.title = `Brainiac: you can see ${view.name}'s hand for ${view.rounds} more round${view.rounds === 1 ? '' : 's'}. Click to enlarge.`;
     el.classList.add('is-active');
+  },
+  // Reopen the full-screen reveal from the live watched hand — driven by a
+  // click on the persistent strip, so the read never disappears for good.
+  _brainiacReopen() {
+    const s = (typeof Game !== 'undefined' && Game.state) ? Game.state : null;
+    if (!s) return;
+    let mySide = 'player', mySeat = null;
+    const tt = s.twoVTwo;
+    if (tt && tt.online && tt.you && tt.players && tt.players[tt.you]) {
+      mySeat = tt.you;
+      if (typeof Game !== 'undefined' && Game._2v2TeamSide) {
+        mySide = Game._2v2TeamSide[tt.players[tt.you].team];
+      }
+    }
+    const view = (typeof Game !== 'undefined' && Game.brainiacSpiedHand)
+      ? Game.brainiacSpiedHand(mySeat, mySeat ? null : mySide) : null;
+    if (!view) return;
+    const hand = (view.hand || []).filter(c => c && c.name);
+    if (!hand.length) return;
+    this._fxBrainiacScan(hand, view.name, `${view.name}'s hand · ${view.rounds} round${view.rounds === 1 ? '' : 's'} left`, true);
   },
   // Immediate reveal when the human discards Brainiac. The small HUD strip is
   // easy to miss (user: "I didn't see who he drew at all"), so the discard now
   // throws a prominent center-screen card reveal of the opponent's next draws —
   // the strip then lingers as the persistent reference for the next 2 rounds.
-  _fxBrainiacScan(upcoming, whoName) {
+  _fxBrainiacScan(upcoming, whoName, subLabel, force) {
     const el = document.getElementById('brainiac-scan');
     if (el) {
       el.classList.remove('brainiac-scan-pulse');
       void el.offsetWidth;   // reflow so the pulse restarts
       el.classList.add('brainiac-scan-pulse');
     }
-    if (this._reducedMotion && this._reducedMotion()) return;
+    // `force` is a user-initiated reopen (clicking the strip), which should
+    // show even for reduced-motion players — they asked for it.
+    if (!force && this._reducedMotion && this._reducedMotion()) return;
     if (!upcoming || !upcoming.length) return;
     // Tear down any previous reveal still on screen.
     const prev = document.getElementById('brainiac-reveal');
@@ -22341,7 +22369,7 @@ const UI = {
     }).join('');
     overlay.innerHTML = `<div class="brainiac-reveal-inner">`
       + `<div class="brainiac-reveal-title"><span class="brainiac-reveal-eye">👁</span> BRAINIAC SCANS${whoName ? ' \u00b7 ' + String(whoName).replace(/[<>&]/g, '') : ''}</div>`
-      + `<div class="brainiac-reveal-sub">The opponent's next draw${upcoming.length === 1 ? '' : 's'}</div>`
+      + `<div class="brainiac-reveal-sub">${esc(subLabel || ('The opponent\'s next draw' + (upcoming.length === 1 ? '' : 's')))}</div>`
       + `<div class="brainiac-reveal-cards">${cards}</div></div>`;
     document.body.appendChild(overlay);
     // Click to dismiss early; otherwise auto-fade.

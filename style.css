@@ -41198,6 +41198,7 @@ body.low-fx .badge-asleep { animation: none; }
   font-size: 11px;
   line-height: 1;
   pointer-events: auto;
+  cursor: pointer;
   animation: brainiac-scan-in 220ms ease-out;
 }
 @keyframes brainiac-scan-in {
