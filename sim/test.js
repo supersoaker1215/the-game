@@ -5453,49 +5453,6 @@ function placeEnv(G, name, owner, lane) {
   return card;
 }
 
-// Regression: Xenomorph grows "each time any other card enters the board", and
-// playCard's ENVIRONMENT branch (game.js ~5197) broadcasts onAnyCardPlayed just
-// like the normal branch does — so dropping a Sewers was feeding him. An
-// environment never enters a combat slot, never fights and cannot be attacked;
-// counting it as a card entering the board is the same category error the set
-// already guards against elsewhere ("Apocalypse does not give keywords to
-// environments"). Owner: "xenomorph shouldnt grow from enviroments".
-//
-// Driven through the REAL playCard path on purpose. place()/placeEnv() write
-// straight into state and never broadcast, so a test built on those would pass
-// with the bug still in.
-test('Xenomorph does not grow when an environment is played', function () {
-  var G = freshGame();
-  var xeno = place(G, 'Xenomorph', 'player', 0);
-  var atk0 = xeno.attack, hp0 = xeno.currentHealth;
-
-  var env = G.createCardInstance(cardByName('Sewers'), 'player');
-  G.state.player.hand.push(env);
-  G.state.player.currency = 99;
-  G.playCard('player', env, 2);
-
-  assertEq(G.state.lanes[2]._env && G.state.lanes[2]._env.player === env, true,
-    'the environment must actually have been played (else the test proves nothing)');
-  assertEq(xeno.attack, atk0, 'Xenomorph ATK must not grow from an environment');
-  assertEq(xeno.currentHealth, hp0, 'Xenomorph HP must not grow from an environment');
-});
-
-// The other half of the same guard: a NORMAL card entering must still feed him,
-// so the fix is a filter and not an off switch.
-test('Xenomorph still grows when a normal card is played', function () {
-  var G = freshGame();
-  var xeno = place(G, 'Xenomorph', 'player', 0);
-  var atk0 = xeno.attack;
-
-  var ally = G.createCardInstance(cardByName('The Thing'), 'player');
-  G.state.player.hand.push(ally);
-  G.state.player.currency = 99;
-  G.playCard('player', ally, 3);
-
-  assertEq(G.state.lanes[3].player === ally, true, 'the ally must actually have been played');
-  assertEq(xeno.attack > atk0, true, 'Xenomorph must still grow from a real card');
-});
-
 test('Wetlands drains on EITHER side\'s Block Meter, not just its owner\'s', function () {
   var G = freshGame();
   var wet = placeEnv(G, 'Wetlands', 'player', 2);

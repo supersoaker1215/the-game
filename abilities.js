@@ -690,20 +690,7 @@ const CARD_ABILITIES = {
     }
   },
   "Xenomorph": {
-    onAnyCardPlayed(G, self, played) {
-      // NOT FED BY ENVIRONMENTS. playCard's environment branch (game.js ~5197)
-      // broadcasts onAnyCardPlayed exactly like the normal branch, so dropping a
-      // Sewers or a Boiler Room was growing him. An environment never enters a
-      // combat slot, never fights and cannot be attacked — it sits in the lane's
-      // _env sub-slot — so counting it as "a card entering the board" is the same
-      // category error the set already refuses elsewhere (Apocalypse will not
-      // hand a keyword to an environment either). Owner: "xenomorph shouldnt grow
-      // from enviroments".
-      //
-      // The played card is the hook's THIRD argument — broadcastHook calls
-      // c[hook](G, c, ...args) with args = [card]. This hook simply never
-      // declared it, which is why it could not tell the difference.
-      if (played && played.isEnvironment) return;
+    onAnyCardPlayed(G, self) {
       // Roguelite rarity variant — buff size scales with tier. Common
       // drops the +1 HP entirely (just +1 ATK growth) so the card has
       // a real downside at low rarity. Classic = baseline +1/+1.
