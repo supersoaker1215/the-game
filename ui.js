@@ -13990,6 +13990,44 @@ const UI = {
     return (h < 10 ? h.toFixed(1) : Math.round(h)) + 'h';
   },
 
+  // The ALWAYS-ON board on the main menu — not a tab, not behind a click.
+  // A compact rail listing every player, refreshed whenever the server pushes
+  // a new board. Clicking it opens the full modal (rename + favorite picker).
+  _renderMenuLeaderboard() {
+    const rail = document.getElementById('mm-lb-rail');
+    if (!rail || typeof Leaderboard === 'undefined') return;
+    const esc = (t) => String(t == null ? '' : t).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    const rows = Leaderboard.board();
+    const myId = Leaderboard.deviceId();
+    const configured = Leaderboard.isConfigured();
+    if (!rail._wired) {
+      rail.addEventListener('click', () => { try { this.openLeaderboard(); } catch (e) {} });
+      rail._wired = true;
+    }
+    const body = rows.length ? rows.map((r, i) => {
+      const total = (r.wins || 0) + (r.losses || 0);
+      const wr = total ? Math.round((r.wins / total) * 100) : 0;
+      const mine = r.id === myId ? ' mm-lb-me' : '';
+      return `<tr class="mm-lb-row${mine}">
+        <td class="mm-lb-rank">${i + 1}</td>
+        <td class="mm-lb-name">${esc(r.name || 'Anonymous')}</td>
+        <td class="mm-lb-wl">${r.wins || 0}<span class="mm-lb-dim">/${r.losses || 0}</span></td>
+        <td class="mm-lb-wr">${wr}%</td>
+        <td class="mm-lb-hrs">${this._fmtHours(r.playMs)}</td>
+        <td class="mm-lb-mvp">${r.mvp ? esc(r.mvp) : '—'}</td>
+      </tr>`;
+    }).join('') : `<tr><td colspan="6" class="mm-lb-empty">${configured ? 'No games yet — play an online match to appear.' : 'Local only until the leaderboard server is deployed.'}</td></tr>`;
+
+    rail.innerHTML = `
+      <div class="mm-lb-title">🏆 Leaderboard <span class="mm-lb-edit">${Leaderboard.hasName() ? esc(Leaderboard.name()) + ' ✎' : 'Set name ✎'}</span></div>
+      <div class="mm-lb-tablewrap">
+        <table class="mm-lb-table">
+          <thead><tr><th>#</th><th>Player</th><th>W/L</th><th>Win%</th><th>Hrs</th><th>MVP</th></tr></thead>
+          <tbody>${body}</tbody>
+        </table>
+      </div>`;
+  },
+
   _renderLeaderboard() {
     if (!this._leaderboardOpen) return;
     const ov = document.getElementById('leaderboard-overlay');
@@ -14327,7 +14365,6 @@ const UI = {
             ${btn('mm-decks',   'My Decks',     'Build, edit, copy, or play your decks',                  SVG.decks,    "Game.goToMyDecks()")}
             ${btn('mm-encyc',   'Codex',        'Every card and trick in the game',                       SVG.decks,    "UI.openEncyclopedia()")}
             ${btn('mm-stats',   'Stats',        'Card win rates and balance trends',                      SVG.stats,    "Game.goToStats()")}
-            ${btn('mm-leaders', 'Leaderboard',  'Global wins, hours, and MVP cards for every player',     SVG.stats,    "UI.openLeaderboard()")}
             ${btn('mm-tools',   'Tools',        'Audio Audit, Gallery Audit + Sandbox',                   SVG.settings, "UI.mmShowSub('tools')")}
           </div>
         </div>${botbarHTML}`;
@@ -14339,7 +14376,12 @@ const UI = {
     el.innerHTML = `
       ${_flowOn ? this._menuSceneHTML() : ''}
       <div class="mm-scrim" aria-hidden="true"></div>
-      <div class="mm-panel">${buildPanel(this._mmSub || null)}</div>`;
+      <div class="mm-panel">${buildPanel(this._mmSub || null)}</div>
+      <aside id="mm-lb-rail" class="mm-lb-rail" title="Click to set your name and favorite card"></aside>`;
+    // Always-visible leaderboard rail — populated now and refreshed whenever the
+    // server pushes a new board (Leaderboard._notify → UI._renderMenuLeaderboard).
+    try { this._renderMenuLeaderboard(); } catch (e) {}
+    try { if (typeof Leaderboard !== 'undefined') Leaderboard.connect(); } catch (e) {}
     // Sync the full-bleed hero to whatever hover theme is already playing.
     if (_flowOn) {
       try { this._updateMenuSideArt(this.sfx && this.sfx._music && this.sfx._music.currentSrc); } catch (e) {}

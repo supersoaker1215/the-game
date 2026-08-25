@@ -110,21 +110,25 @@ const Leaderboard = {
   },
 
   // ---- reporting -----------------------------------------------------
-  // Called from Game.finalizeStats at game over.
+  // Called from Game.finalizeStats at game over. Only ONLINE PvP games carry a
+  // matchId (stamped by the host, synced to every seat); a game without one —
+  // vs-AI, or any fabricated call — is never sent, because the server would not
+  // count it anyway (it needs a real opponent to corroborate the same matchId).
+  // This is the anti stat-padding gate on the client side; the server enforces
+  // the same rule authoritatively. Deliberately NO optimistic local mirror:
+  // your record only moves once the opponent's report corroborates it on the
+  // server, so a win can never be shown before it's real.
   reportResult(result) {
-    if (!result) return;
-    const payload = {
+    if (!result || !result.matchId) return;
+    this._send({
       t: 'report',
       id: this.deviceId(),
       name: this.name(),
       win: !!result.win,
       cards: Array.isArray(result.cards) ? result.cards.slice(0, 24) : [],
       ms: Math.max(0, result.ms | 0),
-    };
-    // Keep a local mirror so the menu updates instantly even offline; the
-    // server's authoritative board overwrites it on the next push.
-    this._applyLocalMirror(payload);
-    this._send(payload);
+      matchId: String(result.matchId).slice(0, 64),
+    });
   },
 
   // ---- board access for the UI --------------------------------------
@@ -136,7 +140,10 @@ const Leaderboard = {
   onChange(fn) { if (typeof fn === 'function') this._listeners.push(fn); },
   _notify() {
     this._listeners.forEach(fn => { try { fn(this._board); } catch (e) {} });
-    if (typeof UI !== 'undefined' && UI._renderLeaderboard) { try { UI._renderLeaderboard(); } catch (e) {} }
+    if (typeof UI !== 'undefined') {
+      if (UI._renderLeaderboard)     { try { UI._renderLeaderboard(); } catch (e) {} }      // modal, if open
+      if (UI._renderMenuLeaderboard) { try { UI._renderMenuLeaderboard(); } catch (e) {} }  // always-on menu rail
+    }
   },
 
   // ---- internals -----------------------------------------------------
@@ -147,30 +154,6 @@ const Leaderboard = {
     if (this._wantOpen) this.connect();
   },
   _sendRaw(msg) { try { this._socket.send(JSON.stringify(msg)); } catch (e) {} },
-
-  // Update the cached board for OUR row without waiting for the server, so a
-  // just-finished game shows immediately. Mirrors the server's report math.
-  _applyLocalMirror(payload) {
-    const id = this.deviceId();
-    let row = this._board.find(r => r.id === id);
-    if (!row) {
-      row = { id, name: this.name() || 'You', wins: 0, losses: 0, playMs: 0, favorite: this.favorite(), mvp: null, mvpWins: 0, _cardWins: {} };
-      this._board.push(row);
-    }
-    row.name = this.name() || row.name;
-    if (payload.win) row.wins = (row.wins || 0) + 1; else row.losses = (row.losses || 0) + 1;
-    row.playMs = (row.playMs || 0) + (payload.ms || 0);
-    if (payload.win) {
-      row._cardWins = row._cardWins || {};
-      const seen = new Set();
-      payload.cards.forEach(n => {
-        if (!n || seen.has(n)) return; seen.add(n);
-        row._cardWins[n] = (row._cardWins[n] || 0) + 1;
-        if (row._cardWins[n] > (row.mvpWins || 0)) { row.mvpWins = row._cardWins[n]; row.mvp = n; }
-      });
-    }
-    this._notify();
-  },
 
   _ls(k) { try { return localStorage.getItem(k); } catch (e) { return null; } },
   _lsSet(k, v) { try { localStorage.setItem(k, v); } catch (e) {} },

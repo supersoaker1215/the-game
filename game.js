@@ -2974,7 +2974,9 @@ const Game = {
           if (c && c.name && !seenCard.has(c.name)) { seenCard.add(c.name); cards.push(c.name); }
         });
         const ms = s._matchStartTs ? Math.max(0, Date.now() - s._matchStartTs) : 0;
-        Leaderboard.reportResult({ win: winner === localSide, cards, ms });
+        // matchId is present only for online PvP — its absence is exactly what
+        // keeps vs-AI and any fabricated result off the shared board.
+        Leaderboard.reportResult({ win: winner === localSide, cards, ms, matchId: s._leaderboardMatchId || null });
       }
     } catch (e) { /* leaderboard is best-effort — never let it break game-over */ }
   },
@@ -3005,6 +3007,22 @@ const Game = {
     // game over in finalizeStats. Reset every match so a menu idle between
     // games doesn't inflate the next game's length.
     this.state._matchStartTs = Date.now();
+    // Anti stat-padding: one shared match id, stamped ONLY for online PvP and
+    // ONLY by the authoritative host, then synced to every seat via
+    // serializeState (it deep-clones own fields). The leaderboard counts a
+    // result only when a real opponent reports this same id as their loss, so a
+    // game with no id — vs-AI, or a fabricated report — can never be scored.
+    // Non-hosts leave it null and inherit the host's value through state sync.
+    this.state._leaderboardMatchId = null;
+    try {
+      const tt = this.state.twoVTwo;
+      const online2v2 = !!(tt && tt.online);
+      const online1v1 = !online2v2 && this.isMultiplayer && this.isMultiplayer() && !!this.mp;
+      const isHost = online2v2 ? (tt.you === 'p1') : (online1v1 && this.mp.role === 'host');
+      if (isHost) {
+        this.state._leaderboardMatchId = 'm_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 10);
+      }
+    } catch (e) {}
     // PER-MATCH COUNTERS. makePlayer() runs only inside init(), and startMatch
     // deliberately REUSES this.state — so a factory default is applied exactly
     // once per page load, not once per match. Menu -> Play -> a second match
