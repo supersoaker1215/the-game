@@ -33538,6 +33538,23 @@ body.round-tick .board::after {
 }
 #tut-overlay.tut-full .tut-backdrop { display: block; }
 
+/* Pulsing arrow that points from the callout at what it's describing */
+.tut-arrow {
+  position: fixed;
+  z-index: 2;
+  font-size: 30px;
+  line-height: 1;
+  color: var(--theme-accent-bright, #4fc3f7);
+  text-shadow: 0 0 8px var(--theme-accent-bright, #4fc3f7),
+               0 0 18px rgba(var(--theme-rgb, 79,195,247), 0.8);
+  pointer-events: none;
+  animation: tut-arrow-bounce 0.9s ease-in-out infinite;
+}
+@keyframes tut-arrow-bounce {
+  0%, 100% { transform: translateY(0) scale(1);       opacity: 1; }
+  50%      { transform: translateY(-5px) scale(1.18); opacity: 0.7; }
+}
+
 /* Callout card */
 .tut-callout {
   position: fixed;

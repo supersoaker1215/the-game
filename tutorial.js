@@ -116,8 +116,8 @@ const Tutorial = {
       target: '.player-hand-section', pos: 'top', type: 'wait', waitEvent: 'card-played',
     },
     {
-      id: 'card-in-lane', title: 'She\'s on the Board',
-      text: 'Nice — Gamora is deployed. Notice her <strong>Health number</strong>: every point of combat damage lowers it, and if it hits <strong>0 the card dies</strong> and goes to your <strong>Dead Pile</strong>.<br><br>But in an empty lane, nothing is hitting her back — so she\'ll survive and keep attacking each round.',
+      id: 'card-in-lane', title: 'She\'s on the Board — and Bigger!',
+      text: 'Wait — Gamora is now a <strong>3/4</strong>, not the 2/3 you read in your hand. 🐺 That\'s <strong>Lone Wolf</strong>: <em>the first card you play while your side of the board is empty gets a permanent <strong>+1/+1</strong></em>. It rewards leading with a card, and it happens for <em>any</em> card played alone — not just Gamora.<br><br>Also note her <strong>Health number</strong>: combat damage lowers it, and at <strong>0 the card dies</strong> and goes to your <strong>Dead Pile</strong>. In an empty lane nothing hits her back, so she survives and keeps attacking.',
       target: null, pos: 'top', type: 'next',
     },
     {
@@ -480,9 +480,37 @@ const Tutorial = {
     `;
     overlay.appendChild(callout);
     this._callout = callout;
+
+    // A big pulsing arrow that points from the callout at whatever it's
+    // describing, so there's no doubt what "this" refers to.
+    const arrow = document.createElement('div');
+    arrow.className = 'tut-arrow';
+    arrow.style.display = 'none';
+    overlay.appendChild(arrow);
+    this._arrow = arrow;
+
     document.body.appendChild(overlay);
     this._overlay = overlay;
   },
+
+  // Point the arrow at `el` from the side the callout is sitting on.
+  _placeArrow(el, side) {
+    const A = this._arrow;
+    if (!A || !el) return;
+    const r = el.getBoundingClientRect();
+    const glyph = { bottom: '▲', top: '▼', right: '◀', left: '▶' }[side] || '▲';
+    A.textContent = glyph;
+    A.style.display = 'block';
+    const SZ = 30;
+    let x, y;
+    if (side === 'bottom')      { x = r.left + r.width / 2 - SZ / 2; y = r.bottom + 4; }
+    else if (side === 'top')    { x = r.left + r.width / 2 - SZ / 2; y = r.top - SZ - 4; }
+    else if (side === 'right')  { x = r.right + 4;                    y = r.top + r.height / 2 - SZ / 2; }
+    else                        { x = r.left - SZ - 4;                y = r.top + r.height / 2 - SZ / 2; }
+    A.style.left = Math.max(2, x) + 'px';
+    A.style.top  = Math.max(2, y) + 'px';
+  },
+  _hideArrow() { if (this._arrow) this._arrow.style.display = 'none'; },
 
   // ── STEP RENDER ──────────────────────────────────────────────────────────
   advance(idx) {
@@ -530,12 +558,15 @@ const Tutorial = {
 
     if (this._minimized) {
       this._positionCorner();
+      this._hideArrow();
     } else if (targetEl) {
       targetEl.classList.add('tut-target-highlight');
       this._prevTarget = targetEl;
-      this._positionNear(targetEl, step.pos || 'bottom');
+      const side = this._positionNear(targetEl, step.pos || 'bottom');
+      this._placeArrow(targetEl, side);
     } else {
       this._positionCenter();
+      this._hideArrow();
     }
   },
 
@@ -548,6 +579,7 @@ const Tutorial = {
     c.classList.toggle('tut-minimized', this._minimized);
     const btn = c.querySelector('.tut-btn-minimize');
     if (btn) btn.textContent = this._minimized ? '+' : '−';
+    this._hideArrow();
     if (this._minimized) this._positionCorner();
     else this._positionCenter();
   },
@@ -596,16 +628,17 @@ const Tutorial = {
       return null;
     };
 
-    let pos = null;
+    let pos = null, chosen = 'bottom';
     for (const side of [pref, 'bottom', 'top', 'right', 'left']) {
       pos = tryPos(side);
-      if (pos) break;
+      if (pos) { chosen = side; break; }
     }
-    if (!pos) pos = { t: GAP, l: GAP };
+    if (!pos) { pos = { t: GAP, l: GAP }; chosen = pref || 'bottom'; }
 
     c.style.position = 'fixed';
     c.style.top  = pos.t + 'px';
     c.style.left = pos.l + 'px';
+    return chosen;   // the side the callout landed on, so the arrow can point back
   },
 
   _positionCenter() {
