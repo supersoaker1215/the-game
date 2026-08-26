@@ -13912,14 +13912,18 @@ const UI = {
       ov.innerHTML = `
         <div class="app-modal-panel" role="dialog" aria-modal="true" aria-label="${title || 'Dialog'}">
           ${title ? `<div class="app-modal-title"></div>` : ''}
-          <div class="app-modal-body"></div>
+          ${message ? `<div class="app-modal-body"></div>` : ''}
           <div class="app-modal-actions">
             ${cancelText ? `<button type="button" class="btn" data-act="cancel"></button>` : ''}
             <button type="button" class="btn ${okCls}" data-act="ok"></button>
           </div>
         </div>`;
       if (title) ov.querySelector('.app-modal-title').textContent = title;
-      ov.querySelector('.app-modal-body').textContent = String(message == null ? '' : message);
+      // The body element is only emitted when there IS a body — an empty string
+      // used to leave a zero-height div carrying the panel's body margins, so a
+      // title-only dialog had a gap under the heading where a sentence had been.
+      const bodyEl = ov.querySelector('.app-modal-body');
+      if (bodyEl) bodyEl.textContent = String(message);
       const okB = ov.querySelector('[data-act="ok"]'); if (okB) okB.textContent = okText;
       const caB = ov.querySelector('[data-act="cancel"]'); if (caB) caB.textContent = cancelText;
       document.documentElement.appendChild(ov);
@@ -14046,6 +14050,18 @@ const UI = {
   // The ALWAYS-ON board on the main menu — not a tab, not behind a click.
   // A compact rail listing every player, refreshed whenever the server pushes
   // a new board. Clicking it opens the full modal (rename + favorite picker).
+  toggleMenuLeaderboard() {
+    this._mmLbOpen = !this._mmLbOpen;
+    try { localStorage.setItem('clb-mm-lb-open', this._mmLbOpen ? '1' : '0'); } catch (e) {}
+    const rail = document.getElementById('mm-lb-rail');
+    if (rail) {
+      rail.classList.toggle('is-open', !!this._mmLbOpen);
+      const head = rail.querySelector('.mm-lb-head');
+      if (head) head.setAttribute('aria-expanded', this._mmLbOpen ? 'true' : 'false');
+    }
+    try { this.sfx && this.sfx.play && this.sfx.play('ui_tick'); } catch (e) {}
+  },
+
   _renderMenuLeaderboard() {
     const rail = document.getElementById('mm-lb-rail');
     if (!rail || typeof Leaderboard === 'undefined') return;
@@ -14054,9 +14070,28 @@ const UI = {
     const myId = Leaderboard.deviceId();
     const configured = Leaderboard.isConfigured();
     if (!rail._wired) {
-      rail.addEventListener('click', () => { try { this.openLeaderboard(); } catch (e) {} });
+      // One delegated handler. The collapse toggle is a real button inside the
+      // rail, so it has to be checked FIRST — otherwise opening the modal is
+      // the only thing a click on the caret could ever do.
+      rail.addEventListener('click', (e) => {
+        if (e.target && e.target.closest && e.target.closest('.mm-lb-head')) {
+          e.stopPropagation();
+          this.toggleMenuLeaderboard();
+          return;
+        }
+        try { this.openLeaderboard(); } catch (e2) {}
+      });
       rail._wired = true;
     }
+    // Collapsed is the default. The rail sits in the menu column now, above
+    // Now Playing, and eleven rows of table would push the hero picker off the
+    // screen for something you read once. Open state persists.
+    if (this._mmLbOpen == null) {
+      let saved = null;
+      try { saved = localStorage.getItem('clb-mm-lb-open'); } catch (e) {}
+      this._mmLbOpen = saved === '1';
+    }
+    rail.classList.toggle('is-open', !!this._mmLbOpen);
     const body = rows.length ? rows.map((r, i) => {
       const total = (r.wins || 0) + (r.losses || 0);
       const wr = total ? Math.round((r.wins / total) * 100) : 0;
@@ -14071,13 +14106,26 @@ const UI = {
       </tr>`;
     }).join('') : `<tr><td colspan="6" class="mm-lb-empty">${configured ? (Leaderboard.hasJoined() ? 'No one on the board yet.' : 'No one has added themselves yet — tap “➕ Add me”.') : 'Local only until the leaderboard server is deployed.'}</td></tr>`;
 
+    // The trophy emoji is gone with the panel plate — an OS-drawn sticker in a
+    // menu whose every other mark is a stroked SVG or a letterform. The caret
+    // is drawn, and it takes the line's colour like the rest of the chrome.
     rail.innerHTML = `
-      <div class="mm-lb-title">🏆 Leaderboard <span class="mm-lb-edit">${Leaderboard.hasJoined() ? esc(Leaderboard.name()) + ' ✎' : '➕ Add me'}</span></div>
+      <button type="button" class="mm-lb-head" aria-expanded="${this._mmLbOpen ? 'true' : 'false'}">
+        <span class="mm-lb-caret" aria-hidden="true">
+          <svg viewBox="0 0 24 24" focusable="false"><path d="M9 6l6 6-6 6" fill="none"
+            stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </span>
+        <span class="mm-lb-heading">Leaderboard</span>
+        <span class="mm-lb-count">${rows.length || ''}</span>
+      </button>
+      <div class="mm-lb-body">
+      <div class="mm-lb-title"><span class="mm-lb-edit">${Leaderboard.hasJoined() ? esc(Leaderboard.name()) + ' ✎' : '+ Add me'}</span></div>
       <div class="mm-lb-tablewrap">
         <table class="mm-lb-table">
           <thead><tr><th>#</th><th>Player</th><th>W/L</th><th>Win%</th><th>Hrs</th><th>MVP</th></tr></thead>
           <tbody>${body}</tbody>
         </table>
+      </div>
       </div>`;
   },
 
@@ -14467,7 +14515,8 @@ const UI = {
             ${btn('mm-tools',   'Tools',        'Leaderboard, Audio Audit, Gallery Audit + Sandbox',      SVG.settings, "UI.mmShowSub('tools')")}
           </div>
         </div>
-        ${profileHTML}${botbarHTML}`;
+        ${profileHTML}
+        <aside id="mm-lb-rail" class="mm-lb-rail"></aside>${botbarHTML}`;
     };
     this._mmBuildPanel = buildPanel;   // reused by in-place submenu swaps (mmShowSub)
     const _flowOn = this.settings.menuFlow !== false;
@@ -14476,13 +14525,17 @@ const UI = {
     el.innerHTML = `
       ${_flowOn ? this._menuSceneHTML() : ''}
       <div class="mm-scrim" aria-hidden="true"></div>
-      <div class="mm-panel">${buildPanel(this._mmSub || null)}</div>
-      <aside id="mm-lb-rail" class="mm-lb-rail" title="Click to set your name and favorite card"></aside>`;
-    // ALWAYS-ON LEADERBOARD, back on the main menu. This mount is a sibling of
-    // the panel (not inside buildPanel), so a submenu swap — which only replaces
-    // .mm-panel — leaves it standing: visible on the root list AND every submenu.
-    // It sits in the open gap to the right of the menu column (see .mm-lb-rail),
-    // not across the hero. (Owner: "re add the leaderboard but right there.")
+      <div class="mm-panel">${buildPanel(this._mmSub || null)}</div>`;
+    // THE LEADERBOARD LIVES IN THE MENU COLUMN NOW, under the profile chip.
+    // Owner: "place the leaderboard here in the menu and make it tron themed
+    // and collapsable" — with an arrow drawn from the floating panel to the
+    // YOU / SIGNED IN chip.
+    // It used to be a sibling of .mm-panel, absolutely positioned across the
+    // gap beside the menu, specifically so a submenu swap (which replaces only
+    // .mm-panel) could not destroy it. That reason has since expired: mmShowSub
+    // calls _renderMenuLeaderboard itself after every swap, so the rail can sit
+    // INSIDE the panel and flow with the column like everything else. Emitted by
+    // buildPanel for the same reason botbarHTML is.
     try { this._renderMenuLeaderboard(); } catch (e) {}
     try { if (typeof Leaderboard !== 'undefined') Leaderboard.connect(); } catch (e) {}
     // Sync the full-bleed hero to whatever hover theme is already playing.
@@ -19791,12 +19844,6 @@ const UI = {
   // A mic, stroked in currentColor so the chip's own colour and glow carry it —
   // the same rule the voice panel's speaker glyph follows. Silent is an outline;
   // talking lights it; muted crosses it out. One shape, three states.
-  // The "who opens" bolt. Emoji brought its own colour and its own drawing
-  // style; this one inherits both from the line it sits in.
-  BOLT_SVG:
-    '<svg class="dbolt" viewBox="0 0 24 24" aria-hidden="true" focusable="false">'
-    + '<path d="M13.6 2 5.2 13.4h5.3L9.6 22l8.6-11.6h-5.4z"/>'
-    + '</svg>',
 
   MIC_SVG:
     '<svg class="tkm" viewBox="0 0 24 24" aria-hidden="true" focusable="false">'
@@ -19829,7 +19876,21 @@ const UI = {
       ? `<div class="card-abilities status-badges">${this.formatAbilityBadges(trick.abilities)}</div>` : '';
     const cls = 'trick-card' + (opts.extraClass ? ' ' + opts.extraClass : '');
     const onclick = opts.onclick ? ` onclick="${opts.onclick}"` : '';
-    const desc = opts.descOverride != null ? opts.descOverride : (trick.desc || '');
+    let desc = opts.descOverride != null ? opts.descOverride : (trick.desc || '');
+    // EVERY TRICK IS AN ON-PLAY EFFECT. A card states its trigger — When Played,
+    // While Active, When Destroyed — and a trick, which does its whole job the
+    // moment it is played and then leaves, stated nothing at all: 29 of the 31
+    // trick descriptions open straight into the effect. Side by side in the
+    // picker that read as a card having rules and a trick just having a
+    // sentence. (Owner: "for tricks add On Play".)
+    //
+    // Written here rather than into 29 card definitions, because it is not 29
+    // facts — it is one fact about what a trick IS, and a trick added tomorrow
+    // gets it without anyone remembering. The two that DO state a trigger
+    // (Time Stone's "Reaction:", Mind Stone's "Next draw phase:") keep it: the
+    // test is the same one formatDesc's own label pass uses, so anything that
+    // would have rendered as a label is left alone.
+    if (desc && !/^[1-9A-Z][^:.]{0,28}:/.test(desc)) desc = 'When Played: ' + desc;
     return `<div class="${cls}" data-trick-name="${trick.name}"${onclick}>
       <span class="card-cost">${trick.cost}</span>
       <div class="card-portrait" style="${portraitStyle}"><div class="card-name-overlay"><span class="cn-text">${trick.name}</span></div><i class="pt-shine" aria-hidden="true"></i></div>
@@ -32314,7 +32375,10 @@ function draftUndo() { if (Game && Game.draftUndo) Game.draftUndo(); }
 // Abort a draft and go back to the main menu. Confirms so a stray click
 // doesn't nuke picks the user already made.
 function draftQuitToMenu() {
-  UI.confirmModal('Quit this draft and return to the main menu? Your picks will be lost.',
+  // No body copy — the owner struck the sentence out. "Quit Draft" over a Quit
+  // and a Cancel button already says the whole thing; the sentence was reading
+  // the buttons back to you.
+  UI.confirmModal('',
     { title: 'Quit Draft', okText: 'Quit', danger: true }).then(ok => { if (ok) Game.goToMainMenu(); });
 }
 // Mode-select overlay button handler. Accepts any (players, deck) combo

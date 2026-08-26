@@ -2349,6 +2349,31 @@ const Game = {
         .find(t => t.id === prevSelectedTrick.id);
       if (stillInTrick) this.state.selectedTrick = stillInTrick;
     }
+
+    // THE GUEST REPORTS ITS OWN RESULT. Owner: "me and ryan played a 1v1 match
+    // against each other, he won, and it didnt register."
+    //
+    // Leaderboard.reportResult has exactly one caller, finalizeStats, and
+    // finalizeStats is reached only from postCombat and damagePlayer — both
+    // inside the host-authoritative engine. A guest's endPhase3 forwards Done
+    // to the host and returns thirty lines before combat is ever scheduled, so
+    // on the joining client finalizeStats is not skipped by a guard, it is
+    // simply unreachable: the guest renders the pushed game-over and reports
+    // nothing.
+    //
+    // That alone is enough to produce 0/0 for BOTH players, because the server
+    // refuses to commit a match until two distinct devices have reported it
+    // with one win and one loss between them. A single report parks in
+    // pendingMatches and is never applied — so the winner's row does not move
+    // either. One missing client cost both records.
+    //
+    // Reported from the state-intake door rather than from the game-over
+    // render: this fires once per accepted state instead of once per frame,
+    // and it is engine-side, where the result actually is. The latch inside
+    // finalizeStats covers the repeats.
+    if (this.state && this.state.gameOver && this.state.winner) {
+      try { this.finalizeStats(); } catch (e) { /* never break state intake */ }
+    }
   },
 
   _mpFlipPerspective(state) {
@@ -2774,6 +2799,15 @@ const Game = {
     const winner = s.winner;
     if (!winner) return;
 
+    // ONE tally per match, whoever calls this. Latched HERE rather than at each
+    // call site because there are now three: postCombat and damagePlayer can
+    // both fire for the same game-over on the host, and the guest's new call in
+    // acceptMultiplayerState arrives on a state push that may repeat. Keyed on
+    // the match rather than a boolean so it clears itself for the next game.
+    const matchKey = s._leaderboardMatchId || s._matchStartTs || 'local';
+    if (this._statsFinalizedFor === matchKey) return;
+    this._statsFinalizedFor = matchKey;
+
     const store = UI._statsGet();
     store.__meta.gamesPlayed = (store.__meta.gamesPlayed || 0) + 1;
     store.__meta.lastPlayed = Date.now();
@@ -3062,10 +3096,19 @@ const Game = {
         let localSide = 'player';
         const tt = s.twoVTwo;
         if (tt && tt.online && tt.you && tt.players && tt.players[tt.you] && this._2v2TeamSide) {
+          // 2v2 reads the SEAT's team, which is not written in the wire frame,
+          // so it is unaffected by the guest-side flip below.
           localSide = this._2v2TeamSide[tt.players[tt.you].team] || 'player';
-        } else if (typeof Multiplayer !== 'undefined' && Multiplayer._you) {
-          localSide = Multiplayer._you;
         }
+        // 1v1 online deliberately does NOT read Multiplayer._you. That returns
+        // 'ai' on the joining client — but acceptMultiplayerState has already
+        // flipped state.winner into the guest's own frame (see the flip at
+        // `if (state.winner === 'player') state.winner = 'ai'`), so 'player'
+        // ALREADY means "the person at this screen". Reading _you here would
+        // flip it a second time and report the guest's loss as a win. Both
+        // clients would then send the same boolean, and the server's
+        // corroboration gate — it needs one win AND one loss from two distinct
+        // devices — would refuse the match, leaving both rows at 0/0.
         const cards = [];
         const seenCard = new Set();
         (perSideInstances[localSide] || []).forEach(c => {

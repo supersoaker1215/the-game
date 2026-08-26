@@ -136,6 +136,34 @@ const Roguelite = {
   // out without touching the def store. Same treatment for the AI
   // vanilla bodies (Soldier / Mercenary / Operator) and curses
   // (Wound / Doubt / Regret).
+  // NEVER OFFERABLE. `_spawnOnly` is the engine's existing "this card is placed
+  // by another card, not drafted" flag — cards.js carries it on eight defs, and
+  // classic mode, both 2v2 draft paths and the summon deck all filter on it.
+  // Roguelite was the one mode that never did: `grep _spawnOnly roguelite.js`
+  // returned nothing, so every roguelite pool could hand you one.
+  //
+  // Owner: "the bathroom and game over should be out of the pool in roguelike,
+  // they are tied to jigsaw" — abilities.js:1500 is the proof, a literal
+  // `const ROOMS = ['The Bathroom', 'Game Over']` inside Jigsaw. But the leak
+  // is not two cards, it is eight: Gremlin, Stripe, Freddy Krueger, Pennywise,
+  // Jaws and Spinosaurus were all offerable too, and Pennywise and Jaws print
+  // "(Spawned only by Sewers.)" / "(Spawned by Open Water.)" in their own rules
+  // text — a card whose description contradicts how you got it.
+  //
+  // Deliberately NOT folded into isRogueliteOnlyName, which reads as the
+  // obvious home: that set is load-bearing in the OPPOSITE direction — game.js
+  // and ui.js call it to hide roguelite-only cards from CLASSIC mode, so
+  // adding these would delete them from the classic codex and draft pile, where
+  // they are legitimate Jigsaw conjures.
+  isSpawnOnlyName(name) {
+    if (typeof CARD_DEFS === 'undefined') return false;
+    if (!this._spawnOnlyNames) {
+      this._spawnOnlyNames = new Set(
+        CARD_DEFS.filter(d => d && d._spawnOnly).map(d => d.name));
+    }
+    return this._spawnOnlyNames.has(name);
+  },
+  _spawnOnlyNames: null,
   _rogueliteOnlyNames: null,
   isRogueliteOnlyName(name) {
     if (!this._rogueliteOnlyNames) {
@@ -1125,6 +1153,7 @@ const Roguelite = {
         if (typeof CARD_DEFS === 'undefined') return {};
         const pool = CARD_DEFS.filter(d =>
           (d.cost || 0) >= 2 && (d.cost || 0) <= 6
+          && !Roguelite.isSpawnOnlyName(d.name)
           && !Roguelite.AI_VANILLA_DEFS.find(v => v.name === d.name)
           && !Roguelite.STARTER_DEFS.find(s => s.name === d.name)
         );
@@ -1517,7 +1546,7 @@ const Roguelite = {
     // a non-starter Brute got pulled from rewards and the baseline
     // keyword strip in buildRunCard nuked its Taunt 1 (only starters
     // are exempt from the strip).
-    const isRL = (n) => this.isRogueliteOnlyName(n);
+    const isRL = (n) => this.isRogueliteOnlyName(n) || this.isSpawnOnlyName(n);
     let pool;
     if (act === 1) {
       pool = CARD_DEFS.filter(c => (c.cost || 0) <= 4 && !isRL(c.name));
@@ -2631,6 +2660,7 @@ const Roguelite = {
     });
     const realPool = CARD_DEFS.filter(c =>
       (c.cost || 0) >= costMin && (c.cost || 0) <= costMax
+      && !this.isSpawnOnlyName(c.name)
       && !this.AI_VANILLA_DEFS.find(v => v.name === c.name)
       && !this.STARTER_DEFS.find(s => s.name === c.name)
     );
@@ -4333,6 +4363,7 @@ const Roguelite = {
       (d.cost || 0) >= 1 && (d.cost || 0) <= 4
       && !this.AI_VANILLA_DEFS.find(v => v.name === d.name)
       && !this.STARTER_DEFS.find(s => s.name === d.name)
+      && !this.isSpawnOnlyName(d.name)
       && (!this.isRogueliteOnlyName || !this.isRogueliteOnlyName(d.name))
     );
     const shuffled = pool.slice().sort(() => Math.random() - 0.5);

@@ -5018,11 +5018,9 @@ body.hit-pause .ai-hand * {
 }
 /* The bolt is a drawn mark now, not an emoji sticker — it takes the line's
    amber and its glow from currentColor rather than bringing its own palette. */
-.draft-first-player .dbolt {
-  width: 1em; height: 1em; vertical-align: -0.12em;
-  fill: currentColor; margin-right: 0.15em;
-  filter: drop-shadow(0 0 6px rgba(255, 214, 40, 0.85));
-}
+/* (The .dbolt rule stood here. Its only markup was UI.BOLT_SVG, removed with
+   the glyph itself — the owner asked for the bolt gone, and a rule with nothing
+   left to paint is just something for the next reader to trace.) */
 @media (max-width: 900px) { .draft-panel .draft-hud .draft-hud-sub.draft-first-player { font-size: 14px !important; } }
 
 /* Draft HUD actions row — Mulligan + Settings buttons side by side. */
@@ -42857,20 +42855,12 @@ body.no-art-grade .card-portrait { --art-grade: 1 !important; }
    The plate goes too: panel interiors are pure #000 in this game, and a navy
    wash with a backdrop blur reads as a different surface pasted into the menu.
    ============================================================ */
-.mm-lb-rail.mm-lb-inline {
-  position: static;
-  transform: none;
-  width: 100%;
-  max-width: 420px;
-  max-height: none;
-  margin: 18px 0 0;
-  background: #000;
-  border: 1px solid rgba(var(--theme-rgb, 79,195,247), 0.42);
-  border-radius: 10px;
-  box-shadow: 0 0 14px rgba(var(--theme-rgb, 79,195,247), 0.16),
-              inset 0 0 20px rgba(var(--theme-rgb, 79,195,247), 0.05);
-  backdrop-filter: none;
-}
+/* (`.mm-lb-rail.mm-lb-inline` stood here — an in-flow restyle written for a
+   Tools-panel mount that never shipped. Nothing anywhere added the class:
+   `grep mm-lb-inline` over every .js and .html returned zero. The rail is
+   genuinely in-flow now, in the menu column, and the live rules for that are at
+   the end of this file, so this was two versions of the same idea with only one
+   of them connected to anything.) */
 
 /* ============================================================
    MAIN MENU — THE HUD LAYOUT (2026-08-25)
@@ -44882,4 +44872,153 @@ body.no-art-grade .card-portrait { --art-grade: 1 !important; }
   max-height: var(--read-desc-h) !important;
   overflow: hidden !important;
   height: auto !important;
+}
+
+/* ============================================================
+   AN ICON IS NOT A CHIP (2026-08-26)
+   ============================================================
+   Owner: "the status icons should not be boxed."
+
+   The chip's box — 1px border, cut corners, padding — is chrome for a chip that
+   says a WORD: it groups "EVADE" and "1" into one object and separates that
+   object from the copy around it. On the board, in the hand and in the trick
+   tray the word is hidden and only the glyph renders, so the box was drawing a
+   frame around a single 12px icon, on a card that already has a frame. Nothing
+   to group, nothing to separate.
+
+   Scoped to exactly the surfaces that hide `.sb-w`, and excluding `.sb-noicon`
+   — a badge with no icon still shows its word, and that one IS a chip and keeps
+   its box. Which is the same rule stated once: the box belongs to the word. */
+.card.ally-card .status-badge:not(.sb-noicon),
+.card.enemy-card .status-badge:not(.sb-noicon),
+.board .card .status-badge:not(.sb-noicon),
+.player-hand-section .hand-cards .card .status-badge:not(.sb-noicon),
+.trick-cards .trick-card .status-badge:not(.sb-noicon),
+.choice-tray .status-badge:not(.sb-noicon) {
+  border: 0 !important;
+  clip-path: none !important;
+  background: none !important;
+  box-shadow: none !important;
+  padding: 0 !important;
+}
+
+/* ============================================================
+   THE LEADERBOARD JOINS THE MENU (2026-08-26)
+   ============================================================
+   Owner: "place the leaderboard here in the menu and make it tron themed and
+   collapsable", with an arrow from the floating panel to the YOU chip.
+
+   It was an absolutely-positioned navy plate — `background` a blue-grey wash,
+   `backdrop-filter: blur(7px)`, `border-radius: 12px`, a trophy emoji — parked
+   across the gap at `left: clamp(560px, 42%, 900px)`. Every one of those is the
+   opposite of what this menu is: panel interiors are pure #000, marks are
+   stroked SVG, corners are cut not rounded. It read as a browser notification
+   sitting on top of the game.
+
+   Now it is a menu section like any other: a caps label with a caret, a
+   hairline under it, black underneath. Collapsed by default — it lives above
+   Now Playing in a column that has to fit, and eleven rows of table for
+   something you read once should not push the hero picker off the screen.
+
+   The old absolute-position block is overridden rather than deleted, because it
+   also carries the @media re-pin for narrow screens; both are neutralised here
+   in one place instead of being unpicked across three. */
+.mm-panel .mm-lb-rail,
+.mm-lb-rail {
+  position: static !important;
+  left: auto !important; right: auto !important; top: auto !important; bottom: auto !important;
+  transform: none !important;
+  width: 100% !important;
+  max-width: none !important;
+  max-height: none !important;
+  margin: 14px 0 0 !important;
+  padding: 0 !important;
+  background: none !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  overflow: visible !important;
+  cursor: default;
+}
+
+/* THE HEADER — the same caps-label voice as PLAY and LIBRARY, plus a caret and
+   a count. A text button, never a boxed one. */
+.mm-lb-head {
+  display: flex; align-items: center; gap: 8px;
+  width: 100%;
+  padding: 0 0 6px;
+  background: none; border: 0; border-radius: 0;
+  color: rgba(var(--theme-rgb, 79,195,247), 0.88);
+  font: 700 10px/1 'Rajdhani', sans-serif;
+  letter-spacing: 3px; text-transform: uppercase;
+  cursor: pointer;
+  transition: color 140ms var(--ease-snap), text-shadow 140ms var(--ease-snap);
+}
+.mm-lb-head:hover,
+.mm-lb-head:focus-visible {
+  color: rgba(var(--theme-rgb, 79,195,247), 1);
+  text-shadow: 0 0 8px rgba(var(--theme-rgb, 79,195,247), 0.55);
+  outline: none;
+}
+.mm-lb-caret { display: inline-flex; width: 11px; height: 11px; flex: 0 0 auto; }
+.mm-lb-caret svg { width: 100%; height: 100%; display: block; }
+/* Points right when closed, down when open — rotated, not swapped, so the two
+   states are the same mark and the change reads as a movement. */
+.mm-lb-caret { transform: rotate(0deg); transition: transform 180ms var(--ease-snap); }
+.mm-lb-rail.is-open .mm-lb-caret { transform: rotate(90deg); }
+.mm-lb-heading { flex: 0 0 auto; }
+/* The count sits at the far end behind a hairline that runs out from the label
+   — the same flanking-rule device .mm-section-label already uses, so this
+   section speaks the menu's language instead of inventing a third one. */
+.mm-lb-count {
+  flex: 1 1 auto; text-align: right;
+  font-family: var(--font-mono); font-size: 9px; letter-spacing: 1.2px;
+  color: rgba(var(--theme-rgb, 79,195,247), 0.55);
+  position: relative;
+}
+.mm-lb-count::before {
+  content: ''; position: absolute; left: 0; right: 26px; top: 50%;
+  height: 1px;
+  background: linear-gradient(90deg,
+    rgba(var(--theme-rgb, 79,195,247), 0.30), rgba(var(--theme-rgb, 79,195,247), 0));
+}
+
+/* THE BODY — collapsed to nothing, opening to its natural height. */
+/* max-height, not the `grid-template-rows: 0fr` trick. That trick collapses one
+   EXPLICIT row; this body has two children, so the second landed in an implicit
+   auto-sized row and the "collapsed" block still measured 64px tall. */
+.mm-lb-body {
+  max-height: 0; overflow: hidden; opacity: 0;
+  transition: max-height 220ms var(--ease-snap), opacity 160ms linear;
+}
+.mm-lb-rail.is-open .mm-lb-body { max-height: 44vh; opacity: 1; }
+.mm-lb-rail .mm-lb-tablewrap {
+  max-height: 34vh; overflow-y: auto;
+  border-top: 1px solid rgba(var(--theme-rgb, 79,195,247), 0.16);
+  padding-top: 6px;
+}
+.mm-lb-rail .mm-lb-title {
+  display: flex; justify-content: flex-end;
+  padding: 0 0 6px; margin: 0; border: 0;
+  font-size: 10px;
+}
+.mm-lb-rail .mm-lb-edit {
+  color: rgba(var(--theme-rgb, 79,195,247), 0.85);
+  font: 700 9px/1 'Rajdhani', sans-serif; letter-spacing: 1.6px;
+  text-transform: uppercase; cursor: pointer;
+  background: none; border: 0; padding: 0;
+}
+.mm-lb-rail .mm-lb-edit:hover { color: rgba(var(--theme-rgb, 79,195,247), 1); }
+.mm-lb-rail .mm-lb-table { width: 100%; font-size: 10px; }
+.mm-lb-rail .mm-lb-table th {
+  font: 700 8px/1 'Rajdhani', sans-serif; letter-spacing: 1.6px;
+  text-transform: uppercase; opacity: 0.5; padding: 0 4px 4px; text-align: left;
+}
+.mm-lb-rail .mm-lb-table td {
+  padding: 3px 4px; font-family: var(--font-mono); font-size: 9px;
+}
+@media (max-width: 900px) {
+  .mm-lb-rail { position: static !important; inset: auto !important; width: 100% !important; }
 }
