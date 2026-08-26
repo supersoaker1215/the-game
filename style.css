@@ -43381,3 +43381,128 @@ body.no-art-grade .card-portrait { --art-grade: 1 !important; }
    they were meant to trace. The band's own diagonal plus the frame border
    carry that corner now. */
 .card::before { background: none !important; }
+
+/* ============================================================
+   CARD FRAME — DIRECT PORT OF THE DESIGN FILE (2026-08-25)
+   ============================================================
+   Owner: "how can you not just copy the zip ... dont follow any preexisting
+   rules just make it look exactly like the design."
+
+   Fair. This is a transcription of the chrome layers in
+   `Superman Hand and Board.dc.html`, element for element, rather than an
+   adaptation of them. The two small states are structurally IDENTICAL in that
+   file — same layer stack, same order — and differ only in five numbers and
+   the colour, so one rule set drives both off vars.
+
+   WHY REAL ELEMENTS AND NOT PSEUDOS. The design draws each cut edge as a
+   rotated div, because (its words) "clip-path does not paint a border along a
+   clipped diagonal". Three diagonals plus a frame edge plus a band fill is
+   five layers; .card has two pseudos, both already spoken for. So makeCardEl
+   now emits .cf-frame / .cf-band. My last two attempts failed precisely
+   because I kept trying to fake five layers with two.
+
+   EXACT VALUES, hand 175 -> ratio of card width:
+     inset 6/.0343  chamfer 14/.080  stroke 1/.00571  band box 52/.297
+     band inner 14  band outer 46/.263  cost box 22  cost font 15/.0857
+   Board 250 differs (8/.032, 18/.072, 1.5/.006, 68/.272, 62/.248, 20/.08)
+   and is set on the board surface below.
+
+   DIAGONAL MATHS, straight from the file:
+     cut length   = chamfer x sqrt2          (14 -> 19.80, 18 -> 25.46)
+     cut left     = -(len - chamfer) / 2     (-2.90, -3.73)
+     cut top      = chamfer/2 - stroke/2     (6.5, 8.25)
+     band diag    = bandOuter x sqrt2        (46 -> 65.05, 62 -> 87.68)
+     band left    = -(diag - bandOuter) / 2  (-9.53, -12.84)
+     band top     = bandOuter/2 - stroke/2   (22.5, 30.25)
+   Every one of those is derived here, not hardcoded, so a surface only ever
+   sets --chamfer / --band-outer / --cf-stroke. */
+.card {
+  --cf-inset:  calc(var(--card-w) * 0.0343);
+  --cf-stroke: calc(var(--card-w) * 0.00571);
+  --chamfer:   calc(var(--card-w) * 0.080);
+  --band-box:  calc(var(--card-w) * 0.297);
+  --band-out:  calc(var(--card-w) * 0.263);
+  --band-off:  calc(var(--card-w) * 0.0114);
+  --cf-rgb:    var(--portrait-frame-rgb, var(--gold-rgb));
+  --sqrt2: 1.41421;
+}
+/* the frame layer — its own glow, so it traces the chamfer not the rectangle */
+.card .cf-frame {
+  position: absolute; inset: var(--cf-inset);
+  pointer-events: none; z-index: 5;
+  filter:
+    drop-shadow(0 0 1px  rgba(var(--gold-core-rgb), 0.85))
+    drop-shadow(0 0 5px  rgba(var(--cf-rgb), 0.50))
+    drop-shadow(0 0 12px rgba(var(--cf-rgb), 0.22));
+}
+.card .cf-edge {
+  position: absolute; inset: 0;
+  border: var(--cf-stroke) solid rgb(var(--cf-rgb));
+  clip-path: polygon(
+    var(--chamfer) 0, 100% 0,
+    100% calc(100% - var(--chamfer)), calc(100% - var(--chamfer)) 100%,
+    0 100%, 0 var(--chamfer));
+}
+.card .cf-cut {
+  position: absolute;
+  height: var(--cf-stroke);
+  background: rgb(var(--cf-rgb));
+  transform: rotate(-45deg);
+}
+.card .cf-cut-tl {
+  width: calc(var(--chamfer) * var(--sqrt2));
+  left: calc((var(--chamfer) * var(--sqrt2) - var(--chamfer)) / -2);
+  top:  calc(var(--chamfer) / 2 - var(--cf-stroke) / 2);
+}
+.card .cf-cut-br {
+  width: calc(var(--chamfer) * var(--sqrt2));
+  right:  calc((var(--chamfer) * var(--sqrt2) - var(--chamfer)) / -2);
+  bottom: calc(var(--chamfer) / 2 - var(--cf-stroke) / 2);
+}
+.card .cf-band-diag {
+  width: calc(var(--band-out) * var(--sqrt2));
+  left: calc((var(--band-out) * var(--sqrt2) - var(--band-out)) / -2);
+  top:  calc(var(--band-out) / 2 - var(--cf-stroke) / 2);
+}
+/* the band — dark, with the gold only in its first third nearest the cut */
+.card .cf-band {
+  position: absolute;
+  top: var(--cf-inset); left: var(--cf-inset);
+  width: var(--band-box); height: var(--band-box);
+  pointer-events: none; z-index: 4;
+  background: linear-gradient(135deg,
+    rgba(var(--cf-rgb), 0.18) 0%,
+    rgba(4,6,10,0.88) 34%,
+    rgba(4,6,10,0.92) 100%);
+  clip-path: polygon(
+    var(--chamfer) var(--band-off),
+    calc(var(--band-box) - var(--band-off) * 4) var(--band-off),
+    var(--band-off) calc(var(--band-box) - var(--band-off) * 4),
+    var(--band-off) var(--chamfer));
+}
+/* the digit rides on top of the band, near-white against it */
+.card .card-cost {
+  --cost-size: calc(var(--card-w) * 0.1257);
+  top: calc(var(--cf-inset) + var(--card-w) * 0.0229);
+  left: calc(var(--cf-inset) + var(--card-w) * 0.0229);
+  width: var(--cost-size); height: var(--cost-size);
+  display: flex; align-items: center; justify-content: center;
+  padding: 0; text-indent: 0;
+  font-size: calc(var(--card-w) * 0.0857);
+  color: #fff6d8;
+  text-shadow: 0 0 1px rgba(255,255,255,0.7), 0 0 8px rgba(var(--cf-rgb), 0.8);
+  z-index: 7;
+}
+.card .card-cost::before, .card .card-cost::after { display: none !important; }
+/* the card's own clip goes — the design's wrapper is unclipped so the glow
+   spills, and the chamfer lives on the frame and band layers instead */
+.card { clip-path: none; }
+/* board tile takes the 250-wide column of the ladder */
+.board .card, .card.ally-card, .card.enemy-card {
+  --cf-inset:  calc(var(--card-w) * 0.032);
+  --cf-stroke: calc(var(--card-w) * 0.006);
+  --chamfer:   calc(var(--card-w) * 0.072);
+  --band-box:  calc(var(--card-w) * 0.272);
+  --band-out:  calc(var(--card-w) * 0.248);
+  --band-off:  calc(var(--card-w) * 0.012);
+}

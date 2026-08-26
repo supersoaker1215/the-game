@@ -22670,6 +22670,13 @@ const UI = {
       ${activeHtml}
       ${statOrbs}
       ${incomingBadge}
+      <div class="cf-frame" aria-hidden="true">
+        <div class="cf-edge"></div>
+        <div class="cf-cut cf-cut-tl"></div>
+        <div class="cf-cut cf-cut-br"></div>
+        <div class="cf-cut cf-band-diag"></div>
+      </div>
+      <div class="cf-band" aria-hidden="true"></div>
     `;
     return el;
   },
