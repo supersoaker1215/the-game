@@ -19822,6 +19822,13 @@ const UI = {
       <div class="card-portrait" style="${portraitStyle}"><div class="card-name-overlay"><span class="cn-text">${trick.name}</span></div><i class="pt-shine" aria-hidden="true"></i></div>
       ${badges}
       <div class="trick-desc">${this.formatDesc(desc) || ''}</div>
+      <div class="cf-frame" aria-hidden="true">
+        <div class="cf-edge"></div>
+        <div class="cf-cut cf-cut-tl"></div>
+        <div class="cf-cut cf-cut-br"></div>
+        <div class="cf-cut cf-band-diag"></div>
+      </div>
+      <div class="cf-band" aria-hidden="true"></div>
     </div>`;
   },
   // Thin alias — the floating-prompt trick face is the canonical trick with a
@@ -25211,6 +25218,13 @@ const UI = {
         <div class="card-portrait" style="${trickPortraitStyle}"><div class="card-name-overlay"><span class="cn-text">${trick.name}</span></div><i class="pt-shine" aria-hidden="true"></i></div>
         ${trickBadges}
         <div class="trick-desc">${this.formatDesc(trick.desc)}</div>
+      <div class="cf-frame" aria-hidden="true">
+        <div class="cf-edge"></div>
+        <div class="cf-cut cf-cut-tl"></div>
+        <div class="cf-cut cf-cut-br"></div>
+        <div class="cf-cut cf-band-diag"></div>
+      </div>
+      <div class="cf-band" aria-hidden="true"></div>
       `;
 
       const isAnytime = !!trick.anytime;

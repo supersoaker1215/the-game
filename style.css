@@ -43721,3 +43721,109 @@ body.no-art-grade .card-portrait { --art-grade: 1 !important; }
   text-indent: 0 !important;
   line-height: 1 !important;
 }
+
+/* ============================================================
+   TRICKS — SAME FRAME, SAME RIBBON (2026-08-25)
+   ============================================================
+   Owner: "do it the same for tricks the top left ribbon and corner cuts."
+
+   Both trick renderers now emit the same .cf-frame / .cf-band chrome the cards
+   do — makeTrickEl (draft, codex, history, floating prompts) and the in-match
+   tray, which builds its own innerHTML separately. Two emitters, same markup,
+   or the tray would have quietly kept the old look the way the rarity pips did.
+
+   A trick is art-only — no stat readouts, no name banner — so this is the frame
+   layers and nothing else. Purple is hardcoded rather than read from
+   --portrait-frame-rgb: a trick has no rarity tier and does not sit on a side,
+   so there is no per-instance colour for it to track. */
+.trick-card {
+  --card-w:    132px;
+  --cf-inset:  4px;
+  --cf-stroke: calc(var(--card-w) * 0.00571);
+  --chamfer:   calc(var(--card-w) * 0.080);
+  --band-box:  calc(var(--card-w) * 0.297);
+  --band-out:  calc(var(--card-w) * 0.263);
+  --band-mid:  calc((var(--chamfer) + var(--band-out)) / 2);
+  --cf-rgb:    155, 89, 182;
+  --sqrt2: 1.41421;
+  border-color: transparent !important;
+  border-radius: 0 !important;
+  clip-path: polygon(
+    calc(var(--cf-inset) + var(--chamfer)) var(--cf-inset),
+    calc(100% - var(--cf-inset)) var(--cf-inset),
+    calc(100% - var(--cf-inset)) calc(100% - var(--cf-inset) - var(--chamfer)),
+    calc(100% - var(--cf-inset) - var(--chamfer)) calc(100% - var(--cf-inset)),
+    var(--cf-inset) calc(100% - var(--cf-inset)),
+    var(--cf-inset) calc(var(--cf-inset) + var(--chamfer)));
+  box-shadow: none !important;
+  filter:
+    drop-shadow(0 0 1px  rgba(230, 200, 245, 0.75))
+    drop-shadow(0 0 5px  rgba(var(--cf-rgb), 0.50))
+    drop-shadow(0 0 14px rgba(var(--cf-rgb), 0.22));
+}
+.trick-card.draft-card, .trick-card.trick-draft { --card-w: 220px; --cf-inset: 2px; }
+.trick-card .cf-frame {
+  position: absolute; inset: var(--cf-inset);
+  pointer-events: none; z-index: 5;
+}
+.trick-card .cf-edge {
+  position: absolute; inset: 0;
+  border: var(--cf-stroke) solid rgb(var(--cf-rgb));
+  clip-path: polygon(
+    var(--chamfer) 0, 100% 0,
+    100% calc(100% - var(--chamfer)), calc(100% - var(--chamfer)) 100%,
+    0 100%, 0 var(--chamfer));
+}
+.trick-card .cf-cut {
+  position: absolute;
+  height: var(--cf-stroke);
+  background: rgb(var(--cf-rgb));
+  transform: rotate(-45deg);
+}
+.trick-card .cf-cut-tl {
+  width: calc(var(--chamfer) * var(--sqrt2));
+  left: calc((var(--chamfer) * var(--sqrt2) - var(--chamfer)) / -2);
+  top:  calc(var(--chamfer) / 2 - var(--cf-stroke) / 2);
+}
+.trick-card .cf-cut-br {
+  width: calc(var(--chamfer) * var(--sqrt2));
+  right:  calc((var(--chamfer) * var(--sqrt2) - var(--chamfer)) / -2);
+  bottom: calc(var(--chamfer) / 2 - var(--cf-stroke) / 2);
+}
+.trick-card .cf-band-diag {
+  width: calc(var(--band-out) * var(--sqrt2));
+  left: calc((var(--band-out) * var(--sqrt2) - var(--band-out)) / -2);
+  top:  calc(var(--band-out) / 2 - var(--cf-stroke) / 2);
+}
+.trick-card .cf-band {
+  position: absolute;
+  top: var(--cf-inset); left: var(--cf-inset);
+  width: var(--band-box); height: var(--band-box);
+  pointer-events: none; z-index: 4;
+  background: linear-gradient(135deg,
+    rgba(var(--cf-rgb), 0.22) 0%,
+    rgba(4,6,10,0.88) 34%,
+    rgba(4,6,10,0.92) 100%);
+  clip-path: polygon(
+    var(--chamfer) calc(var(--card-w) * 0.0114),
+    calc(var(--band-box) - var(--card-w) * 0.0456) calc(var(--card-w) * 0.0114),
+    calc(var(--card-w) * 0.0114) calc(var(--band-box) - var(--card-w) * 0.0456),
+    calc(var(--card-w) * 0.0114) var(--chamfer));
+}
+.trick-card .card-cost {
+  top: var(--cf-inset) !important;
+  left: var(--cf-inset) !important;
+  width: var(--band-mid) !important;
+  height: var(--band-mid) !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  padding: 0 !important; text-indent: 0 !important; line-height: 1 !important;
+  font-family: var(--font-mono);
+  font-size: calc(var(--card-w) * 0.0857) !important;
+  color: #f4e6ff !important;
+  text-shadow: 0 0 1px rgba(255,255,255,0.7), 0 0 8px rgba(var(--cf-rgb), 0.9) !important;
+  z-index: 7;
+}
+.trick-card .card-cost::before,
+.trick-card .card-cost::after { display: none !important; }
