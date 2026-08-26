@@ -43293,3 +43293,91 @@ body.no-art-grade .card-portrait { --art-grade: 1 !important; }
 .card .stat-hp  { text-shadow: 0 1px 2px rgba(0,0,0,1), 0 0 3px rgba(0,0,0,0.95), 0 0 8px rgba(255,107,107,0.85); }
 /* The cost digit is near-white because it sits inside a filled band. */
 .card .card-cost { color: #fff6d8; }
+
+/* ============================================================
+   CARD FRAME — PORTED FROM THE DESIGN FILE, NOT THE PROSE (2026-08-25)
+   ============================================================
+   Owner: "the ribbon looks not as polished and the cut corners are not
+   correct." Both true, and reading the actual markup in
+   `Superman Hand and Board.dc.html` says why — I had been building from the
+   README's description instead of its source.
+
+   1. THE BAND IS NOT A GOLD FILL. It is
+        linear-gradient(135deg, rgba(255,205,45,0.18) 0%,
+                                rgba(4,6,10,0.88) 34%, rgba(4,6,10,0.92) 100%)
+      — overwhelmingly DARK, with a gold wash only in the first third, nearest
+      the cut. I had it as a solid gold wedge, which is why it read as a flat
+      sticker rather than a lit bevel. The gold on that corner comes from the
+      1px diagonal STROKE on the band's outer edge, not from the fill.
+   2. THE BODY IS CLIPPED AT inset 6px, NOT AT THE CARD EDGE. The design's
+      wrapper is unclipped — "Glow spills outside this" — and the chamfered
+      element is an inner body at the frame inset. So the cut corners sit one
+      frame-inset in from where I had them, which is exactly the "not correct"
+      being reported.
+
+   Ratios off the 175px hand card: inset 6/175, chamfer 14/175, band box
+   52/175, band clip stops 2 / 14 / 44 of 52, digit 15/175. */
+.card {
+  --band: calc(var(--card-w) * 0.297);
+  clip-path: polygon(
+    calc(var(--frame-inset) + var(--chamfer)) var(--frame-inset),
+    calc(100% - var(--frame-inset)) var(--frame-inset),
+    calc(100% - var(--frame-inset)) calc(100% - var(--frame-inset) - var(--chamfer)),
+    calc(100% - var(--frame-inset) - var(--chamfer)) calc(100% - var(--frame-inset)),
+    var(--frame-inset) calc(100% - var(--frame-inset)),
+    var(--frame-inset) calc(var(--frame-inset) + var(--chamfer)));
+}
+/* The frame carries its own glow, per the design: three drop-shadows from a
+   near-white core out to a wide amber halo. On the frame layer, not the card,
+   so it traces the chamfer instead of the card's rectangle. */
+.card::before {
+  border: 1px solid rgb(var(--frame-rgb)) !important;
+  filter:
+    drop-shadow(0 0 1px  rgba(var(--gold-core-rgb), 0.80))
+    drop-shadow(0 0 5px  rgba(var(--frame-rgb), 0.50))
+    drop-shadow(0 0 12px rgba(var(--frame-rgb), 0.22));
+}
+/* THE RIBBON, rebuilt to the design. Box is .297w square; the band is the
+   trapezoid between the chamfer diagonal and the band's outer diagonal, held
+   2px off the frame so the dark fill cannot paint over the border and cut
+   gaps in it (the README calls that out explicitly). */
+.card .card-cost {
+  --cost-size: var(--band);
+  top: var(--frame-inset); left: var(--frame-inset);
+  width: var(--band); height: var(--band);
+  font-size: calc(var(--card-w) * 0.0857);
+  padding-top: calc(var(--band) * 0.09);
+  text-indent: calc(var(--band) * 0.09);
+  color: #fff6d8;
+  text-shadow: 0 0 1px rgba(255,255,255,0.7), 0 0 8px rgba(var(--frame-rgb), 0.8);
+}
+.card .card-cost::before {
+  background: linear-gradient(135deg,
+    rgba(var(--frame-rgb), 0.18) 0%,
+    rgba(4,6,10,0.88) 34%,
+    rgba(4,6,10,0.92) 100%) !important;
+  clip-path: polygon(
+    26.9% 3.85%, 84.6% 3.85%, 3.85% 84.6%, 3.85% 26.9%);
+  filter: none;
+}
+/* The band's outer diagonal — the only gold on this corner. A gradient stripe
+   rather than the design's rotated div: same line, no extra DOM, and it stays
+   locked to the band box instead of needing its own hand-computed offset. */
+.card .card-cost::after {
+  content: '';
+  display: block;
+  position: absolute; inset: 0;
+  background: linear-gradient(135deg,
+    transparent calc(59.8% - 0.5px), rgb(var(--frame-rgb)) calc(59.8% - 0.5px),
+    rgb(var(--frame-rgb)) calc(59.8% + 0.5px), transparent calc(59.8% + 0.5px));
+  filter: drop-shadow(0 0 4px rgba(var(--frame-rgb), 0.55));
+  pointer-events: none;
+  z-index: -1;
+}
+
+/* The chamfer-stroke gradients from the previous pass are superseded and were
+   leaving stray ticks floating on the left edge: they were sized and placed
+   against --cut on a layer that is itself inset, so they landed off the cut
+   they were meant to trace. The band's own diagonal plus the frame border
+   carry that corner now. */
+.card::before { background: none !important; }
