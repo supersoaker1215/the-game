@@ -43642,3 +43642,36 @@ body.no-art-grade .card-portrait { --art-grade: 1 !important; }
   box-shadow: none !important;
   filter: none !important;
 }
+
+/* Owner, second time of asking: "the numbers need to be higher."
+   My last lift used 0.62 of the chamfer, which was never going to be enough —
+   the cut's vertical run IS the full chamfer height, so anything below that is
+   still inside it. Clearing it needs the whole chamfer plus a margin, not a
+   fraction of it. Draft: 17.6 chamfer -> 24.6px up. Hand: 11.2 -> 15.7px. */
+.card .stat-circle {
+  bottom: calc(var(--chamfer) * 1.15 + var(--card-w) * 0.020);
+}
+
+/* The lift above was inert: `.card.draft-card .stat-circle` sets bottom: 8px at
+   (0,3,0) and my `.card .stat-circle` is (0,2,0), so it never applied — the
+   readouts had not moved at all between the last two passes. Doubling the class
+   matches (0,3,0) and wins on source order, the same fix the card frame-width
+   needed earlier for the identical reason. */
+.card.card .stat-circle {
+  bottom: calc(var(--chamfer) * 1.15 + var(--card-w) * 0.020) !important;
+}
+.card.card .stat-atk { left:  calc(var(--cf-inset) + var(--card-w) * 0.030) !important; }
+.card.card .stat-hp  { right: calc(var(--cf-inset) + var(--card-w) * 0.030) !important; }
+
+/* Lifting the readouts opened a hole underneath them on the hand tile, where
+   the rules text runs to the bottom of the card and now passes behind the
+   brackets. The stats are absolutely positioned, so they reserve nothing — the
+   card has to. Bottom padding = the lift + the readout's own height, derived
+   from the same expression so the two cannot drift apart.
+   (The design sidesteps this entirely: its hand and board states carry no
+   rules text at all, only name, glyphs and stats. That is a bigger change than
+   was asked for, so the text stays and the space is made for it.) */
+.card.card {
+  padding-bottom: calc(var(--chamfer) * 1.15 + var(--card-w) * 0.020
+                       + var(--card-w) * 0.17);
+}
