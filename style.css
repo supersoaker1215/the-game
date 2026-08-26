@@ -43675,3 +43675,23 @@ body.no-art-grade .card-portrait { --art-grade: 1 !important; }
   padding-bottom: calc(var(--chamfer) * 1.15 + var(--card-w) * 0.020
                        + var(--card-w) * 0.17);
 }
+
+/* Owner: "those can be inward for the draft, codex and tap to play."
+   The large state is 220px wide against the hand tile's 108, but both were
+   using the same 0.030w edge offset — so on the big card the readouts ended up
+   stranded in the far corners with a void between them. Pulled to 0.10w there
+   and left alone on hand and board, where the tile is narrow enough that the
+   corners are the right place for them.
+   (0,4,0) to clear the `.card.card .stat-*` rule above, which is (0,3,0). */
+.card.card.draft-card .stat-atk,
+.card.card.enc-card   .stat-atk,
+.card-inspect-modal .card.card .stat-atk,
+.fp-trick-preview   .card.card .stat-atk {
+  left: calc(var(--cf-inset) + var(--card-w) * 0.10) !important;
+}
+.card.card.draft-card .stat-hp,
+.card.card.enc-card   .stat-hp,
+.card-inspect-modal .card.card .stat-hp,
+.fp-trick-preview   .card.card .stat-hp {
+  right: calc(var(--cf-inset) + var(--card-w) * 0.10) !important;
+}
