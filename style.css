@@ -44281,3 +44281,43 @@ body.no-art-grade .card-portrait { --art-grade: 1 !important; }
   transform: rotate(-45deg);
   pointer-events: none;
 }
+
+/* ============================================================
+   RULES TEXT — READABLE AGAIN (2026-08-25)
+   ============================================================
+   Owner: "the text looks terrible its unreadable jumbled up."
+
+   Correct, and it is my error. I scaled the rules copy to the handoff's
+   ratio — 19px of a 550px card, .0345w — which on our 220px draft tile is
+   7.6px. Proportionally faithful to the design and unreadable on the actual
+   screen. Then I squeezed it into a bracket-to-bracket column ~56px narrower
+   than the card, so 7.6px type was also wrapping every three or four words.
+   Two changes that each made the other worse.
+
+   A ratio is only a spec when the reference size is the shipping size. Ours
+   is 40% of the design's, so the type reverts to the size it was — which was
+   readable — and the column goes back to a modest inset rather than the full
+   bracket span. Left alignment and the frame colour stay: those were the
+   parts that were actually right. */
+.card.card.draft-card .card-desc,
+.card.card.enc-card   .card-desc,
+.card-inspect-modal .card.card .card-desc {
+  font-size: 11px !important;
+  line-height: 1.5 !important;
+  margin-left:  calc(var(--cf-inset) + var(--card-w) * 0.045) !important;
+  margin-right: calc(var(--cf-inset) + var(--card-w) * 0.045) !important;
+  text-align: left !important;
+}
+.card.card.draft-card .card-desc b,
+.card.card.enc-card   .card-desc b,
+.card-inspect-modal .card.card .card-desc b {
+  font-size: 9px !important;
+  letter-spacing: 0.18em !important;
+  margin-bottom: 4px;
+}
+/* the ribbon's diagonal is the frame's stroke — same width, same colour,
+   nothing indented from it */
+.card .cf-band-diag, .trick-card .cf-band-diag {
+  height: var(--cf-stroke) !important;
+  background: rgb(var(--cf-rgb)) !important;
+}
