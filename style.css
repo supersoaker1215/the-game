@@ -43621,3 +43621,24 @@ body.no-art-grade .card-portrait { --art-grade: 1 !important; }
 .card.enc-card,
 .card-inspect-modal .card,
 .fp-trick-preview .card     { --cf-inset: 2px; }
+
+/* ============================================================
+   ONE FRAME, NOT TWO (2026-08-25)
+   ============================================================
+   Owner: "get rid of the inside border box."
+
+   Leftover of my own making. Before the design file arrived I had built the
+   inset frame on .card::before; once .cf-edge landed as the design's actual
+   frame, ::before kept drawing underneath it and the card carried two
+   concentric neon outlines. Two separate rules were giving it a border, one
+   of them with !important, which is why it survived the port.
+
+   Returned to what its own comment says it is — a positioning and stacking
+   shim with nothing painted. .cf-edge is the frame. */
+.card::before {
+  border: 0 !important;
+  clip-path: none !important;
+  background: none !important;
+  box-shadow: none !important;
+  filter: none !important;
+}
