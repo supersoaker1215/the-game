@@ -173,8 +173,8 @@ const Tutorial = {
     },
     {
       id: 'tricks-explain', title: 'Tricks — Vibranium',
-      text: 'You drew a <strong>Trick</strong>: instant, one-use effects (buffs, damage, healing, control). Tricks live in a separate <strong>trick hand</strong> and are gone once used, so spend them well.<br><br><strong>Vibranium</strong> gives <em>+1/+1 to ALL your allies</em> on the board.<br><br>🎯 Play it now and watch every one of your cards grow.',
-      target: '#player-tricks', pos: 'top', type: 'wait', waitEvent: 'trick-played',
+      text: 'You drew a <strong>Trick</strong>: instant, one-use effects (buffs, damage, healing, control). Tricks live in a separate <strong>trick hand</strong> and are gone once used.<br><br><strong>Vibranium</strong> gives <em>+1/+1 to ALL your allies</em> on the board.<br><br>To play a trick you <strong>drag it onto the board</strong> — or just tap the button below.<br><button class="tut-play-btn" onclick="Tutorial.playStepTrick(\'Vibranium\')">▶ Play Vibranium</button>',
+      target: '#player-tricks', pos: 'top', type: 'wait', waitEvent: 'trick-played', pin: 'corner',
     },
     {
       id: 'after-vibranium', title: 'Whole Board, Buffed',
@@ -559,6 +559,14 @@ const Tutorial = {
     if (this._minimized) {
       this._positionCorner();
       this._hideArrow();
+    } else if (step.type === 'wait') {
+      // Interaction step — the player must reach the board / hand / button, so
+      // the callout MUST NOT cover them. Pin it to the bottom-right corner
+      // (clear of the board and the centered hand + action button) and point
+      // the arrow at whatever they need to touch.
+      if (targetEl) { targetEl.classList.add('tut-target-highlight'); this._prevTarget = targetEl; }
+      this._positionCornerBR();
+      if (targetEl) this._placeArrow(targetEl, 'top'); else this._hideArrow();
     } else if (targetEl) {
       targetEl.classList.add('tut-target-highlight');
       this._prevTarget = targetEl;
@@ -568,6 +576,19 @@ const Tutorial = {
       this._positionCenter();
       this._hideArrow();
     }
+  },
+
+  // Play a named trick from the tutorial callout button — the reliable path when
+  // drag-to-play is fiddly. Our wrapped Game.playTrick fires 'trick-played',
+  // which advances the waiting step; if it can't be played, advance anyway so
+  // the tutorial can never dead-end on this screen.
+  playStepTrick(name) {
+    const s = Game.state;
+    const t = (s.player.trickHand || []).find(x => x.name === name);
+    if (!t) { this.next(); return; }
+    let ok = false;
+    try { ok = Game.playTrick('player', t); } catch (e) { console.error('[tutorial trick]', e); }
+    if (!ok) this.next();
   },
 
   next() { this.advance(this.stepIdx + 1); },
@@ -593,7 +614,23 @@ const Tutorial = {
     c.style.position  = 'fixed';
     c.style.width     = CW + 'px';
     c.style.top       = GAP + 'px';
+    c.style.bottom    = 'auto';
     c.style.left      = (vw - CW - GAP) + 'px';
+    c.style.transform = '';
+  },
+
+  // Bottom-right corner — used for every interaction step so the callout stays
+  // clear of the board and the centered hand + action button.
+  _positionCornerBR() {
+    const c = this._callout;
+    const vw = window.innerWidth, vh = window.innerHeight;
+    const GAP = 14;
+    const CW = Math.min(330, vw - 32);
+    c.style.position  = 'fixed';
+    c.style.width     = CW + 'px';
+    c.style.left      = (vw - CW - GAP) + 'px';
+    c.style.top       = 'auto';
+    c.style.bottom    = GAP + 'px';
     c.style.transform = '';
   },
 
@@ -637,6 +674,7 @@ const Tutorial = {
 
     c.style.position = 'fixed';
     c.style.top  = pos.t + 'px';
+    c.style.bottom = 'auto';
     c.style.left = pos.l + 'px';
     return chosen;   // the side the callout landed on, so the arrow can point back
   },
@@ -646,6 +684,7 @@ const Tutorial = {
     c.style.position  = 'fixed';
     c.style.width     = Math.min(400, window.innerWidth - 32) + 'px';
     c.style.top       = '50%';
+    c.style.bottom    = 'auto';
     c.style.left      = '50%';
     c.style.transform = 'translate(-50%, -50%)';
   },

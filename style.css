@@ -33558,18 +33558,33 @@ body.round-tick .board::after {
 /* Callout card */
 .tut-callout {
   position: fixed;
-  background: #000000;
+  background: #05090f;
   border: 1.5px solid var(--theme-accent-bright, #4fc3f7);
   border-radius: 12px;
   padding: 18px 20px 14px;
-  box-shadow: 0 8px 40px rgba(0,0,0,0.9), 0 0 0 1px rgba(var(--theme-rgb, 79,195,247),0.15);
+  box-shadow: 0 10px 46px rgba(0,0,0,0.95), 0 0 0 1px rgba(var(--theme-rgb, 79,195,247),0.18);
   pointer-events: all;
   z-index: 1;
   min-width: 260px;
-  font-size: 0.875rem;
-  line-height: 1.5;
-  color: var(--text-dim, #d8dee4);
+  max-width: 340px;
+  font-size: 0.9rem;
+  line-height: 1.55;
+  color: #e6eef6;
 }
+.tut-callout-body { color: #e6eef6; }
+.tut-callout-body strong { color: #ffffff; }
+.tut-callout-body em { color: var(--theme-accent-bright, #4fc3f7); font-style: normal; font-weight: 600; }
+/* In-callout play button — the reliable way to fire the trick step. */
+.tut-play-btn {
+  display: block; width: 100%; margin-top: 12px;
+  padding: 10px 14px; cursor: pointer;
+  background: linear-gradient(180deg, #48e08a, #2fae66);
+  border: none; border-radius: 8px;
+  color: #04140b; font-family: 'Rajdhani','Inter',sans-serif; font-weight: 700; font-size: 1rem;
+  letter-spacing: 0.03em;
+  transition: transform 0.12s ease, box-shadow 0.12s ease;
+}
+.tut-play-btn:hover { transform: translateY(-1px); box-shadow: 0 4px 18px rgba(72,224,138,0.4); }
 .tut-callout-header {
   display: flex;
   align-items: center;
