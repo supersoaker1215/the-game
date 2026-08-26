@@ -45622,3 +45622,28 @@ body.no-art-grade .card-portrait { --art-grade: 1 !important; }
     0 0 8px  rgba(var(--theme-rgb, 79,195,247), 0.85),
     0 0 18px rgba(var(--theme-rgb, 79,195,247), 0.45) !important;
 }
+
+/* ============================================================
+   THE TAP-TO-PLAY CARD SHOWS RARITY, NOT SIDE (2026-08-26)
+   ============================================================
+   Owner: "the tap to view play card should match the draft card exactly, so
+   superman should be gold border."
+
+   Measured, and the two cards differ by exactly one class. The draft builds
+   `card cost-9 draft-card`; the inspect modal builds the same card from its
+   board/hand instance, so it carries `ally-card` — and `.card.ally-card` sets
+   `--portrait-frame-rgb: var(--theme-rgb)`, which overwrites the cost tier's
+   gold with the player's blue. Superman came out blue on one surface and gold
+   on the other from the same --rarity-rgb: 245,191,28.
+
+   That side rule is right where it lives. On the BOARD a frame answers "whose
+   is this", which matters mid-combat and changes as cards are mind-controlled.
+   The inspect modal has no sides in it — it is the draft card at a larger size,
+   opened to read what the card IS — so the frame answers the same question the
+   draft's does. Enemy cards inspected from the board get their rarity too, for
+   the same reason. */
+.card-inspect-modal .card.card,
+.card-inspect-modal .card.card.ally-card,
+.card-inspect-modal .card.card.enemy-card {
+  --portrait-frame-rgb: var(--rarity-rgb, 79, 195, 247) !important;
+}
