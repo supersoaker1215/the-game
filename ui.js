@@ -14330,6 +14330,24 @@ const UI = {
                 <rect x="11" y="8"  width="3" height="10"/>
                 <rect x="16" y="4"  width="3" height="14"/>
               </svg>`,
+      // ROGUELITE and CODEX were the only two rows wearing another row's icon —
+      // Roguelite took SVG.play, the same triangle as Solo Match, and Codex took
+      // SVG.decks, the same stacked cards as My Decks. In a list this short a
+      // repeated glyph is worse than no glyph: it says "these two are the same
+      // thing" of two rows that are not. Owner supplied the marks.
+      // The diamond is the run: a node on the map, and the shape the roguelite
+      // screens already use for their map nodes and relic slots.
+      rogue: `<svg class="mm-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" stroke-linecap="round">
+                <path d="M12 2.5 L21.5 12 L12 21.5 L2.5 12 Z"/>
+                <path d="M12 8.5 L15.5 12 L12 15.5 L8.5 12 Z" stroke-opacity="0.55"/>
+              </svg>`,
+      // An open book for the codex — the one row that is a reference work
+      // rather than a thing you play or build.
+      codex: `<svg class="mm-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" stroke-linecap="round">
+                <path d="M12 6.5 C10 4.9 7.2 4.2 3.5 4.4 V17.6 C7.2 17.4 10 18.1 12 19.7"/>
+                <path d="M12 6.5 C14 4.9 16.8 4.2 20.5 4.4 V17.6 C16.8 17.4 14 18.1 12 19.7"/>
+                <path d="M12 6.5 V19.7"/>
+              </svg>`,
       settings: `<svg class="mm-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" stroke-linecap="round">
                    <!-- Three horizontal sliders — reads unambiguously as
                         "settings / adjustments" and stays on-theme with
@@ -14497,9 +14515,9 @@ const UI = {
               // exists it reads "Continue last run" and resumes in place.
               const savedInfo = (typeof Roguelite !== 'undefined' && Roguelite.savedRunInfo) ? Roguelite.savedRunInfo() : null;
               if (savedInfo) {
-                return btn('mm-rogue', 'Roguelite', `${savedInfo.label} · ${savedInfo.fightsWon} fights won`, SVG.play, "Roguelite.resumeRun()");
+                return btn('mm-rogue', 'Roguelite', `${savedInfo.label} · ${savedInfo.fightsWon} fights won`, SVG.rogue, "Roguelite.resumeRun()");
               }
-              return btn('mm-rogue', 'Roguelite', 'Climb a 6-fight ladder — build your deck as you go · beta', SVG.play, "Roguelite.enterRun()");
+              return btn('mm-rogue', 'Roguelite', 'Climb a 6-fight ladder — build your deck as you go · beta', SVG.rogue, "Roguelite.enterRun()");
             })()}
             ${btn('mm-tutorial','Tutorial',     'Guided walkthrough — play a scripted round',              helpSVG,      "Tutorial.start()")}
           </div>
@@ -14508,7 +14526,7 @@ const UI = {
           <div class="mm-section-label">Library</div>
           <div class="mm-grid mm-grid-section">
             ${metaBtn('mm-decks', 'My Decks', 'Build, edit, copy, or play your decks', SVG.decks, "Game.goToMyDecks()", `${_deckCount} built`)}
-            ${metaBtn('mm-encyc', 'Codex',    'Every card and trick in the game',       SVG.decks, "UI.openEncyclopedia()", `${_codexCount} entries`)}
+            ${metaBtn('mm-encyc', 'Codex',    'Every card and trick in the game',       SVG.codex, "UI.openEncyclopedia()", `${_codexCount} entries`)}
             ${btn('mm-stats',   'Stats',        'Card win rates and balance trends',                      SVG.stats,    "Game.goToStats()")}
             ${btn('mm-tools',   'Tools',        'Leaderboard, Audio Audit, Gallery Audit + Sandbox',      SVG.settings, "UI.mmShowSub('tools')")}
           </div>
