@@ -284,12 +284,29 @@ const TRICK_DEFS = [
           G.log("Assimilate finds nothing to copy — the opponent's hand is empty.");
           return;
         }
-        // Pick a random card and clone it. The original is untouched.
-        // createCardInstance treats the source instance like a def (same
-        // trick Lazarus Pit uses); applyAbilities re-stamps keyword flags
-        // (Armor N, Evade N, etc.) onto the fresh copy.
+        // Pick a random card. The original is untouched.
         const src = h[Math.floor(G.rng() * h.length)];
-        const copy = G.createCardInstance(src, owner);
+        // Build the copy from a DEF, not from the hand instance. A hand
+        // instance stores health as maxHealth/currentHealth and has no
+        // `.health` field, so feeding it straight to createCardInstance made
+        // safeHp fall through to its "1" fallback — Knull came out 7/1. Prefer
+        // the canonical CARD_DEFS entry (pristine base stats); fall back to a
+        // def synthesized from the instance's base* snapshot for tokens/summons
+        // not in CARD_DEFS. Using base* also means any in-hand debuff (Brainiac
+        // drain, Magneto, etc.) is stripped — the copy is a clean full-health
+        // version of the card.
+        const canonical = (typeof CARD_DEFS !== 'undefined')
+          ? CARD_DEFS.find(d => d.name === src.name) : null;
+        const def = canonical || {
+          name: src.name,
+          cost: src.baseCost != null ? src.baseCost : src.cost,
+          attack: src.baseAttack != null ? src.baseAttack : src.attack,
+          health: src.baseHealth != null ? src.baseHealth : src.maxHealth,
+          type: src.type,
+          abilities: src.baseAbilities || src.abilities || [],
+          desc: src.desc || ''
+        };
+        const copy = G.createCardInstance(def, owner);
         if (typeof G.applyAbilities === 'function') G.applyAbilities(copy);
         const added = (typeof G.addToHand === 'function')
           ? G.addToHand(owner, copy)
