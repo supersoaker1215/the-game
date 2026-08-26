@@ -43930,3 +43930,45 @@ body.no-art-grade .card-portrait { --art-grade: 1 !important; }
     0 0 22px rgba(155,89,182,0.45),
     inset 0 0 8px rgba(155,89,182,0.45);
 }
+
+/* ============================================================
+   THE ART STOPS AT THE FRAME (2026-08-25)
+   ============================================================
+   Owner: "the art shouldnt leave the border ever."
+
+   Measured, and it is a reference-box mismatch rather than a wrong number:
+
+     card clip-path .......... 6.402px   (clip-path resolves against BORDER box)
+     .cf-frame / .cf-edge .... 8.400px   (inset on an abs child resolves against
+                                          the PADDING box)
+     difference .............. 2.000px = the card's own border width
+
+   So the clip was cutting the art two pixels further OUT than the frame sits,
+   and that two-pixel band of art was showing beyond the frame all the way
+   round. Not visible on a dark painting; obvious on Deathstroke's flames.
+
+   The card keeps a 2px transparent border as a geometry spacer (removing it
+   would reflow every tile by 4px), so the border width has to be added back
+   into the clip for the two to land on the same line. Named, not inlined,
+   because it is the same 2px the base .card rule declares. */
+.card, .trick-card {
+  --cf-border: 2px;
+}
+.card.card {
+  clip-path: polygon(
+    calc(var(--cf-inset) + var(--cf-border) + var(--chamfer)) calc(var(--cf-inset) + var(--cf-border)),
+    calc(100% - var(--cf-inset) - var(--cf-border)) calc(var(--cf-inset) + var(--cf-border)),
+    calc(100% - var(--cf-inset) - var(--cf-border)) calc(100% - var(--cf-inset) - var(--cf-border) - var(--chamfer)),
+    calc(100% - var(--cf-inset) - var(--cf-border) - var(--chamfer)) calc(100% - var(--cf-inset) - var(--cf-border)),
+    calc(var(--cf-inset) + var(--cf-border)) calc(100% - var(--cf-inset) - var(--cf-border)),
+    calc(var(--cf-inset) + var(--cf-border)) calc(var(--cf-inset) + var(--cf-border) + var(--chamfer)));
+}
+.trick-card.trick-card {
+  clip-path: polygon(
+    calc(var(--cf-inset) + var(--cf-border) + var(--chamfer)) calc(var(--cf-inset) + var(--cf-border)),
+    calc(100% - var(--cf-inset) - var(--cf-border)) calc(var(--cf-inset) + var(--cf-border)),
+    calc(100% - var(--cf-inset) - var(--cf-border)) calc(100% - var(--cf-inset) - var(--cf-border) - var(--chamfer)),
+    calc(100% - var(--cf-inset) - var(--cf-border) - var(--chamfer)) calc(100% - var(--cf-inset) - var(--cf-border)),
+    calc(var(--cf-inset) + var(--cf-border)) calc(100% - var(--cf-inset) - var(--cf-border)),
+    calc(var(--cf-inset) + var(--cf-border)) calc(var(--cf-inset) + var(--cf-border) + var(--chamfer)));
+}
