@@ -44764,17 +44764,19 @@ body.no-art-grade .card-portrait { --art-grade: 1 !important; }
      the art at its floor (1.00w), two rows of keyword chips (~44px), and the
      rules. The card gives it 1.95w less the .291w readout reserve. So
        cap <= 1.95w - 0.291w - 1.00w - 44px  ~=  0.52w
-     and measured down to 0.49w, because the chip row runs a few pixels taller
-     than 44 on the cards that carry two of them — the arithmetic gets you to
-     the right neighbourhood and the corpus tells you the number.
+     and then re-derived at 0.55w once the copy stopped shrinking to fit: with
+     one size for every card the box has to be big enough for the card, not the
+     other way round. Paid for by 0.05w off the art floor and 0.05w of extra
+     card height — the aspect goes 0.51 to 0.50, which is nothing, and 34 cards
+     stop needing a scroll.
      Anything larger and a wordy card with two chip rows runs its copy through
      its own ATK/HP readouts, which is what 0.78 did on 48 of 157 faces. */
-  --read-desc-h:  calc(var(--read-card-w) * 0.49);
+  --read-desc-h:  calc(var(--read-card-w) * 0.55);
   /* and the card itself is a fixed rectangle, so a two-word card and a wall of
      text are the same object. Without this the row stretches every card to the
      tallest one in it — which is why a card with one line of rules was being
      drawn 670px tall next to Art the Clown. */
-  --read-card-h:  calc(var(--read-card-w) * 1.95);
+  --read-card-h:  calc(var(--read-card-w) * 2.00);
 }
 
 /* The art window is a fixed height on the read surfaces, and the card carries a
@@ -45165,7 +45167,7 @@ body.no-art-grade .card-portrait { --art-grade: 1 !important; }
      all along — with one, shrinking is safe, and the art gives ground to a
      wordy card down to a 0.95 window and no further. */
   flex: 1 1 auto !important;
-  min-height: calc(var(--card-w) * 1.00) !important;
+  min-height: calc(var(--card-w) * 0.95) !important;
   background-position: var(--portrait-pos, center 20%), 0% 0% !important;
 }
 /* the rules column is what gives, and its own fit routine takes care of the
@@ -45510,3 +45512,70 @@ body.no-art-grade .card-portrait { --art-grade: 1 !important; }
    exactly the line that was missing. The reason to bury it expired when the
    border stopped being a border. */
 .card .cf-frame, .trick-card .cf-frame { z-index: 8 !important; }
+
+/* ============================================================
+   NO WHITE LINE INSIDE THE BORDER (2026-08-26)
+   ============================================================
+   Owner: "there doesnt need to be white on the inside line next to the energy
+   number."
+
+   The core is gone rather than hidden. Two attempts to keep it and place it
+   correctly both failed on the same fact — a child cannot be split out of its
+   parent's stacking context, so raising the frame above the ribbon raised the
+   core with it, and moving the core to its own layer meant reusing an element
+   already carrying half a dozen rules from its old job.
+
+   It is also the third time a light line inside the stroke has been reported:
+   first the cream at every corner, then the white stubs beside the cost. The
+   design note that asked for "a near-white line inside the stroke" was written
+   about a 550px card. At this size the card wears one line, and one line is
+   what the owner has now said twice. */
+.card .cf-edge::after, .trick-card .cf-edge::after { display: none !important; }
+
+/* ============================================================
+   THE RULES READ AT ONE SIZE (2026-08-26)
+   ============================================================
+   Owner: "make the text readable and even and nice to read."
+
+   Even is the word that matters. The fit could take a card down to 45% — 4.95px
+   — so Dormammu's rules were half the size of Solomon Grundy's next to it, and
+   the two cards stopped looking like the same object. A body size that varies
+   per card is not a size, it is an accident of how much text that card has.
+
+   Floor raised to 0.86: nothing drops below 9.5px, so the spread across the set
+   is 9.5-11px instead of 5-11px and the pair on the draft screen reads as one
+   typeface at one size. The handful of cards that still do not fit scroll,
+   which they already could — a rule you can reach beats a rule shrunk past
+   reading.
+
+   The chips give up the room to pay for it. At read size they were carrying
+   .0164w of vertical padding on a .0218w face — more padding than type — and a
+   card with five of them spent 76px of the column on two rows of pills. */
+.card.card.draft-card .status-badge,
+.card.card.enc-card   .status-badge,
+.card-inspect-modal .card.card .status-badge,
+.trick-card.trick-draft .status-badge,
+.draft-card.trick-draft .status-badge,
+.rl-pick-cardslot .card.card .status-badge {
+  padding: calc(var(--card-w) * 0.007) calc(var(--card-w) * 0.024) !important;
+}
+.card.card.draft-card .status-badges,
+.card.card.enc-card   .status-badges,
+.card-inspect-modal .card.card .status-badges,
+.draft-card.trick-draft .status-badges,
+.rl-pick-cardslot .card.card .status-badges {
+  gap: calc(var(--card-w) * 0.018) !important;
+  margin-top: calc(var(--card-w) * 0.022) !important;
+  row-gap: calc(var(--card-w) * 0.014) !important;
+}
+
+/* The last two marks in that corner. `.cf-frame::after` is a decorative inner
+   hairline — a 1px rectangle inset from the frame, from the original handoff's
+   legendary treatment. It lives inside .cf-frame, which now sits above the
+   ribbon, so its top and left runs printed across the black plate either side of
+   the cost: the two stubs the owner circled. It was invisible before only
+   because the plate used to cover it.
+   Dropped rather than re-layered. It is ornament, it never survived a single
+   size change without needing a new number, and the card already carries a
+   continuous line around its edge — which is the line that was asked for. */
+.card .cf-frame::after, .trick-card .cf-frame::after { display: none !important; }

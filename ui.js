@@ -22335,7 +22335,7 @@ const UI = {
   // card you cannot play correctly. Seven faces reach this — the ones carrying
   // both two rows of keyword chips and a wall of text — and they are legible at
   // 5px on a 320px card in a full-screen read view, which is where this is.
-  CD_FIT_MIN: 0.45,
+  CD_FIT_MIN: 0.78,
   // Aim a few pixels inside the box, not exactly at its edge — the same lesson
   // the name fit learned: text height is not linear in font size, so landing on
   // the boundary lands a pixel or two past it and costs another whole round.
