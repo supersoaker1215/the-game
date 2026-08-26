@@ -44157,3 +44157,64 @@ body.no-art-grade .card-portrait { --art-grade: 1 !important; }
   zoom: 1.15;
   animation: none !important;
 }
+
+/* ============================================================
+   READ PANEL — FIVE CORRECTIONS (2026-08-25)
+   ============================================================
+   1. NO THIN BORDER INSIDE THE ENERGY RIBBON. The band's fill was held off
+      the frame by --band-off, which the handoff prescribes so the dark fill
+      cannot paint over the border. But our frame sits INSIDE the band rather
+      than under it, so that gap had nothing to protect — it just read as a
+      second hairline inside the ribbon. Offset removed; the fill now runs
+      from the cut to its outer diagonal with nothing between.
+   2. THE TEXT COLUMN SPANS BRACKET TO BRACKET. Owner drew the line: the rules
+      block's left edge is the ATK bracket's left edge and its right edge is
+      the HP bracket's right edge. Both are placed at
+      `--cf-inset + card-w * 0.10`, so the text takes the identical expression
+      as padding rather than a number that would drift when the brackets move.
+      Left-aligned, and the divider spans that same column.
+   3. TEXT TAKES THE FRAME COLOUR. Was hardcoded #ffd24a, which is right only
+      on a legendary. --cf-rgb is the rarity tier in hand and draft and the
+      side colour on board, so the copy now tracks the frame on every card.
+   4. + 5. BADGES AND KEYWORDS KEEP THEIR OWN COLOURS. The previous pass forced
+      every chip gold (purple for one family) and every inline keyword to
+      #b3e9ff, which threw away a real information channel — Splash reads red,
+      Revive purple, Armor gold, Freeze blue, and players already know them.
+      The chip border now takes `currentColor` so it inherits whatever hue the
+      keyword already owns, and the colour overrides are gone. The new SHAPE
+      applies to all of them; the palette is untouched. */
+.card.card.draft-card .cf-band,
+.card.card.enc-card   .cf-band,
+.trick-card .cf-band {
+  clip-path: polygon(
+    var(--chamfer) 0,
+    var(--band-box) 0,
+    0 var(--band-box),
+    0 var(--chamfer)) !important;
+}
+/* the text column, bracket to bracket */
+.card.card.draft-card .card-desc,
+.card.card.enc-card   .card-desc {
+  margin-left:  calc(var(--cf-inset) + var(--card-w) * 0.10) !important;
+  margin-right: calc(var(--cf-inset) + var(--card-w) * 0.10) !important;
+  text-align: left !important;
+  color: rgba(var(--cf-rgb), 1) !important;
+  text-shadow: 0 0 5px rgba(var(--cf-rgb), 0.30) !important;
+}
+.card.card.draft-card .card-desc b,
+.card.card.enc-card   .card-desc b {
+  color: rgba(var(--cf-rgb), 0.85) !important;
+}
+/* chips: keep the new shape, give back every keyword's own colour */
+.card.card.draft-card .status-badge,
+.card.card.enc-card   .status-badge {
+  border: 1px solid currentColor !important;
+  color: inherit;
+  opacity: 1;
+}
+/* the two colour overrides from the previous pass are withdrawn */
+.card.card.draft-card .card-desc .kw,
+.card.card.enc-card   .card-desc .kw {
+  color: inherit;
+  text-shadow: inherit;
+}
