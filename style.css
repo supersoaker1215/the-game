@@ -45402,13 +45402,21 @@ body.no-art-grade .card-portrait { --art-grade: 1 !important; }
 .card-inspect-modal .card.card,
 .draft-card.trick-draft, .trick-card.trick-draft,
 .rl-pick-cardslot .card.card {
+  /* --cf-border is in every term, and leaving it out is what put a pale wedge in
+     the corner. `clip-path` resolves against the BORDER box; `inset` on an
+     absolutely-positioned child resolves against the PADDING box. The card
+     carries a 2px border, so a clip written from --cf-inset alone cuts 2px
+     OUTSIDE where the ring sits — a 2px strip of bare card, showing ART,
+     running around the outside of the frame. On a dark painting it is
+     invisible; on Venom's white one it is a grey wedge at the cut corner, which
+     is what got circled. */
   clip-path: polygon(
-    calc(var(--cf-inset) + var(--chamfer)) var(--cf-inset),
-    calc(100% - var(--cf-inset)) var(--cf-inset),
-    calc(100% - var(--cf-inset)) calc(100% - var(--cf-inset) - var(--chamfer)),
-    calc(100% - var(--cf-inset) - var(--chamfer)) calc(100% - var(--cf-inset)),
-    var(--cf-inset) calc(100% - var(--cf-inset)),
-    var(--cf-inset) calc(var(--cf-inset) + var(--chamfer))) !important;
+    calc(var(--cf-inset) + var(--cf-border) + var(--chamfer)) calc(var(--cf-inset) + var(--cf-border)),
+    calc(100% - var(--cf-inset) - var(--cf-border)) calc(var(--cf-inset) + var(--cf-border)),
+    calc(100% - var(--cf-inset) - var(--cf-border)) calc(100% - var(--cf-inset) - var(--cf-border) - var(--chamfer)),
+    calc(100% - var(--cf-inset) - var(--cf-border) - var(--chamfer)) calc(100% - var(--cf-inset) - var(--cf-border)),
+    calc(var(--cf-inset) + var(--cf-border)) calc(100% - var(--cf-inset) - var(--cf-border)),
+    calc(var(--cf-inset) + var(--cf-border)) calc(var(--cf-inset) + var(--cf-border) + var(--chamfer))) !important;
 }
 /* the ring. --cf-k is the inner chamfer's shortening: offsetting a 45 degree
    cut inward by one stroke moves its endpoints along the edges by (sqrt2 - 1)
