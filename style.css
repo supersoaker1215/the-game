@@ -45274,3 +45274,192 @@ body.no-art-grade .card-portrait { --art-grade: 1 !important; }
 /* (A block hiding `.cf-cut-tl` stood here and is reverted — owner's call. The
    top-left chamfer keeps its stroke, so both cut corners are drawn the same
    way.) */
+
+/* ============================================================
+   THE NAME SITS ON A BROKEN SEAM (2026-08-26)
+   ============================================================
+   Owner, against the reference: "the name is lighter based on border color, if
+   the name is long just have 2 rows, there are marks to the side of the name."
+
+   Three changes, and the second one retires machinery rather than adding it.
+
+   LIGHTER. The name was rgba(--cf-rgb, 1) — the frame colour exactly, so the
+   loudest text on the card was the same value as the hairline around it and had
+   nothing to lift it off. Mixed 52% toward white it stays unmistakably the
+   card's colour and reads as the brightest thing on it, which is what a name
+   should be.
+
+   TWO ROWS, NOT SMALLER TYPE. UI.fitCardNames shrank a long name until it fit
+   one line — The Batman Who Laughs came out at 67% of everyone else's. The
+   reference wraps instead, and it is plainly right: a name at a different size
+   from every other name is a different KIND of thing, while a name on two lines
+   is the same thing taking more room. The fit is switched off here rather than
+   deleted, because the hand and board tiles still need it — those have no
+   vertical room for a second line.
+
+   THE MARKS are the seam. A hairline runs across the card at the name's height
+   and BREAKS around it, which is what makes the name look set INTO the card
+   rather than printed on top of it. Flex on the overlay, the rules as its
+   pseudo-elements: they take whatever width the name leaves and cannot collide
+   with it. Safe here in a way it would not be over the rules text — the overlay
+   holds exactly one span, so there are no inline children for flex to scatter. */
+.card.card.draft-card .card-name-overlay,
+.card.card.enc-card   .card-name-overlay,
+.card-inspect-modal .card.card .card-name-overlay,
+.trick-card.trick-draft .card-name-overlay,
+.draft-card.trick-draft .card-name-overlay,
+.rl-pick-cardslot .card.card .card-name-overlay {
+  display: flex !important;
+  align-items: center;
+  justify-content: center;
+  gap: calc(var(--card-w) * 0.045);
+  padding-left:  calc(var(--card-w) * 0.055) !important;
+  padding-right: calc(var(--card-w) * 0.055) !important;
+}
+.card.card.draft-card .card-name-overlay::before,
+.card.card.draft-card .card-name-overlay::after,
+.card.card.enc-card   .card-name-overlay::before,
+.card.card.enc-card   .card-name-overlay::after,
+.card-inspect-modal .card.card .card-name-overlay::before,
+.card-inspect-modal .card.card .card-name-overlay::after,
+.trick-card.trick-draft .card-name-overlay::before,
+.trick-card.trick-draft .card-name-overlay::after,
+.draft-card.trick-draft .card-name-overlay::before,
+.draft-card.trick-draft .card-name-overlay::after,
+.rl-pick-cardslot .card.card .card-name-overlay::before,
+.rl-pick-cardslot .card.card .card-name-overlay::after {
+  content: '';
+  flex: 1 1 auto;
+  min-width: 0;
+  height: 1px;
+  background: rgba(var(--cf-rgb), 0.42);
+}
+.card.card.draft-card .card-name-overlay .cn-text,
+.card.card.enc-card   .card-name-overlay .cn-text,
+.card-inspect-modal .card.card .card-name-overlay .cn-text,
+.trick-card.trick-draft .card-name-overlay .cn-text,
+.draft-card.trick-draft .card-name-overlay .cn-text,
+.trick-card.enc-trick   .card-name-overlay .cn-text,
+.card-inspect-modal .trick-card .card-name-overlay .cn-text,
+.rl-pick-cardslot .card.card .card-name-overlay .cn-text {
+  flex: 0 1 auto;
+  color: color-mix(in srgb, rgb(var(--cf-rgb)) 48%, #ffffff) !important;
+  /* the fit is off here — see above; --cn-fit is ignored and the name wraps */
+  font-size: calc(var(--card-w) * 0.0982) !important;
+  white-space: normal !important;
+  line-height: 1.02 !important;
+  text-wrap: balance;
+  /* two rows and no more: a third would push the art out of the card */
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  text-shadow:
+    0 0 1px rgba(255,255,255,0.85),
+    0 0 calc(var(--card-w) * 0.0327) rgba(var(--cf-rgb), 0.45) !important;
+}
+
+/* ============================================================
+   THE BORDER IS ONE OBJECT (2026-08-26)
+   ============================================================
+   Owner, against the reference: "see how the border is all one continuous
+   object, not parts stitched together, and the top left corner it flows",
+   and "all rules about the border before we started redesign are out the
+   window".
+
+   Taking that literally, because it is the honest reading of the picture.
+
+   WHAT IT WAS. Three elements pretending to be one line: `.cf-edge`, a
+   `border` on a box whose clip-path cut the corners AWAY (a clip does not
+   paint a border along a clipped diagonal, so the chamfers had no stroke at
+   all), plus a rotated div per cut corner to draw the stroke the clip had
+   removed. Three objects, two butt joints, and the joints are exactly where
+   the eye goes. Every "the corner looks different" report in the last two days
+   has been the same two seams.
+
+   WHAT IT IS NOW. One element, one fill, one clip — a RING traced as a single
+   polygon: the outer silhouette clockwise, a hairline seam, then the inner
+   silhouette counter-clockwise to punch the hole. The corners are mitre joins
+   in one shape rather than two shapes meeting, so there is nothing to align
+   and nothing to drift. The seam is placed at the top-left, which is the one
+   corner the opaque ribbon plate covers.
+
+   THE TOP-LEFT NO LONGER CUTS. In the reference the border runs straight
+   through that corner and the ribbon is a diagonal chord across it — which is
+   what "the top left corner it flows" means. It was chamfered because the
+   old handoff cut two corners; the card has a ribbon there now, and a ribbon
+   IS the corner treatment. One cut corner, bottom-right, where nothing covers
+   it. */
+/* EVERY surface, not just the read card. The ring below is drawn on `.card`,
+   so if a hand tile kept the old two-chamfer silhouette its own clip would cut
+   the ring's square top-left straight off. One shape, one place. */
+.card.card, .trick-card.trick-card,
+.card.card.draft-card, .card.card.enc-card,
+.card-inspect-modal .card.card,
+.draft-card.trick-draft, .trick-card.trick-draft,
+.rl-pick-cardslot .card.card {
+  clip-path: polygon(
+    var(--cf-inset) var(--cf-inset),
+    calc(100% - var(--cf-inset)) var(--cf-inset),
+    calc(100% - var(--cf-inset)) calc(100% - var(--cf-inset) - var(--chamfer)),
+    calc(100% - var(--cf-inset) - var(--chamfer)) calc(100% - var(--cf-inset)),
+    var(--cf-inset) calc(100% - var(--cf-inset))) !important;
+}
+/* the ring. --cf-k is the inner chamfer's shortening: offsetting a 45 degree
+   cut inward by one stroke moves its endpoints along the edges by (sqrt2 - 1)
+   of that stroke, so the hole's cut stays parallel to the outer one instead of
+   fanning away from it. */
+.card .cf-edge, .trick-card .cf-edge {
+  --cf-k: calc(var(--chamfer) - 0.4142 * var(--cf-stroke));
+  border: 0 !important;
+  background: rgb(var(--cf-rgb)) !important;
+  box-shadow: none !important;
+  clip-path: polygon(
+    0 0, 100% 0,
+    100% calc(100% - var(--chamfer)),
+    calc(100% - var(--chamfer)) 100%,
+    0 100%,
+    0 0,
+    var(--cf-stroke) var(--cf-stroke),
+    var(--cf-stroke) calc(100% - var(--cf-stroke)),
+    calc(100% - var(--cf-stroke) - var(--cf-k)) calc(100% - var(--cf-stroke)),
+    calc(100% - var(--cf-stroke)) calc(100% - var(--cf-stroke) - var(--cf-k)),
+    calc(100% - var(--cf-stroke)) var(--cf-stroke),
+    var(--cf-stroke) var(--cf-stroke),
+    0 0) !important;
+}
+/* the near-white core, the same ring one stroke further in — a second
+   continuous object rather than a highlight painted onto the first, because an
+   inset shadow on a clipped fill hugs the element's BOX, not the ring. */
+.card .cf-edge::after, .trick-card .cf-edge::after {
+  content: '';
+  position: absolute;
+  inset: var(--cf-stroke);
+  --cf-k2: calc(var(--chamfer) - 0.4142 * (var(--cf-stroke) + var(--cf-core)));
+  background: rgba(var(--frame-core-rgb), 0.9);
+  clip-path: polygon(
+    0 0, 100% 0,
+    100% calc(100% - var(--cf-k)),
+    calc(100% - var(--cf-k)) 100%,
+    0 100%,
+    0 0,
+    var(--cf-core) var(--cf-core),
+    var(--cf-core) calc(100% - var(--cf-core)),
+    calc(100% - var(--cf-core) - var(--cf-k2)) calc(100% - var(--cf-core)),
+    calc(100% - var(--cf-core)) calc(100% - var(--cf-core) - var(--cf-k2)),
+    calc(100% - var(--cf-core)) var(--cf-core),
+    var(--cf-core) var(--cf-core),
+    0 0);
+}
+/* both stitched-on cut strokes retire — the ring draws its own corners */
+.card .cf-cut, .trick-card .cf-cut,
+.card .cf-cut-tl, .trick-card .cf-cut-tl,
+.card .cf-cut-br, .trick-card .cf-cut-br { display: none !important; }
+
+/* THE RIBBON IS THE TOP-LEFT CORNER. With no chamfer there, the black plate
+   starts at the corner itself and its diagonal is the only line across it. */
+.card .cf-band, .trick-card .cf-band,
+.card.card .cf-band, .card.card.draft-card .cf-band,
+.card.card.enc-card .cf-band, .trick-card.trick-card .cf-band {
+  clip-path: polygon(0 0, var(--band-out) 0, 0 var(--band-out)) !important;
+}
