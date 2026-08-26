@@ -44009,3 +44009,117 @@ body.no-art-grade .card-portrait { --art-grade: 1 !important; }
   bottom: calc(var(--chamfer) / 2 - var(--cf-stroke) / 2
                + var(--cf-stroke) * 0.5);
 }
+
+/* ============================================================
+   READ STATE — THE PANEL, PER THE HANDOFF (2026-08-25)
+   ============================================================
+   Owner: "for draft codex and tap to play this is how i want the text and
+   name and status badges to look just like this the lines and everything."
+
+   Transcribed from the README's "Draft & Tap to Read" section, all sizes as
+   ratios of the 550px reference so they hold at the real 220px:
+
+     name    54px  .0982w   Chakra Petch 700, .02em, centred, nowrap
+     chips   12px  .0218w   .16em, 1px border at 50% alpha, pad 9/16
+     divider  1px           gold, fading out at 20% / 80%
+     label   12px  .0218w   .30em, #ffe07a, LEFT
+     body    19px  .0345w   line-height 1.55, LEFT
+     spacing 24 / 32 / 24 / 12 / 36 above chips / rules / label / body / stats
+
+   TWO AXES, NOT FOUR — the design is explicit and it is the reason this reads
+   as finished: "Left-align the reading, center the identity." Name and chips
+   centre; rules left-align; stats split to the edges. The rules copy was
+   centred here, which the handoff calls out by name as "the single most common
+   tell of an amateur card", because ragged centred text gives every line a
+   different starting x.
+
+   Chakra Petch is now requested in index.html — it was not in the font stack,
+   so naming it without loading it would silently have fallen back to Rajdhani
+   and looked almost right. */
+.card.card.draft-card .card-name-overlay .cn-text,
+.card.card.enc-card   .card-name-overlay .cn-text,
+.card-inspect-modal .card.card .card-name-overlay .cn-text {
+  font-family: 'Chakra Petch', 'Rajdhani', sans-serif !important;
+  font-weight: 700 !important;
+  font-size: calc(var(--card-w) * 0.0982) !important;
+  letter-spacing: 0.02em !important;
+  white-space: nowrap !important;
+  text-align: center !important;
+  color: rgba(var(--cf-rgb), 1) !important;
+  text-shadow: 0 0 1px rgba(255,255,255,0.8), 0 0 calc(var(--card-w) * 0.0327) rgba(255,236,180,0.24) !important;
+}
+/* keyword chips — centred, 1px border at half the alpha of their own colour */
+.card.card.draft-card .status-badges,
+.card.card.enc-card   .status-badges {
+  display: flex !important;
+  flex-wrap: wrap;
+  justify-content: center !important;
+  gap: calc(var(--card-w) * 0.0291) !important;
+  margin-top: calc(var(--card-w) * 0.0436) !important;
+}
+.card.card.draft-card .status-badge,
+.card.card.enc-card   .status-badge {
+  display: inline-flex !important;
+  align-items: center;
+  gap: calc(var(--card-w) * 0.0164);
+  padding: calc(var(--card-w) * 0.0164) calc(var(--card-w) * 0.0291) !important;
+  font-family: var(--font-mono) !important;
+  font-size: calc(var(--card-w) * 0.0218) !important;
+  font-weight: 700 !important;
+  letter-spacing: 0.16em !important;
+  text-transform: uppercase;
+  border: 1px solid rgba(255,216,60,0.5) !important;
+  border-radius: 0 !important;
+  background: none !important;
+  box-shadow: none !important;
+  color: #ffefa0 !important;
+}
+/* the purple keyword family keeps its own hue, at the same 50% border alpha */
+.card.card.draft-card .status-badge.sb-unresistible,
+.card.card.draft-card .status-badge.sb-untrickable,
+.card.card.enc-card   .status-badge.sb-unresistible,
+.card.card.enc-card   .status-badge.sb-untrickable {
+  border-color: rgba(197,140,245,0.5) !important;
+  color: #e2c2ff !important;
+}
+/* the rules block sits under a gold divider that fades out at 20% / 80% */
+.card.card.draft-card .card-desc,
+.card.card.enc-card   .card-desc {
+  margin-top: calc(var(--card-w) * 0.0582) !important;
+  padding-top: calc(var(--card-w) * 0.0436) !important;
+  border-top: 1px solid transparent !important;
+  border-image: linear-gradient(90deg,
+    rgba(var(--cf-rgb), 0) 0%,
+    rgba(var(--cf-rgb), 0.45) 20%,
+    rgba(var(--cf-rgb), 0.45) 80%,
+    rgba(var(--cf-rgb), 0) 100%) 1 !important;
+  font-size: calc(var(--card-w) * 0.0345) !important;
+  line-height: 1.55 !important;
+  text-align: left !important;
+  text-wrap: pretty;
+  color: #ffd24a !important;
+  text-shadow: 0 0 5px rgba(255,205,45,0.30) !important;
+}
+/* ON PLAY / EACH TURN / WHEN DESTROYED — the section labels */
+.card.card.draft-card .card-desc b,
+.card.card.enc-card   .card-desc b {
+  display: block;
+  font-size: calc(var(--card-w) * 0.0218) !important;
+  font-weight: 700 !important;
+  letter-spacing: 0.30em !important;
+  color: #ffe07a !important;
+  text-align: left !important;
+  margin-bottom: calc(var(--card-w) * 0.0218);
+  text-shadow: none !important;
+}
+/* inline keyword highlights stay the cool blue against the gold copy */
+.card.card.draft-card .card-desc .kw,
+.card.card.enc-card   .card-desc .kw {
+  color: #b3e9ff !important;
+  text-shadow: 0 0 7px rgba(143,224,255,0.6) !important;
+}
+/* frame spill inward + scanlines, the two overlays the design lists last */
+.card.card.draft-card .cf-frame,
+.card.card.enc-card   .cf-frame {
+  box-shadow: inset 0 0 calc(var(--card-w) * 0.0836) 2px rgba(255,205,45,0.14);
+}
