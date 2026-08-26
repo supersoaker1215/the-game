@@ -729,6 +729,104 @@ const Game = {
     return false;
   },
 
+  // ===================== 2v2 AI STALL WATCHDOG =====================
+  // The AI plays fine in 1v1; in 2v2 the extra seat/prompt plumbing can leave an
+  // AI seat's turn stuck — an ability whose prompt didn't auto-pick (Dr. Strange's
+  // deferred Foresee, a mis-routed target choice), or a drive that hung without
+  // ending its phase. There is a 12s drive watchdog, but 12s reads as "the game
+  // froze". This runs every second and, if an AI seat is responsible for the next
+  // move and NOTHING has changed for 3s, forces recovery: auto-resolve any pending
+  // prompt with the AI's own picker, else force the AI's sub-phase to end so the
+  // round advances. (Owner: "make a timeout for like 3 secs if the AI ever gets
+  // stuck.") Armed from _2v2DriveAISeat; self-clears when the match ends.
+  _AI_STALL_MS: 3000,
+  _ai2v2WatchTimer: null,
+  _ai2v2StallSig: null,
+  _ai2v2StallAt: 0,
+  _arm2v2AIWatchdog() {
+    if (this._syncMode) return;               // headless resolves synchronously
+    if (typeof setInterval === 'undefined') return;
+    if (this._ai2v2WatchTimer) return;        // already running for this match
+    if (!this._visAIWatchdogBound && typeof document !== 'undefined' && document.addEventListener) {
+      this._visAIWatchdogBound = true;
+      document.addEventListener('visibilitychange', () => { if (!document.hidden) this._ai2v2StallAt = Date.now(); });
+    }
+    const gen = this._matchGen;
+    this._ai2v2StallSig = null;
+    this._ai2v2StallAt = 0;
+    this._ai2v2WatchTimer = setInterval(() => {
+      try { this._2v2AIWatchdogTick(gen); } catch (e) { console.error('[2v2 AI watchdog] tick threw', e); }
+    }, 1000);
+  },
+  _clear2v2AIWatchdog() {
+    if (this._ai2v2WatchTimer) { clearInterval(this._ai2v2WatchTimer); this._ai2v2WatchTimer = null; }
+    this._ai2v2StallSig = null;
+    this._ai2v2StallAt = 0;
+  },
+  // A cheap fingerprint of everything a healthy AI turn changes. If it holds
+  // still for 3s while an AI is on the clock, the turn is genuinely stuck — a
+  // normal turn keeps mutating it (a card played shrinks a hand, fills a lane,
+  // spends energy) and so keeps resetting the stall timer.
+  _2v2StallSignature() {
+    const s = this.state, tt = s && s.twoVTwo;
+    if (!tt) return '';
+    const active = (this._2v2ActivePlayer && this._2v2ActivePlayer()) || '';
+    const pc = s.pendingCardChoice, lc = s.pendingLaneChoice;
+    const pend = pc ? ('C:' + (pc.title || '') + ':' + (pc._seq || ''))
+               : lc ? ('L:' + (lc.title || ''))
+               : s.pendingKangChoice ? 'K' : s.pendingBlockTrick ? 'B' : s.pendingJumpOffer ? 'J' : '';
+    let hands = 0, board = 0, energy = 0;
+    ['p1', 'p2', 'p3', 'p4'].forEach(k => {
+      const p = tt.players[k];
+      if (p) { hands += (p.hand ? p.hand.length : 0) + (p.trickHand ? p.trickHand.length : 0); energy += (p.energy || 0) - (p.usedEnergy || 0); }
+    });
+    for (let i = 0; i < this.LANE_COUNT; i++) { const l = s.lanes[i]; if (l) { if (l.player) board++; if (l.ai) board++; } }
+    return [s.phase, active, pend, hands, board, energy].join('|');
+  },
+  _2v2AIWatchdogTick(gen) {
+    const s = this.state, tt = s && s.twoVTwo;
+    if (this._matchGen !== gen || !tt || !tt.online || (s && s.gameOver) || !this.is2v2 || !this.is2v2()) {
+      this._clear2v2AIWatchdog();
+      return;
+    }
+    if (!this._2v2IsAIAuthority || !this._2v2IsAIAuthority()) return;   // only the authority recovers
+    if (typeof document !== 'undefined' && document.hidden) { this._ai2v2StallAt = Date.now(); return; }  // never judge a hidden tab
+    const active = (this._2v2ActivePlayer && this._2v2ActivePlayer()) || null;
+    const activeIsAI = !!(active && tt.players[active] && tt.players[active].isAI);
+    // A pending prompt stamped to an AI seat covers deferred prompts that fire
+    // outside a live drive (Dr. Strange's Foresee at the draw phase).
+    const pc = s.pendingCardChoice || s.pendingLaneChoice;
+    const pSeat = pc && pc._2v2ActingPlayer;
+    const promptOnAI = !!(pSeat && tt.players[pSeat] && tt.players[pSeat].isAI);
+    // Only step in when an AI is the one who must move next. A human taking their
+    // time must never be interrupted.
+    if (!activeIsAI && !promptOnAI) { this._ai2v2StallSig = null; this._ai2v2StallAt = 0; return; }
+    const sig = this._2v2StallSignature();
+    const now = Date.now();
+    if (sig !== this._ai2v2StallSig) { this._ai2v2StallSig = sig; this._ai2v2StallAt = now; return; }
+    if (now - this._ai2v2StallAt < this._AI_STALL_MS) return;   // not stuck long enough yet
+    // STUCK — recover.
+    console.warn('[2v2 AI watchdog] no progress for ' + (now - this._ai2v2StallAt) + 'ms — forcing recovery. sig=' + sig);
+    this.log('[2v2] AI turn stalled — auto-recovering so the table can continue.');
+    let acted = false;
+    try { acted = this._autoResolveStuckCombatPrompt(); } catch (e) { console.error('[2v2 AI watchdog] resolve threw', e); }
+    if (!acted && activeIsAI) {
+      // No prompt to resolve — the drive itself hung. Force the AI's sub-phase to
+      // end exactly as the 12s drive watchdog would, so the round advances.
+      try {
+        this._2v2AIDriving = null;
+        this._2v2AIDrivingAt = 0;
+        this._2v2CurrentActingPlayer = null;
+        this.end2v2Phase();
+        if (this._pushOnlineState) this._pushOnlineState({ silent: true });
+        acted = true;
+      } catch (e) { console.error('[2v2 AI watchdog] force-end threw', e); }
+    }
+    this._ai2v2StallSig = null;
+    this._ai2v2StallAt = 0;
+    if (acted && typeof UI !== 'undefined' && UI.render) UI.render();
+  },
+
   _forceEndStalledCombat() {
     const s = this.state;
     // 2v2 runs its own phase names ('2v2-combat', '2v2-p1-cards', …) and its
@@ -12220,7 +12318,7 @@ const Game = {
       // sequence number lets the host recognise a stale answer and ignore it
       // instead of acting on it.
       this._promptSeq = (this._promptSeq || 0) + 1;
-      this.state.pendingCardChoice = { owner, cards, title, desc, callback, _seq: this._promptSeq, faceDown: !!(options && options.faceDown), inlineTray: !!(options && options.inlineTray), localOnly: !!(options && options.localOnly), declineLabel: declineLabelC, onDecline: (options && options.onDecline) || null, peekStrip: (options && options.peekStrip) || null };
+      this.state.pendingCardChoice = { owner, cards, title, desc, callback, _seq: this._promptSeq, faceDown: !!(options && options.faceDown), inlineTray: !!(options && options.inlineTray), localOnly: !!(options && options.localOnly), declineLabel: declineLabelC, onDecline: (options && options.onDecline) || null, peekStrip: (options && options.peekStrip) || null, aiPicker: (typeof aiPicker === 'function') ? aiPicker : null };
       // 2v2 online: route guest choices to the guest client (same as lane choice)
       const _cap = this._2v2CurrentActingPlayer;
       // Stamp the host (p1) too. Excluding p1 left every host-raised prompt
@@ -16236,6 +16334,10 @@ const Game = {
   // sub-phase exactly as a human's "Done" would. A short delay makes the turn
   // legible instead of instant.
   _2v2DriveAISeat(activeKey, subPhase) {
+    // Make sure the 3s stall watchdog is running for this match — once armed it
+    // ticks until the match ends, so it also guards deferred AI prompts that fire
+    // outside a live drive (Dr. Strange's Foresee at the draw phase).
+    if (this._arm2v2AIWatchdog) this._arm2v2AIWatchdog();
     // HARD SAFETY GATE — an AI filler must NEVER play for a seat a real person
     // controls. `_realHuman` is stamped the moment a human claims a seat and is
     // never cleared for the life of the match, so even if `isAI` were somehow
