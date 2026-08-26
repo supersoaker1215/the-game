@@ -7635,10 +7635,23 @@ body.hit-pause .ai-hand * {
    cubic-bezier) the clip-edge would race ahead of the line and
    the user would see the card materializing above where the
    scan line actually was. */
+/* REVEALS WITH A MASK, NOT A CLIP-PATH. This used to animate clip-path on
+   .card, which is the one property the chamfer now needs — an element has
+   exactly one clip-path, so the entrance would have replaced the cut corner
+   for its whole 1s run and the chamfer would have snapped in at the end.
+   A mask-image composes with clip-path instead of fighting it, and the
+   bottom-up wipe is identical: the gradient's hard stop is the same edge the
+   inset() was drawing, travelling the same distance on the same curve. */
 @keyframes cardBuildIn {
-  0%   { clip-path: inset(100% 0 0 0); opacity: 0; filter: brightness(1.6) saturate(1.3); }
-  8%   { clip-path: inset(100% 0 0 0); opacity: 1; filter: brightness(1.6) saturate(1.3); }
-  100% { clip-path: inset(0    0 0 0); opacity: 1; filter: brightness(1)   saturate(1);   }
+  0%   { -webkit-mask-position: 0 100%; mask-position: 0 100%; opacity: 0; filter: brightness(1.6) saturate(1.3); }
+  8%   { -webkit-mask-position: 0 100%; mask-position: 0 100%; opacity: 1; filter: brightness(1.6) saturate(1.3); }
+  100% { -webkit-mask-position: 0 0;    mask-position: 0 0;    opacity: 1; filter: brightness(1)   saturate(1);   }
+}
+.card.card-enter {
+  -webkit-mask-image: linear-gradient(to top, #000 50%, transparent 50%);
+          mask-image: linear-gradient(to top, #000 50%, transparent 50%);
+  -webkit-mask-size: 100% 200%; mask-size: 100% 200%;
+  -webkit-mask-repeat: no-repeat; mask-repeat: no-repeat;
 }
 /* Scan line uses TWO independent animations on the same
    element — `top` movement uses the IDENTICAL cubic-bezier as
@@ -43116,3 +43129,106 @@ body.no-art-grade .card-portrait { --art-grade: 1 !important; }
 }
 /* the old tab's neon edge — the ribbon is a solid fill, so it has no edge */
 .card-cost::after { display: none; }
+
+/* ============================================================
+   THE CARD FRAME — CHAMFER, INSET FRAME, ENERGY RIBBON (2026-08-25)
+   ============================================================
+   Owner: "i want the ribbon even if it means breaking rules i want the gold,
+   and card to look exactly like the design."
+
+   So the corner is genuinely CUT here, not faked. I flagged the cost and he
+   reaffirmed, so this is his call and the notes below are what it actually
+   costs rather than an argument against it.
+
+   THE TWO CONSEQUENCES I ROUTED AROUND, because they would have made the
+   design look WRONG rather than merely cost effort:
+
+   1. GLOW. clip-path clips box-shadow, and the card's whole lighting language
+      is outer box-shadows — 101 rules match .card with one. Left alone the
+      tiles go flat black. Worse than losing it: an unclipped glow would ghost
+      a SQUARE corner around a cut card. So .card's outer shadow is neutralised
+      and re-drawn as filter: drop-shadow(), which follows the alpha silhouette
+      — i.e. it traces the chamfer exactly. Strictly better than the box-shadow
+      it replaces, which never could.
+   2. ENTRANCE. @keyframes cardBuildIn owned clip-path on .card. Rewritten as a
+      mask wipe above; masks compose with clip-path, second clip-paths do not.
+
+   WHAT IT STILL COSTS, honestly: the transient combat FX that ui.js appends
+   INTO the card to fly outside it (strike burst, hit chips, destroy particles,
+   shards, kill shockwave, armor ring) are now clipped at the card edge. The
+   two that carry real information — the placement shockring and the targeting
+   reticle — are moved inside the silhouette below so they survive.
+
+   GEOMETRY comes off --sb-card, the existing per-surface card-width token,
+   NEVER a container query. style.css:38715 documents why: 20 @container blocks
+   in this file are unnamed, and giving .card a container-type re-points every
+   one of them at the card — which is never wider than 520px, so desktop would
+   silently inherit the whole phone-board treatment.
+   Ratios are the canvas's own: chamfer .08, frame inset .0343, band .263. */
+.card {
+  --card-w:      var(--sb-card, 140px);
+  --chamfer:     calc(var(--card-w) * 0.080);
+  --frame-inset: calc(var(--card-w) * 0.0343);
+  --frame-rgb:   var(--portrait-frame-rgb, var(--gold-rgb));
+  clip-path: polygon(var(--chamfer) 0, 100% 0, 100% 100%, 0 100%, 0 var(--chamfer));
+  /* the outer stroke goes — the frame is inset now — but the 2px stays as a
+     transparent spacer so border-box geometry is untouched and nothing reflows */
+  border-color: transparent !important;
+  border-radius: 0;
+}
+/* Glow, re-drawn so it follows the cut corner. */
+.card.card, .card.card:hover {
+  box-shadow: none !important;
+  filter:
+    drop-shadow(0 0 3px  rgba(var(--frame-rgb), 0.55))
+    drop-shadow(0 0 9px  rgba(var(--frame-rgb), 0.30))
+    drop-shadow(0 2px 6px rgba(0,0,0,0.65));
+}
+.card.card:hover {
+  filter:
+    drop-shadow(0 0 5px  rgba(var(--frame-rgb), 0.85))
+    drop-shadow(0 0 16px rgba(var(--frame-rgb), 0.45))
+    drop-shadow(0 3px 9px rgba(0,0,0,0.7));
+}
+/* THE FRAME. ::before was already reduced to a positioning shim with
+   `background: none` and its own comment says it is kept only for the stacking
+   context — so it is free, and it is the only pseudo on .card that is. */
+.card::before {
+  content: '';
+  position: absolute;
+  inset: var(--frame-inset);
+  background: none !important;
+  border: 1px solid rgba(var(--frame-rgb), 0.95);
+  border-radius: 0;
+  clip-path: polygon(calc(var(--chamfer) - var(--frame-inset)) 0, 100% 0,
+                     100% 100%, 0 100%, 0 calc(var(--chamfer) - var(--frame-inset)));
+  pointer-events: none;
+  z-index: 3;
+}
+/* THE RIBBON — the trapezoid between the cut edge and the band's outer
+   diagonal, exactly as the canvas draws it: band runs chamfer -> .263w. */
+.card .card-cost {
+  --cost-size: calc(var(--card-w) * 0.263);
+  width: var(--cost-size); height: var(--cost-size);
+  padding-top: calc(var(--cost-size) * 0.20);
+  text-indent: calc(var(--cost-size) * 0.10);
+  font-size: calc(var(--cost-size) * 0.40);
+}
+.card .card-cost::before {
+  clip-path: polygon(0 var(--chamfer), var(--chamfer) 0, 100% 0, 0 100%);
+  filter: none;
+}
+/* THE NAME takes the frame colour. --portrait-frame-rgb, not --card-edge:
+   it is the rarity tier in hand/draft/codex and the SIDE colour on the board,
+   which is the rule the canvas states, and tricks carry it too. */
+.card .card-portrait .card-name-overlay,
+.card .card-name-overlay .cn-text {
+  color: rgba(var(--frame-rgb), 1) !important;
+  text-shadow:
+    0 1px 3px rgba(0,0,0,0.95),
+    0 0 10px rgba(var(--frame-rgb), 0.55) !important;
+}
+/* The two overlays that carry information rather than spectacle, moved inside
+   the silhouette so the clip cannot eat them. */
+.card .card-place-shockring { inset: 3px !important; border-radius: 0 !important; }
+.card.target-highlight { outline-offset: -3px !important; }
