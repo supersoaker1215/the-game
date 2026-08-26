@@ -17,8 +17,9 @@
      Tokenised on the way past. There were 287 hardcoded copies of the old
      triple and no token at all, which is why it could not be changed without
      a sweep; the next change is one line. */
-  --gold-rgb: 245, 191, 28;        /* #f5bf1c — frame stroke, glows, chrome */
-  --gold-text-rgb: 255, 210, 74;   /* #ffd24a — gold TEXT, a touch brighter */
+  --gold-rgb: 255, 210, 74;        /* #ffd24a — frame-legendary, per the handoff token table */
+  --gold-core-rgb: 255, 243, 200;  /* #fff3c8 — frame-core, the hot core inside the stroke */
+  --gold-label-rgb: 255, 224, 122; /* #ffe07a — gold-label, ON PLAY + section labels */
 
   --ease-snap:  cubic-bezier(0.2, 0, 0, 1);      /* default: decisive arrival   */
   --ease-exit:  cubic-bezier(0.4, 0, 1, 1);      /* leaving the screen          */
@@ -43232,3 +43233,63 @@ body.no-art-grade .card-portrait { --art-grade: 1 !important; }
    the silhouette so the clip cannot eat them. */
 .card .card-place-shockring { inset: 3px !important; border-radius: 0 !important; }
 .card.target-highlight { outline-offset: -3px !important; }
+
+/* ============================================================
+   CHAMFER CORRECTIONS FROM THE DESIGN HANDOFF (2026-08-25)
+   ============================================================
+   The zip's README is the spec and it corrects two things I had guessed off
+   the screenshot.
+
+   1. "clip-path does not paint a border along a clipped diagonal — the cut
+      edges must be drawn as separate rotated elements."
+      Dead right, and it is a real defect in what I shipped an hour ago: the
+      frame's border is drawn on the rectangular box and then CLIPPED AWAY at
+      the cut, so the chamfer had no stroke at all. It only looked fine because
+      the energy ribbon happened to cover the one corner that had it.
+      Drawn here as a gradient stripe rather than a rotated div — same line,
+      no extra DOM, and it cannot drift out of alignment with the clip because
+      both derive from --chamfer. 135deg because the stripe runs perpendicular
+      to the gradient axis: the axis points down-right, so the stripe runs
+      up-right, which is the (0,c) -> (c,0) cut.
+
+   2. The restrained treatment — the one the README recommends — cuts TWO
+      corners, top-left and bottom-right. I had cut one.
+      "Every frame layer must carry the same chamfer set. A layer that misses
+      one leaves a detached fragment floating in the notch. This was a real
+      bug found twice during design." So the body clip and the frame clip below
+      are generated from the same two-corner polygon, not written twice. */
+.card {
+  --cut: calc(var(--chamfer) - var(--frame-inset));
+  clip-path: polygon(
+    var(--chamfer) 0, 100% 0,
+    100% calc(100% - var(--chamfer)), calc(100% - var(--chamfer)) 100%,
+    0 100%, 0 var(--chamfer));
+}
+.card::before {
+  clip-path: polygon(
+    var(--cut) 0, 100% 0,
+    100% calc(100% - var(--cut)), calc(100% - var(--cut)) 100%,
+    0 100%, 0 var(--cut));
+  /* the two cut edges, which the border cannot draw */
+  background:
+    linear-gradient(135deg,
+      transparent calc(50% - 0.5px), rgba(var(--frame-rgb), 0.95) calc(50% - 0.5px),
+      rgba(var(--frame-rgb), 0.95) calc(50% + 0.5px), transparent calc(50% + 0.5px))
+      top left / var(--cut) var(--cut) no-repeat,
+    linear-gradient(135deg,
+      transparent calc(50% - 0.5px), rgba(var(--frame-rgb), 0.95) calc(50% - 0.5px),
+      rgba(var(--frame-rgb), 0.95) calc(50% + 0.5px), transparent calc(50% + 0.5px))
+      bottom right / var(--cut) var(--cut) no-repeat !important;
+}
+/* "Stat colours never change with theme or rarity — green for attack, red for
+   health, in every state." Scoped to the stat readouts ONLY: 46,204,113 and
+   231,76,60 are also the ally/enemy side colours everywhere else, and those
+   are a different channel that the handoff does not speak to. */
+.card .stat-atk { color: #ddfff0; }
+.card .stat-hp  { color: #ffdede; }
+.card .stat-atk::before { background: #3dff9e; }
+.card .stat-hp::before  { background: #ff6b6b; }
+.card .stat-atk { text-shadow: 0 1px 2px rgba(0,0,0,1), 0 0 3px rgba(0,0,0,0.95), 0 0 8px rgba(61,255,158,0.85); }
+.card .stat-hp  { text-shadow: 0 1px 2px rgba(0,0,0,1), 0 0 3px rgba(0,0,0,0.95), 0 0 8px rgba(255,107,107,0.85); }
+/* The cost digit is near-white because it sits inside a filled band. */
+.card .card-cost { color: #fff6d8; }
