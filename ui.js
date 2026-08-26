@@ -14422,6 +14422,8 @@ const UI = {
     // Simple question-mark SVG for the tutorial option (no other icon
     // slot conveys "how to play"). Matches the other .mm-svg spec.
     const helpSVG = `<svg class="mm-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M9 9a3 3 0 1 1 4.5 2.6c-.9.5-1.5 1-1.5 2"/><line x1="12" y1="17" x2="12" y2="17.2"/></svg>`;
+    // Trophy for the Tournament row.
+    const trophySVG = `<svg class="mm-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M7 4h10v4a5 5 0 0 1-10 0V4Z"/><path d="M7 6H4v1a3 3 0 0 0 3 3"/><path d="M17 6h3v1a3 3 0 0 1-3 3"/><path d="M9.5 13.5 9 17h6l-.5-3.5"/><path d="M8 20h8"/><path d="M10 17v3M14 17v3"/></svg>`;
     // Panel inner content. buildPanel(sub) returns ONLY the .mm-panel
     // markup so the SAME shell (hero on the right, scrim, bottom bar) can
     // host an in-place SUBMENU without a screen change: clicking Solo Match
@@ -14522,6 +14524,7 @@ const UI = {
               }
               return btn('mm-rogue', 'Roguelite', 'Climb a 6-fight ladder — build your deck as you go · beta', SVG.rogue, "Roguelite.enterRun()");
             })()}
+            ${btn('mm-tournament','Tournament', 'Best-of series vs AI — rotating modifiers · new', trophySVG, "Tournament.enter()")}
             ${btn('mm-tutorial','Tutorial',     'Guided walkthrough — play a scripted round',              helpSVG,      "Tutorial.start()")}
           </div>
         </div>

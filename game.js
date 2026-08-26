@@ -3343,6 +3343,36 @@ const Game = {
       UI.render();
       return;
     }
+    // TOURNAMENT: every match in a series reuses the ONE draft taken at the
+    // start of the series. mode._presetHands = { player:{cards,tricks},
+    // ai:{cards,tricks} } carries the captured draft (card defs + trick defs);
+    // deal those hands straight into play and skip the draft UI, exactly like
+    // the deckbuilder-no-draft path above but on the shared classic pools.
+    if (mode._presetHands) {
+      this.state.phase = 'tournament-start';
+      this.state.draft = null;
+      this.buildDecks();   // classic branch fills the shared draw/trick pools
+      const ph = mode._presetHands;
+      this.state.player.hand = (ph.player.cards || []).map(def => this.createCardInstance(def, 'player'));
+      this.state.ai.hand     = (ph.ai.cards     || []).map(def => this.createCardInstance(def, 'ai'));
+      this.state.player.trickHand = (ph.player.tricks || []).map(t => ({ ...t, id: nextCardId++ }));
+      this.state.ai.trickHand     = (ph.ai.tricks     || []).map(t => ({ ...t, id: nextCardId++ }));
+      // Glass Cannon — both sides open at half HP.
+      if (this.mod('glassCannon')) {
+        this.state.player.health = this.state.player.maxHealth = 15;
+        this.state.ai.health     = this.state.ai.maxHealth     = 15;
+      }
+      // Honor the tournament first/second choice: round 1 is odd, so
+      // firstPlayerForRound(1) returns oddPlayer — set it to whoever chose to go
+      // first for this match.
+      if (mode._firstPlayer === 'player' || mode._firstPlayer === 'ai') {
+        this.state.oddPlayer = mode._firstPlayer;
+      }
+      this.log('[TOURNAMENT] Decks locked in — the match begins.');
+      this.startRound();
+      UI.render();
+      return;
+    }
     // Classic AND deckbuilder-with-draft path. buildDecks already
     // branches on mode.deck, so per-player piles are wired up for
     // the deckbuilder variant; presentDraftChoices reads from
@@ -3427,6 +3457,44 @@ const Game = {
       return this.state[owner].trickDrawPile;
     }
     return this.state.trickDrawPile;
+  },
+
+  // ===================== TOURNAMENT MODIFIERS =====================
+  // A Tournament match carries a modifier on mode._mods (a { name: true } map,
+  // set by tournament.js). mod(name) is the single question every hook asks.
+  // Every modifier is inert unless its flag is on, so nothing here touches a
+  // normal match. The 13 modifiers and where each lives:
+  //   classic        — no flags (baseline)
+  //   powerSurge     — startRound energy ×2                (startRound)
+  //   glassCannon    — both open at 15 HP                  (startMatch preset)
+  //   anarchy        — every card costs 1 less, min 0      (getCardCost)
+  //   bloodBath      — all damage doubled                  (dealDamage/damagePlayer/combat)
+  //   glassJaw       — every card's HP halved (floor)      (createCardInstance)
+  //   chainReaction  — a death deals 1 to adjacent cards   (handleDeath)
+  //   battlefield    — a card takes 1 on being played      (playCard)
+  //   shuffle        — board re-scattered each round        (startRound)
+  //   bounty         — a kill grants the killer +1 energy   (applyKillBounty)
+  //   speed          — 15s turn timer                       (UI)
+  //   kingOfHill     — hold the Hill lane → +1 HP/round     (startRound + _tournamentEndOfRound)
+  //   auction        — pre-match energy auction of 5 cards  (tournament.js; winners land in hand)
+  mod(name) {
+    const m = this.state && this.state.mode && this.state.mode._mods;
+    return !!(m && m[name]);
+  },
+  // Killing an enemy under Bounty Hunter refunds the killer's side +1 energy
+  // right away. Called from every place a card is removed by an opponent
+  // (combat finish, dealDamage lethal, killCard destroy). Idempotent per victim
+  // via a _bountyPaid stamp so one death can't pay twice through two code paths.
+  applyKillBounty(victim, source) {
+    if (!this.mod('bounty') || !victim || !source) return;
+    if (victim._bountyPaid) return;
+    const killerSide = source.owner;
+    if (!killerSide || killerSide === victim.owner) return;   // only enemy kills
+    victim._bountyPaid = true;
+    if (this.state[killerSide]) {
+      this.state[killerSide].currency = (this.state[killerSide].currency || 0) + 1;
+      this.log(`  [BOUNTY] ${this.seatLabel(killerSide)} claims +1 energy for the kill.`);
+    }
   },
 
   buildDecks() {
@@ -4061,7 +4129,8 @@ const Game = {
     // matches that end in 5-6 rounds. User spec: "should just start on
     // round two and then each round we go up to. So two, four, six,
     // eight, 10."
-    const rogueliteEnergyMul = (this.state.mode && this.state.mode._roguelite) ? 2 : 1;
+    // Power Surge doubles the per-round energy, same as the roguelite ramp.
+    const rogueliteEnergyMul = ((this.state.mode && this.state.mode._roguelite) || this.mod('powerSurge')) ? 2 : 1;
     // Relic-driven energy bonus (Battery, Speed Force) — only applies
     // to the player side. Stacks across multiple relics. Pulled from
     // the run state which Roguelite._launchFight refreshed via the
@@ -4130,8 +4199,72 @@ const Game = {
     // legacy side-wide key deleted too for old saves)
     this.getAllCardsOnBoard().forEach(c => { delete c._parlayedThisRound; delete c._parlayedBy; });
     delete this.state._parlayActive;
+    // TOURNAMENT modifiers that fire at the top of every round.
+    this._tournamentStartOfRound();
     // Resolve any upkeep prompts (e.g. Gargantua) before starting the phase.
     this._resolveUpkeepPrompts(() => this.startPhase1());
+  },
+
+  // Shuffle (re-scatter the board) and King of the Hill (pick this round's Hill
+  // lane) both fire at the very start of a round.
+  _tournamentStartOfRound() {
+    // Shuffle — collect every card on the board and deal them back out into a
+    // fresh random set of lanes (keeping each on its own side). Environments and
+    // destroyed/protected lanes are left untouched.
+    if (this.mod('shuffle')) {
+      ['player', 'ai'].forEach(side => {
+        const cards = [];
+        for (let i = 0; i < this.LANE_COUNT; i++) {
+          const ln = this.state.lanes[i];
+          if (ln && ln[side] && ln[side].currentHealth > 0) { cards.push(ln[side]); ln[side] = null; }
+        }
+        // Open lanes on this side (not destroyed).
+        const open = [];
+        for (let i = 0; i < this.LANE_COUNT; i++) {
+          const ln = this.state.lanes[i];
+          if (ln && !ln.destroyed && !ln[side]) open.push(i);
+        }
+        this.shuffle(open);
+        cards.forEach(c => {
+          const lane = open.shift();
+          if (lane != null) this.state.lanes[lane][side] = c;
+          else { const l0 = cards.indexOf(c); /* no open lane — drop back where possible */ }
+        });
+      });
+      this.log('  [SHUFFLE] The battlefield reshuffles — every card lands in a new lane!');
+    }
+    // King of the Hill — designate a random living lane as the Hill for this
+    // round. Controlled at end of round → +1 HP (see _tournamentEndOfRound).
+    if (this.mod('kingOfHill')) {
+      const lanes = [];
+      for (let i = 0; i < this.LANE_COUNT; i++) {
+        const ln = this.state.lanes[i];
+        if (ln && !ln.destroyed) lanes.push(i);
+      }
+      this.state._hillLane = lanes.length ? lanes[Math.floor(this.rng() * lanes.length)] : null;
+      if (this.state._hillLane != null) this.log(`  [KING OF THE HILL] Lane ${this.state._hillLane + 1} is the Hill this round.`);
+    } else {
+      this.state._hillLane = null;
+    }
+  },
+
+  // King of the Hill payout — the side alone on the Hill lane at round's end
+  // gains 1 HP. Called from postCombat.
+  _tournamentEndOfRound() {
+    if (!this.mod('kingOfHill')) return;
+    const hl = this.state._hillLane;
+    if (hl == null) return;
+    const ln = this.state.lanes[hl];
+    if (!ln) return;
+    const p = ln.player && ln.player.currentHealth > 0;
+    const a = ln.ai && ln.ai.currentHealth > 0;
+    let side = null;
+    if (p && !a) side = 'player';
+    else if (a && !p) side = 'ai';
+    if (side && this.state[side]) {
+      this.state[side].health = Math.min(this.state[side].maxHealth || 30, (this.state[side].health || 0) + 1);
+      this.log(`  [KING OF THE HILL] ${this.seatLabel(side)} holds Lane ${hl + 1} — +1 HP.`);
+    }
   },
 
   _resolveUpkeepPrompts(callback) {
@@ -4723,6 +4856,8 @@ const Game = {
 
   getCardCost(owner, card) {
     let cost = Math.max(0, card.cost - this.state[owner].discount);
+    // Anarchy — every card costs 1 less, floored at 0.
+    if (this.mod('anarchy')) cost = Math.max(0, cost - 1);
     const opp = this.opponent(owner);
     this.getAllCardsOf(opp).forEach(c => { if (c.passive === 'enemyCostIncrease') cost += (c._surferCostBump || 1); });
     // Captain America's "WHILE ACTIVE: All cards in your hand cost
@@ -6476,6 +6611,10 @@ const Game = {
     // the card text reads "freezes your HP bar (until triggered)" so
     // letting it carry over across rounds matches intent.
 
+    // TOURNAMENT — King of the Hill payout, before the game-over check so a
+    // Hill point can be the swing that ends (or saves) the match.
+    this._tournamentEndOfRound();
+
     UI.render();
     if (typeof Tutorial !== 'undefined' && Tutorial.active) Tutorial.notify('post-combat', {});
 
@@ -7261,6 +7400,8 @@ const Game = {
     // `| 0` because the resolver runs _coerceCombatStats first and the
     // PREDICTOR does not — a NaN attack would silently make `dies` read false.
     let dmg = attacker.attack | 0;
+    // Blood Bath — cards deal double damage in combat.
+    if (this.mod('bloodBath')) dmg *= 2;
     const etchBonus = this._getEtchAttackBonus(attacker);
     if (etchBonus > 0) {
       const tag = (attacker.hasBerserker && attacker.currentHealth < attacker.maxHealth)
@@ -7630,7 +7771,8 @@ const Game = {
     // swing when the lane is uncontested. A splash-5 attacker with
     // 7 ATK hitting an open lane deals 7 to the HP bar (not 12); the
     // splash then fires to adjacent lanes as its own effect.
-    const uncontestedDmg = this._cardEffectiveAtk(card);
+    let uncontestedDmg = this._cardEffectiveAtk(card);
+    if (this.mod('bloodBath')) uncontestedDmg *= 2;   // cards deal double damage
     this.log(`[LANE ${laneIdx + 1}] ${card.name} (${uncontestedDmg} ATK) is uncontested`);
     // Mark the attacker as having swung BEFORE damagePlayer fires so
     // any block-trick that triggers inside (e.g. Fear Toxin played as
@@ -8437,6 +8579,24 @@ const Game = {
     // the resolve callback either restores the card or re-enters
     // handleDeath to finish the death for real.
     if (this._ironGiantIntercept(card, laneIdx, killer)) return;
+    // TOURNAMENT — Chain Reaction: a confirmed death detonates, dealing 1 to
+    // every card in the two adjacent lanes (both sides). Routed through the
+    // death stack (dealDamage → handleDeath re-entry queues), so a chain that
+    // kills more cards resolves in caused-order without recursing.
+    if (this.mod('chainReaction') && laneIdx >= 0) {
+      let hit = false;
+      [laneIdx - 1, laneIdx + 1].forEach(l => {
+        if (l < 0 || l >= this.LANE_COUNT) return;
+        const ln = this.state.lanes[l];
+        if (!ln) return;
+        [ln.player, ln.ai].forEach(neighbor => {
+          if (neighbor && neighbor.currentHealth > 0) { this.dealDamage(neighbor, 1, card); hit = true; }
+        });
+      });
+      if (hit) this.log(`  [CHAIN REACTION] ${card.name}'s death rocks the adjacent lanes.`);
+    }
+    // TOURNAMENT — Bounty Hunter: the killer's side collects +1 energy.
+    this.applyKillBounty(card, killer);
     // Track the kill for the round recap. Card dying on AI side = player's kill.
     if (this.state._roundStats) {
       const rs = this.state._roundStats;
@@ -9984,6 +10144,8 @@ const Game = {
   dealDamage(card, amount, source) {
     if (!card || card.currentHealth <= 0) return;
     if (card.isEnvironment) return;
+    // Blood Bath — double all card-dealt damage (splash, ability hits, etc.).
+    if (this.mod('bloodBath') && amount > 0) amount *= 2;
     // FACE-DOWN IMMUNITY. Invisible Woman's card text promises face-down cards
     // are "immune to everything until revealed before Tricks", but nothing
     // enforced it — Anti-Life Equation, Darkseid, splash, any trick or ability
@@ -13513,7 +13675,9 @@ const Game = {
     // instance can participate in combat without poisoning state.
     // Caught by the sim/test.js setter-based NaN tracer.
     const safeAtk = (typeof def.attack === 'number' && Number.isFinite(def.attack)) ? def.attack : 0;
-    const safeHp  = (typeof def.health === 'number' && Number.isFinite(def.health) && def.health > 0) ? def.health : 1;
+    let safeHp  = (typeof def.health === 'number' && Number.isFinite(def.health) && def.health > 0) ? def.health : 1;
+    // Glass Jaw — every card enters with half its printed HP (floored, min 1).
+    if (this.mod('glassJaw')) safeHp = Math.max(1, Math.floor(safeHp / 2));
     const card = {
       id: nextCardId++,
       // Marker so drawCards can detect a pre-built card instance vs a
@@ -14863,12 +15027,14 @@ const Game = {
     if (this.isMultiplayer() || this._suppressAbilityUndoPoint ||
         !this.isPlayerTurn() || !this.state || this.state.gameOver) {
       this._runHook(card, 'onPlay', this, card, laneIdx);
+      this._applyBattlefieldDamage(card);
       return;
     }
     const pre = this.cloneStateDeep(this.state);
     pre._undoSeat = card.owner || 'player';
     pre._undoRearm = { cardId: card.id, laneIdx };
     this._runHook(card, 'onPlay', this, card, laneIdx);
+    this._applyBattlefieldDamage(card);
     if (!this._anyPromptArmed()) return;   // nothing was asked — no extra step
     if (this.history.length >= this.HISTORY_LIMIT) this.history.shift();
     this.history.push(pre);
@@ -14876,6 +15042,17 @@ const Game = {
     // own promptless snapshot on top of this one — that entry is the stranded
     // state this whole mechanism exists to stop landing on.
     this.state._abilityChainCard = card.id;
+  },
+
+  // TOURNAMENT — Battlefield: the lane itself bites, so any card takes 1 the
+  // moment it settles in (after its onPlay). Fired once per entrance from the
+  // shared onPlay resolver. dealDamage routes a lethal through handleDeath, so
+  // a 1-HP card that dies on arrival triggers Chain Reaction / Bounty normally.
+  _applyBattlefieldDamage(card) {
+    if (!this.mod('battlefield') || !card || card.currentHealth <= 0) return;
+    if (card.isEnvironment) return;
+    this.log(`  [BATTLEFIELD] The lane scorches ${card.name} for 1.`);
+    this.dealDamage(card, 1, { name: 'Battlefield', owner: card.owner });
   },
 
   // Restore the most recent snapshot. Returns true if anything was restored.

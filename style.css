@@ -45727,3 +45727,150 @@ body.no-art-grade .card-portrait { --art-grade: 1 !important; }
      and the readouts rather than a duplicate of the reserve below it. */
   padding-bottom: calc(var(--card-w) * 0.025) !important;
 }
+
+/* ============================================================
+   TOURNAMENT MODE
+   ============================================================ */
+.tourney-overlay {
+  position: fixed; inset: 0; z-index: 9500;
+  display: flex; align-items: center; justify-content: center;
+  padding: 24px;
+  background: radial-gradient(ellipse at 50% 0%, rgba(10,22,34,0.96), rgba(2,6,12,0.98));
+  backdrop-filter: blur(3px);
+  overflow-y: auto;
+  font-family: 'Rajdhani','Inter',system-ui,sans-serif;
+}
+.tourney-card {
+  width: min(760px, 96vw);
+  background: linear-gradient(180deg, rgba(12,20,30,0.96), rgba(6,10,16,0.98));
+  border: 1.5px solid var(--theme-accent-bright, #4fc3f7);
+  border-radius: 16px;
+  box-shadow: 0 12px 60px rgba(0,0,0,0.85), 0 0 0 1px rgba(79,195,247,0.12), inset 0 0 60px rgba(79,195,247,0.05);
+  padding: 26px 30px 30px;
+  color: #dbe6ef; text-align: center;
+  max-height: 92vh; overflow-y: auto;
+}
+.tourney-kicker {
+  text-transform: uppercase; letter-spacing: 0.22em; font-size: 0.72rem;
+  color: var(--theme-accent-bright, #4fc3f7); font-weight: 700; margin-bottom: 6px;
+}
+.tourney-h1 {
+  font-family: 'Chakra Petch','Rajdhani',sans-serif;
+  font-size: 2rem; font-weight: 700; margin: 2px 0 10px; letter-spacing: 0.02em;
+  color: #f0f6fb; text-shadow: 0 0 18px rgba(79,195,247,0.35);
+}
+.tourney-h1.win  { color: #48e08a; text-shadow: 0 0 18px rgba(72,224,138,0.4); }
+.tourney-h1.lose { color: #ff6b6b; text-shadow: 0 0 18px rgba(255,107,107,0.35); }
+.tourney-lead { color: #9fb2c4; font-size: 1rem; line-height: 1.5; max-width: 60ch; margin: 0 auto 18px; }
+
+/* Scoreboard chip */
+.tourney-score {
+  display: flex; align-items: center; justify-content: center; gap: 14px;
+  margin-bottom: 16px; padding: 8px 14px;
+  background: rgba(0,0,0,0.35); border: 1px solid rgba(79,195,247,0.2); border-radius: 10px;
+  font-weight: 700; letter-spacing: 0.06em;
+}
+.tourney-score .ts-side b { font-size: 1.4rem; margin: 0 4px; }
+.tourney-score .ts-you  { color: #48e08a; }
+.tourney-score .ts-ai   { color: #ff6b6b; }
+.tourney-score .ts-vs   { color: #7f93a6; font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.14em; }
+
+/* Big buttons + choices */
+.tourney-choices { display: flex; gap: 14px; justify-content: center; flex-wrap: wrap; margin-top: 8px; }
+.tourney-bigbtn {
+  appearance: none; cursor: pointer;
+  background: linear-gradient(180deg, rgba(79,195,247,0.16), rgba(79,195,247,0.06));
+  border: 1.5px solid var(--theme-accent-bright, #4fc3f7); border-radius: 12px;
+  color: #eaf4fb; padding: 14px 22px; min-width: 150px;
+  font-family: 'Rajdhani',sans-serif; font-weight: 700; font-size: 1.05rem; letter-spacing: 0.03em;
+  display: inline-flex; flex-direction: column; align-items: center; gap: 2px;
+  transition: transform 0.12s ease, box-shadow 0.12s ease, background 0.12s ease;
+}
+.tourney-bigbtn:hover { transform: translateY(-2px); box-shadow: 0 6px 24px rgba(79,195,247,0.3); background: linear-gradient(180deg, rgba(79,195,247,0.28), rgba(79,195,247,0.1)); }
+.tourney-bigbtn .tb-title { font-size: 1.15rem; }
+.tourney-bigbtn .tb-sub { font-size: 0.78rem; color: #9fb2c4; font-weight: 600; }
+.tourney-continue { margin-top: 18px; }
+.tourney-textbtn {
+  margin-top: 18px; background: none; border: none; color: #7f93a6; cursor: pointer;
+  font-family: 'Rajdhani',sans-serif; font-size: 0.9rem; letter-spacing: 0.04em;
+}
+.tourney-textbtn:hover { color: #cfe0ee; }
+
+/* Number game */
+.tourney-numgrid { display: grid; grid-template-columns: repeat(10, 1fr); gap: 8px; margin: 16px auto; max-width: 560px; }
+.tourney-num {
+  appearance: none; cursor: pointer; aspect-ratio: 1;
+  background: rgba(0,0,0,0.35); border: 1px solid rgba(79,195,247,0.25); border-radius: 8px;
+  color: #cfe0ee; font-family: 'Chakra Petch',monospace; font-weight: 700; font-size: 1.05rem;
+  transition: transform 0.1s ease, background 0.1s ease, border-color 0.1s ease;
+}
+.tourney-num:hover:not(:disabled) { background: rgba(79,195,247,0.22); transform: translateY(-2px); }
+.tourney-num.picked { background: linear-gradient(180deg,#48e08a,#2fae66); color: #04140b; border-color: #48e08a; }
+.tourney-num:disabled { opacity: 0.4; cursor: default; }
+.tourney-numresult { margin-top: 12px; min-height: 40px; }
+.tn-roll { font-size: 1.05rem; color: #cfe0ee; margin-bottom: 8px; }
+.tn-tie { color: #ffcf5c; font-weight: 700; }
+.tn-winner { font-size: 1.2rem; font-weight: 700; margin-bottom: 6px; }
+.tn-winner.win { color: #48e08a; } .tn-winner.lose { color: #ff6b6b; }
+
+/* Modifier picker */
+.tourney-modgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px,1fr)); gap: 10px; margin: 14px 0; text-align: left; }
+.tourney-modtile {
+  appearance: none; cursor: pointer; text-align: left;
+  background: rgba(0,0,0,0.32); border: 1px solid rgba(79,195,247,0.22); border-radius: 10px;
+  padding: 12px 13px; color: #dbe6ef; display: flex; flex-direction: column; gap: 3px;
+  transition: transform 0.1s ease, border-color 0.1s ease, background 0.1s ease;
+}
+.tourney-modtile:hover { transform: translateY(-2px); border-color: var(--theme-accent-bright,#4fc3f7); background: rgba(79,195,247,0.1); }
+.tourney-modtile.sel { border-color: #48e08a; background: rgba(72,224,138,0.14); box-shadow: 0 0 0 1px rgba(72,224,138,0.4); }
+.tmt-icon { font-size: 1.3rem; }
+.tmt-name { font-weight: 700; font-size: 1rem; color: #f0f6fb; letter-spacing: 0.02em; }
+.tmt-desc { font-size: 0.82rem; color: #9fb2c4; line-height: 1.35; }
+.tourney-used { font-size: 0.82rem; color: #7f93a6; margin-bottom: 8px; }
+.tourney-usedchip { display: inline-block; margin: 2px 4px; padding: 2px 8px; border-radius: 20px; background: rgba(0,0,0,0.4); border: 1px solid rgba(127,147,166,0.3); font-size: 0.78rem; }
+.tourney-order { margin-top: 12px; padding-top: 14px; border-top: 1px solid rgba(79,195,247,0.15); }
+.tourney-order-q { color: #cfe0ee; margin-bottom: 10px; }
+.tourney-order-btns { display: flex; gap: 12px; justify-content: center; }
+
+/* Rival's chosen modifier card */
+.tourney-modchosen {
+  margin: 12px auto 6px; max-width: 420px; padding: 18px;
+  background: rgba(255,107,107,0.08); border: 1px solid rgba(255,107,107,0.35); border-radius: 12px;
+}
+.tmc-icon { font-size: 2.4rem; } .tmc-name { font-size: 1.4rem; font-weight: 700; color: #f0f6fb; margin: 4px 0; }
+.tmc-desc { color: #9fb2c4; }
+
+/* Auction */
+.tourney-lot { margin: 12px auto; max-width: 460px; padding: 16px 18px; background: rgba(255,207,92,0.07); border: 1px solid rgba(255,207,92,0.35); border-radius: 12px; }
+.tl-name { font-size: 1.4rem; font-weight: 700; color: #ffcf5c; }
+.tl-stats { color: #cfe0ee; font-weight: 600; margin: 4px 0; }
+.tl-desc { color: #9fb2c4; font-size: 0.9rem; line-height: 1.4; }
+.tourney-bidrow { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; margin: 10px auto; max-width: 460px; }
+.tourney-bid { aspect-ratio: auto; width: 44px; height: 44px; }
+
+/* Final */
+.tourney-final .tourney-trophy { font-size: 4rem; margin: 6px 0; }
+
+/* In-match HUD (persistent series scoreboard) */
+.tourney-hud {
+  position: fixed; top: 8px; left: 50%; transform: translateX(-50%); z-index: 8500;
+  display: flex; align-items: center; gap: 14px;
+  padding: 6px 16px; border-radius: 22px;
+  background: rgba(6,12,20,0.92); border: 1px solid rgba(79,195,247,0.35);
+  box-shadow: 0 4px 20px rgba(0,0,0,0.6);
+  font-family: 'Chakra Petch','Rajdhani',sans-serif; font-size: 0.82rem; letter-spacing: 0.05em;
+  color: #cfe0ee; white-space: nowrap; pointer-events: none;
+}
+.tourney-hud .th-series b { color: #48e08a; }
+.tourney-hud .th-series b + b { color: #ff6b6b; }
+.tourney-hud .th-game { color: #7f93a6; }
+.tourney-hud .th-mod { color: var(--theme-accent-bright,#4fc3f7); font-weight: 700; }
+.tourney-hud .th-timer { color: #ffcf5c; font-weight: 700; }
+.tourney-hud .th-timer.th-urgent { color: #ff6b6b; animation: th-pulse 0.6s ease-in-out infinite; }
+@keyframes th-pulse { 0%,100%{opacity:1;} 50%{opacity:0.5;} }
+
+@media (max-width: 560px) {
+  .tourney-numgrid { grid-template-columns: repeat(5, 1fr); }
+  .tourney-h1 { font-size: 1.5rem; }
+  .tourney-hud { font-size: 0.72rem; gap: 8px; padding: 5px 10px; }
+}
