@@ -14391,15 +14391,13 @@ const UI = {
     const _pname = ((this.settings && this.settings.playerName) || 'YOU').trim().slice(0, 12) || 'YOU';
     const _initials = _pname.split(/[\s._-]+/).filter(Boolean).slice(0, 2)
       .map(w => w[0]).join('').toUpperCase() || _pname.slice(0, 2).toUpperCase();
-    const profileHTML = `
-      <button type="button" class="mm-profile-chip" onclick="UI.openSettings && UI.openSettings()"
-              title="Change your name in Settings">
-        <span class="mm-profile-av">${_initials}</span>
-        <span class="mm-profile-meta">
-          <span class="mm-profile-name">${_pname}</span>
-          <span class="mm-profile-record">Signed in</span>
-        </span>
-      </button>`;
+    // THE LEADERBOARD TAKES THIS SLOT. Owner crossed the YOU / SIGNED IN chip
+    // out and asked for the leaderboard "where the you signed in is".
+    // No loss of function: the chip's only job was opening Settings to change
+    // your name, and the leaderboard's own rename control does exactly that,
+    // in the place where the name actually matters. Settings is still one tap
+    // away on the gear.
+    // _pname / _initials are kept — the codex and the share card read them.
     // Simple question-mark SVG for the tutorial option (no other icon
     // slot conveys "how to play"). Matches the other .mm-svg spec.
     const helpSVG = `<svg class="mm-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M9 9a3 3 0 1 1 4.5 2.6c-.9.5-1.5 1-1.5 2"/><line x1="12" y1="17" x2="12" y2="17.2"/></svg>`;
@@ -14515,7 +14513,6 @@ const UI = {
             ${btn('mm-tools',   'Tools',        'Leaderboard, Audio Audit, Gallery Audit + Sandbox',      SVG.settings, "UI.mmShowSub('tools')")}
           </div>
         </div>
-        ${profileHTML}
         <aside id="mm-lb-rail" class="mm-lb-rail"></aside>${botbarHTML}`;
     };
     this._mmBuildPanel = buildPanel;   // reused by in-place submenu swaps (mmShowSub)

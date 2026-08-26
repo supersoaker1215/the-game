@@ -44760,17 +44760,52 @@ body.no-art-grade .card-portrait { --art-grade: 1 !important; }
 
 /* The art window is a fixed height on the read surfaces, and the card carries a
    card-shaped floor so a two-word card cannot render as a stump. */
+/* FULL ART, AND IT TAKES THE SLACK. Owner: "i want the full art to show not
+   half — revert that change", and "there is a lot of black space there on the
+   card from the text to the bottom of the card."
+
+   Those are one problem. Capping the art at a fixed band did stop the card
+   growing with its art, but it also cropped the painting to a letterbox AND
+   left the leftover height as a void: a card whose rules are one line ended its
+   content 179px above its own stat readouts, because a fixed-height card with
+   short text has to put that space somewhere.
+
+   The art is the right place to put it. The portrait keeps its natural 360/472
+   so nothing is cropped away, and it GROWS into whatever the text does not use —
+   so a one-line card shows a big painting instead of a black gap, and a wall of
+   text still gets its column. The card is a flex column for exactly this; the
+   cost diamond, the stat readouts and the frame layers are all absolutely
+   positioned, so none of them are affected by it. */
+.card.card.draft-card, .card.card.enc-card,
+.card-inspect-modal .card.card,
+.draft-card.trick-draft, .trick-card.trick-draft,
+.rl-pick-cardslot .card.card {
+  display: flex !important;
+  flex-direction: column !important;
+}
 .card.card.draft-card .card-portrait,
 .card.card.enc-card   .card-portrait,
 .card-inspect-modal .card.card .card-portrait,
 .trick-card.trick-draft .card-portrait,
 .draft-card.trick-draft .card-portrait,
-.card-inspect-modal .trick-card .card-portrait {
-  aspect-ratio: auto !important;
-  height: var(--read-art-h) !important;
-  min-height: var(--read-art-h) !important;
-  flex: 0 0 auto !important;
+.card-inspect-modal .trick-card .card-portrait,
+.rl-pick-cardslot .card.card .card-portrait {
+  aspect-ratio: 360 / 472 !important;
+  height: auto !important;
+  min-height: 0 !important;
+  flex: 1 1 auto !important;
 }
+/* everything under the art keeps its own height and stays put */
+.card.card.draft-card .status-badges,
+.card.card.enc-card   .status-badges,
+.card-inspect-modal .card.card .status-badges,
+.draft-card.trick-draft .status-badges,
+.card.card.draft-card .card-desc,
+.card.card.enc-card   .card-desc,
+.card-inspect-modal .card.card .card-desc,
+.draft-card.trick-draft .trick-desc,
+.trick-card.trick-draft .trick-desc,
+.rl-pick-cardslot .card.card .card-desc { flex: 0 0 auto !important; }
 .card.card.draft-card, .card.card.enc-card,
 .card-inspect-modal .card.card,
 .draft-card.trick-draft, .trick-card.trick-draft {
@@ -44845,12 +44880,7 @@ body.no-art-grade .card-portrait { --art-grade: 1 !important; }
   min-height: var(--read-card-h) !important;
   max-height: var(--read-card-h) !important;
 }
-.rl-pick-cardslot .card.card .card-portrait {
-  aspect-ratio: auto !important;
-  height: var(--read-art-h) !important;
-  min-height: var(--read-art-h) !important;
-  flex: 0 0 auto !important;
-}
+
 .rl-pick-cardslot .card.card .card-desc {
   max-height: var(--read-desc-h);
   overflow: hidden;
@@ -45021,4 +45051,24 @@ body.no-art-grade .card-portrait { --art-grade: 1 !important; }
 }
 @media (max-width: 900px) {
   .mm-lb-rail { position: static !important; inset: auto !important; width: 100% !important; }
+}
+
+/* BIGGER READOUTS. Owner: "the damage and health squares need to be larger."
+   They were 32px on a 220px card and never grew when the card went to 320 —
+   .card.draft-card sets a flat `width: 32px; height: 32px`, a pixel value from
+   when the read card was smaller, sitting inside a system where everything else
+   scales from --card-w. At read size they now take the same share of the card
+   the design gives them: .145 of the width, with the digit at .075.
+   The plate, the corner ticks and the colour are untouched — this is the same
+   readout, drawn at the size the card is actually printed at. */
+.card.card.draft-card .stat-circle,
+.card.card.enc-card   .stat-circle,
+.card-inspect-modal .card.card .stat-circle,
+.rl-pick-cardslot .card.card .stat-circle,
+.encyc-grid .card.hand-card.enc-card .stat-circle {
+  width:  calc(var(--card-w) * 0.145) !important;
+  height: calc(var(--card-w) * 0.145) !important;
+  /* the digit keeps the same share of its plate it had at the old size — 32px
+     box, 22px digit, so ~0.66 — rather than shrinking inside a bigger box. */
+  font-size: calc(var(--card-w) * 0.096) !important;
 }
