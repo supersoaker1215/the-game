@@ -11627,6 +11627,14 @@ const Game = {
   setBrainiacSpy(owner, victimSeat, rounds, sourceCard) {
     const n = rounds || this.BRAINIAC_SPY_ROUNDS;
     const tt = this.state && this.state.twoVTwo;
+    // PRE-BANK THE HARVEST. The caster's +1/+1 is granted UP FRONT — one charge
+    // per round the window is open — rather than credited per opponent draw. It
+    // used to be credited when the watched hand drew, but the caster draws
+    // BEFORE the opponent in the same draw phase, so the charge always landed a
+    // round late and inside a 2-round window the caster often never saw it.
+    // (User: "make sure the next card i draw gains that 1/1 because that hasnt
+    // been happening.") Banking on play makes the caster's next `n` draws +1/+1
+    // immediately; the opponent still loses 1/1 per draw via applyBrainiacDrain.
     if (tt && tt.online && victimSeat && tt.players && tt.players[victimSeat]) {
       // The card remembers who played it (_2v2PlayedBy); that beats any global.
       const caster = (sourceCard && sourceCard._2v2PlayedBy)
@@ -11634,10 +11642,14 @@ const Game = {
         || this._2v2SeatForSide(owner);
       if (caster && tt.players[caster]) {
         tt.players[caster]._brainiacSpy = { seat: victimSeat, rounds: n };
+        tt.players[caster]._brainiacHarvest = (tt.players[caster]._brainiacHarvest || 0) + n;
         return caster;
       }
     }
-    if (this.state[owner]) this.state[owner]._brainiacSpy = { rounds: n };
+    if (this.state[owner]) {
+      this.state[owner]._brainiacSpy = { rounds: n };
+      this.state[owner]._brainiacHarvest = (this.state[owner]._brainiacHarvest || 0) + n;
+    }
     return null;
   },
 
@@ -11653,6 +11665,14 @@ const Game = {
     const st = viewerSide && this.state[viewerSide];
     const spy = st && st._brainiacSpy;
     return (spy && spy.rounds > 0) ? spy : null;
+  },
+
+  // The cards the watched hand has DRAWN under the scan so far (snapshots at
+  // their reduced stats), for the reopen view — so the caster can look back at
+  // everything the opponent has pulled instead of trying to remember.
+  brainiacDrawnOf(viewerSeat, viewerSide) {
+    const spy = this.brainiacSpyOf(viewerSeat, viewerSide);
+    return (spy && Array.isArray(spy.drawn)) ? spy.drawn : [];
   },
 
   // { hand, name, rounds } the viewer may currently read, or null. Read fresh
@@ -11750,13 +11770,49 @@ const Game = {
     if (typeof card.baseHealth === 'number') card.baseHealth = Math.max(1, card.baseHealth - this.BRAINIAC_SPY_HP_DRAIN);
     card.currentHealth = Math.max(1, hpBefore - this.BRAINIAC_SPY_HP_DRAIN);
     this.log(`  [BRAINIAC] ${card.name} is drawn under ${watcher}'s scan — ${before}/${hpBefore} → ${card.attack}/${card.currentHealth}.`);
-    // The stripped 1/1 doesn't vanish — it's banked on the CASTER, who pays it
-    // out as +1/+1 on their own next draw (see applyBrainiacHarvest). One charge
-    // per drained card. (User: "the 1/1 the opponents cards lose i want him to
-    // give that 1/1 buff to the next cards you draw.")
-    const holder = this._brainiacWatcherHolder(recipientSeat, recipientSide);
-    if (holder) holder._brainiacHarvest = (holder._brainiacHarvest || 0) + 1;
+    // The caster's +1/+1 is pre-banked on play (see setBrainiacSpy), so no
+    // per-draw credit here — that path landed a round late.
+    // REVEAL THE ACTUAL DRAWN CARD, at its reduced stats, to the caster only,
+    // and log it into the scan's drawn-history so it can be reopened later.
+    // (User: "i just want to see this come up with the card he actually drew
+    // with its reduced stats ... each time he draws a card for the next 2 turns
+    // ... a thing to reopen what he has drawn so the player doesnt forget.")
+    this._brainiacRecordDraw(recipientSeat, recipientSide, card);
     return true;
+  },
+
+  // Snapshot a card just drawn under a scan and push it onto the caster's drawn
+  // history, then surface a one-card reveal on the caster's screen only. Works
+  // in 1v1 (caster is a side) and 2v2 online (caster is a seat; the reveal is
+  // emitted to that seat so a teammate/host never sees the private read).
+  _brainiacRecordDraw(recipientSeat, recipientSide, card) {
+    const holder = this._brainiacWatcherHolder(recipientSeat, recipientSide);
+    if (!holder || !holder._brainiacSpy) return;
+    const snap = { name: card.name, attack: card.attack || 0, currentHealth: card.currentHealth, cost: (card.cost != null ? card.cost : card.baseCost) };
+    (holder._brainiacSpy.drawn = holder._brainiacSpy.drawn || []).push(snap);
+    const tt = this.state && this.state.twoVTwo;
+    if (tt && tt.online) {
+      // Emit to the caster seat only.
+      const casterSeat = this._2v2SLOTS.find(pk => tt.players[pk] === holder);
+      if (casterSeat && this.emitFX) {
+        try { this.emitFX('brainiacDraw', { seat: casterSeat, card: snap, who: this._brainiacSpiedName(holder) }); } catch (e) {}
+      }
+    } else {
+      // 1v1: the caster is a side. Only surface on the local human's screen.
+      const casterSide = (this.state.player && this.state.player._brainiacSpy === holder._brainiacSpy) ? 'player'
+        : (this.state.ai && this.state.ai._brainiacSpy === holder._brainiacSpy) ? 'ai' : null;
+      if (casterSide === 'player' && typeof UI !== 'undefined' && UI._fxBrainiacScan) {
+        try { UI._fxBrainiacScan([snap], this._brainiacSpiedName(holder), 'drew a card', false); } catch (e) {}
+      }
+    }
+  },
+  // The display name of the hand a caster is watching (for the reveal header).
+  _brainiacSpiedName(holder) {
+    const spy = holder && holder._brainiacSpy;
+    if (!spy) return 'Opponent';
+    const tt = this.state && this.state.twoVTwo;
+    if (tt && tt.online && spy.seat && tt.players[spy.seat]) return tt.players[spy.seat].name || spy.seat;
+    return this.seatLabel(this.opponent(holder === this.state.player ? 'player' : 'ai'));
   },
 
   // Pay a banked scan charge onto a card the CASTER draws: +1/+1, one charge per

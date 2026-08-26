@@ -41390,7 +41390,7 @@ body.low-fx .badge-asleep { animation: none; }
   background-color: #000000;
 }
 .brainiac-reveal-name {
-  padding: 8px 6px 10px;
+  padding: 8px 6px 4px;
   font-size: 13px;
   font-weight: 700;
   color: #eafff2;
@@ -41398,6 +41398,15 @@ body.low-fx .badge-asleep { animation: none; }
   overflow: hidden;
   text-overflow: ellipsis;
 }
+/* Reduced stats the card arrived with under the scan (−1/−1). */
+.brainiac-reveal-stats {
+  display: flex; justify-content: center; gap: 10px;
+  padding: 0 6px 9px; font-weight: 800; font-size: 13px;
+}
+.brainiac-reveal-stats .brs-atk { color: #7ee8a5; }
+.brainiac-reveal-stats .brs-hp  { color: #ff8f8f; }
+.brainiac-reveal-stats .brs-atk::before { content: '⚔ '; opacity: 0.7; font-weight: 600; }
+.brainiac-reveal-stats .brs-hp::before  { content: '♥ '; opacity: 0.7; font-weight: 600; }
 .brainiac-reveal-order {
   position: absolute;
   top: 6px;

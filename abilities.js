@@ -1563,16 +1563,12 @@ const CARD_ABILITIES = {
         const view = G.brainiacSpiedHand(caster, caster ? null : owner);
         const who = view ? view.name : (G.seatPossessive ? G.seatPossessive(G.opponent(owner)) : 'the opponent');
         G.log(`[BRAINIAC] Brainiac opens ${who}'s hand for ${G.BRAINIAC_SPY_ROUNDS} rounds — everything they draw arrives at −1/−1.`);
-        // The centre-screen reveal is a PING for the person who cast it, so it
-        // fires only on that person's own client. In 2v2 online the host runs
-        // every seat's abilities, so gating on the side would have shown the
-        // host a guest's private read.
-        const localIsCaster = (tt && tt.online)
-          ? (!!caster && tt.you === caster)
-          : (owner === 'player');
-        if (localIsCaster && view && typeof UI !== 'undefined' && UI._fxBrainiacScan) {
-          try { UI._fxBrainiacScan(view.hand, view.name); } catch (e) {}
-        }
+        // NO whole-hand dump on play any more. The reveal now fires per DRAW —
+        // each card the watched hand pulls pops on the caster's screen at its
+        // reduced stats (Game._brainiacRecordDraw), and the persistent scan strip
+        // shows the live hand and reopens the drawn history. (User: "i just want
+        // to see this come up with the card he actually drew ... each time he
+        // draws a card for the next 2 turns.")
         // ANNOUNCE IT. The scan itself is private — that is the point of the
         // card — but a two-round window that nobody is told about is
         // indistinguishable from nothing having happened, and Brainiac is a

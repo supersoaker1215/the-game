@@ -11495,6 +11495,18 @@ const UI = {
         }
         continue;
       }
+      // Brainiac per-draw reveal — the ONE card the watched hand just drew, at
+      // its reduced stats, shown ONLY on the caster's screen. Unlike the scan
+      // announce above, the host does NOT show this live (the engine emits it for
+      // every seat), so it fires for whichever client owns ev.seat — host or
+      // guest alike. Nobody else sees the private read.
+      if (ev.type === 'brainiacDraw') {
+        const tt = Game.state && Game.state.twoVTwo;
+        if (tt && ev.seat && ev.seat === tt.you && ev.card && this._fxBrainiacScan) {
+          try { this._fxBrainiacScan([ev.card], ev.who || 'Opponent', 'drew a card', false); } catch (e) {}
+        }
+        continue;
+      }
       // Iron Giant sacrifice reveal — guests only (the host already showed it
       // live in doSave). Mirrors trickReveal: audio cue + the card reveal.
       if (ev.type === 'ironGiantSave') {
@@ -22747,6 +22759,16 @@ const UI = {
     const view = (typeof Game !== 'undefined' && Game.brainiacSpiedHand)
       ? Game.brainiacSpiedHand(mySeat, mySeat ? null : mySide) : null;
     if (!view) return;
+    // Reopen shows the cards the opponent has DRAWN under the scan (at their
+    // reduced stats) — the history the per-draw reveals built up — so the player
+    // can look back at everything pulled. Falls back to the live hand if nothing
+    // has been drawn yet.
+    const drawn = (typeof Game.brainiacDrawnOf === 'function')
+      ? Game.brainiacDrawnOf(mySeat, mySeat ? null : mySide).filter(c => c && c.name) : [];
+    if (drawn.length) {
+      this._fxBrainiacScan(drawn, view.name, `${view.name} has drawn ${drawn.length} card${drawn.length === 1 ? '' : 's'} · ${view.rounds} round${view.rounds === 1 ? '' : 's'} left`, true);
+      return;
+    }
     const hand = (view.hand || []).filter(c => c && c.name);
     if (!hand.length) return;
     this._fxBrainiacScan(hand, view.name, `${view.name}'s hand · ${view.rounds} round${view.rounds === 1 ? '' : 's'} left`, true);
@@ -22776,11 +22798,15 @@ const UI = {
     const cards = upcoming.map((c, idx) => {
       const art = this.getCardArtPath ? this.getCardArtPath(c.name) : '';
       const cost = (c.cost != null ? c.cost : (c.baseCost != null ? c.baseCost : ''));
+      // Show the REDUCED stats the card arrived with (−1/−1 under the scan), so
+      // the caster sees exactly what they'll be facing, not the printed values.
+      const hasStats = (typeof c.attack === 'number' && typeof c.currentHealth === 'number');
       return `<div class="brainiac-reveal-card" style="--i:${idx}">`
         + `<span class="brainiac-reveal-order">${idx + 1}</span>`
         + (cost !== '' ? `<span class="brainiac-reveal-cost">${esc(cost)}</span>` : '')
         + (art ? `<div class="brainiac-reveal-art" style="background-image:url('${esc(art)}')"></div>` : '<div class="brainiac-reveal-art"></div>')
         + `<div class="brainiac-reveal-name">${esc(c.name)}</div>`
+        + (hasStats ? `<div class="brainiac-reveal-stats"><span class="brs-atk">${c.attack}</span><span class="brs-hp">${c.currentHealth}</span></div>` : '')
         + `</div>`;
     }).join('');
     overlay.innerHTML = `<div class="brainiac-reveal-inner">`
