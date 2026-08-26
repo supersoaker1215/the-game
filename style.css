@@ -45235,3 +45235,38 @@ body.no-art-grade .card-portrait { --art-grade: 1 !important; }
   padding-bottom: calc(var(--card-w) * 0.145 + var(--card-w) * 0.091
                        + var(--card-w) * 0.055) !important;
 }
+
+/* ============================================================
+   THE RIBBON IS ONE BLACK PLATE WITH ONE OUTLINE (2026-08-26)
+   ============================================================
+   Owner: "i want the corner to be the same object and the ribbon itself i want
+   to be black with no border lines showing underneath."
+
+   Both halves were true and both were construction, not colour.
+
+   THE FILL was `linear-gradient(135deg, rgba(--cf-rgb,.18), rgba(4,6,10,.88),
+   rgba(4,6,10,.92))` — tinted at the cut and never fully opaque. At 0.88 the
+   frame's own top and left borders read straight through it, which is the
+   "border lines showing underneath": not lines drawn on the ribbon, lines
+   drawn UNDER it and visible because it was glass. Pure #000, which is what
+   every other panel interior in this game is anyway.
+
+   THE OUTLINE was two different objects meeting at the corner. `.cf-cut-tl`
+   became a two-tone line when the cut edges were made to match the straight
+   ones — colour plus a white core — while `.cf-band-diag` stayed what it had
+   always been: a flat single-tone bar of --cf-stroke. So the chamfer arrived at
+   the ribbon lit and left it flat, and the corner read as parts. Same height,
+   same gradient, same core on the same side: one line that happens to change
+   angle. */
+.card .cf-band, .trick-card .cf-band,
+.card.card .cf-band, .card.card.draft-card .cf-band,
+.card.card.enc-card .cf-band, .trick-card.trick-card .cf-band {
+  background: #000 !important;
+}
+.card .cf-band-diag, .trick-card .cf-band-diag {
+  height: calc(var(--cf-stroke) + var(--cf-core, 0px)) !important;
+  background: linear-gradient(to top,
+    rgb(var(--cf-rgb)) 0, rgb(var(--cf-rgb)) var(--cf-stroke),
+    rgba(var(--frame-core-rgb), 0.9) var(--cf-stroke),
+    rgba(var(--frame-core-rgb), 0.9) 100%) !important;
+}
