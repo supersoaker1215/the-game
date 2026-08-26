@@ -44365,3 +44365,35 @@ body.no-art-grade .card-portrait { --art-grade: 1 !important; }
   top:  calc(var(--cf-inset) + var(--chamfer) / 2
              - var(--cf-stroke) / 2 + var(--cf-stroke) * 0.5);
 }
+
+/* ============================================================
+   TRIGGER LABELS GO NEON (2026-08-25)
+   ============================================================
+   Owner: "the on play, passive, before tricks, when destroyed etc, any title
+   text i want neon highlighted more than the other text like the keywords."
+
+   They were the DIMMEST thing in the panel — I had them at 0.85 alpha of the
+   frame colour with no glow, under body copy sitting at full strength. That
+   is backwards: the label is what you scan to find the effect you care about,
+   so it should out-burn the sentence it introduces.
+
+   Full frame colour now, plus a three-stop glow that is deliberately hotter
+   than the keyword treatment (keywords get one 7px stop; these get a 1px
+   white core, a 6px saturated ring and a 14px halo). Applied through .cd-trig
+   AND the bare <b>, because the two renderers differ — makeCardEl emits
+   .cd-trig, some surfaces emit a plain <b> — and targeting one would have
+   left the other flat, the same split that had the tray keeping its rarity
+   pips this morning. */
+.card .card-desc .cd-trig,
+.card .card-desc > b,
+.trick-card .trick-desc b,
+.card.card.draft-card .card-desc .cd-trig,
+.card.card.enc-card   .card-desc .cd-trig,
+.card-inspect-modal .card.card .card-desc .cd-trig {
+  color: rgb(var(--cf-rgb, var(--portrait-frame-rgb, 255,210,74))) !important;
+  text-shadow:
+    0 0 1px  rgba(255,255,255,0.85),
+    0 0 6px  rgba(var(--cf-rgb, var(--portrait-frame-rgb, 255,210,74)), 0.95),
+    0 0 14px rgba(var(--cf-rgb, var(--portrait-frame-rgb, 255,210,74)), 0.45) !important;
+  font-weight: 700 !important;
+}
