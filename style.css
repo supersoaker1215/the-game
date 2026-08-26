@@ -17,7 +17,12 @@
      Tokenised on the way past. There were 287 hardcoded copies of the old
      triple and no token at all, which is why it could not be changed without
      a sweep; the next change is one line. */
-  --gold-rgb: 255, 210, 74;        /* #ffd24a — frame-legendary, per the handoff token table */
+  /* The canvas note is explicit and more specific than the token table:
+     "the frame stroke is now #f5bf1c and the text gold #ffd24a". So the two
+     split — chrome takes the deeper, more saturated stroke gold, TEXT takes
+     the lighter one. Setting both to #ffd24a (which the token table's single
+     `frame-legendary` row implied) is what made the frame read washed out. */
+  --gold-rgb: 245, 191, 28;        /* #f5bf1c — frame stroke, chrome, glow */
   --gold-core-rgb: 255, 243, 200;  /* #fff3c8 — frame-core, the hot core inside the stroke */
   --gold-label-rgb: 255, 224, 122; /* #ffe07a — gold-label, ON PLAY + section labels */
 
@@ -43827,3 +43832,86 @@ body.no-art-grade .card-portrait { --art-grade: 1 !important; }
 }
 .trick-card .card-cost::before,
 .trick-card .card-cost::after { display: none !important; }
+
+/* ============================================================
+   DRAFT / TAP-TO-READ / CODEX — ITS OWN LADDER (2026-08-25)
+   ============================================================
+   Owner: "the draft, tap and codex still dont look exactly like this."
+
+   Because I had been scaling the HAND card's ratios up to the draft width.
+   The spec table gives the read state its own column and the numbers are not
+   proportional to the small states — the frame gets thicker relative to the
+   card, and the band and chamfer get RELATIVELY SMALLER. That is the whole
+   point of a ladder rather than a scale factor:
+
+     550-wide column        as ratio     vs the hand card's
+     frame inset  16px       0.0291       0.0343
+     stroke        3px       0.00545      0.00571   + a 1px hot core
+     chamfer      34px       0.0618       0.080
+     band box    116px       0.2109       0.297
+     band outer  100px       0.1818       0.263
+     band mid     67px       0.1218       (34+100)/2, checks out
+     cost digit   32px       0.0582       0.0857
+     stat digit   38px       0.0691       0.0914
+     rarity line  26px inset 0.0473       dropped at small sizes
+     glow stops   2 / 13 / 48
+
+   The band is the biggest miss: at 0.263 it was 45% too large, which is why
+   the corner read as a slab rather than a band. */
+.card.card.draft-card, .card.card.enc-card,
+.card-inspect-modal .card.card, .fp-trick-preview .card.card {
+  --card-w:    220px;
+  --cf-inset:  calc(var(--card-w) * 0.0291);
+  --cf-stroke: calc(var(--card-w) * 0.00545);
+  --cf-core:   calc(var(--card-w) * 0.00182);
+  --chamfer:   calc(var(--card-w) * 0.0618);
+  --band-box:  calc(var(--card-w) * 0.2109);
+  --band-out:  calc(var(--card-w) * 0.1818);
+  --band-mid:  calc(var(--card-w) * 0.1218);
+  /* the read state's own glow stops, 2 / 13 / 48 */
+  filter:
+    drop-shadow(0 0 calc(var(--card-w) * 0.0036) rgba(var(--gold-core-rgb), 0.85))
+    drop-shadow(0 0 calc(var(--card-w) * 0.0236) rgba(var(--cf-rgb), 0.50))
+    drop-shadow(0 0 calc(var(--card-w) * 0.0873) rgba(var(--cf-rgb), 0.20)) !important;
+}
+/* "A near-white line inside the stroke is what sells neon at read size, but it
+   needs a 2px stroke to sit in." — the design's own note on why the core
+   appears at draft and not on the small states. */
+.card.card.draft-card .cf-edge,
+.card.card.enc-card   .cf-edge,
+.card-inspect-modal .card.card .cf-edge,
+.fp-trick-preview   .card.card .cf-edge {
+  box-shadow: inset 0 0 0 var(--cf-core) rgba(var(--gold-core-rgb), 0.9);
+}
+/* the legendary inner hairline, inset 26px — dropped on hand and board
+   because "at 1px on a 175px card it reads as a smudge" */
+.card.card.draft-card .cf-frame::after,
+.card.card.enc-card   .cf-frame::after {
+  content: '';
+  position: absolute;
+  inset: calc(var(--card-w) * 0.0473 - var(--cf-inset));
+  border: 1px solid rgba(var(--cf-rgb), 0.22);
+  clip-path: polygon(
+    var(--chamfer) 0, 100% 0,
+    100% calc(100% - var(--chamfer)), calc(100% - var(--chamfer)) 100%,
+    0 100%, 0 var(--chamfer));
+  pointer-events: none;
+}
+/* read-state type: cost 32/550, stat digit 38/550 */
+.card.card.draft-card .card-cost,
+.card.card.enc-card   .card-cost,
+.card-inspect-modal .card.card .card-cost,
+.fp-trick-preview   .card.card .card-cost {
+  font-size: calc(var(--card-w) * 0.0582) !important;
+}
+.card.card.draft-card .stat-circle,
+.card.card.enc-card   .stat-circle {
+  font-size: calc(var(--card-w) * 0.0691) !important;
+}
+/* the name takes the frame colour, and at read size it is the loudest thing
+   on the card: 54/550 with .02em tracking */
+.card.card.draft-card .card-name-overlay .cn-text,
+.card.card.enc-card   .card-name-overlay .cn-text {
+  font-size: calc(var(--card-w) * 0.0982) !important;
+  letter-spacing: 0.02em !important;
+}
