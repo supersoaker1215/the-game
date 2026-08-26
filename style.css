@@ -44321,3 +44321,47 @@ body.no-art-grade .card-portrait { --art-grade: 1 !important; }
   height: var(--cf-stroke) !important;
   background: rgb(var(--cf-rgb)) !important;
 }
+
+/* ============================================================
+   TWO LAST ONES (2026-08-25)
+   ============================================================
+   1. BODY COPY LEFT-ALIGNED, LIKE ITS LABEL. `text-align: left` was on
+      .card-desc, but the renderer wraps each trigger+effect pair in a
+      `.cd-row` span that carries `text-align: center` of its own — so the
+      labels I had targeted directly went left while every line of actual
+      rules text stayed centred. Setting it on the container was never going
+      to reach them.
+
+   2. THE TOP-LEFT CUT WAS DIMMED, NOT MISSING. It sits inside .cf-frame at
+      z-index 5, and the band now paints at 6 — so the band's 88%-opaque dark
+      fill was lying over that one diagonal and knocking it back, while the
+      rest of the frame stayed full strength. It is the same layer problem the
+      band's own diagonal had, and it takes the same answer: out of .cf-frame,
+      sibling after the band, z-index 7. Coordinates are unchanged apart from
+      adding --cf-inset, because it now measures from the card rather than
+      from the frame. */
+.card.card.draft-card .card-desc .cd-row,
+.card.card.enc-card   .card-desc .cd-row,
+.card-inspect-modal .card.card .card-desc .cd-row {
+  text-align: left !important;
+}
+.card.card.draft-card .card-desc .cd-eff,
+.card.card.enc-card   .card-desc .cd-eff,
+.card-inspect-modal .card.card .card-desc .cd-eff {
+  text-align: left !important;
+  display: block;
+}
+.card .cf-cut-tl, .trick-card .cf-cut-tl {
+  position: absolute;
+  z-index: 7;
+  width: calc(var(--chamfer) * var(--sqrt2));
+  height: var(--cf-stroke);
+  background: rgb(var(--cf-rgb));
+  transform: rotate(-45deg);
+  pointer-events: none;
+  left: calc(var(--cf-inset)
+             + (var(--chamfer) * var(--sqrt2) - var(--chamfer)) / -2
+             + var(--cf-stroke) * 0.5);
+  top:  calc(var(--cf-inset) + var(--chamfer) / 2
+             - var(--cf-stroke) / 2 + var(--cf-stroke) * 0.5);
+}
