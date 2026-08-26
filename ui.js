@@ -22402,10 +22402,18 @@ const UI = {
       j.key = this._cnPlateKey(j.el, plate);
     });
     jobs.forEach(j => {
-      const fit = (j.natural > 0 && j.avail > 0 && j.natural > j.avail + this.CN_FIT_SLOP)
-        ? Math.max(this.CN_FIT_MIN, (j.avail - this.CN_FIT_PAD) / j.natural)
+      const need = (j.natural > 0 && j.avail > 0 && j.natural > j.avail + this.CN_FIT_SLOP)
+        ? (j.avail - this.CN_FIT_PAD) / j.natural
         : 1;
+      const fit = Math.max(this.CN_FIT_MIN, need);
       if (fit < 1) j.el.style.setProperty('--cn-fit', fit.toFixed(4));
+      // Pinned at the floor and STILL too wide — a very long name on a very
+      // narrow plate. Shrinking further would cost legibility, which is the
+      // whole reason the floor exists, so the name wraps to a second line
+      // instead of running off the card. Nothing in the current 157-name corpus
+      // reaches this on a real surface; it is here so that the failure mode of
+      // a future long name is two lines rather than a name with its tail cut.
+      j.el.classList.toggle('cn-wrap', need < this.CN_FIT_MIN);
       j.el.dataset.cnFit = j.key;
     });
     // Verify what actually painted. Every guard above is a PREDICTION about when
@@ -22435,13 +22443,22 @@ const UI = {
         const painted = el.getBoundingClientRect().width;
         if (painted <= avail + this.CN_FIT_SLOP) return;
         const cur = parseFloat(el.style.getPropertyValue('--cn-fit')) || 1;
-        const next = Math.max(this.CN_FIT_MIN, cur * ((avail - this.CN_FIT_PAD) / painted));
-        if (next >= cur) return;             // already at the floor
+        const ideal = cur * ((avail - this.CN_FIT_PAD) / painted);
+        const next = Math.max(this.CN_FIT_MIN, ideal);
+        // The wrap flag has to be decided HERE as well as in the first pass. It
+        // was only set there, from the ratio the first measurement produced —
+        // so a name that looked like it would just fit, and only turned out not
+        // to once refined down to the floor, was left pinned at the floor with
+        // wrapping still off, and overflowed. One case in 1006.
+        const wrap = ideal < this.CN_FIT_MIN;
+        const changed = wrap !== el.classList.contains('cn-wrap') || next < cur;
+        if (!changed) return;
+        el.classList.toggle('cn-wrap', wrap);
         fixed.push({ el, next, key: this._cnPlateKey(el, avail) });
       });
       if (!fixed.length) return;
       fixed.forEach(f => {
-        f.el.style.setProperty('--cn-fit', f.next.toFixed(4));
+        if (f.next < 1) f.el.style.setProperty('--cn-fit', f.next.toFixed(4));
         f.el.dataset.cnFit = f.key;
       });
       this._refineCardNameFit(fixed.map(f => f.el), round + 1);

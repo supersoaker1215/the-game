@@ -6881,12 +6881,7 @@ body.hit-pause .ai-hand * {
   font-size: 9px;
   padding: 4px 6px;
 }
-.card.enemy-card .card-desc b {
-  color: rgba(var(--portrait-frame-rgb, 231,76,60), 1) !important;
-  text-shadow:
-    0 0 4px rgba(var(--portrait-frame-rgb, 231,76,60), 0.75),
-    0 0 8px rgba(var(--portrait-frame-rgb, 231,76,60), 0.40);
-}
+/* (superseded — see the single trigger-label rule at the end of this file) */
 /* "Can be played during the Trick Phase" passive line — stripped from the
    body copy by formatDesc() and appended here as a footer. Same blue as
    the "WHEN PLAYED:" trigger labels, with a thin dim divider above to
@@ -6929,31 +6924,14 @@ body.hit-pause .ai-hand * {
   color: #ffd77a;
   text-shadow: 0 0 4px rgba(var(--gold-rgb),0.70), 0 0 8px rgba(var(--gold-rgb),0.35);
 }
-/* Hand cards: labels follow the rarity tier so draft/hand states stay
-   visually consistent with the rest of the tier language. */
-.card.hand-card.cost-0 .card-desc b,
-.card.hand-card.cost-1 .card-desc b,
-.card.hand-card.cost-2 .card-desc b,
-.card.hand-card.cost-3 .card-desc b {
-  color: #8ef2ad !important;
-  text-shadow: 0 0 4px rgba(46,204,113,0.80), 0 0 8px rgba(46,204,113,0.40);
-}
-.card.hand-card.cost-4 .card-desc b,
-.card.hand-card.cost-5 .card-desc b,
-.card.hand-card.cost-6 .card-desc b {
-  color: #9adcff !important;
-  text-shadow: 0 0 4px rgba(79,195,247,0.80), 0 0 8px rgba(79,195,247,0.40);
-}
-.card.hand-card.cost-7 .card-desc b,
-.card.hand-card.cost-8 .card-desc b {
-  color: var(--text-body, #f5fbff) !important;
-  text-shadow: 0 0 4px rgba(240,245,250,0.95), 0 0 8px rgba(240,245,250,0.55);
-}
-.card.hand-card.cost-9 .card-desc b,
-.card.hand-card.cost-10 .card-desc b {
-  color: #ffe066 !important;
-  text-shadow: 0 0 4px rgba(var(--gold-rgb),0.90), 0 0 8px rgba(var(--gold-rgb),0.50);
-}
+/* The per-cost-tier label ramp that stood here — four groups hard-coding
+   #8ef2ad / #9adcff / #f5fbff / #ffe066 — is retired. It was written before
+   --portrait-frame-rgb existed and spelled out, in hexes, the same tier the
+   frame colour already carries; --cf-rgb resolves to exactly these four tiers
+   in hand and to the SIDE colour on the board, so one rule at the end of this
+   file now says what six said. Its real cost was not duplication: at (0,4,0)
+   with !important it out-specified the neon treatment, so "labels brighter than
+   the body" landed on the read state and nowhere else. */
 
 /* Moder — stripped card visual: greyed core, clear "stripped" text */
 .card.moder-stripped {
@@ -15180,18 +15158,10 @@ body {
    mixing with white — user direction: "all the text be that one
    color". The side-glow text-shadow stays so the label still anchors
    visually against the painting. */
-.card.ally-card .card-desc b {
-  color: rgba(var(--portrait-frame-rgb, 79,195,247), 1) !important;
-  text-shadow:
-    0 0 4px var(--player-accent-bright),
-    0 0 8px var(--player-glow-outer) !important;
-}
-.card.enemy-card .card-desc b {
-  color: rgba(var(--portrait-frame-rgb, 231,76,60), 1) !important;
-  text-shadow:
-    0 0 4px var(--enemy-accent-bright),
-    0 0 8px var(--enemy-glow-outer) !important;
-}
+/* The board's ally/enemy label colours are retired for the same reason: they
+   read --portrait-frame-rgb, which is exactly what --cf-rgb falls back to, so
+   the one rule below reproduces them and adds the neon the rest of the game
+   now has. */
 /* Desc body halo — side glow */
 .card.ally-card .card-desc {
   text-shadow:
@@ -26538,14 +26508,23 @@ body.killing-blow-cinema::after {
    Flash the when played should be yellow, for Thug it should be
    blue, etc." Default is cyan via .card-desc b — these tier-scoped
    rules win on roguelite cards. */
-.card.hand-card.rl-tier-common .card-desc b,
-.rl-tier-common .card.hand-card .card-desc b       { color: #5be39a !important; text-shadow: 0 0 4px rgba(46,204,113,0.70), 0 0 8px rgba(46,204,113,0.35) !important; }
-.card.hand-card.rl-tier-rare .card-desc b,
-.rl-tier-rare .card.hand-card .card-desc b         { color: #7fd0ff !important; text-shadow: 0 0 4px rgba(var(--theme-rgb, 79,195,247),0.70), 0 0 8px rgba(var(--theme-rgb, 79,195,247),0.35) !important; }
-.card.hand-card.rl-tier-special .card-desc b,
-.rl-tier-special .card.hand-card .card-desc b      { color: var(--text-body, #e8eef6) !important; text-shadow: 0 0 4px rgba(240,245,250,0.70), 0 0 8px rgba(240,245,250,0.35) !important; }
-.card.hand-card.rl-tier-legendary .card-desc b,
-.rl-tier-legendary .card.hand-card .card-desc b    { color: #ffe066 !important; text-shadow: 0 0 4px rgba(var(--gold-rgb),0.70), 0 0 8px rgba(var(--gold-rgb),0.35) !important; }
+/* The roguelite rarity ramp used to re-state its four colours here as a fifth
+   independent label family. It is now expressed ONCE, as the frame colour, and
+   the single trigger-label rule at the end of the file reads it — along with the
+   chips and the name, which is what it is really for.
+   That also fixes a mismatch the ramp could not see: it keyed on rarity alone,
+   so a cost-4 COMMON drew a blue border and a green label. --cf-rgb is set on
+   exactly the cards whose border the rarity actually paints (hand-cards, per the
+   border rule ~40 lines up); a roguelite card on the BOARD keeps its side colour,
+   because on the board side is what the border shows. */
+.rl-tier-common    .card.hand-card,
+.card.hand-card.rl-tier-common    { --cf-rgb: 46,204,113; }
+.rl-tier-rare      .card.hand-card,
+.card.hand-card.rl-tier-rare      { --cf-rgb: var(--theme-rgb, 79,195,247); }
+.rl-tier-special   .card.hand-card,
+.card.hand-card.rl-tier-special   { --cf-rgb: 240,245,250; }
+.rl-tier-legendary .card.hand-card,
+.card.hand-card.rl-tier-legendary { --cf-rgb: var(--gold-rgb); }
 
 /* In-game (hand + board) rarity tinting — kicks in only on cards
    inside the codex / deck list / rewards modals. User direction:
@@ -44386,17 +44365,40 @@ body.no-art-grade .card-portrait { --art-grade: 1 !important; }
    .cd-trig, some surfaces emit a plain <b> — and targeting one would have
    left the other flat, the same split that had the tray keeping its rarity
    pips this morning. */
+/* ONE trigger-label rule, for every card on every surface (2026-08-26).
+   Owner: "all cards everywhere and codex and rougelite and deck builder."
+
+   This replaces SIX rules that each said the same thing in a different place —
+   four hard-coded cost tiers on hand cards and two side colours on the board —
+   all of which are just --cf-rgb spelled out longhand. Retiring them is not
+   tidying: at (0,4,0) with !important the tier ramp beat the neon treatment, so
+   the brighter labels shipped on the draft and the codex and were invisible in
+   hand, on the board, in the deck builder and in roguelite. One rule cannot
+   have that failure mode.
+
+   Every surface routes through makeCardEl / makeTrickEl and every card carries
+   --cf-rgb, which resolves to the rarity tier in hand, draft, codex, deck
+   builder and roguelite, and to the SIDE colour on the board. So one selector
+   reaches all of them and each still reads in its own colour.
+
+   The glow is set in em, not px, because these labels render at 9px on a board
+   tile and 11px in the read panel; a fixed 14px halo that looks right on one is
+   a smear on the other. */
 .card .card-desc .cd-trig,
 .card .card-desc > b,
+.card.card .card-desc .cd-trig,
+.card.card .card-desc > b,
 .trick-card .trick-desc b,
+.trick-card .card-desc .cd-trig,
+.trick-card .card-desc > b,
 .card.card.draft-card .card-desc .cd-trig,
 .card.card.enc-card   .card-desc .cd-trig,
 .card-inspect-modal .card.card .card-desc .cd-trig {
   color: rgb(var(--cf-rgb, var(--portrait-frame-rgb, 255,210,74))) !important;
   text-shadow:
-    0 0 1px  rgba(255,255,255,0.85),
-    0 0 6px  rgba(var(--cf-rgb, var(--portrait-frame-rgb, 255,210,74)), 0.95),
-    0 0 14px rgba(var(--cf-rgb, var(--portrait-frame-rgb, 255,210,74)), 0.45) !important;
+    0 0 1px    rgba(255,255,255,0.85),
+    0 0 0.60em rgba(var(--cf-rgb, var(--portrait-frame-rgb, 255,210,74)), 0.95),
+    0 0 1.40em rgba(var(--cf-rgb, var(--portrait-frame-rgb, 255,210,74)), 0.45) !important;
   font-weight: 700 !important;
 }
 
@@ -44495,4 +44497,63 @@ body.no-art-grade .card-portrait { --art-grade: 1 !important; }
   background: none !important;
   box-shadow: none !important;
   opacity: 1 !important;
+}
+
+/* ============================================================
+   ONE CHIP RULE, EVERY CARD, EVERY SURFACE (2026-08-26)
+   ============================================================
+   Owner: "push for 2v2 draft and all 2v2, and all cards everywhere and codex
+   and rougelite and deck builder."
+
+   The frame colour was reaching chips only on the draft, the codex and the
+   inspect modal, because those were the three selectors the read-state block
+   was built on. Everywhere else — the hand, the board, the deck builder grid,
+   every roguelite reward and shop card, the dead pile, the trick tray — a chip
+   still painted its own keyword hue, so EVADE was pale green on a green card
+   and BULLSEYE was white on it.
+
+   This supersedes the exception I made last commit, where in-match hand and
+   board badges kept their distinct colours: "everywhere" is the instruction and
+   a per-surface carve-out is exactly the inconsistency being complained about.
+   Distinct keyword colour is not lost — it survives where it was asked for, on
+   the keywords in the BODY TEXT, and every chip still carries its icon and its
+   word.
+
+   The .badge-* colour tokens are deliberately left in place rather than swept:
+   they are now inert under this rule, and they are also the one-line way back
+   if the in-match board should ever want colour-coded chips again.
+
+   2v2 needs no selector of its own — its draft routes through _draftCardHTML
+   and its board through makeCardEl, so it has been inheriting all of this from
+   `.card` the whole time. Verified, not assumed. */
+.card .status-badge,
+.card.card .status-badge,
+.trick-card .status-badge,
+.draft-card .status-badge,
+.db-pick-card .status-badge,
+.dead-pile-card .status-badge,
+.choice-card .status-badge,
+.card-inspect-modal .status-badge {
+  color: rgba(var(--cf-rgb, var(--portrait-frame-rgb, 240,245,250)), 1) !important;
+  border: 1px solid currentColor !important;
+  border-radius: 0 !important;
+  background: none !important;
+  box-shadow: none !important;
+  opacity: 1 !important;
+}
+
+/* The name-fit floor's escape hatch — see UI.fitCardNames. A name that cannot
+   fit even at CN_FIT_MIN wraps rather than overflowing the card.
+   The read-state rule sets `white-space: nowrap !important` from
+   `.card.card.draft-card .card-name-overlay .cn-text` — five class selectors —
+   so the obvious four-class form of this loses. Third time this file's doubled
+   classes have made a correct rule inert; these are seven. */
+.card.card.draft-card .card-name-overlay .cn-text.cn-wrap,
+.card.card.enc-card   .card-name-overlay .cn-text.cn-wrap,
+.card-inspect-modal .card.card .card-name-overlay .cn-text.cn-wrap,
+.card.card .card-name-overlay .cn-text.cn-wrap,
+.card .card-name-overlay .cn-text.cn-wrap,
+.trick-card .card-name-overlay .cn-text.cn-wrap {
+  white-space: normal !important;
+  line-height: 1.05 !important;
 }
