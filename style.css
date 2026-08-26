@@ -45579,3 +45579,12 @@ body.no-art-grade .card-portrait { --art-grade: 1 !important; }
    size change without needing a new number, and the card already carries a
    continuous line around its edge — which is the line that was asked for. */
 .card .cf-frame::after, .trick-card .cf-frame::after { display: none !important; }
+
+/* The ribbon's diagonal loses its white half too. It was the last piece still
+   carrying the two-tone treatment from when the frame had a core — the owner
+   circled it as "the white line" for the third time. One line, one colour,
+   everywhere on the card. */
+.card .cf-band-diag, .trick-card .cf-band-diag {
+  height: var(--cf-stroke) !important;
+  background: rgb(var(--cf-rgb)) !important;
+}

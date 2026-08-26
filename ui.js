@@ -20960,7 +20960,19 @@ const UI = {
     // cap in a row with room to spare. 200 lets them actually take the space.
     // It is a CEILING, not a target — the measured value wins below it, so a
     // short window still shrinks exactly as before.
-    let w = Math.max(86, Math.min(200, avail * 92 / 182));
+    // THE FLOOR IS THE BINDING CONSTRAINT, not the ceiling. Measured on a
+    // 1060x907 window with five cards and two tricks: the height solve asks for
+    // LESS than the floor, so the hand sits at exactly 86px and every card is
+    // drawn at the smallest size the game allows regardless of how much room
+    // the screen has. Owner: "the hand cards are cropped a little too small and
+    // cutting off, make them bigger/wider."
+    // 86 was chosen to make a match fit on a short window, and it still does
+    // that job at 110 — the board is solved AFTER the hand and against its own
+    // floor, so the height the hand takes here is height the board gives up,
+    // and the board has the slack. The ceiling and the horizontal fit are
+    // untouched: a genuinely cramped window still shrinks by the same rules.
+    const HAND_MIN = 110;
+    let w = Math.max(HAND_MIN, Math.min(200, avail * 92 / 182));
 
     // AND IT HAS TO FIT ACROSS, NOT JUST DOWN. Height was the only bound
     // before, so a big hand at the 200px ceiling ran off the side — and
@@ -20992,19 +21004,19 @@ const UI = {
         // A trick card's width is a linear function of the hand card's (both
         // ride the same 0..1 position on their ranges), so its contribution
         // scales with w and has to be part of the solve, not a constant.
-        trickRatio = (190 - 88) / (200 - 86);
+        trickRatio = (190 - 88) / (200 - HAND_MIN);
       }
       const fixed = handPad + handGap * (cards - 1)
                   + trickFixed + trickGap * Math.max(0, m - 1)
-                  + m * (88 - trickRatio * 86);
+                  + m * (88 - trickRatio * HAND_MIN);
       const perCard = cards + m * trickRatio;
       const byWidth = (window.innerWidth - fixed - 8) / perCard;   // 8px slack
-      w = Math.max(86, Math.min(w, byWidth));
+      w = Math.max(HAND_MIN, Math.min(w, byWidth));
     }
     area.style.setProperty('--hand-card-w', Math.floor(w) + 'px');
     // Tricks ride the same 0..1 position on that range so the two groups stay
     // in proportion instead of one outgrowing the other.
-    const t = (w - 86) / (200 - 86);
+    const t = (w - HAND_MIN) / (200 - HAND_MIN);
     area.style.setProperty('--trick-card-w', (88 + t * (190 - 88)).toFixed(1) + 'px');
     // The refinement pass has to run AFTER a paint, not synchronously. Setting
     // the custom property does not apply to layout in time for a same-tick
