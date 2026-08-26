@@ -12389,11 +12389,14 @@ const UI = {
       if (firstSeat && tt.players[firstSeat]) {
         const firstName = firstSeat === myKey ? 'You' : (tt.players[firstSeat].name || firstSeat);
         const verb = firstSeat === myKey ? 'play' : 'plays';
-        // The bolt was a literal emoji, which the OS paints as a little yellow
-        // sticker — the same thing the robot glyph and the voice speaker were
-        // before they became drawn marks. Stroked in currentColor so it takes
-        // this line's amber and its glow instead of bringing its own.
-        html += `<div class="draft-hud-sub draft-first-player">${firstName} ${verb} first this game</div>`;
+        // WHOSE SIDE OPENS, not whose seat. In 2v2 a teammate leading is your
+        // team leading, so the test is TEAM: your side gets the theme neon, the
+        // other side gets the enemy red. Same two classes the 1v1 banner uses,
+        // so both screens are coloured by one pair of rules.
+        const myTeam    = tt.players[myKey] && tt.players[myKey].team;
+        const firstTeam = tt.players[firstSeat].team;
+        const side = (myTeam && firstTeam === myTeam) ? 'is-mine' : 'is-theirs';
+        html += `<div class="draft-hud-sub draft-first-player ${side}">${firstName} ${verb} first this game</div>`;
       }
     } catch (e) {}
     const mulliganKey = isCards ? 'mulliganUsed' : 'trickMulliganUsed';

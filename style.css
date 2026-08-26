@@ -45588,3 +45588,37 @@ body.no-art-grade .card-portrait { --art-grade: 1 !important; }
   height: var(--cf-stroke) !important;
   background: rgb(var(--cf-rgb)) !important;
 }
+
+/* ============================================================
+   WHO OPENS IS COLOURED BY WHOSE SIDE IT IS (2026-08-26)
+   ============================================================
+   Owner: "that needs to be red for enemy going 1st and whatever neon highlight
+   for ally or yourself going first."
+
+   The 1v1 banner already split is-mine / is-theirs, but "theirs" was #ffcf8a —
+   an amber that belongs to nothing on this screen. The board says red for the
+   opponent everywhere else, so the one line that tells you the opponent opens
+   should say it in the same colour, and read before the sentence does. The 2v2
+   banner had no split at all: one flat #ffe23a whoever it was.
+
+   Both now key on the SIDE, not the seat — in 2v2 a teammate opening is your
+   side opening — and both take their colours from --enemy-rgb / --theme-rgb
+   rather than a hex, so a theme change carries them. */
+.draft-first.is-theirs .draft-first-who,
+.draft-panel .draft-hud .draft-hud-sub.draft-first-player.is-theirs {
+  /* 62%, not the 34% the ally side uses. Red sits far lower in luminance than
+     cyan, so the same mix that reads as bright neon on the player's colour
+     comes out a pale pink on the enemy's — matching the recipe would not have
+     matched the result. The number is different so the two READ the same. */
+  color: color-mix(in srgb, rgb(var(--enemy-r), var(--enemy-g), var(--enemy-b)) 62%, #ffffff) !important;
+  text-shadow:
+    0 0 8px  rgba(var(--enemy-r), var(--enemy-g), var(--enemy-b), 0.85),
+    0 0 18px rgba(var(--enemy-r), var(--enemy-g), var(--enemy-b), 0.45) !important;
+}
+.draft-first.is-mine .draft-first-who,
+.draft-panel .draft-hud .draft-hud-sub.draft-first-player.is-mine {
+  color: color-mix(in srgb, rgb(var(--theme-rgb, 79,195,247)) 30%, #e8f5ff) !important;
+  text-shadow:
+    0 0 8px  rgba(var(--theme-rgb, 79,195,247), 0.85),
+    0 0 18px rgba(var(--theme-rgb, 79,195,247), 0.45) !important;
+}
