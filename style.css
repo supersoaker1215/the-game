@@ -43972,3 +43972,40 @@ body.no-art-grade .card-portrait { --art-grade: 1 !important; }
     calc(var(--cf-inset) + var(--cf-border)) calc(100% - var(--cf-inset) - var(--cf-border)),
     calc(var(--cf-inset) + var(--cf-border)) calc(var(--cf-inset) + var(--cf-border) + var(--chamfer)));
 }
+
+/* ============================================================
+   THE CUT EDGES KEEP THE FRAME'S FULL WIDTH (2026-08-25)
+   ============================================================
+   Owner: "i want the cut corners to still have the same border width."
+
+   They were declared at the same --cf-stroke as the straight edges, so the
+   fault was not the width — it was where the stroke sits relative to the clip.
+
+   The straight edges are a `border` on .cf-edge, and a border paints INSIDE
+   its element box, so all of it survives the clip. Each cut edge is a rotated
+   div CENTRED on the chamfer line — and since the last commit deliberately put
+   the card's clip on that exact same line, precisely half of every diagonal's
+   thickness now falls outside the clip and is thrown away. The cut corners
+   rendered at half the width of the edges they join, which is what reads as a
+   thinner, broken corner.
+
+   Fix is to slide each diagonal inward along its own normal until it clears
+   the boundary. The normal for a 45-degree cut is (1,1)/sqrt2, so an inward
+   shift of s costs s/sqrt2 = 0.707s on each axis; 0.5 x stroke is used rather
+   than the exact 0.354 so the stroke sits a hair inside the line instead of
+   tangent to it, which antialiasing would otherwise nibble at.
+
+   Top-left shifts down-right (+left, +top); bottom-right shifts up-left, which
+   is also +right/+bottom since those are measured from the opposite edges. */
+.card .cf-cut-tl, .trick-card .cf-cut-tl {
+  left: calc((var(--chamfer) * var(--sqrt2) - var(--chamfer)) / -2
+             + var(--cf-stroke) * 0.5);
+  top:  calc(var(--chamfer) / 2 - var(--cf-stroke) / 2
+             + var(--cf-stroke) * 0.5);
+}
+.card .cf-cut-br, .trick-card .cf-cut-br {
+  right:  calc((var(--chamfer) * var(--sqrt2) - var(--chamfer)) / -2
+               + var(--cf-stroke) * 0.5);
+  bottom: calc(var(--chamfer) / 2 - var(--cf-stroke) / 2
+               + var(--cf-stroke) * 0.5);
+}
