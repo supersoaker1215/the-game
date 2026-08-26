@@ -45647,3 +45647,46 @@ body.no-art-grade .card-portrait { --art-grade: 1 !important; }
 .card-inspect-modal .card.card.enemy-card {
   --portrait-frame-rgb: var(--rarity-rgb, 79, 195, 247) !important;
 }
+
+/* ============================================================
+   THE RULES BOX HUGS ITS TEXT AGAIN (2026-08-26)
+   ============================================================
+   Owner, bracketing the space under Mace Windu's last line: "shorten the room
+   here to half of what it is."
+
+   Measured: 56px between the last line and the readouts — 38 of it empty box
+   and 18 of it the reserve. The 38 is a fixed `height` on the rules block,
+   which I put there to stop the fit routine and the flex layout chasing each
+   other. It worked, and it also meant every card whose copy is shorter than the
+   cap carries the difference as dead space.
+
+   `height: auto` with the cap as a MAX gets the space back without bringing the
+   loop back, and the reason is worth stating because it is the whole basis of
+   the fix: the loop needed the box's height to move when the copy was rescaled.
+   It cannot now. Under the cap the box hugs the text and the fit never runs; at
+   the cap the box is fixed and rescaling the copy does not change it. There is
+   no arrangement left where one drives the other.
+
+   The arithmetic also has room it did not have when the fixed height went in —
+   the chips lost half their padding and the reserve grew — so the worst case
+   still fits: 640 card, less 93 reserve, is 547 for a 304 art floor, ~37 of
+   chips and a 176 cap. 517. The art takes the 30px of slack, and on a card like
+   Mace Windu it takes the 38 as well. */
+.card.card.draft-card .card-desc,
+.card.card.enc-card   .card-desc,
+.card-inspect-modal .card.card .card-desc,
+.draft-card.trick-draft .trick-desc,
+.trick-card.trick-draft .trick-desc,
+.rl-pick-cardslot .card.card .card-desc {
+  flex: 0 0 auto !important;
+  height: auto !important;
+  max-height: var(--read-desc-h) !important;
+  /* And most of the 56px was not the box at all — it was a 38px BOTTOM PADDING
+     on the rules block, from `.card.draft-card .card-desc`, written when the
+     stat readouts still sat in this element's flow and it had to keep the copy
+     off them. They are absolutely positioned now and the CARD reserves their
+     space with its own .291w bottom padding, so that 38px has been reserving
+     the same room a second time. Trimmed to a real gap between the last line
+     and the readouts rather than a duplicate of the reserve below it. */
+  padding-bottom: calc(var(--card-w) * 0.025) !important;
+}
