@@ -44218,3 +44218,66 @@ body.no-art-grade .card-portrait { --art-grade: 1 !important; }
   color: inherit;
   text-shadow: inherit;
 }
+
+/* ============================================================
+   THE RIBBON — FILL ENDS AT ITS OWN DIAGONAL (2026-08-25)
+   ============================================================
+   Owner: "still has the thin line in the ribbon, theres black leaking out of
+   the ribbon, there should be no indent."
+
+   All three are one mistake of mine from the previous commit. Removing the
+   band's inner offset, I also changed the fill's OUTER edge from --band-out
+   to --band-box. Those are not the same number and the difference is the
+   whole fault:
+
+     --band-out  .1818w   where the band's gold diagonal is drawn
+     --band-box  .2109w   the square container that HOLDS the band
+
+   So the dark fill ran ~6px PAST the gold diagonal that is supposed to end
+   it. That overshoot is the black leaking out of the ribbon, and its edge
+   against the art is the thin line. The container was never a boundary — it
+   is just a box big enough to hold the shape.
+
+   Fill now ends exactly on --band-out, the same value the diagonal is placed
+   from, so the gold line IS the fill's edge and cannot separate from it. And
+   it starts exactly on --chamfer with no offset, so there is no indent at the
+   cut. */
+.card.card .cf-band,
+.card.card.draft-card .cf-band,
+.card.card.enc-card   .cf-band,
+.trick-card.trick-card .cf-band {
+  clip-path: polygon(
+    var(--chamfer) 0,
+    var(--band-out) 0,
+    0 var(--band-out),
+    0 var(--chamfer)) !important;
+}
+
+/* ============================================================
+   THE BAND PAINTS OVER THE FRAME (2026-08-25)
+   ============================================================
+   The last hairline in the ribbon was a layer-order fault, not a geometry
+   one. .cf-frame was z-index 5 and .cf-band 4, so the frame's own left and
+   top border ran straight THROUGH the ribbon. In the design's markup the band
+   is the last element in the card — it paints over the frame, which is why
+   that corner has exactly one line in it: the band's own diagonal.
+
+   So the band goes above the frame. Its outer diagonal has to go above the
+   band in turn, and it cannot live inside it (the band is clipped, and the
+   clip would cut the diagonal off), so it moves out of .cf-frame and becomes
+   a sibling after .cf-band. Its coordinates are unchanged: .cf-frame and
+   .cf-band share an origin — both start at --cf-inset — so the same left/top
+   expressions land in the same place. */
+.card .cf-band, .trick-card .cf-band { z-index: 6 !important; }
+.card .cf-band-diag, .trick-card .cf-band-diag {
+  position: absolute;
+  z-index: 7;
+  top:  calc(var(--cf-inset) + var(--band-out) / 2 - var(--cf-stroke) / 2);
+  left: calc(var(--cf-inset)
+             + (var(--band-out) * var(--sqrt2) - var(--band-out)) / -2);
+  width: calc(var(--band-out) * var(--sqrt2));
+  height: var(--cf-stroke);
+  background: rgb(var(--cf-rgb));
+  transform: rotate(-45deg);
+  pointer-events: none;
+}

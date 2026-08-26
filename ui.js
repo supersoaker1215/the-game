@@ -19826,9 +19826,9 @@ const UI = {
         <div class="cf-edge"></div>
         <div class="cf-cut cf-cut-tl"></div>
         <div class="cf-cut cf-cut-br"></div>
-        <div class="cf-cut cf-band-diag"></div>
       </div>
       <div class="cf-band" aria-hidden="true"></div>
+      <div class="cf-band-diag" aria-hidden="true"></div>
     </div>`;
   },
   // Thin alias — the floating-prompt trick face is the canonical trick with a
@@ -22681,9 +22681,9 @@ const UI = {
         <div class="cf-edge"></div>
         <div class="cf-cut cf-cut-tl"></div>
         <div class="cf-cut cf-cut-br"></div>
-        <div class="cf-cut cf-band-diag"></div>
       </div>
       <div class="cf-band" aria-hidden="true"></div>
+      <div class="cf-band-diag" aria-hidden="true"></div>
     `;
     return el;
   },
@@ -25222,9 +25222,9 @@ const UI = {
         <div class="cf-edge"></div>
         <div class="cf-cut cf-cut-tl"></div>
         <div class="cf-cut cf-cut-br"></div>
-        <div class="cf-cut cf-band-diag"></div>
       </div>
       <div class="cf-band" aria-hidden="true"></div>
+      <div class="cf-band-diag" aria-hidden="true"></div>
       `;
 
       const isAnytime = !!trick.anytime;
