@@ -43506,3 +43506,64 @@ body.no-art-grade .card-portrait { --art-grade: 1 !important; }
   --band-out:  calc(var(--card-w) * 0.248);
   --band-off:  calc(var(--card-w) * 0.012);
 }
+
+/* ============================================================
+   DRAFT CARD — ONE FRAME, A REAL CUT, A REAL BAND (2026-08-25)
+   ============================================================
+   Owner: "now there are 2 border boxes only 1, the number its in the banner
+   and the top left bottom right corners are not cut."
+
+   All three, and the first was predicted verbatim by the CSS audit: ".draft-card
+   ... `border: 1px solid ... !important` — the border SHORTHAND with !important.
+   A shorthand re-declares border-style and border-width, so zeroing the border
+   on .card does nothing here — the draft tile keeps a real, opaque, !important
+   element border while the hand and board tiles lose theirs. The draft screen
+   then shows the new inset frame AND the old edge frame at once."
+   That is the double box. Killed with a matching !important, which is the only
+   thing that beats it; the cost ramp keeps setting border-color and is simply
+   painting a transparent border now.
+
+   THE CORNERS WERE NOT CUT because I removed .card's clip-path last pass and
+   left only the diagonal STROKES — a line across a square corner, with the
+   card's own background still filling it. The clip is back, and the glow no
+   longer suffers for it: `filter` is applied to an element's rendered result,
+   i.e. AFTER clip-path, so a drop-shadow on a clipped element traces the cut
+   silhouette and spills outside it. box-shadow could never do that. That is
+   the whole trick, and it is why the design's "glow spills outside" note and a
+   real chamfer are not actually in conflict.
+
+   THE BAND WAS MISSING because --card-w came off --sb-card (140px) while a
+   draft tile is 220px wide, so every derived value — band box, chamfer, digit
+   — was computed at 64% of the size it should be. Each surface declares its
+   own width now. */
+.card.draft-card,
+.draft-card.cost-0, .draft-card.cost-1, .draft-card.cost-2, .draft-card.cost-3,
+.draft-card.cost-4, .draft-card.cost-5, .draft-card.cost-6,
+.draft-card.cost-7, .draft-card.cost-8,
+.draft-card.cost-9, .draft-card.cost-10 {
+  border-color: transparent !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+}
+/* per-surface true width — everything else derives from it */
+.card                { --card-w: 140px; }
+.card.draft-card     { --card-w: 220px; }
+.card.enc-card       { --card-w: 220px; }
+.card-drag-ghost     { --card-w: 110px; }
+/* the cut, restored — with the glow moved onto .card where filter runs
+   after the clip and therefore survives it */
+.card {
+  clip-path: polygon(
+    calc(var(--cf-inset) + var(--chamfer)) var(--cf-inset),
+    calc(100% - var(--cf-inset)) var(--cf-inset),
+    calc(100% - var(--cf-inset)) calc(100% - var(--cf-inset) - var(--chamfer)),
+    calc(100% - var(--cf-inset) - var(--chamfer)) calc(100% - var(--cf-inset)),
+    var(--cf-inset) calc(100% - var(--cf-inset)),
+    var(--cf-inset) calc(var(--cf-inset) + var(--chamfer)));
+  filter:
+    drop-shadow(0 0 1px  rgba(var(--gold-core-rgb), 0.75))
+    drop-shadow(0 0 5px  rgba(var(--cf-rgb), 0.45))
+    drop-shadow(0 0 14px rgba(var(--cf-rgb), 0.20));
+}
+/* the frame layer's own glow comes off now — it would double the card's */
+.card .cf-frame { filter: none; }
