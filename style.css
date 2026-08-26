@@ -45310,6 +45310,8 @@ body.no-art-grade .card-portrait { --art-grade: 1 !important; }
 .card-inspect-modal .card.card .card-name-overlay,
 .trick-card.trick-draft .card-name-overlay,
 .draft-card.trick-draft .card-name-overlay,
+.trick-card.enc-trick   .card-name-overlay,
+.card-inspect-modal .trick-card .card-name-overlay,
 .rl-pick-cardslot .card.card .card-name-overlay {
   display: flex !important;
   align-items: center;
@@ -45328,6 +45330,14 @@ body.no-art-grade .card-portrait { --art-grade: 1 !important; }
 .trick-card.trick-draft .card-name-overlay::after,
 .draft-card.trick-draft .card-name-overlay::before,
 .draft-card.trick-draft .card-name-overlay::after,
+/* These two carry the name TREATMENT below but were missing from the two rules
+   above, so a trick in the codex or under the inspect modal was the only read
+   surface with a bare name and no marks. The .cn-text list is the same feature
+   and lists eight surfaces; these lists listed six. Kept in step. */
+.trick-card.enc-trick   .card-name-overlay::before,
+.trick-card.enc-trick   .card-name-overlay::after,
+.card-inspect-modal .trick-card .card-name-overlay::before,
+.card-inspect-modal .trick-card .card-name-overlay::after,
 .rl-pick-cardslot .card.card .card-name-overlay::before,
 .rl-pick-cardslot .card.card .card-name-overlay::after {
   content: '';
@@ -45345,6 +45355,16 @@ body.no-art-grade .card-portrait { --art-grade: 1 !important; }
 .card-inspect-modal .trick-card .card-name-overlay .cn-text,
 .rl-pick-cardslot .card.card .card-name-overlay .cn-text {
   flex: 0 1 auto;
+  /* THE MARKS SURVIVE A WRAP. --cn-ink is the widest line the name actually
+     paints, measured per line box in UI._inkCardNames because CSS cannot see
+     it. Without it a wrapped name's flex basis is the whole name on ONE line,
+     free space goes negative, flexbox skips the grow pass entirely and the two
+     rules beside the name stay at zero width — 29 of 157 names. With it the
+     name is as wide as its wrapped self and the rules fill the slack on their
+     own. Unset (first paint, or a surface with no fit pass) falls back to
+     shrink-to-fit, which is what this was before. */
+  width: var(--cn-ink, auto);
+  max-width: 100%;
   color: color-mix(in srgb, rgb(var(--cf-rgb)) 48%, #ffffff) !important;
   /* the fit is off here — see above; --cn-fit is ignored and the name wraps */
   font-size: calc(var(--card-w) * 0.0982) !important;

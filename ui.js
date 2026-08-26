@@ -22574,11 +22574,22 @@ const UI = {
   // push the name back over its edge, and the observer had no reason to act.
   // The plate is the overlay's CONTENT box, fractional. clientWidth is rounded
   // to an integer, which is precisely the precision that was being lost.
+  // MIXED COORDINATE SPACES, which is the same trap in a second costume:
+  // getBoundingClientRect reports the box AFTER transforms, while computed
+  // padding and border come back in untransformed CSS px. Subtracting one from
+  // the other takes a 1x inset off a 3x box. Measured under `transform:
+  // scale(3)`: a plate 7.6% wider than the real one — and wrong by the SAME
+  // 7.6% for every name, which is what a bad reference looks like rather than a
+  // bad calculation. Scale the inset by the box's own factor so both terms are
+  // in one space. Untransformed that factor is 1 and this is the old line
+  // exactly, so nothing that was right becomes different.
   _cnPlateWidth(box, cs) {
     const s = cs || getComputedStyle(box);
-    return box.getBoundingClientRect().width
-      - (parseFloat(s.paddingLeft) || 0) - (parseFloat(s.paddingRight) || 0)
-      - (parseFloat(s.borderLeftWidth) || 0) - (parseFloat(s.borderRightWidth) || 0);
+    const rect = box.getBoundingClientRect().width;
+    const scale = box.offsetWidth > 0 ? rect / box.offsetWidth : 1;
+    const inset = (parseFloat(s.paddingLeft) || 0) + (parseFloat(s.paddingRight) || 0)
+      + (parseFloat(s.borderLeftWidth) || 0) + (parseFloat(s.borderRightWidth) || 0);
+    return rect - inset * scale;
   },
   _cnPlateKey(el, plate) {
     return (el.textContent || '') + '|' + plate.toFixed(1);
@@ -22660,7 +22671,10 @@ const UI = {
     // Clear first so the measurement below reads the NATURAL width and not the
     // width left behind by the previous pass — otherwise a re-fit compounds and
     // the name creeps smaller every render.
-    jobs.forEach(j => j.el.style.removeProperty('--cn-fit'));
+    jobs.forEach(j => {
+      j.el.style.removeProperty('--cn-fit');
+      j.el.style.removeProperty('--cn-ink');
+    });
     jobs.forEach(j => {
       const cs = getComputedStyle(j.box);
       // The memo key is stamped from the plate measured HERE, in the same read
@@ -22695,6 +22709,90 @@ const UI = {
     // layout and fonts settle; this is the only step that CHECKS, and it is the
     // one that makes the rest of them advisory rather than load-bearing.
     if (!_retry) this._refineCardNameFit(jobs.map(j => j.el), 0);
+    this._inkCardNames(jobs.map(j => j.el));
+  },
+  // THE MARKS BESIDE THE NAME, for a name that wraps.
+  //
+  // The rules flanking the name are flex siblings that take whatever width
+  // the name leaves. That works while the name fits on one line and fails
+  // completely the moment it does not, for a reason worth writing down: a
+  // wrapping name's flex BASIS is its max-content width — the whole name on
+  // one line — which is wider than the overlay. Free space is therefore
+  // NEGATIVE, and when free space is negative flexbox runs the shrink pass
+  // ONLY. `flex-grow` never executes. The rules have a zero basis and nothing
+  // to shrink, so they stay at zero while the name takes the entire row.
+  // Measured: Spawn 71.3px a side, Winter Soldier 0. 29 of the 157 names
+  // wrap, so 29 cards were quietly missing the feature.
+  //
+  // The name's BOX is full-width but its INK is not — "WINTER SOLDIER" breaks
+  // to lines of 120.6 and 134.6 inside a 252px box, leaving 58px of empty box
+  // on each side of the visible text with the rules stranded outside it. No
+  // amount of CSS can see that number: the wrapped ink width is not exposed
+  // as a length anywhere, which is why this is measured rather than styled.
+  //
+  // A Range over the text node returns one rect PER LINE BOX, so the widest
+  // line is a direct read, not a search. Handing that back as a width makes
+  // the name shrink-to-fit its wrapped self, free space goes positive, and
+  // the existing flex rules fill the slack on their own. One line of CSS,
+  // and the single-line case is untouched — there ink EQUALS the box, so the
+  // width it writes is the width the name already had.
+  //
+  // Idempotent, which is what keeps it out of the fit-loop trap this file has
+  // hit before: the width is cleared before every measurement, so the lines
+  // are always read as they break at full width and always produce the same
+  // answer. Setting it cannot change where they break — every line already
+  // fits within the widest one.
+  //
+  // Its own frame, AFTER the fit writes above, so the lines measured are the
+  // lines that painted at the final font size rather than the ones a
+  // pre-shrink measurement would have found.
+  //
+  // WRITTEN AS A RATIO, NOT A LENGTH, and that is not a style preference. Every
+  // rect API — getClientRects, getBoundingClientRect — reports coordinates AFTER
+  // transforms, while a `width` in CSS is applied BEFORE them. Feed one into the
+  // other inside anything scaled and the number is multiplied twice: measured at
+  // `zoom: 4` the ink came back 539.4px for a name that occupies 134.9, the
+  // width blew past the plate, `max-width: 100%` caught it, and the marks were
+  // back at zero — the exact bug this function exists to fix, reappearing only
+  // under a transform. A percentage of the plate is immune: numerator and
+  // denominator are read in the SAME space, so whatever scale they share
+  // divides out. `fitCardNames` above never had to think about this because a
+  // font-size MULTIPLIER is already scale-free; an absolute length is not.
+  //
+  // The pad is a percent for the same reason. It exists so a line measured at
+  // exactly its own width cannot round into a re-wrap.
+  CN_INK_PAD: 0.4,
+  _inkCardNames(els) {
+    if (!els || !els.length || typeof document.createRange !== 'function') return;
+    requestAnimationFrame(() => {
+      const reads = [];
+      els.forEach(el => {
+        const box = el.parentElement;
+        if (!box || !el.isConnected) return;
+        let rects;
+        try {
+          const r = document.createRange();
+          r.selectNodeContents(el);
+          rects = r.getClientRects();
+        } catch (e) { return; }
+        if (!rects || !rects.length) return;
+        // Only the lines that are actually VISIBLE. The name is clamped to two
+        // rows, and a third line still has a rect — measuring it would size the
+        // box to text nobody can see.
+        const floor = el.getBoundingClientRect().bottom;
+        let ink = 0;
+        for (let i = 0; i < rects.length; i++) {
+          if (rects[i].top >= floor) continue;
+          if (rects[i].width > ink) ink = rects[i].width;
+        }
+        const plate = this._cnPlateWidth(box);
+        if (ink > 0 && plate > 0) reads.push({ el, pct: (ink / plate) * 100 });
+      });
+      reads.forEach(r => {
+        const pct = Math.min(100, r.pct + this.CN_INK_PAD);
+        r.el.style.setProperty('--cn-ink', pct.toFixed(2) + '%');
+      });
+    });
   },
   // Correct from the width that actually painted, not from a fresh measurement
   // of the natural width — that is what makes this converge. Recomputing from
