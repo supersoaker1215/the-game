@@ -44123,3 +44123,37 @@ body.no-art-grade .card-portrait { --art-grade: 1 !important; }
 .card.card.enc-card   .cf-frame {
   box-shadow: inset 0 0 calc(var(--card-w) * 0.0836) 2px rgba(255,205,45,0.14);
 }
+
+/* ============================================================
+   HOVER MAGNIFY — BIGGER, AND NO LONGER CUT OFF (2026-08-25)
+   ============================================================
+   Owner: "its getting cut off in hand on hover just needs to be a little
+   bigger."
+
+   The cut-off and the size are the same bug. The popup already clamps itself
+   into the viewport (ui.js ~5560: cyClamped / cxClamped against
+   window.innerHeight), but it clamps `r.height` — the container's own box —
+   while the card inside is `transform: scale(1.6)` with `transform-origin:
+   0 0`. A transform does not affect layout, so the container measures at 1x
+   while the card PAINTS at 1.6x: the clamp was keeping a box inside the
+   viewport that was 60% smaller than the thing actually being drawn, and the
+   overflow fell off whichever edge it was anchored to.
+
+   `zoom` scales layout as well as paint, so the container's rect finally
+   describes what is on screen and the existing clamp works untouched — no
+   change needed in ui.js. It costs a layout pass instead of a compositor
+   transform, which is fine for a hover popup that is built once per hover.
+
+   1.6 -> 1.85 for the "a little bigger" half. */
+.hover-magnify .card,
+.hover-magnify .trick-card {
+  transform: none !important;
+  zoom: 1.85;
+  box-shadow: 0 0 16px rgba(0,0,0,0.6), 0 0 32px rgba(0,0,0,0.3);
+  animation: none !important;
+}
+.hover-magnify .draft-card {
+  transform: none !important;
+  zoom: 1.15;
+  animation: none !important;
+}
