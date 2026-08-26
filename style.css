@@ -43695,3 +43695,29 @@ body.no-art-grade .card-portrait { --art-grade: 1 !important; }
 .fp-trick-preview   .card.card .stat-hp {
   right: calc(var(--cf-inset) + var(--card-w) * 0.10) !important;
 }
+
+/* Owner: "make sure its centered."
+   The band is a TRAPEZOID between two diagonals, so its centre is not the
+   centre of the 116x116 box it lives in — it is the midline between the
+   chamfer cut and the band's outer diagonal. The handoff gives it as a corner
+   distance: inner 34, outer 100, "Midline (where the digit centers) 67".
+   Centre on each axis is therefore midline/2, and the clean way to land the
+   glyph there is a square box of exactly `midline` anchored at the band's own
+   origin with the digit flex-centred inside it — no hand-computed offsets to
+   drift. At hand scale that is (11.2 + 36.8)/2 = 24, centre 12,12, which is
+   the design's 15,15 at 175px scaled to 140. */
+.card {
+  --band-mid: calc((var(--chamfer) + var(--band-out)) / 2);
+}
+.card.card .card-cost {
+  top: var(--cf-inset) !important;
+  left: var(--cf-inset) !important;
+  width: var(--band-mid) !important;
+  height: var(--band-mid) !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  padding: 0 !important;
+  text-indent: 0 !important;
+  line-height: 1 !important;
+}
