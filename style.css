@@ -44438,6 +44438,13 @@ body.no-art-grade .card-portrait { --art-grade: 1 !important; }
 .trick-card .trick-desc b .kw {
   color: inherit !important;
   text-shadow: inherit !important;
+  /* `.kw` hard-codes font-size: 10px while `.card .card-desc b` is 9px, so
+     colour alone left the split intact — WHEN at 9px, DESTROYED at 10px, on
+     every surface including the ones an older partial patch already covered.
+     A label is set at one size or it is still two runs. */
+  font-size: inherit !important;
+  letter-spacing: inherit !important;
+  font-weight: inherit !important;
   background: none !important;
   border: 0 !important;
 }
@@ -44457,4 +44464,35 @@ body.no-art-grade .card-portrait { --art-grade: 1 !important; }
    which, measured, is 123 of 126. */
 .card .card-name-overlay .cn-text {
   font-size: calc(1em * var(--cn-fit, 1));
+}
+
+/* ============================================================
+   TRICK CHIPS JOIN THE FRAME TOO (2026-08-26)
+   ============================================================
+   Swept all 126 cards and all 31 tricks through the read-state renderers and
+   measured every chip against its own card: the cards were clean and five trick
+   chips were not — Draw 1 painting blue and Unresistible painting lilac on a
+   purple trick.
+
+   The cause is the one this file already warns about elsewhere: a trick draft
+   card does NOT carry the `card` class, so `.card.card.draft-card` — the
+   selector every read-state rule is built on — cannot see it. The rule was
+   never wrong, it just never applied. Same shape as the trick rarity pips
+   surviving a removal that covered every other surface.
+
+   Scoped to `.trick-card.trick-draft`, NOT to a bare `.trick-card`: a draft
+   trick carries both classes and the in-match tray trick carries only the
+   first. The tray is the playing surface and keeps its distinct keyword
+   colours, exactly as the in-match hand and board cards do — the same line
+   drawn in the same place, so "read state is monochrome, play state is
+   colour-coded" is one rule and not two coincidences. */
+.trick-card.trick-draft .status-badge,
+.draft-card.trick-draft .status-badge,
+.card-inspect-modal .trick-card .status-badge {
+  color: rgba(var(--cf-rgb, var(--trick-rgb, 155,89,182)), 1) !important;
+  border: 1px solid currentColor !important;
+  border-radius: 0 !important;
+  background: none !important;
+  box-shadow: none !important;
+  opacity: 1 !important;
 }

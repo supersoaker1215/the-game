@@ -22292,6 +22292,22 @@ const UI = {
   // key and returns without doing anything.
   _cnFitRO: null,
   _cnFitWatched: null,
+  // ONE definition of "the plate is the same size as last time", used by the
+  // memo, the observer and the refinement alike. Rounded to a tenth, not to a
+  // whole pixel: a plate that drifts 213.6 -> 213.4 rounds to the same integer,
+  // so an integer signature reported "unchanged" for a change that really did
+  // push the name back over its edge, and the observer had no reason to act.
+  // The plate is the overlay's CONTENT box, fractional. clientWidth is rounded
+  // to an integer, which is precisely the precision that was being lost.
+  _cnPlateWidth(box, cs) {
+    const s = cs || getComputedStyle(box);
+    return box.getBoundingClientRect().width
+      - (parseFloat(s.paddingLeft) || 0) - (parseFloat(s.paddingRight) || 0)
+      - (parseFloat(s.borderLeftWidth) || 0) - (parseFloat(s.borderRightWidth) || 0);
+  },
+  _cnPlateKey(el, plate) {
+    return (el.textContent || '') + '|' + plate.toFixed(1);
+  },
   _watchCardNamePlate(box) {
     if (typeof ResizeObserver !== 'function') return;
     if (!this._cnFitRO) {
@@ -22300,9 +22316,14 @@ const UI = {
         let dirty = false;
         entries.forEach(e => {
           const t = e.target.querySelector('.cn-text');
-          if (!t || !t.dataset.cnFit) return;
-          if (t.dataset.cnFit.endsWith('|' + Math.round(e.target.clientWidth))) return;
-          delete t.dataset.cnFit;
+          if (!t) return;
+          const memo = t.dataset.cnFit;
+          // No memo means it has never been fitted — it was skipped for having
+          // no width yet, and this callback IS the news that it has one now.
+          // Returning early here (the first version did) is what left a name
+          // permanently unfitted whenever its first pass landed before layout.
+          if (memo && memo === this._cnPlateKey(t, this._cnPlateWidth(e.target))) return;
+          if (memo) delete t.dataset.cnFit;
           dirty = true;
         });
         if (dirty) this._scheduleCardNameFit();
@@ -22348,15 +22369,17 @@ const UI = {
     els.forEach(el => {
       const box = el.parentElement;
       if (!box) return;
-      const plate = box.clientWidth;
+      // Watch FIRST, skip second. An overlay with no width yet is exactly the
+      // one that most needs watching, and observing it only after the width
+      // check meant the zero-width case was dropped and never looked at again.
+      this._watchCardNamePlate(box);
+      const plate = this._cnPlateWidth(box);
       // Not laid out yet (a closed codex, a card built off-DOM). Skip WITHOUT
       // memoizing, or it would be stamped as fitted at width 0 and never
       // re-measured once it actually appears.
       if (plate <= 0) return;
-      this._watchCardNamePlate(box);
-      const key = (el.textContent || '') + '|' + Math.round(plate);
-      if (el.dataset.cnFit === key) return;
-      jobs.push({ el, box, key });
+      if (el.dataset.cnFit === this._cnPlateKey(el, plate)) return;
+      jobs.push({ el, box });
     });
     if (!jobs.length) return;
     // Clear first so the measurement below reads the NATURAL width and not the
@@ -22365,9 +22388,18 @@ const UI = {
     jobs.forEach(j => j.el.style.removeProperty('--cn-fit'));
     jobs.forEach(j => {
       const cs = getComputedStyle(j.box);
-      j.avail = j.box.clientWidth
-        - (parseFloat(cs.paddingLeft) || 0) - (parseFloat(cs.paddingRight) || 0);
+      // The memo key is stamped from the plate measured HERE, in the same read
+      // as `avail`, and NOT from the one read in the filter loop above. Clearing
+      // --cn-fit on every job is itself a layout change, so the two reads can
+      // disagree — and when they did, the memo recorded a width the fit had not
+      // actually been computed against. The result was a name stamped "already
+      // fitted at 216" that had been sized for a 226px plate, which the resize
+      // observer then had no reason to revisit. Four names, over by an identical
+      // 8.6px, which is what a systematically wrong reference looks like.
+      const plate = this._cnPlateWidth(j.box, cs);
+      j.avail = plate;
       j.natural = j.el.getBoundingClientRect().width;
+      j.key = this._cnPlateKey(j.el, plate);
     });
     jobs.forEach(j => {
       const fit = (j.natural > 0 && j.avail > 0 && j.natural > j.avail + this.CN_FIT_SLOP)
@@ -22376,28 +22408,43 @@ const UI = {
       if (fit < 1) j.el.style.setProperty('--cn-fit', fit.toFixed(4));
       j.el.dataset.cnFit = j.key;
     });
-    // Verify what actually painted. Every timing guard above is a prediction
-    // about when layout settles; this is the only step that CHECKS. Anything
-    // still over its plate loses its memo and is fitted again from the width it
-    // really has. Bounded to one retry, so a name pinned at CN_FIT_MIN that can
-    // never fit costs one extra frame and then stops — it cannot loop.
-    if (_retry) return;
+    // Verify what actually painted. Every guard above is a PREDICTION about when
+    // layout and fonts settle; this is the only step that CHECKS, and it is the
+    // one that makes the rest of them advisory rather than load-bearing.
+    if (!_retry) this._refineCardNameFit(jobs.map(j => j.el), 0);
+  },
+  // Correct from the width that actually painted, not from a fresh measurement
+  // of the natural width — that is what makes this converge. Recomputing from
+  // scratch reproduces whatever made the first estimate wrong and returns the
+  // same wrong answer; scaling the CURRENT fit by (plate / painted) closes the
+  // gap whatever the cause was, which matters because the causes are not all
+  // knowable from here (font swap, a plate that moved between the two loops,
+  // per-glyph advance rounding).
+  // Two rounds, then it stops: a name pinned at CN_FIT_MIN that can never fit
+  // costs two frames and is left alone rather than looping forever.
+  CN_FIT_ROUNDS: 2,
+  _refineCardNameFit(els, round) {
+    if (round >= this.CN_FIT_ROUNDS) return;
     requestAnimationFrame(() => {
-      const stale = jobs.filter(j => {
-        const box = j.el.parentElement;
-        if (!box || box.clientWidth <= 0) return false;
-        const cs = getComputedStyle(box);
-        const avail = box.clientWidth
-          - (parseFloat(cs.paddingLeft) || 0) - (parseFloat(cs.paddingRight) || 0);
-        return avail > 0
-          && j.el.getBoundingClientRect().width > avail + this.CN_FIT_SLOP;
+      const fixed = [];
+      els.forEach(el => {
+        const box = el.parentElement;
+        if (!box || !el.isConnected) return;
+        const avail = this._cnPlateWidth(box);
+        if (avail <= 0) return;
+        const painted = el.getBoundingClientRect().width;
+        if (painted <= avail + this.CN_FIT_SLOP) return;
+        const cur = parseFloat(el.style.getPropertyValue('--cn-fit')) || 1;
+        const next = Math.max(this.CN_FIT_MIN, cur * ((avail - this.CN_FIT_PAD) / painted));
+        if (next >= cur) return;             // already at the floor
+        fixed.push({ el, next, key: this._cnPlateKey(el, avail) });
       });
-      if (!stale.length) return;
-      stale.forEach(j => {
-        delete j.el.dataset.cnFit;
-        j.el.style.removeProperty('--cn-fit');
+      if (!fixed.length) return;
+      fixed.forEach(f => {
+        f.el.style.setProperty('--cn-fit', f.next.toFixed(4));
+        f.el.dataset.cnFit = f.key;
       });
-      try { this.fitCardNames(root, true); } catch (e) {}
+      this._refineCardNameFit(fixed.map(f => f.el), round + 1);
     });
   },
 
