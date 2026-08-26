@@ -4289,10 +4289,13 @@ const Roguelite = {
       <span class="rl-levelup-name">Today's Seeded Challenge</span>
       <span class="rl-levelup-desc">${dailySub}</span>
     </button>`;
+    // Both flavour lines are struck out in the owner's markup. Neither carried
+    // anything the screen does not already say: the stacking rule is visible in
+    // the list itself ("+ Enemies have +20% HP (cumulative)"), and the daily
+    // BUTTON below is titled "Today's Seeded Challenge", so the divider was
+    // announcing the control directly under it. The button is untouched.
     const body = `
-      <div class="rl-event-flavor">Pick your difficulty. Higher tiers stack: A2 includes A1, A3 includes A2, and so on.</div>
       <div class="rl-event-choices">${buttons}</div>
-      <div class="rl-event-flavor rl-asc-daily-divider">— or take today's seeded challenge —</div>
       <div class="rl-event-choices">${dailyBtn}</div>`;
     this._modal('ASCENSION', body);
   },

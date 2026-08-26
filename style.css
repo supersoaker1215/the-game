@@ -5301,7 +5301,7 @@ body.hit-pause .ai-hand * {
    the gutter back so the rules copy is not touching the edge. Same shape the
    in-match tile already uses — `padding: 0 0 30px`, art flush, text inset. */
 .card.draft-card {
-  width: 220px !important;
+  width: var(--read-card-w) !important;
   min-height: 320px;
   padding: 0 0 10px;
 }
@@ -5375,7 +5375,7 @@ body.hit-pause .ai-hand * {
    this restore the trick picker stretched to fill the viewport. Match
    the card draft's 220 px so both pickers feel like one screen. */
 .draft-card.trick-draft {
-  width: 220px;
+  width: var(--read-card-w);
   min-height: 200px;
   /* EDGE TO EDGE, same as .card.draft-card. The character cards lost their
      8px inset a few commits ago and the tricks kept theirs, so the two pickers
@@ -19939,7 +19939,7 @@ body.phase-menu .kb-hints { display: none; }
      column don't touch the panel edge. */
   padding: 14px 12px 14px 6px;
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(175px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(var(--read-card-w), 1fr));
   /* Row gap large enough that previous row's bottom orbs (overhang ~19px
      below the card) don't collide with the next row's top cost diamond
      (overhang ~12px above) — 60px row leaves ~30px of clear black between
@@ -19985,10 +19985,15 @@ body.phase-menu .kb-hints { display: none; }
      height to 420 gives an aspect closer to 0.76 (Magic / Pokemon
      range) so cards feel like proper trading cards instead of
      elongated banners. */
-  min-width: 220px;
-  max-width: 320px;
+  /* The codex card is the SAME object as the draft card and the tap-to-play
+     card — one token, one size. It used to be `min-width: 220 / max-width: 320`
+     inside a `minmax(175px, 1fr)` grid, so the column width decided how wide a
+     card was and the answer was 220: the codex and the draft were two different
+     sizes for no reason anyone chose. */
+  min-width: var(--read-card-w);
+  max-width: var(--read-card-w);
+  width: var(--read-card-w);
   margin: 0 auto;
-  min-height: 420px;
   cursor: default;
   /* Skip layout + paint for off-screen cards — eliminates scroll lag
      when all 95 cards are in the DOM at once. `auto` size hint keeps
@@ -24404,10 +24409,13 @@ body.killing-blow-cinema::after {
   filter: drop-shadow(0 0 8px var(--theme-glow-outer, rgba(79,195,247,0.18)));
 }
 .rl-pick-cardslot-big {
-  /* Scale the codex chrome up to feel close to draft-screen size. */
-  transform: scale(1.55);
-  transform-origin: center top;
-  margin: 0 32px 90px;
+  /* The 1.55 scale that stood here was a way to make a 220px codex card feel
+     like a draft card. The read card IS the draft card now — same token, same
+     shape — so the surface takes the real thing at its real size instead of
+     magnifying a smaller one. Scaling also meant these cards laid out at their
+     unscaled footprint and then overlapped, which is why the margins below were
+     so large. */
+  margin: 0 8px 24px;
 }
 .rl-pick-cardslot:hover {
   transform: scale(1.50) translateY(-4px);
@@ -26517,14 +26525,27 @@ body.killing-blow-cinema::after {
    exactly the cards whose border the rarity actually paints (hand-cards, per the
    border rule ~40 lines up); a roguelite card on the BOARD keeps its side colour,
    because on the board side is what the border shows. */
+/* --portrait-frame-rgb as well as --cf-rgb, because the two forms of the rarity
+   selector do not cover the same cards. The border family is written only as
+   `.rl-tier-<r> .card.hand-card` — rarity on an ANCESTOR — while the starter-card
+   picker puts the rarity class ON the card itself, so those cards took the
+   rarity's label colour and the COST TIER's border: a cost-4 common drew a blue
+   frame around green text. Setting the frame variable makes the border, name,
+   cost diamond and everything else derive from the same source instead of each
+   restating the rarity in its own selector shape. */
 .rl-tier-common    .card.hand-card,
-.card.hand-card.rl-tier-common    { --cf-rgb: 46,204,113; }
+.card.hand-card.rl-tier-common    { --cf-rgb: 46,204,113;                --portrait-frame-rgb: 46,204,113; }
 .rl-tier-rare      .card.hand-card,
-.card.hand-card.rl-tier-rare      { --cf-rgb: var(--theme-rgb, 79,195,247); }
+.card.hand-card.rl-tier-rare      { --cf-rgb: var(--theme-rgb, 79,195,247); --portrait-frame-rgb: var(--theme-rgb, 79,195,247); }
 .rl-tier-special   .card.hand-card,
-.card.hand-card.rl-tier-special   { --cf-rgb: 240,245,250; }
+.card.hand-card.rl-tier-special   { --cf-rgb: 240,245,250;                --portrait-frame-rgb: 240,245,250; }
 .rl-tier-legendary .card.hand-card,
-.card.hand-card.rl-tier-legendary { --cf-rgb: var(--gold-rgb); }
+.card.hand-card.rl-tier-legendary { --cf-rgb: var(--gold-rgb);            --portrait-frame-rgb: var(--gold-rgb); }
+/* and the border rules gain the self form they were missing */
+.card.hand-card.rl-tier-common    { border-color: rgba(46,204,113,0.95) !important; }
+.card.hand-card.rl-tier-rare      { border-color: rgba(var(--theme-rgb, 79,195,247),0.95) !important; }
+.card.hand-card.rl-tier-special   { border-color: rgba(240,245,250,0.95) !important; }
+.card.hand-card.rl-tier-legendary { border-color: rgba(var(--gold-rgb),0.95) !important; }
 
 /* In-game (hand + board) rarity tinting — kicks in only on cards
    inside the codex / deck list / rewards modals. User direction:
@@ -43531,8 +43552,8 @@ body.no-art-grade .card-portrait { --art-grade: 1 !important; }
 }
 /* per-surface true width — everything else derives from it */
 .card                { --card-w: 140px; }
-.card.draft-card     { --card-w: 220px; }
-.card.enc-card       { --card-w: 220px; }
+.card.draft-card     { --card-w: var(--read-card-w); }
+.card.enc-card       { --card-w: var(--read-card-w); }
 .card-drag-ghost     { --card-w: 110px; }
 /* the cut, restored — with the glow moved onto .card where filter runs
    after the clip and therefore survives it */
@@ -43584,7 +43605,7 @@ body.no-art-grade .card-portrait { --art-grade: 1 !important; }
 }
 .card.draft-card, .card.enc-card,
 .card-inspect-modal .card, .fp-trick-preview .card {
-  --card-w: 220px;
+  --card-w: var(--read-card-w);
   --cf-inset: calc(var(--card-w) * 0.009);
 }
 /* lift both readouts clear of the cut corners */
@@ -43745,7 +43766,7 @@ body.no-art-grade .card-portrait { --art-grade: 1 !important; }
     drop-shadow(0 0 5px  rgba(var(--cf-rgb), 0.50))
     drop-shadow(0 0 14px rgba(var(--cf-rgb), 0.22));
 }
-.trick-card.draft-card, .trick-card.trick-draft { --card-w: 220px; --cf-inset: 2px; }
+.trick-card.draft-card, .trick-card.trick-draft { --card-w: var(--read-card-w); --cf-inset: 2px; }
 .trick-card .cf-frame {
   position: absolute; inset: var(--cf-inset);
   pointer-events: none; z-index: 5;
@@ -43839,7 +43860,7 @@ body.no-art-grade .card-portrait { --art-grade: 1 !important; }
    the corner read as a slab rather than a band. */
 .card.card.draft-card, .card.card.enc-card,
 .card-inspect-modal .card.card, .fp-trick-preview .card.card {
-  --card-w:    220px;
+  --card-w:    var(--read-card-w);
   --cf-inset:  calc(var(--card-w) * 0.0291);
   --cf-stroke: calc(var(--card-w) * 0.00545);
   --cf-core:   calc(var(--card-w) * 0.00182);
@@ -44556,4 +44577,309 @@ body.no-art-grade .card-portrait { --art-grade: 1 !important; }
 .trick-card .card-name-overlay .cn-text.cn-wrap {
   white-space: normal !important;
   line-height: 1.05 !important;
+}
+
+/* ============================================================
+   THE TRICK FACE JOINS THE CARD FACE (2026-08-26)
+   ============================================================
+   Owner: "the tricks should match the cards with the text and name colors and
+   status badges."
+
+   Three separate reasons a trick was still speaking its own dialect, all of
+   them the same shape — a rule scoped to a class the trick does not carry:
+
+   1. THE NAME. `.card .card-name-overlay .cn-text` gives the name the frame
+      colour. A trick draft tile is `trick-card draft-card trick-draft` and
+      carries NO `card` class, so that rule has never once matched a trick; the
+      name fell through to a white default. (Same class gap that hid the trick
+      rarity pips from a removal that covered every other surface, and that
+      kept the read-state chips off tricks last commit.)
+
+   2. THE BODY. `.trick-desc` sets `rgba(215,179,230,0.94)` — a pale lilac
+      mixed by hand, next to a card whose body is its frame colour outright.
+      Two colours for one job.
+
+   3. THE ROW LAYOUT. `.card-desc .cd-row { display: block }` is what puts a
+      trigger label on its own line above its effect. Scoped to `.card-desc`,
+      and a trick's container is `.trick-desc` — so on a trick the row stayed
+      INLINE and printed "REACTIONWhen an enemy plays a hostile trick…", label
+      welded to sentence with no space between them. That is the run-together
+      the owner circled, and it was never a spacing bug: it is a display value
+      that could not reach.
+
+   Written as `:is(.card-desc, .trick-desc)` so the two containers cannot drift
+   apart again — the next rule that reaches one reaches both. */
+:is(.card-desc, .trick-desc) .cd-row { display: block; }
+:is(.card-desc, .trick-desc) .cd-row + .cd-row { margin-top: 0.55em; }
+:is(.card-desc, .trick-desc) .cd-trig {
+  display: block;
+  text-transform: uppercase;
+  font-weight: 700;
+  margin-bottom: 0.12em;
+}
+:is(.card-desc, .trick-desc) .cd-eff { display: block; }
+
+/* The name takes the frame colour on a trick exactly as it does on a card. */
+.trick-card .card-portrait .card-name-overlay,
+.trick-card .card-name-overlay .cn-text,
+.trick-card.trick-draft .card-name-overlay .cn-text,
+.card-inspect-modal .trick-card .card-name-overlay .cn-text {
+  color: rgba(var(--cf-rgb, var(--portrait-frame-rgb, 155,89,182)), 1) !important;
+  text-shadow:
+    0 1px 3px rgba(0,0,0,0.95),
+    0 0 10px rgba(var(--cf-rgb, var(--portrait-frame-rgb, 155,89,182)), 0.55) !important;
+}
+
+/* And so does the body copy — same colour, same glow, same left-aligned column
+   the card's read state uses, so a trick and a card side by side in the picker
+   are one object drawn twice rather than two designs. */
+.trick-card.trick-draft .trick-desc,
+.draft-card.trick-draft .trick-desc,
+.card-inspect-modal .trick-card .trick-desc,
+.trick-card.enc-trick .trick-desc {
+  color: rgba(var(--cf-rgb, var(--portrait-frame-rgb, 155,89,182)), 1) !important;
+  text-shadow: 0 0 5px rgba(var(--cf-rgb, var(--portrait-frame-rgb, 155,89,182)), 0.30) !important;
+  font-size: 11px !important;
+  line-height: 1.5 !important;
+  text-align: left !important;
+  margin-left:  calc(var(--cf-inset) + var(--card-w) * 0.10) !important;
+  margin-right: calc(var(--cf-inset) + var(--card-w) * 0.10) !important;
+}
+.trick-card.trick-draft .trick-desc .cd-row,
+.trick-card.trick-draft .trick-desc .cd-eff,
+.draft-card.trick-draft .trick-desc .cd-row,
+.draft-card.trick-draft .trick-desc .cd-eff,
+.card-inspect-modal .trick-card .trick-desc .cd-row,
+.card-inspect-modal .trick-card .trick-desc .cd-eff { text-align: left !important; }
+/* the label matches the card's: 9px, wide tracking, and the neon from the one
+   trigger-label rule (which already reaches .trick-card .trick-desc b) */
+.trick-card.trick-draft .trick-desc b,
+.draft-card.trick-draft .trick-desc b,
+.card-inspect-modal .trick-card .trick-desc b {
+  font-size: 9px !important;
+  letter-spacing: 0.18em !important;
+  margin-bottom: 4px;
+}
+
+/* ============================================================
+   CARD BACKS: THE LATTICE FOLLOWS THE SEAT (2026-08-26)
+   ============================================================
+   Owner, over the 2v2 roster strip: "the card back needs to match the neon
+   highlight of the border color of the cards, so cortex should have blue cards
+   and blue lines in the back of the cards, purple tricks purple lines."
+
+   The colour was never wrong — `.rc-enemy .rc-back-card`, `.rc-ally
+   .rc-back-card` and `.rc-back-trick` each set `color`, and the border, fill
+   and glow all read currentColor correctly. What could not follow was the
+   diamond lattice, because it was an SVG `<pattern id="rc-cb">` duplicated
+   inside every back: `fill="url(#rc-cb)"` resolves against the DOCUMENT, so all
+   of them painted the FIRST pattern in the DOM and inherited ITS currentColor —
+   the enemy's red. A blue border with a red interior, exactly as reported.
+
+   Two crossed repeating-linear-gradients give the same diamond lattice with no
+   id to collide, and currentColor here is the element's own, per back. */
+.rc-back, .ai-hand-mini .card-back {
+  background-image:
+    repeating-linear-gradient(45deg,
+      currentColor 0 0.6px, transparent 0.6px 5px),
+    repeating-linear-gradient(-45deg,
+      currentColor 0 0.6px, transparent 0.6px 5px);
+  background-blend-mode: screen;
+}
+
+/* ============================================================
+   THE READOUTS CLEAR THE CUT BY CONSTRUCTION (2026-08-26)
+   ============================================================
+   Owner: "the hover is better in hand but the damage and health boxes get cut
+   off slightly."
+
+   Measured on all three surfaces rather than guessed. The card's clip cuts the
+   TOP-LEFT and BOTTOM-RIGHT corners, so only the HP readout is ever at risk,
+   and the corner clears the diagonal when
+
+       (distanceFromRight - inset) + (distanceFromBottom - inset) >= chamfer
+
+   where inset is --cf-inset plus the card's own 2px border. Actual clearance:
+       hand tile   (86px)  =  -2.68px   <- clipped, this is the report
+       board tile (116px)  =  +4.03px
+       read card  (220px)  = +17.84px
+
+   The existing lift is `--chamfer * 0.62 + --card-w * 0.012`, a ratio that
+   happens to clear at 220px and does not at 86 — because --cf-inset is a FIXED
+   8px on a hand tile while the chamfer scales with the width, so the small card
+   has proportionally the deepest cut and the least room. A ratio cannot know
+   that; the inequality can.
+
+   Expressed as max() of the standing value and the constraint, so it only ever
+   RAISES a readout that would be bitten and leaves every surface that already
+   clears exactly where the owner signed it off.
+
+   `.card.card` with !important, not the tidy `.card`: the standing lift is
+   `.card.card .stat-circle { ... !important }` at (0,3,0), so the first version
+   of this shipped inert. Doubled classes in this file have now made four
+   correct rules do nothing; check the winner before writing, not after. */
+.card.card .stat-circle {
+  bottom: max(
+    calc(var(--chamfer) * 1.15 + var(--card-w) * 0.020),
+    calc(var(--cf-inset) + var(--chamfer)
+         - var(--card-w) * 0.030 + var(--card-w) * 0.018)
+  ) !important;
+}
+
+/* ============================================================
+   THE READ CARD IS A CARD, NOT A COLUMN (2026-08-26)
+   ============================================================
+   Owner: "the draft cards can be wider or just bigger so they look like cards
+   and not just long text", and "for the tap to play you can make the card wider
+   … it can match and be the exact same as the draft card and codex card."
+
+   Measured before changing anything: a draft card was 220 x 685, an aspect of
+   0.321. A playing card is 0.714 and a Snap card is about 0.70 — 0.321 is a
+   domino. That number IS the complaint, and it is not caused by the width: the
+   height is set by the wordiest card in the row (Wetlands carries 302px of
+   rules copy at a 176px column) and every other card is stretched to match it.
+
+   So the width does two jobs at once. A wider card is a wider text column, and
+   a wider column is fewer lines — the copy that set the height gets shorter as
+   the card gets wider, and the aspect improves from both ends at once.
+
+   ONE token, not six. The 220 was written out in six places — two box widths
+   and four --card-w declarations across the draft, codex, inspect modal and
+   floating trick preview — which is why "make the tap-to-play match the draft"
+   was ever a question. They are the same surface at the same size now by
+   construction, and changing that size is one number. */
+:root {
+  --read-card-w: 320px;
+  /* The art window, and the rules box, as fractions of that width. Both are
+     what turn the card from a column into a rectangle:
+       - the portrait was `aspect-ratio: 360/472`, so widening the card made the
+         art TALLER at the same rate — 388px of art on a 300px card. A fixed
+         window height means the card gets wider without getting taller, and
+         `background-size: cover` re-crops rather than distorting.
+       - the rules box is capped just above p95 of the measured corpus (median
+         141px, p90 214, max 423 at this width), so most cards never touch it
+         and only the genuine walls of text compress. */
+  --read-art-h:   calc(var(--read-card-w) * 0.70);
+  --read-desc-h:  calc(var(--read-card-w) * 0.78);
+  /* and the card itself is a fixed rectangle, so a two-word card and a wall of
+     text are the same object. Without this the row stretches every card to the
+     tallest one in it — which is why a card with one line of rules was being
+     drawn 670px tall next to Art the Clown. */
+  --read-card-h:  calc(var(--read-card-w) * 1.90);
+}
+
+/* The art window is a fixed height on the read surfaces, and the card carries a
+   card-shaped floor so a two-word card cannot render as a stump. */
+.card.card.draft-card .card-portrait,
+.card.card.enc-card   .card-portrait,
+.card-inspect-modal .card.card .card-portrait,
+.trick-card.trick-draft .card-portrait,
+.draft-card.trick-draft .card-portrait,
+.card-inspect-modal .trick-card .card-portrait {
+  aspect-ratio: auto !important;
+  height: var(--read-art-h) !important;
+  min-height: var(--read-art-h) !important;
+  flex: 0 0 auto !important;
+}
+.card.card.draft-card, .card.card.enc-card,
+.card-inspect-modal .card.card,
+.draft-card.trick-draft, .trick-card.trick-draft {
+  height: var(--read-card-h) !important;
+  min-height: var(--read-card-h) !important;
+  max-height: var(--read-card-h) !important;
+}
+/* The rules box. `overflow: hidden` is a backstop only — UI.fitCardText shrinks
+   the copy to fit before it can ever bite. */
+.card.card.draft-card .card-desc,
+.card.card.enc-card   .card-desc,
+.card-inspect-modal .card.card .card-desc,
+.trick-card.trick-draft .trick-desc,
+.draft-card.trick-draft .trick-desc,
+.card-inspect-modal .trick-card .trick-desc,
+.trick-card.enc-trick .trick-desc {
+  max-height: var(--read-desc-h);
+  overflow: hidden;
+  font-size: calc(11px * var(--cd-fit, 1)) !important;
+}
+.card.card.draft-card .card-desc b,
+.card.card.enc-card   .card-desc b,
+.card-inspect-modal .card.card .card-desc b,
+.trick-card.trick-draft .trick-desc b,
+.draft-card.trick-draft .trick-desc b,
+.card-inspect-modal .trick-card .trick-desc b {
+  font-size: calc(9px * var(--cd-fit, 1)) !important;
+}
+
+/* The tap-to-play card is the draft card. Owner: "for the tap to play you can
+   make the card wider … it can match and be the exact same as the draft card
+   and codex card."
+   It never had a box width of its own — `--card-w` was set for the ratios but
+   the element fell back to the base `.card` 140px and was then zoomed up, which
+   is why it read as a skinny column: a 140px card magnified is still a 140px
+   card's proportions. The zoom stays (it is what fits a tall card into a short
+   viewport); the SHAPE now comes from the same token as the other two. */
+.card-inspect-modal .card.card,
+.card-inspect-modal .card.card.inspect-card,
+.card-inspect-modal .trick-card.inspect-card,
+.fp-trick-preview .card.card {
+  width: var(--read-card-w) !important;
+  min-width: var(--read-card-w) !important;
+  max-width: var(--read-card-w) !important;
+}
+
+/* The trick's NAME takes the card's type ramp too — 31px Chakra Petch against
+   11px Rajdhani was the last thing making the two faces read as different
+   objects in the same picker. Same selectors as the card's, plus the fit var
+   so a long trick name shrinks exactly as a long card name does. */
+.trick-card.trick-draft .card-name-overlay .cn-text,
+.draft-card.trick-draft .card-name-overlay .cn-text,
+.trick-card.enc-trick   .card-name-overlay .cn-text,
+.card-inspect-modal .trick-card .card-name-overlay .cn-text {
+  font-family: 'Chakra Petch', 'Rajdhani', sans-serif !important;
+  font-weight: 700 !important;
+  font-size: calc(var(--card-w) * 0.0982 * var(--cn-fit, 1)) !important;
+  letter-spacing: 0.02em !important;
+  white-space: nowrap !important;
+  text-align: center !important;
+}
+
+/* The roguelite starter-card picker is a reading surface — it is where you
+   choose the card you will build a whole run around — so it takes the read
+   card's size, art window and text box like the draft, the codex and the
+   tap-to-play card. */
+.rl-pick-cardslot .card.card {
+  width: var(--read-card-w) !important;
+  min-width: var(--read-card-w) !important;
+  max-width: var(--read-card-w) !important;
+  height: var(--read-card-h) !important;
+  min-height: var(--read-card-h) !important;
+  max-height: var(--read-card-h) !important;
+}
+.rl-pick-cardslot .card.card .card-portrait {
+  aspect-ratio: auto !important;
+  height: var(--read-art-h) !important;
+  min-height: var(--read-art-h) !important;
+  flex: 0 0 auto !important;
+}
+.rl-pick-cardslot .card.card .card-desc {
+  max-height: var(--read-desc-h);
+  overflow: hidden;
+}
+
+/* The inspect modal's "show the FULL description" escape hatch —
+   `max-height: none; overflow: visible; height: auto` all !important — predates
+   the card having a fixed shape. It exists because a hand card hides its rules
+   text and the modal has to force it back on; that intent is untouched here.
+   What has changed is that the modal card is now the same rectangle as the
+   draft and codex cards, so "no limit" means the copy runs out past the frame
+   and under the stat readouts. The text still shows in full — UI.fitCardText
+   shrinks it to fit rather than letting it escape the card. */
+.card-inspect-modal .card.card .card-desc,
+.card-inspect-modal .card.card.inspect-card .card-desc,
+.card-inspect-modal .trick-card.inspect-card .trick-desc,
+.card-inspect-modal .inspect-card .card-desc,
+.card-inspect-modal .inspect-card .trick-desc {
+  max-height: var(--read-desc-h) !important;
+  overflow: hidden !important;
+  height: auto !important;
 }

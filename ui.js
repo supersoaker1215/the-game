@@ -6723,6 +6723,7 @@ const UI = {
     // Same reason, same moment: the trick emitters return HTML strings, so the
     // only place their names are measurable is after the DOM is written.
     try { this._scheduleCardNameFit(); } catch (e) {}
+    try { this._scheduleCardTextFit(); } catch (e) {}
     // Runs AFTER the DOM is written — it measures the laid-out rows. Every
     // render, because the rows around the hand change height as the board
     // fills and the forecast strip comes and goes.
@@ -12392,7 +12393,7 @@ const UI = {
         // sticker — the same thing the robot glyph and the voice speaker were
         // before they became drawn marks. Stroked in currentColor so it takes
         // this line's amber and its glow instead of bringing its own.
-        html += `<div class="draft-hud-sub draft-first-player">${UI.BOLT_SVG} ${firstName} ${verb} first this game</div>`;
+        html += `<div class="draft-hud-sub draft-first-player">${firstName} ${verb} first this game</div>`;
       }
     } catch (e) {}
     const mulliganKey = isCards ? 'mulliganUsed' : 'trickMulliganUsed';
@@ -13344,7 +13345,16 @@ const UI = {
     // opponent mini-hand (renderAIHand). Owner wants each other player's hand
     // shown as real card/trick backs (not a bare count), with their name beside
     // it and their leftover Energy on the same diamond glyph as the main HUD.
-    const cardBackSVG = `<svg viewBox="0 0 20 30" preserveAspectRatio="none" aria-hidden="true"><defs><pattern id="rc-cb" x="0" y="0" width="8" height="8" patternUnits="userSpaceOnUse"><path d="M4 0 L8 4 L4 8 L0 4 Z" fill="none" stroke="currentColor" stroke-width="0.6" stroke-opacity="0.95"/></pattern></defs><rect width="20" height="30" fill="url(#rc-cb)"/></svg>`;
+    // THE LATTICE IS CSS NOW, NOT AN SVG PATTERN — see .rc-back in style.css.
+    // It was `<pattern id="rc-cb">` repeated inside every single back, and
+    // `fill="url(#rc-cb)"` resolves against the DOCUMENT, not the local <svg>:
+    // every back in the row painted the FIRST pattern in the DOM, and that
+    // pattern's `currentColor` is the first back's colour. So the whole roster
+    // — your blue seat, the purple trick backs — drew the enemy's red lattice
+    // inside its own correctly-coloured border. The border and the glow used
+    // plain CSS currentColor and were right all along, which is exactly why it
+    // read as "the lines don't match the border".
+    const cardBackSVG = '';
     const chip = (pk, isMe) => {
       const p = tt.players[pk]; if (!p) return '';
       const cards = (p.hand || []).length;
@@ -22228,6 +22238,134 @@ const UI = {
   //   disabled     greyed/at-max/dead-pile look (.card-disabled)
   //   static       CATALOG render — skip every live-board read (Ivy glow, etc.)
   //                so it's safe on a menu state with no board.
+  // ===================== CARD RULES-TEXT FIT =====================
+  // The read card is a fixed shape now (see --read-card-w in style.css), which
+  // it could not be while the rules copy set its height: the tallest card in a
+  // row stretched every card beside it, so a card with two words of text was
+  // drawn at the height of Art the Clown's 423px wall. That is the whole of
+  // "they look like long text and not cards".
+  //
+  // Measured across all 126 at 320px wide: median copy 141px, p90 214px,
+  // max 423px. So the box is set at p95-and-a-bit and only the genuine walls of
+  // text shrink — most cards never touch this. Floor 0.72, which on the wider
+  // card is 8.6px: LARGER on screen than the 9px these were set at when the
+  // card was 220 wide, so nothing gets harder to read than it was.
+  //
+  // Same four correctness properties as the name fit, for the same reasons:
+  // double rAF, a fonts.ready re-run, batched reads before writes, and a
+  // verification pass that corrects from what actually painted.
+  CD_FIT_MIN: 0.58,
+  // Aim a few pixels inside the box, not exactly at its edge — the same lesson
+  // the name fit learned: text height is not linear in font size, so landing on
+  // the boundary lands a pixel or two past it and costs another whole round.
+  CD_FIT_PAD: 4,
+  _cdFitPending: false,
+  _cdFitFontsHooked: false,
+  _hookCardTextFitToFonts() {
+    if (this._cdFitFontsHooked) return;
+    if (!document.fonts || !document.fonts.ready) return;
+    this._cdFitFontsHooked = true;
+    document.fonts.ready.then(() => {
+      document.querySelectorAll('[data-cd-fit]').forEach(el => { delete el.dataset.cdFit; });
+      this._cdFitPending = false;
+      this._scheduleCardTextFit();
+    }).catch(() => {});
+  },
+  _scheduleCardTextFit() {
+    this._hookCardTextFitToFonts();
+    if (this._cdFitPending) return;
+    this._cdFitPending = true;
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+      this._cdFitPending = false;
+      try { this.fitCardText(); } catch (e) {}
+    }));
+  },
+  // Only the read surfaces have a fixed box to fit into. A hand tile's rules
+  // face and a board tile size themselves and must not be touched.
+  CD_FIT_SELECTOR: '.card.draft-card .card-desc, .card.enc-card .card-desc,'
+    + ' .card-inspect-modal .card .card-desc,'
+    + ' .trick-card.trick-draft .trick-desc, .draft-card.trick-draft .trick-desc,'
+    + ' .card-inspect-modal .trick-card .trick-desc, .trick-card.enc-trick .trick-desc,'
+    + ' .rl-pick-cardslot .card .card-desc',
+  fitCardText(root, _retry) {
+    const els = (root || document).querySelectorAll(this.CD_FIT_SELECTOR);
+    if (!els.length) return;
+    const jobs = [];
+    els.forEach(el => {
+      // clientHeight, not the max-height declaration: it is the box the element
+      // ACTUALLY has, so this works the same whether the cap comes from a
+      // max-height, from a fixed parent, or from the flow.
+      const cap = el.clientHeight;
+      if (!cap) return;
+      jobs.push({ el, cap });
+    });
+    if (!jobs.length) return;
+    jobs.forEach(j => {
+      const key = (j.el.textContent || '').length + '|' + Math.round(j.cap);
+      j.key = key;
+      j.skip = (j.el.dataset.cdFit === key);
+    });
+    const live = jobs.filter(j => !j.skip);
+    if (!live.length) return;
+    live.forEach(j => this._applyCardTextScale(j.el, 1));
+    live.forEach(j => { j.natural = j.el.scrollHeight; });
+    live.forEach(j => {
+      // Height falls off faster than the font does — a smaller face fits more
+      // characters per line AND makes each line shorter — so the first estimate
+      // takes the square root and the verification pass below settles the rest.
+      const need = (j.natural > j.cap + 1)
+        ? Math.sqrt(Math.max(0, j.cap - this.CD_FIT_PAD) / j.natural) : 1;
+      const fit = Math.max(this.CD_FIT_MIN, need);
+      this._applyCardTextScale(j.el, fit);
+      j.el.dataset.cdFit = j.key;
+    });
+    if (!_retry) this._refineCardTextFit(live.map(j => j.el), 0);
+  },
+  // Written as an INLINE font-size with priority on every text node in the
+  // block, not as a CSS var the stylesheet multiplies. The var version was
+  // correct and inert: `.encyc-grid .card.hand-card.enc-card .card-desc` sets
+  // `font-size: 11px !important` at five class selectors, so the multiplier
+  // never applied in the codex and Art the Clown overflowed its box by 127px
+  // while reporting a fit of 0.58. Scaling every descendant also keeps the
+  // trigger labels and keyword pills in proportion — they carry their own px
+  // sizes and would otherwise stay full size inside shrunken copy.
+  _applyCardTextScale(el, k) {
+    const nodes = [el, ...el.querySelectorAll('*')];
+    nodes.forEach(n => {
+      let base = parseFloat(n.dataset.cdBase);
+      if (!base) {
+        base = parseFloat(getComputedStyle(n).fontSize) || 0;
+        if (!base) return;
+        n.dataset.cdBase = String(base);
+      }
+      if (k >= 1) n.style.removeProperty('font-size');
+      else n.style.setProperty('font-size', (base * k).toFixed(2) + 'px', 'important');
+    });
+    el.dataset.cdScale = String(k);
+  },
+  CD_FIT_ROUNDS: 6,
+  _refineCardTextFit(els, round) {
+    if (round >= this.CD_FIT_ROUNDS) return;
+    requestAnimationFrame(() => {
+      const again = [];
+      els.forEach(el => {
+        if (!el.isConnected) return;
+        const cap = el.clientHeight;
+        if (!cap) return;
+        const painted = el.scrollHeight;
+        if (painted <= cap + 1) return;
+        const cur = parseFloat(el.dataset.cdScale) || 1;
+        const next = Math.max(this.CD_FIT_MIN,
+          cur * Math.sqrt(Math.max(0, cap - this.CD_FIT_PAD) / painted));
+        if (next >= cur) return;                   // at the floor
+        this._applyCardTextScale(el, next);
+        again.push(el);
+      });
+      if (!again.length) return;
+      this._refineCardTextFit(again, round + 1);
+    });
+  },
+
   // ===================== CARD NAME FIT =====================
   // Owner: "make sure the full name can be seen."
   //
@@ -22927,6 +23065,7 @@ const UI = {
     `;
     // Coalesced to one rAF no matter how many cards a screen builds.
     this._scheduleCardNameFit();
+    this._scheduleCardTextFit();
     return el;
   },
 
@@ -25380,14 +25519,10 @@ const UI = {
     }
     // Opponent hand — mini card-backs with the diamond SVG pattern, matching
     // the in-game face-down card aesthetic.
-    const cardBackSVG = `<svg viewBox="0 0 20 30" preserveAspectRatio="none" aria-hidden="true">
-      <defs>
-        <pattern id="cb-mini" x="0" y="0" width="8" height="8" patternUnits="userSpaceOnUse">
-          <path d="M4 0 L8 4 L4 8 L0 4 Z" fill="none" stroke="currentColor" stroke-width="0.5" stroke-opacity="0.6"/>
-        </pattern>
-      </defs>
-      <rect width="20" height="30" fill="url(#cb-mini)"/>
-    </svg>`;
+    // Same shared-id defect as the 2v2 roster backs (see _render2v2RosterStrip):
+    // one `#cb-mini` for every back meant the purple TRICK backs painted the
+    // red card lattice. CSS lattice on .ai-hand-mini .card-back instead.
+    const cardBackSVG = '';
     for (let i = 0; i < s.ai.hand.length; i++) {
       const el = document.createElement('div');
       el.className = 'card-back';
