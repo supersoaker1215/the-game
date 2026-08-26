@@ -6720,6 +6720,9 @@ const UI = {
     // Portraits are snapped AFTER the DOM is written, so the widths read are
     // the ones actually laid out.
     try { this._snapPortraits(); } catch (e) {}
+    // Same reason, same moment: the trick emitters return HTML strings, so the
+    // only place their names are measurable is after the DOM is written.
+    try { this._scheduleCardNameFit(); } catch (e) {}
     // Runs AFTER the DOM is written — it measures the laid-out rows. Every
     // render, because the rows around the hand change height as the board
     // fills and the forecast strip comes and goes.
@@ -22225,6 +22228,179 @@ const UI = {
   //   disabled     greyed/at-max/dead-pile look (.card-disabled)
   //   static       CATALOG render — skip every live-board read (Ivy glow, etc.)
   //                so it's safe on a menu state with no board.
+  // ===================== CARD NAME FIT =====================
+  // Owner: "make sure the full name can be seen."
+  //
+  // The read-state name is `white-space: nowrap` at a fixed .0982 of the card
+  // width, so a name wider than its plate did not wrap, did not ellipsize and
+  // did not shrink — it simply ran off the right edge, which is how Symbiote
+  // Spider-Man printed as "SYMBIOTE SPIDER-".
+  //
+  // Measured, not guessed: of 126 card names exactly THREE overflow the 220px
+  // plate — The Batman Who Laughs (needs 76%), Symbiote Spider-Man (87%) and
+  // Martian Manhunter (99%). That ratio is the whole argument for shrinking the
+  // three instead of dropping the type ramp for all 126: the design asks for a
+  // loud name and 123 of them already fit at full size.
+  //
+  // The scale rides a CSS var rather than a written font-size, so the ratio in
+  // style.css stays the single source of the size and this only ever multiplies
+  // it. Nothing here knows what 0.0982 is.
+  CN_FIT_MIN: 0.62,
+  // Sub-pixel slop. `clientWidth` is an integer while getBoundingClientRect is
+  // fractional, so a name that exactly fills its content box measures ~0.5px
+  // over and would be "fixed" with a pointless 0.5% shrink — and would trip the
+  // verification pass every render. A name is over its plate when it is over by
+  // a pixel, not by a rounding error. The overflow this exists for was 51px.
+  CN_FIT_SLOP: 1,
+  // Text width is NOT linear in font-size — glyph advances round individually,
+  // so scaling by exactly avail/natural lands a couple of pixels wide of the
+  // plate rather than on it. Measured: every shrunk name in the codex came out
+  // 194px into a 192px plate, all nine of them by the same 2px, which is what
+  // a rounding effect looks like and what a mis-measured plate does not. Aim
+  // two pixels inside instead of exactly at the edge.
+  CN_FIT_PAD: 2,
+  _cnFitPending: false,
+  _cnFitFontsHooked: false,
+  // The webfont race, which cost a measurable wrong answer before it was found:
+  // the first fit runs while Chakra Petch is still downloading, so the name is
+  // measured in the Rajdhani fallback — 211px instead of 231px for Symbiote
+  // Spider-Man — and the scale comes out 0.95 when it needed 0.87. The name
+  // then swapped to the real face and overflowed anyway, at a size that looked
+  // deliberate. Re-fit once the faces are in, and clear the memo first or every
+  // element would be skipped as already-fitted.
+  _hookCardNameFitToFonts() {
+    if (this._cnFitFontsHooked) return;
+    if (!document.fonts || !document.fonts.ready) return;
+    this._cnFitFontsHooked = true;
+    document.fonts.ready.then(() => {
+      document.querySelectorAll('.card-name-overlay .cn-text[data-cn-fit]')
+        .forEach(el => { delete el.dataset.cnFit; });
+      this._cnFitPending = false;   // force a fresh pass, don't ride a queued one
+      this._scheduleCardNameFit();
+    }).catch(() => {});
+  },
+  // The plate can change size AFTER the fit — a codex grid settling into its
+  // columns, a window resize, a breakpoint. Timing guards cannot cover that:
+  // the first pass measured a plate that was correct at the time and memoized
+  // a scale that stopped being right one frame later, which is how a codex full
+  // of 240px names sat inside 192px plates with every one of them marked as
+  // already fitted.
+  //
+  // A ResizeObserver is the only thing that actually knows. It fires on observe
+  // as well as on change, so the memo key — which ends in the plate width — is
+  // what stops it looping: a callback for a plate that has not moved matches the
+  // key and returns without doing anything.
+  _cnFitRO: null,
+  _cnFitWatched: null,
+  _watchCardNamePlate(box) {
+    if (typeof ResizeObserver !== 'function') return;
+    if (!this._cnFitRO) {
+      this._cnFitWatched = new Set();
+      this._cnFitRO = new ResizeObserver(entries => {
+        let dirty = false;
+        entries.forEach(e => {
+          const t = e.target.querySelector('.cn-text');
+          if (!t || !t.dataset.cnFit) return;
+          if (t.dataset.cnFit.endsWith('|' + Math.round(e.target.clientWidth))) return;
+          delete t.dataset.cnFit;
+          dirty = true;
+        });
+        if (dirty) this._scheduleCardNameFit();
+      });
+    }
+    if (this._cnFitWatched.has(box)) return;
+    this._cnFitWatched.add(box);
+    this._cnFitRO.observe(box);
+  },
+  // A ResizeObserver holds its targets strongly, and renderBoard replaces card
+  // nodes wholesale, so without this every render would leave another dead
+  // overlay pinned in memory.
+  _pruneCardNamePlates() {
+    if (!this._cnFitRO || !this._cnFitWatched) return;
+    this._cnFitWatched.forEach(box => {
+      if (box.isConnected) return;
+      this._cnFitRO.unobserve(box);
+      this._cnFitWatched.delete(box);
+    });
+  },
+  // DOUBLE rAF, the same reason the cast cinematics use one: a single frame is
+  // not enough to guarantee the card has been laid out at its final size. A fit
+  // measured one frame early reads the plate before the read-state width lands
+  // and returns a scale that is quietly too generous — which is exactly what
+  // shipped on the first attempt here (0.95 where 0.80 was needed).
+  _scheduleCardNameFit() {
+    this._hookCardNameFitToFonts();
+    if (this._cnFitPending) return;
+    this._cnFitPending = true;
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+      this._cnFitPending = false;
+      try { this.fitCardNames(); } catch (e) {}
+    }));
+  },
+  // Batched on purpose: every READ happens before every WRITE, so a 126-card
+  // codex grid costs one forced reflow for the whole grid instead of one per
+  // card. The naive interleaved version is the classic layout-thrash shape.
+  fitCardNames(root, _retry) {
+    this._pruneCardNamePlates();
+    const els = (root || document).querySelectorAll('.card-name-overlay .cn-text');
+    if (!els.length) return;
+    const jobs = [];
+    els.forEach(el => {
+      const box = el.parentElement;
+      if (!box) return;
+      const plate = box.clientWidth;
+      // Not laid out yet (a closed codex, a card built off-DOM). Skip WITHOUT
+      // memoizing, or it would be stamped as fitted at width 0 and never
+      // re-measured once it actually appears.
+      if (plate <= 0) return;
+      this._watchCardNamePlate(box);
+      const key = (el.textContent || '') + '|' + Math.round(plate);
+      if (el.dataset.cnFit === key) return;
+      jobs.push({ el, box, key });
+    });
+    if (!jobs.length) return;
+    // Clear first so the measurement below reads the NATURAL width and not the
+    // width left behind by the previous pass — otherwise a re-fit compounds and
+    // the name creeps smaller every render.
+    jobs.forEach(j => j.el.style.removeProperty('--cn-fit'));
+    jobs.forEach(j => {
+      const cs = getComputedStyle(j.box);
+      j.avail = j.box.clientWidth
+        - (parseFloat(cs.paddingLeft) || 0) - (parseFloat(cs.paddingRight) || 0);
+      j.natural = j.el.getBoundingClientRect().width;
+    });
+    jobs.forEach(j => {
+      const fit = (j.natural > 0 && j.avail > 0 && j.natural > j.avail + this.CN_FIT_SLOP)
+        ? Math.max(this.CN_FIT_MIN, (j.avail - this.CN_FIT_PAD) / j.natural)
+        : 1;
+      if (fit < 1) j.el.style.setProperty('--cn-fit', fit.toFixed(4));
+      j.el.dataset.cnFit = j.key;
+    });
+    // Verify what actually painted. Every timing guard above is a prediction
+    // about when layout settles; this is the only step that CHECKS. Anything
+    // still over its plate loses its memo and is fitted again from the width it
+    // really has. Bounded to one retry, so a name pinned at CN_FIT_MIN that can
+    // never fit costs one extra frame and then stops — it cannot loop.
+    if (_retry) return;
+    requestAnimationFrame(() => {
+      const stale = jobs.filter(j => {
+        const box = j.el.parentElement;
+        if (!box || box.clientWidth <= 0) return false;
+        const cs = getComputedStyle(box);
+        const avail = box.clientWidth
+          - (parseFloat(cs.paddingLeft) || 0) - (parseFloat(cs.paddingRight) || 0);
+        return avail > 0
+          && j.el.getBoundingClientRect().width > avail + this.CN_FIT_SLOP;
+      });
+      if (!stale.length) return;
+      stale.forEach(j => {
+        delete j.el.dataset.cnFit;
+        j.el.style.removeProperty('--cn-fit');
+      });
+      try { this.fitCardNames(root, true); } catch (e) {}
+    });
+  },
+
   makeCardEl(card, inHand, side, opts) {
     opts = opts || {};
     const el = document.createElement('div');
@@ -22685,6 +22861,8 @@ const UI = {
       <div class="cf-band-diag" aria-hidden="true"></div>
       <div class="cf-cut-tl" aria-hidden="true"></div>
     `;
+    // Coalesced to one rAF no matter how many cards a screen builds.
+    this._scheduleCardNameFit();
     return el;
   },
 

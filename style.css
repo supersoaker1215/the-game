@@ -43912,7 +43912,7 @@ body.no-art-grade .card-portrait { --art-grade: 1 !important; }
    on the card: 54/550 with .02em tracking */
 .card.card.draft-card .card-name-overlay .cn-text,
 .card.card.enc-card   .card-name-overlay .cn-text {
-  font-size: calc(var(--card-w) * 0.0982) !important;
+  font-size: calc(var(--card-w) * 0.0982 * var(--cn-fit, 1)) !important;
   letter-spacing: 0.02em !important;
 }
 
@@ -44041,12 +44041,12 @@ body.no-art-grade .card-portrait { --art-grade: 1 !important; }
 .card-inspect-modal .card.card .card-name-overlay .cn-text {
   font-family: 'Chakra Petch', 'Rajdhani', sans-serif !important;
   font-weight: 700 !important;
-  font-size: calc(var(--card-w) * 0.0982) !important;
+  font-size: calc(var(--card-w) * 0.0982 * var(--cn-fit, 1)) !important;
   letter-spacing: 0.02em !important;
   white-space: nowrap !important;
   text-align: center !important;
   color: rgba(var(--cf-rgb), 1) !important;
-  text-shadow: 0 0 1px rgba(255,255,255,0.8), 0 0 calc(var(--card-w) * 0.0327) rgba(255,236,180,0.24) !important;
+  text-shadow: 0 0 1px rgba(255,255,255,0.8), 0 0 calc(var(--card-w) * 0.0327) rgba(var(--cf-rgb), 0.28) !important;
 }
 /* keyword chips — centred, 1px border at half the alpha of their own colour */
 .card.card.draft-card .status-badges,
@@ -44057,8 +44057,20 @@ body.no-art-grade .card-portrait { --art-grade: 1 !important; }
   gap: calc(var(--card-w) * 0.0291) !important;
   margin-top: calc(var(--card-w) * 0.0436) !important;
 }
+/* Owner: "the evade 1 needs to match the same color as the border."
+   It was #ffefa0 — a cream lifted straight off the handoff, whose card is gold.
+   On a green common that cream belongs to nothing on the card, which is exactly
+   what he is pointing at: it was the last element still ignoring the frame.
+   The whole read panel is one colour per card now — frame, name, rules, trigger
+   labels — and the chip joins it.
+   The purple family (Unresistible / Untrickable) went with it, for the same
+   reason: leaving two chips out of the scheme reinstates the inconsistency.
+   In-match hand and board badges are NOT touched — Revive purple vs Evade green
+   is combat information there, and this is the reading surface, where the icon
+   and the word already say which keyword it is. */
 .card.card.draft-card .status-badge,
-.card.card.enc-card   .status-badge {
+.card.card.enc-card   .status-badge,
+.card-inspect-modal .card.card .status-badge {
   display: inline-flex !important;
   align-items: center;
   gap: calc(var(--card-w) * 0.0164);
@@ -44068,19 +44080,12 @@ body.no-art-grade .card-portrait { --art-grade: 1 !important; }
   font-weight: 700 !important;
   letter-spacing: 0.16em !important;
   text-transform: uppercase;
-  border: 1px solid rgba(255,216,60,0.5) !important;
+  color: rgba(var(--cf-rgb), 1) !important;
+  border: 1px solid currentColor !important;
   border-radius: 0 !important;
   background: none !important;
   box-shadow: none !important;
-  color: #ffefa0 !important;
-}
-/* the purple keyword family keeps its own hue, at the same 50% border alpha */
-.card.card.draft-card .status-badge.sb-unresistible,
-.card.card.draft-card .status-badge.sb-untrickable,
-.card.card.enc-card   .status-badge.sb-unresistible,
-.card.card.enc-card   .status-badge.sb-untrickable {
-  border-color: rgba(197,140,245,0.5) !important;
-  color: #e2c2ff !important;
+  opacity: 1 !important;
 }
 /* the rules block sits under a gold divider that fades out at 20% / 80% */
 .card.card.draft-card .card-desc,
@@ -44205,13 +44210,10 @@ body.no-art-grade .card-portrait { --art-grade: 1 !important; }
 .card.card.enc-card   .card-desc b {
   color: rgba(var(--cf-rgb), 0.85) !important;
 }
-/* chips: keep the new shape, give back every keyword's own colour */
-.card.card.draft-card .status-badge,
-.card.card.enc-card   .status-badge {
-  border: 1px solid currentColor !important;
-  color: inherit;
-  opacity: 1;
-}
+/* (The "give back every keyword's own colour" rule that stood here was dead:
+   `color: inherit` with no !important could never beat the `color: #ffefa0
+   !important` above it, so it had been shipping as a no-op. The chip block
+   above now carries the colour outright and this had nothing left to say.) */
 /* the two colour overrides from the previous pass are withdrawn */
 .card.card.draft-card .card-desc .kw,
 .card.card.enc-card   .card-desc .kw {
@@ -44396,4 +44398,63 @@ body.no-art-grade .card-portrait { --art-grade: 1 !important; }
     0 0 6px  rgba(var(--cf-rgb, var(--portrait-frame-rgb, 255,210,74)), 0.95),
     0 0 14px rgba(var(--cf-rgb, var(--portrait-frame-rgb, 255,210,74)), 0.45) !important;
   font-weight: 700 !important;
+}
+
+/* ============================================================
+   A LABEL IS A LABEL, WHATEVER WORDS IT CONTAINS (2026-08-26)
+   ============================================================
+   Owner, over a circled "WHEN DESTROYED": "destroyed needs to match 'when' in
+   this case as is a title."
+
+   He is looking at a real split, and the cause was already written down in
+   formatDesc's own comment without anyone drawing the conclusion: the trigger
+   pass runs BEFORE the keyword pass, so a trigger whose words are themselves
+   game keywords comes out with markup inside it —
+
+     <b class="cd-trig">When <span class="kw kw-destroy">Destroyed</span></b>
+
+   The inner span then wins the colour, so half the label rendered as a keyword
+   and half as a label. "On Play" and "Passive" contain no keyword, which is the
+   only reason they looked right.
+
+   Not a one-card patch: "Destroy" is one of ~45 entries in kwMap, and the same
+   collision is already sitting in "When Revived" (Revive), "Jump:" (Jump) and
+   any future trigger built from a mechanic verb. Neutralising keyword styling
+   INSIDE a label fixes the class, not the instance.
+
+   Only colour and shadow are overridden — the span keeps its data-kw, so
+   hovering "Destroyed" in the label still opens the keyword tooltip. */
+/* Specificity, measured not assumed: the read-state keyword rule is
+   `.card.card.draft-card .card-desc .kw` — that is FIVE class selectors,
+   because `.card.card.draft-card` is three of them on one element. A tidy
+   four-class selector here lost outright, and the first version of this fix
+   shipped inert. These are six, and later in the file. */
+.card.card .card-desc .cd-row .cd-trig .kw,
+.card.card .card-desc .cd-row .cd-trig .kw:hover,
+.card.card .card-desc .cd-row > b .kw,
+.card .card-desc .cd-trig .kw,
+.card .card-desc .cd-trig .kw:hover,
+.card .card-desc > b .kw,
+.trick-card .trick-desc b .kw {
+  color: inherit !important;
+  text-shadow: inherit !important;
+  background: none !important;
+  border: 0 !important;
+}
+
+/* ============================================================
+   THE NAME SHRINKS TO FIT (2026-08-26)
+   ============================================================
+   Owner: "make sure the full name can be seen."
+
+   The read-state name is nowrap at a fixed ratio of the card width, so an
+   overlong name had no way to fail gracefully — Symbiote Spider-Man measured
+   231px into a 200px plate and the tail simply left the card.
+
+   ui.js's fitCardNames measures the laid-out name and writes --cn-fit; the
+   ratio here stays the only place the SIZE is decided, and the var only ever
+   multiplies it. Default 1, so every name that already fits is untouched —
+   which, measured, is 123 of 126. */
+.card .card-name-overlay .cn-text {
+  font-size: calc(1em * var(--cn-fit, 1));
 }
