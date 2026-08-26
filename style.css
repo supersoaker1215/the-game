@@ -45390,20 +45390,25 @@ body.no-art-grade .card-portrait { --art-grade: 1 !important; }
    old handoff cut two corners; the card has a ribbon there now, and a ribbon
    IS the corner treatment. One cut corner, bottom-right, where nothing covers
    it. */
-/* EVERY surface, not just the read card. The ring below is drawn on `.card`,
-   so if a hand tile kept the old two-chamfer silhouette its own clip would cut
-   the ring's square top-left straight off. One shape, one place. */
+/* TWO CUT CORNERS, MIRRORED. Owner: "its just mirror the bottom right corner
+   then add the ribbon, thats all you have to do."
+   I removed the top-left cut last commit, reading the reference as a square
+   corner with a chord across it. Wrong: it is the SAME cut as the bottom-right
+   one, and the ribbon sits on top of it. The ring below draws both, so the
+   silhouette has to match it — on every surface, or a hand tile's own clip
+   would shave the ring's corner off. */
 .card.card, .trick-card.trick-card,
 .card.card.draft-card, .card.card.enc-card,
 .card-inspect-modal .card.card,
 .draft-card.trick-draft, .trick-card.trick-draft,
 .rl-pick-cardslot .card.card {
   clip-path: polygon(
-    var(--cf-inset) var(--cf-inset),
+    calc(var(--cf-inset) + var(--chamfer)) var(--cf-inset),
     calc(100% - var(--cf-inset)) var(--cf-inset),
     calc(100% - var(--cf-inset)) calc(100% - var(--cf-inset) - var(--chamfer)),
     calc(100% - var(--cf-inset) - var(--chamfer)) calc(100% - var(--cf-inset)),
-    var(--cf-inset) calc(100% - var(--cf-inset))) !important;
+    var(--cf-inset) calc(100% - var(--cf-inset)),
+    var(--cf-inset) calc(var(--cf-inset) + var(--chamfer))) !important;
 }
 /* the ring. --cf-k is the inner chamfer's shortening: offsetting a 45 degree
    cut inward by one stroke moves its endpoints along the edges by (sqrt2 - 1)
@@ -45415,18 +45420,23 @@ body.no-art-grade .card-portrait { --art-grade: 1 !important; }
   background: rgb(var(--cf-rgb)) !important;
   box-shadow: none !important;
   clip-path: polygon(
-    0 0, 100% 0,
+    /* outer, clockwise from the top end of the top-left cut */
+    var(--chamfer) 0,
+    100% 0,
     100% calc(100% - var(--chamfer)),
     calc(100% - var(--chamfer)) 100%,
     0 100%,
-    0 0,
-    var(--cf-stroke) var(--cf-stroke),
+    0 var(--chamfer),
+    var(--chamfer) 0,
+    /* seam, then inner counter-clockwise to punch the hole */
+    calc(var(--cf-stroke) + var(--cf-k)) var(--cf-stroke),
+    var(--cf-stroke) calc(var(--cf-stroke) + var(--cf-k)),
     var(--cf-stroke) calc(100% - var(--cf-stroke)),
     calc(100% - var(--cf-stroke) - var(--cf-k)) calc(100% - var(--cf-stroke)),
     calc(100% - var(--cf-stroke)) calc(100% - var(--cf-stroke) - var(--cf-k)),
     calc(100% - var(--cf-stroke)) var(--cf-stroke),
-    var(--cf-stroke) var(--cf-stroke),
-    0 0) !important;
+    calc(var(--cf-stroke) + var(--cf-k)) var(--cf-stroke),
+    var(--chamfer) 0) !important;
 }
 /* the near-white core, the same ring one stroke further in — a second
    continuous object rather than a highlight painted onto the first, because an
@@ -45435,31 +45445,40 @@ body.no-art-grade .card-portrait { --art-grade: 1 !important; }
   content: '';
   position: absolute;
   inset: var(--cf-stroke);
-  --cf-k2: calc(var(--chamfer) - 0.4142 * (var(--cf-stroke) + var(--cf-core)));
+  --cf-k2: calc(var(--cf-k) - 0.4142 * var(--cf-core));
   background: rgba(var(--frame-core-rgb), 0.9);
   clip-path: polygon(
-    0 0, 100% 0,
+    var(--cf-k) 0,
+    100% 0,
     100% calc(100% - var(--cf-k)),
     calc(100% - var(--cf-k)) 100%,
     0 100%,
-    0 0,
-    var(--cf-core) var(--cf-core),
+    0 var(--cf-k),
+    var(--cf-k) 0,
+    calc(var(--cf-core) + var(--cf-k2)) var(--cf-core),
+    var(--cf-core) calc(var(--cf-core) + var(--cf-k2)),
     var(--cf-core) calc(100% - var(--cf-core)),
     calc(100% - var(--cf-core) - var(--cf-k2)) calc(100% - var(--cf-core)),
     calc(100% - var(--cf-core)) calc(100% - var(--cf-core) - var(--cf-k2)),
     calc(100% - var(--cf-core)) var(--cf-core),
-    var(--cf-core) var(--cf-core),
-    0 0);
+    calc(var(--cf-core) + var(--cf-k2)) var(--cf-core),
+    var(--cf-k) 0);
 }
 /* both stitched-on cut strokes retire — the ring draws its own corners */
 .card .cf-cut, .trick-card .cf-cut,
 .card .cf-cut-tl, .trick-card .cf-cut-tl,
 .card .cf-cut-br, .trick-card .cf-cut-br { display: none !important; }
 
-/* THE RIBBON IS THE TOP-LEFT CORNER. With no chamfer there, the black plate
-   starts at the corner itself and its diagonal is the only line across it. */
+/* THE RIBBON SITS ON THE CUT CORNER. Its plate starts at the chamfer, so the
+   cut is the plate's own outer edge and the ring draws it — the ribbon adds
+   only its inner diagonal, which is the second line in that corner and the one
+   that makes it a ribbon. */
 .card .cf-band, .trick-card .cf-band,
 .card.card .cf-band, .card.card.draft-card .cf-band,
 .card.card.enc-card .cf-band, .trick-card.trick-card .cf-band {
-  clip-path: polygon(0 0, var(--band-out) 0, 0 var(--band-out)) !important;
+  clip-path: polygon(
+    var(--chamfer) 0,
+    var(--band-out) 0,
+    0 var(--band-out),
+    0 var(--chamfer)) !important;
 }
