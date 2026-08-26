@@ -273,6 +273,33 @@ const TRICK_DEFS = [
       });
     }
   },
+  { name: "Assimilate", cost: 4,
+    desc: "Copy a random card from the opponent's hand into your hand. Their card stays with them.",
+    play(G, owner) {
+      // 2v2 has two enemies — let the caster pick whose hand to copy from.
+      // 1v1 resolves instantly with the only opponent.
+      G.withChosenOpponent(owner, 'Assimilate — whose hand?', (opp) => {
+        const h = G.state[opp].hand;
+        if (!h.length) {
+          G.log("Assimilate finds nothing to copy — the opponent's hand is empty.");
+          return;
+        }
+        // Pick a random card and clone it. The original is untouched.
+        // createCardInstance treats the source instance like a def (same
+        // trick Lazarus Pit uses); applyAbilities re-stamps keyword flags
+        // (Armor N, Evade N, etc.) onto the fresh copy.
+        const src = h[Math.floor(G.rng() * h.length)];
+        const copy = G.createCardInstance(src, owner);
+        if (typeof G.applyAbilities === 'function') G.applyAbilities(copy);
+        const added = (typeof G.addToHand === 'function')
+          ? G.addToHand(owner, copy)
+          : (G.state[owner].hand.push(copy), true);
+        if (added !== false) {
+          G.log(`Assimilate copies ${copy.name} from the opponent's hand!`);
+        }
+      });
+    }
+  },
   { name: "Lazarus Pit", cost: 1,
     desc: "Return a random card from your Dead Pile to your hand.",
     play(G, owner) {

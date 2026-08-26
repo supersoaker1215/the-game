@@ -121,6 +121,11 @@ window.CARD_ART_VARIANTS = {
   // Godzilla (2026-08-04) — jpg art, same manifest-entry reason as Stripe /
   // Iron Giant (default lookup assumes <Name>.png).
   'Godzilla':            ['Godzilla.jpg'],
+  // Assimilate (2026-08-25) — the John Carpenter "The Thing" poster; the trick
+  // is named "Assimilate" to avoid colliding with Marvel's The Thing (Ben
+  // Grimm). jpg art, same manifest-entry reason as Stripe / Iron Giant /
+  // Godzilla (default lookup assumes <Name>.png).
+  'Assimilate':          ['Assimilate.jpg'],
 };
 
 // =============================================================================
