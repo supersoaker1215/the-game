@@ -2294,6 +2294,19 @@ const CARD_ABILITIES = {
         // seat's REAL hand, routed to that seat (humans get the pick prompt on
         // their own client; AI seats auto-cycle their 2 lowest-cost cards).
         const tt = G.state.twoVTwo;
+        // WHO PLAYED IT — and is it a bot? When an AI seat plays Symbiote, its
+        // turn is driven synchronously by the authority; raising an interactive
+        // pick-prompt for a HUMAN seat's hand mid-AI-turn suspends that turn on a
+        // choice the drive loop cannot cleanly resume from, and the table freezes
+        // (user: "the AI keeps playing symbiote spiderman and it always stalls
+        // out because the AI's ... get stuck on the choice"). So when the CASTER
+        // is a bot, every seat auto-cycles its 2 lowest — the AI's turn never
+        // parks on a human prompt. A HUMAN-played Symbiote is unchanged: humans
+        // still pick which cards to shuffle back (that path drains fine — it runs
+        // during a human turn, and the 2v2 audit exercises it).
+        const casterSeat = self._2v2PlayedBy || G._2v2CurrentActingPlayer
+          || (G._2v2ActivePlayer && G._2v2ActivePlayer()) || null;
+        const casterIsAI = !!(casterSeat && tt.players[casterSeat] && tt.players[casterSeat].isAI);
         const seatShuffle = (seatKey, onDone) => {
           const sp = tt.players[seatKey];
           if (!sp) { onDone && onDone(); return; }
@@ -2313,7 +2326,7 @@ const CARD_ABILITIES = {
             onDone && onDone();
           };
           const lowest = (cards) => cards.slice().sort((a, b) => (a.cost || 0) - (b.cost || 0))[0];
-          if (sp.isAI || hand.length <= 2) {
+          if (sp.isAI || hand.length <= 2 || casterIsAI) {
             // AI seat, or a hand small enough that the pick is forced: auto-cycle.
             for (let i = 0; i < back; i++) {
               const c = lowest(hand); if (!c) break;
