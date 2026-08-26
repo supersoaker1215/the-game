@@ -42716,10 +42716,11 @@ body.no-art-grade .card-portrait { --art-grade: 1 !important; }
    ============================================================ */
 .mm-lb-rail {
   position: absolute;
-  /* Up near the top, off to the side of the "THE GAME" title — `left` clears
-     the title, `top` sits it beside it rather than centered or low. */
-  left: clamp(560px, 40%, 860px);
-  top: 92px;
+  /* Top-right of the menu, aligned with the "THE GAME" title and clear above
+     the MULTIPLAYER box. `left` clears the title column; `top` lines it up with
+     the title rather than sitting on the featured tile. */
+  left: clamp(560px, 42%, 900px);
+  top: 34px;
   bottom: auto;
   right: auto;
   transform: none;
