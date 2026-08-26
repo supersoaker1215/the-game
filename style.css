@@ -45490,3 +45490,23 @@ body.no-art-grade .card-portrait { --art-grade: 1 !important; }
     0 var(--band-out),
     0 var(--chamfer)) !important;
 }
+
+/* ============================================================
+   THE FRAME PAINTS OVER THE RIBBON (2026-08-26)
+   ============================================================
+   Owner: "now just make it blue."
+
+   The corner's top and left edges had no border at all — black plate against
+   black page. The ring was drawing them; the ribbon was painting over them.
+   `.cf-band` was lifted to z-index 6, above `.cf-frame` at 5, and a child
+   cannot escape its parent's stacking context, so the ring went under the plate
+   no matter what z-index it carried itself.
+
+   That lift had a real reason once: the frame used to be a BORDER on a full
+   box, so its top and left ran straight THROUGH the ribbon's interior, and
+   putting the plate on top was the way to hide them. The frame is a ring now.
+   A ring has no interior — its top and left segments ARE the card's outer edge,
+   which is exactly the line that should cross the ribbon's outer corner and
+   exactly the line that was missing. The reason to bury it expired when the
+   border stopped being a border. */
+.card .cf-frame, .trick-card .cf-frame { z-index: 8 !important; }
