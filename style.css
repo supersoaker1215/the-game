@@ -42716,12 +42716,11 @@ body.no-art-grade .card-portrait { --art-grade: 1 !important; }
    ============================================================ */
 .mm-lb-rail {
   position: absolute;
-  /* In the open gap just right of the menu column — not across the hero, and
-     sitting LOW rather than vertically centered. `left` clears the panel;
-     pinned to the bottom so it stays down regardless of how many rows it has. */
-  left: clamp(300px, 30%, 640px);
-  top: auto;
-  bottom: 42px;
+  /* Up near the top, off to the side of the "THE GAME" title — `left` clears
+     the title, `top` sits it beside it rather than centered or low. */
+  left: clamp(560px, 40%, 860px);
+  top: 92px;
+  bottom: auto;
   right: auto;
   transform: none;
   z-index: 7;
