@@ -8,6 +8,18 @@
    is spinners, sweeps and progress, which must not accelerate.
    ============================================================ */
 :root {
+  /* ---- GOLD (2026-08-25) ----
+     Owner: "a different gold color". The old #f5bf1c / var(--gold-rgb) sat at hue
+     51 with the blue channel at zero — against a black ground that reads
+     brown-yellow, mustard rather than lit. Pushed up to hue 48 with the
+     lightness raised and a little blue back in the channel, per the canvas:
+     frame stroke #f5bf1c, text #ffd24a.
+     Tokenised on the way past. There were 287 hardcoded copies of the old
+     triple and no token at all, which is why it could not be changed without
+     a sweep; the next change is one line. */
+  --gold-rgb: 245, 191, 28;        /* #f5bf1c — frame stroke, glows, chrome */
+  --gold-text-rgb: 255, 210, 74;   /* #ffd24a — gold TEXT, a touch brighter */
+
   --ease-snap:  cubic-bezier(0.2, 0, 0, 1);      /* default: decisive arrival   */
   --ease-exit:  cubic-bezier(0.4, 0, 1, 1);      /* leaving the screen          */
   /* Durations for the asymmetry below. Arrival carries weight, release
@@ -776,7 +788,7 @@ body.round-first-ai .hud-pill-main {
      rather than an inline word. */
   letter-spacing: 2px;
   text-transform: uppercase;
-  text-shadow: 0 0 6px rgba(255,215,0,0.35);
+  text-shadow: 0 0 6px rgba(var(--gold-rgb),0.35);
   transition: color 0.3s var(--ease-snap), text-shadow 0.3s var(--ease-snap);
 }
 /* Label hue follows the round-opener too — same colour system as the
@@ -913,7 +925,7 @@ body.turn-ai .hud-phase {
 }
 body.turn-combat .hud-phase {
   color: #ffd77a;
-  text-shadow: 0 0 6px rgba(255,215,0,0.70), 0 0 12px rgba(255,215,0,0.35);
+  text-shadow: 0 0 6px rgba(var(--gold-rgb),0.70), 0 0 12px rgba(var(--gold-rgb),0.35);
 }
 
 /* ============================================================
@@ -943,11 +955,11 @@ body.turn-ai::before    { opacity: 1; animation: turnEdgePulse 2s ease-in-out in
 body.turn-combat::before,
 body.turn-combat::after {
   opacity: 1;
-  background: linear-gradient(to top, rgba(255,215,0,0.75), transparent);
-  box-shadow: 0 0 22px 2px rgba(255,215,0,0.55);
+  background: linear-gradient(to top, rgba(var(--gold-rgb),0.75), transparent);
+  box-shadow: 0 0 22px 2px rgba(var(--gold-rgb),0.55);
   animation: turnEdgePulse 1.1s ease-in-out infinite;
 }
-body.turn-combat::before { background: linear-gradient(to bottom, rgba(255,215,0,0.75), transparent); }
+body.turn-combat::before { background: linear-gradient(to bottom, rgba(var(--gold-rgb),0.75), transparent); }
 @keyframes turnEdgePulse {
   0%, 100% { opacity: 0.55; }
   50%      { opacity: 1; }
@@ -1114,9 +1126,9 @@ body.turn-combat::before { background: linear-gradient(to bottom, rgba(255,215,0
      rather than announces. from -90deg starts it at twelve o'clock. */
   background:
     conic-gradient(from -90deg,
-      rgba(255,215,0,0.95) 0 var(--fill),
-      rgba(255,215,0,0.10) var(--fill) 100%);
-  border: 1px solid rgba(255,215,0,0.55);
+      rgba(var(--gold-rgb),0.95) 0 var(--fill),
+      rgba(var(--gold-rgb),0.10) var(--fill) 100%);
+  border: 1px solid rgba(var(--gold-rgb),0.55);
   /* No halo. Two stacked outer glows on a 44px circle bloomed into the bar and
      read as cheap shine rather than instrumentation — the ring itself is the
      signal now, so it does not need selling. The .full state below keeps its
@@ -1151,11 +1163,11 @@ body.turn-combat::before { background: linear-gradient(to bottom, rgba(255,215,0
    block meter." A solid bright gold glow at 8/8 still reads as
    "ready" without continuous motion. */
 .block-circle.full {
-  background: conic-gradient(from -90deg, rgba(255,215,0,0.95) 0 100%, rgba(255,215,0,0.95) 100%);
-  box-shadow: 0 0 14px rgba(255,215,0,0.80), 0 0 28px rgba(255,215,0,0.40);
+  background: conic-gradient(from -90deg, rgba(var(--gold-rgb),0.95) 0 100%, rgba(var(--gold-rgb),0.95) 100%);
+  box-shadow: 0 0 14px rgba(var(--gold-rgb),0.80), 0 0 28px rgba(var(--gold-rgb),0.40);
   animation: none;
 }
-.block-circle.full .block-circle-value { color: #ffd77a; text-shadow: 0 0 8px rgba(255,215,0,0.85); }
+.block-circle.full .block-circle-value { color: #ffd77a; text-shadow: 0 0 8px rgba(var(--gold-rgb),0.85); }
 @keyframes blockFullPulse {
   0%, 100% { opacity: 1; }
   50%      { opacity: 0.75; }
@@ -1242,7 +1254,7 @@ body.turn-combat::before { background: linear-gradient(to bottom, rgba(255,215,0
 @keyframes blockChargeFlare {
   0%   { transform: scale(1);    filter: brightness(1); }
   18%  { transform: scale(1.45); filter: brightness(2.2) saturate(1.3);
-         box-shadow: 0 0 26px #fff, 0 0 60px rgba(var(--bc, 255,215,0), 0.95); }
+         box-shadow: 0 0 26px #fff, 0 0 60px rgba(var(--bc, var(--gold-rgb)), 0.95); }
   55%  { transform: scale(0.95); }
   100% { transform: scale(1);    filter: brightness(1); }
 }
@@ -1263,8 +1275,8 @@ body.turn-combat::before { background: linear-gradient(to bottom, rgba(255,215,0
 .block-burst-ring {
   position: absolute; inset: 0;
   border-radius: 50%;
-  border: 2px solid rgba(var(--bc, 255,215,0), 0.9);
-  box-shadow: 0 0 10px rgba(var(--bc, 255,215,0), 0.6);
+  border: 2px solid rgba(var(--bc, var(--gold-rgb)), 0.9);
+  box-shadow: 0 0 10px rgba(var(--bc, var(--gold-rgb)), 0.6);
   pointer-events: none;
   opacity: 0;
   transform-origin: center;
@@ -1512,7 +1524,7 @@ body.hit-pause .ai-hand * {
   transition: background 240ms var(--ease-snap), box-shadow 240ms var(--ease-snap);
 }
 .energy-orb.filled {
-  background: radial-gradient(circle at 35% 35%, #ffd700, #f39c12);
+  background: radial-gradient(circle at 35% 35%, #f5bf1c, #f39c12);
   box-shadow: 0 2px 6px rgba(0,0,0,0.4), 0 0 4px rgba(243,156,18,0.3);
   border-color: #e67e22;
 }
@@ -1522,7 +1534,7 @@ body.hit-pause .ai-hand * {
   border-color: #5a3e20;
 }
 /* Main energy — Tron ring: dark core with glowing gold edge, number inside.
-   Gold here is the LEGENDARY rarity gold (#ffe066 / rgba(255,215,0)) with a
+   Gold here is the LEGENDARY rarity gold (#ffe066 / rgba(var(--gold-rgb))) with a
    matching double-halo, so the player/AI energy orb reads as the same
    "legendary yellow" treatment used for the 9/10-cost rarity tier. */
 .energy-text {
@@ -1534,7 +1546,7 @@ body.hit-pause .ai-hand * {
   font-family: var(--font-mono);
   font-weight: 700; font-size: 18px;
   display: inline-flex; align-items: center; justify-content: center;
-  text-shadow: 0 0 6px rgba(255,215,0,0.95), 0 0 14px rgba(255,215,0,0.55);
+  text-shadow: 0 0 6px rgba(var(--gold-rgb),0.95), 0 0 14px rgba(var(--gold-rgb),0.55);
   line-height: 1;
   font-variant-numeric: tabular-nums;
 }
@@ -1546,11 +1558,11 @@ body.hit-pause .ai-hand * {
   content: '';
   position: absolute; inset: 4px;
   background: #000000;
-  border: 1px solid rgba(255,215,0,1);
+  border: 1px solid rgba(var(--gold-rgb),1);
   transform: rotate(45deg);
   box-shadow:
-    0 0 12px rgba(255,215,0,0.80),
-    0 0 24px rgba(255,215,0,0.40);
+    0 0 12px rgba(var(--gold-rgb),0.80),
+    0 0 24px rgba(var(--gold-rgb),0.40);
   z-index: -1;
 }
 .player-bar .energy-text {
@@ -1999,12 +2011,12 @@ body.hit-pause .ai-hand * {
 .attack-telegraph .tele-line.tele-ally  { stroke: rgba(var(--theme-rgb, 79,195,247), 0.85); }
 .attack-telegraph .tele-line.tele-enemy { stroke: rgba(231,76,60, 0.7); }
 .attack-telegraph .tele-line.tele-taunt {
-  stroke: rgba(255,215,0, 0.92); stroke-width: 2.1; opacity: 0.85; stroke-dasharray: 5 4;
+  stroke: rgba(var(--gold-rgb), 0.92); stroke-width: 2.1; opacity: 0.85; stroke-dasharray: 5 4;
 }
 .attack-telegraph .tele-dot { opacity: 0.75; }
 .attack-telegraph .tele-dot.tele-ally  { fill: rgba(var(--theme-rgb, 79,195,247), 0.9); }
 .attack-telegraph .tele-dot.tele-enemy { fill: rgba(231,76,60, 0.8); }
-.attack-telegraph .tele-dot.tele-taunt { fill: rgba(255,215,0, 0.95); }
+.attack-telegraph .tele-dot.tele-taunt { fill: rgba(var(--gold-rgb), 0.95); }
 
 @keyframes shellEnter { 0% { opacity: 0; } 100% { opacity: 1; } }
 .main-menu-overlay.shell-entering,
@@ -2928,7 +2940,7 @@ body.hit-pause .ai-hand * {
 .twov2-mm-prow.is-teamsel .twov2-mm-pname,
 .twov2-mm-prow.is-teamsel .twov2-mm-pteam {
   color: #ffd77a;
-  text-shadow: 0 0 10px rgba(255,215,0,0.7);
+  text-shadow: 0 0 10px rgba(var(--gold-rgb),0.7);
 }
 .twov2-mm-prow.is-swappable .twov2-mm-pteam {
   color: rgb(var(--theme-rgb,79,195,247));
@@ -3318,7 +3330,7 @@ body.hit-pause .ai-hand * {
   font-family: var(--font-mono);
   font-variant-numeric: tabular-nums;
   letter-spacing: 0.3px;
-  text-shadow: 0 0 6px rgba(255,215,0,0.45);
+  text-shadow: 0 0 6px rgba(var(--gold-rgb),0.45);
 }
 .stats-summary-sub {
   font-size: 10px; font-weight: 500;
@@ -3473,7 +3485,7 @@ body.hit-pause .ai-hand * {
   font-weight: 700;
   font-family: var(--font-mono);
   font-variant-numeric: tabular-nums;
-  text-shadow: 0 0 4px rgba(255,215,0,0.35);
+  text-shadow: 0 0 4px rgba(var(--gold-rgb),0.35);
   margin-left: 10px;
 }
 .stats-actions-row {
@@ -3500,19 +3512,19 @@ body.hit-pause .ai-hand * {
 /* Auto-flag banner (phase 4f) — headline summary across all cards. */
 .stats-flag-banner {
   background: #000;
-  border: 1px solid rgba(255,215,0,0.65);
+  border: 1px solid rgba(var(--gold-rgb),0.65);
   border-radius: 4px;
   padding: 12px 18px;
   margin-bottom: 18px;
   box-shadow:
-    0 0 14px rgba(255,215,0,0.25),
-    inset 0 0 0 1px rgba(255,215,0,0.10);
+    0 0 14px rgba(var(--gold-rgb),0.25),
+    inset 0 0 0 1px rgba(var(--gold-rgb),0.10);
 }
 .stats-flag-title {
   font-size: 10px; font-weight: 700;
   letter-spacing: 3px; text-transform: uppercase;
   color: #ffe066;
-  text-shadow: 0 0 6px rgba(255,215,0,0.60);
+  text-shadow: 0 0 6px rgba(var(--gold-rgb),0.60);
   margin-bottom: 8px;
 }
 .stats-flag-list {
@@ -3743,7 +3755,7 @@ body.hit-pause .ai-hand * {
 }
 .stats-table tr.cost-9 .stats-name-text, .stats-table tr.cost-10 .stats-name-text {
   color: #ffe066;
-  text-shadow: 0 0 4px rgba(255,215,0,1), 0 0 10px rgba(255,215,0,0.50);
+  text-shadow: 0 0 4px rgba(var(--gold-rgb),1), 0 0 10px rgba(var(--gold-rgb),0.50);
 }
 /* Trick rows — purple neon name matching the trick card chrome. */
 .stats-table tr.stats-trick-row .stats-name-text {
@@ -4114,8 +4126,8 @@ body.hit-pause .ai-hand * {
 .db-grid-item.cost-9 .db-grid-name, .db-grid-item.cost-10 .db-grid-name {
   color: #ffe066;
   text-shadow:
-    0 0 4px rgba(255,215,0,1),
-    0 0 10px rgba(255,215,0,0.50);
+    0 0 4px rgba(var(--gold-rgb),1),
+    0 0 10px rgba(var(--gold-rgb),0.50);
 }
 /* Mirror the rarity-neon name on the deck panel rows too. */
 .db-deck-row.cost-0 .db-deck-name, .db-deck-row.cost-1 .db-deck-name,
@@ -4134,7 +4146,7 @@ body.hit-pause .ai-hand * {
 }
 .db-deck-row.cost-9 .db-deck-name, .db-deck-row.cost-10 .db-deck-name {
   color: #ffe066;
-  text-shadow: 0 0 4px rgba(255,215,0,0.80);
+  text-shadow: 0 0 4px rgba(var(--gold-rgb),0.80);
 }
 /* Stat row — neon green ATK / neon red HP, matching the board's
    .stat-atk / .stat-hp palette so the numbers read as the same kind of
@@ -4195,8 +4207,8 @@ body.hit-pause .ai-hand * {
 }
 .db-grid-count-max {
   color: #ffe066;
-  background: rgba(255,215,0,0.15);
-  border-color: rgba(255,215,0,0.70);
+  background: rgba(var(--gold-rgb),0.15);
+  border-color: rgba(var(--gold-rgb),0.70);
 }
 .db-grid-item-disabled { opacity: 0.40; cursor: not-allowed; }
 .db-grid-item-disabled:hover { transform: none; }
@@ -4230,11 +4242,11 @@ body.hit-pause .ai-hand * {
   text-shadow: 0 0 4px rgba(240,245,250,0.95), 0 0 10px rgba(240,245,250,0.50);
 }
 .db-grid-item.cost-9, .db-grid-item.cost-10 {
-  border-color: rgba(255,215,0,0.70);
+  border-color: rgba(var(--gold-rgb),0.70);
 }
 .db-grid-item.cost-9 .db-grid-cost, .db-grid-item.cost-10 .db-grid-cost {
   color: #ffe066;
-  text-shadow: 0 0 4px rgba(255,215,0,0.95), 0 0 10px rgba(255,215,0,0.55);
+  text-shadow: 0 0 4px rgba(var(--gold-rgb),0.95), 0 0 10px rgba(var(--gold-rgb),0.55);
 }
 
 /* ---- Right pane: deck panel ---- */
@@ -4352,14 +4364,14 @@ body.hit-pause .ai-hand * {
 }
 .db-deck-count-max {
   color: #ffe066;
-  background: rgba(255,215,0,0.15);
-  border-color: rgba(255,215,0,0.70);
+  background: rgba(var(--gold-rgb),0.15);
+  border-color: rgba(var(--gold-rgb),0.70);
 }
 /* Rarity tint on deck rows — matches the grid palette. */
 .db-deck-row.cost-0, .db-deck-row.cost-1, .db-deck-row.cost-2, .db-deck-row.cost-3 { border-color: rgba(46,204,113,0.50); }
 .db-deck-row.cost-4, .db-deck-row.cost-5, .db-deck-row.cost-6 { border-color: rgba(79,195,247,0.50); }
 .db-deck-row.cost-7, .db-deck-row.cost-8 { border-color: rgba(240,245,250,0.60); }
-.db-deck-row.cost-9, .db-deck-row.cost-10 { border-color: rgba(255,215,0,0.70); }
+.db-deck-row.cost-9, .db-deck-row.cost-10 { border-color: rgba(var(--gold-rgb),0.70); }
 
 /* ---- Footer: save / load / start ---- */
 .db-footer {
@@ -4507,8 +4519,8 @@ body.hit-pause .ai-hand * {
 }
 .mh-arch-strong { border-left-color: rgba(46, 204, 113, 0.85); }
 .mh-arch-strong .mh-arch-pct { color: #8ef2ad; text-shadow: 0 0 4px rgba(46, 204, 113, 0.55); }
-.mh-arch-even   { border-left-color: rgba(255, 215, 0, 0.85); }
-.mh-arch-even   .mh-arch-pct { color: #ffd95c; text-shadow: 0 0 4px rgba(255, 215, 0, 0.45); }
+.mh-arch-even   { border-left-color: rgba(var(--gold-rgb), 0.85); }
+.mh-arch-even   .mh-arch-pct { color: #ffd95c; text-shadow: 0 0 4px rgba(var(--gold-rgb), 0.45); }
 .mh-arch-weak   { border-left-color: rgba(231, 76, 60, 0.85); }
 .mh-arch-weak   .mh-arch-pct { color: #ff8a7a; text-shadow: 0 0 4px rgba(231, 76, 60, 0.55); }
 @media (max-width: 640px) {
@@ -5403,13 +5415,13 @@ body.hit-pause .ai-hand * {
     inset 0 0 0 1px rgba(240,245,250,0.10) !important;
 }
 .draft-card.cost-9, .draft-card.cost-10 {
-  border-color: rgba(255,215,0,0.95) !important;
+  border-color: rgba(var(--gold-rgb),0.95) !important;
   background: #000 !important;
   box-shadow:
-    0 0 12px rgba(255,215,0,0.45),
-    0 0 24px rgba(255,215,0,0.18),
+    0 0 12px rgba(var(--gold-rgb),0.45),
+    0 0 24px rgba(var(--gold-rgb),0.18),
     0 6px 18px rgba(0,0,0,0.55),
-    inset 0 0 0 1px rgba(255,215,0,0.12) !important;
+    inset 0 0 0 1px rgba(var(--gold-rgb),0.12) !important;
 }
 /* Inner hairline — Tron double-edge */
 .draft-card::before {
@@ -5465,12 +5477,12 @@ body.hit-pause .ai-hand * {
 /* Legendary (cost 9-10) — gold hover */
 .draft-card.cost-9:hover,
 .draft-card.cost-10:hover {
-  border-color: rgba(255,215,0,1) !important;
+  border-color: rgba(var(--gold-rgb),1) !important;
   box-shadow:
-    0 0 26px rgba(255,215,0,0.90),
-    0 0 48px rgba(255,215,0,0.45),
+    0 0 26px rgba(var(--gold-rgb),0.90),
+    0 0 48px rgba(var(--gold-rgb),0.45),
     0 14px 32px rgba(0,0,0,0.55),
-    inset 0 0 0 1px rgba(255,215,0,0.22) !important;
+    inset 0 0 0 1px rgba(var(--gold-rgb),0.22) !important;
 }
 
 /* Draft-card cost + orbs now inherit from the unified `.card-cost`
@@ -5495,7 +5507,7 @@ body.hit-pause .ai-hand * {
    matter which theme is selected. */
 .draft-card.cost-4, .draft-card.cost-5, .draft-card.cost-6 { --card-edge: rgba(79,195,247,0.80); }
 .draft-card.cost-7, .draft-card.cost-8 { --card-edge: rgba(240,245,250,0.90); }
-.draft-card.cost-9, .draft-card.cost-10 { --card-edge: rgba(255,215,0,0.95); }
+.draft-card.cost-9, .draft-card.cost-10 { --card-edge: rgba(var(--gold-rgb),0.95); }
 
 /* Name banner — single underscan + centered diamond node, same language as
    hand/board cards. Larger diamond to match the draft card's larger scale. */
@@ -5552,9 +5564,9 @@ body.hit-pause .ai-hand * {
 .draft-card.cost-9 .card-name, .draft-card.cost-10 .card-name {
   color: #ffe066;
   text-shadow:
-    0 0 4px rgba(255,215,0,1),
-    0 0 12px rgba(255,215,0,0.75),
-    0 0 20px rgba(255,215,0,0.45),
+    0 0 4px rgba(var(--gold-rgb),1),
+    0 0 12px rgba(var(--gold-rgb),0.75),
+    0 0 20px rgba(var(--gold-rgb),0.45),
     0 1px 2px rgba(0,0,0,0.95);
 }
 
@@ -5659,7 +5671,7 @@ body.hit-pause .ai-hand * {
 .draft-card.cost-9 .card-type-sigil,
 .draft-card.cost-10 .card-type-sigil {
   color: #ffd77a;
-  text-shadow: 0 0 10px rgba(255,215,0,0.95);
+  text-shadow: 0 0 10px rgba(var(--gold-rgb),0.95);
 }
 .draft-card .trick-name {
   /* Match .card-name-banner — single underscan hairline + centered diamond. */
@@ -5788,9 +5800,9 @@ body.hit-pause .ai-hand * {
 /* Cards: cost 9-10 → gold legendary */
 .drafted-tag.cost-9,  .drafted-tag.cost-10 {
   color: #ffd77a;
-  border-color: rgba(255,215,0,0.95);
-  box-shadow: 0 0 8px rgba(255,215,0,0.40), 0 0 16px rgba(255,215,0,0.18);
-  text-shadow: 0 0 4px rgba(255,215,0,0.55);
+  border-color: rgba(var(--gold-rgb),0.95);
+  box-shadow: 0 0 8px rgba(var(--gold-rgb),0.40), 0 0 16px rgba(var(--gold-rgb),0.18);
+  text-shadow: 0 0 4px rgba(var(--gold-rgb),0.55);
 }
 
 /* Tricks: cost 0-3 → purple (default trick color, reassert for specificity) */
@@ -5818,9 +5830,9 @@ body.hit-pause .ai-hand * {
 .drafted-tag.drafted-tag-trick.cost-9,
 .drafted-tag.drafted-tag-trick.cost-10 {
   color: #ffd77a;
-  border-color: rgba(255,215,0,0.95);
-  box-shadow: 0 0 8px rgba(255,215,0,0.40), 0 0 16px rgba(255,215,0,0.18);
-  text-shadow: 0 0 4px rgba(255,215,0,0.55);
+  border-color: rgba(var(--gold-rgb),0.95);
+  box-shadow: 0 0 8px rgba(var(--gold-rgb),0.40), 0 0 16px rgba(var(--gold-rgb),0.18);
+  text-shadow: 0 0 4px rgba(var(--gold-rgb),0.55);
 }
 
 /* ---- AI HAND (condensed) ---- */
@@ -5993,7 +6005,7 @@ body.hit-pause .ai-hand * {
   width: 100%; height: 100%;
 }
 .card-mvp-star.mvp-gold {
-  filter: drop-shadow(0 0 2px rgba(255,215,0,0.95)) drop-shadow(0 0 5px rgba(255,215,0,0.55));
+  filter: drop-shadow(0 0 2px rgba(var(--gold-rgb),0.95)) drop-shadow(0 0 5px rgba(var(--gold-rgb),0.55));
 }
 .card-mvp-star.mvp-gold svg { fill: #ffd77a; }
 .card-mvp-star.mvp-silver {
@@ -6097,11 +6109,11 @@ body.hit-pause .ai-hand * {
   font-size: 9px; font-weight: 700; letter-spacing: 1.2px;
   padding: 2px 8px; border-radius: 8px;
   background: #000000;
-  border: 1px solid rgba(255,215,0,0.95);
+  border: 1px solid rgba(var(--gold-rgb),0.95);
   color: #ffd77a;
   margin-bottom: 3px;
-  box-shadow: 0 0 8px rgba(255,215,0,0.45), 0 0 16px rgba(255,215,0,0.20);
-  text-shadow: 0 0 4px rgba(255,215,0,0.55);
+  box-shadow: 0 0 8px rgba(var(--gold-rgb),0.45), 0 0 16px rgba(var(--gold-rgb),0.20);
+  text-shadow: 0 0 4px rgba(var(--gold-rgb),0.55);
 }
 .lane-trap .lane-trap-icon { width: 14px; height: 14px; display: block; }
 .lane-trap .lane-trap-icon svg { width: 100%; height: 100%; }
@@ -6267,7 +6279,7 @@ body.hit-pause .ai-hand * {
   /* The tab colour. Defaults to the card's framing colour, which is already the
      cost tier in hand / codex / draft (green → cyan → silver → gold) and the
      side colour on board. Anything that used to recolour the DIGIT sets this. */
-  --cost-neon: var(--portrait-frame-rgb, 255,215,0);
+  --cost-neon: var(--portrait-frame-rgb, var(--gold-rgb));
   --cost-radius: 3px;
   /* ============================================================
      G + H — a HUD READOUT TAB. (Owner: "G and H for the cost corners is the
@@ -6381,7 +6393,7 @@ body.hit-pause .ai-hand * {
    ramp; board cards take their side colour. */
 .card.hand-card .card-cost,
 .draft-card .card-cost {
-  --cost-neon: var(--portrait-frame-rgb, 255,215,0);
+  --cost-neon: var(--portrait-frame-rgb, var(--gold-rgb));
 }
 /* Hand tiles are 86px wide, not the 140px the base size was drawn for —
    the same 26px block reads a third heavier there. Sized down so the
@@ -6500,9 +6512,9 @@ body.hit-pause .ai-hand * {
 .card.hand-card.cost-9 .card-name, .card.hand-card.cost-10 .card-name {
   color: #ffe066;
   text-shadow:
-    0 0 4px rgba(255,215,0,1),
-    0 0 12px rgba(255,215,0,0.7),
-    0 0 20px rgba(255,215,0,0.40),
+    0 0 4px rgba(var(--gold-rgb),1),
+    0 0 12px rgba(var(--gold-rgb),0.7),
+    0 0 20px rgba(var(--gold-rgb),0.40),
     0 1px 2px rgba(0,0,0,0.95);
 }
 
@@ -6561,8 +6573,8 @@ body.hit-pause .ai-hand * {
   box-shadow: 0 0 4px rgba(240,245,250,1), 0 0 10px rgba(240,245,250,0.65);
 }
 .cost-9 .rarity-strip .rpip, .cost-10 .rarity-strip .rpip {
-  background: rgba(255,215,0,1);
-  box-shadow: 0 0 4px rgba(255,215,0,1), 0 0 10px rgba(255,215,0,0.65);
+  background: rgba(var(--gold-rgb),1);
+  box-shadow: 0 0 4px rgba(var(--gold-rgb),1), 0 0 10px rgba(var(--gold-rgb),0.65);
 }
 
 /* Board-only pip override — on the board the pip color carries SIDE at low
@@ -6594,8 +6606,8 @@ body.hit-pause .ai-hand * {
 }
 .card.ally-card.cost-9 .rpip, .card.ally-card.cost-10 .rpip,
 .card.enemy-card.cost-9 .rpip, .card.enemy-card.cost-10 .rpip {
-  background: rgba(255,215,0,1);
-  box-shadow: 0 0 4px rgba(255,215,0,1), 0 0 10px rgba(255,215,0,0.65);
+  background: rgba(var(--gold-rgb),1);
+  box-shadow: 0 0 4px rgba(var(--gold-rgb),1), 0 0 10px rgba(var(--gold-rgb),0.65);
 }
 
 /* Draft-card scale — larger pips since the draft card is bigger. */
@@ -6829,8 +6841,8 @@ body.hit-pause .ai-hand * {
   display: block;
   margin: 4px 6px 0;
   padding: 6px 8px;
-  background: rgba(255,215,0,0.06);
-  border-left: 2px solid rgba(255,215,0,0.55);
+  background: rgba(var(--gold-rgb),0.06);
+  border-left: 2px solid rgba(var(--gold-rgb),0.55);
   border-radius: 2px;
   font-size: 10px;
   line-height: 1.35;
@@ -6846,8 +6858,8 @@ body.hit-pause .ai-hand * {
   text-transform: uppercase;
   color: #ffe066;
   text-shadow:
-    0 0 4px rgba(255,215,0,0.75),
-    0 0 8px rgba(255,215,0,0.35);
+    0 0 4px rgba(var(--gold-rgb),0.75),
+    0 0 8px rgba(var(--gold-rgb),0.35);
   margin-bottom: 2px;
 }
 .card-text-plus-body {
@@ -6909,7 +6921,7 @@ body.hit-pause .ai-hand * {
 }
 .cost-9 .card-trick-passive, .cost-10 .card-trick-passive {
   color: #ffd77a;
-  text-shadow: 0 0 4px rgba(255,215,0,0.70), 0 0 8px rgba(255,215,0,0.35);
+  text-shadow: 0 0 4px rgba(var(--gold-rgb),0.70), 0 0 8px rgba(var(--gold-rgb),0.35);
 }
 /* Hand cards: labels follow the rarity tier so draft/hand states stay
    visually consistent with the rest of the tier language. */
@@ -6934,7 +6946,7 @@ body.hit-pause .ai-hand * {
 .card.hand-card.cost-9 .card-desc b,
 .card.hand-card.cost-10 .card-desc b {
   color: #ffe066 !important;
-  text-shadow: 0 0 4px rgba(255,215,0,0.90), 0 0 8px rgba(255,215,0,0.50);
+  text-shadow: 0 0 4px rgba(var(--gold-rgb),0.90), 0 0 8px rgba(var(--gold-rgb),0.50);
 }
 
 /* Moder — stripped card visual: greyed core, clear "stripped" text */
@@ -7161,10 +7173,10 @@ body.hit-pause .ai-hand * {
   from { box-shadow: 0 0 10px rgba(255,105,180,0.8), 0 0 20px rgba(255,20,147,0.4) !important; }
   to   { box-shadow: 0 0 22px rgba(255,105,180,1.0), 0 0 44px rgba(255,20,147,0.7) !important; }
 }
-.card.status-stunned { box-shadow: 0 0 14px rgba(241,196,15,0.8), 0 0 28px rgba(241,196,15,0.3) !important; }
+.card.status-stunned { box-shadow: 0 0 14px rgba(var(--gold-rgb),0.8), 0 0 28px rgba(var(--gold-rgb),0.3) !important; }
 .card.status-frozen { box-shadow: 0 0 14px rgba(133,193,233,0.7), 0 0 28px rgba(174,214,241,0.3) !important; }
 .card.status-feared { box-shadow: 0 0 14px rgba(0,0,0,0.8), 0 0 28px rgba(40,0,40,0.5), inset 0 0 8px rgba(0,0,0,0.3) !important; }
-.card.status-mind-ctrl { box-shadow: 0 0 12px rgba(241,196,15,0.7), 0 0 24px rgba(241,196,15,0.3) !important; }
+.card.status-mind-ctrl { box-shadow: 0 0 12px rgba(var(--gold-rgb),0.7), 0 0 24px rgba(var(--gold-rgb),0.3) !important; }
 
 /* CRAZY — cards whose attack rolls each turn (Joker, Harley Quinn, or
    the top-ATK enemy when a Joker is on the opposite side). Slight
@@ -7274,7 +7286,7 @@ body.hit-pause .ai-hand * {
 }
 .card.vibe-speed:not(.card-enter):not(.card-exit) {
   animation: vibeSpeedJitter 0.55s linear infinite;
-  box-shadow: 0 0 14px rgba(255,215,0,0.52), 0 0 28px rgba(255,255,120,0.28) !important;
+  box-shadow: 0 0 14px rgba(var(--gold-rgb),0.52), 0 0 28px rgba(255,255,120,0.28) !important;
 }
 
 /* MAGNETIC — hue cycle + pulsing metallic halo. For tech/metal cards. */
@@ -7516,7 +7528,7 @@ body.hit-pause .ai-hand * {
 .badge-thorns     { color: #2ecc71; }
 .badge-lifesteal  { color: #e74c3c; }
 .badge-berserker  { color: #c0392b; }
-.badge-zealot     { color: #f1c40f; }
+.badge-zealot     { color: #f5bf1c; }
 .badge-echo       { color: #b98fd0; }
 .badge-phoenix    { color: #e67e22; }
 .badge-fear       { color: var(--text-faint, #5a5a5a); }
@@ -7557,12 +7569,12 @@ body.hit-pause .ai-hand * {
 .card.hand-card.playable.selected:hover {
   transform: none !important;
 }
-.card.selected { border-color: #f1c40f !important; box-shadow: 0 0 24px rgba(241,196,15,0.5) !important; transform: translateY(-8px); }
-.trick-card.selected { border-color: #f1c40f !important; box-shadow: 0 0 24px rgba(241,196,15,0.55) !important; transform: translateY(-6px); }
+.card.selected { border-color: #f5bf1c !important; box-shadow: 0 0 24px rgba(var(--gold-rgb),0.5) !important; transform: translateY(-8px); }
+.trick-card.selected { border-color: #f5bf1c !important; box-shadow: 0 0 24px rgba(var(--gold-rgb),0.55) !important; transform: translateY(-6px); }
 .trick-card.selected::after {
   content: 'Click again to play';
   position: absolute; top: -18px; left: 50%; transform: translateX(-50%);
-  font-size: 9px; font-weight: 700; letter-spacing: 1px; color: #f1c40f;
+  font-size: 9px; font-weight: 700; letter-spacing: 1px; color: #f5bf1c;
   text-shadow: 0 1px 2px rgba(0,0,0,0.7); pointer-events: none; white-space: nowrap;
 }
 /* Disabled card "look declined-but-readable." Earlier this used
@@ -7869,7 +7881,7 @@ body.hit-pause .ai-hand * {
 .card.hand-card.cost-7,
 .card.hand-card.cost-8    { --card-edge: rgba(240,245,250,0.85); }
 .card.hand-card.cost-9,
-.card.hand-card.cost-10   { --card-edge: rgba(255,215,0,0.90); }
+.card.hand-card.cost-10   { --card-edge: rgba(var(--gold-rgb),0.90); }
 /* Premium legendary foil — cost 9-10 cards in hand get an always-on gold glow
    on their (already-gold) corner brackets so the "money card" is identifiable
    at a glance, at rest. Static (no idle pulse — idle animation was explicitly
@@ -7877,7 +7889,7 @@ body.hit-pause .ai-hand * {
    box-shadow or the hover sheen. */
 .card.hand-card.cost-9::before,
 .card.hand-card.cost-10::before {
-  filter: drop-shadow(0 0 3px rgba(255,215,0,0.85)) drop-shadow(0 0 7px rgba(255,215,0,0.45));
+  filter: drop-shadow(0 0 3px rgba(var(--gold-rgb),0.85)) drop-shadow(0 0 7px rgba(var(--gold-rgb),0.45));
 }
 
 .card::before {
@@ -8152,9 +8164,9 @@ body.hit-pause .ai-hand * {
      of a sweep that enters from the LEFT (lane 1) and exits to the
      RIGHT (lane 6). Previously the sweep read as moving right→left. */
   background:
-    linear-gradient(90deg, transparent 0%, rgba(255,215,0,0.10) 48%, rgba(255,215,0,0.20) 50%, rgba(255,215,0,0.10) 52%, transparent 100%),
-    linear-gradient(rgba(255,215,0,0.06) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(255,215,0,0.06) 1px, transparent 1px);
+    linear-gradient(90deg, transparent 0%, rgba(var(--gold-rgb),0.10) 48%, rgba(var(--gold-rgb),0.20) 50%, rgba(var(--gold-rgb),0.10) 52%, transparent 100%),
+    linear-gradient(rgba(var(--gold-rgb),0.06) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(var(--gold-rgb),0.06) 1px, transparent 1px);
   background-size: 200% 100%, 64px 64px, 64px 64px;
   background-position: 200% 0, 0 0, 0 0;
   animation: combatReveal 0.9s ease-out forwards;
@@ -8325,14 +8337,14 @@ body.mobile-card-dragging .cursor-trail { display: none !important; }
   text-shadow: 0 0 6px rgba(var(--theme-rgb, 79,195,247),0.55);
 }
 .dmg-float.dmg-evade {
-  color: #ffd77a; border-color: rgba(241,196,15,0.95);
-  box-shadow: 0 0 12px rgba(241,196,15,0.55), 0 0 24px rgba(241,196,15,0.25);
-  text-shadow: 0 0 6px rgba(241,196,15,0.55);
+  color: #ffd77a; border-color: rgba(var(--gold-rgb),0.95);
+  box-shadow: 0 0 12px rgba(var(--gold-rgb),0.55), 0 0 24px rgba(var(--gold-rgb),0.25);
+  text-shadow: 0 0 6px rgba(var(--gold-rgb),0.55);
 }
 .dmg-float.dmg-armor {
-  color: #ffd77a; border-color: rgba(255,215,0,0.95);
-  box-shadow: 0 0 12px rgba(255,215,0,0.60), 0 0 24px rgba(255,215,0,0.25);
-  text-shadow: 0 0 6px rgba(255,215,0,0.55);
+  color: #ffd77a; border-color: rgba(var(--gold-rgb),0.95);
+  box-shadow: 0 0 12px rgba(var(--gold-rgb),0.60), 0 0 24px rgba(var(--gold-rgb),0.25);
+  text-shadow: 0 0 6px rgba(var(--gold-rgb),0.55);
 }
 /* Card frame flashes bronze when armor fully absorbs a hit */
 .card.armor-burst { animation: armorBurstFrame 0.7s ease-out; }
@@ -8408,9 +8420,9 @@ body.mobile-card-dragging .cursor-trail { display: none !important; }
    class consumer, but no rule applies it. */
 .energy-text.energy-boost { animation: none; }
 @keyframes energyBoost {
-  0% { transform: scale(1); box-shadow: 0 0 12px rgba(243,156,18,0.55), inset 0 0 0 1px rgba(255,215,0,0.35); }
-  45% { transform: scale(1.18); box-shadow: 0 0 26px rgba(243,156,18,1), inset 0 0 0 1px rgba(255,215,0,0.7); }
-  100% { transform: scale(1); box-shadow: 0 0 12px rgba(243,156,18,0.55), inset 0 0 0 1px rgba(255,215,0,0.35); }
+  0% { transform: scale(1); box-shadow: 0 0 12px rgba(243,156,18,0.55), inset 0 0 0 1px rgba(var(--gold-rgb),0.35); }
+  45% { transform: scale(1.18); box-shadow: 0 0 26px rgba(243,156,18,1), inset 0 0 0 1px rgba(var(--gold-rgb),0.7); }
+  100% { transform: scale(1); box-shadow: 0 0 12px rgba(243,156,18,0.55), inset 0 0 0 1px rgba(var(--gold-rgb),0.35); }
 }
 
 /* Player hand card — refined hover lift */
@@ -8863,7 +8875,7 @@ body.mobile-card-dragging .cursor-trail { display: none !important; }
 .log-entry.log-draw     { border-left-color: rgba(var(--theme-rgb, 79,195,247),0.75);  box-shadow: inset 2px 0 6px rgba(var(--theme-rgb, 79,195,247),0.18); }
 .log-entry.log-play     { border-left-color: rgba(46,204,113,0.75);  box-shadow: inset 2px 0 6px rgba(46,204,113,0.18); }
 .log-entry.log-trick    { border-left-color: rgba(26,188,156,0.75);  box-shadow: inset 2px 0 6px rgba(26,188,156,0.18); }
-.log-entry.log-jump     { border-left-color: rgba(241,196,15,0.80);  box-shadow: inset 2px 0 6px rgba(241,196,15,0.22); }
+.log-entry.log-jump     { border-left-color: rgba(var(--gold-rgb),0.80);  box-shadow: inset 2px 0 6px rgba(var(--gold-rgb),0.22); }
 .log-entry.log-move     { border-left-color: rgba(149,165,166,0.65); box-shadow: inset 2px 0 6px rgba(149,165,166,0.15); }
 .log-entry.log-control  { border-left-color: rgba(155,89,182,0.80);  box-shadow: inset 2px 0 6px rgba(155,89,182,0.22); }
 .log-entry.log-utility  { border-left-color: rgba(127,140,141,0.65); box-shadow: inset 2px 0 6px rgba(127,140,141,0.15); }
@@ -8920,8 +8932,8 @@ body.mobile-card-dragging .cursor-trail { display: none !important; }
 
 /* ---- JUMP GLOW ---- */
 .card.jump-ready {
-  border-color: #f1c40f;
-  box-shadow: 0 0 14px rgba(241,196,15,0.7), 0 0 26px rgba(243,156,18,0.3);
+  border-color: #f5bf1c;
+  box-shadow: 0 0 14px rgba(var(--gold-rgb),0.7), 0 0 26px rgba(243,156,18,0.3);
   cursor: pointer;
 }
 
@@ -8941,21 +8953,21 @@ body.mobile-card-dragging .cursor-trail { display: none !important; }
   font-weight: 700;
   font-size: 13px;
   letter-spacing: 0.14em;
-  color: rgba(255, 215, 0, 0.95);
-  text-shadow: 0 0 8px rgba(255, 215, 0, 0.6), 0 0 18px rgba(255, 215, 0, 0.3);
+  color: rgba(var(--gold-rgb), 0.95);
+  text-shadow: 0 0 8px rgba(var(--gold-rgb), 0.6), 0 0 18px rgba(var(--gold-rgb), 0.3);
   pointer-events: none;
   animation: tronTargetPulseBig 1.2s var(--ease-pulse-organic, ease-in-out) infinite;
 }
 .target-highlight {
-  /* Bright gold (255, 215, 0) outline at full alpha — gold reads
+  /* Bright gold (var(--gold-rgb)) outline at full alpha — gold reads
      as "actionable / pick me" everywhere in this UI's color
      language and contrasts loudly against both red (AI) and cyan
      (player) borders. */
-  outline: 2px solid rgba(255, 215, 0, 0.95) !important;
+  outline: 2px solid rgba(var(--gold-rgb), 0.95) !important;
   outline-offset: 3px;
   box-shadow:
-    0 0 16px rgba(255, 215, 0, 0.65),
-    0 0 36px rgba(255, 215, 0, 0.30) !important;
+    0 0 16px rgba(var(--gold-rgb), 0.65),
+    0 0 36px rgba(var(--gold-rgb), 0.30) !important;
   cursor: pointer !important;
   position: relative; z-index: 5;
   /* Stronger pulse: scale + opacity together, brighter contrast
@@ -8967,22 +8979,22 @@ body.mobile-card-dragging .cursor-trail { display: none !important; }
   transform: translateY(-4px);
   outline-color: rgba(255, 230, 80, 1) !important;
   box-shadow:
-    0 0 24px rgba(255, 215, 0, 1),
-    0 0 50px rgba(255, 215, 0, 0.55),
-    0 0 80px rgba(255, 215, 0, 0.25) !important;
+    0 0 24px rgba(var(--gold-rgb), 1),
+    0 0 50px rgba(var(--gold-rgb), 0.55),
+    0 0 80px rgba(var(--gold-rgb), 0.25) !important;
 }
 @keyframes tronTargetPulseBig {
   0%, 100% {
-    outline-color: rgba(255, 215, 0, 0.95);
+    outline-color: rgba(var(--gold-rgb), 0.95);
     box-shadow:
-      0 0 14px rgba(255, 215, 0, 0.55),
-      0 0 30px rgba(255, 215, 0, 0.22);
+      0 0 14px rgba(var(--gold-rgb), 0.55),
+      0 0 30px rgba(var(--gold-rgb), 0.22);
   }
   50% {
     outline-color: rgba(255, 230, 100, 1);
     box-shadow:
-      0 0 22px rgba(255, 215, 0, 0.95),
-      0 0 48px rgba(255, 215, 0, 0.45);
+      0 0 22px rgba(var(--gold-rgb), 0.95),
+      0 0 48px rgba(var(--gold-rgb), 0.45);
   }
 }
 @media (prefers-reduced-motion: reduce) {
@@ -9030,7 +9042,7 @@ body.mobile-card-dragging .cursor-trail { display: none !important; }
   margin: 10px auto;
   position: relative;
   background: #000000;
-  border: 1px solid rgba(255,215,0,0.95);
+  border: 1px solid rgba(var(--gold-rgb),0.95);
   border-radius: 8px;
   padding: 8px 22px 10px;
   font-family: 'Rajdhani', 'Segoe UI', system-ui, sans-serif;
@@ -9038,10 +9050,10 @@ body.mobile-card-dragging .cursor-trail { display: none !important; }
   font-size: 14px; font-weight: 700;
   letter-spacing: 1.5px; text-transform: uppercase;
   text-align: center;
-  text-shadow: 0 0 8px rgba(255,215,0,0.40);
+  text-shadow: 0 0 8px rgba(var(--gold-rgb),0.40);
   box-shadow:
-    0 0 12px rgba(255,215,0,0.60),
-    0 0 24px rgba(255,215,0,0.25);
+    0 0 12px rgba(var(--gold-rgb),0.60),
+    0 0 24px rgba(var(--gold-rgb),0.25);
   animation: promptPulse 1.4s ease-in-out infinite;
   transition: opacity 200ms var(--ease-snap);
 }
@@ -9077,7 +9089,7 @@ body.mobile-card-dragging .cursor-trail { display: none !important; }
   letter-spacing: 0.2px;
   text-transform: none;
   color: #ffe9a8;
-  text-shadow: 0 0 9px rgba(255, 215, 0, 0.55);
+  text-shadow: 0 0 9px rgba(var(--gold-rgb), 0.55);
 }
 /* A banner you have to reach INTO must not ghost away as you approach it —
    see the :hover peek-through above. */
@@ -9099,7 +9111,7 @@ body.mobile-card-dragging .cursor-trail { display: none !important; }
   font-weight: 700; font-size: 14px;
   letter-spacing: 2.5px; text-transform: uppercase;
   color: #ffd77a;
-  text-shadow: 0 0 6px rgba(255,215,0,0.45);
+  text-shadow: 0 0 6px rgba(var(--gold-rgb),0.45);
   transform-origin: center;
   transition: transform 200ms var(--ease-snap), color 200ms var(--ease-snap), text-shadow 200ms var(--ease-snap);
   -webkit-tap-highlight-color: transparent;
@@ -9108,7 +9120,7 @@ body.mobile-card-dragging .cursor-trail { display: none !important; }
 .prompt-banner .prompt-decline:focus-visible {
   transform: scale(1.12);
   color: #fff2c8;
-  text-shadow: 0 0 12px rgba(255,215,0,0.9), 0 0 24px rgba(255,215,0,0.45);
+  text-shadow: 0 0 12px rgba(var(--gold-rgb),0.9), 0 0 24px rgba(var(--gold-rgb),0.45);
 }
 .prompt-banner .prompt-decline:focus-visible { outline: none; }
 @media (prefers-reduced-motion: reduce) {
@@ -9127,17 +9139,17 @@ body.mobile-card-dragging .cursor-trail { display: none !important; }
 .prompt-banner .prompt-timer-bar {
   flex: 0 0 160px;
   height: 4px;
-  background: rgba(255,215,0,0.15);
+  background: rgba(var(--gold-rgb),0.15);
   border-radius: 2px;
   overflow: hidden;
 }
 .prompt-banner .prompt-timer-fill {
   height: 100%;
   width: 100%;
-  background: linear-gradient(90deg, rgba(255,215,0,0.95), rgba(255,180,0,0.95));
+  background: linear-gradient(90deg, rgba(var(--gold-rgb),0.95), rgba(255,180,0,0.95));
   transform-origin: left;
   transition: transform 0.2s linear;
-  box-shadow: 0 0 8px rgba(255,215,0,0.75);
+  box-shadow: 0 0 8px rgba(var(--gold-rgb),0.75);
 }
 .prompt-banner .prompt-timer-text {
   font-family: var(--font-mono);
@@ -9148,8 +9160,8 @@ body.mobile-card-dragging .cursor-trail { display: none !important; }
   font-variant-numeric: tabular-nums;
 }
 @keyframes promptPulse {
-  0%, 100% { box-shadow: 0 0 12px rgba(255,215,0,0.60), 0 0 24px rgba(255,215,0,0.25); }
-  50%      { box-shadow: 0 0 16px rgba(255,215,0,0.85), 0 0 32px rgba(255,215,0,0.40); }
+  0%, 100% { box-shadow: 0 0 12px rgba(var(--gold-rgb),0.60), 0 0 24px rgba(var(--gold-rgb),0.25); }
+  50%      { box-shadow: 0 0 16px rgba(var(--gold-rgb),0.85), 0 0 32px rgba(var(--gold-rgb),0.40); }
 }
 
 /* ---- DEAD PILE OVERLAY — unified black-hole spec ---- */
@@ -9238,7 +9250,7 @@ body.mobile-card-dragging .cursor-trail { display: none !important; }
    is pinned, because a card in the dead pile has no live side to inherit. */
 .dead-pile-card .card-cost {
   --cost-size: 22px;
-  --cost-neon: 255, 215, 100;
+  --cost-neon: var(--gold-rgb);
 }
 .dead-pile-card .card-desc {
   font-family: 'Inter', sans-serif;
@@ -9458,16 +9470,16 @@ body.mobile-card-dragging .cursor-trail { display: none !important; }
   max-width: 720px;
   padding: 14px 18px 16px;
   background: linear-gradient(180deg, rgba(8,14,22,0.85) 0%, rgba(8,14,22,0.95) 100%);
-  border: 1px solid rgba(255,215,0,0.28);
+  border: 1px solid rgba(var(--gold-rgb),0.28);
   border-radius: 8px;
-  box-shadow: 0 0 22px rgba(255,215,0,0.10), 0 6px 24px rgba(0,0,0,0.45);
+  box-shadow: 0 0 22px rgba(var(--gold-rgb),0.10), 0 6px 24px rgba(0,0,0,0.45);
   animation: sotmRise 0.55s var(--ease-out-soft);
 }
 @keyframes sotmRise { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
 .sotm-banner {
   display: flex; align-items: center; gap: 10px;
   padding-bottom: 10px;
-  border-bottom: 1px solid rgba(255,215,0,0.18);
+  border-bottom: 1px solid rgba(var(--gold-rgb),0.18);
   margin-bottom: 12px;
 }
 .sotm-icon {
@@ -9510,7 +9522,7 @@ body.mobile-card-dragging .cursor-trail { display: none !important; }
   border-radius: 8px;
   padding: 10px 8px 24px;
   color: var(--text-body, #e8eef6);
-  box-shadow: 0 0 18px rgba(255,215,0,0.18);
+  box-shadow: 0 0 18px rgba(var(--gold-rgb),0.18);
 }
 .sotm-panel.sotm-side-player .sotm-card { color: #7fd0ff; }
 .sotm-panel.sotm-side-ai     .sotm-card { color: #ff9a8c; }
@@ -9631,9 +9643,9 @@ body.mobile-card-dragging .cursor-trail { display: none !important; }
 .game-over-stats .go-mvp-gold {
   color: #ffd77a;
   background: rgba(60,40,0,0.25);
-  border: 1px solid rgba(255,215,0,0.85);
-  text-shadow: 0 0 6px rgba(255,215,0,0.85), 0 0 14px rgba(255,215,0,0.45);
-  box-shadow: 0 0 10px rgba(255,215,0,0.55), 0 0 22px rgba(255,215,0,0.25), inset 0 0 8px rgba(255,215,0,0.12);
+  border: 1px solid rgba(var(--gold-rgb),0.85);
+  text-shadow: 0 0 6px rgba(var(--gold-rgb),0.85), 0 0 14px rgba(var(--gold-rgb),0.45);
+  box-shadow: 0 0 10px rgba(var(--gold-rgb),0.55), 0 0 22px rgba(var(--gold-rgb),0.25), inset 0 0 8px rgba(var(--gold-rgb),0.12);
 }
 .game-over-stats .go-mvp-silver {
   color: var(--text-dim, #dbe6ef);
@@ -10805,8 +10817,8 @@ body.turn-combat .board .lane.lane-active {
    pointer-events:auto so the tooltip can be clicked on/off cleanly. */
 .kw-tooltip.kw-tooltip-pinned {
   pointer-events: auto;
-  border-color: rgba(255,215,0,0.75);
-  box-shadow: 0 4px 14px rgba(0,0,0,0.6), 0 0 14px rgba(255,215,0,0.28);
+  border-color: rgba(var(--gold-rgb),0.75);
+  box-shadow: 0 4px 14px rgba(0,0,0,0.6), 0 0 14px rgba(var(--gold-rgb),0.28);
 }
 
 /* Card-popup tooltip variant — when a body-text keyword references an
@@ -11100,9 +11112,9 @@ body.turn-combat .board .lane.lane-active {
 .recap-tl-pill.cost-9, .recap-tl-pill.cost-10 {
   /* Legendary — gold */
   color: #ffd77a;
-  border-color: rgba(255, 215, 0, 0.95);
-  box-shadow: 0 0 8px rgba(255, 215, 0, 0.45), 0 0 20px rgba(255, 215, 0, 0.20);
-  text-shadow: 0 0 4px rgba(255, 215, 0, 0.55);
+  border-color: rgba(var(--gold-rgb), 0.95);
+  box-shadow: 0 0 8px rgba(var(--gold-rgb), 0.45), 0 0 20px rgba(var(--gold-rgb), 0.20);
+  text-shadow: 0 0 4px rgba(var(--gold-rgb), 0.55);
 }
 /* Trick events stay purple regardless of cost — tricks are ALL
    purple-themed in the game's visual language; the cost coloring
@@ -11519,18 +11531,18 @@ body.turn-combat .board .lane.lane-active {
   font-size: 9px; font-weight: 700;
   letter-spacing: 2px;
   color: #ffe066;
-  border: 1px solid rgba(255,215,0,0.55);
+  border: 1px solid rgba(var(--gold-rgb),0.55);
   border-radius: 8px;
-  background: rgba(255,215,0,0.08);
-  text-shadow: 0 0 4px rgba(255,215,0,0.85);
+  background: rgba(var(--gold-rgb),0.08);
+  text-shadow: 0 0 4px rgba(var(--gold-rgb),0.85);
 }
 /* Vertical marker line drawn on the histogram at the avg-cost x-position. */
 .db-curve-avg-line {
   position: absolute;
   top: 0; bottom: 0;
   width: 2px;
-  background: rgba(255,215,0,0.8);
-  box-shadow: 0 0 6px rgba(255,215,0,0.85), 0 0 14px rgba(255,215,0,0.45);
+  background: rgba(var(--gold-rgb),0.8);
+  box-shadow: 0 0 6px rgba(var(--gold-rgb),0.85), 0 0 14px rgba(var(--gold-rgb),0.45);
   pointer-events: none;
   z-index: 1;
 }
@@ -11790,7 +11802,7 @@ body.turn-combat .board .lane.lane-active {
 .game-log .log-draw    { border-left-color: rgba(52,152,219,0.9);   box-shadow: inset 2px 0 8px rgba(52,152,219,0.18); background: rgba(52,152,219,0.04); }
 .game-log .log-play    { border-left-color: rgba(46,204,113,0.9);   box-shadow: inset 2px 0 8px rgba(46,204,113,0.15); background: rgba(46,204,113,0.03); }
 .game-log .log-trick   { border-left-color: rgba(26,188,156,0.9);   box-shadow: inset 2px 0 8px rgba(26,188,156,0.18); background: rgba(26,188,156,0.04); }
-.game-log .log-jump    { border-left-color: rgba(241,196,15,1);     box-shadow: inset 2px 0 8px rgba(241,196,15,0.22); background: rgba(241,196,15,0.05); }
+.game-log .log-jump    { border-left-color: rgba(var(--gold-rgb),1);     box-shadow: inset 2px 0 8px rgba(var(--gold-rgb),0.22); background: rgba(var(--gold-rgb),0.05); }
 .game-log .log-move    { border-left-color: rgba(52,152,219,0.7);   box-shadow: inset 2px 0 6px rgba(52,152,219,0.12); }
 .game-log .log-control { border-left-color: rgba(155,89,182,0.95);  box-shadow: inset 2px 0 10px rgba(155,89,182,0.22); background: rgba(155,89,182,0.05); }
 .game-log .log-utility { border-left-color: rgba(149,165,166,0.75); }
@@ -12663,11 +12675,11 @@ body.turn-combat .board .lane.lane-active {
 
 /* Active-lane full-lane glow during combat — breathes via opacity only */
 .lane.lane-active {
-  border-color: rgba(255,215,0,0.95);
+  border-color: rgba(var(--gold-rgb),0.95);
   /* Reset split-gradient border-image so the gold combat pulse wins cleanly
      when a contested (occ-both) lane enters its combat turn. */
   border-image: none;
-  box-shadow: 0 0 12px rgba(255,215,0,0.60), 0 0 24px rgba(255,215,0,0.25);
+  box-shadow: 0 0 12px rgba(var(--gold-rgb),0.60), 0 0 24px rgba(var(--gold-rgb),0.25);
   animation: laneActivePulse 1.2s ease-in-out infinite;
 }
 /* Vertical tracer line — one-shot sweep top→bottom when the lane becomes active.
@@ -12676,8 +12688,8 @@ body.turn-combat .board .lane.lane-active {
   content: ''; position: absolute;
   left: 50%; top: 0; bottom: 0; width: 1px;
   transform-origin: top; transform: translateX(-50%) scaleY(0);
-  background: linear-gradient(180deg, transparent 0%, rgba(255,215,0,0.95) 50%, transparent 100%);
-  box-shadow: 0 0 12px rgba(255,215,0,0.70), 0 0 24px rgba(255,215,0,0.30);
+  background: linear-gradient(180deg, transparent 0%, rgba(var(--gold-rgb),0.95) 50%, transparent 100%);
+  box-shadow: 0 0 12px rgba(var(--gold-rgb),0.70), 0 0 24px rgba(var(--gold-rgb),0.30);
   pointer-events: none; z-index: 1;
   animation: laneTracer 1.2s ease-out forwards;
 }
@@ -13402,12 +13414,12 @@ body.in-match .cheat-help-toggle { display: flex; }
      than neighboring pips. Matches the .energy-text / banner aesthetic so the
      current round reads as the "live" energy node on the timeline. */
   color: var(--pip-text, #ffd77a);
-  border-color: rgba(var(--pip-col, 255,215,0), 0.95);
+  border-color: rgba(var(--pip-col, var(--gold-rgb)), 0.95);
   background: #000000;
   box-shadow:
-    0 0 12px rgba(var(--pip-col, 255,215,0), 0.60),
-    0 0 24px rgba(var(--pip-col, 255,215,0), 0.25);
-  text-shadow: 0 0 8px rgba(var(--pip-col, 255,215,0), 0.70);
+    0 0 12px rgba(var(--pip-col, var(--gold-rgb)), 0.60),
+    0 0 24px rgba(var(--pip-col, var(--gold-rgb)), 0.25);
+  text-shadow: 0 0 8px rgba(var(--pip-col, var(--gold-rgb)), 0.70);
   font-size: 12px;
   width: 26px; height: 26px;
   animation: roundPipPulse 2.0s ease-in-out infinite;
@@ -13896,14 +13908,14 @@ body.in-match .cheat-help-toggle { display: flex; }
 }
 /* Block meter — halve the outer halo, keep the crisp ring. */
 .block-circle {
-  box-shadow: 0 0 7px rgba(255,215,0,0.40), 0 0 14px rgba(255,215,0,0.14);
+  box-shadow: 0 0 7px rgba(var(--gold-rgb),0.40), 0 0 14px rgba(var(--gold-rgb),0.14);
 }
 /* Energy orb (currency) — glow now lives on the ::before diamond, not
    on the outer span (which would draw a square halo around the diamond
    shape). Keep the text shadow here since that applies to the numeral. */
 .energy-text {
   box-shadow: none;
-  text-shadow: 0 0 4px rgba(255,215,0,0.85), 0 0 9px rgba(255,215,0,0.35);
+  text-shadow: 0 0 4px rgba(var(--gold-rgb),0.85), 0 0 9px rgba(var(--gold-rgb),0.35);
 }
 /* HUD pill (Round • Phase • Deck • Tricks) — top-centre readout. */
 .hud-pill {
@@ -13978,7 +13990,7 @@ body.round-first-ai .hud-pill-main {
   outline-color: color-mix(in srgb, var(--card-edge) 35%, transparent);
 }
 .card.selected {
-  outline-color: rgba(241,196,15,0.55);
+  outline-color: rgba(var(--gold-rgb),0.55);
 }
 /* Face-down cards keep the blue back — skip the tier gradient for
    them since they're a different visual category. */
@@ -14058,8 +14070,8 @@ body.round-first-ai .hud-pill-main {
 .lane .lane-sep.lane-active .lane-number,
 .lane .lane-sep.lane-active::before {
   box-shadow:
-    0 0 10px rgba(255,215,0,0.50),
-    0 0 20px rgba(255,215,0,0.20) !important;
+    0 0 10px rgba(var(--gold-rgb),0.50),
+    0 0 20px rgba(var(--gold-rgb),0.20) !important;
 }
 
 /* ============================================================
@@ -15890,7 +15902,7 @@ body.round-first-ai .hud-pill-main {
 .draft-card.cost-9 .card-trick-passive,
 .draft-card.cost-10 .card-trick-passive {
   color: #ffe066 !important;
-  text-shadow: 0 0 4px rgba(255,215,0,0.70), 0 0 8px rgba(255,215,0,0.35) !important;
+  text-shadow: 0 0 4px rgba(var(--gold-rgb),0.70), 0 0 8px rgba(var(--gold-rgb),0.35) !important;
 }
 /* Board — theme on both sides. */
 .card.ally-card .card-trick-passive {
@@ -15996,8 +16008,8 @@ body.round-first-ai .hud-pill-main {
 }
 /* Selected card pulses a subtle breathing halo so it reads as "locked on". */
 @keyframes selectedCardPulse {
-  0%, 100% { box-shadow: 0 0 12px rgba(241,196,15,0.35), 0 0 24px rgba(241,196,15,0.15); }
-  50%      { box-shadow: 0 0 22px rgba(241,196,15,0.75), 0 0 40px rgba(241,196,15,0.35); }
+  0%, 100% { box-shadow: 0 0 12px rgba(var(--gold-rgb),0.35), 0 0 24px rgba(var(--gold-rgb),0.15); }
+  50%      { box-shadow: 0 0 22px rgba(var(--gold-rgb),0.75), 0 0 40px rgba(var(--gold-rgb),0.35); }
 }
 .card.selected { animation: selectedCardPulse 1.6s ease-in-out infinite; }
 
@@ -17591,7 +17603,7 @@ body.theme-purple .board-section {
 .tut-rarity-legendary {
   color: #ffe066;
   font-weight: 700;
-  text-shadow: 0 0 4px rgba(255,215,0,0.85), 0 0 10px rgba(255,215,0,0.45);
+  text-shadow: 0 0 4px rgba(var(--gold-rgb),0.85), 0 0 10px rgba(var(--gold-rgb),0.45);
 }
 .tut-tricks {
   color: #d7b3e6;
@@ -17648,8 +17660,8 @@ body.theme-purple .board-section {
    override above (line ~6388). */
 @keyframes energyBoost {
   0%   { transform: scale(1);    box-shadow: 0 0 7px var(--theme-glow-outer), 0 0 14px var(--theme-glow-inner); }
-  45%  { transform: scale(1.18); box-shadow: 0 0 14px rgba(255,215,0,0.90), 0 0 30px rgba(255,215,0,0.55); }
-  100% { transform: scale(1);    box-shadow: 0 0 7px rgba(255,215,0,0.50), 0 0 14px rgba(255,215,0,0.20); }
+  45%  { transform: scale(1.18); box-shadow: 0 0 14px rgba(var(--gold-rgb),0.90), 0 0 30px rgba(var(--gold-rgb),0.55); }
+  100% { transform: scale(1);    box-shadow: 0 0 7px rgba(var(--gold-rgb),0.50), 0 0 14px rgba(var(--gold-rgb),0.20); }
 }
 
 /* (b) Block-fill spark — spawned when the block meter ticks up.
@@ -18388,9 +18400,9 @@ body.ai-thinking .ai-thinking-dots { display: inline-flex; }
 /* B — Energy orb spend animation: ring burst outward when a card is
    played (cost consumed). Pseudo-layer so it doesn't disturb layout. */
 @keyframes energySpend {
-  0%   { box-shadow: 0 0 7px var(--theme-glow-outer), 0 0 14px var(--theme-glow-inner), inset 0 0 0 0 rgba(255,215,0,0.6); transform: scale(1); }
-  30%  { box-shadow: 0 0 20px rgba(255,215,0,1), 0 0 40px rgba(255,215,0,0.5); transform: scale(0.94); }
-  100% { box-shadow: 0 0 7px rgba(255,215,0,0.50), 0 0 14px rgba(255,215,0,0.20); transform: scale(1); }
+  0%   { box-shadow: 0 0 7px var(--theme-glow-outer), 0 0 14px var(--theme-glow-inner), inset 0 0 0 0 rgba(var(--gold-rgb),0.6); transform: scale(1); }
+  30%  { box-shadow: 0 0 20px rgba(var(--gold-rgb),1), 0 0 40px rgba(var(--gold-rgb),0.5); transform: scale(0.94); }
+  100% { box-shadow: 0 0 7px rgba(var(--gold-rgb),0.50), 0 0 14px rgba(var(--gold-rgb),0.20); transform: scale(1); }
 }
 .energy-text.energy-spend { animation: energySpend 450ms cubic-bezier(0.4, 0, 0.6, 1); }
 
@@ -18403,7 +18415,7 @@ body.ai-thinking .ai-thinking-dots { display: inline-flex; }
   font-weight: 700;
   font-size: 18px;
   color: #ffd77a;
-  text-shadow: 0 0 6px rgba(255,215,0,0.9), 0 0 12px rgba(255,215,0,0.5);
+  text-shadow: 0 0 6px rgba(var(--gold-rgb),0.9), 0 0 12px rgba(var(--gold-rgb),0.5);
   pointer-events: none;
   animation: energyCostFloat 880ms var(--ease-out-soft) forwards;
   z-index: 5;
@@ -18977,8 +18989,8 @@ body.phase-menu .kb-hints { display: none; }
   box-shadow: 0 0 4px rgba(240,245,250,1), 0 0 10px rgba(240,245,250,0.65) !important;
 }
 .cost-9 .rarity-strip .rpip, .cost-10 .rarity-strip .rpip {
-  background: rgba(255,215,0,1) !important;
-  box-shadow: 0 0 4px rgba(255,215,0,1), 0 0 10px rgba(255,215,0,0.65) !important;
+  background: rgba(var(--gold-rgb),1) !important;
+  box-shadow: 0 0 4px rgba(var(--gold-rgb),1), 0 0 10px rgba(var(--gold-rgb),0.65) !important;
 }
 /* Board-only ally/enemy override takes over for 1-2 pip tiers. */
 .card.ally-card.cost-0 .rpip, .card.ally-card.cost-1 .rpip,
@@ -22512,10 +22524,10 @@ body.low-fx .tron-derez { display: none !important; }
     inset 0 0 8px rgba(127,208,255,0.45);
 }
 .block-deflect-arc.deflect-gold {
-  border-color: rgba(255,215,0,0.85);
+  border-color: rgba(var(--gold-rgb),0.85);
   box-shadow:
-    0 0 12px rgba(255,215,0,0.75),
-    inset 0 0 8px rgba(255,215,0,0.45);
+    0 0 12px rgba(var(--gold-rgb),0.75),
+    inset 0 0 8px rgba(var(--gold-rgb),0.45);
 }
 @keyframes blockDeflectExpand {
   0%   { width: 6px;   height: 6px;   opacity: 0.95; border-width: 3px; }
@@ -23799,7 +23811,7 @@ body.killing-blow-cinema::after {
 }
 .go-mvp-rank {
   color: #ffe066;
-  text-shadow: 0 0 4px rgba(255,215,0,0.6);
+  text-shadow: 0 0 4px rgba(var(--gold-rgb),0.6);
   font-weight: 700;
 }
 .go-mvp-runner-up .go-mvp-rank {
@@ -23865,14 +23877,14 @@ body.killing-blow-cinema::after {
     inset 0 0 0 1px rgba(240,245,250,0.10) !important;
 }
 .go-mvp-card.cost-9, .go-mvp-card.cost-10 {
-  border: 1px solid rgba(255,215,0,0.95) !important;
+  border: 1px solid rgba(var(--gold-rgb),0.95) !important;
   background:
-    linear-gradient(180deg, rgba(255,215,0,0.10) 0%, rgba(255,215,0,0) 45%),
+    linear-gradient(180deg, rgba(var(--gold-rgb),0.10) 0%, rgba(var(--gold-rgb),0) 45%),
     #000000 !important;
   box-shadow:
-    0 0 10px rgba(255,215,0,0.55),
-    0 0 22px rgba(255,215,0,0.22),
-    inset 0 0 0 1px rgba(255,215,0,0.12) !important;
+    0 0 10px rgba(var(--gold-rgb),0.55),
+    0 0 22px rgba(var(--gold-rgb),0.22),
+    inset 0 0 0 1px rgba(var(--gold-rgb),0.12) !important;
 }
 /* Card name color also tracks the rarity tier — green / cyan / silver / gold */
 .go-mvp-card.cost-0 .card-name, .go-mvp-card.cost-1 .card-name,
@@ -23913,7 +23925,7 @@ body.killing-blow-cinema::after {
   letter-spacing: 2px;
   text-transform: uppercase;
   color: rgba(255,225,150,0.85);
-  text-shadow: 0 0 4px rgba(255,215,0,0.35);
+  text-shadow: 0 0 4px rgba(var(--gold-rgb),0.35);
   margin-bottom: 6px;
 }
 .go-top5-list {
@@ -23935,7 +23947,7 @@ body.killing-blow-cinema::after {
 .go-top5-rank {
   font-weight: 700;
   color: rgba(255,225,150,0.85);
-  text-shadow: 0 0 3px rgba(255,215,0,0.4);
+  text-shadow: 0 0 3px rgba(var(--gold-rgb),0.4);
   font-size: 12px;
 }
 .go-top5-name {
@@ -24580,13 +24592,13 @@ body.killing-blow-cinema::after {
 .rl-mapnode-current .rl-mapnode-ring {
   stroke: #ffe066;
   stroke-width: 3;
-  filter: drop-shadow(0 0 10px rgba(255,215,0,0.85)) drop-shadow(0 0 20px rgba(255,215,0,0.35));
+  filter: drop-shadow(0 0 10px rgba(var(--gold-rgb),0.85)) drop-shadow(0 0 20px rgba(var(--gold-rgb),0.35));
 }
 .rl-mapnode-current .rl-mapnode-icon {
   color: #ffe066;
   filter:
-    drop-shadow(0 0 4px rgba(255,215,0,0.95))
-    drop-shadow(0 0 10px rgba(255,215,0,0.45));
+    drop-shadow(0 0 4px rgba(var(--gold-rgb),0.95))
+    drop-shadow(0 0 10px rgba(var(--gold-rgb),0.45));
 }
 .rl-mapnode-current .rl-mapnode-halo {
   stroke: #ffe066;
@@ -24626,12 +24638,12 @@ body.killing-blow-cinema::after {
   transform-box: fill-box;
 }
 .rl-mapnode-treasure.rl-mapnode-tier-3 .rl-mapnode-ring {
-  stroke: rgba(255,215,0,1);
+  stroke: rgba(var(--gold-rgb),1);
   stroke-width: 2.5;
   filter: drop-shadow(0 0 8px rgba(255,210,100,1));
 }
 .rl-mapnode-treasure.rl-mapnode-tier-3 .rl-mapnode-halo {
-  stroke: rgba(255,215,0,0.85);
+  stroke: rgba(var(--gold-rgb),0.85);
   stroke-width: 1;
   opacity: 0.45;
   animation: rl-mapnode-halo-pulse 2.2s ease-in-out infinite;
@@ -24694,8 +24706,8 @@ body.killing-blow-cinema::after {
 /* Daily Run option on the Ascension screen — gold accent so it reads as a
    distinct seeded mode, set apart from the difficulty choices. */
 .rl-asc-daily-divider { margin-top: 16px; opacity: 0.72; font-size: 12px; }
-.rl-event-choice.rl-asc-daily { border-color: rgba(255,215,0,0.55); }
-.rl-event-choice.rl-asc-daily:hover { border-color: rgba(255,215,0,0.9); box-shadow: 0 0 14px rgba(255,215,0,0.22); }
+.rl-event-choice.rl-asc-daily { border-color: rgba(var(--gold-rgb),0.55); }
+.rl-event-choice.rl-asc-daily:hover { border-color: rgba(var(--gold-rgb),0.9); box-shadow: 0 0 14px rgba(var(--gold-rgb),0.22); }
 .rl-event-choice.rl-asc-daily .rl-levelup-bucket { color: #ffd77a; }
 
 .rl-event-choice {
@@ -24885,24 +24897,24 @@ body.killing-blow-cinema::after {
    color, signals "level up = power up"). */
 .rl-rest-tile-upgrade {
   background:
-    linear-gradient(90deg, rgba(255,215,0,0.08) 0%, rgba(0,0,0,0) 55%),
+    linear-gradient(90deg, rgba(var(--gold-rgb),0.08) 0%, rgba(0,0,0,0) 55%),
     #000;
-  border-color: rgba(255,215,0,0.55);
-  box-shadow: 0 0 14px rgba(255,215,0,0.22), inset 0 0 0 1px rgba(255,215,0,0.06);
+  border-color: rgba(var(--gold-rgb),0.55);
+  box-shadow: 0 0 14px rgba(var(--gold-rgb),0.22), inset 0 0 0 1px rgba(var(--gold-rgb),0.06);
 }
-.rl-rest-tile-upgrade::before { background: rgba(255,215,0,0.65); box-shadow: 0 0 6px rgba(255,215,0,0.55); }
+.rl-rest-tile-upgrade::before { background: rgba(var(--gold-rgb),0.65); box-shadow: 0 0 6px rgba(var(--gold-rgb),0.55); }
 .rl-rest-tile-upgrade:hover {
-  border-color: rgba(255,215,0,1);
-  background: linear-gradient(90deg, rgba(255,215,0,0.16) 0%, rgba(0,0,0,0) 55%), rgba(255,215,0,0.05);
-  box-shadow: 0 0 22px rgba(255,215,0,0.75), 0 0 44px rgba(255,215,0,0.32), inset 0 0 0 1px rgba(255,215,0,0.22);
+  border-color: rgba(var(--gold-rgb),1);
+  background: linear-gradient(90deg, rgba(var(--gold-rgb),0.16) 0%, rgba(0,0,0,0) 55%), rgba(var(--gold-rgb),0.05);
+  box-shadow: 0 0 22px rgba(var(--gold-rgb),0.75), 0 0 44px rgba(var(--gold-rgb),0.32), inset 0 0 0 1px rgba(var(--gold-rgb),0.22);
 }
-.rl-rest-tile-upgrade:hover::before { background: #ffe066; box-shadow: 0 0 10px rgba(255,215,0,1), 0 0 18px rgba(255,215,0,0.55); }
+.rl-rest-tile-upgrade:hover::before { background: #ffe066; box-shadow: 0 0 10px rgba(var(--gold-rgb),1), 0 0 18px rgba(var(--gold-rgb),0.55); }
 .rl-rest-tile-upgrade .rl-rest-tile-glyph {
   color: #ffe066;
-  text-shadow: 0 0 8px rgba(255,215,0,0.85), 0 0 18px rgba(255,215,0,0.40);
+  text-shadow: 0 0 8px rgba(var(--gold-rgb),0.85), 0 0 18px rgba(var(--gold-rgb),0.40);
 }
 .rl-rest-tile-upgrade .rl-rest-tile-title {
-  text-shadow: 0 0 8px rgba(255,215,0,0.65);
+  text-shadow: 0 0 8px rgba(var(--gold-rgb),0.65);
 }
 /* Mobile — stack vertically. */
 @media (max-width: 720px) {
@@ -25645,17 +25657,17 @@ body.killing-blow-cinema::after {
 
 /* LEGENDARY — gold (Text+ jackpots and any +4/+4 etches land here) */
 .rl-levelup-choice.rl-levelup-tier-legendary {
-  background: linear-gradient(90deg, rgba(255,215,0,0.08) 0%, rgba(0,0,0,0) 55%), #000;
-  border-color: rgba(255,215,0,0.65);
-  box-shadow: 0 0 14px rgba(255,215,0,0.30), 0 0 26px rgba(255,215,0,0.14), inset 0 0 0 1px rgba(255,215,0,0.06);
+  background: linear-gradient(90deg, rgba(var(--gold-rgb),0.08) 0%, rgba(0,0,0,0) 55%), #000;
+  border-color: rgba(var(--gold-rgb),0.65);
+  box-shadow: 0 0 14px rgba(var(--gold-rgb),0.30), 0 0 26px rgba(var(--gold-rgb),0.14), inset 0 0 0 1px rgba(var(--gold-rgb),0.06);
 }
-.rl-levelup-choice.rl-levelup-tier-legendary::before { background: rgba(255,215,0,0.70); box-shadow: 0 0 6px rgba(255,215,0,0.65); }
+.rl-levelup-choice.rl-levelup-tier-legendary::before { background: rgba(var(--gold-rgb),0.70); box-shadow: 0 0 6px rgba(var(--gold-rgb),0.65); }
 .rl-levelup-choice.rl-levelup-tier-legendary:hover {
-  border-color: rgba(255,215,0,1);
-  background: linear-gradient(90deg, rgba(255,215,0,0.16) 0%, rgba(0,0,0,0) 55%), rgba(255,215,0,0.05);
-  box-shadow: 0 0 22px rgba(255,215,0,0.80), 0 0 48px rgba(255,215,0,0.35), inset 0 0 0 1px rgba(255,215,0,0.22);
+  border-color: rgba(var(--gold-rgb),1);
+  background: linear-gradient(90deg, rgba(var(--gold-rgb),0.16) 0%, rgba(0,0,0,0) 55%), rgba(var(--gold-rgb),0.05);
+  box-shadow: 0 0 22px rgba(var(--gold-rgb),0.80), 0 0 48px rgba(var(--gold-rgb),0.35), inset 0 0 0 1px rgba(var(--gold-rgb),0.22);
 }
-.rl-levelup-choice.rl-levelup-tier-legendary:hover::before { background: #ffe066; box-shadow: 0 0 10px rgba(255,215,0,1), 0 0 18px rgba(255,215,0,0.55); }
+.rl-levelup-choice.rl-levelup-tier-legendary:hover::before { background: #ffe066; box-shadow: 0 0 10px rgba(var(--gold-rgb),1), 0 0 18px rgba(var(--gold-rgb),0.55); }
 
 .rl-levelup-name {
   font-size: 18px; font-weight: 700;
@@ -25816,7 +25828,7 @@ body.killing-blow-cinema::after {
 .rl-shop-slot-card.rl-tier-legendary .rl-shop-slot-rarity { color: rgba(255,224,102,1); }
 .rl-shop-slot-card.rl-tier-rare { border-color: rgba(127,208,255,0.7); }
 .rl-shop-slot-card.rl-tier-special { border-color: rgba(240,245,250,0.85); }
-.rl-shop-slot-card.rl-tier-legendary { border-color: rgba(255,215,0,0.85); box-shadow: 0 0 16px rgba(255,200,60,0.40), 0 0 32px rgba(255,200,60,0.18); }
+.rl-shop-slot-card.rl-tier-legendary { border-color: rgba(var(--gold-rgb),0.85); box-shadow: 0 0 16px rgba(255,200,60,0.40), 0 0 32px rgba(255,200,60,0.18); }
 .rl-shop-slot-card-wrap {
   display: flex; align-items: center; justify-content: center;
 }
@@ -26040,7 +26052,7 @@ body.killing-blow-cinema::after {
 .rl-rarity-common    { border-color: rgba(46,204,113,0.55);  color: #5be39a; }
 .rl-rarity-rare      { border-color: rgba(var(--theme-rgb, 79,195,247),0.55);  color: #7fd0ff; }
 .rl-rarity-special   { border-color: rgba(240,245,250,0.55); color: var(--text-body, #e8eef6); }
-.rl-rarity-legendary { border-color: rgba(255,215,0,0.65);   color: #ffe066; }
+.rl-rarity-legendary { border-color: rgba(var(--gold-rgb),0.65);   color: #ffe066; }
 
 /* Rewards picker (post-fight) */
 .rl-rewards-grid {
@@ -26170,7 +26182,7 @@ body.killing-blow-cinema::after {
   display: flex; gap: 12px; justify-content: center;
   margin-top: 8px;
 }
-.rl-end-victory { color: #ffe066; text-shadow: 0 0 12px rgba(255,215,0,0.65); }
+.rl-end-victory { color: #ffe066; text-shadow: 0 0 12px rgba(var(--gold-rgb),0.65); }
 .rl-end-defeat  { color: #ff8a7a; text-shadow: 0 0 12px rgba(231,76,60,0.55); }
 @media (max-width: 720px) {
   .rl-end-stat-grid { grid-template-columns: repeat(2, 1fr); }
@@ -26399,7 +26411,7 @@ body.killing-blow-cinema::after {
 .rl-tier-common    { --tier-color: rgba(46,204,113,0.95);  --tier-name: #5be39a; }
 .rl-tier-rare      { --tier-color: rgba(var(--theme-rgb, 79,195,247),0.95);  --tier-name: #7fd0ff; }
 .rl-tier-special   { --tier-color: rgba(240,245,250,0.95); --tier-name: #e8eef6; }
-.rl-tier-legendary { --tier-color: rgba(255,215,0,0.95);   --tier-name: #ffe066; }
+.rl-tier-legendary { --tier-color: rgba(var(--gold-rgb),0.95);   --tier-name: #ffe066; }
 
 /* Reward picker — three cards floating like a draft, no wrapper chrome.
    The card itself wears the rarity colors (border, cost diamond, name,
@@ -26442,13 +26454,13 @@ body.killing-blow-cinema::after {
 .rl-tier-common .card.hand-card { border-color: rgba(46,204,113,0.95) !important; box-shadow: 0 0 10px rgba(46,204,113,0.45), 0 0 20px rgba(46,204,113,0.18) !important; }
 .rl-tier-rare .card.hand-card { border-color: rgba(var(--theme-rgb, 79,195,247),0.95) !important; box-shadow: 0 0 10px rgba(var(--theme-rgb, 79,195,247),0.45), 0 0 20px rgba(var(--theme-rgb, 79,195,247),0.18) !important; }
 .rl-tier-special .card.hand-card { border-color: rgba(240,245,250,0.95) !important; box-shadow: 0 0 10px rgba(240,245,250,0.45), 0 0 20px rgba(240,245,250,0.18) !important; }
-.rl-tier-legendary .card.hand-card { border-color: rgba(255,215,0,0.95) !important; box-shadow: 0 0 12px rgba(255,215,0,0.55), 0 0 24px rgba(255,215,0,0.22) !important; }
+.rl-tier-legendary .card.hand-card { border-color: rgba(var(--gold-rgb),0.95) !important; box-shadow: 0 0 12px rgba(var(--gold-rgb),0.55), 0 0 24px rgba(var(--gold-rgb),0.22) !important; }
 
 /* Card name */
 .rl-tier-common .card.hand-card .card-name { color: #5be39a !important; text-shadow: 0 0 6px rgba(46,204,113,0.55) !important; }
 .rl-tier-rare .card.hand-card .card-name { color: #7fd0ff !important; text-shadow: 0 0 6px rgba(var(--theme-rgb, 79,195,247),0.55) !important; }
 .rl-tier-special .card.hand-card .card-name { color: var(--text-hi, #ffffff) !important; text-shadow: 0 0 6px rgba(240,245,250,0.65) !important; }
-.rl-tier-legendary .card.hand-card .card-name { color: #ffe066 !important; text-shadow: 0 0 6px rgba(255,215,0,0.55) !important; }
+.rl-tier-legendary .card.hand-card .card-name { color: #ffe066 !important; text-shadow: 0 0 6px rgba(var(--gold-rgb),0.55) !important; }
 
 /* Cost diamond (top-left). The ::before is the rotated black square
    with the tier-colored border. */
@@ -26459,14 +26471,14 @@ body.killing-blow-cinema::after {
 .rl-tier-common .card.hand-card .card-cost    { --cost-neon: 46, 204, 113; }
 .rl-tier-rare .card.hand-card .card-cost      { --cost-neon: var(--theme-rgb, 79, 195, 247); }
 .rl-tier-special .card.hand-card .card-cost   { --cost-neon: 240, 245, 250; }
-.rl-tier-legendary .card.hand-card .card-cost { --cost-neon: 255, 215, 0; }
+.rl-tier-legendary .card.hand-card .card-cost { --cost-neon: var(--gold-rgb); }
 
 /* Rarity-strip pips (top-right tier indicator). Render N pips matching
    the run rarity tier instead of the cost-based tier. */
 .rl-tier-common .card.hand-card .rarity-strip .rpip { background: rgba(46,204,113,0.95) !important; box-shadow: 0 0 4px rgba(46,204,113,0.65) !important; }
 .rl-tier-rare .card.hand-card .rarity-strip .rpip { background: rgba(var(--theme-rgb, 79,195,247),0.95) !important; box-shadow: 0 0 4px rgba(var(--theme-rgb, 79,195,247),0.65) !important; }
 .rl-tier-special .card.hand-card .rarity-strip .rpip { background: rgba(240,245,250,0.95) !important; box-shadow: 0 0 4px rgba(240,245,250,0.65) !important; }
-.rl-tier-legendary .card.hand-card .rarity-strip .rpip { background: rgba(255,215,0,0.95) !important; box-shadow: 0 0 4px rgba(255,215,0,0.65) !important; }
+.rl-tier-legendary .card.hand-card .rarity-strip .rpip { background: rgba(var(--gold-rgb),0.95) !important; box-shadow: 0 0 4px rgba(var(--gold-rgb),0.65) !important; }
 
 /* Name-banner underline. Two surfaces need per-rarity tinting:
    1) `.card-name-banner` itself has a `border-bottom: 1px solid var(--card-edge)`
@@ -26492,7 +26504,7 @@ body.killing-blow-cinema::after {
 .rl-tier-special .card.hand-card .card-name-banner,
 .card.hand-card.rl-tier-special .card-name-banner      { border-bottom-color: rgba(240,245,250,0.85) !important; }
 .rl-tier-legendary .card.hand-card .card-name-banner,
-.card.hand-card.rl-tier-legendary .card-name-banner    { border-bottom-color: rgba(255,215,0,0.95) !important; }
+.card.hand-card.rl-tier-legendary .card-name-banner    { border-bottom-color: rgba(var(--gold-rgb),0.95) !important; }
 .rl-tier-common .card.hand-card .card-name-banner::after,
 .card.hand-card.rl-tier-common .card-name-banner::after    { background: rgba(46,204,113,1) !important; box-shadow: 0 0 4px rgba(46,204,113,0.85), 0 0 8px rgba(46,204,113,0.45) !important; }
 .rl-tier-rare .card.hand-card .card-name-banner::after,
@@ -26500,7 +26512,7 @@ body.killing-blow-cinema::after {
 .rl-tier-special .card.hand-card .card-name-banner::after,
 .card.hand-card.rl-tier-special .card-name-banner::after   { background: rgba(240,245,250,1) !important; box-shadow: 0 0 4px rgba(240,245,250,0.85), 0 0 8px rgba(240,245,250,0.45) !important; }
 .rl-tier-legendary .card.hand-card .card-name-banner::after,
-.card.hand-card.rl-tier-legendary .card-name-banner::after { background: rgba(255,215,0,1) !important; box-shadow: 0 0 4px rgba(255,215,0,0.85), 0 0 8px rgba(255,215,0,0.45) !important; }
+.card.hand-card.rl-tier-legendary .card-name-banner::after { background: rgba(var(--gold-rgb),1) !important; box-shadow: 0 0 4px rgba(var(--gold-rgb),0.85), 0 0 8px rgba(var(--gold-rgb),0.45) !important; }
 /* Also recolor the trigger labels ("WHEN PLAYED:" / "WHILE ACTIVE:"
    etc.) inside .card-desc to match the rarity tier. User direction:
    "The when played should also be matching the neon rarity. For
@@ -26514,7 +26526,7 @@ body.killing-blow-cinema::after {
 .card.hand-card.rl-tier-special .card-desc b,
 .rl-tier-special .card.hand-card .card-desc b      { color: var(--text-body, #e8eef6) !important; text-shadow: 0 0 4px rgba(240,245,250,0.70), 0 0 8px rgba(240,245,250,0.35) !important; }
 .card.hand-card.rl-tier-legendary .card-desc b,
-.rl-tier-legendary .card.hand-card .card-desc b    { color: #ffe066 !important; text-shadow: 0 0 4px rgba(255,215,0,0.70), 0 0 8px rgba(255,215,0,0.35) !important; }
+.rl-tier-legendary .card.hand-card .card-desc b    { color: #ffe066 !important; text-shadow: 0 0 4px rgba(var(--gold-rgb),0.70), 0 0 8px rgba(var(--gold-rgb),0.35) !important; }
 
 /* In-game (hand + board) rarity tinting — kicks in only on cards
    inside the codex / deck list / rewards modals. User direction:
@@ -26537,26 +26549,26 @@ body.killing-blow-cinema::after {
 .card.enemy-card.rl-tier-special { border-color: rgba(240,245,250,0.95) !important; box-shadow: 0 0 10px rgba(240,245,250,0.45), 0 0 20px rgba(240,245,250,0.18) !important; }
 .card.hand-card.rl-tier-legendary,
 .card.ally-card.rl-tier-legendary,
-.card.enemy-card.rl-tier-legendary { border-color: rgba(255,215,0,0.95) !important; box-shadow: 0 0 12px rgba(255,215,0,0.55), 0 0 24px rgba(255,215,0,0.22) !important; }
+.card.enemy-card.rl-tier-legendary { border-color: rgba(var(--gold-rgb),0.95) !important; box-shadow: 0 0 12px rgba(var(--gold-rgb),0.55), 0 0 24px rgba(var(--gold-rgb),0.22) !important; }
 
 /* Card name color, cost diamond, rarity pips, and name-banner underline
    for in-game cards (matching codex tinting). */
 .card.rl-tier-common .card-name { color: #5be39a !important; text-shadow: 0 0 6px rgba(46,204,113,0.55) !important; }
 .card.rl-tier-rare .card-name { color: #7fd0ff !important; text-shadow: 0 0 6px rgba(var(--theme-rgb, 79,195,247),0.55) !important; }
 .card.rl-tier-special .card-name { color: var(--text-body, #e8eef6) !important; text-shadow: 0 0 6px rgba(240,245,250,0.55) !important; }
-.card.rl-tier-legendary .card-name { color: #ffe066 !important; text-shadow: 0 0 6px rgba(255,215,0,0.55) !important; }
+.card.rl-tier-legendary .card-name { color: #ffe066 !important; text-shadow: 0 0 6px rgba(var(--gold-rgb),0.55) !important; }
 .card.rl-tier-common .card-cost    { --cost-neon: 46, 204, 113; }
 .card.rl-tier-rare .card-cost      { --cost-neon: var(--theme-rgb, 79, 195, 247); }
 .card.rl-tier-special .card-cost   { --cost-neon: 240, 245, 250; }
-.card.rl-tier-legendary .card-cost { --cost-neon: 255, 215, 0; }
+.card.rl-tier-legendary .card-cost { --cost-neon: var(--gold-rgb); }
 .card.rl-tier-common .rarity-strip .rpip { background: rgba(46,204,113,0.95) !important; box-shadow: 0 0 4px rgba(46,204,113,0.65) !important; }
 .card.rl-tier-rare .rarity-strip .rpip { background: rgba(var(--theme-rgb, 79,195,247),0.95) !important; box-shadow: 0 0 4px rgba(var(--theme-rgb, 79,195,247),0.65) !important; }
 .card.rl-tier-special .rarity-strip .rpip { background: rgba(240,245,250,0.95) !important; box-shadow: 0 0 4px rgba(240,245,250,0.65) !important; }
-.card.rl-tier-legendary .rarity-strip .rpip { background: rgba(255,215,0,0.95) !important; box-shadow: 0 0 4px rgba(255,215,0,0.65) !important; }
+.card.rl-tier-legendary .rarity-strip .rpip { background: rgba(var(--gold-rgb),0.95) !important; box-shadow: 0 0 4px rgba(var(--gold-rgb),0.65) !important; }
 .card.rl-tier-common .card-name-banner::after { background: linear-gradient(90deg, transparent, rgba(46,204,113,0.85) 35%, rgba(46,204,113,0.85) 65%, transparent) !important; }
 .card.rl-tier-rare .card-name-banner::after { background: linear-gradient(90deg, transparent, rgba(var(--theme-rgb, 79,195,247),0.85) 35%, rgba(var(--theme-rgb, 79,195,247),0.85) 65%, transparent) !important; }
 .card.rl-tier-special .card-name-banner::after { background: linear-gradient(90deg, transparent, rgba(240,245,250,0.85) 35%, rgba(240,245,250,0.85) 65%, transparent) !important; }
-.card.rl-tier-legendary .card-name-banner::after { background: linear-gradient(90deg, transparent, rgba(255,215,0,0.85) 35%, rgba(255,215,0,0.85) 65%, transparent) !important; }
+.card.rl-tier-legendary .card-name-banner::after { background: linear-gradient(90deg, transparent, rgba(var(--gold-rgb),0.85) 35%, rgba(var(--gold-rgb),0.85) 65%, transparent) !important; }
 
 /* ============================================================================
    IN-GAME ROGUELITE OVERRIDE — scoped to the actual play surfaces (player
@@ -26644,7 +26656,7 @@ body.killing-blow-cinema::after {
     0 1px 2px rgba(0,0,0,0.95),
     0 0 3px  rgba(0,0,0,0.90),
     0 0 7px  rgba(255,225,150,0.95),
-    0 0 15px rgba(255,215,0,0.55);
+    0 0 15px rgba(var(--gold-rgb),0.55);
 }
 .card.hand-card .stat-circle.stat-rolled-up::after {
   content: '▲';
@@ -26652,7 +26664,7 @@ body.killing-blow-cinema::after {
   top: -8px; right: -2px;
   font-size: 8px;
   color: rgba(255,225,150,1);
-  text-shadow: 0 0 4px rgba(255,215,0,0.75);
+  text-shadow: 0 0 4px rgba(var(--gold-rgb),0.75);
   pointer-events: none;
 }
 .card.hand-card .stat-circle.stat-rolled-down {
@@ -28389,8 +28401,8 @@ input[type="number"]::-webkit-outer-spin-button {
 }
 .rl-end-relic-card.rl-relic-special .rl-end-relic-card-rarity { color: var(--text-mute, #c0c0c0); }
 .rl-end-relic-card.rl-relic-boss {
-  border-color: rgba(255,215,0,0.6);
-  box-shadow: inset 0 0 16px rgba(255,215,0,0.12);
+  border-color: rgba(var(--gold-rgb),0.6);
+  box-shadow: inset 0 0 16px rgba(var(--gold-rgb),0.12);
 }
 .rl-end-relic-card.rl-relic-boss .rl-end-relic-card-rarity { color: #ffe066; }
 
@@ -28522,8 +28534,8 @@ input[type="number"]::-webkit-outer-spin-button {
    the eye. Identified by the .block-full class added by the
    engine when block hits BLOCK_MAX. */
 @keyframes blockFullPulse {
-  0%, 100% { box-shadow: 0 0 8px var(--theme-glow-inner, rgba(241,196,15,0.4)), 0 0 16px var(--theme-glow-outer, rgba(241,196,15,0.2)); }
-  50%      { box-shadow: 0 0 14px rgba(241,196,15,0.85), 0 0 28px rgba(241,196,15,0.45), 0 0 48px rgba(241,196,15,0.18); }
+  0%, 100% { box-shadow: 0 0 8px var(--theme-glow-inner, rgba(var(--gold-rgb),0.4)), 0 0 16px var(--theme-glow-outer, rgba(var(--gold-rgb),0.2)); }
+  50%      { box-shadow: 0 0 14px rgba(var(--gold-rgb),0.85), 0 0 28px rgba(var(--gold-rgb),0.45), 0 0 48px rgba(var(--gold-rgb),0.18); }
 }
 /* Block-full pulse — DISABLED 2026-05-18. The static gold-fill +
    glow on .block-circle.full above is enough state signal. User
@@ -30047,7 +30059,7 @@ body > .grid-bg {
 
 /* Contested — the BORDER stays in three discrete zones with
    HARD edges (no blending). Top half = enemy red. Middle thin
-   band = LEGENDARY GOLD (rgba(255,215,0,0.95)) — the canonical
+   band = LEGENDARY GOLD (rgba(var(--gold-rgb),0.95)) — the canonical
    rarity color from the cost-9/10 cards. User spec: "this
    yellow should be the same yellow you use as in legendaries.
    Like, just how they were perfect, but I would like the
@@ -30055,7 +30067,7 @@ body > .grid-bg {
    gradient behind a legendary card. For the middle." Single
    source of truth across the game's color vocabulary. */
 .board-section .lane.occ-both {
-  --lane-mid-color: rgba(255, 215, 0, 0.95);
+  --lane-mid-color: rgba(var(--gold-rgb), 0.95);
   border-image: linear-gradient(180deg,
     rgba(var(--enemy-r, 231), var(--enemy-g, 76), var(--enemy-b, 60), 0.95)   0%,
     rgba(var(--enemy-r, 231), var(--enemy-g, 76), var(--enemy-b, 60), 0.95)   46%,
@@ -30659,7 +30671,7 @@ body.killcam .board::before {
    ============================================================ */
 /* DISABLED 2026-05-18 — user direction: "there's a yellow pulse
    with the combat phase starts… I want that gone. It's yellow."
-   On the gold theme `--theme-rgb` = (255,215,0), so the pulse painted
+   On the gold theme `--theme-rgb` = (var(--gold-rgb)), so the pulse painted
    literal yellow when combat began; on cyan it tinted blue but still
    read as a screen flash the user didn't want. The body class is
    still toggled by JS (renderHud combat-anticipate hook) but the
@@ -30849,12 +30861,12 @@ body.combat-anticipate::after  { content: none !important; }
      • cost 0-3  → green   (46, 204, 113)
      • cost 4-6  → cyan    (79, 195, 247)  — fixed, NOT theme-rgb
      • cost 7-8  → silver  (240, 245, 250)
-     • cost 9-10 → gold    (255, 215, 100)
+     • cost 9-10 → gold    (var(--gold-rgb))
    ---------------------------------------------------------------- */
 .card.cost-0,  .card.cost-1, .card.cost-2,  .card.cost-3  { --rarity-rgb: 46, 204, 113; }
 .card.cost-4,  .card.cost-5, .card.cost-6                { --rarity-rgb: 79, 195, 247; }
 .card.cost-7,  .card.cost-8                              { --rarity-rgb: 240, 245, 250; }
-.card.cost-9,  .card.cost-10                             { --rarity-rgb: 255, 215, 100; }
+.card.cost-9,  .card.cost-10                             { --rarity-rgb: 245, 191, 28; }
 
 /* ----------------------------------------------------------------
    SIMPLIFIED PORTRAIT — MINIMAL CHROME, NO EFFECTS LAYER STACK
@@ -32189,7 +32201,7 @@ body.round-tick .board::after {
   top: 66%;
   width: 78%;
   aspect-ratio: 2 / 1;
-  border: 2px solid rgba(150, 255, 215, 0.8);
+  border: 2px solid rgba(150, var(--gold-rgb).8);
   border-radius: 50%;
   animation: wetlandsBreakRing 1.15s ease-out forwards;
 }
@@ -32347,8 +32359,8 @@ body.round-tick .board::after {
   box-shadow: 0 0 10px rgba(180, 120, 255, 0.35), 0 0 22px rgba(180, 120, 255, 0.15);
 }
 .hand-card.env-card.selected {
-  border-color: #f1c40f !important;
-  box-shadow: 0 0 24px rgba(241,196,15,0.55) !important;
+  border-color: #f5bf1c !important;
+  box-shadow: 0 0 24px rgba(var(--gold-rgb),0.55) !important;
 }
 .hand-card.env-card .stat-circle { display: none; }
 
@@ -33608,7 +33620,7 @@ body.round-tick .board::after {
 
 /* Pulsing gold ring on the highlighted element */
 .tut-target-highlight {
-  outline: 2.5px solid #ffd700 !important;
+  outline: 2.5px solid #f5bf1c !important;
   outline-offset: 3px !important;
   border-radius: 4px;
   position: relative;
@@ -33616,8 +33628,8 @@ body.round-tick .board::after {
   animation: tut-pulse 1.6s ease-in-out infinite;
 }
 @keyframes tut-pulse {
-  0%, 100% { outline-color: #ffd700; box-shadow: 0 0 0 0 rgba(255,215,0,0.0); }
-  50%       { outline-color: #fff2c8; box-shadow: 0 0 12px 3px rgba(255,215,0,0.45); }
+  0%, 100% { outline-color: #f5bf1c; box-shadow: 0 0 0 0 rgba(var(--gold-rgb),0.0); }
+  50%       { outline-color: #fff2c8; box-shadow: 0 0 12px 3px rgba(var(--gold-rgb),0.45); }
 }
 
 /* ================================================================
@@ -33727,7 +33739,7 @@ body.round-tick .board::after {
 .setup2v2-member.is-teamsel {
   color: #ffd77a;
   transform: scale(1.08);
-  text-shadow: 0 0 10px rgba(255,215,0,0.75);
+  text-shadow: 0 0 10px rgba(var(--gold-rgb),0.75);
 }
 .setup2v2-hint {
   font-family: 'Inter', sans-serif; font-size: 11px;
@@ -34175,9 +34187,9 @@ body.round-tick .board::after {
 .twov2-card-play { border-color: var(--theme-accent-bright, #4fc3f7); }
 .twov2-hand-card:hover.twov2-card-play { background: #0d1e2e; }
 .twov2-card-selected {
-  border-color: #ffd700 !important;
+  border-color: #f5bf1c !important;
   background: #1e1a0a !important;
-  box-shadow: 0 0 0 2px rgba(255,215,0,0.4);
+  box-shadow: 0 0 0 2px rgba(var(--gold-rgb),0.4);
 }
 .twov2-hcard-cost {
   position: absolute;
@@ -34222,14 +34234,14 @@ body.round-tick .board::after {
   width: 100%;
   max-width: 900px;
   background: #111820;
-  border: 1.5px solid #ffd700;
+  border: 1.5px solid #f5bf1c;
   border-radius: 8px;
   padding: 12px;
   box-sizing: border-box;
   margin-bottom: 10px;
 }
 .twov2-ls-label {
-  color: #ffd700;
+  color: #f5bf1c;
   font-weight: 700;
   font-size: 0.875rem;
 }
@@ -34310,7 +34322,7 @@ body.round-tick .board::after {
 }
 .twov2-draft-choice:hover { background: #0d1e2e; transform: scale(1.04); }
 .twov2-dc-name { font-weight: 700; font-size: 1rem; margin-bottom: 6px; }
-.twov2-dc-stats { color: #ffd700; font-size: 0.8125rem; margin-bottom: 4px; }
+.twov2-dc-stats { color: #f5bf1c; font-size: 0.8125rem; margin-bottom: 4px; }
 .twov2-dc-cost  { color: #f97316; font-size: 0.75rem; margin-bottom: 6px; }
 .twov2-dc-desc  { color: #88a0b8; font-size: 0.75rem; line-height: 1.3; }
 .twov2-draft-progress {
@@ -34366,7 +34378,7 @@ body.round-tick .board::after {
 /* ===== ONLINE WAITING BANNER ===== */
 .twov2-waiting-banner {
   text-align: center;
-  color: #ffd700;
+  color: #f5bf1c;
   font-size: 1rem;
   font-weight: 700;
   padding: 12px 0;
@@ -34905,9 +34917,9 @@ body.round-tick .board::after {
   animation: titanFlare 950ms ease-out;
 }
 @keyframes titanFlare {
-  0%   { box-shadow: 0 0 0 rgba(241, 196, 15, 0); }
-  25%  { box-shadow: 0 0 26px rgba(241, 196, 15, 0.85), 0 0 60px rgba(241, 196, 15, 0.40), inset 0 0 18px rgba(241, 196, 15, 0.30); }
-  100% { box-shadow: 0 0 0 rgba(241, 196, 15, 0); }
+  0%   { box-shadow: 0 0 0 rgba(var(--gold-rgb), 0); }
+  25%  { box-shadow: 0 0 26px rgba(var(--gold-rgb), 0.85), 0 0 60px rgba(var(--gold-rgb), 0.40), inset 0 0 18px rgba(var(--gold-rgb), 0.30); }
+  100% { box-shadow: 0 0 0 rgba(var(--gold-rgb), 0); }
 }
 .card.titan-arrival::after {
   content: '';
@@ -35847,7 +35859,7 @@ body.low-fx .legendary-arrival { animation: none !important; }
 
 .card.status-stunned .card-portrait {
   filter: grayscale(0.65) brightness(0.85) brightness(var(--art-grade, 1));
-  box-shadow: inset 0 0 22px rgba(241, 196, 15, 0.30);
+  box-shadow: inset 0 0 22px rgba(var(--gold-rgb), 0.30);
 }
 .card.status-feared .card-portrait {
   filter: saturate(0.75) brightness(0.82) contrast(1.06) brightness(var(--art-grade, 1));
@@ -36177,11 +36189,11 @@ body.clb-emote-open .viewport-toggle { display: none !important; }
 }
 .card.cost-9:not(.ally-card):not(.enemy-card),
 .card.cost-10:not(.ally-card):not(.enemy-card) {
-  border-color: rgba(241, 196, 15, 0.95);
+  border-color: rgba(var(--gold-rgb), 0.95);
   box-shadow:
-    0 0 12px rgba(241, 196, 15, 0.45),
-    0 0 26px rgba(241, 196, 15, 0.18),
-    inset 0 0 10px rgba(241, 196, 15, 0.10);
+    0 0 12px rgba(var(--gold-rgb), 0.45),
+    0 0 26px rgba(var(--gold-rgb), 0.18),
+    inset 0 0 10px rgba(var(--gold-rgb), 0.10);
 }
 /* Gold-tier idle sheen — a slow light pass over the art, desktop-only
    (hover-capable devices; phones skip the infinite loop entirely). */
@@ -39314,7 +39326,7 @@ body.low-fx .mm-mw3 .mm-hero-img { animation: none; }
    of quietly assuming one side. */
 .energy-text::before {
   background-image: linear-gradient(-45deg,
-    rgba(var(--nrg-tint, 255,215,0), 0.50) 0 var(--nrg-fill),
+    rgba(var(--nrg-tint, var(--gold-rgb)), 0.50) 0 var(--nrg-fill),
     rgba(0,0,0,0) var(--nrg-fill) 100%);
   transition: background-image 240ms var(--ease-out-soft, cubic-bezier(0.16, 1, 0.3, 1));
 }
@@ -43043,3 +43055,64 @@ body.no-art-grade .card-portrait { --art-grade: 1 !important; }
   color: rgba(var(--theme-rgb, 79,195,247), 0.42);
   margin-bottom: 10px;
 }
+
+/* ============================================================
+   COST — THE CORNER RIBBON (2026-08-25)
+   ============================================================
+   Owner, on the card canvas: "its the ribbon top left for energy".
+
+   The canvas cuts the card's corner off and fills the cut with the band. That
+   cut cannot happen here: a clip-path on .card would clip every outer
+   box-shadow (101 rules match .card with one), would amputate the eight FX
+   layers ui.js appends INTO the card to fly outside it, and would collide with
+   @keyframes cardBuildIn, which already animates clip-path on .card for the
+   1s entrance scan — one element, one clip-path. So the ribbon draws the
+   corner instead of the silhouette being cut away: a filled right triangle
+   sitting in the corner reads as the same thing and costs nothing.
+
+   WHY THE FILL IS ON ::before AND THE DIGIT IS NOT. The digit is the element's
+   own text; clip-path on .card-cost would cut the numeral along the diagonal
+   with it. Fill on the pseudo, digit on the element, so only the shape is cut.
+
+   --cost-size is now the ribbon's LEG along each edge, not a box height. Every
+   surface already sets it and nothing else needs touching. --cost-neon is
+   unchanged and still resolves to --portrait-frame-rgb, which is the rarity
+   tier in hand and draft and the side colour on the board — exactly the rule
+   the canvas states for the frame. */
+.card-cost {
+  --cost-size: 30px;
+  --cost-neon: var(--portrait-frame-rgb, var(--gold-rgb));
+  position: absolute; top: 0; left: 0;
+  width: var(--cost-size);
+  height: var(--cost-size);
+  box-sizing: border-box;
+  display: block;
+  padding: 0;
+  min-width: 0;
+  background: none;
+  border: 0;
+  z-index: 6;
+  /* the numeral, held off the corner so it sits on the ribbon's mass */
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+  font-size: calc(var(--cost-size) * 0.36);
+  line-height: 1;
+  color: #fffdf5;
+  text-align: left;
+  text-indent: calc(var(--cost-size) * 0.15);
+  padding-top: calc(var(--cost-size) * 0.13);
+  text-shadow: 0 1px 2px rgba(0,0,0,0.55);
+  transform: none;
+}
+.card-cost::before {
+  content: '';
+  position: absolute; inset: 0;
+  background: rgb(var(--cost-neon));
+  clip-path: polygon(0 0, 100% 0, 0 100%);
+  -webkit-mask: none; mask: none;
+  filter: drop-shadow(0 0 6px rgba(var(--cost-neon), 0.55));
+  z-index: -1;
+}
+/* the old tab's neon edge — the ribbon is a solid fill, so it has no edge */
+.card-cost::after { display: none; }
