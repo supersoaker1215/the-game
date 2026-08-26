@@ -43567,3 +43567,57 @@ body.no-art-grade .card-portrait { --art-grade: 1 !important; }
 }
 /* the frame layer's own glow comes off now — it would double the card's */
 .card .cf-frame { filter: none; }
+
+/* ============================================================
+   FRAME TO THE ART EDGE, STATS OFF THE CUT (2026-08-25)
+   ============================================================
+   Owner: "the border needs to sit at the edge of the art, the corner being
+   cut completely ... the health and damage numbers need to be higher to not
+   run into the cut corners."
+
+   MEASURED FIRST, and the first fault was mine from two passes ago: I had
+   hardcoded --card-w: 140px, but a hand tile actually renders at 108px. Every
+   derived value — chamfer, inset, band, digit — was therefore computed for a
+   card 30% wider than the one on screen, which is why the frame sat outside
+   the art instead of on it. --card-w reads --sb-card again, the token that
+   exists precisely to carry each surface's real width.
+     hand  108px: art starts 8.0px in, frame was at 6.8 — frame OUTSIDE the art
+     draft 202px: art starts 1.8px in, frame was at 8.8 — frame 7px INSIDE it
+   Neither sat on the art edge, and they were wrong in opposite directions,
+   which is what a bad shared constant does.
+
+   The inset is now a small fraction that lands on the art on both, and the
+   body clip uses the SAME value, so the cut runs cleanly through frame, art
+   and background together rather than leaving a lip of card behind it.
+
+   STATS: the bottom-right chamfer eats the corner the HP readout sits in. Both
+   readouts lift by the chamfer's own height plus a little, so they clear the
+   cut by construction rather than by a number that would drift when --chamfer
+   changes. */
+.card {
+  --card-w: var(--sb-card, 140px);
+  --cf-inset: calc(var(--card-w) * 0.018);
+}
+.card.draft-card, .card.enc-card,
+.card-inspect-modal .card, .fp-trick-preview .card {
+  --card-w: 220px;
+  --cf-inset: calc(var(--card-w) * 0.009);
+}
+/* lift both readouts clear of the cut corners */
+.card .stat-circle {
+  bottom: calc(var(--chamfer) * 0.62 + var(--card-w) * 0.012);
+}
+.card .stat-atk { left:  calc(var(--cf-inset) + var(--card-w) * 0.030); }
+.card .stat-hp  { right: calc(var(--cf-inset) + var(--card-w) * 0.030); }
+
+/* The inset is the ART's inset, measured, not a ratio guessed off a width
+   token that does not track. --sb-card reports 140px on a hand tile that
+   renders at 108, so any fraction of it lands in the wrong place; the art's
+   own offset is a fact.
+     hand / board : padding 6px + border 2px  -> art at 8px
+     draft / codex: art is near full-bleed    -> art at 2px */
+.card                       { --cf-inset: 8px; }
+.card.draft-card,
+.card.enc-card,
+.card-inspect-modal .card,
+.fp-trick-preview .card     { --cf-inset: 2px; }
